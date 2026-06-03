@@ -1,0 +1,6 @@
+name: reroute
+strategy: reroute
+description: Send blocked robots through alternative waypoints around congestion.
+parameters:
+  - robot_ids
+  - waypoints

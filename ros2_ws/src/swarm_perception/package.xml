@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>swarm_perception</name>
+  <version>0.1.0</version>
+  <description>Camera, ArUco tracking, state estimation, and scene annotation nodes.</description>
+  <maintainer email="maintainer@example.com">VGU VLM Swarm</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+  <depend>rclpy</depend>
+  <depend>swarm_interfaces</depend>
+  <exec_depend>sensor_msgs</exec_depend>
+</package>

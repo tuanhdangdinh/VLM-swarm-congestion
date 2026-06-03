@@ -1,0 +1,6 @@
+camera:
+  frame_id: overhead_camera
+  image_topic: /camera/image_raw
+  fps: 30
+  width: 1280
+  height: 960

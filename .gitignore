@@ -1,0 +1,29 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# ROS2 build outputs
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
+# Runtime/generated data
+data/logs/*
+!data/logs/.gitkeep
+data/vector_store/*
+!data/vector_store/.gitkeep
+benchmarks/results/*
+!benchmarks/results/.gitkeep
+
+# Large local artifacts
+*.bag
+*.db3
+*.pt
+*.pth
+*.onnx
+*.engine

@@ -1,0 +1,3 @@
+name: dynamic_anomaly
+robots: 8
+description: A temporary obstacle disrupts active robot routes.

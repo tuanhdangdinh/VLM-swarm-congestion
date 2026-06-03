@@ -1,0 +1,9 @@
+jsonschema>=4.22
+pydantic>=2.7
+pyyaml>=6.0
+
+# Optional runtime dependencies for later implementation:
+# opencv-python
+# chromadb
+# langchain
+# sentence-transformers

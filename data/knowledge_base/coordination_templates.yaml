@@ -1,0 +1,10 @@
+templates:
+  - name: yield
+    strategy: yield
+    description: Pause lower-priority robots so blocked robots can move.
+  - name: reroute
+    strategy: reroute
+    description: Route selected robots around a congested zone.
+  - name: temporary_wait
+    strategy: temporary_wait
+    description: Temporarily stop robots while local control clears conflict.

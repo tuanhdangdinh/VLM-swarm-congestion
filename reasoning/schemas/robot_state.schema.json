@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RobotState",
+  "type": "object",
+  "required": ["robot_id", "x", "y", "theta", "status"],
+  "properties": {
+    "robot_id": { "type": "string" },
+    "x": { "type": "number" },
+    "y": { "type": "number" },
+    "theta": { "type": "number" },
+    "linear_velocity": { "type": "number" },
+    "angular_velocity": { "type": "number" },
+    "task": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["idle", "moving", "waiting", "coordinated", "fault"]
+    }
+  },
+  "additionalProperties": false
+}

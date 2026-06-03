@@ -1,0 +1,6 @@
+name: convoy
+strategy: convoy
+description: Sequence robots through a constrained aisle in a fixed order.
+parameters:
+  - robot_order
+  - spacing_m

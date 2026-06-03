@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VLMDecision",
+  "type": "object",
+  "required": [
+    "congestion_detected",
+    "type",
+    "involved_robots",
+    "root_cause",
+    "strategy",
+    "justification"
+  ],
+  "properties": {
+    "congestion_detected": { "type": "boolean" },
+    "type": {
+      "type": "string",
+      "enum": ["none", "deadlock", "bottleneck", "crowding", "anomaly"]
+    },
+    "involved_robots": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "root_cause": { "type": "string" },
+    "strategy": {
+      "type": "string",
+      "enum": [
+        "none",
+        "yield",
+        "reroute",
+        "convoy",
+        "priority_override",
+        "temporary_wait",
+        "reverse"
+      ]
+    },
+    "justification": { "type": "string" }
+  },
+  "additionalProperties": false
+}

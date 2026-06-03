@@ -1,0 +1,6 @@
+name: reverse
+strategy: reverse
+description: Back one or more robots out of a deadlock zone.
+parameters:
+  - robot_ids
+  - distance_m

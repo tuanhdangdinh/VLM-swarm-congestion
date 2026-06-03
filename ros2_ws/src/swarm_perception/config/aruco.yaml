@@ -1,0 +1,4 @@
+aruco:
+  dictionary: DICT_4X4_50
+  marker_size_m: 0.08
+  min_detection_confidence: 0.5

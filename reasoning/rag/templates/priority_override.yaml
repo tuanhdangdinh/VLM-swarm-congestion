@@ -1,0 +1,6 @@
+name: priority_override
+strategy: priority_override
+description: Temporarily elevate a robot priority to clear a bottleneck.
+parameters:
+  - priority_robot_id
+  - affected_robot_ids

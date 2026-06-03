@@ -1,0 +1,7 @@
+name: yield
+strategy: yield
+description: One or more robots pause to give priority robots a clear path.
+parameters:
+  - yielding_robot_ids
+  - priority_robot_ids
+  - duration_sec

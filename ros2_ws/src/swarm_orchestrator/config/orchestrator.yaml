@@ -1,0 +1,4 @@
+orchestrator:
+  congestion_timeout_sec: 5.0
+  reasoning_period_hz: 1.0
+  max_active_commands: 4

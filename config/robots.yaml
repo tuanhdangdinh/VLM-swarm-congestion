@@ -1,0 +1,4 @@
+robots:
+  default_linear_velocity_mps: 0.2
+  default_angular_velocity_radps: 1.0
+  fleet_size: 4

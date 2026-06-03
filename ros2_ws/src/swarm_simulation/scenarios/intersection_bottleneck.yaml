@@ -1,0 +1,3 @@
+name: intersection_bottleneck
+robots: 8
+description: Multiple robots converge at a warehouse intersection.

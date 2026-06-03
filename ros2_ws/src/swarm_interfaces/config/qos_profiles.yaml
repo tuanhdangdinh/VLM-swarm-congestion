@@ -1,0 +1,17 @@
+robot_state:
+  reliability: best_effort
+  durability: volatile
+  history: keep_last
+  depth: 10
+
+coordination_command:
+  reliability: reliable
+  durability: transient_local
+  history: keep_last
+  depth: 20
+
+coordination_status:
+  reliability: reliable
+  durability: volatile
+  history: keep_last
+  depth: 20

@@ -1,0 +1,4 @@
+rag:
+  top_k: 3
+  vector_store_path: data/vector_store
+  knowledge_base_path: data/knowledge_base/coordination_templates.yaml

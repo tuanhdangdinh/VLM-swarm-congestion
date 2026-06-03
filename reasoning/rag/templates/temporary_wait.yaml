@@ -1,0 +1,6 @@
+name: temporary_wait
+strategy: temporary_wait
+description: Hold robots at their current poses until congestion clears.
+parameters:
+  - robot_ids
+  - duration_sec
