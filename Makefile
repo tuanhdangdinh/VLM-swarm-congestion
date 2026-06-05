@@ -1,4 +1,4 @@
-.PHONY: test lint build-ros2 run-simulation run-orchestrator index-rag
+.PHONY: test lint build-ros2 run-perception run-simulation run-orchestrator index-rag
 
 test:
 	pytest
@@ -8,6 +8,12 @@ lint:
 
 build-ros2:
 	./scripts/build_ros2.sh
+
+run-perception:
+	./scripts/run_perception.sh
+
+run-perception-isaac:
+	./scripts/run_perception.sh --isaac-sim
 
 run-simulation:
 	./scripts/run_simulation.sh
