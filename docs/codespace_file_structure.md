@@ -92,8 +92,8 @@ vgu-vlm-swarm/
 │   ├── vlm/
 │   │   ├── __init__.py
 │   │   ├── backend_base.py
-│   │   ├── vila_backend.py
-│   │   ├── cosmos_backend.py
+│   │   ├── models.py
+│   │   ├── llama_server_backend.py
 │   │   ├── prompt_builder.py
 │   │   └── output_parser.py
 │   ├── rag/

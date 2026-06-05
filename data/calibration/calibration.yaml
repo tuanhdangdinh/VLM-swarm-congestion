@@ -1,0 +1,17 @@
+# CalibrationArtifact for the overhead camera.
+# Replace intrinsics/distortion/homography with values from your calibration run.
+# Intrinsics estimated for a 1280x960 camera at ~2.5 m height (placeholder).
+intrinsics:
+  - [900.0, 0.0, 640.0]
+  - [0.0, 900.0, 480.0]
+  - [0.0, 0.0, 1.0]
+distortion: [0.0, 0.0, 0.0, 0.0, 0.0]
+# Identity homography — replace with output of estimate_homography() after
+# measuring >=4 pixel/world correspondences on the physical or simulated arena.
+homography:
+  - [1.0, 0.0, 0.0]
+  - [0.0, 1.0, 0.0]
+  - [0.0, 0.0, 1.0]
+image_size: [1280, 960]
+source_id: isaac_sim
+created_at: 1748908800.0

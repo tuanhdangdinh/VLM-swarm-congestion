@@ -1,3 +1,4 @@
-def annotate_scene(image, robot_states):
-    """Return the input image until annotation is implemented."""
-    return image
+"""Backward-compat shim; use swarm_perception.annotation instead."""
+from swarm_perception.annotation import render_annotated_frame, status_to_color
+
+__all__ = ["render_annotated_frame", "status_to_color"]

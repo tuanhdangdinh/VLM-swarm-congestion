@@ -1,6 +1,6 @@
-# Module 2 — VLM Semantic Reasoning — Spec
+# Module 2 — VLM Semantic Reasoning — Implementation Spec
 
-**Status:** Draft · **Level:** Design · **Source:** `project_proposal.md` §4.3
+**Status:** Implementation target — code migration in progress · **Level:** Implementation · **Source:** `project_proposal.md` §4.3
 **Layer:** 2 (semantic reasoning) · **Producer:** M1 (perception) · **Consumers:** M3 (RAG), M5 (Orchestrator)
 
 ---
@@ -11,35 +11,43 @@ M2 is the "Think" stage of the Think–Act loop. Given an annotated overhead fra
 and the textual robot states from M1, it asks a Vision-Language Model to decide
 **whether congestion exists, classify it, identify involved robots, infer the
 root cause, and recommend a coordination strategy** — emitting a single validated
-JSON decision for M3 to ground.
+Pydantic decision for M3 to ground.
 
 **In scope:** prompt construction, VLM backend invocation behind a model-agnostic
 adapter, output parsing/validation, and decision-quality safeguards (retries,
-schema enforcement, confidence/abstention handling).
+schema enforcement, referential-integrity checking). Confidence/abstention scoring
+is deferred to a later milestone.
 
 **Out of scope:** perception/state estimation (M1), translating the decision into
 executable commands (M3), execution/safety (M4), and *when* to invoke M2 — the
-orchestrator (M5) owns the trigger policy (Layer 2 intervenes only when Layer 1
-fails within a time threshold, §4.1). M2 is a stateless request/response service.
+orchestrator (M5) owns the trigger policy. M2 is a stateless request/response service.
 
-**Model-agnostic principle (§4.3):** the VLM is pluggable. Candidate backends
-include VILA-1.5 (efficiency) and NVIDIA Cosmos Reasoner (spatial reasoning),
-plus hosted VLMs for benchmarking. All sit behind one standardized adapter API.
+**Model-agnostic principle (§4.3):** the VLM is pluggable. The primary backend
+is NVIDIA Cosmos Reason2 served via `llama-server` (llama.cpp), with a
+`MockBackend` for offline testing. All sit behind one standardized `VLMBackend`
+Protocol (§6.5). Swapping backends requires config only — `ReasonerConfig.backend_id`
+selects the backend; backend-specific connection parameters (`base_url`,
+`model_id`, `mmproj_path`, etc.) are supplied via a `BackendConfig` union (§7.1)
+and a backend factory function, keeping the prompt builder and parser
+backend-agnostic.
 
 ---
 
 ## 2. Inputs & Outputs
 
 **Inputs**
-- `AnnotatedFrame` from M1 (`/perception/annotated_frame`).
+- `AnnotatedFrame` from M1 (`/perception/annotated_frame`), saved as a PNG file
+  on disk that the backend can read. The image path is included in `ReasonerRequest`.
 - `SceneState` from M1 (`/perception/scene_state`) — robot positions, headings,
-  status, task strings.
+  status, task strings — projected into `RobotStateInput` list.
 - Invocation request from M5 (trigger + correlation/request ID).
 
 **Outputs**
-- `CongestionDecision` (validated JSON, §4) → M3 and M5.
-- Reasoning trace (raw model text + `justification`) for interpretability (C2).
-- Diagnostics: backend used, latency, token usage, retry count, parse status.
+- `ReasonerResult` containing a validated `CongestionDecision` (or `None` on
+  failure) → M3 and M5.
+- Reasoning trace (`raw_text`) for interpretability (C2).
+- `ReasonerDiagnostics`: backend used, latency, token usage, retry count, parse
+  status.
 
 ### 2.1 Data Flow
 
@@ -47,98 +55,103 @@ Internal request/response pipeline (one invocation), stateless:
 
 ```mermaid
 flowchart TD
-    TRIG[["M5 trigger (request_id)"]] --> M21
-    IN["M1 SceneState + AnnotatedFrame (matched stamp)"] --> M21["M2.1 Prompt Builder"]
-    M21 -->|"prompt (text states) + encoded image; JSON contract + enums"| M22["M2.2 VLM Backend Adapter"]
-    CFG[("config: active backend")] -.-> M22
-    M22 <-->|RawResponse| VLM["VLM (VILA / Cosmos / hosted)"]
-    M22 --> M23["M2.3 Output Parser & Validator"]
-    M23 -->|"schema + enum + ref-integrity (IDs ∈ SceneState)"| DEC
-    M23 -.->|invalid / transient error| M25["M2.5 Robustness Controller"]
-    M25 -->|bounded re-ask / retry| M22
-    M25 -->|retries exhausted| DEC["CongestionDecision (validated, normalized)"]
-    DEC -->|"/reasoning/decision (if congestion_detected)"| M3["M3"]
-    DEC -->|/reasoning/decision| M5O["M5"]
-    DEC -.->|"reasoning trace + diagnostics (C2)"| STAT["/reasoning/status → M5"]
+    TRIG[["M5 trigger (request_id)"]] --> REASONER
+    IN["M1 SceneState + AnnotatedFrame (matched stamp)"] --> REASONER["Reasoner.run"]
+    CFG[("ReasonerConfig")] -.-> REASONER
+    REASONER --> PB["build_prompt_payload"]
+    PB --> IB["invoke_backend"]
+    IB <-->|PromptPayload / BackendResponse| VLM["VLMBackend.analyze"]
+    IB --> PDT["parse_decision_text"]
+    PDT --> VIR["validate_involved_robots"]
+    VIR -->|valid| RES["ReasonerResult (decision set)"]
+    PDT -->|parse failure| RC["retry/reask controller"]
+    VIR -->|unknown robot IDs| RC
+    IB -->|timeout / rate-limit| RC
+    RC -->|re-ask: build_reask_prompt| PB
+    RC -->|retries exhausted| FAIL["build_failed_result"]
+    FAIL --> RES2["ReasonerResult (decision=None)"]
+    RES -->|"/reasoning/decision (if congestion_detected)"| M3["M3"]
+    RES -->|/reasoning/decision| M5O["M5"]
+    RES -.->|"diagnostics (C2)"| STAT["/reasoning/status → M5"]
 ```
 
 When `congestion_detected=false`, the decision still flows to M5 but no M3
-grounding call is made — Layer 1 stays in control (FR2.4.1).
+grounding call is made — Layer 1 stays in control.
 
 ---
 
 ## 3. Functional Requirements
 
 ### M2.1 Prompt Builder
-- FR2.1.1 Assemble a structured scene-analysis prompt combining the annotated
-  image and a textual robot-state list (id, position, heading, status, task).
-- FR2.1.2 Render robot states deterministically from `SceneState` (stable
-  ordering, fixed precision) so prompts are reproducible.
-- FR2.1.3 Embed the response contract: required JSON fields and the closed
-  enumerations for `type` and `strategy` (see §4).
-- FR2.1.4 Keep the system role fixed ("warehouse traffic controller") and
-  separate the static template from the per-frame dynamic payload.
-- FR2.1.5 Respect backend constraints (image encoding/size, token budget) via the
-  adapter's declared capabilities.
+- FR2.1.1 Assemble a structured scene-analysis prompt from a `ReasonerRequest`:
+  system role text, robot state list, closed enum contracts, and a no-prose
+  instruction.
+- FR2.1.2 Render robot states deterministically: sort by `robot_id`, fixed
+  decimal precision (`:.2f` for floats), so prompts are reproducible across runs.
+- FR2.1.3 Embed the closed enumerations for `type` and `strategy` inline in the
+  user prompt so the model has no excuse to invent values.
+- FR2.1.4 Keep the system prompt fixed ("warehouse traffic controller") and
+  separate it from the dynamic user payload. The system prompt text must not
+  change per-request.
+- FR2.1.5 Include the full list of known robot IDs in the user prompt for
+  hallucination control (instruction: "only use IDs from this list").
 
 ### M2.2 VLM Backend Adapter
-- FR2.2.1 Expose one interface `analyze(prompt, image) -> RawResponse` independent
-  of backend (local VILA/Cosmos or hosted API).
-- FR2.2.2 Each backend declares capabilities: max image resolution, context/token
-  limits, JSON/structured-output support, latency class.
-- FR2.2.3 Backend selectable via config without changes to M2.1/M2.3.
-- FR2.2.4 Apply deterministic-leaning decoding defaults (low temperature) for
-  reproducible classification; configurable per backend.
-- FR2.2.5 Enforce a per-call timeout and surface token-usage/latency telemetry.
+- FR2.2.1 Expose one Protocol `VLMBackend` with a single method
+  `analyze(payload, config) -> BackendResponse`, independent of backend.
+- FR2.2.2 Backend selectable via `ReasonerConfig.backend_id` without changes to
+  the prompt builder or parser.
+- FR2.2.3 Apply `temperature=0.0` by default for reproducible classification.
+- FR2.2.4 Enforce per-call timeout (`ReasonerConfig.timeout_sec`) via a
+  `concurrent.futures` thread pool; raise `BackendTimeoutError` on expiry.
+- FR2.2.5 Surface `latency_ms` and `token_usage` in `BackendResponse`.
 
 ### M2.3 Output Parser & Validator
-- FR2.3.1 Extract JSON from raw model output (tolerant of surrounding prose /
-  code fences).
-- FR2.3.2 Validate against the `CongestionDecision` schema (§4): required fields,
-  types, and closed enums for `type` and `strategy`.
-- FR2.3.3 Validate referential integrity: every `involved_robots` ID exists in
-  the input `SceneState`.
-- FR2.3.4 On parse/validation failure, trigger a bounded re-ask (M2.5) before
-  declaring failure.
-- FR2.3.5 Normalize output (canonical enum casing, dedup robot IDs) before
-  emitting.
+- FR2.3.1 Extract JSON from raw model output tolerant of surrounding prose and
+  markdown code fences (` ```json ... ``` `).
+- FR2.3.2 Validate extracted JSON against the `CongestionDecision` Pydantic model
+  (closed enums, required fields, correct types).
+- FR2.3.3 Validate referential integrity: every ID in `involved_robots` must
+  appear in `ReasonerRequest.robot_states[*].robot_id`.
+- FR2.3.4 On parse or validation failure, trigger a bounded re-ask (M2.5).
+- FR2.3.5 Normalize output: canonical enum casing (Pydantic handles this),
+  deduplicate `involved_robots` list while preserving first-occurrence order.
 
 ### M2.4 Decision Semantics
 - FR2.4.1 `congestion_detected=false` is a valid, first-class outcome — emit it
-  cleanly so M5 can leave Layer 1 in control (no M3 call needed).
+  cleanly so M5 can leave Layer 1 in control. When false: `type="none"`,
+  `strategy="none"`, `involved_robots=[]`.
 - FR2.4.2 Carry `root_cause` and `justification` verbatim into the decision for
   the interpretability contract (C2).
-- FR2.4.3 Optionally expose a confidence/abstention signal; if low, allow M5 to
-  fall back (e.g. escalate or hold) per §6.
+- FR2.4.3 `ReasonerResult.decision=None` (not a failure `CongestionDecision`) when
+  retries are exhausted — callers must check for `None` before forwarding to M3.
 
 ### M2.5 Robustness Controller
-- FR2.5.1 Retry on transient backend errors (timeout, rate limit) with backoff,
-  bounded by config.
-- FR2.5.2 Re-ask with a corrective prompt on schema-invalid output, bounded.
-- FR2.5.3 On exhausted retries, emit a well-formed failure decision
-  (`congestion_detected=null`/error flag) rather than raising into the pipeline.
+- FR2.5.1 Retry the same payload on transient backend errors (timeout, HTTP 429,
+  connection error) with a bounded attempt count from `ReasonerConfig.max_attempts`.
+- FR2.5.2 Re-ask with a corrective prompt on schema-invalid output or referential-
+  integrity failure, when `ReasonerConfig.allow_reask=True` and attempts remain.
+- FR2.5.3 On exhausted retries, return `build_failed_result(...)` with
+  `decision=None` and `diagnostics.parse_status="failed"` rather than raising.
 
 ---
 
 ## 4. Data Structures / Schemas (contract C1)
 
-`CongestionDecision`
-| field               | type            | notes                                              |
-|---------------------|-----------------|----------------------------------------------------|
-| congestion_detected | bool \| null    | null/error indicates analysis failure              |
-| type                | enum \| null    | deadlock \| bottleneck \| crowding \| anomaly      |
-| involved_robots     | [int]           | IDs must exist in input `SceneState`               |
-| root_cause          | string          | natural language                                   |
-| strategy            | enum \| null    | yield \| reroute \| convoy \| priority_override \| temporary_wait \| reverse |
-| justification       | string          | natural language (interpretability, C2)            |
-| confidence          | float \| null   | optional, 0–1                                      |
-| request_id          | string          | correlates to M5 trigger / M1 frame stamp          |
-| backend             | string          | model identifier used                              |
-| stamp               | float           | decision timestamp (s)                             |
+`CongestionDecision` Pydantic model (mirrors
+`reasoning/schemas/vlm_decision.schema.json`):
 
-Mirrors the proposal's JSON (§4.3) plus pipeline-plumbing fields (`request_id`,
-`backend`, `stamp`, optional `confidence`). Enumerations are closed sets;
-unknown values are a validation failure.
+| field               | type            | notes                                                    |
+|---------------------|-----------------|----------------------------------------------------------|
+| congestion_detected | bool            | `false` is a first-class valid state                     |
+| type                | enum            | `none \| deadlock \| bottleneck \| crowding \| anomaly` |
+| involved_robots     | list[str]       | IDs must exist in input `SceneState`; empty when no congestion |
+| root_cause          | str             | natural language                                         |
+| strategy            | enum            | `none \| yield \| reroute \| convoy \| priority_override \| temporary_wait \| reverse` |
+| justification       | str             | natural language (interpretability, C2)                  |
+
+Pipeline metadata is carried in `ReasonerDiagnostics` (not in the decision JSON),
+to keep `CongestionDecision` schema-stable and M3-friendly.
 
 ---
 
@@ -147,98 +160,1102 @@ unknown values are a validation failure.
 **ROS2 (indicative; final names in C1)**
 - Subscribes `/perception/scene_state`, `/perception/annotated_frame`.
 - Subscribes M5 trigger (e.g. `/reasoning/request`).
-- Publishes `CongestionDecision` → `/reasoning/decision`.
+- Publishes `CongestionDecision` JSON → `/reasoning/decision`.
 - Publishes diagnostics → `/reasoning/status`.
 
 **Programmatic**
-- `PromptBuilder.build(scene_state, annotated_frame) -> Prompt`.
-- `VLMBackend.analyze(prompt, image) -> RawResponse` (+ `capabilities`).
-- `DecisionParser.parse(raw, scene_state) -> CongestionDecision`.
-- `Reasoner.run(request) -> CongestionDecision` — orchestrates 2.1→2.2→2.3→2.5.
+- `Reasoner.run(request: ReasonerRequest) -> ReasonerResult` — sole public
+  entrypoint; all of M2.1–M2.5 orchestrated inside.
+- `build_prompt_payload(request) -> PromptPayload` — pure, testable.
+- `invoke_backend(backend, payload, config) -> BackendResponse` — adds timeout.
+- `parse_decision_text(text) -> CongestionDecision` — tolerant JSON extraction.
+- `validate_involved_robots(decision, known_robot_ids)` — raises
+  `DecisionValidationError` on unknown IDs.
+- `build_reask_prompt(payload, error_message) -> PromptPayload` — corrective.
+- `build_failed_result(...) -> ReasonerResult` — safe failure wrapper.
+- `write_reasoner_log(output_path, request, result)` — JSONL append.
 
-**Config inputs** — active backend id + endpoint/weights, decoding params
-(temperature, max tokens), image max resolution, per-call timeout, retry/re-ask
-limits, confidence threshold, prompt template path.
-
----
-
-## 6. Algorithms & Parameters
-
-- **Think–Act loop (§4.3):** M2 = Think (produce decision JSON); the Act handoff
-  is simply forwarding the validated decision to M3.
-- **Decoding:** low temperature for stable classification; cap max output tokens
-  (decision JSON is small).
-- **Re-ask strategy:** on invalid JSON, resend with the validation error appended
-  and an explicit "return only valid JSON" instruction; bounded attempts.
-- **Set-of-Mark leverage:** prompt assumes M1's annotated overlays (IDs, status
-  colors, vectors, goals) and instructs the model to reference robots by ID,
-  improving spatial grounding (Yang et al. 2023).
-- **Reference cadence:** Layer 2 runs 0.5–2 Hz (§4.1); a single decision must fit
-  within that period including retries.
+**Config inputs** — `backend_id`, `timeout_sec`, `max_attempts`, `temperature`,
+`max_tokens`, `allow_reask`.
 
 ---
 
-## 7. Non-Functional Requirements
+## 6. Package Layout
 
-- **Latency:** decision returned within the Layer-2 period (≤ ~2 s at 0.5 Hz
-  worst case) including one re-ask; backend-dependent, recorded in diagnostics.
+Target package: `reasoning/vlm/`.
+
+```
+reasoning/vlm/
+├── __init__.py          # public re-exports
+├── models.py            # all Pydantic v2 data models (§6.1, §6.3)
+├── backend_base.py      # VLMBackend Protocol (§6.5)
+├── prompt_builder.py    # build_prompt_payload, format_robot_state_lines (§6.4)
+├── output_parser.py     # parse_decision_text, validate_involved_robots,
+│                        #   parse_vlm_decision (legacy dict path)
+├── reasoner.py          # Reasoner.run, invoke_backend, build_reask_prompt,
+│                        #   build_failed_result, write_reasoner_log (§6.2, §6.4, §6.6)
+├── mock_backend.py           # MockBackend (§6.7)
+└── llama_server_backend.py  # LlamaServerBackend — llama.cpp HTTP/OpenAI-compat (§6.8)
+```
+
+All modules use **Pydantic v2** with `ConfigDict(frozen=True)`. The shared import
+convention is:
+
+```python
+from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field
+```
+
+---
+
+## 7. Function Specifications
+
+### 7.1 Data Models (`reasoning/vlm/models.py`)
+
+#### `RobotStateInput`
+
+**Description:** Minimal robot-state projection of M1's `RobotState` required for
+prompt rendering and referential-integrity validation.
+
+```python
+class RobotStateInput(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    robot_id: str = Field(min_length=1)
+    x: float
+    y: float
+    theta: float
+    linear_velocity: float | None = None
+    angular_velocity: float | None = None
+    task: str | None = None
+    status: str | None = None
+```
+
+Fields:
+
+- `robot_id`: must match the `f"robot_{marker_id}"` convention from M1 so
+  referential-integrity validation uses identical strings to M1's schema.
+- `theta`: radians, world frame; rendered as `:.2f` in prompts.
+- `linear_velocity`, `angular_velocity`, `task`, `status`: optional; rendered
+  in prompt when present, omitted when `None`.
+
+#### `ReasonerRequest`
+
+**Description:** Complete, validated input for one VLM reasoning invocation.
+
+```python
+class ReasonerRequest(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    request_id: str = Field(min_length=1)
+    image_path: str = Field(min_length=1)
+    frame_id: str = Field(min_length=1)
+    stamp: float = Field(ge=0)
+    robot_states: list[RobotStateInput]
+    prompt_context: dict[str, object] = Field(default_factory=dict)
+```
+
+Validation rules (caller responsibility, enforced at construction):
+
+- `image_path` must point to an existing readable PNG/JPEG file; validated by
+  `Reasoner.run` before the first backend call, not at Pydantic construction time
+  (path may not exist at deserialization time).
+- `robot_states[*].robot_id` values must be unique; duplicate IDs indicate an
+  M1 bug; `Reasoner.run` raises `ValueError` and does not invoke the backend.
+- `stamp` matches the annotated frame timestamp; M5 must not send mismatched
+  image/state pairs.
+- `request_id` convention: UUID4 string from `str(uuid.uuid4())`.
+
+#### `PromptPayload`
+
+**Description:** Fully-rendered prompt text and image reference passed into
+`VLMBackend.analyze`.
+
+```python
+class PromptPayload(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    system_prompt: str
+    user_prompt: str
+    image_path: str
+    known_robot_ids: list[str]
+```
+
+Fields:
+
+- `system_prompt`: fixed warehouse-controller persona text (see §8.1).
+- `user_prompt`: per-request dynamic payload including robot states, enum
+  contracts, and no-prose instruction (see §8.2).
+- `image_path`: same path as in `ReasonerRequest`; passed to the backend so
+  backends control how they encode/transport the image.
+- `known_robot_ids`: sorted list of all `robot_id` strings from the request,
+  for referential-integrity validation after parsing.
+
+#### `BackendResponse`
+
+**Description:** Raw backend output before parsing. `latency_ms` is filled by
+`invoke_backend` from wall-clock timing; backends may also fill it internally.
+
+```python
+class BackendResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    text: str
+    backend_id: str
+    latency_ms: int | None = Field(default=None, ge=0)
+    token_usage: dict[str, int] | None = None
+    raw: dict[str, object] = Field(default_factory=dict)
+```
+
+Fields:
+
+- `text`: the raw assistant/model text; may contain prose, markdown fences, or
+  bare JSON — `parse_decision_text` handles all forms.
+- `backend_id`: the model identifier string used for this call; included in
+  diagnostics.
+- `token_usage`: keys `prompt_tokens`, `completion_tokens`, `total_tokens` where
+  the backend exposes them; `None` if unavailable.
+- `raw`: provider-specific response dict for debugging; must not be forwarded
+  to M3 or M5.
+
+#### `CongestionDecision`
+
+**Description:** Parsed and schema-validated VLM decision. Mirrors
+`reasoning/schemas/vlm_decision.schema.json` as a Pydantic model.
+
+```python
+class CongestionDecision(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    congestion_detected: bool
+    type: Literal["none", "deadlock", "bottleneck", "crowding", "anomaly"]
+    involved_robots: list[str]
+    root_cause: str
+    strategy: Literal[
+        "none",
+        "yield",
+        "reroute",
+        "convoy",
+        "priority_override",
+        "temporary_wait",
+        "reverse",
+    ]
+    justification: str
+```
+
+Invariant: when `congestion_detected=False`, the validator in
+`parse_decision_text` checks that `type="none"`, `strategy="none"`, and
+`involved_robots=[]`. If the model contradicts itself (e.g. `congestion_detected=True`
+but `type="none"`), treat it as a parse failure and trigger a re-ask.
+
+#### `ReasonerDiagnostics`
+
+**Description:** Runtime metadata attached to every `ReasonerResult` for
+observability and debugging.
+
+```python
+class ReasonerDiagnostics(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    request_id: str
+    backend_id: str
+    attempts: int = Field(ge=1)
+    latency_ms: int | None = Field(default=None, ge=0)
+    parse_status: Literal["valid", "invalid", "failed"]
+    error_type: str | None = None
+    error_message: str | None = None
+```
+
+Fields:
+
+- `attempts`: total number of backend calls made, including re-asks.
+- `latency_ms`: wall-clock time of the *last* backend call, in milliseconds.
+  When multiple attempts occur, log individual latencies via `write_reasoner_log`.
+- `parse_status`:
+  - `"valid"` — decision was parsed and validated successfully.
+  - `"invalid"` — at least one attempt produced a parse/validation failure, but
+    a subsequent re-ask succeeded (decision is still set).
+  - `"failed"` — all attempts exhausted without a valid decision; `decision=None`.
+- `error_type` / `error_message`: last error class name and message when
+  `parse_status` is `"invalid"` or `"failed"`; `None` on full success.
+
+#### `ReasonerResult`
+
+**Description:** Return value of `Reasoner.run`. Callers must check
+`decision is not None` before forwarding to M3.
+
+```python
+class ReasonerResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    request_id: str
+    decision: CongestionDecision | None
+    raw_text: str | None
+    diagnostics: ReasonerDiagnostics
+```
+
+Fields:
+
+- `decision`: set when at least one attempt succeeded; `None` on complete failure.
+- `raw_text`: the last raw assistant text received, for audit/debugging.
+  Preserved even when `decision=None`.
+
+#### `LlamaServerBackendConfig`
+
+**Description:** Connection parameters for `LlamaServerBackend`. Kept separate
+from `ReasonerConfig` so the prompt builder and parser stay backend-agnostic.
+
+```python
+class LlamaServerBackendConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    base_url: str = "http://127.0.0.1:8080/v1"  # llama-server OpenAI-compat endpoint
+    model_id: str = Field(min_length=1)           # label for diagnostics; server ignores it
+    mmproj_path: str | None = None                # placeholder: path to Cosmos mmproj GGUF
+```
+
+`mmproj_path` is **a server-startup concern**, not a per-request parameter. When
+set, it documents the `--mmproj` path that `llama-server` must be started with for
+vision support. The backend uses this field to determine whether to include
+base64-encoded image content in the request:
+
+- `mmproj_path is None` → text-only mode; image content omitted from request.
+- `mmproj_path is not None` → vision mode; image included as `image_url` part.
+
+Leave as `null` in `config/models.yaml` until a Cosmos Reason2 mmproj GGUF is
+available. Do not hardcode the path.
+
+#### `BackendConfig`
+
+**Description:** Discriminated union of all backend-specific config types.
+`backend_id` selects which backend to instantiate; a factory function
+`build_backend` resolves the union and constructs the concrete backend.
+
+```python
+BackendConfig = LlamaServerBackendConfig  # extend as union when more backends added
+```
+
+`build_backend` lives in `reasoning/vlm/backend_factory.py`:
+
+```python
+def build_backend(backend_id: str, backend_config: BackendConfig) -> VLMBackend:
+    if backend_id == "llama_server":
+        return LlamaServerBackend(
+            base_url=backend_config.base_url,
+            model_id=backend_config.model_id,
+            mmproj_path=backend_config.mmproj_path,
+        )
+    if backend_id == "mock":
+        return MockBackend()
+    raise ValueError(f"Unknown backend_id: {backend_id!r}")
+```
+
+#### `ReasonerConfig`
+
+**Description:** Runtime settings for deterministic and bounded VLM reasoning.
+Does **not** contain backend connection parameters — those live in `BackendConfig`.
+
+```python
+class ReasonerConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    backend_id: str = Field(min_length=1)
+    timeout_sec: float = Field(default=30.0, gt=0)
+    max_attempts: int = Field(default=2, ge=1)
+    temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=1024, ge=1)
+    allow_reask: bool = True
+```
+
+Config loading convention:
+
+```python
+import yaml
+from reasoning.vlm.models import ReasonerConfig, LlamaServerBackendConfig
+from reasoning.vlm.backend_factory import build_backend
+
+with open("config/models.yaml") as f:
+    raw = yaml.safe_load(f)
+config = ReasonerConfig(**raw["vlm"]["reasoner"])
+backend_config = LlamaServerBackendConfig(**raw["vlm"]["llama_server"])
+backend = build_backend(config.backend_id, backend_config)
+```
+
+---
+
+### 7.2 Main Function (`reasoning/vlm/reasoner.py`)
+
+#### `Reasoner.run`
+
+**Description:** Execute one complete M2 reasoning pass: validate request, build
+prompt, invoke backend, parse, validate integrity, retry/re-ask on failure,
+return result and diagnostics.
+
+```python
+class Reasoner:
+    def __init__(self, backend: VLMBackend, config: ReasonerConfig) -> None: ...
+
+    def run(self, request: ReasonerRequest) -> ReasonerResult:
+        ...
+```
+
+Behavior (step-by-step algorithm):
+
+```
+1. Validate request:
+   a. Assert robot_states[*].robot_id values are unique; raise ValueError otherwise.
+   b. Assert image_path exists and is readable; raise FileNotFoundError otherwise.
+
+2. Build initial payload:
+   payload ← build_prompt_payload(request)
+   known_ids ← set(r.robot_id for r in request.robot_states)
+   attempts ← 0
+   last_raw ← None
+   last_error_type, last_error_msg ← None, None
+
+3. Retry loop (while attempts < config.max_attempts):
+   a. attempts += 1
+   b. try:
+        response ← invoke_backend(backend, payload, config)
+        last_raw ← response.text
+        decision ← parse_decision_text(response.text)
+        validate_involved_robots(decision, known_ids)
+        # success
+        parse_status ← "valid" if attempts == 1 else "invalid"
+        return ReasonerResult(
+            request_id=request.request_id,
+            decision=decision,
+            raw_text=last_raw,
+            diagnostics=ReasonerDiagnostics(
+                request_id=request.request_id,
+                backend_id=response.backend_id,
+                attempts=attempts,
+                latency_ms=response.latency_ms,
+                parse_status=parse_status,
+            ),
+        )
+      except BackendTimeoutError as e:
+        last_error_type, last_error_msg ← "BackendTimeoutError", str(e)
+        # retry same payload (transient backend error)
+        continue
+      except (VLMOutputParseError, DecisionValidationError) as e:
+        last_error_type, last_error_msg ← type(e).__name__, str(e)
+        if config.allow_reask and attempts < config.max_attempts:
+            payload ← build_reask_prompt(payload, str(e))
+        # else: fall through and exhaust attempts
+
+4. Return failure:
+   return build_failed_result(
+       request=request,
+       backend_id=config.backend_id,
+       attempts=attempts,
+       error_type=last_error_type,
+       error_message=last_error_msg,
+       raw_text=last_raw,
+   )
+```
+
+Side effects:
+
+- Does not publish ROS2 messages.
+- Does not call M3.
+- Does not write logs unless `logger_path` is explicitly configured at
+  construction time and `write_reasoner_log` is wired in.
+
+---
+
+### 7.3 Helper Functions (`reasoning/vlm/reasoner.py`)
+
+#### `invoke_backend`
+
+**Description:** Call the configured VLM backend with timeout enforcement and
+wall-clock latency measurement.
+
+```python
+def invoke_backend(
+    backend: VLMBackend,
+    payload: PromptPayload,
+    config: ReasonerConfig,
+) -> BackendResponse:
+    ...
+```
+
+Behavior:
+
+- Submit `backend.analyze(payload, config)` to a single-worker
+  `concurrent.futures.ThreadPoolExecutor`.
+- Block up to `config.timeout_sec`; if the future does not complete in time,
+  raise `BackendTimeoutError(f"Backend timed out after {config.timeout_sec}s")`.
+- Measure wall-clock latency with `time.monotonic()` around the `future.result()`
+  call.
+- If `response.latency_ms is None`, return a copy with the measured value:
+  `response.model_copy(update={"latency_ms": int(elapsed * 1000)})`.
+- Propagate any other exception from `backend.analyze` as-is (backends raise
+  their own typed errors).
+
+#### `build_reask_prompt`
+
+**Description:** Build a corrective `PromptPayload` after invalid JSON or
+invalid robot IDs.
+
+```python
+def build_reask_prompt(
+    payload: PromptPayload,
+    error_message: str,
+) -> PromptPayload:
+    ...
+```
+
+Behavior:
+
+- Keep `system_prompt`, `image_path`, and `known_robot_ids` unchanged.
+- Append the following text to `user_prompt`:
+
+  ```
+  \n\nYour previous response was invalid: {error_message}
+  Please return ONLY a valid JSON object. Do not include any text, markdown, or explanation outside the JSON.
+  ```
+
+- Return a new frozen `PromptPayload` (do not mutate the original).
+
+#### `build_failed_result`
+
+**Description:** Construct a safe failure `ReasonerResult` after retries are
+exhausted.
+
+```python
+def build_failed_result(
+    request: ReasonerRequest,
+    backend_id: str,
+    attempts: int,
+    error_type: str,
+    error_message: str,
+    raw_text: str | None = None,
+) -> ReasonerResult:
+    ...
+```
+
+Behavior:
+
+- Returns `ReasonerResult` with `decision=None` and
+  `diagnostics.parse_status="failed"`.
+- `raw_text` is preserved even when the decision is `None`.
+- `backend_id` is `config.backend_id` (the configured backend), not necessarily
+  a backend that responded — on timeout the backend may not have replied.
+
+#### `write_reasoner_log`
+
+**Description:** Persist one request/response record to a JSONL file for
+experiment traceability.
+
+```python
+def write_reasoner_log(
+    output_path: str | Path,
+    request: ReasonerRequest,
+    result: ReasonerResult,
+) -> None:
+    ...
+```
+
+Behavior:
+
+- Opens `output_path` in append mode (creates file if absent; does not create
+  parent directories).
+- Writes one JSON object per call, followed by a newline.
+- Record schema:
+
+  ```json
+  {
+    "request_id": "...",
+    "image_path": "...",
+    "frame_id": "...",
+    "stamp": 0.0,
+    "robot_ids": ["robot_1", "robot_2"],
+    "backend_id": "...",
+    "attempts": 1,
+    "latency_ms": 1800,
+    "parse_status": "valid",
+    "raw_text": "...",
+    "decision": { ... } | null,
+    "error_type": null,
+    "error_message": null
+  }
+  ```
+
+- Uses `.model_dump(mode="json")` for Pydantic models.
+- Does not raise on serialization of unexpected types — convert to `str` fallback.
+
+---
+
+### 7.4 Prompt Builder (`reasoning/vlm/prompt_builder.py`)
+
+#### `build_prompt_payload`
+
+**Description:** Build a deterministic, fully-rendered `PromptPayload` from a
+`ReasonerRequest`.
+
+```python
+def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
+    ...
+```
+
+Behavior:
+
+- Sort `request.robot_states` by `robot_id` (lexicographic) before rendering.
+- Call `format_robot_state_lines` on the sorted list.
+- Assemble the user prompt from the template in §8.2.
+- `known_robot_ids` = sorted list of all `robot_id` values.
+- Return a frozen `PromptPayload`.
+
+#### `format_robot_state_lines`
+
+**Description:** Render a list of robot states as human-readable lines for
+prompt insertion.
+
+```python
+def format_robot_state_lines(
+    robot_states: list[RobotStateInput],
+) -> list[str]:
+    ...
+```
+
+Behavior:
+
+- Each robot produces one line.
+- Required fields: `robot_id`, `x` (`.2f`), `y` (`.2f`), `theta` (`.2f`).
+- Optional fields appended when not `None`: `status`, `task`,
+  `linear_velocity` (`.2f`), `angular_velocity` (`.2f`).
+- Format (all on one line, comma-separated key=value):
+
+  ```
+  robot_id=robot_1, x=1.20, y=0.40, theta=1.57, status=MOVING, task=deliver_A, linear_velocity=0.15, angular_velocity=0.00
+  ```
+
+- If all optional fields are `None`, omit them entirely (no trailing commas).
+- Returns one string per robot; the caller joins with `"\n"` and prefixes each
+  line with `"- "`.
+
+---
+
+### 7.5 Output Parser (`reasoning/vlm/output_parser.py`)
+
+#### `parse_decision_text`
+
+**Description:** Extract JSON from raw VLM text (tolerant of markdown fences and
+surrounding prose) and validate as `CongestionDecision`.
+
+```python
+def parse_decision_text(text: str) -> CongestionDecision:
+    ...
+```
+
+Behavior:
+
+1. Strip markdown code fences:
+   ```python
+   import re
+   text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.DOTALL)
+   ```
+2. If the result is not a bare JSON object, apply a broader extraction:
+   - Search for the first `{` and last `}` pair in the text.
+   - Use that substring as the JSON candidate.
+3. Parse with `json.loads`; raise `VLMOutputParseError` on decode failure.
+4. Validate via `CongestionDecision(**parsed)` (Pydantic); raise
+   `VLMOutputParseError` wrapping the `ValidationError` on failure.
+5. Check the `congestion_detected`/`type`/`strategy` invariant:
+   - If `congestion_detected=False` and `type != "none"`: raise `VLMOutputParseError`.
+   - If `congestion_detected=False` and `strategy != "none"`: raise `VLMOutputParseError`.
+   - If `congestion_detected=False` and `involved_robots != []`: raise `VLMOutputParseError`.
+6. Deduplicate `involved_robots` preserving first-occurrence order.
+7. Return the validated, normalized `CongestionDecision`.
+
+Raises:
+
+- `VLMOutputParseError` (subclass of `ValueError`) on all parse/validation
+  failures. Message contains the specific failure reason.
+
+#### `validate_involved_robots`
+
+**Description:** Enforce that every robot ID referenced by the VLM exists in the
+input scene.
+
+```python
+def validate_involved_robots(
+    decision: CongestionDecision,
+    known_robot_ids: set[str],
+) -> None:
+    ...
+```
+
+Behavior:
+
+- Compute `unknown = set(decision.involved_robots) - known_robot_ids`.
+- If `unknown` is non-empty, raise
+  `DecisionValidationError(f"Unknown robot IDs: {sorted(unknown)}")`.
+- An empty `involved_robots` when `congestion_detected=False` is always valid.
+
+Raises:
+
+- `DecisionValidationError` (subclass of `ValueError`) when unknown IDs found.
+
+#### `parse_vlm_decision` (legacy dict path)
+
+**Description:** Parse and validate a VLM decision JSON string, returning a raw
+`dict`. Preserved for backward compatibility with existing tests and
+`CommandGrounder`.
+
+```python
+def parse_vlm_decision(text: str) -> dict[str, Any]:
+    ...
+```
+
+Behavior:
+
+- Uses `json.loads` + `jsonschema.Draft202012Validator` against
+  `reasoning/schemas/vlm_decision.schema.json`.
+- Does **not** strip markdown fences; callers that receive fenced model output
+  must strip before calling.
+- Raises `VLMOutputParseError` on JSON decode failure or schema validation
+  failure.
+
+Note: new code should prefer `parse_decision_text` (Pydantic path) over
+`parse_vlm_decision` (dict path). `parse_decision_text` strips fences, applies
+the `congestion_detected` invariant, and deduplicates `involved_robots`.
+
+#### Exception Classes
+
+```python
+class VLMOutputParseError(ValueError):
+    """Raised when VLM text cannot be parsed or fails schema validation."""
+
+class DecisionValidationError(ValueError):
+    """Raised when a parsed decision references unknown robot IDs."""
+
+class BackendTimeoutError(RuntimeError):
+    """Raised by invoke_backend when the backend call exceeds timeout_sec."""
+```
+
+---
+
+### 7.6 VLMBackend Protocol (`reasoning/vlm/backend_base.py`)
+
+```python
+from typing import Protocol
+from reasoning.vlm.models import BackendResponse, PromptPayload, ReasonerConfig
+
+
+class VLMBackend(Protocol):
+    def analyze(
+        self,
+        payload: PromptPayload,
+        config: ReasonerConfig,
+    ) -> BackendResponse:
+        ...
+```
+
+Contract:
+
+- Must respect `config.timeout_sec` internally where the transport supports it;
+  `invoke_backend` enforces an outer thread-level timeout regardless.
+- Must return `BackendResponse.text` as the raw assistant/model text.
+- Must include `BackendResponse.backend_id` as the model identifier used for the
+  call (not the backend class name).
+- Must include `BackendResponse.raw` as the provider response dict when available.
+- Must not raise on ordinary model errors (empty output, refusal) — return the
+  text and let the parser handle it.
+- May raise `BackendTimeoutError`, `ConnectionError`, or other typed errors on
+  transport-level failures; `invoke_backend` catches and retries these.
+
+---
+
+### 7.7 Mock Backend (`reasoning/vlm/mock_backend.py`)
+
+**Description:** Deterministic test backend that returns a pre-configured JSON
+response without calling any real VLM.
+
+```python
+class MockBackend:
+    def __init__(
+        self,
+        response_text: str | None = None,
+        backend_id: str = "mock",
+        latency_ms: int = 0,
+    ) -> None:
+        ...
+
+    def analyze(
+        self,
+        payload: PromptPayload,
+        config: ReasonerConfig,
+    ) -> BackendResponse:
+        ...
+```
+
+Behavior:
+
+- If `response_text` is set, return it as `BackendResponse.text`.
+- If `response_text` is `None`, return a default valid no-congestion JSON string:
+
+  ```json
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "No congestion detected.",
+    "strategy": "none",
+    "justification": "Scene is clear."
+  }
+  ```
+
+- Always returns `backend_id` as configured.
+- Stores last-received `payload` and `config` as instance attributes
+  (`last_payload`, `last_config`) for assertion in unit tests.
+- Sequence mode: optionally accept `response_sequence: list[str]` at construction;
+  return responses in order, cycling to the last one when exhausted. Useful for
+  testing re-ask flow (first call returns bad JSON, second returns valid).
+
+---
+
+### 7.8 llama-server Backend (`reasoning/vlm/llama_server_backend.py`)
+
+**Description:** HTTP adapter for NVIDIA Cosmos Reason2 served via `llama-server`
+(llama.cpp). Targets the OpenAI-compatible `/v1/chat/completions` endpoint exposed
+by llama-server on `127.0.0.1:8080`.
+
+**Server startup (run before using this backend):**
+
+```bash
+# Text-only mode (mmproj not yet available)
+llama-server \
+  -m /path/to/nvidia.Cosmos-Reason2-8B.f16.gguf.Q6_K.gguf \
+  --port 8080 --host 127.0.0.1 \
+  --ctx-size 4096 -ngl 99
+
+# Vision mode (once Cosmos mmproj GGUF is available)
+llama-server \
+  -m /path/to/nvidia.Cosmos-Reason2-8B.f16.gguf.Q6_K.gguf \
+  --mmproj /path/to/mmproj-cosmos-reason2-8b.gguf \
+  --port 8080 --host 127.0.0.1 \
+  --ctx-size 4096 -ngl 99
+```
+
+`--mmproj` is a server startup flag — the projector is loaded once at server start
+and applies to all subsequent requests. It is not passed per-request.
+
+```python
+class LlamaServerBackend:
+    def __init__(
+        self,
+        base_url: str = "http://127.0.0.1:8080/v1",
+        model_id: str = "cosmos-reason2-8b",
+        mmproj_path: str | None = None,
+    ) -> None:
+        ...
+
+    def analyze(
+        self,
+        payload: PromptPayload,
+        config: ReasonerConfig,
+    ) -> BackendResponse:
+        ...
+```
+
+Constructor:
+
+- `base_url`: llama-server base URL. Default `"http://127.0.0.1:8080/v1"`. Must
+  not have a trailing slash.
+- `model_id`: label used in `BackendResponse.backend_id` for diagnostics. llama-server
+  ignores the `model` field in the request body (it serves the one model loaded at
+  startup), so this is a documentation/tracing string only.
+- `mmproj_path`: if set, indicates the server was started with `--mmproj` and vision
+  requests should include the base64 image. If `None`, text-only mode is used.
+
+`analyze` behavior:
+
+1. **Vision mode** (`mmproj_path is not None`):
+   - Read image from `payload.image_path` and base64-encode as
+     `data:image/png;base64,...` (or `data:image/jpeg;base64,...` for `.jpg`/`.jpeg`).
+   - Assemble multimodal messages:
+     - `{"role": "system", "content": payload.system_prompt}`
+     - `{"role": "user", "content": [text_part, image_url_part]}`
+     - `text_part`: `{"type": "text", "text": payload.user_prompt}`
+     - `image_url_part`: `{"type": "image_url", "image_url": {"url": data_url}}`
+
+2. **Text-only mode** (`mmproj_path is None`):
+   - Assemble text-only messages:
+     - `{"role": "system", "content": payload.system_prompt}`
+     - `{"role": "user", "content": payload.user_prompt}`
+   - Image is not sent. Prompt text carries all scene context.
+
+3. POST to `{base_url}/chat/completions` with:
+   - `model`: `self.model_id` (accepted but ignored by llama-server)
+   - `temperature`: `config.temperature`
+   - `max_tokens`: `config.max_tokens`
+   - `stream`: `false`
+   - `response_format`: `{"type": "json_object"}` — llama-server grammar-based
+     JSON enforcement; eliminates markdown fences and prose wrapping at the source.
+   - `requests` transport `timeout=config.timeout_sec` (primary guard; prevents
+     the thread from blocking past the executor deadline and accumulating zombie
+     requests).
+
+4. Extract `choices[0].message.content` as the text.
+5. Extract `usage` dict as `token_usage` (keys `prompt_tokens`, `completion_tokens`,
+   `total_tokens`) when present.
+6. Store the full response dict in `BackendResponse.raw`.
+7. Set `backend_id` to `self.model_id`.
+8. On HTTP error (status ≥ 400), raise `ConnectionError` with the status code
+   and response body.
+9. Do not set `latency_ms`; `invoke_backend` fills it in.
+
+Readiness check (call at startup to confirm server is loaded):
+
+```python
+def is_ready(self) -> bool:
+    """Return True if llama-server health endpoint responds OK."""
+    base = self.base_url.removesuffix("/v1")
+    resp = requests.get(f"{base}/health", timeout=5)
+    return resp.status_code == 200 and resp.json().get("status") == "ok"
+```
+
+Dependencies:
+
+- `requests` (already in `requirements.txt` or add it).
+- `base64`, `pathlib`, `json` from standard library.
+
+---
+
+## 8. Prompt Templates
+
+### 8.1 System Prompt (fixed across all requests)
+
+```
+You are a warehouse swarm robotics traffic controller.
+Your task is to analyze overhead camera views of autonomous mobile robots
+and detect congestion patterns such as deadlocks, bottlenecks, crowding,
+and anomalies. You always respond with only valid JSON — no other text.
+```
+
+This string is the value of `PromptPayload.system_prompt` for all backends.
+
+### 8.2 User Prompt Template
+
+The user prompt is assembled from these parts in order:
+
+```
+Analyze the overhead warehouse scene for congestion or deadlock.
+
+Robot states (sorted by ID):
+{robot_state_block}
+
+Known robot IDs: {known_robot_ids_json}
+
+Return ONLY a JSON object with exactly these fields:
+{{
+  "congestion_detected": <true|false>,
+  "type": <"none"|"deadlock"|"bottleneck"|"crowding"|"anomaly">,
+  "involved_robots": [<robot_id strings, must be from known IDs only>],
+  "root_cause": "<one sentence>",
+  "strategy": <"none"|"yield"|"reroute"|"convoy"|"priority_override"|"temporary_wait"|"reverse">,
+  "justification": "<one or two sentences>"
+}}
+
+Rules:
+- Only use robot IDs from the known list above.
+- When congestion_detected is false: type must be "none", strategy must be "none", involved_robots must be [].
+- Return ONLY the JSON object. Do not include any text, markdown, or explanation.
+```
+
+Where:
+
+- `{robot_state_block}`: lines from `format_robot_state_lines`, each prefixed
+  with `"- "`, joined by `"\n"`.
+- `{known_robot_ids_json}`: `json.dumps(sorted_robot_ids)` e.g.
+  `["robot_1", "robot_2"]`.
+
+### 8.3 Re-ask Suffix (appended to user prompt on failure)
+
+```
+\n\nYour previous response was invalid: {error_message}
+Please return ONLY a valid JSON object matching the schema above.
+Do not include any text, markdown, or explanation outside the JSON.
+```
+
+---
+
+## 9. Algorithms & Parameters
+
+- **Think–Act cadence (§4.1):** Layer 2 runs at 0.5–2 Hz. A single `Reasoner.run`
+  call including one re-ask must complete within the period (~2 s at 0.5 Hz).
+  Configure `timeout_sec=30` as the backend call limit; the re-ask adds one more
+  call of the same budget.
+- **Decoding:** `temperature=0.0` by default for deterministic classification.
+  `max_tokens=1024` is sufficient for the decision JSON (~300 tokens).
+- **Retry vs re-ask separation:**
+  - `BackendTimeoutError` → retry the same payload (transient transport issue).
+  - `VLMOutputParseError` / `DecisionValidationError` → re-ask with corrective
+    prompt (model produced bad output, rephrase helps).
+- **JSON extraction:** strip fences → extract first `{...}` span → `json.loads`
+  → Pydantic validation → invariant check → deduplicate `involved_robots`.
+- **Determinism check:** identical `ReasonerRequest` + `temperature=0.0` should
+  produce identical `CongestionDecision` across runs. Log any divergence.
+- **Image encoding:** PNG preferred. For high-latency backends, downscale to
+  1024 × 768 or use JPEG (quality 90) before base64 encoding.
+
+---
+
+## 10. Non-Functional Requirements
+
+- **Latency:** complete within Layer-2 period (≤ ~2 s at 0.5 Hz) including one
+  re-ask; backend-dependent and recorded in `ReasonerDiagnostics.latency_ms`.
 - **Determinism:** identical input → stable classification across runs (low-temp
-  decoding); prompt rendering is deterministic.
-- **Backend portability:** swapping backends requires config only, no code change
-  in M2.1/M2.3 (enables the proposal's model comparison).
-- **Validity:** 100% of emitted decisions are schema-valid or explicit failures —
-  no malformed JSON ever reaches M3 (a core motivation for RAG grounding).
-- **Cost/observability:** token usage and latency logged per call for the
-  efficiency analysis (constant token budget claim, §3.2 Garg et al.).
+  decoding + deterministic prompt rendering).
+- **Backend portability:** swapping backends (mock → llama_server) requires
+  `ReasonerConfig.backend_id` change only; no changes to prompt builder or parser.
+- **Validity guarantee:** 100% of emitted decisions are schema-valid `CongestionDecision`
+  or explicit `decision=None` — no malformed JSON ever reaches M3.
+- **Observability:** token usage and latency logged per call; JSONL records support
+  offline analysis of classification accuracy and efficiency.
 
 ---
 
-## 8. Error Handling & Edge Cases
+## 11. Error Handling & Edge Cases
 
-- Backend timeout / rate limit / network error → bounded retry, then failure
-  decision (FR2.5.3).
-- Hallucinated robot IDs not in `SceneState` → referential-integrity failure →
-  re-ask, then drop unknown IDs or fail.
-- Model returns prose / wrong enum / missing field → schema validation failure →
-  re-ask.
-- Empty scene or single robot → valid `congestion_detected=false`.
-- Ambiguous/low-confidence scene → emit with low `confidence`; M5 decides.
-- Stale/missing annotated frame for the requested stamp → reject request with
-  diagnostic; do not analyze mismatched image/state.
-
----
-
-## 9. Dependencies
-
-- A VLM backend runtime: local (VILA-1.5, NVIDIA Cosmos Reasoner) and/or hosted
-  VLM API client(s).
-- JSON schema validation library.
-- ROS2 transport + image handling (`cv_bridge` / image transport) for inputs.
-- M1 (`SceneState`, `AnnotatedFrame`) and M5 (trigger) contracts.
+| Situation | Expected behavior |
+|-----------|------------------|
+| Backend timeout | `BackendTimeoutError` caught; retry same payload; if exhausted, `build_failed_result` |
+| HTTP 429 (rate limit) | Treat as transient backend error; retry same payload |
+| HTTP 4xx/5xx | Raise `ConnectionError`; caught by retry loop; retry |
+| Model returns prose only (no JSON) | `parse_decision_text` falls back to brace-extraction; fails → re-ask |
+| Model wraps JSON in code fence | `parse_decision_text` strips fence; continues normally |
+| Hallucinated robot ID | `validate_involved_robots` raises `DecisionValidationError`; re-ask |
+| `congestion_detected=True` but `type="none"` | Invariant check in `parse_decision_text` raises `VLMOutputParseError`; re-ask |
+| Empty `robot_states` list | Valid request (single-robot or empty scene); prompt renders `"- no robots observed"` |
+| Single robot in scene | Valid; `congestion_detected=false` expected |
+| Duplicate `robot_id` in request | `Reasoner.run` raises `ValueError` before any backend call |
+| `image_path` does not exist | `Reasoner.run` raises `FileNotFoundError` before any backend call |
+| All retries exhausted | `build_failed_result` returns `decision=None`; M5 must not trigger M3 |
+| Mismatched image/state stamps | M5 responsibility to reject; M2 only checks image existence |
 
 ---
 
-## 10. Testing & Validation
+## 12. Dependencies
 
-- **Unit:** prompt rendering determinism; parser tolerance (fenced/prose-wrapped
-  JSON); enum + referential-integrity validation; re-ask trigger logic.
-- **Backend conformance:** a shared fixture suite each backend adapter must pass
-  (capabilities honored, timeout respected, telemetry emitted).
-- **Scenario tests:** curated annotated frames for the three eval scenarios
-  (head-on deadlock, intersection bottleneck, dynamic anomaly) → assert expected
-  `type`/`strategy` distribution.
-- **Robustness:** fault-injected malformed/slow responses exercise M2.5 paths.
-- **Acceptance:** no malformed decision escapes; classification accuracy on the
-  labeled scenario set meets a target threshold (§11); latency within §7 budget.
+- **Pydantic v2** — all data models (`pip install pydantic>=2.0`).
+- **`requests`** — HTTP calls in `LlamaServerBackend`.
+- **`jsonschema`** — legacy `parse_vlm_decision` and schema validation tests.
+- **`concurrent.futures`** — timeout enforcement in `invoke_backend` (stdlib).
+- **ROS2** (transport layer, for node integration) — M2 core is ROS2-free.
+- M1 contracts: `SceneState`, `AnnotatedFrame` (consumed by M5 before passing
+  to M2 as `ReasonerRequest`).
 
 ---
 
-## 11. Open Questions / Assumptions
+## 13. Testing & Validation
 
-- Quantitative classification-accuracy and latency acceptance thresholds — TBD.
-- Whether grounding generation (M3.4) reuses the same VLM or a lighter LLM
-  (§4.4) — affects whether M2's adapter is shared with M3.
-- Final `confidence`/abstention semantics and how M5 acts on them.
-- Prompt template versioning strategy (prompts affect reproducibility of results).
-- Single-shot vs. multi-turn reasoning per decision (current design: single-shot
-  with bounded re-ask).
+### Unit Tests (`tests/unit/`)
+
+#### `test_vlm_output_parser.py` (extend existing)
+
+- Accept valid no-congestion JSON (existing test).
+- Reject invalid JSON (existing test).
+- Accept JSON wrapped in ` ```json ... ``` ` fences (new).
+- Accept JSON embedded in prose after `"Here is my answer:"` (new).
+- Reject enum value not in `type` set (new).
+- Reject `involved_robots` with non-string element (new).
+- Reject `congestion_detected=true` with `type="none"` (invariant check, new).
+- Reject `congestion_detected=false` with `involved_robots=["robot_1"]` (new).
+- Deduplicate `involved_robots=["robot_1", "robot_1"]` → `["robot_1"]` (new).
+
+#### `test_prompt_builder.py` (new)
+
+- Render deterministically: same request → same `user_prompt`.
+- Robot states sorted by `robot_id` lexicographically.
+- Optional fields (`task`, `status`, etc.) omitted when `None`.
+- `known_robot_ids` matches sorted `robot_states[*].robot_id`.
+
+#### `test_reasoner.py` (new)
+
+- `MockBackend` with valid response → `ReasonerResult.decision` is set.
+- `MockBackend` with invalid JSON first, valid second → re-ask triggered,
+  final decision set, `diagnostics.attempts=2`.
+- `MockBackend` sequence `[invalid, invalid]` with `max_attempts=2` →
+  `decision=None`, `parse_status="failed"`.
+- `allow_reask=False` → first parse failure immediately returns `decision=None`.
+- `BackendTimeoutError` on first call → retry same payload, not re-ask.
+- Duplicate `robot_id` in request → `ValueError` before backend call.
+- Missing `image_path` → `FileNotFoundError` before backend call.
+
+#### `test_validate_involved_robots.py` (new)
+
+- Known IDs → no exception.
+- One unknown ID → `DecisionValidationError`.
+- Empty `involved_robots` when `congestion_detected=False` → no exception.
+
+### Backend Conformance Tests
+
+Each backend implementation must pass a shared fixture suite:
+
+- Returns `BackendResponse` with non-empty `text`.
+- Returns `backend_id` as a non-empty string.
+- Respects `max_tokens` (output token count ≤ configured value + small buffer).
+- `BackendTimeoutError` raised when `timeout_sec=0.001` (near-zero timeout).
+
+### Scenario Tests (`tests/simulation/`)
+
+Curated annotated frames for the three eval scenarios must produce expected
+classification when run against a live or mocked backend:
+
+| Scenario | Expected `type` | Expected `strategy` |
+|----------|----------------|---------------------|
+| Head-on deadlock | `deadlock` | `yield` or `reverse` |
+| Intersection bottleneck | `bottleneck` | `reroute` or `temporary_wait` |
+| Dynamic anomaly | `anomaly` | `priority_override` or `reroute` |
+
+Tests assert the expected values appear in the distribution across `N≥5` runs
+(classification stability). Single-run determinism at `temperature=0.0`.
+
+### Acceptance Criteria
+
+- 100% of emitted `CongestionDecision` objects are schema-valid (no exception
+  escapes to caller).
+- `decision=None` is the only failure mode — no malformed JSON reaches M3.
+- Classification accuracy ≥ TBD threshold on the labeled scenario set (§14).
+- End-to-end latency ≤ 2 s per invocation (including one re-ask) on the target
+  hardware.
+- `write_reasoner_log` produces valid JSONL for all outcomes (success and failure).
+
+---
+
+## 14. Open Questions / Resolved Decisions
+
+**Resolved:**
+
+- `involved_robots` elements are `str` (not `int`); the M1 convention
+  `f"robot_{marker_id}"` applies. Schema updated accordingly.
+- `congestion_detected=null` (error flag) from earlier design is dropped in
+  favor of `decision=None` in `ReasonerResult`. `CongestionDecision` always has
+  a proper `bool`.
+- JSON fence stripping is the parser's responsibility (`parse_decision_text`),
+  not the caller's. `parse_vlm_decision` (legacy dict path) still requires the
+  caller to strip — documented in `§7.5`.
+- Backend timeout is enforced at the `invoke_backend` level via
+  `concurrent.futures`; individual backends need not implement timeout logic.
+- `confidence` field from earlier design spec is deferred — not in
+  `CongestionDecision`; may be added in a later milestone without breaking M3.
+- `llama-server` (llama.cpp, installed via Homebrew) is the serving framework for
+  early-phase inference. Cosmos Reason2 8B Q6_K GGUF loads on Apple M1 Pro via
+  Metal (`-ngl 99`). The backend runs in text-only mode until a Cosmos mmproj GGUF
+  is available; `mmproj_path` in `LlamaServerBackendConfig` is the placeholder for
+  enabling full vision support. The `response_format: json_object` parameter is used
+  to enforce structured JSON output at the grammar level.
+
+**Open:**
+
+- Quantitative classification-accuracy acceptance threshold — TBD pending first
+  labeled scenario run.
+- Whether M3 reuses the M2 VLM adapter for grounding text generation (§4.4) —
+  deferred to M3 spec.
+- Prompt template versioning strategy — consider embedding a `prompt_version`
+  string in `ReasonerDiagnostics` for reproducibility tracking.
+- Whether `confidence` should be added to `CongestionDecision` to allow M5
+  abstention — deferred.

@@ -1,12 +1,4 @@
-from dataclasses import dataclass
+"""Backward-compat shim; use swarm_perception.geometry instead."""
+from swarm_perception.geometry import pixel_to_world, pixels_to_world, world_to_pixel
 
-
-@dataclass(frozen=True)
-class Point2D:
-    x: float
-    y: float
-
-
-def pixel_to_world(point: Point2D) -> Point2D:
-    """Placeholder homography transform."""
-    return point
+__all__ = ["pixel_to_world", "pixels_to_world", "world_to_pixel"]
