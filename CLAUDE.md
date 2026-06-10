@@ -1,10 +1,17 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+**Prepared:** 2026-06-05
+
+**Revision history:**
+
+- Initial draft: architecture overview, file layout, commands, and development standards for Claude Code.
+- Rev 2 (2026-06-10): reformatted to follow `docs/standards/doc_style.md`.
 
 ---
 
 ## Project Overview
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 **VGU VLM Swarm** is a ROS2-based research scaffold for warehouse swarm coordination using a hybrid two-layer architecture:
 
@@ -25,7 +32,7 @@ The five-module architecture:
 
 ## File Layout
 
-```
+```text
 .
 ├── ros2_ws/                          # ROS2 workspace (colcon build here)
 │   └── src/
@@ -46,7 +53,7 @@ The five-module architecture:
 │       │   └── package.xml           # ROS2 dependencies
 │       ├── swarm_interfaces/         # Shared ROS2 messages
 │       ├── swarm_orchestrator/       # M5: state machine, task registry
-│       └── swarm_simulation/         # M6: Gazebo world, scenarios
+│       └── swarm_simulation/         # M6: Isaac Sim ROS-facing launch, scenarios
 │
 ├── reasoning/                        # Non-ROS2 Python (M2, M3)
 │   ├── vlm/                          # M2: VLM backend adapters, prompt builder
