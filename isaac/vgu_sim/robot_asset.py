@@ -20,39 +20,35 @@ def import_turtlebot3(
     if not urdf_path.exists():
         raise RobotImportError(f"URDF not found: {urdf_path}")
 
-    dest_dir = output_root / "turtlebot3_burger"
-    interface_layer = dest_dir / "turtlebot3_burger.usda"
+    # import_urdf() writes {robot_name}/{robot_name}.usda under usd_path
+    robot_name = urdf_path.stem
+    interface_layer = output_root / robot_name / f"{robot_name}.usda"
 
     if interface_layer.exists() and not force:
         raise RobotImportError(
             f"Asset already exists at {interface_layer}. Use --force to overwrite."
         )
 
-    dest_dir.mkdir(parents=True, exist_ok=True)
+    output_root.mkdir(parents=True, exist_ok=True)
 
     # Must be imported here: SimulationApp must already be running.
-    import omni.usd
-    from isaacsim.asset.importer.urdf import URDFImporter
+    from isaacsim.asset.importer.urdf import URDFImporter, URDFImporterConfig
 
-    importer_config = URDFImporter.Config()
-    importer_config.merge_fixed_joints = False
-    importer_config.make_default_prim = True
-    importer_config.create_physics_scene = False
-    importer_config.convex_decomp = False
-    importer_config.self_collision_filter = True
-    importer_config.up_vector = (0.0, 0.0, 1.0)
-    importer_config.import_inertia_tensor = True
-    importer_config.density = 0.0
-    importer_config.output_directory = str(dest_dir)
+    importer_config = URDFImporterConfig(
+        urdf_path=str(urdf_path),
+        usd_path=str(output_root),
+        allow_self_collision=False,
+        merge_mesh=False,
+        collision_from_visuals=False,
+    )
+    importer = URDFImporter()
+    importer.config = importer_config
+    final_path = Path(importer.import_urdf())
 
-    result = URDFImporter.import_robot(str(urdf_path), importer_config)
-    if not result.success:
-        raise RobotImportError(f"URDF import failed: {result.error}")
+    _apply_wheel_drives(final_path, config)
+    validate_robot_asset(final_path, config)
 
-    _apply_wheel_drives(interface_layer, config)
-    validate_robot_asset(interface_layer, config)
-
-    return interface_layer
+    return final_path
 
 
 def _apply_wheel_drives(asset_path: Path, config: RobotAssetConfig) -> None:
