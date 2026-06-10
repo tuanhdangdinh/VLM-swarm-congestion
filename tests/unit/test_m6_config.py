@@ -133,3 +133,61 @@ def test_scenario_config_is_frozen():
     cfg = ScenarioConfig.model_validate(VALID_HEAD_ON)
     with pytest.raises(Exception):
         cfg.seed = 99
+
+
+import yaml as _yaml
+import json as _json
+from isaac.vgu_sim.paths import scenario_config_path
+
+
+def _load_scenario(name: str) -> ScenarioConfig:
+    path = scenario_config_path(name)
+    with open(path) as f:
+        data = _yaml.safe_load(f)
+    return ScenarioConfig.model_validate(data)
+
+
+def test_head_on_yaml_round_trip():
+    cfg = _load_scenario("head_on_deadlock")
+    assert cfg.name == "head_on_deadlock"
+    assert len(cfg.robots) == 2
+    assert cfg.robots[0].robot_id == "robot_1"
+    assert cfg.robots[1].robot_id == "robot_2"
+    assert cfg.expected_conflict.type == "deadlock"
+
+
+def test_intersection_yaml_round_trip():
+    cfg = _load_scenario("intersection_bottleneck")
+    assert cfg.name == "intersection_bottleneck"
+    assert len(cfg.robots) == 4
+    assert cfg.expected_conflict.type == "bottleneck"
+
+
+def test_dynamic_anomaly_yaml_round_trip():
+    cfg = _load_scenario("dynamic_anomaly")
+    assert cfg.name == "dynamic_anomaly"
+    assert len(cfg.robots) == 4
+    assert len(cfg.timed_obstacles) == 1
+    obs = cfg.timed_obstacles[0]
+    assert obs.spawn_at_sec == pytest.approx(8.0)
+    assert obs.remove_at_sec == pytest.approx(20.0)
+    assert cfg.expected_conflict.type == "anomaly"
+
+
+def test_robot_yaml_matches_defaults():
+    with open("isaac/config/robot.yaml") as f:
+        data = _yaml.safe_load(f)
+    r = RobotAssetConfig.model_validate(data)
+    assert r.wheel_radius_m == pytest.approx(0.033)
+    assert r.wheel_separation_m == pytest.approx(0.160)
+    assert r.max_linear_velocity_mps == pytest.approx(0.22)
+
+
+def test_lidar_json_has_required_keys():
+    with open("isaac/config/lidar/turtlebot3_lds_01.json") as f:
+        d = _json.load(f)
+    assert d["numChannels"] == 1
+    assert d["horizontalFov"] == pytest.approx(360.0)
+    assert d["rotationRate"] == pytest.approx(10.0)
+    assert d["minRange"] == pytest.approx(0.12)
+    assert d["maxRange"] == pytest.approx(3.5)

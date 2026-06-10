@@ -1,0 +1,43 @@
+schema_version: 1
+name: dynamic_anomaly
+seed: 42
+duration_sec: 60.0
+
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -3.0, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 3.0, y: 0.0}
+    initial_task: traverse_east
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 3.0, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: -3.0, y: 0.0}
+    initial_task: traverse_west
+  - robot_id: robot_3
+    marker_id: 3
+    spawn: {x: 0.0, y: -3.0, yaw_rad: 1.5707963267948966}
+    goal: {x: 0.0, y: 3.0}
+    initial_task: traverse_north
+  - robot_id: robot_4
+    marker_id: 4
+    spawn: {x: 0.0, y: 3.0, yaw_rad: -1.5707963267948966}
+    goal: {x: 0.0, y: -3.0}
+    initial_task: traverse_south
+
+timed_obstacles:
+  - obstacle_id: blocker_east
+    asset: dynamic_obstacle.usd
+    spawn_at_sec: 8.0
+    remove_at_sec: 20.0
+    pose: {x: 1.5, y: 0.0, yaw_rad: 0.0}
+
+expected_conflict:
+  type: anomaly
+  involved_robots: [robot_1]
+  onset_window_sec: [8.0, 25.0]
+  min_duration_sec: 2.0
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

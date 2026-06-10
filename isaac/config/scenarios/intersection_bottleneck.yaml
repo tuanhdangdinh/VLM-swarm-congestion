@@ -1,0 +1,38 @@
+schema_version: 1
+name: intersection_bottleneck
+seed: 42
+duration_sec: 60.0
+
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -3.0, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 3.0, y: 0.0}
+    initial_task: cross_intersection
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 3.0, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: -3.0, y: 0.0}
+    initial_task: cross_intersection
+  - robot_id: robot_3
+    marker_id: 3
+    spawn: {x: 0.0, y: -3.0, yaw_rad: 1.5707963267948966}
+    goal: {x: 0.0, y: 3.0}
+    initial_task: cross_intersection
+  - robot_id: robot_4
+    marker_id: 4
+    spawn: {x: 0.0, y: 3.0, yaw_rad: -1.5707963267948966}
+    goal: {x: 0.0, y: -3.0}
+    initial_task: cross_intersection
+
+timed_obstacles: []
+
+expected_conflict:
+  type: bottleneck
+  involved_robots: [robot_1, robot_2, robot_3, robot_4]
+  onset_window_sec: [5.0, 30.0]
+  min_duration_sec: 2.0
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

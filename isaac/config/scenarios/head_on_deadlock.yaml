@@ -1,0 +1,28 @@
+schema_version: 1
+name: head_on_deadlock
+seed: 42
+duration_sec: 45.0
+
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -4.5, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 4.5, y: 0.0}
+    initial_task: cross_narrow_aisle
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 4.5, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: -4.5, y: 0.0}
+    initial_task: cross_narrow_aisle
+
+timed_obstacles: []
+
+expected_conflict:
+  type: deadlock
+  involved_robots: [robot_1, robot_2]
+  onset_window_sec: [8.0, 25.0]
+  min_duration_sec: 2.0
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

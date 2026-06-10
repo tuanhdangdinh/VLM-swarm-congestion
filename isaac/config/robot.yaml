@@ -1,0 +1,14 @@
+asset_name: turtlebot3_burger
+left_wheel_joint: wheel_left_joint
+right_wheel_joint: wheel_right_joint
+base_link: base_link
+lidar_link: base_scan
+wheel_radius_m: 0.033
+wheel_separation_m: 0.160
+max_linear_velocity_mps: 0.22
+max_angular_velocity_radps: 2.84
+wheel_drive_stiffness: 0.0
+wheel_drive_damping: 1000.0
+command_timeout_sec: 0.5
+wheel_static_friction: 0.8
+wheel_dynamic_friction: 0.6

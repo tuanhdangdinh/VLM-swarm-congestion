@@ -1,0 +1,19 @@
+{
+  "class": "sensor",
+  "type": "lidar",
+  "numChannels": 1,
+  "numEchos": 1,
+  "numRows": 1,
+  "rotationRate": 10.0,
+  "startAzimuthDeg": 0.0,
+  "endAzimuthDeg": 360.0,
+  "horizontalFov": 360.0,
+  "verticalFov": 0.0,
+  "horizontalResolution": 1.0,
+  "depthRange": [0.12, 3.5],
+  "minRange": 0.12,
+  "maxRange": 3.5,
+  "reportRateBaseHz": 10.0,
+  "scanType": "rotary",
+  "intensity": true
+}
