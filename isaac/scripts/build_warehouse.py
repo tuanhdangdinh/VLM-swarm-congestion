@@ -1,8 +1,11 @@
 # isaac/scripts/build_warehouse.py
 """CLI: build isaac/assets/warehouse/warehouse_base.usd.
 
-Usage:
+Usage (Linux):
     ${ISAAC_SIM_ROOT}/python.sh -m isaac.scripts.build_warehouse
+
+Usage (Windows):
+    %ISAAC_SIM_ROOT%\\python.bat -m isaac.scripts.build_warehouse
 """
 import argparse
 from pathlib import Path

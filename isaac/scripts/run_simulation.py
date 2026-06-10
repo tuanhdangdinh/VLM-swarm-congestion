@@ -1,11 +1,12 @@
 """CLI: run a scenario (delegates to runner.run_simulation).
 
-Usage:
+Usage (Linux):
     ${ISAAC_SIM_ROOT}/python.sh -m isaac.scripts.run_simulation \
-        --scenario head_on_deadlock \
-        --headless \
-        --seed 42 \
-        --repetitions 3
+        --scenario head_on_deadlock --headless --seed 42 --repetitions 3
+
+Usage (Windows):
+    %ISAAC_SIM_ROOT%\\python.bat -m isaac.scripts.run_simulation \
+        --scenario head_on_deadlock --headless --seed 42 --repetitions 3
 """
 import argparse
 import sys

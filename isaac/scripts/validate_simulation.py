@@ -1,8 +1,12 @@
 # isaac/scripts/validate_simulation.py
 """CLI: validate a scenario USD.
 
-Usage:
+Usage (Linux):
     ${ISAAC_SIM_ROOT}/python.sh -m isaac.scripts.validate_simulation \
+        --scenario isaac/scenarios/head_on_deadlock.usd
+
+Usage (Windows):
+    %ISAAC_SIM_ROOT%\\python.bat -m isaac.scripts.validate_simulation \
         --scenario isaac/scenarios/head_on_deadlock.usd
 """
 import argparse

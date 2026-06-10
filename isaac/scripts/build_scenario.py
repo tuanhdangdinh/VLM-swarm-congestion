@@ -1,8 +1,12 @@
 # isaac/scripts/build_scenario.py
 """CLI: build one scenario USD from its YAML config.
 
-Usage:
+Usage (Linux):
     ${ISAAC_SIM_ROOT}/python.sh -m isaac.scripts.build_scenario \
+        --config isaac/config/scenarios/head_on_deadlock.yaml
+
+Usage (Windows):
+    %ISAAC_SIM_ROOT%\\python.bat -m isaac.scripts.build_scenario \
         --config isaac/config/scenarios/head_on_deadlock.yaml
 """
 import argparse

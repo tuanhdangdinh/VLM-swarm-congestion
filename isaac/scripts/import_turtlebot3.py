@@ -1,10 +1,16 @@
 # isaac/scripts/import_turtlebot3.py
 """CLI: import TurtleBot3 Burger URDF into isaac/assets/robots/.
 
-Usage:
+Usage (Linux):
     ${ISAAC_SIM_ROOT}/python.sh -m isaac.scripts.import_turtlebot3 \
         --urdf /path/to/turtlebot3_burger.urdf \
         --output-dir isaac/assets/robots \
+        [--force]
+
+Usage (Windows):
+    %ISAAC_SIM_ROOT%\\python.bat -m isaac.scripts.import_turtlebot3 \
+        --urdf C:\\path\\to\\turtlebot3_burger.urdf \
+        --output-dir isaac\\assets\\robots \
         [--force]
 """
 import argparse
