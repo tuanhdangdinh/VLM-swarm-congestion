@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pytest
 
-from isaac.vgu_sim.calibration import camera_intrinsics
+from isaac.vgu_sim.calibration import camera_intrinsics, pixel_to_world_homography
 from isaac.vgu_sim.config import CameraConfig
 
 
@@ -19,3 +19,50 @@ def test_camera_intrinsics_matches_focal_aperture_resolution():
     assert math.isclose(k[0, 2], cfg.width / 2, rel_tol=1e-12)
     assert math.isclose(k[1, 2], cfg.height / 2, rel_tol=1e-12)
     assert k[2, 2] == 1.0
+
+
+def _nadir_world_to_pixel(cfg, x, y):
+    """Independent oracle: closed-form nadir projection (world -> pixel)."""
+    fx = cfg.focal_length_mm / cfg.horizontal_aperture_mm * cfg.width
+    fy = cfg.focal_length_mm / cfg.vertical_aperture_mm * cfg.height
+    cx, cy = cfg.width / 2.0, cfg.height / 2.0
+    h = cfg.position_m[2]
+    u = cx + fx * x / h
+    v = cy - fy * y / h
+    return u, v
+
+
+def _apply_h(h_mat, u, v):
+    """Map a pixel through a 3x3 pixel->world homography to (X, Y)."""
+    p = h_mat @ np.array([u, v, 1.0])
+    return p[0] / p[2], p[1] / p[2]
+
+
+def test_homography_origin_maps_to_image_center():
+    cfg = CameraConfig()
+    h_mat = pixel_to_world_homography(cfg)
+    x, y = _apply_h(h_mat, cfg.width / 2.0, cfg.height / 2.0)
+    assert abs(x) < 1e-9
+    assert abs(y) < 1e-9
+
+
+def test_homography_round_trip_over_roi():
+    cfg = CameraConfig()
+    h_mat = pixel_to_world_homography(cfg)
+    xs = np.linspace(-cfg.roi_width_m / 2, cfg.roi_width_m / 2, 5)
+    ys = np.linspace(-cfg.roi_depth_m / 2, cfg.roi_depth_m / 2, 5)
+    for x in xs:
+        for y in ys:
+            u, v = _nadir_world_to_pixel(cfg, x, y)
+            xr, yr = _apply_h(h_mat, u, v)
+            assert abs(xr - x) < 1e-6, f"X at ({x},{y}) -> {xr}"
+            assert abs(yr - y) < 1e-6, f"Y at ({x},{y}) -> {yr}"
+
+
+def test_homography_one_meter_x_offset_pixel_shift():
+    cfg = CameraConfig()
+    fx = cfg.focal_length_mm / cfg.horizontal_aperture_mm * cfg.width
+    h = cfg.position_m[2]
+    u0, _ = _nadir_world_to_pixel(cfg, 0.0, 0.0)
+    u1, _ = _nadir_world_to_pixel(cfg, 1.0, 0.0)
+    assert abs((u1 - u0) - fx / h) < 1e-9
