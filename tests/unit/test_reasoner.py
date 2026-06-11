@@ -172,14 +172,46 @@ def test_run_exhausts_attempts_returns_none(tmp_path):
     assert result.diagnostics.parse_status == "failed"
 
 
-def test_run_no_reask_when_disabled(tmp_path):
-    backend = MockBackend(response_sequence=[_BAD, _GOOD])
+def test_run_no_reask_when_disabled_exhausts_without_reasking(tmp_path):
+    backend = MockBackend(response_text=_BAD)
     reasoner = Reasoner(
         backend, ReasonerConfig(backend_id="mock", max_attempts=2, allow_reask=False)
     )
     result = reasoner.run(_request_with_image(tmp_path))
     assert result.decision is None
-    assert result.diagnostics.attempts == 1
+    assert result.diagnostics.attempts == 2
+    assert result.diagnostics.parse_status == "failed"
+    assert "previous response was invalid" not in backend.last_payload.user_prompt
+
+
+def test_run_timeout_then_success_is_valid(tmp_path):
+    class FlakyTimeoutBackend:
+        def __init__(self):
+            self.calls = 0
+
+        def analyze(self, payload, config):
+            self.calls += 1
+            if self.calls == 1:
+                raise BackendTimeoutError("simulated transient timeout")
+            return BackendResponse(text=_GOOD, backend_id="flaky")
+
+    reasoner = Reasoner(FlakyTimeoutBackend(), ReasonerConfig(backend_id="flaky", max_attempts=2))
+    result = reasoner.run(_request_with_image(tmp_path))
+    assert result.decision is not None
+    assert result.diagnostics.parse_status == "valid"
+    assert result.diagnostics.attempts == 2
+
+
+def test_run_carries_token_usage(tmp_path):
+    class UsageBackend:
+        def analyze(self, payload, config):
+            return BackendResponse(
+                text=_GOOD, backend_id="usage", token_usage={"total_tokens": 5}
+            )
+
+    reasoner = Reasoner(UsageBackend(), ReasonerConfig(backend_id="usage"))
+    result = reasoner.run(_request_with_image(tmp_path))
+    assert result.diagnostics.token_usage == {"total_tokens": 5}
 
 
 def test_run_rejects_duplicate_robot_ids(tmp_path):

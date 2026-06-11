@@ -145,6 +145,7 @@ class Reasoner:
         last_raw: str | None = None
         last_error_type: str | None = None
         last_error_msg: str | None = None
+        had_parse_failure = False
 
         while attempts < self._config.max_attempts:
             attempts += 1
@@ -162,20 +163,20 @@ class Reasoner:
                         backend_id=response.backend_id,
                         attempts=attempts,
                         latency_ms=response.latency_ms,
-                        parse_status="valid" if attempts == 1 else "invalid",
+                        token_usage=response.token_usage,
+                        parse_status="invalid" if had_parse_failure else "valid",
                         error_type=last_error_type,
                         error_message=last_error_msg,
                     ),
                 )
-            except BackendTimeoutError as exc:
-                last_error_type, last_error_msg = "BackendTimeoutError", str(exc)
+            except (BackendTimeoutError, ConnectionError) as exc:
+                last_error_type, last_error_msg = type(exc).__name__, str(exc)
                 continue
             except (VLMOutputParseError, DecisionValidationError) as exc:
+                had_parse_failure = True
                 last_error_type, last_error_msg = type(exc).__name__, str(exc)
                 if self._config.allow_reask and attempts < self._config.max_attempts:
                     payload = build_reask_prompt(payload, str(exc))
-                elif not self._config.allow_reask:
-                    break
 
         return build_failed_result(
             request=request,
@@ -208,6 +209,7 @@ def write_reasoner_log(
         "backend_id": result.diagnostics.backend_id,
         "attempts": result.diagnostics.attempts,
         "latency_ms": result.diagnostics.latency_ms,
+        "token_usage": result.diagnostics.token_usage,
         "parse_status": result.diagnostics.parse_status,
         "raw_text": result.raw_text,
         "decision": result.decision.model_dump(mode="json") if result.decision else None,

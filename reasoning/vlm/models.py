@@ -72,6 +72,7 @@ class ReasonerDiagnostics(BaseModel):
     backend_id: str
     attempts: int = Field(ge=1)
     latency_ms: int | None = Field(default=None, ge=0)
+    token_usage: dict[str, int] | None = None
     parse_status: Literal["valid", "invalid", "failed"]
     error_type: str | None = None
     error_message: str | None = None
