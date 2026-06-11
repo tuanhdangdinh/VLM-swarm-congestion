@@ -6,26 +6,30 @@ from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
 from reasoning.schemas import load_schema
+from reasoning.vlm.errors import (
+    BackendTimeoutError,
+    DecisionValidationError,
+    VLMOutputParseError,
+)
 from reasoning.vlm.models import CongestionDecision
 
-
-class VLMOutputParseError(ValueError):
-    """Raised when VLM output is not valid coordination-decision JSON."""
-
-
-class DecisionValidationError(ValueError):
-    """Raised when a parsed decision references unknown robot IDs."""
-
-
-class BackendTimeoutError(RuntimeError):
-    """Raised by invoke_backend when the backend call exceeds timeout_sec."""
+# Re-exported for backward compatibility; canonical home is reasoning.vlm.errors.
+__all__ = [
+    "BackendTimeoutError",
+    "DecisionValidationError",
+    "VLMOutputParseError",
+    "parse_decision_text",
+    "parse_vlm_decision",
+    "validate_involved_robots",
+]
 
 
 def parse_decision_text(text: str) -> CongestionDecision:
     """Extract JSON from raw VLM text and validate it as a CongestionDecision.
 
     Tolerates markdown code fences and surrounding prose. Enforces the
-    no-congestion invariant and deduplicates involved_robots.
+    congestion/strategy invariant in both directions. Enum lowercasing and
+    involved_robots deduplication are handled by CongestionDecision validators.
 
     Args:
         text: Raw assistant text from a VLM backend.
@@ -35,7 +39,7 @@ def parse_decision_text(text: str) -> CongestionDecision:
 
     Raises:
         VLMOutputParseError: On JSON decode failure, schema violation, or a
-            self-contradictory no-congestion decision.
+            self-contradictory decision.
     """
     candidate = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.DOTALL)
     try:
@@ -60,12 +64,12 @@ def parse_decision_text(text: str) -> CongestionDecision:
                 "congestion_detected=false requires type='none', strategy='none', "
                 "involved_robots=[]."
             )
-
-    deduped: list[str] = []
-    for robot_id in decision.involved_robots:
-        if robot_id not in deduped:
-            deduped.append(robot_id)
-    return decision.model_copy(update={"involved_robots": deduped})
+    elif decision.type == "none" or decision.strategy == "none" or not decision.involved_robots:
+        raise VLMOutputParseError(
+            "congestion_detected=true requires a non-'none' type and strategy and "
+            "at least one involved robot."
+        )
+    return decision
 
 
 def validate_involved_robots(

@@ -274,9 +274,14 @@ def test_write_reasoner_log_appends_jsonl(tmp_path):
     assert record["parse_status"] == "valid"
 
 
-def test_build_backend_returns_mock():
-    backend = build_backend("mock", LlamaServerBackendConfig(model_id="x"))
+def test_build_backend_returns_mock_without_config():
+    backend = build_backend("mock")
     assert isinstance(backend, VLMBackend)
+
+
+def test_build_backend_llama_server_requires_config():
+    with pytest.raises(ValueError):
+        build_backend("llama_server")
 
 
 def test_build_backend_returns_llama_server():

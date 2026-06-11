@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class RobotStateInput(BaseModel):
@@ -24,7 +24,6 @@ class ReasonerRequest(BaseModel):
     frame_id: str = Field(min_length=1)
     stamp: float = Field(ge=0)
     robot_states: list[RobotStateInput]
-    prompt_context: dict[str, object] = Field(default_factory=dict)
 
 
 class PromptPayload(BaseModel):
@@ -63,6 +62,20 @@ class CongestionDecision(BaseModel):
         "reverse",
     ]
     justification: str
+
+    @field_validator("type", "strategy", mode="before")
+    @classmethod
+    def _lowercase_enum(cls, value: object) -> object:
+        return value.lower() if isinstance(value, str) else value
+
+    @field_validator("involved_robots", mode="after")
+    @classmethod
+    def _dedupe_involved_robots(cls, value: list[str]) -> list[str]:
+        seen: list[str] = []
+        for robot_id in value:
+            if robot_id not in seen:
+                seen.append(robot_id)
+        return seen
 
 
 class ReasonerDiagnostics(BaseModel):

@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from reasoning.vlm.models import CongestionDecision, ReasonerRequest
 from reasoning.vlm.output_parser import (
     DecisionValidationError,  # noqa: F401
     VLMOutputParseError,
@@ -73,3 +74,38 @@ def test_parse_decision_text_rejects_false_with_involved_robots():
 def test_parse_decision_text_rejects_non_json():
     with pytest.raises(VLMOutputParseError):
         parse_decision_text("no json here")
+
+
+def test_parse_decision_text_rejects_true_with_type_none():
+    text = '{"congestion_detected": true, "type": "none", "involved_robots": ["robot_1"], "root_cause": "x", "strategy": "yield", "justification": "y"}'  # noqa: E501
+    with pytest.raises(VLMOutputParseError):
+        parse_decision_text(text)
+
+
+def test_parse_decision_text_rejects_true_with_empty_involved_robots():
+    text = '{"congestion_detected": true, "type": "deadlock", "involved_robots": [], "root_cause": "x", "strategy": "yield", "justification": "y"}'  # noqa: E501
+    with pytest.raises(VLMOutputParseError):
+        parse_decision_text(text)
+
+
+def test_parse_decision_text_lowercases_enum_values():
+    text = '{"congestion_detected": true, "type": "DEADLOCK", "involved_robots": ["robot_1"], "root_cause": "x", "strategy": "YIELD", "justification": "y"}'  # noqa: E501
+    decision = parse_decision_text(text)
+    assert decision.type == "deadlock"
+    assert decision.strategy == "yield"
+
+
+def test_congestion_decision_dedupes_involved_robots_at_model_level():
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type="deadlock",
+        involved_robots=["robot_1", "robot_1", "robot_2"],
+        root_cause="x",
+        strategy="yield",
+        justification="y",
+    )
+    assert decision.involved_robots == ["robot_1", "robot_2"]
+
+
+def test_reasoner_request_has_no_prompt_context_field():
+    assert "prompt_context" not in ReasonerRequest.model_fields

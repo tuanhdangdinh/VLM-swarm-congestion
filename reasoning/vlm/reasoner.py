@@ -5,6 +5,11 @@ from concurrent.futures import TimeoutError as FutureTimeoutError
 from pathlib import Path
 
 from reasoning.vlm.backend_base import VLMBackend
+from reasoning.vlm.errors import (
+    BackendTimeoutError,
+    DecisionValidationError,
+    VLMOutputParseError,
+)
 from reasoning.vlm.models import (
     BackendResponse,
     PromptPayload,
@@ -13,13 +18,7 @@ from reasoning.vlm.models import (
     ReasonerRequest,
     ReasonerResult,
 )
-from reasoning.vlm.output_parser import (
-    BackendTimeoutError,
-    DecisionValidationError,
-    VLMOutputParseError,
-    parse_decision_text,
-    validate_involved_robots,
-)
+from reasoning.vlm.output_parser import parse_decision_text, validate_involved_robots
 from reasoning.vlm.prompt_builder import build_prompt_payload
 
 # Formatted via _REASK_SUFFIX.format(error_message=...) in build_reask_prompt.
