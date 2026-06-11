@@ -68,6 +68,24 @@ def parse_decision_text(text: str) -> CongestionDecision:
     return decision.model_copy(update={"involved_robots": deduped})
 
 
+def validate_involved_robots(
+    decision: CongestionDecision,
+    known_robot_ids: set[str],
+) -> None:
+    """Enforce that every referenced robot ID exists in the input scene.
+
+    Args:
+        decision: Parsed decision to check.
+        known_robot_ids: All robot IDs present in the request.
+
+    Raises:
+        DecisionValidationError: If any involved robot ID is unknown.
+    """
+    unknown = set(decision.involved_robots) - known_robot_ids
+    if unknown:
+        raise DecisionValidationError(f"Unknown robot IDs: {sorted(unknown)}")
+
+
 def parse_vlm_decision(text: str) -> dict[str, Any]:
     """Parse and validate a VLM decision JSON string."""
     try:
