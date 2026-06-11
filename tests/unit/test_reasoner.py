@@ -4,6 +4,8 @@ import time
 import pytest
 
 from reasoning.vlm.backend_base import VLMBackend
+from reasoning.vlm.backend_factory import build_backend
+from reasoning.vlm.llama_server_backend import LlamaServerBackend
 from reasoning.vlm.mock_backend import MockBackend
 from reasoning.vlm.models import (
     BackendResponse,
@@ -270,3 +272,20 @@ def test_write_reasoner_log_appends_jsonl(tmp_path):
     record = json.loads(lines[0])
     assert record["request_id"] == "req-1"
     assert record["parse_status"] == "valid"
+
+
+def test_build_backend_returns_mock():
+    backend = build_backend("mock", LlamaServerBackendConfig(model_id="x"))
+    assert isinstance(backend, VLMBackend)
+
+
+def test_build_backend_returns_llama_server():
+    config = LlamaServerBackendConfig(model_id="cosmos", base_url="http://127.0.0.1:8080/v1")
+    backend = build_backend("llama_server", config)
+    assert isinstance(backend, LlamaServerBackend)
+    assert isinstance(backend, VLMBackend)
+
+
+def test_build_backend_rejects_unknown_id():
+    with pytest.raises(ValueError):
+        build_backend("nope", LlamaServerBackendConfig(model_id="x"))
