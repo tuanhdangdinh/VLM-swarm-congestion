@@ -1,3 +1,7 @@
+import time
+
+import pytest
+
 from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.mock_backend import MockBackend
 from reasoning.vlm.models import (
@@ -5,6 +9,14 @@ from reasoning.vlm.models import (
     LlamaServerBackendConfig,
     PromptPayload,
     ReasonerConfig,
+    ReasonerRequest,
+    RobotStateInput,
+)
+from reasoning.vlm.output_parser import BackendTimeoutError
+from reasoning.vlm.reasoner import (
+    build_failed_result,
+    build_reask_prompt,
+    invoke_backend,
 )
 
 
@@ -61,3 +73,51 @@ def test_mock_backend_sequence_advances_then_holds_last():
     assert backend.analyze(_PAYLOAD, _CONFIG).text == "first"
     assert backend.analyze(_PAYLOAD, _CONFIG).text == "second"
     assert backend.analyze(_PAYLOAD, _CONFIG).text == "second"
+
+
+def test_invoke_backend_fills_latency_when_missing():
+    backend = MockBackend(response_text="{}", latency_ms=0)
+    response = invoke_backend(backend, _PAYLOAD, ReasonerConfig(backend_id="mock"))
+    assert response.latency_ms is not None and response.latency_ms >= 0
+
+
+def test_invoke_backend_raises_on_timeout():
+    class SlowBackend:
+        def analyze(self, payload, config):
+            time.sleep(0.2)
+            return BackendResponse(text="{}", backend_id="slow")
+
+    config = ReasonerConfig(backend_id="slow", timeout_sec=0.01)
+    with pytest.raises(BackendTimeoutError):
+        invoke_backend(SlowBackend(), _PAYLOAD, config)
+
+
+def test_build_reask_prompt_appends_error_and_preserves_fields():
+    reask = build_reask_prompt(_PAYLOAD, "bad enum")
+    assert reask.system_prompt == _PAYLOAD.system_prompt
+    assert reask.image_path == _PAYLOAD.image_path
+    assert reask.known_robot_ids == _PAYLOAD.known_robot_ids
+    assert "bad enum" in reask.user_prompt
+    assert reask.user_prompt.startswith(_PAYLOAD.user_prompt)
+
+
+def test_build_failed_result_has_none_decision():
+    request = ReasonerRequest(
+        request_id="req-9",
+        image_path="/tmp/frame.png",
+        frame_id="cam",
+        stamp=1.0,
+        robot_states=[RobotStateInput(robot_id="robot_1", x=0.0, y=0.0, theta=0.0)],
+    )
+    result = build_failed_result(
+        request=request,
+        backend_id="mock",
+        attempts=2,
+        error_type="VLMOutputParseError",
+        error_message="bad",
+        raw_text="garbage",
+    )
+    assert result.decision is None
+    assert result.raw_text == "garbage"
+    assert result.diagnostics.parse_status == "failed"
+    assert result.diagnostics.attempts == 2
