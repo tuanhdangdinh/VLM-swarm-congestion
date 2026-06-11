@@ -91,8 +91,8 @@ class LlamaServerBackendConfig(BaseModel):
 
     base_url: str = "http://127.0.0.1:8080/v1"
     model_id: str = Field(min_length=1)
-    model_path: str = Field(min_length=1)   # absolute path to the GGUF file
-    mmproj_path: str | None = None          # placeholder: path to mmproj GGUF for vision
+    model_path: str | None = None  # server-startup concern; not used per-request
+    mmproj_path: str | None = None  # path to mmproj GGUF for vision; None = text-only
 
 
 class ReasonerConfig(BaseModel):
