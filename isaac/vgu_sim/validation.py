@@ -87,3 +87,21 @@ def validate_scenario_stage(scenario_path: Path, config: CameraConfig | None = N
 
     cam_config = config or CameraConfig()
     validate_camera_frustum(stage, cam_config)
+
+
+def calibration_position_error(
+    measured: tuple[float, float],
+    ground_truth: tuple[float, float],
+) -> float:
+    """Euclidean distance (meters) between a measured and ground-truth XY pose.
+
+    Args:
+        measured: M1-reported world `(x, y)` for a robot.
+        ground_truth: Isaac ground-truth world `(x, y)` for the same robot.
+
+    Returns:
+        The position error in meters.
+    """
+    dx = measured[0] - ground_truth[0]
+    dy = measured[1] - ground_truth[1]
+    return (dx * dx + dy * dy) ** 0.5

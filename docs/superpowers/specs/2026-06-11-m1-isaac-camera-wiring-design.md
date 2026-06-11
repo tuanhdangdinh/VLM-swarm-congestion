@@ -176,3 +176,24 @@ calibration module). No silent fallback to identity.
 4. In-sim, M1 `SceneState (x,y)` matches ground truth within the documented
    tolerance.
 5. Regenerating from an unchanged `CameraConfig` is byte-stable.
+
+---
+
+## 7. In-sim validation procedure (runbook)
+
+Run on the Isaac Sim host (Windows). Prerequisite: `calibration.yaml` has been
+regenerated (Task 4) and the workspace rebuilt (`colcon build --packages-select
+swarm_perception`).
+
+1. Launch the simulation (publishes `/camera/image_raw`, `/camera/camera_info`,
+   and one marked robot at a known world pose):
+   `./scripts/run_simulation.sh <scenario>`  (or the PowerShell equivalent).
+2. In a second shell, launch M1 against the external camera:
+   `ros2 launch swarm_perception perception.launch.py use_camera_node:=false`.
+3. Read M1 output: `ros2 topic echo /perception/scene_state` and take a
+   robot's `(x, y)`.
+4. Read ground truth for the same robot from the scenario/oracle
+   (`isaac/vgu_sim/oracle.py`).
+5. Compute `calibration_position_error(measured, ground_truth)`.
+6. **Pass:** error <= 0.05 m (one marker half-width). Refine the tolerance
+   after the first real run and record the observed value here.

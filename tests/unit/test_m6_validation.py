@@ -86,3 +86,16 @@ class TestValidateCameraFrustum:
         covered_d = 2.0 * h * math.tan(math.atan(va / (2.0 * fl)))
         assert covered_w == pytest.approx(config.roi_width_m, rel=0.05)
         assert covered_d == pytest.approx(config.roi_depth_m, rel=0.05)
+
+
+def test_calibration_position_error_euclidean():
+    from isaac.vgu_sim.validation import calibration_position_error
+
+    err = calibration_position_error(measured=(1.03, -0.46), ground_truth=(1.0, -0.5))
+    assert abs(err - 0.05) < 1e-9
+
+
+def test_calibration_position_error_zero_on_match():
+    from isaac.vgu_sim.validation import calibration_position_error
+
+    assert calibration_position_error((2.0, 3.0), (2.0, 3.0)) == 0.0
