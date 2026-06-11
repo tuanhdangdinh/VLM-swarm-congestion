@@ -112,3 +112,60 @@ def test_exported_yaml_loads_via_swarm_perception(tmp_path):
     assert artifact.image_size == (1280, 960)
     assert not np.allclose(artifact.homography, np.eye(3))
     assert artifact.source_id == "isaac_sim"
+
+
+def test_known_pixel_marker_maps_to_expected_world_point(monkeypatch, tmp_path):
+    import yaml
+
+    pytest.importorskip("cv2")
+    pipeline = pytest.importorskip("swarm_perception.pipeline")
+    sp_cal = pytest.importorskip("swarm_perception.calibration")
+    models = pytest.importorskip("swarm_perception.models")
+    estimator_mod = pytest.importorskip("swarm_perception.state_estimator")
+
+    from isaac.vgu_sim.calibration import build_calibration_dict
+
+    cfg = CameraConfig()
+    out = tmp_path / "calibration.yaml"
+    out.write_text(yaml.safe_dump(build_calibration_dict(cfg)))
+    calibration = sp_cal.load_calibration(out)
+
+    u_c, v_c = cfg.width / 2.0 + 100, cfg.height / 2.0 + 60
+    half = 10.0
+    corners = np.array(
+        [
+            [u_c - half, v_c - half],
+            [u_c + half, v_c - half],
+            [u_c + half, v_c + half],
+            [u_c - half, v_c + half],
+        ],
+        dtype=np.float64,
+    )
+
+    # detect_aruco_markers returns (list[int], list[np.ndarray (4,2)])
+    # pipeline imports it directly, so monkeypatch on the pipeline module attribute
+    def fake_detect(image, dictionary_name="DICT_4X4_50", detector_params=None):
+        return [7], [corners]
+
+    monkeypatch.setattr(pipeline, "detect_aruco_markers", fake_detect)
+
+    frame = models.Frame(
+        image=np.zeros((cfg.height, cfg.width, 3), dtype=np.uint8),
+        stamp=1.0,
+        frame_id="overhead_camera",
+        source_id="isaac_sim",
+    )
+    est = estimator_mod.StateEstimator(velocity_alpha=1.0)
+    scene_state, _ = pipeline.process_frame(frame, calibration, est)
+
+    fx = cfg.focal_length_mm / cfg.horizontal_aperture_mm * cfg.width
+    fy = cfg.focal_length_mm / cfg.vertical_aperture_mm * cfg.height
+    h = cfg.position_m[2]
+    exp_x = (u_c - cfg.width / 2.0) * h / fx
+    exp_y = (cfg.height / 2.0 - v_c) * h / fy
+
+    assert len(scene_state.robots) == 1
+    robot = scene_state.robots[0]
+    assert robot.robot_id == "robot_7"
+    assert abs(robot.x - exp_x) < 1e-3
+    assert abs(robot.y - exp_y) < 1e-3
