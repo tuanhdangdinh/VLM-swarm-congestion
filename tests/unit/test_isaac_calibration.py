@@ -3,7 +3,12 @@ import math
 import numpy as np
 import pytest
 
-from isaac.vgu_sim.calibration import camera_intrinsics, pixel_to_world_homography
+from isaac.vgu_sim.calibration import (
+    ANALYTIC_CREATED_AT,
+    build_calibration_dict,
+    camera_intrinsics,
+    pixel_to_world_homography,
+)
 from isaac.vgu_sim.config import CameraConfig
 
 
@@ -68,7 +73,7 @@ def test_homography_one_meter_x_offset_pixel_shift():
     assert abs((u1 - u0) - fx / h) < 1e-9
 
 
-from isaac.vgu_sim.calibration import ANALYTIC_CREATED_AT, build_calibration_dict
+# === New M6 validation tests (Isaac-specific) ===
 
 
 def test_build_calibration_dict_has_required_schema_keys():
@@ -102,8 +107,6 @@ def test_build_calibration_dict_is_deterministic():
 def test_exported_yaml_loads_via_swarm_perception(tmp_path):
     import yaml
 
-    from isaac.vgu_sim.calibration import build_calibration_dict
-
     out = tmp_path / "calibration.yaml"
     out.write_text(yaml.safe_dump(build_calibration_dict(CameraConfig())))
 
@@ -122,8 +125,6 @@ def test_known_pixel_marker_maps_to_expected_world_point(monkeypatch, tmp_path):
     sp_cal = pytest.importorskip("swarm_perception.calibration")
     models = pytest.importorskip("swarm_perception.models")
     estimator_mod = pytest.importorskip("swarm_perception.state_estimator")
-
-    from isaac.vgu_sim.calibration import build_calibration_dict
 
     cfg = CameraConfig()
     out = tmp_path / "calibration.yaml"

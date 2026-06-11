@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from isaac.vgu_sim.config import CameraConfig, RobotAssetConfig
+from isaac.vgu_sim.config import CameraConfig
 
 
 class ValidationError(Exception):
