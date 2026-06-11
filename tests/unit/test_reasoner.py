@@ -1,3 +1,4 @@
+import json
 import time
 
 import pytest
@@ -14,9 +15,11 @@ from reasoning.vlm.models import (
 )
 from reasoning.vlm.output_parser import BackendTimeoutError
 from reasoning.vlm.reasoner import (
+    Reasoner,
     build_failed_result,
     build_reask_prompt,
     invoke_backend,
+    write_reasoner_log,
 )
 
 
@@ -121,3 +124,100 @@ def test_build_failed_result_has_none_decision():
     assert result.raw_text == "garbage"
     assert result.diagnostics.parse_status == "failed"
     assert result.diagnostics.attempts == 2
+
+
+_GOOD = (
+    '{"congestion_detected": true, "type": "deadlock", '
+    '"involved_robots": ["robot_1"], "root_cause": "x", '
+    '"strategy": "yield", "justification": "y"}'
+)
+_BAD = "not json"
+
+
+def _request_with_image(tmp_path) -> ReasonerRequest:
+    image = tmp_path / "frame.png"
+    image.write_bytes(b"\x89PNG\r\n")
+    return ReasonerRequest(
+        request_id="req-1",
+        image_path=str(image),
+        frame_id="cam",
+        stamp=1.0,
+        robot_states=[RobotStateInput(robot_id="robot_1", x=0.0, y=0.0, theta=0.0)],
+    )
+
+
+def test_run_returns_decision_on_first_try(tmp_path):
+    reasoner = Reasoner(MockBackend(response_text=_GOOD), ReasonerConfig(backend_id="mock"))
+    result = reasoner.run(_request_with_image(tmp_path))
+    assert result.decision is not None
+    assert result.decision.type == "deadlock"
+    assert result.diagnostics.parse_status == "valid"
+    assert result.diagnostics.attempts == 1
+
+
+def test_run_reasks_then_succeeds(tmp_path):
+    backend = MockBackend(response_sequence=[_BAD, _GOOD])
+    reasoner = Reasoner(backend, ReasonerConfig(backend_id="mock", max_attempts=2))
+    result = reasoner.run(_request_with_image(tmp_path))
+    assert result.decision is not None
+    assert result.diagnostics.attempts == 2
+    assert result.diagnostics.parse_status == "invalid"
+
+
+def test_run_exhausts_attempts_returns_none(tmp_path):
+    backend = MockBackend(response_sequence=[_BAD, _BAD])
+    reasoner = Reasoner(backend, ReasonerConfig(backend_id="mock", max_attempts=2))
+    result = reasoner.run(_request_with_image(tmp_path))
+    assert result.decision is None
+    assert result.diagnostics.parse_status == "failed"
+
+
+def test_run_no_reask_when_disabled(tmp_path):
+    backend = MockBackend(response_sequence=[_BAD, _GOOD])
+    reasoner = Reasoner(
+        backend, ReasonerConfig(backend_id="mock", max_attempts=2, allow_reask=False)
+    )
+    result = reasoner.run(_request_with_image(tmp_path))
+    assert result.decision is None
+    assert result.diagnostics.attempts == 1
+
+
+def test_run_rejects_duplicate_robot_ids(tmp_path):
+    image = tmp_path / "frame.png"
+    image.write_bytes(b"\x89PNG\r\n")
+    request = ReasonerRequest(
+        request_id="req-1",
+        image_path=str(image),
+        frame_id="cam",
+        stamp=1.0,
+        robot_states=[
+            RobotStateInput(robot_id="robot_1", x=0.0, y=0.0, theta=0.0),
+            RobotStateInput(robot_id="robot_1", x=1.0, y=1.0, theta=0.0),
+        ],
+    )
+    with pytest.raises(ValueError):
+        Reasoner(MockBackend(), ReasonerConfig(backend_id="mock")).run(request)
+
+
+def test_run_rejects_missing_image():
+    request = ReasonerRequest(
+        request_id="req-1",
+        image_path="/nonexistent/frame.png",
+        frame_id="cam",
+        stamp=1.0,
+        robot_states=[RobotStateInput(robot_id="robot_1", x=0.0, y=0.0, theta=0.0)],
+    )
+    with pytest.raises(FileNotFoundError):
+        Reasoner(MockBackend(), ReasonerConfig(backend_id="mock")).run(request)
+
+
+def test_write_reasoner_log_appends_jsonl(tmp_path):
+    log = tmp_path / "trace.jsonl"
+    reasoner = Reasoner(MockBackend(response_text=_GOOD), ReasonerConfig(backend_id="mock"))
+    result = reasoner.run(_request_with_image(tmp_path))
+    write_reasoner_log(log, _request_with_image(tmp_path), result)
+    lines = log.read_text().strip().splitlines()
+    assert len(lines) == 1
+    record = json.loads(lines[0])
+    assert record["request_id"] == "req-1"
+    assert record["parse_status"] == "valid"
