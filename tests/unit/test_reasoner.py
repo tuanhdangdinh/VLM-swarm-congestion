@@ -78,21 +78,36 @@ def test_mock_backend_sequence_advances_then_holds_last():
     assert backend.analyze(_PAYLOAD, _CONFIG).text == "second"
 
 
-def test_invoke_backend_fills_latency_when_missing():
-    backend = MockBackend(response_text="{}", latency_ms=0)
-    response = invoke_backend(backend, _PAYLOAD, ReasonerConfig(backend_id="mock"))
+def test_invoke_backend_fills_latency_when_backend_reports_none():
+    class NoLatencyBackend:
+        def analyze(self, payload, config):
+            return BackendResponse(text="{}", backend_id="nolat")
+
+    response = invoke_backend(NoLatencyBackend(), _PAYLOAD, ReasonerConfig(backend_id="nolat"))
     assert response.latency_ms is not None and response.latency_ms >= 0
 
 
-def test_invoke_backend_raises_on_timeout():
+def test_invoke_backend_preserves_backend_reported_zero_latency():
+    class ZeroLatencyBackend:
+        def analyze(self, payload, config):
+            return BackendResponse(text="{}", backend_id="zero", latency_ms=0)
+
+    response = invoke_backend(ZeroLatencyBackend(), _PAYLOAD, ReasonerConfig(backend_id="zero"))
+    assert response.latency_ms == 0
+
+
+def test_invoke_backend_raises_on_timeout_without_blocking():
     class SlowBackend:
         def analyze(self, payload, config):
-            time.sleep(0.2)
+            time.sleep(0.5)
             return BackendResponse(text="{}", backend_id="slow")
 
-    config = ReasonerConfig(backend_id="slow", timeout_sec=0.01)
+    config = ReasonerConfig(backend_id="slow", timeout_sec=0.02)
+    start = time.monotonic()
     with pytest.raises(BackendTimeoutError):
         invoke_backend(SlowBackend(), _PAYLOAD, config)
+    # Must return promptly after the timeout, not after the 0.5s backend sleep.
+    assert time.monotonic() - start < 0.3
 
 
 def test_build_reask_prompt_appends_error_and_preserves_fields():
@@ -170,6 +185,7 @@ def test_run_exhausts_attempts_returns_none(tmp_path):
     result = reasoner.run(_request_with_image(tmp_path))
     assert result.decision is None
     assert result.diagnostics.parse_status == "failed"
+    assert result.diagnostics.attempts == 2
 
 
 def test_run_no_reask_when_disabled_exhausts_without_reasking(tmp_path):
@@ -248,8 +264,9 @@ def test_write_reasoner_log_appends_jsonl(tmp_path):
     reasoner = Reasoner(MockBackend(response_text=_GOOD), ReasonerConfig(backend_id="mock"))
     result = reasoner.run(_request_with_image(tmp_path))
     write_reasoner_log(log, _request_with_image(tmp_path), result)
+    write_reasoner_log(log, _request_with_image(tmp_path), result)
     lines = log.read_text().strip().splitlines()
-    assert len(lines) == 1
+    assert len(lines) == 2
     record = json.loads(lines[0])
     assert record["request_id"] == "req-1"
     assert record["parse_status"] == "valid"

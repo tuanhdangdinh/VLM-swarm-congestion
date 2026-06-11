@@ -22,6 +22,7 @@ from reasoning.vlm.output_parser import (
 )
 from reasoning.vlm.prompt_builder import build_prompt_payload
 
+# Formatted via _REASK_SUFFIX.format(error_message=...) in build_reask_prompt.
 _REASK_SUFFIX = (
     "\n\nYour previous response was invalid: {error_message}\n"
     "Please return ONLY a valid JSON object matching the schema above.\n"
@@ -36,6 +37,11 @@ def invoke_backend(
 ) -> BackendResponse:
     """Call a VLM backend with an outer thread-level timeout and latency timing.
 
+    On timeout, the executor is shut down without waiting so the caller is not
+    blocked by a hung backend thread (the thread is abandoned and exits on its
+    own). Latency is filled from wall-clock time only when the backend did not
+    report it.
+
     Args:
         backend: Any object satisfying the VLMBackend Protocol.
         payload: Rendered prompt payload.
@@ -48,17 +54,19 @@ def invoke_backend(
     Raises:
         BackendTimeoutError: If the call exceeds `config.timeout_sec`.
     """
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(backend.analyze, payload, config)
-        start = time.monotonic()
-        try:
-            response = future.result(timeout=config.timeout_sec)
-        except FutureTimeoutError as exc:
-            raise BackendTimeoutError(
-                f"Backend timed out after {config.timeout_sec}s"
-            ) from exc
-        elapsed_ms = int((time.monotonic() - start) * 1000)
-    if not response.latency_ms:
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(backend.analyze, payload, config)
+    start = time.monotonic()
+    try:
+        response = future.result(timeout=config.timeout_sec)
+    except FutureTimeoutError as exc:
+        executor.shutdown(wait=False)
+        raise BackendTimeoutError(
+            f"Backend timed out after {config.timeout_sec}s"
+        ) from exc
+    elapsed_ms = int((time.monotonic() - start) * 1000)
+    executor.shutdown(wait=True)
+    if response.latency_ms is None:
         return response.model_copy(update={"latency_ms": elapsed_ms})
     return response
 
@@ -164,7 +172,9 @@ class Reasoner:
                         attempts=attempts,
                         latency_ms=response.latency_ms,
                         token_usage=response.token_usage,
-                        parse_status="invalid" if had_parse_failure else "valid",
+                        # "invalid" = a parse/validation failure occurred earlier but a
+                        # retry/re-ask then succeeded
+                        parse_status="invalid" if had_parse_failure else "valid",  # noqa: E501
                         error_type=last_error_type,
                         error_message=last_error_msg,
                     ),
