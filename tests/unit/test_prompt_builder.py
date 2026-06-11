@@ -22,27 +22,27 @@ def _request() -> ReasonerRequest:
 
 
 def test_format_robot_state_lines_includes_required_fields():
-    lines = format_robot_state_lines([RobotStateInput(robot_id="robot_1", x=1.2, y=0.4, theta=1.57)])
+    lines = format_robot_state_lines([RobotStateInput(robot_id="robot_1", x=1.2, y=0.4, theta=1.57)])  # noqa: E501
     assert lines == ["robot_id=robot_1, x=1.20, y=0.40, theta=1.57"]
 
 
 def test_format_robot_state_lines_appends_optional_fields_when_present():
     lines = format_robot_state_lines(
-        [RobotStateInput(robot_id="robot_1", x=1.2, y=0.4, theta=1.57, status="MOVING", task="deliver_A", linear_velocity=0.15, angular_velocity=0.0)]
+        [RobotStateInput(robot_id="robot_1", x=1.2, y=0.4, theta=1.57, status="MOVING", task="deliver_A", linear_velocity=0.15, angular_velocity=0.0)]  # noqa: E501
     )
     assert lines == [
-        "robot_id=robot_1, x=1.20, y=0.40, theta=1.57, status=MOVING, task=deliver_A, linear_velocity=0.15, angular_velocity=0.00"
+        "robot_id=robot_1, x=1.20, y=0.40, theta=1.57, status=MOVING, task=deliver_A, linear_velocity=0.15, angular_velocity=0.00"  # noqa: E501
     ]
 
 
 def test_build_prompt_payload_sorts_robots_and_collects_ids():
     payload = build_prompt_payload(_request())
     assert payload.known_robot_ids == ["robot_1", "robot_2"]
-    assert payload.user_prompt.index("robot_id=robot_1") < payload.user_prompt.index("robot_id=robot_2")
+    assert payload.user_prompt.index("robot_id=robot_1") < payload.user_prompt.index("robot_id=robot_2")  # noqa: E501
 
 
 def test_build_prompt_payload_is_deterministic():
-    assert build_prompt_payload(_request()).user_prompt == build_prompt_payload(_request()).user_prompt
+    assert build_prompt_payload(_request()).user_prompt == build_prompt_payload(_request()).user_prompt  # noqa: E501
 
 
 def test_build_prompt_payload_uses_fixed_system_prompt():
