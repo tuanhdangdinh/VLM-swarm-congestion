@@ -16,3 +16,15 @@ def test_llama_config_accepts_optional_paths():
     )
     assert config.model_path == "/models/cosmos.gguf"
     assert config.mmproj_path == "/models/mmproj.gguf"
+
+
+from reasoning.vlm.backend_base import VLMBackend
+from reasoning.vlm.models import BackendResponse, PromptPayload, ReasonerConfig
+
+
+def test_vlmbackend_is_runtime_checkable_protocol():
+    class Dummy:
+        def analyze(self, payload: PromptPayload, config: ReasonerConfig) -> BackendResponse:
+            return BackendResponse(text="{}", backend_id="dummy")
+
+    assert isinstance(Dummy(), VLMBackend)
