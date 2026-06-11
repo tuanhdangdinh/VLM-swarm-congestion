@@ -97,3 +97,18 @@ def test_build_calibration_dict_homography_not_identity():
 
 def test_build_calibration_dict_is_deterministic():
     assert build_calibration_dict(CameraConfig()) == build_calibration_dict(CameraConfig())
+
+
+def test_exported_yaml_loads_via_swarm_perception(tmp_path):
+    import yaml
+
+    from isaac.vgu_sim.calibration import build_calibration_dict
+
+    out = tmp_path / "calibration.yaml"
+    out.write_text(yaml.safe_dump(build_calibration_dict(CameraConfig())))
+
+    swarm_perception = pytest.importorskip("swarm_perception.calibration")
+    artifact = swarm_perception.load_calibration(out)
+    assert artifact.image_size == (1280, 960)
+    assert not np.allclose(artifact.homography, np.eye(3))
+    assert artifact.source_id == "isaac_sim"
