@@ -66,3 +66,34 @@ def test_homography_one_meter_x_offset_pixel_shift():
     u0, _ = _nadir_world_to_pixel(cfg, 0.0, 0.0)
     u1, _ = _nadir_world_to_pixel(cfg, 1.0, 0.0)
     assert abs((u1 - u0) - fx / h) < 1e-9
+
+
+from isaac.vgu_sim.calibration import ANALYTIC_CREATED_AT, build_calibration_dict
+
+
+def test_build_calibration_dict_has_required_schema_keys():
+    cfg = CameraConfig()
+    d = build_calibration_dict(cfg)
+    assert set(d.keys()) == {
+        "intrinsics",
+        "distortion",
+        "homography",
+        "image_size",
+        "source_id",
+        "created_at",
+    }
+    assert np.array(d["intrinsics"]).shape == (3, 3)
+    assert np.array(d["homography"]).shape == (3, 3)
+    assert d["distortion"] == [0.0, 0.0, 0.0, 0.0, 0.0]
+    assert d["image_size"] == [cfg.width, cfg.height]
+    assert d["source_id"] == "isaac_sim"
+    assert d["created_at"] == ANALYTIC_CREATED_AT
+
+
+def test_build_calibration_dict_homography_not_identity():
+    d = build_calibration_dict(CameraConfig())
+    assert not np.allclose(np.array(d["homography"]), np.eye(3))
+
+
+def test_build_calibration_dict_is_deterministic():
+    assert build_calibration_dict(CameraConfig()) == build_calibration_dict(CameraConfig())

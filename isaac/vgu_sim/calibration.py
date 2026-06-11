@@ -64,3 +64,33 @@ def pixel_to_world_homography(config: CameraConfig) -> np.ndarray:
     h_w2p = np.column_stack([m[:, 0], m[:, 1], -(m @ cam_center)])
     h_p2w = np.linalg.inv(h_w2p)
     return h_p2w / h_p2w[2, 2]
+
+
+# Analytic calibration is derived, not captured, so it carries a fixed
+# timestamp sentinel. This keeps regenerated calibration.yaml byte-stable.
+ANALYTIC_CREATED_AT = 0.0
+
+
+def build_calibration_dict(config: CameraConfig) -> dict[str, object]:
+    """Build a YAML-serializable calibration mapping for `swarm_perception`.
+
+    The returned dict matches the schema consumed by
+    `swarm_perception.calibration.load_calibration`.
+
+    Args:
+        config: Overhead camera configuration.
+
+    Returns:
+        Mapping with intrinsics, distortion, homography, image_size, source_id,
+        and created_at.
+    """
+    k = camera_intrinsics(config)
+    h_mat = pixel_to_world_homography(config)
+    return {
+        "intrinsics": k.tolist(),
+        "distortion": [0.0, 0.0, 0.0, 0.0, 0.0],
+        "homography": h_mat.tolist(),
+        "image_size": [config.width, config.height],
+        "source_id": "isaac_sim",
+        "created_at": ANALYTIC_CREATED_AT,
+    }
