@@ -26,7 +26,7 @@ def main() -> None:
         import omni.kit.app
         omni.kit.app.get_app().update()
 
-        from isaac.vgu_sim.validation import validate_scenario_stage, ValidationError
+        from isaac.vgu_sim.validation import ValidationError, validate_scenario_stage
 
         try:
             validate_scenario_stage(args.scenario)

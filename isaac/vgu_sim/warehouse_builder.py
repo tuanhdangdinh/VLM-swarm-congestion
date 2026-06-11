@@ -15,7 +15,7 @@ def build_warehouse_asset(
     camera_config: CameraConfig,
     output_path: Path,
 ) -> Path:
-    from pxr import Usd, UsdGeom, UsdPhysics, Gf, Kind
+    from pxr import Gf, Kind, Usd, UsdGeom, UsdPhysics
 
     stage = Usd.Stage.CreateNew(str(output_path))
 
@@ -55,7 +55,7 @@ def build_warehouse_asset(
 
 
 def _build_floor(stage, config: WarehouseConfig) -> None:
-    from pxr import UsdGeom, UsdPhysics, Gf
+    from pxr import Gf, UsdGeom, UsdPhysics
 
     half_w = config.width_m / 2.0
     half_d = config.depth_m / 2.0
@@ -73,7 +73,7 @@ def _build_floor(stage, config: WarehouseConfig) -> None:
 
 
 def _build_walls(stage, config: WarehouseConfig) -> None:
-    from pxr import UsdGeom, UsdPhysics, Gf
+    from pxr import Gf, UsdGeom, UsdPhysics
 
     hw = config.width_m / 2.0
     hd = config.depth_m / 2.0
@@ -96,7 +96,7 @@ def _build_walls(stage, config: WarehouseConfig) -> None:
 
 
 def _build_rack_blocks(stage, config: WarehouseConfig) -> None:
-    from pxr import UsdGeom, UsdPhysics, Gf
+    from pxr import Gf, UsdGeom, UsdPhysics
 
     aw = config.nominal_aisle_width_m / 2.0
     hw = config.width_m / 2.0
@@ -121,7 +121,7 @@ def _build_rack_blocks(stage, config: WarehouseConfig) -> None:
 
 
 def _build_loading_zones(stage, config: WarehouseConfig) -> None:
-    from pxr import UsdGeom, Gf
+    from pxr import Gf, UsdGeom
 
     UsdGeom.Xform.Define(stage, "/World/Environment/LoadingZones")
     for name, pos in [
@@ -134,7 +134,7 @@ def _build_loading_zones(stage, config: WarehouseConfig) -> None:
 
 
 def _build_overhead_camera(stage, config: CameraConfig) -> None:
-    from pxr import UsdGeom, Gf
+    from pxr import Gf, UsdGeom
 
     cam_prim = UsdGeom.Camera.Define(stage, config.prim_path)
 

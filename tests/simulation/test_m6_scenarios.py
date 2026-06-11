@@ -34,6 +34,7 @@ def test_dynamic_anomaly_stage_validates():
 @pytest.mark.ros2
 def test_head_on_conflict_forms_and_collision_free(tmp_path):
     import yaml
+
     from isaac.vgu_sim.config import ResolvedRunConfig, ScenarioConfig
     from isaac.vgu_sim.paths import scenario_config_path, scenario_output_path
     from isaac.vgu_sim.runner import run_simulation
@@ -93,8 +94,9 @@ def _assert_no_static_contacts(gt_path: Path) -> None:
 @pytest.mark.isaac_sim
 @pytest.mark.ros2
 def test_ros_topics_published_at_correct_rates():
-    import rclpy
     from collections import defaultdict
+
+    import rclpy
     from rclpy.node import Node
     from rosgraph_msgs.msg import Clock
     from sensor_msgs.msg import Image, LaserScan

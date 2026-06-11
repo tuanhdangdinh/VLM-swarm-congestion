@@ -1,4 +1,11 @@
 """ROS2 perception package — M1 Perception & Robot ID Tracking."""
+from swarm_perception.frame_source import CalibrationError, FrameSource, FrameSourceTimeoutError
+from swarm_perception.geometry import (
+    estimate_marker_heading,
+    pixel_to_world,
+    pixels_to_world,
+    world_to_pixel,
+)
 from swarm_perception.models import (
     CalibrationArtifact,
     Frame,
@@ -7,13 +14,7 @@ from swarm_perception.models import (
     SceneState,
     scene_state_to_json_dict,
 )
-from swarm_perception.frame_source import CalibrationError, FrameSource, FrameSourceTimeoutError
-from swarm_perception.geometry import (
-    estimate_marker_heading,
-    pixel_to_world,
-    pixels_to_world,
-    world_to_pixel,
-)
+from swarm_perception.pipeline import process_frame
 from swarm_perception.state_estimator import (
     StateEstimator,
     build_scene_diagnostics,
@@ -21,7 +22,6 @@ from swarm_perception.state_estimator import (
     estimate_velocity,
     low_pass_filter,
 )
-from swarm_perception.pipeline import process_frame
 
 __all__ = [
     "CalibrationArtifact",

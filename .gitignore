@@ -17,6 +17,8 @@ data/logs/*
 !data/logs/.gitkeep
 data/vector_store/*
 !data/vector_store/.gitkeep
+data/generated/isaac/*
+!data/generated/isaac/.gitkeep
 benchmarks/results/*
 !benchmarks/results/.gitkeep
 

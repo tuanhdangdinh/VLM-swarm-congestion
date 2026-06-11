@@ -24,8 +24,8 @@ def run_simulation(config: ResolvedRunConfig) -> tuple[RunResult, ...]:
 
 
 def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult:
-    import omni.timeline
     import carb
+    import omni.timeline
 
     output_dir = run_output_dir(
         config.output_dir, config.scenario.name, config.scenario.seed, repetition
@@ -137,7 +137,7 @@ def _enable_extensions() -> None:
 
 
 def _validate_stage(scenario_path: Path) -> None:
-    from isaac.vgu_sim.validation import validate_scenario_stage, ValidationError
+    from isaac.vgu_sim.validation import ValidationError, validate_scenario_stage
     try:
         validate_scenario_stage(scenario_path)
     except ValidationError as exc:
@@ -151,6 +151,7 @@ def _init_physics() -> None:
 
 def _wait_for_ros_topics(robots, timeout_sec: float) -> None:
     import time
+
     import rclpy
     from rclpy.node import Node
 

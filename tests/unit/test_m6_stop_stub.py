@@ -1,5 +1,6 @@
 # tests/unit/test_m6_stop_stub.py
 import math
+
 import pytest
 
 sensor_msgs = pytest.importorskip("sensor_msgs", reason="sensor_msgs requires ROS 2")

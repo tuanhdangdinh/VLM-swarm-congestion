@@ -1,5 +1,4 @@
 # tests/simulation/conftest.py
-import pytest
 
 
 def pytest_configure(config):

@@ -18,7 +18,7 @@ def build_scenario_stage(
     robot_asset_path: Path,
     output_path: Path,
 ) -> Path:
-    from pxr import Usd, UsdGeom, Gf, Kind
+    from pxr import Kind, Usd, UsdGeom
 
     if not warehouse_path.exists():
         raise ScenarioBuildError(f"Warehouse asset missing: {warehouse_path}")
@@ -65,7 +65,7 @@ def build_scenario_stage(
 
 
 def _author_robot(stage, robot_cfg, robot_asset_path: Path, scenario_dir: Path) -> None:
-    from pxr import UsdGeom, Gf, Kind
+    from pxr import Gf, Kind, UsdGeom
 
     prim_path = f"/World/Robots/{robot_cfg.robot_id}"
     robot_prim = stage.DefinePrim(prim_path)
@@ -89,7 +89,7 @@ def _author_robot(stage, robot_cfg, robot_asset_path: Path, scenario_dir: Path) 
 
 
 def _author_obstacle(stage, obs_cfg) -> None:
-    from pxr import UsdGeom, Gf
+    from pxr import Gf, UsdGeom
 
     prim_path = f"/World/DynamicObstacles/{obs_cfg.obstacle_id}"
     prim = UsdGeom.Xform.Define(stage, prim_path)

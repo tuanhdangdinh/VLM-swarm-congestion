@@ -24,8 +24,8 @@ def main() -> None:
         omni.kit.app.get_app().update()
 
         from isaac.vgu_sim.config import CameraConfig, WarehouseConfig
-        from isaac.vgu_sim.warehouse_builder import build_warehouse_asset
         from isaac.vgu_sim.paths import warehouse_asset_path
+        from isaac.vgu_sim.warehouse_builder import build_warehouse_asset
 
         output = args.output or warehouse_asset_path()
         output.parent.mkdir(parents=True, exist_ok=True)

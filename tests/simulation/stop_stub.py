@@ -66,7 +66,7 @@ class StopStubNode(Node):
     @classmethod
     def spin_in_thread(
         cls, robot_ids: list[str], speed_mps: float = 0.10
-    ) -> "StopStubNode":
+    ) -> StopStubNode:
         rclpy.init(args=None)
         node = cls(robot_ids, speed_mps)
         t = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)

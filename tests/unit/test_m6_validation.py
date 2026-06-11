@@ -1,5 +1,6 @@
 # tests/unit/test_m6_validation.py
 import math
+
 import pytest
 
 from isaac.vgu_sim.config import CameraConfig
@@ -7,7 +8,6 @@ from isaac.vgu_sim.validation import (
     ValidationError,
     validate_camera_frustum,
     validate_stage_metadata,
-    validate_canonical_namespace,
 )
 
 

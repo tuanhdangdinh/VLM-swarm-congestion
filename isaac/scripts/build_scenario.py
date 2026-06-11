@@ -26,8 +26,9 @@ def main() -> None:
         omni.kit.app.get_app().update()
 
         import yaml
+
         from isaac.vgu_sim.config import ScenarioConfig
-        from isaac.vgu_sim.paths import robot_asset_path, warehouse_asset_path, scenario_output_path
+        from isaac.vgu_sim.paths import robot_asset_path, scenario_output_path, warehouse_asset_path
         from isaac.vgu_sim.scenario_builder import build_scenario_stage
 
         with open(args.config) as f:

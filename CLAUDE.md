@@ -6,6 +6,7 @@
 
 - Initial draft: architecture overview, file layout, commands, and development standards for Claude Code.
 - Rev 2 (2026-06-10): reformatted to follow `docs/standards/doc_style.md`.
+- Rev 3 (2026-06-11): synced Development Standards with `docs/standards/coding_style.md`; added `isaac/` to File Layout; expanded Module Boundaries, Error Handling, ROS2, Logging, Pydantic, OpenCV, VLM/RAG, Dependencies, Secrets, and External Library Verification sections.
 
 ---
 
@@ -53,7 +54,14 @@ The five-module architecture:
 │       │   └── package.xml           # ROS2 dependencies
 │       ├── swarm_interfaces/         # Shared ROS2 messages
 │       ├── swarm_orchestrator/       # M5: state machine, task registry
-│       └── swarm_simulation/         # M6: Isaac Sim ROS-facing launch, scenarios
+│       └── swarm_simulation/         # M6: ROS2-facing launch, scenarios, maps
+│
+├── isaac/                            # M6: Isaac Sim Python runtime (runs inside Isaac Sim's embedded Python)
+│   ├── vgu_sim/                      # Scene builder, USD authoring, OmniGraph wiring
+│   ├── assets/                       # USD and mesh assets
+│   ├── scenarios/                    # Scenario configs consumed by vgu_sim
+│   ├── scripts/                      # Standalone runner and helpers
+│   └── config/                       # Isaac Sim runtime configuration
 │
 ├── reasoning/                        # Non-ROS2 Python (M2, M3)
 │   ├── vlm/                          # M2: VLM backend adapters, prompt builder
@@ -163,7 +171,7 @@ Subscribes to:
 
 ### Type Hints
 
-Every public function must have full type hints. Use `X | Y` not `Optional[X]`. Use built-in generics (`list[str]`, `dict[str, int]`), not `typing.List`, etc.
+Every public function and method signature must have full type hints. Use `X | Y`, not `Optional[X]` or `Union[X, Y]`. Use built-in generics (`list[str]`, `dict[str, int]`, `tuple[float, float]`), not `typing.List`, etc. Use `Protocol` for pluggable boundaries such as `FrameSource` and `VLMBackend`. Private helpers may omit type hints only when the surrounding code remains obvious and local.
 
 ```python
 def classify_motion_status(
@@ -176,9 +184,31 @@ def classify_motion_status(
     ...
 ```
 
+### Pydantic Models
+
+Use Pydantic v2 for module contracts that cross package, ROS2, logging, or backend boundaries.
+
+```python
+class RobotStateInput(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    robot_id: str = Field(min_length=1)
+    x: float
+    y: float
+    theta: float
+```
+
+Rules:
+
+- Use `ConfigDict(frozen=True)` for immutable data contracts.
+- Add `arbitrary_types_allowed=True` when a model contains `np.ndarray`.
+- Use `field_validator` for array shapes, enum normalization, and schema invariants.
+- Use `.model_dump(mode="json")` for JSON-safe serialization.
+- Do not pass raw provider responses or ROS2 message objects across reasoning module boundaries; convert them into Pydantic models or plain dicts first.
+
 ### Imports
 
-Order as: stdlib, third-party, then local, with one blank line between groups.
+Order as: stdlib, third-party, then local, with one blank line between groups. No wildcard imports. Re-export intentionally public APIs from `__init__.py`. Do not import private helpers from sibling modules.
 
 ```python
 from pathlib import Path
@@ -191,7 +221,7 @@ from swarm_perception.geometry import pixel_to_world
 
 ### Docstrings
 
-Use Google style on every public function and class:
+Use Google style on every public function and class. One-line summary first, ending with a period. Blank line between summary and `Args`. Add `Raises` only when the function deliberately raises as part of its public contract. Private helpers do not need docstrings unless they encode a non-obvious algorithm.
 
 ```python
 def pixel_to_world(pixel: tuple[float, float], homography: np.ndarray) -> tuple[float, float]:
@@ -215,32 +245,96 @@ Keep ownership clear:
 - M3 RAG → `reasoning/rag`
 - M4 execution → `ros2_ws/src/swarm_execution`
 - M5 orchestration → `ros2_ws/src/swarm_orchestrator`
-- M6 simulation → `ros2_ws/src/swarm_simulation` and `benchmarks`
+- M6 simulation → `ros2_ws/src/swarm_simulation` (ROS2 launch/config), `isaac/vgu_sim` (Isaac Sim scene authoring), and `benchmarks`
 
 ### Scope & Discipline
 
-Do exactly what the task asks. Do not refactor unrelated modules, change topic names without updating specs, or add external dependencies without documenting why.
+Do exactly what the task asks. Do not:
+
+- Refactor unrelated modules while implementing one module.
+- Change ROS2 topic names without updating specs and launch/config files.
+- Change shared schemas without checking downstream consumers.
+- Add a VLM backend without keeping it behind the backend interface.
+- Add external dependencies without documenting why.
+- Reformat generated files or simulator assets unless the task requires it.
 
 ### ROS2 Code
 
-Keep node callbacks thin. Convert ROS2 messages to internal models, call pure functions, then publish results. Put reusable logic outside node classes when it can be tested without ROS2.
+Keep node callbacks thin. Convert ROS2 messages to internal models, call pure functions, then publish results. Put reusable logic outside node classes when it can be tested without ROS2. Use explicit topic names from specs/config — do not hardcode alternate names in source. Use launch/config files for parameters such as camera topic, marker dictionary, thresholds, model endpoint, and safety limits. Message definitions in `swarm_interfaces` are shared contracts; update specs, tests, and consumers when changing them. Avoid blocking VLM/RAG calls inside high-rate perception or safety callbacks.
+
+### OpenCV and Geometry
+
+- Treat camera frames as RGB at M1 boundaries. Convert to BGR only at OpenCV drawing/detection boundaries, and convert back before publishing.
+- Use `opencv-contrib-python` when `cv2.aruco` is needed.
+- Normalize OpenCV ArUco corner arrays to shape `(4, 2)` before constructing `MarkerDetection`.
+- Keep coordinate conventions explicit: pixel coordinates as `(u, v)`, world coordinates as `(x, y)` in meters, heading in radians in the world frame.
+- Homography helpers must document direction: pixel-to-world or world-to-pixel.
+
+### VLM and RAG Code
+
+- Keep VLM providers pluggable behind `VLMBackend`.
+- Backend-specific code owns HTTP payloads, auth, image encoding, and provider response parsing into `BackendResponse`.
+- Prompt building, retry policy, output parsing, and decision validation must remain backend-agnostic.
+- Use `temperature=0.0` for classification workloads unless a spec says otherwise.
+- Validate VLM output with Pydantic before forwarding it to M3 or M5.
+- Do not log base64 images, secrets, or full provider payloads unless a debugging artifact is explicitly requested.
 
 ### Error Handling
 
-- Public boundary functions may raise documented errors (`CalibrationError`, `ValueError`, `FileNotFoundError`).
+- Public boundary functions may raise documented errors (`CalibrationError`, `FrameSourceTimeoutError`, `ValueError`, `FileNotFoundError`).
 - Runtime failures from external systems should appear in diagnostics or result objects, not crash the node.
+- M1 per-frame detection failures should appear in diagnostics, not crash the node.
+- M2 backend/model failures should return `ReasonerResult(decision=None)` after bounded retries; invalid caller inputs may raise before backend invocation.
 - Do not swallow exceptions silently.
+
+### Logging
+
+- Prefer structured key-value logging for ROS2 node events and reasoning traces.
+- Include `request_id`, `frame_id`, `robot_id`, `backend_id`, or `command_id` when available.
+- Do not log secrets, API keys, raw `.env` contents, or full base64 image data.
+- Keep VLM reasoning traces in explicit JSONL/debug artifacts when needed, not in high-rate ROS2 logs.
+
+### Comments
+
+Comments explain why a non-obvious constraint exists; do not restate the code. Avoid section-divider comments.
 
 ### Tests
 
+- Unit-test pure logic first: geometry, homography, state estimation, schema validation, VLM output parsing, and command grounding.
+- Mock external systems (ROS2 runtime, Isaac Sim, HTTP VLM servers, ChromaDB, model APIs) in unit tests.
+- Integration tests may exercise ROS2 nodes or local VLM servers, but must be marked or documented so they are not confused with fast unit tests.
 - Name tests `test_<behavior>_<condition>`.
 - Test one behavior per function.
-- Mock external systems (ROS2 runtime, OpenCV, VLM servers) in unit tests.
-- Mark or document integration tests so they are not confused with fast unit tests.
+
+### Dependencies
+
+- Python runtime dependencies go in `pyproject.toml` and `requirements.txt`.
+- ROS2 package dependencies go in each package's `package.xml`.
+- Optional heavyweight dependencies should remain optional until the module that requires them is implemented.
+- Do not assume `uv` is available. Use `make` commands unless a task requires a lower-level command.
+
+### Secrets and Local Paths
+
+- Never commit `.env`, API keys, tokens, or private model credentials.
+- Read secrets from environment variables.
+- Do not hardcode local absolute paths to model files, Isaac Sim installs, or datasets. Put placeholders in config and document required environment setup.
+
+### External Library Verification
+
+Before implementing against version-sensitive APIs, verify current official docs or primary repositories. This applies especially to:
+
+- Isaac Sim ROS2 camera helpers.
+- OpenCV ArUco APIs.
+- ROS2 message and launch APIs.
+- llama.cpp `llama-server`.
+- NVIDIA Cosmos Reason2.
+- ChromaDB and embedding libraries.
+
+Record important setup facts in the relevant spec or setup document.
 
 ### Commit Messages
 
-Use Conventional Commits: `type: summary`. Common types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`. Subject line under 72 characters. No body; reasoning belongs in PR or spec.
+Use Conventional Commits: `type: summary`. Common types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`. Subject line under 72 characters. No body; reasoning belongs in the PR description, spec, or module implementation report. No `Co-Authored-By` trailer.
 
 ---
 

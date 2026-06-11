@@ -1,13 +1,14 @@
 from pathlib import Path
+
 import pytest
+
 from isaac.vgu_sim.paths import (
-    isaac_root,
+    component_asset_path,
     robot_asset_path,
-    warehouse_asset_path,
+    run_output_dir,
     scenario_config_path,
     scenario_output_path,
-    run_output_dir,
-    component_asset_path,
+    warehouse_asset_path,
 )
 
 

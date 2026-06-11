@@ -1,5 +1,4 @@
-import pytest
-from isaac.vgu_sim.config import TimedObstacleConfig, Pose2D
+from isaac.vgu_sim.config import Pose2D, TimedObstacleConfig
 from isaac.vgu_sim.event_scheduler import EventScheduler
 
 

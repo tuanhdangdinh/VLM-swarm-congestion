@@ -11,12 +11,9 @@ Tests are organized by module and cover:
 from __future__ import annotations
 
 import math
-import tempfile
-from pathlib import Path
 
 import numpy as np
 import pytest
-
 from swarm_perception.detection import filter_duplicate_detections
 from swarm_perception.geometry import (
     estimate_marker_heading,
@@ -39,7 +36,6 @@ from swarm_perception.state_estimator import (
     estimate_velocity,
     low_pass_filter,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

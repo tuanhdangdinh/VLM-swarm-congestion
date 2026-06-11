@@ -108,17 +108,30 @@ command lifecycle, owns task/status registry feeding M1.3.
 ---
 
 ## M6 — Simulation & Evaluation
-**Proposal §5** | Test harness
+**Proposal §5** | Isaac Sim test harness
 
-- **M6.1 World & Robots** — Gazebo (or Webots) warehouse: 1.2 m aisles, T-junctions,
-  4-way intersections, loading bays; TurtleBot3 Burger (v≤0.22 m/s, ω≤2.84 rad/s);
-  simulated overhead RGB 1280×960; fleet sizes N ∈ {4, 8, 12, 16}.
-- **M6.2 Scenarios** — head-on deadlock, intersection bottleneck, dynamic anomaly.
+- **M6.1 World & Robots** — Isaac Sim 6.0 + ROS2 Jazzy warehouse built with
+  OpenUSD references and scenario layers. Reusable assets live under `isaac/`;
+  the ROS-facing integration remains in `swarm_simulation`. The environment
+  provides 1.2 m aisles, a 4-way intersection, loading zones, physics-ready
+  TurtleBot3 Burger robots (v≤0.22 m/s, ω≤2.84 rad/s), per-robot lidar, and a
+  fixed overhead RGB camera at 1280×960 and 30 Hz.
+- **M6.2 Scenarios** — deterministic, repeatable head-on deadlock, intersection
+  bottleneck, and dynamic anomaly scenarios. YAML is the source of truth;
+  generated scenario USD layers reference the reusable warehouse and robot
+  assets.
 - **M6.3 Baselines** — APF, ORCA, CBS, and Asadi et al. (2025) CNN congestion-aware.
 - **M6.4 Metrics & Logging** — throughput, waiting time, collision rate, energy,
   deadlock recovery time; ablations (VLM-only vs. VLM+RAG).
 
-**Outputs:** benchmark results, ablation analysis.
+**Interfaces:** `/clock`, `/camera/image_raw`, `/camera/camera_info`,
+`/robot_N/cmd_vel`, `/robot_N/odom`, `/robot_N/scan`, `/tf`, and `/tf_static`.
+Robot namespaces and TF frames are unique.
+
+**Outputs:** composed USD scenes, ROS2 simulation streams, validation-only
+ground truth, benchmark results, and ablation analysis.
+
+**Detailed spec:** [`docs/specs/module6_simulation.md`](specs/module6_simulation.md).
 
 ---
 

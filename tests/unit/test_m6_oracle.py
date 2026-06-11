@@ -1,11 +1,10 @@
-import pytest
 from isaac.vgu_sim.oracle import (
-    is_stopped,
-    is_slow,
-    head_on_conflict_active,
-    intersection_conflict_active,
     anomaly_conflict_active,
     classify_speed,
+    head_on_conflict_active,
+    intersection_conflict_active,
+    is_slow,
+    is_stopped,
 )
 
 

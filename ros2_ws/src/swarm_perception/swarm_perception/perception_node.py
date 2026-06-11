@@ -81,8 +81,8 @@ class PerceptionNode(Node):
 
         image_topic = self.get_parameter("image_topic").value
         try:
-            from sensor_msgs.msg import Image as RosImage
             from cv_bridge import CvBridge
+            from sensor_msgs.msg import Image as RosImage
 
             self._bridge = CvBridge()
             self._annotated_pub = self.create_publisher(

@@ -38,7 +38,8 @@ def main() -> None:
         os.environ["ROS_DOMAIN_ID"] = str(args.ros_domain_id)
 
     import yaml
-    from isaac.vgu_sim.config import ScenarioConfig, ResolvedRunConfig
+
+    from isaac.vgu_sim.config import ResolvedRunConfig, ScenarioConfig
     from isaac.vgu_sim.paths import scenario_config_path, scenario_output_path
 
     scenario_arg = args.scenario
