@@ -1,7 +1,6 @@
 # tests/unit/test_m6_validation.py
 import math
 import pytest
-from pxr import Usd, UsdGeom, UsdPhysics, Gf
 
 from isaac.vgu_sim.config import CameraConfig
 from isaac.vgu_sim.validation import (
@@ -13,6 +12,8 @@ from isaac.vgu_sim.validation import (
 
 
 def _make_stage(tmp_path, *, meters_per_unit=1.0, up_axis="Z", default_prim="/World"):
+    from pxr import Usd, UsdGeom
+
     path = str(tmp_path / "test.usda")
     stage = Usd.Stage.CreateNew(path)
     stage.SetMetadata("metersPerUnit", meters_per_unit)
@@ -27,20 +28,24 @@ def _make_stage(tmp_path, *, meters_per_unit=1.0, up_axis="Z", default_prim="/Wo
 
 class TestValidateStageMetadata:
     def test_valid_stage_passes(self, tmp_path):
+        pytest.importorskip("pxr")
         stage = _make_stage(tmp_path)
         validate_stage_metadata(stage)  # no exception
 
     def test_wrong_meters_per_unit_fails(self, tmp_path):
+        pytest.importorskip("pxr")
         stage = _make_stage(tmp_path, meters_per_unit=100.0)
         with pytest.raises(ValidationError, match="metersPerUnit"):
             validate_stage_metadata(stage)
 
     def test_wrong_up_axis_fails(self, tmp_path):
+        pytest.importorskip("pxr")
         stage = _make_stage(tmp_path, up_axis="Y")
         with pytest.raises(ValidationError, match="upAxis"):
             validate_stage_metadata(stage)
 
     def test_wrong_default_prim_fails(self, tmp_path):
+        pytest.importorskip("pxr")
         stage = _make_stage(tmp_path, default_prim="/Foo")
         with pytest.raises(ValidationError, match="defaultPrim"):
             validate_stage_metadata(stage)
@@ -48,6 +53,9 @@ class TestValidateStageMetadata:
 
 class TestValidateCameraFrustum:
     def test_default_config_passes(self, tmp_path):
+        pytest.importorskip("pxr")
+        from pxr import UsdGeom
+
         stage = _make_stage(tmp_path)
         config = CameraConfig()
         # Add camera prim so the check doesn't fail on missing prim
@@ -55,12 +63,16 @@ class TestValidateCameraFrustum:
         validate_camera_frustum(stage, config)  # no exception
 
     def test_missing_camera_prim_fails(self, tmp_path):
+        pytest.importorskip("pxr")
         stage = _make_stage(tmp_path)
         config = CameraConfig()
         with pytest.raises(ValidationError, match="Camera prim not found"):
             validate_camera_frustum(stage, config)
 
     def test_insufficient_width_fails(self, tmp_path):
+        pytest.importorskip("pxr")
+        from pxr import UsdGeom
+
         stage = _make_stage(tmp_path)
         # Camera too high and narrow to cover ROI
         config = CameraConfig(
@@ -86,3 +98,16 @@ class TestValidateCameraFrustum:
         covered_d = 2.0 * h * math.tan(math.atan(va / (2.0 * fl)))
         assert covered_w == pytest.approx(config.roi_width_m, rel=0.05)
         assert covered_d == pytest.approx(config.roi_depth_m, rel=0.05)
+
+
+def test_calibration_position_error_euclidean():
+    from isaac.vgu_sim.validation import calibration_position_error
+
+    err = calibration_position_error(measured=(1.03, -0.46), ground_truth=(1.0, -0.5))
+    assert abs(err - 0.05) < 1e-9
+
+
+def test_calibration_position_error_zero_on_match():
+    from isaac.vgu_sim.validation import calibration_position_error
+
+    assert calibration_position_error((2.0, 3.0), (2.0, 3.0)) == 0.0
