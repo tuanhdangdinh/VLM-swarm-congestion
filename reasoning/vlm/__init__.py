@@ -1,1 +1,60 @@
-"""VLM prompt, backend, and output parsing utilities."""
+"""M2 VLM semantic reasoning: prompt building, backend adapters, parsing, orchestration."""
+
+from reasoning.vlm.backend_base import VLMBackend
+from reasoning.vlm.backend_factory import build_backend
+from reasoning.vlm.llama_server_backend import LlamaServerBackend
+from reasoning.vlm.mock_backend import MockBackend
+from reasoning.vlm.models import (
+    BackendResponse,
+    CongestionDecision,
+    LlamaServerBackendConfig,
+    PromptPayload,
+    ReasonerConfig,
+    ReasonerDiagnostics,
+    ReasonerRequest,
+    ReasonerResult,
+    RobotStateInput,
+)
+from reasoning.vlm.output_parser import (
+    BackendTimeoutError,
+    DecisionValidationError,
+    VLMOutputParseError,
+    parse_decision_text,
+    validate_involved_robots,
+)
+from reasoning.vlm.prompt_builder import build_prompt_payload, format_robot_state_lines
+from reasoning.vlm.reasoner import (
+    Reasoner,
+    build_failed_result,
+    build_reask_prompt,
+    invoke_backend,
+    write_reasoner_log,
+)
+
+__all__ = [
+    "BackendResponse",
+    "BackendTimeoutError",
+    "CongestionDecision",
+    "DecisionValidationError",
+    "LlamaServerBackend",
+    "LlamaServerBackendConfig",
+    "MockBackend",
+    "PromptPayload",
+    "Reasoner",
+    "ReasonerConfig",
+    "ReasonerDiagnostics",
+    "ReasonerRequest",
+    "ReasonerResult",
+    "RobotStateInput",
+    "VLMBackend",
+    "VLMOutputParseError",
+    "build_backend",
+    "build_failed_result",
+    "build_prompt_payload",
+    "build_reask_prompt",
+    "format_robot_state_lines",
+    "invoke_backend",
+    "parse_decision_text",
+    "validate_involved_robots",
+    "write_reasoner_log",
+]

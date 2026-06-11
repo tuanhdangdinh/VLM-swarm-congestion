@@ -289,3 +289,23 @@ def test_build_backend_returns_llama_server():
 def test_build_backend_rejects_unknown_id():
     with pytest.raises(ValueError):
         build_backend("nope", LlamaServerBackendConfig(model_id="x"))
+
+
+def test_public_api_is_importable_from_package():
+    from reasoning.vlm import (
+        CongestionDecision,
+        MockBackend,
+        Reasoner,
+        ReasonerConfig,
+        ReasonerRequest,
+        ReasonerResult,
+        build_backend,
+    )
+
+    assert Reasoner is not None
+    assert build_backend is not None
+    assert CongestionDecision is not None
+    assert MockBackend is not None
+    assert ReasonerConfig is not None
+    assert ReasonerRequest is not None
+    assert ReasonerResult is not None
