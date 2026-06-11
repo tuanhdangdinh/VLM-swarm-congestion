@@ -14,7 +14,7 @@ import yaml
 from isaac.vgu_sim.calibration import build_calibration_dict
 from isaac.vgu_sim.config import CameraConfig
 
-DEFAULT_OUTPUT = Path("ros2_ws/src/swarm_perception/config/calibration.yaml")
+DEFAULT_OUTPUT = Path(__file__).resolve().parents[2] / "ros2_ws/src/swarm_perception/config/calibration.yaml"
 
 
 def main() -> None:
