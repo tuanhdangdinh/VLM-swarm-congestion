@@ -3,6 +3,10 @@
 **Status:** Implementation target · **Level:** Implementation · **Source:** `simulation_requirements.md`
 **Producer:** M6 simulation · **Consumers:** M1 perception, M4 execution, M5 orchestrator
 
+**Revision history:**
+- Initial draft: full M6 spec covering runtime, USD composition, scenarios, ROS2 graphs, runner, and testing.
+- Rev 2 (2026-06-11): added `oracle.py` to §6 package layout; fixed orphaned `/clock` QoS row in §3 FR6.7.10 table.
+
 ---
 
 ## 1. Overview
@@ -31,10 +35,10 @@ ablations, M1 ArUco detection, M2 VLM inference, M3 command grounding, M4 path
 planning, and M5 task assignment. M6 exposes the environment and interfaces
 those modules consume; it does not duplicate their behavior.
 
-The existing `tools/isaac_scene` ASCII scene generator is a prototype. It may
-remain temporarily for offline experiments, but it is not the implementation
-target because it generates composed scene content into one file and does not
-create validated Isaac Sim physics, sensors, or ROS 2 OmniGraphs.
+The earlier `tools/isaac_scene` ASCII scene generator (a Phase-1 prototype) has
+been removed. `isaac/vgu_sim` is the sole scene-authoring implementation: it
+creates validated Isaac Sim physics, sensors, and ROS 2 OmniGraphs rather than
+emitting composed scene content into one flattened file.
 
 ---
 
@@ -200,7 +204,8 @@ Every composed scenario must provide these paths:
   - Maximum angular velocity: `2.84 rad/s`
 - FR6.4.8 A command watchdog sets both wheel targets to zero when no valid
   `/robot_N/cmd_vel` command is received for `0.5 s` of simulation time.
-- FR6.4.9 Attach one forward-facing 2D RTX lidar under the robot base:
+- FR6.4.9 Attach one 2D RTX lidar under the robot base (forward-aligned mount,
+  360 deg horizontal coverage):
   - Frame: `robot_N/base_scan`
   - Horizontal field of view: `360 deg`
   - Angular resolution: `1 deg`
@@ -209,12 +214,19 @@ Every composed scenario must provide these paths:
   - Maximum range: `3.5 m`
 - FR6.4.10 Attach a horizontal ArUco marker plate above the robot:
   - Dictionary: `DICT_4X4_50`
-  - Printed marker size: `0.12 m` (sized so the plate does not overhang the
-    ~`0.14 m x 0.18 m` Burger footprint while still resolving to at least
-    ~4 px/module under the PoC overhead camera; see Section 6.6).
+  - Printed marker size: `0.12 m` (6x6 modules including the black border for
+    `DICT_4X4_50`, i.e. `0.02 m/module`). A white quiet zone of at least one
+    module per side is required for reliable `cv2.aruco` detection, so the
+    physical plate is ~`0.16 m` and is allowed to overhang the ~`0.14 m x 0.18 m`
+    Burger footprint slightly. The printed marker is not shrunk below `0.12 m`
+    because that would drop it under the ~4 px/module budget at the PoC overhead
+    camera (see Section 6.6); a small plate overhang is the accepted trade.
   - Marker ID: `N` for `robot_N`
   - Valid marker IDs: `1..49`
-  - Plate must not participate in collision.
+  - Plate must not participate in collision. It must also be mounted above the
+    lidar scan plane (FR6.4.9) and excluded from RTX lidar visibility: RTX lidar
+    raytraces rendered geometry, not PhysX colliders, so disabling collision
+    alone does not keep the plate (or its mount) out of `/robot_N/scan`.
   - The marker image is generated with `cv2.aruco.generateImageMarker` and
     bound as an **unlit, full-contrast** texture (`UsdPreviewSurface` with
     emissive/unlit shading, no albedo tint, nearest-neighbour or unfiltered
@@ -261,9 +273,12 @@ Every composed scenario must provide these paths:
 - FR6.6.5 This is a proof-of-concept camera. The rendered frame covers a
   central conflict region-of-interest of `6.0 m x 4.5 m` centered at the world
   origin, not the complete `12 m x 8 m` interior. This ROI captures the head-on
-  narrow passage, the four-way intersection (robots spawn at `+/-3.0 m`), and
-  the dynamic-obstacle location `(1.5, 0)`. Full-warehouse coverage is deferred
-  (Section 13).
+  narrow passage, the four-way intersection conflict zone at the origin, and the
+  dynamic-obstacle location `(1.5, 0)`. The `4.5 m` depth spans only `+/-2.25 m`
+  in y, so intersection robots spawning at `(0, +/-3.0)` start outside the ROI
+  and the `(+/-3.0, 0)` east/west spawns sit on the degraded frame edge; like
+  the head-on robots, they are acquired by M1 as they approach the origin.
+  Full-warehouse coverage is deferred (Section 13).
 - FR6.6.6 Publish RGB as `sensor_msgs/msg/Image` on
   `/camera/image_raw`.
 - FR6.6.7 Publish calibration as `sensor_msgs/msg/CameraInfo` on
@@ -330,9 +345,13 @@ mounting offsets and are published once on `/tf_static`.
 | `/robot_N/scan` | Best effort | Volatile | Keep last / 5 |
 | `/camera/image_raw` | Best effort | Volatile | Keep last / 5 |
 | `/camera/camera_info` | Reliable | Volatile | Keep last / 5 |
-| `/tf` | Best effort | Volatile | Keep last / 100 |
+| `/tf` | Reliable | Volatile | Keep last / 100 |
 | `/tf_static` | Reliable | Transient local | Keep last / 1 |
 | `/clock` | Best effort | Volatile | Keep last / 10 |
+
+`/tf` is Reliable to match the default `tf2_ros.TransformListener` QoS. A
+best-effort `/tf` publisher would not match a stock reliable listener under DDS,
+and M1/M4 would receive no transforms.
 
 The graph authoring implementation must use the Isaac Sim 6.0 node types below.
 If a patch release changes a registered node identifier, the implementation may
@@ -348,6 +367,7 @@ external interfaces in this table remain mandatory.
 | Odometry computation | `isaacsim.core.nodes.IsaacComputeOdometry` |
 | Odometry publication | `isaacsim.ros2.bridge.ROS2PublishOdometry` |
 | Dynamic TF publication | `isaacsim.ros2.bridge.ROS2PublishRawTransformTree` |
+| Static TF publication | `isaacsim.ros2.bridge.ROS2PublishRawTransformTree` (targeting `/tf_static`, transient-local QoS) |
 | Clock publication | `isaacsim.ros2.bridge.ROS2PublishClock` |
 | RGB publication | `isaacsim.ros2.bridge.ROS2CameraHelper` |
 | CameraInfo publication | `isaacsim.ros2.bridge.ROS2CameraInfoHelper` |
@@ -368,8 +388,12 @@ external interfaces in this table remain mandatory.
   replacement.
 - FR6.8.5a The test harness includes a minimal, test-only reactive **stop
   stub**: per robot it drives forward at the scripted speed (`<= 0.15 m/s`) but
-  commands zero velocity whenever that robot's `/robot_N/scan` minimum range is
-  below `0.25 m`. The stub may only stop a robot; it must never reroute, plan,
+  commands zero velocity whenever the minimum range within a forward `+/-30 deg`
+  sector of that robot's `/robot_N/scan` is below `0.25 m`. The forward sector
+  (not the full `360 deg` scan) is required so the side walls of the `0.55 m`
+  narrowed passage (~`0.275 m` from a centered robot) do not trip the stub and
+  permanently stall a robot before the head-on conflict forms. The stub may only
+  stop a robot; it must never reroute, plan,
   or steer. This makes the deadlock/bottleneck/anomaly conflicts form without
   robot-on-robot impact and without depending on M4. The stub is strictly test
   infrastructure and is not part of the M6 runtime or a substitute for M4
@@ -525,6 +549,10 @@ class CameraConfig(BaseModel):
     height: Literal[960] = 960
     fps: Literal[30] = 30
     position_m: tuple[float, float, float] = (0.0, 0.0, 3.0)
+    # Nadir orientation as (w, x, y, z); identity looks down world -Z with
+    # local +Y aligned to world +Y (FR6.6.3). Parameterized now so the deferred
+    # tilted-camera mount (Section 13) is a config-only change.
+    orientation_quat_wxyz: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
     focal_length_mm: float = 10.48
     horizontal_aperture_mm: float = 20.955
     # Square-pixel vertical aperture; CameraInfo K and M1 homography must match.
@@ -776,6 +804,7 @@ isaac/
     ├── scenario_builder.py
     ├── ros_graphs.py
     ├── event_scheduler.py
+    ├── oracle.py
     ├── runner.py
     └── validation.py
 ```
@@ -960,6 +989,9 @@ def run_simulation(config: ResolvedRunConfig) -> tuple[RunResult, ...]
   - No penetrating collision and no contact with a wall or rack collider
     occurs. With the stop stub active, no robot-on-robot impact occurs (see the
     unified collision rule in Section 9.4).
+  - The Section 9.4 oracle (both involved robots stopped while their center
+    distance is `< 0.8 m`) is authoritative for acceptance; this list is the
+    descriptive form of that oracle.
 - Recovery acceptance:
   - Independent `/cmd_vel` commands can stop/reverse one robot while commanding
     the other forward.

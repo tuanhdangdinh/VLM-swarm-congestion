@@ -2,6 +2,10 @@
 
 **Date:** 2026-06-11 · **Status:** Approved (design) · **Module:** M1 Perception × M6 Simulation
 
+**Revision history:**
+- Initial draft: design for deriving K and H from CameraConfig, testing strategy, and in-sim validation procedure.
+- Rev 2 (2026-06-11): §5.2 updated integration test location from `test_perception.py` to `test_isaac_calibration.py`; §5.4 updated to document the Pydantic-upstream validation decision in place of an explicit `CalibrationError` guard.
+
 ---
 
 ## 1. Problem & Goal
@@ -142,12 +146,14 @@ the generator's pixel→world `H`:
 - **Consistency:** generated `K` equals the `K` the `camera_info` graph would
   publish from the same config.
 
-### 5.2 Integration (Mac, no Isaac) — extend `test_perception.py`
+### 5.2 Integration (Mac, no Isaac) — `tests/unit/test_isaac_calibration.py`
 
 Feed `process_frame` a synthetic frame with an ArUco marker at a known pixel,
 using the generated calibration → assert `RobotState.(x,y)` equals the world
 point for that pixel. Proves calibration flows through the real M1 pipeline,
-offline.
+offline. The test lives in `test_isaac_calibration.py` alongside the unit tests
+rather than in `test_perception.py`, keeping all calibration evidence in one
+file.
 
 ### 5.3 Sim validation (Windows/Isaac) — documented procedure + helper
 
@@ -160,9 +166,12 @@ offline.
 
 ### 5.4 Error handling
 
-The generator validates `CameraConfig` invariants (h > 0, apertures > 0, square
-pixels within ε) and raises `CalibrationError` (consistent with the existing
-calibration module). No silent fallback to identity.
+`CameraConfig` is a frozen Pydantic v2 model whose fields are constrained at
+construction (positive apertures, fixed resolution, etc.), so invalid inputs
+cannot reach `build_calibration_dict`. The validation requirement is satisfied
+upstream by Pydantic; no explicit `CalibrationError` guard is added in the
+generator. If `CameraConfig` ever loosens those constraints, add an explicit
+check in `build_calibration_dict` at that time.
 
 ---
 
