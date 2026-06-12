@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 CONFIG_PATH="$ROOT_DIR/config/models.yaml"
 CONFIG_HELPER="$SCRIPT_DIR/llama_server_config.py"
+SETUP_COMMAND="python3 -m venv .venv && .venv/bin/python -m pip install -r requirements-dev.txt"
 
 if [[ "$(uname -s)" != "Darwin" || "$(uname -m)" != "arm64" ]]; then
   printf '%s\n' "Error: llama-server requires macOS on Apple Silicon." >&2
@@ -16,14 +17,12 @@ if [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
 elif command -v python3 >/dev/null 2>&1; then
   PYTHON="$(command -v python3)"
 else
-  printf '%s\n' \
-    "Error: Python 3 is required. Complete the project setup before starting llama-server." >&2
+  printf 'Error: Python 3 is required. Run: %s\n' "$SETUP_COMMAND" >&2
   exit 1
 fi
 
 if ! "$PYTHON" -c "import yaml" >/dev/null 2>&1; then
-  printf '%s\n' \
-    "Error: PyYAML is required. Complete the project setup before starting llama-server." >&2
+  printf 'Error: PyYAML is required. Run: %s\n' "$SETUP_COMMAND" >&2
   exit 1
 fi
 
@@ -63,7 +62,12 @@ command=(
   --log-format text
 )
 
-printf 'Endpoint: http://%s:%s/v1\n' "$LLAMA_HOST" "$LLAMA_PORT"
+display_host="$LLAMA_HOST"
+if [[ "$display_host" == *:* && "$display_host" != \[*\] ]]; then
+  display_host="[$display_host]"
+fi
+
+printf 'Endpoint: http://%s:%s/v1\n' "$display_host" "$LLAMA_PORT"
 printf 'Command:'
 printf ' %q' "${command[@]}"
 printf '\n'

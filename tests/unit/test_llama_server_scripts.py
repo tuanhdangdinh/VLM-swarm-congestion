@@ -1,8 +1,10 @@
 import os
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -12,6 +14,10 @@ ROOT = Path(__file__).resolve().parents[2]
 MODELS_CONFIG = ROOT / "config" / "models.yaml"
 CONFIG_HELPER = ROOT / "scripts" / "llama_server_config.py"
 START_SCRIPT = ROOT / "scripts" / "start_llama_server_apple_silicon.sh"
+SETUP_COMMAND = (
+    "python3 -m venv .venv && "
+    ".venv/bin/python -m pip install -r requirements-dev.txt"
+)
 
 
 def _write_config(tmp_path: Path, llama_server: dict[str, object]) -> Path:
@@ -139,9 +145,12 @@ def _run_start_script(
     fixture: dict[str, Path | dict[str, str]],
     *,
     environment: dict[str, str] | None = None,
+    dry_run: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     env = dict(fixture["env"])
     env.update(environment or {})
+    if not dry_run:
+        env.pop("LLAMA_DRY_RUN")
     return subprocess.run(
         ["/bin/bash", str(fixture["script"])],
         check=False,
@@ -353,6 +362,18 @@ def test_start_script_applies_runtime_overrides(llama_start_project):
     assert command[command.index("-ngl") + 1] == "42"
 
 
+def test_start_script_brackets_ipv6_only_in_displayed_endpoint(llama_start_project):
+    result = _run_start_script(
+        llama_start_project,
+        environment={"LLAMA_HOST": "::1"},
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Endpoint: http://[::1]:8080/v1" in result.stdout
+    command = _printed_command(result.stdout)
+    assert command[command.index("--host") + 1] == "::1"
+
+
 @pytest.mark.parametrize(
     ("environment", "expected"),
     [
@@ -387,7 +408,7 @@ def test_start_script_reports_missing_python(llama_start_project):
 
     assert result.returncode != 0
     assert "Python 3" in result.stderr
-    assert "project setup" in result.stderr
+    assert SETUP_COMMAND in result.stderr
 
 
 def test_start_script_reports_missing_pyyaml(llama_start_project):
@@ -407,7 +428,7 @@ exit 99
 
     assert result.returncode != 0
     assert "PyYAML" in result.stderr
-    assert "project setup" in result.stderr
+    assert SETUP_COMMAND in result.stderr
 
 
 def test_start_script_reports_resolved_missing_model(llama_start_project):
@@ -427,3 +448,56 @@ def test_start_script_requires_mmproj_and_never_falls_back(llama_start_project):
     assert result.returncode != 0
     assert str(llama_start_project["mmproj_path"]) in result.stderr
     assert not llama_start_project["server_marker"].exists()
+
+
+def test_start_script_propagates_llama_server_exit_status(llama_start_project):
+    _write_executable(
+        Path(llama_start_project["fake_bin"], "llama-server"),
+        """#!/bin/bash
+exit 37
+""",
+    )
+
+    result = _run_start_script(llama_start_project, dry_run=False)
+
+    assert result.returncode == 37
+
+
+def test_start_script_exec_replaces_shell_and_propagates_signal(llama_start_project):
+    pid_path = Path(llama_start_project["project"], "llama-server.pid")
+    _write_executable(
+        Path(llama_start_project["fake_bin"], "llama-server"),
+        """#!/bin/bash
+printf '%s\n' "$$" > "$FAKE_SERVER_PID_FILE"
+while :; do
+  printf -v idle ''
+done
+""",
+    )
+    env = dict(llama_start_project["env"])
+    env.pop("LLAMA_DRY_RUN")
+    env["FAKE_SERVER_PID_FILE"] = str(pid_path)
+    process = subprocess.Popen(
+        ["/bin/bash", str(llama_start_project["script"])],
+        cwd=llama_start_project["project"],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    try:
+        deadline = time.monotonic() + 5
+        while not pid_path.exists() and process.poll() is None:
+            if time.monotonic() >= deadline:
+                pytest.fail("fake llama-server did not write its PID within 5 seconds")
+            time.sleep(0.01)
+
+        assert process.poll() is None
+        assert int(pid_path.read_text(encoding="utf-8")) == process.pid
+        process.terminate()
+        assert process.wait(timeout=5) == -signal.SIGTERM
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
