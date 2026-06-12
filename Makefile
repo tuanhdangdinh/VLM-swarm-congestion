@@ -1,4 +1,4 @@
-.PHONY: test lint build-ros2 run-perception run-simulation run-orchestrator index-rag
+.PHONY: test lint build-ros2 run-perception run-simulation run-orchestrator index-rag run-llama-server check-llama-server
 
 test:
 	pytest
@@ -23,3 +23,9 @@ run-orchestrator:
 
 index-rag:
 	./scripts/index_rag_kb.sh
+
+run-llama-server:
+	./scripts/start_llama_server_apple_silicon.sh
+
+check-llama-server:
+	./scripts/check_llama_server.sh

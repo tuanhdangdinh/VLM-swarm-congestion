@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MODELS_CONFIG = ROOT / "config" / "models.yaml"
 CONFIG_HELPER = ROOT / "scripts" / "llama_server_config.py"
 START_SCRIPT = ROOT / "scripts" / "start_llama_server_apple_silicon.sh"
+CHECK_SCRIPT = ROOT / "scripts" / "check_llama_server.sh"
 
 
 def _write_config(tmp_path: Path, llama_server: dict[str, object]) -> Path:
@@ -177,6 +178,30 @@ def _printed_command(stdout: str) -> list[str]:
         if line.startswith("Command: ")
     )
     return shlex.split(command_line)
+
+
+def _prepare_check_script(project: Path) -> Path:
+    script = project / "scripts" / CHECK_SCRIPT.name
+    shutil.copy2(CHECK_SCRIPT, script)
+    return script
+
+
+def _run_check_script(
+    fixture: dict[str, Path | dict[str, str]],
+    *,
+    environment: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    env = dict(fixture["env"])
+    env.pop("LLAMA_DRY_RUN")
+    env.update(environment or {})
+    return subprocess.run(
+        ["/bin/bash", str(Path(fixture["project"], "scripts", CHECK_SCRIPT.name))],
+        check=False,
+        capture_output=True,
+        cwd=fixture["caller"],
+        env=env,
+        text=True,
+    )
 
 
 def test_llama_paths_are_home_relative_and_vision_is_configured():
@@ -523,3 +548,103 @@ done
         if process.poll() is None:
             process.kill()
             process.wait(timeout=5)
+
+
+def test_check_script_reports_ready_and_uses_effective_url(llama_start_project):
+    _prepare_check_script(Path(llama_start_project["project"]))
+    args_file = Path(llama_start_project["project"], "curl-args.txt")
+    _write_executable(
+        Path(llama_start_project["fake_bin"], "curl"),
+        """#!/bin/bash
+printf '%s' "$*" > "$CURL_ARGS_FILE"
+printf '{"status":"ok"}'
+""",
+    )
+
+    result = _run_check_script(
+        llama_start_project,
+        environment={
+            "CURL_ARGS_FILE": str(args_file),
+            "LLAMA_HOST": "localhost",
+            "LLAMA_PORT": "9090",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "llama-server ready: http://localhost:9090/health\n"
+    assert args_file.read_text(encoding="utf-8") == (
+        "--fail --silent --show-error --max-time 5 "
+        "http://localhost:9090/health"
+    )
+
+
+def test_check_script_reports_not_ready_when_curl_fails(llama_start_project):
+    _prepare_check_script(Path(llama_start_project["project"]))
+    _write_executable(
+        Path(llama_start_project["fake_bin"], "curl"),
+        """#!/bin/bash
+exit 7
+""",
+    )
+
+    result = _run_check_script(llama_start_project)
+
+    assert result.returncode == 1
+    assert result.stderr == (
+        "llama-server not ready: http://127.0.0.1:8080/health\n"
+    )
+
+
+def test_check_script_reports_missing_python(llama_start_project):
+    _prepare_check_script(Path(llama_start_project["project"]))
+    Path(llama_start_project["fake_bin"], "python3").unlink()
+
+    result = _run_check_script(llama_start_project)
+
+    assert result.returncode == 1
+    assert "Python 3" in result.stderr
+    install_command = "brew install python"
+    setup_command = (
+        f"cd {_bash_quote(str(llama_start_project['project']))} && "
+        "python3 -m venv .venv && "
+        ".venv/bin/python -m pip install -r requirements-dev.txt"
+    )
+    assert install_command in result.stderr
+    assert setup_command in result.stderr
+    assert result.stderr.index(install_command) < result.stderr.index(setup_command)
+
+
+def test_check_script_reports_missing_pyyaml(llama_start_project):
+    _prepare_check_script(Path(llama_start_project["project"]))
+    python = Path(llama_start_project["fake_bin"], "python3")
+    python.unlink()
+    _write_executable(
+        python,
+        """#!/bin/bash
+if [[ "$1" == "-c" ]]; then
+  exit 1
+fi
+exit 99
+""",
+    )
+
+    result = _run_check_script(llama_start_project)
+
+    assert result.returncode == 1
+    assert "PyYAML" in result.stderr
+    setup_command = (
+        f"cd {_bash_quote(str(llama_start_project['project']))} && "
+        "python3 -m venv .venv && "
+        ".venv/bin/python -m pip install -r requirements-dev.txt"
+    )
+    assert setup_command in result.stderr
+
+
+def test_check_script_reports_missing_curl(llama_start_project):
+    _prepare_check_script(Path(llama_start_project["project"]))
+
+    result = _run_check_script(llama_start_project)
+
+    assert result.returncode == 1
+    assert "curl" in result.stderr
+    assert "brew install curl" in result.stderr
