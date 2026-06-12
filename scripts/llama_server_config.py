@@ -28,7 +28,10 @@ class LlamaServerSettings:
     @property
     def health_url(self) -> str:
         """Return the llama-server health endpoint."""
-        return f"http://{self.host}:{self.port}/health"
+        host = self.host
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"
+        return f"http://{host}:{self.port}/health"
 
 
 def _required_string(config: dict[str, object], key: str) -> str:
@@ -46,6 +49,16 @@ def _positive_int(name: str, value: str) -> int:
     if parsed <= 0:
         raise ValueError(f"{name} must be greater than zero")
     return parsed
+
+
+def _port(value: str) -> int:
+    try:
+        port = int(value)
+    except ValueError as exc:
+        raise ValueError("LLAMA_PORT must be an integer") from exc
+    if not 1 <= port <= 65535:
+        raise ValueError("LLAMA_PORT must be between 1 and 65535")
+    return port
 
 
 def load_settings(config_path: Path, environ: dict[str, str]) -> LlamaServerSettings:
@@ -96,7 +109,7 @@ def load_settings(config_path: Path, environ: dict[str, str]) -> LlamaServerSett
     host = environ.get("LLAMA_HOST", parsed_url.hostname)
     if not host:
         raise ValueError("LLAMA_HOST must not be empty")
-    port = _positive_int("LLAMA_PORT", environ.get("LLAMA_PORT", str(base_port)))
+    port = _port(environ.get("LLAMA_PORT", str(base_port)))
     ctx_size = _positive_int("LLAMA_CTX_SIZE", environ.get("LLAMA_CTX_SIZE", "4096"))
     gpu_layers = _positive_int(
         "LLAMA_GPU_LAYERS",

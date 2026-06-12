@@ -98,6 +98,45 @@ def test_config_helper_applies_environment_overrides(tmp_path):
     assert _parse_shell_assignments(result.stdout) == overrides
 
 
+def test_config_helper_shell_output_round_trips_adversarial_values(tmp_path):
+    marker_path = tmp_path / "command-substitution-ran"
+    model_path = (
+        f"/models/space ' quote $(touch {marker_path}) ; semicolon & ampersand.gguf"
+    )
+    mmproj_path = (
+        f"/models/projector ' $(touch {marker_path}) ; semicolon * wildcard.gguf"
+    )
+    config = _valid_llama_server_config()
+    config["model_path"] = model_path
+    config["mmproj_path"] = mmproj_path
+    config_path = _write_config(tmp_path, config)
+
+    helper_result = _run_config_helper(config_path, "shell")
+
+    assert helper_result.returncode == 0
+    shell_result = subprocess.run(
+        [
+            "/bin/bash",
+            "-c",
+            (
+                f"{helper_result.stdout}\n"
+                "printf '%s\\0%s\\0' \"$LLAMA_MODEL_PATH\" \"$LLAMA_MMPROJ_PATH\""
+            ),
+        ],
+        check=False,
+        capture_output=True,
+        cwd=tmp_path,
+        env={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"},
+    )
+    assert shell_result.returncode == 0
+    assert shell_result.stdout.split(b"\0") == [
+        model_path.encode(),
+        mmproj_path.encode(),
+        b"",
+    ]
+    assert not marker_path.exists()
+
+
 def test_config_helper_builds_health_url_from_effective_endpoint(tmp_path):
     config = _valid_llama_server_config()
     config["base_url"] = "http://localhost:9090/v1"
@@ -107,6 +146,21 @@ def test_config_helper_builds_health_url_from_effective_endpoint(tmp_path):
 
     assert result.returncode == 0
     assert result.stdout == "http://localhost:9090/health\n"
+
+
+def test_config_helper_brackets_ipv6_health_host(tmp_path):
+    config = _valid_llama_server_config()
+    config["base_url"] = "http://[::1]:8080/v1"
+    config_path = _write_config(tmp_path, config)
+
+    result = _run_config_helper(
+        config_path,
+        "health-url",
+        environment={"LLAMA_HOST": "::1"},
+    )
+
+    assert result.returncode == 0
+    assert result.stdout == "http://[::1]:8080/health\n"
 
 
 def test_config_helper_reports_missing_required_key(tmp_path):
@@ -131,3 +185,16 @@ def test_config_helper_rejects_invalid_numeric_override(tmp_path):
 
     assert result.returncode == 2
     assert "LLAMA_PORT must be an integer" in result.stderr
+
+
+def test_config_helper_rejects_port_outside_tcp_range(tmp_path):
+    config_path = _write_config(tmp_path, _valid_llama_server_config())
+
+    result = _run_config_helper(
+        config_path,
+        "shell",
+        environment={"LLAMA_PORT": "65536"},
+    )
+
+    assert result.returncode == 2
+    assert "LLAMA_PORT must be between 1 and 65535" in result.stderr
