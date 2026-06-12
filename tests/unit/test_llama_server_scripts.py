@@ -14,10 +14,6 @@ ROOT = Path(__file__).resolve().parents[2]
 MODELS_CONFIG = ROOT / "config" / "models.yaml"
 CONFIG_HELPER = ROOT / "scripts" / "llama_server_config.py"
 START_SCRIPT = ROOT / "scripts" / "start_llama_server_apple_silicon.sh"
-SETUP_COMMAND = (
-    "python3 -m venv .venv && "
-    ".venv/bin/python -m pip install -r requirements-dev.txt"
-)
 
 
 def _write_config(tmp_path: Path, llama_server: dict[str, object]) -> Path:
@@ -67,9 +63,20 @@ def _write_executable(path: Path, contents: str) -> None:
     path.chmod(0o755)
 
 
+def _bash_quote(value: str) -> str:
+    result = subprocess.run(
+        ["/bin/bash", "-c", 'printf "%q" "$1"', "bash", value],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout
+
+
 @pytest.fixture
 def llama_start_project(tmp_path: Path) -> dict[str, Path | dict[str, str]]:
-    project = tmp_path / "project"
+    project = tmp_path / "project with space"
+    caller = tmp_path / "caller"
     scripts = project / "scripts"
     config = project / "config"
     fake_bin = tmp_path / "bin"
@@ -78,6 +85,7 @@ def llama_start_project(tmp_path: Path) -> dict[str, Path | dict[str, str]]:
     config.mkdir()
     fake_bin.mkdir()
     home.mkdir()
+    caller.mkdir()
 
     shutil.copy2(CONFIG_HELPER, scripts / CONFIG_HELPER.name)
     if START_SCRIPT.exists():
@@ -132,6 +140,7 @@ touch {shlex.quote(str(server_marker))}
     }
     return {
         "project": project,
+        "caller": caller,
         "script": scripts / START_SCRIPT.name,
         "fake_bin": fake_bin,
         "model_path": model_path,
@@ -155,7 +164,7 @@ def _run_start_script(
         ["/bin/bash", str(fixture["script"])],
         check=False,
         capture_output=True,
-        cwd=fixture["project"],
+        cwd=fixture["caller"],
         env=env,
         text=True,
     )
@@ -408,7 +417,15 @@ def test_start_script_reports_missing_python(llama_start_project):
 
     assert result.returncode != 0
     assert "Python 3" in result.stderr
-    assert SETUP_COMMAND in result.stderr
+    install_command = "brew install python"
+    setup_command = (
+        f"cd {_bash_quote(str(llama_start_project['project']))} && "
+        "python3 -m venv .venv && "
+        ".venv/bin/python -m pip install -r requirements-dev.txt"
+    )
+    assert install_command in result.stderr
+    assert setup_command in result.stderr
+    assert result.stderr.index(install_command) < result.stderr.index(setup_command)
 
 
 def test_start_script_reports_missing_pyyaml(llama_start_project):
@@ -428,7 +445,12 @@ exit 99
 
     assert result.returncode != 0
     assert "PyYAML" in result.stderr
-    assert SETUP_COMMAND in result.stderr
+    setup_command = (
+        f"cd {_bash_quote(str(llama_start_project['project']))} && "
+        "python3 -m venv .venv && "
+        ".venv/bin/python -m pip install -r requirements-dev.txt"
+    )
+    assert setup_command in result.stderr
 
 
 def test_start_script_reports_resolved_missing_model(llama_start_project):
@@ -479,7 +501,7 @@ done
     env["FAKE_SERVER_PID_FILE"] = str(pid_path)
     process = subprocess.Popen(
         ["/bin/bash", str(llama_start_project["script"])],
-        cwd=llama_start_project["project"],
+        cwd=llama_start_project["caller"],
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

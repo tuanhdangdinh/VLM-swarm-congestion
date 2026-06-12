@@ -5,7 +5,9 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 CONFIG_PATH="$ROOT_DIR/config/models.yaml"
 CONFIG_HELPER="$SCRIPT_DIR/llama_server_config.py"
-SETUP_COMMAND="python3 -m venv .venv && .venv/bin/python -m pip install -r requirements-dev.txt"
+printf -v QUOTED_ROOT_DIR '%q' "$ROOT_DIR"
+SETUP_COMMAND="cd $QUOTED_ROOT_DIR && python3 -m venv .venv && "
+SETUP_COMMAND+=".venv/bin/python -m pip install -r requirements-dev.txt"
 
 if [[ "$(uname -s)" != "Darwin" || "$(uname -m)" != "arm64" ]]; then
   printf '%s\n' "Error: llama-server requires macOS on Apple Silicon." >&2
@@ -17,7 +19,8 @@ if [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
 elif command -v python3 >/dev/null 2>&1; then
   PYTHON="$(command -v python3)"
 else
-  printf 'Error: Python 3 is required. Run: %s\n' "$SETUP_COMMAND" >&2
+  printf '%s\n' "Error: Python 3 is required. Install it with: brew install python" >&2
+  printf 'Then set up the project with: %s\n' "$SETUP_COMMAND" >&2
   exit 1
 fi
 
