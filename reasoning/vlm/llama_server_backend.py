@@ -44,11 +44,16 @@ class LlamaServerBackend:
             "response_format": {"type": "json_object"},
         }
 
-        resp = requests.post(
-            f"{self.base_url}/chat/completions",
-            json=body,
-            timeout=config.timeout_sec,
-        )
+        try:
+            resp = requests.post(
+                f"{self.base_url}/chat/completions",
+                json=body,
+                timeout=config.timeout_sec,
+            )
+        except requests.exceptions.Timeout as exc:
+            raise ConnectionError(f"llama-server request timed out: {exc}") from exc
+        except requests.exceptions.ConnectionError as exc:
+            raise ConnectionError(f"llama-server connection failed: {exc}") from exc
 
         if resp.status_code >= 400:
             raise ConnectionError(

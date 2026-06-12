@@ -1,24 +1,25 @@
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any
+from typing import Protocol, runtime_checkable
+
+from reasoning.vlm.models import BackendResponse, PromptPayload, ReasonerConfig
 
 
-@dataclass(frozen=True)
-class VLMRequest:
-    prompt: str
-    image_path: str | None = None
-    metadata: dict[str, Any] | None = None
+@runtime_checkable
+class VLMBackend(Protocol):
+    """Common interface for pluggable VLM providers.
 
+    Implementations own HTTP/transport, image encoding, and provider response
+    parsing into a `BackendResponse`. Prompt building and output parsing stay
+    backend-agnostic.
+    """
 
-@dataclass(frozen=True)
-class VLMResponse:
-    text: str
-    raw: dict[str, Any] | None = None
+    def analyze(self, payload: PromptPayload, config: ReasonerConfig) -> BackendResponse:
+        """Run one VLM call and return the raw model output.
 
+        Args:
+            payload: Fully-rendered system/user prompt and image reference.
+            config: Runtime decoding settings (temperature, max_tokens, timeout).
 
-class VLMBackend(ABC):
-    """Common interface for VLM providers."""
-
-    @abstractmethod
-    def analyze(self, request: VLMRequest) -> VLMResponse:
-        """Analyze an annotated scene and return model output text."""
+        Returns:
+            Backend response carrying the raw assistant text and metadata.
+        """
+        ...

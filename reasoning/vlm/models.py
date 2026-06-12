@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class RobotStateInput(BaseModel):
@@ -24,7 +24,6 @@ class ReasonerRequest(BaseModel):
     frame_id: str = Field(min_length=1)
     stamp: float = Field(ge=0)
     robot_states: list[RobotStateInput]
-    prompt_context: dict[str, object] = Field(default_factory=dict)
 
 
 class PromptPayload(BaseModel):
@@ -64,6 +63,20 @@ class CongestionDecision(BaseModel):
     ]
     justification: str
 
+    @field_validator("type", "strategy", mode="before")
+    @classmethod
+    def _lowercase_enum(cls, value: object) -> object:
+        return value.lower() if isinstance(value, str) else value
+
+    @field_validator("involved_robots", mode="after")
+    @classmethod
+    def _dedupe_involved_robots(cls, value: list[str]) -> list[str]:
+        seen: list[str] = []
+        for robot_id in value:
+            if robot_id not in seen:
+                seen.append(robot_id)
+        return seen
+
 
 class ReasonerDiagnostics(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -72,6 +85,7 @@ class ReasonerDiagnostics(BaseModel):
     backend_id: str
     attempts: int = Field(ge=1)
     latency_ms: int | None = Field(default=None, ge=0)
+    token_usage: dict[str, int] | None = None
     parse_status: Literal["valid", "invalid", "failed"]
     error_type: str | None = None
     error_message: str | None = None
@@ -91,8 +105,8 @@ class LlamaServerBackendConfig(BaseModel):
 
     base_url: str = "http://127.0.0.1:8080/v1"
     model_id: str = Field(min_length=1)
-    model_path: str = Field(min_length=1)   # absolute path to the GGUF file
-    mmproj_path: str | None = None          # placeholder: path to mmproj GGUF for vision
+    model_path: str | None = None  # server-startup concern; not used per-request
+    mmproj_path: str | None = None  # path to mmproj GGUF for vision; None = text-only
 
 
 class ReasonerConfig(BaseModel):

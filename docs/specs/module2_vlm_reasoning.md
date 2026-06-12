@@ -40,11 +40,14 @@ backend-agnostic.
   on disk that the backend can read. The image path is included in `ReasonerRequest`.
 - `SceneState` from M1 (`/perception/scene_state`) — robot positions, headings,
   status, task strings — projected into `RobotStateInput` list.
-- Invocation request from M5 (trigger + correlation/request ID).
+- Invocation request from M5: action goal on `/reasoning/analyze` carrying the
+  serialized `ReasonerRequest` (§5). M5 assembles the request from matched
+  M1 outputs; M2 does not subscribe to perception topics directly.
 
 **Outputs**
 - `ReasonerResult` containing a validated `CongestionDecision` (or `None` on
-  failure) → M3 and M5.
+  failure) → M5 as the action result; M5 forwards the decision to M3 when
+  grounding is required.
 - Reasoning trace (`raw_text`) for interpretability (C2).
 - `ReasonerDiagnostics`: backend used, latency, token usage, retry count, parse
   status.
@@ -55,8 +58,9 @@ Internal request/response pipeline (one invocation), stateless:
 
 ```mermaid
 flowchart TD
-    TRIG[["M5 trigger (request_id)"]] --> REASONER
-    IN["M1 SceneState + AnnotatedFrame (matched stamp)"] --> REASONER["Reasoner.run"]
+    TRIG[["M5 action goal /reasoning/analyze (ReasonerRequest)"]] --> REASONER
+    IN["M1 SceneState + AnnotatedFrame (matched by M5)"] --> TRIG
+    REASONER["Reasoner.run"]
     CFG[("ReasonerConfig")] -.-> REASONER
     REASONER --> PB["build_prompt_payload"]
     PB --> IB["invoke_backend"]
@@ -70,13 +74,16 @@ flowchart TD
     RC -->|re-ask: build_reask_prompt| PB
     RC -->|retries exhausted| FAIL["build_failed_result"]
     FAIL --> RES2["ReasonerResult (decision=None)"]
-    RES -->|"/reasoning/decision (if congestion_detected)"| M3["M3"]
-    RES -->|/reasoning/decision| M5O["M5"]
+    RES -->|action result| M5O["M5"]
+    RES2 -->|action result| M5O
+    M5O -->|"forwards decision (if congestion_detected)"| M3["M3"]
+    RES -.->|"/reasoning/decision (observability broadcast)"| OBS["logging"]
     RES -.->|"diagnostics (C2)"| STAT["/reasoning/status → M5"]
 ```
 
-When `congestion_detected=false`, the decision still flows to M5 but no M3
-grounding call is made — Layer 1 stays in control.
+When `congestion_detected=false` (or `decision=None`), the result still flows
+to M5 as the action result but M5 makes no M3 grounding call — Layer 1 stays
+in control.
 
 ---
 
@@ -114,8 +121,9 @@ grounding call is made — Layer 1 stays in control.
 - FR2.3.3 Validate referential integrity: every ID in `involved_robots` must
   appear in `ReasonerRequest.robot_states[*].robot_id`.
 - FR2.3.4 On parse or validation failure, trigger a bounded re-ask (M2.5).
-- FR2.3.5 Normalize output: canonical enum casing (Pydantic handles this),
-  deduplicate `involved_robots` list while preserving first-occurrence order.
+- FR2.3.5 Normalize output: lowercase `type`/`strategy` before enum validation
+  and deduplicate `involved_robots` preserving first-occurrence order — both
+  via `field_validator` on `CongestionDecision` (§7.1).
 
 ### M2.4 Decision Semantics
 - FR2.4.1 `congestion_detected=false` is a valid, first-class outcome — emit it
@@ -158,10 +166,34 @@ to keep `CongestionDecision` schema-stable and M3-friendly.
 ## 5. Interfaces
 
 **ROS2 (indicative; final names in C1)**
-- Subscribes `/perception/scene_state`, `/perception/annotated_frame`.
-- Subscribes M5 trigger (e.g. `/reasoning/request`).
-- Publishes `CongestionDecision` JSON → `/reasoning/decision`.
+
+M2 is exposed as a ROS2 **Action server** rather than a request/response topic
+pair. One reasoning pass takes seconds (up to `timeout_sec` per attempt), so the
+Action profile fits: goal/result correlation replaces manual `request_id`
+matching across topics, feedback lets M5 distinguish "slow" from "dead," and
+cancellation lets M5 abandon a pass whose scene has gone stale.
+
+- **Action server** `/reasoning/analyze` — `swarm_interfaces/action/AnalyzeScene`:
+  - **Goal:** serialized `ReasonerRequest` (JSON string): `request_id`,
+    `image_path`, `frame_id`, `stamp`, `robot_states`. M5 assembles the request
+    (it owns SceneState/frame stamp matching, §11); the M2 node does not
+    subscribe to perception topics.
+  - **Feedback:** `attempt` (int), `phase` (`"invoking" | "parsing" | "re-asking"`).
+  - **Result:** serialized `ReasonerResult` (JSON string): decision (`null` on
+    failure) + diagnostics. Action status `SUCCEEDED` covers both outcomes —
+    `decision=None` is a valid result, not an aborted goal.
+  - **Cancellation:** cooperative — a cancel discards the pending result and
+    transitions the goal to `CANCELED`; it cannot abort an in-flight backend
+    HTTP call (the worker thread is abandoned, same as the timeout path).
+- Publishes `CongestionDecision` JSON → `/reasoning/decision` — passive
+  broadcast for logging/observability only. M3 does **not** subscribe; M5
+  receives the action result and invokes M3 itself.
 - Publishes diagnostics → `/reasoning/status`.
+
+Node implementation: run `Reasoner.run` in a separate callback group (or
+executor thread) so goal execution never blocks the node's default callbacks;
+at most one goal executes at a time — a new goal received while one is active
+is rejected (M5 is the sole caller and must not overlap requests).
 
 **Programmatic**
 - `Reasoner.run(request: ReasonerRequest) -> ReasonerResult` — sole public
@@ -188,6 +220,8 @@ Target package: `reasoning/vlm/`.
 reasoning/vlm/
 ├── __init__.py          # public re-exports
 ├── models.py            # all Pydantic v2 data models (§6.1, §6.3)
+├── errors.py            # VLMOutputParseError, DecisionValidationError,
+│                        #   BackendTimeoutError (shared by parser, reasoner, backends)
 ├── backend_base.py      # VLMBackend Protocol (§6.5)
 ├── prompt_builder.py    # build_prompt_payload, format_robot_state_lines (§6.4)
 ├── output_parser.py     # parse_decision_text, validate_involved_robots,
@@ -252,7 +286,6 @@ class ReasonerRequest(BaseModel):
     frame_id: str = Field(min_length=1)
     stamp: float = Field(ge=0)
     robot_states: list[RobotStateInput]
-    prompt_context: dict[str, object] = Field(default_factory=dict)
 ```
 
 Validation rules (caller responsibility, enforced at construction):
@@ -343,10 +376,25 @@ class CongestionDecision(BaseModel):
     justification: str
 ```
 
-Invariant: when `congestion_detected=False`, the validator in
-`parse_decision_text` checks that `type="none"`, `strategy="none"`, and
-`involved_robots=[]`. If the model contradicts itself (e.g. `congestion_detected=True`
-but `type="none"`), treat it as a parse failure and trigger a re-ask.
+Field validators (Pydantic v2):
+
+- `type`, `strategy`: lowercase the raw string before `Literal` validation
+  (`field_validator(..., mode="before")`) so casing variants like `"DEADLOCK"`
+  normalize instead of burning a re-ask attempt. Values outside the enum still
+  fail validation.
+- `involved_robots`: deduplicate preserving first-occurrence order
+  (`field_validator(..., mode="after")`).
+
+Cross-field invariant (checked in `parse_decision_text` after model validation,
+both directions):
+
+- `congestion_detected=False` → `type="none"`, `strategy="none"`,
+  `involved_robots=[]`.
+- `congestion_detected=True` → `type != "none"`, `strategy != "none"`, and
+  `involved_robots` non-empty — a congestion claim that names no robots gives
+  M3 nothing to ground and is treated as invalid output.
+
+Any violation is a parse failure (`VLMOutputParseError`) and triggers a re-ask.
 
 #### `ReasonerDiagnostics`
 
@@ -361,6 +409,7 @@ class ReasonerDiagnostics(BaseModel):
     backend_id: str
     attempts: int = Field(ge=1)
     latency_ms: int | None = Field(default=None, ge=0)
+    token_usage: dict[str, int] | None = None
     parse_status: Literal["valid", "invalid", "failed"]
     error_type: str | None = None
     error_message: str | None = None
@@ -371,6 +420,8 @@ Fields:
 - `attempts`: total number of backend calls made, including re-asks.
 - `latency_ms`: wall-clock time of the *last* backend call, in milliseconds.
   When multiple attempts occur, log individual latencies via `write_reasoner_log`.
+- `token_usage`: copied from the *last* `BackendResponse.token_usage`; `None`
+  when the backend does not report usage or no backend call completed.
 - `parse_status`:
   - `"valid"` — decision was parsed and validated successfully.
   - `"invalid"` — at least one attempt produced a parse/validation failure, but
@@ -427,19 +478,27 @@ available. Do not hardcode the path.
 
 #### `BackendConfig`
 
-**Description:** Discriminated union of all backend-specific config types.
-`backend_id` selects which backend to instantiate; a factory function
-`build_backend` resolves the union and constructs the concrete backend.
+**Description:** Type alias for backend-specific config; becomes a Pydantic
+discriminated union (with a discriminator field) when a second backend config
+type is added. `backend_id` selects which backend to instantiate; a factory
+function `build_backend` constructs the concrete backend.
 
 ```python
 BackendConfig = LlamaServerBackendConfig  # extend as union when more backends added
 ```
 
-`build_backend` lives in `reasoning/vlm/backend_factory.py`:
+`build_backend` lives in `reasoning/vlm/backend_factory.py`. `backend_config`
+is optional because `mock` needs none; backends that require config raise
+`ValueError` when it is missing:
 
 ```python
-def build_backend(backend_id: str, backend_config: BackendConfig) -> VLMBackend:
+def build_backend(
+    backend_id: str,
+    backend_config: BackendConfig | None = None,
+) -> VLMBackend:
     if backend_id == "llama_server":
+        if backend_config is None:
+            raise ValueError("llama_server backend requires a LlamaServerBackendConfig")
         return LlamaServerBackend(
             base_url=backend_config.base_url,
             model_id=backend_config.model_id,
@@ -460,7 +519,7 @@ class ReasonerConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     backend_id: str = Field(min_length=1)
-    timeout_sec: float = Field(default=30.0, gt=0)
+    timeout_sec: float = Field(default=15.0, gt=0)
     max_attempts: int = Field(default=2, ge=1)
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     max_tokens: int = Field(default=1024, ge=1)
@@ -512,6 +571,7 @@ Behavior (step-by-step algorithm):
    attempts ← 0
    last_raw ← None
    last_error_type, last_error_msg ← None, None
+   had_parse_failure ← False
 
 3. Retry loop (while attempts < config.max_attempts):
    a. attempts += 1
@@ -521,7 +581,7 @@ Behavior (step-by-step algorithm):
         decision ← parse_decision_text(response.text)
         validate_involved_robots(decision, known_ids)
         # success
-        parse_status ← "valid" if attempts == 1 else "invalid"
+        parse_status ← "invalid" if had_parse_failure else "valid"
         return ReasonerResult(
             request_id=request.request_id,
             decision=decision,
@@ -531,14 +591,16 @@ Behavior (step-by-step algorithm):
                 backend_id=response.backend_id,
                 attempts=attempts,
                 latency_ms=response.latency_ms,
+                token_usage=response.token_usage,
                 parse_status=parse_status,
             ),
         )
-      except BackendTimeoutError as e:
-        last_error_type, last_error_msg ← "BackendTimeoutError", str(e)
-        # retry same payload (transient backend error)
+      except (BackendTimeoutError, ConnectionError) as e:
+        last_error_type, last_error_msg ← type(e).__name__, str(e)
+        # transient transport error: retry the same payload, no re-ask
         continue
       except (VLMOutputParseError, DecisionValidationError) as e:
+        had_parse_failure ← True
         last_error_type, last_error_msg ← type(e).__name__, str(e)
         if config.allow_reask and attempts < config.max_attempts:
             payload ← build_reask_prompt(payload, str(e))
@@ -674,6 +736,7 @@ Behavior:
     "backend_id": "...",
     "attempts": 1,
     "latency_ms": 1800,
+    "token_usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
     "parse_status": "valid",
     "raw_text": "...",
     "decision": { ... } | null,
@@ -732,6 +795,8 @@ Behavior:
   ```
 
 - If all optional fields are `None`, omit them entirely (no trailing commas).
+- Empty input list: return `["no robots observed"]` so the caller's `"- "`
+  prefix renders the placeholder line from §11.
 - Returns one string per robot; the caller joins with `"\n"` and prefixes each
   line with `"- "`.
 
@@ -760,14 +825,16 @@ Behavior:
    - Search for the first `{` and last `}` pair in the text.
    - Use that substring as the JSON candidate.
 3. Parse with `json.loads`; raise `VLMOutputParseError` on decode failure.
-4. Validate via `CongestionDecision(**parsed)` (Pydantic); raise
-   `VLMOutputParseError` wrapping the `ValidationError` on failure.
-5. Check the `congestion_detected`/`type`/`strategy` invariant:
-   - If `congestion_detected=False` and `type != "none"`: raise `VLMOutputParseError`.
-   - If `congestion_detected=False` and `strategy != "none"`: raise `VLMOutputParseError`.
-   - If `congestion_detected=False` and `involved_robots != []`: raise `VLMOutputParseError`.
-6. Deduplicate `involved_robots` preserving first-occurrence order.
-7. Return the validated, normalized `CongestionDecision`.
+4. Validate via `CongestionDecision(**parsed)` (Pydantic); the model's field
+   validators lowercase `type`/`strategy` and deduplicate `involved_robots`
+   (§7.1). Raise `VLMOutputParseError` wrapping the `ValidationError` on failure.
+5. Check the cross-field invariant (both directions, §7.1):
+   - If `congestion_detected=False`: `type` must be `"none"`, `strategy` must be
+     `"none"`, `involved_robots` must be `[]`.
+   - If `congestion_detected=True`: `type` must not be `"none"`, `strategy` must
+     not be `"none"`, `involved_robots` must be non-empty.
+   - Any violation: raise `VLMOutputParseError`.
+6. Return the validated, normalized `CongestionDecision`.
 
 Raises:
 
@@ -821,8 +888,13 @@ Behavior:
 Note: new code should prefer `parse_decision_text` (Pydantic path) over
 `parse_vlm_decision` (dict path). `parse_decision_text` strips fences, applies
 the `congestion_detected` invariant, and deduplicates `involved_robots`.
+Deprecation condition: remove `parse_vlm_decision` once `CommandGrounder` (M3)
+migrates to consuming `CongestionDecision` directly.
 
-#### Exception Classes
+#### Exception Classes (`reasoning/vlm/errors.py`)
+
+Defined in their own module so transport code (`reasoner.py`, backends) does
+not import errors from the parser:
 
 ```python
 class VLMOutputParseError(ValueError):
@@ -864,7 +936,8 @@ Contract:
 - Must not raise on ordinary model errors (empty output, refusal) — return the
   text and let the parser handle it.
 - May raise `BackendTimeoutError`, `ConnectionError`, or other typed errors on
-  transport-level failures; `invoke_backend` catches and retries these.
+  transport-level failures; `invoke_backend` propagates them and the
+  `Reasoner.run` retry loop catches and retries (§7.2).
 
 ---
 
@@ -1062,6 +1135,7 @@ Return ONLY a JSON object with exactly these fields:
 Rules:
 - Only use robot IDs from the known list above.
 - When congestion_detected is false: type must be "none", strategy must be "none", involved_robots must be [].
+- When congestion_detected is true: type must not be "none", strategy must not be "none", involved_robots must list at least one robot ID.
 - Return ONLY the JSON object. Do not include any text, markdown, or explanation.
 ```
 
@@ -1084,10 +1158,13 @@ Do not include any text, markdown, or explanation outside the JSON.
 
 ## 9. Algorithms & Parameters
 
-- **Think–Act cadence (§4.1):** Layer 2 runs at 0.5–2 Hz. A single `Reasoner.run`
-  call including one re-ask must complete within the period (~2 s at 0.5 Hz).
-  Configure `timeout_sec=30` as the backend call limit; the re-ask adds one more
-  call of the same budget.
+- **Think–Act cadence (§4.1):** Layer 2 is event-driven (M5 triggers on
+  congestion timeout), not fixed-rate. Layer 1 keeps the robots safe while a
+  reasoning pass is in flight, so M2 latency is a responsiveness target, not a
+  control deadline. Budget: `timeout_sec=15` per backend call, `max_attempts=2`
+  → worst case ~30 s per invocation including one re-ask. Target ≤ 15 s for a
+  single attempt on the reference hardware (Cosmos Reason2 8B Q6_K via
+  llama-server on Apple M1 Pro).
 - **Decoding:** `temperature=0.0` by default for deterministic classification.
   `max_tokens=1024` is sufficient for the decision JSON (~300 tokens).
 - **Retry vs re-ask separation:**
@@ -1105,8 +1182,10 @@ Do not include any text, markdown, or explanation outside the JSON.
 
 ## 10. Non-Functional Requirements
 
-- **Latency:** complete within Layer-2 period (≤ ~2 s at 0.5 Hz) including one
-  re-ask; backend-dependent and recorded in `ReasonerDiagnostics.latency_ms`.
+- **Latency:** ≤ 15 s typical single attempt; ≤ 30 s worst case including one
+  re-ask (`max_attempts × timeout_sec`). Recorded in
+  `ReasonerDiagnostics.latency_ms`. Layer 1 retains control while M2 reasons,
+  so this is a responsiveness target, not a safety deadline.
 - **Determinism:** identical input → stable classification across runs (low-temp
   decoding + deterministic prompt rendering).
 - **Backend portability:** swapping backends (mock → llama_server) requires
@@ -1145,6 +1224,9 @@ Do not include any text, markdown, or explanation outside the JSON.
 - **`jsonschema`** — legacy `parse_vlm_decision` and schema validation tests.
 - **`concurrent.futures`** — timeout enforcement in `invoke_backend` (stdlib).
 - **ROS2** (transport layer, for node integration) — M2 core is ROS2-free.
+  The node wrapper additionally requires `swarm_interfaces/action/AnalyzeScene`
+  (new `.action` definition; shared contract — update specs, tests, and M5 when
+  changing it).
 - M1 contracts: `SceneState`, `AnnotatedFrame` (consumed by M5 before passing
   to M2 as `ReasonerRequest`).
 
@@ -1163,7 +1245,9 @@ Do not include any text, markdown, or explanation outside the JSON.
 - Reject enum value not in `type` set (new).
 - Reject `involved_robots` with non-string element (new).
 - Reject `congestion_detected=true` with `type="none"` (invariant check, new).
+- Reject `congestion_detected=true` with `involved_robots=[]` (invariant check, new).
 - Reject `congestion_detected=false` with `involved_robots=["robot_1"]` (new).
+- Normalize `type="DEADLOCK"` → `"deadlock"` (casing validator, new).
 - Deduplicate `involved_robots=["robot_1", "robot_1"]` → `["robot_1"]` (new).
 
 #### `test_prompt_builder.py` (new)
@@ -1182,14 +1266,29 @@ Do not include any text, markdown, or explanation outside the JSON.
   `decision=None`, `parse_status="failed"`.
 - `allow_reask=False` → first parse failure immediately returns `decision=None`.
 - `BackendTimeoutError` on first call → retry same payload, not re-ask.
+- `ConnectionError` on first call → retry same payload; exhausted → `decision=None`.
+- Timeout on first call, success on second → `parse_status="valid"` (no parse
+  failure occurred), `attempts=2`.
 - Duplicate `robot_id` in request → `ValueError` before backend call.
 - Missing `image_path` → `FileNotFoundError` before backend call.
+- Diagnostics carry `token_usage` from the last `BackendResponse`.
 
 #### `test_validate_involved_robots.py` (new)
 
 - Known IDs → no exception.
 - One unknown ID → `DecisionValidationError`.
 - Empty `involved_robots` when `congestion_detected=False` → no exception.
+
+### Node Integration Tests (`tests/integration/`, ROS2 required)
+
+For the `AnalyzeScene` action server wrapper (§5); may land with M5 integration:
+
+- Valid goal → result delivered, goal status `SUCCEEDED`.
+- All-attempts-failed run → goal still `SUCCEEDED` with `decision=null` in the
+  result (failure is a valid result, not an aborted goal).
+- Second goal sent while one executes → rejected.
+- Cancel during execution → goal transitions to `CANCELED`; no result forwarded.
+- Feedback messages report `attempt`/`phase` during a re-ask run.
 
 ### Backend Conformance Tests
 
@@ -1220,8 +1319,8 @@ Tests assert the expected values appear in the distribution across `N≥5` runs
   escapes to caller).
 - `decision=None` is the only failure mode — no malformed JSON reaches M3.
 - Classification accuracy ≥ TBD threshold on the labeled scenario set (§14).
-- End-to-end latency ≤ 2 s per invocation (including one re-ask) on the target
-  hardware.
+- End-to-end latency ≤ 30 s worst case per invocation (including one re-ask);
+  ≤ 15 s typical single attempt on the target hardware.
 - `write_reasoner_log` produces valid JSONL for all outcomes (success and failure).
 
 ---
@@ -1248,6 +1347,21 @@ Tests assert the expected values appear in the distribution across `N≥5` runs
   is available; `mmproj_path` in `LlamaServerBackendConfig` is the placeholder for
   enabling full vision support. The `response_format: json_object` parameter is used
   to enforce structured JSON output at the grammar level.
+- M5 → M2 trigger is a ROS2 Action (`/reasoning/analyze`,
+  `swarm_interfaces/action/AnalyzeScene`), not a topic pair. M5 receives the
+  action result and forwards to M3; `/reasoning/decision` is an observability
+  broadcast only.
+- Latency budget: ≤ 15 s typical single attempt, ≤ 30 s worst case including
+  one re-ask (`timeout_sec=15`, `max_attempts=2`). The earlier ≤ 2 s target was
+  unachievable on the reference hardware; Layer 1 retains control during a
+  pass, so latency is a responsiveness target, not a safety deadline.
+- `congestion_detected=true` requires non-empty `involved_robots` (and
+  `type`/`strategy` ≠ `"none"`); enforced as a parse invariant — a congestion
+  claim naming no robots is not actionable by M3.
+- Enum casing is normalized (lowercased) by `field_validator` before `Literal`
+  validation; `Literal` alone is case-sensitive and would reject `"DEADLOCK"`.
+- `prompt_context` field removed from `ReasonerRequest` — it had no consumer.
+  Reintroduce with a specified use if scenario metadata is ever needed in prompts.
 
 **Open:**
 
