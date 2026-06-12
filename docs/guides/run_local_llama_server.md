@@ -2,9 +2,11 @@
 
 This guide runs the local vision backend as a foreground `llama.cpp`
 `llama-server` process with the OpenAI-compatible `/v1` API. For this
-documented local-vision setup, the multimodal projector is mandatory: there is
-no text-only fallback because `config/models.yaml` and the backend expect a
-matching `mmproj` whenever live inference is enabled.
+documented launcher, the multimodal projector is mandatory and must be
+readable: there is no text-only fallback in this workflow because
+`config/models.yaml` and the launcher expect a matching `mmproj` whenever live
+inference is enabled. That is a scope choice for this guide and launcher, not a
+statement about the backend in general.
 
 ## Prerequisites
 
@@ -16,8 +18,9 @@ matching `mmproj` whenever live inference is enabled.
 
 The checked-in defaults currently point at:
 
-```yaml
-$HOME/.cache/lm-studio/models/DevQuasar/nvidia.Cosmos-Reason2-8B-GGUF/...
+```text
+$HOME/.cache/lm-studio/models/DevQuasar/nvidia.Cosmos-Reason2-8B-GGUF/nvidia.Cosmos-Reason2-8B.f16.gguf.Q6_K.gguf
+$HOME/.cache/lm-studio/models/DevQuasar/nvidia.Cosmos-Reason2-8B-GGUF/mmproj-nvidia.Cosmos-Reason2-8B.f16.gguf
 ```
 
 That directory contains the model and projector paths configured in
@@ -65,8 +68,8 @@ overrides before starting `llama-server`.
 
 | Setting | Environment override | Default |
 |---|---|---|
-| model path | `LLAMA_MODEL_PATH` | `config/models.yaml` |
-| mmproj path | `LLAMA_MMPROJ_PATH` | `config/models.yaml` |
+| model path | `LLAMA_MODEL_PATH` | `$HOME/.cache/lm-studio/models/DevQuasar/nvidia.Cosmos-Reason2-8B-GGUF/nvidia.Cosmos-Reason2-8B.f16.gguf.Q6_K.gguf` |
+| mmproj path | `LLAMA_MMPROJ_PATH` | `$HOME/.cache/lm-studio/models/DevQuasar/nvidia.Cosmos-Reason2-8B-GGUF/mmproj-nvidia.Cosmos-Reason2-8B.f16.gguf` |
 | host | `LLAMA_HOST` | `127.0.0.1` |
 | port | `LLAMA_PORT` | `8080` |
 | context size | `LLAMA_CTX_SIZE` | `4096` |
@@ -102,7 +105,8 @@ projector file to exist and be readable when vision mode is active.
 Run a manual health probe from another shell:
 
 ```bash
-curl http://127.0.0.1:8080/health
+health_url="$(./.venv/bin/python scripts/llama_server_config.py health-url --config config/models.yaml)"
+curl "$health_url"
 ```
 
 Expected response: JSON with `"status":"ok"`.
@@ -119,8 +123,11 @@ assert LlamaServerBackend().is_ready() is True
 
 - Missing model file: the launcher exits before `llama-server` starts.
 - Missing `mmproj`: the launcher exits before `llama-server` starts.
-- No text-only fallback: this local vision server is documented and wired for
-  paired model + projector usage, not for projector-free operation.
+- No text-only fallback in this launcher: it is documented and wired for
+  paired model + projector usage, not for projector-free operation. If you run
+  `LlamaServerBackend` against a separately started server without `mmproj`,
+  that backend can be configured text-only, but that mode is outside this guide
+  and launcher.
 - Wrong backend mode: if the app still uses the mock backend, switch
   `backend_id` to `llama_server` in `config/models.yaml`.
 
