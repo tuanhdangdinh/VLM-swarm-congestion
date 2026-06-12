@@ -29,6 +29,10 @@ class LlamaServerSettings:
     def health_url(self) -> str:
         """Return the llama-server health endpoint."""
         host = self.host
+        if host == "0.0.0.0":
+            host = "127.0.0.1"
+        elif host in {"::", "[::]"}:
+            host = "[::1]"
         if ":" in host and not host.startswith("["):
             host = f"[{host}]"
         return f"http://{host}:{self.port}/health"

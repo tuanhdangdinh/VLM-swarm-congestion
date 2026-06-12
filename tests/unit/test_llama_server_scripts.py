@@ -315,6 +315,31 @@ def test_config_helper_brackets_ipv6_health_host(tmp_path):
     assert result.stdout == "http://[::1]:8080/health\n"
 
 
+@pytest.mark.parametrize(
+    ("host", "expected_url"),
+    [
+        ("0.0.0.0", "http://127.0.0.1:8181/health"),
+        ("::", "http://[::1]:8181/health"),
+        ("[::]", "http://[::1]:8181/health"),
+    ],
+)
+def test_config_helper_maps_wildcard_health_host_to_loopback(
+    tmp_path,
+    host,
+    expected_url,
+):
+    config_path = _write_config(tmp_path, _valid_llama_server_config())
+
+    result = _run_config_helper(
+        config_path,
+        "health-url",
+        environment={"LLAMA_HOST": host, "LLAMA_PORT": "8181"},
+    )
+
+    assert result.returncode == 0
+    assert result.stdout == f"{expected_url}\n"
+
+
 def test_config_helper_reports_missing_required_key(tmp_path):
     config = _valid_llama_server_config()
     del config["model_path"]
@@ -556,7 +581,7 @@ def test_check_script_reports_ready_and_uses_effective_url(llama_start_project):
     _write_executable(
         Path(llama_start_project["fake_bin"], "curl"),
         """#!/bin/bash
-printf '%s' "$*" > "$CURL_ARGS_FILE"
+printf '%s\\0' "$@" > "$CURL_ARGS_FILE"
 printf '{"status":"ok"}'
 """,
     )
@@ -572,10 +597,14 @@ printf '{"status":"ok"}'
 
     assert result.returncode == 0, result.stderr
     assert result.stdout == "llama-server ready: http://localhost:9090/health\n"
-    assert args_file.read_text(encoding="utf-8") == (
-        "--fail --silent --show-error --max-time 5 "
-        "http://localhost:9090/health"
-    )
+    assert args_file.read_bytes().split(b"\0")[:-1] == [
+        b"--fail",
+        b"--silent",
+        b"--show-error",
+        b"--max-time",
+        b"5",
+        b"http://localhost:9090/health",
+    ]
 
 
 def test_check_script_reports_not_ready_when_curl_fails(llama_start_project):
