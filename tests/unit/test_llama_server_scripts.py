@@ -101,7 +101,8 @@ def test_config_helper_applies_environment_overrides(tmp_path):
 def test_config_helper_shell_output_round_trips_adversarial_values(tmp_path):
     marker_path = tmp_path / "command-substitution-ran"
     model_path = (
-        f"/models/space ' quote $(touch {marker_path}) ; semicolon & ampersand.gguf"
+        f"/models/space ' quote $(touch {marker_path}) ; semicolon\n"
+        "& ampersand.gguf"
     )
     mmproj_path = (
         f"/models/projector ' $(touch {marker_path}) ; semicolon * wildcard.gguf"
