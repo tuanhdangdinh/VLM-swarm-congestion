@@ -149,6 +149,12 @@ The VLM host only needs to run `llama-server` on port 8080. It does not need
 ROS 2 installed. The `ReasonerConfig.timeout_sec` (default in
 `reasoning/vlm/models.py`) governs how long M2 waits per inference call.
 
+For local development on Apple Silicon, the same model can also run as a
+foreground `llama.cpp` vision server with Metal acceleration. That option is
+documented in [run_local_llama_server.md](run_local_llama_server.md). The
+NVIDIA recommendations below remain the deployment target for the dedicated
+VLM compute host.
+
 ---
 
 ## 6. Network

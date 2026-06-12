@@ -22,6 +22,18 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
+## Local VLM Server
+
+To run Cosmos Reason2 locally on Apple Silicon with the llama.cpp foreground
+vision server, use:
+
+```bash
+make run-llama-server
+```
+
+See [docs/guides/run_local_llama_server.md](docs/guides/run_local_llama_server.md)
+for setup, overrides, smoke tests, and troubleshooting.
+
 ROS2 workflows are expected to run inside a ROS2 Humble environment:
 
 ```bash
