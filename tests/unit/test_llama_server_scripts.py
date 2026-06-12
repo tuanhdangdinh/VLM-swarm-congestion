@@ -1,14 +1,17 @@
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 MODELS_CONFIG = ROOT / "config" / "models.yaml"
 CONFIG_HELPER = ROOT / "scripts" / "llama_server_config.py"
+START_SCRIPT = ROOT / "scripts" / "start_llama_server_apple_silicon.sh"
 
 
 def _write_config(tmp_path: Path, llama_server: dict[str, object]) -> Path:
@@ -51,6 +54,111 @@ def _parse_shell_assignments(output: str) -> dict[str, str]:
         key, value = shlex.split(line)[0].split("=", 1)
         assignments[key] = value
     return assignments
+
+
+def _write_executable(path: Path, contents: str) -> None:
+    path.write_text(contents, encoding="utf-8")
+    path.chmod(0o755)
+
+
+@pytest.fixture
+def llama_start_project(tmp_path: Path) -> dict[str, Path | dict[str, str]]:
+    project = tmp_path / "project"
+    scripts = project / "scripts"
+    config = project / "config"
+    fake_bin = tmp_path / "bin"
+    home = tmp_path / "home"
+    scripts.mkdir(parents=True)
+    config.mkdir()
+    fake_bin.mkdir()
+    home.mkdir()
+
+    shutil.copy2(CONFIG_HELPER, scripts / CONFIG_HELPER.name)
+    if START_SCRIPT.exists():
+        shutil.copy2(START_SCRIPT, scripts / START_SCRIPT.name)
+
+    model_path = home / "models" / "model file.gguf"
+    mmproj_path = home / "models" / "mmproj.gguf"
+    model_path.parent.mkdir()
+    model_path.write_bytes(b"model")
+    mmproj_path.write_bytes(b"projector")
+    (config / "models.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "vlm": {
+                    "llama_server": {
+                        "base_url": "http://127.0.0.1:8080/v1",
+                        "model_path": "$HOME/models/model file.gguf",
+                        "mmproj_path": "$HOME/models/mmproj.gguf",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    dirname = shutil.which("dirname")
+    assert dirname is not None
+    (fake_bin / "dirname").symlink_to(dirname)
+    (fake_bin / "python3").symlink_to(sys.executable)
+    _write_executable(
+        fake_bin / "uname",
+        """#!/bin/bash
+case "$1" in
+  -s) printf '%s\n' "${FAKE_UNAME_S:-Darwin}" ;;
+  -m) printf '%s\n' "${FAKE_UNAME_M:-arm64}" ;;
+  *) exit 2 ;;
+esac
+""",
+    )
+    server_marker = tmp_path / "llama-server-ran"
+    _write_executable(
+        fake_bin / "llama-server",
+        f"""#!/bin/bash
+touch {shlex.quote(str(server_marker))}
+""",
+    )
+
+    env = {
+        "HOME": str(home),
+        "PATH": str(fake_bin),
+        "LLAMA_DRY_RUN": "1",
+    }
+    return {
+        "project": project,
+        "script": scripts / START_SCRIPT.name,
+        "fake_bin": fake_bin,
+        "model_path": model_path,
+        "mmproj_path": mmproj_path,
+        "server_marker": server_marker,
+        "env": env,
+    }
+
+
+def _run_start_script(
+    fixture: dict[str, Path | dict[str, str]],
+    *,
+    environment: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    env = dict(fixture["env"])
+    env.update(environment or {})
+    return subprocess.run(
+        ["/bin/bash", str(fixture["script"])],
+        check=False,
+        capture_output=True,
+        cwd=fixture["project"],
+        env=env,
+        text=True,
+    )
+
+
+def _printed_command(stdout: str) -> list[str]:
+    command_line = next(
+        line.removeprefix("Command: ")
+        for line in stdout.splitlines()
+        if line.startswith("Command: ")
+    )
+    return shlex.split(command_line)
 
 
 def test_llama_paths_are_home_relative_and_vision_is_configured():
@@ -199,3 +307,123 @@ def test_config_helper_rejects_port_outside_tcp_range(tmp_path):
 
     assert result.returncode == 2
     assert "LLAMA_PORT must be between 1 and 65535" in result.stderr
+
+
+def test_start_script_dry_run_prints_vision_server_command(llama_start_project):
+    result = _run_start_script(llama_start_project)
+
+    assert result.returncode == 0, result.stderr
+    assert _printed_command(result.stdout) == [
+        "llama-server",
+        "-m",
+        str(llama_start_project["model_path"]),
+        "--mmproj",
+        str(llama_start_project["mmproj_path"]),
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8080",
+        "--ctx-size",
+        "4096",
+        "-ngl",
+        "99",
+        "--log-format",
+        "text",
+    ]
+    assert "127.0.0.1:8080" in result.stdout
+    assert not llama_start_project["server_marker"].exists()
+
+
+def test_start_script_applies_runtime_overrides(llama_start_project):
+    result = _run_start_script(
+        llama_start_project,
+        environment={
+            "LLAMA_HOST": "0.0.0.0",
+            "LLAMA_PORT": "8181",
+            "LLAMA_CTX_SIZE": "8192",
+            "LLAMA_GPU_LAYERS": "42",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    command = _printed_command(result.stdout)
+    assert command[command.index("--host") + 1] == "0.0.0.0"
+    assert command[command.index("--port") + 1] == "8181"
+    assert command[command.index("--ctx-size") + 1] == "8192"
+    assert command[command.index("-ngl") + 1] == "42"
+
+
+@pytest.mark.parametrize(
+    ("environment", "expected"),
+    [
+        ({"FAKE_UNAME_S": "Linux"}, "requires macOS on Apple Silicon"),
+        ({"FAKE_UNAME_M": "x86_64"}, "requires macOS on Apple Silicon"),
+    ],
+)
+def test_start_script_rejects_unsupported_platform(
+    llama_start_project,
+    environment,
+    expected,
+):
+    result = _run_start_script(llama_start_project, environment=environment)
+
+    assert result.returncode != 0
+    assert expected in result.stderr
+
+
+def test_start_script_reports_missing_llama_server(llama_start_project):
+    Path(llama_start_project["fake_bin"], "llama-server").unlink()
+
+    result = _run_start_script(llama_start_project)
+
+    assert result.returncode != 0
+    assert "brew install llama.cpp" in result.stderr
+
+
+def test_start_script_reports_missing_python(llama_start_project):
+    Path(llama_start_project["fake_bin"], "python3").unlink()
+
+    result = _run_start_script(llama_start_project)
+
+    assert result.returncode != 0
+    assert "Python 3" in result.stderr
+    assert "project setup" in result.stderr
+
+
+def test_start_script_reports_missing_pyyaml(llama_start_project):
+    python = Path(llama_start_project["fake_bin"], "python3")
+    python.unlink()
+    _write_executable(
+        python,
+        """#!/bin/bash
+if [[ "$1" == "-c" ]]; then
+  exit 1
+fi
+exit 99
+""",
+    )
+
+    result = _run_start_script(llama_start_project)
+
+    assert result.returncode != 0
+    assert "PyYAML" in result.stderr
+    assert "project setup" in result.stderr
+
+
+def test_start_script_reports_resolved_missing_model(llama_start_project):
+    llama_start_project["model_path"].unlink()
+
+    result = _run_start_script(llama_start_project)
+
+    assert result.returncode != 0
+    assert str(llama_start_project["model_path"]) in result.stderr
+
+
+def test_start_script_requires_mmproj_and_never_falls_back(llama_start_project):
+    llama_start_project["mmproj_path"].unlink()
+
+    result = _run_start_script(llama_start_project)
+
+    assert result.returncode != 0
+    assert str(llama_start_project["mmproj_path"]) in result.stderr
+    assert not llama_start_project["server_marker"].exists()
