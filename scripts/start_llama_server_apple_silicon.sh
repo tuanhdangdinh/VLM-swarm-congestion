@@ -62,7 +62,6 @@ command=(
   --port "$LLAMA_PORT"
   --ctx-size "$LLAMA_CTX_SIZE"
   -ngl "$LLAMA_GPU_LAYERS"
-  --log-format text
 )
 
 display_host="$LLAMA_HOST"

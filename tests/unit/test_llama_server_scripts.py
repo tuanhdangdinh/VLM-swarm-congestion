@@ -395,9 +395,8 @@ def test_start_script_dry_run_prints_vision_server_command(llama_start_project):
         "4096",
         "-ngl",
         "99",
-        "--log-format",
-        "text",
     ]
+    assert "--log-format" not in _printed_command(result.stdout)
     assert "127.0.0.1:8080" in result.stdout
     assert not llama_start_project["server_marker"].exists()
 
