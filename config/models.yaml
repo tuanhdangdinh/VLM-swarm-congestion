@@ -10,8 +10,8 @@ vlm:
   llama_server:
     base_url: "http://127.0.0.1:8080/v1"
     model_id: cosmos-reason2-8b
-    model_path: "$HOME/.cache/lm-studio/models/DevQuasar/nvidia.Cosmos-Reason2-8B-GGUF/nvidia.Cosmos-Reason2-8B.f16.gguf.Q6_K.gguf"
-    mmproj_path: "$HOME/.cache/lm-studio/models/DevQuasar/nvidia.Cosmos-Reason2-8B-GGUF/mmproj-nvidia.Cosmos-Reason2-8B.f16.gguf"
+    model_path: "$HOME/models/nvidia.Cosmos-Reason2-8B.f16.gguf.Q6_K.gguf"
+    mmproj_path: "$HOME/models/mmproj-nvidia.Cosmos-Reason2-8B.f16.gguf"
 
 embeddings:
   model_name: sentence-transformers/all-MiniLM-L6-v2
