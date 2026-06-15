@@ -115,6 +115,14 @@ class ReasonerConfig(BaseModel):
     backend_id: str = Field(min_length=1)
     timeout_sec: float = Field(default=30.0, gt=0)
     max_attempts: int = Field(default=2, ge=1)
-    temperature: float = Field(default=0.0, ge=0.0, le=2.0)
-    max_tokens: int = Field(default=1024, ge=1)
+    # Sampling defaults follow NVIDIA's Cosmos Reason 2 prompt guide (Qwen3 "with
+    # reasoning" preset): temperature 0.6, top_p 0.95, top_k 20, presence_penalty 0.0.
+    # This intentionally overrides the project's default-0.0 classification setting
+    # because Cosmos Reason 2 is a chain-of-thought model that degrades at temp 0.0.
+    temperature: float = Field(default=0.6, ge=0.0, le=2.0)
+    top_p: float = Field(default=0.95, gt=0.0, le=1.0)
+    top_k: int = Field(default=20, ge=1)
+    presence_penalty: float = Field(default=0.0, ge=-2.0, le=2.0)
+    # Large enough to hold the <think> reasoning trace plus the final JSON answer.
+    max_tokens: int = Field(default=2048, ge=1)
     allow_reask: bool = True

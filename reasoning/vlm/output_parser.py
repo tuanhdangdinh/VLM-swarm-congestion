@@ -41,7 +41,13 @@ def parse_decision_text(text: str) -> CongestionDecision:
         VLMOutputParseError: On JSON decode failure, schema violation, or a
             self-contradictory decision.
     """
-    candidate = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.DOTALL)
+    # Cosmos Reason 2 emits a <think>...</think> chain-of-thought before the answer.
+    # Drop it before JSON extraction; the trace itself can contain braces that would
+    # otherwise corrupt the find("{")/rfind("}") fallback below.
+    without_think = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    candidate = re.sub(
+        r"^```(?:json)?\s*|\s*```$", "", without_think.strip(), flags=re.DOTALL
+    )
     try:
         parsed = json.loads(candidate)
     except json.JSONDecodeError:

@@ -35,13 +35,19 @@ class LlamaServerBackend:
 
     def analyze(self, payload: PromptPayload, config: ReasonerConfig) -> BackendResponse:
         messages = self._build_messages(payload)
+        # No response_format=json_object here: it forces the first generated token to
+        # open a JSON object, which suppresses the model's <think> chain-of-thought.
+        # Cosmos Reason 2 relies on that reasoning trace for grounding accuracy, so we
+        # request JSON in the prompt instead and parse it out of the final answer.
         body = {
             "model": self.model_id,
             "messages": messages,
             "temperature": config.temperature,
+            "top_p": config.top_p,
+            "top_k": config.top_k,
+            "presence_penalty": config.presence_penalty,
             "max_tokens": config.max_tokens,
             "stream": False,
-            "response_format": {"type": "json_object"},
         }
 
         try:
@@ -89,9 +95,11 @@ class LlamaServerBackend:
 
         if self.mmproj_path is not None:
             data_url = self._encode_image(payload.image_path)
+            # Media-first ordering: Cosmos Reason 2 / Qwen3-VL are trained with the
+            # image preceding the user text; reversing it degrades spatial grounding.
             user_content = [
-                {"type": "text", "text": payload.user_prompt},
                 {"type": "image_url", "image_url": {"url": data_url}},
+                {"type": "text", "text": payload.user_prompt},
             ]
             user = {"role": "user", "content": user_content}
         else:

@@ -229,6 +229,8 @@ def test_config_helper_expands_home_and_emits_shell_assignments(tmp_path):
         "LLAMA_PORT": "8080",
         "LLAMA_CTX_SIZE": "4096",
         "LLAMA_GPU_LAYERS": "99",
+        "LLAMA_PARALLEL": "1",
+        "LLAMA_IMAGE_MIN_TOKENS": "1024",
     }
 
 
@@ -241,6 +243,8 @@ def test_config_helper_applies_environment_overrides(tmp_path):
         "LLAMA_PORT": "8181",
         "LLAMA_CTX_SIZE": "8192",
         "LLAMA_GPU_LAYERS": "42",
+        "LLAMA_PARALLEL": "2",
+        "LLAMA_IMAGE_MIN_TOKENS": "1280",
     }
 
     result = _run_config_helper(config_path, "shell", environment=overrides)
@@ -395,6 +399,10 @@ def test_start_script_dry_run_prints_vision_server_command(llama_start_project):
         "4096",
         "-ngl",
         "99",
+        "--parallel",
+        "1",
+        "--image-min-tokens",
+        "1024",
     ]
     assert "--log-format" not in _printed_command(result.stdout)
     assert "127.0.0.1:8080" in result.stdout

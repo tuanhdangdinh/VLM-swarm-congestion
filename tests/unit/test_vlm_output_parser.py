@@ -47,6 +47,18 @@ def test_parse_decision_text_strips_code_fence_and_dedupes():
     assert decision.involved_robots == ["robot_1", "robot_2"]
 
 
+def test_parse_decision_text_strips_think_trace_with_braces():
+    text = (
+        "<think>I will return {\"foo\": 1} as a placeholder while reasoning.</think>\n"
+        '```json\n{"congestion_detected": false, "type": "none", '
+        '"involved_robots": [], "root_cause": "clear", "strategy": "none", '
+        '"justification": "empty"}\n```'
+    )
+    decision = parse_decision_text(text)
+    assert decision.congestion_detected is False
+    assert decision.type == "none"
+
+
 def test_parse_decision_text_extracts_json_from_prose():
     text = 'Here is my answer: {"congestion_detected": false, "type": "none", "involved_robots": [], "root_cause": "clear", "strategy": "none", "justification": "empty scene"}'  # noqa: E501
     decision = parse_decision_text(text)

@@ -2,34 +2,53 @@ import json
 
 from reasoning.vlm.models import PromptPayload, ReasonerRequest, RobotStateInput
 
-SYSTEM_PROMPT = (
-    "You are a warehouse swarm robotics traffic controller.\n"
-    "Your task is to analyze overhead camera views of autonomous mobile robots\n"
-    "and detect congestion patterns such as deadlocks, bottlenecks, crowding,\n"
-    "and anomalies. You always respond with only valid JSON — no other text."
-)
+# Cosmos Reason 2 is a chain-of-thought reasoning VLM built on Qwen3-VL. NVIDIA's
+# prompt guide specifies a minimal system prompt ("we are more aligned with Qwen's
+# use of system prompt ... different from Reason 1, where the system prompt was
+# heavily used") and prompt-driven structured output. The task framing therefore
+# lives in the user prompt, and the image is placed before the text by the backend.
+# Ref: https://nvidia-cosmos.github.io/cosmos-cookbook/getting_started/prompt_guide/reason_guide.html
+SYSTEM_PROMPT = "You are a helpful assistant."
 
-_USER_TEMPLATE = """Analyze the overhead warehouse scene for congestion or deadlock.
+_USER_TEMPLATE = """You are a warehouse swarm robotics traffic controller. Analyze the \
+overhead camera view together with the robot states below and detect congestion \
+patterns such as deadlocks, bottlenecks, crowding, or anomalies.
 
 Robot states (sorted by ID):
 {robot_state_block}
 
 Known robot IDs: {known_robot_ids_json}
 
-Return ONLY a JSON object with exactly these fields:
-{{
-  "congestion_detected": <true|false>,
-  "type": <"none"|"deadlock"|"bottleneck"|"crowding"|"anomaly">,
-  "involved_robots": [<robot_id strings, must be from known IDs only>],
-  "root_cause": "<one sentence>",
-  "strategy": <"none"|"yield"|"reroute"|"convoy"|"priority_override"|"temporary_wait"|"reverse">,
-  "justification": "<one or two sentences>"
-}}
+Guidance:
+- Robots are roughly 0.3 m wide; treat any two robots within ~0.5 m of each \
+other as physically conflicting.
+- deadlock: a cycle of robots each blocked by another. bottleneck: several robots \
+queued for one passage. crowding: many robots packed into a small area. anomaly: \
+an unexpected or unsafe configuration.
+- Decide from the robot coordinates and the image, not from assumptions about intent.
+
+Produce a JSON object with exactly these fields:
+- "congestion_detected": true or false
+- "type": "none" | "deadlock" | "bottleneck" | "crowding" | "anomaly"
+- "involved_robots": list of robot_id strings, from the known IDs only
+- "root_cause": one sentence
+- "strategy": "none" | "yield" | "reroute" | "convoy" | "priority_override" | \
+"temporary_wait" | "reverse"
+- "justification": one or two sentences
 
 Rules:
 - Only use robot IDs from the known list above.
 - When congestion_detected is false: set type="none", strategy="none", involved_robots=[].
-- Return ONLY the JSON object. Do not include any text, markdown, or explanation."""
+- When congestion_detected is true: type and strategy must not be "none", and \
+involved_robots must be non-empty.
+
+Answer using the following format:
+<think>
+Compute the pairwise distance between robots, identify any conflicts, and decide \
+the congestion type and strategy.
+</think>
+Immediately after the </think> tag, write ONLY the final JSON object, with no \
+surrounding text or markdown."""
 
 
 def format_robot_state_lines(robot_states: list[RobotStateInput]) -> list[str]:

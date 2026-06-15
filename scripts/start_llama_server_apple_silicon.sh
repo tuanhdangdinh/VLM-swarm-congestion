@@ -62,6 +62,8 @@ command=(
   --port "$LLAMA_PORT"
   --ctx-size "$LLAMA_CTX_SIZE"
   -ngl "$LLAMA_GPU_LAYERS"
+  --parallel "$LLAMA_PARALLEL"
+  --image-min-tokens "$LLAMA_IMAGE_MIN_TOKENS"
 )
 
 display_host="$LLAMA_HOST"
