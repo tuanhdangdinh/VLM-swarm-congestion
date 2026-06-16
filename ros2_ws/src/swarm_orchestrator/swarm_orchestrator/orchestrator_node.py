@@ -12,14 +12,15 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from swarm_interfaces.msg import CoordinationCommand, CoordinationStatus
+from swarm_interfaces.srv import TriggerCongestionAnalysis
 
-from reasoning.rag.command_grounder import validate_coordination_command  # noqa: F401 (live use)
 from reasoning.vlm import build_backend
 from reasoning.vlm.models import ReasonerConfig
 from reasoning.vlm.reasoner import Reasoner
 from swarm_orchestrator.command_lifecycle import CommandRecord, CommandTracker, CooldownTracker
 from swarm_orchestrator.congestion_detector import CongestionDetector
 from swarm_orchestrator.models import (
+    CongestionEvent,
     OrchestratorConfig,
     PipelineOutcome,
     load_config,
@@ -28,6 +29,7 @@ from swarm_orchestrator.models import (
 from swarm_orchestrator.reasoning_pipeline import (
     InProcessPipeline,
     ReasoningPipeline,
+    build_failed_outcome,
     build_reasoner_request,
     dump_frame_png,
     fan_out_command,
@@ -78,12 +80,18 @@ class OrchestratorNode(Node):
         self._latest_snapshot = None
         self.last_published_registry: str | None = None
 
-        self._cmd_pub = self.create_publisher(CoordinationCommand, "/coordination/commands", 10)
-        self._tasks_pub = self.create_publisher(String, "/coordination/tasks", 10)
-        self.create_subscription(String, "/perception/scene_state", self._on_scene_state, 10)
-        self.create_subscription(Image, "/perception/annotated_frame", self._on_frame, 10)
+        topics = self._config.topics
+        self._cmd_pub = self.create_publisher(
+            CoordinationCommand, topics["coordination_commands"], 10
+        )
+        self._tasks_pub = self.create_publisher(String, topics["coordination_tasks"], 10)
+        self.create_subscription(String, topics["scene_state"], self._on_scene_state, 10)
+        self.create_subscription(Image, topics["annotated_frame"], self._on_frame, 10)
         self.create_subscription(
-            CoordinationStatus, "/coordination/status", self._on_status, 10
+            CoordinationStatus, topics["coordination_status"], self._on_status, 10
+        )
+        self.create_service(
+            TriggerCongestionAnalysis, topics["trigger_analysis"], self._on_trigger_analysis
         )
         self.create_timer(0.5, self._on_timer)
 
@@ -136,13 +144,62 @@ class OrchestratorNode(Node):
         if self._tracker.is_resolved(msg.command_id):
             self._resolve_command(msg.command_id)
 
+    def _on_trigger_analysis(
+        self,
+        request: TriggerCongestionAnalysis.Request,
+        response: TriggerCongestionAnalysis.Response,
+    ) -> TriggerCongestionAnalysis.Response:
+        """Operator/test hook to force an analysis cycle on the latest snapshot (spec §5).
+
+        Bypasses the progress detector and the per-robot cooldown (a manual override),
+        but still respects single-in-flight and active-command gating in the state
+        machine, and the frame-freshness check.
+        """
+        snapshot = self._latest_snapshot
+        if snapshot is None or not snapshot.robots:
+            response.accepted = False
+            response.analysis_id = ""
+            response.message = "no scene snapshot available"
+            return response
+        now = time.monotonic()
+        robots = [r.robot_id for r in snapshot.robots]
+        event = CongestionEvent(
+            involved_robots=robots,
+            stall_durations_sec={rid: 0.0 for rid in robots},
+            detected_at=now,
+            reason=f"manual trigger: {request.reason}",
+        )
+        directive = self._machine.on_event(
+            event,
+            cooldown_robots=set(),  # operator override bypasses cooldown
+            busy_robots=self._busy_robots(),
+            now=now,
+            frame_ready=self._frame_is_fresh(snapshot.stamp),
+        )
+        if directive.kind is DirectiveKind.START_ANALYSIS:
+            self._submit_pipeline(directive.request_id, snapshot)
+            response.accepted = True
+            response.analysis_id = directive.request_id
+            response.message = "analysis started"
+        else:
+            response.accepted = False
+            response.analysis_id = ""
+            response.message = f"trigger rejected: {directive.kind.value}"
+        return response
+
     def _on_timer(self) -> None:
         now = time.monotonic()
         for command_id in self._tracker.check_timeouts(now):
             self.get_logger().warning(f"command {command_id} timed out")
             self._resolve_command(command_id)
         if self._future is not None and self._future.done():
-            outcome = self._future.result()
+            try:
+                outcome = self._future.result()
+            except Exception as exc:
+                # Worker raised before producing an outcome (e.g. frame dump failed).
+                # Never leave the machine stuck in ANALYZING — resolve the cycle.
+                self.get_logger().error(f"reasoning worker failed: {exc}")
+                outcome = build_failed_outcome("unknown", f"worker raised: {exc}")
             self._future = None
             self._handle_outcome(outcome, now)
 

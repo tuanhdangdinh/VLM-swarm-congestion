@@ -80,6 +80,32 @@ def test_load_config_raises_on_missing_required_field():
         load_config({"progress_epsilon_m": 0.1})  # missing stall_threshold_sec etc.
 
 
+def _minimal_config_dict():
+    return {
+        "stall_threshold_sec": 12.0,
+        "progress_epsilon_m": 0.1,
+        "cooldown_sec": 15.0,
+        "command_timeout_sec": 20.0,
+        "reasoning_backend_id": "mock",
+        "frame_dump_dir": "data/logs/m5_frames",
+        "initial_tasks": {"robot_0": {"task": "t", "goal": [0.0, 0.0]}},
+    }
+
+
+def test_load_config_uses_default_topic_names_when_absent():
+    cfg = load_config(_minimal_config_dict())
+    assert cfg.topics["scene_state"] == "/perception/scene_state"
+    assert cfg.topics["trigger_analysis"] == "/orchestrator/trigger_analysis"
+
+
+def test_load_config_overrides_only_named_topics():
+    raw = _minimal_config_dict()
+    raw["topics"] = {"scene_state": "/sim/scene_state"}
+    cfg = load_config(raw)
+    assert cfg.topics["scene_state"] == "/sim/scene_state"  # overridden
+    assert cfg.topics["coordination_commands"] == "/coordination/commands"  # default kept
+
+
 def test_parse_scene_snapshot_extracts_robots_and_dropped_frame():
     raw = json.dumps(
         {

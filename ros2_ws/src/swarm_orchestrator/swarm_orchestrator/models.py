@@ -9,6 +9,16 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from reasoning.vlm.models import ReasonerResult
 
+# Default ROS2 topic/service names (spec §5; overridable via config `topics`).
+DEFAULT_TOPICS: dict[str, str] = {
+    "scene_state": "/perception/scene_state",
+    "annotated_frame": "/perception/annotated_frame",
+    "coordination_status": "/coordination/status",
+    "coordination_commands": "/coordination/commands",
+    "coordination_tasks": "/coordination/tasks",
+    "trigger_analysis": "/orchestrator/trigger_analysis",
+}
+
 
 class TerminalStage(str, Enum):
     """Where a reasoning pipeline run terminated, for diagnostics."""
@@ -38,6 +48,7 @@ class OrchestratorConfig(BaseModel):
     command_timeout_sec: float = Field(ge=0.0)
     reasoning_backend_id: str = Field(min_length=1)
     initial_tasks: dict[str, TaskAssignment]
+    topics: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_TOPICS))
     frame_dump_dir: str = Field(min_length=1)
     keep_debug_frames: bool = False
     frame_scene_max_skew_sec: float = Field(default=1.0, ge=0.0)
@@ -158,5 +169,7 @@ def load_config(raw: dict[str, Any]) -> OrchestratorConfig:
         rid: TaskAssignment(task=spec["task"], goal=tuple(spec["goal"]))
         for rid, spec in tasks_in.items()
     }
-    merged = {**raw, "initial_tasks": initial_tasks}
+    # Merge configured topic overrides over defaults so partial overrides keep the rest.
+    topics = {**DEFAULT_TOPICS, **raw.get("topics", {})}
+    merged = {**raw, "initial_tasks": initial_tasks, "topics": topics}
     return OrchestratorConfig(**merged)
