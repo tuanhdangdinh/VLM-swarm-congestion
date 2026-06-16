@@ -17,5 +17,13 @@ vlm:
     model_path: "$HOME/models/nvidia.Cosmos-Reason2-8B.f16.gguf.Q6_K.gguf"
     mmproj_path: "$HOME/models/mmproj-nvidia.Cosmos-Reason2-8B.f16.gguf"
 
+  # Hosted GPT backend. Switch reasoner.backend_id to "openai" to use it.
+  # The API key is NOT stored here — set the env var named by api_key_env.
+  openai:
+    model_id: gpt-4o
+    base_url: "https://api.openai.com/v1"
+    api_key_env: OPENAI_API_KEY   # export OPENAI_API_KEY=sk-... in your shell/.env
+    organization: null
+
 embeddings:
   model_name: sentence-transformers/all-MiniLM-L6-v2
