@@ -1,0 +1,184 @@
+"""Unit tests for the M5 reasoning pipeline adapter, frame dump, and fan-out."""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import numpy as np
+import pytest
+from swarm_orchestrator.models import RobotView, SceneSnapshot, TerminalStage
+from swarm_orchestrator.reasoning_pipeline import (
+    InProcessPipeline,
+    build_reasoner_request,
+    dump_frame_png,
+    fan_out_command,
+)
+from reasoning.vlm.models import (
+    CongestionDecision,
+    ReasonerDiagnostics,
+    ReasonerResult,
+)
+
+
+def _snapshot():
+    return SceneSnapshot(
+        stamp=5.0,
+        frame_id="cam0",
+        robots=[
+            RobotView(robot_id="robot_0", x=1.0, y=2.0, theta=0.0,
+                      linear_velocity=0.0, status="STOPPED", stamp=5.0)
+        ],
+        dropped_frame=False,
+    )
+
+
+# ---- build_reasoner_request ----
+
+def test_build_reasoner_request_maps_snapshot_and_image_path():
+    req = build_reasoner_request(
+        request_id="r1", snapshot=_snapshot(), image_path="/tmp/r1.png"
+    )
+    assert req.request_id == "r1"
+    assert req.image_path == "/tmp/r1.png"
+    assert req.frame_id == "cam0"
+    assert req.robot_states[0].robot_id == "robot_0"
+    assert req.robot_states[0].status == "STOPPED"
+
+
+# ---- dump_frame_png ----
+
+def test_dump_frame_png_writes_file(tmp_path):
+    frame_rgb = np.zeros((4, 6, 3), dtype=np.uint8)
+    dest = tmp_path / "r1.png"
+    dump_frame_png(frame_rgb, str(dest), downscale_width=None)
+    assert dest.is_file()
+
+
+def test_dump_frame_png_downscales_preserving_aspect(tmp_path):
+    import cv2
+    frame_rgb = np.zeros((100, 200, 3), dtype=np.uint8)
+    dest = tmp_path / "r1.png"
+    dump_frame_png(frame_rgb, str(dest), downscale_width=100)
+    out = cv2.imread(str(dest))
+    assert out.shape[1] == 100  # width
+    assert out.shape[0] == 50   # height halved to preserve 2:1 aspect
+
+
+def test_dump_frame_png_converts_rgb_to_bgr(tmp_path):
+    import cv2
+    frame_rgb = np.zeros((1, 1, 3), dtype=np.uint8)
+    frame_rgb[0, 0] = (255, 0, 0)  # pure red in RGB
+    dest = tmp_path / "r1.png"
+    dump_frame_png(frame_rgb, str(dest), downscale_width=None)
+    bgr = cv2.imread(str(dest))  # imread returns BGR
+    assert tuple(int(c) for c in bgr[0, 0]) == (0, 0, 255)  # red stored as BGR
+
+
+# ---- fan_out_command ----
+
+def test_fan_out_produces_one_command_per_action():
+    grounded = {
+        "command_id": "c1",
+        "actions": [
+            {"robot_id": "robot_0", "action": "yield", "parameters": {"dir": "left"}},
+            {"robot_id": "robot_1", "action": "wait", "parameters": {}},
+        ],
+        "expected_resolution_time_sec": 18.0,
+        "fallback": "stop_all",
+    }
+    msgs = fan_out_command(grounded, fallback_timeout=20.0)
+    assert len(msgs) == 2
+    assert msgs[0] == ("c1", "robot_0", "yield", json.dumps({"dir": "left"}, sort_keys=True), 18.0)
+    assert msgs[1][1] == "robot_1"
+
+
+def test_fan_out_uses_fallback_timeout_when_resolution_zero():
+    grounded = {
+        "command_id": "c1",
+        "actions": [{"robot_id": "robot_0", "action": "yield"}],
+        "expected_resolution_time_sec": 0,
+        "fallback": "stop_all",
+    }
+    msgs = fan_out_command(grounded, fallback_timeout=20.0)
+    assert msgs[0][4] == 20.0
+
+
+# ---- InProcessPipeline ----
+
+class _FakeReasoner:
+    def __init__(self, result):
+        self._result = result
+    def run(self, request):
+        return self._result
+
+
+def _ok_result():
+    decision = CongestionDecision(
+        congestion_detected=True, type="deadlock", involved_robots=["robot_0"],
+        root_cause="head-on", strategy="yield", justification="x",
+    )
+    diag = ReasonerDiagnostics(request_id="r1", backend_id="mock", attempts=1, parse_status="valid")
+    return ReasonerResult(request_id="r1", decision=decision, raw_text="{}", diagnostics=diag)
+
+
+def _no_congestion_result():
+    decision = CongestionDecision(
+        congestion_detected=False, type="none", involved_robots=[],
+        root_cause="clear", strategy="none", justification="x",
+    )
+    diag = ReasonerDiagnostics(request_id="r1", backend_id="mock", attempts=1, parse_status="valid")
+    return ReasonerResult(request_id="r1", decision=decision, raw_text="{}", diagnostics=diag)
+
+
+def _failed_result():
+    diag = ReasonerDiagnostics(request_id="r1", backend_id="mock", attempts=2, parse_status="failed")
+    return ReasonerResult(request_id="r1", decision=None, raw_text=None, diagnostics=diag)
+
+
+def _request(image="/tmp/r1.png"):
+    return build_reasoner_request(request_id="r1", snapshot=_snapshot(), image_path=image)
+
+
+def test_pipeline_ok_grounds_and_returns_ok(tmp_path):
+    grounded = {
+        "command_id": "c1",
+        "actions": [{"robot_id": "robot_0", "action": "yield"}],
+        "expected_resolution_time_sec": 18.0,
+        "fallback": "stop",
+    }
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_ok_result()),
+        ground_fn=lambda result: grounded,
+    )
+    outcome = pipe.run(_request())
+    assert outcome.terminal_stage is TerminalStage.OK
+    assert outcome.grounded_command == grounded
+
+
+def test_pipeline_no_congestion_terminates_at_vlm():
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_no_congestion_result()),
+        ground_fn=lambda result: pytest.fail("ground_fn must not run"),
+    )
+    outcome = pipe.run(_request())
+    assert outcome.terminal_stage is TerminalStage.VLM
+    assert outcome.grounded_command is None
+
+
+def test_pipeline_vlm_failure_terminates_at_vlm():
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_failed_result()),
+        ground_fn=lambda result: pytest.fail("ground_fn must not run"),
+    )
+    outcome = pipe.run(_request())
+    assert outcome.terminal_stage is TerminalStage.VLM
+    assert outcome.failure_reason is not None
+
+
+def test_pipeline_grounding_failure_terminates_at_grounding():
+    def _raise(result):
+        raise ValueError("schema invalid")
+    pipe = InProcessPipeline(reasoner=_FakeReasoner(_ok_result()), ground_fn=_raise)
+    outcome = pipe.run(_request())
+    assert outcome.terminal_stage is TerminalStage.GROUNDING
+    assert "schema invalid" in outcome.failure_reason
