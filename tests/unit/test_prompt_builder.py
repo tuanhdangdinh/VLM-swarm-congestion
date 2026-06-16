@@ -52,3 +52,15 @@ def test_build_prompt_payload_uses_fixed_system_prompt():
 def test_build_prompt_payload_embeds_known_ids_json():
     payload = build_prompt_payload(_request())
     assert json.dumps(["robot_1", "robot_2"]) in payload.user_prompt
+
+
+def test_system_prompt_is_minimal_for_cosmos_reason2():
+    # NVIDIA's Cosmos Reason 2 guide: keep the system prompt minimal and put the
+    # task framing in the user turn.
+    assert SYSTEM_PROMPT == "You are a helpful assistant."
+
+
+def test_build_prompt_payload_requests_reasoning_trace():
+    payload = build_prompt_payload(_request())
+    assert "<think>" in payload.user_prompt
+    assert "</think>" in payload.user_prompt

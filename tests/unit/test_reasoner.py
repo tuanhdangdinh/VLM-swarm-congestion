@@ -274,6 +274,55 @@ def test_write_reasoner_log_appends_jsonl(tmp_path):
     assert record["parse_status"] == "valid"
 
 
+def test_llama_backend_orders_image_before_text(tmp_path):
+    image = tmp_path / "frame.png"
+    image.write_bytes(b"\x89PNG\r\n")
+    backend = LlamaServerBackend(model_id="cosmos", mmproj_path="/models/mmproj.gguf")
+    payload = PromptPayload(
+        system_prompt="sys",
+        user_prompt="usr",
+        image_path=str(image),
+        known_robot_ids=["robot_1"],
+    )
+    messages = backend._build_messages(payload)
+    content = messages[1]["content"]
+    # Media-first: image part precedes the text part (Cosmos Reason 2 convention).
+    assert content[0]["type"] == "image_url"
+    assert content[1]["type"] == "text"
+
+
+def test_llama_backend_body_allows_reasoning_and_sends_sampling(tmp_path, monkeypatch):
+    image = tmp_path / "frame.png"
+    image.write_bytes(b"\x89PNG\r\n")
+    backend = LlamaServerBackend(model_id="cosmos", mmproj_path="/models/mmproj.gguf")
+    payload = PromptPayload(
+        system_prompt="sys",
+        user_prompt="usr",
+        image_path=str(image),
+        known_robot_ids=["robot_1"],
+    )
+    captured: dict = {}
+
+    class _Resp:
+        status_code = 200
+
+        def json(self):
+            return {"choices": [{"message": {"content": _GOOD}}]}
+
+    def _fake_post(url, json, timeout):  # noqa: A002 - mirrors requests.post signature
+        captured.update(json)
+        return _Resp()
+
+    monkeypatch.setattr("reasoning.vlm.llama_server_backend.requests.post", _fake_post)
+    backend.analyze(payload, ReasonerConfig(backend_id="llama_server"))
+
+    # json_object response_format would suppress the <think> trace, so it must be absent.
+    assert "response_format" not in captured
+    assert captured["top_p"] == 0.95
+    assert captured["top_k"] == 20
+    assert captured["presence_penalty"] == 0.0
+
+
 def test_build_backend_returns_mock_without_config():
     backend = build_backend("mock")
     assert isinstance(backend, VLMBackend)

@@ -1,10 +1,14 @@
 vlm:
   reasoner:
     backend_id: mock        # switch to "llama_server" for live inference
-    timeout_sec: 30
+    timeout_sec: 120         # Cosmos Reason 2 emits a long reasoning trace; allow time
     max_attempts: 2
-    temperature: 0.0
-    max_tokens: 1024
+    # Sampling per NVIDIA Cosmos Reason 2 prompt guide (Qwen3 "with reasoning" preset).
+    temperature: 0.6
+    top_p: 0.95
+    top_k: 20
+    presence_penalty: 0.0
+    max_tokens: 2048         # room for <think> reasoning plus the final JSON
     allow_reask: true
 
   llama_server:

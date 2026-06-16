@@ -24,6 +24,8 @@ class LlamaServerSettings:
     port: int
     ctx_size: int
     gpu_layers: int
+    parallel: int
+    image_min_tokens: int
 
     @property
     def health_url(self) -> str:
@@ -119,6 +121,13 @@ def load_settings(config_path: Path, environ: dict[str, str]) -> LlamaServerSett
         "LLAMA_GPU_LAYERS",
         environ.get("LLAMA_GPU_LAYERS", "99"),
     )
+    parallel = _positive_int("LLAMA_PARALLEL", environ.get("LLAMA_PARALLEL", "1"))
+    # Cosmos Reason 2 (Qwen3-VL) needs >= 1024 image tokens for accurate grounding;
+    # llama-server warns and degrades spatial reasoning below this floor.
+    image_min_tokens = _positive_int(
+        "LLAMA_IMAGE_MIN_TOKENS",
+        environ.get("LLAMA_IMAGE_MIN_TOKENS", "1024"),
+    )
 
     return LlamaServerSettings(
         model_path=model_path,
@@ -127,6 +136,8 @@ def load_settings(config_path: Path, environ: dict[str, str]) -> LlamaServerSett
         port=port,
         ctx_size=ctx_size,
         gpu_layers=gpu_layers,
+        parallel=parallel,
+        image_min_tokens=image_min_tokens,
     )
 
 
@@ -138,6 +149,8 @@ def _shell_assignments(settings: LlamaServerSettings) -> str:
         "LLAMA_PORT": str(settings.port),
         "LLAMA_CTX_SIZE": str(settings.ctx_size),
         "LLAMA_GPU_LAYERS": str(settings.gpu_layers),
+        "LLAMA_PARALLEL": str(settings.parallel),
+        "LLAMA_IMAGE_MIN_TOKENS": str(settings.image_min_tokens),
     }
     return "\n".join(f"{key}={shlex.quote(value)}" for key, value in values.items())
 

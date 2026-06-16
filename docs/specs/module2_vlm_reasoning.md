@@ -173,6 +173,12 @@ Action profile fits: goal/result correlation replaces manual `request_id`
 matching across topics, feedback lets M5 distinguish "slow" from "dead," and
 cancellation lets M5 abandon a pass whose scene has gone stale.
 
+> **Deployment note (2026-06-12):** the approved M5 design
+> (`docs/specs/module5_orchestrator.md` §1) invokes M2 **in-process** via
+> `Reasoner.run` on a background executor. The `/reasoning/analyze` action server
+> below is an alternative deployment (e.g., reasoning on a separate host) and is
+> not used by M5 this milestone.
+
 - **Action server** `/reasoning/analyze` — `swarm_interfaces/action/AnalyzeScene`:
   - **Goal:** serialized `ReasonerRequest` (JSON string): `request_id`,
     `image_path`, `frame_id`, `stamp`, `robot_states`. M5 assembles the request
