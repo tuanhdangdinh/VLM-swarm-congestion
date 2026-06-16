@@ -13,6 +13,7 @@ from reasoning.vlm.models import (
     BackendResponse,
     CongestionDecision,
     LlamaServerBackendConfig,
+    OpenAIBackendConfig,
     PromptPayload,
     ReasonerConfig,
     ReasonerDiagnostics,
@@ -20,6 +21,7 @@ from reasoning.vlm.models import (
     ReasonerResult,
     RobotStateInput,
 )
+from reasoning.vlm.openai_backend import OpenAIBackend
 from reasoning.vlm.output_parser import parse_decision_text, validate_involved_robots
 from reasoning.vlm.prompt_builder import build_prompt_payload, format_robot_state_lines
 from reasoning.vlm.reasoner import (
@@ -38,6 +40,8 @@ __all__ = [
     "LlamaServerBackend",
     "LlamaServerBackendConfig",
     "MockBackend",
+    "OpenAIBackend",
+    "OpenAIBackendConfig",
     "PromptPayload",
     "Reasoner",
     "ReasonerConfig",

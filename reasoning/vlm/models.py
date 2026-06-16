@@ -109,6 +109,15 @@ class LlamaServerBackendConfig(BaseModel):
     mmproj_path: str | None = None  # path to mmproj GGUF for vision; None = text-only
 
 
+class OpenAIBackendConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    model_id: str = "gpt-4o"
+    base_url: str = "https://api.openai.com/v1"
+    api_key_env: str = "OPENAI_API_KEY"  # env var NAME holding the key; never the key itself
+    organization: str | None = None
+
+
 class ReasonerConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 

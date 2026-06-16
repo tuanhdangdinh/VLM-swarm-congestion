@@ -1,9 +1,10 @@
 from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.llama_server_backend import LlamaServerBackend
 from reasoning.vlm.mock_backend import MockBackend
-from reasoning.vlm.models import LlamaServerBackendConfig
+from reasoning.vlm.models import LlamaServerBackendConfig, OpenAIBackendConfig
+from reasoning.vlm.openai_backend import OpenAIBackend
 
-BackendConfig = LlamaServerBackendConfig  # extend to a union as backends are added
+BackendConfig = LlamaServerBackendConfig | OpenAIBackendConfig
 
 
 def build_backend(
@@ -33,5 +34,14 @@ def build_backend(
             base_url=backend_config.base_url,
             model_id=backend_config.model_id,
             mmproj_path=backend_config.mmproj_path,
+        )
+    if backend_id == "openai":
+        if backend_config is None:
+            raise ValueError("openai backend requires an OpenAIBackendConfig")
+        return OpenAIBackend(
+            model_id=backend_config.model_id,
+            base_url=backend_config.base_url,
+            api_key_env=backend_config.api_key_env,
+            organization=backend_config.organization,
         )
     raise ValueError(f"Unknown backend_id: {backend_id!r}")
