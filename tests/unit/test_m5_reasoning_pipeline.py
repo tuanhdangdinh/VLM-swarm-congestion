@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -13,6 +12,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     dump_frame_png,
     fan_out_command,
 )
+
 from reasoning.vlm.models import (
     CongestionDecision,
     ReasonerDiagnostics,
@@ -131,7 +131,9 @@ def _no_congestion_result():
 
 
 def _failed_result():
-    diag = ReasonerDiagnostics(request_id="r1", backend_id="mock", attempts=2, parse_status="failed")
+    diag = ReasonerDiagnostics(
+        request_id="r1", backend_id="mock", attempts=2, parse_status="failed"
+    )
     return ReasonerResult(request_id="r1", decision=None, raw_text=None, diagnostics=diag)
 
 

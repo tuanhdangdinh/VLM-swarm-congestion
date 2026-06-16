@@ -11,9 +11,12 @@ from cv_bridge import CvBridge
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
-
 from swarm_interfaces.msg import CoordinationCommand, CoordinationStatus
 
+from reasoning.rag.command_grounder import validate_coordination_command  # noqa: F401 (live use)
+from reasoning.vlm import build_backend
+from reasoning.vlm.models import ReasonerConfig
+from reasoning.vlm.reasoner import Reasoner
 from swarm_orchestrator.command_lifecycle import CommandRecord, CommandTracker, CooldownTracker
 from swarm_orchestrator.congestion_detector import CongestionDetector
 from swarm_orchestrator.models import (
@@ -34,11 +37,6 @@ from swarm_orchestrator.state_machine import (
     OrchestratorStateMachine,
 )
 from swarm_orchestrator.task_registry import TaskRegistry
-
-from reasoning.rag.command_grounder import validate_coordination_command  # noqa: F401 (live use)
-from reasoning.vlm import build_backend
-from reasoning.vlm.models import ReasonerConfig
-from reasoning.vlm.reasoner import Reasoner
 
 
 def _build_default_pipeline(config: OrchestratorConfig) -> ReasoningPipeline:
@@ -198,7 +196,8 @@ class OrchestratorNode(Node):
             msg.parameters_json = params_json
             msg.timeout_sec = _timeout
             self._cmd_pub.publish(msg)
-            self._registry.set_override(robot_id, action, self._effective_goal(robot_id) or (0.0, 0.0), command_id)
+            goal = self._effective_goal(robot_id) or (0.0, 0.0)
+            self._registry.set_override(robot_id, action, goal, command_id)
             self.get_logger().info(
                 f"dispatch request={outcome.request_id} command={command_id} robot={robot_id}"
             )

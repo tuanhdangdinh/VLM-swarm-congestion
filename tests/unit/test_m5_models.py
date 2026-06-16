@@ -9,12 +9,12 @@ from swarm_orchestrator.models import (
     CongestionEvent,
     OrchestratorConfig,
     PipelineOutcome,
-    SceneSnapshot,
     TaskAssignment,
     TerminalStage,
     load_config,
     parse_scene_snapshot,
 )
+
 from reasoning.vlm.models import ReasonerDiagnostics, ReasonerResult
 
 

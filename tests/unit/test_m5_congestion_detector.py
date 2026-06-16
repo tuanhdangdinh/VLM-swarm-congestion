@@ -57,7 +57,8 @@ def test_progress_resets_stall_timer():
     # Robot moved 1m closer at t=8 -> progress, timer resets.
     assert det.update(_snapshot([_robot("robot_0", 6.0, 0.0)], stamp=8.0), goal_of, now=8.0) is None
     # Only 5s of no-progress since reset.
-    assert det.update(_snapshot([_robot("robot_0", 6.0, 0.0)], stamp=13.0), goal_of, now=13.0) is None
+    snap = _snapshot([_robot("robot_0", 6.0, 0.0)], stamp=13.0)
+    assert det.update(snap, goal_of, now=13.0) is None
 
 
 def test_stale_robot_never_triggers():
@@ -71,7 +72,8 @@ def test_stale_robot_never_triggers():
 def test_robot_without_goal_never_triggers():
     det = CongestionDetector(_config())
     det.update(_snapshot([_robot("robot_9", 5.0, 0.0)]), goal_of, now=0.0)  # no goal mapping
-    assert det.update(_snapshot([_robot("robot_9", 5.0, 0.0)], stamp=20.0), goal_of, now=20.0) is None
+    snap = _snapshot([_robot("robot_9", 5.0, 0.0)], stamp=20.0)
+    assert det.update(snap, goal_of, now=20.0) is None
 
 
 def test_dropped_frame_holds_timers():

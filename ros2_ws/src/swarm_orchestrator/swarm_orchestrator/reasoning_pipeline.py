@@ -8,12 +8,12 @@ from typing import Any, Protocol
 import cv2
 import numpy as np
 
+from reasoning.vlm.models import ReasonerRequest, ReasonerResult, RobotStateInput
 from swarm_orchestrator.models import (
     PipelineOutcome,
     SceneSnapshot,
     TerminalStage,
 )
-from reasoning.vlm.models import ReasonerRequest, ReasonerResult, RobotStateInput
 
 GroundFn = Callable[[ReasonerResult], dict[str, Any]]
 

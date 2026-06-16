@@ -32,7 +32,9 @@ class TaskRegistry:
 
     def load_initial(self, config: OrchestratorConfig) -> None:
         """Populate base assignments from config (called once at startup)."""
-        self.entries = {rid: _Entry(base=assignment) for rid, assignment in config.initial_tasks.items()}
+        self.entries = {
+            rid: _Entry(base=assignment) for rid, assignment in config.initial_tasks.items()
+        }
 
     def assign(self, robot_id: str, task: str, goal: tuple[float, float]) -> None:
         """Set or replace a robot's base mission assignment."""

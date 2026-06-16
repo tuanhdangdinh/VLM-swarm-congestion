@@ -4,8 +4,8 @@ from __future__ import annotations
 from swarm_orchestrator.command_lifecycle import (
     CommandRecord,
     CommandState,
-    CooldownTracker,
     CommandTracker,
+    CooldownTracker,
 )
 
 

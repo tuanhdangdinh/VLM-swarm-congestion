@@ -11,6 +11,7 @@ from swarm_orchestrator.state_machine import (
     OrchestratorState,
     OrchestratorStateMachine,
 )
+
 from reasoning.vlm.models import (
     CongestionDecision,
     ReasonerDiagnostics,
@@ -45,8 +46,12 @@ def _ok_outcome(request_id):
     return PipelineOutcome(
         request_id=request_id,
         reasoner_result=result,
-        grounded_command={"command_id": "c1", "actions": [{"robot_id": "robot_0", "action": "yield"}],
-                          "expected_resolution_time_sec": 20.0, "fallback": "stop"},
+        grounded_command={
+            "command_id": "c1",
+            "actions": [{"robot_id": "robot_0", "action": "yield"}],
+            "expected_resolution_time_sec": 20.0,
+            "fallback": "stop",
+        },
         terminal_stage=TerminalStage.OK,
         failure_reason=None,
     )
