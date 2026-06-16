@@ -1,4 +1,13 @@
-orchestrator:
-  congestion_timeout_sec: 5.0
-  reasoning_period_hz: 1.0
-  max_active_commands: 4
+# M5 orchestrator config. Loaded by orchestrator_node via the config_file param.
+stall_threshold_sec: 12.0
+progress_epsilon_m: 0.10
+cooldown_sec: 15.0
+command_timeout_sec: 20.0
+reasoning_backend_id: mock
+frame_dump_dir: data/logs/m5_frames
+keep_debug_frames: false
+frame_scene_max_skew_sec: 1.0
+frame_downscale_width: null
+initial_tasks:
+  robot_0: { task: pick_zone_a, goal: [3.0, 1.5] }
+  robot_1: { task: pick_zone_b, goal: [4.0, 2.0] }
