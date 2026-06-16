@@ -19,6 +19,7 @@ from swarm_orchestrator.models import (
 from swarm_orchestrator.reasoning_pipeline import (
     InProcessPipeline,
     ReasoningPipeline,
+    build_failed_outcome,
     build_reasoner_request,
     dump_frame_png,
     fan_out_command,
@@ -50,6 +51,7 @@ __all__ = [
     "TaskAssignment",
     "TaskRegistry",
     "TerminalStage",
+    "build_failed_outcome",
     "build_reasoner_request",
     "dump_frame_png",
     "fan_out_command",

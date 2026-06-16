@@ -8,7 +8,13 @@ from typing import Any, Protocol
 import cv2
 import numpy as np
 
-from reasoning.vlm.models import ReasonerRequest, ReasonerResult, RobotStateInput
+from reasoning.rag.command_grounder import validate_coordination_command
+from reasoning.vlm.models import (
+    ReasonerDiagnostics,
+    ReasonerRequest,
+    ReasonerResult,
+    RobotStateInput,
+)
 from swarm_orchestrator.models import (
     PipelineOutcome,
     SceneSnapshot,
@@ -16,6 +22,35 @@ from swarm_orchestrator.models import (
 )
 
 GroundFn = Callable[[ReasonerResult], dict[str, Any]]
+ValidateFn = Callable[[dict[str, Any]], dict[str, Any]]
+
+
+def build_failed_outcome(request_id: str, reason: str) -> PipelineOutcome:
+    """Build a VLM-terminal outcome with a synthetic failed ReasonerResult.
+
+    Used when no real `ReasonerResult` is available — e.g. the reasoner call or the
+    worker-thread frame dump raised before producing one. Keeps the contract that a
+    cycle always resolves to a `PipelineOutcome` (FR5.3.2).
+    """
+    result = ReasonerResult(
+        request_id=request_id,
+        decision=None,
+        raw_text=None,
+        diagnostics=ReasonerDiagnostics(
+            request_id=request_id,
+            backend_id="unknown",
+            attempts=1,
+            parse_status="failed",
+            error_message=reason,
+        ),
+    )
+    return PipelineOutcome(
+        request_id=request_id,
+        reasoner_result=result,
+        grounded_command=None,
+        terminal_stage=TerminalStage.VLM,
+        failure_reason=reason,
+    )
 
 
 def build_reasoner_request(
@@ -96,20 +131,31 @@ class InProcessPipeline:
     are never raised past this adapter (FR5.3.2, E3/E4).
     """
 
-    def __init__(self, reasoner: Any, ground_fn: GroundFn) -> None:
+    def __init__(
+        self,
+        reasoner: Any,
+        ground_fn: GroundFn,
+        validate_fn: ValidateFn | None = None,
+    ) -> None:
         self._reasoner = reasoner
         self._ground_fn = ground_fn
+        # Default to the M3 schema validator (FR5.3.2 / spec §5: grounded commands
+        # are schema-validated before they can reach OK and be dispatched).
+        self._validate_fn = validate_fn or validate_coordination_command
 
     def run(self, request: ReasonerRequest) -> PipelineOutcome:
-        result = self._reasoner.run(request)
+        try:
+            result = self._reasoner.run(request)
+        except Exception as exc:  # unexpected M2 failure — bounded here, never raised
+            return build_failed_outcome(request.request_id, f"reasoner raised: {exc}")
         decision = result.decision
         if decision is None:
             return self._vlm_terminal(request.request_id, result, "decision=None")
         if not decision.congestion_detected:
             return self._vlm_terminal(request.request_id, result, "congestion_detected=false")
         try:
-            grounded = self._ground_fn(result)
-        except Exception as exc:  # grounding/schema failure — bounded here
+            grounded = self._validate_fn(self._ground_fn(result))
+        except Exception as exc:  # grounding or schema-validation failure — bounded here
             return PipelineOutcome(
                 request_id=request.request_id,
                 reasoner_result=result,

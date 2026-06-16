@@ -184,3 +184,49 @@ def test_pipeline_grounding_failure_terminates_at_grounding():
     outcome = pipe.run(_request())
     assert outcome.terminal_stage is TerminalStage.GROUNDING
     assert "schema invalid" in outcome.failure_reason
+
+
+class _RaisingReasoner:
+    def run(self, request):
+        raise RuntimeError("backend exploded")
+
+
+def test_pipeline_reasoner_exception_terminates_at_vlm_without_raising():
+    # An unexpected exception from M2 must become a PipelineOutcome, not bubble out
+    # (FR5.3.2: failures from either stage are caught, never raised past the adapter).
+    pipe = InProcessPipeline(
+        reasoner=_RaisingReasoner(),
+        ground_fn=lambda result: pytest.fail("ground_fn must not run"),
+    )
+    outcome = pipe.run(_request())
+    assert outcome.terminal_stage is TerminalStage.VLM
+    assert outcome.grounded_command is None
+    assert "backend exploded" in outcome.failure_reason
+
+
+def test_pipeline_invalid_grounded_command_terminates_at_grounding():
+    # A grounded dict that fails the coordination_command schema must not reach OK.
+    invalid = {"command_id": "c1"}  # missing actions / fallback / resolution
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_ok_result()),
+        ground_fn=lambda result: invalid,
+    )
+    outcome = pipe.run(_request())
+    assert outcome.terminal_stage is TerminalStage.GROUNDING
+    assert outcome.grounded_command is None
+
+
+def test_pipeline_valid_grounded_command_passes_validation():
+    valid = {
+        "command_id": "c1",
+        "actions": [{"robot_id": "robot_0", "action": "yield"}],
+        "expected_resolution_time_sec": 18.0,
+        "fallback": "stop",
+    }
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_ok_result()),
+        ground_fn=lambda result: valid,
+    )
+    outcome = pipe.run(_request())
+    assert outcome.terminal_stage is TerminalStage.OK
+    assert outcome.grounded_command == valid
