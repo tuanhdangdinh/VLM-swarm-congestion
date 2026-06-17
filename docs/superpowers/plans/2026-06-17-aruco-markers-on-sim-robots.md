@@ -826,21 +826,25 @@ Run (PowerShell, on the Isaac box):
 ```
 Expected: writes `turtlebot3_burger.usda` with **no missing-mesh warnings** and no `${...}` errors.
 
-- [ ] **Step 2: Build a scenario and confirm the marker prim**
+- [ ] **Step 2: Rebuild ALL scenarios (required prerequisite)**
 
-Build a scenario (e.g. `head_on_deadlock`) via the existing scenario build path, then confirm each robot has `/World/Robots/<id>/aruco_marker` with a bound material and that `validate_scenario_stage` passes.
+`validate_scenario_stage` now strictly requires a marker quad on every robot (Task 9), so any `.usd` built before Task 8 will FAIL validation. Rebuild every scenario via the existing build path so Task 8 authors the markers into them. Then confirm each robot has `/World/Robots/<id>/aruco_marker` with a bound material and that `validate_scenario_stage` passes.
 
-- [ ] **Step 3: Run and check M1 sees the markers**
+- [ ] **Step 3: Run and check M1 detects the CORRECT marker ids**
 
 Launch the sim + perception (`perception.launch.py use_camera_node:=false`) on a shared `ROS_DOMAIN_ID`, then:
 ```bash
 ros2 topic echo /perception/scene_state --once
 ```
-Expected: `robots` is **non-empty** with the expected `robot_id`s — the real end-to-end proof. If empty, the marker renders too small/occluded at the default camera; the deferred lever is a camera retune (out of scope here).
+Expected: `robots` is non-empty **and the detected marker ids equal each robot's configured `marker_id`** — id-match, not merely non-empty. A non-empty check is insufficient: the texture mapping onto the UV quad (winding `(-h,-h),(h,-h),(h,h),(-h,h)` + st `(0,0),(1,0),(1,1),(0,1)`, +Z normal, viewed from the nadir camera) can mirror or rotate the marker. ArUco decoding is rotation-invariant but **not mirror-invariant** — a mirrored marker either fails to decode or decodes to a *different* id, so "non-empty" can pass while every robot is mis-identified.
+
+Failure modes to distinguish:
+- **Empty `robots`** → marker not detected at all: either rendered too small/occluded at the default camera (deferred lever: camera retune, out of scope), or the texture file path failed to resolve and the quad rendered solid black (check the UsdUVTexture `file` resolves relative to the scenario stage).
+- **Non-empty but wrong/missing ids** → UV mirror/rotation: the marker decodes but to the wrong id, or some robots are dropped. Fix by flipping the `st` winding in `author_aruco_marker` (swap U or V), then rebuild and re-check.
 
 - [ ] **Step 4: Record the result**
 
-Note pass/fail and any per-robot id mismatches (the known M1-`robot_id` vs Isaac-`robot_id` naming gap is tracked separately).
+Record, per robot: configured `marker_id` vs detected id, and pass only when every robot id-matches. Note the known M1-`robot_id` vs Isaac-`robot_id` naming gap separately (it does not excuse a marker-id mismatch).
 
 ---
 
