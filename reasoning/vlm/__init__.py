@@ -1,5 +1,6 @@
 """M2 VLM semantic reasoning: prompt building, backend adapters, parsing, orchestration."""
 
+from reasoning.vlm.anthropic_backend import AnthropicBackend
 from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.backend_factory import build_backend
 from reasoning.vlm.errors import (
@@ -10,6 +11,7 @@ from reasoning.vlm.errors import (
 from reasoning.vlm.llama_server_backend import LlamaServerBackend
 from reasoning.vlm.mock_backend import MockBackend
 from reasoning.vlm.models import (
+    AnthropicBackendConfig,
     BackendResponse,
     CongestionDecision,
     LlamaServerBackendConfig,
@@ -33,6 +35,8 @@ from reasoning.vlm.reasoner import (
 )
 
 __all__ = [
+    "AnthropicBackend",
+    "AnthropicBackendConfig",
     "BackendResponse",
     "BackendTimeoutError",
     "CongestionDecision",

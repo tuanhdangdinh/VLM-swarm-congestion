@@ -1,10 +1,15 @@
+from reasoning.vlm.anthropic_backend import AnthropicBackend
 from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.llama_server_backend import LlamaServerBackend
 from reasoning.vlm.mock_backend import MockBackend
-from reasoning.vlm.models import LlamaServerBackendConfig, OpenAIBackendConfig
+from reasoning.vlm.models import (
+    AnthropicBackendConfig,
+    LlamaServerBackendConfig,
+    OpenAIBackendConfig,
+)
 from reasoning.vlm.openai_backend import OpenAIBackend
 
-BackendConfig = LlamaServerBackendConfig | OpenAIBackendConfig
+BackendConfig = LlamaServerBackendConfig | OpenAIBackendConfig | AnthropicBackendConfig
 
 
 def build_backend(
@@ -43,5 +48,13 @@ def build_backend(
             base_url=backend_config.base_url,
             api_key_env=backend_config.api_key_env,
             organization=backend_config.organization,
+        )
+    if backend_id == "anthropic":
+        if backend_config is None:
+            raise ValueError("anthropic backend requires an AnthropicBackendConfig")
+        return AnthropicBackend(
+            model_id=backend_config.model_id,
+            base_url=backend_config.base_url,
+            api_key_env=backend_config.api_key_env,
         )
     raise ValueError(f"Unknown backend_id: {backend_id!r}")

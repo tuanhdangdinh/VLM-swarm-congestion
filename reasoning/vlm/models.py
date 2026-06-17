@@ -118,6 +118,14 @@ class OpenAIBackendConfig(BaseModel):
     organization: str | None = None
 
 
+class AnthropicBackendConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    model_id: str = "claude-opus-4-8"
+    base_url: str = "https://api.anthropic.com/v1"
+    api_key_env: str = "ANTHROPIC_API_KEY"  # env var NAME holding the key; never the key itself
+
+
 class ReasonerConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
