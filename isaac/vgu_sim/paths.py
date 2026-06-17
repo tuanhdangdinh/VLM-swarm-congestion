@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import yaml
+
 _ISAAC_ROOT = Path("isaac")
 _ASSETS = _ISAAC_ROOT / "assets"
 _SCENARIOS_OUT = _ISAAC_ROOT / "scenarios"
@@ -39,3 +41,25 @@ def scenario_output_path(name: str) -> Path:
 
 def run_output_dir(output_root: Path, scenario_name: str, seed: int, rep: int) -> Path:
     return output_root / f"{scenario_name}-seed{seed}-rep{rep:03d}"
+
+
+# Single source of truth for the ArUco dictionary: M1's perception config. Both
+# the generator and the scenario authoring resolve the dictionary from here.
+ARUCO_CONFIG_PATH = Path("ros2_ws/src/swarm_perception/config/aruco.yaml")
+
+
+def aruco_dict_name(config_path: Path = ARUCO_CONFIG_PATH) -> str:
+    cfg = yaml.safe_load(config_path.read_text())
+    return cfg["aruco"]["dictionary"]
+
+
+def marker_dict_slug(dictionary_name: str) -> str:
+    return "aruco_" + dictionary_name.removeprefix("DICT_").lower()
+
+
+def marker_assets_dir(dictionary_name: str) -> Path:
+    return _ASSETS / "markers" / marker_dict_slug(dictionary_name)
+
+
+def marker_png_path(dictionary_name: str, marker_id: int) -> Path:
+    return marker_assets_dir(dictionary_name) / f"marker_{marker_id}.png"
