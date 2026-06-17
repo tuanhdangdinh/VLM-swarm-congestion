@@ -72,3 +72,21 @@ def test_author_robot_adds_marker_with_id_texture(tmp_path):
     )
     assert shader
     assert shader.GetInput("file").Get().path.endswith("marker_2.png")
+
+
+def test_validate_marker_passes_for_authored_quad():
+    from isaac.vgu_sim.validation import validate_robot_marker
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World/Robots/robot_1")
+    author_aruco_marker(stage, "/World/Robots/robot_1", "markers/aruco_4x4_50/marker_1.png")
+    validate_robot_marker(stage, "/World/Robots/robot_1")  # must not raise
+
+
+def test_validate_marker_fails_when_missing():
+    from isaac.vgu_sim.validation import ValidationError, validate_robot_marker
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World/Robots/robot_1")
+    with pytest.raises(ValidationError, match="aruco_marker"):
+        validate_robot_marker(stage, "/World/Robots/robot_1")
