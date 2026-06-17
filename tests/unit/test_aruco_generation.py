@@ -2,6 +2,7 @@ from pathlib import Path
 
 import cv2
 import pytest
+import yaml
 
 from isaac.vgu_sim import paths
 from scripts.generate_aruco_markers import generate_markers
@@ -44,3 +45,10 @@ def test_generated_marker_is_square(tmp_path):
 def test_unsupported_dictionary_raises(tmp_path):
     with pytest.raises(ValueError, match="NOT_A_DICT"):
         generate_markers("NOT_A_DICT", tmp_path, ids=[1])
+
+
+def test_aruco_config_size_matches_sim_marker():
+    cfg = yaml.safe_load(
+        Path("ros2_ws/src/swarm_perception/config/aruco.yaml").read_text()
+    )
+    assert cfg["aruco"]["marker_size_m"] == 0.12
