@@ -71,6 +71,36 @@ def validate_camera_frustum(stage, config: CameraConfig) -> None:
         )
 
 
+def validate_robot_marker(stage, robot_prim_path: str) -> None:
+    """Assert a robot has a decodable ArUco marker quad authored on it.
+
+    Checks the authored marker quad child (not the URDF frame): the mesh exists,
+    carries an `st` primvar, and binds a material with a texture file input.
+
+    Args:
+        stage: USD stage being validated.
+        robot_prim_path: Robot root prim, e.g. "/World/Robots/robot_1".
+
+    Raises:
+        ValidationError: If the marker quad, its `st` primvar, or its bound
+            texture is missing.
+    """
+    from pxr import UsdGeom, UsdShade
+
+    marker_path = f"{robot_prim_path}/aruco_marker"
+    mesh = UsdGeom.Mesh.Get(stage, marker_path)
+    if not mesh:
+        raise ValidationError(f"Missing aruco_marker quad at {marker_path}")
+    if not UsdGeom.PrimvarsAPI(mesh).GetPrimvar("st"):
+        raise ValidationError(f"aruco_marker at {marker_path} has no 'st' primvar")
+    material = UsdShade.MaterialBindingAPI(mesh).GetDirectBinding().GetMaterial()
+    if not material:
+        raise ValidationError(f"aruco_marker at {marker_path} has no bound material")
+    tex = UsdShade.Shader.Get(stage, f"{marker_path}/Material/Texture")
+    if not tex or not tex.GetInput("file") or not tex.GetInput("file").Get():
+        raise ValidationError(f"aruco_marker at {marker_path} has no texture file")
+
+
 def validate_no_unresolved_references(stage) -> None:
     errors = list(stage.GetCompositionErrors())
     if errors:
@@ -87,6 +117,10 @@ def validate_scenario_stage(scenario_path: Path, config: CameraConfig | None = N
 
     cam_config = config or CameraConfig()
     validate_camera_frustum(stage, cam_config)
+
+    robots_root = stage.GetPrimAtPath("/World/Robots")
+    for robot_prim in robots_root.GetChildren():
+        validate_robot_marker(stage, robot_prim.GetPath().pathString)
 
 
 def calibration_position_error(

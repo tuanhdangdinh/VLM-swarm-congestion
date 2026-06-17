@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 
 from isaac.vgu_sim.config import ScenarioConfig
+from isaac.vgu_sim.marker_asset import author_aruco_marker
+from isaac.vgu_sim.paths import aruco_dict_name, marker_png_path
 
 
 class ScenarioBuildError(Exception):
@@ -86,6 +88,15 @@ def _author_robot(stage, robot_cfg, robot_asset_path: Path, scenario_dir: Path) 
     UsdGeom.Xformable(goal_prim.GetPrim()).AddTranslateOp().Set(Gf.Vec3d(g.x, g.y, 0.0))
 
     stage.DefinePrim(f"/World/ROSGraphs/{robot_cfg.robot_id}")
+
+    # Per-robot ArUco marker keyed by marker_id. The imported robot USD is shared,
+    # so the marker is authored per-robot here. The dictionary is resolved from the
+    # single source of truth (aruco.yaml) — never hardcoded — so it can't desync
+    # from generation. Texture path is relative to the scenario stage so the .usda
+    # is relocatable.
+    marker_png = marker_png_path(aruco_dict_name(), robot_cfg.marker_id)
+    rel_marker = _relative_path(scenario_dir, marker_png)
+    author_aruco_marker(stage, prim_path, str(rel_marker))
 
 
 def _author_obstacle(stage, obs_cfg) -> None:
