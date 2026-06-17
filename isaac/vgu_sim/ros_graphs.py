@@ -53,6 +53,12 @@ def create_global_ros_graphs(
                 ("pub_rgb.inputs:frameId",            config.frame_id),
                 ("pub_rgb.inputs:renderProductPath",  render_product.path),
                 ("pub_rgb.inputs:type",               "rgb"),
+                # Explicit RELIABLE QoS to match M1's default-QoS image
+                # subscriber. Left unset, ROS2CameraHelper may default to a
+                # BEST_EFFORT/sensor profile, which a RELIABLE subscriber will
+                # not connect to — M1 would receive zero frames and look like
+                # "markers not detected." Consistent with clock/odom/tf above.
+                ("pub_rgb.inputs:qosProfile",        "default"),
             ],
         },
     )
