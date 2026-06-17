@@ -48,3 +48,27 @@ def test_marker_material_binds_expected_texture():
     mesh = UsdGeom.Mesh.Get(stage, "/World/Robots/robot_1/aruco_marker")
     bound = UsdShade.MaterialBindingAPI(mesh).GetDirectBinding().GetMaterial()
     assert bound
+
+
+def test_author_robot_adds_marker_with_id_texture(tmp_path):
+    from isaac.vgu_sim.config import Goal2D, Pose2D, RobotScenarioConfig
+    from isaac.vgu_sim.scenario_builder import _author_robot
+
+    stage = Usd.Stage.CreateNew(str(tmp_path / "scene.usda"))
+    robot_asset = tmp_path / "turtlebot3_burger.usda"
+    robot_asset.write_text("#usda 1.0\n")  # minimal referenceable stub
+
+    cfg = RobotScenarioConfig(
+        robot_id="robot_2",
+        marker_id=2,
+        spawn=Pose2D(x=0.0, y=0.0, yaw_rad=0.0),
+        goal=Goal2D(x=1.0, y=1.0),
+        initial_task="idle",
+    )
+    _author_robot(stage, cfg, robot_asset, tmp_path)
+
+    shader = UsdShade.Shader.Get(
+        stage, "/World/Robots/robot_2/aruco_marker/Material/Texture"
+    )
+    assert shader
+    assert shader.GetInput("file").Get().path.endswith("marker_2.png")
