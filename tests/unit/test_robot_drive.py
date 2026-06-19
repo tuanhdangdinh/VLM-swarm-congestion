@@ -20,13 +20,15 @@ def _make_stage_with_both_wheels() -> tuple[Usd.Stage, str, str]:
 
 def test_sets_angular_drive_to_velocity_mode():
     cfg = RobotAssetConfig()
-    stage, left_path, _right_path = _make_stage_with_both_wheels()
+    stage, left_path, right_path = _make_stage_with_both_wheels()
 
     configure_wheel_velocity_drive(stage, "/Robot", cfg)
 
-    drive = UsdPhysics.DriveAPI.Get(stage.GetPrimAtPath(left_path), "angular")
-    assert drive.GetStiffnessAttr().Get() == cfg.wheel_drive_stiffness
-    assert drive.GetDampingAttr().Get() == cfg.wheel_drive_damping
+    # Both wheels must be switched to velocity drive, not just the left.
+    for joint_path in (left_path, right_path):
+        drive = UsdPhysics.DriveAPI.Get(stage.GetPrimAtPath(joint_path), "angular")
+        assert drive.GetStiffnessAttr().Get() == cfg.wheel_drive_stiffness
+        assert drive.GetDampingAttr().Get() == cfg.wheel_drive_damping
 
 
 def test_missing_wheel_joint_raises():
