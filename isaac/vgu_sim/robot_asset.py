@@ -103,7 +103,7 @@ def _find_prim_by_name(stage, name: str):
 
 
 def validate_robot_asset(asset_path: Path, config: RobotAssetConfig) -> None:
-    from pxr import Usd, UsdPhysics
+    from pxr import Usd, UsdGeom, UsdPhysics
 
     stage = Usd.Stage.Open(str(asset_path))
 
@@ -132,8 +132,8 @@ def validate_robot_asset(asset_path: Path, config: RobotAssetConfig) -> None:
                 "the chassis would be welded to the world and cannot move."
             )
 
-    layer = stage.GetRootLayer()
-    if layer.metersPerUnit != 1.0:
+    meters_per_unit = UsdGeom.GetStageMetersPerUnit(stage)
+    if meters_per_unit != 1.0:
         raise RobotImportError(
-            f"metersPerUnit must be 1; got {layer.metersPerUnit}"
+            f"metersPerUnit must be 1; got {meters_per_unit}"
         )
