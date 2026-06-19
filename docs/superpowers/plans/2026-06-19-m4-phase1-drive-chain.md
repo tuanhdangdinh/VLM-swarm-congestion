@@ -510,9 +510,10 @@ Wire `on_tick.outputs:tick` into each added node's `execIn`; set `pub_tf` `paren
 
   - **Branch B (relay node, Task 1b = no):** no graph node is added here. Instead (i) set `sub_twist.inputs:topicName = f"/{robot_id}/cmd_vel_safe"` in Task 5, (ii) author `isaac/vgu_sim/cmd_vel_watchdog_node.py` — the thin `CmdVelWatchdog` rclpy node wrapping the Task 4 `watchdog_velocity` core (code block in Task 4 Step 3) — and (iii) launch it per robot alongside the sim (in the runner's bring-up or the launch file) with `use_sim_time=True`. Record "Branch B" in a comment at the graph's `sub_twist` node.
 
-- [ ] **Step 3: [HOST] Verify TF and watchdog.**
-  - TF: `ros2 run tf2_tools view_frames` (or `ros2 topic echo /tf`) shows `robot_1/odom → robot_1/base_footprint` updating while driving, and `/tf_static` carries `base_link`/`base_scan`.
-  - Watchdog: publish a single (non-repeating) twist, confirm the robot coasts to a stop and `/robot_1/odom` linear velocity returns to ~0 within ~0.5 s of sim time after commands stop.
+- [x] **Step 3: [HOST] Verify TF and watchdog.** ✅ PASS on GCP host (2026-06-19).
+  - TF: `robot_1/odom → robot_1/base_footprint` updates on `/tf` while driving a curve; ROS-received TF yaw tracked the full 13°→164° sweep at a steady −1.0° offset vs `/odom`. In-process `pub_tf.inputs:rotation` equalled `odom_compute.outputs:orientation` to 0.0° (no quaternion-convention scramble); source orientation matched the path tangent to 9.3° (the residual is the expected chord-vs-tangent finite-difference lag). `/tf_static` carries `base_link`/`base_scan`.
+  - Watchdog: a single non-repeating twist coasted to a stop; `/robot_1/cmd_vel_safe` (and `diff_ctrl.outputs:velocityCommand`) returned to 0 in 0.567 s of sim time after commands stopped (~0.5 s timeout + relay tick).
+  - Verified with an ephemeral in-sim probe (`isaac/scripts/probe_tf_watchdog.py`, not committed; removed from the host after the run). Note for Task 7: the ROS `/tf` subscriber must drain all ready callbacks per step (≥2 msgs/step: `/odom` + `/tf`) or the lower-priority `/tf` queue starves and appears frozen.
 
 - [ ] **Step 4: Commit.**
 
