@@ -128,12 +128,26 @@ published once on `/tf_static`.
 
 ---
 
-## 4. Testing & Validation
+## 4. Testing & Validation — implemented
 
-- **Offline:** unit-test the differential-drive math (twist → wheel velocities)
-  without Isaac.
-- **In sim:** publish a fixed `Twist` to `/<robot_id>/cmd_vel` and assert
-  `/<robot_id>/odom` integrates forward, then stops; assert the watchdog zeroes
-  wheel targets after `0.5 s` with no command. Extend
-  `tests/simulation/stop_stub.py` (it already publishes `Twist` to
-  `/<robot_id>/cmd_vel`). Mark as a simulation test, not a fast unit test.
+- **Offline (implemented):** Isaac's `DifferentialController` owns the twist →
+  wheel-velocity math, so it is validated **end-to-end** rather than by an
+  isolated copy of its arithmetic: the labelled oracle `forward_distance`
+  (`isaac/vgu_sim/diff_drive_oracle.py`, unit-tested in
+  `tests/unit/test_m6_oracle.py`) predicts the expected odometry displacement,
+  and the speed-cap safety guard (FR6.8.5a) is unit-tested for both commanders in
+  `tests/unit/test_m6_stop_stub.py`.
+- **In sim (host-verified):** `tests/simulation/stop_stub.py` gained
+  `FixedTwistDriver`, which publishes a fixed forward `Twist` to
+  `/<robot_id>/cmd_vel` at 10 Hz (capped at 0.15 m/s) and ceases on
+  `request_stop` so the watchdog zeroes the wheels. The drive chain (`/cmd_vel →
+  /cmd_vel_safe → DifferentialController → physics → /odom + /tf`) and the
+  Branch B watchdog stop were **verified on the Isaac host** — yaw/TF convention
+  correct over a 166° sweep, watchdog zeroing in ~0.5 s of sim time
+  (`docs/reports/2026-06-19-m4-phase1-task6-tf-watchdog-verification.md`).
+- **Automated acceptance test:** `tests/simulation/test_m4_phase1_drive.py`
+  (markers `isaac_sim`/`ros2`). There is no in-process `isaac_host` fixture yet,
+  so it is a **documented-skip**: its docstring records the exact manual [HOST]
+  drive + watchdog procedure that was run, and it skips in both CI and on the
+  host. The live verification of record is the Task 6 host report above, not an
+  automated pass.
