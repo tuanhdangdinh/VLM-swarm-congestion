@@ -31,7 +31,8 @@ Two honesty notes, decided up front (see the spec's own §4 tension and the READ
 | `isaac/vgu_sim/ros_graphs.py` | Per-robot OmniGraph authoring | Modify `create_robot_ros_graph` (currently odometry-only, lines 96-152) |
 | `isaac/vgu_sim/robot_drive.py` | USD wheel-joint velocity-drive authoring helper | Create |
 | `isaac/vgu_sim/diff_drive_oracle.py` | Pure-Python test oracle: expected forward displacement | Create |
-| `isaac/vgu_sim/cmd_vel_watchdog.py` | Watchdog relay node: pure stale-command core + thin rclpy node (fallback path, Task 4) | Create |
+| `isaac/vgu_sim/cmd_vel_watchdog.py` | Pure stale-command core `watchdog_velocity` (fallback path, Task 4) — no rclpy import, offline-testable | Create |
+| `isaac/vgu_sim/cmd_vel_watchdog_node.py` | Thin rclpy `CmdVelWatchdog` relay node wrapping the core (Branch B; authored at host time in Task 6) | Create (host) |
 | `docs/specs/module4/phase1-drive-chain.md` | Record the verified OmniGraph node/attribute names (Task 1) | Modify (append a "Verified node interface" subsection) |
 | `tests/unit/test_diff_drive_oracle.py` | Unit tests for the oracle | Create |
 | `tests/unit/test_robot_drive.py` | Unit tests for the wheel-drive authoring helper (USD in-memory stage) | Create |
@@ -295,11 +296,12 @@ git commit -m "feat: author wheel velocity drives from RobotAssetConfig gains"
 - **Branch A — built-in timeout exists.** If `DifferentialController`/`ROS2SubscribeTwist` exposes a message-timeout input, the watchdog is one `SET_VALUES` line in Task 6 (`("diff_ctrl.inputs:<verified_timeout_attr>", config.command_timeout_sec)`). **Skip the rest of this task** — do not build the relay node — and record "Branch A" in the spec's verified-interface subsection.
 - **Branch B — no built-in timeout (build this task).** Add a small ROS 2 **watchdog relay node**: it subscribes `/<robot_id>/cmd_vel`, republishes to `/<robot_id>/cmd_vel_safe`, and publishes a zero `Twist` once no command has arrived for `config.command_timeout_sec`. The Isaac graph subscribes to `/<robot_id>/cmd_vel_safe` (Task 5). Run it with `use_sim_time=True` so the timeout is measured in *simulation* time (FR6.4.8); Isaac publishes `/clock`. The public `/cmd_vel` contract from the README interface table is unchanged — `cmd_vel_safe` is an internal hop.
 
-The stale-command decision is pure and unit-testable; the rclpy plumbing is thin and [HOST]-verified in Task 6.
+The stale-command decision is pure and unit-testable (built **now**, OFFLINE); the rclpy plumbing is thin and lives in a **separate** module authored at host time in Task 6 (so the offline unit test never imports `rclpy`). This split is the CLAUDE.md ROS 2 rule: keep reusable logic outside node classes when it can be tested without ROS 2.
 
 **Files (Branch B only):**
-- Create: `isaac/vgu_sim/cmd_vel_watchdog.py`
-- Test: `tests/unit/test_cmd_vel_watchdog.py`
+- Create (OFFLINE, now): `isaac/vgu_sim/cmd_vel_watchdog.py` — the pure `watchdog_velocity` core, no `rclpy` import.
+- Test (OFFLINE, now): `tests/unit/test_cmd_vel_watchdog.py`
+- Create (HOST, Task 6): `isaac/vgu_sim/cmd_vel_watchdog_node.py` — the thin `CmdVelWatchdog` rclpy node importing `watchdog_velocity`.
 
 - [ ] **Step 1: Write the failing tests for the pure core.**
 
@@ -331,16 +333,16 @@ def test_exactly_at_timeout_still_passes():
 Run: `pytest tests/unit/test_cmd_vel_watchdog.py -v`
 Expected: FAIL — `ModuleNotFoundError: isaac.vgu_sim.cmd_vel_watchdog`.
 
-- [ ] **Step 3: Implement the pure core + thin node.**
+- [ ] **Step 3: Implement the pure core** (`isaac/vgu_sim/cmd_vel_watchdog.py`). The rclpy node is authored separately at host time (Task 6) so this module imports cleanly offline.
 
 ```python
-"""Command watchdog relay (fallback when no built-in controller timeout).
+"""Command watchdog core (fallback when no built-in controller timeout).
 
-Subscribes /<robot_id>/cmd_vel and republishes to /<robot_id>/cmd_vel_safe,
-emitting a zero Twist once no command has arrived for command_timeout_sec
-(FR6.4.8). Run with use_sim_time=True so the timeout is measured in simulation
-time. The pure `watchdog_velocity` core is unit-tested; the node is thin
-(CLAUDE.md: keep ROS 2 callbacks thin, logic in pure functions).
+Pure stale-command decision used by the rclpy relay node in
+`cmd_vel_watchdog_node.py`: forward the last `/<robot_id>/cmd_vel` to
+`/<robot_id>/cmd_vel_safe` until no command has arrived for
+command_timeout_sec, then zero it (FR6.4.8). Kept rclpy-free so it is
+unit-testable without ROS 2 (CLAUDE.md: logic outside node classes).
 """
 from __future__ import annotations
 
@@ -366,9 +368,11 @@ def watchdog_velocity(
     return commanded
 ```
 
-Then the rclpy node (verified at [HOST] in Task 6 — not unit-tested):
+The thin rclpy node below goes in a **separate** file `isaac/vgu_sim/cmd_vel_watchdog_node.py`, authored and verified at [HOST] in Task 6 — not created or imported in this OFFLINE task:
 
 ```python
+from isaac.vgu_sim.cmd_vel_watchdog import watchdog_velocity
+
 import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
@@ -408,7 +412,7 @@ Expected: PASS (4 tests).
 
 ```bash
 git add isaac/vgu_sim/cmd_vel_watchdog.py tests/unit/test_cmd_vel_watchdog.py
-git commit -m "feat: add cmd_vel watchdog relay with unit-tested stale-command core"
+git commit -m "feat: add cmd_vel watchdog stale-command core"
 ```
 
 ---
@@ -504,7 +508,7 @@ Wire `on_tick.outputs:tick` into each added node's `execIn`; set `pub_tf` `paren
     ("diff_ctrl.inputs:<verified_timeout_attr>", config.command_timeout_sec),
     ```
 
-  - **Branch B (relay node, Task 1b = no):** no graph node is added here. Instead (i) set `sub_twist.inputs:topicName = f"/{robot_id}/cmd_vel_safe"` in Task 5, and (ii) launch the `CmdVelWatchdog` node from Task 4 per robot alongside the sim (in the runner's bring-up or the launch file) with `use_sim_time=True`. Record "Branch B" in a comment at the graph's `sub_twist` node.
+  - **Branch B (relay node, Task 1b = no):** no graph node is added here. Instead (i) set `sub_twist.inputs:topicName = f"/{robot_id}/cmd_vel_safe"` in Task 5, (ii) author `isaac/vgu_sim/cmd_vel_watchdog_node.py` — the thin `CmdVelWatchdog` rclpy node wrapping the Task 4 `watchdog_velocity` core (code block in Task 4 Step 3) — and (iii) launch it per robot alongside the sim (in the runner's bring-up or the launch file) with `use_sim_time=True`. Record "Branch B" in a comment at the graph's `sub_twist` node.
 
 - [ ] **Step 3: [HOST] Verify TF and watchdog.**
   - TF: `ros2 run tf2_tools view_frames` (or `ros2 topic echo /tf`) shows `robot_1/odom → robot_1/base_footprint` updating while driving, and `/tf_static` carries `base_link`/`base_scan`.
