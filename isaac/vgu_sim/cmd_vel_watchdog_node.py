@@ -19,6 +19,7 @@ import threading
 
 import rclpy
 from geometry_msgs.msg import Twist
+from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 
@@ -60,7 +61,7 @@ class CmdVelWatchdog(Node):
 
 def spin_in_thread(
     robot_ids: list[str], timeout_sec: float
-) -> tuple[rclpy.executors.SingleThreadedExecutor, list[CmdVelWatchdog]]:
+) -> tuple[SingleThreadedExecutor, list[CmdVelWatchdog]]:
     """Start one watchdog per robot in a background executor thread.
 
     Mirrors `tests/simulation/stop_stub.StopStubNode.spin_in_thread`: the caller
@@ -77,7 +78,7 @@ def spin_in_thread(
     """
     if not rclpy.ok():
         rclpy.init(args=None)
-    executor = rclpy.executors.SingleThreadedExecutor()
+    executor = SingleThreadedExecutor()
     nodes = [CmdVelWatchdog(rid, timeout_sec) for rid in robot_ids]
     for node in nodes:
         executor.add_node(node)
@@ -91,7 +92,7 @@ def main() -> None:
 
     timeout = RobotAssetConfig().command_timeout_sec
     rclpy.init(args=None)
-    executor = rclpy.executors.SingleThreadedExecutor()
+    executor = SingleThreadedExecutor()
     for node in (CmdVelWatchdog("robot_1", timeout), CmdVelWatchdog("robot_2", timeout)):
         executor.add_node(node)
     try:
