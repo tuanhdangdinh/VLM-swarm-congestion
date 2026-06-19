@@ -79,7 +79,6 @@ Each phase is independently demonstrable; stop at any phase.
 | Component | State | Needed for |
 |---|---|---|
 | Isaac `/cmd_vel` drive chain + TF | Built (Phase 1), host-verified | Phase 1 done |
-| RTX `/scan` lidar feed | Specified (M6 FR6.7.4), not built | Phase 2+ |
 | RTX 2D lidar on `/<robot_id>/scan` | Specified (M6 FR6.4.9), not built | Phase 2+ |
 | Warehouse occupancy-grid map | Absent | Phase 2+ |
 | Nav2 install + per-robot bringup | Absent | Phase 2+ |
