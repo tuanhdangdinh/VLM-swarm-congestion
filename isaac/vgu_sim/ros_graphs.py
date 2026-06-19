@@ -132,12 +132,31 @@ def create_robot_ros_graph(
     # controller's acceleration integration uses real frame time. Data edges
     # (twist -> break -> diff -> art) make the execution evaluator order the nodes
     # correctly within each tick.
-    cmd_vel_topic = f"/{robot_id}/cmd_vel"
+    #
+    # Branch B watchdog (M4 Phase 1 Task 6 / FR6.4.8): ROS2SubscribeTwist has no
+    # built-in command timeout, so the graph subscribes /<id>/cmd_vel_safe instead
+    # of the public /<id>/cmd_vel. The out-of-graph CmdVelWatchdog relay node
+    # (cmd_vel_watchdog_node.py) republishes /cmd_vel -> /cmd_vel_safe and zeros it
+    # after command_timeout_sec of silence, so a single non-repeating Twist coasts
+    # to a stop. The public /<id>/cmd_vel contract for M4/M5 is unchanged.
+    cmd_vel_topic = f"/{robot_id}/cmd_vel_safe"
+
+    # TF tree (M4 Phase 1 Task 6 / FR6.7.5-6.7.6): the dynamic odom->base_footprint
+    # edge is published on /tf from the same IsaacComputeOdometry pose that feeds
+    # pub_odom (so /tf and /odom never disagree); the fixed base_footprint->base_link
+    # and base_link->base_scan mounts are latched on /tf_static. ROS2PublishOdometry
+    # does NOT emit TF itself (verified, spec §2a), so there is no double-publish of
+    # the dynamic edge. ROS2PublishRawTransformTree.inputs:rotation is a quatd[4] in
+    # xyzw order (identity = (0, 0, 0, 1)); the static mounts have identity rotation.
+    # Mount offsets are the turtlebot3_burger URDF joint origins:
+    #   base_joint (base_footprint->base_link): xyz = (0, 0, 0.010)
+    #   scan_joint (base_link->base_scan):       xyz = (-0.032, 0, 0.172)
     og.Controller.edit(
         {"graph_path": graph_path, "evaluator_name": "execution"},
         {
             og.Controller.Keys.CREATE_NODES: [
                 ("on_tick",      "omni.graph.action.OnPlaybackTick"),
+                ("read_time",    "isaacsim.core.nodes.IsaacReadSimulationTime"),
                 ("twist_sub",    "isaacsim.ros2.bridge.ROS2SubscribeTwist"),
                 ("break_lin",    "omni.graph.nodes.BreakVector3"),
                 ("break_ang",    "omni.graph.nodes.BreakVector3"),
@@ -145,9 +164,12 @@ def create_robot_ros_graph(
                 ("art_ctrl",     "isaacsim.core.nodes.IsaacArticulationController"),
                 ("odom_compute", "isaacsim.core.nodes.IsaacComputeOdometry"),
                 ("pub_odom",     "isaacsim.ros2.bridge.ROS2PublishOdometry"),
+                ("pub_tf",       "isaacsim.ros2.bridge.ROS2PublishRawTransformTree"),
+                ("pub_tf_base",  "isaacsim.ros2.bridge.ROS2PublishRawTransformTree"),
+                ("pub_tf_scan",  "isaacsim.ros2.bridge.ROS2PublishRawTransformTree"),
             ],
             og.Controller.Keys.CONNECT: [
-                # Drive chain: cmd_vel -> wheel velocity targets -> articulation.
+                # Drive chain: cmd_vel_safe -> wheel velocity targets -> articulation.
                 ("on_tick.outputs:tick",                 "twist_sub.inputs:execIn"),
                 ("on_tick.outputs:tick",                 "diff_ctrl.inputs:execIn"),
                 ("on_tick.outputs:tick",                 "art_ctrl.inputs:execIn"),
@@ -164,6 +186,16 @@ def create_robot_ros_graph(
                 ("odom_compute.outputs:orientation",      "pub_odom.inputs:orientation"),
                 ("odom_compute.outputs:linearVelocity",   "pub_odom.inputs:linearVelocity"),
                 ("odom_compute.outputs:angularVelocity",  "pub_odom.inputs:angularVelocity"),
+                # Dynamic odom -> base_footprint TF on /tf, stamped with sim time so
+                # use_sim_time consumers (the watchdog, tf2) accept it. Translation
+                # and rotation come straight from the odometry node, matching /odom.
+                ("on_tick.outputs:tick",                  "pub_tf.inputs:execIn"),
+                ("read_time.outputs:simulationTime",      "pub_tf.inputs:timeStamp"),
+                ("odom_compute.outputs:position",         "pub_tf.inputs:translation"),
+                ("odom_compute.outputs:orientation",      "pub_tf.inputs:rotation"),
+                # Static mount TFs on /tf_static (latched; staticPublisher ignores time).
+                ("on_tick.outputs:tick",                  "pub_tf_base.inputs:execIn"),
+                ("on_tick.outputs:tick",                  "pub_tf_scan.inputs:execIn"),
             ],
             og.Controller.Keys.SET_VALUES: [
                 ("twist_sub.inputs:topicName",       cmd_vel_topic),
@@ -178,6 +210,25 @@ def create_robot_ros_graph(
                 ("pub_odom.inputs:topicName",        f"/{robot_id}/odom"),
                 ("pub_odom.inputs:odomFrameId",      f"{robot_id}/odom"),
                 ("pub_odom.inputs:chassisFrameId",   f"{robot_id}/base_footprint"),
+                # Dynamic odom -> base_footprint.
+                ("pub_tf.inputs:topicName",          "/tf"),
+                ("pub_tf.inputs:staticPublisher",    False),
+                ("pub_tf.inputs:parentFrameId",      f"{robot_id}/odom"),
+                ("pub_tf.inputs:childFrameId",       f"{robot_id}/base_footprint"),
+                # Static base_footprint -> base_link (URDF base_joint origin).
+                ("pub_tf_base.inputs:topicName",        "/tf_static"),
+                ("pub_tf_base.inputs:staticPublisher",  True),
+                ("pub_tf_base.inputs:parentFrameId",    f"{robot_id}/base_footprint"),
+                ("pub_tf_base.inputs:childFrameId",     f"{robot_id}/base_link"),
+                ("pub_tf_base.inputs:translation",      [0.0, 0.0, 0.010]),
+                ("pub_tf_base.inputs:rotation",         [0.0, 0.0, 0.0, 1.0]),
+                # Static base_link -> base_scan (URDF scan_joint origin).
+                ("pub_tf_scan.inputs:topicName",        "/tf_static"),
+                ("pub_tf_scan.inputs:staticPublisher",  True),
+                ("pub_tf_scan.inputs:parentFrameId",    f"{robot_id}/base_link"),
+                ("pub_tf_scan.inputs:childFrameId",     f"{robot_id}/base_scan"),
+                ("pub_tf_scan.inputs:translation",      [-0.032, 0.0, 0.172]),
+                ("pub_tf_scan.inputs:rotation",         [0.0, 0.0, 0.0, 1.0]),
             ],
         },
     )

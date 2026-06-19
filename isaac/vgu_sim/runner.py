@@ -45,6 +45,7 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
     failure: str | None = None
     elapsed: float = 0.0
     completed = False
+    watchdog_executor = None
 
     scheduler = EventScheduler(config.scenario.timed_obstacles)
 
@@ -88,6 +89,13 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
         sim_ctx.play()
 
         _wait_for_ros_topics(sim_ctx, config.scenario.robots, config.topic_timeout_sec)
+
+        # Start the Branch B cmd_vel watchdog (FR6.4.8). The drive graphs listen on
+        # /<id>/cmd_vel_safe, so without this relay no robot moves on a real run —
+        # it forwards /cmd_vel and zeros it after command_timeout_sec of silence.
+        # Started after _wait_for_ros_topics (which shuts rclpy down in its finally)
+        # so spin_in_thread re-inits cleanly; runs on use_sim_time off /clock.
+        watchdog_executor = _start_cmd_vel_watchdog(config.scenario.robots)
 
         # One-shot in-process render readout: disambiguate "render product is
         # black" (camera/render-pipeline fault) from "ROS capture path is black"
@@ -138,6 +146,11 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
         failure = f"{type(exc).__name__}: {exc}"
         carb.log_error(failure)
     finally:
+        if watchdog_executor is not None:
+            try:
+                watchdog_executor.shutdown()
+            except Exception:
+                pass
         try:
             omni.timeline.get_timeline_interface().stop()
         except Exception:
@@ -286,7 +299,10 @@ def _wire_ros_graphs(robots) -> None:
     import omni.usd
 
     from isaac.vgu_sim.config import CameraConfig, RobotAssetConfig
-    from isaac.vgu_sim.robot_drive import configure_wheel_velocity_drive
+    from isaac.vgu_sim.robot_drive import (
+        configure_contact_friction,
+        configure_wheel_velocity_drive,
+    )
     from isaac.vgu_sim.ros_graphs import (
         create_global_ros_graphs,
         create_robot_ros_graph,
@@ -303,7 +319,26 @@ def _wire_ros_graphs(robots) -> None:
         # DifferentialController's velocity targets actually move the articulation
         # (position-mode drives would ignore them). See M4 Phase 1 Task 3.
         configure_wheel_velocity_drive(stage, robot_prim_path, robot_asset_cfg)
+        # Bind a friction material to the wheel/floor contact; without it PhysX
+        # uses a frictionless default and the spinning wheels slip in place.
+        configure_contact_friction(stage, robot_prim_path, robot_asset_cfg)
         create_robot_ros_graph(stage, robot, robot_prim_path, robot_asset_cfg)
+
+
+def _start_cmd_vel_watchdog(robots):
+    """Launch one Branch B cmd_vel watchdog per robot in a background thread.
+
+    Returns the executor (so the caller can shut it down) or None if rclpy is
+    unavailable. Failure here is non-fatal: the sim still renders, but robots
+    will not move because the drive graphs only consume /<id>/cmd_vel_safe.
+    """
+    from isaac.vgu_sim.cmd_vel_watchdog_node import spin_in_thread
+    from isaac.vgu_sim.config import RobotAssetConfig
+
+    robot_ids = [robot.robot_id for robot in robots]
+    timeout = RobotAssetConfig().command_timeout_sec
+    executor, _nodes = spin_in_thread(robot_ids, timeout)
+    return executor
 
 
 def _wait_for_ros_topics(sim_ctx, robots, timeout_sec: float) -> None:
