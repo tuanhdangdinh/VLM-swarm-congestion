@@ -71,3 +71,13 @@ class TestStopStub:
         scan = _make_scan(ranges)
         cmd = stub.on_scan(scan)
         assert cmd.linear.x == pytest.approx(0.10)
+
+
+class TestFixedTwistDriver:
+    def test_speed_limit_enforced(self):
+        # FixedTwistDriver reuses the StopStub speed guard (FR6.8.5a). The cap is
+        # checked before super().__init__, so this raises without a ROS context.
+        from tests.simulation.stop_stub import FixedTwistDriver
+
+        with pytest.raises(ValueError, match="0.15"):
+            FixedTwistDriver(["robot_1"], speed_mps=0.20)
