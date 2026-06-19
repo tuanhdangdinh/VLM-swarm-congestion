@@ -35,7 +35,16 @@ def author_aruco_marker(stage, robot_prim_path: str, texture_path: str):
     )
     st.Set([(0, 0), (1, 0), (1, 1), (0, 1)])
 
-    UsdGeom.Xformable(mesh).AddTranslateOp().Set(Gf.Vec3d(0, 0, MARKER_HEIGHT_M))
+    xformable = UsdGeom.Xformable(mesh)
+    xformable.AddTranslateOp().Set(Gf.Vec3d(0, 0, MARKER_HEIGHT_M))
+    # The quad points + UV layout above place the ArUco printed-top edge (corners
+    # 0-1, which M1's geometry.estimate_marker_heading treats as robot-forward) at
+    # +90 deg from the robot prim's forward (+x) axis. Left uncorrected, M1 reports
+    # a heading pi/2 off the authored yaw (verified: yaw 0 -> theta +pi/2). Rotate
+    # the marker -90 deg about Z so printed-top aligns with robot-forward and the
+    # detected heading matches the authored yaw, restoring parity with M1's tested
+    # corner convention (tests/unit/test_perception.py top-edge cases).
+    xformable.AddRotateZOp().Set(-90.0)
 
     _bind_emissive_texture(stage, mesh, f"{marker_path}/Material", texture_path)
     return mesh
