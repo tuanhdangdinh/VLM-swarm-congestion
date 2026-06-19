@@ -530,9 +530,9 @@ git commit -m "feat: add TF tree and 0.5s cmd_vel watchdog to robot graph (FR6.7
 - Modify: `tests/simulation/stop_stub.py` — add a `FixedTwistDriver` (or a `drive_forward` mode) that publishes a constant `Twist` to `/<robot_id>/cmd_vel` for a fixed duration, mirroring the existing `StopStubNode` structure (reuse its publisher setup; do not duplicate spin helpers).
 - Create: `tests/simulation/test_m4_phase1_drive.py`
 
-- [ ] **Step 1: Add the fixed-twist driver to `stop_stub.py`.** A small node that publishes `linear.x = speed` to each `/<rid>/cmd_vel` at 10 Hz; speed-capped at `0.15` like `StopStub` (reuse the existing guard).
+- [x] **Step 1: Add the fixed-twist driver to `stop_stub.py`.** A small node that publishes `linear.x = speed` to each `/<rid>/cmd_vel` at 10 Hz; speed-capped at `0.15` like `StopStub` (reuse the existing guard). Done (`997fb7e`): `FixedTwistDriver` mirrors `StopStubNode` (10 Hz timer, `request_stop` cancels the timer so the watchdog — not the driver — zeroes the wheels), and the `>0.15 → ValueError` guard was extracted to a shared `_check_speed` reused by both. Offline guard test added in `tests/unit/test_m6_stop_stub.py::TestFixedTwistDriver`.
 
-- [ ] **Step 2: Write the acceptance test.** Use the **`isaac_sim` + `ros2` markers** registered in `tests/simulation/conftest.py` (there is no `simulation` marker; the existing `test_m6_scenarios.py` stacks `@pytest.mark.isaac_sim` / `@pytest.mark.ros2`). It drives `robot_1` forward for `T` seconds, records start/end `/robot_1/odom`, asserts the integrated displacement matches the oracle within tolerance, then asserts the watchdog stop:
+- [x] **Step 2: Write the acceptance test.** Done (`997fb7e`): `tests/simulation/test_m4_phase1_drive.py`. No `isaac_host` fixture exists, so — as this step sanctions — the test is **marked-skip** and its docstring documents the full manual [HOST] procedure (start pose → `FixedTwistDriver` → displacement vs `forward_distance(0.10, 3.0)=0.30 m` `rel=0.20` → `request_stop` → watchdog stop `<0.01 m/s`), including the Task 6 carry-forward to drain all rclpy callbacks per step. The drive chain + watchdog were already verified on host in Task 6 (see report). Use the **`isaac_sim` + `ros2` markers** registered in `tests/simulation/conftest.py` (there is no `simulation` marker; the existing `test_m6_scenarios.py` stacks `@pytest.mark.isaac_sim` / `@pytest.mark.ros2`). It drives `robot_1` forward for `T` seconds, records start/end `/robot_1/odom`, asserts the integrated displacement matches the oracle within tolerance, then asserts the watchdog stop:
 
 ```python
 import pytest
@@ -558,12 +558,12 @@ def test_robot_drives_predicted_distance_then_watchdog_stops(isaac_host):
 
 `isaac_host` is a fixture wrapping the running sim + ROS 2 (mirror the existing simulation test harness in `tests/simulation/`; if no such fixture exists yet, the test documents the manual [HOST] procedure and is marked `skip` with a reason pointing at the manual steps in Tasks 5–6). The 20 % tolerance absorbs spin-up/spin-down and friction.
 
-- [ ] **Step 3: [HOST] Run it.**
+- [x] **Step 3: [HOST] Run it.** N/A for the as-built test: it is a documented-**skip**, so it `SKIPPED`s on the host exactly as it does in CI and produces no new signal beyond the Task 6 host verification. Verified locally it collects and skips cleanly (`pytest tests/simulation/test_m4_phase1_drive.py -v` → 1 skipped). The equivalent live verification was performed manually on the host in Task 6 (`docs/reports/2026-06-19-m4-phase1-task6-tf-watchdog-verification.md`).
 
 Run: `pytest tests/simulation/test_m4_phase1_drive.py -v -m "isaac_sim and ros2"`
 Expected: PASS on the Isaac host; deselected/SKIPPED in CI (markers gate it like the M6 scenario tests).
 
-- [ ] **Step 4: Commit.**
+- [x] **Step 4: Commit.** Done (`997fb7e`).
 
 ```bash
 git add tests/simulation/stop_stub.py tests/simulation/test_m4_phase1_drive.py
