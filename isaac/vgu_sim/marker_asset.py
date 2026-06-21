@@ -12,6 +12,10 @@ MARKER_HEIGHT_M = 0.21
 def author_aruco_marker(stage, robot_prim_path: str, texture_path: str):
     """Author a UV-mapped marker quad and emissive material under a robot prim.
 
+    The marker is placed under aruco_marker_link (a physics child of base_link)
+    so it follows the robot body during simulation. Placing it at the robot root
+    level would leave it frozen at the spawn position while the chassis moves.
+
     Args:
         stage: USD stage being authored.
         robot_prim_path: Robot root prim, e.g. "/World/Robots/robot_1".
@@ -20,7 +24,11 @@ def author_aruco_marker(stage, robot_prim_path: str, texture_path: str):
     Returns:
         The authored `UsdGeom.Mesh` quad.
     """
-    marker_path = f"{robot_prim_path}/aruco_marker"
+    # aruco_marker_link is at the correct height inside the physics hierarchy.
+    parent_path = (
+        f"{robot_prim_path}/Geometry/base_footprint/base_link/aruco_marker_link"
+    )
+    marker_path = f"{parent_path}/aruco_marker"
     mesh = UsdGeom.Mesh.Define(stage, marker_path)
 
     h = MARKER_SIZE_M / 2.0
@@ -36,7 +44,8 @@ def author_aruco_marker(stage, robot_prim_path: str, texture_path: str):
     st.Set([(0, 0), (1, 0), (1, 1), (0, 1)])
 
     xformable = UsdGeom.Xformable(mesh)
-    xformable.AddTranslateOp().Set(Gf.Vec3d(0, 0, MARKER_HEIGHT_M))
+    # Zero offset — aruco_marker_link is already positioned at marker height.
+    xformable.AddTranslateOp().Set(Gf.Vec3d(0, 0, 0))
     # The quad points + UV layout above place the ArUco printed-top edge (corners
     # 0-1, which M1's geometry.estimate_marker_heading treats as robot-forward) at
     # +90 deg from the robot prim's forward (+x) axis. Left uncorrected, M1 reports
