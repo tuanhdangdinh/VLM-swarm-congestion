@@ -1,10 +1,127 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 from isaac.vgu_sim.config import CameraConfig, RobotAssetConfig, RobotScenarioConfig
+from isaac.vgu_sim.lidar import author_rtx_lidar
+
+if TYPE_CHECKING:
+    from isaacsim.sensors.experimental.rtx import LidarSensor
 
 
 class RosGraphError(Exception):
     pass
+
+
+# M6 FR6.4.9: 360 deg FOV, 1 deg resolution, 10 Hz, 0.12-3.5 m range. RPLIDAR_S2E
+# is the base config because it is a genuine single-elevation-ray 2D rotary scan
+# (elevationDeg: [0]) -- the property the height-separation exclusion mechanism in
+# docs/specs/module4/phase2-nav2-stack.md S10 depends on. Its native range
+# (0.05-30 m) and resolution (0.1125 deg, from a 32000 Hz firing rate) do not match
+# FR6.4.9, so both are overridden via the `attributes` dict, which Lidar.create()
+# applies to the OmniLidar prim after loading the base config (verified against
+# isaacsim.sensors.experimental.rtx.impl.lidar.Lidar.__init__/_apply_attributes on
+# the host). patternFiringRateHz=3600 is derived from the LaserScan resolution
+# formula used by the official standalone example
+# (source/standalone_examples/api/isaacsim.ros2.bridge/rtx_lidar.py):
+# horizontalResolution = 360 * scanRateBaseHz / patternFiringRateHz, so
+# 360 * 10 / 3600 = 1.0 deg at the target 10 Hz tick rate.
+_LIDAR_CONFIG = "RPLIDAR_S2E"
+_LIDAR_TICK_RATE_HZ = 10.0
+_LIDAR_ATTRIBUTES: dict[str, Any] = {
+    "omni:sensor:Core:nearRangeM": 0.12,
+    "omni:sensor:Core:farRangeM": 3.5,
+    "omni:sensor:Core:scanRateBaseHz": 10.0,
+    "omni:sensor:Core:patternFiringRateHz": 3600,
+}
+
+
+def _read_laser_scan_metadata(prim) -> dict[str, Any]:
+    """Read LaserScan publish geometry from a rotary OmniLidar prim's attributes.
+
+    Mirrors the metadata extraction the deprecated `OgnROS2RtxLidarHelper` OmniGraph
+    node performs internally, so `RtxLidarROS2PublishLaserScan` (a plain Replicator
+    writer, not an OmniGraph node -- see
+    docs/specs/module4/phase2-nav2-stack.md S10) can be initialized directly from
+    the prim authored by `Lidar.create()`.
+
+    Args:
+        prim: The USD `OmniLidar` prim to read scan geometry from.
+
+    Returns:
+        Keyword arguments for `LidarSensor.attach_writer("RtxLidarROS2PublishLaserScan", ...)`.
+
+    Raises:
+        RuntimeError: If the prim's scan-rate or firing-rate attributes are zero or unset.
+    """
+    rotation_rate = float(prim.GetAttribute("omni:sensor:Core:scanRateBaseHz").Get() or 0)
+    near_range = float(prim.GetAttribute("omni:sensor:Core:nearRangeM").Get() or 0)
+    far_range = float(prim.GetAttribute("omni:sensor:Core:farRangeM").Get() or 0)
+    firing_rate = int(prim.GetAttribute("omni:sensor:Core:patternFiringRateHz").Get() or 0)
+    if rotation_rate <= 0 or firing_rate <= 0:
+        raise RuntimeError(
+            "LaserScan: scanRateBaseHz or patternFiringRateHz is 0 on the lidar prim"
+        )
+    return dict(
+        horizontalFov=360.0,
+        horizontalResolution=360.0 * rotation_rate / firing_rate,
+        depthRange=[near_range, far_range],
+        rotationRate=rotation_rate,
+        azimuthRange=[-180.0, 180.0],
+    )
+
+
+def create_robot_lidar_sensor(
+    stage,
+    robot: RobotScenarioConfig,
+    robot_prim_path: str,
+    config: RobotAssetConfig,
+) -> LidarSensor:
+    """Author and wire the RTX 2D lidar for one robot (M6 FR6.4.9).
+
+    Creates the lidar mount `Xform` under `<robot>/.../<lidar_link>` via
+    `author_rtx_lidar()`, then creates the real RTX lidar sensor and attaches a
+    `sensor_msgs/LaserScan` ROS2 publisher on `/<robot_id>/scan`. This is plain
+    Python sensor-object creation (`isaacsim.sensors.experimental.rtx.Lidar` /
+    `LidarSensor`), not an OmniGraph node, and is therefore separate from the
+    `og.Controller.edit` graph built by `create_robot_ros_graph` -- see
+    docs/specs/module4/phase2-nav2-stack.md S10.
+
+    Args:
+        stage: The USD stage holding the robot.
+        robot: Per-robot scenario config (used for `robot_id`).
+        robot_prim_path: Root prim of the robot subtree.
+        config: Robot asset config (used for `lidar_link`).
+
+    Returns:
+        The `LidarSensor` wrapping the authored sensor. The caller must keep a
+        reference alive for the simulation's lifetime: `LidarSensor.__del__`
+        detaches its ROS2 writer and destroys its render product, which would
+        silently stop `/<robot_id>/scan` from publishing if the sensor were
+        garbage-collected.
+    """
+    from isaacsim.core.experimental.utils import prim as prim_utils
+    from isaacsim.sensors.experimental.rtx import Lidar, LidarSensor
+
+    robot_id = robot.robot_id
+    lidar_xform_path = author_rtx_lidar(stage, robot_prim_path, config.lidar_link)
+
+    lidar = Lidar.create(
+        path=f"{lidar_xform_path}/rtx_sensor",
+        config=_LIDAR_CONFIG,
+        tick_rate=_LIDAR_TICK_RATE_HZ,
+        attributes=_LIDAR_ATTRIBUTES,
+    )
+    sensor = LidarSensor(lidar, annotators=[])
+
+    laser_scan_meta = _read_laser_scan_metadata(prim_utils.get_prim_at_path(lidar.paths[0]))
+    sensor.attach_writer(
+        "RtxLidarROS2PublishLaserScan",
+        topicName=f"{robot_id}/scan",
+        frameId=f"{robot_id}/base_scan",
+        **laser_scan_meta,
+    )
+    return sensor
 
 
 def create_global_ros_graphs(

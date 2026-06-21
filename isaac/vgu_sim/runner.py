@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from isaac.vgu_sim.acceptance_logging import (
     AcceptanceLogger,
@@ -12,6 +13,9 @@ from isaac.vgu_sim.acceptance_logging import (
 from isaac.vgu_sim.config import ResolvedRunConfig, RunResult
 from isaac.vgu_sim.event_scheduler import EventScheduler
 from isaac.vgu_sim.paths import run_output_dir
+
+if TYPE_CHECKING:
+    from isaacsim.sensors.experimental.rtx import LidarSensor
 
 
 def run_simulation(config: ResolvedRunConfig) -> tuple[RunResult, ...]:
@@ -84,7 +88,11 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
         # frame (max==0), so M1 sees nothing. Add lighting AFTER reset so it is
         # not wiped, same as the graph wiring below.
         _add_scene_lighting(_omni_usd.get_context().get_stage())
-        _wire_ros_graphs(config.scenario.robots)
+        # Retained for the remainder of this function's scope (same lifetime as
+        # debug_annot below): LidarSensor.__del__ detaches its ROS2 writer, so a
+        # garbage-collected sensor would silently stop publishing /<id>/scan.
+        lidar_sensors = _wire_ros_graphs(config.scenario.robots)
+        print(f"DEBUG wired {len(lidar_sensors)} RTX lidar sensor(s)", flush=True)
         debug_annot = _attach_debug_rgb_annotator(config.scenario.robots)
         sim_ctx.play()
 
@@ -295,7 +303,15 @@ def _attach_debug_rgb_annotator(robots):
         return None
 
 
-def _wire_ros_graphs(robots) -> None:
+def _wire_ros_graphs(robots) -> list[LidarSensor]:
+    """Wire the global + per-robot OmniGraphs and author each robot's RTX lidar.
+
+    Returns:
+        The per-robot `LidarSensor` objects. The caller must keep this list alive
+        for the simulation's lifetime -- `LidarSensor.__del__` detaches its ROS2
+        writer, so a garbage-collected sensor silently stops publishing
+        `/<robot_id>/scan` (see `create_robot_lidar_sensor` docstring).
+    """
     import omni.usd
 
     from isaac.vgu_sim.config import CameraConfig, RobotAssetConfig
@@ -305,6 +321,7 @@ def _wire_ros_graphs(robots) -> None:
     )
     from isaac.vgu_sim.ros_graphs import (
         create_global_ros_graphs,
+        create_robot_lidar_sensor,
         create_robot_ros_graph,
     )
 
@@ -313,6 +330,7 @@ def _wire_ros_graphs(robots) -> None:
     create_global_ros_graphs(stage, camera_cfg.prim_path, camera_cfg)
 
     robot_asset_cfg = RobotAssetConfig()
+    lidar_sensors = []
     for robot in robots:
         robot_prim_path = f"/World/Robots/{robot.robot_id}"
         # Switch the wheel joints to velocity drive before wiring the graph, so the
@@ -323,6 +341,10 @@ def _wire_ros_graphs(robots) -> None:
         # uses a frictionless default and the spinning wheels slip in place.
         configure_contact_friction(stage, robot_prim_path, robot_asset_cfg)
         create_robot_ros_graph(stage, robot, robot_prim_path, robot_asset_cfg)
+        lidar_sensors.append(
+            create_robot_lidar_sensor(stage, robot, robot_prim_path, robot_asset_cfg)
+        )
+    return lidar_sensors
 
 
 def _start_cmd_vel_watchdog(robots):
