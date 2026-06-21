@@ -263,3 +263,136 @@ Printed the full launch argument list (`namespace`, `use_namespace`, `slam`,
 `map`, `use_sim_time`, `params_file` default
 `/opt/ros/humble/share/nav2_bringup/params/nav2_params.yaml`, `autostart`,
 `use_composition`, `use_respawn`, `log_level`) with no errors. **Gate: PASS.**
+
+---
+
+## 10. Verified RTX lidar / ArUco exclusion (Isaac Sim 6.0)
+
+**Status: GO.** The ArUco marker plate does not appear as a phantom obstacle
+in `/<robot_id>/scan`. No exclusion API was needed — the existing height
+separation between the lidar's scan plane and the marker plate (already
+authored for the camera-occlusion concern, see `marker_asset.py`) turns out to
+also fully solve the RTX-visibility concern, because a 2D RTX lidar only
+raytraces within its single horizontal elevation plane.
+
+### Authoring helper
+
+`isaac/vgu_sim/lidar.py::author_rtx_lidar(stage, robot_prim_path, lidar_link)`
+creates an `Xform` at `<lidar_link prim>/rtx_lidar` (e.g.
+`/World/Robots/robot_1/Geometry/base_footprint/base_link/base_scan/rtx_lidar`),
+raising `ValueError` if `lidar_link` is not found under `robot_prim_path`.
+Offline-testable (no Isaac Sim/RTX renderer needed) — see
+`tests/unit/test_lidar.py`.
+
+### RTX lidar sensor creation (verified on host)
+
+Modern Isaac Sim 6.0 API, **not** the deprecated `omni.kit.commands.execute("IsaacSensorCreateRtxLidar", ...)` path shown as a placeholder in the Phase 2
+plan brief (that command still exists in `isaacsim.sensors.rtx`'s deprecated
+extension but the experimental API is the one the official standalone example
+(`source/standalone_examples/api/isaacsim.ros2.bridge/rtx_lidar.py`) uses):
+
+```python
+from isaacsim.sensors.experimental.rtx import Lidar, LidarSensor
+
+lidar = Lidar.create(
+    path=f"{lidar_xform_path}/rtx_sensor",
+    config="RPLIDAR_S2E",   # SLAMTEC RPLIDAR S2E: 2D rotary, nearRangeM=0.05,
+                             # farRangeM=30.0, single elevation ray at 0 deg —
+                             # NOT the deceptively-named "Example_Rotary_2D"
+                             # config, whose nearRangeM=1.0m is well above the
+                             # marker plate's mount radius and would clip any
+                             # phantom return regardless of the exclusion
+                             # hypothesis under test, making it useless as a
+                             # go/no-go probe. FR6.4.9 wants range 0.12-3.5m;
+                             # RPLIDAR_S2E's 0.05-30m covers it (a tighter
+                             # custom config can be authored later if the
+                             # 30m far range needs trimming for performance).
+    tick_rate=10.0,
+)
+sensor = LidarSensor(lidar, annotators=[])
+sensor.attach_writer(
+    "RtxLidarROS2PublishLaserScan",
+    topicName=f"{robot_id}/scan",
+    frameId=f"{robot_id}/base_scan",
+    horizontalFov=360.0, horizontalResolution=..., depthRange=[...],
+    rotationRate=10.0, azimuthRange=[-180.0, 180.0],
+    # (read from the lidar prim's omni:sensor:Core:* attributes, see
+    # _read_laser_scan_metadata() in the cited standalone example)
+)
+```
+
+### ArUco-plate exclusion mechanism: height separation (no special API)
+
+Investigated, in the brief's order:
+
+1. **`UsdGeom.Imageable(plate_prim).MakeInvisible()`** — not tried in the final
+   run (confirmed by code inspection to also exclude the plate from RGB
+   cameras, breaking M1, exactly as the brief predicted); superseded by
+   finding option 3 already works.
+2. **RTX-specific per-sensor visibility/exclusion API** — searched the
+   installed `isaacsim.sensors.rtx` / `isaacsim.sensors.experimental.rtx`
+   extension source on the host (`IsaacSim-source/source/.../impl/commands.py`,
+   `nonvisual_materials.py`). No per-prim "exclude from this lidar only" flag
+   exists. `nonvisual_materials.py`'s `apply_nonvisual_material()` /
+   `get_material_id()` only tag material **reflectance** properties (base
+   material / coating / attribute, e.g. `"aluminum"`, `"glass"`) for intensity
+   simulation — they do not exclude a prim from raytracing.
+3. **Height separation (FR6.4.10's own fallback)** — already in place,
+   unintentionally solving this: `marker_asset.py` mounts
+   `aruco_marker_link` at `z=0.21` (URDF `aruco_marker_joint` origin) "above
+   the lidar (base_scan at z=0.172) so a nadir camera is not occluded." The
+   marker quad is a flat horizontal sheet (`z=0` in its own local frame, all 4
+   corners), so its entire physical extent sits at world `z=0.21`, 3.8 cm
+   above the lidar's single-elevation scan plane at `z=0.172`. RTX lidar
+   configs used here (`RPLIDAR_S2E`, and the deprecated configs surveyed:
+   `Debug_Rotary`, `Example_Rotary_2D`) all fire one ray per azimuth at
+   `elevationDeg: [0]` — a strictly planar 2D scan — so a ray traveling in the
+   `z=0.172` plane geometrically cannot intersect a flat plate lying entirely
+   at `z=0.21`. No code change or exclusion attribute was needed.
+
+### Verification
+
+Ran the `head_on_deadlock` scenario (robot_1 at `x=-0.6`, robot_2 at `x=+0.6`,
+facing each other 1.2 m apart) headless on the GCP host, with `author_rtx_lidar()` + the real `RPLIDAR_S2E` RTX lidar sensor wired to
+`/robot_1/scan` via `RtxLidarROS2PublishLaserScan`, robot held still. Captured
+3 `LaserScan` messages in-process via an `rclpy` subscription (not
+`ros2 topic echo` in a separate shell, to avoid timing races):
+
+- `num_ranges=3200`, `range_min=0.05`, `range_max=30.0`,
+  `angle_increment=0.1125°` (full 360° sweep).
+- Global minimum range: **0.595 m**, in two symmetric angular clusters
+  centered at exactly **+90°** (idx 2373-2874, range 87.0-143.3°) and **-90°**
+  (idx 327-827, range -143.2 to -87.0°), varying smoothly from ~0.6 m at ±90°
+  out to ~1.0 m at ±144°. This is the cross-aisle wall/rack boundary at
+  `y≈±0.6 m` (`nominal_aisle_width_m=1.2` in `isaac/vgu_sim/config.py`,
+  `WarehouseConfig`), not robot_2 — forward (0°) and the ±9° to ±81° band show
+  a clean decreasing sweep out to the far wall (6.6 m at 0°), with **no** close
+  return anywhere near 0° where robot_2 (spawned 1.2 m away in `+x`) would be
+  expected if the lidar's azimuth-0 aligns with robot-forward. The symmetric,
+  smoothly-varying V-profile on each side is the signature of a flat wall
+  surface, not a rigid robot body or a single-ray spike — so this scan is read
+  as "two real aisle walls, no robot_2 return," not "robot_2, no walls." Why
+  robot_2 itself produced no near-range return was not root-caused (candidates:
+  lidar azimuth-0 not aligned with robot-forward — `marker_asset.py` documents
+  a separate -90° heading correction for the ArUco quad's own UV convention,
+  suggesting frame/azimuth conventions in this stack are easy to get
+  off-by-90° — or robot_2's RTX-visible geometry not intersecting the scan
+  plane at this exact pose); this is **out of scope for the go/no-go gate**,
+  which only requires the marker plate to be absent, and does not block this
+  task's verdict, but is worth investigating before relying on `/scan` for
+  inter-robot collision avoidance in later Nav2 tasks.
+- **Zero** range returns under 0.3 m anywhere in the full 3200-ray scan — in
+  particular, none in the `[0.05, 0.15] m` band where a phantom hit on the
+  marker plate (mount radius ≈0.032-0.21 m from the lidar center) would have
+  to appear if the plate were visible to RTX.
+- The lidar is demonstrably sensing real scene geometry, not just returning
+  no-hits: smooth, physically-plausible wall ranges from 0.595 m (±90°) up to
+  6.6 m (0°, far wall down the aisle), with `-1.0` (no-hit) only at a handful
+  of indices (corner gaps / grazing angles).
+
+**Conclusion: no phantom obstacle at the ArUco plate's bearing. Gate: GO** —
+downstream costmap/Nav2 tasks in this phase may proceed on `/<robot_id>/scan`
+as authored, using the existing marker height (`MARKER_HEIGHT_M = 0.21`,
+`marker_asset.py`) relative to the lidar mount (`base_scan` at `z=0.172`,
+`turtlebot3_burger.urdf` `scan_joint`). Any future change to either height
+must re-run this check — the margin is only 3.8 cm.
