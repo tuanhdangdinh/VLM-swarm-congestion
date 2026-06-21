@@ -1,18 +1,27 @@
 schema_version: 1
 name: head_on_deadlock
 seed: 42
-duration_sec: 45.0
+duration_sec: 300.0
 
+# Spawn at the deadlock SNAPSHOT, not the pre-deadlock start. The integration
+# run is a static scene (ros_graphs.py omits the /cmd_vel driver), so robots
+# never leave spawn. Placing them at the goal lines (x=+-3) would freeze them
+# 6 m apart at the camera FOV edges, where their ArUco markers straddle the
+# frame boundary (undetectable) and the geometry is not a deadlock. Spawning
+# nose-to-nose near the aisle centre (x=+-0.6, 1.2 m apart, headings opposed)
+# puts both markers fully in-frame near image centre AND presents the genuine
+# head-on standoff M2 must classify. Goals stay at +-3 to match the
+# orchestrator initial_tasks, so each robot's goal is across the other.
 robots:
   - robot_id: robot_1
     marker_id: 1
-    spawn: {x: -4.5, y: 0.0, yaw_rad: 0.0}
-    goal: {x: 4.5, y: 0.0}
+    spawn: {x: -0.6, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 3.0, y: 0.0}
     initial_task: cross_narrow_aisle
   - robot_id: robot_2
     marker_id: 2
-    spawn: {x: 4.5, y: 0.0, yaw_rad: 3.141592653589793}
-    goal: {x: -4.5, y: 0.0}
+    spawn: {x: 0.6, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: -3.0, y: 0.0}
     initial_task: cross_narrow_aisle
 
 timed_obstacles: []

@@ -53,13 +53,13 @@ def test_head_on_conflict_forms_and_collision_free(tmp_path):
         ros_domain_id=None,
     )
 
-    stub_node = StopStubNode.spin_in_thread(["robot_1", "robot_2"], speed_mps=0.10)
+    _stub_node = StopStubNode.spin_in_thread(["robot_1", "robot_2"], speed_mps=0.10)
     results = run_simulation(run_cfg)
 
     assert all(r.completed for r in results), \
         f"Some repetitions failed: {[r.failure for r in results if not r.completed]}"
 
-    for rep, result in enumerate(results):
+    for rep, _result in enumerate(results):
         gt_path = tmp_path / f"head_on_deadlock-seed42-rep{rep:03d}" / "ground_truth.jsonl"
         _assert_conflict_formed(gt_path, min_duration_sec=2.0)
         _assert_no_static_contacts(gt_path)
@@ -67,9 +67,15 @@ def test_head_on_conflict_forms_and_collision_free(tmp_path):
 
 def _assert_conflict_formed(gt_path: Path, min_duration_sec: float) -> None:
     records = [json.loads(line) for line in gt_path.read_text().splitlines() if line.strip()]
-    dt = 0.1
     consecutive = 0.0
+    previous_time: float | None = None
     for rec in records:
+        current_time = float(rec["sim_time_sec"])
+        if previous_time is None:
+            dt = 0.0
+        else:
+            dt = current_time - previous_time
+        previous_time = current_time
         if rec.get("conflict_active", False):
             consecutive += dt
             if consecutive >= min_duration_sec:
