@@ -119,3 +119,89 @@ directly while Nav2 owns a robot.
 Assert `/<robot_id>/scan` is published and clean, the map loads, and a single
 `NavigateToPose` goal drives the robot to within tolerance of a free-space goal
 with obstacles present. Mark as a `ros2`/simulation test, not a unit test.
+
+---
+
+## 9. Verified host setup
+
+**Status: BLOCKED.** `ros-jazzy-navigation2` / `ros-jazzy-nav2-bringup` cannot be
+installed via the official apt repo on the current host OS. This phase's
+heavyweight-dependency gate (CLAUDE.md "Dependencies") fails as specified and
+needs rework before any Isaac authoring proceeds.
+
+### Host
+
+- GCP VM `isaacautomator-vgu-gcp2-isaac-workstation-vm` (zone `us-central1-a`,
+  project `vlm-swarm`).
+- OS: Ubuntu 22.04.5 LTS (Jammy Jellyfish) — confirmed via `/etc/os-release`.
+- No ROS2 of any distro preinstalled (`/opt/ros` does not exist;
+  `/etc/apt/sources.list.d/` had no ROS entry before this task).
+
+### What was attempted
+
+1. Checked for an existing ROS apt repo — none found (`NO_ROS_REPO`).
+2. Registered the ROS2 apt repo using the **current official method**
+   (`ros2-apt-source` deb package, per
+   [docs.ros.org Jazzy Ubuntu binary install](https://docs.ros.org/en/jazzy/Installation/Alternatives/Ubuntu-Install-Binary.html)),
+   superseding an earlier manual-keyring attempt that pointed at the same
+   underlying repo:
+
+   ```bash
+   sudo apt-get update && sudo apt-get install -y curl
+   export ROS_APT_SOURCE_VERSION=1.2.0   # latest tag from
+       # https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest
+   curl -L -o /tmp/ros2-apt-source.deb \
+     "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.jammy_all.deb"
+   sudo dpkg -i /tmp/ros2-apt-source.deb
+   sudo apt-get update
+   ```
+
+   This installed cleanly and registered
+   `deb822` source `/etc/apt/sources.list.d/ros2.sources`
+   (`URIs: http://packages.ros.org/ros2/ubuntu`, `Suites: jammy`,
+   `Components: main`) with an embedded signing key — the modern equivalent of
+   the older manual-keyring instructions, same repo URL.
+
+3. `sudo apt-get install -y ros-jazzy-ros-base ros-jazzy-navigation2 ros-jazzy-nav2-bringup`
+   failed:
+
+   ```
+   E: Unable to locate package ros-jazzy-ros-base
+   E: Unable to locate package ros-jazzy-navigation2
+   E: Unable to locate package ros-jazzy-nav2-bringup
+   ```
+
+4. Root cause confirmed by inspecting the downloaded apt index directly:
+
+   ```bash
+   grep '^Package: ros-' /var/lib/apt/lists/packages.ros.org_ros2_ubuntu_dists_jammy_main_binary-amd64_Packages \
+     | sed -E 's/^Package: ros-([a-z]+)-.*/\1/' | sort -u
+   # -> build dev humble iron rolling
+   ```
+
+   The `packages.ros.org/ros2/ubuntu jammy` index — the correct, current,
+   officially-registered repo — carries **no `ros-jazzy-*` packages at all**.
+   This is not a misconfiguration: ROS2 Jazzy's Tier-1 supported platform is
+   Ubuntu 24.04 (Noble); Ubuntu 22.04 (Jammy) only gets Humble/Iron/Rolling
+   binaries from the official repo. Jazzy on Jammy would require a Tier-3
+   source build or Docker, not an apt install.
+
+### Smoke test (Step 2) and version capture (Step 3)
+
+Not run — blocked upstream of this step. There is no `ros-jazzy-navigation2`
+package to install, so `ros2 launch nav2_bringup bringup_launch.py --show-args`
+cannot be exercised on this host with Jazzy.
+
+### Decision needed (plan-level, not executable by this task)
+
+One of:
+
+- Reprovision the Isaac host as Ubuntu 24.04 (Noble) so `ros-jazzy-*` apt
+  packages are available, or
+- Retarget this phase to ROS2 Humble (`ros-humble-navigation2`,
+  `ros-humble-nav2-bringup`), which **is** available on this Jammy host, or
+- Build ROS2 Jazzy from source (Tier-3) on Jammy.
+
+This task does not pick a direction — it stops at the gate per the brief
+("If install fails, stop and report — do not substitute a different package
+set without updating this plan").
