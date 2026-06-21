@@ -1,8 +1,10 @@
 """Author the RTX 2D lidar sensor prim under a robot's base_scan link.
 
 M6 FR6.4.9: 360 deg, 1 deg resolution, 10 Hz, 0.12-3.5 m range, frame
-robot_N/base_scan. The exclusion of the ArUco marker plate from RTX
-raytracing (FR6.4.10) is applied separately — see exclude_from_rtx_lidar().
+robot_N/base_scan. No separate ArUco-plate exclusion API is needed (FR6.4.10):
+the existing height separation between the lidar's scan plane and the marker
+plate already keeps the plate out of a 2D lidar's single elevation ray. See
+docs/specs/module4/phase2-nav2-stack.md S10 for the verified evidence.
 """
 from __future__ import annotations
 
