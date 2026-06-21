@@ -1,6 +1,7 @@
 jsonschema>=4.22
 numpy>=1.24
 opencv-contrib-python>=4.8
+pillow>=10.0  # Image I/O for static map authoring (generate_warehouse_map.py)
 pydantic>=2.7
 pyyaml>=6.0
 requests>=2.32
