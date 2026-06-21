@@ -234,3 +234,32 @@ accordingly. Phase 1's verified OmniGraph node interface
 (`phase1-drive-chain.md` §2a) is unaffected: those are Isaac's own bridge node
 wrappers (type names, `inputs:`/`outputs:` attribute keys), stable across the
 `ROS_DISTRO` selection — only the underlying message-library linkage differs.
+
+### Task 1 re-run on Humble — PASS
+
+```bash
+sudo apt-get install -y ros-humble-ros-base ros-humble-navigation2 ros-humble-nav2-bringup
+```
+
+Installed cleanly (apt resolved and configured the full Nav2 stack: DWB/MPPI
+controllers, NavFn planner, BT navigator, behavior server, AMCL, slam_toolbox,
+rviz plugins, etc. — no errors).
+
+Installed versions:
+
+```
+ros-humble-nav2-bringup/jammy,now 1.1.20-1jammy.20260425.085132 amd64 [installed]
+ros-humble-navigation2/jammy,now 1.1.20-1jammy.20260425.084326 amd64 [installed]
+ros-humble-ros-base/jammy,now 0.10.0-1jammy.20260423.142225 amd64 [installed]
+```
+
+Smoke test:
+
+```bash
+source /opt/ros/humble/setup.bash && ros2 launch nav2_bringup bringup_launch.py --show-args
+```
+
+Printed the full launch argument list (`namespace`, `use_namespace`, `slam`,
+`map`, `use_sim_time`, `params_file` default
+`/opt/ros/humble/share/nav2_bringup/params/nav2_params.yaml`, `autostart`,
+`use_composition`, `use_respawn`, `log_level`) with no errors. **Gate: PASS.**
