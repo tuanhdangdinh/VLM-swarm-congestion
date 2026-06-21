@@ -34,3 +34,4 @@ benchmarks/results/*
 # Secrets — never commit real keys (see .env.example for required vars)
 .env
 .env.local
+.superpowers/
