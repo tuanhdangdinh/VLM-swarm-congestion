@@ -11,7 +11,7 @@ dependencies = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = [".", "ros2_ws/src/swarm_perception", "ros2_ws/src/swarm_orchestrator"]
+pythonpath = [".", "ros2_ws/src/swarm_perception", "ros2_ws/src/swarm_orchestrator", "ros2_ws/src/swarm_execution"]
 markers = [
     "ros2: integration tests that require a sourced ROS2 environment (deselect with -m 'not ros2')",
 ]
