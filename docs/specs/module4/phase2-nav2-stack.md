@@ -38,7 +38,8 @@ Author the lidar (M6 FR6.4.9) → `/<robot_id>/scan`:
 Multi-robot Nav2 runs one **namespaced** stack per robot — its own costmaps,
 planner, controller, and BT navigator under `/<robot_id>/...`, sharing `/tf` and
 `/tf_static` (uniqueness via frame prefixes, FR6.7.7). Verify the exact
-namespaced-bringup mechanism against the Nav2 Jazzy docs before building;
+namespaced-bringup mechanism against the Nav2 Humble docs before building (see
+§9 — this phase targets Humble, not Jazzy, on this host);
 multi-robot bringup conventions change across distros.
 
 - Action server per robot: `/<robot_id>/navigate_to_pose`
@@ -80,7 +81,7 @@ server. The controller's commanded velocity must stay at or below the
 *below* the FR6.4.7 mechanical maximum (`0.22 m/s`) to leave margin; the two are
 not equal and Nav2's `max_vel_x` should track the 0.2 safety cap, not 0.22.
 
-**Verify — `cmd_vel` message type.** Confirm whether Jazzy Nav2 publishes
+**Verify — `cmd_vel` message type.** Confirm whether Humble Nav2 publishes
 `geometry_msgs/Twist` or `TwistStamped` on `/<robot_id>/cmd_vel` (the
 `use_stamped_cmd_vel` toggle; default has moved across distros) and match it to
 the Isaac `ROS2SubscribeTwist` side from
@@ -205,3 +206,31 @@ One of:
 This task does not pick a direction — it stops at the gate per the brief
 ("If install fails, stop and report — do not substitute a different package
 set without updating this plan").
+
+### Resolution: retarget to ROS2 Humble
+
+Isaac Automator (the deployment tool used for this host) has no Ubuntu 24.04
+option — Isaac Sim 6.0 itself targets Ubuntu 22.04. Reprovisioning to Noble is
+not available. Checked Isaac Sim's own `/home/ubuntu/IsaacSim/setup_ros_env.sh`
+on the host:
+
+```bash
+DEFAULT_ROS_DISTRO="jazzy"
+if [[ "$UBUNTU_VERSION" == "22.04" ]]; then
+    DEFAULT_ROS_DISTRO="humble"
+elif [[ "$UBUNTU_VERSION" == "24.04" ]]; then
+    DEFAULT_ROS_DISTRO="jazzy"
+fi
+```
+
+Isaac Sim auto-selects `ROS_DISTRO=humble` on Ubuntu 22.04, and ships bundled
+internal bridge libraries for both (`exts/isaacsim.ros2.core/{humble,jazzy}/lib`
+under the Isaac Sim install root). Humble is Isaac Sim's own intended pairing
+for this exact host OS, not a fallback compromise — **Phase 2 is retargeted to
+ROS2 Humble** (`ros-humble-navigation2`, `ros-humble-nav2-bringup`). Every
+`ros-jazzy-*` reference in this spec and in the Phase 2 plan
+(`docs/superpowers/plans/2026-06-21-m4-phase2-nav2-stack.md`) is corrected
+accordingly. Phase 1's verified OmniGraph node interface
+(`phase1-drive-chain.md` §2a) is unaffected: those are Isaac's own bridge node
+wrappers (type names, `inputs:`/`outputs:` attribute keys), stable across the
+`ROS_DISTRO` selection — only the underlying message-library linkage differs.
