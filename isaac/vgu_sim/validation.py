@@ -87,7 +87,12 @@ def validate_robot_marker(stage, robot_prim_path: str) -> None:
     """
     from pxr import UsdGeom, UsdShade
 
-    marker_path = f"{robot_prim_path}/aruco_marker"
+    # Marker is under aruco_marker_link (physics child of base_link) so it
+    # follows the robot body during simulation.
+    marker_path = (
+        f"{robot_prim_path}/Geometry/base_footprint/base_link"
+        f"/aruco_marker_link/aruco_marker"
+    )
     mesh = UsdGeom.Mesh.Get(stage, marker_path)
     if not mesh:
         raise ValidationError(f"Missing aruco_marker quad at {marker_path}")

@@ -46,7 +46,7 @@ sees the raw M3 grounded blob.
 
 | Spec | Scope | Status |
 |---|---|---|
-| [phase1-drive-chain.md](phase1-drive-chain.md) | Isaac `/cmd_vel` drive chain, TF, watchdog. Robots move; no Nav2. | Planned |
+| [phase1-drive-chain.md](phase1-drive-chain.md) | Isaac `/cmd_vel` drive chain, TF, watchdog. Robots move; no Nav2. | Done |
 | [phase2-nav2-stack.md](phase2-nav2-stack.md) | RTX lidar, map, localization, per-robot Nav2, `Nav2Adapter`. | Planned |
 | [phase3-closed-loop.md](phase3-closed-loop.md) | M3 grounding → M4 → Nav2 so an M2 decision re-commands robots. | Planned |
 | `safety-monitor.md` | Safety invariants, command watchdog, e-stop. | Not written |
@@ -78,7 +78,7 @@ Each phase is independently demonstrable; stop at any phase.
 
 | Component | State | Needed for |
 |---|---|---|
-| Isaac `/cmd_vel` drive chain + TF + `/scan` | Specified (M6 FR6.7.4), not built | Phase 1+ |
+| Isaac `/cmd_vel` drive chain + TF | Built (Phase 1), host-verified | Phase 1 done |
 | RTX 2D lidar on `/<robot_id>/scan` | Specified (M6 FR6.4.9), not built | Phase 2+ |
 | Warehouse occupancy-grid map | Absent | Phase 2+ |
 | Nav2 install + per-robot bringup | Absent | Phase 2+ |

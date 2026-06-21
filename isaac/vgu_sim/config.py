@@ -184,6 +184,9 @@ class RobotAssetConfig(BaseModel):
     asset_name: Literal["turtlebot3_burger"] = "turtlebot3_burger"
     left_wheel_joint: Literal["wheel_left_joint"] = "wheel_left_joint"
     right_wheel_joint: Literal["wheel_right_joint"] = "wheel_right_joint"
+    # The URDF importer's fix_base default welds base_link to the world via this
+    # joint; it must be disabled so the differential drive can move the chassis.
+    base_fixed_joint: Literal["base_joint"] = "base_joint"
     base_link: Literal["base_link"] = "base_link"
     lidar_link: Literal["base_scan"] = "base_scan"
     wheel_radius_m: float = 0.033
