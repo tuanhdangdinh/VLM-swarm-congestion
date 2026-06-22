@@ -56,7 +56,7 @@ def main() -> None:
     scenario = ScenarioConfig.model_validate(raw)
 
     run_config = ResolvedRunConfig(
-        scenario_path=scenario_output_path(scenario.name),
+        scenario_path=scenario_output_path(scenario.name).resolve(),
         scenario=scenario,
         headless=args.headless,
         repetitions=args.repetitions,
