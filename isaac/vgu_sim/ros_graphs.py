@@ -296,9 +296,14 @@ def create_robot_ros_graph(
                 ("break_lin.outputs:x",                  "diff_ctrl.inputs:linearVelocity"),
                 ("break_ang.outputs:z",                  "diff_ctrl.inputs:angularVelocity"),
                 ("diff_ctrl.outputs:velocityCommand",    "art_ctrl.inputs:velocityCommand"),
-                # Odometry.
+                # Odometry. timeStamp must be wired explicitly -- ROS2PublishOdometry's
+                # inputs:timeStamp has no execution-graph default source and defaults
+                # to 0.0 (verified against the node's .ogn schema and
+                # OgnROS2PublishOdometry.cpp, which reads db.inputs.timeStamp() as
+                # given), which tf2/rclpy log as "Timestamp is invalid" and drop.
                 ("on_tick.outputs:tick",                 "odom_compute.inputs:execIn"),
                 ("odom_compute.outputs:execOut",          "pub_odom.inputs:execIn"),
+                ("read_time.outputs:simulationTime",      "pub_odom.inputs:timeStamp"),
                 ("odom_compute.outputs:position",         "pub_odom.inputs:position"),
                 ("odom_compute.outputs:orientation",      "pub_odom.inputs:orientation"),
                 ("odom_compute.outputs:linearVelocity",   "pub_odom.inputs:linearVelocity"),
@@ -310,9 +315,18 @@ def create_robot_ros_graph(
                 ("read_time.outputs:simulationTime",      "pub_tf.inputs:timeStamp"),
                 ("odom_compute.outputs:position",         "pub_tf.inputs:translation"),
                 ("odom_compute.outputs:orientation",      "pub_tf.inputs:rotation"),
-                # Static mount TFs on /tf_static (latched; staticPublisher ignores time).
+                # Static mount TFs on /tf_static (latched, published once). Despite
+                # staticPublisher's transient-local QoS, ROS2PublishRawTransformTree
+                # still stamps the single latched message from inputs:timeStamp, which
+                # also has no default-graph source and defaults to 0.0 -- this produced
+                # the same "Timestamp is invalid" warnings for base_link/base_scan seen
+                # alongside the odom ones, and was originally misread as evidence the
+                # dynamic /tf edge above was broken too (it was not; see
+                # docs/specs/module4/phase2-nav2-stack.md S5 for the corrected finding).
                 ("on_tick.outputs:tick",                  "pub_tf_base.inputs:execIn"),
+                ("read_time.outputs:simulationTime",      "pub_tf_base.inputs:timeStamp"),
                 ("on_tick.outputs:tick",                  "pub_tf_scan.inputs:execIn"),
+                ("read_time.outputs:simulationTime",      "pub_tf_scan.inputs:timeStamp"),
             ],
             og.Controller.Keys.SET_VALUES: [
                 ("twist_sub.inputs:topicName",       cmd_vel_topic),

@@ -98,26 +98,41 @@ zero-reference exactly equals the scenario YAML's nominal spawn pose, or some
 other pose taken at first node evaluation, was not independently verified —
 re-check before treating "spawn pose" as exact if precision matters.
 
-### Independent, also-blocking finding: `/odom` and dynamic `/tf` stamped 0
+### Resolved: `/odom` and `/tf_static` stamped 0 (Task 5b)
 
-Task 5 found `/robot_1/odom` and the dynamic `odom → base_footprint` TF edge
-are published with `header.stamp = 0` continuously throughout multi-hundred-
-second runs (not a startup transient) — confirmed via repeated
-`[Warning] Frame robot_1/odom Timestamp is invalid. Timestamp 0 will be
-neglected for all published ROS messages` log lines, while `sim_time` itself
-correctly advances (per `ground_truth.jsonl` and the in-process probe's own
-elapsed-time tracking). `tf2` drops stamp-0 transforms outright, so the
-`odom → base_footprint` edge does not survive into the TF buffer Nav2/`tf2_echo`
-read from — this **independently blocks** the localization chain regardless
-of how `map → odom` is corrected above. Task 4's RTX lidar gets correctly
-advancing `header.stamp`s from a structurally similar graph, but that sensor
-stamps itself via its own Replicator-writer clock, not via the
-`on_tick → IsaacReadSimulationTime → pub_odom/pub_tf.inputs:timeStamp` wiring
-that the drive/odom graph uses — these are different stamping mechanisms, so
-Task 4's success does not imply this one works. Root cause not yet
-determined; needs its own host investigation (likely in
-`isaac/vgu_sim/ros_graphs.py`'s `create_robot_ros_graph` clock wiring) before
-any Nav2 task that depends on a valid TF tree can proceed.
+Task 5 found `/robot_1/odom` published with `header.stamp = 0` continuously
+throughout multi-hundred-second runs (not a startup transient), via repeated
+`[Warning] Frame robot_1/odom Timestamp is invalid` log lines, while
+`sim_time` itself correctly advances. Task 5b root-caused and fixed this:
+`ROS2PublishOdometry.inputs:timeStamp` had no `CONNECT` edge at all in
+`create_robot_ros_graph` (`isaac/vgu_sim/ros_graphs.py`), so it used the
+node's `.ogn`-schema default of `0.0` — confirmed against
+`OgnROS2PublishOdometry.cpp` (reads `db.inputs.timeStamp()` as given) and the
+node's `.ogn` schema (`"timeStamp": {"default": 0.0}`). The two
+`ROS2PublishRawTransformTree` nodes publishing the static `base_footprint →
+base_link` and `base_link → base_scan` mounts on `/tf_static`
+(`pub_tf_base`/`pub_tf_scan`) had the identical bug — also unwired, also
+defaulting to `0.0` — which is what actually produced the
+`robot_1/base_link`/`robot_1/base_footprint` "Timestamp is invalid" warnings
+Task 5 saw (transient-local QoS on `/tf_static` does not exempt a publisher
+from being stamped correctly).
+
+**The dynamic `odom → base_footprint` edge on `/tf` (`pub_tf`) was already
+wired correctly and was never actually broken** — Task 5's report conflated
+the `/tf_static` warning lines with this edge. Verified in-process on the
+host: subscribing directly to `/tf` and filtering for
+`child_frame_id == "<robot_id>/base_footprint"` showed `header.stamp`
+advancing with sim time (e.g. `0.066...` → `15.866...` over an 8 s capture)
+both before and after the fix below.
+
+**Fix:** `pub_odom.inputs:timeStamp`, `pub_tf_base.inputs:timeStamp`, and
+`pub_tf_scan.inputs:timeStamp` are now all wired to
+`read_time.outputs:simulationTime`, the same source already feeding
+`pub_tf.inputs:timeStamp`. Verified in-process post-fix: `/robot_1/odom` and
+`/tf_static` both now advance with sim time, and the "Timestamp is invalid"
+warning no longer appears anywhere in an 8 s run (0 occurrences, vs. dozens
+before the fix). See `.superpowers/sdd/task-5b-stamp-fix-report.md` for full
+evidence.
 
 ---
 
