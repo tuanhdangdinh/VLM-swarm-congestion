@@ -104,6 +104,21 @@ global_costmap:
       global_frame: map
       robot_base_frame: "<robot_namespace>/base_link"
       footprint: "[[-0.07, -0.09], [-0.07, 0.09], [0.07, 0.09], [0.07, -0.09]]"
+      # Costmap2DROS's `map_topic` param is consumed as an already
+      # namespace-qualified subscription name -- verified on host via
+      # `ros2 param get .../global_costmap map_topic`, which showed it
+      # resolved to `/robot_1/map` with no override, even though
+      # nav2_robot.launch.py's SetRemap(src="map", dst="/map") (a plain
+      # relative match key, the same shape that fixed an analogous bug
+      # earlier in this file's history) was present on the process's own
+      # command line and verified working for an isolated rclpy
+      # create_subscription("map", ...) test. So this subscription's name
+      # is not produced through the ordinary relative-name + remap pipeline
+      # the way it is for most other Nav2 topics -- it must be set directly
+      # as the absolute literal here instead of relying on launch-time
+      # remapping. The shared, non-namespaced map_server (module docstring,
+      # nav2_robot.launch.py) only ever publishes on unnamespaced `/map`.
+      map_topic: /map
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"

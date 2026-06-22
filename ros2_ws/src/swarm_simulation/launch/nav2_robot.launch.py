@@ -101,6 +101,53 @@ mechanism if this stops working after a launch_ros/rcl version bump;
 re-verify the same way). Re-verified post-fix: `ros2 node info` on the
 transform listener nodes now shows `Subscribers: /tf, /tf_static`, and the
 "Timed out waiting for transform" log line stops appearing.
+
+A second, separate, same-class bug was found while verifying the above fix:
+`global_costmap`'s static map subscription showed up in `ros2 node info
+/robot_1/global_costmap/global_costmap` as `/robot_1/map`, while the shared,
+non-namespaced `map_server` above only ever publishes on unnamespaced `/map`
+-- producing a recurring `Can't update static costmap layer, no map received`
+warning (`map_server` itself confirmed actually publishing: `ros2 topic info
+/map --verbose` showed 1 publisher with `TRANSIENT_LOCAL` durability, and
+`ros2 topic echo /map --once` returned a message; `ros2 topic hz /map` is
+the wrong tool here since a latched topic does not repeat).
+
+Unlike the `/tf` case, this did **not** respond to the same `SetRemap` shape.
+A relative-keyed `SetRemap(src="map", dst="/map")` was added here first
+(the natural counterpart to the `/tf` fix's absolute key, since this
+subscription request looked relative rather than hardcoded-absolute) and
+its rule did appear correctly on the launched process's own command line
+(`-r map:=/map`, confirmed via `pgrep -fa`/`/proc/<pid>/cmdline`); an
+isolated rclpy `create_subscription("map", ...)` test with the identical
+remap argument also resolved to `/map` exactly as expected. Yet
+`ros2 node info` on `global_costmap` kept showing the subscription bound to
+`/robot_1/map` regardless, both before and after that `SetRemap` was added,
+and the warning kept recurring (re-confirmed via a non-zero
+`grep -c "no map received"` count on a fresh launch after a full container
+restart and rebuild, ruling out a stale-process artifact). `ros2 param get
+/robot_1/global_costmap/global_costmap map_topic` showed the parameter
+itself already held the literal string `/robot_1/map` with no override
+configured anywhere in `nav2_params.yaml` -- indicating `nav2_costmap_2d`
+builds this particular subscription's name from its own `map_topic`
+parameter directly (namespace-qualifying it itself) rather than handing a
+plain relative name through the ordinary launch-time remap pipeline that
+`/tf` goes through, so no `SetRemap` rule, of either key style, can
+intercept it; this was not independently confirmed against the
+`nav2_costmap_2d`/`StaticLayer` source (binary-only install on this host,
+no source tree available to inspect), only inferred from this parameter
+behavior plus the `SetRemap`'s otherwise-confirmed inertness.
+
+Fixed instead in `nav2_params.yaml`'s `global_costmap.global_costmap.
+map_topic`, set directly to the absolute literal `/map`, bypassing
+remapping entirely. Verified via `ros2 node info` after rebuilding
+(`colcon build --merge-install --packages-select swarm_simulation`) and a
+fresh launch: `global_costmap`'s `Subscribers` list shows `/map`, not
+`/robot_1/map`; `grep -c "no map received"` over a fresh launch log was 0
+across the full lifecycle bring-up; `global_costmap`/`local_costmap` and the
+nodes depending on them (`controller_server`, `planner_server`,
+`bt_navigator`) all reached lifecycle `active`. The inert `SetRemap(src=
+"map", dst="/map")` rule was removed rather than left in place, since it
+was confirmed to never match anything this subscription actually requests.
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
@@ -211,6 +258,25 @@ def generate_launch_description() -> LaunchDescription:
                     # act on the same request.
                     SetRemap(src="/tf", dst="/tf"),
                     SetRemap(src="/tf_static", dst="/tf_static"),
+                    # No SetRemap rule for `map` here, unlike /tf/tf_static
+                    # above: `ros2 node info` showed global_costmap's static
+                    # map subscription bound to `/robot_1/map`, and the
+                    # process's own command line did carry a relative-keyed
+                    # `-r map:=/map` rule that an isolated rclpy
+                    # create_subscription("map", ...) test confirmed resolves
+                    # correctly through ordinary remapping -- yet the costmap
+                    # node's actual subscription stayed on `/robot_1/map`
+                    # regardless. `ros2 param get
+                    # .../global_costmap map_topic` showed the param itself
+                    # already holds the namespace-qualified string
+                    # `/robot_1/map` with no override configured, indicating
+                    # nav2_costmap_2d's `Costmap2DROS`/`StaticLayer` build
+                    # this subscription name from the `map_topic` parameter
+                    # directly rather than through the launch-time relative-
+                    # name-plus-remap pipeline /tf goes through, so a
+                    # SetRemap rule here cannot intercept it. Fixed instead in
+                    # nav2_params.yaml's `global_costmap.map_topic`, set to
+                    # the absolute literal `/map` (see that file's comment).
                     IncludeLaunchDescription(
                         PythonLaunchDescriptionSource(
                             PathJoinSubstitution(
