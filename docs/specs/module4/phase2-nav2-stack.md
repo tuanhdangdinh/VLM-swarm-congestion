@@ -38,8 +38,9 @@ Author the lidar (M6 FR6.4.9) → `/<robot_id>/scan`:
 Multi-robot Nav2 runs one **namespaced** stack per robot — its own costmaps,
 planner, controller, and BT navigator under `/<robot_id>/...`, sharing `/tf` and
 `/tf_static` (uniqueness via frame prefixes, FR6.7.7). Verify the exact
-namespaced-bringup mechanism against the Nav2 Humble docs before building (see
-§9 — this phase targets Humble, not Jazzy, on this host);
+namespaced-bringup mechanism against the Nav2 Jazzy docs/container install before
+building (see §9 — this phase targets the `ros:jazzy` container, while Isaac
+Sim uses its bundled Jazzy bridge on the host);
 multi-robot bringup conventions change across distros.
 
 - Action server per robot: `/<robot_id>/navigate_to_pose`
@@ -102,7 +103,7 @@ re-check before treating "spawn pose" as exact if precision matters.
 
 `ros2_ws/src/swarm_simulation/launch/nav2_robot.launch.py` publishes
 `map -> <robot_id>/odom` via `tf2_ros static_transform_publisher`, using the
-documented current Humble flag syntax (`--x/--y/--z/--roll/--pitch/--yaw
+documented current flag syntax (`--x/--y/--z/--roll/--pitch/--yaw
 --frame-id --child-frame-id`, not the deprecated 8-positional-arg form). The
 transform value is **not** hardcoded identity or a scenario-specific lookup
 table: the launch file declares `x`/`y`/`yaw` launch arguments **with no
@@ -128,7 +129,7 @@ y=0.0, yaw_rad=0.0`):
   profile via `FASTRTPS_DEFAULT_PROFILES_FILE` on **both** the
   `static_transform_publisher` process and the Isaac-side process — confirmed
   this resolves the SHM-transport mismatch documented in Task 5's report
-  (Isaac's bundled FastDDS build vs. the apt `/opt/ros/humble` build): without
+  (Isaac's bundled FastDDS build vs. the container ROS build): without
   the profile, an in-process `tf2_ros.Buffer` inside Isaac never saw the `map`
   frame at all (`"map" passed to lookupTransform argument target_frame does
   not exist`); with it, the buffer resolved `map -> robot_1/odom` and the full
@@ -193,7 +194,7 @@ server. The controller's commanded velocity must stay at or below the
 *below* the FR6.4.7 mechanical maximum (`0.22 m/s`) to leave margin; the two are
 not equal and Nav2's `max_vel_x` should track the 0.2 safety cap, not 0.22.
 
-**Verify — `cmd_vel` message type.** Confirm whether Humble Nav2 publishes
+**Verify — `cmd_vel` message type.** Confirm whether Jazzy Nav2 publishes
 `geometry_msgs/Twist` or `TwistStamped` on `/<robot_id>/cmd_vel` (the
 `use_stamped_cmd_vel` toggle; default has moved across distros) and match it to
 the Isaac `ROS2SubscribeTwist` side from
@@ -319,7 +320,7 @@ This task does not pick a direction — it stops at the gate per the brief
 ("If install fails, stop and report — do not substitute a different package
 set without updating this plan").
 
-### Resolution: retarget to ROS2 Humble
+### Superseded resolution: host Humble retarget
 
 Isaac Automator (the deployment tool used for this host) has no Ubuntu 24.04
 option — Isaac Sim 6.0 itself targets Ubuntu 22.04. Reprovisioning to Noble is
@@ -335,19 +336,58 @@ elif [[ "$UBUNTU_VERSION" == "24.04" ]]; then
 fi
 ```
 
-Isaac Sim auto-selects `ROS_DISTRO=humble` on Ubuntu 22.04, and ships bundled
+Isaac Sim auto-selects `ROS_DISTRO=humble` on Ubuntu 22.04 when `ROS_DISTRO` is
+unset, and ships bundled
 internal bridge libraries for both (`exts/isaacsim.ros2.core/{humble,jazzy}/lib`
-under the Isaac Sim install root). Humble is Isaac Sim's own intended pairing
-for this exact host OS, not a fallback compromise — **Phase 2 is retargeted to
-ROS2 Humble** (`ros-humble-navigation2`, `ros-humble-nav2-bringup`). Every
-`ros-jazzy-*` reference in this spec and in the Phase 2 plan
-(`docs/superpowers/plans/2026-06-21-m4-phase2-nav2-stack.md`) is corrected
-accordingly. Phase 1's verified OmniGraph node interface
+under the Isaac Sim install root). An earlier pass interpreted that as a reason
+to retarget Phase 2 to host Humble. That direction is now **superseded**: the
+confirmed project runtime is Isaac Sim on the host with `ROS_DISTRO=jazzy` using
+its bundled Jazzy bridge, plus M1/M4/M5/Nav2 inside the `ros:jazzy` Docker
+container. Host apt availability for Humble remains useful diagnostic evidence,
+but host Humble is not the Phase 2 target. Phase 1's verified OmniGraph node interface
 (`phase1-drive-chain.md` §2a) is unaffected: those are Isaac's own bridge node
 wrappers (type names, `inputs:`/`outputs:` attribute keys), stable across the
 `ROS_DISTRO` selection — only the underlying message-library linkage differs.
 
-### Task 1 re-run on Humble — PASS
+### Task 1 re-run in Jazzy container — PASS
+
+Use the existing `vgu_ros`/`ros:jazzy` container, not host apt, for Nav2:
+
+```bash
+sudo docker start vgu_ros
+sudo docker exec vgu_ros bash -lc \
+  'source /opt/ros/jazzy/setup.bash && ros2 launch nav2_bringup bringup_launch.py --show-args'
+```
+
+The container must contain `ros-jazzy-navigation2` and
+`ros-jazzy-nav2-bringup` (the devcontainer installs the same packages). Isaac
+side runs should set `ROS_DISTRO=jazzy` before sourcing
+`/home/ubuntu/IsaacSim/setup_ros_env.sh` so Isaac's bundled bridge matches the
+container participants.
+
+Verified on the GCP host (`isaacautomator-vgu-gcp2-isaac-workstation-vm`,
+2026-06-22): `vgu_ros` is running from image `ros:jazzy`, `ROS_DISTRO=jazzy`,
+and these packages are installed:
+
+```text
+ros-jazzy-nav2-bringup 1.3.12-1noble.20260616.082701
+ros-jazzy-navigation2  1.3.12-1noble.20260615.181551
+ros-jazzy-ros-base     0.11.0-1noble.20260412.071950
+```
+
+Smoke test passed:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+ros2 launch nav2_bringup bringup_launch.py --show-args
+```
+
+The command printed the Jazzy launch argument list (`namespace`,
+`use_namespace`, `slam`, `map`, `use_sim_time`, `params_file`, `autostart`,
+`use_composition`, `use_respawn`, `log_level`, `use_localization`,
+`use_lifecycle_manager`, `slam_params_file`, `container_name`) with no errors.
+
+### Historical host-Humble smoke test — PASS, not current target
 
 ```bash
 sudo apt-get install -y ros-humble-ros-base ros-humble-navigation2 ros-humble-nav2-bringup
@@ -508,3 +548,46 @@ as authored, using the existing marker height (`MARKER_HEIGHT_M = 0.21`,
 `marker_asset.py`) relative to the lidar mount (`base_scan` at `z=0.172`,
 `turtlebot3_burger.urdf` `scan_joint`). Any future change to either height
 must re-run this check — the margin is only 3.8 cm.
+
+---
+
+## 11. Verified per-robot Nav2 bringup (Jazzy container smoke)
+
+Verified on 2026-06-22 in the `vgu_ros` (`ros:jazzy`) container after copying the
+current Phase 2 launch/config changes into `/ws`:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+cd /ws/ros2_ws
+colcon build --merge-install --packages-select swarm_simulation
+source install/setup.bash
+ros2 launch swarm_simulation nav2_robot.launch.py --show-args
+```
+
+Result: `swarm_simulation` built successfully and `nav2_robot.launch.py`
+resolved its own required arguments (`robot_id`, `x`, `y`, `yaw`) plus the
+included Jazzy `navigation_launch.py` arguments with no import or package
+errors.
+
+A short launch smoke test without Isaac Sim running:
+
+```bash
+ros2 launch swarm_simulation nav2_robot.launch.py robot_id:=robot_1 x:=-0.6 y:=0.0 yaw:=0.0
+```
+
+exposed the expected namespaced action servers, including
+`/robot_1/navigate_to_pose` and `/robot_1/follow_waypoints`, and loaded the
+Jazzy Nav2 plugins configured in `nav2_params.yaml`:
+
+- `nav2_navfn_planner::NavfnPlanner`
+- `dwb_core::DWBLocalPlanner`
+- DWB critics listed under `FollowPath`
+- Jazzy lifecycle-managed auxiliary nodes (`smoother_server`, `route_server`,
+  `velocity_smoother`, `collision_monitor`, `docking_server`)
+
+The smoke run then waited for `robot_1/base_link -> robot_1/odom`, which is
+expected because Isaac Sim was not running and therefore no robot TF was being
+published. This smoke verifies the Jazzy Nav2 stack/launch/config path, not
+closed-loop navigation. The next host verification must run Isaac Sim with
+`ROS_DISTRO=jazzy` and the DDS UDP profile so `/clock`, `/tf`, `/robot_1/odom`,
+and `/robot_1/scan` are present while Nav2 activates.

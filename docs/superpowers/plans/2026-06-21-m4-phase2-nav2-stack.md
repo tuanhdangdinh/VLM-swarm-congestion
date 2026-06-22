@@ -6,9 +6,9 @@
 
 **Architecture:** Extend Phase 1's per-robot Isaac graph (`isaac/vgu_sim/ros_graphs.py`) with an RTX 2D lidar publishing `/<robot_id>/scan` (M6 FR6.4.9). Author a static occupancy-grid map from the known warehouse geometry (`WarehouseConfig` + `isaac/assets/obstacles/`). Use ground-truth `map → <robot_id>/odom` (a static identity transform — see Task 5's rationale) instead of AMCL. Bring up one namespaced Nav2 stack per robot under `/<robot_id>/...`, sharing `/tf`/`/tf_static`/`map`. Replace the placeholder `Nav2Adapter` with an action-client wrapper around `/<robot_id>/navigate_to_pose` and `/<robot_id>/follow_waypoints`.
 
-**Tech Stack:** Isaac Sim 6.0 embedded Python, OmniGraph, `isaacsim.sensors.rtx`, ROS 2 Humble, `nav2_bringup`/`navigation2` (Humble apt packages), `rclpy.action`, pytest.
+**Tech Stack:** Isaac Sim 6.0 embedded Python, OmniGraph, `isaacsim.sensors.rtx`, ROS 2 Jazzy in the `ros:jazzy` container, `nav2_bringup`/`navigation2` (Jazzy container packages), `rclpy.action`, pytest.
 
-**Correction (2026-06-21, after Task 1's first run):** this plan originally targeted ROS 2 Jazzy throughout, copying Phase 1's stated tech stack. Task 1's dependency gate found the actual GCP host is Ubuntu 22.04 (Jammy) — provisioned via NVIDIA's Isaac Automator, which has no Ubuntu 24.04 option, because Isaac Sim 6.0 itself targets 22.04. Jazzy has no apt binaries for Jammy (Tier-3/source-only). Isaac Sim's own `setup_ros_env.sh` (`/home/ubuntu/IsaacSim/setup_ros_env.sh` on the host) auto-selects `ROS_DISTRO=humble` on Ubuntu 22.04 and `jazzy` on 24.04 — confirming Humble is Isaac Sim's own intended pairing here, not a fallback compromise. Every `ros-jazzy-*` reference below is corrected to `ros-humble-*`. Isaac's OmniGraph node interface (node type names, `inputs:`/`outputs:` attribute keys) verified in Phase 1 is unaffected — those are Isaac's own bridge node wrappers, stable across the `ROS_DISTRO` selection; only the underlying message-library linkage changes.
+**Correction (2026-06-22):** the earlier host-Humble retarget is superseded. The intended runtime for this GCP setup is **Isaac Sim on the Ubuntu 22.04 host using its bundled internal Jazzy bridge libraries** plus **ROS 2/Nav2 nodes inside the `ros:jazzy` Docker container**. Host `/opt/ros/humble` may exist and Isaac's `setup_ros_env.sh` auto-selects Humble on Ubuntu 22.04 when `ROS_DISTRO` is unset, but that is not the project runtime. Launch Isaac-side processes with `ROS_DISTRO=jazzy` when they must match container participants, and keep Nav2/M1/M5/M4 in the Jazzy container. The original apt blocker remains true only for **host apt** (`ros-jazzy-*` is unavailable on Jammy); it does not block the container path.
 
 ---
 
@@ -41,7 +41,7 @@ Facts already resolved by Phase 1 — do not re-derive:
 
 Two real unknowns this plan resolves with explicit go/no-go gates, in risk order:
 
-- **Task 1:** does `ros-humble-navigation2`/`nav2-bringup` actually install in the container (on this Jammy host, not Jazzy — see the Tech Stack correction above)? (CLAUDE.md "optional heavyweight dependency" — confirm before building anything on top of it.)
+- **Task 1:** does `ros-jazzy-navigation2`/`nav2-bringup` actually install and launch in the `ros:jazzy` container? (CLAUDE.md "optional heavyweight dependency" — confirm before building anything on top of it.)
 - **Task 2:** can the ArUco marker plate be excluded from RTX lidar *raytracing* (not just PhysX collision)? This is the spec's and README's top-listed risk. If this fails, Phase 2 cannot proceed as specified and needs a design escalation (e.g., moving the marker below the scan plane is not an option — FR6.4.10 already requires it above the scan plane for camera visibility).
 
 ---
@@ -67,7 +67,7 @@ Two real unknowns this plan resolves with explicit go/no-go gates, in risk order
 
 ## Task 1 — [HOST] Dependency gate: confirm Nav2 installs in the container
 
-**Why first:** `navigation2`/`nav2-bringup` is the one optional heavyweight dependency this entire phase rests on (CLAUDE.md "Dependencies" rule). If it doesn't install cleanly in the Isaac host's ROS 2 Humble environment, every later task is blocked and the plan needs rework before any Isaac authoring happens.
+**Why first:** `navigation2`/`nav2-bringup` is the one optional heavyweight dependency this entire phase rests on (CLAUDE.md "Dependencies" rule). If it doesn't install cleanly in the `ros:jazzy` container, every later task is blocked and the plan needs rework before any Isaac authoring happens.
 
 **Files:**
 - Modify: `docs/specs/module4/phase2-nav2-stack.md` (append "## 9. Verified host setup")
@@ -76,7 +76,7 @@ Two real unknowns this plan resolves with explicit go/no-go gates, in risk order
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y ros-humble-navigation2 ros-humble-nav2-bringup
+sudo apt-get install -y ros-jazzy-navigation2 ros-jazzy-nav2-bringup
 ```
 
 - [ ] **Step 2: Verify the install with a smoke launch (no Isaac, no map yet).**
@@ -99,7 +99,7 @@ Append the output and the install commands to `phase2-nav2-stack.md` §9. If ins
 
 ```bash
 git add docs/specs/module4/phase2-nav2-stack.md
-git commit -m "docs: record verified Nav2 Humble package install on Isaac host"
+git commit -m "docs: record verified Nav2 Jazzy package install in ROS container"
 ```
 
 ---
@@ -582,7 +582,7 @@ behavior_server:
 
 Note: `footprint` `0.14 m × 0.18 m` per spec §3 ("Burger base"), expressed as half-extents `0.07/0.09` around the robot center.
 
-- [ ] **Step 2: Extend the launch file with the namespaced bringup and shared `map_server`.** Verify the namespaced-bringup convention against the installed Humble `nav2_bringup` source (`bringup_launch.py`) before transcribing — multi-robot conventions change across distros (spec §3, README §7 "second-hardest part"):
+- [ ] **Step 2: Extend the launch file with the namespaced bringup and shared `map_server`.** Verify the namespaced-bringup convention against the installed Jazzy `nav2_bringup` source (`bringup_launch.py`) before transcribing — multi-robot conventions change across distros (spec §3, README §7 "second-hardest part"):
 
 ```python
 from launch import LaunchDescription
@@ -624,7 +624,7 @@ def generate_launch_description() -> LaunchDescription:
     )
 ```
 
-`map_server` is launched once per robot include by default in `bringup_launch.py`; if the verified Humble convention instead expects one shared `map_server` outside any namespace (common for multi-robot), split it out into its own non-namespaced `Node` here and record which convention was verified in the spec.
+`map_server` is launched once per robot include by default in `bringup_launch.py`; if the verified Jazzy convention instead expects one shared `map_server` outside any namespace (common for multi-robot), split it out into its own non-namespaced `Node` here and record which convention was verified in the spec.
 
 - [ ] **Step 3: [HOST] Bring up `robot_1`'s stack and confirm the action server is live.**
 
@@ -638,7 +638,7 @@ Expected: `/robot_1/navigate_to_pose` and `/robot_1/follow_waypoints` listed.
 - [ ] **Step 4: Record the verified bringup convention in the spec.**
 
 ```markdown
-## 11. Verified per-robot Nav2 bringup (Humble)
+## 11. Verified per-robot Nav2 bringup (Jazzy)
 
 - Bringup mechanism: <exact convention verified in Step 2/3>
 - map_server: <per-robot include vs. shared single instance>

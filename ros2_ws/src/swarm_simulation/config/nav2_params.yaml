@@ -1,0 +1,222 @@
+controller_server:
+  ros__parameters:
+    use_sim_time: true
+    controller_frequency: 20.0
+    progress_checker_plugins: ["progress_checker"]
+    goal_checker_plugins: ["general_goal_checker"]
+    controller_plugins: ["FollowPath"]
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+    general_goal_checker:
+      plugin: "nav2_controller::SimpleGoalChecker"
+    FollowPath:
+      plugin: "dwb_core::DWBLocalPlanner"
+      max_vel_x: 0.2   # safety.yaml max_linear_velocity_mps cap, NOT the 0.22 mechanical max
+      min_vel_x: 0.0
+      max_vel_theta: 2.84
+      use_stamped_cmd_vel: false   # verified Phase 1: ROS2SubscribeTwist takes plain Twist
+      # DWB requires an explicit, non-empty critics list (verified on host:
+      # "No critics defined for FollowPath" aborts controller_server
+      # configure without one) -- not in the brief's pinned snippet, added
+      # here as the minimal standard TurtleBot3-class critic set from the
+      # upstream nav2_bringup reference params, not independently
+      # tuned for this footprint.
+      critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
+      BaseObstacle.scale: 0.02
+      PathAlign.scale: 32.0
+      PathAlign.forward_point_distance: 0.1
+      GoalAlign.scale: 24.0
+      GoalAlign.forward_point_distance: 0.1
+      PathDist.scale: 32.0
+      GoalDist.scale: 24.0
+      RotateToGoal.scale: 32.0
+      RotateToGoal.slowing_factor: 5.0
+      RotateToGoal.lookahead_time: -1.0
+
+planner_server:
+  ros__parameters:
+    use_sim_time: true
+    planner_plugins: ["GridBased"]
+    GridBased:
+      # Brief's snippet used the C++-namespace form
+      # "nav2_navfn_planner::NavfnPlanner"; verified on host this installed
+      # Historical host-Humble check: Humble version (1.1.20) registered the pluginlib class as
+      # "nav2_navfn_planner/NavfnPlanner" (slash, not double-colon) --
+      # planner_server failed to load with that form there
+      # ("does not exist. Declared types are ... nav2_navfn_planner/NavfnPlanner").
+      # Re-verified during the Jazzy pivot (Task 6 redo) against the
+      # installed Jazzy 1.3.12 nav2_navfn_planner plugin XML
+      # (/opt/ros/jazzy/share/nav2_navfn_planner/global_planner_plugin.xml),
+      # which registers the class as "nav2_navfn_planner::NavfnPlanner"
+      # (double-colon) -- the *opposite* convention from the Humble build on
+      # this same host. Pluginlib registration strings are not stable across
+      # distro/version; re-verify per distro rather than copying from a
+      # different verified build.
+      plugin: "nav2_navfn_planner::NavfnPlanner"
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      use_sim_time: true
+      # `<robot_namespace>` is the verified Nav2 multi-robot placeholder
+      # token (bringup_launch.py's ReplaceString action, condition
+      # use_namespace) -- substituted by nav2_robot.launch.py to
+      # "/<robot_id>" before this file is parsed. Required because Isaac's
+      # /tf frame_ids are namespace-prefixed (e.g. "robot_1/odom",
+      # "robot_1/base_link" -- verified on host via `ros2 topic echo /tf`)
+      # but navigation_launch.py itself does NOT auto-prefix frame names
+      # (verified against the installed Jazzy source -- it only remaps the
+      # /tf and /tf_static *topics*, "there doesn't seem to be a better
+      # alternative" per its own comment); without this, local_costmap waits
+      # forever on the unprefixed "odom" frame, which never exists, and
+      # controller_server's activation hangs until lifecycle_manager's own
+      # timeout aborts the whole bringup.
+      global_frame: "<robot_namespace>/odom"
+      robot_base_frame: "<robot_namespace>/base_link"
+      width: 3
+      height: 3
+      resolution: 0.05
+      footprint: "[[-0.07, -0.09], [-0.07, 0.09], [0.07, 0.09], [0.07, -0.09]]"
+      plugins: ["obstacle_layer", "inflation_layer"]
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        observation_sources: scan
+        scan:
+          topic: scan
+          max_obstacle_height: 2.0
+          obstacle_max_range: 3.5
+      # inflation_layer.plugin not in the brief's pinned snippet; required --
+      # verified on host: costmap configure fails ("Can not get 'plugin'
+      # param value for inflation_layer") without it, since `plugins:` only
+      # lists layer *names*, each of which independently needs its own
+      # `plugin:` key naming the implementing class.
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      use_sim_time: true
+      # `global_frame: map` stays unprefixed: it is the single shared
+      # warehouse map frame, not per-robot. `robot_base_frame` IS
+      # per-robot -- same `<robot_namespace>` substitution rationale as
+      # local_costmap above.
+      global_frame: map
+      robot_base_frame: "<robot_namespace>/base_link"
+      footprint: "[[-0.07, -0.09], [-0.07, 0.09], [0.07, 0.09], [0.07, -0.09]]"
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        observation_sources: scan
+        scan:
+          topic: scan
+          max_obstacle_height: 2.0
+          obstacle_max_range: 3.5
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+
+bt_navigator:
+  ros__parameters:
+    use_sim_time: true
+    global_frame: map
+    robot_base_frame: "<robot_namespace>/base_link"
+
+behavior_server:
+  ros__parameters:
+    use_sim_time: true
+
+waypoint_follower:
+  ros__parameters:
+    use_sim_time: true
+
+# Jazzy's nav2_bringup navigation_launch.py (1.3.12, verified on the Jazzy
+# container's installed package) lists smoother_server, route_server,
+# velocity_smoother, collision_monitor, and docking_server in its
+# lifecycle_manager_navigation node_names -- absent from the Humble-era
+# brief/spec, which only covered controller, planner, costmaps,
+# bt_navigator, behavior_server, and waypoint_follower. lifecycle_manager
+# blocks bringup waiting for *every* listed node to reach ACTIVE, so each
+# needs a minimal, valid configuration even though this project does not use
+# smoothing, routing, or docking. Configured here with safe
+# no-op-equivalent settings, not independently tuned -- see
+# phase2-nav2-stack.md S11.
+smoother_server:
+  ros__parameters:
+    use_sim_time: true
+
+velocity_smoother:
+  ros__parameters:
+    use_sim_time: true
+    odom_topic: "odom"
+
+route_server:
+  ros__parameters:
+    use_sim_time: true
+
+collision_monitor:
+  ros__parameters:
+    use_sim_time: true
+    base_frame_id: "<robot_namespace>/base_link"
+    odom_frame_id: "<robot_namespace>/odom"
+    cmd_vel_in_topic: "cmd_vel_nav"
+    cmd_vel_out_topic: "cmd_vel"
+    transform_tolerance: 0.2
+    source_timeout: 1.0
+    stop_pub_timeout: 2.0
+    # collision_monitor requires a non-empty observation_sources -- a single
+    # "scan" source pointed at the same /<robot_id>/scan feeding the
+    # costmaps is the minimal valid config. `polygons` is declared upstream
+    # (nav2_collision_monitor source, configurePolygons()) as
+    # rclcpp::PARAMETER_STRING_ARRAY with no default, and the loop over each
+    # named entry then requires that entry's own `.type`/`.action_type`
+    # sub-params -- verified on host through three failure modes, each fatal
+    # to the whole lifecycle_manager_navigation bringup, not just this node:
+    # (1) omitting `polygons` entirely aborts configure ("parameter
+    # 'polygons' is not initialized"); (2) a bare YAML `[]` parses as an
+    # untyped empty sequence rclcpp cannot coerce to a string array, crashing
+    # the process at startup (InvalidParameterValueException,
+    # "parameter_value_from failed for parameter 'polygons': No parameter
+    # value set", SIGABRT) -- a YAML typed-empty-sequence tag (`!!seq []`)
+    # does not fix this either; (3) `[""]` (one empty-string entry) avoids
+    # both of the above but the configure loop then looks up the per-polygon
+    # `.type` param using that empty name as a prefix and fails identically
+    # ("parameter '.type' is not initialized"). There is no real "zero
+    # polygons" form in this Nav2 version -- the working fix is one real,
+    # named, harmless polygon: `action_type: "none"` is upstream's documented
+    # DO_NOTHING no-op (verified in polygon.cpp's action_type parsing), so
+    # `safety_noop` below configures successfully and never stops/slows
+    # anything; this monitor is required only because Jazzy's
+    # lifecycle_manager_navigation lists it, not because this project uses
+    # collision-monitor-driven safety behavior (that is handled elsewhere
+    # per safety.yaml).
+    polygons: ["safety_noop"]
+    safety_noop:
+      type: "polygon"
+      action_type: "none"
+      points: "[[0.07, 0.09], [0.07, -0.09], [-0.07, -0.09], [-0.07, 0.09]]"
+      min_points: 1
+      visualize: false
+    observation_sources: ["scan"]
+    scan:
+      type: "scan"
+      topic: "scan"
+      min_height: 0.05
+      max_height: 2.0
+      enabled: true
+
+docking_server:
+  ros__parameters:
+    use_sim_time: true
+    # Same pattern as collision_monitor's `polygons` above: `dock_plugins` is
+    # declared with no default and the configure step then needs a real,
+    # named plugin entry -- verified on host, omitting it ("Charging dock
+    # plugins not given!") aborts the whole lifecycle_manager_navigation
+    # bringup. This project does not use docking at all; `dummy_dock` is the
+    # stock `opennav_docking::SimpleChargingDock` plugin configured but never
+    # invoked by any behavior tree or action call here -- it exists only to
+    # satisfy Jazzy's lifecycle_manager_navigation node list.
+    dock_plugins: ["dummy_dock"]
+    dummy_dock:
+      plugin: "opennav_docking::SimpleChargingDock"
