@@ -98,6 +98,51 @@ zero-reference exactly equals the scenario YAML's nominal spawn pose, or some
 other pose taken at first node evaluation, was not independently verified —
 re-check before treating "spawn pose" as exact if precision matters.
 
+### Verified (2026-06-22, Task 5 finish): `nav2_robot.launch.py` authored and TF chain confirmed
+
+`ros2_ws/src/swarm_simulation/launch/nav2_robot.launch.py` publishes
+`map -> <robot_id>/odom` via `tf2_ros static_transform_publisher`, using the
+documented current Humble flag syntax (`--x/--y/--z/--roll/--pitch/--yaw
+--frame-id --child-frame-id`, not the deprecated 8-positional-arg form). The
+transform value is **not** hardcoded identity or a scenario-specific lookup
+table: the launch file declares `x`/`y`/`yaw` launch arguments (default
+`0.0`, i.e. identity only as a fallback) that the caller must supply with the
+robot's actual spawn pose from the scenario config — keeping the launch file
+reusable across scenarios per CLAUDE.md's module-boundary guidance.
+
+**Verification on host**, `head_on_deadlock`'s `robot_1` (`spawn: x=-0.6,
+y=0.0, yaw_rad=0.0`):
+
+- Launched `ros2 launch swarm_simulation nav2_robot.launch.py robot_id:=robot_1
+  x:=-0.6 y:=0.0 yaw:=0.0` as a genuine separate `ros2 launch` process (not
+  in-process), confirmed via its own log: `translation: ('-0.600000',
+  '0.000000', '0.000000')` ... `from 'map' to 'robot_1/odom'`.
+- Brought up `head_on_deadlock` headless via the production scene-build
+  sequence (`runner.py`'s own helpers, in `run_repetition()`'s order;
+  `runner.py` itself untouched — the relative-path `.resolve()` workaround
+  from Task 4/5 was applied only in the ephemeral verification script, not in
+  `runner.py`/`paths.py`).
+- Cross-process TF visibility required exporting a FastDDS UDP-only (no SHM)
+  profile via `FASTRTPS_DEFAULT_PROFILES_FILE` on **both** the
+  `static_transform_publisher` process and the Isaac-side process — confirmed
+  this resolves the SHM-transport mismatch documented in Task 5's report
+  (Isaac's bundled FastDDS build vs. the apt `/opt/ros/humble` build): without
+  the profile, an in-process `tf2_ros.Buffer` inside Isaac never saw the `map`
+  frame at all (`"map" passed to lookupTransform argument target_frame does
+  not exist`); with it, the buffer resolved `map -> robot_1/odom` and the full
+  chain immediately.
+- Resolved `map -> robot_1/base_link` in-process (Isaac-bundled rclpy +
+  `tf2_ros.Buffer`/`TransformListener`) after ~3 s of advancing sim time:
+  **`translation=(-0.6000, -0.0000, 0.0100)`**, matching the robot's true
+  spawn pose (`x=-0.6`) to 4 decimal places (`z=0.01` is the chassis's
+  mount-height offset, expected and unrelated to the `map->odom` hop). Hop
+  breakdown: `map->robot_1/odom = (-0.6, 0, 0)` (the static publisher under
+  test), `robot_1/odom->robot_1/base_footprint ≈ (0, 0, 0)` (spawn-relative
+  odom, confirming Task 5's finding), `robot_1/base_footprint->robot_1/base_link
+  = (0, 0, 0.01)` (static mount offset). The static spawn-pose transform
+  composes correctly with the dynamic, correctly-stamped (Task 5b)
+  `odom->base_footprint` edge.
+
 ### Resolved: `/odom` and `/tf_static` stamped 0 (Task 5b)
 
 Task 5 found `/robot_1/odom` published with `header.stamp = 0` continuously
