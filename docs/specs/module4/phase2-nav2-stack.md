@@ -105,10 +105,12 @@ re-check before treating "spawn pose" as exact if precision matters.
 documented current Humble flag syntax (`--x/--y/--z/--roll/--pitch/--yaw
 --frame-id --child-frame-id`, not the deprecated 8-positional-arg form). The
 transform value is **not** hardcoded identity or a scenario-specific lookup
-table: the launch file declares `x`/`y`/`yaw` launch arguments (default
-`0.0`, i.e. identity only as a fallback) that the caller must supply with the
-robot's actual spawn pose from the scenario config — keeping the launch file
-reusable across scenarios per CLAUDE.md's module-boundary guidance.
+table: the launch file declares `x`/`y`/`yaw` launch arguments **with no
+default value** that the caller must supply with the robot's actual spawn
+pose from the scenario config — a caller who forgets them gets a loud
+missing-argument error at launch time instead of silently reintroducing the
+identity-transform bug this task corrected — keeping the launch file reusable
+across scenarios per CLAUDE.md's module-boundary guidance.
 
 **Verification on host**, `head_on_deadlock`'s `robot_1` (`spawn: x=-0.6,
 y=0.0, yaw_rad=0.0`):
