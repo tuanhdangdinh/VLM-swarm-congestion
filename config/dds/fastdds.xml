@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  Forces UDP-only DDS transport, disabling FastRTPS's default shared-memory
+  transport. Required for cross-process ROS2 topics between the ros:jazzy
+  Docker container (--network host --ipc host) and Isaac Sim's bundled rclpy
+  running directly on the host: SHM delivery silently drops all data across
+  the container's root vs. the host's ubuntu UID boundary, even with
+  --ipc host and identical FastRTPS builds on both sides (DDS discovery/SPDP
+  succeeds, only the data path fails). Verified by a controlled before/after
+  test: 0/N messages delivered with the default transport, 29/29 with this
+  profile applied to both sides via FASTRTPS_DEFAULT_PROFILES_FILE.
+-->
 <dds xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
   <profiles>
     <transport_descriptors>
