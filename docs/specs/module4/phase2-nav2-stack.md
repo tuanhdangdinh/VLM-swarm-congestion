@@ -69,6 +69,56 @@ multi-robot bringup conventions change across distros.
 - **Option B:** AMCL (`nav2_amcl`) per robot, consuming `/<robot_id>/scan` + the
   map. Realistic but adds particle-filter tuning and an initial-pose step.
 
+### Correction (2026-06-22, Task 5): `/odom` is spawn-relative, not absolute-world
+
+The Phase 2 plan's "Reality Check" locked in a simplification of Option A:
+since `IsaacComputeOdometry` reads the chassis's pose directly (no encoder
+integration), the plan assumed `/<robot_id>/odom` already equals the
+absolute world/map-frame pose, making `map → odom` a trivial **static
+identity** transform — no publisher needed.
+
+Task 5 verified this for real and found it **false**. 300 in-process
+`nav_msgs/Odometry` reads of `/robot_1/odom` over 10s of sim time all show
+`position ≈ (0, 0, 0)`, while the chassis's true USD world pose (cross-checked
+independently via `ground_truth.jsonl`) stays at `x=-0.6` the entire time —
+the robot is stationary at its spawn pose, not at the origin.
+`IsaacComputeOdometry` computes pose **relative to its reference at node
+initialization** (i.e., spawn-relative, the same semantics as real wheel
+encoders), not absolute-world. The "no drift, reads the chassis directly"
+property is real (confirmed: it doesn't integrate noisy encoder ticks), but
+that only means *zero accumulated error relative to its own spawn-time
+reference* — not that the reference is the world origin.
+
+**Corrected design:** `map → <robot_id>/odom` must be a static transform
+equal to each robot's **spawn pose** (`x, y, yaw` from the scenario config),
+not identity. This is still Option A's spirit (no AMCL, no tuning surface) —
+only the transform *value* changes, from identity to
+`(spawn_x, spawn_y, spawn_yaw)`. Whether `IsaacComputeOdometry`'s actual
+zero-reference exactly equals the scenario YAML's nominal spawn pose, or some
+other pose taken at first node evaluation, was not independently verified —
+re-check before treating "spawn pose" as exact if precision matters.
+
+### Independent, also-blocking finding: `/odom` and dynamic `/tf` stamped 0
+
+Task 5 found `/robot_1/odom` and the dynamic `odom → base_footprint` TF edge
+are published with `header.stamp = 0` continuously throughout multi-hundred-
+second runs (not a startup transient) — confirmed via repeated
+`[Warning] Frame robot_1/odom Timestamp is invalid. Timestamp 0 will be
+neglected for all published ROS messages` log lines, while `sim_time` itself
+correctly advances (per `ground_truth.jsonl` and the in-process probe's own
+elapsed-time tracking). `tf2` drops stamp-0 transforms outright, so the
+`odom → base_footprint` edge does not survive into the TF buffer Nav2/`tf2_echo`
+read from — this **independently blocks** the localization chain regardless
+of how `map → odom` is corrected above. Task 4's RTX lidar gets correctly
+advancing `header.stamp`s from a structurally similar graph, but that sensor
+stamps itself via its own Replicator-writer clock, not via the
+`on_tick → IsaacReadSimulationTime → pub_odom/pub_tf.inputs:timeStamp` wiring
+that the drive/odom graph uses — these are different stamping mechanisms, so
+Task 4's success does not imply this one works. Root cause not yet
+determined; needs its own host investigation (likely in
+`isaac/vgu_sim/ros_graphs.py`'s `create_robot_ros_graph` clock wiring) before
+any Nav2 task that depends on a valid TF tree can proceed.
+
 ---
 
 ## 6. Nav2 parameters
