@@ -91,14 +91,16 @@ time. Confirmed via `ros2 node info
 
 Fixed by giving our group-level `SetRemap` an *absolute* match key instead
 (`src="/tf"`, `src="/tf_static"`): this matches the same literal topic name
-`TransformListener` requests, so it actually fires, and -- because group
-`SetRemap` actions apply before `IncludeLaunchDescription` expands
-`navigation_launch.py`'s own per-node `remappings=` kwarg, and rcl uses
-first-match-wins -- our identity rule (`/tf` -> `/tf`) is consumed first and
-`navigation_launch.py`'s later `/tf:=tf` rule never gets a chance to act on
-it. Re-verified post-fix the same way: `ros2 node info` on the transform
-listener nodes now shows `Subscribers: /tf, /tf_static`, and the "Timed out
-waiting for transform" log line stops appearing.
+`TransformListener` requests, so our identity rule (`/tf` -> `/tf`) now has a
+real candidate match, unlike the old relative-keyed version. Our rule and
+`navigation_launch.py`'s own `/tf:=tf` rule now both key on the literal
+`/tf` request, and empirically ours wins -- confirmed via `ros2 node info`
+post-fix, not derived from any documented rcl remap-precedence rule (which
+was not independently verified here, so do not assume a specific ordering
+mechanism if this stops working after a launch_ros/rcl version bump;
+re-verify the same way). Re-verified post-fix: `ros2 node info` on the
+transform listener nodes now shows `Subscribers: /tf, /tf_static`, and the
+"Timed out waiting for transform" log line stops appearing.
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
