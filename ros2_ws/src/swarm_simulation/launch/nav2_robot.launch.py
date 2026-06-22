@@ -69,6 +69,36 @@ would otherwise make Nav2 listen on `/robot_1/tf` and `/robot_1/tf_static`,
 while Isaac publishes the multi-robot TF tree on shared global `/tf` and
 `/tf_static`. The group-level remaps below preserve namespaced Nav2 nodes
 while keeping TF subscriptions on the shared topics.
+
+Verified on host (`ros2 node info` + captured `/proc/<pid>/cmdline`) that an
+earlier version of this fix did NOT work: it used `SetRemap(src="tf",
+dst="/tf")`, a *relative* match key, which `PushRosNamespace(robot_id)`
+turns into rule `/robot_1/tf:=/tf` on the node's command line. rclcpp/rcl
+remapping only fires when a rule's match key equals the literal topic name a
+node's `create_subscription` call requests; `tf2_ros::TransformListener`
+always requests the *absolute* topic `/tf` (and `/tf_static`), regardless of
+namespace, so a relative-keyed rule can never match it and was a no-op.
+`navigation_launch.py`'s own `remappings=[('/tf', 'tf'), ('/tf_static',
+'tf_static')]` (absolute match keys, passed as each `Node()`'s own
+`remappings=` kwarg) is therefore the only rule that ever matched, and it won
+by being the only candidate, not by remap-precedence order: it redirected
+the listener to relative `tf`, which the namespace push then turned into
+`/robot_1/tf` -- a topic nothing publishes on, hence the TF timeout, even
+though `ros2 topic echo /tf` showed Isaac's shared TF tree alive the whole
+time. Confirmed via `ros2 node info
+/robot_1/transform_listener_impl_<hash>` showing `Subscribers: /robot_1/tf,
+/robot_1/tf_static` before this fix.
+
+Fixed by giving our group-level `SetRemap` an *absolute* match key instead
+(`src="/tf"`, `src="/tf_static"`): this matches the same literal topic name
+`TransformListener` requests, so it actually fires, and -- because group
+`SetRemap` actions apply before `IncludeLaunchDescription` expands
+`navigation_launch.py`'s own per-node `remappings=` kwarg, and rcl uses
+first-match-wins -- our identity rule (`/tf` -> `/tf`) is consumed first and
+`navigation_launch.py`'s later `/tf:=tf` rule never gets a chance to act on
+it. Re-verified post-fix the same way: `ros2 node info` on the transform
+listener nodes now shows `Subscribers: /tf, /tf_static`, and the "Timed out
+waiting for transform" log line stops appearing.
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
@@ -169,8 +199,16 @@ def generate_launch_description() -> LaunchDescription:
             GroupAction(
                 [
                     PushRosNamespace(robot_id),
-                    SetRemap(src="tf", dst="/tf"),
-                    SetRemap(src="tf_static", dst="/tf_static"),
+                    # Absolute match keys ("/tf", not "tf"): TransformListener
+                    # always subscribes to the absolute topic regardless of
+                    # namespace, so this is the literal name a remap rule
+                    # must match to fire at all (see module docstring for the
+                    # verified failure of the relative-key version of this
+                    # rule). This identity rule is consumed before
+                    # navigation_launch.py's own internal `/tf:=tf` rule can
+                    # act on the same request.
+                    SetRemap(src="/tf", dst="/tf"),
+                    SetRemap(src="/tf_static", dst="/tf_static"),
                     IncludeLaunchDescription(
                         PythonLaunchDescriptionSource(
                             PathJoinSubstitution(
