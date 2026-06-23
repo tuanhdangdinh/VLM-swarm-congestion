@@ -1,0 +1,59 @@
+schema_version: 1
+# `name` must be one of ScenarioConfig's 3 Literal values (config.py); reuses
+# "head_on_deadlock" since this is a single-robot variant of that scene, not
+# a new scenario type. Source-file name (this filename) carries the actual
+# distinguishing label; `name` only affects which canonical output path
+# `scenario_output_path`/`run_simulation.py` writes to
+# (isaac/scenarios/head_on_deadlock.usd) -- running this file will overwrite
+# that build artifact, which is fine since it is a regenerable build output,
+# not checked-in source. Rebuild the canonical head_on_deadlock.usd from
+# head_on_deadlock.yaml afterward if both are needed in the same session.
+name: head_on_deadlock
+seed: 42
+duration_sec: 300.0
+
+# M4 Phase 2 Task 8 acceptance scenario: robot_1 only (robot_2 omitted,
+# unlike head_on_deadlock.yaml's nose-to-nose pair) plus one static obstacle
+# placed directly in robot_1's path to the goal. Omitting robot_2 isolates
+# the obstacle-avoidance behavior under test -- robot_2's own spawn pose in
+# head_on_deadlock.yaml (x=0.6) sits on this same centerline between
+# robot_1's spawn (x=-0.6) and a goal further east, and that scene's
+# integration runs never drive robot_2, so it would otherwise sit as a
+# second, permanent, undocumented blocker confounding whether a goal failure
+# is attributable to the obstacle or to robot_2.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -0.6, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 2.0, y: 0.0}
+    initial_task: cross_narrow_aisle
+
+# Static placement (Task 8 brief Step 1): spawn_at_sec: 0.0, no
+# remove_at_sec, so the obstacle is active from the first frame and never
+# removed (see scenario_builder.py's _author_obstacle: spawn_at_sec <= 0.0
+# authors the prim active at build time, since EventScheduler's runtime
+# activate/deactivate callbacks are not wired in runner.py). Pose x=0.7 sits
+# between robot_1's spawn (x=-0.6) and the goal (x=2.0): 1.3 m clear of
+# spawn (the robot is moving before it can reach the obstacle) and 1.3 m
+# clear of goal (room to re-converge after the deviation), close enough to
+# the centerline (y=0.0, same line as spawn->goal) that a straight-line path
+# would clip it, but with the 1.2 m nominal aisle width (warehouse.yaml)
+# leaving roughly half an aisle-width of clearance on either side for DWB to
+# route around -- the asset's collision Cube size was not independently
+# measured against this clearance before the run; see the Task 8 host
+# verification report for the actual observed deviation/clearance.
+timed_obstacles:
+  - obstacle_id: task8_static_blocker
+    asset: dynamic_obstacle.usd
+    spawn_at_sec: 0.0
+    pose: {x: 0.7, y: 0.0, yaw_rad: 0.0}
+
+expected_conflict:
+  type: deadlock
+  involved_robots: [robot_1]
+  onset_window_sec: [8.0, 25.0]
+  min_duration_sec: 2.0
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

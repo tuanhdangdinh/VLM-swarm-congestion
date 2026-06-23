@@ -6,7 +6,7 @@ from pathlib import Path
 
 from isaac.vgu_sim.config import ScenarioConfig
 from isaac.vgu_sim.marker_asset import author_aruco_marker
-from isaac.vgu_sim.paths import aruco_dict_name, marker_png_path
+from isaac.vgu_sim.paths import aruco_dict_name, marker_png_path, obstacle_asset_path
 
 
 class ScenarioBuildError(Exception):
@@ -51,7 +51,7 @@ def build_scenario_stage(
 
     UsdGeom.Xform.Define(stage, "/World/DynamicObstacles")
     for obs in config.timed_obstacles:
-        _author_obstacle(stage, obs)
+        _author_obstacle(stage, obs, output_path.parent)
 
     meta = stage.DefinePrim("/World/Scenario/Metadata")
     meta.SetMetadata("customData", {
@@ -99,15 +99,32 @@ def _author_robot(stage, robot_cfg, robot_asset_path: Path, scenario_dir: Path) 
     author_aruco_marker(stage, prim_path, str(rel_marker))
 
 
-def _author_obstacle(stage, obs_cfg) -> None:
+def _author_obstacle(stage, obs_cfg, scenario_dir: Path) -> None:
     from pxr import Gf, UsdGeom
 
     prim_path = f"/World/DynamicObstacles/{obs_cfg.obstacle_id}"
     prim = UsdGeom.Xform.Define(stage, prim_path)
 
+    asset_path = obstacle_asset_path(obs_cfg.asset)
+    rel_asset = _relative_path(scenario_dir, asset_path)
+    prim.GetPrim().GetReferences().AddReference(str(rel_asset))
+
     p = obs_cfg.pose
-    UsdGeom.Xformable(prim.GetPrim()).AddTranslateOp().Set(Gf.Vec3d(p.x, p.y, 0.0))
-    prim.GetPrim().SetActive(False)
+    xform = UsdGeom.Xformable(prim.GetPrim())
+    xform.AddTranslateOp().Set(Gf.Vec3d(p.x, p.y, 0.0))
+    xform.AddRotateZOp().Set(float(p.yaw_rad * 180.0 / 3.141592653589793))
+
+    # A static obstacle (no `remove_at_sec`, scheduled to spawn at sim start)
+    # is active from the first frame: `EventScheduler` never wires real
+    # activate/deactivate callbacks in `runner.py` today (it is constructed
+    # with the default no-op callbacks), so an obstacle that the scheduler
+    # would otherwise need to "spawn" at runtime has no way to actually
+    # become visible/collidable yet. Authoring it active here is the
+    # currently-correct behavior for the static, never-removed case this
+    # task needs; an obstacle with `remove_at_sec` set still starts inactive
+    # since the runtime activation path is the one that would need to flip
+    # it, and that path is not wired.
+    prim.GetPrim().SetActive(obs_cfg.spawn_at_sec <= 0.0)
 
 
 def _relative_path(from_dir: Path, to_path: Path) -> Path:

@@ -31,6 +31,19 @@ def component_asset_path(name: str) -> Path:
     return _ASSETS / "warehouse" / f"{name}.usd"
 
 
+def obstacle_asset_path(asset_filename: str) -> Path:
+    """Resolve a `timed_obstacles[].asset` filename to its USD file.
+
+    Args:
+        asset_filename: The `asset` field from a scenario YAML's
+            `timed_obstacles` entry, e.g. `"dynamic_obstacle.usd"`.
+
+    Returns:
+        Path to the asset under `isaac/assets/obstacles/`.
+    """
+    return _ASSETS / "obstacles" / asset_filename
+
+
 def scenario_config_path(name: str) -> Path:
     return _CONFIG / "scenarios" / f"{name}.yaml"
 
