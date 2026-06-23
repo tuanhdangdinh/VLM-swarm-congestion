@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from isaac.vgu_sim.config import ScenarioConfig
+from isaac.vgu_sim.config import AisleBarrierConfig, ScenarioConfig, WarehouseConfig
 from isaac.vgu_sim.marker_asset import author_aruco_marker
 from isaac.vgu_sim.paths import aruco_dict_name, marker_png_path, obstacle_asset_path
 
@@ -17,6 +17,7 @@ def build_scenario_stage(
     config: ScenarioConfig,
     *,
     warehouse_path: Path,
+    warehouse_config: WarehouseConfig,
     robot_asset_path: Path,
     output_path: Path,
 ) -> Path:
@@ -52,6 +53,9 @@ def build_scenario_stage(
     UsdGeom.Xform.Define(stage, "/World/DynamicObstacles")
     for obs in config.timed_obstacles:
         _author_obstacle(stage, obs, output_path.parent)
+
+    if config.aisle_barrier is not None:
+        _author_aisle_barrier(stage, config.aisle_barrier, warehouse_config)
 
     meta = stage.DefinePrim("/World/Scenario/Metadata")
     meta.SetMetadata("customData", {
@@ -125,6 +129,66 @@ def _author_obstacle(stage, obs_cfg, scenario_dir: Path) -> None:
     # since the runtime activation path is the one that would need to flip
     # it, and that path is not wired.
     prim.GetPrim().SetActive(obs_cfg.spawn_at_sec <= 0.0)
+
+
+def _aisle_barrier_geometry(
+    nominal_width_m: float,
+    effective_width_m: float,
+    length_m: float,
+    center_x_m: float,
+) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    """Compute (center_y, half_extent_y, half_extent_x) for the two barrier halves.
+
+    The barriers narrow the aisle's passable width from `nominal_width_m`
+    (the warehouse's full reusable aisle) down to `effective_width_m`,
+    centered on y=0, by occupying the two strips between the effective gap
+    and the nominal aisle edges. Both barriers span `length_m` along x,
+    centered at `center_x_m`.
+
+    Args:
+        nominal_width_m: Full nominal aisle width (e.g. `WarehouseConfig.nominal_aisle_width_m`).
+        effective_width_m: Desired passable gap width after narrowing.
+        length_m: Barrier extent along x.
+        center_x_m: Barrier center along x.
+
+    Returns:
+        `((north_y, north_half_y, half_x), (south_y, south_half_y, half_x))`.
+
+    Raises:
+        ValueError: If `effective_width_m` is not strictly between 0 and `nominal_width_m`.
+    """
+    if not (0.0 < effective_width_m < nominal_width_m):
+        raise ValueError(
+            f"effective_width_m must be in (0, {nominal_width_m}); got {effective_width_m}"
+        )
+    half_nominal = nominal_width_m / 2.0
+    half_effective = effective_width_m / 2.0
+    half_y = (half_nominal - half_effective) / 2.0
+    center_y = (half_nominal + half_effective) / 2.0
+    half_x = length_m / 2.0
+    return (center_y, half_y, half_x), (-center_y, half_y, half_x)
+
+
+def _author_aisle_barrier(
+    stage, barrier_cfg: AisleBarrierConfig, warehouse_config: WarehouseConfig
+) -> None:
+    from pxr import Gf, UsdGeom, UsdPhysics
+
+    (north_y, half_y, half_x), (south_y, _, _) = _aisle_barrier_geometry(
+        warehouse_config.nominal_aisle_width_m,
+        barrier_cfg.effective_width_m,
+        barrier_cfg.length_m,
+        barrier_cfg.center_x_m,
+    )
+    half_h = warehouse_config.wall_height_m / 2.0
+
+    UsdGeom.Xform.Define(stage, "/World/Environment/AisleBarrier")
+    for name, y in [("north", north_y), ("south", south_y)]:
+        cube = UsdGeom.Cube.Define(stage, f"/World/Environment/AisleBarrier/{name}")
+        cube.CreateSizeAttr(2.0)
+        cube.AddTranslateOp().Set(Gf.Vec3f(barrier_cfg.center_x_m, y, half_h))
+        cube.AddScaleOp().Set(Gf.Vec3f(half_x, half_y, half_h))
+        UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
 
 
 def _relative_path(from_dir: Path, to_path: Path) -> Path:

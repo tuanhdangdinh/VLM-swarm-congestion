@@ -26,6 +26,11 @@ robots:
 
 timed_obstacles: []
 
+aisle_barrier:
+  effective_width_m: 0.55
+  center_x_m: 0.0
+  length_m: 0.8
+
 expected_conflict:
   type: deadlock
   involved_robots: [robot_1, robot_2]

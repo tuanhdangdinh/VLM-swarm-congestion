@@ -65,6 +65,27 @@ class TimedObstacleConfig(BaseModel):
         return self
 
 
+class AisleBarrierConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    effective_width_m: float
+    center_x_m: float
+    length_m: float
+
+    @field_validator("effective_width_m")
+    @classmethod
+    def _effective_width_positive(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError(f"effective_width_m must be > 0; got {v}")
+        return v
+
+    @field_validator("length_m")
+    @classmethod
+    def _length_positive(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError(f"length_m must be > 0; got {v}")
+        return v
+
+
 class ExpectedConflictConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     type: Literal["deadlock", "bottleneck", "anomaly"]
@@ -116,6 +137,7 @@ class ScenarioConfig(BaseModel):
     duration_sec: float
     robots: tuple[RobotScenarioConfig, ...]
     timed_obstacles: tuple[TimedObstacleConfig, ...] = ()
+    aisle_barrier: AisleBarrierConfig | None = None
     expected_conflict: ExpectedConflictConfig
     runtime: ScenarioRuntimeOverrides = Field(default_factory=ScenarioRuntimeOverrides)
 
