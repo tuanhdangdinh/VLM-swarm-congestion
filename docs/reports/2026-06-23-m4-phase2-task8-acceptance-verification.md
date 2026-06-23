@@ -499,3 +499,25 @@ above; it cost the early part of this session before being isolated.
   duration_sec` on the host copy). The local worktree copy was never edited.
 - `vgu_ros` container restarted as the final step.
 - No secrets written or logged; no VLM/OpenAI key involved in this run.
+
+## 2026-06-23 — acc_lim_x live-param re-verification
+
+Independent re-check, narrow scope only: confirmed the installed config
+already contained `acc_lim_x: 2.5` (`grep` on
+`/ws/ros2_ws/install/share/swarm_simulation/config/nav2_params.yaml` inside
+`vgu_ros`, no rebuild needed), then brought up
+`head_on_deadlock_task8_obstacle.yaml` headless on host and
+`nav2_robot.launch.py robot_id:=robot_1 x:=-0.6 y:=0.0 yaw:=0.0` in the
+container. Queried the live `/robot_1/controller_server` node directly:
+`FollowPath.acc_lim_x = 2.5`, `FollowPath.decel_lim_x = -2.5`,
+`FollowPath.acc_lim_theta = 3.2`, `FollowPath.decel_lim_theta = -3.2` — all
+match the intended fix, not the old `0.0` regression. `grep -i 'valid
+trajectories'` over the ~45s of controller_server log captured during this
+bringup (controller never driven to a goal) found zero matches — the `"No
+valid trajectories out of 0!"` signature did not reproduce in this window.
+Host Isaac Sim process killed by exact PID (404118, then 404113) after a
+first `kill` attempt failed to terminate it and a `kill -9` was needed;
+`vgu_ros` container restarted as the final step. No goal was driven, no
+tuning attempted — conclusion is limited to: the acc/decel-limit fix is live
+on the running controller. Whether the robot actually reaches its goal under
+DWB critic tuning is a separate, unverified question.
