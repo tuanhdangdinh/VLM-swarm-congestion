@@ -9,12 +9,37 @@ controller_server:
       plugin: "nav2_controller::SimpleProgressChecker"
     general_goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
+      # Default xy_goal_tolerance is 0.25m (verified on host via `ros2 param
+      # get`), looser than this project's 0.15m acceptance bar (Task 8) --
+      # set explicitly so Nav2 itself stops within the bar this project
+      # checks against, rather than risking a spurious "tolerance near-miss"
+      # being misread as a navigation failure.
+      xy_goal_tolerance: 0.1
+      yaw_goal_tolerance: 0.25
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
       max_vel_x: 0.2   # safety.yaml max_linear_velocity_mps cap, NOT the 0.22 mechanical max
       min_vel_x: 0.0
       max_vel_theta: 2.84
       use_stamped_cmd_vel: false   # verified Phase 1: ROS2SubscribeTwist takes plain Twist
+      # acc_lim_x/decel_lim_x/acc_lim_theta/decel_lim_theta -- verified on host
+      # during Task 8 acceptance testing: omitting these resolves to 0.0 in this
+      # Jazzy DWB build (confirmed via `ros2 param get
+      # /robot_1/controller_server FollowPath.acc_lim_x` -> 0.0), not upstream's
+      # documented 2.5 default. With acc_lim_x=0.0 the max velocity reachable
+      # from rest within one control cycle is acc_lim_x * sim_period = 0, so
+      # DWB's trajectory generator produces zero candidate velocity samples
+      # every cycle ("Could not find a legal trajectory: No valid trajectories
+      # out of 0!", every single control loop) and the robot never moves at
+      # all, regardless of path/obstacles. Values below are standard
+      # TurtleBot3 Burger-class limits, not independently tuned for this
+      # footprint. Decel limits must stay negative -- DWB's velocity window
+      # is [v - decel*dt, v + acc*dt], so a positive decel_lim collapses the
+      # window the same way acc_lim=0 did.
+      acc_lim_x: 2.5
+      decel_lim_x: -2.5
+      acc_lim_theta: 3.2
+      decel_lim_theta: -3.2
       # DWB requires an explicit, non-empty critics list (verified on host:
       # "No critics defined for FollowPath" aborts controller_server
       # configure without one) -- not in the brief's pinned snippet, added
@@ -73,6 +98,15 @@ local_costmap:
       # timeout aborts the whole bringup.
       global_frame: "<robot_namespace>/odom"
       robot_base_frame: "<robot_namespace>/base_link"
+      # `rolling_window` defaults to false; without it this 3x3m costmap is
+      # pinned at its initial odom-frame origin instead of following the
+      # robot, so the robot quickly drives off the edge of its own local
+      # costmap ("Robot is out of bounds of the costmap", confirmed on host
+      # during Task 8 acceptance testing) and DWB has no local costmap data
+      # to score trajectories against -- the robot cannot move at all, not
+      # just navigate poorly. Required for any goal beyond a ~1.5m radius of
+      # spawn.
+      rolling_window: true
       width: 3
       height: 3
       resolution: 0.05
@@ -141,6 +175,19 @@ bt_navigator:
 behavior_server:
   ros__parameters:
     use_sim_time: true
+    # Same `<robot_namespace>` substitution rationale as local_costmap/
+    # bt_navigator above (module docstring of nav2_robot.launch.py): verified
+    # on host that these otherwise default to unprefixed "odom"/"base_link",
+    # which transformPoseInTargetFrame can never resolve against this
+    # project's namespace-prefixed /tf tree ("No Transform available...
+    # target_frame does not exist"), aborting every spin/backup recovery
+    # behavior with "Current/Initial robot pose is not available." Recovery
+    # behaviors are not on the primary path-following path, so this did not
+    # block forward motion, but left uncorrected it silently breaks recovery
+    # the first time the controller actually needs it.
+    local_frame: "<robot_namespace>/odom"
+    global_frame: map
+    robot_base_frame: "<robot_namespace>/base_link"
 
 waypoint_follower:
   ros__parameters:
