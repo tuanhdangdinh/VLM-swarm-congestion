@@ -895,6 +895,250 @@ git commit -m "test: M4 Phase 2 Nav2 goal-with-obstacle acceptance test"
 
 ---
 
+## Task 8b — [OFFLINE]+[HOST] Implement the missing `aisle_barrier` mechanism (FR6.5.8) for `head_on_deadlock.yaml`
+
+**Why:** `docs/specs/module6_simulation.md` FR6.5.8 says the head-on scenario "may reference barrier components that narrow a section of the horizontal aisle to an effective width of `0.55 m`. The nominal reusable aisle remains `1.20 m`." This was never implemented — `isaac/vgu_sim/paths.py`'s `component_asset_path("aisle_barrier")` resolves a path that doesn't exist on disk and is wired into nothing. Without it, `head_on_deadlock.yaml`'s two robots have ~0.84m of slack in the `1.2m` aisle and can pass each other without ever forcing the deadlock M2/M3/M5 are meant to detect (per arXiv 2202.11334, forcing a real deadlock needs a passage near single-robot width, ~0.4–0.6m — `0.55m` matches this). This is separate from Task 8's own Nav2 obstacle test (`head_on_deadlock_task8_obstacle.yaml`), which does NOT get this barrier — that test only needs a small avoidable obstacle, and stacking a narrower aisle on top of its still-open DWB critic-tuning stall (see the verification report) could make it unsolvable rather than fixing anything.
+
+**Files:**
+- Modify: `isaac/vgu_sim/config.py`
+- Modify: `isaac/vgu_sim/scenario_builder.py`
+- Modify: `isaac/scripts/build_scenario.py`
+- Modify: `isaac/config/scenarios/head_on_deadlock.yaml`
+- Create: `tests/unit/test_aisle_barrier_geometry.py`
+
+**Interfaces:**
+- Consumes: `WarehouseConfig.nominal_aisle_width_m` (`1.2`, `isaac/vgu_sim/config.py`), `WarehouseConfig.wall_height_m` (`1.2`), the existing `ScenarioConfig` Pydantic model, the existing `UsdGeom.Cube` + `UsdPhysics.CollisionAPI` authoring pattern already used by `warehouse_builder.py`'s `_build_walls`/`_build_rack_blocks` (size=2.0 cube, `AddScaleOp` as half-extents, `AddTranslateOp` as center).
+- Produces: `AisleBarrierConfig` (new Pydantic model), an optional `aisle_barrier: AisleBarrierConfig | None` field on `ScenarioConfig`, a pure function `_aisle_barrier_geometry(nominal_width_m, effective_width_m, length_m, center_x_m) -> tuple[tuple[float, float, float], tuple[float, float, float]]` in `scenario_builder.py` (no `pxr` import — must be unit-testable on a machine without Isaac Sim), and `_author_aisle_barrier(stage, barrier_cfg, warehouse_config)` which calls it.
+
+- [ ] **Step 1: Add `AisleBarrierConfig` to `isaac/vgu_sim/config.py`.** Insert it after `TimedObstacleConfig` and before `ExpectedConflictConfig`:
+
+```python
+class AisleBarrierConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    effective_width_m: float
+    center_x_m: float
+    length_m: float
+
+    @field_validator("effective_width_m")
+    @classmethod
+    def _effective_width_positive(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError(f"effective_width_m must be > 0; got {v}")
+        return v
+
+    @field_validator("length_m")
+    @classmethod
+    def _length_positive(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError(f"length_m must be > 0; got {v}")
+        return v
+```
+
+Add the optional field to `ScenarioConfig` (insert right after the existing `timed_obstacles` field):
+
+```python
+    aisle_barrier: AisleBarrierConfig | None = None
+```
+
+- [ ] **Step 2: Run the existing config tests to confirm nothing broke.**
+
+Run: `pytest tests/unit/test_m6_config.py -v` (or the config test file's actual name — find it via `grep -rl "ScenarioConfig" tests/unit/`)
+Expected: all existing tests still PASS (the new field is optional with a `None` default, so no existing YAML fixture should fail validation).
+
+- [ ] **Step 3: Write the failing test for the pure geometry function.** Create `tests/unit/test_aisle_barrier_geometry.py`:
+
+```python
+import pytest
+
+from isaac.vgu_sim.scenario_builder import _aisle_barrier_geometry
+
+
+def test_aisle_barrier_geometry_centers_gap_on_origin():
+    north, south = _aisle_barrier_geometry(
+        nominal_width_m=1.2, effective_width_m=0.55, length_m=0.8, center_x_m=0.0
+    )
+    north_y, north_half_y, north_half_x = north
+    south_y, south_half_y, south_half_x = south
+
+    assert north_y == pytest.approx(0.4375)
+    assert north_half_y == pytest.approx(0.1625)
+    assert north_half_x == pytest.approx(0.4)
+    assert south_y == pytest.approx(-0.4375)
+    assert south_half_y == pytest.approx(0.1625)
+    assert south_half_x == pytest.approx(0.4)
+
+
+def test_aisle_barrier_geometry_gap_matches_effective_width():
+    nominal_width_m, effective_width_m = 1.2, 0.55
+    (north_y, north_half_y, _), (south_y, south_half_y, _) = _aisle_barrier_geometry(
+        nominal_width_m, effective_width_m, length_m=0.8, center_x_m=0.0
+    )
+    gap_width = (north_y - north_half_y) - (south_y + south_half_y)
+    assert gap_width == pytest.approx(effective_width_m)
+
+
+def test_aisle_barrier_geometry_rejects_effective_width_not_narrower_than_nominal():
+    with pytest.raises(ValueError, match="must be in"):
+        _aisle_barrier_geometry(
+            nominal_width_m=1.2, effective_width_m=1.2, length_m=0.8, center_x_m=0.0
+        )
+    with pytest.raises(ValueError, match="must be in"):
+        _aisle_barrier_geometry(
+            nominal_width_m=1.2, effective_width_m=0.0, length_m=0.8, center_x_m=0.0
+        )
+```
+
+- [ ] **Step 4: Run it to verify it fails.**
+
+Run: `pytest tests/unit/test_aisle_barrier_geometry.py -v`
+Expected: FAIL with `ImportError` or `AttributeError` — `_aisle_barrier_geometry` does not exist yet.
+
+- [ ] **Step 5: Implement `_aisle_barrier_geometry` in `isaac/vgu_sim/scenario_builder.py`.** Add it near the other private helpers (e.g. after `_author_obstacle`), with no `pxr` import so it stays importable and testable without Isaac Sim:
+
+```python
+def _aisle_barrier_geometry(
+    nominal_width_m: float,
+    effective_width_m: float,
+    length_m: float,
+    center_x_m: float,
+) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    """Compute (center_y, half_extent_y, half_extent_x) for the two barrier halves.
+
+    The barriers narrow the aisle's passable width from `nominal_width_m`
+    (the warehouse's full reusable aisle) down to `effective_width_m`,
+    centered on y=0, by occupying the two strips between the effective gap
+    and the nominal aisle edges. Both barriers span `length_m` along x,
+    centered at `center_x_m`.
+
+    Args:
+        nominal_width_m: Full nominal aisle width (e.g. `WarehouseConfig.nominal_aisle_width_m`).
+        effective_width_m: Desired passable gap width after narrowing.
+        length_m: Barrier extent along x.
+        center_x_m: Barrier center along x.
+
+    Returns:
+        `((north_y, north_half_y, half_x), (south_y, south_half_y, half_x))`.
+
+    Raises:
+        ValueError: If `effective_width_m` is not strictly between 0 and `nominal_width_m`.
+    """
+    if not (0.0 < effective_width_m < nominal_width_m):
+        raise ValueError(
+            f"effective_width_m must be in (0, {nominal_width_m}); got {effective_width_m}"
+        )
+    half_nominal = nominal_width_m / 2.0
+    half_effective = effective_width_m / 2.0
+    half_y = (half_nominal - half_effective) / 2.0
+    center_y = (half_nominal + half_effective) / 2.0
+    half_x = length_m / 2.0
+    return (center_y, half_y, half_x), (-center_y, half_y, half_x)
+```
+
+- [ ] **Step 6: Run the test to verify it passes.**
+
+Run: `pytest tests/unit/test_aisle_barrier_geometry.py -v`
+Expected: 3 passed.
+
+- [ ] **Step 7: Add `_author_aisle_barrier` and wire it into `build_scenario_stage`.** In `isaac/vgu_sim/scenario_builder.py`, add the import `from isaac.vgu_sim.config import AisleBarrierConfig, ScenarioConfig, WarehouseConfig` (extend the existing `from isaac.vgu_sim.config import ScenarioConfig` line). Add the function after `_aisle_barrier_geometry`:
+
+```python
+def _author_aisle_barrier(
+    stage, barrier_cfg: AisleBarrierConfig, warehouse_config: WarehouseConfig
+) -> None:
+    from pxr import Gf, UsdGeom, UsdPhysics
+
+    (north_y, half_y, half_x), (south_y, _, _) = _aisle_barrier_geometry(
+        warehouse_config.nominal_aisle_width_m,
+        barrier_cfg.effective_width_m,
+        barrier_cfg.length_m,
+        barrier_cfg.center_x_m,
+    )
+    half_h = warehouse_config.wall_height_m / 2.0
+
+    UsdGeom.Xform.Define(stage, "/World/Environment/AisleBarrier")
+    for name, y in [("north", north_y), ("south", south_y)]:
+        cube = UsdGeom.Cube.Define(stage, f"/World/Environment/AisleBarrier/{name}")
+        cube.CreateSizeAttr(2.0)
+        cube.AddTranslateOp().Set(Gf.Vec3f(barrier_cfg.center_x_m, y, half_h))
+        cube.AddScaleOp().Set(Gf.Vec3f(half_x, half_y, half_h))
+        UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+```
+
+Change `build_scenario_stage`'s signature to accept the warehouse config (it currently only receives a built `warehouse_path`, not the typed config used to build it):
+
+```python
+def build_scenario_stage(
+    config: ScenarioConfig,
+    *,
+    warehouse_path: Path,
+    warehouse_config: WarehouseConfig,
+    robot_asset_path: Path,
+    output_path: Path,
+) -> Path:
+```
+
+After the existing `for obs in config.timed_obstacles: _author_obstacle(...)` loop, add:
+
+```python
+    if config.aisle_barrier is not None:
+        _author_aisle_barrier(stage, config.aisle_barrier, warehouse_config)
+```
+
+- [ ] **Step 8: Update `isaac/scripts/build_scenario.py`'s call site.** It currently calls `build_scenario_stage(config, warehouse_path=warehouse_asset_path(), robot_asset_path=robot_asset_path(), output_path=output)`. Add the import `from isaac.vgu_sim.config import ScenarioConfig, WarehouseConfig` (extend the existing `from isaac.vgu_sim.config import ScenarioConfig` line) and pass `warehouse_config=WarehouseConfig()` — this matches `build_warehouse.py`'s own `WarehouseConfig()` default, since there is only one base warehouse build in this pipeline and it always uses defaults:
+
+```python
+        result = build_scenario_stage(
+            config,
+            warehouse_path=warehouse_asset_path(),
+            warehouse_config=WarehouseConfig(),
+            robot_asset_path=robot_asset_path(),
+            output_path=output,
+        )
+```
+
+- [ ] **Step 9: Check for other callers of `build_scenario_stage` that also need the new required keyword.** Run `grep -rn "build_scenario_stage(" --include="*.py" .` and update every call site found (likely also `tests/unit/test_m6_scenario_builder.py` or similar — find the exact file via the grep) to pass `warehouse_config=WarehouseConfig()` (or a test-specific `WarehouseConfig(...)` instance if the existing test constructs one).
+
+- [ ] **Step 10: Add `aisle_barrier` to `isaac/config/scenarios/head_on_deadlock.yaml`.** Append after the existing `timed_obstacles: []` line:
+
+```yaml
+aisle_barrier:
+  effective_width_m: 0.55
+  center_x_m: 0.0
+  length_m: 0.8
+```
+
+`center_x_m: 0.0` centers the barrier at the aisle's midpoint, between `robot_1`'s spawn (`x=-0.6`) and `robot_2`'s spawn (`x=0.6`) — both robots must cross the narrowed section to reach each other, which is where the deadlock is meant to occur.
+
+- [ ] **Step 11: Run the full config/scenario unit test suite.**
+
+Run: `pytest tests/unit/ -k "scenario or config or aisle_barrier" -v`
+Expected: all PASS, including the new geometry tests.
+
+- [ ] **Step 12: Commit the offline portion.**
+
+```bash
+git add isaac/vgu_sim/config.py isaac/vgu_sim/scenario_builder.py isaac/scripts/build_scenario.py isaac/config/scenarios/head_on_deadlock.yaml tests/unit/test_aisle_barrier_geometry.py
+git commit -m "feat: implement FR6.5.8 aisle_barrier for head_on_deadlock scenario"
+```
+
+- [ ] **Step 13: [HOST] Rebuild `head_on_deadlock.usd` and verify the barrier geometry on the real stage.** On the GCP host, inside Isaac Sim's Python environment:
+
+```bash
+${ISAAC_SIM_ROOT}/python.sh -m isaac.scripts.build_warehouse
+${ISAAC_SIM_ROOT}/python.sh -m isaac.scripts.build_scenario --config isaac/config/scenarios/head_on_deadlock.yaml
+```
+
+Then, in a Python session with `pxr` available (e.g. via `isaacsim.SimulationApp` headless, matching the pattern in `build_scenario.py`), open the built stage and confirm:
+- `/World/Environment/AisleBarrier/north` and `/World/Environment/AisleBarrier/south` prims exist with `UsdPhysics.CollisionAPI` applied.
+- Their translate/scale values match the computed geometry (`north` at `y≈0.4375`, `south` at `y≈-0.4375`, both with `half_y≈0.1625`, `half_x=0.4`, `half_h=0.6`).
+- `/World/Environment/RackBlocks/*` and `/World/Environment/Walls/*` (the existing `1.2m`-aisle geometry, built by `build_warehouse.py`) are unchanged — confirm by checking their translate/scale values still match the pre-barrier build (the barrier lives in the per-scenario stage, sublayered on top of, not replacing, the shared base warehouse).
+
+Record the exact values observed in a short append to `.superpowers/sdd/progress.md` (do not write a full report file for this — a few lines confirming the geometry matches is sufficient; this is a verification step, not a new investigation).
+
+- [ ] **Step 14: Commit the host verification note if `.superpowers/sdd/progress.md` was updated.** (This file is git-ignored scratch per the subagent-driven-development skill — no commit needed for it. Skip this step if no other files changed.)
+
+---
+
 ## Task 9 — [HOST] Extend to `robot_2` — confirm multi-robot namespacing
 
 **Files:**
