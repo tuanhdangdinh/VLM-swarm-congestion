@@ -56,6 +56,16 @@ controller_server:
       max_speed_xy: 0.2
       min_speed_xy: 0.0
       min_speed_theta: 0.0
+      # DWB's RotateToGoal gate uses FollowPath.xy_goal_tolerance, not the
+      # SimpleGoalChecker's tolerance above. Leaving it unset defaults to
+      # 0.25m (confirmed live via `ros2 param get`), so DWB switches to
+      # rotate-in-place while the robot is still outside this project's 0.1m
+      # goal checker tolerance and cannot finish the last 0.13-0.15m. Also
+      # keep trans_stopped_velocity below max_vel_x: the Jazzy default 0.25
+      # is higher than this robot's 0.2m/s safety cap, so RotateToGoal treats
+      # every translational command as "stopped".
+      xy_goal_tolerance: 0.1
+      trans_stopped_velocity: 0.05
       # DWB requires an explicit, non-empty critics list (verified on host:
       # "No critics defined for FollowPath" aborts controller_server
       # configure without one) -- not in the brief's pinned snippet, added
@@ -132,7 +142,14 @@ local_costmap:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         observation_sources: scan
         scan:
-          topic: scan
+          # Costmap nodes run under an extra `/<robot_id>/local_costmap` or
+          # `/<robot_id>/global_costmap` namespace, so a relative `scan`
+          # resolves to `/robot_1/local_costmap/scan` rather than Isaac's
+          # actual lidar topic `/robot_1/scan` (confirmed on host via
+          # `ros2 node info /robot_1/local_costmap/local_costmap`). Use the
+          # same frame-id substitution token as above, but with a leading
+          # slash because this is an absolute topic name, not a tf frame.
+          topic: "/<robot_namespace>/scan"
           max_obstacle_height: 2.0
           obstacle_max_range: 3.5
       # inflation_layer.plugin not in the brief's pinned snippet; required --
@@ -176,7 +193,9 @@ global_costmap:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         observation_sources: scan
         scan:
-          topic: scan
+          # See the local_costmap obstacle layer above: this must resolve to
+          # Isaac's robot lidar topic, not a nested costmap-local `scan`.
+          topic: "/<robot_namespace>/scan"
           max_obstacle_height: 2.0
           obstacle_max_range: 3.5
       inflation_layer:
