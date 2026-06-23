@@ -28,7 +28,7 @@ class _FakeActionClient:
 @pytest.fixture
 def adapter():
     a = Nav2Adapter.__new__(Nav2Adapter)  # bypass rclpy Node.__init__ in this offline test
-    a._clients = {}
+    a._goal_clients = {}
     a._active_goals = {}
     a._make_client = lambda robot_id, action_name: _FakeActionClient()
     return a
@@ -36,7 +36,7 @@ def adapter():
 
 def test_send_goal_creates_one_client_per_robot(adapter):
     adapter.send_goal("robot_1", x=1.0, y=2.0, yaw=0.0)
-    assert "robot_1" in adapter._clients
+    assert "robot_1" in adapter._goal_clients
 
 
 def test_send_goal_preempts_previous_goal(adapter):

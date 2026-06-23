@@ -66,7 +66,19 @@ class Nav2Adapter(Node):
 
     def __init__(self) -> None:
         super().__init__("nav2_adapter")
-        self._clients: dict[str, ActionClient] = {}
+        # Named `_goal_clients`, not `_clients`: `rclpy.node.Node.__init__` already
+        # owns a private `self._clients` list (its own service-client bookkeeping,
+        # consumed by the executor's `node.clients` property). Naming this dict
+        # `_clients` silently overwrote that list with our dict -- invisible until
+        # an executor spins this node with a real action client and a subscription
+        # both present, at which point `node.clients` (`yield from self._clients`)
+        # yields our dict's *keys* (robot_id strings) instead of `Client` objects,
+        # and the executor's `can_execute(entity)` crashes with
+        # `AttributeError: 'str' object has no attribute '_executor_event'`. The
+        # existing unit tests never caught this: they build the adapter via
+        # `Nav2Adapter.__new__(Nav2Adapter)` to bypass `Node.__init__` entirely, so
+        # the collision never occurred in that offline path.
+        self._goal_clients: dict[str, ActionClient] = {}
         self._waypoint_clients: dict[str, ActionClient] = {}
         self._active_goals: dict[str, object] = {}
 
@@ -79,7 +91,7 @@ class Nav2Adapter(Node):
         if robot_id in self._active_goals:
             self._active_goals[robot_id].cancel_goal_async()
 
-        client = self._clients.setdefault(robot_id, self._make_client(robot_id, "navigate_to_pose"))
+        client = self._goal_clients.setdefault(robot_id, self._make_client(robot_id, "navigate_to_pose"))
         goal_msg = NavigateToPose.Goal()
         goal_msg.pose.header.frame_id = "map"
         goal_msg.pose.pose.position.x = x
@@ -87,6 +99,14 @@ class Nav2Adapter(Node):
         goal_msg.pose.pose.orientation.z, goal_msg.pose.pose.orientation.w = _yaw_to_quat_zw(yaw)
 
         future = client.send_goal_async(goal_msg)
+        # `Future.result()` never blocks -- it returns whatever is currently set,
+        # `None` if the future hasn't resolved yet. `send_goal_async` only queues
+        # the request; nothing resolves it until this node is spun. The real
+        # `rclpy` path spins here explicitly; the offline `rclpy is None` stand-in
+        # (no ROS2 install) has no executor to spin, so the fake future in tests
+        # already has its result set synchronously and this call is a no-op there.
+        if rclpy is not None:
+            rclpy.spin_until_future_complete(self, future, timeout_sec=10.0)
         handle = future.result()
         self._active_goals[robot_id] = handle
         return handle
@@ -101,6 +121,8 @@ class Nav2Adapter(Node):
             pose = _pose_at(x, y)
             goal_msg.poses.append(pose)
         future = client.send_goal_async(goal_msg)
+        if rclpy is not None:
+            rclpy.spin_until_future_complete(self, future, timeout_sec=10.0)
         handle = future.result()
         self._active_goals[robot_id] = handle
         return handle
