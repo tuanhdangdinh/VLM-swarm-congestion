@@ -40,6 +40,22 @@ controller_server:
       decel_lim_x: -2.5
       acc_lim_theta: 3.2
       decel_lim_theta: -3.2
+      # max_speed_xy/min_speed_xy -- verified on host during Task 8 DWB tuning:
+      # upstream nav2_dwb_controller's kinematic_parameters.cpp declares these
+      # with a literal 0.0 default (confirmed by reading the declare_or_get_parameter
+      # calls), NOT a "disabled" sentinel like -1.0. KinematicParameters::isValidSpeed()
+      # activates its check whenever max_speed_xy_ >= 0.0, so the unset 0.0 default
+      # makes EVERY candidate trajectory with hypot(vx,vy) > 0 fail validation before
+      # scoring -- independent of acc_lim_x/critic weights. Confirmed by capturing
+      # /robot_1/evaluation (dwb_msgs/LocalPlanEvaluation) live during an active goal:
+      # all 20 candidate twists in every message had vx=0.0 exactly, never positive,
+      # with acc_lim_x=2.5 and a straight clear path already confirmed live --
+      # generation, not scoring, was the actual defect. Set to match max_vel_x so the
+      # xy speed cap is consistent with the existing linear velocity limit instead of
+      # silently overriding it to zero.
+      max_speed_xy: 0.2
+      min_speed_xy: 0.0
+      min_speed_theta: 0.0
       # DWB requires an explicit, non-empty critics list (verified on host:
       # "No critics defined for FollowPath" aborts controller_server
       # configure without one) -- not in the brief's pinned snippet, added
