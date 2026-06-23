@@ -1,0 +1,342 @@
+# M4 Phase 2 — Task 8 Host Verification Report (Nav2 goal-with-obstacle acceptance)
+
+**Date:** 2026-06-23
+**Plan:** `docs/superpowers/plans/2026-06-21-m4-phase2-nav2-stack.md` (Task 8)
+**Spec:** `docs/specs/module4/phase2-nav2-stack.md` §8
+**GCP host:** Ubuntu 22.04, Isaac Sim 6.0 at `/home/ubuntu/IsaacSim`, `ros:jazzy`
+container `vgu_ros`
+**Scenario:** `head_on_deadlock_task8_obstacle.yaml` (single robot `robot_1`,
+one static obstacle `task8_static_blocker` at `pose: {x: 0.7, y: 0.0}`)
+
+---
+
+## Headline
+
+**RESULT: BLOCKED on a real Nav2/DWB navigation defect — the robot does not
+reach the goal.** Two real, load-bearing bugs were found and fixed during this
+session (an `Nav2Adapter` attribute-shadowing crash, and a `nav2_params.yaml`
+DWB kinematic-limits omission that zeroed every acceleration limit). After
+both fixes, the robot moves for the first time in this phase, but stalls
+~0.33 m from spawn — well short of the obstacle at `x=0.7` — and the
+`navigate_to_pose` goal is eventually aborted by `bt_navigator` after
+repeated `controller_server` "Failed to make progress" errors. The
+obstacle-avoidance question this acceptance test was designed to answer
+(does DWB deviate around the obstacle vs. drive through it) was **not
+reached** — the robot never approaches the obstacle's `x`-range.
+
+This is reported as the actual Task 8 finding, not a tuning loop outcome.
+
+---
+
+## Result table
+
+| Check | Measured | Bar | Verdict |
+|---|---|---|---|
+| Obstacle collision geometry sane | `PhysicsCollisionAPI` present, footprint 0.3×0.3×0.5 m, centered (0.7, 0.0); aisle half-width 0.6 m leaves ~0.45 m clearance per side | plausible for TurtleBot3 Burger (0.09 m footprint half-width) | ✅ sane, never exercised |
+| Goal reached within 0.15 m | Not reached — final position `(-0.27, -0.20)`, distance to goal `(2.0, 0.0)` ≈ 2.28 m | < 0.15 m | ❌ FAIL |
+| Obstacle avoided vs. driven through vs. stuck | **Stuck** — robot never leaves a ~0.33 m × 0.20 m neighborhood of spawn; never reaches obstacle's `x`-range `[0.3, 1.1]` | avoided | ❌ Not exercised (never approached) |
+| `/robot_1/scan` clean under motion | Front sector (idx 180, dead ahead) reads the obstacle correctly at 1.17–1.25 m; no near-zero (`<0.13 m`) phantom returns anywhere in the ring during the captured motion windows | no phantom self-returns | ✅ clean |
+| `cmd_vel_nav → cmd_vel → cmd_vel_safe` chain | Confirmed end-to-end: identical `Twist` (e.g. `angular.z=-0.149`) observed simultaneously on all three topics | chain intact | ✅ |
+| `Nav2Adapter.send_goal` works against a live action server | Fixed mid-session (see Finding 1) — now blocks until accepted | works | ✅ (after fix) |
+
+---
+
+## What was verified, and why each check matters
+
+Task 8 (spec §8) is the Phase 2 acceptance test: a single `NavigateToPose`
+goal should drive `robot_1` to within 0.15 m of `(2.0, 0.0)` with a static
+obstacle on the direct path, and the local planner should deviate around it
+rather than drive through it or get stuck. The obstacle (`dynamic_obstacle.usd`
+asset, scenario `head_on_deadlock_task8_obstacle.yaml`) sits at `(0.7, 0.0)`,
+between `robot_1`'s spawn (`x=-0.6`) and the goal (`x=2.0`), on the
+spawn-to-goal centerline.
+
+Verification used `Nav2Adapter` directly (per the project's M4 design rule
+that it is the only component permitted to talk to Nav2's action server) —
+`send_goal("robot_1", 2.0, 0.0, 0.0)` against the real `/robot_1/navigate_to_pose`
+action server brought up by `nav2_robot.launch.py`, with a host-side Python
+process spinning the adapter's own node and recording `/robot_1/odom`,
+`/robot_1/scan`, and the three `cmd_vel*` topics directly (no mocks).
+
+---
+
+## Findings
+
+### 1. `Nav2Adapter.send_goal` crashed on first real-node use — `self._clients` shadowed `rclpy.node.Node`'s own private attribute
+
+**Discovery:** Calling `adapter.send_goal(...)` on a real (non-test-double)
+`Nav2Adapter` instance with at least one `create_subscription` also present on
+the node crashed every subsequent `rclpy.spin_once`/`spin_until_future_complete`
+call with:
+
+```
+AttributeError: 'str' object has no attribute '_executor_event'
+  File ".../rclpy/executors.py", line 621, in can_execute
+    return not entity._executor_event and entity.callback_group.can_execute(entity)
+```
+
+**Root cause:** `rclpy.node.Node.__init__` initializes its own private
+bookkeeping list `self._clients: List[Client] = []` (consumed by the
+executor's `node.clients` property, `yield from self._clients`).
+`Nav2Adapter.__init__` (Task 7) named its own per-robot action-client cache
+`self._clients: dict[str, ActionClient] = {}` — identical attribute name,
+silently overwriting `Node`'s list with a dict. The first `send_goal` call
+does `self._clients.setdefault(robot_id, ...)`, which stores the dict key
+`"robot_1"` into what the executor believes is a list of `Client` objects.
+The next `spin`/`spin_once` call iterates `node.clients` expecting `Client`
+instances and instead gets the literal string `"robot_1"`, crashing on
+`entity._executor_event`.
+
+**Why it was never caught:** `tests/unit/test_nav2_adapter.py`'s fixture
+builds the adapter via `Nav2Adapter.__new__(Nav2Adapter)`, deliberately
+bypassing `Node.__init__` to stay offline-testable without a sourced ROS 2
+install. That bypass means `Node.__init__`'s `self._clients = []` never runs
+in the test suite, so the name collision is structurally invisible there — it
+only manifests when a real `Node.__init__` runs and the node is actually
+spun, which is exactly the live-host path Task 8 exercises for the first time.
+
+**Fix:** Renamed `Nav2Adapter`'s dict to `self._goal_clients` (confirmed not a
+`Node` attribute). Updated `tests/unit/test_nav2_adapter.py`'s fixture and
+assertion to match. All 4 unit tests still pass.
+
+### 2. `Nav2Adapter.send_goal`/`send_waypoints` never spun the node, so `future.result()` always returned `None`
+
+**Discovery:** Even after fixing Finding 1, `adapter.send_goal(...)` returned
+`None` immediately, even though the action server was live and ready.
+
+**Root cause:** `rclpy.task.Future.result()` is non-blocking — it returns
+whatever is currently set, `None` if the future has not resolved.
+`send_goal_async` only enqueues the goal request; nothing resolves the future
+until the node is spun. The original code called `future.result()`
+immediately after `send_goal_async`, with no spin in between.
+
+**Fix:** Added `rclpy.spin_until_future_complete(self, future, timeout_sec=10.0)`
+before reading `future.result()` in both `send_goal` and `send_waypoints`,
+guarded by `if rclpy is not None` so the offline (`rclpy` unavailable) test
+double path is unaffected — the fake future's `result()` is already
+synchronously set in that path, so the guard is a no-op there and a real
+resolve on the host.
+
+### 3. `nav2_params.yaml`'s DWB `FollowPath` block omitted all acceleration/deceleration limits, which resolved to `0.0`, not Nav2's documented `2.5` default
+
+**Discovery:** After fixing Findings 1–2, `Nav2Adapter.send_goal` worked, but
+the controller logged, every control cycle, from a stationary robot:
+
+```
+[controller_server-4] [ERROR] ... Could not find a legal trajectory: No valid trajectories out of 0!
+```
+
+`ros2 param get /robot_1/controller_server FollowPath.acc_lim_x` returned
+`0.0`, confirmed for `decel_lim_x`, `acc_lim_theta`, `decel_lim_theta`,
+`acc_lim_y`, `decel_lim_y` as well — all zero. The original
+`nav2_params.yaml` `FollowPath` block (Task 6) set `max_vel_x`, `min_vel_x`,
+`max_vel_theta`, `use_stamped_cmd_vel`, and the critics list/scales, but never
+set any acceleration limit. In this installed Jazzy DWB build, the unset
+params resolve to `0.0`, not upstream's commonly-cited `2.5` default.
+
+**Consequence:** With `acc_lim_x = 0.0`, the maximum velocity reachable from
+rest within one control cycle (`acc_lim_x * sim_period`) is exactly zero, so
+DWB's trajectory generator produces zero velocity samples every cycle — the
+robot can never move, independent of the path or the obstacle.
+
+**Fix:** Added explicit `acc_lim_x: 2.5`, `decel_lim_x: -2.5`,
+`acc_lim_theta: 3.2`, `decel_lim_theta: -3.2` (standard TurtleBot3
+Burger-class limits, not independently tuned for this project's footprint;
+decel limits kept negative — a positive decel re-collapses the velocity
+window the same way `acc_lim=0` did).
+
+### 4. `general_goal_checker.xy_goal_tolerance` defaulted to 0.25 m, looser than this project's 0.15 m acceptance bar
+
+**Discovery:** `nav2_params.yaml`'s `general_goal_checker` block set only
+`plugin:`, leaving `xy_goal_tolerance` at Nav2's upstream default of 0.25 m.
+
+**Consequence (latent, not yet triggered):** Had the robot reached the goal
+neighborhood, Nav2 would have legitimately stopped within 0.25 m while this
+project's own acceptance bar checks 0.15 m — a tolerance-config near-miss
+that would have read as a navigation failure when it was actually a
+configuration mismatch.
+
+**Fix:** Added `xy_goal_tolerance: 0.1` and `yaw_goal_tolerance: 0.25`
+explicitly under `general_goal_checker`, so Nav2 itself stops inside the bar
+this project checks against.
+
+### 5. `behavior_server` frame parameters defaulted to unprefixed `odom`/`base_link`, breaking recovery behaviors
+
+**Discovery:** Every `spin`/`backup` recovery attempt logged:
+
+```
+[behavior_server-8] [ERROR] [transformPoseInTargetFrame]: No Transform available
+Error looking up target frame: "odom" ... does not exist.
+[behavior_server-8] [ERROR] ...: Current/Initial robot pose is not available.
+```
+
+**Root cause:** Unlike `local_costmap`/`global_costmap`/`bt_navigator`, the
+`behavior_server` block in `nav2_params.yaml` (Task 6) only set
+`use_sim_time`, leaving `local_frame`/`global_frame`/`robot_base_frame` at
+their library defaults (`odom`, `map`, `base_link` — unprefixed). This
+project's Isaac bridge publishes one shared `/tf` topic with namespace-prefixed
+frame_ids (e.g. `robot_1/odom`), so an unprefixed `odom` lookup can never
+resolve, and every recovery behavior aborts immediately with "pose not
+available."
+
+**Impact on this run:** Not the primary blocker (the controller fails before
+recovery is needed to matter), but every `spin`/`backup` recovery the BT tree
+attempted during this run failed for this reason, removing any chance that a
+recovery behavior could have unstuck the robot.
+
+**Fix:** Added `local_frame: "<robot_namespace>/odom"`, `global_frame: map`,
+`robot_base_frame: "<robot_namespace>/base_link"` to the `behavior_server`
+block, using the same `<robot_namespace>` substitution convention as
+`local_costmap`/`bt_navigator`.
+
+### 6. The robot still does not reach the goal after all four fixes above — real, unresolved navigation defect
+
+**Observed:** With Findings 1–5 fixed and a fresh `nav2_robot.launch.py`
+relaunch confirming all four parameter changes took effect
+(`acc_lim_x=2.5`, `xy_goal_tolerance=0.1`, `behavior_server.local_frame=robot_1/odom`),
+a 150-second observation window was captured via `Nav2Adapter.send_goal`
+followed by continuous `rclpy.spin_once` polling of `/robot_1/odom`:
+
+```
+t=0.2s   odom=(-0.270, -0.200)
+t=10.2s  odom=(-0.271, -0.200)
+...                                  (odom essentially frozen)
+t=140.3s odom=(-0.270, -0.196)
+Did not reach goal within 150s
+x range: [-0.2712, -0.2683]   y range: [-0.2001, -0.1961]
+```
+
+The robot moved from spawn `(-0.6, 0.0)` to approximately `(-0.27, -0.20)` —
+roughly 0.33 m forward and 0.20 m laterally — then stayed there for the
+remaining ~140 s. `controller_server`'s log for this window shows a repeating
+pattern: `planner_server` produces a fresh global plan (`"Passing new path to
+controller"`, roughly once per second), the controller follows it briefly,
+then `SimpleProgressChecker` fires (`"Failed to make progress"` — confirmed
+via `ros2 param get`: `required_movement_radius=0.5`, `movement_time_allowance=10.0`,
+i.e. it requires 0.5 m of net movement within any 10 s window), the
+`follow_path` action aborts, a `spin` recovery runs (which itself partially
+fails per Finding 5's residual `local_frame` lookups during this exact run —
+the fix was deployed for the *next* relaunch, not this one — see Limitations
+below), and the cycle repeats until `bt_navigator` gives up entirely
+(`"Goal failed"`).
+
+The robot's actual displacement (0.33 m over 150 s) never gets close to
+`SimpleProgressChecker`'s 0.5 m/10 s bar, and the robot never reaches the
+obstacle's `x`-range (`[0.3, 1.1]`), so **the obstacle-avoidance behavior
+this acceptance test exists to check was never exercised.**
+
+**Root cause not isolated.** The `cmd_vel_nav → cmd_vel → cmd_vel_safe` chain
+was independently confirmed intact (identical non-zero `Twist` observed
+simultaneously on all three topics during an active goal), so the velocity
+command is reaching the watchdog relay and, presumably, the drive graph. The
+DWB acceleration-limit defect (Finding 3) is fixed and confirmed live. The
+local costmap's actual cost values directly ahead of the robot could not be
+captured in this session (the `local_costmap/costmap` topic — `TRANSIENT_LOCAL`
+durability, confirmed via `ros2 topic info --verbose` — produced zero samples
+to every subscriber tried, including the ROS 2 CLI itself with explicitly
+matching QoS flags; this is recorded as an open question, not resolved). The
+most likely remaining hypotheses, neither confirmed:
+
+- DWB's critic balance (`PathAlign.scale: 32`, `GoalAlign.scale: 24`,
+  `PathDist.scale: 32`, `GoalDist.scale: 24`, `RotateToGoal.scale: 32`,
+  `BaseObstacle.scale: 0.02`) may favor low/zero-net-displacement trajectories
+  over forward progress in this narrow 1.2 m aisle, independent of any
+  obstacle — these weights were copied from a generic upstream reference
+  params file (Task 6's own comment: "not independently tuned for this
+  footprint") and never validated against an actual drive.
+- The local costmap's default `inflation_radius` (0.55 m, confirmed via
+  `ros2 param get`) combined with the aisle's real wall distance
+  (`~0.58–0.65 m`, confirmed via a raw `/robot_1/scan` ring scan at idx ~85–93
+  and ~267–268, i.e. ±87–119° from straight ahead) may be flooding enough of
+  the local costmap with inflated cost that few or no forward trajectories
+  score better than holding position — this is exactly the hypothesis the
+  costmap-cost-grid read (blocked above) was meant to confirm or rule out.
+
+### Aside: `--duration-sec` CLI flag on `isaac/scripts/run_simulation.py` is dead code
+
+While iterating, every `run_simulation` invocation shut down at the scenario
+YAML's own `duration_sec` (300 s), regardless of what `--duration-sec` was
+passed on the CLI (280, 600, 1800, and 3600 were all tried; every run shut
+down at the same internal-timer mark, ~1080–1090s, consistent with 300 sim-s
+at this host's ~3.6x real-time slowdown for headless RTX lidar + physics).
+`run_simulation.py`'s `main()` validates `args.duration_sec` (`> 0` or exits)
+but never passes it into `ResolvedRunConfig` — `ResolvedRunConfig` has no
+`duration_sec` field at all; only `config.scenario.runtime.duration_sec or
+config.scenario.duration_sec` (read straight from the YAML) governs the loop
+in `runner.run_repetition`. Worked around for this session by temporarily
+editing the scenario YAML's `duration_sec` to 1500.0, then restoring it to
+300.0 before the final build and commit. Flagged here as a real, separate dead-code
+bug, out of scope to fix in this acceptance-test session.
+
+---
+
+## What was changed (this session)
+
+### Production code
+- `ros2_ws/src/swarm_execution/swarm_execution/nav2_adapter.py` — Finding 1
+  fix (`self._clients` → `self._goal_clients`) and Finding 2 fix
+  (`rclpy.spin_until_future_complete` before reading `future.result()`).
+- `tests/unit/test_nav2_adapter.py` — updated fixture/assertion for the
+  Finding 1 rename. All 4 tests still pass.
+- `ros2_ws/src/swarm_simulation/config/nav2_params.yaml` — Findings 3–5 fixes
+  (DWB acceleration limits, goal tolerance, `behavior_server` frames), plus
+  the already-inherited `rolling_window: true` fix from a prior session.
+
+### Scenario authoring (inherited, confirmed correct, unchanged this session)
+- `isaac/vgu_sim/paths.py` — `obstacle_asset_path()`.
+- `isaac/vgu_sim/scenario_builder.py` — `_author_obstacle()` authors the
+  static obstacle prim active; confirmed live on host
+  (`prim.IsActive() == True`, `PhysicsCollisionAPI` present, footprint
+  0.3×0.3×0.5 m via `Usd.Stage.Open` + `UsdGeom.Cube`/`UsdPhysics` inspection).
+- `isaac/config/scenarios/head_on_deadlock_task8_obstacle.yaml` — confirmed
+  unchanged content (`duration_sec: 300.0` restored after a temporary local
+  edit to 1500.0 used only for this session's diagnostics, never committed).
+
+### This report
+- `docs/reports/2026-06-23-m4-phase2-task8-acceptance-verification.md`.
+
+---
+
+## Carry-forward
+
+1. **Costmap-cost introspection is the next concrete step**, not further
+   critic tuning by trial and error. Subscribe to
+   `/robot_1/local_costmap/costmap` with a node that survives long enough and
+   confirm whether cells directly ahead of the robot's spawn are lethal
+   (≥253) or clear (<100). If lethal, `inflation_radius` is the lead
+   suspect — this project's 1.2 m nominal aisle width is narrower than many
+   upstream Nav2 examples assume, and the 0.55 m default was never reviewed
+   against it.
+2. **If the costmap is clear and the robot still won't move forward**, the
+   DWB critic weights (copied verbatim from a generic reference file, never
+   tuned for this footprint per Task 6's own comment) need real iteration —
+   that is a tuning task, not a bug-fix task, and should get its own planned
+   session rather than be folded into an acceptance-test session.
+3. **Fix the dead `--duration-sec` CLI flag** in `isaac/scripts/run_simulation.py`
+   (either wire it into `ResolvedRunConfig`/`run_repetition`, or remove the
+   flag and document that scenario duration is YAML-only) — it cost
+   significant session time before being correctly diagnosed.
+4. Task 8's obstacle-avoidance/clearance question (this scenario's original
+   purpose) remains **untested** — the robot never reached the obstacle's
+   position. Re-run Task 8's acceptance check once the robot can actually
+   complete a drive across the aisle.
+
+---
+
+## Security / cleanup
+
+- All ephemeral diagnostic scripts (`/tmp/drive_task8_goal.py`,
+  `/tmp/debug_nav2.py`, `/tmp/minimal_repro*.py`, `/tmp/scan_dump*.py`,
+  `/tmp/costmap_dump*.py`, `/tmp/full_diag*.py`, `/tmp/long_drive.py`) removed
+  from both the host and the `vgu_ros` container.
+- The scenario YAML's temporary `duration_sec: 1500.0` diagnostic edit was
+  restored to `300.0` before the final on-host scenario rebuild and before
+  this report's local commit — confirmed via `grep duration_sec` on both the
+  local working tree and the host copy.
+- `isaac/scenarios/head_on_deadlock.usd` (the canonical, non-Task-8 build
+  artifact) was rebuilt from `head_on_deadlock.yaml` after the Task 8 build
+  overwrote it, per that scenario file's own documented behavior.
+- No stray Isaac Sim or `nav2_robot.launch.py` processes left running; the
+  `vgu_ros` container was restarted (clears all per-session Nav2 process
+  trees) as the final step.
+- No secrets written or logged; no VLM/OpenAI key involved in this run.
