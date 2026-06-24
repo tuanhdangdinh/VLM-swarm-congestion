@@ -591,3 +591,90 @@ published. This smoke verifies the Jazzy Nav2 stack/launch/config path, not
 closed-loop navigation. The next host verification must run Isaac Sim with
 `ROS_DISTRO=jazzy` and the DDS UDP profile so `/clock`, `/tf`, `/robot_1/odom`,
 and `/robot_1/scan` are present while Nav2 activates.
+
+---
+
+## 12. Verified multi-robot namespacing
+
+Both robots' Nav2 stacks and /scan topics confirmed independent under
+simultaneous bringup. No cross-robot costmap contamination observed.
+
+Verified on 2026-06-24 on the GCP host (`vgu_ros` Jazzy container, Isaac Sim
+headless, `head_on_deadlock` scenario — two robots, robot_1 at `x=-0.6, yaw=0`,
+robot_2 at `x=0.6, yaw=π`).
+
+### Step 1 — Simultaneous bringup
+
+Isaac Sim started with the canonical `head_on_deadlock.yaml` (rebuilt USD to
+restore robot_2, which had been overwritten by the Task 8 single-robot USD):
+`DEBUG wired 2 RTX lidar sensor(s)` confirmed both robots' OmniGraph + RTX
+lidar sensors wired.
+
+Both Nav2 stacks launched in the container simultaneously:
+
+```bash
+ros2 launch swarm_simulation nav2_robot.launch.py robot_id:=robot_1 x:=-0.6 y:=0.0 yaw:=0.0 &
+ros2 launch swarm_simulation nav2_robot.launch.py robot_id:=robot_2 x:=0.6 y:=0.0 yaw:=3.14159265 &
+```
+
+Action servers confirmed:
+
+```
+ros2 action list | grep navigate_to_pose
+/robot_1/navigate_to_pose
+/robot_2/navigate_to_pose
+```
+
+Scan topics confirmed independently publishing:
+
+```
+ros2 topic list | grep scan
+/robot_1/scan
+/robot_2/scan
+```
+
+### Step 2 — Independent costmap scan wiring (no cross-contamination)
+
+`ros2 node info /robot_1/local_costmap/local_costmap` showed:
+
+```
+Subscribers:
+  /robot_1/scan: sensor_msgs/msg/LaserScan
+```
+
+`ros2 node info /robot_2/local_costmap/local_costmap` showed:
+
+```
+Subscribers:
+  /robot_2/scan: sensor_msgs/msg/LaserScan
+```
+
+`ros2 node info` on both global costmaps confirmed:
+
+```
+/robot_1/global_costmap/global_costmap → Subscribers: /robot_1/scan
+/robot_2/global_costmap/global_costmap → Subscribers: /robot_2/scan
+```
+
+Neither costmap subscribes to the other robot's scan — no cross-contamination.
+
+### Step 3 — Simultaneous goals accepted
+
+Goals sent simultaneously to opposite sides of the aisle
+(robot_1 east to `x=3.0`, robot_2 west to `x=-3.0`):
+
+```
+robot_1: Goal accepted with ID: b45867d3857f43cca9026ef425d44f0c
+robot_2: Goal accepted with ID: 26a031c84bdd46bcb2a23bb1a0ef1386
+```
+
+Both goals accepted independently with distinct IDs, confirming the
+per-robot `/<robot_id>/navigate_to_pose` action servers do not interfere.
+
+### Note: USD rebuild required before two-robot runs
+
+`head_on_deadlock.usd` was last written by `head_on_deadlock_task8_obstacle.yaml`
+(single-robot Task 8 variant), which overwrote the two-robot build artifact as
+that file's own comment warned. Rebuilt from canonical `head_on_deadlock.yaml`
+via `build_scenario.py --config` before this task's run. This is a one-time
+rebuild step per session whenever Task 8's single-robot USD is generated.
