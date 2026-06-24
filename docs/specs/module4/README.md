@@ -47,7 +47,7 @@ sees the raw M3 grounded blob.
 | Spec | Scope | Status |
 |---|---|---|
 | [phase1-drive-chain.md](phase1-drive-chain.md) | Isaac `/cmd_vel` drive chain, TF, watchdog. Robots move; no Nav2. | Done |
-| [phase2-nav2-stack.md](phase2-nav2-stack.md) | RTX lidar, map, localization, per-robot Nav2, `Nav2Adapter`. | Planned |
+| [phase2-nav2-stack.md](phase2-nav2-stack.md) | RTX lidar, map, localization, per-robot Nav2, `Nav2Adapter`. | Done |
 | [phase3-closed-loop.md](phase3-closed-loop.md) | M3 grounding → M4 → Nav2 so an M2 decision re-commands robots. | Planned |
 | `safety-monitor.md` | Safety invariants, command watchdog, e-stop. | Not written |
 | `command-bus.md` | Command routing, lifecycle, M5 fan-out. | Not written |
@@ -79,11 +79,11 @@ Each phase is independently demonstrable; stop at any phase.
 | Component | State | Needed for |
 |---|---|---|
 | Isaac `/cmd_vel` drive chain + TF | Built (Phase 1), host-verified | Phase 1 done |
-| RTX 2D lidar on `/<robot_id>/scan` | Specified (M6 FR6.4.9), not built | Phase 2+ |
-| Warehouse occupancy-grid map | Absent | Phase 2+ |
-| Nav2 install + per-robot bringup | Absent | Phase 2+ |
-| Localization (`map → odom`) | Absent | Phase 2+ |
-| `Nav2Adapter.send_waypoints` | `raise NotImplementedError` | Phase 2+ |
+| RTX 2D lidar on `/<robot_id>/scan` | Built and host-verified (Phase 2, Tasks 2 & 4; see phase2-nav2-stack.md §10) | Phase 2 done |
+| Warehouse occupancy-grid map | Built (Phase 2, Task 3; `map.yaml`/`map.pgm` authored from known geometry) | Phase 2 done |
+| Nav2 install + per-robot bringup | Installed in `ros:jazzy` container; namespaced bringup host-verified for 2 robots (Phase 2, Tasks 6 & 9; see phase2-nav2-stack.md §11–12) | Phase 2 done |
+| Localization (`map → odom`) | Ground-truth static transform (`map → robot_N/odom`) host-verified (Phase 2, Task 5; deliberate PoC shortcut) | Phase 2 done |
+| `Nav2Adapter.send_waypoints` | Implemented (Phase 2, Task 7) | Phase 2 done |
 | M3 grounding → M4 command path | M3 grounding `NotImplementedError` | Phase 3 |
 
 ---
