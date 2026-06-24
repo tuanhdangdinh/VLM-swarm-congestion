@@ -188,6 +188,10 @@ def _author_aisle_barrier(
         cube.CreateSizeAttr(2.0)
         cube.AddTranslateOp().Set(Gf.Vec3f(barrier_cfg.center_x_m, y, half_h))
         cube.AddScaleOp().Set(Gf.Vec3f(half_x, half_y, half_h))
+        # Yellow display colour so barriers are visually distinct from the grey
+        # rack blocks they abut — otherwise both render with Isaac's default grey
+        # and the narrow-aisle constraint is invisible in the overhead camera view.
+        cube.CreateDisplayColorAttr().Set([Gf.Vec3f(1.0, 0.85, 0.0)])
         UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
 
 
