@@ -47,7 +47,7 @@ sees the raw M3 grounded blob.
 | Spec | Scope | Status |
 |---|---|---|
 | [phase1-drive-chain.md](phase1-drive-chain.md) | Isaac `/cmd_vel` drive chain, TF, watchdog. Robots move; no Nav2. | Done |
-| [phase2-nav2-stack.md](phase2-nav2-stack.md) | RTX lidar, map, localization, per-robot Nav2, `Nav2Adapter`. | Planned |
+| [phase2-nav2-stack.md](phase2-nav2-stack.md) | RTX lidar, map, localization, per-robot Nav2, `Nav2Adapter`. | Done |
 | [phase3-closed-loop.md](phase3-closed-loop.md) | M3 grounding → M4 → Nav2 so an M2 decision re-commands robots. | Planned |
 | `safety-monitor.md` | Safety invariants, command watchdog, e-stop. | Not written |
 | `command-bus.md` | Command routing, lifecycle, M5 fan-out. | Not written |
@@ -78,12 +78,12 @@ Each phase is independently demonstrable; stop at any phase.
 
 | Component | State | Needed for |
 |---|---|---|
-| Isaac `/cmd_vel` drive chain + TF | Built (Phase 1), host-verified | Phase 1 done |
-| RTX 2D lidar on `/<robot_id>/scan` | Specified (M6 FR6.4.9), not built | Phase 2+ |
-| Warehouse occupancy-grid map | Absent | Phase 2+ |
-| Nav2 install + per-robot bringup | Absent | Phase 2+ |
-| Localization (`map → odom`) | Absent | Phase 2+ |
-| `Nav2Adapter.send_waypoints` | `raise NotImplementedError` | Phase 2+ |
+| Isaac `/cmd_vel` drive chain + TF | Done — Phase 1, host-verified | Phase 1 done |
+| RTX 2D lidar on `/<robot_id>/scan` | Done — Phase 2, host-verified (§10 GO: height separation, no phantom hit) | Phase 2 done |
+| Warehouse occupancy-grid map | Done — Phase 2, `generate_warehouse_map.py` (12×8 m, 5 cm/px) | Phase 2 done |
+| Nav2 install + per-robot bringup | Done — Phase 2, `nav2_robot.launch.py`, all action servers verified on host | Phase 2 done |
+| Localization (`map → odom`) | Done — Phase 2, spawn-pose static TF (PoC; see spec §5 Correction) | Phase 2 done |
+| `Nav2Adapter` (`send_goal`, `send_waypoints`, `cancel`) | Done — Phase 2, action-client wrapper with unit tests | Phase 2 done |
 | M3 grounding → M4 command path | M3 grounding `NotImplementedError` | Phase 3 |
 
 ---
@@ -144,11 +144,11 @@ QoS per M6 FR6.7.10. Nav2 sensor QoS must match the Isaac publisher QoS
 
 ## 7. Risks & Open Questions
 
-- **RTX lidar vs ArUco plate (highest risk):** the marker plate must sit above the
-  scan plane *and* be excluded from RTX lidar raytracing (FR6.4.10). RTX lidar
-  sees rendered geometry, so disabling PhysX collision is not enough; the plate
-  may appear as a phantom obstacle in the costmap. Validate `/scan` is clean
-  before trusting Nav2 costmaps.
+- **RTX lidar vs ArUco plate — RESOLVED (Phase 2, GO):** height separation
+  (`base_scan` at z=0.172 m, marker at z=0.21 m) is sufficient — the plate sits
+  above the single-elevation scan plane and no phantom hit appeared at its bearing
+  in the host probe (`phase2-nav2-stack.md` §10). No RTX-visibility API was
+  needed.
 - **Per-robot Nav2 namespacing** is the second-hardest part; verify the Jazzy
   bringup convention rather than copying older-distro examples.
 - **Two-loop contention:** define precisely when M4 may pre-empt a Nav2 goal vs.
