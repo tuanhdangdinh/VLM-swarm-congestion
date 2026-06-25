@@ -45,20 +45,17 @@ def author_rtx_lidar(stage: Usd.Stage, robot_prim_path: str, lidar_link: str) ->
 
 
 def exclude_from_rtx_lidar(plate_prim: "Usd.Prim") -> None:
-    """Exclude `plate_prim` from RTX lidar raytracing (FR6.4.10).
+    """No-op: ArUco plate exclusion from RTX lidar is not needed (FR6.4.10).
 
-    The exact mechanism is determined from a host probe in Task 2 Step 5
-    (phase2-nav2-stack.md §10) and must be filled in after that go/no-go
-    gate. This stub is a placeholder — call it only after the spec records
-    the verified API.
+    Host probe (phase2-nav2-stack.md §10, 2026-06-25) confirmed that height
+    separation alone is sufficient — the marker plate sits at z=0.21 m, above
+    the RPLIDAR_S2E single-elevation scan plane at z=0.172 m, so no phantom
+    hit appears at the plate's bearing in `/robot_N/scan`. No RTX-visibility
+    API or UsdGeom.Imageable exclusion is applied or needed.
+
+    This function is retained as a no-op so callers that were written against
+    the earlier "API TBD" interface do not break, but calling it has no effect.
 
     Args:
-        plate_prim: The ArUco marker plate prim to exclude.
-
-    Raises:
-        NotImplementedError: Always — pending host verification (Task 2 Step 5).
+        plate_prim: The ArUco marker plate prim (unused).
     """
-    raise NotImplementedError(
-        "RTX lidar exclusion mechanism not yet verified on host. "
-        "See phase2-nav2-stack.md §10 Task 2 Step 5."
-    )

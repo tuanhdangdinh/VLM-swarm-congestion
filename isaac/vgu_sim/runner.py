@@ -84,7 +84,7 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
         # frame (max==0), so M1 sees nothing. Add lighting AFTER reset so it is
         # not wiped, same as the graph wiring below.
         _add_scene_lighting(_omni_usd.get_context().get_stage())
-        _wire_ros_graphs(config.scenario.robots)
+        _lidar_sensors = _wire_ros_graphs(config.scenario.robots)
         debug_annot = _attach_debug_rgb_annotator(config.scenario.robots)
         sim_ctx.play()
 
@@ -295,7 +295,7 @@ def _attach_debug_rgb_annotator(robots):
         return None
 
 
-def _wire_ros_graphs(robots) -> None:
+def _wire_ros_graphs(robots) -> list:
     import omni.usd
 
     from isaac.vgu_sim.config import CameraConfig, RobotAssetConfig
@@ -305,6 +305,7 @@ def _wire_ros_graphs(robots) -> None:
     )
     from isaac.vgu_sim.ros_graphs import (
         create_global_ros_graphs,
+        create_robot_lidar_sensor,
         create_robot_ros_graph,
     )
 
@@ -313,6 +314,10 @@ def _wire_ros_graphs(robots) -> None:
     create_global_ros_graphs(stage, camera_cfg.prim_path, camera_cfg)
 
     robot_asset_cfg = RobotAssetConfig()
+    # LidarSensor objects must stay referenced for the simulation's lifetime:
+    # their __del__ detaches the ROS2 writer and destroys the render product,
+    # which would silently stop /<robot_id>/scan if they were GC'd.
+    lidar_sensors = []
     for robot in robots:
         robot_prim_path = f"/World/Robots/{robot.robot_id}"
         # Switch the wheel joints to velocity drive before wiring the graph, so the
@@ -323,6 +328,10 @@ def _wire_ros_graphs(robots) -> None:
         # uses a frictionless default and the spinning wheels slip in place.
         configure_contact_friction(stage, robot_prim_path, robot_asset_cfg)
         create_robot_ros_graph(stage, robot, robot_prim_path, robot_asset_cfg)
+        lidar_sensors.append(
+            create_robot_lidar_sensor(stage, robot, robot_prim_path, robot_asset_cfg)
+        )
+    return lidar_sensors
 
 
 def _start_cmd_vel_watchdog(robots):

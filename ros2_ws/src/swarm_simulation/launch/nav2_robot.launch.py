@@ -166,7 +166,6 @@ def generate_launch_description() -> LaunchDescription:
     yaw = LaunchConfiguration("yaw")
     start_map_server = LaunchConfiguration("start_map_server")
 
-    nav2_bringup_dir = get_package_share_directory("nav2_bringup")
     sim_dir = get_package_share_directory("swarm_simulation")
     map_yaml = PathJoinSubstitution([sim_dir, "maps", "warehouse_map.yaml"])
     raw_params_file = PathJoinSubstitution([sim_dir, "config", "nav2_params.yaml"])
@@ -294,10 +293,15 @@ def generate_launch_description() -> LaunchDescription:
                     # SetRemap rule here cannot intercept it. Fixed instead in
                     # nav2_params.yaml's `global_costmap.map_topic`, set to
                     # the absolute literal `/map` (see that file's comment).
+                    # Use the vendored nav2_navigation.launch.py (same dir)
+                    # rather than the upstream nav2_bringup version: Jazzy
+                    # builds that include route_server in lifecycle_nodes block
+                    # activation for this project (route_server needs a route
+                    # graph file; see nav2_navigation.launch.py header comment).
                     IncludeLaunchDescription(
                         PythonLaunchDescriptionSource(
                             PathJoinSubstitution(
-                                [nav2_bringup_dir, "launch", "navigation_launch.py"]
+                                [sim_dir, "launch", "nav2_navigation.launch.py"]
                             )
                         ),
                         launch_arguments={
