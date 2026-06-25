@@ -3,7 +3,7 @@ project(swarm_simulation)
 
 find_package(ament_cmake REQUIRED)
 
-install(DIRECTORY launch worlds models maps scenarios
+install(DIRECTORY launch worlds models maps scenarios config
   DESTINATION share/${PROJECT_NAME}
 )
 

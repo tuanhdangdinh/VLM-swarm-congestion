@@ -38,7 +38,9 @@ Author the lidar (M6 FR6.4.9) → `/<robot_id>/scan`:
 Multi-robot Nav2 runs one **namespaced** stack per robot — its own costmaps,
 planner, controller, and BT navigator under `/<robot_id>/...`, sharing `/tf` and
 `/tf_static` (uniqueness via frame prefixes, FR6.7.7). Verify the exact
-namespaced-bringup mechanism against the Nav2 Jazzy docs before building;
+namespaced-bringup mechanism against the Nav2 Jazzy docs/container install before
+building (see §9 — this phase targets the `ros:jazzy` container, while Isaac
+Sim uses its bundled Jazzy bridge on the host);
 multi-robot bringup conventions change across distros.
 
 - Action server per robot: `/<robot_id>/navigate_to_pose`
@@ -67,6 +69,118 @@ multi-robot bringup conventions change across distros.
   localization. This is a deliberate PoC shortcut, not a real-robot path.
 - **Option B:** AMCL (`nav2_amcl`) per robot, consuming `/<robot_id>/scan` + the
   map. Realistic but adds particle-filter tuning and an initial-pose step.
+
+### Correction (2026-06-22, Task 5): `/odom` is spawn-relative, not absolute-world
+
+The Phase 2 plan's "Reality Check" locked in a simplification of Option A:
+since `IsaacComputeOdometry` reads the chassis's pose directly (no encoder
+integration), the plan assumed `/<robot_id>/odom` already equals the
+absolute world/map-frame pose, making `map → odom` a trivial **static
+identity** transform — no publisher needed.
+
+Task 5 verified this for real and found it **false**. 300 in-process
+`nav_msgs/Odometry` reads of `/robot_1/odom` over 10s of sim time all show
+`position ≈ (0, 0, 0)`, while the chassis's true USD world pose (cross-checked
+independently via `ground_truth.jsonl`) stays at `x=-0.6` the entire time —
+the robot is stationary at its spawn pose, not at the origin.
+`IsaacComputeOdometry` computes pose **relative to its reference at node
+initialization** (i.e., spawn-relative, the same semantics as real wheel
+encoders), not absolute-world. The "no drift, reads the chassis directly"
+property is real (confirmed: it doesn't integrate noisy encoder ticks), but
+that only means *zero accumulated error relative to its own spawn-time
+reference* — not that the reference is the world origin.
+
+**Corrected design:** `map → <robot_id>/odom` must be a static transform
+equal to each robot's **spawn pose** (`x, y, yaw` from the scenario config),
+not identity. This is still Option A's spirit (no AMCL, no tuning surface) —
+only the transform *value* changes, from identity to
+`(spawn_x, spawn_y, spawn_yaw)`. Whether `IsaacComputeOdometry`'s actual
+zero-reference exactly equals the scenario YAML's nominal spawn pose, or some
+other pose taken at first node evaluation, was not independently verified —
+re-check before treating "spawn pose" as exact if precision matters.
+
+### Verified (2026-06-22, Task 5 finish): `nav2_robot.launch.py` authored and TF chain confirmed
+
+`ros2_ws/src/swarm_simulation/launch/nav2_robot.launch.py` publishes
+`map -> <robot_id>/odom` via `tf2_ros static_transform_publisher`, using the
+documented current flag syntax (`--x/--y/--z/--roll/--pitch/--yaw
+--frame-id --child-frame-id`, not the deprecated 8-positional-arg form). The
+transform value is **not** hardcoded identity or a scenario-specific lookup
+table: the launch file declares `x`/`y`/`yaw` launch arguments **with no
+default value** that the caller must supply with the robot's actual spawn
+pose from the scenario config — a caller who forgets them gets a loud
+missing-argument error at launch time instead of silently reintroducing the
+identity-transform bug this task corrected — keeping the launch file reusable
+across scenarios per CLAUDE.md's module-boundary guidance.
+
+**Verification on host**, `head_on_deadlock`'s `robot_1` (`spawn: x=-0.6,
+y=0.0, yaw_rad=0.0`):
+
+- Launched `ros2 launch swarm_simulation nav2_robot.launch.py robot_id:=robot_1
+  x:=-0.6 y:=0.0 yaw:=0.0` as a genuine separate `ros2 launch` process (not
+  in-process), confirmed via its own log: `translation: ('-0.600000',
+  '0.000000', '0.000000')` ... `from 'map' to 'robot_1/odom'`.
+- Brought up `head_on_deadlock` headless via the production scene-build
+  sequence (`runner.py`'s own helpers, in `run_repetition()`'s order;
+  `runner.py` itself untouched — the relative-path `.resolve()` workaround
+  from Task 4/5 was applied only in the ephemeral verification script, not in
+  `runner.py`/`paths.py`).
+- Cross-process TF visibility required exporting a FastDDS UDP-only (no SHM)
+  profile via `FASTRTPS_DEFAULT_PROFILES_FILE` on **both** the
+  `static_transform_publisher` process and the Isaac-side process — confirmed
+  this resolves the SHM-transport mismatch documented in Task 5's report
+  (Isaac's bundled FastDDS build vs. the container ROS build): without
+  the profile, an in-process `tf2_ros.Buffer` inside Isaac never saw the `map`
+  frame at all (`"map" passed to lookupTransform argument target_frame does
+  not exist`); with it, the buffer resolved `map -> robot_1/odom` and the full
+  chain immediately.
+- Resolved `map -> robot_1/base_link` in-process (Isaac-bundled rclpy +
+  `tf2_ros.Buffer`/`TransformListener`) after ~3 s of advancing sim time:
+  **`translation=(-0.6000, -0.0000, 0.0100)`**, matching the robot's true
+  spawn pose (`x=-0.6`) to 4 decimal places (`z=0.01` is the chassis's
+  mount-height offset, expected and unrelated to the `map->odom` hop). Hop
+  breakdown: `map->robot_1/odom = (-0.6, 0, 0)` (the static publisher under
+  test), `robot_1/odom->robot_1/base_footprint ≈ (0, 0, 0)` (spawn-relative
+  odom, confirming Task 5's finding), `robot_1/base_footprint->robot_1/base_link
+  = (0, 0, 0.01)` (static mount offset). The static spawn-pose transform
+  composes correctly with the dynamic, correctly-stamped (Task 5b)
+  `odom->base_footprint` edge.
+
+### Resolved: `/odom` and `/tf_static` stamped 0 (Task 5b)
+
+Task 5 found `/robot_1/odom` published with `header.stamp = 0` continuously
+throughout multi-hundred-second runs (not a startup transient), via repeated
+`[Warning] Frame robot_1/odom Timestamp is invalid` log lines, while
+`sim_time` itself correctly advances. Task 5b root-caused and fixed this:
+`ROS2PublishOdometry.inputs:timeStamp` had no `CONNECT` edge at all in
+`create_robot_ros_graph` (`isaac/vgu_sim/ros_graphs.py`), so it used the
+node's `.ogn`-schema default of `0.0` — confirmed against
+`OgnROS2PublishOdometry.cpp` (reads `db.inputs.timeStamp()` as given) and the
+node's `.ogn` schema (`"timeStamp": {"default": 0.0}`). The two
+`ROS2PublishRawTransformTree` nodes publishing the static `base_footprint →
+base_link` and `base_link → base_scan` mounts on `/tf_static`
+(`pub_tf_base`/`pub_tf_scan`) had the identical bug — also unwired, also
+defaulting to `0.0` — which is what actually produced the
+`robot_1/base_link`/`robot_1/base_footprint` "Timestamp is invalid" warnings
+Task 5 saw (transient-local QoS on `/tf_static` does not exempt a publisher
+from being stamped correctly).
+
+**The dynamic `odom → base_footprint` edge on `/tf` (`pub_tf`) was already
+wired correctly and was never actually broken** — Task 5's report conflated
+the `/tf_static` warning lines with this edge. Verified in-process on the
+host: subscribing directly to `/tf` and filtering for
+`child_frame_id == "<robot_id>/base_footprint"` showed `header.stamp`
+advancing with sim time (e.g. `0.066...` → `15.866...` over an 8 s capture)
+both before and after the fix below.
+
+**Fix:** `pub_odom.inputs:timeStamp`, `pub_tf_base.inputs:timeStamp`, and
+`pub_tf_scan.inputs:timeStamp` are now all wired to
+`read_time.outputs:simulationTime`, the same source already feeding
+`pub_tf.inputs:timeStamp`. Verified in-process post-fix: `/robot_1/odom` and
+`/tf_static` both now advance with sim time, and the "Timestamp is invalid"
+warning no longer appears anywhere in an 8 s run (0 occurrences, vs. dozens
+before the fix). See `.superpowers/sdd/task-5b-stamp-fix-report.md` for full
+evidence.
 
 ---
 
@@ -114,34 +228,366 @@ directly while Nav2 owns a robot.
 
 ---
 
-## 9. Verified host setup (GCP, 2026-06-25)
-
-Nav2 Jazzy packages confirmed installed in the `vgu_ros` Docker container
-(ubuntu:noble base, ROS 2 Jazzy):
-
-```
-ros-jazzy-navigation2    1.3.12-1noble.20260615.181551
-ros-jazzy-nav2-bringup   1.3.12-1noble.20260616.082701
-```
-
-All nav2 component packages at version 1.3.12. Smoke launch verified:
-
-```bash
-ros2 launch nav2_bringup bringup_launch.py --show-args
-# → prints namespace, use_namespace, slam, map, params_file, use_sim_time, ...
-# No errors.
-```
-
-Install command (already applied; not needed again):
-
-```bash
-sudo apt-get update && sudo apt-get install -y ros-jazzy-navigation2 ros-jazzy-nav2-bringup
-```
-
----
-
 ## 8. Testing & Validation
 
 Assert `/<robot_id>/scan` is published and clean, the map loads, and a single
 `NavigateToPose` goal drives the robot to within tolerance of a free-space goal
 with obstacles present. Mark as a `ros2`/simulation test, not a unit test.
+
+---
+
+## 9. Verified host setup
+
+**Status: BLOCKED.** `ros-jazzy-navigation2` / `ros-jazzy-nav2-bringup` cannot be
+installed via the official apt repo on the current host OS. This phase's
+heavyweight-dependency gate (CLAUDE.md "Dependencies") fails as specified and
+needs rework before any Isaac authoring proceeds.
+
+### Host
+
+- GCP VM `isaacautomator-vgu-gcp2-isaac-workstation-vm` (zone `us-central1-a`,
+  project `vlm-swarm`).
+- OS: Ubuntu 22.04.5 LTS (Jammy Jellyfish) — confirmed via `/etc/os-release`.
+- No ROS2 of any distro preinstalled (`/opt/ros` does not exist;
+  `/etc/apt/sources.list.d/` had no ROS entry before this task).
+
+### What was attempted
+
+1. Checked for an existing ROS apt repo — none found (`NO_ROS_REPO`).
+2. Registered the ROS2 apt repo using the **current official method**
+   (`ros2-apt-source` deb package, per
+   [docs.ros.org Jazzy Ubuntu binary install](https://docs.ros.org/en/jazzy/Installation/Alternatives/Ubuntu-Install-Binary.html)),
+   superseding an earlier manual-keyring attempt that pointed at the same
+   underlying repo:
+
+   ```bash
+   sudo apt-get update && sudo apt-get install -y curl
+   export ROS_APT_SOURCE_VERSION=1.2.0   # latest tag from
+       # https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest
+   curl -L -o /tmp/ros2-apt-source.deb \
+     "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.jammy_all.deb"
+   sudo dpkg -i /tmp/ros2-apt-source.deb
+   sudo apt-get update
+   ```
+
+   This installed cleanly and registered
+   `deb822` source `/etc/apt/sources.list.d/ros2.sources`
+   (`URIs: http://packages.ros.org/ros2/ubuntu`, `Suites: jammy`,
+   `Components: main`) with an embedded signing key — the modern equivalent of
+   the older manual-keyring instructions, same repo URL.
+
+3. `sudo apt-get install -y ros-jazzy-ros-base ros-jazzy-navigation2 ros-jazzy-nav2-bringup`
+   failed:
+
+   ```
+   E: Unable to locate package ros-jazzy-ros-base
+   E: Unable to locate package ros-jazzy-navigation2
+   E: Unable to locate package ros-jazzy-nav2-bringup
+   ```
+
+4. Root cause confirmed by inspecting the downloaded apt index directly:
+
+   ```bash
+   grep '^Package: ros-' /var/lib/apt/lists/packages.ros.org_ros2_ubuntu_dists_jammy_main_binary-amd64_Packages \
+     | sed -E 's/^Package: ros-([a-z]+)-.*/\1/' | sort -u
+   # -> build dev humble iron rolling
+   ```
+
+   The `packages.ros.org/ros2/ubuntu jammy` index — the correct, current,
+   officially-registered repo — carries **no `ros-jazzy-*` packages at all**.
+   This is not a misconfiguration: ROS2 Jazzy's Tier-1 supported platform is
+   Ubuntu 24.04 (Noble); Ubuntu 22.04 (Jammy) only gets Humble/Iron/Rolling
+   binaries from the official repo. Jazzy on Jammy would require a Tier-3
+   source build or Docker, not an apt install.
+
+### Smoke test (Step 2) and version capture (Step 3)
+
+Not run — blocked upstream of this step. There is no `ros-jazzy-navigation2`
+package to install, so `ros2 launch nav2_bringup bringup_launch.py --show-args`
+cannot be exercised on this host with Jazzy.
+
+### Decision needed (plan-level, not executable by this task)
+
+One of:
+
+- Reprovision the Isaac host as Ubuntu 24.04 (Noble) so `ros-jazzy-*` apt
+  packages are available, or
+- Retarget this phase to ROS2 Humble (`ros-humble-navigation2`,
+  `ros-humble-nav2-bringup`), which **is** available on this Jammy host, or
+- Build ROS2 Jazzy from source (Tier-3) on Jammy.
+
+This task does not pick a direction — it stops at the gate per the brief
+("If install fails, stop and report — do not substitute a different package
+set without updating this plan").
+
+### Superseded resolution: host Humble retarget
+
+Isaac Automator (the deployment tool used for this host) has no Ubuntu 24.04
+option — Isaac Sim 6.0 itself targets Ubuntu 22.04. Reprovisioning to Noble is
+not available. Checked Isaac Sim's own `/home/ubuntu/IsaacSim/setup_ros_env.sh`
+on the host:
+
+```bash
+DEFAULT_ROS_DISTRO="jazzy"
+if [[ "$UBUNTU_VERSION" == "22.04" ]]; then
+    DEFAULT_ROS_DISTRO="humble"
+elif [[ "$UBUNTU_VERSION" == "24.04" ]]; then
+    DEFAULT_ROS_DISTRO="jazzy"
+fi
+```
+
+Isaac Sim auto-selects `ROS_DISTRO=humble` on Ubuntu 22.04 when `ROS_DISTRO` is
+unset, and ships bundled
+internal bridge libraries for both (`exts/isaacsim.ros2.core/{humble,jazzy}/lib`
+under the Isaac Sim install root). An earlier pass interpreted that as a reason
+to retarget Phase 2 to host Humble. That direction is now **superseded**: the
+confirmed project runtime is Isaac Sim on the host with `ROS_DISTRO=jazzy` using
+its bundled Jazzy bridge, plus M1/M4/M5/Nav2 inside the `ros:jazzy` Docker
+container. Host apt availability for Humble remains useful diagnostic evidence,
+but host Humble is not the Phase 2 target. Phase 1's verified OmniGraph node interface
+(`phase1-drive-chain.md` §2a) is unaffected: those are Isaac's own bridge node
+wrappers (type names, `inputs:`/`outputs:` attribute keys), stable across the
+`ROS_DISTRO` selection — only the underlying message-library linkage differs.
+
+### Task 1 re-run in Jazzy container — PASS
+
+Use the existing `vgu_ros`/`ros:jazzy` container, not host apt, for Nav2:
+
+```bash
+sudo docker start vgu_ros
+sudo docker exec vgu_ros bash -lc \
+  'source /opt/ros/jazzy/setup.bash && ros2 launch nav2_bringup bringup_launch.py --show-args'
+```
+
+The container must contain `ros-jazzy-navigation2` and
+`ros-jazzy-nav2-bringup` (the devcontainer installs the same packages). Isaac
+side runs should set `ROS_DISTRO=jazzy` before sourcing
+`/home/ubuntu/IsaacSim/setup_ros_env.sh` so Isaac's bundled bridge matches the
+container participants.
+
+Verified on the GCP host (`isaacautomator-vgu-gcp2-isaac-workstation-vm`,
+2026-06-22): `vgu_ros` is running from image `ros:jazzy`, `ROS_DISTRO=jazzy`,
+and these packages are installed:
+
+```text
+ros-jazzy-nav2-bringup 1.3.12-1noble.20260616.082701
+ros-jazzy-navigation2  1.3.12-1noble.20260615.181551
+ros-jazzy-ros-base     0.11.0-1noble.20260412.071950
+```
+
+Smoke test passed:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+ros2 launch nav2_bringup bringup_launch.py --show-args
+```
+
+The command printed the Jazzy launch argument list (`namespace`,
+`use_namespace`, `slam`, `map`, `use_sim_time`, `params_file`, `autostart`,
+`use_composition`, `use_respawn`, `log_level`, `use_localization`,
+`use_lifecycle_manager`, `slam_params_file`, `container_name`) with no errors.
+
+### Historical host-Humble smoke test — PASS, not current target
+
+```bash
+sudo apt-get install -y ros-humble-ros-base ros-humble-navigation2 ros-humble-nav2-bringup
+```
+
+Installed cleanly (apt resolved and configured the full Nav2 stack: DWB/MPPI
+controllers, NavFn planner, BT navigator, behavior server, AMCL, slam_toolbox,
+rviz plugins, etc. — no errors).
+
+Installed versions:
+
+```
+ros-humble-nav2-bringup/jammy,now 1.1.20-1jammy.20260425.085132 amd64 [installed]
+ros-humble-navigation2/jammy,now 1.1.20-1jammy.20260425.084326 amd64 [installed]
+ros-humble-ros-base/jammy,now 0.10.0-1jammy.20260423.142225 amd64 [installed]
+```
+
+Smoke test:
+
+```bash
+source /opt/ros/humble/setup.bash && ros2 launch nav2_bringup bringup_launch.py --show-args
+```
+
+Printed the full launch argument list (`namespace`, `use_namespace`, `slam`,
+`map`, `use_sim_time`, `params_file` default
+`/opt/ros/humble/share/nav2_bringup/params/nav2_params.yaml`, `autostart`,
+`use_composition`, `use_respawn`, `log_level`) with no errors. **Gate: PASS.**
+
+---
+
+## 10. Verified RTX lidar / ArUco exclusion (Isaac Sim 6.0)
+
+**Status: GO.** The ArUco marker plate does not appear as a phantom obstacle
+in `/<robot_id>/scan`. No exclusion API was needed — the existing height
+separation between the lidar's scan plane and the marker plate (already
+authored for the camera-occlusion concern, see `marker_asset.py`) turns out to
+also fully solve the RTX-visibility concern, because a 2D RTX lidar only
+raytraces within its single horizontal elevation plane.
+
+### Authoring helper
+
+`isaac/vgu_sim/lidar.py::author_rtx_lidar(stage, robot_prim_path, lidar_link)`
+creates an `Xform` at `<lidar_link prim>/rtx_lidar` (e.g.
+`/World/Robots/robot_1/Geometry/base_footprint/base_link/base_scan/rtx_lidar`),
+raising `ValueError` if `lidar_link` is not found under `robot_prim_path`.
+Offline-testable (no Isaac Sim/RTX renderer needed) — see
+`tests/unit/test_lidar.py`.
+
+### RTX lidar sensor creation (verified on host)
+
+Modern Isaac Sim 6.0 API, **not** the deprecated `omni.kit.commands.execute("IsaacSensorCreateRtxLidar", ...)` path shown as a placeholder in the Phase 2
+plan brief (that command still exists in `isaacsim.sensors.rtx`'s deprecated
+extension but the experimental API is the one the official standalone example
+(`source/standalone_examples/api/isaacsim.ros2.bridge/rtx_lidar.py`) uses):
+
+```python
+from isaacsim.sensors.experimental.rtx import Lidar, LidarSensor
+
+lidar = Lidar.create(
+    path=f"{lidar_xform_path}/rtx_sensor",
+    config="RPLIDAR_S2E",   # SLAMTEC RPLIDAR S2E: 2D rotary, nearRangeM=0.05,
+                             # farRangeM=30.0, single elevation ray at 0 deg —
+                             # NOT the deceptively-named "Example_Rotary_2D"
+                             # config, whose nearRangeM=1.0m is well above the
+                             # marker plate's mount radius and would clip any
+                             # phantom return regardless of the exclusion
+                             # hypothesis under test, making it useless as a
+                             # go/no-go probe. FR6.4.9 wants range 0.12-3.5m;
+                             # RPLIDAR_S2E's 0.05-30m covers it (a tighter
+                             # custom config can be authored later if the
+                             # 30m far range needs trimming for performance).
+    tick_rate=10.0,
+)
+sensor = LidarSensor(lidar, annotators=[])
+sensor.attach_writer(
+    "RtxLidarROS2PublishLaserScan",
+    topicName=f"{robot_id}/scan",
+    frameId=f"{robot_id}/base_scan",
+    horizontalFov=360.0, horizontalResolution=..., depthRange=[...],
+    rotationRate=10.0, azimuthRange=[-180.0, 180.0],
+    # (read from the lidar prim's omni:sensor:Core:* attributes, see
+    # _read_laser_scan_metadata() in the cited standalone example)
+)
+```
+
+### ArUco-plate exclusion mechanism: height separation (no special API)
+
+Investigated, in the brief's order:
+
+1. **`UsdGeom.Imageable(plate_prim).MakeInvisible()`** — not tried in the final
+   run (confirmed by code inspection to also exclude the plate from RGB
+   cameras, breaking M1, exactly as the brief predicted); superseded by
+   finding option 3 already works.
+2. **RTX-specific per-sensor visibility/exclusion API** — searched the
+   installed `isaacsim.sensors.rtx` / `isaacsim.sensors.experimental.rtx`
+   extension source on the host (`IsaacSim-source/source/.../impl/commands.py`,
+   `nonvisual_materials.py`). No per-prim "exclude from this lidar only" flag
+   exists. `nonvisual_materials.py`'s `apply_nonvisual_material()` /
+   `get_material_id()` only tag material **reflectance** properties (base
+   material / coating / attribute, e.g. `"aluminum"`, `"glass"`) for intensity
+   simulation — they do not exclude a prim from raytracing.
+3. **Height separation (FR6.4.10's own fallback)** — already in place,
+   unintentionally solving this: `marker_asset.py` mounts
+   `aruco_marker_link` at `z=0.21` (URDF `aruco_marker_joint` origin) "above
+   the lidar (base_scan at z=0.172) so a nadir camera is not occluded." The
+   marker quad is a flat horizontal sheet (`z=0` in its own local frame, all 4
+   corners), so its entire physical extent sits at world `z=0.21`, 3.8 cm
+   above the lidar's single-elevation scan plane at `z=0.172`. RTX lidar
+   configs used here (`RPLIDAR_S2E`, and the deprecated configs surveyed:
+   `Debug_Rotary`, `Example_Rotary_2D`) all fire one ray per azimuth at
+   `elevationDeg: [0]` — a strictly planar 2D scan — so a ray traveling in the
+   `z=0.172` plane geometrically cannot intersect a flat plate lying entirely
+   at `z=0.21`. No code change or exclusion attribute was needed.
+
+### Verification
+
+Ran the `head_on_deadlock` scenario (robot_1 at `x=-0.6`, robot_2 at `x=+0.6`,
+facing each other 1.2 m apart) headless on the GCP host, with `author_rtx_lidar()` + the real `RPLIDAR_S2E` RTX lidar sensor wired to
+`/robot_1/scan` via `RtxLidarROS2PublishLaserScan`, robot held still. Captured
+3 `LaserScan` messages in-process via an `rclpy` subscription (not
+`ros2 topic echo` in a separate shell, to avoid timing races):
+
+- `num_ranges=3200`, `range_min=0.05`, `range_max=30.0`,
+  `angle_increment=0.1125°` (full 360° sweep).
+- Global minimum range: **0.595 m**, in two symmetric angular clusters
+  centered at exactly **+90°** (idx 2373-2874, range 87.0-143.3°) and **-90°**
+  (idx 327-827, range -143.2 to -87.0°), varying smoothly from ~0.6 m at ±90°
+  out to ~1.0 m at ±144°. This is the cross-aisle wall/rack boundary at
+  `y≈±0.6 m` (`nominal_aisle_width_m=1.2` in `isaac/vgu_sim/config.py`,
+  `WarehouseConfig`), not robot_2 — forward (0°) and the ±9° to ±81° band show
+  a clean decreasing sweep out to the far wall (6.6 m at 0°), with **no** close
+  return anywhere near 0° where robot_2 (spawned 1.2 m away in `+x`) would be
+  expected if the lidar's azimuth-0 aligns with robot-forward. The symmetric,
+  smoothly-varying V-profile on each side is the signature of a flat wall
+  surface, not a rigid robot body or a single-ray spike — so this scan is read
+  as "two real aisle walls, no robot_2 return," not "robot_2, no walls." Why
+  robot_2 itself produced no near-range return was not root-caused (candidates:
+  lidar azimuth-0 not aligned with robot-forward — `marker_asset.py` documents
+  a separate -90° heading correction for the ArUco quad's own UV convention,
+  suggesting frame/azimuth conventions in this stack are easy to get
+  off-by-90° — or robot_2's RTX-visible geometry not intersecting the scan
+  plane at this exact pose); this is **out of scope for the go/no-go gate**,
+  which only requires the marker plate to be absent, and does not block this
+  task's verdict, but is worth investigating before relying on `/scan` for
+  inter-robot collision avoidance in later Nav2 tasks.
+- **Zero** range returns under 0.3 m anywhere in the full 3200-ray scan — in
+  particular, none in the `[0.05, 0.15] m` band where a phantom hit on the
+  marker plate (mount radius ≈0.032-0.21 m from the lidar center) would have
+  to appear if the plate were visible to RTX.
+- The lidar is demonstrably sensing real scene geometry, not just returning
+  no-hits: smooth, physically-plausible wall ranges from 0.595 m (±90°) up to
+  6.6 m (0°, far wall down the aisle), with `-1.0` (no-hit) only at a handful
+  of indices (corner gaps / grazing angles).
+
+**Conclusion: no phantom obstacle at the ArUco plate's bearing. Gate: GO** —
+downstream costmap/Nav2 tasks in this phase may proceed on `/<robot_id>/scan`
+as authored, using the existing marker height (`MARKER_HEIGHT_M = 0.21`,
+`marker_asset.py`) relative to the lidar mount (`base_scan` at `z=0.172`,
+`turtlebot3_burger.urdf` `scan_joint`). Any future change to either height
+must re-run this check — the margin is only 3.8 cm.
+
+---
+
+## 11. Verified per-robot Nav2 bringup (Jazzy container smoke)
+
+Verified on 2026-06-22 in the `vgu_ros` (`ros:jazzy`) container after copying the
+current Phase 2 launch/config changes into `/ws`:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+cd /ws/ros2_ws
+colcon build --merge-install --packages-select swarm_simulation
+source install/setup.bash
+ros2 launch swarm_simulation nav2_robot.launch.py --show-args
+```
+
+Result: `swarm_simulation` built successfully and `nav2_robot.launch.py`
+resolved its own required arguments (`robot_id`, `x`, `y`, `yaw`) plus the
+included Jazzy `navigation_launch.py` arguments with no import or package
+errors.
+
+A short launch smoke test without Isaac Sim running:
+
+```bash
+ros2 launch swarm_simulation nav2_robot.launch.py robot_id:=robot_1 x:=-0.6 y:=0.0 yaw:=0.0
+```
+
+exposed the expected namespaced action servers, including
+`/robot_1/navigate_to_pose` and `/robot_1/follow_waypoints`, and loaded the
+Jazzy Nav2 plugins configured in `nav2_params.yaml`:
+
+- `nav2_navfn_planner::NavfnPlanner`
+- `dwb_core::DWBLocalPlanner`
+- DWB critics listed under `FollowPath`
+- Jazzy lifecycle-managed auxiliary nodes (`smoother_server`, `route_server`,
+  `velocity_smoother`, `collision_monitor`, `docking_server`)
+
+The smoke run then waited for `robot_1/base_link -> robot_1/odom`, which is
+expected because Isaac Sim was not running and therefore no robot TF was being
+published. This smoke verifies the Jazzy Nav2 stack/launch/config path, not
+closed-loop navigation. The next host verification must run Isaac Sim with
+`ROS_DISTRO=jazzy` and the DDS UDP profile so `/clock`, `/tf`, `/robot_1/odom`,
+and `/robot_1/scan` are present while Nav2 activates.
