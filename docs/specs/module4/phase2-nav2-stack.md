@@ -114,6 +114,32 @@ directly while Nav2 owns a robot.
 
 ---
 
+## 9. Verified host setup (GCP, 2026-06-25)
+
+Nav2 Jazzy packages confirmed installed in the `vgu_ros` Docker container
+(ubuntu:noble base, ROS 2 Jazzy):
+
+```
+ros-jazzy-navigation2    1.3.12-1noble.20260615.181551
+ros-jazzy-nav2-bringup   1.3.12-1noble.20260616.082701
+```
+
+All nav2 component packages at version 1.3.12. Smoke launch verified:
+
+```bash
+ros2 launch nav2_bringup bringup_launch.py --show-args
+# → prints namespace, use_namespace, slam, map, params_file, use_sim_time, ...
+# No errors.
+```
+
+Install command (already applied; not needed again):
+
+```bash
+sudo apt-get update && sudo apt-get install -y ros-jazzy-navigation2 ros-jazzy-nav2-bringup
+```
+
+---
+
 ## 8. Testing & Validation
 
 Assert `/<robot_id>/scan` is published and clean, the map loads, and a single
