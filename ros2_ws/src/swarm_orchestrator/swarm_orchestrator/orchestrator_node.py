@@ -1,6 +1,7 @@
 """Thin ROS2 node wiring M5's pure logic to topics, services, and a worker thread."""
 from __future__ import annotations
 
+import json
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
@@ -9,13 +10,20 @@ import rclpy
 import yaml
 from cv_bridge import CvBridge
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from swarm_interfaces.msg import CoordinationCommand, CoordinationStatus
 from swarm_interfaces.srv import TriggerCongestionAnalysis
 
+from reasoning.rag.command_grounder import filter_command_robot_ids, ground_reasoner_result
 from reasoning.vlm import build_backend
-from reasoning.vlm.models import ReasonerConfig
+from reasoning.vlm.models import (
+    AnthropicBackendConfig,
+    LlamaServerBackendConfig,
+    OpenAIBackendConfig,
+    ReasonerConfig,
+)
 from reasoning.vlm.reasoner import Reasoner
 from swarm_orchestrator.command_lifecycle import CommandRecord, CommandTracker, CooldownTracker
 from swarm_orchestrator.congestion_detector import CongestionDetector
@@ -33,6 +41,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     build_reasoner_request,
     dump_frame_png,
     fan_out_command,
+    write_decision_artifact,
 )
 from swarm_orchestrator.state_machine import (
     DirectiveKind,
@@ -42,14 +51,40 @@ from swarm_orchestrator.task_registry import TaskRegistry
 
 
 def _build_default_pipeline(config: OrchestratorConfig) -> ReasoningPipeline:
-    backend = build_backend(config.reasoning_backend_id)
-    reasoner = Reasoner(backend, ReasonerConfig(backend_id=config.reasoning_backend_id))
+    reasoner_config, backend_config = _load_vlm_config(config.reasoning_backend_id)
+    backend = build_backend(config.reasoning_backend_id, backend_config)
+    reasoner = Reasoner(backend, reasoner_config)
+    return InProcessPipeline(reasoner=reasoner, ground_fn=ground_reasoner_result)
 
-    def ground(result):
-        # M3 is a stub this milestone; validate the contract dict it will return.
-        raise NotImplementedError("M3 grounding not yet implemented")
 
-    return InProcessPipeline(reasoner=reasoner, ground_fn=ground)
+def _registry_qos() -> QoSProfile:
+    return QoSProfile(
+        depth=1,
+        durability=DurabilityPolicy.TRANSIENT_LOCAL,
+        reliability=ReliabilityPolicy.RELIABLE,
+    )
+
+
+def _load_vlm_config(backend_id: str) -> tuple[ReasonerConfig, object | None]:
+    path = Path("config/models.yaml")
+    raw = yaml.safe_load(path.read_text()) if path.is_file() else {}
+    vlm = (raw or {}).get("vlm", {})
+    reasoner_raw = dict(vlm.get("reasoner", {}))
+    reasoner_raw["backend_id"] = backend_id
+    reasoner_config = ReasonerConfig(**reasoner_raw)
+
+    backend_raw = vlm.get(backend_id, {})
+    if backend_id == "openai":
+        backend_config = OpenAIBackendConfig(**backend_raw)
+    elif backend_id == "llama_server":
+        backend_config = LlamaServerBackendConfig(**backend_raw)
+    elif backend_id == "anthropic":
+        backend_config = AnthropicBackendConfig(**backend_raw)
+    elif backend_id == "mock":
+        backend_config = None
+    else:
+        backend_config = backend_raw or None
+    return reasoner_config, backend_config
 
 
 class OrchestratorNode(Node):
@@ -84,7 +119,9 @@ class OrchestratorNode(Node):
         self._cmd_pub = self.create_publisher(
             CoordinationCommand, topics["coordination_commands"], 10
         )
-        self._tasks_pub = self.create_publisher(String, topics["coordination_tasks"], 10)
+        self._tasks_pub = self.create_publisher(
+            String, topics["coordination_tasks"], _registry_qos()
+        )
         self.create_subscription(String, topics["scene_state"], self._on_scene_state, 10)
         self.create_subscription(Image, topics["annotated_frame"], self._on_frame, 10)
         self.create_subscription(
@@ -96,6 +133,7 @@ class OrchestratorNode(Node):
         self.create_timer(0.5, self._on_timer)
 
         Path(self._config.frame_dump_dir).mkdir(parents=True, exist_ok=True)
+        Path(self._config.decision_log_dir).mkdir(parents=True, exist_ok=True)
         self._publish_registry()
 
     # ---- config ----
@@ -133,6 +171,10 @@ class OrchestratorNode(Node):
             frame_ready=frame_ready,
         )
         if directive.kind is DirectiveKind.START_ANALYSIS:
+            self.get_logger().info(
+                f"starting analysis request={directive.request_id} robots={event.involved_robots} "
+                f"reason={event.reason}"
+            )
             self._submit_pipeline(directive.request_id, snapshot)
         elif directive.kind is DirectiveKind.SUPPRESSED:
             self.get_logger().info(
@@ -219,6 +261,12 @@ class OrchestratorNode(Node):
         self._future = self._executor.submit(task)
 
     def _handle_outcome(self, outcome: PipelineOutcome, now: float) -> None:
+        try:
+            artifact_path = write_decision_artifact(self._config.decision_log_dir, outcome)
+            self.get_logger().info(f"decision artifact written: {artifact_path}")
+        except OSError as exc:
+            self.get_logger().error(f"decision artifact write failed: {exc}")
+
         directive = self._machine.on_outcome(outcome, now)
         if directive.kind is DirectiveKind.DISPATCH and outcome.grounded_command is not None:
             self._dispatch(outcome)
@@ -231,7 +279,10 @@ class OrchestratorNode(Node):
         self._cleanup_frame(outcome.request_id)
 
     def _dispatch(self, outcome: PipelineOutcome) -> None:
-        grounded = outcome.grounded_command
+        grounded = filter_command_robot_ids(
+            outcome.grounded_command,
+            set(self._config.initial_tasks),
+        )
         messages = fan_out_command(grounded, self._config.command_timeout_sec)
         robot_ids = [m[1] for m in messages]
         timeout = messages[0][4] if messages else self._config.command_timeout_sec
@@ -250,10 +301,17 @@ class OrchestratorNode(Node):
             msg.command_id = command_id
             msg.robot_id = robot_id
             msg.action = action
+            # Inject the robot's current task goal into reroute params so the
+            # command_bus can resume navigation to the original goal when M3
+            # did not supply explicit waypoints (the common case for this grounder).
+            goal = self._effective_goal(robot_id) or (0.0, 0.0)
+            if action == "reroute":
+                p = json.loads(params_json or "{}")
+                p.setdefault("goal", {"x": goal[0], "y": goal[1]})
+                params_json = json.dumps(p)
             msg.parameters_json = params_json
             msg.timeout_sec = _timeout
             self._cmd_pub.publish(msg)
-            goal = self._effective_goal(robot_id) or (0.0, 0.0)
             self._registry.set_override(robot_id, action, goal, command_id)
             self.get_logger().info(
                 f"dispatch request={outcome.request_id} command={command_id} robot={robot_id}"

@@ -1,15 +1,157 @@
+from __future__ import annotations
+
+import json
+
 try:
     import rclpy
     from rclpy.node import Node
+    from swarm_interfaces.msg import CoordinationCommand, CoordinationStatus
 except ImportError:
     rclpy = None
     Node = object
+    CoordinationCommand = object
+    CoordinationStatus = object
+
+from swarm_execution.nav2_adapter import Nav2Adapter
 
 
 class CommandBusNode(Node):
     def __init__(self):
         super().__init__("command_bus_node")
-        self.get_logger().info("Command bus scaffold started.")
+        self._adapter = Nav2Adapter(self)
+        self._status_republish_timers = []
+        self._status_pub = self.create_publisher(CoordinationStatus, "/coordination/status", 10)
+        self.create_subscription(
+            CoordinationCommand,
+            "/coordination/commands",
+            self._on_command,
+            10,
+        )
+        self.get_logger().info("Command bus started.")
+
+    def _on_command(self, msg: CoordinationCommand) -> None:
+        self.get_logger().info(
+            f"command received command={msg.command_id} robot={msg.robot_id} action={msg.action}"
+        )
+        try:
+            params = json.loads(msg.parameters_json or "{}")
+            pending_result = self._dispatch(msg, params)
+        except Exception as exc:
+            self._publish_status(msg, "FAILED", str(exc))
+            self.get_logger().error(
+                f"command failed command={msg.command_id} robot={msg.robot_id}: {exc}"
+            )
+            return
+        if not pending_result:
+            self._publish_status(msg, "COMPLETED", "dispatched")
+
+    def _dispatch(self, msg: CoordinationCommand, params: dict) -> bool:
+        robot_id = msg.robot_id
+        action = msg.action
+        if action in {"navigate", "goal", "priority_override"}:
+            goal = params.get("goal") or params.get("target") or {}
+            x = goal["x"] if isinstance(goal, dict) else goal[0]
+            y = goal["y"] if isinstance(goal, dict) else goal[1]
+            yaw = goal.get("yaw", 0.0) if isinstance(goal, dict) else 0.0
+            self._adapter.send_goal(
+                robot_id,
+                float(x),
+                float(y),
+                float(yaw),
+                on_result=lambda status, detail, command=msg: self._publish_status(
+                    command, status, detail
+                ),
+            )
+            return True
+        if action in {"reroute", "convoy"}:
+            waypoints = params.get("waypoints") or []
+            if not waypoints:
+                # No explicit waypoints: re-send the original task goal so the
+                # robot resumes navigation from its current position. This is
+                # the common case when M3 grounds reroute without a specific
+                # alternative path (the grounder leaves waypoints empty as a
+                # placeholder for scenarios without a pre-planned detour).
+                goal = params.get("goal") or params.get("target") or {}
+                if goal:
+                    x = goal["x"] if isinstance(goal, dict) else goal[0]
+                    y = goal["y"] if isinstance(goal, dict) else goal[1]
+                    yaw = goal.get("yaw", 0.0) if isinstance(goal, dict) else 0.0
+                    self._adapter.send_goal(
+                        robot_id,
+                        float(x),
+                        float(y),
+                        float(yaw),
+                        on_result=lambda status, detail, command=msg: self._publish_status(
+                            command, status, detail
+                        ),
+                    )
+                    return True
+                # No goal either — mark completed so M5 can escalate.
+                return False
+            self._adapter.send_waypoints(
+                robot_id,
+                [(float(p["x"]), float(p["y"])) if isinstance(p, dict) else (float(p[0]), float(p[1]))
+                 for p in waypoints],
+                on_result=lambda status, detail, command=msg: self._publish_status(
+                    command, status, detail
+                ),
+            )
+            return True
+        if action in {"yield", "reverse"}:
+            # Clearing maneuver: a head-on standoff does not clear if the yielding
+            # robot merely stops nose-to-nose, so it physically reverses to open
+            # the aisle (Phase 3 closed loop). Distance comes from the grounded
+            # command; default to a conservative back-off if absent.
+            distance_m = float(params.get("backup_distance_m", 0.3))
+            self._adapter.backup(
+                robot_id,
+                distance_m,
+                on_result=lambda status, detail, command=msg: self._publish_status(
+                    command, status, detail
+                ),
+            )
+            return True
+        if action in {"wait", "temporary_wait", "stop"}:
+            self._adapter.cancel(robot_id)
+            return False
+        raise ValueError(f"unsupported action: {action}")
+
+    def _publish_status(self, command: CoordinationCommand, status: str, detail: str) -> None:
+        msg = CoordinationStatus()
+        msg.command_id = command.command_id
+        msg.robot_id = command.robot_id
+        msg.status = status
+        msg.detail = detail
+        self._status_pub.publish(msg)
+        self.get_logger().info(
+            f"status published command={command.command_id} robot={command.robot_id} status={status}"
+        )
+        for delay_sec in (0.25, 0.75):
+            self._schedule_status_republish(msg, delay_sec)
+
+    def _schedule_status_republish(self, msg: CoordinationStatus, delay_sec: float) -> None:
+        timer_ref = {}
+
+        def republish() -> None:
+            self._status_pub.publish(msg)
+            self.get_logger().info(
+                f"status republished command={msg.command_id} robot={msg.robot_id} status={msg.status}"
+            )
+            timer = timer_ref["timer"]
+            timer.cancel()
+            self.destroy_timer(timer)
+            self._status_republish_timers.remove(timer)
+
+        timer = self.create_timer(delay_sec, republish)
+        timer_ref["timer"] = timer
+        self._status_republish_timers.append(timer)
+
+    def destroy_node(self) -> bool:
+        for timer in list(self._status_republish_timers):
+            timer.cancel()
+            self.destroy_timer(timer)
+            self._status_republish_timers.remove(timer)
+        return super().destroy_node()
 
 
 def main(args=None):
