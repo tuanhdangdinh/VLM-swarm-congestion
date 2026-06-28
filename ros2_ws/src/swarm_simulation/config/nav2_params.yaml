@@ -159,6 +159,12 @@ local_costmap:
       # `plugin:` key naming the implementing class.
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
+        # Nav2 default inflation_radius is 0.55m. With robot half-width 0.09m,
+        # that inflates to 1.28m — wider than the entire 1.2m aisle, making the
+        # 0.4-0.55m barrier gap fully lethal and unnavigable. Set explicitly to
+        # 0.10m: inflated half-width = 0.09+0.10 = 0.19m, gap 0.55m gives
+        # 0.17m navigable clearance, narrow but viable for the deadlock scenario.
+        inflation_radius: 0.10
 
 global_costmap:
   global_costmap:
@@ -200,6 +206,7 @@ global_costmap:
           obstacle_max_range: 3.5
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
+        inflation_radius: 0.10
 
 bt_navigator:
   ros__parameters:
@@ -239,24 +246,15 @@ waypoint_follower:
     use_sim_time: true
 
 # Jazzy's nav2_bringup navigation_launch.py (1.3.12, verified on the Jazzy
-# container's installed package) lists smoother_server, route_server,
-# velocity_smoother, collision_monitor, and docking_server in its
-# lifecycle_manager_navigation node_names -- absent from the Humble-era
-# brief/spec, which only covered controller, planner, costmaps,
-# bt_navigator, behavior_server, and waypoint_follower. lifecycle_manager
-# blocks bringup waiting for *every* listed node to reach ACTIVE, so each
-# needs a minimal, valid configuration even though this project does not use
-# smoothing, routing, or docking. Configured here with safe
-# no-op-equivalent settings, not independently tuned -- see
-# phase2-nav2-stack.md S11.
+# container's installed package) includes auxiliary lifecycle nodes absent from
+# the Humble-era brief/spec. The vendored navigation launch intentionally omits
+# route_server (needs a route graph file) and velocity_smoother (unused in this
+# stack's controller -> collision_monitor -> Isaac watchdog command path).
+# The remaining auxiliary nodes still need minimal valid configuration even
+# though this project does not use smoothing or docking directly.
 smoother_server:
   ros__parameters:
     use_sim_time: true
-
-velocity_smoother:
-  ros__parameters:
-    use_sim_time: true
-    odom_topic: "odom"
 
 route_server:
   ros__parameters:
@@ -271,7 +269,7 @@ collision_monitor:
     cmd_vel_out_topic: "cmd_vel"
     transform_tolerance: 0.2
     source_timeout: 1.0
-    stop_pub_timeout: 2.0
+    stop_pub_timeout: 0.1
     # A real forward stop zone, not the old lifecycle-only no-op. Keep the
     # polygon narrow so aisle walls do not immediately trigger it, but long
     # enough to stop a head-on robot before body contact at this stack's
@@ -288,7 +286,11 @@ collision_monitor:
     observation_sources: ["scan"]
     scan:
       type: "scan"
-      topic: "scan"
+      # Absolute topic using the namespace token: collision_monitor nodes run
+      # under /<robot_id>/collision_monitor, so a relative "scan" resolves to
+      # /<robot_id>/collision_monitor/scan (nonexistent). Must use the absolute
+      # /<robot_namespace>/scan to receive Isaac's per-robot lidar data.
+      topic: "/<robot_namespace>/scan"
       min_height: 0.05
       max_height: 2.0
       enabled: true

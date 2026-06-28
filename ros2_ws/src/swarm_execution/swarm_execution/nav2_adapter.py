@@ -88,6 +88,7 @@ class Nav2Adapter(Node):
         self._goal_clients: dict[str, ActionClient] = {}
         self._waypoint_clients: dict[str, ActionClient] = {}
         self._backup_clients: dict[str, ActionClient] = {}
+        self._cancel_clients: dict[str, ActionClient] = {}
         self._active_goals: dict[str, object] = {}
         self._backup_pubs: dict[str, object] = {}
         self._backup_timers: dict[str, object] = {}
@@ -196,10 +197,35 @@ class Nav2Adapter(Node):
             on_result("ACTIVE", "backup started")
 
     def cancel(self, robot_id: str) -> None:
-        """Cancel robot_id's active goal, if any."""
+        """Cancel robot_id's active goal and any in-progress backup timer.
+
+        Issues cancel-all via ActionClient in addition to handle-based cancel so
+        goals whose handles are not yet registered in _active_goals (race window
+        between send_goal_async and the _on_goal_response callback) are also
+        killed before a backup starts.
+        """
+        timer = self._backup_timers.pop(robot_id, None)
+        if timer is not None:
+            try:
+                timer.cancel()
+            except Exception:
+                pass
         handle = self._active_goals.get(robot_id)
         if handle is not None:
             handle.cancel_goal_async()
+        # Cancel-all: catches any in-flight goal whose handle is not yet in
+        # _active_goals due to the async _on_goal_response callback window.
+        if ActionClient is not object:
+            client = self._cancel_clients.get(robot_id)
+            if client is None:
+                client = ActionClient(
+                    self._node, NavigateToPose, f"/{robot_id}/navigate_to_pose"
+                )
+                self._cancel_clients[robot_id] = client
+            try:
+                client.cancel_goals_async(goals_to_cancel=None)
+            except Exception:
+                pass
 
     def _on_goal_response(
         self,
