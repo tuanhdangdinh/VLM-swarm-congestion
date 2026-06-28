@@ -3,12 +3,16 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any, Protocol
 
 import cv2
 import numpy as np
 
-from reasoning.rag.command_grounder import validate_coordination_command
+from reasoning.rag.command_grounder import (
+    filter_command_robot_ids,
+    validate_coordination_command,
+)
 from reasoning.vlm.models import (
     ReasonerDiagnostics,
     ReasonerRequest,
@@ -65,6 +69,7 @@ def build_reasoner_request(
             theta=r.theta,
             linear_velocity=r.linear_velocity,
             status=r.status,
+            goal=r.goal if hasattr(r, "goal") else None,
         )
         for r in snapshot.robots
     ]
@@ -118,6 +123,31 @@ def fan_out_command(
     return messages
 
 
+def write_decision_artifact(output_dir: str | Path, outcome: PipelineOutcome) -> Path:
+    """Persist one M2 decision outcome for capstone acceptance evidence.
+
+    The artifact is intentionally written before dispatch handling in the ROS node,
+    so it captures the M2 result even when M3 grounding terminates the cycle.
+    """
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    result = outcome.reasoner_result
+    payload = {
+        "request_id": outcome.request_id,
+        "terminal_stage": outcome.terminal_stage.value,
+        "failure_reason": outcome.failure_reason,
+        "grounded_command_present": outcome.grounded_command is not None,
+        "decision": (
+            None if result.decision is None else result.decision.model_dump(mode="json")
+        ),
+        "diagnostics": result.diagnostics.model_dump(mode="json"),
+        "raw_text": result.raw_text,
+    }
+    artifact_path = output_path / f"{outcome.request_id}.json"
+    artifact_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return artifact_path
+
+
 class ReasoningPipeline(Protocol):
     """Backend/transport-agnostic M2->M3 pipeline."""
 
@@ -154,7 +184,9 @@ class InProcessPipeline:
         if not decision.congestion_detected:
             return self._vlm_terminal(request.request_id, result, "congestion_detected=false")
         try:
-            grounded = self._validate_fn(self._ground_fn(result))
+            allowed_robot_ids = {robot.robot_id for robot in request.robot_states}
+            grounded = filter_command_robot_ids(self._ground_fn(result), allowed_robot_ids)
+            grounded = self._validate_fn(grounded)
         except Exception as exc:  # grounding or schema-validation failure — bounded here
             return PipelineOutcome(
                 request_id=request.request_id,

@@ -14,6 +14,7 @@ class RobotStateInput(BaseModel):
     angular_velocity: float | None = None
     task: str | None = None
     status: str | None = None
+    goal: tuple[float, float] | None = None
 
 
 class ReasonerRequest(BaseModel):

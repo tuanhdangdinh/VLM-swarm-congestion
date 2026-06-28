@@ -22,9 +22,21 @@ Known robot IDs: {known_robot_ids_json}
 Guidance:
 - Robots are roughly 0.3 m wide; treat any two robots within ~0.5 m of each \
 other as physically conflicting.
-- deadlock: a cycle of robots each blocked by another. bottleneck: several robots \
-queued for one passage. crowding: many robots packed into a small area. anomaly: \
-an unexpected or unsafe configuration.
+- theta is heading in radians: 0=east(+x), π/2=north(+y), π or -π=west(-x), \
+-π/2=south(-y). Two robots with |theta_1 - theta_2| close to π are facing \
+each other head-on.
+- deadlock: two or more robots each blocked by the other. The most common case \
+is a head-on standoff — two robots facing opposite directions (theta values \
+differing by ~π) in the same narrow aisle, both STOPPED or STALE, unable to \
+pass. This IS a deadlock even with only two robots. \
+bottleneck: several robots queued waiting behind one slow robot or blocked passage \
+(one-way congestion, not opposing). crowding: many robots packed into a small \
+area. anomaly: unexpected or unsafe configuration.
+- For head-on deadlock (two stopped/stale robots with opposing headings and/or \
+opposing goal directions): classify as type="deadlock" and strategy="yield" \
+(first listed robot backs up) or strategy="reverse" (both back up to clear).
+- For a simple bottleneck (robots queued in the same direction): classify as \
+type="bottleneck" and strategy="temporary_wait" or "yield".
 - Decide from the robot coordinates and the image, not from assumptions about intent.
 
 Produce a JSON object with exactly these fields:
@@ -44,8 +56,9 @@ involved_robots must be non-empty.
 
 Answer using the following format:
 <think>
-Compute the pairwise distance between robots, identify any conflicts, and decide \
-the congestion type and strategy.
+Compute the pairwise distance between robots, check theta values for opposing \
+headings (head-on deadlock), inspect goal positions for opposing directions, \
+identify any conflicts, and decide the congestion type and strategy.
 </think>
 Immediately after the </think> tag, write ONLY the final JSON object, with no \
 surrounding text or markdown."""
@@ -70,6 +83,8 @@ def format_robot_state_lines(robot_states: list[RobotStateInput]) -> list[str]:
         ]
         if state.status is not None:
             parts.append(f"status={state.status}")
+        if state.goal is not None:
+            parts.append(f"goal_x={state.goal[0]:.2f}, goal_y={state.goal[1]:.2f}")
         if state.task is not None:
             parts.append(f"task={state.task}")
         if state.linear_velocity is not None:
