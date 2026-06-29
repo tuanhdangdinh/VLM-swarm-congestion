@@ -1,6 +1,12 @@
 import pytest
 
-from reasoning.rag.command_grounder import CommandGroundingError, validate_coordination_command
+from reasoning.rag.command_grounder import (
+    CommandGroundingError,
+    filter_command_robot_ids,
+    ground_reasoner_result,
+    validate_coordination_command,
+)
+from reasoning.vlm.models import CongestionDecision, ReasonerDiagnostics, ReasonerResult
 
 
 def test_validate_coordination_command_accepts_valid_payload():
@@ -23,3 +29,79 @@ def test_validate_coordination_command_rejects_missing_actions():
                 "fallback": "stop_and_wait",
             }
         )
+
+
+def _result(strategy="yield", robots=None):
+    robots = robots or ["robot_1", "robot_2"]
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type="deadlock",
+        involved_robots=robots,
+        root_cause="head-on aisle conflict",
+        strategy=strategy,
+        justification="robots are stopped face to face",
+    )
+    diagnostics = ReasonerDiagnostics(
+        request_id="req1",
+        backend_id="openai",
+        attempts=1,
+        parse_status="valid",
+    )
+    return ReasonerResult(
+        request_id="req1",
+        decision=decision,
+        raw_text="{}",
+        diagnostics=diagnostics,
+    )
+
+
+def test_ground_yield_decision_to_single_backing_yield_action():
+    command = ground_reasoner_result(_result("yield"))
+
+    assert command["command_id"] == "req1-yield"
+    # Yield emits two actions: robot_1 backs up and holds, robot_2 waits briefly
+    # so M5 cannot dispatch a competing command during the backup window.
+    actions = command["actions"]
+    assert len(actions) == 2
+    yielder = actions[0]
+    passer = actions[1]
+    assert yielder["robot_id"] == "robot_1"
+    assert yielder["action"] == "yield"
+    assert yielder["parameters"]["backup_distance_m"] == 0.8
+    assert yielder["parameters"]["hold_sec"] == 12.0
+    assert "reason" in yielder["parameters"]
+    assert passer["robot_id"] == "robot_2"
+    assert passer["action"] == "temporary_wait"
+    assert passer["parameters"]["duration_sec"] == 10.0  # backup_time(8) + 2s
+    assert command["fallback"] == "stop"
+    # expected_resolution_time_sec covers the full yield cycle (backup + hold + buffer)
+    assert command["expected_resolution_time_sec"] == 22.0  # 8 + 12 + 2
+
+
+def test_ground_reverse_decision_to_backing_reverse_action():
+    command = ground_reasoner_result(_result("reverse", ["robot_2"]))
+
+    assert command["actions"] == [
+        {
+            "robot_id": "robot_2",
+            "action": "reverse",
+            "parameters": {
+                "backup_distance_m": 0.8,
+            },
+        }
+    ]
+
+
+def test_filter_command_robot_ids_drops_hallucinated_robot_actions():
+    command = ground_reasoner_result(_result("temporary_wait", ["robot_1", "robot_20"]))
+
+    filtered = filter_command_robot_ids(command, {"robot_1", "robot_2"})
+
+    assert [action["robot_id"] for action in filtered["actions"]] == ["robot_1"]
+
+
+def test_filter_command_robot_ids_rejects_all_hallucinated_robot_actions():
+    command = ground_reasoner_result(_result("temporary_wait", ["robot_20"]))
+
+    with pytest.raises(CommandGroundingError, match="no actions for known robots"):
+        filter_command_robot_ids(command, {"robot_1", "robot_2"})

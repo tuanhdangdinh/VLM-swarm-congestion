@@ -103,13 +103,35 @@ class CommandBusNode(Node):
             # the aisle (Phase 3 closed loop). Distance comes from the grounded
             # command; default to a conservative back-off if absent.
             distance_m = float(params.get("backup_distance_m", 0.3))
-            self._adapter.backup(
-                robot_id,
-                distance_m,
-                on_result=lambda status, detail, command=msg: self._publish_status(
-                    command, status, detail
-                ),
-            )
+            # hold_sec (yield only): after backing up the robot holds position so
+            # the other robot can navigate through the cleared aisle before this
+            # robot resumes. reverse does not hold; both robots back up symmetrically.
+            hold_sec = float(params.get("hold_sec", 0.0)) if action == "yield" else 0.0
+
+            def _on_backup_result(
+                status: str,
+                detail: str,
+                command=msg,
+                _hold_sec: float = hold_sec,
+            ) -> None:
+                if status != "COMPLETED" or _hold_sec <= 0.0:
+                    self._publish_status(command, status, detail)
+                    return
+                # Backup done — hold position while the other robot passes.
+                self._publish_status(command, "ACTIVE", "holding for passing robot")
+                timer_ref: dict = {}
+
+                def _hold_expired() -> None:
+                    self._publish_status(command, "COMPLETED", "yield complete")
+                    t = timer_ref.get("timer")
+                    if t is not None:
+                        t.cancel()
+                        self.destroy_timer(t)
+
+                t = self.create_timer(_hold_sec, _hold_expired)
+                timer_ref["timer"] = t
+
+            self._adapter.backup(robot_id, distance_m, on_result=_on_backup_result)
             return True
         if action in {"wait", "temporary_wait", "stop"}:
             self._adapter.cancel(robot_id)

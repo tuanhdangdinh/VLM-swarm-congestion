@@ -3,6 +3,7 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 from reasoning.schemas import load_schema
+from reasoning.vlm.models import ReasonerResult
 
 
 class CommandGroundingError(ValueError):
@@ -16,3 +17,147 @@ def validate_coordination_command(command: dict[str, Any]) -> dict[str, Any]:
         messages = "; ".join(error.message for error in errors)
         raise CommandGroundingError(f"Command failed schema validation: {messages}")
     return command
+
+
+def filter_command_robot_ids(
+    command: dict[str, Any], allowed_robot_ids: set[str] | None
+) -> dict[str, Any]:
+    """Drop grounded actions for robots absent from the current scene snapshot."""
+    if allowed_robot_ids is None:
+        return command
+
+    actions = [
+        action for action in command.get("actions", []) if action.get("robot_id") in allowed_robot_ids
+    ]
+    if not actions:
+        raise CommandGroundingError(
+            "Command contains no actions for known robots: "
+            f"allowed={sorted(allowed_robot_ids)}"
+        )
+    return {**command, "actions": actions}
+
+
+def ground_reasoner_result(result: ReasonerResult) -> dict[str, Any]:
+    """Convert a validated VLM decision into an executable coordination command.
+
+    This is a small deterministic bridge until the full retrieval-backed M3
+    grounder is restored. yield/reverse emit a bounded backward clearing
+    maneuver (the yielding robot reverses to open a blocked aisle), temporary_wait
+    cancels Nav2 goals, reroute forwards explicit waypoints when present, and the
+    remaining semantic strategies degrade to a temporary wait rather than
+    inventing unsafe motion.
+    """
+    decision = result.decision
+    if decision is None or not decision.congestion_detected:
+        raise CommandGroundingError("cannot ground an empty or non-congestion decision")
+
+    robot_ids = decision.involved_robots
+    command_id = f"{result.request_id}-{decision.strategy}"
+    duration_sec = 8.0
+    # Distance the yielding robot reverses. Sized for the head-on deadlock
+    # geometry: robots stop at ~0.3 m separation inside the aisle, so backing
+    # 0.8 m clears robot_1 to ~-0.9 m (past the barrier entrance at ~-0.3 m)
+    # where robot_2 can safely navigate through the aisle toward its goal.
+    backup_distance_m = 0.8
+    backup_speed_mps = 0.1
+    # How long robot_1 holds position after backing up so robot_2 can
+    # navigate through the cleared aisle before robot_1 resumes.
+    # Sized for the aisle geometry: robot_2 needs to travel ~1.5 m at
+    # 0.18 m/s ≈ 8 s. 12 s gives comfortable margin.
+    yield_hold_sec = 12.0
+    # Robot_2 waits in place while robot_1 backs up (backup_distance_m /
+    # backup_speed_mps seconds) plus a 2 s margin before Nav2 resumes.
+    # This keeps M5 from dispatching a competing command to robot_2 during
+    # the backup window and lets robot_2 start navigating through the
+    # freshly cleared aisle without interference.
+    passing_wait_sec = round(backup_distance_m / backup_speed_mps) + 2.0
+    # Total yield cycle: backup + hold. Used as expected_resolution_time_sec
+    # so M5 does not time out the command before the hold expires.
+    yield_total_sec = round(backup_distance_m / backup_speed_mps) + yield_hold_sec + 2.0
+
+    if decision.strategy == "yield":
+        actions = [
+            {
+                "robot_id": robot_ids[0],
+                "action": "yield",
+                "parameters": {
+                    "backup_distance_m": backup_distance_m,
+                    "hold_sec": yield_hold_sec,
+                    "reason": decision.root_cause,
+                },
+            },
+        ]
+        if len(robot_ids) > 1:
+            # Suppress the passing robot during the backup window so M5
+            # does not dispatch a competing command while the aisle is
+            # still blocked. After passing_wait_sec it resumes freely.
+            actions.append(
+                {
+                    "robot_id": robot_ids[1],
+                    "action": "temporary_wait",
+                    "parameters": {"duration_sec": passing_wait_sec},
+                }
+            )
+    elif decision.strategy == "reverse":
+        actions = [
+            {
+                "robot_id": robot_id,
+                "action": "reverse",
+                "parameters": {
+                    "backup_distance_m": backup_distance_m,
+                },
+            }
+            for robot_id in robot_ids
+        ]
+    elif decision.strategy == "temporary_wait":
+        actions = [
+            {
+                "robot_id": robot_id,
+                "action": "temporary_wait",
+                "parameters": {"duration_sec": duration_sec},
+            }
+            for robot_id in robot_ids
+        ]
+    elif decision.strategy == "reroute":
+        # Asymmetric: first robot navigates, remaining robots wait long enough
+        # for it to clear the contested zone. Sending all robots simultaneously
+        # causes them to approach each other and re-collide immediately.
+        clearance_wait_sec = 15.0
+        actions = [
+            {
+                "robot_id": robot_ids[0],
+                "action": "reroute",
+                "parameters": {"waypoints": []},
+            }
+        ] + [
+            {
+                "robot_id": robot_id,
+                "action": "temporary_wait",
+                "parameters": {"duration_sec": clearance_wait_sec},
+            }
+            for robot_id in robot_ids[1:]
+        ]
+    elif decision.strategy in {"convoy", "priority_override"}:
+        actions = [
+            {
+                "robot_id": robot_id,
+                "action": "temporary_wait",
+                "parameters": {
+                    "duration_sec": duration_sec,
+                    "requested_strategy": decision.strategy,
+                },
+            }
+            for robot_id in robot_ids
+        ]
+    else:
+        raise CommandGroundingError(f"unsupported strategy: {decision.strategy}")
+
+    resolution_sec = yield_total_sec if decision.strategy == "yield" else duration_sec
+    return validate_coordination_command(
+        {
+            "command_id": command_id,
+            "actions": actions,
+            "expected_resolution_time_sec": resolution_sec,
+            "fallback": "stop",
+        }
+    )
