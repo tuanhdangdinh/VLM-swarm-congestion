@@ -135,7 +135,24 @@ class CommandBusNode(Node):
             return True
         if action in {"wait", "temporary_wait", "stop"}:
             self._adapter.cancel(robot_id)
-            return False
+            duration_sec = float(params.get("duration_sec", 0.0))
+            if duration_sec <= 0.0:
+                return False
+            # Hold Nav2 paused for duration_sec before publishing COMPLETED so
+            # M5 cannot dispatch a competing command until the window expires.
+            self._publish_status(msg, "ACTIVE", "waiting")
+            timer_ref: dict = {}
+
+            def _wait_expired(_command=msg) -> None:
+                self._publish_status(_command, "COMPLETED", "wait complete")
+                t = timer_ref.get("timer")
+                if t is not None:
+                    t.cancel()
+                    self.destroy_timer(t)
+
+            t = self.create_timer(duration_sec, _wait_expired)
+            timer_ref["timer"] = t
+            return True
         raise ValueError(f"unsupported action: {action}")
 
     def _publish_status(self, command: CoordinationCommand, status: str, detail: str) -> None:
