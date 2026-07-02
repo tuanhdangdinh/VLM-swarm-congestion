@@ -78,6 +78,46 @@ def test_check_timeouts_ignores_already_resolved():
     assert tracker.check_timeouts(now=100.0) == []
 
 
+def test_check_timeouts_expires_pending_command_past_deadline():
+    # No status ever arrived from M4 (lost dispatch): all robots stay PENDING.
+    tracker = CommandTracker()
+    tracker.register(_record(robots=("robot_0", "robot_1"), timeout=20.0, dispatched=0.0))
+    timed_out = tracker.check_timeouts(now=21.0)
+    assert timed_out == ["c1"]
+    assert tracker.state_of("c1", "robot_0") is CommandState.TIMED_OUT
+    assert tracker.state_of("c1", "robot_1") is CommandState.TIMED_OUT
+
+
+def test_check_timeouts_keeps_active_command_past_deadline():
+    # M4 is mid-execution (ACTIVE): liveness is delegated to M4, never expire.
+    tracker = CommandTracker()
+    tracker.register(_record(robots=("robot_0",), timeout=20.0, dispatched=0.0))
+    tracker.apply_status("c1", "robot_0", "active")
+    timed_out = tracker.check_timeouts(now=21.0)
+    assert timed_out == []
+    assert tracker.state_of("c1", "robot_0") is CommandState.ACTIVE
+
+
+def test_check_timeouts_mixed_pending_and_active_not_expired():
+    # One robot ACTIVE, one still PENDING: treat the whole command as ACTIVE.
+    tracker = CommandTracker()
+    tracker.register(_record(robots=("robot_0", "robot_1"), timeout=20.0, dispatched=0.0))
+    tracker.apply_status("c1", "robot_0", "active")
+    timed_out = tracker.check_timeouts(now=21.0)
+    assert timed_out == []
+    assert tracker.state_of("c1", "robot_0") is CommandState.ACTIVE
+    assert tracker.state_of("c1", "robot_1") is CommandState.PENDING
+
+
+def test_check_timeouts_resolved_command_not_reported():
+    tracker = CommandTracker()
+    tracker.register(_record(robots=("robot_0",), timeout=20.0, dispatched=0.0))
+    tracker.apply_status("c1", "robot_0", "completed")
+    timed_out = tracker.check_timeouts(now=100.0)
+    assert timed_out == []
+    assert tracker.state_of("c1", "robot_0") is CommandState.COMPLETED
+
+
 def test_cooldown_active_then_expires():
     cd = CooldownTracker(cooldown_sec=15.0)
     cd.start(["robot_0", "robot_1"], now=0.0)
