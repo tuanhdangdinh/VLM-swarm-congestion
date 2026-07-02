@@ -20,6 +20,10 @@ class CommandBusNode(Node):
         super().__init__("command_bus_node")
         self._adapter = Nav2Adapter(self)
         self._status_republish_timers = []
+        # robot_id -> command_id currently holding that robot's Nav2 slot.
+        # Populated/cleared from _publish_status so it can never drift from
+        # what was actually published (see _update_in_flight_registry).
+        self._in_flight: dict[str, str] = {}
         self._status_pub = self.create_publisher(CoordinationStatus, "/coordination/status", 10)
         self.create_subscription(
             CoordinationCommand,
@@ -33,6 +37,18 @@ class CommandBusNode(Node):
         self.get_logger().info(
             f"command received command={msg.command_id} robot={msg.robot_id} action={msg.action}"
         )
+        active_command_id = self._in_flight.get(msg.robot_id)
+        if active_command_id is not None:
+            if active_command_id == msg.command_id:
+                # Redelivery (DDS retry, republish) of the command already
+                # driving this robot: not a new command, so no dispatch and
+                # no status — the original in-flight status already covers it.
+                self.get_logger().info(
+                    f"duplicate command ignored command={msg.command_id} robot={msg.robot_id}"
+                )
+                return
+            self._publish_status(msg, "FAILED", f"robot busy: {active_command_id}")
+            return
         try:
             params = json.loads(msg.parameters_json or "{}")
             pending_result = self._dispatch(msg, params)
@@ -195,6 +211,7 @@ class CommandBusNode(Node):
         raise ValueError(f"unsupported action: {action}")
 
     def _publish_status(self, command: CoordinationCommand, status: str, detail: str) -> None:
+        self._update_in_flight_registry(command.robot_id, command.command_id, status)
         msg = CoordinationStatus()
         msg.command_id = command.command_id
         msg.robot_id = command.robot_id
@@ -206,6 +223,26 @@ class CommandBusNode(Node):
         )
         for delay_sec in (0.25, 0.75):
             self._schedule_status_republish(msg, delay_sec)
+
+    def _update_in_flight_registry(self, robot_id: str, command_id: str, status: str) -> None:
+        """Keep `_in_flight` in sync with the status that is about to publish.
+
+        A robot enters the registry on the first `ACTIVE` published for a
+        command and leaves it on a terminal status (`COMPLETED`/`FAILED`),
+        but only if that terminal status belongs to the command currently
+        holding the slot — a stale/rejected command's terminal status must
+        not evict a different command that has since taken over.
+
+        Args:
+            robot_id: Robot identifier the status belongs to.
+            command_id: Command identifier the status belongs to.
+            status: Status value about to be published (e.g. ACTIVE, COMPLETED, FAILED).
+        """
+        if status == "ACTIVE":
+            self._in_flight[robot_id] = command_id
+        elif status in ("COMPLETED", "FAILED"):
+            if self._in_flight.get(robot_id) == command_id:
+                del self._in_flight[robot_id]
 
     def _schedule_status_republish(self, msg: CoordinationStatus, delay_sec: float) -> None:
         timer_ref = {}
