@@ -107,7 +107,7 @@ Required software:
 
 - NVIDIA driver compatible with Isaac Sim.
 - NVIDIA Isaac Sim.
-- ROS2 Humble or Jazzy.
+- ROS2 Jazzy.
 - Project repository.
 - Python dependencies from `requirements-dev.txt`.
 
@@ -251,7 +251,7 @@ Allowed `strategy` values:
 On Machine A:
 
 1. Install Isaac Sim following NVIDIA's current installation instructions.
-2. Install or source ROS2 Humble/Jazzy.
+2. Install or source ROS2 Jazzy.
 3. Enable the Isaac ROS2 bridge extension.
 4. Launch the warehouse scene.
 5. Confirm ROS2 topics are visible from a terminal on Machine A.
@@ -461,5 +461,5 @@ After this document is accepted, implement in this order:
   <https://docs.isaacsim.omniverse.nvidia.com/5.0.0/installation/install_ros.html>
 - NVIDIA Isaac Sim livestreaming clients:
   <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html>
-- ROS2 Humble documentation:
-  <https://docs.ros.org/en/humble/>
+- ROS2 Jazzy documentation:
+  <https://docs.ros.org/en/jazzy/>

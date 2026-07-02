@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 source ros2_ws/install/setup.bash
 ros2 launch swarm_orchestrator orchestrator.launch.py

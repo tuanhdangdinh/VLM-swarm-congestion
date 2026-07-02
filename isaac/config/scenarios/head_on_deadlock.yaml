@@ -26,6 +26,15 @@ robots:
 
 timed_obstacles: []
 
+aisle_barrier:
+  # 0.55m gap: navigable by a single robot (inflated half-width 0.19m with
+  # inflation_radius=0.10 leaves 0.275-0.19=0.085m clearance from each block),
+  # but the straight-aisle geometry forces a head-on deadlock when both robots
+  # approach simultaneously — neither can pass the other in-lane.
+  effective_width_m: 0.55
+  center_x_m: 0.0
+  length_m: 0.9
+
 expected_conflict:
   type: deadlock
   involved_robots: [robot_1, robot_2]

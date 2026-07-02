@@ -61,9 +61,11 @@ def build_scene_diagnostics(
     """Build per-frame health diagnostics; called internally by StateEstimator.update."""
     detected_ids = {f"robot_{d.marker_id}" for d in detections}
     ids_missing = sorted(expected_robot_ids - detected_ids)
+    ids_unexpected = sorted(detected_ids - expected_robot_ids) if expected_robot_ids else []
     return {
         "markers_detected": len(detections),
         "ids_missing": ids_missing,
+        "ids_unexpected": ids_unexpected,
         "dropped_frame": dropped_frame,
     }
 
@@ -95,7 +97,16 @@ class StateEstimator:
         frame_id: str | None = None,
     ) -> SceneState:
         registry = task_registry or {}
+        # None means no allowlist (standalone mode); a set (even empty) means filter strictly.
+        filter_ids = expected_robot_ids
         expected = expected_robot_ids or set()
+
+        # Remove any previously tracked IDs that are no longer in the allowlist.
+        # This prevents a rogue marker seen before a registry was established from
+        # carrying forward indefinitely as STALE.
+        if filter_ids is not None:
+            for rogue_id in set(self._tracked) - filter_ids:
+                del self._tracked[rogue_id]
 
         # A frame older than the latest one already processed is a late frame.
         # We cannot build a temporally consistent snapshot for a past time
@@ -114,6 +125,8 @@ class StateEstimator:
         updated_ids: set[str] = set()
         for det in detections:
             robot_id = f"robot_{det.marker_id}"
+            if filter_ids is not None and robot_id not in filter_ids:
+                continue
             prev = self._tracked.get(robot_id)
 
             # Ignore out-of-order detections: a stamp not newer than the tracked

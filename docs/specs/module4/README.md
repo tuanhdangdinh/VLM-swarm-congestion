@@ -48,9 +48,10 @@ sees the raw M3 grounded blob.
 |---|---|---|
 | [phase1-drive-chain.md](phase1-drive-chain.md) | Isaac `/cmd_vel` drive chain, TF, watchdog. Robots move; no Nav2. | Done |
 | [phase2-nav2-stack.md](phase2-nav2-stack.md) | RTX lidar, map, localization, per-robot Nav2, `Nav2Adapter`. | Done |
-| [phase3-closed-loop.md](phase3-closed-loop.md) | M3 grounding → M4 → Nav2 so an M2 decision re-commands robots. | Planned |
-| `safety-monitor.md` | Safety invariants, command watchdog, e-stop. | Not written |
+| [phase3-closed-loop.md](phase3-closed-loop.md) | M3 grounding → M4 → Nav2 so an M2 decision re-commands robots. | Offline complete; host demo pending |
+| [safety-monitor.md](safety-monitor.md) | Safety invariants, hard-stop override. | Offline complete; host demo pending |
 | `command-bus.md` | Command routing, lifecycle, M5 fan-out. | Not written |
+| `coordination-client.md` | Base-mission driver: continuous navigate, override handoff, resumption. | Offline complete; host demo pending |
 
 Each phase is independently demonstrable; stop at any phase.
 
@@ -84,7 +85,7 @@ Each phase is independently demonstrable; stop at any phase.
 | Nav2 install + per-robot bringup | Done — Phase 2, `nav2_robot.launch.py`, all action servers verified on host | Phase 2 done |
 | Localization (`map → odom`) | Done — Phase 2, spawn-pose static TF (PoC; see spec §5 Correction) | Phase 2 done |
 | `Nav2Adapter` (`send_goal`, `send_waypoints`, `cancel`) | Done — Phase 2, action-client wrapper with unit tests | Phase 2 done |
-| M3 grounding → M4 command path | M3 grounding `NotImplementedError` | Phase 3 |
+| M3 grounding → M4 command path | Offline complete (deterministic grounder + bus clearing maneuver + safety monitor); host demo pending | Phase 3 |
 
 ---
 
@@ -153,14 +154,14 @@ QoS per M6 FR6.7.10. Nav2 sensor QoS must match the Isaac publisher QoS
   bringup convention rather than copying older-distro examples.
 - **Two-loop contention:** define precisely when M4 may pre-empt a Nav2 goal vs.
   let it finish, so Layer-2 decisions don't thrash Layer-1.
-- **Safety hard-stop path:** the boundary rule says M4 does not stream `cmd_vel`
-  while Nav2 owns a robot, but a `min_distance_m` violation needs an *immediate*
-  stop. Cancelling a Nav2 goal only decelerates via the controller, and the 0.5 s
-  watchdog (FR6.4.8) is far too slow for a safety stop. Decide explicitly: either
-  the safety monitor gets a direct zero-`Twist` override on `/<robot_id>/cmd_vel`
-  (a deliberate exception to the no-direct-`cmd_vel` rule, taking priority over
-  Nav2) or the design accepts non-instant stops. This belongs in
-  `safety-monitor.md` and gates the Phase 3 safety handoff.
+- **Safety hard-stop path — RESOLVED (2026-06-25):** the safety monitor gets a
+  direct zero-`Twist` override on `/<robot_id>/cmd_vel` (a deliberate exception to
+  the no-direct-`cmd_vel` rule). Cancelling a Nav2 goal only decelerates via the
+  controller and the 0.5 s watchdog (FR6.4.8) is too slow, so the override is the
+  only near-immediate stop. PoC-grade: last-writer-wins on `/cmd_vel`,
+  re-published while the breach persists, not a latched e-stop. See
+  [safety-monitor.md](safety-monitor.md). A host-gated contention risk between
+  this override and the Phase 3 reverse maneuver is tracked there (§4.1).
 - **Localization fidelity:** ground-truth `map → odom` is a deliberate PoC
   shortcut. Document it as such; it is not a real-robot path.
 - **Closed loop depends on M3**, which is unimplemented. Phase 3 cannot start

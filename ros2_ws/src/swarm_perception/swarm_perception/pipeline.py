@@ -20,6 +20,7 @@ def process_frame(
     calibration: CalibrationArtifact,
     state_estimator: StateEstimator,
     task_registry: Mapping[str, Mapping[str, object]] | None = None,
+    expected_robot_ids: set[str] | None = None,
     detector_params: Mapping[str, object] | None = None,
     annotation_style: Mapping[str, object] | None = None,
     marker_dictionary: str = "DICT_4X4_50",
@@ -40,14 +41,15 @@ def process_frame(
     )
     detections = build_marker_detections(marker_ids, marker_corners, calibration)
     detections = filter_duplicate_detections(detections)
-    # Robots named in the task registry are the ones we expect to see; report
-    # any that go missing through diagnostics.
-    expected_robot_ids = set(task_registry) if task_registry else set()
+    # Robots named in the task registry are the primary allowlist. Standalone
+    # M1/demo runs can pass an explicit allowlist when M5 has not published
+    # /coordination/tasks yet. None means no allowlist; set() means filter all.
+    allowed_ids = set(task_registry) if task_registry else expected_robot_ids
     scene_state = state_estimator.update(
         detections,
         frame.stamp,
         task_registry=task_registry,
-        expected_robot_ids=expected_robot_ids,
+        expected_robot_ids=allowed_ids,
         frame_id=frame.frame_id,
     )
     annotated = render_annotated_frame(undistorted, scene_state, calibration, style=annotation_style)

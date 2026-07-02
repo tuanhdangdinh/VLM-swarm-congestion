@@ -16,13 +16,13 @@ robots:
     initial_task: cross_intersection
   - robot_id: robot_3
     marker_id: 3
-    spawn: {x: 0.0, y: -3.0, yaw_rad: 1.5707963267948966}
-    goal: {x: 0.0, y: 3.0}
+    spawn: {x: 0.0, y: -2.0, yaw_rad: 1.5707963267948966}
+    goal: {x: 0.0, y: 2.0}
     initial_task: cross_intersection
   - robot_id: robot_4
     marker_id: 4
-    spawn: {x: 0.0, y: 3.0, yaw_rad: -1.5707963267948966}
-    goal: {x: 0.0, y: -3.0}
+    spawn: {x: 0.0, y: 2.0, yaw_rad: -1.5707963267948966}
+    goal: {x: 0.0, y: -2.0}
     initial_task: cross_intersection
 
 timed_obstacles: []

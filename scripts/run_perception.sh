@@ -9,9 +9,9 @@ set -euo pipefail
 #   ./scripts/run_perception.sh --help             # Show this help message
 #
 # Environment:
-#   ROS2_DISTRO (optional): ROS2 distribution to source (default: humble)
+#   ROS2_DISTRO (optional): ROS2 distribution to source (default: jazzy)
 
-ROS2_DISTRO="${ROS2_DISTRO:-humble}"
+ROS2_DISTRO="${ROS2_DISTRO:-jazzy}"
 USE_CAMERA_NODE="true"
 
 # Parse arguments

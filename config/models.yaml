@@ -1,6 +1,6 @@
 vlm:
   reasoner:
-    backend_id: mock        # switch to "llama_server" for live inference
+    backend_id: openai      # switch to "mock" or "llama_server" for local/offline runs
     timeout_sec: 120         # Cosmos Reason 2 emits a long reasoning trace; allow time
     max_attempts: 2
     # Sampling per NVIDIA Cosmos Reason 2 prompt guide (Qwen3 "with reasoning" preset).

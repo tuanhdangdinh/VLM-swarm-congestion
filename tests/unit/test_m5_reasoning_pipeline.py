@@ -5,12 +5,13 @@ import json
 
 import numpy as np
 import pytest
-from swarm_orchestrator.models import RobotView, SceneSnapshot, TerminalStage
+from swarm_orchestrator.models import PipelineOutcome, RobotView, SceneSnapshot, TerminalStage
 from swarm_orchestrator.reasoning_pipeline import (
     InProcessPipeline,
     build_reasoner_request,
     dump_frame_png,
     fan_out_command,
+    write_decision_artifact,
 )
 
 from reasoning.vlm.models import (
@@ -230,3 +231,92 @@ def test_pipeline_valid_grounded_command_passes_validation():
     outcome = pipe.run(_request())
     assert outcome.terminal_stage is TerminalStage.OK
     assert outcome.grounded_command == valid
+
+
+def test_pipeline_filters_grounded_actions_to_request_robot_ids():
+    grounded = {
+        "command_id": "c1",
+        "actions": [
+            {"robot_id": "robot_0", "action": "temporary_wait"},
+            {"robot_id": "robot_20", "action": "temporary_wait"},
+        ],
+        "expected_resolution_time_sec": 18.0,
+        "fallback": "stop",
+    }
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_ok_result()),
+        ground_fn=lambda result: grounded,
+    )
+
+    outcome = pipe.run(_request())
+
+    assert outcome.terminal_stage is TerminalStage.OK
+    assert outcome.grounded_command["actions"] == [
+        {"robot_id": "robot_0", "action": "temporary_wait"}
+    ]
+
+
+def test_pipeline_rejects_grounded_actions_for_unknown_robot_ids():
+    grounded = {
+        "command_id": "c1",
+        "actions": [{"robot_id": "robot_20", "action": "temporary_wait"}],
+        "expected_resolution_time_sec": 18.0,
+        "fallback": "stop",
+    }
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_ok_result()),
+        ground_fn=lambda result: grounded,
+    )
+
+    outcome = pipe.run(_request())
+
+    assert outcome.terminal_stage is TerminalStage.GROUNDING
+    assert "no actions for known robots" in outcome.failure_reason
+
+
+# ---- decision artifacts ----
+
+def test_write_decision_artifact_preserves_m2_result_on_grounding_failure(tmp_path):
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type="deadlock",
+        involved_robots=["robot_1", "robot_2"],
+        root_cause="head-on aisle conflict",
+        strategy="robot_1 yields while robot_2 passes",
+        justification="both robots are stopped in opposing directions",
+    )
+    diagnostics = ReasonerDiagnostics(
+        request_id="r1",
+        backend_id="openai",
+        attempts=1,
+        parse_status="valid",
+        latency_ms=123,
+        token_usage={"total_tokens": 42},
+    )
+    result = ReasonerResult(
+        request_id="r1",
+        decision=decision,
+        raw_text='{"congestion_detected": true}',
+        diagnostics=diagnostics,
+    )
+    outcome = PipelineOutcome(
+        request_id="r1",
+        reasoner_result=result,
+        grounded_command=None,
+        terminal_stage=TerminalStage.GROUNDING,
+        failure_reason="grounding failed: M3 grounding not yet implemented",
+    )
+
+    path = write_decision_artifact(tmp_path, outcome)
+    payload = json.loads(path.read_text())
+
+    assert path == tmp_path / "r1.json"
+    assert payload["request_id"] == "r1"
+    assert payload["terminal_stage"] == "grounding"
+    assert payload["failure_reason"] == "grounding failed: M3 grounding not yet implemented"
+    assert payload["grounded_command_present"] is False
+    assert payload["decision"]["type"] == "deadlock"
+    assert payload["decision"]["involved_robots"] == ["robot_1", "robot_2"]
+    assert payload["diagnostics"]["backend_id"] == "openai"
+    assert payload["diagnostics"]["token_usage"] == {"total_tokens": 42}
+    assert payload["raw_text"] == '{"congestion_detected": true}'

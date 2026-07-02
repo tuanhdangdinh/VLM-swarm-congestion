@@ -29,7 +29,8 @@ class OpenAIBackend:
     ) -> None:
         self.model_id = model_id
         self.base_url = base_url.rstrip("/")
-        self._api_key = os.environ.get(api_key_env)
+        raw_api_key = os.environ.get(api_key_env)
+        self._api_key = "".join(raw_api_key.split()) if raw_api_key else None
         if not self._api_key:
             raise ValueError(f"{api_key_env} is not set in the environment")
         self._organization = organization
@@ -61,6 +62,8 @@ class OpenAIBackend:
             raise ConnectionError(f"OpenAI request timed out: {exc}") from exc
         except requests.exceptions.ConnectionError as exc:
             raise ConnectionError(f"OpenAI connection failed: {exc}") from exc
+        except requests.exceptions.RequestException as exc:
+            raise ConnectionError(f"OpenAI request failed: {type(exc).__name__}") from exc
 
         if resp.status_code >= 400:
             # Truncate and never echo request headers/body — avoids leaking the key.
@@ -69,8 +72,12 @@ class OpenAIBackend:
             )
 
         data = resp.json()
+        message = data["choices"][0]["message"]
+        text = message.get("content")
+        if text is None:
+            text = message.get("refusal") or ""
         return BackendResponse(
-            text=data["choices"][0]["message"]["content"],
+            text=text,
             backend_id=self.model_id,
             token_usage=self._extract_usage(data),
             raw=data,

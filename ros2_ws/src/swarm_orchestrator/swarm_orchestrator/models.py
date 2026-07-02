@@ -44,12 +44,15 @@ class OrchestratorConfig(BaseModel):
 
     stall_threshold_sec: float = Field(ge=0.0)
     progress_epsilon_m: float = Field(ge=0.0)
+    proximity_threshold_m: float = Field(default=0.5, ge=0.0)
+    proximity_slow_speed_mps: float = Field(default=0.05, ge=0.0)
     cooldown_sec: float = Field(ge=0.0)
     command_timeout_sec: float = Field(ge=0.0)
     reasoning_backend_id: str = Field(min_length=1)
     initial_tasks: dict[str, TaskAssignment]
     topics: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_TOPICS))
     frame_dump_dir: str = Field(min_length=1)
+    decision_log_dir: str = Field(default="data/logs/m5_decisions", min_length=1)
     keep_debug_frames: bool = False
     frame_scene_max_skew_sec: float = Field(default=1.0, ge=0.0)
     frame_downscale_width: int | None = Field(default=None, gt=0)

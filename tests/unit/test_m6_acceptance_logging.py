@@ -1,0 +1,134 @@
+import json
+
+from isaac.vgu_sim.acceptance_logging import (
+    AcceptanceLogger,
+    RobotPoseTracker,
+    RobotRuntimeState,
+    build_acceptance_record,
+)
+from isaac.vgu_sim.config import (
+    ExpectedConflictConfig,
+    Goal2D,
+    Pose2D,
+    RobotScenarioConfig,
+    ScenarioConfig,
+    ScenarioRuntimeOverrides,
+)
+
+
+def _head_on_scenario() -> ScenarioConfig:
+    return ScenarioConfig(
+        schema_version=1,
+        name="head_on_deadlock",
+        seed=42,
+        duration_sec=45.0,
+        robots=(
+            RobotScenarioConfig(
+                robot_id="robot_1",
+                marker_id=1,
+                spawn=Pose2D(x=-3.0, y=0.0, yaw_rad=0.0),
+                goal=Goal2D(x=3.0, y=0.0),
+                initial_task="cross_narrow_aisle",
+            ),
+            RobotScenarioConfig(
+                robot_id="robot_2",
+                marker_id=2,
+                spawn=Pose2D(x=3.0, y=0.0, yaw_rad=3.141592653589793),
+                goal=Goal2D(x=-3.0, y=0.0),
+                initial_task="cross_narrow_aisle",
+            ),
+        ),
+        timed_obstacles=(),
+        expected_conflict=ExpectedConflictConfig(
+            type="deadlock",
+            involved_robots=("robot_1", "robot_2"),
+            onset_window_sec=(8.0, 25.0),
+            min_duration_sec=2.0,
+        ),
+        runtime=ScenarioRuntimeOverrides(),
+    )
+
+
+def test_build_head_on_record_marks_conflict_active_when_robots_are_close_and_stopped():
+    scenario = _head_on_scenario()
+    states = {
+        "robot_1": RobotRuntimeState(
+            robot_id="robot_1",
+            x=-0.2,
+            y=0.0,
+            theta=0.0,
+            speed_mps=0.005,
+        ),
+        "robot_2": RobotRuntimeState(
+            robot_id="robot_2",
+            x=0.2,
+            y=0.0,
+            theta=3.14159,
+            speed_mps=0.005,
+        ),
+    }
+
+    record = build_acceptance_record(8.25, scenario, states)
+
+    assert record["sim_time_sec"] == 8.25
+    assert record["conflict_active"] is True
+    assert record["conflict_type"] == "deadlock"
+    assert record["involved_robots"] == ["robot_1", "robot_2"]
+    assert record["min_pairwise_distance_m"] == 0.4
+    assert record["robot_static_contacts"] == []
+    assert record["robot_robot_contacts"] == []
+    assert record["robots"]["robot_1"]["distance_to_goal_m"] == 3.2
+
+
+def test_acceptance_logger_writes_jsonl_only_on_10hz_ticks(tmp_path):
+    scenario = _head_on_scenario()
+    path = tmp_path / "ground_truth.jsonl"
+    states = {
+        "robot_1": RobotRuntimeState(
+            robot_id="robot_1",
+            x=-0.2,
+            y=0.0,
+            theta=0.0,
+            speed_mps=0.005,
+        ),
+        "robot_2": RobotRuntimeState(
+            robot_id="robot_2",
+            x=0.2,
+            y=0.0,
+            theta=3.14159,
+            speed_mps=0.005,
+        ),
+    }
+
+    with path.open("w", encoding="utf-8") as handle:
+        logger = AcceptanceLogger(handle, scenario, log_hz=10.0)
+        logger.maybe_write(0.00, states)
+        logger.maybe_write(0.0167, states)
+        logger.maybe_write(0.1000, states)
+
+    records = [json.loads(line) for line in path.read_text().splitlines()]
+    assert [r["sim_time_sec"] for r in records] == [0.0, 0.1]
+
+
+def test_pose_tracker_computes_speed_from_previous_sample():
+    tracker = RobotPoseTracker()
+    first = tracker.update_from_positions(
+        sim_time_sec=1.0,
+        positions={"robot_1": (0.0, 0.0, 0.0)},
+    )
+    second = tracker.update_from_positions(
+        sim_time_sec=1.5,
+        positions={"robot_1": (0.1, 0.0, 0.0)},
+    )
+
+    assert first["robot_1"].speed_mps == 0.0
+    assert second["robot_1"].speed_mps == 0.2
+
+
+def test_should_sample_acceptance_log_at_10hz_with_60hz_physics():
+    from isaac.vgu_sim.runner import _should_sample_acceptance_log
+
+    assert _should_sample_acceptance_log(step=0, physics_hz=60, log_hz=10) is True
+    assert _should_sample_acceptance_log(step=1, physics_hz=60, log_hz=10) is False
+    assert _should_sample_acceptance_log(step=5, physics_hz=60, log_hz=10) is False
+    assert _should_sample_acceptance_log(step=6, physics_hz=60, log_hz=10) is True

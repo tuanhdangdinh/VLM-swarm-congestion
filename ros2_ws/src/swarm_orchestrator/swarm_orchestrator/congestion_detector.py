@@ -27,12 +27,15 @@ class CongestionDetector:
 
     A robot is stalled when its minimum observed distance-to-goal has not improved
     by more than `progress_epsilon_m` for at least `stall_threshold_sec`, while it
-    has a goal and a non-STALE status.
+    has a goal and a non-STALE status. The close/slow-pair check is the exception:
+    it includes STALE robots, since their last-known position and velocity remain
+    valid and STALE-together is itself evidence of a close-proximity standoff.
     """
 
     def __init__(self, config: OrchestratorConfig) -> None:
         self._config = config
         self._progress: dict[str, _Progress] = {}
+        self._close_pair_since: dict[tuple[str, str], float] = {}
 
     def update(
         self,
@@ -74,15 +77,60 @@ class CongestionDetector:
             if is_congested(stall, self._config.stall_threshold_sec):
                 stalled[robot.robot_id] = stall
 
+        close_stalled = self._update_close_slow_pairs(scene, now)
+        stalled.update(close_stalled)
+
         # Forget robots no longer present so they do not linger as stale state.
         for rid in self._progress.keys() - seen:
             self._progress.pop(rid, None)
 
         if not stalled:
             return None
+        reason = (
+            f"{len(stalled)} robot(s) close/slow >= {self._config.stall_threshold_sec}s"
+            if close_stalled
+            else f"{len(stalled)} robot(s) stalled >= {self._config.stall_threshold_sec}s"
+        )
         return CongestionEvent(
             involved_robots=sorted(stalled),
             stall_durations_sec=stalled,
             detected_at=now,
-            reason=f"{len(stalled)} robot(s) stalled >= {self._config.stall_threshold_sec}s",
+            reason=reason,
         )
+
+    def _update_close_slow_pairs(
+        self, scene: SceneSnapshot, now: float
+    ) -> dict[str, float]:
+        close_pairs: set[tuple[str, str]] = set()
+        slow_robots: dict[str, float] = {}
+        # STALE robots keep their last-known position/velocity (StateEstimator
+        # carries them forward frozen, it does not drop them). Excluding STALE
+        # here creates a blind spot exactly when it matters most: two robots
+        # close enough to occlude each other's ArUco marker in the overhead
+        # camera go STALE together, which is itself strong proximity evidence.
+        robots = list(scene.robots)
+        for robot in robots:
+            if abs(robot.linear_velocity) <= self._config.proximity_slow_speed_mps:
+                slow_robots[robot.robot_id] = 0.0
+
+        stalled: dict[str, float] = {}
+        for i, first in enumerate(robots):
+            if first.robot_id not in slow_robots:
+                continue
+            for second in robots[i + 1:]:
+                if second.robot_id not in slow_robots:
+                    continue
+                distance = math.dist((first.x, first.y), (second.x, second.y))
+                if distance > self._config.proximity_threshold_m:
+                    continue
+                pair = tuple(sorted((first.robot_id, second.robot_id)))
+                close_pairs.add(pair)
+                started = self._close_pair_since.setdefault(pair, now)
+                duration = now - started
+                if is_congested(duration, self._config.stall_threshold_sec):
+                    stalled[pair[0]] = max(stalled.get(pair[0], 0.0), duration)
+                    stalled[pair[1]] = max(stalled.get(pair[1], 0.0), duration)
+
+        for pair in set(self._close_pair_since) - close_pairs:
+            self._close_pair_since.pop(pair, None)
+        return stalled

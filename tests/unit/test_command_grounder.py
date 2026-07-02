@@ -70,12 +70,17 @@ def test_ground_yield_decision_to_single_backing_yield_action():
     assert yielder["parameters"]["backup_distance_m"] == 0.8
     assert yielder["parameters"]["hold_sec"] == 12.0
     assert "reason" in yielder["parameters"]
+    # A straight backup alone re-blocks the passer's path in this scenario, so
+    # the yielder also gets a lateral pull-off target (map-frame, scenario-specific).
+    assert yielder["parameters"]["pull_off_x"] == -1.4
+    assert yielder["parameters"]["pull_off_y"] == 0.35
     assert passer["robot_id"] == "robot_2"
     assert passer["action"] == "temporary_wait"
-    assert passer["parameters"]["duration_sec"] == 10.0  # backup_time(8) + 2s
+    assert passer["parameters"]["duration_sec"] == 25.0  # backup_time(8) + pull_off_margin(15) + 2s
     assert command["fallback"] == "stop"
-    # expected_resolution_time_sec covers the full yield cycle (backup + hold + buffer)
-    assert command["expected_resolution_time_sec"] == 22.0  # 8 + 12 + 2
+    # expected_resolution_time_sec covers the full yield cycle
+    # (backup + pull-off margin + hold + buffer)
+    assert command["expected_resolution_time_sec"] == 37.0  # 8 + 15 + 12 + 2
 
 
 def test_ground_reverse_decision_to_backing_reverse_action():

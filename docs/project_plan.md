@@ -56,7 +56,7 @@ The repository currently contains:
 
 Important current limitations:
 
-- ROS2 build has not been verified on the local machine because ROS2 Humble is
+- ROS2 build has not been verified on the local machine because ROS2 Jazzy is
   not available there.
 - M1 and M2 have detailed specs, but M3-M6 still need detailed specs.
 - Most source files are scaffolds or placeholders, not complete behavior.
@@ -66,11 +66,11 @@ Important current limitations:
 
 ### Milestone 1 — Repository and ROS2 Foundation
 
-**Goal:** Make the scaffold buildable and usable in a ROS2 Humble environment.
+**Goal:** Make the scaffold buildable and usable in a ROS2 Jazzy environment.
 
 Deliverables:
 
-- Verify `.devcontainer/` can build a ROS2 Humble workspace.
+- Verify `.devcontainer/` can build a ROS2 Jazzy workspace.
 - Confirm `ros2_ws/src/swarm_interfaces` builds message and service types.
 - Confirm Python packages install cleanly.
 - Establish standard commands through `Makefile` and `scripts/`.
@@ -84,7 +84,7 @@ Acceptance criteria:
 
 Dependencies:
 
-- ROS2 Humble.
+- ROS2 Jazzy.
 - Colcon.
 - Python 3.10+.
 

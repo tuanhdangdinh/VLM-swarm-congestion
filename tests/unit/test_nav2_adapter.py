@@ -259,3 +259,183 @@ def test_make_client_uses_parent_node_when_provided(monkeypatch) -> None:
     adapter._make_client("robot_1", "navigate_to_pose")
 
     assert calls == [(parent_node, nav2_adapter.NavigateToPose, "/robot_1/navigate_to_pose")]
+
+
+# ---------------------------------------------------------------------------
+# Tests: backup (closed-loop on odometry)
+# ---------------------------------------------------------------------------
+#
+# Isaac Sim on the target VM runs well under real time (confirmed ~0.48x
+# standalone, worse under the full node stack), so a wall-clock deadline
+# stops the backup long before the robot has actually traveled distance_m.
+# backup() now closes the loop on odometry displacement instead, with a
+# generous wall-clock safety bound for a genuinely blocked robot. These tests
+# use a small fake _node exposing create_publisher/create_subscription/
+# create_timer/get_clock so the tick and odometry callbacks can be driven
+# manually without a real ROS2 executor.
+
+
+class _FakePublisher:
+    def __init__(self) -> None:
+        self.messages: list = []
+
+    def publish(self, msg) -> None:
+        self.messages.append(msg)
+
+
+class _FakeSubscription:
+    def __init__(self, callback) -> None:
+        self.callback = callback
+        self.destroyed = False
+
+
+class _FakeTimer:
+    def __init__(self, callback) -> None:
+        self.callback = callback
+        self.cancelled = False
+
+    def cancel(self) -> None:
+        self.cancelled = True
+
+    def tick(self) -> None:
+        if not self.cancelled:
+            self.callback()
+
+
+class _FakeClock:
+    def __init__(self) -> None:
+        self.seconds = 0.0
+
+    def now(self):
+        return SimpleNamespace(nanoseconds=self.seconds * 1e9)
+
+    def advance(self, delta_sec: float) -> None:
+        self.seconds += delta_sec
+
+
+class _FakeNode:
+    def __init__(self) -> None:
+        self.clock = _FakeClock()
+        self.publishers: dict = {}
+        self.subscriptions: list[_FakeSubscription] = []
+        self.timers: list[_FakeTimer] = []
+        self.destroyed_subs: list = []
+
+    def create_publisher(self, msg_type, topic, qos):
+        pub = _FakePublisher()
+        self.publishers[topic] = pub
+        return pub
+
+    def create_subscription(self, msg_type, topic, callback, qos):
+        sub = _FakeSubscription(callback)
+        self.subscriptions.append(sub)
+        return sub
+
+    def create_timer(self, period, callback):
+        timer = _FakeTimer(callback)
+        self.timers.append(timer)
+        return timer
+
+    def destroy_subscription(self, sub) -> None:
+        sub.destroyed = True
+        self.destroyed_subs.append(sub)
+
+    def get_clock(self):
+        return self.clock
+
+
+def _odom_at(x: float, y: float):
+    msg = nav2_adapter.Odometry()
+    msg.pose.pose.position.x = x
+    msg.pose.pose.position.y = y
+    return msg
+
+
+@pytest.fixture
+def backup_adapter() -> tuple[Nav2Adapter, _FakeNode]:
+    node = _FakeNode()
+    a = Nav2Adapter.__new__(Nav2Adapter)
+    a._node = node
+    a._goal_clients = {}
+    a._waypoint_clients = {}
+    a._cancel_clients = {}
+    a._active_goals = {}
+    a._backup_pubs = {}
+    a._backup_timers = {}
+    a._backup_odom_subs = {}
+    return a, node
+
+
+def test_backup_does_not_complete_before_target_distance_traveled(backup_adapter) -> None:
+    adapter, node = backup_adapter
+    statuses: list[tuple[str, str]] = []
+    adapter.backup(
+        "robot_1", distance_m=0.8, speed_mps=0.1,
+        on_result=lambda s, d: statuses.append((s, d)),
+    )
+    assert statuses == [("ACTIVE", "backup started")]
+
+    odom_sub = node.subscriptions[-1]
+    timer = node.timers[-1]
+
+    # Odometry reports only a small displacement (mirrors the sub-realtime
+    # sim measured in production): well short of the 0.8 m target.
+    odom_sub.callback(_odom_at(0.0, 0.0))
+    node.clock.advance(0.05)
+    odom_sub.callback(_odom_at(-0.03, 0.0))
+    timer.tick()
+
+    assert statuses == [("ACTIVE", "backup started")]  # no COMPLETED yet
+    assert not timer.cancelled
+
+
+def test_backup_completes_once_odometry_shows_target_distance(backup_adapter) -> None:
+    adapter, node = backup_adapter
+    statuses: list[tuple[str, str]] = []
+    adapter.backup(
+        "robot_1", distance_m=0.8, speed_mps=0.1,
+        on_result=lambda s, d: statuses.append((s, d)),
+    )
+    odom_sub = node.subscriptions[-1]
+    timer = node.timers[-1]
+
+    odom_sub.callback(_odom_at(0.0, 0.0))
+    odom_sub.callback(_odom_at(-0.8, 0.0))  # reached the target distance
+    timer.tick()
+
+    assert statuses[-1][0] == "COMPLETED"
+    assert timer.cancelled
+    assert node.destroyed_subs == [odom_sub]
+
+
+def test_backup_fails_on_safety_timeout_when_robot_stays_blocked(backup_adapter) -> None:
+    adapter, node = backup_adapter
+    statuses: list[tuple[str, str]] = []
+    adapter.backup(
+        "robot_1", distance_m=0.8, speed_mps=0.1,
+        on_result=lambda s, d: statuses.append((s, d)),
+    )
+    odom_sub = node.subscriptions[-1]
+    timer = node.timers[-1]
+
+    # Robot never moves (e.g. physically blocked) — odometry stays flat.
+    odom_sub.callback(_odom_at(0.0, 0.0))
+    node.clock.advance(1000.0)  # well past the safety deadline
+    timer.tick()
+
+    assert statuses[-1][0] == "FAILED"
+    assert "timed out" in statuses[-1][1]
+    assert timer.cancelled
+
+
+def test_backup_cleans_up_odom_subscription_on_cancel(backup_adapter) -> None:
+    adapter, node = backup_adapter
+    adapter.backup("robot_1", distance_m=0.8, speed_mps=0.1)
+    odom_sub = node.subscriptions[-1]
+    timer = node.timers[-1]
+
+    adapter.cancel("robot_1")
+
+    assert timer.cancelled
+    assert odom_sub in node.destroyed_subs
+    assert "robot_1" not in adapter._backup_odom_subs

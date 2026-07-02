@@ -94,3 +94,82 @@ def test_multi_robot_event_lists_all_stalled():
     snap1 = _snapshot([_robot("robot_0", 5.0, 0.0), _robot("robot_1", 6.0, 0.0)], stamp=11.0)
     event = det.update(snap1, goals.get, now=11.0)
     assert event.involved_robots == ["robot_0", "robot_1"]
+
+
+def test_close_slow_pair_triggers_even_when_goal_progress_jitters():
+    goals = {"robot_0": (10.0, 0.0), "robot_1": (-10.0, 0.0)}
+    det = CongestionDetector(
+        _config(proximity_threshold_m=0.5, proximity_slow_speed_mps=0.05)
+    )
+    snap0 = _snapshot(
+        [
+            _robot("robot_0", 0.00, 0.00, status="STOPPED"),
+            _robot("robot_1", 0.40, 0.00, status="STOPPED"),
+        ]
+    )
+    det.update(snap0, goals.get, now=0.0)
+    # Tiny pose jitter can reset/avoid the goal-progress trigger, but a close
+    # slow pair held over the threshold is still a physical deadlock.
+    snap1 = _snapshot(
+        [
+            _robot("robot_0", 0.02, 0.00, status="STOPPED"),
+            _robot("robot_1", 0.38, 0.00, status="STOPPED"),
+        ],
+        stamp=11.0,
+    )
+    event = det.update(snap1, goals.get, now=11.0)
+    assert event is not None
+    assert event.involved_robots == ["robot_0", "robot_1"]
+    assert "close/slow" in event.reason
+
+
+def test_close_pair_timer_resets_when_robots_separate():
+    goals = {"robot_0": (10.0, 0.0), "robot_1": (-10.0, 0.0)}
+    det = CongestionDetector(
+        _config(proximity_threshold_m=0.5, proximity_slow_speed_mps=0.05)
+    )
+    det.update(
+        _snapshot([_robot("robot_0", 0.0, 0.0), _robot("robot_1", 0.4, 0.0)]),
+        goals.get,
+        now=0.0,
+    )
+    det.update(
+        _snapshot([_robot("robot_0", 0.0, 0.0), _robot("robot_1", 1.0, 0.0)], stamp=5.0),
+        goals.get,
+        now=5.0,
+    )
+    event = det.update(
+        _snapshot([_robot("robot_0", 0.0, 0.0), _robot("robot_1", 0.4, 0.0)], stamp=11.0),
+        goals.get,
+        now=11.0,
+    )
+    assert event is None
+
+
+def test_close_slow_pair_triggers_when_both_robots_stale():
+    # Two robots close enough to occlude each other's ArUco marker go STALE
+    # together (StateEstimator freezes their last-known pose/velocity rather
+    # than dropping them). This is itself proximity evidence and must still
+    # trigger, otherwise M5 goes blind exactly when a standoff needs it most.
+    goals = {"robot_0": (10.0, 0.0), "robot_1": (-10.0, 0.0)}
+    det = CongestionDetector(
+        _config(proximity_threshold_m=0.5, proximity_slow_speed_mps=0.05)
+    )
+    snap0 = _snapshot(
+        [
+            _robot("robot_0", 0.00, 0.00, status="STALE"),
+            _robot("robot_1", 0.40, 0.00, status="STALE"),
+        ]
+    )
+    det.update(snap0, goals.get, now=0.0)
+    snap1 = _snapshot(
+        [
+            _robot("robot_0", 0.00, 0.00, status="STALE"),
+            _robot("robot_1", 0.40, 0.00, status="STALE"),
+        ],
+        stamp=11.0,
+    )
+    event = det.update(snap1, goals.get, now=11.0)
+    assert event is not None
+    assert event.involved_robots == ["robot_0", "robot_1"]
+    assert "close/slow" in event.reason

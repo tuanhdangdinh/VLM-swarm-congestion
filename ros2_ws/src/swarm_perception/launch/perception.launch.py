@@ -40,6 +40,15 @@ def generate_launch_description():
                     "source (Isaac Sim ROS2 bridge, Gazebo, etc.) publishes /camera/image_raw."
                 ),
             ),
+            DeclareLaunchArgument(
+                "expected_robot_ids",
+                default_value="",
+                description=(
+                    "Optional comma-separated robot allowlist for standalone M1 "
+                    "runs before /coordination/tasks is available, e.g. "
+                    "'robot_1,robot_2'. Empty leaves detections unfiltered."
+                ),
+            ),
             Node(
                 package="swarm_perception",
                 executable="camera_node",
@@ -60,8 +69,15 @@ def generate_launch_description():
                         "marker_dictionary": marker_dictionary,
                         "stopped_threshold_mps": 0.01,
                         "slow_threshold_mps": 0.05,
-                        "stale_after_sec": 1.0,
-                        "velocity_alpha": 0.3,
+                        # 1.0s/0.3 let two robots overlapping markers at close
+                        # range (e.g. a head-on standoff) go STALE within about
+                        # a second, right when M5 most needs live positions.
+                        # 3.0s/0.15 gives more grace before marker occlusion
+                        # flips status, and smooths velocity so a brief
+                        # detection gap doesn't zero out perceived motion.
+                        "stale_after_sec": 3.0,
+                        "velocity_alpha": 0.15,
+                        "expected_robot_ids": LaunchConfiguration("expected_robot_ids"),
                     }
                 ],
             ),

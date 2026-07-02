@@ -6,4 +6,12 @@
       <type>UDPv4</type>
     </transport_descriptor>
   </transport_descriptors>
+  <participant profile_name="udp_transport_profile" is_default_profile="true">
+    <rtps>
+      <userTransports>
+        <transport_id>udp_transport</transport_id>
+      </userTransports>
+      <useBuiltinTransports>false</useBuiltinTransports>
+    </rtps>
+  </participant>
 </profiles>

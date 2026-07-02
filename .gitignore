@@ -34,3 +34,16 @@ benchmarks/results/*
 # Secrets — never commit real keys (see .env.example for required vars)
 .env
 .env.local
+
+# Tool-local/session dirs and machine state (state/ holds private keys)
+.claire/
+.claude/
+.codex/
+.superpowers/
+.vscode/
+tmp/
+state/
+docs/note/
+# macOS AppleDouble files
+._*
+**/._*

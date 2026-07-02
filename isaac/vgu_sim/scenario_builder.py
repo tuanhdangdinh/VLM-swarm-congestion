@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from isaac.vgu_sim.config import ScenarioConfig
+from isaac.vgu_sim.config import ScenarioConfig, WarehouseConfig
 from isaac.vgu_sim.marker_asset import author_aruco_marker
 from isaac.vgu_sim.paths import aruco_dict_name, marker_png_path
 
@@ -52,6 +52,8 @@ def build_scenario_stage(
     UsdGeom.Xform.Define(stage, "/World/DynamicObstacles")
     for obs in config.timed_obstacles:
         _author_obstacle(stage, obs)
+    if config.aisle_barrier is not None:
+        _author_aisle_barrier(stage, config.aisle_barrier)
 
     meta = stage.DefinePrim("/World/Scenario/Metadata")
     meta.SetMetadata("customData", {
@@ -108,6 +110,55 @@ def _author_obstacle(stage, obs_cfg) -> None:
     p = obs_cfg.pose
     UsdGeom.Xformable(prim.GetPrim()).AddTranslateOp().Set(Gf.Vec3d(p.x, p.y, 0.0))
     prim.GetPrim().SetActive(False)
+
+
+def _author_aisle_barrier(stage, barrier_cfg) -> None:
+    """Add two yellow blocks above/below the robots to narrow the crossing gap."""
+    from pxr import Gf, UsdGeom, UsdPhysics
+
+    warehouse = WarehouseConfig()
+    base_half = warehouse.nominal_aisle_width_m / 2.0
+    effective_half = barrier_cfg.effective_width_m / 2.0
+    if effective_half >= base_half:
+        return
+
+    barrier_root = UsdGeom.Xform.Define(stage, "/World/Scenario/AisleBarriers")
+    barrier_root.GetPrim().SetMetadata(
+        "customData",
+        {
+            "effective_width_m": barrier_cfg.effective_width_m,
+            "center_x_m": barrier_cfg.center_x_m,
+            "length_m": barrier_cfg.length_m,
+        },
+    )
+
+    z_center = 0.45
+    z_half = 0.45
+    rack_clearance_m = 0.02
+    block_half_x = min(
+        barrier_cfg.length_m / 2.0,
+        max(0.0, base_half - rack_clearance_m),
+    )
+    block_half_y = (base_half - effective_half) / 2.0
+    block_center_y = effective_half + block_half_y
+    for name, y in (("north", block_center_y), ("south", -block_center_y)):
+        _author_barrier_cube(
+            stage,
+            f"/World/Scenario/AisleBarriers/{name}",
+            Gf.Vec3f(float(barrier_cfg.center_x_m), float(y), z_center),
+            Gf.Vec3f(float(block_half_x), float(block_half_y), z_half),
+        )
+
+
+def _author_barrier_cube(stage, path: str, translate, scale) -> None:
+    from pxr import UsdGeom, UsdPhysics
+
+    cube = UsdGeom.Cube.Define(stage, path)
+    cube.CreateSizeAttr(2.0)
+    cube.CreateDisplayColorAttr([(1.0, 0.82, 0.0)])
+    cube.AddTranslateOp().Set(translate)
+    cube.AddScaleOp().Set(scale)
+    UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
 
 
 def _relative_path(from_dir: Path, to_path: Path) -> Path:

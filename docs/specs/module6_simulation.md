@@ -1276,7 +1276,7 @@ The first acceptance target passes only when:
 - Isaac Sim runtime execution occurs on Linux/NVIDIA hardware. The current macOS
   workspace supports documentation and host-only tests, not Isaac runtime
   validation.
-- ROS 2 Jazzy replaces the repository's current Humble launcher assumption for
+- ROS 2 Jazzy replaces the repository's older Humble launcher assumption for
   the M6 implementation target.
 - The canonical head-on scenario uses two robots. Existing four-robot placeholder
   YAML is not authoritative.

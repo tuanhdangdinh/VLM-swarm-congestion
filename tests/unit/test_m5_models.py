@@ -73,6 +73,7 @@ def test_load_config_parses_nested_yaml_dict_with_goal_lists():
     cfg = load_config(raw)
     assert cfg.initial_tasks["robot_0"].goal == (3.0, 1.5)
     assert cfg.frame_downscale_width is None  # default
+    assert cfg.decision_log_dir == "data/logs/m5_decisions"
 
 
 def test_load_config_raises_on_missing_required_field():

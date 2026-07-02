@@ -55,7 +55,7 @@ class CommandTracker:
         record = self._records.get(command_id)
         if record is None or robot_id not in record.robot_states:
             return
-        mapped = _STATUS_MAP.get(status)
+        mapped = _STATUS_MAP.get(status.lower())
         if mapped is None:
             return
         record.robot_states[robot_id] = CommandState[mapped]

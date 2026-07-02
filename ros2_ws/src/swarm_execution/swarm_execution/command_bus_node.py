@@ -107,17 +107,21 @@ class CommandBusNode(Node):
             # the other robot can navigate through the cleared aisle before this
             # robot resumes. reverse does not hold; both robots back up symmetrically.
             hold_sec = float(params.get("hold_sec", 0.0)) if action == "yield" else 0.0
+            # pull_off_* (yield only, optional): a straight backup alone leaves
+            # the yielder on the same line the passer must travel, so it
+            # re-blocks the corridor. If the grounder supplied a lateral
+            # parking pose, route there via Nav2's normal planner/controller
+            # (not the raw-cmd_vel bypass backup() uses) after the initial
+            # backup has opened enough separation for collision_monitor to
+            # stay quiet.
+            pull_off_x = params.get("pull_off_x")
+            pull_off_y = params.get("pull_off_y")
+            pull_off_yaw = float(params.get("pull_off_yaw", 0.0))
+            has_pull_off = (
+                action == "yield" and pull_off_x is not None and pull_off_y is not None
+            )
 
-            def _on_backup_result(
-                status: str,
-                detail: str,
-                command=msg,
-                _hold_sec: float = hold_sec,
-            ) -> None:
-                if status != "COMPLETED" or _hold_sec <= 0.0:
-                    self._publish_status(command, status, detail)
-                    return
-                # Backup done — hold position while the other robot passes.
+            def _start_hold(command, _hold_sec: float) -> None:
                 self._publish_status(command, "ACTIVE", "holding for passing robot")
                 timer_ref: dict = {}
 
@@ -130,6 +134,41 @@ class CommandBusNode(Node):
 
                 t = self.create_timer(_hold_sec, _hold_expired)
                 timer_ref["timer"] = t
+
+            def _on_pull_off_result(
+                status: str,
+                detail: str,
+                command=msg,
+                _hold_sec: float = hold_sec,
+            ) -> None:
+                if status != "COMPLETED" or _hold_sec <= 0.0:
+                    self._publish_status(command, status, detail)
+                    return
+                _start_hold(command, _hold_sec)
+
+            def _on_backup_result(
+                status: str,
+                detail: str,
+                command=msg,
+                _hold_sec: float = hold_sec,
+            ) -> None:
+                if status != "COMPLETED":
+                    self._publish_status(command, status, detail)
+                    return
+                if has_pull_off:
+                    self._publish_status(command, "ACTIVE", "pulling off aisle centerline")
+                    self._adapter.send_goal(
+                        robot_id,
+                        float(pull_off_x),
+                        float(pull_off_y),
+                        pull_off_yaw,
+                        on_result=_on_pull_off_result,
+                    )
+                    return
+                if _hold_sec <= 0.0:
+                    self._publish_status(command, status, detail)
+                    return
+                _start_hold(command, _hold_sec)
 
             self._adapter.backup(robot_id, distance_m, on_result=_on_backup_result)
             return True

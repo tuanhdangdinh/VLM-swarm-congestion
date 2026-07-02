@@ -59,6 +59,21 @@ def ground_reasoner_result(result: ReasonerResult) -> dict[str, Any]:
     # 0.8 m clears robot_1 to ~-0.9 m (past the barrier entrance at ~-0.3 m)
     # where robot_2 can safely navigate through the aisle toward its goal.
     backup_distance_m = 0.8
+    # A straight backup alone re-deadlocks in this scenario: the yielder's
+    # reverse direction is the same line the passer must travel to reach its
+    # (swapped) goal, so the yielder simply re-blocks the corridor after
+    # backing up. It must also step laterally out of the passer's straight
+    # path. Absolute map-frame targets (not TF-derived) because this grounder
+    # is an explicit, scenario-specific bridge for head_on_deadlock.yaml's
+    # fixed spawns/goals (robot_1: -0.6,0 -> 3,0; robot_2: 0.6,0 -> -3,0).
+    # x matches the existing straight-backup distance (past the ~0.45 m
+    # barrier half-length); y=+-0.35 m keeps the yielder within the 1.2 m
+    # aisle's wall clearance (inflated half-width ~0.19 m) while leaving the
+    # passer's centerline separation above the 0.3 m safety threshold.
+    pull_off_targets = {
+        "robot_1": {"x": -1.4, "y": 0.35, "yaw": 0.0},
+        "robot_2": {"x": 1.4, "y": -0.35, "yaw": 3.141592653589793},
+    }
     backup_speed_mps = 0.1
     # How long robot_1 holds position after backing up so robot_2 can
     # navigate through the cleared aisle before robot_1 resumes.
@@ -70,21 +85,37 @@ def ground_reasoner_result(result: ReasonerResult) -> dict[str, Any]:
     # This keeps M5 from dispatching a competing command to robot_2 during
     # the backup window and lets robot_2 start navigating through the
     # freshly cleared aisle without interference.
-    passing_wait_sec = round(backup_distance_m / backup_speed_mps) + 2.0
-    # Total yield cycle: backup + hold. Used as expected_resolution_time_sec
-    # so M5 does not time out the command before the hold expires.
-    yield_total_sec = round(backup_distance_m / backup_speed_mps) + yield_hold_sec + 2.0
+    # Generous allowance for the Nav2-planned lateral pull-off (a short ~0.5 m
+    # move, but routed through the normal planner/controller stack rather
+    # than the raw-cmd_vel backup, so it needs planning + execution margin).
+    pull_off_margin_sec = 15.0
+    passing_wait_sec = round(backup_distance_m / backup_speed_mps) + pull_off_margin_sec + 2.0
+    # Total yield cycle: backup + pull-off + hold. Used as
+    # expected_resolution_time_sec so M5 does not time out the command
+    # before the hold expires.
+    yield_total_sec = (
+        round(backup_distance_m / backup_speed_mps)
+        + pull_off_margin_sec
+        + yield_hold_sec
+        + 2.0
+    )
 
     if decision.strategy == "yield":
+        yield_parameters: dict[str, Any] = {
+            "backup_distance_m": backup_distance_m,
+            "hold_sec": yield_hold_sec,
+            "reason": decision.root_cause,
+        }
+        pull_off = pull_off_targets.get(robot_ids[0])
+        if pull_off is not None:
+            yield_parameters["pull_off_x"] = pull_off["x"]
+            yield_parameters["pull_off_y"] = pull_off["y"]
+            yield_parameters["pull_off_yaw"] = pull_off["yaw"]
         actions = [
             {
                 "robot_id": robot_ids[0],
                 "action": "yield",
-                "parameters": {
-                    "backup_distance_m": backup_distance_m,
-                    "hold_sec": yield_hold_sec,
-                    "reason": decision.root_cause,
-                },
+                "parameters": yield_parameters,
             },
         ]
         if len(robot_ids) > 1:

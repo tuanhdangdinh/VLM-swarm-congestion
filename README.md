@@ -34,7 +34,7 @@ make run-llama-server
 See [docs/guides/run_local_llama_server.md](docs/guides/run_local_llama_server.md)
 for setup, overrides, smoke tests, and troubleshooting.
 
-ROS2 workflows are expected to run inside a ROS2 Humble environment:
+ROS2 workflows are expected to run inside a ROS2 Jazzy environment:
 
 ```bash
 ./scripts/build_ros2.sh

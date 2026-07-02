@@ -35,6 +35,17 @@ def test_apply_status_advances_to_active_then_completed():
     assert tracker.state_of("c1", "robot_0") is CommandState.COMPLETED
 
 
+def test_apply_status_accepts_uppercase_from_command_bus():
+    # CommandBusNode publishes "COMPLETED" / "FAILED" (uppercase). The tracker
+    # must accept these so the orchestrator resolves commands instead of timing out.
+    tracker = CommandTracker()
+    tracker.register(_record(robots=("robot_0", "robot_1")))
+    tracker.apply_status("c1", "robot_0", "COMPLETED")
+    assert tracker.state_of("c1", "robot_0") is CommandState.COMPLETED
+    tracker.apply_status("c1", "robot_1", "FAILED")
+    assert tracker.state_of("c1", "robot_1") is CommandState.FAILED
+
+
 def test_unknown_status_string_is_ignored():
     tracker = CommandTracker()
     tracker.register(_record(robots=("robot_0",)))

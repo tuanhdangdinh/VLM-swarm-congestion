@@ -53,7 +53,13 @@ def _make_aruco_dict(dictionary_name: str):
 def _make_detector_params(params_override: dict[str, object] | None):
     import cv2
 
-    if hasattr(cv2.aruco, "DetectorParameters"):
+    # Key the params factory to the SAME discriminator as the detection path
+    # (ArucoDetector presence), not to DetectorParameters presence. OpenCV 4.6.0
+    # exposes BOTH DetectorParameters() and DetectorParameters_create(), but its
+    # legacy cv2.aruco.detectMarkers (used when ArucoDetector is absent) only
+    # accepts the object from DetectorParameters_create(); passing the 4.7+
+    # DetectorParameters() object into legacy detectMarkers segfaults.
+    if hasattr(cv2.aruco, "ArucoDetector"):
         params = cv2.aruco.DetectorParameters()
     else:
         params = cv2.aruco.DetectorParameters_create()  # type: ignore[attr-defined]

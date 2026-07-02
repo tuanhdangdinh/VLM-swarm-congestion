@@ -42,7 +42,7 @@ def build_backend(
         )
     if backend_id == "openai":
         if backend_config is None:
-            raise ValueError("openai backend requires an OpenAIBackendConfig")
+            backend_config = OpenAIBackendConfig()
         return OpenAIBackend(
             model_id=backend_config.model_id,
             base_url=backend_config.base_url,

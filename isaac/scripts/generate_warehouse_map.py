@@ -40,8 +40,8 @@ def build_occupancy_grid(
           x = -config.width_m/2 + col * resolution_m
           y =  config.depth_m/2 - row * resolution_m
 
-    Cells are FREE (255) by default. Perimeter walls and obstacle footprints
-    are marked OCCUPIED (0).
+    Cells are FREE (255) by default. Perimeter walls, warehouse rack blocks,
+    and obstacle footprints are marked OCCUPIED (0).
 
     Args:
         config: Warehouse geometry (width_m, depth_m, wall_thickness_m).
@@ -67,30 +67,84 @@ def build_occupancy_grid(
     grid[:, :wall_px] = OCCUPIED
     grid[:, width_px - wall_px:] = OCCUPIED
 
-    # Mark obstacle footprints.
-    for center_x, center_y, obs_width_m, obs_depth_m in obstacles:
-        # Convert world-frame obstacle bounds to pixel indices.
-        # World x maps to column: col = (x + config.width_m/2) / resolution_m
-        # World y maps to row:    row = (config.depth_m/2 - y) / resolution_m
-        x_min = center_x - obs_width_m / 2
-        x_max = center_x + obs_width_m / 2
-        y_min = center_y - obs_depth_m / 2
-        y_max = center_y + obs_depth_m / 2
+    # Mark static rack blocks using the same geometry as warehouse_builder.py:
+    # four occupied quadrants leave a cross-shaped aisle centered at world (0, 0).
+    for rack in _rack_block_obstacles(config):
+        _mark_obstacle(grid, config, rack, resolution_m)
 
-        col_min = round((x_min + config.width_m / 2) / resolution_m)
-        col_max = round((x_max + config.width_m / 2) / resolution_m)
-        # Row increases as y decreases (row 0 = +y edge).
-        row_min = round((config.depth_m / 2 - y_max) / resolution_m)
-        row_max = round((config.depth_m / 2 - y_min) / resolution_m)
-
-        col_min = max(0, col_min)
-        col_max = min(width_px, col_max)
-        row_min = max(0, row_min)
-        row_max = min(height_px, row_max)
-
-        grid[row_min:row_max, col_min:col_max] = OCCUPIED
+    # Mark scenario/dynamic obstacle footprints.
+    for obstacle in obstacles:
+        _mark_obstacle(grid, config, obstacle, resolution_m)
 
     return grid, resolution_m
+
+
+def _rack_block_obstacles(config: WarehouseConfig) -> list[tuple[float, float, float, float]]:
+    aisle_half_width = config.nominal_aisle_width_m / 2.0
+    warehouse_half_width = config.width_m / 2.0
+    warehouse_half_depth = config.depth_m / 2.0
+    rack_half_width = (warehouse_half_width - aisle_half_width) / 2.0
+    rack_half_depth = (warehouse_half_depth - aisle_half_width) / 2.0
+
+    if rack_half_width <= 0 or rack_half_depth <= 0:
+        return []
+
+    return [
+        (
+            aisle_half_width + rack_half_width,
+            aisle_half_width + rack_half_depth,
+            rack_half_width * 2.0,
+            rack_half_depth * 2.0,
+        ),
+        (
+            -aisle_half_width - rack_half_width,
+            aisle_half_width + rack_half_depth,
+            rack_half_width * 2.0,
+            rack_half_depth * 2.0,
+        ),
+        (
+            aisle_half_width + rack_half_width,
+            -aisle_half_width - rack_half_depth,
+            rack_half_width * 2.0,
+            rack_half_depth * 2.0,
+        ),
+        (
+            -aisle_half_width - rack_half_width,
+            -aisle_half_width - rack_half_depth,
+            rack_half_width * 2.0,
+            rack_half_depth * 2.0,
+        ),
+    ]
+
+
+def _mark_obstacle(
+    grid: np.ndarray,
+    config: WarehouseConfig,
+    obstacle: tuple[float, float, float, float],
+    resolution_m: float,
+) -> None:
+    center_x, center_y, obs_width_m, obs_depth_m = obstacle
+    # Convert world-frame obstacle bounds to pixel indices.
+    # World x maps to column: col = (x + config.width_m/2) / resolution_m
+    # World y maps to row:    row = (config.depth_m/2 - y) / resolution_m
+    x_min = center_x - obs_width_m / 2
+    x_max = center_x + obs_width_m / 2
+    y_min = center_y - obs_depth_m / 2
+    y_max = center_y + obs_depth_m / 2
+
+    col_min = round((x_min + config.width_m / 2) / resolution_m)
+    col_max = round((x_max + config.width_m / 2) / resolution_m)
+    # Row increases as y decreases (row 0 = +y edge).
+    row_min = round((config.depth_m / 2 - y_max) / resolution_m)
+    row_max = round((config.depth_m / 2 - y_min) / resolution_m)
+
+    height_px, width_px = grid.shape
+    col_min = max(0, col_min)
+    col_max = min(width_px, col_max)
+    row_min = max(0, row_min)
+    row_max = min(height_px, row_max)
+
+    grid[row_min:row_max, col_min:col_max] = OCCUPIED
 
 
 def write_map(grid: np.ndarray, resolution_m: float, config: WarehouseConfig, out_dir: Path) -> None:

@@ -95,7 +95,8 @@ still checks readiness through loopback:
 Live inference is controlled in `config/models.yaml`:
 
 - set `vlm.reasoner.backend_id: llama_server` to use the local server;
-- restore `mock` for offline tests and CI-friendly runs.
+- switch to `mock` for offline tests and CI-friendly runs.
+- the repository default is `openai`, so set `OPENAI_API_KEY` before running the app if you do not override the backend.
 
 Keep the `mmproj` path aligned with the model path. The backend expects the
 projector file to exist and be readable when vision mode is active.
@@ -128,8 +129,8 @@ assert LlamaServerBackend().is_ready() is True
   `LlamaServerBackend` against a separately started server without `mmproj`,
   that backend can be configured text-only, but that mode is outside this guide
   and launcher.
-- Wrong backend mode: if the app still uses the mock backend, switch
-  `backend_id` to `llama_server` in `config/models.yaml`.
+- Wrong backend mode: if the app still uses the OpenAI backend, switch
+  `backend_id` to `llama_server` or `mock` in `config/models.yaml`.
 
 ## Reference
 

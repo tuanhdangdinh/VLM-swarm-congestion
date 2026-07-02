@@ -13,6 +13,12 @@ from isaac.scripts.generate_warehouse_map import build_occupancy_grid, write_map
 from isaac.vgu_sim.config import WarehouseConfig
 
 
+def _cell_at(grid, cfg: WarehouseConfig, resolution_m: float, x: float, y: float):
+    col = round((x + cfg.width_m / 2) / resolution_m)
+    row = round((cfg.depth_m / 2 - y) / resolution_m)
+    return grid[row, col]
+
+
 def test_grid_marks_perimeter_walls_occupied():
     cfg = WarehouseConfig()
     grid, resolution_m = build_occupancy_grid(cfg, obstacles=[], resolution_m=0.05)
@@ -29,6 +35,28 @@ def test_grid_interior_is_free():
     grid, _ = build_occupancy_grid(cfg, obstacles=[], resolution_m=0.05)
     height_px, width_px = grid.shape
     assert grid[height_px // 2, width_px // 2] == 255
+
+
+def test_grid_marks_warehouse_rack_blocks_occupied():
+    cfg = WarehouseConfig()
+    resolution_m = 0.05
+    grid, _ = build_occupancy_grid(cfg, obstacles=[], resolution_m=resolution_m)
+
+    assert _cell_at(grid, cfg, resolution_m, x=1.0, y=1.0) == 0
+    assert _cell_at(grid, cfg, resolution_m, x=-1.0, y=1.0) == 0
+    assert _cell_at(grid, cfg, resolution_m, x=1.0, y=-1.0) == 0
+    assert _cell_at(grid, cfg, resolution_m, x=-1.0, y=-1.0) == 0
+
+
+def test_grid_keeps_configured_cross_aisle_clearance_free():
+    cfg = WarehouseConfig(nominal_aisle_width_m=1.2)
+    resolution_m = 0.05
+    grid, _ = build_occupancy_grid(cfg, obstacles=[], resolution_m=resolution_m)
+
+    assert _cell_at(grid, cfg, resolution_m, x=2.0, y=0.55) == 255
+    assert _cell_at(grid, cfg, resolution_m, x=2.0, y=0.65) == 0
+    assert _cell_at(grid, cfg, resolution_m, x=0.55, y=2.0) == 255
+    assert _cell_at(grid, cfg, resolution_m, x=0.65, y=2.0) == 0
 
 
 def test_obstacle_marks_cells_occupied():

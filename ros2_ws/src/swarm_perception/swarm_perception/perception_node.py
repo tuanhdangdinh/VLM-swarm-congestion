@@ -10,6 +10,7 @@ import numpy as np
 try:
     import rclpy
     from rclpy.node import Node
+    from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
     from std_msgs.msg import String as RosString
     _HAS_ROS2 = True
 except ImportError:
@@ -25,6 +26,14 @@ from swarm_perception.pipeline import process_frame
 from swarm_perception.state_estimator import StateEstimator
 
 logger = logging.getLogger(__name__)
+
+
+def _registry_qos():
+    return QoSProfile(
+        depth=1,
+        durability=DurabilityPolicy.TRANSIENT_LOCAL,
+        reliability=ReliabilityPolicy.RELIABLE,
+    )
 
 
 class PerceptionNode(Node):
@@ -44,6 +53,7 @@ class PerceptionNode(Node):
         self.declare_parameter("slow_threshold_mps", 0.05)
         self.declare_parameter("stale_after_sec", 1.0)
         self.declare_parameter("velocity_alpha", 0.3)
+        self.declare_parameter("expected_robot_ids", "")
 
         cal_path = self.get_parameter("calibration_path").value
         if not cal_path:
@@ -65,13 +75,20 @@ class PerceptionNode(Node):
             velocity_alpha=self.get_parameter("velocity_alpha").value,
             frame_id="overhead_camera",
         )
+        self._expected_robot_ids = _parse_expected_robot_ids(
+            self.get_parameter("expected_robot_ids").value
+        )
+        if self._expected_robot_ids is not None:
+            self.get_logger().info(
+                f"Filtering perception to expected robots: {sorted(self._expected_robot_ids)}"
+            )
 
         self._task_registry: dict[str, Mapping[str, object]] = {}
 
         self._state_pub = self.create_publisher(RosString, "/perception/scene_state", 10)
         self._diag_pub = self.create_publisher(RosString, "/perception/status", 10)
         self._task_sub = self.create_subscription(
-            RosString, "/coordination/tasks", self._on_task_registry, 10
+            RosString, "/coordination/tasks", self._on_task_registry, _registry_qos()
         )
 
         # Annotated-frame publishing requires cv_bridge + sensor_msgs/Image; left
@@ -154,6 +171,7 @@ class PerceptionNode(Node):
             self._calibration,
             self._estimator,
             self._task_registry,
+            expected_robot_ids=self._expected_robot_ids,
             marker_dictionary=self._marker_dictionary,
         )
         publish_scene_state(self._state_pub, scene_state)
@@ -174,6 +192,26 @@ def publish_scene_state(publisher, scene_state: SceneState) -> None:
     msg = RosString()
     msg.data = json.dumps(scene_state_to_json_dict(scene_state))
     publisher.publish(msg)
+
+
+def _parse_expected_robot_ids(value) -> set[str] | None:
+    """Parse optional expected robot IDs from a ROS parameter value.
+
+    Empty string/list means "no standalone allowlist". A non-empty value is a
+    strict allowlist until a non-empty task registry arrives, at which point the
+    registry remains the source of truth.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        items = [item.strip() for item in value.split(",")]
+    else:
+        try:
+            items = [str(item).strip() for item in value]
+        except TypeError:
+            items = [str(value).strip()]
+    ids = {item for item in items if item}
+    return ids or None
 
 
 def publish_annotated_frame(

@@ -199,7 +199,7 @@ def _get_app(headless: bool):
 
 def _open_stage(scenario_path: Path) -> None:
     import omni.usd
-    omni.usd.get_context().open_stage(str(scenario_path))
+    omni.usd.get_context().open_stage(str(scenario_path.resolve()))
 
 
 def _set_timeline_window(stage) -> None:
@@ -239,7 +239,7 @@ def _enable_extensions() -> None:
 def _validate_stage(scenario_path: Path) -> None:
     from isaac.vgu_sim.validation import ValidationError, validate_scenario_stage
     try:
-        validate_scenario_stage(scenario_path)
+        validate_scenario_stage(scenario_path.resolve())
     except ValidationError as exc:
         raise RuntimeError(f"Stage validation failed: {exc}") from exc
 
@@ -355,19 +355,61 @@ def _wait_for_ros_topics(sim_ctx, robots, timeout_sec: float) -> None:
 
     import rclpy
     from rclpy.node import Node
+    from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 
-    # M1 perception and M5 orchestrator run on wall-clock (they do not set
-    # use_sim_time), and the integration test triggers M2 from a single rendered
-    # frame on a static scene — so only the camera stream is load-bearing here.
-    # /clock and /<robot>/odom are published by the graphs but are not gated on.
+    from nav_msgs.msg import Odometry
+    from sensor_msgs.msg import Image, LaserScan
+
+    # Topic advertisement alone is not enough: Isaac can create DDS endpoints
+    # before the OmniGraph publishers are actually ticking. Require one live
+    # sample from the camera plus each robot's odom and scan stream so downstream
+    # M1/M4/M5 nodes do not start against advertised-but-silent topics.
     import omni.kit.app
     import omni.timeline
     timeline = omni.timeline.get_timeline_interface()
     kit_app = omni.kit.app.get_app()
 
     required = ["/camera/image_raw"]
+    for robot in robots:
+        required.extend([f"/{robot.robot_id}/odom", f"/{robot.robot_id}/scan"])
+
+    received: set[str] = set()
+    qos = QoSProfile(
+        history=HistoryPolicy.KEEP_LAST,
+        depth=10,
+        reliability=ReliabilityPolicy.BEST_EFFORT,
+        durability=DurabilityPolicy.VOLATILE,
+    )
+
     rclpy.init(args=None)
     node = Node("_m6_topic_waiter")
+    subscriptions = [
+        node.create_subscription(
+            Image,
+            "/camera/image_raw",
+            lambda _msg, topic="/camera/image_raw": received.add(topic),
+            qos,
+        )
+    ]
+    for robot in robots:
+        odom_topic = f"/{robot.robot_id}/odom"
+        scan_topic = f"/{robot.robot_id}/scan"
+        subscriptions.append(
+            node.create_subscription(
+                Odometry,
+                odom_topic,
+                lambda _msg, topic=odom_topic: received.add(topic),
+                qos,
+            )
+        )
+        subscriptions.append(
+            node.create_subscription(
+                LaserScan,
+                scan_topic,
+                lambda _msg, topic=scan_topic: received.add(topic),
+                qos,
+            )
+        )
     deadline = time.monotonic() + timeout_sec
     available: set[str] = set()
     tick = 0
@@ -391,14 +433,18 @@ def _wait_for_ros_topics(sim_ctx, robots, timeout_sec: float) -> None:
                 )
             tick += 1
             available = {name for name, _ in node.get_topic_names_and_types()}
-            if all(t in available for t in required):
+            rclpy.spin_once(node, timeout_sec=0.0)
+            if all(t in received for t in required):
                 return
             time.sleep(0.1)
         raise _TopicTimeoutError(
-            f"ROS topics not ready within {timeout_sec}s. "
-            f"Missing: {set(required) - available}"
+            f"ROS topic samples not ready within {timeout_sec}s. "
+            f"Missing topics: {set(required) - available}. "
+            f"Silent topics: {set(required) - received}"
         )
     finally:
+        for sub in subscriptions:
+            node.destroy_subscription(sub)
         node.destroy_node()
         rclpy.shutdown()
 

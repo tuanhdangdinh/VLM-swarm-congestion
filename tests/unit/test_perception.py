@@ -428,6 +428,16 @@ class TestBuildSceneDiagnostics:
         d = build_scene_diagnostics(dets, set())
         assert d["ids_missing"] == []
 
+    def test_ids_unexpected_populated_for_rogue_detections(self):
+        dets = [_make_detection(1), _make_detection(2), _make_detection(20), _make_detection(37)]
+        d = build_scene_diagnostics(dets, {"robot_1", "robot_2"})
+        assert d["ids_unexpected"] == ["robot_20", "robot_37"]
+
+    def test_ids_unexpected_empty_when_no_registry(self):
+        dets = [_make_detection(0), _make_detection(5)]
+        d = build_scene_diagnostics(dets, set())
+        assert d["ids_unexpected"] == []
+
 
 # ---------------------------------------------------------------------------
 # StateEstimator.update
@@ -552,6 +562,53 @@ class TestStateEstimatorUpdate:
         state = est.update([det], stamp=0.0)
         assert state.frame_id == "fallback_cam"
 
+    def test_rogue_markers_excluded_when_registry_provided(self):
+        est = self._estimator()
+        dets = [_make_detection(1), _make_detection(2), _make_detection(20), _make_detection(37)]
+        registry = {"robot_1": {}, "robot_2": {}}
+        state = est.update(dets, stamp=0.0, task_registry=registry,
+                           expected_robot_ids={"robot_1", "robot_2"})
+        ids = {r.robot_id for r in state.robots}
+        assert ids == {"robot_1", "robot_2"}
+
+    def test_rogue_markers_reported_in_ids_unexpected(self):
+        est = self._estimator()
+        dets = [_make_detection(1), _make_detection(2), _make_detection(20), _make_detection(37)]
+        registry = {"robot_1": {}, "robot_2": {}}
+        state = est.update(dets, stamp=0.0, task_registry=registry,
+                           expected_robot_ids={"robot_1", "robot_2"})
+        assert state.diagnostics["ids_unexpected"] == ["robot_20", "robot_37"]
+
+    def test_rogue_marker_not_carried_forward_after_registry_filter(self):
+        est = self._estimator()
+        registry = {"robot_1": {}, "robot_2": {}}
+        allowed = {"robot_1", "robot_2"}
+        # Frame 1: rogue marker_20 appears alongside known robots
+        est.update(
+            [_make_detection(1), _make_detection(20)],
+            stamp=0.0, task_registry=registry, expected_robot_ids=allowed,
+        )
+        # Frame 2: only known robots, rogue absent — must not carry forward
+        state = est.update(
+            [_make_detection(1), _make_detection(2)],
+            stamp=0.1, task_registry=registry, expected_robot_ids=allowed,
+        )
+        ids = {r.robot_id for r in state.robots}
+        assert "robot_20" not in ids
+
+    def test_no_filter_when_no_registry(self):
+        est = self._estimator()
+        dets = [_make_detection(i) for i in range(4)]
+        state = est.update(dets, stamp=0.0)
+        ids = {r.robot_id for r in state.robots}
+        assert ids == {"robot_0", "robot_1", "robot_2", "robot_3"}
+
+    def test_ids_unexpected_empty_when_no_registry(self):
+        est = self._estimator()
+        dets = [_make_detection(0), _make_detection(5)]
+        state = est.update(dets, stamp=0.0)
+        assert state.diagnostics["ids_unexpected"] == []
+
 
 # ---------------------------------------------------------------------------
 # process_frame (end-to-end pipeline; requires OpenCV)
@@ -589,6 +646,31 @@ class TestProcessFrame:
         )
         assert scene_state.diagnostics["markers_detected"] == 0
         assert scene_state.diagnostics["ids_missing"] == ["robot_0", "robot_5"]
+
+    def test_explicit_expected_ids_filter_standalone_detections(self, monkeypatch):
+        pytest.importorskip("cv2")
+        import swarm_perception.pipeline as pipeline_mod
+        from swarm_perception.pipeline import process_frame
+
+        def fake_detect(image, dictionary_name="DICT_4X4_50", detector_params=None):
+            return [1, 2, 20], [np.zeros((4, 2)) for _ in range(3)]
+
+        def fake_build(marker_ids, marker_corners, calibration):
+            return [_make_detection(marker_id=i) for i in marker_ids]
+
+        monkeypatch.setattr(pipeline_mod, "detect_aruco_markers", fake_detect)
+        monkeypatch.setattr(pipeline_mod, "build_marker_detections", fake_build)
+
+        est = StateEstimator(velocity_alpha=1.0)
+        scene_state, _ = process_frame(
+            self._frame(),
+            _identity_calibration(),
+            est,
+            expected_robot_ids={"robot_1", "robot_2"},
+        )
+
+        assert {robot.robot_id for robot in scene_state.robots} == {"robot_1", "robot_2"}
+        assert scene_state.diagnostics["ids_unexpected"] == ["robot_20"]
 
     def test_marker_dictionary_forwarded_to_detector(self, monkeypatch):
         pytest.importorskip("cv2")

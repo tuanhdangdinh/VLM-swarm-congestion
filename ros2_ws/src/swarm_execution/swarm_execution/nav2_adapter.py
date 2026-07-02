@@ -15,6 +15,7 @@ try:
     from builtin_interfaces.msg import Duration
     from geometry_msgs.msg import PoseStamped, Twist
     from nav2_msgs.action import BackUp, FollowWaypoints, NavigateToPose
+    from nav_msgs.msg import Odometry
     from rclpy.action import ActionClient
     from rclpy.node import Node
 except ImportError:
@@ -43,6 +44,17 @@ except ImportError:
         def __init__(self) -> None:
             self.position = _Point()
             self.orientation = _Quaternion()
+
+    class _Vector3:
+        def __init__(self) -> None:
+            self.x = 0.0
+            self.y = 0.0
+            self.z = 0.0
+
+    class Twist:
+        def __init__(self) -> None:
+            self.linear = _Vector3()
+            self.angular = _Vector3()
 
     class _Header:
         def __init__(self) -> None:
@@ -75,6 +87,14 @@ except ImportError:
                 self.speed = 0.0
                 self.time_allowance = Duration()
 
+    class _PoseWithCovariance:
+        def __init__(self) -> None:
+            self.pose = _Pose()
+
+    class Odometry:
+        def __init__(self) -> None:
+            self.pose = _PoseWithCovariance()
+
 
 class Nav2Adapter(Node):
     """Per-robot Nav2 action-client wrapper: send_goal, send_waypoints, cancel."""
@@ -92,6 +112,7 @@ class Nav2Adapter(Node):
         self._active_goals: dict[str, object] = {}
         self._backup_pubs: dict[str, object] = {}
         self._backup_timers: dict[str, object] = {}
+        self._backup_odom_subs: dict[str, object] = {}
 
     def _make_client(self, robot_id: str, action_name: str) -> ActionClient:
         action_type = {
@@ -159,37 +180,88 @@ class Nav2Adapter(Node):
         standoff — and kills the Nav2 BackUp behavior before it can open the
         gap. Publishing negative Twist directly to cmd_vel goes straight to the
         Isaac watchdog without passing through the collision_monitor.
+
+        Closed-loop on odometry, not a wall-clock deadline: this VM's Isaac Sim
+        instance runs well under real time (confirmed ~0.48x standalone, worse
+        under the full node stack), so a `distance_m / speed_mps` wall-clock
+        timer stops long before the robot has actually traveled `distance_m` —
+        physics integrates against sim time, not wall time. Odometry feedback
+        is unaffected by that mismatch: it stops publishing exactly when the
+        robot has actually moved far enough, however long that takes in real
+        time. A generous wall-clock safety bound still applies in case the
+        robot is genuinely physically blocked and never reaches the target.
         """
         self.cancel(robot_id)
-        # Cancel any in-progress timer backup for this robot.
-        old_timer = self._backup_timers.pop(robot_id, None)
-        if old_timer is not None:
-            try:
-                old_timer.cancel()
-            except Exception:
-                pass
 
         pub = self._backup_pubs.get(robot_id)
         if pub is None:
             pub = self._node.create_publisher(Twist, f"/{robot_id}/cmd_vel", 10)
             self._backup_pubs[robot_id] = pub
 
-        travel_sec = abs(distance_m) / speed_mps if speed_mps else 0.0
-        deadline = self._node.get_clock().now().nanoseconds * 1e-9 + travel_sec
+        odom_state: dict[str, tuple[float, float] | None] = {"start": None, "last": None}
+
+        def _on_odom(msg, _state=odom_state) -> None:
+            p = msg.pose.pose.position
+            _state["last"] = (p.x, p.y)
+            if _state["start"] is None:
+                _state["start"] = (p.x, p.y)
+
+        odom_sub = self._node.create_subscription(
+            Odometry, f"/{robot_id}/odom", _on_odom, 10
+        )
+        self._backup_odom_subs[robot_id] = odom_sub
+
+        # Safety bound: generous multiple of the naive wall-clock estimate, or
+        # a floor, so a physically blocked robot doesn't back up forever.
+        # Multiplier sized from measured in-stack behavior: a manual backup
+        # test only covered 0.492 m of 0.8 m within a 6x/48s window, implying
+        # an effective realtime factor under the full node stack well below
+        # the ~0.48x measured standalone. 15x gives comfortable margin over
+        # the ~78s a linear extrapolation of that measurement implies.
+        naive_sec = abs(distance_m) / speed_mps if speed_mps else 0.0
+        safety_deadline = (
+            self._node.get_clock().now().nanoseconds * 1e-9
+            + max(naive_sec * 15.0, 30.0)
+        )
+
+        def _finish(status: str, detail: str) -> None:
+            timer = self._backup_timers.pop(robot_id, None)
+            if timer is not None:
+                try:
+                    timer.cancel()
+                except Exception:
+                    pass
+            sub = self._backup_odom_subs.pop(robot_id, None)
+            if sub is not None:
+                try:
+                    self._node.destroy_subscription(sub)
+                except Exception:
+                    pass
+            pub.publish(Twist())
+            if on_result is not None:
+                on_result(status, detail)
 
         def _tick() -> None:
+            traveled = 0.0
+            start = odom_state["start"]
+            last = odom_state["last"]
+            if start is not None and last is not None:
+                traveled = math.hypot(last[0] - start[0], last[1] - start[1])
+
+            if traveled >= abs(distance_m):
+                _finish("COMPLETED", f"backup complete: moved {traveled:.3f} m")
+                return
             now = self._node.get_clock().now().nanoseconds * 1e-9
-            if now >= deadline:
-                timer = self._backup_timers.pop(robot_id, None)
-                if timer is not None:
-                    timer.cancel()
-                pub.publish(Twist())
-                if on_result is not None:
-                    on_result("COMPLETED", "backup done")
-            else:
-                twist = Twist()
-                twist.linear.x = -abs(speed_mps)
-                pub.publish(twist)
+            if now >= safety_deadline:
+                _finish(
+                    "FAILED",
+                    f"backup timed out: moved {traveled:.3f} m of {abs(distance_m):.3f} m",
+                )
+                return
+
+            twist = Twist()
+            twist.linear.x = -abs(speed_mps)
+            pub.publish(twist)
 
         timer = self._node.create_timer(0.05, _tick)
         self._backup_timers[robot_id] = timer
@@ -208,6 +280,12 @@ class Nav2Adapter(Node):
         if timer is not None:
             try:
                 timer.cancel()
+            except Exception:
+                pass
+        sub = self._backup_odom_subs.pop(robot_id, None)
+        if sub is not None:
+            try:
+                self._node.destroy_subscription(sub)
             except Exception:
                 pass
         handle = self._active_goals.get(robot_id)

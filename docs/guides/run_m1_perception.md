@@ -6,7 +6,7 @@ This guide explains how to run Module 1 (M1), the perception and robot tracking 
 
 ## Prerequisites
 
-1. **ROS2 Humble environment** with colcon installed.
+1. **ROS2 Jazzy environment** with colcon installed.
 2. **Built workspace** — run `make build-ros2` to compile all packages.
 3. **Python dependencies** — M1 requires `numpy`, `opencv-contrib-python`, `pydantic`, `pyyaml`.
 
@@ -116,7 +116,7 @@ python scripts/smoke_perception.py
 - Calibrate: follow `docs/specs/module1_perception.md` § Calibration to compute intrinsics and homography.
 
 **Isaac Sim:**
-- Launch Isaac Sim with ROS2 Humble support.
+- Launch Isaac Sim with ROS2 Jazzy support.
 - Ensure the Isaac bridge publishes to `/camera/image_raw`.
 
 ### 2. Build
@@ -205,7 +205,7 @@ If you see "Package 'swarm_perception' not found":
 
 - Ensure the workspace is built: `make build-ros2`
 - Source the setup: `source ros2_ws/install/setup.bash`
-- Verify ROS2 Humble is sourced first: `source /opt/ros/humble/setup.bash`
+- Verify ROS2 Jazzy is sourced first: `source /opt/ros/jazzy/setup.bash`
 
 ---
 

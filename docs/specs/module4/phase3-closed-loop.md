@@ -76,3 +76,73 @@ Define precisely when M4 may pre-empt an active Nav2 goal versus let it finish, 
 Layer-2 decisions (0.5–2 Hz) do not thrash Layer-1 (10–30 Hz). A debounce or
 minimum-goal-duration policy likely belongs in the command bus or safety monitor,
 not in `Nav2Adapter`.
+
+---
+
+## 6. Implementation status (2026-06-25)
+
+**Offline complete; acceptance demo PENDING host.** The mechanism is built and
+unit-tested; the §4 acceptance property ("deadlock clears; both robots reach
+goals") is an integration claim the offline suite structurally cannot establish.
+
+| Piece | State | Tests |
+|---|---|---|
+| Base-mission driver (`coordination_client_node` + `BaseMissionDriver`) | Done | `test_base_mission.py` |
+| Grounder emits clearing maneuver (`yield`/`reverse` → backup distance) | Done | `test_command_grounder.py` |
+| `Nav2Adapter.backup()` (Nav2 `BackUp` action, verified Jazzy fields) | Done | `test_nav2_adapter.py` |
+| Command bus routes `yield`/`reverse` → `backup` (was `cancel`) | Done | `test_command_bus_node.py` |
+| Real completion feedback (status on action result, not on dispatch) | Done | `test_command_bus_node.py` |
+| Safety monitor (min-distance + speed, direct `cmd_vel` override) | Done | `test_safety_monitor.py` |
+
+**Loop closure.** The driver realizes the M5-spec rule "M5 does not issue initial
+goals; Layer 1 runs continuously; commands modulate it, they do not replace it":
+
+1. **Initiation.** `coordination_client_node` subscribes to `/coordination/tasks`
+   (TRANSIENT_LOCAL, matching M5) and issues `navigate_to_pose` to each robot's
+   effective goal at startup → robots approach → the standoff forms. A 2 s retry
+   timer re-issues any goal Nav2 has not yet accepted, so a registry that arrives
+   before the Nav2 action servers are lifecycle-ACTIVE still recovers (the
+   registry is otherwise static after startup).
+2. **Override.** M2 `yield` → M3 grounds `yield` for `involved_robots[0]` with
+   `backup_distance_m` → M5 fan-out → command bus → `Nav2Adapter.backup` →
+   `/<id>/backup`. On seeing the command, the driver cancels its own navigate for
+   that robot (separate `Nav2Adapter` instances) and suppresses re-issue, so the
+   two do not fight. The non-yielding robot keeps navigating.
+3. **Resumption.** When the bus publishes the terminal `CoordinationStatus`, the
+   driver un-suppresses and re-issues the base goal — required because the yield
+   override goal equals the base goal, so resumption cannot rely on a goal change.
+   Both robots then reach their goals.
+
+Ownership boundary: the command bus owns a robot from command dispatch until the
+command's terminal status; the coordination client owns it otherwise.
+
+### 6.1 Known integration risks (UNVERIFIED — host-gated)
+
+1. **Safety override vs. backup contention** on `/<robot_id>/cmd_vel` — see
+   [safety-monitor.md](safety-monitor.md) §4.1. The zero-`Twist` safety stop and
+   the reverse BackUp target the same topic for the same robot; whether they
+   collide depends on whether the robots breach `min_distance_m`, which only the
+   host run reveals.
+2. **Aisle geometry vs. clearing.** Per the M4 Phase 2 notes, the 1.2 m aisle is
+   too wide for a genuine deadlock, while a too-narrow straight aisle makes
+   backup useless (robot_1 retreats, robot_2 follows, they never pass). Whether
+   the chosen geometry actually produces "clears" is the acceptance criterion and
+   is unverified offline.
+
+### 6.2 Host run path
+
+The closed loop spans the Isaac host (Isaac Sim embedded Python) and the
+`vgu_ros` container (ROS2 Jazzy + Nav2). On the host:
+
+1. Isaac Sim runs the dynamic scenario with the Phase 1 drive chain + Phase 2
+   RTX lidar (`isaac/scripts/run_simulation.py`).
+2. Per-robot Nav2 bringup (`nav2_robot.launch.py` per robot).
+3. M4 nodes: `ros2 launch swarm_execution execution.launch.py` (command bus +
+   coordination client + safety monitor).
+4. M1 perception, M5 orchestrator (owns the registry + trigger policy), M2/M3
+   reasoning. The coordination client — not M5 — issues the navigate goals from
+   the registry's effective goals.
+5. The coordination client drives robots toward goals across each other; confirm
+   the standoff forms, M2 classifies it, the yielding robot reverses, the driver
+   resumes its goal on the bus's COMPLETED status, and both reach their goals.
+   Verify via `data/logs/m5_decisions/<id>.json` + odometry.

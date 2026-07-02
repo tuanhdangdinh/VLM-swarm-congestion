@@ -155,6 +155,9 @@ def test_head_on_yaml_round_trip():
     assert len(cfg.robots) == 2
     assert cfg.robots[0].robot_id == "robot_1"
     assert cfg.robots[1].robot_id == "robot_2"
+    assert cfg.aisle_barrier is not None
+    assert cfg.aisle_barrier.effective_width_m == pytest.approx(0.4)
+    assert cfg.aisle_barrier.length_m == pytest.approx(0.9)
     assert cfg.expected_conflict.type == "deadlock"
 
 
