@@ -67,7 +67,7 @@ def test_ground_yield_decision_to_single_backing_yield_action():
     passer = actions[1]
     assert yielder["robot_id"] == "robot_1"
     assert yielder["action"] == "yield"
-    assert yielder["parameters"]["backup_distance_m"] == 0.8
+    assert yielder["parameters"]["backup_distance_m"] == 1.3
     # Upper-bound backstop; the hold actually ends when the passer's odometry
     # shows passer_clear_m of displacement (event-driven early completion).
     assert yielder["parameters"]["hold_sec"] == 45.0
@@ -109,7 +109,7 @@ def test_ground_reverse_decision_to_backing_reverse_action():
             "robot_id": "robot_2",
             "action": "reverse",
             "parameters": {
-                "backup_distance_m": 0.8,
+                "backup_distance_m": 1.3,
             },
         }
     ]

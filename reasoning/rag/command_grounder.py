@@ -55,10 +55,15 @@ def ground_reasoner_result(result: ReasonerResult) -> dict[str, Any]:
     command_id = f"{result.request_id}-{decision.strategy}"
     duration_sec = 8.0
     # Distance the yielding robot reverses. Sized for the head-on deadlock
-    # geometry: robots stop at ~0.3 m separation inside the aisle, so backing
-    # 0.8 m clears robot_1 to ~-0.9 m (past the barrier entrance at ~-0.3 m)
-    # where robot_2 can safely navigate through the aisle toward its goal.
-    backup_distance_m = 0.8
+    # geometry: robots stop at ~0.3-0.45 m separation inside the aisle. 0.8 m
+    # parked the yielder ~0.7 m from the gap's west exit — close enough that
+    # its inflated footprint forced the passer into a tight S-curve right at
+    # the 0.55 m gap mouth, and DWB stalled in "Failed to make progress"
+    # loops without moving (observed 2026-07-03 run 4). 1.3 m parks it ~1.2 m
+    # clear of the exit: the passer gets a straight run out of the gap and a
+    # gentle arc past the yielder at >0.55 m separation (above the 0.45 m
+    # safety latch threshold).
+    backup_distance_m = 1.3
     # A straight backup alone re-deadlocks this scenario: the yielder stays on
     # the passer's line, and with min_distance_m=0.45 in the 1.2 m aisle the
     # passer cannot clear a centerline-parked yielder without tripping the
