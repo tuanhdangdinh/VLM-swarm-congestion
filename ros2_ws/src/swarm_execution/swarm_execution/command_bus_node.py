@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import NamedTuple
 
 try:
@@ -31,6 +32,15 @@ class _ActiveWait(NamedTuple):
 
 
 class CommandBusNode(Node):
+    # Nav2-leg watchdog: M5 never expires a command with an ACTIVE robot (it
+    # delegates liveness to M4), so a Nav2 action server that hangs mid-goal
+    # would otherwise leave the command ACTIVE forever and gate the robot out
+    # of re-analysis. The deadline is 3x the command's own timeout_sec with a
+    # generous floor (timeout_sec <= 0 means "absent" on the wire).
+    NAV_WATCHDOG_SWEEP_PERIOD_SEC = 1.0
+    NAV_WATCHDOG_TIMEOUT_MULTIPLIER = 3.0
+    NAV_WATCHDOG_FLOOR_SEC = 120.0
+
     def __init__(self):
         super().__init__("command_bus_node")
         self._adapter = Nav2Adapter(self)
@@ -43,6 +53,11 @@ class CommandBusNode(Node):
         # yield/reverse's terminal status can release it early instead of
         # waiting out its fixed duration (see _release_linked_waits).
         self._active_waits: dict[tuple[str, str], _ActiveWait] = {}
+        # (command_id, robot_id) -> (monotonic deadline, command) for Nav2
+        # goal/waypoint legs awaiting a result callback. Deadline arithmetic
+        # is time.monotonic() on purpose: the node runs on sim time, so a
+        # node-clock deadline would freeze with /clock (see _sweep docstring).
+        self._nav_watchdogs: dict[tuple[str, str], tuple[float, CoordinationCommand]] = {}
         self._status_pub = self.create_publisher(CoordinationStatus, "/coordination/status", 10)
         self.create_subscription(
             CoordinationCommand,
@@ -50,6 +65,7 @@ class CommandBusNode(Node):
             self._on_command,
             10,
         )
+        self.create_timer(self.NAV_WATCHDOG_SWEEP_PERIOD_SEC, self._sweep_nav_watchdogs)
         self.get_logger().info("Command bus started.")
 
     def _on_command(self, msg: CoordinationCommand) -> None:
@@ -102,9 +118,7 @@ class CommandBusNode(Node):
                 float(x),
                 float(y),
                 float(yaw),
-                on_result=lambda status, detail, command=msg: self._publish_status(
-                    command, status, detail
-                ),
+                on_result=self._make_nav_result_handler(msg),
             )
             return True
         if action in {"reroute", "convoy"}:
@@ -125,9 +139,7 @@ class CommandBusNode(Node):
                         float(x),
                         float(y),
                         float(yaw),
-                        on_result=lambda status, detail, command=msg: self._publish_status(
-                            command, status, detail
-                        ),
+                        on_result=self._make_nav_result_handler(msg),
                     )
                     return True
                 # No goal either — mark completed so M5 can escalate.
@@ -136,9 +148,7 @@ class CommandBusNode(Node):
                 robot_id,
                 [(float(p["x"]), float(p["y"])) if isinstance(p, dict) else (float(p[0]), float(p[1]))
                  for p in waypoints],
-                on_result=lambda status, detail, command=msg: self._publish_status(
-                    command, status, detail
-                ),
+                on_result=self._make_nav_result_handler(msg),
             )
             return True
         if action in {"yield", "reverse"}:
@@ -188,6 +198,11 @@ class CommandBusNode(Node):
                 if status != "COMPLETED" or _hold_sec <= 0.0:
                     self._publish_status(command, status, detail)
                     return
+                # Nav2 answered, so the leg is not hung — but this path
+                # publishes no terminal status (the hold timer owns
+                # termination from here), so disarm explicitly rather than
+                # relying on _publish_status's terminal-driven disarm.
+                self._nav_watchdogs.pop((command.command_id, command.robot_id), None)
                 _start_hold(command, _hold_sec)
 
             def _on_backup_result(
@@ -201,6 +216,7 @@ class CommandBusNode(Node):
                     return
                 if has_pull_off:
                     self._publish_status(command, "ACTIVE", "pulling off aisle centerline")
+                    self._arm_nav_watchdog(command)
                     self._adapter.send_goal(
                         robot_id,
                         float(pull_off_x),
@@ -243,6 +259,63 @@ class CommandBusNode(Node):
             timer_ref["timer"] = t
             return True
         raise ValueError(f"unsupported action: {action}")
+
+    def _make_nav_result_handler(self, command: CoordinationCommand):
+        """Wrap `_publish_status` for a Nav2 goal/waypoint leg with the watchdog.
+
+        Arms the liveness watchdog when Nav2 accepts the goal (the ACTIVE
+        callback); terminal statuses flow through `_publish_status`, whose
+        registry bookkeeping disarms it (see `_update_in_flight_registry`).
+
+        Args:
+            command: The coordination command this Nav2 leg belongs to.
+
+        Returns:
+            An `on_result(status, detail)` callback for `Nav2Adapter`.
+        """
+
+        def _on_result(status: str, detail: str) -> None:
+            if status == "ACTIVE":
+                self._arm_nav_watchdog(command)
+            self._publish_status(command, status, detail)
+
+        return _on_result
+
+    def _arm_nav_watchdog(self, command: CoordinationCommand) -> None:
+        """Arm an OS-monotonic deadline for an in-flight Nav2 leg.
+
+        `timeout_sec <= 0` on the wire means "absent", so the floor applies.
+        The deadline uses `time.monotonic()`, never the node clock: this node
+        runs with `use_sim_time`, and a sim-clock deadline would freeze along
+        with `/clock` — defeating a watchdog meant to catch a hung server.
+        """
+        timeout_sec = float(getattr(command, "timeout_sec", 0.0) or 0.0)
+        deadline = time.monotonic() + max(
+            self.NAV_WATCHDOG_TIMEOUT_MULTIPLIER * timeout_sec,
+            self.NAV_WATCHDOG_FLOOR_SEC,
+        )
+        self._nav_watchdogs[(command.command_id, command.robot_id)] = (deadline, command)
+
+    def _sweep_nav_watchdogs(self) -> None:
+        """Fail Nav2 legs whose monotonic deadline has passed.
+
+        Runs on a coarse periodic node timer. That timer ticks sim time, but
+        in the scenario that matters — sim alive, Nav2 action server hung —
+        sim timers still fire; a fully-frozen sim freezes the robots too and
+        is out of scope (mirrors `Nav2Adapter.backup`'s tick-based deadline).
+        The in-flight check before firing guards against double-publishing if
+        a real terminal status landed concurrently with the sweep.
+        """
+        now = time.monotonic()
+        for key in [k for k, (deadline, _) in self._nav_watchdogs.items() if now >= deadline]:
+            _deadline, command = self._nav_watchdogs.pop(key)
+            if self._in_flight.get(command.robot_id) != command.command_id:
+                continue
+            self.get_logger().error(
+                f"nav2 leg watchdog fired command={command.command_id} robot={command.robot_id}"
+            )
+            self._adapter.cancel(command.robot_id)
+            self._publish_status(command, "FAILED", "nav2 leg timed out")
 
     def _publish_status(
         self,
@@ -306,6 +379,11 @@ class CommandBusNode(Node):
         holding the slot — a stale/rejected command's terminal status must
         not evict a different command that has since taken over.
 
+        A terminal status also disarms the Nav2-leg watchdog for exactly this
+        `(command_id, robot_id)`. Keeping the disarm here — the single choke
+        point every published status passes through — means the watchdog
+        cannot drift from what was actually published.
+
         Args:
             robot_id: Robot identifier the status belongs to.
             command_id: Command identifier the status belongs to.
@@ -314,6 +392,7 @@ class CommandBusNode(Node):
         if status == "ACTIVE":
             self._in_flight[robot_id] = command_id
         elif status in ("COMPLETED", "FAILED"):
+            self._nav_watchdogs.pop((command_id, robot_id), None)
             if self._in_flight.get(robot_id) == command_id:
                 del self._in_flight[robot_id]
 

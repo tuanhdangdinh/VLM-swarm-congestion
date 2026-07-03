@@ -28,11 +28,13 @@ class _Msg:
         robot_id="robot_1",
         action="navigate",
         parameters_json="{}",
+        timeout_sec=0.0,
     ):
         self.command_id = command_id
         self.robot_id = robot_id
         self.action = action
         self.parameters_json = parameters_json
+        self.timeout_sec = timeout_sec
 
 
 def test_command_bus_dispatches_yield_to_backup():
@@ -171,6 +173,7 @@ def test_command_bus_yield_pull_off_sends_goal_after_backup():
 
     adapter = Adapter()
     node._adapter = adapter
+    node._nav_watchdogs = {}
     node._publish_status = lambda command, status, detail: None
 
     pending = node._dispatch(
@@ -206,6 +209,7 @@ def test_command_bus_yield_holds_after_pull_off_completes():
 
     adapter = Adapter()
     node._adapter = adapter
+    node._nav_watchdogs = {}
     node._publish_status = lambda command, status, detail: statuses.append((status, detail))
     node.create_timer = lambda period, cb: cb() or object()
     node.destroy_timer = lambda t: None
@@ -272,6 +276,7 @@ def _build_node(adapter):
     node._adapter = adapter
     node._in_flight = {}
     node._active_waits = {}
+    node._nav_watchdogs = {}
     node._status_republish_timers = []
     node.create_timer = lambda period, cb: object()
     node.destroy_timer = lambda t: None
@@ -620,3 +625,204 @@ def test_robot_freed_after_terminal_status_allows_new_command():
 
     assert calls == [("backup", "robot_1", 0.3), ("backup", "robot_1", 0.3)]
     assert ("cmd-2", "robot_1", "ACTIVE", "backup started") in published
+
+
+class _NavLegAdapter:
+    """Adapter double for Nav2-leg watchdog tests: captures send_goal/backup
+    callbacks per robot and records cancel() calls so a test can assert the
+    watchdog cancelled the hung Nav2 goal."""
+
+    def __init__(self):
+        self.on_results: dict[str, callable] = {}
+        self.backup_on_result: dict[str, callable] = {}
+        self.cancel_calls: list[str] = []
+
+    def send_goal(self, robot_id, x, y, yaw, on_result=None):
+        self.on_results[robot_id] = on_result
+
+    def backup(self, robot_id, distance_m, on_result=None):
+        self.backup_on_result[robot_id] = on_result
+
+    def cancel(self, robot_id):
+        self.cancel_calls.append(robot_id)
+
+
+def _dispatch_nav_leg(node, command_id="nav-1", timeout_sec=0.0):
+    node._on_command(
+        _Msg(
+            command_id=command_id,
+            robot_id="robot_1",
+            action="navigate",
+            parameters_json=json.dumps({"goal": {"x": 1.0, "y": 2.0}}),
+            timeout_sec=timeout_sec,
+        )
+    )
+
+
+def test_nav_watchdog_armed_when_nav_leg_goes_active():
+    adapter = _NavLegAdapter()
+    node, _published = _build_node(adapter)
+
+    _dispatch_nav_leg(node)
+    adapter.on_results["robot_1"]("ACTIVE", "goal accepted")
+
+    assert ("nav-1", "robot_1") in node._nav_watchdogs
+
+
+def test_nav_watchdog_deadline_is_three_times_command_timeout(monkeypatch):
+    monkeypatch.setattr(_command_bus_node_mod.time, "monotonic", lambda: 1000.0)
+    adapter = _NavLegAdapter()
+    node, _published = _build_node(adapter)
+
+    _dispatch_nav_leg(node, timeout_sec=100.0)
+    adapter.on_results["robot_1"]("ACTIVE", "goal accepted")
+
+    deadline, _command = node._nav_watchdogs[("nav-1", "robot_1")]
+    assert deadline == 1000.0 + 300.0
+
+
+def test_nav_watchdog_deadline_floors_at_120s_when_timeout_absent(monkeypatch):
+    monkeypatch.setattr(_command_bus_node_mod.time, "monotonic", lambda: 1000.0)
+    adapter = _NavLegAdapter()
+    node, _published = _build_node(adapter)
+
+    # timeout_sec=0.0 means "absent" on the wire; the floor must apply.
+    _dispatch_nav_leg(node, timeout_sec=0.0)
+    adapter.on_results["robot_1"]("ACTIVE", "goal accepted")
+
+    deadline, _command = node._nav_watchdogs[("nav-1", "robot_1")]
+    assert deadline == 1000.0 + 120.0
+
+
+def test_nav_watchdog_expiry_fails_command_and_cancels_goal(monkeypatch):
+    now = {"value": 1000.0}
+    monkeypatch.setattr(
+        _command_bus_node_mod.time, "monotonic", lambda: now["value"]
+    )
+    adapter = _NavLegAdapter()
+    node, published = _build_node(adapter)
+
+    _dispatch_nav_leg(node)
+    adapter.on_results["robot_1"]("ACTIVE", "goal accepted")
+
+    now["value"] = 1000.0 + 120.0
+    node._sweep_nav_watchdogs()
+
+    assert ("nav-1", "robot_1", "FAILED", "nav2 leg timed out") in published
+    assert adapter.cancel_calls == ["robot_1"]
+    assert node._in_flight == {}
+    assert node._nav_watchdogs == {}
+
+
+def test_nav_watchdog_does_not_fire_before_deadline(monkeypatch):
+    now = {"value": 1000.0}
+    monkeypatch.setattr(
+        _command_bus_node_mod.time, "monotonic", lambda: now["value"]
+    )
+    adapter = _NavLegAdapter()
+    node, published = _build_node(adapter)
+
+    _dispatch_nav_leg(node)
+    adapter.on_results["robot_1"]("ACTIVE", "goal accepted")
+
+    now["value"] = 1000.0 + 119.0
+    node._sweep_nav_watchdogs()
+
+    assert all(entry[2] != "FAILED" for entry in published)
+    assert ("nav-1", "robot_1") in node._nav_watchdogs
+
+
+def test_nav_watchdog_disarmed_on_real_terminal_status():
+    adapter = _NavLegAdapter()
+    node, _published = _build_node(adapter)
+
+    _dispatch_nav_leg(node)
+    adapter.on_results["robot_1"]("ACTIVE", "goal accepted")
+    adapter.on_results["robot_1"]("COMPLETED", "goal succeeded")
+
+    assert node._nav_watchdogs == {}
+
+
+def test_nav_watchdog_stale_entry_does_not_double_publish(monkeypatch):
+    # Reentrancy guard: if a real terminal already freed the in-flight slot,
+    # a leftover watchdog entry must be dropped silently, not fire FAILED.
+    monkeypatch.setattr(_command_bus_node_mod.time, "monotonic", lambda: 1000.0)
+    adapter = _NavLegAdapter()
+    node, published = _build_node(adapter)
+    node._nav_watchdogs[("nav-1", "robot_1")] = (
+        0.0,
+        _Msg(command_id="nav-1", robot_id="robot_1"),
+    )
+
+    node._sweep_nav_watchdogs()
+
+    assert published == []
+    assert node._nav_watchdogs == {}
+
+
+def test_pull_off_leg_arms_watchdog_and_disarms_on_result():
+    adapter = _NavLegAdapter()
+    node, _published = _build_node(adapter)
+
+    node._on_command(
+        _Msg(
+            command_id="cmd-Y",
+            robot_id="robot_1",
+            action="yield",
+            parameters_json=json.dumps(
+                {
+                    "backup_distance_m": 0.8,
+                    "hold_sec": 12.0,
+                    "pull_off_x": -1.4,
+                    "pull_off_y": 0.35,
+                }
+            ),
+        )
+    )
+    adapter.backup_on_result["robot_1"]("COMPLETED", "backup done")
+
+    assert ("cmd-Y", "robot_1") in node._nav_watchdogs
+
+    # Pull-off result arrived (Nav2 not hung): entering the hold phase must
+    # disarm even though no terminal status publishes yet (the hold timer
+    # owns termination from here).
+    adapter.on_results["robot_1"]("COMPLETED", "goal succeeded")
+
+    assert node._nav_watchdogs == {}
+
+
+def test_nav_watchdog_failure_releases_linked_wait(monkeypatch):
+    now = {"value": 1000.0}
+    monkeypatch.setattr(
+        _command_bus_node_mod.time, "monotonic", lambda: now["value"]
+    )
+    adapter = _NavLegAdapter()
+    node, published = _build_node(adapter)
+    node.create_timer = lambda period, cb: _FakeTimer()
+
+    node._on_command(
+        _Msg(
+            command_id="cmd-A",
+            robot_id="robot_2",
+            action="temporary_wait",
+            parameters_json=json.dumps({"duration_sec": 100.0}),
+        )
+    )
+    node._on_command(
+        _Msg(
+            command_id="cmd-A",
+            robot_id="robot_1",
+            action="yield",
+            parameters_json=json.dumps(
+                {"backup_distance_m": 0.3, "pull_off_x": -1.4, "pull_off_y": 0.35}
+            ),
+        )
+    )
+    adapter.backup_on_result["robot_1"]("COMPLETED", "backup done")
+
+    now["value"] = 1000.0 + 120.0
+    node._sweep_nav_watchdogs()
+
+    assert ("cmd-A", "robot_1", "FAILED", "nav2 leg timed out") in published
+    assert ("cmd-A", "robot_2") not in node._active_waits
+    assert ("cmd-A", "robot_2", "COMPLETED", "released: yield failed") in published
