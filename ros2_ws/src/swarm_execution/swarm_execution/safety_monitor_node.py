@@ -208,7 +208,7 @@ class SafetyMonitorNode(Node):
 
 def _load_safety_limits(node: Node) -> SafetyLimits:
     """Load `config/safety.yaml` from the package share, falling back to defaults."""
-    defaults = SafetyLimits(min_distance_m=0.3, max_linear_velocity_mps=0.2)
+    defaults = SafetyLimits(min_distance_m=0.45, max_linear_velocity_mps=0.2)
     try:
         share = get_package_share_directory("swarm_execution")
         path = Path(share) / "config" / "safety.yaml"
