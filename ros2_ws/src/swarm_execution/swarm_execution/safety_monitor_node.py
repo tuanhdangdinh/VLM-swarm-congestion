@@ -161,14 +161,15 @@ class SafetyMonitorNode(Node):
         self._holds_pub.publish(String(data=holds_payload(self._latched_stops)))
 
     def _refresh_holds(self) -> None:
-        """Republish `/safety/holds` on a 1 s cadence while any robot is held.
+        """Republish `/safety/holds` on a 1 s cadence, empty set included.
 
-        Covers a subscriber that joins between two `_on_scene_state`-driven
-        changes; a no-op when nothing is latched since the change path already
-        published the empty list once when the set emptied.
+        Unconditional heartbeat: besides covering a subscriber that joins
+        between two `_on_scene_state`-driven changes, it lets a client still
+        holding robots from before a monitor restart recover — a fresh
+        monitor has an empty latch set and would otherwise publish nothing
+        until the next latch change, stranding those robots forever.
         """
-        if self._latched_stops:
-            self._publish_holds()
+        self._publish_holds()
 
     def _cancel_nav2_goal(self, robot_id: str) -> None:
         """Cancel robot_id's active Nav2 goal to stop DWB velocity generation.

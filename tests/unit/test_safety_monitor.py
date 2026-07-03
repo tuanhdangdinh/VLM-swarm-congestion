@@ -286,7 +286,7 @@ def test_holds_published_on_latch_change():
     assert published == [[]]
 
 
-def test_holds_refresh_republishes_while_latched_and_noop_when_empty():
+def test_holds_refresh_republishes_while_latched():
     node, _stops = _make_node(min_distance_m=0.3)
     published: list[list[str]] = []
     node._publish_holds = lambda: published.append(sorted(node._latched_stops))
@@ -296,10 +296,17 @@ def test_holds_refresh_republishes_while_latched_and_noop_when_empty():
     # Late-joiner tolerance: periodic refresh republishes while any robot held.
     assert published == [["robot_1"]]
 
-    published.clear()
+
+def test_holds_refresh_publishes_empty_set_for_restart_recovery():
+    # A freshly restarted monitor starts with an empty latch set and would
+    # otherwise publish nothing until the next latch change — stranding a
+    # coordination_client still holding robots from before the restart. The
+    # heartbeat is therefore unconditional: empty sets publish every tick too.
+    node, _stops = _make_node(min_distance_m=0.3)
+    published: list[list[str]] = []
+    node._publish_holds = lambda: published.append(sorted(node._latched_stops))
     node._latched_stops = set()
 
     node._refresh_holds()
-    # Nothing latched: the periodic refresh is a no-op (the empty-list publish
-    # already happened once on the change that emptied the set).
-    assert published == []
+
+    assert published == [[]]

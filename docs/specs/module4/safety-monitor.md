@@ -12,6 +12,9 @@
   cancel.
 - Rev 3 (2026-07-03): raised `min_distance_m` from 0.3 to 0.45 in
   `config/safety.yaml` — see §1 for rationale.
+- Rev 4 (2026-07-03): §4 `/safety/holds` refresh made an unconditional 1 s
+  heartbeat (empty set included) so a client holding robots from before a
+  monitor restart recovers.
 
 ---
 
@@ -93,13 +96,17 @@ closes that loop:
 
 - **Publish trigger:** whenever the latched-robot set (`_latched_stops`)
   *changes* — a robot added or removed — the monitor publishes the full
-  current set. When the set empties, the empty list (`{"held": []}`) is
-  published exactly once.
-- **Periodic refresh:** while the set is non-empty, a 1 s timer (separate
-  from the 40 Hz `HOLD_PERIOD_SEC` hold-republish timer) republishes the same
-  payload — late-joiner tolerance for a `coordination_client` that starts or
-  reconnects after the change-triggered publish already landed. The refresh
-  is a no-op while the set is empty (the change path already covered it).
+  current set immediately, so consumers do not wait out the heartbeat
+  interval on a change.
+- **Periodic refresh:** a 1 s timer (separate from the 40 Hz
+  `HOLD_PERIOD_SEC` hold-republish timer) republishes the current set
+  **unconditionally**, empty set included. Besides late-joiner tolerance for
+  a `coordination_client` that starts or reconnects after a change-triggered
+  publish landed, the unconditional heartbeat covers monitor restarts: a
+  fresh monitor starts with an empty latch set and publishes no change until
+  the next violation, so a client still holding robots latched before the
+  restart would otherwise be stranded forever. The empty-set heartbeat
+  releases them within one tick.
 - **Consumer behavior:** `coordination_client` forwards the parsed `held` set
   to `BaseMissionDriver.on_holds`. The driver skips held robots in its
   initial registry issuance, its `retry()` re-issuance, and status-driven
