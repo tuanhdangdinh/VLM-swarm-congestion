@@ -271,6 +271,7 @@ def _build_node(adapter):
     node = CommandBusNode.__new__(CommandBusNode)
     node._adapter = adapter
     node._in_flight = {}
+    node._active_waits = {}
     node._status_republish_timers = []
     node.create_timer = lambda period, cb: object()
     node.destroy_timer = lambda t: None
@@ -322,6 +323,202 @@ def test_same_command_id_redelivery_ignored():
 
     assert published == []
     assert node._in_flight == {"robot_1": "cmd-1"}
+
+
+class _FakeTimer:
+    """Cancel-able stand-in for `rclpy.timer.Timer` in tests."""
+
+    def __init__(self):
+        self.cancelled = False
+
+    def cancel(self):
+        self.cancelled = True
+
+
+class _YieldWaitAdapter:
+    """Combined adapter double: captures yield `backup()` callbacks by robot
+    so a test can complete/fail the yield after the linked wait is already
+    registered, and records `cancel()` calls from wait dispatch."""
+
+    def __init__(self):
+        self.backup_on_result: dict[str, callable] = {}
+        self.cancel_calls: list[str] = []
+
+    def backup(self, robot_id, distance_m, on_result=None):
+        self.backup_on_result[robot_id] = on_result
+
+    def cancel(self, robot_id):
+        self.cancel_calls.append(robot_id)
+
+
+def test_linked_wait_released_when_yield_completes():
+    adapter = _YieldWaitAdapter()
+    node, published = _build_node(adapter)
+    # duration_sec=100.0 is unique to the wait's own timer (republish timers
+    # use 0.25/0.75), so keying by period lets the test recover exactly that
+    # timer later and assert it was cancelled, not just replaced/ignored.
+    timers_by_period: dict[float, _FakeTimer] = {}
+
+    def create_timer_stub(period, cb):
+        timer = _FakeTimer()
+        timers_by_period[period] = timer
+        return timer
+
+    node.create_timer = create_timer_stub
+
+    node._on_command(
+        _Msg(
+            command_id="cmd-A",
+            robot_id="robot_2",
+            action="temporary_wait",
+            parameters_json=json.dumps({"duration_sec": 100.0}),
+        )
+    )
+    node._on_command(
+        _Msg(
+            command_id="cmd-A",
+            robot_id="robot_1",
+            action="yield",
+            parameters_json=json.dumps({"backup_distance_m": 0.3}),
+        )
+    )
+
+    assert ("cmd-A", "robot_2") in node._active_waits
+
+    adapter.backup_on_result["robot_1"]("COMPLETED", "backup done")
+
+    assert ("cmd-A", "robot_2") not in node._active_waits
+    assert ("cmd-A", "robot_2", "COMPLETED", "released: yield complete") in published
+    assert timers_by_period[100.0].cancelled is True
+
+
+def test_linked_wait_released_when_yield_completes_via_hold_expiry():
+    # The representative production path: yield's terminal COMPLETED comes
+    # from the post-backup hold timer expiring (hold_sec > 0), not directly
+    # from the backup result. Same _publish_status gate as the direct-COMPLETED
+    # path, but exercised through the actual hold/pull-off machinery.
+    adapter = _YieldWaitAdapter()
+    node, published = _build_node(adapter)
+
+    # Only the yield's hold timer (period=12.0) fires synchronously, so the
+    # linked wait's own 100.0s timer and the 0.25/0.75s republish timers stay
+    # inert — matching test_wait_natural_expiry_still_publishes_completed's
+    # rationale for isolating exactly one timer per stub call.
+    def create_timer_stub(period, cb):
+        if period == 12.0:
+            return cb() or _FakeTimer()
+        return _FakeTimer()
+
+    node.create_timer = create_timer_stub
+
+    node._on_command(
+        _Msg(
+            command_id="cmd-A",
+            robot_id="robot_2",
+            action="temporary_wait",
+            parameters_json=json.dumps({"duration_sec": 100.0}),
+        )
+    )
+    node._on_command(
+        _Msg(
+            command_id="cmd-A",
+            robot_id="robot_1",
+            action="yield",
+            parameters_json=json.dumps({"backup_distance_m": 0.3, "hold_sec": 12.0}),
+        )
+    )
+
+    assert ("cmd-A", "robot_2") in node._active_waits
+
+    adapter.backup_on_result["robot_1"]("COMPLETED", "backup done")
+
+    assert ("cmd-A", "robot_2") not in node._active_waits
+    assert ("cmd-A", "robot_2", "COMPLETED", "released: yield complete") in published
+
+
+def test_linked_wait_released_when_yield_fails():
+    adapter = _YieldWaitAdapter()
+    node, published = _build_node(adapter)
+    node.create_timer = lambda period, cb: _FakeTimer()
+
+    node._on_command(
+        _Msg(
+            command_id="cmd-A",
+            robot_id="robot_2",
+            action="temporary_wait",
+            parameters_json=json.dumps({"duration_sec": 100.0}),
+        )
+    )
+    node._on_command(
+        _Msg(
+            command_id="cmd-A",
+            robot_id="robot_1",
+            action="yield",
+            parameters_json=json.dumps({"backup_distance_m": 0.3}),
+        )
+    )
+
+    adapter.backup_on_result["robot_1"]("FAILED", "backup obstructed")
+
+    assert ("cmd-A", "robot_2") not in node._active_waits
+    assert ("cmd-A", "robot_2", "COMPLETED", "released: yield failed") in published
+
+
+def test_unlinked_wait_unaffected_by_other_commands_terminal():
+    adapter = _YieldWaitAdapter()
+    node, published = _build_node(adapter)
+    node.create_timer = lambda period, cb: _FakeTimer()
+
+    node._on_command(
+        _Msg(
+            command_id="cmd-A",
+            robot_id="robot_2",
+            action="temporary_wait",
+            parameters_json=json.dumps({"duration_sec": 100.0}),
+        )
+    )
+    node._on_command(
+        _Msg(
+            command_id="cmd-B",
+            robot_id="robot_3",
+            action="yield",
+            parameters_json=json.dumps({"backup_distance_m": 0.3}),
+        )
+    )
+
+    published.clear()
+    adapter.backup_on_result["robot_3"]("COMPLETED", "backup done")
+
+    assert ("cmd-A", "robot_2") in node._active_waits
+    assert all(entry[1] != "robot_2" for entry in published)
+
+
+def test_wait_natural_expiry_still_publishes_completed():
+    # Only the wait's own duration timer (period=5.0) fires synchronously;
+    # the status-republish timers (period 0.25/0.75, scheduled from within
+    # the real _publish_status) must stay inert, or their own timer_ref
+    # bookkeeping (set after create_timer returns) would raise.
+    adapter = _YieldWaitAdapter()
+    node, published = _build_node(adapter)
+
+    def create_timer_stub(period, cb):
+        if period == 5.0:
+            return cb() or _FakeTimer()
+        return _FakeTimer()
+
+    node.create_timer = create_timer_stub
+
+    node._on_command(
+        _Msg(
+            command_id="cmd-A",
+            robot_id="robot_2",
+            action="temporary_wait",
+            parameters_json=json.dumps({"duration_sec": 5.0}),
+        )
+    )
+
+    assert ("cmd-A", "robot_2") not in node._active_waits
+    assert ("cmd-A", "robot_2", "COMPLETED", "wait complete") in published
 
 
 def test_robot_freed_after_terminal_status_allows_new_command():

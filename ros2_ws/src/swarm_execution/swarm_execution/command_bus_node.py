@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import NamedTuple
 
 try:
     import rclpy
@@ -15,6 +16,20 @@ except ImportError:
 from swarm_execution.nav2_adapter import Nav2Adapter
 
 
+class _ActiveWait(NamedTuple):
+    """Bookkeeping for a wait/temporary_wait/stop timer eligible for early release.
+
+    `timer_ref` is the same mutable dict the wait's own expiry closure writes
+    the timer into (see `_dispatch`'s wait branch), rather than the timer
+    object itself. Registering this way — before `create_timer` returns —
+    means a release triggered synchronously (e.g. a stubbed timer in tests)
+    cannot race the `timer_ref["timer"] = t` assignment that happens after.
+    """
+
+    timer_ref: dict
+    command: CoordinationCommand
+
+
 class CommandBusNode(Node):
     def __init__(self):
         super().__init__("command_bus_node")
@@ -24,6 +39,10 @@ class CommandBusNode(Node):
         # Populated/cleared from _publish_status so it can never drift from
         # what was actually published (see _update_in_flight_registry).
         self._in_flight: dict[str, str] = {}
+        # (command_id, robot_id) -> still-active wait timer, so a linked
+        # yield/reverse's terminal status can release it early instead of
+        # waiting out its fixed duration (see _release_linked_waits).
+        self._active_waits: dict[tuple[str, str], _ActiveWait] = {}
         self._status_pub = self.create_publisher(CoordinationStatus, "/coordination/status", 10)
         self.create_subscription(
             CoordinationCommand,
@@ -196,9 +215,15 @@ class CommandBusNode(Node):
             # Hold Nav2 paused for duration_sec before publishing COMPLETED so
             # M5 cannot dispatch a competing command until the window expires.
             self._publish_status(msg, "ACTIVE", "waiting")
+            wait_key = (msg.command_id, robot_id)
             timer_ref: dict = {}
+            # Register before create_timer returns so a release racing a
+            # synchronously-firing timer (or vice versa) cannot resurrect an
+            # entry that already completed — see _ActiveWait.
+            self._active_waits[wait_key] = _ActiveWait(timer_ref=timer_ref, command=msg)
 
-            def _wait_expired(_command=msg) -> None:
+            def _wait_expired(_command=msg, _key=wait_key) -> None:
+                self._active_waits.pop(_key, None)
                 self._publish_status(_command, "COMPLETED", "wait complete")
                 t = timer_ref.get("timer")
                 if t is not None:
@@ -223,6 +248,34 @@ class CommandBusNode(Node):
         )
         for delay_sec in (0.25, 0.75):
             self._schedule_status_republish(msg, delay_sec)
+        if status in ("COMPLETED", "FAILED") and command.action in ("yield", "reverse"):
+            self._release_linked_waits(command.command_id, status)
+
+    def _release_linked_waits(self, command_id: str, yield_status: str) -> None:
+        """Complete every still-active wait sharing `command_id` with a terminal yield.
+
+        M5 grounds a two-robot resolution — one robot `yield`s, another
+        `temporary_wait`s — under one `command_id`. Without this, the waiting
+        robot re-enters the aisle when its fixed-duration timer expires, even
+        if the yielding robot is still mid-maneuver. Releasing the wait the
+        moment the yield reaches a terminal status keeps both robots' terminal
+        statuses tied to the same real-world event, so M5 can re-analyze with
+        both robots free.
+
+        Args:
+            command_id: Command identifier shared by the yield and its linked wait(s).
+            yield_status: Terminal status of the yield/reverse action (`COMPLETED` or `FAILED`).
+        """
+        detail = (
+            "released: yield complete" if yield_status == "COMPLETED" else "released: yield failed"
+        )
+        for key in [k for k in self._active_waits if k[0] == command_id]:
+            wait = self._active_waits.pop(key)
+            timer = wait.timer_ref.get("timer")
+            if timer is not None:
+                timer.cancel()
+                self.destroy_timer(timer)
+            self._publish_status(wait.command, "COMPLETED", detail)
 
     def _update_in_flight_registry(self, robot_id: str, command_id: str, status: str) -> None:
         """Keep `_in_flight` in sync with the status that is about to publish.
