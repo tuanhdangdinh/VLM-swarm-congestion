@@ -198,18 +198,22 @@ def _get_app(headless: bool):
     # RTX lidar motion BVH: without this the raytracer only sees static
     # geometry and MOVING robots are absent from every /robot_N/scan, so
     # Nav2 costmaps and collision_monitor are blind to an approaching robot
-    # (observed as head-on interpenetration). The setting name comes from
-    # librtx.sensors.lidar.core.plugin.so itself: "To enable motion BVH set
-    # the following app setting: renderer.raytracingMotion.enabled=true".
-    # Passed as a kit arg (extra_args) because it must be active when the
-    # Hydra render engine is created: mutating it via carb.settings after
-    # SimulationApp init kills the engine thread and silences every
-    # render-dependent sensor (camera + both lidars, observed 2026-07-03).
+    # (observed as head-on interpenetration). All three settings must be
+    # passed together at boot — this is NVIDIA's own combination from
+    # isaacsim.sensors.rtx's extension.toml. `enabled` alone (with or
+    # without the engine-masking pair) breaks Hydra engine creation and
+    # silences every render-dependent sensor (camera + both lidars,
+    # observed 2026-07-03 both as a post-init carb mutation and as a lone
+    # kit arg).
     return SimulationApp(
         {
             "headless": headless,
             "anti_aliasing": 0,
-            "extra_args": ["--/renderer/raytracingMotion/enabled=true"],
+            "extra_args": [
+                "--/renderer/raytracingMotion/enabled=true",
+                "--/renderer/raytracingMotion/enableHydraEngineMasking=true",
+                "--/renderer/raytracingMotion/enabledForHydraEngines=0,1,2,3",
+            ],
         }
     )
 
