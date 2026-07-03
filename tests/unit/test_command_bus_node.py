@@ -154,11 +154,11 @@ def test_command_bus_does_not_complete_nav_command_before_action_result():
     assert statuses == [("COMPLETED", "goal succeeded")]
 
 
-def test_command_bus_yield_pull_off_sends_goal_after_backup():
+def test_command_bus_yield_pull_off_sidesteps_after_backup():
     # A straight backup alone re-blocks the passer's path in the head-on
-    # scenario, so a grounded yield with pull_off_* must route through
-    # Nav2's send_goal (not another raw-cmd_vel backup) once the initial
-    # backup opens separation.
+    # scenario, so a grounded yield with pull_off_lateral_m must route
+    # through the raw-cmd_vel sidestep (not a Nav2 goal — the planned leg
+    # stalls in DWB recovery once the costmap sees the other robot).
     node = CommandBusNode.__new__(CommandBusNode)
     calls = []
 
@@ -167,9 +167,9 @@ def test_command_bus_yield_pull_off_sends_goal_after_backup():
             calls.append(("backup", robot_id, distance_m))
             self.backup_on_result = on_result
 
-        def send_goal(self, robot_id, x, y, yaw, on_result=None):
-            calls.append(("send_goal", robot_id, x, y, yaw))
-            self.goal_on_result = on_result
+        def sidestep(self, robot_id, lateral_m, on_result=None):
+            calls.append(("sidestep", robot_id, lateral_m))
+            self.sidestep_on_result = on_result
 
     adapter = Adapter()
     node._adapter = adapter
@@ -181,9 +181,7 @@ def test_command_bus_yield_pull_off_sends_goal_after_backup():
         {
             "backup_distance_m": 0.8,
             "hold_sec": 12.0,
-            "pull_off_x": -1.4,
-            "pull_off_y": 0.35,
-            "pull_off_yaw": 0.0,
+            "pull_off_lateral_m": 0.35,
         },
     )
     assert pending is True
@@ -192,7 +190,7 @@ def test_command_bus_yield_pull_off_sends_goal_after_backup():
     adapter.backup_on_result("COMPLETED", "backup done")
     assert calls == [
         ("backup", "robot_1", 0.8),
-        ("send_goal", "robot_1", -1.4, 0.35, 0.0),
+        ("sidestep", "robot_1", 0.35),
     ]
 
 
@@ -204,8 +202,8 @@ def test_command_bus_yield_holds_after_pull_off_completes():
         def backup(self, robot_id, distance_m, on_result=None):
             self.backup_on_result = on_result
 
-        def send_goal(self, robot_id, x, y, yaw, on_result=None):
-            self.goal_on_result = on_result
+        def sidestep(self, robot_id, lateral_m, on_result=None):
+            self.sidestep_on_result = on_result
 
     adapter = Adapter()
     node._adapter = adapter
@@ -219,13 +217,13 @@ def test_command_bus_yield_holds_after_pull_off_completes():
         {
             "backup_distance_m": 0.8,
             "hold_sec": 12.0,
-            "pull_off_x": -1.4,
-            "pull_off_y": 0.35,
-            "pull_off_yaw": 0.0,
+            "pull_off_lateral_m": 0.35,
         },
     )
     adapter.backup_on_result("COMPLETED", "backup done")
-    adapter.goal_on_result("COMPLETED", "goal succeeded")
+    # sidestep reports its own ACTIVE start signal first, then terminal.
+    adapter.sidestep_on_result("ACTIVE", "side step started")
+    adapter.sidestep_on_result("COMPLETED", "side step complete: moved 0.350 m")
 
     assert ("ACTIVE", "holding for passing robot") in statuses
     assert ("COMPLETED", "yield complete") in statuses
@@ -351,6 +349,9 @@ class _YieldWaitAdapter:
 
     def backup(self, robot_id, distance_m, on_result=None):
         self.backup_on_result[robot_id] = on_result
+
+    def sidestep(self, robot_id, lateral_m, on_result=None):
+        self.sidestep_on_result = on_result
 
     def cancel(self, robot_id):
         self.cancel_calls.append(robot_id)
@@ -643,6 +644,9 @@ class _NavLegAdapter:
     def backup(self, robot_id, distance_m, on_result=None):
         self.backup_on_result[robot_id] = on_result
 
+    def sidestep(self, robot_id, lateral_m, on_result=None):
+        self.sidestep_on_result = on_result
+
     def cancel(self, robot_id):
         self.cancel_calls.append(robot_id)
 
@@ -760,7 +764,10 @@ def test_nav_watchdog_stale_entry_does_not_double_publish(monkeypatch):
     assert node._nav_watchdogs == {}
 
 
-def test_pull_off_leg_arms_watchdog_and_disarms_on_result():
+def test_pull_off_sidestep_does_not_arm_nav_watchdog():
+    # The sidestep pull-off self-terminates on its own monotonic bound, so
+    # the Nav2-leg watchdog (which exists for legs that can hang awaiting an
+    # action-server result) must not arm for it.
     adapter = _NavLegAdapter()
     node, _published = _build_node(adapter)
 
@@ -773,56 +780,42 @@ def test_pull_off_leg_arms_watchdog_and_disarms_on_result():
                 {
                     "backup_distance_m": 0.8,
                     "hold_sec": 12.0,
-                    "pull_off_x": -1.4,
-                    "pull_off_y": 0.35,
+                    "pull_off_lateral_m": 0.35,
                 }
             ),
         )
     )
     adapter.backup_on_result["robot_1"]("COMPLETED", "backup done")
 
-    assert ("cmd-Y", "robot_1") in node._nav_watchdogs
-
-    # Pull-off result arrived (Nav2 not hung): entering the hold phase must
-    # disarm even though no terminal status publishes yet (the hold timer
-    # owns termination from here).
-    adapter.on_results["robot_1"]("COMPLETED", "goal succeeded")
-
     assert node._nav_watchdogs == {}
 
 
-def test_nav_watchdog_failure_releases_linked_wait(monkeypatch):
+def test_nav_watchdog_failure_fails_hung_navigate_leg(monkeypatch):
+    # With the pull-off no longer a Nav2 leg, the watchdog's remaining job is
+    # the navigate-class legs; a hung action server must still surface as a
+    # terminal FAILED that frees the robot's in-flight slot.
     now = {"value": 1000.0}
     monkeypatch.setattr(
         _command_bus_node_mod.time, "monotonic", lambda: now["value"]
     )
     adapter = _NavLegAdapter()
     node, published = _build_node(adapter)
-    node.create_timer = lambda period, cb: _FakeTimer()
 
     node._on_command(
         _Msg(
-            command_id="cmd-A",
-            robot_id="robot_2",
-            action="temporary_wait",
-            parameters_json=json.dumps({"duration_sec": 100.0}),
-        )
-    )
-    node._on_command(
-        _Msg(
-            command_id="cmd-A",
+            command_id="cmd-N",
             robot_id="robot_1",
-            action="yield",
-            parameters_json=json.dumps(
-                {"backup_distance_m": 0.3, "pull_off_x": -1.4, "pull_off_y": 0.35}
-            ),
+            action="navigate",
+            parameters_json=json.dumps({"goal": {"x": 3.0, "y": 0.0}}),
         )
     )
-    adapter.backup_on_result["robot_1"]("COMPLETED", "backup done")
+    adapter.on_results["robot_1"]("ACTIVE", "goal accepted")
+    assert ("cmd-N", "robot_1") in node._nav_watchdogs
 
     now["value"] = 1000.0 + 120.0
     node._sweep_nav_watchdogs()
 
-    assert ("cmd-A", "robot_1", "FAILED", "nav2 leg timed out") in published
-    assert ("cmd-A", "robot_2") not in node._active_waits
-    assert ("cmd-A", "robot_2", "COMPLETED", "released: yield failed") in published
+    assert ("cmd-N", "robot_1", "FAILED", "nav2 leg timed out") in published
+    assert node._nav_watchdogs == {}
+    assert "robot_1" not in node._in_flight
+    assert "robot_1" in adapter.cancel_calls

@@ -5,6 +5,7 @@ fakes replacing rclpy action infrastructure.
 """
 from __future__ import annotations
 
+import math
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -344,10 +345,12 @@ class _FakeNode:
         return self.clock
 
 
-def _odom_at(x: float, y: float):
+def _odom_at(x: float, y: float, yaw: float = 0.0):
     msg = nav2_adapter.Odometry()
     msg.pose.pose.position.x = x
     msg.pose.pose.position.y = y
+    msg.pose.pose.orientation.z = math.sin(yaw / 2.0)
+    msg.pose.pose.orientation.w = math.cos(yaw / 2.0)
     return msg
 
 
@@ -489,3 +492,119 @@ def test_backup_cleans_up_odom_subscription_on_cancel(backup_adapter) -> None:
     assert timer.cancelled
     assert odom_sub in node.destroyed_subs
     assert "robot_1" not in adapter._backup_odom_subs
+
+
+def _drive_sidestep(node, odom_sub, timer, yaw_seq):
+    """Feed odometry through the sidestep phases: turn, drive, turn back.
+
+    `yaw_seq` maps published-command inspection to odometry responses so the
+    test drives the real closed-loop state machine, not a reimplementation.
+    """
+    # Phase 1: report unrotated, then rotated yaw.
+    odom_sub.callback(_odom_at(0.0, 0.0, yaw=0.0))
+    timer.tick()
+    odom_sub.callback(_odom_at(0.0, 0.0, yaw=yaw_seq["turned"]))
+    timer.tick()
+    # Phase 2: displacement grows to the lateral target.
+    odom_sub.callback(_odom_at(0.0, 0.35, yaw=yaw_seq["turned"]))
+    timer.tick()
+    # Phase 3: yaw restored.
+    odom_sub.callback(_odom_at(0.0, 0.35, yaw=0.0))
+    timer.tick()
+
+
+def test_sidestep_completes_after_turn_drive_turn(backup_adapter) -> None:
+    adapter, node = backup_adapter
+    statuses: list[tuple[str, str]] = []
+    adapter.sidestep(
+        "robot_1", lateral_m=0.35,
+        on_result=lambda s, d: statuses.append((s, d)),
+    )
+    assert statuses == [("ACTIVE", "side step started")]
+    odom_sub = node.subscriptions[-1]
+    timer = node.timers[-1]
+
+    _drive_sidestep(node, odom_sub, timer, {"turned": math.pi / 2})
+
+    assert statuses[-1][0] == "COMPLETED"
+    assert "side step complete" in statuses[-1][1]
+    # Terminal tick stops motion with a zero twist.
+    pub = node.publishers["/robot_1/cmd_vel"]
+    last = pub.messages[-1]
+    assert last.linear.x == 0.0 and last.angular.z == 0.0
+
+
+def test_sidestep_turns_left_for_positive_lateral(backup_adapter) -> None:
+    adapter, node = backup_adapter
+    adapter.sidestep("robot_1", lateral_m=0.35)
+    odom_sub = node.subscriptions[-1]
+    timer = node.timers[-1]
+
+    odom_sub.callback(_odom_at(0.0, 0.0, yaw=0.0))
+    timer.tick()
+
+    pub = node.publishers["/robot_1/cmd_vel"]
+    assert pub.messages[-1].angular.z > 0.0
+    assert pub.messages[-1].linear.x == 0.0
+
+
+def test_sidestep_turns_right_for_negative_lateral(backup_adapter) -> None:
+    adapter, node = backup_adapter
+    adapter.sidestep("robot_1", lateral_m=-0.35)
+    odom_sub = node.subscriptions[-1]
+    timer = node.timers[-1]
+
+    odom_sub.callback(_odom_at(0.0, 0.0, yaw=0.0))
+    timer.tick()
+
+    pub = node.publishers["/robot_1/cmd_vel"]
+    assert pub.messages[-1].angular.z < 0.0
+
+
+def test_sidestep_drives_forward_only_after_turn_complete(backup_adapter) -> None:
+    adapter, node = backup_adapter
+    adapter.sidestep("robot_1", lateral_m=0.35)
+    odom_sub = node.subscriptions[-1]
+    timer = node.timers[-1]
+    pub = node.publishers["/robot_1/cmd_vel"]
+
+    odom_sub.callback(_odom_at(0.0, 0.0, yaw=0.0))
+    timer.tick()
+    assert pub.messages[-1].linear.x == 0.0
+
+    odom_sub.callback(_odom_at(0.0, 0.0, yaw=math.pi / 2))
+    timer.tick()
+    assert pub.messages[-1].linear.x > 0.0
+    assert pub.messages[-1].angular.z == 0.0
+
+
+def test_sidestep_times_out_on_monotonic_deadline_when_blocked(
+    backup_adapter, monkeypatch
+) -> None:
+    adapter, node = backup_adapter
+    wall = {"now": 100.0}
+    monkeypatch.setattr(nav2_adapter.time, "monotonic", lambda: wall["now"])
+    statuses: list[tuple[str, str]] = []
+    adapter.sidestep(
+        "robot_1", lateral_m=0.35,
+        on_result=lambda s, d: statuses.append((s, d)),
+    )
+    odom_sub = node.subscriptions[-1]
+    timer = node.timers[-1]
+
+    odom_sub.callback(_odom_at(0.0, 0.0, yaw=0.0))
+    wall["now"] += 1000.0
+    timer.tick()
+
+    assert statuses[-1][0] == "FAILED"
+    assert "timed out" in statuses[-1][1]
+
+
+def test_sidestep_zero_lateral_completes_immediately(backup_adapter) -> None:
+    adapter, node = backup_adapter
+    statuses: list[tuple[str, str]] = []
+    adapter.sidestep(
+        "robot_1", lateral_m=0.0,
+        on_result=lambda s, d: statuses.append((s, d)),
+    )
+    assert statuses[-1][0] == "COMPLETED"

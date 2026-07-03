@@ -71,9 +71,9 @@ def test_ground_yield_decision_to_single_backing_yield_action():
     assert yielder["parameters"]["hold_sec"] == 12.0
     assert "reason" in yielder["parameters"]
     # A straight backup alone re-blocks the passer's path in this scenario, so
-    # the yielder also gets a lateral pull-off target (map-frame, scenario-specific).
-    assert yielder["parameters"]["pull_off_x"] == -1.4
-    assert yielder["parameters"]["pull_off_y"] == 0.35
+    # the yielder also steps laterally (robot-frame offset, positive = left;
+    # executed as a raw-cmd_vel sidestep, not a Nav2 goal).
+    assert yielder["parameters"]["pull_off_lateral_m"] == 0.35
     assert passer["robot_id"] == "robot_2"
     assert passer["action"] == "temporary_wait"
     # Generous safety upper bound: the M4 command bus releases this wait the

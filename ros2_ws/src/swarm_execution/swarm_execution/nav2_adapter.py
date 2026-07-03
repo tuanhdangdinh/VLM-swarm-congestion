@@ -273,6 +273,139 @@ class Nav2Adapter(Node):
         if on_result is not None:
             on_result("ACTIVE", "backup started")
 
+    def sidestep(
+        self,
+        robot_id: str,
+        lateral_m: float,
+        speed_mps: float = 0.1,
+        turn_rate_rps: float = 0.5,
+        on_result: Callable[[str, str], None] | None = None,
+    ):
+        """Step the robot sideways by `lateral_m` via turn-drive-turn on cmd_vel.
+
+        Positive `lateral_m` steps left in the robot frame, negative right.
+        Replaces the Nav2-planned pull-off leg of a yield: routing a ~0.35 m
+        reposition through the full planner/controller stack proved fragile —
+        with motion BVH the local costmap now sees the other robot, and DWB
+        fell into "Failed to make progress" recovery loops that kept the yield
+        from ever reaching a terminal status. Like backup(), this bypasses
+        Nav2 and the collision_monitor entirely and closes the loop on
+        odometry (heading from the odom quaternion for the turns, planar
+        displacement for the drive), so it terminates deterministically at
+        any realtime factor. The same OS-monotonic safety bound as backup()
+        guards the genuinely-blocked case.
+        """
+        if lateral_m == 0.0:
+            if on_result is not None:
+                on_result("COMPLETED", "side step complete: zero lateral")
+            return
+
+        self.cancel(robot_id)
+
+        pub = self._backup_pubs.get(robot_id)
+        if pub is None:
+            pub = self._node.create_publisher(Twist, f"/{robot_id}/cmd_vel", 10)
+            self._backup_pubs[robot_id] = pub
+
+        direction = 1.0 if lateral_m > 0 else -1.0
+        odom_state: dict[str, object] = {"pos": None, "yaw": None}
+        # Phases: turn toward the offset, drive it, turn back to the original
+        # heading so the robot faces its base-mission direction again.
+        phase_state: dict[str, object] = {
+            "phase": "turn_out",
+            "start_yaw": None,
+            "drive_start": None,
+        }
+        yaw_tolerance_rad = 0.05
+
+        def _on_odom(msg, _state=odom_state) -> None:
+            p = msg.pose.pose.position
+            q = msg.pose.pose.orientation
+            _state["pos"] = (p.x, p.y)
+            _state["yaw"] = 2.0 * math.atan2(q.z, q.w)
+
+        odom_sub = self._node.create_subscription(
+            Odometry, f"/{robot_id}/odom", _on_odom, 10
+        )
+        self._backup_odom_subs[robot_id] = odom_sub
+
+        naive_sec = math.pi / turn_rate_rps + abs(lateral_m) / speed_mps
+        safety_deadline = time.monotonic() + max(naive_sec * 15.0, 30.0)
+
+        def _finish(status: str, detail: str) -> None:
+            timer = self._backup_timers.pop(robot_id, None)
+            if timer is not None:
+                try:
+                    timer.cancel()
+                except Exception:
+                    pass
+            sub = self._backup_odom_subs.pop(robot_id, None)
+            if sub is not None:
+                try:
+                    self._node.destroy_subscription(sub)
+                except Exception:
+                    pass
+            pub.publish(Twist())
+            if on_result is not None:
+                on_result(status, detail)
+
+        def _wrap(angle: float) -> float:
+            while angle > math.pi:
+                angle -= 2.0 * math.pi
+            while angle < -math.pi:
+                angle += 2.0 * math.pi
+            return angle
+
+        def _tick() -> None:
+            if time.monotonic() >= safety_deadline:
+                _finish(
+                    "FAILED",
+                    f"side step timed out in phase {phase_state['phase']}",
+                )
+                return
+            yaw = odom_state["yaw"]
+            pos = odom_state["pos"]
+            if yaw is None or pos is None:
+                return
+            if phase_state["start_yaw"] is None:
+                phase_state["start_yaw"] = yaw
+
+            twist = Twist()
+            phase = phase_state["phase"]
+            if phase == "turn_out":
+                target = _wrap(phase_state["start_yaw"] + direction * math.pi / 2.0)
+                if abs(_wrap(yaw - target)) < yaw_tolerance_rad:
+                    phase_state["phase"] = "drive"
+                    phase_state["drive_start"] = pos
+                else:
+                    twist.angular.z = direction * turn_rate_rps
+                    pub.publish(twist)
+                    return
+            if phase_state["phase"] == "drive":
+                start = phase_state["drive_start"]
+                traveled = math.hypot(pos[0] - start[0], pos[1] - start[1])
+                if traveled >= abs(lateral_m):
+                    phase_state["phase"] = "turn_back"
+                else:
+                    twist.linear.x = abs(speed_mps)
+                    pub.publish(twist)
+                    return
+            if phase_state["phase"] == "turn_back":
+                target = _wrap(phase_state["start_yaw"])
+                if abs(_wrap(yaw - target)) < yaw_tolerance_rad:
+                    _finish(
+                        "COMPLETED",
+                        f"side step complete: moved {abs(lateral_m):.3f} m",
+                    )
+                else:
+                    twist.angular.z = -direction * turn_rate_rps
+                    pub.publish(twist)
+
+        timer = self._node.create_timer(0.05, _tick)
+        self._backup_timers[robot_id] = timer
+        if on_result is not None:
+            on_result("ACTIVE", "side step started")
+
     def cancel(self, robot_id: str) -> None:
         """Cancel robot_id's active goal and any in-progress backup timer.
 

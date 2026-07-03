@@ -161,19 +161,17 @@ class CommandBusNode(Node):
             # the other robot can navigate through the cleared aisle before this
             # robot resumes. reverse does not hold; both robots back up symmetrically.
             hold_sec = float(params.get("hold_sec", 0.0)) if action == "yield" else 0.0
-            # pull_off_* (yield only, optional): a straight backup alone leaves
-            # the yielder on the same line the passer must travel, so it
-            # re-blocks the corridor. If the grounder supplied a lateral
-            # parking pose, route there via Nav2's normal planner/controller
-            # (not the raw-cmd_vel bypass backup() uses) after the initial
-            # backup has opened enough separation for collision_monitor to
-            # stay quiet.
-            pull_off_x = params.get("pull_off_x")
-            pull_off_y = params.get("pull_off_y")
-            pull_off_yaw = float(params.get("pull_off_yaw", 0.0))
-            has_pull_off = (
-                action == "yield" and pull_off_x is not None and pull_off_y is not None
-            )
+            # pull_off_lateral_m (yield only, optional): a straight backup
+            # alone leaves the yielder on the passer's line AND, with
+            # min_distance_m=0.45 in the 1.2 m aisle, too close for the passer
+            # to clear without tripping the safety latch — so the yielder
+            # steps sideways off the centerline. Executed as a raw-cmd_vel
+            # sidestep (adapter.sidestep), not a Nav2 goal: the planned leg
+            # proved unreliable once the costmap could see the other robot
+            # (DWB "Failed to make progress" recovery loops, observed
+            # 2026-07-03), and it self-terminates, so no nav watchdog needed.
+            pull_off_lateral = params.get("pull_off_lateral_m")
+            has_pull_off = action == "yield" and pull_off_lateral is not None
 
             def _start_hold(command, _hold_sec: float) -> None:
                 self._publish_status(command, "ACTIVE", "holding for passing robot")
@@ -195,14 +193,13 @@ class CommandBusNode(Node):
                 command=msg,
                 _hold_sec: float = hold_sec,
             ) -> None:
+                if status == "ACTIVE":
+                    # sidestep's own start signal; the pull-off ACTIVE was
+                    # already published by _on_backup_result.
+                    return
                 if status != "COMPLETED" or _hold_sec <= 0.0:
                     self._publish_status(command, status, detail)
                     return
-                # Nav2 answered, so the leg is not hung — but this path
-                # publishes no terminal status (the hold timer owns
-                # termination from here), so disarm explicitly rather than
-                # relying on _publish_status's terminal-driven disarm.
-                self._nav_watchdogs.pop((command.command_id, command.robot_id), None)
                 _start_hold(command, _hold_sec)
 
             def _on_backup_result(
@@ -216,12 +213,9 @@ class CommandBusNode(Node):
                     return
                 if has_pull_off:
                     self._publish_status(command, "ACTIVE", "pulling off aisle centerline")
-                    self._arm_nav_watchdog(command)
-                    self._adapter.send_goal(
+                    self._adapter.sidestep(
                         robot_id,
-                        float(pull_off_x),
-                        float(pull_off_y),
-                        pull_off_yaw,
+                        float(pull_off_lateral),
                         on_result=_on_pull_off_result,
                     )
                     return
