@@ -408,8 +408,12 @@ def test_backup_completes_once_odometry_shows_target_distance(backup_adapter) ->
     assert node.destroyed_subs == [odom_sub]
 
 
-def test_backup_fails_on_safety_timeout_when_robot_stays_blocked(backup_adapter) -> None:
+def test_backup_fails_on_safety_timeout_when_robot_stays_blocked(
+    backup_adapter, monkeypatch
+) -> None:
     adapter, node = backup_adapter
+    wall = {"now": 100.0}
+    monkeypatch.setattr(nav2_adapter.time, "monotonic", lambda: wall["now"])
     statuses: list[tuple[str, str]] = []
     adapter.backup(
         "robot_1", distance_m=0.8, speed_mps=0.1,
@@ -420,12 +424,58 @@ def test_backup_fails_on_safety_timeout_when_robot_stays_blocked(backup_adapter)
 
     # Robot never moves (e.g. physically blocked) — odometry stays flat.
     odom_sub.callback(_odom_at(0.0, 0.0))
-    node.clock.advance(1000.0)  # well past the safety deadline
+    wall["now"] += 1000.0  # well past the safety deadline
     timer.tick()
 
     assert statuses[-1][0] == "FAILED"
     assert "timed out" in statuses[-1][1]
     assert timer.cancelled
+
+
+def test_backup_deadline_fires_when_sim_clock_is_frozen(
+    backup_adapter, monkeypatch
+) -> None:
+    """A hung sim freezes /clock; the OS-monotonic deadline must still fire."""
+    adapter, node = backup_adapter
+    wall = {"now": 100.0}
+    monkeypatch.setattr(nav2_adapter.time, "monotonic", lambda: wall["now"])
+    statuses: list[tuple[str, str]] = []
+    adapter.backup(
+        "robot_1", distance_m=0.8, speed_mps=0.1,
+        on_result=lambda s, d: statuses.append((s, d)),
+    )
+    odom_sub = node.subscriptions[-1]
+    timer = node.timers[-1]
+
+    odom_sub.callback(_odom_at(0.0, 0.0))
+    # Sim clock never advances (node.clock.seconds stays 0.0) — only wall
+    # time moves, exactly the hung-sim scenario the deadline exists for.
+    wall["now"] += 1000.0
+    timer.tick()
+
+    assert statuses[-1][0] == "FAILED"
+    assert "timed out" in statuses[-1][1]
+
+
+def test_backup_deadline_ignores_sim_clock_jump(backup_adapter, monkeypatch) -> None:
+    """A sim-clock jump alone must not expire the OS-monotonic deadline."""
+    adapter, node = backup_adapter
+    wall = {"now": 100.0}
+    monkeypatch.setattr(nav2_adapter.time, "monotonic", lambda: wall["now"])
+    statuses: list[tuple[str, str]] = []
+    adapter.backup(
+        "robot_1", distance_m=0.8, speed_mps=0.1,
+        on_result=lambda s, d: statuses.append((s, d)),
+    )
+    odom_sub = node.subscriptions[-1]
+    timer = node.timers[-1]
+
+    odom_sub.callback(_odom_at(0.0, 0.0))
+    node.clock.advance(1000.0)  # sim clock jumps; wall time does not move
+    timer.tick()
+
+    assert statuses == [("ACTIVE", "backup started")]
+    assert not timer.cancelled
 
 
 def test_backup_cleans_up_odom_subscription_on_cancel(backup_adapter) -> None:
