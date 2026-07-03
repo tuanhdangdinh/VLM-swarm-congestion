@@ -74,31 +74,21 @@ def ground_reasoner_result(result: ReasonerResult) -> dict[str, Any]:
         "robot_1": {"x": -1.4, "y": 0.35, "yaw": 0.0},
         "robot_2": {"x": 1.4, "y": -0.35, "yaw": 3.141592653589793},
     }
-    backup_speed_mps = 0.1
     # How long robot_1 holds position after backing up so robot_2 can
     # navigate through the cleared aisle before robot_1 resumes.
     # Sized for the aisle geometry: robot_2 needs to travel ~1.5 m at
     # 0.18 m/s ≈ 8 s. 12 s gives comfortable margin.
     yield_hold_sec = 12.0
-    # Robot_2 waits in place while robot_1 backs up (backup_distance_m /
-    # backup_speed_mps seconds) plus a 2 s margin before Nav2 resumes.
-    # This keeps M5 from dispatching a competing command to robot_2 during
-    # the backup window and lets robot_2 start navigating through the
-    # freshly cleared aisle without interference.
-    # Generous allowance for the Nav2-planned lateral pull-off (a short ~0.5 m
-    # move, but routed through the normal planner/controller stack rather
-    # than the raw-cmd_vel backup, so it needs planning + execution margin).
-    pull_off_margin_sec = 15.0
-    passing_wait_sec = round(backup_distance_m / backup_speed_mps) + pull_off_margin_sec + 2.0
-    # Total yield cycle: backup + pull-off + hold. Used as
-    # expected_resolution_time_sec so M5 does not time out the command
-    # before the hold expires.
-    yield_total_sec = (
-        round(backup_distance_m / backup_speed_mps)
-        + pull_off_margin_sec
-        + yield_hold_sec
-        + 2.0
-    )
+    # Generous safety upper bound, not a motion-duration estimate (which was
+    # wrong at any Isaac Sim realtime factor != 1). In the normal path the M4
+    # command bus releases this wait the instant the linked yield reaches a
+    # terminal status (event-driven); this constant is only reached if that
+    # terminal-status signal is lost.
+    passing_wait_sec = 120.0
+    # Generous safety upper bound for the full yield cycle, used as
+    # expected_resolution_time_sec. With M5 no longer expiring commands whose
+    # robots are ACTIVE, this only bounds the PENDING/lost-dispatch case.
+    yield_total_sec = 150.0
 
     if decision.strategy == "yield":
         yield_parameters: dict[str, Any] = {
@@ -119,9 +109,11 @@ def ground_reasoner_result(result: ReasonerResult) -> dict[str, Any]:
             },
         ]
         if len(robot_ids) > 1:
-            # Suppress the passing robot during the backup window so M5
-            # does not dispatch a competing command while the aisle is
-            # still blocked. After passing_wait_sec it resumes freely.
+            # Suppress the passing robot so M5 does not dispatch a competing
+            # command while the aisle is still blocked. The M4 command bus
+            # releases this wait the moment the linked yield reaches a
+            # terminal status (event-driven); passing_wait_sec only bounds
+            # the case where that release signal is lost.
             actions.append(
                 {
                     "robot_id": robot_ids[1],
