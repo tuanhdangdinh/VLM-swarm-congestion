@@ -74,11 +74,16 @@ def ground_reasoner_result(result: ReasonerResult) -> dict[str, Any]:
     # 0.6 m, inflated half-width ~0.19 m) while giving the passer 0.7 m of
     # centerline separation, above the 0.45 m safety threshold.
     pull_off_lateral_m = 0.35
-    # How long robot_1 holds position after backing up so robot_2 can
-    # navigate through the cleared aisle before robot_1 resumes.
-    # Sized for the aisle geometry: robot_2 needs to travel ~1.5 m at
-    # 0.18 m/s ≈ 8 s. 12 s gives comfortable margin.
-    yield_hold_sec = 12.0
+    # Upper-bound backstop for the yielder's hold, not the primary release:
+    # M4 ends the hold the moment the passer's odometry shows it displaced
+    # passer_clear_m since hold start (event-driven). A fixed 12 s hold
+    # expired mid-traverse at low realtime factors and both robots re-entered
+    # the aisle together (2026-07-03). 45 s covers a slow traverse with wide
+    # margin; only reached if the passer never moves.
+    yield_hold_sec = 45.0
+    # Displacement that proves the passer is through the gap and past the
+    # parked yielder: ~0.9 m barrier length + approach + margin.
+    passer_clear_m = 1.5
     # Generous safety upper bound, not a motion-duration estimate (which was
     # wrong at any Isaac Sim realtime factor != 1). In the normal path the M4
     # command bus releases this wait the instant the linked yield reaches a
@@ -97,6 +102,9 @@ def ground_reasoner_result(result: ReasonerResult) -> dict[str, Any]:
             "pull_off_lateral_m": pull_off_lateral_m,
             "reason": decision.root_cause,
         }
+        if len(robot_ids) > 1:
+            yield_parameters["passer_robot_id"] = robot_ids[1]
+            yield_parameters["passer_clear_m"] = passer_clear_m
         actions = [
             {
                 "robot_id": robot_ids[0],

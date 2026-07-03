@@ -6,11 +6,13 @@ from typing import NamedTuple
 
 try:
     import rclpy
+    from nav_msgs.msg import Odometry
     from rclpy.node import Node
     from swarm_interfaces.msg import CoordinationCommand, CoordinationStatus
 except ImportError:
     rclpy = None
     Node = object
+    Odometry = object
     CoordinationCommand = object
     CoordinationStatus = object
 
@@ -172,6 +174,15 @@ class CommandBusNode(Node):
             # 2026-07-03), and it self-terminates, so no nav watchdog needed.
             pull_off_lateral = params.get("pull_off_lateral_m")
             has_pull_off = action == "yield" and pull_off_lateral is not None
+            # passer_robot_id / passer_clear_m (yield only, optional): end the
+            # hold as soon as the passer has actually cleared, measured as its
+            # own odometry displacement since hold start (frame-free). A fixed
+            # hold under-shoots at low realtime factors (12 s sim expired
+            # mid-traverse, both robots re-entered together, 2026-07-03);
+            # hold_sec remains the upper-bound backstop for a passer that
+            # never moves.
+            passer_robot_id = params.get("passer_robot_id") if action == "yield" else None
+            passer_clear_m = float(params.get("passer_clear_m", 1.5))
 
             def _start_hold(command, _hold_sec: float) -> None:
                 self._publish_status(command, "ACTIVE", "holding for passing robot")
@@ -185,13 +196,41 @@ class CommandBusNode(Node):
                     release_detail="released: yield holding",
                 )
                 timer_ref: dict = {}
+                odom_ref: dict = {}
+                done_ref = {"done": False}
 
-                def _hold_expired() -> None:
-                    self._publish_status(command, "COMPLETED", "yield complete")
+                def _finish_hold(detail: str) -> None:
+                    if done_ref["done"]:
+                        return
+                    done_ref["done"] = True
+                    self._publish_status(command, "COMPLETED", detail)
                     t = timer_ref.get("timer")
                     if t is not None:
                         t.cancel()
                         self.destroy_timer(t)
+                    sub = odom_ref.get("sub")
+                    if sub is not None:
+                        self.destroy_subscription(sub)
+
+                def _hold_expired() -> None:
+                    _finish_hold("yield complete")
+
+                if passer_robot_id:
+                    start_ref: dict = {}
+
+                    def _on_passer_odom(odom_msg) -> None:
+                        p = odom_msg.pose.pose.position
+                        if "pos" not in start_ref:
+                            start_ref["pos"] = (p.x, p.y)
+                            return
+                        sx, sy = start_ref["pos"]
+                        moved = ((p.x - sx) ** 2 + (p.y - sy) ** 2) ** 0.5
+                        if moved >= passer_clear_m:
+                            _finish_hold("yield complete: passer cleared")
+
+                    odom_ref["sub"] = self.create_subscription(
+                        Odometry, f"/{passer_robot_id}/odom", _on_passer_odom, 10
+                    )
 
                 t = self.create_timer(_hold_sec, _hold_expired)
                 timer_ref["timer"] = t

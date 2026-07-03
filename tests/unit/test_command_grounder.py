@@ -68,7 +68,11 @@ def test_ground_yield_decision_to_single_backing_yield_action():
     assert yielder["robot_id"] == "robot_1"
     assert yielder["action"] == "yield"
     assert yielder["parameters"]["backup_distance_m"] == 0.8
-    assert yielder["parameters"]["hold_sec"] == 12.0
+    # Upper-bound backstop; the hold actually ends when the passer's odometry
+    # shows passer_clear_m of displacement (event-driven early completion).
+    assert yielder["parameters"]["hold_sec"] == 45.0
+    assert yielder["parameters"]["passer_robot_id"] == "robot_2"
+    assert yielder["parameters"]["passer_clear_m"] == 1.5
     assert "reason" in yielder["parameters"]
     # A straight backup alone re-blocks the passer's path in this scenario, so
     # the yielder also steps laterally (robot-frame offset, positive = left;

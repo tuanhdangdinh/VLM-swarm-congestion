@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 from swarm_execution import command_bus_node as _command_bus_node_mod
 from swarm_execution.command_bus_node import CommandBusNode
@@ -867,3 +868,96 @@ def test_linked_wait_released_at_hold_start():
     assert ("cmd-H", "robot_2", "COMPLETED", "released: yield holding") in published
     # The yield itself is still ACTIVE (holding), not terminal yet.
     assert ("cmd-H", "robot_1", "ACTIVE", "holding for passing robot") in published
+
+
+class _PasserOdomNode:
+    """Wrap _build_node's stub with odom-subscription capture for hold tests."""
+
+
+def test_hold_completes_early_when_passer_clears():
+    # The hold's job is "park until the passer is through" — a fixed timer
+    # under-shoots at low RTF (observed 2026-07-03 run 3: 12s sim hold expired
+    # mid-traverse and both robots re-deadlocked). The passer's own odometry
+    # displacement since hold start is frame-free evidence of clearing.
+    adapter = _NavLegAdapter()
+    node, published = _build_node(adapter)
+    node.create_timer = lambda period, cb: _FakeTimer()
+    odom_subs = {}
+    node.create_subscription = lambda mtype, topic, cb, qos: odom_subs.setdefault(
+        topic, cb
+    )
+    node.destroy_subscription = lambda sub: None
+
+    node._on_command(
+        _Msg(
+            command_id="cmd-P",
+            robot_id="robot_1",
+            action="yield",
+            parameters_json=json.dumps(
+                {
+                    "backup_distance_m": 0.8,
+                    "hold_sec": 45.0,
+                    "pull_off_lateral_m": 0.35,
+                    "passer_robot_id": "robot_2",
+                    "passer_clear_m": 1.5,
+                }
+            ),
+        )
+    )
+    adapter.backup_on_result["robot_1"]("COMPLETED", "backup done")
+    adapter.sidestep_on_result("COMPLETED", "side step complete: moved 0.350 m")
+
+    assert "/robot_2/odom" in odom_subs
+    cb = odom_subs["/robot_2/odom"]
+
+    class _P:
+        def __init__(self, x, y):
+            self.pose = SimpleNamespace(
+                pose=SimpleNamespace(position=SimpleNamespace(x=x, y=y))
+            )
+
+    cb(_P(0.3, 0.0))   # hold-start reference
+    cb(_P(-0.5, 0.0))  # 0.8 m — not yet clear
+    assert ("cmd-P", "robot_1", "COMPLETED", "yield complete: passer cleared") not in published
+    cb(_P(-1.3, 0.0))  # 1.6 m — cleared
+    assert ("cmd-P", "robot_1", "COMPLETED", "yield complete: passer cleared") in published
+
+
+def test_hold_timer_expiry_still_completes_without_passer_motion():
+    # Timer stays as the upper-bound backstop when the passer never moves
+    # (e.g. its Nav2 goal fails) or no passer params are grounded.
+    adapter = _NavLegAdapter()
+    node, published = _build_node(adapter)
+    timers = []
+
+    def create_timer(period, cb):
+        t = _FakeTimer()
+        t.period = period
+        t.cb = cb
+        timers.append(t)
+        return t
+
+    node.create_timer = create_timer
+    node.create_subscription = lambda mtype, topic, cb, qos: object()
+    node.destroy_subscription = lambda sub: None
+
+    node._on_command(
+        _Msg(
+            command_id="cmd-Q",
+            robot_id="robot_1",
+            action="yield",
+            parameters_json=json.dumps(
+                {
+                    "backup_distance_m": 0.8,
+                    "hold_sec": 45.0,
+                    "passer_robot_id": "robot_2",
+                    "passer_clear_m": 1.5,
+                }
+            ),
+        )
+    )
+    adapter.backup_on_result["robot_1"]("COMPLETED", "backup done")
+
+    hold_timer = [t for t in timers if getattr(t, "period", None) == 45.0][-1]
+    hold_timer.cb()
+    assert ("cmd-Q", "robot_1", "COMPLETED", "yield complete") in published
