@@ -82,13 +82,15 @@ class CoordinationClientNode(Node):
             self._issue_navigate(robot_id, goal)
 
     def _on_command(self, msg: CoordinationCommand) -> None:
-        if self._driver.on_command(msg.robot_id):
+        if self._driver.on_command(msg.robot_id, msg.command_id):
             # The command bus uses a separate Nav2Adapter, so cancel our own
             # navigate goal here to avoid two action goals fighting on this robot.
             self._adapter.cancel(msg.robot_id)
 
     def _on_status(self, msg: CoordinationStatus) -> None:
-        for robot_id, goal in self._driver.on_status(msg.robot_id, msg.status):
+        for robot_id, goal in self._driver.on_status(
+            msg.robot_id, msg.command_id, msg.status
+        ):
             self.get_logger().info(f"resume base mission robot={robot_id} goal={goal}")
             self._issue_navigate(robot_id, goal)
 
