@@ -195,18 +195,23 @@ def _should_sample_acceptance_log(step: int, physics_hz: int, log_hz: int) -> bo
 def _get_app(headless: bool):
     from isaacsim import SimulationApp
 
-    app = SimulationApp({"headless": headless, "anti_aliasing": 0})
     # RTX lidar motion BVH: without this the raytracer only sees static
     # geometry and MOVING robots are absent from every /robot_N/scan, so
     # Nav2 costmaps and collision_monitor are blind to an approaching robot
     # (observed as head-on interpenetration). The setting name comes from
     # librtx.sensors.lidar.core.plugin.so itself: "To enable motion BVH set
     # the following app setting: renderer.raytracingMotion.enabled=true".
-    # Must be set after app init (settings exist) and before sensor creation.
-    import carb.settings
-
-    carb.settings.get_settings().set_bool("/renderer/raytracingMotion/enabled", True)
-    return app
+    # Passed as a kit arg (extra_args) because it must be active when the
+    # Hydra render engine is created: mutating it via carb.settings after
+    # SimulationApp init kills the engine thread and silences every
+    # render-dependent sensor (camera + both lidars, observed 2026-07-03).
+    return SimulationApp(
+        {
+            "headless": headless,
+            "anti_aliasing": 0,
+            "extra_args": ["--/renderer/raytracingMotion/enabled=true"],
+        }
+    )
 
 
 def _open_stage(scenario_path: Path) -> None:
