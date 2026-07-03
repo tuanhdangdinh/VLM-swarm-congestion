@@ -208,7 +208,10 @@ def test_command_bus_yield_holds_after_pull_off_completes():
     adapter = Adapter()
     node._adapter = adapter
     node._nav_watchdogs = {}
-    node._publish_status = lambda command, status, detail: statuses.append((status, detail))
+    node._active_waits = {}
+    node._publish_status = lambda command, status, detail, **kwargs: statuses.append(
+        (status, detail)
+    )
     node.create_timer = lambda period, cb: cb() or object()
     node.destroy_timer = lambda t: None
 
@@ -247,6 +250,7 @@ def test_command_bus_yield_without_pull_off_holds_directly_after_backup():
 
     adapter = Adapter()
     node._adapter = adapter
+    node._active_waits = {}
     node._publish_status = lambda command, status, detail: statuses.append((status, detail))
     node.create_timer = lambda period, cb: cb() or object()
     node.destroy_timer = lambda t: None
@@ -439,7 +443,10 @@ def test_linked_wait_released_when_yield_completes_via_hold_expiry():
     adapter.backup_on_result["robot_1"]("COMPLETED", "backup done")
 
     assert ("cmd-A", "robot_2") not in node._active_waits
-    assert ("cmd-A", "robot_2", "COMPLETED", "released: yield complete") in published
+    # Released at hold START (the passer traverses while the yielder is
+    # parked); the terminal "yield complete" finds no waits left.
+    assert ("cmd-A", "robot_2", "COMPLETED", "released: yield holding") in published
+    assert ("cmd-A", "robot_1", "COMPLETED", "yield complete") in published
 
 
 def test_linked_wait_released_when_yield_fails():
@@ -819,3 +826,44 @@ def test_nav_watchdog_failure_fails_hung_navigate_leg(monkeypatch):
     assert node._nav_watchdogs == {}
     assert "robot_1" not in node._in_flight
     assert "robot_1" in adapter.cancel_calls
+
+
+def test_linked_wait_released_at_hold_start():
+    # The hold phase exists so the passer can traverse the cleared aisle
+    # WHILE the yielder holds; releasing the wait only at yield-terminal
+    # (observed 2026-07-03 run 2) froze the passer through the whole hold,
+    # then both robots raced in together and re-deadlocked.
+    adapter = _NavLegAdapter()
+    node, published = _build_node(adapter)
+    node.create_timer = lambda period, cb: _FakeTimer()
+
+    node._on_command(
+        _Msg(
+            command_id="cmd-H",
+            robot_id="robot_2",
+            action="temporary_wait",
+            parameters_json=json.dumps({"duration_sec": 120.0}),
+        )
+    )
+    node._on_command(
+        _Msg(
+            command_id="cmd-H",
+            robot_id="robot_1",
+            action="yield",
+            parameters_json=json.dumps(
+                {
+                    "backup_distance_m": 0.8,
+                    "hold_sec": 12.0,
+                    "pull_off_lateral_m": 0.35,
+                }
+            ),
+        )
+    )
+    adapter.backup_on_result["robot_1"]("COMPLETED", "backup done")
+    adapter.sidestep_on_result("COMPLETED", "side step complete: moved 0.350 m")
+
+    # The wait must be released the moment the hold starts, not at terminal.
+    assert ("cmd-H", "robot_2") not in node._active_waits
+    assert ("cmd-H", "robot_2", "COMPLETED", "released: yield holding") in published
+    # The yield itself is still ACTIVE (holding), not terminal yet.
+    assert ("cmd-H", "robot_1", "ACTIVE", "holding for passing robot") in published

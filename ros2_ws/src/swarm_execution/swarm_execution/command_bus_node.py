@@ -175,6 +175,15 @@ class CommandBusNode(Node):
 
             def _start_hold(command, _hold_sec: float) -> None:
                 self._publish_status(command, "ACTIVE", "holding for passing robot")
+                # Release the linked wait NOW, not at yield-terminal: the hold
+                # exists so the passer traverses the cleared aisle while the
+                # yielder is parked. Released only at terminal, the passer sat
+                # frozen through the whole hold and both robots re-entered the
+                # aisle together, re-deadlocking (observed 2026-07-03).
+                self._release_linked_waits(
+                    command.command_id, "COMPLETED",
+                    release_detail="released: yield holding",
+                )
                 timer_ref: dict = {}
 
                 def _hold_expired() -> None:
