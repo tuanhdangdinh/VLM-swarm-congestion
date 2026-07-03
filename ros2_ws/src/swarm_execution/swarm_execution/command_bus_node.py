@@ -66,7 +66,16 @@ class CommandBusNode(Node):
                     f"duplicate command ignored command={msg.command_id} robot={msg.robot_id}"
                 )
                 return
-            self._publish_status(msg, "FAILED", f"robot busy: {active_command_id}")
+            # A busy-rejected yield/reverse never dispatched, so a linked wait
+            # released by this FAILED must not read as "yield failed" — no
+            # yield was attempted. Provenance is passed explicitly, never
+            # inferred from detail text.
+            self._publish_status(
+                msg,
+                "FAILED",
+                f"robot busy: {active_command_id}",
+                release_detail="released: yield rejected",
+            )
             return
         try:
             params = json.loads(msg.parameters_json or "{}")
@@ -235,7 +244,13 @@ class CommandBusNode(Node):
             return True
         raise ValueError(f"unsupported action: {action}")
 
-    def _publish_status(self, command: CoordinationCommand, status: str, detail: str) -> None:
+    def _publish_status(
+        self,
+        command: CoordinationCommand,
+        status: str,
+        detail: str,
+        release_detail: str | None = None,
+    ) -> None:
         self._update_in_flight_registry(command.robot_id, command.command_id, status)
         msg = CoordinationStatus()
         msg.command_id = command.command_id
@@ -249,9 +264,11 @@ class CommandBusNode(Node):
         for delay_sec in (0.25, 0.75):
             self._schedule_status_republish(msg, delay_sec)
         if status in ("COMPLETED", "FAILED") and command.action in ("yield", "reverse"):
-            self._release_linked_waits(command.command_id, status)
+            self._release_linked_waits(command.command_id, status, release_detail)
 
-    def _release_linked_waits(self, command_id: str, yield_status: str) -> None:
+    def _release_linked_waits(
+        self, command_id: str, yield_status: str, release_detail: str | None = None
+    ) -> None:
         """Complete every still-active wait sharing `command_id` with a terminal yield.
 
         M5 grounds a two-robot resolution — one robot `yield`s, another
@@ -265,8 +282,11 @@ class CommandBusNode(Node):
         Args:
             command_id: Command identifier shared by the yield and its linked wait(s).
             yield_status: Terminal status of the yield/reverse action (`COMPLETED` or `FAILED`).
+            release_detail: Explicit provenance override for the released waits'
+                detail text (used by the busy-reject path, where the yield never
+                dispatched and "yield failed" would be misleading).
         """
-        detail = (
+        detail = release_detail or (
             "released: yield complete" if yield_status == "COMPLETED" else "released: yield failed"
         )
         for key in [k for k in self._active_waits if k[0] == command_id]:

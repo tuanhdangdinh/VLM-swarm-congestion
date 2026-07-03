@@ -493,6 +493,81 @@ def test_unlinked_wait_unaffected_by_other_commands_terminal():
     assert all(entry[1] != "robot_2" for entry in published)
 
 
+def test_busy_rejected_yield_releases_linked_wait_as_rejected():
+    # A yield that never dispatched (busy-rejected by the in-flight guard)
+    # must still free its linked wait — otherwise the waiting robot is held
+    # hostage to a maneuver that will never happen — but with provenance
+    # "rejected", not "failed": no yield was attempted.
+    adapter = _YieldWaitAdapter()
+    node, published = _build_node(adapter)
+    node.create_timer = lambda period, cb: _FakeTimer()
+
+    node._on_command(
+        _Msg(
+            command_id="cmd-A",
+            robot_id="robot_2",
+            action="temporary_wait",
+            parameters_json=json.dumps({"duration_sec": 100.0}),
+        )
+    )
+    node._on_command(
+        _Msg(
+            command_id="cmd-0",
+            robot_id="robot_1",
+            action="yield",
+            parameters_json=json.dumps({"backup_distance_m": 0.3}),
+        )
+    )
+    # Mark robot_1 in-flight under cmd-0 so the next command busy-rejects.
+    adapter.backup_on_result["robot_1"]("ACTIVE", "backup started")
+
+    node._on_command(
+        _Msg(
+            command_id="cmd-A",
+            robot_id="robot_1",
+            action="yield",
+            parameters_json=json.dumps({"backup_distance_m": 0.3}),
+        )
+    )
+
+    assert ("cmd-A", "robot_1", "FAILED", "robot busy: cmd-0") in published
+    assert ("cmd-A", "robot_2") not in node._active_waits
+    assert ("cmd-A", "robot_2", "COMPLETED", "released: yield rejected") in published
+
+
+def test_linked_wait_released_when_reverse_completes():
+    # Parity check for the second clearing action: the release gate covers
+    # action in {"yield", "reverse"}, but every other linked-wait test
+    # exercises yield only.
+    adapter = _YieldWaitAdapter()
+    node, published = _build_node(adapter)
+    node.create_timer = lambda period, cb: _FakeTimer()
+
+    node._on_command(
+        _Msg(
+            command_id="cmd-A",
+            robot_id="robot_2",
+            action="temporary_wait",
+            parameters_json=json.dumps({"duration_sec": 100.0}),
+        )
+    )
+    node._on_command(
+        _Msg(
+            command_id="cmd-A",
+            robot_id="robot_1",
+            action="reverse",
+            parameters_json=json.dumps({"backup_distance_m": 0.3}),
+        )
+    )
+
+    assert ("cmd-A", "robot_2") in node._active_waits
+
+    adapter.backup_on_result["robot_1"]("COMPLETED", "backup done")
+
+    assert ("cmd-A", "robot_2") not in node._active_waits
+    assert ("cmd-A", "robot_2", "COMPLETED", "released: yield complete") in published
+
+
 def test_wait_natural_expiry_still_publishes_completed():
     # Only the wait's own duration timer (period=5.0) fires synchronously;
     # the status-republish timers (period 0.25/0.75, scheduled from within
