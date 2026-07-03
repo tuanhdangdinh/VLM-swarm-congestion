@@ -7,6 +7,12 @@ controller_server:
     controller_plugins: ["FollowPath"]
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
+      # Sim-seconds (this server runs use_sim_time). Doubled from the 10.0
+      # default: from a near-wedged angled pose in the barrier gap, DWB needs
+      # longer than 10 sim-s to sample its way out, and each premature abort
+      # discards progress into spin/backup recoveries that also fail in the
+      # tight band (H3 runs 4-5, 2026-07-03).
+      movement_time_allowance: 20.0
     general_goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
       # Default xy_goal_tolerance is 0.25m (verified on host via `ros2 param
@@ -159,12 +165,16 @@ local_costmap:
       # `plugin:` key naming the implementing class.
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        # Nav2 default inflation_radius is 0.55m. With robot half-width 0.09m,
-        # that inflates to 1.28m — wider than the entire 1.2m aisle, making the
-        # 0.4-0.55m barrier gap fully lethal and unnavigable. Set explicitly to
-        # 0.10m: inflated half-width = 0.09+0.10 = 0.19m, gap 0.55m gives
-        # 0.17m navigable clearance, narrow but viable for the deadlock scenario.
-        inflation_radius: 0.10
+        # Nav2 default inflation_radius is 0.55m — wider than the entire
+        # 1.2m aisle at this footprint, fully lethal. Local runs 0.07 (not
+        # the global's 0.10): inflated half-width 0.09+0.07=0.16m, so the
+        # 0.70m barrier gap leaves a ±0.19m band for the robot center —
+        # enough for DWB to sample recovery arcs from an angled pose (at
+        # 0.10/0.55m the band was ±0.085m and the passer wedged, H3 runs
+        # 4-5). Global keeps 0.10 so planned paths stay centered; only the
+        # local controller needs the tighter shave, and 0.07 keeps a 2cm
+        # buffer above the 0.05m costmap resolution.
+        inflation_radius: 0.07
 
 global_costmap:
   global_costmap:
