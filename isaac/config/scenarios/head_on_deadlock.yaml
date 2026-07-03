@@ -27,11 +27,15 @@ robots:
 timed_obstacles: []
 
 aisle_barrier:
-  # 0.55m gap: navigable by a single robot (inflated half-width 0.19m with
-  # inflation_radius=0.10 leaves 0.275-0.19=0.085m clearance from each block),
-  # but the straight-aisle geometry forces a head-on deadlock when both robots
-  # approach simultaneously — neither can pass the other in-lane.
-  effective_width_m: 0.55
+  # 0.70m gap: navigable by a single robot even from an angled pose —
+  # inflated half-width 0.16m (0.09 footprint + 0.07 local inflation_radius)
+  # leaves a ±0.19m band for the robot center, enough for DWB to sample
+  # recovery arcs (the prior 0.55m gap left ±0.085m: every trajectory from
+  # an angled pose collided and the passer wedged, H3 runs 4-5). Still
+  # deadlocks head-on: two-abreast needs ≥0.45m center separation (safety
+  # latch threshold) but the gap offers only 0.70-2*0.16=0.38m of usable
+  # band, so neither robot can pass the other in-lane.
+  effective_width_m: 0.70
   center_x_m: 0.0
   length_m: 0.9
 

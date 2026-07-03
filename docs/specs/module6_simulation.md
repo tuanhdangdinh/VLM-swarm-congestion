@@ -250,7 +250,7 @@ Every composed scenario must provide these paths:
 - FR6.5.7 The base warehouse includes no robots, goals, or active dynamic
   obstacles.
 - FR6.5.8 The head-on scenario may reference barrier components that narrow a
-  section of the horizontal aisle to an effective width of `0.55 m`. The
+  section of the horizontal aisle to an effective width of `0.70 m`. The
   nominal reusable aisle remains `1.20 m`.
 
 ### M6.6 Overhead Camera
@@ -390,8 +390,8 @@ external interfaces in this table remain mandatory.
   stub**: per robot it drives forward at the scripted speed (`<= 0.15 m/s`) but
   commands zero velocity whenever the minimum range within a forward `+/-30 deg`
   sector of that robot's `/robot_N/scan` is below `0.25 m`. The forward sector
-  (not the full `360 deg` scan) is required so the side walls of the `0.55 m`
-  narrowed passage (~`0.275 m` from a centered robot) do not trip the stub and
+  (not the full `360 deg` scan) is required so the side walls of the `0.70 m`
+  narrowed passage (~`0.35 m` from a centered robot) do not trip the stub and
   permanently stall a robot before the head-on conflict forms. The stub may only
   stop a robot; it must never reroute, plan,
   or steer. This makes the deadlock/bottleneck/anomaly conflicts form without
@@ -980,7 +980,7 @@ def run_simulation(config: ResolvedRunConfig) -> tuple[RunResult, ...]
   - `robot_1`: `(-4.5, 0.0, 0.0)`
   - `robot_2`: `(4.5, 0.0, pi)`
 - Goals are the opposite aisle endpoints.
-- Scenario barriers narrow the central horizontal passage to `0.55 m`.
+- Scenario barriers narrow the central horizontal passage to `0.70 m`.
 - Test harness drives both robots forward at no more than `0.15 m/s` under the
   stop stub (FR6.8.5a).
 - Expected conflict:

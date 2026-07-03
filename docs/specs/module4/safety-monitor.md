@@ -38,7 +38,7 @@ safety:
 `min_distance_m` was raised from 0.3 to 0.45 (2026-07-03): 0.3 m center-to-center
 leaves ~0.14 m shell gap and ~0.5 s reaction at the 0.28 m/s worst-case closing
 speed against an M1→safety pipeline latency of 0.2–0.4 s — too tight a margin.
-0.45 m restores ~1 s of margin and still fits the 0.55 m aisle standoff
+0.45 m restores ~1 s of margin and still fits the 0.70 m aisle standoff
 geometry (robots stop before entering marker-overlap range).
 
 ---
