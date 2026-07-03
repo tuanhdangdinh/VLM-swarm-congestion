@@ -124,6 +124,43 @@ def test_non_terminal_status_does_not_resume():
     assert driver.on_registry({"robot_1": {"task": "yield", "goal": [3.0, 0.0]}}) == []
 
 
+def test_initial_issue_skips_held_robot():
+    driver = BaseMissionDriver()
+    driver.on_holds({"robot_1"})
+
+    issues = driver.on_registry(
+        {
+            "robot_1": {"task": "cross", "goal": [3.0, 0.0]},
+            "robot_2": {"task": "cross", "goal": [-3.0, 0.0]},
+        }
+    )
+
+    assert issues == [("robot_2", (-3.0, 0.0))]
+
+
+def test_retry_skips_held_robot():
+    driver = BaseMissionDriver()
+    driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}})
+    # robot_1 is latched under a safety stop; the safety monitor cancelled its
+    # goal so it is unaccepted and would normally be re-issued on retry.
+    driver.on_holds({"robot_1"})
+
+    assert driver.retry() == []
+
+
+def test_release_from_hold_reissues_on_next_retry():
+    driver = BaseMissionDriver()
+    driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}})
+    driver.on_holds({"robot_1"})
+    assert driver.retry() == []
+
+    # Released from hold: no special resume path, the normal 2s retry tick
+    # picks it up like any other unaccepted goal.
+    driver.on_holds(set())
+
+    assert driver.retry() == [("robot_1", (3.0, 0.0))]
+
+
 def test_non_suppressed_robot_keeps_navigating_during_other_robots_override():
     driver = BaseMissionDriver()
     driver.on_registry(
@@ -242,6 +279,19 @@ def test_node_retry_reissues_when_goal_rejected():
     node._on_retry()
 
     assert node._adapter.goals == [("robot_1", 3.0, 0.0, 0.0)]
+
+
+def test_node_forwards_holds_to_driver():
+    node = _make_client()
+    node._on_registry(
+        _StringMsg(_json.dumps({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}}))
+    )
+    node._adapter.goals.clear()
+
+    node._on_holds(_StringMsg(_json.dumps({"held": ["robot_1"]})))
+    node._on_retry()
+
+    assert node._adapter.goals == []
 
 
 def test_node_retry_noop_after_goal_accepted():

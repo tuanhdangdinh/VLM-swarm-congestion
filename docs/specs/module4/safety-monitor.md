@@ -7,6 +7,9 @@
 - Initial draft: safety invariants, the resolved hard-stop decision, and the
   emergency-stop override path. Written alongside the Phase 3 closed-loop
   implementation.
+- Rev 2 (2026-07-03): added §4 `/safety/holds` — the safety-hold signal that
+  stops `coordination_client`'s retry loop from fighting the monitor's goal
+  cancel.
 
 ---
 
@@ -35,6 +38,7 @@ safety:
 |---|---|---|
 | `/perception/scene_state` | `std_msgs/String` (JSON `SceneState`) | M1 → monitor |
 | `/<robot_id>/cmd_vel` | `geometry_msgs/Twist` | monitor → Isaac drive |
+| `/safety/holds` | `std_msgs/String` (JSON `{"held": [...]}`) | monitor → coordination_client |
 
 The monitor parses the same flat `robots[]` shape M5's `parse_scene_snapshot`
 consumes (`robot_id`, `x`, `y`, `linear_velocity`). Pure invariant logic lives in
@@ -68,7 +72,37 @@ This is a **PoC-grade** override, not a hardware e-stop:
 
 ---
 
-## 4. Known integration risks (UNVERIFIED — host-gated)
+## 4. Safety holds — coordinating with `coordination_client`
+
+Cancelling a latched robot's Nav2 goal (§3 predecessor) is not enough on its
+own: `coordination_client`'s base-mission driver treats a cancelled goal as
+unaccepted and re-issues it on its 2 s retry tick, the monitor cancels it
+again on the next scene update, and the two nodes fight indefinitely (16,861
+stop events observed in one run before this fix).
+
+**`/safety/holds`** (`std_msgs/String`, JSON `{"held": ["robot_1", ...]}`)
+closes that loop:
+
+- **Publish trigger:** whenever the latched-robot set (`_latched_stops`)
+  *changes* — a robot added or removed — the monitor publishes the full
+  current set. When the set empties, the empty list (`{"held": []}`) is
+  published exactly once.
+- **Periodic refresh:** while the set is non-empty, a 1 s timer (separate
+  from the 40 Hz `HOLD_PERIOD_SEC` hold-republish timer) republishes the same
+  payload — late-joiner tolerance for a `coordination_client` that starts or
+  reconnects after the change-triggered publish already landed. The refresh
+  is a no-op while the set is empty (the change path already covered it).
+- **Consumer behavior:** `coordination_client` forwards the parsed `held` set
+  to `BaseMissionDriver.on_holds`. The driver skips held robots in its
+  initial registry issuance, its `retry()` re-issuance, and status-driven
+  resume — it does not re-send a `navigate_to_pose` goal for a robot the
+  monitor just cancelled. There is no special resume path for a robot
+  released from hold: it is simply no longer excluded, so the normal 2 s
+  retry tick picks it up like any other unaccepted goal.
+
+---
+
+## 5. Known integration risks (UNVERIFIED — host-gated)
 
 These are consequences of the override decision and the Phase 3 clearing
 maneuver. They cannot be settled offline; they are flagged for the host run.
@@ -92,9 +126,12 @@ maneuver. They cannot be settled offline; they are flagged for the host run.
 
 ---
 
-## 5. Status
+## 6. Status
 
 - **Offline complete:** pure logic + node callback unit-tested
   (`tests/unit/test_safety_monitor.py`), wired into `execution.launch.py`.
-- **Host demo pending:** the override path and the risks in §4 are verified only
+  `/safety/holds` publish-on-change/refresh logic and `BaseMissionDriver`
+  hold-skipping are unit-tested in `tests/unit/test_safety_monitor.py` and
+  `tests/unit/test_base_mission.py`.
+- **Host demo pending:** the override path and the risks in §5 are verified only
   on the GCP `vgu_ros` + Isaac host run, not from the offline suite.

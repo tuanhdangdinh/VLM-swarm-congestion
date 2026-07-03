@@ -43,14 +43,30 @@ class BaseMissionDriver:
         self._goals: dict[str, _Goal] = {}
         self._accepted: dict[str, _Goal] = {}
         self._suppressed: set[str] = set()
+        self._held: set[str] = set()
 
     def _desired(self) -> list[tuple[str, _Goal]]:
-        """Owned robots whose Nav2-accepted goal differs from their desired goal."""
+        """Owned, unheld robots whose Nav2-accepted goal differs from desired."""
         return [
             (robot_id, goal)
             for robot_id, goal in self._goals.items()
-            if robot_id not in self._suppressed and self._accepted.get(robot_id) != goal
+            if robot_id not in self._suppressed
+            and robot_id not in self._held
+            and self._accepted.get(robot_id) != goal
         ]
+
+    def on_holds(self, held: set[str]) -> None:
+        """Record the safety monitor's currently-latched robot set.
+
+        Held robots are skipped by `on_registry`, `on_status`, and `retry`
+        issuance. There is no special resume path: a robot released from hold
+        is simply no longer excluded, so the next periodic `retry()` re-issues
+        it like any other unaccepted goal.
+
+        Args:
+            held: Robot ids currently latched under a safety stop.
+        """
+        self._held = set(held)
 
     def on_registry(self, registry: dict[str, dict]) -> list[tuple[str, _Goal]]:
         """Record effective goals; return navigate goals to issue for owned robots."""
