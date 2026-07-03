@@ -15,6 +15,12 @@ cancel, DWB stops immediately and the safety zero has no competition.
 Coordination command suppression: when M4 dispatches a yield/backup command for
 a robot, the safety stop is temporarily lifted so the backup motion can execute.
 The exemption clears when the command completes or fails.
+
+Also publishes `/safety/holds` (the latched robot set) so `coordination_client`
+can suppress its own 2 s retry loop for a robot whose goal this monitor just
+cancelled. Without that signal the two nodes fight over the goal forever: the
+monitor cancels it, the retry loop re-issues it 2 s later, the monitor cancels
+it again. See docs/specs/module4/safety-monitor.md §4.
 """
 from __future__ import annotations
 
@@ -45,11 +51,31 @@ from swarm_execution.safety import (
 )
 
 
+def holds_payload(held: set[str]) -> str:
+    """Serialize latched robot ids to the `/safety/holds` JSON payload.
+
+    Kept ROS2-free (module-level, no `self`) so it is unit-testable without a
+    running node, alongside the pure functions in `swarm_execution.safety`.
+
+    Args:
+        held: Robot ids currently latched under a safety stop.
+
+    Returns:
+        JSON string `{"held": [...]}` with ids sorted for deterministic output.
+    """
+    return json.dumps({"held": sorted(held)})
+
+
 class SafetyMonitorNode(Node):
     # Hold-republish rate: faster than DWB's 20 Hz so the zero-Twist dominates
     # on cmd_vel between scene updates (goal cancel stops DWB, but republish
     # also guards against any transient cmd_vel publication from other sources).
     HOLD_PERIOD_SEC = 0.025  # 40 Hz
+
+    # /safety/holds refresh rate: independent of HOLD_PERIOD_SEC (that timer is
+    # tuned to out-race DWB on cmd_vel; holds only needs to cover a late-joining
+    # subscriber before the next scene-driven change, so 1 Hz is plenty).
+    HOLDS_REFRESH_PERIOD_SEC = 1.0
 
     def __init__(self) -> None:
         super().__init__("safety_monitor_node")
@@ -65,7 +91,9 @@ class SafetyMonitorNode(Node):
             self.create_subscription(
                 CoordinationStatus, "/coordination/status", self._on_coord_status, 10
             )
+        self._holds_pub = self.create_publisher(String, "/safety/holds", 10)
         self.create_timer(self.HOLD_PERIOD_SEC, self._hold_stops)
+        self.create_timer(self.HOLDS_REFRESH_PERIOD_SEC, self._refresh_holds)
         self.get_logger().info(
             "Safety monitor started "
             f"min_distance_m={self._limits.min_distance_m} "
@@ -121,9 +149,27 @@ class SafetyMonitorNode(Node):
         for robot_id in newly_flagged:
             self._cancel_nav2_goal(robot_id)
 
+        previous = self._latched_stops
         self._latched_stops = effective
         for robot_id in effective:
             self._emergency_stop(robot_id)
+        if effective != previous:
+            self._publish_holds()
+
+    def _publish_holds(self) -> None:
+        """Publish the current latched-robot set to `/safety/holds`."""
+        self._holds_pub.publish(String(data=holds_payload(self._latched_stops)))
+
+    def _refresh_holds(self) -> None:
+        """Republish `/safety/holds` on a 1 s cadence, empty set included.
+
+        Unconditional heartbeat: besides covering a subscriber that joins
+        between two `_on_scene_state`-driven changes, it lets a client still
+        holding robots from before a monitor restart recover — a fresh
+        monitor has an empty latch set and would otherwise publish nothing
+        until the next latch change, stranding those robots forever.
+        """
+        self._publish_holds()
 
     def _cancel_nav2_goal(self, robot_id: str) -> None:
         """Cancel robot_id's active Nav2 goal to stop DWB velocity generation.
@@ -163,7 +209,7 @@ class SafetyMonitorNode(Node):
 
 def _load_safety_limits(node: Node) -> SafetyLimits:
     """Load `config/safety.yaml` from the package share, falling back to defaults."""
-    defaults = SafetyLimits(min_distance_m=0.3, max_linear_velocity_mps=0.2)
+    defaults = SafetyLimits(min_distance_m=0.45, max_linear_velocity_mps=0.2)
     try:
         share = get_package_share_directory("swarm_execution")
         path = Path(share) / "config" / "safety.yaml"

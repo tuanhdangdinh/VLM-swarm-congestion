@@ -65,7 +65,7 @@ def test_command_suppresses_base_navigation_and_requests_cancel():
     driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}})
 
     # A coordination command for robot_1 hands ownership to the command bus.
-    should_cancel = driver.on_command("robot_1")
+    should_cancel = driver.on_command("robot_1", "cmd-1")
 
     assert should_cancel is True
     # While suppressed, registry updates must not re-issue base navigation.
@@ -75,9 +75,9 @@ def test_command_suppresses_base_navigation_and_requests_cancel():
 def test_second_command_for_same_robot_does_not_request_cancel_again():
     driver = BaseMissionDriver()
     driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}})
-    driver.on_command("robot_1")
+    driver.on_command("robot_1", "cmd-1")
 
-    assert driver.on_command("robot_1") is False
+    assert driver.on_command("robot_1", "cmd-2") is False
 
 
 def test_completed_status_resumes_base_navigation():
@@ -85,9 +85,9 @@ def test_completed_status_resumes_base_navigation():
     # yield's override goal equals the base goal, so the registry goal never
     # changes across the override — resumption cannot rely on a goal change.
     driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}})
-    driver.on_command("robot_1")
+    driver.on_command("robot_1", "cmd-1")
 
-    issues = driver.on_status("robot_1", "COMPLETED")
+    issues = driver.on_status("robot_1", "cmd-1", "COMPLETED")
 
     assert issues == [("robot_1", (3.0, 0.0))]
 
@@ -95,20 +95,20 @@ def test_completed_status_resumes_base_navigation():
 def test_failed_status_also_resumes_base_navigation():
     driver = BaseMissionDriver()
     driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}})
-    driver.on_command("robot_1")
+    driver.on_command("robot_1", "cmd-1")
 
-    assert driver.on_status("robot_1", "FAILED") == [("robot_1", (3.0, 0.0))]
+    assert driver.on_status("robot_1", "cmd-1", "FAILED") == [("robot_1", (3.0, 0.0))]
 
 
 def test_republished_terminal_status_resumes_only_once():
     driver = BaseMissionDriver()
     driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}})
-    driver.on_command("robot_1")
+    driver.on_command("robot_1", "cmd-1")
 
-    first = driver.on_status("robot_1", "COMPLETED")
+    first = driver.on_status("robot_1", "cmd-1", "COMPLETED")
     # The command bus republishes each status ~3x; a second COMPLETED must not
     # re-issue another resume goal (which would thrash the robot's navigate).
-    second = driver.on_status("robot_1", "COMPLETED")
+    second = driver.on_status("robot_1", "cmd-1", "COMPLETED")
 
     assert first == [("robot_1", (3.0, 0.0))]
     assert second == []
@@ -117,11 +117,75 @@ def test_republished_terminal_status_resumes_only_once():
 def test_non_terminal_status_does_not_resume():
     driver = BaseMissionDriver()
     driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}})
-    driver.on_command("robot_1")
+    driver.on_command("robot_1", "cmd-1")
 
-    assert driver.on_status("robot_1", "ACTIVE") == []
+    assert driver.on_status("robot_1", "cmd-1", "ACTIVE") == []
     # Still suppressed after a non-terminal status.
     assert driver.on_registry({"robot_1": {"task": "yield", "goal": [3.0, 0.0]}}) == []
+
+
+def test_owner_terminal_status_resumes():
+    driver = BaseMissionDriver()
+    driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}})
+    driver.on_command("robot_1", "cmd-1")
+
+    assert driver.on_status("robot_1", "cmd-1", "COMPLETED") == [
+        ("robot_1", (3.0, 0.0))
+    ]
+
+
+def test_non_owner_terminal_status_keeps_suppression():
+    driver = BaseMissionDriver()
+    driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}})
+    driver.on_command("robot_1", "cmd-1")
+
+    # The command bus busy-rejects a second command (cmd-2) for a robot still
+    # mid-maneuver under cmd-1. That FAILED must not unsuppress: re-issuing the
+    # base goal would cancel-all the in-flight pull-off and re-enter the aisle.
+    assert driver.on_status("robot_1", "cmd-2", "FAILED") == []
+    # Still suppressed: registry updates issue nothing for robot_1.
+    assert driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}}) == []
+    # The true owner's terminal later resumes as normal.
+    assert driver.on_status("robot_1", "cmd-1", "COMPLETED") == [
+        ("robot_1", (3.0, 0.0))
+    ]
+
+
+def test_initial_issue_skips_held_robot():
+    driver = BaseMissionDriver()
+    driver.on_holds({"robot_1"})
+
+    issues = driver.on_registry(
+        {
+            "robot_1": {"task": "cross", "goal": [3.0, 0.0]},
+            "robot_2": {"task": "cross", "goal": [-3.0, 0.0]},
+        }
+    )
+
+    assert issues == [("robot_2", (-3.0, 0.0))]
+
+
+def test_retry_skips_held_robot():
+    driver = BaseMissionDriver()
+    driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}})
+    # robot_1 is latched under a safety stop; the safety monitor cancelled its
+    # goal so it is unaccepted and would normally be re-issued on retry.
+    driver.on_holds({"robot_1"})
+
+    assert driver.retry() == []
+
+
+def test_release_from_hold_reissues_on_next_retry():
+    driver = BaseMissionDriver()
+    driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}})
+    driver.on_holds({"robot_1"})
+    assert driver.retry() == []
+
+    # Released from hold: no special resume path, the normal 2s retry tick
+    # picks it up like any other unaccepted goal.
+    driver.on_holds(set())
+
+    assert driver.retry() == [("robot_1", (3.0, 0.0))]
 
 
 def test_non_suppressed_robot_keeps_navigating_during_other_robots_override():
@@ -132,7 +196,7 @@ def test_non_suppressed_robot_keeps_navigating_during_other_robots_override():
             "robot_2": {"task": "cross", "goal": [-3.0, 0.0]},
         }
     )
-    driver.on_command("robot_1")
+    driver.on_command("robot_1", "cmd-1")
 
     # robot_2 is untouched; a fresh goal for it still issues.
     issues = driver.on_registry(
@@ -161,14 +225,16 @@ class _StringMsg:
 
 
 class _CmdMsg:
-    def __init__(self, robot_id: str) -> None:
+    def __init__(self, robot_id: str, command_id: str = "cmd-1") -> None:
         self.robot_id = robot_id
+        self.command_id = command_id
 
 
 class _StatusMsg:
-    def __init__(self, robot_id: str, status: str) -> None:
+    def __init__(self, robot_id: str, status: str, command_id: str = "cmd-1") -> None:
         self.robot_id = robot_id
         self.status = status
+        self.command_id = command_id
 
 
 class _FakeAdapter:
@@ -242,6 +308,19 @@ def test_node_retry_reissues_when_goal_rejected():
     node._on_retry()
 
     assert node._adapter.goals == [("robot_1", 3.0, 0.0, 0.0)]
+
+
+def test_node_forwards_holds_to_driver():
+    node = _make_client()
+    node._on_registry(
+        _StringMsg(_json.dumps({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}}))
+    )
+    node._adapter.goals.clear()
+
+    node._on_holds(_StringMsg(_json.dumps({"held": ["robot_1"]})))
+    node._on_retry()
+
+    assert node._adapter.goals == []
 
 
 def test_node_retry_noop_after_goal_accepted():

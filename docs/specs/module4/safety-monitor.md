@@ -7,6 +7,14 @@
 - Initial draft: safety invariants, the resolved hard-stop decision, and the
   emergency-stop override path. Written alongside the Phase 3 closed-loop
   implementation.
+- Rev 2 (2026-07-03): added §4 `/safety/holds` — the safety-hold signal that
+  stops `coordination_client`'s retry loop from fighting the monitor's goal
+  cancel.
+- Rev 3 (2026-07-03): raised `min_distance_m` from 0.3 to 0.45 in
+  `config/safety.yaml` — see §1 for rationale.
+- Rev 4 (2026-07-03): §4 `/safety/holds` refresh made an unconditional 1 s
+  heartbeat (empty set included) so a client holding robots from before a
+  monitor restart recovers.
 
 ---
 
@@ -22,10 +30,16 @@ Invariants come from `config/safety.yaml`:
 
 ```yaml
 safety:
-  min_distance_m: 0.3
+  min_distance_m: 0.45
   max_linear_velocity_mps: 0.2
   command_timeout_sec: 20.0
 ```
+
+`min_distance_m` was raised from 0.3 to 0.45 (2026-07-03): 0.3 m center-to-center
+leaves ~0.14 m shell gap and ~0.5 s reaction at the 0.28 m/s worst-case closing
+speed against an M1→safety pipeline latency of 0.2–0.4 s — too tight a margin.
+0.45 m restores ~1 s of margin and still fits the 0.55 m aisle standoff
+geometry (robots stop before entering marker-overlap range).
 
 ---
 
@@ -35,6 +49,7 @@ safety:
 |---|---|---|
 | `/perception/scene_state` | `std_msgs/String` (JSON `SceneState`) | M1 → monitor |
 | `/<robot_id>/cmd_vel` | `geometry_msgs/Twist` | monitor → Isaac drive |
+| `/safety/holds` | `std_msgs/String` (JSON `{"held": [...]}`) | monitor → coordination_client |
 
 The monitor parses the same flat `robots[]` shape M5's `parse_scene_snapshot`
 consumes (`robot_id`, `x`, `y`, `linear_velocity`). Pure invariant logic lives in
@@ -68,7 +83,41 @@ This is a **PoC-grade** override, not a hardware e-stop:
 
 ---
 
-## 4. Known integration risks (UNVERIFIED — host-gated)
+## 4. Safety holds — coordinating with `coordination_client`
+
+Cancelling a latched robot's Nav2 goal (§3 predecessor) is not enough on its
+own: `coordination_client`'s base-mission driver treats a cancelled goal as
+unaccepted and re-issues it on its 2 s retry tick, the monitor cancels it
+again on the next scene update, and the two nodes fight indefinitely (16,861
+stop events observed in one run before this fix).
+
+**`/safety/holds`** (`std_msgs/String`, JSON `{"held": ["robot_1", ...]}`)
+closes that loop:
+
+- **Publish trigger:** whenever the latched-robot set (`_latched_stops`)
+  *changes* — a robot added or removed — the monitor publishes the full
+  current set immediately, so consumers do not wait out the heartbeat
+  interval on a change.
+- **Periodic refresh:** a 1 s timer (separate from the 40 Hz
+  `HOLD_PERIOD_SEC` hold-republish timer) republishes the current set
+  **unconditionally**, empty set included. Besides late-joiner tolerance for
+  a `coordination_client` that starts or reconnects after a change-triggered
+  publish landed, the unconditional heartbeat covers monitor restarts: a
+  fresh monitor starts with an empty latch set and publishes no change until
+  the next violation, so a client still holding robots latched before the
+  restart would otherwise be stranded forever. The empty-set heartbeat
+  releases them within one tick.
+- **Consumer behavior:** `coordination_client` forwards the parsed `held` set
+  to `BaseMissionDriver.on_holds`. The driver skips held robots in its
+  initial registry issuance, its `retry()` re-issuance, and status-driven
+  resume — it does not re-send a `navigate_to_pose` goal for a robot the
+  monitor just cancelled. There is no special resume path for a robot
+  released from hold: it is simply no longer excluded, so the normal 2 s
+  retry tick picks it up like any other unaccepted goal.
+
+---
+
+## 5. Known integration risks (UNVERIFIED — host-gated)
 
 These are consequences of the override decision and the Phase 3 clearing
 maneuver. They cannot be settled offline; they are flagged for the host run.
@@ -78,9 +127,9 @@ maneuver. They cannot be settled offline; they are flagged for the host run.
    while a `min_distance_m` breach has this monitor hold **zero** on the *same*
    topic for the *same* robot. With the rate-dominant hold (§3) the monitor now
    *wins* that race — which is correct safety semantics, but it means: if the
-   robots are still within 0.3 m when the backup is commanded, the hold will
+   robots are still within 0.45 m when the backup is commanded, the hold will
    stall the very backup meant to clear the deadlock. The demo therefore depends
-   on Nav2's `collision_monitor` + costmap inflation keeping the robots > 0.3 m
+   on Nav2's `collision_monitor` + costmap inflation keeping the robots > 0.45 m
    apart so the breach clears (latch empties) before/while the backup runs. If
    the host run shows a stall, the fix is to exempt a robot under an active
    backup recovery from the latch, or add hysteresis below `min_distance_m`.
@@ -92,9 +141,12 @@ maneuver. They cannot be settled offline; they are flagged for the host run.
 
 ---
 
-## 5. Status
+## 6. Status
 
 - **Offline complete:** pure logic + node callback unit-tested
   (`tests/unit/test_safety_monitor.py`), wired into `execution.launch.py`.
-- **Host demo pending:** the override path and the risks in §4 are verified only
+  `/safety/holds` publish-on-change/refresh logic and `BaseMissionDriver`
+  hold-skipping are unit-tested in `tests/unit/test_safety_monitor.py` and
+  `tests/unit/test_base_mission.py`.
+- **Host demo pending:** the override path and the risks in §5 are verified only
   on the GCP `vgu_ros` + Isaac host run, not from the offline suite.

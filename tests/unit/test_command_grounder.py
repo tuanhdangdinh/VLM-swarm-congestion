@@ -76,11 +76,25 @@ def test_ground_yield_decision_to_single_backing_yield_action():
     assert yielder["parameters"]["pull_off_y"] == 0.35
     assert passer["robot_id"] == "robot_2"
     assert passer["action"] == "temporary_wait"
-    assert passer["parameters"]["duration_sec"] == 25.0  # backup_time(8) + pull_off_margin(15) + 2s
+    # Generous safety upper bound: the M4 command bus releases this wait the
+    # moment the linked yield reaches a terminal status, so this constant is
+    # only reached if that terminal-status signal is lost.
+    assert passer["parameters"]["duration_sec"] == 120.0
     assert command["fallback"] == "stop"
-    # expected_resolution_time_sec covers the full yield cycle
-    # (backup + pull-off margin + hold + buffer)
-    assert command["expected_resolution_time_sec"] == 37.0  # 8 + 15 + 12 + 2
+    # Generous safety upper bound: M5 no longer expires commands whose
+    # robots are ACTIVE, so this only bounds the PENDING/lost-dispatch case.
+    assert command["expected_resolution_time_sec"] == 150.0
+
+
+def test_passing_wait_is_upper_bound_constant():
+    command = ground_reasoner_result(_result("yield"))
+
+    passer = command["actions"][1]
+    # Fixed safety upper bounds, not motion-duration estimates: correct at
+    # any Isaac Sim realtime factor because the normal path resolves via
+    # event-driven release (Task 3) / non-expiry of ACTIVE commands (Task 1).
+    assert passer["parameters"]["duration_sec"] == 120.0
+    assert command["expected_resolution_time_sec"] == 150.0
 
 
 def test_ground_reverse_decision_to_backing_reverse_action():

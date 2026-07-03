@@ -9,6 +9,11 @@ issues Nav2 goals through `Nav2Adapter`.
 See docs/specs/module4/phase3-closed-loop.md §6: without this driver nothing
 issues the initial Nav2 goals (the standoff never forms) and a yielding robot
 never resumes its goal after backing up.
+
+Also subscribes to the safety monitor's `/safety/holds` so this driver's own
+2 s retry loop does not immediately re-issue a goal the safety monitor just
+cancelled — without that, the two nodes fight over the robot's Nav2 goal
+indefinitely (see docs/specs/module4/safety-monitor.md §4).
 """
 from __future__ import annotations
 
@@ -63,6 +68,7 @@ class CoordinationClientNode(Node):
         self.create_subscription(
             CoordinationStatus, "/coordination/status", self._on_status, 10
         )
+        self.create_subscription(String, "/safety/holds", self._on_holds, 10)
         self.create_timer(self.RETRY_PERIOD_SEC, self._on_retry)
         self.get_logger().info("Coordination client started.")
 
@@ -76,15 +82,25 @@ class CoordinationClientNode(Node):
             self._issue_navigate(robot_id, goal)
 
     def _on_command(self, msg: CoordinationCommand) -> None:
-        if self._driver.on_command(msg.robot_id):
+        if self._driver.on_command(msg.robot_id, msg.command_id):
             # The command bus uses a separate Nav2Adapter, so cancel our own
             # navigate goal here to avoid two action goals fighting on this robot.
             self._adapter.cancel(msg.robot_id)
 
     def _on_status(self, msg: CoordinationStatus) -> None:
-        for robot_id, goal in self._driver.on_status(msg.robot_id, msg.status):
+        for robot_id, goal in self._driver.on_status(
+            msg.robot_id, msg.command_id, msg.status
+        ):
             self.get_logger().info(f"resume base mission robot={robot_id} goal={goal}")
             self._issue_navigate(robot_id, goal)
+
+    def _on_holds(self, msg: String) -> None:
+        try:
+            payload = json.loads(msg.data)
+        except (ValueError, TypeError) as exc:
+            self.get_logger().warning(f"safety/holds parse failed: {exc}")
+            return
+        self._driver.on_holds(set(payload.get("held", [])))
 
     def _on_retry(self) -> None:
         for robot_id, goal in self._driver.retry():

@@ -75,10 +75,23 @@ class CommandTracker:
         return None if record is None else record.fallback
 
     def check_timeouts(self, now: float) -> list[str]:
-        """Mark unresolved commands past their deadline TIMED_OUT; return their ids."""
+        """Mark unresolved commands past their deadline TIMED_OUT; return their ids.
+
+        A command with any robot ACTIVE is never timed out here: M4 guarantees
+        every ACTIVE command terminates on its own (backup has an
+        odometry-progress safety deadline, wait/hold use bounded timers), so
+        liveness is delegated to M4. Only a command whose non-terminal robots
+        are all still PENDING past the deadline is expired, which covers a
+        lost dispatch that M4 never received.
+        """
         timed_out: list[str] = []
         for command_id, record in self._records.items():
             if self.is_resolved(command_id):
+                continue
+            has_active = any(
+                state is CommandState.ACTIVE for state in record.robot_states.values()
+            )
+            if has_active:
                 continue
             if now - record.dispatched_at >= record.timeout_sec:
                 for rid, state in record.robot_states.items():

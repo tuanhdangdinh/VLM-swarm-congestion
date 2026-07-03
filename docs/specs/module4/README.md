@@ -20,7 +20,7 @@ Layer-2 reasoning loop (M1 → M5 → M2 → M3) decides *what* should happen; M
 
 M4 lives in `ros2_ws/src/swarm_execution/` with nodes `command_bus_node`,
 `safety_monitor_node`, `coordination_client_node`, plus `nav2_adapter.py`.
-`config/safety.yaml` defines `min_distance_m: 0.3`,
+`config/safety.yaml` defines `min_distance_m: 0.45`,
 `max_linear_velocity_mps: 0.2`, `command_timeout_sec: 20.0`.
 
 This folder holds the M4 sub-specs. **Navigation (Nav2) is the slice specified so

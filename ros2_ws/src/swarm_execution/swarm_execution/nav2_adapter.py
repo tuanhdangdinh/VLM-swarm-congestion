@@ -7,6 +7,7 @@ can stay focused on translating CoordinationCommand messages.
 from __future__ import annotations
 
 import math
+import time
 from collections.abc import Callable
 
 try:
@@ -190,6 +191,11 @@ class Nav2Adapter(Node):
         robot has actually moved far enough, however long that takes in real
         time. A generous wall-clock safety bound still applies in case the
         robot is genuinely physically blocked and never reaches the target.
+
+        The safety bound is deliberately OS-monotonic wall time
+        (`time.monotonic()`), immune to `use_sim_time`: the node clock follows
+        `/clock`, which is sourced from the sim and freezes when the sim
+        hangs — the exact failure this bound guards against.
         """
         self.cancel(robot_id)
 
@@ -218,11 +224,11 @@ class Nav2Adapter(Node):
         # an effective realtime factor under the full node stack well below
         # the ~0.48x measured standalone. 15x gives comfortable margin over
         # the ~78s a linear extrapolation of that measurement implies.
+        # OS-monotonic on purpose: with use_sim_time the node clock tracks
+        # /clock from the sim, which freezes if the sim hangs — defeating a
+        # deadline whose whole job is to catch a hung/blocked scenario.
         naive_sec = abs(distance_m) / speed_mps if speed_mps else 0.0
-        safety_deadline = (
-            self._node.get_clock().now().nanoseconds * 1e-9
-            + max(naive_sec * 15.0, 30.0)
-        )
+        safety_deadline = time.monotonic() + max(naive_sec * 15.0, 30.0)
 
         def _finish(status: str, detail: str) -> None:
             timer = self._backup_timers.pop(robot_id, None)
@@ -251,8 +257,7 @@ class Nav2Adapter(Node):
             if traveled >= abs(distance_m):
                 _finish("COMPLETED", f"backup complete: moved {traveled:.3f} m")
                 return
-            now = self._node.get_clock().now().nanoseconds * 1e-9
-            if now >= safety_deadline:
+            if time.monotonic() >= safety_deadline:
                 _finish(
                     "FAILED",
                     f"backup timed out: moved {traveled:.3f} m of {abs(distance_m):.3f} m",

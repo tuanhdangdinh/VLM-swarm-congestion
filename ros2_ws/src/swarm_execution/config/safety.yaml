@@ -1,4 +1,4 @@
 safety:
-  min_distance_m: 0.3
+  min_distance_m: 0.45
   max_linear_velocity_mps: 0.2
   command_timeout_sec: 20.0
