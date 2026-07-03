@@ -10,6 +10,8 @@
 - Rev 2 (2026-07-03): added §4 `/safety/holds` — the safety-hold signal that
   stops `coordination_client`'s retry loop from fighting the monitor's goal
   cancel.
+- Rev 3 (2026-07-03): raised `min_distance_m` from 0.3 to 0.45 in
+  `config/safety.yaml` — see §1 for rationale.
 
 ---
 
@@ -25,10 +27,16 @@ Invariants come from `config/safety.yaml`:
 
 ```yaml
 safety:
-  min_distance_m: 0.3
+  min_distance_m: 0.45
   max_linear_velocity_mps: 0.2
   command_timeout_sec: 20.0
 ```
+
+`min_distance_m` was raised from 0.3 to 0.45 (2026-07-03): 0.3 m center-to-center
+leaves ~0.14 m shell gap and ~0.5 s reaction at the 0.28 m/s worst-case closing
+speed against an M1→safety pipeline latency of 0.2–0.4 s — too tight a margin.
+0.45 m restores ~1 s of margin and still fits the 0.55 m aisle standoff
+geometry (robots stop before entering marker-overlap range).
 
 ---
 
@@ -112,9 +120,9 @@ maneuver. They cannot be settled offline; they are flagged for the host run.
    while a `min_distance_m` breach has this monitor hold **zero** on the *same*
    topic for the *same* robot. With the rate-dominant hold (§3) the monitor now
    *wins* that race — which is correct safety semantics, but it means: if the
-   robots are still within 0.3 m when the backup is commanded, the hold will
+   robots are still within 0.45 m when the backup is commanded, the hold will
    stall the very backup meant to clear the deadlock. The demo therefore depends
-   on Nav2's `collision_monitor` + costmap inflation keeping the robots > 0.3 m
+   on Nav2's `collision_monitor` + costmap inflation keeping the robots > 0.45 m
    apart so the breach clears (latch empties) before/while the backup runs. If
    the host run shows a stall, the fix is to exempt a robot under an active
    backup recovery from the latch, or add hysteresis below `min_distance_m`.
