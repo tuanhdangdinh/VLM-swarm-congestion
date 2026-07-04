@@ -284,16 +284,20 @@ collision_monitor:
     transform_tolerance: 0.2
     source_timeout: 1.0
     stop_pub_timeout: 0.1
-    # A real forward stop zone, not the old lifecycle-only no-op. Keep the
-    # polygon narrow so aisle walls do not immediately trigger it, but long
-    # enough to stop a head-on robot before body contact at this stack's
-    # 0.2 m/s linear cap. This is a local reactive guard only; it does not
+    # A real forward stop zone, not the old lifecycle-only no-op. Sized to
+    # fit the 0.55m barrier corridor: the old 0.40m x ±0.18m box clipped the
+    # corridor walls (±0.275m) from slightly angled/off-center poses, zeroing
+    # every DWB command — probe-proven as the gap-transit "creep" (DWB
+    # commanded full speed while the robot barely moved, H3 2026-07-04).
+    # 0.25m x ±0.12m still stops far beyond the ~1cm braking distance at the
+    # 0.2 m/s cap; the M1-based safety monitor (min_distance 0.45m) remains
+    # the primary inter-robot guard. Local reactive guard only; it does not
     # solve yielding, right-of-way, or deadlock recovery.
     polygons: ["forward_stop"]
     forward_stop:
       type: "polygon"
       action_type: "stop"
-      points: "[[0.40, 0.18], [0.40, -0.18], [0.02, -0.18], [0.02, 0.18]]"
+      points: "[[0.25, 0.12], [0.25, -0.12], [0.02, -0.12], [0.02, 0.12]]"
       min_points: 3
       visualize: false
       enabled: true
