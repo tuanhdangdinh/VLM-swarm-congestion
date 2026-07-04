@@ -3,24 +3,24 @@ name: head_on_deadlock
 seed: 42
 duration_sec: 300.0
 
-# Spawn at the deadlock SNAPSHOT, not the pre-deadlock start. The integration
-# run is a static scene (ros_graphs.py omits the /cmd_vel driver), so robots
-# never leave spawn. Placing them at the goal lines (x=+-3) would freeze them
-# 6 m apart at the camera FOV edges, where their ArUco markers straddle the
-# frame boundary (undetectable) and the geometry is not a deadlock. Spawning
-# nose-to-nose near the aisle centre (x=+-0.6, 1.2 m apart, headings opposed)
-# puts both markers fully in-frame near image centre AND presents the genuine
-# head-on standoff M2 must classify. Goals stay at +-3 to match the
-# orchestrator initial_tasks, so each robot's goal is across the other.
+# Spawn OUTSIDE the 2.0m corridor (blocks span x=+-1.0), in the open aisle:
+# each robot gets a ~0.5m straight approach run so DWB enters the tunnel
+# aligned and centered, and the head-on meeting forms mid-tunnel. Spawning
+# inside the tunnel (the old +-0.6) wall-locked both robots at t=0 — DWB
+# alignment rotations sweep the collision_monitor box into a wall 0.1-0.2m
+# away, freezing them before they ever approach each other (run 11).
+# +-1.5 keeps both ArUco markers well inside the camera ROI (+-3m). Goals
+# stay at +-3 to match the orchestrator initial_tasks, so each robot's
+# goal is across the other.
 robots:
   - robot_id: robot_1
     marker_id: 1
-    spawn: {x: -0.6, y: 0.0, yaw_rad: 0.0}
+    spawn: {x: -1.5, y: 0.0, yaw_rad: 0.0}
     goal: {x: 3.0, y: 0.0}
     initial_task: cross_narrow_aisle
   - robot_id: robot_2
     marker_id: 2
-    spawn: {x: 0.6, y: 0.0, yaw_rad: 3.141592653589793}
+    spawn: {x: 1.5, y: 0.0, yaw_rad: 3.141592653589793}
     goal: {x: -3.0, y: 0.0}
     initial_task: cross_narrow_aisle
 
@@ -47,7 +47,7 @@ aisle_barrier:
 expected_conflict:
   type: deadlock
   involved_robots: [robot_1, robot_2]
-  onset_window_sec: [8.0, 25.0]
+  onset_window_sec: [8.0, 40.0]
   min_duration_sec: 2.0
 
 runtime:
