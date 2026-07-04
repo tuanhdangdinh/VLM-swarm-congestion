@@ -62,11 +62,10 @@ controller_server:
       max_speed_xy: 0.18
       min_speed_xy: 0.0
       min_speed_theta: 0.0
-      # Default sim_time is 1.7s: at 0.18 m/s DWB scores ~0.31m arcs, longer
-      # than the ±0.19m free band the 0.70m barrier gap allows, so every
-      # curved candidate clips inflation and the robot creeps at near-zero
-      # speed through the gap (~0.01 m/s average, H3 run 6). 1.0s keeps
-      # arcs at ~0.18m so straight-ish candidates fit the band and score.
+      # Default sim_time is 1.7s: at 0.18 m/s DWB scores ~0.31m arcs, which
+      # clip inflation in the barrier corridor's narrow free band and starve
+      # the sampler of curved candidates. 1.0s keeps arcs at ~0.18m so
+      # near-straight candidates fit and score during approach/standoff.
       sim_time: 1.0
       # DWB's RotateToGoal gate uses FollowPath.xy_goal_tolerance, not the
       # SimpleGoalChecker's tolerance above. Leaving it unset defaults to
@@ -173,12 +172,11 @@ local_costmap:
         plugin: "nav2_costmap_2d::InflationLayer"
         # Nav2 default inflation_radius is 0.55m — wider than the entire
         # 1.2m aisle at this footprint, fully lethal. Local runs 0.07 (not
-        # the global's 0.10): inflated half-width 0.09+0.07=0.16m, so the
-        # 0.70m barrier gap leaves a ±0.19m band for the robot center —
-        # enough for DWB to sample recovery arcs from an angled pose (at
-        # 0.10/0.55m the band was ±0.085m and the passer wedged, H3 runs
-        # 4-5). Global keeps 0.10 so planned paths stay centered; only the
-        # local controller needs the tighter shave, and 0.07 keeps a 2cm
+        # the global's 0.10): inflated half-width 0.09+0.07=0.16m keeps the
+        # 0.55m barrier corridor non-lethal (±0.115m center band) for local
+        # planning during the approach/standoff. Gap TRANSIT itself is
+        # escorted on raw cmd_vel and does not depend on this band. Global
+        # keeps 0.10 so planned paths stay centered; 0.07 keeps a 2cm
         # buffer above the 0.05m costmap resolution.
         inflation_radius: 0.07
 

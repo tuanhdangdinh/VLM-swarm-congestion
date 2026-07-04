@@ -27,17 +27,22 @@ robots:
 timed_obstacles: []
 
 aisle_barrier:
-  # 0.70m gap: navigable by a single robot even from an angled pose —
-  # inflated half-width 0.16m (0.09 footprint + 0.07 local inflation_radius)
-  # leaves a ±0.19m band for the robot center, enough for DWB to sample
-  # recovery arcs (the prior 0.55m gap left ±0.085m: every trajectory from
-  # an angled pose collided and the passer wedged, H3 runs 4-5). Still
-  # deadlocks head-on: two-abreast needs ≥0.45m center separation (safety
-  # latch threshold) but the gap offers only 0.70-2*0.16=0.38m of usable
-  # band, so neither robot can pass the other in-lane.
-  effective_width_m: 0.70
+  # 0.55m corridor, 2.0m long: reads as a genuine narrow corridor (~3 robot
+  # widths) where a mid-tunnel head-on meeting is visually unresolvable —
+  # the earlier 0.70m x 0.9m version looked like a doorway two robots could
+  # obviously share (physically true: two-abreast needs only ~0.36m). The
+  # deadlock is enforced by the 0.45m safety envelope: usable center band
+  # is 0.55-2*0.16=0.23m, far below the required separation. 0.55m remains
+  # approach-plannable (global inflated half-width 0.19m leaves ±0.085m,
+  # proven in H3 runs 4-5); the gap TRANSIT no longer depends on width at
+  # all — the passer is escorted through on raw cmd_vel (probe-proven that
+  # collision_monitor, not DWB, vetoed Nav2 transit in here). Maneuver
+  # margins at length 2.0 (corridor spans x=±1.0): yielder backs 1.3m from
+  # ~-0.25 to ~-1.55 (0.55m past the west end, room to sidestep); escort
+  # 2.4m ends ~0.2m past the yielder+0.45m crossing-safe point.
+  effective_width_m: 0.55
   center_x_m: 0.0
-  length_m: 0.9
+  length_m: 2.0
 
 expected_conflict:
   type: deadlock
