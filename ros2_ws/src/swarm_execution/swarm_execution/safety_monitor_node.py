@@ -137,7 +137,9 @@ class SafetyMonitorNode(Node):
                 speeders.add(robot_id)
 
         flagged = (
-            detect_proximity_violations(positions, self._limits.min_distance_m)
+            detect_proximity_violations(
+                positions, self._limits.min_distance_m, self._coordinating
+            )
             | speeders
         )
         effective = flagged - self._coordinating

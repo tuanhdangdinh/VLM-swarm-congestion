@@ -228,8 +228,10 @@ def test_coordinating_robot_suppressed_from_safety_stop():
     node._coordinating = {"robot_1"}
     node._on_scene_state(_StringMsg(json.dumps(scene)))
 
-    # Only robot_2 should be stopped; robot_1 is suppressed.
-    assert stops == ["robot_2"]
+    # The whole pair is exempt while robot_1 coordinates: latching robot_2
+    # would freeze the choreographed close pass (yielder parks 0.35m off
+    # centerline < the 0.45m threshold), wedging both robots permanently.
+    assert stops == []
 
 
 def test_coordination_suppression_cleared_on_completion():
@@ -310,3 +312,30 @@ def test_holds_refresh_publishes_empty_set_for_restart_recovery():
     node._refresh_holds()
 
     assert published == [[]]
+
+
+def test_pair_with_coordinating_member_not_flagged():
+    # A yielder parked 0.35m off-centerline during its hold is closer than
+    # the 0.45m latch threshold to the passing robot; the pair is exempt
+    # while the yielder is under an ACTIVE coordination command, otherwise
+    # the pass itself would latch the passer and freeze both robots.
+    robots = [
+        {"robot_id": "robot_1", "x": -1.5, "y": 0.35},
+        {"robot_id": "robot_2", "x": -1.5, "y": 0.0},
+    ]
+    assert detect_proximity_violations(robots, 0.45) == {"robot_1", "robot_2"}
+    assert detect_proximity_violations(robots, 0.45, {"robot_1"}) == set()
+
+
+def test_pair_without_coordinating_member_still_flagged():
+    # The exemption is per-pair: an unrelated close pair with no coordinating
+    # member latches normally even while some other robot is coordinating.
+    robots = [
+        {"robot_id": "robot_1", "x": 0.0, "y": 0.0},
+        {"robot_id": "robot_2", "x": 0.1, "y": 0.0},
+        {"robot_id": "robot_3", "x": 5.0, "y": 5.0},
+    ]
+    assert detect_proximity_violations(robots, 0.45, {"robot_3"}) == {
+        "robot_1",
+        "robot_2",
+    }
