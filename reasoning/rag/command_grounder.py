@@ -86,15 +86,17 @@ def ground_reasoner_result(result: ReasonerResult) -> dict[str, Any]:
     # the aisle together (2026-07-03). 45 s covers a slow traverse with wide
     # margin; only reached if the passer never moves.
     yield_hold_sec = 45.0
-    # Displacement that proves the passer is through the gap mouth: it starts
-    # the hold just inside the gap (~x=+0.2..0.3) and 0.8 m lands it clear of
-    # the west edge (barrier spans x=±0.45). Deliberately NOT "past the parked
-    # yielder": the yielder resumes BEHIND the passer travelling the same
-    # direction through the gap, so ending the hold here is safe, and 1.5 m
-    # exceeded what DWB reliably covered within the hold window at low
-    # realtime factors (H3 run 6: ~0.5 m covered when the 45 sim-s backstop
-    # expired, forcing a second resolution cycle).
-    passer_clear_m = 0.8
+    # The passer is DRIVEN through the gap by M4's raw-cmd_vel escort during
+    # the hold (DWB could not transit the gap even with a widened free band —
+    # ~0.01 m/s creep, H3 runs 4-7). Distance sized so the hold only ends
+    # once the passer is fully PAST the parked yielder's x with margin: from
+    # hold start (~x=+0.25) past the yielder (backup 1.3 m parks it near
+    # x=-1.65) plus the 0.45 m safety radius ≈ 2.35 m. Ending earlier would
+    # make the resuming yielder cross the still-approaching passer at
+    # <0.45 m lateral separation and latch both. 24+ sim-s at 0.1 m/s fits
+    # the 45 sim-s hold backstop.
+    passer_clear_m = 2.4
+    passer_escort_distance_m = 2.4
     # Generous safety upper bound, not a motion-duration estimate (which was
     # wrong at any Isaac Sim realtime factor != 1). In the normal path the M4
     # command bus releases this wait the instant the linked yield reaches a
@@ -116,6 +118,7 @@ def ground_reasoner_result(result: ReasonerResult) -> dict[str, Any]:
         if len(robot_ids) > 1:
             yield_parameters["passer_robot_id"] = robot_ids[1]
             yield_parameters["passer_clear_m"] = passer_clear_m
+            yield_parameters["passer_escort_distance_m"] = passer_escort_distance_m
         actions = [
             {
                 "robot_id": robot_ids[0],

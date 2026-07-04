@@ -183,18 +183,39 @@ class CommandBusNode(Node):
             # never moves.
             passer_robot_id = params.get("passer_robot_id") if action == "yield" else None
             passer_clear_m = float(params.get("passer_clear_m", 1.5))
+            # passer_escort_distance_m (optional): when present, the passer is
+            # DRIVEN through the gap by the raw-cmd_vel escort primitive
+            # during the hold instead of resuming Nav2 — DWB could not
+            # transit the gap even with a widened free band (creep at
+            # ~0.01 m/s, H3 runs 4-7). While escorted, the passer's linked
+            # wait stays ACTIVE (suppressing its base mission) and releases
+            # via the normal yield-terminal path once the hold ends.
+            escort_distance = params.get("passer_escort_distance_m")
+            has_escort = passer_robot_id is not None and escort_distance is not None
 
             def _start_hold(command, _hold_sec: float) -> None:
                 self._publish_status(command, "ACTIVE", "holding for passing robot")
-                # Release the linked wait NOW, not at yield-terminal: the hold
-                # exists so the passer traverses the cleared aisle while the
-                # yielder is parked. Released only at terminal, the passer sat
-                # frozen through the whole hold and both robots re-entered the
-                # aisle together, re-deadlocking (observed 2026-07-03).
-                self._release_linked_waits(
-                    command.command_id, "COMPLETED",
-                    release_detail="released: yield holding",
-                )
+                if has_escort:
+                    # Odom yaw 0 faces each robot's base goal (both spawn
+                    # facing their goal), so no map-frame knowledge needed.
+                    self._adapter.drive_heading(
+                        passer_robot_id,
+                        target_yaw_rad=0.0,
+                        distance_m=float(escort_distance),
+                        on_result=lambda status, detail: self.get_logger().info(
+                            f"escort {passer_robot_id}: {status} {detail}"
+                        ),
+                    )
+                else:
+                    # No escort grounded: release the linked wait NOW so the
+                    # passer traverses under Nav2 while the yielder is parked.
+                    # Released only at terminal, the passer sat frozen through
+                    # the whole hold and both robots re-entered the aisle
+                    # together, re-deadlocking (observed 2026-07-03).
+                    self._release_linked_waits(
+                        command.command_id, "COMPLETED",
+                        release_detail="released: yield holding",
+                    )
                 timer_ref: dict = {}
                 odom_ref: dict = {}
                 done_ref = {"done": False}

@@ -608,3 +608,55 @@ def test_sidestep_zero_lateral_completes_immediately(backup_adapter) -> None:
         on_result=lambda s, d: statuses.append((s, d)),
     )
     assert statuses[-1][0] == "COMPLETED"
+
+
+def test_drive_heading_turns_to_absolute_yaw_then_drives(backup_adapter) -> None:
+    adapter, node = backup_adapter
+    statuses: list[tuple[str, str]] = []
+    adapter.drive_heading(
+        "robot_2", target_yaw_rad=0.0, distance_m=2.4,
+        on_result=lambda s, d: statuses.append((s, d)),
+    )
+    assert statuses == [("ACTIVE", "escort started")]
+    odom_sub = node.subscriptions[-1]
+    timer = node.timers[-1]
+    pub = node.publishers["/robot_2/cmd_vel"]
+
+    # Facing 30 deg off target: must rotate (negative z toward 0), not drive.
+    odom_sub.callback(_odom_at(0.0, 0.0, yaw=math.radians(30)))
+    timer.tick()
+    assert pub.messages[-1].linear.x == 0.0
+    assert pub.messages[-1].angular.z < 0.0
+
+    # Aligned: drives forward.
+    odom_sub.callback(_odom_at(0.0, 0.0, yaw=0.0))
+    timer.tick()
+    assert pub.messages[-1].linear.x > 0.0
+    assert pub.messages[-1].angular.z == 0.0
+
+    # Distance covered: terminal COMPLETED with zero twist.
+    odom_sub.callback(_odom_at(2.4, 0.0, yaw=0.0))
+    timer.tick()
+    assert statuses[-1][0] == "COMPLETED"
+    assert "escort complete" in statuses[-1][1]
+    assert pub.messages[-1].linear.x == 0.0
+
+
+def test_drive_heading_times_out_on_monotonic_deadline(
+    backup_adapter, monkeypatch
+) -> None:
+    adapter, node = backup_adapter
+    wall = {"now": 50.0}
+    monkeypatch.setattr(nav2_adapter.time, "monotonic", lambda: wall["now"])
+    statuses: list[tuple[str, str]] = []
+    adapter.drive_heading(
+        "robot_2", target_yaw_rad=0.0, distance_m=2.4,
+        on_result=lambda s, d: statuses.append((s, d)),
+    )
+    odom_sub = node.subscriptions[-1]
+    timer = node.timers[-1]
+    odom_sub.callback(_odom_at(0.0, 0.0, yaw=0.0))
+    wall["now"] += 10000.0
+    timer.tick()
+    assert statuses[-1][0] == "FAILED"
+    assert "timed out" in statuses[-1][1]

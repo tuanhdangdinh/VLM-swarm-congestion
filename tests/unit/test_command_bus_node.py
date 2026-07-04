@@ -961,3 +961,54 @@ def test_hold_timer_expiry_still_completes_without_passer_motion():
     hold_timer = [t for t in timers if getattr(t, "period", None) == 45.0][-1]
     hold_timer.cb()
     assert ("cmd-Q", "robot_1", "COMPLETED", "yield complete") in published
+
+
+def test_escort_params_drive_passer_instead_of_hold_start_release():
+    # With escort grounded, the passer is driven through the gap by the
+    # raw-cmd_vel primitive while its linked wait stays ACTIVE (suppressing
+    # its base mission); the wait releases via the normal yield-terminal
+    # path, not at hold start.
+    adapter = _NavLegAdapter()
+    escorts = []
+    adapter.drive_heading = lambda robot_id, target_yaw_rad, distance_m, on_result=None: (
+        escorts.append((robot_id, target_yaw_rad, distance_m))
+    )
+    node, published = _build_node(adapter)
+    node.create_timer = lambda period, cb: _FakeTimer()
+    node.create_subscription = lambda mtype, topic, cb, qos: object()
+    node.destroy_subscription = lambda sub: None
+
+    node._on_command(
+        _Msg(
+            command_id="cmd-E",
+            robot_id="robot_2",
+            action="temporary_wait",
+            parameters_json=json.dumps({"duration_sec": 120.0}),
+        )
+    )
+    node._on_command(
+        _Msg(
+            command_id="cmd-E",
+            robot_id="robot_1",
+            action="yield",
+            parameters_json=json.dumps(
+                {
+                    "backup_distance_m": 1.3,
+                    "hold_sec": 45.0,
+                    "pull_off_lateral_m": 0.35,
+                    "passer_robot_id": "robot_2",
+                    "passer_clear_m": 2.4,
+                    "passer_escort_distance_m": 2.4,
+                }
+            ),
+        )
+    )
+    adapter.backup_on_result["robot_1"]("COMPLETED", "backup done")
+    adapter.sidestep_on_result("COMPLETED", "side step complete: moved 0.350 m")
+
+    # Escort started; wait NOT released at hold start.
+    assert escorts == [("robot_2", 0.0, 2.4)]
+    assert ("cmd-E", "robot_2") in node._active_waits
+    assert not any(
+        d.startswith("released:") for (_, _, _, d) in published
+    )

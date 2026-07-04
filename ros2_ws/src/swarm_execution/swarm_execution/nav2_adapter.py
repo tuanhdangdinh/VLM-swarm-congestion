@@ -406,6 +406,114 @@ class Nav2Adapter(Node):
         if on_result is not None:
             on_result("ACTIVE", "side step started")
 
+    def drive_heading(
+        self,
+        robot_id: str,
+        target_yaw_rad: float,
+        distance_m: float,
+        speed_mps: float = 0.1,
+        turn_rate_rps: float = 0.5,
+        on_result: Callable[[str, str], None] | None = None,
+    ):
+        """Rotate to an absolute odom-frame heading, then drive straight.
+
+        The passer's escorted gap transit: DWB could not traverse the barrier
+        gap even with a ±0.19 m free band (creep at ~0.01 m/s across four
+        H3 runs), so the coordination layer drives the transit itself with
+        the same odometry-closed-loop raw-cmd_vel pattern as backup() and
+        sidestep(). `target_yaw_rad` is in the robot's own odom frame; both
+        robots spawn facing their base goal, so odom yaw 0 always points
+        toward the goal regardless of map orientation — the caller needs no
+        frame knowledge. Same OS-monotonic safety bound as the siblings.
+        """
+        self.cancel(robot_id)
+
+        pub = self._backup_pubs.get(robot_id)
+        if pub is None:
+            pub = self._node.create_publisher(Twist, f"/{robot_id}/cmd_vel", 10)
+            self._backup_pubs[robot_id] = pub
+
+        odom_state: dict[str, object] = {"pos": None, "yaw": None}
+        phase_state: dict[str, object] = {"phase": "turn", "drive_start": None}
+        yaw_tolerance_rad = 0.05
+
+        def _on_odom(msg, _state=odom_state) -> None:
+            p = msg.pose.pose.position
+            q = msg.pose.pose.orientation
+            _state["pos"] = (p.x, p.y)
+            _state["yaw"] = 2.0 * math.atan2(q.z, q.w)
+
+        odom_sub = self._node.create_subscription(
+            Odometry, f"/{robot_id}/odom", _on_odom, 10
+        )
+        self._backup_odom_subs[robot_id] = odom_sub
+
+        naive_sec = math.pi / turn_rate_rps + abs(distance_m) / speed_mps
+        safety_deadline = time.monotonic() + max(naive_sec * 15.0, 30.0)
+
+        def _finish(status: str, detail: str) -> None:
+            timer = self._backup_timers.pop(robot_id, None)
+            if timer is not None:
+                try:
+                    timer.cancel()
+                except Exception:
+                    pass
+            sub = self._backup_odom_subs.pop(robot_id, None)
+            if sub is not None:
+                try:
+                    self._node.destroy_subscription(sub)
+                except Exception:
+                    pass
+            pub.publish(Twist())
+            if on_result is not None:
+                on_result(status, detail)
+
+        def _wrap(angle: float) -> float:
+            while angle > math.pi:
+                angle -= 2.0 * math.pi
+            while angle < -math.pi:
+                angle += 2.0 * math.pi
+            return angle
+
+        def _tick() -> None:
+            if time.monotonic() >= safety_deadline:
+                _finish(
+                    "FAILED",
+                    f"escort timed out in phase {phase_state['phase']}",
+                )
+                return
+            yaw = odom_state["yaw"]
+            pos = odom_state["pos"]
+            if yaw is None or pos is None:
+                return
+
+            twist = Twist()
+            if phase_state["phase"] == "turn":
+                error = _wrap(target_yaw_rad - yaw)
+                if abs(error) < yaw_tolerance_rad:
+                    phase_state["phase"] = "drive"
+                    phase_state["drive_start"] = pos
+                else:
+                    twist.angular.z = turn_rate_rps if error > 0 else -turn_rate_rps
+                    pub.publish(twist)
+                    return
+            if phase_state["phase"] == "drive":
+                start = phase_state["drive_start"]
+                traveled = math.hypot(pos[0] - start[0], pos[1] - start[1])
+                if traveled >= abs(distance_m):
+                    _finish(
+                        "COMPLETED",
+                        f"escort complete: moved {traveled:.3f} m",
+                    )
+                    return
+                twist.linear.x = abs(speed_mps)
+                pub.publish(twist)
+
+        timer = self._node.create_timer(0.05, _tick)
+        self._backup_timers[robot_id] = timer
+        if on_result is not None:
+            on_result("ACTIVE", "escort started")
+
     def cancel(self, robot_id: str) -> None:
         """Cancel robot_id's active goal and any in-progress backup timer.
 
