@@ -204,11 +204,13 @@ class Nav2Adapter(Node):
             pub = self._node.create_publisher(Twist, f"/{robot_id}/cmd_vel", 10)
             self._backup_pubs[robot_id] = pub
 
-        odom_state: dict[str, tuple[float, float] | None] = {"start": None, "last": None}
+        odom_state: dict[str, object] = {"start": None, "last": None, "yaw": None}
 
         def _on_odom(msg, _state=odom_state) -> None:
             p = msg.pose.pose.position
+            q = msg.pose.pose.orientation
             _state["last"] = (p.x, p.y)
+            _state["yaw"] = 2.0 * math.atan2(q.z, q.w)
             if _state["start"] is None:
                 _state["start"] = (p.x, p.y)
 
@@ -266,6 +268,21 @@ class Nav2Adapter(Node):
 
             twist = Twist()
             twist.linear.x = -abs(speed_mps)
+            # Lane servo while reversing (mirror of the escort's, sign
+            # flipped: lateral velocity is -|v|*sin(yaw) when backing, so
+            # returning to the odom y=0 lane from y>0 needs yaw>0). Blind
+            # straight reversing from a slightly-angled standoff pose
+            # drifted the yielder into the corridor wall until the safety
+            # bound fired (H3 run 12).
+            yaw = odom_state["yaw"]
+            if last is not None and yaw is not None:
+                desired_yaw = max(-0.3, min(0.3, 1.0 * last[1]))
+                heading_error = desired_yaw - yaw
+                while heading_error > math.pi:
+                    heading_error -= 2.0 * math.pi
+                while heading_error < -math.pi:
+                    heading_error += 2.0 * math.pi
+                twist.angular.z = max(-0.5, min(0.5, 2.0 * heading_error))
             pub.publish(twist)
 
         timer = self._node.create_timer(0.05, _tick)

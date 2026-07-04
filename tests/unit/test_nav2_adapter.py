@@ -691,3 +691,29 @@ def test_drive_heading_steers_back_toward_lane_center(backup_adapter) -> None:
     odom_sub.callback(_odom_at(1.0, 0.0, yaw=0.0))
     timer.tick()
     assert pub.messages[-1].angular.z == 0.0
+
+
+def test_backup_steers_back_toward_lane_center_while_reversing(backup_adapter) -> None:
+    # Reversing 1.3m inside the 0.55m corridor from a slightly-angled
+    # standoff pose drifted the yielder into a wall until the safety bound
+    # fired (H3 run 12) — backup needs the same lane servo as the escort.
+    # Sign flips vs forward drive: moving backward, lateral velocity is
+    # -|v|*sin(yaw), so returning to y=0 from y>0 needs yaw>0 (wz>0).
+    adapter, node = backup_adapter
+    adapter.backup("robot_1", distance_m=1.3, speed_mps=0.1)
+    odom_sub = node.subscriptions[-1]
+    timer = node.timers[-1]
+    pub = node.publishers["/robot_1/cmd_vel"]
+
+    odom_sub.callback(_odom_at(0.0, 0.2, yaw=0.0))
+    timer.tick()
+    assert pub.messages[-1].linear.x < 0.0
+    assert pub.messages[-1].angular.z > 0.0
+
+    odom_sub.callback(_odom_at(-0.5, -0.2, yaw=0.0))
+    timer.tick()
+    assert pub.messages[-1].angular.z < 0.0
+
+    odom_sub.callback(_odom_at(-1.0, 0.0, yaw=0.0))
+    timer.tick()
+    assert pub.messages[-1].angular.z == 0.0
