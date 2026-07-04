@@ -72,7 +72,7 @@ def test_ground_yield_decision_to_single_backing_yield_action():
     # shows passer_clear_m of displacement (event-driven early completion).
     assert yielder["parameters"]["hold_sec"] == 45.0
     assert yielder["parameters"]["passer_robot_id"] == "robot_2"
-    assert yielder["parameters"]["passer_clear_m"] == 1.5
+    assert yielder["parameters"]["passer_clear_m"] == 0.8
     assert "reason" in yielder["parameters"]
     # A straight backup alone re-blocks the passer's path in this scenario, so
     # the yielder also steps laterally (robot-frame offset, positive = left;

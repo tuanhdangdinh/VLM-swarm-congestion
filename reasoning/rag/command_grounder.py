@@ -86,9 +86,15 @@ def ground_reasoner_result(result: ReasonerResult) -> dict[str, Any]:
     # the aisle together (2026-07-03). 45 s covers a slow traverse with wide
     # margin; only reached if the passer never moves.
     yield_hold_sec = 45.0
-    # Displacement that proves the passer is through the gap and past the
-    # parked yielder: ~0.9 m barrier length + approach + margin.
-    passer_clear_m = 1.5
+    # Displacement that proves the passer is through the gap mouth: it starts
+    # the hold just inside the gap (~x=+0.2..0.3) and 0.8 m lands it clear of
+    # the west edge (barrier spans x=±0.45). Deliberately NOT "past the parked
+    # yielder": the yielder resumes BEHIND the passer travelling the same
+    # direction through the gap, so ending the hold here is safe, and 1.5 m
+    # exceeded what DWB reliably covered within the hold window at low
+    # realtime factors (H3 run 6: ~0.5 m covered when the 45 sim-s backstop
+    # expired, forcing a second resolution cycle).
+    passer_clear_m = 0.8
     # Generous safety upper bound, not a motion-duration estimate (which was
     # wrong at any Isaac Sim realtime factor != 1). In the normal path the M4
     # command bus releases this wait the instant the linked yield reaches a
