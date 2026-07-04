@@ -507,6 +507,18 @@ class Nav2Adapter(Node):
                     )
                     return
                 twist.linear.x = abs(speed_mps)
+                # Centerline servo, not open-loop straight: both robots spawn
+                # ON the lane centerline (odom y=0 for the target_yaw_rad=0
+                # escort), and heading-tolerance drift over meters of tunnel
+                # pushed the passer into the parked yielder (physical contact,
+                # H3 run 9). Steer toward the y=0 line with a clamped heading
+                # correction plus a P-term on heading error.
+                lateral = pos[1]
+                desired_yaw = _wrap(
+                    target_yaw_rad + max(-0.3, min(0.3, -1.0 * lateral))
+                )
+                heading_error = _wrap(desired_yaw - yaw)
+                twist.angular.z = max(-turn_rate_rps, min(turn_rate_rps, 2.0 * heading_error))
                 pub.publish(twist)
 
         timer = self._node.create_timer(0.05, _tick)

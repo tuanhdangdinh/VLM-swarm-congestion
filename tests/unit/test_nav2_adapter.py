@@ -660,3 +660,34 @@ def test_drive_heading_times_out_on_monotonic_deadline(
     timer.tick()
     assert statuses[-1][0] == "FAILED"
     assert "timed out" in statuses[-1][1]
+
+
+def test_drive_heading_steers_back_toward_lane_center(backup_adapter) -> None:
+    # The escort must servo to odom y=0 (the lane centerline both robots
+    # spawn on), not drive an open-loop straight line: heading-tolerance
+    # drift over 2.4m pushed the passer into the parked yielder (H3 run 9,
+    # physical contact, both robots wedged).
+    adapter, node = backup_adapter
+    adapter.drive_heading("robot_2", target_yaw_rad=0.0, distance_m=2.4)
+    odom_sub = node.subscriptions[-1]
+    timer = node.timers[-1]
+    pub = node.publishers["/robot_2/cmd_vel"]
+
+    # Aligned but displaced north of the lane (y=+0.2): while driving, the
+    # commanded twist must steer negative (back toward y=0).
+    odom_sub.callback(_odom_at(0.0, 0.2, yaw=0.0))
+    timer.tick()  # turn phase passes (already at target yaw)
+    odom_sub.callback(_odom_at(0.0, 0.2, yaw=0.0))
+    timer.tick()
+    assert pub.messages[-1].linear.x > 0.0
+    assert pub.messages[-1].angular.z < 0.0
+
+    # Displaced south: steer positive.
+    odom_sub.callback(_odom_at(0.5, -0.2, yaw=0.0))
+    timer.tick()
+    assert pub.messages[-1].angular.z > 0.0
+
+    # On the centerline: no correction.
+    odom_sub.callback(_odom_at(1.0, 0.0, yaw=0.0))
+    timer.tick()
+    assert pub.messages[-1].angular.z == 0.0

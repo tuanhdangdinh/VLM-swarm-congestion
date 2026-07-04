@@ -134,11 +134,13 @@ def _author_aisle_barrier(stage, barrier_cfg) -> None:
 
     z_center = 0.45
     z_half = 0.45
-    rack_clearance_m = 0.02
-    block_half_x = min(
-        barrier_cfg.length_m / 2.0,
-        max(0.0, base_half - rack_clearance_m),
-    )
+    # No clamp to the crossing-aisle half-width: blocks longer than the
+    # junction sit at y in [effective_half, base_half], which is open
+    # horizontal-aisle floor in front of the racks (rack walls start at
+    # |y| > base_half), so a corridor-length barrier (e.g. 2.0 m) is
+    # geometrically safe. The old min(length/2, base_half-0.02) clamp
+    # silently truncated a requested 2.0 m corridor to 1.16 m.
+    block_half_x = barrier_cfg.length_m / 2.0
     block_half_y = (base_half - effective_half) / 2.0
     block_center_y = effective_half + block_half_y
     for name, y in (("north", block_center_y), ("south", -block_center_y)):
