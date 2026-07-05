@@ -1,7 +1,9 @@
 # General Spatial Congestion Resolution — Design
 
-**Date:** 2026-07-05 (rev 5 — failure-context feedback for
-re-analysis (Reflexion-lite) + its ablation; rev 4 — novelty reframed as
+**Date:** 2026-07-05 (rev 6 — temporal context for stage 1 +
+semantic-conditioned strategy arbitration replacing the hard blocker
+mapping; task-level escalation explicitly deferred to future work; rev 5 —
+failure-context feedback for re-analysis (Reflexion-lite) + its ablation; rev 4 — novelty reframed as
 one integrated contribution with conservative related-work positioning; rev 3: feasibility
 bands replace clamps, no-snapshot degrades to non-spatial wait not
 executable constants, uniform projected-clearance release predicate incl.
@@ -52,14 +54,20 @@ metric poses.**
 mechanisms:**
 
 > A **bounded semantic–social–spatial VLM arbitration architecture for
-> online multi-robot congestion resolution**: a single VLM arbiter jointly
-> decides (1) blockage semantics (`blocker_kind`), (2) the social order
-> (`yield_robot`, `crossing_order`), and (3) a system-generated, validated
-> spatial retreat candidate (`retreat_choice`); deterministic geometry
-> derives all metric motion; event-driven execution enforces the sequence;
-> and every VLM output is bounded to pre-verified discrete options with
+> online multi-robot congestion resolution**: a single VLM arbiter —
+> given the annotated scene, a short motion history, and execution
+> feedback from prior attempts — jointly decides (1) blockage semantics
+> (`blocker_kind`) and the resolution strategy **within the semantically
+> compatible set**, (2) the social order (`yield_robot`,
+> `crossing_order`), and (3) a system-generated, validated spatial
+> retreat candidate (`retreat_choice`); deterministic geometry derives
+> all metric motion; event-driven execution enforces the sequence; and
+> every VLM output is bounded to pre-verified discrete options with
 > verified-or-degrade fallbacks. Evaluated end-to-end (perception →
-> arbitration → grounding → physics) across congestion classes.
+> arbitration → grounding → physics) across congestion classes. The
+> depth of the arbitration lies in its evidence, not its output arity:
+> each decision's correct answer depends on visual-semantic,
+> temporal/social, and execution-history reasoning.
 
 The four pillars below are the **implementation mechanisms** of this
 architecture. None is claimed as individually novel; each adopts an
@@ -106,9 +114,22 @@ not mechanism originality.
 Retreat candidates depend on knowing the yielder; the yielder is the VLM's
 choice. Therefore:
 
-- **Stage 1 (existing analysis call):** VLM sees the annotated scene and
-  outputs congestion/type/strategy, `yield_robot`, `crossing_order`,
-  `blocker_kind`, justification. No spatial candidates yet.
+- **Stage 1 (existing analysis call):** VLM receives **temporal
+  context**, not a single instant: (a) a short annotated frame history —
+  3 frames spanning ~8 s (T−8 s, T−4 s, T), from a small ring buffer M5
+  already receives frames into — sent as an ordered multi-image input;
+  (b) a compact per-robot motion table derived from buffered snapshots
+  (arrival order at the conflict zone, seconds stopped, displacement over
+  the window, prior yields this episode). Dual-channel again: raw frames
+  for visual-temporal evidence, derived text for the arithmetic VLMs are
+  weak at (per SocialNav-SUB); multi-frame efficacy per ContextVLA
+  (2510.04246). Outputs: congestion/type, `blocker_kind`, strategy
+  (semantically conditioned — see Pillar 4), `yield_robot`,
+  `crossing_order`, justification. `yield_robot`/`crossing_order` can
+  thus depend on approach order, commitment, and traffic flow rather
+  than a static configuration. Fallback: history unavailable (episode
+  start, buffer gap) → single-frame analysis as today, logged
+  `history=unavailable`.
 - **Stage 2 (only when strategy = yield):** M5 generates validated retreat
   candidates for `yield_robot` (Pillar 2), has M1 render them as markers
   on a fresh frame, and issues a second, narrow VLM call whose only output
@@ -228,15 +249,30 @@ already available at the `reasoning_pipeline.py` grounding call site).
   the FAILED as terminal and reanalyzes — error handling, not silent
   resumption.
 
-## Pillar 4 — Actuated anomaly semantics
+## Pillar 4 — Semantic-conditioned strategy arbitration
 
 - **Schema:** optional `blocker_kind: "robot" | "object" | "transient"`.
-  Prompt: when type is anomaly (or congestion involves a non-robot
-  obstacle), classify the blocker from visible evidence.
-- **Grounder mapping:** `robot` → normal strategy templates; `object` →
-  `reroute` (won't clear itself); `transient` → extended `temporary_wait`
-  (likely clears). Absent/invalid → strategy template as-is, logged
-  `blocker=unclassified`.
+  Prompt: classify what is blocking, from visible evidence.
+- **Conditioned arbitration, not a lookup:** `blocker_kind` does not fix
+  the strategy; it constrains the **compatible strategy set**, and the
+  VLM selects the final strategy within that set using current scene
+  context, temporal history, and previous-attempt execution feedback
+  (rev 5 block). Compatibility matrix (grounder-enforced):
+  - `robot` → {yield, reverse, temporary_wait, reroute, convoy,
+    priority_override} (full multi-robot set)
+  - `object` → {reroute, temporary_wait} (an object won't move itself;
+    wait is admissible only as a bounded first probe)
+  - `transient` → {temporary_wait, reroute}
+  This is what makes adaptation deliberate: a transient blocker
+  reasonably draws `temporary_wait` first; after a `wait expired
+  unresolved` outcome arrives via failure context, the VLM may escalate
+  to `reroute` — same bounded vocabulary, evidence-dependent choice.
+- **Validation & fallback:** strategy outside the compatible set for the
+  declared `blocker_kind` → replaced by the deterministic default for
+  that kind (`robot`→template as-is, `object`→reroute,
+  `transient`→temporary_wait), logged `strategy=incompatible-defaulted`.
+  Absent/invalid `blocker_kind` → unconstrained strategy set (today's
+  behavior), logged `blocker=unclassified`.
 - **Evaluation (paired semantic counterfactuals):** two `dynamic_anomaly`
   variants with near-identical blockage geometry — (a) a static object in
   the aisle, (b) a transient agent at the same location. Success = the
@@ -255,7 +291,14 @@ coordinates) to quantify the visual channel's contribution directly —
 SocialNav-SUB predicts a weak visual delta; either outcome is reportable
 signal. For the episode loop, ablate **with vs without failure context**
 on forced-failure episodes (first resolution made to fail): does the
-second decision change deliberately when the VLM knows the prior outcome? Metrics: resolution success rate, time-to-resolution, and
+second decision change deliberately when the VLM knows the prior outcome?
+For stage 1, ablate **with vs without temporal context** and score
+`yield_robot`/`crossing_order` against sim-log ground truth (actual
+arrival order, stop durations) — does history shift role assignment
+toward defensible social orderings? For Pillar 4, the scripted
+adaptation trajectory (transient blocker → wait → forced expiry →
+reroute) is a required E2E case: both the constrained first choice and
+the informed escalation must appear in the decision artifacts. Metrics: resolution success rate, time-to-resolution, and
 disagreement cases where the VLM's pick beats/loses to geometry-max
 (qualitative review of justifications). Decision artifacts already capture
 everything needed.
@@ -265,7 +308,10 @@ everything needed.
 Rotation/roundabout strategy for dense crowding; occupancy-grid free-space
 search; VLM metric magnitudes / raw coordinate output (the candidate
 infrastructure is the on-ramp — densify candidates as set-of-mark pointing
-matures); multi-frame temporal context for M2 (ContextVLA direction).
+matures); **task-level escalation** — spatial-resolution infeasibility
+(the reroute/reanalyze outcome) may eventually trigger task-level
+replanning (goal swaps, task deferral) via M5's task registry; deferred
+because it expands into MRTA/task-and-motion planning semantics.
 
 ## Failure containment (precise claims)
 
@@ -297,9 +343,13 @@ matures); multi-frame temporal context for M2 (ContextVLA direction).
   projected predicate for every robot including the first passer (case:
   escort terminal fires but projected progress < clearance ⇒ successor
   NOT released); hold-until-last + rejoin phase ordering; wait-timeout → FAILED + suppression
-  retention; blocker_kind mapping + fallback; previous-attempt block present in
-  re-analysis prompts and absent in first analyses; parser round-trips for
-  all new fields.
+  retention; compatibility-matrix enforcement (in-set pass-through; out-of-set →
+  per-kind default, logged; unclassified → unconstrained); previous-attempt
+  block present in re-analysis prompts and absent in first analyses; frame
+  ring buffer: 3-frame history assembly, gap fallback to single-frame with
+  `history=unavailable`; motion-table derivation from synthetic snapshot
+  sequences (arrival order, stop durations); parser round-trips for all
+  new fields.
 - **E2E (host):** (1) `head_on_deadlock` regression — derived distances
   near 1.3/2.4, single cycle, rejoin works, goals reached; (2)
   `intersection_bottleneck` — 4 robots, ordered crossing, yielder holds
@@ -312,7 +362,10 @@ matures); multi-frame temporal context for M2 (ContextVLA direction).
 
 - `reasoning/schemas/vlm_decision.schema.json` (+ a stage-2 response
   schema), `reasoning/vlm/models.py`, `output_parser.py`,
-  `prompt_builder.py` (stage-1 fields + stage-2 prompt)
+  `prompt_builder.py` (stage-1 fields, temporal blocks, stage-2 prompt);
+  backends (`openai_backend.py` et al.) gain ordered multi-image support
+- `ros2_ws/src/swarm_orchestrator/.../orchestrator_node.py` (annotated-
+  frame ring buffer + motion-table derivation)
 - `reasoning/rag/command_grounder.py` (snapshot param, derivations,
   candidate generation/validation/ranking, ordering, blocker mapping,
   no-valid-candidate reroute outcome)
