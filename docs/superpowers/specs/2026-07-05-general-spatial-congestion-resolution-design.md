@@ -1,8 +1,10 @@
 # General Spatial Congestion Resolution — Design
 
-**Date:** 2026-07-05 (rev 2 — incorporates external review: two-stage VLM
-flow, explicit yield/order fields, hold-until-last-clears, swept-segment
-validation, no-blind-fallback rule, corrected attribution)
+**Date:** 2026-07-05 (rev 3 — review round 2: feasibility bands replace
+clamps, no-snapshot degrades to non-spatial wait not executable constants,
+uniform projected-clearance release predicate incl. first passer; rev 2:
+two-stage VLM flow, explicit yield/order fields, hold-until-last-clears,
+swept-segment validation, no-blind-fallback rule, corrected attribution)
 **Status:** In user review.
 **Predecessor:** the verified head-on yield protocol (H3 runs 8–13: backup →
 sidestep → hold/escort → passer-cleared, all raw-cmd_vel primitives
@@ -68,10 +70,17 @@ already available at the `reasoning_pipeline.py` grounding call site).
   such that, at the retreated pose, the yielder's separation from **every
   other robot in `crossing_order`** is ≥ pass-clearance
   (`2*min_distance_m + margin`), computed by projecting each robot's
-  position onto the yielder's retreat axis; clamped to [0.5, 2.0] m.
+  position onto the yielder's retreat axis. **Feasibility band, not a
+  clamp:** if the required `d` falls outside [0.5, 2.0] m, the yield is
+  **infeasible with this geometry** — the grounder returns the
+  reroute/reanalyze outcome (same path as zero valid candidates). Clamping
+  an out-of-band requirement would execute a backup that silently fails
+  its own clearance premise.
 - **Escort distance** = signed distance along the transit axis from the
   passer's hold-start position to the point past the yielder's parked
-  position by pass-clearance; clamped to [1.0, 3.5] m.
+  position by pass-clearance; same rule — required distance outside
+  [1.0, 3.5] m ⇒ infeasible ⇒ reroute/reanalyze, never a truncated
+  transit.
 - **Clearance events use signed projected progress**, not raw odometry
   displacement: progress = projection of (current − start) onto the
   robot's transit axis. Raw displacement counts lateral drift and servo
@@ -81,9 +90,12 @@ already available at the `reasoning_pipeline.py` grounding call site).
 - **Lateral magnitude** stays a config default (0.35 m) with per-scenario
   override. Map-derived lateral clearance is future work — this design
   verifies against robot poses, not the occupancy grid.
-- **Fallback:** `snapshot=None`/malformed → clamp-midpoint constants,
-  logged `distances=default`. (Distances are magnitudes along verified
-  axes; a mid-clamp default is safe in a way a blind lateral is not.)
+- **Fallback:** `snapshot=None`/malformed → the spatial yield is **not
+  executable**: derivation and candidate validation both need the
+  snapshot, so nothing about the maneuver can be verified. The grounder
+  degrades to a non-spatial outcome (`temporary_wait` + reanalysis),
+  logged `distances=unavailable`. Blind executable constants — midpoint
+  or otherwise — are never emitted, consistent with the Pillar-2 rule.
 
 ## Pillar 2 — VLM retreat-candidate selection (set-of-mark, stage 2)
 
@@ -126,13 +138,18 @@ already available at the `reasoning_pipeline.py` grounding call site).
 - **Grounder (yield, N robots):** `yield_robot` yields;
   `crossing_order[0]` gets the escorted transit; `crossing_order[1:]` get
   linked waits.
-- **Release chain:** robot k+1 releases when robot k's transit completes —
-  escort terminal for `crossing_order[0]`, signed projected progress ≥
-  clearance for later robots (per-robot odometry subscriptions reusing the
-  passer-cleared machinery).
-- **The yielder holds until the LAST robot in `crossing_order` clears**,
-  then rejoins (sidestep-back) and publishes COMPLETED. With N=2 the
-  behavior degenerates to the verified head-on flow plus rejoin.
+- **Release chain (uniform predicate):** robot k+1 releases when robot
+  k's **signed projected progress along its transit axis ≥ its clearance
+  threshold** — the same odometry-projection predicate for every robot,
+  including `crossing_order[0]`. The escort's terminal status is command
+  bookkeeping only, never a release trigger: an escort can complete its
+  commanded distance (or FAIL at its bound) without the robot actually
+  clearing the conflict zone, so releases key exclusively on measured
+  clearance.
+- **The yielder holds until the LAST robot in `crossing_order` clears**
+  (same projected predicate), then rejoins (sidestep-back) and publishes
+  COMPLETED. With N=2 the behavior degenerates to the verified head-on
+  flow plus rejoin.
 - **Timeout semantics (changed):** a linked wait's upper bound expiring
   does **not** release the robot into an unresolved conflict. It publishes
   FAILED (detail `wait expired unresolved`) for the whole resolution
@@ -194,14 +211,18 @@ matures); multi-frame temporal context for M2 (ContextVLA direction).
 ## Testing
 
 - **Unit (offline):** Pillar-1 derivations from synthetic snapshots
-  (multi-robot clearance, projection math, clamp edges, missing-snapshot
-  fallback); candidate generation with swept-path filtering (cases: both
+  (multi-robot clearance, projection math, feasibility-band edges —
+  required-distance out-of-band ⇒ reroute outcome, never a truncated
+  maneuver; missing-snapshot ⇒ non-spatial wait outcome, never executable
+  constants); candidate generation with swept-path filtering (cases: both
   sides valid / one side blocked by a robot on the swept segment — not
   endpoint — / zero valid → reroute outcome); ranking determinism;
   label mapping + hallucinated-label → geometry-best; yield_robot /
   crossing_order validation (missing, non-member, non-permutation);
-  release-chain ordering for 3- and 4-robot synthetic cases; hold-until-
-  last + rejoin phase ordering; wait-timeout → FAILED + suppression
+  release-chain ordering for 3- and 4-robot synthetic cases keyed on the
+  projected predicate for every robot including the first passer (case:
+  escort terminal fires but projected progress < clearance ⇒ successor
+  NOT released); hold-until-last + rejoin phase ordering; wait-timeout → FAILED + suppression
   retention; blocker_kind mapping + fallback; parser round-trips for all
   new fields.
 - **E2E (host):** (1) `head_on_deadlock` regression — derived distances
