@@ -1,7 +1,8 @@
 # General Spatial Congestion Resolution — Design
 
-**Date:** 2026-07-05 (rev 4 — novelty reframed as one integrated
-contribution with conservative related-work positioning; rev 3: feasibility
+**Date:** 2026-07-05 (rev 5 — failure-context feedback for
+re-analysis (Reflexion-lite) + its ablation; rev 4 — novelty reframed as
+one integrated contribution with conservative related-work positioning; rev 3: feasibility
 bands replace clamps, no-snapshot degrades to non-spatial wait not
 executable constants, uniform projected-clearance release predicate incl.
 first passer; rev 2: two-stage VLM flow, explicit yield/order fields,
@@ -117,6 +118,17 @@ choice. Therefore:
 - **Stage-2 failure** (timeout, parse failure, invalid label): proceed with
   the deterministic geometry-best candidate (see Fallback rules). Stage 2
   never blocks resolution.
+- **Failure-context feedback (Reflexion-lite):** when M5 re-analyzes a
+  congestion episode after a failed or expired resolution, the stage-1
+  prompt includes a short "previous attempt" block — last strategy, chosen
+  roles, outcome status, and failure detail (e.g. `wait expired
+  unresolved`) — sourced from the decision artifact M5 already stores.
+  The episode loop thereby becomes deliberate observe-and-adapt rather
+  than accidental re-derivation (run 12 showed the VLM switching
+  strategies without knowing its yield had failed). Contained: this adds
+  prompt context only — no new action space, outputs remain the same
+  bounded fields. Scope: context covers the current episode's prior
+  attempt(s) only; no cross-episode memory.
 
 ## Pillar 1 — Derived maneuver distances
 
@@ -241,7 +253,9 @@ policies on the same candidate sets: **fixed-left** (today's behavior),
 ranker). Additionally run stage 2 **with vs without the image** (text-only
 coordinates) to quantify the visual channel's contribution directly —
 SocialNav-SUB predicts a weak visual delta; either outcome is reportable
-signal. Metrics: resolution success rate, time-to-resolution, and
+signal. For the episode loop, ablate **with vs without failure context**
+on forced-failure episodes (first resolution made to fail): does the
+second decision change deliberately when the VLM knows the prior outcome? Metrics: resolution success rate, time-to-resolution, and
 disagreement cases where the VLM's pick beats/loses to geometry-max
 (qualitative review of justifications). Decision artifacts already capture
 everything needed.
@@ -283,8 +297,9 @@ matures); multi-frame temporal context for M2 (ContextVLA direction).
   projected predicate for every robot including the first passer (case:
   escort terminal fires but projected progress < clearance ⇒ successor
   NOT released); hold-until-last + rejoin phase ordering; wait-timeout → FAILED + suppression
-  retention; blocker_kind mapping + fallback; parser round-trips for all
-  new fields.
+  retention; blocker_kind mapping + fallback; previous-attempt block present in
+  re-analysis prompts and absent in first analyses; parser round-trips for
+  all new fields.
 - **E2E (host):** (1) `head_on_deadlock` regression — derived distances
   near 1.3/2.4, single cycle, rejoin works, goals reached; (2)
   `intersection_bottleneck` — 4 robots, ordered crossing, yielder holds
