@@ -1,10 +1,12 @@
 # General Spatial Congestion Resolution — Design
 
-**Date:** 2026-07-05 (rev 3 — review round 2: feasibility bands replace
-clamps, no-snapshot degrades to non-spatial wait not executable constants,
-uniform projected-clearance release predicate incl. first passer; rev 2:
-two-stage VLM flow, explicit yield/order fields, hold-until-last-clears,
-swept-segment validation, no-blind-fallback rule, corrected attribution)
+**Date:** 2026-07-05 (rev 4 — novelty reframed as one integrated
+contribution with conservative related-work positioning; rev 3: feasibility
+bands replace clamps, no-snapshot degrades to non-spatial wait not
+executable constants, uniform projected-clearance release predicate incl.
+first passer; rev 2: two-stage VLM flow, explicit yield/order fields,
+hold-until-last-clears, swept-segment validation, no-blind-fallback rule,
+corrected attribution)
 **Status:** In user review.
 **Predecessor:** the verified head-on yield protocol (H3 runs 8–13: backup →
 sidestep → hold/escort → passer-cleared, all raw-cmd_vel primitives
@@ -42,6 +44,61 @@ which appears there only as related work), MIT REALM 2404.06413 + LLMDR
 principle adopted: **the VLM selects among system-proposed, pre-verified,
 visually-annotated discrete options and orders robots; it never generates
 metric poses.**
+
+## Contribution & Related-Work Positioning
+
+**The contribution is one integrated architecture, not four standalone
+mechanisms:**
+
+> A **bounded semantic–social–spatial VLM arbitration architecture for
+> online multi-robot congestion resolution**: a single VLM arbiter jointly
+> decides (1) blockage semantics (`blocker_kind`), (2) the social order
+> (`yield_robot`, `crossing_order`), and (3) a system-generated, validated
+> spatial retreat candidate (`retreat_choice`); deterministic geometry
+> derives all metric motion; event-driven execution enforces the sequence;
+> and every VLM output is bounded to pre-verified discrete options with
+> verified-or-degrade fallbacks. Evaluated end-to-end (perception →
+> arbitration → grounding → physics) across congestion classes.
+
+The four pillars below are the **implementation mechanisms** of this
+architecture. None is claimed as individually novel; each adopts an
+established technique, stated conservatively:
+
+- **Candidate selection (P2)** adopts the select-among-annotated-options
+  paradigm: set-of-mark prompting (Yang et al., 2310.11441), VLM frontier
+  assignment (2310.07937), and CoNVOI-style annotated-waypoint selection.
+  Delta: candidates are *maneuver-verified* (swept-path, feasibility bands)
+  before the VLM ever sees them, and selection is one axis of a joint
+  arbitration rather than the sole task.
+- **Ordering (P3)** adopts the ordered-conflict-resolution family:
+  FCFS/auction/reservation intersection management, virtual-traffic-light
+  methods, LLM-as-arbiter leader selection (LLMDR 2503.00717), and the
+  who-commits social decision highlighted by NOD corridor passage
+  (2504.20947). Delta: the order is produced jointly with semantics and
+  spatial choice by one arbiter, and enforced by measured per-robot
+  clearance events rather than time slots.
+- **Semantic blockage handling (P4)** adopts VLM scene understanding as
+  studied in social/blocked-navigation work (SocialNav-SUB 2509.08757 and
+  the semantic blocked-path literature it surveys). Delta: the
+  classification is *actuated* — mapped to divergent resolution strategies
+  — and evaluated with paired geometric counterfactuals.
+- **Derived geometry (P1)** is standard multi-robot clearance arithmetic;
+  no novelty claimed or implied.
+- Relative to **REALM (2404.06413)** — the closest whole-system neighbor —
+  the deltas are: discrete bounded arbitration instead of free waypoint
+  generation over a CBF layer; a warehouse congestion setting with a
+  static-camera BEV instead of onboard views; joint
+  semantic+social+spatial output; and an evaluation centered on
+  counterfactuals and geometry baselines rather than task completion
+  alone. Relative to **CoNVOI**, the arbiter here coordinates *multiple*
+  robots' conflict rather than guiding a single robot's path context.
+
+Writing rule for downstream documents (thesis/paper): avoid "first" and
+per-pillar novelty adjectives; state adopted sources per mechanism as
+above; claim only the integrated loop, its containment properties, and the
+evaluation. Evidence for the claim is the evaluation design (paired
+counterfactuals, retreat-policy baselines, with/without-image ablation) —
+not mechanism originality.
 
 ## Decision flow (two-stage — resolves the candidate/yielder circularity)
 
@@ -181,7 +238,10 @@ already available at the `reasoning_pipeline.py` grounding call site).
 For retreat selection (Pillar 2), compare the VLM's choices against three
 policies on the same candidate sets: **fixed-left** (today's behavior),
 **random-valid**, and **geometry-max-clearance** (the deterministic
-ranker). Metrics: resolution success rate, time-to-resolution, and
+ranker). Additionally run stage 2 **with vs without the image** (text-only
+coordinates) to quantify the visual channel's contribution directly —
+SocialNav-SUB predicts a weak visual delta; either outcome is reportable
+signal. Metrics: resolution success rate, time-to-resolution, and
 disagreement cases where the VLM's pick beats/loses to geometry-max
 (qualitative review of justifications). Decision artifacts already capture
 everything needed.
