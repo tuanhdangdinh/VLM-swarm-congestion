@@ -1,392 +1,226 @@
-# General Spatial Congestion Resolution — Design
+# VLM as Congestion-Resolution Reasoner — Research Design
 
-**Date:** 2026-07-06 (rev 6 — temporal context via single-frame visual
-traces + motion table (multi-image REJECTED on survey evidence: TempVS/ACL
-2025 shows MLLMs fail image-sequence ordering; TraceVLA shows trace
-overlays work) + semantic-conditioned strategy arbitration; task-level
-escalation deferred to future work; rev 5 — failure-context feedback for
-re-analysis (Reflexion-lite) + its ablation; rev 4 — novelty reframed as
-one integrated contribution with conservative related-work positioning; rev 3: feasibility
-bands replace clamps, no-snapshot degrades to non-spatial wait not
-executable constants, uniform projected-clearance release predicate incl.
-first passer; rev 2: two-stage VLM flow, explicit yield/order fields,
-hold-until-last-clears, swept-segment validation, no-blind-fallback rule,
-corrected attribution)
+**Date:** 2026-07-07 (rev 7 — restructured as a controlled experiment around
+the preserved research objective; the rev-1..6 mechanisms survive as the
+apparatus. Prior revision history: rev 6 — temporal context via
+single-frame visual traces + motion table, multi-image rejected on
+TempVS/ACL-2025 evidence, semantic-conditioned strategy arbitration; rev 5
+— failure-context feedback (Reflexion-lite); rev 4 — integrated-contribution
+framing, conservative related work; rev 3 — feasibility bands, no-snapshot
+degrade, uniform projected-clearance release; rev 2 — two-stage flow,
+explicit yield/order fields, hold-until-last, swept validation, no-blind
+fallback; rev 1 — pillars.)
 **Status:** In user review.
-**Predecessor:** the verified head-on yield protocol (H3 runs 8–13: backup →
-sidestep → hold/escort → passer-cleared, all raw-cmd_vel primitives
-lane-servoed). This design generalizes it across scenarios and deepens the
-VLM's decision surface.
+**Predecessor system:** the verified head-on yield protocol (H3 runs 8–13)
+and the M1→M5→M2→M3→M4 closed loop, live on the GCP/Isaac host.
 
-## Problem
+## Research objective (preserved, primary)
 
-The working yield resolution is scenario-tuned and spatially blind:
+> **Investigate whether a VLM can act as a high-level
+> congestion-resolution reasoner for swarm/multi-robot navigation.**
 
-1. **Blind constants.** `backup_distance_m=1.3`, escort `2.4`, lateral
-   `+0.35` (always left) were tuned offline for `head_on_deadlock`'s
-   corridor. Different standoff positions or layouts can park a robot into
-   geometry.
-2. **Head-on assumptions baked in.** Escort heading assumes odom yaw 0
-   points at the goal (false for the intersection scenarios' north–south
-   robots); the yield template handles exactly 2 robots
-   (`intersection_bottleneck`/`dynamic_anomaly` have 4).
-3. **VLM spatial ability unused.** The VLM chooses strategy and role order
-   but nothing spatial; `root_cause` is logged, never actuated.
-4. **All-at-once release.** Queued robots resume simultaneously and
-   re-collide; literature treats bottleneck/crowding as ordered-crossing
-   problems.
+This is a research question, not a system goal. The design below is an
+**experimental apparatus** for answering it: the VLM holds the full
+reasoner role (the hypothesis under test), classical methods form the
+**control arm** (not a fallback spine), and the scenario battery is
+designed so that either answer — including "no" — is credible and
+reportable. The engineering contribution (containment, event-driven
+execution) is what makes the experiment safe and controlled; the research
+contribution is the answer and the evidence.
 
-Literature anchors: SocialNav-SUB (arXiv 2509.08757 — spatial relations are
-frontier VLMs' weakest axis, PA≈0.55; set-of-mark + BEV prompting is the
-effective mitigation), VLM frontier assignment (2310.07937 — VLM selects
-among system-generated, image-annotated candidates; never emits
-coordinates), NOD corridor passage (2504.20947 — who-commits/who-yields is
-the social decision that matters), Voronoi-cell + congestion-metric
-replanning (2202.11334 — decentralized replanning driven by a congestion
-metric; supports congestion-aware sequencing generally, not token-passing,
-which appears there only as related work), MIT REALM 2404.06413 + LLMDR
-2503.00717 (foundation-model arbiter over safe low-level control). Design
-principle adopted: **the VLM selects among system-proposed, pre-verified,
-visually-annotated discrete options and orders robots; it never generates
-metric poses.**
+## Hypotheses (thesis skeleton)
 
-## Contribution & Related-Work Positioning
+- **H1 Perception/classification:** the VLM recognizes congestion and its
+  type from the annotated scene (vs. ground truth labels).
+- **H2 Strategy competence:** its strategy choices resolve congestion
+  (vs. a classical per-type policy, outcome-measured).
+- **H3 Social reasoning:** its `yield_robot`/`crossing_order` assignments
+  are effective (vs. FCFS + commitment-tiebreak baseline).
+- **H4 Semantic advantage:** it exploits information no classical baseline
+  has — blocker semantics and untracked visual elements.
+- **H5 Closed-loop adaptation:** failure feedback deliberately changes its
+  subsequent decisions (vs. memoryless re-analysis).
 
-**The contribution is one integrated architecture, not four standalone
-mechanisms:**
+## Experimental arms & shadow logging
 
-> A **bounded semantic–social–spatial VLM arbitration architecture for
-> online multi-robot congestion resolution**: a single VLM arbiter —
-> given the annotated scene with rendered motion traces, a derived
-> motion table, and execution feedback from prior attempts — jointly
-> decides (1) blockage semantics (`blocker_kind`) and the resolution
-> strategy **within the semantically compatible set**, (2) the social
-> order (`yield_robot`, `crossing_order`), and (3) a system-generated,
-> validated spatial retreat candidate (`retreat_choice`); deterministic
-> geometry derives all metric motion; event-driven execution enforces
-> the sequence; and every VLM output is bounded to pre-verified discrete
-> options with verified-or-degrade fallbacks. Evaluated end-to-end
-> (perception → arbitration → grounding → physics) across congestion
-> classes. The depth of the arbitration lies in its evidence, not its
-> output arity: each decision's correct answer depends on
-> visual-semantic, temporal/social, and execution-history reasoning.
+- **Arm A (treatment):** VLM reasoner — all decision points below.
+- **Arm B (control):** classical reasoner — same detection trigger, same
+  grounding validation, same M4 execution; decisions by: geometry
+  classifier (H1), per-type policy table (H2), FCFS + commitment tiebreak
+  (H3), geometry-max retreat (stage 2). The execution layer is identical
+  across arms — outcomes are attributable to the reasoner alone.
+- **Shadow logging:** in Arm A, the classical answer is *also* computed
+  and logged for every decision; disagreements are first-class events.
+  Every episode yields comparison data; disagreement-outcome analysis
+  ("when the VLM deviated from classical, did it help?") is a primary
+  result.
+- **Modality conditions (Arm A only):** dual-channel (default) /
+  text-only / image-only. The state table intentionally duplicates much
+  of the image content; these conditions locate where the reasoning
+  actually lives rather than leaving the redundancy untreated.
 
-The four pillars below are the **implementation mechanisms** of this
-architecture. None is claimed as individually novel; each adopts an
-established technique, stated conservatively:
+## Scenario battery (three tiers — the discriminating instrument)
 
-- **Candidate selection (P2)** adopts the select-among-annotated-options
-  paradigm: set-of-mark prompting (Yang et al., 2310.11441), VLM frontier
-  assignment (2310.07937), and CoNVOI-style annotated-waypoint selection.
-  Delta: candidates are *maneuver-verified* (swept-path, feasibility bands)
-  before the VLM ever sees them, and selection is one axis of a joint
-  arbitration rather than the sole task.
-- **Ordering (P3)** adopts the ordered-conflict-resolution family:
-  FCFS/auction/reservation intersection management, virtual-traffic-light
-  methods, LLM-as-arbiter leader selection (LLMDR 2503.00717), and the
-  who-commits social decision highlighted by NOD corridor passage
-  (2504.20947). Delta: the order is produced jointly with semantics and
-  spatial choice by one arbiter, and enforced by measured per-robot
-  clearance events rather than time slots.
-- **Semantic blockage handling (P4)** adopts VLM scene understanding as
-  studied in social/blocked-navigation work (SocialNav-SUB 2509.08757 and
-  the semantic blocked-path literature it surveys). Delta: the
-  classification is *actuated* — mapped to divergent resolution strategies
-  — and evaluated with paired geometric counterfactuals.
-- **Derived geometry (P1)** is standard multi-robot clearance arithmetic;
-  no novelty claimed or implied.
-- Relative to **REALM (2404.06413)** — the closest whole-system neighbor —
-  the deltas are: discrete bounded arbitration instead of free waypoint
-  generation over a CBF layer; a warehouse congestion setting with a
-  static-camera BEV instead of onboard views; joint
-  semantic+social+spatial output; and an evaluation centered on
-  counterfactuals and geometry baselines rather than task completion
-  alone. Relative to **CoNVOI**, the arbiter here coordinates *multiple*
-  robots' conflict rather than guiding a single robot's path context.
+- **T1 Geometry-sufficient** (non-inferiority tier): current
+  `head_on_deadlock` (0.55×2.0 corridor) and `intersection_bottleneck`.
+  Classical solves these; the VLM must match it (success rate within
+  margin, no safety violations).
+- **T2 Geometry-ambiguous** (reasoning tier): variants where naive
+  geometry is wrong or arbitrary — (a) asymmetric retreat space (one
+  side's candidates infeasible; correct yielder is NOT the FCFS pick
+  because the first-arriver has no retreat room); (b) symmetric standoff
+  with asymmetric downstream traffic (correct order depends on flow, in
+  the trails/motion table).
+- **T3 Semantics-required** (only-VLM tier): (a) paired blocker
+  counterfactuals — near-identical geometry, static object vs transient
+  agent (divergent correct responses: reroute vs wait); (b)
+  obstacle-in-candidate — an **untracked** visual obstacle inside the
+  geometry-max retreat candidate (classical picks it; correct choice
+  requires vision); (c) `dynamic_anomaly` timed-obstacle runs. Note: M1
+  tracks only ArUco robots, so untracked elements exist in the image and
+  in NO text channel — this asymmetry is what makes T3 vision-load-bearing
+  by construction.
+- Authoring T2/T3 variants (scenario yamls + USD rebuilds + obstacle
+  assets) is a first-class work item, not an afterthought — without them
+  the experiment cannot discriminate.
 
-Writing rule for downstream documents (thesis/paper): avoid "first" and
-per-pillar novelty adjectives; state adopted sources per mechanism as
-above; claim only the integrated loop, its containment properties, and the
-evaluation. Evidence for the claim is the evaluation design (paired
-counterfactuals, retreat-policy baselines, with/without-image ablation) —
-not mechanism originality.
+## Pre-registered success criteria
 
-## Decision flow (two-stage — resolves the candidate/yielder circularity)
+Defined before data collection; "VLM cannot" is a reportable outcome:
 
-Retreat candidates depend on knowing the yielder; the yielder is the VLM's
-choice. Therefore:
+- **"VLM can" requires all of:** T1 non-inferiority (resolution success
+  within 10 pp of classical, zero safety-envelope violations — the
+  containment layer makes violations structurally impossible, so this
+  measures degradation frequency instead: `*=default` rate < 20%);
+  T3 superiority (blocker counterfactuals: correct divergent behavior
+  where classical cannot diverge; obstacle-in-candidate: avoids the
+  occupied candidate above chance); H5 adaptation (second decision changes
+  in the informed direction on forced-failure episodes).
+- **Partial answers are findings:** e.g., "competent arbiter on T1/T2,
+  decisive only on T3 semantics" or "text-only equals dual-channel
+  everywhere except T3" are publishable characterizations.
 
-- **Stage 1 (existing analysis call):** VLM receives **temporal
-  context rendered into a single frame**, not an image sequence: (a)
-  each robot's past ~8 s trajectory drawn as a fading polyline trail on
-  the current annotated frame (M5 sends trail points from its snapshot
-  ring buffer with the frame request — the same plumbing pattern as
-  stage-2 candidate markers); (b) a compact per-robot motion table
-  derived from buffered snapshots (arrival order at the conflict zone,
-  seconds stopped, displacement over the window, prior yields this
-  episode). Mechanism choice is survey-driven: image-SEQUENCE temporal
-  reasoning is unreliable in current MLLMs (TempVS/"Burn After Reading",
-  ACL 2025: 38 SOTA models substantially below human on event ordering;
-  CHRONOSIGHT's "chronological blindness"), whereas trace overlays on a
-  single frame demonstrably enhance spatiotemporal awareness (TraceVLA,
-  ICLR 2025) and structured motion summaries beat raw frame history
-  (MotionVLA 2606.08288). Outputs: congestion/type, `blocker_kind`,
-  strategy (semantically conditioned — see Pillar 4), `yield_robot`,
-  `crossing_order`, justification — role choices can thus depend on
-  approach order, commitment, and traffic flow rather than a static
-  configuration. Fallback: history unavailable (episode start, buffer
-  gap) → traceless frame + no motion table, as today, logged
-  `history=unavailable`.
-- **Stage 2 (only when strategy = yield):** M5 generates validated retreat
-  candidates for `yield_robot` (Pillar 2), has M1 render them as markers
-  on a fresh frame, and issues a second, narrow VLM call whose only output
-  is `retreat_choice` + one-clause justification.
-- **Latency:** one extra VLM round trip (~2–6 s) inside Layer 2's 0.5–2 Hz
-  budget; the robots are stationary in a standoff, so the cost is benign.
-- **Stage-2 failure** (timeout, parse failure, invalid label): proceed with
-  the deterministic geometry-best candidate (see Fallback rules). Stage 2
-  never blocks resolution.
-- **Failure-context feedback (Reflexion-lite):** when M5 re-analyzes a
-  congestion episode after a failed or expired resolution, the stage-1
-  prompt includes a short "previous attempt" block — last strategy, chosen
-  roles, outcome status, and failure detail (e.g. `wait expired
-  unresolved`) — sourced from the decision artifact M5 already stores.
-  The episode loop thereby becomes deliberate observe-and-adapt rather
-  than accidental re-derivation (run 12 showed the VLM switching
-  strategies without knowing its yield had failed). Contained: this adds
-  prompt context only — no new action space, outputs remain the same
-  bounded fields. Scope: context covers the current episode's prior
-  attempt(s) only; no cross-episode memory.
+## The apparatus (mechanisms; adopted techniques, none claimed novel)
 
-## Pillar 1 — Derived maneuver distances
+The four pillars from revs 1–6 are the machinery both arms run on. Full
+mechanism detail as previously specified; summarized with their roles:
 
-`ground_reasoner_result` gains a `snapshot` parameter (the `SceneSnapshot`
-already available at the `reasoning_pipeline.py` grounding call site).
+### Decision flow (two-stage)
 
-- **Backup distance** (formalized): the minimum retreat-axis motion `d`
-  such that, at the retreated pose, the yielder's separation from **every
-  other robot in `crossing_order`** is ≥ pass-clearance
-  (`2*min_distance_m + margin`), computed by projecting each robot's
-  position onto the yielder's retreat axis. **Feasibility band, not a
-  clamp:** if the required `d` falls outside [0.5, 2.0] m, the yield is
-  **infeasible with this geometry** — the grounder returns the
-  reroute/reanalyze outcome (same path as zero valid candidates). Clamping
-  an out-of-band requirement would execute a backup that silently fails
-  its own clearance premise.
-- **Escort distance** = signed distance along the transit axis from the
-  passer's hold-start position to the point past the yielder's parked
-  position by pass-clearance; same rule — required distance outside
-  [1.0, 3.5] m ⇒ infeasible ⇒ reroute/reanalyze, never a truncated
-  transit.
-- **Clearance events use signed projected progress**, not raw odometry
-  displacement: progress = projection of (current − start) onto the
-  robot's transit axis. Raw displacement counts lateral drift and servo
-  wobble as progress; projection cannot go backwards-positive.
-- **Escort heading**: M4 uses the passer's own heading at escort start
-  (from its odom), not yaw 0.
-- **Lateral magnitude** stays a config default (0.35 m) with per-scenario
-  override. Map-derived lateral clearance is future work — this design
-  verifies against robot poses, not the occupancy grid.
-- **Fallback:** `snapshot=None`/malformed → the spatial yield is **not
-  executable**: derivation and candidate validation both need the
-  snapshot, so nothing about the maneuver can be verified. The grounder
-  degrades to a non-spatial outcome (`temporary_wait` + reanalysis),
-  logged `distances=unavailable`. Blind executable constants — midpoint
-  or otherwise — are never emitted, consistent with the Pillar-2 rule.
+- **Stage 1:** VLM receives the annotated frame with **fading trajectory
+  trails** (~8 s, from M5's snapshot ring buffer; single frame — image
+  sequences rejected on TempVS evidence, traces supported by TraceVLA) +
+  a **derived motion table** (arrival order, seconds stopped,
+  displacement, prior yields) + full robot state + (on re-analysis) the
+  **failure-context block** (rev 5). Outputs: congestion/type,
+  `blocker_kind`, strategy within the semantically compatible set,
+  `yield_robot`, `crossing_order`, justification.
+- **Stage 2 (yield only):** system generates 2–4 retreat candidates
+  (swept-path validated, feasibility-banded per rev 3), M1 renders them
+  as set-of-mark letters, VLM selects `retreat_choice` + one-clause
+  justification. Stage-2 failure → geometry-best candidate (which is
+  Arm B's answer — the fallback IS the control).
+- **Annotation legibility (from the noise review):** identity = color,
+  status = box style; boxes shrunk toward true footprint; labeled goals
+  (G1/G2); candidate letters in a reserved color; leader-line labels in
+  clusters; stage-2 frames drop arrows/goal markers; the prompt explains
+  the annotation scheme in one sentence.
 
-## Pillar 2 — VLM retreat-candidate selection (set-of-mark, stage 2)
+### Pillar summaries (mechanism detail: revs 2–6, unchanged)
 
-- **Candidate generation (M5/grounder):** 2–4 retreat poses for
-  `yield_robot` (left-rear / right-rear at the Pillar-1 backup distance,
-  ± lateral variants). **Validation covers the swept path, not only the
-  endpoint:** the straight backup segment and the sidestep segment are
-  sampled at ≤0.1 m intervals; every sample must keep ≥ `min_distance_m`
-  from all other robots and stay inside the aisle band. Candidates failing
-  any sample are discarded.
-- **Ranking:** surviving candidates are scored by a deterministic geometry
-  metric (min clearance along the swept path, tie-break: distance from the
-  transit corridor). The top-ranked candidate is the **default**.
-- **Annotation:** M5 converts candidate poses to pixels via the existing
-  homography and passes them in the M1 frame request; M1's annotation pass
-  draws numbered markers (Ⓐ/Ⓑ/Ⓒ).
-- **Prompt (stage 2):** "choose the marked retreat position that best
-  clears the conflict while preserving the passage space the other robots
-  need and avoiding visible obstacles or traffic; answer with the letter
-  and one clause of justification." (Not "most clear space" — the
-  objective is conflict clearance, not open floor.)
-- **Fallback rules (strict):** invalid/absent label → the geometry-best
-  valid candidate, logged `retreat=default`. **Zero valid candidates →
-  the yield is not executable: grounder returns a `reroute`-or-reanalyze
-  outcome to M5 instead of a yield command. The old blind lateral constant
-  is never used as a fallback.**
-- **Rejoin:** after release (see Pillar 3), the yielder sidesteps back by
-  the negated chosen lateral before COMPLETED publishes, re-entering Nav2
-  from the lane centerline (fixes the run-13 tunnel-mouth wedge).
+1. **Derived geometry:** backup/escort distances from actual poses with
+   feasibility bands (out-of-band ⇒ infeasible ⇒ reroute/reanalyze; no
+   clamped or blind execution); no-snapshot ⇒ non-spatial wait;
+   projected-progress clearance predicates; escort heading from odom.
+2. **Candidate selection:** set-of-mark selection among pre-verified
+   options (adopts 2310.11441/2310.07937/CoNVOI); geometry-max ranking is
+   simultaneously the default, the fallback, and the control arm.
+3. **Ordered crossing:** explicit `yield_robot`/`crossing_order` fields,
+   permutation-validated; event-driven sequenced release (uniform
+   projected-clearance predicate incl. first passer); yielder holds until
+   last clears, then rejoins; wait-expiry ⇒ FAILED + suppression retained
+   + reanalysis, never silent release.
+4. **Semantic-conditioned strategy arbitration:** `blocker_kind`
+   constrains the compatible strategy set (robot→full set;
+   object→{reroute, bounded wait-probe}; transient→{wait, reroute}); VLM
+   selects within it using scene, traces, and failure context; out-of-set
+   ⇒ per-kind default, logged.
 
-## Pillar 3 — Ordered crossing (explicit fields, sequenced release)
+### Containment (the laboratory's safety glass — unchanged)
 
-- **Schema:** new explicit fields — `yield_robot: str` and
-  `crossing_order: [str]` — replacing the overloaded `involved_robots`
-  ordering convention. `involved_robots` remains the unordered set (backward
-  compatible). Validation: `yield_robot ∈ involved_robots`;
-  `crossing_order` is a permutation of `involved_robots − {yield_robot}`;
-  violations → decision rejected at parse (same containment as any schema
-  failure), logged.
-- **Grounder (yield, N robots):** `yield_robot` yields;
-  `crossing_order[0]` gets the escorted transit; `crossing_order[1:]` get
-  linked waits.
-- **Release chain (uniform predicate):** robot k+1 releases when robot
-  k's **signed projected progress along its transit axis ≥ its clearance
-  threshold** — the same odometry-projection predicate for every robot,
-  including `crossing_order[0]`. The escort's terminal status is command
-  bookkeeping only, never a release trigger: an escort can complete its
-  commanded distance (or FAIL at its bound) without the robot actually
-  clearing the conflict zone, so releases key exclusively on measured
-  clearance.
-- **The yielder holds until the LAST robot in `crossing_order` clears**
-  (same projected predicate), then rejoins (sidestep-back) and publishes
-  COMPLETED. With N=2 the behavior degenerates to the verified head-on
-  flow plus rejoin.
-- **Timeout semantics (changed):** a linked wait's upper bound expiring
-  does **not** release the robot into an unresolved conflict. It publishes
-  FAILED (detail `wait expired unresolved`) for the whole resolution
-  command, and the coordination client **keeps affected robots
-  suppressed** pending M5's reanalysis (suppression transfers to the
-  follow-up command's ACTIVE; it does not lapse on this FAILED). M5 treats
-  the FAILED as terminal and reanalyzes — error handling, not silent
-  resumption.
+VLM outputs restricted to system-generated discrete options; geometric
+revalidation at grounding (swept segments, permutations, feasibility);
+verified-or-degrade everywhere; all degradations logged `*=default` and
+counted in the metrics. A wrong VLM answer produces a logged degradation,
+never unsafe motion — which is precisely what makes Arm A safe to run.
 
-## Pillar 4 — Semantic-conditioned strategy arbitration
+## Measurement plan
 
-- **Schema:** optional `blocker_kind: "robot" | "object" | "transient"`.
-  Prompt: classify what is blocking, from visible evidence.
-- **Conditioned arbitration, not a lookup:** `blocker_kind` does not fix
-  the strategy; it constrains the **compatible strategy set**, and the
-  VLM selects the final strategy within that set using current scene
-  context, the rendered motion history, and previous-attempt execution
-  feedback (rev 5 block). Compatibility matrix (grounder-enforced):
-  - `robot` → {yield, reverse, temporary_wait, reroute, convoy,
-    priority_override} (full multi-robot set)
-  - `object` → {reroute, temporary_wait} (an object won't move itself;
-    wait is admissible only as a bounded first probe)
-  - `transient` → {temporary_wait, reroute}
-  This is what makes adaptation deliberate: a transient blocker
-  reasonably draws `temporary_wait` first; after a `wait expired
-  unresolved` outcome arrives via failure context, the VLM may escalate
-  to `reroute` — same bounded vocabulary, evidence-dependent choice.
-- **Validation & fallback:** strategy outside the compatible set for the
-  declared `blocker_kind` → replaced by the deterministic default for
-  that kind (`robot`→template as-is, `object`→reroute,
-  `transient`→temporary_wait), logged `strategy=incompatible-defaulted`.
-  Absent/invalid `blocker_kind` → unconstrained strategy set (today's
-  behavior), logged `blocker=unclassified`.
-- **Evaluation (paired semantic counterfactuals):** two `dynamic_anomaly`
-  variants with near-identical blockage geometry — (a) a static object in
-  the aisle, (b) a transient agent at the same location. Success = the
-  VLM's `blocker_kind` differs correctly between the pair AND the executed
-  responses diverge (reroute vs wait/reassess). This isolates *semantic*
-  understanding from geometric cueing — the capability no classical
-  baseline has.
+Per episode: resolution success, time-to-resolution, cycles, safety stops,
+degradation counts, full decision artifacts (both stages, justifications,
+shadow answers, disagreement flags). Analyses: per-tier arm comparison
+(H1–H3), counterfactual divergence (H4), adaptation trajectories (H5),
+modality deltas, disagreement-outcome analysis. Qualitative: justification
+review on disagreement cases.
 
-## Evaluation baselines (thesis evidence)
+## Ablations
 
-For retreat selection (Pillar 2), compare the VLM's choices against three
-policies on the same candidate sets: **fixed-left** (today's behavior),
-**random-valid**, and **geometry-max-clearance** (the deterministic
-ranker). Additionally run stage 2 **with vs without the image** (text-only
-coordinates) to quantify the visual channel's contribution directly —
-SocialNav-SUB predicts a weak visual delta; either outcome is reportable
-signal. For the episode loop, ablate **with vs without failure context**
-on forced-failure episodes (first resolution made to fail): does the
-second decision change deliberately when the VLM knows the prior outcome?
-For stage 1, ablate **with vs without temporal context** (traces + motion
-table) and score `yield_robot`/`crossing_order` against sim-log ground
-truth (actual arrival order, stop durations) — does history shift role
-assignment toward defensible social orderings? For Pillar 4, the scripted
-adaptation trajectory (transient blocker → wait → forced expiry →
-reroute) is a required E2E case: both the constrained first choice and
-the informed escalation must appear in the decision artifacts. Metrics: resolution success rate, time-to-resolution, and
-disagreement cases where the VLM's pick beats/loses to geometry-max
-(qualitative review of justifications). Decision artifacts already capture
-everything needed.
+With/without image (stage 1 and stage 2); with/without temporal context
+(traces + motion table); with/without failure context (forced-failure
+episodes); annotation scheme (legible vs legacy) on a T3 subset — checks
+whether the noise fixes matter.
 
-## Explicitly out of scope (future work)
+## Related-work positioning (conservative; writing rule unchanged)
 
-Rotation/roundabout strategy for dense crowding; occupancy-grid free-space
-search; VLM metric magnitudes / raw coordinate output (the candidate
-infrastructure is the on-ramp — densify candidates as set-of-mark pointing
-matures); multi-frame/video input for M2 if sequence-ordering reliability
-improves (ContextVLA direction; currently rejected on TempVS evidence);
-**task-level escalation** — spatial-resolution infeasibility (the
-reroute/reanalyze outcome) may eventually trigger task-level replanning
-(goal swaps, task deferral) via M5's task registry; deferred because it
-expands into MRTA/task-and-motion planning semantics.
+Mechanisms adopt: set-of-mark (2310.11441), candidate selection
+(2310.07937, CoNVOI), LLM-arbiter ordering (LLMDR), social corridor
+decision (NOD 2504.20947), trace prompting (TraceVLA), structured motion
+summaries (MotionVLA); versus REALM (2404.06413): discrete bounded
+arbitration instead of free waypoints over CBFs, warehouse BEV setting,
+and — the actual contribution — the **controlled two-arm evaluation with
+shadow logging and a tiered battery answering when/whether the VLM helps**.
+Avoid "first"/per-pillar novelty claims; SocialNav-SUB (2509.08757) and
+TempVS (2506.10415) motivate input design (weak VLM spatial/sequence
+reasoning → text tables + traces + selection-not-generation).
 
-## Failure containment (precise claims)
+## Out of scope (future work)
 
-- VLM outputs are restricted to system-generated discrete options
-  (candidate labels, robot ids, enum values); every accepted choice is
-  **geometrically revalidated at grounding time** (swept-segment checks for
-  retreat; permutation checks for ordering). A schema-valid but
-  geometrically-invalidated choice is replaced by the deterministic
-  default and logged.
-- What can still reach M4: a *valid but suboptimal* choice (e.g., the
-  worse of two safe retreat sides). This is bounded by construction —
-  every executable option passed the same swept-path safety checks — and
-  is exactly the residual the baselines section measures.
-- Degradations are logged with `*=default` markers so fallback frequency
-  is measurable from decision artifacts.
+Rotation/roundabout strategy; occupancy-grid free-space search; VLM metric
+coordinate output (candidate densification is the on-ramp); multi-frame/
+video input (rejected on TempVS evidence; revisit as models improve);
+task-level escalation via M5's registry (MRTA/TAMP scope).
 
 ## Testing
 
-- **Unit (offline):** Pillar-1 derivations from synthetic snapshots
-  (multi-robot clearance, projection math, feasibility-band edges —
-  required-distance out-of-band ⇒ reroute outcome, never a truncated
-  maneuver; missing-snapshot ⇒ non-spatial wait outcome, never executable
-  constants); candidate generation with swept-path filtering (cases: both
-  sides valid / one side blocked by a robot on the swept segment — not
-  endpoint — / zero valid → reroute outcome); ranking determinism;
-  label mapping + hallucinated-label → geometry-best; yield_robot /
-  crossing_order validation (missing, non-member, non-permutation);
-  release-chain ordering for 3- and 4-robot synthetic cases keyed on the
-  projected predicate for every robot including the first passer (case:
-  escort terminal fires but projected progress < clearance ⇒ successor
-  NOT released); hold-until-last + rejoin phase ordering; wait-timeout → FAILED + suppression
-  retention; compatibility-matrix enforcement (in-set pass-through; out-of-set →
-  per-kind default, logged; unclassified → unconstrained); previous-attempt
-  block present in re-analysis prompts and absent in first analyses;
-  snapshot ring buffer: trail-point extraction, gap fallback to traceless
-  frame with `history=unavailable`; motion-table derivation from synthetic
-  snapshot sequences (arrival order, stop durations); trail-polyline
-  annotation rendering (pixel mapping via homography, fading order);
-  parser round-trips for all new fields.
-- **E2E (host):** (1) `head_on_deadlock` regression — derived distances
-  near 1.3/2.4, single cycle, rejoin works, goals reached; (2)
-  `intersection_bottleneck` — 4 robots, ordered crossing, yielder holds
-  until last clears, no re-collision; (3) `dynamic_anomaly` paired
-  counterfactuals — object vs transient variants, divergent classified
-  responses. Decision artifacts show stage-1 and stage-2 outputs +
-  justifications.
+- **Unit (offline):** all rev-3..6 items (derivations, feasibility edges,
+  candidate sweep validation, ranking determinism, label fallback,
+  order validation, release chain incl. escort-terminal-not-clearance
+  case, hold-until-last, wait-expiry suppression retention,
+  compatibility-matrix enforcement, ring buffer/trails/motion-table,
+  failure-context block presence) **plus:** Arm B classical reasoner
+  (deterministic outputs on synthetic snapshots), shadow-logging
+  plumbing (disagreement flag correctness), modality-condition prompt
+  assembly.
+- **E2E (host):** per tier — T1 regression both arms; T2 variants
+  (FCFS-wrong case shows the disagreement machinery); T3 counterfactual
+  pairs + obstacle-in-candidate + adaptation trajectory (wait → forced
+  expiry → informed reroute). Decision artifacts must contain both arms'
+  answers per decision.
 
 ## Files touched (expected)
 
-- `reasoning/schemas/vlm_decision.schema.json` (+ a stage-2 response
-  schema), `reasoning/vlm/models.py`, `output_parser.py`,
-  `prompt_builder.py` (stage-1 fields, motion-table block, stage-2
-  prompt) — single-image backends unchanged (no multi-image support
-  needed; a deliberate simplification from the trace mechanism)
-- `ros2_ws/src/swarm_orchestrator/.../orchestrator_node.py` (snapshot
-  ring buffer, trail-point + motion-table derivation)
+- `reasoning/schemas/` (stage-1 fields, stage-2 response schema),
+  `reasoning/vlm/` (models, parser, prompt builder: temporal/failure
+  blocks, modality conditions, annotation-scheme sentence)
 - `reasoning/rag/command_grounder.py` (snapshot param, derivations,
-  candidate generation/validation/ranking, ordering, blocker mapping,
-  no-valid-candidate reroute outcome)
-- `ros2_ws/src/swarm_orchestrator/.../reasoning_pipeline.py` (two-stage
-  orchestration; snapshot pass-through; candidate pixels to M1)
-- `ros2_ws/src/swarm_perception/.../annotation.py` (+node plumbing) for
-  candidate markers and trajectory-trail polylines
-- `ros2_ws/src/swarm_execution/.../command_bus_node.py` (sequenced release
-  chain, hold-until-last, rejoin, timeout-FAILED semantics),
-  `coordination_client_node.py`/`base_mission.py` (suppression retention on
-  unresolved FAILED), `nav2_adapter.py` (escort heading from odom, signed
-  projected progress)
-- Tests mirroring each of the above.
+  candidates, ordering, compatibility matrix, infeasible outcomes) + a
+  new `reasoning/baselines/classical_reasoner.py` (Arm B + shadow)
+- `swarm_orchestrator/` (two-stage orchestration, ring buffer, motion
+  table, arm/condition switching, shadow logging in decision artifacts)
+- `swarm_perception/annotation.py` (legibility pass, trails, candidate
+  markers)
+- `swarm_execution/` (sequenced release, rejoin, wait-expiry semantics,
+  escort heading, projected-progress predicates)
+- `isaac/config/scenarios/` + assets (T2/T3 battery, obstacle assets,
+  USD rebuilds)
+- Tests mirroring each.
