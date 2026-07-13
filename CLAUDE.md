@@ -7,6 +7,7 @@
 - Initial draft: architecture overview, file layout, commands, and development standards for Claude Code.
 - Rev 2 (2026-06-10): reformatted to follow `docs/standards/doc_style.md`.
 - Rev 3 (2026-06-11): synced Development Standards with `docs/standards/coding_style.md`; added `isaac/` to File Layout; expanded Module Boundaries, Error Handling, ROS2, Logging, Pydantic, OpenCV, VLM/RAG, Dependencies, Secrets, and External Library Verification sections.
+- Rev 4 (2026-07-11): added Implementation Notes maintenance rule (`docs/implementation_notes.md`).
 
 ---
 
@@ -332,6 +333,10 @@ Before implementing against version-sensitive APIs, verify current official docs
 
 Record important setup facts in the relevant spec or setup document.
 
+### Implementation Notes
+
+`docs/implementation_notes.md` is the project's living implementation log. Whenever implementation work lands — a verified fix, a locked design decision, a discovered gotcha, or a phase milestone — append a dated entry to the matching module section, following the maintenance rules at the top of that file (append-only, newest first, absolute dates, link the commit/doc/file as evidence, mark superseded entries instead of rewriting). Do not duplicate spec or report content there; link it. This log does not replace module implementation reports in `docs/reports/`.
+
 ### Commit Messages
 
 Use Conventional Commits: `type: summary`. Common types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`. Subject line under 72 characters. No body; reasoning belongs in the PR description, spec, or module implementation report. No `Co-Authored-By` trailer.
@@ -357,6 +362,7 @@ Use Conventional Commits: `type: summary`. Common types: `feat`, `fix`, `docs`, 
 ## References
 
 - **Module decomposition:** `docs/modules.md`
+- **Implementation log:** `docs/implementation_notes.md`
 - **M1 implementation spec:** `docs/specs/module1_perception.md`
 - **Coding standards:** `docs/standards/coding_style.md`
 - **Documentation standards:** `docs/standards/doc_style.md`
