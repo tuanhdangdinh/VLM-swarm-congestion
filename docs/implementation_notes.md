@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: living log created; seeded with verified notes from M1/M4/M6 work through 2026-07-08 and the congestion-reasoner program state.
+- Rev 2 (2026-09-15): added a Repo Tooling & CI section for repository-wide findings that do not belong to a single module.
 
 ---
 
@@ -69,6 +70,11 @@ Rules for maintaining it:
 
 ## M1 Perception
 
+- **2026-09-15** — OpenCV 5.x returns `cv2.aruco.detectMarkers` ids as 1-D
+  `(N,)`, not the 4.x `(N, 1)`, so `detection.py:95` raises `IndexError` on
+  every detection and M1 is non-functional on a fresh install. Validated fix:
+  `[int(i) for i in np.asarray(ids).reshape(-1)]`. Finding A3 in
+  `docs/reports/2026-09-15-repo-audit.md`.
 - **2026-07-03** — Colliding/overlapping ArUco markers make robots go STALE
   (marker lost), not STOPPED, which delays stall detection. Mitigation:
   `stale_after_sec` ≥ 3.0 and `velocity_alpha` ≈ 0.15 in the perception
@@ -84,6 +90,15 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-15** — `build_backend` substitutes a default `OpenAIBackendConfig()`
+  when config is absent, while `llama_server` and `anthropic` raise; its own
+  docstring and `test_openai_backend.py:131` both expect the raise. Open
+  decision, not a mechanical fix. Finding A6 in
+  `docs/reports/2026-09-15-repo-audit.md`.
+- **2026-09-15** — The close/slow-pair reset in `congestion_detector.py:134-135`
+  works, but its only test is confounded by the independent progress-stall path,
+  so the reset itself has no passing coverage. Finding A5 in
+  `docs/reports/2026-09-15-repo-audit.md`.
 - **2026-07-05** — M6→M1→M5→M2 closed loop runs end-to-end on the GCP/Isaac
   host with the mock backend; the only remaining swap for live reasoning is
   `backend_id: openai`, blocked on an API key.
@@ -96,6 +111,11 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-15** — The `Nav2Adapter` test fixture bypasses `__init__` via
+  `__new__` and hand-sets 3 of the 8 attributes it assigns, so all 13 tests fail
+  on `_backup_timers`; production code is correct. The same bypass is used at 16
+  sites across four test files and carries the same latent failure. Finding A4
+  in `docs/reports/2026-09-15-repo-audit.md`.
 - **2026-07-03** — Deadlock fix "H3" branch merged and verified (runs 8–13):
   separation and single-cycle resolution fixed; motion BVH requires the
   triple kit-arg. Open item at merge time: Nav2 pull-off recovery loop
@@ -124,6 +144,10 @@ Rules for maintaining it:
 
 ## M6 Simulation / Isaac Sim
 
+- **2026-09-15** — `tests/unit/test_m6_config.py:159` still asserts
+  `effective_width_m == 0.4` although the corridor has been 0.55 m since
+  2026-07-04 (commit `aa80d96`); the config is correct and the assertion is
+  stale. Finding A7 in `docs/reports/2026-09-15-repo-audit.md`.
 - **2026-07-04** — Aisle-width congestion gap closed: 0.55 m × 2.0 m
   `aisle_barrier` corridor built and verified in
   `isaac/config/scenarios/head_on_deadlock.yaml`.
@@ -141,3 +165,24 @@ Rules for maintaining it:
   `docs/reports/2026-06-21-m6-fabric-sync-investigation.md`).
 - **2026-06-18** — The Isaac Sim machine is Windows: guides and commands for
   that host use PowerShell and `python.bat` (see `docs/guides/`).
+
+---
+
+## Repo Tooling & CI
+
+- **2026-09-15** — Python CI has never passed: all 28 `python_ci.yml` runs from
+  2026-06-05 to 2026-07-13 failed at `ruff check .` (167 errors), which runs
+  before the `pytest` step, so the suite has never executed in CI. Full audit:
+  `docs/reports/2026-09-15-repo-audit.md`.
+- **2026-09-15** — Bare `pytest` aborts during collection: three test modules
+  import `pxr` without `pytest.importorskip`, giving `Interrupted: 3 errors` and
+  zero tests run. Sibling USD tests already use the guard. Finding A2.
+- **2026-09-15** — The `-m "not ros2"` escape hatch advertised in
+  `pyproject.toml` does not restore a clean run (deselects 4, leaves 69
+  failures), and `isaac_sim` is used as a marker at 7 sites without being
+  registered; environment-dependent tests need `importorskip`, not just a
+  marker. Finding A10.
+- **2026-09-15** — Dependency declarations are unpinned and incomplete:
+  `opencv-contrib-python>=4.8` admitted the OpenCV 5 break behind finding A3,
+  and `pyproject.toml` omits `numpy`, `opencv-contrib-python`, `Pillow`, and
+  `requests` although runtime code imports all four. Findings A8, A9.
