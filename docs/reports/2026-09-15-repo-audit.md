@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: full-repository audit of CI state, test-suite health, dependency pinning, standards conformance, and secrets hygiene at commit `0ad2a68`.
+- Rev 2 (2026-09-15): added finding A15 from an end-to-end trace of the goal-pose coordinate chain; IDs are assigned in discovery order, so A15 appears under Critical Findings by severity, not last.
 
 ---
 
@@ -24,6 +25,7 @@
 - Runtime dependency declarations across `pyproject.toml`, `requirements.txt`, `requirements-dev.txt`, `package.xml`, and `setup.py`, against actually-installed versions.
 - Tracked files scanned for credential-shaped strings; `.gitignore` and `.env.example` reviewed.
 - Spot conformance checks against `CLAUDE.md`: ROS2 callback discipline, Pydantic contracts, module boundaries, marker registration, and test-isolation rules.
+- The goal-pose coordinate chain end to end (Rev 2): orchestrator goals, scenario spawn poses, occupancy-map origin and extent, the static `map` to `odom` transform, and the frame stamped on outgoing Nav2 goals.
 
 ### This Report
 
@@ -59,6 +61,7 @@ remediation order; it does not apply any fix.
 | A11 | Medium | Lint | 167 ruff errors across the tree |
 | A12 | Low | Docs | `.env.example` omits `ANTHROPIC_API_KEY` |
 | A13 | Low | Docs | `CLAUDE.md` file layout omits `swarm_execution/` |
+| A15 | Critical | M4 / M6 | Stale spawn offsets displace Nav2's `map` frame by 0.9 m |
 
 ---
 
@@ -157,6 +160,73 @@ ids_flat = [int(i) for i in np.asarray(ids).reshape(-1)]
 `isaac/scripts/probe_cam_change.py:118` and
 `isaac/scripts/probe_physxfabric.py:162` already use the equivalent
 `ids.flatten()` idiom, so the robust form has in-tree precedent.
+
+### A15 — Stale spawn offsets displace Nav2's `map` frame by 0.9 m
+
+`scripts/run_phase3_demo.sh` is the only script that runs the full closed loop,
+and the only caller of `nav2_robot.launch.py`. It passes spawn offsets that no
+longer match the scenario it launches at line 107.
+
+| Robot | Demo script (`run_phase3_demo.sh:144,150`) | Scenario (`isaac/config/scenarios/head_on_deadlock.yaml`) | Delta |
+|---|---|---|---|
+| `robot_1` | `x:=-0.6 y:=0.0 yaw:=0.0` | `spawn: {x: -1.5, y: 0.0, yaw_rad: 0.0}` | 0.9 m |
+| `robot_2` | `x:=0.6 y:=0.0 yaw:=3.14159265` | `spawn: {x: 1.5, y: 0.0, yaw_rad: 3.14159...}` | 0.9 m |
+
+Both commits land on the same day:
+
+```text
+35aad18  2026-07-04 13:43  feat: add phase3 closed-loop demo orchestration script   (adds x:=+-0.6)
+0a0604c  2026-07-04 15:30  fix: spawn robots outside corridor so they enter aligned  (spawn +-0.6 -> +-1.5)
+```
+
+`run_phase3_demo.sh` has exactly one commit in its history, so it was never
+updated after the spawn change. The scenario file names the superseded value
+directly: "Spawning inside the tunnel (the old +-0.6) wall-locked both robots
+at t=0."
+
+**Mechanism.** Those arguments set the static `map` to `<robot_id>/odom`
+transform at `nav2_robot.launch.py:212-231`, which must equal the robot's true
+spawn pose. Per the Task 5 correction in `docs/specs/module4/phase2-nav2-stack.md:73-91`,
+`IsaacComputeOdometry` is spawn-relative, not absolute-world: 300 reads of
+`/robot_1/odom` showed `position ~ (0, 0, 0)` while the chassis's true world
+pose stayed at `x=-0.6`. A wrong transform value therefore displaces Nav2's
+entire `map` frame from the world frame that M1 and M5 use.
+
+**Consequences.**
+
+- **Goals land 0.9 m short.** `robot_1` must travel `3.0 - (-0.6) = 3.6 m` in
+  odom to satisfy `map` x=3.0, ending at true world `-1.5 + 3.6 = +2.1 m`.
+  `robot_2` ends symmetrically at `-2.1 m`. Neither reaches the intended
+  `+-3.0`.
+- **Costmap misregistration exceeds the corridor width.** The barrier blocks
+  span x=+-1.0 with a 0.55 m gap. A 0.9 m pose error means the LIDAR-derived
+  local costmap and the static global costmap disagree by more than the
+  corridor is wide, in a scenario where `collision_monitor` is already the
+  documented veto on transit.
+- **M5 can never observe goal completion.** M1 publishes true world
+  coordinates from the overhead homography, so M5 measures distance-to-goal
+  against `+-3.0` while the robots park at `+-2.1`. The 0.9 m residual keeps
+  tripping `stall_threshold_sec: 12.0` and `command_timeout_sec: 20.0`,
+  presenting as a reasoning or behavior failure rather than a transform bug.
+
+**Why it is rated Critical.** Unlike A1 through A3, which prevent things from
+running at all, this one runs and produces plausible-looking but wrong results.
+It sits directly in the path of the experiment about to be frozen at
+`prereg-v1`, and nothing detects it: no launch test references the spawn values
+(`test_nav2_navigation_launch.py`, `test_execution_launch.py`), and
+`tests/simulation/test_m4_phase2_nav2.py:37` documents the launch command
+without asserting the offsets.
+
+**Root cause.** The spawn pose is duplicated: authoritative in the scenario
+YAML, where it drives USD placement at `isaac/vgu_sim/scenario_builder.py:82-84`,
+and restated as a hardcoded shell argument. The durable fix is for the demo to
+read spawns from the scenario file it already passes, rather than repeat them —
+which removes the class of defect rather than this instance. This compounds
+with the 2026-07-01 note that scenario edits are inert until `build_scenario`
+regenerates the USD.
+
+The `yaw` difference (`3.14159265` against `3.141592653589793`, about 3.6e-9 rad)
+is immaterial.
 
 ---
 
@@ -423,6 +493,10 @@ Failure distribution with the three uncollectable modules excluded:
 | No credentials in tracked files | none | none — PASS |
 | No blocking calls in ROS2 callbacks | none | none — PASS |
 | Runtime deps declared in `pyproject.toml` | all | 4 missing — FAIL |
+| Orchestrator goals match scenario goals | identical | `(3.0, 0)` / `(-3.0, 0)` in both — PASS |
+| Goals inside map extent | within 12.0 x 8.0 m about origin `(-6, -4)` | `+-3.0` well inside — PASS |
+| Outgoing Nav2 goal carries a frame | `map` | `frame_id = "map"` — PASS |
+| Static `map`-to-`odom` equals true spawn pose | `+-1.5` | `+-0.6` passed, 0.9 m displacement — FAIL |
 
 ---
 
@@ -436,6 +510,7 @@ Failure distribution with the three uncollectable modules excluded:
 | A8 admits further silent breaking upgrades | Add upper bounds for version-sensitive packages, starting with `opencv-contrib-python` |
 | A5 leaves close-pair reset logic unverified while it is load-bearing for congestion detection | Rebuild the test so only the close-pair path can fire |
 | Fixing 167 lint errors in bulk risks touching unrelated files | Use `ruff check --fix` for the 98 auto-fixable, then hand-review E501, E402, and B017 |
+| A15 silently invalidates closed-loop runs and would corrupt pre-registered results | Derive spawns from the scenario YAML, add a launch test asserting the transform matches it, and re-run Phase 3 before tagging `prereg-v1` |
 
 ---
 
@@ -443,17 +518,20 @@ Failure distribution with the three uncollectable modules excluded:
 
 Ordered so each step makes the next one verifiable.
 
-1. Guard the three `pxr` imports with `pytest.importorskip` (A2) — the suite becomes runnable.
-2. Fix `detection.py:95` and add shape-independent coverage (A3) — M1 works; 49 tests recover.
-3. Clear lint: `ruff check --fix`, then hand-fix E501, E402, B017 (A11) — CI reaches `pytest` for the first time.
-4. Add dependency upper bounds and complete `pyproject.toml` (A8, A9).
-5. Repair the `Nav2Adapter` fixture (A4), update the two stale assertions (A7), and re-isolate the close-pair test (A5).
-6. Register the `isaac_sim` marker and guard the Isaac and `rclpy` tests (A10).
-7. Settle the openai factory semantics, then align docstring and test (A6).
-8. Documentation touch-ups (A12, A13).
+1. Derive the demo's spawn offsets from the scenario YAML and add a launch test pinning the transform (A15) — independent of the test work below, and blocking for any run whose results will be trusted.
+2. Guard the three `pxr` imports with `pytest.importorskip` (A2) — the suite becomes runnable.
+3. Fix `detection.py:95` and add shape-independent coverage (A3) — M1 works; 49 tests recover.
+4. Clear lint: `ruff check --fix`, then hand-fix E501, E402, B017 (A11) — CI reaches `pytest` for the first time.
+5. Add dependency upper bounds and complete `pyproject.toml` (A8, A9).
+6. Repair the `Nav2Adapter` fixture (A4), update the two stale assertions (A7), and re-isolate the close-pair test (A5).
+7. Register the `isaac_sim` marker and guard the Isaac and `rclpy` tests (A10).
+8. Settle the openai factory semantics, then align docstring and test (A6).
+9. Documentation touch-ups (A12, A13).
 
-Steps 1 through 4 and 6 are mechanical and verifiable against the suite. Step 5
-is mechanical but requires care not to mask real behavior. Step 7 needs an owner
+Step 1 stands apart: it needs the Isaac host and the `vgu_ros` container to
+verify, not the unit suite, and it gates the validity of any Phase 3 run.
+Steps 2 through 5 and 7 are mechanical and verifiable against the suite. Step 6
+is mechanical but requires care not to mask real behavior. Step 8 needs an owner
 decision before any code changes.
 
 ---

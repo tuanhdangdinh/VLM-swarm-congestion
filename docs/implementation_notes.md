@@ -111,6 +111,16 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-15** — `scripts/run_phase3_demo.sh` still passes the superseded
+  `x:=±0.6` spawn offsets to `nav2_robot.launch.py`, while the scenario it
+  launches spawns at `±1.5` (changed in `0a0604c`, ~2h after the demo script
+  landed in `35aad18`; the script has never been updated). Because
+  `IsaacComputeOdometry` is spawn-relative, that static `map → odom` transform
+  must equal the true spawn pose, so Nav2's `map` frame is displaced 0.9 m in x
+  from the world frame M1 and M5 use: goals land 0.9 m short, the costmap
+  misregisters by more than the 0.55 m corridor width, and M5 never sees goal
+  completion. Fix by deriving spawns from the scenario YAML rather than
+  restating them. Finding A15 in `docs/reports/2026-09-15-repo-audit.md`.
 - **2026-09-15** — The `Nav2Adapter` test fixture bypasses `__init__` via
   `__new__` and hand-sets 3 of the 8 attributes it assigns, so all 13 tests fail
   on `_backup_timers`; production code is correct. The same bypass is used at 16
