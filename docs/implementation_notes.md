@@ -356,7 +356,13 @@ Rules for maintaining it:
   because the camera localizer publishes only after its first fix; the
   lifecycle manager aborted and Nav2 was activated by hand. Fix: seed
   the localizer with the spawn pose at startup (AMCL's `initial_pose`
-  semantics) — in progress. (4) M1 both-marker rate 85.7 % over the M5
+  semantics) — **landed** the same day: `CameraLocalizer(initial_map_to_odom=…)`
+  + node params `set_initial_pose` / `initial_pose.{x,y,yaw}` wired from
+  the launch `x/y/yaw` args; valid because odometry is spawn-relative
+  (identity at t = 0), so the spawn pose in map *is* `map → odom` at
+  startup. The first real fix replaces the seed (logged once with
+  `replaced_seed=true`); a STALE hold before any fix keeps it. Host-
+  unverified. (4) M1 both-marker rate 85.7 % over the M5
   window, 83.8 % during the parked hold (per-robot split lost to a
   recorder truncation). (5) The yield-refusal guard was not exercised.
 - **2026-09-16** — **Safety monitor STALE fail-safe.** `safety.py`
