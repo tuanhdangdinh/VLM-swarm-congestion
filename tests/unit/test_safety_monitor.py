@@ -114,6 +114,80 @@ def _make_node(min_distance_m: float = 0.3) -> tuple[SafetyMonitorNode, list[str
     return node, stops
 
 
+class _FakeAdapter:
+    """Records `cancel()` calls, standing in for `Nav2Adapter` in isolation.
+
+    `_cancel_nav2_goal` now just delegates to `self._adapter.cancel(robot_id)`
+    (see `nav2_adapter.py::cancel`), so these tests only need to observe that
+    delegation, not a real action-client/service round trip — that is already
+    covered by `test_nav2_adapter.py`.
+    """
+
+    def __init__(self) -> None:
+        self.cancelled: list[str] = []
+
+    def cancel(self, robot_id: str) -> None:
+        self.cancelled.append(robot_id)
+
+
+class _RecordingLogger:
+    def __init__(self) -> None:
+        self.warnings: list[str] = []
+        self.infos: list[str] = []
+
+    def warning(self, msg) -> None:
+        self.warnings.append(str(msg))
+
+    def info(self, msg) -> None:
+        self.infos.append(str(msg))
+
+
+def test_latch_requests_cancel_all_through_adapter():
+    # _make_node stubs _cancel_nav2_goal as a no-op so the pure-latching tests
+    # above don't need an adapter; this test restores the real method to
+    # exercise its delegation to Nav2Adapter.cancel.
+    node, _stops = _make_node(min_distance_m=0.3)
+    fake_adapter = _FakeAdapter()
+    node._adapter = fake_adapter
+    del node._cancel_nav2_goal
+    node.get_logger = lambda: _RecordingLogger()
+    scene = {
+        "robots": [
+            {"robot_id": "robot_1", "x": 0.0, "y": 0.0},
+            {"robot_id": "robot_2", "x": 0.2, "y": 0.0},
+        ]
+    }
+
+    node._on_scene_state(_StringMsg(json.dumps(scene)))
+
+    assert sorted(fake_adapter.cancelled) == ["robot_1", "robot_2"]
+
+    # The hold timer re-issues the zero-Twist but must not re-request a
+    # cancel-all on every 40 Hz tick for a robot already latched.
+    node._hold_stops()
+    assert sorted(fake_adapter.cancelled) == ["robot_1", "robot_2"]
+
+
+def test_cancel_log_no_longer_claims_result():
+    # The old log line ("nav2 goal cancelled robot=...") asserted a result the
+    # node never observed, because cancel_goals_async() silently no-op'd. The
+    # new line only claims the request was made; the adapter logs the actual
+    # server response separately (see test_nav2_adapter.py).
+    node, _stops = _make_node(min_distance_m=0.3)
+    node._adapter = _FakeAdapter()
+    del node._cancel_nav2_goal
+    logger = _RecordingLogger()
+    node.get_logger = lambda: logger
+
+    node._cancel_nav2_goal("robot_1")
+
+    assert any(
+        "cancel-all requested" in msg and "robot=robot_1" in msg
+        for msg in logger.infos
+    )
+    assert not any("cancelled" in msg for msg in logger.infos)
+
+
 def test_callback_stops_both_robots_on_proximity_violation():
     node, stops = _make_node(min_distance_m=0.3)
     scene = {

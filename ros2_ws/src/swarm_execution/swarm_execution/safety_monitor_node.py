@@ -34,21 +34,18 @@ from pathlib import Path
 
 try:
     import rclpy
+    import yaml
     from ament_index_python.packages import get_package_share_directory
     from geometry_msgs.msg import Twist
-    from nav2_msgs.action import NavigateToPose
-    from rclpy.action import ActionClient
     from rclpy.node import Node
     from std_msgs.msg import String
     from swarm_interfaces.msg import CoordinationStatus
-    import yaml
 except ImportError:
     rclpy = None
     Node = object
     CoordinationStatus = None
-    ActionClient = None
-    NavigateToPose = None
 
+from swarm_execution.nav2_adapter import Nav2Adapter
 from swarm_execution.safety import (
     REASON_SPEED_LIMIT,
     SafetyLimits,
@@ -86,8 +83,8 @@ class SafetyMonitorNode(Node):
     def __init__(self) -> None:
         super().__init__("safety_monitor_node")
         self._limits = _load_safety_limits(self)
+        self._adapter = Nav2Adapter(self)
         self._stop_pubs: dict[str, object] = {}
-        self._nav_clients: dict[str, object] = {}
         self._latched_stops: set[str] = set()
         self._coordinating: set[str] = set()
         self._last_fresh_distances: dict[tuple[str, str], float] = {}
@@ -202,23 +199,17 @@ class SafetyMonitorNode(Node):
         self._publish_holds()
 
     def _cancel_nav2_goal(self, robot_id: str) -> None:
-        """Cancel robot_id's active Nav2 goal to stop DWB velocity generation.
+        """Request a Nav2 cancel-all for robot_id to stop DWB velocity generation.
 
-        Uses rclpy ActionClient.cancel_goals_async(goals_to_cancel=None) which
-        sends a cancel-all request without needing the goal handle. This stops
-        DWB from publishing new velocity commands to cmd_vel_nav. Fire-and-forget.
+        Delegates to the shared `Nav2Adapter.cancel`, which sends a real
+        cancel-all request to the `navigate_to_pose` and `follow_waypoints`
+        action servers (see `nav2_adapter.py::cancel`/`_cancel_all`) and logs
+        the server's response itself. `Nav2Adapter.cancel` also clears any
+        backup timers it owns; this monitor's adapter never starts one, so
+        that half is inert here.
         """
-        if ActionClient is None or NavigateToPose is None:
-            return
-        client = self._nav_clients.get(robot_id)
-        if client is None:
-            client = ActionClient(self, NavigateToPose, f"/{robot_id}/navigate_to_pose")
-            self._nav_clients[robot_id] = client
-        try:
-            client.cancel_goals_async(goals_to_cancel=None)
-        except Exception:
-            pass
-        self.get_logger().info(f"nav2 goal cancelled robot={robot_id}")
+        self._adapter.cancel(robot_id)
+        self.get_logger().info(f"nav2 cancel-all requested robot={robot_id}")
 
     def _emergency_stop(self, robot_id: str) -> None:
         self._publish_zero(robot_id)

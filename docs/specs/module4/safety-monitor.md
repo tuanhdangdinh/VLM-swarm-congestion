@@ -360,3 +360,17 @@ apart.
 **Host verification (pending).** After the node-side copy is fixed, latch a pair
 and confirm `controller_server` logs no further `Received a goal, begin
 computing control effort` once the latch fires.
+
+**2026-09-17 — node-side copy fixed.** `_cancel_nav2_goal` no longer keeps its
+own `_nav_clients`/`cancel_goals_async` path; `SafetyMonitorNode.__init__` now
+constructs `self._adapter = Nav2Adapter(self)` (same pattern as
+`command_bus_node` and `coordination_client_node`) and `_cancel_nav2_goal`
+delegates to `self._adapter.cancel(robot_id)`, so the latch path gets the real
+cancel-all fix described above instead of the dead handle-less call. The
+`nav2 goal cancelled robot=…` log line — which asserted a result the node
+never observed — is now `nav2 cancel-all requested robot=…`; the adapter logs
+the server's actual `return_code`/`goals_canceling` response separately, as it
+already does for `command_bus_node` and `coordination_client_node`. Tests:
+`tests/unit/test_safety_monitor.py::test_latch_requests_cancel_all_through_adapter`
+and `::test_cancel_log_no_longer_claims_result` (37 total in that file). The
+host verification above is still pending — this only lands the code-side fix.
