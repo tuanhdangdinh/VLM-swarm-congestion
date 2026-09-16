@@ -161,6 +161,44 @@ Rules for maintaining it:
     avoidable without a post-hoc merge: move the committed URDF+meshes to a
     staging dir, free `isaac/assets/robots/turtlebot3_burger/`, then import —
     the importer writes the un-suffixed path `paths.robot_asset_path()` expects.
+- **2026-09-16** — `vgu_ros` container rebuilt from scratch and verified
+  against host Isaac. The container was never defined in the repo (only
+  `.devcontainer/Dockerfile`, which is a *different* base —
+  `osrf/ros:jazzy-desktop`), so it died with the old VM. Recipe that works,
+  from plain `ros:jazzy` (the image every Nav2 param finding in
+  `docs/specs/module4/phase2-nav2-stack.md` was validated against — do not
+  swap the base without revalidating those):
+  ```
+  docker run -d --name vgu_ros --network host --ipc=host \
+    -v /home/ubuntu/vgu-vlm-swarm:/ws -w /ws ros:jazzy sleep infinity
+  apt-get install -y --no-install-recommends ros-jazzy-navigation2 \
+    ros-jazzy-nav2-bringup python3-colcon-common-extensions python3-opencv \
+    python3-jsonschema python3-pip
+  pip3 install --break-system-packages "pydantic>=2.7"
+  colcon build --symlink-install --merge-install   # in /ws/ros2_ws
+  ```
+  Verified: 5 swarm packages registered, `swarm_interfaces` msgs import,
+  `/clock` delivering at ~12 Hz **inside** the container (data, not just
+  discovery — the 2026-06-19 root cause), `/robot_1/odom` and `/tf` echoing,
+  and `controller_server`/`planner_server`/`bt_navigator` all lifecycle
+  `active` with `/robot_1/navigate_to_pose` live. Notes:
+  - `--network host --ipc=host` plus `FASTRTPS_DEFAULT_PROFILES_FILE=
+    /ws/config/dds/fastdds.xml` on **both** sides remains mandatory.
+  - Stock `ros:jazzy` has numpy and yaml but **no** cv2, pydantic, or
+    jsonschema, and zero nav2 packages.
+  - apt `python3-opencv` is 4.6.0, which exposes `DetectorParameters` but
+    **not** `ArucoDetector`. That is fine and deliberate: `detection.py`
+    version-gates on `ArucoDetector` and takes the legacy
+    `DetectorParameters_create()` path. Do **not** pip-install
+    `opencv-contrib-python` on top — mixing the two is what the 4.6.0 segfault
+    comment in `detection.py` warns about.
+  - apt `jsonschema` is 4.10.3, below `requirements.txt`'s `>=4.22`. The only
+    API used (`Draft202012Validator`) exists in 4.10, so it was left alone —
+    revisit if schema validation misbehaves.
+  - Without Isaac running, `local_costmap` blocks on
+    `robot_1/base_link -> robot_1/odom` and Nav2 never activates. That is
+    expected, not a container fault: the frame comes from Isaac. Nav2 activates
+    on its own once the sim publishes TF.
 - **2026-07-04** — Aisle-width congestion gap closed: 0.55 m × 2.0 m
   `aisle_barrier` corridor built and verified in
   `isaac/config/scenarios/head_on_deadlock.yaml`.
