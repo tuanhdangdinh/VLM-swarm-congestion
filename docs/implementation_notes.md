@@ -278,6 +278,29 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-16** — **`localization:=amcl` option added, host-unverified.**
+  `nav2_robot.launch.py` now takes `localization:=static|amcl` (default
+  `static`, behaviour unchanged). Under `amcl`, the static
+  `map_to_odom_ground_truth` node is not launched; instead a namespaced
+  `nav2_amcl` node (params via the same `RewrittenYaml(root_key=robot_id)`
+  wrapper the vendored navigation launch uses; initial pose from the
+  `x/y/yaw` args; no node-level `/tf` remaps, per the launch docstring's
+  findings) plus a `lifecycle_manager_localization` managing only `amcl`.
+  `nav2_params.yaml` gains an `amcl:` block: Jazzy nav2_bringup defaults
+  except namespace-token frames, absolute `scan_topic`/`map_topic`
+  literals (same failure class as `global_costmap.map_topic`),
+  `laser_{min,max}_range` = LDS 0.12/3.5, `update_min_d/a` tightened to
+  0.05 m / 0.1 rad so a short backup still triggers filter updates.
+  nav2_bringup's `localization_launch.py` is deliberately not used (it
+  hardcodes its own `map_server`, colliding with the shared one).
+  **Why:** the static transform is a ground-truth shortcut (disclosed in
+  the experiment spec, App. A.7); AMCL leaves `/odom` untouched, so M4's
+  odometry-closed primitives are unaffected by this step alone. Plan,
+  risks (symmetric-corridor particle flip; `xy_goal_tolerance 0.1` margin;
+  M1/map alignment unverified) and the odometry-noise follow-up:
+  `docs/superpowers/plans/2026-09-16-amcl-localization-plan.md`. Host
+  checks still to run are listed in `docs/specs/module4/phase2-nav2-stack.md`
+  (2026-09-16 section).
 - **2026-09-16** — Goal coordinates verified end-to-end on the rebuilt stack:
   with `nav2_robot.launch.py` given the scenario spawns (`x:=-1.5` /
   `x:=1.5 yaw:=3.14159265`), Nav2 logged `Begin navigating from current
