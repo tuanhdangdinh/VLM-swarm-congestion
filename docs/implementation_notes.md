@@ -293,6 +293,28 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-16** — **AMCL option executed on host (run B): mechanism
+  verified, localization fails because the map lacks the barrier.**
+  With `localization:=amcl` both `/robot_N/amcl` reached `active`, the
+  static `map_to_odom_ground_truth` was correctly absent, AMCL published
+  `map → robot_N/odom` equal to the spawn poses, params bound under the
+  namespace (`base_frame_id robot_1/base_footprint`, `scan_topic
+  /robot_1/scan`), Nav2 navigated from the AMCL pose, and there were
+  **zero** TF/map/scan warnings — the launch/params design holds. But
+  once the robots moved, stamp-matched error vs the (now correct)
+  ground truth settled at 0.77–1.10 m for robot_2 (five samples, mean
+  0.93) and 1.40 m for robot_1 (one sample), against M1's 0.03–0.07 m;
+  robot_2's lateral error alone (~0.6 m) would place it inside the aisle
+  wall. Cause found offline: `warehouse_map.pgm` was generated from
+  `WarehouseConfig` on 2026-06-25 (`494cbba`), before the `aisle_barrier`
+  existed; it has **0 occupied cells** in x∈[−1,1], y∈[0.275,0.6] where the
+  0.90 m block is, so AMCL fits scans of 0.55 m corridor walls to a map
+  that says the aisle is 1.2 m wide. Fix in progress: per-scenario map
+  (`generate_warehouse_map.py --scenario`) rasterizing the barrier, and a
+  `map_yaml` launch argument. Measurement gotcha for future checks:
+  `/robot_N/amcl_pose` is RELIABLE + TRANSIENT_LOCAL and only updates on
+  ≥ `update_min_d` motion, so `topic echo --once` returns a possibly
+  minutes-old pose; compare by `header.stamp`, not sample time.
 - **2026-09-16** — **`localization:=amcl` option added, host-unverified.**
   `nav2_robot.launch.py` now takes `localization:=static|amcl` (default
   `static`, behaviour unchanged). Under `amcl`, the static
