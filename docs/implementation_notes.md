@@ -84,6 +84,38 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-16** — **Full closed loop verified key-less on the new VM** (run 4,
+  05:19–05:28 UTC): Isaac → M1 → M5 stall detection → scripted mock decision
+  (`VGU_MOCK_DECISION_FILE=config/mock_decisions/head_on_yield.json`) → M3
+  grounding → `dispatch` → M4 `command received ... action=yield` (robot_1)
+  + `temporary_wait` (robot_2) → backup → pull-off → hold + escort → both
+  `COMPLETED` → `resume base mission`. Stage durations (36 s backup, 33 s
+  pull-off, 74 s escort) match the grounded 1.3 m / 0.35 m / 2.4 m at
+  0.1 m/s and a ~0.35× realtime factor; robot_2 finished at map x≈−2.93
+  (goal −3.0). This is the first time M3/M4 dispatch has been driven
+  without a live VLM. Caveats, all observed in the same run:
+  - **The trigger was not the July standoff.** No `safety stop` fired and
+    `/safety/holds` stayed empty; M5 fired on `robots=['robot_2'] reason=1
+    robot(s) stalled` after robot_2's planner failed (`Failed to create a
+    plan from potential`) at ~1 m separation (odom: robot_1 +1.03 m,
+    robot_2 +0.91 m from ±1.5 spawns). Leading hypothesis, unconfirmed: the
+    newly added visual meshes make each robot visible to the other's RTX
+    lidar, so Nav2 blocks earlier than the 0.45 m safety envelope. If true,
+    the experiment's "deadlock" now manifests as a planner stall, not a
+    nose-to-nose standoff — revalidate the congestion spec's onset
+    assumptions before collecting Arm A/B runs.
+  - robot_1 stuck after resume (`Failed to make progress` ×3 from
+    1789536382), parked at odom (0.46, 0.34) near the wall — the open
+    pull-off Nav2 recovery-loop item from 2026-07-03, reproduced.
+  - M1 reported both robots `STALE` from 05:25:45 with byte-identical
+    `scene_state` payloads thereafter; robot_2 at x≈−2.93 is at the ±3 m ROI
+    edge, but robot_1 at x≈−1.18 was in view, so this looks like frames
+    stopping rather than detection failing. Not yet diagnosed.
+  - Nav2 ERROR on both robots: `inflation radius (0.070) is smaller than
+    the computed inscribed radius (0.080) of your footprint`. Not yet
+    assessed whether this predates the rebuild.
+  - Perception stamps ran ~9 s ahead of M5's clock (wall vs sim time);
+    `frame_scene_max_skew_sec` did not block this run but worth knowing.
 - **2026-09-16** — Key-less closed loop on the new VM stalls at M2 by design,
   not by fault: with `reasoning_backend_id: mock` M5 detected the standoff
   (`2 robot(s) close/slow >= 12.0s`, later `stalled >= 12.0s`), started an
