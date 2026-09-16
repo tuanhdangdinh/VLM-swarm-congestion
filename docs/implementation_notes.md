@@ -329,6 +329,35 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-17** — **Defect: the safety latch does not hold the robots
+  still — they creep into contact while latched.** Seen by the user on
+  the run-G video and confirmed frame by frame: at the latch (frame 6878)
+  the robots are ~0.45 m apart with both markers detected; 47 s later
+  (frame 7400), still latched and before any M5 decision, the two ArUco
+  quads fully overlap and M1 shows both as `STALE`. Ground truth in run E
+  showed the same: 0.354 → 0.085 m over ~36 sim-s via intermittent
+  velocity blips ≤ 0.062 m/s. Every earlier "standoff" (runs 6–8, A, C,
+  D) also ended at ~0.08–0.12 m — contact — so this has been the norm,
+  masked because contact happened to occur before or during M5's
+  decision. Consequence chain: contact ⇒ overlapping markers ⇒ M1 blind
+  ⇒ VLM reasons on stale poses and the annotated frame shows a merged
+  blob. What the logs rule out (run G, robot_1, latch window): Nav2
+  received no goals and ran no recovery behaviours after the cancel; the
+  only publishers on `/robot_1/cmd_vel` are `safety_monitor_node` (zero
+  twists), `collision_monitor` (relaying a stopped controller) and
+  `command_bus_node` (idle). Unresolved whether a residual non-zero
+  command leaks through the relay or whether the wheels roll under a
+  zero-velocity drive with weak gains (URDF import warned "actuator
+  without gain parameters"). Fix in progress that settles both:
+  **authoritative hold in the Isaac-side `cmd_vel` relay** — any robot in
+  `/safety/holds` gets zero on `cmd_vel_safe` regardless of publishers
+  (coordination lift is already expressed by removal from `held`). If
+  creep persists with the relay at zero, the cause is physics and the
+  next fix is wheel-drive damping/brake. Side observation from the same
+  logs: in the 60 s before the latch `bt_navigator` received a "goal
+  preemption request" every ~1 s — `coordination_client` is re-issuing
+  the base goal continuously, restarting DWB each time; worth a look at
+  `BaseMissionDriver` acceptance tracking.
 - **2026-09-16** — **Run G (recorded): resolution on film under camera
   localization; two runbook fragilities.** `scripts/record_topic_video.py`
   (new; cv2 `mp4v`, one frame per message stamped at a fixed fps,
