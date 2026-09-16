@@ -103,8 +103,26 @@ Rules for maintaining it:
   robot at its goal was half off-frame. Goal spheres are baked into the
   scenario USD, so this needs `build_scenario` on the sim host. `GroundFn`
   became a `Protocol` to express the keyword. 11 new unit tests; suite
-  failures unchanged from the pre-existing 21. Live verification pending
-  at the time of writing.
+  failures unchanged from the pre-existing 21.
+  **Live verification (run 7, 07:32–07:38 UTC, gpt-4o):** grounded from
+  the real standoff — `park_x_m −1.5`, `backup 1.528` (yielder at x≈+0.03),
+  `escort = passer_clear 2.287` (passer at ≈+0.14; M1 read 0.143). Yielder
+  parked at world ≈ −1.47 (odom), passer escorted 2.291 m then Nav2 to
+  −2.5; **both robots reached their ±2.5 goals and were detected there
+  (`STOPPED`, not `STALE`)** — the ROI change works, and it is the first
+  run in which the yielder completed its mission afterwards rather than
+  looping in DWB recovery (runs 4, 6). gpt-4o: deadlock/yield, 1 743
+  tokens, 5.5 s; 9 post-resolution analyses all `congestion_detected=false`.
+  **Open defect:** at the poll nearest `COMPLETED`, M1 reported
+  `markers_detected: 1, ids_missing: ["robot_1"]` — the yielder was
+  undetected while parked at ≈(−1.47, +0.35). The barrier-occlusion model
+  does **not** explain this pose (the camera ray crosses x = −1 at y ≈ 0.24,
+  over the corridor gap, at z ≈ 1.1 m), so occlusion by the 0.9 m blocks is
+  at most a partial explanation of run 6 and not the mechanism here. Common
+  factor across runs 6/7 is the +0.35 m lateral offset near the corridor
+  mouth; spawn (−1.5, 0) and the goals are detected. Next: static render
+  probe of candidate poses with ArUco detection to separate pose/lighting
+  from dynamic/M1 effects.
 - **2026-09-16** — **First live-VLM closed loop on the new VM** (run 6,
   06:27–06:33 UTC, `reasoning_backend_id: openai`, `gpt-4o-2024-08-06`):
   one analysis (`2 robot(s) close/slow >= 12.0s`) → decision
