@@ -10,10 +10,8 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-
 import swarm_execution.nav2_adapter as nav2_adapter
 from swarm_execution.nav2_adapter import Nav2Adapter
-
 
 # ---------------------------------------------------------------------------
 # Fake infrastructure
@@ -81,6 +79,75 @@ class _FakeActionClient:
         return True
 
 
+class _FakePublisher:
+    def __init__(self) -> None:
+        self.messages: list = []
+
+    def publish(self, msg) -> None:
+        self.messages.append(msg)
+
+
+class _FakeSubscription:
+    def __init__(self, callback) -> None:
+        self.callback = callback
+        self.destroyed = False
+
+
+class _FakeTimer:
+    def __init__(self, callback) -> None:
+        self.callback = callback
+        self.cancelled = False
+
+    def cancel(self) -> None:
+        self.cancelled = True
+
+    def tick(self) -> None:
+        if not self.cancelled:
+            self.callback()
+
+
+class _FakeClock:
+    def __init__(self) -> None:
+        self.seconds = 0.0
+
+    def now(self):
+        return SimpleNamespace(nanoseconds=self.seconds * 1e9)
+
+    def advance(self, delta_sec: float) -> None:
+        self.seconds += delta_sec
+
+
+class _FakeNode:
+    def __init__(self) -> None:
+        self.clock = _FakeClock()
+        self.publishers: dict = {}
+        self.subscriptions: list[_FakeSubscription] = []
+        self.timers: list[_FakeTimer] = []
+        self.destroyed_subs: list = []
+
+    def create_publisher(self, msg_type, topic, qos):
+        pub = _FakePublisher()
+        self.publishers[topic] = pub
+        return pub
+
+    def create_subscription(self, msg_type, topic, callback, qos):
+        sub = _FakeSubscription(callback)
+        self.subscriptions.append(sub)
+        return sub
+
+    def create_timer(self, period, callback):
+        timer = _FakeTimer(callback)
+        self.timers.append(timer)
+        return timer
+
+    def destroy_subscription(self, sub) -> None:
+        sub.destroyed = True
+        self.destroyed_subs.append(sub)
+
+    def get_clock(self):
+        return self.clock
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -88,11 +155,8 @@ class _FakeActionClient:
 
 @pytest.fixture
 def adapter() -> Nav2Adapter:
-    """Nav2Adapter with __init__ bypassed and fake action-client factory."""
-    a = Nav2Adapter.__new__(Nav2Adapter)
-    a._goal_clients: dict = {}
-    a._waypoint_clients: dict = {}
-    a._active_goals: dict = {}
+    """Nav2Adapter built on a fake node, with a fake action-client factory."""
+    a = Nav2Adapter(_FakeNode())
     a._make_client = lambda robot_id, action_name: _FakeActionClient()
     return a
 
@@ -129,6 +193,22 @@ def test_send_goal_preempts_active_goal(adapter: Nav2Adapter) -> None:
     first_handle._cancel.assert_called_once()
 
 
+def test_send_goal_sets_map_frame_and_requested_pose(adapter: Nav2Adapter) -> None:
+    """The sent goal pose uses the map frame and the requested x/y/yaw."""
+    adapter.send_goal("robot_1", x=1.25, y=-0.5, yaw=0.5)
+
+    client: _FakeActionClient = adapter._goal_clients["robot_1"]
+    goal_msg = client.sent_goals[-1]
+
+    assert goal_msg.pose.header.frame_id == "map"
+    assert goal_msg.pose.pose.position.x == 1.25
+    assert goal_msg.pose.pose.position.y == -0.5
+    assert (
+        goal_msg.pose.pose.orientation.z,
+        goal_msg.pose.pose.orientation.w,
+    ) == pytest.approx((math.sin(0.25), math.cos(0.25)))
+
+
 # ---------------------------------------------------------------------------
 # Tests: send_waypoints
 # ---------------------------------------------------------------------------
@@ -150,48 +230,23 @@ def test_send_waypoints_builds_correct_pose_count(adapter: Nav2Adapter) -> None:
     assert len(goal_msg.poses) == 3
 
 
+def test_send_waypoints_sets_map_frame_and_requested_positions(adapter: Nav2Adapter) -> None:
+    """Each sent waypoint pose uses the map frame and its requested x/y."""
+    waypoints = [(1.0, 0.0), (2.0, 0.5)]
+    adapter.send_waypoints("robot_1", waypoints=waypoints)
+
+    client: _FakeActionClient = adapter._waypoint_clients["robot_1"]
+    goal_msg = client.sent_goals[-1]
+
+    for pose, (x, y) in zip(goal_msg.poses, waypoints, strict=True):
+        assert pose.header.frame_id == "map"
+        assert pose.pose.position.x == x
+        assert pose.pose.position.y == y
+
+
 # ---------------------------------------------------------------------------
 # Tests: cancel
 # ---------------------------------------------------------------------------
-
-
-def test_backup_creates_backup_client(adapter: Nav2Adapter) -> None:
-    """backup registers a backup-client entry for the target robot."""
-    adapter._backup_clients = {}
-    adapter.backup("robot_1", distance_m=0.3)
-    assert "robot_1" in adapter._backup_clients
-
-
-def test_backup_sets_target_distance(adapter: Nav2Adapter) -> None:
-    """backup goal target.x equals the requested clearing distance."""
-    adapter._backup_clients = {}
-    adapter.backup("robot_1", distance_m=0.4)
-    client: _FakeActionClient = adapter._backup_clients["robot_1"]
-    assert client.sent_goals[-1].target.x == pytest.approx(0.4)
-
-
-def test_backup_sets_time_allowance_from_distance_and_speed(adapter: Nav2Adapter) -> None:
-    """backup sets a non-zero time_allowance covering distance/speed plus margin.
-
-    Nav2's BackUp behavior computes its deadline from command->time_allowance; a
-    default/zero allowance makes the action time out immediately.
-    """
-    adapter._backup_clients = {}
-    adapter.backup("robot_1", distance_m=0.5, speed_mps=0.1)
-    goal = adapter._backup_clients["robot_1"].sent_goals[-1]
-    # 0.5 / 0.1 = 5 s travel; allowance must exceed that.
-    assert goal.time_allowance.sec >= 6
-
-
-def test_backup_reports_completed_when_goal_succeeds(adapter: Nav2Adapter) -> None:
-    """backup invokes on_result with COMPLETED once the action result arrives."""
-    adapter._backup_clients = {}
-    received: list[tuple[str, str]] = []
-    adapter.backup("robot_1", distance_m=0.3, on_result=lambda s, d: received.append((s, d)))
-    # The result future is deferred in the fake; trigger it to simulate Nav2 finishing.
-    handle: _FakeGoalHandle = adapter._backup_clients["robot_1"]._handle
-    handle._result_future.trigger()
-    assert received[-1] == ("COMPLETED", "goal succeeded")
 
 
 def test_cancel_calls_cancel_goal_async(adapter: Nav2Adapter) -> None:
@@ -273,76 +328,8 @@ def test_make_client_uses_parent_node_when_provided(monkeypatch) -> None:
 # generous wall-clock safety bound for a genuinely blocked robot. These tests
 # use a small fake _node exposing create_publisher/create_subscription/
 # create_timer/get_clock so the tick and odometry callbacks can be driven
-# manually without a real ROS2 executor.
-
-
-class _FakePublisher:
-    def __init__(self) -> None:
-        self.messages: list = []
-
-    def publish(self, msg) -> None:
-        self.messages.append(msg)
-
-
-class _FakeSubscription:
-    def __init__(self, callback) -> None:
-        self.callback = callback
-        self.destroyed = False
-
-
-class _FakeTimer:
-    def __init__(self, callback) -> None:
-        self.callback = callback
-        self.cancelled = False
-
-    def cancel(self) -> None:
-        self.cancelled = True
-
-    def tick(self) -> None:
-        if not self.cancelled:
-            self.callback()
-
-
-class _FakeClock:
-    def __init__(self) -> None:
-        self.seconds = 0.0
-
-    def now(self):
-        return SimpleNamespace(nanoseconds=self.seconds * 1e9)
-
-    def advance(self, delta_sec: float) -> None:
-        self.seconds += delta_sec
-
-
-class _FakeNode:
-    def __init__(self) -> None:
-        self.clock = _FakeClock()
-        self.publishers: dict = {}
-        self.subscriptions: list[_FakeSubscription] = []
-        self.timers: list[_FakeTimer] = []
-        self.destroyed_subs: list = []
-
-    def create_publisher(self, msg_type, topic, qos):
-        pub = _FakePublisher()
-        self.publishers[topic] = pub
-        return pub
-
-    def create_subscription(self, msg_type, topic, callback, qos):
-        sub = _FakeSubscription(callback)
-        self.subscriptions.append(sub)
-        return sub
-
-    def create_timer(self, period, callback):
-        timer = _FakeTimer(callback)
-        self.timers.append(timer)
-        return timer
-
-    def destroy_subscription(self, sub) -> None:
-        sub.destroyed = True
-        self.destroyed_subs.append(sub)
-
-    def get_clock(self):
-        return self.clock
+# manually without a real ROS2 executor. The fakes themselves live in the
+# "Fake infrastructure" section above, alongside the `adapter` fixture.
 
 
 def _odom_at(x: float, y: float, yaw: float = 0.0):
@@ -357,16 +344,7 @@ def _odom_at(x: float, y: float, yaw: float = 0.0):
 @pytest.fixture
 def backup_adapter() -> tuple[Nav2Adapter, _FakeNode]:
     node = _FakeNode()
-    a = Nav2Adapter.__new__(Nav2Adapter)
-    a._node = node
-    a._goal_clients = {}
-    a._waypoint_clients = {}
-    a._cancel_clients = {}
-    a._active_goals = {}
-    a._backup_pubs = {}
-    a._backup_timers = {}
-    a._backup_odom_subs = {}
-    return a, node
+    return Nav2Adapter(node), node
 
 
 def test_backup_does_not_complete_before_target_distance_traveled(backup_adapter) -> None:
