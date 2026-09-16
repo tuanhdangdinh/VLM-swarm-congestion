@@ -786,7 +786,8 @@ at runtime, and which are scripted or scenario-tuned.
   extent, barrier height, camera height, marker height, aisle width,
   robot size, safety radius, margins) via derivations in
   `reasoning/rag/scene_geometry.py` — for `head_on_deadlock` that yields
-  a park offset of ≈ 1.69 m and a 0.36 m side-step. The geometry block
+  a park offset of ≈ 1.79 m (0.4 m of the margin is empirical — see
+  `docs/implementation_notes.md`, run A) and a 0.36 m side-step. The geometry block
   is hand-maintained to mirror the Isaac scenario and warehouse configs;
   it is still scenario knowledge, but explicit and testable rather than
   embedded in M3. M5 congestion detection is rule-based (stall ≥ 12 s without
