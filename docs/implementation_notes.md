@@ -120,9 +120,22 @@ Rules for maintaining it:
   over the corridor gap, at z ≈ 1.1 m), so occlusion by the 0.9 m blocks is
   at most a partial explanation of run 6 and not the mechanism here. Common
   factor across runs 6/7 is the +0.35 m lateral offset near the corridor
-  mouth; spawn (−1.5, 0) and the goals are detected. Next: static render
-  probe of candidate poses with ArUco detection to separate pose/lighting
-  from dynamic/M1 effects.
+  mouth; spawn (−1.5, 0) and the goals are detected.
+  **Resolved by static render probe (same day):** rendering the stage with
+  robot_1 placed at five poses and running `cv2.aruco` on each frame:
+  spawn (−1.5, 0) ✓, parked (−1.47, +0.35) ✓, mirror (−1.47, −0.35) ✓,
+  parked facing +y ✓, but (−1.20, +0.35) ✗ — the block covers all but a
+  sliver. In the (−1.47, +0.35) crop the marker sits flush against the
+  block's projected silhouette. The correct occlusion model is the block's
+  *projected footprint on the marker plane*, not the ray to the marker
+  centre: the block top (z = 0.9) projects to |x| ≈ 1.0·(3−0.21)/(3−0.9)
+  ≈ 1.33 and |y| ≥ 0.275·1.329 ≈ 0.37, so a 0.12 m marker centred at
+  |x| = 1.47 has ~0.08 m of clearance — inside the odometry error of a
+  1.5 m reverse plus a turn-drive-turn sidestep, and inside anti-aliasing
+  flicker at the silhouette. Fix: `PARK_ABS_X_M` 1.5 → 1.8
+  (= 1.33 + 0.06 half-width + 0.3 margin). Downstream still fits: worst-case
+  backup ≈ 2.4 (< 2.5 cap), escort ≈ 3.04 (< 4.0 cap, < 45 s hold), passer
+  parks at ≈ −2.45 (goal −2.5). Live re-verification pending.
 - **2026-09-16** — **First live-VLM closed loop on the new VM** (run 6,
   06:27–06:33 UTC, `reasoning_backend_id: openai`, `gpt-4o-2024-08-06`):
   one analysis (`2 robot(s) close/slow >= 12.0s`) → decision
