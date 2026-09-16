@@ -12,6 +12,7 @@ from collections.abc import Callable
 
 try:
     from action_msgs.msg import GoalStatus
+    from action_msgs.srv import CancelGoal
     import rclpy
     from builtin_interfaces.msg import Duration
     from geometry_msgs.msg import PoseStamped, Twist
@@ -96,6 +97,29 @@ except ImportError:
         def __init__(self) -> None:
             self.pose = _PoseWithCovariance()
 
+    class _UUID:
+        def __init__(self) -> None:
+            self.uuid = [0] * 16
+
+    class _Time:
+        def __init__(self) -> None:
+            self.sec = 0
+            self.nanosec = 0
+
+    class _GoalInfo:
+        def __init__(self) -> None:
+            self.goal_id = _UUID()
+            self.stamp = _Time()
+
+    class CancelGoal:
+        """Stub mirroring `action_msgs/srv/CancelGoal` for non-ROS unit tests."""
+
+        ERROR_NONE = 0
+
+        class Request:
+            def __init__(self) -> None:
+                self.goal_info = _GoalInfo()
+
 
 class Nav2Adapter(Node):
     """Per-robot Nav2 action-client wrapper: send_goal, send_waypoints, cancel."""
@@ -109,7 +133,10 @@ class Nav2Adapter(Node):
         self._goal_clients: dict[str, ActionClient] = {}
         self._waypoint_clients: dict[str, ActionClient] = {}
         self._backup_clients: dict[str, ActionClient] = {}
-        self._cancel_clients: dict[str, ActionClient] = {}
+        # Keyed by (robot_id, action_name): each robot has one cancel service
+        # per action, so robot_id alone would alias navigate_to_pose and
+        # follow_waypoints onto the same client.
+        self._cancel_clients: dict[tuple[str, str], object] = {}
         self._active_goals: dict[str, object] = {}
         self._backup_pubs: dict[str, object] = {}
         self._backup_timers: dict[str, object] = {}
@@ -546,10 +573,23 @@ class Nav2Adapter(Node):
     def cancel(self, robot_id: str) -> None:
         """Cancel robot_id's active goal and any in-progress backup timer.
 
-        Issues cancel-all via ActionClient in addition to handle-based cancel so
-        goals whose handles are not yet registered in _active_goals (race window
-        between send_goal_async and the _on_goal_response callback) are also
-        killed before a backup starts.
+        Beyond cancelling our own goal handle, this clears every goal on the
+        robot's `navigate_to_pose` and `follow_waypoints` servers through the
+        action cancel service. That covers two cases a goal handle cannot: a
+        goal still inside the `send_goal_async`/`_on_goal_response` race
+        window, and — the important one — goals issued by a *different* node.
+        `command_bus_node` and `coordination_client_node` each hold their own
+        `Nav2Adapter`, so neither owns the other's handles; only the
+        server-side cancel service can stop a goal the other node sent.
+
+        This previously called `ActionClient.cancel_goals_async()`, which does
+        not exist in rclpy: the class exposes `send_goal_async` but no public
+        cancel entry point, and cancellation lives on
+        `ClientGoalHandle.cancel_goal_async()` or the private
+        `ActionClient._cancel_goal_async(goal_handle)`. The resulting
+        `AttributeError` was swallowed by a bare `except: pass`, so the
+        cancel-all silently did nothing on every call while callers went on to
+        log success.
         """
         timer = self._backup_timers.pop(robot_id, None)
         if timer is not None:
@@ -566,19 +606,60 @@ class Nav2Adapter(Node):
         handle = self._active_goals.get(robot_id)
         if handle is not None:
             handle.cancel_goal_async()
-        # Cancel-all: catches any in-flight goal whose handle is not yet in
-        # _active_goals due to the async _on_goal_response callback window.
-        if ActionClient is not object:
-            client = self._cancel_clients.get(robot_id)
-            if client is None:
-                client = ActionClient(
-                    self._node, NavigateToPose, f"/{robot_id}/navigate_to_pose"
-                )
-                self._cancel_clients[robot_id] = client
-            try:
-                client.cancel_goals_async(goals_to_cancel=None)
-            except Exception:
-                pass
+        self._cancel_all(robot_id, "navigate_to_pose")
+        self._cancel_all(robot_id, "follow_waypoints")
+
+    def _cancel_all(self, robot_id: str, action_name: str) -> None:
+        """Cancel every goal on one of robot_id's action servers.
+
+        Args:
+            robot_id: Robot whose action server should be cleared.
+            action_name: Action to clear, e.g. `navigate_to_pose`.
+        """
+        service_name = f"/{robot_id}/{action_name}/_action/cancel_goal"
+        key = (robot_id, action_name)
+        client = self._cancel_clients.get(key)
+        if client is None:
+            client = self._node.create_client(CancelGoal, service_name)
+            self._cancel_clients[key] = client
+        # Readiness is checked, never waited on: cancel() runs inside safety
+        # and coordination callbacks, and blocking here would stall the very
+        # executor that has to deliver the cancel response. A freshly created
+        # client is not ready until discovery completes, so the first cancel
+        # after node start can legitimately skip.
+        if not client.service_is_ready():
+            self._node.get_logger().warning(
+                f"cancel-all skipped: service not ready "
+                f"robot={robot_id} action={action_name}"
+            )
+            return
+        future = client.call_async(build_cancel_all_request(CancelGoal.Request))
+        future.add_done_callback(
+            lambda done, rid=robot_id, act=action_name: self._on_cancel_all_response(
+                rid, act, done
+            )
+        )
+
+    def _on_cancel_all_response(
+        self,
+        robot_id: str,
+        action_name: str,
+        future,
+    ) -> None:
+        try:
+            response = future.result()
+        except Exception as exc:
+            self._node.get_logger().warning(
+                f"cancel-all failed robot={robot_id} action={action_name} "
+                f"error={exc}"
+            )
+            return
+        goals_canceling = getattr(response, "goals_canceling", None) or []
+        self._node.get_logger().info(
+            f"cancel-all robot={robot_id} action={action_name} "
+            f"return_code={getattr(response, 'return_code', None)} "
+            f"goals_canceling={len(goals_canceling)}"
+        )
 
     def _on_goal_response(
         self,
@@ -626,6 +707,29 @@ class Nav2Adapter(Node):
         self._active_goals.pop(robot_id, None)
         if on_result is not None:
             on_result(status, detail)
+
+
+def build_cancel_all_request(request_cls: type) -> object:
+    """Build a `CancelGoal` request that cancels every goal on an action server.
+
+    The cancel policy in `action_msgs/srv/CancelGoal` keys off both fields
+    together: a zero goal id with a zero stamp means "cancel all goals", while
+    a zero goal id with a *non-zero* stamp only cancels goals accepted at or
+    before that stamp. Both are therefore zeroed explicitly rather than left
+    at whatever the message default happens to be.
+
+    Args:
+        request_cls: The `CancelGoal.Request` class to instantiate.
+
+    Returns:
+        A request whose `goal_info.goal_id.uuid` is 16 zero bytes and whose
+        `goal_info.stamp` is zero.
+    """
+    request = request_cls()
+    request.goal_info.goal_id.uuid = [0] * 16
+    request.goal_info.stamp.sec = 0
+    request.goal_info.stamp.nanosec = 0
+    return request
 
 
 def _yaw_to_quat_zw(yaw: float) -> tuple[float, float]:

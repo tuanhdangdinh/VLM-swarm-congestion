@@ -21,6 +21,10 @@
 - Rev 6 (2026-09-16): added §8 — the authoritative hold at the M6 cmd_vel
   relay. Runs D/E/G showed robots creeping into contact while latched, because
   the §3 override is only last-writer-wins on a four-publisher topic.
+- Rev 7 (2026-09-17): added §9 — the Nav2 cancel-all was a silent no-op
+  (`ActionClient.cancel_goals_async` does not exist). Fixed in `Nav2Adapter`;
+  records that `safety_monitor_node._cancel_nav2_goal` still carries the same
+  bug, which is why the §3/§7 latch does not stop Nav2.
 
 ---
 
@@ -304,3 +308,55 @@ the publisher's live command instead of waiting out a freshly-expired timeout.
 **Host verification (pending).** Latch the pair and confirm the ground-truth
 `min_pairwise_distance_m` stays ≥ 0.4 m for 3 minutes. The relay runs inside the
 Isaac process with Isaac's bundled rclpy, so it cannot be exercised offline.
+
+---
+
+## 9. Nav2 cancel-all was a silent no-op (2026-09-17)
+
+**Defect.** `Nav2Adapter.cancel` called
+`ActionClient.cancel_goals_async(goals_to_cancel=None)`. That method does not
+exist. The Jazzy `ActionClient`
+([rclpy/action/client.py](https://github.com/ros2/rclpy/blob/jazzy/rclpy/rclpy/action/client.py))
+exposes `send_goal`/`send_goal_async`, `wait_for_server`, `server_is_ready` and
+`destroy`, but no public cancel entry point: cancellation lives on
+`ClientGoalHandle.cancel_goal`/`cancel_goal_async` or the private
+`ActionClient._cancel_goal_async(goal_handle)`, both of which need a handle the
+cancelling node does not own. The `AttributeError` was swallowed by a bare
+`except: pass`, so every cancel-all did nothing while the caller logged success.
+This is why the handle-less cancel path never stopped a goal issued by another
+node — `command_bus_node` and `coordination_client_node` hold separate
+`Nav2Adapter` instances, and `controller_server` kept looping `Failed to make
+progress` / `Aborting handle` / `Received a goal, begin computing control
+effort` for minutes after a latch while DWB nudged the pair together.
+
+**Fix.** Cancel through the action's own cancel service,
+`/{robot_id}/{action}/_action/cancel_goal` (`action_msgs/srv/CancelGoal`), for
+both `navigate_to_pose` and `follow_waypoints`. Per that service's documented
+policy, a request whose `goal_info.goal_id.uuid` is all zeros **and** whose
+`goal_info.stamp` is zero cancels every goal on the server
+([CancelGoal.srv](https://github.com/ros2/rcl_interfaces/blob/rolling/action_msgs/srv/CancelGoal.srv));
+a zero id with a *non-zero* stamp would only cancel goals accepted at or before
+that stamp, so both fields are zeroed explicitly. `build_cancel_all_request` is
+a pure helper; clients are cached per `(robot_id, action_name)`. Readiness is
+checked with `service_is_ready()` and never waited on, because `cancel()` runs
+inside safety and coordination callbacks — a skip logs
+`cancel-all skipped: service not ready robot=… action=…` at WARNING, and the
+response logs `return_code`/`goals_canceling` at INFO. Nothing is swallowed.
+Consequence of staying non-blocking: a client created on the first `cancel()`
+is not ready until discovery completes, so that first cancel can legitimately
+skip. Tests: `tests/unit/test_nav2_adapter.py` (35).
+
+**Not fixed here — the latch path still has this bug.** `safety_monitor_node`
+does **not** use `Nav2Adapter`; `_cancel_nav2_goal`
+(`swarm_execution/safety_monitor_node.py:204-221`) keeps its own `_nav_clients`
+and its own identical `cancel_goals_async(goals_to_cancel=None)` call behind a
+bare `except: pass`, then logs `nav2 goal cancelled robot=…` regardless. The
+§3/§7 latch therefore still fails to stop Nav2 until that copy gets the same
+treatment. Fixing it was out of scope for this change; it is the blocking
+follow-up for §8's host verification, since a latch that cannot stop
+`controller_server` leaves the relay hold as the only thing holding the pair
+apart.
+
+**Host verification (pending).** After the node-side copy is fixed, latch a pair
+and confirm `controller_server` logs no further `Received a goal, begin
+computing control effort` once the latch fires.

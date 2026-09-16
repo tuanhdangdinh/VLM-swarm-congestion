@@ -87,6 +87,59 @@ class _FakePublisher:
         self.messages.append(msg)
 
 
+class _FakeServiceFuture:
+    """call_async future whose done-callback fires only on trigger()."""
+
+    def __init__(self) -> None:
+        self._callbacks: list = []
+        self._result = SimpleNamespace(return_code=0, goals_canceling=[])
+        self._exception: Exception | None = None
+
+    def result(self):
+        if self._exception is not None:
+            raise self._exception
+        return self._result
+
+    def add_done_callback(self, cb) -> None:
+        self._callbacks.append(cb)
+
+    def trigger(self) -> None:
+        for cb in list(self._callbacks):
+            cb(self)
+
+
+class _FakeServiceClient:
+    """Minimal stand-in for a rclpy service client (CancelGoal)."""
+
+    def __init__(self, srv_type, service_name: str) -> None:
+        self.srv_type = srv_type
+        self.service_name = service_name
+        self.ready = True
+        self.requests: list = []
+        self.futures: list[_FakeServiceFuture] = []
+
+    def service_is_ready(self) -> bool:
+        return self.ready
+
+    def call_async(self, request) -> _FakeServiceFuture:
+        self.requests.append(request)
+        future = _FakeServiceFuture()
+        self.futures.append(future)
+        return future
+
+
+class _FakeLogger:
+    def __init__(self) -> None:
+        self.warnings: list[str] = []
+        self.infos: list[str] = []
+
+    def warning(self, msg) -> None:
+        self.warnings.append(str(msg))
+
+    def info(self, msg) -> None:
+        self.infos.append(str(msg))
+
+
 class _FakeSubscription:
     def __init__(self, callback) -> None:
         self.callback = callback
@@ -124,6 +177,19 @@ class _FakeNode:
         self.subscriptions: list[_FakeSubscription] = []
         self.timers: list[_FakeTimer] = []
         self.destroyed_subs: list = []
+        # cancel() is on the hot path of send_goal/send_waypoints/backup/
+        # sidestep/drive_heading, so every adapter test reaches the cancel
+        # service client and the logger — both are permanent node members.
+        self.clients: dict[str, _FakeServiceClient] = {}
+        self.logger = _FakeLogger()
+
+    def create_client(self, srv_type, service_name):
+        client = _FakeServiceClient(srv_type, service_name)
+        self.clients[service_name] = client
+        return client
+
+    def get_logger(self) -> _FakeLogger:
+        return self.logger
 
     def create_publisher(self, msg_type, topic, qos):
         pub = _FakePublisher()
@@ -297,6 +363,133 @@ def test_send_goal_reports_failed_on_aborted_action_result(adapter: Nav2Adapter)
     handle._result_future.trigger()
 
     assert statuses[-1] == ("FAILED", "goal ended with status=6")
+
+
+# ---------------------------------------------------------------------------
+# Tests: cancel-all via the action cancel service
+# ---------------------------------------------------------------------------
+#
+# cancel() used to call ActionClient.cancel_goals_async(), which does not
+# exist in rclpy (see the cancel() docstring). The AttributeError was
+# swallowed by a bare `except: pass`, so goals issued by another node — the
+# command bus and coordination_client hold separate Nav2Adapter instances —
+# were never stopped and DWB kept driving. The replacement talks to the
+# action's own cancel service, which is the ROS 2 protocol's cancel-all path.
+
+_NAV_CANCEL_SRV = "/robot_1/navigate_to_pose/_action/cancel_goal"
+_WP_CANCEL_SRV = "/robot_1/follow_waypoints/_action/cancel_goal"
+
+
+def test_build_cancel_all_request_has_zero_uuid_and_stamp() -> None:
+    """Cancel-all requires a zero goal id AND a zero stamp, per CancelGoal.srv."""
+
+    class _FakeRequest:
+        def __init__(self) -> None:
+            # Deliberately non-zero, so the assertions prove the helper zeroes
+            # the fields rather than reading back a convenient default.
+            self.goal_info = SimpleNamespace(
+                goal_id=SimpleNamespace(uuid=[7] * 16),
+                stamp=SimpleNamespace(sec=99, nanosec=42),
+            )
+
+    request = nav2_adapter.build_cancel_all_request(_FakeRequest)
+
+    assert len(request.goal_info.goal_id.uuid) == 16
+    assert all(byte == 0 for byte in request.goal_info.goal_id.uuid)
+    assert request.goal_info.stamp.sec == 0
+    assert request.goal_info.stamp.nanosec == 0
+
+
+def test_cancel_sends_cancel_all_to_navigate_and_waypoint_services(
+    adapter: Nav2Adapter,
+) -> None:
+    """cancel clears both action servers the adapter sends goals to."""
+    adapter.cancel("robot_1")
+
+    node = adapter._node
+    nav_client = node.clients[_NAV_CANCEL_SRV]
+    wp_client = node.clients[_WP_CANCEL_SRV]
+
+    assert len(nav_client.requests) == 1
+    assert len(wp_client.requests) == 1
+    for client in (nav_client, wp_client):
+        goal_info = client.requests[0].goal_info
+        assert all(byte == 0 for byte in goal_info.goal_id.uuid)
+        assert (goal_info.stamp.sec, goal_info.stamp.nanosec) == (0, 0)
+
+
+def test_cancel_all_skipped_with_warning_when_service_not_ready(
+    adapter: Nav2Adapter,
+) -> None:
+    """An unavailable cancel service must warn, not silently do nothing."""
+    client = _FakeServiceClient(nav2_adapter.CancelGoal, _NAV_CANCEL_SRV)
+    client.ready = False
+    adapter._cancel_clients[("robot_1", "navigate_to_pose")] = client
+
+    adapter.cancel("robot_1")
+
+    assert client.requests == []
+    assert any(
+        "cancel-all skipped: service not ready" in msg
+        and "robot=robot_1" in msg
+        and "action=navigate_to_pose" in msg
+        for msg in adapter._node.logger.warnings
+    )
+
+
+def test_cancel_all_logs_response_return_code(adapter: Nav2Adapter) -> None:
+    """The cancel-all response is logged, so a rejected cancel is visible."""
+    adapter.cancel("robot_1")
+    future = adapter._node.clients[_NAV_CANCEL_SRV].futures[0]
+    future._result = SimpleNamespace(
+        return_code=0, goals_canceling=[object(), object()]
+    )
+
+    future.trigger()
+
+    assert any(
+        "cancel-all robot=robot_1 action=navigate_to_pose" in msg
+        and "return_code=0" in msg
+        and "goals_canceling=2" in msg
+        for msg in adapter._node.logger.infos
+    )
+
+
+def test_cancel_all_logs_warning_when_response_raises(adapter: Nav2Adapter) -> None:
+    """A failed cancel-all call must surface as a warning, never be swallowed."""
+    adapter.cancel("robot_1")
+    future = adapter._node.clients[_NAV_CANCEL_SRV].futures[0]
+    future._exception = RuntimeError("service call failed")
+
+    future.trigger()
+
+    assert any(
+        "cancel-all failed robot=robot_1 action=navigate_to_pose" in msg
+        for msg in adapter._node.logger.warnings
+    )
+
+
+def test_cancel_still_cancels_own_goal_handle(adapter: Nav2Adapter) -> None:
+    """Adding the service-based cancel-all must not drop the handle cancel."""
+    adapter.send_goal("robot_1", x=1.0, y=2.0, yaw=0.0)
+    handle = adapter._active_goals["robot_1"]
+    handle._cancel.reset_mock()
+
+    adapter.cancel("robot_1")
+
+    handle._cancel.assert_called_once()
+    assert adapter._node.clients[_NAV_CANCEL_SRV].requests
+
+
+def test_cancel_reuses_cached_client_per_action(adapter: Nav2Adapter) -> None:
+    """Cancel clients are cached per (robot, action), not per robot."""
+    adapter.cancel("robot_1")
+    adapter.cancel("robot_1")
+
+    keys = set(adapter._cancel_clients)
+    assert keys == {("robot_1", "navigate_to_pose"), ("robot_1", "follow_waypoints")}
+    # Two cancels reuse the same two clients rather than creating four.
+    assert len(adapter._node.clients[_NAV_CANCEL_SRV].requests) == 2
 
 
 def test_make_client_uses_parent_node_when_provided(monkeypatch) -> None:
