@@ -2,3 +2,12 @@ safety:
   min_distance_m: 0.45
   max_linear_velocity_mps: 0.2
   command_timeout_sec: 20.0
+  # Run D (2026-09-16): two robots closed until their ArUco quads overlapped,
+  # overlapping markers are undetectable, so BOTH went STALE at 0.078 m and the
+  # monitor went blind — no fresh non-STALE pair to latch, no latch kept. A
+  # STALE robot's pose is unknown, i.e. unsafe, not absent.
+  stale_pose_is_unsafe: true
+  # Band for the STALE fail-safe, on the last non-STALE pairwise distance.
+  # min_distance_m + 0.15 m: a marker can vanish while the pair is still
+  # closing, and M1 needs stale_after_sec (3 s) to declare STALE.
+  stale_unsafe_distance_m: 0.6

@@ -5,8 +5,11 @@ import json
 import math
 
 from swarm_execution.safety import (
+    REASON_MIN_DISTANCE,
+    REASON_STALE_POSE,
     SafetyLimits,
     detect_proximity_violations,
+    evaluate_latches,
     exceeds_speed_limit,
 )
 from swarm_execution.safety_monitor_node import SafetyMonitorNode, holds_payload
@@ -96,6 +99,8 @@ def _make_node(min_distance_m: float = 0.3) -> tuple[SafetyMonitorNode, list[str
     )
     node._latched_stops = set()
     node._coordinating = set()
+    node._last_fresh_distances = {}
+    node._cancel_nav2_goal = lambda _robot_id: None
     stops: list[str] = []
     node._emergency_stop = lambda robot_id: stops.append(robot_id)
     # No-op by default; tests exercising /safety/holds publish override this.
@@ -339,3 +344,209 @@ def test_pair_without_coordinating_member_still_flagged():
         "robot_1",
         "robot_2",
     }
+
+
+# ---------------------------------------------------------------------------
+# STALE fail-safe (run D 2026-09-16: overlapping markers blinded the monitor)
+# ---------------------------------------------------------------------------
+
+_LIMITS = SafetyLimits(min_distance_m=0.45, max_linear_velocity_mps=0.2)
+_PAIR = ("robot_1", "robot_2")
+
+
+def _stale(robot_id: str, x: float, y: float) -> dict:
+    return {"robot_id": robot_id, "x": x, "y": y, "status": "STALE"}
+
+
+def _fresh(robot_id: str, x: float, y: float) -> dict:
+    return {"robot_id": robot_id, "x": x, "y": y, "status": "MOVING"}
+
+
+def test_derived_stale_band_is_min_distance_plus_margin():
+    assert _LIMITS.stale_unsafe_distance_m == 0.6
+    explicit = SafetyLimits(0.3, 0.2, stale_unsafe_distance_m=0.9)
+    assert explicit.stale_unsafe_distance_m == 0.9
+
+
+def test_stale_robot_keeps_existing_latch():
+    # No memory at all and both carried poses far apart: the only thing holding
+    # these robots is the previous latch, which a STALE reading must not clear.
+    robots = [_stale("robot_1", 0.0, 0.0), _stale("robot_2", 3.0, 0.0)]
+
+    result = evaluate_latches(robots, _LIMITS, previous_latched={"robot_1", "robot_2"})
+
+    assert result.latched == {"robot_1", "robot_2"}
+    assert result.reasons["robot_1"] == REASON_STALE_POSE
+
+
+def test_stale_robot_last_seen_close_is_latched():
+    # Run D shape: the carried poses are stale and wrong (M1 froze them 3 m
+    # apart) while the last real non-STALE reading had the pair at 0.078 m.
+    # The latch must come from the memory, not from the carried pose.
+    robots = [_stale("robot_1", 0.0, 0.0), _stale("robot_2", 3.0, 0.0)]
+
+    result = evaluate_latches(
+        robots, _LIMITS, last_fresh_distances={_PAIR: 0.078}
+    )
+
+    assert result.latched == {"robot_1", "robot_2"}
+    assert result.reasons["robot_2"] == REASON_STALE_POSE
+
+
+def test_stale_robot_last_seen_far_is_not_latched():
+    # Far in both the memory and the carried pose: a robot that merely lost its
+    # marker while alone in the aisle is not a safety event.
+    robots = [_stale("robot_1", 0.0, 0.0), _fresh("robot_2", 3.0, 0.0)]
+
+    result = evaluate_latches(robots, _LIMITS, last_fresh_distances={_PAIR: 3.0})
+
+    assert result.latched == frozenset()
+
+
+def test_stale_latch_released_on_fresh_reading_when_separated():
+    stale_scene = [_stale("robot_1", 0.0, 0.0), _stale("robot_2", 0.05, 0.0)]
+    latched = evaluate_latches(
+        stale_scene, _LIMITS, last_fresh_distances={_PAIR: 0.078}
+    )
+    assert latched.latched == {"robot_1", "robot_2"}
+
+    # 0.5 m apart and both detected again: at/above min_distance_m, so the
+    # latch lifts even though 0.5 m is still inside the 0.6 m STALE band —
+    # the wider band gates unknown poses only, never fresh ones.
+    fresh_scene = [_fresh("robot_1", 0.0, 0.0), _fresh("robot_2", 0.5, 0.0)]
+    released = evaluate_latches(
+        fresh_scene,
+        _LIMITS,
+        previous_latched=latched.latched,
+        last_fresh_distances=latched.last_fresh_distances,
+    )
+
+    assert released.latched == frozenset()
+    assert released.last_fresh_distances[_PAIR] == 0.5
+
+
+def test_stale_latch_persists_on_fresh_reading_when_still_close():
+    stale_scene = [_stale("robot_1", 0.0, 0.0), _stale("robot_2", 0.05, 0.0)]
+    latched = evaluate_latches(
+        stale_scene, _LIMITS, last_fresh_distances={_PAIR: 0.078}
+    )
+
+    fresh_scene = [_fresh("robot_1", 0.0, 0.0), _fresh("robot_2", 0.2, 0.0)]
+    still = evaluate_latches(
+        fresh_scene,
+        _LIMITS,
+        previous_latched=latched.latched,
+        last_fresh_distances=latched.last_fresh_distances,
+    )
+
+    assert still.latched == {"robot_1", "robot_2"}
+    assert still.reasons["robot_1"] == REASON_MIN_DISTANCE
+
+
+def test_stale_failsafe_disabled_by_parameter():
+    # The parameter gates both halves of the rule: the distance memory and the
+    # keep-the-existing-latch behaviour.
+    limits = SafetyLimits(
+        min_distance_m=0.45, max_linear_velocity_mps=0.2, stale_pose_is_unsafe=False
+    )
+    robots = [_stale("robot_1", 0.0, 0.0), _stale("robot_2", 3.0, 0.0)]
+
+    result = evaluate_latches(
+        robots,
+        limits,
+        previous_latched={"robot_1", "robot_2"},
+        last_fresh_distances={_PAIR: 0.078},
+    )
+
+    assert result.latched == frozenset()
+
+
+def test_stale_failsafe_does_not_block_commanded_backup():
+    # Mirrors test_coordinating_robot_suppressed_from_safety_stop: robot_1 is
+    # reversing under an ACTIVE coordination command (the designed way out of a
+    # close standoff) with its marker occluded, so M1 reports it STALE. The
+    # whole pair keeps the existing lift — latching either one would stall the
+    # backup or freeze the partner mid-choreography.
+    robots = [_stale("robot_1", 0.0, 0.0), _fresh("robot_2", 0.05, 0.0)]
+
+    result = evaluate_latches(
+        robots,
+        _LIMITS,
+        previous_latched={"robot_1", "robot_2"},
+        last_fresh_distances={_PAIR: 0.078},
+        coordinating={"robot_1"},
+    )
+
+    assert result.latched == frozenset()
+
+
+def test_memory_ignores_pairs_measured_against_a_stale_pose():
+    # A distance measured against a carried (frozen) pose must not enter the
+    # memory the fail-safe trusts — that would launder the stale datum.
+    robots = [_stale("robot_1", 0.0, 0.0), _fresh("robot_2", 3.0, 0.0)]
+
+    result = evaluate_latches(robots, _LIMITS, last_fresh_distances={_PAIR: 0.078})
+
+    assert result.last_fresh_distances[_PAIR] == 0.078
+    assert result.latched == {"robot_1", "robot_2"}
+
+
+def test_callback_latches_stale_pair_from_remembered_distance():
+    # Node wiring: `status` must reach the pure function, and the memory must
+    # survive between scene messages.
+    node, stops = _make_node(min_distance_m=0.45)
+    closing = {
+        "robots": [
+            {"robot_id": "robot_1", "x": 0.0, "y": 0.0, "status": "MOVING"},
+            {"robot_id": "robot_2", "x": 0.5, "y": 0.0, "status": "MOVING"},
+        ]
+    }
+    # Markers overlap, both go STALE, and M1 freezes the last known poses.
+    blind = {
+        "robots": [
+            {"robot_id": "robot_1", "x": 0.0, "y": 0.0, "status": "STALE"},
+            {"robot_id": "robot_2", "x": 0.5, "y": 0.0, "status": "STALE"},
+        ]
+    }
+
+    node._on_scene_state(_StringMsg(json.dumps(closing)))
+    assert stops == []
+
+    node._on_scene_state(_StringMsg(json.dumps(blind)))
+
+    assert sorted(stops) == ["robot_1", "robot_2"]
+
+
+def test_stale_latch_reason_logged_once_per_latch():
+    node, _stops = _make_node(min_distance_m=0.45)
+    logged: list[str] = []
+
+    class _Capture:
+        def warning(self, msg):
+            logged.append(msg)
+
+    node.get_logger = lambda: _Capture()
+    closing = {
+        "robots": [
+            {"robot_id": "robot_1", "x": 0.0, "y": 0.0, "status": "MOVING"},
+            {"robot_id": "robot_2", "x": 0.5, "y": 0.0, "status": "MOVING"},
+        ]
+    }
+    blind = {
+        "robots": [
+            {"robot_id": "robot_1", "x": 0.0, "y": 0.0, "status": "STALE"},
+            {"robot_id": "robot_2", "x": 0.5, "y": 0.0, "status": "STALE"},
+        ]
+    }
+
+    node._on_scene_state(_StringMsg(json.dumps(closing)))
+    node._on_scene_state(_StringMsg(json.dumps(blind)))
+    node._on_scene_state(_StringMsg(json.dumps(blind)))
+
+    # One line per newly-latched robot and nothing on the repeat message: the
+    # reason is a latch-transition diagnostic, not a per-message one.
+    stale_lines = [m for m in logged if "reason=stale_pose_unsafe" in m]
+    assert sorted(stale_lines) == [
+        "safety stop robot=robot_1 reason=stale_pose_unsafe",
+        "safety stop robot=robot_2 reason=stale_pose_unsafe",
+    ]

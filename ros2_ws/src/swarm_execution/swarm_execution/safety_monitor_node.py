@@ -16,6 +16,11 @@ Coordination command suppression: when M4 dispatches a yield/backup command for
 a robot, the safety stop is temporarily lifted so the backup motion can execute.
 The exemption clears when the command completes or fails.
 
+STALE fail-safe: a robot whose marker M1 can no longer detect has an unknown
+pose, which is unsafe rather than absent, so it keeps its latch and can be
+latched on its last non-STALE pairwise distance. See `evaluate_latches` and
+docs/specs/module4/safety-monitor.md §7.
+
 Also publishes `/safety/holds` (the latched robot set) so `coordination_client`
 can suppress its own 2 s retry loop for a robot whose goal this monitor just
 cancelled. Without that signal the two nodes fight over the goal forever: the
@@ -45,8 +50,9 @@ except ImportError:
     NavigateToPose = None
 
 from swarm_execution.safety import (
+    REASON_SPEED_LIMIT,
     SafetyLimits,
-    detect_proximity_violations,
+    evaluate_latches,
     exceeds_speed_limit,
 )
 
@@ -84,6 +90,7 @@ class SafetyMonitorNode(Node):
         self._nav_clients: dict[str, object] = {}
         self._latched_stops: set[str] = set()
         self._coordinating: set[str] = set()
+        self._last_fresh_distances: dict[tuple[str, str], float] = {}
         self.create_subscription(
             String, "/perception/scene_state", self._on_scene_state, 10
         )
@@ -97,7 +104,9 @@ class SafetyMonitorNode(Node):
         self.get_logger().info(
             "Safety monitor started "
             f"min_distance_m={self._limits.min_distance_m} "
-            f"max_linear_velocity_mps={self._limits.max_linear_velocity_mps}"
+            f"max_linear_velocity_mps={self._limits.max_linear_velocity_mps} "
+            f"stale_pose_is_unsafe={self._limits.stale_pose_is_unsafe} "
+            f"stale_unsafe_distance_m={self._limits.stale_unsafe_distance_m}"
         )
 
     def _on_coord_status(self, msg) -> None:
@@ -129,20 +138,34 @@ class SafetyMonitorNode(Node):
             except (KeyError, TypeError, ValueError) as exc:
                 self.get_logger().warning(f"skipping malformed robot entry: {exc}")
                 continue
-            positions.append({"robot_id": robot_id, "x": x, "y": y})
+            positions.append(
+                {
+                    "robot_id": robot_id,
+                    "x": x,
+                    "y": y,
+                    "status": robot.get("status"),
+                }
+            )
             velocity = robot.get("linear_velocity")
             if velocity is not None and exceeds_speed_limit(
                 float(velocity), self._limits.max_linear_velocity_mps
             ):
                 speeders.add(robot_id)
 
-        flagged = (
-            detect_proximity_violations(
-                positions, self._limits.min_distance_m, self._coordinating
-            )
-            | speeders
+        evaluation = evaluate_latches(
+            positions,
+            self._limits,
+            self._latched_stops,
+            self._last_fresh_distances,
+            self._coordinating,
         )
+        self._last_fresh_distances = evaluation.last_fresh_distances
+        flagged = set(evaluation.latched) | speeders
         effective = flagged - self._coordinating
+
+        reasons = dict(evaluation.reasons)
+        for robot_id in speeders:
+            reasons.setdefault(robot_id, REASON_SPEED_LIMIT)
 
         # Cancel Nav2 goal for newly-flagged robots so DWB stops generating
         # velocity commands. Without this, DWB races with the zero-Twist at
@@ -150,6 +173,11 @@ class SafetyMonitorNode(Node):
         newly_flagged = effective - self._latched_stops
         for robot_id in newly_flagged:
             self._cancel_nav2_goal(robot_id)
+            # Reason logged here, once per latch: `_emergency_stop` runs at the
+            # 40 Hz hold rate and must not carry a per-latch diagnostic.
+            self.get_logger().warning(
+                f"safety stop robot={robot_id} reason={reasons.get(robot_id)}"
+            )
 
         previous = self._latched_stops
         self._latched_stops = effective
@@ -216,9 +244,15 @@ def _load_safety_limits(node: Node) -> SafetyLimits:
         share = get_package_share_directory("swarm_execution")
         path = Path(share) / "config" / "safety.yaml"
         data = yaml.safe_load(path.read_text())["safety"]
+        # The STALE keys are `.get()` so an already-installed safety.yaml
+        # predating them does not throw into the catch-all below and silently
+        # revert min_distance_m to its default too.
+        band = data.get("stale_unsafe_distance_m")
         return SafetyLimits(
             min_distance_m=float(data["min_distance_m"]),
             max_linear_velocity_mps=float(data["max_linear_velocity_mps"]),
+            stale_pose_is_unsafe=bool(data.get("stale_pose_is_unsafe", True)),
+            stale_unsafe_distance_m=None if band is None else float(band),
         )
     except Exception as exc:  # noqa: BLE001 - degrade to documented defaults
         node.get_logger().warning(
