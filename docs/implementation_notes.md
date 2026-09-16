@@ -84,6 +84,47 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-16** — **First live-VLM closed loop on the new VM** (run 6,
+  06:27–06:33 UTC, `reasoning_backend_id: openai`, `gpt-4o-2024-08-06`):
+  one analysis (`2 robot(s) close/slow >= 12.0s`) → decision
+  `type=deadlock, strategy=yield, involved=[robot_1, robot_2]`,
+  `parse_status=valid`, 1 attempt, 4.5 s latency, 1 814 tokens (≈ $0.006) →
+  dispatch → M4 yield/temporary_wait → `COMPLETED` both at T+2 m 16 s →
+  robot_2 reached its goal (odom 4.415 m ≈ run 4's 4.43). Zero backend
+  errors. Artifact: `data/logs/m5_decisions/9fa91fded10c41a5ab3d0764077ec8d2.json`
+  (on the VM). The model's `<think>` trace is sound: pairwise distance from
+  M1 positions (0.12 m), opposing headings (Δθ ≈ π), both STALE → deadlock →
+  first-listed robot yields. Findings:
+  - **Scenario dynamics are not deterministic across runs.** Run 4 stalled
+    at ~1 m (planner failure, single-robot stall trigger); run 6 formed a
+    tight nose-to-nose standoff (M1 centres 0.12 m apart, close/slow
+    trigger). Both are consistent with the new lidar visibility (see M6
+    note); the experiment needs several runs to characterise the onset
+    distribution before Arm A/B collection, and the congestion spec should
+    admit both signatures or pin one.
+  - **The yielder parks in the barrier's camera shadow.** M1 lost robot_1
+    (`markers_detected: 0`, `ids_missing: [robot_1, robot_2]`) 1–3 min after
+    dispatch in both runs 4 and 6. Geometry: barrier blocks are 0.90 m tall
+    (`z_center 0.45, z_half 0.45`, `scenario_builder._author_aisle_barrier`)
+    over x ∈ [−1, 1]; the overhead camera is at (0, 0, 3). After backing
+    1.3 m and side-stepping +0.35 m the yielder sits near (−1.3, +0.35); the
+    camera→marker ray crosses the block's west face at z ≈ 0.92 m (marker
+    centre) and lower for the near half — partially occluded at run 6's
+    pose, fully occluded (z ≈ 0.64 m) at run 4's (−1.18, 0.27). robot_2 is
+    separately lost at its goal (x ≈ −2.93 is 15 px from the ROI edge). Net
+    effect: M5 is blind to both robots exactly when it should confirm
+    resolution or catch a re-deadlock. Options (undecided): lower the
+    barrier (≈ 0.3 m keeps it a lidar wall at z = 0.172 while clearing the
+    camera ray); widen the ROI; or park the yielder short of the block end.
+  - Pre-flight gotcha: `/ws/.env` had `OPENAI_API_KEY= sk-…` (space after
+    `=`), so `source` set the key empty and returned non-zero, which would
+    have short-circuited the `set -a && source … && ros2 launch` chain.
+    Fixed in place on the VM (untracked file). Worth a startup check in the
+    demo script.
+  - At analysis time both M1 tracks were already STALE (near-contact
+    markers, the known 2026-06 behaviour), so the VLM decided on the last
+    good positions. Fine here, but it means the decision input is frozen
+    for the duration of any standoff.
 - **2026-09-16** — **Full closed loop verified key-less on the new VM** (run 4,
   05:19–05:28 UTC): Isaac → M1 → M5 stall detection → scripted mock decision
   (`VGU_MOCK_DECISION_FILE=config/mock_decisions/head_on_yield.json`) → M3
@@ -238,10 +279,12 @@ Rules for maintaining it:
   2026-06-25), and collision prims are not rendered — so July's robots had
   no lidar cross-section at all, which is why motion-BVH work was needed to
   get *anything* into the costmap. **Consequence:** Nav2 now sees the
-  oncoming robot from 3 m and the planner blocks at ~1 m separation (run 4),
-  so the 0.45 m nose-to-nose standoff the July H3 runs and the congestion
-  spec assume no longer forms by itself. The spec's onset window and the
-  safety-monitor's role need revalidating before Arm A/B data collection.
+  oncoming robot from 3 m. In run 4 the planner blocked at ~1 m separation
+  and no standoff formed; in run 6 (same config) a tight nose-to-nose
+  standoff did form. So the 0.45 m standoff the July H3 runs and the
+  congestion spec assume is now one of at least two onset modes, not the
+  only one. The spec's onset window and the safety-monitor's role need
+  revalidating over several runs before Arm A/B data collection.
   Options, not yet decided: accept planner-stall as the deadlock signature;
   or exclude robot meshes from the lidar (Isaac RTX-visibility / semantic
   filtering) to restore the July geometry while keeping the camera view.
