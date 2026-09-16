@@ -329,6 +329,36 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-16** — **Run E: deadlock resolved end to end under camera
+  localization; both robots reached their goals.** Stack: marker-plane
+  calibration, `localization:=camera` + scenario map, geometry-derived
+  yield (margin 0.4), STALE fail-safe, yield-refusal guard, fixed GT
+  oracle; one live gpt-4o decision. Sequence: safety latch
+  `min_distance_violation` at GT 0.443 m with both markers detected
+  (before contact) → M5 `2 robot(s) close/slow` → gpt-4o deadlock/yield
+  (1 835 tokens, 6.2 s) → grounded `park −1.789, backup 0.971,
+  pull_off 0.36, escort = clear 1.724` → achieved park −1.804/−1.811,
+  pull-off 0.368, escort 1.729 m → both `COMPLETED` → base missions
+  resumed → **robot_1 at +2.419, robot_2 at −2.490, Nav2 `Goal
+  succeeded` twice each, separation 4.9 m, `conflict_active false`**.
+  Eleven follow-up analyses all `congestion_detected=false`. Camera
+  localization vs GT during the maneuver **10.1 / 7.9 mm mean** (max 33 /
+  59 mm); whole span 14.6 / 21.9 mm mean. Zero errors in M1/M4/M5.
+  Observations: (1) the STALE fail-safe never fired — the min-distance
+  rule alone held the latch through a 430 s marker blackout because it
+  evaluates carried STALE poses (~0.14 m); why run D lost its latch is
+  therefore still unexplained, and the fail-safe remains as a second
+  line. (2) While latched, small `cmd_vel` blips (≤ 0.062 m/s) let the
+  pair creep from 0.354 m to 0.085 m (contact) over ~36 sim-s; source
+  undiagnosed — `/robot_1/cmd_vel` has four publishers (safety monitor,
+  collision monitor, docking server, watchdog). (3) **Bring-up race:**
+  robot_1's `global_costmap` timed out (~1.5 s) waiting for `map → odom`
+  because the camera localizer publishes only after its first fix; the
+  lifecycle manager aborted and Nav2 was activated by hand. Fix: seed
+  the localizer with the spawn pose at startup (AMCL's `initial_pose`
+  semantics) — in progress. (4) M1 both-marker rate 85.7 % over the M5
+  window, 83.8 % during the parked hold (per-robot split lost to a
+  recorder truncation). (5) The yield-refusal guard was not exercised.
 - **2026-09-16** — **Safety monitor STALE fail-safe.** `safety.py`
   `evaluate_latches` now unions a second rule onto the min-distance rule:
   a `STALE` robot keeps any latch it had, and a pair in which either
