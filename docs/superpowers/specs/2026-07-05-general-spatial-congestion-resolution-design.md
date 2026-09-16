@@ -26,6 +26,9 @@
   drift fixed; degradation-breakdown reporting; decision-frame rendering
   contract; rev-6 mechanism detail restored as Appendix A; header
   reformatted per `docs/standards/doc_style.md`.
+- Rev 8.1 (2026-09-16): added Appendix A.7 disclosing which apparatus
+  components are simulator-supplied ground truth, sensor-derived at
+  runtime, or scripted/tuned, per the 2026-09-16 system audit.
 
 Status: in user review. Predecessor system: the verified head-on yield
 protocol (H3 runs 8–13) and the M1→M5→M2→M3→M4 closed loop, live on the
@@ -740,3 +743,64 @@ grounding call site).
   and is exactly the residual the stage-2 secondary analysis measures.
 - Degradations are logged with `*=default` markers so fallback
   frequency is measurable from decision artifacts.
+
+### A.7 Ground truth, sensor-derived, and scripted apparatus components (rev 8.1)
+
+Audited 2026-09-16 against the running system, so the two-arm
+decision-source comparison is read correctly: which parts of the
+apparatus are simulator-supplied, which are decided from sensor data
+at runtime, and which are scripted or scenario-tuned.
+
+- **Simulator ground truth.** Localization is bypassed: each robot's
+  `map -> <robot>/odom` transform is a static transform equal to its
+  known spawn pose
+  (`ros2_ws/src/swarm_simulation/launch/nav2_robot.launch.py`), and
+  AMCL is deliberately not launched — robots do not localize
+  themselves. `/robot_N/odom` comes from Isaac Sim's
+  `IsaacComputeOdometry` on the simulated chassis pose (effectively
+  noise-free); M4's backup/sidestep/escort primitives close their
+  distance loops on this odometry. M1's camera calibration
+  (`ros2_ws/src/swarm_perception/config/calibration.yaml`) is computed
+  analytically from the simulated camera's known intrinsics and pose,
+  not measured.
+- **Decided at runtime from sensor data.** M1 robot poses come from
+  ArUco detection in the rendered overhead image, mapped through the
+  homography; M5's congestion detection and the M2 decision input use
+  these perception poses, not odometry. Nav2's global planner and DWB
+  controller run on live rendered-lidar costmaps over the static
+  map — except the 0.55 m corridor gap, which DWB cannot traverse:
+  that transit is M4's scripted escort primitive driving raw
+  `cmd_vel`, bypassing Nav2 and the collision monitor. The M2 decision
+  (deadlock type, strategy, involved robots) is produced by the VLM
+  from image + state in live runs.
+- **Scripted, templated, or tuned.** M3 grounding
+  (`reasoning/rag/command_grounder.py`) is a deterministic
+  strategy-to-template bridge, not retrieval: `yield` expands to
+  reverse-to-park, side-step 0.35 m, hold, escort the passer; `convoy`,
+  `priority_override`, and waypoint-less `reroute` all degrade to a
+  temporary wait; the yielder is always the first-listed robot in the
+  VLM's `involved_robots`. Park position and escort length are
+  computed from the robots' perceived positions but against scenario
+  constants — park at |x| = 1.8 m, derived from this scenario's 0.9 m
+  barrier blocks and camera height; side-step sized to this 1.2 m
+  aisle. M5 congestion detection is rule-based (stall ≥ 12 s without
+  progress, or a close/slow pair; thresholds in
+  `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`). The
+  `head_on_deadlock` scenario itself was tuned iteratively — corridor
+  width, spawn positions, backup/escort distances, hold, stale
+  threshold, safety envelope — until the deadlock forms and the
+  maneuver succeeds; the corridor is physically passable two-abreast,
+  and the deadlock is enforced by the 0.45 m safety envelope (comment
+  in `isaac/config/scenarios/head_on_deadlock.yaml`). Deadlock onset
+  is not deterministic across runs: since visual meshes were added to
+  the robots (2026-09-16), robots are mutually visible to lidar, and
+  onset has been observed both as a planner stall at ~1 m separation
+  and as a nose-to-nose standoff (`docs/implementation_notes.md`, M6,
+  2026-09-16).
+- **Implication.** The decision-source comparison remains valid
+  because the execution layer is fixed and identical across arms; the
+  apparatus does not support claims about autonomous localization,
+  generalization beyond the tuned scenario, or Nav2's resolving the
+  corridor unaided. Successful resolution in pilot runs demonstrates
+  that the pipeline functions, not that the VLM adds value over a
+  rule-based decision — that is precisely what Arm B tests.
