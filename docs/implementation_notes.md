@@ -84,6 +84,19 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-16** — Key-less closed loop on the new VM stalls at M2 by design,
+  not by fault: with `reasoning_backend_id: mock` M5 detected the standoff
+  (`2 robot(s) close/slow >= 12.0s`, later `stalled >= 12.0s`), started an
+  analysis every ~15 s and wrote a decision artifact each time, but every one
+  ended `no dispatch stage=vlm reason=congestion_detected=false` — the mock's
+  hard-coded `_DEFAULT_RESPONSE`. M4 therefore never received a command. The
+  ~41k `trigger suppressed ... frame_ready=True` lines are just cooldown/busy
+  gaps between those analyses, not a blocker. `build_backend("mock")` had no
+  way to script a decision; a `VGU_MOCK_DECISION_FILE` hook was added so the
+  loop can be exercised end-to-end without an API key (fixture:
+  `config/mock_decisions/head_on_yield.json`). This supersedes the reading of
+  the 2026-07-05 entry that only the openai swap remained: M3/M4 dispatch had
+  never actually been driven from a mock decision.
 - **2026-07-05** — M6→M1→M5→M2 closed loop runs end-to-end on the GCP/Isaac
   host with the mock backend; the only remaining swap for live reasoning is
   `backend_id: openai`, blocked on an API key.
@@ -96,6 +109,20 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-16** — Goal coordinates verified end-to-end on the rebuilt stack:
+  with `nav2_robot.launch.py` given the scenario spawns (`x:=-1.5` /
+  `x:=1.5 yaw:=3.14159265`), Nav2 logged `Begin navigating from current
+  location (-1.50, -0.00) to (3.00, 0.00)` for robot_1 and `(1.50, 0.00) →
+  (-3.00, 0.00)` for robot_2 — map-frame pose equals the YAML spawn, goal
+  equals `orchestrator.yaml`'s `initial_tasks`. Both robots then drove into
+  the aisle (M1 placed robot_1 at x≈0.00; `/robot_1/odom` on a fresh run
+  showed 0.8 m forward travel), met head-on, and the safety monitor latched
+  `min_distance_violation` on both — the intended standoff. Two caveats:
+  (1) `scripts/run_phase3_demo.sh` still hardcodes `x:=-0.6 / 0.6` (stale
+  since commit `0a0604c` moved spawns to ±1.5), which would misplace
+  `map→odom` by 0.9 m — do not use it unpatched. (2) `safety_monitor_node`
+  emitted 58 `safety stop ... min_distance_violation` WARN lines in 0.48 s
+  at latch time (alternating robots) — noisy but not yet shown to be harmful.
 - **2026-07-03** — Deadlock fix "H3" branch merged and verified (runs 8–13):
   separation and single-cycle resolution fixed; motion BVH requires the
   triple kit-arg. Open item at merge time: Nav2 pull-off recovery loop
@@ -161,6 +188,20 @@ Rules for maintaining it:
     avoidable without a post-hoc merge: move the committed URDF+meshes to a
     staging dir, free `isaac/assets/robots/turtlebot3_burger/`, then import —
     the importer writes the un-suffixed path `paths.robot_asset_path()` expects.
+- **2026-09-16** — **`ground_truth.jsonl` does not track robot motion.**
+  `acceptance_logging.sample_robot_positions` reads
+  `UsdGeom.Xformable(/World/Robots/<id>).ComputeLocalToWorldTransform(0.0)` —
+  the USD transform of the robot *root* prim, which physics never updates
+  (Newton moves the articulation in Fabric; see the 2026-06-21 Fabric entry).
+  Evidence from one run: the file reported `x=-1.5, speed=0.0` for both
+  robots for 300 sim-s while Nav2 logged navigation from that spawn, M1 saw
+  robot_1 at x≈0.00, and `/robot_1/odom` showed ~0.8 m of travel. So
+  `conflict_active`, `min_pairwise_distance_m`, and `speed_mps` in the
+  acceptance log are all constant-at-spawn and must not be used as a motion
+  oracle until this is fixed (read the chassis/`base_link` prim through
+  Fabric/usdrt, or reuse the odom bridge). `/robot_N/odom` is the honest
+  arbiter in the meantime. Unclear whether the July H3 runs relied on this
+  file; their conclusions were drawn from M1 and odom, per the M4 notes.
 - **2026-09-16** — `vgu_ros` container rebuilt from scratch and verified
   against host Isaac. The container was never defined in the repo (only
   `.devcontainer/Dockerfile`, which is a *different* base —
