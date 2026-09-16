@@ -293,6 +293,22 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-16** — **Per-scenario Nav2 map with the barrier** (`1d53053`).
+  `isaac/scripts/generate_warehouse_map.py --scenario <yaml>` now
+  rasterizes `aisle_barrier` with the same geometry as
+  `scenario_builder._author_aisle_barrier` (blocks over x ∈ center ±
+  length/2, |y| ∈ [effective/2, nominal_aisle/2]) into
+  `maps/warehouse_map_<scenario>.pgm/.yaml`; the default map is untouched
+  (byte-identical re-generation checked). `warehouse_map_head_on_deadlock`
+  adds exactly 480 occupied cells (240 per block, purely additive; aisle
+  core still free). Cell rounding puts the map corridor walls at |y| = 0.30
+  vs the physical 0.275, i.e. a 0.60 m map corridor — the global planner
+  gets ±0.11 m instead of ±0.085 m and now sees the barrier at plan time
+  rather than only via lidar. `nav2_robot.launch.py` gains `map_yaml`
+  (default: the base map) feeding the shared `map_server`;
+  `run_phase3_demo.sh` passes the head_on map. **Why:** AMCL cannot
+  localize against a map missing the dominant lidar feature (run B).
+  Verification against AMCL pending (run B2).
 - **2026-09-16** — **AMCL option executed on host (run B): mechanism
   verified, localization fails because the map lacks the barrier.**
   With `localization:=amcl` both `/robot_N/amcl` reached `active`, the
