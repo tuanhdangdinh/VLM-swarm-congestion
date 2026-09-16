@@ -69,6 +69,29 @@ Rules for maintaining it:
 
 ## M1 Perception
 
+- **2026-09-16** — **Marker-plane calibration: 7.5 % radial bias removed.**
+  `pixel_to_world_homography` computed the homography for the ground
+  plane z = 0, but the ArUco marker sits at z = 0.21 m; for the nadir
+  camera at 3.0 m every world coordinate M1 reported was inflated by
+  3.0/(3.0−0.21) = 1.0753 (measured: spawn −1.5 read as −1.62; errors of
+  0.178 m at GT −2.268 and 0.156 m at −2.074, ratios 1.075–1.081). Fix:
+  `pixel_to_world_homography(config, plane_height_m=0.0)` translates the
+  camera centre down by the plane height (exact for the general tilted
+  case); `build_calibration_dict` defaults `plane_height_m` to
+  `MARKER_HEIGHT_M` (0.21, defined locally with a parity test against
+  `marker_asset`, which cannot be imported without Isaac) and records it in
+  the artifact. Regenerated `swarm_perception/config/calibration.yaml`:
+  scale 0.004686 → 0.004358 m/px, offsets −2.999/2.249 → −2.789/2.092;
+  intrinsics unchanged. Residuals on the three measured instances after
+  the fix: 7 mm, 7 mm, 0 mm. The old test oracle used the camera height
+  as the plane height — it had encoded the bias. **Consequences:** M5's
+  proximity/stall geometry now sees true distances (≈7 % smaller than
+  before); `annotation.py` draws registry goals (floor points) through
+  the inverted marker-plane homography, so goal markers in the VLM's
+  annotated frame now render ~7 % too far from the image centre —
+  cosmetic, open. Host verification of M1-vs-GT with the new artifact is
+  part of run D.
+
 - **2026-07-03** — Colliding/overlapping ArUco markers make robots go STALE
   (marker lost), not STOPPED, which delays stall detection. Mitigation:
   `stale_after_sec` ≥ 3.0 and `velocity_alpha` ≈ 0.15 in the perception
