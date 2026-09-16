@@ -257,6 +257,92 @@ def test_yield_without_geometry_keeps_fallback_constants():
     assert "park_coord_m" not in params
 
 
+def _assert_yield_refused(command: dict, robot_ids: list[str]) -> None:
+    assert set(command) == {"command_id", "actions", "expected_resolution_time_sec", "fallback"}
+    actions = command["actions"]
+    assert [action["robot_id"] for action in actions] == robot_ids
+    for action in actions:
+        assert action["action"] == "temporary_wait"
+        params = action["parameters"]
+        assert params["duration_sec"] == 8.0
+        assert params["requested_strategy"] == "yield"
+        assert params["reason"] == (
+            "yield refused: both robots outside the corridor on "
+            "the same side; a reverse would traverse it"
+        )
+        assert "park_x_m" not in params
+        assert "park_coord_m" not in params
+        assert "park_axis" not in params
+    assert command["expected_resolution_time_sec"] == 8.0
+
+
+def test_yield_refused_when_both_robots_beyond_corridor_same_side():
+    # Run C (2026-09-16): both robots ended up west of the corridor after a
+    # yield. Refuse rather than park the yielder on the far (east) side.
+    positions = {"robot_1": (-1.75, 0.0), "robot_2": (-2.07, 0.0)}
+
+    command = ground_reasoner_result(
+        _result("yield"), robot_positions=positions, geometry=_geometry()
+    )
+
+    _assert_yield_refused(command, ["robot_1", "robot_2"])
+
+
+def test_yield_refused_symmetric_on_east_side():
+    positions = {"robot_1": (1.9, 0.0), "robot_2": (2.3, 0.0)}
+
+    command = ground_reasoner_result(
+        _result("yield"), robot_positions=positions, geometry=_geometry()
+    )
+
+    _assert_yield_refused(command, ["robot_1", "robot_2"])
+
+
+def test_yield_allowed_when_one_robot_inside_corridor():
+    # Passer at -0.5 sits inside the corridor (half_length_m=1.0), so the
+    # guard must not fire even though the yielder is already beyond it.
+    positions = {"robot_1": (-1.75, 0.0), "robot_2": (-0.5, 0.0)}
+
+    command = ground_reasoner_result(
+        _result("yield"), robot_positions=positions, geometry=_geometry()
+    )
+    params = command["actions"][0]["parameters"]
+
+    assert command["actions"][0]["action"] == "yield"
+    assert params["park_coord_m"] == pytest.approx(-1.789)
+    assert params["backup_distance_m"] == pytest.approx(0.3)
+    assert command["expected_resolution_time_sec"] == 150.0
+
+
+def test_yield_allowed_when_robots_straddle_corridor():
+    positions = {"robot_1": (-1.2, 0.0), "robot_2": (1.3, 0.0)}
+
+    command = ground_reasoner_result(
+        _result("yield"), robot_positions=positions, geometry=_geometry()
+    )
+    params = command["actions"][0]["parameters"]
+
+    assert command["actions"][0]["action"] == "yield"
+    assert params["park_coord_m"] == pytest.approx(-1.789)
+    assert params["backup_distance_m"] == pytest.approx(0.589)
+    assert command["expected_resolution_time_sec"] == 150.0
+
+
+def test_yield_guard_not_applied_without_geometry():
+    # Same same-side positions as the refused case above, but with no
+    # `geometry` the legacy fallback path applies unchanged.
+    positions = {"robot_1": (-1.75, 0.0), "robot_2": (-2.07, 0.0)}
+
+    command = ground_reasoner_result(_result("yield"), robot_positions=positions)
+    params = command["actions"][0]["parameters"]
+
+    assert command["actions"][0]["action"] == "yield"
+    assert params["park_x_m"] == 1.8
+    assert params["backup_distance_m"] == 2.5
+    assert params["passer_escort_distance_m"] == 4.0
+    assert command["expected_resolution_time_sec"] == 150.0
+
+
 def test_ground_reverse_decision_to_backing_reverse_action():
     command = ground_reasoner_result(_result("reverse", ["robot_2"]))
 

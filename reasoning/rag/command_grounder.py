@@ -94,7 +94,12 @@ def ground_reasoner_result(
 
     When `geometry` is also supplied, the park point, sidestep and escort
     clearance are derived from that declared scene instead of the fallback
-    constants above, so no scenario dimensions are hidden in M3.
+    constants above, so no scenario dimensions are hidden in M3. In that case a
+    yield is refused — and degraded to a `temporary_wait` for every involved
+    robot, like the remaining semantic strategies — when both robots already
+    sit beyond the corridor on the same side, since the park point would then
+    be on the far side and a reverse there would traverse the corridor instead
+    of opening it.
 
     Args:
         result: Validated M2 reasoner output whose decision is grounded.
@@ -181,6 +186,7 @@ def ground_reasoner_result(
     if decision.strategy == "yield":
         park_coord: float | None = None
         park_axis: Literal["x", "y"] = "x"
+        yield_refused = False
         if len(robot_ids) > 1 and robot_positions is not None:
             yielder_position = robot_positions.get(robot_ids[0])
             passer_position = robot_positions.get(robot_ids[1])
@@ -198,71 +204,105 @@ def ground_reasoner_result(
                     pull_off_lateral = round(pull_off_lateral_m(geometry), 3)
                 yielder_coord = yielder_position[axis_index]
                 passer_coord = passer_position[axis_index]
-                # Park on the yielder's own side of the corridor, away from the
-                # passer, so the two never swap sides mid-maneuver.
-                side = -1.0 if yielder_coord < passer_coord else 1.0
-                park_coord = round(corridor_center + side * park_offset, 3)
-                already_parked = (yielder_coord - park_coord) * side >= 0.0
-                # A yielder already past the park point must not reverse
-                # further away from the aisle; MIN_BACKUP_M is just enough of a
-                # nudge for M4's reverse leg to report progress.
-                backup_distance_m = (
-                    MIN_BACKUP_M
-                    if already_parked
-                    else round(
-                        _clamp(abs(yielder_coord - park_coord), MIN_BACKUP_M, MAX_BACKUP_M), 3
+                if geometry is not None:
+                    d_yielder = yielder_coord - corridor_center
+                    d_passer = passer_coord - corridor_center
+                    half_length = geometry.corridor.half_length_m
+                    # Run C (2026-09-16): both robots drifted past the corridor
+                    # mouth onto the same side after a "successful" yield. The
+                    # far park point then sits on the opposite side, so a
+                    # reverse there would traverse the whole corridor rather
+                    # than open it — refuse instead of grounding that motion.
+                    yield_refused = (
+                        abs(d_yielder) > half_length
+                        and abs(d_passer) > half_length
+                        and d_yielder * d_passer > 0
                     )
-                )
-                escort_m = round(
-                    _clamp(
-                        abs(passer_coord - park_coord) + passer_clearance,
-                        MIN_ESCORT_M,
-                        MAX_ESCORT_M,
-                    ),
-                    3,
-                )
-                passer_clear_m = escort_m
-                passer_escort_distance_m = escort_m
-        yield_parameters: dict[str, Any] = {
-            "backup_distance_m": backup_distance_m,
-            "hold_sec": yield_hold_sec,
-            "pull_off_lateral_m": pull_off_lateral,
-            "reason": decision.root_cause,
-        }
-        if park_coord is not None:
-            # Traceability only: M4 derives the backup from backup_distance_m
-            # and reads parameters with .get, so the extra keys are inert there.
-            # park_x_m predates the axis-aware geometry and stays for the x-axis
-            # scenarios (and tooling) that already read it.
-            if park_axis == "x":
-                yield_parameters["park_x_m"] = park_coord
-            if geometry is not None:
-                yield_parameters["park_axis"] = park_axis
-                yield_parameters["park_coord_m"] = park_coord
-        if len(robot_ids) > 1:
-            yield_parameters["passer_robot_id"] = robot_ids[1]
-            yield_parameters["passer_clear_m"] = passer_clear_m
-            yield_parameters["passer_escort_distance_m"] = passer_escort_distance_m
-        actions = [
-            {
-                "robot_id": robot_ids[0],
-                "action": "yield",
-                "parameters": yield_parameters,
-            },
-        ]
-        if len(robot_ids) > 1:
-            # Suppress the passing robot so M5 does not dispatch a competing
-            # command while the aisle is still blocked. The M4 command bus
-            # releases this wait the moment the linked yield reaches a
-            # terminal status (event-driven); passing_wait_sec only bounds
-            # the case where that release signal is lost.
-            actions.append(
+                if not yield_refused:
+                    # Park on the yielder's own side of the corridor, away
+                    # from the passer, so the two never swap sides mid-maneuver.
+                    side = -1.0 if yielder_coord < passer_coord else 1.0
+                    park_coord = round(corridor_center + side * park_offset, 3)
+                    already_parked = (yielder_coord - park_coord) * side >= 0.0
+                    # A yielder already past the park point must not reverse
+                    # further away from the aisle; MIN_BACKUP_M is just enough
+                    # of a nudge for M4's reverse leg to report progress.
+                    backup_distance_m = (
+                        MIN_BACKUP_M
+                        if already_parked
+                        else round(
+                            _clamp(abs(yielder_coord - park_coord), MIN_BACKUP_M, MAX_BACKUP_M),
+                            3,
+                        )
+                    )
+                    escort_m = round(
+                        _clamp(
+                            abs(passer_coord - park_coord) + passer_clearance,
+                            MIN_ESCORT_M,
+                            MAX_ESCORT_M,
+                        ),
+                        3,
+                    )
+                    passer_clear_m = escort_m
+                    passer_escort_distance_m = escort_m
+        if yield_refused:
+            actions = [
                 {
-                    "robot_id": robot_ids[1],
+                    "robot_id": robot_id,
                     "action": "temporary_wait",
-                    "parameters": {"duration_sec": passing_wait_sec},
+                    "parameters": {
+                        "duration_sec": duration_sec,
+                        "requested_strategy": "yield",
+                        "reason": (
+                            "yield refused: both robots outside the corridor on "
+                            "the same side; a reverse would traverse it"
+                        ),
+                    },
                 }
-            )
+                for robot_id in robot_ids
+            ]
+        else:
+            yield_parameters: dict[str, Any] = {
+                "backup_distance_m": backup_distance_m,
+                "hold_sec": yield_hold_sec,
+                "pull_off_lateral_m": pull_off_lateral,
+                "reason": decision.root_cause,
+            }
+            if park_coord is not None:
+                # Traceability only: M4 derives the backup from
+                # backup_distance_m and reads parameters with .get, so the
+                # extra keys are inert there. park_x_m predates the
+                # axis-aware geometry and stays for the x-axis scenarios (and
+                # tooling) that already read it.
+                if park_axis == "x":
+                    yield_parameters["park_x_m"] = park_coord
+                if geometry is not None:
+                    yield_parameters["park_axis"] = park_axis
+                    yield_parameters["park_coord_m"] = park_coord
+            if len(robot_ids) > 1:
+                yield_parameters["passer_robot_id"] = robot_ids[1]
+                yield_parameters["passer_clear_m"] = passer_clear_m
+                yield_parameters["passer_escort_distance_m"] = passer_escort_distance_m
+            actions = [
+                {
+                    "robot_id": robot_ids[0],
+                    "action": "yield",
+                    "parameters": yield_parameters,
+                },
+            ]
+            if len(robot_ids) > 1:
+                # Suppress the passing robot so M5 does not dispatch a
+                # competing command while the aisle is still blocked. The M4
+                # command bus releases this wait the moment the linked yield
+                # reaches a terminal status (event-driven); passing_wait_sec
+                # only bounds the case where that release signal is lost.
+                actions.append(
+                    {
+                        "robot_id": robot_ids[1],
+                        "action": "temporary_wait",
+                        "parameters": {"duration_sec": passing_wait_sec},
+                    }
+                )
     elif decision.strategy == "reverse":
         actions = [
             {
@@ -317,7 +357,9 @@ def ground_reasoner_result(
     else:
         raise CommandGroundingError(f"unsupported strategy: {decision.strategy}")
 
-    resolution_sec = yield_total_sec if decision.strategy == "yield" else duration_sec
+    resolution_sec = (
+        yield_total_sec if decision.strategy == "yield" and not yield_refused else duration_sec
+    )
     return validate_coordination_command(
         {
             "command_id": command_id,
