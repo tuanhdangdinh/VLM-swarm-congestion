@@ -329,6 +329,29 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-17** — **Fixes for the creep-while-latched defect (below),
+  host-unverified.** (1) `99edaca` — the Isaac-side `cmd_vel` relay
+  (`isaac/vgu_sim/cmd_vel_watchdog{,_node}.py`) now subscribes
+  `/safety/holds` once and returns zero on `cmd_vel_safe` for any listed
+  robot before the silence-timeout logic runs; malformed payloads keep the
+  previous set (fail-closed); transitions logged once. Cannot stall a
+  commanded backup because the safety monitor already removes
+  coordinating robots from `held` at the source. Spec: safety-monitor.md
+  §8, FR6.4.8 amended. (2) `5f9394a` — `Nav2Adapter.cancel()` sends a
+  real cancel-all (`action_msgs/srv/CancelGoal`, zero uuid + zero stamp)
+  to `/<robot>/{navigate_to_pose,follow_waypoints}/_action/cancel_goal`,
+  cached per (robot, action), logging the server's `return_code` /
+  `goals_canceling` or a WARNING — replacing `cancel_goals_async`, which
+  does not exist on rclpy's `ActionClient` (verified against the jazzy
+  source) and was silenced by a bare `except`. (3) The safety monitor
+  turned out not to use `Nav2Adapter` at all: `safety_monitor_node.
+  _cancel_nav2_goal` had its own copy of the same dead call and logged
+  `nav2 goal cancelled` regardless — being replaced by the shared adapter
+  cancel. Host check for all three: after a latch, no `Received a goal,
+  begin computing control effort` for either robot, `cancel-all …
+  goals_canceling=1`, `cmd_vel relay hold engaged`, and GT
+  `min_pairwise_distance_m` ≥ 0.4 m for ≥ 3 min with both markers
+  detected.
 - **2026-09-17** — **Defect: the safety latch does not hold the robots
   still — they creep into contact while latched.** Seen by the user on
   the run-G video and confirmed frame by frame: at the latch (frame 6878)
