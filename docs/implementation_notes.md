@@ -402,7 +402,14 @@ Rules for maintaining it:
   ~½ true sim time (GT 25.4 s vs `/clock` 48 s). Consequences: every
   velocity in `ground_truth.jsonl` is inflated ~1.9× (0.181 logged vs
   ~0.116 true), and a declared `duration_sec` runs ~1.9× longer in real
-  sim time. Fix is to take time from `sim_ctx.current_time`; pending.
+  sim time. **Fixed in code, host-unverified:** the loop now sets
+  `sim_time = sim_ctx.current_time − loop_start_time`, anchored at
+  recording start because `event_scheduler` `spawn_at_sec` and
+  `duration_sec` are authored relative to it (a raw clock would include
+  the topic-wait startup time). The step-count sampling gate was removed
+  (it would have halved the log rate to 5 Hz); `AcceptanceLogger`'s own
+  10 Hz throttle governs. Host check: GT `sim_time_sec` vs `/clock` slope
+  ≈ 1.0 (constant offset expected), logged `speed_mps` ≈ commanded.
 - **2026-09-16** — **Robots are now mutually visible to RTX lidar; they were
   not before the mesh fix.** Probe (fresh sim, no Nav2, robots parked at
   ±1.5 facing each other, 3.0 m apart): each robot's forward ±10° sector
