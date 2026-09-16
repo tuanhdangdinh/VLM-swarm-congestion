@@ -41,8 +41,8 @@ aisle_barrier:
   # collision_monitor, not DWB, vetoed Nav2 transit in here). Maneuver
   # margins at length 2.0 (corridor spans x=±1.0) are no longer fixed: M3
   # grounds backup and escort from the robots' actual positions, parking the
-  # yielder at |x|=1.5 (PARK_ABS_X_M in reasoning/rag/command_grounder.py,
-  # i.e. 0.5m past the corridor end, clear of the blocks that would occlude
+  # yielder at |x|=1.8 (PARK_ABS_X_M in reasoning/rag/command_grounder.py,
+  # i.e. 0.8m past the corridor end, clear of the blocks that would occlude
   # its marker) and escorting the passer to 0.65m past that park point. The
   # old fixed 1.3m backup / 2.4m escort survive only as the fallback for
   # when M5 cannot supply positions.

@@ -11,12 +11,13 @@ class CommandGroundingError(ValueError):
 
 
 # Absolute map x the yielder parks at. The head_on_deadlock barrier blocks are
-# 0.90 m tall and span x in [-1, 1]; the overhead camera sits at (0, 0, 3), so a
-# marker at z = 0.21 falls behind a block top for 1.0 < |x| < ~1.33 whenever
-# |y| >~ 0.28*|x| — M1 then loses the parked robot and M5 goes blind. At
-# |x| >= 1.5 the camera ray clears the block top by >= 0.24 m for any y, so we
-# park at the corridor half-length (1.0) plus a 0.5 m visibility margin.
-PARK_ABS_X_M = 1.5
+# 0.90 m tall and span x in [-1, 1]; the overhead camera sits at (0, 0, 3), so
+# a block's top face (z = 0.9) projects onto the marker plane (z = 0.21) out
+# to |x| ~= 1.0*(3-0.21)/(3-0.9) ~= 1.33. Add the 0.06 m marker half-width and
+# a 0.3 m margin for odometry error after the reverse/sidestep leg: 1.33 +
+# 0.06 + 0.3 ~= 1.69, rounded up to 1.8. 1.5 left only ~0.11 m of clearance
+# and lost the marker in a live run (2026-09-16 run 7).
+PARK_ABS_X_M = 1.8
 # Bounds on the derived backup leg: under 0.3 m the reverse does not open the
 # aisle at all, and 2.5 m is the longest run that stays inside the mapped aisle.
 MIN_BACKUP_M = 0.3

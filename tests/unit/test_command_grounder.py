@@ -117,21 +117,21 @@ def _yield_params(
 
 def test_yield_positions_west_approach_parks_at_negative_x():
     # Nose-to-nose standoff near x=0: the yielder is west of the passer, so it
-    # parks at -1.5 (camera-visible, clear of the corridor).
+    # parks at -1.8 (camera-visible, clear of the corridor).
     params = _yield_params((-0.04, 0.0), (0.08, 0.0))
 
-    assert params["park_x_m"] == -1.5
-    assert params["backup_distance_m"] == pytest.approx(1.46)
-    assert params["passer_escort_distance_m"] == pytest.approx(2.23)
-    assert params["passer_clear_m"] == pytest.approx(2.23)
+    assert params["park_x_m"] == -1.8
+    assert params["backup_distance_m"] == pytest.approx(1.76)
+    assert params["passer_escort_distance_m"] == pytest.approx(2.53)
+    assert params["passer_clear_m"] == pytest.approx(2.53)
 
 
 def test_yield_positions_east_approach_parks_at_positive_x():
     params = _yield_params((0.5, 0.0), (-0.3, 0.0))
 
-    assert params["park_x_m"] == 1.5
-    assert params["backup_distance_m"] == pytest.approx(1.0)
-    assert params["passer_escort_distance_m"] == pytest.approx(2.45)
+    assert params["park_x_m"] == 1.8
+    assert params["backup_distance_m"] == pytest.approx(1.3)
+    assert params["passer_escort_distance_m"] == pytest.approx(2.75)
 
 
 def test_yield_positions_stall_onset_escort_clears_park():
@@ -139,13 +139,15 @@ def test_yield_positions_stall_onset_escort_clears_park():
     # passer past the parked yielder plus the 0.45 m safety radius.
     params = _yield_params((-0.47, 0.0), (0.59, 0.0))
 
-    assert params["backup_distance_m"] == pytest.approx(1.03)
-    assert params["passer_escort_distance_m"] == pytest.approx(2.74)
+    assert params["backup_distance_m"] == pytest.approx(1.33)
+    assert params["passer_escort_distance_m"] == pytest.approx(3.04)
     assert params["passer_escort_distance_m"] >= abs(0.59 - params["park_x_m"]) + 0.45
 
 
 def test_yield_backup_clamped_when_already_past_park():
-    params = _yield_params((-1.6, 0.0), (0.2, 0.0))
+    # -1.9 is genuinely beyond the -1.8 park point; at -1.6 it would now land
+    # inside park and pass via the MIN_BACKUP_M clamp instead of this branch.
+    params = _yield_params((-1.9, 0.0), (0.2, 0.0))
 
     assert params["backup_distance_m"] == 0.3
 
