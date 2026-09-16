@@ -84,6 +84,27 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-16** — **Yield grounding is now scene-aware** (`039d92e`).
+  `ground_reasoner_result(result, robot_positions=...)` takes the robots'
+  world (x, y) — the pipeline passes them from `request.robot_states`, one
+  hop from `SceneSnapshot.robots` — and, for `yield`, parks the yielder at
+  `park_x = ∓PARK_ABS_X_M` (1.5 m; its own side, away from the passer) with
+  `backup = clamp(|yielder_x − park_x|, 0.3, 2.5)` and
+  `escort = passer_clear = clamp(|passer_x − park_x| + 0.65, 0.5, 4.0)`
+  (0.45 m safety radius + 0.2 m). `park_x_m` is emitted in the params for
+  traceability. Without positions the old 1.3 m / 2.4 m constants remain as
+  the fallback, so `reverse` and all prior tests are unchanged. **Why:**
+  the fixed distances were sized for one standoff position; onset is
+  bimodal (run 4 stall at ~1 m vs run 6 standoff at ~0.1 m), and the
+  fixed park spot sat in the 0.9 m barrier's camera shadow (see run 6
+  finding below). 1.5 m clears the block top by ≥ 0.24 m for any y.
+  Base goals also moved ±3.0 → ±2.5 (`orchestrator.yaml`,
+  `head_on_deadlock.yaml`): ±3.0 is the ROI edge (`roi_width_m 6.0`), so a
+  robot at its goal was half off-frame. Goal spheres are baked into the
+  scenario USD, so this needs `build_scenario` on the sim host. `GroundFn`
+  became a `Protocol` to express the keyword. 11 new unit tests; suite
+  failures unchanged from the pre-existing 21. Live verification pending
+  at the time of writing.
 - **2026-09-16** — **First live-VLM closed loop on the new VM** (run 6,
   06:27–06:33 UTC, `reasoning_backend_id: openai`, `gpt-4o-2024-08-06`):
   one analysis (`2 robot(s) close/slow >= 12.0s`) → decision
