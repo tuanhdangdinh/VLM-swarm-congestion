@@ -380,6 +380,29 @@ Rules for maintaining it:
     avoidable without a post-hoc merge: move the committed URDF+meshes to a
     staging dir, free `isaac/assets/robots/turtlebot3_burger/`, then import —
     the importer writes the un-suffixed path `paths.robot_asset_path()` expects.
+- **2026-09-16** — **Ground-truth oracle fixed for position; time axis
+  still wrong.** `acceptance_logging.sample_robot_positions` now reads the
+  chassis prim (`/World/Robots/<id>/Geometry/base_footprint/base_link`,
+  the single `ArticulationRootAPI` prim; `base_link` name as fallback) via
+  `ComputeLocalToWorldTransform(Usd.TimeCode.Default())`, resolved once
+  per robot and cached by *path* so a stage reload cannot return a dead
+  prim. Host probe compared four sources on the same step: root Xform
+  frozen at spawn; chassis USD world pose = `RigidPrim.get_world_poses()`
+  exactly; a raw Fabric attribute read returned only the local translate
+  (rejected). Verified on the VM with both robots driven at 0.1 m/s:
+  `x` now changes (robot_1 −1.5 → −0.049, robot_2 +1.5 → +0.021 at the
+  deadlock), `speed_mps` non-zero while moving, `conflict_active` true for
+  the first time, and the logged positions match spawn+odom to four
+  decimals for both robots (opposite signs). Pre-fix file preserved on the
+  VM as `ground_truth.jsonl.prefix_buggy_*`. Supersedes the "not a motion
+  oracle" entry below for *positions*.
+  **Still open — time axis:** `runner.py` advances `sim_time` by one
+  `physics_dt` per `app.update()`, but at `rendering_hz 30` /
+  `physics_hz 60` each update steps physics twice, so the counter runs at
+  ~½ true sim time (GT 25.4 s vs `/clock` 48 s). Consequences: every
+  velocity in `ground_truth.jsonl` is inflated ~1.9× (0.181 logged vs
+  ~0.116 true), and a declared `duration_sec` runs ~1.9× longer in real
+  sim time. Fix is to take time from `sim_ctx.current_time`; pending.
 - **2026-09-16** — **Robots are now mutually visible to RTX lidar; they were
   not before the mesh fix.** Probe (fresh sim, no Nav2, robots parked at
   ±1.5 facing each other, 3.0 m apart): each robot's forward ±10° sector
