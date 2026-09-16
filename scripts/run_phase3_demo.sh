@@ -139,15 +139,16 @@ sleep 3
 
 # ── 5. Nav2 bringup ───────────────────────────────────────────────────────────
 log "starting Nav2 robot_1 → ${NAV2_R1_LOG}"
+# x/y/yaw MUST equal the spawn poses in isaac/config/scenarios/head_on_deadlock.yaml: they define the static map->odom transform.
 sudo docker exec -d "$CONTAINER" bash -lc \
   "$ROS_SETUP && ros2 launch swarm_simulation nav2_robot.launch.py \
-   robot_id:=robot_1 x:=-0.6 y:=0.0 yaw:=0.0 start_map_server:=true \
+   robot_id:=robot_1 x:=-1.5 y:=0.0 yaw:=0.0 start_map_server:=true \
    >${NAV2_R1_LOG} 2>&1"
 sleep 3
 log "starting Nav2 robot_2 → ${NAV2_R2_LOG}"
 sudo docker exec -d "$CONTAINER" bash -lc \
   "$ROS_SETUP && ros2 launch swarm_simulation nav2_robot.launch.py \
-   robot_id:=robot_2 x:=0.6 y:=0.0 yaw:=3.14159265 start_map_server:=false \
+   robot_id:=robot_2 x:=1.5 y:=0.0 yaw:=3.14159265 start_map_server:=false \
    >${NAV2_R2_LOG} 2>&1"
 
 wait_action /robot_1/navigate_to_pose 150
