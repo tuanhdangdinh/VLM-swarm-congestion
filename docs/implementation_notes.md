@@ -107,6 +107,18 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-17** — **Robots within goal tolerance are excluded from stall
+  detection.** `CongestionDetector.update` now skips a robot whose
+  distance-to-goal ≤ `goal_reached_tolerance_m` (new `OrchestratorConfig`
+  field, default 0.15; `orchestrator.yaml`), clearing its stall
+  bookkeeping the same way STALE robots are handled; the close/slow-pair
+  rule is untouched (two robots jammed at a goal still trigger).
+  **Why:** an arrived robot is stationary by definition and read as
+  `stalled ≥ 12 s` forever; in runs C, D, G and H that re-triggered
+  analyses every cooldown on parked robots, and in G and H gpt-4o
+  eventually answered deadlock/yield for two robots sitting at their
+  goals, pulling one off its goal. Spec: module5 FR5.1.7. Host check
+  pending (M5 should stay idle with both robots parked at ±2.5).
 - **2026-09-16** — **Yield refused when both robots are past the corridor
   on the same side.** In the geometry-aware path, if
   `|yielder − center| > half_length` and `|passer − center| > half_length`
