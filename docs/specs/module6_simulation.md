@@ -6,6 +6,7 @@
 **Revision history:**
 - Initial draft: full M6 spec covering runtime, USD composition, scenarios, ROS2 graphs, runner, and testing.
 - Rev 2 (2026-06-11): added `oracle.py` to §6 package layout; fixed orphaned `/clock` QoS row in §3 FR6.7.10 table.
+- Rev 3 (2026-09-16): FR6.4.8 amended — the cmd_vel relay also zeros the wheel targets while the robot is under an M4 `/safety/holds` hold.
 
 ---
 
@@ -203,7 +204,10 @@ Every composed scenario must provide these paths:
   - Maximum linear velocity: `0.22 m/s`
   - Maximum angular velocity: `2.84 rad/s`
 - FR6.4.8 A command watchdog sets both wheel targets to zero when no valid
-  `/robot_N/cmd_vel` command is received for `0.5 s` of simulation time.
+  `/robot_N/cmd_vel` command is received for `0.5 s` of simulation time. The
+  same relay also holds both wheel targets at zero for as long as the robot is
+  listed in M4's `/safety/holds`, irrespective of what any `/robot_N/cmd_vel`
+  publisher sends (`docs/specs/module4/safety-monitor.md` §8).
 - FR6.4.9 Attach one 2D RTX lidar under the robot base (forward-aligned mount,
   360 deg horizontal coverage):
   - Frame: `robot_N/base_scan`

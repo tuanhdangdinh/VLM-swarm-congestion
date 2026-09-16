@@ -18,6 +18,9 @@
 - Rev 5 (2026-09-16): added §7 — the STALE fail-safe. Run D showed a STALE
   robot was treated as absent rather than unsafe, which blinded the monitor;
   resolves the §5.2 under-detection note for the proximity invariant.
+- Rev 6 (2026-09-16): added §8 — the authoritative hold at the M6 cmd_vel
+  relay. Runs D/E/G showed robots creeping into contact while latched, because
+  the §3 override is only last-writer-wins on a four-publisher topic.
 
 ---
 
@@ -249,3 +252,55 @@ distance rule and re-fires the Nav2 cancel. What is genuinely not covered is a
 robot that disappears from `robots[]` entirely rather than going STALE — still
 treated as absent. Fixing that needs a presence memory with its own timeout,
 deliberately out of scope here.
+
+---
+
+## 8. Authoritative hold at the cmd_vel relay (2026-09-16)
+
+**What.** The M6 cmd_vel watchdog — `isaac/vgu_sim/cmd_vel_watchdog.py` and its
+relay node `cmd_vel_watchdog_node.py`, which is the only producer of
+`/<robot_id>/cmd_vel_safe` and therefore the single point every velocity passes
+through on its way to the wheels — now subscribes `/safety/holds` and forwards a
+zero `Twist` for any robot in `held`, checked **before** the FR6.4.8
+stale-command rule. `enforce_safety_holds` (default `true`) is the kill-switch
+that restores plain stale-command relaying.
+
+**Why.** §3's override is only *last-writer-wins* on `/<robot_id>/cmd_vel`, a
+topic with four publishers (this monitor, Nav2's controller, Nav2's
+`collision_monitor`, the docking server). Runs D, E and the recorded run G show
+what that loses: the latch fires at a clean `min_distance_m` separation, the
+monitor cancels the goals and republishes zeros at 40 Hz, and the robots
+nevertheless creep toward each other at ≤ 0.06 m/s and reach contact — 0.45 m
+down to 0.08 m in ~40 s on run G's annotated video, with full marker overlap 47 s
+after the latch. Out-publishing the competition is not a stop; gating the one
+relay is. This does not replace §3 (the zero-`Twist` override still decelerates
+Nav2's own controller loop); it makes the stop hold.
+
+**Invariant.** *A held robot's wheels receive zero irrespective of `cmd_vel`
+publishers; coordination lift is expressed by removal from `held`.* The monitor
+already drops a robot from `held` while a coordination command is in flight for
+it (§5.1, §7's reuse of the same lift), so gating on `held` membership cannot
+stall the yield's commanded backup — the hold is lifted at its source, not
+negotiated at the relay. Two corollaries:
+
+- **`held` is the whole contract.** The relay reads nothing else: no reason
+  field, no distance, no status. `/safety/holds` keeps its `{"held": [...]}`
+  shape.
+- **A malformed `/safety/holds` payload keeps the previous hold set.** Parsing
+  fails closed (`parse_holds` returns `ok=False` and the callback warns without
+  touching the hold state) because applying an empty set on a corrupt message
+  would release the stop. §4's unconditional 1 s heartbeat re-delivers a genuine
+  release within a tick, so failing closed costs nothing.
+
+**Implementation.** `watchdog_velocity(elapsed_sec, commanded, timeout_sec,
+held)`, `parse_holds(payload) -> (ids, ok)` and the shared `SafetyHoldState`
+(`set_held` returns `(engaged, released)`) are rclpy-free and unit-tested in
+`tests/unit/test_cmd_vel_watchdog.py`. The node side is one `/safety/holds`
+subscription for all robots (`SafetyHoldListener`, depth 10, default RELIABLE),
+logging `cmd_vel relay hold engaged|released robot=…` once per transition rather
+than per message. Commands are still recorded while held so a release resumes on
+the publisher's live command instead of waiting out a freshly-expired timeout.
+
+**Host verification (pending).** Latch the pair and confirm the ground-truth
+`min_pairwise_distance_m` stays ≥ 0.4 m for 3 minutes. The relay runs inside the
+Isaac process with Isaac's bundled rclpy, so it cannot be exercised offline.
