@@ -5,6 +5,7 @@ import pytest
 
 from isaac.vgu_sim.calibration import (
     ANALYTIC_CREATED_AT,
+    MARKER_HEIGHT_M,
     build_calibration_dict,
     camera_intrinsics,
     pixel_to_world_homography,
@@ -51,6 +52,42 @@ def test_homography_origin_maps_to_image_center():
     assert abs(y) < 1e-9
 
 
+def test_homography_at_marker_height_scales_ground_plane_by_camera_ratio():
+    cfg = CameraConfig()
+    h_ground = pixel_to_world_homography(cfg)
+    h_marker = pixel_to_world_homography(cfg, MARKER_HEIGHT_M)
+    ratio = (cfg.position_m[2] - MARKER_HEIGHT_M) / cfg.position_m[2]
+
+    for u, v in ((740.0, 540.0), (300.0, 120.0), (1100.0, 900.0)):
+        x0, y0 = _apply_h(h_ground, u, v)
+        xm, ym = _apply_h(h_marker, u, v)
+        assert math.isclose(xm, x0 * ratio, rel_tol=1e-12, abs_tol=1e-12)
+        assert math.isclose(ym, y0 * ratio, rel_tol=1e-12, abs_tol=1e-12)
+
+
+def test_homography_plane_height_zero_matches_previous_behaviour():
+    cfg = CameraConfig()
+    previous = np.array(
+        [
+            [0.004686381798664122, 0.0, -2.9992843511450378],
+            [-0.0, -0.004686307251908397, 2.2494274809160304],
+            [0.0, 0.0, 1.0],
+        ]
+    )
+    assert np.allclose(pixel_to_world_homography(cfg), previous, rtol=0, atol=1e-15)
+    assert np.array_equal(
+        pixel_to_world_homography(cfg),
+        pixel_to_world_homography(cfg, 0.0),
+    )
+
+
+def test_marker_height_matches_marker_asset_constant():
+    pytest.importorskip("pxr")
+    from isaac.vgu_sim.marker_asset import MARKER_HEIGHT_M as asset_height
+
+    assert MARKER_HEIGHT_M == asset_height
+
+
 def test_homography_round_trip_over_roi():
     cfg = CameraConfig()
     h_mat = pixel_to_world_homography(cfg)
@@ -86,6 +123,7 @@ def test_build_calibration_dict_has_required_schema_keys():
         "image_size",
         "source_id",
         "created_at",
+        "plane_height_m",
     }
     assert np.array(d["intrinsics"]).shape == (3, 3)
     assert np.array(d["homography"]).shape == (3, 3)
@@ -93,6 +131,16 @@ def test_build_calibration_dict_has_required_schema_keys():
     assert d["image_size"] == [cfg.width, cfg.height]
     assert d["source_id"] == "isaac_sim"
     assert d["created_at"] == ANALYTIC_CREATED_AT
+
+
+def test_calibration_dict_records_plane_height():
+    d = build_calibration_dict(CameraConfig())
+    assert d["plane_height_m"] == MARKER_HEIGHT_M
+
+
+def test_calibration_dict_records_overridden_plane_height():
+    d = build_calibration_dict(CameraConfig(), 0.0)
+    assert d["plane_height_m"] == 0.0
 
 
 def test_build_calibration_dict_homography_not_identity():
@@ -117,7 +165,7 @@ def test_exported_yaml_loads_via_swarm_perception(tmp_path):
     assert artifact.source_id == "isaac_sim"
 
 
-def test_known_pixel_marker_maps_to_expected_world_point(monkeypatch, tmp_path):
+def test_known_pixel_marker_maps_to_world_point_on_the_marker_plane(monkeypatch, tmp_path):
     import yaml
 
     pytest.importorskip("cv2")
@@ -161,7 +209,9 @@ def test_known_pixel_marker_maps_to_expected_world_point(monkeypatch, tmp_path):
 
     fx = cfg.focal_length_mm / cfg.horizontal_aperture_mm * cfg.width
     fy = cfg.focal_length_mm / cfg.vertical_aperture_mm * cfg.height
-    h = cfg.position_m[2]
+    # The exported homography targets the marker plane, so the oracle uses the
+    # camera height above that plane, not above the floor.
+    h = cfg.position_m[2] - MARKER_HEIGHT_M
     exp_x = (u_c - cfg.width / 2.0) * h / fx
     exp_y = (cfg.height / 2.0 - v_c) * h / fy
 
