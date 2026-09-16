@@ -105,7 +105,22 @@ Rules for maintaining it:
   scenario knowledge hidden in M3; the derivation makes the dependence
   explicit and lets another scenario declare different geometry instead
   of retuning code. The head_on park offset moves 1.80 → 1.69 m (still
-  0.36 m outside the projected silhouette); live re-verification pending.
+  0.36 m outside the projected silhouette).
+  **Verified live (run A, 09:47–09:52 UTC, gpt-4o):** dispatched yield
+  carried `park_axis x, park_coord_m = park_x_m = −1.689,
+  pull_off_lateral_m 0.36, backup 1.678, escort = clear 2.477` — every
+  value reproducible from the standoff (backup = |−0.011 + 1.689|; escort
+  ⇒ passer at 0.138 vs GT 0.119). Yielder parked at GT x −1.668 (2 cm from
+  target); both robots resumed to their ±2.5 goals; 1 777 tokens, no
+  errors. **But** with the 0.3 m margin the yielder had one **7.6 s
+  detection blackout** starting 0.3 s before hold start (right after the
+  side-step) plus ~5 % scattered misses while parked — versus 1.6 % /
+  0.86 s max at the 1.8 m park (run 8) and minutes-long loss at 1.47 m
+  (run 7). Monotonic in margin across three distances: the rendered block
+  edge is softer than the geometric projection, and 7.6 s exceeds
+  `stale_after_sec 3.0`. `park_margin_m` raised 0.3 → 0.4 (park ≈ 1.789,
+  the distance verified clean), keeping the derivation; the margin is now
+  documented as empirical.
   The geometry block must be kept in sync with
   `isaac/config/scenarios/head_on_deadlock.yaml`, `isaac/config/warehouse.yaml`
   and `CameraConfig` by hand until M5 reads the scenario file.
@@ -414,8 +429,13 @@ Rules for maintaining it:
   `duration_sec` are authored relative to it (a raw clock would include
   the topic-wait startup time). The step-count sampling gate was removed
   (it would have halved the log rate to 5 Hz); `AcceptanceLogger`'s own
-  10 Hz throttle governs. Host check: GT `sim_time_sec` vs `/clock` slope
-  ≈ 1.0 (constant offset expected), logged `speed_mps` ≈ commanded.
+  10 Hz throttle governs. **Verified on host (run A):** GT `sim_time_sec`
+  vs `/clock` slope 1.008 over 127 s (0.992 over a shorter pair); robot_2's
+  logged `speed_mps` during the 0.1 m/s escort max 0.092 / mean 0.089,
+  independently matching 2.480 m over 27.2 sim-s = 0.091 m/s (the
+  escort's lateral servo costs ~10 %); GT vs odom position agreement
+  0.4 mm. `ground_truth.jsonl` is now usable as the experiment's metric
+  source for position, distance, speed and `conflict_active`.
 - **2026-09-16** — **Robots are now mutually visible to RTX lidar; they were
   not before the mesh fix.** Probe (fresh sim, no Nav2, robots parked at
   ±1.5 facing each other, 3.0 m apart): each robot's forward ±10° sector
