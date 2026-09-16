@@ -223,6 +223,34 @@ Rules for maintaining it:
     avoidable without a post-hoc merge: move the committed URDF+meshes to a
     staging dir, free `isaac/assets/robots/turtlebot3_burger/`, then import —
     the importer writes the un-suffixed path `paths.robot_asset_path()` expects.
+- **2026-09-16** — **Robots are now mutually visible to RTX lidar; they were
+  not before the mesh fix.** Probe (fresh sim, no Nav2, robots parked at
+  ±1.5 facing each other, 3.0 m apart): each robot's forward ±10° sector
+  returns 1.6–2.3 m (the 0.55 m corridor wall, at exactly the ranges
+  `0.275/sin(bearing)` predicts) and then a cluster at **2.99–3.12 m** —
+  matching the other robot's front plate edge (~2.99), LDS body (~3.06)
+  and rear structure (~3.1) from the observer's lidar origin. Nothing else
+  in the scene lies 3 m straight ahead (far wall > 3.5 m `range_max`).
+  Caveat: the probe kept bearings only for sector minima, so "at 0°" is
+  inferred from geometry, not measured. Why this is new: the scan plane is
+  z = 0.172 m; before the STLs the only render geometry on a robot was the
+  marker quad at z = 0.21 m (see `lidar.exclude_from_rtx_lidar` docstring,
+  2026-06-25), and collision prims are not rendered — so July's robots had
+  no lidar cross-section at all, which is why motion-BVH work was needed to
+  get *anything* into the costmap. **Consequence:** Nav2 now sees the
+  oncoming robot from 3 m and the planner blocks at ~1 m separation (run 4),
+  so the 0.45 m nose-to-nose standoff the July H3 runs and the congestion
+  spec assume no longer forms by itself. The spec's onset window and the
+  safety-monitor's role need revalidating before Arm A/B data collection.
+  Options, not yet decided: accept planner-stall as the deadlock signature;
+  or exclude robot meshes from the lidar (Isaac RTX-visibility / semantic
+  filtering) to restore the July geometry while keeping the camera view.
+- **2026-09-16** — OpenAI key verified on the VM for `gpt-4o`
+  (`/v1/models/gpt-4o` 200; 2-token chat completion answered from
+  `gpt-4o-2024-08-06`). Stored only in `/home/ubuntu/vgu-vlm-swarm/.env`
+  (`chmod 600`), sourced inside the container via `set -a && source
+  /ws/.env && set +a` immediately before launching M5 — never on a command
+  line.
 - **2026-09-16** — **`ground_truth.jsonl` does not track robot motion.**
   `acceptance_logging.sample_robot_positions` reads
   `UsdGeom.Xformable(/World/Robots/<id>).ComputeLocalToWorldTransform(0.0)` —
