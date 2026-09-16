@@ -341,19 +341,30 @@ Rules for maintaining it:
   masked because contact happened to occur before or during M5's
   decision. Consequence chain: contact ⇒ overlapping markers ⇒ M1 blind
   ⇒ VLM reasons on stale poses and the annotated frame shows a merged
-  blob. What the logs rule out (run G, robot_1, latch window): Nav2
-  received no goals and ran no recovery behaviours after the cancel; the
-  only publishers on `/robot_1/cmd_vel` are `safety_monitor_node` (zero
-  twists), `collision_monitor` (relaying a stopped controller) and
-  `command_bus_node` (idle). Unresolved whether a residual non-zero
-  command leaks through the relay or whether the wheels roll under a
-  zero-velocity drive with weak gains (URDF import warned "actuator
-  without gain parameters"). Fix in progress that settles both:
+  blob. **Root cause (run G Nav2 logs, both robots):** after the monitor
+  logged `nav2 goal cancelled` (t = 494) no new `NavigateToPose` was ever
+  received, yet `controller_server` kept executing `follow_path` —
+  `Failed to make progress` → `Aborting handle` → `Received a goal, begin
+  computing control effort` at t = 553 and again at t = 617 — i.e. the
+  original navigation goal's behavior tree was still running and DWB kept
+  nudging the robot into the obstacle at creep speed until contact. The
+  cancel never happened: `Nav2Adapter.cancel()` cancels goals it did not
+  send via `client.cancel_goals_async(goals_to_cancel=None)` inside a bare
+  `try/except: pass`, and rclpy's `ActionClient` has no such method — the
+  `AttributeError` is swallowed and "cancelled" is logged regardless. So
+  the safety monitor has never been able to stop a goal issued by
+  `coordination_client`. (The command bus's `cancel()` before a backup
+  has the same dead branch, but its handle-based cancel of its own goals
+  works, which is why yields still executed.) Publishers on
+  `/robot_1/cmd_vel`: `safety_monitor_node` (zero twists),
+  `collision_monitor` (relaying the still-running controller — the creep
+  source), `command_bus_node` (idle). Two fixes in progress: a **real
+  cancel-all** through the action's `CancelGoal` service (zero uuid + zero
+  stamp), logged with the response instead of silenced; and an
   **authoritative hold in the Isaac-side `cmd_vel` relay** — any robot in
   `/safety/holds` gets zero on `cmd_vel_safe` regardless of publishers
-  (coordination lift is already expressed by removal from `held`). If
-  creep persists with the relay at zero, the cause is physics and the
-  next fix is wheel-drive damping/brake. Side observation from the same
+  (coordination lift is already expressed by removal from `held`). Side
+  observation from the same
   logs: in the 60 s before the latch `bt_navigator` received a "goal
   preemption request" every ~1 s — `coordination_client` is re-issuing
   the base goal continuously, restarting DWB each time; worth a look at
