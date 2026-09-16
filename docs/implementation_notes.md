@@ -124,6 +124,43 @@ Rules for maintaining it:
 
 ## M6 Simulation / Isaac Sim
 
+- **2026-09-16** — Simulation rebuilt and re-verified on a new host after the
+  old VM was deleted: `vgu-canary-base-isaac-workstation-vm` (project
+  `summer-flux-501516-n6`, us-central1-a, g2-standard-8 + L4, Isaac Sim
+  6.0.0-rc.59 source build at `/home/ubuntu/IsaacSim`). Full asset chain
+  rebuilt from a clean checkout — URDF import → `warehouse_base.usd` →
+  `head_on_deadlock.usd` → `validate_simulation` **PASS** → headless run
+  `completed: true, failure: null`, 451 ground-truth records over 45 sim-s,
+  camera render product live (`rgb (960,1280,4) mean=127.95`). Isaac's bundled
+  Jazzy `rclpy` loads inside Kit, so no host ROS 2 is needed for a sim-only
+  run. Three facts worth keeping:
+  - **Robot visual meshes were never in the repo.** The committed URDF
+    references `meshes/{burger_base,left_tire,right_tire,lds}.stl`, which do
+    not exist, so a plain import of it yields collision primitives only.
+    Supplying the four ROBOTIS STLs next to the URDF imports 4 visual meshes
+    (burger_base 48 040 pts). **Confirmed** as the cause of the bodyless robots
+    in `data/logs/recordings/h3_final_demo_v13.mp4`: a fresh overhead render on
+    this host (mean 127.93, matching the run's render product) shows chassis,
+    both wheels, and a cast shadow where the July frame had only a floating
+    marker quad. The meshes currently exist **only on the VM**, not in git, so
+    a rebuild from `git archive HEAD` on a fresh host reproduces the mesh-less
+    import. Note the marker renders offset from the body centroid — expected,
+    not a perception bias: `aruco_marker_joint` is at `base_link` with no x/y
+    offset, while the `base_link` visual mesh carries a `-0.032 m` origin and
+    `base_link` itself sits at the wheel axis. M1's marker-derived pose is
+    therefore in the same frame as odom and ground truth.
+  - **Nothing validates visual geometry.** `validate_robot_asset` checks the
+    articulation root, wheel `DriveAPI`, and disabled `base_joint`;
+    `validation.py` checks metadata, namespace, camera frustum, marker mesh,
+    and unresolved references. A mesh-less import passes every gate.
+  - **Imported meshes are instanced**, so `Usd.Stage.Traverse()` reports zero
+    `UsdGeom.Mesh` prims. Use `Traverse(Usd.TraverseInstanceProxies())` when
+    checking an imported robot asset, or the geometry looks absent when it is
+    not.
+  - The `turtlebot3_burger_1/` import collision (2026-06-18 report, item 3) is
+    avoidable without a post-hoc merge: move the committed URDF+meshes to a
+    staging dir, free `isaac/assets/robots/turtlebot3_burger/`, then import —
+    the importer writes the un-suffixed path `paths.robot_asset_path()` expects.
 - **2026-07-04** — Aisle-width congestion gap closed: 0.55 m × 2.0 m
   `aisle_barrier` corridor built and verified in
   `isaac/config/scenarios/head_on_deadlock.yaml`.
