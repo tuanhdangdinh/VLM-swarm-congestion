@@ -161,6 +161,16 @@ def test_head_on_yaml_round_trip():
     assert cfg.expected_conflict.type == "deadlock"
 
 
+def test_head_on_goals_stay_inside_camera_roi():
+    # +-3.0 is exactly the camera ROI edge (roi_width_m: 6.0), so a marker at
+    # its goal is half off-frame and undetectable by M1; +-2.5 keeps 0.5 m of
+    # margin (~107 px at 1280 px / 6.0 m).
+    cfg = _load_scenario("head_on_deadlock")
+
+    assert (cfg.robots[0].goal.x, cfg.robots[0].goal.y) == pytest.approx((2.5, 0.0))
+    assert (cfg.robots[1].goal.x, cfg.robots[1].goal.y) == pytest.approx((-2.5, 0.0))
+
+
 def test_intersection_yaml_round_trip():
     cfg = _load_scenario("intersection_bottleneck")
     assert cfg.name == "intersection_bottleneck"

@@ -10,18 +10,20 @@ duration_sec: 300.0
 # alignment rotations sweep the collision_monitor box into a wall 0.1-0.2m
 # away, freezing them before they ever approach each other (run 11).
 # +-1.5 keeps both ArUco markers well inside the camera ROI (+-3m). Goals
-# stay at +-3 to match the orchestrator initial_tasks, so each robot's
-# goal is across the other.
+# are +-2.5, matching the orchestrator initial_tasks, so each robot's goal
+# is across the other: +-3.0 is exactly the ROI edge (roi_width_m: 6.0), so a
+# marker sitting at its goal is half off-frame and M1 stops detecting it.
+# +-2.5 leaves 0.5 m of margin (~107 px at 1280 px / 6.0 m).
 robots:
   - robot_id: robot_1
     marker_id: 1
     spawn: {x: -1.5, y: 0.0, yaw_rad: 0.0}
-    goal: {x: 3.0, y: 0.0}
+    goal: {x: 2.5, y: 0.0}
     initial_task: cross_narrow_aisle
   - robot_id: robot_2
     marker_id: 2
     spawn: {x: 1.5, y: 0.0, yaw_rad: 3.141592653589793}
-    goal: {x: -3.0, y: 0.0}
+    goal: {x: -2.5, y: 0.0}
     initial_task: cross_narrow_aisle
 
 timed_obstacles: []
@@ -37,9 +39,13 @@ aisle_barrier:
   # proven in H3 runs 4-5); the gap TRANSIT no longer depends on width at
   # all — the passer is escorted through on raw cmd_vel (probe-proven that
   # collision_monitor, not DWB, vetoed Nav2 transit in here). Maneuver
-  # margins at length 2.0 (corridor spans x=±1.0): yielder backs 1.3m from
-  # ~-0.25 to ~-1.55 (0.55m past the west end, room to sidestep); escort
-  # 2.4m ends ~0.2m past the yielder+0.45m crossing-safe point.
+  # margins at length 2.0 (corridor spans x=±1.0) are no longer fixed: M3
+  # grounds backup and escort from the robots' actual positions, parking the
+  # yielder at |x|=1.5 (PARK_ABS_X_M in reasoning/rag/command_grounder.py,
+  # i.e. 0.5m past the corridor end, clear of the blocks that would occlude
+  # its marker) and escorting the passer to 0.65m past that park point. The
+  # old fixed 1.3m backup / 2.4m escort survive only as the fallback for
+  # when M5 cannot supply positions.
   effective_width_m: 0.55
   center_x_m: 0.0
   length_m: 2.0

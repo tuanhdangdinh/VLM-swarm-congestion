@@ -12,5 +12,5 @@ keep_debug_frames: false
 frame_scene_max_skew_sec: 1.0
 frame_downscale_width: null
 initial_tasks:
-  robot_1: { task: cross_narrow_aisle, goal: [3.0, 0.0] }
-  robot_2: { task: cross_narrow_aisle, goal: [-3.0, 0.0] }
+  robot_1: { task: cross_narrow_aisle, goal: [2.5, 0.0] }
+  robot_2: { task: cross_narrow_aisle, goal: [-2.5, 0.0] }

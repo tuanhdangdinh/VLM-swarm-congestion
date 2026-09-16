@@ -25,8 +25,17 @@ from swarm_orchestrator.models import (
     TerminalStage,
 )
 
-GroundFn = Callable[[ReasonerResult], dict[str, Any]]
 ValidateFn = Callable[[dict[str, Any]], dict[str, Any]]
+
+
+class GroundFn(Protocol):
+    """M3 grounding callable: a reasoner result plus scene positions -> command."""
+
+    def __call__(
+        self,
+        result: ReasonerResult,
+        robot_positions: dict[str, tuple[float, float]] | None = None,
+    ) -> dict[str, Any]: ...
 
 
 def build_failed_outcome(request_id: str, reason: str) -> PipelineOutcome:
@@ -185,7 +194,13 @@ class InProcessPipeline:
             return self._vlm_terminal(request.request_id, result, "congestion_detected=false")
         try:
             allowed_robot_ids = {robot.robot_id for robot in request.robot_states}
-            grounded = filter_command_robot_ids(self._ground_fn(result), allowed_robot_ids)
+            # M3 grounds the yield distances from where the robots actually are,
+            # so hand it this cycle's snapshot positions (the request carries
+            # them verbatim from SceneSnapshot.robots).
+            positions = {robot.robot_id: (robot.x, robot.y) for robot in request.robot_states}
+            grounded = filter_command_robot_ids(
+                self._ground_fn(result, robot_positions=positions), allowed_robot_ids
+            )
             grounded = self._validate_fn(grounded)
         except Exception as exc:  # grounding or schema-validation failure — bounded here
             return PipelineOutcome(

@@ -10,6 +10,32 @@ class CommandGroundingError(ValueError):
     """Raised when a grounded command is incomplete or invalid."""
 
 
+# Absolute map x the yielder parks at. The head_on_deadlock barrier blocks are
+# 0.90 m tall and span x in [-1, 1]; the overhead camera sits at (0, 0, 3), so a
+# marker at z = 0.21 falls behind a block top for 1.0 < |x| < ~1.33 whenever
+# |y| >~ 0.28*|x| — M1 then loses the parked robot and M5 goes blind. At
+# |x| >= 1.5 the camera ray clears the block top by >= 0.24 m for any y, so we
+# park at the corridor half-length (1.0) plus a 0.5 m visibility margin.
+PARK_ABS_X_M = 1.5
+# Bounds on the derived backup leg: under 0.3 m the reverse does not open the
+# aisle at all, and 2.5 m is the longest run that stays inside the mapped aisle.
+MIN_BACKUP_M = 0.3
+MAX_BACKUP_M = 2.5
+# Added to the passer's distance-to-park so the hold only ends once the passer
+# is clear of the parked yielder: 0.45 m safety radius (M4 min_distance_m) plus
+# a 0.20 m margin.
+PASSER_CLEARANCE_M = 0.65
+# Bounds on the derived escort leg. The upper bound must stay under what the
+# 45 s hold backstop covers at the 0.1 m/s escort speed (4.5 m), otherwise the
+# hold would expire mid-escort and both robots would re-enter the aisle.
+MIN_ESCORT_M = 0.5
+MAX_ESCORT_M = 4.0
+
+
+def _clamp(value: float, low: float, high: float) -> float:
+    return max(low, min(high, value))
+
+
 def validate_coordination_command(command: dict[str, Any]) -> dict[str, Any]:
     schema = load_schema("coordination_command")
     errors = sorted(Draft202012Validator(schema).iter_errors(command), key=str)
@@ -37,7 +63,10 @@ def filter_command_robot_ids(
     return {**command, "actions": actions}
 
 
-def ground_reasoner_result(result: ReasonerResult) -> dict[str, Any]:
+def ground_reasoner_result(
+    result: ReasonerResult,
+    robot_positions: dict[str, tuple[float, float]] | None = None,
+) -> dict[str, Any]:
     """Convert a validated VLM decision into an executable coordination command.
 
     This is a small deterministic bridge until the full retrieval-backed M3
@@ -46,6 +75,27 @@ def ground_reasoner_result(result: ReasonerResult) -> dict[str, Any]:
     cancels Nav2 goals, reroute forwards explicit waypoints when present, and the
     remaining semantic strategies degrade to a temporary wait rather than
     inventing unsafe motion.
+
+    When `robot_positions` carries both yield participants, the yield distances
+    are derived from where the robots actually are instead of the legacy
+    constants sized for one assumed standoff pose. Deadlock onset is bimodal in
+    this scenario — a nose-to-nose standoff near x=0 or a planner stall at ~1 m
+    separation (observed 2026-09-16) — and fixed distances cannot suit both.
+
+    Args:
+        result: Validated M2 reasoner output whose decision is grounded.
+        robot_positions: Optional map of robot_id to world-frame `(x, y)` in
+            metres, from the M5 scene snapshot. When it covers both the yielder
+            and the passer, yield distances are scene-derived; otherwise the
+            legacy fixed distances are used.
+
+    Returns:
+        Schema-validated coordination command dict.
+
+    Raises:
+        CommandGroundingError: If the decision is empty, reports no congestion,
+            or names an unsupported strategy, or if the built command fails
+            schema validation.
     """
     decision = result.decision
     if decision is None or not decision.congestion_detected:
@@ -54,15 +104,15 @@ def ground_reasoner_result(result: ReasonerResult) -> dict[str, Any]:
     robot_ids = decision.involved_robots
     command_id = f"{result.request_id}-{decision.strategy}"
     duration_sec = 8.0
-    # Distance the yielding robot reverses. Sized for the head-on deadlock
-    # geometry: robots stop at ~0.3-0.45 m separation inside the aisle. 0.8 m
-    # parked the yielder ~0.7 m from the gap's west exit — close enough that
-    # its inflated footprint forced the passer into a tight S-curve right at
-    # the 0.55 m gap mouth, and DWB stalled in "Failed to make progress"
-    # loops without moving (observed 2026-07-03 run 4). 1.3 m parks it ~1.2 m
-    # clear of the exit: the passer gets a straight run out of the gap and a
-    # gentle arc past the yielder at >0.55 m separation (above the 0.45 m
-    # safety latch threshold).
+    # Fallback distance the yielding robot reverses, used when the caller
+    # supplies no positions (and by `reverse`, which has no park target). Sized
+    # for a nose-to-nose standoff near x=0: robots stop at ~0.3-0.45 m
+    # separation inside the aisle, and 0.8 m parked the yielder only ~0.7 m from
+    # the gap's west exit — close enough that its inflated footprint forced the
+    # passer into a tight S-curve right at the 0.55 m gap mouth, where DWB
+    # stalled in "Failed to make progress" loops (observed 2026-07-03 run 4).
+    # 1.3 m parks it ~1.2 m clear of that exit. The scene-aware path below
+    # replaces this with |yielder_x - park_x|.
     backup_distance_m = 1.3
     # A straight backup alone re-deadlocks this scenario: the yielder stays on
     # the passer's line, and with min_distance_m=0.45 in the 1.2 m aisle the
@@ -88,13 +138,13 @@ def ground_reasoner_result(result: ReasonerResult) -> dict[str, Any]:
     yield_hold_sec = 45.0
     # The passer is DRIVEN through the gap by M4's raw-cmd_vel escort during
     # the hold (DWB could not transit the gap even with a widened free band —
-    # ~0.01 m/s creep, H3 runs 4-7). Distance sized so the hold only ends
-    # once the passer is fully PAST the parked yielder's x with margin: from
-    # hold start (~x=+0.25) past the yielder (backup 1.3 m parks it near
-    # x=-1.65) plus the 0.45 m safety radius ≈ 2.35 m. Ending earlier would
-    # make the resuming yielder cross the still-approaching passer at
-    # <0.45 m lateral separation and latch both. 24+ sim-s at 0.1 m/s fits
-    # the 45 sim-s hold backstop.
+    # ~0.01 m/s creep, H3 runs 4-7). The hold must only end once the passer is
+    # fully PAST the parked yielder's x with margin, or the resuming yielder
+    # crosses the still-approaching passer at <0.45 m separation and latches
+    # both. These fallback values assume that same x=0 standoff (passer at
+    # ~+0.25, yielder parked near x=-1.65, plus the 0.45 m safety radius);
+    # the scene-aware path below replaces them with
+    # |passer_x - park_x| + PASSER_CLEARANCE_M.
     passer_clear_m = 2.4
     passer_escort_distance_m = 2.4
     # Generous safety upper bound, not a motion-duration estimate (which was
@@ -109,12 +159,45 @@ def ground_reasoner_result(result: ReasonerResult) -> dict[str, Any]:
     yield_total_sec = 150.0
 
     if decision.strategy == "yield":
+        park_x: float | None = None
+        if len(robot_ids) > 1 and robot_positions is not None:
+            yielder_position = robot_positions.get(robot_ids[0])
+            passer_position = robot_positions.get(robot_ids[1])
+            if yielder_position is not None and passer_position is not None:
+                yielder_x = yielder_position[0]
+                passer_x = passer_position[0]
+                # Park on the yielder's own side of the corridor, away from the
+                # passer, so the two never swap sides mid-maneuver.
+                park_x = -PARK_ABS_X_M if yielder_x < passer_x else PARK_ABS_X_M
+                already_parked = yielder_x <= park_x if park_x < 0 else yielder_x >= park_x
+                # A yielder already past the park point must not reverse
+                # further away from the aisle; MIN_BACKUP_M is just enough of a
+                # nudge for M4's reverse leg to report progress.
+                backup_distance_m = (
+                    MIN_BACKUP_M
+                    if already_parked
+                    else round(_clamp(abs(yielder_x - park_x), MIN_BACKUP_M, MAX_BACKUP_M), 3)
+                )
+                escort_m = round(
+                    _clamp(
+                        abs(passer_x - park_x) + PASSER_CLEARANCE_M,
+                        MIN_ESCORT_M,
+                        MAX_ESCORT_M,
+                    ),
+                    3,
+                )
+                passer_clear_m = escort_m
+                passer_escort_distance_m = escort_m
         yield_parameters: dict[str, Any] = {
             "backup_distance_m": backup_distance_m,
             "hold_sec": yield_hold_sec,
             "pull_off_lateral_m": pull_off_lateral_m,
             "reason": decision.root_cause,
         }
+        if park_x is not None:
+            # Traceability only: M4 derives the backup from backup_distance_m
+            # and reads parameters with .get, so the extra key is inert there.
+            yield_parameters["park_x_m"] = park_x
         if len(robot_ids) > 1:
             yield_parameters["passer_robot_id"] = robot_ids[1]
             yield_parameters["passer_clear_m"] = passer_clear_m

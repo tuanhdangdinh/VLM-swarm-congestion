@@ -102,6 +102,96 @@ def test_passing_wait_is_upper_bound_constant():
     assert command["expected_resolution_time_sec"] == 150.0
 
 
+def _yield_params(
+    yielder_xy: tuple[float, float] | None,
+    passer_xy: tuple[float, float] | None,
+) -> dict:
+    positions = {}
+    if yielder_xy is not None:
+        positions["robot_1"] = yielder_xy
+    if passer_xy is not None:
+        positions["robot_2"] = passer_xy
+    command = ground_reasoner_result(_result("yield"), robot_positions=positions)
+    return command["actions"][0]["parameters"]
+
+
+def test_yield_positions_west_approach_parks_at_negative_x():
+    # Nose-to-nose standoff near x=0: the yielder is west of the passer, so it
+    # parks at -1.5 (camera-visible, clear of the corridor).
+    params = _yield_params((-0.04, 0.0), (0.08, 0.0))
+
+    assert params["park_x_m"] == -1.5
+    assert params["backup_distance_m"] == pytest.approx(1.46)
+    assert params["passer_escort_distance_m"] == pytest.approx(2.23)
+    assert params["passer_clear_m"] == pytest.approx(2.23)
+
+
+def test_yield_positions_east_approach_parks_at_positive_x():
+    params = _yield_params((0.5, 0.0), (-0.3, 0.0))
+
+    assert params["park_x_m"] == 1.5
+    assert params["backup_distance_m"] == pytest.approx(1.0)
+    assert params["passer_escort_distance_m"] == pytest.approx(2.45)
+
+
+def test_yield_positions_stall_onset_escort_clears_park():
+    # Planner-stall onset at ~1 m separation: the escort must still carry the
+    # passer past the parked yielder plus the 0.45 m safety radius.
+    params = _yield_params((-0.47, 0.0), (0.59, 0.0))
+
+    assert params["backup_distance_m"] == pytest.approx(1.03)
+    assert params["passer_escort_distance_m"] == pytest.approx(2.74)
+    assert params["passer_escort_distance_m"] >= abs(0.59 - params["park_x_m"]) + 0.45
+
+
+def test_yield_backup_clamped_when_already_past_park():
+    params = _yield_params((-1.6, 0.0), (0.2, 0.0))
+
+    assert params["backup_distance_m"] == 0.3
+
+
+def test_yield_escort_clamped_at_max():
+    # The escort must fit under the 45 s hold backstop at 0.1 m/s (4.5 m).
+    params = _yield_params((-0.1, 0.0), (12.0, 0.0))
+
+    assert params["passer_escort_distance_m"] == 4.0
+    assert params["passer_clear_m"] == 4.0
+
+
+def test_yield_without_positions_uses_legacy_constants():
+    params = ground_reasoner_result(_result("yield"))["actions"][0]["parameters"]
+
+    assert params["backup_distance_m"] == 1.3
+    assert params["passer_escort_distance_m"] == 2.4
+    assert params["passer_clear_m"] == 2.4
+    assert params["pull_off_lateral_m"] == 0.35
+    assert "park_x_m" not in params
+
+
+def test_yield_missing_passer_position_uses_legacy_constants():
+    params = _yield_params((-0.04, 0.0), None)
+
+    assert params["backup_distance_m"] == 1.3
+    assert params["passer_escort_distance_m"] == 2.4
+    assert "park_x_m" not in params
+
+
+def test_yield_scene_aware_command_validates_against_schema():
+    # ground_reasoner_result validates before returning, so reaching this
+    # assertion proves the extra park_x_m parameter passes the M3 schema.
+    command = ground_reasoner_result(
+        _result("yield"), robot_positions={"robot_1": (-0.04, 0.0), "robot_2": (0.08, 0.0)}
+    )
+
+    assert set(command) == {
+        "command_id",
+        "actions",
+        "expected_resolution_time_sec",
+        "fallback",
+    }
+    assert command["actions"][0]["parameters"]["pull_off_lateral_m"] == 0.35
+
+
 def test_ground_reverse_decision_to_backing_reverse_action():
     command = ground_reasoner_result(_result("reverse", ["robot_2"]))
 

@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
+import yaml
 from pydantic import ValidationError
 from swarm_orchestrator.models import (
     CongestionEvent,
@@ -74,6 +76,17 @@ def test_load_config_parses_nested_yaml_dict_with_goal_lists():
     assert cfg.initial_tasks["robot_0"].goal == (3.0, 1.5)
     assert cfg.frame_downscale_width is None  # default
     assert cfg.decision_log_dir == "data/logs/m5_decisions"
+
+
+def test_shipped_orchestrator_yaml_goals_stay_inside_camera_roi():
+    # +-3.0 is exactly the camera ROI edge (roi_width_m: 6.0), so a marker at
+    # its goal is half off-frame and undetectable by M1; +-2.5 keeps 0.5 m of
+    # margin (~107 px at 1280 px / 6.0 m).
+    path = Path("ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml")
+    cfg = load_config(yaml.safe_load(path.read_text(encoding="utf-8")))
+
+    assert cfg.initial_tasks["robot_1"].goal == (2.5, 0.0)
+    assert cfg.initial_tasks["robot_2"].goal == (-2.5, 0.0)
 
 
 def test_load_config_raises_on_missing_required_field():
