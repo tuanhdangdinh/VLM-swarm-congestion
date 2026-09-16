@@ -112,8 +112,11 @@ Rules for maintaining it:
     edge, but robot_1 at x≈−1.18 was in view, so this looks like frames
     stopping rather than detection failing. Not yet diagnosed.
   - Nav2 ERROR on both robots: `inflation radius (0.070) is smaller than
-    the computed inscribed radius (0.080) of your footprint`. Not yet
-    assessed whether this predates the rebuild.
+    the computed inscribed radius (0.080) of your footprint`. Pre-existing
+    and deliberate, not a regression: `local_costmap.inflation_radius: 0.07`
+    has been set since `05ab38f` (2026-06-28) because Nav2's 0.55 m default
+    is wider than the aisle; the 0.14×0.18 m footprint's inscribed radius is
+    0.08, so Nav2 logs this on every launch. Safe to ignore.
   - Perception stamps ran ~9 s ahead of M5's clock (wall vs sim time);
     `frame_scene_max_skew_sec` did not block this run but worth knowing.
 - **2026-09-16** — Key-less closed loop on the new VM stalls at M2 by design,
