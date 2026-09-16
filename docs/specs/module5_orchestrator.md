@@ -126,6 +126,14 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   thresholds injected from config, **no `rclpy` import**.
 - FR5.1.6 Spatial clustering (require N robots jammed within a radius) is a future
   refinement and explicitly out of scope for this milestone.
+- FR5.1.7 (2026-09-17) Exclude robots within `goal_reached_tolerance_m` (default
+  0.15 m, > Nav2's 0.1 m `xy_goal_tolerance`) of their effective goal from stall
+  evidence, clearing any existing progress bookkeeping the same way `STALE`
+  robots are handled. Runs C, D, G, H showed an arrived robot reads as
+  permanently "stalled" (distance never improves because it is parked), which
+  triggered spurious re-analysis cycles and, in run H, a bad `yield` that moved
+  a parked robot off its goal. The close/slow-pair check is unaffected — two
+  robots genuinely jammed at a goal are still flagged.
 
 ### M5.2 Orchestrator State Machine
 - FR5.2.1 Maintain an explicit node-visible state:

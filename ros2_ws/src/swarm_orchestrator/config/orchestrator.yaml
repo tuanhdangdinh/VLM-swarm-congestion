@@ -1,6 +1,9 @@
 # M5 orchestrator config. Loaded by orchestrator_node via the config_file param.
 stall_threshold_sec: 12.0
 progress_epsilon_m: 0.10
+# Arrived robots sit inside Nav2's xy_goal_tolerance (0.1 m); this must exceed
+# that so a parked robot is never re-flagged as stalled.
+goal_reached_tolerance_m: 0.15
 proximity_threshold_m: 0.50
 proximity_slow_speed_mps: 0.05
 cooldown_sec: 15.0

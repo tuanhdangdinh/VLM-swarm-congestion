@@ -45,6 +45,9 @@ class OrchestratorConfig(BaseModel):
 
     stall_threshold_sec: float = Field(ge=0.0)
     progress_epsilon_m: float = Field(ge=0.0)
+    # Nav2's xy_goal_tolerance is 0.1 m; an arrived robot sits inside that band
+    # forever and must not be read as stalled by the progress-stall check.
+    goal_reached_tolerance_m: float = Field(default=0.15, ge=0.0)
     proximity_threshold_m: float = Field(default=0.5, ge=0.0)
     proximity_slow_speed_mps: float = Field(default=0.05, ge=0.0)
     cooldown_sec: float = Field(ge=0.0)

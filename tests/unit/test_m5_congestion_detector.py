@@ -1,8 +1,17 @@
 """Unit tests for the M5 progress-based congestion detector."""
 from __future__ import annotations
 
+from pathlib import Path
+
+import yaml
 from swarm_orchestrator.congestion_detector import CongestionDetector
-from swarm_orchestrator.models import OrchestratorConfig, RobotView, SceneSnapshot, TaskAssignment
+from swarm_orchestrator.models import (
+    OrchestratorConfig,
+    RobotView,
+    SceneSnapshot,
+    TaskAssignment,
+    load_config,
+)
 
 
 def _config(**overrides) -> OrchestratorConfig:
@@ -121,6 +130,54 @@ def test_close_slow_pair_triggers_even_when_goal_progress_jitters():
     assert event is not None
     assert event.involved_robots == ["robot_0", "robot_1"]
     assert "close/slow" in event.reason
+
+
+def test_robot_within_goal_tolerance_is_not_stalled():
+    # Default goal_reached_tolerance_m is 0.15; 0.1 m short of the goal is inside it.
+    det = CongestionDetector(_config())
+    det.update(_snapshot([_robot("robot_0", 9.9, 0.0)]), goal_of, now=0.0)
+    event = det.update(
+        _snapshot([_robot("robot_0", 9.9, 0.0)], stamp=20.0), goal_of, now=20.0
+    )
+    assert event is None
+
+
+def test_robot_just_outside_goal_tolerance_can_stall():
+    # 0.16 m short of the goal is just past the 0.15 m tolerance, so ordinary
+    # no-progress stall detection still applies.
+    det = CongestionDetector(_config(stall_threshold_sec=10.0))
+    det.update(_snapshot([_robot("robot_0", 9.84, 0.0)]), goal_of, now=0.0)
+    event = det.update(
+        _snapshot([_robot("robot_0", 9.84, 0.0)], stamp=11.0), goal_of, now=11.0
+    )
+    assert event is not None
+    assert event.involved_robots == ["robot_0"]
+
+
+def test_arrival_clears_prior_stall_bookkeeping():
+    det = CongestionDetector(_config(stall_threshold_sec=10.0))
+    # Robot stalls short of the goal.
+    det.update(_snapshot([_robot("robot_0", 5.0, 0.0)]), goal_of, now=0.0)
+    event = det.update(_snapshot([_robot("robot_0", 5.0, 0.0)], stamp=11.0), goal_of, now=11.0)
+    assert event is not None
+
+    # Robot then reaches the goal -> arrival must clear the stall, not just pause it.
+    assert det.update(
+        _snapshot([_robot("robot_0", 9.95, 0.0)], stamp=12.0), goal_of, now=12.0
+    ) is None
+
+    # Robot leaves the goal again. If arrival had not cleared bookkeeping, the
+    # stale last_improved_at from t=0 would make this look stalled immediately.
+    det.update(_snapshot([_robot("robot_0", 9.7, 0.0)], stamp=13.0), goal_of, now=13.0)
+    assert det.update(
+        _snapshot([_robot("robot_0", 9.7, 0.0)], stamp=14.0), goal_of, now=14.0
+    ) is None
+
+
+def test_goal_reached_tolerance_loads_from_yaml():
+    path = Path("ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml")
+    cfg = load_config(yaml.safe_load(path.read_text(encoding="utf-8")))
+    assert cfg.goal_reached_tolerance_m == 0.15
 
 
 def test_close_pair_timer_resets_when_robots_separate():

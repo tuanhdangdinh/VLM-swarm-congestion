@@ -27,9 +27,11 @@ class CongestionDetector:
 
     A robot is stalled when its minimum observed distance-to-goal has not improved
     by more than `progress_epsilon_m` for at least `stall_threshold_sec`, while it
-    has a goal and a non-STALE status. The close/slow-pair check is the exception:
-    it includes STALE robots, since their last-known position and velocity remain
-    valid and STALE-together is itself evidence of a close-proximity standoff.
+    has a goal, a non-STALE status, and is not within `goal_reached_tolerance_m` of
+    that goal (an arrived robot is stationary by definition, not stalled). The
+    close/slow-pair check is the exception: it includes STALE robots and robots at
+    their goal, since two robots genuinely jammed next to a goal are still a real
+    standoff — proximity, not goal distance, is the evidence there.
     """
 
     def __init__(self, config: OrchestratorConfig) -> None:
@@ -66,6 +68,12 @@ class CongestionDetector:
                 self._progress.pop(robot.robot_id, None)
                 continue
             distance = math.dist((robot.x, robot.y), goal)
+            if distance <= self._config.goal_reached_tolerance_m:
+                # Arrived: clear any bookkeeping from a stall en route so a robot
+                # that reaches its goal stops being reported, not just stops
+                # accruing further stall time.
+                self._progress.pop(robot.robot_id, None)
+                continue
             state = self._progress.get(robot.robot_id)
             if state is None:
                 self._progress[robot.robot_id] = _Progress(distance, now)
