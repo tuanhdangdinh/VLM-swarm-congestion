@@ -148,6 +148,37 @@ def test_camera_localization_mode_is_declared():
     assert "static|amcl|camera" in _launch_argument_description("localization")
 
 
+def test_camera_localizer_receives_initial_pose_parameters():
+    # Guards the bring-up race the seed fixes: a camera Node lacking
+    # initial_pose.* would have no map-><robot>/odom until the first camera
+    # fix, reintroducing the costmap-activation timeout this parameter avoids.
+    module = ast.parse(LAUNCH_PATH.read_text())
+
+    camera_node = None
+    for node in ast.walk(module):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        func_name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+        if func_name != "Node":
+            continue
+        executable = next(
+            (kw.value for kw in node.keywords if kw.arg == "executable"), None
+        )
+        if executable is not None and ast.literal_eval(executable) == "camera_localizer_node":
+            camera_node = node
+            break
+
+    assert camera_node is not None, "camera_localizer_node Node(...) not found"
+    parameters_node = next(kw.value for kw in camera_node.keywords if kw.arg == "parameters")
+    parameters_source = ast.unparse(parameters_node)
+
+    assert "set_initial_pose" in parameters_source
+    assert "initial_pose.x" in parameters_source
+    assert "initial_pose.y" in parameters_source
+    assert "initial_pose.yaw" in parameters_source
+
+
 def _launch_argument_description(name: str) -> str:
     """Return the concatenated `description` string of a DeclareLaunchArgument."""
     module = ast.parse(LAUNCH_PATH.read_text())

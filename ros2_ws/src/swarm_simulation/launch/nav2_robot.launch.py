@@ -187,17 +187,22 @@ the robots sit near the corridor but degenerates during the yield manoeuvre in
 this symmetric warehouse, where the camera's fix is global and scenario-
 independent. Like `amcl`, it suppresses the static ground-truth publisher (one
 writer per TF edge); unlike `amcl`, it needs no per-scenario map. Two
-operational notes. **M1 must already be running and publishing
-`/perception/scene_state` before Nav2 activates**: under `camera` there is no
-`map -> odom` at all until the first camera fix, and the costmaps block waiting
-for that edge exactly as they do under `amcl`. And the node deliberately looks
-up the *latest* `odom -> base_footprint` rather than the transform at the scene
-stamp, because `scene_state.stamp` is the camera image header time, which Isaac
-fills from SYSTEM time, while TF and every node here run on SIM time
-(`use_sim_time: true`) — the two stamps are not comparable, so a stamped lookup
-would fail or extrapolate wildly. The resulting latency error is bounded by
-speed * camera latency (<= 0.2 m/s * ~0.1 s = <= 2 cm). The node carries no
-node-level `/tf` remaps, for the same reason the AMCL node below carries none.
+operational notes. First: like AMCL's `set_initial_pose`, this node is passed
+the robot's spawn pose (`x`/`y`/`yaw`) as `initial_pose.*` and seeds
+`map -> <robot_id>/odom` with it immediately at startup, before any camera fix
+arrives — odometry is spawn-relative and identity at t=0, so the spawn pose in
+map already equals `map -> odom`. Bring-up therefore no longer depends on the
+first camera fix or on M1 already running: the costmaps see a valid
+`map -> odom` from the first control cycle, exactly as under `amcl`, and the
+first real camera fix (once M1 is up) transparently replaces the seed. Second:
+the node deliberately looks up the *latest* `odom -> base_footprint` rather
+than the transform at the scene stamp, because `scene_state.stamp` is the
+camera image header time, which Isaac fills from SYSTEM time, while TF and
+every node here run on SIM time (`use_sim_time: true`) — the two stamps are
+not comparable, so a stamped lookup would fail or extrapolate wildly. The
+resulting latency error is bounded by speed * camera latency (<= 0.2 m/s *
+~0.1 s = <= 2 cm). The node carries no node-level `/tf` remaps, for the same
+reason the AMCL node below carries none.
 
 2026-09-16 — `map_yaml` launch argument, defaulting to the shared
 `maps/warehouse_map.yaml` so default behaviour is unchanged. It exists because
@@ -320,9 +325,9 @@ def generate_launch_description() -> LaunchDescription:
                 description="static|amcl|camera. static: ground-truth map->odom "
                 "at the spawn pose (PoC default). amcl: per-robot nav2_amcl "
                 "publishes map-><robot>/odom from lidar; initial pose from "
-                "x/y/yaw. camera: per-robot camera_localizer publishes "
-                "map-><robot>/odom from M1's overhead-camera pose; requires M1 "
-                "running on /perception/scene_state before Nav2 activates.",
+                "x/y/yaw. camera: per-robot camera_localizer seeds "
+                "map-><robot>/odom from x/y/yaw at startup, same as amcl, then "
+                "replaces it with M1's overhead-camera pose once available.",
             ),
             Node(
                 package="tf2_ros",
@@ -489,27 +494,36 @@ def generate_launch_description() -> LaunchDescription:
                     # keep its broadcaster and listener on shared /tf.
                     # No lifecycle manager: this is a plain rclpy node, not a
                     # nav2 lifecycle node, so it starts publishing as soon as
-                    # M1's first scene state and the robot's odometry TF are
-                    # both available. Its frame and topic defaults derive from
-                    # robot_id inside the node (scene_state_topic stays the
-                    # absolute, shared /perception/scene_state, which one M1
-                    # instance publishes for every robot), so robot_id is the
-                    # only parameter this launch file needs to pass.
+                    # it is constructed. Its frame and topic defaults derive
+                    # from robot_id inside the node (scene_state_topic stays
+                    # the absolute, shared /perception/scene_state, which one
+                    # M1 instance publishes for every robot). initial_pose.*
+                    # and set_initial_pose are passed the same way the amcl
+                    # node above gets them, so this node seeds map-><robot>/
+                    # odom at the spawn pose immediately (see
+                    # camera_localizer_node.py) instead of leaving that edge
+                    # missing until the first camera fix.
                     Node(
                         package="swarm_perception",
                         executable="camera_localizer_node",
                         name="camera_localizer",
                         output="screen",
-                        # ParameterValue(..., value_type=str) for the same
+                        # ParameterValue(..., value_type=...) for the same
                         # reason the amcl node wraps its floats: launch_ros
                         # cannot infer a parameter's type from a bare
-                        # substitution, and a mis-inferred robot_id would
-                        # either trip the node's fail-fast check or, worse,
-                        # arrive mangled.
+                        # substitution, and a mis-inferred robot_id or pose
+                        # field would either trip the node's fail-fast check
+                        # or, worse, arrive mangled.
                         parameters=[
                             {
                                 "use_sim_time": True,
                                 "robot_id": ParameterValue(robot_id, value_type=str),
+                                "set_initial_pose": True,
+                                "initial_pose.x": ParameterValue(x, value_type=float),
+                                "initial_pose.y": ParameterValue(y, value_type=float),
+                                "initial_pose.yaw": ParameterValue(
+                                    yaw, value_type=float
+                                ),
                             }
                         ],
                         condition=_localization_equals("camera", localization),

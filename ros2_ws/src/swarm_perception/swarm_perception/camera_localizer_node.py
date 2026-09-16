@@ -78,6 +78,10 @@ class CameraLocalizerNode(Node):
         self.declare_parameter("base_frame", "")
         self.declare_parameter("publish_rate_hz", 20.0)
         self.declare_parameter("transform_tolerance_sec", 0.3)
+        self.declare_parameter("set_initial_pose", True)
+        self.declare_parameter("initial_pose.x", 0.0)
+        self.declare_parameter("initial_pose.y", 0.0)
+        self.declare_parameter("initial_pose.yaw", 0.0)
 
         self._robot_id = str(self.get_parameter("robot_id").value or "")
         if not self._robot_id:
@@ -102,7 +106,23 @@ class CameraLocalizerNode(Node):
         if publish_rate_hz <= 0.0:
             raise ValueError(f"publish_rate_hz must be > 0; got {publish_rate_hz}")
 
-        self._localizer = CameraLocalizer(self._robot_id)
+        # Seed map -> odom with the spawn pose, exactly as AMCL's
+        # set_initial_pose does: IsaacComputeOdometry's odom frame is
+        # spawn-relative and identity at t=0, so the spawn pose in map IS
+        # map -> odom at startup. Without this, a Nav2 costmap that needs
+        # this edge blocks until the first camera fix arrives, which can lose
+        # a lifecycle-activation race (see nav2_robot.launch.py docstring).
+        initial_map_to_odom: Pose2D | None = None
+        if bool(self.get_parameter("set_initial_pose").value):
+            initial_map_to_odom = (
+                float(self.get_parameter("initial_pose.x").value),
+                float(self.get_parameter("initial_pose.y").value),
+                normalize_yaw(float(self.get_parameter("initial_pose.yaw").value)),
+            )
+
+        self._localizer = CameraLocalizer(
+            self._robot_id, initial_map_to_odom=initial_map_to_odom
+        )
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(self._tf_buffer, self)
         self._tf_broadcaster = TransformBroadcaster(self)
@@ -120,6 +140,12 @@ class CameraLocalizerNode(Node):
             f"odom_lookup={self._odom_frame}->{self._base_frame} "
             f"publish_rate_hz={publish_rate_hz}"
         )
+        if initial_map_to_odom is not None:
+            self.get_logger().info(
+                f"camera localizer seeded map_odom=("
+                f"{initial_map_to_odom[0]:.3f}, {initial_map_to_odom[1]:.3f}, "
+                f"{initial_map_to_odom[2]:.3f}) robot={self._robot_id}"
+            )
 
     def _on_scene_state(self, msg) -> None:
         """Fold one `/perception/scene_state` message into the held correction."""
@@ -140,16 +166,29 @@ class CameraLocalizerNode(Node):
         odom_pose = self._lookup_odom_pose()
         if odom_pose is None:
             return
-        had_fix = self._localizer.latest is not None
+        # Track the *transition* into the first real update (0 -> 1), not
+        # `latest is not None`: a seeded localizer already has a non-None
+        # `latest` before any real fix, so a presence check would never fire
+        # here and this log would go missing entirely under seeding.
+        was_seeded = self._localizer.seeded
+        updates_before = self._localizer.updates
         transform = self._localizer.update(scene_state, odom_pose)
         if transform is None:
             return
-        if not had_fix:
+        if updates_before == 0 and self._localizer.updates == 1:
+            replaced = " replaced_seed=true" if was_seeded else ""
             self.get_logger().info(
-                f"camera localization acquired robot={self._robot_id} "
+                f"camera localization acquired robot={self._robot_id}{replaced} "
                 f"map_odom=({transform[0]:.3f}, {transform[1]:.3f}, {transform[2]:.3f})"
             )
-        elif self._localizer.updates % self.LOG_EVERY_N_UPDATES == 0:
+        # `self._localizer.updates and ...`, not just the modulo: seeding
+        # means `transform` is non-None (the held seed) even before any real
+        # update, so without this guard every hold while `updates == 0` would
+        # match `0 % LOG_EVERY_N_UPDATES == 0` and spam this log every cycle.
+        elif (
+            self._localizer.updates
+            and self._localizer.updates % self.LOG_EVERY_N_UPDATES == 0
+        ):
             self.get_logger().info(
                 f"camera_localizer robot_id={self._robot_id} "
                 f"updates={self._localizer.updates} holds={self._localizer.holds} "

@@ -131,14 +131,25 @@ class CameraLocalizer:
     camera frame does not break a costmap that needs `map -> odom` every cycle.
     """
 
-    def __init__(self, robot_id: str) -> None:
+    def __init__(
+        self, robot_id: str, initial_map_to_odom: Pose2D | None = None
+    ) -> None:
         """Create a localizer for one robot.
 
         Args:
             robot_id: Robot id as it appears in scene-state `robots[].robot_id`.
+            initial_map_to_odom: Optional `map -> odom` seed, held as `latest`
+                until the first real camera fix replaces it. Mirrors AMCL's
+                `set_initial_pose`: odometry is spawn-relative (identity at
+                t=0), so the robot's spawn pose in `map` already equals
+                `map -> odom` at startup, letting a Nav2 costmap that needs
+                this edge activate immediately instead of blocking on this
+                localizer's first scene-state fix. Does not count toward
+                `updates` — it is a seed, not a fix.
         """
         self._robot_id = robot_id
-        self._latest: Pose2D | None = None
+        self._latest = initial_map_to_odom
+        self._seeded = initial_map_to_odom is not None
         self._last_update_stamp: float | None = None
         self.updates = 0
         self.holds = 0
@@ -152,6 +163,16 @@ class CameraLocalizer:
     def latest(self) -> Pose2D | None:
         """Most recent `map -> odom` correction, or None before the first fix."""
         return self._latest
+
+    @property
+    def seeded(self) -> bool:
+        """True while `latest` is still the constructor seed, not a camera fix.
+
+        False when constructed without a seed, and permanently False from the
+        moment the first real camera fix lands, even if that fix is later held
+        over by subsequent misses.
+        """
+        return self._seeded
 
     @property
     def last_update_stamp(self) -> float | None:
@@ -181,6 +202,7 @@ class CameraLocalizer:
             return self._latest
 
         self._latest = map_to_odom(camera_pose, odom_pose)
+        self._seeded = False
         stamp = scene_state.get("stamp")
         if isinstance(stamp, (int, float)) and not isinstance(stamp, bool):
             self._last_update_stamp = float(stamp)

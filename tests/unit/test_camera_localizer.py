@@ -103,6 +103,52 @@ def test_update_returns_none_before_first_fix():
     assert localizer.holds == 3
 
 
+def test_seeded_localizer_reports_initial_transform_before_first_fix():
+    seed = (-1.5, 0.0, 0.0)
+    localizer = CameraLocalizer("robot_1", initial_map_to_odom=seed)
+
+    assert localizer.latest == seed
+    assert localizer.seeded is True
+    # The seed is not an update: it comes from the constructor, not a fix.
+    assert localizer.updates == 0
+    assert localizer.holds == 0
+
+
+def test_first_fix_replaces_seed_and_clears_seeded_flag():
+    seed = (-1.5, 0.0, 0.0)
+    localizer = CameraLocalizer("robot_1", initial_map_to_odom=seed)
+
+    result = localizer.update(
+        _scene_state(1.0, _robot("robot_1", -1.2, 0.0, 0.0)), (0.3, 0.0, 0.0)
+    )
+
+    assert result == pytest.approx((-1.5, 0.0, 0.0), abs=1e-9)
+    assert localizer.seeded is False
+    assert localizer.updates == 1
+
+
+def test_stale_before_first_fix_keeps_seed():
+    seed = (-1.5, 0.0, 0.0)
+    localizer = CameraLocalizer("robot_1", initial_map_to_odom=seed)
+
+    held = localizer.update(
+        _scene_state(1.0, _robot("robot_1", 99.0, 99.0, 1.0, status="STALE")),
+        (0.3, 0.0, 0.0),
+    )
+
+    assert held == seed
+    assert localizer.seeded is True
+    assert localizer.updates == 0
+    assert localizer.holds == 1
+
+
+def test_unseeded_localizer_has_no_transform_before_first_fix():
+    localizer = CameraLocalizer("robot_1")
+
+    assert localizer.latest is None
+    assert localizer.seeded is False
+
+
 def test_update_ignores_other_robots():
     localizer = CameraLocalizer("robot_1")
 
