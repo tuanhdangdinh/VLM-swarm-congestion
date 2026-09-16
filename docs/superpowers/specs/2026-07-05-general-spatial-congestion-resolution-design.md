@@ -779,11 +779,17 @@ at runtime, and which are scripted or scenario-tuned.
   reverse-to-park, side-step 0.35 m, hold, escort the passer; `convoy`,
   `priority_override`, and waypoint-less `reroute` all degrade to a
   temporary wait; the yielder is always the first-listed robot in the
-  VLM's `involved_robots`. Park position and escort length are
-  computed from the robots' perceived positions but against scenario
-  constants — park at |x| = 1.8 m, derived from this scenario's 0.9 m
-  barrier blocks and camera height; side-step sized to this 1.2 m
-  aisle. M5 congestion detection is rule-based (stall ≥ 12 s without
+  VLM's `involved_robots`. Park position, side-step and escort length
+  are computed from the robots' perceived positions and from a
+  *declared* scene geometry (`scenario_geometry` in
+  `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`: corridor
+  extent, barrier height, camera height, marker height, aisle width,
+  robot size, safety radius, margins) via derivations in
+  `reasoning/rag/scene_geometry.py` — for `head_on_deadlock` that yields
+  a park offset of ≈ 1.69 m and a 0.36 m side-step. The geometry block
+  is hand-maintained to mirror the Isaac scenario and warehouse configs;
+  it is still scenario knowledge, but explicit and testable rather than
+  embedded in M3. M5 congestion detection is rule-based (stall ≥ 12 s without
   progress, or a close/slow pair; thresholds in
   `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`). The
   `head_on_deadlock` scenario itself was tuned iteratively — corridor

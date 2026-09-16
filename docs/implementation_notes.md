@@ -84,6 +84,31 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-16** — **Yield sizing derived from declared scene geometry**
+  (`8cfb186`). Supersedes the constant-based sizing in the two entries
+  below: `PARK_ABS_X_M` (1.8), `pull_off_lateral_m` (0.35) and
+  `PASSER_CLEARANCE_M` (0.65) remain only as the no-geometry fallback.
+  M5 now loads a `scenario_geometry` block from `orchestrator.yaml`
+  (corridor axis/centre/half-length 1.0, aisle half-width 0.6, occluder
+  height 0.9, camera 3.0, marker 0.21, robot half-width 0.09, marker
+  half-size 0.06, safety radius 0.45, margins 0.3/0.15/0.2) and the
+  pipeline passes it to `ground_reasoner_result(…, geometry=…)`.
+  `reasoning/rag/scene_geometry.py` derives: visibility boundary
+  = half_length·(cam−marker)/(cam−occluder) = 1.329; park offset =
+  boundary + marker half + park margin = **1.689**; side-step =
+  aisle half − robot half − wall margin = **0.36**; passer clearance =
+  safety radius + margin = 0.65. The grounder works along the declared
+  corridor axis (x or y) relative to `center_m`, emits `park_axis` and
+  `park_coord_m` (and `park_x_m` when the axis is x), and its
+  already-parked test is centre-relative (the old `park_x < 0` test
+  silently assumed a corridor at 0). **Why:** the constants were
+  scenario knowledge hidden in M3; the derivation makes the dependence
+  explicit and lets another scenario declare different geometry instead
+  of retuning code. The head_on park offset moves 1.80 → 1.69 m (still
+  0.36 m outside the projected silhouette); live re-verification pending.
+  The geometry block must be kept in sync with
+  `isaac/config/scenarios/head_on_deadlock.yaml`, `isaac/config/warehouse.yaml`
+  and `CameraConfig` by hand until M5 reads the scenario file.
 - **2026-09-16** — **Yield grounding is now scene-aware** (`039d92e`).
   `ground_reasoner_result(result, robot_positions=...)` takes the robots'
   world (x, y) — the pipeline passes them from `request.robot_states`, one
