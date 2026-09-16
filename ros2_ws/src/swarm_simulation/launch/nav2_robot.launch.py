@@ -174,6 +174,17 @@ publisher and still needs nothing per-robot about the map. AMCL publishes only
 TF and `~/amcl_pose`; it never writes `/<robot_id>/odom`, so M4's
 odometry-closed primitives (backup, hold) behave identically under either
 mode. Not yet verified on the host — see phase2-nav2-stack.md S12.
+
+2026-09-16 — `map_yaml` launch argument, defaulting to the shared
+`maps/warehouse_map.yaml` so default behaviour is unchanged. It exists because
+a scenario may author collision bodies the default map does not contain: the
+`head_on_deadlock` `aisle_barrier` blocks are real physics bodies in Isaac, so
+each robot's lidar sees corridor walls at |y| = 0.275 m where the default map
+says open aisle. Measured with `localization:=amcl`: AMCL comes up correctly
+and then converges to a ~1 m error. `isaac/scripts/generate_warehouse_map.py
+--scenario` bakes those blocks into `maps/warehouse_map_<scenario>.yaml`, which
+this argument selects for the shared `map_server` (and hence for every robot's
+AMCL and global costmap, both of which read the one absolute `/map` topic).
 """
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -212,9 +223,10 @@ def generate_launch_description() -> LaunchDescription:
     yaw = LaunchConfiguration("yaw")
     start_map_server = LaunchConfiguration("start_map_server")
     localization = LaunchConfiguration("localization")
+    map_yaml = LaunchConfiguration("map_yaml")
 
     sim_dir = get_package_share_directory("swarm_simulation")
-    map_yaml = PathJoinSubstitution([sim_dir, "maps", "warehouse_map.yaml"])
+    default_map_yaml = PathJoinSubstitution([sim_dir, "maps", "warehouse_map.yaml"])
     raw_params_file = PathJoinSubstitution([sim_dir, "config", "nav2_params.yaml"])
     # Substitute the literal `<robot_namespace>` token in nav2_params.yaml's
     # frame_id fields with the bare robot_id (no leading slash -- see module
@@ -272,6 +284,13 @@ def generate_launch_description() -> LaunchDescription:
                 "warehouse map is shared and not per-robot.",
             ),
             DeclareLaunchArgument(
+                "map_yaml",
+                default_value=default_map_yaml,
+                description="Static map YAML; pass the per-scenario map (e.g. "
+                "warehouse_map_head_on_deadlock.yaml) so AMCL and the global "
+                "planner see runtime barriers.",
+            ),
+            DeclareLaunchArgument(
                 "localization",
                 default_value="static",
                 description="static: ground-truth map->odom at the spawn pose "
@@ -315,6 +334,8 @@ def generate_launch_description() -> LaunchDescription:
             # launch can pass start_map_server:=false to skip these, avoiding
             # duplicate non-namespaced node name conflicts when two instances
             # of this launch file are running simultaneously.
+            # yaml_filename is the `map_yaml` argument, so a scenario map
+            # reaches every robot through this one server.
             Node(
                 package="nav2_map_server",
                 executable="map_server",

@@ -46,6 +46,66 @@ def _launch_argument_default(name: str) -> str:
     raise AssertionError(f"DeclareLaunchArgument({name!r}) not found")
 
 
+def _launch_argument_default_node(name: str) -> ast.expr:
+    """Return the raw AST of a DeclareLaunchArgument's `default_value`.
+
+    Unlike `_launch_argument_default`, this does not evaluate the expression, so
+    it also works for a default built from launch substitutions.
+    """
+    module = ast.parse(LAUNCH_PATH.read_text())
+    for node in ast.walk(module):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        func_name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+        if func_name != "DeclareLaunchArgument":
+            continue
+        if not node.args or ast.literal_eval(node.args[0]) != name:
+            continue
+        for keyword in node.keywords:
+            if keyword.arg == "default_value":
+                return keyword.value
+        raise AssertionError(f"DeclareLaunchArgument({name!r}) has no default_value")
+    raise AssertionError(f"DeclareLaunchArgument({name!r}) not found")
+
+
+def test_map_yaml_launch_default_is_base_map():
+    default = _launch_argument_default_node("map_yaml")
+    # Resolved through the module-level `default_map_yaml` binding, so follow
+    # the name to the PathJoinSubstitution it is assigned.
+    if isinstance(default, ast.Name):
+        module = ast.parse(LAUNCH_PATH.read_text())
+        assignments = [
+            n
+            for n in ast.walk(module)
+            if isinstance(n, ast.Assign)
+            and any(isinstance(t, ast.Name) and t.id == default.id for t in n.targets)
+        ]
+        assert len(assignments) == 1, f"{default.id} assigned {len(assignments)} times"
+        default = assignments[0].value
+
+    source = ast.unparse(default)
+    assert "PathJoinSubstitution" in source
+    assert "'maps'" in source
+    assert "'warehouse_map.yaml'" in source
+
+
+def test_map_server_reads_the_map_yaml_launch_argument():
+    # Guards the inert-argument failure: a `map_yaml` argument that map_server
+    # does not read would still declare, parse, and default correctly.
+    source = LAUNCH_PATH.read_text()
+    module = ast.parse(source)
+    bindings = [
+        ast.unparse(node.value)
+        for node in ast.walk(module)
+        if isinstance(node, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "map_yaml" for t in node.targets)
+    ]
+
+    assert bindings == ["LaunchConfiguration('map_yaml')"]
+    assert '"yaml_filename": map_yaml' in source
+
+
 def test_amcl_block_uses_namespace_token_frames():
     params = _amcl_params()
 
