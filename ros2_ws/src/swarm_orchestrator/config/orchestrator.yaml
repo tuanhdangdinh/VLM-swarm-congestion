@@ -24,6 +24,6 @@ scenario_geometry:
   corridor: { axis: x, center_m: 0.0, half_length_m: 1.0, aisle_half_width_m: 0.6, occluder_height_m: 0.9 }
   camera: { height_m: 3.0, marker_height_m: 0.21 }
   robot: { half_width_m: 0.09, marker_half_size_m: 0.06, safety_radius_m: 0.45 }
-  park_margin_m: 0.3
+  park_margin_m: 0.4  # 0.3 lost the marker for 7.6s after the side-step; 0.4 verified clean (2026-09-16)
   wall_margin_m: 0.15
   passer_margin_m: 0.2

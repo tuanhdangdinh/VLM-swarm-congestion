@@ -209,7 +209,7 @@ def _geometry(axis: str = "x") -> SceneGeometry:
 
 
 def test_yield_with_geometry_parks_at_derived_offset():
-    # 1.329 visibility boundary + 0.06 marker half-size + 0.3 margin = 1.689,
+    # 1.329 visibility boundary + 0.06 marker half-size + 0.4 margin = 1.789,
     # derived from the declared geometry rather than the 1.8 fallback.
     positions = {"robot_1": (-0.04, 0.0), "robot_2": (0.08, 0.0)}
 
@@ -219,11 +219,11 @@ def test_yield_with_geometry_parks_at_derived_offset():
     params = command["actions"][0]["parameters"]
 
     assert params["park_axis"] == "x"
-    assert params["park_coord_m"] == pytest.approx(-1.689)
-    assert params["park_x_m"] == pytest.approx(-1.689)
-    assert params["backup_distance_m"] == pytest.approx(1.649)
-    assert params["passer_escort_distance_m"] == pytest.approx(2.419)
-    assert params["passer_clear_m"] == pytest.approx(2.419)
+    assert params["park_coord_m"] == pytest.approx(-1.789)
+    assert params["park_x_m"] == pytest.approx(-1.789)
+    assert params["backup_distance_m"] == pytest.approx(1.749)
+    assert params["passer_escort_distance_m"] == pytest.approx(2.519)
+    assert params["passer_clear_m"] == pytest.approx(2.519)
     assert params["pull_off_lateral_m"] == 0.36
 
 
@@ -238,9 +238,9 @@ def test_yield_with_geometry_on_y_axis_uses_y_coordinates():
     params = command["actions"][0]["parameters"]
 
     assert params["park_axis"] == "y"
-    assert params["park_coord_m"] == pytest.approx(-1.689)
+    assert params["park_coord_m"] == pytest.approx(-1.789)
     assert "park_x_m" not in params
-    assert params["backup_distance_m"] == pytest.approx(1.649)
+    assert params["backup_distance_m"] == pytest.approx(1.749)
 
 
 def test_yield_without_geometry_keeps_fallback_constants():

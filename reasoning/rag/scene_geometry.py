@@ -47,7 +47,10 @@ class SceneGeometry(BaseModel):
     corridor: CorridorGeometry
     camera: CameraGeometry = CameraGeometry()
     robot: RobotGeometry = RobotGeometry()
-    park_margin_m: float = Field(default=0.3, ge=0.0)
+    # 0.3 gave a 7.6 s marker blackout right after the side-step (2026-09-16
+    # run A); 0.4 matches the 1.8 m park verified clean in run 8 — the
+    # rendered block edge is softer than the geometric projection.
+    park_margin_m: float = Field(default=0.4, ge=0.0)
     wall_margin_m: float = Field(default=0.15, ge=0.0)
     passer_margin_m: float = Field(default=0.2, ge=0.0)
 

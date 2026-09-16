@@ -30,7 +30,7 @@ def test_visibility_boundary_matches_head_on_geometry():
 
 
 def test_park_offset_matches_head_on_geometry():
-    assert park_offset_m(_head_on_geometry()) == pytest.approx(1.689, abs=1e-3)
+    assert park_offset_m(_head_on_geometry()) == pytest.approx(1.789, abs=1e-3)
 
 
 def test_pull_off_lateral_matches_head_on_geometry():

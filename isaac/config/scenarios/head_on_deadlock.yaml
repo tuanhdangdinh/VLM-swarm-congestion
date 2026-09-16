@@ -44,7 +44,7 @@ aisle_barrier:
   # geometry M5 declares in swarm_orchestrator/config/orchestrator.yaml
   # (scenario_geometry mirrors this barrier: half_length_m 1.0,
   # occluder_height_m 0.9). The park offset is derived there, not hardcoded:
-  # for these values ≈1.69m from the corridor centre, i.e. ~0.69m past the
+  # for these values ≈1.79m from the corridor centre, i.e. ~0.79m past the
   # corridor end, clear of the blocks that would occlude the yielder's marker;
   # the passer is then escorted 0.65m past that park point. PARK_ABS_X_M=1.8
   # in reasoning/rag/command_grounder.py is only the no-geometry fallback, as
