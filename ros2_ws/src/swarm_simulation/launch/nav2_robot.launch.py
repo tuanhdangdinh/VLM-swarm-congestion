@@ -148,15 +148,61 @@ nodes depending on them (`controller_server`, `planner_server`,
 `bt_navigator`) all reached lifecycle `active`. The inert `SetRemap(src=
 "map", dst="/map")` rule was removed rather than left in place, since it
 was confirmed to never match anything this subscription actually requests.
+
+2026-09-16 — `localization` launch argument (`static` | `amcl`, default
+`static`). This qualifies, but does not supersede, the ground-truth paragraph
+above: `static` keeps exactly the verified behaviour described there (the
+`map -> <robot_id>/odom` static publisher at the spawn pose) and stays the
+default, so the verified closed loop is unchanged unless the flag is set.
+`localization:=amcl` instead starts one namespaced `nav2_amcl` per robot, plus
+its own `lifecycle_manager_localization`, which derives `map ->
+<robot_id>/odom` from that robot's lidar against the shared static map; the
+static publisher is suppressed in that mode, since two publishers of the same
+TF edge would fight. `nav2_bringup`'s `localization_launch.py` is still not
+used, but now for a reason unrelated to AMCL: it hardcodes its own
+`map_server` + `lifecycle_manager`, which would collide by name with the
+shared, non-namespaced pair launched below. The AMCL node is therefore
+declared directly here and wrapped in the same
+`ParameterFile(RewrittenYaml(root_key=<robot_id>, ...))` the vendored
+`nav2_navigation.launch.py` applies to its own nodes, so the `amcl:` block in
+`nav2_params.yaml` resolves under the namespace root the same way the rest of
+the stack's parameters do. The shared non-namespaced `map_server` remains
+correct under `amcl` — the "since this design bypasses AMCL" comment on that
+node keeps its conclusion but loses its stated reason: `amcl:`'s `map_topic`
+is the absolute literal `/map`, so every robot's AMCL reads the one shared map
+publisher and still needs nothing per-robot about the map. AMCL publishes only
+TF and `~/amcl_pose`; it never writes `/<robot_id>/odom`, so M4's
+odometry-closed primitives (backup, hold) behave identically under either
+mode. Not yet verified on the host — see phase2-nav2-stack.md S12.
 """
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    LaunchConfiguration,
+    PathJoinSubstitution,
+    PythonExpression,
+)
 from launch_ros.actions import Node, PushRosNamespace, SetRemap
-from nav2_common.launch import ReplaceString
-from ament_index_python.packages import get_package_share_directory
+from launch_ros.descriptions import ParameterFile
+from launch_ros.parameter_descriptions import ParameterValue
+from nav2_common.launch import ReplaceString, RewrittenYaml
+
+
+def _localization_equals(mode: str, localization: LaunchConfiguration) -> IfCondition:
+    """Build a condition that fires when the `localization` argument equals `mode`.
+
+    Args:
+        mode: Expected value of the `localization` launch argument.
+        localization: Launch configuration holding the selected mode.
+
+    Returns:
+        Condition true only when `localization` resolves to `mode`. A fresh
+        instance per call, so no two actions share a condition object.
+    """
+    return IfCondition(PythonExpression(["'", localization, "' == '", mode, "'"]))
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -165,6 +211,7 @@ def generate_launch_description() -> LaunchDescription:
     y = LaunchConfiguration("y")
     yaw = LaunchConfiguration("yaw")
     start_map_server = LaunchConfiguration("start_map_server")
+    localization = LaunchConfiguration("localization")
 
     sim_dir = get_package_share_directory("swarm_simulation")
     map_yaml = PathJoinSubstitution([sim_dir, "maps", "warehouse_map.yaml"])
@@ -180,6 +227,23 @@ def generate_launch_description() -> LaunchDescription:
     params_file = ReplaceString(
         source_file=raw_params_file,
         replacements={"<robot_namespace>": robot_id},
+    )
+    # The one exception to the "passed straight through" note above: the AMCL
+    # node below is declared by this file, not by nav2_navigation.launch.py, so
+    # nothing else wraps the params file on its behalf. Mirror the vendored
+    # launch's wrapping exactly (root_key = robot_id, convert_types,
+    # allow_substs) so `amcl:` resolves for a node whose fully-qualified name
+    # is `/<robot_id>/amcl`, the same way the rest of the stack's blocks do.
+    # Substitutions are inert until performed, so building this in `static`
+    # mode costs nothing; only the amcl node consumes it.
+    amcl_params = ParameterFile(
+        RewrittenYaml(
+            source_file=params_file,
+            root_key=robot_id,
+            param_rewrites={},
+            convert_types=True,
+        ),
+        allow_substs=True,
     )
 
     return LaunchDescription(
@@ -207,6 +271,13 @@ def generate_launch_description() -> LaunchDescription:
                 "The first robot's map_server serves all robots since the "
                 "warehouse map is shared and not per-robot.",
             ),
+            DeclareLaunchArgument(
+                "localization",
+                default_value="static",
+                description="static: ground-truth map->odom at the spawn pose "
+                "(PoC default). amcl: per-robot nav2_amcl publishes "
+                "map-><robot>/odom from lidar; initial pose from x/y/yaw.",
+            ),
             Node(
                 package="tf2_ros",
                 executable="static_transform_publisher",
@@ -228,6 +299,9 @@ def generate_launch_description() -> LaunchDescription:
                     "--frame-id", "map",
                     "--child-frame-id", [robot_id, "/odom"],
                 ],
+                # Suppressed under localization:=amcl, where nav2_amcl owns
+                # this same TF edge; two publishers of one edge would fight.
+                condition=_localization_equals("static", localization),
             ),
             # Shared, non-namespaced map_server: one static map for the whole
             # warehouse, not per-robot. Verified against the installed Jazzy
@@ -310,6 +384,55 @@ def generate_launch_description() -> LaunchDescription:
                             "params_file": params_file,
                             "autostart": "true",
                         }.items(),
+                    ),
+                    # localization:=amcl only. Deliberately no node-level
+                    # remappings= here, unlike navigation_launch.py's nodes:
+                    # the group-level absolute-keyed SetRemap rules above are
+                    # what keep TF on the shared /tf and /tf_static topics
+                    # (see module docstring for the verified failure mode of
+                    # relative keys), and adding a node-level `/tf` rule here
+                    # would only reintroduce the candidate that lost.
+                    # Overrides after amcl_params win (launch_ros applies the
+                    # parameters list in order); the initial pose is the same
+                    # spawn pose the static transform used, so AMCL starts
+                    # converged rather than hunting for a global fix.
+                    Node(
+                        package="nav2_amcl",
+                        executable="amcl",
+                        name="amcl",
+                        output="screen",
+                        parameters=[
+                            amcl_params,
+                            {
+                                "use_sim_time": True,
+                                "set_initial_pose": True,
+                                "initial_pose.x": ParameterValue(x, value_type=float),
+                                "initial_pose.y": ParameterValue(y, value_type=float),
+                                "initial_pose.z": 0.0,
+                                "initial_pose.yaw": ParameterValue(
+                                    yaw, value_type=float
+                                ),
+                            },
+                        ],
+                        condition=_localization_equals("amcl", localization),
+                    ),
+                    # Separate from lifecycle_manager_navigation (owned by the
+                    # vendored navigation launch) and from
+                    # lifecycle_manager_map_server: AMCL is per-robot, so this
+                    # manager is namespaced with it and manages only `amcl`.
+                    Node(
+                        package="nav2_lifecycle_manager",
+                        executable="lifecycle_manager",
+                        name="lifecycle_manager_localization",
+                        output="screen",
+                        parameters=[
+                            {
+                                "use_sim_time": True,
+                                "autostart": True,
+                                "node_names": ["amcl"],
+                            }
+                        ],
+                        condition=_localization_equals("amcl", localization),
                     ),
                 ]
             ),

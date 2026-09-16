@@ -591,3 +591,137 @@ published. This smoke verifies the Jazzy Nav2 stack/launch/config path, not
 closed-loop navigation. The next host verification must run Isaac Sim with
 `ROS_DISTRO=jazzy` and the DDS UDP profile so `/clock`, `/tf`, `/robot_1/odom`,
 and `/robot_1/scan` are present while Nav2 activates.
+
+---
+
+## 12. `localization:=amcl` (Option B)
+
+### 2026-09-16: `localization:=amcl` (Option B) available, unverified
+
+`nav2_robot.launch.py` now takes a `localization` argument (`static` | `amcl`),
+**default `static`** — so the verified closed loop of S5/S11 and Task 8 is
+unchanged unless the flag is passed explicitly. Nothing about the default path
+was modified.
+
+Added:
+
+- `DeclareLaunchArgument("localization", default_value="static", ...)`.
+- The `map_to_odom_ground_truth` static transform publisher is now gated on
+  `localization == 'static'`; under `amcl` it is suppressed, since `nav2_amcl`
+  owns the same `map -> <robot_id>/odom` edge and two publishers of one edge
+  would fight.
+- Inside the existing namespaced `GroupAction` (after
+  `PushRosNamespace` + the two absolute-keyed `SetRemap` rules), gated on
+  `localization == 'amcl'`: a `nav2_amcl` node named `amcl`, plus a
+  `nav2_lifecycle_manager` named `lifecycle_manager_localization` managing only
+  `["amcl"]`. The AMCL node deliberately carries **no** node-level `/tf`
+  remappings — the group-level absolute-keyed rules are what keep TF on shared
+  `/tf`/`/tf_static` (S5/docstring), and a node-level rule would reintroduce
+  the candidate that lost.
+- The AMCL node's params file is wrapped exactly as the vendored
+  `nav2_navigation.launch.py` wraps its own —
+  `ParameterFile(RewrittenYaml(source_file=<ReplaceString'd nav2_params.yaml>,
+  root_key=robot_id, param_rewrites={}, convert_types=True), allow_substs=True)`
+  — because this node is declared by our launch file rather than by the
+  vendored one, so nothing else roots the YAML under the namespace for it.
+  Initial pose comes from the existing `x`/`y`/`yaw` arguments via
+  `ParameterValue(..., value_type=float)` with `set_initial_pose: true`, i.e.
+  the same spawn pose the static transform used.
+- `nav2_params.yaml`: a new top-level `amcl:` block, Jazzy `nav2_bringup`
+  defaults except `global_frame_id: map`,
+  `odom_frame_id: "<robot_namespace>/odom"`,
+  `base_frame_id: "<robot_namespace>/base_footprint"`,
+  `scan_topic: "/<robot_namespace>/scan"`, `map_topic: /map`,
+  `laser_min_range: 0.12` / `laser_max_range: 3.5` (matching
+  `isaac/config/lidar/turtlebot3_lds_01.json`), `update_min_d: 0.05` /
+  `update_min_a: 0.1`, and `use_sim_time: true`.
+- `package.xml`: `<exec_depend>nav2_amcl</exec_depend>`.
+- `tests/unit/test_nav2_params_config.py`: offline YAML/AST checks (namespace
+  tokens in the odom/base frames, unprefixed `map` global frame, absolute
+  `scan_topic`/`map_topic` literals, laser ranges equal to the lidar JSON's
+  `minRange`/`maxRange`, and `localization`'s `default_value == "static"`).
+
+`nav2_bringup`'s `localization_launch.py` is still not used, but the reason has
+changed: it is no longer "this design bypasses AMCL" (S5 Option A) — it is that
+`localization_launch.py` hardcodes its own `map_server` +
+`lifecycle_manager`, which would collide by name with the shared,
+non-namespaced pair this launch file already starts (S11). The shared
+`map_server` stays correct under `amcl` because `amcl:`'s `map_topic` is the
+absolute literal `/map`.
+
+M4 impact: none expected. AMCL publishes only TF and `~/amcl_pose`; it never
+writes `/<robot_id>/odom`, so the odometry-closed primitives (backup, hold —
+`project_m4_backup_closed_loop_verified`) are unaffected by the flag.
+
+### Verification still to run on the host
+
+Authored and statically checked offline only (macOS, no ROS 2 installed): the
+launch file parses under `ast.parse`, `ruff check` is clean, and the four YAML/
+AST unit tests pass. **The launch file has not been executed.** Required on the
+`vgu_ros` Jazzy container with Isaac Sim running:
+
+1. `colcon build --merge-install --packages-select swarm_simulation`, then
+   `ros2 launch swarm_simulation nav2_robot.launch.py robot_id:=robot_1
+   x:=-0.6 y:=0.0 yaw:=0.0 localization:=amcl`.
+2. `ros2 topic echo /robot_1/amcl_pose` produces poses (AMCL reached `active`).
+3. TF `map -> robot_1/odom` is now **dynamic** (`ros2 run tf2_ros tf2_echo map
+   robot_1/odom` changes over time), and there is exactly one publisher of it —
+   confirm the static node is absent.
+4. `ros2 node info /robot_1/amcl` shows `Publishers: /tf` (**not**
+   `/robot_1/tf`) — this is what proves the group-level `SetRemap` covers the
+   broadcaster, not just the listeners.
+5. `global_costmap` and `bt_navigator` reach lifecycle `active` with no
+   "Timed out waiting for transform" for `map -> robot_1/base_link`. Under
+   `amcl` there is no `map -> odom` at all until AMCL's first broadcast, so
+   this is the discriminating check, more than `amcl_pose` alone. Prerequisite:
+   the `base_footprint -> base_scan` edge must be present on `/tf_static`
+   (URDF `scan_joint`) for AMCL's laser lookup.
+6. Convergence: compare `/robot_1/amcl_pose` against M1's overhead-camera pose
+   for the same robot over a drive leg, and re-run the Task 8 goal-reaching
+   acceptance under `localization:=amcl` before treating Option B as verified.
+7. Re-run the M4 backup/hold primitives under `amcl` to confirm the
+   "no `/odom` change" claim empirically rather than by inspection.
+8. Two-robot run (`head_on_deadlock.yaml`, the actual acceptance scenario —
+   every step above is single-robot). Confirms the two assumptions this design
+   leans on but has not tested: robot 2's AMCL joining late still receives the
+   latched `/map` from robot 1's `map_server` (robot 2 launches with
+   `start_map_server:=false`), and two AMCLs broadcasting to the shared `/tf`
+   coexist with distinct child frames (`map -> robot_1/odom` and
+   `map -> robot_2/odom`). Structurally there should be no node-name collision
+   — both `amcl` and both `lifecycle_manager_localization` instances are
+   namespaced — but that is inference, not evidence.
+
+**First failure mode to check.** `lifecycle_manager_localization` manages
+`["amcl"]` only, and nothing sequences AMCL's activation after the shared
+`map_server`'s: `lifecycle_manager_map_server` autostarts independently. If
+`/robot_1/amcl_pose` is silent, grep the AMCL log for "Waiting for map" before
+suspecting TF or parameters. This should self-resolve — `map_server` latches
+`/map` with `TRANSIENT_LOCAL` durability (verified in S11: 1 publisher,
+`TRANSIENT_LOCAL`), so AMCL's subscription receives it whenever it is created,
+regardless of activation order. Do **not** "fix" it by adding `map_server` to
+this manager's `node_names`: the manager is namespaced with AMCL, so
+`"map_server"` would resolve to the nonexistent `/robot_1/map_server` and block
+the whole localization bringup.
+
+### Parameter-name sources verified (CLAUDE.md "External Library Verification")
+
+- Nav2 Jazzy AMCL configuration guide:
+  <https://docs.nav2.org/jazzy/configuration_and_development/configuration_guide/others/configuring_amcl/>
+  (confirms the exact spellings `global_frame_id`, `odom_frame_id`,
+  `base_frame_id`, `scan_topic`, `map_topic`, `tf_broadcast`,
+  `laser_min_range`, `laser_max_range`, `update_min_d`, `update_min_a`,
+  `robot_model_type`, `set_initial_pose`, `always_reset_initial_pose`,
+  `first_map_only`, and `initial_pose` as a `Pose2D` with `x`/`y`/`z`/`yaw`).
+  Note: `https://docs.nav2.org/configuration/packages/configuring-amcl.html`
+  (the unversioned path) returns 404 as of this date; use the versioned path.
+- `nav2_bringup/params/nav2_params.yaml`, `jazzy` branch:
+  <https://raw.githubusercontent.com/ros-navigation/navigation2/jazzy/nav2_bringup/params/nav2_params.yaml>
+  (source of the default values copied into the `amcl:` block).
+
+One discrepancy between the two sources: `nav2_bringup`'s `jazzy` block gives
+`z_short: 0.05` while the docs table gives `0.005`. The `nav2_bringup` value
+(`0.05`) was taken, since that file is the shipped configuration; worth
+re-checking against `ros2 param get /robot_1/amcl z_short` on the host.
+`bond_heartbeat_period` appears in the docs table but not in `nav2_bringup`'s
+block, so it was left unset. `laser_model_type: "likelihood_field"` means the
+`z_short`/`lambda_short` beam-model terms are not used in scoring anyway.
