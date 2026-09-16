@@ -84,6 +84,19 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-16** — **Yield refused when both robots are past the corridor
+  on the same side.** In the geometry-aware path, if
+  `|yielder − center| > half_length` and `|passer − center| > half_length`
+  with the same sign, the grounder emits `temporary_wait` (8 s,
+  `requested_strategy: yield`, reason string) for every involved robot
+  instead of a yield — the "park on the yielder's own side" rule would
+  otherwise pick the far side and reverse the yielder through the whole
+  corridor with backup/escort at their clamps (observed in run C after
+  localization failed and M5 re-triggered). No-geometry and inside/
+  straddling cases unchanged; `command_id` keeps the `-yield` suffix like
+  the other degraded strategies. `expected_resolution_time_sec` is 8.0 for
+  the refused case. Not yet exercised live (the trigger needs a
+  post-resolution re-detection).
 - **2026-09-16** — **Yield sizing derived from declared scene geometry**
   (`8cfb186`). Supersedes the constant-based sizing in the two entries
   below: `PARK_ABS_X_M` (1.8), `pull_off_lateral_m` (0.35) and
