@@ -393,8 +393,14 @@ Rules for maintaining it:
   `x` now changes (robot_1 −1.5 → −0.049, robot_2 +1.5 → +0.021 at the
   deadlock), `speed_mps` non-zero while moving, `conflict_active` true for
   the first time, and the logged positions match spawn+odom to four
-  decimals for both robots (opposite signs). Pre-fix file preserved on the
-  VM as `ground_truth.jsonl.prefix_buggy_*`. Supersedes the "not a motion
+  decimals for both robots (opposite signs). That verification run then
+  completed on its own (`run_manifest.json` `completed: true, failure:
+  null`, 2 261 records); its final record has both robots parked
+  nose-to-nose at the corridor centre — robot_1 (−0.057, −0.028),
+  robot_2 (0.022, −0.019), `min_pairwise_distance_m 0.079`,
+  `conflict_active: true` — the first acceptance log in the project to
+  register a head-on conflict. Pre-fix file preserved on the VM as
+  `ground_truth.jsonl.prefix_buggy_*`. Supersedes the "not a motion
   oracle" entry below for *positions*.
   **Still open — time axis:** `runner.py` advances `sim_time` by one
   `physics_dt` per `app.update()`, but at `rendering_hz 30` /
