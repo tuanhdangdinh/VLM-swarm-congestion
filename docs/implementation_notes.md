@@ -293,6 +293,34 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-16** — **AMCL localizes to 2 cm with the scenario map (run B2);
+  degenerates after the yield maneuver (run C).** With
+  `localization:=amcl map_yaml:=…warehouse_map_head_on_deadlock.yaml`,
+  stamp-matched error vs ground truth over the approach and standoff was
+  **mean 0.022 m, max 0.052 / 0.085 m** (robot_1 N=29, robot_2 N=33;
+  time alignment solved via odom↔GT with 0.3 mm residual) — on par with
+  M1 (0.03–0.07 m). Nav2 planned and drove from the AMCL pose. First run
+  in the project with self-localized robots. **Run C** (full loop under
+  AMCL, gpt-4o): deadlock/yield, `park_coord_m −1.789`, yielder held at
+  GT (−1.75, 0.37), M1 missed it in 10/790 frames (longest 0.35 s) — the
+  0.4 m park margin is confirmed. But as each robot moved west of the
+  barrier, its AMCL estimate jumped ~2 m in y within ~5 s (robot_1 to
+  y≈−1.76 at t 426→431, robot_2 to y≈+2.15 at t 458→465) while x stayed
+  right; C-window error mean 1.6 / 1.3 m. Both reported poses lie in
+  **solid rack** in the map (49/49 occupied cells around them), so this is
+  a degenerate filter output (split/bimodal cloud), not a relocalization
+  to a look-alike place — no parallel aisle exists (at x = −2 the only free
+  band is y ∈ [−0.6, 0.6]). Timing coincides with the side-step turns and
+  the unmapped other robot at < 1 m. Consequences: `GridBased … failed to
+  plan`, `Goal failed`, neither robot reached its goal, and M5 re-triggered
+  a second analysis (2 live calls total) whose yield was nonsensical —
+  both robots were now on the same side, so "park on the yielder's own
+  side" flipped to `+1.789` with backup/escort at their clamps (2.5 / 4.0).
+  Open items: (1) AMCL post-maneuver degeneracy — diagnose with
+  `/robot_N/particle_cloud` at the jump; candidate levers `z_rand`,
+  `laser_likelihood_max_dist`, `resample_interval`, `recovery_alpha_*`;
+  (2) grounder guard for a re-triggered yield when no robot is inside the
+  corridor extent. **Default remains `localization:=static`.**
 - **2026-09-16** — **Per-scenario Nav2 map with the barrier** (`1d53053`).
   `isaac/scripts/generate_warehouse_map.py --scenario <yaml>` now
   rasterizes `aisle_barrier` with the same geometry as
