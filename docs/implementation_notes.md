@@ -329,6 +329,23 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-16** — **`localization:=camera` added, host-unverified**
+  (`4c1b697`). Third localization mode: a per-robot
+  `swarm_perception/camera_localizer_node` (launched inside the namespaced
+  Nav2 group; no static TF, no AMCL) turns M1's world pose into
+  `map → <robot>/odom` = T_map_base ∘ T_odom_base⁻¹, where T_odom_base is
+  the LATEST `odom → base_footprint` TF from Isaac (never looked up at the
+  scene stamp: Isaac fills the image header with system time while TF and
+  nodes run sim time; latency error ≤ 0.2 m/s × 0.1 s = 2 cm). Publishes
+  at 20 Hz stamped +0.3 s (AMCL's convention) and holds the last value
+  while the marker is `STALE` — valid because odometry is drift-free.
+  Pure SE(2) core in `camera_localizer.py` (yaw normalised via atan2 so a
+  π-heading robot does not flip sign each cycle); node importable without
+  rclpy; 15 unit tests. **Why:** AMCL degenerates in this symmetric
+  warehouse after the yield maneuver (run C), while the apparatus already
+  has a global sensor whose pose error is 3–7 cm (now ≤ 3 cm with the
+  marker-plane calibration). Prerequisite: M1 must be up before Nav2
+  activates. Verification = run D.
 - **2026-09-16** — **AMCL localizes to 2 cm with the scenario map (run B2);
   degenerates after the yield maneuver (run C).** With
   `localization:=amcl map_yaml:=…warehouse_map_head_on_deadlock.yaml`,
