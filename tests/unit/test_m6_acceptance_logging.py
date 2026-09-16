@@ -132,15 +132,6 @@ def test_pose_tracker_computes_speed_from_previous_sample():
     assert second["robot_1"].speed_mps == 0.2
 
 
-def test_should_sample_acceptance_log_at_10hz_with_60hz_physics():
-    from isaac.vgu_sim.runner import _should_sample_acceptance_log
-
-    assert _should_sample_acceptance_log(step=0, physics_hz=60, log_hz=10) is True
-    assert _should_sample_acceptance_log(step=1, physics_hz=60, log_hz=10) is False
-    assert _should_sample_acceptance_log(step=5, physics_hz=60, log_hz=10) is False
-    assert _should_sample_acceptance_log(step=6, physics_hz=60, log_hz=10) is True
-
-
 _ARTICULATION_API = object()
 """Stand-in for `UsdPhysics.ArticulationRootAPI`, which pxr supplies at runtime."""
 

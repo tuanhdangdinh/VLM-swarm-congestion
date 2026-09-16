@@ -122,19 +122,28 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
         import omni.usd
         stage = omni.usd.get_context().get_stage()
 
-        step = 0
+        # sim_ctx.current_time already includes whatever this repetition spent
+        # inside _wait_for_ros_topics before this loop starts, so anchor
+        # sim_time to that baseline. Without it, `duration`, the scheduler's
+        # spawn_at_sec/remove_at_sec (authored relative to recording start,
+        # e.g. dynamic_anomaly.yaml's spawn_at_sec: 8.0), and the logged GT
+        # sim_time_sec would all be offset by that startup time.
+        loop_start_time = float(sim_ctx.current_time)
         sim_time = 0.0
         with open(gt_path, "w", encoding="utf-8") as gt_file:
             logger = AcceptanceLogger(gt_file, config.scenario, log_hz=10.0)
             while sim_time < duration and app.is_running():
                 app.update()
+                # One app.update() is not one physics step: rendering (and
+                # thus app.update()) runs at rendering_hz (30) while physics
+                # runs at physics_hz (60), so counting updates as physics
+                # steps under-advanced sim_time by ~1.9x versus Isaac's own
+                # /clock. Read the context's own clock instead.
+                sim_time = float(sim_ctx.current_time) - loop_start_time
                 scheduler.apply_due_events(sim_time)
-                if _should_sample_acceptance_log(step, physics_hz=physics_hz, log_hz=10):
-                    positions = sample_robot_positions(stage, robot_ids)
-                    states = pose_tracker.update_from_positions(sim_time, positions)
-                    logger.maybe_write(sim_time, states)
-                sim_time += physics_dt
-                step += 1
+                positions = sample_robot_positions(stage, robot_ids)
+                states = pose_tracker.update_from_positions(sim_time, positions)
+                logger.maybe_write(sim_time, states)
 
         elapsed = sim_time
         completed = True
@@ -185,11 +194,6 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
 
 class _TopicTimeoutError(RuntimeError):
     pass
-
-
-def _should_sample_acceptance_log(step: int, physics_hz: int, log_hz: int) -> bool:
-    interval = max(1, physics_hz // log_hz)
-    return step % interval == 0
 
 
 def _get_app(headless: bool):
