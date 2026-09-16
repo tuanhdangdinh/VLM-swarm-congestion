@@ -329,6 +329,31 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-16** — **Run G (recorded): resolution on film under camera
+  localization; two runbook fragilities.** `scripts/record_topic_video.py`
+  (new; cv2 `mp4v`, one frame per message stamped at a fixed fps,
+  segment files so a crash keeps earlier footage) recorded
+  `/perception/annotated_frame` (8.6 Hz → 11 fps) and `/camera/image_raw`
+  (5.2 Hz, only 1.7 Hz captured under load). Run F was lost to a GCE host
+  `REPAIRING` event mid-yield (both MP4s truncated, `moov atom not
+  found`); run G delivered: latch 16:34:54 UTC, gpt-4o deadlock/yield
+  dispatched 16:36:05, robot_2 `COMPLETED` 16:40:22 and **`Goal
+  succeeded` 16:46:04 on film**, robot_1 `Goal succeeded` 59 s after the
+  film ends. Videos and logs under `data/logs/recordings/2026-09-16/`
+  (gitignored). Two fragilities: (1) `ros2 topic pub --once` for the
+  latched `/coordination/tasks` registry can exit before DDS matches M4's
+  subscriber — nothing latched and the robots sat at spawn ~7 min; use
+  `timeout 15 ros2 topic pub -r 1 …` (run F's `--once` worked by timing
+  luck). (2) **Post-resolution re-triggering:** after the yield, M5 fired
+  two more analyses while robot_1 crossed the aisle toward its goal and
+  gpt-4o answered `deadlock/yield` both times although the robots were
+  metres apart; the second yield `FAILED` for robot_1 (it still reached
+  its goal). Same pattern as runs C/D. Not a grounding-guard case (one
+  robot inside the corridor); it is a detector/VLM false-positive question
+  for the Arm A/B evaluation — the VLM reasserting "deadlock" from stale
+  context after a resolution is exactly the kind of error the experiment
+  should measure, not suppress silently. Both publishers on the recorded
+  topics are RELIABLE, not BEST_EFFORT.
 - **2026-09-16** — **Run E: deadlock resolved end to end under camera
   localization; both robots reached their goals.** Stack: marker-plane
   calibration, `localization:=camera` + scenario map, geometry-derived
