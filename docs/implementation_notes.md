@@ -329,6 +329,29 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-17** — **Run H: creep-while-latched fixed and verified;
+  resolution and goals on video.** Latch at GT 0.4406 m with a 0.263 m/s
+  closing rate; rest 1.0 sim-s later at 0.1693 m. Over the next 100 sim-s
+  (1 027 GT records) separation stayed **0.1693–0.1698 m (0.5 mm
+  drift)**, both markers detected in 1 909/1 918 frames (99.5 %). One
+  `cancel-all … return_code=0 goals_canceling=1` per robot, `cmd_vel
+  relay hold engaged` for both, and **zero** `Received a goal, begin
+  computing control effort` / `Failed to make progress` for the whole
+  run (run G: dozens). Resolution: gpt-4o deadlock/yield (1 765 tokens);
+  relay holds released 0.11 s after dispatch (the yielder freed for its
+  backup); park achieved (−1.799, 0.371) vs commanded (−1.789, 0.36);
+  escort 2.528 vs 2.527 m; both `COMPLETED`; `Goal succeeded` once each
+  (robot_2 final −2.450). Recording: `data/logs/recordings/2026-09-17/
+  runH_annotated.mp4` (frame numbers in its README). Two observations:
+  (1) the robots stop at 0.17 m, not 0.45 — stopping distance at
+  0.26 m/s closure, not creep; contact is 0.076 m, so ~9 cm of clearance
+  and separated markers; raise `min_distance_m` if more margin is wanted.
+  (2) Post-resolution re-trigger again: with both robots parked at their
+  goals the stall detector kept firing (`stalled ≥ 12 s`), and after
+  seven correct `congestion_detected=false` answers gpt-4o produced one
+  spurious yield (analysis #9) that pulled robot_1 from 2.43 back to
+  2.15. A robot within goal tolerance is not stalled — detector rule
+  fix in progress. Sim ran at 0.349× wall.
 - **2026-09-17** — **Fixes for the creep-while-latched defect (below),
   host-unverified.** (1) `99edaca` — the Isaac-side `cmd_vel` relay
   (`isaac/vgu_sim/cmd_vel_watchdog{,_node}.py`) now subscribes
