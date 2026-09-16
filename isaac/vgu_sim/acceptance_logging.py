@@ -3,10 +3,15 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass
-from typing import TextIO
+from typing import TYPE_CHECKING, TextIO
 
 from isaac.vgu_sim.config import ScenarioConfig
 from isaac.vgu_sim.oracle import head_on_conflict_active
+
+if TYPE_CHECKING:
+    from pxr import Gf, Usd
+
+CHASSIS_LINK_NAME = "base_link"
 
 
 @dataclass(frozen=True)
@@ -139,17 +144,115 @@ class RobotPoseTracker:
         return states
 
 
-def sample_robot_positions(stage, robot_ids: list[str]) -> dict[str, tuple[float, float, float]]:
-    from pxr import UsdGeom
+_CHASSIS_PATH_CACHE: dict[str, str] = {}
+
+
+def find_chassis_prim(robot_root: Usd.Prim, articulation_api: type) -> Usd.Prim | None:
+    """Find the physics chassis prim inside a robot's USD subtree.
+
+    Args:
+        robot_root: Robot root prim whose subtree is searched breadth-first.
+        articulation_api: Articulation-root schema handed to `prim.HasAPI`.
+
+    Returns:
+        The prim carrying `articulation_api`, else the shallowest prim named
+        `base_link`, else `None`.
+    """
+    fallback: Usd.Prim | None = None
+    queue = [robot_root]
+    while queue:
+        prim = queue.pop(0)
+        if prim.HasAPI(articulation_api):
+            return prim
+        if fallback is None and prim.GetName() == CHASSIS_LINK_NAME:
+            fallback = prim
+        queue.extend(prim.GetChildren())
+    return fallback
+
+
+def resolve_chassis_prim(
+    stage: Usd.Stage, robot_id: str, articulation_api: type
+) -> Usd.Prim:
+    """Resolve a robot's chassis prim on `stage`, caching the subtree walk.
+
+    The cache stores the resolved path rather than the prim handle, so a stage
+    reload between repetitions cannot hand back an invalidated prim.
+
+    Args:
+        stage: USD stage holding `/World/Robots/<robot_id>`.
+        robot_id: Robot id to resolve.
+        articulation_api: Articulation-root schema handed to `prim.HasAPI`.
+
+    Returns:
+        The robot's chassis prim.
+
+    Raises:
+        ValueError: If the robot root prim or its chassis prim is not found.
+    """
+    cached_path = _CHASSIS_PATH_CACHE.get(robot_id)
+    if cached_path is not None:
+        cached_prim = stage.GetPrimAtPath(cached_path)
+        if cached_prim and cached_prim.IsValid():
+            return cached_prim
+
+    root_path = f"/World/Robots/{robot_id}"
+    root = stage.GetPrimAtPath(root_path)
+    if not root or not root.IsValid():
+        raise ValueError(
+            f"Robot root prim not found for robot {robot_id!r} at {root_path}"
+        )
+    chassis = find_chassis_prim(root, articulation_api)
+    if chassis is None:
+        raise ValueError(
+            f"No chassis prim found for robot {robot_id!r} under {root_path}: "
+            f"expected a prim with ArticulationRootAPI or named "
+            f"{CHASSIS_LINK_NAME!r}"
+        )
+    _CHASSIS_PATH_CACHE[robot_id] = str(chassis.GetPath())
+    return chassis
+
+
+def planar_pose_from_transform(matrix: Gf.Matrix4d) -> tuple[float, float, float]:
+    """Extract a planar pose from a world transform matrix.
+
+    Args:
+        matrix: World transform whose translation is in meters.
+
+    Returns:
+        Planar pose as `(x, y, yaw_rad)`, yaw measured about world +Z.
+    """
+    translation = matrix.ExtractTranslation()
+    rotation = matrix.ExtractRotation()
+    yaw_rad = math.radians(rotation.Decompose((0, 0, 1), (0, 1, 0), (1, 0, 0))[0])
+    return (float(translation[0]), float(translation[1]), yaw_rad)
+
+
+def sample_robot_positions(
+    stage: Usd.Stage, robot_ids: list[str]
+) -> dict[str, tuple[float, float, float]]:
+    """Sample each robot's world-frame planar pose from its chassis prim.
+
+    Args:
+        stage: USD stage holding `/World/Robots/<robot_id>`.
+        robot_ids: Robots to sample.
+
+    Returns:
+        Mapping of robot id to `(x, y, yaw_rad)` in world meters and radians.
+
+    Raises:
+        ValueError: If a robot's root prim or chassis prim is not found.
+    """
+    from pxr import Usd, UsdGeom, UsdPhysics
 
     positions: dict[str, tuple[float, float, float]] = {}
     for robot_id in robot_ids:
-        prim = stage.GetPrimAtPath(f"/World/Robots/{robot_id}")
-        if not prim or not prim.IsValid():
-            continue
-        matrix = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(0.0)
-        translation = matrix.ExtractTranslation()
-        rotation = matrix.ExtractRotation()
-        yaw_rad = math.radians(rotation.Decompose((0, 0, 1), (0, 1, 0), (1, 0, 0))[0])
-        positions[robot_id] = (float(translation[0]), float(translation[1]), yaw_rad)
+        # Sample the chassis link, never /World/Robots/<id>: under the Newton
+        # backend the robot root Xform keeps its authored spawn transform for the
+        # whole run while physics writes pose onto the articulation's links, so
+        # reading the root logged every robot parked at spawn with speed 0.
+        chassis = resolve_chassis_prim(stage, robot_id, UsdPhysics.ArticulationRootAPI)
+        matrix = UsdGeom.Xformable(chassis).ComputeLocalToWorldTransform(
+            Usd.TimeCode.Default()
+        )
+        positions[robot_id] = planar_pose_from_transform(matrix)
     return positions
