@@ -329,6 +329,25 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-16** — **Safety monitor STALE fail-safe.** `safety.py`
+  `evaluate_latches` now unions a second rule onto the min-distance rule:
+  a `STALE` robot keeps any latch it had, and a pair in which either
+  robot is `STALE` is latched if its last *both-fresh* distance was below
+  `stale_unsafe_distance_m` (default `min_distance_m + 0.15` = 0.60;
+  `safety.yaml` keys `stale_pose_is_unsafe: true`,
+  `stale_unsafe_distance_m: 0.6`, loaded with `.get` so an old installed
+  yaml cannot throw). The distance memory is refreshed only from
+  both-fresh pairs, so a carried stale pose never launders into the
+  trusted datum; the existing coordination lift (a commanded backup may
+  proceed) is honoured. Reason logged once per latch
+  (`reason=stale_pose_unsafe`); `/safety/holds` payload unchanged.
+  **Why:** run D — overlapping markers made both robots `STALE`, and the
+  monitor treated them as absent while they were interpenetrating. Spec:
+  `docs/specs/module4/safety-monitor.md` §7 (rev 5), which also records
+  two residual blind windows: a wedged `ACTIVE` command (bounded by the
+  command bus's 20 s nav2-leg watchdog) and the empty-`robots[]`
+  dropped-frame path (re-latches on the next good frame). 35 safety
+  tests pass. Host-unverified.
 - **2026-09-16** — **Run D: camera localization verified; robots found
   interpenetrating; safety monitor blind under marker loss.** With
   `localization:=camera` (+ marker-plane calibration): M1 vs GT at spawn
