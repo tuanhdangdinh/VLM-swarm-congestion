@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 from reasoning.vlm.anthropic_backend import AnthropicBackend
 from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.llama_server_backend import LlamaServerBackend
@@ -18,6 +21,12 @@ def build_backend(
 ) -> VLMBackend:
     """Construct a concrete VLM backend from its identifier and config.
 
+    For `backend_id == "mock"`, the `VGU_MOCK_DECISION_FILE` environment
+    variable may name a file whose UTF-8 text becomes the backend's scripted
+    response. This lets key-less closed-loop runs replay a specific decision
+    (e.g. `config/mock_decisions/head_on_yield.json`) instead of the default
+    no-congestion answer. Unset or empty keeps the default behaviour.
+
     Args:
         backend_id: Selector, e.g. "mock" or "llama_server".
         backend_config: Backend-specific connection config. Optional because
@@ -29,9 +38,19 @@ def build_backend(
     Raises:
         ValueError: If `backend_id` is not recognized, or required config is
             missing for a backend that needs it.
+        FileNotFoundError: If `VGU_MOCK_DECISION_FILE` names a path that does
+            not exist. Config errors fail fast at startup by convention.
     """
     if backend_id == "mock":
-        return MockBackend()
+        decision_file = os.environ.get("VGU_MOCK_DECISION_FILE", "")
+        if not decision_file:
+            return MockBackend()
+        path = Path(decision_file)
+        if not path.exists():
+            raise FileNotFoundError(
+                f"VGU_MOCK_DECISION_FILE points to a missing file: {path}"
+            )
+        return MockBackend(response_text=path.read_text(encoding="utf-8"))
     if backend_id == "llama_server":
         if backend_config is None:
             raise ValueError("llama_server backend requires a LlamaServerBackendConfig")

@@ -1,8 +1,11 @@
 import json
 import time
+from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
+from reasoning.schemas import load_schema
 from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.backend_factory import build_backend
 from reasoning.vlm.llama_server_backend import LlamaServerBackend
@@ -343,6 +346,35 @@ def test_build_backend_returns_llama_server():
 def test_build_backend_rejects_unknown_id():
     with pytest.raises(ValueError):
         build_backend("nope", LlamaServerBackendConfig(model_id="x"))
+
+
+def test_build_backend_mock_returns_default_when_env_unset(monkeypatch):
+    monkeypatch.delenv("VGU_MOCK_DECISION_FILE", raising=False)
+    response = build_backend("mock").analyze(_PAYLOAD, _CONFIG)
+    assert '"congestion_detected": false' in response.text
+
+
+def test_build_backend_mock_uses_scripted_decision_file(tmp_path, monkeypatch):
+    text = '{"congestion_detected": true, "strategy": "yield"}'
+    decision_file = tmp_path / "scripted.json"
+    decision_file.write_text(text, encoding="utf-8")
+    monkeypatch.setenv("VGU_MOCK_DECISION_FILE", str(decision_file))
+    response = build_backend("mock").analyze(_PAYLOAD, _CONFIG)
+    assert response.text == text
+
+
+def test_build_backend_mock_missing_decision_file_raises(tmp_path, monkeypatch):
+    monkeypatch.setenv("VGU_MOCK_DECISION_FILE", str(tmp_path / "absent.json"))
+    with pytest.raises(FileNotFoundError, match="VGU_MOCK_DECISION_FILE"):
+        build_backend("mock")
+
+
+def test_head_on_yield_fixture_validates_against_schema():
+    repo_root = Path(__file__).resolve().parents[2]
+    fixture = repo_root / "config" / "mock_decisions" / "head_on_yield.json"
+    document = json.loads(fixture.read_text(encoding="utf-8"))
+    validator = Draft202012Validator(load_schema("vlm_decision"))
+    assert not list(validator.iter_errors(document))
 
 
 def test_public_api_is_importable_from_package():

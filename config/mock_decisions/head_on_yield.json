@@ -1,0 +1,8 @@
+{
+  "congestion_detected": true,
+  "type": "deadlock",
+  "involved_robots": ["robot_1", "robot_2"],
+  "root_cause": "Two robots met head-on inside the narrow aisle and neither can pass.",
+  "strategy": "yield",
+  "justification": "Scripted mock decision for key-less closed-loop runs: robot_1 yields, robot_2 passes."
+}
