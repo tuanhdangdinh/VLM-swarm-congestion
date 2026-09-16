@@ -135,7 +135,23 @@ Rules for maintaining it:
   flicker at the silhouette. Fix: `PARK_ABS_X_M` 1.5 → 1.8
   (= 1.33 + 0.06 half-width + 0.3 margin). Downstream still fits: worst-case
   backup ≈ 2.4 (< 2.5 cap), escort ≈ 3.04 (< 4.0 cap, < 45 s hold), passer
-  parks at ≈ −2.45 (goal −2.5). Live re-verification pending.
+  parks at ≈ −2.45 (goal −2.5).
+  **Verified live (run 8, 08:11–08:17 UTC, gpt-4o):** yield params
+  `park_x_m −1.8, backup 1.697, escort = clear 2.466` (yielder at −0.103);
+  yielder parked at world (−1.785, +0.361), passer escorted 2.468 m; both
+  `COMPLETED` at T+2 m 28 s; both robots reached their goals. A continuous
+  `/perception/status` recording (4 022 msgs over the 5.5 min window,
+  `dropped_frame` never true) shows **robot_1 missing in 13 of 835 frames
+  (1.6 %) while parked, longest gap 0.86 s** — versus minutes-long loss in
+  run 6 and a miss at the only sample in run 7. The occlusion defect is
+  closed. What remains is detection flicker on *moving* robots: 483/4 022
+  frames (12 %) miss one marker, max gap 1.5 s; robot_1's three longest
+  gaps (1.30 / 1.02 / 0.90 s) all fall inside the turn-drive-turn sidestep,
+  robot_2's 65 gaps (max 0.59 s) all inside its escort. All gaps are under
+  `stale_after_sec: 3.0`, so none reached M5 as STALE. One frame reported
+  `ids_unexpected: ['robot_41']` (a spurious id-41 detection), handled by
+  M1's unexpected-id path. Safety monitor latched both robots at the
+  standoff before dispatch and released for the backup, as designed.
 - **2026-09-16** — **First live-VLM closed loop on the new VM** (run 6,
   06:27–06:33 UTC, `reasoning_backend_id: openai`, `gpt-4o-2024-08-06`):
   one analysis (`2 robot(s) close/slow >= 12.0s`) → decision
