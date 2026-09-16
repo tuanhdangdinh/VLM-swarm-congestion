@@ -329,6 +329,37 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-16** — **Run D: camera localization verified; robots found
+  interpenetrating; safety monitor blind under marker loss.** With
+  `localization:=camera` (+ marker-plane calibration): M1 vs GT at spawn
+  **0.96 cm / 0.41 cm** (was 12 cm); both `camera_localizer` nodes
+  acquired within 1 cm of the spawn poses; Nav2 active and navigating from
+  the camera TF; localization error vs GT **0.4 / 1.8 cm mean** while
+  driving (N=62), **2.9 / 0.6 cm mean** during the yield (N=223), worst
+  16 cm in a 509 s span that included a physical entanglement. No
+  degeneracy — the held correction stays valid because odometry is
+  drift-free. **Loop outcome was poor for reasons upstream of
+  localization:** gpt-4o's first decision was `reverse` (both back up
+  1.3 m, both resume); the robots re-approached and wedged at
+  **0.078 m centre distance, pressed against the south wall (y ≈ −0.18)**,
+  one rotated ~45° — a live camera crop shows the two ArUco quads
+  overlapping (`scratchpad/runD_live_zoom.png` of this session). With
+  overlapping quads neither marker is detectable: `markers_detected == 0`
+  in 13 449 of 19 607 status frames, robot_1 gap 401 s, both `STALE`, so
+  M5 reasoned on stale poses (`temporary_wait`/anomaly, then two
+  `yield`s; one FAILED), Nav2 planning failed from inside inflated wall
+  cost (44 + 13 `failed to create plan`), no goal reached. Two systemic
+  findings: (1) **robot–robot collision is not enforced by physics** —
+  0.078 m centres with 0.14 m chassis is 6 cm of interpenetration, and the
+  oracle verification run had logged the same `min_pairwise 0.079`; the
+  head-on deadlock has been held apart by the safety monitor alone;
+  (2) **the safety monitor has no fail-safe for perception loss** — a
+  `STALE` robot last seen 8 cm from another is treated as absent, not
+  unsafe, so once markers overlap the monitor stops protecting exactly
+  when it matters. Both are being addressed (collision probe on host;
+  stale-pose fail-safe in `safety_monitor_node`). The yield-refusal guard
+  correctly did not fire (robots were inside the corridor). 4 gpt-4o
+  calls, 7 097 tokens.
 - **2026-09-16** — **`localization:=camera` added, host-unverified**
   (`4c1b697`). Third localization mode: a per-robot
   `swarm_perception/camera_localizer_node` (launched inside the namespaced
