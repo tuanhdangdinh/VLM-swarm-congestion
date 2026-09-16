@@ -6,6 +6,7 @@ from reasoning.rag.command_grounder import (
     ground_reasoner_result,
     validate_coordination_command,
 )
+from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
 from reasoning.vlm.models import CongestionDecision, ReasonerDiagnostics, ReasonerResult
 
 
@@ -192,6 +193,68 @@ def test_yield_scene_aware_command_validates_against_schema():
         "fallback",
     }
     assert command["actions"][0]["parameters"]["pull_off_lateral_m"] == 0.35
+
+
+def _geometry(axis: str = "x") -> SceneGeometry:
+    # Mirrors scenario_geometry in swarm_orchestrator/config/orchestrator.yaml.
+    return SceneGeometry(
+        corridor=CorridorGeometry(
+            axis=axis,
+            center_m=0.0,
+            half_length_m=1.0,
+            aisle_half_width_m=0.6,
+            occluder_height_m=0.9,
+        )
+    )
+
+
+def test_yield_with_geometry_parks_at_derived_offset():
+    # 1.329 visibility boundary + 0.06 marker half-size + 0.3 margin = 1.689,
+    # derived from the declared geometry rather than the 1.8 fallback.
+    positions = {"robot_1": (-0.04, 0.0), "robot_2": (0.08, 0.0)}
+
+    command = ground_reasoner_result(
+        _result("yield"), robot_positions=positions, geometry=_geometry()
+    )
+    params = command["actions"][0]["parameters"]
+
+    assert params["park_axis"] == "x"
+    assert params["park_coord_m"] == pytest.approx(-1.689)
+    assert params["park_x_m"] == pytest.approx(-1.689)
+    assert params["backup_distance_m"] == pytest.approx(1.649)
+    assert params["passer_escort_distance_m"] == pytest.approx(2.419)
+    assert params["passer_clear_m"] == pytest.approx(2.419)
+    assert params["pull_off_lateral_m"] == 0.36
+
+
+def test_yield_with_geometry_on_y_axis_uses_y_coordinates():
+    # Corridor along y: the axis coordinate is index 1, and park_x_m would be
+    # misleading, so only the axis-tagged keys are emitted.
+    positions = {"robot_1": (0.0, -0.04), "robot_2": (0.0, 0.08)}
+
+    command = ground_reasoner_result(
+        _result("yield"), robot_positions=positions, geometry=_geometry(axis="y")
+    )
+    params = command["actions"][0]["parameters"]
+
+    assert params["park_axis"] == "y"
+    assert params["park_coord_m"] == pytest.approx(-1.689)
+    assert "park_x_m" not in params
+    assert params["backup_distance_m"] == pytest.approx(1.649)
+
+
+def test_yield_without_geometry_keeps_fallback_constants():
+    # Regression guard for the verified pre-geometry behaviour.
+    positions = {"robot_1": (-0.04, 0.0), "robot_2": (0.08, 0.0)}
+
+    params = ground_reasoner_result(_result("yield"), robot_positions=positions)["actions"][0][
+        "parameters"
+    ]
+
+    assert params["park_x_m"] == -1.8
+    assert params["pull_off_lateral_m"] == 0.35
+    assert "park_axis" not in params
+    assert "park_coord_m" not in params
 
 
 def test_ground_reverse_decision_to_backing_reverse_action():

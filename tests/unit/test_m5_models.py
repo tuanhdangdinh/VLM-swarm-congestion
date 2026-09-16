@@ -89,6 +89,24 @@ def test_shipped_orchestrator_yaml_goals_stay_inside_camera_roi():
     assert cfg.initial_tasks["robot_2"].goal == (-2.5, 0.0)
 
 
+def test_orchestrator_config_loads_scenario_geometry_from_yaml():
+    # The shipped config declares the head_on_deadlock corridor so M3 derives
+    # the yield park offset instead of using its hardcoded fallback.
+    path = Path("ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml")
+    cfg = load_config(yaml.safe_load(path.read_text(encoding="utf-8")))
+
+    assert cfg.scenario_geometry is not None
+    assert cfg.scenario_geometry.corridor.half_length_m == 1.0
+    assert cfg.scenario_geometry.corridor.axis == "x"
+    assert cfg.scenario_geometry.robot.safety_radius_m == 0.45
+
+
+def test_orchestrator_config_without_geometry_is_none():
+    cfg = load_config(_minimal_config_dict())
+
+    assert cfg.scenario_geometry is None
+
+
 def test_load_config_raises_on_missing_required_field():
     with pytest.raises(ValidationError):
         load_config({"progress_epsilon_m": 0.1})  # missing stall_threshold_sec etc.

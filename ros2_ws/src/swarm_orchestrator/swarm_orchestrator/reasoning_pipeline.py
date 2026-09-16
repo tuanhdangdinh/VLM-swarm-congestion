@@ -13,6 +13,7 @@ from reasoning.rag.command_grounder import (
     filter_command_robot_ids,
     validate_coordination_command,
 )
+from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import (
     ReasonerDiagnostics,
     ReasonerRequest,
@@ -29,12 +30,13 @@ ValidateFn = Callable[[dict[str, Any]], dict[str, Any]]
 
 
 class GroundFn(Protocol):
-    """M3 grounding callable: a reasoner result plus scene positions -> command."""
+    """M3 grounding callable: a reasoner result plus scene context -> command."""
 
     def __call__(
         self,
         result: ReasonerResult,
         robot_positions: dict[str, tuple[float, float]] | None = None,
+        geometry: SceneGeometry | None = None,
     ) -> dict[str, Any]: ...
 
 
@@ -175,9 +177,13 @@ class InProcessPipeline:
         reasoner: Any,
         ground_fn: GroundFn,
         validate_fn: ValidateFn | None = None,
+        scene_geometry: SceneGeometry | None = None,
     ) -> None:
         self._reasoner = reasoner
         self._ground_fn = ground_fn
+        # Declared scenario geometry from M5 config; None leaves M3 on its
+        # hand-sized fallback distances.
+        self._scene_geometry = scene_geometry
         # Default to the M3 schema validator (FR5.3.2 / spec §5: grounded commands
         # are schema-validated before they can reach OK and be dispatched).
         self._validate_fn = validate_fn or validate_coordination_command
@@ -194,12 +200,16 @@ class InProcessPipeline:
             return self._vlm_terminal(request.request_id, result, "congestion_detected=false")
         try:
             allowed_robot_ids = {robot.robot_id for robot in request.robot_states}
-            # M3 grounds the yield distances from where the robots actually are,
-            # so hand it this cycle's snapshot positions (the request carries
-            # them verbatim from SceneSnapshot.robots).
+            # M3 grounds the yield distances from where the robots actually are
+            # plus the declared scene, so hand it this cycle's snapshot
+            # positions (the request carries them verbatim from
+            # SceneSnapshot.robots) and the configured geometry.
             positions = {robot.robot_id: (robot.x, robot.y) for robot in request.robot_states}
             grounded = filter_command_robot_ids(
-                self._ground_fn(result, robot_positions=positions), allowed_robot_ids
+                self._ground_fn(
+                    result, robot_positions=positions, geometry=self._scene_geometry
+                ),
+                allowed_robot_ids,
             )
             grounded = self._validate_fn(grounded)
         except Exception as exc:  # grounding or schema-validation failure — bounded here

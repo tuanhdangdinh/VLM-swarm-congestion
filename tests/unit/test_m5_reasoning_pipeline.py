@@ -14,6 +14,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     write_decision_artifact,
 )
 
+from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
 from reasoning.vlm.models import (
     CongestionDecision,
     ReasonerDiagnostics,
@@ -138,6 +139,10 @@ def _failed_result():
     return ReasonerResult(request_id="r1", decision=None, raw_text=None, diagnostics=diag)
 
 
+def _must_not_ground(result, robot_positions=None, geometry=None):
+    pytest.fail("ground_fn must not run")
+
+
 def _request(image="/tmp/r1.png"):
     return build_reasoner_request(request_id="r1", snapshot=_snapshot(), image_path=image)
 
@@ -151,7 +156,7 @@ def test_pipeline_ok_grounds_and_returns_ok(tmp_path):
     }
     pipe = InProcessPipeline(
         reasoner=_FakeReasoner(_ok_result()),
-        ground_fn=lambda result, robot_positions=None: grounded,
+        ground_fn=lambda result, robot_positions=None, geometry=None: grounded,
     )
     outcome = pipe.run(_request())
     assert outcome.terminal_stage is TerminalStage.OK
@@ -161,7 +166,7 @@ def test_pipeline_ok_grounds_and_returns_ok(tmp_path):
 def test_pipeline_no_congestion_terminates_at_vlm():
     pipe = InProcessPipeline(
         reasoner=_FakeReasoner(_no_congestion_result()),
-        ground_fn=lambda result, robot_positions=None: pytest.fail("ground_fn must not run"),
+        ground_fn=_must_not_ground,
     )
     outcome = pipe.run(_request())
     assert outcome.terminal_stage is TerminalStage.VLM
@@ -171,7 +176,7 @@ def test_pipeline_no_congestion_terminates_at_vlm():
 def test_pipeline_vlm_failure_terminates_at_vlm():
     pipe = InProcessPipeline(
         reasoner=_FakeReasoner(_failed_result()),
-        ground_fn=lambda result, robot_positions=None: pytest.fail("ground_fn must not run"),
+        ground_fn=_must_not_ground,
     )
     outcome = pipe.run(_request())
     assert outcome.terminal_stage is TerminalStage.VLM
@@ -179,7 +184,7 @@ def test_pipeline_vlm_failure_terminates_at_vlm():
 
 
 def test_pipeline_grounding_failure_terminates_at_grounding():
-    def _raise(result, robot_positions=None):
+    def _raise(result, robot_positions=None, geometry=None):
         raise ValueError("schema invalid")
     pipe = InProcessPipeline(reasoner=_FakeReasoner(_ok_result()), ground_fn=_raise)
     outcome = pipe.run(_request())
@@ -197,7 +202,7 @@ def test_pipeline_reasoner_exception_terminates_at_vlm_without_raising():
     # (FR5.3.2: failures from either stage are caught, never raised past the adapter).
     pipe = InProcessPipeline(
         reasoner=_RaisingReasoner(),
-        ground_fn=lambda result, robot_positions=None: pytest.fail("ground_fn must not run"),
+        ground_fn=_must_not_ground,
     )
     outcome = pipe.run(_request())
     assert outcome.terminal_stage is TerminalStage.VLM
@@ -210,7 +215,7 @@ def test_pipeline_invalid_grounded_command_terminates_at_grounding():
     invalid = {"command_id": "c1"}  # missing actions / fallback / resolution
     pipe = InProcessPipeline(
         reasoner=_FakeReasoner(_ok_result()),
-        ground_fn=lambda result, robot_positions=None: invalid,
+        ground_fn=lambda result, robot_positions=None, geometry=None: invalid,
     )
     outcome = pipe.run(_request())
     assert outcome.terminal_stage is TerminalStage.GROUNDING
@@ -226,7 +231,7 @@ def test_pipeline_valid_grounded_command_passes_validation():
     }
     pipe = InProcessPipeline(
         reasoner=_FakeReasoner(_ok_result()),
-        ground_fn=lambda result, robot_positions=None: valid,
+        ground_fn=lambda result, robot_positions=None, geometry=None: valid,
     )
     outcome = pipe.run(_request())
     assert outcome.terminal_stage is TerminalStage.OK
@@ -245,7 +250,7 @@ def test_pipeline_filters_grounded_actions_to_request_robot_ids():
     }
     pipe = InProcessPipeline(
         reasoner=_FakeReasoner(_ok_result()),
-        ground_fn=lambda result, robot_positions=None: grounded,
+        ground_fn=lambda result, robot_positions=None, geometry=None: grounded,
     )
 
     outcome = pipe.run(_request())
@@ -265,7 +270,7 @@ def test_pipeline_rejects_grounded_actions_for_unknown_robot_ids():
     }
     pipe = InProcessPipeline(
         reasoner=_FakeReasoner(_ok_result()),
-        ground_fn=lambda result, robot_positions=None: grounded,
+        ground_fn=lambda result, robot_positions=None, geometry=None: grounded,
     )
 
     outcome = pipe.run(_request())
@@ -281,17 +286,46 @@ def test_pipeline_passes_snapshot_positions_to_grounder():
         "expected_resolution_time_sec": 18.0,
         "fallback": "stop",
     }
-    seen: dict[str, dict[str, tuple[float, float]] | None] = {}
+    seen: dict[str, object] = {}
 
-    def _record(result, robot_positions=None):
+    def _record(result, robot_positions=None, geometry=None):
         seen["positions"] = robot_positions
+        seen["geometry"] = geometry
+        return grounded
+
+    geometry = SceneGeometry(
+        corridor=CorridorGeometry(
+            half_length_m=1.0, aisle_half_width_m=0.6, occluder_height_m=0.9
+        )
+    )
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_ok_result()), ground_fn=_record, scene_geometry=geometry
+    )
+
+    pipe.run(_request())
+
+    assert seen["positions"] == {"robot_0": (1.0, 2.0)}
+    assert seen["geometry"] == geometry
+
+
+def test_pipeline_passes_no_geometry_to_grounder_when_unconfigured():
+    grounded = {
+        "command_id": "c1",
+        "actions": [{"robot_id": "robot_0", "action": "yield"}],
+        "expected_resolution_time_sec": 18.0,
+        "fallback": "stop",
+    }
+    seen: dict[str, object] = {"geometry": "unset"}
+
+    def _record(result, robot_positions=None, geometry=None):
+        seen["geometry"] = geometry
         return grounded
 
     pipe = InProcessPipeline(reasoner=_FakeReasoner(_ok_result()), ground_fn=_record)
 
     pipe.run(_request())
 
-    assert seen["positions"] == {"robot_0": (1.0, 2.0)}
+    assert seen["geometry"] is None
 
 
 # ---- decision artifacts ----

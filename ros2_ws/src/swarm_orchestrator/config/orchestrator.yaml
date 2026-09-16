@@ -14,3 +14,16 @@ frame_downscale_width: null
 initial_tasks:
   robot_1: { task: cross_narrow_aisle, goal: [2.5, 0.0] }
   robot_2: { task: cross_narrow_aisle, goal: [-2.5, 0.0] }
+
+# Scene dimensions M3 derives the yield maneuver from. They mirror
+# isaac/config/scenarios/head_on_deadlock.yaml (barrier spans x=+-1.0, 0.9 m
+# tall), isaac/config/warehouse.yaml (nominal_aisle_width_m 1.2) and
+# vgu_sim CameraConfig (camera at z=3.0); keep them in sync by hand until M5
+# reads the scenario file directly.
+scenario_geometry:
+  corridor: { axis: x, center_m: 0.0, half_length_m: 1.0, aisle_half_width_m: 0.6, occluder_height_m: 0.9 }
+  camera: { height_m: 3.0, marker_height_m: 0.21 }
+  robot: { half_width_m: 0.09, marker_half_size_m: 0.06, safety_radius_m: 0.45 }
+  park_margin_m: 0.3
+  wall_margin_m: 0.15
+  passer_margin_m: 0.2

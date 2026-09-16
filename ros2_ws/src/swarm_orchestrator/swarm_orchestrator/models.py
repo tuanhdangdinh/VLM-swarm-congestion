@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import ReasonerResult
 
 # Default ROS2 topic/service names (spec §5; overridable via config `topics`).
@@ -56,6 +57,9 @@ class OrchestratorConfig(BaseModel):
     keep_debug_frames: bool = False
     frame_scene_max_skew_sec: float = Field(default=1.0, ge=0.0)
     frame_downscale_width: int | None = Field(default=None, gt=0)
+    # Handed to M3 so the yield maneuver is derived from declared scene
+    # dimensions; None keeps M3's hand-sized head_on_deadlock fallbacks.
+    scenario_geometry: SceneGeometry | None = None
 
     @field_validator("initial_tasks")
     @classmethod
@@ -160,6 +164,8 @@ def load_config(raw: dict[str, Any]) -> OrchestratorConfig:
 
     Args:
         raw: Mapping of config keys; `initial_tasks` values may use list goals.
+            A `scenario_geometry` mapping is passed through untouched for
+            Pydantic to validate into a `SceneGeometry`.
 
     Returns:
         A validated, frozen config.

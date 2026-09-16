@@ -40,12 +40,15 @@ aisle_barrier:
   # all — the passer is escorted through on raw cmd_vel (probe-proven that
   # collision_monitor, not DWB, vetoed Nav2 transit in here). Maneuver
   # margins at length 2.0 (corridor spans x=±1.0) are no longer fixed: M3
-  # grounds backup and escort from the robots' actual positions, parking the
-  # yielder at |x|=1.8 (PARK_ABS_X_M in reasoning/rag/command_grounder.py,
-  # i.e. 0.8m past the corridor end, clear of the blocks that would occlude
-  # its marker) and escorting the passer to 0.65m past that park point. The
-  # old fixed 1.3m backup / 2.4m escort survive only as the fallback for
-  # when M5 cannot supply positions.
+  # grounds backup and escort from the robots' actual positions plus the scene
+  # geometry M5 declares in swarm_orchestrator/config/orchestrator.yaml
+  # (scenario_geometry mirrors this barrier: half_length_m 1.0,
+  # occluder_height_m 0.9). The park offset is derived there, not hardcoded:
+  # for these values ≈1.69m from the corridor centre, i.e. ~0.69m past the
+  # corridor end, clear of the blocks that would occlude the yielder's marker;
+  # the passer is then escorted 0.65m past that park point. PARK_ABS_X_M=1.8
+  # in reasoning/rag/command_grounder.py is only the no-geometry fallback, as
+  # are the old fixed 1.3m backup / 2.4m escort when M5 supplies no positions.
   effective_width_m: 0.55
   center_x_m: 0.0
   length_m: 2.0

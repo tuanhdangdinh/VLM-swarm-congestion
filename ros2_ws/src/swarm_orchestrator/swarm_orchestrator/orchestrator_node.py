@@ -54,7 +54,11 @@ def _build_default_pipeline(config: OrchestratorConfig) -> ReasoningPipeline:
     reasoner_config, backend_config = _load_vlm_config(config.reasoning_backend_id)
     backend = build_backend(config.reasoning_backend_id, backend_config)
     reasoner = Reasoner(backend, reasoner_config)
-    return InProcessPipeline(reasoner=reasoner, ground_fn=ground_reasoner_result)
+    return InProcessPipeline(
+        reasoner=reasoner,
+        ground_fn=ground_reasoner_result,
+        scene_geometry=config.scenario_geometry,
+    )
 
 
 def _registry_qos() -> QoSProfile:

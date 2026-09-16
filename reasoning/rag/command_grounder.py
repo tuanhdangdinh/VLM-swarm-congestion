@@ -1,7 +1,13 @@
-from typing import Any
+from typing import Any, Literal
 
 from jsonschema import Draft202012Validator
 
+from reasoning.rag.scene_geometry import (
+    SceneGeometry,
+    park_offset_m,
+    passer_clearance_m,
+    pull_off_lateral_m,
+)
 from reasoning.schemas import load_schema
 from reasoning.vlm.models import ReasonerResult
 
@@ -10,21 +16,23 @@ class CommandGroundingError(ValueError):
     """Raised when a grounded command is incomplete or invalid."""
 
 
-# Absolute map x the yielder parks at. The head_on_deadlock barrier blocks are
-# 0.90 m tall and span x in [-1, 1]; the overhead camera sits at (0, 0, 3), so
-# a block's top face (z = 0.9) projects onto the marker plane (z = 0.21) out
-# to |x| ~= 1.0*(3-0.21)/(3-0.9) ~= 1.33. Add the 0.06 m marker half-width and
-# a 0.3 m margin for odometry error after the reverse/sidestep leg: 1.33 +
-# 0.06 + 0.3 ~= 1.69, rounded up to 1.8. 1.5 left only ~0.11 m of clearance
-# and lost the marker in a live run (2026-09-16 run 7).
+# Fallback absolute map x the yielder parks at, used only when the caller
+# supplies no `geometry`; with one, `park_offset_m` derives the offset from the
+# declared scene instead. Hand-derived for head_on_deadlock: barrier blocks
+# 0.90 m tall spanning x in [-1, 1] and an overhead camera at (0, 0, 3) put the
+# blocks' projected top face on the marker plane (z = 0.21) at
+# |x| ~= 1.0*(3-0.21)/(3-0.9) ~= 1.33; plus the 0.06 m marker half-width and a
+# 0.3 m odometry margin that is ~1.69, rounded up to 1.8. 1.5 left only ~0.11 m
+# of clearance and lost the marker in a live run (2026-09-16 run 7).
 PARK_ABS_X_M = 1.8
 # Bounds on the derived backup leg: under 0.3 m the reverse does not open the
 # aisle at all, and 2.5 m is the longest run that stays inside the mapped aisle.
 MIN_BACKUP_M = 0.3
 MAX_BACKUP_M = 2.5
-# Added to the passer's distance-to-park so the hold only ends once the passer
-# is clear of the parked yielder: 0.45 m safety radius (M4 min_distance_m) plus
-# a 0.20 m margin.
+# Fallback margin added to the passer's distance-to-park so the hold only ends
+# once the passer is clear of the parked yielder: 0.45 m safety radius (M4
+# min_distance_m) plus a 0.20 m margin. Superseded by `passer_clearance_m` when
+# the caller declares a geometry.
 PASSER_CLEARANCE_M = 0.65
 # Bounds on the derived escort leg. The upper bound must stay under what the
 # 45 s hold backstop covers at the 0.1 m/s escort speed (4.5 m), otherwise the
@@ -67,6 +75,7 @@ def filter_command_robot_ids(
 def ground_reasoner_result(
     result: ReasonerResult,
     robot_positions: dict[str, tuple[float, float]] | None = None,
+    geometry: SceneGeometry | None = None,
 ) -> dict[str, Any]:
     """Convert a validated VLM decision into an executable coordination command.
 
@@ -83,12 +92,20 @@ def ground_reasoner_result(
     this scenario — a nose-to-nose standoff near x=0 or a planner stall at ~1 m
     separation (observed 2026-09-16) — and fixed distances cannot suit both.
 
+    When `geometry` is also supplied, the park point, sidestep and escort
+    clearance are derived from that declared scene instead of the fallback
+    constants above, so no scenario dimensions are hidden in M3.
+
     Args:
         result: Validated M2 reasoner output whose decision is grounded.
         robot_positions: Optional map of robot_id to world-frame `(x, y)` in
             metres, from the M5 scene snapshot. When it covers both the yielder
             and the passer, yield distances are scene-derived; otherwise the
             legacy fixed distances are used.
+        geometry: Optional declared scene geometry (from M5 config). With it the
+            yield park offset, sidestep and passer clearance are computed from
+            the corridor, camera and robot dimensions; without it the fallback
+            constants sized for head_on_deadlock apply.
 
     Returns:
         Schema-validated coordination command dict.
@@ -128,8 +145,10 @@ def ground_reasoner_result(
     # once motion BVH let the costmap see the other robot (2026-07-03).
     # 0.35 m keeps the yielder inside the wall clearance (aisle half-width
     # 0.6 m, inflated half-width ~0.19 m) while giving the passer 0.7 m of
-    # centerline separation, above the 0.45 m safety threshold.
-    pull_off_lateral_m = 0.35
+    # centerline separation, above the 0.45 m safety threshold. This hand-sized
+    # value is the fallback for callers without a `geometry`; with one, the same
+    # number is derived by `scene_geometry.pull_off_lateral_m`.
+    pull_off_lateral = 0.35
     # Upper-bound backstop for the yielder's hold, not the primary release:
     # M4 ends the hold the moment the passer's odometry shows it displaced
     # passer_clear_m since hold start (event-driven). A fixed 12 s hold
@@ -145,7 +164,7 @@ def ground_reasoner_result(
     # both. These fallback values assume that same x=0 standoff (passer at
     # ~+0.25, yielder parked near x=-1.65, plus the 0.45 m safety radius);
     # the scene-aware path below replaces them with
-    # |passer_x - park_x| + PASSER_CLEARANCE_M.
+    # |passer_coord - park_coord| + the passer clearance.
     passer_clear_m = 2.4
     passer_escort_distance_m = 2.4
     # Generous safety upper bound, not a motion-duration estimate (which was
@@ -160,28 +179,43 @@ def ground_reasoner_result(
     yield_total_sec = 150.0
 
     if decision.strategy == "yield":
-        park_x: float | None = None
+        park_coord: float | None = None
+        park_axis: Literal["x", "y"] = "x"
         if len(robot_ids) > 1 and robot_positions is not None:
             yielder_position = robot_positions.get(robot_ids[0])
             passer_position = robot_positions.get(robot_ids[1])
             if yielder_position is not None and passer_position is not None:
-                yielder_x = yielder_position[0]
-                passer_x = passer_position[0]
+                corridor_center = 0.0
+                park_offset = PARK_ABS_X_M
+                passer_clearance = PASSER_CLEARANCE_M
+                axis_index = 0
+                if geometry is not None:
+                    park_axis = geometry.corridor.axis
+                    axis_index = 0 if park_axis == "x" else 1
+                    corridor_center = geometry.corridor.center_m
+                    park_offset = park_offset_m(geometry)
+                    passer_clearance = passer_clearance_m(geometry)
+                    pull_off_lateral = round(pull_off_lateral_m(geometry), 3)
+                yielder_coord = yielder_position[axis_index]
+                passer_coord = passer_position[axis_index]
                 # Park on the yielder's own side of the corridor, away from the
                 # passer, so the two never swap sides mid-maneuver.
-                park_x = -PARK_ABS_X_M if yielder_x < passer_x else PARK_ABS_X_M
-                already_parked = yielder_x <= park_x if park_x < 0 else yielder_x >= park_x
+                side = -1.0 if yielder_coord < passer_coord else 1.0
+                park_coord = round(corridor_center + side * park_offset, 3)
+                already_parked = (yielder_coord - park_coord) * side >= 0.0
                 # A yielder already past the park point must not reverse
                 # further away from the aisle; MIN_BACKUP_M is just enough of a
                 # nudge for M4's reverse leg to report progress.
                 backup_distance_m = (
                     MIN_BACKUP_M
                     if already_parked
-                    else round(_clamp(abs(yielder_x - park_x), MIN_BACKUP_M, MAX_BACKUP_M), 3)
+                    else round(
+                        _clamp(abs(yielder_coord - park_coord), MIN_BACKUP_M, MAX_BACKUP_M), 3
+                    )
                 )
                 escort_m = round(
                     _clamp(
-                        abs(passer_x - park_x) + PASSER_CLEARANCE_M,
+                        abs(passer_coord - park_coord) + passer_clearance,
                         MIN_ESCORT_M,
                         MAX_ESCORT_M,
                     ),
@@ -192,13 +226,19 @@ def ground_reasoner_result(
         yield_parameters: dict[str, Any] = {
             "backup_distance_m": backup_distance_m,
             "hold_sec": yield_hold_sec,
-            "pull_off_lateral_m": pull_off_lateral_m,
+            "pull_off_lateral_m": pull_off_lateral,
             "reason": decision.root_cause,
         }
-        if park_x is not None:
+        if park_coord is not None:
             # Traceability only: M4 derives the backup from backup_distance_m
-            # and reads parameters with .get, so the extra key is inert there.
-            yield_parameters["park_x_m"] = park_x
+            # and reads parameters with .get, so the extra keys are inert there.
+            # park_x_m predates the axis-aware geometry and stays for the x-axis
+            # scenarios (and tooling) that already read it.
+            if park_axis == "x":
+                yield_parameters["park_x_m"] = park_coord
+            if geometry is not None:
+                yield_parameters["park_axis"] = park_axis
+                yield_parameters["park_coord_m"] = park_coord
         if len(robot_ids) > 1:
             yield_parameters["passer_robot_id"] = robot_ids[1]
             yield_parameters["passer_clear_m"] = passer_clear_m
