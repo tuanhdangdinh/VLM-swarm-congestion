@@ -133,3 +133,35 @@ def test_amcl_laser_ranges_match_lds_config():
 
 def test_static_localization_is_launch_default():
     assert _launch_argument_default("localization") == "static"
+
+
+def test_camera_localization_mode_is_declared():
+    # Asserts the gating, not a docstring mention: a `camera` paragraph in the
+    # module docstring with no gated node would launch nothing, and a gated
+    # node under the wrong mode string would never fire.
+    source = LAUNCH_PATH.read_text()
+    ast.parse(source)
+
+    assert '_localization_equals("camera", localization)' in source
+    assert 'executable="camera_localizer_node"' in source
+    assert 'package="swarm_perception"' in source
+    assert "static|amcl|camera" in _launch_argument_description("localization")
+
+
+def _launch_argument_description(name: str) -> str:
+    """Return the concatenated `description` string of a DeclareLaunchArgument."""
+    module = ast.parse(LAUNCH_PATH.read_text())
+    for node in ast.walk(module):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        func_name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+        if func_name != "DeclareLaunchArgument":
+            continue
+        if not node.args or ast.literal_eval(node.args[0]) != name:
+            continue
+        for keyword in node.keywords:
+            if keyword.arg == "description":
+                return ast.literal_eval(keyword.value)
+        raise AssertionError(f"DeclareLaunchArgument({name!r}) has no description")
+    raise AssertionError(f"DeclareLaunchArgument({name!r}) not found")

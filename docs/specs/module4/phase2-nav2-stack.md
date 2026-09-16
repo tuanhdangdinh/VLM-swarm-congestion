@@ -725,3 +725,144 @@ re-checking against `ros2 param get /robot_1/amcl z_short` on the host.
 `bond_heartbeat_period` appears in the docs table but not in `nav2_bringup`'s
 block, so it was left unset. `laser_model_type: "likelihood_field"` means the
 `z_short`/`lambda_short` beam-model terms are not used in scoring anyway.
+
+---
+
+## 13. `localization:=camera` (Option C — overhead camera)
+
+### 2026-09-16: `localization:=camera` available, unverified
+
+`nav2_robot.launch.py`'s `localization` argument accepts a third value,
+`camera`, alongside `static` | `amcl`. **Default remains `static`**, so the
+verified closed loop of S5/S11 and Task 8 is untouched unless the flag is
+passed.
+
+**Why.** S12's Option B localizes to ~2 cm while both robots sit near the
+corridor, then degenerates during the yield manoeuvre: this warehouse is
+symmetric, the aisle barrier makes every scan pose-ambiguous along the
+corridor axis, and the manoeuvre is exactly where pose error matters. The
+apparatus already carries a *global* sensor that has none of those failure
+modes — M1's overhead camera measures each robot's absolute pose from its ArUco
+marker, and M1's world frame is the Nav2 `map` frame (verified). Option C turns
+that measurement into the one TF edge Nav2 actually consumes.
+
+**Math (planar SE(2)).** The camera gives `T_map_base`; TF's
+`<robot>/odom -> <robot>/base_footprint` (published by Isaac, spawn-relative
+and drift-free) gives `T_odom_base`. The published correction is
+
+```text
+T_map_odom = T_map_base . T_odom_base^-1
+```
+
+With drift-free odometry this equals the robot's spawn pose — i.e. Option C
+converges on what the `static` publisher hardcodes, but measures it rather than
+trusting it, and tracks it if the chassis is ever displaced.
+
+**Holding.** When the robot is `STALE` or missing from `robots[]`, the last
+correction is held rather than dropped. Odometry is drift-free, so a held
+correction stays valid indefinitely — the same behaviour AMCL has between its
+own updates, and the reason an occasional dropped camera frame (CLAUDE.md
+gotcha 5) cannot starve a costmap that needs `map -> odom` every cycle.
+
+**Timing — the one non-obvious constraint.** `scene_state.stamp` is the camera
+image header time, which Isaac fills from **SYSTEM** time, while TF and every
+node in this stack run on **SIM** time (`use_sim_time: true`). The two stamps
+are not comparable, so the node never looks up TF at the scene stamp; it looks
+up the **latest** `odom -> base_footprint` (`Time()`) and accepts the resulting
+latency error, bounded by speed * camera latency (<= 0.2 m/s * ~0.1 s
+= <= 2 cm) — below the error AMCL degenerates to in the case this replaces.
+Outgoing transforms are stamped `now + transform_tolerance_sec` (AMCL's own
+convention, so consumers may extrapolate) and broadcast from a fixed-rate timer
+(`publish_rate_hz`, default 20 Hz), independent of camera frame arrival.
+
+Added:
+
+- `ros2_ws/src/swarm_perception/swarm_perception/camera_localizer.py` — pure
+  SE(2) maths, no ROS imports: `Pose2D`, `normalize_yaw` (to `(-pi, pi]`),
+  `compose`, `invert`, `map_to_odom`, and `class CameraLocalizer` holding one
+  robot's correction plus `updates`/`holds` counters and `last_update_stamp`.
+  `normalize_yaw` uses `atan2(sin, cos)` rather than the
+  `(yaw + pi) % (2*pi) - pi` idiom, which maps an exact `+pi` to `-pi` and
+  would flip robot_2's spawn heading on every pass.
+- `camera_localizer_node.py` — `CameraLocalizerNode`, one instance per robot.
+  Parameters: `robot_id` (required, fails fast), `scene_state_topic`
+  (default the **absolute** `/perception/scene_state` — a relative default
+  would resolve to `/<robot_id>/perception/scene_state` under the namespace
+  push and never receive anything), `map_frame` (`map`), `odom_frame`
+  (default `<robot_id>/odom`), `base_frame` (default
+  `<robot_id>/base_footprint`), `publish_rate_hz` (20.0),
+  `transform_tolerance_sec` (0.3). Subscribes `std_msgs/String` depth 10, keeps
+  a `tf2_ros.Buffer` + `TransformListener`, broadcasts via
+  `TransformBroadcaster`. TF lookup failures warn at most once per 5 s
+  (`throttle_duration_sec=5.0`). ROS imports are guarded so the module is
+  importable without `rclpy`, matching `swarm_execution/nav2_adapter.py`.
+- `nav2_robot.launch.py` — a `camera_localizer` node inside the existing
+  namespaced `GroupAction`, gated on `localization == 'camera'`, with no
+  node-level `/tf` remaps (the group-level absolute-keyed `SetRemap` rules are
+  what keep its listener *and* broadcaster on shared `/tf`; S12). No lifecycle
+  manager: it is a plain rclpy node, not a nav2 lifecycle node. The static
+  ground-truth publisher stays gated on `static` only, so it is absent here —
+  one writer per TF edge.
+- `swarm_perception/package.xml`: `tf2_ros`, `geometry_msgs` exec_depends;
+  `setup.py`: `camera_localizer_node` console script.
+  `swarm_simulation/package.xml`: `<exec_depend>swarm_perception</exec_depend>`.
+- `tests/unit/test_camera_localizer.py` (8 offline tests) and
+  `test_nav2_params_config.py::test_camera_localization_mode_is_declared`.
+
+**Operational prerequisite.** M1 must already be publishing
+`/perception/scene_state` before Nav2 activates: under `camera` there is no
+`map -> odom` at all until the first camera fix, so the costmaps block waiting
+for that edge exactly as they do under `amcl`. Launch order is
+Isaac -> M1 -> Nav2.
+
+M4 impact: none expected, for the same reason as S12 — this node publishes only
+TF and never writes `/<robot_id>/odom`, so the odometry-closed primitives
+(backup, hold) are unaffected by the flag.
+
+### Verification still to run on the host
+
+Authored and statically checked offline only (macOS, no ROS 2 installed):
+`ruff check` clean on all touched Python, the launch file parses under
+`ast.parse`, `camera_localizer_node` imports successfully with `rclpy` absent,
+and `tests/unit/test_camera_localizer.py` +
+`tests/unit/test_nav2_params_config.py` pass (15 tests). **Neither the node nor
+the launch file has been executed.** Required on the `vgu_ros` Jazzy container
+with Isaac Sim and M1 running:
+
+1. `colcon build --merge-install --packages-select swarm_perception
+   swarm_simulation`, then launch M1, then
+   `ros2 launch swarm_simulation nav2_robot.launch.py robot_id:=robot_1
+   x:=-0.6 y:=0.0 yaw:=0.0 localization:=camera`.
+2. The INFO line `camera localization acquired robot=robot_1 map_odom=(...)`
+   appears, and its `(x, y, yaw)` matches the robot's spawn pose to a few cm —
+   the fastest check that `compose`/`invert` are composed in the right order
+   (a reversed composition still publishes a plausible-looking transform).
+3. `ros2 run tf2_ros tf2_echo map robot_1/odom` is live and changing slightly,
+   with exactly one publisher — confirm the static node is absent.
+4. `ros2 node info /robot_1/camera_localizer` shows `Publishers: /tf` and
+   `Subscribers: /tf, /tf_static, /perception/scene_state` — **not**
+   `/robot_1/tf` or `/robot_1/perception/scene_state`. This is the check that
+   the group-level remaps cover a node this launch file declares itself, and
+   that the absolute scene-state default survived the namespace push.
+5. `global_costmap` and `bt_navigator` reach lifecycle `active` with no
+   "Timed out waiting for transform" for `map -> robot_1/base_link`.
+6. Accuracy: compare `map -> robot_1/base_footprint` (camera-corrected) against
+   M1's reported pose for the same robot over a drive leg; the residual is the
+   latency error argued above and should stay at the few-cm scale, including
+   *during* the yield manoeuvre — the case where AMCL degenerated (S12 / AMCL
+   runs B2 and C).
+7. Re-run the Task 8 goal-reaching acceptance and the head-on deadlock scenario
+   under `localization:=camera` (two robots, robot 2 with
+   `start_map_server:=false`) before treating Option C as verified. Two
+   `camera_localizer` instances broadcasting distinct child frames should
+   coexist on shared `/tf` — structurally sound (both are namespaced) but
+   inference, not evidence.
+
+**First failure mode to check.** If no TF `map -> robot_1/odom` ever appears,
+grep the node's log for the throttled
+`no TF robot_1/odom->robot_1/base_footprint` warning before suspecting the
+camera path: the node holds `None` until *both* a camera fix and that odometry
+edge exist. If instead the warning is absent but the acquired line never
+prints, the robot is missing from `robots[]` or permanently `STALE` — check
+M1's marker visibility first (`project_m1_stale_vs_stopped`: overlapping
+markers report `STALE`, not `STOPPED`).

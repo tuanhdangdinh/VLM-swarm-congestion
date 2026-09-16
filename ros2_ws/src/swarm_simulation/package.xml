@@ -15,4 +15,6 @@
   <exec_depend>nav2_amcl</exec_depend>
   <exec_depend>nav2_lifecycle_manager</exec_depend>
   <exec_depend>nav2_common</exec_depend>
+  <!-- localization:=camera launches swarm_perception's camera_localizer_node. -->
+  <exec_depend>swarm_perception</exec_depend>
 </package>

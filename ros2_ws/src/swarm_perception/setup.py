@@ -33,6 +33,7 @@ setup(
             "camera_node = swarm_perception.camera_node:main",
             "aruco_tracker_node = swarm_perception.aruco_tracker_node:main",
             "perception_node = swarm_perception.perception_node:main",
+            "camera_localizer_node = swarm_perception.camera_localizer_node:main",
         ],
     },
 )
