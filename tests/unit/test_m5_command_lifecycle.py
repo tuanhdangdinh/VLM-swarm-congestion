@@ -7,6 +7,7 @@ from swarm_orchestrator.command_lifecycle import (
     CommandState,
     CommandTracker,
     CooldownTracker,
+    summarize_executed_strategy,
     summarize_outcome,
 )
 
@@ -223,3 +224,36 @@ def test_attempt_memory_returns_record_again_on_second_analysis_in_window():
     memory.resolve("c1", "completed", now=10.0)
     assert memory.context_for(["robot_1"], now=20.0) is not None
     assert memory.context_for(["robot_1"], now=30.0) is not None
+
+
+def test_summarize_executed_strategy_is_yield_when_any_action_yields():
+    assert summarize_executed_strategy(["temporary_wait", "yield"]) == "yield"
+
+
+def test_summarize_executed_strategy_is_the_single_action_when_uniform():
+    assert summarize_executed_strategy(["temporary_wait", "temporary_wait"]) == "temporary_wait"
+
+
+def test_summarize_executed_strategy_is_mixed_when_actions_differ_without_yield():
+    assert summarize_executed_strategy(["reroute", "temporary_wait"]) == "mixed"
+
+
+def test_summarize_executed_strategy_is_none_without_actions():
+    assert summarize_executed_strategy([]) is None
+
+
+def test_attempt_memory_record_stores_executed_strategy():
+    memory = AttemptMemory(window_sec=60.0)
+    memory.record("c2", ["robot_1"], "yield", None, now=0.0, executed_strategy="temporary_wait")
+    memory.resolve("c2", "completed", now=1.0)
+    record = memory.context_for(["robot_1"], now=2.0)
+    assert record is not None
+    assert record.executed_strategy == "temporary_wait"
+
+
+def test_attempt_memory_record_defaults_executed_strategy_to_none():
+    memory = _memory()
+    memory.resolve("c1", "completed", now=1.0)
+    record = memory.context_for(["robot_1"], now=2.0)
+    assert record is not None
+    assert record.executed_strategy is None

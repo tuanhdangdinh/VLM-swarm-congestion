@@ -112,15 +112,14 @@ def build_failure_context(record: AttemptRecord, now: float) -> FailureContext:
     resolved_at = record.resolved_at if record.resolved_at is not None else now
     status = record.outcome_status if record.outcome_status is not None else "unknown"
     if status == "completed":
-        detail = (
-            f"{record.strategy} completed {now - resolved_at:.0f} s ago; "
-            "congestion re-detected for the same robots"
-        )
+        attempt = f"{record.strategy} completed {now - resolved_at:.0f} s ago"
     else:
-        detail = (
-            f"{record.strategy} {status} after {resolved_at - record.dispatched_at:.0f} s; "
-            "congestion re-detected for the same robots"
-        )
+        attempt = f"{record.strategy} {status} after {resolved_at - record.dispatched_at:.0f} s"
+    # M3 may degrade a strategy (a refused yield runs as temporary_wait); tell the
+    # VLM what actually ran so it does not reason about a maneuver that never happened.
+    if record.executed_strategy is not None and record.executed_strategy != record.strategy:
+        attempt += f" (executed as {record.executed_strategy})"
+    detail = f"{attempt}; congestion re-detected for the same robots"
     return FailureContext(
         strategy=record.strategy,
         yield_robot=record.yield_robot,

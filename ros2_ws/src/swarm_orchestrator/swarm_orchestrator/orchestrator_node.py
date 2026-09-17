@@ -31,6 +31,7 @@ from swarm_orchestrator.command_lifecycle import (
     CommandRecord,
     CommandTracker,
     CooldownTracker,
+    summarize_executed_strategy,
     summarize_outcome,
 )
 from swarm_orchestrator.congestion_detector import CongestionDetector
@@ -277,7 +278,8 @@ class OrchestratorNode(Node):
         if attempt is not None:
             self.get_logger().info(
                 f"request={request_id} failure_context attached command={attempt.command_id} "
-                f"strategy={attempt.strategy} outcome={attempt.outcome_status}"
+                f"strategy={attempt.strategy} executed={attempt.executed_strategy} "
+                f"outcome={attempt.outcome_status}"
             )
 
         def task() -> PipelineOutcome:
@@ -337,6 +339,7 @@ class OrchestratorNode(Node):
             outcome.reasoner_result.decision.strategy,
             yield_robot,
             time.monotonic(),
+            executed_strategy=summarize_executed_strategy([m[2] for m in messages]),
         )
         for command_id, robot_id, action, params_json, _timeout in messages:
             msg = CoordinationCommand()

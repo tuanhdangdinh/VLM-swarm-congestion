@@ -459,6 +459,33 @@ def test_write_decision_artifact_records_failure_context(tmp_path):
     }
 
 
+def test_build_failure_context_notes_executed_strategy_when_it_differs():
+    record = _attempt()
+    record.executed_strategy = "temporary_wait"
+    ctx = build_failure_context(record, now=131.0)
+    assert ctx.strategy == "yield"
+    assert ctx.failure_detail == (
+        "yield completed 31 s ago (executed as temporary_wait); "
+        "congestion re-detected for the same robots"
+    )
+
+
+def test_build_failure_context_notes_executed_strategy_after_run_time_when_not_completed():
+    record = _attempt(status="timed_out", resolved_at=60.0)
+    record.executed_strategy = "temporary_wait"
+    ctx = build_failure_context(record, now=90.0)
+    assert ctx.failure_detail == (
+        "yield timed_out after 20 s (executed as temporary_wait); "
+        "congestion re-detected for the same robots"
+    )
+
+
+def test_build_failure_context_omits_executed_note_when_it_matches_strategy():
+    record = _attempt()
+    record.executed_strategy = "yield"
+    assert "(executed as" not in build_failure_context(record, now=131.0).failure_detail
+
+
 def test_write_decision_artifact_writes_null_failure_context_when_absent(tmp_path):
     payload = json.loads(write_decision_artifact(tmp_path, _ok_outcome()).read_text())
     assert payload["failure_context"] is None
