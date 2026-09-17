@@ -226,20 +226,28 @@ def test_attempt_memory_returns_record_again_on_second_analysis_in_window():
     assert memory.context_for(["robot_1"], now=30.0) is not None
 
 
-def test_summarize_executed_strategy_is_yield_when_any_action_yields():
-    assert summarize_executed_strategy(["temporary_wait", "yield"]) == "yield"
+def test_summarize_executed_strategy_is_the_decided_strategy_when_its_action_ran():
+    assert summarize_executed_strategy(["temporary_wait", "yield"], "yield") == "yield"
 
 
-def test_summarize_executed_strategy_is_the_single_action_when_uniform():
-    assert summarize_executed_strategy(["temporary_wait", "temporary_wait"]) == "temporary_wait"
+def test_summarize_executed_strategy_names_a_reroute_by_its_own_action():
+    # a reroute fans out as reroute + temporary_wait; that is the reroute executing, not "mixed"
+    assert summarize_executed_strategy(["reroute", "temporary_wait"], "reroute") == "reroute"
 
 
-def test_summarize_executed_strategy_is_mixed_when_actions_differ_without_yield():
-    assert summarize_executed_strategy(["reroute", "temporary_wait"]) == "mixed"
+def test_summarize_executed_strategy_is_the_single_action_when_degraded_uniformly():
+    assert (
+        summarize_executed_strategy(["temporary_wait", "temporary_wait"], "yield")
+        == "temporary_wait"
+    )
+
+
+def test_summarize_executed_strategy_is_mixed_when_degraded_unevenly():
+    assert summarize_executed_strategy(["reverse", "temporary_wait"], "yield") == "mixed"
 
 
 def test_summarize_executed_strategy_is_none_without_actions():
-    assert summarize_executed_strategy([]) is None
+    assert summarize_executed_strategy([], "yield") is None
 
 
 def test_attempt_memory_record_stores_executed_strategy():

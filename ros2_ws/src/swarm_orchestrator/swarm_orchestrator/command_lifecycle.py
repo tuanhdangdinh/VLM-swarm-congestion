@@ -139,24 +139,27 @@ def summarize_outcome(states: dict[str, CommandState]) -> str:
     return "completed"
 
 
-def summarize_executed_strategy(actions: list[str]) -> str | None:
+def summarize_executed_strategy(actions: list[str], strategy: str) -> str | None:
     """Name the maneuver M3 actually fanned out, as opposed to the decided strategy.
 
-    A yield fans out as `yield` for the yielder plus `temporary_wait` for the
-    others, so any `yield` action names the whole command; a yield that M3
-    refused fans out as `temporary_wait` for everyone and is named as such.
+    A strategy normally fans out as its own action for the lead robot plus
+    `temporary_wait` for the others (yield/reroute), so the decided strategy's
+    action being present means it ran as decided. A strategy M3 refused fans
+    out without that action — a refused yield as `temporary_wait` for everyone —
+    and is named by what ran instead.
 
     Args:
         actions: The per-robot action names of one grounded command.
+        strategy: The decided strategy the command was grounded from.
 
     Returns:
-        `"yield"` if any action is `yield`, else the single action name when all
+        `strategy` if any action equals it, else the single action name when all
         agree, else `"mixed"`; `None` when there are no actions.
     """
     if not actions:
         return None
-    if "yield" in actions:
-        return "yield"
+    if strategy in actions:
+        return strategy
     distinct = set(actions)
     return actions[0] if len(distinct) == 1 else "mixed"
 

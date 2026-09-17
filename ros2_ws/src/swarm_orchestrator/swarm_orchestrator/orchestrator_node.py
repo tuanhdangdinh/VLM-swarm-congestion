@@ -332,14 +332,15 @@ class OrchestratorNode(Node):
                 request_id=outcome.request_id,
             )
         )
+        strategy = outcome.reasoner_result.decision.strategy
         yield_robot = next((m[1] for m in messages if m[2] == "yield"), None)
         self._attempts.record(
             grounded["command_id"],
             robot_ids,
-            outcome.reasoner_result.decision.strategy,
+            strategy,
             yield_robot,
             time.monotonic(),
-            executed_strategy=summarize_executed_strategy([m[2] for m in messages]),
+            executed_strategy=summarize_executed_strategy([m[2] for m in messages], strategy),
         )
         for command_id, robot_id, action, params_json, _timeout in messages:
             msg = CoordinationCommand()
