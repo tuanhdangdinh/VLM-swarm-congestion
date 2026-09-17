@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from isaac.vgu_sim.config import CameraConfig
+from isaac.vgu_sim.config import CameraConfig, ScenarioConfig
 
 
 class ValidationError(Exception):
@@ -104,6 +104,32 @@ def validate_robot_marker(stage, robot_prim_path: str) -> None:
     tex = UsdShade.Shader.Get(stage, f"{marker_path}/Material/Texture")
     if not tex or not tex.GetInput("file") or not tex.GetInput("file").Get():
         raise ValidationError(f"aruco_marker at {marker_path} has no texture file")
+
+
+def validate_scenario_obstacles(stage, config: ScenarioConfig) -> None:
+    """Assert every configured obstacle has a prim authored on the stage.
+
+    Catches a scenario config whose obstacles never reached the USD (a stale
+    stage or a builder gap) at build time instead of mid-run.
+
+    Args:
+        stage: USD stage being validated.
+        config: Scenario config whose obstacles must be present.
+
+    Raises:
+        ValidationError: If an expected obstacle prim path is missing, naming
+            the first one found missing.
+    """
+    static_paths = [
+        f"/World/Scenario/StaticObstacles/{obs.obstacle_id}"
+        for obs in config.static_obstacles
+    ]
+    timed_paths = [
+        f"/World/DynamicObstacles/{obs.obstacle_id}" for obs in config.timed_obstacles
+    ]
+    for path in static_paths + timed_paths:
+        if not stage.GetPrimAtPath(path).IsValid():
+            raise ValidationError(f"Configured obstacle prim missing: {path}")
 
 
 def validate_no_unresolved_references(stage) -> None:

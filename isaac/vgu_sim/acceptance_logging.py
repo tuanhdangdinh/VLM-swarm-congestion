@@ -82,7 +82,7 @@ def build_acceptance_record(
         }
 
     conflict_active = False
-    if scenario.name == "head_on_deadlock":
+    if scenario.family == "head_on":
         conflict_active = _head_on_active(scenario, states)
 
     min_distance = _min_pairwise_distance(states)

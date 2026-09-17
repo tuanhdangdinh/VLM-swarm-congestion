@@ -138,7 +138,7 @@ def spin_in_thread(
 
 
 def main(enforce_safety_holds: bool = True) -> None:
-    """Standalone entry point: guard robot_1 and robot_2 (head_on_deadlock).
+    """Standalone entry point: guard robot_1 and robot_2 (head_on family).
 
     Args:
         enforce_safety_holds: See `spin_in_thread`.

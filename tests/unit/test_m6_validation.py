@@ -3,12 +3,14 @@ import math
 
 import pytest
 
-from isaac.vgu_sim.config import CameraConfig
+from isaac.vgu_sim.config import CameraConfig, ScenarioConfig
 from isaac.vgu_sim.validation import (
     ValidationError,
     validate_camera_frustum,
+    validate_scenario_obstacles,
     validate_stage_metadata,
 )
+from tests.unit.test_m6_config import VALID_HEAD_ON
 
 
 def _make_stage(tmp_path, *, meters_per_unit=1.0, up_axis="Z", default_prim="/World"):
@@ -98,6 +100,47 @@ class TestValidateCameraFrustum:
         covered_d = 2.0 * h * math.tan(math.atan(va / (2.0 * fl)))
         assert covered_w == pytest.approx(config.roi_width_m, rel=0.05)
         assert covered_d == pytest.approx(config.roi_depth_m, rel=0.05)
+
+
+def _obstacle_scenario() -> ScenarioConfig:
+    return ScenarioConfig.model_validate(
+        {
+            **VALID_HEAD_ON,
+            "static_obstacles": [
+                {
+                    "obstacle_id": "blocker_west",
+                    "pose": {"x": -1.85, "y": 0.0, "yaw_rad": 0.0},
+                },
+            ],
+            "timed_obstacles": [
+                {
+                    "obstacle_id": "blocker_east",
+                    "asset": "dynamic_obstacle.usd",
+                    "spawn_at_sec": 10.0,
+                    "pose": {"x": 1.0, "y": 0.0, "yaw_rad": 0.0},
+                },
+            ],
+        }
+    )
+
+
+def test_validate_scenario_obstacles_raises_for_missing_prim(tmp_path):
+    stage = _make_stage(tmp_path)
+
+    with pytest.raises(
+        ValidationError, match="/World/Scenario/StaticObstacles/blocker_west"
+    ):
+        validate_scenario_obstacles(stage, _obstacle_scenario())
+
+
+def test_validate_scenario_obstacles_passes_when_prims_exist(tmp_path):
+    from pxr import UsdGeom
+
+    stage = _make_stage(tmp_path)
+    UsdGeom.Cube.Define(stage, "/World/Scenario/StaticObstacles/blocker_west")
+    UsdGeom.Cube.Define(stage, "/World/DynamicObstacles/blocker_east")
+
+    validate_scenario_obstacles(stage, _obstacle_scenario())  # no exception
 
 
 def test_calibration_position_error_euclidean():

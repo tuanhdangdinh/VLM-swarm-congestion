@@ -1,12 +1,14 @@
 # isaac/vgu_sim/scenario_builder.py
 from __future__ import annotations
 
+import math
 import os
 from pathlib import Path
 
-from isaac.vgu_sim.config import ScenarioConfig, WarehouseConfig
+from isaac.vgu_sim.config import ObstacleSize, ScenarioConfig, WarehouseConfig
 from isaac.vgu_sim.marker_asset import author_aruco_marker
 from isaac.vgu_sim.paths import aruco_dict_name, marker_png_path
+from isaac.vgu_sim.validation import validate_scenario_obstacles
 
 
 class ScenarioBuildError(Exception):
@@ -52,18 +54,21 @@ def build_scenario_stage(
     UsdGeom.Xform.Define(stage, "/World/DynamicObstacles")
     for obs in config.timed_obstacles:
         _author_obstacle(stage, obs)
+    _author_static_obstacles(stage, config)
     if config.aisle_barrier is not None:
         _author_aisle_barrier(stage, config.aisle_barrier)
 
     meta = stage.DefinePrim("/World/Scenario/Metadata")
     meta.SetMetadata("customData", {
         "name": config.name,
+        "family": config.family,
         "seed": config.seed,
         "duration_sec": config.duration_sec,
         "schema_version": config.schema_version,
     })
 
     _validate_references(stage, output_path)
+    validate_scenario_obstacles(stage, config)
     stage.Save()
     return output_path
 
@@ -101,15 +106,75 @@ def _author_robot(stage, robot_cfg, robot_asset_path: Path, scenario_dir: Path) 
     author_aruco_marker(stage, prim_path, str(rel_marker))
 
 
+def _author_box(
+    stage,
+    path: str,
+    translate: tuple[float, float],
+    yaw_rad: float,
+    size: ObstacleSize,
+    color: tuple[float, float, float],
+) -> None:
+    """Author a collidable box of `size` standing on the floor at `translate`.
+
+    The cube's size attribute is 2.0 (half-extent 1.0), so the scale is the
+    half-extent in meters; z is raised by half the height so the box rests on
+    the floor rather than straddling it.
+
+    Args:
+        stage: USD stage being authored.
+        path: Prim path for the box.
+        translate: World-frame `(x, y)` center in meters.
+        yaw_rad: Rotation about world Z in radians.
+        size: Bounding-box size in meters.
+        color: Display color as `(r, g, b)` in 0..1.
+    """
+    from pxr import Gf, UsdGeom, UsdPhysics
+
+    cube = UsdGeom.Cube.Define(stage, path)
+    cube.CreateSizeAttr(2.0)
+    cube.CreateDisplayColorAttr([color])
+    cube.AddTranslateOp().Set(
+        Gf.Vec3f(float(translate[0]), float(translate[1]), float(size.z_m / 2.0))
+    )
+    if yaw_rad != 0.0:
+        cube.AddRotateZOp().Set(float(math.degrees(yaw_rad)))
+    cube.AddScaleOp().Set(
+        Gf.Vec3f(float(size.x_m / 2.0), float(size.y_m / 2.0), float(size.z_m / 2.0))
+    )
+    UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+
+
+def _author_static_obstacles(stage, config: ScenarioConfig) -> None:
+    from pxr import UsdGeom
+
+    # The root is defined even with no obstacles so downstream tooling and
+    # validation can key on a stable namespace.
+    UsdGeom.Xform.Define(stage, "/World/Scenario/StaticObstacles")
+    for obs_cfg in config.static_obstacles:
+        _author_box(
+            stage,
+            f"/World/Scenario/StaticObstacles/{obs_cfg.obstacle_id}",
+            (obs_cfg.pose.x, obs_cfg.pose.y),
+            obs_cfg.pose.yaw_rad,
+            obs_cfg.size,
+            (0.5, 0.5, 0.5),
+        )
+
+
 def _author_obstacle(stage, obs_cfg) -> None:
-    from pxr import Gf, UsdGeom
-
     prim_path = f"/World/DynamicObstacles/{obs_cfg.obstacle_id}"
-    prim = UsdGeom.Xform.Define(stage, prim_path)
-
-    p = obs_cfg.pose
-    UsdGeom.Xformable(prim.GetPrim()).AddTranslateOp().Set(Gf.Vec3d(p.x, p.y, 0.0))
-    prim.GetPrim().SetActive(False)
+    _author_box(
+        stage,
+        prim_path,
+        (obs_cfg.pose.x, obs_cfg.pose.y),
+        obs_cfg.pose.yaw_rad,
+        obs_cfg.size,
+        (0.8, 0.3, 0.3),
+    )
+    # Timed obstacles stay deactivated until the runner spawns them at
+    # spawn_at_sec; the geometry is authored up front so the prim only has to
+    # be reactivated.
+    stage.GetPrimAtPath(prim_path).SetActive(False)
 
 
 def _author_aisle_barrier(stage, barrier_cfg) -> None:

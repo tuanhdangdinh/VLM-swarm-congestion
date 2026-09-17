@@ -87,6 +87,36 @@ def test_build_head_on_record_marks_conflict_active_when_robots_are_close_and_st
     assert record["robots"]["robot_1"]["distance_to_goal_m"] == 3.2
 
 
+def test_build_record_marks_conflict_for_head_on_family_variant():
+    scenario = ScenarioConfig.model_validate(
+        {
+            **_head_on_scenario().model_dump(mode="json"),
+            "name": "head_on_asymmetric_w0p2_eopen_o0",
+            "family": "head_on",
+        }
+    )
+    states = {
+        "robot_1": RobotRuntimeState(
+            robot_id="robot_1",
+            x=-0.2,
+            y=0.0,
+            theta=0.0,
+            speed_mps=0.005,
+        ),
+        "robot_2": RobotRuntimeState(
+            robot_id="robot_2",
+            x=0.2,
+            y=0.0,
+            theta=3.14159,
+            speed_mps=0.005,
+        ),
+    }
+
+    record = build_acceptance_record(8.25, scenario, states)
+
+    assert record["conflict_active"] is True
+
+
 def test_acceptance_logger_writes_jsonl_only_on_10hz_ticks(tmp_path):
     scenario = _head_on_scenario()
     path = tmp_path / "ground_truth.jsonl"
