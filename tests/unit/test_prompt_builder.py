@@ -1,6 +1,9 @@
 import json
 
-from reasoning.vlm.models import ReasonerRequest, RobotStateInput
+import pytest
+from pydantic import ValidationError
+
+from reasoning.vlm.models import FailureContext, ReasonerRequest, RobotStateInput
 from reasoning.vlm.prompt_builder import (
     SYSTEM_PROMPT,
     build_prompt_payload,
@@ -64,3 +67,28 @@ def test_build_prompt_payload_requests_reasoning_trace():
     payload = build_prompt_payload(_request())
     assert "<think>" in payload.user_prompt
     assert "</think>" in payload.user_prompt
+
+
+def test_reasoner_request_failure_context_defaults_to_none():
+    assert _request().failure_context is None
+
+
+def test_failure_context_optional_role_fields_default_to_none():
+    ctx = FailureContext(
+        strategy="yield",
+        outcome_status="failed",
+        failure_detail="yield failed after 12 s; congestion re-detected for the same robots",
+    )
+    assert ctx.yield_robot is None
+    assert ctx.crossing_order is None
+
+
+def test_failure_context_is_frozen():
+    ctx = FailureContext(strategy="yield", outcome_status="failed", failure_detail="d")
+    with pytest.raises(ValidationError):
+        ctx.strategy = "reverse"
+
+
+def test_failure_context_rejects_empty_strategy():
+    with pytest.raises(ValidationError):
+        FailureContext(strategy="", outcome_status="failed", failure_detail="d")

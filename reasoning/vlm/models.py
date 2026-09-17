@@ -17,6 +17,18 @@ class RobotStateInput(BaseModel):
     goal: tuple[float, float] | None = None
 
 
+class FailureContext(BaseModel):
+    """Prior-attempt summary injected into re-analysis prompts (Reflexion-lite)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    strategy: str = Field(min_length=1)
+    yield_robot: str | None = None
+    crossing_order: list[str] | None = None
+    outcome_status: str = Field(min_length=1)
+    failure_detail: str = Field(min_length=1)
+
+
 class ReasonerRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -25,6 +37,7 @@ class ReasonerRequest(BaseModel):
     frame_id: str = Field(min_length=1)
     stamp: float = Field(ge=0)
     robot_states: list[RobotStateInput]
+    failure_context: FailureContext | None = None
 
 
 class PromptPayload(BaseModel):
