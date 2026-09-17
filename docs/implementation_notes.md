@@ -114,6 +114,20 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-17** — **Run 3, recorded: degraded-yield wording verified live.**
+  Same stack, 09:46–09:59 UTC, `scripts/record_topic_video.py` on
+  `/perception/annotated_frame` (8.7 Hz stamped, 3.5 fps achieved under load →
+  re-timed with ffmpeg); video and event timeline at
+  `data/logs/recordings/2026-09-17/run3_failure_context_annotated.mp4` +
+  `README_run3_failure_context.md` (git-ignored; raw segments and logs on the
+  VM host under `data/logs/fc_check_20260917/run3_*`). 12 decisions, 2 `none`
+  right after the first yield completed (09:50:17, 09:50:37 — the rev-8.3
+  advice), then yield/reverse alternation on genuine re-stalls (`close/slow`
+  triggers 09:53:01, 09:56:59). M3 refused two yields (both robots past the
+  corridor), and the next blocks read `"yield completed 18 s ago (executed as
+  temporary_wait); …"` (09:53:01, 09:58:44 attaches; artifact justification:
+  "Previous yield strategy was ineffective") — supersedes the "unit-tested
+  only" caveat in the run-2 entry below.
 - **2026-09-17** — **Run 2 with the rev-8.3 block: the memoryful VLM now
   answers `none`** (08:20–09:32 UTC, same run-H stack, gpt-4o; logs on the VM
   host under `data/logs/fc_check_20260917/run2_*`). 91 analyses, 43 with
