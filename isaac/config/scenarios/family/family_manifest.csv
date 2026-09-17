@@ -1,0 +1,4 @@
+name,variant,blocker_west_m,blocker_east_m,arrival_offset_m,correct_yielder,fcfs_yielder,feasible_yielders,contrasts_fcfs,tier
+head_on_asymmetric_w0p2_eopen_o0,w0p2_eopen_o0,0.2,,0,robot_2,robot_1,robot_2,true,T2a
+head_on_asymmetric_wopen_e0p2_o0,wopen_e0p2_o0,,0.2,0,robot_1,robot_1,robot_1,false,T2a
+head_on_asymmetric_wopen_eopen_o0,wopen_eopen_o0,,,0,robot_1,robot_1,robot_1|robot_2,false,T1

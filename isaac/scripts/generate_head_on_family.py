@@ -1,0 +1,390 @@
+# isaac/scripts/generate_head_on_family.py
+"""CLI: generate the head-on asymmetric scenario family and its manifest.
+
+Usage:
+    python isaac/scripts/generate_head_on_family.py
+    python isaac/scripts/generate_head_on_family.py --out-dir /tmp/family \
+        --geometry ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml
+
+Writes one scenario YAML per feasible cell of the v1 parameter grid plus
+`family_manifest.csv` into --out-dir (default `isaac/config/scenarios/family`).
+Each variant differs from `head_on_deadlock.yaml` only in the parked blocker
+boxes, robot_2's spawn offset, and the `parameters`/`oracle` blocks.
+
+The oracle is computed by `isaac/vgu_sim/family_oracle.py` from the same M5
+`scenario_geometry` block M3 grounds yield maneuvers against, so the
+pre-registered answer cannot drift from the executed maneuver. The generated
+YAMLs are committed so that answer is frozen and reviewable in git; a unit test
+regenerates them into a temp directory and compares file text, so never
+hand-edit a file under the output directory -- change this generator and re-run
+it instead.
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+import sys
+from pathlib import Path
+
+import yaml
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from isaac.vgu_sim.config import (
+    HeadOnAsymmetricParams,
+    ObstacleSize,
+    Pose2D,
+    ScenarioConfig,
+    StaticObstacleConfig,
+)
+from isaac.vgu_sim.family_oracle import (
+    SIDE_ROBOT,
+    SPAWN_OFFSET_M,
+    blocker_center_x_m,
+    compute_oracle,
+    load_scene_geometry,
+    required_room_m,
+    room_from_mouth_m,
+)
+from reasoning.rag.scene_geometry import SceneGeometry
+
+FAMILY_DIR = Path("isaac/config/scenarios/family")
+BASE_SCENARIO = Path("isaac/config/scenarios/head_on_deadlock.yaml")
+DEFAULT_GEOMETRY_YAML = Path("ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml")
+GENERATOR_PATH = "isaac/scripts/generate_head_on_family.py"
+MANIFEST_NAME = "family_manifest.csv"
+PREREG_TAG = "prereg-v1"
+NAME_PREFIX = "head_on_asymmetric"
+BLOCKER_SIZE = ObstacleSize(x_m=0.3, y_m=0.3, z_m=0.5)
+MANIFEST_COLUMNS: tuple[str, ...] = (
+    "name",
+    "variant",
+    "blocker_west_m",
+    "blocker_east_m",
+    "arrival_offset_m",
+    "correct_yielder",
+    "fcfs_yielder",
+    "feasible_yielders",
+    "contrasts_fcfs",
+    "tier",
+)
+# Sums of decimal blocker offsets carry a binary tail (1.0 + 0.5 + 0.2 + 0.15 is
+# 1.8499999999999999), which would land verbatim in a pre-registered artifact.
+# Rounding well below simulator resolution keeps the committed YAML readable.
+_COORD_DECIMALS = 6
+
+
+def _slug(value: float | None) -> str:
+    if value is None:
+        return "open"
+    return f"{value:g}".replace(".", "p")
+
+
+def _number(value: float | None) -> str:
+    if value is None:
+        return ""
+    return f"{value:g}"
+
+
+def _open_or_number(value: float | None) -> str:
+    return "open" if value is None else f"{value:g}"
+
+
+def load_scenario(path: Path) -> ScenarioConfig:
+    """Load and validate one scenario YAML config.
+
+    Args:
+        path: Path to a file under `isaac/config/scenarios/`.
+
+    Returns:
+        The validated scenario config.
+    """
+    with open(path) as f:
+        return ScenarioConfig.model_validate(yaml.safe_load(f))
+
+
+def variant_id(params: HeadOnAsymmetricParams) -> str:
+    """Filesystem-safe identifier for one cell of the family grid.
+
+    Floats print in `:g` form with the decimal point replaced by `p` and an
+    absent blocker printed as `open`, because `ScenarioConfig.name` forbids
+    dots: `blocker_west_m=0.2` with both other knobs default gives
+    `w0p2_eopen_o0`.
+
+    Args:
+        params: The cell's blocker and arrival-offset parameters.
+
+    Returns:
+        The variant identifier.
+    """
+    return (
+        f"w{_slug(params.blocker_west_m)}"
+        f"_e{_slug(params.blocker_east_m)}"
+        f"_o{_slug(params.arrival_offset_m)}"
+    )
+
+
+def scenario_name(params: HeadOnAsymmetricParams) -> str:
+    """Scenario name for one cell of the family grid.
+
+    Args:
+        params: The cell's blocker and arrival-offset parameters.
+
+    Returns:
+        The scenario name, e.g. `head_on_asymmetric_w0p2_eopen_o0`.
+    """
+    return f"{NAME_PREFIX}_{variant_id(params)}"
+
+
+def grid_v1() -> list[HeadOnAsymmetricParams]:
+    """The pre-registered v1 parameter grid, in west-major order.
+
+    Both blockers range over `{0.2, None}` at a zero arrival offset, so the
+    grid holds one double-blocker cell (no feasible yielder, skipped when
+    generating), two single-blocker cells, and the open baseline.
+
+    Returns:
+        The grid's four parameter sets.
+    """
+    return [
+        HeadOnAsymmetricParams(blocker_west_m=west, blocker_east_m=east, arrival_offset_m=0.0)
+        for west in (0.2, None)
+        for east in (0.2, None)
+    ]
+
+
+def build_variant(
+    base: ScenarioConfig,
+    params: HeadOnAsymmetricParams,
+    geometry: SceneGeometry,
+) -> ScenarioConfig | None:
+    """Derive one family variant from the base head-on scenario.
+
+    robot_1's spawn is untouched; robot_2's spawn slides east by
+    `arrival_offset_m` so it reaches the corridor mouth later. Each non-null
+    blocker side gains a parked box behind that robot's spawn.
+
+    Args:
+        base: The base `head_on_deadlock` scenario config.
+        params: The variant's blocker and arrival-offset parameters.
+        geometry: Declared scene geometry.
+
+    Returns:
+        The validated variant config, or `None` when neither side can park and
+        the cell therefore has no pre-registrable oracle.
+    """
+    oracle = compute_oracle(params, geometry)
+    if oracle is None:
+        return None
+
+    spawn_x = round(
+        geometry.corridor.half_length_m + SPAWN_OFFSET_M + params.arrival_offset_m,
+        _COORD_DECIMALS,
+    )
+    obstacles = [
+        StaticObstacleConfig(
+            obstacle_id=f"blocker_{side}",
+            pose=Pose2D(
+                x=round(
+                    blocker_center_x_m(side, blocker_m, params.arrival_offset_m, geometry),
+                    _COORD_DECIMALS,
+                ),
+                y=0.0,
+                yaw_rad=0.0,
+            ),
+            size=BLOCKER_SIZE,
+        )
+        for side, blocker_m in (
+            ("west", params.blocker_west_m),
+            ("east", params.blocker_east_m),
+        )
+        if blocker_m is not None
+    ]
+
+    # Editing a plain dump and re-validating keeps every cross-field invariant
+    # in play, which nested `model_copy` on frozen submodels would bypass.
+    data = base.model_dump(mode="json")
+    data["name"] = scenario_name(params)
+    data["family"] = "head_on"
+    data["parameters"] = params.model_dump(mode="json")
+    data["oracle"] = oracle.model_dump(mode="json")
+    data["static_obstacles"] = [o.model_dump(mode="json") for o in obstacles]
+    for robot in data["robots"]:
+        if robot["robot_id"] == "robot_2":
+            robot["spawn"]["x"] = spawn_x
+    return ScenarioConfig.model_validate(data)
+
+
+def render_yaml(config: ScenarioConfig, geometry: SceneGeometry) -> str:
+    """Render one variant config as commented YAML text.
+
+    The header records the generator, the pre-registration tag, the variant's
+    parameters, the park-room comparison that decided the oracle, and each
+    blocker box's near/centre/far faces, so a reviewer can check the frozen
+    oracle without re-running the generator. It carries no timestamp or
+    absolute path, because a unit test compares the committed text byte for
+    byte against a fresh generation.
+
+    Args:
+        config: The variant config to render.
+        geometry: Declared scene geometry the header numbers come from.
+
+    Returns:
+        The YAML document text, header comments first.
+    """
+    header = "\n".join(_header_lines(config, geometry))
+    body = yaml.safe_dump(config.model_dump(mode="json"), sort_keys=False)
+    return f"{header}\n{body}"
+
+
+def _header_lines(config: ScenarioConfig, geometry: SceneGeometry) -> list[str]:
+    params = config.parameters
+    if params is None:
+        raise ValueError(f"scenario {config.name!r} has no parameters block to describe")
+
+    required = required_room_m(geometry)
+    lines = [
+        f"# Generated by {GENERATOR_PATH} -- do not edit by hand.",
+        f"# Frozen at {PREREG_TAG}: the oracle block below is the pre-registered answer",
+        "# for this cell, computed by isaac/vgu_sim/family_oracle.py from the M5",
+        "# scenario_geometry block, not authored by hand.",
+        "#",
+        f"# parameters: blocker_west_m={_open_or_number(params.blocker_west_m)}, "
+        f"blocker_east_m={_open_or_number(params.blocker_east_m)}, "
+        f"arrival_offset_m={_number(params.arrival_offset_m)}",
+        f"# required_room_m = {required:.3f} (room from the corridor mouth a blocked "
+        "spawn must keep to park)",
+    ]
+
+    for side in ("west", "east"):
+        blocker_m = getattr(params, f"blocker_{side}_m")
+        robot = SIDE_ROBOT[side]
+        if blocker_m is None:
+            lines.append(f"# {side}: no blocker -- {robot} can park")
+            continue
+        room = room_from_mouth_m(blocker_m)
+        feasible = room >= required
+        lines.append(
+            f"# {side}: room_from_mouth_m {room:.3f} {'>=' if feasible else '<'} "
+            f"{required:.3f} -- {robot} {'can' if feasible else 'cannot'} park"
+        )
+
+    for obstacle in config.static_obstacles:
+        half = obstacle.size.x_m / 2.0
+        sign = 1.0 if obstacle.pose.x >= 0.0 else -1.0
+        lines.append(
+            f"# {obstacle.obstacle_id} box faces along x: "
+            f"near {obstacle.pose.x - sign * half:.3f}, "
+            f"centre {obstacle.pose.x:.3f}, "
+            f"far {obstacle.pose.x + sign * half:.3f}"
+        )
+
+    return lines
+
+
+def manifest_rows(configs: list[ScenarioConfig]) -> list[dict[str, str]]:
+    """Summarize each generated variant as one manifest row.
+
+    Args:
+        configs: The generated variant configs, in grid order.
+
+    Returns:
+        One string-valued row per config, keyed by `MANIFEST_COLUMNS`.
+
+    Raises:
+        ValueError: If a config carries no `parameters` or no `oracle` block.
+    """
+    rows: list[dict[str, str]] = []
+    for config in configs:
+        params, oracle = config.parameters, config.oracle
+        if params is None or oracle is None:
+            raise ValueError(
+                f"scenario {config.name!r} needs both parameters and oracle to be listed"
+            )
+        rows.append(
+            {
+                "name": config.name,
+                "variant": variant_id(params),
+                "blocker_west_m": _number(params.blocker_west_m),
+                "blocker_east_m": _number(params.blocker_east_m),
+                "arrival_offset_m": _number(params.arrival_offset_m),
+                "correct_yielder": oracle.correct_yielder,
+                "fcfs_yielder": oracle.fcfs_yielder,
+                "feasible_yielders": "|".join(oracle.feasible_yielders),
+                "contrasts_fcfs": "true" if oracle.contrasts_fcfs else "false",
+                "tier": "T1" if len(oracle.feasible_yielders) == 2 else "T2a",
+            }
+        )
+    return rows
+
+
+def _write_manifest(path: Path, rows: list[dict[str, str]]) -> None:
+    # newline="" is the csv module's contract; "\n" keeps the committed artifact
+    # from carrying the module's default CRLF endings.
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(MANIFEST_COLUMNS), lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def write_family(out_dir: Path, geometry_yaml: Path) -> list[Path]:
+    """Generate every feasible family variant plus the manifest into a directory.
+
+    Cells with no feasible yielder are skipped with a printed line.
+
+    Args:
+        out_dir: Directory to write the variant YAMLs and manifest into.
+        geometry_yaml: Path to the orchestrator config holding the M5
+            `scenario_geometry` block.
+
+    Returns:
+        The written scenario YAML paths, in grid order; the manifest is written
+        but not listed.
+    """
+    geometry = load_scene_geometry(geometry_yaml)
+    base = load_scenario(BASE_SCENARIO)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    configs: list[ScenarioConfig] = []
+    written: list[Path] = []
+    for params in grid_v1():
+        config = build_variant(base, params, geometry)
+        if config is None:
+            print(f"skipped {variant_id(params)}: no feasible yielder")
+            continue
+        path = out_dir / f"{config.name}.yaml"
+        path.write_text(render_yaml(config, geometry))
+        configs.append(config)
+        written.append(path)
+
+    _write_manifest(out_dir / MANIFEST_NAME, manifest_rows(configs))
+    return written
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Entry point for the head-on asymmetric family generator CLI."""
+    parser = argparse.ArgumentParser(
+        description="Generate the head-on asymmetric scenario family and its manifest"
+    )
+    parser.add_argument(
+        "--out-dir",
+        type=Path,
+        default=FAMILY_DIR,
+        help=f"Output directory for the variant YAMLs and manifest (default: {FAMILY_DIR})",
+    )
+    parser.add_argument(
+        "--geometry",
+        type=Path,
+        default=DEFAULT_GEOMETRY_YAML,
+        help="Orchestrator config supplying the M5 scenario_geometry block "
+        f"(default: {DEFAULT_GEOMETRY_YAML})",
+    )
+    args = parser.parse_args(argv)
+
+    for path in write_family(args.out_dir, args.geometry):
+        print(f"wrote {path}")
+    print(f"wrote {args.out_dir / MANIFEST_NAME}")
+
+
+if __name__ == "__main__":
+    main()
