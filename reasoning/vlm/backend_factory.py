@@ -9,10 +9,38 @@ from reasoning.vlm.models import (
     AnthropicBackendConfig,
     LlamaServerBackendConfig,
     OpenAIBackendConfig,
+    ReasonerConfig,
 )
 from reasoning.vlm.openai_backend import OpenAIBackend
 
 BackendConfig = LlamaServerBackendConfig | OpenAIBackendConfig | AnthropicBackendConfig
+
+
+def resolve_reasoner_config(raw_vlm: dict, backend_id: str) -> ReasonerConfig:
+    """Build the reasoner config for one backend from the `vlm:` mapping of models.yaml.
+
+    The shared `reasoner:` block supplies defaults; a `reasoner:` mapping nested
+    under the backend's own section overrides them, so a chain-of-thought model
+    can keep its sampling preset while a classifier backend samples greedily.
+
+    Args:
+        raw_vlm: The parsed `vlm:` mapping.
+        backend_id: Backend whose config is wanted, e.g. "openai".
+
+    Returns:
+        A `ReasonerConfig` with `backend_id` set and overrides applied.
+    """
+    merged = dict(raw_vlm.get("reasoner", {}))
+    merged.update(dict((raw_vlm.get(backend_id) or {}).get("reasoner", {})))
+    merged["backend_id"] = backend_id
+    return ReasonerConfig(**merged)
+
+
+def backend_section(raw_vlm: dict, backend_id: str) -> dict:
+    """Return a backend's own config mapping without its nested reasoner override."""
+    section = dict(raw_vlm.get(backend_id) or {})
+    section.pop("reasoner", None)
+    return section
 
 
 def build_backend(

@@ -17,7 +17,7 @@ from swarm_interfaces.msg import CoordinationCommand, CoordinationStatus
 from swarm_interfaces.srv import TriggerCongestionAnalysis
 
 from reasoning.rag.command_grounder import filter_command_robot_ids, ground_reasoner_result
-from reasoning.vlm import build_backend
+from reasoning.vlm import backend_section, build_backend, resolve_reasoner_config
 from reasoning.vlm.models import (
     AnthropicBackendConfig,
     FailureContext,
@@ -82,11 +82,9 @@ def _load_vlm_config(backend_id: str) -> tuple[ReasonerConfig, object | None]:
     path = Path("config/models.yaml")
     raw = yaml.safe_load(path.read_text()) if path.is_file() else {}
     vlm = (raw or {}).get("vlm", {})
-    reasoner_raw = dict(vlm.get("reasoner", {}))
-    reasoner_raw["backend_id"] = backend_id
-    reasoner_config = ReasonerConfig(**reasoner_raw)
+    reasoner_config = resolve_reasoner_config(vlm, backend_id)
 
-    backend_raw = vlm.get(backend_id, {})
+    backend_raw = backend_section(vlm, backend_id)
     if backend_id == "openai":
         backend_config = OpenAIBackendConfig(**backend_raw)
     elif backend_id == "llama_server":

@@ -24,6 +24,12 @@ vlm:
     base_url: "https://api.openai.com/v1"
     api_key_env: OPENAI_API_KEY   # export OPENAI_API_KEY=sk-... in your shell/.env
     organization: null
+    # gpt-4o is a classifier here, not a chain-of-thought model: sample greedily
+    # (project rule; rev-8 model table). Overrides the shared reasoner block above,
+    # which stays at the Cosmos preset for llama_server. Run 3 (2026-09-17) flipped
+    # none -> deadlock on an unchanged scene at temperature 0.6.
+    reasoner:
+      temperature: 0.0
 
 embeddings:
   model_name: sentence-transformers/all-MiniLM-L6-v2
