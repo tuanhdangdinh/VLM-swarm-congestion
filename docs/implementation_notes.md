@@ -114,6 +114,35 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-17** — **Failure-context attach verified on the VM** (run
+  07:03–07:24 UTC, `localization:=camera` stack, gpt-4o; logs on the VM host
+  under `data/logs/fc_check_20260917/`). First decision 07:03:57
+  `deadlock/yield` (artifact `d012f061…`, `failure_context: null`) →
+  `COMPLETED` 07:06:36 → **natural** re-detection 07:06:52 (`2 robot(s)
+  stalled`) → M5 logged `failure_context attached command=…-yield
+  strategy=yield outcome=completed` → artifact `52b76ea6…` carries
+  `failure_context = {strategy: yield, yield_robot: robot_1, outcome_status:
+  completed, failure_detail: "yield completed 15 s ago; congestion re-detected
+  for the same robots"}` and the decision changed to `deadlock/reverse`. Over
+  the run: 16 decisions, 15 with context attached, all `parse_status=valid`
+  (one `invalid` recovered by re-ask), 2.1–6.0 s latency; the model cites the
+  block in its justifications ("The previous 'yield' strategy did not resolve
+  the issue, so 'reverse' is recommended" — `7501e9ff…`, also `6583a8ba…`,
+  `ff81d9d3…`, `9b37ef9c…`, `3118df9d…`). Manual
+  `/orchestrator/trigger_analysis` calls were all rejected `suppressed`
+  because a command was always active; the natural path covered the check.
+  This closes the "host check pending" item in the entry below. Two
+  observations for the experiment, not defects of the mechanism: (1) the
+  memoryful VLM alternated yield/reverse across 14 cycles on post-resolution
+  stalls of robots ~6.5 m apart (ground truth 07:22: robot_2 overshot its goal
+  by 2.1 m after a `reroute`), answering `none` only twice — RQ5's measurable
+  behaviour; the `failure_context_window_sec: 0` ablation is the control.
+  (2) `AttemptMemory` records the decision's strategy, so a yield that M3
+  degraded to `temporary_wait` (`yield_robot: null`) is still reported to the
+  VLM as "yield completed" — recording the grounded strategy would be more
+  faithful; open item. Also visible now: `resolved status=` logs 3–5× per
+  command because `_on_status` re-enters `_resolve_command` on every status
+  message once the command is terminal (pre-existing; harmless).
 - **2026-09-17** — **Previous-attempt context on re-analysis** (commits
   `feat: add FailureContext and ReasonerRequest.failure_context` through
   `feat: M5 attaches previous-attempt context on re-analysis`). M5 records
