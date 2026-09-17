@@ -114,6 +114,19 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-17** — **Run 4 (recorded) confirms fix B: no mid-scenario
+  re-approach.** Same stack, 10:33–10:47 UTC, gpt-4o at temperature 0.0 with
+  the pairwise-geometry prompt. 32 analyses, **1 dispatch** (the initial
+  `deadlock/yield` at 10:34:39), **31 `congestion_detected=false`** — including
+  the three attached re-analyses right after the yield completed (10:37:36,
+  10:37:54, 10:38:13), the exact point where run 3 flipped to `deadlock/
+  reverse`. Ground truth at the end: robot_1 0.08 m and robot_2 0.04 m from
+  their goals, 4.9 m apart. Video + timeline:
+  `data/logs/recordings/2026-09-17/run4_failure_context_annotated.mp4`,
+  `README_run4_after_fix_b.md` (git-ignored; logs and segments on the VM host
+  under `data/logs/fc_check_20260917/run4_*`). Still open: the detector
+  re-fired `2 robot(s) stalled` every cooldown on two parked robots for 9 min
+  (31 gpt-4o calls answering `none`) — fix A; and fix C as a safety net.
 - **2026-09-17** — **Root cause of the mid-scenario re-approach (runs 1–3):
   M5-induced.** Evidence (run 3 ground truth + frames + M4 log): the first
   yield resolves correctly and robot_2 reaches its goal (`Goal succeeded`
