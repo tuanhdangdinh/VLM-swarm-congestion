@@ -39,6 +39,10 @@
   facing and defines head-on as facing + ≤ 0.5 m (run-3 root cause: `|Δθ| ≈ π`
   read diverging robots as a deadlock); decoding resolved per backend, `openai`
   pinned to temperature 0.0 (module-2 FR2.1.7, FR2.2.3).
+- Rev 8.5 (2026-09-17): the derived geometry lines become a switchable
+  modality (`ReasonerRequest.include_pairwise_geometry`, M5
+  `prompt_pairwise_geometry`) and an ablation axis, so RQ1 is not answered
+  by a prompt that already contains a classical geometry summary.
 
 Status: in user review. Predecessor system: the verified head-on yield
 protocol (H3 runs 8–13) and the M1→M5→M2→M3→M4 closed loop, live on the
@@ -388,6 +392,7 @@ summaries below.
 |---|---|---|---|
 | Annotated frame + trails | ✓ | — | ✓ |
 | Robot state table | ✓ | ✓ | — |
+| Derived pairwise geometry lines (distance, mutual facing; rev 8.5, `prompt_pairwise_geometry`) | ✓ | ✓ | — |
 | Motion table | ✓ | ✓ | — |
 | Failure-context block (re-analysis) | ✓ | ✓ | — |
 | Annotation-scheme sentence | ✓ | — | ✓ |
@@ -470,6 +475,10 @@ names the axes. Modality (dual / text-only / image-only) **is** the
 with/without-image axis — it is not listed twice. Remaining axes:
 with/without temporal context (traces + motion table); with/without
 failure context (forced-failure episodes, = the RQ5 memoryless control);
+with/without derived pairwise geometry lines (rev 8.5,
+`prompt_pairwise_geometry`) — checks whether RQ1's classification result
+survives when the VLM is not handed a classical geometry summary, since
+those lines are exactly what an Arm B classifier computes;
 annotation scheme (legible vs. legacy) on a T3 subset — checks whether
 the noise fixes matter.
 

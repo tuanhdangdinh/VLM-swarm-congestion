@@ -120,7 +120,11 @@ in control.
   opposite headings alone are explicitly not head-on — and instructs the
   model to use these lines rather than re-derive geometry. **Why:** run 3
   (2026-09-17) classified two robots 1.1 m apart and driving away from each
-  other as a deadlock because `|Δθ| ≈ π` matched the old heuristic.
+  other as a deadlock because `|Δθ| ≈ π` matched the old heuristic. The block
+  is a modality condition: `ReasonerRequest.include_pairwise_geometry=False`
+  (M5 config `prompt_pairwise_geometry`) omits it and reverts the guidance to
+  "compute distances and facing from the coordinates"; the facing + distance
+  definition of head-on applies in both conditions (rev-8 spec 8.5).
 
 ### M2.2 VLM Backend Adapter
 - FR2.2.1 Expose one Protocol `VLMBackend` with a single method
