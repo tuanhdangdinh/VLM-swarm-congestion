@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: M5 attempt memory + M2 previous-attempt prompt block; approved in chat (user, 2026-09-17).
+- Rev 2 (2026-09-17): corrected the orchestrator config path to `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`; module-5 requirement landed as FR5.4.6 (FR5.4.5 already existed).
 
 **Status:** Approved for implementation. This is a narrow slice of Phase 2
 (M5/M1 integration) of the rev-8 research design, landed ahead of Phase 1
@@ -286,7 +287,7 @@ Docs kept in sync (required by project standards):
 - `docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md`:
   rev 8.2 line in its revision list and one sentence in A.1 naming the
   time-windowed episode rule.
-- `docs/specs/module5_orchestrator.md`: new FR5.4.5 (attempt memory, window,
+- `docs/specs/module5_orchestrator.md`: new FR5.4.6 (attempt memory, window,
   off-switch) and the attach step in the data-flow diagram.
 - `docs/specs/module2_vlm_reasoning.md`: `ReasonerRequest.failure_context`
   and the prompt block.

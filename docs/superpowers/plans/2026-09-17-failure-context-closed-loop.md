@@ -53,7 +53,7 @@
 - Consumes: nothing new.
 - Produces: `FailureContext(strategy: str, yield_robot: str | None = None, crossing_order: list[str] | None = None, outcome_status: str, failure_detail: str)` (frozen); `ReasonerRequest.failure_context: FailureContext | None = None`. Tasks 2, 4, 6 rely on these exact names.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Replace the import block at the top of `tests/unit/test_prompt_builder.py` (lines 1–8) with:
 
@@ -99,12 +99,12 @@ def test_failure_context_rejects_empty_strategy():
         FailureContext(strategy="", outcome_status="failed", failure_detail="d")
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pytest tests/unit/test_prompt_builder.py -v -k "failure_context"`
 Expected: FAIL — `ImportError: cannot import name 'FailureContext'`.
 
-- [ ] **Step 3: Implement the model and the field**
+- [x] **Step 3: Implement the model and the field**
 
 In `reasoning/vlm/models.py`, insert after `RobotStateInput` (after line 17) and before `ReasonerRequest`:
 
@@ -127,12 +127,12 @@ In `ReasonerRequest`, add after `robot_states: list[RobotStateInput]`:
     failure_context: FailureContext | None = None
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `pytest tests/unit/test_prompt_builder.py -v`
 Expected: all 12 tests PASS (8 existing + 4 new).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add reasoning/vlm/models.py tests/unit/test_prompt_builder.py
@@ -152,7 +152,7 @@ git commit -m "feat: add FailureContext and ReasonerRequest.failure_context"
 - Consumes: `FailureContext`, `ReasonerRequest.failure_context` (Task 1).
 - Produces: `render_failure_context_block(context: FailureContext) -> str` — multi-line block, no leading/trailing newline. `build_prompt_payload` unchanged in signature. `crossing_order` is deliberately not rendered in this slice (always `None`).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Change the `prompt_builder` import in `tests/unit/test_prompt_builder.py` to:
 
@@ -218,12 +218,12 @@ def test_build_prompt_payload_seam_is_unchanged_when_failure_context_none():
     assert "Previous attempt" not in prompt
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pytest tests/unit/test_prompt_builder.py -v`
 Expected: FAIL — `ImportError: cannot import name 'render_failure_context_block'`.
 
-- [ ] **Step 3: Implement the slot and the renderer**
+- [x] **Step 3: Implement the slot and the renderer**
 
 In `reasoning/vlm/prompt_builder.py`, change the import to:
 
@@ -300,12 +300,12 @@ In `reasoning/vlm/__init__.py`: add `FailureContext,` to the `reasoning.vlm.mode
 `from reasoning.vlm.prompt_builder import build_prompt_payload, format_robot_state_lines, render_failure_context_block`
 (wrap in parentheses to stay under 100 columns); add `"FailureContext",` and `"render_failure_context_block",` to `__all__` in sorted position.
 
-- [ ] **Step 4: Run the tests and lint**
+- [x] **Step 4: Run the tests and lint**
 
 Run: `pytest tests/unit/test_prompt_builder.py -v && ruff check reasoning/vlm`
 Expected: 16 tests PASS; ruff clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add reasoning/vlm/prompt_builder.py reasoning/vlm/__init__.py tests/unit/test_prompt_builder.py
@@ -328,7 +328,7 @@ git commit -m "feat: render previous-attempt block in the VLM user prompt"
   - `AttemptMemory(window_sec: float)` with `record(command_id, robot_ids, strategy, yield_robot, now) -> None`, `resolve(command_id, outcome_status, now) -> None`, `context_for(robot_ids, now) -> AttemptRecord | None`.
   Tasks 4 and 6 rely on these exact names.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Change the import block of `tests/unit/test_m5_command_lifecycle.py` to:
 
@@ -420,12 +420,12 @@ def test_summarize_outcome_precedence_timed_out_over_failed_over_completed():
     assert summarize_outcome({"a": failed, "b": timed_out}) == "timed_out"
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pytest tests/unit/test_m5_command_lifecycle.py -v`
 Expected: FAIL — `ImportError: cannot import name 'AttemptMemory'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/command_lifecycle.py`:
 
@@ -513,12 +513,12 @@ class AttemptMemory:
         return record
 ```
 
-- [ ] **Step 4: Run the tests and lint**
+- [x] **Step 4: Run the tests and lint**
 
 Run: `pytest tests/unit/test_m5_command_lifecycle.py -v && ruff check ros2_ws/src/swarm_orchestrator`
 Expected: all PASS (12 existing + 8 new); ruff clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ros2_ws/src/swarm_orchestrator/swarm_orchestrator/command_lifecycle.py tests/unit/test_m5_command_lifecycle.py
@@ -537,7 +537,7 @@ git commit -m "feat: M5 attempt memory for previous-attempt context"
 - Consumes: `AttemptRecord` (Task 3), `FailureContext` (Task 1).
 - Produces: `build_failure_context(record: AttemptRecord, now: float) -> FailureContext`; `build_reasoner_request(request_id, snapshot, image_path, failure_context: FailureContext | None = None)`; `write_decision_artifact(output_dir, outcome, failure_context: FailureContext | None = None)`. Task 6 relies on these.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `tests/unit/test_m5_reasoning_pipeline.py`, extend the imports:
 
@@ -649,12 +649,12 @@ def test_write_decision_artifact_writes_null_failure_context_when_absent(tmp_pat
     assert payload["failure_context"] is None
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pytest tests/unit/test_m5_reasoning_pipeline.py -v`
 Expected: FAIL — `ImportError: cannot import name 'build_failure_context'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `reasoning_pipeline.py`, extend the imports:
 
@@ -754,12 +754,12 @@ and add to the `payload` dict, after `"raw_text": result.raw_text,`:
         ),
 ```
 
-- [ ] **Step 4: Run the tests and lint**
+- [x] **Step 4: Run the tests and lint**
 
 Run: `pytest tests/unit/test_m5_reasoning_pipeline.py -v && ruff check ros2_ws/src/swarm_orchestrator`
 Expected: all PASS (existing + 5 new); ruff clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ros2_ws/src/swarm_orchestrator/swarm_orchestrator/reasoning_pipeline.py tests/unit/test_m5_reasoning_pipeline.py
@@ -778,7 +778,7 @@ git commit -m "feat: attach and log previous-attempt context in the M5 pipeline 
 **Interfaces:**
 - Produces: `OrchestratorConfig.failure_context_window_sec: float` (default `60.0`). Task 6 reads it.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/unit/test_m5_models.py`:
 
@@ -815,12 +815,12 @@ def test_orchestrator_config_accepts_failure_context_window_above_bound():
     assert _config_with(failure_context_window_sec=27.5).failure_context_window_sec == 27.5
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pytest tests/unit/test_m5_models.py -v -k failure_context_window`
 Expected: `defaults_to_60` FAILS with `AttributeError`; `rejects_...` FAILS (no error raised).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `models.py`, change the pydantic import to:
 
@@ -864,12 +864,12 @@ In `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`, add after `command
 failure_context_window_sec: 60.0
 ```
 
-- [ ] **Step 4: Run the tests and lint**
+- [x] **Step 4: Run the tests and lint**
 
 Run: `pytest tests/unit/test_m5_models.py -v && ruff check ros2_ws/src/swarm_orchestrator`
 Expected: all PASS, including `test_shipped_orchestrator_yaml_goals_stay_inside_camera_roi` (it loads the shipped yaml); ruff clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml tests/unit/test_m5_models.py
@@ -887,7 +887,7 @@ git commit -m "feat: failure_context_window_sec config with re-trigger bound che
 - Consumes: `AttemptMemory`, `summarize_outcome` (Task 3); `build_failure_context`, kwargs (Task 4); `failure_context_window_sec` (Task 5); `FailureContext` (Task 1).
 - Produces: no new public API. No unit test (spec decision: node wiring is verified live in Task 8). Lint must pass.
 
-- [ ] **Step 1: Imports and construction**
+- [x] **Step 1: Imports and construction**
 
 Change these import lines:
 
@@ -938,7 +938,7 @@ and after `self._future: Future[PipelineOutcome] | None = None` add:
         self._pending_failure_context: FailureContext | None = None
 ```
 
-- [ ] **Step 2: Pass the event's robots into `_submit_pipeline`**
+- [x] **Step 2: Pass the event's robots into `_submit_pipeline`**
 
 Line 182 (`_on_scene_state`) becomes:
 
@@ -952,7 +952,7 @@ Line 226 (`_on_trigger_analysis`) becomes:
             self._submit_pipeline(directive.request_id, snapshot, event.involved_robots)
 ```
 
-- [ ] **Step 3: Attach in `_submit_pipeline`, audit in `_handle_outcome`**
+- [x] **Step 3: Attach in `_submit_pipeline`, audit in `_handle_outcome`**
 
 Replace `_submit_pipeline` with:
 
@@ -996,7 +996,7 @@ In `_handle_outcome`, replace the first `try:` block with:
             self.get_logger().error(f"decision artifact write failed: {exc}")
 ```
 
-- [ ] **Step 4: Record in `_dispatch`, finalize in `_resolve_command`**
+- [x] **Step 4: Record in `_dispatch`, finalize in `_resolve_command`**
 
 In `_dispatch`, immediately after the `self._tracker.register(CommandRecord(...))` call (after line 302), add:
 
@@ -1034,12 +1034,12 @@ Replace `_resolve_command` with:
 
 (`_resolve_command` only runs once every robot is terminal, so `outcome_status == "completed"` is exactly the previous `all_completed`.)
 
-- [ ] **Step 5: Lint and the full offline suite**
+- [x] **Step 5: Lint and the full offline suite**
 
 Run: `ruff check . && pytest`
 Expected: ruff clean; all unit tests PASS (`tests/integration` needs a sourced ROS2 env and is expected to be skipped/deselected locally as today).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py
@@ -1057,7 +1057,7 @@ git commit -m "feat: M5 attaches previous-attempt context on re-analysis"
 - Modify: `docs/superpowers/plans/2026-07-08-congestion-reasoner-phase1-core.md` (under the `### Task 5:` heading, line 871)
 - Modify: `docs/implementation_notes.md` (top of the "Congestion-Resolution Experiment" section, line 40; top of the "M2 VLM / M5 Orchestrator Pipeline" section, line 110)
 
-- [ ] **Step 1: Rev-8 spec — rev 8.2**
+- [x] **Step 1: Rev-8 spec — rev 8.2**
 
 After the `- Rev 8.1 (2026-09-16): ...` bullet add:
 
@@ -1077,7 +1077,7 @@ At the end of the A.1 "Failure-context feedback (Reflexion-lite)" bullet, after 
   robot set.
 ```
 
-- [ ] **Step 2: Module 5 spec**
+- [x] **Step 2: Module 5 spec**
 
 In the mermaid block, after the line
 `TRK -->|"resolved (COMPLETED/FAILED/TIMED_OUT)"| CD["start cooldown for robots"]`
@@ -1112,7 +1112,7 @@ In the validation sentence that reads `` `stall_threshold_sec`/`cooldown_sec`/`c
 
 In the defaults line containing `` `cooldown_sec = 15.0`, `command_timeout_sec = 20.0`, `` add `` `failure_context_window_sec = 60.0`, `` after `command_timeout_sec = 20.0`,.
 
-- [ ] **Step 3: Module 2 spec**
+- [x] **Step 3: Module 2 spec**
 
 After FR2.1.5 add:
 
@@ -1137,7 +1137,7 @@ and add a validation bullet:
   resolved prior attempt (M5 FR5.4.6); M2 treats it as prompt context.
 ```
 
-- [ ] **Step 4: Phase 1 plan — supersession note**
+- [x] **Step 4: Phase 1 plan — supersession note**
 
 Directly under the `### Task 5: Prompt blocks — failure context, motion table, annotation scheme, role-field instructions` heading add:
 
@@ -1150,7 +1150,7 @@ Directly under the `### Task 5: Prompt blocks — failure context, motion table,
 > and role-field pieces on top.
 ```
 
-- [ ] **Step 5: Implementation notes (landed, host verification pending)**
+- [x] **Step 5: Implementation notes (landed, host verification pending)**
 
 At the top of the "Congestion-Resolution Experiment" section (before the 2026-07-11 entry):
 
@@ -1181,7 +1181,7 @@ At the top of the "M2 VLM / M5 Orchestrator Pipeline" section (before the 2026-0
   confirm `failure_context != null` in the artifact.
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md docs/specs/module5_orchestrator.md docs/specs/module2_vlm_reasoning.md docs/superpowers/plans/2026-07-08-congestion-reasoner-phase1-core.md docs/implementation_notes.md
@@ -1197,12 +1197,12 @@ git commit -m "docs: sync M2/M5 specs and notes for failure-context closed loop"
 
 **Facts you need (verified 2026-09-17):** VM `vgu-canary-base-isaac-workstation-vm`, project `summer-flux-501516-n6`, public IP `34.68.133.240`, SSH key `~/Documents/IsaacAutomator/state/canary-base/key.pem`, login user `ubuntu`. The repo copy at `/home/ubuntu/vgu-vlm-swarm` is **not** a git checkout. ROS2 runs only inside the `vgu_ros` container (`ros:jazzy`), which mounts that directory at `/ws`; the host has no `/opt/ros`. The M5 launch recipe is `scripts/run_phase3_demo.sh` (starts Isaac, M1, M4, M5 with the `openai` backend; key sourced from `/ws/.env`). The trigger service is `/orchestrator/trigger_analysis` (`swarm_interfaces/srv/TriggerCongestionAnalysis`, request field `reason`, response `accepted`/`analysis_id`/`message`); it bypasses cooldown but is rejected while a command is active, so it can be retried until accepted.
 
-- [ ] **Step 1: Offline gate**
+- [x] **Step 1: Offline gate**
 
 Run: `make test && make lint`
 Expected: all unit tests PASS; ruff clean.
 
-- [ ] **Step 2: Ship only the touched files**
+- [x] **Step 2: Ship only the touched files**
 
 ```bash
 KEY=~/Documents/IsaacAutomator/state/canary-base/key.pem
@@ -1218,7 +1218,7 @@ rsync -av -e "ssh -i $KEY" \
 rsync -av -e "ssh -i $KEY" ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml "$VM:$R/ros2_ws/src/swarm_orchestrator/config/"
 ```
 
-- [ ] **Step 3: Rebuild M5 inside the container**
+- [x] **Step 3: Rebuild M5 inside the container**
 
 ```bash
 ssh -i $KEY $VM "sudo docker exec vgu_ros bash -lc 'source /opt/ros/jazzy/setup.bash && cd /ws/ros2_ws && colcon build --packages-select swarm_orchestrator 2>&1 | tail -5'"
@@ -1226,7 +1226,7 @@ ssh -i $KEY $VM "sudo docker exec vgu_ros bash -lc 'source /opt/ros/jazzy/setup.
 
 Expected: `Summary: 1 package finished`.
 
-- [ ] **Step 4: Run the closed loop**
+- [x] **Step 4: Run the closed loop**
 
 Start the demo in the background with a recording window long enough for a yield to resolve (run 6 completed at T+2 m 16 s):
 
@@ -1244,7 +1244,7 @@ ssh -i $KEY $VM "sudo docker exec vgu_ros bash -lc 'grep -E \"dispatch request=|
 
 Expected within ~3 minutes: `dispatch request=... command=... robot=robot_1`, then `command <id> resolved status=completed` (or `failed`/`timed_out`).
 
-- [ ] **Step 5: Force a re-analysis inside the window**
+- [x] **Step 5: Force a re-analysis inside the window**
 
 Within 60 s of the resolve line, call the trigger; retry every 10 s until `accepted: True`:
 
@@ -1268,7 +1268,7 @@ Pass criteria (spec: Verification):
 
 If the trigger is rejected with `trigger rejected: suppressed`, the frame is stale or robots are busy — wait and retry; if rejected past the 60 s window, restart from Step 4.
 
-- [ ] **Step 6: Evidence note and commit**
+- [x] **Step 6: Evidence note and commit**
 
 At the top of the "M2 VLM / M5 Orchestrator Pipeline" section of `docs/implementation_notes.md` add an entry with the measured facts — fill every angle bracket from the run, no placeholders left in the committed text:
 

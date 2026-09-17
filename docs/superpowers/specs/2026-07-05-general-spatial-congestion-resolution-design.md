@@ -594,7 +594,8 @@ VLM's choice. Therefore:
   with the deterministic geometry-best candidate (see A.3 fallback
   rules). Stage 2 never blocks resolution.
 - **Failure-context feedback (Reflexion-lite):** when M5 re-analyzes a
-  congestion episode after a failed or expired resolution, the stage-1
+  congestion episode after a prior resolution (originally "after a failed
+  or expired resolution"; widened to any outcome in rev 8.2), the stage-1
   prompt includes a short "previous attempt" block — last strategy,
   chosen roles, outcome status, and failure detail (e.g. `wait expired
   unresolved`) — sourced from the decision artifact M5 already stores.
