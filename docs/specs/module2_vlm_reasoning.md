@@ -104,9 +104,14 @@ in control.
   hallucination control (instruction: "only use IDs from this list").
 - FR2.1.6 (2026-09-17) When `ReasonerRequest.failure_context` is set, render a
   "Previous attempt in this episode" block (strategy, yielder if any, outcome,
-  detail, one neutral escalation sentence) between the known-ID list and the
-  guidance. When absent the prompt is byte-identical to the context-less prompt.
-  Prompt context only; the output fields and enum vocabulary are unchanged.
+  detail) between the known-ID list and the guidance, closed by two sentences:
+  report `congestion_detected=false` if the congestion is no longer present;
+  otherwise, if the previous strategy did not clear it, prefer a different
+  strategy unless the scene has changed. The detail names the maneuver M3
+  actually executed when it differs from the decided strategy (`"… (executed
+  as temporary_wait)"`). When absent the prompt is byte-identical to the
+  context-less prompt. Prompt context only; the output fields and enum
+  vocabulary are unchanged.
 
 ### M2.2 VLM Backend Adapter
 - FR2.2.1 Expose one Protocol `VLMBackend` with a single method

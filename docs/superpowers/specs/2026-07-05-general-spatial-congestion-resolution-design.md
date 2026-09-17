@@ -32,6 +32,9 @@
 - Rev 8.2 (2026-09-17): episode boundary for failure-context feedback fixed as
   a time window after command resolution, any outcome (design:
   `2026-09-17-failure-context-closed-loop-design.md`).
+- Rev 8.3 (2026-09-17): the previous-attempt block names the maneuver M3
+  actually executed when it differs from the decided strategy, and its
+  closing advice explicitly allows `congestion_detected=false` (design rev 3).
 
 Status: in user review. Predecessor system: the verified head-on yield
 protocol (H3 runs 8–13) and the M1→M5→M2→M3→M4 closed loop, live on the
@@ -610,6 +613,13 @@ VLM's choice. Therefore:
   outcome (a `completed` yield that did not clear the standoff is fed back
   too), and is dropped on expiry or when an analysis starts for a disjoint
   robot set.
+  Fidelity (rev 8.3): `strategy` in the block is the decided strategy, but
+  when M3 degraded it (a refused yield fans out as `temporary_wait`) the
+  detail names the executed maneuver — `"yield completed 15 s ago (executed
+  as temporary_wait); …"` — so the VLM never reasons about a maneuver that
+  did not run; and the block's closing advice states that
+  `congestion_detected=false` is the right answer when the congestion is
+  gone, so memory does not bias the model toward always choosing a strategy.
 
 ### A.2 Pillar 1 — Derived maneuver distances
 

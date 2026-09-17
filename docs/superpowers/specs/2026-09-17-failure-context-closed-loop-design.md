@@ -6,6 +6,7 @@
 
 - Initial draft: M5 attempt memory + M2 previous-attempt prompt block; approved in chat (user, 2026-09-17).
 - Rev 2 (2026-09-17): corrected the orchestrator config path to `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`; module-5 requirement landed as FR5.4.6 (FR5.4.5 already existed).
+- Rev 3 (2026-09-17): after the final review and the first live run — the detail names the executed maneuver when M3 degraded the decided strategy; the closing advice explicitly allows `congestion_detected=false` (rev-8 spec 8.3).
 
 **Status:** Approved for implementation. This is a narrow slice of Phase 2
 (M5/M1 integration) of the rev-8 research design, landed ahead of Phase 1
@@ -138,19 +139,27 @@ that states the bound (fail-fast, like the existing startup checks).
 Previous attempt in this episode:
 - strategy=yield, yield_robot=robot_1, outcome=completed
 - detail: yield completed 31 s ago; congestion re-detected for the same robots
-If the previous strategy did not clear the congestion, prefer a different
+If the congestion is no longer present, report congestion_detected=false. If it
+persists and the previous strategy did not clear it, prefer a different
 strategy unless the scene has changed.
 ```
 
-`yield_robot=` is omitted when `None`. The closing sentence is guidance
+`yield_robot=` is omitted when `None`. The closing sentences are guidance
 only; the output fields and enum vocabulary are unchanged, which keeps the
-rev-8 A.1 containment claim ("adds prompt context only") true.
+rev-8 A.1 containment claim ("adds prompt context only") true. Rev 3 made the
+`congestion_detected=false` option explicit because the first live run showed
+the memoryful VLM rotating strategies on stalls that were no longer congestion.
 
 `failure_detail` is built by M5 from the record: `"<strategy> completed
 <since_resolve> s ago; congestion re-detected for the same robots"` for
 `completed`, and `"<strategy> <outcome> after <run_time> s; congestion
 re-detected for the same robots"` for `failed`/`timed_out`, where
-`run_time = resolved_at - dispatched_at`.
+`run_time = resolved_at - dispatched_at`. Rev 3: when the maneuver M3 fanned
+out differs from the decided strategy (`AttemptRecord.executed_strategy`,
+derived by `summarize_executed_strategy` from the action names — `yield` if any
+action is `yield`, else the single action name, else `mixed`), the phrase
+` (executed as <executed>)` is inserted before the semicolon, e.g. `"yield
+completed 15 s ago (executed as temporary_wait); …"`.
 
 ---
 

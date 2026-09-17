@@ -114,6 +114,17 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-17** — **Previous-attempt block: executed maneuver + explicit
+  `none` option** (`feat: report the executed strategy in the previous-attempt
+  block`, `feat: previous-attempt advice names congestion_detected=false`;
+  rev-8 spec 8.3, design rev 3). `AttemptRecord.executed_strategy` is derived
+  from the fanned-out action names (`summarize_executed_strategy`) and, when it
+  differs from the decided strategy, `failure_detail` reads e.g. `"yield
+  completed 15 s ago (executed as temporary_wait); …"`; the block's closing
+  advice now says to report `congestion_detected=false` when the congestion is
+  gone. **Why:** the entry below — M3-degraded yields were told to the VLM as
+  "yield completed", and the memoryful model rotated strategies on stalls that
+  were no longer congestion. Host check pending (next entry).
 - **2026-09-17** — **Failure-context attach verified on the VM** (run
   07:03–07:24 UTC, `localization:=camera` stack, gpt-4o; logs on the VM host
   under `data/logs/fc_check_20260917/`). First decision 07:03:57
