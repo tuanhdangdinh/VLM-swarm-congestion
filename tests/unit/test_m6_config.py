@@ -1,13 +1,18 @@
+import json
 import math
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from isaac.vgu_sim.config import (
     CameraConfig,
+    ObstacleSize,
+    OracleConfig,
     RobotAssetConfig,
     ScenarioConfig,
 )
+from isaac.vgu_sim.paths import scenario_config_path
 
 VALID_HEAD_ON = {
     "schema_version": 1,
@@ -131,21 +136,14 @@ def test_robot_asset_config_defaults():
 
 def test_scenario_config_is_frozen():
     cfg = ScenarioConfig.model_validate(VALID_HEAD_ON)
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         cfg.seed = 99
-
-
-import json as _json
-
-import yaml as _yaml
-
-from isaac.vgu_sim.paths import scenario_config_path
 
 
 def _load_scenario(name: str) -> ScenarioConfig:
     path = scenario_config_path(name)
     with open(path) as f:
-        data = _yaml.safe_load(f)
+        data = yaml.safe_load(f)
     return ScenarioConfig.model_validate(data)
 
 
@@ -191,7 +189,7 @@ def test_dynamic_anomaly_yaml_round_trip():
 
 def test_robot_yaml_matches_defaults():
     with open("isaac/config/robot.yaml") as f:
-        data = _yaml.safe_load(f)
+        data = yaml.safe_load(f)
     r = RobotAssetConfig.model_validate(data)
     assert r.wheel_radius_m == pytest.approx(0.033)
     assert r.wheel_separation_m == pytest.approx(0.160)
@@ -200,9 +198,90 @@ def test_robot_yaml_matches_defaults():
 
 def test_lidar_json_has_required_keys():
     with open("isaac/config/lidar/turtlebot3_lds_01.json") as f:
-        d = _json.load(f)
+        d = json.load(f)
     assert d["numChannels"] == 1
     assert d["horizontalFov"] == pytest.approx(360.0)
     assert d["rotationRate"] == pytest.approx(10.0)
     assert d["minRange"] == pytest.approx(0.12)
     assert d["maxRange"] == pytest.approx(3.5)
+
+
+def test_legacy_name_infers_family():
+    cfg = ScenarioConfig.model_validate(VALID_HEAD_ON)
+    assert cfg.family == "head_on"
+
+
+def test_explicit_family_accepted_for_generated_name():
+    cfg = ScenarioConfig.model_validate(
+        {**VALID_HEAD_ON, "name": "head_on_asymmetric_w0p2_eopen_o0", "family": "head_on"}
+    )
+    assert cfg.family == "head_on"
+
+
+def test_generated_name_without_family_rejected():
+    with pytest.raises(ValidationError, match="family is required"):
+        ScenarioConfig.model_validate({**VALID_HEAD_ON, "name": "head_on_asymmetric_x"})
+
+
+def test_name_with_uppercase_or_dash_rejected():
+    with pytest.raises(ValidationError):
+        ScenarioConfig.model_validate({**VALID_HEAD_ON, "name": "Head-On", "family": "head_on"})
+
+
+def test_static_obstacle_parses_with_default_size():
+    cfg = ScenarioConfig.model_validate({**VALID_HEAD_ON, "static_obstacles": [
+        {"obstacle_id": "blocker_west", "pose": {"x": -1.85, "y": 0.0, "yaw_rad": 0.0}}]})
+    assert cfg.static_obstacles[0].size.x_m == pytest.approx(0.3)
+    assert cfg.static_obstacles[0].size.z_m == pytest.approx(0.5)
+
+
+def test_timed_obstacle_size_defaults():
+    cfg = ScenarioConfig.model_validate({**VALID_HEAD_ON, "timed_obstacles": [
+        {"obstacle_id": "box", "asset": "dynamic_obstacle", "spawn_at_sec": 1.0,
+         "pose": {"x": 0.0, "y": 0.0, "yaw_rad": 0.0}}]})
+    assert cfg.timed_obstacles[0].size.y_m == pytest.approx(0.3)
+
+
+def test_obstacle_size_must_be_positive():
+    with pytest.raises(ValidationError):
+        ObstacleSize(x_m=0.0)
+
+
+def test_duplicate_obstacle_id_across_static_and_timed_rejected():
+    static_obstacle = {"obstacle_id": "box", "pose": {"x": 0.0, "y": 0.0, "yaw_rad": 0.0}}
+    timed_obstacle = {
+        "obstacle_id": "box", "asset": "dynamic_obstacle", "spawn_at_sec": 1.0,
+        "pose": {"x": 0.0, "y": 0.0, "yaw_rad": 0.0},
+    }
+    with pytest.raises(ValidationError, match="obstacle_id"):
+        ScenarioConfig.model_validate({
+            **VALID_HEAD_ON,
+            "static_obstacles": [static_obstacle],
+            "timed_obstacles": [timed_obstacle],
+        })
+
+
+def test_oracle_with_unknown_robot_rejected():
+    with pytest.raises(ValidationError, match="robot_9"):
+        ScenarioConfig.model_validate({**VALID_HEAD_ON, "oracle": {
+            "correct_yielder": "robot_9", "fcfs_yielder": "robot_1",
+            "feasible_yielders": ["robot_9"], "rationale": "x"}})
+
+
+def test_oracle_feasible_yielders_must_contain_correct_yielder():
+    with pytest.raises(ValidationError):
+        OracleConfig(correct_yielder="robot_2", fcfs_yielder="robot_1",
+                     feasible_yielders=("robot_1",), rationale="x")
+
+
+def test_oracle_contrasts_fcfs_when_yielders_differ():
+    oracle = OracleConfig(correct_yielder="robot_2", fcfs_yielder="robot_1",
+                          feasible_yielders=("robot_2",), rationale="x")
+    assert oracle.contrasts_fcfs is True
+
+
+def test_parameters_round_trip_through_json_dump():
+    cfg = ScenarioConfig.model_validate({**VALID_HEAD_ON, "parameters": {
+        "blocker_west_m": 0.2, "blocker_east_m": None, "arrival_offset_m": 0.0}})
+    again = ScenarioConfig.model_validate(cfg.model_dump(mode="json"))
+    assert again == cfg

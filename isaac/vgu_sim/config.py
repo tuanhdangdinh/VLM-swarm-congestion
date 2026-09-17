@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -41,6 +41,24 @@ class RobotScenarioConfig(BaseModel):
         return v
 
 
+class ObstacleSize(BaseModel):
+    """Bounding-box size in meters for a static or timed obstacle."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    x_m: float = Field(default=0.3, gt=0)
+    y_m: float = Field(default=0.3, gt=0)
+    z_m: float = Field(default=0.5, gt=0)
+
+
+class StaticObstacleConfig(BaseModel):
+    """A fixed-pose obstacle present for the entire scenario duration."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    obstacle_id: str = Field(min_length=1)
+    pose: Pose2D
+    size: ObstacleSize = ObstacleSize()
+
+
 class TimedObstacleConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     obstacle_id: str
@@ -48,6 +66,7 @@ class TimedObstacleConfig(BaseModel):
     spawn_at_sec: float
     remove_at_sec: float | None = None
     pose: Pose2D
+    size: ObstacleSize = ObstacleSize()
 
     @field_validator("spawn_at_sec")
     @classmethod
@@ -129,17 +148,99 @@ class ScenarioRuntimeOverrides(BaseModel):
         return v
 
 
+class HeadOnAsymmetricParams(BaseModel):
+    """Parametric knobs for the head-on-asymmetric scenario family."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    blocker_west_m: float | None = None
+    blocker_east_m: float | None = None
+    arrival_offset_m: float = 0.0
+
+    @field_validator("blocker_west_m", "blocker_east_m")
+    @classmethod
+    def _blocker_non_negative(cls, v: float | None) -> float | None:
+        if v is not None and v < 0:
+            raise ValueError(f"blocker offset must be >= 0 when set; got {v}")
+        return v
+
+    @field_validator("arrival_offset_m")
+    @classmethod
+    def _arrival_offset_non_negative(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError(f"arrival_offset_m must be >= 0; got {v}")
+        return v
+
+
+class OracleConfig(BaseModel):
+    """The ground-truth yield decision and its rationale for a scenario."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    correct_yielder: str
+    fcfs_yielder: str
+    feasible_yielders: tuple[str, ...]
+    objective: Literal["min_total_time_to_goal"] = "min_total_time_to_goal"
+    rationale: str
+
+    @model_validator(mode="after")
+    def _feasible_yielders_contain_correct(self) -> "OracleConfig":
+        if not self.feasible_yielders:
+            raise ValueError("feasible_yielders must be non-empty")
+        if self.correct_yielder not in self.feasible_yielders:
+            raise ValueError(
+                f"feasible_yielders must contain correct_yielder "
+                f"{self.correct_yielder!r}; got {self.feasible_yielders}"
+            )
+        return self
+
+    @property
+    def contrasts_fcfs(self) -> bool:
+        """Whether the correct yielder differs from the naive FCFS yielder."""
+        return self.correct_yielder != self.fcfs_yielder
+
+
+FAMILY_BY_LEGACY_NAME: dict[str, str] = {
+    "head_on_deadlock": "head_on",
+    "intersection_bottleneck": "intersection",
+    "dynamic_anomaly": "dynamic_anomaly",
+}
+ScenarioFamily = Literal["head_on", "intersection", "dynamic_anomaly"]
+
+
 class ScenarioConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     schema_version: Literal[1]
-    name: Literal["head_on_deadlock", "intersection_bottleneck", "dynamic_anomaly"]
+    name: str
+    family: ScenarioFamily
     seed: int
     duration_sec: float
     robots: tuple[RobotScenarioConfig, ...]
     timed_obstacles: tuple[TimedObstacleConfig, ...] = ()
+    static_obstacles: tuple[StaticObstacleConfig, ...] = ()
     aisle_barrier: AisleBarrierConfig | None = None
+    parameters: HeadOnAsymmetricParams | None = None
+    oracle: OracleConfig | None = None
     expected_conflict: ExpectedConflictConfig
     runtime: ScenarioRuntimeOverrides = Field(default_factory=ScenarioRuntimeOverrides)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _infer_family_from_legacy_name(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        if "family" in data:
+            return data
+        name = data.get("name")
+        family = FAMILY_BY_LEGACY_NAME.get(name)
+        if family is None:
+            raise ValueError(f"family is required for scenario name {name!r}")
+        return {**data, "family": family}
+
+    @field_validator("name")
+    @classmethod
+    def _name_format(cls, v: str) -> str:
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", v):
+            raise ValueError(f"name must match ^[a-z][a-z0-9_]*$; got {v!r}")
+        return v
 
     @field_validator("seed")
     @classmethod
@@ -197,6 +298,27 @@ class ScenarioConfig(BaseModel):
             raise ValueError(
                 f"onset_window_sec end {w_end} > duration_sec {self.duration_sec}"
             )
+
+        obstacle_ids = [o.obstacle_id for o in self.static_obstacles] + [
+            o.obstacle_id for o in self.timed_obstacles
+        ]
+        if len(obstacle_ids) != len(set(obstacle_ids)):
+            raise ValueError(
+                f"obstacle_id values must be unique across static and timed "
+                f"obstacles; got {obstacle_ids}"
+            )
+
+        if self.oracle is not None:
+            oracle_robot_ids = (
+                self.oracle.correct_yielder,
+                self.oracle.fcfs_yielder,
+                *self.oracle.feasible_yielders,
+            )
+            for rid in oracle_robot_ids:
+                if rid not in robot_id_set:
+                    raise ValueError(
+                        f"oracle robot {rid!r} not in configured robots {robot_id_set}"
+                    )
 
         return self
 
