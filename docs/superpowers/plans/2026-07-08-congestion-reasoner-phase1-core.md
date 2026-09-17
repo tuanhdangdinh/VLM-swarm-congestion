@@ -870,6 +870,13 @@ git commit -m "feat: derive per-robot motion table from snapshot history"
 
 ### Task 5: Prompt blocks — failure context, motion table, annotation scheme, role-field instructions
 
+> **2026-09-17:** the failure-context portion of this task (`FailureContext`,
+> `ReasonerRequest.failure_context`, `render_failure_context_block`) landed via
+> `docs/superpowers/plans/2026-09-17-failure-context-closed-loop.md` with a
+> minimal template slot instead of the sectioned rebuild below. When executing
+> this task, keep those names and add only the motion-table, annotation-scheme
+> and role-field pieces on top.
+
 **Files:**
 - Modify: `reasoning/vlm/models.py` (add `FailureContext`; extend `ReasonerRequest`)
 - Modify: `reasoning/vlm/prompt_builder.py`

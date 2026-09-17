@@ -213,7 +213,7 @@ image_path, failure_context: FailureContext | None = None)`;
 Field(default=60.0, ge=0.0)` plus a `model_validator` enforcing the timing
 constraint.
 
-`config/orchestrator.yaml`: `failure_context_window_sec: 60.0` with a comment
+`ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`: `failure_context_window_sec: 60.0` with a comment
 stating the bound and that `0` disables (RQ5 memoryless control).
 
 ---
@@ -278,7 +278,7 @@ TDD; one behavior per test; `test_<behavior>_<condition>`.
   `reasoning/vlm/__init__.py`
 - `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/command_lifecycle.py`,
   `reasoning_pipeline.py`, `models.py`, `orchestrator_node.py`
-- `config/orchestrator.yaml`
+- `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`
 - Tests listed above.
 
 Docs kept in sync (required by project standards):

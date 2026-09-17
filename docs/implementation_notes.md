@@ -37,6 +37,13 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-17** — Phase 2 slice landed ahead of Phase 1: failure-context
+  feedback (rev-8 A.1) is wired end-to-end — `AttemptMemory` in M5, `FailureContext`
+  + prompt block in M2, context recorded in decision artifacts. Episode rule =
+  time window after resolution, any outcome (rev 8.2). Design:
+  `docs/superpowers/specs/2026-09-17-failure-context-closed-loop-design.md`;
+  plan: `docs/superpowers/plans/2026-09-17-failure-context-closed-loop.md`.
+  Host verification pending (see M2/M5 section).
 - **2026-07-11** — Phase 1 execution deliberately deferred. Prerequisites
   before data collection: commit the rev-8 spec + Phase 1 plan; fill the two
   REQUIRED pre-registration fields (primary `openai` `model_id` — blocked on
@@ -107,6 +114,19 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-17** — **Previous-attempt context on re-analysis** (commits
+  `feat: add FailureContext and ReasonerRequest.failure_context` through
+  `feat: M5 attaches previous-attempt context on re-analysis`). M5 records
+  each dispatched attempt (`strategy`, `yield_robot` = the robot whose
+  fanned-out action is `yield`), finalizes it on resolution with
+  `timed_out > failed > completed` precedence, and attaches it to the next
+  `ReasonerRequest` for overlapping robots inside `failure_context_window_sec`
+  (default 60 s; must exceed cooldown + stall threshold = 27 s, enforced at
+  config load; 0 = off). The prompt gains a "Previous attempt in this episode"
+  block; the artifact gains `failure_context`. **Why:** runs G/H re-derived
+  every cooldown with no memory (rev-8 A.1, run 12). Host check pending: force
+  a re-analysis via `/orchestrator/trigger_analysis` inside the window and
+  confirm `failure_context != null` in the artifact.
 - **2026-09-17** — **Robots within goal tolerance are excluded from stall
   detection.** `CongestionDetector.update` now skips a robot whose
   distance-to-goal ≤ `goal_reached_tolerance_m` (new `OrchestratorConfig`

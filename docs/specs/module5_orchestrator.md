@@ -94,6 +94,8 @@ flowchart TD
     FAN --> TRK["CommandTracker.register (PENDING)"]
     ST[["/coordination/status ← M4"]] --> TRK
     TRK -->|"resolved (COMPLETED/FAILED/TIMED_OUT)"| CD["start cooldown for robots"]
+    TRK -->|"resolved → AttemptMemory.resolve"| AM["AttemptMemory (last attempt, windowed)"]
+    AM -.->|"failure_context on re-analysis"| PIPE
     SM2 -->|"any failure → diagnostics + cooldown"| CD
     CD --> MON2["return to MONITORING"]
     FAN -->|"set overrides (involved robots)"| REG["TaskRegistry → /coordination/tasks → M1"]
@@ -205,6 +207,14 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   re-triggered immediately.
 - FR5.4.5 Retain the grounded command's `fallback` string with the record for
   diagnostics and future escalation; this milestone does not auto-execute fallback.
+- FR5.4.6 (2026-09-17) Keep the last dispatched attempt (strategy, yielder,
+  outcome) in a single-slot `AttemptMemory`. When a new analysis starts for an
+  overlapping robot set within `failure_context_window_sec` of that command's
+  resolution — whatever the outcome — attach it to the `ReasonerRequest` as
+  `failure_context` and record it in the decision artifact. The memory is
+  dropped on expiry, on an analysis for a disjoint robot set, or when a new
+  attempt is dispatched; `0` disables it (RQ5 memoryless control). Design:
+  `docs/superpowers/specs/2026-09-17-failure-context-closed-loop-design.md`.
 
 ### M5.5 Task / Status Registry
 - FR5.5.1 Own the registry published on `/coordination/tasks` (JSON). Each entry
@@ -248,6 +258,7 @@ redefined.
 | stall_threshold_sec | float | > Nav2 recovery cycle; default ≈ 12.0 |
 | progress_epsilon_m | float | min distance-to-goal improvement counted as progress |
 | cooldown_sec | float | per-robot re-trigger suppression after resolution/failure |
+| failure_context_window_sec | float | seconds after command resolution in which the last attempt is attached to a re-analysis as `failure_context`; 0 disables (RQ5 memoryless control) |
 | command_timeout_sec | float | fallback timeout when grounded value absent |
 | reasoning_backend_id | str | passed through to M2 backend factory |
 | initial_tasks | dict[str, TaskAssignment] | robot_id → base task + goal, loaded at startup |
@@ -357,8 +368,10 @@ Pure-logic modules import no `rclpy`. The node imports everything and wires ROS2
 ### 7.1 Data Models (`models.py`)
 Implement the §4 models as frozen Pydantic v2 (`ConfigDict(frozen=True)`), with
 `field_validator`s for: non-empty `involved_robots`, sorted serialization, and
-`stall_threshold_sec`/`cooldown_sec`/`command_timeout_sec` ≥ 0. `initial_tasks` keys
-must be non-empty strings.
+`stall_threshold_sec`/`cooldown_sec`/`command_timeout_sec` ≥ 0.
+`failure_context_window_sec` is 0 or greater than
+`cooldown_sec + stall_threshold_sec` (a smaller window can never fire).
+`initial_tasks` keys must be non-empty strings.
 
 ### 7.2 `CongestionDetector` (`congestion_detector.py`)
 Stateful class holding per-robot progress history. Retain the existing pure helper
@@ -464,7 +477,7 @@ diagnostics rather than as a node-visible state.
 6. Emit `CongestionEvent` for all flagged robots.
 
 Defaults: `stall_threshold_sec = 12.0`, `progress_epsilon_m = 0.10`,
-`cooldown_sec = 15.0`, `command_timeout_sec = 20.0`,
+`cooldown_sec = 15.0`, `command_timeout_sec = 20.0`, `failure_context_window_sec = 60.0`,
 `frame_dump_dir = data/logs/m5_frames`, `keep_debug_frames = false`,
 `frame_scene_max_skew_sec = 1.0`, `frame_downscale_width = None` (full 1280×960;
 set e.g. 800 if backend latency from the ~2 MB base64 payload becomes a problem).

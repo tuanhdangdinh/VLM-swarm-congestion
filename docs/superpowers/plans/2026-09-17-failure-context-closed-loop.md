@@ -36,7 +36,7 @@
 | `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/command_lifecycle.py` | `AttemptRecord`, `summarize_outcome`, `AttemptMemory` (pure, no `reasoning.*`) |
 | `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/reasoning_pipeline.py` | `build_failure_context`; `failure_context` kwarg on `build_reasoner_request` and `write_decision_artifact` |
 | `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py` | `OrchestratorConfig.failure_context_window_sec` + bound validator |
-| `config/orchestrator.yaml` | the new key |
+| `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml` | the new key |
 | `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py` | three wiring sites + pending-context slot + two log lines |
 | `tests/unit/test_prompt_builder.py`, `test_m5_command_lifecycle.py`, `test_m5_reasoning_pipeline.py`, `test_m5_models.py` | tests |
 | `docs/specs/module2_vlm_reasoning.md`, `docs/specs/module5_orchestrator.md`, rev-8 spec, Phase 1 plan, `docs/implementation_notes.md` | docs kept in sync |
@@ -772,7 +772,7 @@ git commit -m "feat: attach and log previous-attempt context in the M5 pipeline 
 
 **Files:**
 - Modify: `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py:8` (import) and `:41-72` (`OrchestratorConfig`)
-- Modify: `config/orchestrator.yaml`
+- Modify: `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`
 - Test: `tests/unit/test_m5_models.py`
 
 **Interfaces:**
@@ -854,7 +854,7 @@ Add after the existing `_non_empty_robot_ids` validator:
         return self
 ```
 
-In `config/orchestrator.yaml`, add after `command_timeout_sec: 20.0`:
+In `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`, add after `command_timeout_sec: 20.0`:
 
 ```yaml
 # Window after a command resolves in which the attempt is fed back to the VLM
@@ -872,7 +872,7 @@ Expected: all PASS, including `test_shipped_orchestrator_yaml_goals_stay_inside_
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py config/orchestrator.yaml tests/unit/test_m5_models.py
+git add ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml tests/unit/test_m5_models.py
 git commit -m "feat: failure_context_window_sec config with re-trigger bound check"
 ```
 
@@ -1215,7 +1215,7 @@ rsync -av -e "ssh -i $KEY" \
   ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py \
   ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py \
   "$VM:$R/ros2_ws/src/swarm_orchestrator/swarm_orchestrator/"
-rsync -av -e "ssh -i $KEY" config/orchestrator.yaml "$VM:$R/config/"
+rsync -av -e "ssh -i $KEY" ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml "$VM:$R/ros2_ws/src/swarm_orchestrator/config/"
 ```
 
 - [ ] **Step 3: Rebuild M5 inside the container**

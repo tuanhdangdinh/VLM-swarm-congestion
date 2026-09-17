@@ -29,6 +29,9 @@
 - Rev 8.1 (2026-09-16): added Appendix A.7 disclosing which apparatus
   components are simulator-supplied ground truth, sensor-derived at
   runtime, or scripted/tuned, per the 2026-09-16 system audit.
+- Rev 8.2 (2026-09-17): episode boundary for failure-context feedback fixed as
+  a time window after command resolution, any outcome (design:
+  `2026-09-17-failure-context-closed-loop-design.md`).
 
 Status: in user review. Predecessor system: the verified head-on yield
 protocol (H3 runs 8–13) and the M1→M5→M2→M3→M4 closed loop, live on the
@@ -601,6 +604,11 @@ VLM's choice. Therefore:
   adds prompt context only — no new action space, outputs remain the
   same bounded fields. Scope: context covers the current episode's
   prior attempt(s) only; no cross-episode memory.
+  Episode boundary (rev 8.2): the previous attempt is retained for
+  `failure_context_window_sec` after its command resolves, whatever the
+  outcome (a `completed` yield that did not clear the standoff is fed back
+  too), and is dropped on expiry or when an analysis starts for a disjoint
+  robot set.
 
 ### A.2 Pillar 1 — Derived maneuver distances
 

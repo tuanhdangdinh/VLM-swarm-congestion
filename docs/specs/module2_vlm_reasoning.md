@@ -102,6 +102,11 @@ in control.
   change per-request.
 - FR2.1.5 Include the full list of known robot IDs in the user prompt for
   hallucination control (instruction: "only use IDs from this list").
+- FR2.1.6 (2026-09-17) When `ReasonerRequest.failure_context` is set, render a
+  "Previous attempt in this episode" block (strategy, yielder if any, outcome,
+  detail, one neutral escalation sentence) between the known-ID list and the
+  guidance. When absent the prompt is byte-identical to the context-less prompt.
+  Prompt context only; the output fields and enum vocabulary are unchanged.
 
 ### M2.2 VLM Backend Adapter
 - FR2.2.1 Expose one Protocol `VLMBackend` with a single method
@@ -292,6 +297,7 @@ class ReasonerRequest(BaseModel):
     frame_id: str = Field(min_length=1)
     stamp: float = Field(ge=0)
     robot_states: list[RobotStateInput]
+    failure_context: FailureContext | None = None
 ```
 
 Validation rules (caller responsibility, enforced at construction):
@@ -304,6 +310,8 @@ Validation rules (caller responsibility, enforced at construction):
 - `stamp` matches the annotated frame timestamp; M5 must not send mismatched
   image/state pairs.
 - `request_id` convention: UUID4 string from `str(uuid.uuid4())`.
+- `failure_context` is supplied by M5 only on re-analysis of an episode with a
+  resolved prior attempt (M5 FR5.4.6); M2 treats it as prompt context.
 
 #### `PromptPayload`
 
