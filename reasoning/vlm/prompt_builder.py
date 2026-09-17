@@ -82,6 +82,8 @@ def render_failure_context_block(context: FailureContext) -> str:
     if context.yield_robot is not None:
         attempt += f", yield_robot={context.yield_robot}"
     attempt += f", outcome={context.outcome_status}"
+    # crossing_order is accepted on FailureContext but not rendered in this slice
+    # (Phase 1 plan Task 5 adds the ordered-crossing prompt block).
     return "\n".join(
         [
             "Previous attempt in this episode:",

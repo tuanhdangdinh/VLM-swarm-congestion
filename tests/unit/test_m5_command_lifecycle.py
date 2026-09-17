@@ -206,3 +206,20 @@ def test_summarize_outcome_precedence_timed_out_over_failed_over_completed():
     assert summarize_outcome({"a": completed, "b": completed}) == "completed"
     assert summarize_outcome({"a": completed, "b": failed}) == "failed"
     assert summarize_outcome({"a": failed, "b": timed_out}) == "timed_out"
+
+
+def test_attempt_memory_resolve_keeps_first_resolution_time():
+    memory = _memory()
+    memory.resolve("c1", "timed_out", now=10.0)
+    memory.resolve("c1", "completed", now=14.0)
+    record = memory.context_for(["robot_1"], now=20.0)
+    assert record is not None
+    assert record.resolved_at == 10.0
+    assert record.outcome_status == "completed"
+
+
+def test_attempt_memory_returns_record_again_on_second_analysis_in_window():
+    memory = _memory()
+    memory.resolve("c1", "completed", now=10.0)
+    assert memory.context_for(["robot_1"], now=20.0) is not None
+    assert memory.context_for(["robot_1"], now=30.0) is not None

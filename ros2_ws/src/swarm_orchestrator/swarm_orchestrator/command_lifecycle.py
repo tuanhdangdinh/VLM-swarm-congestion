@@ -120,6 +120,10 @@ class CooldownTracker:
 def summarize_outcome(states: dict[str, CommandState]) -> str:
     """Collapse per-robot terminal states into one attempt outcome.
 
+    Callers must pass terminal states only (`_resolve_command` runs once every
+    robot is COMPLETED, FAILED or TIMED_OUT); non-terminal states are not
+    distinguished from COMPLETED here.
+
     Args:
         states: Terminal `CommandState` per robot of a resolved command.
 
@@ -180,10 +184,17 @@ class AttemptMemory:
         )
 
     def resolve(self, command_id: str, outcome_status: str, now: float) -> None:
-        """Finalize the remembered attempt; a superseded command id is ignored."""
+        """Finalize the remembered attempt; a superseded command id is ignored.
+
+        Re-entrant: the node resolves a command once per status message after it
+        turns terminal, so only the first call stamps `resolved_at` (the window and
+        the elapsed-seconds wording are measured from the first resolution) while
+        `outcome_status` keeps the latest value.
+        """
         if self._record is None or self._record.command_id != command_id:
             return
-        self._record.resolved_at = now
+        if self._record.resolved_at is None:
+            self._record.resolved_at = now
         self._record.outcome_status = outcome_status
 
     def context_for(self, robot_ids: list[str], now: float) -> AttemptRecord | None:

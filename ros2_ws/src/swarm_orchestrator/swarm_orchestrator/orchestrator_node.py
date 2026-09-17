@@ -121,6 +121,9 @@ class OrchestratorNode(Node):
         self._registry.load_initial(self._config)
 
         self._bridge = CvBridge()
+        # rclpy.spin is single-threaded: _attempts and _pending_failure_context are
+        # touched only on the callback thread, and the worker reads captured locals.
+        # A MultiThreadedExecutor would need a lock around both.
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._future: Future[PipelineOutcome] | None = None
         # Context attached to the in-flight request; consumed by _handle_outcome so
@@ -271,10 +274,10 @@ class OrchestratorNode(Node):
         attempt = self._attempts.context_for(robots, now)
         failure_context = None if attempt is None else build_failure_context(attempt, now)
         self._pending_failure_context = failure_context
-        if attempt is not None and failure_context is not None:
+        if attempt is not None:
             self.get_logger().info(
                 f"request={request_id} failure_context attached command={attempt.command_id} "
-                f"strategy={failure_context.strategy} outcome={failure_context.outcome_status}"
+                f"strategy={attempt.strategy} outcome={attempt.outcome_status}"
             )
 
         def task() -> PipelineOutcome:
