@@ -143,3 +143,12 @@ def test_build_prompt_payload_seam_is_unchanged_when_failure_context_none():
     prompt = build_prompt_payload(_request()).user_prompt
     assert 'Known robot IDs: ["robot_1", "robot_2"]\n\nGuidance:' in prompt
     assert "Previous attempt" not in prompt
+
+
+def test_render_failure_context_block_allows_reporting_no_congestion():
+    block = render_failure_context_block(_completed_yield())
+    assert (
+        "If the congestion is no longer present, report congestion_detected=false. "
+        "If it persists and the previous strategy did not clear it, prefer a different "
+        "strategy unless the scene has changed."
+    ) in block

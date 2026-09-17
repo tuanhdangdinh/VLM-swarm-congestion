@@ -64,7 +64,8 @@ Immediately after the </think> tag, write ONLY the final JSON object, with no \
 surrounding text or markdown."""
 
 _FAILURE_CONTEXT_ADVICE = (
-    "If the previous strategy did not clear the congestion, prefer a different "
+    "If the congestion is no longer present, report congestion_detected=false. "
+    "If it persists and the previous strategy did not clear it, prefer a different "
     "strategy unless the scene has changed."
 )
 
