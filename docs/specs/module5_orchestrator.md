@@ -208,8 +208,8 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
 - FR5.4.5 Retain the grounded command's `fallback` string with the record for
   diagnostics and future escalation; this milestone does not auto-execute fallback.
 - FR5.4.6 (2026-09-17) Keep the last dispatched attempt (decided strategy, the
-  maneuver actually fanned out — `yield` if any action is `yield`, else the
-  single action name, else `mixed` — yielder, outcome) in a single-slot
+  maneuver actually fanned out — the decided strategy if its own action ran,
+  else the single action name, else `mixed` — yielder, outcome) in a single-slot
   `AttemptMemory`. When a new analysis starts for an
   overlapping robot set within `failure_context_window_sec` of that command's
   resolution — whatever the outcome — attach it to the `ReasonerRequest` as

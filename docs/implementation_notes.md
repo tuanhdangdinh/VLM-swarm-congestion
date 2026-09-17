@@ -114,6 +114,31 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-17** — **Run 2 with the rev-8.3 block: the memoryful VLM now
+  answers `none`** (08:20–09:32 UTC, same run-H stack, gpt-4o; logs on the VM
+  host under `data/logs/fc_check_20260917/run2_*`). 91 analyses, 43 with
+  `failure_context`, **58 `congestion_detected=false` (64 %) vs 2 of 16 in
+  run 1**; 23 dispatches; both robots ended at their goals (GT 0.06 / 0.07 m
+  from goal). First yield completed 08:24, then three consecutive attached
+  re-analyses (08:25:11/30/51, `strategy=yield executed=yield`) answered
+  `none`, and the memory expired; later `none` answers with a reroute context
+  attached read e.g. "Robots are significantly apart with no opposing headings
+  or physical conflict" (08:36–08:37 artifacts). Strategy rotation
+  still occurred mid-run (yield/reverse alternation 08:4x–09:0x while the
+  robots re-stalled), so the closing-advice change reduces but does not
+  remove post-resolution intervention. Defect found and fixed (`fix: name the
+  executed maneuver by the decided strategy's own action`): a `reroute` fans
+  out as `reroute` + `temporary_wait`, which the first summarizer labelled
+  `mixed`, so three blocks read "reroute completed … (executed as mixed)";
+  `summarize_executed_strategy(actions, strategy)` now names the decided
+  strategy whenever its own action ran (unit-tested; label change not re-run
+  on the host). No M3-degraded yield occurred this run, so the "(executed as
+  temporary_wait)" wording is unit-tested only. Gotchas: `run_simulation
+  --duration-sec 900` did not stop Isaac (GT sim time reached 1 608 s;
+  stopped by hand); with both robots parked at their goals M5 still fired
+  `1 robot(s) stalled` for robot_1 every cooldown — M1's camera estimate of
+  distance-to-goal sits outside `goal_reached_tolerance_m` (0.15) where GT
+  says 0.06 — worth a look before Arm A/B collection.
 - **2026-09-17** — **Previous-attempt block: executed maneuver + explicit
   `none` option** (`feat: report the executed strategy in the previous-attempt
   block`, `feat: previous-attempt advice names congestion_detected=false`;

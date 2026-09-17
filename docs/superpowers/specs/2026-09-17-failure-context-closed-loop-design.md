@@ -156,8 +156,8 @@ the memoryful VLM rotating strategies on stalls that were no longer congestion.
 re-detected for the same robots"` for `failed`/`timed_out`, where
 `run_time = resolved_at - dispatched_at`. Rev 3: when the maneuver M3 fanned
 out differs from the decided strategy (`AttemptRecord.executed_strategy`,
-derived by `summarize_executed_strategy` from the action names — `yield` if any
-action is `yield`, else the single action name, else `mixed`), the phrase
+derived by `summarize_executed_strategy` from the action names — the decided
+strategy if any action equals it, else the single action name, else `mixed`), the phrase
 ` (executed as <executed>)` is inserted before the semicolon, e.g. `"yield
 completed 15 s ago (executed as temporary_wait); …"`.
 
