@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
@@ -30,7 +31,12 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from isaac.vgu_sim.config import AisleBarrierConfig, ScenarioConfig, WarehouseConfig
+from isaac.vgu_sim.config import (
+    AisleBarrierConfig,
+    ScenarioConfig,
+    StaticObstacleConfig,
+    WarehouseConfig,
+)
 
 FREE: int = 255
 OCCUPIED: int = 0
@@ -41,6 +47,7 @@ def build_occupancy_grid(
     obstacles: list[tuple[float, float, float, float]],
     resolution_m: float,
     aisle_barrier: AisleBarrierConfig | None = None,
+    static_obstacles: Sequence[StaticObstacleConfig] = (),
 ) -> tuple[np.ndarray, float]:
     """Build a uint8 occupancy grid from warehouse dimensions and obstacle list.
 
@@ -64,6 +71,9 @@ def build_occupancy_grid(
         aisle_barrier: Scenario aisle-barrier geometry, or None for the default
             map. When given, the two barrier blocks are marked OCCUPIED on top
             of everything above.
+        static_obstacles: Scenario static-obstacle configs, rasterized OCCUPIED
+            on top of everything above. Timed obstacles are never baked -- they
+            are runtime-spawned bodies, not part of the static map.
 
     Returns:
         Tuple of ``(grid, resolution_m)`` where ``grid`` is a uint8 numpy
@@ -93,6 +103,9 @@ def build_occupancy_grid(
 
     if aisle_barrier is not None:
         rasterize_aisle_barrier(grid, aisle_barrier, config, resolution_m)
+
+    if static_obstacles:
+        rasterize_static_obstacles(grid, static_obstacles, config, resolution_m)
 
     return grid, resolution_m
 
@@ -135,6 +148,34 @@ def rasterize_aisle_barrier(
             grid,
             config,
             (barrier.center_x_m, center_y, block_half_x * 2.0, block_half_y * 2.0),
+            resolution_m,
+        )
+
+
+def rasterize_static_obstacles(
+    grid: np.ndarray,
+    static_obstacles: Sequence[StaticObstacleConfig],
+    config: WarehouseConfig,
+    resolution_m: float,
+) -> None:
+    """Mark each scenario static obstacle OCCUPIED on an existing grid.
+
+    Mirrors the USD builder's static-obstacle authoring: each obstacle spans a
+    ``size.x_m`` x ``size.y_m`` axis-aligned box centered at ``pose.x, pose.y``.
+    Yaw is ignored -- obstacles are rasterized axis-aligned only (v1). Mutates
+    ``grid`` in place.
+
+    Args:
+        grid: uint8 occupancy grid to mutate, shape ``(height_px, width_px)``.
+        static_obstacles: Scenario static-obstacle configs.
+        config: Warehouse geometry supplying the grid's world-to-cell mapping.
+        resolution_m: Meters per pixel of ``grid``.
+    """
+    for obstacle in static_obstacles:
+        _mark_obstacle(
+            grid,
+            config,
+            (obstacle.pose.x, obstacle.pose.y, obstacle.size.x_m, obstacle.size.y_m),
             resolution_m,
         )
 
@@ -314,12 +355,17 @@ def main() -> None:
 
     scenario = load_scenario(args.scenario) if args.scenario is not None else None
     barrier = scenario.aisle_barrier if scenario is not None else None
+    static_obstacles = scenario.static_obstacles if scenario is not None else ()
     default_stem = "warehouse_map" if scenario is None else f"warehouse_map_{scenario.name}"
     stem = args.output or default_stem
 
     config = WarehouseConfig()
     grid, resolution_m = build_occupancy_grid(
-        config, obstacles=[], resolution_m=args.resolution_m, aisle_barrier=barrier
+        config,
+        obstacles=[],
+        resolution_m=args.resolution_m,
+        aisle_barrier=barrier,
+        static_obstacles=static_obstacles,
     )
     write_map(grid, resolution_m, config, args.out_dir, stem=stem)
     print(f"Map written to: {args.out_dir / f'{stem}.pgm'} and {args.out_dir / f'{stem}.yaml'}")

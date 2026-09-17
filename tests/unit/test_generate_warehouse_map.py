@@ -13,12 +13,26 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from isaac.scripts.generate_warehouse_map import build_occupancy_grid, load_scenario, write_map
-from isaac.vgu_sim.config import AisleBarrierConfig, WarehouseConfig
+from isaac.vgu_sim.config import (
+    AisleBarrierConfig,
+    ObstacleSize,
+    Pose2D,
+    ScenarioConfig,
+    StaticObstacleConfig,
+    WarehouseConfig,
+)
+from tests.unit.test_m6_config import VALID_HEAD_ON
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAPS_DIR = REPO_ROOT / "ros2_ws/src/swarm_simulation/maps"
 HEAD_ON_SCENARIO = REPO_ROOT / "isaac/config/scenarios/head_on_deadlock.yaml"
+FAMILY_DIR = REPO_ROOT / "isaac/config/scenarios/family"
 BARRIER = AisleBarrierConfig(effective_width_m=0.55, center_x_m=0.0, length_m=2.0)
+BLOCKER = StaticObstacleConfig(
+    obstacle_id="blocker_west",
+    pose=Pose2D(x=-1.85, y=0.0, yaw_rad=0.0),
+    size=ObstacleSize(x_m=0.3, y_m=0.3, z_m=0.5),
+)
 
 
 def _cell_at(grid, cfg: WarehouseConfig, resolution_m: float, x: float, y: float):
@@ -193,6 +207,76 @@ def test_committed_head_on_deadlock_map_matches_scenario_yaml():
     )
     committed = np.flipud(
         np.array(Image.open(MAPS_DIR / "warehouse_map_head_on_deadlock.pgm"))
+    )
+
+    assert np.array_equal(committed, expected)
+
+
+def test_static_obstacle_footprint_is_occupied():
+    cfg = WarehouseConfig()
+    resolution_m = 0.05
+    grid, _ = build_occupancy_grid(
+        cfg, obstacles=[], resolution_m=resolution_m, static_obstacles=[BLOCKER]
+    )
+    assert _cell_at(grid, cfg, resolution_m, x=-1.85, y=0.0) == 0
+    assert _cell_at(grid, cfg, resolution_m, x=-1.75, y=0.1) == 0
+    assert _cell_at(grid, cfg, resolution_m, x=-1.95, y=-0.1) == 0
+
+
+def test_static_obstacle_flanks_stay_free():
+    cfg = WarehouseConfig()
+    resolution_m = 0.05
+    grid, _ = build_occupancy_grid(
+        cfg, obstacles=[], resolution_m=resolution_m, static_obstacles=[BLOCKER]
+    )
+    assert _cell_at(grid, cfg, resolution_m, x=-1.85, y=0.45) == 255
+    assert _cell_at(grid, cfg, resolution_m, x=-1.85, y=-0.45) == 255
+
+
+def test_timed_obstacle_is_not_baked():
+    cfg = WarehouseConfig()
+    resolution_m = 0.05
+    scenario = ScenarioConfig.model_validate(
+        {
+            **VALID_HEAD_ON,
+            "timed_obstacles": [
+                {
+                    "obstacle_id": "cart",
+                    "asset": "cart.usd",
+                    "spawn_at_sec": 5.0,
+                    "pose": {"x": 0.0, "y": 1.0, "yaw_rad": 0.0},
+                }
+            ],
+        }
+    )
+    base, _ = build_occupancy_grid(cfg, obstacles=[], resolution_m=resolution_m)
+    with_scenario, _ = build_occupancy_grid(
+        cfg,
+        obstacles=[],
+        resolution_m=resolution_m,
+        aisle_barrier=scenario.aisle_barrier,
+        static_obstacles=scenario.static_obstacles,
+    )
+    assert np.array_equal(base, with_scenario)
+
+
+@pytest.mark.parametrize(
+    "scenario_path", sorted(FAMILY_DIR.glob("head_on_asymmetric_*.yaml"))
+)
+def test_committed_family_maps_match_scenario_yamls(scenario_path: Path):
+    # A scenario yaml edit leaves the committed map stale and silently wrong,
+    # the same trap the scenario USD has; this is the staleness guard.
+    scenario = load_scenario(scenario_path)
+    cfg = WarehouseConfig()
+    expected, _ = build_occupancy_grid(
+        cfg,
+        obstacles=[],
+        resolution_m=0.05,
+        aisle_barrier=scenario.aisle_barrier,
+        static_obstacles=scenario.static_obstacles,
+    )
+    committed = np.flipud(
+        np.array(Image.open(MAPS_DIR / f"warehouse_map_{scenario.name}.pgm"))
     )
 
     assert np.array_equal(committed, expected)
