@@ -114,6 +114,23 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-17** — **Run 5 (recorded) confirms fix A: silence once parked.**
+  Same stack, 11:02–11:15 UTC. M4 reported `base goal reached` for robot_2 at
+  11:06:08 and robot_1 at 11:08:11; M5 logged `arrived at base goal` for both.
+  5 analyses in total: the initial `deadlock/yield` (distances 2.61/2.63 m),
+  then four `none` answers on robot_1 alone while it was genuinely slow in
+  the gap (`distance_to_goal_m` 3.82 → 3.46), and **none at all after
+  11:08:11** — seven minutes where run 4 made ~25 needless gpt-4o calls.
+  robot_2 was never analysed after its arrival. Ground truth at the end:
+  0.09 / 0.04 m from goals, 4.9 m apart. Runs 3 → 4 → 5: 12 → 32 → 5
+  analyses, 11 → 1 → 1 dispatches. Fix C was not exercised (no false
+  deadlock to refuse after fix B). Video + timeline:
+  `data/logs/recordings/2026-09-17/run5_failure_context_annotated.mp4`,
+  `README_run5_after_fixes_a_c.md` (git-ignored; logs and segments on the VM
+  host under `data/logs/fc_check_20260917/run5_*`). Side note: 2 682
+  `trigger suppressed … frame_ready=True` lines during the yield (the detector
+  fires at frame rate while robots are busy/cooling down — pre-existing log
+  noise, harmless).
 - **2026-09-17** — **Fixes A and C landed** (`feat: arrived signal from M4
   excuses parked robots from stall evidence`, `fix: refuse reverse when both
   robots are past the corridor on one side`). C: M3 now refuses `reverse` under
