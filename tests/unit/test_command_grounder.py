@@ -357,6 +357,46 @@ def test_ground_reverse_decision_to_backing_reverse_action():
     ]
 
 
+def test_reverse_refused_when_both_robots_beyond_corridor_same_side():
+    # Run 3 (2026-09-17): robot_2 parked at its goal (-2.46) and robot_1 at -1.22,
+    # both west of the corridor; a reverse drove robot_2 back into the aisle.
+    positions = {"robot_1": (-1.22, 0.0), "robot_2": (-2.46, 0.0)}
+
+    command = ground_reasoner_result(
+        _result("reverse"), robot_positions=positions, geometry=_geometry()
+    )
+
+    assert [action["robot_id"] for action in command["actions"]] == ["robot_1", "robot_2"]
+    for action in command["actions"]:
+        assert action["action"] == "temporary_wait"
+        assert action["parameters"]["duration_sec"] == 8.0
+        assert action["parameters"]["requested_strategy"] == "reverse"
+        assert action["parameters"]["reason"] == (
+            "reverse refused: both robots outside the corridor on "
+            "the same side; backing up would re-enter it"
+        )
+    assert command["command_id"] == "req1-reverse"
+    assert command["expected_resolution_time_sec"] == 8.0
+
+
+def test_reverse_allowed_when_one_robot_inside_corridor():
+    positions = {"robot_1": (-1.75, 0.0), "robot_2": (-0.5, 0.0)}
+
+    command = ground_reasoner_result(
+        _result("reverse"), robot_positions=positions, geometry=_geometry()
+    )
+
+    assert [action["action"] for action in command["actions"]] == ["reverse", "reverse"]
+
+
+def test_reverse_guard_not_applied_without_geometry():
+    positions = {"robot_1": (-1.22, 0.0), "robot_2": (-2.46, 0.0)}
+
+    command = ground_reasoner_result(_result("reverse"), robot_positions=positions)
+
+    assert [action["action"] for action in command["actions"]] == ["reverse", "reverse"]
+
+
 def test_filter_command_robot_ids_drops_hallucinated_robot_actions():
     command = ground_reasoner_result(_result("temporary_wait", ["robot_1", "robot_20"]))
 

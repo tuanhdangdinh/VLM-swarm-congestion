@@ -72,6 +72,25 @@ def filter_command_robot_ids(
     return {**command, "actions": actions}
 
 
+def _beyond_corridor_same_side(
+    first: tuple[float, float],
+    second: tuple[float, float],
+    geometry: SceneGeometry,
+) -> bool:
+    """True when both robots sit past the corridor mouth on the same side.
+
+    Backing either robot up from there re-enters or traverses the corridor
+    instead of opening it (run C 2026-09-16 for yield; run 3 2026-09-17 for
+    reverse, which drove a robot parked at its goal back into the aisle).
+    """
+    axis_index = 0 if geometry.corridor.axis == "x" else 1
+    d_first = first[axis_index] - geometry.corridor.center_m
+    d_second = second[axis_index] - geometry.corridor.center_m
+    half_length = geometry.corridor.half_length_m
+    both_beyond = abs(d_first) > half_length and abs(d_second) > half_length
+    return both_beyond and d_first * d_second > 0
+
+
 def ground_reasoner_result(
     result: ReasonerResult,
     robot_positions: dict[str, tuple[float, float]] | None = None,
@@ -205,18 +224,10 @@ def ground_reasoner_result(
                 yielder_coord = yielder_position[axis_index]
                 passer_coord = passer_position[axis_index]
                 if geometry is not None:
-                    d_yielder = yielder_coord - corridor_center
-                    d_passer = passer_coord - corridor_center
-                    half_length = geometry.corridor.half_length_m
-                    # Run C (2026-09-16): both robots drifted past the corridor
-                    # mouth onto the same side after a "successful" yield. The
-                    # far park point then sits on the opposite side, so a
-                    # reverse there would traverse the whole corridor rather
-                    # than open it — refuse instead of grounding that motion.
-                    yield_refused = (
-                        abs(d_yielder) > half_length
-                        and abs(d_passer) > half_length
-                        and d_yielder * d_passer > 0
+                    # The far park point would sit on the opposite side, so the
+                    # reverse would traverse the whole corridor — refuse instead.
+                    yield_refused = _beyond_corridor_same_side(
+                        yielder_position, passer_position, geometry
                     )
                 if not yield_refused:
                     # Park on the yielder's own side of the corridor, away
@@ -304,16 +315,41 @@ def ground_reasoner_result(
                     }
                 )
     elif decision.strategy == "reverse":
-        actions = [
-            {
-                "robot_id": robot_id,
-                "action": "reverse",
-                "parameters": {
-                    "backup_distance_m": backup_distance_m,
-                },
-            }
-            for robot_id in robot_ids
-        ]
+        reverse_refused = False
+        if len(robot_ids) > 1 and robot_positions is not None and geometry is not None:
+            first_position = robot_positions.get(robot_ids[0])
+            second_position = robot_positions.get(robot_ids[1])
+            if first_position is not None and second_position is not None:
+                reverse_refused = _beyond_corridor_same_side(
+                    first_position, second_position, geometry
+                )
+        if reverse_refused:
+            actions = [
+                {
+                    "robot_id": robot_id,
+                    "action": "temporary_wait",
+                    "parameters": {
+                        "duration_sec": duration_sec,
+                        "requested_strategy": "reverse",
+                        "reason": (
+                            "reverse refused: both robots outside the corridor on "
+                            "the same side; backing up would re-enter it"
+                        ),
+                    },
+                }
+                for robot_id in robot_ids
+            ]
+        else:
+            actions = [
+                {
+                    "robot_id": robot_id,
+                    "action": "reverse",
+                    "parameters": {
+                        "backup_distance_m": backup_distance_m,
+                    },
+                }
+                for robot_id in robot_ids
+            ]
     elif decision.strategy == "temporary_wait":
         actions = [
             {
