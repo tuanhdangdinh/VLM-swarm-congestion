@@ -62,6 +62,10 @@ class OrchestratorConfig(BaseModel):
     topics: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_TOPICS))
     frame_dump_dir: str = Field(min_length=1)
     decision_log_dir: str = Field(default="data/logs/m5_decisions", min_length=1)
+    # One JSONL scene snapshot per period per M5 session, independent of triggers,
+    # for offline trajectory reconstruction; None disables.
+    scene_log_dir: str | None = Field(default="data/logs/m5_scene")
+    scene_log_period_sec: float = Field(default=1.0, gt=0.0)
     keep_debug_frames: bool = False
     frame_scene_max_skew_sec: float = Field(default=1.0, ge=0.0)
     frame_downscale_width: int | None = Field(default=None, gt=0)

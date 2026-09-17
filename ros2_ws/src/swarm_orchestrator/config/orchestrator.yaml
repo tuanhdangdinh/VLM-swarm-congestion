@@ -23,6 +23,10 @@ prompt_pairwise_geometry: true
 reasoning_backend_id: openai
 frame_dump_dir: data/logs/m5_frames
 decision_log_dir: data/logs/m5_decisions
+# One M1 scene snapshot per second per M5 session (JSONL, named by session_id)
+# for offline trajectory reconstruction; set to null to disable.
+scene_log_dir: data/logs/m5_scene
+scene_log_period_sec: 1.0
 keep_debug_frames: false
 frame_scene_max_skew_sec: 1.0
 frame_downscale_width: null

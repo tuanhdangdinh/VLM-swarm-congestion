@@ -234,6 +234,13 @@ def test_orchestrator_config_arrived_radius_defaults_to_half_metre():
     assert _config_with().arrived_radius_m == 0.5
 
 
+def test_orchestrator_config_scene_log_defaults():
+    cfg = _config_with()
+    assert cfg.scene_log_dir == "data/logs/m5_scene"
+    assert cfg.scene_log_period_sec == 1.0
+    assert _config_with(scene_log_dir=None).scene_log_dir is None
+
+
 def test_orchestrator_config_prompt_pairwise_geometry_defaults_on():
     assert _config_with().prompt_pairwise_geometry is True
     assert _config_with(prompt_pairwise_geometry=False).prompt_pairwise_geometry is False

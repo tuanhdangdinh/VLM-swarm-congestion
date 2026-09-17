@@ -1,6 +1,7 @@
 """M5 reasoning pipeline adapter, frame dump, request build, and fan-out (no rclpy)."""
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -21,6 +22,7 @@ from reasoning.vlm.models import (
     ReasonerResult,
     RobotStateInput,
 )
+from reasoning.vlm.prompt_builder import build_prompt_payload
 from swarm_orchestrator.command_lifecycle import AttemptRecord
 from swarm_orchestrator.models import (
     PipelineOutcome,
@@ -171,21 +173,58 @@ def fan_out_command(
     return messages
 
 
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 def write_decision_artifact(
     output_dir: str | Path,
     outcome: PipelineOutcome,
     failure_context: FailureContext | None = None,
+    request: ReasonerRequest | None = None,
+    snapshot: SceneSnapshot | None = None,
+    distance_to_goal_m: dict[str, float] | None = None,
+    run_id: str | None = None,
+    session_id: str | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
     The artifact is intentionally written before dispatch handling in the ROS node,
-    so it captures the M2 result even when M3 grounding terminates the cycle.
+    so it captures the M2 result even when M3 grounding terminates the cycle. With
+    `request` it also records the rendered prompt (re-built by the pure prompt
+    builder, so the base prompt the VLM saw is reproducible; a re-ask suffix on a
+    retry is not captured) with SHA-256 hashes for the pre-registration freeze,
+    and with `snapshot` the M1 scene the request was built from.
+
+    Args:
+        output_dir: Directory the `<request_id>.json` file is written into.
+        outcome: The pipeline outcome to record.
+        failure_context: Previous-attempt block attached to this request, if any.
+        request: The `ReasonerRequest` sent to M2, for prompt persistence.
+        snapshot: The M1 scene snapshot the request was built from.
+        distance_to_goal_m: The detector's per-robot distance at trigger time.
+        run_id: Scenario run identifier (`VGU_RUN_ID`), if the launcher set one.
+        session_id: Identifier of the M5 process that wrote the artifact.
+
+    Returns:
+        The artifact path.
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     result = outcome.reasoner_result
+    prompt = None
+    if request is not None:
+        rendered = build_prompt_payload(request)
+        prompt = {
+            "system_prompt": rendered.system_prompt,
+            "user_prompt": rendered.user_prompt,
+            "system_sha256": _sha256(rendered.system_prompt),
+            "user_sha256": _sha256(rendered.user_prompt),
+        }
     payload = {
         "request_id": outcome.request_id,
+        "run_id": run_id,
+        "session_id": session_id,
         "terminal_stage": outcome.terminal_stage.value,
         "failure_reason": outcome.failure_reason,
         "grounded_command_present": outcome.grounded_command is not None,
@@ -197,10 +236,41 @@ def write_decision_artifact(
         "failure_context": (
             None if failure_context is None else failure_context.model_dump(mode="json")
         ),
+        "prompt": prompt,
+        "scene": None if snapshot is None else snapshot.model_dump(mode="json"),
+        "distance_to_goal_m": dict(distance_to_goal_m or {}),
     }
     artifact_path = output_path / f"{outcome.request_id}.json"
     artifact_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return artifact_path
+
+
+def append_scene_log(
+    path: str | Path,
+    snapshot: SceneSnapshot,
+    session_id: str,
+    run_id: str | None,
+    now: float,
+) -> None:
+    """Append one M1 scene snapshot as a JSON line for offline trajectory analysis.
+
+    Args:
+        path: JSONL file (created with its parent directory if missing).
+        snapshot: The scene to record.
+        session_id: Identifier of the M5 process writing the log.
+        run_id: Scenario run identifier, or None if the launcher set none.
+        now: Monotonic time of the record.
+    """
+    log_path = Path(path)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "t": now,
+        "session_id": session_id,
+        "run_id": run_id,
+        "scene": snapshot.model_dump(mode="json"),
+    }
+    with open(log_path, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, sort_keys=True) + "\n")
 
 
 class ReasoningPipeline(Protocol):

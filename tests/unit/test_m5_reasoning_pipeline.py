@@ -9,6 +9,7 @@ from swarm_orchestrator.command_lifecycle import AttemptRecord
 from swarm_orchestrator.models import PipelineOutcome, RobotView, SceneSnapshot, TerminalStage
 from swarm_orchestrator.reasoning_pipeline import (
     InProcessPipeline,
+    append_scene_log,
     build_failure_context,
     build_reasoner_request,
     dump_frame_png,
@@ -23,6 +24,7 @@ from reasoning.vlm.models import (
     ReasonerDiagnostics,
     ReasonerResult,
 )
+from reasoning.vlm.prompt_builder import build_prompt_payload
 
 
 def _snapshot():
@@ -498,3 +500,58 @@ def test_build_failure_context_omits_executed_note_when_it_matches_strategy():
 def test_write_decision_artifact_writes_null_failure_context_when_absent(tmp_path):
     payload = json.loads(write_decision_artifact(tmp_path, _ok_outcome()).read_text())
     assert payload["failure_context"] is None
+
+
+def test_write_decision_artifact_records_run_and_session_ids(tmp_path):
+    path = write_decision_artifact(tmp_path, _ok_outcome(), run_id="20260917_1101", session_id="s1")
+    payload = json.loads(path.read_text())
+    assert payload["run_id"] == "20260917_1101"
+    assert payload["session_id"] == "s1"
+
+
+def test_write_decision_artifact_nulls_measurement_fields_when_absent(tmp_path):
+    payload = json.loads(write_decision_artifact(tmp_path, _ok_outcome()).read_text())
+    assert payload["run_id"] is None
+    assert payload["session_id"] is None
+    assert payload["prompt"] is None
+    assert payload["scene"] is None
+    assert payload["distance_to_goal_m"] == {}
+
+
+def test_write_decision_artifact_records_rendered_prompt_with_hashes(tmp_path):
+    import hashlib
+
+    request = build_reasoner_request("r1", _snapshot(), "/tmp/r1.png")
+    path = write_decision_artifact(tmp_path, _ok_outcome(), request=request)
+    payload = json.loads(path.read_text())
+    expected = build_prompt_payload(request)
+    assert payload["prompt"]["user_prompt"] == expected.user_prompt
+    assert payload["prompt"]["system_prompt"] == expected.system_prompt
+    assert payload["prompt"]["user_sha256"] == (
+        hashlib.sha256(expected.user_prompt.encode()).hexdigest()
+    )
+    assert payload["prompt"]["system_sha256"] == (
+        hashlib.sha256(expected.system_prompt.encode()).hexdigest()
+    )
+
+
+def test_write_decision_artifact_records_scene_snapshot_and_distances(tmp_path):
+    path = write_decision_artifact(
+        tmp_path, _ok_outcome(), snapshot=_snapshot(), distance_to_goal_m={"robot_0": 1.5}
+    )
+    payload = json.loads(path.read_text())
+    assert payload["scene"]["stamp"] == 5.0
+    assert payload["scene"]["robots"][0]["robot_id"] == "robot_0"
+    assert payload["distance_to_goal_m"] == {"robot_0": 1.5}
+
+
+def test_append_scene_log_appends_one_json_line_per_call(tmp_path):
+    path = tmp_path / "s1.jsonl"
+    append_scene_log(path, _snapshot(), session_id="s1", run_id=None, now=10.0)
+    append_scene_log(path, _snapshot(), session_id="s1", run_id="20260917_1101", now=11.0)
+    lines = [json.loads(line) for line in path.read_text().splitlines()]
+    assert [line["t"] for line in lines] == [10.0, 11.0]
+    assert lines[0]["session_id"] == "s1"
+    assert lines[0]["run_id"] is None
+    assert lines[1]["run_id"] == "20260917_1101"
+    assert lines[0]["scene"]["frame_id"] == "cam0"

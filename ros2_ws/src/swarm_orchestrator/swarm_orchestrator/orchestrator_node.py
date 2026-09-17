@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import os
 import time
+import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 
@@ -24,6 +26,7 @@ from reasoning.vlm.models import (
     LlamaServerBackendConfig,
     OpenAIBackendConfig,
     ReasonerConfig,
+    ReasonerRequest,
 )
 from reasoning.vlm.reasoner import Reasoner
 from swarm_orchestrator.command_lifecycle import (
@@ -45,6 +48,7 @@ from swarm_orchestrator.models import (
 from swarm_orchestrator.reasoning_pipeline import (
     InProcessPipeline,
     ReasoningPipeline,
+    append_scene_log,
     build_failed_outcome,
     build_failure_context,
     build_reasoner_request,
@@ -128,6 +132,14 @@ class OrchestratorNode(Node):
         # Context attached to the in-flight request; consumed by _handle_outcome so
         # the decision artifact records exactly what the VLM was told.
         self._pending_failure_context: FailureContext | None = None
+        self._pending_request: ReasonerRequest | None = None
+        self._pending_snapshot = None
+        self._pending_distances: dict[str, float] = {}
+        # Groups artifacts per M5 process; VGU_RUN_ID (set by the launcher) names
+        # the scenario run across all modules.
+        self._session_id = uuid.uuid4().hex
+        self._run_id = os.environ.get("VGU_RUN_ID") or None
+        self._last_scene_log_at = float("-inf")
         self._frame_rgb = None
         self._frame_stamp: float | None = None
         self._latest_snapshot = None
@@ -152,6 +164,9 @@ class OrchestratorNode(Node):
 
         Path(self._config.frame_dump_dir).mkdir(parents=True, exist_ok=True)
         Path(self._config.decision_log_dir).mkdir(parents=True, exist_ok=True)
+        if self._config.scene_log_dir:
+            Path(self._config.scene_log_dir).mkdir(parents=True, exist_ok=True)
+        self.get_logger().info(f"session_id={self._session_id} run_id={self._run_id}")
         self._publish_registry()
 
     # ---- config ----
@@ -177,6 +192,21 @@ class OrchestratorNode(Node):
             return
         self._latest_snapshot = snapshot
         now = time.monotonic()
+        if (
+            self._config.scene_log_dir
+            and now - self._last_scene_log_at >= self._config.scene_log_period_sec
+        ):
+            self._last_scene_log_at = now
+            try:
+                append_scene_log(
+                    Path(self._config.scene_log_dir) / f"{self._session_id}.jsonl",
+                    snapshot,
+                    self._session_id,
+                    self._run_id,
+                    now,
+                )
+            except OSError as exc:
+                self.get_logger().error(f"scene log write failed: {exc}")
         event = self._detector.update(snapshot, self._effective_goal, now)
         if event is None:
             return
@@ -194,7 +224,9 @@ class OrchestratorNode(Node):
                 f"starting analysis request={directive.request_id} robots={event.involved_robots} "
                 f"reason={event.reason} distance_to_goal_m={distances}"
             )
-            self._submit_pipeline(directive.request_id, snapshot, event.involved_robots)
+            self._submit_pipeline(
+                directive.request_id, snapshot, event.involved_robots, event.distance_to_goal_m
+            )
         elif directive.kind is DirectiveKind.SUPPRESSED:
             self.get_logger().info(
                 f"trigger suppressed robots={event.involved_robots} frame_ready={frame_ready}"
@@ -247,7 +279,7 @@ class OrchestratorNode(Node):
             frame_ready=self._frame_is_fresh(snapshot.stamp),
         )
         if directive.kind is DirectiveKind.START_ANALYSIS:
-            self._submit_pipeline(directive.request_id, snapshot, event.involved_robots)
+            self._submit_pipeline(directive.request_id, snapshot, event.involved_robots, {})
             response.accepted = True
             response.analysis_id = directive.request_id
             response.message = "analysis started"
@@ -275,41 +307,62 @@ class OrchestratorNode(Node):
 
     # ---- pipeline lifecycle ----
 
-    def _submit_pipeline(self, request_id: str, snapshot, robots: list[str]) -> None:
+    def _submit_pipeline(
+        self,
+        request_id: str,
+        snapshot,
+        robots: list[str],
+        distance_to_goal_m: dict[str, float],
+    ) -> None:
         frame = self._frame_rgb
         downscale = self._config.frame_downscale_width
-        dump_dir = self._config.frame_dump_dir
+        image_path = str(Path(self._config.frame_dump_dir) / f"{request_id}.png")
         now = time.monotonic()
         attempt = self._attempts.context_for(robots, now)
         failure_context = None if attempt is None else build_failure_context(attempt, now)
-        self._pending_failure_context = failure_context
         if attempt is not None:
             self.get_logger().info(
                 f"request={request_id} failure_context attached command={attempt.command_id} "
                 f"strategy={attempt.strategy} executed={attempt.executed_strategy} "
                 f"outcome={attempt.outcome_status}"
             )
+        # Built here, not in the worker, so the artifact can record the exact request.
+        request = build_reasoner_request(
+            request_id,
+            snapshot,
+            image_path,
+            failure_context=failure_context,
+            include_pairwise_geometry=self._config.prompt_pairwise_geometry,
+        )
+        self._pending_failure_context = failure_context
+        self._pending_request = request
+        self._pending_snapshot = snapshot
+        self._pending_distances = dict(distance_to_goal_m)
 
         def task() -> PipelineOutcome:
-            image_path = str(Path(dump_dir) / f"{request_id}.png")
             dump_frame_png(frame, image_path, downscale)
-            request = build_reasoner_request(
-                request_id,
-                snapshot,
-                image_path,
-                failure_context=failure_context,
-                include_pairwise_geometry=self._config.prompt_pairwise_geometry,
-            )
             return self._pipeline.run(request)
 
         self._future = self._executor.submit(task)
 
     def _handle_outcome(self, outcome: PipelineOutcome, now: float) -> None:
         failure_context = self._pending_failure_context
+        request, snapshot = self._pending_request, self._pending_snapshot
+        distances = self._pending_distances
         self._pending_failure_context = None
+        self._pending_request = None
+        self._pending_snapshot = None
+        self._pending_distances = {}
         try:
             artifact_path = write_decision_artifact(
-                self._config.decision_log_dir, outcome, failure_context=failure_context
+                self._config.decision_log_dir,
+                outcome,
+                failure_context=failure_context,
+                request=request,
+                snapshot=snapshot,
+                distance_to_goal_m=distances,
+                run_id=self._run_id,
+                session_id=self._session_id,
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
         except OSError as exc:
