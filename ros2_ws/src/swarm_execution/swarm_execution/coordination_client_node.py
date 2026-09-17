@@ -69,6 +69,9 @@ class CoordinationClientNode(Node):
             CoordinationStatus, "/coordination/status", self._on_status, 10
         )
         self.create_subscription(String, "/safety/holds", self._on_holds, 10)
+        # Reports base-goal arrival to M5 (command_id "base_mission"); the command
+        # bus's own statuses keep their command ids, so the two never collide.
+        self._status_pub = self.create_publisher(CoordinationStatus, "/coordination/status", 10)
         self.create_timer(self.RETRY_PERIOD_SEC, self._on_retry)
         self.get_logger().info("Coordination client started.")
 
@@ -129,6 +132,14 @@ class CoordinationClientNode(Node):
             self._driver.on_goal_accepted(robot_id, goal)
         elif status == "FAILED":
             self._driver.on_goal_rejected(robot_id)
+        elif status == "COMPLETED":
+            msg = CoordinationStatus()
+            msg.command_id = "base_mission"
+            msg.robot_id = robot_id
+            msg.status = "COMPLETED"
+            msg.detail = f"goal reached ({goal[0]:.2f}, {goal[1]:.2f})"
+            self._status_pub.publish(msg)
+            self.get_logger().info(f"base goal reached robot={robot_id} goal={goal}")
 
 
 def main(args=None):

@@ -48,6 +48,11 @@ class OrchestratorConfig(BaseModel):
     # Nav2's xy_goal_tolerance is 0.1 m; an arrived robot sits inside that band
     # forever and must not be read as stalled by the progress-stall check.
     goal_reached_tolerance_m: float = Field(default=0.15, ge=0.0)
+    # Once M4 reports a robot's base goal reached (Nav2 success), M1 may still
+    # place it outside goal_reached_tolerance_m (camera bias near the ROI edge);
+    # the arrived mark excuses it from stall evidence while it stays within this
+    # radius of that goal, and lapses once it is driven farther away.
+    arrived_radius_m: float = Field(default=0.5, ge=0.0)
     proximity_threshold_m: float = Field(default=0.5, ge=0.0)
     proximity_slow_speed_mps: float = Field(default=0.05, ge=0.0)
     cooldown_sec: float = Field(ge=0.0)
@@ -123,6 +128,9 @@ class CongestionEvent(BaseModel):
     stall_durations_sec: dict[str, float]
     detected_at: float
     reason: str
+    # M1's distance-to-goal per progress-stalled robot, for diagnosing spurious
+    # triggers on parked robots; close/slow-only robots may be absent.
+    distance_to_goal_m: dict[str, float] = Field(default_factory=dict)
 
     @field_validator("involved_robots")
     @classmethod

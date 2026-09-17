@@ -38,6 +38,21 @@ class CongestionDetector:
         self._config = config
         self._progress: dict[str, _Progress] = {}
         self._close_pair_since: dict[tuple[str, str], float] = {}
+        self._arrived: dict[str, tuple[float, float]] = {}
+
+    def mark_arrived(self, robot_id: str, goal: tuple[float, float]) -> None:
+        """Record that M4 reported `robot_id` reached `goal` (Nav2 success).
+
+        The robot is then excused from progress-stall evidence while M1 keeps
+        it within `arrived_radius_m` of that goal; the mark lapses once it is
+        seen farther away or its effective goal changes.
+
+        Args:
+            robot_id: Robot whose base-mission goal succeeded.
+            goal: The goal it reached, as `(x, y)` in metres.
+        """
+        self._arrived[robot_id] = (float(goal[0]), float(goal[1]))
+        self._progress.pop(robot_id, None)
 
     def update(
         self,
@@ -60,6 +75,7 @@ class CongestionDetector:
             return None
 
         stalled: dict[str, float] = {}
+        distances: dict[str, float] = {}
         seen: set[str] = set()
         for robot in scene.robots:
             seen.add(robot.robot_id)
@@ -68,6 +84,12 @@ class CongestionDetector:
                 self._progress.pop(robot.robot_id, None)
                 continue
             distance = math.dist((robot.x, robot.y), goal)
+            arrived_goal = self._arrived.get(robot.robot_id)
+            if arrived_goal is not None:
+                if arrived_goal == goal and distance <= self._config.arrived_radius_m:
+                    self._progress.pop(robot.robot_id, None)
+                    continue
+                self._arrived.pop(robot.robot_id, None)
             if distance <= self._config.goal_reached_tolerance_m:
                 # Arrived: clear any bookkeeping from a stall en route so a robot
                 # that reaches its goal stops being reported, not just stops
@@ -84,6 +106,7 @@ class CongestionDetector:
             stall = now - state.last_improved_at
             if is_congested(stall, self._config.stall_threshold_sec):
                 stalled[robot.robot_id] = stall
+                distances[robot.robot_id] = distance
 
         close_stalled = self._update_close_slow_pairs(scene, now)
         stalled.update(close_stalled)
@@ -104,6 +127,7 @@ class CongestionDetector:
             stall_durations_sec=stalled,
             detected_at=now,
             reason=reason,
+            distance_to_goal_m=distances,
         )
 
     def _update_close_slow_pairs(

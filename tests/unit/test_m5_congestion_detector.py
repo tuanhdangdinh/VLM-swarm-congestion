@@ -45,6 +45,41 @@ def goal_of(rid):
     return _GOALS.get(rid)
 
 
+def test_arrived_robot_within_radius_is_not_stalled_even_outside_goal_tolerance():
+    # Nav2 reported the base goal reached; M1 sees the parked robot 0.3 m off
+    # (edge bias) — outside goal_reached_tolerance_m but inside arrived_radius_m.
+    det = CongestionDetector(_config())
+    det.mark_arrived("robot_0", (10.0, 0.0))
+    det.update(_snapshot([_robot("robot_0", 9.7, 0.0)]), goal_of, now=0.0)
+    snap = _snapshot([_robot("robot_0", 9.7, 0.0)], stamp=11.0)
+    assert det.update(snap, goal_of, now=11.0) is None
+
+
+def test_arrived_mark_drops_once_robot_is_driven_beyond_the_radius():
+    det = CongestionDetector(_config())
+    det.mark_arrived("robot_0", (10.0, 0.0))
+    det.update(_snapshot([_robot("robot_0", 9.0, 0.0)]), goal_of, now=0.0)
+    event = det.update(_snapshot([_robot("robot_0", 9.0, 0.0)], stamp=11.0), goal_of, now=11.0)
+    assert event is not None
+    assert event.involved_robots == ["robot_0"]
+
+
+def test_arrived_mark_applies_only_to_the_goal_it_was_reached_for():
+    det = CongestionDetector(_config())
+    det.mark_arrived("robot_0", (4.0, 0.0))
+    det.update(_snapshot([_robot("robot_0", 9.7, 0.0)]), goal_of, now=0.0)
+    event = det.update(_snapshot([_robot("robot_0", 9.7, 0.0)], stamp=11.0), goal_of, now=11.0)
+    assert event is not None
+
+
+def test_event_reports_each_stalled_robot_distance_to_goal():
+    det = CongestionDetector(_config())
+    det.update(_snapshot([_robot("robot_0", 5.0, 0.0)]), goal_of, now=0.0)
+    event = det.update(_snapshot([_robot("robot_0", 5.0, 0.0)], stamp=11.0), goal_of, now=11.0)
+    assert event is not None
+    assert event.distance_to_goal_m == {"robot_0": 5.0}
+
+
 def test_no_event_before_threshold_elapses():
     det = CongestionDetector(_config())
     assert det.update(_snapshot([_robot("robot_0", 5.0, 0.0)], stamp=0.0), goal_of, now=0.0) is None

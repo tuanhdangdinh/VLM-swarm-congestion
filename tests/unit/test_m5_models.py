@@ -228,3 +228,17 @@ def test_orchestrator_config_accepts_zero_failure_context_window_as_disabled():
 
 def test_orchestrator_config_accepts_failure_context_window_above_bound():
     assert _config_with(failure_context_window_sec=27.5).failure_context_window_sec == 27.5
+
+
+def test_orchestrator_config_arrived_radius_defaults_to_half_metre():
+    assert _config_with().arrived_radius_m == 0.5
+
+
+def test_congestion_event_distance_to_goal_defaults_to_empty():
+    event = CongestionEvent(
+        involved_robots=["robot_0"],
+        stall_durations_sec={"robot_0": 12.0},
+        detected_at=1.0,
+        reason="x",
+    )
+    assert event.distance_to_goal_m == {}

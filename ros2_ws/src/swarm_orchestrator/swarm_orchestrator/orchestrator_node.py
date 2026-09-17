@@ -189,9 +189,10 @@ class OrchestratorNode(Node):
             frame_ready=frame_ready,
         )
         if directive.kind is DirectiveKind.START_ANALYSIS:
+            distances = {rid: round(d, 2) for rid, d in event.distance_to_goal_m.items()}
             self.get_logger().info(
                 f"starting analysis request={directive.request_id} robots={event.involved_robots} "
-                f"reason={event.reason}"
+                f"reason={event.reason} distance_to_goal_m={distances}"
             )
             self._submit_pipeline(directive.request_id, snapshot, event.involved_robots)
         elif directive.kind is DirectiveKind.SUPPRESSED:
@@ -200,6 +201,15 @@ class OrchestratorNode(Node):
             )
 
     def _on_status(self, msg: CoordinationStatus) -> None:
+        if msg.command_id == "base_mission":
+            # M4's coordination client reports Nav2 success on a base goal; not a
+            # coordination command, so it never reaches the tracker.
+            if msg.status.upper() == "COMPLETED":
+                goal = self._effective_goal(msg.robot_id)
+                if goal is not None:
+                    self._detector.mark_arrived(msg.robot_id, goal)
+                    self.get_logger().info(f"robot {msg.robot_id} arrived at base goal {goal}")
+            return
         self._tracker.apply_status(msg.command_id, msg.robot_id, msg.status)
         if self._tracker.is_resolved(msg.command_id):
             self._resolve_command(msg.command_id)
