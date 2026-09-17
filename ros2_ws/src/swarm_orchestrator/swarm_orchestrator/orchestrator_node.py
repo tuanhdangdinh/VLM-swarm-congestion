@@ -20,12 +20,19 @@ from reasoning.rag.command_grounder import filter_command_robot_ids, ground_reas
 from reasoning.vlm import build_backend
 from reasoning.vlm.models import (
     AnthropicBackendConfig,
+    FailureContext,
     LlamaServerBackendConfig,
     OpenAIBackendConfig,
     ReasonerConfig,
 )
 from reasoning.vlm.reasoner import Reasoner
-from swarm_orchestrator.command_lifecycle import CommandRecord, CommandTracker, CooldownTracker
+from swarm_orchestrator.command_lifecycle import (
+    AttemptMemory,
+    CommandRecord,
+    CommandTracker,
+    CooldownTracker,
+    summarize_outcome,
+)
 from swarm_orchestrator.congestion_detector import CongestionDetector
 from swarm_orchestrator.models import (
     CongestionEvent,
@@ -38,6 +45,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     InProcessPipeline,
     ReasoningPipeline,
     build_failed_outcome,
+    build_failure_context,
     build_reasoner_request,
     dump_frame_png,
     fan_out_command,
@@ -108,12 +116,16 @@ class OrchestratorNode(Node):
         self._machine = OrchestratorStateMachine()
         self._tracker = CommandTracker()
         self._cooldown = CooldownTracker(self._config.cooldown_sec)
+        self._attempts = AttemptMemory(self._config.failure_context_window_sec)
         self._registry = TaskRegistry()
         self._registry.load_initial(self._config)
 
         self._bridge = CvBridge()
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._future: Future[PipelineOutcome] | None = None
+        # Context attached to the in-flight request; consumed by _handle_outcome so
+        # the decision artifact records exactly what the VLM was told.
+        self._pending_failure_context: FailureContext | None = None
         self._frame_rgb = None
         self._frame_stamp: float | None = None
         self._latest_snapshot = None
@@ -179,7 +191,7 @@ class OrchestratorNode(Node):
                 f"starting analysis request={directive.request_id} robots={event.involved_robots} "
                 f"reason={event.reason}"
             )
-            self._submit_pipeline(directive.request_id, snapshot)
+            self._submit_pipeline(directive.request_id, snapshot, event.involved_robots)
         elif directive.kind is DirectiveKind.SUPPRESSED:
             self.get_logger().info(
                 f"trigger suppressed robots={event.involved_robots} frame_ready={frame_ready}"
@@ -223,7 +235,7 @@ class OrchestratorNode(Node):
             frame_ready=self._frame_is_fresh(snapshot.stamp),
         )
         if directive.kind is DirectiveKind.START_ANALYSIS:
-            self._submit_pipeline(directive.request_id, snapshot)
+            self._submit_pipeline(directive.request_id, snapshot, event.involved_robots)
             response.accepted = True
             response.analysis_id = directive.request_id
             response.message = "analysis started"
@@ -251,22 +263,37 @@ class OrchestratorNode(Node):
 
     # ---- pipeline lifecycle ----
 
-    def _submit_pipeline(self, request_id: str, snapshot) -> None:
+    def _submit_pipeline(self, request_id: str, snapshot, robots: list[str]) -> None:
         frame = self._frame_rgb
         downscale = self._config.frame_downscale_width
         dump_dir = self._config.frame_dump_dir
+        now = time.monotonic()
+        attempt = self._attempts.context_for(robots, now)
+        failure_context = None if attempt is None else build_failure_context(attempt, now)
+        self._pending_failure_context = failure_context
+        if attempt is not None and failure_context is not None:
+            self.get_logger().info(
+                f"request={request_id} failure_context attached command={attempt.command_id} "
+                f"strategy={failure_context.strategy} outcome={failure_context.outcome_status}"
+            )
 
         def task() -> PipelineOutcome:
             image_path = str(Path(dump_dir) / f"{request_id}.png")
             dump_frame_png(frame, image_path, downscale)
-            request = build_reasoner_request(request_id, snapshot, image_path)
+            request = build_reasoner_request(
+                request_id, snapshot, image_path, failure_context=failure_context
+            )
             return self._pipeline.run(request)
 
         self._future = self._executor.submit(task)
 
     def _handle_outcome(self, outcome: PipelineOutcome, now: float) -> None:
+        failure_context = self._pending_failure_context
+        self._pending_failure_context = None
         try:
-            artifact_path = write_decision_artifact(self._config.decision_log_dir, outcome)
+            artifact_path = write_decision_artifact(
+                self._config.decision_log_dir, outcome, failure_context=failure_context
+            )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
         except OSError as exc:
             self.get_logger().error(f"decision artifact write failed: {exc}")
@@ -300,6 +327,14 @@ class OrchestratorNode(Node):
                 request_id=outcome.request_id,
             )
         )
+        yield_robot = next((m[1] for m in messages if m[2] == "yield"), None)
+        self._attempts.record(
+            grounded["command_id"],
+            robot_ids,
+            outcome.reasoner_result.decision.strategy,
+            yield_robot,
+            time.monotonic(),
+        )
         for command_id, robot_id, action, params_json, _timeout in messages:
             msg = CoordinationCommand()
             msg.command_id = command_id
@@ -326,13 +361,15 @@ class OrchestratorNode(Node):
         robots = self._tracker.robots_of(command_id)
         for robot_id in robots:
             self._registry.clear_override(robot_id)
-        all_completed = all(
-            self._tracker.state_of(command_id, r) and
-            self._tracker.state_of(command_id, r).name == "COMPLETED"
-            for r in robots
-        )
-        self._machine.on_command_resolved(robots, all_completed)
-        self._cooldown.start(robots, time.monotonic())
+        states = {
+            r: s for r in robots if (s := self._tracker.state_of(command_id, r)) is not None
+        }
+        outcome_status = summarize_outcome(states)
+        now = time.monotonic()
+        self._attempts.resolve(command_id, outcome_status, now)
+        self.get_logger().info(f"command {command_id} resolved status={outcome_status}")
+        self._machine.on_command_resolved(robots, outcome_status == "completed")
+        self._cooldown.start(robots, now)
         self._publish_registry()
 
     # ---- helpers ----
