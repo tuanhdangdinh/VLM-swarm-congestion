@@ -15,11 +15,13 @@ from reasoning.rag.command_grounder import (
 )
 from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import (
+    FailureContext,
     ReasonerDiagnostics,
     ReasonerRequest,
     ReasonerResult,
     RobotStateInput,
 )
+from swarm_orchestrator.command_lifecycle import AttemptRecord
 from swarm_orchestrator.models import (
     PipelineOutcome,
     SceneSnapshot,
@@ -69,7 +71,10 @@ def build_failed_outcome(request_id: str, reason: str) -> PipelineOutcome:
 
 
 def build_reasoner_request(
-    request_id: str, snapshot: SceneSnapshot, image_path: str
+    request_id: str,
+    snapshot: SceneSnapshot,
+    image_path: str,
+    failure_context: FailureContext | None = None,
 ) -> ReasonerRequest:
     """Project a SceneSnapshot plus a dumped image path into a ReasonerRequest."""
     robot_states = [
@@ -90,6 +95,37 @@ def build_reasoner_request(
         frame_id=snapshot.frame_id,
         stamp=snapshot.stamp,
         robot_states=robot_states,
+        failure_context=failure_context,
+    )
+
+
+def build_failure_context(record: AttemptRecord, now: float) -> FailureContext:
+    """Project M5's last resolved attempt into the M2 previous-attempt block (rev-8 A.1).
+
+    Args:
+        record: A resolved `AttemptRecord` from `AttemptMemory.context_for`.
+        now: Monotonic time of the new analysis, for the elapsed-seconds wording.
+
+    Returns:
+        A `FailureContext` whose `failure_detail` follows the spec wording.
+    """
+    resolved_at = record.resolved_at if record.resolved_at is not None else now
+    status = record.outcome_status if record.outcome_status is not None else "unknown"
+    if status == "completed":
+        detail = (
+            f"{record.strategy} completed {now - resolved_at:.0f} s ago; "
+            "congestion re-detected for the same robots"
+        )
+    else:
+        detail = (
+            f"{record.strategy} {status} after {resolved_at - record.dispatched_at:.0f} s; "
+            "congestion re-detected for the same robots"
+        )
+    return FailureContext(
+        strategy=record.strategy,
+        yield_robot=record.yield_robot,
+        outcome_status=status,
+        failure_detail=detail,
     )
 
 
@@ -134,7 +170,11 @@ def fan_out_command(
     return messages
 
 
-def write_decision_artifact(output_dir: str | Path, outcome: PipelineOutcome) -> Path:
+def write_decision_artifact(
+    output_dir: str | Path,
+    outcome: PipelineOutcome,
+    failure_context: FailureContext | None = None,
+) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
     The artifact is intentionally written before dispatch handling in the ROS node,
@@ -153,6 +193,9 @@ def write_decision_artifact(output_dir: str | Path, outcome: PipelineOutcome) ->
         ),
         "diagnostics": result.diagnostics.model_dump(mode="json"),
         "raw_text": result.raw_text,
+        "failure_context": (
+            None if failure_context is None else failure_context.model_dump(mode="json")
+        ),
     }
     artifact_path = output_path / f"{outcome.request_id}.json"
     artifact_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")

@@ -5,9 +5,11 @@ import json
 
 import numpy as np
 import pytest
+from swarm_orchestrator.command_lifecycle import AttemptRecord
 from swarm_orchestrator.models import PipelineOutcome, RobotView, SceneSnapshot, TerminalStage
 from swarm_orchestrator.reasoning_pipeline import (
     InProcessPipeline,
+    build_failure_context,
     build_reasoner_request,
     dump_frame_png,
     fan_out_command,
@@ -17,6 +19,7 @@ from swarm_orchestrator.reasoning_pipeline import (
 from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
 from reasoning.vlm.models import (
     CongestionDecision,
+    FailureContext,
     ReasonerDiagnostics,
     ReasonerResult,
 )
@@ -374,3 +377,88 @@ def test_write_decision_artifact_preserves_m2_result_on_grounding_failure(tmp_pa
     assert payload["diagnostics"]["backend_id"] == "openai"
     assert payload["diagnostics"]["token_usage"] == {"total_tokens": 42}
     assert payload["raw_text"] == '{"congestion_detected": true}'
+
+
+# ---- failure context ----
+
+def _attempt(status: str = "completed", resolved_at: float = 100.0) -> AttemptRecord:
+    return AttemptRecord(
+        command_id="c1",
+        robot_ids=["robot_1", "robot_2"],
+        strategy="yield",
+        yield_robot="robot_1",
+        dispatched_at=40.0,
+        resolved_at=resolved_at,
+        outcome_status=status,
+    )
+
+
+def _ok_outcome() -> PipelineOutcome:
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type="deadlock",
+        involved_robots=["robot_1", "robot_2"],
+        root_cause="head-on aisle conflict",
+        strategy="yield",
+        justification="both robots are stopped in opposing directions",
+    )
+    result = ReasonerResult(
+        request_id="r1",
+        decision=decision,
+        raw_text='{"congestion_detected": true}',
+        diagnostics=ReasonerDiagnostics(
+            request_id="r1", backend_id="openai", attempts=1, parse_status="valid"
+        ),
+    )
+    return PipelineOutcome(
+        request_id="r1",
+        reasoner_result=result,
+        grounded_command={"command_id": "c1", "actions": []},
+        terminal_stage=TerminalStage.OK,
+    )
+
+
+def test_build_failure_context_names_yielder_and_seconds_since_completion():
+    ctx = build_failure_context(_attempt(), now=131.0)
+    assert ctx.strategy == "yield"
+    assert ctx.yield_robot == "robot_1"
+    assert ctx.outcome_status == "completed"
+    assert ctx.failure_detail == (
+        "yield completed 31 s ago; congestion re-detected for the same robots"
+    )
+
+
+def test_build_failure_context_reports_run_time_for_timed_out_attempt():
+    ctx = build_failure_context(_attempt(status="timed_out", resolved_at=60.0), now=90.0)
+    assert ctx.outcome_status == "timed_out"
+    assert ctx.failure_detail == (
+        "yield timed_out after 20 s; congestion re-detected for the same robots"
+    )
+
+
+def test_build_reasoner_request_passes_failure_context_through():
+    ctx = FailureContext(strategy="yield", outcome_status="failed", failure_detail="d")
+    with_ctx = build_reasoner_request("r1", _snapshot(), "/tmp/r1.png", failure_context=ctx)
+    without = build_reasoner_request("r1", _snapshot(), "/tmp/r1.png")
+    assert with_ctx.failure_context == ctx
+    assert without.failure_context is None
+
+
+def test_write_decision_artifact_records_failure_context(tmp_path):
+    ctx = FailureContext(
+        strategy="yield", yield_robot="robot_1", outcome_status="completed", failure_detail="d"
+    )
+    path = write_decision_artifact(tmp_path, _ok_outcome(), failure_context=ctx)
+    payload = json.loads(path.read_text())
+    assert payload["failure_context"] == {
+        "strategy": "yield",
+        "yield_robot": "robot_1",
+        "crossing_order": None,
+        "outcome_status": "completed",
+        "failure_detail": "d",
+    }
+
+
+def test_write_decision_artifact_writes_null_failure_context_when_absent(tmp_path):
+    payload = json.loads(write_decision_artifact(tmp_path, _ok_outcome()).read_text())
+    assert payload["failure_context"] is None
