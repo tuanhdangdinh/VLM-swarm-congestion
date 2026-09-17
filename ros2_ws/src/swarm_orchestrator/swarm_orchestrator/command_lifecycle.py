@@ -115,3 +115,86 @@ class CooldownTracker:
 
     def active_robots(self, now: float) -> set[str]:
         return {rid for rid, until in self._until.items() if until > now}
+
+
+def summarize_outcome(states: dict[str, CommandState]) -> str:
+    """Collapse per-robot terminal states into one attempt outcome.
+
+    Args:
+        states: Terminal `CommandState` per robot of a resolved command.
+
+    Returns:
+        `"timed_out"` if any robot timed out, else `"failed"` if any failed,
+        else `"completed"`.
+    """
+    values = set(states.values())
+    if CommandState.TIMED_OUT in values:
+        return "timed_out"
+    if CommandState.FAILED in values:
+        return "failed"
+    return "completed"
+
+
+@dataclass
+class AttemptRecord:
+    """The last dispatched coordination attempt, kept for re-analysis context."""
+
+    command_id: str
+    robot_ids: list[str]
+    strategy: str
+    yield_robot: str | None
+    dispatched_at: float
+    resolved_at: float | None = None
+    outcome_status: str | None = None
+
+
+class AttemptMemory:
+    """Single-slot memory of the last attempt for failure-context feedback (rev-8 A.1).
+
+    One slot is enough because the state machine allows a single in-flight cycle.
+    The record becomes visible only after `resolve`, stays visible for
+    `window_sec` after resolution for any overlapping robot set, and is dropped
+    on expiry, on an analysis for a disjoint robot set (no cross-episode memory),
+    or when a new attempt is recorded. `window_sec <= 0` disables the memory.
+    """
+
+    def __init__(self, window_sec: float) -> None:
+        self._window_sec = window_sec
+        self._record: AttemptRecord | None = None
+
+    def record(
+        self,
+        command_id: str,
+        robot_ids: list[str],
+        strategy: str,
+        yield_robot: str | None,
+        now: float,
+    ) -> None:
+        """Remember a freshly dispatched attempt, superseding any earlier one."""
+        self._record = AttemptRecord(
+            command_id=command_id,
+            robot_ids=list(robot_ids),
+            strategy=strategy,
+            yield_robot=yield_robot,
+            dispatched_at=now,
+        )
+
+    def resolve(self, command_id: str, outcome_status: str, now: float) -> None:
+        """Finalize the remembered attempt; a superseded command id is ignored."""
+        if self._record is None or self._record.command_id != command_id:
+            return
+        self._record.resolved_at = now
+        self._record.outcome_status = outcome_status
+
+    def context_for(self, robot_ids: list[str], now: float) -> AttemptRecord | None:
+        """Return the resolved attempt relevant to a new analysis, or None."""
+        record = self._record
+        if record is None or record.resolved_at is None:
+            return None
+        if not set(robot_ids) & set(record.robot_ids):
+            self._record = None
+            return None
+        if self._window_sec <= 0.0 or now - record.resolved_at > self._window_sec:
+            self._record = None
+            return None
+        return record

@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 from swarm_orchestrator.command_lifecycle import (
+    AttemptMemory,
     CommandRecord,
     CommandState,
     CommandTracker,
     CooldownTracker,
+    summarize_outcome,
 )
 
 
@@ -130,3 +132,77 @@ def test_cooldown_without_command_record():
     cd = CooldownTracker(cooldown_sec=5.0)
     cd.start(["robot_2"], now=100.0)
     assert "robot_2" in cd.active_robots(now=101.0)
+
+
+def _memory(window: float = 60.0) -> AttemptMemory:
+    memory = AttemptMemory(window_sec=window)
+    memory.record("c1", ["robot_1", "robot_2"], "yield", "robot_1", now=0.0)
+    return memory
+
+
+def test_attempt_memory_returns_none_before_resolve_without_clearing():
+    memory = _memory()
+    assert memory.context_for(["robot_1"], now=5.0) is None
+    memory.resolve("c1", "completed", now=10.0)
+    assert memory.context_for(["robot_1"], now=11.0) is not None
+
+
+def test_attempt_memory_returns_record_within_window_for_overlapping_robots():
+    memory = _memory()
+    memory.resolve("c1", "completed", now=10.0)
+    record = memory.context_for(["robot_2", "robot_3"], now=40.0)
+    assert record is not None
+    assert record.command_id == "c1"
+    assert record.strategy == "yield"
+    assert record.yield_robot == "robot_1"
+    assert record.outcome_status == "completed"
+    assert record.resolved_at == 10.0
+
+
+def test_attempt_memory_returns_none_after_window_expires():
+    memory = _memory(window=60.0)
+    memory.resolve("c1", "completed", now=10.0)
+    assert memory.context_for(["robot_1"], now=70.5) is None
+    # expiry clears the slot; an earlier `now` cannot resurrect it
+    assert memory.context_for(["robot_1"], now=20.0) is None
+
+
+def test_attempt_memory_clears_on_disjoint_robot_set():
+    memory = _memory()
+    memory.resolve("c1", "failed", now=10.0)
+    assert memory.context_for(["robot_9"], now=20.0) is None
+    assert memory.context_for(["robot_1"], now=21.0) is None
+
+
+def test_attempt_memory_new_record_supersedes_previous():
+    memory = _memory()
+    memory.resolve("c1", "failed", now=10.0)
+    memory.record("c2", ["robot_1", "robot_2"], "reverse", None, now=30.0)
+    assert memory.context_for(["robot_1"], now=31.0) is None
+    memory.resolve("c2", "completed", now=50.0)
+    record = memory.context_for(["robot_1"], now=60.0)
+    assert record is not None and record.command_id == "c2"
+
+
+def test_attempt_memory_resolve_ignores_superseded_command():
+    memory = _memory()
+    memory.record("c2", ["robot_1"], "reverse", None, now=30.0)
+    memory.resolve("c1", "timed_out", now=35.0)
+    assert memory.context_for(["robot_1"], now=36.0) is None
+
+
+def test_attempt_memory_window_zero_disables():
+    memory = _memory(window=0.0)
+    memory.resolve("c1", "completed", now=10.0)
+    assert memory.context_for(["robot_1"], now=11.0) is None
+
+
+def test_summarize_outcome_precedence_timed_out_over_failed_over_completed():
+    completed, failed, timed_out = (
+        CommandState.COMPLETED,
+        CommandState.FAILED,
+        CommandState.TIMED_OUT,
+    )
+    assert summarize_outcome({"a": completed, "b": completed}) == "completed"
+    assert summarize_outcome({"a": completed, "b": failed}) == "failed"
+    assert summarize_outcome({"a": failed, "b": timed_out}) == "timed_out"
