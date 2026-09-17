@@ -40,6 +40,15 @@ subscribes to that topic and reports per-robot execution on `/coordination/statu
 `detail`), which M5's `CommandTracker` consumes to resolve the command. M4 never
 sees the raw M3 grounded blob.
 
+**Arrival report (2026-09-17).** The coordination client also publishes on
+`/coordination/status` when Nav2 reports a robot's *base-mission* goal reached:
+`command_id="base_mission"`, `robot_id`, `status="COMPLETED"`,
+`detail="goal reached (x, y)"`. It is not a coordination command — the command
+bus and M5's tracker ignore the id — and M5's congestion detector uses it to
+excuse the parked robot from stall evidence (M5 FR5.1.8). **Why:** run 3
+(2026-09-17) re-analysed a robot parked at its goal every cooldown because M1's
+camera estimate sat outside M5's `goal_reached_tolerance_m`.
+
 ---
 
 ## 2. Sub-spec index

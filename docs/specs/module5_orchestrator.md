@@ -136,6 +136,19 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   triggered spurious re-analysis cycles and, in run H, a bad `yield` that moved
   a parked robot off its goal. The close/slow-pair check is unaffected — two
   robots genuinely jammed at a goal are still flagged.
+- FR5.1.8 (2026-09-17) Treat M4's arrival report (`CoordinationStatus` with
+  `command_id="base_mission"`, `status="COMPLETED"`) as authoritative: the
+  detector marks the robot arrived at its current effective goal and excuses it
+  from progress-stall evidence while M1 still places it within
+  `arrived_radius_m` (default 0.5 m) of that goal; the mark lapses when the
+  robot is seen farther away or its effective goal changes. A robot that merely
+  stalls short of its goal is never excused (Nav2 must have confirmed arrival).
+  `CongestionEvent.distance_to_goal_m` carries each stalled robot's M1
+  distance, and the `starting analysis` log prints it, so M1's offset at the
+  goal is measurable. **Why:** run 4 (2026-09-17) fired `2 robot(s) stalled`
+  every cooldown for 9 min on two robots parked at their goals (31 needless VLM
+  calls) — M1's estimate exceeded `goal_reached_tolerance_m` where ground truth
+  said 0.04–0.08 m. The close/slow-pair check is unaffected.
 
 ### M5.2 Orchestrator State Machine
 - FR5.2.1 Maintain an explicit node-visible state:

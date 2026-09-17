@@ -114,6 +114,22 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-17** — **Fixes A and C landed** (`feat: arrived signal from M4
+  excuses parked robots from stall evidence`, `fix: refuse reverse when both
+  robots are past the corridor on one side`). C: M3 now refuses `reverse` under
+  the same rule as the yield refusal — both robots past the corridor mouth on
+  one side → `temporary_wait` for both with `requested_strategy: reverse`
+  (shared helper `_beyond_corridor_same_side`; run-3 positions −1.22/−2.46 are
+  the test case). A: M4's coordination client publishes
+  `CoordinationStatus(command_id="base_mission", status="COMPLETED")` when
+  Nav2 reports a base goal reached (module-4 README); M5 routes it to
+  `CongestionDetector.mark_arrived`, which excuses the robot from stall
+  evidence while M1 keeps it within `arrived_radius_m` (0.5 m,
+  `orchestrator.yaml`) of that goal (module-5 FR5.1.8); `CongestionEvent.
+  distance_to_goal_m` + the `starting analysis` log now show M1's distance
+  per stalled robot. Host check: run 5 (recorded) pending — expect no
+  analyses once both robots are parked, and the logged distances to reveal
+  M1's offset at the goals.
 - **2026-09-17** — **Run 4 (recorded) confirms fix B: no mid-scenario
   re-approach.** Same stack, 10:33–10:47 UTC, gpt-4o at temperature 0.0 with
   the pairwise-geometry prompt. 32 analyses, **1 dispatch** (the initial
