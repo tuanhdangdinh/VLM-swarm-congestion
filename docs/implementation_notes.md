@@ -114,6 +114,31 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-17** — **Root cause of the mid-scenario re-approach (runs 1–3):
+  M5-induced.** Evidence (run 3 ground truth + frames + M4 log): the first
+  yield resolves correctly and robot_2 reaches its goal (`Goal succeeded`
+  09:50:11, GT 0.04 m). Then (1) the detector re-fires `2 robot(s) stalled`
+  every cooldown — robot_1 legitimately (Nav2 progress failures in the 0.7 m
+  gap, 4 recoveries 09:48–09:51), robot_2 spuriously although parked at its
+  goal (M1's camera estimate must exceed `goal_reached_tolerance_m` 0.15;
+  unverifiable — scene_state is not logged); (2) on the same scene the VLM
+  answered `none` twice (09:50:17, 09:50:37) then `deadlock/reverse`
+  (09:50:56, `parse=invalid` re-ask) with "stopped and facing opposite
+  directions" — the robots were 1.1 m apart and heading AWAY from each other,
+  which the prompt's `|Δθ| ≈ π` heuristic could not distinguish from head-on;
+  temperature 0.6 made the flip stochastic; (3) M3 grounded `reverse` for
+  both with no guard for a robot at its goal, M4 executed it (09:51:00), and
+  robot_2 backed east into the aisle mouth: GT 0.39 m at sim 120–155 s, a
+  self-inflicted deadlock that seeded the yield/reverse alternation (robot_1
+  ended at x = −5.3). **Fix B landed** (`feat: pairwise geometry and
+  facing-based head-on definition in the prompt`, `feat: per-backend reasoner
+  sampling override; gpt-4o samples greedily`): the prompt now states each
+  pair's distance and mutual facing (60° cone) and defines head-on as facing
+  + ≤ 0.5 m (module-2 FR2.1.7); `openai` samples at 0.0 via
+  `vlm.openai.reasoner` in `config/models.yaml` while Cosmos keeps its preset
+  (FR2.2.3; rev-8 spec 8.4). Not yet done: fix C (grounding guard: never back
+  up a robot at its goal / past the corridor) and fix A (arrived = M4 goal
+  status, log detector distances). Host check: run 4 (recorded) in progress.
 - **2026-09-17** — **Run 3, recorded: degraded-yield wording verified live.**
   Same stack, 09:46–09:59 UTC, `scripts/record_topic_video.py` on
   `/perception/annotated_frame` (8.7 Hz stamped, 3.5 fps achieved under load →

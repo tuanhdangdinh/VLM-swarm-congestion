@@ -35,6 +35,10 @@
 - Rev 8.3 (2026-09-17): the previous-attempt block names the maneuver M3
   actually executed when it differs from the decided strategy, and its
   closing advice explicitly allows `congestion_detected=false` (design rev 3).
+- Rev 8.4 (2026-09-17): stage-1 prompt states pairwise distance and mutual
+  facing and defines head-on as facing + ≤ 0.5 m (run-3 root cause: `|Δθ| ≈ π`
+  read diverging robots as a deadlock); decoding resolved per backend, `openai`
+  pinned to temperature 0.0 (module-2 FR2.1.7, FR2.2.3).
 
 Status: in user review. Predecessor system: the verified head-on yield
 protocol (H3 runs 8–13) and the M1→M5→M2→M3→M4 closed loop, live on the
@@ -329,7 +333,7 @@ appears in no reported cell.
 | Primary `model_id` | exact model string + version/date | **REQUIRED before freeze** |
 | Secondary backend | `llama_server` (local; per the 2026-06-12 llama-server design) | pinned |
 | Secondary `model_id` | exact local model + quantization | **REQUIRED before freeze** |
-| Temperature | 0.0 (classification workload, per coding standards) | pinned |
+| Temperature | 0.0 for `openai` (classification workload, per coding standards); `llama_server` keeps the Cosmos Reason 2 CoT preset (0.6/0.95/20) via the per-backend `vlm.<backend>.reasoner` override in `config/models.yaml` — resolves the 2026-07-08 reconciliation item | pinned (rev 8.4) |
 | Images per call | 1 (single-frame rule; multi-image rejected rev 6) | pinned |
 | Image resolution | exact W×H of the annotated decision frame | **REQUIRED before freeze** |
 | Max output tokens | fixed value | **REQUIRED before freeze** |

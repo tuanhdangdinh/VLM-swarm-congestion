@@ -112,6 +112,15 @@ in control.
   as temporary_wait)"`). When absent the prompt is byte-identical to the
   context-less prompt. Prompt context only; the output fields and enum
   vocabulary are unchanged.
+- FR2.1.7 (2026-09-17) State the pairwise geometry explicitly: for every robot
+  pair (ID order) one line with the distance (`:.2f` m) and whether each robot
+  *faces* the other (heading within 60° of the direction to it), between the
+  state block and the known-ID list; omitted with fewer than two robots. The
+  guidance defines head-on as *within ~0.5 m AND each facing the other* —
+  opposite headings alone are explicitly not head-on — and instructs the
+  model to use these lines rather than re-derive geometry. **Why:** run 3
+  (2026-09-17) classified two robots 1.1 m apart and driving away from each
+  other as a deadlock because `|Δθ| ≈ π` matched the old heuristic.
 
 ### M2.2 VLM Backend Adapter
 - FR2.2.1 Expose one Protocol `VLMBackend` with a single method
@@ -119,6 +128,11 @@ in control.
 - FR2.2.2 Backend selectable via `ReasonerConfig.backend_id` without changes to
   the prompt builder or parser.
 - FR2.2.3 Apply `temperature=0.0` by default for reproducible classification.
+  Sampling is resolved per backend (`resolve_reasoner_config`): the shared
+  `vlm.reasoner` block in `config/models.yaml` may be overridden by a
+  `reasoner:` mapping nested under the backend's own section. `openai` is
+  pinned to 0.0; `llama_server` keeps the Cosmos Reason 2 chain-of-thought
+  preset (0.6 / 0.95 / 20), which degrades at 0.0.
 - FR2.2.4 Enforce per-call timeout (`ReasonerConfig.timeout_sec`) via a
   `concurrent.futures` thread pool; raise `BackendTimeoutError` on expiry.
 - FR2.2.5 Surface `latency_ms` and `token_usage` in `BackendResponse`.
@@ -1131,39 +1145,53 @@ This string is the value of `PromptPayload.system_prompt` for all backends.
 
 ### 8.2 User Prompt Template
 
-The user prompt is assembled from these parts in order:
+The user prompt is assembled from these parts in order (the authoritative text
+is `_USER_TEMPLATE` in `reasoning/vlm/prompt_builder.py`; this is its
+structure as of 2026-09-17):
 
-```
-Analyze the overhead warehouse scene for congestion or deadlock.
+```text
+You are a warehouse swarm robotics traffic controller. Analyze the overhead
+camera view together with the robot states below and detect congestion
+patterns such as deadlocks, bottlenecks, crowding, or anomalies.
 
 Robot states (sorted by ID):
 {robot_state_block}
-
+{pairwise_geometry_block}
 Known robot IDs: {known_robot_ids_json}
+{failure_context_block}
+Guidance:
+- Robots are roughly 0.3 m wide; ~0.5 m = physically conflicting. Use the
+  pairwise geometry above; do not re-derive distances or facing.
+- theta convention. Opposite headings alone do NOT mean head-on: head-on =
+  each faces the other (pairwise geometry) AND within ~0.5 m; robots heading
+  away from each other are diverging.
+- deadlock / bottleneck / crowding / anomaly definitions; two stopped robots
+  farther apart than ~0.5 m or not facing each other are NOT deadlocked.
+- strategy hints per pattern; decide from coordinates and image.
 
-Return ONLY a JSON object with exactly these fields:
-{{
-  "congestion_detected": <true|false>,
-  "type": <"none"|"deadlock"|"bottleneck"|"crowding"|"anomaly">,
-  "involved_robots": [<robot_id strings, must be from known IDs only>],
-  "root_cause": "<one sentence>",
-  "strategy": <"none"|"yield"|"reroute"|"convoy"|"priority_override"|"temporary_wait"|"reverse">,
-  "justification": "<one or two sentences>"
-}}
+Produce a JSON object with exactly these fields: congestion_detected, type,
+involved_robots, root_cause, strategy, justification (closed enums).
 
-Rules:
-- Only use robot IDs from the known list above.
-- When congestion_detected is false: type must be "none", strategy must be "none", involved_robots must be [].
-- When congestion_detected is true: type must not be "none", strategy must not be "none", involved_robots must list at least one robot ID.
-- Return ONLY the JSON object. Do not include any text, markdown, or explanation.
+Rules: known IDs only; congestion_detected=false ⇒ type/strategy "none" and
+involved_robots []; true ⇒ non-"none" type/strategy and ≥ 1 robot.
+
+Answer using the following format:
+<think> ... </think>
+then ONLY the final JSON object.
 ```
 
 Where:
 
 - `{robot_state_block}`: lines from `format_robot_state_lines`, each prefixed
   with `"- "`, joined by `"\n"`.
+- `{pairwise_geometry_block}`: empty with fewer than two robots; otherwise a
+  blank line, the header `Pairwise geometry (faces = heading within 60° of the
+  direction to the other robot):`, and one `"- "` line per pair from
+  `format_pairwise_geometry_lines` (FR2.1.7).
 - `{known_robot_ids_json}`: `json.dumps(sorted_robot_ids)` e.g.
   `["robot_1", "robot_2"]`.
+- `{failure_context_block}`: empty, or the previous-attempt block
+  (`render_failure_context_block`, FR2.1.6) wrapped in blank lines.
 
 ### 8.3 Re-ask Suffix (appended to user prompt on failure)
 
