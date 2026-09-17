@@ -206,6 +206,22 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   the buffered-frame stamp lags the scene-state stamp by more than
   `frame_scene_max_skew_sec`, suppress the trigger (E9/E10).
 
+- FR5.3.7 (2026-09-17) Every decision artifact
+  (`decision_log_dir/<request_id>.json`) records, besides the M2 result and
+  grounding outcome: `run_id` (from `VGU_RUN_ID`, exported by the launcher;
+  `null` if unset), `session_id` (per M5 process), `failure_context`, the
+  **rendered prompt** (`system_prompt`, `user_prompt`, SHA-256 of each —
+  rebuilt by the pure prompt builder from the exact `ReasonerRequest` sent, so
+  a re-ask suffix on retry is not captured), the M1 `scene` snapshot the
+  request was built from, and the detector's `distance_to_goal_m`. The request
+  is built on the callback thread so the artifact and the worker share one
+  object. Independently of triggers, M5 appends one scene snapshot per
+  `scene_log_period_sec` to `scene_log_dir/<session_id>.jsonl` (`t`,
+  `session_id`, `run_id`, `scene`) for offline trajectory reconstruction;
+  `scene_log_dir: null` disables it. **Why:** the run-3 investigation could not
+  reconstruct what the VLM was told nor prove M1's distance at a goal — both
+  were unlogged.
+
 ### M5.4 Command Lifecycle & Fan-out
 - FR5.4.1 Translate the single grounded command (schema: `command_id`, `actions[]`,
   `expected_resolution_time_sec`, `fallback`) into **N** ROS2 `CoordinationCommand`
@@ -278,6 +294,10 @@ redefined.
 | reasoning_backend_id | str | passed through to M2 backend factory |
 | initial_tasks | dict[str, TaskAssignment] | robot_id → base task + goal, loaded at startup |
 | frame_dump_dir | str | directory for trigger-time frame PNGs (FR5.3.6) |
+| scene_log_dir | str or null | directory for the per-session 1 Hz scene JSONL (FR5.3.7); null disables |
+| scene_log_period_sec | float | scene-log period, default 1.0 (FR5.3.7) |
+| arrived_radius_m | float | radius within which an M4-reported arrival excuses a robot from stall evidence, default 0.5 (FR5.1.8) |
+| prompt_pairwise_geometry | bool | include the derived pairwise distance/facing lines in the VLM prompt, default true (M2 FR2.1.7; ablation axis) |
 | keep_debug_frames | bool | retain dumped frames after cycle resolution; default false |
 | frame_scene_max_skew_sec | float | max frame/scene stamp skew; beyond it the trigger is suppressed (E10) |
 | frame_downscale_width | int \| None | optional pre-dump downscale width; None = full resolution |

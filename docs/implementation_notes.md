@@ -114,6 +114,29 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-17** — **Research-readiness items 2–4 landed.** (2) The derived
+  pairwise-geometry lines are a switchable modality
+  (`ReasonerRequest.include_pairwise_geometry`, M5 `prompt_pairwise_geometry`,
+  default on) and an ablation axis — rev-8 spec 8.5, module-2 FR2.1.7
+  (`feat: derived pairwise geometry becomes a switchable prompt modality`).
+  (3) Measurement plumbing (`feat: artifacts carry run/session ids, rendered
+  prompt, scene; 1 Hz scene log`): every decision artifact now records
+  `run_id` (from `VGU_RUN_ID`, exported by the launch scripts as the STAMP),
+  `session_id` (per M5 process), the rendered prompt with SHA-256 hashes
+  (rebuilt by the pure prompt builder; a re-ask suffix on retry is not
+  captured), the M1 `scene` snapshot the request came from, and the detector's
+  `distance_to_goal_m`; the request is now built on the callback thread so the
+  artifact records exactly what was sent. M5 also writes one scene snapshot
+  per second to `data/logs/m5_scene/<session_id>.jsonl` (`scene_log_dir`,
+  `scene_log_period_sec`). (4) Investigation report:
+  `docs/reports/2026-09-17-failure-attribution-ladder.md`. Host check for (3)
+  done (run 6, 16:38–16:48 UTC, unrecorded): artifact `6bbcadbb…` carries
+  `run_id=20260917_163714`, `session_id`, the rendered prompt (3 597 chars,
+  both hashes), the scene with both robots and `distance_to_goal_m`; scene log
+  `data/logs/m5_scene/c76c9c10….jsonl` had 493 lines after ~8 min (≈ 1 Hz).
+  Aside: this run's onset differed (first analysis 9 min in, `bottleneck/
+  reroute` on robot_1 at 3.7 m from goal) — the run-to-run variance the paired
+  design exists for; stopped right after the check.
 - **2026-09-17** — **Run 5 (recorded) confirms fix A: silence once parked.**
   Same stack, 11:02–11:15 UTC. M4 reported `base goal reached` for robot_2 at
   11:06:08 and robot_1 at 11:08:11; M5 logged `arrived at base goal` for both.
