@@ -38,6 +38,9 @@ class ReasonerRequest(BaseModel):
     stamp: float = Field(ge=0)
     robot_states: list[RobotStateInput]
     failure_context: FailureContext | None = None
+    # Ablation axis (rev-8 modality table): False withholds the derived pairwise
+    # distance/facing lines so the VLM must judge geometry from coordinates + image.
+    include_pairwise_geometry: bool = True
 
 
 class PromptPayload(BaseModel):

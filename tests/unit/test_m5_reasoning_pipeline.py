@@ -436,6 +436,15 @@ def test_build_failure_context_reports_run_time_for_timed_out_attempt():
     )
 
 
+def test_build_reasoner_request_passes_geometry_switch_through():
+    on = build_reasoner_request("r1", _snapshot(), "/tmp/r1.png")
+    off = build_reasoner_request(
+        "r1", _snapshot(), "/tmp/r1.png", include_pairwise_geometry=False
+    )
+    assert on.include_pairwise_geometry is True
+    assert off.include_pairwise_geometry is False
+
+
 def test_build_reasoner_request_passes_failure_context_through():
     ctx = FailureContext(strategy="yield", outcome_status="failed", failure_detail="d")
     with_ctx = build_reasoner_request("r1", _snapshot(), "/tmp/r1.png", failure_context=ctx)

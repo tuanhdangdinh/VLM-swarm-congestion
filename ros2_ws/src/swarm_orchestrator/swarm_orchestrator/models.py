@@ -70,6 +70,9 @@ class OrchestratorConfig(BaseModel):
     # (RQ5 memoryless control). Must exceed cooldown + stall threshold or it can
     # never fire — enforced below.
     failure_context_window_sec: float = Field(default=60.0, ge=0.0)
+    # Ablation axis (rev-8 modality table): withhold the derived pairwise
+    # distance/facing lines from the VLM prompt when False.
+    prompt_pairwise_geometry: bool = True
     # Handed to M3 so the yield maneuver is derived from declared scene
     # dimensions; None keeps M3's hand-sized head_on_deadlock fallbacks.
     scenario_geometry: SceneGeometry | None = None

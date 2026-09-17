@@ -75,6 +75,7 @@ def build_reasoner_request(
     snapshot: SceneSnapshot,
     image_path: str,
     failure_context: FailureContext | None = None,
+    include_pairwise_geometry: bool = True,
 ) -> ReasonerRequest:
     """Project a SceneSnapshot plus a dumped image path into a ReasonerRequest."""
     robot_states = [
@@ -96,6 +97,7 @@ def build_reasoner_request(
         stamp=snapshot.stamp,
         robot_states=robot_states,
         failure_context=failure_context,
+        include_pairwise_geometry=include_pairwise_geometry,
     )
 
 

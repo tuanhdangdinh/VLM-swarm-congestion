@@ -294,7 +294,11 @@ class OrchestratorNode(Node):
             image_path = str(Path(dump_dir) / f"{request_id}.png")
             dump_frame_png(frame, image_path, downscale)
             request = build_reasoner_request(
-                request_id, snapshot, image_path, failure_context=failure_context
+                request_id,
+                snapshot,
+                image_path,
+                failure_context=failure_context,
+                include_pairwise_geometry=self._config.prompt_pairwise_geometry,
             )
             return self._pipeline.run(request)
 

@@ -190,6 +190,22 @@ def test_build_prompt_payload_places_pairwise_geometry_between_states_and_known_
     ) in prompt
 
 
+def test_build_prompt_payload_omits_geometry_block_when_switched_off():
+    request = _request().model_copy(update={"include_pairwise_geometry": False})
+    prompt = build_prompt_payload(request).user_prompt
+    assert "Pairwise geometry" not in prompt
+    assert "pairwise geometry" not in prompt
+    assert 'status=MOVING\n\nKnown robot IDs: ["robot_1", "robot_2"]' in prompt
+
+
+def test_build_prompt_payload_keeps_facing_definition_when_geometry_switched_off():
+    request = _request().model_copy(update={"include_pairwise_geometry": False})
+    prompt = build_prompt_payload(request).user_prompt
+    assert "each facing the other" in prompt
+    assert "Opposite headings alone do NOT mean head-on" in prompt
+    assert "from the coordinates" in prompt
+
+
 def test_build_prompt_payload_guidance_defines_head_on_by_facing_and_distance():
     prompt = build_prompt_payload(_request()).user_prompt
     assert "each facing the other" in prompt

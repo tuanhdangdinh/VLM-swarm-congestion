@@ -17,6 +17,9 @@ command_timeout_sec: 20.0
 # stall_threshold_sec (27 s here) or it can never fire; 0 disables it (the RQ5
 # memoryless control).
 failure_context_window_sec: 60.0
+# Ablation axis: false withholds the derived pairwise distance/facing lines so
+# the VLM must judge geometry from coordinates + image (rev-8 modality table).
+prompt_pairwise_geometry: true
 reasoning_backend_id: openai
 frame_dump_dir: data/logs/m5_frames
 decision_log_dir: data/logs/m5_decisions

@@ -30,11 +30,10 @@ Known robot IDs: {known_robot_ids_json}
 {failure_context_block}
 Guidance:
 - Robots are roughly 0.3 m wide; treat any two robots within ~0.5 m of each \
-other as physically conflicting. Use the pairwise geometry above; do not \
-re-derive distances or facing from the coordinates.
+other as physically conflicting. {geometry_use_clause}
 - theta is heading in radians: 0=east(+x), π/2=north(+y), π or -π=west(-x), \
 -π/2=south(-y). Opposite headings alone do NOT mean head-on: two robots are \
-head-on only when each faces the other (pairwise geometry) AND they are within \
+head-on only when each faces the other {facing_source} AND they are within \
 ~0.5 m. Robots heading away from each other are diverging, not conflicting.
 - deadlock: two or more robots each blocked by the other. The most common case \
 is a head-on standoff — two robots within ~0.5 m, each facing the other, in the \
@@ -69,12 +68,31 @@ involved_robots must be non-empty.
 
 Answer using the following format:
 <think>
-Read the pairwise geometry (distance and whether each robot faces the other), \
-check the robot statuses, identify any conflicts, and decide the congestion \
-type and strategy.
+{think_geometry_step}, check the robot statuses, identify any conflicts, and \
+decide the congestion type and strategy.
 </think>
 Immediately after the </think> tag, write ONLY the final JSON object, with no \
 surrounding text or markdown."""
+
+# Wording for the two modality conditions of the derived-geometry ablation axis.
+_GEOMETRY_ON = {
+    "geometry_use_clause": (
+        "Use the pairwise geometry above; do not re-derive distances or facing from "
+        "the coordinates."
+    ),
+    "facing_source": "(pairwise geometry)",
+    "think_geometry_step": (
+        "Read the pairwise geometry (distance and whether each robot faces the other)"
+    ),
+}
+_GEOMETRY_OFF = {
+    "geometry_use_clause": "Compute distances and facing from the coordinates.",
+    "facing_source": "(heading points toward the other robot)",
+    "think_geometry_step": (
+        "Compute the pairwise distance and whether each robot faces the other from "
+        "the coordinates"
+    ),
+}
 
 _FAILURE_CONTEXT_ADVICE = (
     "If the congestion is no longer present, report congestion_detected=false. "
@@ -185,7 +203,9 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
     known_ids = [s.robot_id for s in sorted_states]
     lines = format_robot_state_lines(sorted_states)
     block = "\n".join(f"- {line}" for line in lines) or "- no robots observed"
-    geometry_lines = format_pairwise_geometry_lines(sorted_states)
+    geometry_lines = (
+        format_pairwise_geometry_lines(sorted_states) if request.include_pairwise_geometry else []
+    )
     geometry_block = ""
     if geometry_lines:
         bullets = [f"- {line}" for line in geometry_lines]
@@ -200,6 +220,7 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
         known_robot_ids_json=json.dumps(known_ids),
         pairwise_geometry_block=geometry_block,
         failure_context_block=failure_block,
+        **(_GEOMETRY_ON if request.include_pairwise_geometry else _GEOMETRY_OFF),
     )
     return PromptPayload(
         system_prompt=SYSTEM_PROMPT,

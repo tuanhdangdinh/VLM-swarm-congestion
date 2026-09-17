@@ -234,6 +234,11 @@ def test_orchestrator_config_arrived_radius_defaults_to_half_metre():
     assert _config_with().arrived_radius_m == 0.5
 
 
+def test_orchestrator_config_prompt_pairwise_geometry_defaults_on():
+    assert _config_with().prompt_pairwise_geometry is True
+    assert _config_with(prompt_pairwise_geometry=False).prompt_pairwise_geometry is False
+
+
 def test_congestion_event_distance_to_goal_defaults_to_empty():
     event = CongestionEvent(
         involved_robots=["robot_0"],
