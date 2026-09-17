@@ -5,7 +5,7 @@ import json
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import ReasonerResult
@@ -60,6 +60,11 @@ class OrchestratorConfig(BaseModel):
     keep_debug_frames: bool = False
     frame_scene_max_skew_sec: float = Field(default=1.0, ge=0.0)
     frame_downscale_width: int | None = Field(default=None, gt=0)
+    # Seconds after a command resolves during which its attempt is attached to a
+    # re-analysis for overlapping robots as `failure_context` (rev-8 A.1). 0 disables
+    # (RQ5 memoryless control). Must exceed cooldown + stall threshold or it can
+    # never fire — enforced below.
+    failure_context_window_sec: float = Field(default=60.0, ge=0.0)
     # Handed to M3 so the yield maneuver is derived from declared scene
     # dimensions; None keeps M3's hand-sized head_on_deadlock fallbacks.
     scenario_geometry: SceneGeometry | None = None
@@ -70,6 +75,18 @@ class OrchestratorConfig(BaseModel):
         if any(not rid for rid in v):
             raise ValueError("initial_tasks robot ids must be non-empty strings")
         return v
+
+    @model_validator(mode="after")
+    def _failure_context_window_can_fire(self) -> OrchestratorConfig:
+        window = self.failure_context_window_sec
+        bound = self.cooldown_sec + self.stall_threshold_sec
+        if 0.0 < window <= bound:
+            raise ValueError(
+                f"failure_context_window_sec={window} can never fire: a re-detection "
+                f"takes at least cooldown_sec + stall_threshold_sec = {bound} s; set it "
+                "above that bound, or 0 to disable"
+            )
+        return self
 
 
 class RobotView(BaseModel):

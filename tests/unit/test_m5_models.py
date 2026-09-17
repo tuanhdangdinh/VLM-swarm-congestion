@@ -196,3 +196,35 @@ def test_pipeline_outcome_carries_terminal_stage_enum():
     )
     assert outcome.terminal_stage is TerminalStage.VLM
     assert outcome.grounded_command is None
+
+
+def _config_with(**overrides):
+    base = dict(
+        stall_threshold_sec=12.0,
+        progress_epsilon_m=0.1,
+        cooldown_sec=15.0,
+        command_timeout_sec=20.0,
+        reasoning_backend_id="mock",
+        initial_tasks={"robot_0": TaskAssignment(task="t", goal=(0.0, 0.0))},
+        frame_dump_dir="data/logs/m5_frames",
+    )
+    base.update(overrides)
+    return OrchestratorConfig(**base)
+
+
+def test_orchestrator_config_failure_context_window_defaults_to_60():
+    assert _config_with().failure_context_window_sec == 60.0
+
+
+def test_orchestrator_config_rejects_failure_context_window_inside_retrigger_bound():
+    # cooldown 15 + stall 12 = 27: a 27 s window can never fire
+    with pytest.raises(ValidationError, match="can never fire"):
+        _config_with(failure_context_window_sec=27.0)
+
+
+def test_orchestrator_config_accepts_zero_failure_context_window_as_disabled():
+    assert _config_with(failure_context_window_sec=0.0).failure_context_window_sec == 0.0
+
+
+def test_orchestrator_config_accepts_failure_context_window_above_bound():
+    assert _config_with(failure_context_window_sec=27.5).failure_context_window_sec == 27.5
