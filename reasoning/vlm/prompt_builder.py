@@ -1,6 +1,15 @@
 import json
+import math
 
 from reasoning.vlm.models import FailureContext, PromptPayload, ReasonerRequest, RobotStateInput
+
+# "faces" = the robot's heading is within 60° of the direction to the other robot.
+# Opposite headings alone cannot tell head-on from diverging; the VLM misread two
+# robots driving apart as a deadlock when only |Δθ| ≈ π was offered (run 3, 2026-09-17).
+_FACING_COS = 0.5
+_PAIRWISE_GEOMETRY_HEADER = (
+    "Pairwise geometry (faces = heading within 60° of the direction to the other robot):"
+)
 
 # Cosmos Reason 2 is a chain-of-thought reasoning VLM built on Qwen3-VL. NVIDIA's
 # prompt guide specifies a minimal system prompt ("we are more aligned with Qwen's
@@ -16,24 +25,28 @@ patterns such as deadlocks, bottlenecks, crowding, or anomalies.
 
 Robot states (sorted by ID):
 {robot_state_block}
-
+{pairwise_geometry_block}
 Known robot IDs: {known_robot_ids_json}
 {failure_context_block}
 Guidance:
 - Robots are roughly 0.3 m wide; treat any two robots within ~0.5 m of each \
-other as physically conflicting.
+other as physically conflicting. Use the pairwise geometry above; do not \
+re-derive distances or facing from the coordinates.
 - theta is heading in radians: 0=east(+x), π/2=north(+y), π or -π=west(-x), \
--π/2=south(-y). Two robots with |theta_1 - theta_2| close to π are facing \
-each other head-on.
+-π/2=south(-y). Opposite headings alone do NOT mean head-on: two robots are \
+head-on only when each faces the other (pairwise geometry) AND they are within \
+~0.5 m. Robots heading away from each other are diverging, not conflicting.
 - deadlock: two or more robots each blocked by the other. The most common case \
-is a head-on standoff — two robots facing opposite directions (theta values \
-differing by ~π) in the same narrow aisle, both STOPPED or STALE, unable to \
-pass. This IS a deadlock even with only two robots. \
+is a head-on standoff — two robots within ~0.5 m, each facing the other, in the \
+same narrow aisle, both STOPPED or STALE, unable to pass. This IS a deadlock \
+even with only two robots. Two robots that are stopped but farther apart than \
+~0.5 m, or not facing each other, are NOT deadlocked — answer \
+congestion_detected=false unless another pattern applies. \
 bottleneck: several robots queued waiting behind one slow robot or blocked passage \
 (one-way congestion, not opposing). crowding: many robots packed into a small \
 area. anomaly: unexpected or unsafe configuration.
-- For head-on deadlock (two stopped/stale robots with opposing headings and/or \
-opposing goal directions): classify as type="deadlock" and strategy="yield" \
+- For head-on deadlock (two stopped/stale robots within ~0.5 m, each facing the \
+other): classify as type="deadlock" and strategy="yield" \
 (first listed robot backs up) or strategy="reverse" (both back up to clear).
 - For a simple bottleneck (robots queued in the same direction): classify as \
 type="bottleneck" and strategy="temporary_wait" or "yield".
@@ -56,9 +69,9 @@ involved_robots must be non-empty.
 
 Answer using the following format:
 <think>
-Compute the pairwise distance between robots, check theta values for opposing \
-headings (head-on deadlock), inspect goal positions for opposing directions, \
-identify any conflicts, and decide the congestion type and strategy.
+Read the pairwise geometry (distance and whether each robot faces the other), \
+check the robot statuses, identify any conflicts, and decide the congestion \
+type and strategy.
 </think>
 Immediately after the </think> tag, write ONLY the final JSON object, with no \
 surrounding text or markdown."""
@@ -126,6 +139,39 @@ def format_robot_state_lines(robot_states: list[RobotStateInput]) -> list[str]:
     return lines
 
 
+def _faces(theta: float, dx: float, dy: float, distance: float) -> bool:
+    if distance < 1e-6:
+        return False
+    return (math.cos(theta) * dx + math.sin(theta) * dy) / distance >= _FACING_COS
+
+
+def format_pairwise_geometry_lines(robot_states: list[RobotStateInput]) -> list[str]:
+    """Render distance and mutual facing for every robot pair, sorted by ID.
+
+    Args:
+        robot_states: Robot states; pairs are formed in robot-ID order.
+
+    Returns:
+        One line per pair, e.g. `robot_1 <-> robot_2: distance 1.00 m;
+        robot_1 faces robot_2: yes; robot_2 faces robot_1: no`; empty with fewer
+        than two robots.
+    """
+    ordered = sorted(robot_states, key=lambda s: s.robot_id)
+    lines: list[str] = []
+    for index, first in enumerate(ordered):
+        for second in ordered[index + 1 :]:
+            dx, dy = second.x - first.x, second.y - first.y
+            distance = math.hypot(dx, dy)
+            first_faces = "yes" if _faces(first.theta, dx, dy, distance) else "no"
+            second_faces = "yes" if _faces(second.theta, -dx, -dy, distance) else "no"
+            lines.append(
+                f"{first.robot_id} <-> {second.robot_id}: distance {distance:.2f} m; "
+                f"{first.robot_id} faces {second.robot_id}: {first_faces}; "
+                f"{second.robot_id} faces {first.robot_id}: {second_faces}"
+            )
+    return lines
+
+
 def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
     """Build a deterministic, fully-rendered prompt payload from a request.
 
@@ -139,6 +185,11 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
     known_ids = [s.robot_id for s in sorted_states]
     lines = format_robot_state_lines(sorted_states)
     block = "\n".join(f"- {line}" for line in lines) or "- no robots observed"
+    geometry_lines = format_pairwise_geometry_lines(sorted_states)
+    geometry_block = ""
+    if geometry_lines:
+        bullets = [f"- {line}" for line in geometry_lines]
+        geometry_block = "\n" + "\n".join([_PAIRWISE_GEOMETRY_HEADER, *bullets]) + "\n"
     failure_block = (
         ""
         if request.failure_context is None
@@ -147,6 +198,7 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
     user_prompt = _USER_TEMPLATE.format(
         robot_state_block=block,
         known_robot_ids_json=json.dumps(known_ids),
+        pairwise_geometry_block=geometry_block,
         failure_context_block=failure_block,
     )
     return PromptPayload(

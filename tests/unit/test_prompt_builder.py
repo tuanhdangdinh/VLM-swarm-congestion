@@ -7,6 +7,7 @@ from reasoning.vlm.models import FailureContext, ReasonerRequest, RobotStateInpu
 from reasoning.vlm.prompt_builder import (
     SYSTEM_PROMPT,
     build_prompt_payload,
+    format_pairwise_geometry_lines,
     format_robot_state_lines,
     render_failure_context_block,
 )
@@ -143,6 +144,58 @@ def test_build_prompt_payload_seam_is_unchanged_when_failure_context_none():
     prompt = build_prompt_payload(_request()).user_prompt
     assert 'Known robot IDs: ["robot_1", "robot_2"]\n\nGuidance:' in prompt
     assert "Previous attempt" not in prompt
+
+
+def test_format_pairwise_geometry_flags_robots_facing_each_other():
+    lines = format_pairwise_geometry_lines(
+        [
+            RobotStateInput(robot_id="robot_1", x=0.0, y=0.0, theta=0.0),
+            RobotStateInput(robot_id="robot_2", x=1.0, y=0.0, theta=3.14159),
+        ]
+    )
+    assert lines == [
+        "robot_1 <-> robot_2: distance 1.00 m; robot_1 faces robot_2: yes; "
+        "robot_2 faces robot_1: yes"
+    ]
+
+
+def test_format_pairwise_geometry_flags_diverging_robots_despite_opposite_headings():
+    # robot_2 sits west of robot_1 and heads west; robot_1 heads east: moving apart
+    lines = format_pairwise_geometry_lines(
+        [
+            RobotStateInput(robot_id="robot_1", x=0.0, y=0.0, theta=0.0),
+            RobotStateInput(robot_id="robot_2", x=-1.25, y=0.0, theta=3.14159),
+        ]
+    )
+    assert lines == [
+        "robot_1 <-> robot_2: distance 1.25 m; robot_1 faces robot_2: no; "
+        "robot_2 faces robot_1: no"
+    ]
+
+
+def test_format_pairwise_geometry_is_empty_with_fewer_than_two_robots():
+    assert format_pairwise_geometry_lines([]) == []
+    single = [RobotStateInput(robot_id="robot_1", x=0.0, y=0.0, theta=0.0)]
+    assert format_pairwise_geometry_lines(single) == []
+
+
+def test_build_prompt_payload_places_pairwise_geometry_between_states_and_known_ids():
+    prompt = build_prompt_payload(_request()).user_prompt
+    assert (
+        "robot_id=robot_2, x=1.00, y=2.00, theta=1.57, status=MOVING\n\n"
+        "Pairwise geometry (faces = heading within 60° of the direction to the other robot):\n"
+        "- robot_1 <-> robot_2: distance 2.24 m; robot_1 faces robot_2: no; "
+        "robot_2 faces robot_1: no\n\n"
+        'Known robot IDs: ["robot_1", "robot_2"]'
+    ) in prompt
+
+
+def test_build_prompt_payload_guidance_defines_head_on_by_facing_and_distance():
+    prompt = build_prompt_payload(_request()).user_prompt
+    assert "each facing the other" in prompt
+    assert "Opposite headings alone do NOT mean head-on" in prompt
+    assert "differing by ~π" not in prompt
+    assert "opposing goal directions" not in prompt
 
 
 def test_render_failure_context_block_allows_reporting_no_congestion():

@@ -2,7 +2,7 @@
 
 from reasoning.vlm.anthropic_backend import AnthropicBackend
 from reasoning.vlm.backend_base import VLMBackend
-from reasoning.vlm.backend_factory import build_backend
+from reasoning.vlm.backend_factory import backend_section, build_backend, resolve_reasoner_config
 from reasoning.vlm.errors import (
     BackendTimeoutError,
     DecisionValidationError,
@@ -28,6 +28,7 @@ from reasoning.vlm.openai_backend import OpenAIBackend
 from reasoning.vlm.output_parser import parse_decision_text, validate_involved_robots
 from reasoning.vlm.prompt_builder import (
     build_prompt_payload,
+    format_pairwise_geometry_lines,
     format_robot_state_lines,
     render_failure_context_block,
 )
@@ -61,14 +62,17 @@ __all__ = [
     "RobotStateInput",
     "VLMBackend",
     "VLMOutputParseError",
+    "backend_section",
     "build_backend",
     "build_failed_result",
     "build_prompt_payload",
     "build_reask_prompt",
+    "format_pairwise_geometry_lines",
     "format_robot_state_lines",
     "invoke_backend",
     "parse_decision_text",
     "render_failure_context_block",
+    "resolve_reasoner_config",
     "validate_involved_robots",
     "write_reasoner_log",
 ]
