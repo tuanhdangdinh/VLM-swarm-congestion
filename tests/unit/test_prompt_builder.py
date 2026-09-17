@@ -8,6 +8,7 @@ from reasoning.vlm.prompt_builder import (
     SYSTEM_PROMPT,
     build_prompt_payload,
     format_robot_state_lines,
+    render_failure_context_block,
 )
 
 
@@ -92,3 +93,53 @@ def test_failure_context_is_frozen():
 def test_failure_context_rejects_empty_strategy():
     with pytest.raises(ValidationError):
         FailureContext(strategy="", outcome_status="failed", failure_detail="d")
+
+
+def _completed_yield() -> FailureContext:
+    return FailureContext(
+        strategy="yield",
+        yield_robot="robot_1",
+        outcome_status="completed",
+        failure_detail="yield completed 31 s ago; congestion re-detected for the same robots",
+    )
+
+
+def test_render_failure_context_block_includes_strategy_outcome_and_detail():
+    block = render_failure_context_block(_completed_yield())
+    assert block.startswith("Previous attempt in this episode:")
+    assert "- strategy=yield, yield_robot=robot_1, outcome=completed" in block
+    assert (
+        "- detail: yield completed 31 s ago; congestion re-detected for the same robots"
+        in block
+    )
+    assert block.endswith("unless the scene has changed.")
+    assert not block.startswith("\n") and not block.endswith("\n")
+
+
+def test_render_failure_context_block_omits_yield_robot_when_none():
+    block = render_failure_context_block(
+        FailureContext(
+            strategy="temporary_wait",
+            outcome_status="timed_out",
+            failure_detail="temporary_wait timed_out after 20 s; congestion re-detected for the same robots",  # noqa: E501
+        )
+    )
+    assert "- strategy=temporary_wait, outcome=timed_out" in block
+    assert "yield_robot" not in block
+
+
+def test_build_prompt_payload_places_failure_block_before_guidance_when_set():
+    request = _request().model_copy(update={"failure_context": _completed_yield()})
+    prompt = build_prompt_payload(request).user_prompt
+    ids = prompt.index("Known robot IDs:")
+    block = prompt.index("Previous attempt in this episode:")
+    guidance = prompt.index("Guidance:")
+    assert ids < block < guidance
+    assert 'Known robot IDs: ["robot_1", "robot_2"]\n\nPrevious attempt' in prompt
+    assert "unless the scene has changed.\n\nGuidance:" in prompt
+
+
+def test_build_prompt_payload_seam_is_unchanged_when_failure_context_none():
+    prompt = build_prompt_payload(_request()).user_prompt
+    assert 'Known robot IDs: ["robot_1", "robot_2"]\n\nGuidance:' in prompt
+    assert "Previous attempt" not in prompt

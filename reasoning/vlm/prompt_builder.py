@@ -1,6 +1,6 @@
 import json
 
-from reasoning.vlm.models import PromptPayload, ReasonerRequest, RobotStateInput
+from reasoning.vlm.models import FailureContext, PromptPayload, ReasonerRequest, RobotStateInput
 
 # Cosmos Reason 2 is a chain-of-thought reasoning VLM built on Qwen3-VL. NVIDIA's
 # prompt guide specifies a minimal system prompt ("we are more aligned with Qwen's
@@ -18,7 +18,7 @@ Robot states (sorted by ID):
 {robot_state_block}
 
 Known robot IDs: {known_robot_ids_json}
-
+{failure_context_block}
 Guidance:
 - Robots are roughly 0.3 m wide; treat any two robots within ~0.5 m of each \
 other as physically conflicting.
@@ -62,6 +62,34 @@ identify any conflicts, and decide the congestion type and strategy.
 </think>
 Immediately after the </think> tag, write ONLY the final JSON object, with no \
 surrounding text or markdown."""
+
+_FAILURE_CONTEXT_ADVICE = (
+    "If the previous strategy did not clear the congestion, prefer a different "
+    "strategy unless the scene has changed."
+)
+
+
+def render_failure_context_block(context: FailureContext) -> str:
+    """Render the previous-attempt block for a re-analysis prompt (rev-8 A.1).
+
+    Args:
+        context: Prior-attempt summary supplied by M5.
+
+    Returns:
+        A multi-line block with no leading or trailing newline.
+    """
+    attempt = f"strategy={context.strategy}"
+    if context.yield_robot is not None:
+        attempt += f", yield_robot={context.yield_robot}"
+    attempt += f", outcome={context.outcome_status}"
+    return "\n".join(
+        [
+            "Previous attempt in this episode:",
+            f"- {attempt}",
+            f"- detail: {context.failure_detail}",
+            _FAILURE_CONTEXT_ADVICE,
+        ]
+    )
 
 
 def format_robot_state_lines(robot_states: list[RobotStateInput]) -> list[str]:
@@ -108,9 +136,15 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
     known_ids = [s.robot_id for s in sorted_states]
     lines = format_robot_state_lines(sorted_states)
     block = "\n".join(f"- {line}" for line in lines) or "- no robots observed"
+    failure_block = (
+        ""
+        if request.failure_context is None
+        else "\n" + render_failure_context_block(request.failure_context) + "\n"
+    )
     user_prompt = _USER_TEMPLATE.format(
         robot_state_block=block,
         known_robot_ids_json=json.dumps(known_ids),
+        failure_context_block=failure_block,
     )
     return PromptPayload(
         system_prompt=SYSTEM_PROMPT,
