@@ -143,6 +143,30 @@ class AnthropicBackendConfig(BaseModel):
     api_key_env: str = "ANTHROPIC_API_KEY"  # env var NAME holding the key; never the key itself
 
 
+class GeminiBackendConfig(BaseModel):
+    """Config for the Gemini Interactions API backend (Robotics-ER 2 preview).
+
+    See `docs/superpowers/specs/2026-09-18-gemini-robotics-er2-integration-design.md`
+    for the transport delta against the OpenAI/Anthropic backends.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    model_id: str = "gemini-robotics-er-2-preview"
+    base_url: str = "https://generativelanguage.googleapis.com/v1beta"
+    api_key_env: str = "GEMINI_API_KEY"  # env var NAME holding the key; never the key itself
+    thinking_level: Literal["low", "high"] = "low"
+    # False: the live probe (2026-09-18) proved ER-2 satisfies vlm_decision.schema.json
+    # without response_format, and the house precedent (llama_server_backend.py:38-41)
+    # deliberately omits response_format so a reasoning trace is not suppressed. True
+    # attaches response_format with reasoning/schemas/vlm_decision.schema.json.
+    force_schema: bool = False
+    # The only reproducibility control the Interactions API offers: it has no
+    # temperature/top_p/top_k fields at all. Sent as generation_config.seed only
+    # when set; None omits the field rather than sending a null.
+    seed: int | None = None
+
+
 class ReasonerConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 

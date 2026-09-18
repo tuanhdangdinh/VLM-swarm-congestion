@@ -8,6 +8,7 @@ from reasoning.vlm.errors import (
     DecisionValidationError,
     VLMOutputParseError,
 )
+from reasoning.vlm.gemini_backend import GeminiBackend
 from reasoning.vlm.llama_server_backend import LlamaServerBackend
 from reasoning.vlm.mock_backend import MockBackend
 from reasoning.vlm.models import (
@@ -15,6 +16,7 @@ from reasoning.vlm.models import (
     BackendResponse,
     CongestionDecision,
     FailureContext,
+    GeminiBackendConfig,
     LlamaServerBackendConfig,
     OpenAIBackendConfig,
     PromptPayload,
@@ -48,6 +50,8 @@ __all__ = [
     "CongestionDecision",
     "DecisionValidationError",
     "FailureContext",
+    "GeminiBackend",
+    "GeminiBackendConfig",
     "LlamaServerBackend",
     "LlamaServerBackendConfig",
     "MockBackend",

@@ -3,17 +3,21 @@ from pathlib import Path
 
 from reasoning.vlm.anthropic_backend import AnthropicBackend
 from reasoning.vlm.backend_base import VLMBackend
+from reasoning.vlm.gemini_backend import GeminiBackend
 from reasoning.vlm.llama_server_backend import LlamaServerBackend
 from reasoning.vlm.mock_backend import MockBackend
 from reasoning.vlm.models import (
     AnthropicBackendConfig,
+    GeminiBackendConfig,
     LlamaServerBackendConfig,
     OpenAIBackendConfig,
     ReasonerConfig,
 )
 from reasoning.vlm.openai_backend import OpenAIBackend
 
-BackendConfig = LlamaServerBackendConfig | OpenAIBackendConfig | AnthropicBackendConfig
+BackendConfig = (
+    LlamaServerBackendConfig | OpenAIBackendConfig | AnthropicBackendConfig | GeminiBackendConfig
+)
 
 
 def resolve_reasoner_config(raw_vlm: dict, backend_id: str) -> ReasonerConfig:
@@ -103,5 +107,16 @@ def build_backend(
             model_id=backend_config.model_id,
             base_url=backend_config.base_url,
             api_key_env=backend_config.api_key_env,
+        )
+    if backend_id == "gemini":
+        if backend_config is None:
+            backend_config = GeminiBackendConfig()
+        return GeminiBackend(
+            model_id=backend_config.model_id,
+            base_url=backend_config.base_url,
+            api_key_env=backend_config.api_key_env,
+            thinking_level=backend_config.thinking_level,
+            force_schema=backend_config.force_schema,
+            seed=backend_config.seed,
         )
     raise ValueError(f"Unknown backend_id: {backend_id!r}")
