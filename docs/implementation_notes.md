@@ -114,9 +114,50 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-18** — **`include_visual_crosscheck` does NOT transfer to
+  `gpt-4o`: a prompt-level change with a model-level effect. Do not turn the
+  flag on for the `openai` arm.** Full five-cell x two-variant matrix against
+  `openai`/`gpt-4o` at its pinned temperature 0.0 (resolved via
+  `resolve_reasoner_config`, recorded per artifact), same two stimuli
+  (SHA-256 re-verified `1dea9aed…3589` / `ad5db360…ea31`, re-measured at 0.251 m
+  and 4.884 m), n = 5 per cell per variant, 50 calls: Experiment 6 in
+  `docs/reports/2026-09-18-gemini-er2-image-grounding.md`; artifacts
+  `data/logs/er2_grounding/grounding_run4_gpt4o_xcheck_{off,on}.jsonl` (VM,
+  git-ignored). No harness change was needed — the probe already drove
+  `--backend openai --experiment 4`. Results: both gates 5/5 in both variants;
+  the cross-check-off half **replicates the earlier n = 3 baseline exactly**;
+  the added Fix-B regression cell E stayed no-congestion **5/5 in both
+  variants**, so the wording does not reopen run 3 on the arm that produced it.
+  But the incongruent cells answer per the image **1/10** against ER-2's 10/10
+  (cell B 1/5, cell C 0/5), missing the pre-stated ≥ 3/5 criterion in both — so
+  the flag is ineffective, not unsafe, here. Three consequences: (a) **new
+  hazard** — justifications mentioning the image go 0/25 → 18/25 with the flag
+  on, and 9/10 contradiction-cell calls assert the image *confirms* the states
+  while the frame grossly contradicts them, so `justification` text cannot be
+  read as evidence of image use (register A8); (b) **A3's scope changes** —
+  `gpt-4o` never returned ER-2's `anomaly`/`priority_override`, but its one
+  detecting call misclassified too (`crowding`/`reroute`), and in a *different
+  way*: ER-2 mislabelled the input-integrity condition (a missing enum slot),
+  `gpt-4o` mislabelled the physical configuration (a wrong pick among existing
+  slots — `deadlock` was available). So A3's conflation claim still rests on
+  ER-2 alone, the recommended `state_disagreement` type would not have fixed
+  `gpt-4o`'s error, and A3 is the binding blocker for `gemini` only since
+  `gpt-4o` mostly fails to detect at all (register A3 now carries a
+  minimal-ontology-fix recommendation — not implemented); (c) **two
+  prior observations narrowed** — `gpt-4o` at temperature 0.0 is *near*-, not
+  fully, deterministic (2–5 unique raw responses per 5 repeats, so every n = 5
+  "5/5" here is ~n = 1 plus a stability check), and the `<think>` block is a
+  verbatim template echo in 23/25 and 19/25 rather than 12/12, with the added
+  content landing only in the congruent cells (contradiction cells: pure echo
+  10/10). VM protocol as before: `reasoning/vlm/{models,prompt_builder}.py` and
+  the probe script installed for the run and restored byte-verified afterwards
+  (`7cf02340…b071d7` / `e1441903…41ea6e4`), probe script not left resident.
+  Register open item 2 closed (`docs/reports/2026-09-18-research-findings-register.md`).
+
 - **2026-09-18** — **The 2026-09-18 null result was our prompt, and it is
   apparatus-wide: an opt-in image/state cross-check inverts it without
-  breaking Fix B.** New modality flag
+  breaking Fix B.** *(Partly superseded by the entry above: the null result is
+  apparatus-wide, but the cross-check fix is ER-2-specific.)* New modality flag
   `ReasonerRequest.include_visual_crosscheck` (default `False`;
   `reasoning/vlm/models.py`, `reasoning/vlm/prompt_builder.py`) appends a block
   that gives the image precedence over the state block **only on a clear

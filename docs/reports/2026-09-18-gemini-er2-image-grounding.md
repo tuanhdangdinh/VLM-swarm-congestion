@@ -6,6 +6,7 @@
 
 - Initial draft: pointing test, the incongruent 2x2, and the geometry-off ablation on two measured frames from the live ER-2 run.
 - Rev 2 (2026-09-18): added Experiment 4 — the `include_visual_crosscheck` prompt fix measured on the same stimuli under both prompt variants (n = 5 per cell), the cell-E Fix-B regression guard, and the same 2x2 run against `gpt-4o` (n = 3). The Conclusion below is scoped to the cross-check-off (production) variant and is unchanged by the new section; Threats to validity's "a prompt that asked the model to verify the states against the image was not tested" is now resolved.
+- Rev 3 (2026-09-18): added Experiment 6 — the full five-cell x two-variant matrix run against `gpt-4o` (n = 5 per cell per variant, 50 calls), matched to Experiment 4. **The cross-check modality does not transfer: 1/10 image-consistent against ER-2's 10/10.** Experiment 5's "gpt-4o was not tested with the cross-check on" gap is closed, its byte-identical-output observation is narrowed, and the `<think>` finding is extended from n = 12 to n = 50. Experiment 4's ER-2 result is untouched.
 
 ---
 
@@ -512,10 +513,304 @@ demonstrably computes, while `gpt-4o` emits a trace shell with nothing in it.
 
 ---
 
+## Experiment 6 — the cross-check against `gpt-4o`: it does not transfer
+
+Experiment 4 measured the fix on ER-2; Experiment 5 measured the *null result*
+on `gpt-4o` but never the fix. This section runs the symmetric half — the same
+five cells, both prompt variants, against the production arm.
+
+It matters more than a second data point. `include_visual_crosscheck` is a
+**prompt** change, and the prompt goes to every backend. If the fix worked on
+ER-2 because of the wording, it should work on `gpt-4o` too. If it does not,
+then Experiment 4 measured a property of ER-2 wearing the wording's clothes.
+
+### Method delta
+
+Identical apparatus to Experiment 4: the same two stimuli, SHA-256 verified
+unchanged before the run (`1dea9aed…3589`, `ad5db360…ea31`), re-measured in the
+same run at the same **0.251 m** and **4.884 m**; the same five cells; the same
+`Reasoner`; the same pre-stated criteria and the same unchanged
+`flags_image_state_disagreement` rule. Only the backend differs: `openai`/
+`gpt-4o` through `OpenAIBackendConfig`, with decoding resolved through
+`backend_factory.resolve_reasoner_config` against `config/models.yaml`, so it
+ran at the production-pinned **temperature 0.0** (recorded in each artifact's
+meta record as `reasoner_config.temperature: 0.0`, not hand-set). 50 calls,
+all `attempts=1` and `parse_status=valid`.
+
+The cross-check-**off** half is a fresh n = 5 baseline rather than a reuse of
+Experiment 5's n = 3, so the two variants are compared at matched n through one
+apparatus. **It replicates Experiment 5 exactly**: A `deadlock`/`yield` 5/5,
+D `none` 5/5, B `none` 5/5, C `deadlock`/`yield` 5/5, and 0/25 justifications
+mentioning the image. The added cell E, which Experiment 5 did not have, answers
+no-congestion 5/5.
+
+No harness change was needed: `scripts/probe_gemini_er2_grounding.py` already
+drove `--backend openai --experiment 4` across all five cells and both variants,
+so this run added no code and left its tests untouched.
+
+### Result — both variants, n = 5 per cell
+
+| Cell | Image | Text | Variant | `congestion_detected` | `type` | `strategy` | answer per image | flagged | Tracks |
+|---|---|---|---|---|---|---|---|---|---|
+| A (gate) | conflict | conflict | off | true x5 | deadlock x5 | yield x5 | 5/5 | 0/5 | **gate pass** |
+| A (gate) | conflict | conflict | **on** | true x5 | deadlock x5 | yield x5 | 5/5 | 0/5 | **gate pass** |
+| D (gate) | clear | clear | off | false x5 | none x5 | none x5 | 5/5 | 0/5 | **gate pass** |
+| D (gate) | clear | clear | **on** | false x5 | none x5 | none x5 | 5/5 | 0/5 | **gate pass** |
+| B | **conflict** | clear | off | false x5 | none x5 | none x5 | 0/5 | 0/5 | **text** |
+| B | **conflict** | clear | **on** | false x4, true x1 | none x4, **crowding x1** | none x4, **reroute x1** | **1/5** | 0/5 (1/5 manual) | **text 4/5** |
+| C | clear | **conflict** | off | true x5 | deadlock x5 | yield x5 | 0/5 | 0/5 | **text** |
+| C | clear | **conflict** | **on** | true x5 | deadlock x5 | yield x5 | **0/5** | 0/5 | **text 5/5** |
+| E | clear | regression | off | false x5 | none x5 | none x5 | 5/5 | 0/5 | **no congestion** |
+| E | clear | regression | **on** | false x5 | none x5 | none x5 | 5/5 | 0/5 | **no congestion** |
+
+Side by side with Experiment 4 at the same n, same stimuli, same prompt:
+
+| Incongruent cells, cross-check **on** | ER-2 | `gpt-4o` |
+|---|---|---|
+| answered per the image | **10/10** | **1/10** |
+| flagged the disagreement (rule) | 8/10 | 0/10 |
+| flagged the disagreement (manual read) | 10/10 | 1/10 |
+
+### Q1 verdict: **the fix fails on `gpt-4o`**
+
+Both gates held 5/5 in both variants, so B and C are interpretable. The
+pre-stated criterion — with the flag on, B and C each return in **≥ 3 of 5**
+calls either the image-consistent answer or a justification explicitly naming
+the image/state disagreement — is **not met in either cell**:
+
+- **Cell B: 1/5.** Four of five calls answered `congestion_detected=false`
+  while looking at two robots nose-to-nose 0.25 m apart — the same answer the
+  off variant gave. One call detected.
+- **Cell C: 0/5.** All five answered `deadlock`/`yield` while looking at robots
+  4.9 m apart at opposite ends of the aisle — identical to the off variant.
+
+So the modality that inverted ER-2 from 0/10 to 10/10 moves `gpt-4o` from 0/10
+to 1/10. This is a **prompt** change that behaves like a **model** property,
+which is the most important thing Experiment 6 establishes and a direct
+qualification of Experiment 4's verdict: "instruction, not capability, was the
+binding constraint" is now known to hold for ER-2 and **not** for `gpt-4o`.
+
+### The cross-check produces a confabulated justification
+
+The flag did change `gpt-4o`'s output — just not the decision. Justifications
+mentioning the visual channel go from **0/25** (off) to **18/25** (on), and in
+the ten contradiction-cell calls the rate is 10/10. But **9 of those 10 assert
+that the image agrees with the states**, when the image grossly contradicts
+them.
+
+Cell C with the cross-check on (image: robots 4.9 m apart at opposite ends of
+the aisle; text: 0.35 m and mutually facing), 3/5 calls verbatim:
+
+> "The pairwise geometry indicates a head-on deadlock, and the image confirms
+> the robots are facing each other in a narrow aisle."
+
+Cell B with the cross-check on (image: two robots nose-to-nose 0.25 m apart;
+text: 2.50 m and diverging), 2/5 calls verbatim:
+
+> "The image shows the robots are not in close proximity or facing each other,
+> consistent with the pairwise geometry."
+
+Neither statement is true of the frame that was attached. Compare the same
+cells with the cross-check off, where the model quoted the number and made no
+claim about the picture at all: *"The robots are moving and not facing each
+other, with a distance of 2.50 m between them, which is not a conflict."*
+
+This is worse than the off variant for an operator reading the log. Off, the
+justification is silent about the image and the reader can see it is arithmetic.
+On, the justification claims a visual cross-check was performed and passed —
+manufacturing false corroboration for an unchanged text-driven answer. Any
+downstream use of `justification` as evidence of grounding would be misled by
+exactly the calls where grounding failed. The single detecting call is the one
+exception and it reads correctly: *"The image shows both robots very close
+together, indicating crowding despite the pairwise distance."*
+
+**One rule false negative, reported with the rule unchanged.** That call named
+the disagreement but scored `false`: the rule's disagreement list carries
+`despite the stated`, `despite the reported` and `despite the given`, but not
+`despite the pairwise`. On a manual read the flagging rate is 1/10 rather than
+0/10 — which does not change the verdict, since the criterion needed 3/5. This
+is the same class of miss the ER-2 run recorded, in a rule fixed before both
+runs and reported unchanged in both.
+
+### Q2 — does `gpt-4o` also misclassify the contradiction?
+
+This is the question the run was commissioned for, and the answer is not the
+clean yes/no the brief anticipated. Stated plainly first, then the reasoning.
+
+**Misclassification-on-detection is not ER-2-specific — but A3's *specific*
+conflation is, as measured, and `gpt-4o` cannot settle the prompt-level reading,
+because its failure sits one step upstream of A3.**
+
+The misclassification question presupposes *detection*: a call that answers
+`type=none` has not classified the contradiction wrongly, it has not noticed it.
+Under the same standard applied to ER-2 (for cell B, `deadlock` with
+`yield`/`reverse` is correct; `anomaly`/`priority_override`/`reroute` is the
+misclassification), the cell-B counts with the flag on are:
+
+| Cell B, cross-check on | ER-2 (n = 5) | `gpt-4o` (n = 5) |
+|---|---|---|
+| Did not detect (`congestion_detected=false`, `type=none`) | 0 | **4** |
+| Detected, classified **correctly** (`deadlock` + `yield`/`reverse`) | 1 | **0** |
+| Detected, **misclassified** | 4 (`anomaly` + `priority_override` x3 / `reroute` x1) | **1** (`crowding` + `reroute`) |
+
+**Cell C carries no Q2 information and is excluded from these counts on
+purpose.** C's image-consistent answer is *no congestion*, so correct behaviour
+there is `type=none`/`strategy=none` — there is no classification to get right
+or wrong. C's `deadlock`/`yield` 5/5 is a Q1 failure, not an A3 misclassification.
+ER-2's A3 evidence rests on cell B alone (4 of 5) and so does this run's.
+
+Three things follow, in descending order of how well the data supports them.
+
+1. **`gpt-4o` did not reproduce ER-2's specific misclassification.** Not one
+   call returned `anomaly` or `priority_override`. So the exact signature
+   recorded in A3 — "the model treats the tracker disagreement itself as the
+   anomaly" — is, as measured, ER-2-specific.
+2. **But `gpt-4o` did not classify correctly either — and it failed in a
+   *different way*, which matters more than the shared failure.** Its one
+   detecting call returned `crowding`/`reroute`: wrong by the same standard,
+   since two robots nose-to-nose in a corridor is a head-on `deadlock` and
+   `reroute` is not a resolution for it. Across both models, 6 detecting calls
+   produced 1 correct classification and 5 misclassifications — but the two
+   models' errors are not the same error and pooling them overstates the case:
+
+   - **ER-2 mislabelled the *input-integrity condition*.** `anomaly` +
+     `priority_override` treats the tracker disagreement itself as the thing
+     being classified; the enum has no slot for it, so the model used the
+     nearest one. That is the conflation A3 claims.
+   - **`gpt-4o` mislabelled the *physical configuration*.** It read the image
+     correctly and named the disagreement in prose — *root_cause: "Both robots
+     are in close proximity in a narrow aisle"*, *justification: "…indicating
+     crowding despite the pairwise distance"* — and then picked `crowding` where
+     `deadlock` was available, defined in the prompt, and correct. That is a
+     wrong choice among existing categories, not a missing category.
+
+   A new `state_disagreement` type would have prevented ER-2's error and would
+   **not** have prevented `gpt-4o`'s. So the second model establishes that
+   *something* goes wrong at the classification step on more than one model, not
+   that A3's specific conflation does; **A3's claim still rests on ER-2 alone.**
+   The ontology-gap reading is real but thinner than a pooled "5 of 6" suggests,
+   and it is **not proof**: n = 1 for `gpt-4o`, n = 5 for ER-2, one scenario,
+   one contradiction direction.
+3. **The blocker's scope changes, and not in the direction the brief expected.**
+   A3 framed the problem as "the flag detects correctly and classifies wrongly".
+   That is true of ER-2. For `gpt-4o` the flag mostly **does not detect at
+   all**, so fixing the ontology would not make the flag usable on the
+   production arm. A3 is therefore no longer the *only* thing gating
+   `include_visual_crosscheck`, and for the `openai` cell it is not even the
+   binding one — Q1 is. Fixing A3 would unblock the flag for `gemini` and leave
+   `openai` exactly where it is.
+
+### Cell E — the Fix-B regression verdict: **no regression**
+
+Cell E answered `congestion_detected=false`, `type=none`, `strategy=none` in
+**5/5 calls under both variants**, matching ER-2. Every justification stayed on
+the diverging-headings reasoning the prompt asks for — cross-check on: *"The
+robots are 1.20 m apart and not facing each other, with no congestion detected
+in the image."* The cross-check block did not turn `|Δθ| = π` on two robots
+driving apart into a deadlock, so the wording does not reintroduce the run-3
+failure mode on the arm that originally produced it. That is the arm this guard
+matters most for: run 3 was `gpt-4o`.
+
+The pre-stated hard-fail condition (E answers deadlock with the cross-check on,
+making the modality unsafe for the production arm) **did not occur**. `gpt-4o`
+fails this run on Q1, not on safety.
+
+### The `<think>` block at n = 50 (A4 extended)
+
+Finding A4 recorded a `<think>` block in 12/12 `gpt-4o` calls whose content was
+a verbatim echo of the prompt's own template sentence. The brief asked whether
+the block acquires real content under the cross-check variant, where the model
+has a genuine contradiction to resolve. Measured against the exact template
+string the geometry-on prompt renders:
+
+| | cross-check off | cross-check on |
+|---|---|---|
+| `<think>` block present | **25/25** | **25/25** |
+| content is a verbatim template echo, nothing more | **23/25** | **19/25** |
+| verbatim echo, **contradiction cells B and C only** | 9/10 | **10/10** |
+
+Presence replicates at n = 50. The verbatim-echo rate narrows from A4's 12/12 to
+23/25 and 19/25 — so the block is *not* always empty, and the cross-check
+variant carries real content slightly more often (6/25 vs 2/25).
+
+**But the added content never appears where the contradiction is.** All six
+non-echo blocks in the on variant fall in cells D and E, where image and text
+agree; cells B and C are a pure template echo **10/10**. The answer to the
+question asked is therefore no: the block does not acquire content when the
+model has a genuine contradiction to resolve. Nothing here says why — this is a
+rate over 50 calls, not a mechanism, and it is an observation rather than a
+hypothesis test.
+
+Echo, cross-check **off** (cell A repeat 1; identical in 23/25 calls):
+
+> `Read the pairwise geometry (distance and whether each robot faces the other),
+> check the robot statuses, identify any conflicts, and decide the congestion
+> type and strategy.`
+
+Real content, cross-check **on** (cell D repeat 3 — a congruent cell, appended
+after the same echo sentence):
+
+> `The pairwise geometry indicates that the robots are 2.50 m apart and not
+> facing each other. Both robots are moving, and there is no indication of a
+> deadlock, bottleneck, or crowding. The image confirms that the robots are not
+> in close proximity or facing each other. Therefore, no congestion is
+> detected.`
+
+### Cost of the block, and a correction to Experiment 5
+
+The block adds 169 prompt tokens (1 621 → 1 790, +10%) and 15 completion tokens
+on average. Unlike ER-2, latency barely moves: mean 2 185 ms (1 505–4 477) off
+versus 2 209 ms (1 770–2 754) on — consistent with the finding that the model is
+not doing extra work on the contradiction. The 50 calls cost ≈ $0.28 at
+gpt-4o's $2.50/1M input and $10.00/1M output.
+
+**Correction.** Experiment 5 recorded that at temperature 0.0 "the output was
+byte-identical across repeats within every cell" at n = 3. At n = 5 that does
+not hold: raw responses were unique in 2–5 of 5 repeats per cell, and cell B on
+the cross-check-on variant produced its one detecting call on repeat 4 with the
+other four identical in substance. Temperature 0.0 on this hosted endpoint is
+near-deterministic, not deterministic. The practical consequence is a caution
+for this whole report's `gpt-4o` numbers: n = 5 at temperature 0.0 is closer to
+a reproducibility check than to five independent samples, so **the 1/5 in cell
+B is a single observation**, and the 5/5s carry roughly the information of n = 1
+plus a stability confirmation.
+
+### Threats to validity specific to Experiment 6
+
+- **Near-determinism caps the claim.** As above: the Q2 evidence from `gpt-4o`
+  is one codable call. Q1's failure is more robust — 9/10 incongruent calls
+  reproduced the off-variant answer — but the direction of the single exception
+  should not be over-read.
+- **Q1 and Q2 are entangled in cell B.** Because `gpt-4o` mostly fails to
+  detect, the cell cannot separate "the ontology has no right answer" from "the
+  model never got far enough to need one". A model that detects reliably and
+  misclassifies is the only configuration that isolates A3, and only ER-2
+  supplies it.
+- **One prompt wording.** The cross-check block was written and frozen against
+  ER-2's behaviour (Experiment 4) before any `gpt-4o` call. A wording tuned for
+  `gpt-4o` is untested, so "the fix does not transfer" is a statement about
+  **this** block, not about the existence of a block that would work.
+- **The gates cannot detect a no-op.** A, D and E pass identically in both
+  variants, which is what a prompt the model largely ignores also looks like.
+  The +169 prompt tokens and the 0/25 → 18/25 change in justification language
+  confirm the block reached the model; they do not show it was used.
+- **Two stimuli, one scenario, extreme contradictions**, as in Experiments 4–5.
+  Borderline disagreements remain untested, and they are where a cross-check
+  could do harm by overriding a correct state block.
+- **Same stimulus artifacts** as Experiment 4: burned-in recorder clock, H.264
+  compression, and robot_2's overlay reading `STALE` in `FRAME_CONFLICT` while
+  every cell's text says `STOPPED`. Both frames carry these equally, so they
+  cannot explain a B-vs-C difference — but note that this run's B-vs-C
+  difference is *absent*, which is itself the result.
+
+---
+
 ## Verdict on the fix
 
-**The fix works on this probe, and it is not the same claim as "ER-2 grounds
-its decisions in the image".**
+**The fix works on this probe *for ER-2*, and it is not the same claim as
+"ER-2 grounds its decisions in the image".** Experiment 6 (Rev 3) adds the
+scope this verdict was missing: the same prompt change produces 1/10 on
+`gpt-4o`, so everything below is a statement about the `gemini` arm.
 
 What the data supports:
 
@@ -550,14 +845,25 @@ What it does not support:
   which is a defensible reading of a corrupted state block but would dispatch
   the wrong command through M3/M4. **This flag is not production-ready on that
   basis**, and the type/strategy behaviour under contradiction is an open item,
-  not a detail.
+  not a detail. **Rev 3:** Experiment 6 shows `gpt-4o` does not reproduce this
+  specific `anomaly` signature, but its one detecting call misclassified too
+  (`crowding`/`reroute`), so across both models 6 detecting calls yielded 1
+  correct classification. Directional evidence for an ontology gap rather than
+  an ER-2 quirk; see Experiment 6's Q2 subsection for why `gpt-4o` cannot
+  settle it.
 - **Two stimuli, one scenario, one thinking level, n = 5.** The contradictions
   here are extreme by construction (0.25 m vs 2.50 m stated; 4.88 m vs
   0.35 m). Nothing is known about borderline disagreements, which is exactly
   where a cross-check could do harm by overriding a correct state block.
-- **`gpt-4o` was not tested with the cross-check on.** Experiment 5 establishes
-  that the *null* result is apparatus-wide; whether the *fix* is also
-  apparatus-wide is untested and is the obvious next call to spend.
+- **The fix is not apparatus-wide. Resolved (Rev 3), against expectation.**
+  Experiment 5 established that the *null* result is apparatus-wide; Experiment
+  6 ran the symmetric half and found the *fix* is not. `gpt-4o` at the same
+  stimuli, prompt and n answers per the image in 1/10 incongruent calls against
+  ER-2's 10/10, and instead acquires justifications that falsely claim the image
+  corroborates the states (9/10 contradiction-cell calls). A prompt-level
+  intervention with a model-level effect means Experiment 4's "instruction, not
+  capability, was the binding constraint" is scoped to ER-2, not to the
+  apparatus.
 
 And the finding that is independent of the fix: the original null result is
 **not Gemini-specific**. Two backends, both gates passing, 12/12 incongruent
@@ -594,8 +900,11 @@ model and is demonstrably readable by it, and it still does not move the
 answer. That is a finding the preregistration needs, because it applies to the
 `gemini` Arm A cell whatever the numbers say: a "correct" ER-2 decision in this
 pipeline is evidence about arithmetic on M1's state block, not about visual
-scene understanding, and the same is likely true of the `openai` cell, which
-has never been tested this way. The pointing result is the other half of the
+scene understanding. **The same is now measured, not merely likely, for the
+`openai` cell**: `gpt-4o` followed the text in 6/6 incongruent calls at n = 3
+(Experiment 5) and 10/10 at n = 5 (Experiment 6's cross-check-off half, which
+replicates it), with 0/37 justifications under the production prompt mentioning
+the image. The pointing result is the other half of the
 finding: this is not a model that cannot see; it is a pipeline whose prompt
 makes the image redundant.
 
@@ -614,7 +923,12 @@ makes the image redundant.
   `include_visual_crosscheck` condition and measured in Experiment 4 — it
   inverts the incongruent cells to 10/10 image-consistent, so this threat was
   real and is the explanation, not merely a caveat. The production default is
-  still the prompt this section describes.
+  still the prompt this section describes. **Scoped (Rev 3):** that resolution
+  holds for **ER-2 only**. Experiment 6 ran the same block against `gpt-4o` and
+  got 1/10 — so on the production arm the threat is *not* dispelled by this
+  wording; the prompt still directs the model to the text, and the block adds
+  justifications falsely claiming the image corroborates it (9/10
+  contradiction-cell calls) on top.
 - **Two stimuli, one scenario, one seed, one thinking level.** All frames come
   from one `head_on_deadlock` run at `thinking_level: low`. `high` is untested
   and is its own axis (design doc §4(c)).
@@ -647,11 +961,15 @@ makes the image redundant.
   `data/logs/er2_grounding/grounding_run2_exp3_n9.jsonl` (experiment 3
   follow-up, n = 9), `grounding_run3_xcheck_off.jsonl` and
   `grounding_run3_xcheck_on.jsonl` (experiment 4, n = 5 per cell per variant),
-  and `grounding_run3_gpt4o_off.jsonl` (experiment 5, `gpt-4o`, n = 3). Each
-  run-3 record carries `include_visual_crosscheck`, `backend_id`, `model_id`,
+  `grounding_run3_gpt4o_off.jsonl` (experiment 5, `gpt-4o`, n = 3), and
+  `grounding_run4_gpt4o_xcheck_off.jsonl` / `grounding_run4_gpt4o_xcheck_on.jsonl`
+  (experiment 6, `gpt-4o`, n = 5 per cell per variant). Each run-3 and run-4
+  record carries `include_visual_crosscheck`, `backend_id`, `model_id`,
   the effective `temperature`, `answered_image_consistent`, and
   `flagged_image_state_disagreement`; each file's meta record carries the
-  flagging rule's term lists verbatim.
+  flagging rule's term lists verbatim and the resolved `reasoner_config`
+  (run 4: `temperature: 0.0`, from `config/models.yaml` via
+  `resolve_reasoner_config`, not hand-set).
 - Stimuli (VM, git-ignored):
   `data/logs/er2_grounding/stimuli/frame_conflict_f203.png`,
   `data/logs/er2_grounding/stimuli/frame_clear_f1667.png`; source video
@@ -673,8 +991,13 @@ sudo docker exec -w /ws vgu_ros bash -lc "set -a && source /ws/.env && set +a &&
 
   Experiments 4 and 5 use the same wrapper with `--experiment 4 --repeats 5`
   and `--visual-crosscheck` / `--no-visual-crosscheck`, and with
-  `--backend openai --experiment 2 --repeats 3`. Pick the experiment
-  explicitly: `--experiment all` does not include 4. The VM checkout is not a
-  git repository, so the changed `reasoning/vlm/*.py` and the probe script were
-  installed there for the run and restored from byte-verified backups
-  afterwards; the probe script is not resident on the VM.
+  `--backend openai --experiment 2 --repeats 3`. Experiment 6 is the same
+  wrapper with `--backend openai --experiment 4 --repeats 5` run twice, once per
+  variant, at `--log-path data/logs/er2_grounding/grounding_run4_gpt4o_xcheck_{off,on}.jsonl`;
+  no harness change was needed. Pick the experiment explicitly:
+  `--experiment all` does not include 4. The VM checkout is not a git
+  repository, so the changed `reasoning/vlm/{models,prompt_builder}.py` and the
+  probe script were installed there for each run and restored from byte-verified
+  backups afterwards (pre-run `prompt_builder.py` `7cf02340…b071d7`,
+  `models.py` `e1441903…41ea6e4`; the flag versions are `3d700b53…6a97d` and
+  `7d5e903a…3702a`); the probe script is not resident on the VM.
