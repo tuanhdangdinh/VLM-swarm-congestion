@@ -114,6 +114,62 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-18** — **Full closed-loop `head_on_deadlock` demo run live on the
+  `gemini` backend (Gemini Robotics-ER 2); both robots reached their goals and
+  the entry directly below's artifact fix is confirmed live.** Run
+  `run_id=gemini_20260918_084649` on the GCP VM (run-H recipe:
+  `localization:=camera`, M1 before Nav2, seed 42). Five analyses, all
+  `backend_id=gemini-robotics-er-2-preview`, all `parse_status=valid` at
+  `attempts=1` — so **`force_schema=false` held up live with zero re-asks and
+  zero parser rejections**, and no fallback to `openai` occurred. Sequence:
+  `deadlock`/`reverse` dispatched and `completed` but did not clear the
+  standoff; the next analysis carried `failure_context` and ER-2 explicitly
+  cited it ("the previous attempt to reverse both robots did not successfully
+  resolve the deadlock, the yield strategy is now selected"), returning
+  `deadlock`/`yield`, which M3 grounded, M4 dispatched, and which resolved the
+  conflict — robot_2 arrived at `(-2.5, 0.0)`, robot_1 at `(2.5, 0.0)`. This
+  is the first end-to-end evidence that the failure-context loop changes a
+  *live* second decision, not just a unit-test fixture.
+  **Artifact confirmation of the fix below:** every one of the five
+  `data/logs/m5_decisions/<request_id>.json` files carries
+  `diagnostics.unsupported_sampling = {"presence_penalty": 0.0,
+  "temperature": 0.6, "top_k": 20.0, "top_p": 0.95}` (`top_k` renders as
+  `20.0` because `_extract_unsupported_sampling` casts through `float`).
+  Correction to that entry's wording: the M5 path writes no *reasoner* JSONL —
+  `write_reasoner_log` is called only by tests, and M5's JSONL is the M1 scene
+  log (`append_scene_log` → `data/logs/m5_scene`), which carries no
+  diagnostics. The confound is checkable only from the per-request JSON that
+  `swarm_orchestrator.reasoning_pipeline.write_decision_artifact` writes,
+  which dumps `ReasonerDiagnostics.model_dump(mode="json")` wholesale.
+  **Measured, single run, not a claim about the models:** ER-2 latency mean
+  3384 ms (min 3162, max 3765) against the tagged gpt-4o run
+  `run_id=20260917_163714` at 3863 ms; total tokens mean 2297 vs 1826, the
+  gap explained by ER-2's `thought_tokens` (137–224/call), which has no
+  gpt-4o counterpart. ER-2 returned `congestion_detected=false` on three of
+  five analyses with explicit numeric grounds (robots "1.20 meters apart",
+  above the 0.5 m threshold) while robots were still flagged stalled — i.e.
+  it declined to declare deadlocks on separated/parked robots, the inverse of
+  gpt-4o's spurious-deadlock failure mode recorded for run 3. One run and
+  five calls: directional only, not a measured difference.
+  **Two setup traps confirmed, one brief correction.** The backend switch is
+  `reasoning_backend_id` in `ros2_ws/src/swarm_orchestrator/config/
+  orchestrator.yaml`, not `config/models.yaml`, and `orchestrator.launch.py`
+  loads the **installed** copy via `get_package_share_directory`, so the
+  source edit only takes effect after `colcon build --merge-install
+  --packages-select swarm_orchestrator` (plain `colcon build` errors in this
+  workspace). Contrary to the dispatch brief, the VM's **source**
+  `orchestrator_node.py` also lacked the `gemini` branch of
+  `_load_vlm_config`, as did `reasoning/vlm/{reasoner,models}.py` (VM is not a
+  git checkout; files are hand-copied) — all three needed copying from
+  `85b4b18`. Also contrary to the brief, the `Path("config/models.yaml")`
+  CWD trap was never live here: container `vgu_ros` already has
+  `WorkingDir=/ws`, so prior `openai` runs were not silently falling back;
+  `-w /ws` was passed anyway to make that definitive. Isaac must be launched
+  as the `ubuntu` user (`/home/ubuntu` is mode 0750). Evidence:
+  `data/logs/recordings/2026-09-18/` (git-ignored; 566 s real-time capture,
+  recorder achieved 3.941 fps against a stamped 8.289, so playback needs
+  `setpts=2.1033*PTS`).
+
 - **2026-09-18** — **`unsupported_sampling` now reaches the persisted run
   artifact, not just `BackendResponse.raw`/stderr.** Closes the gap the
   entry directly below flagged: `GeminiBackend` recorded dropped
