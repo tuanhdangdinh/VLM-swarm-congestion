@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft (2026-09-18): consolidates findings from the 2026-09-16 → 2026-09-18 verification, camera-localization, failure-context, and Gemini Robotics-ER 2 work into research-usable claims.
+- Rev 3 (2026-09-19): adds **A9** (decision variables absent from the reasoner's input contract — the T1/T2a blocker is unobservable) and **A10** (the `involved_robots` ordering channel is a formatting artifact: `robot_1` first in 44/44 yields across 524 artifacts), plus **E5**/**E6** as the two methods they generalise into. Both came out of reviewing `2026-09-18-head-on-asymmetric-family-design.md` and both change what that battery can measure; see `2026-09-19-head-on-asymmetric-family-design-review.md` on `feat/failure-context-closed-loop`. Open items updated.
 - Rev 2 (2026-09-18): folds in the `gpt-4o` cross-check matrix (report Experiment 6, open item 2). **A6 is now known to be model-specific, not apparatus-wide** — the same prompt change gives 10/10 on ER-2 and 1/10 on `gpt-4o`. A3 amended with the prompt-level-vs-model-specific reading and a minimal-ontology-fix recommendation; A1 strengthened at matched n; A4 extended to n = 50 and narrowed; new A8 records the confabulated-justification hazard the cross-check introduces. Open item 2 closed.
 
 ---
@@ -137,6 +138,26 @@ Both congruent gates passed 5/5 in both variants, so the cells are interpretable
 
 **Research angle.** A concrete interpretability hazard, and one that cuts against a natural mitigation: "ask the model to justify against the image" makes the log *look* grounded exactly where grounding failed, so justification text cannot be used as evidence of image use. It also matters for any pipeline that logs justifications for human review or feeds them to a downstream reasoner (our failure-context mechanism, B2, does the latter). The paired off-variant is what makes the claim measurable: the same model, same stimulus, same decision, different claim about how it was reached. **Directional** — one model, one prompt, n = 10 contradiction-cell calls.
 
+### A9. The input contract, not the model, decides which questions are answerable
+
+**Claim.** Decision variables that the experiment manipulates are absent from every channel the reasoner actually reads, so the corresponding research question cannot be answered by Arm A regardless of model quality.
+
+**Evidence.** `reasoning/vlm/prompt_builder.py` renders, per robot: `robot_id`, `x`, `y`, `theta`, linear/angular velocity, `status`, `goal`; plus the derived pairwise distance/facing block, the known-robot-id list, and the guidance text. It contains **no obstacle, blocker, barrier, wall, rack or occupancy channel** — verifiable with `grep -niE "obstacle|blocker|barrier|wall|rack|occupanc" reasoning/vlm/prompt_builder.py`. The planned T1/T2a scenario family (`docs/superpowers/specs/2026-09-18-head-on-asymmetric-family-design.md`) creates its asymmetry with a parked 0.3 m box that makes one side's retreat space infeasible. That box reaches the reasoner only through the image — and A1 measured that the decision does not use the image. So "which side can the yielder retreat into" is unobservable to the reasoner, and the T2a contrast would measure guessing.
+
+**Research angle.** Generalises past this battery: before attributing a coordination failure to the reasoner, enumerate which state variables the decision actually depends on and confirm each has a channel the reasoner reads. The input contract is an experimental parameter, not plumbing. It also supplies a clean ablation once a free-space channel exists — with it, spatial reasoning over retreat space is testable; without it, the information bound is demonstrable.
+
+**Recorded 2026-09-19.** Full analysis in `docs/superpowers/specs/2026-09-19-head-on-asymmetric-family-design-review.md` (on branch `feat/failure-context-closed-loop`, alongside the spec it reviews).
+
+### A10. An implicit output channel was never a channel
+
+**Claim.** Where the pipeline infers a role from the *order* of a list rather than from a named field, the model does not use that ordering to express a choice — it emits the default order.
+
+**Evidence.** A census of every decision artifact on the VM: 524 files under `data/logs/**/*decision*.json`, all parsed, none unparseable. 72 carry a non-empty `involved_robots`; **71 of 72 are `['robot_1', 'robot_2']`** — ascending id order. Of the **44 `deadlock`/`yield` decisions, 44 list `robot_1` first**; `robot_2` never appears first. The single exception is a one-element `['robot_2']` list from an `anomaly`/`priority_override` call under the experimental cross-check prompt, not a yielder choice. `reasoning/rag/command_grounder.py:146` (`robot_ids = decision.involved_robots`) makes the order load-bearing downstream, and the prompt renders states under the header *"Robot states (sorted by ID)"*, so ascending order is also the path of least resistance.
+
+**Research angle.** A measurement artifact with a general moral: implicit encodings (position, order, formatting) are not channels a model reliably uses to signal intent, and an experiment that reads a decision out of one is measuring convention. The fix is an explicit named field — here, the `yield_robot` field currently deferred as YAGNI in Phase 1 Task 1. **Directional in one direction only:** this is a census of what has been collected, not an experiment. It shows the ordering channel has never been used, not that the model could not use it if asked; a prompt explicitly assigning meaning to the order was never tested.
+
+**Recorded 2026-09-19.** Same review document as A9.
+
 ---
 
 ## B. Multi-robot coordination — strategy-level findings
@@ -265,6 +286,8 @@ ER-2 returned first-attempt valid decisions in 5/5 live-run calls and across all
 - **E2. Pre-stated criteria plus anti-degeneracy guards.** In the pointing experiment, the natural "within half a robot width" criterion is degenerate for a 0.25 m pair — half the separation falls inside the hit ring, so reporting one blob twice would pass. Fixed by forcing one-to-one assignment and reporting the *returned inter-point separation* against the true one.
 - **E3. Instrument confounds into the artifact.** Recording unhonoured sampling parameters per call (`unsupported_sampling`) turns a documentation problem into data.
 - **E4. Provenance under sensor degradation.** When re-detection on stored stimuli is unreliable (C3), recover ground truth from the logged scene state matched on a burned-in timestamp, and cross-validate where both are available.
+- **E5. Census the artifacts you already have before running anything.** A10 cost one parse of 524 existing files and no API calls, and it invalidated a load-bearing assumption in an approved-for-implementation spec. Before designing an episode around a channel, check what that channel has actually carried across every run collected so far — it is the cheapest experiment available and it is usually skipped.
+- **E6. Audit the input contract against the manipulated variable.** A9's check is mechanical: list the state variables the correct answer depends on, then grep the rendered prompt for each. A variable with no channel makes its research question unanswerable no matter how good the model is.
 
 ---
 
@@ -272,7 +295,7 @@ ER-2 returned first-attempt valid decisions in 5/5 live-run calls and across all
 
 1. **A3** — the state-disagreement category, before `include_visual_crosscheck` is used for anything live on the `gemini` arm. Now scoped by item 2's outcome: A3 is the binding blocker for `gemini`, not for `openai`.
 2. ~~**gpt-4o with the cross-check enabled** — the symmetric half of A6, never run.~~ **Done (2026-09-18, report Experiment 6, 50 calls).** Outcome: **the fix does not transfer** — 1/10 image-consistent against ER-2's 10/10, gates 5/5 both variants, regression cell E clean 5/5 both variants. Consequences folded into A6 (now scoped to ER-2), A3 (misclassification not ER-2-specific but not confirmable as prompt-level either, since gpt-4o mostly fails to detect at all; minimal ontology fix recommended there), A1 (matched n = 5 baseline replicates; temperature-0.0 determinism narrowed), A4 (extended to n = 50, echo rate narrowed), and new **A8** (the cross-check manufactures false visual corroboration on gpt-4o). **New open item:** whether a wording tuned for gpt-4o could work is untested — but note that if the flag needs per-model wording, it is a per-arm confound in any Arm A/B comparison, which is a reason to prefer the A3 schema fix over prompt tuning.
-3. **Scenario battery (T2/T3)** — forced-failure yield, three-robot bottleneck, object blocker. Isaac/USD and Nav2 work; still the gating item.
+3. **Scenario battery (T2/T3)** — forced-failure yield, three-robot bottleneck, object blocker. Isaac/USD and Nav2 work; still the gating item. **Now gated on A9 and A10 first:** the approved T1/T2a family design manipulates retreat-space feasibility, which A9 shows the reasoner cannot observe, and reads the yielder out of the ordering channel A10 shows it never uses. Both fixes are small — a free-space modality block and the deferred `yield_robot` field — and both belong before the family is generated, not after.
 4. **Paired-seed Arm A/B matrix** — every entry marked *directional* depends on it.
 5. **Prompt-variant declaration** — parent spec Rev 8.6 requires every reported Arm A decision to name its prompt variant.
 6. **Branch hygiene** — `feat/gemini-er2-backend` stacks on the unmerged `feat/failure-context-closed-loop`.
