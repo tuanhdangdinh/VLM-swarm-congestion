@@ -28,7 +28,9 @@
 
 ## Dispatch notes (controller only)
 
-Model per task: 1, 2, 4, 6, 10 → `sonnet` (brief carries the code or an exact contract); 3, 5 → `opus` (yaml rendering / pxr judgement); 7, 8, 9 → `opus` (VM, SSH, log forensics). Final whole-branch review → `opus`. Tasks 7–9 are sequential and long (≈ 15 min per sim run); they write their evidence to files under `data/logs/family_check_20260918/` (git-ignored) and a short report file the docs task links.
+Model per task: 1, 2, 4, 6, 10, 11 → `sonnet` (brief carries the code or an exact contract); 3, 5, 12 → `opus` (yaml rendering / pxr judgement / cross-module M2+M5 plumbing); 7, 8, 9 → `opus` (VM, SSH, log forensics). Final whole-branch review → `opus`. Tasks 7–9 are sequential and long (≈ 15 min per sim run); they write their evidence to files under `data/logs/family_check_20260918/` (git-ignored) and a short report file the docs task links.
+
+**Execution order: 6 → 7 → 8 → 11 → 12 → 9 → 10.** Tasks 11 and 12 build the observability channels Task 9's paired runs depend on; Task 10 documents everything last.
 
 ---
 
@@ -374,10 +376,21 @@ Call `validate_scenario_obstacles` from wherever the builder's post-build valida
 
 ### Task 6: Repo-tracked VM launch script + reversed mock decision
 
+**Ruling (2026-09-19): port and extend, do not write from scratch.**
+`scripts/run_gemini_er2_demo.sh` on branch `feat/gemini-er2-backend` (265
+lines) already provides the bring-up ordering, `localization:=camera`, the
+recorder plus its fps re-timing caveat, `-w /ws` on every `docker exec`, the
+key sourced inside the container, per-run log collection, and a backend switch
+that restores `reasoning_backend_id` on exit (`trap cleanup EXIT` plus
+`trap 'exit 130' INT TERM HUP`). Base `scripts/vm/fc_launch.sh` on it — two VM
+launchers would drift — and add only what the family needs: `SCENARIO`
+resolution across `isaac/config/scenarios/` and `isaac/config/scenarios/family/`,
+`warehouse_map_<name>` with an existence check, spawn poses read from the
+scenario yaml rather than hardcoded ±1.5, `MOCK_DECISION_FILE`, and `DRY_RUN=1`.
+
 **Files:**
-- Create: `scripts/vm/fc_launch.sh`
+- Create: `scripts/vm/fc_launch.sh` (ported from `git show feat/gemini-er2-backend:scripts/run_gemini_er2_demo.sh`)
 - Create: `config/mock_decisions/head_on_yield_robot_2.json`
-- Reference (read-only, fetch with `scp -i <key> ubuntu@34.68.133.240:/home/ubuntu/fc_record_launch.sh <scratch>`): the VM's `fc_check_launch.sh` / `fc_record_launch.sh`.
 
 **Interfaces:**
 - Produces `scripts/vm/fc_launch.sh` — bash, `set -euo pipefail`, same six-stage bring-up as `fc_record_launch.sh` (Isaac → topics → M1 → Nav2 ×2 → M4 → M5, recorder optional), with:
@@ -416,13 +429,37 @@ Call `validate_scenario_obstacles` from wherever the builder's post-build valida
 
 ---
 
-### Task 9: Recorded gpt-4o run on the contrast variant
+### Task 9: Recorded gpt-4o run on the blocked variant — RQ5 recovery episode
+
+**Framing (ruling, 2026-09-19).** This run is an **RQ5 closed-loop recovery
+episode**, NOT a T2a oracle-agreement cell. Per the design review
+`docs/superpowers/specs/2026-09-19-head-on-asymmetric-family-design-review.md`
+(both findings independently verified), the reasoner cannot observe which side
+is blocked — `reasoning/vlm/prompt_builder.py` renders no obstacle channel and
+the image is measured non-decisive — and cannot express a yielder choice, since
+`involved_robots` order is a constant in practice (44/44 yields list `robot_1`
+first). So the model's *first* answer carries no information about retreat
+space, and nothing in this task may be reported as oracle agreement. What the
+episode does measure is what happens **after** the blocked maneuver fails:
+whether the failure context reaches the next decision and whether the loop
+recovers. Record whatever happens either way.
+
+Expect `reverse` as a plausible first strategy, not only `yield` — on the
+simpler scenario the live model chose `deadlock`/`reverse` first, and `reverse`
+is dispatched symmetrically so it cannot resolve a two-robot head-on at all.
+Keep "failed because the strategy cannot work" separate from "failed because
+the chosen side has no retreat space" in the write-up; conflating them is the
+one analysis error this episode can produce.
 
 **Files:** extend the report; deliver MP4 + timeline under `data/logs/recordings/2026-09-18/` in the worktree (git-ignored).
 
-- [ ] **Step 1:** `SCENARIO=head_on_asymmetric_w0p2_eopen_o0 RECORD=1 REC_SEC=780 bash scripts/vm/fc_launch.sh` (no mock file → openai backend from `/ws/.env`). Wait ≤ 15 min for both arrivals or the recorder's end; stop everything.
-- [ ] **Step 2:** Pull the MP4, retime with ffmpeg as in the 2026-09-17 recordings (`setpts=(stamped/achieved)*PTS`, achieved fps from the recorder log), and build a timeline (UTC, elapsed, decision → strategy/involved order → executed → outcome) from the decision artifacts for this run_id. Save `data/logs/recordings/2026-09-18/run1_t2a_w0.2_eopen_annotated.mp4` + `README.md` (timeline, counts: analyses, dispatches, `none`, failure-context blocks seen).
-- [ ] **Step 3:** Append a "gpt-4o run" section to the report: did the first yield target the blocked robot, did the previous-attempt block appear, what the second decision was, arrivals. Commit `docs: record first gpt-4o run on the head-on contrast variant`.
+- [ ] **Step 1:** Two recorded runs on `head_on_asymmetric_w0p2_eopen_o0` (no mock file → openai backend from `/ws/.env`), each `RECORD=1 REC_SEC=780`, each stopped fully before the next starts (`pkill -f "[r]os2 launch"`, kill Isaac's `python.sh`, `sudo docker restart vgu_ros`):
+  - **Run A — modality OFF** (`prompt_static_obstacles: false`, the default): the information-bound condition, comparable with every run collected so far.
+  - **Run B — modality ON** (`prompt_static_obstacles: true` with the blocker mirrored into `static_obstacles`, plus the `yield_robot` field from Task 11 live in both runs): the spatial-reasoning condition.
+
+  Capture both run_ids and keep their artifacts in separate directories. Neither run's first answer is evidence on its own — the **contrast between A and B** is the result.
+- [ ] **Step 2:** Pull the MP4, retime with ffmpeg as in the 2026-09-17 recordings (`setpts=(stamped/achieved)*PTS`, achieved fps from the recorder log), and build a timeline (UTC, elapsed, decision → strategy/involved order → executed → outcome) from the decision artifacts for this run_id. Save `data/logs/recordings/2026-09-18/run1_rq5_w0p2_eopen_annotated.mp4` + `README.md` (timeline, counts: analyses, dispatches, `none`, failure-context blocks seen).
+- [ ] **Step 3:** Append an "RQ5 recovery run (gpt-4o)" section to the report: the first strategy and which robot it targeted, whether the maneuver failed and how (`FAILED`/`TIMED_OUT`, quoted), whether the previous-attempt block appeared in the next prompt, what the second decision was, and whether both robots reached their goals. State explicitly that first-answer yielder identity is **not** evidence of spatial reasoning here, and why. Commit `docs: record RQ5 recovery run on the blocked head-on variant`.
 
 ---
 
@@ -430,11 +467,120 @@ Call `validate_scenario_obstacles` from wherever the builder's post-build valida
 
 **Files:**
 - Modify: `docs/specs/module6_simulation.md` (scenario list: family + generator; obstacle geometry now real collision boxes; static_obstacles/oracle/parameters schema fields; per-scenario maps)
-- Modify: `docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md` (revision history line rev 8.6: T1/T2a realised as the `head_on_asymmetric` family; battery section points at the family spec and manifest; FCFS tie → lexicographic note)
+- Modify: `docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md` (revision history line rev 8.6: T1/T2a realised as the `head_on_asymmetric` family; battery section points at the family spec and manifest; FCFS tie → lexicographic note; **modality table gains `static_obstacles` (default off) alongside `pairwise_geometry`, and the decision schema gains `yield_robot`** — both are Arm A changes and must be named in the decoding/prompt pre-registration, with the note that all artifacts before 2026-09-19 were collected without them)
+- Modify: `docs/specs/module2_vlm.md` (new FR for `yield_robot` and for the static-obstacle modality) and `docs/specs/module5_orchestrator.md` (new FR for `prompt_static_obstacles` / `static_obstacles` config keys)
 - Modify: `docs/implementation_notes.md` (M6 entry: family + obstacle geometry + maps, commits; M5/M2 entry: validity pairs and gpt-4o run outcome, link the report)
 - Modify: `docs/superpowers/specs/2026-09-18-head-on-asymmetric-family-design.md` (Status → implemented, link plan + report)
 
-- [ ] **Step 1:** Read the maintenance rules at the top of `docs/implementation_notes.md` and the header conventions in `docs/standards/doc_style.md`; read the report from Tasks 7–9.
+Additional corrections required by the 2026-09-19 design review (ruling):
+
+- `docs/superpowers/specs/2026-09-18-head-on-asymmetric-family-design.md`: qualify the **Status** line — the family realizes T1 and the T2a *geometry*, but the T2a oracle-agreement *claim* is not answerable by Arm A as currently prompted. Resolve the review banner at the top of that spec (it currently says "the owner decides", left open) by recording the decision actually taken: engineering proceeds; the paired variants are reported as an order-vs-scene demonstration; the `yield_robot` field and obstacle prompt modality are escalated to the owner as prerequisites for the Phase 1 paired-seed matrix, not for this plan.
+- Record in the notes that the frozen `oracle:` blocks are **inert data** — verified consumed by nothing but config validation — so a frozen `correct_yielder` cannot silently become an Arm A score.
+- Correct the review's one wrong claim in `docs/superpowers/specs/2026-09-19-head-on-asymmetric-family-design-review.md`: `tests/unit/test_m6_config.py::test_head_on_yaml_round_trip` is a genuine pre-existing baseline failure, **not** part of this work — `df047ae` does not touch the barrier assertions (`git log -S` traces them to `aa80d96` / `e7764bc` on `main`). Append the correction; do not rewrite the reviewer's text.
+- Note the paired T2a variants' value as a pre-registered negative result: `w0p2_eopen_o0` (`correct_yielder: robot_2`, default order wrong) vs `wopen_e0p2_o0` (`correct_yielder: robot_1`, default order right), matched geometry — a clean demonstration that Arm A's yielder selection is order-driven rather than scene-driven, requiring no new features.
+
+- [ ] **Step 1:** Read the maintenance rules at the top of `docs/implementation_notes.md` and the header conventions in `docs/standards/doc_style.md`; read the report from Tasks 7–9 and the 2026-09-19 design review.
 - [ ] **Step 2:** Make the edits; every claim links a commit or the report; absolute dates.
 - [ ] **Step 3:** Run `pytest tests/unit -q | tail -3` and confirm the failure count is exactly the 13 baseline failures listed in Global Constraints.
 - [ ] **Step 4:** Commit `docs: sync M6 spec, rev-8 battery and notes for the head-on family`.
+
+---
+
+## Observability channels (owner-approved 2026-09-19)
+
+The owner approved building both channels the design review identified as
+missing, as **declared modalities run both ways**. Execution order is therefore
+**6 → 7 → 8 → 11 → 12 → 9 → 10**: the channels must exist before Task 9's runs,
+and Task 9 then records the blocked variant twice (modality off = the
+information bound, comparable with every run collected so far; modality on =
+the spatial-reasoning condition T2a was meant to be).
+
+Both default to **OFF**. That is load-bearing for the pre-registration: every
+artifact collected to date was produced without them, and an ON default would
+silently break comparability with the 524 existing decisions.
+
+### Task 11: Explicit `yield_robot` decision field
+
+**Files:**
+- Modify: `reasoning/vlm/models.py` (`CongestionDecision`)
+- Modify: `reasoning/vlm/prompt_builder.py` (output-format lines)
+- Modify: `reasoning/rag/command_grounder.py` (~line 146)
+- Test: `tests/unit/test_vlm_models.py` (or the file that covers `CongestionDecision` — grep first), `tests/unit/test_prompt_builder.py`, `tests/unit/test_command_grounder.py`
+
+**Why:** `command_grounder.py:146` (`robot_ids = decision.involved_robots`) makes list position the yielder channel, and list position is a measured constant — 44/44 yields listed `robot_1` first across 524 artifacts. Until the model has a named field, the battery measures an ordering convention rather than a choice.
+
+**Interfaces produced:**
+
+```python
+# reasoning/vlm/models.py
+class CongestionDecision(BaseModel):
+    yield_robot: str | None = None   # only meaningful when strategy == "yield"
+    # model_validator(mode="after"): if yield_robot is not None it MUST appear in
+    # involved_robots — raise ValueError naming both. A decision that names a
+    # yielder outside the involved set is a contract violation that would
+    # mis-dispatch; M2's bounded-retry loop is the right place to catch it.
+    # Do NOT require yield_robot when strategy == "yield" (older artifacts and
+    # models that omit it must still parse).
+
+# reasoning/rag/command_grounder.py
+def resolve_robot_order(decision: CongestionDecision) -> list[str]
+    # yield_robot first when set and present, remaining involved_robots in their
+    # original order; otherwise involved_robots unchanged (backward compatible).
+```
+
+- [ ] **Step 1: Write the failing tests.** Schema: `yield_robot` defaults to `None`; accepts a member of `involved_robots`; raises when naming a non-member; a decision with `strategy="yield"` and no `yield_robot` still parses. Grounder: `resolve_robot_order` puts `yield_robot` first when it is listed second; returns `involved_robots` unchanged when `yield_robot is None` (the backward-compat case that protects every historical artifact). Prompt: the rendered output-format section names `yield_robot` and says it is null unless the strategy is `yield`.
+- [ ] **Step 2: Run them and record the failures.**
+- [ ] **Step 3: Implement.** In the prompt, add one output-format bullet — `- "yield_robot": the robot that should yield, or null when the strategy is not "yield"` — and extend the `<think>` step to ask which robot should yield and why. Do not describe *how* to choose; that is the thing being measured. Wire `resolve_robot_order` at the existing `robot_ids = decision.involved_robots` site and nowhere else.
+- [ ] **Step 4: Run to verify pass**, plus `pytest tests/unit/test_command_grounder.py tests/unit/test_prompt_builder.py -q` and `ruff check` on the touched files (exit 0).
+- [ ] **Step 5: Commit** `feat: add explicit yield_robot field to the congestion decision`.
+
+### Task 12: Static-obstacle prompt modality
+
+**Files:**
+- Modify: `reasoning/vlm/models.py` (`StaticObstacleInput`, `ReasonerRequest`)
+- Modify: `reasoning/vlm/prompt_builder.py` (slot, renderer, ON/OFF wording)
+- Modify: `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py` (`OrchestratorConfig`)
+- Modify: `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/reasoning_pipeline.py` (`build_reasoner_request`)
+- Modify: `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py` (~line 335)
+- Modify: `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`
+- Test: `tests/unit/test_prompt_builder.py`, `tests/unit/test_reasoning_pipeline.py`, `tests/unit/test_orchestrator_models.py` (grep for the files that cover these)
+
+**Why:** `grep -niE "obstacle|blocker|barrier|wall|rack|occupanc" reasoning/vlm/prompt_builder.py` returns nothing — the reasoner has no channel through which a parked blocker could be perceived, and the image is measured non-decisive. Follow the `include_pairwise_geometry` / `prompt_pairwise_geometry` pattern exactly (rev 8.5); it is the established modality shape in this codebase.
+
+**Do not leak the answer.** Render obstacles as world-frame boxes only — id, centre, extent — the same way robot states are rendered as bare coordinates. The model must derive "that box blocks a retreat" itself. Any wording naming a robot, a retreat, or a blocked side invalidates the condition.
+
+**Interfaces produced:**
+
+```python
+# reasoning/vlm/models.py
+class StaticObstacleInput(BaseModel):     # frozen
+    obstacle_id: str = Field(min_length=1)
+    x: float
+    y: float
+    size_x_m: float = Field(gt=0)
+    size_y_m: float = Field(gt=0)
+
+class ReasonerRequest(BaseModel):
+    static_obstacles: list[StaticObstacleInput] = []
+    include_static_obstacles: bool = False     # default OFF — preserves comparability
+
+# reasoning/vlm/prompt_builder.py
+def format_static_obstacle_lines(obstacles: list[StaticObstacleInput]) -> list[str]
+    # "blocker_west: centre (-1.85, 0.00) m, extent 0.30 x 0.30 m"
+# {static_obstacle_block} slot; _OBSTACLES_ON / _OBSTACLES_OFF wording dicts.
+# ON adds a clause stating the list is the complete set of fixed obstacles in
+# the scene and that a robot can neither occupy nor drive through one.
+# OFF renders the block as "- (not provided)" and adds no clause, leaving the
+# prompt byte-identical to today's apart from that single line.
+
+# M5
+OrchestratorConfig.prompt_static_obstacles: bool = False
+OrchestratorConfig.static_obstacles: tuple[StaticObstacleInput, ...] = ()
+build_reasoner_request(..., static_obstacles=..., include_static_obstacles=...)
+```
+
+- [ ] **Step 1: Write the failing tests.** Renderer output for one and for several obstacles, sorted by `obstacle_id` for determinism. Prompt: with the modality ON the block lists each obstacle and the ON clause is present; with it OFF the block reads `- (not provided)` and the ON clause is absent; **an OFF prompt is byte-identical to a prompt built without the feature** (pin this — it is the comparability guarantee). Pipeline: `build_reasoner_request` forwards both fields. M5 config: both keys parse with the documented defaults, and `static_obstacles` accepts the mirrored mapping from yaml.
+- [ ] **Step 2: Run them and record the failures.**
+- [ ] **Step 3: Implement.** In `orchestrator.yaml`, add `prompt_static_obstacles: false` and a commented `static_obstacles:` block carrying the family blocker (`blocker_west`, centre `-1.85, 0.0`, extent `0.3 x 0.3`) with a comment saying it mirrors the scenario yaml the way `scenario_geometry` mirrors the aisle barrier, and that it must be set per scenario.
+- [ ] **Step 4: Run to verify pass**; `ruff check` on the touched files (exit 0); confirm no previously passing test in the touched files regresses.
+- [ ] **Step 5: Commit** `feat: add static-obstacle prompt modality behind a default-off flag`.
