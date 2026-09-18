@@ -160,10 +160,12 @@ def rasterize_static_obstacles(
 ) -> None:
     """Mark each scenario static obstacle OCCUPIED on an existing grid.
 
-    Mirrors the USD builder's static-obstacle authoring: each obstacle spans a
-    ``size.x_m`` x ``size.y_m`` axis-aligned box centered at ``pose.x, pose.y``.
-    Yaw is ignored -- obstacles are rasterized axis-aligned only (v1). Mutates
-    ``grid`` in place.
+    Mirrors ``isaac.vgu_sim.scenario_builder._author_static_obstacles`` (which
+    calls ``_author_box`` per obstacle): each obstacle spans a ``size.x_m`` x
+    ``size.y_m`` box centered at ``pose.x, pose.y``. Unlike the USD builder,
+    which also applies ``pose.yaw_rad`` as a Z rotation, this rasterizer
+    ignores yaw and marks the box axis-aligned only (v1). Mutates ``grid`` in
+    place.
 
     Args:
         grid: uint8 occupancy grid to mutate, shape ``(height_px, width_px)``.

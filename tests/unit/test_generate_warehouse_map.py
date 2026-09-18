@@ -19,6 +19,7 @@ from isaac.vgu_sim.config import (
     Pose2D,
     ScenarioConfig,
     StaticObstacleConfig,
+    TimedObstacleConfig,
     WarehouseConfig,
 )
 from tests.unit.test_m6_config import VALID_HEAD_ON
@@ -32,6 +33,13 @@ BLOCKER = StaticObstacleConfig(
     obstacle_id="blocker_west",
     pose=Pose2D(x=-1.85, y=0.0, yaw_rad=0.0),
     size=ObstacleSize(x_m=0.3, y_m=0.3, z_m=0.5),
+)
+DYNAMIC_TIMED_OBSTACLE = TimedObstacleConfig(
+    obstacle_id="dynamic_obstacle",
+    asset="cart.usd",
+    spawn_at_sec=1.0,
+    pose=Pose2D(x=0.0, y=0.0, yaw_rad=0.0),
+    size=ObstacleSize(x_m=1.0, y_m=1.0, z_m=0.5),
 )
 
 
@@ -234,30 +242,40 @@ def test_static_obstacle_flanks_stay_free():
 
 
 def test_timed_obstacle_is_not_baked():
+    # Both scenarios carry the same non-trivial bakeable geometry (aisle_barrier
+    # + a static obstacle), so the only difference under test is the presence
+    # of a timed obstacle -- a tautological comparison (e.g. against a
+    # scenario with nothing else baked) would pass even if timed obstacles
+    # leaked into the grid.
     cfg = WarehouseConfig()
     resolution_m = 0.05
-    scenario = ScenarioConfig.model_validate(
-        {
-            **VALID_HEAD_ON,
-            "timed_obstacles": [
-                {
-                    "obstacle_id": "cart",
-                    "asset": "cart.usd",
-                    "spawn_at_sec": 5.0,
-                    "pose": {"x": 0.0, "y": 1.0, "yaw_rad": 0.0},
-                }
-            ],
-        }
+    base_fields = {**VALID_HEAD_ON, "aisle_barrier": BARRIER, "static_obstacles": [BLOCKER]}
+    without_timed = ScenarioConfig.model_validate(base_fields)
+    with_timed = ScenarioConfig.model_validate(
+        {**base_fields, "timed_obstacles": [DYNAMIC_TIMED_OBSTACLE]}
     )
-    base, _ = build_occupancy_grid(cfg, obstacles=[], resolution_m=resolution_m)
-    with_scenario, _ = build_occupancy_grid(
+
+    grid_without, _ = build_occupancy_grid(
         cfg,
         obstacles=[],
         resolution_m=resolution_m,
-        aisle_barrier=scenario.aisle_barrier,
-        static_obstacles=scenario.static_obstacles,
+        aisle_barrier=without_timed.aisle_barrier,
+        static_obstacles=without_timed.static_obstacles,
     )
-    assert np.array_equal(base, with_scenario)
+    grid_with, _ = build_occupancy_grid(
+        cfg,
+        obstacles=[],
+        resolution_m=resolution_m,
+        aisle_barrier=with_timed.aisle_barrier,
+        static_obstacles=with_timed.static_obstacles,
+    )
+
+    assert np.array_equal(grid_without, grid_with)
+    # The timed obstacle's 1m x 1m footprint is centered on (0, 0); if it were
+    # ever baked, this cell would flip to OCCUPIED and both assertions here
+    # would fail, giving the comparison above real teeth.
+    assert _cell_at(grid_without, cfg, resolution_m, x=0.0, y=0.0) == 255
+    assert _cell_at(grid_with, cfg, resolution_m, x=0.0, y=0.0) == 255
 
 
 @pytest.mark.parametrize(
