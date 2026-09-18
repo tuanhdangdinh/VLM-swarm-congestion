@@ -114,6 +114,33 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-18** — **Gemini Robotics-ER 2 evaluated as a candidate third Arm A
+  backend; gated on a probe, not landed.** The page originally proposed for
+  this evaluation (`ai.google.dev/gemini-api/docs/generate-content/robotics-spatial`)
+  is marked "(Legacy)"; the live transport is the **Interactions API**
+  (`POST https://generativelanguage.googleapis.com/v1beta/interactions`), not
+  `:generateContent` — request field `input` (Content items, not a
+  `messages`/`role` list), response text at `steps[].content[].text`, no
+  `messages`. Target model `gemini-robotics-er-2-preview` (the
+  `-streaming-preview` Live API variant does not support structured output;
+  `-er-1.6-preview` is being shut down end of August 2026). **Key finding:**
+  `generation_config` has no `temperature`/`top_p`/`top_k` field at all — not
+  merely unsupported values, absent from the schema — so this backend cannot
+  be pinned to greedy decoding the way `openai` is (`config/models.yaml`
+  `temperature: 0.0`, pinned after run 3's `|Δθ| ≈ π` diverging-robots
+  misread, rev-8 spec 8.4). Nearest controls are `seed` and `thinking_level`
+  (low/high), a new ablation axis with no counterpart in `openai`/`llama_server`.
+  Noted in passing: `anthropic` (`reasoning/vlm/anthropic_backend.py`) already
+  drops `temperature`/`top_p`/`top_k` for the same reason (HTTP 400) and is
+  **not** in the parent spec's "Model and decoding pre-registration" table —
+  an existing, unrecorded between-arm confound that a `gemini` cell must not
+  repeat. Design doc (full transport delta table, Option A backend sketch,
+  Option B spatial-primitives-as-grounding deferral, cost estimate):
+  `docs/superpowers/specs/2026-09-18-gemini-robotics-er2-integration-design.md`.
+  Gate: `scripts/probe_gemini_er2.py` (real M2 prompt + schema
+  `response_format` against the live API) must pass before
+  `reasoning/vlm/gemini_backend.py`/`backend_factory.py`/`config/models.yaml`
+  are touched; not yet run against a live key as of this entry.
 - **2026-09-17** — **Research-readiness items 2–4 landed.** (2) The derived
   pairwise-geometry lines are a switchable modality
   (`ReasonerRequest.include_pairwise_geometry`, M5 `prompt_pairwise_geometry`,
