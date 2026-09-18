@@ -114,6 +114,48 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-18** — **`gemini` VLM backend landed and live-verified through the
+  real reasoner path.** Supersedes the "backend code remains untouched" line
+  in the probe entry directly below: `GeminiBackend`
+  (`reasoning/vlm/gemini_backend.py`), `GeminiBackendConfig`
+  (`reasoning/vlm/models.py`), the `"gemini"` branch in
+  `reasoning/vlm/backend_factory.py`, and a `vlm.gemini` block in
+  `config/models.yaml` are implemented (`force_schema` defaults `False`, per
+  the probe's gate result) and unit-tested
+  (`tests/unit/test_gemini_backend.py`, 20 tests, mocked `requests`).
+  `AnthropicBackend`'s silent drop of `temperature`/`top_p`/`top_k` is not
+  repeated: `GeminiBackend` records the four `ReasonerConfig` sampling fields
+  it cannot send in `BackendResponse.raw["unsupported_sampling"]` on every
+  call and logs one WARNING per backend instance. Verified live on
+  `vgu-canary-base-isaac-workstation-vm` (container `vgu_ros`) through
+  `reasoning.vlm.reasoner.Reasoner` — not the probe script — via a throwaway
+  scratchpad driver wrapping `build_backend("gemini", GeminiBackendConfig())`
+  in a response-recording shim, against the same real frame the probe used
+  (`data/logs/m5_frames/0cad824071954e21832da19a6fcb588b.png`) with two
+  robots 0.35 m apart and mutually facing (a genuine head-on configuration,
+  unlike the probe's non-conflicting 1.00 m synthetic states). Result: HTTP
+  200 (implied — the backend raises `ConnectionError` on ≥400), latency 2492
+  ms, 1 attempt, `token_usage={"prompt_tokens": 1907, "completion_tokens":
+  138, "thought_tokens": 121, "total_tokens": 2166}`,
+  `raw["unsupported_sampling"] = {"temperature": 0.6, "top_p": 0.95, "top_k":
+  20, "presence_penalty": 0.0}` populated as designed, and a correctly parsed
+  decision: `congestion_detected=true type=deadlock strategy=yield
+  involved_robots=[robot_1, robot_2]` — the textually correct answer for a
+  0.35 m head-on pair under the prompt's 0.5 m threshold rule, extracted from
+  a markdown-fenced JSON block despite `force_schema=False`. This also
+  confirmed the real usage-block shape empirically: the provider nests usage
+  under a top-level `"usage"` key with `total_input_tokens`,
+  `total_output_tokens`, `total_thought_tokens`, `total_tokens` present
+  exactly as named in the Rev 2 probe's §6 cost table, plus additional
+  per-modality breakdown fields (`input_tokens_by_modality`,
+  `model_invocation_token_counts`) not used by the mapping but preserved
+  verbatim in `raw`. `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py`'s
+  `_load_vlm_config` also gained a `"gemini"` branch (`GeminiBackendConfig(**backend_raw)`)
+  so the `vlm.gemini` config block resolves through the production path, not
+  only through direct `build_backend` calls. Full design rationale, the
+  request/response schema, and the reproducibility/confound discussion:
+  `docs/superpowers/specs/2026-09-18-gemini-robotics-er2-integration-design.md`
+  (Rev 3).
 - **2026-09-18** — **Gemini Robotics-ER 2 probe run live on the VM: §7 gate
   PASSED.** Supersedes the "not yet run against a live key" line in the
   entry directly below. `scripts/probe_gemini_er2.py` ran inside container

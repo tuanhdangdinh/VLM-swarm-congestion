@@ -6,16 +6,21 @@
 
 - Initial draft: transport-surface correction (Interactions API, not the legacy `:generateContent` page), Option A `gemini` backend sketch, the no-sampling-controls reproducibility finding, Option B deferral, a cost estimate, and the probe gate.
 - Rev 2 (2026-09-18): resolved the §7 gate with live-VM probe evidence (PASSED, with and without schema forcing); added the no-visible-reasoning-trace confound (§4(d)); replaced the cost estimate with the measured per-call figure; added the VM reproduction recipe and two new open items (`thinking_summaries`, a paired-image/paired-state probe).
+- Rev 3 (2026-09-18): Option A landed. `GeminiBackend` (`reasoning/vlm/gemini_backend.py`), `GeminiBackendConfig` (`reasoning/vlm/models.py`), the `"gemini"` branch in `backend_factory.py`, and a `vlm.gemini` block in `config/models.yaml` are implemented, unit-tested (`tests/unit/test_gemini_backend.py`), and live-verified through the real `reasoning.vlm.reasoner.Reasoner` path (not the probe script) on the VM: a genuine head-on scene (two robots 0.35 m apart, mutually facing) returned `congestion_detected=true, type=deadlock, strategy=yield` in 2492 ms, with `raw["unsupported_sampling"]` populated and one WARNING logged. Unlike `AnthropicBackend`, the four dropped `ReasonerConfig` sampling fields are recorded per call in `BackendResponse.raw["unsupported_sampling"]` rather than silently omitted (§4(b) below); `AnthropicBackend`'s equivalent silent drop is added as a new open item.
 
-**Status:** Design/evaluation only. The §7 gate has **PASSED** (live VM run,
-2026-09-18; evidence in §7) — the response passes the project's output
-parser both with and without schema forcing. Passing the gate answers the
-question the gate was built to answer; it does not by itself authorize
-landing the backend. No backend code lands from this document —
-`reasoning/vlm/gemini_backend.py`, `reasoning/vlm/backend_factory.py`, and
-`config/models.yaml` stay untouched pending the user's decision on research
-design, informed by the new no-visible-reasoning-trace confound (§4(d)) and
-the still-untested `thinking_summaries` mitigation.
+**Status:** Landed and live-verified (2026-09-18). The §7 gate **PASSED**
+(live VM run, 2026-09-18) and Option A is now implemented: `GeminiBackend`,
+`GeminiBackendConfig`, the `backend_factory.py` `"gemini"` branch, and
+`config/models.yaml`'s `vlm.gemini` block all exist and were exercised
+end-to-end through `reasoning.vlm.reasoner.Reasoner` (see Rev 3 note above),
+not just the gating probe. `force_schema` defaults `False` per the gate
+result (schema forcing is optional, not load-bearing). Open items carried
+forward, none of which block the landed backend: `thinking_summaries` as a
+candidate mitigation for the no-visible-reasoning-trace confound (§4(d)); a
+paired-image/paired-state probe for an image-grounding claim beyond the
+single live decision recorded here; and `gemini`/`anthropic`'s absence from
+the parent spec's "Model and decoding pre-registration" table (§4(b)), which
+this implementation does not resolve on its own.
 
 **Parent spec:** `docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md`
 (Arm A backend roster in "Model and decoding pre-registration"; Appendix A.7
@@ -528,6 +533,20 @@ draft):
   `ReasonerRequest` states (or vice versa), so a `congestion_detected=false`
   or `=true` answer can be attributed to the image rather than to the
   numeric threshold alone.
+- **NEW (Rev 3, from landing `GeminiBackend`): `AnthropicBackend` silently
+  drops `temperature`/`top_p`/`top_k` instead of recording them.**
+  `AnthropicBackend.analyze` (`anthropic_backend.py:42`) omits these three
+  `ReasonerConfig` fields with a code comment only ("Claude Opus 4.7+ reject
+  sampling parameters with HTTP 400") and never surfaces the dropped values
+  in `BackendResponse.raw` or a log line, unlike `GeminiBackend`'s
+  `raw["unsupported_sampling"]` + one-time WARNING (§4(a)/(b) above already
+  flagged this as the same-family confound; it was not yet in this open-items
+  list). Not fixed here — `anthropic_backend.py` was explicitly out of scope
+  for the `gemini` backend task — but it means the `anthropic` and `openai`
+  cells still have asymmetric confound visibility even after `gemini` lands
+  with the fix. Any prereg table addressing §4(b)'s missing-temperature
+  confound should also flag that `anthropic`'s version of it is invisible in
+  its own run artifacts.
 
 **Modality condition.** `scripts/probe_gemini_er2.py` builds its
 `ReasonerRequest` with `include_pairwise_geometry` at its production default

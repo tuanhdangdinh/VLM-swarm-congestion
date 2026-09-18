@@ -31,5 +31,24 @@ vlm:
     reasoner:
       temperature: 0.0
 
+  # Hosted Gemini Robotics-ER 2 backend (Interactions API, not :generateContent).
+  # Switch reasoner.backend_id to "gemini" to use it. The API key is NOT stored
+  # here — set the env var named by api_key_env.
+  #
+  # No reasoner: override here on purpose: the Interactions API's
+  # generation_config exposes no temperature/top_p/top_k fields at all (not
+  # merely unsupported values), so pinning one here would misleadingly imply a
+  # decoding choice that the API cannot honor. The shared reasoner: block's
+  # sampling fields still apply to this backend's ReasonerConfig, but
+  # GeminiBackend drops them from the request and records them per call in
+  # BackendResponse.raw["unsupported_sampling"] instead. See
+  # docs/superpowers/specs/2026-09-18-gemini-robotics-er2-integration-design.md
+  # section 4.
+  gemini:
+    model_id: gemini-robotics-er-2-preview
+    api_key_env: GEMINI_API_KEY   # export GEMINI_API_KEY=... in your shell/.env
+    thinking_level: low
+    force_schema: false
+
 embeddings:
   model_name: sentence-transformers/all-MiniLM-L6-v2
