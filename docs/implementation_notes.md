@@ -114,6 +114,46 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-18** — **Gemini Robotics-ER 2 probe run live on the VM: §7 gate
+  PASSED.** Supersedes the "not yet run against a live key" line in the
+  entry directly below. `scripts/probe_gemini_er2.py` ran inside container
+  `vgu_ros` on `vgu-canary-base-isaac-workstation-vm`
+  (`sudo docker exec -w /ws vgu_ros bash -lc "set -a && source /ws/.env &&
+  set +a && python3 scripts/probe_gemini_er2.py --schema --thinking-level
+  low"`; key sourced from `/home/ubuntu/vgu-vlm-swarm/.env` so it never
+  reached argv; `x-goog-api-key` worked on the first attempt, no bearer
+  fallback needed). The probe's repo search found a real committed-on-VM
+  frame, `data/logs/m5_frames/0cad824071954e21832da19a6fcb588b.png`
+  (`data/logs/` is git-ignored, hence "no image found" on a fresh checkout);
+  no placeholder was synthesized. **Both** conditions passed: `--schema
+  --thinking-level low` (HTTP 200, 3562 ms, 2166 total tokens: input 1907 /
+  output 88 / thought 171) and `--no-schema --thinking-level low` (HTTP 200,
+  2605 ms, 2194 total tokens: input 1907 / output 85 / thought 202) each
+  returned a payload satisfying `reasoning/schemas/vlm_decision.schema.json`
+  and passed both `parse_decision_text` (tolerant) and `parse_vlm_decision`
+  (strict): `congestion_detected=false, type=none, strategy=none` on the
+  probe's hardcoded robots (1.00 m apart, prompt threshold 0.5 m) — the
+  textually correct answer, though the states are synthetic against a
+  real-but-arbitrary scene frame, so this is schema conformance and
+  threshold arithmetic, not demonstrated image grounding (one sample per
+  condition). **New confound:** both responses billed `total_thought_tokens`
+  (171 / 202) but returned **no visible `<think>…</think>` block** at all —
+  ER-2 withholds its reasoning trace regardless of `response_format`,
+  breaking trace-level comparability with the `llama_server`/Cosmos arm's
+  visible-trace design (`llama_server_backend.py` deliberately omits
+  `response_format` to preserve that trace); untested candidate mitigation
+  `generation_config.thinking_summaries`
+  (<https://ai.google.dev/api/interactions-api>). **Measured cost:**
+  ≈$0.0032/analysis at standard pricing from Result 1's counts (both probe
+  calls actually ran free tier, $0.00), roughly half the project's measured
+  ≈$0.006/analysis for `gpt-4o`; latency 2.6–3.6 s. Full evidence,
+  reproduction recipe, limitation discussion, and updated cost arithmetic:
+  `docs/superpowers/specs/2026-09-18-gemini-robotics-er2-integration-design.md`
+  (rev 2, "Gate result and open questions" + "Cost"). Backend code
+  (`reasoning/vlm/gemini_backend.py`, `backend_factory.py`,
+  `config/models.yaml`) remains untouched: passing the gate does not by
+  itself authorize landing the backend, which stays pending the user's
+  decision on research design.
 - **2026-09-18** — **Gemini Robotics-ER 2 evaluated as a candidate third Arm A
   backend; gated on a probe, not landed.** The page originally proposed for
   this evaluation (`ai.google.dev/gemini-api/docs/generate-content/robotics-spatial`)
@@ -140,7 +180,8 @@ Rules for maintaining it:
   Gate: `scripts/probe_gemini_er2.py` (real M2 prompt + schema
   `response_format` against the live API) must pass before
   `reasoning/vlm/gemini_backend.py`/`backend_factory.py`/`config/models.yaml`
-  are touched; not yet run against a live key as of this entry.
+  are touched; not yet run against a live key as of this entry — superseded
+  by 2026-09-18 entry above (probe run live on the VM, gate PASSED).
 - **2026-09-17** — **Research-readiness items 2–4 landed.** (2) The derived
   pairwise-geometry lines are a switchable modality
   (`ReasonerRequest.include_pairwise_geometry`, M5 `prompt_pairwise_geometry`,

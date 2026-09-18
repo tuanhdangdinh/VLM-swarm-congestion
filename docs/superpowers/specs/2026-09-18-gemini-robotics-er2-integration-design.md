@@ -5,11 +5,17 @@
 **Revision history:**
 
 - Initial draft: transport-surface correction (Interactions API, not the legacy `:generateContent` page), Option A `gemini` backend sketch, the no-sampling-controls reproducibility finding, Option B deferral, a cost estimate, and the probe gate.
+- Rev 2 (2026-09-18): resolved the §7 gate with live-VM probe evidence (PASSED, with and without schema forcing); added the no-visible-reasoning-trace confound (§4(d)); replaced the cost estimate with the measured per-call figure; added the VM reproduction recipe and two new open items (`thinking_summaries`, a paired-image/paired-state probe).
 
-**Status:** Design/evaluation only. No backend code lands from this document —
+**Status:** Design/evaluation only. The §7 gate has **PASSED** (live VM run,
+2026-09-18; evidence in §7) — the response passes the project's output
+parser both with and without schema forcing. Passing the gate answers the
+question the gate was built to answer; it does not by itself authorize
+landing the backend. No backend code lands from this document —
 `reasoning/vlm/gemini_backend.py`, `reasoning/vlm/backend_factory.py`, and
-`config/models.yaml` stay untouched until `scripts/probe_gemini_er2.py` (§7)
-passes.
+`config/models.yaml` stay untouched pending the user's decision on research
+design, informed by the new no-visible-reasoning-trace confound (§4(d)) and
+the still-untested `thinking_summaries` mitigation.
 
 **Parent spec:** `docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md`
 (Arm A backend roster in "Model and decoding pre-registration"; Appendix A.7
@@ -242,6 +248,41 @@ temperature-pinning discussion entirely. It should be treated as its own
 documented axis (a candidate value, not swept) if `gemini` is added, not
 folded into "decoding" as if it were a substitute for `temperature`.
 
+**(d) NEW (2026-09-18, from the §7 probe): ER-2 returns no visible reasoning
+trace, while still billing thought tokens — a second, distinct confound.**
+The prompt (`reasoning/vlm/prompt_builder.py`, shared unmodified by every
+backend) explicitly asks for a `<think>…</think>` block immediately before
+the final JSON object; `reasoning.vlm.output_parser`'s tolerant parser
+strips `<think>…</think>` generically (comment: "Cosmos Reason 2 emits a
+`<think>...</think>` chain-of-thought before the answer"), and
+`LlamaServerBackend.analyze` (`llama_server_backend.py`) deliberately omits
+`response_format` *specifically so that trace is not suppressed* ("forces
+the first generated token to open a JSON object, which suppresses the
+model's `<think>` chain-of-thought... Cosmos Reason 2 relies on that
+reasoning trace for grounding accuracy" — comment, asserted by
+`tests/unit/test_reasoner.py::test_llama_backend_body_allows_reasoning_and_sends_sampling`).
+Both §7 probe calls to ER-2 — **with and without** schema forcing — returned
+bare JSON with **no `<think>` block at all**, while the response reported
+171 and 202 `total_thought_tokens` respectively: ER-2 reasons internally and
+withholds the trace text regardless of `response_format`. This breaks
+trace-level comparability with the Cosmos/`llama_server` arm, whose visible
+trace is a deliberate design property of this codebase, not an artifact of
+one prompt. Whether the `openai`/`anthropic` arms' raw output actually
+contains a visible `<think>` block in practice is **not verified by this
+document** — neither `openai_backend.py` nor `anthropic_backend.py` forces
+`response_format` either, so nothing in this codebase structurally
+suppresses the trace for them the way `LlamaServerBackend` avoids doing on
+purpose, but no live `raw_text` sample was inspected here to confirm one is
+actually present. At minimum, comparability against the Cosmos arm is
+broken; the `openai`/`anthropic` arms are unconfirmed either way. This is a
+second between-arm confound of the same family as (b)'s missing-temperature
+finding — a between-arm asymmetry the preregistration must record, not a
+defect to fix in a future `gemini_backend.py`. **Candidate mitigation,
+untested:** `generation_config.thinking_summaries` is a documented field of
+the Interactions API (<https://ai.google.dev/api/interactions-api>); §7
+lists it as the next probe to run before assuming it recovers a usable
+trace.
+
 ---
 
 ## Option B (do not build now): ER-2 spatial primitives as a perception/grounding source
@@ -321,12 +362,50 @@ it regardless of which tier applies. `gemini-robotics-er-1.6-preview` is
 absent from the pricing page entirely, consistent with its scheduled
 shutdown.
 
-**Order-of-magnitude estimate only** — the probe measures the real number.
-The rendered M2 prompt is ≈3 600 characters of text
-(`docs/implementation_notes.md`, 2026-09-17 entry, ≈900 tokens at a rough
-4 chars/token) plus one image; a generous total input estimate of
+**Measured (2026-09-18), replacing the order-of-magnitude estimate below.**
+§7's live probe ran `thinking_level: low` both with and without schema
+forcing; token counts were nearly identical between the two:
+
+| | with schema (Result 1) | without schema (Result 2) |
+|---|---|---|
+| `total_input_tokens` | 1 907 (text 843, image 1 064) | 1 907 (text 843, image 1 064) |
+| `total_output_tokens` | 88 | 85 |
+| `total_thought_tokens` | 171 | 202 |
+| `total_tokens` | 2 166 | 2 194 |
+| `total_cached_tokens` | 0 | 0 |
+| latency_ms | 3 562 | 2 605 |
+
+(Both responses also reported a `raw_prompt_token` value — 2 341 and 2 089
+respectively — that does not reconcile with `total_input_tokens`; recorded
+here verbatim, not used in the arithmetic below because the discrepancy is
+unexplained.)
+
+At standard (non-free-tier) pricing from the table above (input $1.00/1M,
+output $5.00/1M) and Result 1's counts, thought tokens billed as output
+tokens even though their text is never returned (§4(d)):
+
+```text
+input:  1,907 tok * $1.00 / 1e6 tok               ≈ $0.0019
+output: (88 + 171) tok * $5.00 / 1e6 tok          ≈ $0.0013
+total:  ≈ $0.0032 per analysis (measured, thinking_level: low)
+```
+
+— roughly half the project's measured ≈$0.006/analysis for `gpt-4o`. Both
+probe calls in §7 actually ran on the **free tier**, so they cost $0.00; the
+arithmetic above is what the same call would cost off the free tier.
+Latency (2.6–3.6 s per call) is a new Layer-2 budget datum: on the same
+order as the project's other backends and compatible with the 0.5–2 Hz M2
+cadence. `thinking_level: high` is untested and — per §4(c) — is expected to
+raise both latency and output-token cost by an unknown, model-dependent
+factor; this is exactly why §4(c) treats `thinking_level` as its own axis
+rather than a tuning knob to set once and ignore.
+
+**Order-of-magnitude estimate (superseded by the measurement above; kept for
+the arithmetic method).** The rendered M2 prompt is ≈3 600 characters of
+text (`docs/implementation_notes.md`, 2026-09-17 entry, ≈900 tokens at a
+rough 4 chars/token) plus one image; a generous total input estimate of
 1 500–3 000 tokens and an output estimate of 200–400 tokens (JSON decision,
-`thinking_level: low`) puts one analysis at roughly:
+`thinking_level: low`) put one analysis at roughly:
 
 ```text
 input:  ~2,000 tok * $1.00 / 1e6 tok ≈ $0.002
@@ -334,19 +413,11 @@ output: ~300 tok   * $5.00 / 1e6 tok ≈ $0.0015
 total:  ≈ $0.003–0.005 per analysis (order of magnitude, NOT measured)
 ```
 
-— the same order of magnitude as the project's measured ≈$0.006/analysis for
-`gpt-4o`. `thinking_level: high` would raise the output-token count (and
-therefore this estimate) by an unknown, model-dependent factor; this is
-exactly why §4(c) treats `thinking_level` as its own axis rather than a
-tuning knob to set once and ignore.
-
 ---
 
-## Open questions / gate
+## Gate result and open questions
 
-**The gate.** No backend code (`reasoning/vlm/gemini_backend.py`,
-`reasoning/vlm/backend_factory.py`, `config/models.yaml`) lands until
-`scripts/probe_gemini_er2.py` answers one question:
+**The gate — PASSED (2026-09-18).** The gate question was:
 
 > Given the real M2 prompt (`reasoning.vlm.prompt_builder`) plus one scene
 > image, sent to `gemini-robotics-er-2-preview` on the Interactions API with
@@ -354,26 +425,109 @@ tuning knob to set once and ignore.
 > response's extracted text pass the existing `reasoning.vlm.output_parser`
 > (`parse_decision_text`) and produce a valid `CongestionDecision`?
 
-A "no" is a reportable outcome for this design document, the same way a "no"
-is a reportable outcome for the parent research question (rev-8 spec,
-"Research objective"): it means either the schema subset needs trimming
-(e.g. dropping `$schema`, which is not in the documented supported-keyword
-list) before Option A is viable, or that Option A needs a looser
-`response_format: {"type":"text","mime_type":"application/json"}` (no
-`schema`) plus prompt-level JSON discipline like the other backends.
+Both a schema-forced and a non-schema-forced live call against the real API
+returned a payload satisfying `reasoning/schemas/vlm_decision.schema.json`
+under the project's unmodified prompt, and both passed the tolerant parser
+(`parse_decision_text`) and the strict schema parser (`parse_vlm_decision`).
+Schema forcing is therefore optional, not load-bearing, for this prompt —
+Option A is viable as a drop-in on the existing output contract. This
+result is scoped to `include_pairwise_geometry=True` (Modality condition
+below) and to a single sample per condition (Limitation below): it resolves
+the go/no-go gate, not a claim of general reliability.
 
-**Secondary, non-gating questions the probe additionally surfaces** (useful
-for the follow-up implementation task, not blockers on their own):
+**Reproduction recipe.** Host: GCP VM
+`vgu-canary-base-isaac-workstation-vm`, project `summer-flux-501516-n6`,
+zone `us-central1-a`; repo at `/home/ubuntu/vgu-vlm-swarm` bind-mounted into
+container `vgu_ros` at `/ws`. The key lives in
+`/home/ubuntu/vgu-vlm-swarm/.env` as `GEMINI_API_KEY` and is sourced inside
+the container so it never reaches a command line:
 
-- Which auth header actually works — `x-goog-api-key` or bearer fallback —
-  so `GeminiBackend.__init__` doesn't have to guess.
-- Real token usage, to replace the §6 estimate with a measured number.
-- Whether `parse_vlm_decision` (strict jsonschema check against the same
-  schema file) and `parse_decision_text` (tolerant, `<think>`-stripping)
-  agree — if `--schema` output passes the tolerant parser but fails the
-  strict one, that is evidence the model isn't honoring the schema exactly
-  even when asked to, which matters for a chain-of-thought-style
-  `thinking_level: high` run more than a `low` one.
+```bash
+sudo docker exec -w /ws vgu_ros bash -lc "set -a && source /ws/.env && set +a && python3 scripts/probe_gemini_er2.py --schema --thinking-level low"
+```
+
+Container interpreter: python 3.12.3, requests 2.31.0, pydantic 2.13.5,
+numpy 1.26.4, cv2 4.6.0 — nothing needed installing. Auth: `x-goog-api-key`
+worked on the first attempt (no fallback to `Authorization: Bearer` was
+exercised); the key is a new-style Google key (length 53, prefix `AQ.`).
+Scene image: the probe's repo-search precedence found a real committed-on-VM
+frame, `data/logs/m5_frames/0cad824071954e21832da19a6fcb588b.png`; that
+directory is git-ignored, which is why no committed frame was found when
+this repo is checked out fresh (e.g. on the Mac). No placeholder was
+synthesized for this run.
+
+**Result 1 — with schema forcing** (`--schema --thinking-level low`): HTTP
+200, latency 3 562 ms. Response (verbatim):
+
+```json
+{
+  "congestion_detected": false,
+  "type": "none",
+  "involved_robots": [],
+  "root_cause": "",
+  "strategy": "none",
+  "justification": "The robots are spaced 1.00 meter apart, which is greater than the 0.5 meter threshold required for physical conflict, meaning no immediate deadlock or congestion is detected."
+}
+```
+
+Tolerant parser accepted: True. Strict schema parser accepted: True.
+Decision: `congestion_detected=False type=none strategy=none`.
+
+**Result 2 — without schema forcing** (`--no-schema --thinking-level low`):
+HTTP 200, latency 2 605 ms. Response (verbatim):
+
+```json
+{
+  "congestion_detected": false,
+  "type": "none",
+  "involved_robots": [],
+  "root_cause": "",
+  "strategy": "none",
+  "justification": "The robots are currently 1.00 m apart, which is greater than the 0.5 m threshold for physical conflict or deadlock, despite facing each other."
+}
+```
+
+Tolerant parser accepted: True. Strict schema parser accepted: True.
+Decision: `congestion_detected=False type=none strategy=none`. Token usage
+for both results: §6 (Cost).
+
+**Limitation — what these two calls do and do not show.** The probe's robot
+states are hardcoded synthetic (`build_reasoner_request`: robot_1 at (0,0)
+θ=0, robot_2 at (1,0) θ=π, both STOPPED, 1.00 m apart), sent alongside a real
+scene frame that does not necessarily depict that configuration. Both
+justifications cite only the 1.00 m spacing rule, so these two calls
+demonstrate schema conformance and correct threshold arithmetic, but **do
+not demonstrate image grounding**. `congestion_detected=false` is the
+textually correct answer under the prompt's own ">0.5 m ⇒ not conflicting"
+rule (see `reasoning/vlm/prompt_builder.py`), and is notably
+the exact discrimination `gpt-4o` failed at temperature 0.6 on two robots
+driving apart (matched `|Δθ| ≈ π` and answered `deadlock`/`reverse`; rev-8
+spec 8.4, `docs/implementation_notes.md` 2026-09-17 root-cause entry) — but
+this is one sample per condition, so it is encouraging, not evidence of
+superiority. A paired-image/paired-state probe is required before any
+grounding or comparative-quality claim (see open item below).
+
+**Answered secondary questions** (listed as non-gating in the initial
+draft):
+
+- Auth header: `x-goog-api-key` worked on the first attempt; no bearer
+  fallback was exercised.
+- Real token usage: measured, §6 (Cost).
+- `parse_vlm_decision` vs. `parse_decision_text` agreement: both parsers
+  accepted both results — no divergence observed at `thinking_level: low`.
+
+**New open items surfaced by the probe** (not resolved by this run):
+
+- `generation_config.thinking_summaries` — a documented field of the
+  Interactions API (<https://ai.google.dev/api/interactions-api>); untested.
+  Candidate mitigation for §4(d)'s no-visible-trace finding. Next probe to
+  run, and belongs in the preregistration alongside the missing-temperature
+  confound (§4(b)) once resolved either way.
+- A paired-image/paired-state probe, per the Limitation paragraph above: an
+  image whose robot geometry is known and matched to the hardcoded
+  `ReasonerRequest` states (or vice versa), so a `congestion_detected=false`
+  or `=true` answer can be attributed to the image rather than to the
+  numeric threshold alone.
 
 **Modality condition.** `scripts/probe_gemini_er2.py` builds its
 `ReasonerRequest` with `include_pairwise_geometry` at its production default
