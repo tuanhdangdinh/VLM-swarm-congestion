@@ -44,7 +44,10 @@
 #                          (generated), else this script exits 1 naming both
 #                          paths tried. MAP is derived as
 #                          warehouse_map_${SCENARIO}.yaml and is checked to
-#                          exist inside the container before Nav2 launches.
+#                          exist inside the container before Isaac Sim
+#                          starts (stage 2), not just before Nav2 — a
+#                          missing/misnamed map should fail in about a
+#                          second, not after minutes of GPU bring-up.
 #   BACKEND_ID             Reasoning backend (default openai). Forced to
 #                          "mock" whenever MOCK_DECISION_FILE is set (see
 #                          below) — VGU_MOCK_DECISION_FILE is only consulted
@@ -313,7 +316,11 @@ if [ "$RECORD" = "1" ]; then
 fi
 
 # ── 1. Point M5 at BACKEND_ID (restored on exit) ────────────────────────────
-PREV_BACKEND_ID=$(grep -m1 '^reasoning_backend_id:' "$ORCH_CONFIG" | awk '{print $2}')
+# `|| true` is inside the substitution: under `pipefail`, a `grep` that
+# matches nothing makes the whole pipeline (and this assignment) exit
+# non-zero, which trips `set -e` before the explicit -z check below ever
+# runs — this keeps the failure reaching that check instead.
+PREV_BACKEND_ID=$(grep -m1 '^reasoning_backend_id:' "$ORCH_CONFIG" | awk '{print $2}' || true)
 if [ -z "$PREV_BACKEND_ID" ]; then
   echo "ERROR: could not read reasoning_backend_id from ${ORCH_CONFIG}" >&2
   exit 1
@@ -338,7 +345,31 @@ else
     >"$BUILD_LOG" 2>&1
 fi
 
-# ── 2. Isaac Sim ─────────────────────────────────────────────────────────────
+# ── 2. Validate SCENARIO before anything expensive: map exists inside the
+#      container, and every robot's spawn pose parses. The container is
+#      already reachable here (the colcon build above proves it), and a
+#      missing/misnamed map or malformed scenario yaml is a realistic
+#      mistake (scenario yaml edits are inert until the map/USD artifacts
+#      are regenerated) — catching it here costs about a second instead of
+#      the several minutes Isaac Sim + Nav2 bring-up would otherwise burn
+#      before hitting the same failure in the old (stage-5) location. ────
+check_map_exists
+SPAWN_POSES="$(parse_spawn_poses)"
+R1_X=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_1"{print $2}')
+R1_Y=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_1"{print $3}')
+R1_YAW=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_1"{print $4}')
+R2_X=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_2"{print $2}')
+R2_Y=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_2"{print $3}')
+R2_YAW=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_2"{print $4}')
+for v in R1_X R1_Y R1_YAW R2_X R2_Y R2_YAW; do
+  if [ -z "${!v}" ]; then
+    echo "ERROR: failed to parse spawn pose (${v}) from ${SCENARIO_YAML_HOST}" >&2
+    exit 1
+  fi
+done
+log "scenario validated: map present, spawn poses parsed (robot_1 x=${R1_X} y=${R1_Y} yaw=${R1_YAW}; robot_2 x=${R2_X} y=${R2_Y} yaw=${R2_YAW})"
+
+# ── 3. Isaac Sim ─────────────────────────────────────────────────────────────
 log "starting Isaac Sim ${SCENARIO} (headless, seed 42, ${SIM_SEC}s) -> ${ISAAC_LOG}"
 # LD_LIBRARY_PATH is required: the isaacsim.ros2.core extension resolves its
 # internal rclpy by itself, but the rmw/rcl C libraries must be on the path
@@ -369,14 +400,14 @@ for robot in robot_1 robot_2; do
 done
 log "Isaac topics live"
 
-# ── 3. M1 Perception (must start before Nav2: Nav2 uses camera localization) ─
+# ── 4. M1 Perception (must start before Nav2: Nav2 uses camera localization) ─
 log "starting M1 perception -> ${M1_LOG}"
 docker_exec_bg "$M1_LOG" "ros2 launch swarm_perception perception.launch.py use_camera_node:=false >${M1_LOG} 2>&1"
 wait_topic /perception/scene_state 90
 wait_topic /perception/annotated_frame 90
 log "M1 perception live"
 
-# ── 4. Recorder (optional; fps stamped from a live measurement; see header
+# ── 5. Recorder (optional; fps stamped from a live measurement; see header
 #      for the re-timing caveat) ─────────────────────────────────────────────
 if [ "$RECORD" = "1" ]; then
   HZ=$(docker_ros "timeout 12s ros2 topic hz /perception/annotated_frame 2>/dev/null | grep -m1 'average rate' | awk '{print \$3}'" || true)
@@ -388,23 +419,8 @@ else
   log "RECORD=0 — skipping recorder stage"
 fi
 
-# ── 5. Nav2 bringup (localization:=camera; spawn poses read from the
-#      scenario yaml; map checked inside the container before launch) ───────
-check_map_exists
-SPAWN_POSES="$(parse_spawn_poses)"
-R1_X=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_1"{print $2}')
-R1_Y=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_1"{print $3}')
-R1_YAW=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_1"{print $4}')
-R2_X=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_2"{print $2}')
-R2_Y=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_2"{print $3}')
-R2_YAW=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_2"{print $4}')
-for v in R1_X R1_Y R1_YAW R2_X R2_Y R2_YAW; do
-  if [ -z "${!v}" ]; then
-    echo "ERROR: failed to parse spawn pose (${v}) from ${SCENARIO_YAML_HOST}" >&2
-    exit 1
-  fi
-done
-
+# ── 6. Nav2 bringup (localization:=camera; spawn poses + map already
+#      validated in stage 2, above) ──────────────────────────────────────────
 log "starting Nav2 robot_1 -> ${NAV2_R1_LOG}"
 docker_exec_bg "$NAV2_R1_LOG" "ros2 launch swarm_simulation nav2_robot.launch.py robot_id:=robot_1 x:=${R1_X} y:=${R1_Y} yaw:=${R1_YAW} start_map_server:=true localization:=camera map_yaml:=${MAP} >${NAV2_R1_LOG} 2>&1"
 xrun sleep 3
@@ -414,12 +430,12 @@ wait_action /robot_1/navigate_to_pose 150
 wait_action /robot_2/navigate_to_pose 150
 log "Nav2 action servers live"
 
-# ── 6. M4 Execution ──────────────────────────────────────────────────────────
+# ── 7. M4 Execution ──────────────────────────────────────────────────────────
 log "starting M4 execution -> ${M4_LOG}"
 docker_exec_bg "$M4_LOG" "ros2 launch swarm_execution execution.launch.py >${M4_LOG} 2>&1"
 xrun sleep 4
 
-# ── 7. M5 Orchestrator (backend from BACKEND_ID; VGU_MOCK_DECISION_FILE when
+# ── 8. M5 Orchestrator (backend from BACKEND_ID; VGU_MOCK_DECISION_FILE when
 #      MOCK_DECISION_FILE is set) ────────────────────────────────────────────
 # Source the key from /ws/.env inside the container rather than interpolating
 # it into this command string — an inline API-key assignment lands in the
@@ -436,7 +452,7 @@ docker_exec_bg "$M5_LOG" "$M5_INNER"
 xrun sleep 5
 log "all components started"
 
-# ── 8. Monitor M5 decisions live for REC_SEC (independent of RECORD) ────────
+# ── 9. Monitor M5 decisions live for REC_SEC (independent of RECORD) ────────
 log "--- M5 decisions will appear in ${REPO}/data/logs/m5_decisions/ ---"
 log "--- tailing M5 log for live feedback ---"
 if [ "$DRY_RUN" = "1" ]; then
@@ -450,7 +466,7 @@ else
     docker exec -w /ws "$CONTAINER" bash -lc "tail -f ${M5_LOG}" 2>/dev/null || true
 fi
 
-# ── 9. Recorder finalization (RECORD=1 only; recording is already on the
+# ── 10. Recorder finalization (RECORD=1 only; recording is already on the
 #      host bind mount, no docker cp needed) ─────────────────────────────────
 if [ "$RECORD" = "1" ]; then
   log "recorder window elapsed — recording lives on the host bind mount"
@@ -466,7 +482,7 @@ if [ "$RECORD" = "1" ]; then
   fi
 fi
 
-# ── 10. Print M5 decision summary ───────────────────────────────────────────
+# ── 11. Print M5 decision summary ───────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
   log "[DRY_RUN] skipping M5 decision summary (reads real data/logs/m5_decisions/)"
 else
