@@ -114,6 +114,31 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-18** — **Gemini ER-2 live-run recipe committed as
+  `scripts/run_gemini_er2_demo.sh`, generalized over `BACKEND_ID`.** The
+  launch sequence behind the `gemini_20260918_084649` run (entry directly
+  below) existed only as `/tmp/gem_record_launch.sh` on the VM and would not
+  have survived a reboot; retrieved and landed in the repo. Backend is now a
+  parameter (`BACKEND_ID`, default `gemini`) instead of hardcoded: the script
+  sets `reasoning_backend_id` in `ros2_ws/src/swarm_orchestrator/config/
+  orchestrator.yaml` and runs `colcon build --merge-install --packages-select
+  swarm_orchestrator` before launching, because `orchestrator.launch.py`
+  loads the **installed** copy via `get_package_share_directory` — a source
+  edit alone is inert (same trap noted in the entry below). The cleanup trap
+  now restores the previous `reasoning_backend_id` and rebuilds again on
+  exit, so a run can no longer silently leave the VM pointed at a different
+  model — that exact revert had to be done by hand after the live run this
+  script is derived from. Matches `scripts/run_phase3_demo.sh` house
+  conventions (`set -euo pipefail`, `log`/`wait_topic`/`wait_action`
+  helpers, `sudo timeout` not `timeout sudo`, cleanup trap) and preserves the
+  bracketed-`pkill` convention (`"[i]saac.scripts.run_simulation"`) from
+  `docs/superpowers/plans/2026-09-18-head-on-asymmetric-family.md` so a kill
+  pattern can't match its own invocation. ffmpeg re-timing (`setpts=<stamped
+  fps / achieved fps>*PTS`, per the entry below's 2.1033 factor) is
+  documented as a manual post-step in the script header, not automated —
+  achieved fps is only known from the recorder's own exit line after the
+  run. Verified with `bash -n` and a read-through only; not re-run on the VM
+  (that would repeat the ~20 min live demo).
 - **2026-09-18** — **Full closed-loop `head_on_deadlock` demo run live on the
   `gemini` backend (Gemini Robotics-ER 2); both robots reached their goals and
   the entry directly below's artifact fix is confirmed live.** Run
