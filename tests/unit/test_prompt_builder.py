@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import pytest
@@ -10,6 +11,20 @@ from reasoning.vlm.prompt_builder import (
     format_pairwise_geometry_lines,
     format_robot_state_lines,
     render_failure_context_block,
+    render_visual_crosscheck_block,
+)
+
+# SHA-256 of the rendered user prompt for `_request()` before the opt-in
+# visual-crosscheck block existed (commit 7f5e075, the prompt every artifact under
+# data/logs/er2_grounding was produced with). Pinned so a stray newline from the
+# new placeholder cannot silently change the default prompt: the flag is an added
+# ablation condition, not a change to the apparatus.
+_BASELINE_PROMPT_SHA256 = "5a57c937ff3a25021e6819f89e9f61fcf5d70ba1b15b969c3eb19bd80409ddfc"
+_BASELINE_PROMPT_SHA256_NO_GEOMETRY = (
+    "4664ff95aea2aff993b71962f108c85badb6d6cd8a45bc5936c4709cfc365c2a"
+)
+_NO_REDERIVE_CLAUSE = (
+    "Use the pairwise geometry above; do not re-derive distances or facing from the coordinates."
 )
 
 
@@ -212,6 +227,92 @@ def test_build_prompt_payload_guidance_defines_head_on_by_facing_and_distance():
     assert "Opposite headings alone do NOT mean head-on" in prompt
     assert "differing by ~π" not in prompt
     assert "opposing goal directions" not in prompt
+
+
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def test_reasoner_request_visual_crosscheck_defaults_to_off():
+    assert _request().include_visual_crosscheck is False
+
+
+def test_build_prompt_payload_is_byte_identical_to_baseline_when_crosscheck_off():
+    assert _sha256(build_prompt_payload(_request()).user_prompt) == _BASELINE_PROMPT_SHA256
+
+
+def test_build_prompt_payload_is_byte_identical_to_baseline_without_geometry_or_crosscheck():
+    request = _request().model_copy(update={"include_pairwise_geometry": False})
+    assert (
+        _sha256(build_prompt_payload(request).user_prompt)
+        == _BASELINE_PROMPT_SHA256_NO_GEOMETRY
+    )
+
+
+def test_build_prompt_payload_omits_crosscheck_block_when_switched_off():
+    prompt = build_prompt_payload(_request()).user_prompt
+    assert "Cross-check the states against the image" not in prompt
+    assert "about intent.\n\nProduce a JSON object" in prompt
+
+
+def test_build_prompt_payload_appends_crosscheck_block_when_switched_on():
+    request = _request().model_copy(update={"include_visual_crosscheck": True})
+    prompt = build_prompt_payload(request).user_prompt
+    assert "Cross-check the states against the image:" in prompt
+    intent = prompt.index("assumptions about intent.")
+    block = prompt.index("Cross-check the states against the image:")
+    fields = prompt.index("Produce a JSON object with exactly these fields:")
+    assert intent < block < fields
+    assert "about intent.\n\nCross-check the states against the image:" in prompt
+    assert "stated positions.\n\nProduce a JSON object" in prompt
+
+
+def test_build_prompt_payload_keeps_no_rederive_clause_in_both_crosscheck_variants():
+    # Fix B (2026-09-17): without this clause the VLM re-derived geometry from raw
+    # theta and called two diverging robots a deadlock. The crosscheck block must
+    # establish precedence, never replace this clause.
+    off = build_prompt_payload(_request()).user_prompt
+    on = build_prompt_payload(
+        _request().model_copy(update={"include_visual_crosscheck": True})
+    ).user_prompt
+    assert _NO_REDERIVE_CLAUSE in off
+    assert _NO_REDERIVE_CLAUSE in on
+
+
+def test_crosscheck_block_states_image_precedence_only_on_clear_contradiction():
+    block = render_visual_crosscheck_block(include_pairwise_geometry=True)
+    assert "Only a clear contradiction matters" in block
+    assert "trust the image" in block
+    assert "naming the disagreement between the image and the stated positions" in block
+    assert not block.startswith("\n") and not block.endswith("\n")
+
+
+def test_crosscheck_block_never_invites_recomputing_geometry():
+    # Any verb that reads as licence to derive geometry from raw coordinates would
+    # reopen the run-3 failure mode the block is required not to reintroduce.
+    for include_geometry in (True, False):
+        block = render_visual_crosscheck_block(include_pairwise_geometry=include_geometry).lower()
+        for forbidden in ("compute", "calculate", "measure", "estimate", "work out"):
+            assert forbidden not in block
+        assert "re-derive" not in block.replace("do not re-derive", "")
+
+
+def test_crosscheck_block_names_the_geometry_block_as_default_source_when_geometry_on():
+    block = render_visual_crosscheck_block(include_pairwise_geometry=True)
+    assert "The pairwise geometry above stays the default source" in block
+    assert "do not re-derive distances or facing from the coordinates" in block
+
+
+def test_crosscheck_block_names_the_coordinates_as_default_source_when_geometry_off():
+    block = render_visual_crosscheck_block(include_pairwise_geometry=False)
+    assert "The coordinates above stay the default source" in block
+    assert "pairwise geometry" not in block
+
+
+def test_crosscheck_block_warns_that_tracker_states_can_be_wrong():
+    block = render_visual_crosscheck_block(include_pairwise_geometry=True)
+    assert "overhead camera tracker and can be wrong" in block
+    assert "stale" in block and "swapped" in block
 
 
 def test_render_failure_context_block_allows_reporting_no_congestion():

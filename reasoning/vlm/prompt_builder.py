@@ -50,7 +50,7 @@ other): classify as type="deadlock" and strategy="yield" \
 - For a simple bottleneck (robots queued in the same direction): classify as \
 type="bottleneck" and strategy="temporary_wait" or "yield".
 - Decide from the robot coordinates and the image, not from assumptions about intent.
-
+{visual_crosscheck_block}
 Produce a JSON object with exactly these fields:
 - "congestion_detected": true or false
 - "type": "none" | "deadlock" | "bottleneck" | "crowding" | "anomaly"
@@ -75,6 +75,8 @@ Immediately after the </think> tag, write ONLY the final JSON object, with no \
 surrounding text or markdown."""
 
 # Wording for the two modality conditions of the derived-geometry ablation axis.
+# `crosscheck_default_clause` is only consumed by _VISUAL_CROSSCHECK_TEMPLATE; it
+# lives here because which channel is "the default source" depends on this axis.
 _GEOMETRY_ON = {
     "geometry_use_clause": (
         "Use the pairwise geometry above; do not re-derive distances or facing from "
@@ -84,6 +86,11 @@ _GEOMETRY_ON = {
     "think_geometry_step": (
         "Read the pairwise geometry (distance and whether each robot faces the other)"
     ),
+    "crosscheck_default_clause": (
+        "The pairwise geometry above stays the default source for distance and "
+        "facing: when the image and the states agree, use it and do not re-derive "
+        "distances or facing from the coordinates."
+    ),
 }
 _GEOMETRY_OFF = {
     "geometry_use_clause": "Compute distances and facing from the coordinates.",
@@ -92,7 +99,29 @@ _GEOMETRY_OFF = {
         "Compute the pairwise distance and whether each robot faces the other from "
         "the coordinates"
     ),
+    "crosscheck_default_clause": (
+        "The coordinates above stay the default source for distance and facing: "
+        "when the image and the states agree, decide from them."
+    ),
 }
+
+# Opt-in modality block (`ReasonerRequest.include_visual_crosscheck`). It must
+# establish precedence rather than contradict `geometry_use_clause`: giving the
+# model licence to re-derive geometry from raw coordinates is exactly the run-3
+# (2026-09-17) failure mode that `_FACING_COS` and that clause exist to prevent,
+# so this asks only for a gross-contradiction check on what is visible, never for
+# a measurement. Evidence for the block:
+# docs/reports/2026-09-18-gemini-er2-image-grounding.md.
+_VISUAL_CROSSCHECK_TEMPLATE = """Cross-check the states against the image:
+- The robot states above come from an overhead camera tracker and can be wrong: \
+a robot may be missed, a position may be stale, or two robot IDs may be swapped.
+- {crosscheck_default_clause}
+- Then look at the overhead image and check that it agrees with the states. Only \
+a clear contradiction matters: robots obviously touching or nose-to-nose in the \
+image while the states place them well apart, or obviously far apart in the image \
+while the states place them in contact. In that case trust the image, decide from \
+what you see, and say so in the justification, naming the disagreement between \
+the image and the stated positions."""
 
 _FAILURE_CONTEXT_ADVICE = (
     "If the congestion is no longer present, report congestion_detected=false. "
@@ -123,6 +152,23 @@ def render_failure_context_block(context: FailureContext) -> str:
             f"- detail: {context.failure_detail}",
             _FAILURE_CONTEXT_ADVICE,
         ]
+    )
+
+
+def render_visual_crosscheck_block(include_pairwise_geometry: bool) -> str:
+    """Render the image/state cross-check block for the opt-in modality condition.
+
+    Args:
+        include_pairwise_geometry: Whether the prompt carries the derived
+            pairwise-geometry lines, which decides which channel the block names
+            as the default source for distance and facing.
+
+    Returns:
+        A multi-line block with no leading or trailing newline.
+    """
+    wording = _GEOMETRY_ON if include_pairwise_geometry else _GEOMETRY_OFF
+    return _VISUAL_CROSSCHECK_TEMPLATE.format(
+        crosscheck_default_clause=wording["crosscheck_default_clause"]
     )
 
 
@@ -215,11 +261,17 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
         if request.failure_context is None
         else "\n" + render_failure_context_block(request.failure_context) + "\n"
     )
+    crosscheck_block = (
+        "\n" + render_visual_crosscheck_block(request.include_pairwise_geometry) + "\n"
+        if request.include_visual_crosscheck
+        else ""
+    )
     user_prompt = _USER_TEMPLATE.format(
         robot_state_block=block,
         known_robot_ids_json=json.dumps(known_ids),
         pairwise_geometry_block=geometry_block,
         failure_context_block=failure_block,
+        visual_crosscheck_block=crosscheck_block,
         **(_GEOMETRY_ON if request.include_pairwise_geometry else _GEOMETRY_OFF),
     )
     return PromptPayload(

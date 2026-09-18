@@ -41,6 +41,12 @@ class ReasonerRequest(BaseModel):
     # Ablation axis (rev-8 modality table): False withholds the derived pairwise
     # distance/facing lines so the VLM must judge geometry from coordinates + image.
     include_pairwise_geometry: bool = True
+    # Opt-in ablation axis (2026-09-18): True appends a block that gives the image
+    # precedence over the state block on a clear contradiction, without licensing
+    # re-derivation of geometry from raw coordinates. Default False so every
+    # pre-existing run and artifact stays comparable; see
+    # docs/reports/2026-09-18-gemini-er2-image-grounding.md.
+    include_visual_crosscheck: bool = False
 
 
 class PromptPayload(BaseModel):
