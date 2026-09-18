@@ -84,6 +84,31 @@ def build_reask_prompt(payload: PromptPayload, error_message: str) -> PromptPayl
     return payload.model_copy(update={"user_prompt": payload.user_prompt + suffix})
 
 
+def _extract_unsupported_sampling(raw: dict[str, object]) -> dict[str, float] | None:
+    """Validate `BackendResponse.raw["unsupported_sampling"]` before it is trusted.
+
+    `raw` is `dict[str, object]` and comes from a backend adapter, so this must
+    not assume a well-formed value: a malformed entry (wrong type, non-numeric
+    values) is treated the same as "backend did not report" rather than raised.
+
+    Args:
+        raw: The `BackendResponse.raw` mapping.
+
+    Returns:
+        A `dict[str, float]` of dropped sampling fields, or None if the key is
+        absent or the value is not a str-to-number mapping.
+    """
+    value = raw.get("unsupported_sampling")
+    if not isinstance(value, dict):
+        return None
+    if not all(
+        isinstance(key, str) and isinstance(val, (int, float)) and not isinstance(val, bool)
+        for key, val in value.items()
+    ):
+        return None
+    return {key: float(val) for key, val in value.items()}
+
+
 def build_failed_result(
     request: ReasonerRequest,
     backend_id: str,
@@ -91,6 +116,7 @@ def build_failed_result(
     error_type: str | None,
     error_message: str | None,
     raw_text: str | None = None,
+    unsupported_sampling: dict[str, float] | None = None,
 ) -> ReasonerResult:
     """Construct a safe failure result with decision=None after exhausted retries.
 
@@ -101,6 +127,8 @@ def build_failed_result(
         error_type: Last error class name, if any.
         error_message: Last error message, if any.
         raw_text: Last raw model text, preserved for audit.
+        unsupported_sampling: Sampling fields the backend could not honour on
+            its last successful call, if any (see `ReasonerDiagnostics`).
 
     Returns:
         A `ReasonerResult` with `decision=None` and `parse_status='failed'`.
@@ -116,6 +144,7 @@ def build_failed_result(
             parse_status="failed",
             error_type=error_type,
             error_message=error_message,
+            unsupported_sampling=unsupported_sampling,
         ),
     )
 
@@ -152,6 +181,7 @@ class Reasoner:
         last_raw: str | None = None
         last_error_type: str | None = None
         last_error_msg: str | None = None
+        last_unsupported_sampling: dict[str, float] | None = None
         had_parse_failure = False
 
         while attempts < self._config.max_attempts:
@@ -159,6 +189,7 @@ class Reasoner:
             try:
                 response = invoke_backend(self._backend, payload, self._config)
                 last_raw = response.text
+                last_unsupported_sampling = _extract_unsupported_sampling(response.raw)
                 decision = parse_decision_text(response.text)
                 validate_involved_robots(decision, known_ids)
                 return ReasonerResult(
@@ -176,6 +207,7 @@ class Reasoner:
                         parse_status="invalid" if had_parse_failure else "valid",  # noqa: E501
                         error_type=last_error_type,
                         error_message=last_error_msg,
+                        unsupported_sampling=last_unsupported_sampling,
                     ),
                 )
             except (BackendTimeoutError, ConnectionError) as exc:
@@ -194,6 +226,7 @@ class Reasoner:
             error_type=last_error_type,
             error_message=last_error_msg,
             raw_text=last_raw,
+            unsupported_sampling=last_unsupported_sampling,
         )
 
 
@@ -225,5 +258,9 @@ def write_reasoner_log(
         "error_type": result.diagnostics.error_type,
         "error_message": result.diagnostics.error_message,
     }
+    # Omit the key entirely rather than writing null, so existing artifact
+    # readers/golden files that don't expect it are unaffected.
+    if result.diagnostics.unsupported_sampling is not None:
+        record["unsupported_sampling"] = result.diagnostics.unsupported_sampling
     with open(output_path, "a", encoding="utf-8") as file:
         file.write(json.dumps(record, default=str) + "\n")

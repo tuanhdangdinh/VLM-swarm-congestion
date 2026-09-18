@@ -264,6 +264,151 @@ def test_run_rejects_missing_image():
         Reasoner(MockBackend(), ReasonerConfig(backend_id="mock")).run(request)
 
 
+def test_run_unsupported_sampling_defaults_to_none_when_backend_reports_nothing(tmp_path):
+    reasoner = Reasoner(MockBackend(response_text=_GOOD), ReasonerConfig(backend_id="mock"))
+    result = reasoner.run(_request_with_image(tmp_path))
+    assert result.diagnostics.unsupported_sampling is None
+
+
+def test_run_carries_unsupported_sampling_from_backend_raw(tmp_path):
+    class UnsupportedSamplingBackend:
+        def analyze(self, payload, config):
+            return BackendResponse(
+                text=_GOOD,
+                backend_id="gemini-like",
+                raw={
+                    "unsupported_sampling": {
+                        "temperature": 0.6,
+                        "top_p": 0.95,
+                        "top_k": 20,
+                        "presence_penalty": 0.0,
+                    }
+                },
+            )
+
+    reasoner = Reasoner(UnsupportedSamplingBackend(), ReasonerConfig(backend_id="gemini-like"))
+    result = reasoner.run(_request_with_image(tmp_path))
+    assert result.diagnostics.unsupported_sampling == {
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "top_k": 20,
+        "presence_penalty": 0.0,
+    }
+
+
+def test_run_malformed_unsupported_sampling_value_becomes_none(tmp_path):
+    class MalformedValueBackend:
+        def analyze(self, payload, config):
+            return BackendResponse(
+                text=_GOOD, backend_id="malformed", raw={"unsupported_sampling": "not-a-dict"}
+            )
+
+    reasoner = Reasoner(MalformedValueBackend(), ReasonerConfig(backend_id="malformed"))
+    result = reasoner.run(_request_with_image(tmp_path))
+    assert result.diagnostics.unsupported_sampling is None
+
+
+def test_run_unsupported_sampling_with_non_numeric_entries_becomes_none(tmp_path):
+    class NonNumericEntriesBackend:
+        def analyze(self, payload, config):
+            return BackendResponse(
+                text=_GOOD,
+                backend_id="badvals",
+                raw={"unsupported_sampling": {"temperature": "hot"}},
+            )
+
+    reasoner = Reasoner(NonNumericEntriesBackend(), ReasonerConfig(backend_id="badvals"))
+    result = reasoner.run(_request_with_image(tmp_path))
+    assert result.diagnostics.unsupported_sampling is None
+
+
+def test_run_reask_then_success_preserves_unsupported_sampling(tmp_path):
+    class ReaskUnsupportedSamplingBackend:
+        def __init__(self):
+            self.calls = 0
+
+        def analyze(self, payload, config):
+            self.calls += 1
+            text = _BAD if self.calls == 1 else _GOOD
+            return BackendResponse(
+                text=text,
+                backend_id="reask-gemini",
+                raw={"unsupported_sampling": {"temperature": 0.6}},
+            )
+
+    reasoner = Reasoner(
+        ReaskUnsupportedSamplingBackend(), ReasonerConfig(backend_id="reask-gemini", max_attempts=2)
+    )
+    result = reasoner.run(_request_with_image(tmp_path))
+    assert result.decision is not None
+    assert result.diagnostics.parse_status == "invalid"
+    assert result.diagnostics.unsupported_sampling == {"temperature": 0.6}
+
+
+def test_run_exhausted_retries_preserves_unsupported_sampling_from_last_attempt(tmp_path):
+    class AlwaysInvalidUnsupportedSamplingBackend:
+        def analyze(self, payload, config):
+            return BackendResponse(
+                text=_BAD,
+                backend_id="always-bad-gemini",
+                raw={"unsupported_sampling": {"temperature": 0.6}},
+            )
+
+    reasoner = Reasoner(
+        AlwaysInvalidUnsupportedSamplingBackend(),
+        ReasonerConfig(backend_id="always-bad-gemini", max_attempts=2),
+    )
+    result = reasoner.run(_request_with_image(tmp_path))
+    assert result.decision is None
+    assert result.diagnostics.unsupported_sampling == {"temperature": 0.6}
+
+
+def test_build_failed_result_carries_unsupported_sampling():
+    request = ReasonerRequest(
+        request_id="req-9",
+        image_path="/tmp/frame.png",
+        frame_id="cam",
+        stamp=1.0,
+        robot_states=[RobotStateInput(robot_id="robot_1", x=0.0, y=0.0, theta=0.0)],
+    )
+    result = build_failed_result(
+        request=request,
+        backend_id="mock",
+        attempts=2,
+        error_type="VLMOutputParseError",
+        error_message="bad",
+        raw_text="garbage",
+        unsupported_sampling={"temperature": 0.6},
+    )
+    assert result.diagnostics.unsupported_sampling == {"temperature": 0.6}
+
+
+def test_write_reasoner_log_includes_unsupported_sampling_when_present(tmp_path):
+    class UnsupportedSamplingBackend:
+        def analyze(self, payload, config):
+            return BackendResponse(
+                text=_GOOD,
+                backend_id="gemini-like",
+                raw={"unsupported_sampling": {"temperature": 0.6}},
+            )
+
+    log = tmp_path / "trace.jsonl"
+    reasoner = Reasoner(UnsupportedSamplingBackend(), ReasonerConfig(backend_id="gemini-like"))
+    result = reasoner.run(_request_with_image(tmp_path))
+    write_reasoner_log(log, _request_with_image(tmp_path), result)
+    record = json.loads(log.read_text().strip().splitlines()[0])
+    assert record["unsupported_sampling"] == {"temperature": 0.6}
+
+
+def test_write_reasoner_log_omits_unsupported_sampling_when_none(tmp_path):
+    log = tmp_path / "trace.jsonl"
+    reasoner = Reasoner(MockBackend(response_text=_GOOD), ReasonerConfig(backend_id="mock"))
+    result = reasoner.run(_request_with_image(tmp_path))
+    write_reasoner_log(log, _request_with_image(tmp_path), result)
+    record = json.loads(log.read_text().strip().splitlines()[0])
+    assert "unsupported_sampling" not in record
+
+
 def test_write_reasoner_log_appends_jsonl(tmp_path):
     log = tmp_path / "trace.jsonl"
     reasoner = Reasoner(MockBackend(response_text=_GOOD), ReasonerConfig(backend_id="mock"))

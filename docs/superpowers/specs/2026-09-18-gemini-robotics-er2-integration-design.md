@@ -7,6 +7,7 @@
 - Initial draft: transport-surface correction (Interactions API, not the legacy `:generateContent` page), Option A `gemini` backend sketch, the no-sampling-controls reproducibility finding, Option B deferral, a cost estimate, and the probe gate.
 - Rev 2 (2026-09-18): resolved the §7 gate with live-VM probe evidence (PASSED, with and without schema forcing); added the no-visible-reasoning-trace confound (§4(d)); replaced the cost estimate with the measured per-call figure; added the VM reproduction recipe and two new open items (`thinking_summaries`, a paired-image/paired-state probe).
 - Rev 3 (2026-09-18): Option A landed. `GeminiBackend` (`reasoning/vlm/gemini_backend.py`), `GeminiBackendConfig` (`reasoning/vlm/models.py`), the `"gemini"` branch in `backend_factory.py`, and a `vlm.gemini` block in `config/models.yaml` are implemented, unit-tested (`tests/unit/test_gemini_backend.py`), and live-verified through the real `reasoning.vlm.reasoner.Reasoner` path (not the probe script) on the VM: a genuine head-on scene (two robots 0.35 m apart, mutually facing) returned `congestion_detected=true, type=deadlock, strategy=yield` in 2492 ms, with `raw["unsupported_sampling"]` populated and one WARNING logged. Unlike `AnthropicBackend`, the four dropped `ReasonerConfig` sampling fields are recorded per call in `BackendResponse.raw["unsupported_sampling"]` rather than silently omitted (§4(b) below); `AnthropicBackend`'s equivalent silent drop is added as a new open item.
+- Rev 4 (2026-09-18): closed the gap Rev 3 left open — `raw["unsupported_sampling"]` never reached a persisted run artifact, only `BackendResponse.raw` (in-memory) and a stderr WARNING. `ReasonerDiagnostics.unsupported_sampling` (`reasoning/vlm/models.py`) now carries it through every `Reasoner.run()` path (success, re-ask-then-success, and exhausted-retries), and `write_reasoner_log` emits the key in the JSONL artifact when set (omitted, not `null`, when the backend reported nothing). §4(b) below is corrected accordingly: this document previously described artifact visibility that did not yet exist.
 
 **Status:** Landed and live-verified (2026-09-18). The §7 gate **PASSED**
 (live VM run, 2026-09-18) and Option A is now implemented: `GeminiBackend`,
@@ -242,6 +243,26 @@ becomes a reported cell, the prereg table needs an explicit row stating
 "sampling control: none available; nearest analog: `seed` / N/A" — a "no"
 result from an ungreedy-decoded cell is not comparable to a "no" from the
 greedy `openai` cell without that caveat attached.
+
+**(b), updated 2026-09-18 (Rev 4): the dropped-sampling-fields confound now
+lands in the persisted run artifact, not only in-memory/stderr.** When
+`GeminiBackend` landed (Rev 3), the visibility this section and the class's
+own docstring described — `raw["unsupported_sampling"]` plus a one-time
+WARNING — stopped at `BackendResponse`: `Reasoner.run()` only threaded
+`latency_ms`/`token_usage`/`parse_status` into `ReasonerDiagnostics`, so
+`raw` (and the dropped-fields dict inside it) was discarded before
+`write_reasoner_log` ever wrote a line. A preregistered run's JSONL trace
+therefore carried no record of the confound at all — a correction, not a new
+finding: this section previously read as though artifact visibility already
+existed, and it did not. `ReasonerDiagnostics.unsupported_sampling`
+(`reasoning/vlm/models.py`) now carries the value through every
+`Reasoner.run()` path — first-attempt success, re-ask-then-success, and
+exhausted-retries — and `write_reasoner_log` (`reasoning/vlm/reasoner.py`)
+emits an `"unsupported_sampling"` key in the JSONL record when the backend
+reported one, omitting it entirely otherwise. The prereg-table obligation
+this section describes is unchanged by this fix — a "sampling control: none
+available" row is still owed — but the underlying fact is now checkable from
+the run artifact itself instead of only from a live log stream.
 
 **(c) `thinking_level` (`low`/`high`) is a new ablation axis with no
 counterpart in the other arms.** Cosmos Reason 2 (`llama_server`) has its own
@@ -533,20 +554,27 @@ draft):
   `ReasonerRequest` states (or vice versa), so a `congestion_detected=false`
   or `=true` answer can be attributed to the image rather than to the
   numeric threshold alone.
-- **NEW (Rev 3, from landing `GeminiBackend`): `AnthropicBackend` silently
-  drops `temperature`/`top_p`/`top_k` instead of recording them.**
-  `AnthropicBackend.analyze` (`anthropic_backend.py:42`) omits these three
-  `ReasonerConfig` fields with a code comment only ("Claude Opus 4.7+ reject
-  sampling parameters with HTTP 400") and never surfaces the dropped values
-  in `BackendResponse.raw` or a log line, unlike `GeminiBackend`'s
+- **NEW (Rev 3, from landing `GeminiBackend`; status updated Rev 4,
+  2026-09-18): `AnthropicBackend` silently drops `temperature`/`top_p`/
+  `top_k` instead of recording them, and still does after Rev 4's artifact
+  fix.** `AnthropicBackend.analyze` (`anthropic_backend.py:42`) omits these
+  three `ReasonerConfig` fields with a code comment only ("Claude Opus 4.7+
+  reject sampling parameters with HTTP 400") and never surfaces the dropped
+  values in `BackendResponse.raw` or a log line, unlike `GeminiBackend`'s
   `raw["unsupported_sampling"]` + one-time WARNING (§4(a)/(b) above already
   flagged this as the same-family confound; it was not yet in this open-items
-  list). Not fixed here — `anthropic_backend.py` was explicitly out of scope
-  for the `gemini` backend task — but it means the `anthropic` and `openai`
-  cells still have asymmetric confound visibility even after `gemini` lands
-  with the fix. Any prereg table addressing §4(b)'s missing-temperature
-  confound should also flag that `anthropic`'s version of it is invisible in
-  its own run artifacts.
+  list). Rev 4 closed the artifact half of this gap generically —
+  `ReasonerDiagnostics.unsupported_sampling` and `write_reasoner_log` read
+  from `BackendResponse.raw` for *any* backend, so `AnthropicBackend` would
+  get the same JSONL visibility `GeminiBackend` now has the moment it started
+  populating that key — but `anthropic_backend.py` remains untouched (out of
+  scope for both the `gemini` backend task and this artifact-visibility
+  task), so its `raw` never carries the key and its diagnostics
+  `unsupported_sampling` is `None`, indistinguishable from "backend honoured
+  everything." The `anthropic` and `openai` cells therefore still have
+  asymmetric confound visibility. Any prereg table addressing §4(b)'s
+  missing-temperature confound should also flag that `anthropic`'s version of
+  it is invisible in its own run artifacts.
 
 **Modality condition.** `scripts/probe_gemini_er2.py` builds its
 `ReasonerRequest` with `include_pairwise_geometry` at its production default

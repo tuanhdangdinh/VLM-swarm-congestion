@@ -106,6 +106,12 @@ class ReasonerDiagnostics(BaseModel):
     parse_status: Literal["valid", "invalid", "failed"]
     error_type: str | None = None
     error_message: str | None = None
+    # None means the backend honoured every ReasonerConfig sampling field it was
+    # given (or did not report otherwise) -- distinct from an empty dict, which
+    # would mean "the backend reported and dropped nothing." See
+    # `reasoning.vlm.gemini_backend.GeminiBackend` for a backend that populates
+    # this from `BackendResponse.raw["unsupported_sampling"]`.
+    unsupported_sampling: dict[str, float] | None = None
 
 
 class ReasonerResult(BaseModel):

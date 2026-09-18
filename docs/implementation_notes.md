@@ -114,6 +114,31 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-18** — **`unsupported_sampling` now reaches the persisted run
+  artifact, not just `BackendResponse.raw`/stderr.** Closes the gap the
+  entry directly below flagged: `GeminiBackend` recorded dropped
+  `temperature`/`top_p`/`top_k`/`presence_penalty` in
+  `BackendResponse.raw["unsupported_sampling"]`, but `Reasoner.run()`
+  (`reasoning/vlm/reasoner.py`) only threaded `latency_ms`/`token_usage`/
+  `parse_status` into `ReasonerDiagnostics`, so a preregistered run's JSONL
+  trace never carried the confound. Added
+  `ReasonerDiagnostics.unsupported_sampling: dict[str, float] | None = None`
+  (`reasoning/vlm/models.py`; `None` means "backend honoured everything or
+  didn't report," distinct from an empty dict). `Reasoner.run()` now
+  validates and threads `BackendResponse.raw.get("unsupported_sampling")`
+  through every diagnostics-construction site — first-attempt success,
+  re-ask-then-success, and exhausted-retries via `build_failed_result`
+  (malformed values, e.g. non-dict or non-numeric entries, are dropped to
+  `None` rather than raised). `write_reasoner_log` emits the key only when
+  set. This is backend-agnostic: `AnthropicBackend`/`OpenAIBackend`/
+  `LlamaServerBackend` are untouched and get `None`, so `AnthropicBackend`'s
+  equivalent silent drop (`anthropic_backend.py:42`) remains invisible in its
+  own artifacts until it adopts the same `raw["unsupported_sampling"]`
+  convention — see the open-items list in
+  `docs/superpowers/specs/2026-09-18-gemini-robotics-er2-integration-design.md`
+  (Rev 4). Tests: `tests/unit/test_reasoner.py` (new cases covering presence,
+  absence, malformed input, the re-ask path, and the JSONL artifact).
+
 - **2026-09-18** — **`gemini` VLM backend landed and live-verified through the
   real reasoner path.** Supersedes the "backend code remains untouched" line
   in the probe entry directly below: `GeminiBackend`
