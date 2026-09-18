@@ -30,7 +30,7 @@
 
 Model per task: 1, 2, 4, 6, 10, 11 → `sonnet` (brief carries the code or an exact contract); 3, 5, 12 → `opus` (yaml rendering / pxr judgement / cross-module M2+M5 plumbing); 7, 8, 9 → `opus` (VM, SSH, log forensics). Final whole-branch review → `opus`. Tasks 7–9 are sequential and long (≈ 15 min per sim run); they write their evidence to files under `data/logs/family_check_20260918/` (git-ignored) and a short report file the docs task links.
 
-**Execution order: 6 → 7 → 8 → 11 → 12 → 9 → 10.** Tasks 11 and 12 build the observability channels Task 9's paired runs depend on; Task 10 documents everything last.
+**Execution order: 6 → 7 → 11 → 12 → 13 → 8 → 9 → 10.** Task 13 (one-shot mock decisions) unblocks Task 8; see its rationale. Tasks 11 and 12 build the observability channels Task 9's paired runs depend on; Task 10 documents everything last.
 
 ---
 
@@ -584,3 +584,53 @@ build_reasoner_request(..., static_obstacles=..., include_static_obstacles=...)
 - [ ] **Step 3: Implement.** In `orchestrator.yaml`, add `prompt_static_obstacles: false` and a commented `static_obstacles:` block carrying the family blocker (`blocker_west`, centre `-1.85, 0.0`, extent `0.3 x 0.3`) with a comment saying it mirrors the scenario yaml the way `scenario_geometry` mirrors the aisle barrier, and that it must be set per scenario.
 - [ ] **Step 4: Run to verify pass**; `ruff check` on the touched files (exit 0); confirm no previously passing test in the touched files regresses.
 - [ ] **Step 5: Commit** `feat: add static-obstacle prompt modality behind a default-off flag`.
+
+---
+
+### Task 13: One-shot mock decisions (unblocks Tasks 8 and 9)
+
+**Why this exists.** Task 7's T1 control run failed its criterion and the
+run's report concluded an M4 defect. That conclusion is wrong and must be
+corrected. The real cause is the harness: `build_backend`
+(`reasoning/vlm/backend_factory.py:73-81`) wires `VGU_MOCK_DECISION_FILE` into
+`MockBackend(response_text=...)`, which returns **the same decision on every
+call**. So all 16 stall-triggered analyses replayed `deadlock / yield
+[robot_1, robot_2]`, re-commanding both robots forever; each new command
+cancels the target's in-flight navigate goal via the documented ownership
+handoff (`_on_command` → `_adapter.cancel`), so `robot_1` never got a window
+longer than a median 0.70 s when it needs ~17 s to cover 3.73 m at 0.22 m/s.
+A live backend does not produce that stream — run 5 (2026-09-17, gpt-4o)
+resolved in 1 dispatch with 31 `none` answers, because the failure-context
+loop reports `congestion_detected=false` once the scene clears. A frozen mock
+structurally cannot. Nothing in Tasks 1–6 is implicated, and the M4 resume
+race is real but latent (it needs a pathological repeat-command stream).
+
+**Files:**
+- Modify: `reasoning/vlm/backend_factory.py` (`build_backend`, mock branch)
+- Create: `config/mock_decisions/head_on_yield_once.json`, `config/mock_decisions/head_on_yield_robot_2_once.json`
+- Modify: `docs/reports/2026-09-18-head-on-family-validity.md` (correct the root cause)
+- Test: `tests/unit/test_vlm_config.py` or whichever file covers `build_backend` (grep first)
+
+**Interfaces produced:**
+
+```python
+# build_backend, mock branch: VGU_MOCK_DECISION_FILE may now hold EITHER
+#   - a single decision object  -> MockBackend(response_text=<file text>)   [unchanged]
+#   - a JSON array of decisions -> MockBackend(response_sequence=[json.dumps(d) for d in arr])
+# MockBackend already implements response_sequence and HOLDS THE LAST ENTRY once
+# exhausted (reasoning/vlm/mock_backend.py:37-39) — so a 2-entry array is all that
+# is ever needed regardless of how many analyses run. Do NOT pad the array, do not
+# add an index reset, do not change mock_backend.py.
+# An empty array is a config error: raise ValueError naming the file.
+```
+
+Each `*_once.json` is `[<the existing single decision verbatim>, <the no-congestion decision>]`, where the second entry matches `_DEFAULT_RESPONSE` in `reasoning/vlm/mock_backend.py` (`congestion_detected: false`, `type: "none"`, `strategy: "none"`, `involved_robots: []`). **Leave `head_on_yield.json` and `head_on_yield_robot_2.json` exactly as they are** — Task 8's forced-yielder-*fails* arm still wants the frozen form, since a yield that never completes produces no resolution for a `none` to describe.
+
+- [ ] **Step 1: Write the failing tests.** A single-object file still yields one repeated response (backward compatibility — pin this). An array file yields entry 1 on the first call, entry 2 on the second, and **entry 2 again on the third and tenth** call. An empty array raises `ValueError` naming the file. A missing file still raises `FileNotFoundError` as today.
+- [ ] **Step 2: Run them and record the failures.**
+- [ ] **Step 3: Implement**, then validate both new json files parse and that each is a 2-element array whose first element equals the corresponding existing single-decision file.
+- [ ] **Step 4: Run to verify pass**; `ruff check` on the touched files adds no new findings (`reasoning/rag/command_grounder.py:65` carries a pre-existing error — leave it).
+- [ ] **Step 5: Correct the research artifact.** In `docs/reports/2026-09-18-head-on-family-validity.md`, amend the "Root cause" section: the control run failed because a frozen mock cannot represent a scene that changes, not because of an M4 defect. Keep the original forensics (the resume/cancel counts are accurate and worth preserving) but re-label them as the *mechanism* by which the repeated commands stopped `robot_1`, with the frozen mock as the *cause*. Record that the M4 resume race remains a real but latent issue needing its own investigation, and add a revision-history entry. Do not delete the original text — mark it superseded, per the project's documentation rules.
+- [ ] **Step 6: Commit** `fix: allow scripted mock decision sequences and correct the control-run finding`.
+
+**Verification gate for Task 8.** When Task 8 next runs a one-shot arm, check in its artifacts that `robot_1` receives an **uninterrupted navigation window longer than 17 s** after the last command resolves. If it does not, the M4 resume race is *not* latent and Tasks 8/9 stop until it is fixed — report rather than tune.
