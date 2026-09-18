@@ -114,6 +114,31 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-18** — **Gemini ER-2 reads our overhead frame but does not decide
+  from it: decision-level image grounding is NOT demonstrated.** Report:
+  `docs/reports/2026-09-18-gemini-er2-image-grounding.md`; harness
+  `scripts/probe_gemini_er2_grounding.py`; artifacts
+  `data/logs/er2_grounding/grounding_run{1,2_exp3_n9}.jsonl` (VM, git-ignored).
+  Two frames from `run_id=gemini_20260918_084649`, measured at 0.251 m
+  (nose-to-nose) and 4.884 m apart, were crossed with synthetic 0.35 m-facing
+  and 2.50 m-diverging text states through the unmodified prompt and
+  `Reasoner` at `thinking_level: low` with no `seed`. Both congruent gate
+  cells passed 3/3; in the incongruent cells the decision followed the
+  **text** — 6/6 calls with `include_pairwise_geometry=True` (n = 3/cell) and
+  22/24 with it `False` (n = 12/cell), the 2 exceptions being the only
+  responses in 36 decision calls whose justification reads visual rather than
+  numeric. ER-2's native pointing, by contrast, hit both robots in both
+  frames (12/12 points inside half a robot width, 0.005–0.125 m, including
+  the pair 0.25 m apart), so the image is readable to it and still does not
+  move the answer. Prereg consequence: for this scenario and prompt the
+  `gemini` Arm A cell is equivalent to a text-only reasoner (spec Rev 5 open
+  item). **Gotcha:** the ArUco detector cannot be re-run reliably on M1
+  *annotated* frames — the 40x40 px status box and the velocity arrow are
+  drawn over the 28 px marker and destroy its quiet zone (both markers
+  recovered in 3 of 121 sampled frames) — so ground truth for an annotated
+  frame comes from `data/logs/m5_scene/<session>.jsonl` at the header stamp
+  `scripts/record_topic_video.py` burns into the frame, which agrees with
+  re-detection to ~1 mm where both are available.
 - **2026-09-18** — **Gemini ER-2 live-run recipe committed as
   `scripts/run_gemini_er2_demo.sh`, generalized over `BACKEND_ID`.** The
   launch sequence behind the `gemini_20260918_084649` run (entry directly

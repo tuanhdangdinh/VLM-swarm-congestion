@@ -7,6 +7,7 @@
 - Initial draft: transport-surface correction (Interactions API, not the legacy `:generateContent` page), Option A `gemini` backend sketch, the no-sampling-controls reproducibility finding, Option B deferral, a cost estimate, and the probe gate.
 - Rev 2 (2026-09-18): resolved the §7 gate with live-VM probe evidence (PASSED, with and without schema forcing); added the no-visible-reasoning-trace confound (§4(d)); replaced the cost estimate with the measured per-call figure; added the VM reproduction recipe and two new open items (`thinking_summaries`, a paired-image/paired-state probe).
 - Rev 3 (2026-09-18): Option A landed. `GeminiBackend` (`reasoning/vlm/gemini_backend.py`), `GeminiBackendConfig` (`reasoning/vlm/models.py`), the `"gemini"` branch in `backend_factory.py`, and a `vlm.gemini` block in `config/models.yaml` are implemented, unit-tested (`tests/unit/test_gemini_backend.py`), and live-verified through the real `reasoning.vlm.reasoner.Reasoner` path (not the probe script) on the VM: a genuine head-on scene (two robots 0.35 m apart, mutually facing) returned `congestion_detected=true, type=deadlock, strategy=yield` in 2492 ms, with `raw["unsupported_sampling"]` populated and one WARNING logged. Unlike `AnthropicBackend`, the four dropped `ReasonerConfig` sampling fields are recorded per call in `BackendResponse.raw["unsupported_sampling"]` rather than silently omitted (§4(b) below); `AnthropicBackend`'s equivalent silent drop is added as a new open item.
+- Rev 5 (2026-09-18): resolved the image-grounding open item with the paired-image/paired-state probe (`docs/reports/2026-09-18-gemini-er2-image-grounding.md`) — ER-2 localizes both robots in our frames, but its congestion decision tracked the text state block in 6/6 incongruent calls with derived geometry on and 22/24 with it off.
 - Rev 4 (2026-09-18): closed the gap Rev 3 left open — `raw["unsupported_sampling"]` never reached a persisted run artifact, only `BackendResponse.raw` (in-memory) and a stderr WARNING. `ReasonerDiagnostics.unsupported_sampling` (`reasoning/vlm/models.py`) now carries it through every `Reasoner.run()` path (success, re-ask-then-success, and exhausted-retries), and `write_reasoner_log` emits the key in the JSONL artifact when set (omitted, not `null`, when the backend reported nothing). §4(b) below is corrected accordingly: this document previously described artifact visibility that did not yet exist.
 
 **Status:** Landed and live-verified (2026-09-18). The §7 gate **PASSED**
@@ -17,11 +18,12 @@ end-to-end through `reasoning.vlm.reasoner.Reasoner` (see Rev 3 note above),
 not just the gating probe. `force_schema` defaults `False` per the gate
 result (schema forcing is optional, not load-bearing). Open items carried
 forward, none of which block the landed backend: `thinking_summaries` as a
-candidate mitigation for the no-visible-reasoning-trace confound (§4(d)); a
-paired-image/paired-state probe for an image-grounding claim beyond the
-single live decision recorded here; and `gemini`/`anthropic`'s absence from
+candidate mitigation for the no-visible-reasoning-trace confound (§4(d)); and
+`gemini`/`anthropic`'s absence from
 the parent spec's "Model and decoding pre-registration" table (§4(b)), which
-this implementation does not resolve on its own.
+this implementation does not resolve on its own. The image-grounding open
+item is **resolved** (Rev 5): see §7's open-items list and
+`docs/reports/2026-09-18-gemini-er2-image-grounding.md`.
 
 **Parent spec:** `docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md`
 (Arm A backend roster in "Model and decoding pre-registration"; Appendix A.7
@@ -531,7 +533,9 @@ driving apart (matched `|Δθ| ≈ π` and answered `deadlock`/`reverse`; rev-8
 spec 8.4, `docs/implementation_notes.md` 2026-09-17 root-cause entry) — but
 this is one sample per condition, so it is encouraging, not evidence of
 superiority. A paired-image/paired-state probe is required before any
-grounding or comparative-quality claim (see open item below).
+grounding or comparative-quality claim; it ran on 2026-09-18 and found no
+decision-level image grounding
+(`docs/reports/2026-09-18-gemini-er2-image-grounding.md`; open item below).
 
 **Answered secondary questions** (listed as non-gating in the initial
 draft):
@@ -549,11 +553,27 @@ draft):
   Candidate mitigation for §4(d)'s no-visible-trace finding. Next probe to
   run, and belongs in the preregistration alongside the missing-temperature
   confound (§4(b)) once resolved either way.
-- A paired-image/paired-state probe, per the Limitation paragraph above: an
-  image whose robot geometry is known and matched to the hardcoded
-  `ReasonerRequest` states (or vice versa), so a `congestion_detected=false`
-  or `=true` answer can be attributed to the image rather than to the
-  numeric threshold alone.
+- **RESOLVED (Rev 5, 2026-09-18): the paired-image/paired-state probe ran, and
+  decision-level image grounding was not demonstrated.** Report:
+  `docs/reports/2026-09-18-gemini-er2-image-grounding.md`; harness:
+  `scripts/probe_gemini_er2_grounding.py`; artifacts:
+  `data/logs/er2_grounding/grounding_run{1,2_exp3_n9}.jsonl` on the VM. Two
+  measured frames from the live ER-2 run — 0.251 m nose-to-nose and 4.884 m
+  apart — were crossed with synthetic 0.35 m-facing and 2.50 m-diverging text
+  states through the unmodified prompt and `Reasoner`. Both congruent gate
+  cells passed 3/3, and in the incongruent cells the decision followed the
+  **text**: 6/6 calls with `include_pairwise_geometry=True` (n = 3 per cell)
+  and 22/24 with it `False` (n = 12 per cell), the 2 exceptions being the only
+  responses in 36 decision calls whose justification read visual rather than
+  numeric. Separately, ER-2's native pointing localized both robots in both
+  frames to 0.005–0.125 m (12/12 points inside half a robot width, n = 3 per
+  frame), including the pair 0.25 m apart — so the image is readable to it and
+  still does not move the decision. Consequence for the preregistration: for
+  this scenario and prompt the `gemini` Arm A cell is **equivalent to a
+  text-only reasoner**, which must be stated wherever its decisions are
+  reported. Follow-ups this probe did not run: the same 2x2 on a prompt that
+  asks the model to verify the states against the image, the same probe on the
+  `openai` cell, and pointing on raw (un-annotated) frames.
 - **NEW (Rev 3, from landing `GeminiBackend`; status updated Rev 4,
   2026-09-18): `AnthropicBackend` silently drops `temperature`/`top_p`/
   `top_k` instead of recording them, and still does after Rev 4's artifact
