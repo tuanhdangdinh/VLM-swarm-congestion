@@ -12,6 +12,18 @@
 space: the correct yielder is not the FCFS pick") as one parametric family
 instead of hand-authored instances.
 
+> **READ BEFORE IMPLEMENTING — open design review (2026-09-19):**
+> `2026-09-19-head-on-asymmetric-family-design-review.md`. Measurement since
+> Rev 2 contradicts two assumptions this spec relies on: the parked blocker is
+> not present in any channel the reasoner reads (obstacles are absent from the
+> M2 prompt, and the decision does not use the image), and the
+> "VLM lists the yielder first" channel is a constant in practice
+> (`robot_1` first in 44/44 yields across 524 artifacts). As written, the T2a
+> contrast cell cannot distinguish a reasoning failure from an observability
+> failure. The review proposes two small changes and does not alter this spec's
+> decisions — the owner decides. The RQ5/recovery value of the family is
+> unaffected and now has live precedent.
+
 **Parent spec:** `2026-07-05-general-spatial-congestion-resolution-design.md`
 (Scenario battery; Authored oracle blocks; Tuning-parity rule).
 
