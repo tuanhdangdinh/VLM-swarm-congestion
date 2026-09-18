@@ -19,12 +19,19 @@ Interactions API through the project's own `GeminiBackend` transport:
 3. Experiment 2's two incongruent cells re-run with
    `ReasonerRequest.include_pairwise_geometry=False`, which withholds the
    derived distance/facing lines (raw coordinates and the image remain).
+4. The cross-check comparison: cells A, D, B, C plus the Fix-B regression cell
+   E (1.2 m apart, headings opposite but diverging, both MOVING), run at
+   `--visual-crosscheck` or `--no-visual-crosscheck` so the same cells are
+   measured under both prompt variants. `--backend openai` runs the same cells
+   against `gpt-4o` to test whether a text-tracking result is Gemini-specific
+   or apparatus-wide.
 
 Every call is appended to a JSONL artifact under `data/logs/` (git-ignored)
 carrying the request condition, the response, and token usage -- never the
 API key and never base64 image data. The key is read only from the
-environment (`GEMINI_API_KEY`, per `config/models.yaml`'s `vlm.gemini`
-section) and is never accepted as a CLI argument.
+environment, under the name the backend's `config/models.yaml` section gives
+in `api_key_env` (`GEMINI_API_KEY` / `OPENAI_API_KEY`), and is never accepted
+as a CLI argument.
 
 Usage:
     python scripts/probe_gemini_er2_grounding.py --dry-run
@@ -34,6 +41,8 @@ Usage:
         --frame-conflict <path> --frame-clear <path> \
         --conflict-stamp 1789721320.33 --clear-stamp 1789721707.53 \
         --scene-log data/logs/m5_scene/<session>.jsonl
+    python scripts/probe_gemini_er2_grounding.py --experiment 4 --repeats 5 \
+        --visual-crosscheck --frame-conflict <path> --frame-clear <path>
 """
 from __future__ import annotations
 
@@ -55,6 +64,7 @@ for _path in (REPO_ROOT, REPO_ROOT / "ros2_ws" / "src" / "swarm_perception"):
         sys.path.insert(0, str(_path))
 
 import numpy as np  # noqa: E402
+import yaml  # noqa: E402
 from pydantic import BaseModel, ConfigDict  # noqa: E402
 from swarm_perception.calibration import load_calibration  # noqa: E402
 from swarm_perception.detection import (  # noqa: E402
@@ -63,18 +73,21 @@ from swarm_perception.detection import (  # noqa: E402
 )
 from swarm_perception.geometry import pixel_to_world, world_to_pixel  # noqa: E402
 
+from reasoning.vlm.backend_factory import backend_section, resolve_reasoner_config  # noqa: E402
 from reasoning.vlm.errors import BackendTimeoutError  # noqa: E402
 from reasoning.vlm.gemini_backend import GeminiBackend  # noqa: E402
 from reasoning.vlm.models import (  # noqa: E402
+    GeminiBackendConfig,
+    OpenAIBackendConfig,
     PromptPayload,
     ReasonerConfig,
     ReasonerRequest,
     RobotStateInput,
 )
+from reasoning.vlm.openai_backend import OpenAIBackend  # noqa: E402
 from reasoning.vlm.prompt_builder import SYSTEM_PROMPT  # noqa: E402
 from reasoning.vlm.reasoner import Reasoner  # noqa: E402
 
-DEFAULT_MODEL = "gemini-robotics-er-2-preview"
 DEFAULT_CALIBRATION = "ros2_ws/src/swarm_perception/config/calibration.yaml"
 DEFAULT_MARKER_DICTIONARY = "DICT_4X4_50"
 DEFAULT_LOG_DIR = "data/logs/er2_grounding"
@@ -112,6 +125,18 @@ _CLEAR_STATES = (
     {"robot_id": "robot_2", "x": 1.25, "y": 0.0, "theta": 0.0, "status": "MOVING",
      "linear_velocity": 0.15, "angular_velocity": 0.0},
 )
+# Cell E's regression states reproduce the exact geometry of the run-3 failure
+# (2026-09-17): 1.20 m apart, headings opposite (|dtheta| = pi) but pointing away
+# from each other, both MOVING. gpt-4o at temperature 0.6 matched |dtheta| ~ pi on
+# this configuration and answered deadlock/reverse, which is why the prompt's
+# "do not re-derive distances or facing from the coordinates" clause exists. Any
+# prompt variant that answers congestion here has reintroduced that failure mode.
+_REGRESSION_STATES = (
+    {"robot_id": "robot_1", "x": -0.6, "y": 0.0, "theta": math.pi, "status": "MOVING",
+     "linear_velocity": 0.15, "angular_velocity": 0.0},
+    {"robot_id": "robot_2", "x": 0.6, "y": 0.0, "theta": 0.0, "status": "MOVING",
+     "linear_velocity": 0.15, "angular_velocity": 0.0},
+)
 
 CONFLICT_FRAME = "FRAME_CONFLICT"
 CLEAR_FRAME = "FRAME_CLEAR"
@@ -126,7 +151,58 @@ CELLS: tuple[tuple[str, str, str], ...] = (
     ("C", CLEAR_FRAME, "conflict"),
 )
 
-TextCondition = Literal["conflict", "clear"]
+# Experiment 4 (the cross-check comparison) adds the Fix-B regression cell E.
+# CELLS is left untouched so experiments 2 and 3 stay the apparatus the
+# 2026-09-18 report was produced with.
+REGRESSION_CELL: tuple[str, str, str] = ("E", CLEAR_FRAME, "regression")
+CROSSCHECK_CELLS: tuple[tuple[str, str, str], ...] = (*CELLS, REGRESSION_CELL)
+
+# The answer each cell's *image* supports, fixed before the run. Cells A and D
+# are congruent (image and text agree). Cell E's image and text agree that
+# nothing is congested and disagree only about the separation (4.88 m vs 1.20 m),
+# so E is scored on the answer alone.
+IMAGE_CONSISTENT_CONGESTION: dict[str, bool] = {
+    "A": True,
+    "B": True,
+    "C": False,
+    "D": False,
+    "E": False,
+}
+
+TextCondition = Literal["conflict", "clear", "regression"]
+
+# Pre-stated coding rule for "flagged the image/state disagreement", fixed before
+# any call was made. A justification counts only when it both refers to the visual
+# channel and asserts a mismatch against the stated states -- deliberately
+# conservative (it under-counts rather than over-counts), with every verbatim
+# justification kept in the JSONL artifact so the coding can be audited.
+_IMAGE_REFERENCE_TERMS = (
+    "image",
+    "picture",
+    "photograph",
+    "overhead view",
+    "camera view",
+    "visual",
+    "visibly",
+    "what i see",
+    "what is visible",
+)
+_DISAGREEMENT_TERMS = (
+    "contradict",
+    "disagree",
+    "inconsistent",
+    "inconsistency",
+    "mismatch",
+    "not match",
+    "differ",
+    "discrepan",
+    "contrary to",
+    "despite the stated",
+    "despite the reported",
+    "despite the given",
+    "conflicts with the stated",
+    "conflict with the stated",
+)
 
 
 class RobotGroundTruth(BaseModel):
@@ -192,6 +268,46 @@ class PointScoring(BaseModel):
     swapped_total_error_m: float | None
     returned_separation_m: float | None
     truth_separation_m: float | None
+
+
+def _load_vlm_section(models_config: Path) -> dict[str, Any]:
+    raw = yaml.safe_load(models_config.read_text()) if models_config.is_file() else {}
+    return dict((raw or {}).get("vlm", {}) or {})
+
+
+def _load_backend_config(
+    models_config: Path, backend_id: str
+) -> GeminiBackendConfig | OpenAIBackendConfig:
+    """Build the backend's connection config from models.yaml.
+
+    Args:
+        models_config: Path to `config/models.yaml`.
+        backend_id: `"gemini"` or `"openai"`.
+
+    Returns:
+        The backend's config model, carrying `api_key_env` (the env var *name*,
+        never a key value) and `model_id`.
+    """
+    section = backend_section(_load_vlm_section(models_config), backend_id)
+    if backend_id == "gemini":
+        return GeminiBackendConfig(**section)
+    return OpenAIBackendConfig(**section)
+
+
+def _load_reasoner_config(models_config: Path, backend_id: str) -> ReasonerConfig:
+    """Resolve the effective decoding config for a backend from models.yaml.
+
+    Uses the same shared-block-plus-override helper as the orchestrator, so the
+    probe never silently samples at a different temperature from production.
+
+    Args:
+        models_config: Path to `config/models.yaml`.
+        backend_id: Backend whose config is wanted.
+
+    Returns:
+        The resolved `ReasonerConfig`.
+    """
+    return resolve_reasoner_config(_load_vlm_section(models_config), backend_id)
 
 
 def sha256_file(path: Path) -> str:
@@ -425,14 +541,41 @@ def build_text_states(condition: TextCondition) -> list[RobotStateInput]:
     """Build the text robot-state block for one condition of the 2x2.
 
     Args:
-        condition: `"conflict"` (0.35 m apart, mutually facing, both STOPPED)
-            or `"clear"` (2.5 m apart, headings diverging, both MOVING).
+        condition: `"conflict"` (0.35 m apart, mutually facing, both STOPPED),
+            `"clear"` (2.5 m apart, headings diverging, both MOVING), or
+            `"regression"` (1.2 m apart, headings opposite but diverging, both
+            MOVING — the run-3 geometry that Fix B protects).
 
     Returns:
         Two `RobotStateInput` values, robot_1 first.
     """
-    raw = _CONFLICT_STATES if condition == "conflict" else _CLEAR_STATES
+    raw = {
+        "conflict": _CONFLICT_STATES,
+        "clear": _CLEAR_STATES,
+        "regression": _REGRESSION_STATES,
+    }[condition]
     return [RobotStateInput(**state) for state in raw]
+
+
+def flags_image_state_disagreement(justification: str) -> bool:
+    """Score one justification against the pre-stated contradiction-flagging rule.
+
+    The rule is a conjunction fixed before the run: the text must refer to the
+    visual channel **and** assert a mismatch with the stated robot states. It is
+    intentionally conservative, so a "false" is not proof the model said nothing
+    visual; the verbatim justification is kept in the artifact either way.
+
+    Args:
+        justification: The decision's `justification` field.
+
+    Returns:
+        True when the justification both references the image and names a
+        disagreement with the states.
+    """
+    text = justification.lower()
+    references_image = any(term in text for term in _IMAGE_REFERENCE_TERMS)
+    names_disagreement = any(term in text for term in _DISAGREEMENT_TERMS)
+    return references_image and names_disagreement
 
 
 def build_cell_request(
@@ -441,28 +584,36 @@ def build_cell_request(
     image_path: Path,
     condition: TextCondition,
     include_pairwise_geometry: bool,
+    include_visual_crosscheck: bool = False,
 ) -> ReasonerRequest:
     """Build the real M2 request for one 2x2 cell and repeat.
 
     Args:
-        cell: Cell label (`"A"`..`"D"`).
+        cell: Cell label (`"A"`..`"E"`).
         repeat: 1-based repeat index within the cell.
         image_path: Stimulus frame to attach.
         condition: Text robot-state condition.
         include_pairwise_geometry: Rev-8 modality axis; `False` withholds the
             derived distance/facing lines.
+        include_visual_crosscheck: Opt-in modality axis; `True` appends the
+            image/state cross-check block. Default `False` is the production
+            prompt, so a request built without it is byte-identical to the one
+            the 2026-09-18 report used.
 
     Returns:
         A `ReasonerRequest` carrying the project's production contract.
     """
-    geometry_tag = "geom" if include_pairwise_geometry else "nogeom"
+    tags = ["geom" if include_pairwise_geometry else "nogeom"]
+    if include_visual_crosscheck:
+        tags.append("xcheck")
     return ReasonerRequest(
-        request_id=f"er2-grounding-{cell}-{geometry_tag}-{repeat}",
+        request_id=f"er2-grounding-{cell}-{'-'.join(tags)}-{repeat}",
         image_path=str(image_path),
         frame_id="overhead_camera",
         stamp=0.0,
         robot_states=build_text_states(condition),
         include_pairwise_geometry=include_pairwise_geometry,
+        include_visual_crosscheck=include_visual_crosscheck,
     )
 
 
@@ -699,20 +850,27 @@ def run_decision_cells(
     model_id: str,
     thinking_level: str,
     api_key: str | None,
+    include_visual_crosscheck: bool = False,
+    backend_id: str = "gemini",
+    temperature: float | None = None,
 ) -> None:
     """Run the real M2 decision prompt over a set of image/text cells.
 
     Args:
-        reasoner: Project `Reasoner` wrapping the `gemini` backend.
+        reasoner: Project `Reasoner` wrapping the selected backend.
         cells: `(cell, stimulus_name, text_condition)` triples, in run order.
         stimuli: Measured stimuli keyed by name.
         repeats: Calls per cell.
         include_pairwise_geometry: Rev-8 modality axis for every cell here.
-        experiment: Experiment number recorded in the artifact (2 or 3).
+        experiment: Experiment number recorded in the artifact (2, 3 or 4).
         writer: JSONL artifact writer.
         model_id: Backend model id, recorded per call.
         thinking_level: Backend thinking level, recorded per call.
         api_key: Key value, used only to scrub it from error text.
+        include_visual_crosscheck: Opt-in modality axis for every cell here.
+        backend_id: Backend selector, recorded per call.
+        temperature: Effective `ReasonerConfig.temperature`, recorded per call so
+            the two prompt variants are never compared across decoding settings.
     """
     for cell, stimulus_name, condition in cells:
         measurement = stimuli[stimulus_name]
@@ -723,6 +881,7 @@ def run_decision_cells(
                 Path(measurement.path),
                 condition,
                 include_pairwise_geometry,
+                include_visual_crosscheck,
             )
             start = time.monotonic()
             error: str | None = None
@@ -743,10 +902,18 @@ def run_decision_cells(
                 f"{decision_dump['congestion_detected']}/{decision_dump['type']}"
                 f"/{decision_dump['strategy']}"
             )
+            image_consistent: bool | None = None
+            flagged: bool | None = None
+            if decision_dump is not None:
+                expected = IMAGE_CONSISTENT_CONGESTION.get(cell)
+                if expected is not None:
+                    image_consistent = bool(decision_dump["congestion_detected"]) == expected
+                flagged = flags_image_state_disagreement(str(decision_dump["justification"]))
             print(
                 f"[exp{experiment}] cell={cell} image={stimulus_name} text={condition} "
-                f"geometry={include_pairwise_geometry} repeat={repeat} -> {summary} "
-                f"latency_ms={latency_ms} error={error}"
+                f"geometry={include_pairwise_geometry} xcheck={include_visual_crosscheck} "
+                f"repeat={repeat} -> {summary} image_consistent={image_consistent} "
+                f"flagged={flagged} latency_ms={latency_ms} error={error}"
             )
             writer.write(
                 {
@@ -756,11 +923,16 @@ def run_decision_cells(
                     "stimulus_sha256": measurement.sha256,
                     "text_condition": condition,
                     "include_pairwise_geometry": include_pairwise_geometry,
+                    "include_visual_crosscheck": include_visual_crosscheck,
                     "repeat": repeat,
+                    "backend_id": backend_id,
                     "model_id": model_id,
                     "thinking_level": thinking_level,
+                    "temperature": temperature,
                     "request": request.model_dump(mode="json"),
                     "decision": decision_dump,
+                    "answered_image_consistent": image_consistent,
+                    "flagged_image_state_disagreement": flagged,
                     "diagnostics": diagnostics,
                     "raw_text": raw_text,
                     "latency_ms": latency_ms,
@@ -812,7 +984,19 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         default=DEFAULT_MARKER_DICTIONARY,
         help="ArUco dictionary name used by M1.",
     )
-    parser.add_argument("--model", default=DEFAULT_MODEL, help="Interactions API model id.")
+    parser.add_argument("--model", default=None, help="Model id (default: the backend's).")
+    parser.add_argument(
+        "--backend",
+        choices=["gemini", "openai"],
+        default="gemini",
+        help="Which M2 backend to probe (default: gemini). Experiment 1 is gemini-only.",
+    )
+    parser.add_argument(
+        "--models-config",
+        type=Path,
+        default=REPO_ROOT / "config" / "models.yaml",
+        help="models.yaml supplying the backend section and effective decoding config.",
+    )
     parser.add_argument(
         "--thinking-level",
         choices=["low", "high"],
@@ -820,10 +1004,22 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="generation_config.thinking_level (default: low, as in the live run).",
     )
     parser.add_argument(
+        "--visual-crosscheck",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Set ReasonerRequest.include_visual_crosscheck on every decision cell. "
+            "Default off = the production prompt the 2026-09-18 report measured."
+        ),
+    )
+    parser.add_argument(
         "--experiment",
-        choices=["1", "2", "3", "all"],
+        choices=["1", "2", "3", "4", "all"],
         default="all",
-        help="Which experiment to run.",
+        help=(
+            "Which experiment to run. 4 = the cross-check comparison: cells A, D, B, C "
+            "plus the Fix-B regression cell E, derived geometry on, at --visual-crosscheck."
+        ),
     )
     parser.add_argument("--repeats", type=int, default=3, help="Calls per stimulus or cell.")
     parser.add_argument(
@@ -919,18 +1115,25 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.dry_run:
         print("DRY RUN: no network call made, no API key read or required.")
-        for cell, stimulus_name, condition in CELLS:
+        for cell, stimulus_name, condition in CROSSCHECK_CELLS:
             states = build_text_states(condition)
             print(
                 f"  cell {cell}: image={stimulus_name} text={condition} "
+                f"image_consistent_congestion={IMAGE_CONSISTENT_CONGESTION[cell]} "
                 f"states={[state.model_dump(mode='json') for state in states]}"
             )
         print("  experiment 3 re-runs cells B and C with include_pairwise_geometry=False")
+        print(
+            "  experiment 4 runs cells A, D, B, C, E with "
+            f"include_visual_crosscheck={args.visual_crosscheck}"
+        )
         return 0
 
-    api_key = os.environ.get("GEMINI_API_KEY")
+    backend_config = _load_backend_config(args.models_config, args.backend)
+    api_key_env = backend_config.api_key_env
+    api_key = os.environ.get(api_key_env)
     if not api_key:
-        print("ERROR: set GEMINI_API_KEY in the environment.", file=sys.stderr)
+        print(f"ERROR: set {api_key_env} in the environment.", file=sys.stderr)
         return 2
 
     log_path = args.log_path or (
@@ -941,28 +1144,52 @@ def main(argv: list[str] | None = None) -> int:
     writer = JsonlWriter(log_path)
     print(f"artifact: {log_path}")
 
-    # seed is left unset on purpose: with generation_config.seed pinned the
-    # repeats would be one sample reported three times, and the Interactions
-    # API offers no temperature control to hold constant instead.
-    backend = GeminiBackend(
-        model_id=args.model,
-        thinking_level=args.thinking_level,
-        force_schema=False,
-        seed=None,
+    model_id = args.model or backend_config.model_id
+    # Decoding comes from models.yaml through the same helper the orchestrator
+    # uses, so the openai path inherits its pinned temperature 0.0 instead of the
+    # shared Cosmos preset (0.6) -- the decoding that caused the run-3 failure.
+    config = _load_reasoner_config(args.models_config, args.backend).model_copy(
+        update={"timeout_sec": args.timeout}
     )
-    config = ReasonerConfig(backend_id="gemini", timeout_sec=args.timeout)
+    thinking_level = args.thinking_level if args.backend == "gemini" else None
+    if args.backend == "gemini":
+        # seed is left unset on purpose: with generation_config.seed pinned the
+        # repeats would be one sample reported three times, and the Interactions
+        # API offers no temperature control to hold constant instead.
+        backend: Any = GeminiBackend(
+            model_id=model_id,
+            base_url=backend_config.base_url,
+            api_key_env=api_key_env,
+            thinking_level=args.thinking_level,
+            force_schema=False,
+            seed=None,
+        )
+    else:
+        backend = OpenAIBackend(
+            model_id=model_id,
+            base_url=backend_config.base_url,
+            api_key_env=api_key_env,
+            organization=backend_config.organization,
+        )
     reasoner = Reasoner(backend, config)
 
     writer.write(
         {
             "record_type": "meta",
-            "model_id": args.model,
-            "thinking_level": args.thinking_level,
-            "force_schema": False,
+            "backend_id": args.backend,
+            "model_id": model_id,
+            "thinking_level": thinking_level,
+            "force_schema": False if args.backend == "gemini" else None,
             "seed": None,
             "repeats": args.repeats,
             "experiment": args.experiment,
+            "include_visual_crosscheck": args.visual_crosscheck,
             "criteria": criteria,
+            "flagging_rule": {
+                "image_reference_terms": list(_IMAGE_REFERENCE_TERMS),
+                "disagreement_terms": list(_DISAGREEMENT_TERMS),
+            },
+            "image_consistent_congestion": IMAGE_CONSISTENT_CONGESTION,
             "reasoner_config": config.model_dump(mode="json"),
             "stimuli": {
                 name: measurement.model_dump(mode="json")
@@ -973,15 +1200,21 @@ def main(argv: list[str] | None = None) -> int:
 
     selected = args.experiment
     if selected in ("1", "all"):
-        run_experiment_1(
-            backend,
-            config,
-            stimuli,
-            calibration.homography,
-            args.repeats,
-            writer,
-            api_key,
-        )
+        if args.backend != "gemini":
+            print(
+                "SKIP experiment 1: the [y, x]/1000 pointing format is ER-2-specific.",
+                file=sys.stderr,
+            )
+        else:
+            run_experiment_1(
+                backend,
+                config,
+                stimuli,
+                calibration.homography,
+                args.repeats,
+                writer,
+                api_key,
+            )
     if selected in ("2", "all"):
         run_decision_cells(
             reasoner,
@@ -991,9 +1224,12 @@ def main(argv: list[str] | None = None) -> int:
             True,
             2,
             writer,
-            args.model,
-            args.thinking_level,
+            model_id,
+            thinking_level,
             api_key,
+            include_visual_crosscheck=args.visual_crosscheck,
+            backend_id=args.backend,
+            temperature=config.temperature,
         )
     if selected in ("3", "all"):
         ablation_cells = tuple(cell for cell in CELLS if cell[0] in ("B", "C"))
@@ -1005,9 +1241,28 @@ def main(argv: list[str] | None = None) -> int:
             False,
             3,
             writer,
-            args.model,
-            args.thinking_level,
+            model_id,
+            thinking_level,
             api_key,
+            include_visual_crosscheck=args.visual_crosscheck,
+            backend_id=args.backend,
+            temperature=config.temperature,
+        )
+    if selected == "4":
+        run_decision_cells(
+            reasoner,
+            CROSSCHECK_CELLS,
+            stimuli,
+            args.repeats,
+            True,
+            4,
+            writer,
+            model_id,
+            thinking_level,
+            api_key,
+            include_visual_crosscheck=args.visual_crosscheck,
+            backend_id=args.backend,
+            temperature=config.temperature,
         )
     return 0
 

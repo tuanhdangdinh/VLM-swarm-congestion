@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: pointing test, the incongruent 2x2, and the geometry-off ablation on two measured frames from the live ER-2 run.
+- Rev 2 (2026-09-18): added Experiment 4 — the `include_visual_crosscheck` prompt fix measured on the same stimuli under both prompt variants (n = 5 per cell), the cell-E Fix-B regression guard, and the same 2x2 run against `gpt-4o` (n = 3). The Conclusion below is scoped to the cross-check-off (production) variant and is unchanged by the new section; Threats to validity's "a prompt that asked the model to verify the states against the image was not tested" is now resolved.
 
 ---
 
@@ -274,9 +275,305 @@ Geometry-off calls are slower and think more: latency mean 4.4–4.6 s vs
 
 ---
 
+## Experiment 4 — the prompt fix, and whether it costs us Fix B
+
+Experiments 1–3 scope their null result to the production prompt. This section
+changes the prompt and re-measures. It is reported here rather than in a
+sibling document because it reuses the same two stimuli, the same `Reasoner`
+path, and the same pre-registration discipline, and because it resolves a
+threat this report itself raised.
+
+### What was changed, and why it is not just a deletion
+
+The root cause of the null result is the project's own instruction
+(`reasoning/vlm/prompt_builder.py`): *"Use the pairwise geometry above; do not
+re-derive distances or facing from the coordinates."* That clause is **Fix B**
+(2026-09-17). Without it, `gpt-4o` at temperature 0.6 re-derived geometry from
+raw `theta`, matched `|Δθ| ≈ π` on two robots driving *apart*, answered
+`deadlock`/`reverse`, and produced a real yield/reverse oscillation
+(`docs/implementation_notes.md`, rev-8 spec 8.4). Deleting it to "let the
+image in" would trade one failure for another.
+
+The change is therefore an **opt-in modality flag**, mirroring the existing
+`include_pairwise_geometry` axis: `ReasonerRequest.include_visual_crosscheck`,
+**default `False`**. When `False` the rendered prompt is byte-identical to the
+one every artifact in this report was produced with — asserted by a pinned
+SHA-256 in `tests/unit/test_prompt_builder.py`, not by a substring check. This
+is a new ablation condition, not a silent change to the apparatus; it is also
+why the temporarily-patched `prompt_builder.py` on the VM rendered identically
+for every other process using that checkout during the run.
+
+When `True`, this block is appended after the Guidance list (shown in the
+derived-geometry-on wording; with geometry off the second bullet names the
+coordinates as the default source instead):
+
+```text
+Cross-check the states against the image:
+- The robot states above come from an overhead camera tracker and can be
+  wrong: a robot may be missed, a position may be stale, or two robot IDs may
+  be swapped.
+- The pairwise geometry above stays the default source for distance and
+  facing: when the image and the states agree, use it and do not re-derive
+  distances or facing from the coordinates.
+- Then look at the overhead image and check that it agrees with the states.
+  Only a clear contradiction matters: robots obviously touching or
+  nose-to-nose in the image while the states place them well apart, or
+  obviously far apart in the image while the states place them in contact. In
+  that case trust the image, decide from what you see, and say so in the
+  justification, naming the disagreement between the image and the stated
+  positions.
+```
+
+The block establishes **precedence** rather than contradicting the existing
+clause: the derived geometry keeps primacy when the channels agree, the
+original clause survives verbatim in both variants, and the wording asks only
+for a gross-contradiction check on what is visible. A unit test asserts the
+block contains none of `compute`, `calculate`, `measure`, `estimate`, or
+`work out` — any of those would be a licence to re-derive geometry from raw
+coordinates, which is the run-3 failure mode coming back in by the side door.
+
+### Pre-stated criteria, fixed before the first call
+
+- **Gates.** Cell A (congruent conflict) must answer conflict and cell D
+  (congruent clear) must answer clear, **under both variants**.
+- **Cell E — the Fix-B regression guard.** Clear image + text stating two
+  robots 1.20 m apart, headings opposite (`|Δθ| = π`) but diverging, both
+  `MOVING` — the run-3 geometry. Must answer no-congestion under **both**
+  variants. If the cross-check flips E to a deadlock, the fix has reintroduced
+  the run-3 failure mode and is not acceptable.
+- **The fix works** if the gates hold, E holds, and with the cross-check on
+  cells B and C each return, in ≥ 3 of 5 calls, either the image-consistent
+  answer **or** a justification explicitly naming the image/state
+  disagreement.
+- **"Answered per the image" and "flagged the contradiction" are counted
+  separately** — they are different outcomes and both are informative.
+  Flagging is scored by a mechanical rule written before the run
+  (`flags_image_state_disagreement`): the justification must both refer to the
+  visual channel **and** assert a mismatch against the stated states. The rule
+  is deliberately conservative, so it under-counts; every verbatim
+  justification is in the artifact.
+- **Cell E is scored on the answer alone.** Its image and text agree that
+  nothing is congested and disagree only about the separation (4.88 m vs
+  1.20 m), so a justification that noted that gap while still answering
+  no-congestion would be a pass, not a regression.
+
+Each cell's image-consistent answer was fixed in code before the run
+(`IMAGE_CONSISTENT_CONGESTION`): congestion for A and B, no congestion for C,
+D, and E.
+
+### Method delta
+
+Identical to Experiment 2 — same two stimuli (SHA-256 verified unchanged:
+`1dea9aed…3589`, `ad5db360…ea31`), same measured separations (0.251 m and
+4.884 m), same `Reasoner`, `gemini-robotics-er-2-preview`,
+`thinking_level: low`, `force_schema: false`, no `seed`. Only two things
+differ: n = 5 per cell instead of 3 (the discriminating cells deserve more),
+and cell E is added. Both variants ran as `--experiment 4`, once with
+`--no-visual-crosscheck` and once with `--visual-crosscheck`; 50 calls, all at
+`attempts=1` and `parse_status=valid`.
+
+### Result — both variants, n = 5 per cell
+
+`answer` counts the calls whose `congestion_detected` matched the
+image-consistent answer; `flagged` counts the mechanical contradiction rule.
+`Tracks` is qualified as "image (when contradicted)" on purpose: the block asks
+for a check only on a gross contradiction, so these cells show the image
+overriding the text when the two visibly disagree, not that the model consults
+the image when they agree. See the Verdict below.
+
+| Cell | Image | Text | Variant | `congestion_detected` | `type` | `strategy` | answer per image | flagged | Tracks |
+|---|---|---|---|---|---|---|---|---|---|
+| A (gate) | conflict | conflict | off | true x5 | deadlock x5 | reverse x5 | 5/5 | 0/5 | **gate pass** |
+| A (gate) | conflict | conflict | **on** | true x5 | deadlock x5 | reverse x3, yield x2 | 5/5 | 0/5 | **gate pass** |
+| D (gate) | clear | clear | off | false x5 | none x5 | none x5 | 5/5 | 0/5 | **gate pass** |
+| D (gate) | clear | clear | **on** | false x5 | none x5 | none x5 | 5/5 | 0/5 | **gate pass** |
+| B | **conflict** | clear | off | false x5 | none x5 | none x5 | 0/5 | 0/5 | **text** |
+| B | **conflict** | clear | **on** | true x5 | anomaly x4, deadlock x1 | priority_override x3, reroute x1, reverse x1 | **5/5** | **5/5** | **image (when contradicted)** |
+| C | clear | **conflict** | off | true x5 | deadlock x5 | reverse x5 | 0/5 | 0/5 | **text** |
+| C | clear | **conflict** | **on** | false x5 | none x5 | none x5 | **5/5** | 3/5 | **image (when contradicted)** |
+| E | clear | regression | off | false x5 | none x5 | none x5 | 5/5 | 0/5 | **no congestion** |
+| E | clear | regression | **on** | false x5 | none x5 | none x5 | 5/5 | 0/5 | **no congestion** |
+
+The cross-check-off half replicates Experiment 2 exactly at n = 5: both gates
+unanimous, 10/10 incongruent calls following the text, 0/10 following the
+image, and not one justification mentioning the image. With the cross-check on,
+all four pre-stated conditions are met and the incongruent cells invert
+completely: **10/10 incongruent calls now answer per the image**, up from 0/10,
+with 8/10 also naming the disagreement under the conservative rule.
+
+Verbatim, cell B with the cross-check on (image: two robots nose-to-nose
+0.25 m apart; text: 2.50 m and diverging):
+
+> "The overhead camera image clearly contradicts the states, showing both
+> robots in extremely close proximity in the center of the narrow corridor.
+> Since they are heading directly towards each other and are blocked, a
+> reverse strategy is required for both to back up and clear the path."
+
+> "There is a severe contradiction between the stated positions and the image:
+> the tracker places the robots 2.5 meters apart, but they are actually right
+> next to each other in the central corridor, which is an unsafe anomaly
+> requiring manual intervention or priority override."
+
+Verbatim, cell C with the cross-check on (image: robots 4.9 m apart; text:
+0.35 m and mutually facing):
+
+> "There is a contradiction between the tracker and the image: the tracker
+> places robot_1 and robot_2 within 0.35 m of each other, but the image shows
+> them far apart on opposite ends of the corridor with no physical conflict or
+> congestion."
+
+Compare the same cell with the cross-check off, where the model quoted the
+number and said nothing about the picture: *"Both robots are stopped, facing
+each other within 0.35 m, which constitutes a head-on deadlock; they must
+reverse to clear the conflict."*
+
+**Two honest qualifications on the flagging count.** The mechanical rule scored
+C at 3/5, but reading the two calls it missed shows both did name the
+contradiction — *"The states conflict with the image, which shows the robots
+far apart on either end of the passage"* and *"The overhead camera clearly
+contradicts the tracked positions"*. The rule's image-reference list contains
+`camera view` and `overhead view` but not `overhead camera`, and its
+disagreement list contains `conflicts with the stated` but not `conflict with
+the image`. These are false negatives of a rule that was fixed before the run
+and is reported unchanged; on a manual read the flagging rate is 10/10. The
+pre-stated criterion passes either way, because it is satisfied by the
+image-consistent answer alone.
+
+### Cell E — the Fix-B regression verdict: **no regression**
+
+Cell E answered `congestion_detected=false`, `type=none`, `strategy=none` in
+**5/5 calls under the cross-check-on variant** and 5/5 under the off variant.
+No call flagged a disagreement there, and every justification stayed on the
+diverging-headings reasoning the prompt asks for — cross-check on: *"Both
+robot_1 and robot_2 are in a MOVING status, heading away from each other
+(diverging) and separated by 1.20 m, which is well above the conflict
+threshold."* The cross-check block did not make the model re-derive geometry
+from raw `theta`, and did not turn `|Δθ| = π` into a deadlock. Fix B survives
+the change on this cell.
+
+This is one cell, one scenario, n = 5, and it is a *guard* rather than proof
+of general safety: it shows the wording did not reopen the specific failure the
+clause exists to prevent, not that no wording-induced failure exists anywhere.
+
+### Cost of the block
+
+The block adds 174 prompt tokens (1 943 → 2 117, +9%). Latency rose from a
+mean of 2 819 ms (range 2 090–3 525) to 3 701 ms (2 523–7 567) and mean thought
+tokens from 287 to 470, with the increase concentrated in cell B, where the
+model has to reconcile a contradiction rather than read a number. At the design
+doc's standard pricing the 50 ER-2 calls cost ≈ $0.23 (≈ $0.0040/call off,
+≈ $0.0051/call on); both ran on the free tier.
+
+---
+
+## Experiment 5 — the same 2x2 against `gpt-4o`
+
+The "do not re-derive" instruction goes to **every** backend, so a text-driven
+Arm A would be a property of the apparatus rather than of Gemini. Cells A, D,
+B, C were re-run against the `openai` backend (`gpt-4o`) on the same stimuli,
+n = 3, cross-check **off** — i.e. the current production prompt. Decoding was
+resolved through `backend_factory.resolve_reasoner_config` against
+`config/models.yaml`, so this ran at the production-pinned **temperature 0.0**,
+not the shared Cosmos preset of 0.6; the effective value is recorded in the
+artifact's meta record. Running it at 0.6 would have made any
+deadlock-on-diverging answer uninterpretable (prompt or decoding?), which is
+the whole point of the pin.
+
+| Cell | Image | Text | `congestion_detected` | `type` | `strategy` | flagged | Tracks |
+|---|---|---|---|---|---|---|---|
+| A (gate) | conflict | conflict | true x3 | deadlock x3 | yield x3 | 0/3 | **gate pass** |
+| D (gate) | clear | clear | false x3 | none x3 | none x3 | 0/3 | **gate pass** |
+| B | **conflict** | clear | false x3 | none x3 | none x3 | 0/3 | **text** |
+| C | clear | **conflict** | true x3 | deadlock x3 | yield x3 | 0/3 | **text** |
+
+Both gates passed, and **6/6 incongruent calls followed the text, 0/6 the
+image** — the same signature ER-2 produced, from a different vendor, a
+different architecture, and greedy decoding. At temperature 0.0 the output was
+byte-identical across repeats within every cell; cell B returned *"The robots
+are moving and not facing each other, with a sufficient distance between
+them"* three times while looking at two robots nose-to-nose, and cell C
+returned *"Both robots are stopped and facing each other within conflict
+distance, causing a deadlock"* three times while looking at robots 4.9 m apart.
+No justification in any of the 12 calls referenced the image. Cost ≈ $0.07 at
+the project's measured ≈ $0.006/analysis for this backend.
+
+**Incidental finding, worth recording because the design doc lists it as
+unverified.** The ER-2 integration doc §4(d) states that whether the
+`openai` arm's raw output actually contains a visible `<think>` block "is not
+verified by this document". It does: 12/12 `gpt-4o` responses opened with one,
+against 0/50 for ER-2. But the content is a verbatim echo of the prompt's own
+template sentence — *"Read the pairwise geometry (distance and whether each
+robot faces the other), check the robot statuses, identify any conflicts, and
+decide the congestion type and strategy."* — identical in all 12 calls. So the
+block is present and structurally parseable, and carries no reasoning. The
+trace-level comparability gap against the Cosmos arm therefore stands for
+`openai` too, for a different reason than for ER-2: ER-2 withholds a trace it
+demonstrably computes, while `gpt-4o` emits a trace shell with nothing in it.
+
+---
+
+## Verdict on the fix
+
+**The fix works on this probe, and it is not the same claim as "ER-2 grounds
+its decisions in the image".**
+
+What the data supports:
+
+- With `include_visual_crosscheck=True`, the incongruent cells invert from
+  0/10 to **10/10 image-consistent answers**, both gates still pass 5/5, and
+  the model explicitly names the tracker/image disagreement in 8/10 calls by
+  the pre-stated rule (10/10 on a manual read of the misses).
+- The Fix-B regression cell E stays `congestion_detected=false` in 5/5 calls
+  under the new prompt. The wording did not buy image sensitivity by
+  reintroducing bad arithmetic on opposite headings.
+- The production prompt is unchanged: the flag defaults `False` and the
+  off-variant prompt is byte-identical to the one Experiments 1–3 measured,
+  which the cross-check-off half of the table confirms behaviourally (it
+  replicated the null result exactly at n = 5).
+
+What it does not support:
+
+- **This is a prompt result, not a capability result.** Experiments 1–3
+  already showed the image reaches the model and is readable by it; what
+  changed is whether the prompt lets it matter. Nothing here shows ER-2
+  consults the image when the channels *agree* — cells A, D, and E flagged
+  nothing, and the model could be doing the same text arithmetic there as
+  before. A cross-check block that fires only on gross contradictions cannot
+  distinguish "always looks, rarely disagrees" from "looks only when asked to
+  look for a contradiction".
+- **Cell B's classification is wrong even though its detection is right.** The
+  image-consistent *answer* is `congestion_detected=true`, which B returned
+  5/5 — but 4/5 of those were `type=anomaly` with `priority_override` or
+  `reroute`, not the `deadlock` + `yield`/`reverse` that a genuine
+  nose-to-nose standoff should produce (only 1/5 said `deadlock`/`reverse`).
+  The model appears to treat the *tracker disagreement itself* as the anomaly,
+  which is a defensible reading of a corrupted state block but would dispatch
+  the wrong command through M3/M4. **This flag is not production-ready on that
+  basis**, and the type/strategy behaviour under contradiction is an open item,
+  not a detail.
+- **Two stimuli, one scenario, one thinking level, n = 5.** The contradictions
+  here are extreme by construction (0.25 m vs 2.50 m stated; 4.88 m vs
+  0.35 m). Nothing is known about borderline disagreements, which is exactly
+  where a cross-check could do harm by overriding a correct state block.
+- **`gpt-4o` was not tested with the cross-check on.** Experiment 5 establishes
+  that the *null* result is apparatus-wide; whether the *fix* is also
+  apparatus-wide is untested and is the obvious next call to spend.
+
+And the finding that is independent of the fix: the original null result is
+**not Gemini-specific**. Two backends, both gates passing, 12/12 incongruent
+calls across them following the text under the production prompt. For any
+reported Arm A cell, a "correct" decision under the production prompt is
+evidence about arithmetic on M1's state block, not about visual scene
+understanding — and that now applies to the `openai` primary cell, not only to
+`gemini`.
+
+---
+
 ## Conclusion
 
-Keep the two verdicts separate.
+Scoped to the production prompt variant (`include_visual_crosscheck=False`);
+Experiment 4 above measures the other variant and does not change what
+follows. Keep the two verdicts separate.
 
 - **Perception: demonstrated.** ER-2 localizes both robots in our overhead
   annotated frames, including a nose-to-nose pair 0.25 m apart, to
@@ -312,8 +609,12 @@ makes the image redundant.
   coordinates". Both give the state block primacy for geometry, and only a
   single clause ("Decide from the robot coordinates and the image") points at
   the image at all. The finding is scoped to **this project's production
-  prompt**. A prompt that asked the model to verify the states against the
-  image was not tested and is the obvious next probe.
+  prompt**. **Resolved (Rev 2):** a prompt that asks the model to check the
+  states against the image was built as the opt-in
+  `include_visual_crosscheck` condition and measured in Experiment 4 — it
+  inverts the incongruent cells to 10/10 image-consistent, so this threat was
+  real and is the explanation, not merely a caveat. The production default is
+  still the prompt this section describes.
 - **Two stimuli, one scenario, one seed, one thinking level.** All frames come
   from one `head_on_deadlock` run at `thinking_level: low`. `high` is untested
   and is its own axis (design doc §4(c)).
@@ -342,9 +643,15 @@ makes the image redundant.
 - Harness: `scripts/probe_gemini_er2_grounding.py`; unit tests
   `tests/unit/test_probe_gemini_er2_grounding.py`.
 - Call-level artifacts (VM, git-ignored):
-  `data/logs/er2_grounding/grounding_run1.jsonl` (experiments 1–3, n = 3) and
+  `data/logs/er2_grounding/grounding_run1.jsonl` (experiments 1–3, n = 3),
   `data/logs/er2_grounding/grounding_run2_exp3_n9.jsonl` (experiment 3
-  follow-up, n = 9).
+  follow-up, n = 9), `grounding_run3_xcheck_off.jsonl` and
+  `grounding_run3_xcheck_on.jsonl` (experiment 4, n = 5 per cell per variant),
+  and `grounding_run3_gpt4o_off.jsonl` (experiment 5, `gpt-4o`, n = 3). Each
+  run-3 record carries `include_visual_crosscheck`, `backend_id`, `model_id`,
+  the effective `temperature`, `answered_image_consistent`, and
+  `flagged_image_state_disagreement`; each file's meta record carries the
+  flagging rule's term lists verbatim.
 - Stimuli (VM, git-ignored):
   `data/logs/er2_grounding/stimuli/frame_conflict_f203.png`,
   `data/logs/er2_grounding/stimuli/frame_clear_f1667.png`; source video
@@ -363,3 +670,11 @@ sudo docker exec -w /ws vgu_ros bash -lc "set -a && source /ws/.env && set +a &&
     --conflict-stamp 1789721320.33 --clear-stamp 1789721707.53 \
     --scene-log data/logs/m5_scene/59254dd811cc467fa0cf2dbe79c7b857.jsonl"
 ```
+
+  Experiments 4 and 5 use the same wrapper with `--experiment 4 --repeats 5`
+  and `--visual-crosscheck` / `--no-visual-crosscheck`, and with
+  `--backend openai --experiment 2 --repeats 3`. Pick the experiment
+  explicitly: `--experiment all` does not include 4. The VM checkout is not a
+  git repository, so the changed `reasoning/vlm/*.py` and the probe script were
+  installed there for the run and restored from byte-verified backups
+  afterwards; the probe script is not resident on the VM.

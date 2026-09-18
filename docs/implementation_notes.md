@@ -114,6 +114,35 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-18** — **The 2026-09-18 null result was our prompt, and it is
+  apparatus-wide: an opt-in image/state cross-check inverts it without
+  breaking Fix B.** New modality flag
+  `ReasonerRequest.include_visual_crosscheck` (default `False`;
+  `reasoning/vlm/models.py`, `reasoning/vlm/prompt_builder.py`) appends a block
+  that gives the image precedence over the state block **only on a clear
+  contradiction**, leaving Fix B's "do not re-derive distances or facing from
+  the coordinates" clause verbatim; the off-variant prompt is byte-identical to
+  the pre-flag one, pinned by SHA-256 in `tests/unit/test_prompt_builder.py`.
+  Measured on the same two stimuli, n = 5 per cell, both variants (report
+  Experiments 4–5 in `docs/reports/2026-09-18-gemini-er2-image-grounding.md`;
+  artifacts `data/logs/er2_grounding/grounding_run3_{xcheck_off,xcheck_on,gpt4o_off}.jsonl`,
+  VM, git-ignored): ER-2's incongruent cells go from **0/10 to 10/10
+  image-consistent** answers with both gates still 5/5, and the added Fix-B
+  regression cell (1.2 m apart, `|Δθ| = π`, diverging, both MOVING) still
+  answers no-congestion 5/5 under the new prompt — run 3 is **not**
+  reintroduced. Two facts that block adoption and one that changes the
+  preregistration: (a) cell B's detection is right but 4/5 of its answers are
+  `type=anomaly` with `priority_override`/`reroute` rather than
+  `deadlock`+`yield`/`reverse`, so the flag would dispatch the wrong command —
+  do not turn it on in production yet; (b) the same 2x2 against
+  `openai`/`gpt-4o` at its pinned temperature 0.0 followed the text 6/6, so
+  "Arm A's decision is text-driven under the production prompt" applies to the
+  primary cell too, and the parent spec's modality table now carries the axis
+  as `—`/unregistered (rev 8.6); (c) `gpt-4o` does emit a `<think>` block
+  (12/12) but its content is a verbatim echo of the prompt's template sentence,
+  settling ER-2 design doc §4(d)'s unverified claim in the direction of "no
+  usable trace from either hosted arm".
+
 - **2026-09-18** — **Gemini ER-2 reads our overhead frame but does not decide
   from it: decision-level image grounding is NOT demonstrated.** Report:
   `docs/reports/2026-09-18-gemini-er2-image-grounding.md`; harness

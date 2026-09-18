@@ -8,6 +8,7 @@
 - Rev 2 (2026-09-18): resolved the §7 gate with live-VM probe evidence (PASSED, with and without schema forcing); added the no-visible-reasoning-trace confound (§4(d)); replaced the cost estimate with the measured per-call figure; added the VM reproduction recipe and two new open items (`thinking_summaries`, a paired-image/paired-state probe).
 - Rev 3 (2026-09-18): Option A landed. `GeminiBackend` (`reasoning/vlm/gemini_backend.py`), `GeminiBackendConfig` (`reasoning/vlm/models.py`), the `"gemini"` branch in `backend_factory.py`, and a `vlm.gemini` block in `config/models.yaml` are implemented, unit-tested (`tests/unit/test_gemini_backend.py`), and live-verified through the real `reasoning.vlm.reasoner.Reasoner` path (not the probe script) on the VM: a genuine head-on scene (two robots 0.35 m apart, mutually facing) returned `congestion_detected=true, type=deadlock, strategy=yield` in 2492 ms, with `raw["unsupported_sampling"]` populated and one WARNING logged. Unlike `AnthropicBackend`, the four dropped `ReasonerConfig` sampling fields are recorded per call in `BackendResponse.raw["unsupported_sampling"]` rather than silently omitted (§4(b) below); `AnthropicBackend`'s equivalent silent drop is added as a new open item.
 - Rev 5 (2026-09-18): resolved the image-grounding open item with the paired-image/paired-state probe (`docs/reports/2026-09-18-gemini-er2-image-grounding.md`) — ER-2 localizes both robots in our frames, but its congestion decision tracked the text state block in 6/6 incongruent calls with derived geometry on and 22/24 with it off.
+- Rev 6 (2026-09-18): identified the prompt as the cause of Rev 5's null result and measured the fix. A new opt-in modality flag, `ReasonerRequest.include_visual_crosscheck` (default `False`; `reasoning/vlm/models.py`, `reasoning/vlm/prompt_builder.py`), appends a block giving the image precedence over the state block on a clear contradiction while leaving Fix B's "do not re-derive distances or facing from the coordinates" clause verbatim. With it on, ER-2's incongruent cells invert from 0/10 to 10/10 image-consistent answers (n = 5 per cell) and the Fix-B regression cell (1.2 m apart, `|Δθ| = π`, diverging, both MOVING) still answers no-congestion 5/5 — the fix does not reopen run 3. Two caveats recorded in the report, not resolved here: cell B's *classification* drifts to `type=anomaly` with `priority_override`/`reroute` in 4/5 calls even though its detection is right, so the flag is not production-ready; and the same 2x2 against `gpt-4o` at its production temperature 0.0 reproduced the null result 6/6, so Rev 5's finding is **apparatus-wide, not Gemini-specific**. §4(d)'s unverified claim about the `openai` arm's `<think>` block is also settled there: `gpt-4o` emits one in 12/12 calls, but its content is a verbatim echo of the prompt's template sentence and carries no reasoning.
 - Rev 4 (2026-09-18): closed the gap Rev 3 left open — `raw["unsupported_sampling"]` never reached a persisted run artifact, only `BackendResponse.raw` (in-memory) and a stderr WARNING. `ReasonerDiagnostics.unsupported_sampling` (`reasoning/vlm/models.py`) now carries it through every `Reasoner.run()` path (success, re-ask-then-success, and exhausted-retries), and `write_reasoner_log` emits the key in the JSONL artifact when set (omitted, not `null`, when the backend reported nothing). §4(b) below is corrected accordingly: this document previously described artifact visibility that did not yet exist.
 
 **Status:** Landed and live-verified (2026-09-18). The §7 gate **PASSED**
@@ -574,6 +575,22 @@ draft):
   reported. Follow-ups this probe did not run: the same 2x2 on a prompt that
   asks the model to verify the states against the image, the same probe on the
   `openai` cell, and pointing on raw (un-annotated) frames.
+- **RESOLVED (Rev 6, 2026-09-18): two of those three follow-ups ran.** (i) The
+  cross-check prompt variant (`include_visual_crosscheck`, default `False`)
+  inverts ER-2's incongruent cells to 10/10 image-consistent at n = 5 while the
+  Fix-B regression cell stays no-congestion 5/5 — so Rev 5's null result was
+  caused by this project's prompt, not by a model that cannot use the image.
+  (ii) The same 2x2 against `openai`/`gpt-4o` at its pinned temperature 0.0
+  reproduced the null result 6/6, making the text-tracking finding
+  apparatus-wide. Report:
+  `docs/reports/2026-09-18-gemini-er2-image-grounding.md` (Experiments 4–5);
+  artifacts `data/logs/er2_grounding/grounding_run3_{xcheck_off,xcheck_on,gpt4o_off}.jsonl`.
+  Still open: pointing on raw (un-annotated) frames; the cross-check variant
+  against `gpt-4o`; and the type/strategy drift to `anomaly` +
+  `priority_override` that makes the cross-check flag unfit for production use
+  as it stands. Prereg consequence: any reported Arm A cell must now state
+  **which prompt variant produced it**, and the "equivalent to a text-only
+  reasoner" caveat applies to the `openai` primary cell as well as `gemini`.
 - **NEW (Rev 3, from landing `GeminiBackend`; status updated Rev 4,
   2026-09-18): `AnthropicBackend` silently drops `temperature`/`top_p`/
   `top_k` instead of recording them, and still does after Rev 4's artifact
@@ -603,3 +620,15 @@ condition, not the geometry-off ablation condition (rev-8 spec 8.5). A future
 reader of the probe's output should read the gate as scoped to that one
 modality, the same way the parent spec's research answer is scoped to its
 pre-registered model/prompt conditions.
+
+**Second modality axis (Rev 6, 2026-09-18).**
+`ReasonerRequest.include_visual_crosscheck` is an independent, opt-in axis
+alongside `include_pairwise_geometry`, default `False`. It is a **diagnostic
+ablation, not a pre-registered condition**: every gate and live-run result in
+this document was produced with it off, and the off-variant prompt is
+byte-identical to the pre-flag prompt (pinned by SHA-256 in
+`tests/unit/test_prompt_builder.py`). The axis is recorded in the parent spec's
+"Modality-condition input table (Arm A)" with `—` in all three registered
+columns for that reason. It is *not* a substitute for the `image-only`
+condition: it changes how the prompt ranks two channels that are both present,
+rather than withholding one.

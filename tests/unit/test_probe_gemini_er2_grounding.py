@@ -18,12 +18,15 @@ import pytest
 from reasoning.vlm.prompt_builder import build_prompt_payload, format_pairwise_geometry_lines
 from scripts.probe_gemini_er2_grounding import (
     CLEAR_HIT_M,
+    CROSSCHECK_CELLS,
+    IMAGE_CONSISTENT_CONGESTION,
     RIGHT_ROBOT_M,
     RobotGroundTruth,
     build_cell_request,
     build_text_states,
     classify_point_error,
     denormalize_point,
+    flags_image_state_disagreement,
     mean_scale_m_per_px,
     nearest_scene_row,
     parse_point_items,
@@ -151,6 +154,81 @@ def test_build_cell_request_includes_derived_geometry_by_default():
     prompt = build_prompt_payload(request).user_prompt
     assert "Pairwise geometry" in prompt
     assert request.request_id == "er2-grounding-A-geom-2"
+
+
+def test_build_text_states_regression_is_diverging_at_120_m():
+    # The run-3 geometry Fix B protects: |dtheta| = pi but the robots drive apart.
+    line = format_pairwise_geometry_lines(build_text_states("regression"))[0]
+    assert "distance 1.20 m" in line
+    assert "robot_1 faces robot_2: no" in line
+    assert "robot_2 faces robot_1: no" in line
+
+
+def test_build_text_states_regression_reports_both_moving_with_opposite_headings():
+    states = build_text_states("regression")
+    assert [state.status for state in states] == ["MOVING", "MOVING"]
+    assert abs(abs(states[0].theta - states[1].theta) - math.pi) < 1e-9
+
+
+def test_crosscheck_cells_add_the_regression_cell_after_the_original_four():
+    assert [cell[0] for cell in CROSSCHECK_CELLS] == ["A", "D", "B", "C", "E"]
+
+
+def test_image_consistent_congestion_is_fixed_for_every_crosscheck_cell():
+    assert IMAGE_CONSISTENT_CONGESTION == {
+        "A": True,
+        "B": True,
+        "C": False,
+        "D": False,
+        "E": False,
+    }
+
+
+def test_build_cell_request_appends_crosscheck_block_when_enabled():
+    request = build_cell_request(
+        "B",
+        1,
+        Path("frame.png"),
+        "clear",
+        include_pairwise_geometry=True,
+        include_visual_crosscheck=True,
+    )
+    prompt = build_prompt_payload(request).user_prompt
+    assert "Cross-check the states against the image:" in prompt
+    assert "Use the pairwise geometry above; do not re-derive" in prompt
+    assert request.request_id == "er2-grounding-B-geom-xcheck-1"
+
+
+def test_build_cell_request_omits_crosscheck_block_by_default():
+    request = build_cell_request("B", 1, Path("frame.png"), "clear", True)
+    assert request.include_visual_crosscheck is False
+    assert "Cross-check the states against the image" not in build_prompt_payload(
+        request
+    ).user_prompt
+
+
+def test_flags_disagreement_needs_both_an_image_reference_and_a_mismatch():
+    assert flags_image_state_disagreement(
+        "The image shows the robots touching, which contradicts the stated 2.50 m."
+    )
+
+
+def test_flags_disagreement_rejects_a_numeric_justification():
+    assert not flags_image_state_disagreement(
+        "The robots are 2.50 meters apart and diverging, so no congestion is present."
+    )
+
+
+def test_flags_disagreement_rejects_an_image_reference_without_a_mismatch():
+    assert not flags_image_state_disagreement(
+        "The image shows two robots in the aisle with a safe gap between them."
+    )
+
+
+def test_flags_disagreement_rejects_a_mismatch_without_an_image_reference():
+    assert not flags_image_state_disagreement(
+        "The reported statuses are inconsistent with the reported velocities."
+    )
 
 
 def test_redact_secret_scrubs_every_occurrence():
