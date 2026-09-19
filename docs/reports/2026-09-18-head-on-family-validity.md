@@ -6,6 +6,7 @@
 
 - Initial draft: T1 control run (`head_on_asymmetric_wopen_eopen_o0`, mock backend) on the GPU VM, plus the VM sync and artifact-build verification that preceded it.
 - Rev 2 (2026-09-19): corrected the T1 root-cause conclusion. The original "Root cause" section named an M4 defect as the cause of `robot_1`'s failure to arrive; that conclusion is wrong. The actual cause is `build_backend`'s mock branch (`reasoning/vlm/backend_factory.py`) collapsing `VGU_MOCK_DECISION_FILE` to a single repeated decision, so M2 replayed "deadlock / yield" on all 16 analyses instead of reporting `congestion_detected=false` once the scene cleared. The resume/cancel forensics in the original section are accurate and preserved — they are the *mechanism* by which the repeated commands stopped `robot_1`, not evidence of an independent M4 bug. The original text is marked superseded rather than removed; see "Root cause (revised)" below and the corrected Entry Criteria bullet. Fixed in the same commit by giving `VGU_MOCK_DECISION_FILE` an optional scripted-sequence form (`config/mock_decisions/head_on_yield_once.json`, `head_on_yield_robot_2_once.json`).
+- Rev 3 (2026-09-19): added "Validity Pairs (T2a)" — the four forced-yielder runs (Task 8) that test each T2a variant's frozen `oracle:` block against both yielder orders, with the run_id rows added to the mapping table below. Both variants pass: the oracle-infeasible yielder's maneuver ends `FAILED` in each, with the yielding robot stalled against its blocker's near face, and the oracle-feasible yielder's maneuver completes with both robots reaching their goals. The Rev 2 verification gate on the M4 resume race is met (130.17 s and 131.23 s uninterrupted navigation windows against a 17 s requirement), so that race remains latent and does not block Task 9.
 
 ---
 
@@ -27,6 +28,10 @@ association.
 |---|---|---|---|---|---|---|
 | `20260918_183831` | `head_on_asymmetric_wopen_eopen_o0` | mock | `/ws/config/mock_decisions/head_on_yield.json` | 2026-09-18T18:38:31Z | 2026-09-18T18:41:52Z | Aborted - M5 `ImportError` at startup (stale install tree) |
 | `20260918_184400` | `head_on_asymmetric_wopen_eopen_o0` | mock | `/ws/config/mock_decisions/head_on_yield.json` | 2026-09-18T18:44:00Z | 2026-09-18T19:00:20Z | Partial - `robot_2` reached goal, `robot_1` did not (frozen mock replayed the yield decision; see "Root cause (revised)") |
+| `20260919_033142` | `head_on_asymmetric_w0p2_eopen_o0` | mock | `/ws/config/mock_decisions/head_on_yield_once.json` | 2026-09-19T03:31:42Z | 2026-09-19T03:41:19Z | Forced `robot_1` (blocked) - yield `FAILED` as the oracle predicts |
+| `20260919_034224` | `head_on_asymmetric_w0p2_eopen_o0` | mock | `/ws/config/mock_decisions/head_on_yield_robot_2_once.json` | 2026-09-19T03:42:24Z | 2026-09-19T03:53:41Z | Forced `robot_2` (open) - yield `COMPLETED`, both robots reached their goals |
+| `20260919_035429` | `head_on_asymmetric_wopen_e0p2_o0` | mock | `/ws/config/mock_decisions/head_on_yield_robot_2_once.json` | 2026-09-19T03:54:29Z | 2026-09-19T04:03:42Z | Forced `robot_2` (blocked) - yield `FAILED` as the oracle predicts |
+| `20260919_040414` | `head_on_asymmetric_wopen_e0p2_o0` | mock | `/ws/config/mock_decisions/head_on_yield_once.json` | 2026-09-19T04:04:14Z | 2026-09-19T04:14:25Z | Forced `robot_1` (open) - yield `COMPLETED`, both robots reached their goals |
 
 ---
 
@@ -282,6 +287,12 @@ later task still needs the frozen single-decision form for an arm where the
 forced maneuver is expected to fail and therefore never produces a
 resolution.
 
+> **Update (Rev 3, 2026-09-19).** Task 8's four runs used the `*_once.json`
+> sequences throughout and the frozen single-decision form was not needed
+> even for the two arms whose forced maneuver fails: M4 terminates those
+> maneuvers itself with `status=FAILED`, so the sequence advances normally.
+> See "Validity Pairs (T2a)" below.
+
 **Verification gate for Task 8.** When Task 8 next runs a one-shot arm
 (mock decision file switched to the `*_once.json` sequence), `robot_1`
 should receive an uninterrupted navigation window longer than 17 s after the
@@ -302,6 +313,242 @@ tune.
 - **1372 M4 safety stops** (`reason=min_distance_violation`) while the two robots
   were nose to nose, all of them before `robot_2` cleared the aisle. Expected for
   a head-on deadlock, noted for baseline.
+
+---
+
+## Validity Pairs (T2a)
+
+Each T2a variant parks a 0.3 x 0.3 x 0.5 m collision box 0.2 m behind one
+robot's spawn point and carries a frozen `oracle:` block naming the robot that
+*can* feasibly yield. This section tests that claim directly: each variant was
+run twice, forcing each robot in turn to be the yielder, and the maneuver's
+terminal M4 status was read against the oracle. Four runs, no tuning of the
+scenario, geometry, or thresholds.
+
+### Configuration common to all four runs
+
+| Key | Value |
+|---|---|
+| Launcher | `scripts/vm/fc_launch.sh` (`REC_SEC` 500/600, `SIM_SEC` 1200, `RECORD=0`) |
+| Backend | `mock` (forced by `MOCK_DECISION_FILE`) |
+| Mock decisions | the two-entry `*_once.json` sequences from `056fa22` |
+| Map | `warehouse_map_<variant>.yaml` |
+| Spawns | `robot_1` (-1.5, 0.0, yaw 0.0); `robot_2` (1.5, 0.0, yaw pi) |
+| Goals | `robot_1` (2.5, 0.0); `robot_2` (-2.5, 0.0) |
+
+The `*_once.json` files carry **no `yield_robot` field**, so
+`resolve_robot_order` returns `involved_robots` unchanged and the first robot
+listed becomes the yielder. This is deliberate: it selects the yielder purely
+by list order and so also exercises the backward-compatible path that predates
+`c4072d0`.
+
+Using the scripted sequences instead of the frozen single-decision files had
+the intended effect. Where T1 replayed the same yield decision across 16
+analyses, these runs produced **3, 4, 3 and 3** analyses and **one** dispatched
+congestion decision each; every later analysis returned the sequence's second
+entry (`congestion_detected: false`) and dispatched nothing.
+
+### Outcome
+
+Full `run_id` -> (scenario, backend, mock file, start/end UTC, outcome) rows for
+these four runs are in the Run ID Mapping table above, which this document
+keeps as the sole record of that association.
+
+| run_id | Variant | Blocker | Forced yielder | Oracle `feasible_yielders` | Expected | Observed |
+|---|---|---|---|---|---|---|
+| `20260919_033142` | `head_on_asymmetric_w0p2_eopen_o0` | west | `robot_1` (blocked) | `[robot_2]` | `FAILED`/`TIMED_OUT` | **`FAILED`** after 253.3 s |
+| `20260919_034224` | `head_on_asymmetric_w0p2_eopen_o0` | west | `robot_2` (open) | `[robot_2]` | completes, both arrive | **`COMPLETED`**, both arrived |
+| `20260919_035429` | `head_on_asymmetric_wopen_e0p2_o0` | east | `robot_2` (blocked) | `[robot_1]` | `FAILED`/`TIMED_OUT` | **`FAILED`** after 252.7 s |
+| `20260919_040414` | `head_on_asymmetric_wopen_e0p2_o0` | east | `robot_1` (open) | `[robot_1]` | completes, both arrive | **`COMPLETED`**, both arrived |
+
+All four cells match the frozen oracle. **Both T2a variants pass their
+authoring-time validity check.**
+
+### Run 1 - `w0p2_eopen`, `robot_1` forced (blocked)
+
+The pipeline fired once and dispatched the yield to `robot_1`:
+
+```text
+[1789788817.767471684] [orchestrator_node]: starting analysis request=0edabe11d5024e7db2c108a82e391d0f robots=['robot_1'] reason=1 robot(s) stalled >= 12.0s distance_to_goal_m={'robot_1': 2.6}
+[1789788817.994172639] [orchestrator_node]: dispatch request=0edabe11d5024e7db2c108a82e391d0f command=0edabe11d5024e7db2c108a82e391d0f-yield robot=robot_1
+[1789788818.063830035] [command_bus_node]: status published command=0edabe11d5024e7db2c108a82e391d0f-yield robot=robot_1 status=ACTIVE
+```
+
+The maneuver ran 253.3 s and ended in the expected terminal status:
+
+```text
+[1789789071.398963888] [command_bus_node]: status published command=0edabe11d5024e7db2c108a82e391d0f-yield robot=robot_1 status=FAILED
+```
+
+`robot_2`, the waiter, completed its `temporary_wait` in the same instant
+(`... robot=robot_2 status=COMPLETED`). Neither robot reached its goal.
+
+**The failure is the blocker, not a reporting artifact.** `robot_1`'s
+trajectory over the 238 scene samples inside the maneuver window shows it
+reversing out of the aisle and then stopping dead against the box:
+
+```text
+first  t=1789788818.4  robot_1 x=-0.101   robot_2 x=+0.092
+min                    robot_1 x=-1.607 at t=1789788872.6
+last   t=1789789071.4  robot_1 x=-1.606   robot_2 x=+0.090
+```
+
+The variant's generated header fixes the west blocker's near face at
+`x = -1.700`. `robot_1` reached `x = -1.607` 54.6 s into the maneuver — its
+rear against the box, roughly one rear-overhang (~0.09 m) short of the face —
+and stayed within 1 mm of that spot for the remaining 198.8 s until the command
+failed. It needed to clear `x = -2.079` (the corridor mouth at -1.0 plus the
+oracle's `required_room_m = 1.079`) to park; the box stops it 0.472 m short.
+`robot_2` never moved, so the aisle never opened.
+
+The safety monitor is ruled out as the cause: it fired 7 times for `robot_1`
+in the maneuver window, all inside the first 0.13 s, and never again.
+
+### Run 2 - `w0p2_eopen`, `robot_2` forced (open)
+
+```text
+[1789789458.017818622] [orchestrator_node]: starting analysis request=8b7c66380b5c4d328a8ed345849329c7 robots=['robot_2'] reason=1 robot(s) stalled >= 12.0s distance_to_goal_m={'robot_2': 2.61}
+[1789789458.489324495] [orchestrator_node]: dispatch request=8b7c66380b5c4d328a8ed345849329c7 command=8b7c66380b5c4d328a8ed345849329c7-yield robot=robot_2
+[1789789620.667555645] [command_bus_node]: status published command=8b7c66380b5c4d328a8ed345849329c7-yield robot=robot_2 status=COMPLETED
+[1789789620.669820295] [command_bus_node]: status published command=8b7c66380b5c4d328a8ed345849329c7-yield robot=robot_1 status=COMPLETED
+```
+
+Both robots reached their goals:
+
+```text
+[1789789620.861936412] [orchestrator_node]: robot robot_1 arrived at base goal (2.5, 0.0)
+[1789789764.946377949] [orchestrator_node]: robot robot_2 arrived at base goal (-2.5, 0.0)
+```
+
+`robot_1` arrives 0.19 s after the command resolves because M4 escorts the
+passer through the aisle inside the yield maneuver itself; Nav2 only handles
+its last 0.06 m. `robot_2` is therefore the robot that resumes and has real
+distance left to cover, and its window is measured below.
+
+### Run 3 - `wopen_e0p2`, `robot_2` forced (blocked)
+
+The mirror of Run 1, on the mirrored variant:
+
+```text
+[1789790185.775119335] [orchestrator_node]: starting analysis request=9df43174930f48d78f83d7bbd4e9c9af robots=['robot_2'] reason=1 robot(s) stalled >= 12.0s distance_to_goal_m={'robot_2': 2.6}
+[1789790186.273593583] [orchestrator_node]: dispatch request=9df43174930f48d78f83d7bbd4e9c9af command=9df43174930f48d78f83d7bbd4e9c9af-yield robot=robot_2
+[1789790439.023566190] [command_bus_node]: status published command=9df43174930f48d78f83d7bbd4e9c9af-yield robot=robot_2 status=FAILED
+```
+
+`robot_2`'s trajectory across the 236 samples in the maneuver window:
+
+```text
+first  t=1789790186.6  robot_1 x=-0.113   robot_2 x=+0.105
+max                    robot_2 x=+1.602 at t=1789790229.9
+last   t=1789790438.2  robot_1 x=-0.113   robot_2 x=+1.602
+```
+
+The east blocker's near face is at `x = +1.700`. `robot_2` reached `x = +1.602`
+43.6 s in and held it for the remaining 209.1 s — the same 0.098 m standoff,
+the same stall, the same terminal status as Run 1's west arm. `robot_1` did not
+move at all (`x = -0.113` throughout). Neither robot reached its goal.
+
+### Run 4 - `wopen_e0p2`, `robot_1` forced (open)
+
+```text
+[1789790769.043133265] [orchestrator_node]: starting analysis request=75c3424155b246aa8a71b41153b25294 robots=['robot_1'] reason=1 robot(s) stalled >= 12.0s distance_to_goal_m={'robot_1': 2.59}
+[1789790769.398558500] [orchestrator_node]: dispatch request=75c3424155b246aa8a71b41153b25294 command=75c3424155b246aa8a71b41153b25294-yield robot=robot_1
+[1789790928.810015783] [command_bus_node]: status published command=75c3424155b246aa8a71b41153b25294-yield robot=robot_1 status=COMPLETED
+```
+
+Both robots reached their goals:
+
+```text
+[1789790939.526735134] [orchestrator_node]: robot robot_2 arrived at base goal (-2.5, 0.0)
+[1789791075.557042902] [orchestrator_node]: robot robot_1 arrived at base goal (2.5, 0.0)
+```
+
+As in Run 2 with the roles swapped, the passer (`robot_2`) is escorted clear
+and finishes 10.7 s after the command resolves, leaving `robot_1` as the robot
+that resumes with distance to cover.
+
+### Navigation-window gate (Runs 2 and 4)
+
+Rev 2 set a verification gate for this task: if the resuming robot cannot get
+an **uninterrupted navigation window longer than 17 s** — the time it needs to
+cover its remaining distance at 0.22 m/s — then the M4 resume race
+(`coordination_client_node` cancelling a base-mission resume it just issued) is
+not latent and Tasks 8/9 must stop.
+
+Windows were measured from the per-robot Nav2 log (`fc_<run_id>_nav2_r{1,2}.log`)
+as the interval between the **last** `Begin navigating` line after the
+coordination command's terminal `status published ... COMPLETED` and the
+`Goal succeeded` line that ends it, with no intervening `Goal canceled`. The
+terminating event is a success, not a cancel, so counting only cancels would
+have measured no window at all.
+
+| run_id | Resuming robot | Window start (`Begin navigating`) | Window end (`Goal succeeded`) | Uninterrupted window | Gate (> 17 s) |
+|---|---|---|---|---|---|
+| `20260919_034224` | `robot_2` | `1789789634.766154644` from (1.22, -0.20) | `1789789764.936797498` | **130.17 s** | pass |
+| `20260919_040414` | `robot_1` | `1789790944.316104865` from (-1.35, 0.19) | `1789791075.546648100` | **131.23 s** | pass |
+
+Run 2:
+
+```text
+[1789789634.766154644] [robot_2.bt_navigator]: Begin navigating from current location (1.22, -0.20) to (-2.50, 0.00)
+[1789789764.936797498] [robot_2.bt_navigator]: Goal succeeded
+```
+
+Run 4:
+
+```text
+[1789790944.316104865] [robot_1.bt_navigator]: Begin navigating from current location (-1.35, 0.19) to (2.50, 0.00)
+[1789791075.546648100] [robot_1.bt_navigator]: Goal succeeded
+```
+
+Both clear the 17 s bar by a factor of about 7.7. **The gate is met and the M4
+resume race stays classified as latent.**
+
+The race is nonetheless visible in both runs and is worth recording precisely,
+because Rev 2 left it open. Immediately after the command resolves there is a
+short burst of resume/cancel churn before navigation settles: Run 2 cancels 7
+goals in the 14.05 s between `1789789620.72` and `1789789634.77` (longest slice
+5.6 s), and Run 4 cancels 8 in the 15.48 s between `1789790928.84` and
+`1789790944.32`. In both cases the churn then stops on its own and the robot
+gets its full window. So the behaviour reproduces with a *single* dispatched
+command — it is not purely an artifact of T1's repeat-command stream — but it
+is self-limiting and does not prevent arrival. It still deserves its own
+investigation; it does not block Task 9.
+
+### Evidence
+
+Per-run M1/M4/M5/Nav2/Isaac logs, the launcher log, the M5 scene JSONL, and the
+run's decision artifacts are on the VM (git-ignored) under
+`/home/ubuntu/vgu-vlm-swarm/data/logs/family_check_20260918/<variant>/<forced_yielder>/`:
+
+```text
+head_on_asymmetric_w0p2_eopen_o0/robot_1    9 files   4.0M   (run 20260919_033142)
+head_on_asymmetric_w0p2_eopen_o0/robot_2   12 files   1.3M   (run 20260919_034224)
+head_on_asymmetric_wopen_e0p2_o0/robot_2   19 files   3.8M   (run 20260919_035429)
+head_on_asymmetric_wopen_e0p2_o0/robot_1   11 files   1.2M   (run 20260919_040414)
+```
+
+### VM state after the four runs
+
+```text
+--- stray procs (expect none) ---
+(end)
+--- gpu ---
+136 MiB, 0 %
+--- container ---
+vgu_ros Up 12 seconds
+--- ros2 nodes in container ---
+(none)
+--- backend_id source+install ---
+reasoning_backend_id: openai
+reasoning_backend_id: openai
+```
+
+Isaac Sim stopped after every run (its process outlives the launcher's EXIT
+trap and was killed by hand each time, as Task 7 recorded), GPU back to its
+136 MiB baseline, container restarted clean, and `reasoning_backend_id`
+restored to `openai` in both the source and installed configuration after each
+of the four runs.
 
 ---
 
@@ -326,6 +573,37 @@ only on the VM — they are build outputs, not repository content. The sync was
 run with added `--exclude` rules for `.env`, `ros2_ws/build/`,
 `ros2_ws/install/`, `ros2_ws/log/`, and the generated asset paths, reducing the
 deletion list to zero. **Any future sync must carry these excludes.**
+
+**Rev 3 (2026-09-19) addendum.** Task 8 re-ran the same `--dry-run --delete`
+check before its runs. With every exclude above in place the deletion list was
+still *not* empty — three VM-only files remained:
+
+```text
+deleting tmp_parse_scene.py
+deleting data/rA_pstatus_copy.log
+deleting scripts/probe_gemini_er2.py
+```
+
+None is a build output or a secret, but the result shows an exclude list
+curated against one run's findings does not stay complete. Task 8 therefore
+dropped `--delete` altogether and synced an explicit six-file list
+(`reasoning/vlm/{backend_factory,models,prompt_builder}.py`,
+`reasoning/rag/command_grounder.py`, and the two `*_once.json` decisions),
+which makes deletion structurally impossible rather than merely excluded. The
+stronger standing rule: **prefer an explicit file list with no `--delete`**;
+reserve the full-tree form for when the VM genuinely needs pruning, and only
+behind a dry-run whose deletion list you have read line by line.
+
+That sync also showed why a presence check is not a content check. Before it,
+`grep -c yield_robot` on the VM's `command_grounder.py` and `models.py`
+returned non-zero, which looks like `c4072d0`/`0efd01e` had already landed —
+but `md5sum` against the worktree disagreed on both files plus
+`prompt_builder.py`. The non-zero counts came from a different branch's
+implementation of the same field. Only the checksums were conclusive, and they
+matched exactly after the sync. No `colcon` rebuild was needed for these runs:
+`git show --stat` confirms none of the three commits touches `ros2_ws/src/`,
+and everything they do touch is either imported via `PYTHONPATH=/ws` or read
+from disk at runtime — so the Rev 2 mtime trap did not apply.
 
 ### Build: `rsync -a` mtimes silently defeat `colcon`
 
@@ -440,3 +718,13 @@ carrying `run_id=20260918_184400`.
       fix in place, re-run T1 with `head_on_yield_once.json`; if `robot_1`
       still fails to arrive, the M4 resume race is not latent and Tasks 8/9
       stop until it has its own fix.
+      **Resolved by Rev 3 (2026-09-19):** T1 itself was not re-run, but the
+      condition this criterion exists to test was met on both T2a variants.
+      In runs `20260919_034224` and `20260919_040414` the resuming robot got
+      130.17 s and 131.23 s of uninterrupted navigation against a 17 s
+      requirement and reached its goal, and both robots arrived in each run.
+      The M4 resume race stays classified as latent and Tasks 8/9 proceed;
+      see "Navigation-window gate (Runs 2 and 4)" above, which also records
+      the short self-limiting resume/cancel burst that remains open for its
+      own investigation.
+- [x] Both T2a variants pass their authoring-time validity check (Task 8).
