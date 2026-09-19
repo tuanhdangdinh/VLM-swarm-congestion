@@ -29,6 +29,18 @@
 #     VM. Scenario-yaml parsing still actually runs in DRY_RUN, using the
 #     host python3 directly instead of going through docker_ros (which
 #     needs a live container), so the printed commands carry real values.
+#   - MODALITY guard (final whole-branch review, Finding 2): unlike
+#     reasoning_backend_id above, this script never sets prompt_static_obstacles
+#     itself — an operator flips it by hand in orchestrator.yaml before an ON
+#     run. A snapshot/restore mirroring the backend-id mechanism cannot catch
+#     an ON run that aborts before the operator clears the flag by hand
+#     (Ctrl-C, dropped SSH, crash): the script would only know what IT set,
+#     not that the flag was already dirty on entry. So instead this script
+#     refuses to start whenever prompt_static_obstacles is already true in
+#     ORCH_CONFIG unless MODALITY=on confirms that is intended (and the
+#     reverse: MODALITY=on with the flag not true is also refused), and it
+#     always prints the modality state it found — so a labelled OFF run is
+#     never silently an ON run, and every run's log records the condition.
 #
 # Usage:
 #   ./fc_launch.sh
@@ -36,6 +48,7 @@
 #   MOCK_DECISION_FILE=config/mock_decisions/head_on_yield.json ./fc_launch.sh
 #   RECORD=1 REC_SEC=300 ./fc_launch.sh
 #   DRY_RUN=1 SCENARIO=head_on_deadlock ./fc_launch.sh
+#   MODALITY=on ./fc_launch.sh   # confirms prompt_static_obstacles: true is intended
 #
 # Env vars:
 #   SCENARIO              Scenario name (default head_on_deadlock). Resolved
@@ -78,6 +91,15 @@
 #                          tails the M5 log, independent of RECORD.
 #   DRY_RUN                 1 prints every external command instead of
 #                          executing it (see above).
+#   MODALITY               on|<unset> (default unset). Confirms an ON run of
+#                          the static-obstacle prompt modality: required when
+#                          prompt_static_obstacles: true is already set in
+#                          ORCH_CONFIG (the script never sets this flag
+#                          itself; the operator does, by hand), and refused
+#                          when it is NOT set but prompt_static_obstacles is
+#                          not true. Either mismatch aborts before anything
+#                          expensive starts (see the MODALITY guard note
+#                          above). The resolved state is always printed.
 #
 # Recorder fps re-timing caveat (unchanged from the ported script — read
 # before using RECORD=1 recordings): the recorder stamps a higher fps than
@@ -104,6 +126,7 @@ CONTAINER="${CONTAINER:-vgu_ros}"
 SCENARIO="${SCENARIO:-head_on_deadlock}"
 BACKEND_ID="${BACKEND_ID:-openai}"
 MOCK_DECISION_FILE="${MOCK_DECISION_FILE:-}"
+MODALITY="${MODALITY:-}"
 RECORD="${RECORD:-0}"
 REC_SEC="${REC_SEC:-1000}"
 SIM_SEC="${SIM_SEC:-1200}"
@@ -172,6 +195,45 @@ if [ -n "$MOCK_DECISION_FILE" ]; then
 fi
 
 ORCH_CONFIG="${REPO}/ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml"
+
+# ── Guard: an ON prompt_static_obstacles left set by an aborted prior run
+#    must not silently mislabel this run (final whole-branch review,
+#    Finding 2). Unlike BACKEND_ID below, this script never sets
+#    prompt_static_obstacles itself — the operator flips it by hand in
+#    ORCH_CONFIG before an intentional ON run — so a snapshot/restore
+#    mirroring the BACKEND_ID mechanism cannot catch this: the script would
+#    only know what IT set, not that the flag was already dirty on entry.
+#    Instead, refuse to start on a mismatch between the installed flag and
+#    the operator's declared intent (MODALITY=on). Pure host-file read, no
+#    docker/sudo involved, so this holds under DRY_RUN too, and it runs
+#    before `trap cleanup EXIT` is installed below so a refusal here is a
+#    plain exit — it never restarts the container or touches the log dirs. ──
+if [ -n "$MODALITY" ] && [ "$MODALITY" != "on" ]; then
+  echo "ERROR: MODALITY='${MODALITY}' is not recognized; the only accepted" >&2
+  echo "  value is 'on' (confirms an intentional ON run). Leave it unset for" >&2
+  echo "  an OFF run." >&2
+  exit 1
+fi
+OBSTACLE_MODALITY=$(grep -m1 '^prompt_static_obstacles:' "$ORCH_CONFIG" | awk '{print $2}' || true)
+if [ -z "$OBSTACLE_MODALITY" ]; then
+  echo "ERROR: could not read prompt_static_obstacles from ${ORCH_CONFIG}" >&2
+  exit 1
+fi
+if [ "$OBSTACLE_MODALITY" = "true" ] && [ "$MODALITY" != "on" ]; then
+  echo "ERROR: prompt_static_obstacles: true is already set in ${ORCH_CONFIG}." >&2
+  echo "  A prior ON run likely aborted (Ctrl-C, dropped SSH, crash) before the" >&2
+  echo "  operator restored it by hand. Confirm an intentional ON run with" >&2
+  echo "  MODALITY=on, or clear the flag first:" >&2
+  echo "    sed -i 's/^prompt_static_obstacles: .*/prompt_static_obstacles: false/' ${ORCH_CONFIG}" >&2
+  exit 1
+fi
+if [ "$OBSTACLE_MODALITY" != "true" ] && [ "$MODALITY" = "on" ]; then
+  echo "ERROR: MODALITY=on was requested but prompt_static_obstacles is not true" >&2
+  echo "  in ${ORCH_CONFIG}. Set prompt_static_obstacles: true there first, or drop" >&2
+  echo "  MODALITY=on for an OFF run." >&2
+  exit 1
+fi
+log "obstacle modality: prompt_static_obstacles=${OBSTACLE_MODALITY} (MODALITY=${MODALITY:-<unset>})"
 
 ISAAC_LOG=/tmp/fc_${STAMP}_isaac.log
 M1_LOG=/tmp/fc_${STAMP}_m1.log
@@ -502,4 +564,4 @@ print('  failure:', d.get('failure_reason'))
   done
 fi
 
-log "done: STAMP=${STAMP} SCENARIO=${SCENARIO} MAP=${MAP} M5_LOG=${M5_LOG}"
+log "done: STAMP=${STAMP} SCENARIO=${SCENARIO} MAP=${MAP} M5_LOG=${M5_LOG} prompt_static_obstacles=${OBSTACLE_MODALITY}"

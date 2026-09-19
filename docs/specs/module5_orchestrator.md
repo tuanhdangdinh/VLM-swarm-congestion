@@ -239,7 +239,11 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   defaults false for the reason `prompt_pairwise_geometry` documents at
   rev-8.5: every decision artifact collected before 2026-09-19 was produced
   without this channel, and an on-by-default flag would silently break
-  comparability with all of them.
+  comparability with all of them on this axis. This is narrower than full
+  prompt comparability with that corpus — M2 FR2.1.9's `yield_robot` field
+  landed in the same window as a permanent, non-switchable prompt change, so
+  the pre-2026-09-19 corpus is not reproducible even with
+  `prompt_static_obstacles` off (see M2 FR2.1.8/FR2.1.9).
 
 ### M5.4 Command Lifecycle & Fan-out
 - FR5.4.1 Translate the single grounded command (schema: `command_id`, `actions[]`,

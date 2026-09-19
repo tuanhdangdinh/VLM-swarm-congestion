@@ -166,6 +166,27 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-19** — **Correction: the OFF-condition comparability claim below
+  overstates what the byte-identity test proves, and the 44/44 census
+  over-reads compliance as absence-of-signal** (final whole-branch review,
+  Finding 1). (a) `yield_robot` (FR2.1.9) has **no OFF condition** — it is a
+  permanent prompt change (adds the output-format bullet, extends the
+  `<think>` step, and removes the `strategy="yield" (first listed robot
+  backs up)` clause) applied to every request from `c4072d0`/`0efd01e`
+  onward. Rendering the shared `_request()` fixture at branch base
+  `e21326f` (3171 chars, sha `5a57c937…`) versus HEAD with the obstacle
+  modality off (3338 chars, sha `3b77d224…`) shows the 167-char delta these
+  edits introduced. The obstacle modality's byte-identity test (`056fa22`,
+  below) pins the OFF obstacle condition against the tree *after* this
+  change — a true and useful guarantee for isolating that one modality, but
+  it does not establish that the OFF condition at HEAD matches the
+  pre-2026-09-19 stimulus, which the entry below implies. (b) The 44/44
+  `robot_1`-first census below (design review Finding 2) was collected
+  under a prompt that *instructed* "first listed robot backs up", so it is
+  substantially evidence of compliance with that instruction, not only
+  evidence that the position channel went unused when free to vary. Full
+  reasoning: `docs/specs/module2_vlm_reasoning.md` FR2.1.8/FR2.1.9,
+  `docs/reports/2026-09-18-head-on-family-validity.md` Rev 6.
 - **2026-09-19** — **Two observability channels landed as declared,
   default-off Arm A modalities** (owner instruction: "do your
   recommendations", responding to the 2026-09-19 design review). (1)
@@ -181,7 +202,9 @@ Rules for maintaining it:
   artifacts found `robot_1` listed first in 44/44 `yield` decisions — never
   once `robot_2` — i.e. position had never been observed to carry a choice
   (`docs/superpowers/specs/2026-09-19-head-on-asymmetric-family-design-review.md`,
-  Finding 2). (2) `ReasonerRequest.include_static_obstacles` /
+  Finding 2; caveated by the 2026-09-19 correction above — the prompt
+  instructed this exact convention, so 44/44 is compliance evidence too).
+  (2) `ReasonerRequest.include_static_obstacles` /
   `static_obstacles: list[StaticObstacleInput]`, rendered as a
   "Static obstacles (world-frame axis-aligned boxes):" block (id, centre,
   extent only — no wording naming a robot, maneuver, or blocked side) —
@@ -193,7 +216,11 @@ Rules for maintaining it:
   length + SHA-256 test (provenance commit `056fa22`), because every
   decision artifact collected before 2026-09-19 was produced without either
   channel and comparability depends on the off condition never changing a
-  byte. `orchestrator.yaml`'s shipped `static_obstacles` ids are
+  byte. **Superseded by the 2026-09-19 correction above**: "both default
+  off" is true of the obstacle channel but not of `yield_robot`, which has
+  no off switch, and the byte-identity test only isolates the obstacle
+  modality — it does not establish comparability with the pre-2026-09-19
+  corpus. `orchestrator.yaml`'s shipped `static_obstacles` ids are
   deliberately neutral (`obstacle_1`, not the scenario yaml's `blocker_west`)
   and must not be synced to the scenario yaml's descriptive names — the id
   renders verbatim into the prompt and would otherwise hand the model the

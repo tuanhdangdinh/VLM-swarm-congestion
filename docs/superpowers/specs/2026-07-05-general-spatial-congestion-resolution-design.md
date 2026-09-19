@@ -62,11 +62,18 @@
   - The **decision schema gains `yield_robot: str | None`**
     (`CongestionDecision`, module-2 FR2.1.9) — the model's own stated
     choice of yielder, meaningful only when `strategy == "yield"` and never
-    required. Before this field, downstream grounding read list position in
-    `involved_robots` as the yielder channel; a census of 524 decision
-    artifacts found `robot_1` listed first in 44/44 `yield` decisions, i.e.
-    position was never observed to carry a choice (design review Finding
-    2).
+    required. This is more than a schema addition: it is also a **permanent
+    Arm A stimulus change**, since it has no OFF condition — the
+    output-format bullet, the extended `<think>` step, and the removal of
+    the old `strategy="yield" (first listed robot backs up)` clause apply to
+    every request from this commit onward (module-2 FR2.1.9). Before this
+    field, downstream grounding read list position in `involved_robots` as
+    the yielder channel; a census of 524 decision artifacts found `robot_1`
+    listed first in 44/44 `yield` decisions, i.e. position was never
+    observed to carry a choice (design review Finding 2) — though that
+    census was collected under a prompt that instructed "first listed robot
+    backs up", so 44/44 is substantially compliance with an explicit
+    instruction, not only an unused channel.
   - The **modality table gains `static_obstacles`** (module-2 FR2.1.8, M5
     `prompt_static_obstacles`), alongside `pairwise_geometry`, following the
     same declared-modality pattern rev 8.5 established: id/centre/extent

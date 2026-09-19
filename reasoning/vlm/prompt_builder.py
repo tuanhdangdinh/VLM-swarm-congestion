@@ -222,7 +222,7 @@ def format_static_obstacle_lines(obstacles: list[StaticObstacleInput]) -> list[s
         obstacles: Declared static obstacles; order is normalized here.
 
     Returns:
-        One line per obstacle, e.g. `blocker_west: centre (-1.85, 0.00) m,
+        One line per obstacle, e.g. `obstacle_1: centre (-1.85, 0.00) m,
         extent 0.30 x 0.30 m`; empty when no obstacles are declared.
     """
     return [

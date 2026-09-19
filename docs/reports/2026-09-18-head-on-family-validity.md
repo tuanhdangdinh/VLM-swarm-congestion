@@ -9,6 +9,7 @@
 - Rev 3 (2026-09-19): added "Validity Pairs (T2a)" — the four forced-yielder runs (Task 8) that test each T2a variant's frozen `oracle:` block against both yielder orders, with the run_id rows added to the mapping table below. Both variants pass: the oracle-infeasible yielder's maneuver ends `FAILED` in each, with the yielding robot stalled against its blocker's near face, and the oracle-feasible yielder's maneuver completes with both robots reaching their goals. The Rev 2 verification gate on the M4 resume race is met (130.17 s and 131.23 s uninterrupted navigation windows against a 17 s requirement), so that race remains latent and does not block Task 9.
 - Rev 4 (2026-09-19): added "RQ5 recovery runs (gpt-4o), modality A/B" — two recorded live-model runs (Task 9) on the blocked variant `head_on_asymmetric_w0p2_eopen_o0`, paired on the static-obstacle prompt modality (Run A `20260919_042935` OFF, Run B `20260919_044729` ON). Both runs opened with `yield` naming `robot_1`, the robot the parked box makes it impossible for, and both first maneuvers ended `FAILED` with the chassis 0.093–0.094 m from the blocker's near face — indistinguishable outcomes, so supplying the obstacle's geometry produced no measurable change in the decision under test. The failure-context block reached the next prompt in both runs and both second decisions were `reverse`, which M4 dispatches symmetrically and which therefore cannot resolve a two-robot head-on; neither run produced an arrival. The section records why first-answer yielder identity is not evidence of spatial reasoning (it is confounded with `involved_robots` order, and under Run A the blocker is not perceivable at all), and verifies the modality end-to-end from the rendered prompt stored in each decision artifact rather than from build output.
 - Rev 5 (2026-09-19): one factual refinement to the Rev 2 correction, using Task 8's own evidence. Rev 2 called the M4 resume race "real but **latent**, needing a pathological repeat-command stream." Task 8's forced-yielder runs show it reproducing on a **single** dispatched command (7–8 cancels over 14–15 s in Runs 2 and 4) but **self-limiting** — the churn stops on its own and the resuming robot still gets its full window (130.17 s / 131.23 s against the 17 s gate). Rev 2's causal story for T1 still holds: the frozen mock's ~38 s re-triggers kept re-issuing commands before the churn could settle, which is why `robot_1` never progressed in that run — but "latent, needs a pathological stream" is too strong and is reworded to "reproduces on a single command, is self-limiting, and did not prevent arrival here, but still needs its own investigation." The three passages carrying the stale wording ("Root cause (revised)" → "What remains open", the T2a navigation-window-gate conclusion, and the Entry Criteria bullet) are corrected in place with the original text kept and marked superseded, not deleted.
+- Rev 6 (2026-09-19): two related corrections from the final whole-branch review (Finding 1), retro-applying the same reasoning the "First-answer yielder identity is not evidence of spatial reasoning" section (below) already applies to Runs A/B, to the pre-existing 524-artifact census and comparability claims. (a) The "Run A ... comparable with every decision artifact collected to date" line and the "Run A's comparability with the pre-feature artifacts is backed by the pinned prompt-hash guard" line (both below) overstate what `test_build_prompt_payload_off_prompt_is_byte_identical_to_pre_feature_prompt` proves. Rendering the shared `_request()` fixture at branch base `e21326f` (3171 chars, sha `5a57c937…`) versus HEAD with the obstacle modality off (3338 chars, sha `3b77d224…`) gives a 167-char delta: Task 11's three `yield_robot` prompt edits (FR2.1.9), which have no OFF condition and landed in the same window as the obstacle modality. The pinned guard (provenance commit `056fa22`) is against the tree *after* those edits, so it isolates the obstacle modality correctly but does not establish that Run A's OFF prompt matches the pre-2026-09-19 stimulus. Both passages are marked superseded in place below, not deleted. (b) The 44/44 `robot_1`-first census (design review Finding 2, cited via module-2 FR2.1.9) was collected under a prompt that *instructed* "first listed robot backs up" — the same clause Task 11 removed — so it is substantially evidence of compliance with an explicit instruction, not only evidence that an unused channel went unused. Full reasoning: `docs/specs/module2_vlm_reasoning.md` FR2.1.8/FR2.1.9.
 
 ---
 
@@ -774,7 +775,10 @@ geometry.
 - **Run A — obstacle channel OFF** (`prompt_static_obstacles: false`, the
   shipped default). The model cannot perceive the blocker through any channel.
   This is the information-bound condition and is comparable with every decision
-  artifact collected to date.
+  artifact collected to date. **Superseded by Rev 6**: comparable to every
+  artifact collected *since* the `yield_robot` field landed (2026-09-19
+  onward) — not to the pre-2026-09-19 corpus, since that field permanently
+  changed the prompt in the same window with no OFF condition of its own.
 - **Run B — obstacle channel ON** (`prompt_static_obstacles: true` with the
   `static_obstacles` list supplied). The model is told the box's id, centre and
   extent, and nothing about what they imply.
@@ -853,6 +857,10 @@ prompt-hash guard: `tests/unit/test_prompt_builder.py` passes 37/37 on the
 synced code, including
 `test_build_prompt_payload_off_prompt_is_byte_identical_to_pre_feature_prompt`
 and `test_shipped_orchestrator_yaml_obstacle_ids_do_not_leak_into_the_prompt`.
+**Superseded by Rev 6**: that guard pins Run A's OFF prompt against the tree
+after the `yield_robot` field (FR2.1.9) landed, not against the pre-2026-09-19
+tree — it backs comparability among artifacts collected under this feature's
+OFF default, not comparability with the pre-feature corpus.
 
 ### Run A — modality OFF
 

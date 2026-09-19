@@ -509,6 +509,8 @@ silently break comparability with the 524 existing decisions.
 
 **Why:** `command_grounder.py:146` (`robot_ids = decision.involved_robots`) makes list position the yielder channel, and list position is a measured constant — 44/44 yields listed `robot_1` first across 524 artifacts. Until the model has a named field, the battery measures an ordering convention rather than a choice.
 
+> **2026-09-19 note (final whole-branch review, Finding 1b):** that 44/44 census was collected under a prompt that *instructed* "first listed robot backs up" (the clause this task's Task 11 work removed), so it is substantially evidence of compliance with an explicit instruction, not only evidence that the position channel went unused when free to vary. See `docs/specs/module2_vlm_reasoning.md` FR2.1.9 and `docs/reports/2026-09-18-head-on-family-validity.md` Rev 6.
+
 **Interfaces produced:**
 
 ```python

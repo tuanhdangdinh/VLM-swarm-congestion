@@ -258,9 +258,9 @@ def _obstacles() -> list[StaticObstacleInput]:
 
 def test_format_static_obstacle_lines_renders_centre_and_extent():
     lines = format_static_obstacle_lines(
-        [StaticObstacleInput(obstacle_id="blocker_west", x=-1.85, y=0.0, size_x_m=0.3, size_y_m=0.3)]  # noqa: E501
+        [StaticObstacleInput(obstacle_id="obstacle_1", x=-1.85, y=0.0, size_x_m=0.3, size_y_m=0.3)]
     )
-    assert lines == ["blocker_west: centre (-1.85, 0.00) m, extent 0.30 x 0.30 m"]
+    assert lines == ["obstacle_1: centre (-1.85, 0.00) m, extent 0.30 x 0.30 m"]
 
 
 def test_format_static_obstacle_lines_sorts_several_obstacles_by_id():

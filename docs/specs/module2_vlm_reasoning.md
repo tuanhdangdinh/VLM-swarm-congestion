@@ -131,7 +131,7 @@ in control.
   geometry block and the known-ID list, one `format_static_obstacle_lines`
   line per entry in `ReasonerRequest.static_obstacles` (`StaticObstacleInput`:
   `obstacle_id`, `x`, `y`, `size_x_m`, `size_y_m`), sorted by `obstacle_id` —
-  e.g. `blocker_west: centre (-1.85, 0.00) m, extent 0.30 x 0.30 m`. Id,
+  e.g. `obstacle_1: centre (-1.85, 0.00) m, extent 0.30 x 0.30 m`. Id,
   centre, and extent only — the same bare-coordinate treatment robot states
   get; no wording may name a robot, a maneuver, a retreat, or a blocked side,
   since that is the inference the modality exists to measure. When the
@@ -146,9 +146,15 @@ in control.
   prompt; this is pinned by a length + SHA-256 test
   (`tests/unit/test_prompt_builder.py`,
   `test_build_prompt_payload_off_prompt_is_byte_identical_to_pre_feature_prompt`,
-  provenance commit `056fa22`) because comparability with the 524 decision
-  artifacts collected before this feature exists only if the OFF condition
-  never changes a byte. Obstacle ids are configuration, not scenario names —
+  provenance commit `056fa22`). What this guarantees is narrower than it may
+  read: it isolates the obstacle modality itself — OFF at HEAD is
+  byte-identical to HEAD without this feature — and that is the correct,
+  useful thing for ablating this modality. It does **not** establish
+  comparability with the 524 decision artifacts collected before 2026-09-19:
+  FR2.1.9's `yield_robot` field landed in the same window and permanently
+  changed the prompt for every condition (see FR2.1.9), so the OFF condition
+  at HEAD is not the stimulus that produced those earlier artifacts. Obstacle
+  ids are configuration, not scenario names —
   `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`'s `static_obstacles`
   block ships neutral ids (`obstacle_1`, not `blocker_west`) precisely because
   an id naming the object's role or side would render into the prompt and
@@ -157,8 +163,10 @@ in control.
   never mentions space, retreat, clearance, or arrival. This is an Arm A
   change (rev-8 spec rev 8.6): every decision artifact collected before
   2026-09-19 was produced with the modality off by construction (the field
-  did not exist), and the default stays off so future runs remain comparable
-  unless a run explicitly opts in.
+  did not exist), and the default stays off so future runs at HEAD remain
+  comparable to each other and to this OFF baseline unless a run explicitly
+  opts in — that comparability claim is scoped to runs collected under this
+  modality's OFF default, not to the pre-2026-09-19 corpus (see above).
 - FR2.1.9 (2026-09-19) `CongestionDecision.yield_robot: str | None = None` is
   the model's stated choice of which robot should yield, only meaningful when
   `strategy == "yield"`. It is **never required** — a decision with
@@ -172,17 +180,31 @@ in control.
   other strategy (including `reroute`, where `command_grounder` reads
   `robot_ids[0]` as the rerouter and the rest as waiters) ignores a stray or
   hallucinated `yield_robot` and uses `involved_robots` unchanged, so this
-  field cannot silently swap who reroutes and who waits. Before this field,
-  `command_grounder.py` treated list position in `involved_robots` as the
-  yielder channel; a census of 524 decision artifacts found `robot_1` listed
-  first in 44/44 `yield` decisions, i.e. position was never observed to carry
-  a choice (design review,
+  field cannot silently swap who reroutes and who waits. Unlike FR2.1.8's
+  obstacle modality, this field has **no OFF condition** — it is a
+  permanent change to the prompt, applied to every request from this commit
+  onward: the output-format section always documents `yield_robot`, the
+  `<think>` step is extended to ask for it, and the old
+  `strategy="yield" (first listed robot backs up)` clause is **removed**.
+  Rendering the shared `_request()` fixture at branch base `e21326f` (3171
+  chars, sha `5a57c937…`) versus HEAD with the obstacle modality off (3338
+  chars, sha `3b77d224…`) shows the 167-char delta these edits introduced.
+  The byte-identity test cited under FR2.1.8 pins the OFF obstacle condition
+  against the tree *after* these edits (`056fa22`), so it does not, and
+  cannot, establish that the OFF condition at HEAD matches the pre-2026-09-19
+  stimulus. Before this field, `command_grounder.py` treated list position in
+  `involved_robots` as the yielder channel; a census of 524 decision
+  artifacts found `robot_1` listed first in 44/44 `yield` decisions, i.e.
+  position was never observed to carry a choice (design review,
   `docs/superpowers/specs/2026-09-19-head-on-asymmetric-family-design-review.md`,
-  Finding 2). The prompt's output-format section documents `yield_robot`
-  as a field to fill in and its `<think>` step asks which robot should yield
-  and why, but states no selection criteria (no mention of space, retreat,
-  clearance, or arrival order) — the point of the field is to measure the
-  model's choice, not to prime it toward one.
+  Finding 2). That census was collected under a prompt that *instructed*
+  "first listed robot backs up" — so 44/44 `robot_1`-first is substantially
+  evidence of compliance with an explicit instruction, not only evidence that
+  an unused channel went unused. The prompt's output-format section documents
+  `yield_robot` as a field to fill in and its `<think>` step asks which robot
+  should yield and why, but states no selection criteria (no mention of
+  space, retreat, clearance, or arrival order) — the point of the field is to
+  measure the model's choice, not to prime it toward one.
 
 ### M2.2 VLM Backend Adapter
 - FR2.2.1 Expose one Protocol `VLMBackend` with a single method
