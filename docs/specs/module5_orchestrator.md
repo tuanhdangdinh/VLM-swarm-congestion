@@ -222,6 +222,25 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   reconstruct what the VLM was told nor prove M1's distance at a goal — both
   were unlogged.
 
+- FR5.3.8 (2026-09-19) `build_reasoner_request` (`reasoning_pipeline.py`)
+  forwards `config.static_obstacles` and `config.prompt_static_obstacles` into
+  `ReasonerRequest.static_obstacles` / `include_static_obstacles` unchanged,
+  the same pass-through `prompt_pairwise_geometry` already has. `static_obstacles`
+  is configuration mirrored by hand from the scenario yaml, the same
+  relationship `scenario_geometry` (config table below) already has to the
+  scenario's aisle barrier — it must be set per scenario, since a list left
+  over from another scenario would describe obstacles that are not there. Its
+  `obstacle_id` values render verbatim into the VLM prompt (M2 FR2.1.8), so
+  they must stay non-semantic (e.g. `obstacle_1`, not the scenario yaml's
+  `blocker_west`) and must **not** be synced to the scenario yaml's
+  descriptive obstacle names — only the geometry is mirrored, never the
+  naming, because an id stating the object's role or side would hand the
+  model the inference the modality exists to measure. `prompt_static_obstacles`
+  defaults false for the reason `prompt_pairwise_geometry` documents at
+  rev-8.5: every decision artifact collected before 2026-09-19 was produced
+  without this channel, and an on-by-default flag would silently break
+  comparability with all of them.
+
 ### M5.4 Command Lifecycle & Fan-out
 - FR5.4.1 Translate the single grounded command (schema: `command_id`, `actions[]`,
   `expected_resolution_time_sec`, `fallback`) into **N** ROS2 `CoordinationCommand`
@@ -298,6 +317,8 @@ redefined.
 | scene_log_period_sec | float | scene-log period, default 1.0 (FR5.3.7) |
 | arrived_radius_m | float | radius within which an M4-reported arrival excuses a robot from stall evidence, default 0.5 (FR5.1.8) |
 | prompt_pairwise_geometry | bool | include the derived pairwise distance/facing lines in the VLM prompt, default true (M2 FR2.1.7; ablation axis) |
+| prompt_static_obstacles | bool | (2026-09-19) render `static_obstacles` below as world-frame boxes in the VLM prompt, default **false** (M2 FR2.1.8; ablation axis) |
+| static_obstacles | tuple[StaticObstacleInput, ...] | (2026-09-19) fixed obstacles mirrored from the scenario yaml for the prompt only, rendered when `prompt_static_obstacles` is true; default empty |
 | keep_debug_frames | bool | retain dumped frames after cycle resolution; default false |
 | frame_scene_max_skew_sec | float | max frame/scene stamp skew; beyond it the trigger is suppressed (E10) |
 | frame_downscale_width | int \| None | optional pre-dump downscale width; None = full resolution |

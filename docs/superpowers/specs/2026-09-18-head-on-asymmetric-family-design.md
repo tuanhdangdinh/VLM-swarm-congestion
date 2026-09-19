@@ -6,23 +6,49 @@
 
 - Initial draft: parametric head-on family with parked blockers, computed oracle, static obstacles with real geometry; approved in chat (user, 2026-09-18).
 - Rev 2 (2026-09-18): plan-time corrections — box 0.3 × 0.3 m (a 0.5 m box leaves no Nav2-legal flank lane), blocker 0.2 m, `arrival_offset_m` fixed at 0 in v1 (an offset on a blocked side is spatially impossible), `fcfs_yielder` defined by the rev-8 tiebreak rule, grid v1 = 3 variants, repo-tracked VM launch script.
+- Rev 3 (2026-09-19): resolved the open design-review banner below with the
+  decision actually taken (engineering proceeded; both observability
+  channels were built as default-off modalities on the owner's instruction);
+  qualified the Status line to separate the family's T1/T2a *geometry* (done)
+  from the T2a *oracle-agreement claim* (not answerable by Arm A as
+  prompted); marked the "Explicitly not changed (YAGNI)" `yield_robot` bullet
+  superseded. Implementation verified on `feat/failure-context-closed-loop`:
+  plan `docs/superpowers/plans/2026-09-18-head-on-asymmetric-family.md`;
+  hardware evidence `docs/reports/2026-09-18-head-on-family-validity.md`.
 
-**Status:** Approved for implementation. Realizes the rev-8 battery cells T1
-(`head_on_deadlock`, both sides feasible) and T2a ("asymmetric retreat
-space: the correct yielder is not the FCFS pick") as one parametric family
-instead of hand-authored instances.
+**Status:** The `head_on_asymmetric` family realizes the rev-8 battery cell T1
+(`head_on_deadlock`-equivalent, both sides feasible) and T2a's **geometry**
+("asymmetric retreat space: the correct yielder is not the FCFS pick") as one
+parametric family instead of hand-authored instances — implemented and
+verified against the frozen oracle by forced-yielder mock runs (all four
+cells matched;
+`docs/reports/2026-09-18-head-on-family-validity.md`, "Validity Pairs
+(T2a)"). **T2a's oracle-agreement claim — whether the live VLM's yielder
+choice agrees with the oracle for a reason connected to the scene — is not
+answerable by Arm A as currently prompted**; see the design review below and
+rev 8.6 of the parent spec. The two v1 T2a variants are instead reported as a
+pre-registered order-vs-scene demonstration (Task 9's paired gpt-4o runs;
+see the validity report). The RQ5/recovery value of the family is confirmed
+by live evidence (both the 2026-09-18 `head_on_deadlock` precedent and the
+2026-09-19 RQ5 recovery runs on `w0p2_eopen_o0`).
 
-> **READ BEFORE IMPLEMENTING — open design review (2026-09-19):**
-> `2026-09-19-head-on-asymmetric-family-design-review.md`. Measurement since
-> Rev 2 contradicts two assumptions this spec relies on: the parked blocker is
-> not present in any channel the reasoner reads (obstacles are absent from the
-> M2 prompt, and the decision does not use the image), and the
-> "VLM lists the yielder first" channel is a constant in practice
-> (`robot_1` first in 44/44 yields across 524 artifacts). As written, the T2a
-> contrast cell cannot distinguish a reasoning failure from an observability
-> failure. The review proposes two small changes and does not alter this spec's
-> decisions — the owner decides. The RQ5/recovery value of the family is
-> unaffected and now has live precedent.
+> **Resolved (2026-09-19) — was "open design review":**
+> `2026-09-19-head-on-asymmetric-family-design-review.md` found the parked
+> blocker was not present in any channel the reasoner read (obstacles absent
+> from the M2 prompt, decision measured not to use the image) and that the
+> "VLM lists the yielder first" channel was a constant in practice (`robot_1`
+> first in 44/44 yields across 524 artifacts) — so, as written, the T2a
+> contrast cell could not distinguish a reasoning failure from an
+> observability failure. **Decision taken (owner, 2026-09-19): "do your
+> recommendations"** — engineering proceeded rather than pausing on the
+> review. Both channels the review identified as missing were built as
+> declared, default-off modalities (module-2 FR2.1.9 `yield_robot`; FR2.1.8
+> `prompt_static_obstacles`; rev-8.6) so both directions (modality off =
+> today's information bound, on = the spatial-reasoning condition T2a was
+> meant to be) stay comparable with every prior artifact. Task 9 then ran the
+> blocked variant paired both ways and reports the result as an order-vs-scene
+> demonstration, not a T2a oracle-agreement score — the RQ5/recovery value of
+> the family is unaffected and now has live precedent both ways.
 
 **Parent spec:** `2026-07-05-general-spatial-congestion-resolution-design.md`
 (Scenario battery; Authored oracle blocks; Tuning-parity rule).
@@ -182,8 +208,15 @@ family, parameters and oracle.
 
 ## Explicitly not changed (YAGNI)
 
-- No new M2/M3 fields (`yield_robot` role fields remain Phase 1 Task 1); the
-  VLM chooses the yielder by listing it first, which M3 already honours.
+- ~~No new M2/M3 fields (`yield_robot` role fields remain Phase 1 Task 1); the
+  VLM chooses the yielder by listing it first, which M3 already honours.~~
+  **Superseded (Rev 3, 2026-09-19).** This claim is false as of the same
+  branch: the design review measured that list position carries no choice
+  (44/44 yields list `robot_1` first across 524 artifacts), and the owner's
+  "do your recommendations" decision un-deferred exactly this field —
+  `CongestionDecision.yield_robot` landed (module-2 FR2.1.9), scoped to
+  `strategy == "yield"`, never required. See rev 8.6 of the parent spec and
+  the Status line above.
 - Intersection and dynamic-anomaly families beyond the `family` field and the
   obstacle-geometry fix.
 - No motion table / stage-2 candidates.

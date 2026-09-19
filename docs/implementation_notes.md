@@ -37,6 +37,42 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-19** — **Paired A/B run on the head-on-asymmetric blocked
+  variant is a null result, confounded by presentation order.** Two recorded
+  gpt-4o runs on `head_on_asymmetric_w0p2_eopen_o0` (Run A modality off
+  `20260919_042935`, Run B modality on `20260919_044729`) both chose
+  `yield`/`yield_robot=robot_1` — the side the parked blocker makes
+  infeasible — both `FAILED` at a ~0.093 m standoff (the robot's own
+  half-width against the box), both followed with `reverse` (dispatched
+  symmetrically, so it cannot resolve a two-robot head-on), and neither
+  produced an arrival. **Supplying the obstacle's id/centre/extent produced
+  no measurable change in the decision under test — but this is a single
+  paired run, not a distribution, and `robot_1` is also the first robot the
+  prompt presents (states rendered "sorted by ID"), so the model's choice
+  and presentation order are perfectly confounded in both runs; the result
+  bounds nothing about the modality in general and does not by itself
+  distinguish a positional default from a spatial judgement.** Breaking the
+  confound needs a counterbalanced `involved_robots`-order condition —
+  applies to every artifact collected to date, not just these two runs.
+  Full detail: `docs/reports/2026-09-18-head-on-family-validity.md`, "RQ5
+  recovery runs (gpt-4o), modality A/B" (`6d9f540`).
+- **2026-09-19** — **VM harness traps found running the head-on-asymmetric
+  family (Tasks 7–8), all three would recur.** (1) `rsync --delete` without
+  a curated exclude list will delete VM-only build outputs and secrets
+  (`.env`, generated Isaac assets); even a previously-curated exclude list
+  can miss stray VM-only files, so prefer an explicit synced-file list over
+  `--delete` for small changesets, or dry-run and read the deletion list
+  line by line. (2) `rsync -a` preserves source mtimes, so a source file
+  older than the VM's last build output is silently *not* recopied by
+  `colcon build`/setuptools `build_py` even though the build reports
+  success — after any `rsync -a`, touch every source file and wipe
+  `ros2_ws/{build,install,log}` before rebuilding, or the run executes
+  another branch's installed code (this produced a `GeminiBackendConfig`
+  `ImportError` from a stale install). (3) `grep -c <symbol>` on an
+  installed file is not a sync check — a different branch's independent
+  implementation of the same field name gives a false positive; use
+  `md5sum`/`sha256sum` against the worktree source instead. Detail:
+  `docs/reports/2026-09-18-head-on-family-validity.md`, "Harness Findings".
 - **2026-09-19** — `build_backend`'s mock branch (`reasoning/vlm/backend_factory.py`)
   now accepts a JSON array in `VGU_MOCK_DECISION_FILE`, scripted into
   `MockBackend(response_sequence=...)`, which holds its last entry once
@@ -130,6 +166,41 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-19** — **Two observability channels landed as declared,
+  default-off Arm A modalities** (owner instruction: "do your
+  recommendations", responding to the 2026-09-19 design review). (1)
+  `CongestionDecision.yield_robot: str | None`, meaningful only when
+  `strategy == "yield"`, never required — module-2 FR2.1.9
+  (`c4072d0`, `0efd01e`: `feat: add explicit yield_robot field to the
+  congestion decision`, `fix: scope yield_robot reordering to yield and drop
+  the list-order hint`). `reasoning.rag.command_grounder.resolve_robot_order`
+  moves it to the front of `involved_robots` only for `strategy == "yield"`,
+  leaving `reroute` (which reads `robot_ids[0]` as the rerouter) and every
+  other strategy untouched. Before this field, list position in
+  `involved_robots` was the only yielder channel; a census of 524 decision
+  artifacts found `robot_1` listed first in 44/44 `yield` decisions — never
+  once `robot_2` — i.e. position had never been observed to carry a choice
+  (`docs/superpowers/specs/2026-09-19-head-on-asymmetric-family-design-review.md`,
+  Finding 2). (2) `ReasonerRequest.include_static_obstacles` /
+  `static_obstacles: list[StaticObstacleInput]`, rendered as a
+  "Static obstacles (world-frame axis-aligned boxes):" block (id, centre,
+  extent only — no wording naming a robot, maneuver, or blocked side) —
+  module-2 FR2.1.8, M5 `prompt_static_obstacles` (`bf2d89d`, `501bb49`:
+  `feat: add static-obstacle prompt modality behind a default-off flag`,
+  `fix: keep prompt-facing obstacle ids neutral and gate the ON clause`).
+  Both default **off**; an off prompt (or an on prompt with no obstacles
+  configured) is byte-identical to the pre-modality prompt, pinned by a
+  length + SHA-256 test (provenance commit `056fa22`), because every
+  decision artifact collected before 2026-09-19 was produced without either
+  channel and comparability depends on the off condition never changing a
+  byte. `orchestrator.yaml`'s shipped `static_obstacles` ids are
+  deliberately neutral (`obstacle_1`, not the scenario yaml's `blocker_west`)
+  and must not be synced to the scenario yaml's descriptive names — the id
+  renders verbatim into the prompt and would otherwise hand the model the
+  inference the modality exists to measure (fix round 1, `501bb49`, after a
+  review caught the initial `blocker_west` id as exactly that leak). Specs:
+  `docs/specs/module2_vlm_reasoning.md` FR2.1.8/FR2.1.9,
+  `docs/specs/module5_orchestrator.md` (config table), rev-8 spec rev 8.6.
 - **2026-09-17** — **Research-readiness items 2–4 landed.** (2) The derived
   pairwise-geometry lines are a switchable modality
   (`ReasonerRequest.include_pairwise_geometry`, M5 `prompt_pairwise_geometry`,
@@ -908,6 +979,34 @@ Rules for maintaining it:
 
 ## M6 Simulation / Isaac Sim
 
+- **2026-09-19** — **`head_on_asymmetric` scenario family landed and
+  hardware-verified.** `ScenarioConfig` gains `family` (inferred from legacy
+  names, explicit for generated ones), `static_obstacles`/`ObstacleSize`, and
+  `parameters`/`oracle` (`df047ae`). A pure `isaac/vgu_sim/family_oracle.py`
+  computes yield feasibility from the same `reasoning.rag.scene_geometry`
+  functions M3 grounds with, loaded from M5's `scenario_geometry` block
+  (`2382aae`). `isaac/scripts/generate_head_on_family.py` writes the three
+  committed v1 variant yamls plus `family_manifest.csv`
+  (`isaac/config/scenarios/family/`) (`b6b6843`). Static and timed obstacles
+  are now authored as real `UsdGeom.Cube` collision geometry
+  (`_author_box`/`_author_static_obstacles`,
+  `/World/Scenario/StaticObstacles/<id>`) instead of empty Xforms, dispatch
+  keys on `family` not `name`, and `validate_scenario_obstacles` fails the
+  build (not a later run) on a missing prim (`34686a5`). Per-scenario Nav2
+  maps bake the `static_obstacles` footprint in addition to the aisle
+  barrier (`539de1b`, `0583195`). Spec:
+  `docs/specs/module6_simulation.md` Rev 4; design:
+  `docs/superpowers/specs/2026-09-18-head-on-asymmetric-family-design.md`
+  (rev 2/3). Hardware evidence
+  (`docs/reports/2026-09-18-head-on-family-validity.md`, "Validity Pairs
+  (T2a)"): all four forced-yielder mock runs matched the frozen oracle —
+  forced-infeasible yield `FAILED` with the robot stalled ~0.09 m (its own
+  half-width) from the blocker's near face on both variants; forced-feasible
+  yield `COMPLETED` with both robots arriving, mirrored east/west. The frozen
+  `oracle:` block is consumed only by config validation
+  (uniqueness/membership checks) — nothing in the M1–M5 runtime pipeline
+  reads `correct_yielder`, so it cannot silently become part of a live Arm A
+  score.
 - **2026-09-16** — Simulation rebuilt and re-verified on a new host after the
   old VM was deleted: `vgu-canary-base-isaac-workstation-vm` (project
   `summer-flux-501516-n6`, us-central1-a, g2-standard-8 + L4, Isaac Sim

@@ -125,6 +125,64 @@ in control.
   (M5 config `prompt_pairwise_geometry`) omits it and reverts the guidance to
   "compute distances and facing from the coordinates"; the facing + distance
   definition of head-on applies in both conditions (rev-8 spec 8.5).
+- FR2.1.8 (2026-09-19) When `ReasonerRequest.include_static_obstacles=True`
+  (M5 config `prompt_static_obstacles`, default **false**), render a "Static
+  obstacles (world-frame axis-aligned boxes):" block between the pairwise-
+  geometry block and the known-ID list, one `format_static_obstacle_lines`
+  line per entry in `ReasonerRequest.static_obstacles` (`StaticObstacleInput`:
+  `obstacle_id`, `x`, `y`, `size_x_m`, `size_y_m`), sorted by `obstacle_id` —
+  e.g. `blocker_west: centre (-1.85, 0.00) m, extent 0.30 x 0.30 m`. Id,
+  centre, and extent only — the same bare-coordinate treatment robot states
+  get; no wording may name a robot, a maneuver, a retreat, or a blocked side,
+  since that is the inference the modality exists to measure. When the
+  modality is on **and** at least one obstacle is supplied, one guidance
+  clause is appended asserting the listed set is complete and that a robot
+  can neither occupy nor drive through one; the clause is gated on the
+  rendered obstacle lines, not on the flag alone, so `include_static_obstacles
+  =True` with an empty `static_obstacles` list does not falsely assert an
+  empty scene. When the modality is off (the shipped default) or no obstacles
+  are supplied, the block renders as the empty string — not a placeholder
+  line — so the rendered prompt is **byte-identical** to the pre-modality
+  prompt; this is pinned by a length + SHA-256 test
+  (`tests/unit/test_prompt_builder.py`,
+  `test_build_prompt_payload_off_prompt_is_byte_identical_to_pre_feature_prompt`,
+  provenance commit `056fa22`) because comparability with the 524 decision
+  artifacts collected before this feature exists only if the OFF condition
+  never changes a byte. Obstacle ids are configuration, not scenario names —
+  `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`'s `static_obstacles`
+  block ships neutral ids (`obstacle_1`, not `blocker_west`) precisely because
+  an id naming the object's role or side would render into the prompt and
+  hand the model the answer; a leakage test asserts the shipped config's ids
+  contain none of `west`/`east`/`blocker`/etc. and that the rendered block
+  never mentions space, retreat, clearance, or arrival. This is an Arm A
+  change (rev-8 spec rev 8.6): every decision artifact collected before
+  2026-09-19 was produced with the modality off by construction (the field
+  did not exist), and the default stays off so future runs remain comparable
+  unless a run explicitly opts in.
+- FR2.1.9 (2026-09-19) `CongestionDecision.yield_robot: str | None = None` is
+  the model's stated choice of which robot should yield, only meaningful when
+  `strategy == "yield"`. It is **never required** — a decision with
+  `strategy="yield"` and no `yield_robot` still parses, so every artifact
+  collected before this field existed, and any backend that omits it, keeps
+  parsing unchanged. A `model_validator(mode="after")` rejects a `yield_robot`
+  that names a robot outside `involved_robots` (both names appear in the
+  error). `reasoning/rag/command_grounder.resolve_robot_order(decision)`
+  moves `yield_robot` to the front of `involved_robots` (remaining robots
+  keep their relative order) but **only when `strategy == "yield"`**; every
+  other strategy (including `reroute`, where `command_grounder` reads
+  `robot_ids[0]` as the rerouter and the rest as waiters) ignores a stray or
+  hallucinated `yield_robot` and uses `involved_robots` unchanged, so this
+  field cannot silently swap who reroutes and who waits. Before this field,
+  `command_grounder.py` treated list position in `involved_robots` as the
+  yielder channel; a census of 524 decision artifacts found `robot_1` listed
+  first in 44/44 `yield` decisions, i.e. position was never observed to carry
+  a choice (design review,
+  `docs/superpowers/specs/2026-09-19-head-on-asymmetric-family-design-review.md`,
+  Finding 2). The prompt's output-format section documents `yield_robot`
+  as a field to fill in and its `<think>` step asks which robot should yield
+  and why, but states no selection criteria (no mention of space, retreat,
+  clearance, or arrival order) — the point of the field is to measure the
+  model's choice, not to prime it toward one.
 
 ### M2.2 VLM Backend Adapter
 - FR2.2.1 Expose one Protocol `VLMBackend` with a single method
@@ -185,6 +243,7 @@ in control.
 | root_cause          | str             | natural language                                         |
 | strategy            | enum            | `none \| yield \| reroute \| convoy \| priority_override \| temporary_wait \| reverse` |
 | justification       | str             | natural language (interpretability, C2)                  |
+| yield_robot         | str \| null     | (2026-09-19) meaningful only when `strategy == "yield"`; never required — omitted/`null` for every pre-2026-09-19 artifact and any decision that doesn't set it (FR2.1.9) |
 
 Pipeline metadata is carried in `ReasonerDiagnostics` (not in the decision JSON),
 to keep `CongestionDecision` schema-stable and M3-friendly.
@@ -321,7 +380,14 @@ class ReasonerRequest(BaseModel):
     stamp: float = Field(ge=0)
     robot_states: list[RobotStateInput]
     failure_context: FailureContext | None = None
+    include_pairwise_geometry: bool = True          # rev-8.5 modality axis, FR2.1.7
+    static_obstacles: list[StaticObstacleInput] = []
+    include_static_obstacles: bool = False           # FR2.1.8; default off
 ```
+
+`StaticObstacleInput` (frozen): `obstacle_id: str`, `x: float`, `y: float`,
+`size_x_m: float` (`> 0`), `size_y_m: float` (`> 0`) — one fixed, axis-aligned
+world-frame obstacle (FR2.1.8).
 
 Validation rules (caller responsibility, enforced at construction):
 
@@ -411,6 +477,9 @@ class CongestionDecision(BaseModel):
         "reverse",
     ]
     justification: str
+    # The model's stated choice of yielder; meaningful only when
+    # strategy == "yield". Never required (FR2.1.9, 2026-09-19).
+    yield_robot: str | None = None
 ```
 
 Field validators (Pydantic v2):
@@ -421,6 +490,8 @@ Field validators (Pydantic v2):
   fail validation.
 - `involved_robots`: deduplicate preserving first-occurrence order
   (`field_validator(..., mode="after")`).
+- `yield_robot`: a `model_validator(mode="after")` rejects a value that is not
+  `None` and not a member of `involved_robots` (FR2.1.9).
 
 Cross-field invariant (checked in `parse_decision_text` after model validation,
 both directions):
@@ -1160,7 +1231,7 @@ patterns such as deadlocks, bottlenecks, crowding, or anomalies.
 
 Robot states (sorted by ID):
 {robot_state_block}
-{pairwise_geometry_block}
+{pairwise_geometry_block}{static_obstacle_block}
 Known robot IDs: {known_robot_ids_json}
 {failure_context_block}
 Guidance:
@@ -1174,7 +1245,9 @@ Guidance:
 - strategy hints per pattern; decide from coordinates and image.
 
 Produce a JSON object with exactly these fields: congestion_detected, type,
-involved_robots, root_cause, strategy, justification (closed enums).
+involved_robots, root_cause, strategy, justification, yield_robot (closed
+enums; yield_robot is the robot that should yield, or null when strategy is
+not "yield").
 
 Rules: known IDs only; congestion_detected=false ⇒ type/strategy "none" and
 involved_robots []; true ⇒ non-"none" type/strategy and ≥ 1 robot.
@@ -1192,6 +1265,11 @@ Where:
   blank line, the header `Pairwise geometry (faces = heading within 60° of the
   direction to the other robot):`, and one `"- "` line per pair from
   `format_pairwise_geometry_lines` (FR2.1.7).
+- `{static_obstacle_block}`: empty string when `include_static_obstacles` is
+  `False` or `static_obstacles` is empty; otherwise a blank line, the header
+  `Static obstacles (world-frame axis-aligned boxes):`, and one `"- "` line
+  per obstacle from `format_static_obstacle_lines`, sorted by `obstacle_id`
+  (FR2.1.8).
 - `{known_robot_ids_json}`: `json.dumps(sorted_robot_ids)` e.g.
   `["robot_1", "robot_2"]`.
 - `{failure_context_block}`: empty, or the previous-attempt block

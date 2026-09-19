@@ -7,6 +7,15 @@
 - Initial draft: full M6 spec covering runtime, USD composition, scenarios, ROS2 graphs, runner, and testing.
 - Rev 2 (2026-06-11): added `oracle.py` to §6 package layout; fixed orphaned `/clock` QoS row in §3 FR6.7.10 table.
 - Rev 3 (2026-09-16): FR6.4.8 amended — the cmd_vel relay also zeros the wheel targets while the robot is under an M4 `/safety/holds` hold.
+- Rev 4 (2026-09-19): added the `head_on_asymmetric` scenario family
+  (parametric variants + a computed yield-feasibility oracle) and its
+  generator; static and timed obstacles are now authored as real collision
+  geometry instead of empty Xforms; `ScenarioConfig` gains `family`,
+  `static_obstacles`, `parameters`, `oracle`, and obstacle `size`; per-scenario
+  Nav2 maps bake static-obstacle footprints. Plan:
+  `docs/superpowers/plans/2026-09-18-head-on-asymmetric-family.md`. Design:
+  `docs/superpowers/specs/2026-09-18-head-on-asymmetric-family-design.md`.
+  Hardware verification: `docs/reports/2026-09-18-head-on-family-validity.md`.
 
 ---
 
@@ -145,6 +154,24 @@ It is written only to validation logs or exposed through test-only APIs.
 - FR6.2.8 Robot references may not be marked instanceable while per-robot sensor
   settings, namespaces, graph targets, or marker IDs differ. Meshes inside the
   imported asset may remain instanced by the importer.
+- FR6.2.9 (Rev 4, 2026-09-19) Static and timed obstacles are authored as real
+  collision geometry, not empty placeholder prims. A shared `_author_box`
+  helper (`isaac/vgu_sim/scenario_builder.py`) creates a `UsdGeom.Cube` sized
+  from the obstacle's `ObstacleSize` (§4.1), applies `UsdPhysics.CollisionAPI`
+  (no rigid body — a static collider), and orients it from the obstacle's
+  `Pose2D`. Static obstacles are authored under
+  `/World/Scenario/StaticObstacles/<obstacle_id>` and are active for the whole
+  run; timed obstacles are authored under
+  `/World/DynamicObstacles/<obstacle_id>` and stay inactive until the event
+  scheduler (§7.6) activates them at `spawn_at_sec`, exactly as before — only
+  their geometry changed. Before this revision, timed obstacles were authored
+  as empty `Xform` prims with no `Cube`, no `CollisionAPI`, and therefore no
+  lidar return.
+- FR6.2.10 (Rev 4, 2026-09-19) `validate_scenario_obstacles(stage, config)`
+  (`isaac/vgu_sim/validation.py`) checks every configured static and timed
+  obstacle has its authored prim before `stage.Save()`, raising
+  `ValidationError` naming the first missing prim path. A stale or missing
+  obstacle prim therefore fails the build, not a later run.
 
 ### M6.3 Canonical Prim Namespace
 
@@ -166,11 +193,16 @@ Every composed scenario must provide these paths:
 ├── DynamicObstacles
 ├── Scenario
 │   ├── Goals
+│   ├── StaticObstacles
 │   └── Metadata
 └── ROSGraphs
     ├── Global
     └── robot_N
 ```
+
+`/World/Scenario/StaticObstacles` is always defined (Rev 4, 2026-09-19), even
+when a scenario declares no static obstacles — an empty `Xform`, not an
+absent prim, so validation has one path rather than an optional one.
 
 - FR6.3.1 Robot IDs and prim names use `robot_N`, where `N` is a positive
   integer without zero padding.
@@ -406,6 +438,22 @@ external interfaces in this table remain mandatory.
 - FR6.8.6 Dynamic obstacles are pre-authored under
   `/World/DynamicObstacles` as inactive prims. Runtime events activate and
   deactivate them at fixed simulation timestamps.
+- FR6.8.7 (Rev 4, 2026-09-19) `isaac/scripts/generate_head_on_family.py`
+  generates the `head_on_asymmetric` scenario family: a parked static blocker
+  behind one or both spawn points, parameterized by `HeadOnAsymmetricParams`
+  (§4.1), with a computed `OracleConfig` (§4.1) frozen into each generated
+  yaml. It is a local, Isaac-free generator (no `SimulationApp`) that reads
+  scene geometry from `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`
+  (`scenario_geometry`, the block M3 grounds against) via
+  `isaac/vgu_sim/family_oracle.py`, so the oracle and the executed maneuver
+  share one geometry definition. v1 writes three committed variants —
+  `head_on_asymmetric_w0p2_eopen_o0`, `head_on_asymmetric_wopen_e0p2_o0`,
+  `head_on_asymmetric_wopen_eopen_o0` — plus `family_manifest.csv`
+  (variant, parameters, oracle fields, `tier`) under
+  `isaac/config/scenarios/family/`. The `w0p2_e0p2` cell has no feasible
+  yielder and is skipped (printed, not written). A staleness-guard test
+  regenerates the family into a temp dir and asserts it matches the committed
+  files byte for byte.
 
 ### M6.9 Standalone Execution and Reset
 
@@ -467,12 +515,29 @@ class RobotScenarioConfig(BaseModel):
     initial_task: str
 
 
+class ObstacleSize(BaseModel):
+    """Bounding-box size in meters for a static or timed obstacle."""
+
+    x_m: float = 0.3
+    y_m: float = 0.3
+    z_m: float = 0.5
+
+
+class StaticObstacleConfig(BaseModel):
+    """A fixed-pose obstacle present for the entire scenario duration."""
+
+    obstacle_id: str
+    pose: Pose2D
+    size: ObstacleSize = ObstacleSize()
+
+
 class TimedObstacleConfig(BaseModel):
     obstacle_id: str
     asset: str
     spawn_at_sec: float
     remove_at_sec: float | None
     pose: Pose2D
+    size: ObstacleSize = ObstacleSize()
 
 
 class ExpectedConflictConfig(BaseModel):
@@ -488,17 +553,47 @@ class ScenarioRuntimeOverrides(BaseModel):
     duration_sec: float | None = None
 
 
+class HeadOnAsymmetricParams(BaseModel):
+    """Parametric knobs for the head-on-asymmetric scenario family."""
+
+    blocker_west_m: float | None = None
+    blocker_east_m: float | None = None
+    arrival_offset_m: float = 0.0
+
+
+class OracleConfig(BaseModel):
+    """The ground-truth yield decision and its rationale for a scenario."""
+
+    correct_yielder: str
+    fcfs_yielder: str
+    feasible_yielders: tuple[str, ...]
+    objective: Literal["min_total_time_to_goal"] = "min_total_time_to_goal"
+    rationale: str
+
+    @property
+    def contrasts_fcfs(self) -> bool:
+        return self.correct_yielder != self.fcfs_yielder
+
+
+FAMILY_BY_LEGACY_NAME: dict[str, str] = {
+    "head_on_deadlock": "head_on",
+    "intersection_bottleneck": "intersection",
+    "dynamic_anomaly": "dynamic_anomaly",
+}
+ScenarioFamily = Literal["head_on", "intersection", "dynamic_anomaly"]
+
+
 class ScenarioConfig(BaseModel):
     schema_version: Literal[1]
-    name: Literal[
-        "head_on_deadlock",
-        "intersection_bottleneck",
-        "dynamic_anomaly",
-    ]
+    name: str  # ^[a-z][a-z0-9_]*$; free-form (Rev 4), legacy names still valid
+    family: ScenarioFamily
     seed: int
     duration_sec: float
     robots: tuple[RobotScenarioConfig, ...]
     timed_obstacles: tuple[TimedObstacleConfig, ...] = ()
+    static_obstacles: tuple[StaticObstacleConfig, ...] = ()
+    parameters: HeadOnAsymmetricParams | None = None
+    oracle: OracleConfig | None = None
     expected_conflict: ExpectedConflictConfig
     runtime: ScenarioRuntimeOverrides = Field(
         default_factory=ScenarioRuntimeOverrides
@@ -523,6 +618,22 @@ Validation rules:
 - `onset_window_sec` is increasing and contained within the run duration.
 - `runtime.physics_hz` must equal `60` and `runtime.rendering_hz` must equal
   `30` for the initial implementation.
+- (Rev 4, 2026-09-19) `name` matches `^[a-z][a-z0-9_]*$` (no dots or dashes —
+  generated variant ids spell the decimal point as `p`, e.g. `w0p2_eopen_o0`,
+  for exactly this reason).
+- (Rev 4) `family` is inferred from `FAMILY_BY_LEGACY_NAME` via a
+  `model_validator(mode="before")` when omitted, so the three legacy yamls
+  parse unchanged; an explicit `family` is honored as given (needed for
+  generated names, which have no legacy mapping); a name with neither an
+  explicit `family` nor a legacy mapping raises
+  `ValueError(f"family is required for scenario name {name!r}")`.
+- (Rev 4) `ObstacleSize` fields are each `> 0`. `obstacle_id` is unique across
+  `static_obstacles` and `timed_obstacles` combined.
+- (Rev 4) Every robot id named in `oracle` (`correct_yielder`, `fcfs_yielder`,
+  each of `feasible_yielders`) must exist in `robots`.
+- (Rev 4) `OracleConfig.feasible_yielders` is non-empty and must contain
+  `correct_yielder`; `contrasts_fcfs` (`correct_yielder != fcfs_yielder`) is a
+  derived property, never a stored field.
 
 ### 4.2 Asset and Runtime Models
 
@@ -707,6 +818,15 @@ ${ISAAC_SIM_ROOT}/python.sh -m isaac.scripts.build_scenario \
   --config isaac/config/scenarios/head_on_deadlock.yaml
 ```
 
+Generate the head-on asymmetric scenario family (Rev 4, 2026-09-19; local,
+no Isaac Sim):
+
+```bash
+python isaac/scripts/generate_head_on_family.py \
+  --out-dir isaac/config/scenarios/family \
+  --geometry ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml
+```
+
 Validate assets and a scenario:
 
 ```bash
@@ -787,17 +907,24 @@ isaac/
 │   └── scenarios/
 │       ├── head_on_deadlock.yaml
 │       ├── intersection_bottleneck.yaml
-│       └── dynamic_anomaly.yaml
+│       ├── dynamic_anomaly.yaml
+│       └── family/                         # Rev 4 (2026-09-19)
+│           ├── head_on_asymmetric_w0p2_eopen_o0.yaml
+│           ├── head_on_asymmetric_wopen_e0p2_o0.yaml
+│           ├── head_on_asymmetric_wopen_eopen_o0.yaml
+│           └── family_manifest.csv
 ├── scenarios/
 │   ├── head_on_deadlock.usd
 │   ├── intersection_bottleneck.usd
-│   └── dynamic_anomaly.usd
+│   ├── dynamic_anomaly.usd
+│   └── head_on_asymmetric_*.usd            # Rev 4, generated, not committed
 ├── scripts/
 │   ├── __init__.py
 │   ├── import_turtlebot3.py
 │   ├── build_warehouse.py
 │   ├── build_scenario.py
 │   ├── validate_simulation.py
+│   ├── generate_head_on_family.py          # Rev 4 (2026-09-19)
 │   └── run_simulation.py
 └── vgu_sim/
     ├── __init__.py
@@ -809,9 +936,15 @@ isaac/
     ├── ros_graphs.py
     ├── event_scheduler.py
     ├── oracle.py
+    ├── family_oracle.py                    # Rev 4 (2026-09-19)
     ├── runner.py
     └── validation.py
 ```
+
+`ros2_ws/src/swarm_simulation/maps/` also gains one `warehouse_map_<variant>.{pgm,yaml}`
+pair per committed family variant (§7.3-adjacent map generator, unchanged
+entrypoint), each baking that variant's `static_obstacles` footprint in
+addition to the aisle barrier (`--scenario` accepts a family yaml path).
 
 Additional ownership:
 
@@ -1031,6 +1164,33 @@ def run_simulation(config: ResolvedRunConfig) -> tuple[RunResult, ...]
     stub, FR6.8.5a) while the route is blocked, with no penetrating collision
     and no contact with a wall or rack collider (unified collision rule,
     Section 9.4).
+
+### 8.4 Head-On Asymmetric Family (Rev 4, 2026-09-19)
+
+- Robots: `robot_1`, `robot_2`, same spawns/goals as 8.1.
+- A parametric family (`family: head_on`, generated by
+  `isaac/scripts/generate_head_on_family.py`, FR6.8.7) that parks a static
+  `0.3 x 0.3 x 0.5 m` collision box (§4.1 `StaticObstacleConfig`) a configured
+  distance behind one or both spawn points, occupying that side's straight
+  backup lane so a yield on that side cannot complete while leaving the
+  passer's flank lanes and both goals clear. Full derivation, the computed
+  `OracleConfig` rule, and the v1 grid (three variants:
+  `head_on_asymmetric_w0p2_eopen_o0`, `head_on_asymmetric_wopen_e0p2_o0`,
+  `head_on_asymmetric_wopen_eopen_o0`) are specified in
+  `docs/superpowers/specs/2026-09-18-head-on-asymmetric-family-design.md`
+  (rev 2), not restated here to avoid a second source of truth; the frozen
+  parameter/oracle values per variant are in
+  `isaac/config/scenarios/family/family_manifest.csv`.
+- Expected conflict: same oracle as 8.1 (unified collision rule, Section 9.4);
+  the additional pass/fail signal specific to this family is whether the
+  yielder can reach the derived park point before the blocker, which is a
+  test-harness/hardware-evidence check
+  (`docs/reports/2026-09-18-head-on-family-validity.md`, "Validity Pairs
+  (T2a)"), not an M6 acceptance oracle.
+- The `oracle:` block frozen into each variant's yaml is consumed only by
+  config validation (uniqueness/membership checks, §4.1) — nothing in the
+  M1-M5 pipeline reads `correct_yielder` at runtime, so it cannot silently
+  become part of a live decision.
 
 ---
 

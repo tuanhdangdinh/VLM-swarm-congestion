@@ -43,6 +43,45 @@
   modality (`ReasonerRequest.include_pairwise_geometry`, M5
   `prompt_pairwise_geometry`) and an ablation axis, so RQ1 is not answered
   by a prompt that already contains a classical geometry summary.
+- Rev 8.6 (2026-09-19): T1 and the T2a *geometry* are realized as the
+  `head_on_asymmetric` scenario family — a parked static blocker behind one
+  or both spawn points, parameterized (`HeadOnAsymmetricParams`) and paired
+  with a computed `OracleConfig` frozen at generation time (design:
+  `docs/superpowers/specs/2026-09-18-head-on-asymmetric-family-design.md`
+  rev 2; variants and their oracles: `family_manifest.csv`; hardware
+  validity evidence: `docs/reports/2026-09-18-head-on-family-validity.md`).
+  The family's oracle uses this document's FCFS + commitment tiebreak rule
+  (RQ3 control, above): with `arrival_offset_m` fixed at 0 in v1 both
+  robots arrive together, so the residual tie breaks lexicographically by
+  `robot_id` → `robot_1`, exactly as specified. The T2a **oracle-agreement
+  claim** is a separate matter from the geometry and is *not* answerable by
+  Arm A as prompted, per the 2026-09-19 design review (below); this
+  revision also un-defers two mechanisms this document's Appendix A.4
+  already anticipated and adds them to Arm A as declared, default-off
+  modalities:
+  - The **decision schema gains `yield_robot: str | None`**
+    (`CongestionDecision`, module-2 FR2.1.9) — the model's own stated
+    choice of yielder, meaningful only when `strategy == "yield"` and never
+    required. Before this field, downstream grounding read list position in
+    `involved_robots` as the yielder channel; a census of 524 decision
+    artifacts found `robot_1` listed first in 44/44 `yield` decisions, i.e.
+    position was never observed to carry a choice (design review Finding
+    2).
+  - The **modality table gains `static_obstacles`** (module-2 FR2.1.8, M5
+    `prompt_static_obstacles`), alongside `pairwise_geometry`, following the
+    same declared-modality pattern rev 8.5 established: id/centre/extent
+    only, default **off**, and an off prompt byte-identical to the
+    pre-modality prompt (pinned by a length + SHA-256 test).
+
+  **Both are Arm A changes to the model/decoding pre-registration**, and
+  both must be named in it before either is scored as a T2a oracle-agreement
+  cell: **every decision artifact collected before 2026-09-19 was produced
+  without `yield_robot` and without the obstacle channel**, by construction
+  (neither field existed). The paired variants collected under this plan
+  (`w0p2_eopen_o0` vs `wopen_e0p2_o0`) are reported as an order-vs-scene
+  demonstration, not a T2a oracle-agreement result — see the family design
+  spec's Status line and the 2026-09-19 design review for the full
+  reasoning.
 
 Status: in user review. Predecessor system: the verified head-on yield
 protocol (H3 runs 8–13) and the M1→M5→M2→M3→M4 closed loop, live on the
@@ -215,6 +254,18 @@ preempts both "strawman baseline" and "tuned-on-test" critiques.
   because the first-arriver has no retreat room); (b) symmetric standoff
   with asymmetric downstream traffic (the correct order depends on flow,
   visible in the trails/motion table).
+  **T2a's geometry (rev 8.6, 2026-09-19)** is realized by the
+  `head_on_asymmetric` scenario family: `head_on_asymmetric_w0p2_eopen_o0`
+  (blocked west, `correct_yielder: robot_2`, contrasts the FCFS pick) and
+  `head_on_asymmetric_wopen_e0p2_o0` (blocked east, `correct_yielder:
+  robot_1`, FCFS happens to be right — included to expose robot-id bias),
+  both against the `head_on_asymmetric_wopen_eopen_o0` T1 control. Design:
+  `docs/superpowers/specs/2026-09-18-head-on-asymmetric-family-design.md`
+  (rev 2); frozen parameters and oracles: `family_manifest.csv`. The
+  **oracle-agreement claim** these two variants exist to support is not
+  currently answerable by Arm A as prompted (rev 8.6, above; design review
+  Findings 1–2) — collecting it needs the `yield_robot` field and the
+  static-obstacle modality named in the Arm A pre-registration first.
 - **T3 Semantics-required** (only-VLM tier): (a) paired blocker
   counterfactuals — near-identical geometry, static object vs. transient
   agent (divergent correct responses: `reroute` vs. `temporary_wait`);
@@ -393,6 +444,7 @@ summaries below.
 | Annotated frame + trails | ✓ | — | ✓ |
 | Robot state table | ✓ | ✓ | — |
 | Derived pairwise geometry lines (distance, mutual facing; rev 8.5, `prompt_pairwise_geometry`) | ✓ | ✓ | — |
+| Static obstacles (id/centre/extent; rev 8.6, `prompt_static_obstacles`, default off) | ✓ | ✓ | — |
 | Motion table | ✓ | ✓ | — |
 | Failure-context block (re-analysis) | ✓ | ✓ | — |
 | Annotation-scheme sentence | ✓ | — | ✓ |

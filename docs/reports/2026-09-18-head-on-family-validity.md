@@ -8,6 +8,7 @@
 - Rev 2 (2026-09-19): corrected the T1 root-cause conclusion. The original "Root cause" section named an M4 defect as the cause of `robot_1`'s failure to arrive; that conclusion is wrong. The actual cause is `build_backend`'s mock branch (`reasoning/vlm/backend_factory.py`) collapsing `VGU_MOCK_DECISION_FILE` to a single repeated decision, so M2 replayed "deadlock / yield" on all 16 analyses instead of reporting `congestion_detected=false` once the scene cleared. The resume/cancel forensics in the original section are accurate and preserved — they are the *mechanism* by which the repeated commands stopped `robot_1`, not evidence of an independent M4 bug. The original text is marked superseded rather than removed; see "Root cause (revised)" below and the corrected Entry Criteria bullet. Fixed in the same commit by giving `VGU_MOCK_DECISION_FILE` an optional scripted-sequence form (`config/mock_decisions/head_on_yield_once.json`, `head_on_yield_robot_2_once.json`).
 - Rev 3 (2026-09-19): added "Validity Pairs (T2a)" — the four forced-yielder runs (Task 8) that test each T2a variant's frozen `oracle:` block against both yielder orders, with the run_id rows added to the mapping table below. Both variants pass: the oracle-infeasible yielder's maneuver ends `FAILED` in each, with the yielding robot stalled against its blocker's near face, and the oracle-feasible yielder's maneuver completes with both robots reaching their goals. The Rev 2 verification gate on the M4 resume race is met (130.17 s and 131.23 s uninterrupted navigation windows against a 17 s requirement), so that race remains latent and does not block Task 9.
 - Rev 4 (2026-09-19): added "RQ5 recovery runs (gpt-4o), modality A/B" — two recorded live-model runs (Task 9) on the blocked variant `head_on_asymmetric_w0p2_eopen_o0`, paired on the static-obstacle prompt modality (Run A `20260919_042935` OFF, Run B `20260919_044729` ON). Both runs opened with `yield` naming `robot_1`, the robot the parked box makes it impossible for, and both first maneuvers ended `FAILED` with the chassis 0.093–0.094 m from the blocker's near face — indistinguishable outcomes, so supplying the obstacle's geometry produced no measurable change in the decision under test. The failure-context block reached the next prompt in both runs and both second decisions were `reverse`, which M4 dispatches symmetrically and which therefore cannot resolve a two-robot head-on; neither run produced an arrival. The section records why first-answer yielder identity is not evidence of spatial reasoning (it is confounded with `involved_robots` order, and under Run A the blocker is not perceivable at all), and verifies the modality end-to-end from the rendered prompt stored in each decision artifact rather than from build output.
+- Rev 5 (2026-09-19): one factual refinement to the Rev 2 correction, using Task 8's own evidence. Rev 2 called the M4 resume race "real but **latent**, needing a pathological repeat-command stream." Task 8's forced-yielder runs show it reproducing on a **single** dispatched command (7–8 cancels over 14–15 s in Runs 2 and 4) but **self-limiting** — the churn stops on its own and the resuming robot still gets its full window (130.17 s / 131.23 s against the 17 s gate). Rev 2's causal story for T1 still holds: the frozen mock's ~38 s re-triggers kept re-issuing commands before the churn could settle, which is why `robot_1` never progressed in that run — but "latent, needs a pathological stream" is too strong and is reworded to "reproduces on a single command, is self-limiting, and did not prevent arrival here, but still needs its own investigation." The three passages carrying the stale wording ("Root cause (revised)" → "What remains open", the T2a navigation-window-gate conclusion, and the Entry Criteria bullet) are corrected in place with the original text kept and marked superseded, not deleted.
 
 ---
 
@@ -268,14 +269,32 @@ robot do to any resume path that cancels on re-command. `robot_2` was
 unaffected only because it happened to reach its goal during the very first
 yield, before it was ever re-commanded.
 
-**What remains open.** A resume that gets cancelled a median of 0.11 s after
-it starts is unusual on its own terms, independent of what caused the
-repeat-command stream. That is recorded here as a real but **latent** M4
-issue: it takes a pathological repeat-command stream to manifest — which is
-exactly what the frozen mock produced and what a live backend would not
-produce — so it did not block this task, but it needs its own investigation
-before the codebase can assume rapid successive commands to one robot are
-safe. It should not be read as ruled out by this correction.
+**What remains open (superseded by Rev 5, 2026-09-19 — see below).** A resume
+that gets cancelled a median of 0.11 s after it starts is unusual on its own
+terms, independent of what caused the repeat-command stream. That is
+recorded here as a real but **latent** M4 issue: it takes a pathological
+repeat-command stream to manifest — which is exactly what the frozen mock
+produced and what a live backend would not produce — so it did not block
+this task, but it needs its own investigation before the codebase can assume
+rapid successive commands to one robot are safe. It should not be read as
+ruled out by this correction.
+
+> **Refinement (Rev 5, 2026-09-19).** Task 8's four forced-yielder runs (see
+> "Navigation-window gate (Runs 2 and 4)" below) show the resume/cancel churn
+> reproducing on a **single** dispatched command — 7 cancels in 14.05 s
+> (Run 2) and 8 in 15.48 s (Run 4) — not only under T1's repeated-decision
+> stream. So "it takes a pathological repeat-command stream to manifest" is
+> too strong: the race is reachable from one ordinary resume. What the two
+> runs also show is that the churn is **self-limiting** — it stops on its own
+> within roughly 15 s and the robot then gets a full, uninterrupted window
+> (130.17 s and 131.23 s against Rev 2's 17 s gate) — so Rev 2's causal story
+> for T1 still holds: the frozen mock's ~38 s re-triggers kept re-issuing
+> commands before the churn could settle, which is why `robot_1` never
+> progressed in that run. "Latent, needs a pathological stream" is reworded
+> to: **the race reproduces on a single command and is self-limiting; it does
+> not, by itself, prevent arrival, but it remains real and still needs its
+> own investigation** — this paragraph's original wording is kept above,
+> marked superseded rather than deleted, per this document's own convention.
 
 **Fix landed in the same commit as this revision.** `build_backend`'s mock
 branch now accepts either a single decision object (unchanged behaviour) or
@@ -504,8 +523,14 @@ Run 4:
 [1789791075.546648100] [robot_1.bt_navigator]: Goal succeeded
 ```
 
-Both clear the 17 s bar by a factor of about 7.7. **The gate is met and the M4
-resume race stays classified as latent.**
+Both clear the 17 s bar by a factor of about 7.7. **The gate is met: neither
+run's resuming robot was starved of the window it needed, so the race did not
+block arrival here.** (Superseded by Rev 5, 2026-09-19: the original wording
+here — "the M4 resume race stays classified as latent" — overstated the
+paragraph immediately below, which already shows the race reproducing on a
+single dispatched command, not only under a pathological repeat-command
+stream; see the "Refinement (Rev 5, 2026-09-19)" note in "Root cause
+(revised)" above for the corrected classification.)
 
 The race is nonetheless visible in both runs and is worth recording precisely,
 because Rev 2 left it open. Immediately after the command resolves there is a
@@ -726,10 +751,14 @@ carrying `run_id=20260918_184400`.
       In runs `20260919_034224` and `20260919_040414` the resuming robot got
       130.17 s and 131.23 s of uninterrupted navigation against a 17 s
       requirement and reached its goal, and both robots arrived in each run.
-      The M4 resume race stays classified as latent and Tasks 8/9 proceed;
-      see "Navigation-window gate (Runs 2 and 4)" above, which also records
-      the short self-limiting resume/cancel burst that remains open for its
-      own investigation.
+      The gate is met and Tasks 8/9 proceed; see "Navigation-window gate
+      (Runs 2 and 4)" above, which also records the short resume/cancel burst
+      — reproducing on a single dispatched command, self-limiting, and not
+      preventing arrival — that remains open for its own investigation.
+      **Refined by Rev 5 (2026-09-19):** "stays classified as latent" is
+      corrected in "Root cause (revised)" above — the race is not confined to
+      a pathological repeat-command stream, only self-limiting when it
+      occurs.
 - [x] Both T2a variants pass their authoring-time validity check (Task 8).
 
 ---

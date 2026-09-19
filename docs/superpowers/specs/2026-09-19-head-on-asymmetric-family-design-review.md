@@ -10,6 +10,21 @@
 
 **Separate observation for the owner, not acted on here:** `tests/unit/test_m6_config.py::test_head_on_yaml_round_trip` is currently failing on this branch — `assert cfg.aisle_barrier.effective_width_m == pytest.approx(0.4)` gets `0.55`. The assertion was last touched by `df047ae`, i.e. it belongs to the in-progress family work rather than to the project's known baseline failures. Left alone deliberately: it is the owner's test and the owner's call. Noting it because it means the branch is mid-flight, and a merge to `main` would carry a red test along with it.
 
+> **Correction (2026-09-19, appended by the plan's docs task):** the claim
+> above that `test_head_on_yaml_round_trip` "was last touched by `df047ae`"
+> and "belongs to the in-progress family work" is wrong. `git show df047ae --
+> tests/unit/test_m6_config.py` does not touch this test or its
+> `effective_width_m` assertion at all — `df047ae` only adds new tests to the
+> file. `git log -S "effective_width_m" -- tests/unit/test_m6_config.py`
+> traces the assertion to `aa80d96` (`feat: narrow corridor scenario 0.55m x
+> 2.0m for credible congestion`), predating this work, confirmed present at
+> `e7764bc` (the branch's pre-family snapshot commit) as well. This is a
+> genuine pre-existing baseline failure — `pytest tests/unit -q` on this
+> branch fails it alongside 7 others unrelated to the family (8 total, not
+> 13; the plan's Global Constraints line citing 13 is itself stale). It does
+> not need the owner's call on the family work; it needs its own,
+> independent fix or triage.
+
 **Source of evidence:** the Gemini Robotics-ER 2 evaluation and image-grounding study of 2026-09-18, on branch `feat/gemini-er2-backend`. See `docs/reports/2026-09-18-research-findings-register.md` (findings A1, A3, A6, A8, B1) and `docs/reports/2026-09-18-gemini-er2-image-grounding.md` (Experiments 1–6). Those files are on that branch, not this one.
 
 ---
