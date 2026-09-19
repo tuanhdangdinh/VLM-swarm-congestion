@@ -7,6 +7,7 @@
 - Initial draft: T1 control run (`head_on_asymmetric_wopen_eopen_o0`, mock backend) on the GPU VM, plus the VM sync and artifact-build verification that preceded it.
 - Rev 2 (2026-09-19): corrected the T1 root-cause conclusion. The original "Root cause" section named an M4 defect as the cause of `robot_1`'s failure to arrive; that conclusion is wrong. The actual cause is `build_backend`'s mock branch (`reasoning/vlm/backend_factory.py`) collapsing `VGU_MOCK_DECISION_FILE` to a single repeated decision, so M2 replayed "deadlock / yield" on all 16 analyses instead of reporting `congestion_detected=false` once the scene cleared. The resume/cancel forensics in the original section are accurate and preserved — they are the *mechanism* by which the repeated commands stopped `robot_1`, not evidence of an independent M4 bug. The original text is marked superseded rather than removed; see "Root cause (revised)" below and the corrected Entry Criteria bullet. Fixed in the same commit by giving `VGU_MOCK_DECISION_FILE` an optional scripted-sequence form (`config/mock_decisions/head_on_yield_once.json`, `head_on_yield_robot_2_once.json`).
 - Rev 3 (2026-09-19): added "Validity Pairs (T2a)" — the four forced-yielder runs (Task 8) that test each T2a variant's frozen `oracle:` block against both yielder orders, with the run_id rows added to the mapping table below. Both variants pass: the oracle-infeasible yielder's maneuver ends `FAILED` in each, with the yielding robot stalled against its blocker's near face, and the oracle-feasible yielder's maneuver completes with both robots reaching their goals. The Rev 2 verification gate on the M4 resume race is met (130.17 s and 131.23 s uninterrupted navigation windows against a 17 s requirement), so that race remains latent and does not block Task 9.
+- Rev 4 (2026-09-19): added "RQ5 recovery runs (gpt-4o), modality A/B" — two recorded live-model runs (Task 9) on the blocked variant `head_on_asymmetric_w0p2_eopen_o0`, paired on the static-obstacle prompt modality (Run A `20260919_042935` OFF, Run B `20260919_044729` ON). Both runs opened with `yield` naming `robot_1`, the robot the parked box makes it impossible for, and both first maneuvers ended `FAILED` with the chassis 0.093–0.094 m from the blocker's near face — indistinguishable outcomes, so supplying the obstacle's geometry produced no measurable change in the decision under test. The failure-context block reached the next prompt in both runs and both second decisions were `reverse`, which M4 dispatches symmetrically and which therefore cannot resolve a two-robot head-on; neither run produced an arrival. The section records why first-answer yielder identity is not evidence of spatial reasoning (it is confounded with `involved_robots` order, and under Run A the blocker is not perceivable at all), and verifies the modality end-to-end from the rendered prompt stored in each decision artifact rather than from build output.
 
 ---
 
@@ -32,6 +33,8 @@ association.
 | `20260919_034224` | `head_on_asymmetric_w0p2_eopen_o0` | mock | `/ws/config/mock_decisions/head_on_yield_robot_2_once.json` | 2026-09-19T03:42:24Z | 2026-09-19T03:53:41Z | Forced `robot_2` (open) - yield `COMPLETED`, both robots reached their goals |
 | `20260919_035429` | `head_on_asymmetric_wopen_e0p2_o0` | mock | `/ws/config/mock_decisions/head_on_yield_robot_2_once.json` | 2026-09-19T03:54:29Z | 2026-09-19T04:03:42Z | Forced `robot_2` (blocked) - yield `FAILED` as the oracle predicts |
 | `20260919_040414` | `head_on_asymmetric_wopen_e0p2_o0` | mock | `/ws/config/mock_decisions/head_on_yield_once.json` | 2026-09-19T04:04:14Z | 2026-09-19T04:14:25Z | Forced `robot_1` (open) - yield `COMPLETED`, both robots reached their goals |
+| `20260919_042935` | `head_on_asymmetric_w0p2_eopen_o0` | `openai` (gpt-4o), live | none - obstacle modality **OFF** (`prompt_static_obstacles: false`) | 2026-09-19T04:29:35Z | 2026-09-19T04:44:12Z | Run A - model chose `yield` / `yield_robot=robot_1` (infeasible); `FAILED` after 254.7 s, then `reverse` also `FAILED`; no arrivals |
+| `20260919_044729` | `head_on_asymmetric_w0p2_eopen_o0` | `openai` (gpt-4o), live | none - obstacle modality **ON** (`prompt_static_obstacles: true` + `static_obstacles`) | 2026-09-19T04:47:29Z | 2026-09-19T05:02:08Z | Run B - same first answer `yield` / `yield_robot=robot_1`; `FAILED` after 254.0 s, then `reverse` also `FAILED`; no arrivals |
 
 ---
 
@@ -728,3 +731,376 @@ carrying `run_id=20260918_184400`.
       the short self-limiting resume/cancel burst that remains open for its
       own investigation.
 - [x] Both T2a variants pass their authoring-time validity check (Task 8).
+
+---
+
+## RQ5 recovery runs (gpt-4o), modality A/B
+
+Two live-model runs on `head_on_asymmetric_w0p2_eopen_o0`, the variant whose
+parked box makes a yield by `robot_1` physically impossible. Task 8 established
+that fact by forcing each yielder in turn; here the model decides for itself,
+under two conditions that differ only in whether the prompt carries the box's
+geometry.
+
+- **Run A — obstacle channel OFF** (`prompt_static_obstacles: false`, the
+  shipped default). The model cannot perceive the blocker through any channel.
+  This is the information-bound condition and is comparable with every decision
+  artifact collected to date.
+- **Run B — obstacle channel ON** (`prompt_static_obstacles: true` with the
+  `static_obstacles` list supplied). The model is told the box's id, centre and
+  extent, and nothing about what they imply.
+
+**The A/B contrast is the result.** Neither run's first answer means anything on
+its own.
+
+### Configuration
+
+| Key | Run A | Run B |
+|---|---|---|
+| run_id | `20260919_042935` | `20260919_044729` |
+| `prompt_static_obstacles` | `false` | `true` |
+| `static_obstacles` | absent | `[{obstacle_id: obstacle_1, x: -1.85, y: 0.0, size_x_m: 0.3, size_y_m: 0.3}]` |
+| Backend | `openai` (gpt-4o), live key sourced inside the container | same |
+| Launcher | `scripts/vm/fc_launch.sh` (`RECORD=1`, `REC_SEC=780`, `SIM_SEC` default 1200) | same |
+| M5 session | `c78150f576ee4c65b703359481845464` | `7009d9ab2cb7495e93eba4d92a1a8fbe` |
+| Start / End (UTC) | 04:29:35Z / 04:44:12Z | 04:47:29Z / 05:02:08Z |
+
+Both runs' `run_id` rows are in the Run ID Mapping table above, which this
+document keeps as the sole record of that association.
+
+### The modality was verified from the rendered prompt, not from build output
+
+`bf2d89d` and `501bb49` modify `ros2_ws/src/swarm_orchestrator/`, which is
+colcon-built rather than mounted live, so a skipped rebuild would have produced
+an OFF run mislabelled as ON. Before Run A the VM's installed
+`swarm_orchestrator/models.py` contained **zero** occurrences of
+`prompt_static_obstacles`; after touching the sources, wiping
+`ros2_ws/{build,install,log}` and rebuilding all five packages it contained two,
+and all three installed orchestrator modules matched their sources by md5.
+
+The decisive check is downstream of every build path: `write_decision_artifact`
+persists the rendered prompt in each decision artifact. Across the two runs:
+
+| | Run A | Run B |
+|---|---|---|
+| Prompts containing `obstacle_1` | **0 of 16** | **10 of 10** |
+| First-decision prompt length | 3405 chars | 3641 chars |
+
+The two first-decision prompts were diffed directly rather than inferred from
+the length delta. **The only structural difference is the obstacle block plus
+its one-sentence completeness clause**; everything else that differs is
+sub-centimetre pose noise between two separate physical episodes
+(`robot_1 x=-0.09` vs `-0.10`, pairwise distance 0.18 m vs 0.19 m). No section
+is present in one prompt and absent from the other. The full diff:
+
+```diff
+-- robot_id=robot_1, x=-0.09, y=-0.02, theta=-0.20, status=STOPPED, linear_velocity=0.01
+-- robot_id=robot_2, x=0.09, y=0.00, theta=-3.07, status=STOPPED, linear_velocity=0.00
++- robot_id=robot_1, x=-0.10, y=0.00, theta=0.05, status=STOPPED, linear_velocity=0.00
++- robot_id=robot_2, x=0.10, y=0.00, theta=-3.09, status=STOPPED, linear_velocity=0.00
+-- robot_1 <-> robot_2: distance 0.18 m; ...
++- robot_1 <-> robot_2: distance 0.19 m; ...
++Static obstacles (world-frame axis-aligned boxes):
++- obstacle_1: centre (-1.85, 0.00) m, extent 0.30 x 0.30 m
++
+ - Robots are roughly 0.3 m wide; ... do not re-derive distances or facing from the coordinates.
++   Fixed obstacles in the scene are listed above and are the only ones present; a robot can neither occupy nor drive through one.
+```
+
+Run B's prompt carries exactly the intended block and nothing more:
+
+```text
+Static obstacles (world-frame axis-aligned boxes):
+- obstacle_1: centre (-1.85, 0.00) m, extent 0.30 x 0.30 m
+```
+
+The id is the deliberately neutral `obstacle_1`; it names neither the object's
+role nor its side. The accompanying completeness clause was also rendered:
+`Fixed obstacles in the scene are listed above and are the only ones present; a
+robot can neither occupy nor drive through one.`
+
+Run A's comparability with the pre-feature artifacts is backed by the pinned
+prompt-hash guard: `tests/unit/test_prompt_builder.py` passes 37/37 on the
+synced code, including
+`test_build_prompt_payload_off_prompt_is_byte_identical_to_pre_feature_prompt`
+and `test_shipped_orchestrator_yaml_obstacle_ids_do_not_leak_into_the_prompt`.
+
+### Run A — modality OFF
+
+**First strategy: `yield`, targeting `robot_1`** — the robot with no retreat
+space.
+
+```text
+[1789792297.489545030] [orchestrator_node]: starting analysis request=d33b77a6979d47bd8ab41c718266218f robots=['robot_2'] reason=1 robot(s) stalled >= 12.0s distance_to_goal_m={'robot_2': 2.59}
+[1789792302.794017507] [orchestrator_node]: dispatch request=d33b77a6979d47bd8ab41c718266218f command=d33b77a6979d47bd8ab41c718266218f-yield robot=robot_1
+```
+
+The artifact records `strategy=yield`, `involved_robots=['robot_1','robot_2']`,
+`yield_robot=robot_1`.
+
+**The maneuver failed:**
+
+```text
+[1789792557.539289431] [command_bus_node]: status published command=d33b77a6979d47bd8ab41c718266218f-yield robot=robot_1 status=FAILED
+```
+
+254.7 s after dispatch. `robot_2`'s `temporary_wait` completed in the same
+instant.
+
+**The previous-attempt block did reach the next prompt.** M5 logged it:
+
+```text
+[1789792588.871010555] [orchestrator_node]: request=800087d0128941cfad269618aeb28109 failure_context attached command=d33b77a6979d47bd8ab41c718266218f-yield strategy=yield executed=yield outcome=failed
+```
+
+and the stored prompt for that request contains it verbatim:
+
+```text
+Previous attempt in this episode:
+- strategy=yield, yield_robot=robot_1, outcome=failed
+- detail: yield failed after 255 s; congestion re-detected for the same robots
+If the congestion is no longer present, report congestion_detected=false. If it persists and the previous strategy did not clear it, prefer a different strategy unless the scene has changed.
+```
+
+**Second decision: `reverse`**, dispatched to both robots:
+
+```text
+[1789792592.794368242] [orchestrator_node]: dispatch request=800087d0128941cfad269618aeb28109 command=800087d0128941cfad269618aeb28109-reverse robot=robot_1
+[1789792592.796081018] [orchestrator_node]: dispatch request=800087d0128941cfad269618aeb28109 command=800087d0128941cfad269618aeb28109-reverse robot=robot_2
+[1789792787.829972669] [command_bus_node]: status published command=800087d0128941cfad269618aeb28109-reverse robot=robot_1 status=FAILED
+```
+
+**Arrivals: none.** `arrived at base goal` appears zero times in the M5 log. The
+remaining 13 analyses all returned `congestion_detected=false` and dispatched
+nothing. Final scene: `robot_1 x=-1.606 STOPPED`, `robot_2 x=-1.777 STOPPED`,
+against goals `(2.5, 0.0)` and `(-2.5, 0.0)`.
+
+### Run B — modality ON
+
+**First strategy: `yield`, targeting `robot_1`** — the same blocked robot,
+with the box's geometry in the prompt.
+
+```text
+[1789793374.023551663] [orchestrator_node]: starting analysis request=05a0f4f516264e0b9351fea7ea575334 robots=['robot_1', 'robot_2'] reason=2 robot(s) stalled >= 12.0s distance_to_goal_m={'robot_1': 2.6, 'robot_2': 2.6}
+[1789793377.487267119] [orchestrator_node]: dispatch request=05a0f4f516264e0b9351fea7ea575334 command=05a0f4f516264e0b9351fea7ea575334-yield robot=robot_1
+```
+
+Artifact: `strategy=yield`, `involved_robots=['robot_1','robot_2']`,
+`yield_robot=robot_1`.
+
+**The maneuver failed:**
+
+```text
+[1789793631.499922846] [command_bus_node]: status published command=05a0f4f516264e0b9351fea7ea575334-yield robot=robot_1 status=FAILED
+```
+
+254.0 s after dispatch.
+
+**The previous-attempt block reached the next prompt**, as in Run A:
+
+```text
+[1789793648.771319884] [orchestrator_node]: request=4c10dfe471a9426fa0b459f7f7d073d2 failure_context attached command=05a0f4f516264e0b9351fea7ea575334-yield strategy=yield executed=yield outcome=failed
+```
+
+**Second decision: `reverse`** (`bbc60e7e`), again dispatched to both robots
+and again ending `FAILED` for `robot_1`:
+
+```text
+[1789793866.106914375] [command_bus_node]: status published command=bbc60e7ec5104931a20d64d6c02eacbd-reverse robot=robot_1 status=FAILED
+```
+
+The loop then kept cycling for the rest of the recording — `yield`
+(`yield_robot=robot_2`), `reverse`, `yield` (`robot_2`), `reverse`, `yield`
+(`robot_1`) — each completing in about 20 s, followed by two analyses returning
+`decision=None`. Those two are **backend-stage failures, not no-congestion
+answers** — both artifacts carry `terminal_stage=vlm`,
+`failure_reason=decision=None`, i.e. M2 returned `ReasonerResult(decision=None)`
+after its bounded retries. They coincide with both robots going `STALE` (their
+markers overlapping) and with M5 reporting an empty `distance_to_goal_m={}`, so
+the scene handed to M2 was already degenerate. **Arrivals: none.** Final scene: `robot_1 x=-1.608 STALE`,
+`robot_2 x=-1.500 STALE`.
+
+The two `yield_robot=robot_2` answers at +514 s and +597 s are **not** clean
+evidence that the obstacle channel eventually worked: by then `robot_2` had been
+driven west by the symmetric `reverse` and the analysis reported
+`distance_to_goal_m={'robot_2': 1.0}`, so the scene the model was shown had
+materially changed, and the preceding prompts also carried a previous-attempt
+block. Modality, failure context and scene state are confounded at that point.
+
+### Separating the two failure modes
+
+The brief's one analysis trap is conflating "failed because the strategy cannot
+work" with "failed because the chosen side has no retreat space". The trajectory
+data separates them cleanly.
+
+**First maneuver (`yield`) — no retreat space on the chosen side.** Positions in
+the maneuver window, from the M5 scene JSONL:
+
+| | Run A | Run B |
+|---|---|---|
+| Samples in window | 238 | 237 |
+| Maneuver duration | 254.7 s | 254.0 s |
+| `robot_1` start x | -0.092 | -0.107 |
+| `robot_1` stall x | **-1.606** | **-1.607** |
+| Reached stall at | +45.2 s | +45.5 s |
+| Held there for | ~209 s | ~208 s |
+| Standoff from the -1.700 near face | 0.094 m | 0.093 m |
+| `robot_2` motion | +0.089 -> +0.088 (none) | +0.098 -> +0.097 (none) |
+
+The standoff equals the robot's half-width (`robot.half_width_m: 0.09`), i.e.
+the chassis is against the box. Both figures reproduce Task 8's forced-`robot_1`
+run (-1.607, 0.093 m, 253.3 s) to within a millimetre and a second. The yield
+strategy is sound here — it succeeds in Task 8 run 2 when aimed at `robot_2` —
+so this failure is the chosen side, not the strategy.
+
+**Second maneuver (`reverse`) — the strategy cannot work.** `reverse` is
+dispatched symmetrically to both robots, so it cannot resolve a two-robot
+head-on regardless of geometry. Both runs show both robots reversing together:
+
+| | Run A | Run B |
+|---|---|---|
+| Window | 195.0 s | 195.1 s |
+| `robot_1` | -0.544 -> -1.606 (against the box) | -0.483 -> -1.608 (against the box) |
+| `robot_2` | +1.150 -> -1.732 | +1.261 -> -1.504 |
+
+`robot_2` is driven from the open east side past `robot_1` and into the same
+blocked west region, leaving both robots stranded at the wrong end. This is a
+distinct failure from the first: even an unblocked scene would not be resolved
+by it.
+
+### The A/B comparison
+
+| | Run A (OFF) | Run B (ON) |
+|---|---|---|
+| Obstacle geometry in prompt | no | yes |
+| First strategy | `yield` | `yield` |
+| First `yield_robot` | `robot_1` (infeasible) | `robot_1` (infeasible) |
+| First maneuver outcome | `FAILED` after 254.7 s | `FAILED` after 254.0 s |
+| `robot_1` standoff from the box | 0.094 m | 0.093 m |
+| Previous-attempt block in next prompt | yes | yes |
+| Second strategy | `reverse` (symmetric, `FAILED`) | `reverse` (symmetric, `FAILED`) |
+| Arrivals | 0 | 0 |
+
+**Supplying the obstacle's id, centre and extent did not change the model's
+first decision.** Under both conditions gpt-4o chose `yield` and named
+`robot_1` — the robot the box makes it impossible for — and the resulting
+failures are indistinguishable in duration, stall position and standoff. On this
+single paired run the obstacle channel produced no measurable change in the
+decision under test.
+
+This is one pair, not a distribution. It bounds nothing about the modality's
+effect in general; it records that the effect was not visible here.
+
+### First-answer yielder identity is not evidence of spatial reasoning
+
+Under Run A the model chose `robot_1`, which is also the **first robot the
+prompt presents it with**. This is a property of the input, not merely of the
+model's own output ordering: the prompt renders `Robot states (sorted by ID)`
+and `Known robot IDs: ["robot_1", "robot_2"]`, so `robot_1` is listed first in
+**both** runs, deterministically, by ID sort. The choice and the presentation
+order are therefore perfectly confounded here, and the answer is equally
+consistent with:
+
+1. a positional default (pick the first listed robot), and
+2. a spatial judgement that happened to land on `robot_1`.
+
+Nothing in Run A can distinguish them, because under modality OFF the model has
+no channel through which the box is perceivable at all — not the state vector,
+and not the overhead image, in which a 0.3 x 0.3 x 0.5 m box behind a robot is
+not identifiable as an obstruction with a known extent. A model that cannot
+perceive the blocker cannot be reasoning about retreat space, so Run A's answer
+must not be reported as evidence either for or against that ability. It is an
+information-bound answer, and that is all it is.
+
+Run B removes the perception objection but not the confound: the model was told
+the box's geometry and still named the first-presented robot. That is consistent
+with a positional default surviving the added information, but a single run
+cannot separate "ignored the obstacle block" from "read it and judged
+differently". Breaking the confound needs the presentation order varied
+independently of the geometry — a counterbalanced order condition, which neither
+run here provides. Note this is a property of the prompt builder's ID sort, so
+it applies to every artifact collected to date, not just these two runs.
+
+### Evidence
+
+Per-run M1/M4/M5/Nav2 logs, the launcher log, the recorder log, the M5 scene
+JSONL and the run's decision artifacts are on the VM (git-ignored) under
+`/home/ubuntu/vgu-vlm-swarm/data/logs/task9_20260919/`:
+
+```text
+runA_modality_off   9 files + 16 decision artifacts   6.5M   (run 20260919_042935)
+runB_modality_on    9 files + 10 decision artifacts   5.2M   (run 20260919_044729)
+```
+
+The two re-timed recordings are in the worktree at
+`data/logs/recordings/2026-09-19/` (git-ignored) with a `README.md` carrying
+both timelines:
+
+| File | Bytes | Duration | Frames |
+|---|---|---|---|
+| `run_a_modality_off_w0p2_eopen.mp4` | 11,028,283 | 780.00 s | 2454 |
+| `run_b_modality_on_w0p2_eopen.mp4` | 11,424,450 | 780.00 s | 2613 |
+
+Both were concatenated losslessly from their two recorder segments and re-timed
+from the stamped fps to the achieved fps taken from each recorder's `WROTE`
+line (Run A 7.870 -> 3.14615, ratio 2.50147; Run B 7.734 -> 3.35000, ratio
+2.30866), so playback duration equals the recorder's 780 s wall clock.
+
+Because `-r <achieved_fps>` forces that duration arithmetically, the re-timing
+was also checked **independently** against the frame timestamps burnt into the
+annotated video. Sampling each file at playback t=60 s and t=770 s (710 s apart):
+
+| | Frame at t=60 s | Frame at t=770 s | Scene time elapsed | vs 710 s playback |
+|---|---|---|---|---|
+| Run A | `t=1789792302.20` | `t=1789793000.69` | 698.49 s | 98.4 % |
+| Run B | `t=1789793375.81` | `t=1789794073.78` | 697.97 s | 98.3 % |
+
+Both play back within ~1.7 % of real time; the small deficit is the recorder's
+non-uniform capture rate under load, not a re-timing error.
+
+### Modality restored
+
+`prompt_static_obstacles` was set back to `false` and the `static_obstacles`
+block re-commented immediately after Run B, then `swarm_orchestrator` was
+rebuilt. The launcher restores `reasoning_backend_id` but knows nothing about
+this flag, and with `openai -> openai` its restore branch does not fire at all,
+so the restoration was done and checked by hand. Source and installed
+`orchestrator.yaml` both hash to the shipped value:
+
+```text
+b7918706b14bf90b45ac93dd3a2ce253  ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml
+b7918706b14bf90b45ac93dd3a2ce253  /ws/ros2_ws/install/share/swarm_orchestrator/config/orchestrator.yaml
+INSTALLED prompt_static_obstacles = False
+INSTALLED static_obstacles key present = False
+INSTALLED reasoning_backend_id = openai
+```
+
+### VM state after both runs
+
+```text
+--- stray procs (expect none) ---
+(end)
+--- gpu ---
+136 MiB, 0 %
+--- container ---
+vgu_ros Up 12 seconds
+--- ros2 nodes in container ---
+(none)
+--- backend_id + flag source+install ---
+prompt_static_obstacles: false
+reasoning_backend_id: openai
+prompt_static_obstacles: false
+reasoning_backend_id: openai
+```
+
+### Open items
+
+- **`reverse` is dispatched symmetrically** and therefore cannot resolve a
+  two-robot head-on; in both runs it actively worsened the scene by driving the
+  unblocked robot into the blocked end. The failure-context prompt's standing
+  instruction to "prefer a different strategy" steers the model toward it after
+  a failed yield, so this is reachable in ordinary operation, not a corner case.
+- **`status=FAILED` still carries no reason string** (carried over from Task 8),
+  so "blocked by the box" had to be established from the trajectory each time.
+- **The order/geometry confound** described above is not resolvable from these
+  two runs and needs a counterbalanced `involved_robots` order condition.
