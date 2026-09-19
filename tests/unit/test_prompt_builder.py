@@ -1,5 +1,7 @@
 import hashlib
 import json
+import re
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -296,6 +298,16 @@ def test_build_prompt_payload_adds_obstacle_clause_when_switched_on():
     ) in prompt
 
 
+def test_build_prompt_payload_omits_obstacle_clause_when_switched_on_without_obstacles():
+    # The flag and the obstacle list are two separate config edits. With the flag
+    # on and the list empty the clause would affirm "the only ones present" over
+    # an empty list - a false claim of an empty scene - so it must not render.
+    request = _request().model_copy(update={"include_static_obstacles": True})
+    prompt = build_prompt_payload(request).user_prompt
+    assert "Static obstacles" not in prompt
+    assert "Fixed obstacles" not in prompt
+
+
 def test_build_prompt_payload_omits_obstacle_clause_when_switched_off():
     prompt = build_prompt_payload(_obstacle_request(include=False)).user_prompt
     assert "Static obstacles" not in prompt
@@ -317,12 +329,44 @@ def test_build_prompt_payload_obstacle_clause_omits_yielder_selection_criteria()
         assert term not in clause
 
 
+def _shipped_obstacle_ids() -> list[str]:
+    """Obstacle IDs from the commented static_obstacles block of the shipped M5 config."""
+    path = Path("ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml")
+    return re.findall(r"^#\s+-\s+\{\s*obstacle_id:\s*([^,\s]+)", path.read_text(encoding="utf-8"), re.M)  # noqa: E501
+
+
+def test_shipped_orchestrator_yaml_obstacle_ids_do_not_leak_into_the_prompt():
+    # Configured IDs render verbatim, so the leakage guard has to cover the real
+    # config and not only hand-written fixtures: an ID like "blocker_west" would
+    # tell the model the box is an obstruction and which side it obstructs.
+    ids = _shipped_obstacle_ids()
+    assert ids, "the commented static_obstacles block is missing from orchestrator.yaml"
+    request = _request().model_copy(
+        update={
+            "static_obstacles": [
+                StaticObstacleInput(obstacle_id=oid, x=-1.85, y=0.0, size_x_m=0.3, size_y_m=0.3)
+                for oid in ids
+            ],
+            "include_static_obstacles": True,
+        }
+    )
+    prompt = build_prompt_payload(request).user_prompt.lower()
+    for term in ["space", "retreat", "blocker", "clearance", "arrival", "first listed"]:
+        assert term not in prompt
+    for oid in ids:
+        assert "west" not in oid and "east" not in oid
+
+
 # SHA-256 of the rendered user prompt for `_request()` as produced by the prompt
-# builder BEFORE the static-obstacle modality existed (captured from the tree at
-# commit 780fa37, 2026-09-19). `write_decision_artifact` hashes this same string
-# as `user_sha256`, so every decision artifact collected to date is comparable
-# only while the OFF condition renders byte-for-byte identically. Any character
-# the template gains in the OFF path breaks this hash - that is the point.
+# builder BEFORE the static-obstacle modality existed (rendered from commit
+# 056fa22, this feature's parent; the builder last changed at 0efd01e).
+# `write_decision_artifact` hashes this same string as `user_sha256`, so every
+# decision artifact collected to date is comparable only while the OFF condition
+# renders byte-for-byte identically. Any character the template gains in the OFF
+# path breaks this hash - that is the point. The constant also pins the shared
+# `_request()` fixture: if it fails after that fixture was edited, the fixture
+# changed and the pin is still valid - re-point the test at an unmodified
+# fixture rather than regenerating the constant.
 _PRE_OBSTACLE_OFF_PROMPT_SHA256 = (
     "3b77d224bb1c6de2f73ccd69c08b6ac686ae41dd9dca86442e5f34d278164001"
 )

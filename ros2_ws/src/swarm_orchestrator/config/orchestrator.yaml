@@ -57,5 +57,12 @@ scenario_geometry:
 # (here the head-on asymmetric family blocker) and must be set per scenario —
 # a list left over from another scenario describes a scene that is not there.
 # Uncomment together with prompt_static_obstacles: true.
+#
+# The ids are rendered verbatim into the VLM prompt, so they are deliberately
+# neutral and must stay that way: an id naming the object's role or side (the
+# scenario yaml's blocker_west) would tell the model both that the box is an
+# obstruction and which side it obstructs — exactly the inference the experiment
+# measures. Do NOT sync these ids to the scenario yaml's descriptive names; that
+# file is Isaac-side and never reaches the prompt. Only the geometry is mirrored.
 # static_obstacles:
-#   - { obstacle_id: blocker_west, x: -1.85, y: 0.0, size_x_m: 0.3, size_y_m: 0.3 }
+#   - { obstacle_id: obstacle_1, x: -1.85, y: 0.0, size_x_m: 0.3, size_y_m: 0.3 }

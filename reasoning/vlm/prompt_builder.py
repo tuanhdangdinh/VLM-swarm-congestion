@@ -106,10 +106,11 @@ _GEOMETRY_OFF = {
 
 # Wording for the two modality conditions of the static-obstacle ablation axis.
 # The ON clause states scene physics only: naming a robot, a maneuver or a
-# blocked side would hand the model the answer the experiment measures. The OFF
-# value is the empty string (not a placeholder line) so the rendered prompt stays
-# byte-identical to the pre-modality prompt; the leading space therefore lives
-# inside the ON value.
+# blocked side would hand the model the answer the experiment measures — which
+# is also why configured obstacle ids must stay non-semantic, since they render
+# verbatim. The OFF value is the empty string (not a placeholder line) so the
+# rendered prompt stays byte-identical to the pre-modality prompt; the leading
+# space therefore lives inside the ON value.
 _OBSTACLES_ON = {
     "obstacle_use_clause": (
         " Fixed obstacles in the scene are listed above and are the only ones "
@@ -272,7 +273,10 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
         static_obstacle_block=obstacle_block,
         failure_context_block=failure_block,
         **(_GEOMETRY_ON if request.include_pairwise_geometry else _GEOMETRY_OFF),
-        **(_OBSTACLES_ON if request.include_static_obstacles else _OBSTACLES_OFF),
+        # Gated on the rendered lines, not on the flag: the ON clause asserts the
+        # listed obstacles are the only ones present, which with an empty list
+        # would affirm an empty scene that the flag alone cannot vouch for.
+        **(_OBSTACLES_ON if obstacle_lines else _OBSTACLES_OFF),
     )
     return PromptPayload(
         system_prompt=SYSTEM_PROMPT,
