@@ -4,6 +4,7 @@ from reasoning.rag.command_grounder import (
     CommandGroundingError,
     filter_command_robot_ids,
     ground_reasoner_result,
+    resolve_robot_order,
     validate_coordination_command,
 )
 from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
@@ -32,7 +33,7 @@ def test_validate_coordination_command_rejects_missing_actions():
         )
 
 
-def _result(strategy="yield", robots=None):
+def _result(strategy="yield", robots=None, yield_robot=None):
     robots = robots or ["robot_1", "robot_2"]
     decision = CongestionDecision(
         congestion_detected=True,
@@ -41,6 +42,7 @@ def _result(strategy="yield", robots=None):
         root_cause="head-on aisle conflict",
         strategy=strategy,
         justification="robots are stopped face to face",
+        yield_robot=yield_robot,
     )
     diagnostics = ReasonerDiagnostics(
         request_id="req1",
@@ -101,6 +103,43 @@ def test_passing_wait_is_upper_bound_constant():
     # event-driven release (Task 3) / non-expiry of ACTIVE commands (Task 1).
     assert passer["parameters"]["duration_sec"] == 120.0
     assert command["expected_resolution_time_sec"] == 150.0
+
+
+def test_resolve_robot_order_moves_yield_robot_to_front():
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type="deadlock",
+        involved_robots=["robot_1", "robot_2"],
+        root_cause="head-on aisle conflict",
+        strategy="yield",
+        justification="robot_2 has more room to back into",
+        yield_robot="robot_2",
+    )
+
+    assert resolve_robot_order(decision) == ["robot_2", "robot_1"]
+
+
+def test_resolve_robot_order_returns_involved_robots_unchanged_when_yield_robot_none():
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type="deadlock",
+        involved_robots=["robot_1", "robot_2"],
+        root_cause="head-on aisle conflict",
+        strategy="yield",
+        justification="robot_1 has a clearer retreat path",
+    )
+
+    assert resolve_robot_order(decision) == ["robot_1", "robot_2"]
+
+
+def test_ground_yield_decision_uses_explicit_yield_robot_as_the_yielder():
+    command = ground_reasoner_result(_result("yield", yield_robot="robot_2"))
+
+    actions = command["actions"]
+    assert actions[0]["robot_id"] == "robot_2"
+    assert actions[0]["action"] == "yield"
+    assert actions[1]["robot_id"] == "robot_1"
+    assert actions[1]["action"] == "temporary_wait"
 
 
 def _yield_params(

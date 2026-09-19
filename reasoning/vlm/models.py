@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class RobotStateInput(BaseModel):
@@ -79,6 +79,11 @@ class CongestionDecision(BaseModel):
         "reverse",
     ]
     justification: str
+    # The model's stated choice of yielder at decision time, distinct from
+    # FailureContext.yield_robot (M5's record of who actually got dispatched).
+    # Only meaningful when strategy == "yield"; never required, since older
+    # artifacts and models that omit it must still parse.
+    yield_robot: str | None = None
 
     @field_validator("type", "strategy", mode="before")
     @classmethod
@@ -93,6 +98,15 @@ class CongestionDecision(BaseModel):
             if robot_id not in seen:
                 seen.append(robot_id)
         return seen
+
+    @model_validator(mode="after")
+    def _validate_yield_robot_is_involved(self) -> "CongestionDecision":
+        if self.yield_robot is not None and self.yield_robot not in self.involved_robots:
+            raise ValueError(
+                f"yield_robot {self.yield_robot!r} is not in involved_robots "
+                f"{self.involved_robots!r}"
+            )
+        return self
 
 
 class ReasonerDiagnostics(BaseModel):

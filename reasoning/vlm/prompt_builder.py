@@ -59,6 +59,8 @@ Produce a JSON object with exactly these fields:
 - "strategy": "none" | "yield" | "reroute" | "convoy" | "priority_override" | \
 "temporary_wait" | "reverse"
 - "justification": one or two sentences
+- "yield_robot": the robot that should yield, or null when the strategy is not \
+"yield"
 
 Rules:
 - Only use robot IDs from the known list above.
@@ -68,8 +70,9 @@ involved_robots must be non-empty.
 
 Answer using the following format:
 <think>
-{think_geometry_step}, check the robot statuses, identify any conflicts, and \
-decide the congestion type and strategy.
+{think_geometry_step}, check the robot statuses, identify any conflicts, \
+decide the congestion type and strategy, and if the strategy is "yield", state \
+which robot should yield and why.
 </think>
 Immediately after the </think> tag, write ONLY the final JSON object, with no \
 surrounding text or markdown."""

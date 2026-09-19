@@ -1,6 +1,7 @@
 import json
 
 import pytest
+from pydantic import ValidationError
 
 from reasoning.vlm.models import CongestionDecision, ReasonerRequest
 from reasoning.vlm.output_parser import (
@@ -121,3 +122,55 @@ def test_congestion_decision_dedupes_involved_robots_at_model_level():
 
 def test_reasoner_request_has_no_prompt_context_field():
     assert "prompt_context" not in ReasonerRequest.model_fields
+
+
+def test_congestion_decision_yield_robot_defaults_to_none():
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type="deadlock",
+        involved_robots=["robot_1", "robot_2"],
+        root_cause="head-on aisle conflict",
+        strategy="yield",
+        justification="robot_1 has a clearer retreat path",
+    )
+    assert decision.yield_robot is None
+
+
+def test_congestion_decision_accepts_yield_robot_in_involved_robots():
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type="deadlock",
+        involved_robots=["robot_1", "robot_2"],
+        root_cause="head-on aisle conflict",
+        strategy="yield",
+        justification="robot_2 has more room to back into",
+        yield_robot="robot_2",
+    )
+    assert decision.yield_robot == "robot_2"
+
+
+def test_congestion_decision_rejects_yield_robot_not_in_involved_robots():
+    with pytest.raises(ValidationError):
+        CongestionDecision(
+            congestion_detected=True,
+            type="deadlock",
+            involved_robots=["robot_1", "robot_2"],
+            root_cause="head-on aisle conflict",
+            strategy="yield",
+            justification="robot_3 has more room to back into",
+            yield_robot="robot_3",
+        )
+
+
+def test_parse_decision_text_yield_strategy_without_yield_robot_still_parses():
+    # Backward compatibility: historical artifacts and models that omit the
+    # field must still parse even when strategy is "yield".
+    text = '{"congestion_detected": true, "type": "deadlock", "involved_robots": ["robot_1", "robot_2"], "root_cause": "x", "strategy": "yield", "justification": "y"}'  # noqa: E501
+    decision = parse_decision_text(text)
+    assert decision.yield_robot is None
+
+
+def test_parse_decision_text_accepts_yield_robot_field():
+    text = '{"congestion_detected": true, "type": "deadlock", "involved_robots": ["robot_1", "robot_2"], "root_cause": "x", "strategy": "yield", "justification": "y", "yield_robot": "robot_2"}'  # noqa: E501
+    decision = parse_decision_text(text)
+    assert decision.yield_robot == "robot_2"

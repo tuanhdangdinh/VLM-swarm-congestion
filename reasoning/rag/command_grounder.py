@@ -9,7 +9,7 @@ from reasoning.rag.scene_geometry import (
     pull_off_lateral_m,
 )
 from reasoning.schemas import load_schema
-from reasoning.vlm.models import ReasonerResult
+from reasoning.vlm.models import CongestionDecision, ReasonerResult
 
 
 class CommandGroundingError(ValueError):
@@ -43,6 +43,30 @@ MAX_ESCORT_M = 4.0
 
 def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
+
+
+def resolve_robot_order(decision: CongestionDecision) -> list[str]:
+    """Order the involved robots with the model's stated yielder listed first.
+
+    Until this ordering existed, downstream grounding treated list position
+    in `involved_robots` as the yielder channel; `yield_robot` makes that
+    choice explicit instead.
+
+    Args:
+        decision: Validated decision whose `yield_robot`, when set, is
+            guaranteed by `CongestionDecision`'s validator to be a member of
+            `involved_robots`.
+
+    Returns:
+        `involved_robots` unchanged when `yield_robot` is `None`; otherwise
+        `yield_robot` moved to the front, with the remaining robots kept in
+        their original relative order.
+    """
+    if decision.yield_robot is None or decision.yield_robot not in decision.involved_robots:
+        return decision.involved_robots
+    return [decision.yield_robot] + [
+        robot_id for robot_id in decision.involved_robots if robot_id != decision.yield_robot
+    ]
 
 
 def validate_coordination_command(command: dict[str, Any]) -> dict[str, Any]:
@@ -143,7 +167,7 @@ def ground_reasoner_result(
     if decision is None or not decision.congestion_detected:
         raise CommandGroundingError("cannot ground an empty or non-congestion decision")
 
-    robot_ids = decision.involved_robots
+    robot_ids = resolve_robot_order(decision)
     command_id = f"{result.request_id}-{decision.strategy}"
     duration_sec = 8.0
     # Fallback distance the yielding robot reverses, used when the caller

@@ -214,6 +214,20 @@ def test_build_prompt_payload_guidance_defines_head_on_by_facing_and_distance():
     assert "opposing goal directions" not in prompt
 
 
+def test_build_prompt_payload_output_format_includes_yield_robot_bullet():
+    prompt = build_prompt_payload(_request()).user_prompt
+    assert (
+        '- "yield_robot": the robot that should yield, or null when the strategy '
+        'is not "yield"'
+    ) in prompt
+
+
+def test_build_prompt_payload_think_step_asks_which_robot_should_yield():
+    prompt = build_prompt_payload(_request()).user_prompt
+    think_block = prompt[prompt.index("<think>") : prompt.index("</think>")]
+    assert "which robot should yield" in think_block
+
+
 def test_render_failure_context_block_allows_reporting_no_congestion():
     block = render_failure_context_block(_completed_yield())
     assert (
