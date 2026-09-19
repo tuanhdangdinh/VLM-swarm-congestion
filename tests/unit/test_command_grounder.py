@@ -142,6 +142,37 @@ def test_ground_yield_decision_uses_explicit_yield_robot_as_the_yielder():
     assert actions[1]["action"] == "temporary_wait"
 
 
+def test_resolve_robot_order_leaves_reroute_decision_unchanged_even_with_yield_robot():
+    # yield_robot is only meaningful for strategy="yield". A stray or
+    # hallucinated value on a "reroute" decision must not reorder
+    # involved_robots, since reroute reads robot_ids[0] as the navigator and
+    # the rest as waiters (a different, unrelated use of list position).
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type="bottleneck",
+        involved_robots=["robot_1", "robot_2"],
+        root_cause="one-way queue",
+        strategy="reroute",
+        justification="robot_1 has a clear alternate path",
+        yield_robot="robot_2",
+    )
+
+    assert resolve_robot_order(decision) == ["robot_1", "robot_2"]
+
+
+def test_ground_reroute_decision_ignores_yield_robot_hint():
+    # Integration-level guard for the same scoping: a non-null yield_robot on
+    # a reroute decision must not silently swap which robot reroutes and
+    # which waits.
+    command = ground_reasoner_result(_result("reroute", yield_robot="robot_2"))
+
+    actions = command["actions"]
+    assert actions[0]["robot_id"] == "robot_1"
+    assert actions[0]["action"] == "reroute"
+    assert actions[1]["robot_id"] == "robot_2"
+    assert actions[1]["action"] == "temporary_wait"
+
+
 def _yield_params(
     yielder_xy: tuple[float, float] | None,
     passer_xy: tuple[float, float] | None,

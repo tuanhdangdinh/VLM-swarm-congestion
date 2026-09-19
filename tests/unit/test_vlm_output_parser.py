@@ -162,6 +162,19 @@ def test_congestion_decision_rejects_yield_robot_not_in_involved_robots():
         )
 
 
+def test_congestion_decision_rejects_yield_robot_with_empty_involved_robots():
+    with pytest.raises(ValidationError):
+        CongestionDecision(
+            congestion_detected=True,
+            type="deadlock",
+            involved_robots=[],
+            root_cause="x",
+            strategy="yield",
+            justification="y",
+            yield_robot="robot_1",
+        )
+
+
 def test_parse_decision_text_yield_strategy_without_yield_robot_still_parses():
     # Backward compatibility: historical artifacts and models that omit the
     # field must still parse even when strategy is "yield".

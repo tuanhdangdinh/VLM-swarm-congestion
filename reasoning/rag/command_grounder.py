@@ -52,17 +52,29 @@ def resolve_robot_order(decision: CongestionDecision) -> list[str]:
     in `involved_robots` as the yielder channel; `yield_robot` makes that
     choice explicit instead.
 
+    Scoped to `strategy == "yield"` only: `yield_robot` is only meaningful
+    for that strategy, but other strategies also read position out of
+    `involved_robots` for a different purpose (e.g. `reroute` sends
+    `robot_ids[0]` to navigate and waits the rest). Reordering there on a
+    stray or hallucinated `yield_robot` would silently swap which robot
+    reroutes and which waits, so those strategies are left unchanged.
+
     Args:
         decision: Validated decision whose `yield_robot`, when set, is
             guaranteed by `CongestionDecision`'s validator to be a member of
             `involved_robots`.
 
     Returns:
-        `involved_robots` unchanged when `yield_robot` is `None`; otherwise
-        `yield_robot` moved to the front, with the remaining robots kept in
-        their original relative order.
+        `involved_robots` unchanged unless `strategy == "yield"` and
+        `yield_robot` is set and present, in which case `yield_robot` is
+        moved to the front, with the remaining robots kept in their
+        original relative order.
     """
-    if decision.yield_robot is None or decision.yield_robot not in decision.involved_robots:
+    if (
+        decision.strategy != "yield"
+        or decision.yield_robot is None
+        or decision.yield_robot not in decision.involved_robots
+    ):
         return decision.involved_robots
     return [decision.yield_robot] + [
         robot_id for robot_id in decision.involved_robots if robot_id != decision.yield_robot

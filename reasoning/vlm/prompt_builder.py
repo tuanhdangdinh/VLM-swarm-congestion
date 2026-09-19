@@ -45,8 +45,8 @@ bottleneck: several robots queued waiting behind one slow robot or blocked passa
 (one-way congestion, not opposing). crowding: many robots packed into a small \
 area. anomaly: unexpected or unsafe configuration.
 - For head-on deadlock (two stopped/stale robots within ~0.5 m, each facing the \
-other): classify as type="deadlock" and strategy="yield" \
-(first listed robot backs up) or strategy="reverse" (both back up to clear).
+other): classify as type="deadlock" and strategy="yield" (the robot named in \
+yield_robot backs up) or strategy="reverse" (both back up to clear).
 - For a simple bottleneck (robots queued in the same direction): classify as \
 type="bottleneck" and strategy="temporary_wait" or "yield".
 - Decide from the robot coordinates and the image, not from assumptions about intent.

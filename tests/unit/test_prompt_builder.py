@@ -228,6 +228,18 @@ def test_build_prompt_payload_think_step_asks_which_robot_should_yield():
     assert "which robot should yield" in think_block
 
 
+def test_build_prompt_payload_omits_yielder_selection_criteria():
+    # The prompt must describe how to EXPRESS the yield_robot choice (the
+    # field to fill in) but never hint at how to MAKE it - that choice is
+    # exactly what downstream experiments measure. Guards against a future
+    # edit reintroducing selection criteria (available space, blockers,
+    # retreat room, clearance, arrival order) or the removed "first listed
+    # robot backs up" list-position convention.
+    prompt = build_prompt_payload(_request()).user_prompt.lower()
+    for term in ["space", "retreat", "blocker", "clearance", "arrival", "first listed"]:
+        assert term not in prompt
+
+
 def test_render_failure_context_block_allows_reporting_no_congestion():
     block = render_failure_context_block(_completed_yield())
     assert (
