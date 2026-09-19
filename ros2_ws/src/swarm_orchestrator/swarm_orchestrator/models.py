@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from reasoning.rag.scene_geometry import SceneGeometry
-from reasoning.vlm.models import ReasonerResult
+from reasoning.vlm.models import ReasonerResult, StaticObstacleInput
 
 # Default ROS2 topic/service names (spec §5; overridable via config `topics`).
 DEFAULT_TOPICS: dict[str, str] = {
@@ -77,6 +77,13 @@ class OrchestratorConfig(BaseModel):
     # Ablation axis (rev-8 modality table): withhold the derived pairwise
     # distance/facing lines from the VLM prompt when False.
     prompt_pairwise_geometry: bool = True
+    # Ablation axis: include the declared static obstacles in the VLM prompt.
+    # Default False — every decision artifact collected so far was produced
+    # without this channel, so an ON default would break comparability.
+    prompt_static_obstacles: bool = False
+    # Fixed obstacles of the running scenario, mirrored from its scenario file;
+    # rendered only when prompt_static_obstacles is true.
+    static_obstacles: tuple[StaticObstacleInput, ...] = ()
     # Handed to M3 so the yield maneuver is derived from declared scene
     # dimensions; None keeps M3's hand-sized head_on_deadlock fallbacks.
     scenario_geometry: SceneGeometry | None = None

@@ -17,6 +17,18 @@ class RobotStateInput(BaseModel):
     goal: tuple[float, float] | None = None
 
 
+class StaticObstacleInput(BaseModel):
+    """One fixed, axis-aligned obstacle in the world frame (centre plus extent)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    obstacle_id: str = Field(min_length=1)
+    x: float
+    y: float
+    size_x_m: float = Field(gt=0)
+    size_y_m: float = Field(gt=0)
+
+
 class FailureContext(BaseModel):
     """Prior-attempt summary injected into re-analysis prompts (Reflexion-lite)."""
 
@@ -41,6 +53,13 @@ class ReasonerRequest(BaseModel):
     # Ablation axis (rev-8 modality table): False withholds the derived pairwise
     # distance/facing lines so the VLM must judge geometry from coordinates + image.
     include_pairwise_geometry: bool = True
+    # Fixed obstacles M5 declares for the scene, rendered only when the modality
+    # below is on.
+    static_obstacles: list[StaticObstacleInput] = Field(default_factory=list)
+    # Ablation axis: default False because every decision artifact collected so
+    # far was produced without an obstacle channel; switching it on by default
+    # would silently break comparability with all of them.
+    include_static_obstacles: bool = False
 
 
 class PromptPayload(BaseModel):

@@ -20,6 +20,11 @@ failure_context_window_sec: 60.0
 # Ablation axis: false withholds the derived pairwise distance/facing lines so
 # the VLM must judge geometry from coordinates + image (rev-8 modality table).
 prompt_pairwise_geometry: true
+# Ablation axis: true renders the static_obstacles below as world-frame boxes in
+# the VLM prompt. Default false — every decision artifact collected so far was
+# produced without this channel, and an on-by-default flag would silently break
+# comparability with all of them.
+prompt_static_obstacles: false
 reasoning_backend_id: openai
 frame_dump_dir: data/logs/m5_frames
 decision_log_dir: data/logs/m5_decisions
@@ -46,3 +51,11 @@ scenario_geometry:
   park_margin_m: 0.4  # 0.3 lost the marker for 7.6s after the side-step; 0.4 verified clean (2026-09-16)
   wall_margin_m: 0.15
   passer_margin_m: 0.2
+
+# Fixed obstacles rendered into the VLM prompt when prompt_static_obstacles is
+# true. Like scenario_geometry above, these mirror the scenario file by hand
+# (here the head-on asymmetric family blocker) and must be set per scenario —
+# a list left over from another scenario describes a scene that is not there.
+# Uncomment together with prompt_static_obstacles: true.
+# static_obstacles:
+#   - { obstacle_id: blocker_west, x: -1.85, y: 0.0, size_x_m: 0.3, size_y_m: 0.3 }

@@ -1,14 +1,21 @@
+import hashlib
 import json
 
 import pytest
 from pydantic import ValidationError
 
-from reasoning.vlm.models import FailureContext, ReasonerRequest, RobotStateInput
+from reasoning.vlm.models import (
+    FailureContext,
+    ReasonerRequest,
+    RobotStateInput,
+    StaticObstacleInput,
+)
 from reasoning.vlm.prompt_builder import (
     SYSTEM_PROMPT,
     build_prompt_payload,
     format_pairwise_geometry_lines,
     format_robot_state_lines,
+    format_static_obstacle_lines,
     render_failure_context_block,
 )
 
@@ -238,6 +245,97 @@ def test_build_prompt_payload_omits_yielder_selection_criteria():
     prompt = build_prompt_payload(_request()).user_prompt.lower()
     for term in ["space", "retreat", "blocker", "clearance", "arrival", "first listed"]:
         assert term not in prompt
+
+
+def _obstacles() -> list[StaticObstacleInput]:
+    return [
+        StaticObstacleInput(obstacle_id="box_b", x=1.85, y=0.5, size_x_m=0.4, size_y_m=0.2),
+        StaticObstacleInput(obstacle_id="box_a", x=-1.85, y=0.0, size_x_m=0.3, size_y_m=0.3),
+    ]
+
+
+def test_format_static_obstacle_lines_renders_centre_and_extent():
+    lines = format_static_obstacle_lines(
+        [StaticObstacleInput(obstacle_id="blocker_west", x=-1.85, y=0.0, size_x_m=0.3, size_y_m=0.3)]  # noqa: E501
+    )
+    assert lines == ["blocker_west: centre (-1.85, 0.00) m, extent 0.30 x 0.30 m"]
+
+
+def test_format_static_obstacle_lines_sorts_several_obstacles_by_id():
+    assert format_static_obstacle_lines(_obstacles()) == [
+        "box_a: centre (-1.85, 0.00) m, extent 0.30 x 0.30 m",
+        "box_b: centre (1.85, 0.50) m, extent 0.40 x 0.20 m",
+    ]
+
+
+def test_format_static_obstacle_lines_is_empty_without_obstacles():
+    assert format_static_obstacle_lines([]) == []
+
+
+def _obstacle_request(include: bool) -> ReasonerRequest:
+    return _request().model_copy(
+        update={"static_obstacles": _obstacles(), "include_static_obstacles": include}
+    )
+
+
+def test_build_prompt_payload_lists_every_static_obstacle_when_switched_on():
+    prompt = build_prompt_payload(_obstacle_request(include=True)).user_prompt
+    assert (
+        "Static obstacles (world-frame axis-aligned boxes):\n"
+        "- box_a: centre (-1.85, 0.00) m, extent 0.30 x 0.30 m\n"
+        "- box_b: centre (1.85, 0.50) m, extent 0.40 x 0.20 m\n\n"
+        'Known robot IDs: ["robot_1", "robot_2"]'
+    ) in prompt
+
+
+def test_build_prompt_payload_adds_obstacle_clause_when_switched_on():
+    prompt = build_prompt_payload(_obstacle_request(include=True)).user_prompt
+    assert (
+        "Fixed obstacles in the scene are listed above and are the only ones "
+        "present; a robot can neither occupy nor drive through one."
+    ) in prompt
+
+
+def test_build_prompt_payload_omits_obstacle_clause_when_switched_off():
+    prompt = build_prompt_payload(_obstacle_request(include=False)).user_prompt
+    assert "Static obstacles" not in prompt
+    assert "Fixed obstacles" not in prompt
+    assert "box_a" not in prompt
+
+
+def test_build_prompt_payload_obstacle_clause_omits_yielder_selection_criteria():
+    # Same guard as the yielder-criteria test above, applied to the obstacle
+    # channel: the modality may state scene physics but must never hint at which
+    # robot is blocked or should back up. Obstacle IDs here avoid the guarded
+    # terms so any hit comes from wording this feature added, not from data.
+    prompt = build_prompt_payload(_obstacle_request(include=True)).user_prompt.lower()
+    for term in ["space", "retreat", "blocker", "clearance", "arrival", "first listed"]:
+        assert term not in prompt
+    clause_start = prompt.index("fixed obstacles in the scene")
+    clause = prompt[clause_start : prompt.index("\n", clause_start)]
+    for term in ["robot_1", "robot_2", "yield", "back up", "west", "east"]:
+        assert term not in clause
+
+
+# SHA-256 of the rendered user prompt for `_request()` as produced by the prompt
+# builder BEFORE the static-obstacle modality existed (captured from the tree at
+# commit 780fa37, 2026-09-19). `write_decision_artifact` hashes this same string
+# as `user_sha256`, so every decision artifact collected to date is comparable
+# only while the OFF condition renders byte-for-byte identically. Any character
+# the template gains in the OFF path breaks this hash - that is the point.
+_PRE_OBSTACLE_OFF_PROMPT_SHA256 = (
+    "3b77d224bb1c6de2f73ccd69c08b6ac686ae41dd9dca86442e5f34d278164001"
+)
+
+
+def test_build_prompt_payload_off_prompt_is_byte_identical_to_pre_feature_prompt():
+    # Obstacles are supplied and the flag is off: a renderer keyed off list
+    # emptiness instead of the flag would fail here, not silently pass.
+    prompt = build_prompt_payload(_obstacle_request(include=False)).user_prompt
+    # Length first: it names the size of the drift, which the hash alone withholds.
+    assert len(prompt) == 3338
+    assert hashlib.sha256(prompt.encode("utf-8")).hexdigest() == _PRE_OBSTACLE_OFF_PROMPT_SHA256
+    assert prompt == build_prompt_payload(_request()).user_prompt
 
 
 def test_render_failure_context_block_allows_reporting_no_congestion():

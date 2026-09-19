@@ -246,6 +246,47 @@ def test_orchestrator_config_prompt_pairwise_geometry_defaults_on():
     assert _config_with(prompt_pairwise_geometry=False).prompt_pairwise_geometry is False
 
 
+def test_orchestrator_config_prompt_static_obstacles_defaults_off():
+    # Default OFF: every decision artifact collected so far was produced without
+    # the obstacle channel, so an ON default would break their comparability.
+    assert _config_with().prompt_static_obstacles is False
+    assert _config_with(prompt_static_obstacles=True).prompt_static_obstacles is True
+
+
+def test_orchestrator_config_static_obstacles_default_to_empty():
+    assert _config_with().static_obstacles == ()
+
+
+def test_orchestrator_config_accepts_static_obstacles_mapping():
+    cfg = load_config(
+        {
+            **_minimal_config_dict(),
+            "static_obstacles": [
+                {
+                    "obstacle_id": "blocker_west",
+                    "x": -1.85,
+                    "y": 0.0,
+                    "size_x_m": 0.3,
+                    "size_y_m": 0.3,
+                }
+            ],
+        }
+    )
+
+    assert len(cfg.static_obstacles) == 1
+    assert cfg.static_obstacles[0].obstacle_id == "blocker_west"
+    assert cfg.static_obstacles[0].x == -1.85
+    assert cfg.static_obstacles[0].size_y_m == 0.3
+
+
+def test_shipped_orchestrator_yaml_keeps_static_obstacle_modality_off():
+    path = Path("ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml")
+    cfg = load_config(yaml.safe_load(path.read_text(encoding="utf-8")))
+
+    assert cfg.prompt_static_obstacles is False
+    assert cfg.static_obstacles == ()
+
+
 def test_congestion_event_distance_to_goal_defaults_to_empty():
     event = CongestionEvent(
         involved_robots=["robot_0"],

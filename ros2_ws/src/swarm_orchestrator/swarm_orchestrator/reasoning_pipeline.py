@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -21,6 +21,7 @@ from reasoning.vlm.models import (
     ReasonerRequest,
     ReasonerResult,
     RobotStateInput,
+    StaticObstacleInput,
 )
 from reasoning.vlm.prompt_builder import build_prompt_payload
 from swarm_orchestrator.command_lifecycle import AttemptRecord
@@ -78,6 +79,8 @@ def build_reasoner_request(
     image_path: str,
     failure_context: FailureContext | None = None,
     include_pairwise_geometry: bool = True,
+    static_obstacles: Sequence[StaticObstacleInput] = (),
+    include_static_obstacles: bool = False,
 ) -> ReasonerRequest:
     """Project a SceneSnapshot plus a dumped image path into a ReasonerRequest."""
     robot_states = [
@@ -100,6 +103,8 @@ def build_reasoner_request(
         robot_states=robot_states,
         failure_context=failure_context,
         include_pairwise_geometry=include_pairwise_geometry,
+        static_obstacles=list(static_obstacles),
+        include_static_obstacles=include_static_obstacles,
     )
 
 

@@ -6,7 +6,14 @@ import json
 import numpy as np
 import pytest
 from swarm_orchestrator.command_lifecycle import AttemptRecord
-from swarm_orchestrator.models import PipelineOutcome, RobotView, SceneSnapshot, TerminalStage
+from swarm_orchestrator.models import (
+    OrchestratorConfig,
+    PipelineOutcome,
+    RobotView,
+    SceneSnapshot,
+    TaskAssignment,
+    TerminalStage,
+)
 from swarm_orchestrator.reasoning_pipeline import (
     InProcessPipeline,
     append_scene_log,
@@ -23,6 +30,7 @@ from reasoning.vlm.models import (
     FailureContext,
     ReasonerDiagnostics,
     ReasonerResult,
+    StaticObstacleInput,
 )
 from reasoning.vlm.prompt_builder import build_prompt_payload
 
@@ -445,6 +453,54 @@ def test_build_reasoner_request_passes_geometry_switch_through():
     )
     assert on.include_pairwise_geometry is True
     assert off.include_pairwise_geometry is False
+
+
+def test_build_reasoner_request_passes_static_obstacles_through():
+    obstacle = StaticObstacleInput(
+        obstacle_id="blocker_west", x=-1.85, y=0.0, size_x_m=0.3, size_y_m=0.3
+    )
+    default = build_reasoner_request("r1", _snapshot(), "/tmp/r1.png")
+    on = build_reasoner_request(
+        "r1",
+        _snapshot(),
+        "/tmp/r1.png",
+        static_obstacles=[obstacle],
+        include_static_obstacles=True,
+    )
+    assert default.static_obstacles == []
+    assert default.include_static_obstacles is False
+    assert on.static_obstacles == [obstacle]
+    assert on.include_static_obstacles is True
+
+
+def test_build_reasoner_request_accepts_the_config_obstacle_tuple():
+    # The node hands the config's tuple straight to build_reasoner_request; this
+    # pins that seam, since node code is not exercised by the unit suite.
+    cfg = OrchestratorConfig(
+        stall_threshold_sec=12.0,
+        progress_epsilon_m=0.1,
+        cooldown_sec=15.0,
+        command_timeout_sec=20.0,
+        reasoning_backend_id="mock",
+        initial_tasks={"robot_0": TaskAssignment(task="t", goal=(0.0, 0.0))},
+        frame_dump_dir="data/logs/m5_frames",
+        prompt_static_obstacles=True,
+        static_obstacles=(
+            StaticObstacleInput(
+                obstacle_id="blocker_west", x=-1.85, y=0.0, size_x_m=0.3, size_y_m=0.3
+            ),
+        ),
+    )
+    req = build_reasoner_request(
+        "r1",
+        _snapshot(),
+        "/tmp/r1.png",
+        static_obstacles=cfg.static_obstacles,
+        include_static_obstacles=cfg.prompt_static_obstacles,
+    )
+
+    assert req.include_static_obstacles is True
+    assert [o.obstacle_id for o in req.static_obstacles] == ["blocker_west"]
 
 
 def test_build_reasoner_request_passes_failure_context_through():

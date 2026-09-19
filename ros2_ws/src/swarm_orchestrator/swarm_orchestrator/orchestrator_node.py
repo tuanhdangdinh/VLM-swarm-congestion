@@ -333,6 +333,8 @@ class OrchestratorNode(Node):
             image_path,
             failure_context=failure_context,
             include_pairwise_geometry=self._config.prompt_pairwise_geometry,
+            static_obstacles=self._config.static_obstacles,
+            include_static_obstacles=self._config.prompt_static_obstacles,
         )
         self._pending_failure_context = failure_context
         self._pending_request = request

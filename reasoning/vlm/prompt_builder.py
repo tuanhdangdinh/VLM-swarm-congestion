@@ -1,7 +1,13 @@
 import json
 import math
 
-from reasoning.vlm.models import FailureContext, PromptPayload, ReasonerRequest, RobotStateInput
+from reasoning.vlm.models import (
+    FailureContext,
+    PromptPayload,
+    ReasonerRequest,
+    RobotStateInput,
+    StaticObstacleInput,
+)
 
 # "faces" = the robot's heading is within 60° of the direction to the other robot.
 # Opposite headings alone cannot tell head-on from diverging; the VLM misread two
@@ -10,6 +16,7 @@ _FACING_COS = 0.5
 _PAIRWISE_GEOMETRY_HEADER = (
     "Pairwise geometry (faces = heading within 60° of the direction to the other robot):"
 )
+_STATIC_OBSTACLE_HEADER = "Static obstacles (world-frame axis-aligned boxes):"
 
 # Cosmos Reason 2 is a chain-of-thought reasoning VLM built on Qwen3-VL. NVIDIA's
 # prompt guide specifies a minimal system prompt ("we are more aligned with Qwen's
@@ -25,12 +32,12 @@ patterns such as deadlocks, bottlenecks, crowding, or anomalies.
 
 Robot states (sorted by ID):
 {robot_state_block}
-{pairwise_geometry_block}
+{pairwise_geometry_block}{static_obstacle_block}
 Known robot IDs: {known_robot_ids_json}
 {failure_context_block}
 Guidance:
 - Robots are roughly 0.3 m wide; treat any two robots within ~0.5 m of each \
-other as physically conflicting. {geometry_use_clause}
+other as physically conflicting. {geometry_use_clause}{obstacle_use_clause}
 - theta is heading in radians: 0=east(+x), π/2=north(+y), π or -π=west(-x), \
 -π/2=south(-y). Opposite headings alone do NOT mean head-on: two robots are \
 head-on only when each faces the other {facing_source} AND they are within \
@@ -96,6 +103,20 @@ _GEOMETRY_OFF = {
         "the coordinates"
     ),
 }
+
+# Wording for the two modality conditions of the static-obstacle ablation axis.
+# The ON clause states scene physics only: naming a robot, a maneuver or a
+# blocked side would hand the model the answer the experiment measures. The OFF
+# value is the empty string (not a placeholder line) so the rendered prompt stays
+# byte-identical to the pre-modality prompt; the leading space therefore lives
+# inside the ON value.
+_OBSTACLES_ON = {
+    "obstacle_use_clause": (
+        " Fixed obstacles in the scene are listed above and are the only ones "
+        "present; a robot can neither occupy nor drive through one."
+    ),
+}
+_OBSTACLES_OFF = {"obstacle_use_clause": ""}
 
 _FAILURE_CONTEXT_ADVICE = (
     "If the congestion is no longer present, report congestion_detected=false. "
@@ -193,6 +214,23 @@ def format_pairwise_geometry_lines(robot_states: list[RobotStateInput]) -> list[
     return lines
 
 
+def format_static_obstacle_lines(obstacles: list[StaticObstacleInput]) -> list[str]:
+    """Render fixed obstacles as world-frame boxes, sorted by obstacle ID.
+
+    Args:
+        obstacles: Declared static obstacles; order is normalized here.
+
+    Returns:
+        One line per obstacle, e.g. `blocker_west: centre (-1.85, 0.00) m,
+        extent 0.30 x 0.30 m`; empty when no obstacles are declared.
+    """
+    return [
+        f"{obstacle.obstacle_id}: centre ({obstacle.x:.2f}, {obstacle.y:.2f}) m, "
+        f"extent {obstacle.size_x_m:.2f} x {obstacle.size_y_m:.2f} m"
+        for obstacle in sorted(obstacles, key=lambda o: o.obstacle_id)
+    ]
+
+
 def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
     """Build a deterministic, fully-rendered prompt payload from a request.
 
@@ -213,6 +251,15 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
     if geometry_lines:
         bullets = [f"- {line}" for line in geometry_lines]
         geometry_block = "\n" + "\n".join([_PAIRWISE_GEOMETRY_HEADER, *bullets]) + "\n"
+    obstacle_lines = (
+        format_static_obstacle_lines(request.static_obstacles)
+        if request.include_static_obstacles
+        else []
+    )
+    obstacle_block = ""
+    if obstacle_lines:
+        bullets = [f"- {line}" for line in obstacle_lines]
+        obstacle_block = "\n" + "\n".join([_STATIC_OBSTACLE_HEADER, *bullets]) + "\n"
     failure_block = (
         ""
         if request.failure_context is None
@@ -222,8 +269,10 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
         robot_state_block=block,
         known_robot_ids_json=json.dumps(known_ids),
         pairwise_geometry_block=geometry_block,
+        static_obstacle_block=obstacle_block,
         failure_context_block=failure_block,
         **(_GEOMETRY_ON if request.include_pairwise_geometry else _GEOMETRY_OFF),
+        **(_OBSTACLES_ON if request.include_static_obstacles else _OBSTACLES_OFF),
     )
     return PromptPayload(
         system_prompt=SYSTEM_PROMPT,
