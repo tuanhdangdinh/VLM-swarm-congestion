@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: T1 control run (`head_on_asymmetric_wopen_eopen_o0`, mock backend) on the GPU VM, plus the VM sync and artifact-build verification that preceded it.
+- Rev 2 (2026-09-19): corrected the T1 root-cause conclusion. The original "Root cause" section named an M4 defect as the cause of `robot_1`'s failure to arrive; that conclusion is wrong. The actual cause is `build_backend`'s mock branch (`reasoning/vlm/backend_factory.py`) collapsing `VGU_MOCK_DECISION_FILE` to a single repeated decision, so M2 replayed "deadlock / yield" on all 16 analyses instead of reporting `congestion_detected=false` once the scene cleared. The resume/cancel forensics in the original section are accurate and preserved — they are the *mechanism* by which the repeated commands stopped `robot_1`, not evidence of an independent M4 bug. The original text is marked superseded rather than removed; see "Root cause (revised)" below and the corrected Entry Criteria bullet. Fixed in the same commit by giving `VGU_MOCK_DECISION_FILE` an optional scripted-sequence form (`config/mock_decisions/head_on_yield_once.json`, `head_on_yield_robot_2_once.json`).
 
 ---
 
@@ -25,7 +26,7 @@ association.
 | run_id | Scenario | Backend | Mock decision file | Start (UTC) | End (UTC) | Outcome |
 |---|---|---|---|---|---|---|
 | `20260918_183831` | `head_on_asymmetric_wopen_eopen_o0` | mock | `/ws/config/mock_decisions/head_on_yield.json` | 2026-09-18T18:38:31Z | 2026-09-18T18:41:52Z | Aborted - M5 `ImportError` at startup (stale install tree) |
-| `20260918_184400` | `head_on_asymmetric_wopen_eopen_o0` | mock | `/ws/config/mock_decisions/head_on_yield.json` | 2026-09-18T18:44:00Z | 2026-09-18T19:00:20Z | Partial - `robot_2` reached goal, `robot_1` did not (M4 resume/cancel defect) |
+| `20260918_184400` | `head_on_asymmetric_wopen_eopen_o0` | mock | `/ws/config/mock_decisions/head_on_yield.json` | 2026-09-18T18:44:00Z | 2026-09-18T19:00:20Z | Partial - `robot_2` reached goal, `robot_1` did not (frozen mock replayed the yield decision; see "Root cause (revised)") |
 
 ---
 
@@ -157,7 +158,15 @@ robot_2  x= -2.462 y= -0.003 theta= -0.12 v= 0.000 status=STOPPED  task=temporar
 robot_1  x= -1.226 y=  0.149 theta= -0.68 v= 0.000 status=STOPPED  task=temporary_wait goal=None
 ```
 
-### Root cause: M4 cancels every base-mission resume it issues
+### Root cause (superseded): M4 cancels every base-mission resume it issues
+
+> **Superseded by Rev 2 (2026-09-19).** This section's conclusion — that an
+> M4 defect in `coordination_client_node`'s resume path caused `robot_1`'s
+> failure to arrive — is wrong. The forensic counts below (resume/cancel
+> tallies, timings, the safety-monitor ruling-out) are accurate and are kept
+> as originally recorded. They describe the *mechanism* by which `robot_1`
+> was repeatedly stopped, not the *cause*. See "Root cause (revised)"
+> immediately below for the corrected analysis.
 
 `robot_1`'s failure was traced to the M4 command layer, not to the scenario
 geometry, the map, or the mock backend's frozen decision.
@@ -218,6 +227,67 @@ For completeness, the `failure_context` the loop fed back to M2 was
 ```text
 [1789757446.188319212] [orchestrator_node]: request=40032f55952144279266496fa6886a92 failure_context attached command=247ad7ffaa8d4b85b703d803fa83b817-yield strategy=yield executed=temporary_wait outcome=completed
 ```
+
+### Root cause (revised)
+
+**Cause: the mock backend's decision file was a single frozen decision, not
+a scene that changes.** T1's `VGU_MOCK_DECISION_FILE` pointed at
+`head_on_yield.json`, one JSON object. Before this report's Rev 2,
+`build_backend`'s mock branch (`reasoning/vlm/backend_factory.py:73-81`)
+always wrapped that file's text in `MockBackend(response_text=...)`, which
+returns the identical text on every call. M5 re-analyses whenever a robot
+stalls, so all 16 of T1's M2 analyses — including the 15 that ran after
+`robot_2` had already reached its goal and the aisle was empty — replayed
+the same `congestion_detected=true / deadlock / yield [robot_1, robot_2]`
+decision. A live backend does not do this: run 5 (2026-09-17, gpt-4o)
+resolved in a single dispatch followed by 31 `none` answers, because the
+failure-context loop reports `congestion_detected=false` once the scene
+clears. A frozen mock structurally cannot report that, regardless of what M4
+does with the commands it is given.
+
+**Mechanism: the M4 resume/cancel behavior described above is real, and is
+how the frozen decision turned into a stopped robot.** Every one of the
+repeated "yield" decisions M3/M4 grounded and dispatched a fresh command to
+`robot_1`; M4's documented ownership handoff cancels a robot's in-flight
+Nav2 goal when a new command targets it. Sixteen repeated dispatches
+therefore produced the exact resume/cancel forensics recorded above and
+preserved unchanged: 30 `resume base mission` calls, 85 `Begin navigating`
+goals, 84 cancels, 0 successes, a median 0.11 s from resume to cancel, and
+the safety monitor ruled out (686 stops before `robot_2` arrived, 0 after).
+Those counts are not evidence of an M4 bug firing under ordinary operation —
+they are evidence of what 16 back-to-back identical commands to the same
+robot do to any resume path that cancels on re-command. `robot_2` was
+unaffected only because it happened to reach its goal during the very first
+yield, before it was ever re-commanded.
+
+**What remains open.** A resume that gets cancelled a median of 0.11 s after
+it starts is unusual on its own terms, independent of what caused the
+repeat-command stream. That is recorded here as a real but **latent** M4
+issue: it takes a pathological repeat-command stream to manifest — which is
+exactly what the frozen mock produced and what a live backend would not
+produce — so it did not block this task, but it needs its own investigation
+before the codebase can assume rapid successive commands to one robot are
+safe. It should not be read as ruled out by this correction.
+
+**Fix landed in the same commit as this revision.** `build_backend`'s mock
+branch now accepts either a single decision object (unchanged behaviour) or
+a JSON array, which becomes a `MockBackend` scripted `response_sequence`
+that holds its last entry once exhausted.
+`config/mock_decisions/head_on_yield_once.json` and
+`config/mock_decisions/head_on_yield_robot_2_once.json` are two-entry
+sequences: the existing yield decision, then a `congestion_detected: false`
+decision matching `MockBackend`'s default no-congestion response.
+`head_on_yield.json` and `head_on_yield_robot_2.json` are left unchanged — a
+later task still needs the frozen single-decision form for an arm where the
+forced maneuver is expected to fail and therefore never produces a
+resolution.
+
+**Verification gate for Task 8.** When Task 8 next runs a one-shot arm
+(mock decision file switched to the `*_once.json` sequence), `robot_1`
+should receive an uninterrupted navigation window longer than 17 s after the
+last command resolves. If it does not, the M4 resume race is not latent
+after all, and Tasks 8/9 stop until it has its own fix — report rather than
+tune.
 
 ### Other anomalies
 
@@ -358,9 +428,15 @@ carrying `run_id=20260918_184400`.
 - [x] `scripts/vm/fc_launch.sh` exercised live; no fault found in the script.
 - [x] VM install tree rebuilt clean; no foreign-branch code remains.
 - [ ] T1 control reaches both goals. **Not met** - `robot_1` did not arrive.
-      The cause is an M4 defect: `coordination_client_node` cancels the Nav2 goal
-      its own base-mission resume just issued (median 0.11 s later, 30 resumes,
-      0 successful navigations). Fix that before any T2a comparison is read as
-      evidence about scenario asymmetry — as it stands, a yielding robot cannot
-      complete its mission in *any* cell of the family, so the T2a contrast would
-      measure the defect rather than the geometry.
+      **Superseded by Rev 2 (2026-09-19):** the line originally here attributed
+      this to an M4 defect (`coordination_client_node` cancelling the Nav2
+      goal its own base-mission resume just issued, median 0.11 s later, 30
+      resumes, 0 successful navigations). Those counts are correct but the
+      cause was the mock backend replaying the same "yield" decision on all
+      16 analyses (`reasoning/vlm/backend_factory.py`'s mock branch collapsed
+      `VGU_MOCK_DECISION_FILE` to one repeated response); see "Root cause
+      (revised)" above. The resume/cancel behavior is a real but latent M4
+      issue, not a confirmed defect blocking T2a. With the scripted-sequence
+      fix in place, re-run T1 with `head_on_yield_once.json`; if `robot_1`
+      still fails to arrive, the M4 resume race is not latent and Tasks 8/9
+      stop until it has its own fix.

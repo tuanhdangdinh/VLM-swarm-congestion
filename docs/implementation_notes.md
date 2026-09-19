@@ -37,6 +37,22 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-19** — `build_backend`'s mock branch (`reasoning/vlm/backend_factory.py`)
+  now accepts a JSON array in `VGU_MOCK_DECISION_FILE`, scripted into
+  `MockBackend(response_sequence=...)`, which holds its last entry once
+  exhausted; a single-object file keeps the unchanged `response_text=...`
+  behaviour. Added `config/mock_decisions/head_on_yield_once.json` and
+  `head_on_yield_robot_2_once.json` (existing yield decision, then a
+  `congestion_detected: false` decision) so key-less runs can represent a
+  scene that clears instead of replaying the same decision forever. This
+  was root-caused from the T1 control run in
+  `docs/reports/2026-09-18-head-on-family-validity.md` Rev 2: the frozen
+  single-decision mock, not an M4 defect, caused `robot_1` to be
+  re-commanded (and re-cancelled) on all 16 stall-triggered M2 analyses.
+  `head_on_yield.json` / `head_on_yield_robot_2.json` are left frozen —
+  a later task needs that form for an arm where the forced maneuver is
+  expected to fail. Supersedes the 2026-09-16 entry below only insofar as
+  the hook now supports a scripted sequence, not just a single decision.
 - **2026-09-17** — Phase 2 slice landed ahead of Phase 1: failure-context
   feedback (rev-8 A.1) is wired end-to-end — `AttemptMemory` in M5, `FailureContext`
   + prompt block in M2, context recorded in decision artifacts. Episode rule =

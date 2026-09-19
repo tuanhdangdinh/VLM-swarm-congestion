@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from pathlib import Path
 
@@ -359,13 +360,43 @@ def test_build_backend_mock_uses_scripted_decision_file(tmp_path, monkeypatch):
     decision_file = tmp_path / "scripted.json"
     decision_file.write_text(text, encoding="utf-8")
     monkeypatch.setenv("VGU_MOCK_DECISION_FILE", str(decision_file))
-    response = build_backend("mock").analyze(_PAYLOAD, _CONFIG)
-    assert response.text == text
+    backend = build_backend("mock")
+
+    responses = [backend.analyze(_PAYLOAD, _CONFIG).text for _ in range(3)]
+
+    assert responses == [text, text, text]
 
 
 def test_build_backend_mock_missing_decision_file_raises(tmp_path, monkeypatch):
     monkeypatch.setenv("VGU_MOCK_DECISION_FILE", str(tmp_path / "absent.json"))
     with pytest.raises(FileNotFoundError, match="VGU_MOCK_DECISION_FILE"):
+        build_backend("mock")
+
+
+def test_build_backend_mock_sequence_file_replays_entries_then_holds_last(
+    tmp_path, monkeypatch
+):
+    first = {"congestion_detected": True, "strategy": "yield"}
+    second = {"congestion_detected": False, "strategy": "none"}
+    decision_file = tmp_path / "scripted_sequence.json"
+    decision_file.write_text(json.dumps([first, second]), encoding="utf-8")
+    monkeypatch.setenv("VGU_MOCK_DECISION_FILE", str(decision_file))
+    backend = build_backend("mock")
+
+    responses = [backend.analyze(_PAYLOAD, _CONFIG).text for _ in range(10)]
+
+    assert json.loads(responses[0]) == first
+    assert json.loads(responses[1]) == second
+    assert json.loads(responses[2]) == second
+    assert json.loads(responses[9]) == second
+
+
+def test_build_backend_mock_empty_sequence_file_raises(tmp_path, monkeypatch):
+    decision_file = tmp_path / "empty_sequence.json"
+    decision_file.write_text("[]", encoding="utf-8")
+    monkeypatch.setenv("VGU_MOCK_DECISION_FILE", str(decision_file))
+
+    with pytest.raises(ValueError, match=re.escape(str(decision_file))):
         build_backend("mock")
 
 

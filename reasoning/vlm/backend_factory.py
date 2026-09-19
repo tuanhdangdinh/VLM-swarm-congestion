@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -50,10 +51,16 @@ def build_backend(
     """Construct a concrete VLM backend from its identifier and config.
 
     For `backend_id == "mock"`, the `VGU_MOCK_DECISION_FILE` environment
-    variable may name a file whose UTF-8 text becomes the backend's scripted
-    response. This lets key-less closed-loop runs replay a specific decision
-    (e.g. `config/mock_decisions/head_on_yield.json`) instead of the default
-    no-congestion answer. Unset or empty keeps the default behaviour.
+    variable may name a file holding either a single JSON decision object,
+    whose UTF-8 text becomes the backend's scripted response, or a JSON
+    array of decision objects, which becomes a scripted sequence: the
+    backend replays each entry in order and holds the last entry for every
+    call after the sequence is exhausted. This lets key-less closed-loop
+    runs replay a specific decision (e.g.
+    `config/mock_decisions/head_on_yield.json`) or a short scripted scene
+    (e.g. `config/mock_decisions/head_on_yield_once.json`) instead of the
+    default no-congestion answer. Unset or empty keeps the default
+    behaviour.
 
     Args:
         backend_id: Selector, e.g. "mock" or "llama_server".
@@ -64,8 +71,9 @@ def build_backend(
         A backend instance satisfying the `VLMBackend` Protocol.
 
     Raises:
-        ValueError: If `backend_id` is not recognized, or required config is
-            missing for a backend that needs it.
+        ValueError: If `backend_id` is not recognized, required config is
+            missing for a backend that needs it, or `VGU_MOCK_DECISION_FILE`
+            names a file containing an empty JSON array.
         FileNotFoundError: If `VGU_MOCK_DECISION_FILE` names a path that does
             not exist. Config errors fail fast at startup by convention.
     """
@@ -78,7 +86,15 @@ def build_backend(
             raise FileNotFoundError(
                 f"VGU_MOCK_DECISION_FILE points to a missing file: {path}"
             )
-        return MockBackend(response_text=path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+        parsed = json.loads(text)
+        if isinstance(parsed, list):
+            if not parsed:
+                raise ValueError(
+                    f"VGU_MOCK_DECISION_FILE names an empty decision array: {path}"
+                )
+            return MockBackend(response_sequence=[json.dumps(item) for item in parsed])
+        return MockBackend(response_text=text)
     if backend_id == "llama_server":
         if backend_config is None:
             raise ValueError("llama_server backend requires a LlamaServerBackendConfig")

@@ -1,0 +1,18 @@
+[
+  {
+    "congestion_detected": true,
+    "type": "deadlock",
+    "involved_robots": ["robot_1", "robot_2"],
+    "root_cause": "Two robots met head-on inside the narrow aisle and neither can pass.",
+    "strategy": "yield",
+    "justification": "Scripted mock decision for key-less closed-loop runs: robot_1 yields, robot_2 passes."
+  },
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "Scene has cleared; robots are no longer in a head-on conflict.",
+    "strategy": "none",
+    "justification": "Scripted mock decision for key-less closed-loop runs: scene is clear after the yield resolved."
+  }
+]
