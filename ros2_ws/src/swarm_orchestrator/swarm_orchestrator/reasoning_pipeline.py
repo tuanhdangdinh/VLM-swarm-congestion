@@ -20,6 +20,7 @@ from reasoning.vlm.models import (
     ReasonerDiagnostics,
     ReasonerRequest,
     ReasonerResult,
+    RobotPresentationOrder,
     RobotStateInput,
     StaticObstacleInput,
 )
@@ -81,6 +82,7 @@ def build_reasoner_request(
     include_pairwise_geometry: bool = True,
     static_obstacles: Sequence[StaticObstacleInput] = (),
     include_static_obstacles: bool = False,
+    robot_presentation_order: RobotPresentationOrder = "id_asc",
 ) -> ReasonerRequest:
     """Project a SceneSnapshot plus a dumped image path into a ReasonerRequest."""
     robot_states = [
@@ -105,6 +107,7 @@ def build_reasoner_request(
         include_pairwise_geometry=include_pairwise_geometry,
         static_obstacles=list(static_obstacles),
         include_static_obstacles=include_static_obstacles,
+        robot_presentation_order=robot_presentation_order,
     )
 
 

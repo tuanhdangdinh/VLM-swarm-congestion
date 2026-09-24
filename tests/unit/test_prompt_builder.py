@@ -18,6 +18,7 @@ from reasoning.vlm.prompt_builder import (
     format_pairwise_geometry_lines,
     format_robot_state_lines,
     format_static_obstacle_lines,
+    order_robot_states,
     render_failure_context_block,
 )
 
@@ -389,3 +390,91 @@ def test_render_failure_context_block_allows_reporting_no_congestion():
         "If it persists and the previous strategy did not clear it, prefer a different "
         "strategy unless the scene has changed."
     ) in block
+
+
+def _ordered_request(order: str) -> ReasonerRequest:
+    return _request().model_copy(update={"robot_presentation_order": order})
+
+
+def test_reasoner_request_robot_presentation_order_defaults_to_id_asc():
+    assert _request().robot_presentation_order == "id_asc"
+
+
+def test_reasoner_request_robot_presentation_order_rejects_unknown_value():
+    with pytest.raises(ValidationError):
+        ReasonerRequest(**{**_request().model_dump(), "robot_presentation_order": "geometry"})
+
+
+def test_reasoner_request_robot_presentation_order_round_trips_through_json_dump():
+    dumped = _ordered_request("id_desc").model_dump(mode="json")
+    assert dumped["robot_presentation_order"] == "id_desc"
+    assert ReasonerRequest(**dumped).robot_presentation_order == "id_desc"
+
+
+def test_build_prompt_payload_default_order_matches_the_pre_feature_prompt():
+    # The default path must stay byte-identical, or every artifact collected so
+    # far stops being comparable with everything rendered after this feature.
+    prompt = build_prompt_payload(_request()).user_prompt
+    assert len(prompt) == 3338
+    assert hashlib.sha256(prompt.encode("utf-8")).hexdigest() == _PRE_OBSTACLE_OFF_PROMPT_SHA256
+
+
+def test_build_prompt_payload_reverses_robot_lines_when_order_is_id_desc():
+    prompt = build_prompt_payload(_ordered_request("id_desc")).user_prompt
+    assert prompt.index("robot_id=robot_2") < prompt.index("robot_id=robot_1")
+
+
+def test_build_prompt_payload_reverses_known_robot_ids_when_order_is_id_desc():
+    payload = build_prompt_payload(_ordered_request("id_desc"))
+    assert payload.known_robot_ids == ["robot_2", "robot_1"]
+    assert 'Known robot IDs: ["robot_2", "robot_1"]' in payload.user_prompt
+
+
+def test_build_prompt_payload_swaps_pairwise_roles_when_order_is_id_desc():
+    # The pair's first/second roles have to follow the same order as the robot
+    # list, or one prompt presents the same pair two different ways.
+    prompt = build_prompt_payload(_ordered_request("id_desc")).user_prompt
+    assert (
+        "- robot_2 <-> robot_1: distance 2.24 m; robot_2 faces robot_1: no; "
+        "robot_1 faces robot_2: no\n"
+    ) in prompt
+
+
+def test_build_prompt_payload_id_desc_leaves_the_guidance_text_unchanged():
+    # Only the three ordered regions may differ; the task framing, guidance,
+    # schema and answer format have to stay word-for-word the same, or the two
+    # order conditions would differ in more than the thing under test.
+    marker = "\nGuidance:\n"
+    ascending = build_prompt_payload(_request()).user_prompt
+    descending = build_prompt_payload(_ordered_request("id_desc")).user_prompt
+    assert ascending != descending
+    assert len(ascending) == len(descending)
+    assert ascending[ascending.index(marker) :] == descending[descending.index(marker) :]
+
+
+def test_format_pairwise_geometry_lines_default_order_is_ascending():
+    states = [
+        RobotStateInput(robot_id="robot_2", x=1.0, y=0.0, theta=3.14159),
+        RobotStateInput(robot_id="robot_1", x=0.0, y=0.0, theta=0.0),
+    ]
+    assert format_pairwise_geometry_lines(states)[0].startswith("robot_1 <-> robot_2")
+
+
+def test_format_pairwise_geometry_lines_id_desc_puts_the_last_id_first():
+    states = [
+        RobotStateInput(robot_id="robot_1", x=0.0, y=0.0, theta=0.0),
+        RobotStateInput(robot_id="robot_2", x=1.0, y=0.0, theta=3.14159),
+    ]
+    assert format_pairwise_geometry_lines(states, "id_desc") == [
+        "robot_2 <-> robot_1: distance 1.00 m; robot_2 faces robot_1: yes; "
+        "robot_1 faces robot_2: yes"
+    ]
+
+
+def test_order_robot_states_leaves_the_input_list_untouched():
+    states = [
+        RobotStateInput(robot_id="robot_2", x=1.0, y=0.0, theta=0.0),
+        RobotStateInput(robot_id="robot_1", x=0.0, y=0.0, theta=0.0),
+    ]
+    assert [s.robot_id for s in order_robot_states(states, "id_desc")] == ["robot_2", "robot_1"]
+    assert [s.robot_id for s in states] == ["robot_2", "robot_1"]

@@ -25,6 +25,11 @@ prompt_pairwise_geometry: true
 # produced without this channel, and an on-by-default flag would silently break
 # comparability with all of them.
 prompt_static_obstacles: false
+# Ablation axis: order the prompt lists robots in — id_asc or id_desc. Default
+# id_asc matches every prompt rendered so far; id_desc is the counterbalanced
+# condition that tells a positional default ("yield the robot presented first")
+# apart from an ID or a geometry preference. Only the ordering changes.
+prompt_robot_order: id_asc
 reasoning_backend_id: openai
 frame_dump_dir: data/logs/m5_frames
 decision_log_dir: data/logs/m5_decisions

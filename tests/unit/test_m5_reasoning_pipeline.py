@@ -455,6 +455,38 @@ def test_build_reasoner_request_passes_geometry_switch_through():
     assert off.include_pairwise_geometry is False
 
 
+def test_build_reasoner_request_passes_robot_presentation_order_through():
+    default = build_reasoner_request("r1", _snapshot(), "/tmp/r1.png")
+    reversed_order = build_reasoner_request(
+        "r1", _snapshot(), "/tmp/r1.png", robot_presentation_order="id_desc"
+    )
+    assert default.robot_presentation_order == "id_asc"
+    assert reversed_order.robot_presentation_order == "id_desc"
+
+
+def test_build_reasoner_request_accepts_the_config_robot_order():
+    # The node hands the config value straight to build_reasoner_request; node
+    # code is not exercised by the unit suite, so pin the seam here.
+    cfg = OrchestratorConfig(
+        stall_threshold_sec=12.0,
+        progress_epsilon_m=0.1,
+        cooldown_sec=15.0,
+        command_timeout_sec=20.0,
+        reasoning_backend_id="mock",
+        initial_tasks={"robot_0": TaskAssignment(task="t", goal=(0.0, 0.0))},
+        frame_dump_dir="data/logs/m5_frames",
+        prompt_robot_order="id_desc",
+    )
+    req = build_reasoner_request(
+        "r1",
+        _snapshot(),
+        "/tmp/r1.png",
+        robot_presentation_order=cfg.prompt_robot_order,
+    )
+
+    assert req.robot_presentation_order == "id_desc"
+
+
 def test_build_reasoner_request_passes_static_obstacles_through():
     obstacle = StaticObstacleInput(
         obstacle_id="blocker_west", x=-1.85, y=0.0, size_x_m=0.3, size_y_m=0.3

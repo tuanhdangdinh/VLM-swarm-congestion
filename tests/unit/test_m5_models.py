@@ -253,6 +253,25 @@ def test_orchestrator_config_prompt_static_obstacles_defaults_off():
     assert _config_with(prompt_static_obstacles=True).prompt_static_obstacles is True
 
 
+def test_orchestrator_config_prompt_robot_order_defaults_to_id_asc():
+    # Default id_asc: every prompt rendered so far presented robots in ascending
+    # ID order, so any other default would break comparability with all of them.
+    assert _config_with().prompt_robot_order == "id_asc"
+    assert _config_with(prompt_robot_order="id_desc").prompt_robot_order == "id_desc"
+
+
+def test_orchestrator_config_prompt_robot_order_rejects_unknown_value():
+    with pytest.raises(ValidationError):
+        _config_with(prompt_robot_order="geometry")
+
+
+def test_shipped_orchestrator_yaml_keeps_robot_order_ascending():
+    path = Path("ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml")
+    cfg = load_config(yaml.safe_load(path.read_text(encoding="utf-8")))
+
+    assert cfg.prompt_robot_order == "id_asc"
+
+
 def test_orchestrator_config_static_obstacles_default_to_empty():
     assert _config_with().static_obstacles == ()
 

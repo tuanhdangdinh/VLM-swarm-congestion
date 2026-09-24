@@ -8,7 +8,11 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from reasoning.rag.scene_geometry import SceneGeometry
-from reasoning.vlm.models import ReasonerResult, StaticObstacleInput
+from reasoning.vlm.models import (
+    ReasonerResult,
+    RobotPresentationOrder,
+    StaticObstacleInput,
+)
 
 # Default ROS2 topic/service names (spec §5; overridable via config `topics`).
 DEFAULT_TOPICS: dict[str, str] = {
@@ -81,6 +85,10 @@ class OrchestratorConfig(BaseModel):
     # Default False — every decision artifact collected so far was produced
     # without this channel, so an ON default would break comparability.
     prompt_static_obstacles: bool = False
+    # Ablation axis: the order the VLM prompt lists robots in. Default "id_asc"
+    # matches every prompt rendered so far; "id_desc" is the counterbalanced
+    # condition that separates a positional default from an ID or geometry one.
+    prompt_robot_order: RobotPresentationOrder = "id_asc"
     # Fixed obstacles of the running scenario, mirrored from its scenario file;
     # rendered only when prompt_static_obstacles is true.
     static_obstacles: tuple[StaticObstacleInput, ...] = ()

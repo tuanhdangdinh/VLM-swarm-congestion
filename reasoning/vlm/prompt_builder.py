@@ -5,6 +5,7 @@ from reasoning.vlm.models import (
     FailureContext,
     PromptPayload,
     ReasonerRequest,
+    RobotPresentationOrder,
     RobotStateInput,
     StaticObstacleInput,
 )
@@ -182,24 +183,48 @@ def format_robot_state_lines(robot_states: list[RobotStateInput]) -> list[str]:
     return lines
 
 
+def order_robot_states(
+    robot_states: list[RobotStateInput],
+    order: RobotPresentationOrder = "id_asc",
+) -> list[RobotStateInput]:
+    """Put robot states into the requested presentation order.
+
+    Args:
+        robot_states: Robot states in arbitrary order.
+        order: `"id_asc"` for ascending robot ID, `"id_desc"` for descending.
+
+    Returns:
+        A new list; the input is left untouched.
+    """
+    return sorted(robot_states, key=lambda s: s.robot_id, reverse=order == "id_desc")
+
+
 def _faces(theta: float, dx: float, dy: float, distance: float) -> bool:
     if distance < 1e-6:
         return False
     return (math.cos(theta) * dx + math.sin(theta) * dy) / distance >= _FACING_COS
 
 
-def format_pairwise_geometry_lines(robot_states: list[RobotStateInput]) -> list[str]:
-    """Render distance and mutual facing for every robot pair, sorted by ID.
+def format_pairwise_geometry_lines(
+    robot_states: list[RobotStateInput],
+    order: RobotPresentationOrder = "id_asc",
+) -> list[str]:
+    """Render distance and mutual facing for every robot pair, in presentation order.
+
+    The order decides which robot of a pair takes the `first` role, so it must
+    match the order the robot-state list uses or the prompt would present the
+    same pair two different ways.
 
     Args:
-        robot_states: Robot states; pairs are formed in robot-ID order.
+        robot_states: Robot states; pairs are formed in the requested order.
+        order: `"id_asc"` for ascending robot ID, `"id_desc"` for descending.
 
     Returns:
         One line per pair, e.g. `robot_1 <-> robot_2: distance 1.00 m;
         robot_1 faces robot_2: yes; robot_2 faces robot_1: no`; empty with fewer
         than two robots.
     """
-    ordered = sorted(robot_states, key=lambda s: s.robot_id)
+    ordered = order_robot_states(robot_states, order)
     lines: list[str] = []
     for index, first in enumerate(ordered):
         for second in ordered[index + 1 :]:
@@ -241,12 +266,15 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
     Returns:
         Frozen `PromptPayload` with fixed system prompt and dynamic user prompt.
     """
-    sorted_states = sorted(request.robot_states, key=lambda s: s.robot_id)
+    order = request.robot_presentation_order
+    sorted_states = order_robot_states(request.robot_states, order)
     known_ids = [s.robot_id for s in sorted_states]
     lines = format_robot_state_lines(sorted_states)
     block = "\n".join(f"- {line}" for line in lines) or "- no robots observed"
     geometry_lines = (
-        format_pairwise_geometry_lines(sorted_states) if request.include_pairwise_geometry else []
+        format_pairwise_geometry_lines(sorted_states, order)
+        if request.include_pairwise_geometry
+        else []
     )
     geometry_block = ""
     if geometry_lines:

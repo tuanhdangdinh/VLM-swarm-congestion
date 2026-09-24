@@ -2,6 +2,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+# Order the prompt lists robots in. Counterbalancing it separates a positional
+# default ("pick the robot presented first") from an ID or geometry preference.
+RobotPresentationOrder = Literal["id_asc", "id_desc"]
+
 
 class RobotStateInput(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -60,6 +64,10 @@ class ReasonerRequest(BaseModel):
     # far was produced without an obstacle channel; switching it on by default
     # would silently break comparability with all of them.
     include_static_obstacles: bool = False
+    # Ablation axis: the order robots are presented in. Default "id_asc" keeps
+    # every prompt rendered so far byte-identical; "id_desc" is the
+    # counterbalanced condition that breaks the presentation-order confound.
+    robot_presentation_order: RobotPresentationOrder = "id_asc"
 
 
 class PromptPayload(BaseModel):

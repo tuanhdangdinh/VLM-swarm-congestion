@@ -335,6 +335,7 @@ class OrchestratorNode(Node):
             include_pairwise_geometry=self._config.prompt_pairwise_geometry,
             static_obstacles=self._config.static_obstacles,
             include_static_obstacles=self._config.prompt_static_obstacles,
+            robot_presentation_order=self._config.prompt_robot_order,
         )
         self._pending_failure_context = failure_context
         self._pending_request = request
