@@ -191,6 +191,18 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-25** — **Live counterbalanced runs confirm the offline verdict: the
+  yielder M2 names follows presentation order, not feasibility.** Four gpt-4o
+  runs, obstacle modality ON: R1 `20260924_195708` `w0p2_eopen`/`id_desc` →
+  `robot_2`, COMPLETED 146.4 s; R2 `20260924_201328` `w0p2_eopen`/`id_asc` →
+  `robot_1`, FAILED 243.7 s arrested 0.102 m from the blocker; R3
+  `20260924_203437` / R4 `20260924_205009` `wopen_e0p2`/`id_desc` → `robot_1`
+  twice, COMPLETED. **Caveat: the three `id_desc` runs yielding a feasible robot
+  is a design coincidence — each bias aligns with feasibility in one variant —
+  not feasibility reasoning; no justification cited the obstacle.** Gotcha:
+  `static_obstacles` ships commented out in `swarm_orchestrator/config/orchestrator.yaml`,
+  so `prompt_static_obstacles: true` alone renders no obstacle block while the
+  MODALITY guard reports ON. Detail: `docs/reports/2026-09-25-overnight-findings.md`.
 - **2026-09-25** — **Closed loop replicated on the new host** (run_id
   `20260924_193112`, `head_on_deadlock`, openai gpt-4o at temperature
   0.0, obstacle modality OFF). First analysis 34.6 s after components

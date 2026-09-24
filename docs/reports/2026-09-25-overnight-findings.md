@@ -1,0 +1,349 @@
+# Overnight Findings - New Host, Presentation-Order Probe, Live Counterbalanced Runs
+
+**Prepared:** 2026-09-25
+
+**Revision history:**
+
+- Initial draft: overnight session of 2026-09-24/25 — new GPU host bring-up, closed-loop replication, offline presentation-order probe, and four live counterbalanced M2 runs.
+
+---
+
+## Headline
+
+**The yielder M2 names is a positional artifact, not spatial reasoning.** Under
+the production default (`id_asc`, `robot_1` first) gpt-4o names
+`yield_robot=robot_1` regardless of feasibility — 20/20 greedy offline samples
+over both asymmetric variants, 36/39 at T=0.6, 1/1 live tonight (R2), 2/2 on
+2026-09-19, plus symmetric E0 — and on the west-blocked variant that is a
+deterministic failure (arrested 0.102 m from the blocker; 0.093–0.094 m on
+09-19). Under `id_desc` it is a contest: west → `robot_2` at 0.8 / 0.7, east →
+`robot_2` at 0.6 / 0.4 (T = 0.0 / 0.6). The correct yielder has no influence
+(`P(correct)` 0.40–0.59 pooled; no justification in 360 offline calls or 4 live
+runs cites the obstacle). gpt-4o-mini follows the slot (20/20 → 0/20, 40/40 → 2/40).
+
+---
+
+## Caveat That Must Travel With the Headline
+
+The three live `id_desc` runs all yielded the robot that was in fact feasible.
+**This is a coincidence of the scenario design, not evidence of feasibility
+reasoning.** On the west-blocked variant the first-listed robot happens to be
+the feasible one; on the east-blocked variant `robot_1` happens to be the
+feasible one. Each of the two competing biases therefore aligns with feasibility
+in exactly one variant. The offline probe samples the same cells and puts
+`P(correct)` at chance.
+
+Do **not** report "the model moves to the feasible robot under `id_desc`".
+
+### Consequences for the pre-registration
+
+- Every decision artifact collected before commit `922dd36` was rendered at
+  `id_asc` and carries this bias.
+- The 2026-09-19 obstacle-channel A/B must be re-labelled **confounded**, not
+  reported as a modality result.
+- The obstacle channel is ineffective in **both** text and image. With the
+  channel off all three variants render a byte-identical prompt and differ only
+  in the image; moving the blocker west ↔ east changes nothing detectable.
+
+---
+
+## Apparatus: New Isaac Sim Host
+
+The previous VM (project `summer-flux-501516-n6`) cannot start: `NVIDIA_L4_GPUS`
+quota is 0 in every region and the self-service increase was auto-denied with
+`NOT_ENOUGH_USAGE_HISTORY`. A replacement host was built on the
+`thule01204@gmail.com` account.
+
+| Item | Value |
+|---|---|
+| Instance | `vgu-vgu-thule-base-isaac-workstation-vm` |
+| Project | `project-355a9186-f6f8-4b89-a44` |
+| Zone | `us-central1-c` (zone `-a` was a stockout) |
+| Machine | `g2-standard-8` + NVIDIA L4, driver 595.84 |
+| IP | `136.112.162.215` |
+| Isaac Sim | v6.0.1, source build |
+| Container | `vgu_ros` from the 2026-09-16 recipe, plus `requests` |
+
+Isaac Sim was pinned to a source build because Isaac Automator's
+`--isaacsim latest` would have installed 7.0.0a1. The full asset chain was
+rebuilt on the new host: the robot with all four visual meshes (`burger_base`
+48 040 points), six scenario USDs, and `validate` PASS on four scenarios. A
+headless smoke run reported `completed: true` with 3 001 ground-truth records
+over 300 sim-seconds, at a render mean of 127.94 against 127.95 on the old host.
+
+The VM was left **RUNNING** for the morning. It bills at roughly US$0.9/h, but
+stopping it risks an L4 stockout on restart — this is the owner's call.
+
+### Deploy lessons
+
+- `--from-image` is project-scoped, so an image from the old project is not
+  reachable from the new one.
+- `latest` resolves to `main`, which is how 7.0.0a1 nearly got installed.
+- The local Automator docker controller was OOM-killed; the remote build it had
+  started survived and completed.
+- The NoMachine `.deb` install failure is harmless for headless work.
+- `run_simulation.py --duration-sec` is a **dead flag** — it is never wired into
+  `ResolvedRunConfig`, and the scenario YAML's 300 s governs instead.
+
+Full detail is in the M6 entries of `docs/implementation_notes.md` dated
+2026-09-25.
+
+---
+
+## E0 - Closed Loop Replicated on the New Host
+
+Run `20260924_193112`, scenario `head_on_deadlock`, gpt-4o at temperature 0.0,
+obstacle modality **off**.
+
+| Measure | Value |
+|---|---|
+| First analysis | +34.6 s after components started |
+| Onset min pairwise | 0.256 m (M1 scene log) / 0.264 m (ground truth) |
+| Maneuvers | 1 `yield` (`yield_robot=robot_1`), COMPLETED after 148 s |
+| Arrivals | 2/2 — `robot_2` at +3.3 min, `robot_1` at +5.5 min |
+| Wall clock | 12 m 52 s |
+| Post-arrival analyses | 0 (2 348 `trigger suppressed` lines) |
+
+The 0.256 m onset is a **third onset mode**, sitting between the 0.08 m contact
+onset and the ≈0.45 m planner-stall onset recorded previously.
+
+### Deviation: the congestion gate fires on single-robot stalls
+
+After `robot_2` had already arrived, a solo stall of `robot_1` triggered a
+second analysis:
+
+```text
+[orchestrator_node]: starting analysis request=0075ff94... robots=['robot_1'] reason=1 robot(s) stalled >= 12.0s distance_to_goal_m={'robot_1': 3.79}
+```
+
+The prompt for that request shows the two robots 1.18 m apart and not mutually
+facing:
+
+```text
+- robot_1 <-> robot_2: distance 1.18 m; robot_1 faces robot_2: no; robot_2 faces robot_1: yes
+```
+
+M2 answered `anomaly` / `reroute`, which COMPLETED and was harmless. The
+pre-registration's episode rule needs to account for single-robot stalls
+entering the M2 pipeline.
+
+---
+
+## Offline Presentation-Order Probe
+
+Commits: `922dd36` (the modality), `dadb3f5` (probe plus raw data), `1c61d7f`
+(report).
+
+**Design.** Three scenario variants x order `{id_asc, id_desc}` x obstacle
+channel `{on, off}` x temperature `{0.0 with n=5, 0.6 with n=10}`, on gpt-4o and
+gpt-4o-mini. 360 calls total, **zero parse failures and zero API errors**, at a
+cost of US$1.82.
+
+**Verdicts.** `H_geom` is refuted; `H_id` is refuted; gpt-4o-mini matches
+`H_slot` outright; gpt-4o is slot-dominant with a residual `robot_1` pull.
+
+### Pooled order effect
+
+| Model | T | `id_asc` P(robot_1) | `id_desc` P(robot_1) | Fisher exact (two-sided) |
+|---|---|---|---|---|
+| gpt-4o | 0.0 | 20/20 | 5/20 | p = 7.7e-07 |
+| gpt-4o | 0.6 | 36/39 | 19/40 | p = 1.7e-05 |
+| gpt-4o-mini | 0.0 | 20/20 | 0/20 | p = 1.5e-11 |
+| gpt-4o-mini | 0.6 | 40/40 | 2/40 | p = 1.4e-13 |
+
+The bias **survives removal** of the old "first listed robot backs up"
+instruction, so it is not instruction-compliance.
+
+### Probe caveats
+
+- Synthetic top-down image, not a camera frame.
+- No `goal` or `task` fields on the robot states — this mirrors live M5, which
+  has never sent them.
+- The 0.70 modal-share margin was chosen post hoc and is disclosed as such.
+- 128 of the 360 calls needed a retry after an HTTP 429; the reissued payload is
+  identical and the prompt SHAs were verified.
+
+Per-cell tables, cost breakdown and the full interpretation are in
+`docs/reports/2026-09-25-presentation-order-probe.md`.
+
+---
+
+## Live Counterbalanced Runs
+
+gpt-4o, obstacle modality **on**, on tree `1c61d7f` verified on the VM by
+`md5`.
+
+| Stamp | Scenario | Order | First `yield_robot` | Prompt robot order | First maneuver | Yielder backup / clearance | Arrivals | Analyses / dispatches |
+|---|---|---|---|---|---|---|---|---|
+| `20260924_195708` (R1) | `w0p2_eopen` | `id_desc` | `robot_2` | `[robot_2, robot_1]` | COMPLETED 146.4 s | backed 0.304 m into open space | 2/2 | 5 / 1 |
+| `20260924_201328` (R2) | `w0p2_eopen` | `id_asc` | `robot_1` | `[robot_1, robot_2]` | FAILED 243.7 s | backed 0.098 m, arrested 0.102 m from the blocker face at x = -1.70 | 1/2 | 4 / 4 |
+| `20260924_203437` (R3) | `wopen_e0p2` | `id_desc` | `robot_1` | `[robot_2, robot_1]` | COMPLETED 150.4 s | backed 0.298 m into open space | 2/2 | 5 / 1 |
+| `20260924_205009` (R4) | `wopen_e0p2` | `id_desc` (repeat) | `robot_1` | `[robot_2, robot_1]` | COMPLETED 147.3 s | backed 0.300 m | 2/2 | 5 / 1 |
+
+Pre-dispatch minimum pairwise separations were 0.212 / 0.291 / 0.306 / 0.368 m.
+Separately, and over the whole of each run rather than up to dispatch, the
+ground-truth stream records **zero contacts** — robot-robot and robot-obstacle
+alike — in all four runs.
+
+Later decisions: R1, R3 and R4 each produced post-resolution re-analyses
+returning `congestion_detected=false`, plus `decision=None` parse failures — two
+in R1, one in R3, three in R4, six in total. R2's chain is set out below.
+
+In R2 the named yielder failed, was re-selected after one intervening maneuver,
+failed again, and only then did the episode reach a strategy that moved:
+
+```text
+[orchestrator_node]: request=a1672ca1... failure_context attached command=910a0aeb...-yield strategy=yield executed=yield outcome=failed
+[orchestrator_node]: request=7482f0ad... failure_context attached command=a1672ca1...-temporary_wait strategy=temporary_wait executed=temporary_wait outcome=completed
+[orchestrator_node]: request=e02a8692... failure_context attached command=7482f0ad...-yield strategy=yield executed=yield outcome=failed
+```
+
+`robot_1` never arrived in R2; `robot_2` completed under the final `reverse`.
+
+### Prediction check
+
+| Check | Expected | Actual |
+|---|---|---|
+| west-blocked, `id_desc` | `robot_2` named, maneuver completes | `robot_2`, COMPLETED 146.4 s — PASS |
+| west-blocked, `id_asc` | `robot_1` named, FAILED at ≈0.09 m | `robot_1`, FAILED 243.7 s at 0.102 m (2026-09-19: 0.093–0.094 m, 254 s) — PASS |
+| east-blocked, `id_desc` | `robot_2` named | `robot_1` named twice (R3, R4) — FAIL |
+| No robot-robot or robot-obstacle contact | 0 contacts | 0 contacts in all four runs — PASS |
+
+Follow-up on the failed check: the east-blocked `id_desc` cell with the obstacle
+channel on — the cell these live runs sample — is a near coin flip offline,
+`P(robot_2)` = 0.60 at T=0.0 and 0.40 at T=0.6, hence `P(robot_1)` = 0.40 and
+0.60. Two `robot_1` draws sit comfortably inside that distribution. That
+`robot_1` also happens to be the feasible robot on the east-blocked variant is a
+design coincidence, not feasibility reasoning — none of the four live
+justifications mentions the obstacle. See the caveat section above.
+
+### Apparatus notes for these runs
+
+`static_obstacles` ships **commented out** in
+`ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`. Setting
+`prompt_static_obstacles: true` on its own therefore renders **no obstacle
+block at all**, while the launcher's `MODALITY` guard still reports the channel
+as on. The list had to be uncommented and its `x` set per scenario: `-1.85` for
+the west-blocked variant, `+1.85` for the east-blocked one. The rendered block
+was confirmed present in all four runs, for example:
+
+```text
+Static obstacles (world-frame axis-aligned boxes):
+- obstacle_1: centre (-1.85, 0.00) m, extent 0.30 x 0.30 m
+```
+
+R3 needed one rerun after a Nav2 lifecycle-timeout abort left a stale Isaac
+process alive through the launcher's exit trap. R4 replaced a planned symmetric
+run, which would have had no blocker, hence no coherent obstacle list and no
+discriminating outcome. Config was restored afterwards (`id_asc`, `false`, list
+re-commented, installed YAML `md5` equal to source).
+
+Artifacts live in `data/logs/vm_runs/<STAMP>/` — git-ignored, on the local
+workstation only.
+
+---
+
+## Secondary Findings
+
+### (a) Failure-context memory is one attempt deep
+
+**This corrects the working assumption carried into the write-up.** The
+artifacts show that both times M2 was handed a *failed yield* context it did
+steer away: `a1672ca1` saw `yield failed after 244 s, yield_robot: robot_1` and
+chose `temporary_wait`; `e02a8692` saw `yield failed after 199 s` and chose
+`reverse`. The re-yield of `robot_1` happened at `7482f0ad`, whose attached
+context was the *intervening completed* maneuver:
+
+```text
+Previous attempt in this episode:
+- strategy=temporary_wait, outcome=completed
+- detail: temporary_wait completed 18 s ago; congestion re-detected for the same robots
+```
+
+So the failure of the yield had already been displaced from the prompt by a
+single successful maneuver before M2 re-selected the same infeasible yielder.
+The defect is **memory depth**, not an absent steering effect. n = 1; worth a
+targeted test.
+
+### (b) Parse failures on post-resolution re-analyses
+
+Six re-analyses across R1, R3 and R4 returned `decision=None` with
+`parse=failed, attempts=2`:
+
+```text
+[orchestrator_node]: request=4a9d0579... no dispatch stage=vlm reason=decision=None
+```
+
+None ever affected a dispatch — every one occurred after the congestion had
+already resolved — but this is a parse-robustness item.
+
+### (c) Solo-stall triggering
+
+Covered under E0 above: the congestion gate fires on a single stalled robot.
+
+### (d) Recurring Nav2 planner error
+
+```text
+[robot_2.planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+```
+
+Counts: R2 x3, R3 x1, R4 x1. It recurs during stalls and did not by itself
+block any run.
+
+### (e) Baseline unit-test failures on the Mac
+
+55 failures plus 3 collection errors: `usd-core` is absent, and 50
+`test_aruco_parity` cases fail on this OpenCV build. These are environmental and
+unchanged by tonight's commits.
+
+---
+
+## Implications and Next Steps
+
+1. Treat M2's `yield_robot` selection as **invalid as a reasoning channel**.
+   Decide between (a) randomising or counterbalancing presentation order per
+   episode and recording it in the artifact, (b) moving yielder selection to M3
+   feasibility grounding (`reasoning/rag/scene_geometry`, which the oracle
+   already uses), or (c) both — before any Arm A/B collection.
+2. Re-label the 2026-09-19 A/B as confounded in the findings register, and add
+   tonight's probe and live runs.
+3. Run a targeted test of failure-context memory depth (n >= 3, west-blocked,
+   `id_asc`), specifically whether an intervening successful maneuver lets M2
+   re-select a yielder that has already failed.
+4. Fix the parse-failure path; start by inspecting the six raw responses stored
+   in the decision artifacts.
+5. Wire `--duration-sec` through to `ResolvedRunConfig` or remove the flag.
+6. Make the launcher's `MODALITY` guard also assert that `static_obstacles`
+   renders at least one line, not just that the boolean is set.
+7. Decide on the VM: keep it running at ~US$0.9/h, or stop it and accept the L4
+   stockout risk on restart.
+8. The ER-2 / Gemini arm was **not** run tonight. `GEMINI_API_KEY` is available;
+   the backend lives on branch `feat/gemini-er2-backend`, currently 14 ahead and
+   17 behind `main`.
+
+---
+
+## Provenance
+
+Work landed on `fix/deadlock-collision-resolution`, which was first
+fast-forwarded from `780fa37` to `main` at `f2ca3c6` (it had no unique commits).
+
+| Commit | Content |
+|---|---|
+| `922dd36` | `feat`: robot presentation-order prompt modality |
+| `dadb3f5` | `feat`: presentation-order offline probe and raw data |
+| `1c61d7f` | `docs`: presentation-order probe report |
+| `d58214c` | `docs`: new Isaac host bring-up and closed-loop replication |
+| this commit | `docs`: overnight findings 2026-09-25 (this report plus the notes entry) |
+
+**Nothing has been pushed.**
+
+Run ids: `20260924_193112`, `20260924_195708`, `20260924_201328`,
+`20260924_203437`, `20260924_205009`. The VM clock is UTC, so these carry a
+`20260924` stamp for a local date of 2026-09-25.
+
+Related documents:
+
+- `docs/reports/2026-09-25-presentation-order-probe.md` — offline probe, per-cell tables.
+- `docs/reports/2026-09-18-head-on-family-validity.md` — the 2026-09-19 Runs A/B being replicated.
+- `docs/implementation_notes.md` — dated entries under the M2/M5 and M6 sections.
