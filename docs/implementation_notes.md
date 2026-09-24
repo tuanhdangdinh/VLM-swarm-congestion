@@ -37,6 +37,31 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-25** — **The yielder the VLM names follows presentation order, not
+  geometry; the 2026-09-19 confound is resolved.** A counterbalanced offline
+  probe (`scripts/probe_presentation_order.py`, 360 calls, 0 parse failures, 0
+  API errors) ran the three head-on asymmetric family scenarios x
+  `id_asc`/`id_desc` x static-obstacle channel on/off, at temperature 0.0 (n=5)
+  and 0.6 (n=10), through the production `Reasoner`/`openai` path. Reversing the
+  presentation order collapses `P(yield_robot == robot_1)` from 20/20 to 5/20 for
+  gpt-4o (Fisher p = 7.7e-07) and from 20/20 to 0/20 for gpt-4o-mini
+  (p = 1.5e-11). `P(yield_robot == correct_yielder)` stays at chance
+  (0.40–0.59) in every condition, with or without the obstacle channel, and no
+  justification string ever cited the obstacle. **gpt-4o-mini matches `H_slot`
+  outright; gpt-4o is slot-dominant with a residual `robot_1` pull** (under
+  `id_desc` it does not commit, 0.75 at T=0.0 and 0.53 at T=0.6, so its signature
+  verdict is "mixed" rather than clean `H_slot`). The bias is not
+  instruction-compliance: the "first listed robot backs up" clause was removed
+  before this probe and a guard test asserts its absence. **Consequence: every
+  decision artifact collected before `922dd36` was rendered at `id_asc` and
+  carries this bias, so the obstacle-channel A/B cannot be reported as a modality
+  result until the order confound is removed from the historical artifacts too.**
+  Probe is offline with a synthetic plan-view image — a deviation from the live
+  pipeline that a counterbalanced live run must confirm. Modality added in
+  `922dd36` (`ReasonerRequest.robot_presentation_order`, M5
+  `prompt_robot_order`, shipped `id_asc`); probe and raw data in `dadb3f5`
+  (`data/experiments/2026-09-25-presentation-order/`). Full detail:
+  `docs/reports/2026-09-25-presentation-order-probe.md`.
 - **2026-09-19** — **Paired A/B run on the head-on-asymmetric blocked
   variant is a null result, confounded by presentation order.** Two recorded
   gpt-4o runs on `head_on_asymmetric_w0p2_eopen_o0` (Run A modality off
