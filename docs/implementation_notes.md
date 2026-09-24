@@ -191,6 +191,22 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-25** — **Closed loop replicated on the new host** (run_id
+  `20260924_193112`, `head_on_deadlock`, openai gpt-4o at temperature
+  0.0, obstacle modality OFF). First analysis 34.6 s after components
+  started, both robots stalled at 0.26 m nose-to-nose (a third onset
+  mode between the 0.08 m contact and the ≈0.45 m planner-stall standoff
+  recorded 2026-09-16); one `yield` (`yield_robot=robot_1`), `COMPLETED`
+  after 148 s; robot_2 arrived at +3.3 min, robot_1 at +5.5 min; 12 m
+  52 s wall; 0 analyses after both arrivals (2 348 `trigger suppressed`
+  lines). Deviation worth keeping: after robot_2 had arrived, a *solo*
+  stall of robot_1 (`robots=['robot_1']`, distance 1.18 m, not facing)
+  triggered a second analysis that the model answered `anomaly`/`reroute`
+  — the congestion gate fires on single-robot stalls, which the
+  pre-registration's episode rule should account for. Component logs
+  live inside the container (`/tmp` of `vgu_ros`); `docker cp` them
+  before the launcher's exit-trap restart. Artifacts (git-ignored):
+  `data/logs/vm_runs/20260924_193112/` on the workstation.
 - **2026-09-19** — **Correction: the OFF-condition comparability claim below
   overstates what the byte-identity test proves, and the 44/44 census
   over-reads compliance as absence-of-signal** (final whole-branch review,
@@ -1031,6 +1047,38 @@ Rules for maintaining it:
 
 ## M6 Simulation / Isaac Sim
 
+- **2026-09-25** — **New Isaac host stood up after the `summer-flux`
+  project lost GPU quota.** Instance `vgu-vgu-thule-base-isaac-workstation-vm`,
+  GCP project `project-355a9186-f6f8-4b89-a44`, zone `us-central1-c`
+  (us-central1-a stocked out), g2-standard-8 + L4 (driver 595.84), deployed
+  with Isaac Automator `--not-from-image --isaacsim v6.0.1`
+  (`--from-image` needs a project-scoped image family and `--isaacsim
+  latest` resolves to git `main` = 7.0.0a1 — pinned to v6.0.1, closest to
+  the validated 6.0.0-rc.59). Isaac Sim source build at
+  `/home/ubuntu/IsaacSim-source`, symlink `/home/ubuntu/IsaacSim`.
+  `vgu_ros` container rebuilt from the 2026-09-16 recipe plus `pip3
+  install --break-system-packages requests` (stock `ros:jazzy` lacks it;
+  `reasoning/vlm/openai_backend.py` needs it). Full asset chain rebuilt:
+  URDF import with the four ROBOTIS STLs staged next to the URDF (4
+  visual meshes, `burger_base` 48 040 pts — the 2026-09-16 mesh-less
+  import does not recur), `warehouse_base.usd`, all six scenario USDs,
+  `validate_simulation` PASS on `head_on_deadlock` and the three
+  `head_on_asymmetric` variants; headless `run_simulation` `completed:
+  true`, 3 001 ground-truth records over 300 sim-s, render product `rgb
+  (960,1280,4) mean=127.94` (old host 127.95). Two host facts: `pxr`
+  imports only inside a `SimulationApp` (a bare `python.sh -c "from pxr
+  import Usd"` fails), and each new extension set's first launch spends
+  ≈5–7 min compiling shaders.
+- **2026-09-25** — **`run_simulation.py --duration-sec` is a dead flag.**
+  It is parsed and validated but never passed into `ResolvedRunConfig`
+  (`isaac/vgu_sim/config.py` has no `duration_sec` field; the
+  `ResolvedRunConfig(...)` call in `isaac/scripts/run_simulation.py`
+  omits it), so the scenario YAML's `runtime.duration_sec`/`duration_sec`
+  (300 s for `head_on_deadlock`) always governs. This is the root cause
+  of the long-standing "`--duration-sec` does not stop Isaac" note
+  (2026-09-17, M5/M2 entries above) — the flag was never wired, not
+  ignored at shutdown. Not fixed (experiment night); fix = add the field
+  and pass `args.duration_sec` through, with a unit test.
 - **2026-09-19** — **`head_on_asymmetric` scenario family landed and
   hardware-verified.** `ScenarioConfig` gains `family` (inferred from legacy
   names, explicit for generated ones), `static_obstacles`/`ObstacleSize`, and
