@@ -211,6 +211,18 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-26** — **Rev 7 consolidates the night: two live batches and two
+  safety-metric corrections** (`docs/reports/2026-09-25-overnight-findings.md`
+  §X–§AC). Detail is in the per-topic entries — the two 2026-09-26 entries below
+  (image fallback; batch-2 replay replication), the 2026-09-25 re-scoring entry
+  under **Congestion-Resolution Experiment**, the 2026-09-26 `_gshort` entry
+  under **M6**. New: batch 2 (gpt-4o random order, 5/6, but draws aligned with
+  side so the gate rate is confounded; refusals 37.5% a-1 / 14.3% terminal) and
+  batch 3 (ER-2 forced order, 5/6, 0 refusals) — **ER-2 has no `robot_1` anchor**
+  (1/3 where gpt-4o is 124/125), so the slot/ID artifact is model-specific.
+  **Binds every prior run: `safety.yaml min_distance_m: 0.45` is breached in
+  every Arm A run (0.23–0.28 m by design; G4 wedged at 0.076 m ~18 s), and a
+  zero `robot_robot_contacts` count is detector silence — use min pairwise distance.**
 - **2026-09-26** — **Neutral-image fallback lands in M2; its validation arm is
   coded but unrun (no OpenAI credits).** `ReasonerConfig.image_fallback_after_attempts`
   (shipped `2`, `openai` only) makes a refused attempt `k >= threshold` re-send the

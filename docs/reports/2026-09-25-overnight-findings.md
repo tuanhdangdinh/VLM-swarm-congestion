@@ -10,6 +10,7 @@
 - Rev 4 (2026-09-25): adds the decisive ER-2 cell (west-blocked, `id_asc`, gate off, n=3) and the gpt-4o obstacles-OFF arm, a consolidated live tally across both models, and the finding that the offline probe does not predict live order sensitivity.
 - Rev 5 (2026-09-25): adds the six-run Arm A pilot on the adopted defaults, the full gpt-4o refusal census, and the real-frame replay that identifies the annotated camera frame as the refusal trigger.
 - Rev 6 (2026-09-25): completes the real-frame replay and identifies the obstacle text block as the carrier of the side signal under `id_desc`, adds the six-run ER-2 pilot, and records the position-verified arrival check that a Nav2 false success forced.
+- Rev 7 (2026-09-26): re-scores every arrival against position, adds live batches 2 and 3 (gpt-4o random order, ER-2 forced order), reports that the side-carrier effect replicates in direction but not in magnitude, ships an unvalidated refusal mitigation, and corrects two safety metrics.
 
 ---
 
@@ -221,6 +222,11 @@ Separately, and over the whole of each run rather than up to dispatch, the
 ground-truth stream records **zero contacts** — robot-robot and robot-obstacle
 alike — in all four runs.
 
+> Superseded by Rev 7 §AC: this is detector silence, not evidence. Ground truth
+> reported `robot_robot_contacts` 0 throughout a sustained 0.076 m centre-to-centre
+> wedge in run G4, so the contact flags do not measure contact. Use the minimum
+> pairwise distance channel instead.
+
 Later decisions: R1, R3 and R4 each produced post-resolution re-analyses
 returning `congestion_detected=false`, plus `decision=None` parse failures — two
 in R1, one in R3, three in R4, six in total. R2's chain is set out below.
@@ -244,6 +250,11 @@ failed again, and only then did the episode reach a strategy that moved:
 | west-blocked, `id_asc` | `robot_1` named, FAILED at ≈0.09 m | `robot_1`, FAILED 243.7 s at 0.102 m (2026-09-19: 0.093–0.094 m, 254 s) — PASS |
 | east-blocked, `id_desc` | `robot_2` named | `robot_1` named twice (R3, R4) — FAIL |
 | No robot-robot or robot-obstacle contact | 0 contacts | 0 contacts in all four runs — PASS |
+
+> Superseded by Rev 7 §AC for the contact row: that PASS rests on a detector that
+> stayed silent at 0.076 m centre separation (G4), so it does not establish
+> no-contact. Re-run the check against minimum pairwise distance and against
+> `safety.yaml` `min_distance_m: 0.45`, which these runs also breach.
 
 Follow-up on the failed check: the east-blocked `id_desc` cell with the obstacle
 channel on — the cell these live runs sample — is a near coin flip offline,
@@ -778,6 +789,11 @@ frame of all four runs (3 001 frames each). Component errors stayed within the
 known-benign set, and every post-resolution re-analysis returned
 `congestion_detected=false`.
 
+> Superseded by Rev 7 §AC for the contact clause: a zero `robot_static_contacts`
+> (or `robot_robot_contacts`) count records what the detector reported, not that
+> no contact occurred. The conformance conclusions on attempts, parse status and
+> component errors are unaffected.
+
 ### G3 caveat
 
 G3's yield was decided on a frame with the robots **1.08 m apart and both
@@ -814,6 +830,13 @@ them without noting the difference.
    `robot_1`; no live or offline justification mentions the obstacle; offline
    `P(correct)` is at chance. The M3 gate, not the model, is what made G1
    succeed.
+   *Qualified — not superseded — by Rev 7 §AC. The obstacle is still never
+   mentioned, so the channel claim stands. What changes is the reason: in the
+   forced-order batch ER-2 named `robot_1` in only 1/3 of west/`id_asc` runs
+   where gpt-4o's §T control is 124/125, so ER-2 has no `robot_1` anchor at all.
+   The statement now reads: ER-2's yielder choice is near chance and unanchored
+   (n small), still with no obstacle mention. The first-slot/ID mechanism is
+   model-specific.*
 4. **Order sensitivity for ER-2 is not established.** The named yielder was the
    first-presented robot in G1 and G2 and the second in G3, at n = 1 per cell,
    with no temperature control and with G3's geometry differing (§H). The
@@ -900,6 +923,10 @@ matched the configured order in all five runs, and the obstacle block was
 present in D1–D3 only. The ground-truth stream records `robot_static_contacts`
 0 across all 15 005 frames. Zero errors in the `isaac`, `m1`, `m4` and `m5`
 logs; Nav2 errors stayed within the known-benign set.
+
+> Superseded by Rev 7 §AC for the contact clause only: the zero count is detector
+> silence, not a no-contact result. Minimum pairwise distance is the trustworthy
+> channel.
 
 ---
 
@@ -1123,6 +1150,11 @@ Notes on the table:
   > completed runs are within 0.09 m of goal by ground truth, so the figure is
   > expected to survive, but it must be re-scored offline from the scene log at
   > the 0.35 m tolerance before it is quoted as an outcome.
+
+  > Confirmed by Rev 7 §X: the re-scoring is done and P1–P6 stays 4/6. This
+  > figure is now position-verified and quotable. Separately superseded by
+  > Rev 7 §AC on safety: these runs breach `safety.yaml` `min_distance_m: 0.45`
+  > in 5–7% of ground-truth rows by design, which §O does not report.
 - **First `yield_robot` was `robot_1` in 5/6**, the exception being P6
   (`id_desc`, east). This is the ID-anchored live behaviour of Rev 4 §L item 2,
   now observed under random order.
@@ -1351,6 +1383,18 @@ Caveats: the side → robot mapping rests on 3 artifacts per side; all eight cel
 share the same six stimuli; the primary rows are attempt-1 only, because
 `max_attempts` is now 4.
 
+> Superseded in part by Rev 7 §AA. The **direction** of contrast (a) replicates
+> on batch-2 standoffs — pooled `id_desc` text on 0.714 versus off 0.375,
+> p = 1.1e-3, 7/9 scenes moving in direction and none reversing — but the
+> **magnitude** above does not: batch-1 west is 13/14 feasible against batch-2
+> west 6/17 (p = 0.0023) on prompts differing only in pose decimals, and the gap
+> survives grey images, so it is not the frame. Contrast (b), "the real frame
+> amplifies it", is now neither confirmed nor refuted pooled (p = 0.17). The
+> states-only null (c) replicates (p = 0.37). Revised statement: the obstacle
+> text is read when the positional priors cancel; the effect size is
+> scene-dependent, 0–1 across scenes. The `id_asc` control and the 0/288 trace
+> silence are unaffected.
+
 ### Consequences
 
 1. The 2026-09-19 obstacle-channel A/B read null because it was run under
@@ -1427,6 +1471,13 @@ Notes and caveats:
   harness lesson is to wait for the launcher's `logs saved to` line rather than
   polling `pgrep`.
 
+> Rev 7 §X confirms the physical column: re-scored against M1 and ground truth,
+> E1–E6 is 3/6 by log → **2/6** position-verified, the single flip in the whole
+> 31-run corpus being E1 `robot_2`. Rev 7 §AC narrows the first bullet's "Rev 3
+> §I item 3 stands": ER-2 still never reads the obstacle, but it has no
+> `robot_1` anchor either, so "named `robot_1` in 5/6" is not an ID anchor at
+> this n. Rev 7 §AC also supersedes any zero-contact reading of these runs.
+
 ---
 
 ## V. Apparatus: Arrival Is Now Position-Verified
@@ -1465,14 +1516,26 @@ from the scene log at the 0.35 m tolerance — Rev 5 §O's 4/6 and the Rev 4 and
 Rev 5 arrival counts included. Offline scorers must match **both** acceptance
 lines, the plain one and the late one.
 
+> Discharged by Rev 7 §X: all 31 runs and 55 arrival events are re-scored and
+> exactly one flips (this one). Rev 7 §Y confirms "the criterion is normally
+> sound" live — 17/17 batch-2 plus 11/11 batch-3 true arrivals accepted at
+> 0.03–0.08 m, zero rejections and zero late acceptances. Rev 7 §AC supersedes
+> any zero-contact reading of this section's runs.
+
 ---
 
 ## W. Next Steps
 
 1. Re-score every 2026-09-24/25 run's arrivals from the scene logs at 0.35 m
    and publish corrected outcome tables.
+   *Done — superseded by Rev 7 §X: 31 runs / 55 arrival events re-scored with
+   `scripts/rescore_arrivals.py`, corrected tables published, one flip (ER-2
+   E1 `robot_2`).*
 2. Ship the arrival check and `max_attempts: 4` to the VM — rebuilding
    `swarm_orchestrator` — before any further runs.
+   *Done — superseded by Rev 7 §Y and §Z: both shipped and exercised live in
+   batches 2 and 3. `max_attempts=4` rescued 13/21 attempt-1 refusals in batch 2,
+   and the arrival check accepted 28/28 true arrivals with zero rejections.*
 3. Pre-register: gate `swap` plus random order, analysis conditioned on the
    drawn order (channel effects are visible only under `id_desc`), episode
    outcome as the position-verified arrival, first answer secondary.
@@ -1482,6 +1545,13 @@ lines, the plain one and the late one.
 5. Chase the refusal trigger inside the frame: un-annotated frames (which
    requires saving the raw camera frame alongside the annotated one) and
    marker-masked frames. Downscaling is ruled out.
+   *Partly superseded by Rev 7 §Y, §AA and §AB. `keep_raw_frames` ships
+   (`fa98ed6`), but the raw/annotated pairs are −1.36…+1.33 s apart (|skew| mean
+   0.40 s, 24/56 within 0.2 s), so they are not same-instant and the comparison
+   must be gated on the low-skew subset. The replay arm that would run it
+   (Arm F, 336 cells) never executed — OpenAI credit ran out. A mitigation
+   shipped ahead of the diagnosis: `image_fallback_after_attempts: 2` (§AB),
+   itself unvalidated because Arm X aborted before its first call.*
 6. Decide the scenario question on the blocker-on-goal-path property — 2/6 plus
    3/6 episodes lost to it across the two pilots.
 7. Keep ER-2 as the secondary arm, noting its zero-refusal robustness and its
@@ -1501,3 +1571,300 @@ The VM config was restored byte-exact (`md5`
 `3ed3795f174c3df079e050e9b4e49572`), the container was restarted, and the GPU
 was idle. Artifacts remain git-ignored under `data/logs/vm_runs/`. Replay spend
 today: $6.63. Local test suite: 942 passed, 55 failed, 3 errors.
+
+---
+
+## X. Arrival Re-Scoring: Position-Verified Outcomes for Every Run
+
+Commits `0e377c7`, `261e8ab`, `8953126`; report
+`docs/reports/2026-09-25-arrival-rescoring.md`; row-level output
+`data/logs/vm_runs/ARRIVALS_RESCORED.csv`.
+
+31 runs and 55 M5-reported arrival events were re-scored against M1 and against
+ground truth. The scene log is selected by the M5 `session_id`, never by glob —
+stray scene files from earlier sessions share the directory, so a glob picks the
+wrong log. M1 against ground truth carries a bias of mean −6 mm over the corpus,
+range −11…+4 mm, which is well inside the 0.35 m tolerance.
+
+**Exactly one event flips**: ER-2 E1 `robot_2`, at M1 0.591 m and ground truth
+0.598 m — the Nav2 false success of Rev 6 §V. Every other arrival survives.
+
+Corrected batch outcomes:
+
+| Batch | Runs | Outcome (position-verified) | Change |
+|---|---|---|---|
+| Arm A pilot 1 | P1–P6 | 4/6 | unchanged |
+| ER-2 pilot | E1–E6 | 2/6 | 3/6 → 2/6 |
+| Rev 1 live | R1–R4 | 3/4 | unchanged |
+| Gate validation | L1–L5 | 3/5 | unchanged |
+| ER-2 Rev 3 | G0–G3 | 4/4 | unchanged |
+| ER-2 decisive cell | D1–D3 | 2/3 | unchanged |
+| Obstacles-OFF | O1–O2 | 1/2 | unchanged |
+| Closed-loop replication | E0 | 1/1 | unchanged |
+
+P1's five duplicate arrival lines are explained: M4 re-dispatches the base
+mission on each strategy change, so one physical arrival is reported once per
+dispatch. This is a logging artifact, not five arrivals.
+
+Tool: `scripts/rescore_arrivals.py`, 12 tests. It matches both acceptance lines,
+the plain one and the late one, as Rev 6 §V required.
+
+---
+
+## Y. Apparatus Additions
+
+**`reasoner_config_effective` in every artifact** (commit `b518ed4`): backend,
+model, temperature, `top_p`/`top_k`, `max_attempts`, seed, `thinking_level` and
+`unsupported_sampling` are now recorded on every decision. This is the **first
+live confirmation that gpt-4o ran at `temperature=0.0` with `max_attempts=4`** —
+no prior artifact proved it, which is the gap the ER-2 pilot logged as "sampling
+uncontrolled" in Rev 6 §U.
+
+**`keep_raw_frames`** (commit `fa98ed6`) dumps `<request_id>_raw.png` beside the
+annotated frame and logs the skew. The pairs are **not same-instant**: they are
+−1.36…+1.33 s apart, with |skew| mean 0.40 s and only 24/56 within 0.2 s. An
+annotated-versus-raw refusal comparison must therefore be gated on the low-skew
+subset, or it confounds annotation with scene change.
+
+**The arrival position check is validated live**: 17/17 true arrivals in batch 2
+and 11/11 in batch 3 (ER-2) were accepted at 0.03–0.08 m, with zero rejections
+and zero late acceptances.
+
+---
+
+## Z. Pilot Batch 2 — gpt-4o on the Adopted Defaults
+
+Six runs on tree `fa98ed6`: gpt-4o at `temperature=0.0`, obstacle channel on,
+gate `swap`, `prompt_robot_order: random`, arrival position check on,
+`max_attempts: 4`. Summary `data/logs/vm_runs/ARM_A_PILOT2_SUMMARY.txt`;
+artifacts under
+`data/logs/vm_runs/20260925_{155433,160951,162451,163949,165442,170938}/` —
+the first three west-blocked, the last three east.
+
+| Run | Scen. | Drawn order | First `yield_robot` | Gate | First yield | Arrivals (dist) | Outcome | First analysis → both | Analyses / cmds | Refusals a-1 / terminal | Attempts | Recoveries `r1`/`r2` | Blocker |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Q1 | W | `id_desc` | `robot_1` | fired `r1`→`r2` | COMPLETED 154.1 s | 2/2 (0.08/0.05) | ✓ | 354.1 s | 6 / 2 | 2 / 0 | 1×4, 2×1, 3×1 | 0 / 2 | transit |
+| Q2 | W | `id_desc` | `robot_1` | fired | COMPLETED 151.1 s | 2/2 | ✓ | 325.3 s | 7 / 1 | 2 / 2 | 1×5, 4×2 | 0 / 1 | transit |
+| Q3 | W | `id_desc` | `robot_1` | fired | COMPLETED 154.8 s | 2/2 | ✓ | 471.1 s | 8 / 2 | 2 / 1 | 1×6, 2×1, 4×1 | 0 / 4 | transit |
+| Q4 | E | `id_asc` | `robot_1` | no-op | COMPLETED 153.8 s | 2/2 (0.03/0.07) | ✓ | 349.0 s | 4 / 2 | 2 / 0 | 1×2, 2×1, 3×1 | 1 / 0 | transit |
+| Q5 | E | `id_asc` | `robot_1` | no-op | COMPLETED 152.2 s | 2/2 | ✓ | 323.1 s | 4 / 1 | 2 / 2 | 1×2, 4×2 | 1 / 0 | transit |
+| Q6 | E | `id_asc` | `robot_1` | no-op | COMPLETED 148.2 s | 1/2 | ✗ | — | 27 / 1 | 11 / 3 | 1×16, 2×7, 3×1, 4×3 | 8 / 0 | see below |
+
+### Findings
+
+- **Outcome 5/6, position-verified**, against batch 1's 4/6. The first
+  dispatched yield COMPLETED in **6/6**, mean 152.4 s.
+- **The gate fired 3/6** — but the random draws aligned *perfectly* with side:
+  all three west runs drew `id_desc` and all three east runs drew `id_asc`. The
+  gate frequency therefore reflects less work under that alignment, not a lower
+  intervention rate, and **batch 2 cannot answer the order-conditioned question
+  on its own**. This is the confound Rev 6 §W item 3 warned about, realised.
+- **Refusals rose sharply**: 21/56 attempt-1 (37.5%, of which Q6 alone
+  contributes 11) and 8/56 terminal (14.3%). `max_attempts=4` rescued 13 of the
+  21, and all 8 terminal cases exhausted four attempts. The offline Arm M
+  prediction of 26.9% conditional terminal is **compatible** with the observed
+  8/21 (p = 0.53) but is not clearly reproduced at this n.
+- **Q6 is a third arrest mode.** `robot_1` never entered the gap:
+
+  ```text
+  r1 max_x +1.673 = 0.027 m SHORT of east face; final x +1.622; 0.88 m short of goal
+  ENTERED the gap and stopped in or at it; Q6 never entered it -- robot_1 stopped 0.027 m short of the
+  face and settled back to +1.622. Same scenario property (blocker on the goal path), two distinct
+  arrest modes: wedged-in-gap vs refused-entry.
+  ```
+
+  So the three Arm A losses are 2 wedged-in-gap (P1, P6) plus 1 refused-entry
+  (Q6), not three of a kind. Rev 6 §W item 6 turns on this distinction.
+- **Two new M4 errors**, `nav2 leg watchdog fired`, both on reroute legs and
+  both in runs that still reached 2/2:
+
+  ```text
+  [command_bus_node]: nav2 leg watchdog fired command=<id>-reroute robot=robot_1   (Q3)
+  [command_bus_node]: nav2 leg watchdog fired command=<id>-reroute robot=robot_2   (Q4)
+  ```
+
+### Pooled live gpt-4o 2×2 after batches 1–2
+
+Under the adopted defaults: west/`id_asc` n = 2, west/`id_desc` n = 4,
+east/`id_asc` n = 5, east/`id_desc` n = 1. Across those twelve runs,
+`robot_1` 11/12, gate 7/12, first yield COMPLETED 12/12, outcome 9/12. The
+`id_desc` × east cell — the one where the obstacle channel is observable — is
+still n = 1.
+
+---
+
+## AA. Replay Rev 4 — Replication and Raw-Frame Arms
+
+Commits `0cebbcc`, `e1fc5f5`, `6d34db8`; `docs/reports/2026-09-25-frame-replay.md`
+Rev 4. OpenAI credit ran out at **187 of 288** Arm S2 calls, and **Arm F never
+ran at all** (0 of 336).
+
+**The side-carrier result replicates in direction.** On batch-2 standoffs
+(3 west : 1 east reached), pooled `id_desc` with real text scores 0.714 (35/49)
+feasible against 0.375 (18/48) with the text withheld, p = 1.1e-3. Seven of nine
+scenes move in the predicted direction and **none reverses**.
+
+**The Rev 6 §T magnitude does not replicate.** Batch-1 west is 13/14 feasible
+against batch-2 west 6/17, p = 0.0023 — on prompts that differ only in pose
+decimals. The gap **survives grey images**, so it is not a property of the
+frame.
+
+Two further readings:
+
+- Real → grey amplification (Rev 6 §T contrast (b)) is **neither confirmed nor
+  refuted** pooled, p = 0.17. Batch 2 has no headroom to test it.
+- The states-only null replicates, p = 0.37.
+
+**Revised statement:** the obstacle text is read when the positional priors
+cancel, but the effect size is **scene-dependent, ranging 0–1 across scenes**.
+The qualitative finding stands; the 0.962 level does not.
+
+> Pooling caveat on the Arm S2 rows above: `reasoner.py` was rewritten seven
+> minutes after they were produced, to add the image fallback of §AB. Rows
+> recorded after that rewrite are **not poolable** with them.
+
+Arm F — annotated versus raw frame refusal rates — is coded and unrun. Resume
+with `--arm F`.
+
+---
+
+## AB. Refusal Mitigation Shipped, Validation Pending
+
+Commits `9d7328f`, `a255cc8`, `00a1cfc`, `9c61635`.
+
+`vlm.openai.reasoner.image_fallback_after_attempts: 2`: after two refused
+attempts the reasoner re-sends the **unchanged** prompt with a mid-grey image of
+the frame's dimensions — no re-ask suffix, once per request. Diagnostics
+`refusal_attempts`, `image_fallback_used` and `image_fallback_attempt` flow into
+the artifacts, so the cost is visible per decision.
+
+Production `is_refusal` is deliberately broader than the census regex. Over
+1 407 recorded response texts it produced **0 false positives**, and it catches
+forms the census regex missed, such as `I'm sorry, but I can't help with that.`
+
+The change is justified by the grey-image evidence — 0/120 refusals on grey
+against 22/60 on real frames — and by §T/§AA showing the text, not the image,
+carries the decision. It is **not yet validated**: Arm X (168 cells, ≈ $1.5)
+aborted before its first call on `insufficient_quota`.
+
+- **Reporting rule until validated:** report decisions carrying
+  `image_fallback_used: true` **separately**.
+- **Resume:**
+
+  ```text
+  python scripts/replay_live_decisions.py --arm X --runs batch2 --n 4 --pace-sec 8.0
+  python scripts/replay_live_decisions.py --arm analyze --runs batch2
+  ```
+
+- Live batch 3's gpt-4o run F1 (`20260925_181526`) is **invalid**: 46/46
+  `decision=None`, a transport failure into the dead quota. It must not be
+  pooled with anything.
+- The gpt-4o forced cells west × `id_asc` (×3) and east × `id_desc` (×3) remain
+  unrun. VM helpers: `/home/ubuntu/p3_mkcfg.sh <ox> <order> openai` plus
+  `f1–f6.sh`.
+
+---
+
+## AC. ER-2 Forced-Order Cells and Two Metric Corrections
+
+Six ER-2 runs with presentation order forced rather than drawn, closing the
+cells batch 2's aligned draws could not reach. Summary
+`data/logs/vm_runs/ARM_A_PILOT3_SUMMARY.txt`; artifacts under
+`data/logs/vm_runs/20260925_{183343,184840,190322,191810,193307,194800}/` —
+the first three west × `id_asc`, the last three east × `id_desc`.
+
+| Run | Cell | First `yield_robot` (#) | Gate | First yield | Arrivals | Outcome |
+|---|---|---|---|---|---|---|
+| G1 | W / `id_asc` | `robot_2` (#2) | no-op | COMPLETED 153.3 s | 2/2 | ✓ |
+| G2 | W / `id_asc` | `robot_2` (#2) | no-op | COMPLETED 146.3 s | 2/2 | ✓ |
+| G3 | W / `id_asc` | `robot_1` (#2) | fired `r1`→`r2` | COMPLETED 151.1 s | 2/2 | ✓ |
+| G4 | E / `id_desc` | `robot_1` (#4) | no-op | COMPLETED 150.6 s | 1/2 | ✗ |
+| G5 | E / `id_desc` | `robot_2` (#2) | fired `r2`→`r1` | COMPLETED 156.3 s | 2/2 | ✓ |
+| G6 | E / `id_desc` | `robot_1` (#2) | no-op | COMPLETED 150.7 s | 2/2 | ✓ |
+
+Outcome **5/6**, position-verified. All 54 decisions were valid at attempt 1
+with **zero refusals**, the forced order was asserted per artifact 54/54, and
+ER-2 opened `reverse` **6/6** — against gpt-4o's `yield` 12/12 across batches 1
+and 2. G4's loss is the blocker-on-goal-path property again, refused-entry mode,
+0.200 m short.
+
+### ER-2 has no `robot_1` anchor
+
+In west × `id_asc` — the cell where gpt-4o's §T control names `robot_1` 124/125
+— ER-2 named `robot_1` in **1 of 3** runs. The first-slot/ID mechanism is
+therefore **model-specific**, not a general VLM property. Rev 3 §I item 3 is
+qualified rather than overturned: ER-2's yielder choice is **near chance and
+unanchored** (n small), still with no obstacle mention anywhere. Rev 6 §U's
+"named `robot_1` in 5/6" reads as coincidence at this n, not as an anchor.
+
+### Metric correction 1 — the 0.45 m safety invariant is breached in every run
+
+`ros2_ws/src/swarm_execution/config/safety.yaml` sets `min_distance_m: 0.45`.
+Measured against ground truth:
+
+```text
+G4  min 0.0760 m ; 785 of 3001 GT rows (26.2%) below 0.45, spanning sim_t 20.7-191.9
+G1/G6/Q1/Q4 (spot-checked)  min 0.2275-0.2792 m ; 146-224 rows (4.9-7.5%) below 0.45
+```
+
+The ordinary case is **by design**: a yield parks the pair at 0.23–0.28 m, which
+is 5–7% of ground-truth rows below the limit, because head-on robots must close
+to pass. G4 is not that. It breaches by roughly 6× in depth and 3.5–5× in
+exposure, and it is not a fleeting near-miss:
+
+```text
+t=70.0 r1=(+0.036,+0.074) r2=(+0.096,+0.027) d=0.0762
+t=76.0 r1=(+0.024,+0.080) r2=(+0.085,+0.034) d=0.0762
+```
+
+Both robots are stationary and interpenetrated at the origin from sim-t ≈ 66 s
+to ≈ 84 s and beyond — 0.076 m between the centres of two ≈ 0.35 m robots. This
+is the same geometry as the July "Run D" incident that `safety.yaml`'s own
+comment cites at 0.078 m. M1 did **not** go STALE in G4, so the
+`stale_pose_is_unsafe` fail-safe was not what was exercised.
+
+### Metric correction 2 — "zero contacts" is detector silence
+
+Ground truth reported `robot_robot_contacts` **0 throughout that wedge**. A
+contact detector that stays silent at 0.076 m centre separation is not measuring
+contact. Every "zero contacts" line in Rev 5–6, and the same line in the Rev 1,
+Rev 3 §H and Rev 4 §K conformance blocks, therefore records **what the detector
+reported, not that no contact occurred**. Use **minimum pairwise distance** as
+the trustworthy channel; the contact flags are not one.
+
+Both corrections go into the pre-registration's safety reporting.
+
+### Goal-short variants prepared
+
+Commit `c2d8491` adds `_gshort` YAMLs to remove the blocker-on-goal-path losses
+that cost 5 of 12 pilot episodes, with G4 a sixth. Goals move to the opponent's
+spawn (±1.5). The maps are byte-identical and the oracle is unchanged; 9 tests.
+
+- **Operator step:** M5 takes goals from `orchestrator.yaml` `initial_tasks`,
+  not from the scenario YAML, so that file must be set to ±1.5 and
+  `swarm_orchestrator` rebuilt.
+- **Known risk:** the passer's terminal pose sits 0.461 m from the parked
+  yielder, inside the 0.50 m proximity threshold, so a spurious second episode
+  is possible.
+
+ER-2 runs on the `_gshort` variants are in progress at the time of writing;
+results will appear in a later revision.
+
+---
+
+## Rev 7 Provenance
+
+Commits after `6855552`: `b518ed4`, `fa98ed6`, `0e377c7`, `261e8ab`, `8953126`,
+`0cebbcc`, `9d7328f`, `e1fc5f5`, `6d34db8`, `a255cc8`, `00a1cfc`, `9c61635`,
+`c2d8491`, plus this documentation commit.
+
+Batch-2 run ids: `20260925_155433`, `20260925_160951`, `20260925_162451`,
+`20260925_163949`, `20260925_165442`, `20260925_170938`. Batch-3 run ids:
+`20260925_183343`, `20260925_184840`, `20260925_190322`, `20260925_191810`,
+`20260925_193307`, `20260925_194800`, plus the invalid `20260925_181526`.
+
+OpenAI spend today ≈ $9; the credit was exhausted at roughly 02:00 ICT on
+2026-09-26, which is what truncated Arm S2, Arm F and Arm X. The VM is left
+running at the owner's instruction. Artifacts remain git-ignored under
+`data/logs/vm_runs/`. Local test suite: ≈ 1 021 passed, 55 failed, 3 errors —
+the same environmental set as previous revisions.
