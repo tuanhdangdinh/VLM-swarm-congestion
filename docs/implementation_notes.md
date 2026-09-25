@@ -203,6 +203,18 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-25** — **gpt-4o refuses ~23% of M2 calls; the re-ask recovers half,
+  and the prompt is not the trigger.** Census of all 163 local decision
+  artifacts: 12 terminal refusals (not 3) spread over obstacle-ON *and* -OFF
+  runs, plus 11 `parse_status="invalid"` artifacts with the same
+  "no JSON object" signature that the re-ask rescued — so 23/101 gpt-4o calls,
+  0/62 ER-2. Every prompt-side split (obstacles p=1.0; failure context
+  0.0030→0.094; time window 0.013→0.080) collapses once attempt 1 is scored,
+  two refusals differ from a success by two characters, and a 240-call offline
+  replay of the stored prompts (± re-ask suffix, T=0/0.6, wording ablations,
+  gpt-4o-mini) produced **0 refusals** in 30/30 cells, $1.21. Act:
+  `max_attempts` 2→4, and
+  persist per-attempt `raw_text`. `docs/reports/2026-09-25-gpt4o-refusals.md`.
 - **2026-09-25** — **The offline presentation-order probe does not predict live
   behaviour; gpt-4o has a refusal failure class.** Five gate-`off` runs on
   `w0p2_eopen` (`20260925_035042`/`040539`/`042022` ER-2, `043512`/`045004`
