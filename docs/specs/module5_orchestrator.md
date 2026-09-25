@@ -149,6 +149,41 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   every cooldown for 9 min on two robots parked at their goals (31 needless VLM
   calls) — M1's estimate exceeded `goal_reached_tolerance_m` where ground truth
   said 0.04–0.08 m. The close/slow-pair check is unaffected.
+- FR5.1.9 (2026-09-25) **Position-verify M4's arrival report before acting on
+  it** when `arrival_position_check` is true (the default). On `base_mission`
+  COMPLETED, cross-check the reported goal against M1's latest estimate for
+  that robot (`arrival.classify_arrival`, §7.8):
+  - within `arrival_position_tolerance_m` (default 0.35 m) →
+    `within_tolerance`, accepted: mark arrived (FR5.1.8), end the episode, and
+    log `robot <id> arrived at base goal (x, y) distance_m=<d> check=<reason>`;
+  - beyond it → `beyond_tolerance`, **rejected**: do *not* mark the robot
+    arrived, do *not* end the episode, and log `arrival rejected robot=<id> …
+    (Nav2 reported success)`. The robot stays stall-eligible, so a robot
+    stalled short of its goal can still trigger an analysis cycle;
+  - no estimate, an estimate older than `arrival_estimate_max_age_sec`
+    (default 2.0 s), or a `STALE` robot (whose position M1 carries forward
+    frozen) → `no_estimate`/`stale_estimate`, accepted but logged as
+    unverified. An M1 outage must not block every arrival in a run.
+
+  A rejected arrival is held pending and re-checked on each scene: once M1
+  itself places the robot within tolerance of the same effective goal it is
+  accepted late (`arrival accepted late robot=… distance_m=…`), once, with no
+  second Nav2 success required. The pending mark is dropped if the effective
+  goal changes, and a dropped/late frame resolves nothing (FR5.1.4). Running
+  accepted/rejected/late event tallies ride on those two log lines.
+
+  **Why:** the arrival report is the primary outcome measure of the congestion
+  experiment, so a Nav2 false success becomes a false "episode succeeded". In
+  run 20260925_124609 `bt_navigator` reported success for robot_2 while M1 put
+  it 0.59 m from the goal — M5's own later analyses logged
+  `distance_to_goal_m={'robot_2': 0.59}` 21 times. The tolerance must exceed
+  M1's ≈0.1 m camera bias at the goal (0.15 m measured vs 0.06 m ground truth,
+  2026-09-17) and stay at or below `arrived_radius_m` (enforced in
+  `OrchestratorConfig`). Stall behaviour changes only in the
+  `arrival_position_tolerance_m < d ≤ arrived_radius_m` band, where a false
+  success was previously excused from stall evidence; at 0.59 m the FR5.1.8
+  mark already lapsed, so there the harm was the arrival log line and the
+  episode end, not stall suppression.
 
 ### M5.2 Orchestrator State Machine
 - FR5.2.1 Maintain an explicit node-visible state:
@@ -361,6 +396,9 @@ redefined.
 | scene_log_dir | str or null | directory for the per-session 1 Hz scene JSONL (FR5.3.7); null disables |
 | scene_log_period_sec | float | scene-log period, default 1.0 (FR5.3.7) |
 | arrived_radius_m | float | radius within which an M4-reported arrival excuses a robot from stall evidence, default 0.5 (FR5.1.8) |
+| arrival_position_check | bool | (2026-09-25) cross-check M4's `base_mission` arrival report against M1's position before marking the robot arrived, default **true** (FR5.1.9) |
+| arrival_position_tolerance_m | float | (2026-09-25) max M1 distance-to-goal that corroborates a reported arrival, default 0.35; must be > 0 and ≤ `arrived_radius_m` (FR5.1.9) |
+| arrival_estimate_max_age_sec | float | (2026-09-25) oldest M1 estimate still allowed to corroborate an arrival, default 2.0; beyond it the arrival is accepted unverified (FR5.1.9) |
 | prompt_pairwise_geometry | bool | include the derived pairwise distance/facing lines in the VLM prompt, default true (M2 FR2.1.7; ablation axis) |
 | prompt_static_obstacles | bool | (2026-09-19) render `static_obstacles` below as world-frame boxes in the VLM prompt, default **false** (M2 FR2.1.8; ablation axis) |
 | static_obstacles | tuple[StaticObstacleInput, ...] | (2026-09-19) fixed obstacles mirrored from the scenario yaml for the prompt only, rendered when `prompt_static_obstacles` is true; default empty |
@@ -460,6 +498,7 @@ ros2_ws/src/swarm_orchestrator/swarm_orchestrator/
 ├── command_lifecycle.py   # CommandState (exists) + CommandTracker (§7.4)
 ├── task_registry.py       # TaskRegistry (extend existing stub) (§7.5)
 ├── presentation_order.py  # PresentationOrderPolicy + EpisodeOrderTracker (FR5.3.9)
+├── arrival.py             # classify_arrival + ArrivalGate (FR5.1.9) (§7.8)
 ├── reasoning_pipeline.py  # ReasoningPipeline Protocol + InProcessPipeline (§7.6)
 └── orchestrator_node.py   # thin ROS2 node (§7.7)
 ```
@@ -545,7 +584,48 @@ and runs the pipeline; the node stores the future. A periodic
 timer polls the future, runs `check_timeouts`, and publishes registry changes. On
 pipeline completion, feed the `PipelineOutcome` back into the state machine and, on
 success, fan out `CoordinationCommand`s and set registry overrides (FR5.5.4).
-Structured logs include `request_id`, `command_id`, `robot_id`.
+Structured logs include `request_id`, `command_id`, `robot_id`. A `base_mission`
+COMPLETED status goes through `ArrivalGate` (§7.8) rather than straight to
+`CongestionDetector.mark_arrived`; the node supplies M1's latest view of the
+robot plus its age, measured from the monotonic receipt time of the latest
+snapshot (M1 stamps are on a different clock), and only logs and ends the
+episode on the verdict it gets back.
+
+### 7.8 `ArrivalGate` (`arrival.py`)
+Pure module, no `rclpy`. One helper and one stateful gate implementing FR5.1.9.
+
+```python
+def classify_arrival(
+    reported_goal: tuple[float, float],
+    estimated_position: tuple[float, float] | None,
+    tolerance_m: float,
+    estimate_age_sec: float | None,
+    max_estimate_age_sec: float,
+) -> ArrivalCheck: ...
+
+
+class ArrivalGate:
+    def __init__(self, config: OrchestratorConfig, mark_arrived: MarkArrived) -> None: ...
+    def on_nav2_success(
+        self,
+        robot_id: str,
+        goal: tuple[float, float],
+        estimate: RobotView | None,
+        estimate_age_sec: float | None,
+    ) -> ArrivalDecision: ...
+    def on_scene(
+        self, scene: SceneSnapshot, goal_of: GoalLookup
+    ) -> list[ArrivalDecision]: ...
+```
+
+`ArrivalCheck` is frozen Pydantic: `accepted: bool`, `distance_m: float | None`,
+`reason: "within_tolerance" | "beyond_tolerance" | "no_estimate" |
+"stale_estimate"`. `ArrivalDecision` wraps it with `robot_id`, `goal`, and
+`late`; its `check` is `None` when `arrival_position_check` is false, which is
+the pre-FR5.1.9 unverified path. The gate owns the accepted/rejected/late
+tallies (`counts`) and the pending-rejection set (`pending_robots`); it calls
+the injected `mark_arrived` itself, so an arrival it rejects never reaches the
+detector.
 
 ---
 
