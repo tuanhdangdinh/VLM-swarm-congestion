@@ -465,8 +465,9 @@ def test_build_reasoner_request_passes_robot_presentation_order_through():
 
 
 def test_build_reasoner_request_accepts_the_config_robot_order():
-    # The node hands the config value straight to build_reasoner_request; node
-    # code is not exercised by the unit suite, so pin the seam here.
+    # Under a fixed mode the node hands the config value straight through (the
+    # "random" mode resolves via EpisodeOrderTracker instead); node code is not
+    # exercised by the unit suite, so pin the seam here.
     cfg = OrchestratorConfig(
         stall_threshold_sec=12.0,
         progress_epsilon_m=0.1,
@@ -604,6 +605,45 @@ def test_write_decision_artifact_nulls_measurement_fields_when_absent(tmp_path):
     assert payload["prompt"] is None
     assert payload["scene"] is None
     assert payload["distance_to_goal_m"] == {}
+    assert payload["robot_presentation_order"] is None
+    assert payload["prompt_robot_order_mode"] is None
+    assert payload["prompt_robot_order_seed"] is None
+    assert payload["episode_index"] is None
+
+
+def test_write_decision_artifact_records_presentation_order_provenance(tmp_path):
+    request = build_reasoner_request(
+        "r1", _snapshot(), "/tmp/r1.png", robot_presentation_order="id_desc"
+    )
+    path = write_decision_artifact(
+        tmp_path,
+        _ok_outcome(),
+        request=request,
+        prompt_robot_order_mode="random",
+        prompt_robot_order_seed=4242,
+        episode_index=3,
+    )
+    payload = json.loads(path.read_text())
+
+    assert payload["robot_presentation_order"] == "id_desc"
+    assert payload["prompt_robot_order_mode"] == "random"
+    assert payload["prompt_robot_order_seed"] == 4242
+    assert payload["episode_index"] == 3
+
+
+def test_write_decision_artifact_records_the_order_the_prompt_rendered(tmp_path):
+    # The effective order is read off the request, not the caller's argument, so
+    # the artifact can never disagree with the prompt whose hashes sit beside it.
+    request = build_reasoner_request(
+        "r1", _snapshot(), "/tmp/r1.png", robot_presentation_order="id_asc"
+    )
+    payload = json.loads(
+        write_decision_artifact(
+            tmp_path, _ok_outcome(), request=request, prompt_robot_order_mode="random"
+        ).read_text()
+    )
+
+    assert payload["robot_presentation_order"] == "id_asc"
 
 
 def test_write_decision_artifact_records_rendered_prompt_with_hashes(tmp_path):

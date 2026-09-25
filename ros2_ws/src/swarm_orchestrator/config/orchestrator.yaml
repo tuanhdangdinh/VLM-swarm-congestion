@@ -25,11 +25,19 @@ prompt_pairwise_geometry: true
 # produced without this channel, and an on-by-default flag would silently break
 # comparability with all of them.
 prompt_static_obstacles: false
-# Ablation axis: order the prompt lists robots in — id_asc or id_desc. Default
-# id_asc matches every prompt rendered so far; id_desc is the counterbalanced
-# condition that tells a positional default ("yield the robot presented first")
-# apart from an ID or a geometry preference. Only the ordering changes.
+# Ablation axis: order the prompt lists robots in — id_asc, id_desc or random.
+# Default id_asc matches every prompt rendered so far; id_desc is the
+# counterbalanced condition that tells a positional default ("yield the robot
+# presented first") apart from an ID or a geometry preference. random draws one
+# of the two per congestion episode, counterbalancing within a run; the drawn
+# order is constant across every re-analysis of one episode, and each decision
+# artifact records it alongside the mode, the seed and the episode index. Only
+# the ordering changes.
 prompt_robot_order: id_asc
+# Seed for the random draw. null derives it from VGU_RUN_ID, falling back to the
+# M5 session id, so paired runs launched with the same run id draw the same
+# sequence; the fixed modes ignore it.
+prompt_robot_order_seed: null
 reasoning_backend_id: openai
 frame_dump_dir: data/logs/m5_frames
 decision_log_dir: data/logs/m5_decisions

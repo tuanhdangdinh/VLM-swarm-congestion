@@ -31,6 +31,7 @@ from swarm_orchestrator.models import (
     SceneSnapshot,
     TerminalStage,
 )
+from swarm_orchestrator.presentation_order import RobotPresentationOrderMode
 
 ValidateFn = Callable[[dict[str, Any]], dict[str, Any]]
 
@@ -194,6 +195,9 @@ def write_decision_artifact(
     distance_to_goal_m: dict[str, float] | None = None,
     run_id: str | None = None,
     session_id: str | None = None,
+    prompt_robot_order_mode: RobotPresentationOrderMode | None = None,
+    prompt_robot_order_seed: int | None = None,
+    episode_index: int | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
@@ -213,6 +217,11 @@ def write_decision_artifact(
         distance_to_goal_m: The detector's per-robot distance at trigger time.
         run_id: Scenario run identifier (`VGU_RUN_ID`), if the launcher set one.
         session_id: Identifier of the M5 process that wrote the artifact.
+        prompt_robot_order_mode: The configured presentation-order mode, which
+            may be `"random"`; the effective order is read off `request`, so the
+            artifact records the order actually rendered.
+        prompt_robot_order_seed: The effective integer seed of the draw.
+        episode_index: Zero-based congestion episode this analysis belongs to.
 
     Returns:
         The artifact path.
@@ -245,6 +254,12 @@ def write_decision_artifact(
             None if failure_context is None else failure_context.model_dump(mode="json")
         ),
         "prompt": prompt,
+        "robot_presentation_order": (
+            None if request is None else request.robot_presentation_order
+        ),
+        "prompt_robot_order_mode": prompt_robot_order_mode,
+        "prompt_robot_order_seed": prompt_robot_order_seed,
+        "episode_index": episode_index,
         "scene": None if snapshot is None else snapshot.model_dump(mode="json"),
         "distance_to_goal_m": dict(distance_to_goal_m or {}),
     }
