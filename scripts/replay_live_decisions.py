@@ -1346,6 +1346,29 @@ def _feasible_counts(records: list[dict[str, Any]]) -> tuple[int, int]:
     return sum(1 for r in rows if r["yield_robot"] == r["correct_yielder"]), len(rows)
 
 
+def _side_blind_baseline(records: list[dict[str, Any]]) -> tuple[float, float]:
+    """P(feasible) that the two side-blind constant rules would score on these yields.
+
+    P(feasible) is only centred on 0.5 when the corpus carries equally many
+    west- and east-blocked scenes. On an unbalanced corpus - which a
+    quota-truncated run produces - "always `robot_1`" and "always `robot_2`"
+    score these two values instead, and they bracket what any side-blind rule
+    (first-listed, ID-anchored, coin flip) can reach.
+
+    Args:
+        records: Call records for one cell.
+
+    Returns:
+        P(feasible) for always-`robot_1` and for always-`robot_2`.
+
+    """
+    rows = _yield_rows(records)
+    if not rows:
+        return 0.0, 0.0
+    r1 = sum(1 for r in rows if r["correct_yielder"] == "robot_1") / len(rows)
+    return r1, 1.0 - r1
+
+
 def _side_split(records: list[dict[str, Any]]) -> tuple[int, int, int, int, float]:
     """Return west/east P(robot_1) counts and the Fisher p for the side association."""
     w, wn = _counts([r for r in records if r["side"] == "west"], "yield_robot", "robot_1")
@@ -1404,11 +1427,15 @@ def _contrast(
     choice tracks the obstacle side, so it is the quantity a channel ablation
     should move if that channel carries the signal.
     """
-    a, an = _feasible_counts(_s_cell(records, order, *left))
-    c, cn = _feasible_counts(_s_cell(records, order, *right))
+    left_cell, right_cell = _s_cell(records, order, *left), _s_cell(records, order, *right)
+    a, an = _feasible_counts(left_cell)
+    c, cn = _feasible_counts(right_cell)
+    baselines = (_side_blind_baseline(left_cell), _side_blind_baseline(right_cell))
     print(
         f"{label}: P(feasible) {_rate(a, an)} vs {_rate(c, cn)}, "
-        f"fisher p={fisher_two_sided(a, an - a, c, cn - c):.4g}"
+        f"fisher p={fisher_two_sided(a, an - a, c, cn - c):.4g} "
+        f"(side-blind baselines {baselines[0][0]:.3f}/{baselines[0][1]:.3f} vs "
+        f"{baselines[1][0]:.3f}/{baselines[1][1]:.3f})"
     )
 
 
@@ -1426,20 +1453,26 @@ def _per_scene_consistency(records: list[dict[str, Any]], order: str) -> None:
     print(f"\n### Per-scene consistency under `{order}`, real frame")
     print("run,request_id,side,P(feasible)|text_on,P(feasible)|text_off,delta")
     moved = 0
+    compared = 0
     scenes = sorted({(r["run"], r["request_id"], r["side"]) for r in records})
     for run, request_id, side in scenes:
         rows = [r for r in records if r["request_id"] == request_id]
         on, on_n = _feasible_counts(_s_cell(rows, order, True, "real"))
         off, off_n = _feasible_counts(_s_cell(rows, order, False, "real"))
         if not on_n or not off_n:
+            print(f"{run},{request_id[:8]},{side},{_rate(on, on_n)},{_rate(off, off_n)},n/a")
             continue
+        compared += 1
         delta = on / on_n - off / off_n
         moved += int(delta > 0)
         print(
             f"{run},{request_id[:8]},{side},{_rate(on, on_n)},{_rate(off, off_n)},"
             f"{delta:+.3f}"
         )
-    print(f"scenes with a positive text-on - text-off delta: {moved}/{len(scenes)}")
+    print(
+        f"scenes with a positive text-on - text-off delta: {moved}/{compared} "
+        f"comparable ({len(scenes)} scenes in the arm)"
+    )
 
 
 def analyze_arm_s(records: list[dict[str, Any]], label: str = "") -> None:
@@ -1454,9 +1487,12 @@ def analyze_arm_s(records: list[dict[str, Any]], label: str = "") -> None:
         by_side[record["side"]].add(record["request_id"])
     suffix = f" - {label}" if label else ""
     print(f"\n## Arm S (which channel carries the side signal){suffix}")
+    always_r1, always_r2 = _side_blind_baseline(records)
     print(
         "artifacts: "
         + ", ".join(f"{side} {len(ids)}" for side, ids in sorted(by_side.items()))
+        + f"; side-blind P(feasible) baselines: always robot_1 {always_r1:.3f}, "
+        f"always robot_2 {always_r2:.3f}"
     )
     attempt1 = [r for r in records if not r["attempt1_refusal"]]
     _print_s_table(attempt1, "attempt-1 only, primary")

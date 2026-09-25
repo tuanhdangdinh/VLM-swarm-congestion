@@ -1,0 +1,68 @@
+reconstruction: 56/56 exact SHA-256 matches
+live attempt-1 refusals on these stimuli: 21/56
+wrote data/experiments/2026-09-26-batch2-replay/summary.csv
+
+## Arm S (which channel carries the side signal) - batch 2 replication
+artifacts: east 1, west 3; side-blind P(feasible) baselines: always robot_1 0.230, always robot_2 0.770
+
+### Arm S cells (attempt-1 only, primary)
+order,obstacle_text,image,n,decided,yields,P(robot_1),P(feasible),west_P(robot_1),east_P(robot_1),side_fisher_p,think_mentions,decision_mentions
+id_asc,on,real,19,19,19,1.000,0.263,1.000,1.000,1,0,0
+id_asc,on,grey,24,24,24,1.000,0.250,1.000,1.000,1,0,0
+id_asc,off,real,16,16,16,1.000,0.062,1.000,1.000,1,0,0
+id_asc,off,grey,24,24,24,1.000,0.250,1.000,1.000,1,0,0
+id_desc,on,real,23,23,23,0.652,0.435,0.647,0.667,1,0,0
+id_desc,on,grey,24,24,24,0.833,0.417,0.778,1.000,0.5392,2,0
+id_desc,off,real,21,21,21,0.571,0.143,0.800,0.000,0.001548,0,0
+id_desc,off,grey,19,19,19,0.947,0.000,1.000,0.000,0.05263,0,0
+
+### Arm S cells (pooled, includes re-ask-derived decisions)
+order,obstacle_text,image,n,decided,yields,P(robot_1),P(feasible),west_P(robot_1),east_P(robot_1),side_fisher_p,think_mentions,decision_mentions
+id_asc,on,real,24,24,24,1.000,0.250,1.000,1.000,1,0,0
+id_asc,on,grey,24,24,24,1.000,0.250,1.000,1.000,1,0,0
+id_asc,off,real,24,24,24,1.000,0.250,1.000,1.000,1,0,0
+id_asc,off,grey,24,24,24,1.000,0.250,1.000,1.000,1,0,0
+id_desc,on,real,24,24,24,0.625,0.458,0.611,0.667,1,0,0
+id_desc,on,grey,24,24,24,0.833,0.417,0.778,1.000,0.5392,2,0
+id_desc,off,real,24,24,24,0.542,0.208,0.722,0.000,0.003432,0,0
+id_desc,off,grey,19,19,19,0.947,0.000,1.000,0.000,0.05263,0,0
+
+### id_desc channel contrasts (attempt-1 only)
+(a) real frame, text on vs off: P(feasible) 10/23 (43.5%) vs 3/21 (14.3%), fisher p=0.04923 (side-blind baselines 0.261/0.739 vs 0.286/0.714)
+(b) text on, real vs grey: P(feasible) 10/23 (43.5%) vs 10/24 (41.7%), fisher p=1 (side-blind baselines 0.261/0.739 vs 0.250/0.750)
+(c) states only (text off + grey): west P(robot_1) 18/18 (100.0%) vs east 0/1 (0.0%), fisher p=0.05263
+
+### id_asc control (attempt-1 only) - is the first-position default unbroken?
+text=on,image=real: P(robot_1) 19/19 (100.0%), P(feasible) 5/19 (26.3%)
+text=on,image=grey: P(robot_1) 24/24 (100.0%), P(feasible) 6/24 (25.0%)
+text=off,image=real: P(robot_1) 16/16 (100.0%), P(feasible) 1/16 (6.2%)
+text=off,image=grey: P(robot_1) 24/24 (100.0%), P(feasible) 6/24 (25.0%)
+
+### id_desc channel contrasts (pooled)
+(a) real frame, text on vs off: P(feasible) 11/24 (45.8%) vs 5/24 (20.8%), fisher p=0.1246 (side-blind baselines 0.250/0.750 vs 0.250/0.750)
+(b) text on, real vs grey: P(feasible) 11/24 (45.8%) vs 10/24 (41.7%), fisher p=1 (side-blind baselines 0.250/0.750 vs 0.250/0.750)
+(c) states only (text off + grey): west P(robot_1) 18/18 (100.0%) vs east 0/1 (0.0%), fisher p=0.05263
+
+### id_asc control (pooled) - is the first-position default unbroken?
+text=on,image=real: P(robot_1) 24/24 (100.0%), P(feasible) 6/24 (25.0%)
+text=on,image=grey: P(robot_1) 24/24 (100.0%), P(feasible) 6/24 (25.0%)
+text=off,image=real: P(robot_1) 24/24 (100.0%), P(feasible) 6/24 (25.0%)
+text=off,image=grey: P(robot_1) 24/24 (100.0%), P(feasible) 6/24 (25.0%)
+
+### Per-scene consistency under `id_desc`, real frame
+run,request_id,side,P(feasible)|text_on,P(feasible)|text_off,delta
+20260925_155433,810c9104,west,5/5 (100.0%),3/6 (50.0%),+0.500
+20260925_160951,42fb0cb8,west,1/6 (16.7%),0/3 (0.0%),+0.167
+20260925_162451,d4b96fbd,west,0/6 (0.0%),0/6 (0.0%),+0.000
+20260925_163949,189ae2a6,east,4/6 (66.7%),0/6 (0.0%),+0.667
+scenes with a positive text-on - text-off delta: 3/4 comparable (4 scenes in the arm)
+
+obstacle mentions across 187 Arm-S runs: <think> 2, decision fields 0, anywhere in the raw text 2
+obstacle_text,image,runs,think_mentions,decision_mentions,any_text_mentions
+on,real,48,0,0,0
+on,grey,48,2,0,2
+off,real,48,0,0,0
+off,grey,43,0,0,0
+
+## Cost
+reasoner runs=187 api calls=206 prompt_tokens=346611 completion_tokens=37387 est_usd=1.24
