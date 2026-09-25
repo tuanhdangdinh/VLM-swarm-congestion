@@ -1,9 +1,18 @@
 """Declared scene geometry M3 derives yield maneuver distances from (no ROS2)."""
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from reasoning.vlm.models import StaticObstacleInput
+
+# Slack added on top of the bare park geometry before a retreat counts as
+# feasible: odometry drift plus M4's reverse-leg overshoot routinely eat ~0.1 m,
+# and a retreat sized to the millimetre would be declared feasible and then
+# arrest against the obstacle (2026-09-25 run R2, arrested 0.102 m short).
+FEASIBILITY_MARGIN_M: float = 0.2
 
 
 class CorridorGeometry(BaseModel):
@@ -145,3 +154,118 @@ def passer_clearance_m(geometry: SceneGeometry) -> float:
         Clearance distance in metres.
     """
     return geometry.robot.safety_radius_m + geometry.passer_margin_m
+
+
+def required_room_m(geometry: SceneGeometry) -> float:
+    """Room past the corridor mouth a yielder needs before it can park.
+
+    The park point sits `park_offset_m` from the corridor centre, i.e.
+    `park_offset_m - half_length_m` past the mouth; the robot's rear reaches
+    another `half_width_m` beyond that, and `FEASIBILITY_MARGIN_M` covers
+    odometry drift.
+
+    Args:
+        geometry: Declared scene geometry.
+
+    Returns:
+        Required room in metres, measured from the corridor mouth outward along
+        `corridor.axis`.
+
+    Raises:
+        ValueError: If the visibility boundary is undefined for this geometry.
+    """
+    return (
+        park_offset_m(geometry)
+        - geometry.corridor.half_length_m
+        + geometry.robot.half_width_m
+        + FEASIBILITY_MARGIN_M
+    )
+
+
+def room_is_feasible(room_m: float | None, geometry: SceneGeometry) -> bool:
+    """Whether that much room past the corridor mouth is enough to park in.
+
+    Args:
+        room_m: Room in metres from the corridor mouth, or `None` when nothing
+            bounds the retreat on that side.
+        geometry: Declared scene geometry.
+
+    Returns:
+        True when the retreat is unbounded or the room meets `required_room_m`.
+    """
+    if room_m is None:
+        return True
+    return room_m >= required_room_m(geometry)
+
+
+def yield_retreat_room_m(
+    yielder_position: tuple[float, float],
+    side: float,
+    static_obstacles: Sequence[StaticObstacleInput],
+    geometry: SceneGeometry,
+) -> float | None:
+    """Free room a yielder retreating to its own side has past the corridor mouth.
+
+    Measured in world-frame metres along `corridor.axis`, from the corridor
+    mouth on `side` outward to the nearest face of a static obstacle that lies
+    beyond that mouth and whose lateral extent overlaps the corridor's lateral
+    band. The band is `aisle_half_width_m` either side of the yielder's own
+    perpendicular coordinate: an obstacle parked in a neighbouring aisle is not
+    in this robot's way.
+
+    Args:
+        yielder_position: The yielder's world-frame `(x, y)` in metres.
+        side: Retreat direction along `corridor.axis`: `-1.0` toward decreasing
+            coordinates, `+1.0` toward increasing ones.
+        static_obstacles: Fixed, axis-aligned obstacles of the running scenario.
+        geometry: Declared scene geometry.
+
+    Returns:
+        Room in metres from the corridor mouth, or `None` when no obstacle
+        bounds the retreat on that side.
+    """
+    axis_index = 0 if geometry.corridor.axis == "x" else 1
+    perp_index = 1 - axis_index
+    mouth_coord = geometry.corridor.center_m + side * geometry.corridor.half_length_m
+    band_center = yielder_position[perp_index]
+    band_half_width = geometry.corridor.aisle_half_width_m
+
+    rooms: list[float] = []
+    for obstacle in static_obstacles:
+        centre = (obstacle.x, obstacle.y)
+        half_extent = (obstacle.size_x_m / 2.0, obstacle.size_y_m / 2.0)
+        if abs(centre[perp_index] - band_center) > band_half_width + half_extent[perp_index]:
+            continue
+        axis_centre = centre[axis_index]
+        axis_half = half_extent[axis_index]
+        # Skip obstacles that do not reach past the mouth on this side: they sit
+        # inside the corridor or behind the passer, and bound no retreat here.
+        if (axis_centre + side * axis_half - mouth_coord) * side <= 0.0:
+            continue
+        near_face = axis_centre - side * axis_half
+        rooms.append(max(0.0, (near_face - mouth_coord) * side))
+
+    return min(rooms) if rooms else None
+
+
+def yield_feasible(
+    yielder_position: tuple[float, float],
+    side: float,
+    static_obstacles: Sequence[StaticObstacleInput],
+    geometry: SceneGeometry,
+) -> bool:
+    """Whether a robot retreating to `side` can still reach its park point.
+
+    Args:
+        yielder_position: The yielder's world-frame `(x, y)` in metres.
+        side: Retreat direction along `corridor.axis` (`-1.0` or `+1.0`).
+        static_obstacles: Fixed, axis-aligned obstacles of the running scenario.
+        geometry: Declared scene geometry.
+
+    Returns:
+        True when nothing bounds the retreat, or what bounds it leaves at least
+        `required_room_m`.
+    """
+    return room_is_feasible(
+        yield_retreat_room_m(yielder_position, side, static_obstacles, geometry), geometry
+    )
