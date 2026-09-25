@@ -699,7 +699,9 @@ def _yield_artifact(command, tmp_path, **kwargs):
         request_id="r1",
         reasoner_result=_ok_outcome().reasoner_result,
         grounded_command=command,
-        terminal_stage=TerminalStage.OK,
+        # A cycle only reaches OK once grounding returned a command that passed
+        # validation, so a missing command pairs with the GROUNDING stage.
+        terminal_stage=TerminalStage.OK if command is not None else TerminalStage.GROUNDING,
     )
     return json.loads(write_decision_artifact(tmp_path, outcome, **kwargs).read_text())
 
