@@ -152,7 +152,7 @@ def _failed_result():
     return ReasonerResult(request_id="r1", decision=None, raw_text=None, diagnostics=diag)
 
 
-def _must_not_ground(result, robot_positions=None, geometry=None):
+def _must_not_ground(result, robot_positions=None, geometry=None, **_gate):
     pytest.fail("ground_fn must not run")
 
 
@@ -169,7 +169,7 @@ def test_pipeline_ok_grounds_and_returns_ok(tmp_path):
     }
     pipe = InProcessPipeline(
         reasoner=_FakeReasoner(_ok_result()),
-        ground_fn=lambda result, robot_positions=None, geometry=None: grounded,
+        ground_fn=lambda result, robot_positions=None, geometry=None, **_gate: grounded,
     )
     outcome = pipe.run(_request())
     assert outcome.terminal_stage is TerminalStage.OK
@@ -197,7 +197,7 @@ def test_pipeline_vlm_failure_terminates_at_vlm():
 
 
 def test_pipeline_grounding_failure_terminates_at_grounding():
-    def _raise(result, robot_positions=None, geometry=None):
+    def _raise(result, robot_positions=None, geometry=None, **_gate):
         raise ValueError("schema invalid")
     pipe = InProcessPipeline(reasoner=_FakeReasoner(_ok_result()), ground_fn=_raise)
     outcome = pipe.run(_request())
@@ -228,7 +228,7 @@ def test_pipeline_invalid_grounded_command_terminates_at_grounding():
     invalid = {"command_id": "c1"}  # missing actions / fallback / resolution
     pipe = InProcessPipeline(
         reasoner=_FakeReasoner(_ok_result()),
-        ground_fn=lambda result, robot_positions=None, geometry=None: invalid,
+        ground_fn=lambda result, robot_positions=None, geometry=None, **_gate: invalid,
     )
     outcome = pipe.run(_request())
     assert outcome.terminal_stage is TerminalStage.GROUNDING
@@ -244,7 +244,7 @@ def test_pipeline_valid_grounded_command_passes_validation():
     }
     pipe = InProcessPipeline(
         reasoner=_FakeReasoner(_ok_result()),
-        ground_fn=lambda result, robot_positions=None, geometry=None: valid,
+        ground_fn=lambda result, robot_positions=None, geometry=None, **_gate: valid,
     )
     outcome = pipe.run(_request())
     assert outcome.terminal_stage is TerminalStage.OK
@@ -263,7 +263,7 @@ def test_pipeline_filters_grounded_actions_to_request_robot_ids():
     }
     pipe = InProcessPipeline(
         reasoner=_FakeReasoner(_ok_result()),
-        ground_fn=lambda result, robot_positions=None, geometry=None: grounded,
+        ground_fn=lambda result, robot_positions=None, geometry=None, **_gate: grounded,
     )
 
     outcome = pipe.run(_request())
@@ -283,7 +283,7 @@ def test_pipeline_rejects_grounded_actions_for_unknown_robot_ids():
     }
     pipe = InProcessPipeline(
         reasoner=_FakeReasoner(_ok_result()),
-        ground_fn=lambda result, robot_positions=None, geometry=None: grounded,
+        ground_fn=lambda result, robot_positions=None, geometry=None, **_gate: grounded,
     )
 
     outcome = pipe.run(_request())
@@ -301,7 +301,7 @@ def test_pipeline_passes_snapshot_positions_to_grounder():
     }
     seen: dict[str, object] = {}
 
-    def _record(result, robot_positions=None, geometry=None):
+    def _record(result, robot_positions=None, geometry=None, **_gate):
         seen["positions"] = robot_positions
         seen["geometry"] = geometry
         return grounded
@@ -330,7 +330,7 @@ def test_pipeline_passes_no_geometry_to_grounder_when_unconfigured():
     }
     seen: dict[str, object] = {"geometry": "unset"}
 
-    def _record(result, robot_positions=None, geometry=None):
+    def _record(result, robot_positions=None, geometry=None, **_gate):
         seen["geometry"] = geometry
         return grounded
 
@@ -643,3 +643,50 @@ def test_append_scene_log_appends_one_json_line_per_call(tmp_path):
     assert lines[0]["run_id"] is None
     assert lines[1]["run_id"] == "20260917_1101"
     assert lines[0]["scene"]["frame_id"] == "cam0"
+
+
+def _grounded_stub() -> dict:
+    return {
+        "command_id": "c1",
+        "actions": [{"robot_id": "robot_0", "action": "yield"}],
+        "expected_resolution_time_sec": 18.0,
+        "fallback": "stop",
+    }
+
+
+def test_pipeline_passes_yield_feasibility_settings_to_grounder():
+    seen: dict[str, object] = {}
+
+    def _record(result, robot_positions=None, geometry=None, **gate):
+        seen.update(gate)
+        return _grounded_stub()
+
+    obstacles = (
+        StaticObstacleInput(obstacle_id="obstacle_1", x=-1.85, y=0.0, size_x_m=0.3, size_y_m=0.3),
+    )
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_ok_result()),
+        ground_fn=_record,
+        static_obstacles=obstacles,
+        yield_feasibility_mode="swap",
+    )
+
+    pipe.run(_request())
+
+    assert seen["static_obstacles"] == obstacles
+    assert seen["yield_feasibility_mode"] == "swap"
+
+
+def test_pipeline_yield_feasibility_defaults_to_off_and_no_obstacles():
+    seen: dict[str, object] = {}
+
+    def _record(result, robot_positions=None, geometry=None, **gate):
+        seen.update(gate)
+        return _grounded_stub()
+
+    pipe = InProcessPipeline(reasoner=_FakeReasoner(_ok_result()), ground_fn=_record)
+
+    pipe.run(_request())
+
+    assert seen["static_obstacles"] == ()
+    assert seen["yield_feasibility_mode"] == "off"

@@ -177,6 +177,43 @@ outcome.
   diagnostics.parse_status="failed")` rather than raising — identical policy to
   M2 FR2.5.3.
 
+### M3.7 Yield Feasibility Gate (deterministic, no LLM)
+
+Applies to the deterministic grounder `reasoning/rag/command_grounder.py`. M2's
+`yield_robot` is a presentation-order artifact, not a geometric judgement
+(`docs/reports/2026-09-25-overnight-findings.md` §1/§7): on
+`head_on_asymmetric_w0p2_eopen_o0` it names a robot a parked box 0.2 m behind
+its spawn makes impossible to park, and the maneuver arrests 0.10 m short.
+
+- FR3.7.1 `yield_retreat_room_m(yielder_position, side, static_obstacles,
+  geometry)` (`reasoning/rag/scene_geometry.py`) returns the free room in
+  metres along `corridor.axis`, from the corridor mouth on the yielder's side
+  out to the nearest face of a static obstacle beyond that mouth whose lateral
+  extent overlaps the corridor band; `None` when nothing bounds the retreat.
+- FR3.7.2 `yield_feasible(...)` is that room measured against
+  `required_room_m(geometry)` = `park_offset_m − half_length_m +
+  robot.half_width_m + FEASIBILITY_MARGIN_M`. `isaac/vgu_sim/family_oracle.py`
+  scores the pre-registered oracle with these same functions, so the executed
+  maneuver and the oracle answer cannot drift apart.
+- FR3.7.3 `ground_reasoner_result` takes `static_obstacles` and
+  `yield_feasibility_mode` (`"off"` | `"swap"` | `"refuse"`, default `"off"`).
+  The gate runs only for `strategy == "yield"`, with a declared `geometry`, a
+  position for every involved robot, and a non-`off` mode.
+- FR3.7.4 `"swap"`: when the decided yielder is infeasible and another involved
+  robot is feasible, the yield grounds to that robot, and its action carries
+  `yield_robot_grounded_from` (the originally decided yielder) plus
+  `yield_regrounded_reason` (`"yield re-grounded: robot_1 has 0.70 m retreat
+  room < 1.08 m required; robot_2 feasible"`). When none is feasible the yield
+  is refused with reason `"yield refused: no feasible yielder (…)"`.
+- FR3.7.5 `"refuse"`: never swaps; an infeasible decided yielder is refused with
+  reason `"yield refused: <robot> has <room> retreat room < <required> m
+  required"`.
+- FR3.7.6 A refusal degrades to a `temporary_wait` for every involved robot
+  carrying `requested_strategy: "yield"` and `reason`, exactly like the existing
+  beyond-the-corridor refusal.
+- FR3.7.7 `"off"` grounds the named yielder verbatim, byte-identical to the
+  pre-gate grounder, so decision artifacts stay comparable across the change.
+
 ---
 
 ## 4. Data Structures / Schemas (contract C1)

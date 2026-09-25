@@ -8,7 +8,12 @@ from reasoning.rag.command_grounder import (
     validate_coordination_command,
 )
 from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
-from reasoning.vlm.models import CongestionDecision, ReasonerDiagnostics, ReasonerResult
+from reasoning.vlm.models import (
+    CongestionDecision,
+    ReasonerDiagnostics,
+    ReasonerResult,
+    StaticObstacleInput,
+)
 
 
 def test_validate_coordination_command_accepts_valid_payload():
@@ -480,3 +485,192 @@ def test_filter_command_robot_ids_rejects_all_hallucinated_robot_actions():
 
     with pytest.raises(CommandGroundingError, match="no actions for known robots"):
         filter_command_robot_ids(command, {"robot_1", "robot_2"})
+
+
+# The head-on asymmetric family's blockers, mirrored from
+# isaac/config/scenarios/family/head_on_asymmetric_{w0p2_eopen,wopen_e0p2}_o0.yaml:
+# a 0.3 m box centred 1.85 m out, so its near face sits 0.70 m past the corridor
+# mouth at |x| = 1.0 - against the 1.079 m the park maneuver needs.
+_WEST_BLOCKER = StaticObstacleInput(
+    obstacle_id="obstacle_1", x=-1.85, y=0.0, size_x_m=0.3, size_y_m=0.3
+)
+_EAST_BLOCKER = StaticObstacleInput(
+    obstacle_id="obstacle_1", x=1.85, y=0.0, size_x_m=0.3, size_y_m=0.3
+)
+# A deadlock snapshot: the two robots stalled nose to nose either side of the
+# corridor centre, each still on its own side of it.
+_DEADLOCK_POSITIONS = {"robot_1": (-0.3, 0.0), "robot_2": (0.3, 0.0)}
+# The yield command `_result("yield")` grounds to at _DEADLOCK_POSITIONS with the
+# family geometry, captured from commit 22d8857 - this feature's parent - so the
+# "off" mode is pinned against the behaviour every decision artifact collected
+# so far was produced with. Any change here is a change to those artifacts'
+# comparability, not a fixture to regenerate.
+_PRE_GATE_OFF_YIELD_COMMAND = {
+    "command_id": "req1-yield",
+    "actions": [
+        {
+            "robot_id": "robot_1",
+            "action": "yield",
+            "parameters": {
+                "backup_distance_m": 1.489,
+                "hold_sec": 45.0,
+                "pull_off_lateral_m": 0.36,
+                "reason": "head-on aisle conflict",
+                "park_x_m": -1.789,
+                "park_axis": "x",
+                "park_coord_m": -1.789,
+                "passer_robot_id": "robot_2",
+                "passer_clear_m": 2.739,
+                "passer_escort_distance_m": 2.739,
+            },
+        },
+        {
+            "robot_id": "robot_2",
+            "action": "temporary_wait",
+            "parameters": {"duration_sec": 120.0},
+        },
+    ],
+    "expected_resolution_time_sec": 150.0,
+    "fallback": "stop",
+}
+
+
+def _gated(mode, obstacles, yield_robot="robot_1", positions=None):
+    return ground_reasoner_result(
+        _result("yield", yield_robot=yield_robot),
+        robot_positions=positions or _DEADLOCK_POSITIONS,
+        geometry=_geometry(),
+        static_obstacles=obstacles,
+        yield_feasibility_mode=mode,
+    )
+
+
+def test_yield_feasibility_off_is_identical_to_the_pre_gate_command():
+    # Obstacles are supplied and the mode is off: a gate keyed off obstacle
+    # presence instead of the mode would fail here, not silently pass.
+    assert _gated("off", (_WEST_BLOCKER,)) == _PRE_GATE_OFF_YIELD_COMMAND
+
+
+def test_yield_feasibility_off_is_the_default_mode():
+    assert (
+        ground_reasoner_result(
+            _result("yield"),
+            robot_positions=_DEADLOCK_POSITIONS,
+            geometry=_geometry(),
+            static_obstacles=(_WEST_BLOCKER,),
+        )
+        == _PRE_GATE_OFF_YIELD_COMMAND
+    )
+
+
+def test_swap_regrounds_yield_to_the_feasible_robot_when_west_is_blocked():
+    command = _gated("swap", (_WEST_BLOCKER,))
+    yielder, passer = command["actions"]
+
+    assert yielder["robot_id"] == "robot_2"
+    assert yielder["action"] == "yield"
+    assert yielder["parameters"]["passer_robot_id"] == "robot_1"
+    # The park point follows the new yielder to its own side of the corridor.
+    assert yielder["parameters"]["park_coord_m"] == pytest.approx(1.789)
+    assert passer["robot_id"] == "robot_1"
+    assert passer["action"] == "temporary_wait"
+
+
+def test_swap_records_the_originally_decided_yielder_as_provenance():
+    parameters = _gated("swap", (_WEST_BLOCKER,))["actions"][0]["parameters"]
+
+    assert parameters["yield_robot_grounded_from"] == "robot_1"
+    assert parameters["yield_regrounded_reason"] == (
+        "yield re-grounded: robot_1 has 0.70 m retreat room < 1.08 m required; "
+        "robot_2 feasible"
+    )
+
+
+def test_swap_regrounds_yield_to_the_feasible_robot_when_east_is_blocked():
+    command = _gated("swap", (_EAST_BLOCKER,), yield_robot="robot_2")
+    parameters = command["actions"][0]["parameters"]
+
+    assert command["actions"][0]["robot_id"] == "robot_1"
+    assert parameters["yield_robot_grounded_from"] == "robot_2"
+    assert parameters["park_coord_m"] == pytest.approx(-1.789)
+
+
+def test_swap_leaves_a_feasible_yielder_untouched():
+    # robot_1 retreats west and the only blocker is east: nothing to re-ground.
+    command = _gated("swap", (_EAST_BLOCKER,))
+
+    assert command == _PRE_GATE_OFF_YIELD_COMMAND
+
+
+def test_swap_without_obstacles_grounds_the_named_yielder_unchanged():
+    assert _gated("swap", ()) == _PRE_GATE_OFF_YIELD_COMMAND
+
+
+def test_swap_refuses_when_no_involved_robot_can_park():
+    command = _gated("swap", (_WEST_BLOCKER, _EAST_BLOCKER))
+
+    assert [action["action"] for action in command["actions"]] == [
+        "temporary_wait",
+        "temporary_wait",
+    ]
+    assert command["actions"][0]["parameters"]["requested_strategy"] == "yield"
+    assert command["actions"][0]["parameters"]["reason"] == (
+        "yield refused: no feasible yielder (robot_1 0.70 m, robot_2 0.70 m "
+        "retreat room < 1.08 m required)"
+    )
+    assert command["expected_resolution_time_sec"] == 8.0
+
+
+def test_refuse_degrades_an_infeasible_yield_to_a_temporary_wait():
+    command = _gated("refuse", (_WEST_BLOCKER,))
+
+    assert [action["robot_id"] for action in command["actions"]] == ["robot_1", "robot_2"]
+    assert [action["action"] for action in command["actions"]] == [
+        "temporary_wait",
+        "temporary_wait",
+    ]
+    assert command["actions"][0]["parameters"]["reason"] == (
+        "yield refused: robot_1 has 0.70 m retreat room < 1.08 m required"
+    )
+
+
+def test_refuse_never_swaps_to_the_feasible_robot():
+    command = _gated("refuse", (_WEST_BLOCKER,))
+
+    assert all(action["action"] != "yield" for action in command["actions"])
+
+
+def test_refuse_leaves_a_feasible_yielder_untouched():
+    assert _gated("refuse", (_EAST_BLOCKER,)) == _PRE_GATE_OFF_YIELD_COMMAND
+
+
+def test_swap_is_a_no_op_without_declared_geometry():
+    command = ground_reasoner_result(
+        _result("yield"),
+        robot_positions=_DEADLOCK_POSITIONS,
+        static_obstacles=(_WEST_BLOCKER,),
+        yield_feasibility_mode="swap",
+    )
+
+    assert command["actions"][0]["robot_id"] == "robot_1"
+    assert command["actions"][0]["action"] == "yield"
+
+
+def test_swap_is_a_no_op_when_a_robot_position_is_missing():
+    command = _gated("swap", (_WEST_BLOCKER,), positions={"robot_1": (-0.3, 0.0)})
+
+    assert command["actions"][0]["robot_id"] == "robot_1"
+    assert command["actions"][0]["action"] == "yield"
+
+
+def test_swap_does_not_touch_a_non_yield_strategy():
+    command = ground_reasoner_result(
+        _result("reverse"),
+        robot_positions=_DEADLOCK_POSITIONS,
+        geometry=_geometry(),
+        static_obstacles=(_WEST_BLOCKER,),
+        yield_feasibility_mode="swap",
+    )
+
+    assert [action["robot_id"] for action in command["actions"]] == ["robot_1", "robot_2"]
+    assert all(action["action"] == "reverse" for action in command["actions"])

@@ -57,6 +57,18 @@ scenario_geometry:
   wall_margin_m: 0.15
   passer_margin_m: 0.2
 
+# Whether M3 may ground a yield to a robot other than the one M2 named, when
+# the named one cannot physically reach its park point:
+#   off    - ground the named yielder verbatim (default; every decision
+#            artifact collected so far was produced this way)
+#   swap   - re-ground the yield to a feasible involved robot, recording
+#            yield_robot_grounded_from in the command; refuse if none is
+#   refuse - never swap; degrade to a temporary_wait instead
+# The gate reads scenario_geometry AND static_obstacles below. static_obstacles
+# ships commented out, so leaving it that way makes this key a no-op whatever
+# it is set to. Quoted because bare `off` is YAML 1.1 boolean false.
+grounding_yield_feasibility: "off"
+
 # Fixed obstacles rendered into the VLM prompt when prompt_static_obstacles is
 # true. Like scenario_geometry above, these mirror the scenario file by hand
 # (here the head-on asymmetric family blocker) and must be set per scenario —
