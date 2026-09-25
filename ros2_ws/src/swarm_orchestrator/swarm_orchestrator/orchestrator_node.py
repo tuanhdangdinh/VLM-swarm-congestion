@@ -23,6 +23,7 @@ from reasoning.vlm import backend_section, build_backend, resolve_reasoner_confi
 from reasoning.vlm.models import (
     AnthropicBackendConfig,
     FailureContext,
+    GeminiBackendConfig,
     LlamaServerBackendConfig,
     OpenAIBackendConfig,
     ReasonerConfig,
@@ -104,6 +105,8 @@ def _load_vlm_config(backend_id: str) -> tuple[ReasonerConfig, object | None]:
         backend_config = LlamaServerBackendConfig(**backend_raw)
     elif backend_id == "anthropic":
         backend_config = AnthropicBackendConfig(**backend_raw)
+    elif backend_id == "gemini":
+        backend_config = GeminiBackendConfig(**backend_raw)
     elif backend_id == "mock":
         backend_config = None
     else:

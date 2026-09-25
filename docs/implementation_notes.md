@@ -336,6 +336,317 @@ Rules for maintaining it:
   review caught the initial `blocker_west` id as exactly that leak). Specs:
   `docs/specs/module2_vlm_reasoning.md` FR2.1.8/FR2.1.9,
   `docs/specs/module5_orchestrator.md` (config table), rev-8 spec rev 8.6.
+- **2026-09-18** — **`include_visual_crosscheck` does NOT transfer to
+  `gpt-4o`: a prompt-level change with a model-level effect. Do not turn the
+  flag on for the `openai` arm.** Full five-cell x two-variant matrix against
+  `openai`/`gpt-4o` at its pinned temperature 0.0 (resolved via
+  `resolve_reasoner_config`, recorded per artifact), same two stimuli
+  (SHA-256 re-verified `1dea9aed…3589` / `ad5db360…ea31`, re-measured at 0.251 m
+  and 4.884 m), n = 5 per cell per variant, 50 calls: Experiment 6 in
+  `docs/reports/2026-09-18-gemini-er2-image-grounding.md`; artifacts
+  `data/logs/er2_grounding/grounding_run4_gpt4o_xcheck_{off,on}.jsonl` (VM,
+  git-ignored). No harness change was needed — the probe already drove
+  `--backend openai --experiment 4`. Results: both gates 5/5 in both variants;
+  the cross-check-off half **replicates the earlier n = 3 baseline exactly**;
+  the added Fix-B regression cell E stayed no-congestion **5/5 in both
+  variants**, so the wording does not reopen run 3 on the arm that produced it.
+  But the incongruent cells answer per the image **1/10** against ER-2's 10/10
+  (cell B 1/5, cell C 0/5), missing the pre-stated ≥ 3/5 criterion in both — so
+  the flag is ineffective, not unsafe, here. Three consequences: (a) **new
+  hazard** — justifications mentioning the image go 0/25 → 18/25 with the flag
+  on, and 9/10 contradiction-cell calls assert the image *confirms* the states
+  while the frame grossly contradicts them, so `justification` text cannot be
+  read as evidence of image use (register A8); (b) **A3's scope changes** —
+  `gpt-4o` never returned ER-2's `anomaly`/`priority_override`, but its one
+  detecting call misclassified too (`crowding`/`reroute`), and in a *different
+  way*: ER-2 mislabelled the input-integrity condition (a missing enum slot),
+  `gpt-4o` mislabelled the physical configuration (a wrong pick among existing
+  slots — `deadlock` was available). So A3's conflation claim still rests on
+  ER-2 alone, the recommended `state_disagreement` type would not have fixed
+  `gpt-4o`'s error, and A3 is the binding blocker for `gemini` only since
+  `gpt-4o` mostly fails to detect at all (register A3 now carries a
+  minimal-ontology-fix recommendation — not implemented); (c) **two
+  prior observations narrowed** — `gpt-4o` at temperature 0.0 is *near*-, not
+  fully, deterministic (2–5 unique raw responses per 5 repeats, so every n = 5
+  "5/5" here is ~n = 1 plus a stability check), and the `<think>` block is a
+  verbatim template echo in 23/25 and 19/25 rather than 12/12, with the added
+  content landing only in the congruent cells (contradiction cells: pure echo
+  10/10). VM protocol as before: `reasoning/vlm/{models,prompt_builder}.py` and
+  the probe script installed for the run and restored byte-verified afterwards
+  (`7cf02340…b071d7` / `e1441903…41ea6e4`), probe script not left resident.
+  Register open item 2 closed (`docs/reports/2026-09-18-research-findings-register.md`).
+
+- **2026-09-18** — **The 2026-09-18 null result was our prompt, and it is
+  apparatus-wide: an opt-in image/state cross-check inverts it without
+  breaking Fix B.** *(Partly superseded by the entry above: the null result is
+  apparatus-wide, but the cross-check fix is ER-2-specific.)* New modality flag
+  `ReasonerRequest.include_visual_crosscheck` (default `False`;
+  `reasoning/vlm/models.py`, `reasoning/vlm/prompt_builder.py`) appends a block
+  that gives the image precedence over the state block **only on a clear
+  contradiction**, leaving Fix B's "do not re-derive distances or facing from
+  the coordinates" clause verbatim; the off-variant prompt is byte-identical to
+  the pre-flag one, pinned by SHA-256 in `tests/unit/test_prompt_builder.py`.
+  Measured on the same two stimuli, n = 5 per cell, both variants (report
+  Experiments 4–5 in `docs/reports/2026-09-18-gemini-er2-image-grounding.md`;
+  artifacts `data/logs/er2_grounding/grounding_run3_{xcheck_off,xcheck_on,gpt4o_off}.jsonl`,
+  VM, git-ignored): ER-2's incongruent cells go from **0/10 to 10/10
+  image-consistent** answers with both gates still 5/5, and the added Fix-B
+  regression cell (1.2 m apart, `|Δθ| = π`, diverging, both MOVING) still
+  answers no-congestion 5/5 under the new prompt — run 3 is **not**
+  reintroduced. Two facts that block adoption and one that changes the
+  preregistration: (a) cell B's detection is right but 4/5 of its answers are
+  `type=anomaly` with `priority_override`/`reroute` rather than
+  `deadlock`+`yield`/`reverse`, so the flag would dispatch the wrong command —
+  do not turn it on in production yet; (b) the same 2x2 against
+  `openai`/`gpt-4o` at its pinned temperature 0.0 followed the text 6/6, so
+  "Arm A's decision is text-driven under the production prompt" applies to the
+  primary cell too, and the parent spec's modality table now carries the axis
+  as `—`/unregistered (rev 8.6); (c) `gpt-4o` does emit a `<think>` block
+  (12/12) but its content is a verbatim echo of the prompt's template sentence,
+  settling ER-2 design doc §4(d)'s unverified claim in the direction of "no
+  usable trace from either hosted arm".
+
+- **2026-09-18** — **Gemini ER-2 reads our overhead frame but does not decide
+  from it: decision-level image grounding is NOT demonstrated.** Report:
+  `docs/reports/2026-09-18-gemini-er2-image-grounding.md`; harness
+  `scripts/probe_gemini_er2_grounding.py`; artifacts
+  `data/logs/er2_grounding/grounding_run{1,2_exp3_n9}.jsonl` (VM, git-ignored).
+  Two frames from `run_id=gemini_20260918_084649`, measured at 0.251 m
+  (nose-to-nose) and 4.884 m apart, were crossed with synthetic 0.35 m-facing
+  and 2.50 m-diverging text states through the unmodified prompt and
+  `Reasoner` at `thinking_level: low` with no `seed`. Both congruent gate
+  cells passed 3/3; in the incongruent cells the decision followed the
+  **text** — 6/6 calls with `include_pairwise_geometry=True` (n = 3/cell) and
+  22/24 with it `False` (n = 12/cell), the 2 exceptions being the only
+  responses in 36 decision calls whose justification reads visual rather than
+  numeric. ER-2's native pointing, by contrast, hit both robots in both
+  frames (12/12 points inside half a robot width, 0.005–0.125 m, including
+  the pair 0.25 m apart), so the image is readable to it and still does not
+  move the answer. Prereg consequence: for this scenario and prompt the
+  `gemini` Arm A cell is equivalent to a text-only reasoner (spec Rev 5 open
+  item). **Gotcha:** the ArUco detector cannot be re-run reliably on M1
+  *annotated* frames — the 40x40 px status box and the velocity arrow are
+  drawn over the 28 px marker and destroy its quiet zone (both markers
+  recovered in 3 of 121 sampled frames) — so ground truth for an annotated
+  frame comes from `data/logs/m5_scene/<session>.jsonl` at the header stamp
+  `scripts/record_topic_video.py` burns into the frame, which agrees with
+  re-detection to ~1 mm where both are available.
+- **2026-09-18** — **Gemini ER-2 live-run recipe committed as
+  `scripts/run_gemini_er2_demo.sh`, generalized over `BACKEND_ID`.** The
+  launch sequence behind the `gemini_20260918_084649` run (entry directly
+  below) existed only as `/tmp/gem_record_launch.sh` on the VM and would not
+  have survived a reboot; retrieved and landed in the repo. Backend is now a
+  parameter (`BACKEND_ID`, default `gemini`) instead of hardcoded: the script
+  sets `reasoning_backend_id` in `ros2_ws/src/swarm_orchestrator/config/
+  orchestrator.yaml` and runs `colcon build --merge-install --packages-select
+  swarm_orchestrator` before launching, because `orchestrator.launch.py`
+  loads the **installed** copy via `get_package_share_directory` — a source
+  edit alone is inert (same trap noted in the entry below). The cleanup trap
+  now restores the previous `reasoning_backend_id` and rebuilds again on
+  exit, so a run can no longer silently leave the VM pointed at a different
+  model — that exact revert had to be done by hand after the live run this
+  script is derived from. Matches `scripts/run_phase3_demo.sh` house
+  conventions (`set -euo pipefail`, `log`/`wait_topic`/`wait_action`
+  helpers, `sudo timeout` not `timeout sudo`, cleanup trap) and preserves the
+  bracketed-`pkill` convention (`"[i]saac.scripts.run_simulation"`) from
+  `docs/superpowers/plans/2026-09-18-head-on-asymmetric-family.md` so a kill
+  pattern can't match its own invocation. ffmpeg re-timing (`setpts=<stamped
+  fps / achieved fps>*PTS`, per the entry below's 2.1033 factor) is
+  documented as a manual post-step in the script header, not automated —
+  achieved fps is only known from the recorder's own exit line after the
+  run. Verified with `bash -n` and a read-through only; not re-run on the VM
+  (that would repeat the ~20 min live demo).
+- **2026-09-18** — **Full closed-loop `head_on_deadlock` demo run live on the
+  `gemini` backend (Gemini Robotics-ER 2); both robots reached their goals and
+  the entry directly below's artifact fix is confirmed live.** Run
+  `run_id=gemini_20260918_084649` on the GCP VM (run-H recipe:
+  `localization:=camera`, M1 before Nav2, seed 42). Five analyses, all
+  `backend_id=gemini-robotics-er-2-preview`, all `parse_status=valid` at
+  `attempts=1` — so **`force_schema=false` held up live with zero re-asks and
+  zero parser rejections**, and no fallback to `openai` occurred. Sequence:
+  `deadlock`/`reverse` dispatched and `completed` but did not clear the
+  standoff; the next analysis carried `failure_context` and ER-2 explicitly
+  cited it ("the previous attempt to reverse both robots did not successfully
+  resolve the deadlock, the yield strategy is now selected"), returning
+  `deadlock`/`yield`, which M3 grounded, M4 dispatched, and which resolved the
+  conflict — robot_2 arrived at `(-2.5, 0.0)`, robot_1 at `(2.5, 0.0)`. This
+  is the first end-to-end evidence that the failure-context loop changes a
+  *live* second decision, not just a unit-test fixture.
+  **Artifact confirmation of the fix below:** every one of the five
+  `data/logs/m5_decisions/<request_id>.json` files carries
+  `diagnostics.unsupported_sampling = {"presence_penalty": 0.0,
+  "temperature": 0.6, "top_k": 20.0, "top_p": 0.95}` (`top_k` renders as
+  `20.0` because `_extract_unsupported_sampling` casts through `float`).
+  Correction to that entry's wording: the M5 path writes no *reasoner* JSONL —
+  `write_reasoner_log` is called only by tests, and M5's JSONL is the M1 scene
+  log (`append_scene_log` → `data/logs/m5_scene`), which carries no
+  diagnostics. The confound is checkable only from the per-request JSON that
+  `swarm_orchestrator.reasoning_pipeline.write_decision_artifact` writes,
+  which dumps `ReasonerDiagnostics.model_dump(mode="json")` wholesale.
+  **Measured, single run, not a claim about the models:** ER-2 latency mean
+  3384 ms (min 3162, max 3765) against the tagged gpt-4o run
+  `run_id=20260917_163714` at 3863 ms; total tokens mean 2297 vs 1826, the
+  gap explained by ER-2's `thought_tokens` (137–224/call), which has no
+  gpt-4o counterpart. ER-2 returned `congestion_detected=false` on three of
+  five analyses with explicit numeric grounds (robots "1.20 meters apart",
+  above the 0.5 m threshold) while robots were still flagged stalled — i.e.
+  it declined to declare deadlocks on separated/parked robots, the inverse of
+  gpt-4o's spurious-deadlock failure mode recorded for run 3. One run and
+  five calls: directional only, not a measured difference.
+  **Two setup traps confirmed, one brief correction.** The backend switch is
+  `reasoning_backend_id` in `ros2_ws/src/swarm_orchestrator/config/
+  orchestrator.yaml`, not `config/models.yaml`, and `orchestrator.launch.py`
+  loads the **installed** copy via `get_package_share_directory`, so the
+  source edit only takes effect after `colcon build --merge-install
+  --packages-select swarm_orchestrator` (plain `colcon build` errors in this
+  workspace). Contrary to the dispatch brief, the VM's **source**
+  `orchestrator_node.py` also lacked the `gemini` branch of
+  `_load_vlm_config`, as did `reasoning/vlm/{reasoner,models}.py` (VM is not a
+  git checkout; files are hand-copied) — all three needed copying from
+  `85b4b18`. Also contrary to the brief, the `Path("config/models.yaml")`
+  CWD trap was never live here: container `vgu_ros` already has
+  `WorkingDir=/ws`, so prior `openai` runs were not silently falling back;
+  `-w /ws` was passed anyway to make that definitive. Isaac must be launched
+  as the `ubuntu` user (`/home/ubuntu` is mode 0750). Evidence:
+  `data/logs/recordings/2026-09-18/` (git-ignored; 566 s real-time capture,
+  recorder achieved 3.941 fps against a stamped 8.289, so playback needs
+  `setpts=2.1033*PTS`).
+
+- **2026-09-18** — **`unsupported_sampling` now reaches the persisted run
+  artifact, not just `BackendResponse.raw`/stderr.** Closes the gap the
+  entry directly below flagged: `GeminiBackend` recorded dropped
+  `temperature`/`top_p`/`top_k`/`presence_penalty` in
+  `BackendResponse.raw["unsupported_sampling"]`, but `Reasoner.run()`
+  (`reasoning/vlm/reasoner.py`) only threaded `latency_ms`/`token_usage`/
+  `parse_status` into `ReasonerDiagnostics`, so a preregistered run's JSONL
+  trace never carried the confound. Added
+  `ReasonerDiagnostics.unsupported_sampling: dict[str, float] | None = None`
+  (`reasoning/vlm/models.py`; `None` means "backend honoured everything or
+  didn't report," distinct from an empty dict). `Reasoner.run()` now
+  validates and threads `BackendResponse.raw.get("unsupported_sampling")`
+  through every diagnostics-construction site — first-attempt success,
+  re-ask-then-success, and exhausted-retries via `build_failed_result`
+  (malformed values, e.g. non-dict or non-numeric entries, are dropped to
+  `None` rather than raised). `write_reasoner_log` emits the key only when
+  set. This is backend-agnostic: `AnthropicBackend`/`OpenAIBackend`/
+  `LlamaServerBackend` are untouched and get `None`, so `AnthropicBackend`'s
+  equivalent silent drop (`anthropic_backend.py:42`) remains invisible in its
+  own artifacts until it adopts the same `raw["unsupported_sampling"]`
+  convention — see the open-items list in
+  `docs/superpowers/specs/2026-09-18-gemini-robotics-er2-integration-design.md`
+  (Rev 4). Tests: `tests/unit/test_reasoner.py` (new cases covering presence,
+  absence, malformed input, the re-ask path, and the JSONL artifact).
+
+- **2026-09-18** — **`gemini` VLM backend landed and live-verified through the
+  real reasoner path.** Supersedes the "backend code remains untouched" line
+  in the probe entry directly below: `GeminiBackend`
+  (`reasoning/vlm/gemini_backend.py`), `GeminiBackendConfig`
+  (`reasoning/vlm/models.py`), the `"gemini"` branch in
+  `reasoning/vlm/backend_factory.py`, and a `vlm.gemini` block in
+  `config/models.yaml` are implemented (`force_schema` defaults `False`, per
+  the probe's gate result) and unit-tested
+  (`tests/unit/test_gemini_backend.py`, 20 tests, mocked `requests`).
+  `AnthropicBackend`'s silent drop of `temperature`/`top_p`/`top_k` is not
+  repeated: `GeminiBackend` records the four `ReasonerConfig` sampling fields
+  it cannot send in `BackendResponse.raw["unsupported_sampling"]` on every
+  call and logs one WARNING per backend instance. Verified live on
+  `vgu-canary-base-isaac-workstation-vm` (container `vgu_ros`) through
+  `reasoning.vlm.reasoner.Reasoner` — not the probe script — via a throwaway
+  scratchpad driver wrapping `build_backend("gemini", GeminiBackendConfig())`
+  in a response-recording shim, against the same real frame the probe used
+  (`data/logs/m5_frames/0cad824071954e21832da19a6fcb588b.png`) with two
+  robots 0.35 m apart and mutually facing (a genuine head-on configuration,
+  unlike the probe's non-conflicting 1.00 m synthetic states). Result: HTTP
+  200 (implied — the backend raises `ConnectionError` on ≥400), latency 2492
+  ms, 1 attempt, `token_usage={"prompt_tokens": 1907, "completion_tokens":
+  138, "thought_tokens": 121, "total_tokens": 2166}`,
+  `raw["unsupported_sampling"] = {"temperature": 0.6, "top_p": 0.95, "top_k":
+  20, "presence_penalty": 0.0}` populated as designed, and a correctly parsed
+  decision: `congestion_detected=true type=deadlock strategy=yield
+  involved_robots=[robot_1, robot_2]` — the textually correct answer for a
+  0.35 m head-on pair under the prompt's 0.5 m threshold rule, extracted from
+  a markdown-fenced JSON block despite `force_schema=False`. This also
+  confirmed the real usage-block shape empirically: the provider nests usage
+  under a top-level `"usage"` key with `total_input_tokens`,
+  `total_output_tokens`, `total_thought_tokens`, `total_tokens` present
+  exactly as named in the Rev 2 probe's §6 cost table, plus additional
+  per-modality breakdown fields (`input_tokens_by_modality`,
+  `model_invocation_token_counts`) not used by the mapping but preserved
+  verbatim in `raw`. `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py`'s
+  `_load_vlm_config` also gained a `"gemini"` branch (`GeminiBackendConfig(**backend_raw)`)
+  so the `vlm.gemini` config block resolves through the production path, not
+  only through direct `build_backend` calls. Full design rationale, the
+  request/response schema, and the reproducibility/confound discussion:
+  `docs/superpowers/specs/2026-09-18-gemini-robotics-er2-integration-design.md`
+  (Rev 3).
+- **2026-09-18** — **Gemini Robotics-ER 2 probe run live on the VM: §7 gate
+  PASSED.** Supersedes the "not yet run against a live key" line in the
+  entry directly below. `scripts/probe_gemini_er2.py` ran inside container
+  `vgu_ros` on `vgu-canary-base-isaac-workstation-vm`
+  (`sudo docker exec -w /ws vgu_ros bash -lc "set -a && source /ws/.env &&
+  set +a && python3 scripts/probe_gemini_er2.py --schema --thinking-level
+  low"`; key sourced from `/home/ubuntu/vgu-vlm-swarm/.env` so it never
+  reached argv; `x-goog-api-key` worked on the first attempt, no bearer
+  fallback needed). The probe's repo search found a real committed-on-VM
+  frame, `data/logs/m5_frames/0cad824071954e21832da19a6fcb588b.png`
+  (`data/logs/` is git-ignored, hence "no image found" on a fresh checkout);
+  no placeholder was synthesized. **Both** conditions passed: `--schema
+  --thinking-level low` (HTTP 200, 3562 ms, 2166 total tokens: input 1907 /
+  output 88 / thought 171) and `--no-schema --thinking-level low` (HTTP 200,
+  2605 ms, 2194 total tokens: input 1907 / output 85 / thought 202) each
+  returned a payload satisfying `reasoning/schemas/vlm_decision.schema.json`
+  and passed both `parse_decision_text` (tolerant) and `parse_vlm_decision`
+  (strict): `congestion_detected=false, type=none, strategy=none` on the
+  probe's hardcoded robots (1.00 m apart, prompt threshold 0.5 m) — the
+  textually correct answer, though the states are synthetic against a
+  real-but-arbitrary scene frame, so this is schema conformance and
+  threshold arithmetic, not demonstrated image grounding (one sample per
+  condition). **New confound:** both responses billed `total_thought_tokens`
+  (171 / 202) but returned **no visible `<think>…</think>` block** at all —
+  ER-2 withholds its reasoning trace regardless of `response_format`,
+  breaking trace-level comparability with the `llama_server`/Cosmos arm's
+  visible-trace design (`llama_server_backend.py` deliberately omits
+  `response_format` to preserve that trace); untested candidate mitigation
+  `generation_config.thinking_summaries`
+  (<https://ai.google.dev/api/interactions-api>). **Measured cost:**
+  ≈$0.0032/analysis at standard pricing from Result 1's counts (both probe
+  calls actually ran free tier, $0.00), roughly half the project's measured
+  ≈$0.006/analysis for `gpt-4o`; latency 2.6–3.6 s. Full evidence,
+  reproduction recipe, limitation discussion, and updated cost arithmetic:
+  `docs/superpowers/specs/2026-09-18-gemini-robotics-er2-integration-design.md`
+  (rev 2, "Gate result and open questions" + "Cost"). Backend code
+  (`reasoning/vlm/gemini_backend.py`, `backend_factory.py`,
+  `config/models.yaml`) remains untouched: passing the gate does not by
+  itself authorize landing the backend, which stays pending the user's
+  decision on research design.
+- **2026-09-18** — **Gemini Robotics-ER 2 evaluated as a candidate third Arm A
+  backend; gated on a probe, not landed.** The page originally proposed for
+  this evaluation (`ai.google.dev/gemini-api/docs/generate-content/robotics-spatial`)
+  is marked "(Legacy)"; the live transport is the **Interactions API**
+  (`POST https://generativelanguage.googleapis.com/v1beta/interactions`), not
+  `:generateContent` — request field `input` (Content items, not a
+  `messages`/`role` list), response text at `steps[].content[].text`, no
+  `messages`. Target model `gemini-robotics-er-2-preview` (the
+  `-streaming-preview` Live API variant does not support structured output;
+  `-er-1.6-preview` is being shut down end of August 2026). **Key finding:**
+  `generation_config` has no `temperature`/`top_p`/`top_k` field at all — not
+  merely unsupported values, absent from the schema — so this backend cannot
+  be pinned to greedy decoding the way `openai` is (`config/models.yaml`
+  `temperature: 0.0`, pinned after run 3's `|Δθ| ≈ π` diverging-robots
+  misread, rev-8 spec 8.4). Nearest controls are `seed` and `thinking_level`
+  (low/high), a new ablation axis with no counterpart in `openai`/`llama_server`.
+  Noted in passing: `anthropic` (`reasoning/vlm/anthropic_backend.py`) already
+  drops `temperature`/`top_p`/`top_k` for the same reason (HTTP 400) and is
+  **not** in the parent spec's "Model and decoding pre-registration" table —
+  an existing, unrecorded between-arm confound that a `gemini` cell must not
+  repeat. Design doc (full transport delta table, Option A backend sketch,
+  Option B spatial-primitives-as-grounding deferral, cost estimate):
+  `docs/superpowers/specs/2026-09-18-gemini-robotics-er2-integration-design.md`.
+  Gate: `scripts/probe_gemini_er2.py` (real M2 prompt + schema
+  `response_format` against the live API) must pass before
+  `reasoning/vlm/gemini_backend.py`/`backend_factory.py`/`config/models.yaml`
+  are touched; not yet run against a live key as of this entry — superseded
+  by 2026-09-18 entry above (probe run live on the VM, gate PASSED).
 - **2026-09-17** — **Research-readiness items 2–4 landed.** (2) The derived
   pairwise-geometry lines are a switchable modality
   (`ReasonerRequest.include_pairwise_geometry`, M5 `prompt_pairwise_geometry`,

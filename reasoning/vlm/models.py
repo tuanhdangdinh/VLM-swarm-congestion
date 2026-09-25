@@ -57,6 +57,12 @@ class ReasonerRequest(BaseModel):
     # Ablation axis (rev-8 modality table): False withholds the derived pairwise
     # distance/facing lines so the VLM must judge geometry from coordinates + image.
     include_pairwise_geometry: bool = True
+    # Opt-in ablation axis (2026-09-18): True appends a block that gives the image
+    # precedence over the state block on a clear contradiction, without licensing
+    # re-derivation of geometry from raw coordinates. Default False so every
+    # pre-existing run and artifact stays comparable; see
+    # docs/reports/2026-09-18-gemini-er2-image-grounding.md.
+    include_visual_crosscheck: bool = False
     # Fixed obstacles M5 declares for the scene, rendered only when the modality
     # below is on.
     static_obstacles: list[StaticObstacleInput] = Field(default_factory=list)
@@ -147,6 +153,12 @@ class ReasonerDiagnostics(BaseModel):
     parse_status: Literal["valid", "invalid", "failed"]
     error_type: str | None = None
     error_message: str | None = None
+    # None means the backend honoured every ReasonerConfig sampling field it was
+    # given (or did not report otherwise) -- distinct from an empty dict, which
+    # would mean "the backend reported and dropped nothing." See
+    # `reasoning.vlm.gemini_backend.GeminiBackend` for a backend that populates
+    # this from `BackendResponse.raw["unsupported_sampling"]`.
+    unsupported_sampling: dict[str, float] | None = None
 
 
 class ReasonerResult(BaseModel):
@@ -182,6 +194,30 @@ class AnthropicBackendConfig(BaseModel):
     model_id: str = "claude-opus-4-8"
     base_url: str = "https://api.anthropic.com/v1"
     api_key_env: str = "ANTHROPIC_API_KEY"  # env var NAME holding the key; never the key itself
+
+
+class GeminiBackendConfig(BaseModel):
+    """Config for the Gemini Interactions API backend (Robotics-ER 2 preview).
+
+    See `docs/superpowers/specs/2026-09-18-gemini-robotics-er2-integration-design.md`
+    for the transport delta against the OpenAI/Anthropic backends.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    model_id: str = "gemini-robotics-er-2-preview"
+    base_url: str = "https://generativelanguage.googleapis.com/v1beta"
+    api_key_env: str = "GEMINI_API_KEY"  # env var NAME holding the key; never the key itself
+    thinking_level: Literal["low", "high"] = "low"
+    # False: the live probe (2026-09-18) proved ER-2 satisfies vlm_decision.schema.json
+    # without response_format, and the house precedent (llama_server_backend.py:38-41)
+    # deliberately omits response_format so a reasoning trace is not suppressed. True
+    # attaches response_format with reasoning/schemas/vlm_decision.schema.json.
+    force_schema: bool = False
+    # The only reproducibility control the Interactions API offers: it has no
+    # temperature/top_p/top_k fields at all. Sent as generation_config.seed only
+    # when set; None omits the field rather than sending a null.
+    seed: int | None = None
 
 
 class ReasonerConfig(BaseModel):

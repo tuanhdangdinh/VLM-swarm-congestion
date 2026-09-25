@@ -43,6 +43,14 @@
   modality (`ReasonerRequest.include_pairwise_geometry`, M5
   `prompt_pairwise_geometry`) and an ablation axis, so RQ1 is not answered
   by a prompt that already contains a classical geometry summary.
+- Rev 8.6 (2026-09-18): modality-condition input table gains an
+  `include_visual_crosscheck` row, `—` in all three columns (an
+  off-by-default diagnostic ablation, not a registered condition), with the
+  prereg implication that every reported Arm A decision must name its prompt
+  variant. Evidence that Arm A's decision is text-driven under the registered
+  variant — `gemini` and `openai` both followed the text state block in 100%
+  of incongruent image/state trials — is in
+  `docs/reports/2026-09-18-gemini-er2-image-grounding.md`.
 - Rev 8.6 (2026-09-19): T1 and the T2a *geometry* are realized as the
   `head_on_asymmetric` scenario family — a parked static blocker behind one
   or both spawn points, parameterized (`HeadOnAsymmetricParams`) and paired
@@ -452,10 +460,27 @@ summaries below.
 | Robot state table | ✓ | ✓ | — |
 | Derived pairwise geometry lines (distance, mutual facing; rev 8.5, `prompt_pairwise_geometry`) | ✓ | ✓ | — |
 | Static obstacles (id/centre/extent; rev 8.6, `prompt_static_obstacles`, default off) | ✓ | ✓ | — |
+| Image/state cross-check block (`ReasonerRequest.include_visual_crosscheck`, 2026-09-18) | — | — | — |
 | Motion table | ✓ | ✓ | — |
 | Failure-context block (re-analysis) | ✓ | ✓ | — |
 | Annotation-scheme sentence | ✓ | — | ✓ |
 | Stage-2 set-of-mark frame | ✓ | — (stage 2 skipped → geometry-max, logged `stage2=condition_constrained`, not a degradation; identical to Arm B stage 2 by definition) | ✓ |
+
+The cross-check row is `—` in every column on purpose: it is an **off-by-default
+diagnostic ablation, not a pre-registered condition**, and no registered cell
+sends it. It exists because the registered prompt's "do not re-derive distances
+or facing from the coordinates" clause (Fix B) makes Arm A's decision
+text-driven: with the block off, `gemini` and `openai` each followed the text
+state block in 100% of incongruent image/state trials, and with it on
+`gemini` inverted to 10/10 image-consistent
+(`docs/reports/2026-09-18-gemini-er2-image-grounding.md`). **Prereg
+implication:** every reported Arm A decision must state which prompt variant
+produced it, and a "correct" Arm A decision under the registered (off) variant
+is evidence about arithmetic on M1's state block rather than about visual
+scene understanding — for the `openai` primary cell as much as for `gemini`.
+Turning the block on would change what Arm A is, so it stays out of the
+registered design until the type/strategy drift that report documents is
+resolved.
 
 Image-only cells are excluded from RQ5 (the failure context is textual).
 The offline input-encoding harness
