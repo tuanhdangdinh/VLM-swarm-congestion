@@ -203,6 +203,14 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-25** — **The obstacle *text* block carries the `id_desc` side signal**
+  (`docs/reports/2026-09-25-frame-replay.md` Rev 3; Arms S and D, 348 runs,
+  $2.66). Within-artifact ablation on the six genuine standoffs (3/side) x order
+  x obstacle-text x image: withholding the text with the real frame kept
+  collapses P(feasible) 0.962 → 0.556 (p = 8.8e-4); the frame amplifies; states
+  alone carry nothing. Still **0/288** traces cite the blocker — **never read
+  trace silence as a channel being unused; ablate.** `id_asc` picks `robot_1`
+  124/125 whatever the channels, so the slot bias *suppresses* this one.
 - **2026-09-25** — **Base-goal arrival is now position-verified (FR5.1.9).** M5
   marked a robot arrived on Nav2's own "Goal succeeded": in run
   `20260925_124609` `bt_navigator` succeeded for robot_2 while M1 put it 0.59 m

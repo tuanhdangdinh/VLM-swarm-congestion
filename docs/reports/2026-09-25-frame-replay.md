@@ -6,6 +6,7 @@
 
 - Initial draft: prompt-reconstruction integrity over the six Arm A pilot runs, a 108-call real-frame refusal arm, and a 12-call presentation-order arm truncated by an exhausted API credit balance.
 - Rev 2 (2026-09-25): credits restored; completes Arm R to all 74 artifacts and adds the paired grey sub-arm, the full Arm O and Arm M. The grey arm settles the refusal trigger within one design (0/120 vs 22/60); Arm O finds a large order effect on real stimuli and, under `id_desc` only, obstacle-side sensitivity; Arm M finds `max_attempts=4` more than halves the terminal refusal rate.
+- Rev 3 (2026-09-25): adds Arm S, a within-artifact `order` x `obstacle text` x `image` ablation on the six genuine-standoff artifacts, and Arm D, a downscaled-frame refusal check. The obstacle **text** block carries the `id_desc` side signal (removing it: P(feasible) 0.962 -> 0.556, p = 8.8e-4); the frame amplifies it; the robot states carry nothing. Still 0/288 traces cite the blocker, so trace silence is not evidence a channel is unused. Downscaling frames triples terminal refusals.
 
 ---
 
@@ -587,3 +588,322 @@ pairing had a complete real-frame half and the primary arm covered every run.
 | resume Arm O, grey, M | done at full n | - |
 | (not requested) Arm R completion | +114 runs, all 74 artifacts | the grey pairing needs a real-frame half for all 20 of its artifacts; 10 of them sat in runs Arm R had not reached |
 | Arm M "on the refusing artifacts" | 6 of the 21 that ever refused | 21 x 3 x 6 = 378 runs; the six strongest refusers give 28 refused attempt-1s per policy, enough to separate the three arms at p < 0.05 |
+
+---
+
+## Rev 3 - Which Channel Carries the Side Signal
+
+Rev 2 left one mechanism open: under `id_desc` the yielder choice covaried with
+obstacle side (west 2/23 `robot_1` vs east 20/24) while **no** decision or
+`<think>` trace cited the obstacle. Rev 2 could not say whether the side signal
+arrives through the rendered obstacle-text block, the annotated frame, or the
+robot states themselves, because obstacle side was confounded with run identity.
+
+Rev 3 answers it with a within-artifact ablation. The same standoff artifacts are
+replayed under a fully crossed design, so a channel that stops carrying the
+signal cannot be explained by per-run idiosyncrasy. Two new arms:
+
+- **Arm S** — order `{id_asc, id_desc}` x obstacle text `{on, off}` x image
+  `{real frame, neutral grey}`, n = 6, on every genuine-standoff artifact.
+  288 runs.
+- **Arm D** — the 10 live-refused artifacts at full resolution against a 640 px-wide
+  downscale, stored order, n = 3. 60 runs.
+
+All Rev 1 and Rev 2 sections are left as written. Nothing below supersedes them;
+Arm S is a new design on a six-artifact subset, and its `id_desc` / text-on /
+real-frame cell is the condition Arm O already measured.
+
+### Configuration
+
+The shipped `openai` reasoner now carries `max_attempts: 4` (raised from 2 on
+2026-09-25 on Arm M's evidence), so **both new arms ran at `max_attempts = 4`,
+`allow_reask: true`, `temperature 0.0`, `gpt-4o`**. Arm O ran at
+`max_attempts = 2`. Attempt 1 is identical under either setting, but a refused
+attempt 1 now gets up to three corrective re-asks, and the re-ask prompt is a
+different stimulus. **Every decision contrast below therefore leads with the
+attempt-1-only subset**, with the pooled figures shown alongside; the two agree
+throughout.
+
+### Artifact selection
+
+An artifact is a genuine standoff when both robots are stationary (`STOPPED`, or
+speed < 0.02 m/s), their separation is <= 0.6 m, and each faces the other. Distance
+and facing are read off the line `format_pairwise_geometry_lines` renders into the
+prompt, so the filter applies the rule the prompt itself states rather than a
+second implementation of it.
+
+| quantity | count |
+|---|---|
+| reconstructable artifacts across the six pilot runs | 74 |
+| genuine standoffs | **6** |
+| west-blocked (`w0p2_eopen`, obstacle x = -1.85, feasible yielder `robot_2`) | **3** |
+| east-blocked (`wopen_e0p2`, obstacle x = +1.85, feasible yielder `robot_1`) | **3** |
+| standoffs carrying a failure-context block | 0 |
+
+Three per side meets the stated floor, but only just: the effective unit of
+replication for any *side* comparison is three artifacts, not eighteen calls.
+The failure-context exclusion is a no-op here because none of the six carries a
+block, so no covariate is needed.
+
+The filter independently recovered exactly the six Arm O artifacts
+(`53264de9`, `5e7b5a59`, `2c3fbfa5`, `61119197`, `d053d0dc`, `3120c65f`) — one
+per run, each that run's first `yield`. That is a useful check on the filter, and
+it means Rev 3 introduces **no new scenes**: every cell below manipulates the
+input channels of stimuli Arm O already characterised. The remaining 68
+artifacts are not near misses; the next-closest pair sits more than 0.8 m apart.
+
+All 288 Arm S runs returned `congestion_detected=true` with `strategy="yield"`,
+so every cell's denominator is its full n and no cell loses samples to a
+non-yield answer.
+
+### The eight cells
+
+`P(feasible)` is the share of yields naming the robot whose retreat is
+unobstructed. It is the summary statistic for side-tracking: **any side-blind
+rule — always `robot_1`, always first-listed, or a coin flip — scores 0.5 pooled
+over the two sides**, because the feasible robot is first-listed on west runs and
+second-listed on east runs. Only a rule that responds to the obstacle can beat
+0.5. (That baseline is exactly 0.5 when the two sides contribute equally, which
+holds in every pooled row at 18/18; the attempt-1 rows are mildly unbalanced —
+`id_desc` / on / real is west 14 vs east 12, where always-`robot_1` would score
+0.462.) `side p` is the Fisher test of west vs east P(`robot_1`) within that cell.
+
+**Attempt-1 only (primary).**
+
+| order | obstacle text | image | n | yields | P(`robot_1`) | P(feasible) | west P(`robot_1`) | east P(`robot_1`) | side p |
+|---|---|---|---|---|---|---|---|---|---|
+| `id_asc` | on | real | 32 | 32 | 1.000 | 0.562 | 1.000 | 1.000 | 1.0 |
+| `id_asc` | on | grey | 36 | 36 | 0.972 | 0.472 | 1.000 | 0.944 | 1.0 |
+| `id_asc` | off | real | 21 | 21 | 1.000 | 0.429 | 1.000 | 1.000 | 1.0 |
+| `id_asc` | off | grey | 36 | 36 | 1.000 | 0.500 | 1.000 | 1.000 | 1.0 |
+| `id_desc` | **on** | **real** | 26 | 26 | 0.500 | **0.962** | 0.071 | 1.000 | **2.7e-6** |
+| `id_desc` | on | grey | 36 | 36 | 0.694 | 0.694 | 0.500 | 0.889 | **0.028** |
+| `id_desc` | off | real | 27 | 27 | 0.704 | 0.556 | 0.643 | 0.769 | 0.68 |
+| `id_desc` | off | grey | 36 | 36 | 0.583 | 0.583 | 0.500 | 0.667 | 0.50 |
+
+**Pooled (includes re-ask-derived decisions), n = 36 per cell.**
+
+| order | obstacle text | image | yields | P(`robot_1`) | P(feasible) | west P(`robot_1`) | east P(`robot_1`) | side p |
+|---|---|---|---|---|---|---|---|---|
+| `id_asc` | on | real | 36 | 1.000 | 0.500 | 1.000 | 1.000 | 1.0 |
+| `id_asc` | on | grey | 36 | 0.972 | 0.472 | 1.000 | 0.944 | 1.0 |
+| `id_asc` | off | real | 36 | 1.000 | 0.500 | 1.000 | 1.000 | 1.0 |
+| `id_asc` | off | grey | 36 | 1.000 | 0.500 | 1.000 | 1.000 | 1.0 |
+| `id_desc` | **on** | **real** | 36 | 0.556 | **0.944** | 0.111 | 1.000 | **4.2e-8** |
+| `id_desc` | on | grey | 36 | 0.694 | 0.694 | 0.500 | 0.889 | **0.028** |
+| `id_desc` | off | real | 36 | 0.694 | 0.583 | 0.611 | 0.778 | 0.47 |
+| `id_desc` | off | grey | 36 | 0.583 | 0.583 | 0.500 | 0.667 | 0.50 |
+
+The `id_desc` / on / real cell reproduces Arm O closely (Arm O: west 2/23, east
+20/24; here west 2/18, east 18/18), so the replication holds across sessions and
+across the `max_attempts` change. Its attempt-1-only row rests on five of the six
+artifacts: every replicate of the east artifact `61119197` refused on attempt 1,
+so it contributes only to the pooled row. The two rows agree regardless.
+
+### The three contrasts, under `id_desc`
+
+| contrast | P(feasible) | Fisher (two-sided) |
+|---|---|---|
+| **(a)** real frame, obstacle text **on vs off** | 25/26 (96.2%) vs 15/27 (55.6%) | **p = 8.8e-4** |
+| **(b)** obstacle text on, image **real vs grey** | 25/26 (96.2%) vs 25/36 (69.4%) | **p = 0.0095** |
+| **(c)** states only (text off + grey) | 21/36 (58.3%), side p = 0.50 | — |
+
+Pooled, the same three read 34/36 vs 21/36 (p = 5.6e-4), 34/36 vs 25/36
+(p = 0.012), and 21/36 with side p = 0.50.
+
+- **(a) Removing the obstacle text destroys the side signal.** With the real
+  frame unchanged and only the `Static obstacles:` block (and the guidance clause
+  *"Fixed obstacles in the scene are listed above and are the only ones present;
+  a robot can neither occupy nor drive through one"*) withheld, P(feasible) falls
+  from 0.962 to 0.556 and the west-vs-east split goes from p = 2.7e-6 to
+  p = 0.68. The manipulation is within-artifact: the same six scenes, the same
+  frames.
+- **(b) Removing the image attenuates it but does not abolish it.** With the text
+  kept and a mid-grey PNG of identical dimensions in place of the frame,
+  P(feasible) falls to 0.694 and a weaker side association survives
+  (west 9/18 vs east 16/18, p = 0.028).
+- **(c) The robot states alone carry nothing detectable.** Text off and grey
+  image leaves P(feasible) at 0.583 with side p = 0.50 — indistinguishable from
+  the 0.5 a side-blind rule scores.
+
+### `id_asc` control
+
+The first-position default is unbroken in **every** channel condition, so no
+manipulation broke the design.
+
+| obstacle text | image | P(`yield_robot` = `robot_1`) | P(feasible) |
+|---|---|---|---|
+| on | real | 32/32 (100%) | 18/32 (56.2%) |
+| on | grey | 35/36 (97.2%) | 17/36 (47.2%) |
+| off | real | 21/21 (100%) | 9/21 (42.9%) |
+| off | grey | 36/36 (100%) | 18/36 (50.0%) |
+
+Under `id_asc` the model names `robot_1` on 124 of 125 attempt-1 yields whatever
+the obstacle text or the image says, and P(feasible) sits at chance in all four
+cells. The first slot saturates the choice and leaves no room for the obstacle
+channel to act — which is why the Rev 2 effect appeared under `id_desc` only.
+
+### Obstacle mentions
+
+`<think>` traces and the `root_cause` / `justification` fields were scanned for
+`obstacle|blocker|barrier|obstruct|wall|box|crate|1.85`.
+
+| order | obstacle text | image | runs | `<think>` mentions | decision-field mentions |
+|---|---|---|---|---|---|
+| `id_asc` | on | real | 36 | 0 | 0 |
+| `id_asc` | on | grey | 36 | 0 | 0 |
+| `id_asc` | off | real | 36 | 0 | 0 |
+| `id_asc` | off | grey | 36 | 0 | 0 |
+| `id_desc` | on | real | 36 | 0 | 0 |
+| `id_desc` | on | grey | 36 | **6** | 0 |
+| `id_desc` | off | real | 36 | 0 | 0 |
+| `id_desc` | off | grey | 36 | 0 | 0 |
+
+**Zero of 288 runs cite the blocker specifically** — no `obstacle_1`, no `1.85`,
+no "blocker", "barrier" or "crate" anywhere in any attempt's text. The six
+mentions are all the same generic hedge in one cell, e.g. *"either robot could
+yield, but typically the one with more space or fewer obstacles behind should
+yield. In this case, robot_1 should yield"* — and on the west artifacts where it
+appears, `robot_1` is the **infeasible** robot. So even the one cell that
+verbalises the concept does not apply it.
+
+### Arm D - frame resolution and refusals
+
+The 10 live-refused artifacts, stored order, n = 3, full-resolution 1280x960
+frame against a 640x480 Lanczos downscale written to
+`data/experiments/2026-09-25-frame-replay/images/down640_*.png`.
+
+| image | runs | attempt-1 refusals | terminal refusals | mean attempts | decisions returned |
+|---|---|---|---|---|---|
+| real (1280x960) | 30 | 15 (50.0%) | 5 (16.7%) | 1.87 | 25 |
+| **down640 (640x480)** | 30 | **23 (76.7%)** | **17 (56.7%)** | 3.50 | 9 |
+
+Attempt-1 refusal: Fisher p = 0.060. Terminal refusal: Fisher p = **0.0028**.
+
+The marginal terminal contrast is partly mechanical — more attempt-1 refusals
+give more chances to end terminal — so the sharper quantity is **recovery
+conditional on a refused attempt 1**, which is not downstream of the attempt-1
+rate. The re-ask ladder cleared **10 of 15** full-res refusals but only **6 of
+23** downscaled ones: Fisher p = **0.020**. Downscaled refusals are both more
+frequent and harder to talk the model out of.
+
+**Downscaling does not mitigate the refusal; it makes it worse.** The direction
+is the opposite of the "the model balks at a high-resolution surveillance frame"
+hypothesis, and the terminal-rate effect is significant while the attempt-1 one
+is marginal. The full-res half (15/30) is consistent with Arm R's 18/30 on the
+same artifacts in an earlier session, so the baseline reproduces.
+
+### Interpretation
+
+**Which channel carries the side signal? The obstacle text block, with the frame
+as an amplifier.** The ranking is unambiguous and, unlike Rev 2's, it is
+within-artifact:
+
+1. The obstacle text is **necessary**. Withhold it and the association is gone
+   (p = 0.68 with the real frame, p = 0.50 with grey), while every other input is
+   byte-identical.
+2. The text alone is **not sufficient at full strength**. With grey in place of
+   the frame the effect survives but halves (P(feasible) 0.694, side p = 0.028).
+   Something in the annotated frame — plausibly which robot is visibly nearer the
+   blocked end — sharpens a coordinate the model otherwise uses weakly.
+3. The robot states carry **nothing measurable** on their own (P(feasible) 0.583,
+   side p = 0.50). The task framing that "the signal might be in the positions
+   themselves" is not supported.
+
+The evidence for (1) is strong. Rev 2's standing objection — that obstacle side
+is confounded with artifact identity, three per side — cannot explain it, because
+the ablation holds the artifact fixed and changes one block of prompt text.
+Per-run idiosyncrasy does not switch itself off when a paragraph is deleted.
+
+The evidence for (2) is **moderate, and structurally weaker than (a)'s**, because
+the two arms of contrast (b) cannot be treated alike in either analysis. The
+real-frame arm refuses; the grey arm never does (0/144). Under attempt-1-only the
+real arm is therefore *conditioned on non-refusal*, and Rev 2 established that
+refusal is stimulus-locked at the artifact level (p = 5.4e-8), so that
+conditioning is not random with respect to the artifact. Pooling removes the
+conditioning but adds re-ask-derived stimuli to the real arm alone, since a grey
+call never re-asks. There is no version of (b) in which both arms see the same
+selection. Contrast (a) does not have this problem: both arms carry the real
+frame and drop comparable numbers of attempt-1 samples (10 and 9 of 36). That
+the pooled and attempt-1-only versions of (b) agree is reassuring but is not a
+substitute for a symmetric design.
+
+The evidence for (3) is a null on 36 runs and should be read as "no detectable
+contribution", not "none".
+
+**What this means for "geometry unused" claims — read carefully.** The overnight
+report and Rev 2 both leaned on a verbalisation null: across 360 offline calls,
+4 live runs and 95 Arm O decisions, nothing ever cited the obstacle. Rev 3 adds
+288 more runs to that null — **0 specific blocker citations in 288** — and at the
+same time shows that the obstacle block is *causally load-bearing*. Those two
+facts are not in tension: **tracking the obstacle side without naming it is
+exactly what a model that uses a prompt field without verbalising it looks
+like.** The correct statement is now:
+
+- The obstacle channel **is used**, under `id_desc`, and demonstrably so.
+- The traces are **not a reliable instrument** for whether it is used. A
+  verbalisation null must not be reported as evidence that a channel is ignored.
+  Any earlier phrasing along the lines of "the model does not use the rendered
+  geometry" should be narrowed to "the model does not *report* using it".
+- The channel is **masked by the presentation-order bias**. Under `id_asc` the
+  first slot wins 124 of 125 times and the obstacle block buys nothing. Whatever
+  competence exists is only expressed when the positional default does not
+  already determine the answer — which is itself an argument for counterbalancing
+  order rather than for trusting the obstacle channel.
+
+**What Rev 3 still cannot say.** Which obstacle side maps to which robot is still
+carried by three artifacts per side, so the *direction* of the mapping rests on
+n = 3 vs 3; only its *dependence on the text block* is established within-artifact.
+And "the frame amplifies" is a black box: the arm does not discriminate between
+the drawn goal markers, the robots' visible offsets, and photographic realism.
+The counterbalanced live design, with obstacle side varied inside a fixed scene,
+remains the decisive test for the mapping.
+
+**Refusals, a third replication.** Arm S re-runs the grey contrast as a
+by-product: **38 of 144 real-frame runs refused on attempt 1 (26.4%) against 0 of
+144 grey runs (Fisher p = 4.4e-13)**, on prompts that differ only in
+`image_path`. Together with Rev 2's 0/120 and Arm D's resolution effect, the
+annotated frame is confirmed as the trigger, and higher resolution is not the
+aggravating factor.
+
+### Recommendations (additions to Rev 2)
+
+- **Keep `prompt_robot_order: random`.** Rev 3 strengthens the Rev 2 argument: a
+  fixed `id_asc` slot does not merely bias the answer, it *suppresses* the one
+  input channel that carries feasibility information.
+- **Do not cite trace silence as evidence a prompt channel is unused.** Use an
+  ablation. This probe is the template: hold the artifact fixed, remove one
+  block, test the behavioural association.
+- **Do not downscale frames to dodge refusals.** It triples the terminal refusal
+  rate (16.7% -> 56.7%, p = 0.0028).
+- **Obstacle text stays on** for any arm whose outcome depends on naming a
+  feasible yielder, and its effect should be reported as order-dependent.
+
+### Deviations from the plan
+
+| planned | delivered | reason |
+|---|---|---|
+| "more than one scene per side"; < 3 per side to be flagged | exactly 3 per side, 6 artifacts | the corpus contains only 6 genuine standoffs; the filter recovered them all |
+| 8 cells x n_artifacts x 6, ~500-700 calls, $4-6 | 288 Arm S runs + 60 Arm D runs = 493 API calls, $2.66 | 6 artifacts rather than the ~10-14 the estimate assumed; n = 6 kept, because the binding limit is artifacts per side, not replicates |
+| failure-context artifacts excluded or carried as a covariate | exclusion, and it is a no-op | none of the six standoffs carries a block |
+| `max_attempts` "per config — record the effective value" | **4** | `config/models.yaml` raised it on Arm M's evidence; attempt-1-only is therefore the primary analysis |
+| Fisher tests per contrast | per-cell side-association tests **and** between-cell tests on P(feasible) | text-on vs text-off pooled over sides answers a different question; the side x choice interaction is the quantity at issue |
+
+### Cost
+
+| quantity | Arms S + D | cumulative (all arms) |
+|---|---|---|
+| `Reasoner` runs | 348 | 894 |
+| API calls | 493 | 1,201 |
+| prompt tokens | 808,952 | 2,037,692 |
+| completion tokens | 63,475 | 153,548 |
+| transport errors | 0 | 0 |
+| **estimated spend** | **$2.66** | **$6.63** |
+
+### Artifacts added
+
+| path | contents |
+|---|---|
+| `data/experiments/2026-09-25-frame-replay/images/down640_*.png` | the 10 downscaled frames used by Arm D |
+| `data/experiments/2026-09-25-frame-replay/calls.jsonl` | 348 new rows, keyed `S`/`D` with the obstacle-text factor appended; existing rows untouched |
+| `data/experiments/2026-09-25-frame-replay/summary.csv` | regenerated with `obstacle_text` and `think_obstacle_mentions` columns |
