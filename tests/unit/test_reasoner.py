@@ -4,16 +4,25 @@ import time
 from pathlib import Path
 
 import pytest
+import yaml
 from jsonschema import Draft202012Validator
 
 from reasoning.schemas import load_schema
 from reasoning.vlm.backend_base import VLMBackend
-from reasoning.vlm.backend_factory import build_backend
+from reasoning.vlm.backend_factory import (
+    backend_section,
+    build_backend,
+    describe_effective_sampling,
+    resolve_reasoner_config,
+)
 from reasoning.vlm.llama_server_backend import LlamaServerBackend
 from reasoning.vlm.mock_backend import MockBackend
 from reasoning.vlm.models import (
     BackendResponse,
+    EffectiveSamplingConfig,
+    GeminiBackendConfig,
     LlamaServerBackendConfig,
+    OpenAIBackendConfig,
     PromptPayload,
     ReasonerConfig,
     ReasonerRequest,
@@ -571,3 +580,88 @@ def test_public_api_is_importable_from_package():
     assert ReasonerConfig is not None
     assert ReasonerRequest is not None
     assert ReasonerResult is not None
+
+
+def _openai_effective() -> EffectiveSamplingConfig:
+    """The effective block M5 builds for the shipped `openai` backend section."""
+    raw = yaml.safe_load(Path("config/models.yaml").read_text())["vlm"]
+    return describe_effective_sampling(
+        resolve_reasoner_config(raw, "openai"),
+        OpenAIBackendConfig(**backend_section(raw, "openai")),
+    )
+
+
+def test_run_records_effective_sampling_config_when_described(tmp_path):
+    effective = _openai_effective()
+    reasoner = Reasoner(
+        MockBackend(response_text=_GOOD), ReasonerConfig(backend_id="openai"), effective
+    )
+    result = reasoner.run(_request_with_image(tmp_path))
+    recorded = result.diagnostics.reasoner_config_effective
+    assert recorded is not None
+    assert recorded.model_id == "gpt-4o"
+    assert recorded.temperature == 0.0
+    assert recorded.max_attempts == 4
+    assert recorded.unsupported_sampling is None
+
+
+def test_run_effective_sampling_config_is_none_when_not_described(tmp_path):
+    reasoner = Reasoner(MockBackend(response_text=_GOOD), ReasonerConfig(backend_id="mock"))
+    result = reasoner.run(_request_with_image(tmp_path))
+    assert result.diagnostics.reasoner_config_effective is None
+
+
+def test_run_effective_sampling_config_carries_unsupported_fields(tmp_path):
+    class UnsupportedSamplingBackend:
+        def analyze(self, payload, config):
+            return BackendResponse(
+                text=_GOOD,
+                backend_id="gemini-like",
+                raw={"unsupported_sampling": {"temperature": 0.6, "top_p": 0.95}},
+            )
+
+    config = ReasonerConfig(backend_id="gemini")
+    effective = describe_effective_sampling(config, GeminiBackendConfig(seed=7))
+    result = Reasoner(UnsupportedSamplingBackend(), config, effective).run(
+        _request_with_image(tmp_path)
+    )
+    recorded = result.diagnostics.reasoner_config_effective
+    assert recorded is not None
+    assert recorded.thinking_level == "low"
+    assert recorded.seed == 7
+    assert recorded.temperature == 0.6
+    assert recorded.unsupported_sampling == {"temperature": 0.6, "top_p": 0.95}
+
+
+def test_run_exhausted_retries_still_records_effective_sampling_config(tmp_path):
+    reasoner = Reasoner(
+        MockBackend(response_text=_BAD),
+        ReasonerConfig(backend_id="openai", max_attempts=2),
+        _openai_effective(),
+    )
+    result = reasoner.run(_request_with_image(tmp_path))
+    assert result.decision is None
+    assert result.diagnostics.reasoner_config_effective is not None
+    assert result.diagnostics.reasoner_config_effective.temperature == 0.0
+
+
+def test_write_reasoner_log_includes_effective_sampling_config_when_present(tmp_path):
+    log = tmp_path / "trace.jsonl"
+    reasoner = Reasoner(
+        MockBackend(response_text=_GOOD), ReasonerConfig(backend_id="openai"), _openai_effective()
+    )
+    result = reasoner.run(_request_with_image(tmp_path))
+    write_reasoner_log(log, _request_with_image(tmp_path), result)
+    record = json.loads(log.read_text().strip().splitlines()[0])
+    assert record["reasoner_config_effective"]["temperature"] == 0.0
+    assert record["reasoner_config_effective"]["max_attempts"] == 4
+    assert record["reasoner_config_effective"]["model_id"] == "gpt-4o"
+
+
+def test_write_reasoner_log_omits_effective_sampling_config_when_none(tmp_path):
+    log = tmp_path / "trace.jsonl"
+    reasoner = Reasoner(MockBackend(response_text=_GOOD), ReasonerConfig(backend_id="mock"))
+    result = reasoner.run(_request_with_image(tmp_path))
+    write_reasoner_log(log, _request_with_image(tmp_path), result)
+    record = json.loads(log.read_text().strip().splitlines()[0])
+    assert "reasoner_config_effective" not in record

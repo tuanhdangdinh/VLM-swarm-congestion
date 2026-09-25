@@ -9,6 +9,7 @@ from reasoning.vlm.llama_server_backend import LlamaServerBackend
 from reasoning.vlm.mock_backend import MockBackend
 from reasoning.vlm.models import (
     AnthropicBackendConfig,
+    EffectiveSamplingConfig,
     GeminiBackendConfig,
     LlamaServerBackendConfig,
     OpenAIBackendConfig,
@@ -39,6 +40,43 @@ def resolve_reasoner_config(raw_vlm: dict, backend_id: str) -> ReasonerConfig:
     merged.update(dict((raw_vlm.get(backend_id) or {}).get("reasoner", {})))
     merged["backend_id"] = backend_id
     return ReasonerConfig(**merged)
+
+
+def describe_effective_sampling(
+    reasoner_config: ReasonerConfig,
+    backend_config: BackendConfig | None = None,
+) -> EffectiveSamplingConfig:
+    """Summarize the sampling settings one backend call will actually run under.
+
+    Reads the configured values off the two config objects rather than off a
+    constructed backend: every hosted backend requires its API key at
+    construction, so the config objects are the only source available offline,
+    and they are also the source of truth ("as configured", never
+    provider-echoed).
+
+    Args:
+        reasoner_config: The resolved per-backend `ReasonerConfig`.
+        backend_config: The backend's own config, or None for a backend that
+            needs none (e.g. "mock"); `seed` and `thinking_level` are read only
+            from a `GeminiBackendConfig`, being the only API that honours them.
+
+    Returns:
+        The effective sampling block, with `unsupported_sampling` left unset —
+        that is a per-call fact the `Reasoner` fills in from the response.
+    """
+    is_gemini = isinstance(backend_config, GeminiBackendConfig)
+    return EffectiveSamplingConfig(
+        backend_id=reasoner_config.backend_id,
+        model_id=getattr(backend_config, "model_id", None),
+        temperature=reasoner_config.temperature,
+        top_p=reasoner_config.top_p,
+        top_k=reasoner_config.top_k,
+        presence_penalty=reasoner_config.presence_penalty,
+        max_attempts=reasoner_config.max_attempts,
+        max_tokens=reasoner_config.max_tokens,
+        seed=backend_config.seed if is_gemini else None,
+        thinking_level=backend_config.thinking_level if is_gemini else None,
+    )
 
 
 def backend_section(raw_vlm: dict, backend_id: str) -> dict:

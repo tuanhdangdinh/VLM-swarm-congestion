@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
+import yaml
 from swarm_orchestrator.command_lifecycle import AttemptRecord
 from swarm_orchestrator.models import (
     OrchestratorConfig,
@@ -27,14 +29,24 @@ from swarm_orchestrator.reasoning_pipeline import (
 
 from reasoning.rag.command_grounder import ground_reasoner_result
 from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
+from reasoning.vlm.backend_factory import (
+    backend_section,
+    describe_effective_sampling,
+    resolve_reasoner_config,
+)
+from reasoning.vlm.mock_backend import MockBackend
 from reasoning.vlm.models import (
+    BackendResponse,
     CongestionDecision,
     FailureContext,
+    GeminiBackendConfig,
+    OpenAIBackendConfig,
     ReasonerDiagnostics,
     ReasonerResult,
     StaticObstacleInput,
 )
 from reasoning.vlm.prompt_builder import build_prompt_payload
+from reasoning.vlm.reasoner import Reasoner
 
 
 def _snapshot():
@@ -868,3 +880,98 @@ def test_pipeline_yield_feasibility_defaults_to_off_and_no_obstacles():
 
     assert seen["static_obstacles"] == ()
     assert seen["yield_feasibility_mode"] == "off"
+
+
+# ---- effective reasoner sampling config ----
+
+_DECISION_JSON = (
+    '{"congestion_detected": true, "type": "deadlock", '
+    '"involved_robots": ["robot_0"], "root_cause": "head-on", '
+    '"strategy": "yield", "justification": "both stopped"}'
+)
+
+
+def _shipped_vlm() -> dict:
+    return yaml.safe_load(Path("config/models.yaml").read_text())["vlm"]
+
+
+def _artifact_for(backend, backend_id: str, backend_config, tmp_path) -> dict:
+    """Run one reasoning pass through M2 and return the artifact M5 writes for it."""
+    image = tmp_path / "frame.png"
+    image.write_bytes(b"png")
+    config = resolve_reasoner_config(_shipped_vlm(), backend_id)
+    result = Reasoner(
+        backend, config, describe_effective_sampling(config, backend_config)
+    ).run(
+        build_reasoner_request(
+            request_id="r1", snapshot=_snapshot(), image_path=str(image)
+        )
+    )
+    outcome = PipelineOutcome(
+        request_id="r1",
+        reasoner_result=result,
+        grounded_command=None,
+        terminal_stage=TerminalStage.VLM,
+        failure_reason=None,
+    )
+    return json.loads(write_decision_artifact(tmp_path, outcome).read_text())
+
+
+def test_write_decision_artifact_records_shipped_openai_sampling_config(tmp_path):
+    payload = _artifact_for(
+        MockBackend(response_text=_DECISION_JSON),
+        "openai",
+        OpenAIBackendConfig(**backend_section(_shipped_vlm(), "openai")),
+        tmp_path,
+    )
+    effective = payload["reasoner_config_effective"]
+    assert effective["backend_id"] == "openai"
+    assert effective["model_id"] == "gpt-4o"
+    assert effective["temperature"] == 0.0
+    assert effective["max_attempts"] == 4
+    assert effective["max_tokens"] == 2048
+    assert effective["unsupported_sampling"] is None
+
+
+def test_write_decision_artifact_records_shipped_gemini_sampling_config(tmp_path):
+    class UnsupportedSamplingBackend:
+        def analyze(self, payload, config):
+            return BackendResponse(
+                text=_DECISION_JSON,
+                backend_id="gemini-robotics-er-2-preview",
+                raw={"unsupported_sampling": {"temperature": 0.6, "top_p": 0.95}},
+            )
+
+    payload = _artifact_for(
+        UnsupportedSamplingBackend(),
+        "gemini",
+        GeminiBackendConfig(**backend_section(_shipped_vlm(), "gemini")),
+        tmp_path,
+    )
+    effective = payload["reasoner_config_effective"]
+    assert effective["thinking_level"] == "low"
+    assert effective["model_id"] == "gemini-robotics-er-2-preview"
+    # No per-backend override, so the shared reasoner block's Cosmos preset is
+    # what was configured — recorded even though the API drops it.
+    assert effective["temperature"] == 0.6
+    assert effective["unsupported_sampling"] == {"temperature": 0.6, "top_p": 0.95}
+
+
+def test_write_decision_artifact_sampling_config_is_null_when_undescribed(tmp_path):
+    outcome = PipelineOutcome(
+        request_id="r1",
+        reasoner_result=ReasonerResult(
+            request_id="r1",
+            decision=None,
+            raw_text=None,
+            diagnostics=ReasonerDiagnostics(
+                request_id="r1", backend_id="mock", attempts=1, parse_status="failed"
+            ),
+        ),
+        grounded_command=None,
+        terminal_stage=TerminalStage.VLM,
+        failure_reason="decision=None",
+    )
+    payload = json.loads(write_decision_artifact(tmp_path, outcome).read_text())
+    assert payload["reasoner_config_effective"] is None
+

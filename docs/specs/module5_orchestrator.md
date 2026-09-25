@@ -330,6 +330,18 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   to=<b> reason=<…>` / `yield refused request=<id> reason=<…>` — so a run that
   changed executor is legible without opening the artifacts.
 
+- FR5.3.11 (2026-09-25) Every decision artifact records
+  `reasoner_config_effective`: the sampling parameters the call actually ran
+  under — `backend_id`, `model_id`, `temperature`, `top_p`, `top_k`,
+  `presence_penalty`, `max_attempts`, `max_tokens`, gemini's `seed` and
+  `thinking_level`, and the `unsupported_sampling` subset the backend reported
+  dropping (M2 `EffectiveSamplingConfig`). Values are the *configured* ones,
+  described by `describe_effective_sampling(reasoner_config, backend_config)`
+  and handed to the `Reasoner` at construction, never echoed back by a
+  provider. **Why:** no artifact in the corpus proved gpt-4o ran greedily; the
+  temperature lived only in `config/models.yaml`, which is not captured per
+  run.
+
 ### M5.4 Command Lifecycle & Fan-out
 - FR5.4.1 Translate the single grounded command (schema: `command_id`, `actions[]`,
   `expected_resolution_time_sec`, `fallback`) into **N** ROS2 `CoordinationCommand`

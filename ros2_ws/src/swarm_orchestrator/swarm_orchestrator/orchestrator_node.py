@@ -19,7 +19,12 @@ from swarm_interfaces.msg import CoordinationCommand, CoordinationStatus
 from swarm_interfaces.srv import TriggerCongestionAnalysis
 
 from reasoning.rag.command_grounder import filter_command_robot_ids, ground_reasoner_result
-from reasoning.vlm import backend_section, build_backend, resolve_reasoner_config
+from reasoning.vlm import (
+    backend_section,
+    build_backend,
+    describe_effective_sampling,
+    resolve_reasoner_config,
+)
 from reasoning.vlm.models import (
     AnthropicBackendConfig,
     FailureContext,
@@ -75,7 +80,13 @@ from swarm_orchestrator.task_registry import TaskRegistry
 def _build_default_pipeline(config: OrchestratorConfig) -> ReasoningPipeline:
     reasoner_config, backend_config = _load_vlm_config(config.reasoning_backend_id)
     backend = build_backend(config.reasoning_backend_id, backend_config)
-    reasoner = Reasoner(backend, reasoner_config)
+    # Described from the configs, not the backend, so every decision artifact
+    # states the sampling parameters the call ran under (FR5.3.11).
+    reasoner = Reasoner(
+        backend,
+        reasoner_config,
+        describe_effective_sampling(reasoner_config, backend_config),
+    )
     return InProcessPipeline(
         reasoner=reasoner,
         ground_fn=ground_reasoner_result,
@@ -392,7 +403,6 @@ class OrchestratorNode(Node):
         self._pending_snapshot = snapshot
         self._pending_distances = dict(distance_to_goal_m)
         self._pending_episode_index = episode_index
-
         def task() -> PipelineOutcome:
             dump_frame_png(frame, image_path, downscale)
             return self._pipeline.run(request)

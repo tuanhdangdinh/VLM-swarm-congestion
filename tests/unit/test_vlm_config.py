@@ -5,7 +5,17 @@ from pathlib import Path
 
 import yaml
 
-from reasoning.vlm.backend_factory import backend_section, resolve_reasoner_config
+from reasoning.vlm.backend_factory import (
+    backend_section,
+    describe_effective_sampling,
+    resolve_reasoner_config,
+)
+from reasoning.vlm.models import (
+    GeminiBackendConfig,
+    LlamaServerBackendConfig,
+    OpenAIBackendConfig,
+    ReasonerConfig,
+)
 
 
 def _raw_vlm() -> dict:
@@ -44,3 +54,58 @@ def test_shipped_models_yaml_overrides_max_attempts_for_openai_only():
     raw = yaml.safe_load(Path("config/models.yaml").read_text())["vlm"]
     assert resolve_reasoner_config(raw, "openai").max_attempts == 4
     assert resolve_reasoner_config(raw, "gemini").max_attempts == 2
+
+
+def _shipped_vlm() -> dict:
+    return yaml.safe_load(Path("config/models.yaml").read_text())["vlm"]
+
+
+def _shipped_effective(backend_id: str, backend_config=None):
+    return describe_effective_sampling(
+        resolve_reasoner_config(_shipped_vlm(), backend_id), backend_config
+    )
+
+
+def test_describe_effective_sampling_records_shipped_openai_greedy_preset():
+    effective = _shipped_effective(
+        "openai", OpenAIBackendConfig(**backend_section(_shipped_vlm(), "openai"))
+    )
+    assert effective.backend_id == "openai"
+    assert effective.model_id == "gpt-4o"
+    assert effective.temperature == 0.0
+    assert effective.max_attempts == 4
+    assert effective.top_p == 0.95
+    assert effective.max_tokens == 2048
+    assert effective.unsupported_sampling is None
+
+
+def test_describe_effective_sampling_records_shipped_gemini_thinking_level():
+    effective = _shipped_effective(
+        "gemini", GeminiBackendConfig(**backend_section(_shipped_vlm(), "gemini"))
+    )
+    assert effective.model_id == "gemini-robotics-er-2-preview"
+    assert effective.thinking_level == "low"
+    assert effective.seed is None
+    # No gemini reasoner: override, so the shared Cosmos preset is what the
+    # ReasonerConfig carries — recorded as configured even though the
+    # Interactions API drops it (see unsupported_sampling).
+    assert effective.temperature == 0.6
+    assert effective.max_attempts == 2
+
+
+def test_describe_effective_sampling_omits_model_id_without_backend_config():
+    effective = describe_effective_sampling(ReasonerConfig(backend_id="mock"))
+    assert effective.backend_id == "mock"
+    assert effective.model_id is None
+    assert effective.seed is None
+    assert effective.thinking_level is None
+
+
+def test_describe_effective_sampling_leaves_seed_unset_for_non_gemini_backend():
+    effective = describe_effective_sampling(
+        ReasonerConfig(backend_id="llama_server"),
+        LlamaServerBackendConfig(model_id="cosmos-reason2-8b"),
+    )
+    assert effective.model_id == "cosmos-reason2-8b"
+    assert effective.seed is None
+    assert effective.thinking_level is None

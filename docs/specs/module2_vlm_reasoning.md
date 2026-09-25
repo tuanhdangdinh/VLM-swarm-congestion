@@ -547,6 +547,8 @@ class ReasonerDiagnostics(BaseModel):
     parse_status: Literal["valid", "invalid", "failed"]
     error_type: str | None = None
     error_message: str | None = None
+    unsupported_sampling: dict[str, float] | None = None
+    reasoner_config_effective: EffectiveSamplingConfig | None = None
 ```
 
 Fields:
@@ -563,6 +565,27 @@ Fields:
   - `"failed"` — all attempts exhausted without a valid decision; `decision=None`.
 - `error_type` / `error_message`: last error class name and message when
   `parse_status` is `"invalid"` or `"failed"`; `None` on full success.
+- `unsupported_sampling`: sampling fields the backend reported dropping, read
+  from the last `BackendResponse.raw["unsupported_sampling"]` (a malformed
+  value is treated as "not reported"). `None` means the backend honoured every
+  field it was given, or reported nothing — distinct from an empty dict.
+- `reasoner_config_effective` (2026-09-25): an `EffectiveSamplingConfig` naming
+  the parameters this call actually ran under —
+  `backend_id`, `model_id`, `temperature`, `top_p`, `top_k`,
+  `presence_penalty`, `max_attempts`, `max_tokens`, `seed` and
+  `thinking_level` (gemini only), plus a copy of `unsupported_sampling` so the
+  configured values and the dropped subset read off one block. Every value is
+  the *configured* one — built by
+  `describe_effective_sampling(reasoner_config, backend_config)` (the hosted
+  backends demand an API key at construction, so the config objects are the
+  only offline source, and are the source of truth anyway) and passed to
+  `Reasoner(backend, config, effective_sampling)`. `None` when the caller
+  described none, so a test harness or a script that builds a `Reasoner` with
+  two arguments is unaffected. Recorded on the failure path too
+  (`build_failed_result`): a refusal or exhausted-retry cycle is exactly what
+  an audit needs the decoding parameters for. **Why:** `temperature` lives in
+  `config/models.yaml`, which is not captured per run, so no artifact could
+  show that gpt-4o classified greedily.
 
 #### `ReasonerResult`
 
@@ -875,10 +898,16 @@ Behavior:
     "raw_text": "...",
     "decision": { ... } | null,
     "error_type": null,
-    "error_message": null
+    "error_message": null,
+    "unsupported_sampling": {"temperature": 0.6},
+    "reasoner_config_effective": {"backend_id": "openai", "model_id": "gpt-4o",
+                                  "temperature": 0.0, "max_attempts": 4, "...": "..."}
   }
   ```
 
+- `unsupported_sampling` and `reasoner_config_effective` are **omitted
+  entirely** (not written as `null`) when the diagnostics field is `None`, so
+  readers and golden files that predate them are unaffected.
 - Uses `.model_dump(mode="json")` for Pydantic models.
 - Does not raise on serialization of unexpected types — convert to `str` fallback.
 

@@ -2,7 +2,12 @@
 
 from reasoning.vlm.anthropic_backend import AnthropicBackend
 from reasoning.vlm.backend_base import VLMBackend
-from reasoning.vlm.backend_factory import backend_section, build_backend, resolve_reasoner_config
+from reasoning.vlm.backend_factory import (
+    backend_section,
+    build_backend,
+    describe_effective_sampling,
+    resolve_reasoner_config,
+)
 from reasoning.vlm.errors import (
     BackendTimeoutError,
     DecisionValidationError,
@@ -15,6 +20,7 @@ from reasoning.vlm.models import (
     AnthropicBackendConfig,
     BackendResponse,
     CongestionDecision,
+    EffectiveSamplingConfig,
     FailureContext,
     GeminiBackendConfig,
     LlamaServerBackendConfig,
@@ -36,6 +42,7 @@ from reasoning.vlm.prompt_builder import (
 )
 from reasoning.vlm.reasoner import (
     Reasoner,
+    attach_unsupported_sampling,
     build_failed_result,
     build_reask_prompt,
     invoke_backend,
@@ -49,6 +56,7 @@ __all__ = [
     "BackendTimeoutError",
     "CongestionDecision",
     "DecisionValidationError",
+    "EffectiveSamplingConfig",
     "FailureContext",
     "GeminiBackend",
     "GeminiBackendConfig",
@@ -66,11 +74,13 @@ __all__ = [
     "RobotStateInput",
     "VLMBackend",
     "VLMOutputParseError",
+    "attach_unsupported_sampling",
     "backend_section",
     "build_backend",
     "build_failed_result",
     "build_prompt_payload",
     "build_reask_prompt",
+    "describe_effective_sampling",
     "format_pairwise_geometry_lines",
     "format_robot_state_lines",
     "invoke_backend",

@@ -257,7 +257,9 @@ def write_decision_artifact(
 
     The artifact is intentionally written before dispatch handling in the ROS node,
     so it captures the M2 result even when M3 grounding terminates the cycle. With
-    `request` it also records the rendered prompt (re-built by the pure prompt
+    `request` it also records the rendered prompt (and always
+    `reasoner_config_effective`, the sampling parameters the call ran under,
+    whenever the reasoner was given them — M5 always is) (re-built by the pure prompt
     builder, so the base prompt the VLM saw is reproducible; a re-ask suffix on a
     retry is not captured) with SHA-256 hashes for the pre-registration freeze,
     and with `snapshot` the M1 scene the request was built from.
@@ -308,6 +310,14 @@ def write_decision_artifact(
             None if result.decision is None else result.decision.model_dump(mode="json")
         ),
         "diagnostics": result.diagnostics.model_dump(mode="json"),
+        # Lifted out of `diagnostics` to a top-level key as well: an artifact
+        # set is partitioned by the decoding parameters it was collected under,
+        # so the block must be readable without walking into diagnostics.
+        "reasoner_config_effective": (
+            None
+            if result.diagnostics.reasoner_config_effective is None
+            else result.diagnostics.reasoner_config_effective.model_dump(mode="json")
+        ),
         "raw_text": result.raw_text,
         "failure_context": (
             None if failure_context is None else failure_context.model_dump(mode="json")

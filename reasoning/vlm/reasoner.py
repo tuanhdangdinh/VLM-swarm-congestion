@@ -12,6 +12,7 @@ from reasoning.vlm.errors import (
 )
 from reasoning.vlm.models import (
     BackendResponse,
+    EffectiveSamplingConfig,
     PromptPayload,
     ReasonerConfig,
     ReasonerDiagnostics,
@@ -109,6 +110,25 @@ def _extract_unsupported_sampling(raw: dict[str, object]) -> dict[str, float] | 
     return {key: float(val) for key, val in value.items()}
 
 
+def attach_unsupported_sampling(
+    effective: EffectiveSamplingConfig | None,
+    unsupported_sampling: dict[str, float] | None,
+) -> EffectiveSamplingConfig | None:
+    """Fold a call's dropped-sampling report into the effective config block.
+
+    Args:
+        effective: The configured sampling block, or None when the caller
+            described none.
+        unsupported_sampling: Sampling fields the backend reported dropping.
+
+    Returns:
+        A copy carrying `unsupported_sampling`, or None when `effective` is None.
+    """
+    if effective is None:
+        return None
+    return effective.model_copy(update={"unsupported_sampling": unsupported_sampling})
+
+
 def build_failed_result(
     request: ReasonerRequest,
     backend_id: str,
@@ -117,6 +137,7 @@ def build_failed_result(
     error_message: str | None,
     raw_text: str | None = None,
     unsupported_sampling: dict[str, float] | None = None,
+    effective_sampling: EffectiveSamplingConfig | None = None,
 ) -> ReasonerResult:
     """Construct a safe failure result with decision=None after exhausted retries.
 
@@ -129,6 +150,10 @@ def build_failed_result(
         raw_text: Last raw model text, preserved for audit.
         unsupported_sampling: Sampling fields the backend could not honour on
             its last successful call, if any (see `ReasonerDiagnostics`).
+        effective_sampling: The configured sampling block for this call, if the
+            caller described one. A refusal or exhausted-retry cycle is exactly
+            the case an audit needs the decoding parameters for, so the failure
+            path records them too.
 
     Returns:
         A `ReasonerResult` with `decision=None` and `parse_status='failed'`.
@@ -145,6 +170,9 @@ def build_failed_result(
             error_type=error_type,
             error_message=error_message,
             unsupported_sampling=unsupported_sampling,
+            reasoner_config_effective=attach_unsupported_sampling(
+                effective_sampling, unsupported_sampling
+            ),
         ),
     )
 
@@ -152,9 +180,25 @@ def build_failed_result(
 class Reasoner:
     """Stateless M2 reasoning orchestrator: prompt -> backend -> parse -> validate."""
 
-    def __init__(self, backend: VLMBackend, config: ReasonerConfig) -> None:
+    def __init__(
+        self,
+        backend: VLMBackend,
+        config: ReasonerConfig,
+        effective_sampling: EffectiveSamplingConfig | None = None,
+    ) -> None:
+        """Wire a backend to its runtime config.
+
+        Args:
+            backend: Any object satisfying the `VLMBackend` Protocol.
+            config: Resolved runtime config for this backend.
+            effective_sampling: Configured sampling block recorded on every
+                result, built by `describe_effective_sampling`. Optional so a
+                test harness or a script may construct a `Reasoner` without the
+                backend's own config; then nothing is recorded.
+        """
         self._backend = backend
         self._config = config
+        self._effective_sampling = effective_sampling
 
     def run(self, request: ReasonerRequest) -> ReasonerResult:
         """Execute one complete reasoning pass with bounded retry/re-ask.
@@ -208,6 +252,9 @@ class Reasoner:
                         error_type=last_error_type,
                         error_message=last_error_msg,
                         unsupported_sampling=last_unsupported_sampling,
+                        reasoner_config_effective=attach_unsupported_sampling(
+                            self._effective_sampling, last_unsupported_sampling
+                        ),
                     ),
                 )
             except (BackendTimeoutError, ConnectionError) as exc:
@@ -227,6 +274,7 @@ class Reasoner:
             error_message=last_error_msg,
             raw_text=last_raw,
             unsupported_sampling=last_unsupported_sampling,
+            effective_sampling=self._effective_sampling,
         )
 
 
@@ -262,5 +310,8 @@ def write_reasoner_log(
     # readers/golden files that don't expect it are unaffected.
     if result.diagnostics.unsupported_sampling is not None:
         record["unsupported_sampling"] = result.diagnostics.unsupported_sampling
+    effective = result.diagnostics.reasoner_config_effective
+    if effective is not None:
+        record["reasoner_config_effective"] = effective.model_dump(mode="json")
     with open(output_path, "a", encoding="utf-8") as file:
         file.write(json.dumps(record, default=str) + "\n")

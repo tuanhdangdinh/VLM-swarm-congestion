@@ -142,6 +142,36 @@ class CongestionDecision(BaseModel):
         return self
 
 
+class EffectiveSamplingConfig(BaseModel):
+    """The sampling settings actually in force for one reasoning call.
+
+    Every field is the *configured* value (from `ReasonerConfig` plus the
+    backend's own config), never a value echoed back by a provider: the point is
+    to prove from an artifact alone which decoding parameters a run was
+    collected under. A backend that drops some of them still records them here,
+    with the dropped subset repeated in `unsupported_sampling`.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    backend_id: str = Field(min_length=1)
+    # None when the backend takes no model id (e.g. "mock").
+    model_id: str | None = None
+    temperature: float
+    top_p: float
+    top_k: int
+    presence_penalty: float
+    max_attempts: int = Field(ge=1)
+    max_tokens: int = Field(ge=1)
+    # Gemini-only: the Interactions API exposes no temperature/top_p/top_k, so
+    # these two are the only decoding controls it honours. None elsewhere.
+    seed: int | None = None
+    thinking_level: str | None = None
+    # Mirrors `ReasonerDiagnostics.unsupported_sampling`, so the configured
+    # values and the subset the backend could not honour read off one block.
+    unsupported_sampling: dict[str, float] | None = None
+
+
 class ReasonerDiagnostics(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -159,6 +189,10 @@ class ReasonerDiagnostics(BaseModel):
     # `reasoning.vlm.gemini_backend.GeminiBackend` for a backend that populates
     # this from `BackendResponse.raw["unsupported_sampling"]`.
     unsupported_sampling: dict[str, float] | None = None
+    # None when the caller did not describe the effective config (e.g. a test
+    # harness or a script that constructs a Reasoner without one); additive, so
+    # artifacts written before this field existed stay readable.
+    reasoner_config_effective: EffectiveSamplingConfig | None = None
 
 
 class ReasonerResult(BaseModel):
