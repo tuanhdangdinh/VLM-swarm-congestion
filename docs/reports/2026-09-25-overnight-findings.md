@@ -6,6 +6,7 @@
 
 - Initial draft: overnight session of 2026-09-24/25 — new GPU host bring-up, closed-loop replication, offline presentation-order probe, and four live counterbalanced M2 runs.
 - Rev 2 (2026-09-25): adds the M3 yield feasibility gate and random presentation order, five live validation runs, and a correction to the strength of the live order effect.
+- Rev 3 (2026-09-25): adds the Gemini Robotics-ER 2 M2 backend — its offline presentation-order arm and four live closed-loop runs — plus two arithmetic/instrumentation corrections to Rev 1.
 
 ---
 
@@ -50,6 +51,10 @@ Do **not** report "the model moves to the feasible robot under `id_desc`".
 - The obstacle channel is ineffective in **both** text and image. With the
   channel off all three variants render a byte-identical prompt and differ only
   in the image; moving the blocker west ↔ east changes nothing detectable.
+  *Superseded by Rev 3 §G for the text channel: this holds for gpt-4o and
+  gpt-4o-mini only. On ER-2 the obstacle text drives `yield` to zero
+  (0/60 named yielders with the channel on against 13/60 off, p = 1.2e-4). The
+  image half of the claim stands for all three models.*
 
 ---
 
@@ -156,6 +161,10 @@ cost of US$1.82.
 | gpt-4o | 0.6 | 36/39 | 19/40 | p = 1.7e-05 |
 | gpt-4o-mini | 0.0 | 20/20 | 0/20 | p = 1.5e-11 |
 | gpt-4o-mini | 0.6 | 40/40 | 2/40 | p = 1.4e-13 |
+
+*The last row is superseded by Rev 3 §G: the exact Fisher implementation returns
+p ≈ 1.6e-20 for 40/40 versus 2/40, not 1.4e-13. The other three rows reproduce
+exactly and the direction of this one is unaffected.*
 
 The bias **survives removal** of the old "first listed robot backs up"
 instruction, so it is not instruction-compliance.
@@ -331,6 +340,8 @@ unchanged by tonight's commits.
 8. The ER-2 / Gemini arm was **not** run tonight. `GEMINI_API_KEY` is available;
    the backend lives on branch `feat/gemini-er2-backend`, currently 14 ahead and
    17 behind `main`.
+   *Superseded by Rev 3 §F–§H: the branch was merged at `c7a08e7` and ER-2 has
+   since been run both offline (180 calls) and live (four closed-loop runs).*
 
 ---
 
@@ -503,6 +514,9 @@ in L3 and L4 carries `episode_index=0` — confirming one draw per episode.
    channel ON, so order and channel co-vary within the batch. The offline probe
    found the channel inert, so this is unlikely to matter, but an obstacles-OFF
    live arm would close it.
+   *Partly superseded by Rev 3 §G: "inert" is a gpt-4o result and does not
+   generalise — the same channel has a large effect on ER-2, so the
+   obstacles-OFF arm has to be run per model.*
 
 ---
 
@@ -539,3 +553,249 @@ Run ids: `20260925_002713`, `20260925_004252`, `20260925_005754`,
 The VM config was restored byte-exact to `f027d63`
 (`md5` `3ed3795f174c3df079e050e9b4e49572`), the container was restarted, and the
 GPU is idle. Artifacts remain git-ignored under `data/logs/vm_runs/`.
+
+---
+
+## F. Gemini Robotics-ER 2 as the M2 Backend
+
+`feat/gemini-er2-backend` was merged at `c7a08e7`. The two crosscheck prompt-SHA
+re-pins in `590ac23` are explained by the FR2.1.9 prompt edits, not by a prompt
+regression (notes entry `e6be85c`). The suite went from 864 to 878 tests with the
+probe's seed-sweep extension.
+
+| Item | Value |
+|---|---|
+| M5 selection | `reasoning_backend_id: gemini`; launcher `BACKEND_ID=gemini` |
+| Model | `config/models.yaml` `vlm.gemini`, `model_id: gemini-robotics-er-2-preview` |
+| Thinking | `thinking_level: low`, `force_schema: false` |
+| Credential | `GEMINI_API_KEY` from the environment |
+| Transport | Interactions API (`POST /v1beta/interactions`), not `:generateContent` |
+
+The Interactions API exposes no `temperature`, `top_p` or `top_k`, so the shared
+sampling preset is dropped and recorded rather than applied. Every artifact and
+probe record carries the same block:
+
+```json
+{"presence_penalty": 0.0, "temperature": 0.6, "top_k": 20.0, "top_p": 0.95}
+```
+
+Two structural consequences follow, and both are permanent properties of this
+backend rather than configuration choices. Sampling is at provider default and
+cannot be pinned, so ER-2 and gpt-4o cannot be matched on decoding. And no
+`<think>` block is ever emitted although thinking is billed — 50 to 899 thought
+tokens per live decision, 49 857 across the 180 offline calls — so the reasoning
+that produced a decision is not inspectable.
+
+A one-call pre-flight probe on the VM returned HTTP 200 in 5.6 s. Offline the
+seed is deterministic: the symmetric variant's channel-on and channel-off cells
+render a byte-identical prompt and returned identical `(strategy, yield_robot)`
+pairs on all 15 seeds, seed for seed.
+
+---
+
+## G. Offline Presentation-Order Probe With ER-2
+
+Commits `8df0e92` (probe run), `908d641` (raw data), `58dfa43` (report Rev 2),
+`061c6a3` (pacer fix). 180 calls — 12 cells × 15 seeds — with **zero parse
+failures and zero API errors**, at approximately US$0.73 on standard pricing
+(US$0.00 on the free tier). The stimuli are the gpt-4o arm's: re-rendering the
+cells reproduces the committed prompts and images byte-for-byte, so all three
+models saw identical text and identical pictures. The synthetic plan-view caveat
+weighs more here than in Rev 1, because ER-2 is a vision-first robotics model and
+may be reading an out-of-distribution image.
+
+### Headline: ER-2 rarely yields
+
+The strategy split is 155 `reverse` to 25 `yield`. ER-2 mostly declines the
+adjudication the prompt asks for and answers "both robots back up" with
+`yield_robot=null`.
+
+`named` is how many of the 15 calls returned a non-null `yield_robot`; the three
+`P(...)` columns are over those calls only and are `-` when there are none.
+`P(strategy != yield)` is over all 15.
+
+| Variant | Order | Obstacles | n | parse fail | named | modal yielder | P(first-listed) | P(robot_1) | P(correct) | P(strategy != yield) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `w0p2_eopen` | `id_asc` | off | 15 | 0 | 2 | robot_1 | 1.00 | 1.00 | 0.00 | 0.87 |
+| `w0p2_eopen` | `id_asc` | on | 15 | 0 | 0 | - | - | - | - | 1.00 |
+| `w0p2_eopen` | `id_desc` | off | 15 | 0 | 4 | robot_1 | 0.25 | 0.75 | 0.25 | 0.73 |
+| `w0p2_eopen` | `id_desc` | on | 15 | 0 | 0 | - | - | - | - | 1.00 |
+| `wopen_e0p2` | `id_asc` | off | 15 | 0 | 4 | robot_1 | 1.00 | 1.00 | 1.00 | 0.73 |
+| `wopen_e0p2` | `id_asc` | on | 15 | 0 | 0 | - | - | - | - | 1.00 |
+| `wopen_e0p2` | `id_desc` | off | 15 | 0 | 3 | robot_2 | 0.67 | 0.33 | 0.33 | 0.80 |
+| `wopen_e0p2` | `id_desc` | on | 15 | 0 | 0 | - | - | - | - | 1.00 |
+| `wopen_eopen` | `id_asc` | off | 15 | 0 | 6 | robot_1 | 1.00 | 1.00 | 1.00 | 0.60 |
+| `wopen_eopen` | `id_asc` | on | 15 | 0 | 6 | robot_1 | 1.00 | 1.00 | 1.00 | 0.60 |
+| `wopen_eopen` | `id_desc` | off | 15 | 0 | 0 | - | - | - | - | 1.00 |
+| `wopen_eopen` | `id_desc` | on | 15 | 0 | 0 | - | - | - | - | 1.00 |
+
+The symmetric variant's on/off pair is not an independent manipulation: with no
+blocker the two cells render the same prompt SHA, so they are the reproducibility
+pair described in §F.
+
+### The obstacle channel is the one manipulation that moves ER-2
+
+On the asymmetric variants, turning the textual obstacle block on drives the
+named-yielder count to zero: 0/60 with the channel on against 13/60 off,
+`P(strategy != yield)` 60/60 versus 47/60, Fisher exact p = 1.2e-4. This is the
+first non-null modality effect the programme has recorded for the static-obstacle
+channel.
+
+It is not geometric competence. ER-2 responds identically whether the blocker is
+west or east (p = 0.65 under `id_asc`, p = 1.00 under `id_desc`, with the prompt
+text held byte-identical and only the image differing), and **0 of the 180**
+`justification` and `root_cause` strings contain "obstacle", "box", "blocker",
+"crate" or "pallet" — including all 60 calls in which the obstacle block was
+present and demonstrably drove the strategy. ER-2 is influenced by the channel
+without ever mentioning it. It does not switch to the feasible yielder; it
+abandons yielding.
+
+### Hypotheses
+
+- **`H_geom` is refuted for ER-2 too.** Among named yielders on the asymmetric
+  variants, `P(correct)` = 6/13 = 0.46 — chance, the same value both gpt-4o
+  models returned.
+- **`H_slot` and `H_id` are underpowered, not answered.** On the named yielder,
+  `P(robot_1)` is 6/6 under `id_asc` against 4/7 under `id_desc`, p = 0.192. The
+  direction matches gpt-4o's slot preference; 13 informative calls settle
+  nothing.
+- **ER-2 does not echo presentation order in its own output.**
+  `involved_robots[0]` matched the first-listed robot in 90/180 calls — exactly
+  chance — against gpt-4o's 167/180.
+
+| Model | Sampling | Obstacles | Verdict |
+|---|---|---|---|
+| gpt-4o | T=0.0 / T=0.6 | off and on | mixed |
+| gpt-4o-mini | T=0.0 / T=0.6 | off and on | `H_slot` |
+| ER-2 | seeded | off | mixed, on 13 informative calls |
+| ER-2 | seeded | on | insufficient (reverse-dominant) |
+
+`insufficient` is not a collection failure: in those four cells ER-2 named no
+yielder at all, so no signature can be matched.
+
+### Two corrections to Rev 1
+
+1. **Latency instrumentation.** The probe's `PacedBackend` waited for its
+   rate-limit slot *inside* the call that `invoke_backend` timed, so every record
+   but a run's chronologically first carries wait plus response. Only the first
+   call of a run is a real measurement. Rev 1's gpt-4o `median_latency_ms` column
+   in `summary.csv` and in the probe report is therefore inflated (it ran at
+   3 workers × 4.0 s); ER-2's single usable measurement is ≈ 4.9 s, consistent
+   with the integration spec's 2.6–3.6 s at this probe's slightly larger payload.
+   Fixed in `061c6a3`, which now times only the inner call; the committed records
+   pre-date the fix. This corrects instrumentation only — no finding in Rev 1
+   rests on the latency column.
+2. **Arithmetic.** Rev 1's pooled-order table gives p = 1.4e-13 for gpt-4o-mini
+   at T=0.6 (40/40 versus 2/40). The exact Fisher implementation used for this
+   arm reproduces the other three rows exactly and returns **p ≈ 1.6e-20** for
+   that one. The direction and the conclusion are unaffected.
+
+---
+
+## H. Live ER-2 Runs
+
+Four closed-loop runs on the VM, tree `e6be85c` verified by `md5`. The
+orchestrator config was regenerated from the pristine YAML for each run and the
+**installed** copy was parsed and checked before every launch.
+
+| Run | STAMP | Scenario | Order | Gate | Obstacles | ER-2 `yield_robot` (analysis #) | M3 grounded | First maneuver(s) | Arrivals | Analyses / dispatches | Latency |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| G0 | `20260925_021549` | `head_on_deadlock` | `id_asc` | `off` | OFF | `robot_1` (#1) | verbatim | `yield` COMPLETED 143.0 s | 2/2 | 3 / 1 | 3.4–3.7 s |
+| G1 | `20260925_023122` | `w0p2_eopen` | `id_asc` | `swap` | ON −1.85 | `robot_1` (#3) | `robot_1` → `robot_2` | `reverse` COMPLETED 34.2 s → `yield` COMPLETED 147.7 s | 2/2 | 8 / 2 | 2.6–4.4 s |
+| G2 | `20260925_024628` | `w0p2_eopen` | `id_desc` | `off` | ON −1.85 | `robot_2` (#3) | verbatim (feasible) | `reverse` COMPLETED 35.0 s → `yield` COMPLETED 148.6 s | 2/2 | 9 / 2 | 2.8–4.2 s |
+| G3 | `20260925_030129` | `wopen_e0p2` | `id_desc` | `off` | ON +1.85 | `robot_1` (#2) | verbatim (feasible) | `reverse` COMPLETED 35.8 s → `yield` COMPLETED 143.9 s | 2/2 | 5 / 2 | 3.0–6.6 s |
+
+G1's swap, the only gate intervention in the batch:
+
+```text
+[orchestrator_node]: yield re-grounded request=3785a224fbef4052bd6c42566305cb56 from=robot_1 to=robot_2 reason=yield re-grounded: robot_1 has 0.70 m retreat room < 1.08 m required; robot_2 feasible
+```
+
+The opening `reverse` on every asymmetric scene, and the `yield` that follows it
+only after the failure-context loop re-analyses:
+
+```text
+[orchestrator_node]: dispatch request=b492970d345843658d3eba6382e8b962 command=b492970d345843658d3eba6382e8b962-reverse robot=robot_1
+[orchestrator_node]: request=3785a224fbef4052bd6c42566305cb56 failure_context attached command=b492970d345843658d3eba6382e8b962-reverse strategy=reverse executed=reverse outcome=completed
+```
+
+### Conformance
+
+All 25 decision artifacts across the four runs carry `attempts=1` and
+`parse_status=valid`, and **none** returned `decision=None`. No HTTP 429 was
+observed. The ground-truth stream records `robot_static_contacts` 0 in every
+frame of all four runs (3 001 frames each). Component errors stayed within the
+known-benign set, and every post-resolution re-analysis returned
+`congestion_detected=false`.
+
+### G3 caveat
+
+G3's yield was decided on a frame with the robots **1.08 m apart and both
+MOVING**, not the 0.35–0.38 m STOPPED standoff that G1 and G2 were decided on. It
+is therefore a weaker instance of the same cell and should not be pooled with
+them without noting the difference.
+
+---
+
+## I. Adjudication
+
+1. **ER-2 is a working drop-in Arm.** It matches gpt-4o on the symmetric
+   baseline (G0 versus E0: both named `yield_robot=robot_1`, 143 s against
+   148 s, 2/2 arrivals) and on the gate cell (G1 versus L1: both named the
+   physically blocked `robot_1`, both were swapped to `robot_2`, both 2/2).
+2. **Its distinctive behaviour is an opening `reverse` on every asymmetric
+   scene** — 3/3 live, 155/180 offline. The `reverse` completes in roughly 35 s
+   without resolving the standoff, and the failure-context loop then steers ER-2
+   to `yield`. Each episode therefore costs one extra analysis and about 35 s
+   against gpt-4o. Offline with the obstacle channel on ER-2 never reached
+   `yield` at all (0/60); live it does, but only as decision #2 or #3 by way of
+   failure context. This is the loop working as designed. It also means **ER-2's
+   first decision is not comparable to gpt-4o's first decision** in the
+   pre-registration's "first answer" metrics.
+3. **Geometry is unused by ER-2 as well.** G1 named the physically blocked
+   `robot_1`; no live or offline justification mentions the obstacle; offline
+   `P(correct)` is at chance. The M3 gate, not the model, is what made G1
+   succeed.
+4. **Order sensitivity for ER-2 is not established.** The named yielder was the
+   first-presented robot in G1 and G2 and the second in G3, at n = 1 per cell,
+   with no temperature control and with G3's geometry differing (§H). The
+   slot/ID question stays open for ER-2.
+5. **The decisive ER-2 cell was not run** — west-blocked × `id_asc` × gate off.
+   "ER-2 fails like gpt-4o without the gate" is inferred from G1's choice, not
+   observed.
+6. **All four runs reached 2/2 arrivals**, three of them only because the gate
+   fired (G1) or because the model happened to name the feasible robot (G2, G3).
+
+---
+
+## J. Next Steps
+
+1. Run the decisive ER-2 cell (west-blocked, `id_asc`, gate `off`, n ≥ 3), and
+   the same cell for gpt-4o with obstacles OFF (Rev 2 §D item 2), to complete the
+   live 2×2 per model.
+2. Pre-registration: keep ER-2 as the **secondary** arm (cost, latency,
+   conformance) per the handoff; document the two structural confounds — no
+   sampling control and hidden thinking — and the opening-`reverse` habit as a
+   model characteristic; define the primary metric as **episode outcome, not
+   first answer**.
+3. Decide on the symmetric-`reverse` dispatch (B1), now exercised on every ER-2
+   asymmetric episode: keep it, as the handoff recommends, for RQ5 evidence, or
+   fix it before Arm B.
+4. Re-run the gpt-4o offline latency column with the fixed pacer if latency is
+   reported anywhere.
+5. Adopt Rev 2 §D item 1 (gate `swap` plus random presentation order) for both
+   arms.
+
+---
+
+## Rev 3 Provenance
+
+Commits after `82098f8`: `c7a08e7`, `590ac23`, `e6be85c`, `8df0e92`, `908d641`,
+`58dfa43`, `061c6a3`, plus this docs commit.
+
+Run ids: `20260925_021549`, `20260925_023122`, `20260925_024628`,
+`20260925_030129`.
+
+The VM config was restored byte-exact (`md5`
+`3ed3795f174c3df079e050e9b4e49572`), the container was restarted, and the GPU was
+idle at 03:17 UTC. Artifacts remain git-ignored under `data/logs/vm_runs/`.

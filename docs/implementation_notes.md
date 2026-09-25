@@ -203,6 +203,18 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-25** — **ER-2 verified live as an M2 backend; its signature is an
+  opening `reverse`.** Four closed-loop runs (`20260925_021549`/`023122`/
+  `024628`/`030129`, tree `e6be85c`) all reached 2/2 arrivals with 25/25
+  artifacts `attempts=1`, `parse_status=valid`, no `decision=None`, no 429s. ER-2
+  matches gpt-4o on the symmetric baseline and on the gate cell (G1 named the
+  blocked `robot_1`; M3 `swap` re-grounded to `robot_2`), but on **every**
+  asymmetric scene it opens with `reverse`, which completes in ~35 s without
+  resolving the standoff — failure context then steers it to `yield`, one extra
+  analysis per episode. So **ER-2's first decision is not comparable to
+  gpt-4o's**; use episode outcome as the primary metric. Permanent confounds:
+  the Interactions API drops sampling and emits no `<think>` block though
+  thinking is billed. `docs/reports/2026-09-25-overnight-findings.md` §F–§J.
 - **2026-09-25** — **ER-2 arm of the offline presentation-order probe**
   (`docs/reports/2026-09-25-presentation-order-probe.md` Rev 2).
   `probe_presentation_order.py --backend gemini --seeds N` sweeps seeds `0..N-1`
