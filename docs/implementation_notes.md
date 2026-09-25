@@ -191,6 +191,20 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-25** — **`prompt_robot_order: random` counterbalances the
+  presentation order per congestion episode, with the drawn order auditable.**
+  `swarm_orchestrator/presentation_order.py` adds a pure
+  `PresentationOrderPolicy(mode, seed).order_for_episode(k)` plus an
+  `EpisodeOrderTracker` that holds one episode's order across its re-analyses;
+  each decision artifact now carries `robot_presentation_order` (read off the
+  request, so it cannot disagree with the persisted prompt hashes),
+  `prompt_robot_order_mode`, `prompt_robot_order_seed` and `episode_index`.
+  Gotcha: the episode scope is **not** `AttemptMemory`'s — that memory returns
+  nothing at `failure_context_window_sec: 0` (the RQ5 memoryless control), which
+  would re-draw the order inside a single deadlock. `prompt_robot_order_seed:
+  null` derives the seed from `VGU_RUN_ID` via SHA-256, not `hash()`
+  (`PYTHONHASHSEED` randomizes string hashes per process). Default stays
+  `id_asc`. Commit `43bf941`; spec FR5.3.9 in `docs/specs/module5_orchestrator.md`.
 - **2026-09-25** — **Live counterbalanced runs confirm the offline verdict: the
   yielder M2 names follows presentation order, not feasibility.** Four gpt-4o
   runs, obstacle modality ON: R1 `20260924_195708` `w0p2_eopen`/`id_desc` →
