@@ -30,6 +30,9 @@ vlm:
     # none -> deadlock on an unchanged scene at temperature 0.6.
     reasoner:
       temperature: 0.0
+      # Refusal trigger is the frame, not the text; 4 attempts cuts terminal
+      # refusal 57.1% -> 26.9% (p=0.031). docs/reports/2026-09-25-frame-replay.md
+      max_attempts: 4
 
   # Hosted Gemini Robotics-ER 2 backend (Interactions API, not :generateContent).
   # Switch reasoner.backend_id to "gemini" to use it. The API key is NOT stored

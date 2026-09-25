@@ -38,3 +38,9 @@ def test_shipped_models_yaml_samples_greedily_for_openai_only():
     raw = yaml.safe_load(Path("config/models.yaml").read_text())["vlm"]
     assert resolve_reasoner_config(raw, "openai").temperature == 0.0
     assert resolve_reasoner_config(raw, "llama_server").temperature == 0.6
+
+
+def test_shipped_models_yaml_overrides_max_attempts_for_openai_only():
+    raw = yaml.safe_load(Path("config/models.yaml").read_text())["vlm"]
+    assert resolve_reasoner_config(raw, "openai").max_attempts == 4
+    assert resolve_reasoner_config(raw, "gemini").max_attempts == 2

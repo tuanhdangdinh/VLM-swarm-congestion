@@ -245,6 +245,10 @@ in control.
 ### M2.5 Robustness Controller
 - FR2.5.1 Retry the same payload on transient backend errors (timeout, HTTP 429,
   connection error) with a bounded attempt count from `ReasonerConfig.max_attempts`.
+  Like temperature (FR2.2.3), `max_attempts` is resolved per backend: `openai`
+  overrides it to 4 (shared default 2) because its refusal-class failures are
+  frame-triggered and clear on retry (`docs/reports/2026-09-25-frame-replay.md`
+  Rev 2, Arm M).
 - FR2.5.2 Re-ask with a corrective prompt on schema-invalid output or referential-
   integrity failure, when `ReasonerConfig.allow_reask=True` and attempts remain.
 - FR2.5.3 On exhausted retries, return `build_failed_result(...)` with
@@ -1334,9 +1338,10 @@ Do not include any text, markdown, or explanation outside the JSON.
 ## 10. Non-Functional Requirements
 
 - **Latency:** ≤ 15 s typical single attempt; ≤ 30 s worst case including one
-  re-ask (`max_attempts × timeout_sec`). Recorded in
-  `ReasonerDiagnostics.latency_ms`. Layer 1 retains control while M2 reasons,
-  so this is a responsiveness target, not a safety deadline.
+  re-ask (`max_attempts × timeout_sec`; `openai` overrides to 4 attempts, see
+  FR2.5.1). Recorded in `ReasonerDiagnostics.latency_ms`. Layer 1 retains
+  control while M2 reasons, so this is a responsiveness target, not a safety
+  deadline.
 - **Determinism:** identical input → stable classification across runs (low-temp
   decoding + deterministic prompt rendering).
 - **Backend portability:** swapping backends (mock → llama_server) requires

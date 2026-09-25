@@ -203,6 +203,11 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-25** — **`openai` reasoner `max_attempts` raised 2 → 4.**
+  `config/models.yaml` nests `max_attempts: 4` under `vlm.openai.reasoner`.
+  Per Arm M (`docs/reports/2026-09-25-frame-replay.md` Rev 2), conditional
+  on a refused first attempt, terminal refusal is 57.1% shipped vs 26.9% at
+  `max_attempts=4` (p = 0.031); trigger is the annotated frame, not text.
 - **2026-09-25** — **Rev 5: Arm A pilot green on the adopted defaults; the
   refusal class is bigger and image-driven**
   (`docs/reports/2026-09-25-overnight-findings.md` §O–§R, consolidating the
