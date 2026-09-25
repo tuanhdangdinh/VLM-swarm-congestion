@@ -172,6 +172,15 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   goal changes, and a dropped/late frame resolves nothing (FR5.1.4). Running
   accepted/rejected/late event tallies ride on those two log lines.
 
+  **Episode closure follows the verdict.** `EpisodeOrderTracker.end_episode`
+  now fires only on an accepted (or late-accepted) arrival, so a rejected one
+  leaves the episode open and the next `order_for` on those robots reuses its
+  index and drawn order rather than drawing again. This is what FR5.3.9 already
+  specifies ("the drawn order is constant across every re-analysis of one
+  episode") — a false success was splitting one real episode into two draws —
+  but it means `prompt_robot_order: random` draw sequences are not comparable
+  across this change.
+
   **Why:** the arrival report is the primary outcome measure of the congestion
   experiment, so a Nav2 false success becomes a false "episode succeeded". In
   run 20260925_124609 `bt_navigator` reported success for robot_2 while M1 put

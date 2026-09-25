@@ -209,8 +209,10 @@ Rules for maintaining it:
   away (logged `distance_to_goal_m={'robot_2': 0.59}` 21 times after).
   `swarm_orchestrator/arrival.py` cross-checks it at 0.35 m (> M1's ≈0.1 m bias,
   ≤ `arrived_radius_m`); a rejected arrival stays stall-eligible and is accepted
-  late once M1 reaches tolerance. **Prereg:** episode outcome must be
-  position-verified in both arms — re-score pre-fix runs from `scene_log_dir`.
+  late once M1 reaches tolerance. Episode closure now follows the verdict, so
+  `prompt_robot_order: random` draw sequences shift too. **Prereg:** episode
+  outcome must be position-verified in both arms — re-score pre-fix runs from
+  `scene_log_dir`, and treat their order draws as not comparable either.
 - **2026-09-25** — **`openai` reasoner `max_attempts` raised 2 → 4.**
   `config/models.yaml` nests `max_attempts: 4` under `vlm.openai.reasoner`.
   Per Arm M (`docs/reports/2026-09-25-frame-replay.md` Rev 2), conditional
