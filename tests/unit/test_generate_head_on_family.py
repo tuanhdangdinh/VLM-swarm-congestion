@@ -5,8 +5,16 @@ import yaml
 
 from isaac.scripts import generate_head_on_family as gen
 from isaac.vgu_sim.config import HeadOnAsymmetricParams, ScenarioConfig
+from reasoning.rag.scene_geometry import park_offset_m, passer_clearance_m
 
 ORCHESTRATOR_YAML = Path("ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml")
+# Half the robot's extent along the corridor axis, from the Nav2 footprint
+# `[[-0.07, -0.09], [0.07, 0.09]]` in swarm_simulation/config/nav2_params.yaml.
+# `scene_geometry` declares only `half_width_m`, so the along-axis half-length
+# has to come from the footprint that Nav2 and the costmaps actually use.
+ROBOT_HALF_LENGTH_M = 0.07
+# swarm_orchestrator/config/orchestrator.yaml `arrival_position_tolerance_m`.
+ARRIVAL_POSITION_TOLERANCE_M = 0.35
 
 
 @pytest.fixture
@@ -160,16 +168,18 @@ def test_write_family_default_goal_mode_reproduces_committed_v1_bytes(tmp_path):
         assert (gen.FAMILY_DIR / name).read_text() == (tmp_path / name).read_text(), name
 
 
-def test_committed_manifest_has_five_rows_with_v1_first():
+def test_committed_manifest_has_seven_rows_with_v1_first():
     rows = (gen.FAMILY_DIR / gen.MANIFEST_NAME).read_text().splitlines()
 
-    assert len(rows) == 6  # header + 5 variants
+    assert len(rows) == 8  # header + 7 variants
     assert [r.split(",")[1] for r in rows[1:]] == [
         "w0p2_eopen_o0",
         "wopen_e0p2_o0",
         "wopen_eopen_o0",
         "w0p2_eopen_gshort_o0",
         "wopen_e0p2_gshort_o0",
+        "w0p2_eopen_bshort_o0",
+        "wopen_e0p2_bshort_o0",
     ]
 
 
@@ -194,6 +204,172 @@ def test_committed_gshort_yaml_round_trips(name, goals):
     assert {r.robot_id: (r.goal.x, r.goal.y) for r in config.robots} == goals
     assert config.oracle is not None
     assert config.parameters is not None
+
+
+def test_variant_id_inserts_bshort_before_arrival_offset():
+    params = HeadOnAsymmetricParams(blocker_west_m=0.2)
+
+    assert gen.variant_id(params, "blocked_short") == "w0p2_eopen_bshort_o0"
+
+
+def test_write_family_through_gshort_reproduces_committed_gshort_bytes(tmp_path):
+    # Adding a third mode must leave the frozen v1 and gshort artifacts alone:
+    # restricting the modes is documented to yield a strict manifest prefix.
+    gen.write_family(tmp_path, ORCHESTRATOR_YAML, goal_modes=("beyond", "opponent_spawn"))
+
+    for name in (
+        "head_on_asymmetric_w0p2_eopen_o0.yaml",
+        "head_on_asymmetric_wopen_e0p2_o0.yaml",
+        "head_on_asymmetric_wopen_eopen_o0.yaml",
+        "head_on_asymmetric_w0p2_eopen_gshort_o0.yaml",
+        "head_on_asymmetric_wopen_e0p2_gshort_o0.yaml",
+    ):
+        assert (gen.FAMILY_DIR / name).read_text() == (tmp_path / name).read_text(), name
+
+
+@pytest.mark.parametrize(
+    ("params", "goals"),
+    [
+        (
+            HeadOnAsymmetricParams(blocker_west_m=0.2),
+            {"robot_1": (2.5, 0.0), "robot_2": (-1.5, 0.0)},
+        ),
+        (
+            HeadOnAsymmetricParams(blocker_east_m=0.2),
+            {"robot_1": (1.5, 0.0), "robot_2": (-2.5, 0.0)},
+        ),
+    ],
+)
+def test_build_variant_blocked_short_shortens_only_the_blocked_side_goal(
+    base, geometry, params, goals
+):
+    config = gen.build_variant(base, params, geometry, "blocked_short")
+
+    assert {r.robot_id: (r.goal.x, r.goal.y) for r in config.robots} == goals
+
+
+def test_build_variant_blocked_short_mirrors_west_and_east(base, geometry):
+    # A sign error in the blocked-side lookup would shorten the wrong goal on
+    # exactly one side, which only a mirror comparison catches.
+    west = gen.build_variant(
+        base, HeadOnAsymmetricParams(blocker_west_m=0.2), geometry, "blocked_short"
+    )
+    east = gen.build_variant(
+        base, HeadOnAsymmetricParams(blocker_east_m=0.2), geometry, "blocked_short"
+    )
+
+    west_goals = {r.robot_id: r.goal.x for r in west.robots}
+    east_goals = {r.robot_id: r.goal.x for r in east.robots}
+    assert west_goals["robot_1"] == -east_goals["robot_2"]
+    assert west_goals["robot_2"] == -east_goals["robot_1"]
+
+
+def test_build_variant_blocked_short_leaves_the_oracle_unchanged(base, geometry):
+    for params in gen.grid_gshort():
+        beyond = gen.build_variant(base, params, geometry, "beyond")
+        bshort = gen.build_variant(base, params, geometry, "blocked_short")
+
+        assert bshort.oracle == beyond.oracle, params
+        assert bshort.static_obstacles == beyond.static_obstacles, params
+        assert [r.spawn for r in bshort.robots] == [r.spawn for r in beyond.robots], params
+        assert bshort.parameters == beyond.parameters, params
+
+
+def test_build_variant_blocked_short_rejects_a_cell_without_one_blocked_side(base, geometry):
+    with pytest.raises(ValueError, match="exactly one blocked side"):
+        gen.build_variant(base, HeadOnAsymmetricParams(), geometry, "blocked_short")
+
+
+def test_blocked_short_passer_goal_clears_the_yielder_park_point(base, geometry):
+    # The gshort west losses: the passer's goal fell INSIDE the park point, so
+    # the arrived passer sat in the yielder's return path. Here it must not.
+    config = gen.build_variant(
+        base, HeadOnAsymmetricParams(blocker_west_m=0.2), geometry, "blocked_short"
+    )
+
+    park = park_offset_m(geometry)
+    passer_goal_x = next(r.goal.x for r in config.robots if r.robot_id == "robot_1")
+    assert park == pytest.approx(1.789, abs=1e-3)
+    assert passer_goal_x - park >= 0.6
+
+
+def test_blocked_short_passer_goal_lies_past_the_escort_waypoint(base, geometry):
+    # M3 escorts the passer to park + passer_clearance_m. A goal short of that
+    # makes the passer double back toward the yielder, which is how gshort H2
+    # latched at 0.430 m. The margin is thin, so assert the sign explicitly.
+    config = gen.build_variant(
+        base, HeadOnAsymmetricParams(blocker_west_m=0.2), geometry, "blocked_short"
+    )
+
+    escort_end_x = park_offset_m(geometry) + passer_clearance_m(geometry)
+    passer_goal_x = next(r.goal.x for r in config.robots if r.robot_id == "robot_1")
+    assert escort_end_x == pytest.approx(2.439, abs=1e-3)
+    assert passer_goal_x > escort_end_x
+
+
+def test_blocked_short_yielder_goal_stops_short_of_the_blocker_box(base, geometry):
+    config = gen.build_variant(
+        base, HeadOnAsymmetricParams(blocker_west_m=0.2), geometry, "blocked_short"
+    )
+
+    blocker = config.static_obstacles[0]
+    near_face_x = blocker.pose.x + blocker.size.x_m / 2.0
+    yielder_goal_x = next(r.goal.x for r in config.robots if r.robot_id == "robot_2")
+    chassis_front_x = yielder_goal_x - ROBOT_HALF_LENGTH_M
+    assert near_face_x == pytest.approx(-1.70, abs=1e-6)
+    assert yielder_goal_x - near_face_x == pytest.approx(0.20, abs=1e-6)
+    # Goal-centre gap 0.20 m less the chassis half-length leaves 0.13 m of air.
+    assert chassis_front_x - near_face_x == pytest.approx(0.13, abs=1e-6)
+
+
+def test_arrival_tolerance_band_reaches_inside_the_blocker_box(base, geometry):
+    # Documented hazard, NOT a reason to move the goal: M5 accepts an arrival
+    # anywhere within arrival_position_tolerance_m of the goal, and the far
+    # edge of that band puts the chassis inside the box. The box is baked
+    # lethal into the Nav2 static map, so this is an acceptance-check risk
+    # rather than a driving one -- score box clearance from ground truth.
+    config = gen.build_variant(
+        base, HeadOnAsymmetricParams(blocker_west_m=0.2), geometry, "blocked_short"
+    )
+
+    blocker = config.static_obstacles[0]
+    near_face_x = blocker.pose.x + blocker.size.x_m / 2.0
+    far_face_x = blocker.pose.x - blocker.size.x_m / 2.0
+    yielder_goal_x = next(r.goal.x for r in config.robots if r.robot_id == "robot_2")
+    worst_accepted_x = yielder_goal_x - ARRIVAL_POSITION_TOLERANCE_M
+    assert worst_accepted_x - ROBOT_HALF_LENGTH_M < near_face_x
+    assert worst_accepted_x > far_face_x
+
+
+@pytest.mark.parametrize(
+    ("name", "goals"),
+    [
+        (
+            "head_on_asymmetric_w0p2_eopen_bshort_o0",
+            {"robot_1": (2.5, 0.0), "robot_2": (-1.5, 0.0)},
+        ),
+        (
+            "head_on_asymmetric_wopen_e0p2_bshort_o0",
+            {"robot_1": (1.5, 0.0), "robot_2": (-2.5, 0.0)},
+        ),
+    ],
+)
+def test_committed_bshort_yaml_round_trips(name, goals):
+    config = gen.load_scenario(gen.FAMILY_DIR / f"{name}.yaml")
+
+    assert config.name == name
+    assert config.family == "head_on"
+    assert {r.robot_id: (r.goal.x, r.goal.y) for r in config.robots} == goals
+    assert config.oracle is not None
+    assert config.parameters is not None
+
+
+def test_committed_bshort_yaml_carries_initial_tasks_guidance():
+    text = (gen.FAMILY_DIR / "head_on_asymmetric_w0p2_eopen_bshort_o0.yaml").read_text()
+
+    assert "initial_tasks" in text
+    assert "robot_1: { task: cross_narrow_aisle, goal: [2.5, 0] }" in text
+    assert "robot_2: { task: cross_narrow_aisle, goal: [-1.5, 0] }" in text
 
 
 def test_committed_family_matches_generator_output(tmp_path):

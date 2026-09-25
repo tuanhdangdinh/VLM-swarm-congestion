@@ -16,7 +16,9 @@ boxes, robot_2's spawn offset, the base-mission goals, and the
 
 `--goal-mode opponent_spawn` adds the `_gshort` cells: the same blockers with
 each robot's goal on the opposing spawn instead of +-2.5, so no goal path
-crosses a blocker box. The goal mode is a generator option, deliberately not a
+crosses a blocker box. `--goal-mode blocked_short` adds the `_bshort` cells,
+which shorten only the goal that lies past the blocker and leave the open-side
+goal at +-2.5. The goal mode is a generator option, deliberately not a
 `HeadOnAsymmetricParams` field -- adding it there would emit a new line in the
 `parameters:` block of the v1 variants and break their frozen bytes.
 
@@ -73,15 +75,26 @@ NAME_PREFIX = "head_on_asymmetric"
 #   opponent_spawn  - each robot's goal is the other robot's spawn (+-1.5), so
 #                     no goal path crosses a blocker. Retreat room behind each
 #                     spawn, and therefore the oracle, is untouched.
-GoalMode = Literal["beyond", "opponent_spawn"]
+#   blocked_short   - only the goal on the BLOCKED side is shortened to the
+#                     blocked robot's spawn; the goal on the OPEN side keeps
+#                     its +-2.5. No goal path crosses a blocker, and the
+#                     passer's goal stays beyond the yielder's park point, so
+#                     an arrived passer never sits in the yielder's return
+#                     path (the 2026-09-25 gshort west losses H2/H3).
+GoalMode = Literal["beyond", "opponent_spawn", "blocked_short"]
 GOAL_MODES: tuple[GoalMode, ...] = get_args(GoalMode)
 DEFAULT_GOAL_MODE: GoalMode = "beyond"
 # Slug inserted into the variant id for a non-default goal mode. The default
 # mode contributes nothing, so v1 variant ids and filenames are unchanged.
-GOAL_MODE_SLUG: dict[GoalMode, str] = {"beyond": "", "opponent_spawn": "gshort"}
+GOAL_MODE_SLUG: dict[GoalMode, str] = {
+    "beyond": "",
+    "opponent_spawn": "gshort",
+    "blocked_short": "bshort",
+}
 PREREG_TAG_BY_GOAL_MODE: dict[GoalMode, str] = {
     "beyond": "prereg-v1",
     "opponent_spawn": "prereg-v1-gshort",
+    "blocked_short": "prereg-v1-bshort",
 }
 PREREG_TAG = PREREG_TAG_BY_GOAL_MODE[DEFAULT_GOAL_MODE]
 BLOCKER_SIZE = ObstacleSize(x_m=0.3, y_m=0.3, z_m=0.5)
@@ -236,6 +249,69 @@ def _opponent_spawn_goals(robots: list[dict]) -> dict[str, tuple[float, float]]:
     }
 
 
+def _blocked_side(params: HeadOnAsymmetricParams) -> Literal["west", "east"]:
+    """Which side of the corridor carries the single blocker box.
+
+    Args:
+        params: The cell's blocker and arrival-offset parameters.
+
+    Returns:
+        `"west"` or `"east"`.
+
+    Raises:
+        ValueError: If the cell has no blocker or a blocker on both sides.
+    """
+    west, east = params.blocker_west_m is not None, params.blocker_east_m is not None
+    if west and not east:
+        return "west"
+    if east and not west:
+        return "east"
+    raise ValueError(
+        "goal_mode 'blocked_short' needs exactly one blocked side; got "
+        f"west={params.blocker_west_m}, east={params.blocker_east_m}"
+    )
+
+
+def _blocked_short_goals(
+    robots: list[dict], params: HeadOnAsymmetricParams
+) -> dict[str, tuple[float, float]]:
+    """Map each robot id to its goal with only the blocked-side goal shortened.
+
+    The robot spawned on the blocked side keeps its base-mission goal, which
+    lies on the open side beyond the yielder's park point. The robot on the
+    open side -- the oracle's yielder, whose base goal lies past the blocker
+    box -- has its goal pulled back to the blocked robot's spawn, stopping it
+    short of the box instead of squeezing it past.
+
+    Args:
+        robots: The scenario's robot blocks, as plain dicts.
+        params: The cell's blocker and arrival-offset parameters.
+
+    Returns:
+        Goal `(x, y)` per robot id.
+
+    Raises:
+        ValueError: If the scenario does not hold exactly two robots.
+    """
+    if len(robots) != 2:
+        raise ValueError(
+            f"goal_mode 'blocked_short' needs exactly two robots; got {len(robots)}"
+        )
+    blocked_robot = SIDE_ROBOT[_blocked_side(params)]
+    by_id = {robot["robot_id"]: robot for robot in robots}
+    if blocked_robot not in by_id:
+        raise ValueError(f"scenario has no {blocked_robot} to anchor the shortened goal on")
+    shortened_x = by_id[blocked_robot]["spawn"]["x"]
+    return {
+        robot["robot_id"]: (
+            (robot["goal"]["x"], robot["goal"]["y"])
+            if robot["robot_id"] == blocked_robot
+            else (shortened_x, 0.0)
+        )
+        for robot in robots
+    }
+
+
 def build_variant(
     base: ScenarioConfig,
     params: HeadOnAsymmetricParams,
@@ -302,8 +378,12 @@ def build_variant(
     for robot in data["robots"]:
         if robot["robot_id"] == "robot_2":
             robot["spawn"]["x"] = spawn_x
+    goals: dict[str, tuple[float, float]] | None = None
     if goal_mode == "opponent_spawn":
         goals = _opponent_spawn_goals(data["robots"])
+    elif goal_mode == "blocked_short":
+        goals = _blocked_short_goals(data["robots"], params)
+    if goals is not None:
         for robot in data["robots"]:
             goal_x, goal_y = goals[robot["robot_id"]]
             robot["goal"]["x"] = goal_x
@@ -406,6 +486,32 @@ def _goal_mode_lines(config: ScenarioConfig, goal_mode: GoalMode) -> list[str]:
             "# variant. M5 does NOT read these goals: set orchestrator.yaml "
             "initial_tasks to match."
         )
+    if goal_mode == "blocked_short":
+        lines.append(
+            "# Only the blocked-side goal is shortened, to the blocked robot's "
+            "spawn; the open-side"
+        )
+        lines.append(
+            "# goal keeps +-2.5, so the passer's goal stays beyond the "
+            "yielder's park point and an"
+        )
+        lines.append(
+            "# arrived passer never sits in the yielder's return path (the "
+            "gshort H2/H3 losses)."
+        )
+        lines.append(
+            "# Spawns, blockers and the oracle are byte-identical to the "
+            "corresponding beyond-goal"
+        )
+        lines.append(
+            "# variant. M5 does NOT read these goals: set orchestrator.yaml "
+            "initial_tasks to"
+        )
+        for robot in config.robots:
+            lines.append(
+                f"#   {robot.robot_id}: {{ task: {robot.initial_task}, "
+                f"goal: [{robot.goal.x:g}, {robot.goal.y:g}] }}"
+            )
     return lines
 
 
@@ -458,6 +564,9 @@ def _write_manifest(path: Path, rows: list[dict[str, str]]) -> None:
 
 def grid_for(goal_mode: GoalMode) -> list[HeadOnAsymmetricParams]:
     """The parameter cells generated in one goal mode.
+
+    Every goal mode that moves a goal only has something to say about a cell
+    holding a blocker, so all of them share `grid_gshort`'s two cells.
 
     Args:
         goal_mode: Where that mode's base-mission goals sit.
@@ -534,7 +643,8 @@ def main(argv: list[str] | None = None) -> None:
         default="all",
         help="Which goal modes to generate: 'beyond' keeps the base scenario's "
         "+-2.5 goals, 'opponent_spawn' puts each robot's goal on the other's "
-        "spawn so no goal path crosses a blocker (default: all)",
+        "spawn, 'blocked_short' shortens only the blocked-side goal and leaves "
+        "the open-side goal at +-2.5 (default: all)",
     )
     args = parser.parse_args(argv)
 

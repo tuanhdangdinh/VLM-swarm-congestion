@@ -72,9 +72,14 @@ frame_downscale_width: null
 # set per scenario by hand, like static_obstacles below:
 #   head_on_deadlock, *_o0 (beyond goals)  -> +-2.5 as written
 #   *_gshort_o0 (goal-short variants)      -> robot_1 [1.5, 0.0], robot_2 [-1.5, 0.0]
-# Running a _gshort scenario without changing these dispatches +-2.5 and the
-# variant silently degrades to its beyond-goal twin, blocker back on the goal
-# path (isaac/config/scenarios/family/*_gshort_o0.yaml).
+#   w0p2_eopen_bshort_o0 (west blocked)    -> robot_1 [2.5, 0.0], robot_2 [-1.5, 0.0]
+#   wopen_e0p2_bshort_o0 (east blocked)    -> robot_1 [1.5, 0.0], robot_2 [-2.5, 0.0]
+# Running a _gshort or _bshort scenario without changing these dispatches +-2.5
+# and the variant silently degrades to its beyond-goal twin, blocker back on
+# the goal path (isaac/config/scenarios/family/*_{gshort,bshort}_o0.yaml).
+# The _bshort pair is asymmetric on purpose: only the goal that lies past the
+# blocker is shortened, so the passer's goal stays beyond the yielder's park
+# point (1.789 m) and an arrived passer cannot block the yielder's return.
 initial_tasks:
   robot_1: { task: cross_narrow_aisle, goal: [2.5, 0.0] }
   robot_2: { task: cross_narrow_aisle, goal: [-2.5, 0.0] }
