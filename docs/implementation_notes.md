@@ -203,6 +203,29 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-25** — **`feat/gemini-er2-backend` merged onto the FR2.1.9 line**
+  (`c7a08e7`, a `--no-ff` merge of `7d6e1c4`). Select ER-2 with
+  `reasoning_backend_id: gemini` in
+  `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml` plus a
+  `GEMINI_API_KEY` in the environment; `config/models.yaml`'s `vlm.gemini`
+  block carries no `reasoner:` override on purpose, so the backend inherits the
+  shared sampling defaults (temperature 0.6) and reports what the Interactions
+  API drops in `ReasonerDiagnostics.unsupported_sampling`. `vlm.openai` still
+  resolves to temperature 0.0, unchanged. Prompt-block order after the merge:
+  robot states → pairwise geometry → static obstacles → known IDs → failure
+  context → guidance → visual cross-check → output format, so the cross-check
+  block's "the pairwise geometry above" still refers to a block above it.
+  **Re-pin:** the crosscheck baselines `_BASELINE_PROMPT_SHA256` (`5a57c937…`
+  → `3b77d224…`) and `_BASELINE_PROMPT_SHA256_NO_GEOMETRY` (`4664ff95…` →
+  `a9c8abfc…`) in `tests/unit/test_prompt_builder.py` were generated at
+  7f5e075, which predates the permanent `yield_robot` stimulus change; a
+  rendered diff of `_request()` at 7d6e1c4 vs the merge shows only the three
+  documented FR2.1.9 edits, so the pins were re-pointed, not the prompt fixed
+  (`590ac23`). The geometry-on value is now identical to
+  `_PRE_OBSTACLE_OFF_PROMPT_SHA256` by construction; both constants are kept
+  because they pin the same string for different reasons. Artifacts under
+  `data/logs/er2_grounding` were collected under the 7f5e075 prompt and are
+  comparable with each other, not byte-identical to post-FR2.1.9 renders.
 - **2026-09-25** — **Five live gpt-4o runs validate the feasibility gate; `swap`
   is the recommended default.** L1 `20260925_002713` (`id_asc`, `swap`)
   re-grounded `robot_1`→`robot_2` → COMPLETED yield, 2/2 arrivals, on the cell
