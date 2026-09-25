@@ -203,6 +203,18 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-25** — **Rev 5: Arm A pilot green on the adopted defaults; the
+  refusal class is bigger and image-driven**
+  (`docs/reports/2026-09-25-overnight-findings.md` §O–§R, consolidating the
+  three entries below). Six runs (`20260925_063520`/`065143`/`070637`/`072130`/
+  `073621`/`075116`, gpt-4o T=0.0, obstacles ON, order `random`, gate `"swap"`,
+  `keep_debug_frames: true`): M2 named an infeasible yielder in 4/6, the gate
+  re-grounded all four, first yield COMPLETED 6/6 (142.2–147.9 s), episode
+  outcome 4/6 — both misses the blocker-on-goal-path property, not coordination
+  failures. First `yield_robot` = `robot_1` in 5/6 (ID-anchored); zero `reverse`
+  openings. **Supersedes the "3 of 22" refusal figure in the §K–§N entry
+  below**: 23/101 attempt-1, 12/101 terminal, 9 of 12 obstacle-ON, Rev 1 §6(b)
+  included. Replay Arms O/M/grey stay blocked on OpenAI credit.
 - **2026-09-25** — **The real annotated frame is the gpt-4o refusal trigger**
   (`scripts/replay_live_decisions.py`, report
   `docs/reports/2026-09-25-frame-replay.md`). All 74 pilot prompts re-render

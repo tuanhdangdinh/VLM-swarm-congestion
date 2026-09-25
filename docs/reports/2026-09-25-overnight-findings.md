@@ -8,6 +8,7 @@
 - Rev 2 (2026-09-25): adds the M3 yield feasibility gate and random presentation order, five live validation runs, and a correction to the strength of the live order effect.
 - Rev 3 (2026-09-25): adds the Gemini Robotics-ER 2 M2 backend — its offline presentation-order arm and four live closed-loop runs — plus two arithmetic/instrumentation corrections to Rev 1.
 - Rev 4 (2026-09-25): adds the decisive ER-2 cell (west-blocked, `id_asc`, gate off, n=3) and the gpt-4o obstacles-OFF arm, a consolidated live tally across both models, and the finding that the offline probe does not predict live order sensitivity.
+- Rev 5 (2026-09-25): adds the six-run Arm A pilot on the adopted defaults, the full gpt-4o refusal census, and the real-frame replay that identifies the annotated camera frame as the refusal trigger.
 
 ---
 
@@ -297,6 +298,12 @@ Six re-analyses across R1, R3 and R4 returned `decision=None` with
 
 None ever affected a dispatch — every one occurred after the congestion had
 already resolved — but this is a parse-robustness item.
+
+> Superseded by Rev 5 §P. These six are not a parser defect: the census finds
+> every gpt-4o parse failure in the local corpus to be a safety refusal, and
+> its per-run table scores exactly these terminal refusals in R1 (2), R3 (1)
+> and R4 (3). The item is refusal handling — retry policy and stimulus — not
+> JSON-extraction robustness.
 
 ### (c) Solo-stall triggering
 
@@ -836,6 +843,11 @@ D3's 1/2 is **not** a yield failure: `robot_2` stuck at x = −1.662 on its own
 goal run past the blocker — the same east/west blocker-on-goal-path property
 recorded for L2 in Rev 2 §B.
 
+> Metric note: see Rev 5 §O. The 0.1020 m figures here are `min|x − face|` and
+> mean *arrested short of the face*; that statistic collapses to ~0 for any
+> robot that transits the gap, so the Rev 5 pilot reports a signed extremum
+> plus final `x` instead. The two columns are not comparable.
+
 D1's first trigger, the reason it never opened with `reverse`:
 
 ```text
@@ -910,6 +922,15 @@ logs; Nav2 errors stayed within the known-benign set.
    congestion had already cleared, whereas O1's refusal consumed the run's
    **first** analysis slot.
 
+   > Superseded by Rev 5 §P on three counts: the census over all 101 live
+   > gpt-4o calls finds 23 attempt-1 and 12 terminal refusals, not three; nine
+   > of the 12 terminal ones are obstacle-**ON**, so the class is not confined
+   > to the obstacles-OFF arm; and the post-resolution parse failures of Rev 1
+   > §6(b) are the same refusal class, not a distinct one. The count here was
+   > missed by a literal string match that does not cover the "but" phrasing
+   > (`raw_text="I'm sorry, but I can't assist with that."`). O1's refusal
+   > consuming the run's first analysis slot stands.
+
 ---
 
 ## M. Consolidated Live Tallies
@@ -977,3 +998,192 @@ The VM config was restored byte-exact (`md5`
 was idle at 05:05 UTC. Artifacts remain git-ignored under
 `data/logs/vm_runs/`. No new code commits — this revision is documentation
 only.
+
+---
+
+## O. Arm A Pilot With the Adopted Defaults
+
+Six runs on the configuration adopted in Rev 4 §N item 1: gpt-4o at
+`temperature=0.0`, obstacle channel **on**, `grounding_yield_feasibility:
+"swap"`, `prompt_robot_order: random` with `prompt_robot_order_seed: null`, and
+`keep_debug_frames: true`. The installed YAML was parsed and asserted before
+every launch. Tree `e6be85c` on the VM; local branch
+`fix/deadlock-collision-resolution` at `2ff8baf`. Summary:
+`data/logs/vm_runs/ARM_A_PILOT_SUMMARY.txt`; artifacts under
+`data/logs/vm_runs/20260925_{063520,065143,070637,072130,073621,075116}/`.
+
+| Run | STAMP | Scenario | Drawn order (seed) | First `yield_robot` | Gate | First yield status / duration | Arrivals | First analysis → both arrived | Analyses / commands | Refusals (attempt-1) | Nav2 recoveries `r1`/`r2` |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| P1 | `20260925_063520` | `w0p2_eopen` | `id_desc` (11692839038650319742) | `robot_1` | fired `r1`→`r2` | COMPLETED 147.4 s | 1/2 | — | 23 / 3 | 2 | 0 / 7 |
+| P2 | `20260925_065143` | `w0p2_eopen` | `id_asc` (6655140194514512915) | `robot_1` | fired `r1`→`r2` | COMPLETED 144.7 s | 2/2 | 326.8 s | 8 / 1 | 0 | 0 / 1 |
+| P3 | `20260925_070637` | `w0p2_eopen` | `id_asc` (12886736765469768478) | `robot_1` | fired `r1`→`r2` | COMPLETED 145.8 s | 2/2 | 328.5 s | 7 / 1 | 1 | 0 / 2 |
+| P4 | `20260925_072130` | `wopen_e0p2` | `id_asc` (11377275926542616640) | `robot_1` | no-op (feasible) | COMPLETED 147.9 s | 2/2 | 321.6 s | 7 / 1 | 0 | 2 / 0 |
+| P5 | `20260925_073621` | `wopen_e0p2` | `id_asc` (2010951348925484183) | `robot_1` | no-op (feasible) | COMPLETED 145.8 s | 2/2 | 281.2 s | 3 / 1 | 0 | 1 / 0 |
+| P6 | `20260925_075116` | `wopen_e0p2` | `id_desc` (2727189488213636520) | `robot_2` | fired `r2`→`r1` | COMPLETED 142.2 s | 1/2 | — | 26 / 1 | 0 | 9 / 0 |
+
+Notes on the table:
+
+- The two episodes that did not reach 2/2 ended at the blocker, not at a failed
+  maneuver. In P1, `robot_2` was wedged 0.064 m past the west face in the
+  0.20 m gap on its own goal run; in P6, `robot_1` was arrested 0.004 m past
+  the east face on its own goal run.
+- Metric note: `min|x − face|` collapses to ~0 for any robot that transits the
+  gap — P5 passes 0.005 m from the face plane and arrives, P6 stops 0.000 m
+  from it and does not — so the pilot reports the **signed extremum in the
+  travel direction plus final `x`**. These figures are not comparable to Rev 4
+  §K's "0.1020 m short".
+- The ground-truth stream is capped at 3001 rows / 300 sim-s per run by the
+  logger, not by run length, so the P1 and P6 extrema are bounds rather than
+  settled minima.
+- Commands count **distinct dispatched** commands, comparable to Rev 4 §K.
+
+### Findings
+
+- **M2 named an infeasible yielder in 4/6 runs** (P1, P2, P3 west → `robot_1`;
+  P6 east → `robot_2`), and the M3 gate re-grounded every one:
+
+  ```text
+  strategy=yield yield_robot=robot_1 type=deadlock congestion=True terminal=ok failure_reason=None
+  gate=swap grounded_from=robot_1 regrounded=yield re-grounded: robot_1 has 0.70 m retreat room < 1.08 m required; robot_2 feasible
+  ```
+
+- **The dispatched first yield COMPLETED in 6/6 runs**, 142.2–147.9 s, mean
+  145.6 s, tight across both variants and both yielder identities. Gate
+  intervention rate 4/6; it was a no-op exactly when M2 named a feasible
+  yielder (P4, P5) and never harmful. Without it, those four are the known
+  pre-gate failure mode.
+- **Episode outcome (both arrived) is 4/6**, 2/3 per variant. Both misses are
+  the blocker-on-goal-path property of the scenario family (Rev 2 §D item 4,
+  Rev 4 §N item 5), not coordination failures: in each the yield completed and
+  the yielder arrived before the other robot stalled at the box. Read
+  unqualified, 4/6 understates the coordination result.
+- **First `yield_robot` was `robot_1` in 5/6**, the exception being P6
+  (`id_desc`, east). This is the ID-anchored live behaviour of Rev 4 §L item 2,
+  now observed under random order.
+- **Resolution time** (first analysis → both arrived) 281.2–328.5 s, mean
+  314.5 s, range 47 s.
+- **Zero `reverse` openings for gpt-4o.** All six opened `yield` at episode 0
+  on a solo-stall trigger, against ER-2's 5/6 `reverse` in Rev 4 §L item 5.
+  This closes that item for gpt-4o under these defaults.
+- **Order draws**: `id_asc` 4, `id_desc` 2. An independent `sha256(STAMP)`
+  recomputation matched the recorded `robot_presentation_order` for every
+  episode in all six runs. `EpisodeOrderTracker` closes an episode only when a
+  robot in the tracked set arrives; on the east variant the tracked set was
+  `{robot_1}` and `robot_2` arrived first, so P4 and P5 drew once for the whole
+  run.
+- **Parse**: 74 analyses — 64 valid at attempt 1, 7 recovered at attempt 2, 3
+  terminal refusals (P1 ×2, P3 ×1). All three were post-resolution re-analyses
+  in a later episode; none consumed a run's first analysis slot, unlike O1 in
+  Rev 4 §K. 69/74 raw responses open with a literal `<think>` block echoing the
+  prompt's reasoning checklist — the normal output shape here, present on valid
+  responses too.
+- **Frames**: `keep_debug_frames` wrote one PNG per analysis, joining 1:1 as
+  `m5_frames/<request_id>.png` ↔ `decisions/<request_id>.json` ↔
+  `prompt.user_sha256`, with zero orphans in either direction in all six runs.
+  74 PNGs, 48 MB.
+
+---
+
+## P. gpt-4o Refusal Census
+
+Commits `5a27fc3` and `26419e0`; report
+`docs/reports/2026-09-25-gpt4o-refusals.md`.
+
+Over every live gpt-4o decision of 2026-09-24/25 (n = 101): **23 attempt-1
+refusals (22.8%) and 12 terminal (11.9%)** — not the three counted in Rev 4 §L
+item 7. The undercount has two causes: the literal string match missed
+`I'm sorry, **but** I can't assist with that.`, and only terminal failures were
+scored. Nine of the 12 terminal refusals are obstacle-**ON**, so the class is
+not tied to the obstacles-OFF arm. Every gpt-4o parse failure in the local
+corpus is a safety refusal; there is no other failure mode in the data.
+
+- One re-ask rescues about 48% of attempt-1 refusals; within a request the
+  refusal persists with conditional probability 0.52.
+- ER-2 refused 0/62 (p = 8.9e-6 against gpt-4o on attempt 1).
+- **No prompt-side factor explains attempt-1 refusals**: obstacle channel
+  p = 1.0; failure context 0.0030 raw → 0.094 after correction; solo vs pair
+  stall is a null. Failure context does predict **non-recovery** (p = 0.012,
+  n = 23).
+- Instrumentation: `Reasoner` records `backend_id="openai"` on failures and
+  `"gpt-4o"` on successes, which splits one model into two rows — group by run,
+  not by that field.
+- Offline replay of the exact refusing prompts plus controls — T = 0.0/0.6,
+  re-ask arm, ablations dropping failure context and the `<think>` block,
+  wording groups, `gpt-4o-mini` — with grey and synthetic images produced
+  **0/240 refusals** ($1.21). The prompt text is not the trigger.
+
+---
+
+## Q. Real-Frame Replay
+
+Commits `f70c444`, `f7bb200`, `f8d48bb`, `1e8551c`; report
+`docs/reports/2026-09-25-frame-replay.md`.
+
+**Reconstruction integrity.** Re-rendering each artifact through
+`build_reasoner_request` from its stored `scene`, the run's
+`orchestrator.yaml.used` and the real PNG reproduced the stored user-prompt
+SHA-256 in **74/74** artifacts, the 19 carrying a failure-context block
+included — M5 persists `failure_context` structurally.
+
+**Arm R (36 artifacts × n = 3 = 108 calls, real frames).** Attempt-1 refusals
+27/108 = 25.0%, against 8/36 = 22.2% live on the same artifacts (p = 0.83) and
+0/240 with synthetic images (p = 1.2e-13, cross-experiment). Terminal 11.1%
+(census 11.9%); the re-ask recovered 15/27 = 55.6%. Refusals are
+**stimulus-locked**: artifacts that refused live refuse 13/24 on replay against
+14/84 for live-valid artifacts (p = 8.0e-4).
+
+**Verdict: the annotated camera frame is the refusal trigger.**
+
+**Arm O (order sensitivity on real stimuli)** ran only at n = 1 per cell:
+`id_asc` → `robot_1` 6/6, `id_desc` → `robot_1` 3/5 (p = 0.18). The direction
+matches the ID-anchored live reading of Rev 4 §L item 2, but this is not
+evidence. **Arm M (mitigations)** and the paired grey-image sub-arm did not
+run.
+
+**Blocker.** The OpenAI account exhausted its credits mid-run (HTTP 429
+`insufficient_quota`); $0.85 of the ≈$3 budget spent over 151 calls. Resume
+with `python scripts/replay_live_decisions.py --arm R|grey|O|M|analyze` —
+completed cells are keyed and skipped.
+
+Recommendation, as stated in that report: **keep the re-ask** (without it the
+terminal rate goes from 11% to 25%), test `max_attempts` 3–4 in Arm M, budget
+≈1.25 calls and ≈0.11 lost analysis slots per gpt-4o analysis, and prefer ER-2
+(0/62) wherever a lost analysis slot is costly.
+
+---
+
+## R. Next Steps
+
+1. Add OpenAI credits and resume the replay: `--arm O` at n = 8 to settle
+   real-stimulus order sensitivity, `--arm M` for the retry policy, `--arm
+   grey` for the image pairing.
+2. Investigate **what in the frame** triggers the refusal before Arm A
+   collection. Candidates: ArUco marker patterns, annotation text, image size.
+   The cheap tests are the grey sub-arm and a downscaled-frame arm via
+   `frame_downscale_width`.
+3. Decide the scenario question on the blocker-on-goal-path property — 2/6
+   pilot episodes were lost to it. Either move the blocker off the goal path or
+   score the non-yielder's arrival separately.
+4. Pre-register: gate `swap` plus random presentation order, episode outcome as
+   primary, `max_attempts` per Arm M, and frames kept for every run
+   (`keep_debug_frames: true`, ≈0.65 MB per analysis).
+5. Run an ER-2 arm pilot on the same six-run design for the cost, latency and
+   conformance comparison. The Gemini credit balance is unaffected.
+6. Wire `--duration-sec` and lift the ground-truth logger cap (3001 rows)
+   before running longer episodes.
+
+---
+
+## Rev 5 Provenance
+
+Commits after `2ff8baf`: `5a27fc3`, `26419e0`, `f70c444`, `f7bb200`,
+`f8d48bb`, `1e8551c`, plus this documentation commit.
+
+Run ids: `20260925_063520`, `20260925_065143`, `20260925_070637`,
+`20260925_072130`, `20260925_073621`, `20260925_075116`.
+
+The VM config was restored byte-exact (`md5`
+`3ed3795f174c3df079e050e9b4e49572`, `keep_debug_frames` back to `false`), the
+container was restarted, and the GPU was idle. Artifacts remain git-ignored
+under `data/logs/vm_runs/`. Local test suite: 898 passed, 55 failed, 3 errors —
+the same environmental set as previous revisions.
