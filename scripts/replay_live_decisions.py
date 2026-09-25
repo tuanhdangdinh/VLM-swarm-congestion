@@ -101,8 +101,17 @@ Arm = Literal["R", "grey", "O", "M"]
 RetryPolicy = Literal["shipped", "original_prompt", "max_attempts_4"]
 
 
+# An exhausted credit balance arrives as HTTP 429 with these markers; a rate
+# limit does not carry them.
+QUOTA_RE = re.compile(r"insufficient_quota|credit_balance_exhausted|no credits remaining", re.I)
+
+
 class AuthAbort(RuntimeError):
     """Raised when the API rejects our credentials, to stop the run immediately."""
+
+
+class QuotaAbort(RuntimeError):
+    """Raised when the API reports an exhausted credit balance, which no retry clears."""
 
 
 def is_refusal(text: str | None) -> bool:
@@ -394,6 +403,7 @@ class RecordingBackend:
 
         Raises:
             AuthAbort: If the API rejects the credentials (HTTP 401/403).
+            QuotaAbort: If the API reports an exhausted credit balance.
             ConnectionError: For any other transport failure, re-raised so the
                 production `Reasoner` sees the error class it expects.
         """
@@ -409,6 +419,12 @@ class RecordingBackend:
                 message = str(exc)
                 if re.search(r"HTTP 40[13]\b", message):
                     raise AuthAbort(f"credentials rejected: {message[:200]}") from exc
+                # OpenAI returns an exhausted credit balance as HTTP 429, the same
+                # status as a rate limit. Backing off cannot clear it, so the
+                # quota codes abort the run rather than burning the back-off
+                # ladder once per cell (this cost ~4 min/cell on 2026-09-25).
+                if QUOTA_RE.search(message):
+                    raise QuotaAbort(f"API quota exhausted: {message[:200]}") from exc
                 if re.search(r"HTTP 429\b", message) and retry < self._max_backoff_retries:
                     print(f"  429 received; backing off {backoff:.0f}s")
                     time.sleep(backoff)
@@ -522,7 +538,7 @@ def run_cell(
     result = None
     try:
         result = Reasoner(backend, config).run(request)
-    except AuthAbort:
+    except (AuthAbort, QuotaAbort):
         raise
     except Exception as exc:  # noqa: BLE001 - transport failures are recorded as data
         error = f"{type(exc).__name__}: {str(exc)[:300]}"
@@ -552,9 +568,10 @@ def run_cell(
         "n_attempts": len(attempts),
         "attempt1_refusal": bool(attempts) and attempts[0]["refused"],
         "attempt1_parsed": bool(attempts) and attempts[0]["parsed"],
-        "terminal_refusal": bool(attempts)
-        and all(a["refused"] for a in attempts)
-        and decision is None,
+        # Refused on entry and never recovered. Not `all(refused)`: `Reasoner.run`
+        # retries a ConnectionError without a re-ask, so a transport failure would
+        # append a non-refusal attempt and mask an otherwise-terminal refusal.
+        "terminal_refusal": decision is None and bool(attempts) and attempts[0]["refused"],
         "parse_status": result.diagnostics.parse_status if result else None,
         "decision": decision,
         "strategy": (decision or {}).get("strategy"),
@@ -593,6 +610,7 @@ def execute(cells: list[Cell], out_dir: Path, pace_sec: float) -> list[dict[str,
 
     Raises:
         AuthAbort: Propagated so an unusable key stops the run immediately.
+        QuotaAbort: Propagated so an exhausted credit balance stops the run.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     calls_path = out_dir / "calls.jsonl"
@@ -748,6 +766,214 @@ def fisher_two_sided(a: int, b: int, c: int, d: int) -> float:
     )
 
 
+GPT4O_USD_PER_PROMPT_TOKEN = 2.50 / 1_000_000
+GPT4O_USD_PER_COMPLETION_TOKEN = 10.00 / 1_000_000
+
+
+def _rate(numerator: int, denominator: int) -> str:
+    """Format a count over a denominator as `k/n (p%)`."""
+    if denominator == 0:
+        return "0/0 (n/a)"
+    return f"{numerator}/{denominator} ({100 * numerator / denominator:.1f}%)"
+
+
+def terminal_refusal(record: dict[str, Any]) -> bool:
+    """Whether a recorded run refused on attempt 1 and never produced a decision.
+
+    Recomputed from the stored attempts rather than read from the record, so that
+    rows written before this definition was tightened are scored the same way.
+    """
+    attempts = record.get("attempts") or []
+    return record.get("decision") is None and bool(attempts) and attempts[0]["refused"]
+
+
+def _attempt1_stats(records: list[dict[str, Any]]) -> tuple[int, int]:
+    """Return (attempt-1 refusals, runs) over records that produced at least one attempt."""
+    usable = [r for r in records if r.get("n_attempts")]
+    return sum(int(r["attempt1_refusal"]) for r in usable), len(usable)
+
+
+def analyze(records: list[dict[str, Any]], artifacts: list[Artifact]) -> None:
+    """Print the report-ready tables for every arm present in `records`.
+
+    Args:
+        records: Every recorded call, as read from `calls.jsonl`.
+        artifacts: The loaded artifacts, for the live-rate comparison.
+    """
+    by_arm: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for record in records:
+        by_arm[record["arm"]].append(record)
+    by_id = {a.request_id: a for a in artifacts}
+
+    arm_r = by_arm.get("R", [])
+    if arm_r:
+        refusals, runs = _attempt1_stats(arm_r)
+        terminal = sum(int(terminal_refusal(r)) for r in arm_r)
+        errors = sum(int(bool(r.get("error"))) for r in arm_r)
+        print("\n## Arm R (real frame, stored order)")
+        print(f"runs={runs} attempt-1 refusals={_rate(refusals, runs)} "
+              f"terminal={_rate(terminal, runs)} transport errors={errors}")
+        reasked = [r for r in arm_r if r["attempt1_refusal"]]
+        recovered = sum(1 for r in reasked if r.get("decision") is not None)
+        print(f"re-ask recovered {_rate(recovered, len(reasked))} of the refused runs")
+
+        print("\nrun,artifacts,runs,attempt1_refusals,rate")
+        for run in sorted({r["run"] for r in arm_r}):
+            group = [r for r in arm_r if r["run"] == run]
+            k, n = _attempt1_stats(group)
+            print(f"{run},{len({r['request_id'] for r in group})},{n},{k},{k / n:.3f}")
+
+        print("\nlive_attempt1_refusal,runs,attempt1_refusals,rate")
+        for flag in (True, False):
+            group = [r for r in arm_r if r["live_attempt1_refusal"] is flag]
+            k, n = _attempt1_stats(group)
+            print(f"{flag},{n},{k},{(k / n if n else 0):.3f}")
+        a = sum(int(r["attempt1_refusal"]) for r in arm_r if r["live_attempt1_refusal"])
+        b = sum(1 for r in arm_r if r["live_attempt1_refusal"]) - a
+        c = sum(int(r["attempt1_refusal"]) for r in arm_r if not r["live_attempt1_refusal"])
+        d = sum(1 for r in arm_r if not r["live_attempt1_refusal"]) - c
+        print(f"live-refused vs live-valid artifacts: fisher p={fisher_two_sided(a, b, c, d):.4g}")
+
+        print("\nfailure_context,runs,attempt1_refusals,rate")
+        for flag in (True, False):
+            group = [
+                r for r in arm_r if bool(by_id[r["request_id"]].failure_context) is flag
+            ]
+            k, n = _attempt1_stats(group)
+            print(f"{flag},{n},{k},{(k / n if n else 0):.3f}")
+
+        per_artifact = defaultdict(list)
+        for record in arm_r:
+            per_artifact[record["request_id"]].append(int(record["attempt1_refusal"]))
+        ever = sum(1 for v in per_artifact.values() if any(v))
+        always = sum(1 for v in per_artifact.values() if all(v))
+        print(f"\nartifacts refusing at least once: {_rate(ever, len(per_artifact))}; "
+              f"on every replicate: {_rate(always, len(per_artifact))}")
+
+    arm_grey = by_arm.get("grey", [])
+    if arm_grey:
+        print("\n## Grey-image sub-arm (paired on the same prompts)")
+        print("live_status,image,runs,attempt1_refusals,rate")
+        for flag in (True, False):
+            label = "live_refused" if flag else "live_valid"
+            ids = {r["request_id"] for r in arm_grey if r["live_attempt1_refusal"] is flag}
+            for image, pool in (("real", arm_r), ("grey", arm_grey)):
+                group = [r for r in pool if r["request_id"] in ids]
+                k, n = _attempt1_stats(group)
+                print(f"{label},{image},{n},{k},{(k / n if n else 0):.3f}")
+        grey_ids = {r["request_id"] for r in arm_grey}
+        real = [r for r in arm_r if r["request_id"] in grey_ids]
+        a, an = _attempt1_stats(real)
+        c, cn = _attempt1_stats(arm_grey)
+        print(f"pooled real {a}/{an} vs grey {c}/{cn}, "
+              f"fisher p={fisher_two_sided(a, an - a, c, cn - c):.4g}")
+
+    arm_o = by_arm.get("O", [])
+    if arm_o:
+        print("\n## Arm O (order on real stimuli)")
+        header = (
+            "run,request_id,stored_order,order,n,decided,yield,"
+            "P(yield=robot_1),P(first_listed),P(correct),non_yield"
+        )
+        print(header)
+        for run in sorted({r["run"] for r in arm_o}):
+            for order in ORDERS:
+                group = [r for r in arm_o if r["run"] == run and r["order"] == order]
+                if not group:
+                    continue
+                yields = [r for r in group if r["strategy"] == "yield"]
+                decided = [r for r in group if r.get("decision") is not None]
+                first_listed = "robot_1" if order == "id_asc" else "robot_2"
+                n_y = len(yields)
+                r1 = sum(1 for r in yields if r["yield_robot"] == "robot_1")
+                fl = sum(1 for r in yields if r["yield_robot"] == first_listed)
+                ok = sum(1 for r in yields if r["yield_robot"] == r["correct_yielder"])
+                print(
+                    f"{run},{group[0]['request_id'][:8]},{group[0]['stored_order']},{order},"
+                    f"{len(group)},{len(decided)},{n_y},"
+                    f"{(r1 / n_y if n_y else 0):.3f},{(fl / n_y if n_y else 0):.3f},"
+                    f"{(ok / n_y if n_y else 0):.3f},{len(decided) - n_y}"
+                )
+        for label, pool in (
+            ("pooled", arm_o),
+            ("attempt-1 only", [r for r in arm_o if not r["attempt1_refusal"]]),
+        ):
+            cells = {}
+            for order in ORDERS:
+                yields = [r for r in pool if r["order"] == order and r["strategy"] == "yield"]
+                cells[order] = (
+                    sum(1 for r in yields if r["yield_robot"] == "robot_1"),
+                    len(yields),
+                )
+            (a, an), (c, cn) = cells["id_asc"], cells["id_desc"]
+            print(
+                f"{label}: P(yield=robot_1) id_asc {a}/{an} vs id_desc {c}/{cn}, "
+                f"fisher p={fisher_two_sided(a, an - a, c, cn - c):.4g}"
+            )
+            # First-listed is robot_1 under id_asc and robot_2 under id_desc, so the
+            # id_desc first-listed count is the complement of its robot_1 count.
+            print(
+                f"{label}: P(yield=first-listed) id_asc {_rate(a, an)} vs "
+                f"id_desc {_rate(cn - c, cn)}; pooled {_rate(a + cn - c, an + cn)}"
+            )
+            ok = sum(
+                1
+                for r in pool
+                if r["strategy"] == "yield" and r["yield_robot"] == r["correct_yielder"]
+            )
+            print(f"{label}: P(correct yielder) {_rate(ok, an + cn)} of yields")
+
+    arm_m = by_arm.get("M", [])
+    if arm_m:
+        print("\n## Arm M (retry policy on the Arm-R refusers)")
+        print(
+            "policy,runs,attempt1_refusals,terminal_refusals,terminal_rate,"
+            "mean_attempts,transport_errors"
+        )
+        for policy in ("shipped", "original_prompt", "max_attempts_4"):
+            group = [r for r in arm_m if r["policy"] == policy]
+            if not group:
+                continue
+            k, n = _attempt1_stats(group)
+            terminal = sum(int(terminal_refusal(r)) for r in group)
+            mean_attempts = sum(r["n_attempts"] for r in group) / len(group)
+            errors = sum(int(bool(r.get("error"))) for r in group)
+            print(
+                f"{policy},{n},{k},{terminal},{(terminal / n if n else 0):.3f},"
+                f"{mean_attempts:.2f},{errors}"
+            )
+        # Conditional on a refused attempt 1, which is the quantity the retry
+        # policy actually acts on.
+        print("policy,refused_attempt1,still_terminal,conditional_terminal_rate")
+        for policy in ("shipped", "original_prompt", "max_attempts_4"):
+            refused = [r for r in arm_m if r["policy"] == policy and r["attempt1_refusal"]]
+            if not refused:
+                continue
+            terminal = sum(int(terminal_refusal(r)) for r in refused)
+            print(f"{policy},{len(refused)},{terminal},{terminal / len(refused):.3f}")
+
+    prompt_tokens = sum(
+        (a.get("token_usage") or {}).get("prompt_tokens", 0)
+        for r in records
+        for a in (r.get("attempts") or [])
+    )
+    completion_tokens = sum(
+        (a.get("token_usage") or {}).get("completion_tokens", 0)
+        for r in records
+        for a in (r.get("attempts") or [])
+    )
+    api_calls = sum(len(r.get("attempts") or []) for r in records)
+    cost = (
+        prompt_tokens * GPT4O_USD_PER_PROMPT_TOKEN
+        + completion_tokens * GPT4O_USD_PER_COMPLETION_TOKEN
+    )
+    print(
+        f"\n## Cost\nreasoner runs={len(records)} api calls={api_calls} "
+        f"prompt_tokens={prompt_tokens} completion_tokens={completion_tokens} "
+        f"est_usd={cost:.2f}"
+    )
+
+
 SUMMARY_FIELDS = [
     "arm",
     "run",
@@ -790,7 +1016,7 @@ def write_summary(records: list[dict[str, Any]], out_dir: Path) -> None:
         bucket = buckets[key]
         bucket["n"] += 1
         bucket["attempt1_refusals"] += int(record.get("attempt1_refusal", False))
-        bucket["terminal_refusals"] += int(record.get("terminal_refusal", False))
+        bucket["terminal_refusals"] += int(terminal_refusal(record))
         bucket["errors"] += int(bool(record.get("error")))
         decision = record.get("decision")
         bucket["decided"] += int(decision is not None)
@@ -847,12 +1073,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--arm",
-        choices=["integrity", "R", "grey", "O", "M", "summary"],
+        choices=["integrity", "R", "grey", "O", "M", "summary", "analyze"],
         default="integrity",
         help="which arm to run; 'integrity' only checks reconstruction",
     )
     parser.add_argument("--n", type=int, default=3, help="replicates per cell")
     parser.add_argument("--controls", type=int, default=10, help="grey-arm control count")
+    parser.add_argument(
+        "--m-artifacts", type=int, default=3, help="arm-M artifact count (strongest refusers)"
+    )
     parser.add_argument(
         "--pace-sec", type=float, default=5.2, help="minimum seconds between API calls"
     )
@@ -869,6 +1098,13 @@ def main() -> None:
         return
     if args.arm == "summary":
         write_summary(load_records(args.out_dir), args.out_dir)
+        return
+    if args.arm == "analyze":
+        records = load_records(args.out_dir)
+        live_refusals = sum(1 for a in artifacts if a.live_attempt1_refusal)
+        print(f"live attempt-1 refusals on these stimuli: {live_refusals}/{len(artifacts)}")
+        write_summary(records, args.out_dir)
+        analyze(records, artifacts)
         return
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -888,13 +1124,21 @@ def main() -> None:
         ))
         cells = build_arm_o_cells(yields, args.n)
     else:
-        refusing_ids = {
-            r["request_id"]
-            for r in load_records(args.out_dir)
-            if r["arm"] == "R" and r.get("attempt1_refusal")
-        }
-        refusing = [a for a in matched if a.request_id in refusing_ids]
-        print(f"arm M: {len(refusing)} artifacts refused at least once in Arm R")
+        rates: dict[str, list[int]] = defaultdict(list)
+        for record in load_records(args.out_dir):
+            if record["arm"] == "R":
+                rates[record["request_id"]].append(int(record["attempt1_refusal"]))
+        refusing_ids = [rid for rid, hits in rates.items() if any(hits)]
+        # Budget is finite, so Arm M runs the strongest refusers: those that
+        # refused on the most Arm-R replicates.
+        refusing_ids.sort(key=lambda rid: (-sum(rates[rid]), rid))
+        by_id = {a.request_id: a for a in matched}
+        refusing = [by_id[rid] for rid in refusing_ids[: args.m_artifacts]]
+        print(
+            f"arm M: {len(refusing_ids)} artifacts refused at least once in Arm R; "
+            f"running the top {len(refusing)}: "
+            + ", ".join(f"{a.request_id[:8]}({sum(rates[a.request_id])}/3)" for a in refusing)
+        )
         cells = build_arm_m_cells(refusing, args.n)
 
     if args.dry_run:
