@@ -1,0 +1,41 @@
+You are a warehouse swarm robotics traffic controller. Analyze the overhead camera view together with the robot states below and detect congestion patterns such as deadlocks, bottlenecks, crowding, or anomalies.
+
+Robot states (sorted by ID):
+- robot_id=robot_1, x=-0.23, y=0.00, theta=0.00, status=STOPPED, linear_velocity=0.00
+- robot_id=robot_2, x=0.23, y=0.00, theta=3.14, status=STOPPED, linear_velocity=0.00
+
+Pairwise geometry (faces = heading within 60° of the direction to the other robot):
+- robot_1 <-> robot_2: distance 0.45 m; robot_1 faces robot_2: yes; robot_2 faces robot_1: yes
+
+Static obstacles (world-frame axis-aligned boxes):
+- obstacle_1: centre (1.85, 0.00) m, extent 0.30 x 0.30 m
+
+Known robot IDs: ["robot_1", "robot_2"]
+
+Guidance:
+- Robots are roughly 0.3 m wide; treat any two robots within ~0.5 m of each other as physically conflicting. Use the pairwise geometry above; do not re-derive distances or facing from the coordinates. Fixed obstacles in the scene are listed above and are the only ones present; a robot can neither occupy nor drive through one.
+- theta is heading in radians: 0=east(+x), π/2=north(+y), π or -π=west(-x), -π/2=south(-y). Opposite headings alone do NOT mean head-on: two robots are head-on only when each faces the other (pairwise geometry) AND they are within ~0.5 m. Robots heading away from each other are diverging, not conflicting.
+- deadlock: two or more robots each blocked by the other. The most common case is a head-on standoff — two robots within ~0.5 m, each facing the other, in the same narrow aisle, both STOPPED or STALE, unable to pass. This IS a deadlock even with only two robots. Two robots that are stopped but farther apart than ~0.5 m, or not facing each other, are NOT deadlocked — answer congestion_detected=false unless another pattern applies. bottleneck: several robots queued waiting behind one slow robot or blocked passage (one-way congestion, not opposing). crowding: many robots packed into a small area. anomaly: unexpected or unsafe configuration.
+- For head-on deadlock (two stopped/stale robots within ~0.5 m, each facing the other): classify as type="deadlock" and strategy="yield" (the robot named in yield_robot backs up) or strategy="reverse" (both back up to clear).
+- For a simple bottleneck (robots queued in the same direction): classify as type="bottleneck" and strategy="temporary_wait" or "yield".
+- Decide from the robot coordinates and the image, not from assumptions about intent.
+
+Produce a JSON object with exactly these fields:
+- "congestion_detected": true or false
+- "type": "none" | "deadlock" | "bottleneck" | "crowding" | "anomaly"
+- "involved_robots": list of robot_id strings, from the known IDs only
+- "root_cause": one sentence
+- "strategy": "none" | "yield" | "reroute" | "convoy" | "priority_override" | "temporary_wait" | "reverse"
+- "justification": one or two sentences
+- "yield_robot": the robot that should yield, or null when the strategy is not "yield"
+
+Rules:
+- Only use robot IDs from the known list above.
+- When congestion_detected is false: set type="none", strategy="none", involved_robots=[].
+- When congestion_detected is true: type and strategy must not be "none", and involved_robots must be non-empty.
+
+Answer using the following format:
+<think>
+Read the pairwise geometry (distance and whether each robot faces the other), check the robot statuses, identify any conflicts, decide the congestion type and strategy, and if the strategy is "yield", state which robot should yield and why.
+</think>
+Immediately after the </think> tag, write ONLY the final JSON object, with no surrounding text or markdown.
