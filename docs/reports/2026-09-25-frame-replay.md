@@ -7,6 +7,7 @@
 - Initial draft: prompt-reconstruction integrity over the six Arm A pilot runs, a 108-call real-frame refusal arm, and a 12-call presentation-order arm truncated by an exhausted API credit balance.
 - Rev 2 (2026-09-25): credits restored; completes Arm R to all 74 artifacts and adds the paired grey sub-arm, the full Arm O and Arm M. The grey arm settles the refusal trigger within one design (0/120 vs 22/60); Arm O finds a large order effect on real stimuli and, under `id_desc` only, obstacle-side sensitivity; Arm M finds `max_attempts=4` more than halves the terminal refusal rate.
 - Rev 3 (2026-09-25): adds Arm S, a within-artifact `order` x `obstacle text` x `image` ablation on the six genuine-standoff artifacts, and Arm D, a downscaled-frame refusal check. The obstacle **text** block carries the `id_desc` side signal (removing it: P(feasible) 0.962 -> 0.556, p = 8.8e-4); the frame amplifies it; the robot states carry nothing. Still 0/288 traces cite the blocker, so trace silence is not evidence a channel is unused. Downscaling frames triples terminal refusals.
+- Rev 4 (2026-09-26): adds Arm S2, the batch-2 replication of the Arm-S design, truncated at 187 of 288 runs by an exhausted API credit balance; Arm F (annotated vs raw frame) never ran. The obstacle-text contrast replicates in direction (pooled 0.714 -> 0.375, p = 1.1e-3; 7 of 9 comparable scenes) but the Rev 3 level does not: P(feasible) under `id_desc` with text and the real frame is 0.435 in batch 2 against 0.962 in batch 1, on prompts that differ only in pose decimals. Contrast (b), frame amplification, is left unconfirmed rather than refuted: batch 2's text-on level has no headroom above its side-blind baseline. The frame refusal trigger replicates a fourth time.
 
 ---
 
@@ -907,3 +908,264 @@ aggravating factor.
 | `data/experiments/2026-09-25-frame-replay/images/down640_*.png` | the 10 downscaled frames used by Arm D |
 | `data/experiments/2026-09-25-frame-replay/calls.jsonl` | 348 new rows, keyed `S`/`D` with the obstacle-text factor appended; existing rows untouched |
 | `data/experiments/2026-09-25-frame-replay/summary.csv` | regenerated with `obstacle_text` and `think_obstacle_mentions` columns |
+
+---
+
+## Rev 4 - Batch-2 Replication and the Raw-Frame Arm (quota-truncated)
+
+Rev 3 rested on six standoff scenes from one pilot batch. Pilot batch 2
+(`20260925_{155433,160951,162451,163949,165442,170938}`, 56 decisions) supplies
+six more, three per side, and is the first batch to store the **raw** camera
+frame beside the annotated one, which makes the M1 overlay separable from the
+scene it is drawn on.
+
+Two arms were planned. **The OpenAI credit balance ran out mid-run**, so only
+part of one was collected. Everything below is what the API paid for before it
+stopped; nothing is extrapolated.
+
+### What ran, and what did not
+
+| arm | planned runs | recorded | state |
+|---|---|---|---|
+| S2 - batch-2 replication of the 8-cell design | 288 | **187** | 3 west scenes complete (48/48 each), 1 east scene at 43/48, 2 east scenes untouched |
+| F - annotated frame against raw frame | 336 | **0** | never started |
+
+The probe aborted on `QuotaAbort` (`insufficient_quota`, "You have no credits
+remaining"), which is the designed behaviour: a credit-exhausted 429 cannot be
+cleared by backing off. A confirmation call afterwards returned the same error,
+so this is an exhausted balance and not a transient rate limit. Both arms resume
+from `calls.jsonl` by cell key, so the remaining 101 S2 cells and all 336 F cells
+re-run with the same two commands once credits exist.
+
+One provenance caveat on that resume. Every row below was produced against the
+`Reasoner` as of commit `0cebbcc`. Commit `9d7328f` ("retry with a neutral image
+after repeated VLM refusals") landed at 01:17, seven minutes after the quota
+stopped this run, and rewrote the retry path the probe drives unmodified. Rows
+recorded after it are therefore **not** poolable with these without checking what
+changed - and since that feature substitutes a neutral image on a retry, it is
+precisely the refusal behaviour Arm F was built to measure.
+
+### Corpus and configuration
+
+| quantity | value |
+|---|---|
+| batch-2 decision artifacts | 56 |
+| rendered `user_prompt` SHA-256 equals stored `prompt.user_sha256` | **56 (100%)** |
+| artifacts carrying a failure-context block | 20 |
+| raw frames present, at the annotated frame's size (1280x960) | 56 |
+| raw-vs-annotated skew (`raw frame skew_sec=`) | -1.360 s to +1.328 s, median \|skew\| 0.276 s, 24/56 within 0.2 s |
+| genuine standoffs by the Arm-S filter | 6: **3 west, 3 east**, none carrying a failure-context block |
+| live attempt-1 refusals | 21/56; terminal 8/56 |
+| `max_attempts` (from `config/models.yaml`, recorded in `reasoner_config_effective`) | 4 |
+
+All six batch-2 standoffs have the same geometry as batch 1: `robot_1` at
+x ~ -0.12 m facing east, `robot_2` at x ~ +0.12 m facing west, so a west blocker
+takes `robot_1`'s retreat and makes `robot_2` the feasible yielder. M3's own
+live re-grounding says so in all three west runs ("`robot_1` has 0.70 m retreat
+room < 1.08 m required; `robot_2` feasible"), so `correct_yielder` carries the
+same meaning in both batches and the two are poolable.
+
+### Side balance and what P(feasible) is measured against
+
+P(feasible) is centred on 0.5 only when a corpus holds equally many west- and
+east-blocked scenes. The truncation left batch 2 at **3 west : 1 east**, where a
+side-blind "always `robot_2`" rule already scores **0.750** and "always
+`robot_1`" scores 0.250. The pooled corpus is 6 west : 4 east (baselines 0.606 /
+0.394). Every table below prints these baselines; the between-cell contrasts (a)
+and (b) compare cells of identical side composition and so are unaffected by the
+imbalance, while any reading of an absolute level is.
+
+### Arm S2 cells - batch 2, attempt-1 only
+
+| order | text | image | n | yields | P(robot_1) | P(feasible) | west P(robot_1) | east P(robot_1) |
+|---|---|---|---|---|---|---|---|---|
+| `id_asc` | on | real | 19 | 19 | 1.000 | 0.263 | 1.000 | 1.000 |
+| `id_asc` | on | grey | 24 | 24 | 1.000 | 0.250 | 1.000 | 1.000 |
+| `id_asc` | off | real | 16 | 16 | 1.000 | 0.062 | 1.000 | 1.000 |
+| `id_asc` | off | grey | 24 | 24 | 1.000 | 0.250 | 1.000 | 1.000 |
+| `id_desc` | on | real | 23 | 23 | 0.652 | **0.435** | 0.647 | 0.667 |
+| `id_desc` | on | grey | 24 | 24 | 0.833 | 0.417 | 0.778 | 1.000 |
+| `id_desc` | off | real | 21 | 21 | 0.571 | 0.143 | 0.800 | 0.000 |
+| `id_desc` | off | grey | 19 | 19 | 0.947 | 0.000 | 1.000 | 0.000 |
+
+### Arm S cells - pooled batch 1 + 2, attempt-1 only
+
+| order | text | image | n | yields | P(robot_1) | P(feasible) | west P(robot_1) | east P(robot_1) | side Fisher p |
+|---|---|---|---|---|---|---|---|---|---|
+| `id_asc` | on | real | 51 | 51 | 1.000 | 0.451 | 1.000 | 1.000 | 1 |
+| `id_asc` | on | grey | 60 | 60 | 0.983 | 0.383 | 1.000 | 0.958 | 0.40 |
+| `id_asc` | off | real | 37 | 37 | 1.000 | 0.270 | 1.000 | 1.000 | 1 |
+| `id_asc` | off | grey | 60 | 60 | 1.000 | 0.400 | 1.000 | 1.000 | 1 |
+| `id_desc` | on | real | 49 | 49 | 0.571 | **0.714** | 0.387 | 0.889 | **8.2e-4** |
+| `id_desc` | on | grey | 60 | 60 | 0.750 | 0.583 | 0.639 | 0.917 | 0.017 |
+| `id_desc` | off | real | 48 | 48 | 0.646 | 0.375 | 0.724 | 0.526 | 0.22 |
+| `id_desc` | off | grey | 55 | 55 | 0.709 | 0.382 | 0.750 | 0.632 | 0.37 |
+
+### The three `id_desc` contrasts
+
+| contrast | batch 1 (Rev 3) | batch 2 | pooled |
+|---|---|---|---|
+| (a) real frame, text on -> off | 0.962 (25/26) -> 0.556 (15/27), p = **8.8e-4** | 0.435 (10/23) -> 0.143 (3/21), p = **0.049** | 0.714 (35/49) -> 0.375 (18/48), p = **1.1e-3** |
+| (b) text on, real -> grey | 0.962 (25/26) -> 0.694 (25/36), p = **0.0095** | 0.435 (10/23) -> 0.417 (10/24), p = 1.0 | 0.714 (35/49) -> 0.583 (35/60), p = 0.17 |
+| (c) states only (text off + grey), side association | west 9/18 vs east 12/18, p = 0.50 | west 18/18 vs east 0/1, p = 0.053 (east n = 1 yield) | west 27/36 vs east 12/19, p = 0.37 |
+
+Every p above is computed over replicates, not scenes: each cell holds six
+replicates of four to six scenes, so the tests are **pseudo-replicated** and the
+p-values overstate the evidence. They are kept in this form for comparability
+with Rev 3. The per-scene table is the honest evidence.
+
+### Per-scene consistency under `id_desc`, real frame
+
+| batch | run | request | side | P(feasible) text on | text off | delta |
+|---|---|---|---|---|---|---|
+| 1 | `20260925_063520` | `53264de9` | west | 3/4 (75.0%) | 1/6 (16.7%) | +0.583 |
+| 1 | `20260925_065143` | `5e7b5a59` | west | 4/4 (100.0%) | 4/6 (66.7%) | +0.333 |
+| 1 | `20260925_070637` | `2c3fbfa5` | west | 6/6 (100.0%) | 0/2 (0.0%) | +1.000 |
+| 1 | `20260925_072130` | `61119197` | east | 0/0 (all six refused) | 4/5 (80.0%) | n/a |
+| 1 | `20260925_073621` | `d053d0dc` | east | 6/6 (100.0%) | 0/2 (0.0%) | +1.000 |
+| 1 | `20260925_075116` | `3120c65f` | east | 6/6 (100.0%) | 6/6 (100.0%) | +0.000 |
+| 2 | `20260925_155433` | `810c9104` | west | 5/5 (100.0%) | 3/6 (50.0%) | +0.500 |
+| 2 | `20260925_160951` | `42fb0cb8` | west | 1/6 (16.7%) | 0/3 (0.0%) | +0.167 |
+| 2 | `20260925_162451` | `d4b96fbd` | west | 0/6 (0.0%) | 0/6 (0.0%) | +0.000 |
+| 2 | `20260925_163949` | `189ae2a6` | east | 4/6 (66.7%) | 0/6 (0.0%) | +0.667 |
+
+Seven of the nine comparable scenes move in the predicted direction, two are
+flat, and none reverses. But the *levels* are what the replication turns on: the
+text-on cell is 100% on five scenes and 0% on another (`d4b96fbd`), 16.7% on a
+second (`42fb0cb8`). The Rev 3 reading - "with the obstacle text and the real
+frame, `gpt-4o` names the feasible yielder" - is true of most batch-1 scenes and
+false of half the batch-2 ones.
+
+### The cross-batch discrepancy
+
+The two batches are not interchangeable, and the difference is not in the prompt.
+A unified diff of the rendered `id_desc` prompts for one batch-1 and one batch-2
+**west** standoff differs on two lines only, in the robot pose decimals
+(x = -0.13 vs -0.12, theta = 0.10 vs -0.05, distance 0.25 m vs 0.24 m); the
+obstacle block, the pairwise-geometry block and the instructions are identical.
+
+| `id_desc` cell, west scenes only, attempt-1 | batch 1 | batch 2 | Fisher p |
+|---|---|---|---|
+| text on, real frame | 13/14 (92.9%) | 6/17 (35.3%) | **0.0023** |
+| text off, real frame | 5/14 (35.7%) | 3/15 (20.0%) | 0.43 |
+| text on, grey | 9/18 (50.0%) | 4/18 (22.2%) | 0.16 |
+| text off, grey | 9/18 (50.0%) | 0/18 (0.0%) | **0.0010** |
+| east, text off, real frame | 10/13 (76.9%) | 0/6 (0.0%) | **0.0031** |
+
+The grey-image rows carry the weight of this: with a uniform grey image and a
+near-identical prompt, batch-1 west scenes name the feasible robot half the time
+and batch-2 west scenes never do. So the batch difference is **not in the prompt
+text**, and it is **not removed by replacing the frame with grey**: it is carried
+by something the prompt text does not encode. The pose decimals are only what
+differs *in the prompt*; the batches also differ in scenario family
+(`w0p2_eopen` / `wopen_e0p2` against batch 1's barrier configuration), which
+changes the corridor the robots stand in. This arm cannot say which of those the
+model is responding to, only that a nominally identical request is answered
+differently across the two batches.
+
+### Obstacle mentions in the traces
+
+| text | image | runs | `<think>` mentions | decision-field mentions |
+|---|---|---|---|---|
+| on | real | 120 | 0 | 0 |
+| on | grey | 120 | 8 | 0 |
+| off | real | 120 | 0 | 0 |
+| off | grey | 115 | 0 | 0 |
+
+Eight of 475 pooled runs cite the blocker anywhere, all of them in the text-on
+grey cells, and none in a decision field. Rev 3's rule stands and strengthens:
+trace silence is not evidence a channel is unused.
+
+### Refusals - a fourth replication of the frame trigger
+
+Arm S2 reproduces the grey contrast again as a by-product: **17 of 96 real-frame
+runs refused on attempt 1 (17.7%) against 0 of 91 grey runs (Fisher
+p = 7.7e-6)**, on prompts differing only in `image_path`. Rev 2 (0/120), Rev 3
+(0/144) and now Rev 4 agree.
+
+### Retry policy, partially reconciled
+
+Arm F was to supply the like-for-like offline retry comparison and did not run.
+Arm S2's real-frame cells give a partial answer on the same stimuli at
+`max_attempts = 4`.
+
+| source | stimuli | attempt-1 refusals | still terminal | conditional terminal rate |
+|---|---|---|---|---|
+| live, batch 2 | the 56 live requests | 21 | 8 (all four attempts used) | 0.381 |
+| offline Arm M | batch-1 Arm-R refusers | 26 | 7 | 0.269 |
+| offline Arm S2 | batch-2 standoffs, real frame | 17 | **0** | **0.000** |
+| offline Arm S2, live-like cells (stored order, text on, real frame) | 4 batch-2 standoffs | 2 of 24 runs | 0 | 0.000 |
+
+Live and Arm M agree (p = 0.53). Arm S2 does not agree with either (p = 0.0047
+against live, p = 0.031 against Arm M): offline, on batch-2 standoff stimuli,
+**every** refused attempt recovered, in a mean of 2.12 attempts. Two candidate
+explanations are not separated here: the S2 cells vary order and obstacle text
+and so are not the live requests, and the batch-2 standoff scenes may simply be
+easier refusals to re-ask past than the batch-1 population Arm M drew from. Arm
+F is the arm that would decide it, and it is exactly the 336 calls the quota
+took.
+
+### Verdict
+
+- **The obstacle-text effect replicates in direction, not in magnitude.**
+  Withholding the text with the real frame kept lowers P(feasible) in batch 2
+  (0.435 -> 0.143, p = 0.049) as it did in batch 1 (0.962 -> 0.556), and pooled
+  over ten scenes the contrast is p = 1.1e-3. Seven of nine comparable scenes
+  move the same way. **Evidence strength: moderate**, and weaker than Rev 3
+  implied, because the test is pseudo-replicated and rests on nine scenes.
+- **The Rev 3 competence claim does not replicate.** "Under `id_desc` with the
+  obstacle text and the real frame, P(feasible) = 0.962" becomes 0.435 in batch
+  2 - below that corpus's own side-blind baseline of 0.750 - on 3 west scenes and
+  1 east, one of the west scenes (`d4b96fbd`) sitting at 0/6. Pooled, it is
+  0.714.
+  **Evidence strength: strong** for the failure to reproduce the level;
+  the cross-batch west-scene contrast is p = 0.0023 on nominally identical text.
+- **The frame-amplification claim (contrast b) is not confirmed**: p = 0.0095 in
+  batch 1, p = 1.0 in batch 2, p = 0.17 pooled. Batch 2 cannot test it: its
+  text-on real-frame cell already sits at 0.435, below the 0.750 a side-blind
+  "always `robot_2`" rule scores on that corpus, so there is no headroom for the
+  grey cell to fall further. Read the batch-2 null as uninformative and the
+  pooled p as **not established**, not as a refutation.
+- **The `id_asc` first-position default is unbroken**, as in Rev 3: P(`robot_1`)
+  is 1.000 in every batch-2 `id_asc` cell (83/83 attempt-1 yields) whatever the
+  text and image carry.
+- **The frame remains the refusal trigger** (17/96 real vs 0/91 grey).
+- **The annotated-vs-raw question is untouched.** No verdict; the arm did not
+  run. Its skew caveat stands recorded for whoever runs it: the raw dump is up
+  to 1.36 s from the annotated frame, so an effect must be checked on the
+  24/56 pairs within 0.2 s before it is attributed to the overlay.
+
+The honest summary of the replication that was supposed to decide the question on
+twelve scenes: it ran on ten, and it says the side signal is real but fragile and
+scene-dependent, not the near-deterministic competence Rev 3 measured.
+
+### Cost
+
+| quantity | Arm S2 | cumulative (all arms) |
+|---|---|---|
+| `Reasoner` runs | 187 | 1,081 |
+| API calls | 206 | 1,407 |
+| prompt tokens | 346,611 | 2,384,303 |
+| completion tokens | 37,387 | 190,935 |
+| transport errors | 0 | 0 |
+| **estimated spend** | **$1.24** | **$7.87** |
+
+### Deviations from the plan
+
+| planned | delivered | reason |
+|---|---|---|
+| Arm S2 at n = 6 on 6 batch-2 standoffs, ~300 calls | 187 of 288 runs; 3 west scenes complete, 1 east at 43/48 | credit balance exhausted mid-run |
+| Arm F, 56 artifacts x 2 images x n = 3, ~336 calls | 0 | same; the arm never started |
+| pooled table on ~6 scenes per side | 6 west, 4 east | the truncation cost two east scenes |
+| "the three id_desc contrasts with Fisher p on pooled data" | delivered, plus each cell's side-blind baselines | P(feasible) is not centred on 0.5 on a side-unbalanced corpus; without the baseline the batch-2 level is unreadable |
+| retry-policy reconciliation from Arm F | partial, from Arm S2's real-frame cells | Arm F did not run; the S2 cells are not the live requests, and this is flagged where it is used |
+
+### Artifacts added
+
+| path | contents |
+|---|---|
+| `data/experiments/2026-09-26-batch2-replay/calls.jsonl` | 187 Arm-S2 rows, whose cell keys begin with the `S2` arm label so they never collide with batch-1 `S` rows |
+| `data/experiments/2026-09-26-batch2-replay/summary.csv` | one row per cell group |
+| `data/experiments/2026-09-26-batch2-replay/analysis_batch2.txt` | the batch-2 analysis printout |
+| `data/experiments/2026-09-26-batch2-replay/analysis_pooled.txt` | the pooled batch-1 + batch-2 printout |
+| `data/experiments/2026-09-26-batch2-replay/images/grey_1280x960.png` | the neutral image used by the grey cells |

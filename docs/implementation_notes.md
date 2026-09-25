@@ -211,6 +211,15 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-26** — **Batch-2 replication weakens the obstacle-text finding;
+  raw-frame arm unrun (credits).** `docs/reports/2026-09-25-frame-replay.md`
+  Rev 4; Arm S2 187/288 runs, $1.24, aborted on `insufficient_quota`. The
+  text-on → text-off contrast replicates in direction (pooled 0.714 → 0.375,
+  p = 1.1e-3; 7/9 scenes) but **Rev 3's level does not**: P(feasible) 0.962
+  (batch 1) vs 0.435 (batch 2) on prompts differing only in pose decimals, so
+  the side signal is fragile and scene-dependent. Frame-amplification contrast
+  (b) is now unconfirmed (batch 2 has no headroom to test it). Frame refusal
+  trigger replicates: 17/96 real, 0/91 grey.
 - **2026-09-25** — **Sampling config and the raw camera frame are now on record**
   (M2 §7.1 `EffectiveSamplingConfig`, M5 FR5.3.11). Every decision artifact and
   reasoner JSONL line carries `reasoner_config_effective` (model_id,
