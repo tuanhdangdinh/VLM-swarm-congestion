@@ -203,6 +203,17 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-25** — **The real annotated frame is the gpt-4o refusal trigger**
+  (`scripts/replay_live_decisions.py`, report
+  `docs/reports/2026-09-25-frame-replay.md`). All 74 pilot prompts re-render
+  byte-identically from `scene` + `orchestrator.yaml.used` + stored order (74/74
+  SHA-256, failure-context artifacts included). Replaying 36 of them x n=3 with
+  the real PNG gives 27/108 attempt-1 refusals (25.0%) against 0/240 on the same
+  prompts with synthetic images (p = 1.2e-13) and 8/36 live (p = 0.83); terminal
+  11.1%, re-ask recovers 55.6%. Arm O reached only n=1/cell and Arms M/grey did
+  not run — the OpenAI credit balance was exhausted mid-run (HTTP 429
+  `insufficient_quota`, now a `QuotaAbort`; resume with the same commands, cells
+  are keyed and skipped).
 - **2026-09-25** — **gpt-4o refuses ~23% of M2 calls; the re-ask recovers half,
   and the prompt is not the trigger.** Census of all 163 local decision
   artifacts: 12 terminal refusals (not 3) spread over obstacle-ON *and* -OFF
