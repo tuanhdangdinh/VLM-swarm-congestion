@@ -203,6 +203,18 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-25** — **The offline presentation-order probe does not predict live
+  behaviour; gpt-4o has a refusal failure class.** Five gate-`off` runs on
+  `w0p2_eopen` (`20260925_035042`/`040539`/`042022` ER-2, `043512`/`045004`
+  gpt-4o, tree `e6be85c`). ER-2 without the gate reproduces the gpt-4o failure
+  (D2 named the blocked `robot_1`, yield FAILED, arrested at the same 0.1020 m)
+  but not deterministically — 3/6 `robot_1` across all six ER-2 asymmetric runs.
+  gpt-4o with the obstacle channel OFF still names `robot_1` (9/11 live, 5/6
+  under `id_desc`) against 0.25 offline: **the live pipeline is ID-anchored, the
+  synthetic probe slot-anchored** — treat the probe as a stimulus study. New:
+  3 of 22 gpt-4o analyses returned `"I'm sorry, I can't assist with that."`
+  (`VLMOutputParseError`, `attempts=2`), 0 of 37 on ER-2; and ER-2's opening
+  `reverse` is 5/6, not 3/3. `docs/reports/2026-09-25-overnight-findings.md` §K–§N.
 - **2026-09-25** — **ER-2 verified live as an M2 backend; its signature is an
   opening `reverse`.** Four closed-loop runs (`20260925_021549`/`023122`/
   `024628`/`030129`, tree `e6be85c`) all reached 2/2 arrivals with 25/25

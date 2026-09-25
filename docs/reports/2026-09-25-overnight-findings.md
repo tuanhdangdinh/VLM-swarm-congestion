@@ -7,6 +7,7 @@
 - Initial draft: overnight session of 2026-09-24/25 — new GPU host bring-up, closed-loop replication, offline presentation-order probe, and four live counterbalanced M2 runs.
 - Rev 2 (2026-09-25): adds the M3 yield feasibility gate and random presentation order, five live validation runs, and a correction to the strength of the live order effect.
 - Rev 3 (2026-09-25): adds the Gemini Robotics-ER 2 M2 backend — its offline presentation-order arm and four live closed-loop runs — plus two arithmetic/instrumentation corrections to Rev 1.
+- Rev 4 (2026-09-25): adds the decisive ER-2 cell (west-blocked, `id_asc`, gate off, n=3) and the gpt-4o obstacles-OFF arm, a consolidated live tally across both models, and the finding that the offline probe does not predict live order sensitivity.
 
 ---
 
@@ -27,6 +28,11 @@ runs cites the obstacle). gpt-4o-mini follows the slot (20/20 → 0/20, 40/40 �
 > `robot_1`" framing overstates the live effect: pooled live runs put gpt-4o at
 > `robot_1` in 7/9 regardless of order, and two identically configured runs
 > disagreed. The offline probe numbers above are unchanged.
+
+> Superseded by Rev 4 §L item 3: the offline slot numbers quoted here do not
+> predict live behaviour at all — offline `P(robot_1 | id_desc)` = 0.25 pooled
+> against 5/6 live. They stand as a result about the synthetic stimulus, not
+> about the deployed pipeline.
 
 ---
 
@@ -510,6 +516,10 @@ in L3 and L4 carries `episode_index=0` — confirming one draw per episode.
    the gate is needed. Plausible but unverified reasons for the live/offline
    gap: the live prompt carries the real M1 annotated frame and live distances
    where the probe used a synthetic plan view, and n is small.
+   *Superseded by Rev 4 §M: the live tallies here are extended by the
+   obstacles-OFF arm (O1, O2) and re-stated per cell for both models; see
+   Rev 4 §L item 3 for the live/offline gap, which is now a finding rather than
+   a plausible reason.*
 4. **Caveat, kept from the run agent.** Every run in this batch had the obstacle
    channel ON, so order and channel co-vary within the batch. The offline probe
    found the channel inert, so this is unlikely to matter, but an obstacles-OFF
@@ -752,6 +762,9 @@ them without noting the difference.
    failure context. This is the loop working as designed. It also means **ER-2's
    first decision is not comparable to gpt-4o's first decision** in the
    pre-registration's "first answer" metrics.
+   *Superseded in part by Rev 4 §L item 5: the opening `reverse` is 5/6 live,
+   not 3/3 — D1 opened on a pair stall and answered `yield` directly, so it is
+   a strong habit, not an invariant. The comparability conclusion stands.*
 3. **Geometry is unused by ER-2 as well.** G1 named the physically blocked
    `robot_1`; no live or offline justification mentions the obstacle; offline
    `P(correct)` is at chance. The M3 gate, not the model, is what made G1
@@ -763,6 +776,9 @@ them without noting the difference.
 5. **The decisive ER-2 cell was not run** — west-blocked × `id_asc` × gate off.
    "ER-2 fails like gpt-4o without the gate" is inferred from G1's choice, not
    observed.
+   *Superseded by Rev 4 §K and §L item 1: that cell was run at n = 3 (D1–D3).
+   The failure is now observed (D2) but is not deterministic — D1 and D3 named
+   the feasible `robot_2` on the same seed and scene.*
 6. **All four runs reached 2/2 arrivals**, three of them only because the gate
    fired (G1) or because the model happened to name the feasible robot (G2, G3).
 
@@ -799,3 +815,165 @@ Run ids: `20260925_021549`, `20260925_023122`, `20260925_024628`,
 The VM config was restored byte-exact (`md5`
 `3ed3795f174c3df079e050e9b4e49572`), the container was restarted, and the GPU was
 idle at 03:17 UTC. Artifacts remain git-ignored under `data/logs/vm_runs/`.
+
+---
+
+## K. The Decisive Cells: ER-2 Without the Gate, gpt-4o Without the Channel
+
+Five runs, all on `head_on_asymmetric_w0p2_eopen_o0` with
+`grounding_yield_feasibility: "off"`, on tree `e6be85c`. The **installed**
+orchestrator YAML was parsed and asserted before each launch.
+
+| Run | STAMP | Backend | Order | Obstacles | Opening strategy | First `yield_robot` (analysis #) | First yield status / duration | Min dist to box face (−1.70) | Arrivals | Analyses / dispatches | Later decisions |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| D1 | `20260925_035042` | ER-2 | `id_asc` | ON −1.85 | `yield` (no `reverse`; first trigger was a pair stall) | `robot_2` (#1) | COMPLETED 146.1 s | never approached | 2/2 | 7 / 2 | 6 × none |
+| D2 | `20260925_040539` | ER-2 | `id_asc` | ON −1.85 | `reverse` COMPLETED 36.1 s | `robot_1` (#3) | FAILED 245.9 s | 0.1020 m | 2/2 (loop cleared it later) | 7 / 6 | `reverse`(`robot_1`) FAILED 195.1 s; 3 × none |
+| D3 | `20260925_042022` | ER-2 | `id_asc` | ON −1.85 | `reverse` COMPLETED 35.3 s | `robot_2` (#3) | COMPLETED 171.0 s | never approached | 1/2 | 23 / 4 | 20 × none |
+| O1 | `20260925_043512` | gpt-4o | `id_asc` | OFF | refusal (#1), then `yield` | `robot_1` (#2) | FAILED 250.1 s | 0.1020 m | 2/2 | 7 / 4 | `reverse`(`robot_1`) FAILED 195.1 s; 4 × none |
+| O2 | `20260925_045004` | gpt-4o | `id_desc` (prompt led with `robot_2`) | OFF | `yield` | `robot_1` (#1) | FAILED 239.8 s | 0.1020 m | 0/2 | 15 / 4 | `reverse`(`robot_1`) FAILED 195.2 s; 2 refusals; 11 × none |
+
+D3's 1/2 is **not** a yield failure: `robot_2` stuck at x = −1.662 on its own
+goal run past the blocker — the same east/west blocker-on-goal-path property
+recorded for L2 in Rev 2 §B.
+
+D1's first trigger, the reason it never opened with `reverse`:
+
+```text
+[orchestrator_node]: starting analysis request=458573a434ab44e193a96730741599af robots=['robot_1', 'robot_2'] reason=2 robot(s) stalled >= 12.0s order=id_asc distance_to_goal_m={'robot_2': 2.63, 'robot_1': 2.64}
+[orchestrator_node]: dispatch request=458573a434ab44e193a96730741599af command=458573a434ab44e193a96730741599af-yield robot=robot_2
+```
+
+Conformance across the batch: ER-2 latency 2.8–4.9 s with
+`unsupported_sampling` on every call, and 37/37 decisions at `attempts=1` /
+`parse_status=valid`; gpt-4o latency 1.8–4.7 s. The rendered prompt order
+matched the configured order in all five runs, and the obstacle block was
+present in D1–D3 only. The ground-truth stream records `robot_static_contacts`
+0 across all 15 005 frames. Zero errors in the `isaac`, `m1`, `m4` and `m5`
+logs; Nav2 errors stayed within the known-benign set.
+
+---
+
+## L. Verdicts
+
+1. **ER-2 without the gate reproduces the gpt-4o failure mechanism, but not
+   deterministically.** D2 named the blocked `robot_1`, its yield FAILED, and
+   the chassis was arrested at the identical 0.1020 m from the blocker face.
+   The yielder tally over D1–D3 — same seed, same scene, no sampling control —
+   is `robot_2` × 2 / `robot_1` × 1, so this cell is decision variance, not a
+   deterministic failure. Across all six ER-2 asymmetric live runs (G1 `r1`,
+   G2 `r2`, G3 `r1`, D1 `r2`, D2 `r1`, D3 `r2`) ER-2 named `robot_1` in 3/6.
+   This closes Rev 3 §I item 5.
+2. **gpt-4o with the obstacle channel OFF is ID-driven and
+   channel-invariant.** O1 and O2 both named `robot_1` and both failed at
+   0.1020 m — O2 despite `robot_2` being presented first. The live gpt-4o tally
+   on the asymmetric variants is now `robot_1` in 9/11 regardless of order or
+   channel (exceptions R1 and L3), and 5/6 under `id_desc` (R3, R4, L2, L4, O2
+   against R1). This only **partly** addresses Rev 2 §D item 2, which asked for
+   `id_asc`/`id_desc` × west/east at n ≥ 3 per cell: O1 and O2 give n = 1 per
+   cell on the west variant, and the two east × OFF cells remain unrun.
+3. **The offline probe does not predict live order sensitivity for gpt-4o.**
+   Offline, on the synthetic plan-view stimulus, `P(robot_1 | id_desc)` = 0.25
+   pooled; live it is 5/6. The live pipeline — a real M1 annotated frame with
+   robot IDs drawn on it, and live detector distances — is ID-anchored where
+   the probe was slot-anchored. The offline result stands as a statement about
+   the text-only/synthetic stimulus, **not** about the deployed system, and
+   every offline→live generalisation in this report family must be read that
+   way. Mechanism unverified; candidates are the annotated frame's ID labels,
+   the image's role in each model's attention, and the synthetic image lacking
+   those cues.
+4. **Neither model uses geometry.** D2 chose the blocked robot with the
+   obstacle block present in the prompt; O1 and O2 chose it with no obstacle
+   information at all, to the same outcome. The M3 gate (`swap`) remains the
+   only mechanism that has made the blocked cell succeed (L1, G1).
+5. **ER-2's opening `reverse` is 5/6 live, not 3/3.** D1 opened on a pair stall
+   and went straight to `yield`; D2 and D3 opened on solo stalls and reversed.
+   gpt-4o also opened on solo stalls in O1 and O2 and answered `yield`, so
+   trigger shape correlates with the opening `reverse` without forcing it.
+6. **Metric sensitivity is real and must be pre-registered away.** D2 reached
+   2/2 arrivals after its failed yield because the loop cleared it later, while
+   the gpt-4o equivalents (L4, `20260924_201328`, O2) reached 0/2. First-answer
+   and episode-outcome metrics disagree on the same mechanism; the
+   pre-registration must pick one as primary and report both.
+7. **New failure class for gpt-4o: a safety refusal.** Three of the 22
+   obstacles-OFF analyses (O1 #1; O2 #4 and #5) returned a refusal string that
+   carries no JSON:
+
+   ```json
+   {"raw_text": "I'm sorry, I can't assist with that.",
+    "diagnostics": {"attempts": 2, "error_type": "VLMOutputParseError",
+                    "error_message": "VLM output contains no JSON object.",
+                    "parse_status": "failed"}}
+   ```
+
+   None occurred across the 37 ER-2 decisions. This is distinct from the
+   post-resolution parse failures in Rev 1 §6(b): those fired after the
+   congestion had already cleared, whereas O1's refusal consumed the run's
+   **first** analysis slot.
+
+---
+
+## M. Consolidated Live Tallies
+
+All live runs on the asymmetric variants, 2026-09-19 → 2026-09-25. The 09-19
+Runs A and B are cited **as recorded** in
+`docs/reports/2026-09-18-head-on-family-validity.md`, not re-verified here.
+
+| Model | Cell (variant × order × channel) | Gate | n | `robot_1` | `robot_2` | First yield FAILED | Runs |
+|---|---|---|---|---|---|---|---|
+| gpt-4o | `w0p2_eopen` × `id_asc` × OFF | pre-gate ×1, off ×1 | 2 | 2 | 0 | 2 | 09-19 Run A, O1 |
+| gpt-4o | `w0p2_eopen` × `id_asc` × ON | pre-gate ×2, `swap` ×2 | 4 | 3 | 1 | 2 (+1 swapped) | 09-19 Run B, R2, L1, L3 |
+| gpt-4o | `w0p2_eopen` × `id_desc` × OFF | off | 1 | 1 | 0 | 1 | O2 |
+| gpt-4o | `w0p2_eopen` × `id_desc` × ON | pre-gate ×1, off ×1 | 2 | 1 | 1 | 1 | R1, L4 |
+| gpt-4o | `wopen_e0p2` × `id_desc` × ON | pre-gate ×2, `swap` ×1 | 3 | 3 | 0 | 0 | R3, R4, L2 |
+| **gpt-4o total** | | | **12** | **10** | **2** | **6 (+1 swapped)** | |
+| ER-2 | `w0p2_eopen` × `id_asc` × ON | `swap` ×1, off ×3 | 4 | 2 | 2 | 1 (+1 swapped) | G1, D1, D2, D3 |
+| ER-2 | `w0p2_eopen` × `id_desc` × ON | off | 1 | 0 | 1 | 0 | G2 |
+| ER-2 | `wopen_e0p2` × `id_desc` × ON | off | 1 | 1 | 0 | 0 | G3 |
+| **ER-2 total** | | | **6** | **3** | **3** | **1 (+1 swapped)** | |
+
+Reading the table:
+
+- `robot_1` / `robot_2` count the yielder **M2 named**, before any M3
+  re-grounding.
+- `(+1 swapped)` marks a run in which M2 named the blocked `robot_1` and the
+  first dispatched yield nevertheless COMPLETED **only because the M3 `swap`
+  gate re-grounded it** — L1 in the gpt-4o `id_asc` × ON cell, G1 in the ER-2
+  `id_asc` × ON cell. Without the gate those cells read as failures.
+- The gate column varies **within** cells 2, 4, 5 and 6, so those rows pool
+  runs that differ on the variable that determines the outcome. They are a
+  yielder-identity tally, not an outcome comparison.
+- §L item 2's 9/11 excludes 09-19 Run A. Including it, as this table does,
+  gives `robot_1` in 10/12 for gpt-4o.
+
+---
+
+## N. Next Steps
+
+1. Adopt gate `swap` plus random presentation order for **both** arms (Rev 2
+   §D item 1) — now justified for ER-2 as well, since D2 shows ER-2 fails the
+   blocked cell without it.
+2. Treat the offline probe as a stimulus study, not a predictor. If an offline
+   harness is kept, it must use real M1 annotated frames from recorded runs
+   (the `data/logs/m5_frames/` artifacts) instead of synthetic plan views.
+3. Investigate the gpt-4o refusal class before Arm A collection — inspect the
+   three raw responses, most likely a prompt or image safety trigger. A refusal
+   costs a retry and an analysis slot.
+4. Pre-register **episode outcome as primary** and first answer as secondary;
+   D2 against L4 is the case that forces the choice.
+5. Decide how to handle the east/west blocker-on-goal-path property of the
+   scenario family (D3, L2) — it contaminates arrival counts.
+6. Keep ER-2 as the secondary arm. Its opening `reverse` and its lack of
+   sampling control are model characteristics to document, not defects to fix.
+
+---
+
+## Rev 4 Provenance
+
+Run ids: `20260925_035042`, `20260925_040539`, `20260925_042022`,
+`20260925_043512`, `20260925_045004`.
+
+The VM config was restored byte-exact (`md5`
+`3ed3795f174c3df079e050e9b4e49572`), the container was restarted, and the GPU
+was idle at 05:05 UTC. Artifacts remain git-ignored under
+`data/logs/vm_runs/`. No new code commits — this revision is documentation
+only.
