@@ -12,6 +12,7 @@
 - Rev 6 (2026-09-25): completes the real-frame replay and identifies the obstacle text block as the carrier of the side signal under `id_desc`, adds the six-run ER-2 pilot, and records the position-verified arrival check that a Nav2 false success forced.
 - Rev 7 (2026-09-26): re-scores every arrival against position, adds live batches 2 and 3 (gpt-4o random order, ER-2 forced order), reports that the side-carrier effect replicates in direction but not in magnitude, ships an unvalidated refusal mitigation, and corrects two safety metrics.
 - Rev 8 (2026-09-26): adds the six-run ER-2 pilot on the `_gshort` goal-short variants — blocker-on-goal-path losses eliminated, a new park-beyond-goal failure introduced by symmetric ±1.5 goals — plus five apparatus notes from the batch.
+- Rev 9 (2026-09-26): adds the three-run `_bshort` (blocked-side goal-short) pilot on the west variant — 3/3 position-verified arrivals, no reintroduced blocker-path loss, escort mechanism confirmed from ground truth — and next steps.
 
 ---
 
@@ -1987,6 +1988,8 @@ beyond the box — and keep ±2.5 on the open side, so the passer's goal lies
 beyond the park point instead of inside it. Three ER-2 runs on the west side
 are being run; results in a later revision.
 
+> Superseded by Rev 9 §AG.
+
 ---
 
 ## AE. Apparatus Notes From This Batch
@@ -2014,6 +2017,8 @@ are being run; results in a later revision.
 
 1. Adopt `_bshort` if J1–J3 succeed, then re-run the family pilots on it with
    both models for the pre-registration.
+   *Superseded by Rev 9 §AG: J1–J3 succeeded (3/3 position-verified). See
+   Rev 9 §AH item 1 for the follow-on runs.*
 2. Add `pillow` to the container recipe in the implementation notes' M6 section
    and make the reasoner's image import lazy.
 3. Resume the OpenAI-dependent arms when credits return: replay `--arm F`, the
@@ -2039,3 +2044,84 @@ VM state per this batch's restore: config `md5`
 uncontrolled on all 83 ER-2 calls for the reason given in Rev 6 §U —
 `unsupported_sampling` is recorded on every one. Artifacts remain git-ignored
 under `data/logs/vm_runs/`.
+
+---
+
+## AG. `_bshort` Pilot: the Blocked-Side Goal Alone
+
+Blocked-side goal short, commit `e708ffa`. ER-2, west variant, gate `swap`,
+obstacles ON, order `random`, annotated and raw frames kept; every arrival
+position-verified.
+
+**Design.** Shorten **only** the goal that lies beyond the box — the open-side
+yielder's goal moves to the blocked robot's spawn, ±1.5 — and keep ±2.5 on the
+open side. The passer's goal (2.5) then lies 0.711 m beyond the yielder's park
+point (`park_offset_m` 1.789) and 0.061 m beyond the M3 escort endpoint
+(2.439), the binding margin, asserted positive in a test. The yielder's goal
+(−1.5) leaves 0.130 m chassis-front clearance to the box near face (−1.70).
+Documented hazard: `arrival_position_tolerance_m` 0.35 would accept a pose
+whose chassis overlaps the box span; the goal was deliberately not moved
+because the box is baked into the static map. Generator flag
+`--goal-mode blocked_short`; the v1 and `_gshort` YAMLs are byte-identical to
+this variant's twins (test-pinned); the map PGMs are identical to their twins;
+USDs built and `validate` PASS; 61 tests collected across
+`test_generate_head_on_family.py` and `test_generate_warehouse_map.py`.
+
+| Run | STAMP | Both arrived | Analyses | First yield (s) | Resolution (s) | Min pairwise (m) | % GT samples < 0.45 m | Min dist to box (m) | Safety stops |
+|---|---|---|---|---|---|---|---|---|---|
+| J1 | `20260925_223245` | ✓ | 5 | 149.6 | 346.0 | 0.225 | 7.1% | 0.232 | 3 654 |
+| J2 | `20260925_225104` | ✓ | 7 | 148.1 | 345.8 | 0.280 | 7.0% | 0.222 | 3 540 |
+| J3 | `20260925_230902` | ✓ | 7 | 148.0 | 350.5 | 0.216 | 6.9% | 0.184 | 3 620 |
+
+0 refusals (0/19), the M3 gate fired exactly once per run, and 0 post-arrival
+proximity re-analyses occurred. The gate's intervention, identical across all
+three runs:
+
+```text
+[orchestrator_node]: yield re-grounded request=75b0cc74… from=robot_1 to=robot_2 reason=yield re-grounded: robot_1 has 0.70 m retreat room < 1.08 m required; robot_2 feasible
+```
+
+`robot_2` completed the full westward transit in all three runs (final x
+−1.397 / −1.407 / −1.444):
+
+```text
+[orchestrator_node]: robot robot_1 arrived at base goal (2.5, 0.0) distance_m=0.05 check=within_tolerance
+[orchestrator_node]: robot robot_2 arrived at base goal (-1.5, 0.0) distance_m=0.09 check=within_tolerance
+```
+
+Versus gshort west H1–H3, 1/3 (H2/H3: 65% of samples < 0.45 m, 61–68 k safety
+stops), and ±2.5 west E1–E3, 1/3.
+
+**Verdict.** `_bshort` fixes the west side with no reintroduced blocker-path
+loss (n = 3, west only; the east `_bshort` variant is built and validated but
+not yet run). Mechanism confirmed from ground truth: the passer's backtrack
+after its maximum x was 0.000 m in all three runs (max x 2.455–2.460; yielder
+park 1.801–1.804), versus 0.580 m in gshort H2. This corrects Rev 8 §AD's
+east/west reading: gshort's east and west geometries are mirror-symmetric;
+east "won" because the escort leg completed (H4's passer reached −2.450 and
+held) while west lost a race (H2's passer turned back at +2.163, short of the
++2.439 endpoint, and both released simultaneously, latching at 0.430 m).
+Known risk: the escort-endpoint margin (0.050–0.061 m) is thin against the
+≈0.1 m drift the `FEASIBILITY_MARGIN_M` comment cites.
+
+---
+
+## AH. Next Steps
+
+1. Run the east `_bshort` variant (n ≥ 3) and then re-run the family pilots
+   for both models on `_bshort` as the pre-registration scenario.
+2. Consider widening the escort-endpoint margin (goal 2.6 or escort 2.35)
+   before data collection.
+3. The arrival-tolerance-vs-box hazard: either shrink
+   `arrival_position_tolerance_m` for goals adjacent to obstacles, or verify
+   no box overlap in re-scoring.
+4. Unchanged: OpenAI-dependent arms pending credits; stop the VM when done.
+
+---
+
+## Rev 9 Provenance
+
+Commit `e708ffa` plus this documentation commit. Run ids:
+`20260925_223245` (J1), `20260925_225104` (J2), `20260925_230902` (J3). VM
+restored: `orchestrator.yaml` `md5` `584ebf60728ec0611145b4b3280ce44e`,
+container restarted, GPU idle, instance still running.

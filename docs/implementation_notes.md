@@ -1609,6 +1609,17 @@ Rules for maintaining it:
 
 ## M6 Simulation / Isaac Sim
 
+- **2026-09-26** — **`_bshort` (blocked-side goal short) fixes the west
+  park-beyond-goal failure with no reintroduced blocker-path loss.** Commit
+  `e708ffa`. Three-run ER-2 pilot, west variant: 3/3 position-verified
+  arrivals (J1–J3), gate fired once per run, 0 refusals. Ground truth shows
+  the passer's backtrack after its max x was 0.000 m in all three (versus
+  0.580 m in `_gshort` H2) — the passer's goal now clears the M3 escort
+  endpoint by only 0.050–0.061 m, a thin margin against ≈0.1 m drift. East
+  variant built and validated, not yet run. Report
+  `docs/reports/2026-09-25-overnight-findings.md` §AG–§AH; extends the
+  `_gshort` pilot entry below.
+
 - **2026-09-26** — **`_gshort` fixes the blocker-on-goal-path losses but
   symmetric ±1.5 goals park the yielder beyond the passer's goal.** Six-run
   ER-2 pilot at `c2d8491`: 4/6 position-verified against 2/6 on ±2.5, 0/6
