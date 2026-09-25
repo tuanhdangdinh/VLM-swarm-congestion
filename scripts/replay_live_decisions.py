@@ -1417,10 +1417,12 @@ def analyze_arm_x(records: list[dict[str, Any]]) -> None:
             continue
         refusals, runs = _attempt1_stats(group)
         terminal = sum(int(terminal_refusal(r)) for r in group)
-        terminals[policy] = (terminal, len(group))
+        # Denominator is the usable runs, as in Arm M: a transport-error row made
+        # no attempt, so counting it as a non-terminal run would flatter the policy.
+        terminals[policy] = (terminal, runs)
         print(
             f"{policy},{runs},{refusals},{terminal},"
-            f"{(terminal / len(group)):.3f},"
+            f"{(terminal / runs if runs else 0):.3f},"
             f"{sum(1 for r in group if r.get('decision') is not None)},"
             f"{sum(int(bool(r.get('image_fallback_used'))) for r in group)},"
             f"{sum(r['n_attempts'] for r in group) / len(group):.2f},"
