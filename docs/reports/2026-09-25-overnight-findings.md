@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: overnight session of 2026-09-24/25 — new GPU host bring-up, closed-loop replication, offline presentation-order probe, and four live counterbalanced M2 runs.
+- Rev 2 (2026-09-25): adds the M3 yield feasibility gate and random presentation order, five live validation runs, and a correction to the strength of the live order effect.
 
 ---
 
@@ -20,6 +21,11 @@ deterministic failure (arrested 0.102 m from the blocker; 0.093–0.094 m on
 `robot_2` at 0.6 / 0.4 (T = 0.0 / 0.6). The correct yielder has no influence
 (`P(correct)` 0.40–0.59 pooled; no justification in 360 offline calls or 4 live
 runs cites the obstacle). gpt-4o-mini follows the slot (20/20 → 0/20, 40/40 → 2/40).
+
+> Superseded by Rev 2 §C item 3 (Verdicts). The "`id_asc` always yields
+> `robot_1`" framing overstates the live effect: pooled live runs put gpt-4o at
+> `robot_1` in 7/9 regardless of order, and two identically configured runs
+> disagreed. The offline probe numbers above are unchanged.
 
 ---
 
@@ -305,11 +311,16 @@ unchanged by tonight's commits.
    episode and recording it in the artifact, (b) moving yielder selection to M3
    feasibility grounding (`reasoning/rag/scene_geometry`, which the oracle
    already uses), or (c) both — before any Arm A/B collection.
+   *Superseded by Rev 2 §D item 1 (Recommended Next Steps): both were built and
+   live-validated; the decision is settled.*
 2. Re-label the 2026-09-19 A/B as confounded in the findings register, and add
    tonight's probe and live runs.
 3. Run a targeted test of failure-context memory depth (n >= 3, west-blocked,
    `id_asc`), specifically whether an intervening successful maneuver lets M2
    re-select a yielder that has already failed.
+   *Superseded by Rev 2 §D item 3 (Recommended Next Steps): run L4 reproduced
+   the behaviour, so the open question is now memory depth policy, not whether
+   it happens.*
 4. Fix the parse-failure path; start by inspecting the six raw responses stored
    in the decision artifacts.
 5. Wire `--duration-sec` through to `ResolvedRunConfig` or remove the flag.
@@ -347,3 +358,184 @@ Related documents:
 - `docs/reports/2026-09-25-presentation-order-probe.md` — offline probe, per-cell tables.
 - `docs/reports/2026-09-18-head-on-family-validity.md` — the 2026-09-19 Runs A/B being replicated.
 - `docs/implementation_notes.md` — dated entries under the M2/M5 and M6 sections.
+
+---
+
+## A. What Was Built
+
+Commits landed on `fix/deadlock-collision-resolution` after `22d8857`.
+
+### Random presentation order (`43bf941`, `6a52c94`, branch `feat/order-random`)
+
+M5 gains `prompt_robot_order: random`. `swarm_orchestrator/presentation_order.py`
+adds `derive_order_seed(run_id, session_id)` (SHA-256 based),
+`PresentationOrderPolicy(mode, seed).order_for_episode(k)` and an
+`EpisodeOrderTracker`. One order is drawn per episode, where an episode is the
+`AttemptMemory` scope — opened on a disjoint robot set, closed on base-mission
+arrival — reusing the drawn order across every re-analysis inside it. The seed
+comes from `prompt_robot_order_seed`, else from `VGU_RUN_ID`.
+
+Decision artifacts now carry `robot_presentation_order`,
+`prompt_robot_order_mode`, `prompt_robot_order_seed` and `episode_index`, and
+the node logs the drawn order on its `starting analysis … order=…` line.
+
+Note: with two robots, a run whose deadlock resolves to arrival is a single
+episode, so it draws one order for the whole run. Counterbalancing therefore
+happens **across** runs, not within them.
+
+### M3 yield feasibility gate (`06feaf8`, `8362178`, `9d02a70`, branch `feat/m3-yield-feasibility`)
+
+The feasibility math moved into `reasoning/rag/scene_geometry.py` —
+`required_room_m`, `room_is_feasible`, `yield_retreat_room_m`, `yield_feasible`
+— and is now shared with `isaac/vgu_sim/family_oracle.py`. The regenerated
+family YAML oracle blocks are byte-identical to the previous ones, pinned by a
+test. `ground_reasoner_result` takes `static_obstacles=()` and
+`yield_feasibility_mode="off"|"swap"|"refuse"`, exposed as the M5 key
+`grounding_yield_feasibility: "off"`.
+
+The quoting matters: a bare `off` is YAML `false`, so the value must stay
+quoted.
+
+### Provenance and merges (`d1152f4`, `17fcddd`, `0873fe4`, `f027d63`)
+
+`d1152f4` and `17fcddd` are the two feature merges. `0873fe4` records the gate's
+work in the decision artifact as `grounding_yield_feasibility`,
+`yield_robot_grounded_from`, `yield_regrounded_reason` and
+`yield_refusal_reason`, with matching node logs
+`yield re-grounded request=… from=… to=… reason=…` and
+`yield refused request=… reason=…`. `f027d63` pairs the missing-command
+artifact test with its real terminal stage.
+
+Suite result: 778 passed, with an environmental failure set identical to the
+baseline (55 failed plus 3 collection errors — see Rev 1 §6(e)).
+
+---
+
+## B. Live Validation
+
+Five runs on the VM, gpt-4o at temperature 0.0, obstacle channel **on** with
+`static_obstacles` uncommented and `x` set per scenario. Tree `f027d63` was
+verified by `md5`, and the installed YAML was verified by content before each
+launch.
+
+| Run | STAMP | Scenario | Order mode → effective (seed) | Gate | M2 `yield_robot` | M3 grounded (from → to) | First maneuver | Min gap yielder → box face | Arrivals | Analyses / dispatches |
+|---|---|---|---|---|---|---|---|---|---|---|
+| L1 | `20260925_002713` | `w0p2_eopen` | `id_asc` → `id_asc` (5185357977762094366) | `swap` | `robot_1` | `robot_1` → `robot_2` | `yield` COMPLETED 148.4 s | 0.200 m (never approached) | 2/2 | 6 / 1 |
+| L2 | `20260925_004252` | `wopen_e0p2` | `id_desc` → `id_desc` (11656668545097010666) | `swap` | `robot_1` | none (feasible) | `yield` COMPLETED 148.1 s | 0.200 m | 2/2 | 24 / 1 |
+| L3 | `20260925_005754` | `w0p2_eopen` | `random` → `id_asc` (156520638558926371) | `swap` | `robot_2` | none (feasible) | `yield` COMPLETED 145.1 s | 0.200 m | 2/2 | 5 / 1 |
+| L4 | `20260925_011246` | `w0p2_eopen` | `random` → `id_desc` (15499629317569465484) | `off` | `robot_1` | none (gate off) | `yield` FAILED 251.2 s | 0.102 m | 0/2 | 4 / 4 |
+| L5 | `20260925_012747` | `w0p2_eopen` | `id_asc` → `id_asc` | `refuse` | `robot_1` | refused → `temporary_wait` | `temporary_wait` COMPLETED 19.0 s (not comparable) | `robot_1` 0.200 / `robot_2` 0.150 m | 1/2 | 19 / 4 |
+
+L1's swap, the gate doing the work it was built for:
+
+```text
+[orchestrator_node]: yield re-grounded request=035d60ce68e944c989f184b1864c99fd from=robot_1 to=robot_2 reason=yield re-grounded: robot_1 has 0.70 m retreat room < 1.08 m required; robot_2 feasible
+```
+
+L5's refusal on the same geometry:
+
+```text
+[orchestrator_node]: yield refused request=ad9195b97676451890c570bca3a67db1 reason=yield refused: robot_1 has 0.70 m retreat room < 1.08 m required
+```
+
+The matching L1 artifact fields, which make the intervention auditable without
+reading the log:
+
+```json
+{
+  "robot_presentation_order": "id_asc",
+  "prompt_robot_order_mode": "id_asc",
+  "prompt_robot_order_seed": 5185357977762094366,
+  "episode_index": 0,
+  "grounding_yield_feasibility": "swap",
+  "yield_robot_grounded_from": "robot_1",
+  "yield_regrounded_reason": "yield re-grounded: robot_1 has 0.70 m retreat room < 1.08 m required; robot_2 feasible",
+  "yield_refusal_reason": null,
+  "decision": { "yield_robot": "robot_1" }
+}
+```
+
+`episode_index` stayed `0` across the re-analyses of an episode — every decision
+in L3 and L4 carries `episode_index=0` — confirming one draw per episode.
+
+### Run-level detail
+
+- **L4** never recovered: `yield`(`robot_1`) FAILED → `temporary_wait`
+  COMPLETED → `yield`(`robot_1`) FAILED again → `reverse`(`robot_2`).
+  `conflict_active` ran from 20.1 s to 293.5 s.
+- **L5** after the refusal ran `reverse` → `yield`(`robot_2`) →
+  `reroute`(`robot_2`, FAILED). `robot_1` arrived; `robot_2` stalled at
+  x = −1.550.
+- **L2** needed 8 `Failed to make progress` recoveries for `robot_1` to get
+  round the east blocker. That blocker lies on `robot_1`'s own path to goal — a
+  property of the scenario family, in which the blocker sits on the opposing
+  robot's goal path — so arrival counts absorb the Nav2 recoveries around it.
+
+---
+
+## C. Verdicts
+
+1. **`swap` is the effective fix.** On the cell that failed deterministically
+   (`id_asc`, west-blocked — the 09-19 A/B, `20260924_201328`, and L4) it
+   produced a completed yield and 2/2 arrivals (L1). It is a no-op when the
+   chosen yielder is already feasible (L2, L3), and it never harmed a run.
+   `refuse` is inferior (L5). Recommend `swap` as the production and experiment
+   default, with the artifact fields making every intervention auditable.
+2. **Random order works mechanically but does not change outcomes by itself.**
+   Provenance is verified end to end, and L4 still failed. It is a de-biasing
+   instrument for the matrix, not a success mechanism.
+3. **Correction to Rev 1's framing** (Rev 1 §1's "always yields `robot_1` under
+   `id_asc`" is superseded). Live, the slot manipulation is weaker than the
+   offline probe measured. Pooling all obstacle-ON live runs on the asymmetric
+   variants (09-19 Run B; `20260924_195708`, `201328`, `203437`, `205009`;
+   L1–L4; n = 9), gpt-4o named `robot_1` in **7/9 regardless of order**. Under
+   `id_desc` live it named `robot_1` in 4/5 (R3, R4, L2, L4; R1 chose
+   `robot_2`) against 0.25 pooled offline; under `id_asc` on the west-blocked
+   scene it named `robot_1` in 3/4 live (L3 chose `robot_2`). L1 and L3 share an
+   identical configuration and produced different yielders, so **temperature 0.0
+   is not deterministic run to run** — runs must be treated as samples.
+   Unchanged and reinforced: geometry does not drive the choice (the blocked
+   `robot_1` was chosen in L1, L4, R2 and the 09-19 A/B), which is exactly why
+   the gate is needed. Plausible but unverified reasons for the live/offline
+   gap: the live prompt carries the real M1 annotated frame and live distances
+   where the probe used a synthetic plan view, and n is small.
+4. **Caveat, kept from the run agent.** Every run in this batch had the obstacle
+   channel ON, so order and channel co-vary within the batch. The offline probe
+   found the channel inert, so this is unlikely to matter, but an obstacles-OFF
+   live arm would close it.
+
+---
+
+## D. Recommended Next Steps
+
+These replace items 1 and 3 of Rev 1 §7 (Implications and Next Steps); the
+remaining §7 items stand.
+
+1. Adopt `grounding_yield_feasibility: "swap"` plus `prompt_robot_order: random`
+   (seeded per paired run) for Arm A collection, and record both in the
+   pre-registration. Keep `static_obstacles` uncommented per scenario, and make
+   the launcher's `MODALITY` guard fail when the list renders no line.
+2. Run an obstacles-OFF live arm (`id_asc`/`id_desc` × west/east, n ≥ 3 per
+   cell) to separate order from channel live, and to estimate the live
+   `P(robot_1)` under `id_desc` with a real n.
+3. Settle failure-context depth. L4 re-yielded `robot_1` after an intervening
+   successful `temporary_wait` — the same one-attempt-deep memory described in
+   Rev 1 §6(a). Decide whether the context should carry the last N attempts or
+   the last failed one.
+4. Note the family scenario asymmetry. The east variant's blocker obstructs
+   `robot_1`'s goal path (8 recoveries in L2); consider whether arrival time or
+   `conflict_active` duration is the cleaner outcome measure.
+
+---
+
+## E. Rev 2 Provenance
+
+Commits: `43bf941`, `6a52c94`, `06feaf8`, `8362178`, `9d02a70`, `d1152f4`,
+`17fcddd`, `0873fe4`, `f027d63`, plus this docs commit.
+
+Run ids: `20260925_002713`, `20260925_004252`, `20260925_005754`,
+`20260925_011246`, `20260925_012747`.
+
+The VM config was restored byte-exact to `f027d63`
+(`md5` `3ed3795f174c3df079e050e9b4e49572`), the container was restarted, and the
+GPU is idle. Artifacts remain git-ignored under `data/logs/vm_runs/`.

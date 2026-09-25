@@ -203,6 +203,18 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-25** — **Five live gpt-4o runs validate the feasibility gate; `swap`
+  is the recommended default.** L1 `20260925_002713` (`id_asc`, `swap`)
+  re-grounded `robot_1`→`robot_2` → COMPLETED yield, 2/2 arrivals, on the cell
+  that fails deterministically ungated (L4 `011246`, `off`: FAILED at 0.102 m,
+  0/2). The gate is a no-op when the yielder is already feasible (L2 `004252`,
+  L3 `005754`); `refuse` is inferior (L5 `012747`, 1/2). Random order is
+  mechanically correct (provenance verified, `episode_index` stable at 0 across
+  an episode) but changes no outcome alone. **Corrects the order entry below:
+  live, the slot effect is weaker than offline — `robot_1` named in 7/9 pooled
+  obstacle-ON live runs regardless of order, and L1 vs L3 (identical config)
+  disagreed, so T=0.0 is not run-to-run deterministic.** Caveat: all five runs
+  ran obstacles ON, so order and channel co-vary. `docs/reports/2026-09-25-overnight-findings.md` §B–§D.
 - **2026-09-25** — **M3's yield feasibility gate is now visible in the M5
   decision artifact.** Merging `feat/order-random` and
   `feat/m3-yield-feasibility` left a provenance gap: with
