@@ -122,9 +122,17 @@ a script gap.
 
 One row per `(run, robot)`; `n` reports > 1 marks a robot Nav2 reported
 arrived more than once in the same run (`E0` `robot_2` ×2, `P1` `robot_1`
-×5 — M5 re-logs the same `command_id="base_mission"` success on each
-re-analysis while the *other* robot is still being worked; all duplicate
-reports in this dataset agree with the first). M1 dist / GT dist are at the
+×5). `P1`'s M4 log (`component_logs/m4.log`) shows the real mechanism: `P1`
+is the multi-strategy run (`yield` → `temporary_wait` → `reroute`), and each
+strategy change cancels and re-dispatches `robot_1`'s base-goal Nav2 mission
+(`resume base mission robot=robot_1`); since `robot_1` is already parked at
+the goal each time, the immediate re-dispatch immediately re-satisfies and
+`bt_navigator` reports "Goal succeeded" again within under a second of the
+resume (three of the five reports land within 0.9 s of each other) — not one
+report per M5 re-analysis (P1's own analyses are ~19 s apart). This means
+`ArrivalGate` will rule on each resume-triggered report independently once
+wired to live runs; all five reports in this dataset agree with the first.
+M1 dist / GT dist are at the
 first report; GT min is the robot's minimum distance to goal anywhere in the
 run (frequently much smaller than GT-at-report when the robot's approach
 overshoots and settles, e.g. `G3` `robot_2`, `L5` `robot_1` — this is the
@@ -268,6 +276,18 @@ and are exercised by unit tests, not by anything in this dataset.
 
 ## Limitations
 
+- **The GT-verified column is not fully independent of the M1-verified
+  column.** `gt_dist_m` is read from the GT row nearest, by position, to the
+  M1 estimate itself (method §3) — when M1 has no usable estimate this falls
+  back to GT's own final row instead, but whenever M1 does have an estimate,
+  the GT verdict can differ from the M1 verdict by at most the position-match
+  residual (mean 0.0074 m, max 0.0107 m here), which is why the two columns
+  agree in every one of the 8 batches above: that agreement is expected by
+  construction, not additional confirming evidence from a separate
+  instrument. The genuinely independent check in this report is the
+  reproduction of `ER2_PILOT_SUMMARY.txt`'s hand-derived GT numbers (method
+  section, "Validation before trusting the output"), which were computed by
+  a different process before this script existed.
 - `order`/`backend`/`scenario` recovery for `R1`-`R4` and `E0` is
   best-effort text-matching against launcher logs, not a structured config
   capture (those runs predate `orchestrator.yaml.used` being archived); the
