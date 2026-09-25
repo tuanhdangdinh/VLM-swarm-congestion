@@ -7,7 +7,7 @@ production `build_reasoner_request` / `build_prompt_payload` path, asserts the
 rendered prompt is byte-identical to the stored one, and then re-sends it through
 the shipped `Reasoner` with the real frame.
 
-Four arms:
+Six arms:
 
 * ``R``    — every reconstructable artifact, stored order, real frame. Measures the
   attempt-1 refusal rate against the live rate on the same stimuli.
@@ -16,6 +16,12 @@ Four arms:
 * ``O``    — the first-yield artifact of each run under both presentation orders.
   Measures order sensitivity on real stimuli.
 * ``M``    — retry-policy comparison on the artifacts that refused in Arm R.
+* ``S``    — the genuine-standoff artifacts under a fully crossed
+  order x obstacle-text x image design. Arm O found that under ``id_desc`` the
+  yielder choice tracks the obstacle side; this arm asks which input channel
+  carries that side signal.
+* ``D``    — the live-refused artifacts at full resolution against a 640 px-wide
+  downscale. Asks whether image resolution moves the attempt-1 refusal rate.
 
 Production code is imported, never modified. `Reasoner.run` keeps only the last
 attempt's text, so a recording proxy wraps the backend to capture every attempt;
@@ -68,7 +74,10 @@ from reasoning.vlm.models import (  # noqa: E402
     StaticObstacleInput,
 )
 from reasoning.vlm.output_parser import parse_decision_text  # noqa: E402
-from reasoning.vlm.prompt_builder import build_prompt_payload  # noqa: E402
+from reasoning.vlm.prompt_builder import (  # noqa: E402
+    build_prompt_payload,
+    format_pairwise_geometry_lines,
+)
 from reasoning.vlm.reasoner import Reasoner  # noqa: E402
 
 RUNS_DIR = REPO_ROOT / "data/logs/vm_runs"
@@ -97,8 +106,27 @@ NO_JSON_ERROR = "VLM output contains no JSON object."
 
 ORDERS: tuple[RobotPresentationOrder, ...] = ("id_asc", "id_desc")
 
-Arm = Literal["R", "grey", "O", "M"]
+Arm = Literal["R", "grey", "O", "M", "S", "D"]
 RetryPolicy = Literal["shipped", "original_prompt", "max_attempts_4"]
+
+# Arms recorded before the obstacle-text factor existed. Their cell keys must stay
+# byte-identical or every already-recorded row would be re-run, so the factor is
+# appended to the key only for the arms added afterwards.
+LEGACY_ARMS = frozenset({"R", "grey", "O", "M"})
+
+# A genuine head-on standoff, using the prompt's own facing rule (rendered by
+# `format_pairwise_geometry_lines`) rather than a re-derivation.
+STANDOFF_MAX_DISTANCE_M = 0.6
+STANDOFF_MAX_SPEED_MPS = 0.02
+
+# Words a trace would have to use to cite the blocker. `1.85` is the rendered
+# obstacle coordinate; `box` is how the prompt itself names an obstacle.
+OBSTACLE_MENTION_RE = re.compile(
+    r"obstacle|blocker|barrier|obstruct|\bwall\b|\bboxe?s?\b|crate|1\.85", re.I
+)
+THINK_RE = re.compile(r"<think>(.*?)</think>", re.S | re.I)
+
+ARM_D_DOWNSCALE_WIDTH_PX = 640
 
 
 # An exhausted credit balance arrives as HTTP 429 with these markers; a rate
@@ -124,6 +152,23 @@ def is_refusal(text: str | None) -> bool:
         True if the text matches either observed refusal phrasing.
     """
     return bool(text) and bool(REFUSAL_RE.search(text or ""))
+
+
+def think_block(text: str | None) -> str:
+    """Return the concatenated contents of every `<think>` block in assistant text.
+
+    Args:
+        text: Raw assistant text, or None.
+
+    Returns:
+        The reasoning trace, or an empty string when the text carries no block.
+    """
+    return "\n".join(THINK_RE.findall(text or ""))
+
+
+def mentions_obstacle(text: str | None) -> bool:
+    """Return True when text names the blocker in any of its rendered guises."""
+    return bool(text) and bool(OBSTACLE_MENTION_RE.search(text or ""))
 
 
 def parses_as_decision(text: str | None) -> bool:
@@ -190,6 +235,13 @@ class Artifact:
         if self.obstacle_x is None:
             return None
         return "robot_2" if self.obstacle_x < 0 else "robot_1"
+
+    @property
+    def obstacle_side(self) -> str | None:
+        """Which end of the corridor the blocker sits at, or None when undeclared."""
+        if self.obstacle_x is None:
+            return None
+        return "west" if self.obstacle_x < 0 else "east"
 
 
 def _analysis_order(run_dir: Path) -> dict[str, int]:
@@ -271,6 +323,7 @@ def reconstruct_request(
     artifact: Artifact,
     order: RobotPresentationOrder | None = None,
     image_path: Path | None = None,
+    include_static_obstacles: bool | None = None,
 ) -> ReasonerRequest:
     """Rebuild the `ReasonerRequest` M5 issued for one stored decision.
 
@@ -278,12 +331,19 @@ def reconstruct_request(
         artifact: The stored decision.
         order: Presentation order to render with; None uses the stored order.
         image_path: Image to attach; None uses the real stored frame.
+        include_static_obstacles: Whether to render the obstacle block; None uses
+            the run's own setting, which is what the SHA-256 check asserts against.
 
     Returns:
         The reconstructed request.
     """
     failure_context = (
         FailureContext(**artifact.failure_context) if artifact.failure_context else None
+    )
+    obstacles = (
+        artifact.include_static_obstacles
+        if include_static_obstacles is None
+        else include_static_obstacles
     )
     return build_reasoner_request(
         artifact.request_id,
@@ -292,7 +352,7 @@ def reconstruct_request(
         failure_context=failure_context,
         include_pairwise_geometry=artifact.include_pairwise_geometry,
         static_obstacles=list(artifact.static_obstacles),
-        include_static_obstacles=artifact.include_static_obstacles,
+        include_static_obstacles=obstacles,
         robot_presentation_order=order or artifact.stored_order,
     )
 
@@ -471,20 +531,29 @@ class Cell:
     image_path: Path
     policy: RetryPolicy
     repeat: int
+    obstacle_text: bool | None = None
+
+    @property
+    def include_static_obstacles(self) -> bool:
+        """Whether this cell renders the obstacle block; None falls back to the run."""
+        if self.obstacle_text is None:
+            return self.artifact.include_static_obstacles
+        return self.obstacle_text
 
     def key(self) -> str:
         """Stable identity used to resume an interrupted run."""
-        return "|".join(
-            [
-                self.arm,
-                self.artifact.run,
-                self.artifact.request_id,
-                self.order,
-                self.image_label,
-                self.policy,
-                str(self.repeat),
-            ]
-        )
+        parts = [
+            self.arm,
+            self.artifact.run,
+            self.artifact.request_id,
+            self.order,
+            self.image_label,
+            self.policy,
+            str(self.repeat),
+        ]
+        if self.arm not in LEGACY_ARMS:
+            parts.append("text_on" if self.include_static_obstacles else "text_off")
+        return "|".join(parts)
 
 
 _POLICY_OVERRIDES: dict[RetryPolicy, dict[str, Any]] = {
@@ -514,6 +583,26 @@ def make_grey_image(path: Path, size: tuple[int, int]) -> Path:
     return path
 
 
+def make_downscaled_image(
+    source: Path, path: Path, width: int = ARM_D_DOWNSCALE_WIDTH_PX
+) -> Path:
+    """Write a width-limited copy of a frame, preserving aspect ratio, and return its path.
+
+    Args:
+        source: The real frame PNG.
+        path: Destination PNG.
+        width: Target width in pixels; the height follows the source aspect ratio.
+
+    Returns:
+        The destination path.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with Image.open(source) as image:
+        height = max(1, round(image.height * width / image.width))
+        image.convert("RGB").resize((width, height), Image.LANCZOS).save(path)
+    return path
+
+
 def run_cell(
     cell: Cell,
     backend: RecordingBackend,
@@ -530,7 +619,9 @@ def run_cell(
         A JSON-serializable record of the run, including every attempt.
     """
     config = base_config.model_copy(update=_POLICY_OVERRIDES[cell.policy])
-    request = reconstruct_request(cell.artifact, cell.order, cell.image_path)
+    request = reconstruct_request(
+        cell.artifact, cell.order, cell.image_path, cell.include_static_obstacles
+    )
     payload_sha = sha256_text(build_prompt_payload(request).user_prompt)
     backend.reset()
     started = time.monotonic()
@@ -554,6 +645,8 @@ def run_cell(
         "order": cell.order,
         "stored_order": cell.artifact.stored_order,
         "image": cell.image_label,
+        "obstacle_text": cell.include_static_obstacles,
+        "side": cell.artifact.obstacle_side,
         "policy": cell.policy,
         "repeat": cell.repeat,
         "model_id": config.backend_id,
@@ -577,6 +670,13 @@ def run_cell(
         "strategy": (decision or {}).get("strategy"),
         "yield_robot": (decision or {}).get("yield_robot"),
         "correct_yielder": cell.artifact.correct_yielder,
+        "think_obstacle_mention": any(
+            mentions_obstacle(think_block(a["text"])) for a in attempts
+        ),
+        "text_obstacle_mention": any(mentions_obstacle(a["text"]) for a in attempts),
+        "decision_obstacle_mention": mentions_obstacle(
+            " ".join(str((decision or {}).get(k) or "") for k in ("root_cause", "justification"))
+        ),
         "wall_ms": int((time.monotonic() - started) * 1000),
         "error": error,
     }
@@ -721,6 +821,113 @@ def build_arm_o_cells(yields: list[Artifact], n: int) -> list[Cell]:
         for a in yields
         for order in ORDERS
         for i in range(n)
+    ]
+
+
+_PAIRWISE_RE = re.compile(
+    r"distance (?P<distance>[\d.]+) m; "
+    r"\S+ faces \S+: (?P<first>yes|no); \S+ faces \S+: (?P<second>yes|no)"
+)
+
+
+def is_standoff(
+    artifact: Artifact,
+    max_distance_m: float = STANDOFF_MAX_DISTANCE_M,
+    max_speed_mps: float = STANDOFF_MAX_SPEED_MPS,
+) -> bool:
+    """Whether an artifact's scene is a genuine two-robot head-on standoff.
+
+    Both robots must be stationary (`STOPPED`, or below `max_speed_mps`), within
+    `max_distance_m` of each other, and mutually facing. Facing and distance come
+    from the rendered pairwise-geometry line, so the filter uses exactly the rule
+    the prompt states rather than a second implementation of it.
+
+    Args:
+        artifact: The stored decision.
+        max_distance_m: Inclusive separation ceiling.
+        max_speed_mps: Speed below which a robot counts as stationary.
+
+    Returns:
+        True when the scene is a standoff.
+    """
+    states = reconstruct_request(artifact).robot_states
+    if len(states) != 2:
+        return False
+    stationary = all(
+        state.status == "STOPPED" or abs(state.linear_velocity or 0.0) < max_speed_mps
+        for state in states
+    )
+    if not stationary:
+        return False
+    lines = format_pairwise_geometry_lines(states, artifact.stored_order)
+    if len(lines) != 1:
+        return False
+    match = _PAIRWISE_RE.search(lines[0])
+    if match is None:
+        return False
+    return (
+        float(match.group("distance")) <= max_distance_m
+        and match.group("first") == "yes"
+        and match.group("second") == "yes"
+    )
+
+
+def select_standoff_artifacts(
+    matched: list[Artifact], exclude_failure_context: bool = True
+) -> list[Artifact]:
+    """The standoff artifacts of the corpus, optionally dropping failure-context ones.
+
+    Args:
+        matched: Artifacts whose prompt reconstructed exactly.
+        exclude_failure_context: Drop artifacts carrying a rendered failure-context
+            block, which is a second manipulated channel.
+
+    Returns:
+        The selected artifacts, in the input order.
+    """
+    return [
+        a
+        for a in matched
+        if is_standoff(a) and not (exclude_failure_context and a.failure_context)
+    ]
+
+
+def build_arm_s_cells(standoffs: list[Artifact], grey: Path, n: int) -> list[Cell]:
+    """The fully crossed order x obstacle-text x image design on the standoff scenes."""
+    return [
+        Cell(
+            "S",
+            artifact,
+            order,
+            image_label,
+            grey if image_label == "grey" else artifact.image_path,
+            "shipped",
+            index,
+            obstacle_text=obstacle_text,
+        )
+        for artifact in standoffs
+        for order in ORDERS
+        for obstacle_text in (True, False)
+        for image_label in ("real", "grey")
+        for index in range(n)
+    ]
+
+
+def build_arm_d_cells(refused: list[Artifact], downscaled: dict[str, Path], n: int) -> list[Cell]:
+    """Full-resolution against downscaled frames on the live-refused artifacts."""
+    return [
+        Cell(
+            "D",
+            artifact,
+            artifact.stored_order,
+            image_label,
+            artifact.image_path if image_label == "real" else downscaled[artifact.request_id],
+            "shipped",
+            index,
+        )
+        for artifact in refused
+        for image_label in ("real", f"down{ARM_D_DOWNSCALE_WIDTH_PX}")
+        for index in range(n)
     ]
 
 
@@ -952,6 +1159,11 @@ def analyze(records: list[dict[str, Any]], artifacts: list[Artifact]) -> None:
             terminal = sum(int(terminal_refusal(r)) for r in refused)
             print(f"{policy},{len(refused)},{terminal},{terminal / len(refused):.3f}")
 
+    if by_arm.get("S"):
+        analyze_arm_s(by_arm["S"])
+    if by_arm.get("D"):
+        analyze_arm_d(by_arm["D"], by_arm.get("R", []))
+
     prompt_tokens = sum(
         (a.get("token_usage") or {}).get("prompt_tokens", 0)
         for r in records
@@ -974,12 +1186,181 @@ def analyze(records: list[dict[str, Any]], artifacts: list[Artifact]) -> None:
     )
 
 
+S_CHANNELS: tuple[tuple[bool, str], ...] = (
+    (True, "real"),
+    (True, "grey"),
+    (False, "real"),
+    (False, "grey"),
+)
+
+
+def _yield_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The records in `records` whose decision chose `yield`."""
+    return [r for r in records if r.get("strategy") == "yield"]
+
+
+def _counts(records: list[dict[str, Any]], field_name: str, value: Any) -> tuple[int, int]:
+    """Return (matches, total) for `field_name == value` over yield decisions."""
+    rows = _yield_rows(records)
+    return sum(1 for r in rows if r.get(field_name) == value), len(rows)
+
+
+def _feasible_counts(records: list[dict[str, Any]]) -> tuple[int, int]:
+    """Return (yields naming the feasible robot, total yields)."""
+    rows = _yield_rows(records)
+    return sum(1 for r in rows if r["yield_robot"] == r["correct_yielder"]), len(rows)
+
+
+def _side_split(records: list[dict[str, Any]]) -> tuple[int, int, int, int, float]:
+    """Return west/east P(robot_1) counts and the Fisher p for the side association."""
+    w, wn = _counts([r for r in records if r["side"] == "west"], "yield_robot", "robot_1")
+    e, en = _counts([r for r in records if r["side"] == "east"], "yield_robot", "robot_1")
+    return w, wn, e, en, fisher_two_sided(w, wn - w, e, en - e)
+
+
+def _s_cell(
+    records: list[dict[str, Any]], order: str, text: bool, image: str
+) -> list[dict[str, Any]]:
+    """Select one Arm-S design cell."""
+    return [
+        r
+        for r in records
+        if r["order"] == order and r["obstacle_text"] is text and r["image"] == image
+    ]
+
+
+def _print_s_table(records: list[dict[str, Any]], label: str) -> None:
+    """Print the 8-cell table, pooled and split by obstacle side."""
+    print(f"\n### Arm S cells ({label})")
+    print(
+        "order,obstacle_text,image,n,decided,yields,P(robot_1),P(feasible),"
+        "west_P(robot_1),east_P(robot_1),side_fisher_p,think_mentions,decision_mentions"
+    )
+    for order in ORDERS:
+        for text, image in S_CHANNELS:
+            cell = _s_cell(records, order, text, image)
+            if not cell:
+                continue
+            r1, n_y = _counts(cell, "yield_robot", "robot_1")
+            ok, _ = _feasible_counts(cell)
+            w, wn, e, en, p = _side_split(cell)
+            decided = sum(1 for r in cell if r.get("decision") is not None)
+            think = sum(1 for r in cell if r.get("think_obstacle_mention"))
+            said = sum(1 for r in cell if r.get("decision_obstacle_mention"))
+            print(
+                f"{order},{'on' if text else 'off'},{image},{len(cell)},{decided},{n_y},"
+                f"{(r1 / n_y if n_y else 0):.3f},{(ok / n_y if n_y else 0):.3f},"
+                f"{(w / wn if wn else 0):.3f},{(e / en if en else 0):.3f},{p:.4g},"
+                f"{think},{said}"
+            )
+
+
+def _contrast(
+    records: list[dict[str, Any]],
+    order: str,
+    left: tuple[bool, str],
+    right: tuple[bool, str],
+    label: str,
+) -> None:
+    """Print a between-cell Fisher test on P(feasible), the side-tracking summary.
+
+    P(feasible) pooled over the two sides is 0.5 under any side-blind rule
+    (first-listed, always-`robot_1`, coin flip) and rises above it only when the
+    choice tracks the obstacle side, so it is the quantity a channel ablation
+    should move if that channel carries the signal.
+    """
+    a, an = _feasible_counts(_s_cell(records, order, *left))
+    c, cn = _feasible_counts(_s_cell(records, order, *right))
+    print(
+        f"{label}: P(feasible) {_rate(a, an)} vs {_rate(c, cn)}, "
+        f"fisher p={fisher_two_sided(a, an - a, c, cn - c):.4g}"
+    )
+
+
+def analyze_arm_s(records: list[dict[str, Any]]) -> None:
+    """Print the Arm-S design tables and the three channel contrasts.
+
+    Args:
+        records: Every recorded Arm-S call.
+    """
+    by_side: dict[str, set[str]] = defaultdict(set)
+    for record in records:
+        by_side[record["side"]].add(record["request_id"])
+    print("\n## Arm S (which channel carries the side signal)")
+    print(
+        "artifacts: "
+        + ", ".join(f"{side} {len(ids)}" for side, ids in sorted(by_side.items()))
+    )
+    attempt1 = [r for r in records if not r["attempt1_refusal"]]
+    _print_s_table(attempt1, "attempt-1 only, primary")
+    _print_s_table(records, "pooled, includes re-ask-derived decisions")
+
+    for label, pool in (("attempt-1 only", attempt1), ("pooled", records)):
+        print(f"\n### id_desc channel contrasts ({label})")
+        _contrast(
+            pool, "id_desc", (True, "real"), (False, "real"), "(a) real frame, text on vs off"
+        )
+        _contrast(pool, "id_desc", (True, "real"), (True, "grey"), "(b) text on, real vs grey")
+        w, wn, e, en, p = _side_split(_s_cell(pool, "id_desc", False, "grey"))
+        print(
+            f"(c) states only (text off + grey): west P(robot_1) {_rate(w, wn)} vs "
+            f"east {_rate(e, en)}, fisher p={p:.4g}"
+        )
+        print(f"\n### id_asc control ({label}) - is the first-position default unbroken?")
+        for text, image in S_CHANNELS:
+            cell = _s_cell(pool, "id_asc", text, image)
+            r1, n_y = _counts(cell, "yield_robot", "robot_1")
+            ok, _ = _feasible_counts(cell)
+            print(
+                f"text={'on' if text else 'off'},image={image}: "
+                f"P(robot_1) {_rate(r1, n_y)}, P(feasible) {_rate(ok, n_y)}"
+            )
+
+    think = sum(1 for r in records if r.get("think_obstacle_mention"))
+    said = sum(1 for r in records if r.get("decision_obstacle_mention"))
+    any_text = sum(1 for r in records if r.get("text_obstacle_mention"))
+    print(
+        f"\nobstacle mentions across {len(records)} Arm-S runs: "
+        f"<think> {think}, decision fields {said}, anywhere in the raw text {any_text}"
+    )
+
+
+def analyze_arm_d(records: list[dict[str, Any]], arm_r: list[dict[str, Any]]) -> None:
+    """Print the downscaled-frame refusal comparison.
+
+    Args:
+        records: Every recorded Arm-D call.
+        arm_r: Arm-R records, for an out-of-session consistency note on the same
+            artifacts at full resolution.
+    """
+    print("\n## Arm D (frame resolution and refusal)")
+    print("image,runs,attempt1_refusals,rate,terminal_refusals")
+    labels = sorted({r["image"] for r in records})
+    stats: dict[str, tuple[int, int]] = {}
+    for image in labels:
+        group = [r for r in records if r["image"] == image]
+        k, n = _attempt1_stats(group)
+        stats[image] = (k, n)
+        terminal = sum(int(terminal_refusal(r)) for r in group)
+        print(f"{image},{n},{k},{(k / n if n else 0):.3f},{terminal}")
+    if len(labels) == 2:
+        (a, an), (c, cn) = stats[labels[0]], stats[labels[1]]
+        print(
+            f"{labels[0]} vs {labels[1]}: fisher p="
+            f"{fisher_two_sided(a, an - a, c, cn - c):.4g}"
+        )
+    ids = {r["request_id"] for r in records}
+    k, n = _attempt1_stats([r for r in arm_r if r["request_id"] in ids])
+    print(f"same artifacts in Arm R (full-res, earlier session): {_rate(k, n)}")
+
+
 SUMMARY_FIELDS = [
     "arm",
     "run",
     "request_id",
     "order",
     "image",
+    "obstacle_text",
     "policy",
     "n",
     "attempt1_refusals",
@@ -990,10 +1371,15 @@ SUMMARY_FIELDS = [
     "yield_robot_1",
     "yield_first_listed",
     "yield_correct",
+    "think_obstacle_mentions",
     "errors",
     "prompt_tokens",
     "completion_tokens",
 ]
+
+# Rows recorded before the obstacle-text factor existed carry no flag; every one
+# of them rendered the run's own setting.
+_STORED_TEXT = "stored"
 
 
 def write_summary(records: list[dict[str, Any]], out_dir: Path) -> None:
@@ -1011,12 +1397,14 @@ def write_summary(records: list[dict[str, Any]], out_dir: Path) -> None:
             record["request_id"],
             record["order"],
             record["image"],
+            _STORED_TEXT if record.get("obstacle_text") is None else str(record["obstacle_text"]),
             record["policy"],
         )
         bucket = buckets[key]
         bucket["n"] += 1
         bucket["attempt1_refusals"] += int(record.get("attempt1_refusal", False))
         bucket["terminal_refusals"] += int(terminal_refusal(record))
+        bucket["think_obstacle_mentions"] += int(record.get("think_obstacle_mention", False))
         bucket["errors"] += int(bool(record.get("error")))
         decision = record.get("decision")
         bucket["decided"] += int(decision is not None)
@@ -1037,11 +1425,11 @@ def write_summary(records: list[dict[str, Any]], out_dir: Path) -> None:
         writer.writeheader()
         for key in sorted(buckets, key=str):
             v = buckets[key]
-            row = dict(zip(SUMMARY_FIELDS[:6], key, strict=True))
+            row = dict(zip(SUMMARY_FIELDS[:7], key, strict=True))
             row["n"] = int(v["n"])
             row["attempt1_refusals"] = int(v["attempt1_refusals"])
             row["attempt1_refusal_rate"] = f"{v['attempt1_refusals'] / v['n']:.3f}"
-            for name in SUMMARY_FIELDS[9:]:
+            for name in SUMMARY_FIELDS[10:]:
                 row[name] = int(v[name])
             writer.writerow(row)
     print(f"wrote {out_dir / 'summary.csv'}")
@@ -1073,7 +1461,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--arm",
-        choices=["integrity", "R", "grey", "O", "M", "summary", "analyze"],
+        choices=["integrity", "R", "grey", "O", "M", "S", "D", "summary", "analyze"],
         default="integrity",
         help="which arm to run; 'integrity' only checks reconstruction",
     )
@@ -1123,6 +1511,36 @@ def main() -> None:
             f"{a.run}/{a.request_id[:8]}({a.stored_order})" for a in yields
         ))
         cells = build_arm_o_cells(yields, args.n)
+    elif args.arm == "S":
+        standoffs = select_standoff_artifacts(matched)
+        sizes = {Image.open(a.image_path).size for a in standoffs}
+        if len(sizes) != 1:
+            raise ValueError(f"standoff frames differ in size: {sorted(sizes)}")
+        size = sizes.pop()
+        grey = make_grey_image(args.out_dir / "images" / f"grey_{size[0]}x{size[1]}.png", size)
+        by_side_count = defaultdict(int)
+        for a in standoffs:
+            by_side_count[a.obstacle_side] += 1
+        print(
+            f"arm S: {len(standoffs)} standoff artifacts "
+            f"({dict(by_side_count)}), grey {size}: "
+            + ", ".join(f"{a.run}/{a.request_id[:8]}" for a in standoffs)
+        )
+        cells = build_arm_s_cells(standoffs, grey, args.n)
+    elif args.arm == "D":
+        refused = [a for a in matched if a.live_attempt1_refusal]
+        downscaled = {
+            a.request_id: make_downscaled_image(
+                a.image_path,
+                args.out_dir
+                / "images"
+                / f"down{ARM_D_DOWNSCALE_WIDTH_PX}_{a.request_id[:8]}.png",
+            )
+            for a in refused
+        }
+        print(f"arm D: {len(refused)} live-refused artifacts, downscaled to "
+              f"{ARM_D_DOWNSCALE_WIDTH_PX} px wide")
+        cells = build_arm_d_cells(refused, downscaled, args.n)
     else:
         rates: dict[str, list[int]] = defaultdict(list)
         for record in load_records(args.out_dir):

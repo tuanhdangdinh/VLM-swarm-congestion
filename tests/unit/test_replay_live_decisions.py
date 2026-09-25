@@ -19,11 +19,20 @@ from reasoning.vlm.models import StaticObstacleInput
 from reasoning.vlm.prompt_builder import build_prompt_payload
 from scripts.replay_live_decisions import (
     Artifact,
+    Cell,
+    build_arm_d_cells,
+    build_arm_s_cells,
     check_integrity,
     first_yield_artifacts,
     is_refusal,
+    is_standoff,
+    make_downscaled_image,
+    make_grey_image,
+    mentions_obstacle,
     reconstruct_request,
+    select_standoff_artifacts,
     sha256_text,
+    think_block,
 )
 
 # One artifact from run 20260925_063520 (obstacle west, failure-context block
@@ -332,3 +341,182 @@ def test_first_yield_artifacts_picks_one_per_run_in_analysis_order(tmp_path):
         art("run_b", "b1", "yield"),
     ]
     assert [a.request_id for a in first_yield_artifacts(artifacts)] == ["a2", "b1"]
+
+
+@pytest.fixture()
+def standoff_artifact(tmp_path: Path) -> Artifact:
+    """A genuine head-on standoff: both STOPPED, 0.40 m apart, mutually facing."""
+    return make_artifact(
+        tmp_path,
+        scene=DESC_SCENE,
+        failure_context=None,
+        order="id_desc",
+        user_sha256=DESC_USER_SHA256,
+        obstacle_x=1.85,
+        run="20260925_075116",
+        request_id="3120c65f00004db0b3eca5d5127b73e9",
+    )
+
+
+def test_is_standoff_true_for_stopped_facing_pair_within_threshold(standoff_artifact):
+    assert is_standoff(standoff_artifact)
+
+
+def test_is_standoff_false_when_robots_are_far_apart(fc_artifact):
+    # The FC fixture's robots sit 1.46 m apart, well beyond the 0.6 m ceiling.
+    assert not is_standoff(fc_artifact)
+
+
+def test_is_standoff_false_when_one_robot_faces_away(tmp_path):
+    scene = json.loads(json.dumps(DESC_SCENE))
+    scene["robots"][0]["theta"] = 0.0
+    artifact = make_artifact(
+        tmp_path,
+        scene=scene,
+        failure_context=None,
+        order="id_desc",
+        user_sha256=DESC_USER_SHA256,
+        obstacle_x=1.85,
+    )
+    assert not is_standoff(artifact)
+
+
+def test_is_standoff_false_when_a_robot_is_still_moving(tmp_path):
+    scene = json.loads(json.dumps(DESC_SCENE))
+    scene["robots"][0]["status"] = "MOVING"
+    scene["robots"][0]["linear_velocity"] = 0.25
+    artifact = make_artifact(
+        tmp_path,
+        scene=scene,
+        failure_context=None,
+        order="id_desc",
+        user_sha256=DESC_USER_SHA256,
+        obstacle_x=1.85,
+    )
+    assert not is_standoff(artifact)
+
+
+def test_is_standoff_true_when_status_is_stale_but_speed_is_negligible(tmp_path):
+    scene = json.loads(json.dumps(DESC_SCENE))
+    for robot in scene["robots"]:
+        robot["status"] = "STALE"
+    artifact = make_artifact(
+        tmp_path,
+        scene=scene,
+        failure_context=None,
+        order="id_desc",
+        user_sha256=DESC_USER_SHA256,
+        obstacle_x=1.85,
+    )
+    assert is_standoff(artifact)
+
+
+def test_select_standoff_artifacts_drops_non_standoffs(standoff_artifact, fc_artifact):
+    selected = select_standoff_artifacts([fc_artifact, standoff_artifact])
+    assert [a.request_id for a in selected] == [standoff_artifact.request_id]
+
+
+def test_select_standoff_artifacts_excludes_failure_context_by_default(tmp_path):
+    artifact = make_artifact(
+        tmp_path,
+        scene=DESC_SCENE,
+        failure_context=FC_BLOCK,
+        order="id_desc",
+        user_sha256=DESC_USER_SHA256,
+        obstacle_x=1.85,
+    )
+    assert select_standoff_artifacts([artifact]) == []
+    assert select_standoff_artifacts([artifact], exclude_failure_context=False) == [artifact]
+
+
+def test_obstacle_side_is_west_for_a_negative_obstacle_x(fc_artifact):
+    assert fc_artifact.obstacle_side == "west"
+
+
+def test_obstacle_side_is_east_for_a_positive_obstacle_x(standoff_artifact):
+    assert standoff_artifact.obstacle_side == "east"
+
+
+def test_make_grey_image_is_uniform_mid_grey_at_the_requested_size(tmp_path):
+    path = make_grey_image(tmp_path / "grey.png", (1280, 960))
+    with Image.open(path) as image:
+        assert image.size == (1280, 960)
+        pixels = np.asarray(image.convert("RGB"))
+    assert pixels.min() == pixels.max() == 128
+
+
+def test_make_downscaled_image_keeps_aspect_ratio_at_the_target_width(tmp_path):
+    source = tmp_path / "source.png"
+    Image.fromarray(np.zeros((960, 1280, 3), dtype=np.uint8)).save(source)
+    path = make_downscaled_image(source, tmp_path / "down.png", width=640)
+    with Image.open(path) as image:
+        assert image.size == (640, 480)
+
+
+def test_make_downscaled_image_rounds_an_uneven_aspect_ratio(tmp_path):
+    source = tmp_path / "source.png"
+    Image.fromarray(np.zeros((101, 300, 3), dtype=np.uint8)).save(source)
+    path = make_downscaled_image(source, tmp_path / "down.png", width=151)
+    with Image.open(path) as image:
+        assert image.size == (151, 51)
+
+
+def test_make_downscaled_image_preserves_visible_structure(tmp_path):
+    source = tmp_path / "source.png"
+    array = np.zeros((960, 1280, 3), dtype=np.uint8)
+    array[:, 640:] = 255
+    Image.fromarray(array).save(source)
+    path = make_downscaled_image(source, tmp_path / "down.png", width=640)
+    with Image.open(path) as image:
+        pixels = np.asarray(image.convert("RGB"))
+    assert pixels[:, 10].max() == 0
+    assert pixels[:, -10].min() == 255
+
+
+def test_arm_s_cell_keys_encode_the_obstacle_text_factor(standoff_artifact):
+    grey = standoff_artifact.image_path
+    cells = build_arm_s_cells([standoff_artifact], grey, 1)
+    keys = [c.key() for c in cells]
+    assert len(keys) == len(set(keys)) == 8
+    assert sum(k.endswith("|text_on") for k in keys) == 4
+    assert sum(k.endswith("|text_off") for k in keys) == 4
+
+
+def test_legacy_arm_cell_keys_are_unchanged_by_the_new_factor(standoff_artifact):
+    cell = Cell(
+        "O", standoff_artifact, "id_asc", "real", standoff_artifact.image_path, "shipped", 0
+    )
+    assert cell.key() == "|".join(
+        ["O", standoff_artifact.run, standoff_artifact.request_id, "id_asc", "real", "shipped", "0"]
+    )
+
+
+def test_arm_s_text_off_cell_drops_the_obstacle_block_from_the_prompt(standoff_artifact):
+    on = build_prompt_payload(
+        reconstruct_request(standoff_artifact, include_static_obstacles=True)
+    ).user_prompt
+    off = build_prompt_payload(
+        reconstruct_request(standoff_artifact, include_static_obstacles=False)
+    ).user_prompt
+    assert "obstacle_1: centre (1.85, 0.00) m" in on
+    assert "obstacle" not in off.lower()
+
+
+def test_arm_d_cells_pair_each_artifact_at_both_resolutions(standoff_artifact, tmp_path):
+    downscaled = {standoff_artifact.request_id: tmp_path / "down.png"}
+    cells = build_arm_d_cells([standoff_artifact], downscaled, 2)
+    assert len(cells) == 4
+    assert {c.image_label for c in cells} == {"real", "down640"}
+    assert len({c.key() for c in cells}) == 4
+
+
+def test_think_block_extracts_only_the_reasoning_trace():
+    assert think_block("<think>\nblocked by a crate\n</think>\n{\"x\": 1}").strip() == (
+        "blocked by a crate"
+    )
+
+
+def test_mentions_obstacle_matches_the_blocker_vocabulary():
+    assert mentions_obstacle("robot_1 cannot retreat past the barrier")
+    assert mentions_obstacle("the box at 1.85 blocks it")
+    assert not mentions_obstacle("robot_1 should yield because it is closer to the goal")
