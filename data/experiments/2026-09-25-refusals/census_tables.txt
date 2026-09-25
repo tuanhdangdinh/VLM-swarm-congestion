@@ -1,0 +1,55 @@
+artifacts: 163
+
+run,backend,obstacles,total,refusal,attempt1_nonjson,fc,solo,pair
+20260924_193112,gpt-4o,False,2,0,0,1,1,1
+20260924_195708,gpt-4o,True,5,2,3,3,5,0
+20260924_201328,gpt-4o,True,4,0,0,3,2,2
+20260924_203437,gpt-4o,True,5,1,2,3,5,0
+20260924_205009,gpt-4o,True,5,3,3,3,5,0
+20260925_002713,gpt-4o,True,6,0,3,3,6,0
+20260925_004252,gpt-4o,True,24,0,3,3,23,1
+20260925_005754,gpt-4o,True,5,0,0,3,5,0
+20260925_011246,gpt-4o,True,4,0,0,3,2,2
+20260925_012747,gpt-4o,True,19,3,6,8,17,2
+20260925_021549,gemini-robotics-er-2-preview,False,3,0,0,2,3,0
+20260925_023122,gemini-robotics-er-2-preview,True,8,0,0,5,6,2
+20260925_024628,gemini-robotics-er-2-preview,True,9,0,0,5,7,2
+20260925_030129,gemini-robotics-er-2-preview,True,5,0,0,3,4,1
+20260925_035042,gemini-robotics-er-2-preview,True,7,0,0,3,6,1
+20260925_040539,gemini-robotics-er-2-preview,True,7,0,0,6,5,2
+20260925_042022,gemini-robotics-er-2-preview,True,23,0,0,5,22,1
+20260925_043512,gpt-4o,False,7,1,1,4,6,1
+20260925_045004,gpt-4o,False,15,2,2,4,2,13
+
+backend,obstacles,total,refusal,attempt1_nonjson
+gemini-robotics-er-2-preview,False,3,0,0
+gemini-robotics-er-2-preview,True,59,0,0
+gpt-4o,False,24,3,3
+gpt-4o,True,77,9,20
+
+backend,failure_context,stall,total,refusal,attempt1_nonjson
+gemini-robotics-er-2-preview,False,pair,1,0,0
+gemini-robotics-er-2-preview,False,solo,32,0,0
+gemini-robotics-er-2-preview,True,pair,8,0,0
+gemini-robotics-er-2-preview,True,solo,21,0,0
+gpt-4o,False,pair,14,0,1
+gpt-4o,False,solo,46,2,9
+gpt-4o,True,pair,8,2,2
+gpt-4o,True,solo,33,8,11
+
+gpt-4o attempt-1 non-JSON: 23/101; re-ask recovered 11/23
+failure_context,persisted,attempt1_nonjson
+True,10,13
+False,2,10
+
+pooled failure_context: 10/41 vs 2/60, fisher p=0.003004
+pooled failure_context on attempt-1 non-JSON: 13/41 vs 10/60, fisher p=0.09356
+
+within-run stratification (gpt-4o runs with >=1 refusal)
+run,fc_refusal,fc_total,nofc_refusal,nofc_total
+20260924_195708,2,3,0,2
+20260924_203437,1,3,0,2
+20260924_205009,3,3,0,2
+20260925_012747,2,8,1,11
+20260925_043512,0,4,1,3
+20260925_045004,2,4,0,11
