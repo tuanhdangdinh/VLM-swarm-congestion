@@ -20,6 +20,14 @@ Usage:
     python scripts/probe_presentation_order.py --dry-run     # prompts only, no API
     python scripts/probe_presentation_order.py
     python scripts/probe_presentation_order.py --models gpt-4o,gpt-4o-mini
+    python scripts/probe_presentation_order.py --backend gemini --seeds 15
+
+The `openai` backend varies `temperature` per job. The `gemini` backend cannot:
+the Interactions API's `generation_config` has no `temperature`/`top_p`/`top_k`
+fields at all, only `seed`, `max_output_tokens` and `thinking_level`. Under
+`--backend gemini` the within-cell samples are therefore distinct `seed` values
+rather than repeated draws at one temperature, and every record carries the
+sampling fields the backend had to drop (`unsupported_sampling`).
 """
 from __future__ import annotations
 
@@ -54,12 +62,14 @@ from vgu_sim.config import ScenarioConfig  # noqa: E402
 
 from reasoning.vlm.backend_base import VLMBackend  # noqa: E402
 from reasoning.vlm.backend_factory import (  # noqa: E402
+    BackendConfig,
     backend_section,
     build_backend,
     resolve_reasoner_config,
 )
 from reasoning.vlm.models import (  # noqa: E402
     BackendResponse,
+    GeminiBackendConfig,
     OpenAIBackendConfig,
     PromptPayload,
     ReasonerConfig,
@@ -100,7 +110,19 @@ _WALL_COLOR = (90, 90, 90)
 _OBSTACLE_COLOR = (140, 110, 70)
 _BARRIER_THICKNESS_M = 0.1
 
-_AUTH_MARKERS = ("HTTP 401", "HTTP 403")
+# OpenAI rejects a bad key with HTTP 401/403; the Gemini Interactions API answers
+# HTTP 400 with an API_KEY_INVALID body and HTTP 403 with PERMISSION_DENIED, so the
+# status code alone does not separate "bad credentials" from "bad request".
+_AUTH_MARKERS = (
+    "HTTP 401",
+    "HTTP 403",
+    "API_KEY_INVALID",
+    "PERMISSION_DENIED",
+    "UNAUTHENTICATED",
+)
+# The temperature column's value for backends whose samples are seeds, not draws.
+_SEEDED_TEMPERATURE = "seeded"
+_DEFAULT_SEEDS = 15
 # Backoff after a transport failure. The shipped account caps gpt-4o at 30k
 # tokens per minute and one probe call costs ~1.9k, so an unpaced run spends
 # most of its calls on HTTP 429 instead of on data.
@@ -382,18 +404,29 @@ def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def load_openai_settings(models_yaml: Path) -> tuple[dict, ReasonerConfig, OpenAIBackendConfig]:
-    """Read the shipped `openai` backend settings so the probe samples as M5 does.
+_BACKEND_CONFIG_TYPES = {"openai": OpenAIBackendConfig, "gemini": GeminiBackendConfig}
+
+
+def load_backend_settings(
+    models_yaml: Path, backend_id: str
+) -> tuple[dict, ReasonerConfig, BackendConfig]:
+    """Read one shipped backend's settings so the probe is configured as M5 is.
 
     Args:
         models_yaml: Path to `config/models.yaml`.
+        backend_id: `"openai"` or `"gemini"`.
 
     Returns:
         The raw `vlm:` mapping, the resolved reasoner config, and the backend config.
+
+    Raises:
+        ValueError: If `backend_id` is not a backend this probe supports.
     """
+    if backend_id not in _BACKEND_CONFIG_TYPES:
+        raise ValueError(f"probe does not support backend {backend_id!r}")
     raw_vlm = yaml.safe_load(models_yaml.read_text(encoding="utf-8"))["vlm"]
-    reasoner_config = resolve_reasoner_config(raw_vlm, "openai")
-    backend_config = OpenAIBackendConfig(**backend_section(raw_vlm, "openai"))
+    reasoner_config = resolve_reasoner_config(raw_vlm, backend_id)
+    backend_config = _BACKEND_CONFIG_TYPES[backend_id](**backend_section(raw_vlm, backend_id))
     return raw_vlm, reasoner_config, backend_config
 
 
@@ -460,11 +493,18 @@ def _decision_record(result: ReasonerResult) -> dict[str, object] | None:
 
 @dataclass(frozen=True)
 class Job:
-    """One planned API call."""
+    """One planned API call.
+
+    `seed` is set only for backends whose within-cell samples are distinct seeds
+    rather than repeated draws at one temperature (`gemini`). It is `None` for the
+    temperature-swept `openai` path, and a `None` seed keeps the persisted record
+    byte-identical to the pre-feature one.
+    """
 
     cell: Cell
     temperature: float
     sample_index: int
+    seed: int | None = None
 
 
 def build_call_record(
@@ -474,8 +514,13 @@ def build_call_record(
     result: ReasonerResult,
     retries: int,
 ) -> dict[str, object]:
-    """Assemble the JSONL record persisted for one call."""
-    return {
+    """Assemble the JSONL record persisted for one call.
+
+    A seeded job adds `seed` and `unsupported_sampling`; a temperature-swept job
+    omits both keys entirely rather than writing nulls, so records written by the
+    default `openai` path stay byte-identical to the pre-feature ones.
+    """
+    record: dict[str, object] = {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "model": model,
         "cell": job.cell.key,
@@ -500,6 +545,10 @@ def build_call_record(
         "raw_text": result.raw_text,
         "decision": _decision_record(result),
     }
+    if job.seed is not None:
+        record["seed"] = job.seed
+        record["unsupported_sampling"] = result.diagnostics.unsupported_sampling
+    return record
 
 
 @dataclass(frozen=True)
@@ -516,17 +565,21 @@ class CellContext:
 
 
 def prepare_cells(
-    scenarios: dict[str, ScenarioConfig], out_dir: Path
+    scenarios: dict[str, ScenarioConfig], out_dir: Path, prompt_dir: Path | None = None
 ) -> dict[str, CellContext]:
     """Render every variant's image and prompt, and build one context per cell.
 
     Args:
         scenarios: Family scenarios keyed by name.
-        out_dir: Results directory; images and prompts are written beneath it.
+        out_dir: Results directory; images are written to `<out_dir>/images`.
+        prompt_dir: Where the rendered prompts go; defaults to `<out_dir>/prompts`.
+            A per-model directory keeps a new run from overwriting the prompts an
+            earlier model's committed results are checked against.
 
     Returns:
         Cell contexts keyed by `Cell.key`.
     """
+    prompt_dir = prompt_dir if prompt_dir is not None else out_dir / "prompts"
     contexts: dict[str, CellContext] = {}
     for name in sorted(scenarios):
         scenario = scenarios[name]
@@ -542,7 +595,7 @@ def prepare_cells(
                 cell = Cell(variant=variant, order=order, obstacle_channel=channel)
                 request = build_cell_request(cell, scenario, states, image_path)
                 payload = build_prompt_payload(request)
-                prompt_path = out_dir / "prompts" / f"{cell.key}.txt"
+                prompt_path = prompt_dir / f"{cell.key}.txt"
                 prompt_path.parent.mkdir(parents=True, exist_ok=True)
                 prompt_path.write_text(payload.user_prompt, encoding="utf-8")
                 contexts[cell.key] = CellContext(
@@ -572,16 +625,80 @@ def plan_jobs(
     return jobs
 
 
+def plan_seeded_jobs(
+    contexts: Iterable[CellContext], n_seeds: int, temperature: float
+) -> list[Job]:
+    """Enumerate one call per cell per seed `0..n_seeds-1`.
+
+    Used for backends with no temperature control: the within-cell variation comes
+    from `seed`, and `temperature` is carried on every job only to record what the
+    shipped reasoner config asked for and the backend could not honour.
+
+    Args:
+        contexts: Cell contexts to cover.
+        n_seeds: Number of distinct seeds per cell.
+        temperature: The resolved reasoner temperature, recorded not sent.
+
+    Returns:
+        `n_seeds` jobs per cell, with seeds `0..n_seeds-1`.
+
+    Raises:
+        ValueError: If `n_seeds` is not positive.
+    """
+    if n_seeds < 1:
+        raise ValueError(f"n_seeds must be >= 1, got {n_seeds}")
+    return [
+        Job(cell=context.cell, temperature=temperature, sample_index=seed, seed=seed)
+        for context in contexts
+        for seed in range(n_seeds)
+    ]
+
+
+def build_paced_backends(
+    backend_id: str,
+    backend_config: BackendConfig,
+    model: str,
+    jobs: Sequence[Job],
+    pacer: Pacer,
+) -> dict[int | None, VLMBackend]:
+    """Build one paced backend per distinct seed in `jobs`, sharing one pacer.
+
+    A seed is a backend-construction argument, not a per-call one, so a seeded run
+    needs one backend instance per seed. They share a single `Pacer` so the run's
+    overall request rate is unchanged by how many seeds it sweeps.
+
+    Args:
+        backend_id: Backend selector passed to `build_backend`.
+        backend_config: Shipped backend config; `model_id` and `seed` are overridden.
+        model: Model ID to send.
+        jobs: Planned calls, whose `seed` values decide how many backends are built.
+        pacer: Shared rate limiter.
+
+    Returns:
+        Paced backends keyed by seed (`None` for the unseeded path).
+    """
+    backends: dict[int | None, VLMBackend] = {}
+    for seed in sorted({job.seed for job in jobs}, key=lambda s: (s is not None, s)):
+        update: dict[str, object] = {"model_id": model}
+        if seed is not None:
+            update["seed"] = seed
+        backends[seed] = PacedBackend(
+            build_backend(backend_id, backend_config.model_copy(update=update)), pacer
+        )
+    return backends
+
+
 def run_model(
     model: str,
     contexts: dict[str, CellContext],
     jobs: Sequence[Job],
     reasoner_config: ReasonerConfig,
-    backend_config: OpenAIBackendConfig,
+    backend_config: BackendConfig,
     out_dir: Path,
     workers: int,
     max_retries: int,
     min_interval_sec: float,
+    backend_id: str = "openai",
 ) -> list[dict[str, object]]:
     """Run every planned call for one model, appending each to `calls.jsonl` as it lands.
 
@@ -590,11 +707,12 @@ def run_model(
         contexts: Cell contexts keyed by cell key.
         jobs: Planned calls.
         reasoner_config: Shipped reasoner config; temperature is overridden per job.
-        backend_config: Shipped OpenAI backend config; `model_id` is overridden.
+        backend_config: Shipped backend config; `model_id` (and `seed`) are overridden.
         out_dir: Results root; records land in `<model>/calls.jsonl`.
         workers: Concurrent calls.
         max_retries: Transport retries per sample.
         min_interval_sec: Minimum spacing between backend calls, for the TPM cap.
+        backend_id: Backend selector passed to `build_backend`.
 
     Returns:
         Every persisted record, in completion order.
@@ -602,9 +720,8 @@ def run_model(
     Raises:
         AuthError: Propagated from the first call the API rejects.
     """
-    backend = PacedBackend(
-        build_backend("openai", backend_config.model_copy(update={"model_id": model})),
-        Pacer(min_interval_sec),
+    backends = build_paced_backends(
+        backend_id, backend_config, model, jobs, Pacer(min_interval_sec)
     )
     model_dir = out_dir / model
     model_dir.mkdir(parents=True, exist_ok=True)
@@ -616,14 +733,17 @@ def run_model(
     def execute(job: Job) -> dict[str, object]:
         context = contexts[job.cell.key]
         config = reasoner_config.model_copy(update={"temperature": job.temperature})
-        result, retries = run_sample(Reasoner(backend, config), context.request, max_retries)
+        result, retries = run_sample(
+            Reasoner(backends[job.seed], config), context.request, max_retries
+        )
         record = build_call_record(model, job, context, result, retries)
+        label = f"T={job.temperature}" if job.seed is None else f"seed={job.seed}"
         with lock:
             with open(calls_path, "a", encoding="utf-8") as handle:
                 handle.write(json.dumps(record, sort_keys=True) + "\n")
             records.append(record)
             print(
-                f"  [{len(records):>3}/{len(jobs)}] {job.cell.key} T={job.temperature} "
+                f"  [{len(records):>3}/{len(jobs)}] {job.cell.key} {label} "
                 f"-> {(record['decision'] or {}).get('yield_robot')} "
                 f"({(record['decision'] or {}).get('strategy')})",
                 flush=True,
@@ -644,8 +764,27 @@ def _mode(values: Sequence[str]) -> tuple[str | None, float | None]:
     return value, round(count / len(values), 3)
 
 
+def summary_temperature(record: dict[str, object]) -> float | str:
+    """Return the value a record contributes to the summary's temperature column.
+
+    Args:
+        record: One persisted call record.
+
+    Returns:
+        The record's `temperature` for a temperature-swept call, or `"seeded"`
+        when the call's within-cell variation came from a `seed` instead.
+    """
+    if record.get("seed") is None:
+        return record["temperature"]
+    return _SEEDED_TEMPERATURE
+
+
 def summarize_cells(records: Sequence[dict[str, object]]) -> list[dict[str, object]]:
     """Aggregate raw call records into one row per model/cell/temperature.
+
+    A seeded record pools with its cell's other seeds under the literal
+    `"seeded"` in the temperature column, because its seed is a reproducibility
+    handle and not a sampling setting the cells could be compared across.
 
     Args:
         records: Persisted call records.
@@ -660,12 +799,12 @@ def summarize_cells(records: Sequence[dict[str, object]]) -> list[dict[str, obje
             record["variant"],
             record["presentation_order"],
             record["obstacle_channel"],
-            record["temperature"],
+            summary_temperature(record),
         )
         groups.setdefault(key, []).append(record)
 
     rows: list[dict[str, object]] = []
-    for key in sorted(groups, key=lambda k: (k[0], k[1], k[2], k[3], k[4])):
+    for key in sorted(groups, key=lambda k: (k[0], k[1], k[2], k[3], str(k[4]))):
         group = groups[key]
         model, variant, order, channel, temperature = key
         parsed = [r for r in group if r["decision"] is not None]
@@ -822,7 +961,12 @@ def print_report(rows: Sequence[dict[str, object]]) -> None:
         )
 
     print("\nHypothesis signatures (asymmetric cells only):")
-    keys = sorted({(r["model"], r["temperature"], r["obstacle_channel"]) for r in rows})
+    # str() on every component: the temperature column holds floats for a
+    # temperature-swept model and "seeded" for a seeded one, which do not compare.
+    keys = sorted(
+        {(r["model"], r["temperature"], r["obstacle_channel"]) for r in rows},
+        key=lambda k: (str(k[0]), str(k[1]), str(k[2])),
+    )
     for model, temperature, channel in keys:
         subset = [
             r
@@ -846,12 +990,30 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments for the probe."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
+        "--backend",
+        choices=("openai", "gemini"),
+        default="openai",
+        help="which shipped backend to probe; gemini sweeps seeds instead of temperature",
+    )
+    parser.add_argument(
         "--models",
         default=None,
-        help="comma-separated model IDs; default is config/models.yaml vlm.openai.model_id. "
+        help="comma-separated model IDs; default is config/models.yaml vlm.<backend>.model_id. "
         "A secondary model runs only if the primary finished with zero API errors.",
     )
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        default=None,
+        help=f"gemini only: samples per cell, one per seed 0..N-1 (default {_DEFAULT_SEEDS})",
+    )
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
+    parser.add_argument(
+        "--prompt-dir",
+        type=Path,
+        default=None,
+        help="where rendered prompts are written; default <out-dir>/prompts",
+    )
     parser.add_argument("--family-dir", type=Path, default=FAMILY_DIR)
     parser.add_argument("--models-yaml", type=Path, default=MODELS_YAML)
     parser.add_argument("--n-greedy", type=int, default=5, help="samples at temperature 0.0")
@@ -875,7 +1037,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="rebuild summary.csv and the report from the persisted calls.jsonl files",
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.backend != "gemini" and args.seeds is not None:
+        parser.error("--seeds applies only to --backend gemini")
+    return args
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -887,9 +1052,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     out_dir = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
+    prompt_dir = args.prompt_dir if args.prompt_dir is not None else out_dir / "prompts"
     scenarios = load_family_scenarios(args.family_dir)
-    contexts = prepare_cells(scenarios, out_dir)
-    jobs = plan_jobs(contexts.values(), args.n_greedy, args.n_sampled, args.temperature)
+    contexts = prepare_cells(scenarios, out_dir, prompt_dir)
+    _, reasoner_config, backend_config = load_backend_settings(args.models_yaml, args.backend)
+    if args.backend == "gemini":
+        n_seeds = args.seeds if args.seeds is not None else _DEFAULT_SEEDS
+        jobs = plan_seeded_jobs(contexts.values(), n_seeds, reasoner_config.temperature)
+    else:
+        jobs = plan_jobs(contexts.values(), args.n_greedy, args.n_sampled, args.temperature)
     print(f"{len(contexts)} cells, {len(jobs)} calls per model -> {out_dir}")
 
     if args.from_calls:
@@ -899,7 +1070,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         print_report(rows)
         return 0
 
-    _, reasoner_config, backend_config = load_openai_settings(args.models_yaml)
     models = (
         [m.strip() for m in args.models.split(",") if m.strip()]
         if args.models
@@ -910,7 +1080,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  {key}  sha={contexts[key].prompt_sha256[:12]}  "
                   f"first={contexts[key].first_listed_robot}  "
                   f"correct={contexts[key].correct_yielder}")
-        print(f"dry run: prompts under {out_dir / 'prompts'}, images under {out_dir / 'images'}")
+        print(f"dry run: prompts under {prompt_dir}, images under {out_dir / 'images'}")
         return 0
 
     all_records: list[dict[str, object]] = []
@@ -927,6 +1097,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.workers,
                 args.max_retries,
                 args.min_interval_sec,
+                backend_id=args.backend,
             )
         except AuthError as exc:
             print(f"ABORT: authentication rejected ({exc}); no further calls made")
