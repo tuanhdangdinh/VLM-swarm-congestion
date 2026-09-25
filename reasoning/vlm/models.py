@@ -193,6 +193,18 @@ class ReasonerDiagnostics(BaseModel):
     # harness or a script that constructs a Reasoner without one); additive, so
     # artifacts written before this field existed stay readable.
     reasoner_config_effective: EffectiveSamplingConfig | None = None
+    # Number of attempts whose assistant text was a safety refusal (`is_refusal`).
+    # Distinct from `attempts`: a refusal is one kind of parse failure, and the
+    # mitigation below keys off refusals alone.
+    refusal_attempts: int = Field(default=0, ge=0)
+    # True when the refusal mitigation fired: a later attempt re-sent the same
+    # prompt text with the camera frame replaced by a neutral image. The decision
+    # for that call was made without the image channel, so an audit must be able
+    # to see it from the artifact alone.
+    image_fallback_used: bool = False
+    # 1-based index of the attempt that carried the neutral image, or None when
+    # the mitigation did not fire.
+    image_fallback_attempt: int | None = Field(default=None, ge=1)
 
 
 class ReasonerResult(BaseModel):
@@ -271,3 +283,12 @@ class ReasonerConfig(BaseModel):
     # Large enough to hold the <think> reasoning trace plus the final JSON answer.
     max_tokens: int = Field(default=2048, ge=1)
     allow_reask: bool = True
+    # Refusal mitigation. gpt-4o refuses on 19-38% of first attempts in the live
+    # M2 loop, and the trigger is the annotated camera frame rather than the
+    # prompt text (docs/reports/2026-09-25-frame-replay.md rev 2-3). When this is
+    # set and attempt `k >= image_fallback_after_attempts` was refused, the next
+    # attempt re-sends the unchanged prompt with a neutral image in place of the
+    # frame. None disables the mitigation, which is the default so that backends
+    # that never refuse (gemini, llama_server) keep the image channel on every
+    # attempt.
+    image_fallback_after_attempts: int | None = Field(default=None, ge=1)

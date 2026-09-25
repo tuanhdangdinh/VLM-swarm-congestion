@@ -56,6 +56,13 @@ def test_shipped_models_yaml_overrides_max_attempts_for_openai_only():
     assert resolve_reasoner_config(raw, "gemini").max_attempts == 2
 
 
+def test_shipped_models_yaml_enables_image_fallback_for_openai_only():
+    raw = yaml.safe_load(Path("config/models.yaml").read_text())["vlm"]
+    assert resolve_reasoner_config(raw, "openai").image_fallback_after_attempts == 2
+    assert resolve_reasoner_config(raw, "gemini").image_fallback_after_attempts is None
+    assert resolve_reasoner_config(raw, "llama_server").image_fallback_after_attempts is None
+
+
 def _shipped_vlm() -> dict:
     return yaml.safe_load(Path("config/models.yaml").read_text())["vlm"]
 

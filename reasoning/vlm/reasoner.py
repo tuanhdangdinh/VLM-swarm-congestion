@@ -1,8 +1,12 @@
 import json
+import re
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from pathlib import Path
+
+from PIL import Image
 
 from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.errors import (
@@ -28,6 +32,50 @@ _REASK_SUFFIX = (
     "Please return ONLY a valid JSON object matching the schema above.\n"
     "Do not include any text, markdown, or explanation outside the JSON."
 )
+
+
+# Both phrasings appear in the live corpus ("I'm sorry, I can't assist with
+# that." x28 and "I'm sorry, but I can't assist with that." x6 as of 2026-09-26);
+# the third pattern is the generic decline the same family produces. Deliberately
+# narrow: a model that merely mentions being sorry mid-answer is not a refusal,
+# and a false positive would spend an attempt on a neutral image for nothing.
+_REFUSAL_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"i(?:'m|’m| am) sorry,?\s+(?:but\s+)?i can(?:'|’)?t assist", re.I),
+    re.compile(r"i can(?:'|’)?t help with", re.I),
+)
+
+# Mid-grey: the neutral stimulus the frame-replay study used (0/120 refusals,
+# docs/reports/2026-09-25-frame-replay.md rev 2).
+_NEUTRAL_IMAGE_RGB = (128, 128, 128)
+
+
+def is_refusal(text: str) -> bool:
+    """Return True when assistant text is a safety refusal rather than an answer.
+
+    Args:
+        text: Raw assistant text from one backend call.
+
+    Returns:
+        True if the text matches an observed refusal phrasing.
+    """
+    return any(pattern.search(text) for pattern in _REFUSAL_PATTERNS)
+
+
+def make_neutral_image(source_image_path: str | Path, destination: str | Path) -> Path:
+    """Write a solid mid-grey PNG matching a frame's dimensions.
+
+    Args:
+        source_image_path: The camera frame whose `(width, height)` is mirrored.
+        destination: Where the neutral PNG is written.
+
+    Returns:
+        The destination path.
+    """
+    with Image.open(source_image_path) as image:
+        size = image.size
+    Path(destination).parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", size, _NEUTRAL_IMAGE_RGB).save(destination, format="PNG")
+    return Path(destination)
 
 
 def invoke_backend(
@@ -138,6 +186,9 @@ def build_failed_result(
     raw_text: str | None = None,
     unsupported_sampling: dict[str, float] | None = None,
     effective_sampling: EffectiveSamplingConfig | None = None,
+    refusal_attempts: int = 0,
+    image_fallback_used: bool = False,
+    image_fallback_attempt: int | None = None,
 ) -> ReasonerResult:
     """Construct a safe failure result with decision=None after exhausted retries.
 
@@ -154,6 +205,9 @@ def build_failed_result(
             caller described one. A refusal or exhausted-retry cycle is exactly
             the case an audit needs the decoding parameters for, so the failure
             path records them too.
+        refusal_attempts: How many attempts were safety refusals.
+        image_fallback_used: Whether the neutral-image retry fired.
+        image_fallback_attempt: 1-based index of the neutral-image attempt.
 
     Returns:
         A `ReasonerResult` with `decision=None` and `parse_status='failed'`.
@@ -173,6 +227,9 @@ def build_failed_result(
             reasoner_config_effective=attach_unsupported_sampling(
                 effective_sampling, unsupported_sampling
             ),
+            refusal_attempts=refusal_attempts,
+            image_fallback_used=image_fallback_used,
+            image_fallback_attempt=image_fallback_attempt,
         ),
     )
 
@@ -219,7 +276,8 @@ class Reasoner:
         if not Path(request.image_path).is_file():
             raise FileNotFoundError(f"image_path does not exist: {request.image_path}")
 
-        payload = build_prompt_payload(request)
+        base_payload = build_prompt_payload(request)
+        payload = base_payload
         known_ids = set(robot_ids)
         attempts = 0
         last_raw: str | None = None
@@ -227,55 +285,117 @@ class Reasoner:
         last_error_msg: str | None = None
         last_unsupported_sampling: dict[str, float] | None = None
         had_parse_failure = False
+        refusal_attempts = 0
+        image_fallback_attempt: int | None = None
+        # Created only when the mitigation actually fires, so the common path
+        # touches the filesystem exactly as it did before.
+        scratch: tempfile.TemporaryDirectory | None = None
 
-        while attempts < self._config.max_attempts:
-            attempts += 1
-            try:
-                response = invoke_backend(self._backend, payload, self._config)
-                last_raw = response.text
-                last_unsupported_sampling = _extract_unsupported_sampling(response.raw)
-                decision = parse_decision_text(response.text)
-                validate_involved_robots(decision, known_ids)
-                return ReasonerResult(
-                    request_id=request.request_id,
-                    decision=decision,
-                    raw_text=last_raw,
-                    diagnostics=ReasonerDiagnostics(
+        try:
+            while attempts < self._config.max_attempts:
+                attempts += 1
+                try:
+                    response = invoke_backend(self._backend, payload, self._config)
+                    last_raw = response.text
+                    last_unsupported_sampling = _extract_unsupported_sampling(response.raw)
+                    decision = parse_decision_text(response.text)
+                    validate_involved_robots(decision, known_ids)
+                    return ReasonerResult(
                         request_id=request.request_id,
-                        backend_id=response.backend_id,
-                        attempts=attempts,
-                        latency_ms=response.latency_ms,
-                        token_usage=response.token_usage,
-                        # "invalid" = a parse/validation failure occurred earlier but a
-                        # retry/re-ask then succeeded
-                        parse_status="invalid" if had_parse_failure else "valid",  # noqa: E501
-                        error_type=last_error_type,
-                        error_message=last_error_msg,
-                        unsupported_sampling=last_unsupported_sampling,
-                        reasoner_config_effective=attach_unsupported_sampling(
-                            self._effective_sampling, last_unsupported_sampling
+                        decision=decision,
+                        raw_text=last_raw,
+                        diagnostics=ReasonerDiagnostics(
+                            request_id=request.request_id,
+                            backend_id=response.backend_id,
+                            attempts=attempts,
+                            latency_ms=response.latency_ms,
+                            token_usage=response.token_usage,
+                            # "invalid" = a parse/validation failure occurred earlier but a
+                            # retry/re-ask then succeeded
+                            parse_status="invalid" if had_parse_failure else "valid",  # noqa: E501
+                            error_type=last_error_type,
+                            error_message=last_error_msg,
+                            unsupported_sampling=last_unsupported_sampling,
+                            reasoner_config_effective=attach_unsupported_sampling(
+                                self._effective_sampling, last_unsupported_sampling
+                            ),
+                            refusal_attempts=refusal_attempts,
+                            image_fallback_used=image_fallback_attempt is not None,
+                            image_fallback_attempt=image_fallback_attempt,
                         ),
-                    ),
-                )
-            except (BackendTimeoutError, ConnectionError) as exc:
-                last_error_type, last_error_msg = type(exc).__name__, str(exc)
-                continue
-            except (VLMOutputParseError, DecisionValidationError) as exc:
-                had_parse_failure = True
-                last_error_type, last_error_msg = type(exc).__name__, str(exc)
-                if self._config.allow_reask and attempts < self._config.max_attempts:
-                    payload = build_reask_prompt(payload, str(exc))
+                    )
+                except (BackendTimeoutError, ConnectionError) as exc:
+                    last_error_type, last_error_msg = type(exc).__name__, str(exc)
+                    continue
+                except (VLMOutputParseError, DecisionValidationError) as exc:
+                    had_parse_failure = True
+                    last_error_type, last_error_msg = type(exc).__name__, str(exc)
+                    refused = is_refusal(last_raw or "")
+                    if refused:
+                        refusal_attempts += 1
+                    if attempts >= self._config.max_attempts:
+                        continue
+                    if refused and self._should_fall_back(attempts, image_fallback_attempt):
+                        scratch = scratch or tempfile.TemporaryDirectory(
+                            prefix="m2-neutral-image-"
+                        )
+                        neutral = self._neutral_payload(base_payload, scratch.name)
+                        if neutral is not None:
+                            payload = neutral
+                            image_fallback_attempt = attempts + 1
+                            continue
+                    if self._config.allow_reask:
+                        payload = build_reask_prompt(payload, str(exc))
 
-        return build_failed_result(
-            request=request,
-            backend_id=self._config.backend_id,
-            attempts=attempts,
-            error_type=last_error_type,
-            error_message=last_error_msg,
-            raw_text=last_raw,
-            unsupported_sampling=last_unsupported_sampling,
-            effective_sampling=self._effective_sampling,
+            return build_failed_result(
+                request=request,
+                backend_id=self._config.backend_id,
+                attempts=attempts,
+                error_type=last_error_type,
+                error_message=last_error_msg,
+                raw_text=last_raw,
+                unsupported_sampling=last_unsupported_sampling,
+                effective_sampling=self._effective_sampling,
+                refusal_attempts=refusal_attempts,
+                image_fallback_used=image_fallback_attempt is not None,
+                image_fallback_attempt=image_fallback_attempt,
+            )
+        finally:
+            if scratch is not None:
+                scratch.cleanup()
+
+    def _should_fall_back(self, attempts: int, image_fallback_attempt: int | None) -> bool:
+        """Whether a refusal on `attempts` should trigger the neutral-image retry.
+
+        The mitigation fires at most once per request: a second swap would spend
+        another attempt on a stimulus that has already been shown not to help.
+        """
+        threshold = self._config.image_fallback_after_attempts
+        return (
+            threshold is not None
+            and image_fallback_attempt is None
+            and attempts >= threshold
         )
+
+    def _neutral_payload(
+        self, base_payload: PromptPayload, scratch_dir: str
+    ) -> PromptPayload | None:
+        """Build the fallback payload: the original prompt text, a neutral image.
+
+        The re-ask suffix is deliberately absent — the refusal is not a formatting
+        failure, so correcting the format would change the prompt for no reason
+        and break comparability with the un-refused call. Returns None when the
+        neutral image cannot be produced, so an unreadable frame degrades to the
+        ordinary re-ask path instead of crashing the caller (M2 contract: failures
+        surface as diagnostics, never as an exception out of `run`).
+        """
+        try:
+            neutral = make_neutral_image(
+                base_payload.image_path, Path(scratch_dir) / "neutral.png"
+            )
+        except OSError:
+            return None
+        return base_payload.model_copy(update={"image_path": str(neutral)})
 
 
 def write_reasoner_log(
@@ -310,6 +430,13 @@ def write_reasoner_log(
     # readers/golden files that don't expect it are unaffected.
     if result.diagnostics.unsupported_sampling is not None:
         record["unsupported_sampling"] = result.diagnostics.unsupported_sampling
+    # Same rationale as above: a trace with no refusal and no fallback stays
+    # byte-identical to one written before the mitigation existed.
+    diagnostics = result.diagnostics
+    if diagnostics.refusal_attempts or diagnostics.image_fallback_used:
+        record["refusal_attempts"] = diagnostics.refusal_attempts
+        record["image_fallback_used"] = diagnostics.image_fallback_used
+        record["image_fallback_attempt"] = diagnostics.image_fallback_attempt
     effective = result.diagnostics.reasoner_config_effective
     if effective is not None:
         record["reasoner_config_effective"] = effective.model_dump(mode="json")

@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 from jsonschema import Draft202012Validator
+from PIL import Image
 
 from reasoning.schemas import load_schema
 from reasoning.vlm.backend_base import VLMBackend
@@ -34,6 +35,8 @@ from reasoning.vlm.reasoner import (
     build_failed_result,
     build_reask_prompt,
     invoke_backend,
+    is_refusal,
+    make_neutral_image,
     write_reasoner_log,
 )
 
@@ -665,3 +668,180 @@ def test_write_reasoner_log_omits_effective_sampling_config_when_none(tmp_path):
     write_reasoner_log(log, _request_with_image(tmp_path), result)
     record = json.loads(log.read_text().strip().splitlines()[0])
     assert "reasoner_config_effective" not in record
+
+
+_REFUSAL = "I'm sorry, I can't assist with that."
+_REFUSAL_BUT = "I'm sorry, but I can't assist with that."
+_REFUSAL_HELP = "I can't help with that request."
+
+
+def test_is_refusal_matches_plain_sorry_variant():
+    assert is_refusal(_REFUSAL)
+
+
+def test_is_refusal_matches_but_variant():
+    assert is_refusal(_REFUSAL_BUT)
+
+
+def test_is_refusal_matches_generic_cannot_help_variant():
+    assert is_refusal(_REFUSAL_HELP)
+
+
+def test_is_refusal_matches_typographic_apostrophe():
+    assert is_refusal("I’m sorry, I can’t assist with that.")
+
+
+def test_is_refusal_rejects_a_valid_decision():
+    assert not is_refusal(_GOOD)
+
+
+def test_is_refusal_rejects_apology_inside_an_answer():
+    assert not is_refusal("Sorry for the delay; robot_1 should yield to robot_2.")
+
+
+def test_is_refusal_rejects_empty_text():
+    assert not is_refusal("")
+
+
+class _RecordingBackend:
+    """Backend that replays a script and keeps every payload it was handed."""
+
+    def __init__(self, responses: list[str]) -> None:
+        self._responses = responses
+        self.payloads: list[PromptPayload] = []
+        self.image_sizes: list[tuple[int, int] | None] = []
+        self.image_pixels: list[tuple[int, int, int] | None] = []
+
+    def analyze(self, payload: PromptPayload, config: ReasonerConfig) -> BackendResponse:
+        self.payloads.append(payload)
+        # The neutral image lives in a scratch directory deleted when `run`
+        # returns, so it has to be inspected here rather than afterwards.
+        try:
+            with Image.open(payload.image_path) as image:
+                rgb = image.convert("RGB")
+                self.image_sizes.append(rgb.size)
+                self.image_pixels.append(rgb.getpixel((0, 0)))
+        except OSError:
+            self.image_sizes.append(None)
+            self.image_pixels.append(None)
+        index = min(len(self.payloads) - 1, len(self._responses) - 1)
+        return BackendResponse(text=self._responses[index], backend_id="recording")
+
+
+def _request_with_real_png(tmp_path, size: tuple[int, int] = (64, 48)) -> ReasonerRequest:
+    image = tmp_path / "frame.png"
+    Image.new("RGB", size, (10, 200, 30)).save(image)
+    return ReasonerRequest(
+        request_id="req-fallback",
+        image_path=str(image),
+        frame_id="cam",
+        stamp=1.0,
+        robot_states=[RobotStateInput(robot_id="robot_1", x=0.0, y=0.0, theta=0.0)],
+    )
+
+
+def _fallback_config(**overrides) -> ReasonerConfig:
+    return ReasonerConfig(
+        backend_id="recording", max_attempts=4, image_fallback_after_attempts=2, **overrides
+    )
+
+
+def test_make_neutral_image_matches_source_dimensions(tmp_path):
+    source = tmp_path / "frame.png"
+    Image.new("RGB", (32, 17), (1, 2, 3)).save(source)
+    neutral = make_neutral_image(source, tmp_path / "neutral.png")
+    with Image.open(neutral) as image:
+        assert image.size == (32, 17)
+        assert image.convert("RGB").getpixel((5, 5)) == (128, 128, 128)
+
+
+def test_run_image_fallback_fires_on_the_attempt_after_the_threshold(tmp_path):
+    backend = _RecordingBackend([_REFUSAL, _REFUSAL, _GOOD])
+    result = Reasoner(backend, _fallback_config()).run(_request_with_real_png(tmp_path))
+    assert result.decision is not None
+    assert result.diagnostics.attempts == 3
+    assert result.diagnostics.refusal_attempts == 2
+    assert result.diagnostics.image_fallback_used is True
+    assert result.diagnostics.image_fallback_attempt == 3
+
+
+def test_run_image_fallback_sends_a_neutral_image_of_the_frame_size(tmp_path):
+    backend = _RecordingBackend([_REFUSAL, _REFUSAL, _GOOD])
+    Reasoner(backend, _fallback_config()).run(_request_with_real_png(tmp_path, (64, 48)))
+    assert backend.image_pixels[0] == (10, 200, 30)
+    assert backend.image_pixels[2] == (128, 128, 128)
+    assert backend.image_sizes[2] == (64, 48)
+    assert backend.payloads[2].image_path != backend.payloads[0].image_path
+
+
+def test_run_image_fallback_omits_the_reask_suffix(tmp_path):
+    backend = _RecordingBackend([_REFUSAL, _REFUSAL, _GOOD])
+    Reasoner(backend, _fallback_config()).run(_request_with_real_png(tmp_path))
+    assert "previous response was invalid" in backend.payloads[1].user_prompt
+    assert backend.payloads[2].user_prompt == backend.payloads[0].user_prompt
+
+
+def test_run_image_fallback_fires_only_once_per_request(tmp_path):
+    backend = _RecordingBackend([_REFUSAL])
+    result = Reasoner(backend, _fallback_config()).run(_request_with_real_png(tmp_path))
+    assert result.decision is None
+    assert result.diagnostics.attempts == 4
+    assert result.diagnostics.refusal_attempts == 4
+    assert result.diagnostics.image_fallback_attempt == 3
+    # Attempt 4 re-asks on top of the neutral-image payload rather than swapping again.
+    assert backend.image_pixels[3] == (128, 128, 128)
+    assert "previous response was invalid" in backend.payloads[3].user_prompt
+
+
+def test_run_image_fallback_ignores_a_non_refusal_parse_failure(tmp_path):
+    backend = _RecordingBackend([_BAD, _BAD, _GOOD])
+    result = Reasoner(backend, _fallback_config()).run(_request_with_real_png(tmp_path))
+    assert result.decision is not None
+    assert result.diagnostics.refusal_attempts == 0
+    assert result.diagnostics.image_fallback_used is False
+    assert backend.payloads[2].image_path == backend.payloads[0].image_path
+
+
+def test_run_image_fallback_disabled_by_default_keeps_reasking(tmp_path):
+    backend = _RecordingBackend([_REFUSAL])
+    config = ReasonerConfig(backend_id="recording", max_attempts=4)
+    result = Reasoner(backend, config).run(_request_with_real_png(tmp_path))
+    assert config.image_fallback_after_attempts is None
+    assert result.decision is None
+    assert result.diagnostics.image_fallback_used is False
+    assert result.diagnostics.image_fallback_attempt is None
+    assert result.diagnostics.refusal_attempts == 4
+    assert {p.image_path for p in backend.payloads} == {backend.payloads[0].image_path}
+
+
+def test_run_image_fallback_degrades_to_reask_when_the_frame_is_unreadable(tmp_path):
+    backend = _RecordingBackend([_REFUSAL, _REFUSAL, _GOOD])
+    # `_request_with_image` writes a truncated PNG header that PIL cannot open.
+    result = Reasoner(backend, _fallback_config()).run(_request_with_image(tmp_path))
+    assert result.decision is not None
+    assert result.diagnostics.image_fallback_used is False
+    assert "previous response was invalid" in backend.payloads[2].user_prompt
+
+
+def test_write_reasoner_log_includes_image_fallback_when_it_fired(tmp_path):
+    log = tmp_path / "trace.jsonl"
+    request = _request_with_real_png(tmp_path)
+    backend = _RecordingBackend([_REFUSAL, _REFUSAL, _GOOD])
+    result = Reasoner(backend, _fallback_config()).run(request)
+    write_reasoner_log(log, request, result)
+    record = json.loads(log.read_text().strip().splitlines()[0])
+    assert record["image_fallback_used"] is True
+    assert record["image_fallback_attempt"] == 3
+    assert record["refusal_attempts"] == 2
+
+
+def test_write_reasoner_log_omits_image_fallback_without_a_refusal(tmp_path):
+    log = tmp_path / "trace.jsonl"
+    request = _request_with_image(tmp_path)
+    result = Reasoner(
+        MockBackend(response_text=_GOOD), ReasonerConfig(backend_id="mock")
+    ).run(request)
+    write_reasoner_log(log, request, result)
+    record = json.loads(log.read_text().strip().splitlines()[0])
+    assert "image_fallback_used" not in record
+    assert "refusal_attempts" not in record

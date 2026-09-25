@@ -33,6 +33,13 @@ vlm:
       # Refusal trigger is the frame, not the text; 4 attempts cuts terminal
       # refusal 57.1% -> 26.9% (p=0.031). docs/reports/2026-09-25-frame-replay.md
       max_attempts: 4
+      # Refusals are stimulus-locked to the annotated frame and persist across
+      # re-asks, so after two refused attempts the third re-sends the same prompt
+      # text with a neutral grey image. Rev 3 Arm S: the decision content is
+      # carried by the text, the frame only amplifies, so the cost is bounded and
+      # recorded per call as diagnostics.image_fallback_used.
+      # docs/reports/2026-09-25-frame-replay.md
+      image_fallback_after_attempts: 2
 
   # Hosted Gemini Robotics-ER 2 backend (Interactions API, not :generateContent).
   # Switch reasoner.backend_id to "gemini" to use it. The API key is NOT stored

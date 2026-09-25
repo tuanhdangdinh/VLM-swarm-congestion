@@ -406,6 +406,36 @@ def test_write_decision_artifact_preserves_m2_result_on_grounding_failure(tmp_pa
     assert payload["raw_text"] == '{"congestion_detected": true}'
 
 
+def test_write_decision_artifact_records_image_fallback_diagnostics(tmp_path):
+    result = ReasonerResult(
+        request_id="r2",
+        decision=None,
+        raw_text="I'm sorry, I can't assist with that.",
+        diagnostics=ReasonerDiagnostics(
+            request_id="r2",
+            backend_id="openai",
+            attempts=4,
+            parse_status="failed",
+            refusal_attempts=3,
+            image_fallback_used=True,
+            image_fallback_attempt=3,
+        ),
+    )
+    outcome = PipelineOutcome(
+        request_id="r2",
+        reasoner_result=result,
+        grounded_command=None,
+        terminal_stage=TerminalStage.VLM,
+        failure_reason="vlm returned no decision",
+    )
+
+    payload = json.loads(write_decision_artifact(tmp_path, outcome).read_text())
+
+    assert payload["diagnostics"]["refusal_attempts"] == 3
+    assert payload["diagnostics"]["image_fallback_used"] is True
+    assert payload["diagnostics"]["image_fallback_attempt"] == 3
+
+
 # ---- failure context ----
 
 def _attempt(status: str = "completed", resolved_at: float = 100.0) -> AttemptRecord:

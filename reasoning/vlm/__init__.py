@@ -46,6 +46,8 @@ from reasoning.vlm.reasoner import (
     build_failed_result,
     build_reask_prompt,
     invoke_backend,
+    is_refusal,
+    make_neutral_image,
     write_reasoner_log,
 )
 
@@ -84,6 +86,8 @@ __all__ = [
     "format_pairwise_geometry_lines",
     "format_robot_state_lines",
     "invoke_backend",
+    "is_refusal",
+    "make_neutral_image",
     "parse_decision_text",
     "render_failure_context_block",
     "resolve_reasoner_config",
