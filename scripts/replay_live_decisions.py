@@ -22,6 +22,12 @@ Six arms:
   carries that side signal.
 * ``D``    — the live-refused artifacts at full resolution against a 640 px-wide
   downscale. Asks whether image resolution moves the attempt-1 refusal rate.
+* ``S2``   — Arm S's design re-run on the pilot batch-2 standoffs. The
+  replication that decides whether the obstacle-text finding holds on twelve
+  scenes rather than six.
+* ``F``    — every batch-2 artifact under its annotated frame against the raw
+  camera frame dumped beside it, paired per artifact. Asks whether the M1
+  overlay, rather than the scene it is drawn on, carries the refusal trigger.
 
 Production code is imported, never modified. `Reasoner.run` keeps only the last
 attempt's text, so a recording proxy wraps the backend to capture every attempt;
@@ -93,6 +99,24 @@ PILOT_RUNS: tuple[str, ...] = (
     "20260925_075116",
 )
 
+# Pilot batch 2 (2026-09-25 afternoon): Q1-Q3 west-blocked (`w0p2_eopen`,
+# obstacle x = -1.85, drew `id_desc`), Q4-Q6 east-blocked (`wopen_e0p2`,
+# x = +1.85, drew `id_asc`). Every decision also stored the raw camera frame.
+PILOT2_RUNS: tuple[str, ...] = (
+    "20260925_155433",
+    "20260925_160951",
+    "20260925_162451",
+    "20260925_163949",
+    "20260925_165442",
+    "20260925_170938",
+)
+
+RUN_SETS: dict[str, tuple[str, ...]] = {
+    "batch1": PILOT_RUNS,
+    "batch2": PILOT2_RUNS,
+    "all": PILOT_RUNS + PILOT2_RUNS,
+}
+
 # Both phrasings seen in `raw_text`: with and without the "but". Matches the
 # census regex in scripts/probe_refusals.py so the two reports count the same
 # event.
@@ -106,7 +130,7 @@ NO_JSON_ERROR = "VLM output contains no JSON object."
 
 ORDERS: tuple[RobotPresentationOrder, ...] = ("id_asc", "id_desc")
 
-Arm = Literal["R", "grey", "O", "M", "S", "D"]
+Arm = Literal["R", "grey", "O", "M", "S", "D", "S2", "F"]
 RetryPolicy = Literal["shipped", "original_prompt", "max_attempts_4"]
 
 # Arms recorded before the obstacle-text factor existed. Their cell keys must stay
@@ -127,6 +151,12 @@ OBSTACLE_MENTION_RE = re.compile(
 THINK_RE = re.compile(r"<think>(.*?)</think>", re.S | re.I)
 
 ARM_D_DOWNSCALE_WIDTH_PX = 640
+
+# The raw dump is grabbed from `/camera/image_raw` a little before or after the
+# frame M1 annotated, so the two images are not the same instant. Below this
+# separation the pair is close enough that a difference is attributable to the
+# overlay rather than to robot motion.
+ARM_F_TIGHT_SKEW_SEC = 0.2
 
 
 # An exhausted credit balance arrives as HTTP 429 with these markers; a rate
@@ -206,6 +236,17 @@ class Artifact:
     live_raw_text: str | None
     live_decision: dict[str, Any] | None
     stamp: float
+    raw_frame_skew_sec: float | None = None
+
+    @property
+    def raw_image_path(self) -> Path:
+        """The raw camera frame dumped beside the annotated one for this request.
+
+        M5 writes `<request_id>_raw.png` next to `<request_id>.png`; the two are
+        the same camera at slightly different instants, `raw_frame_skew_sec`
+        apart, with the M1 overlay drawn on only one of them.
+        """
+        return self.image_path.with_name(f"{self.request_id}_raw.png")
 
     @property
     def live_attempt1_refusal(self) -> bool:
@@ -256,6 +297,28 @@ def _analysis_order(run_dir: Path) -> dict[str, int]:
     return order
 
 
+_SKEW_RE = re.compile(r"raw frame skew_sec=(?P<skew>[+-]?[\d.]+) request=(?P<request>\w+)")
+
+
+def _raw_frame_skews(run_dir: Path) -> dict[str, float]:
+    """Map request_id to the signed seconds between its raw and annotated frames.
+
+    Args:
+        run_dir: One VM run directory.
+
+    Returns:
+        The skew per request as M5 logged it; empty when the run predates the
+        raw-frame dump or its log is unavailable.
+    """
+    log = run_dir / "component_logs" / "m5.log"
+    if not log.is_file():
+        return {}
+    return {
+        match.group("request"): float(match.group("skew"))
+        for match in _SKEW_RE.finditer(log.read_text(errors="replace"))
+    }
+
+
 def load_artifacts(
     runs: tuple[str, ...] = PILOT_RUNS, runs_dir: Path = RUNS_DIR
 ) -> list[Artifact]:
@@ -284,6 +347,7 @@ def load_artifacts(
         )
         obstacle_x = obstacles[0].x if obstacles else None
         log_order = _analysis_order(run_dir)
+        skews = _raw_frame_skews(run_dir)
         loaded: list[Artifact] = []
         for path in sorted((run_dir / "decisions").glob("*.json")):
             data = json.loads(path.read_text())
@@ -312,6 +376,7 @@ def load_artifacts(
                     live_raw_text=data.get("raw_text"),
                     live_decision=data.get("decision"),
                     stamp=float(data["scene"]["stamp"]),
+                    raw_frame_skew_sec=skews.get(request_id),
                 )
             )
         loaded.sort(key=lambda a: (log_order.get(a.request_id, 10**6), a.stamp))
@@ -645,6 +710,7 @@ def run_cell(
         "order": cell.order,
         "stored_order": cell.artifact.stored_order,
         "image": cell.image_label,
+        "raw_frame_skew_sec": cell.artifact.raw_frame_skew_sec,
         "obstacle_text": cell.include_static_obstacles,
         "side": cell.artifact.obstacle_side,
         "policy": cell.policy,
@@ -892,11 +958,24 @@ def select_standoff_artifacts(
     ]
 
 
-def build_arm_s_cells(standoffs: list[Artifact], grey: Path, n: int) -> list[Cell]:
-    """The fully crossed order x obstacle-text x image design on the standoff scenes."""
+def build_arm_s_cells(
+    standoffs: list[Artifact], grey: Path, n: int, arm: Arm = "S"
+) -> list[Cell]:
+    """The fully crossed order x obstacle-text x image design on the standoff scenes.
+
+    Args:
+        standoffs: The selected standoff artifacts.
+        grey: Neutral image of the same size as the real frames.
+        n: Replicates per cell.
+        arm: Arm label, so the batch-2 replication records under `S2` and its
+            keys never collide with the already-recorded batch-1 `S` rows.
+
+    Returns:
+        The configured cells.
+    """
     return [
         Cell(
-            "S",
+            arm,
             artifact,
             order,
             image_label,
@@ -927,6 +1006,36 @@ def build_arm_d_cells(refused: list[Artifact], downscaled: dict[str, Path], n: i
         )
         for artifact in refused
         for image_label in ("real", f"down{ARM_D_DOWNSCALE_WIDTH_PX}")
+        for index in range(n)
+    ]
+
+
+def build_arm_f_cells(artifacts: list[Artifact], n: int) -> list[Cell]:
+    """Each artifact's stored request under its annotated frame and its raw frame.
+
+    Everything except `image_path` is held at the live setting — stored order,
+    the run's own obstacle-text setting, the shipped retry policy — so the pair
+    differs only in which PNG is attached.
+
+    Args:
+        artifacts: Artifacts whose prompt reconstructed exactly.
+        n: Replicates per image.
+
+    Returns:
+        The configured cells, `annotated` before `raw` for each artifact.
+    """
+    return [
+        Cell(
+            "F",
+            artifact,
+            artifact.stored_order,
+            image_label,
+            artifact.image_path if image_label == "annotated" else artifact.raw_image_path,
+            "shipped",
+            index,
+        )
+        for artifact in artifacts
+        for image_label in ("annotated", "raw")
         for index in range(n)
     ]
 
@@ -971,6 +1080,26 @@ def fisher_two_sided(a: int, b: int, c: int, d: int) -> float:
         1.0,
         sum(hypergeom(x) for x in range(low, high + 1) if hypergeom(x) <= observed + 1e-12),
     )
+
+
+def mcnemar_exact(b: int, c: int) -> float:
+    """Two-sided exact McNemar (sign) p-value for `b` and `c` discordant pairs.
+
+    The exact binomial form is used rather than the chi-square approximation
+    because the discordant count here is small.
+
+    Args:
+        b: Pairs favouring the first condition.
+        c: Pairs favouring the second.
+
+    Returns:
+        The two-sided p-value; 1.0 when there is no discordance.
+    """
+    total = b + c
+    if total == 0:
+        return 1.0
+    tail = sum(math.comb(total, i) for i in range(min(b, c) + 1)) / 2**total
+    return min(1.0, 2 * tail)
 
 
 GPT4O_USD_PER_PROMPT_TOKEN = 2.50 / 1_000_000
@@ -1160,9 +1289,15 @@ def analyze(records: list[dict[str, Any]], artifacts: list[Artifact]) -> None:
             print(f"{policy},{len(refused)},{terminal},{terminal / len(refused):.3f}")
 
     if by_arm.get("S"):
-        analyze_arm_s(by_arm["S"])
+        analyze_arm_s(by_arm["S"], "batch 1")
+    if by_arm.get("S2"):
+        analyze_arm_s(by_arm["S2"], "batch 2 replication")
+    if by_arm.get("S") and by_arm.get("S2"):
+        analyze_arm_s(by_arm["S"] + by_arm["S2"], "pooled batch 1+2")
     if by_arm.get("D"):
         analyze_arm_d(by_arm["D"], by_arm.get("R", []))
+    if by_arm.get("F"):
+        analyze_arm_f(by_arm["F"])
 
     prompt_tokens = sum(
         (a.get("token_usage") or {}).get("prompt_tokens", 0)
@@ -1277,16 +1412,48 @@ def _contrast(
     )
 
 
-def analyze_arm_s(records: list[dict[str, Any]]) -> None:
+def _per_scene_consistency(records: list[dict[str, Any]], order: str) -> None:
+    """Print the text-on vs text-off P(feasible) contrast scene by scene.
+
+    Every Fisher test in this arm treats replicates of six (or twelve) scenes as
+    independent, so the honest evidence for a replication is how many individual
+    scenes move in the same direction.
+
+    Args:
+        records: Arm-S (or Arm-S2) call records.
+        order: Presentation order whose contrast to break down.
+    """
+    print(f"\n### Per-scene consistency under `{order}`, real frame")
+    print("run,request_id,side,P(feasible)|text_on,P(feasible)|text_off,delta")
+    moved = 0
+    scenes = sorted({(r["run"], r["request_id"], r["side"]) for r in records})
+    for run, request_id, side in scenes:
+        rows = [r for r in records if r["request_id"] == request_id]
+        on, on_n = _feasible_counts(_s_cell(rows, order, True, "real"))
+        off, off_n = _feasible_counts(_s_cell(rows, order, False, "real"))
+        if not on_n or not off_n:
+            continue
+        delta = on / on_n - off / off_n
+        moved += int(delta > 0)
+        print(
+            f"{run},{request_id[:8]},{side},{_rate(on, on_n)},{_rate(off, off_n)},"
+            f"{delta:+.3f}"
+        )
+    print(f"scenes with a positive text-on - text-off delta: {moved}/{len(scenes)}")
+
+
+def analyze_arm_s(records: list[dict[str, Any]], label: str = "") -> None:
     """Print the Arm-S design tables and the three channel contrasts.
 
     Args:
         records: Every recorded Arm-S call.
+        label: Corpus label for the heading, e.g. `batch 2` or `pooled`.
     """
     by_side: dict[str, set[str]] = defaultdict(set)
     for record in records:
         by_side[record["side"]].add(record["request_id"])
-    print("\n## Arm S (which channel carries the side signal)")
+    suffix = f" - {label}" if label else ""
+    print(f"\n## Arm S (which channel carries the side signal){suffix}")
     print(
         "artifacts: "
         + ", ".join(f"{side} {len(ids)}" for side, ids in sorted(by_side.items()))
@@ -1316,6 +1483,8 @@ def analyze_arm_s(records: list[dict[str, Any]]) -> None:
                 f"P(robot_1) {_rate(r1, n_y)}, P(feasible) {_rate(ok, n_y)}"
             )
 
+    _per_scene_consistency(attempt1, "id_desc")
+
     think = sum(1 for r in records if r.get("think_obstacle_mention"))
     said = sum(1 for r in records if r.get("decision_obstacle_mention"))
     any_text = sum(1 for r in records if r.get("text_obstacle_mention"))
@@ -1323,6 +1492,17 @@ def analyze_arm_s(records: list[dict[str, Any]]) -> None:
         f"\nobstacle mentions across {len(records)} Arm-S runs: "
         f"<think> {think}, decision fields {said}, anywhere in the raw text {any_text}"
     )
+    print("obstacle_text,image,runs,think_mentions,decision_mentions,any_text_mentions")
+    for text, image in S_CHANNELS:
+        cell = [r for r in records if r["obstacle_text"] is text and r["image"] == image]
+        if not cell:
+            continue
+        print(
+            f"{'on' if text else 'off'},{image},{len(cell)},"
+            f"{sum(1 for r in cell if r.get('think_obstacle_mention'))},"
+            f"{sum(1 for r in cell if r.get('decision_obstacle_mention'))},"
+            f"{sum(1 for r in cell if r.get('text_obstacle_mention'))}"
+        )
 
 
 def analyze_arm_d(records: list[dict[str, Any]], arm_r: list[dict[str, Any]]) -> None:
@@ -1352,6 +1532,132 @@ def analyze_arm_d(records: list[dict[str, Any]], arm_r: list[dict[str, Any]]) ->
     ids = {r["request_id"] for r in records}
     k, n = _attempt1_stats([r for r in arm_r if r["request_id"] in ids])
     print(f"same artifacts in Arm R (full-res, earlier session): {_rate(k, n)}")
+
+
+ARM_F_IMAGES: tuple[str, str] = ("annotated", "raw")
+
+
+def _paired_refusal_counts(
+    records: list[dict[str, Any]],
+) -> dict[str, dict[str, tuple[int, int]]]:
+    """Per artifact, the attempt-1 refusals and runs under each image."""
+    paired: dict[str, dict[str, tuple[int, int]]] = defaultdict(dict)
+    for request_id in {r["request_id"] for r in records}:
+        for image in ARM_F_IMAGES:
+            group = [
+                r for r in records if r["request_id"] == request_id and r["image"] == image
+            ]
+            paired[request_id][image] = _attempt1_stats(group)
+    return paired
+
+
+def _arm_f_paired_test(records: list[dict[str, Any]], label: str) -> None:
+    """Print the artifact-paired annotated-vs-raw refusal comparison for one subset.
+
+    The artifact is the unit of analysis: each contributes one refusal count per
+    image, and the sign test asks how many artifacts refuse more under one image
+    than the other. The pooled run-level rate is printed alongside as a
+    descriptive figure, not as the inferential claim, because replicates of the
+    same artifact are not independent.
+
+    Args:
+        records: Arm-F call records for the subset.
+        label: Subset name for the heading.
+    """
+    paired = _paired_refusal_counts(records)
+    rates = {
+        image: (
+            sum(paired[rid][image][0] for rid in paired),
+            sum(paired[rid][image][1] for rid in paired),
+        )
+        for image in ARM_F_IMAGES
+    }
+    (a, an), (c, cn) = rates["annotated"], rates["raw"]
+    b_pairs = sum(
+        1
+        for rid in paired
+        if paired[rid]["annotated"][0] > paired[rid]["raw"][0]
+    )
+    c_pairs = sum(
+        1
+        for rid in paired
+        if paired[rid]["raw"][0] > paired[rid]["annotated"][0]
+    )
+    print(
+        f"\n{label}: {len(paired)} artifacts; annotated {_rate(a, an)} vs "
+        f"raw {_rate(c, cn)} of runs (fisher p={fisher_two_sided(a, an - a, c, cn - c):.4g})"
+    )
+    print(
+        f"  paired by artifact: annotated>raw {b_pairs}, raw>annotated {c_pairs}, "
+        f"tied {len(paired) - b_pairs - c_pairs}, exact McNemar p="
+        f"{mcnemar_exact(b_pairs, c_pairs):.4g}"
+    )
+
+
+def analyze_arm_f(records: list[dict[str, Any]]) -> None:
+    """Print the annotated-vs-raw frame refusal comparison and the retry reconciliation.
+
+    Args:
+        records: Every recorded Arm-F call.
+    """
+    print("\n## Arm F (annotated overlay against the raw camera frame)")
+    print("image,artifacts,runs,attempt1_refusals,rate,terminal_refusals,mean_attempts")
+    for image in ARM_F_IMAGES:
+        group = [r for r in records if r["image"] == image]
+        if not group:
+            continue
+        k, n = _attempt1_stats(group)
+        terminal = sum(int(terminal_refusal(r)) for r in group)
+        mean_attempts = sum(r["n_attempts"] for r in group) / len(group)
+        print(
+            f"{image},{len({r['request_id'] for r in group})},{n},{k},"
+            f"{(k / n if n else 0):.3f},{terminal},{mean_attempts:.2f}"
+        )
+
+    _arm_f_paired_test(records, "all artifacts")
+    tight = [
+        r
+        for r in records
+        if r.get("raw_frame_skew_sec") is not None
+        and abs(r["raw_frame_skew_sec"]) <= ARM_F_TIGHT_SKEW_SEC
+    ]
+    if tight:
+        _arm_f_paired_test(tight, f"|skew| <= {ARM_F_TIGHT_SKEW_SEC} s")
+
+    print("\n### Stimulus locking (did the live refusers refuse again?)")
+    print("live_attempt1_refusal,image,artifacts,runs,attempt1_refusals,rate")
+    for flag in (True, False):
+        subset = [r for r in records if r["live_attempt1_refusal"] is flag]
+        for image in ARM_F_IMAGES:
+            group = [r for r in subset if r["image"] == image]
+            k, n = _attempt1_stats(group)
+            print(
+                f"{flag},{image},{len({r['request_id'] for r in group})},{n},{k},"
+                f"{(k / n if n else 0):.3f}"
+            )
+    for image in ARM_F_IMAGES:
+        group = [r for r in records if r["image"] == image]
+        a = sum(int(r["attempt1_refusal"]) for r in group if r["live_attempt1_refusal"])
+        an = sum(1 for r in group if r["live_attempt1_refusal"])
+        c = sum(int(r["attempt1_refusal"]) for r in group if not r["live_attempt1_refusal"])
+        cn = sum(1 for r in group if not r["live_attempt1_refusal"])
+        print(
+            f"{image}: live-refused {_rate(a, an)} vs live-valid {_rate(c, cn)}, "
+            f"fisher p={fisher_two_sided(a, an - a, c, cn - c):.4g}"
+        )
+
+    print("\n### Retry policy at the shipped max_attempts, conditional on a refused attempt 1")
+    print("image,refused_attempt1,still_terminal,conditional_terminal_rate,mean_attempts")
+    for image in ARM_F_IMAGES:
+        refused = [r for r in records if r["image"] == image and r["attempt1_refusal"]]
+        if not refused:
+            continue
+        terminal = sum(int(terminal_refusal(r)) for r in refused)
+        mean_attempts = sum(r["n_attempts"] for r in refused) / len(refused)
+        print(
+            f"{image},{len(refused)},{terminal},{terminal / len(refused):.3f},"
+            f"{mean_attempts:.2f}"
+        )
 
 
 SUMMARY_FIELDS = [
@@ -1461,9 +1767,24 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--arm",
-        choices=["integrity", "R", "grey", "O", "M", "S", "D", "summary", "analyze"],
+        choices=[
+            "integrity", "R", "grey", "O", "M", "S", "D", "S2", "F", "summary", "analyze"
+        ],
         default="integrity",
         help="which arm to run; 'integrity' only checks reconstruction",
+    )
+    parser.add_argument(
+        "--runs",
+        choices=sorted(RUN_SETS),
+        default="batch1",
+        help="which pilot batch's runs to load",
+    )
+    parser.add_argument(
+        "--extra-records",
+        type=Path,
+        nargs="*",
+        default=[],
+        help="additional experiment directories whose calls.jsonl joins the analysis",
     )
     parser.add_argument("--n", type=int, default=3, help="replicates per cell")
     parser.add_argument("--controls", type=int, default=10, help="grey-arm control count")
@@ -1478,7 +1799,7 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    artifacts = load_artifacts(runs_dir=args.runs_dir)
+    artifacts = load_artifacts(runs=RUN_SETS[args.runs], runs_dir=args.runs_dir)
     integrity = check_integrity(artifacts)
     print_integrity(integrity, len(artifacts))
     matched = integrity.matched
@@ -1491,7 +1812,13 @@ def main() -> None:
         records = load_records(args.out_dir)
         live_refusals = sum(1 for a in artifacts if a.live_attempt1_refusal)
         print(f"live attempt-1 refusals on these stimuli: {live_refusals}/{len(artifacts)}")
+        # Only this directory's own rows go into its summary; pooled rows are for
+        # the cross-batch tables alone.
         write_summary(records, args.out_dir)
+        for extra in args.extra_records:
+            extra_records = load_records(extra)
+            print(f"pooling {len(extra_records)} records from {extra}")
+            records += extra_records
         analyze(records, artifacts)
         return
 
@@ -1511,7 +1838,7 @@ def main() -> None:
             f"{a.run}/{a.request_id[:8]}({a.stored_order})" for a in yields
         ))
         cells = build_arm_o_cells(yields, args.n)
-    elif args.arm == "S":
+    elif args.arm in ("S", "S2"):
         standoffs = select_standoff_artifacts(matched)
         sizes = {Image.open(a.image_path).size for a in standoffs}
         if len(sizes) != 1:
@@ -1522,11 +1849,24 @@ def main() -> None:
         for a in standoffs:
             by_side_count[a.obstacle_side] += 1
         print(
-            f"arm S: {len(standoffs)} standoff artifacts "
+            f"arm {args.arm}: {len(standoffs)} standoff artifacts "
             f"({dict(by_side_count)}), grey {size}: "
             + ", ".join(f"{a.run}/{a.request_id[:8]}" for a in standoffs)
         )
-        cells = build_arm_s_cells(standoffs, grey, args.n)
+        cells = build_arm_s_cells(standoffs, grey, args.n, args.arm)
+    elif args.arm == "F":
+        missing = [a for a in matched if not a.raw_image_path.is_file()]
+        if missing:
+            raise FileNotFoundError(
+                f"{len(missing)} artifacts have no raw frame, first: "
+                f"{missing[0].raw_image_path}"
+            )
+        no_skew = [a for a in matched if a.raw_frame_skew_sec is None]
+        print(
+            f"arm F: {len(matched)} artifacts x annotated/raw x {args.n}; "
+            f"{len(no_skew)} without a logged skew"
+        )
+        cells = build_arm_f_cells(matched, args.n)
     elif args.arm == "D":
         refused = [a for a in matched if a.live_attempt1_refusal]
         downscaled = {

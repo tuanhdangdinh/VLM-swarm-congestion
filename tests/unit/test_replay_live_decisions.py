@@ -20,7 +20,9 @@ from reasoning.vlm.prompt_builder import build_prompt_payload
 from scripts.replay_live_decisions import (
     Artifact,
     Cell,
+    _raw_frame_skews,
     build_arm_d_cells,
+    build_arm_f_cells,
     build_arm_s_cells,
     check_integrity,
     first_yield_artifacts,
@@ -28,6 +30,7 @@ from scripts.replay_live_decisions import (
     is_standoff,
     make_downscaled_image,
     make_grey_image,
+    mcnemar_exact,
     mentions_obstacle,
     reconstruct_request,
     select_standoff_artifacts,
@@ -123,11 +126,15 @@ def make_artifact(
     live_error_message: str | None = None,
     live_raw_text: str | None = None,
     with_image: bool = True,
+    with_raw_image: bool = False,
+    raw_frame_skew_sec: float | None = None,
 ) -> Artifact:
     """Build an `Artifact` from inlined fixture data plus a generated frame."""
     image_path = tmp_path / f"{request_id}.png"
     if with_image:
         tiny_png(image_path)
+    if with_raw_image:
+        tiny_png(tmp_path / f"{request_id}_raw.png")
     return Artifact(
         run=run,
         request_id=request_id,
@@ -153,6 +160,7 @@ def make_artifact(
         live_raw_text=live_raw_text,
         live_decision=live_decision,
         stamp=float(scene["stamp"]),
+        raw_frame_skew_sec=raw_frame_skew_sec,
     )
 
 
@@ -520,3 +528,81 @@ def test_mentions_obstacle_matches_the_blocker_vocabulary():
     assert mentions_obstacle("robot_1 cannot retreat past the barrier")
     assert mentions_obstacle("the box at 1.85 blocks it")
     assert not mentions_obstacle("robot_1 should yield because it is closer to the goal")
+
+
+def test_arm_s2_cell_keys_are_distinct_from_the_batch_1_arm(standoff_artifact):
+    grey = standoff_artifact.image_path
+    batch1 = {c.key() for c in build_arm_s_cells([standoff_artifact], grey, 1)}
+    batch2 = {c.key() for c in build_arm_s_cells([standoff_artifact], grey, 1, "S2")}
+    assert not batch1 & batch2
+    assert all(k.startswith("S2|") for k in batch2)
+
+
+def test_raw_image_path_appends_the_raw_suffix_to_the_request_id(fc_artifact):
+    assert fc_artifact.raw_image_path.parent == fc_artifact.image_path.parent
+    assert fc_artifact.raw_image_path.name == f"{fc_artifact.request_id}_raw.png"
+
+
+def test_arm_f_cells_pair_each_artifact_at_both_frames(tmp_path):
+    artifact = make_artifact(
+        tmp_path,
+        scene=FC_SCENE,
+        failure_context=FC_BLOCK,
+        order="id_asc",
+        user_sha256=FC_USER_SHA256,
+        obstacle_x=-1.85,
+        with_raw_image=True,
+    )
+    cells = build_arm_f_cells([artifact], 3)
+    assert len(cells) == 6
+    assert len({c.key() for c in cells}) == 6
+    by_label = {c.image_label: c.image_path for c in cells}
+    assert by_label["annotated"] == artifact.image_path
+    assert by_label["raw"] == artifact.raw_image_path
+    assert all(path.is_file() for path in by_label.values())
+
+
+def test_arm_f_cells_keep_the_stored_order_and_obstacle_text(standoff_artifact):
+    cells = build_arm_f_cells([standoff_artifact], 1)
+    assert {c.order for c in cells} == {standoff_artifact.stored_order}
+    assert all(c.include_static_obstacles for c in cells)
+    assert {c.policy for c in cells} == {"shipped"}
+
+
+def test_raw_frame_substitution_leaves_the_prompt_sha_unchanged(tmp_path):
+    artifact = make_artifact(
+        tmp_path,
+        scene=FC_SCENE,
+        failure_context=FC_BLOCK,
+        order="id_asc",
+        user_sha256=FC_USER_SHA256,
+        obstacle_x=-1.85,
+        with_raw_image=True,
+    )
+    raw_request = reconstruct_request(artifact, image_path=artifact.raw_image_path)
+    assert raw_request.image_path == str(artifact.raw_image_path)
+    assert sha256_text(build_prompt_payload(raw_request).user_prompt) == FC_USER_SHA256
+
+
+def test_raw_frame_skews_parses_signed_values_from_the_m5_log(tmp_path):
+    log = tmp_path / "component_logs" / "m5.log"
+    log.parent.mkdir(parents=True)
+    log.write_text(
+        "[orchestrator_node]: raw frame dumps enabled topic=/camera/image_raw\n"
+        "[orchestrator_node]: raw frame skew_sec=-0.355 request=abc123 path=a_raw.png\n"
+        "[orchestrator_node]: raw frame skew_sec=+1.328 request=def456 path=b_raw.png\n"
+    )
+    assert _raw_frame_skews(tmp_path) == {"abc123": -0.355, "def456": 1.328}
+
+
+def test_raw_frame_skews_is_empty_when_the_run_has_no_m5_log(tmp_path):
+    assert _raw_frame_skews(tmp_path) == {}
+
+
+def test_mcnemar_exact_is_one_when_discordance_is_symmetric():
+    assert mcnemar_exact(0, 0) == 1.0
+    assert mcnemar_exact(4, 4) == 1.0
+
+
+def test_mcnemar_exact_is_small_when_every_discordant_pair_agrees():
+    assert mcnemar_exact(10, 0) == pytest.approx(2 / 2**10)
