@@ -203,6 +203,14 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-25** — **ER-2 arm of the offline presentation-order probe**
+  (`docs/reports/2026-09-25-presentation-order-probe.md` Rev 2).
+  `probe_presentation_order.py --backend gemini --seeds N` sweeps seeds `0..N-1`
+  (one backend per seed) because the Interactions API has no temperature; records
+  carry `seed` + `unsupported_sampling` and rows key on `temperature="seeded"`,
+  leaving the gpt-4o rows byte-identical. 180 calls, 0 parse failures: ER-2 chose
+  `reverse` in 155/180, `P(correct)=6/13`, and the textual obstacle channel drives
+  `yield` to zero (60/60 vs 47/60, p=1.2e-04) with no justification naming it.
 - **2026-09-25** — **`feat/gemini-er2-backend` merged onto the FR2.1.9 line**
   (`c7a08e7`, a `--no-ff` merge of `7d6e1c4`). Select ER-2 with
   `reasoning_backend_id: gemini` in
