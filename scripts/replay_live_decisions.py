@@ -1,0 +1,908 @@
+"""Offline replay of live M5 decisions against their real annotated camera frames.
+
+The Arm A pilot runs stored, for every M2 analysis, the exact scene snapshot, the
+rendered prompt with its SHA-256, the presentation order, and the PNG frame that
+was actually sent. This probe rebuilds each `ReasonerRequest` through the
+production `build_reasoner_request` / `build_prompt_payload` path, asserts the
+rendered prompt is byte-identical to the stored one, and then re-sends it through
+the shipped `Reasoner` with the real frame.
+
+Four arms:
+
+* ``R``    — every reconstructable artifact, stored order, real frame. Measures the
+  attempt-1 refusal rate against the live rate on the same stimuli.
+* ``grey`` — the live-refused artifacts and matched live-valid ones, same prompts,
+  with a neutral grey image of identical dimensions. Isolates the image channel.
+* ``O``    — the first-yield artifact of each run under both presentation orders.
+  Measures order sensitivity on real stimuli.
+* ``M``    — retry-policy comparison on the artifacts that refused in Arm R.
+
+Production code is imported, never modified. `Reasoner.run` keeps only the last
+attempt's text, so a recording proxy wraps the backend to capture every attempt;
+the retry/re-ask logic itself stays byte-exact. The proxy also owns rate pacing
+(per API call, not per `Reasoner.run`), 429 back-off, and the auth abort.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import hashlib
+import json
+import math
+import re
+import sys
+import time
+from collections import defaultdict
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Literal
+
+import numpy as np
+import yaml
+from PIL import Image
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+for _extra in (REPO_ROOT, REPO_ROOT / "ros2_ws/src/swarm_orchestrator"):
+    if str(_extra) not in sys.path:
+        sys.path.insert(0, str(_extra))
+
+from swarm_orchestrator.models import SceneSnapshot  # noqa: E402
+from swarm_orchestrator.reasoning_pipeline import build_reasoner_request  # noqa: E402
+
+from reasoning.vlm.backend_base import VLMBackend  # noqa: E402
+from reasoning.vlm.backend_factory import (  # noqa: E402
+    backend_section,
+    build_backend,
+    resolve_reasoner_config,
+)
+from reasoning.vlm.errors import DecisionValidationError, VLMOutputParseError  # noqa: E402
+from reasoning.vlm.models import (  # noqa: E402
+    BackendResponse,
+    FailureContext,
+    OpenAIBackendConfig,
+    PromptPayload,
+    ReasonerConfig,
+    ReasonerRequest,
+    RobotPresentationOrder,
+    StaticObstacleInput,
+)
+from reasoning.vlm.output_parser import parse_decision_text  # noqa: E402
+from reasoning.vlm.prompt_builder import build_prompt_payload  # noqa: E402
+from reasoning.vlm.reasoner import Reasoner  # noqa: E402
+
+RUNS_DIR = REPO_ROOT / "data/logs/vm_runs"
+OUT_DIR = REPO_ROOT / "data/experiments/2026-09-25-frame-replay"
+MODELS_YAML = REPO_ROOT / "config/models.yaml"
+
+PILOT_RUNS: tuple[str, ...] = (
+    "20260925_063520",
+    "20260925_065143",
+    "20260925_070637",
+    "20260925_072130",
+    "20260925_073621",
+    "20260925_075116",
+)
+
+# Both phrasings seen in `raw_text`: with and without the "but". Matches the
+# census regex in scripts/probe_refusals.py so the two reports count the same
+# event.
+REFUSAL_RE = re.compile(r"I(?:'m| am) sorry.{0,20}I can'?t assist", re.I)
+
+# `Reasoner` keeps only the last attempt's text, so a live artifact whose attempt 1
+# was refused and whose re-ask recovered stores JSON. The census (2026-09-25)
+# established that this error message is the signature of such an attempt-1
+# refusal: no other non-JSON failure mode appears in the corpus.
+NO_JSON_ERROR = "VLM output contains no JSON object."
+
+ORDERS: tuple[RobotPresentationOrder, ...] = ("id_asc", "id_desc")
+
+Arm = Literal["R", "grey", "O", "M"]
+RetryPolicy = Literal["shipped", "original_prompt", "max_attempts_4"]
+
+
+class AuthAbort(RuntimeError):
+    """Raised when the API rejects our credentials, to stop the run immediately."""
+
+
+def is_refusal(text: str | None) -> bool:
+    """Return True when assistant text is an OpenAI safety refusal.
+
+    Args:
+        text: Raw assistant text, or None.
+
+    Returns:
+        True if the text matches either observed refusal phrasing.
+    """
+    return bool(text) and bool(REFUSAL_RE.search(text or ""))
+
+
+def parses_as_decision(text: str | None) -> bool:
+    """Return True when assistant text parses as a valid `CongestionDecision`."""
+    if not text:
+        return False
+    try:
+        parse_decision_text(text)
+    except (VLMOutputParseError, DecisionValidationError):
+        return False
+    return True
+
+
+@dataclass(frozen=True)
+class Artifact:
+    """One stored live decision, reduced to what the replay needs."""
+
+    run: str
+    request_id: str
+    path: Path
+    image_path: Path
+    scene: dict[str, Any]
+    failure_context: dict[str, Any] | None
+    stored_order: RobotPresentationOrder
+    stored_user_sha256: str
+    stored_system_sha256: str
+    stored_user_prompt: str
+    include_pairwise_geometry: bool
+    include_static_obstacles: bool
+    static_obstacles: tuple[StaticObstacleInput, ...]
+    obstacle_x: float | None
+    live_parse_status: str | None
+    live_attempts: int | None
+    live_error_message: str | None
+    live_raw_text: str | None
+    live_decision: dict[str, Any] | None
+    stamp: float
+
+    @property
+    def live_attempt1_refusal(self) -> bool:
+        """Whether attempt 1 of the live call was a refusal.
+
+        A terminal refusal is visible directly in `raw_text`; a recovered one is
+        inferred from `parse_status="invalid"` plus the no-JSON error signature.
+        """
+        if is_refusal(self.live_raw_text):
+            return True
+        return (
+            self.live_parse_status in ("invalid", "failed")
+            and self.live_error_message == NO_JSON_ERROR
+        )
+
+    @property
+    def correct_yielder(self) -> str | None:
+        """The robot whose retreat direction is unobstructed in this run's scenario.
+
+        robot_1 enters from the west and retreats west; robot_2 enters from the
+        east and retreats east. M3's own feasibility gate recorded the mapping in
+        the pilot artifacts ("robot_1 has 0.70 m retreat room < 1.08 m required;
+        robot_2 feasible" in the runs whose obstacle sits at x = -1.85), so a
+        west obstacle makes robot_2 the feasible yielder and an east obstacle
+        makes it robot_1.
+        """
+        if self.obstacle_x is None:
+            return None
+        return "robot_2" if self.obstacle_x < 0 else "robot_1"
+
+
+def _analysis_order(run_dir: Path) -> dict[str, int]:
+    """Map request_id to its position in the M5 log's analysis sequence."""
+    order: dict[str, int] = {}
+    log = run_dir / "component_logs" / "m5.log"
+    if not log.is_file():
+        return order
+    pattern = re.compile(r"starting analysis request=(\w+)")
+    for index, match in enumerate(pattern.finditer(log.read_text(errors="replace"))):
+        order.setdefault(match.group(1), index)
+    return order
+
+
+def load_artifacts(
+    runs: tuple[str, ...] = PILOT_RUNS, runs_dir: Path = RUNS_DIR
+) -> list[Artifact]:
+    """Load every decision artifact of the given runs, in analysis order.
+
+    Args:
+        runs: Run stamps to load.
+        runs_dir: Directory holding one subdirectory per VM run.
+
+    Returns:
+        Artifacts ordered by run, then by the M5 log's analysis sequence
+        (falling back to the scene stamp when the log is unavailable).
+
+    Raises:
+        FileNotFoundError: If a run directory or its config is missing.
+    """
+    artifacts: list[Artifact] = []
+    for run in runs:
+        run_dir = runs_dir / run
+        config_path = run_dir / "orchestrator.yaml.used"
+        if not config_path.is_file():
+            raise FileNotFoundError(f"missing run config: {config_path}")
+        config = yaml.safe_load(config_path.read_text())
+        obstacles = tuple(
+            StaticObstacleInput(**entry) for entry in (config.get("static_obstacles") or [])
+        )
+        obstacle_x = obstacles[0].x if obstacles else None
+        log_order = _analysis_order(run_dir)
+        loaded: list[Artifact] = []
+        for path in sorted((run_dir / "decisions").glob("*.json")):
+            data = json.loads(path.read_text())
+            prompt = data.get("prompt") or {}
+            diagnostics = data.get("diagnostics") or {}
+            request_id = data["request_id"]
+            loaded.append(
+                Artifact(
+                    run=run,
+                    request_id=request_id,
+                    path=path,
+                    image_path=run_dir / "m5_frames" / f"{request_id}.png",
+                    scene=data["scene"],
+                    failure_context=data.get("failure_context"),
+                    stored_order=data["robot_presentation_order"],
+                    stored_user_sha256=prompt["user_sha256"],
+                    stored_system_sha256=prompt["system_sha256"],
+                    stored_user_prompt=prompt["user_prompt"],
+                    include_pairwise_geometry=bool(config["prompt_pairwise_geometry"]),
+                    include_static_obstacles=bool(config["prompt_static_obstacles"]),
+                    static_obstacles=obstacles,
+                    obstacle_x=obstacle_x,
+                    live_parse_status=diagnostics.get("parse_status"),
+                    live_attempts=diagnostics.get("attempts"),
+                    live_error_message=diagnostics.get("error_message"),
+                    live_raw_text=data.get("raw_text"),
+                    live_decision=data.get("decision"),
+                    stamp=float(data["scene"]["stamp"]),
+                )
+            )
+        loaded.sort(key=lambda a: (log_order.get(a.request_id, 10**6), a.stamp))
+        artifacts.extend(loaded)
+    return artifacts
+
+
+def reconstruct_request(
+    artifact: Artifact,
+    order: RobotPresentationOrder | None = None,
+    image_path: Path | None = None,
+) -> ReasonerRequest:
+    """Rebuild the `ReasonerRequest` M5 issued for one stored decision.
+
+    Args:
+        artifact: The stored decision.
+        order: Presentation order to render with; None uses the stored order.
+        image_path: Image to attach; None uses the real stored frame.
+
+    Returns:
+        The reconstructed request.
+    """
+    failure_context = (
+        FailureContext(**artifact.failure_context) if artifact.failure_context else None
+    )
+    return build_reasoner_request(
+        artifact.request_id,
+        snapshot=SceneSnapshot(**artifact.scene),
+        image_path=str(image_path or artifact.image_path),
+        failure_context=failure_context,
+        include_pairwise_geometry=artifact.include_pairwise_geometry,
+        static_obstacles=list(artifact.static_obstacles),
+        include_static_obstacles=artifact.include_static_obstacles,
+        robot_presentation_order=order or artifact.stored_order,
+    )
+
+
+def sha256_text(text: str) -> str:
+    """Return the hex SHA-256 of a UTF-8 string."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+@dataclass
+class IntegrityResult:
+    """Outcome of the prompt-reconstruction check across all artifacts."""
+
+    matched: list[Artifact] = field(default_factory=list)
+    mismatched: list[tuple[Artifact, str]] = field(default_factory=list)
+    missing_image: list[Artifact] = field(default_factory=list)
+
+
+def first_differing_line(expected: str, rendered: str) -> str:
+    """Describe the first line where two prompts diverge."""
+    left, right = expected.splitlines(), rendered.splitlines()
+    for index, (a, b) in enumerate(zip(left, right, strict=False)):
+        if a != b:
+            return f"line {index + 1}: stored={a!r} rendered={b!r}"
+    return f"line count: stored={len(left)} rendered={len(right)}"
+
+
+def check_integrity(artifacts: list[Artifact]) -> IntegrityResult:
+    """Verify each artifact's prompt re-renders byte-identically under its stored order.
+
+    Args:
+        artifacts: Artifacts to check.
+
+    Returns:
+        Matched artifacts (safe to replay), mismatched ones with the first
+        differing line, and those whose frame PNG is missing.
+    """
+    result = IntegrityResult()
+    for artifact in artifacts:
+        rendered = build_prompt_payload(reconstruct_request(artifact)).user_prompt
+        if sha256_text(rendered) != artifact.stored_user_sha256:
+            result.mismatched.append(
+                (artifact, first_differing_line(artifact.stored_user_prompt, rendered))
+            )
+            continue
+        if not artifact.image_path.is_file():
+            result.missing_image.append(artifact)
+            continue
+        result.matched.append(artifact)
+    return result
+
+
+@dataclass
+class AttemptRecord:
+    """One backend call made inside a single `Reasoner.run`."""
+
+    attempt: int
+    user_sha256: str
+    text: str | None
+    refused: bool
+    parsed: bool
+    latency_ms: int | None
+    token_usage: dict[str, int] | None
+    error: str | None
+
+
+class RecordingBackend:
+    """A `VLMBackend` proxy that records every attempt, paces calls and handles 429s.
+
+    `Reasoner.run` overwrites the attempt-1 response with the re-ask response, so
+    the shipped path alone cannot report an attempt-1 refusal rate. Wrapping the
+    backend instead of re-implementing the retry loop keeps the production
+    retry/re-ask semantics byte-exact.
+    """
+
+    def __init__(
+        self,
+        inner: VLMBackend,
+        pace_sec: float,
+        max_backoff_retries: int = 5,
+    ) -> None:
+        self._inner = inner
+        self._pace_sec = pace_sec
+        self._max_backoff_retries = max_backoff_retries
+        self._last_call_ended: float | None = None
+        self.attempts: list[AttemptRecord] = []
+
+    def reset(self) -> None:
+        """Clear the per-run attempt log before the next `Reasoner.run`."""
+        self.attempts = []
+
+    def _wait_for_slot(self) -> None:
+        if self._last_call_ended is None:
+            return
+        remaining = self._pace_sec - (time.monotonic() - self._last_call_ended)
+        if remaining > 0:
+            time.sleep(remaining)
+
+    def analyze(self, payload: PromptPayload, config: ReasonerConfig) -> BackendResponse:
+        """Delegate to the wrapped backend, recording and pacing the call.
+
+        Args:
+            payload: Rendered prompt payload.
+            config: Runtime decoding settings.
+
+        Returns:
+            The wrapped backend's response.
+
+        Raises:
+            AuthAbort: If the API rejects the credentials (HTTP 401/403).
+            ConnectionError: For any other transport failure, re-raised so the
+                production `Reasoner` sees the error class it expects.
+        """
+        attempt = len(self.attempts) + 1
+        user_sha = sha256_text(payload.user_prompt)
+        backoff = 5.0
+        for retry in range(self._max_backoff_retries + 1):
+            self._wait_for_slot()
+            try:
+                response = self._inner.analyze(payload, config)
+            except ConnectionError as exc:
+                self._last_call_ended = time.monotonic()
+                message = str(exc)
+                if re.search(r"HTTP 40[13]\b", message):
+                    raise AuthAbort(f"credentials rejected: {message[:200]}") from exc
+                if re.search(r"HTTP 429\b", message) and retry < self._max_backoff_retries:
+                    print(f"  429 received; backing off {backoff:.0f}s")
+                    time.sleep(backoff)
+                    backoff *= 2
+                    continue
+                self.attempts.append(
+                    AttemptRecord(
+                        attempt=attempt,
+                        user_sha256=user_sha,
+                        text=None,
+                        refused=False,
+                        parsed=False,
+                        latency_ms=None,
+                        token_usage=None,
+                        error=f"{type(exc).__name__}: {message[:300]}",
+                    )
+                )
+                raise
+            self._last_call_ended = time.monotonic()
+            self.attempts.append(
+                AttemptRecord(
+                    attempt=attempt,
+                    user_sha256=user_sha,
+                    text=response.text,
+                    refused=is_refusal(response.text),
+                    parsed=parses_as_decision(response.text),
+                    latency_ms=response.latency_ms,
+                    token_usage=response.token_usage,
+                    error=None,
+                )
+            )
+            return response
+        raise ConnectionError("exhausted 429 back-off retries")
+
+
+@dataclass(frozen=True)
+class Cell:
+    """One configured replay cell: an artifact under one arm, order, image and policy."""
+
+    arm: Arm
+    artifact: Artifact
+    order: RobotPresentationOrder
+    image_label: str
+    image_path: Path
+    policy: RetryPolicy
+    repeat: int
+
+    def key(self) -> str:
+        """Stable identity used to resume an interrupted run."""
+        return "|".join(
+            [
+                self.arm,
+                self.artifact.run,
+                self.artifact.request_id,
+                self.order,
+                self.image_label,
+                self.policy,
+                str(self.repeat),
+            ]
+        )
+
+
+_POLICY_OVERRIDES: dict[RetryPolicy, dict[str, Any]] = {
+    "shipped": {},
+    "original_prompt": {"allow_reask": False},
+    "max_attempts_4": {"max_attempts": 4},
+}
+
+
+def load_shipped_config() -> tuple[ReasonerConfig, OpenAIBackendConfig]:
+    """Read the shipped OpenAI reasoner and backend config from config/models.yaml.
+
+    Returns:
+        The `ReasonerConfig` (temperature 0.0, max_attempts 2 as shipped) and the
+        `OpenAIBackendConfig` for the configured model.
+    """
+    raw_vlm = yaml.safe_load(MODELS_YAML.read_text())["vlm"]
+    reasoner_config = resolve_reasoner_config(raw_vlm, "openai")
+    backend_config = OpenAIBackendConfig(**backend_section(raw_vlm, "openai"))
+    return reasoner_config, backend_config
+
+
+def make_grey_image(path: Path, size: tuple[int, int]) -> Path:
+    """Write a neutral mid-grey PNG of the given `(width, height)` and return its path."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(np.full((size[1], size[0], 3), 128, dtype=np.uint8)).save(path)
+    return path
+
+
+def run_cell(
+    cell: Cell,
+    backend: RecordingBackend,
+    base_config: ReasonerConfig,
+) -> dict[str, Any]:
+    """Execute one replay cell through the production `Reasoner` and record it.
+
+    Args:
+        cell: The configured cell.
+        backend: Recording proxy wrapping the real backend.
+        base_config: The shipped reasoner config, before per-policy overrides.
+
+    Returns:
+        A JSON-serializable record of the run, including every attempt.
+    """
+    config = base_config.model_copy(update=_POLICY_OVERRIDES[cell.policy])
+    request = reconstruct_request(cell.artifact, cell.order, cell.image_path)
+    payload_sha = sha256_text(build_prompt_payload(request).user_prompt)
+    backend.reset()
+    started = time.monotonic()
+    error: str | None = None
+    result = None
+    try:
+        result = Reasoner(backend, config).run(request)
+    except AuthAbort:
+        raise
+    except Exception as exc:  # noqa: BLE001 - transport failures are recorded as data
+        error = f"{type(exc).__name__}: {str(exc)[:300]}"
+    attempts = [vars(a) for a in backend.attempts]
+    decision = (
+        result.decision.model_dump(mode="json") if result and result.decision else None
+    )
+    return {
+        "key": cell.key(),
+        "arm": cell.arm,
+        "run": cell.artifact.run,
+        "request_id": cell.artifact.request_id,
+        "order": cell.order,
+        "stored_order": cell.artifact.stored_order,
+        "image": cell.image_label,
+        "policy": cell.policy,
+        "repeat": cell.repeat,
+        "model_id": config.backend_id,
+        "temperature": config.temperature,
+        "max_attempts": config.max_attempts,
+        "allow_reask": config.allow_reask,
+        "prompt_user_sha256": payload_sha,
+        "prompt_matches_live": payload_sha == cell.artifact.stored_user_sha256,
+        "live_attempt1_refusal": cell.artifact.live_attempt1_refusal,
+        "live_parse_status": cell.artifact.live_parse_status,
+        "attempts": attempts,
+        "n_attempts": len(attempts),
+        "attempt1_refusal": bool(attempts) and attempts[0]["refused"],
+        "attempt1_parsed": bool(attempts) and attempts[0]["parsed"],
+        "terminal_refusal": bool(attempts)
+        and all(a["refused"] for a in attempts)
+        and decision is None,
+        "parse_status": result.diagnostics.parse_status if result else None,
+        "decision": decision,
+        "strategy": (decision or {}).get("strategy"),
+        "yield_robot": (decision or {}).get("yield_robot"),
+        "correct_yielder": cell.artifact.correct_yielder,
+        "wall_ms": int((time.monotonic() - started) * 1000),
+        "error": error,
+    }
+
+
+def load_done_keys(calls_path: Path) -> set[str]:
+    """Return the cell keys already present in an existing `calls.jsonl`."""
+    if not calls_path.is_file():
+        return set()
+    keys: set[str] = set()
+    for line in calls_path.read_text().splitlines():
+        if not line.strip():
+            continue
+        try:
+            keys.add(json.loads(line)["key"])
+        except (json.JSONDecodeError, KeyError):
+            continue
+    return keys
+
+
+def execute(cells: list[Cell], out_dir: Path, pace_sec: float) -> list[dict[str, Any]]:
+    """Run every not-yet-recorded cell, appending each result to `calls.jsonl`.
+
+    Args:
+        cells: Configured cells, in execution order.
+        out_dir: Directory receiving `calls.jsonl`.
+        pace_sec: Minimum seconds between API calls.
+
+    Returns:
+        The records produced by this invocation.
+
+    Raises:
+        AuthAbort: Propagated so an unusable key stops the run immediately.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    calls_path = out_dir / "calls.jsonl"
+    done = load_done_keys(calls_path)
+    pending = [c for c in cells if c.key() not in done]
+    print(
+        f"{len(cells)} cells, {len(cells) - len(pending)} already recorded, "
+        f"{len(pending)} to run"
+    )
+
+    base_config, backend_config = load_shipped_config()
+    backend = RecordingBackend(build_backend("openai", backend_config), pace_sec)
+
+    records: list[dict[str, Any]] = []
+    for index, cell in enumerate(pending):
+        record = run_cell(cell, backend, base_config)
+        records.append(record)
+        with calls_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record) + "\n")
+        print(
+            f"[{index + 1}/{len(pending)}] {cell.arm} {cell.artifact.run} "
+            f"{cell.artifact.request_id[:8]} {cell.order} {cell.image_label} "
+            f"{cell.policy} r{cell.repeat} "
+            f"att1_refusal={record['attempt1_refusal']} "
+            f"strategy={record['strategy']} yield={record['yield_robot']}"
+        )
+    return records
+
+
+def build_arm_r_cells(matched: list[Artifact], n: int) -> list[Cell]:
+    """Every matched artifact, stored order, real frame, shipped retry policy."""
+    return [
+        Cell("R", a, a.stored_order, "real", a.image_path, "shipped", i)
+        for a in matched
+        for i in range(n)
+    ]
+
+
+def select_grey_pairs(matched: list[Artifact], k: int) -> tuple[list[Artifact], list[Artifact]]:
+    """Split matched artifacts into the live-refused set and a matched live-valid set.
+
+    Controls are drawn from the same runs as the refusals, preferring artifacts
+    that share the refusal's failure-context condition, so the pair differs in
+    the image arm rather than in the prompt's structure.
+
+    Args:
+        matched: Artifacts whose prompt reconstructed exactly.
+        k: Maximum number of controls to draw.
+
+    Returns:
+        The refused artifacts and the selected controls.
+    """
+    refused = [a for a in matched if a.live_attempt1_refusal]
+    candidates = [a for a in matched if not a.live_attempt1_refusal]
+    wanted = [(a.run, bool(a.failure_context)) for a in refused]
+    controls: list[Artifact] = []
+    for run, has_fc in wanted:
+        pick = next(
+            (
+                c
+                for c in candidates
+                if c not in controls and c.run == run and bool(c.failure_context) == has_fc
+            ),
+            None,
+        ) or next((c for c in candidates if c not in controls and c.run == run), None)
+        if pick is not None:
+            controls.append(pick)
+    for c in candidates:
+        if len(controls) >= k:
+            break
+        if c not in controls:
+            controls.append(c)
+    return refused, controls[:k]
+
+
+def build_grey_cells(
+    refused: list[Artifact], controls: list[Artifact], grey: Path, n: int
+) -> list[Cell]:
+    """Grey-image cells for the refused artifacts and their matched controls."""
+    return [
+        Cell("grey", a, a.stored_order, "grey", grey, "shipped", i)
+        for a in refused + controls
+        for i in range(n)
+    ]
+
+
+def first_yield_artifacts(artifacts: list[Artifact]) -> list[Artifact]:
+    """The first artifact of each run whose live decision chose `yield`.
+
+    `artifacts` must already be in analysis order (as `load_artifacts` returns
+    them), so "first" is the run's first yield decision.
+    """
+    seen: set[str] = set()
+    picks: list[Artifact] = []
+    for artifact in artifacts:
+        if artifact.run in seen:
+            continue
+        if (artifact.live_decision or {}).get("strategy") == "yield":
+            picks.append(artifact)
+            seen.add(artifact.run)
+    return picks
+
+
+def build_arm_o_cells(yields: list[Artifact], n: int) -> list[Cell]:
+    """Each first-yield artifact under both presentation orders, real frame."""
+    return [
+        Cell("O", a, order, "real", a.image_path, "shipped", i)
+        for a in yields
+        for order in ORDERS
+        for i in range(n)
+    ]
+
+
+def build_arm_m_cells(refusing: list[Artifact], n: int) -> list[Cell]:
+    """Retry-policy comparison cells on the artifacts that refused in Arm R."""
+    policies: tuple[RetryPolicy, ...] = ("shipped", "original_prompt", "max_attempts_4")
+    return [
+        Cell("M", a, a.stored_order, "real", a.image_path, policy, i)
+        for a in refusing
+        for policy in policies
+        for i in range(n)
+    ]
+
+
+def fisher_two_sided(a: int, b: int, c: int, d: int) -> float:
+    """Two-sided Fisher exact p-value for the 2x2 table `[[a, b], [c, d]]`.
+
+    Args:
+        a: Successes in group 1.
+        b: Failures in group 1.
+        c: Successes in group 2.
+        d: Failures in group 2.
+
+    Returns:
+        The two-sided p-value, or 1.0 for a degenerate table.
+    """
+    total, row1, col1 = a + b + c + d, a + b, a + c
+    if total == 0 or min(row1, col1, total - row1, total - col1) < 0:
+        return 1.0
+
+    def hypergeom(x: int) -> float:
+        return (
+            math.comb(row1, x)
+            * math.comb(total - row1, col1 - x)
+            / math.comb(total, col1)
+        )
+
+    observed = hypergeom(a)
+    low, high = max(0, col1 - (total - row1)), min(row1, col1)
+    return min(
+        1.0,
+        sum(hypergeom(x) for x in range(low, high + 1) if hypergeom(x) <= observed + 1e-12),
+    )
+
+
+SUMMARY_FIELDS = [
+    "arm",
+    "run",
+    "request_id",
+    "order",
+    "image",
+    "policy",
+    "n",
+    "attempt1_refusals",
+    "attempt1_refusal_rate",
+    "terminal_refusals",
+    "decided",
+    "yield_decisions",
+    "yield_robot_1",
+    "yield_first_listed",
+    "yield_correct",
+    "errors",
+    "prompt_tokens",
+    "completion_tokens",
+]
+
+
+def write_summary(records: list[dict[str, Any]], out_dir: Path) -> None:
+    """Aggregate call records into `summary.csv`, one row per cell group.
+
+    Args:
+        records: Every recorded call (this run plus any resumed ones).
+        out_dir: Directory receiving `summary.csv`.
+    """
+    buckets: dict[tuple, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    for record in records:
+        key = (
+            record["arm"],
+            record["run"],
+            record["request_id"],
+            record["order"],
+            record["image"],
+            record["policy"],
+        )
+        bucket = buckets[key]
+        bucket["n"] += 1
+        bucket["attempt1_refusals"] += int(record.get("attempt1_refusal", False))
+        bucket["terminal_refusals"] += int(record.get("terminal_refusal", False))
+        bucket["errors"] += int(bool(record.get("error")))
+        decision = record.get("decision")
+        bucket["decided"] += int(decision is not None)
+        if decision and decision.get("strategy") == "yield":
+            bucket["yield_decisions"] += 1
+            yielder = decision.get("yield_robot")
+            bucket["yield_robot_1"] += int(yielder == "robot_1")
+            first_listed = "robot_1" if record["order"] == "id_asc" else "robot_2"
+            bucket["yield_first_listed"] += int(yielder == first_listed)
+            bucket["yield_correct"] += int(yielder == record.get("correct_yielder"))
+        for attempt in record.get("attempts") or []:
+            usage = attempt.get("token_usage") or {}
+            bucket["prompt_tokens"] += usage.get("prompt_tokens", 0)
+            bucket["completion_tokens"] += usage.get("completion_tokens", 0)
+
+    with (out_dir / "summary.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=SUMMARY_FIELDS)
+        writer.writeheader()
+        for key in sorted(buckets, key=str):
+            v = buckets[key]
+            row = dict(zip(SUMMARY_FIELDS[:6], key, strict=True))
+            row["n"] = int(v["n"])
+            row["attempt1_refusals"] = int(v["attempt1_refusals"])
+            row["attempt1_refusal_rate"] = f"{v['attempt1_refusals'] / v['n']:.3f}"
+            for name in SUMMARY_FIELDS[9:]:
+                row[name] = int(v[name])
+            writer.writerow(row)
+    print(f"wrote {out_dir / 'summary.csv'}")
+
+
+def load_records(out_dir: Path) -> list[dict[str, Any]]:
+    """Read every recorded call from `calls.jsonl`."""
+    path = out_dir / "calls.jsonl"
+    if not path.is_file():
+        return []
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def print_integrity(result: IntegrityResult, total: int) -> None:
+    """Print the reconstruction-integrity tally and any mismatches."""
+    print(f"reconstruction: {len(result.matched)}/{total} exact SHA-256 matches")
+    if result.mismatched:
+        print(f"  {len(result.mismatched)} mismatches:")
+        for artifact, detail in result.mismatched:
+            print(f"    {artifact.run} {artifact.request_id[:8]}: {detail}")
+    if result.missing_image:
+        print(f"  {len(result.missing_image)} matched prompts with a missing frame PNG:")
+        for artifact in result.missing_image:
+            print(f"    {artifact.run} {artifact.request_id[:8]}: {artifact.image_path}")
+
+
+def main() -> None:
+    """Parse arguments and run the requested arm (or the integrity check alone)."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--arm",
+        choices=["integrity", "R", "grey", "O", "M", "summary"],
+        default="integrity",
+        help="which arm to run; 'integrity' only checks reconstruction",
+    )
+    parser.add_argument("--n", type=int, default=3, help="replicates per cell")
+    parser.add_argument("--controls", type=int, default=10, help="grey-arm control count")
+    parser.add_argument(
+        "--pace-sec", type=float, default=5.2, help="minimum seconds between API calls"
+    )
+    parser.add_argument("--out-dir", type=Path, default=OUT_DIR)
+    parser.add_argument("--runs-dir", type=Path, default=RUNS_DIR)
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+
+    artifacts = load_artifacts(runs_dir=args.runs_dir)
+    integrity = check_integrity(artifacts)
+    print_integrity(integrity, len(artifacts))
+    matched = integrity.matched
+    if args.arm == "integrity":
+        return
+    if args.arm == "summary":
+        write_summary(load_records(args.out_dir), args.out_dir)
+        return
+
+    args.out_dir.mkdir(parents=True, exist_ok=True)
+    if args.arm == "R":
+        cells = build_arm_r_cells(matched, args.n)
+    elif args.arm == "grey":
+        with Image.open(matched[0].image_path) as image:
+            size = image.size
+        grey = make_grey_image(args.out_dir / "images" / f"grey_{size[0]}x{size[1]}.png", size)
+        refused, controls = select_grey_pairs(matched, args.controls)
+        print(f"grey arm: {len(refused)} live-refused, {len(controls)} controls, image {size}")
+        cells = build_grey_cells(refused, controls, grey, args.n)
+    elif args.arm == "O":
+        yields = first_yield_artifacts(matched)
+        print(f"arm O: {len(yields)} first-yield artifacts: " + ", ".join(
+            f"{a.run}/{a.request_id[:8]}({a.stored_order})" for a in yields
+        ))
+        cells = build_arm_o_cells(yields, args.n)
+    else:
+        refusing_ids = {
+            r["request_id"]
+            for r in load_records(args.out_dir)
+            if r["arm"] == "R" and r.get("attempt1_refusal")
+        }
+        refusing = [a for a in matched if a.request_id in refusing_ids]
+        print(f"arm M: {len(refusing)} artifacts refused at least once in Arm R")
+        cells = build_arm_m_cells(refusing, args.n)
+
+    if args.dry_run:
+        print(f"{len(cells)} cells (dry run)")
+        return
+    execute(cells, args.out_dir, args.pace_sec)
+    write_summary(load_records(args.out_dir), args.out_dir)
+
+
+if __name__ == "__main__":
+    main()
