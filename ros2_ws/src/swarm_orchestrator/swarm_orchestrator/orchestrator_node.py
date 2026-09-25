@@ -60,6 +60,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     build_reasoner_request,
     dump_frame_png,
     fan_out_command,
+    summarize_yield_grounding,
     write_decision_artifact,
 )
 from swarm_orchestrator.state_machine import (
@@ -408,10 +409,26 @@ class OrchestratorNode(Node):
                 prompt_robot_order_mode=self._config.prompt_robot_order,
                 prompt_robot_order_seed=self._order_seed,
                 episode_index=episode_index,
+                grounding_yield_feasibility=self._config.grounding_yield_feasibility,
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
         except OSError as exc:
             self.get_logger().error(f"decision artifact write failed: {exc}")
+
+        # Surfaced in the live log too: the gate changes which robot executes,
+        # so a run that swapped must be legible without opening the artifact.
+        yield_grounding = summarize_yield_grounding(outcome.grounded_command)
+        if yield_grounding.grounded_from is not None:
+            self.get_logger().info(
+                f"yield re-grounded request={outcome.request_id} "
+                f"from={yield_grounding.grounded_from} to={yield_grounding.grounded_to} "
+                f"reason={yield_grounding.regrounded_reason}"
+            )
+        if yield_grounding.refusal_reason is not None:
+            self.get_logger().info(
+                f"yield refused request={outcome.request_id} "
+                f"reason={yield_grounding.refusal_reason}"
+            )
 
         directive = self._machine.on_outcome(outcome, now)
         if directive.kind is DirectiveKind.DISPATCH and outcome.grounded_command is not None:

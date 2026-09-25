@@ -272,6 +272,19 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   `episode_index`; the `starting analysis` log line carries `order=`. The 1 Hz
   scene log does not: most snapshots fall outside any episode, so the fields
   would be null on nearly every line.
+- FR5.3.10 (2026-09-25) Every decision artifact records the outcome of M3's
+  yield feasibility gate (`grounding_yield_feasibility`, FR3.x in
+  `docs/specs/module3_rag_grounding.md`): the configured mode under that key,
+  plus `yield_robot_grounded_from`, `yield_regrounded_reason` and
+  `yield_refusal_reason` read back off the grounded command by
+  `summarize_yield_grounding` (`reasoning_pipeline.py`). **Why:** with the gate
+  on, the robot that executes a yield need not be the robot M2 named, and
+  `decision.yield_robot` alone would silently misattribute that. The mode is
+  recorded even on cycles where the gate did not fire, so an artifact set stays
+  partitionable by the condition it was collected under. A swap or a refusal
+  also emits one M5 INFO line — `yield re-grounded request=<id> from=<a>
+  to=<b> reason=<…>` / `yield refused request=<id> reason=<…>` — so a run that
+  changed executor is legible without opening the artifacts.
 
 ### M5.4 Command Lifecycle & Fan-out
 - FR5.4.1 Translate the single grounded command (schema: `command_id`, `actions[]`,
@@ -353,6 +366,7 @@ redefined.
 | static_obstacles | tuple[StaticObstacleInput, ...] | (2026-09-19) fixed obstacles mirrored from the scenario yaml for the prompt only, rendered when `prompt_static_obstacles` is true; default empty |
 | prompt_robot_order | `"id_asc"` \| `"id_desc"` \| `"random"` | (2026-09-25) order the VLM prompt lists robots in, default `id_asc`; `random` draws per congestion episode (FR5.3.9; ablation axis) |
 | prompt_robot_order_seed | int \| None | (2026-09-25) seed for the `random` draw; null derives it from `VGU_RUN_ID`, falling back to the session id, so paired runs share the sequence (FR5.3.9) |
+| grounding_yield_feasibility | `"off"` \| `"swap"` \| `"refuse"` | (2026-09-25) whether M3 may move a yield off the robot M2 named when that robot is boxed in; default `"off"`, and a no-op unless both `static_obstacles` and `scenario_geometry` are set (FR5.3.10; M3 spec §yield feasibility; experimental condition) |
 | keep_debug_frames | bool | retain dumped frames after cycle resolution; default false |
 | frame_scene_max_skew_sec | float | max frame/scene stamp skew; beyond it the trigger is suppressed (E10) |
 | frame_downscale_width | int \| None | optional pre-dump downscale width; None = full resolution |

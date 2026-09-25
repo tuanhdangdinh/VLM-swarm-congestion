@@ -5,7 +5,7 @@ import hashlib
 import json
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, NamedTuple, Protocol
 
 import cv2
 import numpy as np
@@ -189,6 +189,56 @@ def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+class YieldGroundingProvenance(NamedTuple):
+    """Where a grounded yield ended up, and why M3 moved or refused it."""
+
+    grounded_from: str | None
+    grounded_to: str | None
+    regrounded_reason: str | None
+    refusal_reason: str | None
+
+
+def summarize_yield_grounding(command: dict[str, Any] | None) -> YieldGroundingProvenance:
+    """Read M3's yield feasibility outcome back off a grounded command.
+
+    The gate leaves its only trace in the command: a swap tags the yield
+    action's parameters with `yield_robot_grounded_from`, while a refusal drops
+    the yield action altogether and fans out `temporary_wait` actions whose
+    `reason` opens with `"yield refused:"`. The prefix test is load-bearing — a
+    yield that grounded normally also carries a `reason`, the M2 root cause.
+
+    Args:
+        command: The grounded coordination command, or None when grounding
+            raised or its output failed schema validation.
+
+    Returns:
+        The provenance fields, all None when the feasibility gate did not fire.
+    """
+    if command is None:
+        return YieldGroundingProvenance(None, None, None, None)
+    grounded_from: str | None = None
+    grounded_to: str | None = None
+    regrounded_reason: str | None = None
+    refusal_reason: str | None = None
+    for action in command.get("actions", []):
+        parameters = action.get("parameters") or {}
+        if action.get("action") == "yield":
+            grounded_to = action.get("robot_id")
+            grounded_from = parameters.get("yield_robot_grounded_from")
+            regrounded_reason = parameters.get("yield_regrounded_reason")
+        reason = parameters.get("reason")
+        if (
+            refusal_reason is None
+            and isinstance(reason, str)
+            and reason.startswith("yield refused:")
+        ):
+            # Fanned out to every involved robot, so only the first is recorded.
+            refusal_reason = reason
+    return YieldGroundingProvenance(
+        grounded_from, grounded_to, regrounded_reason, refusal_reason
+    )
+
+
 def write_decision_artifact(
     output_dir: str | Path,
     outcome: PipelineOutcome,
@@ -201,6 +251,7 @@ def write_decision_artifact(
     prompt_robot_order_mode: RobotPresentationOrderMode | None = None,
     prompt_robot_order_seed: int | None = None,
     episode_index: int | None = None,
+    grounding_yield_feasibility: YieldFeasibilityMode | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
@@ -225,6 +276,10 @@ def write_decision_artifact(
             artifact records the order actually rendered.
         prompt_robot_order_seed: The effective integer seed of the draw.
         episode_index: Zero-based congestion episode this analysis belongs to.
+        grounding_yield_feasibility: The configured M3 yield feasibility mode.
+            Recorded even when the gate did not fire, so an artifact set can be
+            partitioned by the condition it was collected under; the gate's
+            actual outcome is read off the grounded command.
 
     Returns:
         The artifact path.
@@ -241,6 +296,7 @@ def write_decision_artifact(
             "system_sha256": _sha256(rendered.system_prompt),
             "user_sha256": _sha256(rendered.user_prompt),
         }
+    yield_grounding = summarize_yield_grounding(outcome.grounded_command)
     payload = {
         "request_id": outcome.request_id,
         "run_id": run_id,
@@ -263,6 +319,10 @@ def write_decision_artifact(
         "prompt_robot_order_mode": prompt_robot_order_mode,
         "prompt_robot_order_seed": prompt_robot_order_seed,
         "episode_index": episode_index,
+        "grounding_yield_feasibility": grounding_yield_feasibility,
+        "yield_robot_grounded_from": yield_grounding.grounded_from,
+        "yield_regrounded_reason": yield_grounding.regrounded_reason,
+        "yield_refusal_reason": yield_grounding.refusal_reason,
         "scene": None if snapshot is None else snapshot.model_dump(mode="json"),
         "distance_to_goal_m": dict(distance_to_goal_m or {}),
     }

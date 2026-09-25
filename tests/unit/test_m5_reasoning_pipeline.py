@@ -21,9 +21,11 @@ from swarm_orchestrator.reasoning_pipeline import (
     build_reasoner_request,
     dump_frame_png,
     fan_out_command,
+    summarize_yield_grounding,
     write_decision_artifact,
 )
 
+from reasoning.rag.command_grounder import ground_reasoner_result
 from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
 from reasoning.vlm.models import (
     CongestionDecision,
@@ -644,6 +646,140 @@ def test_write_decision_artifact_records_the_order_the_prompt_rendered(tmp_path)
     )
 
     assert payload["robot_presentation_order"] == "id_asc"
+
+
+# A blocker parked behind each corridor mouth, boxing in whichever robot would
+# have to retreat past it. Mirrors the head-on asymmetric family fixtures.
+_WEST_BLOCKER = StaticObstacleInput(
+    obstacle_id="obstacle_1", x=-1.85, y=0.0, size_x_m=0.3, size_y_m=0.3
+)
+_EAST_BLOCKER = StaticObstacleInput(
+    obstacle_id="obstacle_2", x=1.85, y=0.0, size_x_m=0.3, size_y_m=0.3
+)
+
+
+def _gated_yield_command(mode, obstacles):
+    """Ground a head-on yield through M3's feasibility gate, as the pipeline does."""
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type="deadlock",
+        involved_robots=["robot_1", "robot_2"],
+        root_cause="head-on aisle conflict",
+        strategy="yield",
+        justification="both robots are stopped in opposing directions",
+        yield_robot="robot_1",
+    )
+    result = ReasonerResult(
+        request_id="r1",
+        decision=decision,
+        raw_text="{}",
+        diagnostics=ReasonerDiagnostics(
+            request_id="r1", backend_id="openai", attempts=1, parse_status="valid"
+        ),
+    )
+    return ground_reasoner_result(
+        result,
+        robot_positions={"robot_1": (-0.3, 0.0), "robot_2": (0.3, 0.0)},
+        geometry=SceneGeometry(
+            corridor=CorridorGeometry(
+                axis="x",
+                center_m=0.0,
+                half_length_m=1.0,
+                aisle_half_width_m=0.6,
+                occluder_height_m=0.9,
+            )
+        ),
+        static_obstacles=obstacles,
+        yield_feasibility_mode=mode,
+    )
+
+
+def _yield_artifact(command, tmp_path, **kwargs):
+    outcome = PipelineOutcome(
+        request_id="r1",
+        reasoner_result=_ok_outcome().reasoner_result,
+        grounded_command=command,
+        terminal_stage=TerminalStage.OK,
+    )
+    return json.loads(write_decision_artifact(tmp_path, outcome, **kwargs).read_text())
+
+
+def test_write_decision_artifact_records_a_swapped_yielder(tmp_path):
+    payload = _yield_artifact(_gated_yield_command("swap", (_WEST_BLOCKER,)), tmp_path)
+
+    assert payload["yield_robot_grounded_from"] == "robot_1"
+    assert payload["yield_regrounded_reason"].startswith("yield re-grounded:")
+    assert payload["yield_refusal_reason"] is None
+
+
+def test_write_decision_artifact_records_a_refused_yield(tmp_path):
+    payload = _yield_artifact(_gated_yield_command("refuse", (_WEST_BLOCKER,)), tmp_path)
+
+    assert payload["yield_refusal_reason"].startswith("yield refused:")
+    assert payload["yield_robot_grounded_from"] is None
+    assert payload["yield_regrounded_reason"] is None
+
+
+def test_write_decision_artifact_nulls_yield_provenance_when_the_gate_is_off(tmp_path):
+    # A yield that grounded normally still carries a `reason` (the M2 root
+    # cause), so a presence check rather than a prefix check would false-positive.
+    payload = _yield_artifact(_gated_yield_command("off", (_WEST_BLOCKER,)), tmp_path)
+
+    assert payload["yield_robot_grounded_from"] is None
+    assert payload["yield_regrounded_reason"] is None
+    assert payload["yield_refusal_reason"] is None
+
+
+def test_write_decision_artifact_records_the_configured_feasibility_mode(tmp_path):
+    # Recorded from config, so an artifact set stays partitionable by condition
+    # even across the cycles where the gate never fired.
+    payload = _yield_artifact(
+        _gated_yield_command("swap", ()), tmp_path, grounding_yield_feasibility="swap"
+    )
+
+    assert payload["grounding_yield_feasibility"] == "swap"
+    assert payload["yield_robot_grounded_from"] is None
+
+
+def test_write_decision_artifact_nulls_yield_provenance_without_a_grounded_command(tmp_path):
+    payload = _yield_artifact(None, tmp_path)
+
+    assert payload["grounded_command_present"] is False
+    assert payload["yield_robot_grounded_from"] is None
+    assert payload["yield_refusal_reason"] is None
+    assert payload["grounding_yield_feasibility"] is None
+
+
+def test_summarize_yield_grounding_names_both_ends_of_a_swap():
+    # Drives the M5 "yield re-grounded request=... from=... to=..." log line.
+    provenance = summarize_yield_grounding(_gated_yield_command("swap", (_WEST_BLOCKER,)))
+
+    assert provenance.grounded_from == "robot_1"
+    assert provenance.grounded_to == "robot_2"
+    assert provenance.refusal_reason is None
+
+
+def test_summarize_yield_grounding_names_only_the_target_when_no_swap_happened():
+    # The east blocker boxes in robot_2, not the decided yielder, so the yield
+    # stays put: a target but no provenance.
+    provenance = summarize_yield_grounding(_gated_yield_command("swap", (_EAST_BLOCKER,)))
+
+    assert provenance.grounded_to == "robot_1"
+    assert provenance.grounded_from is None
+
+
+def test_summarize_yield_grounding_reports_a_refusal_without_a_yield_target():
+    # Drives the M5 "yield refused request=... reason=..." log line. A refusal
+    # fans out temporary_wait to everyone, so there is no yield action to name.
+    provenance = summarize_yield_grounding(_gated_yield_command("refuse", (_WEST_BLOCKER,)))
+
+    assert provenance.refusal_reason.startswith("yield refused:")
+    assert provenance.grounded_to is None
+    assert provenance.grounded_from is None
+
+
+def test_summarize_yield_grounding_is_all_none_without_a_command():
+    assert summarize_yield_grounding(None) == (None, None, None, None)
 
 
 def test_write_decision_artifact_records_rendered_prompt_with_hashes(tmp_path):

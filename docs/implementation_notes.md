@@ -203,6 +203,23 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-25** — **M3's yield feasibility gate is now visible in the M5
+  decision artifact.** Merging `feat/order-random` and
+  `feat/m3-yield-feasibility` left a provenance gap: with
+  `grounding_yield_feasibility` on, the robot that executes a yield need not be
+  the one `decision.yield_robot` names, and nothing outside the grounded
+  command said so. `summarize_yield_grounding` (`reasoning_pipeline.py`) reads
+  the gate's outcome back off that command — a swap tags the yield action's
+  parameters with `yield_robot_grounded_from`, a refusal drops the yield action
+  and fans out `temporary_wait` with a `"yield refused:"` reason — and
+  `write_decision_artifact` records `yield_robot_grounded_from`,
+  `yield_regrounded_reason`, `yield_refusal_reason` plus the configured
+  `grounding_yield_feasibility` mode. Gotcha: the refusal test must be the
+  `"yield refused:"` **prefix**, not the presence of `reason` — a yield that
+  grounded normally also carries one, the M2 root cause. The node logs
+  `yield re-grounded request=… from=… to=… reason=…` /
+  `yield refused request=… reason=…` on the same helper, so the log and the
+  artifact cannot drift. Spec FR5.3.10 in `docs/specs/module5_orchestrator.md`.
 - **2026-09-25** — **`prompt_robot_order: random` counterbalances the
   presentation order per congestion episode, with the drawn order auditable.**
   `swarm_orchestrator/presentation_order.py` adds a pure
