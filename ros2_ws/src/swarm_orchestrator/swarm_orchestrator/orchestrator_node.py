@@ -60,6 +60,7 @@ from swarm_orchestrator.presentation_order import (
 )
 from swarm_orchestrator.reasoning_pipeline import (
     InProcessPipeline,
+    LatestRawFrame,
     ReasoningPipeline,
     append_scene_log,
     build_failed_outcome,
@@ -67,6 +68,8 @@ from swarm_orchestrator.reasoning_pipeline import (
     build_reasoner_request,
     dump_frame_png,
     fan_out_command,
+    raw_frame_dump_path,
+    raw_frame_skew_sec,
     summarize_yield_grounding,
     write_decision_artifact,
 )
@@ -94,6 +97,15 @@ def _build_default_pipeline(config: OrchestratorConfig) -> ReasoningPipeline:
         static_obstacles=config.static_obstacles,
         yield_feasibility_mode=config.grounding_yield_feasibility,
     )
+
+
+def _raw_frame_qos() -> QoSProfile:
+    """Best-effort, depth-1 QoS for the debug raw-camera subscription.
+
+    The raw frame is evidence, not pipeline input: dropping one must never cost
+    the node latency or memory, so nothing is queued or retransmitted.
+    """
+    return QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
 
 
 def _registry_qos() -> QoSProfile:
@@ -178,6 +190,7 @@ class OrchestratorNode(Node):
         self._last_scene_log_at = float("-inf")
         self._frame_rgb = None
         self._frame_stamp: float | None = None
+        self._raw_frame = LatestRawFrame()
         self._latest_snapshot = None
         # Monotonic receipt time of _latest_snapshot. M1 stamps are on a
         # different clock, so estimate age is measured from arrival here.
@@ -193,6 +206,18 @@ class OrchestratorNode(Node):
         )
         self.create_subscription(String, topics["scene_state"], self._on_scene_state, 10)
         self.create_subscription(Image, topics["annotated_frame"], self._on_frame, 10)
+        if self._dumps_raw_frames():
+            self.create_subscription(
+                Image, self._config.raw_frame_topic, self._on_raw_frame, _raw_frame_qos()
+            )
+            self.get_logger().info(
+                f"raw frame dumps enabled topic={self._config.raw_frame_topic}"
+            )
+        elif self._config.keep_raw_frames:
+            self.get_logger().warning(
+                "keep_raw_frames ignored: it requires keep_debug_frames, which owns "
+                "frame retention"
+            )
         self.create_subscription(
             CoordinationStatus, topics["coordination_status"], self._on_status, 10
         )
@@ -222,6 +247,12 @@ class OrchestratorNode(Node):
     def _on_frame(self, msg: Image) -> None:
         self._frame_rgb = self._bridge.imgmsg_to_cv2(msg, desired_encoding="rgb8")
         self._frame_stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+
+    def _on_raw_frame(self, msg: Image) -> None:
+        self._raw_frame.update(
+            self._bridge.imgmsg_to_cv2(msg, desired_encoding="rgb8"),
+            msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9,
+        )
 
     def _on_scene_state(self, msg: String) -> None:
         try:
@@ -403,8 +434,21 @@ class OrchestratorNode(Node):
         self._pending_snapshot = snapshot
         self._pending_distances = dict(distance_to_goal_m)
         self._pending_episode_index = episode_index
+        # Snapshotted here, not read inside the worker: a newer camera message
+        # may land before the worker runs, and the dump must be the frame whose
+        # skew was logged.
+        raw_dump = self._raw_frame_dump(request_id)
+
         def task() -> PipelineOutcome:
             dump_frame_png(frame, image_path, downscale)
+            if raw_dump is not None:
+                raw_frame, raw_path = raw_dump
+                try:
+                    # Same downscale as the annotated dump, so annotation is the
+                    # only difference between the pair.
+                    dump_frame_png(raw_frame, raw_path, downscale)
+                except Exception as exc:  # debug evidence must never fail a cycle
+                    self.get_logger().error(f"raw frame dump failed: {exc}")
             return self._pipeline.run(request)
 
         self._future = self._executor.submit(task)
@@ -589,6 +633,42 @@ class OrchestratorNode(Node):
             if not self._tracker.is_resolved(command_id):
                 busy.update(self._tracker.robots_of(command_id))
         return busy
+
+    def _dumps_raw_frames(self) -> bool:
+        return self._config.keep_raw_frames and self._config.keep_debug_frames
+
+    def _raw_frame_dump(self, request_id: str) -> tuple[object, str] | None:
+        """Pick the raw frame to dump for one analysis and log its stamp skew.
+
+        Args:
+            request_id: Identifier of the analysis cycle.
+
+        Returns:
+            The `(frame_rgb, dest_path)` the worker should write, or None when
+            raw dumps are off or no camera frame has arrived — a missing debug
+            frame is skipped, never raised, so it cannot fail an analysis.
+        """
+        if not self._dumps_raw_frames():
+            return None
+        latest = self._raw_frame.latest()
+        if latest is None:
+            self.get_logger().warning(
+                f"raw frame unavailable request={request_id} "
+                f"topic={self._config.raw_frame_topic}"
+            )
+            return None
+        raw_frame, raw_stamp = latest
+        dest = raw_frame_dump_path(self._config.frame_dump_dir, request_id)
+        skew = (
+            None
+            if self._frame_stamp is None
+            else raw_frame_skew_sec(raw_stamp, self._frame_stamp)
+        )
+        self.get_logger().info(
+            f"raw frame skew_sec={'none' if skew is None else f'{skew:+.3f}'} "
+            f"request={request_id} path={dest}"
+        )
+        return raw_frame, str(dest)
 
     def _frame_is_fresh(self, scene_stamp: float) -> bool:
         if self._frame_rgb is None or self._frame_stamp is None:

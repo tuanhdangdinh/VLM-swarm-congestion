@@ -165,6 +165,68 @@ def dump_frame_png(frame_rgb: np.ndarray, dest_path: str, downscale_width: int |
     cv2.imwrite(dest_path, bgr)
 
 
+def raw_frame_dump_path(frame_dump_dir: str | Path, request_id: str) -> Path:
+    """Return where the raw camera frame for one analysis is dumped.
+
+    Sits beside the annotated dump (`<request_id>.png`) so the two frames of one
+    instant are found together.
+
+    Args:
+        frame_dump_dir: Directory the annotated frame is dumped into.
+        request_id: Identifier of the analysis cycle.
+
+    Returns:
+        The `<frame_dump_dir>/<request_id>_raw.png` path.
+    """
+    return Path(frame_dump_dir) / f"{request_id}_raw.png"
+
+
+def raw_frame_skew_sec(raw_stamp: float, annotated_stamp: float) -> float:
+    """Signed stamp skew of the raw frame against the annotated one, in seconds.
+
+    Positive means the raw frame is the newer of the two. The sign is the point:
+    an annotated-vs-raw comparison is only fair if the two frames show the same
+    instant, and the direction says which one leads.
+
+    Args:
+        raw_stamp: Stamp of the buffered raw camera frame.
+        annotated_stamp: Stamp of the annotated frame sent to M2.
+
+    Returns:
+        `raw_stamp - annotated_stamp`.
+    """
+    return raw_stamp - annotated_stamp
+
+
+class LatestRawFrame:
+    """Single-slot holder for the newest raw camera frame (no queue, best effort).
+
+    The raw frame is debug evidence, never pipeline input: only the most recent
+    one is kept, and an older frame arriving late simply replaces it — nothing
+    reorders or backfills, matching the best-effort, depth-1 subscription.
+    """
+
+    def __init__(self) -> None:
+        self._frame: np.ndarray | None = None
+        self._stamp: float | None = None
+
+    def update(self, frame_rgb: np.ndarray, stamp: float) -> None:
+        """Replace the held frame with a newly received one.
+
+        Args:
+            frame_rgb: RGB image array `(H, W, 3)`.
+            stamp: The frame's header stamp in seconds.
+        """
+        self._frame = frame_rgb
+        self._stamp = stamp
+
+    def latest(self) -> tuple[np.ndarray, float] | None:
+        """Return the held `(frame_rgb, stamp)`, or None if none has arrived."""
+        if self._frame is None or self._stamp is None:
+            return None
+        return self._frame, self._stamp
+
+
 def fan_out_command(
     grounded: dict[str, Any], fallback_timeout: float
 ) -> list[tuple[str, str, str, str, float]]:

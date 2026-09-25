@@ -86,6 +86,15 @@ class OrchestratorConfig(BaseModel):
     scene_log_dir: str | None = Field(default="data/logs/m5_scene")
     scene_log_period_sec: float = Field(default=1.0, gt=0.0)
     keep_debug_frames: bool = False
+    # Also dump M1's *input* frame as `<request_id>_raw.png` beside the
+    # annotated one, so an annotated-vs-raw comparison has both frames of the
+    # same instant. Debug evidence only: the M2 request still carries the
+    # annotated frame. Requires keep_debug_frames, which owns frame retention.
+    keep_raw_frames: bool = False
+    # The camera topic M1 itself subscribes to (perception.launch.py
+    # `image_topic`); read only when keep_raw_frames is on. Not part of
+    # `topics`, which is M5's own topic contract (spec §5).
+    raw_frame_topic: str = Field(default="/camera/image_raw", min_length=1)
     frame_scene_max_skew_sec: float = Field(default=1.0, ge=0.0)
     frame_downscale_width: int | None = Field(default=None, gt=0)
     # Seconds after a command resolves during which its attempt is attached to a

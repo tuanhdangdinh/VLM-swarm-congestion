@@ -340,7 +340,14 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   and handed to the `Reasoner` at construction, never echoed back by a
   provider. **Why:** no artifact in the corpus proved gpt-4o ran greedily; the
   temperature lived only in `config/models.yaml`, which is not captured per
-  run.
+  run. Separately, `keep_raw_frames` (with `keep_debug_frames`) also dumps M1's
+  *input* frame as `frame_dump_dir/<request_id>_raw.png`, downscaled exactly
+  like the annotated dump, from a best-effort depth-1 subscription to
+  `raw_frame_topic` whose newest frame is snapshotted on the callback thread at
+  submit time; M5 logs `raw frame skew_sec=<raw − annotated>`. The M2 request
+  is unchanged — it still carries the annotated frame — so an annotated-vs-raw
+  replay has both frames of one instant. A missing raw frame is logged and
+  skipped, never raised: debug evidence must not fail an analysis.
 
 ### M5.4 Command Lifecycle & Fan-out
 - FR5.4.1 Translate the single grounded command (schema: `command_id`, `actions[]`,
@@ -427,6 +434,8 @@ redefined.
 | prompt_robot_order_seed | int \| None | (2026-09-25) seed for the `random` draw; null derives it from `VGU_RUN_ID`, falling back to the session id, so paired runs share the sequence (FR5.3.9) |
 | grounding_yield_feasibility | `"off"` \| `"swap"` \| `"refuse"` | (2026-09-25) whether M3 may move a yield off the robot M2 named when that robot is boxed in; default `"off"`, and a no-op unless both `static_obstacles` and `scenario_geometry` are set (FR5.3.10; M3 spec §yield feasibility; experimental condition) |
 | keep_debug_frames | bool | retain dumped frames after cycle resolution; default false |
+| keep_raw_frames | bool | (2026-09-25) with `keep_debug_frames`, also dump M1's input frame as `<request_id>_raw.png` beside the annotated one; default **false** (FR5.3.11) |
+| raw_frame_topic | str | (2026-09-25) camera topic the raw dump subscribes to (M1's `image_topic`), default `/camera/image_raw`; read only when `keep_raw_frames` is on (FR5.3.11) |
 | frame_scene_max_skew_sec | float | max frame/scene stamp skew; beyond it the trigger is suppressed (E10) |
 | frame_downscale_width | int \| None | optional pre-dump downscale width; None = full resolution |
 | topics | dict[str, str] | resolved topic names (defaults in §5) |

@@ -203,6 +203,15 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-25** — **Sampling config and the raw camera frame are now on record**
+  (M2 §7.1 `EffectiveSamplingConfig`, M5 FR5.3.11). Every decision artifact and
+  reasoner JSONL line carries `reasoner_config_effective` (model_id,
+  temperature, top_p/top_k/presence_penalty, max_attempts, max_tokens, gemini
+  seed/thinking_level, `unsupported_sampling`), as configured from
+  `config/models.yaml` — no prior artifact proved gpt-4o ran at 0.0, the gap the
+  ER-2 pilot logged as "sampling uncontrolled"; failure cycles record it too.
+  `keep_raw_frames: true` (needs `keep_debug_frames`) also dumps M1's input frame
+  as `<request_id>_raw.png` with `raw frame skew_sec=`; the M2 request is unchanged.
 - **2026-09-25** — **Rev 6 consolidates the day: side-signal carrier, ER-2
   pilot, position-verified arrival** (`docs/reports/2026-09-25-overnight-findings.md`
   §S–§W). The three entries below carry the detail (obstacle-text side signal,

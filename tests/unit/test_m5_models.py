@@ -353,3 +353,28 @@ def test_shipped_orchestrator_yaml_keeps_yield_feasibility_off():
     assert cfg.grounding_yield_feasibility == "off"
     # The gate is a no-op without obstacles, whatever the mode says.
     assert cfg.static_obstacles == ()
+
+
+def test_orchestrator_config_keep_raw_frames_defaults_to_off():
+    cfg = _config_with()
+    assert cfg.keep_raw_frames is False
+    assert cfg.raw_frame_topic == "/camera/image_raw"
+
+
+def test_orchestrator_config_accepts_raw_frame_topic_override():
+    cfg = _config_with(keep_raw_frames=True, raw_frame_topic="/overhead/image_raw")
+    assert cfg.keep_raw_frames is True
+    assert cfg.raw_frame_topic == "/overhead/image_raw"
+
+
+def test_orchestrator_config_rejects_empty_raw_frame_topic():
+    with pytest.raises(ValidationError):
+        _config_with(raw_frame_topic="")
+
+
+def test_shipped_orchestrator_yaml_keeps_raw_frame_dumps_off():
+    path = Path("ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml")
+    cfg = load_config(yaml.safe_load(path.read_text(encoding="utf-8")))
+
+    assert cfg.keep_raw_frames is False
+    assert cfg.raw_frame_topic == "/camera/image_raw"

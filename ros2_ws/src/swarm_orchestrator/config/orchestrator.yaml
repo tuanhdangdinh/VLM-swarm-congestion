@@ -58,6 +58,13 @@ decision_log_dir: data/logs/m5_decisions
 scene_log_dir: data/logs/m5_scene
 scene_log_period_sec: 1.0
 keep_debug_frames: false
+# With keep_debug_frames, also dump M1's input frame as <request_id>_raw.png
+# beside the annotated one, so the refusal trigger can be tested annotated vs
+# raw on the same instant. The M2 request is unchanged (annotated frame).
+keep_raw_frames: false
+# Camera topic M1 reads (perception.launch.py image_topic); subscribed only
+# while keep_raw_frames is on.
+raw_frame_topic: /camera/image_raw
 frame_scene_max_skew_sec: 1.0
 frame_downscale_width: null
 initial_tasks:

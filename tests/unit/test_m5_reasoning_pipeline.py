@@ -18,11 +18,14 @@ from swarm_orchestrator.models import (
 )
 from swarm_orchestrator.reasoning_pipeline import (
     InProcessPipeline,
+    LatestRawFrame,
     append_scene_log,
     build_failure_context,
     build_reasoner_request,
     dump_frame_png,
     fan_out_command,
+    raw_frame_dump_path,
+    raw_frame_skew_sec,
     summarize_yield_grounding,
     write_decision_artifact,
 )
@@ -975,3 +978,42 @@ def test_write_decision_artifact_sampling_config_is_null_when_undescribed(tmp_pa
     payload = json.loads(write_decision_artifact(tmp_path, outcome).read_text())
     assert payload["reasoner_config_effective"] is None
 
+
+# ---- raw camera frame dumps ----
+
+def test_raw_frame_dump_path_sits_beside_the_annotated_dump():
+    assert raw_frame_dump_path("data/logs/m5_frames", "r1") == Path(
+        "data/logs/m5_frames/r1_raw.png"
+    )
+
+
+def test_raw_frame_skew_sec_is_positive_when_the_raw_frame_is_newer():
+    assert raw_frame_skew_sec(10.25, 10.0) == pytest.approx(0.25)
+
+
+def test_raw_frame_skew_sec_is_negative_when_the_raw_frame_lags():
+    assert raw_frame_skew_sec(9.75, 10.0) == pytest.approx(-0.25)
+
+
+def test_latest_raw_frame_returns_none_before_any_frame_arrives():
+    assert LatestRawFrame().latest() is None
+
+
+def test_latest_raw_frame_keeps_only_the_newest_frame():
+    holder = LatestRawFrame()
+    holder.update(np.zeros((2, 2, 3), dtype=np.uint8), 1.0)
+    holder.update(np.ones((2, 2, 3), dtype=np.uint8), 2.0)
+
+    frame, stamp = holder.latest()
+    assert stamp == 2.0
+    assert frame[0, 0].tolist() == [1, 1, 1]
+
+
+def test_latest_raw_frame_accepts_an_out_of_order_frame_as_the_newest():
+    # Best-effort, depth-1: nothing reorders, so a late frame simply replaces.
+    holder = LatestRawFrame()
+    holder.update(np.zeros((2, 2, 3), dtype=np.uint8), 5.0)
+    holder.update(np.ones((2, 2, 3), dtype=np.uint8), 4.0)
+
+    _frame, stamp = holder.latest()
+    assert stamp == 4.0
