@@ -157,16 +157,27 @@ class Pacer:
 
 
 class PacedBackend:
-    """Backend decorator that paces every call, including `Reasoner`'s internal retries."""
+    """Backend decorator that paces every call, including `Reasoner`'s internal retries.
+
+    It reports the wrapped call's own duration as `latency_ms`. Without that,
+    `invoke_backend` would time the rate-limit wait too and every record after a
+    run's first would read `workers * min_interval_sec` instead of a response time.
+    """
 
     def __init__(self, backend: VLMBackend, pacer: Pacer) -> None:
         self._backend = backend
         self._pacer = pacer
 
     def analyze(self, payload: PromptPayload, config: ReasonerConfig) -> BackendResponse:
-        """Pace, then delegate to the wrapped backend."""
+        """Pace, then delegate to the wrapped backend and time only that call."""
         self._pacer.wait()
-        return self._backend.analyze(payload, config)
+        start = time.monotonic()
+        response = self._backend.analyze(payload, config)
+        if response.latency_ms is not None:
+            return response
+        return response.model_copy(
+            update={"latency_ms": int((time.monotonic() - start) * 1000)}
+        )
 
 
 @dataclass(frozen=True)

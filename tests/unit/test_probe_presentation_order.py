@@ -8,12 +8,17 @@ built through a stubbed `build_backend`.
 """
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from reasoning.vlm.models import (
+    BackendResponse,
     CongestionDecision,
     GeminiBackendConfig,
     OpenAIBackendConfig,
+    PromptPayload,
+    ReasonerConfig,
     ReasonerDiagnostics,
     ReasonerResult,
 )
@@ -21,6 +26,7 @@ from scripts.probe_presentation_order import (
     Cell,
     CellContext,
     Job,
+    PacedBackend,
     build_call_record,
     build_paced_backends,
     plan_jobs,
@@ -155,6 +161,50 @@ def test_build_paced_backends_default_path_builds_one_unseeded_backend(monkeypat
 class _NoPacer:
     def wait(self) -> None:
         return None
+
+
+class _SlowPacer:
+    """Pacer whose wait dominates the call it precedes, as a rate-limited run's does."""
+
+    def wait(self) -> None:
+        time.sleep(0.25)
+
+
+def test_paced_backend_latency_excludes_the_pacer_wait():
+    response = BackendResponse(text="{}", backend_id="stub")
+
+    paced = PacedBackend(_StubBackend(response), _SlowPacer())
+    timed = paced.analyze(_payload(), ReasonerConfig(backend_id="stub"))
+
+    assert timed.latency_ms is not None
+    assert timed.latency_ms < 200
+
+
+def test_paced_backend_keeps_a_latency_the_backend_reported():
+    response = BackendResponse(text="{}", backend_id="stub", latency_ms=42)
+
+    timed = PacedBackend(_StubBackend(response), _SlowPacer()).analyze(
+        _payload(), ReasonerConfig(backend_id="stub")
+    )
+
+    assert timed.latency_ms == 42
+
+
+class _StubBackend:
+    def __init__(self, response: BackendResponse) -> None:
+        self._response = response
+
+    def analyze(self, payload, config) -> BackendResponse:
+        return self._response
+
+
+def _payload() -> PromptPayload:
+    return PromptPayload(
+        system_prompt="sys",
+        user_prompt="user",
+        image_path="images/w0p2_eopen.png",
+        known_robot_ids=["robot_1", "robot_2"],
+    )
 
 
 def test_summary_temperature_is_the_temperature_for_an_unseeded_record():
