@@ -298,3 +298,16 @@ def test_committed_family_maps_match_scenario_yamls(scenario_path: Path):
     )
 
     assert np.array_equal(committed, expected)
+
+
+@pytest.mark.parametrize(
+    "variant", ["head_on_asymmetric_w0p2_eopen", "head_on_asymmetric_wopen_e0p2"]
+)
+def test_gshort_map_is_identical_to_its_beyond_goal_twin(variant: str):
+    # The generator bakes walls, racks, aisle_barrier and static_obstacles only;
+    # goals never reach the grid. The goal-short variants therefore must not
+    # need a different map from the cell they were derived from.
+    beyond = (MAPS_DIR / f"warehouse_map_{variant}_o0.pgm").read_bytes()
+    gshort = (MAPS_DIR / f"warehouse_map_{variant}_gshort_o0.pgm").read_bytes()
+
+    assert gshort == beyond

@@ -67,6 +67,14 @@ keep_raw_frames: false
 raw_frame_topic: /camera/image_raw
 frame_scene_max_skew_sec: 1.0
 frame_downscale_width: null
+# M5's task registry takes goals from HERE, not from the scenario yaml, and
+# fc_launch.sh parses only spawn poses out of that yaml. These must therefore be
+# set per scenario by hand, like static_obstacles below:
+#   head_on_deadlock, *_o0 (beyond goals)  -> +-2.5 as written
+#   *_gshort_o0 (goal-short variants)      -> robot_1 [1.5, 0.0], robot_2 [-1.5, 0.0]
+# Running a _gshort scenario without changing these dispatches +-2.5 and the
+# variant silently degrades to its beyond-goal twin, blocker back on the goal
+# path (isaac/config/scenarios/family/*_gshort_o0.yaml).
 initial_tasks:
   robot_1: { task: cross_narrow_aisle, goal: [2.5, 0.0] }
   robot_2: { task: cross_narrow_aisle, goal: [-2.5, 0.0] }

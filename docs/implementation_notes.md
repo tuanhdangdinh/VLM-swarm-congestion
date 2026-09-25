@@ -1597,6 +1597,16 @@ Rules for maintaining it:
 
 ## M6 Simulation / Isaac Sim
 
+- **2026-09-26** — **`_gshort` head-on variants put the blocker off every goal
+  path**: `head_on_asymmetric_{w0p2_eopen,wopen_e0p2}_gshort_o0` goal on the
+  opposing spawn (±1.5), not the inherited ±2.5 that lay beyond the box.
+  Goal mode is a `--goal-mode` generator option, **not** a
+  `HeadOnAsymmetricParams` field — a params field would rewrite the frozen v1
+  `parameters:` blocks. **Operator step: set `orchestrator.yaml`
+  `initial_tasks` to ±1.5 and rebuild `swarm_orchestrator`** — M5 reads goals
+  from there, not the scenario YAML. Design rev 4, spec
+  `docs/superpowers/specs/2026-09-18-head-on-asymmetric-family-design.md`.
+
 - **2026-09-25** — **New Isaac host stood up after the `summer-flux`
   project lost GPU quota.** Instance `vgu-vgu-thule-base-isaac-workstation-vm`,
   GCP project `project-355a9186-f6f8-4b89-a44`, zone `us-central1-c`

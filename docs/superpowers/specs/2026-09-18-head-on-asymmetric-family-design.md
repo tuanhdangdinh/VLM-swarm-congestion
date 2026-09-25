@@ -15,6 +15,10 @@
   superseded. Implementation verified on `feat/failure-context-closed-loop`:
   plan `docs/superpowers/plans/2026-09-18-head-on-asymmetric-family.md`;
   hardware evidence `docs/reports/2026-09-18-head-on-family-validity.md`.
+- Rev 4 (2026-09-26): added the two `_gshort` goal-short variants (each goal on
+  the opposing spawn, so the parked blocker is off every goal path) behind a
+  `--goal-mode` generator option; v1 files, manifest rows and oracle unchanged.
+  See "Rev 4 (2026-09-26)" at the end of this document.
 
 **Status:** The `head_on_asymmetric` family realizes the rev-8 battery cell T1
 (`head_on_deadlock`-equivalent, both sides feasible) and T2a's **geometry**
@@ -259,3 +263,110 @@ family, parameters and oracle.
 `scripts/vm/fc_launch.sh`, tests mirroring each; docs: module-6 spec
 (scenario list, obstacle geometry), rev-8 spec (battery: family + rev 8.6
 line), `docs/implementation_notes.md`.
+
+---
+
+## Rev 4 (2026-09-26): `_gshort` goal-short variants
+
+**Problem.** The v1 goals are inherited from `head_on_deadlock`: ±2.5 on the
+corridor axis. A blocker parked 0.2 m behind a spawn sits at |x| = 1.85 (near
+face 1.70, far face 2.00), so the ±2.5 goal is **beyond** the box. Whichever
+robot crosses to the blocked side must therefore thread the 0.20 m gap beside
+the box on its own goal run. Five of twelve pilot episodes were lost exactly
+there — wedged 0.004–0.064 m past the near face, or arrested 0.027–0.038 m
+short of it (`docs/reports/2026-09-25-overnight-findings.md` §O, §U, §W item
+6). That is a scenario artifact, not a coordination failure, and it truncates
+the outcome measure the battery exists to produce.
+
+**Decision.** Add two variants that keep the blocker and move only the goals:
+each robot's goal becomes the **opposing robot's spawn** (robot_1 → (1.5, 0),
+robot_2 → (−1.5, 0)). Goal paths then stop 0.20 m short of the box's near face
+instead of passing it. Retreat room behind each spawn is untouched, so the
+pre-registered oracle is unchanged.
+
+- `head_on_asymmetric_w0p2_eopen_gshort_o0` — blocker west, correct yielder
+  `robot_2`, contrasts FCFS, T2a.
+- `head_on_asymmetric_wopen_e0p2_gshort_o0` — blocker east, correct yielder
+  `robot_1`, T2a.
+
+**Mechanism.** `--goal-mode {all,beyond,opponent_spawn}` on
+`isaac/scripts/generate_head_on_family.py`. The goal mode is a **generator
+option, not a `HeadOnAsymmetricParams` field**: `build_variant` dumps
+`params` verbatim into the `parameters:` block, so a new field would add a
+line to the three frozen v1 YAMLs and break their committed bytes. The mode is
+recorded instead in the variant slug (`_gshort`, inserted between the blocker
+and arrival-offset fields), in the per-file header comment, and in the
+`prereg-v1-gshort` freeze tag. The v1 grid remains the generator default and
+reproduces the committed v1 files byte-for-byte
+(`test_write_family_default_goal_mode_reproduces_committed_v1_bytes`).
+
+**Oracle invariance.** `compute_oracle` takes only `HeadOnAsymmetricParams` and
+`SceneGeometry`; `required_room_m`, `room_from_mouth_m` and
+`yield_retreat_room_m` carry no goal term at all (`yield_retreat_room_m` scans
+`static_obstacles` between the corridor mouth and the retreat direction). The
+`oracle`, `parameters`, `spawn` and `static_obstacles` blocks of each
+`_gshort` file are therefore equal to those of its beyond-goal twin, asserted
+in `test_build_variant_opponent_spawn_leaves_the_oracle_unchanged`.
+
+**Maps.** `generate_warehouse_map.py` bakes perimeter walls, rack blocks,
+`aisle_barrier` and `static_obstacles`; goals never reach the grid. The two
+`_gshort` PGMs are byte-identical to their beyond-goal twins and the YAMLs
+differ only in the `image:` filename. They are committed under their own stems
+because `fc_launch.sh` resolves the map by scenario name
+(`warehouse_map_${SCENARIO}.yaml`). `swarm_simulation/CMakeLists.txt:6`
+installs the whole `maps` directory, so no glob change is needed.
+
+**Consumer that must be changed per run (operator step).** M5's task registry
+reads goals from `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`
+`initial_tasks`, **not** from the scenario YAML; `scripts/vm/fc_launch.sh`
+parses only `spawn.{x,y,yaw_rad}` out of that YAML. Running a `_gshort`
+scenario without editing `initial_tasks` to ±1.5 dispatches ±2.5 and the
+variant silently degrades to its beyond-goal twin. This is the same
+hand-mirrored pattern as `scenario_geometry` and `static_obstacles`; the
+required values are now documented inline above `initial_tasks`.
+
+**Known consequences of a goal inside the park offset.** With
+`scenario_geometry` as configured, `park_offset_m` = 1.789 and
+`pull_off_lateral_m` = 0.360, so the yielder parks at (±1.789, ±0.360) while
+the passer now terminates at (±1.5, 0) — 0.461 m away, against M4's
+`min_distance_m` 0.45 and M5's `proximity_threshold_m` 0.50. Three predicted
+effects, all to be checked on the first VM runs:
+
+1. A near-miss on the safety latch with ~0.011 m of margin. Under the ±2.5
+   goals this approach was transient (the passer kept going); here it is the
+   passer's terminal pose, held until the yielder resumes its own mission.
+2. `congestion_detector._update_close_slow_pairs` ignores arrived status, so
+   an arrived passer and a still-parked yielder inside 0.50 m for longer than
+   `stall_threshold_sec` (12 s) would emit a spurious second episode.
+3. M4's escort primitive drives the passer `|passer − park| + 0.65` m by raw
+   `cmd_vel` (`command_bus_node.py:193`), i.e. past ±1.5 to roughly ±2.4;
+   Nav2 then back-tracks it west to the goal. Harmless but visible in traces.
+
+None of these blocks the variants; all three are properties of the ±1.5 goal
+and must travel with any result measured on them. `arrived_radius_m` 0.5 now
+spans [1.0, 2.0], abutting the corridor mouth at `half_length_m` = 1.0 (it
+spanned [2.0, 3.0] before). Marker visibility is unaffected: 1.5 − 0.06 = 1.44
+> `visibility_boundary_m` 1.329, so a marker parked at the goal clears the
+occluder silhouette.
+
+**Nav2: each goal cell is occupied by the other robot at t = 0.** The global
+costmap runs `["static_layer", "obstacle_layer", "inflation_layer"]`
+(`nav2_params.yaml:279`) with the lidar as its observation source, so at
+dispatch robot_1's goal (1.5, 0) is inside robot_2's own footprint and vice
+versa — under ±2.5 the goal cell was always empty space beyond the opponent.
+`planner_server` sets no `tolerance`, so NavFn's 0.5 m default applies
+(`nav2_params.yaml:167-186`): the first `ComputePathToPose` is expected to
+clip ~0.5 m short rather than fail, which still sends each robot into the
+corridor and forms the deadlock as designed. Once the yielder is parked at
+(±1.789, ±0.360) its inflated footprint clears the goal by 0.348 m against the
+global `inflation_radius: 0.10`, so the passer's final approach plans
+normally. **Watch the first VM run's planner logs**: §(d) of the 2026-09-25
+findings already records recurring planner errors here, and a `GoalOccupied`
+at t = 0 would be the one way these variants fail to start.
+
+**Consumers audited and found goal-agnostic.** `scripts/vm/fc_launch.sh:258-263`
+(spawns only), `isaac/vgu_sim/acceptance_logging.py:46-47` (diagnostic
+`distance_to_goal_m`), `isaac/vgu_sim/scenario_builder.py:91-95` (draws a goal
+sphere), `isaac/scripts/run_simulation.py` and `validate_simulation.py` and
+`isaac/vgu_sim/validation.py` (no goal reference at all),
+`generate_warehouse_map.py` (no goal term).
