@@ -260,9 +260,24 @@ def test_orchestrator_config_prompt_robot_order_defaults_to_id_asc():
     assert _config_with(prompt_robot_order="id_desc").prompt_robot_order == "id_desc"
 
 
+def test_orchestrator_config_prompt_robot_order_accepts_random():
+    assert _config_with(prompt_robot_order="random").prompt_robot_order == "random"
+
+
 def test_orchestrator_config_prompt_robot_order_rejects_unknown_value():
     with pytest.raises(ValidationError):
         _config_with(prompt_robot_order="geometry")
+
+
+def test_orchestrator_config_prompt_robot_order_seed_defaults_to_none():
+    # None means "derive from VGU_RUN_ID"; the node resolves it, not the model.
+    assert _config_with().prompt_robot_order_seed is None
+    assert _config_with(prompt_robot_order_seed=7).prompt_robot_order_seed == 7
+
+
+def test_orchestrator_config_prompt_robot_order_seed_rejects_non_integer():
+    with pytest.raises(ValidationError):
+        _config_with(prompt_robot_order_seed="lucky")
 
 
 def test_shipped_orchestrator_yaml_keeps_robot_order_ascending():
@@ -270,6 +285,7 @@ def test_shipped_orchestrator_yaml_keeps_robot_order_ascending():
     cfg = load_config(yaml.safe_load(path.read_text(encoding="utf-8")))
 
     assert cfg.prompt_robot_order == "id_asc"
+    assert cfg.prompt_robot_order_seed is None
 
 
 def test_orchestrator_config_static_obstacles_default_to_empty():

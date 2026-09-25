@@ -10,9 +10,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import (
     ReasonerResult,
-    RobotPresentationOrder,
     StaticObstacleInput,
 )
+from swarm_orchestrator.presentation_order import RobotPresentationOrderMode
 
 # Default ROS2 topic/service names (spec §5; overridable via config `topics`).
 DEFAULT_TOPICS: dict[str, str] = {
@@ -87,8 +87,13 @@ class OrchestratorConfig(BaseModel):
     prompt_static_obstacles: bool = False
     # Ablation axis: the order the VLM prompt lists robots in. Default "id_asc"
     # matches every prompt rendered so far; "id_desc" is the counterbalanced
-    # condition that separates a positional default from an ID or geometry one.
-    prompt_robot_order: RobotPresentationOrder = "id_asc"
+    # condition that separates a positional default from an ID or geometry one;
+    # "random" draws one of the two per congestion episode.
+    prompt_robot_order: RobotPresentationOrderMode = "id_asc"
+    # Seed for the "random" draw; None derives it from VGU_RUN_ID, falling back
+    # to the M5 session id, so paired runs sharing a run id see the same
+    # sequence. Fixed modes ignore it.
+    prompt_robot_order_seed: int | None = None
     # Fixed obstacles of the running scenario, mirrored from its scenario file;
     # rendered only when prompt_static_obstacles is true.
     static_obstacles: tuple[StaticObstacleInput, ...] = ()

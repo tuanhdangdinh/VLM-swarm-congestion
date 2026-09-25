@@ -27,6 +27,7 @@ from reasoning.vlm.models import (
     OpenAIBackendConfig,
     ReasonerConfig,
     ReasonerRequest,
+    RobotPresentationOrder,
 )
 from reasoning.vlm.reasoner import Reasoner
 from swarm_orchestrator.command_lifecycle import (
@@ -44,6 +45,11 @@ from swarm_orchestrator.models import (
     PipelineOutcome,
     load_config,
     parse_scene_snapshot,
+)
+from swarm_orchestrator.presentation_order import (
+    EpisodeOrderTracker,
+    PresentationOrderPolicy,
+    derive_order_seed,
 )
 from swarm_orchestrator.reasoning_pipeline import (
     InProcessPipeline,
@@ -139,6 +145,17 @@ class OrchestratorNode(Node):
         # the scenario run across all modules.
         self._session_id = uuid.uuid4().hex
         self._run_id = os.environ.get("VGU_RUN_ID") or None
+        self._order_seed = (
+            self._config.prompt_robot_order_seed
+            if self._config.prompt_robot_order_seed is not None
+            else derive_order_seed(self._run_id, self._session_id)
+        )
+        self._episodes = EpisodeOrderTracker(
+            PresentationOrderPolicy(
+                mode=self._config.prompt_robot_order, seed=self._order_seed
+            )
+        )
+        self._pending_episode_index: int | None = None
         self._last_scene_log_at = float("-inf")
         self._frame_rgb = None
         self._frame_stamp: float | None = None
@@ -220,12 +237,14 @@ class OrchestratorNode(Node):
         )
         if directive.kind is DirectiveKind.START_ANALYSIS:
             distances = {rid: round(d, 2) for rid, d in event.distance_to_goal_m.items()}
+            # Logged after the submit because the episode's presentation order is
+            # resolved there, and the line must name the order actually rendered.
+            order = self._submit_pipeline(
+                directive.request_id, snapshot, event.involved_robots, event.distance_to_goal_m
+            )
             self.get_logger().info(
                 f"starting analysis request={directive.request_id} robots={event.involved_robots} "
-                f"reason={event.reason} distance_to_goal_m={distances}"
-            )
-            self._submit_pipeline(
-                directive.request_id, snapshot, event.involved_robots, event.distance_to_goal_m
+                f"reason={event.reason} order={order} distance_to_goal_m={distances}"
             )
         elif directive.kind is DirectiveKind.SUPPRESSED:
             self.get_logger().info(
@@ -240,6 +259,7 @@ class OrchestratorNode(Node):
                 goal = self._effective_goal(msg.robot_id)
                 if goal is not None:
                     self._detector.mark_arrived(msg.robot_id, goal)
+                    self._episodes.end_episode([msg.robot_id])
                     self.get_logger().info(f"robot {msg.robot_id} arrived at base goal {goal}")
             return
         self._tracker.apply_status(msg.command_id, msg.robot_id, msg.status)
@@ -313,7 +333,19 @@ class OrchestratorNode(Node):
         snapshot,
         robots: list[str],
         distance_to_goal_m: dict[str, float],
-    ) -> None:
+    ) -> RobotPresentationOrder:
+        """Build the request for one analysis and hand it to the worker thread.
+
+        Args:
+            request_id: Identifier the state machine minted for this cycle.
+            snapshot: The M1 scene the request is built from.
+            robots: Robots the congestion event involves.
+            distance_to_goal_m: The detector's per-robot distance at trigger time.
+
+        Returns:
+            The presentation order this episode renders robots in, for the
+            caller's log line.
+        """
         frame = self._frame_rgb
         downscale = self._config.frame_downscale_width
         image_path = str(Path(self._config.frame_dump_dir) / f"{request_id}.png")
@@ -326,6 +358,7 @@ class OrchestratorNode(Node):
                 f"strategy={attempt.strategy} executed={attempt.executed_strategy} "
                 f"outcome={attempt.outcome_status}"
             )
+        episode_index, order = self._episodes.order_for(robots)
         # Built here, not in the worker, so the artifact can record the exact request.
         request = build_reasoner_request(
             request_id,
@@ -335,27 +368,31 @@ class OrchestratorNode(Node):
             include_pairwise_geometry=self._config.prompt_pairwise_geometry,
             static_obstacles=self._config.static_obstacles,
             include_static_obstacles=self._config.prompt_static_obstacles,
-            robot_presentation_order=self._config.prompt_robot_order,
+            robot_presentation_order=order,
         )
         self._pending_failure_context = failure_context
         self._pending_request = request
         self._pending_snapshot = snapshot
         self._pending_distances = dict(distance_to_goal_m)
+        self._pending_episode_index = episode_index
 
         def task() -> PipelineOutcome:
             dump_frame_png(frame, image_path, downscale)
             return self._pipeline.run(request)
 
         self._future = self._executor.submit(task)
+        return order
 
     def _handle_outcome(self, outcome: PipelineOutcome, now: float) -> None:
         failure_context = self._pending_failure_context
         request, snapshot = self._pending_request, self._pending_snapshot
         distances = self._pending_distances
+        episode_index = self._pending_episode_index
         self._pending_failure_context = None
         self._pending_request = None
         self._pending_snapshot = None
         self._pending_distances = {}
+        self._pending_episode_index = None
         try:
             artifact_path = write_decision_artifact(
                 self._config.decision_log_dir,
@@ -366,6 +403,9 @@ class OrchestratorNode(Node):
                 distance_to_goal_m=distances,
                 run_id=self._run_id,
                 session_id=self._session_id,
+                prompt_robot_order_mode=self._config.prompt_robot_order,
+                prompt_robot_order_seed=self._order_seed,
+                episode_index=episode_index,
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
         except OSError as exc:

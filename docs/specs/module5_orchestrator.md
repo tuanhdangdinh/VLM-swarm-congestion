@@ -245,6 +245,34 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   the pre-2026-09-19 corpus is not reproducible even with
   `prompt_static_obstacles` off (see M2 FR2.1.8/FR2.1.9).
 
+- FR5.3.9 (2026-09-25) `prompt_robot_order` selects the order the VLM prompt
+  lists robots in: the fixed `id_asc` (default) and `id_desc`, or `random`,
+  which draws one of the two **per congestion episode** so a single run is
+  counterbalanced internally. `presentation_order.py` owns the draw:
+  `PresentationOrderPolicy(mode, seed).order_for_episode(k)` is pure and
+  deterministic — the same seed and episode index always yield the same order,
+  and consecutive episodes are independent draws off one `random.Random(seed)`
+  stream — while `EpisodeOrderTracker` holds the episode and hands every
+  re-analysis inside it the same order. An episode opens on the first analysis
+  whose robot set is disjoint from the tracked one and closes when any of its
+  robots reports an arrival. It deliberately does **not** reuse `AttemptMemory`'s
+  scope: that memory is disabled at `failure_context_window_sec: 0` (the RQ5
+  memoryless control), which would make every re-analysis look like a new
+  episode and re-draw inside one deadlock. `prompt_robot_order_seed: null`
+  derives the seed from `VGU_RUN_ID`, falling back to the M5 session id, via
+  SHA-256 rather than `hash()`, whose string hashing `PYTHONHASHSEED`
+  randomizes per process; paired runs launched with the same run id therefore
+  draw the same sequence. **Why:** the 2026-09-25 probe showed `yield_robot`
+  follows the presentation slot (`docs/reports/2026-09-25-presentation-order-probe.md`),
+  so the order must be a randomized, auditable condition rather than a fixed
+  property of the corpus. Every decision artifact records
+  `robot_presentation_order` (the effective order, read off the request that
+  rendered the prompt, so it can never disagree with the persisted prompt
+  hashes), `prompt_robot_order_mode`, `prompt_robot_order_seed` and
+  `episode_index`; the `starting analysis` log line carries `order=`. The 1 Hz
+  scene log does not: most snapshots fall outside any episode, so the fields
+  would be null on nearly every line.
+
 ### M5.4 Command Lifecycle & Fan-out
 - FR5.4.1 Translate the single grounded command (schema: `command_id`, `actions[]`,
   `expected_resolution_time_sec`, `fallback`) into **N** ROS2 `CoordinationCommand`
@@ -323,6 +351,8 @@ redefined.
 | prompt_pairwise_geometry | bool | include the derived pairwise distance/facing lines in the VLM prompt, default true (M2 FR2.1.7; ablation axis) |
 | prompt_static_obstacles | bool | (2026-09-19) render `static_obstacles` below as world-frame boxes in the VLM prompt, default **false** (M2 FR2.1.8; ablation axis) |
 | static_obstacles | tuple[StaticObstacleInput, ...] | (2026-09-19) fixed obstacles mirrored from the scenario yaml for the prompt only, rendered when `prompt_static_obstacles` is true; default empty |
+| prompt_robot_order | `"id_asc"` \| `"id_desc"` \| `"random"` | (2026-09-25) order the VLM prompt lists robots in, default `id_asc`; `random` draws per congestion episode (FR5.3.9; ablation axis) |
+| prompt_robot_order_seed | int \| None | (2026-09-25) seed for the `random` draw; null derives it from `VGU_RUN_ID`, falling back to the session id, so paired runs share the sequence (FR5.3.9) |
 | keep_debug_frames | bool | retain dumped frames after cycle resolution; default false |
 | frame_scene_max_skew_sec | float | max frame/scene stamp skew; beyond it the trigger is suppressed (E10) |
 | frame_downscale_width | int \| None | optional pre-dump downscale width; None = full resolution |
@@ -415,6 +445,7 @@ ros2_ws/src/swarm_orchestrator/swarm_orchestrator/
 ├── state_machine.py       # OrchestratorStateMachine (§7.3)
 ├── command_lifecycle.py   # CommandState (exists) + CommandTracker (§7.4)
 ├── task_registry.py       # TaskRegistry (extend existing stub) (§7.5)
+├── presentation_order.py  # PresentationOrderPolicy + EpisodeOrderTracker (FR5.3.9)
 ├── reasoning_pipeline.py  # ReasoningPipeline Protocol + InProcessPipeline (§7.6)
 └── orchestrator_node.py   # thin ROS2 node (§7.7)
 ```
