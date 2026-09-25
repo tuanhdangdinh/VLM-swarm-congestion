@@ -37,6 +37,14 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-25** — **Every pre-`4f39899` run re-scored against M1's position
+  check; exactly one arrival flips.** `scripts/rescore_arrivals.py` re-runs
+  `arrival.py::classify_arrival` offline over all 31 `data/logs/vm_runs/`
+  runs (55 reported arrivals) plus a ground-truth cross-check. Only
+  `20260925_124609` (ER-2 pilot `E1` `robot_2`, the known Nav2 false success)
+  rejects; M1-vs-GT bias is ~6 mm everywhere including that case. ER-2 pilot
+  both-arrived count corrects 3/6 → 2/6; the other seven batches are
+  unchanged. Detail: `docs/reports/2026-09-25-arrival-rescoring.md`.
 - **2026-09-25** — **M3 can now refuse or re-ground a yield the scene makes
   impossible** (`8362178`, feature branch `feat/m3-yield-feasibility`, not
   merged). The feasibility rule the family oracle already encoded moved into
