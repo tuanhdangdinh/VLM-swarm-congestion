@@ -11,6 +11,7 @@
 - Rev 5 (2026-09-25): adds the six-run Arm A pilot on the adopted defaults, the full gpt-4o refusal census, and the real-frame replay that identifies the annotated camera frame as the refusal trigger.
 - Rev 6 (2026-09-25): completes the real-frame replay and identifies the obstacle text block as the carrier of the side signal under `id_desc`, adds the six-run ER-2 pilot, and records the position-verified arrival check that a Nav2 false success forced.
 - Rev 7 (2026-09-26): re-scores every arrival against position, adds live batches 2 and 3 (gpt-4o random order, ER-2 forced order), reports that the side-carrier effect replicates in direction but not in magnitude, ships an unvalidated refusal mitigation, and corrects two safety metrics.
+- Rev 8 (2026-09-26): adds the six-run ER-2 pilot on the `_gshort` goal-short variants — blocker-on-goal-path losses eliminated, a new park-beyond-goal failure introduced by symmetric ±1.5 goals — plus five apparatus notes from the batch.
 
 ---
 
@@ -1554,6 +1555,12 @@ lines, the plain one and the late one.
    itself unvalidated because Arm X aborted before its first call.*
 6. Decide the scenario question on the blocker-on-goal-path property — 2/6 plus
    3/6 episodes lost to it across the two pilots.
+   *Partly superseded by Rev 8 §AD. The `_gshort` variants settle the
+   blocker-on-goal-path half of the question — 0/6 losses to it, no passer
+   within 0.36 m of a box face — but symmetric ±1.5 goals put the yielder's
+   park point beyond the passer's goal and cost 2/6 episodes to a new
+   park-beyond-goal hold. The scenario question is therefore still open; the
+   candidate is `_bshort` (§AD, §AF item 1).*
 7. Keep ER-2 as the secondary arm, noting its zero-refusal robustness and its
    trigger-dependent `reverse` opening.
 
@@ -1847,8 +1854,20 @@ spawn (±1.5). The maps are byte-identical and the oracle is unchanged; 9 tests.
   yielder, inside the 0.50 m proximity threshold, so a spurious second episode
   is possible.
 
+> Superseded by Rev 8 §AD in both directions. The spurious second episode did
+> not occur — proximity re-analyses after both arrivals are 0/6 — but the
+> terminal separation came in tighter than predicted, 0.437 m rather than
+> 0.461 m, which is inside M4's 0.45 m `min_distance_m` rather than merely
+> inside the 0.50 m proximity threshold. The realised failure is therefore a
+> permanent M4 safety hold on the yielder, not a spurious re-analysis, and it
+> cost 2 of the 6 pilot episodes.
+
 ER-2 runs on the `_gshort` variants are in progress at the time of writing;
 results will appear in a later revision.
+
+> Superseded by Rev 8 §AD: those six runs are reported there. Outcome 4/6
+> position-verified (west 1/3, east 3/3), blocker-path losses 0/6, refusals
+> 0/83.
 
 ---
 
@@ -1868,3 +1887,155 @@ OpenAI spend today ≈ $9; the credit was exhausted at roughly 02:00 ICT on
 running at the owner's instruction. Artifacts remain git-ignored under
 `data/logs/vm_runs/`. Local test suite: ≈ 1 021 passed, 55 failed, 3 errors —
 the same environmental set as previous revisions.
+
+---
+
+## AD. Goal-Short Pilot: the Blocker Leaves the Goal Path, a New Failure Arrives
+
+Six ER-2 runs on the `_gshort` variants prepared in Rev 7 §AC, tree `c2d8491`:
+obstacle channel on, gate `swap`, `prompt_robot_order: random`, annotated and
+raw frames kept, every arrival position-verified at 0.35 m. Goals are the
+opponent's spawn, ±1.5, on both sides. Summary
+`data/logs/vm_runs/gshort/GSHORT_PILOT_SUMMARY.txt`; artifacts under
+`data/logs/vm_runs/gshort/H{1..6}_20260925_{202701,204525,210339,212153,214006,215822}/`.
+
+| Run | Side | Both arrived | Analyses | First yield | Resolution | Min pairwise | GT samples < 0.45 m | Min distance to box | M4 safety stops |
+|---|---|---|---|---|---|---|---|---|---|
+| H1 | west | ✓ | 7 | 155.7 s | 400.5 s | — | — | — | 8 728 |
+| H2 | west | ✗ | 26 | 146.7 s | — | 0.213 m | 65.7% | 1.809 m | 67 666 |
+| H3 | west | ✗ | 22 | 156.1 s | — | 0.275 m | 65.5% | 1.839 m | 61 132 |
+| H4 | east | ✓ | 8 | 149.1 s | 339.2 s | 0.246 m | 7.0% | 0.362 m | 3 406 |
+| H5 | east | ✓ | 15 | 148.4 s | 461.3 s | 0.308 m | 5.7% | 0.367 m | 2 514 |
+| H6 | east | ✓ | 5 | 147.9 s | 369.4 s | 0.244 m | 16.2% | 0.378 m | 5 270 |
+
+H1's ground-truth columns are empty because its `ground_truth.jsonl` was
+overwritten before the rescue driver was fixed (§AE item 4); its positions come
+from the M5 scene log, which is M1 camera estimate rather than ground truth.
+The `_rescue` directory holds 3 of the 6 files for the same reason.
+
+Against the ±2.5 ER-2 pilot of Rev 6 §U (E1–E6), cell for cell:
+
+| Measure | `_gshort` (H1–H6) | ±2.5 (E1–E6) |
+|---|---|---|
+| Episode outcome, position-verified | 4/6 | 2/6 |
+| Blocker-path losses | 0/6 | 3/6 |
+| First yield COMPLETED | 6/6, mean 150.7 s | 6/6, mean 146.6 s |
+| Mean resolution time | 392.6 s | 363.3 s |
+| Refusals | 0/83 | 0/115 |
+| Proximity re-analyses after both arrived | 0/6 | — |
+
+H1 is the direct contrast case: `robot_2` stopped 0.294 m clear of the west box
+face, where E3, E4 and E5 were arrested at roughly 0.038 m. The oracle's
+yielder was chosen and no spurious proximity episode followed.
+
+### Verdict 1 — `_gshort` removes the blocker-on-goal-path losses
+
+Decisively: no run's passer came within 0.36 m of a box face, against 3 of 6 on
+±2.5 and 5 of 12 across the two earlier pilots. That half of the Rev 6 §W item 6
+scenario question is settled.
+
+### Verdict 2 — symmetric ±1.5 goals create a park-beyond-goal failure
+
+Worse than the 0.461 m terminal separation predicted in Rev 7 §AC. The
+open-side yielder parks at |x| = `park_offset_m` = 1.789 m
+(`reasoning/rag/scene_geometry.py`), which is **beyond** the passer's goal at
+1.5 m, so the arrived passer comes to rest on the corridor axis at |x| ≈ 1.58 m,
+inside the yielder's return path. On H2 and H3 the yielder `robot_2` is
+stranded at (1.18, −0.16), 2.68 m from its goal, with the pair 0.437 m apart —
+inside M4's 0.45 m `min_distance_m` — and M4 safety-stopped for roughly 65% of
+ground-truth samples. ER-2 correctly declines to intervene:
+
+```text
+Although the robots are within 0.43 meters of each other, neither faces the
+other, indicating they are not head-on and no deadlock exists.
+```
+
+Moving the goals to ±1.3 would make this worse, not better: the obstruction
+stays on the axis and moves closer to the corridor mouth. Not attempted.
+
+### East is not protected; east 3/3 is a race, at n = 3
+
+The bracketing question for this pilot was whether the east variant is
+geometrically safe. It is not. The two variants are mirror images: on west the
+yielder is `robot_2` (goal −1.5) parking at +1.789 while the passer `robot_1`
+stops at its goal +1.5; on east the yielder is `robot_1` (goal +1.5) parking at
+−1.789 while the passer `robot_2` stops at −1.5. Measured park poses are
+(1.81, −0.01) west and (−1.81, 0.00) east. The park-beyond-goal conflict is
+present identically on both sides.
+
+What separates the outcomes is sequencing — whether the passer is still
+outboard of the park point when the yielder pulls out. On H4 the yielder
+crossed the corridor centre at 350 s while the passer was still dwelling at
+|x| ≈ 2.46 m and did not return inside the park radius until 360 s; on H5 the
+margin is 349 s against 487 s. On H2 and H3 the passer returned to its goal
+within 15–30 s of reaching its clearing pose — back at 1.59 m by 283–299 s —
+while the yielder was still at 1.18 m, and the pair locked there.
+
+Two runs cut against any cleaner rule. H1 is the same west geometry that
+happened to sequence correctly. H6 is an east run whose passer *did* return
+early (291 s, against the yielder's centre crossing at 385 s) and which
+completed anyway, with the pair at 0.391 m — below the same 0.45 m limit that
+held H2 and H3. So the 0.45 m threshold alone does not discriminate the
+outcomes either. Read east 3/3 as three favourable draws on a race condition,
+not as evidence of side-safety, and treat the west/east split in the table as
+sampling rather than as a property of the side.
+
+### Follow-up in progress at the time of writing
+
+`_bshort` variants shorten **only** the blocked-side goal — the yielder's goal
+beyond the box — and keep ±2.5 on the open side, so the passer's goal lies
+beyond the park point instead of inside it. Three ER-2 runs on the west side
+are being run; results in a later revision.
+
+---
+
+## AE. Apparatus Notes From This Batch
+
+1. `reasoning/vlm/reasoner.py` has imported `PIL` at module level since the
+   image-fallback commit `9d7328f`. M5 died at import inside the container until
+   `pillow` was installed. Add `pillow` to the container recipe, or make the
+   import lazy.
+2. `git archive` stamps files with the commit time, which is older than the
+   previous VM build, so `colcon build` "succeeded" in 1.5 s and left the **old**
+   config installed. Verify installs by `md5`, never by exit code, and touch
+   shipped sources before rebuilding.
+3. `scripts/vm/fc_launch.sh` exits 141 — SIGPIPE from an `ls | head` under
+   `set -o pipefail` — after its cleanup, so the final `done: STAMP=…` line
+   never prints. Parse the STAMP from the `fc_run_<STAMP>` directory instead.
+4. `data/logs/simulation/<scenario>-seed42-rep000/ground_truth.jsonl` is keyed
+   only by scenario, seed and rep, so the next run overwrites it. Rescue it
+   before each launch; H1's was lost this way.
+5. `orchestrator.yaml` pristine `md5` on the VM is now
+   `8750bdb04f048775b7794aefe2770ba6` at tree `c2d8491`.
+
+---
+
+## AF. Next Steps
+
+1. Adopt `_bshort` if J1–J3 succeed, then re-run the family pilots on it with
+   both models for the pre-registration.
+2. Add `pillow` to the container recipe in the implementation notes' M6 section
+   and make the reasoner's image import lazy.
+3. Resume the OpenAI-dependent arms when credits return: replay `--arm F`, the
+   `--arm S2` remainder, `--arm X`, and the forced gpt-4o cells.
+4. Report minimum pairwise distance and percentage of samples below 0.45 m as
+   standard safety columns. Ground-truth contact flags are not evidence
+   (Rev 7 §AC, metric correction 2).
+5. Stop the VM when the batch is done unless more runs are planned.
+
+---
+
+## Rev 8 Provenance
+
+Commits after `b5a0bf9`: `e708ffa` (the `_bshort` variants the follow-up runs
+use), plus this documentation commit.
+
+Run ids from `data/logs/vm_runs/gshort/GSHORT_PILOT_SUMMARY.txt`:
+`H1_20260925_202701`, `H2_20260925_204525`, `H3_20260925_210339`,
+`H4_20260925_212153`, `H5_20260925_214006`, `H6_20260925_215822`.
+
+VM state per this batch's restore: config `md5`
+`8750bdb04f048775b7794aefe2770ba6`, container restarted, GPU idle. Sampling is
+uncontrolled on all 83 ER-2 calls for the reason given in Rev 6 §U —
+`unsupported_sampling` is recorded on every one. Artifacts remain git-ignored
+under `data/logs/vm_runs/`.

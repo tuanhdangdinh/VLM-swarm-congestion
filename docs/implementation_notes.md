@@ -1609,6 +1609,18 @@ Rules for maintaining it:
 
 ## M6 Simulation / Isaac Sim
 
+- **2026-09-26** — **`_gshort` fixes the blocker-on-goal-path losses but
+  symmetric ±1.5 goals park the yielder beyond the passer's goal.** Six-run
+  ER-2 pilot at `c2d8491`: 4/6 position-verified against 2/6 on ±2.5, 0/6
+  blocker-path losses. New failure: the yielder parks at `park_offset_m` =
+  1.789 m, beyond the passer's goal at 1.5 m, so the arrived passer rests on
+  the axis 0.437 m away — inside M4's 0.45 m — and holds it (H2, H3). East is
+  3/3 and west 1/3, but that split is a race, not side-safety — the variants
+  mirror. `_bshort` is the candidate fix. Container recipe now needs `pillow`;
+  verify installs by `md5`, not `colcon` exit code. Report
+  `docs/reports/2026-09-25-overnight-findings.md` §AD–§AF; extends the
+  `_gshort` creation entry below.
+
 - **2026-09-26** — **`_gshort` head-on variants put the blocker off every goal
   path**: `head_on_asymmetric_{w0p2_eopen,wopen_e0p2}_gshort_o0` goal on the
   opposing spawn (±1.5), not the inherited ±2.5 that lay beyond the box.
