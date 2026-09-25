@@ -9,6 +9,7 @@
 - Rev 3 (2026-09-25): adds the Gemini Robotics-ER 2 M2 backend — its offline presentation-order arm and four live closed-loop runs — plus two arithmetic/instrumentation corrections to Rev 1.
 - Rev 4 (2026-09-25): adds the decisive ER-2 cell (west-blocked, `id_asc`, gate off, n=3) and the gpt-4o obstacles-OFF arm, a consolidated live tally across both models, and the finding that the offline probe does not predict live order sensitivity.
 - Rev 5 (2026-09-25): adds the six-run Arm A pilot on the adopted defaults, the full gpt-4o refusal census, and the real-frame replay that identifies the annotated camera frame as the refusal trigger.
+- Rev 6 (2026-09-25): completes the real-frame replay and identifies the obstacle text block as the carrier of the side signal under `id_desc`, adds the six-run ER-2 pilot, and records the position-verified arrival check that a Nav2 false success forced.
 
 ---
 
@@ -34,6 +35,13 @@ runs cites the obstacle). gpt-4o-mini follows the slot (20/20 → 0/20, 40/40 �
 > predict live behaviour at all — offline `P(robot_1 | id_desc)` = 0.25 pooled
 > against 5/6 live. They stand as a result about the synthetic stimulus, not
 > about the deployed pipeline.
+
+> Superseded in part by Rev 6 §T: "the correct yielder has no influence" is a
+> statement about `id_asc`. Replayed on real frames under `id_desc` with the
+> obstacle text on, gpt-4o names the feasible robot in 96.2% of yields
+> (p = 8.8e-4 against the text withheld). The model still never verbalises the
+> blocker — 0/288 `<think>` traces name it — so "no justification cites the
+> obstacle" stands as an observation about the output, not about the input.
 
 ---
 
@@ -62,6 +70,12 @@ Do **not** report "the model moves to the feasible robot under `id_desc`".
   gpt-4o-mini only. On ER-2 the obstacle text drives `yield` to zero
   (0/60 named yielders with the channel on against 13/60 off, p = 1.2e-4). The
   image half of the claim stands for all three models.*
+  *Superseded for gpt-4o in both halves by Rev 6 §T: the channel is not
+  ineffective, it is unobservable under `id_asc`. On real frames under
+  `id_desc`, withholding the obstacle text drops P(feasible) from 0.962 to
+  0.556 (p = 8.8e-4) and replacing the frame with grey drops it to 0.694
+  (p = 0.0095). The 2026-09-19 A/B stays confounded, but the reason it read
+  null is the order it was run at.*
 
 ---
 
@@ -527,6 +541,13 @@ in L3 and L4 carries `episode_index=0` — confirming one draw per episode.
    obstacles-OFF arm (O1, O2) and re-stated per cell for both models; see
    Rev 4 §L item 3 for the live/offline gap, which is now a finding rather than
    a plausible reason.*
+   *Further superseded by Rev 6 §T for "geometry does not drive the choice":
+   that holds under `id_asc`, where the slot and ID priors agree and swamp the
+   evidence. Under `id_desc` on real frames the obstacle text decides the
+   yielder (P(feasible) 0.962 against 0.556 with the text withheld). The
+   conclusion drawn from it — that the M3 gate is needed — is unchanged,
+   because the production-default order is the one where the choice is
+   feasibility-blind.*
 4. **Caveat, kept from the run agent.** Every run in this batch had the obstacle
    channel ON, so order and channel co-vary within the batch. The offline probe
    found the channel inert, so this is unlikely to matter, but an obstacles-OFF
@@ -534,6 +555,10 @@ in L3 and L4 carries `episode_index=0` — confirming one draw per episode.
    *Partly superseded by Rev 3 §G: "inert" is a gpt-4o result and does not
    generalise — the same channel has a large effect on ER-2, so the
    obstacles-OFF arm has to be run per model.*
+   *Further superseded by Rev 6 §T: "inert" is not a gpt-4o result either. The
+   probe that found it was run at `id_asc`, where the channel cannot show. On
+   real frames under `id_desc` the same text block is the dominant input
+   (P(feasible) 0.962 with it on against 0.556 with it off, p = 8.8e-4).*
 
 ---
 
@@ -658,6 +683,14 @@ named-yielder count to zero: 0/60 with the channel on against 13/60 off,
 first non-null modality effect the programme has recorded for the static-obstacle
 channel.
 
+> Superseded by Rev 6 §T on the "first" claim and on the implied gpt-4o
+> inertness: gpt-4o also responds to the same text block, and in the intended
+> direction — it selects the feasible yielder rather than abandoning `yield`.
+> The effect was invisible to every earlier gpt-4o probe because those ran at
+> `id_asc`. The ER-2 numbers in this section are unchanged, and Rev 3 §I item 3
+> ("geometry is unused by ER-2") is not disturbed: Rev 6 §T replays gpt-4o
+> artifacts only.
+
 It is not geometric competence. ER-2 responds identically whether the blocker is
 west or east (p = 0.65 under `id_asc`, p = 1.00 under `id_desc`, with the prompt
 text held byte-identical and only the image differing), and **0 of the 180**
@@ -772,6 +805,11 @@ them without noting the difference.
    *Superseded in part by Rev 4 §L item 5: the opening `reverse` is 5/6 live,
    not 3/3 — D1 opened on a pair stall and answered `yield` directly, so it is
    a strong habit, not an invariant. The comparability conclusion stands.*
+   *Further qualified by Rev 6 §U: the opening strategy is trigger-confounded
+   and must be stated by trigger. In the ER-2 pilot `reverse` is 3/4 on
+   solo-stall openings and 2/2 on pair stalls; all six gpt-4o Arm A runs opened
+   on solo stalls, so the matched contrast is 3/4 against 0/6, not 5/6 against
+   0/6. The comparability conclusion still stands.*
 3. **Geometry is unused by ER-2 as well.** G1 named the physically blocked
    `robot_1`; no live or offline justification mentions the obstacle; offline
    `P(correct)` is at chance. The M3 gate, not the model, is what made G1
@@ -883,6 +921,11 @@ logs; Nav2 errors stayed within the known-benign set.
    against R1). This only **partly** addresses Rev 2 §D item 2, which asked for
    `id_asc`/`id_desc` × west/east at n ≥ 3 per cell: O1 and O2 give n = 1 per
    cell on the west variant, and the two east × OFF cells remain unrun.
+   *"Channel-invariant" superseded by Rev 6 §T: it describes the channel-OFF
+   arm only. Under `id_desc` on real frames, turning the obstacle text on moves
+   P(`robot_1`) from 0.704 to 0.500 and P(feasible) from 0.556 to 0.962
+   (p = 8.8e-4) — O1 and O2 measured the model with its one working geometric
+   input removed. The ID-anchoring half of the item stands.*
 3. **The offline probe does not predict live order sensitivity for gpt-4o.**
    Offline, on the synthetic plan-view stimulus, `P(robot_1 | id_desc)` = 0.25
    pooled; live it is 5/6. The live pipeline — a real M1 annotated frame with
@@ -893,14 +936,31 @@ logs; Nav2 errors stayed within the known-benign set.
    way. Mechanism unverified; candidates are the annotated frame's ID labels,
    the image's role in each model's attention, and the synthetic image lacking
    those cues.
+   *Refined by Rev 6 §S and §T: the failure to predict is a property of the
+   synthetic plan-view stimulus, not of offline replay as such. Replayed on the
+   real live frames the offline arms reproduce the live pattern — under
+   `id_desc` the choice tracks the blocker side rather than the slot — so
+   offline replay on real artifacts is a valid instrument where the plan-view
+   probe is not.*
 4. **Neither model uses geometry.** D2 chose the blocked robot with the
    obstacle block present in the prompt; O1 and O2 chose it with no obstacle
    information at all, to the same outcome. The M3 gate (`swap`) remains the
    only mechanism that has made the blocked cell succeed (L1, G1).
+   *Superseded for gpt-4o by Rev 6 §T: gpt-4o does use the obstacle text, but
+   only under `id_desc`. The evidence here is not contradicted — O1 and O2 had
+   the channel off, and D2 is ER-2, for which Rev 3 §I item 3 still stands. The
+   gate conclusion is unchanged: under the production-default order the model's
+   own choice ignores feasibility.*
 5. **ER-2's opening `reverse` is 5/6 live, not 3/3.** D1 opened on a pair stall
    and went straight to `yield`; D2 and D3 opened on solo stalls and reversed.
    gpt-4o also opened on solo stalls in O1 and O2 and answered `yield`, so
    trigger shape correlates with the opening `reverse` without forcing it.
+   *Further qualified by Rev 6 §U: stated by trigger, the ER-2 pilot gives
+   `reverse` 3/4 on solo-stall openings against gpt-4o's 0/6, and 2/2 on pair
+   stalls with no gpt-4o counterpart. The contrast survives the control at
+   n = 4 against 6, and the pilot's one `yield` opening (E1) came on a solo
+   stall where D1's came on a pair stall, so trigger type does not determine
+   the opening strategy either.*
 6. **Metric sensitivity is real and must be pre-registered away.** D2 reached
    2/2 arrivals after its failed yield because the loop cleared it later, while
    the gpt-4o equivalents (L4, `20260924_201328`, O2) reached 0/2. First-answer
@@ -1057,6 +1117,12 @@ Notes on the table:
   Rev 4 §N item 5), not coordination failures: in each the yield completed and
   the yielder arrived before the other robot stalled at the box. Read
   unqualified, 4/6 understates the coordination result.
+
+  > Superseded by Rev 6 §V: this 4/6 is Nav2-reported, not position-verified.
+  > The arrival line M5 emitted here trusted `bt_navigator`. All four gpt-4o
+  > completed runs are within 0.09 m of goal by ground truth, so the figure is
+  > expected to survive, but it must be re-scored offline from the scene log at
+  > the 0.35 m tolerance before it is quoted as an outcome.
 - **First `yield_robot` was `robot_1` in 5/6**, the exception being P6
   (`id_desc`, east). This is the ID-anchored live behaviour of Rev 4 §L item 2,
   now observed under random order.
@@ -1187,3 +1253,251 @@ The VM config was restored byte-exact (`md5`
 container was restarted, and the GPU was idle. Artifacts remain git-ignored
 under `data/logs/vm_runs/`. Local test suite: 898 passed, 55 failed, 3 errors —
 the same environmental set as previous revisions.
+
+---
+
+## S. Real-Frame Replay Completed
+
+Rev 2 of `docs/reports/2026-09-25-frame-replay.md` (commits `3e31079`,
+`add1378`). The Rev 5 §Q blocker — exhausted OpenAI credits — is cleared and
+all four planned arms ran.
+
+- **The frame is the trigger, settled within one design.** Pairing real frames
+  against grey PNGs of identical dimensions on byte-identical prompts: 22/60
+  refusals with the real frame against 0/120 with grey, Fisher p = 1.5e-12. The
+  earlier 0/240 cross-experiment comparison of Rev 5 §Q is no longer
+  load-bearing.
+- **Arm R, complete** (74 artifacts × 3 replicates): attempt-1 refusal 18.9%,
+  terminal 9.9%, the re-ask recovers 47.6%. The refusal is stimulus-locked —
+  artifacts that were refused live refuse again at 60% against 12.5% for
+  live-valid artifacts, p = 5.4e-8.
+- **Arm O, order sensitivity on real stimuli** (6 first-yield artifacts × order
+  × n = 8, obstacle text on, real frame): `P(robot_1)` is 47/48 under `id_asc`
+  against 22/47 under `id_desc`, p = 5.0e-9. Under `id_desc` the choice tracks
+  the blocker side — west → `robot_1` 2/23, east → `robot_1` 20/24.
+- **Arm M, retry policy**, conditional on a refused first attempt:
+
+  | policy | terminal refusal | n |
+  |---|---|---|
+  | shipped re-ask (`max_attempts` 2) | 57.1% | 28 |
+  | original-prompt retry | 85.7% | 28 |
+  | `max_attempts` 4 | 26.9% | 26 |
+
+  `max_attempts=4` against the shipped policy is p = 0.031, so
+  **`vlm.openai.reasoner.max_attempts: 4` was adopted** (commit `3c06e08`;
+  `gemini` and `llama` stay at 2, with a new config test pinning both).
+
+Replay spend for Rev 2: $3.97.
+
+---
+
+## T. The Obstacle Text Block Carries the Side Signal
+
+Rev 3 of the replay report (commits `4942fae`, `21e5eb9`, `1162933`). Arm S is
+288 attempt-1 runs over the same six genuine standoff artifacts — 3 west-blocked,
+3 east-blocked, none carrying failure context — in eight cells: presentation
+order × obstacle text × image, n = 6 per artifact per cell. All 288 are gpt-4o
+replays; no ER-2 artifact is involved.
+
+`P(feasible)` is the share of yields naming the robot whose retreat is
+unobstructed. Any side-blind rule — always `robot_1`, always first-listed, or a
+coin flip — scores 0.5 pooled, because the feasible robot is first-listed on
+west scenes and second-listed on east scenes.
+
+| order | obstacle text | image | n | P(`robot_1`) | P(feasible) |
+|---|---|---|---|---|---|
+| `id_asc` | on | real | 32 | 1.000 | 0.562 |
+| `id_asc` | on | grey | 36 | 0.972 | 0.472 |
+| `id_asc` | off | real | 21 | 1.000 | 0.429 |
+| `id_asc` | off | grey | 36 | 1.000 | 0.500 |
+| `id_desc` | on | real | 26 | 0.500 | **0.962** |
+| `id_desc` | on | grey | 36 | 0.694 | 0.694 |
+| `id_desc` | off | real | 27 | 0.704 | 0.556 |
+| `id_desc` | off | grey | 36 | 0.583 | 0.583 |
+
+The three contrasts, all under `id_desc`:
+
+| contrast | P(feasible) | Fisher (two-sided) | reading |
+|---|---|---|---|
+| (a) real frame, text on → off | 0.962 → 0.556 | p = 8.8e-4 | strong, within-artifact |
+| (b) text on, image real → grey | 0.962 → 0.694 | p = 0.0095 | moderate |
+| (c) states only (text off, grey) | 0.583, side p = 0.50 | — | null |
+
+In (a) the west-versus-east split collapses from p = 2.7e-6 to p = 0.68. In (b)
+the two arms are structurally asymmetric — the grey image never refuses — so the
+attenuation is a bound, not a clean effect size. The `id_asc` control is
+unbroken in every channel condition: `robot_1` is named 124/125 times. Mentions
+of the obstacle in the model's own `<think>` block: **0 of 288**. The replay
+also reproduces the refusal trigger as a by-product, 38/144 real against 0/144
+grey.
+
+### Interpretation
+
+This supersedes "geometry is unused" for gpt-4o. The obstacle **text** block is
+read and acted on, the real frame amplifies it, and the robot states alone carry
+nothing — but the effect is visible only when the two positional priors conflict.
+A consistent model is
+
+```text
+choice ≈ argmax(first-slot prior + robot_1 prior + feasibility evidence)
+```
+
+Under `id_asc` the two priors agree and swamp the evidence: 0/48 deviations
+toward the feasible `robot_2` on the west scenes. Under `id_desc` they cancel
+and feasibility decides, at roughly 96%. The model never verbalises the
+obstacle in either regime.
+
+Caveats: the side → robot mapping rests on 3 artifacts per side; all eight cells
+share the same six stimuli; the primary rows are attempt-1 only, because
+`max_attempts` is now 4.
+
+### Consequences
+
+1. The 2026-09-19 obstacle-channel A/B read null because it was run under
+   `id_asc`, where the channel cannot show. That is a design fact, not a model
+   fact.
+2. `prompt_robot_order: random` makes the channel observable in about half the
+   episodes. Any analysis of channel effects must condition on the drawn order.
+3. The M3 gate remains necessary. Under the production-default order the
+   model's own choice ignores feasibility.
+
+### Arm D - frame resolution is not the trigger
+
+Downscaled frames (640 px wide) against full-size, on 10 live-refused artifacts,
+n = 3: attempt-1 refusals 15/30 against 23/30 (p = 0.060), terminal 5 against 17
+(p = 0.0028). Downscaling makes refusals **worse**, so `frame_downscale_width`
+is ruled out as a mitigation.
+
+Replay spend for Rev 3: $2.66; cumulative $6.63.
+
+---
+
+## U. ER-2 Pilot on the Adopted Defaults
+
+Six runs mirroring the gpt-4o Arm A pilot of Rev 5 §O cell for cell: gate
+`swap`, `prompt_robot_order: random`, obstacle channel on, `keep_debug_frames:
+true`. Tree `e6be85c` on the VM, local branch at `2ade04d`; the installed YAML
+was parsed and asserted before every launch. Summary
+`data/logs/vm_runs/ER2_PILOT_SUMMARY.txt`; artifacts under
+`data/logs/vm_runs/20260925_{124609,130115,132335,133841,135334,140824}/`.
+
+| Run | STAMP | Scenario | Order | Opening (trigger) | First `yield_robot` (#) | Gate | First yield | Arrivals log / physical | First analysis → both | Analyses / commands | Latency mean | Recoveries `r1`/`r2` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| E1 | `20260925_124609` | `w0p2_eopen` | `id_asc` | `yield` (solo) | `robot_2` (#1) | no-op | COMPLETED 146.3 s | 2/2 / **1/2** | 308.9 s * | 25 / 1 | 3341 ms | 0 / 1 |
+| E2 | `20260925_130115` | `w0p2_eopen` | `id_asc` | `reverse` (pair) | `robot_1` (#3) | fired `r1`→`r2` | COMPLETED 147.6 s | 2/2 / 2/2 | 404.3 s | 9 / 2 | 3486 ms | 0 / 2 |
+| E3 | `20260925_132335` | `w0p2_eopen` | `id_desc` | `reverse` (solo) | `robot_1` (#3) | fired `r1`→`r2` | COMPLETED 149.6 s | 1/2 / 1/2 | — | 25 / 2 | 3339 ms | 0 / 7 |
+| E4 | `20260925_133841` | `wopen_e0p2` | `id_asc` | `reverse` (solo) | `robot_1` (#3) | no-op | COMPLETED 141.5 s | 1/2 / 1/2 | — | 25 / 2 | 3754 ms | 7 / 0 |
+| E5 | `20260925_135334` | `wopen_e0p2` | `id_asc` | `reverse` (solo) | `robot_1` (#3) | no-op | COMPLETED 145.5 s | 1/2 / 1/2 | — | 25 / 2 | 3575 ms | 7 / 0 |
+| E6 | `20260925_140824` | `wopen_e0p2` | `id_asc` | `reverse` (pair) | `robot_1` (#3) | no-op | COMPLETED 149.1 s | 2/2 / 2/2 | 376.8 s | 6 / 2 | 3977 ms | 1 / 0 |
+
+`*` E1's second arrival is the Nav2 false success of §V, so its resolution time
+is not a real one. Parse failures are 0 on all 115 calls. Blocker approach:
+E1 `robot_2` cleared the west face and then stalled 0.59 m from its goal,
+0.257 m off the corridor axis; E3 `robot_2` was arrested 0.038 m short of the
+west face; E4 and E5 `robot_1` 0.038 m short of the east face; E2 and E6 were
+full transits.
+
+| Measure | ER-2 | gpt-4o (Rev 5 §O) |
+|---|---|---|
+| Episode outcome | 3/6 by log, 2/6 physically | 4/6 by log |
+| First yield COMPLETED | 6/6, mean 146.6 s | 6/6, mean 145.6 s |
+| Gate intervention | 2/6 | 4/6 |
+| Mean resolution time | 363.3 s | 314.5 s |
+| Analyses per episode | 19.2 | 12.3 |
+| Refusal / parse failure | 0 / 115 | 10 / 74 |
+| Backend latency, mean | 3526 ms | 2751 ms |
+| Tokens per call, mean | 2413 (+242 thought) | 1916 |
+
+Notes and caveats:
+
+- ER-2 named `robot_1` in 5/6 regardless of which side the blocker was on. It
+  is right on the east variant by coincidence of the anchor matching
+  feasibility, not by reading the obstacle; Rev 3 §I item 3 stands. E3 is the
+  one `id_desc` draw and ER-2 still named `robot_1`, the second-presented robot
+  — ID over slot, at n = 1.
+- The opening `reverse` is trigger-confounded. The matched solo-stall cell is
+  3/4 against gpt-4o's 0/6; the pair-stall cell is 2/2 with no gpt-4o
+  counterpart. Rev 3 §I item 2 and Rev 4 §L item 5 are marked accordingly.
+- Sampling is uncontrolled on all 115 calls: the Interactions API has no
+  sampling fields, so `{temperature 0.6, top_p 0.95, top_k 20.0,
+  presence_penalty 0.0}` was dropped and recorded as `unsupported_sampling`.
+  This structural confound must travel with every number in this section.
+- E3's first attempt (`20260925_131122`) aborted with 0 analyses because it
+  launched before the previous run's exit trap had finished cleaning up. The
+  harness lesson is to wait for the launcher's `logs saved to` line rather than
+  polling `pgrep`.
+
+---
+
+## V. Apparatus: Arrival Is Now Position-Verified
+
+E1 exposed a Nav2 false success. `bt_navigator` reported the goal reached for
+`robot_2` while M1 placed it 0.59 m away, and M5 logged the arrival 5 ms later:
+
+```text
+[bt_navigator-5] [INFO] [1790340781.524683836] [robot_2.bt_navigator]: Goal succeeded
+[orchestrator_node-1] [INFO] [1790340781.529723700] [orchestrator_node]: robot robot_2 arrived at base goal (-2.5, 0.0)
+```
+
+M5 then reported `distance_to_goal_m={'robot_2': 0.59}` on all 21 subsequent
+analyses while the robot never moved again. This is one false success in nine
+ER-2 arrival events; every other arrival in the pilot, and all four completed
+gpt-4o pilot runs, are within 0.09 m of goal, so the criterion is normally
+sound.
+
+Fix, in commits `4f39899`, `c7c189e` and `069e1f2`:
+
+- `swarm_orchestrator/arrival.py` with `classify_arrival` and `ArrivalGate`,
+  cross-checking M4's base-goal report against the M1 position estimate.
+- Config keys `arrival_position_check: true`,
+  `arrival_position_tolerance_m: 0.35` — above M1's ≈0.1 m bias and at or below
+  `arrived_radius_m` (0.5) — and `arrival_estimate_max_age_sec: 2.0`.
+- The accepted arrival line gains `distance_m=… check=…`; a new WARNING
+  `arrival rejected robot=…` and INFO `arrival accepted late robot=…` cover the
+  other verdicts. Episodes — and therefore the random-order draws — close only
+  on accepted arrivals.
+- +24 tests; local suite 942 passed, 55 failed, 3 errors (the same
+  environmental set as previous revisions).
+
+Pre-registration consequence: episode outcome must be position-verified in both
+arms. Every run before this fix is Nav2-reported and must be re-scored offline
+from the scene log at the 0.35 m tolerance — Rev 5 §O's 4/6 and the Rev 4 and
+Rev 5 arrival counts included. Offline scorers must match **both** acceptance
+lines, the plain one and the late one.
+
+---
+
+## W. Next Steps
+
+1. Re-score every 2026-09-24/25 run's arrivals from the scene logs at 0.35 m
+   and publish corrected outcome tables.
+2. Ship the arrival check and `max_attempts: 4` to the VM — rebuilding
+   `swarm_orchestrator` — before any further runs.
+3. Pre-register: gate `swap` plus random order, analysis conditioned on the
+   drawn order (channel effects are visible only under `id_desc`), episode
+   outcome as the position-verified arrival, first answer secondary.
+4. Replicate the side-carrier result on more standoff scenes. Record additional
+   pilot runs with frames kept; 3 artifacts per side is the floor, not a
+   target.
+5. Chase the refusal trigger inside the frame: un-annotated frames (which
+   requires saving the raw camera frame alongside the annotated one) and
+   marker-masked frames. Downscaling is ruled out.
+6. Decide the scenario question on the blocker-on-goal-path property — 2/6 plus
+   3/6 episodes lost to it across the two pilots.
+7. Keep ER-2 as the secondary arm, noting its zero-refusal robustness and its
+   trigger-dependent `reverse` opening.
+
+---
+
+## Rev 6 Provenance
+
+Commits after `2ade04d`: `3c06e08`, `3e31079`, `add1378`, `4f39899`, `c7c189e`,
+`069e1f2`, `4942fae`, `21e5eb9`, `1162933`, plus this documentation commit.
+
+ER-2 run ids: `20260925_124609`, `20260925_130115`, `20260925_132335`,
+`20260925_133841`, `20260925_135334`, `20260925_140824`.
+
+The VM config was restored byte-exact (`md5`
+`3ed3795f174c3df079e050e9b4e49572`), the container was restarted, and the GPU
+was idle. Artifacts remain git-ignored under `data/logs/vm_runs/`. Replay spend
+today: $6.63. Local test suite: 942 passed, 55 failed, 3 errors.

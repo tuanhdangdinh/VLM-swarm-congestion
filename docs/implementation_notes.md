@@ -203,7 +203,17 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
-- **2026-09-25** — **The obstacle *text* block carries the `id_desc` side signal**
+- **2026-09-25** — **Rev 6 consolidates the day: side-signal carrier, ER-2
+  pilot, position-verified arrival** (`docs/reports/2026-09-25-overnight-findings.md`
+  §S–§W). The three entries below carry the detail (obstacle-text side signal,
+  FR5.1.9 arrival check, `max_attempts` 2 → 4). New in Rev 6: the six-run ER-2
+  pilot (`data/logs/vm_runs/ER2_PILOT_SUMMARY.txt`, runs
+  `20260925_{124609,130115,132335,133841,135334,140824}`) — 0/115 refusals,
+  gate 2/6, episode outcome 3/6 by log but 2/6 physically, sampling
+  uncontrolled; the earlier "geometry unused / channel inert" claims marked
+  superseded for gpt-4o; the ER-2 opening `reverse` marked trigger-confounded
+  (3/4 solo-stall vs gpt-4o 0/6). **Do not quote any pre-`4f39899` arrival
+  count until it is re-scored from the scene log at 0.35 m.**
   (`docs/reports/2026-09-25-frame-replay.md` Rev 3; Arms S and D, 348 runs,
   $2.66). Within-artifact ablation on the six genuine standoffs (3/side) x order
   x obstacle-text x image: withholding the text with the real frame kept
