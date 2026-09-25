@@ -37,6 +37,18 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-25** — **M3 can now refuse or re-ground a yield the scene makes
+  impossible** (`8362178`, feature branch `feat/m3-yield-feasibility`, not
+  merged). The feasibility rule the family oracle already encoded moved into
+  `reasoning/rag/scene_geometry.py` (`required_room_m`, `yield_retreat_room_m`,
+  `yield_feasible`), so `isaac/vgu_sim/family_oracle.py` and the executed
+  maneuver now score off one function; a test regenerates the three committed
+  family `oracle:` blocks unchanged (`06feaf8`). `ground_reasoner_result` gains
+  `static_obstacles` + `yield_feasibility_mode` (`off`/`swap`/`refuse`; M5 key
+  `grounding_yield_feasibility`), `swap` recording `yield_robot_grounded_from`
+  on the yield action. **Ships off, and is a no-op while `static_obstacles`
+  stays commented out in `orchestrator.yaml`** — turning it on is an
+  experimental condition, since it changes which robot executes.
 - **2026-09-25** — **The yielder the VLM names follows presentation order, not
   geometry; the 2026-09-19 confound is resolved.** A counterbalanced offline
   probe (`scripts/probe_presentation_order.py`, 360 calls, 0 parse failures, 0
