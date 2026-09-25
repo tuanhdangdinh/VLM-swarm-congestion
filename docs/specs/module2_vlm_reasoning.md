@@ -253,6 +253,33 @@ in control.
   integrity failure, when `ReasonerConfig.allow_reask=True` and attempts remain.
 - FR2.5.3 On exhausted retries, return `build_failed_result(...)` with
   `decision=None` and `diagnostics.parse_status="failed"` rather than raising.
+- FR2.5.4 (2026-09-26) **Neutral-image fallback.** When `is_refusal(text)` matches
+  the assistant text of attempt `k` and
+  `k >= ReasonerConfig.image_fallback_after_attempts`, the next attempt re-sends
+  the *unchanged* prompt text with `PromptPayload.image_path` pointing at a solid
+  mid-grey PNG of the frame's own dimensions, written to a per-request temporary
+  directory that is removed when `run` returns. The re-ask suffix is deliberately
+  **not** appended: a refusal is not a formatting failure, and changing the text
+  would confound the swap. The fallback fires at most once per request; a later
+  failure re-asks on top of the neutral-image payload as usual. Backends need no
+  change — they read `image_path`.
+  - **Why:** refusals are stimulus-locked to the annotated camera frame
+    (byte-identical prompts: real frame 22/60 refusals vs neutral grey 0/120,
+    p = 1.5e-12) and persist across re-asks, so `max_attempts: 4` alone left
+    8/21 live batch-2 cases terminal. The decision content is carried by the
+    text; the frame amplifies it (`docs/reports/2026-09-25-frame-replay.md`
+    Rev 2-3, Arm S). The cost — that one call is decided without the image
+    channel — is therefore bounded, and is recorded per call in
+    `ReasonerDiagnostics.image_fallback_used`.
+  - `None` (the default) disables it, which is how `gemini` and `llama_server`
+    are left: ER-2 has never refused. `config/models.yaml` sets
+    `image_fallback_after_attempts: 2` under `vlm.openai.reasoner` only.
+  - A frame that cannot be read falls through to the ordinary re-ask path with
+    `image_fallback_used=False`, rather than raising out of `run`.
+- FR2.5.5 (2026-09-26) `is_refusal(text: str) -> bool` is the single, conservative
+  refusal test, matching `I'm sorry(, but) I can't assist` and the generic
+  `I can't help with` (both apostrophe forms). It is used wherever the reasoner
+  classifies a non-JSON response and never replaces the parse/re-ask path.
 
 ---
 
@@ -549,6 +576,9 @@ class ReasonerDiagnostics(BaseModel):
     error_message: str | None = None
     unsupported_sampling: dict[str, float] | None = None
     reasoner_config_effective: EffectiveSamplingConfig | None = None
+    refusal_attempts: int = Field(default=0, ge=0)
+    image_fallback_used: bool = False
+    image_fallback_attempt: int | None = Field(default=None, ge=1)
 ```
 
 Fields:
@@ -586,6 +616,18 @@ Fields:
   an audit needs the decoding parameters for. **Why:** `temperature` lives in
   `config/models.yaml`, which is not captured per run, so no artifact could
   show that gpt-4o classified greedily.
+- `refusal_attempts` (2026-09-26): how many attempts returned a safety refusal
+  (`is_refusal`). Distinct from `attempts`, because a refusal is only one kind of
+  parse failure and the FR2.5.4 mitigation keys off refusals alone.
+- `image_fallback_used` / `image_fallback_attempt` (2026-09-26): whether the
+  FR2.5.4 neutral-image retry fired, and the 1-based index of the attempt that
+  carried the neutral image (`None` when it did not fire). A decision produced on
+  that attempt was reached **without the image channel**, so an audit must be able
+  to read that off the artifact alone.
+
+All three are additive with defaults, so artifacts written before 2026-09-26 stay
+readable. `write_reasoner_log` omits the block entirely when no refusal occurred
+and the fallback did not fire, keeping pre-existing traces byte-identical.
 
 #### `ReasonerResult`
 
@@ -681,7 +723,14 @@ class ReasonerConfig(BaseModel):
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     max_tokens: int = Field(default=1024, ge=1)
     allow_reask: bool = True
+    image_fallback_after_attempts: int | None = Field(default=None, ge=1)
 ```
+
+`image_fallback_after_attempts` (2026-09-26) arms the FR2.5.4 neutral-image
+fallback: `None` disables it; `k` means "a refusal on attempt `k` or later swaps
+the frame on the next attempt". Resolved per backend exactly like `temperature`
+and `max_attempts`; shipped as `2` for `openai` only.
+
 
 Config loading convention:
 
@@ -723,12 +772,15 @@ Behavior (step-by-step algorithm):
    b. Assert image_path exists and is readable; raise FileNotFoundError otherwise.
 
 2. Build initial payload:
-   payload ← build_prompt_payload(request)
+   base_payload ← build_prompt_payload(request)      # kept: the fallback reuses its text
+   payload ← base_payload
    known_ids ← set(r.robot_id for r in request.robot_states)
    attempts ← 0
    last_raw ← None
    last_error_type, last_error_msg ← None, None
    had_parse_failure ← False
+   refusal_attempts ← 0
+   image_fallback_attempt ← None
 
 3. Retry loop (while attempts < config.max_attempts):
    a. attempts += 1
@@ -759,7 +811,20 @@ Behavior (step-by-step algorithm):
       except (VLMOutputParseError, DecisionValidationError) as e:
         had_parse_failure ← True
         last_error_type, last_error_msg ← type(e).__name__, str(e)
-        if config.allow_reask and attempts < config.max_attempts:
+        refused ← is_refusal(last_raw or "")
+        if refused: refusal_attempts += 1
+        if attempts ≥ config.max_attempts: continue   # nothing left to prepare
+        # FR2.5.4: a refusal at or past the threshold swaps the image, once, and
+        # keeps the prompt text exactly as it was (no re-ask suffix).
+        if refused and config.image_fallback_after_attempts is not None
+           and attempts ≥ config.image_fallback_after_attempts
+           and image_fallback_attempt is None:
+            neutral ← make_neutral_image(base_payload.image_path, <scratch dir>)
+            if neutral is not None:                   # unreadable frame ⇒ fall through
+                payload ← base_payload with image_path=neutral
+                image_fallback_attempt ← attempts + 1
+                continue
+        if config.allow_reask:
             payload ← build_reask_prompt(payload, str(e))
         # else: fall through and exhaust attempts
 
@@ -771,7 +836,12 @@ Behavior (step-by-step algorithm):
        error_type=last_error_type,
        error_message=last_error_msg,
        raw_text=last_raw,
+       refusal_attempts=refusal_attempts,
+       image_fallback_used=image_fallback_attempt is not None,
+       image_fallback_attempt=image_fallback_attempt,
    )
+   # The scratch directory holding the neutral image is removed in a `finally`,
+   # on both the success and the failure path.
 ```
 
 Side effects:
@@ -811,6 +881,41 @@ Behavior:
   `response.model_copy(update={"latency_ms": int(elapsed * 1000)})`.
 - Propagate any other exception from `backend.analyze` as-is (backends raise
   their own typed errors).
+
+#### `is_refusal`
+
+**Description:** Classify one assistant response as a safety refusal (FR2.5.5).
+
+```python
+def is_refusal(text: str) -> bool: ...
+```
+
+Behavior:
+
+- Matches `I'm sorry(, but) I can't assist` and the generic `I can't help with`,
+  case-insensitively and for both the straight and typographic apostrophe.
+- Deliberately narrow: a model that merely apologises mid-answer is not a
+  refusal, and a false positive would spend an attempt on a neutral image for
+  nothing. Verified against 1407 recorded assistant texts (2026-09-26): it is a
+  strict superset of the census regex in `scripts/probe_refusals.py` /
+  `scripts/replay_live_decisions.py`, adding only the seven genuine
+  `I'm sorry, but I can't help with that.` responses those miss.
+
+#### `make_neutral_image`
+
+**Description:** Write the solid mid-grey PNG the FR2.5.4 fallback sends.
+
+```python
+def make_neutral_image(source_image_path: str | Path, destination: str | Path) -> Path: ...
+```
+
+Behavior:
+
+- Reads `(width, height)` from the source frame and writes an RGB
+  `(128, 128, 128)` PNG of the same size — the neutral stimulus the frame-replay
+  study measured at 0/120 refusals.
+- Raises `OSError` when the source cannot be opened; `Reasoner.run` catches that
+  and degrades to the ordinary re-ask path.
 
 #### `build_reask_prompt`
 
@@ -901,13 +1006,21 @@ Behavior:
     "error_message": null,
     "unsupported_sampling": {"temperature": 0.6},
     "reasoner_config_effective": {"backend_id": "openai", "model_id": "gpt-4o",
-                                  "temperature": 0.0, "max_attempts": 4, "...": "..."}
+                                  "temperature": 0.0, "max_attempts": 4, "...": "..."},
+    "refusal_attempts": 2,
+    "image_fallback_used": true,
+    "image_fallback_attempt": 3
   }
   ```
 
 - `unsupported_sampling` and `reasoner_config_effective` are **omitted
   entirely** (not written as `null`) when the diagnostics field is `None`, so
   readers and golden files that predate them are unaffected.
+- `refusal_attempts`, `image_fallback_used` and `image_fallback_attempt` are
+  written as a block only when a refusal occurred or the fallback fired, for the
+  same reason. The M5 decision artifact
+  (`swarm_orchestrator.reasoning_pipeline.write_decision_artifact`) dumps the
+  whole diagnostics model, so it always carries all three.
 - Uses `.model_dump(mode="json")` for Pydantic models.
 - Does not raise on serialization of unexpected types — convert to `str` fallback.
 
@@ -1355,6 +1468,10 @@ Do not include any text, markdown, or explanation outside the JSON.
   - `BackendTimeoutError` → retry the same payload (transient transport issue).
   - `VLMOutputParseError` / `DecisionValidationError` → re-ask with corrective
     prompt (model produced bad output, rephrase helps).
+  - A parse failure whose text `is_refusal` is a **third** case: the model
+    understood the format and declined the stimulus, so once the FR2.5.4
+    threshold is reached the image is swapped and the text left alone. Below the
+    threshold (or with the fallback disabled) it stays on the re-ask path.
 - **JSON extraction:** strip fences → extract first `{...}` span → `json.loads`
   → Pydantic validation → invariant check → deduplicate `involved_robots`.
 - **Determinism check:** identical `ReasonerRequest` + `temperature=0.0` should
@@ -1390,6 +1507,8 @@ Do not include any text, markdown, or explanation outside the JSON.
 | HTTP 429 (rate limit) | Treat as transient backend error; retry same payload |
 | HTTP 4xx/5xx | Raise `ConnectionError`; caught by retry loop; retry |
 | Model returns prose only (no JSON) | `parse_decision_text` falls back to brace-extraction; fails → re-ask |
+| Model refuses (`is_refusal`) | Counted in `diagnostics.refusal_attempts`; at/past `image_fallback_after_attempts` the next attempt re-sends the same text with a neutral image (FR2.5.4); otherwise re-ask |
+| Neutral image cannot be written (unreadable frame) | Caught; degrades to the ordinary re-ask path with `image_fallback_used=False`; never raises out of `run` |
 | Model wraps JSON in code fence | `parse_decision_text` strips fence; continues normally |
 | Hallucinated robot ID | `validate_involved_robots` raises `DecisionValidationError`; re-ask |
 | `congestion_detected=True` but `type="none"` | Invariant check in `parse_decision_text` raises `VLMOutputParseError`; re-ask |

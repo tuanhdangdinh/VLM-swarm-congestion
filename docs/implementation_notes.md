@@ -211,6 +211,15 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-09-26** — **Neutral-image fallback lands in M2; its validation arm is
+  coded but unrun (no OpenAI credits).** `ReasonerConfig.image_fallback_after_attempts`
+  (shipped `2`, `openai` only) makes a refused attempt `k >= threshold` re-send the
+  *unchanged* prompt with a mid-grey PNG of the frame's size — once per request, no
+  re-ask suffix, backends untouched; cost recorded in
+  `diagnostics.{refusal_attempts,image_fallback_used,image_fallback_attempt}`. Spec
+  §M2.5 FR2.5.4-5; `9d7328f`, `a255cc8`. Arm X (168 cells) aborted on
+  `insufficient_quota` with **zero** rows — resume with
+  `python scripts/replay_live_decisions.py --arm X --runs batch2 --n 4 --pace-sec 8.0`.
 - **2026-09-26** — **Batch-2 replication weakens the obstacle-text finding;
   raw-frame arm unrun (credits).** `docs/reports/2026-09-25-frame-replay.md`
   Rev 4; Arm S2 187/288 runs, $1.24, aborted on `insufficient_quota`. The
