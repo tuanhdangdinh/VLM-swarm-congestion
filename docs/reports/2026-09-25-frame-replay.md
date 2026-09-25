@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: prompt-reconstruction integrity over the six Arm A pilot runs, a 108-call real-frame refusal arm, and a 12-call presentation-order arm truncated by an exhausted API credit balance.
+- Rev 2 (2026-09-25): credits restored; completes Arm R to all 74 artifacts and adds the paired grey sub-arm, the full Arm O and Arm M. The grey arm settles the refusal trigger within one design (0/120 vs 22/60); Arm O finds a large order effect on real stimuli and, under `id_desc` only, obstacle-side sensitivity; Arm M finds `max_attempts=4` more than halves the terminal refusal rate.
 
 ---
 
@@ -52,6 +53,15 @@ mid-run, so Arm O ran at n = 1 per cell (12 calls) instead of n = 8 (96). Its
 direction is consistent with the live ID-anchored reading and against the
 offline slot-anchored reading, but at that n it is not evidence. Arms M and the
 grey sub-arm did not run at all.
+
+> Superseded by Rev 2. Credits were restored and every arm ran to its planned
+> design. The grey sub-arm settles the refusal trigger within one design
+> (0/120 grey vs 22/60 real frame, p = 1.5e-12), so the cross-experiment 0/240
+> comparison qualified above is no longer load-bearing. Arm O at full n finds a
+> large order effect (P(`robot_1`) 0.979 under `id_asc` vs 0.468 under
+> `id_desc`, p = 5.0e-9) that is *neither* the live ID-anchored nor the
+> synthetic slot-following reading. Arm R's own numbers below are for the
+> 36-artifact subset; Rev 2 has all 74. Read Rev 2 for every quantity.
 
 ---
 
@@ -356,3 +366,224 @@ balance ran out. The remaining arms should cost about $2 more.
 | `data/experiments/2026-09-25-frame-replay/summary.csv` | per-cell aggregation |
 
 The pilot PNGs are not copied; rows reference them by run and `request_id`.
+
+---
+
+## Rev 2 - Complete Arms
+
+Credits were restored and every arm ran to its planned design. All Rev 1
+sections above are left as written; this section supersedes them where the
+numbers differ, because Arm R now covers all 74 artifacts rather than 36.
+
+`546` `Reasoner` runs, `708` API calls, 0 transport errors, 0 quota aborts.
+
+### Arm R, complete
+
+| quantity | Rev 1 (36 artifacts) | **Rev 2 (all 74)** |
+|---|---|---|
+| replays | 108 | **222** |
+| attempt-1 refusals | 27 (25.0%) | **42 (18.9%)** |
+| terminal refusals | 12 (11.1%) | **22 (9.9%)** |
+| re-ask recovered | 15/27 (55.6%) | **20/42 (47.6%)** |
+| artifacts refusing at least once | 13/36 (36.1%) | **21/74 (28.4%)** |
+| artifacts refusing on every replicate | 4/36 (11.1%) | **5/74 (6.8%)** |
+
+The pooled rate fell from 25.0% to 18.9% because the three runs added in Rev 2
+include `20260925_075116`, which contributes 26 of the 74 artifacts at a much
+lower rate (6/78, 7.7%). Per-run rates range from 7.7% to 33.3%. The live rate
+over all 74 is 10/74 (13.5%); replay 42/222 (18.9%). The stimulus-locking result
+strengthens considerably:
+
+| live attempt-1 | replays | attempt-1 refusals | rate |
+|---|---|---|---|
+| refused | 30 | 18 | **0.600** |
+| did not refuse | 192 | 24 | **0.125** |
+
+Fisher p = **5.4e-8**.
+
+### Grey sub-arm - the frame is the trigger, within one design
+
+The 10 live-refused artifacts and 10 matched live-valid controls, same prompts,
+n = 6, with a neutral mid-grey PNG of identical dimensions (1280x960) in place of
+the annotated frame. The real-frame half is Arm R's n = 3 on the same artifacts.
+
+| artifact group | image | replays | attempt-1 refusals | rate |
+|---|---|---|---|---|
+| live-refused | real frame | 30 | 18 | 0.600 |
+| live-refused | **grey** | 60 | **0** | **0.000** |
+| live-valid | real frame | 30 | 4 | 0.133 |
+| live-valid | **grey** | 60 | **0** | **0.000** |
+| pooled | real frame | 60 | 22 | 0.367 |
+| pooled | **grey** | 120 | **0** | **0.000** |
+
+Fisher p = **1.5e-12**. Not one of the 120 grey calls refused, including 60 on
+the very prompts that refuse 60% of the time with their own frame attached. No
+grey call produced a non-refusal parse failure either.
+
+This is the within-design result Rev 1 lacked. The prompt text is byte-identical
+between the two image arms by construction — only `image_path` differs — so the
+attribution needs no cross-experiment assumption. **Removing the frame removes
+the refusal completely.**
+
+### Arm O - order sensitivity on real stimuli
+
+Six first-yield artifacts x `{id_asc, id_desc}` x n = 8, temperature 0.0, 96
+runs. `P` columns are over the cell's yield decisions.
+
+| run | artifact | order | n | yields | P(`robot_1`) | P(first-listed) | P(correct) |
+|---|---|---|---|---|---|---|---|
+| `063520` west | `53264de9` | `id_asc` | 8 | 8 | 1.000 | 1.000 | 0.000 |
+| `063520` west | `53264de9` | `id_desc` | 8 | 8 | 0.250 | 0.750 | 0.750 |
+| `065143` west | `5e7b5a59` | `id_asc` | 8 | 8 | 1.000 | 1.000 | 0.000 |
+| `065143` west | `5e7b5a59` | `id_desc` | 8 | 7 | 0.000 | 1.000 | 1.000 |
+| `070637` west | `2c3fbfa5` | `id_asc` | 8 | 8 | 1.000 | 1.000 | 0.000 |
+| `070637` west | `2c3fbfa5` | `id_desc` | 8 | 8 | 0.000 | 1.000 | 1.000 |
+| `072130` east | `61119197` | `id_asc` | 8 | 8 | 0.875 | 0.875 | 0.875 |
+| `072130` east | `61119197` | `id_desc` | 8 | 8 | 1.000 | 0.000 | 1.000 |
+| `073621` east | `d053d0dc` | `id_asc` | 8 | 8 | 1.000 | 1.000 | 1.000 |
+| `073621` east | `d053d0dc` | `id_desc` | 8 | 8 | 0.875 | 0.125 | 0.875 |
+| `075116` east | `3120c65f` | `id_asc` | 8 | 8 | 1.000 | 1.000 | 1.000 |
+| `075116` east | `3120c65f` | `id_desc` | 8 | 8 | 0.625 | 0.375 | 0.625 |
+
+Pooled:
+
+| quantity | `id_asc` | `id_desc` | Fisher (two-sided) |
+|---|---|---|---|
+| P(`yield_robot` = `robot_1`) | 47/48 (97.9%) | 22/47 (46.8%) | **5.0e-9** |
+| attempt-1-only subset | 44/45 (97.8%) | 16/37 (43.2%) | **1.2e-8** |
+| P(`yield_robot` = first-listed) | 47/48 (97.9%) | 25/47 (53.2%) | - |
+| P(`yield_robot` = correct) | 23/48 (47.9%) | 41/47 (87.2%) | **5.9e-5** |
+
+**There is a large, highly significant order effect on real stimuli.** Flipping
+the presentation order collapses P(`robot_1`) from 0.979 to 0.468. The effect
+survives restricting to cells whose attempt 1 was not a refusal, so it is not a
+re-ask artifact.
+
+**But it is not pure slot-following.** Under `id_asc` the first-listed bias
+saturates at 97.9%. Under `id_desc` the model picks the first-listed robot only
+53.2% of the time — and what it does instead tracks the obstacle:
+
+| order | west-obstacle runs | east-obstacle runs | Fisher |
+|---|---|---|---|
+| `id_asc`, P(`robot_1`) | 24/24 | 23/24 | p = 1.0 |
+| `id_desc`, P(`robot_1`) | 2/23 | 20/24 | **p = 2.2e-7** |
+
+Under `id_asc` the obstacle side makes no difference at all; under `id_desc` it
+makes almost all the difference, and the model lands on the *correct* (feasible)
+yielder 87.2% of the time.
+
+**Do not read this as "the model uses the obstacle."** Three things argue
+against it.
+
+- **No decision ever mentions it.** Across all 95 Arm O decisions, zero
+  justifications or root causes cite an obstacle, blocker, barrier or the
+  rendered coordinate — and zero of the raw `<think>` traces do either, on a
+  strict `obstacle|blocker|barrier|obstruct|1\.85` match. This reproduces the
+  overnight report's null over 360 offline calls and 4 live runs. Whatever
+  drives the `id_desc` split, the model does not report reasoning about the
+  obstacle.
+- **The unit of replication is the artifact, not the call.** Three artifacts per
+  obstacle side, with rates clustered hard within each. The effective n behind
+  p = 2.2e-7 is 3 vs 3.
+- **Obstacle side is confounded with everything else about the run.** Different
+  scenes, different frames, different robot offsets. `robot_1` is always the
+  west-positioned robot here (x ≈ -0.13 to -0.23) and `robot_2` always east
+  (x ≈ +0.12 to +0.17), so "picks `robot_2` on west-obstacle runs and `robot_1`
+  on east-obstacle runs" is observationally identical to any rule keyed on
+  position sign, heading sign, annotated status colour, or the obstacle's
+  coordinate — and to plain per-run idiosyncrasy.
+
+The defensible statement is narrow: **under `id_desc` the yielder choice
+covaries strongly with obstacle side, and under `id_asc` it does not, because
+the first-position bias saturates.** The mechanism is open. The counterbalanced
+live design, with obstacle side varied within a fixed scene, remains the
+decisive test.
+
+**Does this match live ID-anchoring or the synthetic slot-following?** Neither
+cleanly, and it supersedes the framing of
+`docs/reports/2026-09-25-overnight-findings.md` §L.3. The synthetic offline probe
+put P(`robot_1` | `id_desc`) at 0.25; the real-stimulus replay puts it at 0.468;
+the live sample was 5/6. Under the replay's own `id_desc` distribution, drawing
+5 or more `robot_1` in 6 live runs has probability **0.082** — unlikely but not
+significant, so the live observation is consistent with sampling noise rather
+than with a distinct ID-anchored regime. The live `id_desc` sample also mixes
+obstacle sides, which the replay shows is the dominant term under that order, so
+n = 6 cannot separate the two. §L.3's "the offline probe does not predict live
+order sensitivity" overstates what n = 6 can support; the real-stimulus estimate
+sits between the two and the obstacle side is the variable that was missing.
+
+### Arm M - retry policy
+
+The six strongest Arm-R refusers (`1db82597`, `2163b6ea`, `5c1c6c1b`,
+`6f91c49b`, `d2156797`, `fb53a88f`) x three policies x n = 6, 108 runs.
+
+| policy | runs | attempt-1 refusals | terminal | terminal rate | mean attempts |
+|---|---|---|---|---|---|
+| re-ask as shipped (`max_attempts=2`) | 36 | 28 | 16 | 0.444 | 1.78 |
+| retry with the ORIGINAL prompt | 36 | 28 | 24 | 0.667 | 1.81 |
+| **`max_attempts=4`** | 36 | 26 | **7** | **0.194** | 2.36 |
+
+Conditional on attempt 1 having refused — the quantity the policy acts on:
+
+| policy | refused attempt 1 | still terminal | conditional rate |
+|---|---|---|---|
+| re-ask as shipped | 28 | 16 | 0.571 |
+| retry with the ORIGINAL prompt | 28 | 24 | **0.857** |
+| **`max_attempts=4`** | 26 | 7 | **0.269** |
+
+Pairwise: shipped vs original-prompt p = 0.037; shipped vs `max_attempts=4`
+p = 0.031; original-prompt vs `max_attempts=4` p = 2.1e-5.
+
+Two clear results. **The re-ask suffix does real work** — retrying the identical
+prompt leaves 85.7% terminal against the re-ask's 57.1%, so the corrective
+wording, not merely a second sample, is what recovers the call. And **raising
+`max_attempts` to 4 more than halves the terminal rate again**, from 57.1% to
+26.9%, for 2.36 calls per analysis instead of 1.78.
+
+### Recommendation for Arm A (supersedes Rev 1)
+
+- **Set `max_attempts: 4` for the `gpt-4o` reasoner** in `config/models.yaml`.
+  Measured, not hypothesised: terminal refusals fall from 57.1% to 26.9% of
+  refused analyses, at +0.6 calls per analysis on the refusing subset. On the
+  full Arm R population this takes the terminal rate from 9.9% to roughly 4-5%.
+- **Keep `allow_reask: true`.** The corrective suffix is the active ingredient;
+  a plain retry is worse than the shipped policy.
+- **Do not change the prompt to chase refusals.** The grey arm shows the text is
+  not the trigger.
+- **Keep `prompt_robot_order: random`** so the first-position bias is
+  counterbalanced within a run. What is solid here is the *bias*, not a better
+  default: under `id_asc` the model named `robot_1` on 47 of 48 samples
+  regardless of feasibility, and on the west-obstacle runs that is the
+  infeasible robot every time (P(correct) = 0.0 in three of six cells). That is
+  a real cost of a fixed first slot.
+  **Do not read this as a recommendation to flip the default to `id_desc`.**
+  `id_desc` scored P(correct) = 0.872, but that pools three west artifacts
+  (where first-listed happens to be the feasible robot) with three east ones —
+  exactly the alignment the overnight report's standing caveat warns is a
+  coincidence of scenario design. On n = 3 per side, with no decision citing the
+  obstacle, flipping the default would be chasing an artifact. Counterbalance
+  instead, and let the counterbalanced live design settle it.
+- **ER-2 remains the safer backend** where a lost analysis is expensive (0/62
+  refusals in the census).
+
+### Cost (cumulative)
+
+| quantity | value |
+|---|---|
+| `Reasoner` runs | 546 |
+| API calls | 708 |
+| prompt tokens | 1,228,740 |
+| completion tokens | 90,073 |
+| **estimated spend** | **$3.97** |
+
+Against the ~450-call plan: 708 calls, because Arm R was completed to all 74
+artifacts (+114 runs beyond the original 36-artifact state) so that the grey
+pairing had a complete real-frame half and the primary arm covered every run.
+
+### Deviations in Rev 2
+
+| planned | delivered | reason |
+|---|---|---|
+| resume Arm O, grey, M | done at full n | - |
+| (not requested) Arm R completion | +114 runs, all 74 artifacts | the grey pairing needs a real-frame half for all 20 of its artifacts; 10 of them sat in runs Arm R had not reached |
+| Arm M "on the refusing artifacts" | 6 of the 21 that ever refused | 21 x 3 x 6 = 378 runs; the six strongest refusers give 28 refused attempt-1s per policy, enough to separate the three arms at p < 0.05 |

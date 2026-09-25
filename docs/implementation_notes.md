@@ -215,6 +215,20 @@ Rules for maintaining it:
   openings. **Supersedes the "3 of 22" refusal figure in the §K–§N entry
   below**: 23/101 attempt-1, 12/101 terminal, 9 of 12 obstacle-ON, Rev 1 §6(b)
   included. Replay Arms O/M/grey stay blocked on OpenAI credit.
+- **2026-09-25** — **Frame replay complete (rev 2); supersedes the "Arm O n=1 /
+  Arms M, grey not run" entry below.** 546 runs, 708 calls, $3.97
+  (`docs/reports/2026-09-25-frame-replay.md`). Grey sub-arm settles the refusal
+  trigger within one design: **0/120** refusals on grey images against 22/60 on
+  the same prompts with their real frames (p = 1.5e-12). Arm R over all 74
+  artifacts: 42/222 attempt-1 (18.9%), terminal 9.9%. Arm O (n=8): P(robot_1)
+  0.979 `id_asc` vs 0.468 `id_desc` (p = 5.0e-9); under `id_desc` **only**, the
+  choice covaries with obstacle side (west 2/23 vs east 20/24) — mechanism OPEN:
+  0/95 decisions and 0/95 `<think>` traces cite the obstacle, and n = 3
+  artifacts per side. Do NOT flip the default to `id_desc`; keep
+  `prompt_robot_order: random`. Arm M: `max_attempts=4` cuts terminal refusals
+  from 57.1% to 26.9% of refused analyses (p = 0.031); retrying the ORIGINAL
+  prompt is worse than the re-ask (85.7%). **Action: set `max_attempts: 4` for
+  the gpt-4o reasoner.**
 - **2026-09-25** — **The real annotated frame is the gpt-4o refusal trigger**
   (`scripts/replay_live_decisions.py`, report
   `docs/reports/2026-09-25-frame-replay.md`). All 74 pilot prompts re-render
