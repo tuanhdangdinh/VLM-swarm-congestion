@@ -8,6 +8,18 @@ goal_reached_tolerance_m: 0.15
 # while M1 still sees it within this radius of that goal (M1 can read a parked
 # robot 0.2-0.3 m off near the ROI edge, outside goal_reached_tolerance_m).
 arrived_radius_m: 0.5
+# Nav2's "Goal succeeded" is the primary outcome measure of the experiment and is
+# not evidence the robot is at its goal: run 20260925_124609 had bt_navigator
+# succeed for robot_2 while M1 put it 0.59 m away. Cross-check M4's base-goal
+# arrival report against M1's position before marking the robot arrived.
+arrival_position_check: true
+# Must exceed M1's ~0.1 m camera bias at the goal (0.15 m vs 0.06 m ground truth
+# on 2026-09-17) and stay at or below arrived_radius_m above; 0.59 m was the
+# observed false success.
+arrival_position_tolerance_m: 0.35
+# Older M1 estimates cannot corroborate an arrival; it is then accepted and
+# logged as unverified rather than blocked on an M1 outage.
+arrival_estimate_max_age_sec: 2.0
 proximity_threshold_m: 0.50
 proximity_slow_speed_mps: 0.05
 cooldown_sec: 15.0

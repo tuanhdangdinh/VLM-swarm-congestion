@@ -31,6 +31,7 @@ from reasoning.vlm.models import (
     RobotPresentationOrder,
 )
 from reasoning.vlm.reasoner import Reasoner
+from swarm_orchestrator.arrival import ArrivalDecision, ArrivalGate
 from swarm_orchestrator.command_lifecycle import (
     AttemptMemory,
     CommandRecord,
@@ -128,6 +129,7 @@ class OrchestratorNode(Node):
         self._pipeline = pipeline or _build_default_pipeline(self._config)
 
         self._detector = CongestionDetector(self._config)
+        self._arrival = ArrivalGate(self._config, self._detector.mark_arrived)
         self._machine = OrchestratorStateMachine()
         self._tracker = CommandTracker()
         self._cooldown = CooldownTracker(self._config.cooldown_sec)
@@ -166,6 +168,9 @@ class OrchestratorNode(Node):
         self._frame_rgb = None
         self._frame_stamp: float | None = None
         self._latest_snapshot = None
+        # Monotonic receipt time of _latest_snapshot. M1 stamps are on a
+        # different clock, so estimate age is measured from arrival here.
+        self._latest_snapshot_at: float | None = None
         self.last_published_registry: str | None = None
 
         topics = self._config.topics
@@ -215,6 +220,7 @@ class OrchestratorNode(Node):
             return
         self._latest_snapshot = snapshot
         now = time.monotonic()
+        self._latest_snapshot_at = now
         if (
             self._config.scene_log_dir
             and now - self._last_scene_log_at >= self._config.scene_log_period_sec
@@ -230,6 +236,10 @@ class OrchestratorNode(Node):
                 )
             except OSError as exc:
                 self.get_logger().error(f"scene log write failed: {exc}")
+        # Before the detector, so a late-accepted arrival suppresses stall
+        # evidence from this same scene rather than the next one.
+        for decision in self._arrival.on_scene(snapshot, self._effective_goal):
+            self._apply_arrival(decision)
         event = self._detector.update(snapshot, self._effective_goal, now)
         if event is None:
             return
@@ -264,9 +274,10 @@ class OrchestratorNode(Node):
             if msg.status.upper() == "COMPLETED":
                 goal = self._effective_goal(msg.robot_id)
                 if goal is not None:
-                    self._detector.mark_arrived(msg.robot_id, goal)
-                    self._episodes.end_episode([msg.robot_id])
-                    self.get_logger().info(f"robot {msg.robot_id} arrived at base goal {goal}")
+                    estimate, age = self._latest_estimate(msg.robot_id)
+                    self._apply_arrival(
+                        self._arrival.on_nav2_success(msg.robot_id, goal, estimate, age)
+                    )
             return
         self._tracker.apply_status(msg.command_id, msg.robot_id, msg.status)
         if self._tracker.is_resolved(msg.command_id):
@@ -514,6 +525,53 @@ class OrchestratorNode(Node):
     def _effective_goal(self, robot_id: str):
         eff = self._registry.effective(robot_id)
         return None if eff is None else eff[1]
+
+    def _latest_estimate(self, robot_id: str):
+        """Return M1's latest view of a robot and its age in seconds, or (None, None)."""
+        snapshot = self._latest_snapshot
+        if snapshot is None or self._latest_snapshot_at is None:
+            return None, None
+        view = next((r for r in snapshot.robots if r.robot_id == robot_id), None)
+        if view is None:
+            return None, None
+        return view, time.monotonic() - self._latest_snapshot_at
+
+    def _apply_arrival(self, decision: ArrivalDecision) -> None:
+        """Log one arrival verdict and close the episode when it is accepted.
+
+        The gate has already marked the robot arrived (or deliberately not);
+        this only mirrors the verdict into the episode tracker and the log.
+        """
+        check = decision.check
+        if check is None:
+            self._episodes.end_episode([decision.robot_id])
+            self.get_logger().info(
+                f"robot {decision.robot_id} arrived at base goal {decision.goal}"
+            )
+            return
+        distance = "none" if check.distance_m is None else f"{check.distance_m:.2f}"
+        # M5 publishes no diagnostics topic, so the running tallies ride on the
+        # two lines that report a disagreement with Nav2; the last such line in
+        # a run's log carries the run totals.
+        counts = self._arrival.counts
+        if not check.accepted:
+            self.get_logger().warning(
+                f"arrival rejected robot={decision.robot_id} distance_m={distance} "
+                f"tolerance_m={self._config.arrival_position_tolerance_m} "
+                f"reason={check.reason} (Nav2 reported success) counts={counts}"
+            )
+            return
+        self._episodes.end_episode([decision.robot_id])
+        if decision.late:
+            self.get_logger().info(
+                f"arrival accepted late robot={decision.robot_id} "
+                f"distance_m={distance} counts={counts}"
+            )
+            return
+        self.get_logger().info(
+            f"robot {decision.robot_id} arrived at base goal {decision.goal} "
+            f"distance_m={distance} check={check.reason}"
+        )
 
     def _busy_robots(self) -> set[str]:
         busy: set[str] = set()

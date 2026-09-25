@@ -1,4 +1,10 @@
 """M5 orchestrator: congestion detection, reasoning pipeline, command lifecycle."""
+from swarm_orchestrator.arrival import (
+    ArrivalCheck,
+    ArrivalDecision,
+    ArrivalGate,
+    classify_arrival,
+)
 from swarm_orchestrator.command_lifecycle import (
     CommandRecord,
     CommandState,
@@ -33,6 +39,9 @@ from swarm_orchestrator.state_machine import (
 from swarm_orchestrator.task_registry import TaskRegistry
 
 __all__ = [
+    "ArrivalCheck",
+    "ArrivalDecision",
+    "ArrivalGate",
     "CommandRecord",
     "CommandState",
     "CommandTracker",
@@ -52,6 +61,7 @@ __all__ = [
     "TaskRegistry",
     "TerminalStage",
     "build_failed_outcome",
+    "classify_arrival",
     "build_reasoner_request",
     "dump_frame_png",
     "fan_out_command",

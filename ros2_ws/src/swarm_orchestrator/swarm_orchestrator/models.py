@@ -58,6 +58,20 @@ class OrchestratorConfig(BaseModel):
     # the arrived mark excuses it from stall evidence while it stays within this
     # radius of that goal, and lapses once it is driven farther away.
     arrived_radius_m: float = Field(default=0.5, ge=0.0)
+    # Nav2's "Goal succeeded" is not evidence the robot is at its goal: in run
+    # 20260925_124609 bt_navigator succeeded for robot_2 while M1 put it 0.59 m
+    # away, which would have scored as an episode success. Cross-check the
+    # report against M1's position before marking the robot arrived (FR5.1.9).
+    arrival_position_check: bool = True
+    # Must exceed M1's ~0.1 m camera bias at the goal and stay at or below
+    # arrived_radius_m (enforced below), or an accepted arrival would sit
+    # outside the radius that excuses it from stall evidence. Setting it below
+    # goal_reached_tolerance_m is legal but creates a limbo band where a robot
+    # is neither accepted nor stall-eligible; prefer a value above it.
+    arrival_position_tolerance_m: float = Field(default=0.35, gt=0.0)
+    # Oldest M1 estimate still allowed to corroborate an arrival; beyond it the
+    # arrival is accepted unverified rather than blocked on an M1 outage.
+    arrival_estimate_max_age_sec: float = Field(default=2.0, gt=0.0)
     proximity_threshold_m: float = Field(default=0.5, ge=0.0)
     proximity_slow_speed_mps: float = Field(default=0.05, ge=0.0)
     cooldown_sec: float = Field(ge=0.0)
@@ -123,6 +137,16 @@ class OrchestratorConfig(BaseModel):
                 f"failure_context_window_sec={window} can never fire: a re-detection "
                 f"takes at least cooldown_sec + stall_threshold_sec = {bound} s; set it "
                 "above that bound, or 0 to disable"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _arrival_tolerance_within_arrived_radius(self) -> OrchestratorConfig:
+        if self.arrival_position_tolerance_m > self.arrived_radius_m:
+            raise ValueError(
+                f"arrival_position_tolerance_m={self.arrival_position_tolerance_m} exceeds "
+                f"arrived_radius_m={self.arrived_radius_m}: an arrival accepted beyond that "
+                "radius is not excused from stall evidence and would be re-flagged at once"
             )
         return self
 
