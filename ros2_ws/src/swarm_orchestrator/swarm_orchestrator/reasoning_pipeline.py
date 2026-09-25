@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 
 from reasoning.rag.command_grounder import (
+    YieldFeasibilityMode,
     filter_command_robot_ids,
     validate_coordination_command,
 )
@@ -44,6 +45,8 @@ class GroundFn(Protocol):
         result: ReasonerResult,
         robot_positions: dict[str, tuple[float, float]] | None = None,
         geometry: SceneGeometry | None = None,
+        static_obstacles: Sequence[StaticObstacleInput] = (),
+        yield_feasibility_mode: YieldFeasibilityMode = "off",
     ) -> dict[str, Any]: ...
 
 
@@ -315,12 +318,18 @@ class InProcessPipeline:
         ground_fn: GroundFn,
         validate_fn: ValidateFn | None = None,
         scene_geometry: SceneGeometry | None = None,
+        static_obstacles: Sequence[StaticObstacleInput] = (),
+        yield_feasibility_mode: YieldFeasibilityMode = "off",
     ) -> None:
         self._reasoner = reasoner
         self._ground_fn = ground_fn
         # Declared scenario geometry from M5 config; None leaves M3 on its
         # hand-sized fallback distances.
         self._scene_geometry = scene_geometry
+        # Read only by M3's yield feasibility gate; with no obstacles declared
+        # the gate is a no-op whatever the mode says.
+        self._static_obstacles = static_obstacles
+        self._yield_feasibility_mode = yield_feasibility_mode
         # Default to the M3 schema validator (FR5.3.2 / spec §5: grounded commands
         # are schema-validated before they can reach OK and be dispatched).
         self._validate_fn = validate_fn or validate_coordination_command
@@ -344,7 +353,11 @@ class InProcessPipeline:
             positions = {robot.robot_id: (robot.x, robot.y) for robot in request.robot_states}
             grounded = filter_command_robot_ids(
                 self._ground_fn(
-                    result, robot_positions=positions, geometry=self._scene_geometry
+                    result,
+                    robot_positions=positions,
+                    geometry=self._scene_geometry,
+                    static_obstacles=self._static_obstacles,
+                    yield_feasibility_mode=self._yield_feasibility_mode,
                 ),
                 allowed_robot_ids,
             )

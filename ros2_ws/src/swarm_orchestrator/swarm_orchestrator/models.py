@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from reasoning.rag.command_grounder import YieldFeasibilityMode
 from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import (
     ReasonerResult,
@@ -100,6 +101,11 @@ class OrchestratorConfig(BaseModel):
     # Handed to M3 so the yield maneuver is derived from declared scene
     # dimensions; None keeps M3's hand-sized head_on_deadlock fallbacks.
     scenario_geometry: SceneGeometry | None = None
+    # Whether M3 may move a yield off the robot M2 named when that robot is
+    # boxed in. Needs both static_obstacles and scenario_geometry to do
+    # anything; "off" keeps every grounded command byte-identical to the ones
+    # collected before the gate existed.
+    grounding_yield_feasibility: YieldFeasibilityMode = "off"
 
     @field_validator("initial_tasks")
     @classmethod

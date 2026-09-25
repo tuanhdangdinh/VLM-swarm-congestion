@@ -77,6 +77,8 @@ def _build_default_pipeline(config: OrchestratorConfig) -> ReasoningPipeline:
         reasoner=reasoner,
         ground_fn=ground_reasoner_result,
         scene_geometry=config.scenario_geometry,
+        static_obstacles=config.static_obstacles,
+        yield_feasibility_mode=config.grounding_yield_feasibility,
     )
 
 

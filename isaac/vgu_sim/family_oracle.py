@@ -12,10 +12,13 @@ from typing import Literal
 import yaml
 
 from isaac.vgu_sim.config import HeadOnAsymmetricParams, OracleConfig
-from reasoning.rag.scene_geometry import SceneGeometry, park_offset_m
+from reasoning.rag.scene_geometry import (
+    SceneGeometry,
+    required_room_m,
+    room_is_feasible,
+)
 
 SPAWN_OFFSET_M: float = 0.5
-FEASIBILITY_MARGIN_M: float = 0.2
 BOX_LENGTH_M: float = 0.3
 SIDE_ROBOT: dict[str, str] = {"west": "robot_1", "east": "robot_2"}
 
@@ -31,23 +34,6 @@ def load_scene_geometry(orchestrator_yaml: Path) -> SceneGeometry:
     """
     data = yaml.safe_load(orchestrator_yaml.read_text())["scenario_geometry"]
     return SceneGeometry.model_validate(data)
-
-
-def required_room_m(geometry: SceneGeometry) -> float:
-    """Minimum room from the corridor mouth a blocked spawn must retain to park.
-
-    Args:
-        geometry: Declared scene geometry.
-
-    Returns:
-        Required room in meters.
-    """
-    return (
-        park_offset_m(geometry)
-        - geometry.corridor.half_length_m
-        + geometry.robot.half_width_m
-        + FEASIBILITY_MARGIN_M
-    )
 
 
 def room_from_mouth_m(blocker_m: float | None) -> float | None:
@@ -77,10 +63,7 @@ def side_feasible(blocker_m: float | None, geometry: SceneGeometry) -> bool:
     Returns:
         True when the side is open, or the blocker leaves enough room.
     """
-    room = room_from_mouth_m(blocker_m)
-    if room is None:
-        return True
-    return room >= required_room_m(geometry)
+    return room_is_feasible(room_from_mouth_m(blocker_m), geometry)
 
 
 def fcfs_yielder(arrival_offset_m: float) -> str:

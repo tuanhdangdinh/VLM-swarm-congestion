@@ -1,4 +1,5 @@
-from typing import Any, Literal
+from collections.abc import Sequence
+from typing import Any, Literal, NamedTuple
 
 from jsonschema import Draft202012Validator
 
@@ -7,9 +8,18 @@ from reasoning.rag.scene_geometry import (
     park_offset_m,
     passer_clearance_m,
     pull_off_lateral_m,
+    required_room_m,
+    yield_feasible,
+    yield_retreat_room_m,
 )
 from reasoning.schemas import load_schema
-from reasoning.vlm.models import CongestionDecision, ReasonerResult
+from reasoning.vlm.models import CongestionDecision, ReasonerResult, StaticObstacleInput
+
+# What to do when the yielder M2 named cannot physically reach its park point:
+# "off" grounds the named yielder regardless (every artifact collected before
+# this gate existed was produced this way), "swap" re-grounds the yield to a
+# feasible involved robot, "refuse" only ever degrades to a temporary wait.
+YieldFeasibilityMode = Literal["off", "swap", "refuse"]
 
 
 class CommandGroundingError(ValueError):
@@ -127,10 +137,105 @@ def _beyond_corridor_same_side(
     return both_beyond and d_first * d_second > 0
 
 
+class _YieldFeasibility(NamedTuple):
+    """Outcome of the feasibility gate: who yields, and why that changed."""
+
+    robot_ids: list[str]
+    grounded_from: str | None
+    regrounded_reason: str | None
+    refusal_reason: str | None
+
+
+def _room_text(room_m: float | None) -> str:
+    return "unbounded" if room_m is None else f"{room_m:.2f} m"
+
+
+def _apply_yield_feasibility(
+    robot_ids: list[str],
+    robot_positions: dict[str, tuple[float, float]],
+    static_obstacles: Sequence[StaticObstacleInput],
+    geometry: SceneGeometry,
+    mode: YieldFeasibilityMode,
+) -> _YieldFeasibility:
+    """Re-ground or refuse a yield whose named yielder cannot reach its park point.
+
+    Each involved robot is scored as the candidate yielder: it would retreat to
+    its own side of the corridor (away from the other robot), so the static
+    obstacles beyond that corridor mouth bound how far back it can go.
+
+    Args:
+        robot_ids: Involved robots, the decided yielder first.
+        robot_positions: World-frame `(x, y)` in metres per robot id.
+        static_obstacles: Fixed obstacles of the running scenario.
+        geometry: Declared scene geometry.
+        mode: `"swap"` may re-ground the yield to a feasible robot; `"refuse"`
+            never swaps.
+
+    Returns:
+        The (possibly reordered) robot ids plus the provenance and reason
+        strings the grounded command should carry.
+    """
+    axis_index = 0 if geometry.corridor.axis == "x" else 1
+    positions = {
+        robot_id: robot_positions.get(robot_id) for robot_id in robot_ids
+    }
+    if any(position is None for position in positions.values()):
+        # Without every position the retreat side is undefined; leave the
+        # decision alone rather than swapping on a partial scene.
+        return _YieldFeasibility(robot_ids, None, None, None)
+
+    rooms: dict[str, float | None] = {}
+    feasible: dict[str, bool] = {}
+    for robot_id, position in positions.items():
+        assert position is not None
+        # The retreat side is taken against the first other involved robot,
+        # which is exact for the two-robot head-on scenes this gate targets; a
+        # three-robot conflict would need a per-pair side instead.
+        other = next(positions[o] for o in robot_ids if o != robot_id)
+        assert other is not None
+        side = -1.0 if position[axis_index] < other[axis_index] else 1.0
+        rooms[robot_id] = yield_retreat_room_m(position, side, static_obstacles, geometry)
+        feasible[robot_id] = yield_feasible(position, side, static_obstacles, geometry)
+
+    decided = robot_ids[0]
+    if feasible[decided]:
+        return _YieldFeasibility(robot_ids, None, None, None)
+
+    required = required_room_m(geometry)
+    shortfall = (
+        f"{decided} has {_room_text(rooms[decided])} retreat room "
+        f"< {required:.2f} m required"
+    )
+    if mode == "swap":
+        # Ties break on involved_robots order; the two-robot head-on scenes
+        # this gate was written for never offer more than one candidate.
+        candidates = [robot_id for robot_id in robot_ids[1:] if feasible[robot_id]]
+        if candidates:
+            chosen = candidates[0]
+            reordered = [chosen] + [
+                robot_id for robot_id in robot_ids if robot_id != chosen
+            ]
+            reason = f"yield re-grounded: {shortfall}; {chosen} feasible"
+            return _YieldFeasibility(reordered, decided, reason, None)
+        rooms_text = ", ".join(
+            f"{robot_id} {_room_text(rooms[robot_id])}" for robot_id in robot_ids
+        )
+        return _YieldFeasibility(
+            robot_ids,
+            None,
+            None,
+            f"yield refused: no feasible yielder ({rooms_text} retreat room "
+            f"< {required:.2f} m required)",
+        )
+    return _YieldFeasibility(robot_ids, None, None, f"yield refused: {shortfall}")
+
+
 def ground_reasoner_result(
     result: ReasonerResult,
     robot_positions: dict[str, tuple[float, float]] | None = None,
     geometry: SceneGeometry | None = None,
+    static_obstacles: Sequence[StaticObstacleInput] = (),
+    yield_feasibility_mode: YieldFeasibilityMode = "off",
 ) -> dict[str, Any]:
     """Convert a validated VLM decision into an executable coordination command.
 
@@ -166,6 +271,14 @@ def ground_reasoner_result(
             yield park offset, sidestep and passer clearance are computed from
             the corridor, camera and robot dimensions; without it the fallback
             constants sized for head_on_deadlock apply.
+        static_obstacles: Fixed obstacles of the running scenario, from M5
+            config. Only read by the yield feasibility gate; an empty sequence
+            makes that gate a no-op whatever `yield_feasibility_mode` says.
+        yield_feasibility_mode: Whether a yield may be re-grounded away from the
+            robot M2 named. `"off"` (the default) grounds it verbatim, `"swap"`
+            hands the yield to a feasible involved robot when the named one is
+            boxed in, `"refuse"` degrades to a temporary wait instead. The gate
+            needs both `geometry` and `robot_positions`.
 
     Returns:
         Schema-validated coordination command dict.
@@ -180,6 +293,21 @@ def ground_reasoner_result(
         raise CommandGroundingError("cannot ground an empty or non-congestion decision")
 
     robot_ids = resolve_robot_order(decision)
+    yield_grounded_from: str | None = None
+    yield_regrounded_reason: str | None = None
+    yield_refusal_reason: str | None = None
+    if (
+        decision.strategy == "yield"
+        and yield_feasibility_mode != "off"
+        and geometry is not None
+        and robot_positions is not None
+        and len(robot_ids) > 1
+    ):
+        robot_ids, yield_grounded_from, yield_regrounded_reason, yield_refusal_reason = (
+            _apply_yield_feasibility(
+                robot_ids, robot_positions, static_obstacles, geometry, yield_feasibility_mode
+            )
+        )
     command_id = f"{result.request_id}-{decision.strategy}"
     duration_sec = 8.0
     # Fallback distance the yielding robot reverses, used when the caller
@@ -241,8 +369,8 @@ def ground_reasoner_result(
     if decision.strategy == "yield":
         park_coord: float | None = None
         park_axis: Literal["x", "y"] = "x"
-        yield_refused = False
-        if len(robot_ids) > 1 and robot_positions is not None:
+        yield_refused = yield_refusal_reason is not None
+        if not yield_refused and len(robot_ids) > 1 and robot_positions is not None:
             yielder_position = robot_positions.get(robot_ids[0])
             passer_position = robot_positions.get(robot_ids[1])
             if yielder_position is not None and passer_position is not None:
@@ -265,6 +393,11 @@ def ground_reasoner_result(
                     yield_refused = _beyond_corridor_same_side(
                         yielder_position, passer_position, geometry
                     )
+                    if yield_refused:
+                        yield_refusal_reason = (
+                            "yield refused: both robots outside the corridor on "
+                            "the same side; a reverse would traverse it"
+                        )
                 if not yield_refused:
                     # Park on the yielder's own side of the corridor, away
                     # from the passer, so the two never swap sides mid-maneuver.
@@ -300,10 +433,7 @@ def ground_reasoner_result(
                     "parameters": {
                         "duration_sec": duration_sec,
                         "requested_strategy": "yield",
-                        "reason": (
-                            "yield refused: both robots outside the corridor on "
-                            "the same side; a reverse would traverse it"
-                        ),
+                        "reason": yield_refusal_reason,
                     },
                 }
                 for robot_id in robot_ids
@@ -315,6 +445,11 @@ def ground_reasoner_result(
                 "pull_off_lateral_m": pull_off_lateral,
                 "reason": decision.root_cause,
             }
+            if yield_grounded_from is not None:
+                # Provenance for the decision trace: without it a reader of the
+                # command cannot tell M2 named this yielder from M3 picking it.
+                yield_parameters["yield_robot_grounded_from"] = yield_grounded_from
+                yield_parameters["yield_regrounded_reason"] = yield_regrounded_reason
             if park_coord is not None:
                 # Traceability only: M4 derives the backup from
                 # backup_distance_m and reads parameters with .get, so the

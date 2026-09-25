@@ -1,9 +1,10 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 from isaac.vgu_sim import family_oracle as fo
-from isaac.vgu_sim.config import HeadOnAsymmetricParams
+from isaac.vgu_sim.config import HeadOnAsymmetricParams, OracleConfig
 from reasoning.rag.scene_geometry import SceneGeometry, park_offset_m
 
 ORCHESTRATOR_YAML = Path("ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml")
@@ -75,3 +76,27 @@ def test_open_variant_oracle_is_fcfs(geometry):
 def test_double_blocker_has_no_oracle(geometry):
     params = HeadOnAsymmetricParams(blocker_west_m=0.2, blocker_east_m=0.2)
     assert fo.compute_oracle(params, geometry) is None
+
+
+FAMILY_DIR = Path("isaac/config/scenarios/family")
+
+
+@pytest.mark.parametrize(
+    "scenario_yaml", sorted(p.name for p in FAMILY_DIR.glob("head_on_asymmetric_*.yaml"))
+)
+def test_recomputed_oracle_matches_committed_yaml(scenario_yaml, geometry):
+    # The three family yamls are frozen at prereg-v1; their `oracle:` blocks are
+    # the pre-registered answers. Recomputing them here is the regression guard
+    # that moving the feasibility math into reasoning/rag/scene_geometry.py left
+    # the oracle numerically identical. Isaac is not importable on every dev
+    # machine, so this goes through `family_oracle` directly rather than the
+    # generator script.
+    raw = yaml.safe_load((FAMILY_DIR / scenario_yaml).read_text())
+    params = HeadOnAsymmetricParams(**raw["parameters"])
+
+    recomputed = fo.compute_oracle(params, geometry)
+
+    assert recomputed is not None
+    assert recomputed.model_dump(mode="json") == OracleConfig(**raw["oracle"]).model_dump(
+        mode="json"
+    )

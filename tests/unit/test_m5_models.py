@@ -330,3 +330,26 @@ def test_congestion_event_distance_to_goal_defaults_to_empty():
         reason="x",
     )
     assert event.distance_to_goal_m == {}
+
+
+def test_orchestrator_config_yield_feasibility_defaults_off():
+    # Default off: the gate can move a yield to a different robot, so turning it
+    # on is an experimental condition, never a silent default.
+    assert _config_with().grounding_yield_feasibility == "off"
+    assert _config_with(grounding_yield_feasibility="swap").grounding_yield_feasibility == "swap"
+
+
+def test_orchestrator_config_yield_feasibility_rejects_unknown_mode():
+    with pytest.raises(ValidationError):
+        _config_with(grounding_yield_feasibility="auto")
+
+
+def test_shipped_orchestrator_yaml_keeps_yield_feasibility_off():
+    # Quoted "off" in the YAML: bare off is YAML 1.1 boolean false and would
+    # fail validation rather than silently disabling the gate.
+    path = Path("ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml")
+    cfg = load_config(yaml.safe_load(path.read_text(encoding="utf-8")))
+
+    assert cfg.grounding_yield_feasibility == "off"
+    # The gate is a no-op without obstacles, whatever the mode says.
+    assert cfg.static_obstacles == ()
