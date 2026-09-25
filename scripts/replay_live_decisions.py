@@ -28,6 +28,11 @@ Six arms:
 * ``F``    — every batch-2 artifact under its annotated frame against the raw
   camera frame dumped beside it, paired per artifact. Asks whether the M1
   overlay, rather than the scene it is drawn on, carries the refusal trigger.
+* ``X``    — the batch-2 live-refused artifacts under the four-attempt retry
+  policy with and without the neutral-image fallback
+  (`ReasonerConfig.image_fallback_after_attempts`). Measures what the mitigation
+  buys on terminal refusal, and whether a fallback decision agrees with the
+  decision the same scene produces with the frame still attached.
 
 Production code is imported, never modified. `Reasoner.run` keeps only the last
 attempt's text, so a recording proxy wraps the backend to capture every attempt;
@@ -130,8 +135,10 @@ NO_JSON_ERROR = "VLM output contains no JSON object."
 
 ORDERS: tuple[RobotPresentationOrder, ...] = ("id_asc", "id_desc")
 
-Arm = Literal["R", "grey", "O", "M", "S", "D", "S2", "F"]
-RetryPolicy = Literal["shipped", "original_prompt", "max_attempts_4"]
+Arm = Literal["R", "grey", "O", "M", "S", "D", "S2", "F", "X"]
+RetryPolicy = Literal[
+    "shipped", "original_prompt", "max_attempts_4", "image_fallback_2"
+]
 
 # Arms recorded before the obstacle-text factor existed. Their cell keys must stay
 # byte-identical or every already-recorded row would be re-run, so the factor is
@@ -482,6 +489,9 @@ class AttemptRecord:
     latency_ms: int | None
     token_usage: dict[str, int] | None
     error: str | None
+    # Basename of the image actually sent, so the neutral-image fallback can be
+    # verified from the record rather than trusted from the diagnostics.
+    image_name: str = ""
 
 
 class RecordingBackend:
@@ -534,6 +544,7 @@ class RecordingBackend:
         """
         attempt = len(self.attempts) + 1
         user_sha = sha256_text(payload.user_prompt)
+        image_name = Path(payload.image_path).name
         backoff = 5.0
         for retry in range(self._max_backoff_retries + 1):
             self._wait_for_slot()
@@ -565,6 +576,7 @@ class RecordingBackend:
                         latency_ms=None,
                         token_usage=None,
                         error=f"{type(exc).__name__}: {message[:300]}",
+                        image_name=image_name,
                     )
                 )
                 raise
@@ -579,6 +591,7 @@ class RecordingBackend:
                     latency_ms=response.latency_ms,
                     token_usage=response.token_usage,
                     error=None,
+                    image_name=image_name,
                 )
             )
             return response
@@ -621,10 +634,15 @@ class Cell:
         return "|".join(parts)
 
 
+# `shipped` tracks production, so its meaning moves when config/models.yaml
+# does: rows recorded before 2026-09-26 predate `image_fallback_after_attempts:
+# 2` and are not comparable with `shipped` rows recorded after it. The two named
+# policies below pin the factor explicitly so Arm X's control cannot inherit it.
 _POLICY_OVERRIDES: dict[RetryPolicy, dict[str, Any]] = {
     "shipped": {},
     "original_prompt": {"allow_reask": False},
-    "max_attempts_4": {"max_attempts": 4},
+    "max_attempts_4": {"max_attempts": 4, "image_fallback_after_attempts": None},
+    "image_fallback_2": {"max_attempts": 4, "image_fallback_after_attempts": 2},
 }
 
 
@@ -719,6 +737,14 @@ def run_cell(
         "temperature": config.temperature,
         "max_attempts": config.max_attempts,
         "allow_reask": config.allow_reask,
+        "image_fallback_after_attempts": config.image_fallback_after_attempts,
+        "image_fallback_used": bool(
+            result and result.diagnostics.image_fallback_used
+        ),
+        "image_fallback_attempt": (
+            result.diagnostics.image_fallback_attempt if result else None
+        ),
+        "refusal_attempts": result.diagnostics.refusal_attempts if result else None,
         "prompt_user_sha256": payload_sha,
         "prompt_matches_live": payload_sha == cell.artifact.stored_user_sha256,
         "live_attempt1_refusal": cell.artifact.live_attempt1_refusal,
@@ -1040,6 +1066,37 @@ def build_arm_f_cells(artifacts: list[Artifact], n: int) -> list[Cell]:
     ]
 
 
+def build_arm_x_cells(refused: list[Artifact], n: int) -> list[Cell]:
+    """Image-fallback comparison cells on the artifacts that refused live.
+
+    Both policies run four attempts; they differ only in whether a refusal on
+    attempt 2 swaps the frame for a neutral image on attempt 3. The control pins
+    `image_fallback_after_attempts` to None rather than using `shipped`, which now
+    carries the mitigation.
+
+    This module keeps its own `is_refusal` (the census definition already baked
+    into every recorded `refused` flag) rather than importing the production one,
+    so old and new rows stay comparable. On 1407 recorded attempt texts the two
+    agree except on 7 "I'm sorry, but I can't help with that." responses, which
+    only the production detector counts; the recorded `refused` flag therefore
+    slightly under-counts what the mitigation itself acts on.
+
+    Args:
+        refused: Artifacts whose live attempt 1 was refused.
+        n: Replicates per policy.
+
+    Returns:
+        The configured cells, control policy before fallback policy.
+    """
+    policies: tuple[RetryPolicy, ...] = ("max_attempts_4", "image_fallback_2")
+    return [
+        Cell("X", artifact, artifact.stored_order, "real", artifact.image_path, policy, index)
+        for artifact in refused
+        for policy in policies
+        for index in range(n)
+    ]
+
+
 def build_arm_m_cells(refusing: list[Artifact], n: int) -> list[Cell]:
     """Retry-policy comparison cells on the artifacts that refused in Arm R."""
     policies: tuple[RetryPolicy, ...] = ("shipped", "original_prompt", "max_attempts_4")
@@ -1288,6 +1345,8 @@ def analyze(records: list[dict[str, Any]], artifacts: list[Artifact]) -> None:
             terminal = sum(int(terminal_refusal(r)) for r in refused)
             print(f"{policy},{len(refused)},{terminal},{terminal / len(refused):.3f}")
 
+    if by_arm.get("X"):
+        analyze_arm_x(by_arm["X"])
     if by_arm.get("S"):
         analyze_arm_s(by_arm["S"], "batch 1")
     if by_arm.get("S2"):
@@ -1318,6 +1377,103 @@ def analyze(records: list[dict[str, Any]], artifacts: list[Artifact]) -> None:
         f"\n## Cost\nreasoner runs={len(records)} api calls={api_calls} "
         f"prompt_tokens={prompt_tokens} completion_tokens={completion_tokens} "
         f"est_usd={cost:.2f}"
+    )
+
+
+ARM_X_POLICIES: tuple[RetryPolicy, ...] = ("max_attempts_4", "image_fallback_2")
+
+
+def _decision_keys(records: list[dict[str, Any]]) -> dict[str, set[tuple[str, str | None]]]:
+    """Map each artifact to the `(strategy, yield_robot)` pairs it produced."""
+    keys: dict[str, set[tuple[str, str | None]]] = defaultdict(set)
+    for record in records:
+        decision = record.get("decision")
+        if decision:
+            keys[record["request_id"]].add(
+                (decision["strategy"], decision.get("yield_robot"))
+            )
+    return keys
+
+
+def analyze_arm_x(records: list[dict[str, Any]]) -> None:
+    """Print the image-fallback comparison: refusal cost, and decision agreement.
+
+    Agreement is computed on the fired subset alone. Most fallback-policy runs
+    never trigger the swap (attempt 1 already parsed), so pooling them would
+    compare a cell with itself and drive agreement to 100% by construction.
+
+    Args:
+        records: Arm-X call records.
+    """
+    print("\n## Arm X (neutral-image fallback vs four attempts alone)")
+    print(
+        "policy,runs,attempt1_refusals,terminal_refusals,terminal_rate,decided,"
+        "fallback_used,mean_attempts,transport_errors"
+    )
+    terminals: dict[str, tuple[int, int]] = {}
+    for policy in ARM_X_POLICIES:
+        group = [r for r in records if r["policy"] == policy]
+        if not group:
+            continue
+        refusals, runs = _attempt1_stats(group)
+        terminal = sum(int(terminal_refusal(r)) for r in group)
+        terminals[policy] = (terminal, len(group))
+        print(
+            f"{policy},{runs},{refusals},{terminal},"
+            f"{(terminal / len(group)):.3f},"
+            f"{sum(1 for r in group if r.get('decision') is not None)},"
+            f"{sum(int(bool(r.get('image_fallback_used'))) for r in group)},"
+            f"{sum(r['n_attempts'] for r in group) / len(group):.2f},"
+            f"{sum(int(bool(r.get('error'))) for r in group)}"
+        )
+    if len(terminals) == 2:
+        (a, an), (c, cn) = terminals["max_attempts_4"], terminals["image_fallback_2"]
+        print(
+            f"terminal refusal {_rate(a, an)} vs {_rate(c, cn)}, "
+            f"fisher p={fisher_two_sided(a, an - a, c, cn - c):.4g}"
+        )
+
+    # Conditional on the quantity the policy acts on: a refused attempt 1.
+    print("policy,refused_attempt1,still_terminal,conditional_terminal_rate")
+    for policy in ARM_X_POLICIES:
+        refused = [r for r in records if r["policy"] == policy and r["attempt1_refusal"]]
+        if refused:
+            terminal = sum(int(terminal_refusal(r)) for r in refused)
+            print(f"{policy},{len(refused)},{terminal},{terminal / len(refused):.3f}")
+
+    fired = [
+        r
+        for r in records
+        if r.get("image_fallback_used") and r.get("decision") is not None
+    ]
+    control = _decision_keys([r for r in records if r["policy"] == "max_attempts_4"])
+    strategy_ok = sum(
+        1
+        for r in fired
+        if r["strategy"] in {k[0] for k in control.get(r["request_id"], set())}
+    )
+    yields = [
+        r
+        for r in fired
+        if r["strategy"] == "yield"
+        and any(k[0] == "yield" for k in control.get(r["request_id"], set()))
+    ]
+    yield_ok = sum(
+        1
+        for r in yields
+        if r["yield_robot"]
+        in {k[1] for k in control.get(r["request_id"], set()) if k[0] == "yield"}
+    )
+    fired_all = sum(1 for r in records if r.get("image_fallback_used"))
+    print(
+        f"\nfallback fired on {fired_all} runs "
+        f"({len({r['request_id'] for r in records if r.get('image_fallback_used')})} artifacts); "
+        f"{len(fired)} produced a decision"
+    )
+    print(
+        f"decision agreement with the frame-attached control: "
+        f"strategy {_rate(strategy_ok, len(fired))}, "
+        f"yield_robot {_rate(yield_ok, len(yields))} of the paired yields"
     )
 
 
@@ -1804,7 +1960,8 @@ def main() -> None:
     parser.add_argument(
         "--arm",
         choices=[
-            "integrity", "R", "grey", "O", "M", "S", "D", "S2", "F", "summary", "analyze"
+            "integrity", "R", "grey", "O", "M", "S", "D", "S2", "F", "X",
+            "summary", "analyze",
         ],
         default="integrity",
         help="which arm to run; 'integrity' only checks reconstruction",
@@ -1903,6 +2060,13 @@ def main() -> None:
             f"{len(no_skew)} without a logged skew"
         )
         cells = build_arm_f_cells(matched, args.n)
+    elif args.arm == "X":
+        refused = [a for a in matched if a.live_attempt1_refusal]
+        print(
+            f"arm X: {len(refused)} live-refused artifacts x "
+            f"{len(ARM_X_POLICIES)} policies x {args.n}"
+        )
+        cells = build_arm_x_cells(refused, args.n)
     elif args.arm == "D":
         refused = [a for a in matched if a.live_attempt1_refusal]
         downscaled = {
