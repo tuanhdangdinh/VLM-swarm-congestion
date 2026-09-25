@@ -23,14 +23,29 @@ from reasoning.vlm.prompt_builder import (
     render_visual_crosscheck_block,
 )
 
-# SHA-256 of the rendered user prompt for `_request()` before the opt-in
-# visual-crosscheck block existed (commit 7f5e075, the prompt every artifact under
-# data/logs/er2_grounding was produced with). Pinned so a stray newline from the
-# new placeholder cannot silently change the default prompt: the flag is an added
-# ablation condition, not a change to the apparatus.
-_BASELINE_PROMPT_SHA256 = "5a57c937ff3a25021e6819f89e9f61fcf5d70ba1b15b969c3eb19bd80409ddfc"
+# SHA-256 of the rendered user prompt for `_request()` with the opt-in
+# visual-crosscheck block off. Pinned so a stray newline from the placeholder
+# cannot silently change the default prompt: the flag is an added ablation
+# condition, not a change to the apparatus.
+#
+# Re-pinned when `feat/gemini-er2-backend` merged into the FR2.1.9 line: these
+# constants were generated at 7f5e075, which predates the permanent `yield_robot`
+# stimulus change (rev-8 spec rev 8.6, 2026-09-19). Rendering `_request()` at
+# 7d6e1c4 and at the merge differs only by the three documented FR2.1.9 edits —
+# the guidance clause ("the robot named in yield_robot backs up" replacing
+# "first listed robot backs up"), the `"yield_robot"` output-format bullet, and
+# the extended `<think>` step — so the placeholder still adds no bytes and the
+# pin is re-pointed rather than the code changed. The geometry-on value is now
+# identical to `_PRE_OBSTACLE_OFF_PROMPT_SHA256` below by construction; the two
+# constants are kept separate because they pin the same string for different
+# reasons (crosscheck placeholder vs static-obstacle modality).
+#
+# Artifacts under data/logs/er2_grounding were produced with the 7f5e075 prompt
+# (5a57c937…, geometry-off 4664ff95…), so they are comparable with each other
+# but not byte-identical to anything rendered after the FR2.1.9 change.
+_BASELINE_PROMPT_SHA256 = "3b77d224bb1c6de2f73ccd69c08b6ac686ae41dd9dca86442e5f34d278164001"
 _BASELINE_PROMPT_SHA256_NO_GEOMETRY = (
-    "4664ff95aea2aff993b71962f108c85badb6d6cd8a45bc5936c4709cfc365c2a"
+    "a9c8abfc900a47d77a725b4855252a3ae623698a00e3ca394808cbed281945ed"
 )
 _NO_REDERIVE_CLAUSE = (
     "Use the pairwise geometry above; do not re-derive distances or facing from the coordinates."
