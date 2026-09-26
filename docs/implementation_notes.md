@@ -37,6 +37,17 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-26** — **`scripts/rescore_arrivals.py` flags accepted arrivals
+  whose pose reaches into a static obstacle box** (`8e77bc4`). For each
+  `within_tolerance` accept it reads `static_obstacles` from the run's
+  scenario YAML (`--scenarios-dir`, default `isaac/config/scenarios`) and
+  sets `box_overlap` / `box_overlap_obstacle` when the M1 position lies in a
+  box grown by `ROBOT_HALF_WIDTH_M` = 0.175 m, with a stderr warning.
+  Reporting only; verdicts unchanged. Motivation: the `_bshort` blocked-side
+  goal sits 0.20 m from the box near face, so the 0.35 m tolerance band
+  reaches inside the box. 0.175 m is conservative against the 0.14 × 0.18 m
+  Nav2 footprint: on `_bshort` any accept ≥ 0.025 m past the goal toward the
+  box flags. Local re-run over 41 runs: 0 flags (no `_bshort` runs synced).
 - **2026-09-25** — **Every pre-`4f39899` run re-scored against M1's position
   check; exactly one arrival flips.** `scripts/rescore_arrivals.py` re-runs
   `arrival.py::classify_arrival` offline over all 31 `data/logs/vm_runs/`
@@ -1609,6 +1620,20 @@ Rules for maintaining it:
 
 ## M6 Simulation / Isaac Sim
 
+- **2026-09-26** — **`_bshort` open-side passer goal widened from ±2.5 to
+  ±2.6** (`dcfa144`). At ±2.5 the goal cleared the M3 escort endpoint
+  (`park_offset_m` 1.789 + `passer_clearance_m` 0.65 = 2.439 m) by only
+  0.061 m, under the ≈0.1 m drift `FEASIBILITY_MARGIN_M` budgets for; ±2.6
+  clears it by 0.161 m (0.811 m past the park point). Blocked-side goal,
+  spawns, blockers, oracle and maps unchanged; `beyond` and `_gshort`
+  untouched. Constant `BLOCKED_SHORT_PASSER_GOAL_M` in
+  `isaac/scripts/generate_head_on_family.py`; both `_bshort` YAML headers now
+  print the margins, and a test asserts ≥ 0.15 m on both sides.
+  **Operator step:** for `_bshort`, hand-set `orchestrator.yaml`
+  `initial_tasks` to `[2.6, 0.0]` (west) / `[-2.6, 0.0]` (east); only the
+  comment table there was updated, the live block is unchanged. **USD not rebuilt** — rebuild both `_bshort` scenario USDs on the
+  VM before the next run (a stale USD keeps the old goal).
+
 - **2026-09-26** — **`_bshort` (blocked-side goal short) fixes the west
   park-beyond-goal failure with no reintroduced blocker-path loss.** Commit
   `e708ffa`. Three-run ER-2 pilot, west variant: 3/3 position-verified
@@ -1618,7 +1643,8 @@ Rules for maintaining it:
   endpoint by only 0.050–0.061 m, a thin margin against ≈0.1 m drift. East
   variant built and validated, not yet run. Report
   `docs/reports/2026-09-25-overnight-findings.md` §AG–§AH; extends the
-  `_gshort` pilot entry below.
+  `_gshort` pilot entry below. Margin superseded by 2026-09-26
+  entry (goal widened to ±2.6).
 
 - **2026-09-26** — **`_gshort` fixes the blocker-on-goal-path losses but
   symmetric ±1.5 goals park the yielder beyond the passer's goal.** Six-run
