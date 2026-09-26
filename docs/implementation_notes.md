@@ -37,6 +37,33 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-26** — **Arm B classical reasoner landed offline (Phase 1 plan
+  Tasks 4, 12–14, adapted to the current tree).** It is on branch
+  `feat/arm-b-classical` and is not yet wired into M5.
+  - The code is in `reasoning/baselines/` and `reasoning/vlm/motion_table.py`,
+    and the `classical:` section of `config/rag.yaml` holds the rev-8
+    defaults.
+  - Contract gap: `CongestionDecision` has no `blocker_kind` or
+    `crossing_order`.
+    - `decide_classical` emits only the shared contract.
+    - `resolve_classical` also returns the classifier's `blocker_kind` and
+      the full FCFS `passing_order`.
+    - `compare_decisions` compares only `strategy`, `type` and `yield_robot`.
+    - Blocker and order shadow comparison (T3a, RQ3 for 3+ robots) needs
+      those fields added to the contract first.
+  - Deviations from the plan sketch:
+    - `head_on` means exactly two stopped robots within `r_conflict` *of
+      each other*, so a distant stopped bystander no longer vetoes it.
+    - FCFS is measured at the zone that produced the verdict: the pair
+      midpoint for `head_on`, the matched mapped zone for `intersection`.
+    - `MotionTableEntry` is trimmed to the arrival fields.
+    - `prior_yields` is dropped from `derive_motion_table` and
+      `decide_classical`.
+    - Task 1's `SnapshotFrame` and `BlockerKind` were added additively.
+  - Per-task commits: `f345c7a` (Task 4), `6c27f04` (Task 12), `de994c6`
+    (Task 13) and `20669c3` (Task 14). Tests are in
+    `tests/unit/test_classical_reasoner.py`, `test_shadow_comparison.py`,
+    `test_motion_table.py` and `test_vlm_models.py`.
 - **2026-09-26** — **K1/G4 "interpenetration" is driven nose-to-nose
   contact caused by a `reroute` landing on the post-`reverse` re-approach.**
   - M5's stall memory survives a command (`congestion_detector.py:99-108`),
