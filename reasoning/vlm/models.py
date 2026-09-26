@@ -6,6 +6,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 # default ("pick the robot presented first") from an ID or geometry preference.
 RobotPresentationOrder = Literal["id_asc", "id_desc"]
 
+# What stands in a stalled robot's way (rev-8 stage-1 vocabulary). Only the
+# classical reasoner emits it today; CongestionDecision does not carry it yet.
+BlockerKind = Literal["robot", "object", "transient"]
+
 
 class RobotStateInput(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -19,6 +23,51 @@ class RobotStateInput(BaseModel):
     task: str | None = None
     status: str | None = None
     goal: tuple[float, float] | None = None
+
+
+class SnapshotFrame(BaseModel):
+    """One reasoning-side scene snapshot; M5 converts its SceneSnapshot to this."""
+
+    model_config = ConfigDict(frozen=True)
+
+    stamp: float = Field(ge=0)
+    robots: list[RobotStateInput]
+
+    def find_robot(self, robot_id: str) -> RobotStateInput | None:
+        """Return the state for `robot_id`.
+
+        Args:
+            robot_id: Robot to look up.
+
+        Returns:
+            The robot's state in this frame, or None if it is absent.
+        """
+        for state in self.robots:
+            if state.robot_id == robot_id:
+                return state
+        return None
+
+
+class MotionTableEntry(BaseModel):
+    """Per-robot arrival evidence at a conflict zone, from the snapshot buffer."""
+
+    model_config = ConfigDict(frozen=True)
+
+    robot_id: str = Field(min_length=1)
+    # 1-based rank of arrival_stamp among robots that entered the zone.
+    arrival_order: int | None = Field(default=None, ge=1)
+    # Stamp of the first buffered frame with the robot inside the zone. A robot
+    # already inside in the oldest frame gets that frame's stamp (left-censored).
+    arrival_stamp: float | None = None
+
+
+class MotionTable(BaseModel):
+    """Derived temporal context over a snapshot window."""
+
+    model_config = ConfigDict(frozen=True)
+
+    window_sec: float = Field(ge=0.0)
+    entries: list[MotionTableEntry]
 
 
 class StaticObstacleInput(BaseModel):
