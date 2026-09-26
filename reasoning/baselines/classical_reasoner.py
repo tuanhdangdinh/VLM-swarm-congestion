@@ -10,7 +10,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from reasoning.vlm.models import BlockerKind, RobotStateInput, SnapshotFrame
+from reasoning.vlm.models import (
+    BlockerKind,
+    CongestionDecision,
+    RobotStateInput,
+    SnapshotFrame,
+)
+from reasoning.vlm.motion_table import derive_motion_table
 
 _STOPPED_STATUSES = frozenset({"STOPPED", "STALE"})
 
@@ -163,6 +169,145 @@ def classify_scene(
     )
 
 
+class ClassicalResolution(BaseModel):
+    """Arm B's full answer: the shared decision plus what it cannot carry.
+
+    `CongestionDecision` has no `blocker_kind` or `crossing_order` field, so the
+    classifier's blocker verdict (T3a) and the full FCFS passing order (RQ3,
+    needed for 3+ robot intersections) live here for shadow logging.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    decision: CongestionDecision
+    classification: ClassicalClassification
+    # First entry passes first; the last entry is the yielder. None when the
+    # scenario carries no ordering (none, blocked_path, unknown).
+    passing_order: list[str] | None = None
+
+
+def resolve_classical(
+    frames: Sequence[SnapshotFrame],
+    zones: Sequence[ConflictZone],
+    params: ClassicalParams,
+    prior_attempts: int = 0,
+) -> ClassicalResolution:
+    """Arm B: classify the scene and apply the rev-8 per-type policy table.
+
+    Policy: `head_on` -> `yield` with the tiebreak loser as yielder;
+    `intersection` -> `yield` with FCFS passing order and the last arrival as
+    yielder; `blocked_path` -> `reroute` (blocker always `object`);
+    `unknown` -> `temporary_wait` on the first attempt, `reroute` once
+    `prior_attempts >= 1`.
+
+    Passing order is FCFS by arrival stamp at the classification's conflict
+    zone. Arrivals less than `arrival_tie_sec` after a cluster's first
+    arrival tie with it; within a tie cluster, higher commitment (in-zone path
+    length / zone diameter) passes first, then lower `robot_id`. Robots never
+    seen inside the zone pass last, by `robot_id`.
+
+    Args:
+        frames: Snapshot history (ring-buffer contents), any order.
+        zones: Mapped conflict zones from scenario config.
+        params: Classifier thresholds.
+        prior_attempts: Resolution attempts already made this episode.
+
+    Returns:
+        Frozen resolution; its `decision` has `congestion_detected=False` when
+        nothing is stopped.
+
+    Raises:
+        ValueError: If `frames` is empty or `prior_attempts` is negative.
+    """
+    if prior_attempts < 0:
+        raise ValueError(f"prior_attempts must be >= 0, got {prior_attempts}")
+    classification = classify_scene(frames, zones, params)
+    involved = classification.involved_robots
+    scenario = classification.scenario
+
+    if scenario == "none":
+        decision = CongestionDecision(
+            congestion_detected=False,
+            type="none",
+            involved_robots=[],
+            root_cause="classical: no stopped robots",
+            strategy="none",
+            justification="classical geometry classifier found no congestion",
+        )
+        return ClassicalResolution(decision=decision, classification=classification)
+
+    if scenario in ("head_on", "intersection"):
+        order = _passing_order(frames, classification, params)
+        yielder = order[-1]
+        decision = CongestionDecision(
+            congestion_detected=True,
+            type=classification.congestion_type,
+            involved_robots=involved,
+            root_cause=f"classical: {scenario} between {', '.join(involved)}",
+            strategy="yield",
+            justification=(
+                f"classical FCFS with commitment tiebreak: passing order "
+                f"{', '.join(order)}; {yielder} arrived last or is least committed"
+            ),
+            yield_robot=yielder,
+        )
+        return ClassicalResolution(
+            decision=decision, classification=classification, passing_order=order
+        )
+
+    if scenario == "blocked_path":
+        decision = CongestionDecision(
+            congestion_detected=True,
+            type=classification.congestion_type,
+            involved_robots=involved,
+            root_cause=f"classical: {', '.join(involved)} stopped with a clear front",
+            strategy="reroute",
+            justification="classical policy: blocked_path blocker is always object -> reroute",
+        )
+        return ClassicalResolution(decision=decision, classification=classification)
+
+    strategy = "temporary_wait" if prior_attempts == 0 else "reroute"
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type=classification.congestion_type,
+        involved_robots=involved,
+        root_cause=f"classical: unclassified stall of {', '.join(involved)}",
+        strategy=strategy,
+        justification=(
+            "classical policy: unknown scenario waits once, then reroutes "
+            f"(prior_attempts={prior_attempts})"
+        ),
+    )
+    return ClassicalResolution(decision=decision, classification=classification)
+
+
+def decide_classical(
+    frames: Sequence[SnapshotFrame],
+    zones: Sequence[ConflictZone],
+    params: ClassicalParams,
+    prior_attempts: int = 0,
+) -> CongestionDecision:
+    """Arm B decision on the same inputs as Arm A, in the VLM's contract.
+
+    Emits the same `CongestionDecision` type the VLM emits, so grounding,
+    validation, and M4 execution are shared across arms. Use
+    `resolve_classical` when the blocker verdict or passing order is needed.
+
+    Args:
+        frames: Snapshot history (ring-buffer contents), any order.
+        zones: Mapped conflict zones from scenario config.
+        params: Classifier thresholds.
+        prior_attempts: Resolution attempts already made this episode.
+
+    Returns:
+        Frozen decision; `congestion_detected=False` when nothing is stopped.
+
+    Raises:
+        ValueError: If `frames` is empty or `prior_attempts` is negative.
+    """
+    return resolve_classical(frames, zones, params, prior_attempts).decision
+
+
 def _is_stopped(state: RobotStateInput, params: ClassicalParams) -> bool:
     if state.linear_velocity is not None:
         return abs(state.linear_velocity) < params.stopped_speed_mps
@@ -238,3 +383,58 @@ def _has_robot_ahead(
         if math.hypot(dx, dy) <= params.r_block_m and dx * heading[0] + dy * heading[1] > 0:
             return True
     return False
+
+
+def _passing_order(
+    frames: Sequence[SnapshotFrame],
+    classification: ClassicalClassification,
+    params: ClassicalParams,
+) -> list[str]:
+    center = classification.conflict_center
+    radius = classification.conflict_radius_m
+    if center is None or radius is None:
+        raise ValueError(f"{classification.scenario} classification carries no conflict zone")
+    involved = classification.involved_robots
+    table = derive_motion_table(frames, center, radius)
+    arrival = {e.robot_id: e.arrival_stamp for e in table.entries if e.robot_id in involved}
+    commitment = {rid: _commitment(frames, rid, center, radius) for rid in involved}
+
+    arrived = sorted(
+        (rid for rid in involved if arrival.get(rid) is not None),
+        key=lambda rid: (arrival[rid], rid),
+    )
+    order: list[str] = []
+    i = 0
+    while i < len(arrived):
+        anchor = arrival[arrived[i]]
+        j = i + 1
+        while j < len(arrived) and arrival[arrived[j]] - anchor < params.arrival_tie_sec:
+            j += 1
+        order.extend(sorted(arrived[i:j], key=lambda rid: (-commitment[rid], rid)))
+        i = j
+    order.extend(sorted(rid for rid in involved if arrival.get(rid) is None))
+    return order
+
+
+def _commitment(
+    frames: Sequence[SnapshotFrame],
+    robot_id: str,
+    center: tuple[float, float],
+    radius: float,
+) -> float:
+    # Path length summed over consecutive buffered frames that both have the
+    # robot inside the zone: the ring buffer's estimate of distance travelled
+    # past zone entry, normalized by zone length (diameter).
+    path = 0.0
+    previous: RobotStateInput | None = None
+    for frame in sorted(frames, key=lambda f: f.stamp):
+        state = frame.find_robot(robot_id)
+        if state is None:
+            continue
+        if math.hypot(state.x - center[0], state.y - center[1]) > radius:
+            previous = None
+            continue
+        if previous is not None:
+            path += math.hypot(state.x - previous.x, state.y - previous.y)
+        previous = state
+    return path / (2.0 * radius)

@@ -6,6 +6,8 @@ from reasoning.baselines.classical_reasoner import (
     ClassicalParams,
     ConflictZone,
     classify_scene,
+    decide_classical,
+    resolve_classical,
 )
 from reasoning.vlm.models import RobotStateInput, SnapshotFrame
 
@@ -229,3 +231,186 @@ class TestClassifyOther:
     def test_classify_empty_frames_raise_value_error(self):
         with pytest.raises(ValueError):
             classify_scene([], [], _PARAMS)
+
+
+def _head_on_frames(r2_track: list[tuple[float, float]], r1_x: float = 0.0) -> list[SnapshotFrame]:
+    """robot_1 parked at `r1_x`; robot_2 visits `(stamp, x)` points ending at 0.4."""
+    return [
+        _frame(
+            stamp,
+            _robot("robot_1", r1_x, 0.0, 0.0, goal=(5.0, 0.0)),
+            _robot("robot_2", x, 0.0, math.pi, goal=(-5.0, 0.0)),
+        )
+        for stamp, x in r2_track
+    ]
+
+
+class TestDecideClassicalHeadOn:
+    def test_decide_head_on_emits_deadlock_yield(self):
+        decision = decide_classical(_head_on_frames([(0.0, 0.4)]), [], _PARAMS)
+        assert (decision.congestion_detected, decision.type, decision.strategy) == (
+            True,
+            "deadlock",
+            "yield",
+        )
+        assert decision.involved_robots == ["robot_1", "robot_2"]
+
+    def test_decide_head_on_yields_later_arrival(self):
+        # robot_2 is 4.8 m from the pair midpoint at t=0 and enters at t=2.
+        frames = _head_on_frames([(0.0, 5.0), (2.0, 0.4)])
+        assert decide_classical(frames, [], _PARAMS).yield_robot == "robot_2"
+
+    def test_resolve_head_on_passing_order_ends_with_yielder(self):
+        frames = _head_on_frames([(0.0, 5.0), (2.0, 0.4)])
+        resolution = resolve_classical(frames, [], _PARAMS)
+        assert resolution.passing_order == ["robot_1", "robot_2"]
+        assert resolution.decision.yield_robot == resolution.passing_order[-1]
+
+    def test_decide_head_on_yields_less_committed_when_arrival_tied(self):
+        # Both inside the zone from t=0; robot_2 has driven 0.6 m in-zone,
+        # robot_1 only 0.1 m, so robot_2 passes despite sorting second by id.
+        frames = [
+            _frame(
+                0.0,
+                _robot("robot_1", -0.1, 0.0, 0.0, goal=(5.0, 0.0)),
+                _robot("robot_2", 1.0, 0.0, math.pi, goal=(-5.0, 0.0)),
+            ),
+            *_head_on_frames([(0.5, 0.7), (1.0, 0.4)]),
+        ]
+        assert decide_classical(frames, [], _PARAMS).yield_robot == "robot_1"
+
+    def test_decide_head_on_ties_arrivals_inside_tie_window(self):
+        # robot_2 arrives 0.9 s after robot_1 (< arrival_tie_sec) but is the
+        # more committed, so the tie cluster lets it pass first.
+        frames = _head_on_frames([(0.0, 2.0), (0.9, 1.6), (1.8, 0.4)])
+        assert decide_classical(frames, [], _PARAMS).yield_robot == "robot_1"
+
+    def test_decide_head_on_orders_by_arrival_at_tie_window_boundary(self):
+        # Same track, but robot_2 arrives exactly arrival_tie_sec later: no tie.
+        frames = _head_on_frames([(0.0, 2.0), (1.0, 1.6), (2.0, 0.4)])
+        assert decide_classical(frames, [], _PARAMS).yield_robot == "robot_2"
+
+    def test_decide_head_on_breaks_full_tie_by_robot_id(self):
+        frames = _head_on_frames([(0.0, 0.4), (2.0, 0.4)])
+        assert decide_classical(frames, [], _PARAMS).yield_robot == "robot_2"
+
+    def test_decide_head_on_measures_arrival_at_pair_not_mapped_zone(self):
+        # A mapped zone elsewhere must not become the FCFS reference for a
+        # head-on pair; against it neither robot would ever "arrive".
+        far_zone = ConflictZone(zone_id="far", x=20.0, y=20.0, radius_m=1.5)
+        frames = _head_on_frames([(0.0, 5.0), (2.0, 0.4)])
+        resolution = resolve_classical(frames, [far_zone], _PARAMS)
+        assert resolution.passing_order == ["robot_1", "robot_2"]
+
+
+def _crossing_frames(
+    tracks: dict[str, list[tuple[float, float]]], stamps: list[float]
+) -> list[SnapshotFrame]:
+    """Robots crossing at the origin; `tracks` gives each robot's (x, y) per stamp."""
+    headings = {"robot_1": 0.0, "robot_2": math.pi / 2, "robot_3": math.pi}
+    goals = {"robot_1": (5.0, 0.0), "robot_2": (0.0, 5.0), "robot_3": (-5.0, 0.3)}
+    return [
+        _frame(
+            stamp,
+            *(
+                _robot(rid, *track[i], headings[rid], goal=goals[rid])
+                for rid, track in sorted(tracks.items())
+            ),
+        )
+        for i, stamp in enumerate(stamps)
+    ]
+
+
+class TestDecideClassicalIntersection:
+    def test_decide_intersection_emits_bottleneck_yield(self):
+        frames = _crossing_frames(
+            {"robot_1": [(-0.8, 0.0), (-0.8, 0.0)], "robot_2": [(0.0, -3.0), (0.0, -0.8)]},
+            [0.0, 2.0],
+        )
+        decision = decide_classical(frames, [_ZONE], _PARAMS)
+        assert (decision.type, decision.strategy) == ("bottleneck", "yield")
+
+    def test_decide_intersection_yields_last_arrival(self):
+        frames = _crossing_frames(
+            {"robot_1": [(-0.8, 0.0), (-0.8, 0.0)], "robot_2": [(0.0, -3.0), (0.0, -0.8)]},
+            [0.0, 2.0],
+        )
+        assert decide_classical(frames, [_ZONE], _PARAMS).yield_robot == "robot_2"
+
+    def test_resolve_intersection_orders_three_robots_by_arrival(self):
+        frames = _crossing_frames(
+            {
+                "robot_1": [(-4.0, 0.0), (-0.8, 0.0), (-0.8, 0.0)],
+                "robot_2": [(0.0, -4.0), (0.0, -4.0), (0.0, -0.8)],
+                "robot_3": [(0.8, 0.3), (0.8, 0.3), (0.8, 0.3)],
+            },
+            [0.0, 2.0, 4.0],
+        )
+        resolution = resolve_classical(frames, [_ZONE], _PARAMS)
+        assert resolution.passing_order == ["robot_3", "robot_1", "robot_2"]
+
+    def test_resolve_intersection_robot_without_arrival_passes_last(self):
+        # robot_1 is within r_conflict of the zone center (so it is involved)
+        # but never inside the 0.5 m zone radius, so it has no arrival stamp.
+        small_zone = ConflictZone(zone_id="crossing", x=0.0, y=0.0, radius_m=0.5)
+        frames = _crossing_frames(
+            {"robot_1": [(-0.8, 0.0), (-0.8, 0.0)], "robot_2": [(0.0, -0.3), (0.0, -0.8)]},
+            [0.0, 2.0],
+        )
+        resolution = resolve_classical(frames, [small_zone], _PARAMS)
+        assert resolution.passing_order == ["robot_2", "robot_1"]
+
+
+class TestDecideClassicalOtherScenarios:
+    def _blocked_frames(self) -> list[SnapshotFrame]:
+        return [
+            _frame(
+                1.0,
+                _robot("robot_1", 0.0, 0.0, 0.0, goal=(5.0, 0.0)),
+                _robot("robot_2", 3.0, 0.0, 0.0, v=0.3),
+            )
+        ]
+
+    def _mutual_block_frames(self) -> list[SnapshotFrame]:
+        return [
+            _frame(
+                1.0,
+                _robot("robot_1", 0.0, 0.0, 0.0, goal=(0.0, 5.0)),
+                _robot("robot_2", 0.5, 0.0, math.pi, goal=(0.0, -5.0)),
+            )
+        ]
+
+    def test_decide_blocked_path_reroutes_without_yielder(self):
+        decision = decide_classical(self._blocked_frames(), [], _PARAMS)
+        assert (decision.type, decision.strategy, decision.yield_robot) == (
+            "anomaly",
+            "reroute",
+            None,
+        )
+
+    def test_resolve_blocked_path_reports_object_blocker_without_order(self):
+        resolution = resolve_classical(self._blocked_frames(), [], _PARAMS)
+        assert resolution.classification.blocker_kind == "object"
+        assert resolution.passing_order is None
+
+    def test_decide_unknown_waits_on_first_attempt(self):
+        decision = decide_classical(self._mutual_block_frames(), [], _PARAMS, prior_attempts=0)
+        assert decision.strategy == "temporary_wait"
+
+    def test_decide_unknown_reroutes_after_prior_attempt(self):
+        decision = decide_classical(self._mutual_block_frames(), [], _PARAMS, prior_attempts=1)
+        assert decision.strategy == "reroute"
+
+    def test_decide_negative_prior_attempts_raise_value_error(self):
+        with pytest.raises(ValueError):
+            decide_classical(self._mutual_block_frames(), [], _PARAMS, prior_attempts=-1)
+
+    def test_decide_none_when_no_robot_stopped(self):
+        frames = [_frame(1.0, _robot("robot_1", 0.0, 0.0, 0.0, v=0.4))]
+        decision = decide_classical(frames, [], _PARAMS)
+        assert (
+            decision.congestion_detected,
+            decision.type,
+            decision.strategy,
+            decision.involved_robots,
+        ) == (False, "none", "none", [])
