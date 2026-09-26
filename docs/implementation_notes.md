@@ -37,6 +37,18 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-26** — **Pre-registration amendment set drafted from the pilot
+  campaign**: `docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md`
+  binds the 2026-09-24/26 adjudications (`_bshort` T2a instrument, random
+  presentation order with order-conditioned analysis, gate `swap` scored
+  pre-gate, position-verified episode outcome primary, distance-channel
+  safety columns, `max_attempts: 4` + ER-2 as secondary backend replacing
+  `llama_server`) for absorption into the research design spec as rev 9 at
+  the `prereg-v1` tag. Its freeze-blocker list records that
+  `reasoning/baselines/classical_reasoner.py` (Arm B) is specified but not
+  implemented — the largest open work item — plus the `_bshort` east
+  validation, the failure-context depth decision, and the credit-blocked
+  gpt-4o arms. Draft only; nothing frozen until the tag.
 - **2026-09-26** — **`scripts/rescore_arrivals.py` flags accepted arrivals
   whose pose reaches into a static obstacle box** (`8e77bc4`). For each
   `within_tolerance` accept it reads `static_obstacles` from the run's
