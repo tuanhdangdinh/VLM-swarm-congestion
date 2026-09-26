@@ -1,0 +1,34 @@
+[
+  {
+    "congestion_detected": true,
+    "type": "deadlock",
+    "involved_robots": ["robot_1", "robot_2"],
+    "root_cause": "Two robots met head-on inside the narrow aisle and neither can pass.",
+    "strategy": "reverse",
+    "justification": "Scripted mock decision for the M4 exemption regression: both robots back off first, as ER-2 opened in runs G4 and K1."
+  },
+  {
+    "congestion_detected": true,
+    "type": "deadlock",
+    "involved_robots": ["robot_1", "robot_2"],
+    "root_cause": "The robots are re-approaching each other in the aisle after the reverse.",
+    "strategy": "reroute",
+    "justification": "Scripted mock decision for the M4 exemption regression: reroute robot_1 while robot_2 waits, the G4/K1 exposure shape."
+  },
+  {
+    "congestion_detected": true,
+    "type": "deadlock",
+    "involved_robots": ["robot_1", "robot_2"],
+    "root_cause": "The robots are still head-on in the aisle after the reroute.",
+    "strategy": "yield",
+    "justification": "Scripted mock decision for the M4 exemption regression: resolve with a yield after the reroute leg ends."
+  },
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "Scene has cleared; robots are no longer in a head-on conflict.",
+    "strategy": "none",
+    "justification": "Scripted mock decision for the M4 exemption regression: scene is clear after the yield resolved."
+  }
+]
