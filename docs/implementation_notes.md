@@ -37,6 +37,19 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-27** — **gpt-4o `_bshort` pilot 6/6 on the adopted apparatus;
+  baseline complete on both models.** Six runs (N1–N6) on tree `7103f9d`
+  with the M4 exemption fix deployed (now permanent on the VM): all
+  position-verified, opening `yield` 6/6, gate `swap` fired 4/6 (every
+  infeasible naming re-grounded), refusals 4/28 attempt-1 / 0 terminal,
+  fallback never reached (0/28), backtrack ≤ 0.004 m, `box_overlap` 0/12.
+  `_bshort` now stands at 15/15 across gpt-4o and ER-2. New items: a
+  phantom `robot_17` from an M1 marker-ID misread latched N5's robot_1 for
+  6.4 s pre-episode (M1 robustness item), and
+  `reasoner_config_effective` lacks `image_fallback_after_attempts`.
+  Findings Rev 13 §AO; artifacts `data/logs/vm_runs/bshort_gpt4o/`
+  (git-ignored).
+
 - **2026-09-27** — **Frame replay Rev 5: the three credit-blocked arms ran in
   full** (`docs/reports/2026-09-25-frame-replay.md` Rev 5; rows in
   `data/experiments/2026-09-26-batch2-replay/`; $5.45, cumulative $13.32).

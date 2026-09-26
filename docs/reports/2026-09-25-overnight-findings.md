@@ -16,6 +16,7 @@
 - Rev 10 (2026-09-26): adds the six-run `_bshort` validation batch at the widened ±2.6 passer goal — east (first ever) 3/3 and west 3/3, all position-verified — adopting `_bshort` as the pre-registration scenario; records a second G4-class interpenetration (K1, 0.076 m, pre-yield), a realised-goal-margin note, and the prereg amendment set this batch discharges into.
 - Rev 11 (2026-09-26): the K1/G4 root-cause analysis (`docs/reports/2026-09-26-close-approach-analysis.md`) lands its corrections — the 0.076 m events were 51 s of driven nose-to-nose **contact**, not interpenetration; M4's coordination exemption had disarmed the monitor during an ER-2 `reroute`; the contact fields are hard-coded `[]` (no detector exists); and, contra Rev 7 §AC, both robots **did** go STALE in both runs.
 - Rev 12 (2026-09-26): the M4 exemption fix lands and passes both VM regressions (mock-forced G4/K1 exposure now latches at 0.381 m with no contact; ER-2 yield flow unchanged), closing amendment A5; the Arm B classical reasoner slice (plan Tasks 4, 12–14) merges at `65cc850` with 70 new tests, discharging the "Arm B does not exist" freeze blocker at the reasoning-core level.
+- Rev 13 (2026-09-27): credits restored — the three queued replay arms complete (X: the image fallback eliminates terminal refusals 0/84 vs 10/84 and is kept with separate reporting; F: the annotation overlay is NOT the refusal trigger — the camera frame's content is, with raw frames refusing at least as often as annotated; S2 remainder as its own stratum) and the six-run live gpt-4o `_bshort` pilot lands 6/6 position-verified on the adopted apparatus with the M4 fix now permanently deployed, completing the pre-registration baseline on both models. New finding: a phantom `robot_17` (M1 marker-ID misread) latched N5's robot_1 for 6.4 s pre-episode.
 
 ---
 
@@ -1237,6 +1238,11 @@ included — M5 persists `failure_context` structurally.
 
 **Verdict: the annotated camera frame is the refusal trigger.**
 
+> Refined by Rev 13 §AN (Arm F): "annotated" was incidental. On the
+> skew-gated raw/annotated pairs the raw frame refuses at least as often
+> (41.7% vs 27.8%, n.s.), so the trigger is the camera frame's content,
+> not the annotation overlay. The frame-versus-grey result stands.
+
 **Arm O (order sensitivity on real stimuli)** ran only at n = 1 per cell:
 `id_asc` → `robot_1` 6/6, `id_desc` → `robot_1` 3/5 (p = 0.18). The direction
 matches the ID-anchored live reading of Rev 4 §L item 2, but this is not
@@ -1757,6 +1763,11 @@ The change is justified by the grey-image evidence — 0/120 refusals on grey
 against 22/60 on real frames — and by §T/§AA showing the text, not the image,
 carries the decision. It is **not yet validated**: Arm X (168 cells, ≈ $1.5)
 aborted before its first call on `insufficient_quota`.
+
+> Superseded by Rev 13 §AN: Arm X ran to 168/168. The fallback converts
+> terminal refusals 10/84 → 0/84 (p = 1.5e-3) and is kept; the
+> separate-reporting rule stands (yielder agreement rests on n = 1 and the
+> grey stimulus is the yielder-moving cell).
 
 - **Reporting rule until validated:** report decisions carrying
   `image_fallback_used: true` **separately**.
@@ -2442,3 +2453,128 @@ this documentation commit. Run ids `20260926_101653` (M1),
 uninstalled (all five md5s verified on source and installed copies),
 container restarted, instance left RUNNING. Merged local suite: 1 144
 passed, 55 failed, 3 collection errors (the environmental set).
+
+---
+
+## AN. Replay Arms X, F and S2 Complete
+
+Full detail: `docs/reports/2026-09-25-frame-replay.md` Rev 5 (commits
+`c173425` data, `7103f9d` docs). 996 API calls, $5.45; replay-program
+cumulative $13.32. Zero quota aborts.
+
+1. **Arm X — the image fallback is validated and kept.** Terminal
+   refusals on 21 live-refused artifacts: 10/84 with four attempts alone
+   against **0/84** with the fallback (p = 1.5e-3); where attempts 1 and 2
+   both refused, 8/18 recovered without it against 20/20 with it
+   (p = 9.3e-5). 93 of 94 fallback decisions match the artifact's modal
+   with-frame decision — but 92 of the 94 are `none` and only one is a
+   yield, so yielder agreement rests on n = 1. The **separate-reporting
+   rule stands**: the fallback stimulus is the Arm-S "text on, grey" cell,
+   which moves the yielder on standoffs. Amendment A6's rule is unchanged;
+   its "unvalidated" clause is discharged. Two grey fallback attempts did
+   refuse — both on one artifact (`bb7a2fec`), the first grey refusals in
+   the study; that prompt's text may refuse on its own (untested).
+2. **Arm F — the annotation overlay is not the refusal trigger.** On the
+   skew-gated pairs (|skew| ≤ 0.2 s, 24 artifacts) the raw frame refuses
+   *more*: annotated 27.8% against raw 41.7% (p = 0.11, McNemar p = 0.30).
+   The ungated contrast is significant but confounded by scene change.
+   Refusals follow the exact image M5 sent — with the annotated frame,
+   live refusers refuse 67% on replay against 4% for live-valid artifacts
+   (gated 2/45 vs 15/45, p = 8.0e-4). Consequence: masking or removing
+   annotation is not a mitigation path; the trigger is the camera frame's
+   content, and grey substitution remains the only image-side lever.
+3. **S2 remainder — strata kept separate.** The 101 post-rewrite rows
+   (identified by the `image_fallback_after_attempts` field) are east-only
+   and analysed alone. The Rev 7 §AA direction verdict is unchanged at
+   moderate strength (pre-rewrite 7/9 scenes in direction; the new stratum
+   adds one positive and one reversing scene, the reverser resting on a
+   single yield among five refusals). The frame-versus-grey refusal
+   trigger replicated a fifth time (7/48 vs 0/53, p = 4.3e-3).
+
+---
+
+## AO. Live gpt-4o `_bshort` Pilot on the Adopted Apparatus
+
+Six runs on tree `7103f9d` — the first collection with the **M4 exemption
+fix deployed**, which now stays on the VM as the adopted apparatus.
+gpt-4o at T = 0.0, `max_attempts: 4`, image fallback armed, gate `swap`,
+random order, obstacles on, arrival check on. Summary
+`data/logs/vm_runs/bshort_gpt4o/BSHORT_GPT4O_PILOT_SUMMARY.txt`; artifacts
+under `data/logs/vm_runs/bshort_gpt4o/20260926_{193524,195510,201323,203139,204952,210807}/`
+(N1–N3 west, N4–N6 east).
+
+| Run | Side | Order | Named → executed yielder | Gate | First yield | Outcome | Min pairwise (m) | % < 0.45 m | Backtrack (m) | `box_overlap` |
+|---|---|---|---|---|---|---|---|---|---|---|
+| N1 | west | `id_asc` | `robot_1` → `robot_2` | fired | COMPLETED 156.1 s | ✓ | 0.264 | 4.4 | 0.000 | 0 |
+| N2 | west | `id_asc` | `robot_1` → `robot_2` | fired | COMPLETED 155.3 s | ✓ | 0.283 | 4.4 | 0.000 | 0 |
+| N3 | west | `id_desc` | `robot_1` → `robot_2` | fired | COMPLETED 146.4 s | ✓ | 0.275 | 4.5 | 0.000 | 0 |
+| N4 | east | `id_desc` | `robot_2` → `robot_1` | fired | COMPLETED 151.3 s | ✓ | 0.281 | 4.5 | 0.004 | 0 |
+| N5 | east | `id_asc` | `robot_1` (correct) | no-op | COMPLETED 148.5 s | ✓ | 0.379 | 3.9 | 0.003 | 0 |
+| N6 | east | `id_asc` | `robot_1` (correct) | no-op | COMPLETED 149.8 s | ✓ | 0.249 | 4.6 | 0.003 | 0 |
+
+**Outcome 6/6 position-verified** (12/12 arrivals accepted online and on
+rescore, 0 `box_overlap`), all six opening directly with `yield`, first
+yield COMPLETED 6/6. The gpt-4o `_bshort` baseline joins ER-2's
+(J 3/3, K 6/6): the pre-registration scenario now has **15/15
+position-verified episodes across both models** on the adopted defaults.
+
+Readings:
+
+- **The order finding holds and the gate stays necessary**: gpt-4o named
+  `robot_1` in 5/6 (the first-presented robot in 5/6), infeasibly on all
+  four blocked-side draws, and the `swap` gate re-grounded every one
+  (4/6 fired, no-op exactly when the named yielder was feasible).
+- **Refusals: 4/28 attempt-1 (14.3%), 0 terminal.** All four were
+  post-resolution re-analyses recovered on attempt 2; none touched a
+  yield decision, and the fallback was never reached (0/28
+  `image_fallback_used`), so the live fallback remains unexercised —
+  Arm X stays the evidence for it.
+- **The M4 fix changed nothing in the yield flow**, as predicted: one
+  approach latch per run ~12 s before the first analysis (the mechanism
+  that creates the stall), yielder `exempt=True` / passer's wait
+  `exempt=False` during every yield, and no latch during or after any
+  command. The fix's new restriction went unexercised (no `reroute`
+  drawn) — its evidence remains the Rev 12 §AM regression pair.
+- **New apparatus finding — phantom `robot_17` (N5):** pre-episode, M1
+  reported a STALE `robot_17` at robot_1's spawn for ~6 s (marker-ID
+  misread), and M4 latched robot_1 with the phantom for 6.4 s before
+  releasing. No episode impact here, but a misread ID can latch a real
+  robot; tracked as an M1 robustness item.
+- Apparatus notes: `reasoner_config_effective` does **not** record
+  `image_fallback_after_attempts` (add it — it is part of the reasoner's
+  effective config); the deployed-fix md5s are `48d2fe78…`
+  (`safety.py`) / `1ffc587b…` (`safety_monitor_node.py`), matching
+  `~/m4fix_delta.tar` — the Rev 12 table's values were the pre-fix files.
+
+---
+
+## AP. Next Steps (Rev 13 delta)
+
+1. The credit-blocked queue is cleared; the forced-order cells on the
+   retired ±2.5 variants are dropped as superseded by the `_bshort`
+   adoption.
+2. **The VM has nothing queued.** Stop/keep is live again (~US$0.9/h vs
+   L4 stockout risk) — owner's call.
+3. Remaining pre-freeze work: the failure-context depth decision
+   (recommendation on the table: most recent attempt plus most recent
+   failed attempt), M1 speed-scaling convention, Arm B shadow wiring into
+   M5, T0/T2b/T3 authoring with the contract-fields decision, model-table
+   rows at the tag, B1 confirmation.
+4. New small items: record `image_fallback_after_attempts` in
+   `reasoner_config_effective`; investigate the phantom-marker misread
+   (M1) — a wrong ID can latch a real robot.
+
+---
+
+## Rev 13 Provenance
+
+Commits `c173425`, `7103f9d` (replay arms) plus this documentation
+commit; the live batch produced no code changes. Run ids
+`20260926_{193524,195510,201323,203139,204952,210807}` (N1–N6; UTC
+stamps, local date 2026-09-27). OpenAI spend: $5.45 replay + the live
+batch's ordinary per-call costs; replay cumulative $13.32. VM: tree
+`7103f9d` deployed and verified on all 539 files, **M4 fix permanently
+deployed**, `orchestrator.yaml` pristine at
+`aa93f55045c63e956088790ea6848e8a`, container restarted, GPU idle,
+instance RUNNING. Artifacts git-ignored under
+`data/logs/vm_runs/bshort_gpt4o/`.

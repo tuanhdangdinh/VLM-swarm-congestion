@@ -22,6 +22,12 @@
   the reasoning-core level by the Arm B merge (`65cc850`); its Phase-2
   wiring, the missing contract fields, and the M1 speed-scaling fix become
   tracked items 10–12.
+- Rev 5 (2026-09-27): blockers 4 and 5 discharged (findings Rev 13
+  §AN–§AO) — Arm X validates the image fallback (kept, separate reporting
+  stands), Arm F shows the refusal trigger is the camera frame's content
+  rather than the annotation, and the gpt-4o `_bshort` pilot lands 6/6 on
+  the adopted apparatus, completing the baseline on both models. A6's
+  trigger wording corrected accordingly.
 
 ---
 
@@ -195,13 +201,20 @@ either arm collects. This item stays a freeze blocker until then.
 - `temperature=0.0`, `max_attempts: 4` (Arm M: terminal refusal 26.9% vs
   57.1% at the shipped 2, p = 0.031; Rev 6 §S), re-ask retained.
 - The safety-refusal class is a documented model characteristic: the
-  annotated camera frame is the trigger (22/60 real vs 0/120 grey,
-  p = 1.5e-12, Rev 6 §S), attempt-1 rate 19–25% on real frames, terminal
-  ≈10–12%, stimulus-locked. Refusal rates per cell are mandatory reporting;
-  refusals consume analysis slots and are costed as such.
-- `image_fallback_after_attempts: 2` is shipped but **unvalidated** (Arm X
-  never ran; Rev 7 §AB). Until validated, decisions carrying
-  `image_fallback_used: true` are reported separately from all pooled rates.
+  **camera frame's content** is the trigger (22/60 real vs 0/120 grey,
+  p = 1.5e-12, Rev 6 §S; the annotation overlay is NOT causal — raw frames
+  refuse at least as often on the skew-gated pairs, Rev 13 §AN), attempt-1
+  rate 14–25% on real frames, stimulus-locked. Refusal rates per cell are
+  mandatory reporting; refusals consume analysis slots and are costed as
+  such. Annotation masking and downscaling are both ruled out as
+  mitigations; grey substitution is the only image-side lever.
+- `image_fallback_after_attempts: 2` is **validated** (Arm X, Rev 13 §AN:
+  terminal refusals 10/84 → 0/84, p = 1.5e-3) and kept. Decisions carrying
+  `image_fallback_used: true` are still reported separately from all pooled
+  rates: yielder agreement under the fallback rests on n = 1, and the grey
+  stimulus is the cell that moves yielder choice on standoffs. The field
+  `image_fallback_after_attempts` must be added to
+  `reasoner_config_effective` (it is currently absent from artifacts).
 
 **Secondary backend: Gemini Robotics-ER 2 replaces `llama_server`.**
 
@@ -262,11 +275,13 @@ directory before the next launch (Rev 8 §AE item 4).
    intervening success evicts a failed yield and the same infeasible yielder
    is re-selected (Rev 1 §6(a), L4, D2). Decide last-N vs last-failed before
    Arm A collection; the choice changes the RQ5 prompt.
-4. **Arm X** (image-fallback validation) — blocked on OpenAI credits; until
-   run, the A6 separate-reporting rule stands.
-5. **gpt-4o credit-blocked arms** — replay `--arm F`, the `--arm S2`
-   remainder, the forced-order live cells, and the gpt-4o `_bshort` family
-   pilot.
+4. ~~**Arm X**~~ — **discharged 2026-09-27** (findings Rev 13 §AN): the
+   fallback is validated and kept; the separate-reporting rule stands as a
+   reporting rule, no longer as an unvalidated-mitigation guard.
+5. ~~**gpt-4o credit-blocked arms**~~ — **discharged 2026-09-27** (findings
+   Rev 13 §AN–§AO): arms F and S2 ran; the gpt-4o `_bshort` pilot is 6/6 on
+   the adopted apparatus. The forced-order cells on the retired ±2.5
+   variants are dropped as superseded by the `_bshort` adoption.
 6. ~~**G4 safety root cause** (A5)~~ — **closed 2026-09-26** (see A5): fix
    landed and regression-verified. Residuals tracked in A5, non-blocking.
 7. **B1 symmetric-`reverse` dispatch** — the handoff recommends keeping it as
