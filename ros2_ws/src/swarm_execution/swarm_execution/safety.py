@@ -23,6 +23,18 @@ REASON_STALE_POSE = "stale_pose_unsafe"
 # the keep-the-existing-latch half of the rule covers the rest.
 STALE_UNSAFE_MARGIN_M = 0.15
 
+# Per-robot coordination actions that exempt a pair from the latch rules. Both
+# are raw-cmd_vel clearing primitives (backup, sidestep, hold, escort) that
+# legitimately work inside min_distance_m. Nav2-goal legs (navigate, goal,
+# priority_override, reroute, convoy) and waits (wait, temporary_wait, stop)
+# are deliberately absent: in runs G4 and K1 (2026-09-25/26) a reroute leg
+# plus its partner's temporary_wait disarmed the monitor and drove one robot
+# into its parked partner for ~51 s. See
+# docs/reports/2026-09-26-close-approach-analysis.md.
+CLEARING_ACTIONS: frozenset[str] = frozenset({"yield", "reverse"})
+
+TERMINAL_STATUSES: frozenset[str] = frozenset({"COMPLETED", "FAILED", "CANCELLED"})
+
 
 @dataclass(frozen=True)
 class SafetyLimits:
@@ -60,10 +72,139 @@ class LatchEvaluation:
     last_fresh_distances: dict[tuple[str, str], float] = field(default_factory=dict)
 
 
+def is_clearing_action(action: str | None) -> bool:
+    """Return True if a coordination action is a clearing maneuver.
+
+    Args:
+        action: The per-robot `CoordinationCommand.action`, or None when the
+            command behind an ACTIVE status has not been seen.
+
+    Returns:
+        True only for an action in `CLEARING_ACTIONS`. An unknown action is
+        not clearing, so a missing command fails closed (no exemption).
+    """
+    return action in CLEARING_ACTIONS
+
+
+def clearing_exempt_robots(
+    active_by_robot: Mapping[str, str],
+    action_by_key: Mapping[tuple[str, str], str],
+) -> frozenset[str]:
+    """Return the robots whose ACTIVE coordination command is a clearing maneuver.
+
+    The result is the `exempt` set for `detect_proximity_violations` and
+    `evaluate_latches`. Those functions skip any pair with an exempt member, so
+    a pair is exempt exactly while a clearing maneuver is among its members'
+    ACTIVE commands. This keeps the yield flow working: the passer's linked
+    `temporary_wait` does not exempt it, but the pair stays exempt through the
+    yielder's own ACTIVE `yield`.
+
+    Args:
+        active_by_robot: Robot id -> command id of its current ACTIVE command,
+            from `/coordination/status`.
+        action_by_key: `(command_id, robot_id)` -> per-robot action, from
+            `/coordination/commands`. The command id is shared by every robot
+            of one decision and carries the strategy, not the robot's action,
+            so the action must come from the command itself.
+
+    Returns:
+        Robot ids whose ACTIVE command's action is in `CLEARING_ACTIONS`. A
+        robot whose command was never seen is not exempt.
+    """
+    return frozenset(
+        robot_id
+        for robot_id, command_id in active_by_robot.items()
+        if is_clearing_action(action_by_key.get((command_id, robot_id)))
+    )
+
+
+class CoordinationTracker:
+    """Track per-robot ACTIVE coordination commands and their actions.
+
+    ROS2-free bookkeeping for the safety monitor. Commands and statuses arrive
+    on separate topics with no cross-topic ordering guarantee, so the two maps
+    are joined only when `exempt_robots` is called; a status that lands before
+    its command resolves correctly once the command arrives.
+    """
+
+    # Bound for command actions that never receive a terminal status (e.g. a
+    # command dropped before dispatch). Far above any real in-flight count.
+    MAX_TRACKED_COMMANDS = 256
+
+    def __init__(self) -> None:
+        self._action_by_key: dict[tuple[str, str], str] = {}
+        self._active_by_robot: dict[str, str] = {}
+
+    def record_command(self, command_id: str, robot_id: str, action: str) -> None:
+        """Remember the per-robot action of a dispatched coordination command.
+
+        Args:
+            command_id: `CoordinationCommand.command_id`.
+            robot_id: `CoordinationCommand.robot_id`.
+            action: `CoordinationCommand.action`, e.g. `yield` or `reroute`.
+        """
+        if not command_id or not robot_id:
+            return
+        key = (command_id, robot_id)
+        self._action_by_key.pop(key, None)
+        self._action_by_key[key] = action
+        while len(self._action_by_key) > self.MAX_TRACKED_COMMANDS:
+            self._action_by_key.pop(next(iter(self._action_by_key)))
+
+    def record_status(self, command_id: str, robot_id: str, status: str) -> bool:
+        """Apply one `/coordination/status` update.
+
+        A terminal status clears a robot only when it belongs to the command
+        the robot is ACTIVE on, as in the command bus's in-flight registry: a
+        busy-rejected command's FAILED, or a `base_mission` status from
+        `coordination_client`, must not end a live maneuver's exemption.
+
+        Args:
+            command_id: `CoordinationStatus.command_id`.
+            robot_id: `CoordinationStatus.robot_id`.
+            status: `CoordinationStatus.status`.
+
+        Returns:
+            True if the robot's ACTIVE command changed.
+        """
+        if not robot_id:
+            return False
+        if status == "ACTIVE":
+            changed = self._active_by_robot.get(robot_id) != command_id
+            self._active_by_robot[robot_id] = command_id
+            return changed
+        if status not in TERMINAL_STATUSES:
+            return False
+        self._action_by_key.pop((command_id, robot_id), None)
+        if self._active_by_robot.get(robot_id) == command_id:
+            del self._active_by_robot[robot_id]
+            return True
+        return False
+
+    def active_action(self, robot_id: str) -> str | None:
+        """Return the action of the robot's ACTIVE command, or None.
+
+        Args:
+            robot_id: Robot to look up.
+
+        Returns:
+            The action, or None if the robot is not ACTIVE or its command has
+            not been seen.
+        """
+        command_id = self._active_by_robot.get(robot_id)
+        if command_id is None:
+            return None
+        return self._action_by_key.get((command_id, robot_id))
+
+    def exempt_robots(self) -> frozenset[str]:
+        """Return the robots currently exempting their pairs (see `clearing_exempt_robots`)."""
+        return clearing_exempt_robots(self._active_by_robot, self._action_by_key)
+
+
 def detect_proximity_violations(
     robots: list[dict],
     min_distance_m: float,
-    coordinating: set[str] | frozenset[str] = frozenset(),
+    exempt: set[str] | frozenset[str] = frozenset(),
 ) -> set[str]:
     """Return the ids of robots in any pair closer than `min_distance_m`.
 
@@ -72,19 +213,19 @@ def detect_proximity_violations(
     only strictly-closer pairs are flagged. Both robots in a violating pair are
     returned so the caller can stop each one.
 
-    Pairs containing a `coordinating` robot are exempt: when the coordination
-    layer is actively choreographing a robot (e.g. a yielder parked
-    off-centerline during its hold), the passing robot must be allowed closer
-    than `min_distance_m` — the yielder pulls off 0.35 m while the latch
-    threshold is 0.45 m, so without the pair exemption the pass itself would
-    latch the passer and freeze both robots. Robot-level exemption on the
-    caller side cannot express this: it unlatches the coordinating robot but
-    still latches its non-coordinating partner.
+    Pairs containing an `exempt` robot are skipped. The exempt set is the
+    robots executing a clearing maneuver (`clearing_exempt_robots`): a yielder
+    parked off-centerline during its hold must let the passer come closer than
+    `min_distance_m`. The yielder pulls off 0.35 m while the latch threshold is
+    0.45 m, so without the pair exemption the pass itself would latch the
+    passer and freeze both robots. Robot-level exemption on the caller side
+    cannot express this: it unlatches the yielder but still latches its
+    partner.
 
     Args:
         robots: Robot state dicts, each with `robot_id`, `x`, and `y`.
         min_distance_m: Minimum allowed centre-to-centre separation in metres.
-        coordinating: Robots under an ACTIVE coordination command; pairs with
+        exempt: Robots whose ACTIVE command is a clearing maneuver; pairs with
             at least one such member are not flagged.
 
     Returns:
@@ -92,7 +233,7 @@ def detect_proximity_violations(
     """
     flagged: set[str] = set()
     for a, b in combinations(robots, 2):
-        if a["robot_id"] in coordinating or b["robot_id"] in coordinating:
+        if a["robot_id"] in exempt or b["robot_id"] in exempt:
             continue
         distance = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
         if distance < min_distance_m:
@@ -115,7 +256,7 @@ def evaluate_latches(
     limits: SafetyLimits,
     previous_latched: set[str] | frozenset[str] = frozenset(),
     last_fresh_distances: Mapping[tuple[str, str], float] | None = None,
-    coordinating: set[str] | frozenset[str] = frozenset(),
+    exempt: set[str] | frozenset[str] = frozenset(),
 ) -> LatchEvaluation:
     """Compute the latched-robot set for one scene snapshot.
 
@@ -145,9 +286,11 @@ def evaluate_latches(
     lifts only once a non-STALE reading shows the pair at or beyond
     `min_distance_m`.
 
-    Robots under an ACTIVE coordination command are exempt from rule 2 exactly
-    as they are from rule 1: a commanded backup is the designed way out of a
-    close standoff and the fail-safe must not stall it.
+    Robots in `exempt` (an ACTIVE clearing maneuver, `clearing_exempt_robots`)
+    are exempt from rule 2 exactly as they are from rule 1: a commanded backup
+    is the designed way out of a close standoff and the fail-safe must not
+    stall it. A robot on a Nav2 leg or a wait is not exempt, so a latch that
+    fired before such a command went ACTIVE persists (run K1, 2026-09-26).
 
     Args:
         robots: Robot state dicts with `robot_id`, `x`, `y`, and optionally
@@ -156,7 +299,7 @@ def evaluate_latches(
         previous_latched: Robot ids latched by the previous evaluation.
         last_fresh_distances: Pairwise-distance memory returned by the previous
             evaluation; `None` on the first call.
-        coordinating: Robots under an ACTIVE coordination command.
+        exempt: Robots whose ACTIVE command is a clearing maneuver.
 
     Returns:
         The new latched set, the reason per latched robot, and the updated
@@ -167,7 +310,7 @@ def evaluate_latches(
     reasons: dict[str, str] = {}
 
     for robot_id in detect_proximity_violations(
-        robots, limits.min_distance_m, coordinating
+        robots, limits.min_distance_m, exempt
     ):
         latched.add(robot_id)
         reasons[robot_id] = REASON_MIN_DISTANCE
@@ -189,7 +332,7 @@ def evaluate_latches(
     for a_id, b_id in combinations(robot_ids, 2):
         if a_id not in stale and b_id not in stale:
             continue
-        if a_id in coordinating or b_id in coordinating:
+        if a_id in exempt or b_id in exempt:
             continue
         last_distance = memory.get(_pair_key(a_id, b_id))
         if last_distance is None or last_distance >= limits.stale_unsafe_distance_m:
@@ -199,7 +342,7 @@ def evaluate_latches(
             reasons.setdefault(robot_id, REASON_STALE_POSE)
 
     for robot_id in stale & set(previous_latched):
-        if robot_id in coordinating:
+        if robot_id in exempt:
             continue
         latched.add(robot_id)
         reasons.setdefault(robot_id, REASON_STALE_POSE)

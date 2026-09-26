@@ -12,9 +12,14 @@ forwards to cmd_vel) and races with the safety monitor's zero at equal rate —
 net result is a slow crawl into the other robot rather than a stop. With the
 cancel, DWB stops immediately and the safety zero has no competition.
 
-Coordination command suppression: when M4 dispatches a yield/backup command for
-a robot, the safety stop is temporarily lifted so the backup motion can execute.
-The exemption clears when the command completes or fails.
+Clearing-maneuver exemption: while a robot's ACTIVE coordination command is a
+`yield` or `reverse` (a raw-cmd_vel clearing maneuver), every pair containing
+that robot is exempt from the latch rules so the backup, pull-off and pass can
+work inside `min_distance_m`. Nav2-goal legs (`reroute`, `convoy`, `navigate`,
+...) and waits do not exempt anything. The action is read from
+`/coordination/commands`, because the command id carries the decision's
+strategy, shared by all robots, not each robot's action. See
+`clearing_exempt_robots` and docs/specs/module4/safety-monitor.md §10.
 
 STALE fail-safe: a robot whose marker M1 can no longer detect has an unknown
 pose, which is unsafe rather than absent, so it keeps its latch and can be
@@ -39,15 +44,18 @@ try:
     from geometry_msgs.msg import Twist
     from rclpy.node import Node
     from std_msgs.msg import String
-    from swarm_interfaces.msg import CoordinationStatus
+    from swarm_interfaces.msg import CoordinationCommand, CoordinationStatus
 except ImportError:
     rclpy = None
     Node = object
+    CoordinationCommand = None
     CoordinationStatus = None
 
 from swarm_execution.nav2_adapter import Nav2Adapter
 from swarm_execution.safety import (
+    CLEARING_ACTIONS,
     REASON_SPEED_LIMIT,
+    CoordinationTracker,
     SafetyLimits,
     evaluate_latches,
     exceeds_speed_limit,
@@ -86,11 +94,15 @@ class SafetyMonitorNode(Node):
         self._adapter = Nav2Adapter(self)
         self._stop_pubs: dict[str, object] = {}
         self._latched_stops: set[str] = set()
-        self._coordinating: set[str] = set()
+        self._coordination = CoordinationTracker()
         self._last_fresh_distances: dict[tuple[str, str], float] = {}
         self.create_subscription(
             String, "/perception/scene_state", self._on_scene_state, 10
         )
+        if CoordinationCommand is not None:
+            self.create_subscription(
+                CoordinationCommand, "/coordination/commands", self._on_coord_command, 10
+            )
         if CoordinationStatus is not None:
             self.create_subscription(
                 CoordinationStatus, "/coordination/status", self._on_coord_status, 10
@@ -103,17 +115,29 @@ class SafetyMonitorNode(Node):
             f"min_distance_m={self._limits.min_distance_m} "
             f"max_linear_velocity_mps={self._limits.max_linear_velocity_mps} "
             f"stale_pose_is_unsafe={self._limits.stale_pose_is_unsafe} "
-            f"stale_unsafe_distance_m={self._limits.stale_unsafe_distance_m}"
+            f"stale_unsafe_distance_m={self._limits.stale_unsafe_distance_m} "
+            f"exempt_actions={','.join(sorted(CLEARING_ACTIONS))}"
         )
 
+    def _on_coord_command(self, msg) -> None:
+        self._coordination.record_command(msg.command_id, msg.robot_id, msg.action)
+
     def _on_coord_status(self, msg) -> None:
-        robot_id = msg.robot_id
-        if not robot_id:
-            return
-        if msg.status == "ACTIVE":
-            self._coordinating.add(robot_id)
-        elif msg.status in ("COMPLETED", "FAILED", "CANCELLED"):
-            self._coordinating.discard(robot_id)
+        prior_action = self._coordination.active_action(msg.robot_id)
+        if self._coordination.record_status(msg.command_id, msg.robot_id, msg.status):
+            # Once per ACTIVE-command change, not per 0.25/0.75 s republish, so
+            # the host log shows whether each maneuver armed or disarmed rules.
+            # A terminal status has already dropped the action, hence prior.
+            action = (
+                self._coordination.active_action(msg.robot_id)
+                if msg.status == "ACTIVE"
+                else prior_action
+            )
+            exempt = msg.robot_id in self._coordination.exempt_robots()
+            self.get_logger().info(
+                f"coordination status robot={msg.robot_id} command={msg.command_id} "
+                f"status={msg.status} action={action} exempt={exempt}"
+            )
 
     def _hold_stops(self) -> None:
         for robot_id in self._latched_stops:
@@ -149,16 +173,17 @@ class SafetyMonitorNode(Node):
             ):
                 speeders.add(robot_id)
 
+        exempt = self._coordination.exempt_robots()
         evaluation = evaluate_latches(
             positions,
             self._limits,
             self._latched_stops,
             self._last_fresh_distances,
-            self._coordinating,
+            exempt,
         )
         self._last_fresh_distances = evaluation.last_fresh_distances
         flagged = set(evaluation.latched) | speeders
-        effective = flagged - self._coordinating
+        effective = flagged - exempt
 
         reasons = dict(evaluation.reasons)
         for robot_id in speeders:

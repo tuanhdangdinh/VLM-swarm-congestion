@@ -4,10 +4,13 @@ from __future__ import annotations
 import json
 import math
 
+import pytest
 from swarm_execution.safety import (
     REASON_MIN_DISTANCE,
     REASON_STALE_POSE,
+    CoordinationTracker,
     SafetyLimits,
+    clearing_exempt_robots,
     detect_proximity_violations,
     evaluate_latches,
     exceeds_speed_limit,
@@ -98,7 +101,7 @@ def _make_node(min_distance_m: float = 0.3) -> tuple[SafetyMonitorNode, list[str
         min_distance_m=min_distance_m, max_linear_velocity_mps=0.2
     )
     node._latched_stops = set()
-    node._coordinating = set()
+    node._coordination = CoordinationTracker()
     node._last_fresh_distances = {}
     node._cancel_nav2_goal = lambda _robot_id: None
     stops: list[str] = []
@@ -110,8 +113,31 @@ def _make_node(min_distance_m: float = 0.3) -> tuple[SafetyMonitorNode, list[str
         def warning(self, _msg):
             pass
 
+        def info(self, _msg):
+            pass
+
     node.get_logger = lambda: _Logger()
     return node, stops
+
+
+class _CommandMsg:
+    def __init__(self, command_id: str, robot_id: str, action: str) -> None:
+        self.command_id = command_id
+        self.robot_id = robot_id
+        self.action = action
+
+
+class _StatusMsg:
+    def __init__(self, command_id: str, robot_id: str, status: str) -> None:
+        self.command_id = command_id
+        self.robot_id = robot_id
+        self.status = status
+
+
+def _dispatch(node: SafetyMonitorNode, command_id: str, robot_id: str, action: str) -> None:
+    """Feed one command and its ACTIVE status, as the command bus would."""
+    node._on_coord_command(_CommandMsg(command_id, robot_id, action))
+    node._on_coord_status(_StatusMsg(command_id, robot_id, "ACTIVE"))
 
 
 class _FakeAdapter:
@@ -303,8 +329,8 @@ def test_coordinating_robot_suppressed_from_safety_stop():
             {"robot_id": "robot_2", "x": 0.2, "y": 0.0},
         ]
     }
-    # robot_1 is executing a coordination command (backing away).
-    node._coordinating = {"robot_1"}
+    # robot_1 is executing a clearing maneuver (backing away).
+    _dispatch(node, "req-yield", "robot_1", "yield")
     node._on_scene_state(_StringMsg(json.dumps(scene)))
 
     # The whole pair is exempt while robot_1 coordinates: latching robot_2
@@ -321,14 +347,9 @@ def test_coordination_suppression_cleared_on_completion():
             {"robot_id": "robot_2", "x": 0.2, "y": 0.0},
         ]
     }
-    node._coordinating = {"robot_1"}
+    _dispatch(node, "req-yield", "robot_1", "yield")
 
-    class _StatusMsg:
-        def __init__(self, robot_id: str, status: str) -> None:
-            self.robot_id = robot_id
-            self.status = status
-
-    node._on_coord_status(_StatusMsg("robot_1", "COMPLETED"))
+    node._on_coord_status(_StatusMsg("req-yield", "robot_1", "COMPLETED"))
     node._on_scene_state(_StringMsg(json.dumps(scene)))
 
     # After completion, robot_1 is no longer suppressed.
@@ -548,7 +569,7 @@ def test_stale_failsafe_does_not_block_commanded_backup():
         _LIMITS,
         previous_latched={"robot_1", "robot_2"},
         last_fresh_distances={_PAIR: 0.078},
-        coordinating={"robot_1"},
+        exempt={"robot_1"},
     )
 
     assert result.latched == frozenset()
@@ -623,4 +644,292 @@ def test_stale_latch_reason_logged_once_per_latch():
     assert sorted(stale_lines) == [
         "safety stop robot=robot_1 reason=stale_pose_unsafe",
         "safety stop robot=robot_2 reason=stale_pose_unsafe",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Clearing-maneuver exemption (runs G4/K1 2026-09-25/26: a reroute leg plus its
+# partner's temporary_wait disarmed the monitor; one robot drove into the other)
+# ---------------------------------------------------------------------------
+
+
+def _tracker_with(*commands: tuple[str, str, str]) -> CoordinationTracker:
+    tracker = CoordinationTracker()
+    for command_id, robot_id, action in commands:
+        tracker.record_command(command_id, robot_id, action)
+        tracker.record_status(command_id, robot_id, "ACTIVE")
+    return tracker
+
+
+def _close_pair() -> list[dict]:
+    return [_fresh("robot_1", 0.0, 0.0), _fresh("robot_2", 0.30, 0.0)]
+
+
+def test_exempt_robots_include_robot_when_active_yield():
+    tracker = _tracker_with(("req-yield", "robot_1", "yield"))
+
+    assert tracker.exempt_robots() == {"robot_1"}
+
+
+def test_exempt_robots_include_robot_when_active_reverse():
+    tracker = _tracker_with(("req-reverse", "robot_1", "reverse"))
+
+    assert tracker.exempt_robots() == {"robot_1"}
+
+
+def test_exempt_robots_exclude_robot_when_active_reroute():
+    tracker = _tracker_with(("req-reroute", "robot_1", "reroute"))
+
+    assert tracker.exempt_robots() == frozenset()
+
+
+def test_exempt_robots_exclude_robot_when_active_temporary_wait():
+    tracker = _tracker_with(("req-reroute", "robot_2", "temporary_wait"))
+
+    assert tracker.exempt_robots() == frozenset()
+
+
+@pytest.mark.parametrize(
+    "action", ["navigate", "goal", "priority_override", "convoy", "wait", "stop"]
+)
+def test_exempt_robots_exclude_robot_when_active_non_clearing_action(action: str):
+    tracker = _tracker_with((f"req-{action}", "robot_1", action))
+
+    assert tracker.exempt_robots() == frozenset()
+
+
+def test_exempt_robots_exclude_waits_when_reverse_refused():
+    # A refused reverse is grounded as temporary_waits under the same
+    # `<request>-reverse` id. The id names the strategy, not the action, so an
+    # id-suffix rule would wrongly exempt two robots that are only waiting.
+    tracker = _tracker_with(
+        ("req-reverse", "robot_1", "temporary_wait"),
+        ("req-reverse", "robot_2", "temporary_wait"),
+    )
+
+    assert tracker.exempt_robots() == frozenset()
+
+
+def test_exempt_robots_exclude_active_robot_when_command_unseen():
+    tracker = CoordinationTracker()
+    tracker.record_status("req-yield", "robot_1", "ACTIVE")
+
+    assert tracker.exempt_robots() == frozenset()
+
+
+def test_exempt_robots_resolve_when_status_arrives_before_command():
+    tracker = CoordinationTracker()
+    tracker.record_status("req-yield", "robot_1", "ACTIVE")
+
+    tracker.record_command("req-yield", "robot_1", "yield")
+
+    assert tracker.exempt_robots() == {"robot_1"}
+
+
+def test_exempt_robots_clear_when_command_completes():
+    tracker = _tracker_with(("req-yield", "robot_1", "yield"))
+
+    tracker.record_status("req-yield", "robot_1", "COMPLETED")
+
+    assert tracker.exempt_robots() == frozenset()
+
+
+def test_exempt_robots_keep_robot_when_other_command_terminates():
+    # A busy-rejected command's FAILED, or a base_mission status from
+    # coordination_client, is not the yield's own terminal status.
+    tracker = _tracker_with(("req-yield", "robot_1", "yield"))
+
+    tracker.record_status("req2-reroute", "robot_1", "FAILED")
+    tracker.record_status("base_mission", "robot_1", "COMPLETED")
+
+    assert tracker.exempt_robots() == {"robot_1"}
+
+
+def test_tracker_bounds_commands_without_terminal_status():
+    tracker = CoordinationTracker()
+    for i in range(CoordinationTracker.MAX_TRACKED_COMMANDS + 10):
+        tracker.record_command(f"req{i}-yield", "robot_1", "yield")
+
+    tracker.record_status(
+        f"req{CoordinationTracker.MAX_TRACKED_COMMANDS + 9}-yield", "robot_1", "ACTIVE"
+    )
+
+    assert len(tracker._action_by_key) == CoordinationTracker.MAX_TRACKED_COMMANDS
+    assert tracker.exempt_robots() == {"robot_1"}
+
+
+def test_clearing_exempt_robots_is_pure_join_of_status_and_action():
+    exempt = clearing_exempt_robots(
+        {"robot_1": "req-yield", "robot_2": "req-yield"},
+        {("req-yield", "robot_1"): "yield", ("req-yield", "robot_2"): "temporary_wait"},
+    )
+
+    assert exempt == {"robot_1"}
+
+
+def test_pair_exempt_when_one_member_yields_and_other_waits():
+    # The yield flow: the passer's linked temporary_wait does not exempt it,
+    # but the pair stays exempt through the yielder's own ACTIVE yield.
+    tracker = _tracker_with(
+        ("req-yield", "robot_1", "yield"),
+        ("req-yield", "robot_2", "temporary_wait"),
+    )
+
+    flagged = detect_proximity_violations(_close_pair(), 0.45, tracker.exempt_robots())
+
+    assert flagged == set()
+
+
+def test_pair_exempt_when_one_member_yields_and_other_reroutes():
+    # Mixed pair rule: exempt while a clearing maneuver is among the pair's
+    # ACTIVE commands, whatever the other member runs.
+    tracker = _tracker_with(
+        ("req-yield", "robot_1", "yield"),
+        ("req2-reroute", "robot_2", "reroute"),
+    )
+
+    flagged = detect_proximity_violations(_close_pair(), 0.45, tracker.exempt_robots())
+
+    assert flagged == set()
+
+
+def test_pair_flagged_when_members_reroute_and_wait():
+    # The G4/K1 shape: robot_1 on a reroute Nav2 leg, robot_2 parked by the
+    # linked temporary_wait. Neither is clearing, so the 0.45 m rule applies.
+    tracker = _tracker_with(
+        ("req-reroute", "robot_1", "reroute"),
+        ("req-reroute", "robot_2", "temporary_wait"),
+    )
+
+    flagged = detect_proximity_violations(_close_pair(), 0.45, tracker.exempt_robots())
+
+    assert flagged == {"robot_1", "robot_2"}
+
+
+def test_stale_failsafe_armed_when_active_commands_are_non_clearing():
+    # K1 contact: both markers overlap, both robots STALE, last fresh distance
+    # 0.119 m. The fail-safe must latch despite the reroute/wait being ACTIVE.
+    tracker = _tracker_with(
+        ("req-reroute", "robot_1", "reroute"),
+        ("req-reroute", "robot_2", "temporary_wait"),
+    )
+    robots = [_stale("robot_1", 0.0, 0.0), _stale("robot_2", 0.119, 0.0)]
+
+    result = evaluate_latches(
+        robots,
+        _LIMITS,
+        last_fresh_distances={_PAIR: 0.119},
+        exempt=tracker.exempt_robots(),
+    )
+
+    assert result.latched == {"robot_1", "robot_2"}
+
+
+def test_stale_latch_kept_when_active_commands_are_non_clearing():
+    tracker = _tracker_with(
+        ("req-reroute", "robot_1", "reroute"),
+        ("req-reroute", "robot_2", "temporary_wait"),
+    )
+    robots = [_stale("robot_1", 0.0, 0.0), _stale("robot_2", 3.0, 0.0)]
+
+    result = evaluate_latches(
+        robots,
+        _LIMITS,
+        previous_latched={"robot_1", "robot_2"},
+        exempt=tracker.exempt_robots(),
+    )
+
+    assert result.latched == {"robot_1", "robot_2"}
+
+
+def _scene(distance_m: float, status: str = "MOVING") -> _StringMsg:
+    return _StringMsg(
+        json.dumps(
+            {
+                "robots": [
+                    {"robot_id": "robot_1", "x": 0.0, "y": 0.0, "status": status},
+                    {"robot_id": "robot_2", "x": distance_m, "y": 0.0, "status": status},
+                ]
+            }
+        )
+    )
+
+
+def test_latch_persists_when_reroute_goes_active_after_latch():
+    # K1: the pair latched at the 0.45 m crossing, then 0.8 s later the reroute
+    # and its partner's temporary_wait went ACTIVE. The old exemption lifted
+    # the latch; now it must hold and /safety/holds must not announce a release.
+    node, _stops = _make_node(min_distance_m=0.45)
+    published: list[list[str]] = []
+    node._publish_holds = lambda: published.append(sorted(node._latched_stops))
+    node._on_scene_state(_scene(0.41))
+    assert node._latched_stops == {"robot_1", "robot_2"}
+
+    _dispatch(node, "req-reroute", "robot_1", "reroute")
+    _dispatch(node, "req-reroute", "robot_2", "temporary_wait")
+    node._on_scene_state(_scene(0.30))
+
+    assert node._latched_stops == {"robot_1", "robot_2"}
+    assert published == [["robot_1", "robot_2"]]
+
+
+def test_latch_fires_when_pair_closes_during_reroute():
+    # G4: the reroute went ACTIVE before the first sub-0.45 m frame arrived.
+    node, stops = _make_node(min_distance_m=0.45)
+    _dispatch(node, "req-reroute", "robot_1", "reroute")
+    _dispatch(node, "req-reroute", "robot_2", "temporary_wait")
+
+    node._on_scene_state(_scene(0.41))
+
+    assert sorted(stops) == ["robot_1", "robot_2"]
+
+
+def test_latch_held_when_pair_goes_stale_during_reroute():
+    node, stops = _make_node(min_distance_m=0.45)
+    _dispatch(node, "req-reroute", "robot_1", "reroute")
+    _dispatch(node, "req-reroute", "robot_2", "temporary_wait")
+    node._on_scene_state(_scene(0.41))
+
+    stops.clear()
+    node._on_scene_state(_scene(0.41, status="STALE"))
+
+    assert sorted(stops) == ["robot_1", "robot_2"]
+
+
+def test_latch_released_when_reverse_goes_active():
+    # Non-regression: a clearing maneuver still lifts an existing latch so the
+    # commanded backup can run.
+    node, _stops = _make_node(min_distance_m=0.45)
+    node._on_scene_state(_scene(0.27))
+    assert node._latched_stops == {"robot_1", "robot_2"}
+
+    _dispatch(node, "req-reverse", "robot_1", "reverse")
+    _dispatch(node, "req-reverse", "robot_2", "reverse")
+    node._on_scene_state(_scene(0.27))
+
+    assert node._latched_stops == set()
+
+
+def test_latch_released_when_yield_goes_active_with_waiting_partner():
+    node, _stops = _make_node(min_distance_m=0.45)
+    node._on_scene_state(_scene(0.27))
+
+    _dispatch(node, "req-yield", "robot_1", "yield")
+    _dispatch(node, "req-yield", "robot_2", "temporary_wait")
+    node._on_scene_state(_scene(0.27))
+
+    assert node._latched_stops == set()
+
+
+def test_coordination_status_change_logged_with_action_and_exemption():
+    node, _stops = _make_node(min_distance_m=0.45)
+    logger = _RecordingLogger()
+    node.get_logger = lambda: logger
+
+    _dispatch(node, "req-reroute", "robot_1", "reroute")
+    node._on_coord_status(_StatusMsg("req-reroute", "robot_1", "ACTIVE"))
+
+    assert logger.infos == [
+        "coordination status robot=robot_1 command=req-reroute "
+        "status=ACTIVE action=reroute exempt=False"
     ]
