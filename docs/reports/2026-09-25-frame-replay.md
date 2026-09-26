@@ -8,6 +8,7 @@
 - Rev 2 (2026-09-25): credits restored; completes Arm R to all 74 artifacts and adds the paired grey sub-arm, the full Arm O and Arm M. The grey arm settles the refusal trigger within one design (0/120 vs 22/60); Arm O finds a large order effect on real stimuli and, under `id_desc` only, obstacle-side sensitivity; Arm M finds `max_attempts=4` more than halves the terminal refusal rate.
 - Rev 3 (2026-09-25): adds Arm S, a within-artifact `order` x `obstacle text` x `image` ablation on the six genuine-standoff artifacts, and Arm D, a downscaled-frame refusal check. The obstacle **text** block carries the `id_desc` side signal (removing it: P(feasible) 0.962 -> 0.556, p = 8.8e-4); the frame amplifies it; the robot states carry nothing. Still 0/288 traces cite the blocker, so trace silence is not evidence a channel is unused. Downscaling frames triples terminal refusals.
 - Rev 4 (2026-09-26): adds Arm S2, the batch-2 replication of the Arm-S design, truncated at 187 of 288 runs by an exhausted API credit balance; Arm F (annotated vs raw frame) never ran. The obstacle-text contrast replicates in direction (pooled 0.714 -> 0.375, p = 1.1e-3; 7 of 9 comparable scenes) but the Rev 3 level does not: P(feasible) under `id_desc` with text and the real frame is 0.435 in batch 2 against 0.962 in batch 1, on prompts that differ only in pose decimals. Contrast (b), frame amplification, is left unconfirmed rather than refuted: batch 2's text-on level has no headroom above its side-blind baseline. The frame refusal trigger replicates a fourth time.
+- Rev 5 (2026-09-27): credits restored; runs the three truncated arms. **Arm X** validates the neutral-image fallback: terminal refusals fall from 10/84 to 0/84 (p = 1.5e-3), and 93 of 94 fallback decisions (Arms X and F together) match the scene's modal frame-attached decision. Only one of those 94 is a yield, so the yielder choice is untested. Recommendation: keep the fallback, and keep reporting fallback rows separately. **Arm F** finds the M1 overlay is not the trigger: the raw frame refuses at least as often (gated 30/72 raw vs 20/72 annotated, p = 0.11), but on different scenes. **The S2 remainder** is a separate east-only stratum under the rewritten reasoner. It adds 1 positive and 1 reversing scene to Rev 4's 7 of 9, and the reversal rests on a single yield.
 
 ---
 
@@ -1169,3 +1170,336 @@ scene-dependent, not the near-deterministic competence Rev 3 measured.
 | `data/experiments/2026-09-26-batch2-replay/analysis_batch2.txt` | the batch-2 analysis printout |
 | `data/experiments/2026-09-26-batch2-replay/analysis_pooled.txt` | the pooled batch-1 + batch-2 printout |
 | `data/experiments/2026-09-26-batch2-replay/images/grey_1280x960.png` | the neutral image used by the grey cells |
+
+---
+
+## Rev 5 - Image-Fallback Validation, Raw-Frame Arm, S2 Remainder
+
+The OpenAI balance was topped up on 2026-09-26. The three arms the quota
+truncated ran to their planned n in one session, with no quota abort, no
+HTTP 429 and 0 transport errors. Every new row was produced by the reasoner as
+of `9d7328f` or later, which includes the neutral-image fallback. That
+provenance matters for every section below, and it is why the S2 remainder is
+reported as its own stratum.
+
+### What ran
+
+| arm | command | cells | recorded | `max_attempts` / fallback |
+|---|---|---|---|---|
+| X | `--arm X --runs batch2 --n 4 --pace-sec 8.0 --out-dir data/experiments/2026-09-26-batch2-replay` | 168 | **168** | 4 / `None` (control) and 4 / `2` |
+| F | `--arm F --runs batch2 --n 3 --pace-sec 5.2 --out-dir data/experiments/2026-09-26-batch2-replay` | 336 | **336** | 4 / `2` (`shipped`) |
+| S2 remainder | `--arm S2 --runs batch2 --n 6 --pace-sec 5.2 --out-dir data/experiments/2026-09-26-batch2-replay` | 101 pending of 288 | **101** | 4 / `2` (`shipped`) |
+
+All three ran `gpt-4o` at temperature 0.0, as recorded per row. The arms ran in
+the order above, each starting only after the previous one exited cleanly.
+
+### Strata, and what is not pooled
+
+- **How the rows are told apart.** The 187 Rev 4 S2 rows have no
+  `image_fallback_after_attempts` field, because the recorder only gained it
+  in `a255cc8`. Every row written in this session has the field.
+  The Rev 5 analysis splits on that field before calling the script's own
+  per-arm analysis functions, and the S2 analysis below uses only the 101 new
+  rows.
+- **The attempt-1 code path did not change.** `9d7328f` alters only what
+  happens after a refused attempt. Attempt 1 is the same payload through the
+  same backend, so the attempt-1 tables are not separated by a code change.
+- **They are still not pooled.** The two strata were collected about 25 hours
+  apart, against a hosted model that can drift. The Rev 4 rows ended at about
+  01:10 ICT on 2026-09-26; the remainder ran from 02:06 to 02:21 ICT on
+  2026-09-27. They also cover different
+  scenes: the new stratum is three east scenes, two of them never run before.
+  Pooling would mix a time effect and a scene effect into the contrasts, so
+  Rev 4's pooled tables are **not** recomputed.
+- **The `shipped` policy has changed meaning.** It now carries the fallback,
+  so it is not the configuration live batch 2 ran with. Attempt-1 refusal
+  rates, the primary measure of Arms F and S2, are unaffected. Terminal-refusal
+  and retry figures from F and the S2 remainder describe the new policy, and
+  none of them is set against live batch 2.
+- **One `summary.csv` bucket mixes strata.** It is scene `189ae2a6`, cell
+  `id_desc` / text off / grey: 1 pre-rewrite row and 5 post-rewrite rows.
+  `summary.csv` is descriptive only; no table below reads it.
+
+### Arm X - does the neutral-image fallback work?
+
+Arm X re-runs the 21 batch-2 artifacts that refused live on attempt 1. Each
+artifact runs 4 times under each of two policies: four attempts alone
+(`max_attempts_4`, the configuration live batch 2 ran with) and four attempts
+with the fallback after two refusals (`image_fallback_2`, the shipped config).
+
+| policy | runs | attempt-1 refusals | no decision (terminal) | fallback fired | mean attempts |
+|---|---|---|---|---|---|
+| four attempts alone | 84 | 55 (65.5%) | **10 (11.9%)** | - | 2.02 |
+| four attempts + fallback | 84 | 52 (61.9%) | **0 (0.0%)** | 20 | 1.90 |
+
+The difference in terminal refusal is Fisher p = **1.5e-3**. Conditional on a
+refused attempt 1, the rate is 10/55 (18.2%) without the fallback and 0/52 with
+it.
+
+The fallback only acts once attempts 1 **and** 2 have both refused, by the
+production `is_refusal`. On that subset:
+
+| policy | attempts 1 and 2 both refused | of which reached a decision |
+|---|---|---|
+| four attempts alone | 18 | 8 (44.4%) |
+| four attempts + fallback | 20 | **20 (100%)** |
+
+Fisher p = 9.3e-5. In all 20 fired runs the record shows `neutral.png` was the
+image actually sent on the fallback attempt, and the model answered on that
+attempt every time.
+
+**Does a fallback decision agree with the decision the frame would have
+produced?** The script's own test asks whether the fallback decision appears
+anywhere among the control replicates. That is lenient, so the stricter
+estimand here compares each fallback decision with the artifact's **modal**
+frame-attached decision, as a `(strategy, yield_robot)` pair. "Frame-attached"
+means a run where the fallback did not fire, whether the frame was annotated or
+raw (Arm F shows those two differ on refusals). Arm F also runs the new
+reasoner, and its fallback fired 76 times on the same batch-2 stimuli, so the
+two arms are read together.
+
+| quantity | Arm X | Arms X + F |
+|---|---|---|
+| fallback fired | 20 runs, 10 artifacts | 96 runs, 34 artifacts |
+| fallback attempt itself refused | 0 | **2** |
+| fallback-derived decisions | 20 | 94 |
+| equal to the artifact's modal frame-attached decision | 19/20 | **93/94 (98.9%)** |
+| fallback decisions that are yields | 1 | **1** |
+
+The single disagreement is scene `d8adbd13`: the fallback answered `reverse`
+once where the real frame answered `none` 10 of 10 times. The single fallback
+yield is `810c9104`, and it names `robot_2`, the feasible yielder. That matches
+the real-frame mode of 9 `robot_2` against 4 `robot_1`.
+
+Three qualifications bound what this can support.
+
+- **Agreement is mostly agreement on `none`.** 92 of the 94 fallback decisions
+  are `none`, because the scenes that refuse twice in a row are overwhelmingly
+  ones the model reads as not congested. On strategy, the fallback does not
+  drift. On the **yielder choice**, the quantity Arm A's primary endpoints are
+  built on, Arm X has **n = 1**.
+- **The closest available evidence on yielder choice is Arms S and S2.** The
+  fallback payload is the base prompt with a grey image and no re-ask suffix,
+  and each call is stateless. The fallback attempt is therefore the same
+  stimulus as the Arm-S "text on, grey" cell at the stored order. On standoff
+  scenes, that cell already differs from the real-frame one:
+  - batch 1, `id_desc`: P(feasible) 0.962 real against 0.694 grey
+    (p = 0.0095, Rev 3);
+  - batch 2 pre-rewrite, `id_desc`: P(`robot_1`) 0.652 real against 0.833
+    grey (Rev 4);
+  - the new east stratum below: P(feasible) 5/7 real against 5/12 grey.
+
+  A fallback yield is a different measurement from a frame-attached one.
+- **The grey image is not refusal-proof.** Artifact `bb7a2fec` under its raw
+  frame refused all four attempts twice, both grey attempts included. These are
+  the first refusals on a grey image anywhere in this study; 0 of 355 grey
+  attempt-1 calls across Revs 2-4 refused. The fallback attempt carries no
+  re-ask suffix and each call is stateless, so this prompt with a grey image
+  can refuse by itself. So the fallback turns most terminal
+  refusals into decisions (94 of 96 fired runs), not all of them.
+
+**Verdict on the fallback.**
+
+- **Keep it** for live collection. It removes terminal refusals on the stimuli
+  that produced them live (10/84 to 0/84) and does not raise the mean attempt
+  count.
+- **The separate-reporting rule must stand.** Keep reporting every decision
+  carrying `image_fallback_used: true` apart from the frame-attached decisions.
+  Strategy agreement is established (93/94); yielder agreement is not (n = 1).
+  On standoffs, the Arm-S grey cells show the grey stimulus moves the yielder.
+- **Lifting the rule** would need fallback yields on standoff scenes, compared
+  within scene against the frame-attached yield at the same order. That is not
+  the data Arm X collected.
+
+### Arm F - is the M1 overlay the refusal trigger?
+
+All 56 batch-2 artifacts ran at the stored order and the run's own obstacle-text
+setting. Each was sent once with the annotated frame M5 sent live and once with
+the raw camera frame dumped beside it, three replicates each. A low-skew pair
+was checked before spending, using `145fe091` at skew 0.000 s. The two PNGs
+have the same geometry and are both RGB, with per-channel means within 0.1.
+Only 0.14% of pixels differ by more than 8 levels, all inside the box spanning
+the two robot markers (rows 444-539, columns 861-1240). The only visible
+difference is the overlay, meaning the ID boxes, labels and heading arrow.
+
+The raw frame is grabbed from `/camera/image_raw` up to 1.36 s away from the
+annotated one. **The primary analysis is therefore the 24 artifacts whose pair
+is within 0.2 s**, where a difference is attributable to the overlay rather than
+to robot motion.
+
+| subset | artifacts | annotated attempt-1 refusals | raw attempt-1 refusals | run-level Fisher p | artifact-paired (ann > raw / raw > ann / tied) | exact McNemar p |
+|---|---|---|---|---|---|---|
+| **\|skew\| <= 0.2 s (primary)** | 24 | **20/72 (27.8%)** | **30/72 (41.7%)** | 0.11 | 5 / 10 / 9 | 0.30 |
+| all artifacts (ungated) | 56 | 53/168 (31.5%) | 89/168 (53.0%) | 1.0e-4 | 10 / 26 / 20 | 0.011 |
+| \|skew\| > 0.2 s | 32 | 33/96 (34.4%) | 59/96 (61.5%) | - | - | - |
+
+**Removing the overlay does not reduce refusals.**
+
+- On the gated subset the raw frame refuses more often, not less. The
+  difference is not significant (p = 0.11 by runs, 0.30 paired by artifact),
+  so the defensible reading is "no reduction", not "the overlay protects".
+- Ungated, the raw frame refuses significantly more (McNemar p = 0.011). That
+  subset carries up to 1.36 s of scene change, so it is not an overlay effect.
+
+Rev 4's hypothesis, that the M1 overlay is what the model refuses, is
+**refuted in direction**.
+
+**What does predict a refusal is the exact image.**
+
+| gated, attempt-1 | annotated | raw | Fisher p (annotated vs raw) |
+|---|---|---|---|
+| artifacts that refused live (9) | 18/27 (66.7%) | 15/27 (55.6%) | 0.58 |
+| artifacts valid live (15) | **2/45 (4.4%)** | **15/45 (33.3%)** | **8.0e-4** |
+| Fisher p (live-refused vs live-valid) | **1.5e-8** | 0.085 | |
+
+Replayed with the frame M5 actually sent, refusals are stimulus-locked to the
+live refusers: 67% against 4%. Replayed with a raw frame of the same instant,
+the lock largely dissolves.
+
+- **A different set of scenes refuses.** Live-valid scenes refuse a third of
+  the time on the raw frame. Scene `c8afd182`, at skew 0.000 s, is 0/3
+  annotated and 3/3 raw. Scene `5d3780f4`, also at skew 0.000 s, is 2/3
+  annotated and 0/3 raw.
+- **Which scenes refuse is effectively image-instance-specific.** A small
+  image change, such as removing the overlay from an otherwise aligned frame,
+  re-rolls which scenes refuse. The refusal is not tied to the overlay, nor to
+  a scene feature an overlay could add or hide.
+- **The frame channel is near-necessary, not strictly necessary.**
+  - A grey image refused 0 of 355 attempt-1 calls in Revs 2-4 and 0 of 53 in
+    the S2 stratum below.
+  - It refused 2 of 96 times as a fallback attempt, both on one prompt
+    (`bb7a2fec`, above). Across every grey call in the study that is 2 of 504.
+  - That prompt's text may be refusal-prone on its own. An attempt-1 grey
+    replay of `bb7a2fec` would settle it; that replay has not been run.
+
+The practical consequence is that suppressing the overlay is **not** a
+refusal mitigation. The fallback is the mitigation that works.
+
+**Retry figures.** The fallback fired in 76 of 336 F runs. Conditional on a
+refused attempt 1, terminal refusal was 0/53 annotated and 2/89 raw (both
+`bb7a2fec`, above). These figures describe the shipped fallback policy, so
+they do **not** supply the like-for-like reconciliation with live batch 2 that
+Rev 4 expected of Arm F. Arm X's control does: conditional terminal refusal on
+the live refusers is 10/55 (18.2%) offline against 8/21 (38.1%) live, Fisher
+p = 0.079. That is the same direction and order as Rev 4's Arm M against live,
+and on its own it is not significant.
+
+### Arm S2 remainder - the post-rewrite stratum
+
+The 101 remaining cells are all **east** scenes: `e4b1bd03` and `618a9f29` in
+full (48 each), plus 5 cells of `189ae2a6`, all `id_desc` / text off / grey.
+East-only means:
+
+- "always `robot_1`" scores P(feasible) **1.000**, so an absolute P(feasible)
+  level is just P(`robot_1`) and says nothing about side tracking;
+- the `id_asc` cells cannot test anything;
+- the side-association test (c) is undefined.
+
+Only between-cell contrasts under `id_desc` are readable.
+
+| order | text | image | n (attempt-1 yields) | P(robot_1) = P(feasible) |
+|---|---|---|---|---|
+| `id_asc` | on | real | 12 | 1.000 |
+| `id_asc` | on | grey | 12 | 1.000 |
+| `id_asc` | off | real | 12 | 0.833 |
+| `id_asc` | off | grey | 12 | 1.000 |
+| `id_desc` | on | real | 7 | **0.714** |
+| `id_desc` | on | grey | 12 | 0.417 |
+| `id_desc` | off | real | 10 | **0.600** |
+| `id_desc` | off | grey | 17 | 0.353 |
+
+Contrasts under `id_desc`, attempt-1:
+
+- **(a) Real frame, text on vs off:** 5/7 against 6/10, p = 1.0.
+- **(b) Text on, real vs grey:** 5/7 against 5/12, p = 0.35.
+
+Per scene, real frame, `id_desc`:
+
+| run | request | side | text on | text off | delta |
+|---|---|---|---|---|---|
+| `20260925_165442` | `e4b1bd03` | east | 0/1 (5 of 6 refused on attempt 1) | 3/4 | **-0.750** |
+| `20260925_170938` | `618a9f29` | east | 5/6 | 3/6 | +0.333 |
+
+**Rev 4's direction-replication conclusion weakens slightly and does not
+reverse.**
+
+- **Scene tally.** Rev 4 had 7 of 9 comparable scenes in the predicted
+  direction, 2 flat and none reversing. This stratum adds 1 positive and
+  **1 reversing** scene. The reversal rests on a single text-on yield, because
+  `e4b1bd03` refused 5 of its 6 text-on real-frame calls.
+- **Keep the two strata apart.** Reported side by side, they are "7 of 9, none
+  reversing" before the rewrite and "1 of 2, one reversal at n = 1" after it.
+- **Evidence strength.** It stays **moderate** for the direction and **weak**
+  for any claim that the effect is general across scenes. Rev 4 already read
+  it as scene-dependent, and the new stratum points the same way.
+- **The (b) contrast has headroom here.** On these east scenes, text-on real
+  (0.714) exceeds grey (0.417), unlike batch 2 pre-rewrite. At n = 7 against
+  12 it is not significant, so contrast (b) stays **not established**.
+- **The `id_asc` robot_1 default** holds at 46 of 48 yields. The two
+  exceptions are both `id_asc` / text off / real frame.
+
+**Refusals, a fifth replication.** Real-frame attempt 1 refused 7 of 48 runs,
+against 0 of 53 on grey (Fisher p = 4.3e-3). All 7 recovered by re-ask on
+attempt 2, so the fallback never fired in this stratum.
+
+### Verdict
+
+- **Image fallback: keep. Separate reporting: must stand.**
+  - Terminal refusal on the live refusers falls 10/84 to 0/84 (p = 1.5e-3), and
+    20/20 double refusals recover against 8/18 without it.
+  - Agreement with the modal frame-attached decision is 93/94.
+  - Yielder agreement is **untested** (n = 1). The Arm-S grey cells, which are
+    the same stimulus as the fallback attempt, show the yielder moves on
+    standoffs.
+  - The grey fallback is not refusal-proof (2/96 fallback attempts refused).
+  - This is a recommendation only; no config value was changed.
+- **The overlay is not the trigger.**
+  - Gated to |skew| <= 0.2 s, the raw frame refuses 41.7% against 27.8%
+    annotated (p = 0.11), and on a different set of scenes.
+  - The refusal is locked to the exact image M5 sent, not to the overlay.
+    Removing the overlay is not a mitigation.
+- **The S2 remainder**, analysed alone as the post-rewrite east stratum, adds
+  one positive and one reversing scene (the reversal at n = 1 yield). The
+  text-effect direction stays moderate; its generality across scenes is weak.
+
+### Cost
+
+Figures are recomputed from each arm's own rows, split by arm and stratum,
+because `analyze` totals the whole directory.
+
+| quantity | Arm X | Arm F | S2 remainder | Rev 5 total | cumulative (all replay arms) |
+|---|---|---|---|---|---|
+| `Reasoner` runs | 168 | 336 | 101 | 605 | 1,686 |
+| API calls | 330 | 558 | 108 | 996 | 2,403 |
+| prompt tokens | 583,628 | 975,298 | 181,493 | 1,740,419 | 4,124,722 |
+| completion tokens | 27,760 | 63,321 | 19,273 | 110,354 | 301,289 |
+| transport errors | 0 | 0 | 0 | 0 | 0 |
+| **estimated spend** | **$1.74** | **$3.07** | **$0.65** | **$5.45** | **$13.32** |
+
+The cumulative column continues Rev 4's $7.87 replay total, which covers Arms
+R, grey, O, M, S, D and the first 187 S2 rows. It does not include the
+2026-09-25 refusal-census and presentation-order probes.
+
+### Deviations from the plan
+
+| planned | delivered | reason |
+|---|---|---|
+| §AB resume: `--arm X --runs batch2 --n 4 --pace-sec 8.0`, no `--out-dir` | the same, plus `--out-dir data/experiments/2026-09-26-batch2-replay` | the default output directory is the batch-1 one. `--arm analyze --runs batch2` against it would load batch-1 Arm-R rows against batch-2 artifacts. Batch-2 rows belong beside the S2 rows. |
+| §AB: `--arm analyze --runs batch2` | a stratified analysis that calls the script's own `analyze_arm_x` / `analyze_arm_s` / `analyze_arm_f` on each stratum separately, plus the stricter Arm X estimands | the script's `analyze` pools every `S2` row regardless of reasoner version |
+| F and S2 pacing | not specified in Rev 4 or §AB; ran at the script default, 5.2 s | no HTTP 429 was seen at that pace |
+| Arm F as the like-for-like retry reconciliation with live batch 2 | not possible; Arm X's control arm supplies it | `shipped` now carries the fallback |
+| Arm X decision agreement as the script defines it (set membership) | reported, plus modal agreement and the X + F pooled fallback set | set membership against four replicates is lenient |
+| S2 remainder poolable with Rev 4's 187 | reported as its own stratum; Rev 4's pooled tables left as they were | reasoner rewrite, a ~25 h gap, and a disjoint east-only scene set |
+
+### Artifacts added
+
+| path | contents |
+|---|---|
+| `data/experiments/2026-09-26-batch2-replay/calls.jsonl` | +605 rows: 168 `X`, 336 `F` and 101 `S2`. The new `S2` rows carry `image_fallback_after_attempts`; the 187 Rev 4 rows do not. |
+| `data/experiments/2026-09-26-batch2-replay/summary.csv` | regenerated over all 792 rows |
+| `data/experiments/2026-09-26-batch2-replay/analysis_armX.txt` | Arm X: the script's table, the stricter estimands, and the X + F fallback-agreement listing |
+| `data/experiments/2026-09-26-batch2-replay/analysis_armF.txt` | Arm F: gated and ungated tables, per-artifact gated counts, stimulus locking |
+| `data/experiments/2026-09-26-batch2-replay/analysis_S2_post.txt` | the post-rewrite S2 stratum alone |
+
+`analysis_batch2.txt` and `analysis_pooled.txt` are left as Rev 4 wrote them.
+They describe the pre-rewrite rows only.

@@ -37,6 +37,35 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-27** — **Frame replay Rev 5: the three credit-blocked arms ran in
+  full** (`docs/reports/2026-09-25-frame-replay.md` Rev 5; rows in
+  `data/experiments/2026-09-26-batch2-replay/`; $5.45, cumulative $13.32).
+  - **Arm X (image fallback).** Terminal refusal fell from 10/84 to 0/84
+    (p = 1.5e-3), and 93 of 94 fallback decisions (X and F together) match
+    the scene's modal frame-attached (strategy, yielder) decision. Only 1 of
+    those 94 is a yield, so the yielder choice is untested.
+    - Recommendation: **keep** `image_fallback_after_attempts: 2`.
+    - The separate-reporting rule for `image_fallback_used` rows **stands**
+      (A6). The Arm-S grey cells are the same stimulus as the fallback
+      attempt, and they move the yielder on standoffs.
+    - The grey fallback is not refusal-proof: 2 of 96 fallback attempts
+      refused, both on `bb7a2fec` raw.
+  - **Arm F (annotated vs raw).** The overlay is **not** the trigger. Gated to
+    |skew| <= 0.2 s, raw refuses 30/72 against 20/72 annotated (p = 0.11).
+    Refusals lock to the exact frame M5 sent: live-valid scenes refuse 2/45
+    annotated against 15/45 raw. Dropping the overlay is not a mitigation.
+  - **S2 remainder.** The 101 rows ran under the rewritten reasoner and are
+    kept as a separate east-only stratum, never pooled with Rev 4's 187. It
+    adds 1 positive and 1 reversing scene (the reversal rests on 1 yield) to
+    Rev 4's 7 of 9.
+  - **Resume gotcha.** §AB's resume command omits `--out-dir`, but batch-2
+    arms must pass `--out-dir data/experiments/2026-09-26-batch2-replay`.
+  - **Pooling gotcha.** The script's `analyze` pools every `S2` row. Split the
+    rows on the presence of `image_fallback_after_attempts` first.
+  - This discharges the replay parts of prereg items 4–5
+    (`docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md`). The
+    forced-order live cells and the gpt-4o `_bshort` pilot are still open.
+
 - **2026-09-26** — **Arm B classical reasoner landed offline (Phase 1 plan
   Tasks 4, 12–14, adapted to the current tree).** It is on branch
   `feat/arm-b-classical` and is not yet wired into M5.
