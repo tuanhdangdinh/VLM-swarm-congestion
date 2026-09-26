@@ -17,8 +17,9 @@ boxes, robot_2's spawn offset, the base-mission goals, and the
 `--goal-mode opponent_spawn` adds the `_gshort` cells: the same blockers with
 each robot's goal on the opposing spawn instead of +-2.5, so no goal path
 crosses a blocker box. `--goal-mode blocked_short` adds the `_bshort` cells,
-which shorten only the goal that lies past the blocker and leave the open-side
-goal at +-2.5. The goal mode is a generator option, deliberately not a
+which shorten only the goal that lies past the blocker and widen the open-side
+goal to +-2.6, past the M3 escort endpoint by a drift-tolerant margin. The goal
+mode is a generator option, deliberately not a
 `HeadOnAsymmetricParams` field -- adding it there would emit a new line in the
 `parameters:` block of the v1 variants and break their frozen bytes.
 
@@ -34,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
 import sys
 from pathlib import Path
 from typing import Literal, get_args
@@ -58,7 +60,7 @@ from isaac.vgu_sim.family_oracle import (
     required_room_m,
     room_from_mouth_m,
 )
-from reasoning.rag.scene_geometry import SceneGeometry
+from reasoning.rag.scene_geometry import SceneGeometry, park_offset_m, passer_clearance_m
 
 FAMILY_DIR = Path("isaac/config/scenarios/family")
 BASE_SCENARIO = Path("isaac/config/scenarios/head_on_deadlock.yaml")
@@ -76,11 +78,12 @@ NAME_PREFIX = "head_on_asymmetric"
 #                     no goal path crosses a blocker. Retreat room behind each
 #                     spawn, and therefore the oracle, is untouched.
 #   blocked_short   - only the goal on the BLOCKED side is shortened to the
-#                     blocked robot's spawn; the goal on the OPEN side keeps
-#                     its +-2.5. No goal path crosses a blocker, and the
-#                     passer's goal stays beyond the yielder's park point, so
-#                     an arrived passer never sits in the yielder's return
-#                     path (the 2026-09-25 gshort west losses H2/H3).
+#                     blocked robot's spawn; the goal on the OPEN side moves
+#                     out to +-2.6 (BLOCKED_SHORT_PASSER_GOAL_M). No goal path
+#                     crosses a blocker, and the passer's goal stays beyond the
+#                     yielder's park point, so an arrived passer never sits in
+#                     the yielder's return path (the 2026-09-25 gshort west
+#                     losses H2/H3).
 GoalMode = Literal["beyond", "opponent_spawn", "blocked_short"]
 GOAL_MODES: tuple[GoalMode, ...] = get_args(GoalMode)
 DEFAULT_GOAL_MODE: GoalMode = "beyond"
@@ -97,6 +100,12 @@ PREREG_TAG_BY_GOAL_MODE: dict[GoalMode, str] = {
     "blocked_short": "prereg-v1-bshort",
 }
 PREREG_TAG = PREREG_TAG_BY_GOAL_MODE[DEFAULT_GOAL_MODE]
+# |x| of the open-side passer's goal in blocked_short mode. The inherited +-2.5
+# cleared the M3 escort endpoint (park_offset_m + passer_clearance_m, 2.439 m)
+# by only 0.061 m, less than the ~0.1 m odometry drift FEASIBILITY_MARGIN_M
+# budgets for; 2.6 clears it by 0.161 m and stays well inside the camera ROI
+# (+-3.0) and the warehouse walls (+-6).
+BLOCKED_SHORT_PASSER_GOAL_M = 2.6
 BLOCKER_SIZE = ObstacleSize(x_m=0.3, y_m=0.3, z_m=0.5)
 MANIFEST_COLUMNS: tuple[str, ...] = (
     "name",
@@ -277,11 +286,13 @@ def _blocked_short_goals(
 ) -> dict[str, tuple[float, float]]:
     """Map each robot id to its goal with only the blocked-side goal shortened.
 
-    The robot spawned on the blocked side keeps its base-mission goal, which
-    lies on the open side beyond the yielder's park point. The robot on the
-    open side -- the oracle's yielder, whose base goal lies past the blocker
-    box -- has its goal pulled back to the blocked robot's spawn, stopping it
-    short of the box instead of squeezing it past.
+    The robot spawned on the blocked side -- the passer -- keeps the direction
+    of its base-mission goal, but at `BLOCKED_SHORT_PASSER_GOAL_M` instead of
+    +-2.5, so the goal lies on the open side beyond both the yielder's park
+    point and the M3 escort endpoint. The robot on the open side -- the
+    oracle's yielder, whose base goal lies past the blocker box -- has its
+    goal pulled back to the blocked robot's spawn, stopping it short of the
+    box instead of squeezing it past.
 
     Args:
         robots: The scenario's robot blocks, as plain dicts.
@@ -302,9 +313,10 @@ def _blocked_short_goals(
     if blocked_robot not in by_id:
         raise ValueError(f"scenario has no {blocked_robot} to anchor the shortened goal on")
     shortened_x = by_id[blocked_robot]["spawn"]["x"]
+    passer_goal_x = math.copysign(BLOCKED_SHORT_PASSER_GOAL_M, by_id[blocked_robot]["goal"]["x"])
     return {
         robot["robot_id"]: (
-            (robot["goal"]["x"], robot["goal"]["y"])
+            (passer_goal_x, 0.0)
             if robot["robot_id"] == blocked_robot
             else (shortened_x, 0.0)
         )
@@ -324,9 +336,9 @@ def build_variant(
     `arrival_offset_m` so it reaches the corridor mouth later. Each non-null
     blocker side gains a parked box behind that robot's spawn.
 
-    Goals move only in `opponent_spawn` mode, and only the goals: spawns,
-    blockers, and therefore the oracle are identical to the `beyond` cell with
-    the same `params`.
+    Goals move only in `opponent_spawn` and `blocked_short` modes, and only
+    the goals: spawns, blockers, and therefore the oracle are identical to the
+    `beyond` cell with the same `params`.
 
     Args:
         base: The base `head_on_deadlock` scenario config.
@@ -442,7 +454,7 @@ def _header_lines(
         "spawn must keep to park)",
     ]
     if goal_mode != DEFAULT_GOAL_MODE:
-        lines.extend(_goal_mode_lines(config, goal_mode))
+        lines.extend(_goal_mode_lines(config, geometry, goal_mode))
 
     for side in ("west", "east"):
         blocker_m = getattr(params, f"blocker_{side}_m")
@@ -470,7 +482,9 @@ def _header_lines(
     return lines
 
 
-def _goal_mode_lines(config: ScenarioConfig, goal_mode: GoalMode) -> list[str]:
+def _goal_mode_lines(
+    config: ScenarioConfig, geometry: SceneGeometry, goal_mode: GoalMode
+) -> list[str]:
     goals = ", ".join(f"{r.robot_id} -> ({r.goal.x:g}, {r.goal.y:g})" for r in config.robots)
     lines = [f"# goal_mode: {goal_mode} -- {goals}"]
     if goal_mode == "opponent_spawn":
@@ -492,12 +506,22 @@ def _goal_mode_lines(config: ScenarioConfig, goal_mode: GoalMode) -> list[str]:
             "spawn; the open-side"
         )
         lines.append(
-            "# goal keeps +-2.5, so the passer's goal stays beyond the "
-            "yielder's park point and an"
+            f"# goal moves to +-{BLOCKED_SHORT_PASSER_GOAL_M:g}, so the passer's goal "
+            "stays beyond the yielder's park point and an"
         )
         lines.append(
             "# arrived passer never sits in the yielder's return path (the "
             "gshort H2/H3 losses)."
+        )
+        park = park_offset_m(geometry)
+        escort_end = park + passer_clearance_m(geometry)
+        lines.append(
+            f"# Passer goal margins: {BLOCKED_SHORT_PASSER_GOAL_M - park:.3f} m beyond the "
+            f"yielder's park point ({park:.3f}) and"
+        )
+        lines.append(
+            f"# {BLOCKED_SHORT_PASSER_GOAL_M - escort_end:.3f} m beyond the M3 escort "
+            f"endpoint ({escort_end:.3f} = park + passer_clearance_m)."
         )
         lines.append(
             "# Spawns, blockers and the oracle are byte-identical to the "
@@ -643,8 +667,8 @@ def main(argv: list[str] | None = None) -> None:
         default="all",
         help="Which goal modes to generate: 'beyond' keeps the base scenario's "
         "+-2.5 goals, 'opponent_spawn' puts each robot's goal on the other's "
-        "spawn, 'blocked_short' shortens only the blocked-side goal and leaves "
-        "the open-side goal at +-2.5 (default: all)",
+        "spawn, 'blocked_short' shortens only the blocked-side goal and moves "
+        f"the open-side goal to +-{BLOCKED_SHORT_PASSER_GOAL_M:g} (default: all)",
     )
     args = parser.parse_args(argv)
 

@@ -232,11 +232,11 @@ def test_write_family_through_gshort_reproduces_committed_gshort_bytes(tmp_path)
     [
         (
             HeadOnAsymmetricParams(blocker_west_m=0.2),
-            {"robot_1": (2.5, 0.0), "robot_2": (-1.5, 0.0)},
+            {"robot_1": (2.6, 0.0), "robot_2": (-1.5, 0.0)},
         ),
         (
             HeadOnAsymmetricParams(blocker_east_m=0.2),
-            {"robot_1": (1.5, 0.0), "robot_2": (-2.5, 0.0)},
+            {"robot_1": (1.5, 0.0), "robot_2": (-2.6, 0.0)},
         ),
     ],
 )
@@ -293,18 +293,26 @@ def test_blocked_short_passer_goal_clears_the_yielder_park_point(base, geometry)
     assert passer_goal_x - park >= 0.6
 
 
-def test_blocked_short_passer_goal_lies_past_the_escort_waypoint(base, geometry):
+@pytest.mark.parametrize(
+    ("params", "passer"),
+    [
+        (HeadOnAsymmetricParams(blocker_west_m=0.2), "robot_1"),
+        (HeadOnAsymmetricParams(blocker_east_m=0.2), "robot_2"),
+    ],
+)
+def test_blocked_short_passer_goal_clears_the_escort_endpoint_by_drift_margin(
+    base, geometry, params, passer
+):
     # M3 escorts the passer to park + passer_clearance_m. A goal short of that
     # makes the passer double back toward the yielder, which is how gshort H2
-    # latched at 0.430 m. The margin is thin, so assert the sign explicitly.
-    config = gen.build_variant(
-        base, HeadOnAsymmetricParams(blocker_west_m=0.2), geometry, "blocked_short"
-    )
+    # latched at 0.430 m. At +-2.5 the goal cleared it by only 0.061 m, less
+    # than the ~0.1 m odometry drift FEASIBILITY_MARGIN_M budgets for.
+    config = gen.build_variant(base, params, geometry, "blocked_short")
 
     escort_end_x = park_offset_m(geometry) + passer_clearance_m(geometry)
-    passer_goal_x = next(r.goal.x for r in config.robots if r.robot_id == "robot_1")
+    passer_goal_x = next(r.goal.x for r in config.robots if r.robot_id == passer)
     assert escort_end_x == pytest.approx(2.439, abs=1e-3)
-    assert passer_goal_x > escort_end_x
+    assert abs(passer_goal_x) - escort_end_x >= 0.15
 
 
 def test_blocked_short_yielder_goal_stops_short_of_the_blocker_box(base, geometry):
@@ -346,11 +354,11 @@ def test_arrival_tolerance_band_reaches_inside_the_blocker_box(base, geometry):
     [
         (
             "head_on_asymmetric_w0p2_eopen_bshort_o0",
-            {"robot_1": (2.5, 0.0), "robot_2": (-1.5, 0.0)},
+            {"robot_1": (2.6, 0.0), "robot_2": (-1.5, 0.0)},
         ),
         (
             "head_on_asymmetric_wopen_e0p2_bshort_o0",
-            {"robot_1": (1.5, 0.0), "robot_2": (-2.5, 0.0)},
+            {"robot_1": (1.5, 0.0), "robot_2": (-2.6, 0.0)},
         ),
     ],
 )
@@ -368,7 +376,7 @@ def test_committed_bshort_yaml_carries_initial_tasks_guidance():
     text = (gen.FAMILY_DIR / "head_on_asymmetric_w0p2_eopen_bshort_o0.yaml").read_text()
 
     assert "initial_tasks" in text
-    assert "robot_1: { task: cross_narrow_aisle, goal: [2.5, 0] }" in text
+    assert "robot_1: { task: cross_narrow_aisle, goal: [2.6, 0] }" in text
     assert "robot_2: { task: cross_narrow_aisle, goal: [-1.5, 0] }" in text
 
 

@@ -5,13 +5,15 @@
 #
 # parameters: blocker_west_m=0.2, blocker_east_m=open, arrival_offset_m=0
 # required_room_m = 1.079 (room from the corridor mouth a blocked spawn must keep to park)
-# goal_mode: blocked_short -- robot_1 -> (2.5, 0), robot_2 -> (-1.5, 0)
+# goal_mode: blocked_short -- robot_1 -> (2.6, 0), robot_2 -> (-1.5, 0)
 # Only the blocked-side goal is shortened, to the blocked robot's spawn; the open-side
-# goal keeps +-2.5, so the passer's goal stays beyond the yielder's park point and an
+# goal moves to +-2.6, so the passer's goal stays beyond the yielder's park point and an
 # arrived passer never sits in the yielder's return path (the gshort H2/H3 losses).
+# Passer goal margins: 0.811 m beyond the yielder's park point (1.789) and
+# 0.161 m beyond the M3 escort endpoint (2.439 = park + passer_clearance_m).
 # Spawns, blockers and the oracle are byte-identical to the corresponding beyond-goal
 # variant. M5 does NOT read these goals: set orchestrator.yaml initial_tasks to
-#   robot_1: { task: cross_narrow_aisle, goal: [2.5, 0] }
+#   robot_1: { task: cross_narrow_aisle, goal: [2.6, 0] }
 #   robot_2: { task: cross_narrow_aisle, goal: [-1.5, 0] }
 # west: room_from_mouth_m 0.700 < 1.079 -- robot_1 cannot park
 # east: no blocker -- robot_2 can park
@@ -29,7 +31,7 @@ robots:
     y: 0.0
     yaw_rad: 0.0
   goal:
-    x: 2.5
+    x: 2.6
     y: 0.0
   initial_task: cross_narrow_aisle
 - robot_id: robot_2

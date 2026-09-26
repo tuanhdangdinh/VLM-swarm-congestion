@@ -72,8 +72,8 @@ frame_downscale_width: null
 # set per scenario by hand, like static_obstacles below:
 #   head_on_deadlock, *_o0 (beyond goals)  -> +-2.5 as written
 #   *_gshort_o0 (goal-short variants)      -> robot_1 [1.5, 0.0], robot_2 [-1.5, 0.0]
-#   w0p2_eopen_bshort_o0 (west blocked)    -> robot_1 [2.5, 0.0], robot_2 [-1.5, 0.0]
-#   wopen_e0p2_bshort_o0 (east blocked)    -> robot_1 [1.5, 0.0], robot_2 [-2.5, 0.0]
+#   w0p2_eopen_bshort_o0 (west blocked)    -> robot_1 [2.6, 0.0], robot_2 [-1.5, 0.0]
+#   wopen_e0p2_bshort_o0 (east blocked)    -> robot_1 [1.5, 0.0], robot_2 [-2.6, 0.0]
 # Running a _gshort or _bshort scenario without changing these dispatches +-2.5
 # and the variant silently degrades to its beyond-goal twin, blocker back on
 # the goal path (isaac/config/scenarios/family/*_{gshort,bshort}_o0.yaml).
