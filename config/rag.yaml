@@ -2,3 +2,15 @@ rag:
   top_k: 3
   vector_store_path: data/vector_store
   knowledge_base_path: data/knowledge_base/coordination_templates.yaml
+
+# Arm B classical reasoner thresholds (rev-8 defaults). Tunable on T1 scenarios
+# only, and frozen at the prereg-v1 tag (tuning-parity rule).
+classical:
+  r_conflict_m: 1.5
+  r_block_m: 1.0
+  heading_opposition_min_deg: 150.0
+  axis_cross_min_deg: 45.0
+  axis_cross_max_deg: 135.0
+  arrival_tie_sec: 1.0
+  stopped_speed_mps: 0.05
+  goal_beyond_max_deg: 60.0
