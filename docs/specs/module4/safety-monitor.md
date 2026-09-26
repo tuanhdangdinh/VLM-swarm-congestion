@@ -25,6 +25,11 @@
   (`ActionClient.cancel_goals_async` does not exist). Fixed in `Nav2Adapter`;
   records that `safety_monitor_node._cancel_nav2_goal` still carries the same
   bug, which is why the §3/§7 latch does not stop Nav2.
+- Rev 8 (2026-09-26): added §10 — the coordination exemption now covers only
+  the clearing maneuvers `yield` and `reverse`; Nav2-goal legs and waits keep
+  both latch rules armed (runs G4/K1). Corrected §7's exemption bound from
+  20 s to the 120 s wall-monotonic Nav2-leg watchdog. Updated §2, §5.1, §7
+  and §8 to match.
 
 ---
 
@@ -60,6 +65,8 @@ geometry (robots stop before entering marker-overlap range).
 | `/perception/scene_state` | `std_msgs/String` (JSON `SceneState`) | M1 → monitor |
 | `/<robot_id>/cmd_vel` | `geometry_msgs/Twist` | monitor → Isaac drive |
 | `/safety/holds` | `std_msgs/String` (JSON `{"held": [...]}`) | monitor → coordination_client |
+| `/coordination/commands` | `swarm_interfaces/CoordinationCommand` | M5 → monitor (per-robot `action`, §10) |
+| `/coordination/status` | `swarm_interfaces/CoordinationStatus` | command bus → monitor (`ACTIVE`/terminal, §10) |
 
 The monitor parses the same flat `robots[]` shape M5's `parse_scene_snapshot`
 consumes (`robot_id`, `x`, `y`, `linear_velocity`). Pure invariant logic lives in
@@ -145,6 +152,11 @@ maneuver. They cannot be settled offline; they are flagged for the host run.
    backup recovery from the latch, or add hysteresis below `min_distance_m`.
    Decide after observing the host run.
 
+   **Resolved by the coordination exemption, narrowed in §10 (2026-09-26).**
+   A pair is exempt while one of its robots runs an ACTIVE `yield` or
+   `reverse`, which lifts the hold for the backup. Other ACTIVE commands no
+   longer lift anything.
+
 2. **Speed-limit source.** `linear_velocity` is M1's estimate, not a Nav2/Isaac
    command echo; under-detection (STALE markers) reads near-zero and would not
    trip the speed invariant. Acceptable for the PoC guard; note for real-robot.
@@ -212,11 +224,12 @@ pre-Rev-5 behaviour.
 
 **Interaction with §5.1 (backup contention).** The fail-safe must not fight the
 commanded backup that is the designed way out of a close standoff, so it reuses
-the existing coordination lift unchanged: the distance rule skips any pair with
-an `ACTIVE`-coordinating member (as `detect_proximity_violations` already does),
-and the keep rule skips a coordinating robot. A STALE robot that is *not* under
-a command is still held — a robot with an unknown pose being driven past a blind
-partner is precisely the run-D failure.
+the coordination lift: the distance rule skips any pair with an exempt member
+(as `detect_proximity_violations` does), and the keep rule skips an exempt
+robot. Since Rev 8 the exempt robots are only those running an ACTIVE `yield`
+or `reverse` (§10). A STALE robot that is not running one of those is still
+held. A robot with an unknown pose being driven past a blind partner is
+precisely the run-D failure, and a Nav2 leg doing it is the G4/K1 failure.
 
 Two consequences of reusing that lift, both for the host run:
 
@@ -229,10 +242,24 @@ Two consequences of reusing that lift, both for the host run:
   `stale_unsafe_distance_m` rather than shrinking the band.
 - **A wedged `ACTIVE` status disarms the fail-safe.** The lift is keyed on
   `/coordination/status`, so a status stuck at `ACTIVE` leaves the monitor
-  blind in exactly the run-D way. Bounded in practice by `command_bus_node`'s
-  nav2-leg watchdog, which publishes `FAILED` on timeout
-  (`command_timeout_sec: 20.0`) and clears the exemption. This is the one
-  remaining instance of the bug class §7 closes.
+  blind in exactly the run-D way.
+
+  **Correction (Rev 8, 2026-09-26).** This bullet originally said the blind
+  window was bounded by the Nav2-leg watchdog at `command_timeout_sec: 20.0`.
+  That was wrong. The watchdog deadline is
+  `max(3 × command.timeout_sec, 120 s)` on `time.monotonic()`
+  (`command_bus_node.py`, `NAV_WATCHDOG_*`), and M5 sends
+  `timeout_sec = 20.0`, so the bound in force is **120 s wall**. That is
+  about 46 sim-s at RTF 0.38. The `command_timeout_sec` key in `safety.yaml`
+  is loaded by no node. In runs G4 and K1, a `reroute` leg and its partner's
+  `temporary_wait` held the exemption for the full 121–122 s wall while one
+  robot pushed the other.
+
+  Since §10, a Nav2 leg or wait no longer disarms anything, so that watchdog
+  does not bound the exemption at all. The exemption now lasts only as long
+  as a `yield` or `reverse`. Those run raw-`cmd_vel` primitives, and each
+  primitive carries its own monotonic safety deadline, `max(15 × nominal, 30 s)`
+  in `Nav2Adapter`. The yield's hold phase is bounded by its `hold_sec` timer.
 
 **Implementation.** `evaluate_latches` in `swarm_execution/safety.py` is the
 pure, ROS2-free rule: it takes the snapshot, the limits, the previous latched
@@ -282,10 +309,13 @@ Nav2's own controller loop); it makes the stop hold.
 
 **Invariant.** *A held robot's wheels receive zero irrespective of `cmd_vel`
 publishers; coordination lift is expressed by removal from `held`.* The monitor
-already drops a robot from `held` while a coordination command is in flight for
-it (§5.1, §7's reuse of the same lift), so gating on `held` membership cannot
-stall the yield's commanded backup — the hold is lifted at its source, not
-negotiated at the relay. Two corollaries:
+drops a robot from `held` while a clearing maneuver (`yield` or `reverse`) is
+in flight for it or its pair partner (§5.1, §7's reuse of the same lift,
+narrowed in §10). Gating on `held` membership therefore cannot stall the
+yield's commanded backup, because the hold is lifted at its source, not
+negotiated at the relay. Conversely, a latched robot on a Nav2 leg or a
+wait stays in `held`, so this relay keeps its wheels at zero even while DWB
+drives the leg. Two corollaries:
 
 - **`held` is the whole contract.** The relay reads nothing else: no reason
   field, no distance, no status. `/safety/holds` keeps its `{"held": [...]}`
@@ -374,3 +404,130 @@ already does for `command_bus_node` and `coordination_client_node`. Tests:
 `tests/unit/test_safety_monitor.py::test_latch_requests_cancel_all_through_adapter`
 and `::test_cancel_log_no_longer_claims_result` (37 total in that file). The
 host verification above is still pending — this only lands the code-side fix.
+
+---
+
+## 10. Exemption restricted to clearing maneuvers (2026-09-26)
+
+**Observed (runs G4 and K1).** Before this change, any robot with an `ACTIVE`
+`/coordination/status` exempted every pair it belonged to from the §1 distance
+rule and from both halves of the §7 STALE fail-safe. In both runs, ER-2's
+`reroute` was grounded as a Nav2 leg for robot_1 and a 15 s `temporary_wait`
+for robot_2, and both commands went `ACTIVE` during the re-approach that
+followed a `reverse`. The monitor was disarmed for the leg's full
+120 s-wall watchdog. In K1 it also lifted a latch that had fired 0.8 s
+earlier. robot_1 drove into its parked partner and held nose-to-nose contact
+at 0.076 m for about 51 sim-s. Root cause and evidence:
+`docs/reports/2026-09-26-close-approach-analysis.md` (Q2, mitigation 1 of Q5).
+
+**Rule.** A robot is *exempt* while its current `ACTIVE` command's per-robot
+action is in `CLEARING_ACTIONS = {"yield", "reverse"}`. These are the
+raw-`cmd_vel` clearing primitives: backup, sidestep, hold and escort. A pair is
+exempt while at least one member is exempt. The exempt set feeds every rule:
+
+- the §1 distance rule skips an exempt pair;
+- the §7 STALE rule does not latch an exempt pair afresh, and an exempt STALE
+  robot does not keep its latch;
+- exempt robots are removed from the final latched set, which covers the speed
+  rule too.
+
+These actions do **not** exempt: `navigate`, `goal`, `priority_override`,
+`reroute` and `convoy` (Nav2 legs), `wait`, `temporary_wait` and `stop`, plus
+any action the monitor has not seen. Pairs where one robot runs a clearing
+maneuver and the other runs something else are exempt through the clearing
+robot. That is what keeps the yield flow working: the passer's linked
+`temporary_wait` is not exempt, but the pair stays exempt through the yielder's
+own `ACTIVE` `yield` for the whole backup, pull-off, hold and escort. At yield
+`COMPLETED` the archived pairs were already 0.73–0.76 m apart.
+
+**Where the action comes from.** `CoordinationStatus` carries no action. The
+command id cannot stand in for one: M3 builds it as
+`<request_id>-<strategy>` (`reasoning/rag/command_grounder.py`), so every
+robot in a decision shares the suffix. The passer's wait inside a yield is
+`…-yield`, and a refused `reverse` is grounded as two `temporary_wait`s under a
+`…-reverse` id. The monitor therefore also subscribes
+`/coordination/commands`, which carries each robot's `action` keyed by
+`(command_id, robot_id)`. `coordination_client` already subscribes that topic,
+so no message changes.
+
+`CoordinationTracker` (`swarm_execution/safety.py`) keeps both maps and joins
+them only when a scene is evaluated (`clearing_exempt_robots`). A status that
+arrives before its command therefore resolves once the command lands. Three
+other cases:
+
+- **Command never seen.** The robot is not exempt (fail closed). A monitor
+  restarted mid-yield cannot see the earlier command on the volatile topic, so
+  it would latch that yield's pair. That is the safe direction.
+- **Terminal status for a different command.** A robot is cleared only by a
+  terminal status for the command it is `ACTIVE` on, mirroring the command
+  bus's in-flight registry. A busy-rejected command's `FAILED`, or a
+  `base_mission` status from `coordination_client`, no longer ends a live
+  maneuver's exemption. Before this change, either one did.
+- **Command with no terminal status.** Its action entry is dropped on the
+  terminal status. The map is also capped at 256 entries.
+
+**Consequences.**
+
+- **K1 latch continuity.** A latch that fired before a non-clearing command
+  went `ACTIVE` persists. It is released only by a fresh reading at or beyond
+  `min_distance_m`, or by a clearing maneuver.
+- **Nav2 legs and the latch.** The monitor cancels Nav2 goals only on the
+  newly-latched edge.
+  - A leg that is already `ACTIVE` when the latch fires is cancelled by that
+    cancel-all. The command bus then reports the leg `FAILED`, and M5
+    re-analyses. The host run below showed this.
+  - A leg that goes `ACTIVE` after the latch (the K1 order) keeps its goal.
+    The §8 relay keeps its wheels at zero while DWB tries, until the command
+    bus's 120 s-wall watchdog fails the leg (about 46 sim-s at RTF 0.38).
+    Failing such a leg sooner (the report's mitigation 2) is not
+    implemented.
+- **A STALE passer keeps its latch.** If a passer is STALE and still latched
+  when its partner's yield starts, the passer's own `temporary_wait` no longer
+  releases it. At the 0.21–0.32 m yield standoffs both markers are detected,
+  so this has not been observed.
+
+**Diagnostics.** The startup line now ends
+`exempt_actions=reverse,yield`. Each change of a robot's `ACTIVE` command
+logs once, not on every 0.25/0.75 s republish:
+`coordination status robot=… command=… status=… action=… exempt=True|False`.
+
+**Implementation.** `CLEARING_ACTIONS`, `is_clearing_action`,
+`clearing_exempt_robots` and `CoordinationTracker` are in
+`swarm_execution/safety.py`. `detect_proximity_violations` and
+`evaluate_latches` take the result as `exempt` (renamed from `coordinating`).
+`safety_monitor_node.py` records commands and statuses into the tracker and
+passes `exempt_robots()` to `evaluate_latches` and to the final subtraction.
+Tests are in `tests/unit/test_safety_monitor.py`, 65 in total. They cover
+yield, reverse, reroute, temporary_wait and the other non-clearing actions, a
+refused reverse, mixed pairs, status-before-command, latch continuity (K1),
+the latch firing during a reroute (G4), and the STALE fail-safe while
+non-clearing commands are `ACTIVE`.
+
+**Host verification (2026-09-26, both passed).** Both runs used
+`head_on_asymmetric_w0p2_eopen_bshort_o0` on tree `cf4899f` with this change
+installed (md5-verified). Artifacts are in `data/logs/vm_runs/m4fix/`.
+
+- **Exposure regression, M1 (`20260926_101653`).** The mock backend was
+  scripted with `config/mock_decisions/head_on_reverse_then_reroute.json`.
+  1. The `reverse` lifted the approach-1 latch as before.
+  2. The `reroute` and `temporary_wait` went `ACTIVE` with `exempt=False`.
+     robot_2 was parked by the wait while robot_1 drove at it at 0.15 m/s.
+  3. The monitor latched both robots 8.7 s wall later, and the relay hold
+     engaged. The latch's cancel-all ended the leg, which went `FAILED`
+     0.03 s later.
+  4. The pair rested at a ground-truth 0.381 m and was held for 49.2 s wall,
+     until the scripted `yield` went `ACTIVE`.
+  5. The yield completed, and both robots arrived `within_tolerance`.
+
+  This reproduced the G4 order, where the leg is `ACTIVE` before the
+  crossing. The K1 order is covered by
+  `test_latch_persists_when_reroute_goes_active_after_latch`.
+- **Yield non-regression, M2 (`20260926_103507`).** ER-2 ran with gate
+  `swap`, order `random` and obstacles on.
+  - The run opened with `reverse`. The approach-2 latch was lifted by the
+    yield going `ACTIVE`.
+  - The yield completed in 152.8 s wall, and both robots arrived
+    `within_tolerance`.
+  - Minimum pairwise distance was 0.276 m.
+  - There was no latch during the backup, pull-off or escort. The escort
+    passed the parked yielder at 0.392 m, unlatched.

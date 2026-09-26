@@ -1304,6 +1304,33 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-26** — **The safety monitor's coordination exemption now covers
+  only `yield` and `reverse` (fix `45e55f4`; host-verified).** Mitigation 1
+  of `docs/reports/2026-09-26-close-approach-analysis.md` is implemented.
+  - A pair is exempt while one member's `ACTIVE` command is a clearing
+    maneuver. Nav2 legs (`reroute`, `convoy`, `navigate`, `goal`,
+    `priority_override`), waits (`wait`, `temporary_wait`, `stop`) and unseen
+    actions keep the 0.45 m rule and the STALE fail-safe armed.
+  - The action comes from `/coordination/commands`, not the command id. The
+    id is `<request>-<strategy>` and is shared by all robots of a decision,
+    and a refused `reverse` becomes `temporary_wait`s under `…-reverse`.
+  - Terminal statuses clear a robot only for the command it is `ACTIVE` on.
+    Before this change, `base_mission` statuses and busy-rejects also
+    cleared it.
+  - Details: `docs/specs/module4/safety-monitor.md` §10. That spec's §7 bound
+    is corrected from 20 s to the 120 s wall watchdog.
+
+  Host runs on `_bshort` west (`data/logs/vm_runs/m4fix/`):
+  - **M1 (mock `reverse` → `reroute` → `yield`).** The latch fired during the
+    `reroute`, 8.7 s wall after it went `ACTIVE`. The latch's cancel-all
+    failed the leg. The pair was held at 0.381 m (ground truth) for 49.2 s,
+    with no contact, then yielded; both robots arrived.
+  - **M2 (ER-2, K-config).** The yield completed in 152.8 s wall. Both
+    robots arrived `within_tolerance`, the minimum was 0.276 m, and no latch
+    fired during the escort.
+
+  Open: a leg that goes `ACTIVE` after a latch (the K1 order) is still held
+  until the 120 s watchdog, because mitigation 2 is not implemented.
 - **2026-09-26** — **K1/G4 close approaches root-caused: the safety
   monitor's coordination exemption, not a latch failure.** The robots were
   in nose-to-nose *contact*, not interpenetrating: the collider signed gap
@@ -1333,7 +1360,9 @@ Rules for maintaining it:
   Recommended fix, not implemented: exempt only `yield`/`reverse`; Nav2-goal
   legs and waits must not exempt a pair. Pair it with failing Nav2 legs of
   held robots. Ranking and costs in
-  `docs/reports/2026-09-26-close-approach-analysis.md`.
+  `docs/reports/2026-09-26-close-approach-analysis.md`. ("Not implemented"
+  is superseded by the 2026-09-26 clearing-exemption entry for the
+  exemption half; failing held legs is still open.)
 - **2026-09-17** — **Run H: creep-while-latched fixed and verified;
   resolution and goals on video.** Latch at GT 0.4406 m with a 0.263 m/s
   closing rate; rest 1.0 sim-s later at 0.1693 m. Over the next 100 sim-s

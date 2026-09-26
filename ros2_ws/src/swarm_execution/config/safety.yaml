@@ -1,6 +1,10 @@
 safety:
   min_distance_m: 0.45
   max_linear_velocity_mps: 0.2
+  # Not read by any node: the safety monitor loads this file but ignores the
+  # key. The bound on a coordination Nav2 leg (and so on how long it can run)
+  # is command_bus_node's watchdog, max(3 x the command's timeout_sec, 120 s)
+  # wall-monotonic. See docs/specs/module4/safety-monitor.md §7.
   command_timeout_sec: 20.0
   # Run D (2026-09-16): two robots closed until their ArUco quads overlapped,
   # overlapping markers are undetectable, so BOTH went STALE at 0.078 m and the
