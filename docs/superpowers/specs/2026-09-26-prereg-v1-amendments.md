@@ -13,6 +13,10 @@
   satisfies A1's condition — east 3/3, west 3/3 at ±2.6, all
   position-verified — discharging freeze blocker 2; A5 gains K1 as a second
   G4-class interpenetration instance.
+- Rev 3 (2026-09-26): A5 rewritten from the root-cause analysis (findings
+  Rev 11 §AK): the events were driven contact under M4's coordination
+  exemption, the fix direction is adopted but unimplemented, and Arm B
+  inherits the same `reroute` exposure, so blocker 6 gates both arms.
 
 ---
 
@@ -152,14 +156,20 @@ design-expected signature of a completed yield (head-on robots must close to
 pass); sustained breaches near contact depth (G4-class) are incidents and are
 reported individually.
 
-**Open safety item (pre-Arm-B blocker).** In G4 two stationary robots sat
-interpenetrated at 0.076 m for ≈18 s while M4's safety monitor, the contact
-detector, and M1's STALE fail-safe all stayed silent — the same geometry as
-the July "Run D" incident cited in `safety.yaml`. K1 (findings Rev 10 §AI)
-is a second instance at the identical 0.076 m depth, again during ER-2's
-opening non-yield phase and again with an empty contact list. Root-cause
-this before Arm B collection; the classical arm dispatches without a VLM in
-the loop and inherits whatever hole this is.
+**Open safety item (pre-Arm-B blocker) — root cause found, fix pending.**
+G4 and K1 were ≈51 s each of driven nose-to-nose **contact** at 0.076 m
+(exactly touching for this chassis), not interpenetration
+(`docs/reports/2026-09-26-close-approach-analysis.md`, findings Rev 11
+§AK). Cause: M4's coordination exemption disarms the 0.45 m rule and the
+STALE fail-safe for any pair with an ACTIVE command; an ER-2 `reroute`
+grounded onto the post-`reverse` re-approach put both robots ACTIVE and one
+drove into its waiting partner. The contact fields are hard-coded `[]` — no
+detector exists. Adopted fix direction (unimplemented): only `yield` and
+`reverse` exempt a pair; Nav2-goal legs and waits do not, paired with a
+prompt no-progress failure for Nav2 legs. Arm B's policy table emits
+`reroute` for `blocked_path`, so the classical arm inherits the identical
+exposure — the fix must land and be regression-verified on the VM before
+either arm collects. This item stays a freeze blocker until then.
 
 ---
 

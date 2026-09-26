@@ -14,6 +14,7 @@
 - Rev 8 (2026-09-26): adds the six-run ER-2 pilot on the `_gshort` goal-short variants — blocker-on-goal-path losses eliminated, a new park-beyond-goal failure introduced by symmetric ±1.5 goals — plus five apparatus notes from the batch.
 - Rev 9 (2026-09-26): adds the three-run `_bshort` (blocked-side goal-short) pilot on the west variant — 3/3 position-verified arrivals, no reintroduced blocker-path loss, escort mechanism confirmed from ground truth — and next steps.
 - Rev 10 (2026-09-26): adds the six-run `_bshort` validation batch at the widened ±2.6 passer goal — east (first ever) 3/3 and west 3/3, all position-verified — adopting `_bshort` as the pre-registration scenario; records a second G4-class interpenetration (K1, 0.076 m, pre-yield), a realised-goal-margin note, and the prereg amendment set this batch discharges into.
+- Rev 11 (2026-09-26): the K1/G4 root-cause analysis (`docs/reports/2026-09-26-close-approach-analysis.md`) lands its corrections — the 0.076 m events were 51 s of driven nose-to-nose **contact**, not interpenetration; M4's coordination exemption had disarmed the monitor during an ER-2 `reroute`; the contact fields are hard-coded `[]` (no detector exists); and, contra Rev 7 §AC, both robots **did** go STALE in both runs.
 
 ---
 
@@ -1843,6 +1844,18 @@ the trustworthy channel; the contact flags are not one.
 
 Both corrections go into the pre-registration's safety reporting.
 
+> Superseded in detail by Rev 11 §AK (root-cause analysis). Three statements
+> above are wrong: (1) "interpenetrated" — the robots were in driven
+> nose-to-nose **contact**; the collision box is 0.14 m long with its nose
+> 0.038 m from the logged centre, so 0.076 m centre-to-centre is exactly
+> touching, and "≈0.35 m robots" overstates the chassis. (2) "M1 did not go
+> STALE in G4" — both robots were STALE for ≈133 s wall in G4 (≈136 s in K1);
+> the monitor ignored it under its coordination exemption. (3) "detector
+> silence" understates it: `robot_robot_contacts` is written as a literal
+> `[]` (`isaac/vgu_sim/acceptance_logging.py`) — no contact detector exists.
+> Also: "Run D" was 2026-09-16, not July. The conclusion that minimum
+> pairwise distance is the trustworthy channel is unchanged.
+
 ### Goal-short variants prepared
 
 Commit `c2d8491` adds `_gshort` YAMLs to remove the blocker-on-goal-path losses
@@ -2193,6 +2206,13 @@ non-yield phase, sharpen the pre-Arm-B safety question (amendment A5): M4's
 safety monitor, the contact detector and M1's STALE fail-safe were all
 silent while two ≈0.14 × 0.18 m chassis overlapped for tens of seconds.
 
+> Superseded by Rev 11 §AK: this was 51.6 s of driven nose-to-nose
+> **contact** (sim 53.3–104.9), not overlap, and the layers were not
+> "silent" — M1 went STALE and the monitor had latched 0.8 s before the
+> `reroute` exemption lifted the latch and disarmed it. "East-side" is not
+> supported as a factor at n = 2; the exposure is a `reroute` grounded onto
+> the re-approach after a `reverse`.
+
 ### Metric definition note — passer backtrack
 
 Two defensible definitions of the backtrack statistic disagree on gshort
@@ -2256,3 +2276,80 @@ container restarted, GPU idle (0%, 170 MiB, no processes), instance left
 RUNNING. Sampling is uncontrolled on all 39 ER-2 calls
 (`unsupported_sampling` recorded per call, Rev 6 §U). Artifacts remain
 git-ignored under `data/logs/vm_runs/bshort2/`.
+
+---
+
+## AK. K1/G4 Root Cause: the Coordination Exemption, Not a Silent Stack
+
+Full analysis: `docs/reports/2026-09-26-close-approach-analysis.md`
+(commit `d638b5b`); this section is the digest and the supersession record
+for Rev 7 §AC and Rev 10 §AI.
+
+**What the events were.** Driven nose-to-nose contact for ≈51 sim-s in each
+run (G4 sim 53.2–104.2, K1 53.3–104.9). The URDF collision box puts the
+nose 0.038 m ahead of the logged centre, so 0.076 m centre-to-centre is
+exactly touching; at every wedge row the gap between collision shapes is
+0.0000 ± 0.0003 m. Not interpenetration — Isaac's physics held the contact.
+
+**Why every layer stayed quiet.** M4's safety monitor exempts a robot pair
+from both the 0.45 m rule and the STALE fail-safe whenever either robot has
+an ACTIVE command (`safety.py`). ER-2's `reroute` grounds to an
+empty-waypoint reroute — into which M5 injects the robot's own base goal —
+plus a 15 s `temporary_wait` for the partner, so both robots went ACTIVE,
+the exemption disarmed the monitor (in K1 it lifted a latch that had fired
+0.8 s earlier), and robot_1 drove into its waiting partner; when the wait
+expired the partner pushed back. The Nav2-leg watchdog that eventually
+failed the leg is 120 s wall, not the 20 s the M4 spec claims. M1 behaved
+correctly throughout: it tracked to 7 mm, lost both markers at contact
+(overlapping 0.12 m quads) and went STALE on schedule — the monitor ignored
+it under the same exemption. The "5880 safety stops" in the K1 analyzer are
+40 Hz hold-rate log lines (≈58 s latched), not events. And the ground-truth
+contact fields are hard-coded `[]` — no contact detector exists to be
+silent.
+
+**Exposure shape.** A `reroute` landing on the re-approach after a
+`reverse`, before any yield: M5's stall memory survives the reverse, so the
+next analysis fires mid-approach. Across 27 archived reverse-opened runs,
+the only two that got `reroute` next (G4, K1) are the only two contact
+runs; the 25 that yielded, and the 6 post-yield reroutes, had none.
+East-side is not established as a factor at n = 2. Arm B's policy table
+also emits `reroute` (`blocked_path`), so the classical arm inherits the
+same exposure until the fix lands.
+
+**Recommended fix (not yet implemented).** Restrict the exemption to
+clearing maneuvers: only `yield` and `reverse` exempt a pair; Nav2-goal
+legs (`reroute`, `convoy`, `navigate`) and wait commands do not. Yield
+still works — the pair is already 0.73–0.76 m apart at yield completion.
+Pair it with a prompt no-progress failure for Nav2 legs and correct the
+spec's 20 s claim. A bare hard floor was evaluated and rejected: travel
+after the 0.45 m trigger reaches 0.29 m, so a floor works only with a
+closing-speed cap.
+
+**Side findings.** M1 speeds are metres per *wall*-second (≈0.38× real at
+this RTF), so the monitor's 0.2 m/s speed-limit rule cannot fire in
+simulation. `safety.yaml` `command_timeout_sec` is loaded but ignored.
+`docs/specs/module4/safety-monitor.md` §7's 20 s exemption bound is wrong
+(120 s wall). Rev 7 §AC's "Run D in July" should read 2026-09-16.
+
+---
+
+## AL. Next Steps (Rev 11 delta)
+
+1. Implement the exemption fix (§AK) as the pre-Arm-B safety change, with
+   unit tests over the latch/exemption transitions and an ER-2
+   reverse→reroute regression run on the VM. Amendment A5 stays open until
+   this lands and is verified.
+2. Fold the M1 wall-clock speed scaling into the monitor's speed rule (or
+   document it as inoperative in sim) and wire `command_timeout_sec` or
+   delete the key.
+3. The rest of Rev 10 §AJ stands: Arm B build, failure-context depth,
+   credit-blocked gpt-4o arms, VM stop decision.
+
+---
+
+## Rev 11 Provenance
+
+Commit `d638b5b` (analysis report + implementation notes) plus this
+documentation commit. No code or config changed; no runs. Analysis inputs:
+the G4 and K1 artifacts, 88 archived Nav2 logs, and the M4/M5/M6 sources at
+`cf4899f`.
