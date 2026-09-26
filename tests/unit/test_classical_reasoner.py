@@ -1,12 +1,16 @@
 import math
+from pathlib import Path
 
 import pytest
+import yaml
+from pydantic import ValidationError
 
 from reasoning.baselines.classical_reasoner import (
     ClassicalParams,
     ConflictZone,
     classify_scene,
     decide_classical,
+    load_classical_params,
     resolve_classical,
 )
 from reasoning.vlm.models import RobotStateInput, SnapshotFrame
@@ -414,3 +418,32 @@ class TestDecideClassicalOtherScenarios:
             decision.strategy,
             decision.involved_robots,
         ) == (False, "none", "none", [])
+
+
+_REPO_RAG_CONFIG = Path(__file__).resolve().parents[2] / "config" / "rag.yaml"
+
+
+class TestLoadClassicalParams:
+    def test_load_classical_params_repo_config_matches_rev8_defaults(self):
+        assert load_classical_params(_REPO_RAG_CONFIG) == ClassicalParams()
+
+    def test_load_classical_params_repo_config_declares_section(self):
+        raw = yaml.safe_load(_REPO_RAG_CONFIG.read_text(encoding="utf-8"))
+        assert set(raw["classical"]) == set(ClassicalParams.model_fields)
+
+    def test_load_classical_params_missing_section_yields_defaults(self, tmp_path):
+        config = tmp_path / "rag.yaml"
+        config.write_text("rag:\n  top_k: 3\n", encoding="utf-8")
+        assert load_classical_params(config) == ClassicalParams()
+
+    def test_load_classical_params_section_overrides_defaults(self, tmp_path):
+        config = tmp_path / "rag.yaml"
+        config.write_text("classical:\n  r_block_m: 0.8\n", encoding="utf-8")
+        assert load_classical_params(config).r_block_m == 0.8
+
+    def test_load_classical_params_unknown_key_raises(self, tmp_path):
+        # A typo in a pre-registered threshold must fail loudly, not fall back.
+        config = tmp_path / "rag.yaml"
+        config.write_text("classical:\n  r_blok_m: 0.8\n", encoding="utf-8")
+        with pytest.raises(ValidationError):
+            load_classical_params(config)

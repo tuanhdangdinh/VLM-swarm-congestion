@@ -6,8 +6,10 @@ Normative rules: "Arm B — classical reasoner specification" in
 
 import math
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Literal
 
+import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from reasoning.vlm.models import (
@@ -37,7 +39,9 @@ class ConflictZone(BaseModel):
 class ClassicalParams(BaseModel):
     """Arm B thresholds (rev-8); tunable on T1 only, frozen at `prereg-v1`."""
 
-    model_config = ConfigDict(frozen=True)
+    # Forbid unknown keys: a typo in a pre-registered threshold must fail
+    # loudly instead of silently running on the default.
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     r_conflict_m: float = Field(default=1.5, gt=0)
     r_block_m: float = Field(default=1.0, gt=0)
@@ -306,6 +310,25 @@ def decide_classical(
         ValueError: If `frames` is empty or `prior_attempts` is negative.
     """
     return resolve_classical(frames, zones, params, prior_attempts).decision
+
+
+def load_classical_params(path: Path = Path("config/rag.yaml")) -> ClassicalParams:
+    """Load the `classical:` section of the RAG config.
+
+    Args:
+        path: YAML config path.
+
+    Returns:
+        Validated params; an absent or empty section yields the rev-8 defaults.
+
+    Raises:
+        FileNotFoundError: If `path` does not exist.
+        pydantic.ValidationError: If the section has unknown keys or
+            out-of-range values.
+    """
+    with path.open(encoding="utf-8") as handle:
+        raw = yaml.safe_load(handle) or {}
+    return ClassicalParams(**(raw.get("classical") or {}))
 
 
 def _is_stopped(state: RobotStateInput, params: ClassicalParams) -> bool:
