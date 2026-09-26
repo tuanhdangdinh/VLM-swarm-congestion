@@ -17,6 +17,11 @@
   Rev 11 §AK): the events were driven contact under M4's coordination
   exemption, the fix direction is adopted but unimplemented, and Arm B
   inherits the same `reroute` exposure, so blocker 6 gates both arms.
+- Rev 4 (2026-09-26): A5 closed — the exemption fix landed (`45e55f4`) and
+  passed both VM regressions (findings Rev 12 §AM). Blocker 1 discharged at
+  the reasoning-core level by the Arm B merge (`65cc850`); its Phase-2
+  wiring, the missing contract fields, and the M1 speed-scaling fix become
+  tracked items 10–12.
 
 ---
 
@@ -156,6 +161,16 @@ design-expected signature of a completed yield (head-on robots must close to
 pass); sustained breaches near contact depth (G4-class) are incidents and are
 reported individually.
 
+**Safety item — CLOSED 2026-09-26.** The exemption fix landed at `45e55f4`
+(only `yield`/`reverse` exempt a pair; per-robot action from
+`/coordination/commands`; unseen commands fail closed) and passed both VM
+regressions: the mock-forced G4/K1 exposure now latches and holds the pair
+at 0.381 m with no contact, and the ER-2 yield flow is unchanged (findings
+Rev 12 §AM). Two tracked, non-blocking residuals: the latch-first (K1)
+ordering is unit-covered but not host-reproducible, and a Nav2 leg going
+ACTIVE after a latch holds its goal until the 120 s watchdog (root-cause
+report mitigation 2). Original item, for the record:
+
 **Open safety item (pre-Arm-B blocker) — root cause found, fix pending.**
 G4 and K1 were ≈51 s each of driven nose-to-nose **contact** at 0.076 m
 (exactly touching for this chassis), not interpenetration
@@ -234,10 +249,12 @@ directory before the next launch (Rev 8 §AE item 4).
 
 ## Freeze Blockers (checklist, status as of 2026-09-26)
 
-1. **Arm B does not exist.** `reasoning/baselines/classical_reasoner.py` is
-   specified (spec rev 7) but absent from the tree, and with it shadow
-   logging, the FCFS/commitment tiebreak, and the tuning-parity workflow.
-   This is the largest single work item between here and the freeze.
+1. ~~**Arm B does not exist.**~~ — **discharged at the reasoning-core level
+   2026-09-26** (merge `65cc850`, findings Rev 12 §AM):
+   `reasoning/baselines/` now holds the rev-8 classifier, policy table with
+   FCFS/commitment tiebreak, shadow comparator and `classical:` config
+   loader, 70 tests. Remaining Arm B work is items 10–12 below plus the
+   tuning-parity pass on T1 before the freeze.
 2. ~~**`_bshort` validation**~~ — **discharged 2026-09-26** (findings Rev 10
    §AI): east 3/3, west 3/3, A1's condition satisfied. The gpt-4o `_bshort`
    family pilot remains under blocker 5.
@@ -250,7 +267,8 @@ directory before the next launch (Rev 8 §AE item 4).
 5. **gpt-4o credit-blocked arms** — replay `--arm F`, the `--arm S2`
    remainder, the forced-order live cells, and the gpt-4o `_bshort` family
    pilot.
-6. **G4 safety root cause** (A5) — pre-Arm-B blocker.
+6. ~~**G4 safety root cause** (A5)~~ — **closed 2026-09-26** (see A5): fix
+   landed and regression-verified. Residuals tracked in A5, non-blocking.
 7. **B1 symmetric-`reverse` dispatch** — the handoff recommends keeping it as
    RQ5 evidence; ER-2 exercises it on every asymmetric episode. Confirm keep
    at freeze (Rev 3 §J item 3).
@@ -258,3 +276,16 @@ directory before the next launch (Rev 8 §AE item 4).
    downstream-traffic T2b, the three T3 tiers) has no authored scenarios or
    oracle blocks yet.
 9. **REQUIRED model-table rows** — recorded at freeze (A6).
+10. **Shared-contract fields for Arm B parity** — `CongestionDecision` has
+    no `blocker_kind` or `crossing_order` (plan Task 1's additive optional
+    fields). Costs nothing on two-robot cells; degrades Arm B's executed
+    decision at 3+-robot intersections and blocks the T3a blocker-verdict
+    comparison. Decide with the T3 authoring (blocker 8).
+11. **M1 speed-scaling convention** — M1 speeds are metres per
+    wall-second (≈0.38× real at this RTF), so M4's 0.2 m/s speed rule
+    cannot fire in sim and Arm B's `stopped_speed_mps: 0.05` reads as
+    ≈0.13 m/s real against live M1 states. Fix or document the convention
+    before Arm B's T1 tuning pass (findings Rev 12 §AM).
+12. **Arm B Phase-2 wiring** — shadow logging of the classical answer on
+    every live Arm A decision (the spec's shadow-logging requirement) is
+    not yet wired into M5.

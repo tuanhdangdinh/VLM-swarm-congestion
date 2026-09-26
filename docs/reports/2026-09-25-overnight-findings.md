@@ -15,6 +15,7 @@
 - Rev 9 (2026-09-26): adds the three-run `_bshort` (blocked-side goal-short) pilot on the west variant — 3/3 position-verified arrivals, no reintroduced blocker-path loss, escort mechanism confirmed from ground truth — and next steps.
 - Rev 10 (2026-09-26): adds the six-run `_bshort` validation batch at the widened ±2.6 passer goal — east (first ever) 3/3 and west 3/3, all position-verified — adopting `_bshort` as the pre-registration scenario; records a second G4-class interpenetration (K1, 0.076 m, pre-yield), a realised-goal-margin note, and the prereg amendment set this batch discharges into.
 - Rev 11 (2026-09-26): the K1/G4 root-cause analysis (`docs/reports/2026-09-26-close-approach-analysis.md`) lands its corrections — the 0.076 m events were 51 s of driven nose-to-nose **contact**, not interpenetration; M4's coordination exemption had disarmed the monitor during an ER-2 `reroute`; the contact fields are hard-coded `[]` (no detector exists); and, contra Rev 7 §AC, both robots **did** go STALE in both runs.
+- Rev 12 (2026-09-26): the M4 exemption fix lands and passes both VM regressions (mock-forced G4/K1 exposure now latches at 0.381 m with no contact; ER-2 yield flow unchanged), closing amendment A5; the Arm B classical reasoner slice (plan Tasks 4, 12–14) merges at `65cc850` with 70 new tests, discharging the "Arm B does not exist" freeze blocker at the reasoning-core level.
 
 ---
 
@@ -2339,6 +2340,8 @@ simulation. `safety.yaml` `command_timeout_sec` is loaded but ignored.
    unit tests over the latch/exemption transitions and an ER-2
    reverse→reroute regression run on the VM. Amendment A5 stays open until
    this lands and is verified.
+   *Done — superseded by Rev 12 §AM: landed at `45e55f4` and verified by
+   runs M1/M2; A5 is closed with two tracked residuals.*
 2. Fold the M1 wall-clock speed scaling into the monitor's speed rule (or
    document it as inoperative in sim) and wire `command_timeout_sec` or
    delete the key.
@@ -2353,3 +2356,89 @@ Commit `d638b5b` (analysis report + implementation notes) plus this
 documentation commit. No code or config changed; no runs. Analysis inputs:
 the G4 and K1 artifacts, 88 archived Nav2 logs, and the M4/M5/M6 sources at
 `cf4899f`.
+
+---
+
+## AM. M4 Exemption Fix Landed and Verified; Arm B Reasoning Core Merged
+
+### The exemption fix (`45e55f4`, `1c53844`, `994b2b1`)
+
+The rule now in force: a robot is exempt while its current ACTIVE
+coordination command's own **action** is `yield` or `reverse`; a pair is
+exempt while at least one member is exempt; nothing else exempts —
+`reroute`, `convoy`, `navigate`, waits, and any action the monitor has not
+seen all fail closed. The action comes from `/coordination/commands`, not
+from the command id: the id carries the **decision's strategy** shared by
+every robot of the decision (`<request>-<strategy>`), so id-parsing would
+have exempted a yield's passer-wait and a refused reverse's waits. A
+ROS-free `CoordinationTracker` joins commands and statuses at evaluation
+time, and a robot's exemption ends only on a terminal status for the
+command it is ACTIVE on. `test_safety_monitor.py` grows to 65 tests,
+covering both mixed pairs, the K1 latch-continuity order, the G4
+latch-during-reroute order, and the STALE fail-safe staying armed under
+non-clearing commands.
+
+VM verification on the west `_bshort` scenario (artifacts
+`data/logs/vm_runs/m4fix/`):
+
+| Run | STAMP | Design | Result |
+|---|---|---|---|
+| M1 | `20260926_101653` | mock-forced `reverse` → `reroute` → `yield` (the G4/K1 exposure) | Reroute + partner wait went ACTIVE `exempt=False`; latch fired 8.7 s later; pair held at **0.381 m** by ground truth, no contact; the scripted yield then COMPLETED 141.2 s with both arrivals in tolerance |
+| M2 | `20260926_103507` | ER-2, gate `swap`, order random, obstacles on (yield non-regression) | Opening `reverse` exempted normally; yield COMPLETED 152.8 s; arrivals 0.10 / 0.09 m; min pairwise 0.276 m; escort passed the parked yielder at 0.392 m with no spurious latch |
+
+M1's pair rested 0.381 m apart — marginally under the ~0.40 m the
+regression brief named, and nowhere near the 0.076 m driven contact the
+same forcing produced pre-fix. Two residuals, tracked but non-blocking:
+the K1 ordering (latch before the leg goes ACTIVE) is unit-covered but not
+host-reproducible with a zero-latency mock; and a Nav2 leg that goes
+ACTIVE after a latch keeps its goal until the 120 s wall watchdog — the
+root-cause report's mitigation 2, still open by design. The M4 spec
+(`docs/specs/module4/safety-monitor.md`) gains §10 for the rule and
+corrects §7's 20 s claim to the 120 s bound in force. **Amendment A5 is
+closed.**
+
+### Arm B reasoning core (`f345c7a`…`072315d`, merged at `65cc850`)
+
+`reasoning/baselines/` now exists: the rev-8 geometry classifier
+(`classify_scene`), the policy table with FCFS + commitment tiebreak
+(`decide_classical` / `resolve_classical`), the shadow comparator
+(`compare_decisions`), the trimmed motion table
+(`derive_motion_table` with `arrival_stamp`), and
+`load_classical_params` over a new `config/rag.yaml` `classical:` section
+with `extra="forbid"`. Arm B emits today's `CongestionDecision`
+unchanged; the classifier's forced `blocker_kind="object"` and the full
+passing order live on `ClassicalResolution` for shadow logging. Two plan
+bugs were corrected against the spec (head-on's "exactly 2 stopped
+robots" is measured within `r_conflict` of each other, not scene-wide;
+FCFS measures arrival at the zone that produced the verdict, not
+`zones[0]`). 70 new tests; merged suite 1 144 passed with the
+environmental failure set unchanged.
+
+Tracked follow-ups from the review, recorded in the amendment set:
+
+1. **Contract fields**: `CongestionDecision` has no `blocker_kind` or
+   `crossing_order`, which costs nothing on two-robot cells but degrades
+   Arm B's executed decision at 3+-robot intersections and blocks the T3a
+   blocker-verdict comparison. The fix is the plan's Task 1 additive
+   optional fields — a shared-contract decision.
+2. **M1 wall-clock speed scaling** (root-cause analysis side finding):
+   M1 speeds are metres per wall-second (≈0.38× real at this RTF), so
+   M4's 0.2 m/s speed rule cannot fire in sim and Arm B's 0.05 m/s
+   stopped threshold becomes ≈0.13 m/s real when Phase 2 wires it to live
+   M1 states. One shared fix or a documented sim-time convention is
+   needed before Arm B's T1 parameter tuning.
+3. **Phase 2 wiring**: shadow logging in the live M5 loop (the spec's
+   per-decision classical answer) is the remaining Arm B work item.
+
+---
+
+## Rev 12 Provenance
+
+Commits `45e55f4`, `1c53844`, `994b2b1` (M4 fix) on
+`fix/deadlock-collision-resolution`; `f345c7a`, `6c27f04`, `de994c6`,
+`20669c3`, `072315d` on `feat/arm-b-classical`, merged at `65cc850`; plus
+this documentation commit. Run ids `20260926_101653` (M1),
+`20260926_103507` (M2). VM restored to tree `cf4899f` with the fix
+uninstalled (all five md5s verified on source and installed copies),
+container restarted, instance left RUNNING. Merged local suite: 1 144
+passed, 55 failed, 3 collection errors (the environmental set).
