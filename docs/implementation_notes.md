@@ -37,6 +37,22 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-26** — **K1/G4 "interpenetration" is driven nose-to-nose
+  contact caused by a `reroute` landing on the post-`reverse` re-approach.**
+  - M5's stall memory survives a command (`congestion_detector.py:99-108`),
+    so the analysis after a `reverse` fires mid-approach.
+  - ER-2 answered `reroute` in 2 of the 27 archived reverse-opened runs
+    (G4, K1), and those are the only 2 contact runs. The other 25 yielded
+    with 0 contacts, and the 6 `reroute`s dispatched after a yield had
+    0 contacts.
+  - No reverse opening in the 12 gpt-4o runs.
+  - Corrections: M1 *did* go STALE in both runs, contrary to Rev 7 §AC.
+    `robot_robot_contacts` is hard-coded `[]`, not a silent detector. Use the
+    collider signed gap, not centre distance alone, for contact.
+
+  M4 root cause and mitigations: M4 entry of the same date and
+  `docs/reports/2026-09-26-close-approach-analysis.md`. Overnight findings
+  need a Rev 11 correction of §AC/§AI.
 - **2026-09-26** — **`_bshort` validated on both sides at the ±2.6 passer
   goal; adopted as the pre-registration T2a scenario.** Six ER-2 runs on
   tree `cf4899f` (east K1–K3 first-ever, west K4–K6 re-run after the
@@ -48,7 +64,9 @@ Rules for maintaining it:
   nominal 2.6), and K1 is a second G4-class 0.076 m interpenetration during
   ER-2's opening non-yield phase with all safety layers silent
   (pre-Arm-B blocker, amendment A5). Findings Rev 10 §AI; artifacts
-  `data/logs/vm_runs/bshort2/` (git-ignored).
+  `data/logs/vm_runs/bshort2/` (git-ignored). *K1 "interpenetration … all
+  safety layers silent" clause superseded by the 2026-09-26 close-approach
+  entry above.*
 - **2026-09-26** — **Pre-registration amendment set drafted from the pilot
   campaign**: `docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md`
   binds the 2026-09-24/26 adjudications (`_bshort` T2a instrument, random
@@ -1286,6 +1304,36 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-26** — **K1/G4 close approaches root-caused: the safety
+  monitor's coordination exemption, not a latch failure.** The robots were
+  in nose-to-nose *contact*, not interpenetrating: the collider signed gap
+  was 0.0000 ± 0.0003 m for 51.0 s (G4) and 51.6 s (K1) of sim time.
+  0.076 m is 2 × the +0.038 m chassis nose offset, as in Run D. Mechanism:
+  - ER-2's `reroute` grounds to `reroute {"waypoints": []}` plus a 15 s
+    `temporary_wait` for the partner, and M5 injects the base goal
+    (`orchestrator_node.py:545-552`).
+  - Both commands go `ACTIVE`. Any `ACTIVE` member exempts the pair from the
+    distance rule and from the STALE fail-safe (`safety.py:95,192,202`;
+    `safety_monitor_node.py:161`).
+  - The Nav2 leg drove robot_1 into its waiting partner. In K1 the exemption
+    lifted a latch that had fired 0.8 s wall earlier.
+  - The exemption lasted until the 120 s *wall* Nav2-leg watchdog
+    (`command_bus_node.py:42-44,355-359`; max(3 × M5's 20 s, 120 s floor),
+    about 46 sim-s at RTF 0.38), not the 20 s that `safety-monitor.md` §7
+    claims. The `safety.yaml` `command_timeout_sec` key is loaded but ignored.
+
+  The same pair was latched to rest at 0.27 m on approach 1 when unexempted;
+  the 84 other full-speed crossings in the archive rested at ≥ 0.164 m.
+  Instrumentation: `_emergency_stop` logs `safety stop …
+  reason=min_distance_violation` at the 40 Hz hold rate with a hard-coded
+  reason (`safety_monitor_node.py:214-218`), so K1's "5880 safety stops" is
+  about 58 s of latched time, not events. Only the line at `:176` carries the
+  real reason. M1 `linear_velocity` is metres per wall-second (about
+  RTF × true), so the 0.2 m/s speed rule cannot fire at RTF 0.38.
+  Recommended fix, not implemented: exempt only `yield`/`reverse`; Nav2-goal
+  legs and waits must not exempt a pair. Pair it with failing Nav2 legs of
+  held robots. Ranking and costs in
+  `docs/reports/2026-09-26-close-approach-analysis.md`.
 - **2026-09-17** — **Run H: creep-while-latched fixed and verified;
   resolution and goals on video.** Latch at GT 0.4406 m with a 0.263 m/s
   closing rate; rest 1.0 sim-s later at 0.1693 m. Over the next 100 sim-s
