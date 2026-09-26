@@ -7,16 +7,20 @@ so these tests are self-contained and offline.
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import pytest
+import yaml
 
 from scripts.rescore_arrivals import (
+    ObstacleBox,
     find_run_dirs,
     locate_gt_file,
     locate_scene_files,
     nearest_gt_by_position,
     nearest_scene_sample,
+    overlapping_obstacle,
     parse_arrival_events,
     parse_session_id,
     score_run,
@@ -25,6 +29,14 @@ from scripts.rescore_arrivals import (
 SESSION_ID = "abc123"
 GOAL_R1 = (2.5, 0.0)
 GOAL_R2 = (-2.5, 0.0)
+# The _bshort west variant: robot_2's goal is robot_1's spawn, 0.20 m in front
+# of a 0.3 m box spanning x in [-2.00, -1.70].
+BSHORT_GOAL_R2 = (-1.5, 0.0)
+BLOCKER_WEST = {
+    "obstacle_id": "blocker_west",
+    "pose": {"x": -1.85, "y": 0.0, "yaw_rad": 0.0},
+    "size": {"x_m": 0.3, "y_m": 0.3, "z_m": 0.5},
+}
 
 
 def _m5_log_line(epoch: float, text: str) -> str:
@@ -312,3 +324,79 @@ def test_score_run_computes_gt_min_distance_over_whole_run(tmp_path: Path) -> No
     assert row["gt_dist_m"] == pytest.approx(0.06, abs=1e-6)
     # ...distinct from gt_min_dist_m, the minimum anywhere in the run.
     assert row["gt_min_dist_m"] == pytest.approx(0.03, abs=1e-6)
+
+
+def _write_scenario(
+    run_dir: Path, scenarios_dir: Path, name: str, static_obstacles: list[dict]
+) -> None:
+    # extract_metadata reads the scenario name from a top-level launcher log.
+    (run_dir / "launcher.log").write_text(f"starting Isaac Sim {name} (headless)\n")
+    family_dir = scenarios_dir / "family"
+    family_dir.mkdir(parents=True, exist_ok=True)
+    (family_dir / f"{name}.yaml").write_text(
+        yaml.safe_dump({"name": name, "static_obstacles": static_obstacles})
+    )
+
+
+def _score_bshort_arrival(
+    tmp_path: Path, m1_xy: tuple[float, float], static_obstacles: list[dict]
+) -> tuple[dict, list[str]]:
+    run_id = "20260926_000001"
+    run_dir = _build_run(
+        tmp_path,
+        run_id,
+        arrivals=[(1010.0, "robot_2", BSHORT_GOAL_R2)],
+        scene_samples={"robot_2": [(1009.9, m1_xy[0], m1_xy[1], "STOPPED")]},
+        gt_rows=[(10.0, {"robot_2": m1_xy})],
+    )
+    scenarios_dir = tmp_path / "scenarios"
+    _write_scenario(
+        run_dir, scenarios_dir, "head_on_asymmetric_w0p2_eopen_bshort_o0", static_obstacles
+    )
+
+    rows, notes = score_run(
+        run_dir, tolerance_m=0.35, max_age_sec=2.0, scenarios_dir=scenarios_dir
+    )
+
+    assert len(rows) == 1
+    return rows[0].values, notes
+
+
+def test_score_run_flags_box_overlap_without_changing_the_verdict(tmp_path: Path) -> None:
+    # 0.10 m short of the goal is inside tolerance, but the centre is 0.10 m
+    # from the near face, closer than ROBOT_HALF_WIDTH_M.
+    row, notes = _score_bshort_arrival(tmp_path, (-1.6, 0.0), [BLOCKER_WEST])
+
+    assert row["m1_verdict"] == "within_tolerance"
+    assert row["flipped"] is False
+    assert row["robot_arrived_m1"] is True
+    assert row["box_overlap"] is True
+    assert row["box_overlap_obstacle"] == "blocker_west"
+    assert any(n.startswith("WARNING robot_2") and "blocker_west" in n for n in notes)
+
+
+def test_score_run_reports_a_clear_pose_as_no_overlap(tmp_path: Path) -> None:
+    row, notes = _score_bshort_arrival(tmp_path, (-1.45, 0.0), [BLOCKER_WEST])
+
+    assert row["m1_verdict"] == "within_tolerance"
+    assert row["box_overlap"] is False
+    assert row["box_overlap_obstacle"] is None
+    assert not any(n.startswith("WARNING") for n in notes)
+
+
+def test_score_run_leaves_box_overlap_unset_without_static_obstacles(tmp_path: Path) -> None:
+    row, notes = _score_bshort_arrival(tmp_path, (-1.6, 0.0), [])
+
+    assert row["m1_verdict"] == "within_tolerance"
+    assert row["box_overlap"] is None
+    assert row["box_overlap_obstacle"] is None
+
+
+def test_overlapping_obstacle_uses_the_box_frame_for_a_rotated_box() -> None:
+    # A 1.0 x 0.2 m box rotated 90 degrees extends along y, not x.
+    box = ObstacleBox(
+        obstacle_id="rack", x=0.0, y=0.0, yaw_rad=math.pi / 2, half_x_m=0.5, half_y_m=0.1
+    )
+
+    assert overlapping_obstacle((0.0, 0.6), [box], half_width_m=0.175) == "rack"
+    assert overlapping_obstacle((0.6, 0.0), [box], half_width_m=0.175) is None

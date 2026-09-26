@@ -35,6 +35,14 @@ For every `arrived at base goal` line in a run's M5 log this script finds:
 `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/arrival.py` (verified
 importable without `rclpy`), so the offline verdict is exactly the function
 `ArrivalGate` runs online, not a reimplementation.
+
+Each position-verified arrival (`within_tolerance`) is also checked against
+the scenario's static obstacle boxes, read from the run's scenario YAML under
+`--scenarios-dir`. A goal parked close to a box (the `_bshort` blocked-side
+goal sits 0.20 m from the box near face) lets the tolerance band reach inside
+the box, so the `box_overlap` column flags an accepted M1 position within
+`ROBOT_HALF_WIDTH_M` of any box. It is a reporting flag only: the verdict is
+unchanged.
 """
 from __future__ import annotations
 
@@ -46,6 +54,8 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _SWARM_ORCHESTRATOR = REPO_ROOT / "ros2_ws" / "src" / "swarm_orchestrator"
@@ -78,6 +88,12 @@ SESSION_ID_RE = re.compile(r"session_id=(?P<sid>[0-9a-f]+) run_id=")
 
 DEFAULT_TOLERANCE_M = 0.35
 DEFAULT_MAX_AGE_SEC = 2.0
+DEFAULT_SCENARIOS_DIR = REPO_ROOT / "isaac" / "config" / "scenarios"
+# Half of a ~0.35 m chassis envelope. Deliberately conservative: the Nav2
+# footprint (swarm_simulation/config/nav2_params.yaml) is only 0.14 x 0.18 m, so
+# a flag means "the pose is close enough to a box to review", not proof of
+# contact.
+ROBOT_HALF_WIDTH_M = 0.175
 
 CSV_FIELDS = [
     "stamp",
@@ -112,6 +128,8 @@ CSV_FIELDS = [
     "first_starting_analysis_epoch",
     "resolution_sec",
     "no_scene_log",
+    "box_overlap",
+    "box_overlap_obstacle",
 ]
 
 
@@ -138,6 +156,18 @@ class ArrivalEvent:
     robot_id: str
     goal: tuple[float, float] | None
     kind: str  # "reported" | "rejected" | "accepted_late"
+
+
+@dataclass(frozen=True)
+class ObstacleBox:
+    """One static obstacle's footprint on the ground plane, in world metres."""
+
+    obstacle_id: str
+    x: float
+    y: float
+    yaw_rad: float
+    half_x_m: float
+    half_y_m: float
 
 
 class RunDataError(RuntimeError):
@@ -260,6 +290,79 @@ def locate_orchestrator_yaml(run_dir: Path) -> Path | None:
         candidate = run_dir / name
         if candidate.is_file():
             return candidate
+    return None
+
+
+def locate_scenario_yaml(scenario: str, scenarios_dir: Path) -> Path | None:
+    """Find the scenario YAML a run was launched with, by scenario name.
+
+    Args:
+        scenario: Scenario name from `extract_metadata` (`"unknown"` when not
+            recoverable); a trailing `.yaml` or a directory prefix is tolerated.
+        scenarios_dir: Root searched recursively, normally
+            `isaac/config/scenarios` (family variants live one level down).
+
+    Returns:
+        The single matching YAML, or None if the name is unknown, absent, or
+        ambiguous.
+    """
+    if scenario == "unknown":
+        return None
+    matches = sorted(scenarios_dir.rglob(f"{Path(scenario).stem}.yaml"))
+    return matches[0] if len(matches) == 1 else None
+
+
+def load_obstacle_boxes(scenario_yaml: Path) -> list[ObstacleBox]:
+    """Read a scenario YAML's `static_obstacles` as ground-plane boxes.
+
+    Args:
+        scenario_yaml: Path from `locate_scenario_yaml`.
+
+    Returns:
+        One box per static obstacle; empty when the scenario declares none.
+    """
+    data = yaml.safe_load(scenario_yaml.read_text()) or {}
+    return [
+        ObstacleBox(
+            obstacle_id=obstacle["obstacle_id"],
+            x=obstacle["pose"]["x"],
+            y=obstacle["pose"]["y"],
+            yaw_rad=obstacle["pose"].get("yaw_rad", 0.0),
+            half_x_m=obstacle["size"]["x_m"] / 2.0,
+            half_y_m=obstacle["size"]["y_m"] / 2.0,
+        )
+        for obstacle in data.get("static_obstacles") or []
+    ]
+
+
+def overlapping_obstacle(
+    position: tuple[float, float],
+    boxes: list[ObstacleBox],
+    half_width_m: float = ROBOT_HALF_WIDTH_M,
+) -> str | None:
+    """Return the first box whose span, grown by `half_width_m`, holds `position`.
+
+    Each box is expanded by `half_width_m` on every side in its own frame, so
+    a robot centre inside the expanded span means the chassis reaches into
+    the box.
+
+    Args:
+        position: Robot centre `(x, y)` in world metres.
+        boxes: Obstacle boxes from `load_obstacle_boxes`.
+        half_width_m: Robot half-width added to each box half-extent.
+
+    Returns:
+        The overlapping box's `obstacle_id`, or None when the pose is clear.
+    """
+    for box in boxes:
+        dx, dy = position[0] - box.x, position[1] - box.y
+        cos_yaw, sin_yaw = math.cos(box.yaw_rad), math.sin(box.yaw_rad)
+        local_x = cos_yaw * dx + sin_yaw * dy
+        local_y = -sin_yaw * dx + cos_yaw * dy
+        if abs(local_x) <= box.half_x_m + half_width_m and (
+            abs(local_y) <= box.half_y_m + half_width_m
+        ):
+            return box.obstacle_id
     return None
 
 
@@ -459,7 +562,10 @@ class EventRow:
 
 
 def score_run(
-    run_dir: Path, tolerance_m: float, max_age_sec: float
+    run_dir: Path,
+    tolerance_m: float,
+    max_age_sec: float,
+    scenarios_dir: Path = DEFAULT_SCENARIOS_DIR,
 ) -> tuple[list[EventRow], list[str]]:
     """Re-score every arrival event in one run against M1 and ground truth.
 
@@ -469,6 +575,8 @@ def score_run(
             `arrival_position_tolerance_m`).
         max_age_sec: Oldest M1 estimate still considered corroborating
             (mirrors `arrival_estimate_max_age_sec`).
+        scenarios_dir: Root holding the scenario YAMLs, searched for the run's
+            scenario to read its static obstacle boxes.
 
     Returns:
         `(rows, notes)`: per-event CSV rows, and human-readable notes about
@@ -497,6 +605,10 @@ def score_run(
 
     orchestrator_yaml = locate_orchestrator_yaml(run_dir)
     meta = extract_metadata(run_dir, orchestrator_yaml)
+    scenario_yaml = locate_scenario_yaml(meta["scenario"], scenarios_dir)
+    boxes = load_obstacle_boxes(scenario_yaml) if scenario_yaml is not None else []
+    if scenario_yaml is None and meta["scenario"] != "unknown":
+        notes.append(f"scenario {meta['scenario']} not found under {scenarios_dir}")
 
     # First accepted-report epoch per robot, by each rule, for the run-level
     # outcome and the "first analysis -> last accepted arrival" timing.
@@ -562,6 +674,20 @@ def score_run(
         if check.distance_m is not None and gt_dist is not None:
             bias = check.distance_m - gt_dist
 
+        # Only a position-verified accept has a pose the verdict rests on;
+        # pass-through accepts and rejects carry no claim to check.
+        box_overlap: bool | None = None
+        box_overlap_obstacle: str | None = None
+        if boxes and check.reason == "within_tolerance" and m1_position is not None:
+            box_overlap_obstacle = overlapping_obstacle(m1_position, boxes)
+            box_overlap = box_overlap_obstacle is not None
+            if box_overlap:
+                notes.append(
+                    f"WARNING {event.robot_id}: accepted arrival at "
+                    f"({m1_position[0]:.3f}, {m1_position[1]:.3f}) overlaps "
+                    f"{box_overlap_obstacle} (box grown by {ROBOT_HALF_WIDTH_M} m)"
+                )
+
         row = EventRow(
             values={
                 "stamp": run_dir.name,
@@ -596,6 +722,8 @@ def score_run(
                 "first_starting_analysis_epoch": first_analysis_ts,
                 "resolution_sec": None,
                 "no_scene_log": no_scene_log,
+                "box_overlap": box_overlap,
+                "box_overlap_obstacle": box_overlap_obstacle,
             }
         )
         rows.append(row)
@@ -636,6 +764,7 @@ def main() -> int:
     parser.add_argument("--runs-dir", type=Path, default=Path("data/logs/vm_runs"))
     parser.add_argument("--tolerance-m", type=float, default=DEFAULT_TOLERANCE_M)
     parser.add_argument("--max-age-sec", type=float, default=DEFAULT_MAX_AGE_SEC)
+    parser.add_argument("--scenarios-dir", type=Path, default=DEFAULT_SCENARIOS_DIR)
     parser.add_argument(
         "--out", type=Path, default=Path("data/logs/vm_runs/ARRIVALS_RESCORED.csv")
     )
@@ -649,7 +778,9 @@ def main() -> int:
     all_rows: list[EventRow] = []
     for run_dir in run_dirs:
         try:
-            rows, notes = score_run(run_dir, args.tolerance_m, args.max_age_sec)
+            rows, notes = score_run(
+                run_dir, args.tolerance_m, args.max_age_sec, args.scenarios_dir
+            )
         except RunDataError as exc:
             print(f"SKIP {run_dir.name}: {exc}", file=sys.stderr)
             continue
@@ -666,9 +797,11 @@ def main() -> int:
 
     n_runs = len({row.values["stamp"] for row in all_rows})
     n_flipped = sum(1 for row in all_rows if row.values["flipped"])
+    n_overlap = sum(1 for row in all_rows if row.values["box_overlap"])
     print(
         f"scored {len(all_rows)} arrival events across {n_runs} runs; "
-        f"{n_flipped} flipped (Nav2-reported, rejected at {args.tolerance_m} m) -> {args.out}"
+        f"{n_flipped} flipped (Nav2-reported, rejected at {args.tolerance_m} m); "
+        f"{n_overlap} accepted inside a box grown by {ROBOT_HALF_WIDTH_M} m -> {args.out}"
     )
     return 0
 
