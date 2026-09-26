@@ -13,6 +13,7 @@
 - Rev 7 (2026-09-26): re-scores every arrival against position, adds live batches 2 and 3 (gpt-4o random order, ER-2 forced order), reports that the side-carrier effect replicates in direction but not in magnitude, ships an unvalidated refusal mitigation, and corrects two safety metrics.
 - Rev 8 (2026-09-26): adds the six-run ER-2 pilot on the `_gshort` goal-short variants — blocker-on-goal-path losses eliminated, a new park-beyond-goal failure introduced by symmetric ±1.5 goals — plus five apparatus notes from the batch.
 - Rev 9 (2026-09-26): adds the three-run `_bshort` (blocked-side goal-short) pilot on the west variant — 3/3 position-verified arrivals, no reintroduced blocker-path loss, escort mechanism confirmed from ground truth — and next steps.
+- Rev 10 (2026-09-26): adds the six-run `_bshort` validation batch at the widened ±2.6 passer goal — east (first ever) 3/3 and west 3/3, all position-verified — adopting `_bshort` as the pre-registration scenario; records a second G4-class interpenetration (K1, 0.076 m, pre-yield), a realised-goal-margin note, and the prereg amendment set this batch discharges into.
 
 ---
 
@@ -2125,3 +2126,133 @@ Commit `e708ffa` plus this documentation commit. Run ids:
 `20260925_223245` (J1), `20260925_225104` (J2), `20260925_230902` (J3). VM
 restored: `orchestrator.yaml` `md5` `584ebf60728ec0611145b4b3280ce44e`,
 container restarted, GPU idle, instance still running.
+
+---
+
+## AI. `_bshort` Validation Batch: Both Sides at the Widened Goal
+
+Six ER-2 runs on tree `cf4899f`: the `_bshort` open-side passer goal widened
+±2.5 → ±2.6 (`dcfa144`), taking the designed escort-endpoint margin from
+0.061 m to 0.161 m. East variant (never run before) K1–K3, then west re-run
+K4–K6 on the new goal. Gate `swap`, obstacles ON (block verified in all 39
+prompts), `prompt_robot_order: random`, annotated and raw frames kept, every
+arrival position-verified online and re-scored offline (`box_overlap` column
+included, `8e77bc4`). Goals: east `robot_1` (1.5, 0) / `robot_2` (−2.6, 0);
+west `robot_1` (2.6, 0) / `robot_2` (−1.5, 0). Summary
+`data/logs/vm_runs/bshort2/BSHORT2_PILOT_SUMMARY.txt`; artifacts under
+`data/logs/vm_runs/bshort2/20260926_{063238,065219,071034,072849,074705,080521}/`.
+
+| Run | Side | Order at yield analysis | First `yield_robot` | Gate | First yield | Both arrived | Analyses / commands | Min pairwise (m) | % GT < 0.45 m | Passer backtrack (m) | `box_overlap` |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| K1 | east | `id_asc` | `robot_1` | no-op | COMPLETED 148.9 s | ✓ | 9 / 4 | **0.076** | **25.7** | 0.003 | 0/2 |
+| K2 | east | `id_desc` | `robot_2` | fired `r2`→`r1` | COMPLETED 149.9 s | ✓ | 5 / 1 | 0.230 | 4.8 | 0.003 | 0/2 |
+| K3 | east | `id_asc` | `robot_1` | no-op | COMPLETED 144.9 s | ✓ | 7 / 2 | 0.316 | 7.1 | 0.003 | 0/2 |
+| K4 | west | `id_desc` | `robot_1` | fired `r1`→`r2` | COMPLETED 147.1 s | ✓ | 3 / 2 | 0.250 | 4.9 | 0.141 | 0/2 |
+| K5 | west | `id_desc` | `robot_2` | no-op | COMPLETED 149.3 s | ✓ | 10 / 2 | 0.231 | 7.4 | 0.000 | 0/2 |
+| K6 | west | `id_desc` | `robot_2` | no-op | COMPLETED 149.1 s | ✓ | 5 / 1 | 0.278 | 4.6 | 0.000 | 0/2 |
+
+All 12 arrivals were accepted `check=within_tolerance` (M1 distance
+0.055–0.202 m), and the offline rescore plus ground truth agree — 0 flips.
+The correct (feasible) robot executed the yield in all six runs: named
+outright in four, produced by the `swap` gate in two (K2, K4). 39 ER-2
+calls, 0 refusals, 0 parse or API failures, all at attempt 1. Zero Nav2
+recovery behaviours ran.
+
+### Verdict — `_bshort` is the pre-registration scenario
+
+East 3/3 discharges the side left open in Rev 9 §AG, and west 3/3 confirms
+the widened goal changed nothing mechanistically (passer backtrack 0.000 m
+in K5/K6 and ground-truth jitter elsewhere; K4's 0.141 m is its own goal
+overshoot to 2.815 settling back to ≈2.68, never inside the 2.439 escort
+endpoint). This closes the scenario question of Rev 6 §W item 6 for both
+sides. The 12-run `_bshort` tally is now 9/9 position-verified at the
+adopted defaults (J1–J3, K1–K6, one geometry change between them) with zero
+losses to the blocker-on-goal-path property and zero park-beyond-goal holds.
+Adopted into the pre-registration as amendment A1 of
+`docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md`, whose condition
+this batch satisfies. Still open on the scenario axis: the gpt-4o `_bshort`
+family pilot (OpenAI credits).
+
+### Realised goal margin is smaller than the designed margin
+
+Nav2 stops the passer at ≈2.50–2.53, not at the 2.6 goal, so the realised
+margin past the 2.439 escort endpoint is 0.063–0.096 m against the designed
+0.161 m — still 3–6× the J-batch's realised 0.016–0.021 m. The widening
+bought real margin, but goal-position designs must budget for Nav2's early
+stop inside the arrival tolerance, not for the nominal goal.
+
+### K1 — a second G4-class interpenetration
+
+K1's minimum pairwise distance is 0.076 m — the same depth as G4 (Rev 7
+§AC) — with 25.7% of ground-truth rows below 0.45 m. It occurred at the
+corridor centre during the opening `reverse` → failed `reroute` sequence at
+sim 50–107 s, before any yield, and the ground-truth contact list stayed
+empty throughout, reconfirming that the contact flags are not a measurement.
+Two instances in 12 ER-2 east-side runs, both during ER-2's opening
+non-yield phase, sharpen the pre-Arm-B safety question (amendment A5): M4's
+safety monitor, the contact detector and M1's STALE fail-safe were all
+silent while two ≈0.14 × 0.18 m chassis overlapped for tens of seconds.
+
+### Metric definition note — passer backtrack
+
+Two defensible definitions of the backtrack statistic disagree on gshort
+H2: peak-|x|-minus-minimum-after-peak gives 0.878 m where Rev 9 §AG's
+first-turnaround reading gives 0.580 m (2.163 − 1.583). Both give 0.000 m
+on J1–J3 and the table above uses the peak-minus-minimum form. The
+pre-registration must pin one definition before the statistic is quoted
+comparatively.
+
+### Apparatus notes
+
+- The J-batch VM helper scripts hard-code the ±2.5 goals; this batch used
+  new drivers (`_vm_driver/`, synced locally) whose config check also
+  asserts the installed goals against the scenario YAML and installed
+  md5 = source md5.
+- `box_overlap` fired 0/12, but every box-side robot was accepted on the
+  corridor side of its goal (0.08–0.20 m short), so the flag's target case
+  never arose; this is not evidence the flag works.
+- The per-run `orchestrator_used.yaml` is written **after** the launcher
+  restores the `openai` backend; the config actually in force is preserved
+  as `orchestrator_installed_during_run.yaml` (md5
+  `ad6c6e74802301e9d92cb6c0ce679a07` east,
+  `ce6d31eed3ecf0376a93321eb331e8b7` west).
+
+---
+
+## AJ. Next Steps
+
+1. **The ER-2 side of the pre-registration baseline is done.** All
+   remaining data collection is gpt-4o-side and blocked on OpenAI credits:
+   the `_bshort` family pilot, replay `--arm F`, the `--arm S2` remainder,
+   `--arm X` (image-fallback validation), and the forced-order live cells.
+2. **Decide the VM now.** No further runs are possible until credits
+   return; it bills ≈US$0.9/h against an L4 stockout risk on restart.
+   Owner's call, but the idle case for keeping it warm is gone.
+3. **Root-cause the K1/G4 interpenetration class before Arm B** (amendment
+   A5): two instances, both in ER-2's opening non-yield phase, three
+   silent safety layers.
+4. **Build Arm B** — `reasoning/baselines/classical_reasoner.py` is
+   specified in the research design but absent from the tree (prereg
+   amendment freeze blocker 1), and it is the largest work item between
+   here and the `prereg-v1` tag.
+5. **Decide failure-context memory depth** (last-N vs last-failed) before
+   Arm A collection — freeze blocker 3.
+6. Pin the passer-backtrack definition (§AI metric note) in the
+   pre-registration's measurement plan.
+
+---
+
+## Rev 10 Provenance
+
+No new code commits — the batch ran on tree `cf4899f` (`dcfa144`,
+`8e77bc4`, `cf4899f` reported in Rev 9's follow-on work plus the amendment
+set `4d7d33b`); this revision is documentation only. Run ids:
+`20260926_063238` (K1), `20260926_065219` (K2), `20260926_071034` (K3),
+`20260926_072849` (K4), `20260926_074705` (K5), `20260926_080521` (K6).
+
+VM restored to tree `cf4899f` (525 files verified), `orchestrator.yaml`
+`md5` `aa93f55045c63e956088790ea6848e8a` on source and installed copy,
+container restarted, GPU idle (0%, 170 MiB, no processes), instance left
+RUNNING. Sampling is uncontrolled on all 39 ER-2 calls
+(`unsupported_sampling` recorded per call, Rev 6 §U). Artifacts remain
+git-ignored under `data/logs/vm_runs/bshort2/`.

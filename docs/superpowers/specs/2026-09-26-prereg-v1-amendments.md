@@ -9,6 +9,10 @@
   `prereg-v1` freeze of the research design
   (`docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md`,
   rev 8.6), and lists the items still blocking that freeze.
+- Rev 2 (2026-09-26): the `_bshort` validation batch (findings Rev 10 §AI)
+  satisfies A1's condition — east 3/3, west 3/3 at ±2.6, all
+  position-verified — discharging freeze blocker 2; A5 gains K1 as a second
+  G4-class interpenetration instance.
 
 ---
 
@@ -46,8 +50,12 @@ the `FEASIBILITY_MARGIN_M` comment cites (commit `dcfa144`).
 **Conditions attached.**
 
 - Adoption is conditional on the east `_bshort` pilot and a west re-run at the
-  ±2.6 goal (n ≥ 3 each, in progress as of this draft). If either fails, the
-  scenario question reopens and this amendment is void.
+  ±2.6 goal (n ≥ 3 each). **Satisfied 2026-09-26** (findings Rev 10 §AI):
+  east 3/3 and west 3/3, all position-verified, correct yielder executed
+  6/6, zero blocker-path losses and zero park-beyond-goal holds. Caveat
+  recorded there: Nav2 stops the passer ≈0.07–0.10 m short of the nominal
+  goal, so the realised escort margin is 0.063–0.096 m, not the designed
+  0.161 m.
 - Arrival re-scoring must carry the `box_overlap` flag (commit `8e77bc4`): the
   blocked-side goal leaves 0.13 m chassis-front clearance to the box near
   face, and the 0.35 m arrival tolerance could otherwise accept an overlapping
@@ -116,6 +124,11 @@ Secondary: first answer (the pre-gate strategy and yielder of the episode's
 first analysis). Resolution time (first analysis → both arrived) is reported
 descriptively.
 
+**Definition to pin at freeze.** The passer-backtrack statistic has two
+defensible definitions that disagree on gshort H2 (0.878 m peak-minus-minimum
+vs 0.580 m first-turnaround; findings Rev 10 §AI metric note); the
+measurement plan must pin one before the statistic is quoted comparatively.
+
 **Rationale.** First answer and episode outcome disagree on the same
 mechanism (D2 2/2 vs L4 0/2; Rev 4 §L item 6). Nav2 goal success is not
 arrival: E1's false success sat 0.59 m from goal (Rev 6 §V); re-scoring all 31
@@ -142,9 +155,11 @@ reported individually.
 **Open safety item (pre-Arm-B blocker).** In G4 two stationary robots sat
 interpenetrated at 0.076 m for ≈18 s while M4's safety monitor, the contact
 detector, and M1's STALE fail-safe all stayed silent — the same geometry as
-the July "Run D" incident cited in `safety.yaml`. Root-cause this before Arm
-B collection; the classical arm dispatches without a VLM in the loop and
-inherits whatever hole this is.
+the July "Run D" incident cited in `safety.yaml`. K1 (findings Rev 10 §AI)
+is a second instance at the identical 0.076 m depth, again during ER-2's
+opening non-yield phase and again with an empty contact list. Root-cause
+this before Arm B collection; the classical arm dispatches without a VLM in
+the loop and inherits whatever hole this is.
 
 ---
 
@@ -213,8 +228,9 @@ directory before the next launch (Rev 8 §AE item 4).
    specified (spec rev 7) but absent from the tree, and with it shadow
    logging, the FCFS/commitment tiebreak, and the tuning-parity workflow.
    This is the largest single work item between here and the freeze.
-2. **`_bshort` validation** — east n ≥ 3 plus west re-run at ±2.6 (in
-   progress). A1 is conditional on it.
+2. ~~**`_bshort` validation**~~ — **discharged 2026-09-26** (findings Rev 10
+   §AI): east 3/3, west 3/3, A1's condition satisfied. The gpt-4o `_bshort`
+   family pilot remains under blocker 5.
 3. **Failure-context memory depth** — the context is one attempt deep; an
    intervening success evicts a failed yield and the same infeasible yielder
    is re-selected (Rev 1 §6(a), L4, D2). Decide last-N vs last-failed before

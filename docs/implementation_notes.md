@@ -37,6 +37,18 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-26** — **`_bshort` validated on both sides at the ±2.6 passer
+  goal; adopted as the pre-registration T2a scenario.** Six ER-2 runs on
+  tree `cf4899f` (east K1–K3 first-ever, west K4–K6 re-run after the
+  `dcfa144` widening): 6/6 position-verified, correct yielder executed 6/6
+  (gate `swap` fired 2/6), 0 refusals on 39 calls, 0 Nav2 recoveries, passer
+  backtrack 0.000–0.003 m. Discharges prereg amendment A1's condition and
+  the Rev 6 §W item 6 scenario question. Two caveats recorded: realised
+  escort margin is 0.063–0.096 m (Nav2 stops the passer short of the
+  nominal 2.6), and K1 is a second G4-class 0.076 m interpenetration during
+  ER-2's opening non-yield phase with all safety layers silent
+  (pre-Arm-B blocker, amendment A5). Findings Rev 10 §AI; artifacts
+  `data/logs/vm_runs/bshort2/` (git-ignored).
 - **2026-09-26** — **Pre-registration amendment set drafted from the pilot
   campaign**: `docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md`
   binds the 2026-09-24/26 adjudications (`_bshort` T2a instrument, random
