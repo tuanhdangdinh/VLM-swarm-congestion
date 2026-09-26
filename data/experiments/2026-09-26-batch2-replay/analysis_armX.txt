@@ -1,0 +1,84 @@
+
+## Arm X (neutral-image fallback vs four attempts alone)
+policy,runs,attempt1_refusals,terminal_refusals,terminal_rate,decided,fallback_used,mean_attempts,transport_errors
+max_attempts_4,84,55,10,0.119,74,0,2.02,0
+image_fallback_2,84,52,0,0.000,84,20,1.90,0
+terminal refusal 10/84 (11.9%) vs 0/84 (0.0%), fisher p=0.00147
+policy,refused_attempt1,still_terminal,conditional_terminal_rate
+max_attempts_4,55,10,0.182
+image_fallback_2,52,0,0.000
+
+fallback fired on 20 runs (10 artifacts); 20 produced a decision
+decision agreement with the frame-attached control: strategy 19/20 (95.0%), yield_robot 1/1 (100.0%) of the paired yields
+
+## Arm X - stricter estimands (Rev 5)
+refusal definition below: production `is_refusal` on each recorded attempt text
+max_attempts_4: runs 84; attempt-1 refused (prod) 57/84 (67.9%); no decision 10/84 (11.9%); attempts 1+2 both refused 18, of which decided 8/18 (44.4%); mean attempts 2.02
+image_fallback_2: runs 84; attempt-1 refused (prod) 56/84 (66.7%); no decision 0/84 (0.0%); attempts 1+2 both refused 20, of which decided 20/20 (100.0%); mean attempts 1.90
+decided | attempts 1+2 refused: control 8/18 (44.4%) vs fallback 20/20 (100.0%), fisher p=9.256e-05
+no decision, all runs: control 10/84 (11.9%) vs fallback 0/84 (0.0%), fisher p=0.00147
+fired runs 20 on 10 artifacts; image sent on the fallback attempt: {'neutral.png': 20}
+fallback attempt outcome: {'fallback_attempt_answered': 20}
+
+real-frame decisions (both policies, fallback not fired) 138; fallback-derived decisions 20
+order,source,decisions,strategy_counts,yields,P(robot_1)|yield,P(feasible)|yield(standoffs)
+id_asc,real,29,{'none': 29},0,0/0 (n/a),0/0 (n/a)
+id_asc,grey_fallback,15,{'reverse': 1, 'none': 14},0,0/0 (n/a),0/0 (n/a)
+id_desc,real,27,{'yield': 7, 'none': 20},7,0/7 (0.0%),7/7 (100.0%)
+id_desc,grey_fallback,5,{'yield': 1, 'none': 4},1,0/1 (0.0%),1/1 (100.0%)
+  (restricted to artifacts that produced at least one fallback-derived decision under that order)
+
+per artifact (fired artifacts only): run,request,order,side,real decisions,fallback decisions
+  20260925_165442,004932e6,id_asc,east,{('none', None): 4},{('none', None): 3}
+  20260925_160951,1e92eb00,id_desc,west,{('none', None): 7},{('none', None): 1}
+  20260925_162451,4c7ce49a,id_desc,west,{('none', None): 7},{('none', None): 1}
+  20260925_170938,633cfac0,id_asc,east,{('none', None): 7},{('none', None): 1}
+  20260925_155433,810c9104,id_desc,west,{('yield', 'robot_2'): 7},{('yield', 'robot_2'): 1}
+  20260925_170938,95b05f48,id_asc,east,{('none', None): 2},{('none', None): 3}
+  20260925_170938,cb8ac6f7,id_asc,east,{('none', None): 5},{('none', None): 3}
+  20260925_162451,d5276402,id_desc,west,{('none', None): 6},{('none', None): 2}
+  20260925_163949,d8adbd13,id_asc,east,{('none', None): 6},{('reverse', None): 1, ('none', None): 1}
+  20260925_170938,f67dbf38,id_asc,east,{('none', None): 5},{('none', None): 3}
+fallback decisions matching the artifact's modal real-frame decision: 19/20 (95.0%) over 10 artifacts with a real-frame decision
+
+## Fallback decision agreement, Arms X + F pooled (all rows ran the new reasoner)
+fallback fired 96 runs; fallback attempt itself refused 2; fallback-derived decisions 94
+  20260925_165442,004932e6,id_asc,east,real {('none', None): 10},fallback {('none', None): 3}
+  20260925_170938,0458aad1,id_asc,east,real {('none', None): 5},fallback {('none', None): 1}
+  20260925_170938,0f713868,id_asc,east,real {('none', None): 3},fallback {('none', None): 3}
+  20260925_170938,1299c391,id_asc,east,real {('none', None): 8},fallback {('none', None): 5}
+  20260925_160951,1e92eb00,id_desc,west,real {('none', None): 13},fallback {('none', None): 1}
+  20260925_162451,389f0c4a,id_desc,west,real {('none', None): 5},fallback {('none', None): 1}
+  20260925_160951,41936c09,id_desc,west,real {('none', None): 3},fallback {('none', None): 3}
+  20260925_170938,42437277,id_asc,east,real {('none', None): 3},fallback {('none', None): 3}
+  20260925_155433,47783222,id_desc,west,real {('none', None): 3},fallback {('none', None): 3}
+  20260925_162451,4c7ce49a,id_desc,west,real {('none', None): 13},fallback {('none', None): 1}
+  20260925_170938,534489aa,id_asc,east,real {('reroute', None): 3, ('none', None): 6},fallback {('none', None): 3}
+  20260925_170938,5d3780f4,id_asc,east,real {('none', None): 4},fallback {('none', None): 2}
+  20260925_170938,62b512fe,id_asc,east,real {('none', None): 3},fallback {('none', None): 3}
+  20260925_170938,633cfac0,id_asc,east,real {('none', None): 13},fallback {('none', None): 1}
+  20260925_170938,7102db2a,id_asc,east,real {('none', None): 3},fallback {('none', None): 3}
+  20260925_162451,7829a552,id_desc,west,real {('none', None): 5},fallback {('none', None): 1}
+  20260925_170938,7d67b74b,id_asc,east,real {('none', None): 12},fallback {('none', None): 2}
+  20260925_155433,810c9104,id_desc,west,real {('yield', 'robot_2'): 9, ('yield', 'robot_1'): 4},fallback {('yield', 'robot_2'): 1}
+  20260925_170938,82d1ec5b,id_asc,east,real {('none', None): 4},fallback {('none', None): 2}
+  20260925_170938,95b05f48,id_asc,east,real {('none', None): 6},fallback {('none', None): 5}
+  20260925_170938,b729ac46,id_asc,east,real {('none', None): 3},fallback {('none', None): 3}
+  20260925_170938,b8871c03,id_asc,east,real {('none', None): 11},fallback {('none', None): 3}
+  20260925_170938,c8afd182,id_asc,east,real {('none', None): 5},fallback {('none', None): 1}
+  20260925_170938,cb8ac6f7,id_asc,east,real {('none', None): 7, ('reroute', None): 1},fallback {('none', None): 6}
+  20260925_160951,ccefc2cf,id_desc,west,real {('none', None): 12},fallback {('none', None): 2}
+  20260925_162451,d5276402,id_desc,west,real {('none', None): 9},fallback {('none', None): 5}
+  20260925_163949,d8adbd13,id_asc,east,real {('none', None): 10},fallback {('reverse', None): 1, ('none', None): 3}
+  20260925_170938,d9f2b13e,id_asc,east,real {('none', None): 11},fallback {('none', None): 3}
+  20260925_155433,e1bc3535,id_desc,west,real {('none', None): 10},fallback {('none', None): 3}
+  20260925_165442,e23395fb,id_asc,east,real {('none', None): 13},fallback {('none', None): 1}
+  20260925_155433,e8ec189a,id_desc,west,real {('none', None): 3},fallback {('none', None): 3}
+  20260925_170938,ea6b83a1,id_asc,east,real {('none', None): 3},fallback {('none', None): 3}
+  20260925_170938,f303f26a,id_asc,east,real {('none', None): 10},fallback {('none', None): 2}
+  20260925_170938,f67dbf38,id_asc,east,real {('none', None): 6},fallback {('none', None): 8}
+fallback decisions equal to the artifact's modal real-frame decision: 93/94 (98.9%)
+fallback strategies {'yield': 1, 'none': 92, 'reverse': 1}; fallback yields 1
+
+## Cost (Arm X)
+runs=168 api_calls=330 prompt_tokens=583628 completion_tokens=27760 transport_errors=0 est_usd=1.74

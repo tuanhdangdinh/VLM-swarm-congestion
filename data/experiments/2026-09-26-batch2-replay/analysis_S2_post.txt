@@ -1,0 +1,67 @@
+S2 rows recorded after 9d7328f (carry image_fallback_after_attempts); NOT pooled with the 187 pre-rewrite rows.
+
+## Arm S (which channel carries the side signal) - batch 2 post-rewrite stratum
+artifacts: east 3; side-blind P(feasible) baselines: always robot_1 1.000, always robot_2 0.000
+
+### Arm S cells (attempt-1 only, primary)
+order,obstacle_text,image,n,decided,yields,P(robot_1),P(feasible),west_P(robot_1),east_P(robot_1),side_fisher_p,think_mentions,decision_mentions
+id_asc,on,real,12,12,12,1.000,1.000,0.000,1.000,1,0,0
+id_asc,on,grey,12,12,12,1.000,1.000,0.000,1.000,1,2,0
+id_asc,off,real,12,12,12,0.833,0.833,0.000,0.833,1,0,0
+id_asc,off,grey,12,12,12,1.000,1.000,0.000,1.000,1,0,0
+id_desc,on,real,7,7,7,0.714,0.714,0.000,0.714,1,0,0
+id_desc,on,grey,12,12,12,0.417,0.417,0.000,0.417,1,2,0
+id_desc,off,real,10,10,10,0.600,0.600,0.000,0.600,1,0,0
+id_desc,off,grey,17,17,17,0.353,0.353,0.000,0.353,1,0,0
+
+### Arm S cells (pooled, includes re-ask-derived decisions)
+order,obstacle_text,image,n,decided,yields,P(robot_1),P(feasible),west_P(robot_1),east_P(robot_1),side_fisher_p,think_mentions,decision_mentions
+id_asc,on,real,12,12,12,1.000,1.000,0.000,1.000,1,0,0
+id_asc,on,grey,12,12,12,1.000,1.000,0.000,1.000,1,2,0
+id_asc,off,real,12,12,12,0.833,0.833,0.000,0.833,1,0,0
+id_asc,off,grey,12,12,12,1.000,1.000,0.000,1.000,1,0,0
+id_desc,on,real,12,12,12,0.583,0.583,0.000,0.583,1,0,0
+id_desc,on,grey,12,12,12,0.417,0.417,0.000,0.417,1,2,0
+id_desc,off,real,12,12,12,0.500,0.500,0.000,0.500,1,0,0
+id_desc,off,grey,17,17,17,0.353,0.353,0.000,0.353,1,0,0
+
+### id_desc channel contrasts (attempt-1 only)
+(a) real frame, text on vs off: P(feasible) 5/7 (71.4%) vs 6/10 (60.0%), fisher p=1 (side-blind baselines 1.000/0.000 vs 1.000/0.000)
+(b) text on, real vs grey: P(feasible) 5/7 (71.4%) vs 5/12 (41.7%), fisher p=0.3498 (side-blind baselines 1.000/0.000 vs 1.000/0.000)
+(c) states only (text off + grey): west P(robot_1) 0/0 (n/a) vs east 6/17 (35.3%), fisher p=1
+
+### id_asc control (attempt-1 only) - is the first-position default unbroken?
+text=on,image=real: P(robot_1) 12/12 (100.0%), P(feasible) 12/12 (100.0%)
+text=on,image=grey: P(robot_1) 12/12 (100.0%), P(feasible) 12/12 (100.0%)
+text=off,image=real: P(robot_1) 10/12 (83.3%), P(feasible) 10/12 (83.3%)
+text=off,image=grey: P(robot_1) 12/12 (100.0%), P(feasible) 12/12 (100.0%)
+
+### id_desc channel contrasts (pooled)
+(a) real frame, text on vs off: P(feasible) 7/12 (58.3%) vs 6/12 (50.0%), fisher p=1 (side-blind baselines 1.000/0.000 vs 1.000/0.000)
+(b) text on, real vs grey: P(feasible) 7/12 (58.3%) vs 5/12 (41.7%), fisher p=0.6843 (side-blind baselines 1.000/0.000 vs 1.000/0.000)
+(c) states only (text off + grey): west P(robot_1) 0/0 (n/a) vs east 6/17 (35.3%), fisher p=1
+
+### id_asc control (pooled) - is the first-position default unbroken?
+text=on,image=real: P(robot_1) 12/12 (100.0%), P(feasible) 12/12 (100.0%)
+text=on,image=grey: P(robot_1) 12/12 (100.0%), P(feasible) 12/12 (100.0%)
+text=off,image=real: P(robot_1) 10/12 (83.3%), P(feasible) 10/12 (83.3%)
+text=off,image=grey: P(robot_1) 12/12 (100.0%), P(feasible) 12/12 (100.0%)
+
+### Per-scene consistency under `id_desc`, real frame
+run,request_id,side,P(feasible)|text_on,P(feasible)|text_off,delta
+20260925_163949,189ae2a6,east,0/0 (n/a),0/0 (n/a),n/a
+20260925_165442,e4b1bd03,east,0/1 (0.0%),3/4 (75.0%),-0.750
+20260925_170938,618a9f29,east,5/6 (83.3%),3/6 (50.0%),+0.333
+scenes with a positive text-on - text-off delta: 1/2 comparable (3 scenes in the arm)
+
+obstacle mentions across 101 Arm-S runs: <think> 4, decision fields 0, anywhere in the raw text 4
+obstacle_text,image,runs,think_mentions,decision_mentions,any_text_mentions
+on,real,24,0,0,0
+on,grey,24,4,0,4
+off,real,24,0,0,0
+off,grey,29,0,0,0
+
+S2_post: fallback fired on 0 runs; real-frame cells 0, decided 0
+
+## Cost (S2 post-rewrite stratum)
+runs=101 api_calls=108 prompt_tokens=181493 completion_tokens=19273 transport_errors=0 est_usd=0.65
