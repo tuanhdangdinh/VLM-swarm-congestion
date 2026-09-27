@@ -21,6 +21,12 @@ grounding:
 
 # Arm B classical reasoner thresholds (rev-8 defaults). Tunable on T1 scenarios
 # only, and frozen at the prereg-v1 tag (tuning-parity rule).
+# arrived_exclusion_radius_m is a pre-freeze RULE change (2026-09-27), not a
+# tuning: a stopped robot within this radius of its own goal is parked, not
+# blocked, and is no blocked_path / unknown candidate (head_on and
+# intersection still see it). Keep it equal to orchestrator.yaml's
+# arrival_position_tolerance_m (0.35) so Arm B never flags a robot M5 counts
+# as arrived.
 classical:
   r_conflict_m: 1.5
   r_block_m: 1.0
@@ -30,3 +36,4 @@ classical:
   arrival_tie_sec: 1.0
   stopped_speed_mps: 0.05
   goal_beyond_max_deg: 60.0
+  arrived_exclusion_radius_m: 0.35

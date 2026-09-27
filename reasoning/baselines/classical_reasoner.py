@@ -51,6 +51,14 @@ class ClassicalParams(BaseModel):
     arrival_tie_sec: float = Field(default=1.0, gt=0)
     stopped_speed_mps: float = Field(default=0.05, gt=0)
     goal_beyond_max_deg: float = Field(default=60.0, gt=0, le=180)
+    # A stopped robot this close to its own goal has arrived, not stalled, so
+    # it is no blocked_path / unknown candidate. Aligned with M5's
+    # arrival_position_tolerance_m (0.35 m, orchestrator.yaml), the radius
+    # inside which M5 accepts an arrival; keep the two equal so Arm B never
+    # calls a robot blocked that M5 has already counted as arrived. Rule
+    # added 2026-09-27, pre-freeze, after T0 verification showed a 100%
+    # parked-phase blocked_path rate by rule (VERIFY_SUMMARY F-T0-2).
+    arrived_exclusion_radius_m: float = Field(default=0.35, gt=0)
 
     @model_validator(mode="after")
     def _check_axis_window(self) -> "ClassicalParams":
@@ -90,7 +98,8 @@ def classify_scene(
     """Classify the latest frame with the rev-8 Arm B geometry rules.
 
     Rules evaluate in order `head_on` -> `intersection` -> `blocked_path` ->
-    `unknown`; the verdict is `none` when no robot is stopped. A robot is
+    `unknown`; the verdict is `none` when no robot is stopped, or when no
+    rule matches and every stopped robot is parked at its goal. A robot is
     stopped when `|linear_velocity| < stopped_speed_mps`, or, with no
     velocity, when its status is STOPPED or STALE.
 
@@ -106,6 +115,13 @@ def classify_scene(
       `r_block_m` in their forward half-plane. The classifier has no image
       channel, so `blocker_kind` is always `object` here: the forced
       non-divergence T3a measures.
+    - Parked robots: a stopped robot within `arrived_exclusion_radius_m` of
+      its own goal has arrived, so it is excluded from the `blocked_path`
+      candidates and the `unknown` involved set (verdict `none` when no
+      other stopped robot remains). It still counts for `head_on`,
+      `intersection`, and as another robot's blocker: reaching its goal does
+      not stop it obstructing someone else. A robot with no goal is never
+      excluded.
 
     Args:
         frames: Snapshot history; only the latest frame (by stamp) is
@@ -156,7 +172,13 @@ def classify_scene(
                 zone_id=zone.zone_id,
             )
 
-    blocked = [s.robot_id for s in stopped if not _has_robot_ahead(s, latest.robots, params)]
+    candidates = [s for s in stopped if not _parked_at_goal(s, params)]
+    if not candidates:
+        return ClassicalClassification(
+            scenario="none", congestion_type="none", blocker_kind=None, involved_robots=[]
+        )
+
+    blocked = [s.robot_id for s in candidates if not _has_robot_ahead(s, latest.robots, params)]
     if blocked:
         return ClassicalClassification(
             scenario="blocked_path",
@@ -169,7 +191,7 @@ def classify_scene(
         scenario="unknown",
         congestion_type="anomaly",
         blocker_kind=None,
-        involved_robots=[s.robot_id for s in stopped],
+        involved_robots=[s.robot_id for s in candidates],
     )
 
 
@@ -218,7 +240,7 @@ def resolve_classical(
 
     Returns:
         Frozen resolution; its `decision` has `congestion_detected=False` when
-        nothing is stopped.
+        nothing is stopped or only robots parked at their goals are.
 
     Raises:
         ValueError: If `frames` is empty or `prior_attempts` is negative.
@@ -230,11 +252,17 @@ def resolve_classical(
     scenario = classification.scenario
 
     if scenario == "none":
+        latest = max(frames, key=lambda frame: frame.stamp)
+        root_cause = (
+            "classical: stopped robots are all parked at their goals"
+            if any(_is_stopped(state, params) for state in latest.robots)
+            else "classical: no stopped robots"
+        )
         decision = CongestionDecision(
             congestion_detected=False,
             type="none",
             involved_robots=[],
-            root_cause="classical: no stopped robots",
+            root_cause=root_cause,
             strategy="none",
             justification="classical geometry classifier found no congestion",
         )
@@ -304,7 +332,8 @@ def decide_classical(
         prior_attempts: Resolution attempts already made this episode.
 
     Returns:
-        Frozen decision; `congestion_detected=False` when nothing is stopped.
+        Frozen decision; `congestion_detected=False` when nothing is stopped
+        or only robots parked at their goals are.
 
     Raises:
         ValueError: If `frames` is empty or `prior_attempts` is negative.
@@ -335,6 +364,15 @@ def _is_stopped(state: RobotStateInput, params: ClassicalParams) -> bool:
     if state.linear_velocity is not None:
         return abs(state.linear_velocity) < params.stopped_speed_mps
     return (state.status or "").upper() in _STOPPED_STATUSES
+
+
+def _parked_at_goal(state: RobotStateInput, params: ClassicalParams) -> bool:
+    if state.goal is None:
+        return False
+    return (
+        math.hypot(state.x - state.goal[0], state.y - state.goal[1])
+        <= params.arrived_exclusion_radius_m
+    )
 
 
 def _distance(a: RobotStateInput, b: RobotStateInput) -> float:

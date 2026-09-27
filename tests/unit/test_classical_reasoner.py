@@ -60,11 +60,92 @@ class TestClassicalParams:
             "arrival_tie_sec": 1.0,
             "stopped_speed_mps": 0.05,
             "goal_beyond_max_deg": 60.0,
+            "arrived_exclusion_radius_m": 0.35,
         }
 
     def test_axis_window_rejects_inverted_bounds(self):
         with pytest.raises(ValueError):
             ClassicalParams(axis_cross_min_deg=100.0, axis_cross_max_deg=60.0)
+
+    @pytest.mark.parametrize("radius", [0.0, -0.1])
+    def test_arrived_exclusion_radius_rejects_non_positive(self, radius):
+        with pytest.raises(ValidationError):
+            ClassicalParams(arrived_exclusion_radius_m=radius)
+
+
+def _parked_pair() -> tuple[RobotStateInput, RobotStateInput]:
+    # T0 normal_flow after both arrivals: each robot ~0.1 m short of its own
+    # goal, facing away from the other, 5 m apart.
+    return (
+        _robot("robot_1", 2.41, -0.35, 0.0, goal=(2.5, -0.35)),
+        _robot("robot_2", -2.41, 0.35, math.pi, goal=(-2.5, 0.35)),
+    )
+
+
+class TestClassifyParkedAtGoal:
+    def test_classify_none_when_stopped_robots_parked_at_goals(self):
+        c = classify_scene([_frame(1.0, *_parked_pair())], [], _PARAMS)
+        assert (c.scenario, c.congestion_type, c.involved_robots) == ("none", "none", [])
+
+    def test_decide_parked_scene_reports_no_congestion_with_parked_cause(self):
+        decision = decide_classical([_frame(1.0, *_parked_pair())], [], _PARAMS)
+        assert (decision.congestion_detected, decision.strategy) == (False, "none")
+        assert decision.root_cause == "classical: stopped robots are all parked at their goals"
+
+    def test_classify_blocked_path_when_stopped_outside_arrived_radius(self):
+        frame = _frame(1.0, _robot("robot_1", 0.0, 0.0, 0.0, goal=(0.36, 0.0)))
+        c = classify_scene([frame], [], _PARAMS)
+        assert (c.scenario, c.involved_robots) == ("blocked_path", ["robot_1"])
+
+    def test_classify_none_when_stopped_exactly_at_arrived_radius(self):
+        frame = _frame(1.0, _robot("robot_1", 0.0, 0.0, 0.0, goal=(0.35, 0.0)))
+        c = classify_scene([frame], [], _PARAMS)
+        assert c.scenario == "none"
+
+    def test_classify_blocked_path_when_goalless_robot_stopped(self):
+        frame = _frame(1.0, _robot("robot_1", 2.5, -0.35, 0.0))
+        c = classify_scene([frame], [], _PARAMS)
+        assert (c.scenario, c.involved_robots) == ("blocked_path", ["robot_1"])
+
+    def test_classify_blocked_path_excludes_parked_robot(self):
+        stuck = _robot("robot_3", 0.0, 2.0, 0.0, goal=(3.0, 2.0))
+        c = classify_scene([_frame(1.0, *_parked_pair(), stuck)], [], _PARAMS)
+        assert (c.scenario, c.involved_robots) == ("blocked_path", ["robot_3"])
+
+    def test_classify_unknown_excludes_parked_robot(self):
+        # robot_2 is parked (goal 0.2 m away) and sits in robot_1's front, so
+        # robot_1 is not blocked_path; crosswise goals rule out head_on.
+        frame = _frame(
+            1.0,
+            _robot("robot_1", 0.0, 0.0, 0.0, goal=(0.0, 5.0)),
+            _robot("robot_2", 0.5, 0.0, math.pi, goal=(0.5, 0.2)),
+        )
+        c = classify_scene([frame], [], _PARAMS)
+        assert (c.scenario, c.involved_robots) == ("unknown", ["robot_1"])
+
+    def test_classify_head_on_keeps_robot_parked_at_goal(self):
+        # robot_1's goal lies 0.2 m toward robot_2: parked by radius, but the
+        # pair still meets every head_on condition, so it is not excluded.
+        frame = _frame(
+            1.0,
+            _robot("robot_1", 0.0, 0.0, 0.0, goal=(0.2, 0.0)),
+            _robot("robot_2", 0.4, 0.0, math.pi, goal=(-5.0, 0.0)),
+        )
+        c = classify_scene([frame], [], _PARAMS)
+        assert (c.scenario, c.involved_robots) == ("head_on", ["robot_1", "robot_2"])
+
+    def test_classify_t1_head_on_unaffected_by_arrived_radius(self):
+        c = classify_scene([_frame(1.0, *_head_on_pair())], [], _PARAMS)
+        assert (c.scenario, c.involved_robots) == ("head_on", ["robot_1", "robot_2"])
+
+    def test_classify_intersection_keeps_robot_parked_at_goal(self):
+        frame = _frame(
+            1.0,
+            _robot("robot_1", -0.8, 0.0, 0.0, goal=(-0.6, 0.0)),
+            _robot("robot_2", 0.0, -0.8, math.pi / 2, goal=(0.0, 5.0)),
+        )
+        c = classify_scene([frame], [_ZONE], _PARAMS)
+        assert (c.scenario, c.involved_robots) == ("intersection", ["robot_1", "robot_2"])
 
 
 class TestClassifyHeadOn:
