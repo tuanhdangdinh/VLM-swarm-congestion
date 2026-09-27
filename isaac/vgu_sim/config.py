@@ -59,7 +59,36 @@ class StaticObstacleConfig(BaseModel):
     size: ObstacleSize = ObstacleSize()
 
 
+# Built-in timed-obstacle assets, selected by name in `TimedObstacleConfig.asset`.
+# Any other value -- every scenario authored before these existed carries a file
+# name such as `dynamic_obstacle.usd`, which was never referenced -- keeps the
+# legacy authoring: a red collision box of `size`.
+ROBOT_VISUAL_NO_MARKER_ASSET = "robot_visual_no_marker"
+STATIC_BOX_ASSET = "static_box"
+# Uniform scale of the marker-less robot visual. The tracked robots' lidar scans
+# a single plane at 0.182 m (base_scan in turtlebot3_burger.urdf). At scale 1
+# the only burger structure at that height is the 7 cm LDS head, which cannot
+# close a passage a robot can drive through, so Nav2 would plan past it. At
+# 1.82 the plane cuts the middle waffle plate (0.095-0.105 m unscaled, i.e.
+# 0.173-0.191 m scaled, 9 mm margin each side), about 0.25 m wide, like a box.
+# tests/unit/test_blocked_path_scenarios.py re-derives the band from the STL.
+ROBOT_VISUAL_NO_MARKER_SCALE = 1.82
+BUILTIN_TIMED_OBSTACLE_ASSETS: frozenset[str] = frozenset(
+    {ROBOT_VISUAL_NO_MARKER_ASSET, STATIC_BOX_ASSET}
+)
+
+
 class TimedObstacleConfig(BaseModel):
+    """An obstacle activated at `spawn_at_sec` and, optionally, removed later.
+
+    `asset` selects what is authored: `robot_visual_no_marker` (the robot's
+    visual meshes with no ArUco marker and no physics articulation, so M1
+    cannot track it), `static_box` (a grey box of `size`, the look of a
+    static obstacle), or any other label (legacy: a red box of `size`; the
+    label is carried but never referenced). Scenario tests pin the exact
+    built-in names, since a misspelt one silently falls back to the red box.
+    """
+
     model_config = ConfigDict(frozen=True, extra="forbid")
     obstacle_id: str
     asset: str

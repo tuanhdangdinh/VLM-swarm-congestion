@@ -5,10 +5,26 @@ import math
 import os
 from pathlib import Path
 
-from isaac.vgu_sim.config import ObstacleSize, ScenarioConfig, WarehouseConfig
+from isaac.vgu_sim.config import (
+    ROBOT_VISUAL_NO_MARKER_ASSET,
+    ROBOT_VISUAL_NO_MARKER_SCALE,
+    STATIC_BOX_ASSET,
+    ObstacleSize,
+    Pose2D,
+    ScenarioConfig,
+    TimedObstacleConfig,
+    WarehouseConfig,
+)
 from isaac.vgu_sim.marker_asset import author_aruco_marker
 from isaac.vgu_sim.paths import aruco_dict_name, marker_png_path
 from isaac.vgu_sim.validation import validate_scenario_obstacles
+
+# The imported robot asset's variant set. "none" composes the visual meshes
+# and static collision shapes only: no articulation, rigid bodies or joints.
+_ROBOT_PHYSICS_VARIANT_SET = "Physics"
+_ROBOT_PHYSICS_VARIANT_NONE = "none"
+_LEGACY_TIMED_BOX_COLOR = (0.8, 0.3, 0.3)
+_STATIC_BOX_COLOR = (0.5, 0.5, 0.5)
 
 
 class ScenarioBuildError(Exception):
@@ -53,7 +69,7 @@ def build_scenario_stage(
 
     UsdGeom.Xform.Define(stage, "/World/DynamicObstacles")
     for obs in config.timed_obstacles:
-        _author_obstacle(stage, obs)
+        _author_obstacle(stage, obs, robot_asset_path, output_path.parent)
     _author_static_obstacles(stage, config)
     if config.aisle_barrier is not None:
         _author_aisle_barrier(stage, config.aisle_barrier)
@@ -161,20 +177,110 @@ def _author_static_obstacles(stage, config: ScenarioConfig) -> None:
         )
 
 
-def _author_obstacle(stage, obs_cfg) -> None:
+def _author_obstacle(
+    stage, obs_cfg: TimedObstacleConfig, robot_asset_path: Path, scenario_dir: Path
+) -> None:
     prim_path = f"/World/DynamicObstacles/{obs_cfg.obstacle_id}"
-    _author_box(
-        stage,
-        prim_path,
-        (obs_cfg.pose.x, obs_cfg.pose.y),
-        obs_cfg.pose.yaw_rad,
-        obs_cfg.size,
-        (0.8, 0.3, 0.3),
-    )
+    if obs_cfg.asset == ROBOT_VISUAL_NO_MARKER_ASSET:
+        author_robot_visual_no_marker(
+            stage, prim_path, obs_cfg.pose, robot_asset_path, scenario_dir
+        )
+    else:
+        color = _STATIC_BOX_COLOR if obs_cfg.asset == STATIC_BOX_ASSET else _LEGACY_TIMED_BOX_COLOR
+        _author_box(
+            stage,
+            prim_path,
+            (obs_cfg.pose.x, obs_cfg.pose.y),
+            obs_cfg.pose.yaw_rad,
+            obs_cfg.size,
+            color,
+        )
     # Timed obstacles stay deactivated until the runner spawns them at
     # spawn_at_sec; the geometry is authored up front so the prim only has to
     # be reactivated.
     stage.GetPrimAtPath(prim_path).SetActive(False)
+
+
+def author_robot_visual_no_marker(
+    stage,
+    prim_path: str,
+    pose: Pose2D,
+    robot_asset_path: Path,
+    scenario_dir: Path,
+    scale: float = ROBOT_VISUAL_NO_MARKER_SCALE,
+):
+    """Author the robot's visual meshes as an untracked, physics-free prop.
+
+    References the same imported robot asset as the tracked robots, but selects
+    its `Physics` variant `none` (no articulation, rigid bodies or joints; the
+    asset's collision shapes remain as static colliders) and never authors an
+    ArUco marker (markers are per-robot, see `_author_robot`), so M1 has
+    nothing to detect. It lives outside `/World/Robots`, where
+    `validate_robot_marker` would demand a marker. The prop is uniformly
+    scaled and placed so its footprint (bounding-box center in XY) sits at
+    `pose`, with `pose.yaw_rad` as its heading.
+
+    Args:
+        stage: USD stage being authored.
+        prim_path: Prim path for the prop, e.g. `/World/DynamicObstacles/<id>`.
+        pose: World-frame footprint center `(x, y)` in meters and heading.
+        robot_asset_path: The imported robot USD (turtlebot3_burger.usda).
+        scenario_dir: Directory of the scenario stage, for a relative reference.
+        scale: Uniform scale applied to the robot asset.
+
+    Returns:
+        The authored prop prim (still active; the caller decides activation).
+
+    Raises:
+        ScenarioBuildError: If the asset has no `Physics` variant `none`, or
+            the composed prop carries physics bodies or a marker mesh.
+    """
+    from pxr import Gf, Usd, UsdGeom, UsdPhysics
+
+    prim = stage.DefinePrim(prim_path, "Xform")
+    prim.GetReferences().AddReference(str(_relative_path(scenario_dir, robot_asset_path)))
+    variant_set = prim.GetVariantSets().GetVariantSet(_ROBOT_PHYSICS_VARIANT_SET)
+    if _ROBOT_PHYSICS_VARIANT_NONE not in variant_set.GetVariantNames():
+        raise ScenarioBuildError(
+            f"Robot asset {robot_asset_path} has no {_ROBOT_PHYSICS_VARIANT_SET!r} variant "
+            f"{_ROBOT_PHYSICS_VARIANT_NONE!r}; a marker-less visual would carry an "
+            "articulation"
+        )
+    variant_set.SetVariantSelection(_ROBOT_PHYSICS_VARIANT_NONE)
+
+    for descendant in Usd.PrimRange(prim):
+        if descendant.HasAPI(UsdPhysics.ArticulationRootAPI) or descendant.HasAPI(
+            UsdPhysics.RigidBodyAPI
+        ):
+            raise ScenarioBuildError(
+                f"Marker-less robot visual {prim_path} still carries physics bodies "
+                f"at {descendant.GetPath()}"
+            )
+        if descendant.GetName() == "aruco_marker":
+            raise ScenarioBuildError(f"Marker-less robot visual {prim_path} has a marker")
+
+    # Untransformed local bound of the rendered geometry (collision guides
+    # excluded), so the footprint center can be placed at `pose`.
+    cache = UsdGeom.BBoxCache(
+        Usd.TimeCode.Default(), [UsdGeom.Tokens.default_, UsdGeom.Tokens.render]
+    )
+    local = cache.ComputeUntransformedBound(prim).ComputeAlignedRange()
+    if local.IsEmpty():
+        center_x, center_y = 0.0, 0.0
+    else:
+        mid = local.GetMidpoint()
+        center_x, center_y = float(mid[0]), float(mid[1])
+    cos_y, sin_y = math.cos(pose.yaw_rad), math.sin(pose.yaw_rad)
+    offset_x = scale * (cos_y * center_x - sin_y * center_y)
+    offset_y = scale * (sin_y * center_x + cos_y * center_y)
+
+    xform = UsdGeom.Xformable(prim)
+    xform.AddTranslateOp().Set(
+        Gf.Vec3d(float(pose.x - offset_x), float(pose.y - offset_y), 0.0)
+    )
+    xform.AddRotateZOp().Set(float(math.degrees(pose.yaw_rad)))
+    xform.AddScaleOp().Set(Gf.Vec3f(float(scale), float(scale), float(scale)))
+    return prim
 
 
 def _author_aisle_barrier(stage, barrier_cfg) -> None:
