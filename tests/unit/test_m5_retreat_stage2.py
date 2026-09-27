@@ -8,6 +8,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import pytest
+import yaml
 from pydantic import ValidationError
 from swarm_orchestrator.models import (
     PipelineOutcome,
@@ -15,10 +16,12 @@ from swarm_orchestrator.models import (
     RobotView,
     SceneSnapshot,
     TerminalStage,
+    load_config,
 )
 from swarm_orchestrator.reasoning_pipeline import (
     GroundingParamsSource,
     InProcessPipeline,
+    apply_aisle_y_band_override,
     attach_registry_assignments,
     build_reasoner_request,
     load_grounding_source,
@@ -53,6 +56,7 @@ from reasoning.vlm.models import (
 from reasoning.vlm.retreat_chooser import RetreatChooser
 
 _DERIVED = GroundingParams(mode="derived")
+_ORCHESTRATOR_YAML = Path("ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml")
 _WEST_BLOCKER = StaticObstacleInput(
     obstacle_id="obstacle_1", x=-1.85, y=0.0, size_x_m=0.3, size_y_m=0.3
 )
@@ -405,6 +409,60 @@ class TestLoadGroundingSource:
         source = load_grounding_source(Path("config/rag.yaml"))
         assert source.section_present is True
         assert source.path == "config/rag.yaml"
+
+
+class TestAisleYBandOverride:
+    def test_no_band_keeps_the_loaded_source(self):
+        source = _source()
+        assert apply_aisle_y_band_override(source, None) is source
+
+    def test_band_replaces_only_the_aisle_band_and_is_recorded(self):
+        source = _source()
+        overridden = apply_aisle_y_band_override(source, (-0.55, 1.0))
+        assert overridden.params.aisle_y_band_m == (-0.55, 1.0)
+        assert overridden.aisle_y_band_override_m == (-0.55, 1.0)
+        assert overridden.params.model_dump(exclude={"aisle_y_band_m"}) == (
+            source.params.model_dump(exclude={"aisle_y_band_m"})
+        )
+        assert overridden.path == source.path
+
+    def test_inverted_band_fails_fast(self):
+        with pytest.raises(ValidationError, match="aisle_y_band_m"):
+            apply_aisle_y_band_override(_source(), (1.0, -0.55))
+
+    def test_band_turns_the_head_on_pair_into_three_candidates(self):
+        frame = snapshot_frame_from_request(_request())
+        default, wide = (
+            prepare_retreat_selection(
+                frame, "robot_1", ["robot_2"], source.params, geometry=_geometry()
+            )
+            for source in (_source(), apply_aisle_y_band_override(_source(), (-0.55, 1.0)))
+        )
+        assert len(default.candidates) == 2
+        assert len(wide.candidates) == 3
+
+    def test_band_is_recorded_in_the_artifact(self, tmp_path):
+        outcome = _pipeline(chooser=None).run(_request())
+        source = apply_aisle_y_band_override(_source(), (-0.55, 1.0))
+        payload = json.loads(
+            write_decision_artifact(
+                tmp_path, outcome, request=_request(), grounding_source=source
+            ).read_text()
+        )
+        recorded = payload["grounding_params_source"]
+        assert recorded["aisle_y_band_override_m"] == [-0.55, 1.0]
+        assert recorded["params"]["aisle_y_band_m"] == [-0.55, 1.0]
+
+    def test_orchestrator_config_parses_the_band(self):
+        raw = yaml.safe_load(_ORCHESTRATOR_YAML.read_text())
+        config = load_config({**raw, "grounding_aisle_y_band_m": [-0.55, 1.0]})
+        assert config.grounding_aisle_y_band_m == (-0.55, 1.0)
+
+    def test_shipped_orchestrator_yaml_sets_no_band(self):
+        # The band is per scenario: shipping one would change every scenario's k.
+        raw = yaml.safe_load(_ORCHESTRATOR_YAML.read_text())
+        assert "grounding_aisle_y_band_m" in raw
+        assert load_config(raw).grounding_aisle_y_band_m is None
 
 
 # ---- decision artifact ----

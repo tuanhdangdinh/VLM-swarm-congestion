@@ -123,6 +123,13 @@ grounding_yield_feasibility: "off"
 # (legacy | derived) is the single switch for derived grounding. Loaded once at
 # startup; a missing file or an invalid section stops M5.
 grounding_params_path: "config/rag.yaml"
+# Per-scenario world-frame y band [low, high] that every retreat candidate's
+# swept path must stay inside (derived mode), replacing the grounding file's
+# aisle_y_band_m. Like scenario_geometry above it is scenario geometry and must
+# be set per scenario by hand; null keeps the file's value, which lets the
+# declared aisle bound the sidestep (k = 2 on the head-on family). Recorded in
+# every artifact as grounding_params_source.aisle_y_band_override_m.
+grounding_aisle_y_band_m: null
 # Stage-2 retreat selection (derived mode, yields only): a second VLM call picks
 # one of the validated retreat candidates. false skips the call and every yield
 # grounds the geometry-max candidate (tagged retreat=default:no_choice). With

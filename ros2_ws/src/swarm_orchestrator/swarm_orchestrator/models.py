@@ -138,6 +138,11 @@ class OrchestratorConfig(BaseModel):
     # legacy/derived mode switch), relative to M5's cwd like config/models.yaml.
     # Loaded once at startup; a missing file or an invalid section stops M5.
     grounding_params_path: str = Field(default="config/rag.yaml", min_length=1)
+    # Per-scenario world-frame y band every retreat candidate's swept path must
+    # stay inside, replacing the grounding file's `aisle_y_band_m`. Scenario
+    # geometry like scenario_geometry, so it lives here and is set per
+    # scenario; None keeps the file's value and every scenario's k unchanged.
+    grounding_aisle_y_band_m: tuple[float, float] | None = None
     # Stage-2 retreat selection (rev-8 A.3): in derived grounding mode, ask the
     # VLM to pick one of the validated retreat candidates of a yield. False
     # skips the call, and every yield grounds the geometry-max default

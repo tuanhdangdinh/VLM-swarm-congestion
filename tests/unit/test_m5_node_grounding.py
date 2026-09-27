@@ -44,8 +44,24 @@ def test_startup_logs_the_grounding_mode(node_env, tmp_path):  # noqa: F811
     [line] = node.get_logger().matching("grounding mode=")
     assert line == (
         f"grounding mode=derived params={path} section_present=True "
-        "stage2_retreat_selection=False"
+        "aisle_y_band_m=None band_override=False stage2_retreat_selection=False"
     )
+
+
+def test_startup_applies_and_logs_a_per_scenario_band(node_env, tmp_path):  # noqa: F811
+    path = tmp_path / "rag.yaml"
+    path.write_text("grounding:\n  mode: derived\n", encoding="utf-8")
+    node = _node(node_env, tmp_path, grounding_params_path=str(path),
+                 grounding_aisle_y_band_m=(-0.55, 1.0))
+    assert node._grounding.params.aisle_y_band_m == (-0.55, 1.0)
+    assert node._grounding.aisle_y_band_override_m == (-0.55, 1.0)
+    [line] = node.get_logger().matching("grounding mode=")
+    assert "aisle_y_band_m=(-0.55, 1.0) band_override=True" in line
+
+
+def test_startup_fails_fast_on_an_inverted_band(node_env, tmp_path):  # noqa: F811
+    with pytest.raises(ValidationError, match="aisle_y_band_m"):
+        _node(node_env, tmp_path, grounding_aisle_y_band_m=(1.0, -0.55))
 
 
 def test_missing_grounding_section_warns(node_env, tmp_path):  # noqa: F811

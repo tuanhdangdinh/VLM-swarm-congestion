@@ -83,6 +83,10 @@ class GroundingParamsSource(BaseModel):
     # the legacy defaults; recorded so that case is visible in every artifact.
     section_present: bool
     params: GroundingParams
+    # The per-scenario retreat band from orchestrator.yaml, when one replaced
+    # the file's `aisle_y_band_m` in `params`; None when the file's value (or
+    # its default) is in force.
+    aisle_y_band_override_m: tuple[float, float] | None = None
 
 
 def load_grounding_source(path: Path) -> GroundingParamsSource:
@@ -116,6 +120,34 @@ def load_grounding_source(path: Path) -> GroundingParamsSource:
         section_present=bool(section),
         params=GroundingParams(**(section or {})),
     )
+
+
+def apply_aisle_y_band_override(
+    source: GroundingParamsSource, band_m: tuple[float, float] | None
+) -> GroundingParamsSource:
+    """Replace the retreat-candidate aisle band with a per-scenario one.
+
+    The band is scenario geometry, like `scenario_geometry`, so it is declared
+    per scenario in orchestrator.yaml rather than in the shared RAG config.
+    Applied once at startup, before the pipeline and the Arm B shadow are
+    built, so both rank candidates from the same params.
+
+    Args:
+        source: The params loaded by `load_grounding_source`.
+        band_m: World-frame `(low, high)` y band, or None to keep `source`.
+
+    Returns:
+        `source` unchanged for None; otherwise a copy whose params carry the
+        band, with the override recorded.
+
+    Raises:
+        pydantic.ValidationError: If the band's lower bound exceeds its upper
+            bound.
+    """
+    if band_m is None:
+        return source
+    params = GroundingParams(**{**source.params.model_dump(), "aisle_y_band_m": band_m})
+    return source.model_copy(update={"params": params, "aisle_y_band_override_m": band_m})
 
 
 def build_failed_outcome(request_id: str, reason: str) -> PipelineOutcome:
