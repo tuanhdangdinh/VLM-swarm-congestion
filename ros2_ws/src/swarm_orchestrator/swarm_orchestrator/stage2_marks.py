@@ -7,19 +7,22 @@ sees at that spot. The drawing is made here, where M5's dumped stage-1 frame
 `<request_id>_stage2.png`; the stage-1 dump is never modified.
 
 Every failure degrades to the unmarked stage-1 frame with the reason recorded;
-nothing here raises into the stage-2 call.
+nothing here raises into the stage-2 call. `swarm_perception` is imported
+lazily for the same reason: an M5 install without it must still start, with
+stage 2 unmarked, instead of failing at import.
 """
 from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
 from pydantic import BaseModel, ConfigDict
-from swarm_perception.calibration import load_calibration
-from swarm_perception.geometry import world_to_pixel
-from swarm_perception.models import CalibrationArtifact
+
+if TYPE_CHECKING:
+    from swarm_perception.models import CalibrationArtifact
 
 # Radius of the ring drawn around each candidate: the space the yielder will
 # occupy there (a TurtleBot3 is ~0.3 m across). A ring, not a filled disc, so
@@ -106,6 +109,8 @@ def project_world_to_image(
     Returns:
         Pixel coordinates `(u, v)` in `image_size`, one per point.
     """
+    from swarm_perception.geometry import world_to_pixel
+
     sx = image_size[0] / calibration_size[0]
     sy = image_size[1] / calibration_size[1]
     projected = []
@@ -168,6 +173,8 @@ class CandidateMarker:
             A marker that draws, or one that records why it cannot.
         """
         try:
+            from swarm_perception.calibration import load_calibration
+
             return cls(load_calibration(path), path)
         except Exception as exc:  # stage 2 must run unmarked rather than stop M5
             return cls.unavailable(

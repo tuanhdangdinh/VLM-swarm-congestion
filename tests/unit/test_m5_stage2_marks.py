@@ -173,3 +173,28 @@ class TestFromPath:
     def test_repo_calibration_loads(self):
         marker = CandidateMarker.from_path("ros2_ws/src/swarm_perception/config/calibration.yaml")
         assert marker.available
+
+    def test_missing_perception_package_is_unavailable_not_raised(self, monkeypatch):
+        import sys
+
+        monkeypatch.setitem(sys.modules, "swarm_perception.calibration", None)
+        marker = CandidateMarker.from_path(
+            "ros2_ws/src/swarm_perception/config/calibration.yaml"
+        )
+        assert not marker.available
+        assert "ModuleNotFoundError" in marker.unavailable_reason
+
+
+def test_module_imports_without_touching_perception():
+    import subprocess
+    import sys
+
+    code = (
+        "import sys; import swarm_orchestrator.stage2_marks; "
+        "print('swarm_perception' in sys.modules)"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True,
+        env={**__import__("os").environ, "PYTHONPATH": "ros2_ws/src/swarm_orchestrator:."},
+    )
+    assert out.stdout.strip() == "False"
