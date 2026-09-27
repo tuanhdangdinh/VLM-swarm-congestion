@@ -37,6 +37,36 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-27** — **Probe freshness gate (Fix 1) verified live. The T3c v2
+  smoke ran clean on apparatus, but got no M2 answer because Gemini hit its
+  spending cap** (89884a3; `data/logs/vm_runs/t3c_v2/T3C_V2_SUMMARY.txt`).
+  - **Fix 1 (089d56e), PASS.** normal_flow run `20260927_124234`:
+    - Isaac exited at 12:50:36Z. The last probe, at 12:50:32Z, ran on the
+      live scene 179.0.
+    - One `t0 probe deferred reason=snapshot_stale` line followed at
+      12:50:47Z.
+    - No probe fired in the 167 s M5 stayed up after that. The previous run
+      fired 37 probes on the frozen final scene.
+  - **T3c v2 smoke** (`20260927_125419`, dynamic_anomaly_v2, see the M6
+    entry):
+    - The box appeared on schedule. robot_1 stalled and 15 stall analyses
+      fired as one episode.
+    - The box stayed image-only: no prompt text mentions it.
+    - Both arrivals were verified by position: 0.07 m and 0.05 m.
+    - Minimum pairwise distance was 0.70 m. There were 0 safety stops.
+    - Arm B produced 15/15 clean blocks: `anomaly`/[robot_1],
+      `temporary_wait` first and then `reroute`.
+    - The era-aware rescore scored 2/2 within tolerance (sim era, 15
+      anchors).
+  - **Blocker:** every ER-2 call from 12:43Z onward returned HTTP 429 "exceeded
+    its monthly spending cap" (42/42 in the two runs), so M2's T3c answer
+    (type, strategy, justification) is still unobserved. OpenAI credits have
+    also been exhausted since 2026-09-25. The oracle stays pending on two
+    things: prompt-v2's `blocker_kind` field, and a funded re-run of the
+    unchanged v2 smoke.
+  - **Procedure gap:** the pre-flight check only confirms the key is present.
+    A one-call canary before each run would catch an exhausted cap.
+
 - **2026-09-27** — **Arm B rule change (pre-freeze): robots parked at their
   goal are no longer `blocked_path` / `unknown` candidates** (5e13805). The
   T0 verification run `20260927_111348` found classical shadow verdicts of
@@ -2110,6 +2140,31 @@ Rules for maintaining it:
 
 ## M6 Simulation / Isaac Sim
 
+- **2026-09-27** — **Timed obstacles verified live (Fix 3 PASS), and T3c v2
+  `dynamic_anomaly_v2` authored** (89884a3; evidence
+  `data/logs/vm_runs/t3c_v2/T3C_V2_SUMMARY.txt`). Run `20260927_123505`
+  (old dynamic_anomaly, RECORD=1) logged `timed obstacle event
+  sim_time=8.00 ... True` / `20.00 ... False`; recorded frames show the box
+  absent up to stamp 8.23, present 8.60-20.30, absent from 20.67 (render lag
+  <= 0.6 s). The activated collider reaches Nav2 through the lidar: robot_2
+  bent its path to y=+0.33 around it (and in the v2 smoke robot_1's planner
+  failed 0.9 s after the spawn and first planned again 1.9 s after the
+  despawn). Ground truth cannot show obstacles: `acceptance_logging` records
+  robots only and hard-codes `robot_static_contacts: []`. **v2 design:**
+  normal_flow's lanes, and one 0.3 x 1.05 x 0.5 m box at (1.5, -0.075), active
+  30-110 of 200 sim-s. It covers robot_1's whole lane and leaves a 0.15 m
+  strip, narrower than the robot. The plain on-lane 0.3 m box was rejected:
+  Nav2 routes around it (as robot_2 did in run 123505), so M5 would never
+  trigger. The spec's "window >= 60 sim-s" also cannot catch a robot on a
+  5 m lane, which parks by ~45 s. Map equals the default map (the generator
+  never bakes `timed_obstacles`). No oracle block yet.
+  **Gotchas:**
+  - Robots stop where the plan first fails (1.4 m short of the box), not at
+    the box.
+  - Departure time jitters: ~10.6 s in T0, ~14.5 s in the v2 smoke.
+  - After the despawn, robot_1 paused ~18 s at x=1.15 until the controller's
+    "Failed to make progress" abort. The probable cause is stale local-costmap
+    marks; this is unconfirmed.
 - **2026-09-27** — **Timed obstacles are now activated by the runner; live
   check pending** (c5cecaf). `runner.py` built `EventScheduler` with no
   callbacks, so both defaulted to no-ops and the deactivated
