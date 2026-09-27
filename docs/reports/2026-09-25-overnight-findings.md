@@ -16,6 +16,7 @@
 - Rev 10 (2026-09-26): adds the six-run `_bshort` validation batch at the widened ±2.6 passer goal — east (first ever) 3/3 and west 3/3, all position-verified — adopting `_bshort` as the pre-registration scenario; records a second G4-class interpenetration (K1, 0.076 m, pre-yield), a realised-goal-margin note, and the prereg amendment set this batch discharges into.
 - Rev 11 (2026-09-26): the K1/G4 root-cause analysis (`docs/reports/2026-09-26-close-approach-analysis.md`) lands its corrections — the 0.076 m events were 51 s of driven nose-to-nose **contact**, not interpenetration; M4's coordination exemption had disarmed the monitor during an ER-2 `reroute`; the contact fields are hard-coded `[]` (no detector exists); and, contra Rev 7 §AC, both robots **did** go STALE in both runs.
 - Rev 12 (2026-09-26): the M4 exemption fix lands and passes both VM regressions (mock-forced G4/K1 exposure now latches at 0.381 m with no contact; ER-2 yield flow unchanged), closing amendment A5; the Arm B classical reasoner slice (plan Tasks 4, 12–14) merges at `65cc850` with 70 new tests, discharging the "Arm B does not exist" freeze blocker at the reasoning-core level.
+- Rev 16 (2026-09-27): the frozen-probe gate and the timed-obstacle wiring are live-verified (both PASS); T3c v2 (`dynamic_anomaly_v2`) is authored, built and mechanically smoked — obstacle on schedule, in M2's input frame and no text channel, Nav2 reacts, stall triggers, recovery and 2/2 arrivals — but M2's answer itself was never observed: the **Gemini project hit its monthly spending cap** mid-batch (all calls 429), so the ER-2 arm is funding-blocked and the smoke's reasoning half re-runs unchanged when funding returns.
 - Rev 15 (2026-09-27): the T0 tier is live-verified (all six checks PASS; ER-2 false positives 0/28, classical shadow 0/5 moving but 60/60 by rule on robots parked at goal — an Arm B rule gap) and the T3c smoke finds `dynamic_anomaly` unusable as authored (timed obstacles never spawn — a no-op `EventScheduler` wiring — plus five layout defects), re-scoping T3c to a re-author. Also: probes keep firing on a frozen scene after Isaac exits (fix dispatched), and two cosmetic prompt defects queued for the prompt-v2 bundle.
 - Rev 14 (2026-09-27): the shadow-logging and sim-time-stamp changes are live-verified (S1/S2, 12 of 13 checklist items clean) — M1 speeds now read sim-m/s (0.14 vs ground truth 0.15), trigger timing unchanged, shadow blocks on 13/13 analyses with classical-vs-ER-2 disagreement on 12/13 — discharging amendment blockers 11 and 12; records the S2 FCFS arrival-censoring FAIL (spawn-on-zone-boundary geometry), the `rescore_arrivals.py` sim-time regression (silent `stale_estimate` corruption; fix dispatched), a constant 0.45 sim-s M1-vs-ground-truth stamp offset, and a 4× parked-robot STOPPED/SLOW flicker at the 0.01 m/s threshold.
 - Rev 13 (2026-09-27): credits restored — the three queued replay arms complete (X: the image fallback eliminates terminal refusals 0/84 vs 10/84 and is kept with separate reporting; F: the annotation overlay is NOT the refusal trigger — the camera frame's content is, with raw frames refusing at least as often as annotated; S2 remainder as its own stratum) and the six-run live gpt-4o `_bshort` pilot lands 6/6 position-verified on the adopted apparatus with the M4 fix now permanently deployed, completing the pre-registration baseline on both models. New finding: a phantom `robot_17` (M1 marker-ID misread) latched N5's robot_1 for 6.4 s pre-episode.
@@ -2762,3 +2763,71 @@ for the frozen-probe gate, the classical at-goal rule and the
 `normal_flow` USD built and validated on the VM, container restarted,
 GPU idle, instance RUNNING (nothing further queued — the stop/keep
 decision is the owner's).
+
+---
+
+## AT. Fixes Verified Live; T3c v2 Authored; the ER-2 Arm Hits a Funding Wall
+
+Tree `89884a3` deployed. Runs `20260927_123505` (Fix 3 check, old
+`dynamic_anomaly`), `20260927_124234` (Fix 1 check, normal_flow probes),
+`20260927_125419` (T3c v2 smoke). Artifacts
+`data/logs/vm_runs/t3c_v2/`.
+
+### Both fixes PASS
+
+- **Timed obstacles spawn** (`c5cecaf`): `timed obstacle event` lines at
+  8.00/20.00 s; frames show the box present 8.6–20.3 s and absent
+  outside (render lags activation ≤ 0.6 s); robot_2 physically steered
+  around it (closest 0.326 m). Note: ground truth cannot register
+  obstacles — `acceptance_logging` records robots only.
+- **Frozen-probe gate** (`089d56e`): after Isaac exited, exactly one
+  `t0 probe deferred reason=snapshot_stale` line and zero probes in the
+  167 s M5 stayed up — against 37 frozen probes pre-fix.
+
+### T3c v2 (`dynamic_anomaly_v2`, commit `89884a3`)
+
+Normal_flow's lanes; one 0.3 × 1.05 m box at (1.5, −0.075) active
+30–110 of 200 sim-s. Two authoring deviations, both justified in the
+YAML header: the box spans robot_1's whole lane (a small on-lane box
+leaves a 0.8 m detour that Nav2 simply routes around — observed in the
+Fix 3 run — so M5 would never trigger), and the window opens at 30 s
+because a robot on a 5 m lane is parked by ≈45 s. Timing note that cost
+a correction pass: **M5's stall and cooldown thresholds run on wall
+time** (12 wall-s ≈ 4.6 sim-s at this RTF) — recorded in the header and
+notes (`353eedc`, `a2fb0a3`). No oracle block yet: it waits on the
+prompt-v2 `blocker_kind` field.
+
+Smoke: everything mechanical PASSES — obstacle on schedule, present in
+M2's actual input frame and absent from all 15 prompts' text, both
+robots M1-tracked 420/420 rows, Nav2's planner fails within 0.9 s of the
+spawn and recovers after despawn, robot_1 stalls 1.43 m short of the box
+(where planning first failed — the stall point is the planner's, not the
+box face), 15 stall analyses in one episode, Arm B shadow clean
+(`anomaly`, `temporary_wait` then `reroute` ×13), 2/2 position-verified
+arrivals, min pairwise 0.70 m, zero safety stops. The costmap held only
+part of the box at times (two sampled plans ran through its footprint) —
+worth a look before the tier's oracle is frozen.
+
+### The funding wall
+
+**Every ER-2 call from 12:43Z returned HTTP 429 — the Gemini project's
+monthly spending cap.** 27/27 probes in the Fix-1 run and 15/15 smoke
+analyses are `decision=None`, so **M2's answer on the anomaly scene was
+never observed**; the smoke's reasoning half re-runs unchanged once
+funding returns. OpenAI's balance state is untested in this batch. Two
+consequences: the ER-2 arm is blocked until the cap resets or is
+raised, and the launcher pre-flight should make one real test call
+rather than only checking the key exists (queued as a small apparatus
+item).
+
+---
+
+## Rev 16 Provenance
+
+Commits `89884a3`, `ea70efc`, `353eedc`, `a2fb0a3` plus this
+documentation commit. Run ids `20260927_123505`, `20260927_124234`,
+`20260927_125419`. VM: tree `89884a3` (561/561 by md5; the later
+docs-only commits not shipped), installed packages 71/71, pristine
+`orchestrator.yaml` md5 `c19a244cd6d1896d1a1cd97d12f91094`, `rag.yaml`
+`d53aaed3881bde1dd7c27e8cc3a3416b`, `dynamic_anomaly_v2` USD built and
+validated, container restarted, GPU idle, instance RUNNING.

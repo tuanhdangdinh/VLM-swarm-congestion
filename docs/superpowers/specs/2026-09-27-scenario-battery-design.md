@@ -219,7 +219,7 @@ authoring. Size: M (was S).
 |---|---|---|---|---|
 | 1 | T0 scenario + probe mode | — | M | **landed** (`33232b8`…`ff96ead`; VM/USD verification pending) |
 | 2 | Prompt-v2 bundle (fields + goals decision) | user sign-off on goals | M | awaiting decision |
-| 3 | T3c v2 re-author (see re-scoped section) | scheduler fix live-verified | M | blocked on fix |
+| 3 | T3c v2 re-author (see re-scoped section) | scheduler fix live-verified ✓ | M | **authored + mechanically smoked** (`89884a3`); reasoning half + oracle pending funding and prompt-v2 |
 | 4 | T3a pair (assets + YAMLs + oracle) | 2; marker-less asset; timed despawn check | M | ready after 2 |
 | 5 | T2b (3-robot + harness + oracle) | 2; 3-robot verification; forced-order harness | L | ready after 2 |
 | 6 | Pillar 2 slice (plan Tasks 3/8/9/11) | — | L | **landed** (`9d027e6`…`cf81fa9`, merged `d3c2a7d`; M5 wiring + config flip follow the bundle) |
