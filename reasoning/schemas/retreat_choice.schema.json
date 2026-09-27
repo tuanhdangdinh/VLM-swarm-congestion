@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RetreatChoice",
+  "type": "object",
+  "required": ["retreat_choice", "justification"],
+  "properties": {
+    "retreat_choice": { "type": "string", "pattern": "^[A-Da-d]$" },
+    "justification": { "type": "string" }
+  },
+  "additionalProperties": false
+}
