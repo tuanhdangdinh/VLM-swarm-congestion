@@ -12,6 +12,9 @@
   <depend>sensor_msgs</depend>
   <depend>cv_bridge</depend>
   <depend>swarm_interfaces</depend>
+  <!-- Stage-2 set-of-mark drawing reuses M1's calibration loader and its
+       world-to-pixel homography helper. -->
+  <exec_depend>swarm_perception</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>

@@ -5,6 +5,8 @@ import json
 import math
 from pathlib import Path
 
+import cv2
+import numpy as np
 import pytest
 from pydantic import ValidationError
 from swarm_orchestrator.models import (
@@ -27,6 +29,8 @@ from swarm_orchestrator.retreat_stage2 import (
     run_retreat_stage2,
     snapshot_frame_from_request,
 )
+from swarm_orchestrator.stage2_marks import CandidateMarker
+from swarm_perception.models import CalibrationArtifact
 
 from reasoning.rag.command_grounder import ground_reasoner_result, prepare_retreat_selection
 from reasoning.rag.maneuver_geometry import GroundingParams
@@ -423,8 +427,10 @@ class TestArtifact:
             tmp_path, outcome, request=_request(), grounding_source=_source()
         ).read_text()
         stage2 = json.loads(text)["stage2"]
-        assert stage2["stage2_prompt_version"] == 1
+        assert stage2["stage2_prompt_version"] == 2
         assert stage2["prompt"]["image_path"] == "/tmp/r1.png"
+        assert stage2["marks_drawn"] is False
+        assert stage2["marks"]["reason"].startswith("marker_unavailable")
         assert len(stage2["prompt"]["user_sha256"]) == 64
         assert stage2["response"]["backend_id"] == "fixed"
         assert stage2["choice"] == {"retreat_choice": "B", "justification": "j"}
@@ -458,3 +464,103 @@ class TestArtifact:
         assert outcome.terminal_stage is TerminalStage.GROUNDING
         assert isinstance(outcome.stage2, RetreatStage2Record)
         assert outcome.stage2.status == "answered"
+
+
+# ---- Set-of-mark letters drawn on the stage-1 frame ----
+
+# Pixel -> world at 0.01 m/px for a 640 x 480 frame centred on the origin.
+_SYNTHETIC_H = np.array([[0.01, 0.0, -3.2], [0.0, -0.01, 2.4], [0.0, 0.0, 1.0]])
+
+
+def _marker() -> CandidateMarker:
+    return CandidateMarker(
+        CalibrationArtifact(
+            intrinsics=np.eye(3), distortion=np.zeros(5), homography=_SYNTHETIC_H,
+            image_size=(640, 480), source_id="synthetic", created_at=0.0,
+        ),
+        "synthetic.yaml",
+    )
+
+
+def _framed_request(tmp_path):
+    frame = tmp_path / "r1.png"
+    cv2.imwrite(str(frame), np.full((480, 640, 3), 128, dtype=np.uint8))
+    snapshot = attach_registry_assignments(
+        _snapshot(),
+        lambda rid: (2.5, 0.0) if rid == "robot_1" else (-2.5, 0.0),
+        lambda _rid: "cross_narrow_aisle",
+    )
+    return build_reasoner_request("r1", snapshot, str(frame))
+
+
+class TestSetOfMark:
+    def test_marked_image_and_prompt_reach_the_call(self, tmp_path):
+        chooser = _FixedChooser("A")
+        outcome = _pipeline(chooser=chooser, candidate_marker=_marker()).run(
+            _framed_request(tmp_path)
+        )
+        [asked] = chooser.requests
+        assert asked.marks_drawn is True
+        assert asked.image_path == str(tmp_path / "r1_stage2.png")
+        assert (tmp_path / "r1_stage2.png").is_file()
+        stage2 = outcome.stage2
+        assert stage2.marks_drawn is True
+        assert stage2.prompt["image_path"] == str(tmp_path / "r1_stage2.png")
+        assert "marked on the image" in stage2.prompt["user_prompt"]
+        # Candidates sit at x=-1.79, y=+-0.36: pixel (141, 204) and (141, 276).
+        pixels = {(m["u"], m["v"]) for m in stage2.marks["marks"]}
+        assert pixels == {(141, 204), (141, 276)}
+
+    def test_marks_follow_the_letters_shown(self, tmp_path):
+        chooser = _FixedChooser("A")
+        outcome = _pipeline(chooser=chooser, candidate_marker=_marker()).run(
+            _framed_request(tmp_path)
+        )
+        [asked] = chooser.requests
+        shown = {c.label: (c.x, c.y) for c in asked.candidates}
+        drawn = {m["letter"]: (m["x"], m["y"]) for m in outcome.stage2.marks["marks"]}
+        assert drawn.keys() == shown.keys()
+        for letter, position in drawn.items():
+            assert position == pytest.approx(shown[letter])
+
+    def test_no_marker_sends_the_unmarked_frame(self, tmp_path):
+        chooser = _FixedChooser("A")
+        outcome = _pipeline(chooser=chooser).run(_framed_request(tmp_path))
+        [asked] = chooser.requests
+        assert asked.marks_drawn is False
+        assert asked.image_path == str(tmp_path / "r1.png")
+        assert outcome.stage2.marks_drawn is False
+        assert "not drawn on the image" in outcome.stage2.prompt["user_prompt"]
+        assert outcome.stage2.status == "answered"
+
+    def test_unavailable_calibration_is_recorded_and_the_call_still_runs(self, tmp_path):
+        chooser = _FixedChooser("A")
+        marker = CandidateMarker.unavailable("calibration_unavailable: gone", "x.yaml")
+        outcome = _pipeline(chooser=chooser, candidate_marker=marker).run(
+            _framed_request(tmp_path)
+        )
+        assert len(chooser.requests) == 1
+        assert outcome.stage2.marks_drawn is False
+        assert outcome.stage2.marks["reason"] == "calibration_unavailable: gone"
+        assert outcome.stage2.status == "answered"
+
+    def test_a_raising_marker_never_costs_the_call(self, tmp_path):
+        class _Raising:
+            def render(self, *args):
+                raise RuntimeError("cv2 exploded")
+
+        chooser = _FixedChooser("A")
+        outcome = _pipeline(chooser=chooser, candidate_marker=_Raising()).run(
+            _framed_request(tmp_path)
+        )
+        assert len(chooser.requests) == 1
+        assert outcome.stage2.status == "answered"
+        assert outcome.stage2.marks_drawn is False
+        assert "cv2 exploded" in outcome.stage2.marks["reason"]
+
+    def test_skipped_stage2_draws_nothing(self, tmp_path):
+        outcome = _pipeline(chooser=None, candidate_marker=_marker()).run(
+            _framed_request(tmp_path)
+        )
+        assert outcome.stage2.marks_drawn is None
+        assert not (tmp_path / "r1_stage2.png").exists()

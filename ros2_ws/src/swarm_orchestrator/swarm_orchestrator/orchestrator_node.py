@@ -93,6 +93,7 @@ from swarm_orchestrator.shadow_classical import (
     format_shadow_log,
     load_shadow_params,
 )
+from swarm_orchestrator.stage2_marks import CandidateMarker, stage2_image_path
 from swarm_orchestrator.state_machine import (
     DirectiveKind,
     OrchestratorState,
@@ -101,8 +102,30 @@ from swarm_orchestrator.state_machine import (
 from swarm_orchestrator.task_registry import TaskRegistry
 
 
+def _build_candidate_marker(config: OrchestratorConfig) -> CandidateMarker:
+    """Load M1's calibration for the stage-2 letters; never raises.
+
+    The default is the file perception.launch.py hands M1, so the letters are
+    placed with the homography M1 measured the robot positions with.
+    """
+    path = config.stage2_calibration_path
+    if path is None:
+        try:
+            from ament_index_python.packages import get_package_share_directory
+
+            share = get_package_share_directory("swarm_perception")
+        except Exception as exc:  # unmarked stage 2 beats a stopped M5
+            return CandidateMarker.unavailable(
+                f"calibration_unavailable: swarm_perception share not found: {exc}"
+            )
+        path = str(Path(share) / "config" / "calibration.yaml")
+    return CandidateMarker.from_path(path)
+
+
 def _build_default_pipeline(
-    config: OrchestratorConfig, grounding: GroundingParamsSource
+    config: OrchestratorConfig,
+    grounding: GroundingParamsSource,
+    marker: CandidateMarker | None = None,
 ) -> ReasoningPipeline:
     reasoner_config, backend_config = _load_vlm_config(config.reasoning_backend_id)
     backend = build_backend(config.reasoning_backend_id, backend_config)
@@ -127,6 +150,7 @@ def _build_default_pipeline(
             None if stage2_backend is None else RetreatChooser(stage2_backend, reasoner_config)
         ),
         stage2_enabled=config.stage2_retreat_selection,
+        candidate_marker=marker,
     )
 
 
@@ -211,7 +235,12 @@ class OrchestratorNode(Node):
         # Fail fast: a missing file or an invalid `grounding:` section stops M5
         # here, since these parameters shape every command it dispatches.
         self._grounding = load_grounding_source(Path(self._config.grounding_params_path))
-        self._pipeline = pipeline or _build_default_pipeline(self._config, self._grounding)
+        # Only the default pipeline draws stage-2 letters; an injected one
+        # brings its own marker (or none).
+        self._marker = None if pipeline is not None else _build_candidate_marker(self._config)
+        self._pipeline = pipeline or _build_default_pipeline(
+            self._config, self._grounding, self._marker
+        )
 
         self._detector = CongestionDetector(self._config)
         self._arrival = ArrivalGate(self._config, self._detector.mark_arrived)
@@ -311,6 +340,14 @@ class OrchestratorNode(Node):
             f"section_present={self._grounding.section_present} "
             f"stage2_retreat_selection={self._config.stage2_retreat_selection}"
         )
+        if self._marker is not None:
+            if self._marker.available:
+                self.get_logger().info("stage2 marks enabled: candidate letters drawn")
+            else:
+                self.get_logger().warning(
+                    f"stage2 marks unavailable, stage 2 gets the unmarked frame: "
+                    f"{self._marker.unavailable_reason}"
+                )
         if not self._grounding.section_present:
             self.get_logger().warning(
                 f"no `grounding:` section in {self._grounding.path}: grounding on the "
@@ -1026,6 +1063,7 @@ class OrchestratorNode(Node):
             return
         path = Path(self._config.frame_dump_dir) / f"{request_id}.png"
         path.unlink(missing_ok=True)
+        Path(stage2_image_path(str(path), request_id)).unlink(missing_ok=True)
 
     def _publish_registry(self) -> None:
         payload = self._registry.to_json()

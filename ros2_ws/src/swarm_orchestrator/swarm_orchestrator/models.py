@@ -142,6 +142,12 @@ class OrchestratorConfig(BaseModel):
     # skips the call, and every yield grounds the geometry-max default
     # (tagged `retreat=default:no_choice`), so collection can run stage-2-less.
     stage2_retreat_selection: bool = True
+    # M1's calibration file, used to draw the stage-2 candidate letters on the
+    # frame (set-of-mark). None resolves the file M1 itself launches with
+    # (swarm_perception's installed config/calibration.yaml). Loaded once at
+    # startup; a missing or invalid file sends stage 2 the unmarked frame and
+    # records why, it never stops M5.
+    stage2_calibration_path: str | None = None
     # Arm B shadow (rev-8 shadow logging): compute and log the classical answer
     # beside every VLM analysis. Observational only — it never dispatches or
     # alters the VLM decision — so it defaults on.
@@ -296,6 +302,11 @@ class RetreatStage2Record(BaseModel):
     # The rendered stage-2 prompt with SHA-256 hashes and the image path the
     # call referenced (never the image bytes); None when no call was made.
     prompt: dict[str, Any] | None = None
+    # Whether the call's image carried the candidate letters (set-of-mark);
+    # None when no call was made. `marks` is the `Stage2Marks` block: the
+    # marked image path, each letter's pixel position, and on False why.
+    marks_drawn: bool | None = None
+    marks: dict[str, Any] | None = None
     # `RetreatChoiceResult` dumped to JSON; None when no call was made.
     response: dict[str, Any] | None = None
     # The answer handed to the grounder (an unrendered letter included, which

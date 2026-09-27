@@ -46,6 +46,7 @@ from swarm_orchestrator.retreat_stage2 import (
     run_retreat_stage2,
     snapshot_frame_from_request,
 )
+from swarm_orchestrator.stage2_marks import CandidateMarker
 
 ValidateFn = Callable[[dict[str, Any]], dict[str, Any]]
 
@@ -648,6 +649,7 @@ class InProcessPipeline:
         grounding_params: GroundingParams | None = None,
         retreat_chooser: RetreatChoiceCaller | None = None,
         stage2_enabled: bool = True,
+        candidate_marker: CandidateMarker | None = None,
     ) -> None:
         self._reasoner = reasoner
         self._ground_fn = ground_fn
@@ -658,6 +660,9 @@ class InProcessPipeline:
         # script); the call is skipped and recorded, never attempted.
         self._retreat_chooser = retreat_chooser
         self._stage2_enabled = stage2_enabled
+        # Draws the stage-2 letters on the dumped frame; None (or a marker
+        # without calibration) sends stage 2 the unmarked frame, recorded.
+        self._candidate_marker = candidate_marker
         # Declared scenario geometry from M5 config; None leaves M3 on its
         # hand-sized fallback distances.
         self._scene_geometry = scene_geometry
@@ -696,6 +701,7 @@ class InProcessPipeline:
                 geometry=self._scene_geometry,
                 static_obstacles=self._static_obstacles,
                 yield_feasibility_mode=self._yield_feasibility_mode,
+                marker=self._candidate_marker,
             )
         try:
             allowed_robot_ids = {robot.robot_id for robot in request.robot_states}

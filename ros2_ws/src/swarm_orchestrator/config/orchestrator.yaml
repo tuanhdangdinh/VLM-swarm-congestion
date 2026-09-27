@@ -128,6 +128,13 @@ grounding_params_path: "config/rag.yaml"
 # a script (e.g. config/mock_decisions/retreat_choice_b.json); otherwise the
 # call is skipped and recorded as skip_reason=no_backend.
 stage2_retreat_selection: true
+# M1's calibration, used to draw each stage-2 candidate's letter on a copy of
+# the stage-1 frame (<request_id>_stage2.png, set-of-mark). null uses the file
+# M1 launches with (swarm_perception share config/calibration.yaml). A missing
+# or invalid file never stops M5: stage 2 then gets the unmarked frame, its
+# prompt says the letters are not drawn, and the artifact records
+# stage2.marks_drawn: false with the reason.
+stage2_calibration_path: null
 
 # Arm B shadow (rev-8 shadow logging): on every VLM analysis, also compute the
 # classical answer from a snapshot ring buffer and write it, with the Arm A vs

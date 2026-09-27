@@ -105,3 +105,47 @@ def test_default_pipeline_gets_a_scripted_mock_stage2(node_env, tmp_path, monkey
     node_module, _clock = node_env
     node = node_module.OrchestratorNode(config=_config(tmp_path, t0_probe_mode=False))
     assert type(node._pipeline._retreat_chooser).__name__ == "RetreatChooser"
+
+
+_REPO_CALIBRATION = "ros2_ws/src/swarm_perception/config/calibration.yaml"
+
+
+def test_default_pipeline_draws_with_the_configured_calibration(node_env, tmp_path):  # noqa: F811
+    node_module, _clock = node_env
+    node = node_module.OrchestratorNode(
+        config=_config(tmp_path, t0_probe_mode=False, stage2_calibration_path=_REPO_CALIBRATION)
+    )
+    assert node._marker.available
+    assert node._pipeline._candidate_marker is node._marker
+    assert node.get_logger().matching("stage2 marks enabled")
+
+
+def test_missing_calibration_warns_and_still_starts(node_env, tmp_path):  # noqa: F811
+    node_module, _clock = node_env
+    node = node_module.OrchestratorNode(
+        config=_config(
+            tmp_path, t0_probe_mode=False, stage2_calibration_path=str(tmp_path / "absent.yaml")
+        )
+    )
+    assert not node._marker.available
+    [line] = node.get_logger().matching("stage2 marks unavailable")
+    assert "calibration_unavailable" in line
+
+
+def test_cleanup_removes_the_stage2_image(node_env, tmp_path):  # noqa: F811
+    node = _node(node_env, tmp_path)
+    frames = tmp_path / "frames"
+    frames.mkdir(exist_ok=True)
+    for name in ("r7.png", "r7_stage2.png"):
+        (frames / name).write_bytes(b"png")
+    node._cleanup_frame("r7")
+    assert list(frames.iterdir()) == []
+
+
+def test_cleanup_keeps_the_stage2_image_with_debug_frames(node_env, tmp_path):  # noqa: F811
+    node = _node(node_env, tmp_path, keep_debug_frames=True)
+    frames = tmp_path / "frames"
+    frames.mkdir(exist_ok=True)
+    (frames / "r7_stage2.png").write_bytes(b"png")
+    node._cleanup_frame("r7")
+    assert (frames / "r7_stage2.png").exists()

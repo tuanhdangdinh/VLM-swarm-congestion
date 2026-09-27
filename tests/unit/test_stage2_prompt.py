@@ -1,6 +1,9 @@
-"""Stage-2 retreat-choice prompt, version 1: SHA pins and content rules.
+"""Stage-2 retreat-choice prompt, version 2: SHA pins and content rules.
 
 A change to any pinned rendering is a new `Stage2PromptVersion`, not a re-pin.
+Version 1 (text-only letters) never rendered a live call and was retired, not
+frozen; its two pins survive below as the unmarked variant of version 2,
+which renders it byte for byte.
 """
 
 import hashlib
@@ -22,8 +25,12 @@ from reasoning.vlm.models import (
 from reasoning.vlm.prompt_builder import SYSTEM_PROMPT
 from reasoning.vlm.stage2_prompt import build_stage2_prompt_payload
 
-_HEAD_ON_USER_SHA256 = "4275d2ec3a58bd471614763296fdb6f32741bc8bc8d91e8aba464e32e975d233"
-_THREE_ROBOT_USER_SHA256 = "d91e23c95a53b066a35458fae1661dcb5e0b661d1a9a88d1142b11e4bf4f0529"
+# Marks drawn (the set-of-mark image).
+_HEAD_ON_MARKED_SHA256 = "61502f200d767d84b1564114cec24d5f061f79e0d038fd16babaab7f42e09b40"
+_THREE_ROBOT_MARKED_SHA256 = "3ff66fe973c7ec32785bfab2fad7dcf8d239bacab6537428e926617f7101ac37"
+# Drawing degraded (unmarked frame); equal to the retired v1 pins.
+_HEAD_ON_UNMARKED_SHA256 = "4275d2ec3a58bd471614763296fdb6f32741bc8bc8d91e8aba464e32e975d233"
+_THREE_ROBOT_UNMARKED_SHA256 = "d91e23c95a53b066a35458fae1661dcb5e0b661d1a9a88d1142b11e4bf4f0529"
 
 
 def _sha256(text: str) -> str:
@@ -78,7 +85,7 @@ def _head_on_request(**update) -> RetreatChoiceRequest:
     )
 
 
-def _three_robot_request() -> RetreatChoiceRequest:
+def _three_robot_request(**update) -> RetreatChoiceRequest:
     frame = SnapshotFrame(
         stamp=2.0,
         robots=[
@@ -88,29 +95,47 @@ def _three_robot_request() -> RetreatChoiceRequest:
         ],
     )
     params = GroundingParams(mode="derived", aisle_y_band_m=(-0.8, 0.8))
-    return _request_from_selection(frame, "robot_1", ["robot_2", "robot_3"], params)
+    return _request_from_selection(frame, "robot_1", ["robot_2", "robot_3"], params, **update)
 
 
 class TestPins:
-    def test_version_starts_at_one(self):
-        assert CURRENT_STAGE2_PROMPT_VERSION == 1
-        assert _head_on_request().prompt_version == 1
+    def test_version_is_two(self):
+        assert CURRENT_STAGE2_PROMPT_VERSION == 2
+        assert _head_on_request().prompt_version == 2
 
-    def test_head_on_rendering_is_pinned(self):
+    def test_version_one_is_not_renderable(self):
+        with pytest.raises(ValidationError):
+            _head_on_request(prompt_version=1)
+
+    def test_marked_head_on_rendering_is_pinned(self):
+        payload = build_stage2_prompt_payload(_head_on_request(marks_drawn=True))
+        assert _sha256(payload.user_prompt) == _HEAD_ON_MARKED_SHA256
+
+    def test_marked_three_robot_rendering_is_pinned(self):
+        payload = build_stage2_prompt_payload(_three_robot_request(marks_drawn=True))
+        assert _sha256(payload.user_prompt) == _THREE_ROBOT_MARKED_SHA256
+
+    def test_unmarked_head_on_rendering_is_pinned(self):
         payload = build_stage2_prompt_payload(_head_on_request())
-        assert _sha256(payload.user_prompt) == _HEAD_ON_USER_SHA256
+        assert _sha256(payload.user_prompt) == _HEAD_ON_UNMARKED_SHA256
 
-    def test_three_robot_rendering_is_pinned(self):
+    def test_unmarked_three_robot_rendering_is_pinned(self):
         payload = build_stage2_prompt_payload(_three_robot_request())
-        assert _sha256(payload.user_prompt) == _THREE_ROBOT_USER_SHA256
+        assert _sha256(payload.user_prompt) == _THREE_ROBOT_UNMARKED_SHA256
 
     def test_system_prompt_is_the_stage1_system_prompt(self):
         assert build_stage2_prompt_payload(_head_on_request()).system_prompt == SYSTEM_PROMPT
 
 
 class TestContent:
-    def test_image_is_the_request_frame_unchanged(self):
+    def test_image_is_the_request_image(self):
         assert build_stage2_prompt_payload(_head_on_request()).image_path == "/tmp/frame.png"
+
+    def test_marked_request_says_the_letters_are_drawn(self):
+        prompt = build_stage2_prompt_payload(_head_on_request(marks_drawn=True)).user_prompt
+        assert "Each position is marked on the image by its letter" in prompt
+        assert "Choose the marked retreat position" in prompt
+        assert "not drawn" not in prompt
 
     def test_lists_every_candidate_letter_with_coordinates(self):
         prompt = build_stage2_prompt_payload(_head_on_request()).user_prompt
@@ -118,7 +143,7 @@ class TestContent:
         assert "- B: x=-1.79, y=-0.36 (back up 1.49 m, then step 0.36 m aside)" in prompt
         assert '"<one of A, B>"' in prompt
 
-    def test_says_the_letters_are_not_drawn(self):
+    def test_unmarked_request_says_the_letters_are_not_drawn(self):
         prompt = build_stage2_prompt_payload(_head_on_request()).user_prompt
         assert "The letters are not drawn on the image" in prompt
         assert "marked" not in prompt

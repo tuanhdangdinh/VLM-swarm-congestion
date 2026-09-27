@@ -32,6 +32,7 @@ from reasoning.vlm.models import (
 )
 from reasoning.vlm.stage2_prompt import build_stage2_prompt_payload
 from swarm_orchestrator.models import RetreatStage2Record
+from swarm_orchestrator.stage2_marks import CandidateMarker, Stage2Marks
 
 
 class RetreatChoiceCaller(Protocol):
@@ -74,12 +75,29 @@ def format_stage2_log(request_id: str, record: RetreatStage2Record) -> str:
         f"stage2 request={request_id} status={record.status} "
         f"skip_reason={record.skip_reason} failure_cause={record.failure_cause} "
         f"choice={choice} default={record.default_label} candidates={labels} "
-        f"attempts={attempts} error={record.error}"
+        f"marks_drawn={record.marks_drawn} attempts={attempts} error={record.error}"
     )
 
 
 def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _render_marks(
+    marker: CandidateMarker | None,
+    request_id: str,
+    image_path: str,
+    letters: Sequence[tuple[str, float, float]],
+) -> Stage2Marks:
+    reason = "marker_unavailable: no calibration wired"
+    if marker is not None:
+        try:
+            return marker.render(request_id, image_path, letters)
+        except Exception as exc:  # the drawing must never cost the stage-2 call
+            reason = f"render_error: {type(exc).__name__}: {exc}"
+    return Stage2Marks(
+        marks_drawn=False, reason=reason, source_image_path=image_path, image_path=image_path
+    )
 
 
 def run_retreat_stage2(
@@ -93,6 +111,7 @@ def run_retreat_stage2(
     geometry: SceneGeometry | None = None,
     static_obstacles: Sequence[StaticObstacleInput] = (),
     yield_feasibility_mode: YieldFeasibilityMode = "off",
+    marker: CandidateMarker | None = None,
 ) -> tuple[RetreatChoiceDecision | None, RetreatStage2Record]:
     """Run stage 2 for one yield decision; never raises.
 
@@ -112,6 +131,9 @@ def run_retreat_stage2(
         geometry: Declared scene geometry, as handed to the grounder.
         static_obstacles: Declared obstacles, as handed to the grounder.
         yield_feasibility_mode: The yield gate mode, as handed to the grounder.
+        marker: Draws the candidate letters on the stage-1 frame; None, or
+            any drawing failure, sends that frame unmarked (`marks_drawn`
+            false, with the reason in `marks`).
 
     Returns:
         The choice to ground (None grounds the default) and the artifact
@@ -120,7 +142,7 @@ def run_retreat_stage2(
     try:
         return _run(
             request, decision, frame, params, caller, enabled,
-            geometry, static_obstacles, yield_feasibility_mode,
+            geometry, static_obstacles, yield_feasibility_mode, marker,
         )
     except Exception as exc:  # stage 2 must never stall or fail the cycle
         return None, RetreatStage2Record(
@@ -138,6 +160,7 @@ def _run(
     geometry: SceneGeometry | None,
     static_obstacles: Sequence[StaticObstacleInput],
     yield_feasibility_mode: YieldFeasibilityMode,
+    marker: CandidateMarker | None,
 ) -> tuple[RetreatChoiceDecision | None, RetreatStage2Record]:
     roles = resolve_yield_roles(
         decision,
@@ -175,9 +198,13 @@ def _run(
     if caller is None:
         return None, RetreatStage2Record(status="skipped", skip_reason="no_backend", **base)
 
+    marks = _render_marks(
+        marker, request.request_id, request.image_path, [(c.label, c.x, c.y) for c in candidates]
+    )
     choice_request = RetreatChoiceRequest(
         request_id=request.request_id,
-        image_path=request.image_path,
+        image_path=marks.image_path,
+        marks_drawn=marks.marks_drawn,
         yielder_id=selection.yielder_id,
         crossing_order=list(selection.crossing_order),
         robot_states=list(frame.robots),
@@ -205,5 +232,7 @@ def _run(
         response=result.model_dump(mode="json"),
         choice=None if result.choice is None else result.choice.model_dump(mode="json"),
         failure_cause=result.failure_cause,
+        marks_drawn=marks.marks_drawn,
+        marks=marks.model_dump(mode="json"),
         **base,
     )

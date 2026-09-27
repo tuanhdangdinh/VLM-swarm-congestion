@@ -261,8 +261,11 @@ class RetreatChoiceDecision(BaseModel):
 # Stage-2 (retreat-choice) prompt template. Versioned apart from the stage-1
 # `PromptVersion`: the two templates change independently. Pinned by SHA in
 # tests/unit/test_stage2_prompt.py; any edit is a new version, not a re-pin.
-Stage2PromptVersion = Literal[1]
-CURRENT_STAGE2_PROMPT_VERSION: Stage2PromptVersion = 1
+# Version 1 (text-only letters, e358229) never rendered a live call: it was
+# committed on an unpushed branch, never deployed, and no artifact carries a
+# `stage2` block, so it was retired rather than frozen (2026-09-28 notes).
+Stage2PromptVersion = Literal[2]
+CURRENT_STAGE2_PROMPT_VERSION: Stage2PromptVersion = 2
 
 # Why a stage-2 call produced no rendered letter, in the measurement plan's
 # vocabulary where one exists (`invalid_label`, `parse_failure`); `refusal`,
@@ -296,8 +299,12 @@ class RetreatChoiceRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     request_id: str = Field(min_length=1)
-    # The stage-1 decision frame, reused as-is: no candidate marks are drawn.
+    # The image the call sends: the stage-1 decision frame with the candidate
+    # letters drawn on it (`marks_drawn`), or that frame unmarked when the
+    # drawing degraded.
     image_path: str = Field(min_length=1)
+    # Whether `image_path` carries the letters; the prompt says which.
+    marks_drawn: bool = False
     yielder_id: str = Field(min_length=1)
     # Robots that pass while the yielder waits, first to pass first.
     crossing_order: list[str]
