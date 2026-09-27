@@ -226,7 +226,7 @@ authoring. Size: M (was S).
 | 4 | T3a pair (assets + YAMLs + oracle) | 2 ✓; 15b ✓ | M | **built + mock-smoked, both members PASS** (`ad379f1`…`71f6fdd`); decision-scored per amendments 17a (no outcome contrast in this apparatus); funded VLM run pending |
 | 5 | T2b (3-robot + harness + oracle) | 2 ✓; feasibility report (`docs/reports/2026-09-27-three-robot-feasibility.md`) | XL + NEEDS-DECISION | investigation done: 12-item build list; safety items 9+11 (pair-scoped exemption, hold-until-last) REQUIRED before any wrong-order run — the both-orders harness otherwise collides or re-deadlocks; scope decision pending |
 | 6 | Pillar 2 slice + M5 wiring + derived flip | — | L | **complete** (`d3c2a7d`; wiring `e358229`, flip `1648dd2`; stage-2 prompt v1 pinned; VM deploy pending) |
-| 7 | T3b scenario | ALL dependencies ✓ (21–22 closed at `49416c7`…`3366502`) | M | **ready — the final battery build**; parallax footprint check required during authoring |
+| 7 | T3b scenario | ALL ✓ | M | **built + mock-smoked, both runs PASS** (`e205f5f`…`19fafa0`; junction geometry, ranked[0]-occupied pinned over 269 cases, parallax PASS); funded run gated on amendments items 23–24 |
 
 Items 3 and 6 are parallel-safe with everything; 4 and 5 gate on the
 bundle so their oracles freeze against the final contract. Every tier's

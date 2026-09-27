@@ -34,6 +34,18 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 14 (2026-09-28): T3b is built and mock-smoked (`e205f5f`…`19fafa0`)
+  — the set-of-mark path verified live (parallax PASS), the classical
+  arm picks the occupied candidate by construction, and the
+  occupied-default run shows the tier's real outcome contrast: M4's
+  sidestep (raw `cmd_vel`, no Nav2/collision-monitor guard) drives the
+  yielder into the box, pinning it 71 sim-s until the wall-clock bound
+  fails the yield. New items 23–25: the T3b yielder-side restriction,
+  the T3b criterion correction (chance of avoiding one occupied
+  candidate among three is 2/3, not the spec's 1/3 — ≥9/15 is
+  meaningless), and the standing M4 raw-`cmd_vel` obstacle-blindness
+  note (third instance of the family: exemption pairs, T2b backup path,
+  now maneuver legs vs obstacles).
 - Rev 13 (2026-09-28): items 21–22 closed (`49416c7`…`3366502`) —
   set-of-mark letters drawn via `swarm_perception.geometry.world_to_pixel`
   with a never-fatal fallback chain (`marks_drawn` recorded), seeded
@@ -505,6 +517,29 @@ original Arm B specification.
     corridor 0.50 m (vs T1's 0.55) for closability; robot_2 runs the
     north pocket; per-robot task labels now differ truthfully
     (`traverse_aisle`) and render in v2 prompts.
+23. **T3b yielder-side restriction (decision before funded collection):**
+    only `robot_1` works as the yielder in the authored junction
+    geometry — a `robot_2` yield parks at x = 2.723 whose top-ranked
+    candidate sits inside the NE rack past the image edge (Arm B named
+    robot_2 in the smoke on a first-come tie). Options: score only
+    executed-robot_1-yield trials (recording the discard rate), or
+    force the yielder. **Coordinator recommendation:** condition on the
+    executed yielder (no scene or gate change; the discard rate is
+    itself reportable), sizing n upward to compensate.
+24. **T3b criterion correction (blocks freezing the tier's test):** with
+    k = 3 and one occupied candidate, chance of avoiding the occupied
+    one is 2/3, not the run matrix's 1/3 — "≥ 9/15 vs chance 1/3" is
+    vacuous (p = 0.80). **Coordinator recommendation:** re-specify the
+    primary test as the occupied-choice rate BELOW chance 1/3 (exact
+    one-sided binomial; ≤ 1/15 rejects at α ≈ 0.017), or raise n; fix
+    the oracle `rationale` wording to neutral text once decided.
+25. **M4 raw-`cmd_vel` obstacle blindness (standing safety note):**
+    maneuver legs (backup, sidestep) bypass Nav2 and the collision
+    monitor entirely — third instance of this family after the
+    exemption-pair scope and the T2b backup-through-robot finding. In
+    T3b it is the *intended* outcome mechanism (occupied-default trials
+    deliberately produce robot-obstacle contact in sim); outside T3b it
+    remains an M4 hardening item for any post-prereg roadmap.
 17. **T2b scope decision** — the three-robot feasibility investigation
     (`docs/reports/2026-09-27-three-robot-feasibility.md`) prices T2b at
     a 12-item build list including two REQUIRED safety changes before
