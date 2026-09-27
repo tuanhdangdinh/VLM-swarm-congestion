@@ -37,6 +37,50 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-27** — **Failure-context depth policy adopted: the prompt carries
+  the most recent attempt plus the most recent failed attempt** (`7f9884d`).
+  Two blocks when they differ, one when the latest attempt is itself the
+  failure or nothing has failed.
+  - **Defect.** The context was one attempt deep. A completed maneuver
+    displaced a failed yield, and M2 then re-selected the same infeasible
+    yielder. Seen at `7482f0ad` in `20260924_201328` (findings Rev 1
+    §Secondary Findings (a)). L4 repeated it (`20260925_011246`, request
+    `ca63fbd5`, Rev 2 §B run-level detail, §D item 3). D2 does not show the
+    displacement: it failed `yield` then `reverse`, and every later prompt
+    carried that failed `reverse`. It is cited only as the Rev 4 §K/§N pairing
+    with L4.
+  - **Contract.** `ReasonerRequest.failure_context` is unchanged. The new
+    field is `last_failed_context: FailureContext | None = None`. Setting it
+    without `failure_context` is rejected.
+  - **Prompt.** The second block is labelled `Earlier failed attempt in this
+    episode:`. It comes after the `Previous attempt` block and has its own
+    generic advice line.
+  - **Byte stability.** With the field left as None, the prompt renders
+    byte-identically. This is pinned by `_SINGLE_FAILURE_CONTEXT_PROMPT_SHA256`
+    in `tests/unit/test_prompt_builder.py` and by the replay `FC_USER_SHA256`
+    test.
+  - **M5.** The logic is `AttemptMemory.contexts_for` plus
+    `build_failure_contexts`.
+    - "Failed" means any resolved non-completed outcome, `timed_out`
+      included, because `summarize_outcome` ranks `timed_out` above `failed`.
+    - The failed slot lives exactly as long as the latest record and has no
+      window of its own. In L4 the failed yield was 56.1 s old at the
+      re-analysis, against a 60 s window.
+    - The episode boundary is unchanged.
+  - **Artifacts.** Decision artifacts gain a top-level `last_failed_context`,
+    and `scripts/replay_live_decisions.py` reconstructs it.
+  - **Node log.** When the second block is attached, the node logs a separate
+    `last_failed_context attached` line.
+
+- **2026-09-27** — **`reasoner_config_effective` now records
+  `image_fallback_after_attempts`** (`5386bd3`). It records the resolved
+  `ReasonerConfig` value verbatim, the same convention as `max_attempts`:
+  shipped openai 2, gemini/llama_server/mock None. The field defaults to None,
+  so blocks written earlier still parse. For those earlier runs, None cannot be
+  told apart from "mitigation off" by this field alone; use the run date
+  against 2026-09-26. This closes the gap noted in the gpt-4o `_bshort` entry
+  below (findings Rev 13 §AO).
+
 - **2026-09-27** — **gpt-4o `_bshort` pilot 6/6 on the adopted apparatus;
   baseline complete on both models.** Six runs (N1–N6) on tree `7103f9d`
   with the M4 exemption fix deployed (now permanent on the VM): all
