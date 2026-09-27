@@ -1,0 +1,152 @@
+schema_version: 1
+name: obstacle_in_candidate
+family: head_on
+seed: 42
+# Long enough for the occupied-default outcome: the sidestep into the box is
+# stopped by it and only ends on M4's wall-clock safety bound (~200 wall-s,
+# ~77 sim-s at the VM's ~0.38 real-time factor) before the passer can go.
+duration_sec: 300.0
+
+# T3b obstacle-in-candidate (design spec
+# docs/superpowers/specs/2026-09-27-scenario-battery-design.md, "T3b"; research
+# design rev 8.6 run matrix: >= 9/15 avoidance vs chance 1/3). A head-on yield
+# where the yielder gets k = 3 retreat candidates and an untracked box fills the
+# geometry-max one (`ranked[0]`, the stage-2 default and Arm B's stage-2
+# answer). The box is in no text channel (no marker, not in any prompt list,
+# not in orchestrator.yaml static_obstacles), so avoiding it needs the image.
+#
+# Why this is not the wopen_eopen shape (a deviation from the battery design):
+#   - Racks fill |x| > 0.6, |y| > 0.6 (warehouse_builder._build_rack_blocks), so
+#     the horizontal aisle is 1.2 m wide wherever the family yielder parks
+#     (x = -+1.789).
+#   - With the declared aisle (0.6 m half-width) the sidestep is 0.36 m, so
+#     k = 3 means candidates at +0.36, -0.36 and +0.72 m. The far one, which
+#     ranks first, lies inside the NW rack there: the rack, not an untracked
+#     obstacle, would already occupy it.
+#   - A smaller sidestep that fits 2x inside the aisle (<= 0.21 m) leaves the
+#     centreline passer ~3 cm from the parked yielder.
+#   - The only open floor at |y| = 0.72 m is the vertical aisle. So the
+#     corridor is shortened to 1.6 m and moved east (x in [0.4, 2.0]) until
+#     robot_1's park point (0.8 * 2.79 / 2.1 + 0.06 + 0.4 = 1.523 m west of
+#     the corridor centre) lands in the junction at x = -0.323.
+#   - Both retreats stay feasible (open floor both ways), and the corridor is
+#     the family's 0.55 m, as before.
+#
+# Geometry (M5 grounds against it; see "M5 settings" below):
+#   - Corridor: aisle_barrier 0.55 x 1.6 m centred at x = 1.2.
+#   - robot_1 spawns at (0.0, 0.0), 0.4 m before the west mouth. robot_2
+#     spawns at (2.5, 0.0), 0.5 m before the east mouth, at the family's
+#     +-2.5 ROI extent. The longer east run puts the standoff ~0.05 m east of
+#     the corridor centre. At the nominal 0.46 m standoff the park-point floor
+#     (1.34 m) governs the backup over the 1.7 m pass clearance (1.24 m), so
+#     robot_1 parks at x = -0.323. If robot_1 runs >0.1 m late, the clearance
+#     governs and the park point slides west, to -0.42 at 0.2 m late.
+#   - robot_1's candidates (M3 labels, generation order, lateral in robot_1's
+#     frame, left = +y):
+#       A = (-0.323, +0.36), B = (-0.323, -0.36), C = (-0.323, +0.72).
+#     The band drops D = -0.72. All three share the sidestep clearance, so C
+#     ranks first on corridor distance: ranked = [C, A, B].
+#   - Box: 0.40 x 0.30 x 0.35 m at (-0.32, 0.81), i.e. x [-0.52, -0.12],
+#     y [0.66, 0.96]. A static_box timed obstacle: grey, one static collider,
+#     never despawns.
+#       - C's swept footprint enters the box, and C's centre (y 0.72) is inside
+#         it.
+#       - A's and B's swept paths keep at least 0.24 m from it (robot
+#         half-width 0.09 + the 0.15 m wall margin the sidestep already keeps
+#         from aisle walls): 0.30 m for A at the nominal pose, 0.24 m at
+#         yielder y = +0.06.
+#       - It is 0.08 m clear of the NW rack face, so it reads as its own
+#         object.
+#   - tests/unit/test_obstacle_in_candidate_scenario.py pins all of this with
+#     these numbers. It also pins the known limit: a passer sitting >= 0.05 m
+#     north of the yielder at the trigger makes B rank first (see the
+#     `rank_candidates` sidestep-clearance key).
+#
+# Parallax: the stage-2 rings are drawn at the 0.21 m marker plane. At r ~ 0.8 m
+# from the camera axis, the box's floor edges image ~0.06 m inward and its top
+# ~0.04 m outward of their true place, so C's letter lands on the box top, most
+# of its ring (0.15 m radius) overlaps the box, and A's ring stays clear of its
+# image. This is checked on a real Isaac
+# frame in the T3b smoke (data/logs/vm_runs/t3b_smoke/).
+#
+# Nav2 layer. The box is not baked into the map. It spawns at 1 s, before M5's
+# first scene (~12 s), so Nav2's lidar marks it from the start. It sits off
+# every Nav2 path: the transit lanes run along y = 0, 0.61 m away.
+#   - The yield is not a Nav2 leg. M4 backs up and sidesteps on raw cmd_vel,
+#     closed on chassis odometry (IsaacComputeOdometry), with Nav2 and
+#     collision_monitor bypassed.
+#   - Unoccupied choice (A or B): the yielder parks beside the box or across
+#     from it. After the hold, Nav2 plans back to its goal from there.
+#   - Occupied default (C): the sidestep drives north into the box. Nav2 never
+#     refuses anything, because nothing asks it. The robot stops against the
+#     static collider and odometry stops advancing. The sidestep ends FAILED on
+#     its wall-clock safety bound, and the command's failure is what M5 and the
+#     passer see. That collision plus stall is this tier's outcome contrast.
+#
+# Yielder caveat. This geometry is built for robot_1 yielding. If stage 1 names
+# robot_2, it parks at x = 2.723, in the horizontal aisle near the image edge.
+# There the same band admits its far candidate (+0.72), which lies inside the
+# NE rack. Such a trial is off-design and cannot be scored for T3b. How funded
+# collection handles it is an open decision (docs/implementation_notes.md).
+# The mock smoke forces robot_1.
+#
+# M5 settings, set by hand in swarm_orchestrator/config/orchestrator.yaml before
+# a run, as the goal table there lists:
+#   - initial_tasks: robot_1 [2.5, 0.0], robot_2 [-2.5, 0.0] (as shipped).
+#   - scenario_geometry.corridor: center_m 1.2, half_length_m 0.8. The rest
+#     stays as shipped (aisle_half_width_m 0.6, occluder_height_m 0.9, camera,
+#     robot, margins).
+#   - grounding_aisle_y_band_m: [-0.55, 1.0]. It admits yielder_y + 0.72 and
+#     yielder_y - 0.36, and excludes yielder_y - 0.72, for any yielder y
+#     within +-0.07 m.
+#   - static_obstacles absent, prompt_static_obstacles false.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: 0.0, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 2.5, y: 0.0}
+    initial_task: cross_narrow_aisle
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 2.5, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: -2.5, y: 0.0}
+    initial_task: cross_narrow_aisle
+
+aisle_barrier:
+  effective_width_m: 0.55
+  center_x_m: 1.2
+  length_m: 1.6
+
+timed_obstacles:
+  - obstacle_id: candidate_box
+    asset: static_box
+    spawn_at_sec: 1.0
+    remove_at_sec: null
+    pose: {x: -0.32, y: 0.81, yaw_rad: 0.0}
+    size: {x_m: 0.40, y_m: 0.30, z_m: 0.35}
+
+expected_conflict:
+  type: deadlock
+  involved_robots: [robot_1, robot_2]
+  onset_window_sec: [8.0, 40.0]
+  min_duration_sec: 2.0
+
+oracle:
+  yielder: robot_1
+  passer: robot_2
+  candidate_count: 3
+  occupied_candidate: C
+  correct_candidates: [A, B]
+  classical_candidate: C
+  objective: avoid_occupied_candidate
+  rationale: >-
+    the untracked box fills candidate C, robot_1's far-left retreat, which
+    ties the other two on sidestep clearance and ranks first on distance from
+    the corridor, so the geometry-max default and Arm B's stage-2 answer both
+    pick it; either unoccupied candidate (A or B) avoids it, so a uniform
+    choice avoids it with probability 2/3, not the 1/3 the rev-8.6 criterion
+    (>= 9/15) is calibrated against
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

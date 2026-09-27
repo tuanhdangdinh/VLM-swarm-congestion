@@ -284,6 +284,69 @@ class BlockerOracleConfig(BaseModel):
         )
 
 
+# M3's retreat-candidate labels, in generation order (reasoning/rag/
+# retreat_candidates.py `_LABELS`); kept local for the same reason as the
+# literals above.
+RETREAT_CANDIDATE_LABELS: tuple[str, ...] = ("A", "B", "C", "D")
+
+
+class RetreatOracleConfig(BaseModel):
+    """The ground-truth stage-2 retreat choice for an obstacle-in-candidate scene.
+
+    The T3b counterpart of `OracleConfig`. Labels are M3's candidate labels
+    (generation order, what the command's `yield.retreat_choice` and the
+    stage-2 artifact's `grounded_label` carry), never the counterbalanced
+    letters the VLM is shown. `occupied_candidate` is the one an untracked
+    obstacle fills; every other candidate is correct. `classical_candidate` is
+    `ranked[0]`, the stage-2 default and Arm B's answer. The oracle holds
+    only when `yielder` is the robot that yields: another yielder has a
+    different candidate set.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    yielder: str
+    passer: str
+    candidate_count: int = Field(ge=2, le=len(RETREAT_CANDIDATE_LABELS))
+    occupied_candidate: str
+    correct_candidates: tuple[str, ...]
+    classical_candidate: str
+    objective: Literal["avoid_occupied_candidate"] = "avoid_occupied_candidate"
+    rationale: str
+
+    @model_validator(mode="after")
+    def _labels_partition_the_candidate_set(self) -> "RetreatOracleConfig":
+        labels = set(RETREAT_CANDIDATE_LABELS[: self.candidate_count])
+        if self.yielder == self.passer:
+            raise ValueError(f"yielder and passer must differ; got {self.yielder!r}")
+        if self.occupied_candidate in self.correct_candidates:
+            raise ValueError(
+                f"occupied_candidate {self.occupied_candidate!r} cannot also be correct"
+            )
+        partition = {self.occupied_candidate, *self.correct_candidates}
+        if len(self.correct_candidates) != len(set(self.correct_candidates)) or (
+            partition != labels
+        ):
+            raise ValueError(
+                f"occupied_candidate plus correct_candidates must be exactly "
+                f"{sorted(labels)}; got {sorted(partition)}"
+            )
+        if self.classical_candidate not in labels:
+            raise ValueError(
+                f"classical_candidate {self.classical_candidate!r} not in {sorted(labels)}"
+            )
+        return self
+
+    @property
+    def contrasts_classical(self) -> bool:
+        """Whether the classical (geometry-max) answer is an incorrect one."""
+        return self.classical_candidate not in self.correct_candidates
+
+    @property
+    def chance_rate(self) -> float:
+        """Probability a uniform random choice avoids the occupied candidate."""
+        return len(self.correct_candidates) / self.candidate_count
+
+
 FAMILY_BY_LEGACY_NAME: dict[str, str] = {
     "head_on_deadlock": "head_on",
     "intersection_bottleneck": "intersection",
@@ -311,7 +374,7 @@ class ScenarioConfig(BaseModel):
     static_obstacles: tuple[StaticObstacleConfig, ...] = ()
     aisle_barrier: AisleBarrierConfig | None = None
     parameters: HeadOnAsymmetricParams | None = None
-    oracle: OracleConfig | BlockerOracleConfig | None = None
+    oracle: OracleConfig | BlockerOracleConfig | RetreatOracleConfig | None = None
     # Required but nullable: every scenario must state its conflict, and null
     # is the explicit "none expected" of a conflict-free family.
     expected_conflict: ExpectedConflictConfig | None
@@ -421,6 +484,12 @@ class ScenarioConfig(BaseModel):
                 *self.oracle.feasible_yielders,
             )
             for rid in oracle_robot_ids:
+                if rid not in robot_id_set:
+                    raise ValueError(
+                        f"oracle robot {rid!r} not in configured robots {robot_id_set}"
+                    )
+        if isinstance(self.oracle, RetreatOracleConfig):
+            for rid in (self.oracle.yielder, self.oracle.passer):
                 if rid not in robot_id_set:
                     raise ValueError(
                         f"oracle robot {rid!r} not in configured robots {robot_id_set}"

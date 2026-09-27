@@ -84,6 +84,10 @@ frame_downscale_width: null
 #   blocked_path_object / blocked_path_transient (T3a pair) -> robot_1
 #     [2.5, 0.0], robot_2 [0.0, 1.75] (robot_2 parks in the north pocket);
 #     t0_probe_mode stays false
+#   obstacle_in_candidate (T3b, junction head-on) -> +-2.5 as written, AND
+#     scenario_geometry corridor center_m: 1.2, half_length_m: 0.8, AND
+#     grounding_aisle_y_band_m: [-0.55, 1.0] (k = 3; header of
+#     isaac/config/scenarios/obstacle_in_candidate.yaml)
 # Running a _gshort or _bshort scenario without changing these dispatches +-2.5
 # and the variant silently degrades to its beyond-goal twin, blocker back on
 # the goal path (isaac/config/scenarios/family/*_{gshort,bshort}_o0.yaml).
