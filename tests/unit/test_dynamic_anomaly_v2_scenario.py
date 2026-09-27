@@ -174,6 +174,9 @@ def test_dynamic_anomaly_v2_onset_window_spans_spawn_and_stall_trigger():
     stall_threshold = yaml.safe_load(ORCHESTRATOR_YAML.read_text())["stall_threshold_sec"]
 
     assert start == pytest.approx(_obstacle().spawn_at_sec)
+    # stall_threshold_sec is wall-seconds (M5 uses time.monotonic) and the
+    # sim runs slower than real time, so treating it as sim-seconds is an
+    # upper bound on the trigger's sim-time delay.
     assert end >= start + stall_threshold
     assert end <= _obstacle().remove_at_sec
 

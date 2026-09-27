@@ -43,10 +43,14 @@ duration_sec: 200.0
 #     (The battery spec's "window opens >= 60 sim-s" cannot catch a robot on a
 #     5 m lane: robot_1 is parked at its goal by ~45 s.)
 #   - The stall trigger needs 12 s without 0.1 m of progress
-#     (orchestrator.yaml stall_threshold_sec), so a first analysis is expected
-#     at ~43-50 s. remove_at_sec 110.0 keeps the obstacle for ~60 s after it:
-#     room for M2's answer, the dispatched command and a cooldown re-analysis
-#     before the obstacle despawns and robot_1 can proceed.
+#     (orchestrator.yaml stall_threshold_sec), but M5's stall and cooldown
+#     clocks are WALL seconds (time.monotonic): at the VM's real-time factor
+#     of ~0.38, 12 wall-s is ~4.6 sim-s and the 15 s cooldown ~6 sim-s (smoke
+#     20260927_125419: stop at ~31, first analysis on scene 35.2, re-analyses
+#     ~6.4 sim-s apart). remove_at_sec 110.0 keeps the obstacle for ~75 sim-s
+#     (~200 wall-s) after the first analysis: room for M2's answer, the
+#     dispatched command and several cooldown re-analyses before the obstacle
+#     despawns and robot_1 can proceed.
 # The obstacle is deliberately untracked: it carries no marker, and it must
 # not appear in any prompt text channel (keep prompt_static_obstacles false
 # and orchestrator.yaml static_obstacles absent). The VLM sees it only in the
@@ -85,8 +89,10 @@ timed_obstacles:
 expected_conflict:
   type: anomaly
   involved_robots: [robot_1]
-  # From the spawn to the latest expected stall trigger (spawn + ~2 s to stop
-  # + 12 s stall threshold, plus departure jitter).
+  # From the spawn to a generous bound on the first stall trigger (spawn +
+  # ~1 s to stop + 12 wall-s ~ 4.6 sim-s stall threshold, plus departure
+  # jitter; the smoke's first trigger was on scene 35.2). min_duration_sec is
+  # in sim-s and conservatively equals the wall-second threshold.
   onset_window_sec: [30.0, 50.0]
   min_duration_sec: 12.0
 
