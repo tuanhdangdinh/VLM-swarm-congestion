@@ -34,6 +34,19 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 13 (2026-09-28): items 21–22 closed (`49416c7`…`3366502`) —
+  set-of-mark letters drawn via `swarm_perception.geometry.world_to_pixel`
+  with a never-fatal fallback chain (`marks_drawn` recorded), seeded
+  letter counterbalancing (letter↔label mapping + seed in every stage-2
+  artifact; "chose the default" is `choice == default_letter`, never a
+  comparison against M3's `retreat_choice`), stage-2 budget 2 × 8 s, and
+  `classical_retreat` in the shadow block. Tag-review notes: letters are
+  drawn on the stage-1 *annotated* frame rather than a fresh frame
+  (deviation from rev-8 A.1/A.3, recorded); the marker-plane homography
+  parallax (~29 px at floor level vs the 34 px ring) obliges a
+  frame-level footprint check during T3b authoring; stage 2 has no grey
+  fallback, so openai stage-2 refusals will surface as recorded
+  defaults.
 - Rev 12 (2026-09-28): derived grounding + stage-2 retreat selection are
   wired into M5 and the mode is flipped (`e358229`, `1648dd2` — the flip
   is one-commit revertible); stage-2 prompt v1 pinned, full
