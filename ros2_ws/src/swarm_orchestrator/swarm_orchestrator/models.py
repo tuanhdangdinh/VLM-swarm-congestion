@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -133,6 +133,15 @@ class OrchestratorConfig(BaseModel):
     # anything; "off" keeps every grounded command byte-identical to the ones
     # collected before the gate existed.
     grounding_yield_feasibility: YieldFeasibilityMode = "off"
+    # M3 grounding parameters file (its `grounding:` section, which holds the
+    # legacy/derived mode switch), relative to M5's cwd like config/models.yaml.
+    # Loaded once at startup; a missing file or an invalid section stops M5.
+    grounding_params_path: str = Field(default="config/rag.yaml", min_length=1)
+    # Stage-2 retreat selection (rev-8 A.3): in derived grounding mode, ask the
+    # VLM to pick one of the validated retreat candidates of a yield. False
+    # skips the call, and every yield grounds the geometry-max default
+    # (tagged `retreat=default:no_choice`), so collection can run stage-2-less.
+    stage2_retreat_selection: bool = True
     # Arm B shadow (rev-8 shadow logging): compute and log the classical answer
     # beside every VLM analysis. Observational only — it never dispatches or
     # alters the VLM decision — so it defaults on.
@@ -263,6 +272,40 @@ class CongestionEvent(BaseModel):
         return sorted(set(v))
 
 
+class RetreatStage2Record(BaseModel):
+    """What stage 2 did for one derived-mode yield, for the decision artifact.
+
+    `status` is `answered` when a rendered letter came back, `degraded` when
+    a call ran (or raised) without one, and `skipped` when no call was made;
+    `skip_reason` then says why (`disabled`, `yield_refused`,
+    `no_candidates`, `single_candidate`, `no_backend`). Every non-answer
+    grounds the geometry-max candidate, tagged by the grounder.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    status: Literal["answered", "degraded", "skipped"]
+    skip_reason: str | None = None
+    stage2_prompt_version: int | None = None
+    yielder_id: str | None = None
+    crossing_order: list[str] = Field(default_factory=list)
+    # Ranked best-first, as `prepare_retreat_selection` returned them, with
+    # their sweep clearances; `default_label` is the first one's letter.
+    candidates: list[dict[str, Any]] = Field(default_factory=list)
+    default_label: str | None = None
+    # The rendered stage-2 prompt with SHA-256 hashes and the image path the
+    # call referenced (never the image bytes); None when no call was made.
+    prompt: dict[str, Any] | None = None
+    # `RetreatChoiceResult` dumped to JSON; None when no call was made.
+    response: dict[str, Any] | None = None
+    # The answer handed to the grounder (an unrendered letter included, which
+    # the grounder tags `retreat=default:invalid_label`).
+    choice: dict[str, Any] | None = None
+    failure_cause: str | None = None
+    # An unexpected exception inside stage 2, recorded instead of raised.
+    error: str | None = None
+
+
 class PipelineOutcome(BaseModel):
     """Result of one M2->M3 reasoning pipeline run."""
 
@@ -273,6 +316,9 @@ class PipelineOutcome(BaseModel):
     grounded_command: dict[str, Any] | None
     terminal_stage: TerminalStage
     failure_reason: str | None = None
+    # Set only for a yield grounded in derived mode (the stage-2 applicable
+    # case); None everywhere else.
+    stage2: RetreatStage2Record | None = None
 
 
 def parse_scene_snapshot(raw: str) -> SceneSnapshot:

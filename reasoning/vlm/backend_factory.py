@@ -87,6 +87,52 @@ def backend_section(raw_vlm: dict, backend_id: str) -> dict:
     return section
 
 
+def _load_mock_script(path: Path, env_var: str) -> MockBackend:
+    """Build a scripted mock from a file holding one JSON object or an array."""
+    if not path.exists():
+        raise FileNotFoundError(f"{env_var} points to a missing file: {path}")
+    text = path.read_text(encoding="utf-8")
+    parsed = json.loads(text)
+    if isinstance(parsed, list):
+        if not parsed:
+            raise ValueError(f"{env_var} names an empty decision array: {path}")
+        return MockBackend(response_sequence=[json.dumps(item) for item in parsed])
+    return MockBackend(response_text=text)
+
+
+def build_retreat_choice_backend(
+    backend_id: str, stage1_backend: VLMBackend
+) -> VLMBackend | None:
+    """Return the backend the stage-2 retreat-choice call goes to, if any.
+
+    A real backend is stateless per call, so stage 2 reuses the stage-1
+    instance. The mock is scripted, and a shared instance would hand stage 2
+    the next stage-1 entry of a `VGU_MOCK_DECISION_FILE` sequence, so stage 2
+    gets its own mock only when `VGU_MOCK_RETREAT_CHOICE_FILE` names a script
+    (one retreat-choice JSON object, or an array replayed like the decision
+    file, e.g. `config/mock_decisions/retreat_choice_b.json`). Without one
+    there is no stage-2 backend and the caller skips the call.
+
+    Args:
+        backend_id: The configured stage-1 backend selector.
+        stage1_backend: The stage-1 backend instance.
+
+    Returns:
+        The stage-2 backend, or None for a mock with no stage-2 script.
+
+    Raises:
+        FileNotFoundError: If `VGU_MOCK_RETREAT_CHOICE_FILE` names a missing
+            file (config errors fail fast at startup).
+        ValueError: If it names an empty JSON array.
+    """
+    if backend_id != "mock":
+        return stage1_backend
+    choice_file = os.environ.get("VGU_MOCK_RETREAT_CHOICE_FILE", "")
+    if not choice_file:
+        return None
+    return _load_mock_script(Path(choice_file), "VGU_MOCK_RETREAT_CHOICE_FILE")
+
+
 def build_backend(
     backend_id: str,
     backend_config: BackendConfig | None = None,
@@ -124,20 +170,7 @@ def build_backend(
         decision_file = os.environ.get("VGU_MOCK_DECISION_FILE", "")
         if not decision_file:
             return MockBackend()
-        path = Path(decision_file)
-        if not path.exists():
-            raise FileNotFoundError(
-                f"VGU_MOCK_DECISION_FILE points to a missing file: {path}"
-            )
-        text = path.read_text(encoding="utf-8")
-        parsed = json.loads(text)
-        if isinstance(parsed, list):
-            if not parsed:
-                raise ValueError(
-                    f"VGU_MOCK_DECISION_FILE names an empty decision array: {path}"
-                )
-            return MockBackend(response_sequence=[json.dumps(item) for item in parsed])
-        return MockBackend(response_text=text)
+        return _load_mock_script(Path(decision_file), "VGU_MOCK_DECISION_FILE")
     if backend_id == "llama_server":
         if backend_config is None:
             raise ValueError("llama_server backend requires a LlamaServerBackendConfig")

@@ -22,8 +22,10 @@ from swarm_interfaces.srv import TriggerCongestionAnalysis
 
 from reasoning.rag.command_grounder import filter_command_robot_ids, ground_reasoner_result
 from reasoning.vlm import (
+    RetreatChooser,
     backend_section,
     build_backend,
+    build_retreat_choice_backend,
     describe_effective_sampling,
     resolve_reasoner_config,
 )
@@ -67,6 +69,7 @@ from swarm_orchestrator.probe import (
     probe_block_reason,
 )
 from swarm_orchestrator.reasoning_pipeline import (
+    GroundingParamsSource,
     InProcessPipeline,
     LatestRawFrame,
     ReasoningPipeline,
@@ -77,11 +80,13 @@ from swarm_orchestrator.reasoning_pipeline import (
     build_reasoner_request,
     dump_frame_png,
     fan_out_command,
+    load_grounding_source,
     raw_frame_dump_path,
     raw_frame_skew_sec,
     summarize_yield_grounding,
     write_decision_artifact,
 )
+from swarm_orchestrator.retreat_stage2 import format_stage2_log
 from swarm_orchestrator.shadow_classical import (
     ClassicalShadow,
     ShadowClassicalRecord,
@@ -96,7 +101,9 @@ from swarm_orchestrator.state_machine import (
 from swarm_orchestrator.task_registry import TaskRegistry
 
 
-def _build_default_pipeline(config: OrchestratorConfig) -> ReasoningPipeline:
+def _build_default_pipeline(
+    config: OrchestratorConfig, grounding: GroundingParamsSource
+) -> ReasoningPipeline:
     reasoner_config, backend_config = _load_vlm_config(config.reasoning_backend_id)
     backend = build_backend(config.reasoning_backend_id, backend_config)
     # Described from the configs, not the backend, so every decision artifact
@@ -106,12 +113,20 @@ def _build_default_pipeline(config: OrchestratorConfig) -> ReasoningPipeline:
         reasoner_config,
         describe_effective_sampling(reasoner_config, backend_config),
     )
+    # Stage 2 runs on the stage-1 backend and config (timeout, attempt budget),
+    # except for a mock, which answers stage 2 only from its own script.
+    stage2_backend = build_retreat_choice_backend(config.reasoning_backend_id, backend)
     return InProcessPipeline(
         reasoner=reasoner,
         ground_fn=ground_reasoner_result,
         scene_geometry=config.scenario_geometry,
         static_obstacles=config.static_obstacles,
         yield_feasibility_mode=config.grounding_yield_feasibility,
+        grounding_params=grounding.params,
+        retreat_chooser=(
+            None if stage2_backend is None else RetreatChooser(stage2_backend, reasoner_config)
+        ),
+        stage2_enabled=config.stage2_retreat_selection,
     )
 
 
@@ -193,7 +208,10 @@ class OrchestratorNode(Node):
         super().__init__("orchestrator_node")
         self.declare_parameter("config_file", "")
         self._config = config or self._load_config_from_param()
-        self._pipeline = pipeline or _build_default_pipeline(self._config)
+        # Fail fast: a missing file or an invalid `grounding:` section stops M5
+        # here, since these parameters shape every command it dispatches.
+        self._grounding = load_grounding_source(Path(self._config.grounding_params_path))
+        self._pipeline = pipeline or _build_default_pipeline(self._config, self._grounding)
 
         self._detector = CongestionDetector(self._config)
         self._arrival = ArrivalGate(self._config, self._detector.mark_arrived)
@@ -288,6 +306,16 @@ class OrchestratorNode(Node):
         if self._config.scene_log_dir:
             Path(self._config.scene_log_dir).mkdir(parents=True, exist_ok=True)
         self.get_logger().info(f"session_id={self._session_id} run_id={self._run_id}")
+        self.get_logger().info(
+            f"grounding mode={self._grounding.params.mode} params={self._grounding.path} "
+            f"section_present={self._grounding.section_present} "
+            f"stage2_retreat_selection={self._config.stage2_retreat_selection}"
+        )
+        if not self._grounding.section_present:
+            self.get_logger().warning(
+                f"no `grounding:` section in {self._grounding.path}: grounding on the "
+                "legacy defaults"
+            )
         if self._shadow is not None:
             self.get_logger().info(
                 f"classical shadow enabled params={self._config.shadow_classical_params_path} "
@@ -608,6 +636,7 @@ class OrchestratorNode(Node):
                 episode_index=episode_index,
                 grounding_yield_feasibility=self._config.grounding_yield_feasibility,
                 shadow_classical=shadow_block,
+                grounding_source=self._grounding,
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
         except OSError as exc:
@@ -627,6 +656,8 @@ class OrchestratorNode(Node):
                 f"yield refused request={outcome.request_id} "
                 f"reason={yield_grounding.refusal_reason}"
             )
+        if outcome.stage2 is not None:
+            self.get_logger().info(format_stage2_log(outcome.request_id, outcome.stage2))
 
         directive = self._machine.on_outcome(outcome, now)
         if directive.kind is DirectiveKind.DISPATCH and outcome.grounded_command is not None:
@@ -855,6 +886,7 @@ class OrchestratorNode(Node):
                 grounding_yield_feasibility=self._config.grounding_yield_feasibility,
                 shadow_classical=shadow_block,
                 probe_index=probe.probe_index,
+                grounding_source=self._grounding,
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
         except OSError as exc:

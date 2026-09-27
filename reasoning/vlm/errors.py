@@ -10,7 +10,13 @@ class RetreatLabelError(VLMOutputParseError):
 
     A subclass so callers can count the measurement plan's `invalid_label`
     cause apart from `parse_failure` without matching on message text.
+    `choice` carries the well-formed answer that named the bad letter, so a
+    caller can hand it on and let the grounder tag `invalid_label` itself.
     """
+
+    def __init__(self, message: str, choice: object | None = None) -> None:
+        super().__init__(message)
+        self.choice = choice
 
 
 class DecisionValidationError(ValueError):

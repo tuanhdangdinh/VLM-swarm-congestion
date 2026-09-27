@@ -1311,8 +1311,16 @@ _PRE_PROBE_ARTIFACT_KEYS = {
     "shadow_classical",
 }
 # The prompt-v2 bundle (2026-09-27) adds `prompt_version` to every artifact on
-# purpose; the probe invariant above is about probe keys only.
-_TRIGGERED_ARTIFACT_KEYS = _PRE_PROBE_ARTIFACT_KEYS | {"prompt_version"}
+# purpose; the probe invariant above is about probe keys only. The derived
+# grounding wiring (2026-09-28) likewise adds the grounding mode, its params
+# source, the command's degradations and the stage-2 record to every artifact.
+_TRIGGERED_ARTIFACT_KEYS = _PRE_PROBE_ARTIFACT_KEYS | {
+    "prompt_version",
+    "grounding_mode",
+    "grounding_params_source",
+    "grounding_degradations",
+    "stage2",
+}
 
 
 def test_write_decision_artifact_omits_probe_keys_for_triggered_analysis(tmp_path):

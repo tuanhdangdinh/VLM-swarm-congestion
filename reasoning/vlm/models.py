@@ -258,6 +258,80 @@ class RetreatChoiceDecision(BaseModel):
         return value.upper() if isinstance(value, str) else value
 
 
+# Stage-2 (retreat-choice) prompt template. Versioned apart from the stage-1
+# `PromptVersion`: the two templates change independently. Pinned by SHA in
+# tests/unit/test_stage2_prompt.py; any edit is a new version, not a re-pin.
+Stage2PromptVersion = Literal[1]
+CURRENT_STAGE2_PROMPT_VERSION: Stage2PromptVersion = 1
+
+# Why a stage-2 call produced no rendered letter, in the measurement plan's
+# vocabulary where one exists (`invalid_label`, `parse_failure`); `refusal`,
+# `timeout` and `backend_error` are the transport-level reasons behind a
+# `retreat=default:no_choice` grounding.
+Stage2FailureCause = Literal[
+    "invalid_label", "parse_failure", "refusal", "timeout", "backend_error"
+]
+
+
+class RetreatCandidateOption(BaseModel):
+    """One lettered retreat pose as the stage-2 prompt presents it.
+
+    A plain projection of M3's `RetreatCandidate`, so M2 need not import M3.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str = Field(min_length=1, max_length=1)
+    # World-frame pose after the backup and the sidestep, in metres.
+    x: float
+    y: float
+    backup_m: float = Field(ge=0)
+    # Signed robot-frame lateral offset (positive = left).
+    lateral_m: float
+
+
+class RetreatChoiceRequest(BaseModel):
+    """Stage-2 input: the grounded yielder, who passes, and the lettered candidates."""
+
+    model_config = ConfigDict(frozen=True)
+
+    request_id: str = Field(min_length=1)
+    # The stage-1 decision frame, reused as-is: no candidate marks are drawn.
+    image_path: str = Field(min_length=1)
+    yielder_id: str = Field(min_length=1)
+    # Robots that pass while the yielder waits, first to pass first.
+    crossing_order: list[str]
+    robot_states: list[RobotStateInput]
+    candidates: list[RetreatCandidateOption] = Field(min_length=1)
+    prompt_version: Stage2PromptVersion = CURRENT_STAGE2_PROMPT_VERSION
+
+    @model_validator(mode="after")
+    def _validate_unique_labels(self) -> "RetreatChoiceRequest":
+        labels = [candidate.label for candidate in self.candidates]
+        if len(labels) != len(set(labels)):
+            raise ValueError(f"candidate labels must be unique, got {labels}")
+        return self
+
+
+class RetreatChoiceResult(BaseModel):
+    """Outcome of one stage-2 call: a letter, or why none usable came back."""
+
+    model_config = ConfigDict(frozen=True)
+
+    request_id: str
+    backend_id: str
+    # The parsed answer. With `failure_cause == "invalid_label"` it names a
+    # letter that was not rendered, and is kept so the grounder can tag it.
+    choice: RetreatChoiceDecision | None
+    raw_text: str | None
+    attempts: int = Field(ge=1)
+    latency_ms: int | None = Field(default=None, ge=0)
+    failure_cause: Stage2FailureCause | None = None
+    error_type: str | None = None
+    error_message: str | None = None
+    refusal_attempts: int = Field(default=0, ge=0)
+
+
 class EffectiveSamplingConfig(BaseModel):
     """The sampling settings actually in force for one reasoning call.
 

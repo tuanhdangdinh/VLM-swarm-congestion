@@ -9,12 +9,15 @@ from typing import Any, NamedTuple, Protocol
 
 import cv2
 import numpy as np
+import yaml
+from pydantic import BaseModel, ConfigDict, Field
 
 from reasoning.rag.command_grounder import (
     YieldFeasibilityMode,
     filter_command_robot_ids,
     validate_coordination_command,
 )
+from reasoning.rag.maneuver_geometry import GroundingParams
 from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import (
     CURRENT_PROMPT_VERSION,
@@ -23,24 +26,37 @@ from reasoning.vlm.models import (
     ReasonerDiagnostics,
     ReasonerRequest,
     ReasonerResult,
+    RetreatChoiceDecision,
     RobotPresentationOrder,
     RobotStateInput,
+    SnapshotFrame,
     StaticObstacleInput,
 )
 from reasoning.vlm.prompt_builder import build_prompt_payload
 from swarm_orchestrator.command_lifecycle import AttemptContexts, AttemptRecord
 from swarm_orchestrator.models import (
     PipelineOutcome,
+    RetreatStage2Record,
     SceneSnapshot,
     TerminalStage,
 )
 from swarm_orchestrator.presentation_order import RobotPresentationOrderMode
+from swarm_orchestrator.retreat_stage2 import (
+    RetreatChoiceCaller,
+    run_retreat_stage2,
+    snapshot_frame_from_request,
+)
 
 ValidateFn = Callable[[dict[str, Any]], dict[str, Any]]
 
 
 class GroundFn(Protocol):
-    """M3 grounding callable: a reasoner result plus scene context -> command."""
+    """M3 grounding callable: a reasoner result plus scene context -> command.
+
+    Mirrors `ground_reasoner_result`. The keyword-only arguments drive derived
+    mode and are ignored in legacy mode; `crossing_order` is not passed, so
+    the grounder reads it off the decision.
+    """
 
     def __call__(
         self,
@@ -49,7 +65,56 @@ class GroundFn(Protocol):
         geometry: SceneGeometry | None = None,
         static_obstacles: Sequence[StaticObstacleInput] = (),
         yield_feasibility_mode: YieldFeasibilityMode = "off",
+        *,
+        snapshot: SnapshotFrame | None = None,
+        params: GroundingParams | None = None,
+        retreat_choice: RetreatChoiceDecision | None = None,
     ) -> dict[str, Any]: ...
+
+
+class GroundingParamsSource(BaseModel):
+    """The M3 grounding parameters M5 runs on, and where they came from."""
+
+    model_config = ConfigDict(frozen=True)
+
+    path: str = Field(min_length=1)
+    # False when the file has no `grounding:` section, which silently means
+    # the legacy defaults; recorded so that case is visible in every artifact.
+    section_present: bool
+    params: GroundingParams
+
+
+def load_grounding_source(path: Path) -> GroundingParamsSource:
+    """Load M3's grounding parameters once at M5 startup; fail fast on any fault.
+
+    Unlike the Arm B shadow's thresholds, these drive what M5 dispatches, so
+    a missing file stops M5 instead of falling back to a default mode.
+
+    Args:
+        path: The RAG config (`config/rag.yaml`), relative to M5's cwd.
+
+    Returns:
+        The params with their provenance; an absent section gives the
+        defaults (`mode="legacy"`) with `section_present=False`.
+
+    Raises:
+        FileNotFoundError: If `path` does not exist.
+        yaml.YAMLError: If the file is not valid YAML.
+        ValueError: If the file is not a YAML mapping.
+        pydantic.ValidationError: If the section has unknown keys or
+            out-of-range values.
+    """
+    if not path.is_file():
+        raise FileNotFoundError(f"grounding params file not found: {path}")
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(raw, dict):
+        raise ValueError(f"{path} must be a YAML mapping, got {type(raw).__name__}")
+    section = raw.get("grounding")
+    return GroundingParamsSource(
+        path=str(path),
+        section_present=bool(section),
+        params=GroundingParams(**(section or {})),
+    )
 
 
 def build_failed_outcome(request_id: str, reason: str) -> PipelineOutcome:
@@ -394,6 +459,7 @@ def write_decision_artifact(
     last_failed_context: FailureContext | None = None,
     shadow_classical: dict[str, Any] | None = None,
     probe_index: int | None = None,
+    grounding_source: GroundingParamsSource | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
@@ -435,6 +501,12 @@ def write_decision_artifact(
             triggered analysis. A probe artifact gains `probe: true` and
             `probe_index`; a triggered one gains neither key, so its bytes
             are unchanged from before probes existed.
+        grounding_source: The M3 grounding parameters M5 loaded at startup.
+            Recorded as `grounding_mode` and `grounding_params_source` (null
+            when absent), so an artifact set can be partitioned by the mode
+            it was grounded under. The grounded command's own `degradations`
+            list (derived mode only) is lifted to `grounding_degradations`,
+            and a derived yield's stage-2 record to `stage2`.
 
     Returns:
         The artifact path.
@@ -497,6 +569,18 @@ def write_decision_artifact(
         "scene": None if snapshot is None else snapshot.model_dump(mode="json"),
         "distance_to_goal_m": dict(distance_to_goal_m or {}),
         "shadow_classical": shadow_classical,
+        "grounding_mode": None if grounding_source is None else grounding_source.params.mode,
+        "grounding_params_source": (
+            None if grounding_source is None else grounding_source.model_dump(mode="json")
+        ),
+        # Per-action messages never carry this list, so the artifact is the
+        # only place a derived command's degradations survive.
+        "grounding_degradations": (
+            None
+            if outcome.grounded_command is None
+            else outcome.grounded_command.get("degradations")
+        ),
+        "stage2": None if outcome.stage2 is None else outcome.stage2.model_dump(mode="json"),
     }
     if probe_index is not None:
         payload["probe"] = True
@@ -561,9 +645,19 @@ class InProcessPipeline:
         scene_geometry: SceneGeometry | None = None,
         static_obstacles: Sequence[StaticObstacleInput] = (),
         yield_feasibility_mode: YieldFeasibilityMode = "off",
+        grounding_params: GroundingParams | None = None,
+        retreat_chooser: RetreatChoiceCaller | None = None,
+        stage2_enabled: bool = True,
     ) -> None:
         self._reasoner = reasoner
         self._ground_fn = ground_fn
+        # None grounds in legacy mode, as every caller did before derived mode
+        # was wired; derived mode also enables stage 2 for yields.
+        self._grounding_params = grounding_params
+        # None means no backend can answer stage 2 (a mock without a stage-2
+        # script); the call is skipped and recorded, never attempted.
+        self._retreat_chooser = retreat_chooser
+        self._stage2_enabled = stage2_enabled
         # Declared scenario geometry from M5 config; None leaves M3 on its
         # hand-sized fallback distances.
         self._scene_geometry = scene_geometry
@@ -585,6 +679,24 @@ class InProcessPipeline:
             return self._vlm_terminal(request.request_id, result, "decision=None")
         if not decision.congestion_detected:
             return self._vlm_terminal(request.request_id, result, "congestion_detected=false")
+        # One frame for stage 2 and grounding alike: the stage-2 letters are
+        # positional, so both must resolve them against the same poses.
+        frame = snapshot_frame_from_request(request)
+        params = self._grounding_params
+        retreat_choice: RetreatChoiceDecision | None = None
+        stage2: RetreatStage2Record | None = None
+        if params is not None and params.mode == "derived" and decision.strategy == "yield":
+            retreat_choice, stage2 = run_retreat_stage2(
+                request,
+                decision,
+                frame,
+                params,
+                self._retreat_chooser,
+                enabled=self._stage2_enabled,
+                geometry=self._scene_geometry,
+                static_obstacles=self._static_obstacles,
+                yield_feasibility_mode=self._yield_feasibility_mode,
+            )
         try:
             allowed_robot_ids = {robot.robot_id for robot in request.robot_states}
             # M3 grounds the yield distances from where the robots actually are
@@ -599,6 +711,9 @@ class InProcessPipeline:
                     geometry=self._scene_geometry,
                     static_obstacles=self._static_obstacles,
                     yield_feasibility_mode=self._yield_feasibility_mode,
+                    snapshot=frame,
+                    params=params,
+                    retreat_choice=retreat_choice,
                 ),
                 allowed_robot_ids,
             )
@@ -610,6 +725,7 @@ class InProcessPipeline:
                 grounded_command=None,
                 terminal_stage=TerminalStage.GROUNDING,
                 failure_reason=f"grounding failed: {exc}",
+                stage2=stage2,
             )
         return PipelineOutcome(
             request_id=request.request_id,
@@ -617,6 +733,7 @@ class InProcessPipeline:
             grounded_command=grounded,
             terminal_stage=TerminalStage.OK,
             failure_reason=None,
+            stage2=stage2,
         )
 
     def analyze(self, request: ReasonerRequest) -> PipelineOutcome:

@@ -5,6 +5,7 @@ from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.backend_factory import (
     backend_section,
     build_backend,
+    build_retreat_choice_backend,
     describe_effective_sampling,
     resolve_reasoner_config,
 )
@@ -34,7 +35,10 @@ from reasoning.vlm.models import (
     ReasonerDiagnostics,
     ReasonerRequest,
     ReasonerResult,
+    RetreatCandidateOption,
     RetreatChoiceDecision,
+    RetreatChoiceRequest,
+    RetreatChoiceResult,
     RobotStateInput,
     SnapshotFrame,
 )
@@ -62,6 +66,8 @@ from reasoning.vlm.reasoner import (
     make_neutral_image,
     write_reasoner_log,
 )
+from reasoning.vlm.retreat_chooser import RetreatChooser
+from reasoning.vlm.stage2_prompt import build_stage2_prompt_payload
 
 __all__ = [
     "AnthropicBackend",
@@ -88,7 +94,11 @@ __all__ = [
     "ReasonerDiagnostics",
     "ReasonerRequest",
     "ReasonerResult",
+    "RetreatCandidateOption",
     "RetreatChoiceDecision",
+    "RetreatChoiceRequest",
+    "RetreatChoiceResult",
+    "RetreatChooser",
     "RetreatLabelError",
     "RobotStateInput",
     "SnapshotFrame",
@@ -100,6 +110,8 @@ __all__ = [
     "build_failed_result",
     "build_prompt_payload",
     "build_reask_prompt",
+    "build_retreat_choice_backend",
+    "build_stage2_prompt_payload",
     "derive_motion_table",
     "describe_effective_sampling",
     "format_pairwise_geometry_lines",

@@ -211,8 +211,9 @@ def parse_retreat_choice_text(text: str, valid_labels: set[str]) -> RetreatChoic
         VLMOutputParseError: On JSON failure or schema violation (the
             measurement plan's `parse_failure`).
         RetreatLabelError: When the letter is not among the rendered
-            candidates (`invalid_label`). Either way the caller grounds the
-            geometry-best candidate instead (`retreat=default:*`).
+            candidates (`invalid_label`); its `choice` holds the parsed
+            answer. Either way the caller grounds the geometry-best candidate
+            instead (`retreat=default:*`).
     """
     parsed = _extract_json_object(text)
     try:
@@ -222,6 +223,7 @@ def parse_retreat_choice_text(text: str, valid_labels: set[str]) -> RetreatChoic
     if choice.retreat_choice not in valid_labels:
         raise RetreatLabelError(
             f"retreat_choice {choice.retreat_choice!r} not among candidates "
-            f"{sorted(valid_labels)}."
+            f"{sorted(valid_labels)}.",
+            choice=choice,
         )
     return choice
