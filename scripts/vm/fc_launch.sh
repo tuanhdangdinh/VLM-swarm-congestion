@@ -83,6 +83,15 @@
 #                          build_backend() reads for backend_id == "mock"
 #                          (see that function's docstring: unset/empty keeps
 #                          MockBackend's default no-congestion answer).
+#   MOCK_RETREAT_CHOICE_FILE
+#                          Optional stage-2 mock script, e.g.
+#                          config/mock_decisions/retreat_choice_b.json,
+#                          path rules as MOCK_DECISION_FILE. Exported as
+#                          VGU_MOCK_RETREAT_CHOICE_FILE, which the mock
+#                          backend reads for the stage-2 retreat letter
+#                          (reasoning/vlm/backend_factory.py). Unset leaves
+#                          it unset, so a mock run's stage 2 is skipped and
+#                          recorded as skip_reason=no_backend.
 #   RECORD                 0|1 (default 0). 1 enables the recorder stage
 #                          (annotated_frame -> REC_OUT) exactly as in the
 #                          ported script; 0 skips it entirely.
@@ -126,6 +135,7 @@ CONTAINER="${CONTAINER:-vgu_ros}"
 SCENARIO="${SCENARIO:-head_on_deadlock}"
 BACKEND_ID="${BACKEND_ID:-openai}"
 MOCK_DECISION_FILE="${MOCK_DECISION_FILE:-}"
+MOCK_RETREAT_CHOICE_FILE="${MOCK_RETREAT_CHOICE_FILE:-}"
 MODALITY="${MODALITY:-}"
 RECORD="${RECORD:-0}"
 REC_SEC="${REC_SEC:-1000}"
@@ -191,6 +201,14 @@ if [ -n "$MOCK_DECISION_FILE" ]; then
   case "$MOCK_DECISION_FILE" in
     "$REPO"/*) MOCK_DECISION_FILE_CONTAINER="/ws${MOCK_DECISION_FILE#"$REPO"}" ;;
     *) MOCK_DECISION_FILE_CONTAINER="$MOCK_DECISION_FILE" ;;
+  esac
+fi
+
+MOCK_RETREAT_CHOICE_FILE_CONTAINER=""
+if [ -n "$MOCK_RETREAT_CHOICE_FILE" ]; then
+  case "$MOCK_RETREAT_CHOICE_FILE" in
+    "$REPO"/*) MOCK_RETREAT_CHOICE_FILE_CONTAINER="/ws${MOCK_RETREAT_CHOICE_FILE#"$REPO"}" ;;
+    *) MOCK_RETREAT_CHOICE_FILE_CONTAINER="$MOCK_RETREAT_CHOICE_FILE" ;;
   esac
 fi
 
@@ -507,6 +525,10 @@ M5_INNER="set -a && source /ws/.env && set +a && export VGU_RUN_ID=${STAMP}"
 if [ -n "$MOCK_DECISION_FILE_CONTAINER" ]; then
   log "MOCK_DECISION_FILE set -> VGU_MOCK_DECISION_FILE=${MOCK_DECISION_FILE_CONTAINER}"
   M5_INNER="${M5_INNER} && export VGU_MOCK_DECISION_FILE=${MOCK_DECISION_FILE_CONTAINER}"
+fi
+if [ -n "$MOCK_RETREAT_CHOICE_FILE_CONTAINER" ]; then
+  log "MOCK_RETREAT_CHOICE_FILE set -> VGU_MOCK_RETREAT_CHOICE_FILE=${MOCK_RETREAT_CHOICE_FILE_CONTAINER}"
+  M5_INNER="${M5_INNER} && export VGU_MOCK_RETREAT_CHOICE_FILE=${MOCK_RETREAT_CHOICE_FILE_CONTAINER}"
 fi
 M5_INNER="${M5_INNER} && ros2 launch swarm_orchestrator orchestrator.launch.py >${M5_LOG} 2>&1"
 log "starting M5 orchestrator (${BACKEND_ID} backend, CWD /ws) -> ${M5_LOG}"
