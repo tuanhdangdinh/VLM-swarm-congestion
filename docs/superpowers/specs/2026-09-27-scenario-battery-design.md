@@ -45,10 +45,9 @@ re-baselined a single time:
    goals, T2b's flow-ordering is undecidable without knowing where
    robots are headed, and bundling costs no extra comparability break.
    *Requires user sign-off; the bundle can ship without it.*
-   *Status 2026-09-27: implemented on the recommended default under a
-   general "continue" instruction — explicit user confirmation is still
-   pending and reverting goals out of v2 before the freeze is a small,
-   isolated change.*
+   *Status 2026-09-27 (later): adopted — the user continued twice past
+   the explicit flag without objection. The revert remains isolated and
+   available until the calibration pilot collects data under v2.*
 
 **Bundle riders (2026-09-27):** two cosmetic prompt defects fix in the
 same break — the task label never renders in the state block, and the
@@ -224,7 +223,7 @@ authoring. Size: M (was S).
 | 1 | T0 scenario + probe mode | — | M | **landed** (`33232b8`…`ff96ead`; VM/USD verification pending) |
 | 2 | Prompt-v2 bundle (fields + goals decision) | user sign-off on goals | M | **landed** (`991ffae`…`ed152c7`; v1 frozen, integrity 130/130 + 654/654; goals on recommended default, confirmation pending; calibration pilot pending funding) |
 | 3 | T3c v2 re-author (see re-scoped section) | scheduler fix live-verified ✓ | M | **authored + mechanically smoked** (`89884a3`); reasoning half + oracle pending funding and prompt-v2 |
-| 4 | T3a pair (assets + YAMLs + oracle) | 2; marker-less asset; timed despawn check | M | ready after 2 |
+| 4 | T3a pair (assets + YAMLs + oracle) | 2 ✓; oracle decision 15b ✓ | M | **authoring in flight** (mock-backend mechanical smoke; reasoning half pending funding) |
 | 5 | T2b (3-robot + harness + oracle) | 2 ✓; feasibility report (`docs/reports/2026-09-27-three-robot-feasibility.md`) | XL + NEEDS-DECISION | investigation done: 12-item build list; safety items 9+11 (pair-scoped exemption, hold-until-last) REQUIRED before any wrong-order run — the both-orders harness otherwise collides or re-deadlocks; scope decision pending |
 | 6 | Pillar 2 slice (plan Tasks 3/8/9/11) | — | L | **landed** (`9d027e6`…`cf81fa9`, merged `d3c2a7d`; M5 wiring + config flip follow the bundle) |
 | 7 | T3b scenario | 6 ✓; untracked asset from 4; wider `aisle_y_band_m` for k = 3 (default head-on geometry yields only 2 candidates — test-proven) | M | last |

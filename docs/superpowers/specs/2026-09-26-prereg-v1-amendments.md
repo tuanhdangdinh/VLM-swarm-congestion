@@ -430,14 +430,19 @@ original Arm B specification.
     **discharged 2026-09-27** by the prompt-v2 bundle (Rev 10 above).
     Goals rider: implemented on the recommended default; explicit user
     confirmation pending, revert isolated.
-15. **Prompt-v2 wording sign-offs (at or before the freeze):** (a) the
-    guidance line "Decide from the robot coordinates and the image, not
-    from assumptions about intent" now coexists with rendered goals —
-    reconcile; (b) `blocker_kind`'s "robot = one of the robots listed
-    above" fixes how T3a's untracked robot-shaped blocker must be
-    labelled (`transient`, since it is not listed) — confirm that is the
-    intended oracle; (c) the prompt-leakage guard now exempts the
-    literal token `"blocker_kind"` — confirm.
+15. **Prompt-v2 wording sign-offs — decided 2026-09-27 by the
+    coordinator, reviewable until the tag:** (a) the guidance line is
+    reworded to permit stated goals/tasks as evidence while forbidding
+    invented intent ("Decide from the robot states (including their
+    stated goals and tasks) and the image; do not assume intentions
+    beyond what is stated." — implementation in flight; v2 is
+    re-pinnable until the calibration pilot runs); (b) **confirmed**:
+    T3a's untracked robot-shaped blocker labels `transient` — "robot" is
+    defined as a listed robot and the blocker is deliberately unlisted;
+    this is the tier's oracle; (c) **confirmed**: the leakage-guard
+    exemption for the literal schema token `"blocker_kind"` is correct.
+    The user's standing "continue" covers these defaults; final veto at
+    the tag.
 16. **Calibration mini-pilot** (n = 3 per model on `_bshort` west, post
     bundle, pre freeze) — funding-blocked: Gemini monthly cap hit,
     OpenAI balance untested.
@@ -450,3 +455,12 @@ original Arm B specification.
     a slower run. Decide: build it, redesign the tier cheaper, or drop
     it (weakens RQ3's ambiguous-ordering evidence) — before any T2b
     authoring.
+    **Coordinator recommendation (2026-09-27, not a decision): DEFER**
+    T2b behind T3a and T3b. If it is built, land the investigation's
+    items 9 and 11 first as standalone safety work (the pair-scoped
+    exemption closes a real hole — a yielder is currently unguarded
+    against any bystander — and hold-until-last is the minimum ordered
+    release), then re-cost the tier. A cheaper 2-robot re-design was
+    considered and rejected: without a moving third robot there is no
+    ordering dimension, only another feasibility contrast, which T2a
+    already provides. Explicit user decision still required.
