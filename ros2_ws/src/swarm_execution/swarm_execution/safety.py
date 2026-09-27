@@ -17,10 +17,12 @@ REASON_SPEED_LIMIT = "speed_limit_violation"
 REASON_STALE_POSE = "stale_pose_unsafe"
 
 # Margin added to `min_distance_m` for the STALE fail-safe band: a marker can
-# vanish while the pair is still closing, and M1 needs stale_after_sec (3 s) to
-# declare STALE, so the last fresh distance understates the real one. This is a
-# margin, not full coverage of that window (3 s at the 0.2 m/s limit is 0.6 m);
-# the keep-the-existing-latch half of the rule covers the rest.
+# vanish while the pair is still closing, and M1 needs stale_after_sec (1.15
+# sim-s since the 2026-09-27 sim-time camera flip; previously 3 wall-s, the same
+# ~1.14 sim-s at RTF ~0.38) to declare STALE, so the last fresh distance
+# understates the real one. This is a margin, not full coverage of that window
+# (1.15 s at the 0.2 m/s limit is 0.23 m); the keep-the-existing-latch half of
+# the rule covers the rest.
 STALE_UNSAFE_MARGIN_M = 0.15
 
 # Per-robot coordination actions that exempt a pair from the latch rules. Both
