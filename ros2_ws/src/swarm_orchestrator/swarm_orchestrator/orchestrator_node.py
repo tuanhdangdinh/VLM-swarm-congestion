@@ -6,6 +6,7 @@ import os
 import time
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +60,12 @@ from swarm_orchestrator.presentation_order import (
     PresentationOrderPolicy,
     derive_order_seed,
 )
+from swarm_orchestrator.probe import (
+    T0_PROBE_REASON,
+    ProbeLedger,
+    ProbeScheduler,
+    probe_block_reason,
+)
 from swarm_orchestrator.reasoning_pipeline import (
     InProcessPipeline,
     LatestRawFrame,
@@ -82,6 +89,7 @@ from swarm_orchestrator.shadow_classical import (
 )
 from swarm_orchestrator.state_machine import (
     DirectiveKind,
+    OrchestratorState,
     OrchestratorStateMachine,
 )
 from swarm_orchestrator.task_registry import TaskRegistry
@@ -120,6 +128,18 @@ def _build_shadow(config: OrchestratorConfig) -> ClassicalShadow | None:
         config.shadow_classical_window_sec,
         config.shadow_classical_sample_period_sec,
     )
+
+
+@dataclass
+class _PendingProbe:
+    """One in-flight T0 probe; lives apart from the triggered-analysis slots."""
+
+    request_id: str
+    probe_index: int
+    request: ReasonerRequest
+    snapshot: Any
+    future: Future[PipelineOutcome]
+    shadow: ShadowClassicalRecord | None
 
 
 def _raw_frame_qos() -> QoSProfile:
@@ -213,6 +233,16 @@ class OrchestratorNode(Node):
         self._pending_episode_index: int | None = None
         self._shadow = _build_shadow(self._config)
         self._pending_shadow: ShadowClassicalRecord | None = None
+        # T0 log-only probes. The ledger stays empty unless probe mode is on,
+        # so the dispatch guard that reads it is inert by default.
+        self._probe_ledger = ProbeLedger()
+        self._probe: _PendingProbe | None = None
+        self._probe_block: str | None = None
+        self._probe_scheduler: ProbeScheduler | None = None
+        self._probe_executor: ThreadPoolExecutor | None = None
+        self._probe_order: PresentationOrderPolicy | None = None
+        if self._config.t0_probe_mode:
+            self._init_probe_mode()
         self._last_scene_log_at = float("-inf")
         self._frame_rgb = None
         self._frame_stamp: float | None = None
@@ -270,6 +300,30 @@ class OrchestratorNode(Node):
         self._publish_registry()
 
     # ---- config ----
+
+    def _init_probe_mode(self) -> None:
+        if not callable(getattr(self._pipeline, "analyze", None)):
+            raise ValueError(
+                "t0_probe_mode requires a pipeline with a stage-1 analyze(); "
+                f"{type(self._pipeline).__name__} has none"
+            )
+        self._probe_scheduler = ProbeScheduler(
+            self._config.t0_probe_interval_sec,
+            self._config.t0_probe_max_probes,
+            time.monotonic(),
+        )
+        # Its own worker, so a real trigger never queues behind a probe's VLM call.
+        self._probe_executor = ThreadPoolExecutor(max_workers=1)
+        # Each probe draws its own order from the same seeded policy, indexed
+        # by probe number; EpisodeOrderTracker is never touched, so the draws
+        # of real congestion episodes are the same with probes on or off.
+        self._probe_order = PresentationOrderPolicy(
+            mode=self._config.prompt_robot_order, seed=self._order_seed
+        )
+        self.get_logger().info(
+            f"t0 probe mode enabled (log-only) interval_sec={self._config.t0_probe_interval_sec} "
+            f"max_probes={self._config.t0_probe_max_probes}"
+        )
 
     def _load_config_from_param(self) -> OrchestratorConfig:
         path = self.get_parameter("config_file").get_parameter_value().string_value
@@ -422,6 +476,9 @@ class OrchestratorNode(Node):
                 outcome = build_failed_outcome("unknown", f"worker raised: {exc}")
             self._future = None
             self._handle_outcome(outcome, now)
+        self._harvest_probe()
+        if self._probe_scheduler is not None:
+            self._maybe_start_probe(now)
 
     # ---- pipeline lifecycle ----
 
@@ -585,6 +642,11 @@ class OrchestratorNode(Node):
         """
         record = self._pending_shadow
         self._pending_shadow = None
+        return self._finalize_shadow_record(record, outcome)
+
+    def _finalize_shadow_record(
+        self, record: ShadowClassicalRecord | None, outcome: PipelineOutcome
+    ) -> dict[str, Any] | None:
         if self._shadow is None:
             return None
         try:
@@ -603,6 +665,14 @@ class OrchestratorNode(Node):
             return {"request_id": outcome.request_id, "shadow_error": error}
 
     def _dispatch(self, outcome: PipelineOutcome) -> None:
+        # Second no-dispatch layer: the probe path never reaches here, but a
+        # probe outcome that somehow did is refused before anything is sent.
+        if self._probe_ledger.is_probe(outcome.request_id):
+            self.get_logger().error(
+                f"refusing dispatch request={outcome.request_id}: "
+                "t0 probe outcomes are log-only"
+            )
+            return
         grounded = filter_command_robot_ids(
             outcome.grounded_command,
             set(self._config.initial_tasks),
@@ -651,6 +721,144 @@ class OrchestratorNode(Node):
                 f"dispatch request={outcome.request_id} command={command_id} robot={robot_id}"
             )
         self._publish_registry()
+
+    # ---- T0 log-only probes ----
+
+    def _maybe_start_probe(self, now: float) -> None:
+        """Start a due probe on the latest scene unless a real analysis runs."""
+        scheduler = self._probe_scheduler
+        if scheduler is None or not scheduler.due(now):
+            return
+        snapshot = self._latest_snapshot
+        has_scene = snapshot is not None and bool(snapshot.robots)
+        blocked = probe_block_reason(
+            analysis_in_flight=(
+                self._future is not None
+                or self._machine.state is not OrchestratorState.MONITORING
+            ),
+            probe_in_flight=self._probe is not None,
+            has_scene=has_scene,
+            frame_ready=has_scene and self._frame_is_fresh(snapshot.stamp),
+        )
+        if blocked is not None:
+            # Logged once per reason, not on every 0.5 s tick it stays blocked.
+            if blocked != self._probe_block:
+                self.get_logger().info(f"t0 probe deferred reason={blocked}")
+            self._probe_block = blocked
+            return
+        self._probe_block = None
+        probe_index = scheduler.record_probe(now)
+        request_id = uuid.uuid4().hex
+        self._probe_ledger.register(request_id)
+        robots = sorted(r.robot_id for r in snapshot.robots)
+        order = self._submit_probe(request_id, probe_index, snapshot)
+        self.get_logger().info(
+            f"starting analysis request={request_id} robots={robots} "
+            f"reason={T0_PROBE_REASON} order={order} probe=true probe_index={probe_index}"
+        )
+
+    def _submit_probe(
+        self, request_id: str, probe_index: int, snapshot
+    ) -> RobotPresentationOrder:
+        """Hand one probe's stage-1 analysis to the probe worker.
+
+        Built like a triggered request, except that it carries no failure
+        context: that block tells the VLM congestion was re-detected, which an
+        off-trigger probe has not established, and reading AttemptMemory can
+        clear it for the next real analysis.
+
+        Returns:
+            The presentation order the probe renders robots in.
+        """
+        image_path = str(Path(self._config.frame_dump_dir) / f"{request_id}.png")
+        order = self._probe_order.order_for_episode(probe_index)
+        request = build_reasoner_request(
+            request_id,
+            snapshot,
+            image_path,
+            include_pairwise_geometry=self._config.prompt_pairwise_geometry,
+            static_obstacles=self._config.static_obstacles,
+            include_static_obstacles=self._config.prompt_static_obstacles,
+            robot_presentation_order=order,
+        )
+        frame = self._frame_rgb
+        downscale = self._config.frame_downscale_width
+        raw_dump = self._raw_frame_dump(request_id)
+        # Bound here: the probe path holds the stage-1 entry point only, so it
+        # has no route to grounding or dispatch (first no-dispatch layer).
+        analyze = self._pipeline.analyze
+
+        def task() -> PipelineOutcome:
+            dump_frame_png(frame, image_path, downscale)
+            if raw_dump is not None:
+                raw_frame, raw_path = raw_dump
+                try:
+                    dump_frame_png(raw_frame, raw_path, downscale)
+                except Exception as exc:  # debug evidence must never fail a probe
+                    self.get_logger().error(f"raw frame dump failed: {exc}")
+            return analyze(request)
+
+        future = self._probe_executor.submit(task)
+        shadow = None
+        if self._shadow is not None:
+            try:
+                shadow = self._shadow.evaluate_probe(request_id, snapshot, self._effective_goal)
+            except Exception as exc:  # evaluate_probe records its own errors; last resort
+                self.get_logger().error(
+                    f"shadow request={request_id} evaluate failed: {type(exc).__name__}: {exc}"
+                )
+        self._probe = _PendingProbe(request_id, probe_index, request, snapshot, future, shadow)
+        return order
+
+    def _harvest_probe(self) -> None:
+        probe = self._probe
+        if probe is None or not probe.future.done():
+            return
+        self._probe = None
+        try:
+            outcome = probe.future.result()
+        except Exception as exc:
+            self.get_logger().error(f"t0 probe worker failed request={probe.request_id}: {exc}")
+            outcome = build_failed_outcome(probe.request_id, f"worker raised: {exc}")
+        self._handle_probe_outcome(probe, outcome)
+
+    def _handle_probe_outcome(self, probe: _PendingProbe, outcome: PipelineOutcome) -> None:
+        """Record a finished probe; log-only, so it ends here.
+
+        Deliberately never touches the state machine, cooldowns, AttemptMemory,
+        the command tracker, the registry or `_dispatch`.
+        """
+        shadow_block = self._finalize_shadow_record(probe.shadow, outcome)
+        try:
+            artifact_path = write_decision_artifact(
+                self._config.decision_log_dir,
+                outcome,
+                request=probe.request,
+                snapshot=probe.snapshot,
+                run_id=self._run_id,
+                session_id=self._session_id,
+                prompt_robot_order_mode=self._config.prompt_robot_order,
+                prompt_robot_order_seed=self._order_seed,
+                grounding_yield_feasibility=self._config.grounding_yield_feasibility,
+                shadow_classical=shadow_block,
+                probe_index=probe.probe_index,
+            )
+            self.get_logger().info(f"decision artifact written: {artifact_path}")
+        except OSError as exc:
+            self.get_logger().error(f"decision artifact write failed: {exc}")
+        decision = outcome.reasoner_result.decision
+        verdict = (
+            "none"
+            if decision is None
+            else f"{str(decision.congestion_detected).lower()} type={decision.type} "
+            f"strategy={decision.strategy}"
+        )
+        self.get_logger().info(
+            f"t0 probe complete request={outcome.request_id} probe_index={probe.probe_index} "
+            f"stage={outcome.terminal_stage.value} congestion_detected={verdict} "
+            "(log-only, not dispatched)"
+        )
+        self._cleanup_frame(outcome.request_id)
 
     def _resolve_command(self, command_id: str) -> None:
         robots = self._tracker.robots_of(command_id)

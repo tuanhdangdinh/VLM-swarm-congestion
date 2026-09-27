@@ -131,6 +131,15 @@ shadow_classical_sample_period_sec: 0.25
 #   - { zone_id: crossing_1, x: 0.0, y: 0.0, radius_m: 1.5 }
 shadow_classical_zones: []
 
+# T0 negative control (log-only probes): every t0_probe_interval_sec, run the
+# VLM analysis off-trigger on the latest scene and record it (artifact marked
+# probe: true, log line reason=t0_probe). Probes can never be grounded or
+# dispatched. On only for T0 normal_flow runs (set that scenario's goals in
+# initial_tasks above). t0_probe_max_probes: 0 = unlimited.
+t0_probe_mode: false
+t0_probe_interval_sec: 20.0
+t0_probe_max_probes: 0
+
 # Fixed obstacles rendered into the VLM prompt when prompt_static_obstacles is
 # true. Like scenario_geometry above, these mirror the scenario file by hand
 # (here the head-on asymmetric family blocker) and must be set per scenario —

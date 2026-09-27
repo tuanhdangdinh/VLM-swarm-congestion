@@ -378,3 +378,25 @@ def test_shipped_orchestrator_yaml_keeps_raw_frame_dumps_off():
 
     assert cfg.keep_raw_frames is False
     assert cfg.raw_frame_topic == "/camera/image_raw"
+
+
+def test_orchestrator_config_t0_probe_mode_defaults_off():
+    config = _config_with()
+    assert config.t0_probe_mode is False
+    assert config.t0_probe_interval_sec == 20.0
+    assert config.t0_probe_max_probes == 0
+
+
+@pytest.mark.parametrize(
+    "overrides", [{"t0_probe_interval_sec": 0.0}, {"t0_probe_max_probes": -1}]
+)
+def test_orchestrator_config_rejects_invalid_t0_probe_settings(overrides):
+    with pytest.raises(ValidationError):
+        _config_with(**overrides)
+
+
+def test_shipped_orchestrator_yaml_keeps_t0_probe_mode_off():
+    raw = yaml.safe_load(
+        Path("ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml").read_text()
+    )
+    assert load_config(raw).t0_probe_mode is False

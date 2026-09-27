@@ -348,6 +348,38 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   is unchanged — it still carries the annotated frame — so an annotated-vs-raw
   replay has both frames of one instant. A missing raw frame is logged and
   skipped, never raised: debug evidence must not fail an analysis.
+- FR5.3.12 (2026-09-27) `t0_probe_mode` (default **false**) runs the T0
+  negative-control probes of the congestion-resolution design
+  (`docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md`,
+  "Scenario battery", T0): every `t0_probe_interval_sec` (default 20.0; cap
+  `t0_probe_max_probes`, 0 = unlimited) M5 runs the M2 analysis **off-trigger**
+  on the latest scene in **log-only** mode. A probe is built with the same
+  `build_reasoner_request` and frame dump as a triggered analysis, writes the
+  same decision artifact plus `probe: true` and `probe_index`, gets an Arm B
+  shadow record (`prior_attempts_source: t0_probe`), and logs
+  `starting analysis request=<id> robots=[…] reason=t0_probe order=<o> probe=true
+  probe_index=<k>`. **No command may be emitted**, enforced in two layers: (1)
+  structurally, the probe path calls only `InProcessPipeline.analyze` (M2
+  only, terminal stage `probe`) and records the outcome in
+  `_handle_probe_outcome`, which never reaches the state machine, cooldowns,
+  `AttemptMemory`, the tracker, the registry or `_dispatch`; (2) defensively,
+  `_dispatch` refuses any request id in the `ProbeLedger` with an ERROR line
+  `refusing dispatch request=<id>: t0 probe outcomes are log-only`. Probes do
+  not perturb triggered analyses: they carry no failure context (its wording
+  asserts congestion was re-detected, and reading `AttemptMemory` can clear
+  it), leave `EpisodeOrderTracker` alone (probe *k* renders
+  `PresentationOrderPolicy(mode, seed).order_for_episode(k)`; the artifact's
+  `episode_index` is null), use a shadow path that neither counts an attempt
+  nor consumes feed errors, and run on their own single-worker executor, so a
+  real trigger that fires while a probe is in flight starts at once. A probe
+  never starts while a triggered analysis is in flight, while the previous
+  probe is unfinished, or without a fresh frame; a due probe that is blocked
+  stays due and fires on the first free timer tick (`t0 probe deferred
+  reason=<r>` is logged once per reason). With the mode off, every artifact
+  and log line is byte-identical to before (probe keys are written only for
+  probes). `scripts/rescore_arrivals.py` times resolution from the first
+  `starting analysis` line and does not yet skip `reason=t0_probe`; do not
+  rescore T0 runs with it.
 
 ### M5.4 Command Lifecycle & Fan-out
 - FR5.4.1 Translate the single grounded command (schema: `command_id`, `actions[]`,
@@ -433,6 +465,9 @@ redefined.
 | prompt_robot_order | `"id_asc"` \| `"id_desc"` \| `"random"` | (2026-09-25) order the VLM prompt lists robots in, default `id_asc`; `random` draws per congestion episode (FR5.3.9; ablation axis) |
 | prompt_robot_order_seed | int \| None | (2026-09-25) seed for the `random` draw; null derives it from `VGU_RUN_ID`, falling back to the session id, so paired runs share the sequence (FR5.3.9) |
 | grounding_yield_feasibility | `"off"` \| `"swap"` \| `"refuse"` | (2026-09-25) whether M3 may move a yield off the robot M2 named when that robot is boxed in; default `"off"`, and a no-op unless both `static_obstacles` and `scenario_geometry` are set (FR5.3.10; M3 spec §yield feasibility; experimental condition) |
+| t0_probe_mode | bool | (2026-09-27) run T0 log-only VLM probes off-trigger; default **false** (FR5.3.12) |
+| t0_probe_interval_sec | float | (2026-09-27) seconds between probe starts, > 0, default 20.0 (FR5.3.12) |
+| t0_probe_max_probes | int | (2026-09-27) probes per M5 process, ≥ 0, default 0 = unlimited (FR5.3.12) |
 | keep_debug_frames | bool | retain dumped frames after cycle resolution; default false |
 | keep_raw_frames | bool | (2026-09-25) with `keep_debug_frames`, also dump M1's input frame as `<request_id>_raw.png` beside the annotated one; default **false** (FR5.3.11) |
 | raw_frame_topic | str | (2026-09-25) camera topic the raw dump subscribes to (M1's `image_topic`), default `/camera/image_raw`; read only when `keep_raw_frames` is on (FR5.3.11) |

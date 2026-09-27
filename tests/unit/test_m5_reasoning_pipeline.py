@@ -1165,3 +1165,93 @@ def test_latest_raw_frame_accepts_an_out_of_order_frame_as_the_newest():
 
     _frame, stamp = holder.latest()
     assert stamp == 4.0
+
+
+# ---- T0 log-only probe (stage-1 only) ----
+
+
+class _CountingReasoner:
+    def __init__(self, result):
+        self._result = result
+        self.calls = 0
+
+    def run(self, request):
+        self.calls += 1
+        return self._result
+
+
+def test_pipeline_analyze_never_grounds_congestion_decision():
+    reasoner = _CountingReasoner(_ok_result())
+    pipe = InProcessPipeline(reasoner=reasoner, ground_fn=_must_not_ground)
+
+    outcome = pipe.analyze(_request())
+
+    assert reasoner.calls == 1
+    assert outcome.terminal_stage is TerminalStage.PROBE
+    assert outcome.grounded_command is None
+    assert outcome.reasoner_result.decision.congestion_detected is True
+
+
+def test_pipeline_analyze_records_no_congestion_decision_as_probe():
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_no_congestion_result()), ground_fn=_must_not_ground
+    )
+    outcome = pipe.analyze(_request())
+    assert outcome.terminal_stage is TerminalStage.PROBE
+    assert outcome.failure_reason is None
+
+
+def test_pipeline_analyze_vlm_failure_terminates_at_vlm():
+    pipe = InProcessPipeline(reasoner=_FakeReasoner(_failed_result()), ground_fn=_must_not_ground)
+    outcome = pipe.analyze(_request())
+    assert outcome.terminal_stage is TerminalStage.VLM
+    assert outcome.failure_reason == "decision=None"
+
+
+def test_pipeline_analyze_reasoner_exception_terminates_at_vlm_without_raising():
+    pipe = InProcessPipeline(reasoner=_RaisingReasoner(), ground_fn=_must_not_ground)
+    outcome = pipe.analyze(_request())
+    assert outcome.terminal_stage is TerminalStage.VLM
+    assert "backend exploded" in outcome.failure_reason
+
+
+def _probe_outcome():
+    return PipelineOutcome(
+        request_id="r1",
+        reasoner_result=_ok_result(),
+        grounded_command=None,
+        terminal_stage=TerminalStage.PROBE,
+    )
+
+
+# The artifact keys every analysis wrote before T0 probes existed; probe mode
+# off must leave this set, and so every existing artifact, unchanged.
+_PRE_PROBE_ARTIFACT_KEYS = {
+    "request_id", "run_id", "session_id", "terminal_stage", "failure_reason",
+    "grounded_command_present", "decision", "diagnostics", "reasoner_config_effective",
+    "raw_text", "failure_context", "last_failed_context", "prompt",
+    "robot_presentation_order", "prompt_robot_order_mode", "prompt_robot_order_seed",
+    "episode_index", "grounding_yield_feasibility", "yield_robot_grounded_from",
+    "yield_regrounded_reason", "yield_refusal_reason", "scene", "distance_to_goal_m",
+    "shadow_classical",
+}
+
+
+def test_write_decision_artifact_omits_probe_keys_for_triggered_analysis(tmp_path):
+    payload = json.loads(write_decision_artifact(tmp_path, _probe_outcome()).read_text())
+    assert set(payload) == _PRE_PROBE_ARTIFACT_KEYS
+
+
+def test_write_decision_artifact_marks_probe_and_would_be_decision(tmp_path):
+    payload = json.loads(
+        write_decision_artifact(
+            tmp_path, _probe_outcome(), request=_request(), probe_index=3
+        ).read_text()
+    )
+    assert payload["probe"] is True
+    assert payload["probe_index"] == 3
+    assert payload["terminal_stage"] == "probe"
+    assert payload["grounded_command_present"] is False
+    assert payload["decision"]["congestion_detected"] is True
+    assert payload["decision"]["strategy"] == "yield"
+    assert set(payload) == _PRE_PROBE_ARTIFACT_KEYS | {"probe", "probe_index"}

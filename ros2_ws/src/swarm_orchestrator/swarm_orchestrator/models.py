@@ -33,6 +33,9 @@ class TerminalStage(str, Enum):
     VLM = "vlm"
     GROUNDING = "grounding"
     OK = "ok"
+    # A T0 log-only probe whose stage-1 analysis completed; grounding and
+    # dispatch never run for it, so it can never be dispatched.
+    PROBE = "probe"
 
 
 class TaskAssignment(BaseModel):
@@ -152,6 +155,15 @@ class OrchestratorConfig(BaseModel):
     # Mapped conflict zones for the intersection rule (later tiers). Empty is
     # valid: the head-on rule derives its own pair zone.
     shadow_classical_zones: tuple[ConflictZone, ...] = ()
+    # T0 negative control (design spec "Scenario battery"): every
+    # t0_probe_interval_sec, run the stage-1 VLM analysis off-trigger on the
+    # latest scene in log-only mode — recorded like a triggered analysis,
+    # never grounded or dispatched. Off by default; only T0 normal-flow runs
+    # turn it on. t0_probe_max_probes caps the probes per M5 process; 0 means
+    # unlimited.
+    t0_probe_mode: bool = False
+    t0_probe_interval_sec: float = Field(default=20.0, gt=0.0)
+    t0_probe_max_probes: int = Field(default=0, ge=0)
 
     @field_validator("initial_tasks")
     @classmethod

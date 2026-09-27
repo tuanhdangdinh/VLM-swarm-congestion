@@ -340,6 +340,7 @@ def write_decision_artifact(
     grounding_yield_feasibility: YieldFeasibilityMode | None = None,
     last_failed_context: FailureContext | None = None,
     shadow_classical: dict[str, Any] | None = None,
+    probe_index: int | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
@@ -377,6 +378,10 @@ def write_decision_artifact(
             dumped to JSON) computed on this analysis's evidence, or None when
             the shadow is disabled. Taken as a plain dict, built before this
             call, so a shadow failure can never skip the artifact write.
+        probe_index: Zero-based index of a T0 log-only probe, or None for a
+            triggered analysis. A probe artifact gains `probe: true` and
+            `probe_index`; a triggered one gains neither key, so its bytes
+            are unchanged from before probes existed.
 
     Returns:
         The artifact path.
@@ -437,6 +442,9 @@ def write_decision_artifact(
         "distance_to_goal_m": dict(distance_to_goal_m or {}),
         "shadow_classical": shadow_classical,
     }
+    if probe_index is not None:
+        payload["probe"] = True
+        payload["probe_index"] = probe_index
     artifact_path = output_path / f"{outcome.request_id}.json"
     artifact_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return artifact_path
@@ -474,6 +482,12 @@ class ReasoningPipeline(Protocol):
     """Backend/transport-agnostic M2->M3 pipeline."""
 
     def run(self, request: ReasonerRequest) -> PipelineOutcome: ...
+
+
+class Stage1Analyzer(Protocol):
+    """Runs only the M2 analysis of a request, for T0 log-only probes."""
+
+    def analyze(self, request: ReasonerRequest) -> PipelineOutcome: ...
 
 
 class InProcessPipeline:
@@ -546,6 +560,34 @@ class InProcessPipeline:
             reasoner_result=result,
             grounded_command=grounded,
             terminal_stage=TerminalStage.OK,
+            failure_reason=None,
+        )
+
+    def analyze(self, request: ReasonerRequest) -> PipelineOutcome:
+        """Run the M2 stage only, for a T0 log-only probe; M3 is never called.
+
+        Structurally the first no-dispatch layer: the outcome never carries a
+        grounded command, whatever the decision says. A completed decision
+        terminates at `PROBE`; a missing one or a raised reasoner at `VLM`,
+        as in `run`.
+
+        Args:
+            request: The probe's reasoner request.
+
+        Returns:
+            The outcome with `grounded_command=None`.
+        """
+        try:
+            result = self._reasoner.run(request)
+        except Exception as exc:  # unexpected M2 failure — bounded here, never raised
+            return build_failed_outcome(request.request_id, f"reasoner raised: {exc}")
+        if result.decision is None:
+            return self._vlm_terminal(request.request_id, result, "decision=None")
+        return PipelineOutcome(
+            request_id=request.request_id,
+            reasoner_result=result,
+            grounded_command=None,
+            terminal_stage=TerminalStage.PROBE,
             failure_reason=None,
         )
 

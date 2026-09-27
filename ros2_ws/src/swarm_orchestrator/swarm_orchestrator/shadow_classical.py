@@ -279,7 +279,8 @@ class ShadowClassicalRecord(BaseModel):
     # not AttemptMemory: that memory is off in the RQ5 memoryless control,
     # which would otherwise change Arm B's `unknown` policy with an Arm A
     # ablation.
-    prior_attempts_source: Literal["episode_analyses"] = "episode_analyses"
+    # "t0_probe": a log-only probe, which is never counted as an attempt.
+    prior_attempts_source: Literal["episode_analyses", "t0_probe"] = "episode_analyses"
     zone_ids: list[str]
     window_sec: float
     sample_period_sec: float
@@ -402,6 +403,57 @@ class ClassicalShadow:
         prior_attempts = self._next_prior_attempts(episode_index)
         feed_errors, last_feed_error = self._feed_errors, self._last_feed_error
         self._feed_errors, self._last_feed_error = 0, None
+        return self._evaluate(
+            request_id,
+            snapshot,
+            goal_of,
+            prior_attempts,
+            "episode_analyses",
+            feed_errors,
+            last_feed_error,
+        )
+
+    def evaluate_probe(
+        self,
+        request_id: str,
+        snapshot: SceneSnapshot,
+        goal_of: GoalLookup,
+    ) -> ShadowClassicalRecord:
+        """Compute Arm B's answer for a T0 log-only probe; never raises.
+
+        Unlike `evaluate`, this leaves the shadow's state alone: the probe is
+        not counted as an episode attempt (`prior_attempts` is 0) and pending
+        feed errors are reported without being consumed, so a probe between
+        two triggered analyses cannot change what the second one records.
+
+        Args:
+            request_id: The probe's request id.
+            snapshot: The scene the probe request was built from.
+            goal_of: Registry lookup of a robot's effective goal.
+
+        Returns:
+            Record with the classical decision, or with `shadow_error` set.
+        """
+        return self._evaluate(
+            request_id,
+            snapshot,
+            goal_of,
+            0,
+            "t0_probe",
+            self._feed_errors,
+            self._last_feed_error,
+        )
+
+    def _evaluate(
+        self,
+        request_id: str,
+        snapshot: SceneSnapshot,
+        goal_of: GoalLookup,
+        prior_attempts: int,
+        prior_attempts_source: str,
+        feed_errors: int,
+        last_feed_error: str | None,
+    ) -> ShadowClassicalRecord:
         params = self._source.params
         base: dict[str, Any] = {
             "request_id": request_id,
@@ -409,6 +461,7 @@ class ClassicalShadow:
             "params_section_present": self._source.section_present,
             "params": params,
             "prior_attempts": prior_attempts,
+            "prior_attempts_source": prior_attempts_source,
             "zone_ids": [zone.zone_id for zone in self._zones],
             "window_sec": self._window_sec,
             "sample_period_sec": self._sample_period_sec,

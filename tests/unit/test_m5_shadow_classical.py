@@ -622,3 +622,32 @@ def test_shadow_error_leaves_rest_of_artifact_unchanged(tmp_path):
             continue
         assert with_bad[key] == without[key] == with_good[key], key
     assert with_bad["decision"]["yield_robot"] == "robot_1"
+
+
+# ---- T0 probes ----
+
+
+def test_shadow_probe_evaluation_records_zero_prior_attempts():
+    shadow = _fed_shadow()
+    _evaluated(shadow, "r1", episode=0)
+    record = shadow.evaluate_probe("p1", _trigger_scene(), _goal_of)
+    assert record.prior_attempts == 0
+    assert record.prior_attempts_source == "t0_probe"
+    assert record.decision is not None
+
+
+def test_shadow_probe_between_reanalyses_keeps_episode_count():
+    shadow = _fed_shadow()
+    _evaluated(shadow, "r1", episode=0)
+    shadow.evaluate_probe("p1", _trigger_scene(), _goal_of)
+    assert _evaluated(shadow, "r2", episode=0).prior_attempts == 1
+
+
+def test_shadow_probe_does_not_consume_feed_errors():
+    def broken_goal(_robot_id):
+        raise KeyError("registry gone")
+
+    shadow = _shadow()
+    shadow.observe(_trigger_scene(1.0), broken_goal)
+    assert shadow.evaluate_probe("p1", _trigger_scene(2.0), _goal_of).feed_errors == 1
+    assert _evaluated(shadow, "r1").feed_errors == 1
