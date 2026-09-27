@@ -37,6 +37,127 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-28** — **Stage 2 is complete for T3b: set-of-mark letters are
+  drawn, letters are counterbalanced, stage 2 has its own retry budget, and
+  the shadow records Arm B's stage-2 answer** (`49416c7` drawing, `ad10aeb`
+  letters + budget, `e73c189` shadow). This closes amendments items 21–22 and
+  both riders. T3b is now blocked only on its scenario and a VM run. It needs
+  a colcon rebuild of `swarm_orchestrator`: there is a new module and a new
+  `swarm_perception` exec_depend.
+  - **Item 21: set-of-mark drawing** (`swarm_orchestrator/stage2_marks.py`).
+    - **Where it happens.** M5 reads its own dumped stage-1 PNG. It places
+      each candidate with `swarm_perception.geometry.world_to_pixel`, which
+      applies the inverse of M1's pixel→world homography (the same mapping
+      M1's robot boxes use). The math is not duplicated. The pixel position
+      is scaled by PNG size ÷ calibration `image_size`, so
+      `frame_downscale_width` is handled. The drawing is written to
+      `<request_id>_stage2.png`, beside the frame.
+    - **What the model gets.** That image and a v2 prompt that says the
+      letters are drawn.
+    - **Calibration.** New key `stage2_calibration_path`. `null` means the
+      `swarm_perception` share `config/calibration.yaml`, the file M1
+      launches with. It is loaded once at startup, and a failure is never
+      fatal.
+    - **Drawing spec.** Each candidate gets:
+      - a ring the size of the robot footprint (0.15 m radius, 34 px at
+        1280×960), drawn black 3 px under white 1 px;
+      - a small white badge at the exact point (radius 0.0095 × width,
+        12 px, minimum 9), with a 2 px black outline;
+      - a black Hershey letter centred in the badge.
+
+      There are no status colours. It is a ring, not a disc, so an
+      obstacle on a candidate stays visible; a 0.3 m box is about 69 px.
+    - **Degradation.** Any of these sends the unmarked frame and a prompt
+      that says "not drawn", with `stage2.marks_drawn: false` and
+      `stage2.marks.reason` recorded:
+      - no marker or no calibration;
+      - an unreadable frame;
+      - aspect mismatch above 1 %;
+      - any candidate outside the frame;
+      - any render exception.
+
+      It never costs the call. `stage2.marks` records every letter's
+      `(u, v)` in the drawn image, the scale and the calibration path.
+      `_cleanup_frame` also removes `_stage2.png`.
+    - **Deviation from rev-8 A.1/A.3.** The marks go on the stage-1
+      *annotated* frame (arrows and goal markers kept), not on a fresh M1
+      frame with them dropped. The homography is at the marker plane
+      (`plane_height_m` 0.21), the same plane M1's robot positions live on.
+  - **Stage-2 prompt v2.** `Stage2PromptVersion = Literal[2]`. v1 is
+    retired, not frozen, because no v1 data exists:
+    - `e358229` was never pushed; `git branch -a --contains` lists only this
+      branch;
+    - it was never deployed (VM deploy was still pending);
+    - nothing under `data/` has a `stage2` key;
+    - both API backends are funding-blocked.
+
+    v2 has two variants:
+    - marked: `61502f20…` head-on, `3ff66fe9…` three-robot. It uses A.3's
+      "Choose the marked retreat position…" wording and the sentence "Each
+      position is marked on the image by its letter in a white disc, inside
+      a ring the size of the robot.";
+    - unmarked: byte-identical to v1, pins `4275d2ec…`/`d91e23c9…` kept
+      (`tests/unit/test_stage2_prompt.py`).
+  - **Item 22: letter counterbalancing** (`retreat_stage2.py`). M3's labels
+    and the grounder are unchanged. The letters the VLM sees are a seeded
+    uniform permutation of M3's label set. The answer is mapped back to M3's
+    label before grounding.
+    - **Seed.** `derive_letter_seed(base, draw_index)` is SHA-256 of
+      `"{base}:stage2:{i}"`. `base` is M5's presentation-order seed
+      (`prompt_robot_order_seed`, else derived from `VGU_RUN_ID`/session).
+      `i` counts derived-yield stage-2 invocations per M5 process, so paired
+      runs with the same run id get the same letter sequence.
+    - **Artifact fields.** `stage2` gains:
+      - `default_letter`: the shown letter of rank 0;
+      - `letter_seed_base`, `letter_draw_index`, `letter_seed`;
+      - `letter_assignment`: letter → `candidate_label`, `rank`, `x`, `y`;
+      - `letter` on each ranked candidate;
+      - `grounded_label`: the M3 label handed to the grounder.
+
+      `assign_letters(len(candidates), letter_seed)` reproduces the
+      assignment, and a test checks that.
+    - **Two letter spaces, a trap for analysis.**
+      - `stage2.choice` and `default_letter` are in *shown* letters.
+      - `default_label` and the command's `yield.retreat_choice` are *M3*
+        labels.
+      - "Chose the default" is `choice == default_letter`, or
+        `grounded_label == default_label`.
+      - Never compare `choice` with `retreat_choice`.
+    - **Balance.** Default-letter balance is test-checked: 200 draws over k
+      = 2 land 70–130 on A, and k = 4 is near-uniform.
+  - **Rider: stage-2 budget.** New keys `stage2_max_attempts: 2` and
+    `stage2_timeout_sec: 8.0`. They replace stage 1's attempts and timeout
+    in a copy of the reasoner config; sampling stays stage 1's.
+    - The worst case is 16 s, inside one `command_timeout_sec` (20 s),
+      instead of 4 × 120 s on openai.
+    - 8 s is above every measured stage-1 call: gpt-4o 2.1–6.0 s, ER-2
+      3.2–3.8 s. The stage-2 prompt is shorter and the answer is one
+      letter.
+    - Each `RetreatChoiceResult` records `max_attempts` and `timeout_sec`.
+  - **Rider: Arm B's stage-2 answer** (`shadow_classical.py`). The shadow
+    gets the pipeline's params, geometry, obstacles and gate mode
+    (`ClassicalRetreatContext`). It records `classical_retreat` on every
+    shadow record.
+    - **What it computes.** It runs `resolve_yield_roles` and then
+      `prepare_retreat_selection` for the *classical* yielder, and records
+      `ranked[0]`: M3 label, x, y, backup, lateral, and the candidate count.
+    - **Status.** `computed`, or one of:
+      - `not_applicable`: no classical yield, or not in derived mode;
+      - `unavailable`: gate refusal, infeasible backup, or no candidate;
+      - `error`: isolated like the censoring flag. The decision is kept and
+        the error goes to `shadow_error`.
+    - **Comparison.** `finalize` compares it with the executed yield by
+      yielder and position, at the command's 3-dp rounding, never by
+      letter. It sets `comparable`, `same_yielder`, `equals_executed` and
+      `executed`. The comparison is not comparable with no command or a
+      non-derived yield.
+  - **Not updated:** `docs/specs/module5_orchestrator.md` (still also
+    missing the earlier stage-2 fields).
+  - **Pending:** the T3b scenario, and a VM run that shows `marks_drawn:
+    true` with the letters over the right spots on a real frame. Check the
+    M5 startup log for `stage2 marks enabled`. An unavailable-calibration
+    warning there means stage 2 runs unmarked.
+
 - **2026-09-28** — **Derived grounding and stage-2 retreat selection are wired
   into M5, and `config/rag.yaml` now says `grounding.mode: derived`**
   (`e358229` wiring, `1648dd2` flip; revert `1648dd2` alone to go back to
@@ -54,7 +175,8 @@ Rules for maintaining it:
     obstacles, gate mode and params go to both `run_retreat_stage2` and
     `ground_fn`, so the letters resolve against the same poses.
     `crossing_order` is not passed, so the grounder reads it off the decision.
-  - **Stage 2 ships with text-only letters (flagged gap).** Rev-8 A.1/A.3
+  - **Stage 2 ships with text-only letters (flagged gap; superseded by the
+    later 2026-09-28 stage-2 completion entry).** Rev-8 A.1/A.3
     have M1 draw lettered marks on a fresh decision frame, with arrows and
     goals dropped. That is not built. The prompt lists the letters with
     world coordinates, says they are not drawn, and reuses the stage-1
@@ -97,7 +219,8 @@ Rules for maintaining it:
       and stage 2 never even fires live. When it does, the worst case with
       the shipped config is 4 × 120 s on openai and 2 × 120 s on gemini,
       the same bound as stage 1. A separate stage-2 attempt/timeout key
-      does not exist yet.
+      does not exist yet (superseded by the later 2026-09-28 stage-2
+      completion entry: 2 × 8 s).
   - **Mock.** The stage-1 mock is scripted, so sharing it would make stage 2
     consume the next `VGU_MOCK_DECISION_FILE` entry. Stage 2 therefore gets
     its own mock only when `VGU_MOCK_RETREAT_CHOICE_FILE` names a script, a
