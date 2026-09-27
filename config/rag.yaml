@@ -3,6 +3,22 @@ rag:
   vector_store_path: data/vector_store
   knowledge_base_path: data/knowledge_base/coordination_templates.yaml
 
+# M3 grounding mode (rev-8 Appendix A). `legacy` is the scenario-tuned bridge
+# every collected artifact was grounded with; `derived` adds feasibility bands,
+# swept-path-validated retreat candidates and stage-2 retreat choice. Stays
+# legacy until M5 is wired for derived mode. min_distance_m, lateral_m and
+# escort_clearance_m are fallbacks: with M5's scenario_geometry declared, the
+# scene's safety radius, pull_off_lateral_m and passer_clearance_m replace them.
+grounding:
+  mode: legacy
+  min_distance_m: 0.45
+  backup_clearance_m: 1.7
+  escort_clearance_m: 0.5
+  backup_band_m: [0.5, 2.0]
+  escort_band_m: [1.0, 3.5]
+  lateral_m: 0.35
+  sweep_step_m: 0.1
+
 # Arm B classical reasoner thresholds (rev-8 defaults). Tunable on T1 scenarios
 # only, and frozen at the prereg-v1 tag (tuning-parity rule).
 classical:

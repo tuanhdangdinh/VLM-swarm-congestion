@@ -203,6 +203,20 @@ class CongestionDecision(BaseModel):
         return self
 
 
+class RetreatChoiceDecision(BaseModel):
+    """Stage-2 VLM output: one set-of-mark candidate letter plus one clause."""
+
+    model_config = ConfigDict(frozen=True)
+
+    retreat_choice: str = Field(min_length=1, max_length=1)
+    justification: str
+
+    @field_validator("retreat_choice", mode="before")
+    @classmethod
+    def _uppercase_label(cls, value: object) -> object:
+        return value.upper() if isinstance(value, str) else value
+
+
 class EffectiveSamplingConfig(BaseModel):
     """The sampling settings actually in force for one reasoning call.
 

@@ -58,6 +58,74 @@ Rules for maintaining it:
   Pending: scenario USD build + a T0 probe episode on the VM; and
   `scripts/rescore_arrivals.py` does not skip `reason=t0_probe` lines, so do
   not rescore T0 runs with it.
+- **2026-09-27** — **Pillar 2 stage-2 retreat machinery landed offline (Phase 1
+  plan Tasks 3, 8, 9, 11, adapted to the current tree).** It is on branch
+  `feat/pillar2-retreat`, unmerged. This is the prerequisite slice for T3b
+  (`docs/superpowers/specs/2026-09-27-scenario-battery-design.md` §T3b).
+  - Commits: `9d027e6` (Task 3), `09b74db` (Task 8), `6094794` (Task 9),
+    `cf81fa9` (Task 11). Tests are in `tests/unit/test_retreat_choice_parser.py`,
+    `test_maneuver_geometry.py`, `test_retreat_candidates.py` and
+    `test_command_grounder_derived.py`.
+  - **Deliberately not included.** There is no M5 wiring: no stage-2 call, no
+    marker rendering and no artifact fields. There is also no config flip:
+    `config/rag.yaml` `grounding: mode: legacy`. Both follow the prompt-v2
+    bundle.
+  - **Legacy guarantee.** `ground_reasoner_result` gains keyword-only
+    `snapshot`, `params`, `retreat_choice` and `crossing_order`. The legacy
+    body moved verbatim into `_ground_legacy`.
+    - A SHA-256 over 576 legacy outputs is pinned at `d255a09`. The inputs
+      cover every strategy × yielder × position set × geometry × gate mode.
+    - The same digest is asserted with `params=GroundingParams()` plus a
+      snapshot, a retreat choice and a crossing order, which is what the M5
+      flip will pass.
+    - `tests/unit/test_command_grounder.py` is unmodified.
+  - **Composition with the M3 yield gate.** `resolve_yield_roles` runs these
+    steps in order:
+    1. `yield_robot`;
+    2. the gate (`swap`/`refuse`) on the snapshot positions;
+    3. the corridor same-side refusal;
+    4. the crossing order.
+
+    Only after that does `prepare_retreat_selection` build the candidates, for
+    the grounded yielder. A gate refusal keeps the legacy wait fan-out
+    byte-for-byte, with a tag added.
+  - **scene_geometry reuse.** When a `SceneGeometry` is declared, the derived
+    mode takes the following from `scene_geometry`:
+    - the park point, which floors the backup;
+    - `pull_off_lateral_m`, `passer_clearance_m` and the safety radius;
+    - the corridor-axis retreat side the gate uses.
+
+    At the deadlock pose it reproduces the legacy 1.489 / 0.36 / 2.739. The
+    `GroundingParams` constants apply only without a geometry. The family
+    oracle and `scene_geometry.py` are untouched.
+  - **Deviations from the plan sketch.**
+    - The backup minimum is exact, not a 0.01 m scan: float drift in the scan
+      gave 1.31 for 1.3.
+    - The Task 9 sidestep test's robot sat on the shared backup path, which
+      vetoed all four candidates. The robot was moved, and the veto is now
+      its own test.
+    - Task 10 (blocker-kind compatibility) is skipped because
+      `CongestionDecision` has no `blocker_kind`. The order comes from the
+      `crossing_order` keyword until that field exists.
+    - `RetreatLabelError` separates `invalid_label` from `parse_failure`.
+    - `retreat=default` splits into `:no_choice` and `:invalid_label`.
+    - A missing snapshot tags only spatial strategies.
+    - A partial snapshot counts as `distances=unavailable`.
+    - An infeasible yield reroutes the *yielder*.
+    - Every tag maps to a measurement-plan cause via `degradation_cause`.
+  - **Flagged for T3b and Phase 2.**
+    - The head-on corridor geometry offers k = 2 candidates, not k = 3. The
+      far variants at 0.72 m fail the 0.36 m band, so T3b needs a wider
+      explicit `aisle_y_band_m`.
+    - Stage 2 and grounding must use the same snapshot: letters are
+      positional, and `RetreatChoiceDecision` is not bound to a yielder.
+    - The sweep ignores declared static obstacles.
+    - A derived `reverse` still uses the blind 1.3 m constant.
+    - `linked_position` for three or more robots needs M4's Pillar 3 release
+      chain.
+    - `ranked[0]` equals Arm B's stage-2 answer only when both arms ground the
+      same yielder. `reasoning/baselines/` is unchanged.
+
 - **2026-09-27** — **Rescore sim-time regression fixed; censored FCFS
   arrivals flagged** (follow-ups to the S1/S2 validation entry below,
   `data/logs/vm_runs/simtime_shadow_val/VALIDATION_SUMMARY.txt` F3/F4).
