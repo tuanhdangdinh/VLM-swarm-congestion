@@ -1,0 +1,95 @@
+schema_version: 1
+name: dynamic_anomaly_v2
+family: dynamic_anomaly
+seed: 42
+# Obstacle removed at 110 s; robot_1 then needs ~2.1 m / 0.15 m/s = 14 s plus
+# Nav2 recovery unwinding and M4's 2 s base-goal retry, so 200 s leaves ~75 s
+# of margin for the episode to resolve and both robots to be seen parked.
+duration_sec: 200.0
+
+# T3c v2 (design spec "Scenario battery", T3c re-scoped 2026-09-27): a
+# transient obstacle appears in one robot's lane mid-traverse and later
+# disappears. Replaces dynamic_anomaly.yaml, whose smoke run (findings Rev 15
+# section AS) showed six defects: no obstacle spawn (runner fix c5cecaf),
+# robots at the camera-ROI edge never tracked by M1, no per-scenario map, four
+# robots against two Nav2 stacks, an obstacle window closed before M5 was up,
+# and a head-on centreline by construction.
+#
+# Robots: normal_flow's right-hand-traffic lanes verbatim (eastbound y = -0.35,
+# westbound y = +0.35, |x| <= 2.5 so every marker stays 0.5 m inside the
+# +-3.0 m camera ROI and M1 tracks both robots for the whole run). The lanes
+# never conflict with each other (0.70 m pass at the nadir, see normal_flow),
+# so the only disturbance in the scene is the obstacle.
+#
+# Obstacle geometry (a deliberate choice on top of the "off-axis, on-lane"
+# brief): a 0.3 m box centred on robot_1's lane (y in [-0.50, -0.20]) leaves
+# 0.8 m of free aisle to its north. Both Nav2 costmaps run an obstacle_layer
+# on the scan, so NavFn would simply replan around it: no stall, no M5
+# trigger, nothing for M2 to classify. The box therefore covers robot_1's lane
+# from the south rack face (y = -0.60) to y = +0.45, leaving a 0.15 m strip at
+# the north rack face -- narrower than the 0.18 m robot, so the detour is
+# physically denied. Its centre (y = -0.075) stays on robot_1's side of the
+# aisle axis. It also covers robot_2's lane, which is harmless: robot_2 has
+# cleared the box's x span long before the spawn (below).
+#
+# Timing, from the normal_flow T0 run 20260927_111348 ground truth (the same
+# lanes; all times are sim seconds, the scheduler's clock): both robots depart
+# at ~10.6 s, M5's first scene arrives at ~12 s, transit is 0.15 m/s.
+#   - robot_2 (westbound) leaves the box's x span [1.35, 1.65] at ~16 s.
+#   - spawn_at_sec 30.0: robot_1 is then at x ~ 0.43, ~0.9 m short of the
+#     box's west face, so it ARRIVES AT the obstacle while it is active and
+#     stops in front of it. Spawning into a robot would be a physics blow-up;
+#     robot_1 would need to run ~6 s ahead of schedule to reach the face by 30 s.
+#     (The battery spec's "window opens >= 60 sim-s" cannot catch a robot on a
+#     5 m lane: robot_1 is parked at its goal by ~45 s.)
+#   - The stall trigger needs 12 s without 0.1 m of progress
+#     (orchestrator.yaml stall_threshold_sec), so a first analysis is expected
+#     at ~43-50 s. remove_at_sec 110.0 keeps the obstacle for ~60 s after it:
+#     room for M2's answer, the dispatched command and a cooldown re-analysis
+#     before the obstacle despawns and robot_1 can proceed.
+# The obstacle is deliberately untracked: it carries no marker, and it must
+# not appear in any prompt text channel (keep prompt_static_obstacles false
+# and orchestrator.yaml static_obstacles absent). The VLM sees it only in the
+# image. It is NOT baked into the Nav2 map (generate_warehouse_map.py never
+# rasterizes timed_obstacles), so warehouse_map_dynamic_anomaly_v2 equals the
+# default map; Nav2 sees the box only through the lidar.
+#
+# No oracle block yet: the anomaly / transient answer key waits on the
+# prompt-v2 `blocker_kind` output field.
+#
+# M5 takes goals from swarm_orchestrator/config/orchestrator.yaml
+# initial_tasks, NOT from here: set them to the goals below before a run, or
+# M5 dispatches the head-on +-2.5 centreline goals.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -2.5, y: -0.35, yaw_rad: 0.0}
+    goal: {x: 2.5, y: -0.35}
+    initial_task: traverse_aisle
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 2.5, y: 0.35, yaw_rad: 3.141592653589793}
+    goal: {x: -2.5, y: 0.35}
+    initial_task: traverse_aisle
+
+timed_obstacles:
+  - obstacle_id: pallet_1
+    # scenario_builder authors every timed obstacle as a box of `size`; the
+    # asset name is carried in the schema but not referenced.
+    asset: dynamic_obstacle.usd
+    spawn_at_sec: 30.0
+    remove_at_sec: 110.0
+    pose: {x: 1.5, y: -0.075, yaw_rad: 0.0}
+    size: {x_m: 0.3, y_m: 1.05, z_m: 0.5}
+
+expected_conflict:
+  type: anomaly
+  involved_robots: [robot_1]
+  # From the spawn to the latest expected stall trigger (spawn + ~2 s to stop
+  # + 12 s stall threshold, plus departure jitter).
+  onset_window_sec: [30.0, 50.0]
+  min_duration_sec: 12.0
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

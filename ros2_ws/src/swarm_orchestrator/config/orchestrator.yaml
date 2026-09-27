@@ -77,6 +77,8 @@ frame_downscale_width: null
 #   normal_flow (T0 lanes, no conflict)    -> robot_1 [2.5, -0.35], robot_2 [-2.5, 0.35]
 #     (also set t0_probe_mode: true; the +-2.5 centreline goals below would
 #     put the two robots head-on)
+#   dynamic_anomaly_v2 (T3c, normal_flow lanes + timed pallet) -> same goals as
+#     normal_flow; t0_probe_mode stays false (the stall trigger is the point)
 # Running a _gshort or _bshort scenario without changing these dispatches +-2.5
 # and the variant silently degrades to its beyond-goal twin, blocker back on
 # the goal path (isaac/config/scenarios/family/*_{gshort,bshort}_o0.yaml).
