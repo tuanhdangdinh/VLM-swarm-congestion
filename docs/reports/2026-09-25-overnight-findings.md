@@ -2640,6 +2640,13 @@ would dispatch reroutes where Arm A stands down.
 1. Land the `rescore_arrivals.py` era fix and the `censored_arrivals`
    flag (in progress). Until then, no post-flip run may be scored with
    the unfixed script.
+   *Done — `64bb0bd` (era autodetection by span overlap, per-run derived
+   offset with anchors recorded in four new CSV columns,
+   `ClockReconciliationError` aborts instead of emitting stale rows;
+   identical output on all 55 pre-flip rows and 4/4 on S1/S2) and
+   `1a38379` (`censored_arrivals: list[str] | None` on the shadow
+   record). Note: `1a38379` post-dates the deployed VM tree `97634be` —
+   redeploy `swarm_orchestrator` before the next collection batch.*
 2. Pre-freeze decision: **goals in Arm A prompts.** The shadow work
    exposed that `build_reasoner_request` has never carried goals (the
    view lacks the field), while Arm B's frames do — an arms-parity gap.
