@@ -1,8 +1,22 @@
+import math
 from collections.abc import Sequence
 from typing import Any, Literal, NamedTuple
 
 from jsonschema import Draft202012Validator
+from pydantic import BaseModel, ConfigDict
 
+from reasoning.rag.maneuver_geometry import (
+    Derivation,
+    GroundingParams,
+    derive_backup_distance,
+    derive_escort_distance,
+    retreat_axes,
+)
+from reasoning.rag.retreat_candidates import (
+    RetreatCandidate,
+    generate_retreat_candidates,
+    rank_candidates,
+)
 from reasoning.rag.scene_geometry import (
     SceneGeometry,
     park_offset_m,
@@ -13,7 +27,13 @@ from reasoning.rag.scene_geometry import (
     yield_retreat_room_m,
 )
 from reasoning.schemas import load_schema
-from reasoning.vlm.models import CongestionDecision, ReasonerResult, StaticObstacleInput
+from reasoning.vlm.models import (
+    CongestionDecision,
+    ReasonerResult,
+    RetreatChoiceDecision,
+    SnapshotFrame,
+    StaticObstacleInput,
+)
 
 # What to do when the yielder M2 named cannot physically reach its park point:
 # "off" grounds the named yielder regardless (every artifact collected before
@@ -108,7 +128,9 @@ def filter_command_robot_ids(
         return command
 
     actions = [
-        action for action in command.get("actions", []) if action.get("robot_id") in allowed_robot_ids
+        action
+        for action in command.get("actions", [])
+        if action.get("robot_id") in allowed_robot_ids
     ]
     if not actions:
         raise CommandGroundingError(
@@ -236,6 +258,11 @@ def ground_reasoner_result(
     geometry: SceneGeometry | None = None,
     static_obstacles: Sequence[StaticObstacleInput] = (),
     yield_feasibility_mode: YieldFeasibilityMode = "off",
+    *,
+    snapshot: SnapshotFrame | None = None,
+    params: GroundingParams | None = None,
+    retreat_choice: RetreatChoiceDecision | None = None,
+    crossing_order: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Convert a validated VLM decision into an executable coordination command.
 
@@ -261,6 +288,15 @@ def ground_reasoner_result(
     be on the far side and a reverse there would traverse the corridor instead
     of opening it.
 
+    Everything above is the legacy mode: `params=None` or `params.mode ==
+    "legacy"`, byte-identical to the grounder before the mode switch existed,
+    whatever `snapshot`, `retreat_choice` and `crossing_order` say. With
+    `params.mode == "derived"` the rev-8 Appendix A path runs instead (see
+    `_ground_derived`): the snapshot replaces `robot_positions`, distances are
+    feasibility-banded instead of clamped, the retreat is one of the ranked,
+    swept-path-validated candidates, and the command carries a `degradations`
+    list (tag vocabulary in `DEGRADATION_TAGS`).
+
     Args:
         result: Validated M2 reasoner output whose decision is grounded.
         robot_positions: Optional map of robot_id to world-frame `(x, y)` in
@@ -278,7 +314,21 @@ def ground_reasoner_result(
             robot M2 named. `"off"` (the default) grounds it verbatim, `"swap"`
             hands the yield to a feasible involved robot when the named one is
             boxed in, `"refuse"` degrades to a temporary wait instead. The gate
-            needs both `geometry` and `robot_positions`.
+            needs both `geometry` and `robot_positions` (in derived mode, the
+            snapshot), and runs before any retreat candidate is generated.
+        snapshot: Derived mode only: the scene frame every distance and
+            candidate is derived from; `robot_positions` is ignored there. Must
+            be the frame `prepare_retreat_selection` rendered stage 2 from, or
+            the letters may name different poses. None (or a frame missing an
+            involved robot) degrades a spatial strategy to a non-spatial wait.
+        params: Grounding parameters and the mode switch; None means legacy.
+        retreat_choice: Derived mode only: the parsed stage-2 answer. None or
+            a letter that names no validated candidate grounds the top-ranked
+            candidate instead, tagged `retreat=default:*`.
+        crossing_order: Derived mode only: passing order for the non-yielders
+            (e.g. Arm B's FCFS order), until `CongestionDecision` carries one.
+            Must be a permutation of the involved robots minus the grounded
+            yielder, else the involved-robots order is used and tagged.
 
     Returns:
         Schema-validated coordination command dict.
@@ -288,6 +338,30 @@ def ground_reasoner_result(
             or names an unsupported strategy, or if the built command fails
             schema validation.
     """
+    if params is not None and params.mode == "derived":
+        return _ground_derived(
+            result,
+            snapshot=snapshot,
+            params=params,
+            retreat_choice=retreat_choice,
+            crossing_order=crossing_order,
+            geometry=geometry,
+            static_obstacles=static_obstacles,
+            yield_feasibility_mode=yield_feasibility_mode,
+        )
+    return _ground_legacy(
+        result, robot_positions, geometry, static_obstacles, yield_feasibility_mode
+    )
+
+
+def _ground_legacy(
+    result: ReasonerResult,
+    robot_positions: dict[str, tuple[float, float]] | None,
+    geometry: SceneGeometry | None,
+    static_obstacles: Sequence[StaticObstacleInput],
+    yield_feasibility_mode: YieldFeasibilityMode,
+) -> dict[str, Any]:
+    """Scenario-tuned pre-rev-8 bridge; its output is pinned byte-identical."""
     decision = result.decision
     if decision is None or not decision.congestion_detected:
         raise CommandGroundingError("cannot ground an empty or non-congestion decision")
@@ -575,3 +649,460 @@ def ground_reasoner_result(
             "fallback": "stop",
         }
     )
+
+
+# Derived-mode degradation tags and the measurement-plan cause each one counts
+# toward ("Measurement plan" in the rev-8 research design); None marks a
+# convention or provenance marker that is not one of those causes. Emitted tags
+# may carry a free-text suffix after the key; see `degradation_cause`.
+DEGRADATION_TAGS: dict[str, str | None] = {
+    # No snapshot, or a snapshot missing an involved robot: a spatial strategy
+    # (yield, reverse) cannot be verified and runs as a non-spatial wait.
+    "distances=unavailable": "no_snapshot",
+    # Gate refusal, park point or backup/escort requirement outside its band.
+    "yield=infeasible": "infeasible_geometry",
+    # The legacy reverse template's corridor same-side refusal.
+    "reverse=infeasible": "infeasible_geometry",
+    # convoy / priority_override: no maneuver template exists, so the legacy
+    # templates run a bounded wait. Not a measurement-plan cause.
+    "strategy=unsupported": None,
+    # The backup is feasible but every retreat candidate failed the sweep.
+    "retreat=no-valid-candidate": "infeasible_geometry",
+    # A stage-2 letter naming no validated candidate.
+    "retreat=default:invalid_label": "invalid_label",
+    # No stage-2 answer reached grounding: the caller records why (timeout,
+    # parse failure, a text-only condition, or Arm B, whose answer this IS).
+    "retreat=default:no_choice": None,
+    # A supplied crossing order that is not a permutation of the non-yielders.
+    "order=default:non_permutation": "non_permutation_order",
+    # Three or more robots with no explicit crossing order: involved-robots
+    # order was used. Convention markers, not measurement-plan causes.
+    "order=implicit": None,
+    "roles=legacy-convention": None,
+    # Provenance: the feasibility gate grounded a different yielder than M2
+    # named (scored pre-gate, prereg amendments).
+    "yield_robot=regrounded": None,
+    "yield=no-passer": None,
+}
+
+def degradation_cause(tag: str) -> str | None:
+    """Map one emitted degradation tag to its measurement-plan cause.
+
+    Args:
+        tag: An entry of a derived command's `degradations` list.
+
+    Returns:
+        The cause (`no_snapshot`, `infeasible_geometry`, `invalid_label`,
+        `non_permutation_order`), or None for a convention/provenance marker.
+
+    Raises:
+        KeyError: If the tag matches no key of `DEGRADATION_TAGS`.
+    """
+    for key in sorted(DEGRADATION_TAGS, key=len, reverse=True):
+        if tag == key or tag.startswith(f"{key}:"):
+            return DEGRADATION_TAGS[key]
+    raise KeyError(f"unknown degradation tag: {tag!r}")
+
+
+_SPATIAL_STRATEGIES = frozenset({"yield", "reverse"})
+# Matches the legacy grounder's non-spatial wait; kept separate so the legacy
+# body stays verbatim.
+_NONSPATIAL_WAIT_SEC = 8.0
+
+
+class YieldRoles(BaseModel):
+    """Who yields and in what order the rest cross, after the feasibility gate."""
+
+    model_config = ConfigDict(frozen=True)
+
+    # Involved robots with the grounded yielder first (the gate may reorder).
+    robot_ids: list[str]
+    crossing_order: list[str]
+    grounded_from: str | None = None
+    regrounded_reason: str | None = None
+    # Set when no executable yield exists; the command is a wait fan-out.
+    refusal_reason: str | None = None
+    degradations: list[str]
+
+    @property
+    def yielder_id(self) -> str:
+        """The robot that yields."""
+        return self.robot_ids[0]
+
+
+class RetreatSelection(BaseModel):
+    """Stage-2 inputs: the derived backup and the ranked candidate set."""
+
+    model_config = ConfigDict(frozen=True)
+
+    yielder_id: str
+    crossing_order: list[str]
+    backup: Derivation
+    # Best first: `candidates[0]` is the stage-2 default, the stage-2
+    # fallback, and Arm B's stage-2 answer.
+    candidates: list[RetreatCandidate]
+
+
+def resolve_yield_roles(
+    decision: CongestionDecision,
+    snapshot: SnapshotFrame,
+    *,
+    geometry: SceneGeometry | None = None,
+    static_obstacles: Sequence[StaticObstacleInput] = (),
+    yield_feasibility_mode: YieldFeasibilityMode = "off",
+    crossing_order: Sequence[str] | None = None,
+) -> YieldRoles:
+    """Resolve the yielder and crossing order of a yield decision.
+
+    The same steps derived-mode grounding runs, exposed so a caller can learn
+    the grounded yielder before rendering stage 2 for it: `yield_robot` (or
+    the first involved robot, tagged `roles=legacy-convention`), then the
+    yield feasibility gate on the snapshot positions, then the corridor
+    same-side refusal, then the crossing order.
+
+    Args:
+        decision: A congestion decision with `strategy == "yield"`.
+        snapshot: Scene frame supplying the robot positions.
+        geometry: Declared scene geometry; the gate and the same-side refusal
+            need it.
+        static_obstacles: Fixed obstacles the gate scores retreat room against.
+        yield_feasibility_mode: The gate mode (`"off"`, `"swap"`, `"refuse"`).
+        crossing_order: Explicit passing order for the non-yielders, or None.
+
+    Returns:
+        The roles, with `refusal_reason` set when no yield is executable.
+
+    Raises:
+        ValueError: If the decision's strategy is not `yield`.
+    """
+    if decision.strategy != "yield":
+        raise ValueError(f"yield roles need a yield decision, got {decision.strategy!r}")
+    degradations: list[str] = []
+    if decision.yield_robot is None:
+        degradations.append("roles=legacy-convention")
+    robot_ids = resolve_robot_order(decision)
+    if len(robot_ids) < 2:
+        degradations.append("yield=no-passer")
+        return YieldRoles(
+            robot_ids=robot_ids,
+            crossing_order=[],
+            refusal_reason="yield refused: no other involved robot to pass",
+            degradations=degradations,
+        )
+
+    positions = {state.robot_id: (state.x, state.y) for state in snapshot.robots}
+    grounded_from: str | None = None
+    regrounded_reason: str | None = None
+    if yield_feasibility_mode != "off" and geometry is not None:
+        robot_ids, grounded_from, regrounded_reason, refusal = _apply_yield_feasibility(
+            robot_ids, positions, static_obstacles, geometry, yield_feasibility_mode
+        )
+        if refusal is not None:
+            degradations.append(f"yield=infeasible:{refusal}")
+            return YieldRoles(
+                robot_ids=robot_ids,
+                crossing_order=robot_ids[1:],
+                refusal_reason=refusal,
+                degradations=degradations,
+            )
+        if grounded_from is not None:
+            degradations.append("yield_robot=regrounded")
+
+    order = list(robot_ids[1:])
+    if crossing_order is not None:
+        if sorted(crossing_order) == sorted(order) and len(set(crossing_order)) == len(order):
+            order = list(crossing_order)
+        else:
+            degradations.append("order=default:non_permutation")
+    elif len(order) > 1:
+        degradations.append("order=implicit")
+
+    if geometry is not None:
+        yielder_position = positions.get(robot_ids[0])
+        passer_position = positions.get(order[0])
+        if (
+            yielder_position is not None
+            and passer_position is not None
+            and _beyond_corridor_same_side(yielder_position, passer_position, geometry)
+        ):
+            refusal = (
+                "yield refused: both robots outside the corridor on "
+                "the same side; a reverse would traverse it"
+            )
+            degradations.append(f"yield=infeasible:{refusal}")
+            return YieldRoles(
+                robot_ids=robot_ids,
+                crossing_order=order,
+                grounded_from=grounded_from,
+                regrounded_reason=regrounded_reason,
+                refusal_reason=refusal,
+                degradations=degradations,
+            )
+
+    return YieldRoles(
+        robot_ids=robot_ids,
+        crossing_order=order,
+        grounded_from=grounded_from,
+        regrounded_reason=regrounded_reason,
+        degradations=degradations,
+    )
+
+
+def prepare_retreat_selection(
+    frame: SnapshotFrame,
+    yielder_id: str,
+    crossing_ids: Sequence[str],
+    params: GroundingParams,
+    *,
+    geometry: SceneGeometry | None = None,
+) -> RetreatSelection:
+    """Derive the backup distance and the ranked retreat candidates.
+
+    Deterministic in its inputs, so rendering stage 2 from this selection and
+    grounding the answer later against the same frame see the same letters.
+
+    Args:
+        frame: Current scene snapshot.
+        yielder_id: Robot that retreats (after the feasibility gate; see
+            `resolve_yield_roles`).
+        crossing_ids: Robots that will cross, in passing order.
+        params: Geometry parameters.
+        geometry: Declared scene geometry, or None.
+
+    Returns:
+        Selection with `candidates` ranked best-first; empty candidates when
+        the backup is infeasible or nothing survives the sweep.
+    """
+    order = list(crossing_ids)
+    backup = derive_backup_distance(frame, yielder_id, order, params, geometry=geometry)
+    if not backup.feasible or backup.value_m is None:
+        return RetreatSelection(
+            yielder_id=yielder_id, crossing_order=order, backup=backup, candidates=[]
+        )
+    passer_id = order[0] if order else None
+    candidates = generate_retreat_candidates(
+        frame, yielder_id, backup.value_m, params, geometry=geometry, passer_id=passer_id
+    )
+    yielder = frame.find_robot(yielder_id)
+    axes = retreat_axes(frame, yielder_id, passer_id, geometry)
+    if yielder is None or axes is None:
+        return RetreatSelection(
+            yielder_id=yielder_id, crossing_order=order, backup=backup, candidates=[]
+        )
+    ranked = rank_candidates(
+        candidates, math.atan2(axes.retreat[1], axes.retreat[0]), (yielder.x, yielder.y)
+    )
+    return RetreatSelection(
+        yielder_id=yielder_id, crossing_order=order, backup=backup, candidates=ranked
+    )
+
+
+def _ground_derived(
+    result: ReasonerResult,
+    *,
+    snapshot: SnapshotFrame | None,
+    params: GroundingParams,
+    retreat_choice: RetreatChoiceDecision | None,
+    crossing_order: Sequence[str] | None,
+    geometry: SceneGeometry | None,
+    static_obstacles: Sequence[StaticObstacleInput],
+    yield_feasibility_mode: YieldFeasibilityMode,
+) -> dict[str, Any]:
+    """Rev-8 Appendix A grounding: verified-or-degrade, never blind constants.
+
+    Non-yield strategies reuse the legacy templates on the snapshot positions
+    (so the reverse same-side refusal still applies). A yield runs
+    `resolve_yield_roles`, then `prepare_retreat_selection` for the grounded
+    yielder, then applies the stage-2 choice. An infeasible backup or escort,
+    or no surviving candidate, grounds a `reroute` of the yielder instead of a
+    yield (rev-8 A.2/A.3); a gate or same-side refusal keeps the gate's wait
+    fan-out. Every departure from the decision is tagged in `degradations`.
+    """
+    decision = result.decision
+    if decision is None or not decision.congestion_detected:
+        raise CommandGroundingError("cannot ground an empty or non-congestion decision")
+
+    missing = (
+        list(decision.involved_robots)
+        if snapshot is None
+        else [rid for rid in decision.involved_robots if snapshot.find_robot(rid) is None]
+    )
+    if decision.strategy in _SPATIAL_STRATEGIES and (snapshot is None or missing):
+        reason = (
+            "distances unavailable: no snapshot"
+            if snapshot is None
+            else f"distances unavailable: {', '.join(missing)} not in snapshot"
+        )
+        return _nonspatial_wait(result, decision, reason, ["distances=unavailable"])
+
+    positions = (
+        None
+        if snapshot is None
+        else {state.robot_id: (state.x, state.y) for state in snapshot.robots}
+    )
+    if decision.strategy != "yield" or snapshot is None:
+        legacy = _ground_legacy(
+            result, positions, geometry, static_obstacles, yield_feasibility_mode
+        )
+        return _with_degradations(legacy, _legacy_template_degradations(decision, legacy))
+
+    roles = resolve_yield_roles(
+        decision,
+        snapshot,
+        geometry=geometry,
+        static_obstacles=static_obstacles,
+        yield_feasibility_mode=yield_feasibility_mode,
+        crossing_order=crossing_order,
+    )
+    degradations = list(roles.degradations)
+    if roles.refusal_reason is not None:
+        return _wait_fan_out(result, roles.robot_ids, roles.refusal_reason, degradations)
+
+    selection = prepare_retreat_selection(
+        snapshot, roles.yielder_id, roles.crossing_order, params, geometry=geometry
+    )
+    if not selection.backup.feasible:
+        degradations.append(f"yield=infeasible:{selection.backup.reason}")
+        return _reroute_yielder(result, decision, roles, degradations)
+    if not selection.candidates:
+        degradations.append("retreat=no-valid-candidate")
+        return _reroute_yielder(result, decision, roles, degradations)
+
+    chosen = selection.candidates[0]
+    if retreat_choice is None:
+        degradations.append("retreat=default:no_choice")
+    else:
+        match = next(
+            (c for c in selection.candidates if c.label == retreat_choice.retreat_choice),
+            None,
+        )
+        if match is None:
+            degradations.append("retreat=default:invalid_label")
+        else:
+            chosen = match
+
+    passer_id = roles.crossing_order[0]
+    escort = derive_escort_distance(
+        snapshot, passer_id, (chosen.x, chosen.y), params, geometry=geometry
+    )
+    if not escort.feasible:
+        degradations.append(f"yield=infeasible:{escort.reason}")
+        return _reroute_yielder(result, decision, roles, degradations)
+
+    yield_parameters: dict[str, Any] = {
+        "backup_distance_m": chosen.backup_m,
+        "hold_sec": params.hold_backstop_sec,
+        "pull_off_lateral_m": chosen.lateral_m,
+        "retreat_choice": chosen.label,
+        "retreat_x_m": round(chosen.x, 3),
+        "retreat_y_m": round(chosen.y, 3),
+        "reason": decision.root_cause,
+        "passer_robot_id": passer_id,
+        "passer_clear_m": escort.value_m,
+        "passer_escort_distance_m": escort.value_m,
+        "crossing_order": list(roles.crossing_order),
+    }
+    if roles.grounded_from is not None:
+        yield_parameters["yield_robot_grounded_from"] = roles.grounded_from
+        yield_parameters["yield_regrounded_reason"] = roles.regrounded_reason
+    actions: list[dict[str, Any]] = [
+        {"robot_id": roles.yielder_id, "action": "yield", "parameters": yield_parameters}
+    ]
+    for position, robot_id in enumerate(roles.crossing_order):
+        actions.append(
+            {
+                "robot_id": robot_id,
+                "action": "temporary_wait",
+                "parameters": {
+                    "duration_sec": params.wait_backstop_sec,
+                    "linked_position": position,
+                },
+            }
+        )
+    return validate_coordination_command(
+        {
+            "command_id": f"{result.request_id}-yield",
+            "actions": actions,
+            "expected_resolution_time_sec": params.resolution_backstop_sec,
+            "fallback": "stop",
+            "degradations": degradations,
+        }
+    )
+
+
+def _legacy_template_degradations(
+    decision: CongestionDecision, command: dict[str, Any]
+) -> list[str]:
+    # The legacy templates mark every wait they substitute for the decided
+    # strategy with `requested_strategy`; surface those as tags too.
+    substituted = [
+        action["parameters"]
+        for action in command["actions"]
+        if action["action"] == "temporary_wait"
+        and action.get("parameters", {}).get("requested_strategy") == decision.strategy
+    ]
+    if not substituted:
+        return []
+    if decision.strategy == "reverse":
+        return [f"reverse=infeasible:{substituted[0]['reason']}"]
+    return [f"strategy=unsupported:{decision.strategy}"]
+
+
+def _with_degradations(command: dict[str, Any], degradations: list[str]) -> dict[str, Any]:
+    return validate_coordination_command({**command, "degradations": degradations})
+
+
+def _wait_fan_out(
+    result: ReasonerResult, robot_ids: list[str], reason: str, degradations: list[str]
+) -> dict[str, Any]:
+    # Same shape as the legacy refused-yield fan-out.
+    decision = result.decision
+    assert decision is not None
+    return _with_degradations(
+        {
+            "command_id": f"{result.request_id}-{decision.strategy}",
+            "actions": [
+                {
+                    "robot_id": robot_id,
+                    "action": "temporary_wait",
+                    "parameters": {
+                        "duration_sec": _NONSPATIAL_WAIT_SEC,
+                        "requested_strategy": decision.strategy,
+                        "reason": reason,
+                    },
+                }
+                for robot_id in robot_ids
+            ],
+            "expected_resolution_time_sec": _NONSPATIAL_WAIT_SEC,
+            "fallback": "stop",
+        },
+        degradations,
+    )
+
+
+def _nonspatial_wait(
+    result: ReasonerResult,
+    decision: CongestionDecision,
+    reason: str,
+    degradations: list[str],
+) -> dict[str, Any]:
+    robot_ids = resolve_robot_order(decision)
+    return _wait_fan_out(result, robot_ids, reason, degradations)
+
+
+def _reroute_yielder(
+    result: ReasonerResult,
+    decision: CongestionDecision,
+    roles: YieldRoles,
+    degradations: list[str],
+) -> dict[str, Any]:
+    # The yield is not executable with this geometry (rev-8 A.2/A.3): the robot
+    # chosen to give way reroutes instead, the others wait, and M5 reanalyzes.
+    reroute = decision.model_copy(
+        update={
+            "strategy": "reroute",
+            "involved_robots": [roles.yielder_id, *roles.crossing_order],
+        }
+    )
+    legacy = _ground_legacy(result.model_copy(update={"decision": reroute}), None, None, (), "off")
+    return _with_degradations(legacy, degradations)

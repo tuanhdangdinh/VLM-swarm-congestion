@@ -20,7 +20,11 @@
       }
     },
     "expected_resolution_time_sec": { "type": "number", "minimum": 0 },
-    "fallback": { "type": "string" }
+    "fallback": { "type": "string" },
+    "degradations": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
   },
   "additionalProperties": false
 }
