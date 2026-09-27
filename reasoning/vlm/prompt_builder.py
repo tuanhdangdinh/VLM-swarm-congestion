@@ -65,7 +65,8 @@ other): classify as type="deadlock" and strategy="yield" (the robot named in \
 yield_robot backs up) or strategy="reverse" (both back up to clear).
 - For a simple bottleneck (robots queued in the same direction): classify as \
 type="bottleneck" and strategy="temporary_wait" or "yield".
-- Decide from the robot coordinates and the image, not from assumptions about intent.
+- Decide from the robot states (including their stated goals and tasks) and the \
+image; do not assume intentions beyond what is stated.
 {visual_crosscheck_block}
 Produce a JSON object with exactly these fields:
 - "congestion_detected": true or false

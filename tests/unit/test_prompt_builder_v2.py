@@ -154,6 +154,21 @@ def test_v2_omits_goal_and_task_when_absent():
     assert "goal_x" not in prompt and "task=" not in prompt
 
 
+def test_v2_guidance_admits_stated_goals_as_evidence():
+    # Amendments item 15a: v2 renders goals and tasks, so the v1 line forbidding
+    # "assumptions about intent" would contradict them; only unstated intent is barred.
+    prompt = _prompt(robot_states=_goal_states())
+    assert (
+        "- Decide from the robot states (including their stated goals and tasks) and the "
+        "image; do not assume intentions beyond what is stated.\n"
+    ) in prompt
+    assert "assumptions about intent" not in prompt
+
+
+def test_v1_guidance_keeps_the_intent_line():
+    assert "not from assumptions about intent." in _prompt(prompt_version=1)
+
+
 # ---- invariants the earlier features established, re-checked on v2 ----
 
 
@@ -203,23 +218,25 @@ def test_v2_failure_context_seams_are_unchanged():
 # ---- pins ----
 
 # name -> (length, SHA-256) of the v2 user prompt. Pinned when the bundle
-# landed; a change here is a new prompt version, not a re-pin.
+# landed and re-pinned once for the 15a guidance-line sign-off, before the
+# freeze and before any live data; after the freeze a change here is a new
+# prompt version, not a re-pin.
 _V2_PINS: dict[str, tuple[int, str]] = {
     "baseline": (
-        3797,
-        "42fa1232dbabae5ef50f23439566a36038a447804a895e338dc321b44c87da70",
+        3846,
+        "a7742ac423197c58d155279168952f40a302c61fd782db8e89a3abd9d1eb5109",
     ),
     "id_desc": (
-        3797,
-        "58d1b030af3ea5fdb66d5ff8c3f9fe57d8908bff90bae125123fa5c53f114583",
+        3846,
+        "aad2b7a9c0a14985ce63a7295cb1a3d565156c16e69f980d1216b764ccfbd3c0",
     ),
     "no_geometry": (
-        3611,
-        "46755d877fe1e3ed9b9435f6c18d056fc92e95ece0be68faf363e7aedf8a6c6e",
+        3660,
+        "b837bfe2f790b9623cb126dc38d10c7661866475835f9f1b9c4c35dc35ec116c",
     ),
     "goals_obstacles": (
-        4200,
-        "dc4501110c87cf50a5ba02b9df283efbc2ddfbcbc170e7bfad7b86b0c1fe1bd0",
+        4249,
+        "960b2d672c271eccaaa7bfd5b370294ba32ba60c05f9e4951d173e245f81faa9",
     ),
 }
 
