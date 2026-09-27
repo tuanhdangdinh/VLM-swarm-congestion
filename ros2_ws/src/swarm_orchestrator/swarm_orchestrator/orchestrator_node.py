@@ -64,7 +64,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     ReasoningPipeline,
     append_scene_log,
     build_failed_outcome,
-    build_failure_context,
+    build_failure_contexts,
     build_reasoner_request,
     dump_frame_png,
     fan_out_command,
@@ -161,14 +161,15 @@ class OrchestratorNode(Node):
         self._registry.load_initial(self._config)
 
         self._bridge = CvBridge()
-        # rclpy.spin is single-threaded: _attempts and _pending_failure_context are
+        # rclpy.spin is single-threaded: _attempts and the _pending_* contexts are
         # touched only on the callback thread, and the worker reads captured locals.
-        # A MultiThreadedExecutor would need a lock around both.
+        # A MultiThreadedExecutor would need a lock around them.
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._future: Future[PipelineOutcome] | None = None
         # Context attached to the in-flight request; consumed by _handle_outcome so
         # the decision artifact records exactly what the VLM was told.
         self._pending_failure_context: FailureContext | None = None
+        self._pending_last_failed_context: FailureContext | None = None
         self._pending_request: ReasonerRequest | None = None
         self._pending_snapshot = None
         self._pending_distances: dict[str, float] = {}
@@ -409,13 +410,21 @@ class OrchestratorNode(Node):
         downscale = self._config.frame_downscale_width
         image_path = str(Path(self._config.frame_dump_dir) / f"{request_id}.png")
         now = time.monotonic()
-        attempt = self._attempts.context_for(robots, now)
-        failure_context = None if attempt is None else build_failure_context(attempt, now)
+        contexts = self._attempts.contexts_for(robots, now)
+        failure_context, last_failed_context = build_failure_contexts(contexts, now)
+        attempt, failed = contexts.latest, contexts.last_failed
         if attempt is not None:
             self.get_logger().info(
                 f"request={request_id} failure_context attached command={attempt.command_id} "
                 f"strategy={attempt.strategy} executed={attempt.executed_strategy} "
                 f"outcome={attempt.outcome_status}"
+            )
+        if failed is not None:
+            self.get_logger().info(
+                f"request={request_id} last_failed_context attached "
+                f"command={failed.command_id} strategy={failed.strategy} "
+                f"yield_robot={failed.yield_robot} executed={failed.executed_strategy} "
+                f"outcome={failed.outcome_status}"
             )
         episode_index, order = self._episodes.order_for(robots)
         # Built here, not in the worker, so the artifact can record the exact request.
@@ -424,12 +433,14 @@ class OrchestratorNode(Node):
             snapshot,
             image_path,
             failure_context=failure_context,
+            last_failed_context=last_failed_context,
             include_pairwise_geometry=self._config.prompt_pairwise_geometry,
             static_obstacles=self._config.static_obstacles,
             include_static_obstacles=self._config.prompt_static_obstacles,
             robot_presentation_order=order,
         )
         self._pending_failure_context = failure_context
+        self._pending_last_failed_context = last_failed_context
         self._pending_request = request
         self._pending_snapshot = snapshot
         self._pending_distances = dict(distance_to_goal_m)
@@ -456,10 +467,12 @@ class OrchestratorNode(Node):
 
     def _handle_outcome(self, outcome: PipelineOutcome, now: float) -> None:
         failure_context = self._pending_failure_context
+        last_failed_context = self._pending_last_failed_context
         request, snapshot = self._pending_request, self._pending_snapshot
         distances = self._pending_distances
         episode_index = self._pending_episode_index
         self._pending_failure_context = None
+        self._pending_last_failed_context = None
         self._pending_request = None
         self._pending_snapshot = None
         self._pending_distances = {}
@@ -469,6 +482,7 @@ class OrchestratorNode(Node):
                 self._config.decision_log_dir,
                 outcome,
                 failure_context=failure_context,
+                last_failed_context=last_failed_context,
                 request=request,
                 snapshot=snapshot,
                 distance_to_goal_m=distances,

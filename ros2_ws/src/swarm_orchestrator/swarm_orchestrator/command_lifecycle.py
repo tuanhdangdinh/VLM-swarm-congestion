@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import NamedTuple
 
 _TERMINAL = frozenset({"COMPLETED", "FAILED", "TIMED_OUT"})
 _STATUS_MAP = {
@@ -178,19 +179,45 @@ class AttemptRecord:
     executed_strategy: str | None = None
 
 
-class AttemptMemory:
-    """Single-slot memory of the last attempt for failure-context feedback (rev-8 A.1).
+class AttemptContexts(NamedTuple):
+    """The attempts a new analysis is told about (failure-context depth policy)."""
 
-    One slot is enough because the state machine allows a single in-flight cycle.
-    The record becomes visible only after `resolve`, stays visible for
-    `window_sec` after resolution for any overlapping robot set, and is dropped
-    on expiry, on an analysis for a disjoint robot set (no cross-episode memory),
-    or when a new attempt is recorded. `window_sec <= 0` disables the memory.
+    # The most recent resolved attempt, or None when there is nothing to report.
+    latest: AttemptRecord | None
+    # The most recent failed attempt when it is not `latest`; None when `latest`
+    # is itself the failure, or when nothing has failed.
+    last_failed: AttemptRecord | None
+
+
+def _is_failure(record: AttemptRecord) -> bool:
+    # Any resolved non-completed outcome: summarize_outcome ranks timed_out above
+    # failed, so a command where one robot FAILED and another TIMED_OUT reports
+    # timed_out and must still count.
+    return record.resolved_at is not None and record.outcome_status != "completed"
+
+
+class AttemptMemory:
+    """Memory of the latest attempt plus the latest failed one (rev-8 A.1).
+
+    One in-flight slot is enough because the state machine allows a single
+    in-flight cycle. The latest record becomes visible only after `resolve`,
+    stays visible for `window_sec` after resolution for any overlapping robot
+    set, and is dropped on expiry, on an analysis for a disjoint robot set (no
+    cross-episode memory), or when a new attempt is recorded.
+
+    A failed attempt superseded by a newer one is kept in a second slot, so a
+    later successful maneuver cannot displace it from the prompt (runs
+    20260924_201328 and L4 re-yielded the same infeasible robot once a completed
+    `temporary_wait` had displaced the failed yield). It lives exactly as long
+    as the latest record: it is dropped together with it, and its own
+    resolution time does not start a separate window. `window_sec <= 0`
+    disables the memory.
     """
 
     def __init__(self, window_sec: float) -> None:
         self._window_sec = window_sec
         self._record: AttemptRecord | None = None
+        self._last_failed: AttemptRecord | None = None
 
     def record(
         self,
@@ -201,7 +228,13 @@ class AttemptMemory:
         now: float,
         executed_strategy: str | None = None,
     ) -> None:
-        """Remember a freshly dispatched attempt, superseding any earlier one."""
+        """Remember a freshly dispatched attempt, superseding any earlier one.
+
+        A superseded attempt that resolved as a failure becomes the remembered
+        last failed attempt, replacing any older failure.
+        """
+        if self._record is not None and _is_failure(self._record):
+            self._last_failed = self._record
         self._record = AttemptRecord(
             command_id=command_id,
             robot_ids=list(robot_ids),
@@ -227,13 +260,28 @@ class AttemptMemory:
 
     def context_for(self, robot_ids: list[str], now: float) -> AttemptRecord | None:
         """Return the resolved attempt relevant to a new analysis, or None."""
+        return self.contexts_for(robot_ids, now).latest
+
+    def contexts_for(self, robot_ids: list[str], now: float) -> AttemptContexts:
+        """Return the latest attempt and, when different, the latest failed one.
+
+        Args:
+            robot_ids: Robots the new analysis involves.
+            now: Monotonic time of the new analysis.
+
+        Returns:
+            `AttemptContexts`; `last_failed` is set only when `latest` is set,
+            is not itself a failure, and the failed attempt overlaps `robot_ids`.
+        """
         record = self._record
         if record is None or record.resolved_at is None:
-            return None
-        if not set(robot_ids) & set(record.robot_ids):
+            return AttemptContexts(None, None)
+        expired = self._window_sec <= 0.0 or now - record.resolved_at > self._window_sec
+        if expired or not set(robot_ids) & set(record.robot_ids):
             self._record = None
-            return None
-        if self._window_sec <= 0.0 or now - record.resolved_at > self._window_sec:
-            self._record = None
-            return None
-        return record
+            self._last_failed = None
+            return AttemptContexts(None, None)
+        failed = self._last_failed
+        if _is_failure(record) or failed is None or not set(robot_ids) & set(failed.robot_ids):
+            return AttemptContexts(record, None)
+        return AttemptContexts(record, failed)

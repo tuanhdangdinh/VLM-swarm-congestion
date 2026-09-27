@@ -8,6 +8,7 @@ the prompt text does not depend on.
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 from pathlib import Path
 
@@ -179,6 +180,23 @@ def fc_artifact(tmp_path: Path) -> Artifact:
 def test_reconstructed_prompt_sha_matches_live_with_failure_context(fc_artifact):
     rendered = build_prompt_payload(reconstruct_request(fc_artifact)).user_prompt
     assert sha256_text(rendered) == FC_USER_SHA256
+
+
+def test_reconstruct_request_carries_last_failed_context_when_recorded(fc_artifact):
+    failed = {
+        "strategy": "yield",
+        "yield_robot": "robot_1",
+        "crossing_order": None,
+        "outcome_status": "failed",
+        "failure_detail": "yield failed after 122 s; congestion re-detected for the same robots",
+    }
+    artifact = dataclasses.replace(fc_artifact, last_failed_context=failed)
+    request = reconstruct_request(artifact)
+    assert request.last_failed_context is not None
+    assert request.last_failed_context.model_dump(mode="json") == failed
+    rendered = build_prompt_payload(request).user_prompt
+    assert "Earlier failed attempt in this episode:" in rendered
+    assert sha256_text(rendered) != FC_USER_SHA256
 
 
 def test_reconstructed_prompt_sha_matches_live_under_id_desc(tmp_path):

@@ -102,7 +102,13 @@ class ReasonerRequest(BaseModel):
     frame_id: str = Field(min_length=1)
     stamp: float = Field(ge=0)
     robot_states: list[RobotStateInput]
+    # The most recent resolved attempt in the episode.
     failure_context: FailureContext | None = None
+    # The most recent FAILED attempt, set only when it is not the attempt in
+    # `failure_context`, so a completed maneuver cannot displace a failure from
+    # the prompt (failure-context depth policy, 2026-09-27). Default None renders
+    # byte-identically to every prompt stored before the field existed.
+    last_failed_context: FailureContext | None = None
     # Ablation axis (rev-8 modality table): False withholds the derived pairwise
     # distance/facing lines so the VLM must judge geometry from coordinates + image.
     include_pairwise_geometry: bool = True
@@ -123,6 +129,12 @@ class ReasonerRequest(BaseModel):
     # every prompt rendered so far byte-identical; "id_desc" is the
     # counterbalanced condition that breaks the presentation-order confound.
     robot_presentation_order: RobotPresentationOrder = "id_asc"
+
+    @model_validator(mode="after")
+    def _validate_last_failed_needs_latest(self) -> "ReasonerRequest":
+        if self.last_failed_context is not None and self.failure_context is None:
+            raise ValueError("last_failed_context requires failure_context")
+        return self
 
 
 class PromptPayload(BaseModel):

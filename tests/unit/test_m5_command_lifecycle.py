@@ -265,3 +265,134 @@ def test_attempt_memory_record_defaults_executed_strategy_to_none():
     record = memory.context_for(["robot_1"], now=2.0)
     assert record is not None
     assert record.executed_strategy is None
+
+
+def _l4_memory() -> AttemptMemory:
+    # Timings from run 20260925_011246 (L4), relative to the first analysis: the
+    # yield failed at 126.0 s, a temporary_wait completed at 164.9 s, and the
+    # re-analysis that re-yielded robot_1 started at 182.2 s.
+    memory = AttemptMemory(window_sec=60.0)
+    memory.record("c1-yield", ["robot_1", "robot_2"], "yield", "robot_1", now=4.3)
+    memory.resolve("c1-yield", "failed", now=126.0)
+    memory.record("c2-wait", ["robot_1"], "temporary_wait", None, now=146.3)
+    memory.resolve("c2-wait", "completed", now=164.9)
+    return memory
+
+
+def test_attempt_memory_carries_failed_yield_behind_completed_wait():
+    contexts = _l4_memory().contexts_for(["robot_1", "robot_2"], now=182.2)
+    assert contexts.latest is not None and contexts.latest.command_id == "c2-wait"
+    assert contexts.last_failed is not None
+    assert contexts.last_failed.command_id == "c1-yield"
+    assert contexts.last_failed.yield_robot == "robot_1"
+    assert contexts.last_failed.outcome_status == "failed"
+
+
+def test_attempt_memory_keeps_failed_attempt_past_its_own_window_while_latest_visible():
+    # The failed yield resolved 94 s before the analysis, beyond the 60 s window;
+    # the window runs from the latest attempt, so a long wait cannot evict it.
+    memory = _l4_memory()
+    memory.record("c3-wait", ["robot_1"], "temporary_wait", None, now=170.0)
+    memory.resolve("c3-wait", "completed", now=200.0)
+    contexts = memory.contexts_for(["robot_1"], now=220.0)
+    assert contexts.latest is not None and contexts.latest.command_id == "c3-wait"
+    assert contexts.last_failed is not None
+    assert contexts.last_failed.command_id == "c1-yield"
+
+
+def test_attempt_memory_omits_last_failed_when_latest_attempt_failed():
+    memory = _memory()
+    memory.resolve("c1", "failed", now=10.0)
+    contexts = memory.contexts_for(["robot_1"], now=20.0)
+    assert contexts.latest is not None and contexts.latest.command_id == "c1"
+    assert contexts.last_failed is None
+
+
+def test_attempt_memory_omits_last_failed_when_latest_failure_supersedes_older_one():
+    memory = _memory()
+    memory.resolve("c1", "failed", now=10.0)
+    memory.record("c2", ["robot_1", "robot_2"], "reverse", None, now=20.0)
+    memory.resolve("c2", "failed", now=40.0)
+    contexts = memory.contexts_for(["robot_1"], now=50.0)
+    assert contexts.latest is not None and contexts.latest.command_id == "c2"
+    assert contexts.last_failed is None
+
+
+def test_attempt_memory_omits_last_failed_when_nothing_failed():
+    memory = _memory()
+    memory.resolve("c1", "completed", now=10.0)
+    memory.record("c2", ["robot_1", "robot_2"], "temporary_wait", None, now=20.0)
+    memory.resolve("c2", "completed", now=40.0)
+    contexts = memory.contexts_for(["robot_1"], now=50.0)
+    assert contexts.latest is not None and contexts.latest.command_id == "c2"
+    assert contexts.last_failed is None
+
+
+def test_attempt_memory_newer_failure_displaces_older_failure():
+    memory = _memory()
+    memory.resolve("c1", "failed", now=10.0)
+    memory.record("c2", ["robot_1", "robot_2"], "reverse", None, now=20.0)
+    memory.resolve("c2", "failed", now=40.0)
+    memory.record("c3", ["robot_1", "robot_2"], "temporary_wait", None, now=50.0)
+    memory.resolve("c3", "completed", now=70.0)
+    contexts = memory.contexts_for(["robot_1"], now=80.0)
+    assert contexts.last_failed is not None and contexts.last_failed.command_id == "c2"
+
+
+def test_attempt_memory_completed_attempt_does_not_clear_last_failed():
+    memory = _l4_memory()
+    memory.record("c3-wait", ["robot_1"], "temporary_wait", None, now=170.0)
+    memory.resolve("c3-wait", "completed", now=180.0)
+    contexts = memory.contexts_for(["robot_1"], now=190.0)
+    assert contexts.last_failed is not None and contexts.last_failed.command_id == "c1-yield"
+
+
+def test_attempt_memory_treats_timed_out_attempt_as_failed():
+    memory = _memory()
+    memory.resolve("c1", "timed_out", now=10.0)
+    memory.record("c2", ["robot_1", "robot_2"], "temporary_wait", None, now=20.0)
+    memory.resolve("c2", "completed", now=40.0)
+    contexts = memory.contexts_for(["robot_1"], now=50.0)
+    assert contexts.last_failed is not None
+    assert contexts.last_failed.outcome_status == "timed_out"
+
+
+def test_attempt_memory_ignores_unresolved_superseded_attempt_for_last_failed():
+    memory = _memory()
+    memory.record("c2", ["robot_1", "robot_2"], "temporary_wait", None, now=20.0)
+    memory.resolve("c2", "completed", now=40.0)
+    assert memory.contexts_for(["robot_1"], now=50.0).last_failed is None
+
+
+def test_attempt_memory_drops_last_failed_on_disjoint_robot_set():
+    memory = _l4_memory()
+    contexts = memory.contexts_for(["robot_9"], now=170.0)
+    assert contexts.latest is None and contexts.last_failed is None
+    memory.record("c3", ["robot_1"], "temporary_wait", None, now=171.0)
+    memory.resolve("c3", "completed", now=180.0)
+    assert memory.contexts_for(["robot_1"], now=182.0).last_failed is None
+
+
+def test_attempt_memory_drops_last_failed_when_latest_expires():
+    memory = _l4_memory()
+    contexts = memory.contexts_for(["robot_1"], now=164.9 + 60.5)
+    assert contexts.latest is None and contexts.last_failed is None
+    memory.record("c3", ["robot_1"], "temporary_wait", None, now=230.0)
+    memory.resolve("c3", "completed", now=240.0)
+    assert memory.contexts_for(["robot_1"], now=241.0).last_failed is None
+
+
+def test_attempt_memory_omits_last_failed_for_non_overlapping_robots():
+    memory = AttemptMemory(window_sec=60.0)
+    memory.record("c1", ["robot_3"], "yield", "robot_3", now=0.0)
+    memory.resolve("c1", "failed", now=10.0)
+    memory.record("c2", ["robot_1", "robot_3"], "temporary_wait", None, now=20.0)
+    memory.resolve("c2", "completed", now=30.0)
+    contexts = memory.contexts_for(["robot_1"], now=40.0)
+    assert contexts.latest is not None and contexts.latest.command_id == "c2"
+    assert contexts.last_failed is None
+
+
+def test_attempt_memory_context_for_returns_latest_attempt_only():
+    record = _l4_memory().context_for(["robot_1"], now=182.2)
+    assert record is not None and record.command_id == "c2-wait"

@@ -20,6 +20,7 @@ from reasoning.vlm.prompt_builder import (
     format_static_obstacle_lines,
     order_robot_states,
     render_failure_context_block,
+    render_last_failed_context_block,
     render_visual_crosscheck_block,
 )
 
@@ -183,6 +184,101 @@ def test_build_prompt_payload_seam_is_unchanged_when_failure_context_none():
     prompt = build_prompt_payload(_request()).user_prompt
     assert 'Known robot IDs: ["robot_1", "robot_2"]\n\nGuidance:' in prompt
     assert "Previous attempt" not in prompt
+
+
+# SHA-256 of the rendered user prompt for `_request()` carrying `_completed_yield()`
+# as its single failure context, rendered at 9f71307 — before
+# `last_failed_context` existed. Every stored artifact with a failure context was
+# rendered this way, and the replay program re-hashes them against their stored
+# `user_sha256`, so a request whose `last_failed_context` is None must keep
+# producing exactly this string. If it fails after `_request()` or
+# `_completed_yield()` was edited, the fixture moved, not the renderer.
+_SINGLE_FAILURE_CONTEXT_PROMPT_SHA256 = (
+    "3434616893b3a8e496bb557b925297d4a5d57e05d294bcf34b157c14b1f6714d"
+)
+
+
+def _failed_yield() -> FailureContext:
+    return FailureContext(
+        strategy="yield",
+        yield_robot="robot_1",
+        outcome_status="failed",
+        failure_detail="yield failed after 122 s; congestion re-detected for the same robots",
+    )
+
+
+def _completed_wait() -> FailureContext:
+    return FailureContext(
+        strategy="temporary_wait",
+        outcome_status="completed",
+        failure_detail=(
+            "temporary_wait completed 17 s ago; congestion re-detected for the same robots"
+        ),
+    )
+
+
+def test_build_prompt_payload_single_failure_context_is_byte_identical_to_pre_feature():
+    request = _request().model_copy(update={"failure_context": _completed_yield()})
+    assert request.last_failed_context is None
+    prompt = build_prompt_payload(request).user_prompt
+    assert len(prompt) == 3700
+    assert _sha256(prompt) == _SINGLE_FAILURE_CONTEXT_PROMPT_SHA256
+
+
+def test_reasoner_request_last_failed_context_defaults_to_none():
+    assert _request().last_failed_context is None
+
+
+def test_reasoner_request_rejects_last_failed_context_without_failure_context():
+    with pytest.raises(ValidationError):
+        ReasonerRequest(**{**_request().model_dump(), "last_failed_context": _failed_yield()})
+
+
+def test_render_last_failed_context_block_labels_the_earlier_failure():
+    block = render_last_failed_context_block(_failed_yield())
+    assert block.startswith("Earlier failed attempt in this episode:")
+    assert "- strategy=yield, yield_robot=robot_1, outcome=failed" in block
+    assert (
+        "- detail: yield failed after 122 s; congestion re-detected for the same robots"
+        in block
+    )
+    assert block.endswith(
+        "If the congestion persists, do not repeat this failed attempt unless the "
+        "scene has changed."
+    )
+    assert not block.startswith("\n") and not block.endswith("\n")
+
+
+def test_build_prompt_payload_renders_failed_block_after_latest_attempt_when_set():
+    request = _request().model_copy(
+        update={"failure_context": _completed_wait(), "last_failed_context": _failed_yield()}
+    )
+    prompt = build_prompt_payload(request).user_prompt
+    latest = prompt.index("Previous attempt in this episode:")
+    failed = prompt.index("Earlier failed attempt in this episode:")
+    guidance = prompt.index("Guidance:")
+    assert latest < failed < guidance
+    assert "- strategy=temporary_wait, outcome=completed" in prompt
+    assert "- strategy=yield, yield_robot=robot_1, outcome=failed" in prompt
+    assert (
+        "unless the scene has changed.\n\nEarlier failed attempt in this episode:" in prompt
+    )
+    assert "unless the scene has changed.\n\nGuidance:" in prompt
+
+
+def test_build_prompt_payload_second_block_only_adds_text_to_single_context_prompt():
+    single = _request().model_copy(update={"failure_context": _completed_wait()})
+    double = single.model_copy(update={"last_failed_context": _failed_yield()})
+    single_prompt = build_prompt_payload(single).user_prompt
+    double_prompt = build_prompt_payload(double).user_prompt
+    inserted = "\n" + render_last_failed_context_block(_failed_yield()) + "\n"
+    seam = single_prompt.index("\nGuidance:")
+    assert double_prompt == single_prompt[:seam] + inserted + single_prompt[seam:]
+
+
+def test_build_prompt_payload_omits_failed_block_when_last_failed_context_none():
+    request = _request().model_copy(update={"failure_context": _completed_wait()})
+    assert "Earlier failed attempt" not in build_prompt_payload(request).user_prompt
 
 
 def test_format_pairwise_geometry_flags_robots_facing_each_other():

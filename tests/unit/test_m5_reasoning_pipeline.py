@@ -7,7 +7,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 import yaml
-from swarm_orchestrator.command_lifecycle import AttemptRecord
+from swarm_orchestrator.command_lifecycle import (
+    AttemptContexts,
+    AttemptMemory,
+    AttemptRecord,
+)
 from swarm_orchestrator.models import (
     OrchestratorConfig,
     PipelineOutcome,
@@ -21,6 +25,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     LatestRawFrame,
     append_scene_log,
     build_failure_context,
+    build_failure_contexts,
     build_reasoner_request,
     dump_frame_png,
     fan_out_command,
@@ -45,6 +50,7 @@ from reasoning.vlm.models import (
     GeminiBackendConfig,
     OpenAIBackendConfig,
     ReasonerDiagnostics,
+    ReasonerRequest,
     ReasonerResult,
     StaticObstacleInput,
 )
@@ -636,6 +642,116 @@ def test_build_failure_context_omits_executed_note_when_it_matches_strategy():
 def test_write_decision_artifact_writes_null_failure_context_when_absent(tmp_path):
     payload = json.loads(write_decision_artifact(tmp_path, _ok_outcome()).read_text())
     assert payload["failure_context"] is None
+
+
+def _l4_memory() -> AttemptMemory:
+    # Run 20260925_011246 (L4): yield(robot_1) FAILED, temporary_wait COMPLETED,
+    # then the re-analysis that re-yielded robot_1 (request ca63fbd5).
+    memory = AttemptMemory(window_sec=60.0)
+    memory.record("c1-yield", ["robot_1", "robot_2"], "yield", "robot_1", now=4.3)
+    memory.resolve("c1-yield", "failed", now=126.0)
+    memory.record("c2-wait", ["robot_1"], "temporary_wait", None, now=146.3)
+    memory.resolve("c2-wait", "completed", now=164.9)
+    return memory
+
+
+def _request_from_memory(memory: AttemptMemory, now: float) -> ReasonerRequest:
+    latest, last_failed = build_failure_contexts(
+        memory.contexts_for(["robot_1", "robot_2"], now), now
+    )
+    return build_reasoner_request(
+        "r1",
+        _snapshot(),
+        "/tmp/r1.png",
+        failure_context=latest,
+        last_failed_context=last_failed,
+    )
+
+
+def test_request_carries_wait_and_failed_yield_after_wait_completes():
+    request = _request_from_memory(_l4_memory(), now=182.2)
+    assert request.failure_context is not None
+    assert request.failure_context.strategy == "temporary_wait"
+    assert request.failure_context.outcome_status == "completed"
+    assert request.last_failed_context is not None
+    assert request.last_failed_context.strategy == "yield"
+    assert request.last_failed_context.yield_robot == "robot_1"
+    assert request.last_failed_context.outcome_status == "failed"
+    assert request.last_failed_context.failure_detail == (
+        "yield failed after 122 s; congestion re-detected for the same robots"
+    )
+    prompt = build_prompt_payload(request).user_prompt
+    assert "Previous attempt in this episode:" in prompt
+    assert "Earlier failed attempt in this episode:" in prompt
+
+
+def test_request_carries_single_block_when_latest_attempt_is_the_failure():
+    memory = AttemptMemory(window_sec=60.0)
+    memory.record("c1-yield", ["robot_1", "robot_2"], "yield", "robot_1", now=4.3)
+    memory.resolve("c1-yield", "failed", now=126.0)
+    request = _request_from_memory(memory, now=143.0)
+    assert request.failure_context is not None
+    assert request.failure_context.outcome_status == "failed"
+    assert request.last_failed_context is None
+    assert "Earlier failed attempt" not in build_prompt_payload(request).user_prompt
+
+
+def test_request_carries_no_last_failed_context_when_nothing_failed():
+    memory = AttemptMemory(window_sec=60.0)
+    memory.record("c1", ["robot_1", "robot_2"], "reverse", None, now=0.0)
+    memory.resolve("c1", "completed", now=36.0)
+    request = _request_from_memory(memory, now=53.0)
+    assert request.failure_context is not None
+    assert request.last_failed_context is None
+
+
+def test_build_failure_contexts_returns_none_pair_without_attempts():
+    assert build_failure_contexts(AttemptContexts(None, None), now=10.0) == (None, None)
+
+
+def test_build_reasoner_request_passes_last_failed_context_through():
+    latest = FailureContext(strategy="temporary_wait", outcome_status="completed",
+                            failure_detail="d")
+    failed = FailureContext(strategy="yield", outcome_status="failed", failure_detail="e")
+    request = build_reasoner_request(
+        "r1", _snapshot(), "/tmp/r1.png", failure_context=latest, last_failed_context=failed
+    )
+    assert request.last_failed_context == failed
+    assert build_reasoner_request("r1", _snapshot(), "/tmp/r1.png").last_failed_context is None
+
+
+def test_write_decision_artifact_round_trips_last_failed_context(tmp_path):
+    request = _request_from_memory(_l4_memory(), now=182.2)
+    path = write_decision_artifact(
+        tmp_path,
+        _ok_outcome(),
+        failure_context=request.failure_context,
+        last_failed_context=request.last_failed_context,
+        request=request,
+    )
+    payload = json.loads(path.read_text())
+    assert payload["last_failed_context"] == {
+        "strategy": "yield",
+        "yield_robot": "robot_1",
+        "crossing_order": None,
+        "outcome_status": "failed",
+        "failure_detail": "yield failed after 122 s; congestion re-detected for the same robots",
+    }
+    rebuilt = build_reasoner_request(
+        "r1",
+        _snapshot(),
+        "/tmp/r1.png",
+        failure_context=FailureContext(**payload["failure_context"]),
+        last_failed_context=FailureContext(**payload["last_failed_context"]),
+    )
+    rendered = build_prompt_payload(rebuilt).user_prompt
+    assert rendered == payload["prompt"]["user_prompt"]
+    assert "Earlier failed attempt in this episode:" in rendered
+
+
+def test_write_decision_artifact_writes_null_last_failed_context_when_absent(tmp_path):
+    payload = json.loads(write_decision_artifact(tmp_path, _ok_outcome()).read_text())
+    assert payload["last_failed_context"] is None
 
 
 def test_write_decision_artifact_records_run_and_session_ids(tmp_path):

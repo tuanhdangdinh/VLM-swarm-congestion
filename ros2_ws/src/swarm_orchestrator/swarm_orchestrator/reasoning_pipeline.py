@@ -26,7 +26,7 @@ from reasoning.vlm.models import (
     StaticObstacleInput,
 )
 from reasoning.vlm.prompt_builder import build_prompt_payload
-from swarm_orchestrator.command_lifecycle import AttemptRecord
+from swarm_orchestrator.command_lifecycle import AttemptContexts, AttemptRecord
 from swarm_orchestrator.models import (
     PipelineOutcome,
     SceneSnapshot,
@@ -87,6 +87,7 @@ def build_reasoner_request(
     static_obstacles: Sequence[StaticObstacleInput] = (),
     include_static_obstacles: bool = False,
     robot_presentation_order: RobotPresentationOrder = "id_asc",
+    last_failed_context: FailureContext | None = None,
 ) -> ReasonerRequest:
     """Project a SceneSnapshot plus a dumped image path into a ReasonerRequest."""
     robot_states = [
@@ -108,6 +109,7 @@ def build_reasoner_request(
         stamp=snapshot.stamp,
         robot_states=robot_states,
         failure_context=failure_context,
+        last_failed_context=last_failed_context,
         include_pairwise_geometry=include_pairwise_geometry,
         static_obstacles=list(static_obstacles),
         include_static_obstacles=include_static_obstacles,
@@ -142,6 +144,28 @@ def build_failure_context(record: AttemptRecord, now: float) -> FailureContext:
         outcome_status=status,
         failure_detail=detail,
     )
+
+
+def build_failure_contexts(
+    contexts: AttemptContexts, now: float
+) -> tuple[FailureContext | None, FailureContext | None]:
+    """Project M5's remembered attempts into the two M2 failure-context blocks.
+
+    Args:
+        contexts: The latest and last-failed attempts from `AttemptMemory.contexts_for`.
+        now: Monotonic time of the new analysis, for the elapsed-seconds wording.
+
+    Returns:
+        `(failure_context, last_failed_context)`, each None when the matching
+        attempt is absent.
+    """
+    latest = None if contexts.latest is None else build_failure_context(contexts.latest, now)
+    last_failed = (
+        None
+        if contexts.last_failed is None
+        else build_failure_context(contexts.last_failed, now)
+    )
+    return latest, last_failed
 
 
 def dump_frame_png(frame_rgb: np.ndarray, dest_path: str, downscale_width: int | None) -> None:
@@ -314,6 +338,7 @@ def write_decision_artifact(
     prompt_robot_order_seed: int | None = None,
     episode_index: int | None = None,
     grounding_yield_feasibility: YieldFeasibilityMode | None = None,
+    last_failed_context: FailureContext | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
@@ -344,6 +369,9 @@ def write_decision_artifact(
             Recorded even when the gate did not fire, so an artifact set can be
             partitioned by the condition it was collected under; the gate's
             actual outcome is read off the grounded command.
+        last_failed_context: Earlier-failed-attempt block attached to this
+            request, if any; recorded in the same shape as `failure_context` so
+            replay can rebuild the prompt.
 
     Returns:
         The artifact path.
@@ -383,6 +411,11 @@ def write_decision_artifact(
         "raw_text": result.raw_text,
         "failure_context": (
             None if failure_context is None else failure_context.model_dump(mode="json")
+        ),
+        "last_failed_context": (
+            None
+            if last_failed_context is None
+            else last_failed_context.model_dump(mode="json")
         ),
         "prompt": prompt,
         "robot_presentation_order": (

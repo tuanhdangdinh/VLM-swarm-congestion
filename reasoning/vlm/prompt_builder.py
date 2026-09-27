@@ -156,6 +156,25 @@ _FAILURE_CONTEXT_ADVICE = (
 )
 
 
+# Generic on purpose, like _FAILURE_CONTEXT_ADVICE: the block already states which
+# strategy and yielder failed, and naming an alternative would hand the model the
+# answer the experiment measures.
+_LAST_FAILED_CONTEXT_ADVICE = (
+    "If the congestion persists, do not repeat this failed attempt unless the scene "
+    "has changed."
+)
+
+
+def _render_attempt_lines(context: FailureContext) -> list[str]:
+    attempt = f"strategy={context.strategy}"
+    if context.yield_robot is not None:
+        attempt += f", yield_robot={context.yield_robot}"
+    attempt += f", outcome={context.outcome_status}"
+    # crossing_order is accepted on FailureContext but not rendered in this slice
+    # (Phase 1 plan Task 5 adds the ordered-crossing prompt block).
+    return [f"- {attempt}", f"- detail: {context.failure_detail}"]
+
+
 def render_failure_context_block(context: FailureContext) -> str:
     """Render the previous-attempt block for a re-analysis prompt (rev-8 A.1).
 
@@ -165,18 +184,33 @@ def render_failure_context_block(context: FailureContext) -> str:
     Returns:
         A multi-line block with no leading or trailing newline.
     """
-    attempt = f"strategy={context.strategy}"
-    if context.yield_robot is not None:
-        attempt += f", yield_robot={context.yield_robot}"
-    attempt += f", outcome={context.outcome_status}"
-    # crossing_order is accepted on FailureContext but not rendered in this slice
-    # (Phase 1 plan Task 5 adds the ordered-crossing prompt block).
     return "\n".join(
         [
             "Previous attempt in this episode:",
-            f"- {attempt}",
-            f"- detail: {context.failure_detail}",
+            *_render_attempt_lines(context),
             _FAILURE_CONTEXT_ADVICE,
+        ]
+    )
+
+
+def render_last_failed_context_block(context: FailureContext) -> str:
+    """Render the earlier-failed-attempt block that follows the previous-attempt block.
+
+    Rendered only when M5's most recent failed attempt is not the previous
+    attempt itself, so a completed maneuver cannot displace the failure from the
+    prompt (failure-context depth policy, 2026-09-27).
+
+    Args:
+        context: Summary of the most recent failed attempt, supplied by M5.
+
+    Returns:
+        A multi-line block with no leading or trailing newline.
+    """
+    return "\n".join(
+        [
+            "Earlier failed attempt in this episode:",
+            *_render_attempt_lines(context),
+            _LAST_FAILED_CONTEXT_ADVICE,
         ]
     )
 
@@ -340,6 +374,12 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
         if request.failure_context is None
         else "\n" + render_failure_context_block(request.failure_context) + "\n"
     )
+    # Appended only when set, so a request without it renders byte-identically to
+    # every prompt stored before the field existed.
+    if request.last_failed_context is not None:
+        failure_block += (
+            "\n" + render_last_failed_context_block(request.last_failed_context) + "\n"
+        )
     crosscheck_block = (
         "\n" + render_visual_crosscheck_block(request.include_pairwise_geometry) + "\n"
         if request.include_visual_crosscheck

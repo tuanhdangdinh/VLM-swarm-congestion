@@ -244,6 +244,9 @@ class Artifact:
     live_decision: dict[str, Any] | None
     stamp: float
     raw_frame_skew_sec: float | None = None
+    # Absent (None) on every artifact written before the failure-context depth
+    # policy (2026-09-27), which then reconstructs exactly as before.
+    last_failed_context: dict[str, Any] | None = None
 
     @property
     def raw_image_path(self) -> Path:
@@ -384,6 +387,7 @@ def load_artifacts(
                     live_decision=data.get("decision"),
                     stamp=float(data["scene"]["stamp"]),
                     raw_frame_skew_sec=skews.get(request_id),
+                    last_failed_context=data.get("last_failed_context"),
                 )
             )
         loaded.sort(key=lambda a: (log_order.get(a.request_id, 10**6), a.stamp))
@@ -412,6 +416,11 @@ def reconstruct_request(
     failure_context = (
         FailureContext(**artifact.failure_context) if artifact.failure_context else None
     )
+    last_failed_context = (
+        FailureContext(**artifact.last_failed_context)
+        if artifact.last_failed_context
+        else None
+    )
     obstacles = (
         artifact.include_static_obstacles
         if include_static_obstacles is None
@@ -422,6 +431,7 @@ def reconstruct_request(
         snapshot=SceneSnapshot(**artifact.scene),
         image_path=str(image_path or artifact.image_path),
         failure_context=failure_context,
+        last_failed_context=last_failed_context,
         include_pairwise_geometry=artifact.include_pairwise_geometry,
         static_obstacles=list(artifact.static_obstacles),
         include_static_obstacles=obstacles,

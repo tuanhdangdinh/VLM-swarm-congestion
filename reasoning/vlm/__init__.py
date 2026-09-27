@@ -44,6 +44,7 @@ from reasoning.vlm.prompt_builder import (
     format_pairwise_geometry_lines,
     format_robot_state_lines,
     render_failure_context_block,
+    render_last_failed_context_block,
 )
 from reasoning.vlm.reasoner import (
     Reasoner,
@@ -100,6 +101,7 @@ __all__ = [
     "make_neutral_image",
     "parse_decision_text",
     "render_failure_context_block",
+    "render_last_failed_context_block",
     "resolve_reasoner_config",
     "validate_involved_robots",
     "write_reasoner_log",
