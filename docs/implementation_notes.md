@@ -37,6 +37,20 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-27** — **Shadow logging + sim-time stamps live-verified (S1/S2,
+  merge `97634be` deployed to the VM as the new apparatus).** Two ER-2 west
+  `_bshort` episodes, 12/13 checklist items clean: M1 transit speed 0.14
+  vs ground-truth 0.15 sim-m/s (was ≈0.06), STALE onset 0.9–1.3 s
+  confirming the 1.15 retune, trigger timing unchanged, M4 speed rule 0
+  fires, shadow blocks clean on 13/13 analyses, classical-vs-ER-2
+  disagreement 12/13, both runs 2/2 position-verified. FAIL: S2 FCFS
+  arrival censored (spawn sits exactly on the 1.5 m zone boundary) —
+  `censored_arrivals` flag + radius question tracked. Regression found:
+  `rescore_arrivals.py` silently mis-scores sim-time runs (fix in a
+  follow-up entry). Constant −0.45 s M1→ground-truth stamp offset; parked
+  STOPPED/SLOW flicker ≈4×. Findings Rev 14 §AQ; amendments blockers 11
+  and 12 discharged; artifacts `data/logs/vm_runs/simtime_shadow_val/`.
+
 - **2026-09-27** — **Arm B shadow logging wired into M5** (`6d70238`). This
   meets the spec's shadow-logging requirement: in Arm A, the classical
   answer is also computed and logged for every decision. See "Experimental

@@ -16,6 +16,7 @@
 - Rev 10 (2026-09-26): adds the six-run `_bshort` validation batch at the widened ±2.6 passer goal — east (first ever) 3/3 and west 3/3, all position-verified — adopting `_bshort` as the pre-registration scenario; records a second G4-class interpenetration (K1, 0.076 m, pre-yield), a realised-goal-margin note, and the prereg amendment set this batch discharges into.
 - Rev 11 (2026-09-26): the K1/G4 root-cause analysis (`docs/reports/2026-09-26-close-approach-analysis.md`) lands its corrections — the 0.076 m events were 51 s of driven nose-to-nose **contact**, not interpenetration; M4's coordination exemption had disarmed the monitor during an ER-2 `reroute`; the contact fields are hard-coded `[]` (no detector exists); and, contra Rev 7 §AC, both robots **did** go STALE in both runs.
 - Rev 12 (2026-09-26): the M4 exemption fix lands and passes both VM regressions (mock-forced G4/K1 exposure now latches at 0.381 m with no contact; ER-2 yield flow unchanged), closing amendment A5; the Arm B classical reasoner slice (plan Tasks 4, 12–14) merges at `65cc850` with 70 new tests, discharging the "Arm B does not exist" freeze blocker at the reasoning-core level.
+- Rev 14 (2026-09-27): the shadow-logging and sim-time-stamp changes are live-verified (S1/S2, 12 of 13 checklist items clean) — M1 speeds now read sim-m/s (0.14 vs ground truth 0.15), trigger timing unchanged, shadow blocks on 13/13 analyses with classical-vs-ER-2 disagreement on 12/13 — discharging amendment blockers 11 and 12; records the S2 FCFS arrival-censoring FAIL (spawn-on-zone-boundary geometry), the `rescore_arrivals.py` sim-time regression (silent `stale_estimate` corruption; fix dispatched), a constant 0.45 sim-s M1-vs-ground-truth stamp offset, and a 4× parked-robot STOPPED/SLOW flicker at the 0.01 m/s threshold.
 - Rev 13 (2026-09-27): credits restored — the three queued replay arms complete (X: the image fallback eliminates terminal refusals 0/84 vs 10/84 and is kept with separate reporting; F: the annotation overlay is NOT the refusal trigger — the camera frame's content is, with raw frames refusing at least as often as annotated; S2 remainder as its own stratum) and the six-run live gpt-4o `_bshort` pilot lands 6/6 position-verified on the adopted apparatus with the M4 fix now permanently deployed, completing the pre-registration baseline on both models. New finding: a phantom `robot_17` (M1 marker-ID misread) latched N5's robot_1 for 6.4 s pre-episode.
 
 ---
@@ -2573,6 +2574,98 @@ Readings:
 > `feat/failure-context-closed-loop` branch tip is contained in HEAD, so
 > that branch is closed as merged-by-content. Remaining in item 3: the
 > phantom-marker (M1) item and the rest as listed.
+
+---
+
+## AQ. Shadow Logging and Sim-Time Stamps Verified Live
+
+Merge `97634be` brought three changes to the VM in one deploy: Arm B
+shadow logging in M5 (`6d70238`), sim-time camera stamps with M1's
+clock-reset guard and the `stale_after_sec` retune to 1.15
+(`a1aa81d`/`ce31a14`/`7d4a52b` — the root cause was Isaac's
+`useSystemTime=True`, not M1, whose estimator was already
+frame-stamp-based), and the depth-policy artifact fields. Two ER-2
+episodes on west `_bshort` (S1 `20260927_081722`, S2 `20260927_083644`)
+validated a 13-point checklist; summary and artifacts under
+`data/logs/vm_runs/simtime_shadow_val/`.
+
+**Verified (12 of 13):** transit speeds from M1 now average 0.14 m/s
+against ground truth 0.15 (previously ≈0.06 — the ≈0.41× RTF scaling is
+gone); statuses sane with STALE onset 0.9–1.3 sim-s after a marker loss,
+confirming the 1.15 retune; trigger timing unchanged (latch → first
+analysis 12.4–12.6 s, K-batch band); M4's now-live 0.2 m/s speed rule
+fired zero times; no clock resets; both episodes 2/2 position-verified;
+shadow enabled and un-degraded, one shadow line per analysis (13/13),
+every artifact block clean (`shadow_error` null), standoff analyses
+classified `head_on`/`yield`; `image_fallback_after_attempts` and
+`last_failed_context` present in 13/13 artifacts (the second depth block
+NOT-EXERCISED — no failure occurred).
+
+**The one FAIL — FCFS arrival censoring (S2).** The spawns sit exactly
+1.5 m from the pair midpoint, which equals `r_conflict_m`, so a robot can
+be inside the conflict zone at the oldest buffered frame and its arrival
+stamp silently becomes that frame's stamp. S2's classical yielder was
+"correct" only through this censoring; S1's was genuinely wrong for the
+west side (FCFS tie broken by commitment). A `censored_arrivals` flag is
+being added to the record; whether the FCFS zone radius should be
+decoupled from `r_conflict_m` is a T1-tuning/pre-registration question.
+
+**First shadow-vs-model data:** classical and ER-2 disagreed on 12 of 13
+analyses — opening (`yield` vs ER-2's `reverse`), yielder identity (S1),
+and all 8 post-yield re-analyses (`blocked_path`/`reroute` vs ER-2's
+`none`). Read as apparatus success: the arms genuinely differ, which is
+what the experiment needs; note that executed-Arm-B behavior post-yield
+would dispatch reroutes where Arm A stands down.
+
+**Tool regression and measurement notes:**
+
+- `scripts/rescore_arrivals.py` compares scene stamps (now sim-s) with
+  M5 wall-clock events, silently scoring every post-flip arrival
+  `stale_estimate`. A wall-mapping shim produced the valid 4/4 result;
+  the script fix (era autodetection, loud failure) is in progress.
+- M1 stamps trail the ground-truth state by a constant ≈0.45 sim-s
+  (median 0.451/0.454): any offline M1↔ground-truth time join must shift
+  by −0.45 s.
+- Parked robots now flicker STOPPED/SLOW at the 0.01 m/s threshold —
+  status transitions per run rose ≈4× (233/249 vs 49/64), and the SLOW
+  labels reach prompts. A comparability note for pre/post-flip pooling
+  and a T1-tuning candidate (`stopped_threshold_mps`).
+- The shadow window validator now compares sim-seconds against
+  wall-seconds (conservative direction; cosmetic).
+
+---
+
+## AR. Next Steps (Rev 14 delta)
+
+1. Land the `rescore_arrivals.py` era fix and the `censored_arrivals`
+   flag (in progress). Until then, no post-flip run may be scored with
+   the unfixed script.
+2. Pre-freeze decision: **goals in Arm A prompts.** The shadow work
+   exposed that `build_reasoner_request` has never carried goals (the
+   view lacks the field), while Arm B's frames do — an arms-parity gap.
+   Giving the VLM goals changes every prompt, so it must be decided at or
+   before the freeze.
+3. T1 tuning pass now owns: `stopped_threshold_mps` (parked flicker),
+   the FCFS zone radius vs spawn distance (censoring), Arm B
+   `stopped_speed_mps`, and the M4 speed rule margin vs Nav2's 0.18 cap.
+4. Remaining big item unchanged: T0/T2b/T3 authoring + contract fields;
+   then B1 confirmation and model-table rows at the tag.
+5. The VM again has nothing queued once the rescore fix lands (it needs
+   no VM); the stop/keep decision is live.
+
+---
+
+## Rev 14 Provenance
+
+Merge `97634be` (branches `feat/m1-sim-time`: `a1aa81d`, `ce31a14`,
+`7d4a52b`, `bf8ab64`; plus `6d70238`, `57257a9` on the main branch),
+validation run ids `20260927_081722` (S1), `20260927_083644` (S2), plus
+this documentation commit. Merged local suite 1 233 passed with the
+environmental set unchanged. VM: tree `97634be` deployed and verified
+(542 files), all four packages' installed copies match source,
+`orchestrator.yaml` pristine at `c42bf3423aef4ebb18af4c47a91202d6`,
+container restarted, GPU idle, instance RUNNING. Artifacts git-ignored
+under `data/logs/vm_runs/simtime_shadow_val/`.
 
 ---
 

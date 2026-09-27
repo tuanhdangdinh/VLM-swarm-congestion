@@ -34,6 +34,14 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 7 (2026-09-27): blockers 11 and 12 discharged — the sim-time-stamp
+  fix (root cause was Isaac's `useSystemTime`, not M1) and the M5 shadow
+  wiring are merged at `97634be` and live-verified (findings Rev 14 §AQ).
+  New items 13–14: the Arm A goals-parity gap (pre-freeze decision) and
+  the T1-tuning basket (parked-flicker threshold, FCFS zone radius vs
+  spawn distance, Arm B stopped threshold, M4 speed-rule margin). A4
+  gains the sim-time measurement notes (rescore era fix, −0.45 s join
+  offset).
 
 ---
 
@@ -144,6 +152,15 @@ scene log matching both acceptance lines (`scripts/rescore_arrivals.py`).
 Secondary: first answer (the pre-gate strategy and yielder of the episode's
 first analysis). Resolution time (first analysis → both arrived) is reported
 descriptively.
+
+**Sim-time measurement notes (2026-09-27, findings Rev 14 §AQ).** Scene
+logs carry sim-time stamps since merge `97634be`; `rescore_arrivals.py`
+must use its era-aware path (a pre-fix script silently scores every
+post-flip arrival `stale_estimate`). Offline joins of M1 to ground truth
+by time shift by −0.45 s (constant M1 stamp lag). Pre-flip and post-flip
+runs must not be pooled on any speed- or status-derived measure without
+noting the basis change (M1 speeds ≈2.6× larger, parked-robot
+STOPPED/SLOW flicker ≈4× more transitions).
 
 **Definition to pin at freeze.** The passer-backtrack statistic has two
 defensible definitions that disagree on gshort H2 (0.878 m peak-minus-minimum
@@ -332,11 +349,27 @@ persisted structurally in decision artifacts for the RQ5 analysis.
     fields). Costs nothing on two-robot cells; degrades Arm B's executed
     decision at 3+-robot intersections and blocks the T3a blocker-verdict
     comparison. Decide with the T3 authoring (blocker 8).
-11. **M1 speed-scaling convention** — M1 speeds are metres per
-    wall-second (≈0.38× real at this RTF), so M4's 0.2 m/s speed rule
-    cannot fire in sim and Arm B's `stopped_speed_mps: 0.05` reads as
-    ≈0.13 m/s real against live M1 states. Fix or document the convention
-    before Arm B's T1 tuning pass (findings Rev 12 §AM).
-12. **Arm B Phase-2 wiring** — shadow logging of the classical answer on
-    every live Arm A decision (the spec's shadow-logging requirement) is
-    not yet wired into M5.
+11. ~~**M1 speed-scaling convention**~~ — **discharged 2026-09-27**
+    (findings Rev 14 §AQ): root cause was Isaac's `useSystemTime=True` on
+    the camera helpers, not M1; flipped at `a1aa81d` with the M1
+    clock-reset guard and `stale_after_sec` retuned to 1.15, live-verified
+    (M1 transit speed 0.14 vs ground truth 0.15; trigger timing
+    unchanged). Threshold retunes go to the T1 basket (item 14).
+12. ~~**Arm B Phase-2 wiring**~~ — **discharged 2026-09-27** (findings
+    Rev 14 §AQ): shadow logging live on every analysis (`6d70238`,
+    merged `97634be`), verified 13/13 with clean records; first data show
+    classical vs ER-2 disagreeing on 12/13. Caveat tracked: FCFS arrival
+    censoring when a robot spawns on the zone boundary
+    (`censored_arrivals` flag in progress; radius question in item 14).
+13. **Arm A goals-parity gap (pre-freeze decision)** —
+    `build_reasoner_request` has never carried goals (the robot view has
+    no goal field, so every prompt ever sent had `goal=None`), while Arm
+    B's shadow frames carry registry goals that its head-on/intersection
+    rules use. Decide before the tag: give the VLM goals (changes every
+    prompt; breaks comparability with all pilots) or pre-register the
+    asymmetry as a documented arms difference.
+14. **T1 tuning basket** (tuning-parity rule applies: T1 only, before the
+    tag): `stopped_threshold_mps` (parked STOPPED/SLOW flicker, ≈4×
+    transitions since sim-time), the FCFS conflict-zone radius vs the
+    1.5 m spawn distance (censoring), Arm B `stopped_speed_mps`, and the
+    M4 0.2 m/s speed-rule margin vs Nav2's 0.18 cap.
