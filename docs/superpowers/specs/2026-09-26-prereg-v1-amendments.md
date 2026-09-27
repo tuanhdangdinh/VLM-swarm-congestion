@@ -34,6 +34,15 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 10 (2026-09-27): the prompt-v2 bundle lands (`991ffae`…`ed152c7`) —
+  items 10 and 13 discharged (`blocker_kind` + `crossing_order` on the
+  contract and prompt; goals + task labels in the state block, goals on
+  the coordinator's recommended default with explicit user confirmation
+  still pending); prompt template versioning keeps every stored artifact
+  reconstructing byte-identically (130/130 integrity + 654/654 wider
+  sweep). New freeze-checklist items 15–17: three prompt-wording
+  sign-offs, the calibration mini-pilot (funding-blocked), and the T2b
+  scope decision from `docs/reports/2026-09-27-three-robot-feasibility.md`.
 - Rev 9 (2026-09-27): new A10 — Arm B's `blocked_path` rule gains a
   parked-at-goal exclusion (`arrived_exclusion_radius_m: 0.35`,
   `5e13805`), a pre-freeze rule change forced by the T0 verification
@@ -417,3 +426,27 @@ original Arm B specification.
     transitions since sim-time), the FCFS conflict-zone radius vs the
     1.5 m spawn distance (censoring), Arm B `stopped_speed_mps`, and the
     M4 0.2 m/s speed-rule margin vs Nav2's 0.18 cap.
+10. ~~**Shared-contract fields**~~ and 13. ~~**goals-parity gap**~~ —
+    **discharged 2026-09-27** by the prompt-v2 bundle (Rev 10 above).
+    Goals rider: implemented on the recommended default; explicit user
+    confirmation pending, revert isolated.
+15. **Prompt-v2 wording sign-offs (at or before the freeze):** (a) the
+    guidance line "Decide from the robot coordinates and the image, not
+    from assumptions about intent" now coexists with rendered goals —
+    reconcile; (b) `blocker_kind`'s "robot = one of the robots listed
+    above" fixes how T3a's untracked robot-shaped blocker must be
+    labelled (`transient`, since it is not listed) — confirm that is the
+    intended oracle; (c) the prompt-leakage guard now exempts the
+    literal token `"blocker_kind"` — confirm.
+16. **Calibration mini-pilot** (n = 3 per model on `_bshort` west, post
+    bundle, pre freeze) — funding-blocked: Gemini monthly cap hit,
+    OpenAI balance untested.
+17. **T2b scope decision** — the three-robot feasibility investigation
+    (`docs/reports/2026-09-27-three-robot-feasibility.md`) prices T2b at
+    a 12-item build list including two REQUIRED safety changes before
+    any wrong-order verification run (pair-scoped clearing exemption;
+    hold-until-last ordered release — the minimum Pillar-3 chain), with
+    the dominant risk that the "wrong order" is a collision rather than
+    a slower run. Decide: build it, redesign the tier cheaper, or drop
+    it (weakens RQ3's ambiguous-ordering evidence) — before any T2b
+    authoring.

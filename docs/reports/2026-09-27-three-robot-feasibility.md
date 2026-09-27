@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: read-only audit of what a third robot (`robot_3`) needs in every layer for the T2b flow-ordering tier, with file:line evidence, per-layer verdicts, a build list and the dominant risk.
+- Rev 2 (2026-09-27): Layer 7 corrected per the author's own follow-up — a stationary `robot_3` at x ∈ [−2.5, −2.24] satisfies every live constraint; the blocker is timing (goals sent at t = 0), resolved by a hold-back, not spawn placement. Adds two Layer-5 order-path gaps: `scripts/probe_presentation_order.py:617` records `first_listed_robot = known_robot_ids[0]` (with three robots under `id_desc` that is `robot_3`), and the T0 probe draws its order separately (`orchestrator_node.py:778`) — both must be accounted for in any three-robot order scheme. Written against tree `4a71ffb`; the prompt-v2 bundle (`991ffae`…`ed152c7`) post-dates it and changes the M3 `crossing_order` handoff, Layer 6 goals, the M5 registry view and Arm B's emitted fields — re-check those four findings against the bundle.
 
 ---
 
@@ -63,7 +64,7 @@ The short answer:
 | 4b. M3 command shape | NEEDS-BUILD | Legacy yield commands only `robot_ids[0:2]`, so `robot_3` gets nothing; derived mode is not live, and its backup rule can "pass through" a robot behind |
 | 5. M5 orchestration | WORKS (registry, shadow buffer) + NEEDS-DECISION (episodes, order, Arm B) | A `robot_3`-only stall opens a new episode mid-maneuver; `id_asc`/`id_desc` do not counterbalance the standoff pair at N = 3; Arm B's head-on rule refuses a pair with a third stopped robot within 1.5 m |
 | 6. M2 prompts | WORKS (+72 tokens est.) + NEEDS-DECISION (flow evidence) | Pairwise lines scale as N(N−1)/2; the "motion table and trails" the design relies on are not in the prompt |
-| 7. Camera / ROI geometry | NEEDS-DECISION | The tracked x-range, park points, `r_conflict_m` and the 0.45 m latch leave no position for `robot_3` that satisfies every constraint at trigger time |
+| 7. Camera / ROI geometry | NEEDS-DECISION | A *stationary* `robot_3` at x ∈ [−2.5, −2.24] satisfies every live constraint (M1 tracking, spawn latch, Arm B's 1.5 m rule, `robot_1`'s park point; only non-live derived mode fails). The real blocker is timing: goals are sent at t = 0, so a *moving* `robot_3` closes the gap within roughly the stall window — it must be held back (build item 6) |
 
 ---
 
@@ -452,7 +453,9 @@ the one that is built.
     `blocked_path`/`unknown`, and the FCFS contrast the tier exists for
     disappears.
   - The design already names this as an open question (battery design lines
-    117–122). Layer 7 shows it cannot be satisfied by spawn placement alone.
+    117–122). Layer 7 shows a stationary `robot_3` placement exists but a
+    moving one cannot hold every constraint through trigger time — the
+    resolution is a hold-back (build item 6), not spawn placement alone.
 
 **Verdict: WORKS for the registry and shadow buffer. NEEDS-DECISION + BUILD
 (M) for:**
