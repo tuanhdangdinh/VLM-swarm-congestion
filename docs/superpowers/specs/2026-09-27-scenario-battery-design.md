@@ -46,6 +46,10 @@ re-baselined a single time:
    robots are headed, and bundling costs no extra comparability break.
    *Requires user sign-off; the bundle can ship without it.*
 
+**Bundle riders (2026-09-27):** two cosmetic prompt defects fix in the
+same break — the task label never renders in the state block, and the
+prompt header says "sorted by ID" regardless of the drawn order.
+
 **Consequences.** All pre-bundle decision artifacts remain valid (fields
 are additive-optional; old prompts reconstruct byte-identically). All
 post-bundle prompts differ from every pilot; nothing straddling the
@@ -192,15 +196,20 @@ M5 emitting stage-2 artifacts. Scenario authoring follows.
 
 ---
 
-## T3c — Timed-Obstacle Runs
+## T3c — Timed-Obstacle Runs (re-scoped 2026-09-27: re-author, not reuse)
 
-`dynamic_anomaly.yaml` exists with `timed_obstacles`. Needed: an
-`oracle:` block (expected classification `anomaly`/`transient` once the
-prompt-v2 field exists; descriptive tier otherwise), `expected_conflict`
-review against the current schema, a per-scenario Nav2 map if its layout
-needs one, and one smoke run on the current apparatus (it has not been
-run since the arrival check, the M4 exemption fix, or sim-time stamps).
-N = 10 pairs, descriptive metrics only — no new machinery.
+The smoke run (findings Rev 15 §AS) found `dynamic_anomaly.yaml`
+unusable as authored: timed obstacles never spawn (`EventScheduler`
+constructed with no-op callbacks — runner fix in progress), the robots
+live at the camera-ROI edge where M1 never detects them, there is no
+per-scenario Nav2 map, the YAML's four robots exceed the two Nav2
+stacks, the obstacle window closes before M5 is up, and the layout is a
+head-on by construction. **T3c v2**: two robots on tracked lanes inside
+the ROI, a per-scenario map, an off-axis timed obstacle whose window
+opens after M5 startup (≳ 60 sim-s) and spans a robot's approach, and an
+`oracle:` block (`anomaly`/`transient` semantics once the prompt-v2
+field exists). Gates: the scheduler-wiring fix verified live, then
+authoring. Size: M (was S).
 
 ---
 
@@ -210,7 +219,7 @@ N = 10 pairs, descriptive metrics only — no new machinery.
 |---|---|---|---|---|
 | 1 | T0 scenario + probe mode | — | M | **landed** (`33232b8`…`ff96ead`; VM/USD verification pending) |
 | 2 | Prompt-v2 bundle (fields + goals decision) | user sign-off on goals | M | awaiting decision |
-| 3 | T3c oracle + smoke | — | S | ready |
+| 3 | T3c v2 re-author (see re-scoped section) | scheduler fix live-verified | M | blocked on fix |
 | 4 | T3a pair (assets + YAMLs + oracle) | 2; marker-less asset; timed despawn check | M | ready after 2 |
 | 5 | T2b (3-robot + harness + oracle) | 2; 3-robot verification; forced-order harness | L | ready after 2 |
 | 6 | Pillar 2 slice (plan Tasks 3/8/9/11) | — | L | **landed** (`9d027e6`…`cf81fa9`, merged `d3c2a7d`; M5 wiring + config flip follow the bundle) |

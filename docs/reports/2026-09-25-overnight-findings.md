@@ -16,6 +16,7 @@
 - Rev 10 (2026-09-26): adds the six-run `_bshort` validation batch at the widened ±2.6 passer goal — east (first ever) 3/3 and west 3/3, all position-verified — adopting `_bshort` as the pre-registration scenario; records a second G4-class interpenetration (K1, 0.076 m, pre-yield), a realised-goal-margin note, and the prereg amendment set this batch discharges into.
 - Rev 11 (2026-09-26): the K1/G4 root-cause analysis (`docs/reports/2026-09-26-close-approach-analysis.md`) lands its corrections — the 0.076 m events were 51 s of driven nose-to-nose **contact**, not interpenetration; M4's coordination exemption had disarmed the monitor during an ER-2 `reroute`; the contact fields are hard-coded `[]` (no detector exists); and, contra Rev 7 §AC, both robots **did** go STALE in both runs.
 - Rev 12 (2026-09-26): the M4 exemption fix lands and passes both VM regressions (mock-forced G4/K1 exposure now latches at 0.381 m with no contact; ER-2 yield flow unchanged), closing amendment A5; the Arm B classical reasoner slice (plan Tasks 4, 12–14) merges at `65cc850` with 70 new tests, discharging the "Arm B does not exist" freeze blocker at the reasoning-core level.
+- Rev 15 (2026-09-27): the T0 tier is live-verified (all six checks PASS; ER-2 false positives 0/28, classical shadow 0/5 moving but 60/60 by rule on robots parked at goal — an Arm B rule gap) and the T3c smoke finds `dynamic_anomaly` unusable as authored (timed obstacles never spawn — a no-op `EventScheduler` wiring — plus five layout defects), re-scoping T3c to a re-author. Also: probes keep firing on a frozen scene after Isaac exits (fix dispatched), and two cosmetic prompt defects queued for the prompt-v2 bundle.
 - Rev 14 (2026-09-27): the shadow-logging and sim-time-stamp changes are live-verified (S1/S2, 12 of 13 checklist items clean) — M1 speeds now read sim-m/s (0.14 vs ground truth 0.15), trigger timing unchanged, shadow blocks on 13/13 analyses with classical-vs-ER-2 disagreement on 12/13 — discharging amendment blockers 11 and 12; records the S2 FCFS arrival-censoring FAIL (spawn-on-zone-boundary geometry), the `rescore_arrivals.py` sim-time regression (silent `stale_estimate` corruption; fix dispatched), a constant 0.45 sim-s M1-vs-ground-truth stamp offset, and a 4× parked-robot STOPPED/SLOW flicker at the 0.01 m/s threshold.
 - Rev 13 (2026-09-27): credits restored — the three queued replay arms complete (X: the image fallback eliminates terminal refusals 0/84 vs 10/84 and is kept with separate reporting; F: the annotation overlay is NOT the refusal trigger — the camera frame's content is, with raw frames refusing at least as often as annotated; S2 remainder as its own stratum) and the six-run live gpt-4o `_bshort` pilot lands 6/6 position-verified on the adopted apparatus with the M4 fix now permanently deployed, completing the pre-registration baseline on both models. New finding: a phantom `robot_17` (M1 marker-ID misread) latched N5's robot_1 for 6.4 s pre-episode.
 
@@ -2688,3 +2689,76 @@ deployed**, `orchestrator.yaml` pristine at
 `aa93f55045c63e956088790ea6848e8a`, container restarted, GPU idle,
 instance RUNNING. Artifacts git-ignored under
 `data/logs/vm_runs/bshort_gpt4o/`.
+
+---
+
+## AS. T0 Verified Live; T3c Re-Scoped by Its Smoke Run
+
+Tree `c1872fb` deployed (T0 tier, Pillar 2 inert in `legacy` mode,
+rescore/censoring fixes); runs `20260927_111348` (T0, normal_flow, ER-2)
+and `20260927_113513` (dynamic_anomaly smoke). Artifacts
+`data/logs/vm_runs/t0_t3c_verify/`.
+
+### T0 — all six checks PASS
+
+Both robots traversed and arrived (0.09–0.11 m); ground-truth minimum
+pairwise 0.6904 m at the pass (0.24 m over the latch, matching the
+0.70 m design); zero congestion triggers; 65 probes on a 15 s cadence,
+every artifact `probe: true` with its own order draw and null
+`episode_index`; **zero dispatches and zero M4 traffic beyond base
+missions** — both no-dispatch layers held under real M2 answers; shadow
+blocks clean on 65/65.
+
+**False-positive tally: ER-2 0/28 distinct scenes** (5 moving, 1
+transitional, 22 parked), comfortably under the ≤ 10% criterion, though
+the moving-phase n is 5 — the T0 collection protocol needs looped tasks
+or several runs to get 20 informative probes. **The classical shadow is
+the opposite story:** `none` on 5/5 moving probes but
+`blocked_path`/`anomaly`/`reroute` on **60/60 parked-phase probes** —
+Arm B's rules have no concept of "stopped because arrived", a rule-level
+false-positive rate of 100% on parked scenes. An at-goal exclusion for
+`blocked_path` candidacy is being added as a pre-freeze rule change.
+
+Defects found: (a) **probes keep firing on a frozen scene** — Isaac
+exited at sim 180.37 and 37 further probes fired on the identical final
+snapshot, because the staleness check compares two stamps that froze
+together (fix: gate on receipt age; dispatched); (b) two prompt
+cosmetics queued for the prompt-v2 bundle — the task label never renders
+in the state block, and the header claims "sorted by ID" even under an
+`id_desc` draw; (c) the rescore's resolution time on a probe run is
+measured from probe 0 (the FR5.3.12 gap), and a run with zero analyses
+(T2) aborts the whole batch rather than being skipped.
+
+### T3c — `dynamic_anomaly` is unusable as authored
+
+The smoke run completed but produced no T3c-relevant behavior, for six
+independent reasons: (1) **the timed obstacle never spawns** —
+`runner.py` constructs `EventScheduler` with no activate/deactivate
+callbacks, so they are no-ops and the prim stays inactive (verified by
+recorded frames inside the 8–20 s window); (2) the robots spawn and end
+at x = ±3.0, the camera-ROI edge — M1 detected them in 0 of 146 scene
+rows, so no triggers, no camera pose, no arrivals; (3) no per-scenario
+Nav2 map exists (the launcher aborts as shipped; a temporary alias was
+used); (4) the YAML has four robots but the launcher brings up two Nav2
+stacks; (5) the obstacle window (8–20 s) closes before M5 finishes
+starting; (6) robots 1/2 run the same centreline in opposite directions
+— a head-on by construction, not an anomaly scene. **T3c is re-scoped
+from "oracle + smoke" to a re-author** (v2 scenario: tracked robots
+inside the ROI, per-scenario map, two robots, a later and longer
+obstacle window, an off-axis anomaly geometry) on top of the scheduler
+fix. One transient flake (robot_1 `map_server` activation timeout) is
+recorded and not yet separable from defect 2.
+
+---
+
+## Rev 15 Provenance
+
+No new code commits at the time of the runs (tree `c1872fb`); the fixes
+for the frozen-probe gate, the classical at-goal rule and the
+`EventScheduler` wiring follow in the next commits. Run ids
+`20260927_111348`, `20260927_113513`. VM: tree `c1872fb` verified
+557/557, installed packages 69/69 by md5, new pristine
+`orchestrator.yaml` md5 `e73c3574ecd98ffa2f080cd389292821`, the
+`normal_flow` USD built and validated on the VM, container restarted,
+GPU idle, instance RUNNING (nothing further queued — the stop/keep
+decision is the owner's).
