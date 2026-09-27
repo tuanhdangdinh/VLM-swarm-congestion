@@ -37,6 +37,41 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-27** — **Rescore sim-time regression fixed; censored FCFS
+  arrivals flagged** (follow-ups to the S1/S2 validation entry below,
+  `data/logs/vm_runs/simtime_shadow_val/VALIDATION_SUMMARY.txt` F3/F4).
+  - `scripts/rescore_arrivals.py` (`64bb0bd`) detects the clock era per run.
+    Wall era: the scene-log stamp span overlaps the M5 log's wall span ±60 s,
+    and stamps are used unchanged. Sim era otherwise: stamp → `t + offset`,
+    where `offset` (wall − monotonic) is derived per run as the median of
+    one anchor per analysis: the `starting analysis request=` wall time
+    minus the scene log's interpolated `t` at that artifact's scene stamp.
+    It is recorded in the new `clock_*` CSV columns. Derived 1790272483.650 /
+    .652 on S1/S2, vs 1790272483.644 measured on the VM. Sim era without
+    anchors, anchors disagreeing (MAD > 1 s), or an event >60 s outside the
+    mapped scene span raises `ClockReconciliationError`: the re-score aborts
+    with exit 2 and no CSV.
+  - Re-runs: `simtime_shadow_val` 4/4 `within_tolerance`, matching
+    `ARRIVALS_RESCORED_SIMTIME_WALLMAPPED.csv` on every column except
+    `m1_estimate_age_sec`. That column differs because a lagging robot stamp
+    is now interpolated on the sim→wall map instead of the shim's sim-second
+    age subtracted from wall time. `bshort_gpt4o` and `bshort2` are
+    identical on all 34 prior columns; all 55 rows of the top-level
+    `ARRIVALS_RESCORED.csv` are identical.
+  - Gotcha: era detection uses span *overlap*, not the median.
+    `bshort_gpt4o/20260926_204952`'s captured M5 log ends ~430 s before its
+    scene log does.
+  - Ground truth is still joined by nearest position, so the −0.45 s
+    M1→GT stamp lag (F1) is not applied. It is documented in the script
+    docstring for any future time join.
+  - Shadow record (`1a38379`): new `censored_arrivals` field lists involved
+    robots whose FCFS arrival stamp equals the oldest buffered frame's
+    stamp, i.e. already in-zone at the window start (S2 robot_1). It uses
+    the same zone and `derive_motion_table` rule as FCFS. `None` means no
+    FCFS order was computed. The flag only marks the answer; the decision
+    and tiebreak are unchanged, and the boundary-spawn radius question stays
+    a pre-registration decision.
+
 - **2026-09-27** — **Shadow logging + sim-time stamps live-verified (S1/S2,
   merge `97634be` deployed to the VM as the new apparatus).** Two ER-2 west
   `_bshort` episodes, 12/13 checklist items clean: M1 transit speed 0.14
