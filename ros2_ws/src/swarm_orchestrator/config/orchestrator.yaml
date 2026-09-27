@@ -48,7 +48,9 @@ prompt_static_obstacles: false
 prompt_robot_order: id_asc
 # Seed for the random draw. null derives it from VGU_RUN_ID, falling back to the
 # M5 session id, so paired runs launched with the same run id draw the same
-# sequence; the fixed modes ignore it.
+# sequence; the fixed modes ignore it. The stage-2 retreat letters are drawn
+# from this same seed (a separate, salted stream, one draw per stage-2 call in
+# call order), whatever prompt_robot_order says.
 prompt_robot_order_seed: null
 reasoning_backend_id: openai
 frame_dump_dir: data/logs/m5_frames
@@ -135,6 +137,14 @@ stage2_retreat_selection: true
 # prompt says the letters are not drawn, and the artifact records
 # stage2.marks_drawn: false with the reason.
 stage2_calibration_path: null
+# Stage-2 call budget, in place of the stage-1 reasoner block's (openai there
+# is 4 attempts x 120 s). Worst case 2 x 8 s = 16 s, inside one
+# command_timeout_sec (20 s) while the deadlocked robots wait on it; 8 s
+# clears every stage-1 call measured so far (gpt-4o 2.1-6.0 s, ER-2
+# 3.2-3.8 s) for a shorter prompt and a one-letter answer. Timeouts, backend
+# errors, refusals and unparsable text each spend an attempt.
+stage2_max_attempts: 2
+stage2_timeout_sec: 8.0
 
 # Arm B shadow (rev-8 shadow logging): on every VLM analysis, also compute the
 # classical answer from a snapshot ring buffer and write it, with the Arm A vs

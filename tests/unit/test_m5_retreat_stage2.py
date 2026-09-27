@@ -25,6 +25,8 @@ from swarm_orchestrator.reasoning_pipeline import (
     write_decision_artifact,
 )
 from swarm_orchestrator.retreat_stage2 import (
+    assign_letters,
+    derive_letter_seed,
     format_stage2_log,
     run_retreat_stage2,
     snapshot_frame_from_request,
@@ -564,3 +566,119 @@ class TestSetOfMark:
         )
         assert outcome.stage2.marks_drawn is None
         assert not (tmp_path / "r1_stage2.png").exists()
+
+
+# ---- Letter counterbalancing (amendments item 22) ----
+
+# With base seed 0, draw 3 swaps the two head-on candidates (draw 0 does not).
+_SWAP_DRAW = 3
+
+
+class TestLetterCounterbalancing:
+    def test_draw_three_swaps_two_candidates(self):
+        assert assign_letters(2, derive_letter_seed(0, _SWAP_DRAW)) == [1, 0]
+        assert assign_letters(2, derive_letter_seed(0, 0)) == [0, 1]
+
+    def test_assignment_is_a_seeded_permutation(self):
+        seed = derive_letter_seed(123, 4)
+        order = assign_letters(4, seed)
+        assert sorted(order) == [0, 1, 2, 3]
+        assert assign_letters(4, seed) == order
+
+    def test_seed_is_sha256_derived_and_salted(self):
+        assert derive_letter_seed(5, 0) == derive_letter_seed(5, 0)
+        assert derive_letter_seed(5, 0) != derive_letter_seed(5, 1)
+        assert derive_letter_seed(5, 0) != derive_letter_seed(6, 0)
+        # Not the presentation-order seed of the same base.
+        assert derive_letter_seed(5, 0) != 5
+
+    def test_forced_letter_grounds_the_candidate_shown_under_it(self):
+        chooser = _FixedChooser("A")
+        pipe = _pipeline(chooser=chooser)
+        pipe._stage2_draws = _SWAP_DRAW
+        outcome = pipe.run(_request())
+        [asked] = chooser.requests
+        [shown_a] = [c for c in asked.candidates if c.label == "A"]
+        params = _yield_params(outcome)
+        assert (params["retreat_x_m"], params["retreat_y_m"]) == (
+            round(shown_a.x, 3), round(shown_a.y, 3)
+        )
+        # Shown "A" is M3's "B" here: the command carries M3's label.
+        stage2 = outcome.stage2
+        assert stage2.choice["retreat_choice"] == "A"
+        assert stage2.grounded_label == "B" == params["retreat_choice"]
+        assert stage2.default_label == "A"
+        assert stage2.default_letter == "B"
+        assert outcome.grounded_command["degradations"] == []
+
+    def test_default_is_no_longer_first_listed_letter_a(self):
+        chooser = _FixedChooser("A")
+        pipe = _pipeline(chooser=chooser)
+        pipe._stage2_draws = _SWAP_DRAW
+        stage2 = pipe.run(_request()).stage2
+        [asked] = chooser.requests
+        default = stage2.candidates[0]
+        shown = {c.label: (c.x, c.y) for c in asked.candidates}
+        assert shown[stage2.default_letter] == (default["x"], default["y"])
+        assert stage2.default_letter != "A"
+
+    def test_default_letter_is_balanced_over_draws(self):
+        letters = []
+        for index in range(200):
+            _choice, record = run_retreat_stage2(
+                _request(), _decision(), snapshot_frame_from_request(_request()), _DERIVED,
+                _FixedChooser("A"), geometry=_geometry(), letter_seed_base=11,
+                letter_draw_index=index,
+            )
+            letters.append(record.default_letter)
+        assert 70 <= letters.count("A") <= 130
+        assert letters.count("A") + letters.count("B") == 200
+
+    def test_default_rank_lands_on_every_letter_of_four(self):
+        counts = [0, 0, 0, 0]
+        for index in range(400):
+            counts[assign_letters(4, derive_letter_seed(11, index)).index(0)] += 1
+        assert all(60 <= count <= 140 for count in counts)
+
+    def test_assignment_is_recorded_and_recoverable(self, tmp_path):
+        chooser = _FixedChooser("B")
+        pipe = _pipeline(chooser=chooser, stage2_letter_seed=99)
+        outcome = pipe.run(_request())
+        payload = json.loads(
+            write_decision_artifact(
+                tmp_path, outcome, request=_request(), grounding_source=_source()
+            ).read_text()
+        )
+        stage2 = payload["stage2"]
+        assert stage2["letter_seed_base"] == 99
+        assert stage2["letter_draw_index"] == 0
+        assert stage2["letter_seed"] == derive_letter_seed(99, 0)
+        order = assign_letters(len(stage2["candidates"]), stage2["letter_seed"])
+        letters = sorted(c["label"] for c in stage2["candidates"])
+        for letter, rank in zip(letters, order, strict=True):
+            entry = stage2["letter_assignment"][letter]
+            assert entry["rank"] == rank
+            assert entry["candidate_label"] == stage2["candidates"][rank]["label"]
+            assert stage2["candidates"][rank]["letter"] == letter
+        [asked] = chooser.requests
+        for option in asked.candidates:
+            entry = stage2["letter_assignment"][option.label]
+            assert (entry["x"], entry["y"]) == (option.x, option.y)
+
+    def test_pipeline_advances_the_draw_index_per_derived_yield(self):
+        pipe = _pipeline(chooser=_FixedChooser("A"), stage2_letter_seed=3)
+        first = pipe.run(_request()).stage2
+        second = pipe.run(_request()).stage2
+        assert (first.letter_draw_index, second.letter_draw_index) == (0, 1)
+        assert first.letter_seed != second.letter_seed
+
+    def test_skipped_call_records_no_letters(self):
+        stage2 = _pipeline(chooser=None).run(_request()).stage2
+        assert stage2.letter_assignment is None
+        assert stage2.default_letter is None
+        assert stage2.default_label == stage2.candidates[0]["label"]
+
+    def test_unrendered_letter_passes_through_unmapped(self):
+        outcome = _pipeline(chooser=_FixedChooser("D", cause="invalid_label")).run(_request())
+        assert outcome.stage2.grounded_label == "D"
+        assert outcome.grounded_command["degradations"] == ["retreat=default:invalid_label"]

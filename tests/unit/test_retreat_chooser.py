@@ -137,6 +137,24 @@ class TestChoose:
         assert result.choice is None
         assert len(backend.payloads) == 1
 
+    def test_result_records_the_budget_it_ran_under(self):
+        backend = _ScriptedBackend(_choice("A"))
+        result = RetreatChooser(backend, _config(max_attempts=3, timeout_sec=7.5)).choose(
+            _request()
+        )
+        assert (result.max_attempts, result.timeout_sec) == (3, 7.5)
+
+    def test_timeout_bounds_each_call_with_the_chooser_config(self):
+        seen = []
+
+        class _Recording:
+            def analyze(self, payload, config):
+                seen.append(config.timeout_sec)
+                return BackendResponse(text=_choice("A"), backend_id="rec")
+
+        RetreatChooser(_Recording(), _config(timeout_sec=8.0)).choose(_request())
+        assert seen == [8.0]
+
 
 class TestRetreatChoiceBackend:
     def test_real_backend_is_reused(self, monkeypatch):

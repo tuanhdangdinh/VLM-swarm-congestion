@@ -17,8 +17,10 @@ from reasoning.vlm.stage2_prompt import build_stage2_prompt_payload
 class RetreatChooser:
     """Backend-agnostic stage-2 caller; never raises past `choose`.
 
-    Uses the stage-1 `ReasonerConfig`: `timeout_sec` bounds each call and
-    `max_attempts` bounds the calls, so the worst case is their product. A
+    `timeout_sec` bounds each call and `max_attempts` bounds the calls, so the
+    worst case is their product. M5 passes the stage-1 `ReasonerConfig` with
+    both replaced by its own `stage2_*` keys, so stage 2 does not inherit
+    stage 1's budget (4 x 120 s on openai). A
     timeout, a backend exception, a refusal or unparsable text spends an
     attempt (the last two re-ask when `allow_reask`); a well-formed answer
     naming an unrendered letter ends the call at once, since that letter is
@@ -34,6 +36,11 @@ class RetreatChooser:
         """
         self._backend = backend
         self._config = config
+
+    @property
+    def config(self) -> ReasonerConfig:
+        """The config every call of this chooser runs under."""
+        return self._config
 
     def choose(self, request: RetreatChoiceRequest) -> RetreatChoiceResult:
         """Ask the backend for one retreat letter.
@@ -96,8 +103,8 @@ class RetreatChooser:
             cause, error_type, error_message, refusals,
         )
 
-    @staticmethod
     def _result(
+        self,
         request: RetreatChoiceRequest,
         backend_id: str,
         choice: RetreatChoiceDecision | None,
@@ -120,4 +127,6 @@ class RetreatChooser:
             error_type=error_type,
             error_message=error_message,
             refusal_attempts=refusals,
+            max_attempts=self._config.max_attempts,
+            timeout_sec=self._config.timeout_sec,
         )

@@ -6,10 +6,18 @@ will, asks the VLM for one letter, and hands the parsed answer to grounding.
 Stage 2 never blocks resolution: every failure, including an unexpected
 exception here, degrades to `retreat_choice=None`, which the grounder turns
 into the geometry-max candidate with a `retreat=default:*` tag.
+
+Letters are counterbalanced (amendments item 22). M3 labels candidates in
+generation order and breaks ranking ties on that label, so its label "A" is
+the geometry-max default in every symmetric scene. The letters the VLM sees
+are therefore a seeded permutation of those labels, drawn per call; the
+answer is mapped back to M3's label before grounding, so the grounder is
+unchanged and resolves the candidate that was shown under the chosen letter.
 """
 from __future__ import annotations
 
 import hashlib
+import random
 from collections.abc import Sequence
 from typing import Protocol
 
@@ -74,13 +82,51 @@ def format_stage2_log(request_id: str, record: RetreatStage2Record) -> str:
     return (
         f"stage2 request={request_id} status={record.status} "
         f"skip_reason={record.skip_reason} failure_cause={record.failure_cause} "
-        f"choice={choice} default={record.default_label} candidates={labels} "
+        f"choice={choice} default_letter={record.default_letter} "
+        f"grounded_label={record.grounded_label} default={record.default_label} "
+        f"candidates={labels} "
         f"marks_drawn={record.marks_drawn} attempts={attempts} error={record.error}"
     )
 
 
 def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def derive_letter_seed(base_seed: int, draw_index: int) -> int:
+    """Derive the seed of one stage-2 letter draw.
+
+    Follows `derive_order_seed`: SHA-256, never `hash()`, so paired runs
+    sharing a base seed draw the same letters for their n-th stage-2 call.
+    The `stage2` salt keeps this stream independent of the presentation-order
+    stream drawn from the same base seed.
+
+    Args:
+        base_seed: The run's seed (M5's presentation-order seed).
+        draw_index: Zero-based index of the stage-2 draw within the M5 process.
+
+    Returns:
+        A 64-bit seed.
+    """
+    digest = hashlib.sha256(f"{base_seed}:stage2:{draw_index}".encode()).digest()
+    return int.from_bytes(digest[:8], "big")
+
+
+def assign_letters(candidate_count: int, seed: int) -> list[int]:
+    """Draw which ranked candidate each letter shows.
+
+    Args:
+        candidate_count: Number of ranked candidates.
+        seed: The draw's seed (`derive_letter_seed`).
+
+    Returns:
+        `order` with `order[i]` the ranked index shown under the i-th letter
+        (A, B, ... in order); a uniform random permutation, so the
+        geometry-max candidate (rank 0) lands on each letter equally often.
+    """
+    order = list(range(candidate_count))
+    random.Random(seed).shuffle(order)
+    return order
 
 
 def _render_marks(
@@ -112,6 +158,8 @@ def run_retreat_stage2(
     static_obstacles: Sequence[StaticObstacleInput] = (),
     yield_feasibility_mode: YieldFeasibilityMode = "off",
     marker: CandidateMarker | None = None,
+    letter_seed_base: int = 0,
+    letter_draw_index: int = 0,
 ) -> tuple[RetreatChoiceDecision | None, RetreatStage2Record]:
     """Run stage 2 for one yield decision; never raises.
 
@@ -134,15 +182,18 @@ def run_retreat_stage2(
         marker: Draws the candidate letters on the stage-1 frame; None, or
             any drawing failure, sends that frame unmarked (`marks_drawn`
             false, with the reason in `marks`).
+        letter_seed_base: The run seed the letter draw derives from.
+        letter_draw_index: This draw's index within the M5 process.
 
     Returns:
-        The choice to ground (None grounds the default) and the artifact
-        record.
+        The choice to ground, in M3's labels (None grounds the default), and
+        the artifact record.
     """
     try:
         return _run(
             request, decision, frame, params, caller, enabled,
             geometry, static_obstacles, yield_feasibility_mode, marker,
+            letter_seed_base, letter_draw_index,
         )
     except Exception as exc:  # stage 2 must never stall or fail the cycle
         return None, RetreatStage2Record(
@@ -161,6 +212,8 @@ def _run(
     static_obstacles: Sequence[StaticObstacleInput],
     yield_feasibility_mode: YieldFeasibilityMode,
     marker: CandidateMarker | None,
+    letter_seed_base: int,
+    letter_draw_index: int,
 ) -> tuple[RetreatChoiceDecision | None, RetreatStage2Record]:
     roles = resolve_yield_roles(
         decision,
@@ -198,8 +251,35 @@ def _run(
     if caller is None:
         return None, RetreatStage2Record(status="skipped", skip_reason="no_backend", **base)
 
+    letter_seed = derive_letter_seed(letter_seed_base, letter_draw_index)
+    order = assign_letters(len(candidates), letter_seed)
+    # The shown letters are M3's own label set (A.. contiguous), so a letter
+    # outside it is outside both and still grounds as `invalid_label`.
+    letters = sorted(c.label for c in candidates)
+    shown = {letter: candidates[rank] for letter, rank in zip(letters, order, strict=True)}
+    default_letter = letters[order.index(0)]
+    lettered = {
+        "candidates": [
+            {**c.model_dump(mode="json"), "letter": letters[order.index(rank)]}
+            for rank, c in enumerate(candidates)
+        ],
+        "default_letter": default_letter,
+        "letter_seed_base": letter_seed_base,
+        "letter_draw_index": letter_draw_index,
+        "letter_seed": letter_seed,
+        "letter_assignment": {
+            letter: {
+                "candidate_label": candidates[rank].label,
+                "rank": rank,
+                "x": candidates[rank].x,
+                "y": candidates[rank].y,
+            }
+            for letter, rank in zip(letters, order, strict=True)
+        },
+    }
     marks = _render_marks(
-        marker, request.request_id, request.image_path, [(c.label, c.x, c.y) for c in candidates]
+        marker, request.request_id, request.image_path,
+        [(letter, c.x, c.y) for letter, c in shown.items()],
     )
     choice_request = RetreatChoiceRequest(
         request_id=request.request_id,
@@ -210,9 +290,9 @@ def _run(
         robot_states=list(frame.robots),
         candidates=[
             RetreatCandidateOption(
-                label=c.label, x=c.x, y=c.y, backup_m=c.backup_m, lateral_m=c.lateral_m
+                label=letter, x=c.x, y=c.y, backup_m=c.backup_m, lateral_m=c.lateral_m
             )
-            for c in candidates
+            for letter, c in shown.items()
         ],
     )
     payload = build_stage2_prompt_payload(choice_request)
@@ -225,14 +305,20 @@ def _run(
     }
     result = caller.choose(choice_request)
     answered = result.choice is not None and result.failure_cause is None
-    return result.choice, RetreatStage2Record(
+    grounded = result.choice
+    if grounded is not None and grounded.retreat_choice in shown:
+        grounded = grounded.model_copy(
+            update={"retreat_choice": shown[grounded.retreat_choice].label}
+        )
+    return grounded, RetreatStage2Record(
         status="answered" if answered else "degraded",
         stage2_prompt_version=choice_request.prompt_version,
         prompt=prompt,
         response=result.model_dump(mode="json"),
         choice=None if result.choice is None else result.choice.model_dump(mode="json"),
+        grounded_label=None if grounded is None else grounded.retreat_choice,
         failure_cause=result.failure_cause,
         marks_drawn=marks.marks_drawn,
         marks=marks.model_dump(mode="json"),
-        **base,
+        **{**base, **lettered},
     )

@@ -149,3 +149,48 @@ def test_cleanup_keeps_the_stage2_image_with_debug_frames(node_env, tmp_path):  
     (frames / "r7_stage2.png").write_bytes(b"png")
     node._cleanup_frame("r7")
     assert (frames / "r7_stage2.png").exists()
+
+
+def test_stage2_budget_replaces_the_stage1_budget(node_env, tmp_path, monkeypatch):  # noqa: F811
+    monkeypatch.setenv(
+        "VGU_MOCK_RETREAT_CHOICE_FILE", "config/mock_decisions/retreat_choice_b.json"
+    )
+    node_module, _clock = node_env
+    node = node_module.OrchestratorNode(
+        config=_config(
+            tmp_path, t0_probe_mode=False, stage2_max_attempts=3, stage2_timeout_sec=5.5
+        )
+    )
+    stage2 = node._pipeline._retreat_chooser.config
+    assert (stage2.max_attempts, stage2.timeout_sec) == (3, 5.5)
+    stage1 = node._pipeline._reasoner._config
+    assert (stage1.max_attempts, stage1.timeout_sec) != (3, 5.5)
+    # Sampling is still stage 1's.
+    assert stage2.temperature == stage1.temperature
+
+
+def test_stage2_budget_defaults_are_two_by_eight(node_env, tmp_path):  # noqa: F811
+    config = _config(tmp_path, t0_probe_mode=False)
+    assert (config.stage2_max_attempts, config.stage2_timeout_sec) == (2, 8.0)
+    # The worst case fits inside one M5 command window.
+    assert config.stage2_max_attempts * config.stage2_timeout_sec < config.command_timeout_sec
+
+
+def test_shipped_config_bounds_stage2(node_env):  # noqa: F811
+    import yaml
+    from swarm_orchestrator.models import load_config
+
+    raw = yaml.safe_load(
+        open("ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml", encoding="utf-8")
+    )
+    config = load_config(raw)
+    assert (config.stage2_max_attempts, config.stage2_timeout_sec) == (2, 8.0)
+    assert config.stage2_calibration_path is None
+
+
+def test_letter_draws_use_the_run_seed(node_env, tmp_path):  # noqa: F811
+    node_module, _clock = node_env
+    node = node_module.OrchestratorNode(
+        config=_config(tmp_path, t0_probe_mode=False, prompt_robot_order_seed=1234)
+    )
+    assert node._pipeline._stage2_letter_seed == 1234 == node._order_seed

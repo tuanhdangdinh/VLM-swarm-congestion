@@ -120,7 +120,8 @@ class OrchestratorConfig(BaseModel):
     prompt_robot_order: RobotPresentationOrderMode = "id_asc"
     # Seed for the "random" draw; None derives it from VGU_RUN_ID, falling back
     # to the M5 session id, so paired runs sharing a run id see the same
-    # sequence. Fixed modes ignore it.
+    # sequence. Fixed modes ignore it. Stage-2 letter draws always derive from
+    # it (a separate salted stream; `retreat_stage2.derive_letter_seed`).
     prompt_robot_order_seed: int | None = None
     # Fixed obstacles of the running scenario, mirrored from its scenario file;
     # rendered only when prompt_static_obstacles is true.
@@ -148,6 +149,13 @@ class OrchestratorConfig(BaseModel):
     # startup; a missing or invalid file sends stage 2 the unmarked frame and
     # records why, it never stops M5.
     stage2_calibration_path: str | None = None
+    # Stage-2 call budget, replacing stage 1's for the retreat-choice call
+    # only. The worst case (attempts x timeout = 16 s) stays inside one
+    # command_timeout_sec window (20 s) while the deadlocked robots wait on
+    # it; 8 s is above every stage-1 call measured so far (gpt-4o 2.1-6.0 s,
+    # ER-2 3.2-3.8 s) for a shorter prompt and a one-letter answer.
+    stage2_max_attempts: int = Field(default=2, ge=1)
+    stage2_timeout_sec: float = Field(default=8.0, gt=0.0)
     # Arm B shadow (rev-8 shadow logging): compute and log the classical answer
     # beside every VLM analysis. Observational only — it never dispatches or
     # alters the VLM decision — so it defaults on.
@@ -296,9 +304,22 @@ class RetreatStage2Record(BaseModel):
     yielder_id: str | None = None
     crossing_order: list[str] = Field(default_factory=list)
     # Ranked best-first, as `prepare_retreat_selection` returned them, with
-    # their sweep clearances; `default_label` is the first one's letter.
+    # their sweep clearances; `default_label` is the first one's M3 label
+    # (generation order). When a call is made each also carries `letter`, the
+    # letter the VLM was shown for it.
     candidates: list[dict[str, Any]] = Field(default_factory=list)
     default_label: str | None = None
+    # Letter counterbalancing (amendments item 22), set only when a call is
+    # made: the letter the default (rank 0) was shown under, and the draw
+    # that placed it. `letter_seed` is `derive_letter_seed(letter_seed_base,
+    # letter_draw_index)`, and `assign_letters(len(candidates), letter_seed)`
+    # reproduces `letter_assignment` (shown letter -> candidate_label, rank,
+    # x, y).
+    default_letter: str | None = None
+    letter_seed_base: int | None = None
+    letter_draw_index: int | None = None
+    letter_seed: int | None = None
+    letter_assignment: dict[str, dict[str, Any]] | None = None
     # The rendered stage-2 prompt with SHA-256 hashes and the image path the
     # call referenced (never the image bytes); None when no call was made.
     prompt: dict[str, Any] | None = None
@@ -309,9 +330,13 @@ class RetreatStage2Record(BaseModel):
     marks: dict[str, Any] | None = None
     # `RetreatChoiceResult` dumped to JSON; None when no call was made.
     response: dict[str, Any] | None = None
-    # The answer handed to the grounder (an unrendered letter included, which
-    # the grounder tags `retreat=default:invalid_label`).
+    # The answer as the VLM gave it, in shown letters (an unrendered letter
+    # included, which the grounder tags `retreat=default:invalid_label`).
     choice: dict[str, Any] | None = None
+    # The M3 label that answer was mapped to and handed to the grounder; the
+    # grounded command's `retreat_choice` carries this label, not the shown
+    # letter. An unrendered letter passes through unmapped.
+    grounded_label: str | None = None
     failure_cause: str | None = None
     # An unexpected exception inside stage 2, recorded instead of raised.
     error: str | None = None

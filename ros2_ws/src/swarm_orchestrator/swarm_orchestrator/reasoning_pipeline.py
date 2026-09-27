@@ -650,6 +650,7 @@ class InProcessPipeline:
         retreat_chooser: RetreatChoiceCaller | None = None,
         stage2_enabled: bool = True,
         candidate_marker: CandidateMarker | None = None,
+        stage2_letter_seed: int = 0,
     ) -> None:
         self._reasoner = reasoner
         self._ground_fn = ground_fn
@@ -663,6 +664,11 @@ class InProcessPipeline:
         # Draws the stage-2 letters on the dumped frame; None (or a marker
         # without calibration) sends stage 2 the unmarked frame, recorded.
         self._candidate_marker = candidate_marker
+        # Stage-2 letters are drawn from this run seed, one draw per derived
+        # yield in call order; the worker is single-threaded, so the counter
+        # needs no lock.
+        self._stage2_letter_seed = stage2_letter_seed
+        self._stage2_draws = 0
         # Declared scenario geometry from M5 config; None leaves M3 on its
         # hand-sized fallback distances.
         self._scene_geometry = scene_geometry
@@ -702,7 +708,10 @@ class InProcessPipeline:
                 static_obstacles=self._static_obstacles,
                 yield_feasibility_mode=self._yield_feasibility_mode,
                 marker=self._candidate_marker,
+                letter_seed_base=self._stage2_letter_seed,
+                letter_draw_index=self._stage2_draws,
             )
+            self._stage2_draws += 1
         try:
             allowed_robot_ids = {robot.robot_id for robot in request.robot_states}
             # M3 grounds the yield distances from where the robots actually are

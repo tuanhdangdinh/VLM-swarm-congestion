@@ -337,6 +337,10 @@ class RetreatChoiceResult(BaseModel):
     error_type: str | None = None
     error_message: str | None = None
     refusal_attempts: int = Field(default=0, ge=0)
+    # The budget the call ran under (`RetreatChooser`'s config), so an
+    # artifact shows the stage-2 bound apart from stage 1's.
+    max_attempts: int | None = Field(default=None, ge=1)
+    timeout_sec: float | None = Field(default=None, gt=0)
 
 
 class EffectiveSamplingConfig(BaseModel):

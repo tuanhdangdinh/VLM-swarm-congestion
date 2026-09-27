@@ -126,6 +126,7 @@ def _build_default_pipeline(
     config: OrchestratorConfig,
     grounding: GroundingParamsSource,
     marker: CandidateMarker | None = None,
+    letter_seed: int = 0,
 ) -> ReasoningPipeline:
     reasoner_config, backend_config = _load_vlm_config(config.reasoning_backend_id)
     backend = build_backend(config.reasoning_backend_id, backend_config)
@@ -136,9 +137,15 @@ def _build_default_pipeline(
         reasoner_config,
         describe_effective_sampling(reasoner_config, backend_config),
     )
-    # Stage 2 runs on the stage-1 backend and config (timeout, attempt budget),
-    # except for a mock, which answers stage 2 only from its own script.
+    # Stage 2 runs on the stage-1 backend and sampling config, with its own
+    # attempt/timeout budget; a mock answers stage 2 only from its own script.
     stage2_backend = build_retreat_choice_backend(config.reasoning_backend_id, backend)
+    stage2_config = reasoner_config.model_copy(
+        update={
+            "max_attempts": config.stage2_max_attempts,
+            "timeout_sec": config.stage2_timeout_sec,
+        }
+    )
     return InProcessPipeline(
         reasoner=reasoner,
         ground_fn=ground_reasoner_result,
@@ -147,10 +154,11 @@ def _build_default_pipeline(
         yield_feasibility_mode=config.grounding_yield_feasibility,
         grounding_params=grounding.params,
         retreat_chooser=(
-            None if stage2_backend is None else RetreatChooser(stage2_backend, reasoner_config)
+            None if stage2_backend is None else RetreatChooser(stage2_backend, stage2_config)
         ),
         stage2_enabled=config.stage2_retreat_selection,
         candidate_marker=marker,
+        stage2_letter_seed=letter_seed,
     )
 
 
@@ -235,11 +243,21 @@ class OrchestratorNode(Node):
         # Fail fast: a missing file or an invalid `grounding:` section stops M5
         # here, since these parameters shape every command it dispatches.
         self._grounding = load_grounding_source(Path(self._config.grounding_params_path))
+        # Groups artifacts per M5 process; VGU_RUN_ID (set by the launcher) names
+        # the scenario run across all modules. Set before the pipeline, whose
+        # stage-2 letter draws derive from the same run seed.
+        self._session_id = uuid.uuid4().hex
+        self._run_id = os.environ.get("VGU_RUN_ID") or None
+        self._order_seed = (
+            self._config.prompt_robot_order_seed
+            if self._config.prompt_robot_order_seed is not None
+            else derive_order_seed(self._run_id, self._session_id)
+        )
         # Only the default pipeline draws stage-2 letters; an injected one
         # brings its own marker (or none).
         self._marker = None if pipeline is not None else _build_candidate_marker(self._config)
         self._pipeline = pipeline or _build_default_pipeline(
-            self._config, self._grounding, self._marker
+            self._config, self._grounding, self._marker, self._order_seed
         )
 
         self._detector = CongestionDetector(self._config)
@@ -264,15 +282,6 @@ class OrchestratorNode(Node):
         self._pending_request: ReasonerRequest | None = None
         self._pending_snapshot = None
         self._pending_distances: dict[str, float] = {}
-        # Groups artifacts per M5 process; VGU_RUN_ID (set by the launcher) names
-        # the scenario run across all modules.
-        self._session_id = uuid.uuid4().hex
-        self._run_id = os.environ.get("VGU_RUN_ID") or None
-        self._order_seed = (
-            self._config.prompt_robot_order_seed
-            if self._config.prompt_robot_order_seed is not None
-            else derive_order_seed(self._run_id, self._session_id)
-        )
         self._episodes = EpisodeOrderTracker(
             PresentationOrderPolicy(
                 mode=self._config.prompt_robot_order, seed=self._order_seed
