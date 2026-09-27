@@ -164,6 +164,12 @@ class OrchestratorConfig(BaseModel):
     t0_probe_mode: bool = False
     t0_probe_interval_sec: float = Field(default=20.0, gt=0.0)
     t0_probe_max_probes: int = Field(default=0, ge=0)
+    # A probe is deferred once the latest SceneState was received more than
+    # this many wall seconds ago. M1 publishes one scene per camera frame, so
+    # a live feed stays well under it; after the simulator exits the scene
+    # and frame stamps freeze together and pass the skew check, and only the
+    # receipt age shows the feed is dead.
+    t0_probe_max_snapshot_age_sec: float = Field(default=3.0, gt=0.0)
 
     @field_validator("initial_tasks")
     @classmethod

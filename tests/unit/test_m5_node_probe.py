@@ -287,8 +287,15 @@ def _artifact(node, request_id: str) -> dict:
     return json.loads(path.read_text())
 
 
+def _mark_feed_live(node, clock) -> None:
+    # A live M1 feed re-delivers the scene every frame; stand in for that
+    # without `_on_scene_state`, whose detector could trip on repeated scenes.
+    node._latest_snapshot_at = clock.t
+
+
 def _run_probe(node, clock, at: float) -> str:
     clock.t = at
+    _mark_feed_live(node, clock)
     node._on_timer()
     probe = node._probe
     assert probe is not None, "probe did not start"
@@ -430,6 +437,7 @@ def test_probe_skipped_while_analysis_in_flight(node_env, tmp_path):
     gate.set()
     node._future.result(timeout=WAIT_SEC)
     clock.t = 1020.5
+    _mark_feed_live(node, clock)
     node._on_timer()
     assert node._probe is not None
 
@@ -439,6 +447,7 @@ def test_real_trigger_not_delayed_by_probe_in_flight(node_env, tmp_path):
     pipeline = _FakePipeline(analyze_gate=gate)
     node, clock = _make_node(node_env, tmp_path, pipeline)
     clock.t = 1020.0
+    _mark_feed_live(node, clock)
     node._on_timer()
     assert pipeline.analyze_entered.wait(WAIT_SEC)
 
@@ -485,6 +494,71 @@ def test_probe_records_shadow_without_counting_attempt(node_env, tmp_path):
     assert shadow["request_id"] == request_id
     assert shadow["prior_attempts"] == 0
     assert shadow["prior_attempts_source"] == "t0_probe"
+
+
+def test_probe_deferred_on_frozen_feed_past_max_snapshot_age(node_env, tmp_path):
+    # Isaac exited: no scene arrives after 1020, but the frozen scene and
+    # frame stamps still agree, so only the receipt age can stop the probe.
+    pipeline = _FakePipeline()
+    node, clock = _make_node(node_env, tmp_path, pipeline)
+    _run_probe(node, clock, at=1020.0)
+
+    clock.t = 1040.0
+    node._on_timer()
+
+    assert node._probe is None
+    assert len(pipeline.analyze_calls) == 1
+    assert node.get_logger().matching("t0 probe deferred reason=snapshot_stale")
+
+
+def test_probe_starts_when_snapshot_age_within_max(node_env, tmp_path):
+    pipeline = _FakePipeline()
+    node, clock = _make_node(node_env, tmp_path, pipeline, t0_probe_max_snapshot_age_sec=3.0)
+    node._latest_snapshot_at = 1017.0
+
+    clock.t = 1020.0
+    node._on_timer()
+
+    assert node._probe is not None
+    assert node.get_logger().matching("t0 probe deferred") == []
+
+
+def test_probe_deferred_just_past_max_snapshot_age(node_env, tmp_path):
+    pipeline = _FakePipeline()
+    node, clock = _make_node(node_env, tmp_path, pipeline, t0_probe_max_snapshot_age_sec=3.0)
+    node._latest_snapshot_at = 1016.9
+
+    clock.t = 1020.0
+    node._on_timer()
+
+    assert node._probe is None
+    assert pipeline.analyze_calls == []
+
+
+def test_probe_stale_snapshot_deferral_logged_once(node_env, tmp_path):
+    node, clock = _make_node(node_env, tmp_path, _FakePipeline())
+    node._latest_snapshot_at = 1000.0
+
+    for k in range(40):
+        clock.t = 1020.0 + 0.5 * k
+        node._on_timer()
+
+    assert len(node.get_logger().matching("t0 probe deferred reason=snapshot_stale")) == 1
+
+
+def test_probe_resumes_when_feed_returns_after_stale_deferral(node_env, tmp_path):
+    pipeline = _FakePipeline()
+    node, clock = _make_node(node_env, tmp_path, pipeline)
+    node._latest_snapshot_at = 1000.0
+    clock.t = 1020.0
+    node._on_timer()
+    assert node._probe is None
+
+    clock.t = 1020.5
+    _mark_feed_live(node, clock)
+    node._on_timer()
+
+    assert node._probe is not None
 
 
 def test_probe_mode_off_by_default_never_probes(node_env, tmp_path):

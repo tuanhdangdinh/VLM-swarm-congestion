@@ -80,6 +80,8 @@ def _block(**overrides):
         "probe_in_flight": False,
         "has_scene": True,
         "frame_ready": True,
+        "snapshot_age_sec": 0.1,
+        "max_snapshot_age_sec": 3.0,
     }
     base.update(overrides)
     return probe_block_reason(**base)
@@ -103,6 +105,27 @@ def test_probe_blocked_when_no_scene():
 
 def test_probe_blocked_when_frame_stale():
     assert _block(frame_ready=False) == "frame_not_fresh"
+
+
+def test_probe_blocked_when_snapshot_receipt_older_than_max_age():
+    assert _block(snapshot_age_sec=3.01) == "snapshot_stale"
+
+
+def test_probe_allowed_when_snapshot_receipt_at_max_age():
+    assert _block(snapshot_age_sec=3.0) is None
+
+
+def test_probe_blocked_when_snapshot_receipt_time_unknown():
+    assert _block(snapshot_age_sec=None) == "snapshot_stale"
+
+
+def test_probe_block_reports_stale_snapshot_before_frame_check():
+    # A frozen feed: the frame still matches the (frozen) scene stamp.
+    assert _block(snapshot_age_sec=60.0, frame_ready=False) == "snapshot_stale"
+
+
+def test_probe_block_reports_no_scene_before_stale_snapshot():
+    assert _block(has_scene=False, snapshot_age_sec=None) == "no_scene"
 
 
 def test_probe_block_reports_analysis_first_when_several_apply():

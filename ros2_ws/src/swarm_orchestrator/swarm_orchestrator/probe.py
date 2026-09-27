@@ -86,22 +86,30 @@ def probe_block_reason(
     probe_in_flight: bool,
     has_scene: bool,
     frame_ready: bool,
+    snapshot_age_sec: float | None,
+    max_snapshot_age_sec: float,
 ) -> str | None:
     """Return why a due probe cannot start now, or None when it may start.
 
     A real analysis always wins: a probe never starts while one is in flight.
     Like a triggered analysis, a probe needs a scene with robots and an
-    annotated frame fresh against it.
+    annotated frame fresh against it. It also needs a live feed: the frame
+    freshness check compares two sim stamps that freeze together when the
+    simulator stops, so a dead feed would look fresh forever; the snapshot's
+    wall-clock receipt age is what exposes it.
 
     Args:
         analysis_in_flight: A triggered analysis is being reasoned about.
         probe_in_flight: The previous probe has not completed.
         has_scene: A scene snapshot with at least one robot is available.
         frame_ready: The annotated frame is fresh against that snapshot.
+        snapshot_age_sec: Monotonic seconds since that snapshot was received,
+            or None when no receipt time is known (treated as stale).
+        max_snapshot_age_sec: Oldest receipt age a probe may run on.
 
     Returns:
         `"analysis_in_flight"`, `"probe_in_flight"`, `"no_scene"`,
-        `"frame_not_fresh"`, or None.
+        `"snapshot_stale"`, `"frame_not_fresh"`, or None.
     """
     if analysis_in_flight:
         return "analysis_in_flight"
@@ -109,6 +117,8 @@ def probe_block_reason(
         return "probe_in_flight"
     if not has_scene:
         return "no_scene"
+    if snapshot_age_sec is None or snapshot_age_sec > max_snapshot_age_sec:
+        return "snapshot_stale"
     if not frame_ready:
         return "frame_not_fresh"
     return None

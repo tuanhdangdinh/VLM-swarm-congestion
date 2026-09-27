@@ -139,6 +139,10 @@ shadow_classical_zones: []
 t0_probe_mode: false
 t0_probe_interval_sec: 20.0
 t0_probe_max_probes: 0
+# Defer a probe when the latest SceneState arrived more than this many wall
+# seconds ago: after Isaac exits, scene and frame stamps freeze together, so
+# only the receipt age stops probes re-analysing the final frozen scene.
+t0_probe_max_snapshot_age_sec: 3.0
 
 # Fixed obstacles rendered into the VLM prompt when prompt_static_obstacles is
 # true. Like scenario_geometry above, these mirror the scenario file by hand

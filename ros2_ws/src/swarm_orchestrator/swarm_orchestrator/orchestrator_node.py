@@ -739,6 +739,10 @@ class OrchestratorNode(Node):
             probe_in_flight=self._probe is not None,
             has_scene=has_scene,
             frame_ready=has_scene and self._frame_is_fresh(snapshot.stamp),
+            snapshot_age_sec=(
+                None if self._latest_snapshot_at is None else now - self._latest_snapshot_at
+            ),
+            max_snapshot_age_sec=self._config.t0_probe_max_snapshot_age_sec,
         )
         if blocked is not None:
             # Logged once per reason, not on every 0.5 s tick it stays blocked.
