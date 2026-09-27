@@ -1,0 +1,19 @@
+[
+  {
+    "congestion_detected": true,
+    "type": "anomaly",
+    "involved_robots": ["robot_1"],
+    "root_cause": "A box sits on robot_1's lane inside the corridor and will not move by itself.",
+    "strategy": "reroute",
+    "blocker_kind": "object",
+    "justification": "Scripted mock decision forcing the T3a object oracle: reroute robot_1."
+  },
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "Scripted follow-up: no new decision after the forced reroute.",
+    "strategy": "none",
+    "justification": "Scripted mock decision: re-analyses dispatch nothing, so the first command is the only one."
+  }
+]

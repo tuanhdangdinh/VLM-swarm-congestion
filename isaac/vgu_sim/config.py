@@ -227,6 +227,63 @@ class OracleConfig(BaseModel):
         return self.correct_yielder != self.fcfs_yielder
 
 
+# Mirrors reasoning.vlm.models (BlockerKind, CongestionDecision.strategy); kept
+# local because isaac/ runs inside Isaac Sim's Python and must not import the
+# reasoning package. tests/unit/test_blocked_path_scenarios.py pins the parity.
+OracleBlockerKind = Literal["robot", "object", "transient"]
+OracleStrategy = Literal[
+    "none", "yield", "reroute", "convoy", "priority_override", "temporary_wait", "reverse"
+]
+# The deterministic per-kind default of the research design's blocker-kind
+# arbitration (rev 8.6, Appendix A.5): what a blocker of that kind calls for.
+# `robot` has no single default (the full multi-robot set applies).
+BLOCKER_KIND_DEFAULT_STRATEGY: dict[str, str] = {
+    "object": "reroute",
+    "transient": "temporary_wait",
+}
+
+
+class BlockerOracleConfig(BaseModel):
+    """The ground-truth blocker verdict and strategy for a blocked-path scene.
+
+    The T3a counterpart of `OracleConfig`: `correct_*` is the pre-registered
+    answer, `classical_*` the Arm B answer it is contrasted with (the classical
+    classifier has no image, so its `blocked_path` blocker is always `object`),
+    as `fcfs_yielder` is for the yield oracle.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    correct_blocker_kind: OracleBlockerKind
+    correct_strategy: OracleStrategy
+    classical_blocker_kind: OracleBlockerKind
+    classical_strategy: OracleStrategy
+    objective: Literal["blocker_kind_default"] = "blocker_kind_default"
+    rationale: str
+
+    @model_validator(mode="after")
+    def _strategy_is_the_kind_default(self) -> "BlockerOracleConfig":
+        default = BLOCKER_KIND_DEFAULT_STRATEGY.get(self.correct_blocker_kind)
+        if default is None:
+            raise ValueError(
+                f"correct_blocker_kind {self.correct_blocker_kind!r} has no default "
+                f"strategy; expected one of {sorted(BLOCKER_KIND_DEFAULT_STRATEGY)}"
+            )
+        if self.correct_strategy != default:
+            raise ValueError(
+                f"correct_strategy for a {self.correct_blocker_kind!r} blocker must be "
+                f"{default!r}; got {self.correct_strategy!r}"
+            )
+        return self
+
+    @property
+    def contrasts_classical(self) -> bool:
+        """Whether the correct answer differs from the classical (Arm B) answer."""
+        return (self.correct_blocker_kind, self.correct_strategy) != (
+            self.classical_blocker_kind,
+            self.classical_strategy,
+        )
+
+
 FAMILY_BY_LEGACY_NAME: dict[str, str] = {
     "head_on_deadlock": "head_on",
     "intersection_bottleneck": "intersection",
@@ -234,7 +291,11 @@ FAMILY_BY_LEGACY_NAME: dict[str, str] = {
 }
 # normal_flow is the T0 negative-control family: no conflict is expected, so
 # its scenarios carry `expected_conflict: null` (and only they may).
-ScenarioFamily = Literal["head_on", "intersection", "dynamic_anomaly", "normal_flow"]
+# blocked_path is the T3a blocker-kind counterfactual pair: one robot stopped
+# by an untracked blocker on its lane.
+ScenarioFamily = Literal[
+    "head_on", "intersection", "dynamic_anomaly", "normal_flow", "blocked_path"
+]
 CONFLICT_FREE_FAMILIES: frozenset[str] = frozenset({"normal_flow"})
 
 
@@ -250,7 +311,7 @@ class ScenarioConfig(BaseModel):
     static_obstacles: tuple[StaticObstacleConfig, ...] = ()
     aisle_barrier: AisleBarrierConfig | None = None
     parameters: HeadOnAsymmetricParams | None = None
-    oracle: OracleConfig | None = None
+    oracle: OracleConfig | BlockerOracleConfig | None = None
     # Required but nullable: every scenario must state its conflict, and null
     # is the explicit "none expected" of a conflict-free family.
     expected_conflict: ExpectedConflictConfig | None
@@ -353,7 +414,7 @@ class ScenarioConfig(BaseModel):
                 f"obstacles; got {obstacle_ids}"
             )
 
-        if self.oracle is not None:
+        if isinstance(self.oracle, OracleConfig):
             oracle_robot_ids = (
                 self.oracle.correct_yielder,
                 self.oracle.fcfs_yielder,

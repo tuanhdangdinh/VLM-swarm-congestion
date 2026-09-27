@@ -1,0 +1,19 @@
+[
+  {
+    "congestion_detected": true,
+    "type": "anomaly",
+    "involved_robots": ["robot_1"],
+    "root_cause": "An unlisted robot stands on robot_1's lane inside the corridor and will move on.",
+    "strategy": "temporary_wait",
+    "blocker_kind": "transient",
+    "justification": "Scripted mock decision forcing the T3a transient oracle: robot_1 waits."
+  },
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "Scripted follow-up: no new decision after the forced wait.",
+    "strategy": "none",
+    "justification": "Scripted mock decision: re-analyses dispatch nothing, so the first command is the only one."
+  }
+]

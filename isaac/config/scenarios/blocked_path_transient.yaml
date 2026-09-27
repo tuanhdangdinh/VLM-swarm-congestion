@@ -1,0 +1,148 @@
+schema_version: 1
+name: blocked_path_transient
+family: blocked_path
+seed: 42
+# See "Timing" below: the transient member's robot_1 arrives at ~120 s; the
+# object member runs to the end unresolved by construction.
+duration_sec: 180.0
+
+# T3a blocker-kind counterfactual pair (design spec
+# docs/superpowers/specs/2026-09-27-scenario-battery-design.md, "T3a").
+# blocked_path_object.yaml and blocked_path_transient.yaml are byte-identical
+# except `name`, the timed_obstacles entry (the blocker entity) and the
+# `oracle:` block; tests/unit/test_blocked_path_scenarios.py pins the diff.
+# robot_1 transits a narrow corridor and is stopped by a blocker on its lane:
+#   - object member: a grey box -> correct `reroute`, blocker_kind `object`.
+#   - transient member: an unmarked robot-shaped agent at the same pose that
+#     leaves at 70 s -> correct `temporary_wait`, blocker_kind `transient`.
+# The blocker is untracked in both: it has no marker and it must not reach any
+# prompt text channel (keep prompt_static_obstacles false and orchestrator.yaml
+# static_obstacles absent). Arm B has no image, so it answers
+# blocked_path / object / reroute on both members: the object member is the
+# pair's non-divergent control, the transient member the divergent one.
+#
+# Geometry:
+#   - Corridor: head_on_deadlock's barrier (x in [-1, 1]) narrowed from 0.55 to
+#     0.50 m. A robot-sized blocker must close the passage for Nav2's planner,
+#     or NavFn routes round it (both costmaps mark the lidar scan) and robot_1
+#     never stalls -- the dynamic_anomaly_v2 lesson; in the open 1.2 m aisle
+#     that takes a ~1 m wide blocker, which no robot-shaped asset is. NavFn
+#     blocks every cell within the 0.07 m inscribed radius of a lethal cell;
+#     on the static map alone, a blocker whose lidar cross-section is >= 0.22 m
+#     wide closes a 0.50 m corridor, while 0.55 m needs > 0.30 m. The empty
+#     0.50 m corridor stays plannable, and the collision_monitor's +-0.12 m
+#     stop box clears its walls by 0.13 m when centred (0.155 m at 0.55).
+#   - Blocker footprint 0.25 x 0.32 x 0.35 m at (-0.5, 0), in the corridor's
+#     west half: the marker-less robot visual at scale 1.82 (the lidar plane
+#     cuts its middle plate, ~0.25 m wide; ROBOT_VISUAL_NO_MARKER_SCALE in
+#     isaac/vgu_sim/scenario_builder.py) and the box's size. It leaves 0.09 m
+#     each side, below the 0.18 m robot width.
+#   - robot_1: (-2.5, 0) -> (2.5, 0), eastbound on the corridor centreline as in
+#     T1, markers 0.5 m inside the +-3.0 m camera ROI.
+#   - robot_2: north vertical pocket, (0, 0.9) -> (0, 1.75), inside the ROI's
+#     +-2.25 m depth with 0.5 m margin. The plus-shaped warehouse has one
+#     east-west passage, so any east-west lane for robot_2 would share the
+#     corridor with robot_1 and the blocker (normal_flow's westbound y = +0.35
+#     lane runs into the barrier's north block). The barrier seals both
+#     vertical pockets off the aisle, so in the north one robot_2 is tracked,
+#     navigates and parks (~16 s) without ever interacting. At robot_1's stop
+#     it is >= 1.7 m away, beyond Arm B's r_block_m (1.0), so the classical
+#     verdict is blocked_path, not unknown.
+#
+# Map decision (the same for both members; their maps are identical): only the
+# corridor is baked, the blocker is NOT. A baked, passage-closing blocker leaves
+# NavFn no path at t = 0: robot_1 would never leave its spawn, 2 m short of the
+# blocker, instead of meeting it mid-transit. (The family blockers can be baked
+# because they sit behind a spawn, off every goal path.) An unbaked
+# static_obstacles box is present from t = 0 and the lidar finds it at 3.5 m,
+# so robot_1 would stop ~1.5 m earlier than in the transient member. Both
+# blockers are therefore timed obstacles that spawn at the same instant, and
+# the object member's box never despawns. The reasoner sees one annotated frame
+# and robot-only text, so a box that appeared at 16 s is indistinguishable from
+# one that was always there, and the two members' Nav2 runs are identical until
+# the transient leaves.
+#
+# Timing (sim seconds, the scheduler's clock; transit 0.15 m/s; departure
+# ~10.6 s in the T0 run 20260927_111348, ~14.5 s in the T3c v2 smoke):
+#   - spawn_at_sec 16.0: robot_1 is at x ~ -1.7 (early departure) to -2.3
+#     (late). NavFn fails as soon as the lidar marks the blocker (T3c v2:
+#     robot stopped 0.9 s after the spawn), so robot_1 stops 0.9-1.5 m short of
+#     the blocker and 0.5-1.1 m outside the corridor mouth. That is open aisle,
+#     where Nav2's spin/backup recoveries cannot wedge it against a wall, with a
+#     straight run into the corridor once the blocker is gone (T1's approach
+#     insight). M5's first scene arrives at ~12 s.
+#   - M5's stall trigger needs 12 WALL-s without progress (stall_threshold_sec
+#     on time.monotonic). At the VM's real-time factor of ~0.38 that is ~4.6
+#     sim-s, so the first analysis lands at ~21-23 sim-s.
+#   - The transient leaves at 70.0 s: ~48 sim-s (~125 wall-s) after the first
+#     analysis, six times temporary_wait's 8 s hold (command_grounder
+#     duration_sec, a sim-time timer in command_bus_node). That leaves room for
+#     a slow VLM answer, the hold, and several cooldown re-analyses first.
+#   - After it leaves, robot_1 needs ~4.3 m / 0.15 = 29 s plus the ~22 s of
+#     replanning and stale-costmap pause seen in the T3c v2 smoke: arrival
+#     ~120 s, ~60 s inside duration_sec.
+#
+# Outcome caveat: in this apparatus a stall at an object has no reroute.
+# `reroute` re-sends the task goal (command_bus_node), which M4's base mission
+# already does every 2 s, and Nav2 replans at 1 Hz on the lidar-marked
+# costmap: had any route existed, robot_1 would have taken it instead of
+# stalling. The object member therefore never resolves whatever the strategy,
+# and the transient member resolves when the agent leaves whatever the
+# strategy. T3a scores the decision (blocker_kind and strategy against the
+# oracle), not the outcome.
+#
+# M5 takes goals from swarm_orchestrator/config/orchestrator.yaml
+# initial_tasks, NOT from here: set robot_1 [2.5, 0.0] and robot_2 [0.0, 1.75]
+# before a run, or M5 dispatches the head-on +-2.5 centreline goals.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -2.5, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 2.5, y: 0.0}
+    initial_task: cross_narrow_aisle
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 0.0, y: 0.9, yaw_rad: 1.5707963267948966}
+    goal: {x: 0.0, y: 1.75}
+    initial_task: traverse_aisle
+
+aisle_barrier:
+  effective_width_m: 0.50
+  center_x_m: 0.0
+  length_m: 2.0
+
+timed_obstacles:
+  # Transient member: the marker-less robot visual, heading east like
+  # robot_1 (an agent ahead in the corridor); `size` is its footprint, not
+  # authored. It leaves at 70 s.
+  - obstacle_id: blocker
+    asset: robot_visual_no_marker
+    spawn_at_sec: 16.0
+    remove_at_sec: 70.0
+    pose: {x: -0.5, y: 0.0, yaw_rad: 0.0}
+    size: {x_m: 0.25, y_m: 0.32, z_m: 0.35}
+
+expected_conflict:
+  type: anomaly
+  involved_robots: [robot_1]
+  # From the spawn to a generous bound on the first stall trigger (stop ~1 s
+  # after the spawn + 12 wall-s ~ 4.6 sim-s, plus departure jitter).
+  # min_duration_sec is in sim-s and conservatively equals the wall threshold.
+  onset_window_sec: [16.0, 36.0]
+  min_duration_sec: 12.0
+
+oracle:
+  correct_blocker_kind: transient
+  correct_strategy: temporary_wait
+  classical_blocker_kind: object
+  classical_strategy: reroute
+  objective: blocker_kind_default
+  rationale: >-
+    an unmarked robot-shaped agent is not a listed robot, and "robot" means a
+    listed robot (prereg-v1 amendments item 15b), so the blocker is transient,
+    whose default strategy is temporary_wait (research design rev 8.6,
+    Appendix A.5); Arm B's forced object/reroute diverges
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30
