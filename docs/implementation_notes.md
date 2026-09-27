@@ -37,6 +37,53 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-27** — **T3a blocker-kind pair authored with its oracle, and
+  mock-smoked on the VM: both members PASS** (`ad379f1`, `8ee6393`; scenario
+  headers `isaac/config/scenarios/blocked_path_{object,transient}.yaml`;
+  evidence `data/logs/vm_runs/t3a_smoke/T3A_SMOKE_SUMMARY.txt`). Design:
+  "T3a" in `docs/superpowers/specs/2026-09-27-scenario-battery-design.md`.
+  - **Oracle.** The new `BlockerOracleConfig` (`isaac/vgu_sim/config.py`)
+    sits beside the yield `OracleConfig`. It records `correct_blocker_kind` /
+    `correct_strategy` plus the Arm B answer (`classical_*`), mirroring
+    `fcfs_yielder`. The strategy must be the kind's default from research
+    design A.5 (object -> reroute, transient -> temporary_wait).
+    - Object member: object/reroute, same as classical (the non-divergent
+      control).
+    - Transient member: transient/temporary_wait against classical
+      object/reroute (the divergent member). The untracked robot-shaped
+      blocker is `transient` because "robot" means a listed robot:
+      amendments item 15b, confirmed 2026-09-27.
+  - **Smoke, mock backend forcing the oracle answer once.**
+    - W1 (object): the stall triggered on scene 21.8. The dispatched reroute
+      re-sent the goal and FAILED, and robot_1 never resolved (expected,
+      next bullet).
+    - W2 (transient): the stall triggered on scene 24.1. temporary_wait held
+      8 s, and robot_1 arrived 0.08 m from its goal 32 s after the 70 s
+      despawn.
+    - On each run's first analysis Arm B answered
+      blocked_path/object/reroute (`blocker_kind_match` true on W1, false on
+      W2). Later re-analyses were not all like that: 5 of 22 in W1 and 2 of
+      7 in W2 got `none`, because robot_1 was moving in a Nav2 recovery at
+      that moment. The T3a scorer must fix which analysis per episode
+      counts.
+    - Both runs: no blocker text in any prompt, no M1 detection of the
+      unmarked robot, 0 safety stops.
+    - These were the first live runs of the prompt-v2 bundle (mock backend):
+      no errors.
+  - **Outcome caveat: T3a can only be scored on the decision.** `reroute`
+    re-sends the task goal, which M4's base mission already does every 2 s,
+    and Nav2 replans at 1 Hz on the lidar-marked costmap. A robot that
+    stalls at an object therefore has no route left. The object member
+    cannot resolve under any strategy, and the transient member resolves at
+    the despawn under any strategy. So the research design's "B executed on
+    5 pairs for outcome contrast" cell has no outcome contrast in this map.
+    Decide before the freeze whether that cell stays.
+  - **Prompt noise:** at trigger time robot_1's heading is whatever Nav2's
+    spin recovery left. In W1 the prompt said "robot_1 faces robot_2: yes"
+    at 2.6 m.
+  - **Pending:** a funded VLM run of the pair (N = 15 pairs + 10 Arm B
+    executed).
+
 - **2026-09-27** — **Amendments item 15a discharged in code: the v2 guidance
   line now admits rendered goals and tasks as evidence** (`b4a8d91`;
   `docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md` item 15). The
@@ -2235,6 +2282,43 @@ Rules for maintaining it:
 ---
 
 ## M6 Simulation / Isaac Sim
+
+- **2026-09-27** — **Timed obstacles can now be a marker-less robot, and
+  the T3a pair's map decision is recorded; the real asset worked on the VM**
+  (`ad379f1`, `8ee6393`; `data/logs/vm_runs/t3a_smoke/T3A_SMOKE_SUMMARY.txt`).
+  - **Asset.** `TimedObstacleConfig.asset` selects the authoring:
+    - `robot_visual_no_marker` references the imported robot USD with its
+      `Physics` variant set to `none`. That gives no articulation, rigid
+      bodies or joints; the 5 collision shapes stay as static colliders.
+      No marker is authored (markers are per robot), and the prop lives
+      under `/World/DynamicObstacles`, outside `validate_robot_marker`'s
+      `/World/Robots`.
+    - `static_box` is a grey box.
+    - Any other label keeps the legacy red box, so `dynamic_anomaly*` build
+      unchanged (a pxr test pins it).
+    - Checked on the VM's real asset: 38 prims, 0 physics bodies,
+      0 `aruco_marker`, bbox 0.25 x 0.32 x 0.35 m centred on the pose;
+      `validate_simulation` PASS.
+  - **Scale 1.82.** The lidar scans one plane at 0.182 m, and at scale 1 the
+    only burger structure there is the 7 cm LDS head. NavFn (0.07 m
+    inscribed radius) plans past that in any corridor a robot can drive, so
+    the robot would never stall. At 1.82 the plane cuts the middle plate,
+    about 0.25 m wide. The test re-derives this from the STL.
+    - Live in W2: the first plan failure came 0.7 s after the spawn. But 4
+      plans still went through in the next 3 s, so robot_1 rolled 0.5 m
+      further than W1's box let it.
+  - **Map decision: neither member bakes the blocker.**
+    - A baked, passage-closing box leaves NavFn no path at t = 0, so robot_1
+      would never leave its spawn. (The family blockers can be baked only
+      because they sit behind a spawn.)
+    - An unbaked `static_obstacles` box is found by the lidar at 3.5 m, so
+      robot_1 would stop ~1.5 m earlier than the transient member.
+    - So both blockers spawn at 16 s as timed obstacles, and the object's
+      box never despawns. Only the 0.50 m corridor is baked, and the two
+      maps are byte-identical. Live stop points: W1 x = -2.00, W2 x = -1.89.
+  - **robot_2 placement.** The plus-shaped warehouse has one east-west
+    passage, so robot_2 runs in the north pocket that the barrier seals,
+    not normal_flow's westbound lane.
 
 - **2026-09-27** — **Timed obstacles verified live (Fix 3 PASS), and T3c v2
   `dynamic_anomaly_v2` authored** (89884a3; evidence
