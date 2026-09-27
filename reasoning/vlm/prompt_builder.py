@@ -9,6 +9,7 @@ from reasoning.vlm.models import (
     RobotStateInput,
     StaticObstacleInput,
 )
+from reasoning.vlm.prompt_v1 import SYSTEM_PROMPT_V1, render_user_prompt_v1
 
 # "faces" = the robot's heading is within 60° of the direction to the other robot.
 # Opposite headings alone cannot tell head-on from diverging; the VLM misread two
@@ -27,11 +28,18 @@ _STATIC_OBSTACLE_HEADER = "Static obstacles (world-frame axis-aligned boxes):"
 # Ref: https://nvidia-cosmos.github.io/cosmos-cookbook/getting_started/prompt_guide/reason_guide.html
 SYSTEM_PROMPT = "You are a helpful assistant."
 
+# Prompt v2 (the prompt-v2 bundle, 2026-09-27). Against v1 (`prompt_v1`, frozen)
+# it adds the `blocker_kind` and `crossing_order` output bullets and drops the
+# "(sorted by ID)" header claim, which was false under `id_desc`; stating the
+# drawn order instead would add a region that differs between the
+# counterbalanced order conditions. Goals and the task label render through
+# `format_robot_state_lines` once M5 supplies them. Any edit to this template
+# is a new prompt version: bump `PromptVersion`, freeze this one first.
 _USER_TEMPLATE = """You are a warehouse swarm robotics traffic controller. Analyze the \
 overhead camera view together with the robot states below and detect congestion \
 patterns such as deadlocks, bottlenecks, crowding, or anomalies.
 
-Robot states (sorted by ID):
+Robot states:
 {robot_state_block}
 {pairwise_geometry_block}{static_obstacle_block}
 Known robot IDs: {known_robot_ids_json}
@@ -69,6 +77,13 @@ Produce a JSON object with exactly these fields:
 - "justification": one or two sentences
 - "yield_robot": the robot that should yield, or null when the strategy is not \
 "yield"
+- "blocker_kind": what is blocking the involved robots: "robot" when it is one of \
+the robots listed above, "object" when it is a fixed obstacle, "transient" when it \
+is a temporary obstruction expected to clear on its own; null when \
+congestion_detected is false
+- "crossing_order": when three or more robots must be ordered, every involved \
+robot ID in the order they should pass, first to pass first (a robot that yields \
+passes after the robots it yields to); otherwise null
 
 Rules:
 - Only use robot IDs from the known list above.
@@ -340,6 +355,10 @@ def format_static_obstacle_lines(obstacles: list[StaticObstacleInput]) -> list[s
 def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
     """Build a deterministic, fully-rendered prompt payload from a request.
 
+    `request.prompt_version` selects the template: 1 renders through the frozen
+    `prompt_v1` module (byte-identical to every pre-bundle artifact), 2 through
+    this module's template.
+
     Args:
         request: Validated reasoning request from M5/M1.
 
@@ -349,6 +368,13 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
     order = request.robot_presentation_order
     sorted_states = order_robot_states(request.robot_states, order)
     known_ids = [s.robot_id for s in sorted_states]
+    if request.prompt_version == 1:
+        return PromptPayload(
+            system_prompt=SYSTEM_PROMPT_V1,
+            user_prompt=render_user_prompt_v1(request),
+            image_path=request.image_path,
+            known_robot_ids=known_ids,
+        )
     lines = format_robot_state_lines(sorted_states)
     block = "\n".join(f"- {line}" for line in lines) or "- no robots observed"
     geometry_lines = (

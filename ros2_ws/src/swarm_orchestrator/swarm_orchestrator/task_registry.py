@@ -64,6 +64,16 @@ class TaskRegistry:
             return entry.override.action, entry.override.goal
         return entry.base.task, entry.base.goal
 
+    def mission_task(self, robot_id: str) -> str | None:
+        """Return a robot's base mission task label, ignoring any override.
+
+        The M2 prompt renders this label: an override's task is the dispatched
+        coordination action (e.g. "yield"), which would tell the VLM what M5
+        last did instead of what the robot is for.
+        """
+        entry = self.entries.get(robot_id)
+        return None if entry is None else entry.base.task
+
     def to_json(self) -> str:
         """Serialize the effective registry as deterministic JSON sorted by robot id."""
         payload = {}

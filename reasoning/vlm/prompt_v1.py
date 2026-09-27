@@ -1,0 +1,416 @@
+"""Prompt template v1, frozen: the renderer behind every pre-bundle decision artifact.
+
+This module is a self-contained copy of `prompt_builder` as it stood at 4a71ffb,
+the last commit before the prompt-v2 bundle. It imports nothing from
+`prompt_builder` and shares no template, wording table or helper with it, so an
+edit to the current (v2) prompt cannot move a single v1 byte. The replay
+program's integrity arm re-renders stored prompts through this path and asserts
+their SHA-256; `tests/unit/test_prompt_v1_frozen.py` pins the rendering matrix.
+
+Do not edit anything below. A prompt change is a new version in
+`prompt_builder`, never a change here.
+"""
+
+import json
+import math
+
+from reasoning.vlm.models import (
+    FailureContext,
+    ReasonerRequest,
+    RobotPresentationOrder,
+    RobotStateInput,
+    StaticObstacleInput,
+)
+
+# "faces" = the robot's heading is within 60° of the direction to the other robot.
+# Opposite headings alone cannot tell head-on from diverging; the VLM misread two
+# robots driving apart as a deadlock when only |Δθ| ≈ π was offered (run 3, 2026-09-17).
+_FACING_COS = 0.5
+_PAIRWISE_GEOMETRY_HEADER = (
+    "Pairwise geometry (faces = heading within 60° of the direction to the other robot):"
+)
+_STATIC_OBSTACLE_HEADER = "Static obstacles (world-frame axis-aligned boxes):"
+
+# Cosmos Reason 2 is a chain-of-thought reasoning VLM built on Qwen3-VL. NVIDIA's
+# prompt guide specifies a minimal system prompt ("we are more aligned with Qwen's
+# use of system prompt ... different from Reason 1, where the system prompt was
+# heavily used") and prompt-driven structured output. The task framing therefore
+# lives in the user prompt, and the image is placed before the text by the backend.
+# Ref: https://nvidia-cosmos.github.io/cosmos-cookbook/getting_started/prompt_guide/reason_guide.html
+SYSTEM_PROMPT_V1 = "You are a helpful assistant."
+
+_USER_TEMPLATE = """You are a warehouse swarm robotics traffic controller. Analyze the \
+overhead camera view together with the robot states below and detect congestion \
+patterns such as deadlocks, bottlenecks, crowding, or anomalies.
+
+Robot states (sorted by ID):
+{robot_state_block}
+{pairwise_geometry_block}{static_obstacle_block}
+Known robot IDs: {known_robot_ids_json}
+{failure_context_block}
+Guidance:
+- Robots are roughly 0.3 m wide; treat any two robots within ~0.5 m of each \
+other as physically conflicting. {geometry_use_clause}{obstacle_use_clause}
+- theta is heading in radians: 0=east(+x), π/2=north(+y), π or -π=west(-x), \
+-π/2=south(-y). Opposite headings alone do NOT mean head-on: two robots are \
+head-on only when each faces the other {facing_source} AND they are within \
+~0.5 m. Robots heading away from each other are diverging, not conflicting.
+- deadlock: two or more robots each blocked by the other. The most common case \
+is a head-on standoff — two robots within ~0.5 m, each facing the other, in the \
+same narrow aisle, both STOPPED or STALE, unable to pass. This IS a deadlock \
+even with only two robots. Two robots that are stopped but farther apart than \
+~0.5 m, or not facing each other, are NOT deadlocked — answer \
+congestion_detected=false unless another pattern applies. \
+bottleneck: several robots queued waiting behind one slow robot or blocked passage \
+(one-way congestion, not opposing). crowding: many robots packed into a small \
+area. anomaly: unexpected or unsafe configuration.
+- For head-on deadlock (two stopped/stale robots within ~0.5 m, each facing the \
+other): classify as type="deadlock" and strategy="yield" (the robot named in \
+yield_robot backs up) or strategy="reverse" (both back up to clear).
+- For a simple bottleneck (robots queued in the same direction): classify as \
+type="bottleneck" and strategy="temporary_wait" or "yield".
+- Decide from the robot coordinates and the image, not from assumptions about intent.
+{visual_crosscheck_block}
+Produce a JSON object with exactly these fields:
+- "congestion_detected": true or false
+- "type": "none" | "deadlock" | "bottleneck" | "crowding" | "anomaly"
+- "involved_robots": list of robot_id strings, from the known IDs only
+- "root_cause": one sentence
+- "strategy": "none" | "yield" | "reroute" | "convoy" | "priority_override" | \
+"temporary_wait" | "reverse"
+- "justification": one or two sentences
+- "yield_robot": the robot that should yield, or null when the strategy is not \
+"yield"
+
+Rules:
+- Only use robot IDs from the known list above.
+- When congestion_detected is false: set type="none", strategy="none", involved_robots=[].
+- When congestion_detected is true: type and strategy must not be "none", and \
+involved_robots must be non-empty.
+
+Answer using the following format:
+<think>
+{think_geometry_step}, check the robot statuses, identify any conflicts, \
+decide the congestion type and strategy, and if the strategy is "yield", state \
+which robot should yield and why.
+</think>
+Immediately after the </think> tag, write ONLY the final JSON object, with no \
+surrounding text or markdown."""
+
+# Wording for the two modality conditions of the derived-geometry ablation axis.
+# `crosscheck_default_clause` is only consumed by _VISUAL_CROSSCHECK_TEMPLATE; it
+# lives here because which channel is "the default source" depends on this axis.
+_GEOMETRY_ON = {
+    "geometry_use_clause": (
+        "Use the pairwise geometry above; do not re-derive distances or facing from "
+        "the coordinates."
+    ),
+    "facing_source": "(pairwise geometry)",
+    "think_geometry_step": (
+        "Read the pairwise geometry (distance and whether each robot faces the other)"
+    ),
+    "crosscheck_default_clause": (
+        "The pairwise geometry above stays the default source for distance and "
+        "facing: when the image and the states agree, use it and do not re-derive "
+        "distances or facing from the coordinates."
+    ),
+}
+_GEOMETRY_OFF = {
+    "geometry_use_clause": "Compute distances and facing from the coordinates.",
+    "facing_source": "(heading points toward the other robot)",
+    "think_geometry_step": (
+        "Compute the pairwise distance and whether each robot faces the other from "
+        "the coordinates"
+    ),
+    "crosscheck_default_clause": (
+        "The coordinates above stay the default source for distance and facing: "
+        "when the image and the states agree, decide from them."
+    ),
+}
+
+# Wording for the two modality conditions of the static-obstacle ablation axis.
+# The ON clause states scene physics only: naming a robot, a maneuver or a
+# blocked side would hand the model the answer the experiment measures — which
+# is also why configured obstacle ids must stay non-semantic, since they render
+# verbatim. The OFF value is the empty string (not a placeholder line) so the
+# rendered prompt stays byte-identical to the pre-modality prompt; the leading
+# space therefore lives inside the ON value.
+_OBSTACLES_ON = {
+    "obstacle_use_clause": (
+        " Fixed obstacles in the scene are listed above and are the only ones "
+        "present; a robot can neither occupy nor drive through one."
+    ),
+}
+_OBSTACLES_OFF = {"obstacle_use_clause": ""}
+
+# Opt-in modality block (`ReasonerRequest.include_visual_crosscheck`). It must
+# establish precedence rather than contradict `geometry_use_clause`: giving the
+# model licence to re-derive geometry from raw coordinates is exactly the run-3
+# (2026-09-17) failure mode that `_FACING_COS` and that clause exist to prevent,
+# so this asks only for a gross-contradiction check on what is visible, never for
+# a measurement. Evidence for the block:
+# docs/reports/2026-09-18-gemini-er2-image-grounding.md.
+_VISUAL_CROSSCHECK_TEMPLATE = """Cross-check the states against the image:
+- The robot states above come from an overhead camera tracker and can be wrong: \
+a robot may be missed, a position may be stale, or two robot IDs may be swapped.
+- {crosscheck_default_clause}
+- Then look at the overhead image and check that it agrees with the states. Only \
+a clear contradiction matters: robots obviously touching or nose-to-nose in the \
+image while the states place them well apart, or obviously far apart in the image \
+while the states place them in contact. In that case trust the image, decide from \
+what you see, and say so in the justification, naming the disagreement between \
+the image and the stated positions."""
+
+_FAILURE_CONTEXT_ADVICE = (
+    "If the congestion is no longer present, report congestion_detected=false. "
+    "If it persists and the previous strategy did not clear it, prefer a different "
+    "strategy unless the scene has changed."
+)
+
+
+# Generic on purpose, like _FAILURE_CONTEXT_ADVICE: the block already states which
+# strategy and yielder failed, and naming an alternative would hand the model the
+# answer the experiment measures.
+_LAST_FAILED_CONTEXT_ADVICE = (
+    "If the congestion persists, do not repeat this failed attempt unless the scene "
+    "has changed."
+)
+
+
+def _render_attempt_lines(context: FailureContext) -> list[str]:
+    attempt = f"strategy={context.strategy}"
+    if context.yield_robot is not None:
+        attempt += f", yield_robot={context.yield_robot}"
+    attempt += f", outcome={context.outcome_status}"
+    # crossing_order is accepted on FailureContext but not rendered in this slice
+    # (Phase 1 plan Task 5 adds the ordered-crossing prompt block).
+    return [f"- {attempt}", f"- detail: {context.failure_detail}"]
+
+
+def _render_failure_context_block(context: FailureContext) -> str:
+    """Render the previous-attempt block for a re-analysis prompt (rev-8 A.1).
+
+    Args:
+        context: Prior-attempt summary supplied by M5.
+
+    Returns:
+        A multi-line block with no leading or trailing newline.
+    """
+    return "\n".join(
+        [
+            "Previous attempt in this episode:",
+            *_render_attempt_lines(context),
+            _FAILURE_CONTEXT_ADVICE,
+        ]
+    )
+
+
+def _render_last_failed_context_block(context: FailureContext) -> str:
+    """Render the earlier-failed-attempt block that follows the previous-attempt block.
+
+    Rendered only when M5's most recent failed attempt is not the previous
+    attempt itself, so a completed maneuver cannot displace the failure from the
+    prompt (failure-context depth policy, 2026-09-27).
+
+    Args:
+        context: Summary of the most recent failed attempt, supplied by M5.
+
+    Returns:
+        A multi-line block with no leading or trailing newline.
+    """
+    return "\n".join(
+        [
+            "Earlier failed attempt in this episode:",
+            *_render_attempt_lines(context),
+            _LAST_FAILED_CONTEXT_ADVICE,
+        ]
+    )
+
+
+def _render_visual_crosscheck_block(include_pairwise_geometry: bool) -> str:
+    """Render the image/state cross-check block for the opt-in modality condition.
+
+    Args:
+        include_pairwise_geometry: Whether the prompt carries the derived
+            pairwise-geometry lines, which decides which channel the block names
+            as the default source for distance and facing.
+
+    Returns:
+        A multi-line block with no leading or trailing newline.
+    """
+    wording = _GEOMETRY_ON if include_pairwise_geometry else _GEOMETRY_OFF
+    return _VISUAL_CROSSCHECK_TEMPLATE.format(
+        crosscheck_default_clause=wording["crosscheck_default_clause"]
+    )
+
+
+def _format_robot_state_lines(robot_states: list[RobotStateInput]) -> list[str]:
+    """Render robot states as deterministic key=value lines for the prompt.
+
+    Args:
+        robot_states: Robot states to render (caller sorts beforehand).
+
+    Returns:
+        One comma-separated line per robot; optional fields omitted when None.
+    """
+    lines: list[str] = []
+    for state in robot_states:
+        parts = [
+            f"robot_id={state.robot_id}",
+            f"x={state.x:.2f}",
+            f"y={state.y:.2f}",
+            f"theta={state.theta:.2f}",
+        ]
+        if state.status is not None:
+            parts.append(f"status={state.status}")
+        if state.goal is not None:
+            parts.append(f"goal_x={state.goal[0]:.2f}, goal_y={state.goal[1]:.2f}")
+        if state.task is not None:
+            parts.append(f"task={state.task}")
+        if state.linear_velocity is not None:
+            parts.append(f"linear_velocity={state.linear_velocity:.2f}")
+        if state.angular_velocity is not None:
+            parts.append(f"angular_velocity={state.angular_velocity:.2f}")
+        lines.append(", ".join(parts))
+    return lines
+
+
+def _order_robot_states(
+    robot_states: list[RobotStateInput],
+    order: RobotPresentationOrder = "id_asc",
+) -> list[RobotStateInput]:
+    """Put robot states into the requested presentation order.
+
+    Args:
+        robot_states: Robot states in arbitrary order.
+        order: `"id_asc"` for ascending robot ID, `"id_desc"` for descending.
+
+    Returns:
+        A new list; the input is left untouched.
+    """
+    return sorted(robot_states, key=lambda s: s.robot_id, reverse=order == "id_desc")
+
+
+def _faces(theta: float, dx: float, dy: float, distance: float) -> bool:
+    if distance < 1e-6:
+        return False
+    return (math.cos(theta) * dx + math.sin(theta) * dy) / distance >= _FACING_COS
+
+
+def _format_pairwise_geometry_lines(
+    robot_states: list[RobotStateInput],
+    order: RobotPresentationOrder = "id_asc",
+) -> list[str]:
+    """Render distance and mutual facing for every robot pair, in presentation order.
+
+    The order decides which robot of a pair takes the `first` role, so it must
+    match the order the robot-state list uses or the prompt would present the
+    same pair two different ways.
+
+    Args:
+        robot_states: Robot states; pairs are formed in the requested order.
+        order: `"id_asc"` for ascending robot ID, `"id_desc"` for descending.
+
+    Returns:
+        One line per pair, e.g. `robot_1 <-> robot_2: distance 1.00 m;
+        robot_1 faces robot_2: yes; robot_2 faces robot_1: no`; empty with fewer
+        than two robots.
+    """
+    ordered = _order_robot_states(robot_states, order)
+    lines: list[str] = []
+    for index, first in enumerate(ordered):
+        for second in ordered[index + 1 :]:
+            dx, dy = second.x - first.x, second.y - first.y
+            distance = math.hypot(dx, dy)
+            first_faces = "yes" if _faces(first.theta, dx, dy, distance) else "no"
+            second_faces = "yes" if _faces(second.theta, -dx, -dy, distance) else "no"
+            lines.append(
+                f"{first.robot_id} <-> {second.robot_id}: distance {distance:.2f} m; "
+                f"{first.robot_id} faces {second.robot_id}: {first_faces}; "
+                f"{second.robot_id} faces {first.robot_id}: {second_faces}"
+            )
+    return lines
+
+
+def _format_static_obstacle_lines(obstacles: list[StaticObstacleInput]) -> list[str]:
+    """Render fixed obstacles as world-frame boxes, sorted by obstacle ID.
+
+    Args:
+        obstacles: Declared static obstacles; order is normalized here.
+
+    Returns:
+        One line per obstacle, e.g. `obstacle_1: centre (-1.85, 0.00) m,
+        extent 0.30 x 0.30 m`; empty when no obstacles are declared.
+    """
+    return [
+        f"{obstacle.obstacle_id}: centre ({obstacle.x:.2f}, {obstacle.y:.2f}) m, "
+        f"extent {obstacle.size_x_m:.2f} x {obstacle.size_y_m:.2f} m"
+        for obstacle in sorted(obstacles, key=lambda o: o.obstacle_id)
+    ]
+
+
+def render_user_prompt_v1(request: ReasonerRequest) -> str:
+    """Render the v1 user prompt exactly as the pre-bundle builder did.
+
+    Reads only the request fields v1 knew about; `prompt_version` itself is the
+    caller's dispatch key and does not reach the text.
+
+    Args:
+        request: Validated reasoning request.
+
+    Returns:
+        The user prompt, byte-identical to the 4a71ffb rendering.
+    """
+    order = request.robot_presentation_order
+    sorted_states = _order_robot_states(request.robot_states, order)
+    known_ids = [s.robot_id for s in sorted_states]
+    lines = _format_robot_state_lines(sorted_states)
+    block = "\n".join(f"- {line}" for line in lines) or "- no robots observed"
+    geometry_lines = (
+        _format_pairwise_geometry_lines(sorted_states, order)
+        if request.include_pairwise_geometry
+        else []
+    )
+    geometry_block = ""
+    if geometry_lines:
+        bullets = [f"- {line}" for line in geometry_lines]
+        geometry_block = "\n" + "\n".join([_PAIRWISE_GEOMETRY_HEADER, *bullets]) + "\n"
+    obstacle_lines = (
+        _format_static_obstacle_lines(request.static_obstacles)
+        if request.include_static_obstacles
+        else []
+    )
+    obstacle_block = ""
+    if obstacle_lines:
+        bullets = [f"- {line}" for line in obstacle_lines]
+        obstacle_block = "\n" + "\n".join([_STATIC_OBSTACLE_HEADER, *bullets]) + "\n"
+    failure_block = (
+        ""
+        if request.failure_context is None
+        else "\n" + _render_failure_context_block(request.failure_context) + "\n"
+    )
+    # Appended only when set, so a request without it renders byte-identically to
+    # every prompt stored before the field existed.
+    if request.last_failed_context is not None:
+        failure_block += (
+            "\n" + _render_last_failed_context_block(request.last_failed_context) + "\n"
+        )
+    crosscheck_block = (
+        "\n" + _render_visual_crosscheck_block(request.include_pairwise_geometry) + "\n"
+        if request.include_visual_crosscheck
+        else ""
+    )
+    user_prompt = _USER_TEMPLATE.format(
+        robot_state_block=block,
+        known_robot_ids_json=json.dumps(known_ids),
+        pairwise_geometry_block=geometry_block,
+        static_obstacle_block=obstacle_block,
+        failure_context_block=failure_block,
+        visual_crosscheck_block=crosscheck_block,
+        **(_GEOMETRY_ON if request.include_pairwise_geometry else _GEOMETRY_OFF),
+        # Gated on the rendered lines, not on the flag: the ON clause asserts the
+        # listed obstacles are the only ones present, which with an empty list
+        # would affirm an empty scene that the flag alone cannot vouch for.
+        **(_OBSTACLES_ON if obstacle_lines else _OBSTACLES_OFF),
+    )
+    return user_prompt

@@ -54,6 +54,9 @@ _NO_REDERIVE_CLAUSE = (
 
 
 def _request() -> ReasonerRequest:
+    # Pinned to the frozen v1 template: every SHA and length constant in this
+    # file is a pre-bundle rendering. The v2 template is covered in
+    # test_prompt_builder_v2.py.
     return ReasonerRequest(
         request_id="req-1",
         image_path="/tmp/frame.png",
@@ -63,6 +66,7 @@ def _request() -> ReasonerRequest:
             RobotStateInput(robot_id="robot_2", x=1.0, y=2.0, theta=1.57, status="MOVING"),
             RobotStateInput(robot_id="robot_1", x=0.0, y=0.0, theta=0.0),
         ],
+        prompt_version=1,
     )
 
 

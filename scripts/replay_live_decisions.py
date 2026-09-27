@@ -247,6 +247,10 @@ class Artifact:
     # Absent (None) on every artifact written before the failure-context depth
     # policy (2026-09-27), which then reconstructs exactly as before.
     last_failed_context: dict[str, Any] | None = None
+    # The prompt template the artifact was rendered with. Artifacts written
+    # before the prompt-v2 bundle (2026-09-27) carry no `prompt_version` key
+    # and were all rendered by the frozen v1 template.
+    prompt_version: int = 1
 
     @property
     def raw_image_path(self) -> Path:
@@ -388,6 +392,7 @@ def load_artifacts(
                     stamp=float(data["scene"]["stamp"]),
                     raw_frame_skew_sec=skews.get(request_id),
                     last_failed_context=data.get("last_failed_context"),
+                    prompt_version=int(data.get("prompt_version") or 1),
                 )
             )
         loaded.sort(key=lambda a: (log_order.get(a.request_id, 10**6), a.stamp))
@@ -436,6 +441,7 @@ def reconstruct_request(
         static_obstacles=list(artifact.static_obstacles),
         include_static_obstacles=obstacles,
         robot_presentation_order=order or artifact.stored_order,
+        prompt_version=artifact.prompt_version,
     )
 
 

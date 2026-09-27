@@ -58,3 +58,22 @@ def test_to_json_is_deterministic():
     reg = TaskRegistry()
     reg.load_initial(_config())
     assert reg.to_json() == reg.to_json()
+
+
+def test_mission_task_returns_the_base_task():
+    reg = TaskRegistry()
+    reg.load_initial(_config())
+    assert reg.mission_task("robot_0") == "pick_a"
+
+
+def test_mission_task_ignores_an_active_override():
+    # The prompt renders the mission label, never a coordination action such
+    # as "yield", which would hand the VLM the previous dispatch.
+    reg = TaskRegistry()
+    reg.load_initial(_config())
+    reg.set_override("robot_0", action="yield", goal=(1.0, 1.0), command_id="c1")
+    assert reg.mission_task("robot_0") == "pick_a"
+
+
+def test_mission_task_returns_none_for_unknown_robot():
+    assert TaskRegistry().mission_task("ghost") is None

@@ -24,6 +24,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     InProcessPipeline,
     LatestRawFrame,
     append_scene_log,
+    attach_registry_assignments,
     build_failure_context,
     build_failure_contexts,
     build_reasoner_request,
@@ -81,6 +82,69 @@ def test_build_reasoner_request_maps_snapshot_and_image_path():
     assert req.frame_id == "cam0"
     assert req.robot_states[0].robot_id == "robot_0"
     assert req.robot_states[0].status == "STOPPED"
+
+
+def test_build_reasoner_request_defaults_to_the_current_prompt_version():
+    req = build_reasoner_request(request_id="r1", snapshot=_snapshot(), image_path="/tmp/r1.png")
+    assert req.prompt_version == 2
+
+
+def test_build_reasoner_request_passes_prompt_version_through():
+    req = build_reasoner_request(
+        request_id="r1", snapshot=_snapshot(), image_path="/tmp/r1.png", prompt_version=1
+    )
+    assert req.prompt_version == 1
+
+
+def test_build_reasoner_request_leaves_goal_and_task_none_without_registry():
+    state = build_reasoner_request("r1", _snapshot(), "/tmp/r1.png").robot_states[0]
+    assert state.goal is None and state.task is None
+
+
+def _registry_goal(robot_id):
+    return {"robot_0": (2.5, 0.0)}.get(robot_id)
+
+
+def _registry_task(robot_id):
+    return {"robot_0": "cross_narrow_aisle"}.get(robot_id)
+
+
+def test_attach_registry_assignments_sets_goal_and_task_per_robot():
+    attached = attach_registry_assignments(_snapshot(), _registry_goal, _registry_task)
+    assert attached.robots[0].goal == (2.5, 0.0)
+    assert attached.robots[0].task == "cross_narrow_aisle"
+    assert _snapshot().robots[0].goal is None
+
+
+def test_attach_registry_assignments_leaves_unassigned_robots_none():
+    attached = attach_registry_assignments(_snapshot(), lambda _r: None, lambda _r: None)
+    assert attached.robots[0].goal is None and attached.robots[0].task is None
+
+
+def test_build_reasoner_request_carries_registry_goal_and_task():
+    snapshot = attach_registry_assignments(_snapshot(), _registry_goal, _registry_task)
+    state = build_reasoner_request("r1", snapshot, "/tmp/r1.png").robot_states[0]
+    assert state.goal == (2.5, 0.0)
+    assert state.task == "cross_narrow_aisle"
+
+
+def test_v2_prompt_renders_the_registry_goal_and_task():
+    snapshot = attach_registry_assignments(_snapshot(), _registry_goal, _registry_task)
+    prompt = build_prompt_payload(build_reasoner_request("r1", snapshot, "/tmp/r1.png"))
+    assert "goal_x=2.50, goal_y=0.00, task=cross_narrow_aisle" in prompt.user_prompt
+
+
+def test_scene_stored_before_the_bundle_still_parses_without_goal_or_task():
+    stored = _snapshot().model_dump(mode="json")
+    for robot in stored["robots"]:
+        del robot["goal"], robot["task"]
+    assert SceneSnapshot(**stored).robots[0].goal is None
+
+
+def test_attached_scene_round_trips_through_the_artifact_json():
+    snapshot = attach_registry_assignments(_snapshot(), _registry_goal, _registry_task)
+    restored = SceneSnapshot(**json.loads(json.dumps(snapshot.model_dump(mode="json"))))
+    assert restored == snapshot
 
 
 # ---- dump_frame_png ----
@@ -410,6 +474,17 @@ def test_write_decision_artifact_preserves_m2_result_on_grounding_failure(tmp_pa
     assert payload["diagnostics"]["backend_id"] == "openai"
     assert payload["diagnostics"]["token_usage"] == {"total_tokens": 42}
     assert payload["raw_text"] == '{"congestion_detected": true}'
+
+
+def test_write_decision_artifact_records_prompt_version(tmp_path):
+    path = write_decision_artifact(tmp_path, _ok_outcome(), request=_request())
+    payload = json.loads(path.read_text())
+    assert payload["prompt_version"] == 2
+
+
+def test_write_decision_artifact_prompt_version_is_none_without_request(tmp_path):
+    payload = json.loads(write_decision_artifact(tmp_path, _ok_outcome()).read_text())
+    assert payload["prompt_version"] is None
 
 
 def test_write_decision_artifact_records_image_fallback_diagnostics(tmp_path):
@@ -1235,11 +1310,14 @@ _PRE_PROBE_ARTIFACT_KEYS = {
     "yield_regrounded_reason", "yield_refusal_reason", "scene", "distance_to_goal_m",
     "shadow_classical",
 }
+# The prompt-v2 bundle (2026-09-27) adds `prompt_version` to every artifact on
+# purpose; the probe invariant above is about probe keys only.
+_TRIGGERED_ARTIFACT_KEYS = _PRE_PROBE_ARTIFACT_KEYS | {"prompt_version"}
 
 
 def test_write_decision_artifact_omits_probe_keys_for_triggered_analysis(tmp_path):
     payload = json.loads(write_decision_artifact(tmp_path, _probe_outcome()).read_text())
-    assert set(payload) == _PRE_PROBE_ARTIFACT_KEYS
+    assert set(payload) == _TRIGGERED_ARTIFACT_KEYS
 
 
 def test_write_decision_artifact_marks_probe_and_would_be_decision(tmp_path):
@@ -1254,4 +1332,4 @@ def test_write_decision_artifact_marks_probe_and_would_be_decision(tmp_path):
     assert payload["grounded_command_present"] is False
     assert payload["decision"]["congestion_detected"] is True
     assert payload["decision"]["strategy"] == "yield"
-    assert set(payload) == _PRE_PROBE_ARTIFACT_KEYS | {"probe", "probe_index"}
+    assert set(payload) == _TRIGGERED_ARTIFACT_KEYS | {"probe", "probe_index"}

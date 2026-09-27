@@ -30,7 +30,7 @@ from swarm_orchestrator.presentation_order import PresentationOrderPolicy
 from swarm_orchestrator.state_machine import OrchestratorState
 
 from reasoning.vlm.models import CongestionDecision, ReasonerDiagnostics, ReasonerResult
-from tests.unit.test_m5_reasoning_pipeline import _PRE_PROBE_ARTIFACT_KEYS
+from tests.unit.test_m5_reasoning_pipeline import _TRIGGERED_ARTIFACT_KEYS
 
 WAIT_SEC = 5.0
 
@@ -325,6 +325,31 @@ def test_probe_writes_artifact_marked_probe_with_would_be_decision(node_env, tmp
     assert payload["episode_index"] is None
 
 
+def test_triggered_artifact_scene_carries_registry_goal_and_task(node_env, tmp_path):
+    pipeline = _FakePipeline()
+    node, _clock = _make_node(node_env, tmp_path, pipeline, t0_probe_mode=False)
+
+    _trigger_real(node)
+    node._future.result(timeout=WAIT_SEC)
+    node._on_timer()
+
+    payload = _artifact(node, pipeline.run_calls[0])
+    robots = {r["robot_id"]: r for r in payload["scene"]["robots"]}
+    assert robots["robot_1"]["goal"] == [2.5, -0.35]
+    assert robots["robot_1"]["task"] == "t"
+    assert payload["prompt_version"] == 2
+    assert "goal_x=2.50, goal_y=-0.35, task=t" in payload["prompt"]["user_prompt"]
+
+
+def test_probe_artifact_scene_carries_registry_goal_and_task(node_env, tmp_path):
+    node, clock = _make_node(node_env, tmp_path, _FakePipeline())
+
+    payload = _artifact(node, _run_probe(node, clock, at=1020.0))
+    robots = {r["robot_id"]: r for r in payload["scene"]["robots"]}
+    assert robots["robot_2"]["goal"] == [-2.5, 0.35]
+    assert robots["robot_2"]["task"] == "t"
+
+
 def test_probe_logs_starting_analysis_with_t0_probe_reason(node_env, tmp_path):
     node, clock = _make_node(node_env, tmp_path, _FakePipeline())
 
@@ -588,7 +613,7 @@ def test_probe_mode_off_triggered_analysis_unchanged(node_env, tmp_path):
     node._on_timer()
 
     request_id = pipeline.run_calls[0]
-    assert set(_artifact(node, request_id)) == _PRE_PROBE_ARTIFACT_KEYS
+    assert set(_artifact(node, request_id)) == _TRIGGERED_ARTIFACT_KEYS
     [line] = node.get_logger().matching("starting analysis")
     assert line == (
         f"starting analysis request={request_id} robots=['robot_1', 'robot_2'] "

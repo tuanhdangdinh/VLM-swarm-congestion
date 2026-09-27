@@ -17,7 +17,9 @@ from reasoning.rag.command_grounder import (
 )
 from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import (
+    CURRENT_PROMPT_VERSION,
     FailureContext,
+    PromptVersion,
     ReasonerDiagnostics,
     ReasonerRequest,
     ReasonerResult,
@@ -88,8 +90,32 @@ def build_reasoner_request(
     include_static_obstacles: bool = False,
     robot_presentation_order: RobotPresentationOrder = "id_asc",
     last_failed_context: FailureContext | None = None,
+    prompt_version: PromptVersion = CURRENT_PROMPT_VERSION,
 ) -> ReasonerRequest:
-    """Project a SceneSnapshot plus a dumped image path into a ReasonerRequest."""
+    """Project a SceneSnapshot plus a dumped image path into a ReasonerRequest.
+
+    Each robot's goal and task label come from its `RobotView`, which M5 fills
+    from the task registry (`attach_registry_assignments`) before calling this;
+    a snapshot straight from M1, or one stored before the prompt-v2 bundle,
+    carries neither and renders without them.
+
+    Args:
+        request_id: Identifier of the analysis cycle.
+        snapshot: The M1 scene, registry assignments attached.
+        image_path: Path of the dumped frame the VLM will see.
+        failure_context: Most recent resolved attempt, if any.
+        include_pairwise_geometry: Pairwise-geometry modality switch.
+        static_obstacles: Declared fixed obstacles.
+        include_static_obstacles: Static-obstacle modality switch.
+        robot_presentation_order: Order the prompt lists robots in.
+        last_failed_context: Most recent failed attempt when it is not the
+            attempt in `failure_context`.
+        prompt_version: Prompt template to render; replay passes a stored
+            artifact's version so its prompt reconstructs byte-identically.
+
+    Returns:
+        The request M2 is called with.
+    """
     robot_states = [
         RobotStateInput(
             robot_id=r.robot_id,
@@ -98,7 +124,8 @@ def build_reasoner_request(
             theta=r.theta,
             linear_velocity=r.linear_velocity,
             status=r.status,
-            goal=r.goal if hasattr(r, "goal") else None,
+            task=r.task,
+            goal=r.goal,
         )
         for r in snapshot.robots
     ]
@@ -114,7 +141,33 @@ def build_reasoner_request(
         static_obstacles=list(static_obstacles),
         include_static_obstacles=include_static_obstacles,
         robot_presentation_order=robot_presentation_order,
+        prompt_version=prompt_version,
     )
+
+
+def attach_registry_assignments(
+    snapshot: SceneSnapshot,
+    goal_of: Callable[[str], tuple[float, float] | None],
+    task_of: Callable[[str], str | None],
+) -> SceneSnapshot:
+    """Copy a scene with each robot's registry goal and task label attached.
+
+    M5's task registry is the goal source (the same lookup the Arm B shadow
+    uses), so Arm A's prompt and Arm B's rules see the same goals.
+
+    Args:
+        snapshot: The M1 scene as M5 received it.
+        goal_of: A robot's effective goal, or None when it has no assignment.
+        task_of: A robot's mission task label, or None when it has none.
+
+    Returns:
+        A new snapshot; the input is left untouched.
+    """
+    robots = [
+        view.model_copy(update={"goal": goal_of(view.robot_id), "task": task_of(view.robot_id)})
+        for view in snapshot.robots
+    ]
+    return snapshot.model_copy(update={"robots": robots})
 
 
 def build_failure_context(record: AttemptRecord, now: float) -> FailureContext:
@@ -428,6 +481,9 @@ def write_decision_artifact(
             else last_failed_context.model_dump(mode="json")
         ),
         "prompt": prompt,
+        # Absent on every artifact written before the prompt-v2 bundle; the
+        # replay reconstructor reads a missing key as v1.
+        "prompt_version": None if request is None else request.prompt_version,
         "robot_presentation_order": (
             None if request is None else request.robot_presentation_order
         ),

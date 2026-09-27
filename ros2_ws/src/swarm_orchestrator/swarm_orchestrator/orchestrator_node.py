@@ -71,6 +71,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     LatestRawFrame,
     ReasoningPipeline,
     append_scene_log,
+    attach_registry_assignments,
     build_failed_outcome,
     build_failure_contexts,
     build_reasoner_request,
@@ -522,6 +523,11 @@ class OrchestratorNode(Node):
                 f"outcome={failed.outcome_status}"
             )
         episode_index, order = self._episodes.order_for(robots)
+        # Registry goals/tasks ride on the snapshot so the stored `scene` alone
+        # reconstructs the prompt; the shadow keeps its own goal lookup.
+        snapshot = attach_registry_assignments(
+            snapshot, self._effective_goal, self._registry.mission_task
+        )
         # Built here, not in the worker, so the artifact can record the exact request.
         request = build_reasoner_request(
             request_id,
@@ -776,6 +782,9 @@ class OrchestratorNode(Node):
         """
         image_path = str(Path(self._config.frame_dump_dir) / f"{request_id}.png")
         order = self._probe_order.order_for_episode(probe_index)
+        snapshot = attach_registry_assignments(
+            snapshot, self._effective_goal, self._registry.mission_task
+        )
         request = build_reasoner_request(
             request_id,
             snapshot,

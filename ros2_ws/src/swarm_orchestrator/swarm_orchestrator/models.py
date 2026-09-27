@@ -226,6 +226,11 @@ class RobotView(BaseModel):
     linear_velocity: float
     status: str
     stamp: float = Field(ge=0.0)
+    # From M5's task registry, not from M1 (`attach_registry_assignments`), so
+    # the prompt sees the goals Arm B's shadow reads. None until attached, and
+    # absent from every scene stored before the prompt-v2 bundle.
+    goal: tuple[float, float] | None = None
+    task: str | None = None
 
 
 class SceneSnapshot(BaseModel):
