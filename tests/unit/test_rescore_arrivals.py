@@ -13,8 +13,11 @@ from pathlib import Path
 import pytest
 import yaml
 
+import scripts.rescore_arrivals as rescore_arrivals
 from scripts.rescore_arrivals import (
+    ClockReconciliationError,
     ObstacleBox,
+    detect_clock_era,
     find_run_dirs,
     locate_gt_file,
     locate_scene_files,
@@ -24,6 +27,7 @@ from scripts.rescore_arrivals import (
     parse_arrival_events,
     parse_session_id,
     score_run,
+    stamp_to_monotonic,
 )
 
 SESSION_ID = "abc123"
@@ -58,7 +62,10 @@ def _write_m5_log(run_dir: Path, run_id: str, arrivals: list[ArrivalSpec]) -> No
 
 
 def _write_scene_log(
-    run_dir: Path, run_id: str, samples: dict[str, list[tuple[float, float, float, str]]]
+    run_dir: Path,
+    run_id: str,
+    samples: dict[str, list[tuple[float, float, float, str]]],
+    t_of=lambda stamp: stamp,
 ) -> None:
     (run_dir / "scene").mkdir(parents=True, exist_ok=True)
     # Interleave robots per timestamp, as the real logger does.
@@ -86,7 +93,7 @@ def _write_scene_log(
             "robots": robots,
             "stamp": stamp,
         }
-        record = {"run_id": run_id, "scene": scene, "session_id": SESSION_ID, "t": stamp}
+        record = {"run_id": run_id, "scene": scene, "session_id": SESSION_ID, "t": t_of(stamp)}
         lines.append(json.dumps(record))
     (run_dir / "scene" / f"{SESSION_ID}.jsonl").write_text("\n".join(lines) + "\n")
 
@@ -400,3 +407,184 @@ def test_overlapping_obstacle_uses_the_box_frame_for_a_rotated_box() -> None:
 
     assert overlapping_obstacle((0.0, 0.6), [box], half_width_m=0.175) == "rack"
     assert overlapping_obstacle((0.6, 0.0), [box], half_width_m=0.175) is None
+
+
+# ---- clock eras (post-97634be sim-time scene stamps) ----
+
+# Shaped like `simtime_shadow_val/20260927_081722` (S1): scene stamps are sim
+# seconds (~10-300), `t` is M5's monotonic clock (~2.2e5), M5 log times are
+# wall epochs (~1.79e9), and the sim runs at ~0.41x real time.
+SIM_OFFSET = 1_790_272_483.644
+SIM_T0 = 224_625.0
+SIM_RTF = 0.41
+SIM_RUN_ID = "20260927_081722"
+
+
+def _sim_t(stamp: float) -> float:
+    return SIM_T0 + (stamp - 10.0) / SIM_RTF
+
+
+def _sim_wall(stamp: float) -> float:
+    return SIM_OFFSET + _sim_t(stamp)
+
+
+def _build_sim_run(
+    tmp_path: Path, anchor_stamps: tuple[float, ...] = (50.0, 120.0), anchor_skew: float = 0.005
+) -> Path:
+    """S1-shaped run: robot_1 sits 0.05 m short of its goal from sim 100 s on."""
+    run_dir = tmp_path / SIM_RUN_ID
+    run_dir.mkdir()
+    lines = [_m5_log_line(_sim_wall(5.0), f"session_id={SESSION_ID} run_id={SIM_RUN_ID}")]
+    (run_dir / "decisions").mkdir()
+    for i, stamp in enumerate(anchor_stamps):
+        request = f"req{i}"
+        lines.append(
+            _m5_log_line(
+                _sim_wall(stamp) + anchor_skew,
+                f"starting analysis request={request} robots=['robot_1'] reason=stalled",
+            )
+        )
+        (run_dir / "decisions" / f"{request}.json").write_text(
+            json.dumps({"request_id": request, "scene": {"stamp": stamp, "robots": []}})
+        )
+    lines.append(
+        _m5_log_line(_sim_wall(150.0) + 0.05, "robot robot_1 arrived at base goal (2.5, 0.0)")
+    )
+    (run_dir / f"fc_{SIM_RUN_ID}_m5.log").write_text("".join(lines))
+    series = [
+        (float(s), 2.45 if s >= 100 else -1.5 + 0.04 * (s - 10), 0.0, "STOPPED")
+        for s in range(10, 301)
+    ]
+    _write_scene_log(run_dir, SIM_RUN_ID, {"robot_1": series}, t_of=_sim_t)
+    _write_ground_truth(
+        run_dir, [(0.0, {"robot_1": (-1.5, 0.0)}), (150.0, {"robot_1": (2.45, 0.0)})]
+    )
+    return run_dir
+
+
+def test_detect_clock_era_returns_wall_when_stamps_overlap_log_span() -> None:
+    assert detect_clock_era([1009.8, 1010.5], [1000.0, 1010.0]) == "wall"
+
+
+def test_detect_clock_era_returns_sim_when_stamps_are_far_from_log_span() -> None:
+    assert detect_clock_era([10.9, 150.0, 300.3], [1.79e9, 1.79e9 + 400.0]) == "sim"
+
+
+def test_detect_clock_era_returns_wall_when_log_ends_before_scene_log() -> None:
+    # bshort_gpt4o/20260926_204952: captured M5 log stops ~430 s before the
+    # scene log's last row, so most scene stamps lie beyond the log span.
+    stamps = [1000.0 + s for s in range(0, 700)]
+    assert detect_clock_era(stamps, [1000.0, 1250.0]) == "wall"
+
+
+def test_stamp_to_monotonic_interpolates_between_logged_rows() -> None:
+    clock = [(10.0, 100.0), (11.0, 102.0)]
+    assert stamp_to_monotonic(clock, 10.25) == pytest.approx(100.5)
+
+
+def test_stamp_to_monotonic_returns_none_outside_range_without_extrapolation() -> None:
+    clock = [(10.0, 100.0), (11.0, 102.0)]
+    assert stamp_to_monotonic(clock, 9.0) is None
+    assert stamp_to_monotonic(clock, 9.0, extrapolate=True) == pytest.approx(98.0)
+
+
+def test_score_run_maps_sim_time_stamps_to_wall_clock(tmp_path: Path) -> None:
+    rows, notes = score_run(_build_sim_run(tmp_path), tolerance_m=0.35, max_age_sec=2.0)
+
+    row = rows[0].values
+    assert row["clock_era"] == "sim"
+    assert row["m1_verdict"] == "within_tolerance"
+    assert row["m1_estimate_x"] == pytest.approx(2.45)
+    # Nearest mapped sample is within one sim step (1 sim-s = 2.44 wall-s) / 2.
+    assert row["m1_estimate_age_sec"] < 1.3
+    assert any("sim-time scene stamps mapped" in n for n in notes)
+
+
+def test_score_run_records_derived_wall_offset(tmp_path: Path) -> None:
+    rows, _ = score_run(_build_sim_run(tmp_path), tolerance_m=0.35, max_age_sec=2.0)
+
+    row = rows[0].values
+    # Derived from the run's own analysis anchors, not hardcoded: the true
+    # offset plus the 5 ms logging skew.
+    assert row["clock_offset_sec"] == pytest.approx(SIM_OFFSET + 0.005, abs=1e-3)
+    assert row["clock_anchor_count"] == 2
+    assert row["clock_anchor_spread_sec"] == pytest.approx(0.0, abs=1e-3)
+
+
+def test_score_run_leaves_wall_era_stamps_unmapped(tmp_path: Path) -> None:
+    run_dir = _build_run(
+        tmp_path,
+        "20260925_000006",
+        arrivals=[(1010.0, "robot_1", GOAL_R1)],
+        scene_samples={"robot_1": [(1009.8, 2.48, 0.0, "STOPPED")]},
+        gt_rows=[(10.0, {"robot_1": (2.48, 0.0)})],
+    )
+
+    row = score_run(run_dir, tolerance_m=0.35, max_age_sec=2.0)[0][0].values
+
+    assert row["clock_era"] == "wall"
+    assert row["clock_offset_sec"] is None
+    assert row["m1_estimate_age_sec"] == pytest.approx(0.2)
+
+
+def test_score_run_raises_instead_of_stale_rows_when_mapping_is_bypassed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Silent-corruption regression (F4): raw sim stamps vs wall events.
+
+    With the era forced to "wall" the run is joined on raw stamps, exactly as
+    the pre-fix script did; it must abort, never emit `stale_estimate` rows.
+    """
+    run_dir = _build_sim_run(tmp_path)
+    monkeypatch.setattr(rescore_arrivals, "detect_clock_era", lambda *_: "wall")
+
+    with pytest.raises(ClockReconciliationError, match="not on one clock"):
+        score_run(run_dir, tolerance_m=0.35, max_age_sec=2.0)
+
+
+def test_score_run_raises_when_sim_era_has_no_clock_anchors(tmp_path: Path) -> None:
+    run_dir = _build_sim_run(tmp_path, anchor_stamps=())
+
+    with pytest.raises(ClockReconciliationError, match="no clock anchor"):
+        score_run(run_dir, tolerance_m=0.35, max_age_sec=2.0)
+
+
+def test_score_run_raises_when_clock_anchors_disagree(tmp_path: Path) -> None:
+    run_dir = _build_sim_run(tmp_path, anchor_stamps=(50.0, 120.0, 200.0))
+    # Point two of three artifacts at scenes 30 and 60 sim-s away from the
+    # ones their log lines were written for.
+    for request, stamp in (("req1", 150.0), ("req2", 140.0)):
+        (run_dir / "decisions" / f"{request}.json").write_text(
+            json.dumps({"scene": {"stamp": stamp}})
+        )
+
+    with pytest.raises(ClockReconciliationError, match="disagree"):
+        score_run(run_dir, tolerance_m=0.35, max_age_sec=2.0)
+
+
+def test_main_aborts_without_writing_csv_on_clock_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runs_dir = tmp_path / "runs"
+    runs_dir.mkdir()
+    _build_sim_run(runs_dir, anchor_stamps=())
+    out = tmp_path / "out.csv"
+    monkeypatch.setattr(
+        "sys.argv", ["rescore_arrivals.py", "--runs-dir", str(runs_dir), "--out", str(out)]
+    )
+
+    assert rescore_arrivals.main() == 2
+    assert not out.exists()
+
+
+_S1_RUN = (
+    Path(__file__).resolve().parents[2] / "data/logs/vm_runs/simtime_shadow_val" / SIM_RUN_ID
+)
+
+
+@pytest.mark.skipif(not _S1_RUN.is_dir(), reason="git-ignored S1 validation run not present")
+def test_score_run_scores_real_s1_run_within_tolerance() -> None:
+    rows, _ = score_run(_S1_RUN, tolerance_m=0.35, max_age_sec=2.0)
+
+    assert [r.values["m1_verdict"] for r in rows] == ["within_tolerance"] * 2
+    assert rows[0].values["clock_offset_sec"] == pytest.approx(1_790_272_483.644, abs=0.05)

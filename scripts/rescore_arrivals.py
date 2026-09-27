@@ -43,17 +43,51 @@ goal sits 0.20 m from the box near face) lets the tolerance band reach inside
 the box, so the `box_overlap` column flags an accepted M1 position within
 `ROBOT_HALF_WIDTH_M` of any box. It is a reporting flag only: the verdict is
 unchanged.
+
+Scene-log clock eras. Before merge `97634be`, M1 scene stamps were wall-clock
+epoch seconds, directly comparable with the M5 log's `[<epoch>]` timestamps.
+From `97634be` on, the Isaac camera publishes sim-time stamps, so scene stamps
+are sim seconds (~10-300) while M5 events stay wall-clock (~1.79e9); joining
+them raw scored every arrival `stale_estimate` with an "age" of ~1.79e9 s and
+raised nothing (`simtime_shadow_val` validation, finding F4). `resolve_scene_clock`
+detects the era per run: when the scene log's median stamp lies within
+`CLOCK_RECONCILE_WINDOW_SEC` of the M5 log's own wall-clock span the run is
+wall era and stamps are used unchanged; otherwise it is sim era and each
+scene stamp is mapped to wall time through the scene log's `t` column
+(M5's `time.monotonic()` at receipt) plus the host's wall-minus-monotonic
+offset. That offset is derived per run, never hardcoded: each `starting
+analysis request=<id>` line carries a wall time, the matching decision
+artifact carries the sim stamp of the scene it analysed, and interpolating
+that stamp on the scene log's `(stamp, t)` series gives the monotonic time of
+the same instant. The median over analyses is the offset (matches the VM's
+measured `time.time() - time.monotonic()` within ~6 ms on both validation
+runs). Sim era without usable anchors, inconsistent anchors, or any arrival
+event outside the (mapped) scene-log span by more than
+`CLOCK_RECONCILE_WINDOW_SEC` raises `ClockReconciliationError`, which aborts
+the whole re-score before any CSV is written.
+
+Ground-truth join and the M1 stamp lag: ground truth is matched by nearest
+position (item 2 above), never by time, so no clock correction is applied to
+it. Post-`97634be` M1 stamps and ground truth's `sim_time_sec` share the sim
+clock, but M1 stamps trail the ground-truth state they depict by a constant
+~0.45 sim-s (per-row interpolation, median 0.451/0.454 s on the two
+`simtime_shadow_val` runs); any future time-based M1-to-GT join must shift M1
+stamps by -0.45 s first.
 """
 from __future__ import annotations
 
 import argparse
+import bisect
 import csv
 import json
 import math
 import re
+import statistics
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 import yaml
 
@@ -84,10 +118,22 @@ ACCEPTED_LATE_RE = re.compile(
     r"distance_m=(?P<dist>\S+)"
 )
 STARTING_ANALYSIS_RE = re.compile(r"\[(?P<ts>\d+\.\d+)\].*?starting analysis")
+ANALYSIS_REQUEST_RE = re.compile(
+    r"\[(?P<ts>\d+\.\d+)\].*?starting analysis request=(?P<request>[0-9A-Za-z_-]+)"
+)
 SESSION_ID_RE = re.compile(r"session_id=(?P<sid>[0-9a-f]+) run_id=")
+LOG_EPOCH_RE = re.compile(r"\[(?P<ts>\d+\.\d+)\]")
 
 DEFAULT_TOLERANCE_M = 0.35
 DEFAULT_MAX_AGE_SEC = 2.0
+# Far above any legitimate M1-estimate age (`max_age_sec` is 2 s) and far
+# below the ~1.79e9 s sim-vs-wall gap, so a genuinely stale estimate still
+# scores `stale_estimate` while an unreconciled clock cannot.
+CLOCK_RECONCILE_WINDOW_SEC = 60.0
+# Anchors disagreeing by more than this (median absolute deviation) mean the
+# analysis lines and artifacts do not describe one consistent clock.
+CLOCK_ANCHOR_MAX_MAD_SEC = 1.0
+DECISION_DIR_NAMES = ("decisions", "m5_decisions")
 DEFAULT_SCENARIOS_DIR = REPO_ROOT / "isaac" / "config" / "scenarios"
 # Half of a ~0.35 m chassis envelope. Deliberately conservative: the Nav2
 # footprint (swarm_simulation/config/nav2_params.yaml) is only 0.14 x 0.18 m, so
@@ -130,7 +176,13 @@ CSV_FIELDS = [
     "no_scene_log",
     "box_overlap",
     "box_overlap_obstacle",
+    "clock_era",
+    "clock_offset_sec",
+    "clock_anchor_count",
+    "clock_anchor_spread_sec",
 ]
+
+ClockEra = Literal["wall", "sim", "n/a"]
 
 
 @dataclass(frozen=True)
@@ -170,8 +222,31 @@ class ObstacleBox:
     half_y_m: float
 
 
+@dataclass(frozen=True)
+class ClockResolution:
+    """How one run's scene-log stamps relate to its M5 log's wall clock.
+
+    `offset_sec` is the derived wall-minus-monotonic offset, set only in the
+    sim era (the wall era uses scene stamps unchanged).
+    """
+
+    era: ClockEra
+    offset_sec: float | None = None
+    anchor_count: int = 0
+    anchor_spread_sec: float | None = None
+
+
 class RunDataError(RuntimeError):
     """A run directory is missing a file this script needs, or has more than one."""
+
+
+class ClockReconciliationError(RuntimeError):
+    """Scene-log stamps and M5 event times cannot be put on one clock.
+
+    Deliberately not a `RunDataError`: `main` skips runs with missing files
+    but aborts the whole re-score on this, so a clock mismatch can never turn
+    into a CSV of `stale_estimate` rows.
+    """
 
 
 def find_run_dirs(runs_dir: Path) -> list[Path]:
@@ -410,32 +485,264 @@ def parse_first_starting_analysis(m5_log_text: str) -> float | None:
     return float(match.group("ts")) if match else None
 
 
-def load_scene_log(scene_files: list[Path]) -> dict[str, list[SceneSample]]:
-    """Load and merge scene-log JSONL files into per-robot sample series.
+def parse_log_epochs(m5_log_text: str) -> list[float]:
+    """Return every `[<epoch>]` wall-clock timestamp in an M5 log, in log order."""
+    return [float(m.group("ts")) for m in LOG_EPOCH_RE.finditer(m5_log_text)]
 
-    Args:
-        scene_files: Scene-log files for one run (see `locate_scene_files`).
 
-    Returns:
-        Robot id -> samples sorted by `stamp` (epoch seconds), matching the
-        M5 log's own timestamps.
-    """
-    samples: dict[str, list[SceneSample]] = {}
+def parse_analysis_requests(m5_log_text: str) -> list[tuple[float, str]]:
+    """Return `(wall_ts, request_id)` for every `starting analysis request=` line."""
+    return [
+        (float(m.group("ts")), m.group("request"))
+        for m in ANALYSIS_REQUEST_RE.finditer(m5_log_text)
+    ]
+
+
+def _iter_scene_records(scene_files: list[Path]):
     for path in scene_files:
         for line in path.read_text(errors="replace").splitlines():
             line = line.strip()
             if not line:
                 continue
             try:
-                record = json.loads(line)
+                yield json.loads(line)
             except json.JSONDecodeError:
                 continue
-            for robot in record["scene"]["robots"]:
-                samples.setdefault(robot["robot_id"], []).append(
-                    SceneSample(
-                        stamp=robot["stamp"], x=robot["x"], y=robot["y"], status=robot["status"]
-                    )
-                )
+
+
+def load_scene_clock(scene_files: list[Path]) -> list[tuple[float, float | None]]:
+    """Read each scene-log record's `(scene stamp, monotonic t)` pair, in file order.
+
+    Args:
+        scene_files: Scene-log files for one run (see `locate_scene_files`).
+
+    Returns:
+        Pairs in the order M5 wrote them; `t` is M5's `time.monotonic()` when
+        it received the scene, or None if the record has no `t`.
+    """
+    return [
+        (record["scene"]["stamp"], record.get("t")) for record in _iter_scene_records(scene_files)
+    ]
+
+
+def stamp_to_monotonic(
+    clock: list[tuple[float, float]], stamp: float, extrapolate: bool = False
+) -> float | None:
+    """Map a scene stamp to M5's monotonic receipt time by linear interpolation.
+
+    Args:
+        clock: `(stamp, t)` pairs sorted by strictly increasing stamp.
+        stamp: Scene stamp to map, on the same clock as `clock`'s stamps.
+        extrapolate: Extend the first/last segment for stamps outside the
+            logged range (used for robot stamps older than the first logged
+            scene); otherwise such stamps return None.
+
+    Returns:
+        Monotonic seconds, or None when `stamp` is out of range and
+        `extrapolate` is False, or `clock` is empty.
+    """
+    if not clock:
+        return None
+    stamps = [s for s, _ in clock]
+    if len(clock) == 1:
+        if stamp == stamps[0]:
+            return clock[0][1]
+        return clock[0][1] + (stamp - stamps[0]) if extrapolate else None
+    i = bisect.bisect_left(stamps, stamp)
+    if i < len(stamps) and stamps[i] == stamp:
+        return clock[i][1]
+    if (i == 0 or i == len(stamps)) and not extrapolate:
+        return None
+    i = min(max(i, 1), len(stamps) - 1)
+    (s0, t0), (s1, t1) = clock[i - 1], clock[i]
+    return t0 + (stamp - s0) * (t1 - t0) / (s1 - s0)
+
+
+def detect_clock_era(scene_stamps: list[float], log_epochs: list[float]) -> ClockEra:
+    """Classify a run's scene stamps as wall-clock or sim-time.
+
+    Wall era when the scene log's stamp span overlaps the M5 log's own
+    wall-clock span widened by `CLOCK_RECONCILE_WINDOW_SEC` (the scene log is
+    written by that same M5 process, so wall-clock stamps must fall inside its
+    lifetime); sim era otherwise. Overlap, not containment: captured M5 logs
+    can end well before the scene log does (`bshort_gpt4o/20260926_204952`'s
+    log stops ~430 s before its last scene row).
+
+    Args:
+        scene_stamps: Every scene-level stamp in the run's scene log.
+        log_epochs: Every wall-clock timestamp in the run's M5 log.
+
+    Returns:
+        `"n/a"` when either list is empty, else `"wall"` or `"sim"`.
+    """
+    if not scene_stamps or not log_epochs:
+        return "n/a"
+    lo = min(log_epochs) - CLOCK_RECONCILE_WINDOW_SEC
+    hi = max(log_epochs) + CLOCK_RECONCILE_WINDOW_SEC
+    if min(scene_stamps) <= hi and max(scene_stamps) >= lo:
+        return "wall"
+    return "sim"
+
+
+def _load_artifact_scene_stamp(run_dir: Path, request_id: str) -> float | None:
+    for name in DECISION_DIR_NAMES:
+        path = run_dir / name / f"{request_id}.json"
+        if not path.is_file():
+            continue
+        try:
+            scene = json.loads(path.read_text(errors="replace")).get("scene")
+        except json.JSONDecodeError:
+            return None
+        return scene.get("stamp") if isinstance(scene, dict) else None
+    return None
+
+
+def derive_wall_offset(
+    run_dir: Path, m5_log_text: str, clock: list[tuple[float, float]]
+) -> tuple[float, int, float]:
+    """Derive the host's wall-minus-monotonic offset from the run's own records.
+
+    Each analysis contributes one anchor: the wall time of its `starting
+    analysis request=<id>` line minus the monotonic time at which M5 received
+    the analysed scene, found by interpolating the artifact's scene stamp on
+    the scene log's `(stamp, t)` series. The line is logged in the same scene
+    callback that received the snapshot, so the two instants differ only by
+    request-building time (a few ms).
+
+    Args:
+        run_dir: One run directory, holding `decisions/` or `m5_decisions/`.
+        m5_log_text: Full text of the run's M5 log.
+        clock: `(stamp, t)` pairs sorted by strictly increasing stamp.
+
+    Returns:
+        `(offset_sec, anchor_count, anchor_spread_sec)`: the median anchor,
+        how many anchors were usable, and their max-min spread.
+
+    Raises:
+        ClockReconciliationError: No usable anchor, or anchors whose median
+            absolute deviation exceeds `CLOCK_ANCHOR_MAX_MAD_SEC`.
+    """
+    anchors: list[float] = []
+    for wall_ts, request_id in parse_analysis_requests(m5_log_text):
+        stamp = _load_artifact_scene_stamp(run_dir, request_id)
+        if stamp is None:
+            continue
+        monotonic = stamp_to_monotonic(clock, stamp)
+        if monotonic is not None:
+            anchors.append(wall_ts - monotonic)
+    if not anchors:
+        raise ClockReconciliationError(
+            f"{run_dir.name}: scene stamps are sim-time but no clock anchor is usable "
+            "(needs `starting analysis request=` lines whose decision artifact in "
+            f"{'/'.join(DECISION_DIR_NAMES)} carries a scene stamp inside the scene log's range)"
+        )
+    offset = statistics.median(anchors)
+    mad = statistics.median(abs(a - offset) for a in anchors)
+    if mad > CLOCK_ANCHOR_MAX_MAD_SEC:
+        raise ClockReconciliationError(
+            f"{run_dir.name}: {len(anchors)} clock anchors disagree (median absolute "
+            f"deviation {mad:.3f} s > {CLOCK_ANCHOR_MAX_MAD_SEC} s)"
+        )
+    return offset, len(anchors), max(anchors) - min(anchors)
+
+
+def resolve_scene_clock(
+    run_dir: Path, m5_log_text: str, scene_files: list[Path]
+) -> tuple[ClockResolution, Callable[[float], float] | None]:
+    """Detect the run's clock era and, in the sim era, build the stamp mapping.
+
+    Args:
+        run_dir: One run directory.
+        m5_log_text: Full text of the run's M5 log.
+        scene_files: The run's scene-log files (may be empty).
+
+    Returns:
+        `(resolution, to_wall)`: `to_wall` maps a scene or robot stamp to
+        wall-clock epoch seconds in the sim era, and is None otherwise
+        (stamps are used unchanged).
+
+    Raises:
+        ClockReconciliationError: Sim-era stamps that cannot be mapped
+            (non-monotonic stamps, no or inconsistent anchors).
+    """
+    records = load_scene_clock(scene_files) if scene_files else []
+    era = detect_clock_era([s for s, _ in records], parse_log_epochs(m5_log_text))
+    if era != "sim":
+        return ClockResolution(era=era), None
+    if any(t is None for _, t in records):
+        raise ClockReconciliationError(
+            f"{run_dir.name}: sim-time scene stamps but some scene-log records lack the "
+            "monotonic `t` column; cannot map them to wall time"
+        )
+    if any(b[0] <= a[0] for a, b in zip(records, records[1:], strict=False)):
+        raise ClockReconciliationError(
+            f"{run_dir.name}: sim-time scene stamps are not strictly increasing in log "
+            "order (clock reset mid-session?); cannot map them to wall time"
+        )
+    offset, count, spread = derive_wall_offset(run_dir, m5_log_text, records)
+
+    def to_wall(stamp: float) -> float:
+        # Interpolating the robot's own stamp (not subtracting its sim-second
+        # age from a wall time) keeps a STALE robot's age in wall seconds.
+        return stamp_to_monotonic(records, stamp, extrapolate=True) + offset
+
+    resolution = ClockResolution(
+        era="sim", offset_sec=offset, anchor_count=count, anchor_spread_sec=spread
+    )
+    return resolution, to_wall
+
+
+def check_events_reconciled(
+    run_name: str,
+    events: list[ArrivalEvent],
+    scene_by_robot: dict[str, list[SceneSample]],
+    era: ClockEra,
+) -> None:
+    """Refuse to score events that fall outside the scene log's time span.
+
+    Args:
+        run_name: Run directory name, for the error message.
+        events: Arrival events to be scored (wall-clock `ts`).
+        scene_by_robot: Scene samples on the wall clock (after any mapping).
+        era: The run's detected era, for the error message.
+
+    Raises:
+        ClockReconciliationError: An event lies more than
+            `CLOCK_RECONCILE_WINDOW_SEC` outside the span of scene stamps.
+    """
+    stamps = [s.stamp for series in scene_by_robot.values() for s in series]
+    if not stamps or not events:
+        return
+    lo, hi = min(stamps), max(stamps)
+    for event in events:
+        if not lo - CLOCK_RECONCILE_WINDOW_SEC <= event.ts <= hi + CLOCK_RECONCILE_WINDOW_SEC:
+            raise ClockReconciliationError(
+                f"{run_name}: {event.robot_id} arrival at {event.ts:.3f} is outside the "
+                f"scene-log span [{lo:.3f}, {hi:.3f}] +/- {CLOCK_RECONCILE_WINDOW_SEC} s "
+                f"(clock era {era}); scene stamps and M5 events are not on one clock"
+            )
+
+
+def load_scene_log(
+    scene_files: list[Path], to_wall: Callable[[float], float] | None = None
+) -> dict[str, list[SceneSample]]:
+    """Load and merge scene-log JSONL files into per-robot sample series.
+
+    Args:
+        scene_files: Scene-log files for one run (see `locate_scene_files`).
+        to_wall: Stamp-to-wall-clock mapping from `resolve_scene_clock` for
+            sim-era runs; None keeps stamps as logged (wall era).
+
+    Returns:
+        Robot id -> samples sorted by `stamp`, on the M5 log's wall clock.
+    """
+    samples: dict[str, list[SceneSample]] = {}
+    for record in _iter_scene_records(scene_files):
+        for robot in record["scene"]["robots"]:
+            stamp = robot["stamp"] if to_wall is None else to_wall(robot["stamp"])
+            samples.setdefault(robot["robot_id"], []).append(
+                SceneSample(stamp=stamp, x=robot["x"], y=robot["y"], status=robot["status"])
+            )
     for series in samples.values():
         series.sort(key=lambda s: s.stamp)
     return samples
@@ -581,6 +888,11 @@ def score_run(
     Returns:
         `(rows, notes)`: per-event CSV rows, and human-readable notes about
         fallbacks taken for this run (e.g. no scene log).
+
+    Raises:
+        ClockReconciliationError: The scene log's stamps cannot be put on the
+            M5 log's wall clock (see `resolve_scene_clock` and
+            `check_events_reconciled`).
     """
     notes: list[str] = []
     m5_log_path = locate_m5_log(run_dir)
@@ -592,10 +904,20 @@ def score_run(
     scene_files = locate_scene_files(run_dir, session_id)
     if session_id is not None and not scene_files:
         notes.append(f"no scene file matched session_id={session_id}")
-    scene_by_robot = load_scene_log(scene_files) if scene_files else {}
+    clock, to_wall = resolve_scene_clock(run_dir, m5_text, scene_files)
+    if clock.era == "sim":
+        notes.append(
+            f"sim-time scene stamps mapped to wall clock: wall = t + {clock.offset_sec:.3f} "
+            f"(wall-minus-monotonic from {clock.anchor_count} analysis anchors, "
+            f"spread {clock.anchor_spread_sec:.3f} s)"
+        )
+    scene_by_robot = load_scene_log(scene_files, to_wall) if scene_files else {}
     no_scene_log = not scene_files
     if no_scene_log:
         notes.append("no scene log found; M1 verdict falls back to ground truth only")
+    check_events_reconciled(
+        run_dir.name, [e for e in events if e.kind == "reported"], scene_by_robot, clock.era
+    )
 
     gt_file = locate_gt_file(run_dir)
     gt_by_robot = load_ground_truth(gt_file)
@@ -724,6 +1046,10 @@ def score_run(
                 "no_scene_log": no_scene_log,
                 "box_overlap": box_overlap,
                 "box_overlap_obstacle": box_overlap_obstacle,
+                "clock_era": clock.era,
+                "clock_offset_sec": clock.offset_sec,
+                "clock_anchor_count": clock.anchor_count,
+                "clock_anchor_spread_sec": clock.anchor_spread_sec,
             }
         )
         rows.append(row)
@@ -784,6 +1110,9 @@ def main() -> int:
         except RunDataError as exc:
             print(f"SKIP {run_dir.name}: {exc}", file=sys.stderr)
             continue
+        except ClockReconciliationError as exc:
+            print(f"ERROR {exc}; aborting, no CSV written", file=sys.stderr)
+            return 2
         for note in notes:
             print(f"{run_dir.name}: {note}", file=sys.stderr)
         all_rows.extend(rows)
