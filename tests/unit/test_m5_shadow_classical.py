@@ -345,6 +345,60 @@ def test_shadow_records_buffer_extent_for_censoring_checks():
     assert record.latest_stamp == 10.0
 
 
+def test_shadow_flags_censored_arrival_when_robot_starts_inside_zone():
+    # _head_on_history: robot_1 is 1.4 m from the (0, 0) pair midpoint at the
+    # oldest frame (inside r_conflict_m 1.5); robot_2 enters at t=3.
+    record = _evaluated(_fed_shadow())
+    assert record.censored_arrivals == ["robot_1"]
+    # Flag only: the FCFS answer is unchanged.
+    assert record.passing_order == ["robot_1", "robot_2"]
+    assert record.decision.yield_robot == "robot_2"
+    assert record.shadow_error is None
+
+
+def test_shadow_flags_no_censored_arrival_when_both_robots_enter_in_window():
+    shadow = _shadow()
+    for step in range(0, 10):
+        t = float(step)
+        shadow.observe(
+            _scene(
+                t,
+                _view("robot_1", min(-2.0 + 0.2 * step, -0.3), 0.0, 0.2, "MOVING", t),
+                _view("robot_2", max(2.4 - 0.2 * step, 0.3), math.pi, 0.2, "MOVING", t),
+            ),
+            _goal_of,
+        )
+    record = _evaluated(shadow)
+    assert record.oldest_stamp == 0.0
+    assert record.censored_arrivals == []
+    assert record.passing_order == ["robot_1", "robot_2"]
+
+
+def test_shadow_leaves_censored_arrivals_unset_without_conflict_zone():
+    shadow = _shadow()
+    scene = _scene(1.0, _view("robot_1", 0.0, 0.0, 0.0, "STOPPED", 1.0))
+    record = shadow.evaluate("r1", scene, _goal_of, 0)
+    assert record.classification.scenario == "blocked_path"
+    assert record.censored_arrivals is None
+
+
+def test_shadow_keeps_decision_when_censoring_check_raises(monkeypatch):
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("table exploded")
+
+    monkeypatch.setattr("swarm_orchestrator.shadow_classical.find_censored_arrivals", boom)
+    record = _evaluated(_fed_shadow())
+    assert record.decision.yield_robot == "robot_2"
+    assert record.censored_arrivals is None
+    assert "censoring check failed" in record.shadow_error
+
+
+def test_shadow_record_validates_artifact_without_censored_arrivals():
+    data = _evaluated(_fed_shadow()).model_dump(mode="json")
+    del data["censored_arrivals"]
+    assert ShadowClassicalRecord.model_validate(data).censored_arrivals is None
+
+
 def test_shadow_classifies_trigger_snapshot_when_buffer_tail_is_older():
     shadow = _fed_shadow()
     # Only the trigger shows both robots stopped; the buffered tail has them moving.

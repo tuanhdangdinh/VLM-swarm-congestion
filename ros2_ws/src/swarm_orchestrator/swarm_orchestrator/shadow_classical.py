@@ -29,6 +29,7 @@ from reasoning.baselines import (
     resolve_classical,
 )
 from reasoning.vlm.models import CongestionDecision, RobotStateInput, SnapshotFrame
+from reasoning.vlm.motion_table import derive_motion_table
 from swarm_orchestrator.models import SceneSnapshot
 
 GoalLookup = Callable[[str], tuple[float, float] | None]
@@ -66,6 +67,42 @@ def snapshot_to_frame(snapshot: SceneSnapshot, goal_of: GoalLookup) -> SnapshotF
         for view in snapshot.robots
     ]
     return SnapshotFrame(stamp=snapshot.stamp, robots=robots)
+
+
+def find_censored_arrivals(
+    frames: Sequence[SnapshotFrame], classification: ClassicalClassification
+) -> list[str] | None:
+    """Name the involved robots whose FCFS arrival stamp is censored.
+
+    FCFS dates a robot's arrival by the first buffered frame with it inside
+    the conflict zone, so a robot already in the zone at the oldest frame
+    gets that frame's stamp whether it arrived then or long before (the
+    `simtime_shadow_val` S2 run: spawns sit exactly on the 1.5 m zone
+    boundary). Uses the same zone and the same `derive_motion_table` rule
+    FCFS used, so it flags exactly the stamps FCFS compared.
+
+    Args:
+        frames: The frames the classical resolver ran on.
+        classification: The resolver's classification of those frames.
+
+    Returns:
+        Sorted ids of involved robots whose arrival stamp equals the oldest
+        frame's stamp; empty when none is censored; None when the scenario
+        carries no conflict zone (no FCFS order was computed) or `frames` is
+        empty.
+    """
+    center = classification.conflict_center
+    radius = classification.conflict_radius_m
+    if center is None or radius is None or not frames:
+        return None
+    oldest = min(frame.stamp for frame in frames)
+    involved = set(classification.involved_robots)
+    table = derive_motion_table(frames, center, radius)
+    return sorted(
+        entry.robot_id
+        for entry in table.entries
+        if entry.robot_id in involved and entry.arrival_stamp == oldest
+    )
 
 
 class SnapshotRingBuffer:
@@ -248,10 +285,15 @@ class ShadowClassicalRecord(BaseModel):
     sample_period_sec: float
     # Extent of the history actually classified. A robot already inside the
     # zone at `oldest_stamp` has a censored arrival (FCFS then falls back to
-    # commitment and robot_id), detectable offline from these fields.
+    # commitment and robot_id); `censored_arrivals` names such robots.
     frame_count: int = Field(ge=0)
     oldest_stamp: float | None
     latest_stamp: float | None
+    # Involved robots already in the zone at `oldest_stamp`, whose FCFS
+    # arrival is therefore censored (see `find_censored_arrivals`): the
+    # classical answer stands but its passing order is suspect. None when no
+    # FCFS order was computed. Defaulted so pre-flag artifacts still validate.
+    censored_arrivals: list[str] | None = None
     decision: CongestionDecision | None
     classification: ClassicalClassification | None
     passing_order: list[str] | None
@@ -397,16 +439,22 @@ class ClassicalShadow:
                     **base, shadow_error="no snapshot frames with robots to classify"
                 )
             resolution = self._resolve_fn(frames, self._zones, params, prior_attempts)
-            return ShadowClassicalRecord(
-                **{
-                    **base,
-                    "decision": resolution.decision,
-                    "classification": resolution.classification,
-                    "passing_order": resolution.passing_order,
-                }
-            )
         except Exception as exc:  # recorded, never raised into the analysis
             return ShadowClassicalRecord(**base, shadow_error=f"{type(exc).__name__}: {exc}")
+        resolved = {
+            **base,
+            "decision": resolution.decision,
+            "classification": resolution.classification,
+            "passing_order": resolution.passing_order,
+        }
+        try:
+            censored = find_censored_arrivals(frames, resolution.classification)
+        except Exception as exc:  # a failed flag must not discard the decision
+            return ShadowClassicalRecord(
+                **resolved,
+                shadow_error=f"censoring check failed: {type(exc).__name__}: {exc}",
+            )
+        return ShadowClassicalRecord(**resolved, censored_arrivals=censored)
 
     def finalize(
         self,
