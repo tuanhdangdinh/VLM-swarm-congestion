@@ -296,10 +296,10 @@ class TestLoadGroundingParams:
         with pytest.raises(ValidationError):
             load_grounding_params(Path(config))
 
-    def test_repo_config_parses_as_legacy(self):
+    def test_repo_config_parses_as_derived(self):
         params = load_grounding_params(Path("config/rag.yaml"))
-        assert params.mode == "legacy"  # live loop stays legacy until the M5 flip
-        assert params == GroundingParams()
+        assert params.mode == "derived"  # flipped 2026-09-28 with the M5 wiring
+        assert params == GroundingParams(mode="derived")
 
 
 def _legacy_yield_params(yielder_x: float, passer_x: float) -> dict:

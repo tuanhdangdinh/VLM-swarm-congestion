@@ -190,16 +190,50 @@ class TestLegacyModeUnchanged:
         assert "degradations" not in command
         assert command["actions"][0]["parameters"]["backup_distance_m"] == 1.3
 
-    def test_repo_config_mode_is_legacy(self):
+    def test_repo_config_is_derived_with_default_thresholds(self):
+        # Flipped 2026-09-28: the shipped config is exactly the derived-mode
+        # defaults, so every `_DERIVED_GEOMETRY` test here speaks for it.
         from pathlib import Path
 
         from reasoning.rag.maneuver_geometry import load_grounding_params
 
-        params = load_grounding_params(Path("config/rag.yaml"))
-        command = ground_reasoner_result(
-            _result(_decision()), snapshot=_head_on_frame(), params=params
+        assert load_grounding_params(Path("config/rag.yaml")) == _DERIVED_GEOMETRY
+
+    def test_repo_config_keeps_the_verified_maneuver_m4_executes(self):
+        # Not byte equality (derived adds degradations, retreat_* instead of
+        # park_*, linked_position, crossing_order): every parameter M4 reads
+        # matches the legacy command at the verified deadlock pose.
+        from pathlib import Path
+
+        from reasoning.rag.maneuver_geometry import load_grounding_params
+
+        legacy = ground_reasoner_result(
+            _result(_decision()),
+            robot_positions={"robot_1": (-0.3, 0.0), "robot_2": (0.3, 0.0)},
+            geometry=_geometry(),
         )
-        assert command == ground_reasoner_result(_result(_decision()))
+        derived = ground_reasoner_result(
+            _result(_decision()),
+            snapshot=_DEADLOCK,
+            params=load_grounding_params(Path("config/rag.yaml")),
+            geometry=_geometry(),
+        )
+        m4_keys = (
+            "backup_distance_m", "hold_sec", "pull_off_lateral_m", "passer_robot_id",
+            "passer_clear_m", "passer_escort_distance_m",
+        )
+        for index in (0, 1):
+            assert derived["actions"][index]["robot_id"] == legacy["actions"][index]["robot_id"]
+            assert derived["actions"][index]["action"] == legacy["actions"][index]["action"]
+        legacy_yield = legacy["actions"][0]["parameters"]
+        derived_yield = derived["actions"][0]["parameters"]
+        assert {k: derived_yield[k] for k in m4_keys} == {k: legacy_yield[k] for k in m4_keys}
+        assert derived_yield["retreat_x_m"] == legacy_yield["park_coord_m"]
+        assert (
+            derived["actions"][1]["parameters"]["duration_sec"]
+            == legacy["actions"][1]["parameters"]["duration_sec"]
+        )
+        assert derived["expected_resolution_time_sec"] == legacy["expected_resolution_time_sec"]
 
 
 class TestDerivedYield:

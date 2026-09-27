@@ -84,3 +84,24 @@ def test_triggered_artifact_records_grounding_and_logs_stage2(node_env, tmp_path
     assert payload["stage2"]["skip_reason"] == "no_backend"
     [line] = node.get_logger().matching("stage2 request=")
     assert f"stage2 request={request_id} status=skipped skip_reason=no_backend" in line
+
+
+def test_default_pipeline_runs_the_shipped_grounding_mode(node_env, tmp_path, monkeypatch):  # noqa: F811
+    monkeypatch.delenv("VGU_MOCK_DECISION_FILE", raising=False)
+    monkeypatch.delenv("VGU_MOCK_RETREAT_CHOICE_FILE", raising=False)
+    node_module, _clock = node_env
+    node = node_module.OrchestratorNode(config=_config(tmp_path, t0_probe_mode=False))
+    assert node._grounding.params.mode == "derived"
+    assert node._pipeline._grounding_params == node._grounding.params
+    # A mock with no stage-2 script cannot answer: the call is skipped.
+    assert node._pipeline._retreat_chooser is None
+    assert node._pipeline._stage2_enabled is True
+
+
+def test_default_pipeline_gets_a_scripted_mock_stage2(node_env, tmp_path, monkeypatch):  # noqa: F811
+    monkeypatch.setenv(
+        "VGU_MOCK_RETREAT_CHOICE_FILE", "config/mock_decisions/retreat_choice_b.json"
+    )
+    node_module, _clock = node_env
+    node = node_module.OrchestratorNode(config=_config(tmp_path, t0_probe_mode=False))
+    assert type(node._pipeline._retreat_chooser).__name__ == "RetreatChooser"

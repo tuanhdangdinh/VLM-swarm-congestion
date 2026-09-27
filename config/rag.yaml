@@ -5,12 +5,14 @@ rag:
 
 # M3 grounding mode (rev-8 Appendix A). `legacy` is the scenario-tuned bridge
 # every collected artifact was grounded with; `derived` adds feasibility bands,
-# swept-path-validated retreat candidates and stage-2 retreat choice. Stays
-# legacy until M5 is wired for derived mode. min_distance_m, lateral_m and
-# escort_clearance_m are fallbacks: with M5's scenario_geometry declared, the
-# scene's safety radius, pull_off_lateral_m and passer_clearance_m replace them.
+# swept-path-validated retreat candidates and stage-2 retreat choice. M5 reads
+# this section at startup (orchestrator.yaml grounding_params_path) and runs
+# derived since 2026-09-28; set `legacy` to reproduce the pre-switch grounder
+# byte for byte. min_distance_m, lateral_m and escort_clearance_m are
+# fallbacks: with M5's scenario_geometry declared, the scene's safety radius,
+# pull_off_lateral_m and passer_clearance_m replace them.
 grounding:
-  mode: legacy
+  mode: derived
   min_distance_m: 0.45
   backup_clearance_m: 1.7
   escort_clearance_m: 0.5
