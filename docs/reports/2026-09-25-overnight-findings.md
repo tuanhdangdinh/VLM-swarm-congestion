@@ -2564,6 +2564,16 @@ Readings:
    `reasoner_config_effective`; investigate the phantom-marker misread
    (M1) — a wrong ID can latch a real robot.
 
+> Update 2026-09-27: item 3's depth decision and item 4's config field are
+> done (`7f9884d`, `5386bd3`; prereg amendments A9 and Rev 6). The adopted
+> policy: most recent attempt plus most recent failed attempt, byte-stable
+> for single-block prompts (replay reconstruction 130/130). Evidence
+> correction: the displacement instances are R2 request `7482f0ad` and L4
+> request `ca63fbd5`; D2 never showed it (its failure stayed in view). The
+> `feat/failure-context-closed-loop` branch tip is contained in HEAD, so
+> that branch is closed as merged-by-content. Remaining in item 3: the
+> phantom-marker (M1) item and the rest as listed.
+
 ---
 
 ## Rev 13 Provenance

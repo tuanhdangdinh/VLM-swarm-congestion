@@ -28,6 +28,12 @@
   rather than the annotation, and the gpt-4o `_bshort` pilot lands 6/6 on
   the adopted apparatus, completing the baseline on both models. A6's
   trigger wording corrected accordingly.
+- Rev 6 (2026-09-27): new A9 — the failure-context depth policy is decided
+  and implemented (`7f9884d`), discharging blocker 3;
+  `image_fallback_after_attempts` now recorded in
+  `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
+  `feat/failure-context-closed-loop` branch is confirmed fully contained
+  in HEAD.
 
 ---
 
@@ -260,6 +266,35 @@ directory before the next launch (Rev 8 §AE item 4).
 
 ---
 
+## A9. Failure-Context Depth: Most Recent Attempt Plus Most Recent Failure
+
+**Binding.** Re-analysis prompts carry the most recent resolved attempt
+(the existing "Previous attempt in this episode:" block, unchanged) and,
+when it is not itself the failure, the most recent failed attempt as a
+second "Earlier failed attempt in this episode:" block
+(`ReasonerRequest.last_failed_context`, commit `7f9884d`). Semantics,
+pre-registered:
+
+- "Failed" is any resolved outcome other than completed — `timed_out`
+  included.
+- The failed block lives under `AttemptMemory`'s existing overlap-plus-
+  window scope: it must overlap the analysed robots and is dropped with the
+  window (60 s default) or on a disjoint robot set. A failure older than
+  the window is gone; this is a documented boundary of the policy, not a
+  defect. A newer failure replaces an older one; a completed attempt never
+  displaces the stored failure.
+- Prompts with no second block are byte-identical to the pre-policy
+  rendering (SHA-pinned; artifact replay reconstruction verified 130/130),
+  so all pilot artifacts remain reconstructable.
+
+**Rationale.** The one-attempt-deep context let a completed
+`temporary_wait` evict a failed yield, and M2 re-selected the same
+infeasible yielder (R2 request `7482f0ad`, L4 request `ca63fbd5`;
+findings Rev 1 "Secondary Findings (a)", Rev 2 §D item 3). Both blocks are
+persisted structurally in decision artifacts for the RQ5 analysis.
+
+---
+
 ## Freeze Blockers (checklist, status as of 2026-09-26)
 
 1. ~~**Arm B does not exist.**~~ — **discharged at the reasoning-core level
@@ -271,10 +306,11 @@ directory before the next launch (Rev 8 §AE item 4).
 2. ~~**`_bshort` validation**~~ — **discharged 2026-09-26** (findings Rev 10
    §AI): east 3/3, west 3/3, A1's condition satisfied. The gpt-4o `_bshort`
    family pilot remains under blocker 5.
-3. **Failure-context memory depth** — the context is one attempt deep; an
-   intervening success evicts a failed yield and the same infeasible yielder
-   is re-selected (Rev 1 §6(a), L4, D2). Decide last-N vs last-failed before
-   Arm A collection; the choice changes the RQ5 prompt.
+3. ~~**Failure-context memory depth**~~ — **discharged 2026-09-27**: policy
+   decided (most recent attempt + most recent failed attempt) and
+   implemented at `7f9884d`; see A9. Evidence correction: the displacement
+   instances are R2 (`7482f0ad`) and L4 (`ca63fbd5`); D2's prompts would
+   have been unchanged.
 4. ~~**Arm X**~~ — **discharged 2026-09-27** (findings Rev 13 §AN): the
    fallback is validated and kept; the separate-reporting rule stands as a
    reporting rule, no longer as an unvalidated-mitigation guard.
