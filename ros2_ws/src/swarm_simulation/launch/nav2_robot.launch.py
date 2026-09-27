@@ -201,7 +201,9 @@ camera image header time, which Isaac fills from SYSTEM time, while TF and
 every node here run on SIM time (`use_sim_time: true`) — the two stamps are
 not comparable, so a stamped lookup would fail or extrapolate wildly. The
 resulting latency error is bounded by speed * camera latency (<= 0.2 m/s *
-~0.1 s = <= 2 cm). The node carries no node-level `/tf` remaps, for the same
+~0.1 s = <= 2 cm). (Since 2026-09-27 Isaac stamps camera frames with SIM
+time, so the two stamps now share a timeline; the latest-lookup is kept
+unchanged and its latency bound still holds.) The node carries no node-level `/tf` remaps, for the same
 reason the AMCL node below carries none.
 
 2026-09-16 — `map_yaml` launch argument, defaulting to the shared

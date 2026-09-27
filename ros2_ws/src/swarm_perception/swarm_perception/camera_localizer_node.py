@@ -203,12 +203,13 @@ class CameraLocalizerNode(Node):
             The odometry pose as `(x, y, yaw)`, or None when TF cannot serve it.
         """
         try:
-            # WHY the LATEST transform (Time()) and never the scene stamp:
-            # scene_state.stamp is the camera image header time, which Isaac
-            # fills from SYSTEM time, while TF and this node's clock run on SIM
-            # time (use_sim_time: true). A lookup at the scene stamp therefore
-            # asks the buffer about an unrelated timeline and fails or
-            # extrapolates wildly. The cost of using the latest instead is a
+            # WHY the LATEST transform (Time()) and not the scene stamp: this
+            # was written when Isaac stamped camera frames (and so
+            # scene_state.stamp) with SYSTEM time while TF ran on SIM time, so a
+            # stamped lookup asked about an unrelated timeline. Since
+            # 2026-09-27 the camera is sim-stamped and the timelines agree; the
+            # latest lookup is kept because a stamped one would add a TF-buffer
+            # wait/extrapolation failure mode for a small gain. Its cost is a
             # latency error bounded by speed * camera latency: <= 0.2 m/s *
             # ~0.1 s = <= 2 cm, below the localization error AMCL degenerates
             # to during the yield manoeuvre this replaces.
