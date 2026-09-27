@@ -435,8 +435,8 @@ original Arm B specification.
     reworded to permit stated goals/tasks as evidence while forbidding
     invented intent ("Decide from the robot states (including their
     stated goals and tasks) and the image; do not assume intentions
-    beyond what is stated." — implementation in flight; v2 is
-    re-pinnable until the calibration pilot runs); (b) **confirmed**:
+    beyond what is stated." — implemented at `b4a8d91`, v2 re-pinned
+    once pre-freeze, v1 and replay integrity untouched); (b) **confirmed**:
     T3a's untracked robot-shaped blocker labels `transient` — "robot" is
     defined as a listed robot and the blocker is deliberately unlisted;
     this is the tier's oracle; (c) **confirmed**: the leakage-guard
