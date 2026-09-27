@@ -13,9 +13,12 @@ duration_sec: 180.0
 # The warehouse is not open floor: rack blocks fill all four quadrants, leaving
 # only the 1.2 m cross aisle (|y| < 0.6 on this axis) free, so both lanes live
 # inside it. Right-hand traffic: eastbound on y = -0.35, westbound on y = +0.35.
-#   - Lateral separation 0.70 m is the pairwise distance at the passing
-#     instant, 0.25 m above M4's 0.45 m safety latch (safety.yaml
-#     min_distance_m). It is nominal, not enforced by geometry: nothing
+#   - Lateral separation 0.70 m is the centre-to-centre distance at the
+#     passing instant: 0.25 m above M4's 0.45 m latch (safety.yaml
+#     min_distance_m) and 0.10 m above its 0.6 m STALE fail-safe band
+#     (stale_unsafe_distance_m), both measured centre-to-centre on M1
+#     positions. The pass happens near the camera nadir, where M1's position
+#     bias is smallest. It is nominal, not enforced by geometry: nothing
 #     physical holds the lanes, only each robot's straight global plan. The
 #     VM check is min_pairwise_distance_m in the acceptance log.
 #   - Each lane centre is 0.25 m from the rack faces, beyond the 0.19 m

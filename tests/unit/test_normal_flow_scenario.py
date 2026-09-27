@@ -17,9 +17,8 @@ from isaac.vgu_sim.config import CameraConfig, WarehouseConfig
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCENARIO_PATH = REPO_ROOT / "isaac/config/scenarios/normal_flow.yaml"
 MAPS_DIR = REPO_ROOT / "ros2_ws/src/swarm_simulation/maps"
-# M4's pairwise safety latch (swarm_execution/config/safety.yaml min_distance_m).
-M4_LATCH_M = 0.45
-# Required clearance above the latch so ordinary DWB lane drift cannot trip it.
+SAFETY_YAML = REPO_ROOT / "ros2_ws/src/swarm_execution/config/safety.yaml"
+# Required clearance above M4's latch so ordinary DWB lane drift cannot trip it.
 LATCH_MARGIN_M = 0.2
 # Robot half-width (nav2 footprint +-0.09 m) plus global inflation_radius 0.10 m:
 # a lane closer than this to a rack face sits in a nonzero-cost band, and NavFn
@@ -64,12 +63,22 @@ def test_normal_flow_robots_travel_in_opposite_directions():
     assert np.sign(r1.goal.x - r1.spawn.x) == -np.sign(r2.goal.x - r2.spawn.x)
 
 
-def test_normal_flow_lane_separation_clears_m4_latch_with_margin():
+def _lane_separation() -> float:
     r1, r2 = load_scenario(SCENARIO_PATH).robots
-
     # Both lanes run along x, so their lateral offset is a lower bound on the
-    # pairwise distance at every instant of a lane-following traversal.
-    assert abs(r1.spawn.y - r2.spawn.y) >= M4_LATCH_M + LATCH_MARGIN_M
+    # centre-to-centre distance at every instant of a lane-following traversal.
+    return abs(r1.spawn.y - r2.spawn.y)
+
+
+def test_normal_flow_lane_separation_clears_m4_latch_with_margin():
+    safety = yaml.safe_load(SAFETY_YAML.read_text())["safety"]
+    assert _lane_separation() >= safety["min_distance_m"] + LATCH_MARGIN_M
+
+
+def test_normal_flow_lane_separation_clears_m4_stale_unsafe_band():
+    # A marker dropping out while the pair is inside this band latches M4 too.
+    safety = yaml.safe_load(SAFETY_YAML.read_text())["safety"]
+    assert _lane_separation() > safety["stale_unsafe_distance_m"]
 
 
 def test_normal_flow_lanes_sit_in_zero_cost_aisle_band():
