@@ -88,6 +88,7 @@ from swarm_orchestrator.reasoning_pipeline import (
 )
 from swarm_orchestrator.retreat_stage2 import format_stage2_log
 from swarm_orchestrator.shadow_classical import (
+    ClassicalRetreatContext,
     ClassicalShadow,
     ShadowClassicalRecord,
     format_shadow_log,
@@ -162,19 +163,33 @@ def _build_default_pipeline(
     )
 
 
-def _build_shadow(config: OrchestratorConfig) -> ClassicalShadow | None:
+def _build_shadow(
+    config: OrchestratorConfig, grounding: GroundingParamsSource | None = None
+) -> ClassicalShadow | None:
     """Build the Arm B shadow, or None when disabled.
 
     Invalid `classical:` params raise here, stopping M5 at startup; a missing
-    file or section is carried into every shadow record instead.
+    file or section is carried into every shadow record instead. `grounding`
+    gives Arm B's stage-2 answer the pipeline's own derived-mode inputs.
     """
     if not config.shadow_classical:
         return None
+    retreat_context = (
+        None
+        if grounding is None
+        else ClassicalRetreatContext(
+            params=grounding.params,
+            geometry=config.scenario_geometry,
+            static_obstacles=config.static_obstacles,
+            yield_feasibility_mode=config.grounding_yield_feasibility,
+        )
+    )
     return ClassicalShadow(
         load_shadow_params(Path(config.shadow_classical_params_path)),
         config.shadow_classical_zones,
         config.shadow_classical_window_sec,
         config.shadow_classical_sample_period_sec,
+        retreat_context=retreat_context,
     )
 
 
@@ -288,7 +303,7 @@ class OrchestratorNode(Node):
             )
         )
         self._pending_episode_index: int | None = None
-        self._shadow = _build_shadow(self._config)
+        self._shadow = _build_shadow(self._config, self._grounding)
         self._pending_shadow: ShadowClassicalRecord | None = None
         # T0 log-only probes. The ledger stays empty unless probe mode is on,
         # so the dispatch guard that reads it is inert by default.
@@ -736,7 +751,10 @@ class OrchestratorNode(Node):
             if record is None:
                 raise RuntimeError("no shadow record was computed for this analysis (see log)")
             final = self._shadow.finalize(
-                record, outcome.reasoner_result.decision, outcome.failure_reason
+                record,
+                outcome.reasoner_result.decision,
+                outcome.failure_reason,
+                outcome.grounded_command,
             )
             self.get_logger().info(format_shadow_log(final))
             return final.model_dump(mode="json")

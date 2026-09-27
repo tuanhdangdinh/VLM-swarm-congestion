@@ -28,7 +28,19 @@ from reasoning.baselines import (
     load_classical_params,
     resolve_classical,
 )
-from reasoning.vlm.models import CongestionDecision, RobotStateInput, SnapshotFrame
+from reasoning.rag.command_grounder import (
+    YieldFeasibilityMode,
+    prepare_retreat_selection,
+    resolve_yield_roles,
+)
+from reasoning.rag.maneuver_geometry import GroundingParams
+from reasoning.rag.scene_geometry import SceneGeometry
+from reasoning.vlm.models import (
+    CongestionDecision,
+    RobotStateInput,
+    SnapshotFrame,
+    StaticObstacleInput,
+)
 from reasoning.vlm.motion_table import derive_motion_table
 from swarm_orchestrator.models import SceneSnapshot
 
@@ -196,6 +208,181 @@ class SnapshotRingBuffer:
         return [*kept, latest]
 
 
+class ClassicalRetreatContext(BaseModel):
+    """The derived-grounding inputs M5 hands the grounder, for Arm B's stage 2.
+
+    The same params, geometry, obstacles and gate mode the pipeline grounds
+    and runs stage 2 with, so Arm B's candidates are the ones the VLM chose
+    among.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    params: GroundingParams
+    geometry: SceneGeometry | None = None
+    static_obstacles: tuple[StaticObstacleInput, ...] = ()
+    yield_feasibility_mode: YieldFeasibilityMode = "off"
+
+
+class ClassicalRetreat(BaseModel):
+    """Arm B's stage-2 answer: the geometry-max candidate for its own yielder.
+
+    `ranked[0]` of `prepare_retreat_selection` is by construction the
+    stage-2 default, the stage-2 fallback and Arm B's stage-2 answer
+    (rev-8 A.3); this records it for the classical decision's yielder.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    # computed: a candidate exists; not_applicable: no classical yield, or
+    # grounding is not derived (no stage 2); unavailable: the yield is not
+    # executable (gate refusal, infeasible backup, no candidate); error: the
+    # computation raised (also in the record's `shadow_error`).
+    status: Literal["computed", "not_applicable", "unavailable", "error"]
+    reason: str | None = None
+    # The yielder the grounder would use (after the feasibility gate), and
+    # the classical decision's own `yield_robot` when the gate moved it.
+    yielder_id: str | None = None
+    regrounded_from: str | None = None
+    crossing_order: list[str] = Field(default_factory=list)
+    # The geometry-max candidate, in M3's label and world-frame metres.
+    candidate_label: str | None = None
+    x: float | None = None
+    y: float | None = None
+    backup_m: float | None = None
+    lateral_m: float | None = None
+    candidate_count: int = Field(default=0, ge=0)
+    # Set by `ClassicalShadow.finalize` against the executed command: whether
+    # the VLM arm's executed retreat is Arm B's (same yielder, same position
+    # at the command's 3-decimal rounding). `comparable` False says why not.
+    comparable: bool | None = None
+    comparison_reason: str | None = None
+    same_yielder: bool | None = None
+    equals_executed: bool | None = None
+    executed: dict[str, Any] | None = None
+
+
+def classical_retreat_answer(
+    decision: CongestionDecision, frame: SnapshotFrame, context: ClassicalRetreatContext | None
+) -> ClassicalRetreat:
+    """Compute Arm B's stage-2 answer for one classical decision.
+
+    Args:
+        decision: The classical decision.
+        frame: The scene it was classified on (the analysed snapshot).
+        context: The grounder's derived-mode inputs; None when M5 did not
+            wire them.
+
+    Returns:
+        The geometry-max candidate for the classical yielder, or a
+        non-`computed` status saying why there is none. Exceptions propagate
+        to the caller, which isolates them.
+    """
+    if decision.strategy != "yield":
+        return ClassicalRetreat(
+            status="not_applicable", reason=f"classical strategy={decision.strategy}"
+        )
+    if context is None:
+        return ClassicalRetreat(status="not_applicable", reason="no grounding context wired")
+    if context.params.mode != "derived":
+        return ClassicalRetreat(
+            status="not_applicable", reason=f"grounding mode={context.params.mode}: no stage 2"
+        )
+    roles = resolve_yield_roles(
+        decision,
+        frame,
+        geometry=context.geometry,
+        static_obstacles=context.static_obstacles,
+        yield_feasibility_mode=context.yield_feasibility_mode,
+    )
+    base: dict[str, Any] = {
+        "yielder_id": roles.yielder_id,
+        "regrounded_from": roles.grounded_from,
+        "crossing_order": list(roles.crossing_order),
+    }
+    if roles.refusal_reason is not None:
+        return ClassicalRetreat(status="unavailable", reason=roles.refusal_reason, **base)
+    selection = prepare_retreat_selection(
+        frame, roles.yielder_id, roles.crossing_order, context.params, geometry=context.geometry
+    )
+    if not selection.backup.feasible:
+        return ClassicalRetreat(
+            status="unavailable", reason=f"backup infeasible: {selection.backup.reason}", **base
+        )
+    if not selection.candidates:
+        return ClassicalRetreat(status="unavailable", reason="no valid candidate", **base)
+    best = selection.candidates[0]
+    return ClassicalRetreat(
+        status="computed",
+        candidate_label=best.label,
+        x=best.x,
+        y=best.y,
+        backup_m=best.backup_m,
+        lateral_m=best.lateral_m,
+        candidate_count=len(selection.candidates),
+        **base,
+    )
+
+
+def compare_classical_retreat(
+    retreat: ClassicalRetreat, grounded_command: dict[str, Any] | None
+) -> ClassicalRetreat:
+    """Compare Arm B's stage-2 answer with the retreat the VLM arm executed.
+
+    Compared by yielder and position (rounded like the command, 3 decimals),
+    never by letter: the letters are M3 labels on one side and permuted
+    display letters on the other.
+
+    Args:
+        retreat: The record's `classical_retreat`.
+        grounded_command: The pipeline's grounded command, or None.
+
+    Returns:
+        `retreat` with the comparison fields set.
+    """
+    if retreat.status != "computed":
+        return retreat.model_copy(
+            update={
+                "comparable": False,
+                "comparison_reason": f"no classical retreat: {retreat.status}",
+            }
+        )
+    yields = [
+        action
+        for action in (grounded_command or {}).get("actions", [])
+        if action.get("action") == "yield"
+    ]
+    parameters = (yields[0].get("parameters") or {}) if yields else {}
+    if "retreat_x_m" not in parameters or "retreat_y_m" not in parameters:
+        reason = (
+            "no grounded command"
+            if grounded_command is None
+            else "no executed derived yield"
+        )
+        return retreat.model_copy(update={"comparable": False, "comparison_reason": reason})
+    executed = {
+        "yielder_id": yields[0].get("robot_id"),
+        "x": parameters["retreat_x_m"],
+        "y": parameters["retreat_y_m"],
+        "retreat_choice": parameters.get("retreat_choice"),
+    }
+    same_yielder = executed["yielder_id"] == retreat.yielder_id
+    same_position = (
+        retreat.x is not None
+        and retreat.y is not None
+        and round(retreat.x, 3) == executed["x"]
+        and round(retreat.y, 3) == executed["y"]
+    )
+    return retreat.model_copy(
+        update={
+            "comparable": True,
+            "same_yielder": same_yielder,
+            "equals_executed": same_yielder and same_position,
+            "executed": executed,
+        }
+    )
+
+
 class ClassicalParamsSource(BaseModel):
     """Which Arm B thresholds the shadow runs on, and where they came from."""
 
@@ -299,6 +486,9 @@ class ShadowClassicalRecord(BaseModel):
     decision: CongestionDecision | None
     classification: ClassicalClassification | None
     passing_order: list[str] | None
+    # Arm B's stage-2 answer (`classical_retreat_answer`); None when no
+    # classical decision was reached. Defaulted so older artifacts validate.
+    classical_retreat: ClassicalRetreat | None = None
     # None until the VLM outcome arrives and `ClassicalShadow.finalize` runs.
     comparison: ShadowComparison | None = None
     # Scene frames the buffer failed to ingest since the previous analysis.
@@ -322,6 +512,7 @@ class ClassicalShadow:
         sample_period_sec: float,
         resolve_fn: ResolveFn = resolve_classical,
         compare_fn: CompareFn = compare_decisions,
+        retreat_context: ClassicalRetreatContext | None = None,
     ) -> None:
         """Create the shadow.
 
@@ -333,6 +524,8 @@ class ClassicalShadow:
             sample_period_sec: Ring-buffer decimation period.
             resolve_fn: Arm B resolver; injectable for failure-path tests.
             compare_fn: Decision comparator; injectable for failure-path tests.
+            retreat_context: The grounder's derived-mode inputs, for Arm B's
+                stage-2 answer; None records it as not applicable.
 
         Raises:
             ValueError: If the buffer settings are invalid, or the sample
@@ -352,6 +545,7 @@ class ClassicalShadow:
         self._sample_period_sec = sample_period_sec
         self._resolve_fn = resolve_fn
         self._compare_fn = compare_fn
+        self._retreat_context = retreat_context
         self._episode_index: int | None = None
         self._episode_analyses = 0
         self._feed_errors = 0
@@ -501,20 +695,29 @@ class ClassicalShadow:
             "classification": resolution.classification,
             "passing_order": resolution.passing_order,
         }
+        errors: list[str] = []
         try:
-            censored = find_censored_arrivals(frames, resolution.classification)
-        except Exception as exc:  # a failed flag must not discard the decision
-            return ShadowClassicalRecord(
-                **resolved,
-                shadow_error=f"censoring check failed: {type(exc).__name__}: {exc}",
+            resolved["classical_retreat"] = classical_retreat_answer(
+                resolution.decision, frames[-1], self._retreat_context
             )
-        return ShadowClassicalRecord(**resolved, censored_arrivals=censored)
+        except Exception as exc:  # a failed stage-2 answer must not discard the decision
+            error = f"classical retreat failed: {type(exc).__name__}: {exc}"
+            resolved["classical_retreat"] = ClassicalRetreat(status="error", reason=error)
+            errors.append(error)
+        try:
+            resolved["censored_arrivals"] = find_censored_arrivals(
+                frames, resolution.classification
+            )
+        except Exception as exc:  # a failed flag must not discard the decision
+            errors.append(f"censoring check failed: {type(exc).__name__}: {exc}")
+        return ShadowClassicalRecord(**resolved, shadow_error="; ".join(errors) or None)
 
     def finalize(
         self,
         record: ShadowClassicalRecord,
         vlm_decision: CongestionDecision | None,
         vlm_failure_reason: str | None,
+        grounded_command: dict[str, Any] | None = None,
     ) -> ShadowClassicalRecord:
         """Attach the Arm A vs Arm B comparison once the VLM outcome is known.
 
@@ -527,11 +730,15 @@ class ClassicalShadow:
             vlm_decision: The VLM decision, or None when M2 produced none.
             vlm_failure_reason: The pipeline's `failure_reason`, quoted when
                 the decision is missing.
+            grounded_command: The VLM arm's grounded command, which Arm B's
+                stage-2 answer is compared against; None when none grounded.
 
         Returns:
-            The record with `comparison` set, and `shadow_error` set if the
-            comparison itself failed.
+            The record with `comparison` (and `classical_retreat`'s
+            comparison) set, and `shadow_error` set if a comparison itself
+            failed.
         """
+        record = self._compare_retreat(record, grounded_command)
         if record.decision is None:
             reason = f"no classical decision: {record.shadow_error}"
             return record.model_copy(
@@ -563,6 +770,26 @@ class ClassicalShadow:
                     ),
                     "shadow_error": error,
                 }
+            )
+
+    @staticmethod
+    def _compare_retreat(
+        record: ShadowClassicalRecord, grounded_command: dict[str, Any] | None
+    ) -> ShadowClassicalRecord:
+        retreat = record.classical_retreat
+        if retreat is None:
+            return record
+        try:
+            compared = compare_classical_retreat(retreat, grounded_command)
+            return record.model_copy(update={"classical_retreat": compared})
+        except Exception as exc:  # recorded, never raised into outcome handling
+            error = f"classical retreat comparison failed: {type(exc).__name__}: {exc}"
+            failed = retreat.model_copy(
+                update={"comparable": False, "comparison_reason": error}
+            )
+            errors = "; ".join(e for e in (record.shadow_error, error) if e)
+            return record.model_copy(
+                update={"classical_retreat": failed, "shadow_error": errors}
             )
 
     def _next_prior_attempts(self, episode_index: int) -> int:

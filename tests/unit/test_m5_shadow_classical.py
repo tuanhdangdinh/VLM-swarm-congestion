@@ -15,18 +15,27 @@ from swarm_orchestrator.models import (
     TerminalStage,
     load_config,
 )
-from swarm_orchestrator.reasoning_pipeline import write_decision_artifact
+from swarm_orchestrator.reasoning_pipeline import (
+    InProcessPipeline,
+    build_reasoner_request,
+    write_decision_artifact,
+)
 from swarm_orchestrator.shadow_classical import (
     ClassicalParamsSource,
+    ClassicalRetreatContext,
     ClassicalShadow,
     ShadowClassicalRecord,
     SnapshotRingBuffer,
+    classical_retreat_answer,
     format_shadow_log,
     load_shadow_params,
     snapshot_to_frame,
 )
 
 from reasoning.baselines import ClassicalParams, ConflictZone
+from reasoning.rag.command_grounder import ground_reasoner_result, prepare_retreat_selection
+from reasoning.rag.maneuver_geometry import GroundingParams
+from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
 from reasoning.vlm.models import (
     CongestionDecision,
     ReasonerDiagnostics,
@@ -673,3 +682,202 @@ def test_shadow_probe_does_not_consume_feed_errors():
     shadow.observe(_trigger_scene(1.0), broken_goal)
     assert shadow.evaluate_probe("p1", _trigger_scene(2.0), _goal_of).feed_errors == 1
     assert _evaluated(shadow, "r1").feed_errors == 1
+
+
+# ---- Arm B's stage-2 answer (classical_retreat) ----
+
+
+def _corridor() -> SceneGeometry:
+    # Mirrors scenario_geometry in swarm_orchestrator/config/orchestrator.yaml.
+    return SceneGeometry(
+        corridor=CorridorGeometry(
+            axis="x", center_m=0.0, half_length_m=1.0, aisle_half_width_m=0.6, occluder_height_m=0.9
+        )
+    )
+
+
+_DERIVED_CONTEXT = ClassicalRetreatContext(
+    params=GroundingParams(mode="derived"), geometry=_corridor()
+)
+
+
+def _retreat_shadow(context=_DERIVED_CONTEXT) -> ClassicalShadow:
+    return _fed_shadow(retreat_context=context)
+
+
+def _expected_best():
+    frame = snapshot_to_frame(_trigger_scene(), _goal_of)
+    selection = prepare_retreat_selection(
+        frame, "robot_2", ["robot_1"], GroundingParams(mode="derived"), geometry=_corridor()
+    )
+    return selection.candidates[0], len(selection.candidates)
+
+
+def _yield_command(robot_id: str, x: float, y: float) -> dict:
+    return {
+        "command_id": "r1-yield",
+        "actions": [
+            {
+                "robot_id": robot_id,
+                "action": "yield",
+                "parameters": {"retreat_x_m": x, "retreat_y_m": y, "retreat_choice": "A"},
+            }
+        ],
+    }
+
+
+def test_classical_retreat_is_geometry_max_for_the_classical_yielder():
+    retreat = _evaluated(_retreat_shadow()).classical_retreat
+    best, count = _expected_best()
+    assert retreat.status == "computed"
+    assert retreat.yielder_id == "robot_2"
+    assert retreat.crossing_order == ["robot_1"]
+    assert (retreat.candidate_label, retreat.x, retreat.y) == (best.label, best.x, best.y)
+    assert (retreat.backup_m, retreat.lateral_m) == (best.backup_m, best.lateral_m)
+    assert retreat.candidate_count == count
+    assert retreat.comparable is None
+
+
+def test_classical_retreat_not_applicable_without_context():
+    retreat = _evaluated(_fed_shadow()).classical_retreat
+    assert retreat.status == "not_applicable"
+    assert retreat.reason == "no grounding context wired"
+
+
+def test_classical_retreat_not_applicable_in_legacy_mode():
+    context = ClassicalRetreatContext(params=GroundingParams(), geometry=_corridor())
+    retreat = _evaluated(_retreat_shadow(context)).classical_retreat
+    assert retreat.status == "not_applicable"
+    assert "legacy" in retreat.reason
+
+
+def test_classical_retreat_not_applicable_for_a_non_yield_decision():
+    decision = _vlm_decision(None, strategy="reroute")
+    frame = snapshot_to_frame(_trigger_scene(), _goal_of)
+    retreat = classical_retreat_answer(decision, frame, _DERIVED_CONTEXT)
+    assert retreat.status == "not_applicable"
+    assert retreat.reason == "classical strategy=reroute"
+
+
+def test_classical_retreat_failure_keeps_the_decision(monkeypatch):
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("candidates exploded")
+
+    monkeypatch.setattr("swarm_orchestrator.shadow_classical.classical_retreat_answer", boom)
+    record = _evaluated(_retreat_shadow())
+    assert record.decision.yield_robot == "robot_2"
+    assert record.classical_retreat.status == "error"
+    assert "candidates exploded" in record.classical_retreat.reason
+    assert "classical retreat failed" in record.shadow_error
+    # The other flag still ran.
+    assert record.censored_arrivals == ["robot_1"]
+
+
+def test_classical_retreat_equals_the_executed_default():
+    shadow = _retreat_shadow()
+    best, _count = _expected_best()
+    command = _yield_command("robot_2", round(best.x, 3), round(best.y, 3))
+    retreat = shadow.finalize(
+        _evaluated(shadow), _vlm_decision("robot_2"), None, command
+    ).classical_retreat
+    assert retreat.comparable is True
+    assert retreat.same_yielder is True
+    assert retreat.equals_executed is True
+    assert retreat.executed["yielder_id"] == "robot_2"
+
+
+def test_classical_retreat_differs_from_another_candidate():
+    shadow = _retreat_shadow()
+    best, _count = _expected_best()
+    command = _yield_command("robot_2", round(best.x, 3), round(-best.y, 3))
+    retreat = shadow.finalize(
+        _evaluated(shadow), _vlm_decision("robot_2"), None, command
+    ).classical_retreat
+    assert retreat.comparable is True
+    assert retreat.same_yielder is True
+    assert retreat.equals_executed is False
+
+
+def test_classical_retreat_differs_when_the_yielder_differs():
+    shadow = _retreat_shadow()
+    command = _yield_command("robot_1", -1.789, 0.36)
+    retreat = shadow.finalize(
+        _evaluated(shadow), _vlm_decision("robot_1"), None, command
+    ).classical_retreat
+    assert retreat.comparable is True
+    assert retreat.same_yielder is False
+    assert retreat.equals_executed is False
+
+
+def test_classical_retreat_not_comparable_without_a_command():
+    shadow = _retreat_shadow()
+    retreat = shadow.finalize(
+        _evaluated(shadow), _vlm_decision("robot_2"), "grounding failed", None
+    ).classical_retreat
+    assert retreat.comparable is False
+    assert retreat.comparison_reason == "no grounded command"
+
+
+def test_classical_retreat_not_comparable_with_a_legacy_yield():
+    shadow = _retreat_shadow()
+    command = {
+        "command_id": "r1-yield",
+        "actions": [{"robot_id": "robot_2", "action": "yield", "parameters": {"park_x_m": 1.0}}],
+    }
+    retreat = shadow.finalize(
+        _evaluated(shadow), _vlm_decision("robot_2"), None, command
+    ).classical_retreat
+    assert retreat.comparable is False
+    assert retreat.comparison_reason == "no executed derived yield"
+
+
+def test_classical_retreat_comparison_failure_is_recorded(monkeypatch):
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("compare exploded")
+
+    monkeypatch.setattr("swarm_orchestrator.shadow_classical.compare_classical_retreat", boom)
+    shadow = _retreat_shadow()
+    record = shadow.finalize(_evaluated(shadow), _vlm_decision("robot_2"), None, {})
+    assert record.classical_retreat.comparable is False
+    assert "compare exploded" in record.classical_retreat.comparison_reason
+    assert "compare exploded" in record.shadow_error
+    # The Arm A vs Arm B decision comparison still ran.
+    assert record.comparison.comparable is True
+
+
+def test_classical_retreat_matches_a_real_default_grounding():
+    # The VLM arm names the classical yielder and stage 2 is skipped, so the
+    # executed retreat is ranked[0]: the classical stage-2 answer by definition.
+    scene = _trigger_scene()
+    request = build_reasoner_request("r1", scene, "/tmp/r1.png")
+    diagnostics = ReasonerDiagnostics(
+        request_id="r1", backend_id="mock", attempts=1, parse_status="valid"
+    )
+
+    class _Reasoner:
+        def run(self, _request):
+            return ReasonerResult(
+                request_id="r1", decision=_vlm_decision("robot_2"), raw_text="{}",
+                diagnostics=diagnostics,
+            )
+
+    outcome = InProcessPipeline(
+        reasoner=_Reasoner(), ground_fn=ground_reasoner_result, scene_geometry=_corridor(),
+        grounding_params=GroundingParams(mode="derived"),
+    ).run(request)
+    shadow = _retreat_shadow()
+    record = shadow.finalize(
+        _evaluated(shadow), outcome.reasoner_result.decision, None, outcome.grounded_command
+    )
+    assert record.classical_retreat.equals_executed is True
+
+
+def test_classical_retreat_round_trips_through_the_artifact(tmp_path):
+    shadow = _retreat_shadow()
+    block = shadow.finalize(_evaluated(shadow), _vlm_decision("robot_2"), None).model_dump(
+        mode="json"
+    )
+    path = write_decision_artifact(tmp_path, _outcome(), shadow_classical=block)
+    stored = json.loads(path.read_text())["shadow_classical"]["classical_retreat"]
+    assert stored["status"] == "computed"
+    assert ShadowClassicalRecord.model_validate(block).classical_retreat.yielder_id == "robot_2"

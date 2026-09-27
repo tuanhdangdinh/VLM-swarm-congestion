@@ -194,3 +194,11 @@ def test_letter_draws_use_the_run_seed(node_env, tmp_path):  # noqa: F811
         config=_config(tmp_path, t0_probe_mode=False, prompt_robot_order_seed=1234)
     )
     assert node._pipeline._stage2_letter_seed == 1234 == node._order_seed
+
+
+def test_shadow_gets_the_pipeline_grounding_context(node_env, tmp_path):  # noqa: F811
+    node = _node(node_env, tmp_path, shadow_classical=True)
+    context = node._shadow._retreat_context
+    assert context.params == node._grounding.params
+    assert context.geometry == node._config.scenario_geometry
+    assert context.yield_feasibility_mode == node._config.grounding_yield_feasibility
