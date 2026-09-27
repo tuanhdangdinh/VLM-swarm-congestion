@@ -37,6 +37,27 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-27** — **T0 negative-control tier built (scenario + M5 log-only
+  probe mode); VM/USD verification pending.** Implements the design spec's T0
+  tier (`docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md`,
+  "Scenario battery" / run matrix: FP rate ≤ 10% on 20 probes).
+  `isaac/config/scenarios/normal_flow.yaml` (33232b8): two robots pass in
+  opposite directions on lanes y = ∓0.35 (spawns/goals at x = ±2.5) inside
+  the 1.2 m cross aisle — the racks fill every quadrant, so the "open
+  warehouse" lanes at y = ±0.8 the brief suggested are inside rack blocks.
+  Nominal minimum pairwise distance 0.70 m at the pass (0.25 m over M4's
+  0.45 m latch), not enforced by geometry: check `min_pairwise_distance_m` in
+  the acceptance log on the VM. Schema: new `normal_flow` family;
+  `expected_conflict` is now required-but-nullable and `null` is legal only
+  for that family. Its Nav2 map equals the default map byte for byte. Before
+  a T0 run, set `initial_tasks` to the lane goals (table in
+  `orchestrator.yaml`) or the robots get the ±2.5 centreline goals and meet
+  head-on. Probe mode (50bab61, M5 spec FR5.3.12): off by default; probes run
+  M2 only on their own executor, are recorded with `probe: true`, and are
+  refused at `_dispatch` by a request-id ledger if one ever got there.
+  Pending: scenario USD build + a T0 probe episode on the VM; and
+  `scripts/rescore_arrivals.py` does not skip `reason=t0_probe` lines, so do
+  not rescore T0 runs with it.
 - **2026-09-27** — **Rescore sim-time regression fixed; censored FCFS
   arrivals flagged** (follow-ups to the S1/S2 validation entry below,
   `data/logs/vm_runs/simtime_shadow_val/VALIDATION_SUMMARY.txt` F3/F4).
