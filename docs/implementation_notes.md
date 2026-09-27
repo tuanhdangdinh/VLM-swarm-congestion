@@ -37,6 +37,34 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-27** — **Arm B rule change (pre-freeze): robots parked at their
+  goal are no longer `blocked_path` / `unknown` candidates** (5e13805). The
+  T0 verification run `20260927_111348` found classical shadow verdicts of
+  `blocked_path`/`anomaly`/`reroute` on 60/60 post-arrival probes
+  (`data/logs/vm_runs/t0_t3c_verify/VERIFY_SUMMARY.txt`, F-T0-2): the
+  classifier had no notion of "stopped because arrived". `classify_scene`
+  (`reasoning/baselines/classical_reasoner.py`) now drops a stopped robot
+  within the new `ClassicalParams.arrived_exclusion_radius_m` (0.35, equal
+  to M5's `arrival_position_tolerance_m`; also in `config/rag.yaml`) of its
+  own goal before the `blocked_path` and `unknown` rules; `none` when no
+  candidate is left (root_cause "stopped robots are all parked at their
+  goals"). `head_on` and `intersection` still see parked robots, and a
+  parked robot still counts as another robot's blocker; goalless robots are
+  unchanged. This is a RULE change, not T1 tuning; the normative Arm B
+  section in the design spec does not mention it yet and needs an
+  amendment. Replaying T1's 65 artifact scenes: old rule 60 `blocked_path` /
+  5 `none` (the recorded tally, exactly), new rule 65 `none`.
+- **2026-09-27** — **T0 probes are now gated on snapshot receipt age**
+  (089d56e). In run `20260927_111348` Isaac exited at sim 180.37 and M5
+  kept probing the frozen final scene (probes 28-64 were replicates, F-T0-1):
+  the frame-vs-scene skew check compares two sim stamps that freeze
+  together. `probe_block_reason` (`swarm_orchestrator/probe.py`) now takes
+  the wall-clock age of the latest SceneState receipt and returns
+  `snapshot_stale` past `t0_probe_max_snapshot_age_sec` (new, default 3.0 s,
+  in `OrchestratorConfig` and `orchestrator.yaml`), checked after `no_scene`
+  and before `frame_not_fresh`, logged once per deferral like the other
+  reasons. A live feed (M1 publishes per camera frame) never gets near it.
+  VM check pending: the next T0 run's probe count should stop at Isaac exit.
 - **2026-09-27** — **T0 negative-control tier built (scenario + M5 log-only
   probe mode); VM/USD verification pending.** Implements the design spec's T0
   tier (`docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md`,
@@ -2082,6 +2110,27 @@ Rules for maintaining it:
 
 ## M6 Simulation / Isaac Sim
 
+- **2026-09-27** — **Timed obstacles are now activated by the runner; live
+  check pending** (c5cecaf). `runner.py` built `EventScheduler` with no
+  callbacks, so both defaulted to no-ops and the deactivated
+  `/World/DynamicObstacles/<id>` prim was never activated: T3c smoke run
+  `20260927_113513` showed an empty aisle inside the 8-20 s window
+  (`data/logs/vm_runs/t0_t3c_verify/VERIFY_SUMMARY.txt`, F-T3c-1). Every
+  earlier dynamic_anomaly run had no obstacle. No new USD authoring was
+  needed: `scenario_builder._author_obstacle` already authors the collidable
+  box and `SetActive(False)` for the runner to reactivate. The new
+  `event_scheduler.prim_activation_callbacks` toggle `SetActive(True/False)`
+  on a stage fetched at event time, because `SimulationContext.reset()`
+  reloads the stage after the scheduler is built. A missing prim raises, so
+  it becomes the run's `failure` rather than a silent no-op. The runner
+  prints `timed obstacle event sim_time=... active={...}` per spawn/remove,
+  and `scheduler.reset()` in `finally` is guarded so it cannot skip the
+  manifest. Unit-tested against a fake stage (`tests/unit/test_m6_event_scheduler.py`).
+  **Pending live:** whether a collider activated mid-run is picked up by the
+  physics backend, the RTX lidars (Nav2 costmaps) and the camera render.
+  Check the Isaac log line, and the camera/recording frames at x=1.5 inside
+  the window. F-T3c-2/5/6 (ROI-edge spawns, window timing, head-on geometry)
+  still block usable T3c data.
 - **2026-09-27** — **Camera frames now stamped with sim time**
   (`a1aa81d`). `useSystemTime` is `False` on both the `/camera/image_raw`
   and `/camera/camera_info` helpers (`isaac/vgu_sim/ros_graphs.py`). This
