@@ -205,6 +205,20 @@ in control.
   should yield and why, but states no selection criteria (no mention of
   space, retreat, clearance, or arrival order) — the point of the field is to
   measure the model's choice, not to prime it toward one.
+- FR2.1.10 (2026-09-27, prompt-v2 bundle) `ReasonerRequest.prompt_version`
+  (`Literal[1, 2]`, default 2) selects the template. v1 is the frozen
+  pre-bundle template in `reasoning/vlm/prompt_v1.py` (a self-contained copy
+  sharing nothing with `prompt_builder.py`), so every stored artifact
+  re-renders byte-identically; artifacts without a `prompt_version` key are
+  v1. v2 adds the optional `blocker_kind` and `crossing_order` output bullets,
+  drops the "(sorted by ID)" header claim, and renders each robot's registry
+  goal and mission task label, which M5 now attaches to the snapshot. The
+  yielder-criteria leakage guard exempts only the literal `"blocker_kind"`
+  field name. Invalid values of the two new fields parse to None with a tag in
+  `ReasonerDiagnostics.decision_degradations`
+  (`output_parser.DECISION_DEGRADATION_TAGS`) instead of costing a re-ask.
+  Design: `docs/superpowers/specs/2026-09-27-scenario-battery-design.md`,
+  "The Prompt-v2 Bundle".
 
 ### M2.2 VLM Backend Adapter
 - FR2.2.1 Expose one Protocol `VLMBackend` with a single method
@@ -297,6 +311,8 @@ in control.
 | strategy            | enum            | `none \| yield \| reroute \| convoy \| priority_override \| temporary_wait \| reverse` |
 | justification       | str             | natural language (interpretability, C2)                  |
 | yield_robot         | str \| null     | (2026-09-19) meaningful only when `strategy == "yield"`; never required — omitted/`null` for every pre-2026-09-19 artifact and any decision that doesn't set it (FR2.1.9) |
+| blocker_kind        | enum \| null    | (2026-09-27) `robot \| object \| transient`; never required; an out-of-set answer parses to null, tagged (FR2.1.10) |
+| crossing_order      | list[str] \| null | (2026-09-27) permutation of `involved_robots`, first passes first, yielder after those it yields to; asked for at 3+ robots; a non-permutation parses to null, tagged (FR2.1.10) |
 
 Pipeline metadata is carried in `ReasonerDiagnostics` (not in the decision JSON),
 to keep `CongestionDecision` schema-stable and M3-friendly.

@@ -37,6 +37,77 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-27** — **The prompt-v2 bundle landed: the one planned
+  prompt/contract break before the `prereg-v1` freeze** (`991ffae`,
+  `3013e88`, `5af09e0`). Design: "The Prompt-v2 Bundle" in
+  `docs/superpowers/specs/2026-09-27-scenario-battery-design.md`. It subsumes
+  amendments blockers 10 and 13
+  (`docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md`).
+  - **Contract.** `CongestionDecision` gains two optional fields.
+    `blocker_kind` is `robot | object | transient`. `crossing_order` is a
+    permutation of `involved_robots`: the first entry passes first, and a
+    yielder passes after the robots it yields to. The model rejects a
+    non-permutation.
+    - The parser does not fail the decision on a bad value. An out-of-set
+      `blocker_kind`, or an order that is not a permutation, parses to None.
+      The tag goes to `ReasonerDiagnostics.decision_degradations`
+      (`blocker_kind=default:invalid_label` → `invalid_label`,
+      `crossing_order=default:non_permutation` → `non_permutation_order`).
+      No re-ask is spent.
+    - An absent field carries no tag. Whether None counts as `invalid_label`
+      is the T3a/T2b scorer's call.
+    - The tags are merged into the grounder's `DEGRADATION_TAGS`, so one
+      `degradation_cause` covers the whole breakdown.
+    - `vlm_decision.schema.json` now lists `yield_robot`, which was missing:
+      with `additionalProperties: false`, `force_schema=True` could never
+      have emitted it. It also lists the two new fields.
+  - **Prompt v2.** The diff against v1 is three regions:
+    - The header reads `Robot states:`. The "(sorted by ID)" claim was false
+      under `id_desc`. Stating the drawn order instead would add a region
+      that differs between the counterbalanced conditions.
+    - There are two new output-format bullets.
+    - Each robot's registry goal and mission task label render through the
+      existing `goal_x=…, goal_y=…, task=…` path, which had never run live.
+      M5 attaches them to the snapshot with `attach_registry_assignments`,
+      so the stored `scene` alone reconstructs a v2 prompt. The goal is the
+      effective goal, the same lookup the Arm B shadow uses. The task is
+      `TaskRegistry.mission_task`, the base label: an override's task is the
+      dispatched action (e.g. `yield`), which would prime the answer.
+  - **Versioning guarantee.** `ReasonerRequest.prompt_version`
+    (`Literal[1, 2]`, default 2) selects the template.
+    - v1 is `reasoning/vlm/prompt_v1.py`, a self-contained copy of the
+      4a71ffb builder. It imports and shares nothing from `prompt_builder`,
+      so editing v2 cannot move a v1 byte.
+    - `tests/unit/test_prompt_v1_frozen.py` pins nine v1 renderings. They
+      were computed at HEAD before any edit, and include the goal/task,
+      `id_desc`, crosscheck and double-failure paths.
+    - Artifacts now record `prompt_version`. The replay reconstructor reads
+      a missing key as v1.
+    - `--arm integrity` gives batch1 74/74, batch2 56/56, all 130/130. A
+      sweep of every local run directory that `load_artifacts` reads (54
+      dirs) reconstructs all 654 artifacts: 0 mismatches, 309 of them
+      without a local frame PNG.
+    - v2 SHAs are pinned in `tests/unit/test_prompt_builder_v2.py`. A change
+      there is a new version, not a re-pin.
+  - **Arm B and the handoffs.** `resolve_classical` puts the
+    classification's `blocker_kind` on its decision (`object` on
+    `blocked_path`, `robot` on `head_on`/`intersection`, None on
+    `unknown`/`none`). It also puts the FCFS order there as
+    `crossing_order`, at 3+ robots only.
+    - `DisagreementRecord` gains `blocker_kind_match` and `order_match`.
+      Each is None, meaning not comparable, when either side lacks the
+      value. False counts toward `any_disagreement`; None does not.
+    - The shadow feeds the comparator the classification verdict and the
+      full passing order, so a two-robot VLM order is comparable.
+    - With no explicit `crossing_order`, the derived grounder reads
+      `decision.crossing_order` minus the grounded (post-gate) yielder.
+  - **Consequence.** Every post-bundle prompt differs from every pilot, so
+    nothing that straddles the bundle may be pooled.
+  - **Pending.** The calibration mini-pilot (n = 3 per model on `_bshort`
+    west) is blocked on funding: gpt-4o credits are exhausted and Gemini hit
+    its spending cap. It must run before the template hashes freeze at
+    `prereg-v1`.
+
 - **2026-09-27** — **M5's stall and cooldown clocks run on wall time, but
   scenario timing is in sim time.** `stall_threshold_sec` (12) and
   `cooldown_sec` (15) are measured on `time.monotonic()`
@@ -257,7 +328,8 @@ Rules for maintaining it:
   - **Evidence asymmetry.** The shadow frames carry goals from the registry.
     The VLM request carries none: `build_reasoner_request` reads `goal` off
     `RobotView`, which has no such field. This affects the claim that both
-    arms see "the same inputs". Recorded, not changed.
+    arms see "the same inputs". Recorded, not changed. *(Superseded by the
+    2026-09-27 prompt-v2 bundle entry: v2 requests carry registry goals.)*
   - **Isolation.** The shadow is observational. It never dispatches, and it
     never touches the `ReasonerRequest` or the VLM decision.
     - The node calls `evaluate` after the worker submit, so the shadow cannot
