@@ -58,3 +58,64 @@ class TestCompareDecisions:
         record = compare_decisions(_decision(), _decision())
         with pytest.raises(ValidationError):
             record.strategy_match = False
+
+
+class TestCompareBlockerKindAndOrder:
+    _THREE = ["robot_1", "robot_2", "robot_3"]
+
+    def _three(self, **overrides: object) -> CongestionDecision:
+        return _decision(involved_robots=self._THREE, yield_robot="robot_3", **overrides)
+
+    def test_blocker_kind_matches_when_equal(self):
+        record = compare_decisions(_decision(blocker_kind="robot"), _decision(blocker_kind="robot"))
+        assert record.blocker_kind_match is True
+        assert record.any_disagreement is False
+
+    def test_blocker_kind_mismatch_is_a_disagreement(self):
+        record = compare_decisions(
+            _decision(blocker_kind="transient"), _decision(blocker_kind="object")
+        )
+        assert (record.blocker_kind_match, record.any_disagreement) == (False, True)
+
+    def test_blocker_kind_absent_on_vlm_side_is_not_comparable(self):
+        record = compare_decisions(_decision(), _decision(blocker_kind="robot"))
+        assert record.blocker_kind_match is None
+        assert record.any_disagreement is False
+
+    def test_blocker_kind_absent_on_classical_side_is_not_comparable(self):
+        record = compare_decisions(_decision(blocker_kind="robot"), _decision())
+        assert record.blocker_kind_match is None
+
+    def test_classical_blocker_kind_keyword_overrides_the_decision_field(self):
+        record = compare_decisions(
+            _decision(blocker_kind="object"), _decision(), classical_blocker_kind="object"
+        )
+        assert record.blocker_kind_match is True
+
+    def test_order_matches_when_equal(self):
+        order = ["robot_2", "robot_1", "robot_3"]
+        record = compare_decisions(
+            self._three(crossing_order=order), self._three(crossing_order=order)
+        )
+        assert (record.order_match, record.any_disagreement) == (True, False)
+
+    def test_order_mismatch_is_a_disagreement(self):
+        record = compare_decisions(
+            self._three(crossing_order=["robot_1", "robot_2", "robot_3"]),
+            self._three(crossing_order=["robot_2", "robot_1", "robot_3"]),
+        )
+        assert (record.order_match, record.any_disagreement) == (False, True)
+
+    def test_order_absent_on_either_side_is_not_comparable(self):
+        order = ["robot_1", "robot_2", "robot_3"]
+        with_order = self._three(crossing_order=order)
+        assert compare_decisions(self._three(), with_order).order_match is None
+        assert compare_decisions(with_order, self._three()).order_match is None
+
+    def test_classical_passing_order_keyword_supplies_a_two_robot_order(self):
+        record = compare_decisions(
+            _decision(crossing_order=["robot_2", "robot_1"]),
+            _decision(),
+            classical_passing_order=["robot_2", "robot_1"],
+        )
+        assert record.order_match is True

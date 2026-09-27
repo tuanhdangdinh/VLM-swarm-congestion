@@ -34,6 +34,7 @@ from reasoning.vlm.models import (
     SnapshotFrame,
     StaticObstacleInput,
 )
+from reasoning.vlm.output_parser import DECISION_DEGRADATION_TAGS
 
 # What to do when the yielder M2 named cannot physically reach its park point:
 # "off" grounds the named yielder regardless (every artifact collected before
@@ -325,8 +326,9 @@ def ground_reasoner_result(
         retreat_choice: Derived mode only: the parsed stage-2 answer. None or
             a letter that names no validated candidate grounds the top-ranked
             candidate instead, tagged `retreat=default:*`.
-        crossing_order: Derived mode only: passing order for the non-yielders
-            (e.g. Arm B's FCFS order), until `CongestionDecision` carries one.
+        crossing_order: Derived mode only: passing order for the non-yielders,
+            overriding the decision's own. None reads `decision.crossing_order`
+            (prompt-v2 field; every involved robot) minus the grounded yielder.
             Must be a permutation of the involved robots minus the grounded
             yielder, else the involved-robots order is used and tagged.
 
@@ -683,6 +685,10 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # named (scored pre-gate, prereg amendments).
     "yield_robot=regrounded": None,
     "yield=no-passer": None,
+    # Stage-1 parser tags for the prompt-v2 optional decision fields, recorded
+    # on `ReasonerDiagnostics.decision_degradations`; merged here so one
+    # `degradation_cause` covers the whole breakdown.
+    **DECISION_DEGRADATION_TAGS,
 }
 
 def degradation_cause(tag: str) -> str | None:
@@ -767,7 +773,9 @@ def resolve_yield_roles(
             need it.
         static_obstacles: Fixed obstacles the gate scores retreat room against.
         yield_feasibility_mode: The gate mode (`"off"`, `"swap"`, `"refuse"`).
-        crossing_order: Explicit passing order for the non-yielders, or None.
+        crossing_order: Explicit passing order for the non-yielders, or None to
+            use `decision.crossing_order` minus the grounded yielder (when the
+            decision carries one).
 
     Returns:
         The roles, with `refusal_reason` set when no yield is executable.
@@ -809,6 +817,11 @@ def resolve_yield_roles(
             degradations.append("yield_robot=regrounded")
 
     order = list(robot_ids[1:])
+    if crossing_order is None and decision.crossing_order is not None:
+        # The decision orders every involved robot; the grounded (post-gate)
+        # yielder is dropped here so a gate swap cannot turn a valid model
+        # order into a non-permutation.
+        crossing_order = [rid for rid in decision.crossing_order if rid != robot_ids[0]]
     if crossing_order is not None:
         if sorted(crossing_order) == sorted(order) and len(set(crossing_order)) == len(order):
             order = list(crossing_order)

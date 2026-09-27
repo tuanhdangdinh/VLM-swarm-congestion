@@ -506,6 +506,39 @@ class TestCrossingOrder:
     def test_implicit_order_for_three_robots_is_tagged(self):
         assert "order=implicit" in self._ground()["degradations"]
 
+    def _ground_decision_order(self, decision_order, crossing_order=None, yield_robot="robot_1"):
+        decision = _decision(
+            involved_robots=["robot_1", "robot_2", "robot_3"],
+            yield_robot=yield_robot,
+            crossing_order=decision_order,
+        )
+        return ground_reasoner_result(
+            _result(decision),
+            snapshot=self._THREE,
+            params=_DERIVED,
+            crossing_order=crossing_order,
+        )
+
+    def test_decision_crossing_order_is_used_when_caller_passes_none(self):
+        # The decision lists every involved robot, yielder last; the grounder
+        # takes the non-yielders in that order.
+        command = self._ground_decision_order(["robot_3", "robot_2", "robot_1"])
+        p = command["actions"][0]["parameters"]
+        assert p["crossing_order"] == ["robot_3", "robot_2"]
+        assert p["passer_robot_id"] == "robot_3"
+        assert "order=implicit" not in command["degradations"]
+        assert "order=default:non_permutation" not in command["degradations"]
+
+    def test_decision_crossing_order_drops_the_yielder_wherever_it_sits(self):
+        command = self._ground_decision_order(["robot_1", "robot_3", "robot_2"])
+        assert command["actions"][0]["parameters"]["crossing_order"] == ["robot_3", "robot_2"]
+
+    def test_explicit_caller_order_overrides_the_decision_order(self):
+        command = self._ground_decision_order(
+            ["robot_3", "robot_2", "robot_1"], crossing_order=["robot_2", "robot_3"]
+        )
+        assert command["actions"][0]["parameters"]["crossing_order"] == ["robot_2", "robot_3"]
+
 
 class TestResolveYieldRoles:
     def test_rejects_a_non_yield_decision(self):
@@ -581,6 +614,9 @@ class TestDegradationTags:
             ("roles=legacy-convention", None),
             ("yield_robot=regrounded", None),
             ("strategy=unsupported:convoy", None),
+            # Stage-1 parser tags (prompt-v2 optional fields), one vocabulary.
+            ("blocker_kind=default:invalid_label", "invalid_label"),
+            ("crossing_order=default:non_permutation", "non_permutation_order"),
         ],
     )
     def test_tag_maps_to_measurement_cause(self, tag, cause):

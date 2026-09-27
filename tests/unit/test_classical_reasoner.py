@@ -446,6 +446,62 @@ class TestDecideClassicalIntersection:
         assert resolution.passing_order == ["robot_2", "robot_1"]
 
 
+class TestArmBEmitsPromptV2Fields:
+    """Arm B fills the shared contract's `blocker_kind` and `crossing_order`."""
+
+    def test_head_on_decision_carries_robot_blocker(self):
+        decision = decide_classical(_head_on_frames([(0.0, 0.4)]), [], _PARAMS)
+        assert decision.blocker_kind == "robot"
+
+    def test_two_robot_decision_omits_crossing_order(self):
+        # Mirrors the prompt: an order is asked for only at 3+ robots, and the
+        # yielder alone already fixes a two-robot order.
+        resolution = resolve_classical(_head_on_frames([(0.0, 5.0), (2.0, 0.4)]), [], _PARAMS)
+        assert resolution.passing_order == ["robot_1", "robot_2"]
+        assert resolution.decision.crossing_order is None
+
+    def test_three_robot_intersection_decision_carries_passing_order(self):
+        frames = _crossing_frames(
+            {
+                "robot_1": [(-4.0, 0.0), (-0.8, 0.0), (-0.8, 0.0)],
+                "robot_2": [(0.0, -4.0), (0.0, -4.0), (0.0, -0.8)],
+                "robot_3": [(0.8, 0.3), (0.8, 0.3), (0.8, 0.3)],
+            },
+            [0.0, 2.0, 4.0],
+        )
+        resolution = resolve_classical(frames, [_ZONE], _PARAMS)
+        assert resolution.decision.blocker_kind == "robot"
+        assert resolution.decision.crossing_order == ["robot_3", "robot_1", "robot_2"]
+        assert resolution.decision.crossing_order[-1] == resolution.decision.yield_robot
+
+    def test_blocked_path_decision_carries_forced_object_blocker(self):
+        frames = [
+            _frame(
+                1.0,
+                _robot("robot_1", 0.0, 0.0, 0.0, goal=(5.0, 0.0)),
+                _robot("robot_2", 3.0, 0.0, 0.0, v=0.3),
+            )
+        ]
+        decision = decide_classical(frames, [], _PARAMS)
+        assert decision.blocker_kind == "object"
+        assert decision.crossing_order is None
+
+    def test_unknown_decision_carries_no_blocker(self):
+        frames = [
+            _frame(
+                1.0,
+                _robot("robot_1", 0.0, 0.0, 0.0, goal=(0.0, 5.0)),
+                _robot("robot_2", 0.5, 0.0, math.pi, goal=(0.0, -5.0)),
+            )
+        ]
+        assert decide_classical(frames, [], _PARAMS).blocker_kind is None
+
+    def test_no_congestion_decision_carries_neither_field(self):
+        frames = [_frame(1.0, _robot("robot_1", 0.0, 0.0, 0.0, v=0.4))]
+        decision = decide_classical(frames, [], _PARAMS)
+        assert decision.blocker_kind is None and decision.crossing_order is None
+
+
 class TestDecideClassicalOtherScenarios:
     def _blocked_frames(self) -> list[SnapshotFrame]:
         return [

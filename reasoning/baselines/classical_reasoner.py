@@ -196,11 +196,13 @@ def classify_scene(
 
 
 class ClassicalResolution(BaseModel):
-    """Arm B's full answer: the shared decision plus what it cannot carry.
+    """Arm B's full answer: the shared decision plus the evidence behind it.
 
-    `CongestionDecision` has no `blocker_kind` or `crossing_order` field, so the
-    classifier's blocker verdict (T3a) and the full FCFS passing order (RQ3,
-    needed for 3+ robot intersections) live here for shadow logging.
+    Since the prompt-v2 bundle the decision itself carries the classifier's
+    blocker verdict (`blocker_kind`, T3a) and, at 3+ robots, the FCFS passing
+    order (`crossing_order`, RQ3), so an Arm-B-executed decision grounds the
+    same fields an Arm A one does. The classification and the full passing
+    order (two-robot orders included) stay here for shadow logging.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -282,6 +284,10 @@ def resolve_classical(
                 f"{', '.join(order)}; {yielder} arrived last or is least committed"
             ),
             yield_robot=yielder,
+            blocker_kind=classification.blocker_kind,
+            # Emitted where the prompt asks the VLM for one (3+ robots); a
+            # two-robot order is fixed by the yielder alone.
+            crossing_order=order if len(order) >= 3 else None,
         )
         return ClassicalResolution(
             decision=decision, classification=classification, passing_order=order
@@ -295,6 +301,7 @@ def resolve_classical(
             root_cause=f"classical: {', '.join(involved)} stopped with a clear front",
             strategy="reroute",
             justification="classical policy: blocked_path blocker is always object -> reroute",
+            blocker_kind=classification.blocker_kind,
         )
         return ClassicalResolution(decision=decision, classification=classification)
 
@@ -309,6 +316,7 @@ def resolve_classical(
             "classical policy: unknown scenario waits once, then reroutes "
             f"(prior_attempts={prior_attempts})"
         ),
+        blocker_kind=classification.blocker_kind,
     )
     return ClassicalResolution(decision=decision, classification=classification)
 
@@ -322,8 +330,9 @@ def decide_classical(
     """Arm B decision on the same inputs as Arm A, in the VLM's contract.
 
     Emits the same `CongestionDecision` type the VLM emits, so grounding,
-    validation, and M4 execution are shared across arms. Use
-    `resolve_classical` when the blocker verdict or passing order is needed.
+    validation, and M4 execution are shared across arms, `blocker_kind` and
+    (at 3+ robots) `crossing_order` included. Use `resolve_classical` when the
+    classification or a two-robot passing order is needed.
 
     Args:
         frames: Snapshot history (ring-buffer contents), any order.

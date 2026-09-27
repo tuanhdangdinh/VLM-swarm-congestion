@@ -446,6 +446,28 @@ def test_shadow_flags_disagreement_when_vlm_names_other_yielder():
     assert disagreement.any_disagreement is True
 
 
+def test_shadow_compares_blocker_kind_and_full_passing_order():
+    # The shadow feeds the comparator the classification's verdict and the
+    # full FCFS order, so a two-robot VLM order is comparable even though Arm
+    # B's decision only carries an order at 3+ robots.
+    shadow = _fed_shadow()
+    evaluated = _evaluated(shadow)
+    vlm = _vlm_decision("robot_2").model_copy(
+        update={"blocker_kind": "robot", "crossing_order": list(evaluated.passing_order)}
+    )
+    disagreement = shadow.finalize(evaluated, vlm, "none").comparison.disagreement
+    assert evaluated.decision.crossing_order is None
+    assert disagreement.blocker_kind_match is True
+    assert disagreement.order_match is True
+
+
+def test_shadow_order_is_not_comparable_when_vlm_gives_none():
+    shadow = _fed_shadow()
+    record = shadow.finalize(_evaluated(shadow), _vlm_decision("robot_2"), "none")
+    assert record.comparison.disagreement.order_match is None
+    assert record.comparison.disagreement.blocker_kind_match is None
+
+
 def test_shadow_compares_vlm_no_congestion_decision():
     shadow = _fed_shadow()
     vlm = CongestionDecision(

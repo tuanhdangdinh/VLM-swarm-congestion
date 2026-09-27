@@ -34,7 +34,8 @@ from swarm_orchestrator.models import SceneSnapshot
 
 GoalLookup = Callable[[str], tuple[float, float] | None]
 ResolveFn = Callable[..., ClassicalResolution]
-CompareFn = Callable[[CongestionDecision, CongestionDecision], DisagreementRecord]
+# (vlm, classical, *, classical_blocker_kind=..., classical_passing_order=...)
+CompareFn = Callable[..., DisagreementRecord]
 
 
 def snapshot_to_frame(snapshot: SceneSnapshot, goal_of: GoalLookup) -> SnapshotFrame:
@@ -542,7 +543,15 @@ class ClassicalShadow:
                 update={"comparison": ShadowComparison(comparable=False, reason=reason)}
             )
         try:
-            disagreement = self._compare_fn(vlm_decision, record.decision)
+            classification = record.classification
+            disagreement = self._compare_fn(
+                vlm_decision,
+                record.decision,
+                classical_blocker_kind=(
+                    None if classification is None else classification.blocker_kind
+                ),
+                classical_passing_order=record.passing_order,
+            )
             comparison = ShadowComparison(comparable=True, disagreement=disagreement)
             return record.model_copy(update={"comparison": comparison})
         except Exception as exc:  # recorded, never raised into outcome handling
