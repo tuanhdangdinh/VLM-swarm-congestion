@@ -34,6 +34,16 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 11 (2026-09-27): T3a is built and mock-smoked (both members PASS,
+  real marker-less robot blocker; `ad379f1`…`71f6fdd`) and forces a
+  run-matrix amendment — item 18: **T3a has no outcome contrast in this
+  apparatus** (reroute merely re-sends the goal, which M4 already does;
+  the object member is unresolvable and the transient member resolves
+  under any strategy), so T3a is scored on the decision
+  (divergent-and-correct rate, already its primary test) and the "B
+  executed on 5 pairs for outcome contrast" cell is dropped at rev 9
+  absorption. Items 19–20 record the 1.82× blocker-scale visual
+  confound and the T3a apparatus deviations for tag-time review.
 - Rev 10 (2026-09-27): the prompt-v2 bundle lands (`991ffae`…`ed152c7`) —
   items 10 and 13 discharged (`blocker_kind` + `crossing_order` on the
   contract and prompt; goals + task labels in the state block, goals on
@@ -446,6 +456,30 @@ original Arm B specification.
 16. **Calibration mini-pilot** (n = 3 per model on `_bshort` west, post
     bundle, pre freeze) — funding-blocked: Gemini monthly cap hit,
     OpenAI balance untested.
+17a. **T3a outcome-contrast amendment (item 18, decided 2026-09-27,
+    reviewable at the tag):** T3a is scored on the decision — the
+    divergent-and-correct rate against the pre-registered per-kind
+    strategies (object → `reroute`, transient → `temporary_wait`) and
+    the `blocker_kind` verdict — because the apparatus offers no outcome
+    contrast: `reroute` re-sends the goal that M4 already re-sends every
+    2 s, so the object member cannot resolve under any strategy and the
+    transient member resolves under any once the blocker despawns. The
+    run matrix's "B executed on 5 pairs for outcome contrast" T3a cell
+    is dropped at rev 9 absorption; the classical shadow (forced
+    `object`/`reroute` non-divergence) is recorded on every T3a
+    decision, preserving the tier's contrast where it actually lives.
+17b. **T3a apparatus deviations for tag-time review (items 19–20):**
+    the transient blocker is the robot visual scaled **1.82×** so the
+    single-plane lidar at 0.182 m intersects a plate (at 1× only the
+    7 cm head is scannable and Nav2 simply plans around it) — a visible
+    size confound between "a robot-shaped transient agent" and the
+    tracked robots, accepted with this record; both blockers spawn via
+    `timed_obstacles` at 16 s on byte-identical maps (a baked or
+    t=0-present box either strands the robot at spawn or moves the
+    stall point ≈1.5 m — the members must differ only in the entity);
+    corridor 0.50 m (vs T1's 0.55) for closability; robot_2 runs the
+    north pocket; per-robot task labels now differ truthfully
+    (`traverse_aisle`) and render in v2 prompts.
 17. **T2b scope decision** — the three-robot feasibility investigation
     (`docs/reports/2026-09-27-three-robot-feasibility.md`) prices T2b at
     a 12-item build list including two REQUIRED safety changes before

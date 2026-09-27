@@ -223,7 +223,7 @@ authoring. Size: M (was S).
 | 1 | T0 scenario + probe mode | — | M | **landed** (`33232b8`…`ff96ead`; VM/USD verification pending) |
 | 2 | Prompt-v2 bundle (fields + goals decision) | user sign-off on goals | M | **landed** (`991ffae`…`ed152c7`; v1 frozen, integrity 130/130 + 654/654; goals on recommended default, confirmation pending; calibration pilot pending funding) |
 | 3 | T3c v2 re-author (see re-scoped section) | scheduler fix live-verified ✓ | M | **authored + mechanically smoked** (`89884a3`); reasoning half + oracle pending funding and prompt-v2 |
-| 4 | T3a pair (assets + YAMLs + oracle) | 2 ✓; oracle decision 15b ✓ | M | **authoring in flight** (mock-backend mechanical smoke; reasoning half pending funding) |
+| 4 | T3a pair (assets + YAMLs + oracle) | 2 ✓; 15b ✓ | M | **built + mock-smoked, both members PASS** (`ad379f1`…`71f6fdd`); decision-scored per amendments 17a (no outcome contrast in this apparatus); funded VLM run pending |
 | 5 | T2b (3-robot + harness + oracle) | 2 ✓; feasibility report (`docs/reports/2026-09-27-three-robot-feasibility.md`) | XL + NEEDS-DECISION | investigation done: 12-item build list; safety items 9+11 (pair-scoped exemption, hold-until-last) REQUIRED before any wrong-order run — the both-orders harness otherwise collides or re-deadlocks; scope decision pending |
 | 6 | Pillar 2 slice (plan Tasks 3/8/9/11) | — | L | **landed** (`9d027e6`…`cf81fa9`, merged `d3c2a7d`; M5 wiring + config flip follow the bundle) |
 | 7 | T3b scenario | 6 ✓; untracked asset from 4; wider `aisle_y_band_m` for k = 3 (default head-on geometry yields only 2 candidates — test-proven) | M | last |
