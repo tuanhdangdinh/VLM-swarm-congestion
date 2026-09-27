@@ -203,7 +203,10 @@ FAMILY_BY_LEGACY_NAME: dict[str, str] = {
     "intersection_bottleneck": "intersection",
     "dynamic_anomaly": "dynamic_anomaly",
 }
-ScenarioFamily = Literal["head_on", "intersection", "dynamic_anomaly"]
+# normal_flow is the T0 negative-control family: no conflict is expected, so
+# its scenarios carry `expected_conflict: null` (and only they may).
+ScenarioFamily = Literal["head_on", "intersection", "dynamic_anomaly", "normal_flow"]
+CONFLICT_FREE_FAMILIES: frozenset[str] = frozenset({"normal_flow"})
 
 
 class ScenarioConfig(BaseModel):
@@ -219,7 +222,9 @@ class ScenarioConfig(BaseModel):
     aisle_barrier: AisleBarrierConfig | None = None
     parameters: HeadOnAsymmetricParams | None = None
     oracle: OracleConfig | None = None
-    expected_conflict: ExpectedConflictConfig
+    # Required but nullable: every scenario must state its conflict, and null
+    # is the explicit "none expected" of a conflict-free family.
+    expected_conflict: ExpectedConflictConfig | None
     runtime: ScenarioRuntimeOverrides = Field(default_factory=ScenarioRuntimeOverrides)
 
     @model_validator(mode="before")
@@ -287,17 +292,28 @@ class ScenarioConfig(BaseModel):
                 )
 
         robot_id_set = set(robot_ids)
-        for rid in self.expected_conflict.involved_robots:
-            if rid not in robot_id_set:
-                raise ValueError(
-                    f"involved_robot {rid!r} not in configured robots {robot_id_set}"
-                )
-
-        w_start, w_end = self.expected_conflict.onset_window_sec
-        if w_end > self.duration_sec:
+        conflict_free = self.family in CONFLICT_FREE_FAMILIES
+        if self.expected_conflict is None and not conflict_free:
             raise ValueError(
-                f"onset_window_sec end {w_end} > duration_sec {self.duration_sec}"
+                f"expected_conflict may be null only for families "
+                f"{sorted(CONFLICT_FREE_FAMILIES)}; got family {self.family!r}"
             )
+        if self.expected_conflict is not None and conflict_free:
+            raise ValueError(
+                f"family {self.family!r} expects no conflict: expected_conflict must be null"
+            )
+        if self.expected_conflict is not None:
+            for rid in self.expected_conflict.involved_robots:
+                if rid not in robot_id_set:
+                    raise ValueError(
+                        f"involved_robot {rid!r} not in configured robots {robot_id_set}"
+                    )
+
+            w_start, w_end = self.expected_conflict.onset_window_sec
+            if w_end > self.duration_sec:
+                raise ValueError(
+                    f"onset_window_sec end {w_end} > duration_sec {self.duration_sec}"
+                )
 
         obstacle_ids = [o.obstacle_id for o in self.static_obstacles] + [
             o.obstacle_id for o in self.timed_obstacles

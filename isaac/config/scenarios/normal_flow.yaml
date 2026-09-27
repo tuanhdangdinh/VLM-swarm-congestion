@@ -1,0 +1,54 @@
+schema_version: 1
+name: normal_flow
+family: normal_flow
+seed: 42
+# ~5 m per robot at M1's ~0.1-0.2 m/s is 25-50 s of motion; the rest of the
+# run is both robots parked at their goals, still valid (idle) probe scenes.
+duration_sec: 180.0
+
+# T0 negative control (design spec "Scenario battery"): two robots pass each
+# other in opposite directions on parallel lanes and never conflict, so every
+# log-only VLM probe taken during the run has ground truth "no congestion".
+#
+# The warehouse is not open floor: rack blocks fill all four quadrants, leaving
+# only the 1.2 m cross aisle (|y| < 0.6 on this axis) free, so both lanes live
+# inside it. Right-hand traffic: eastbound on y = -0.35, westbound on y = +0.35.
+#   - Lateral separation 0.70 m is the pairwise distance at the passing
+#     instant, 0.25 m above M4's 0.45 m safety latch (safety.yaml
+#     min_distance_m). It is nominal, not enforced by geometry: nothing
+#     physical holds the lanes, only each robot's straight global plan. The
+#     VM check is min_pairwise_distance_m in the acceptance log.
+#   - Each lane centre is 0.25 m from the rack faces, beyond the 0.19 m
+#     (0.09 m footprint half-width + 0.10 m global inflation_radius) band where
+#     the global costmap is nonzero, so NavFn plans a straight line along the
+#     lane instead of pulling both paths onto the aisle centreline, which
+#     would rebuild the head-on conflict.
+#   - The collision_monitor stop polygon reaches only +-0.12 m sideways, so a
+#     robot 0.70 m off-axis never enters it.
+# Spawns and goals at |x| = 2.5 keep each marker 0.5 m inside the camera ROI
+# (+-3.0 m), as in head_on_deadlock. No aisle_barrier and no obstacles, so the
+# per-scenario Nav2 map equals the default warehouse map.
+#
+# M5 takes goals from swarm_orchestrator/config/orchestrator.yaml
+# initial_tasks, NOT from here: set them to the goals below (and turn on
+# t0_probe_mode) before a T0 run, or M5 dispatches the head-on +-2.5
+# centreline goals and the two robots meet head-on.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -2.5, y: -0.35, yaw_rad: 0.0}
+    goal: {x: 2.5, y: -0.35}
+    initial_task: traverse_aisle
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 2.5, y: 0.35, yaw_rad: 3.141592653589793}
+    goal: {x: -2.5, y: 0.35}
+    initial_task: traverse_aisle
+
+timed_obstacles: []
+
+expected_conflict: null
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

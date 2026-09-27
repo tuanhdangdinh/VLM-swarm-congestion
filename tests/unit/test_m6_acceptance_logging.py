@@ -302,3 +302,25 @@ def test_planar_pose_from_transform_returns_world_xy_and_yaw_radians():
 
     assert (round(x, 4), round(y, 4)) == (-0.9412, 0.0173)
     assert round(yaw_rad, 6) == round(math.pi / 2, 6)
+
+
+def test_build_record_reports_no_conflict_for_normal_flow():
+    scenario = ScenarioConfig.model_validate(
+        {
+            **_head_on_scenario().model_dump(mode="json"),
+            "name": "normal_flow",
+            "family": "normal_flow",
+            "expected_conflict": None,
+        }
+    )
+    states = {
+        "robot_1": RobotRuntimeState(robot_id="robot_1", x=0.0, y=-0.35, theta=0.0, speed_mps=0.0),
+        "robot_2": RobotRuntimeState(robot_id="robot_2", x=0.0, y=0.35, theta=3.14, speed_mps=0.0),
+    }
+
+    record = build_acceptance_record(1.0, scenario, states)
+
+    assert record["conflict_active"] is False
+    assert record["conflict_type"] is None
+    assert record["involved_robots"] == []
+    assert record["min_pairwise_distance_m"] == 0.7

@@ -86,12 +86,13 @@ def build_acceptance_record(
         conflict_active = _head_on_active(scenario, states)
 
     min_distance = _min_pairwise_distance(states)
+    conflict = scenario.expected_conflict
     return {
         "sim_time_sec": _round4(sim_time_sec),
         "robots": robots,
         "conflict_active": conflict_active,
-        "conflict_type": scenario.expected_conflict.type,
-        "involved_robots": list(scenario.expected_conflict.involved_robots),
+        "conflict_type": conflict.type if conflict is not None else None,
+        "involved_robots": list(conflict.involved_robots) if conflict is not None else [],
         "min_pairwise_distance_m": (
             _round4(min_distance) if min_distance is not None else None
         ),

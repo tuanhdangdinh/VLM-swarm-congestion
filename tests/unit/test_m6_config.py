@@ -285,3 +285,33 @@ def test_parameters_round_trip_through_json_dump():
         "blocker_west_m": 0.2, "blocker_east_m": None, "arrival_offset_m": 0.0}})
     again = ScenarioConfig.model_validate(cfg.model_dump(mode="json"))
     assert again == cfg
+
+
+def _normal_flow_dict() -> dict:
+    return {**VALID_HEAD_ON, "name": "normal_flow", "family": "normal_flow",
+            "expected_conflict": None}
+
+
+def test_normal_flow_family_accepts_null_expected_conflict():
+    cfg = ScenarioConfig.model_validate(_normal_flow_dict())
+    assert cfg.family == "normal_flow"
+    assert cfg.expected_conflict is None
+
+
+def test_expected_conflict_key_still_required_when_omitted():
+    data = _normal_flow_dict()
+    del data["expected_conflict"]
+    with pytest.raises(ValidationError, match="expected_conflict"):
+        ScenarioConfig.model_validate(data)
+
+
+def test_null_expected_conflict_rejected_for_conflict_family():
+    with pytest.raises(ValidationError, match="expected_conflict"):
+        ScenarioConfig.model_validate({**VALID_HEAD_ON, "expected_conflict": None})
+
+
+def test_normal_flow_family_rejects_expected_conflict_block():
+    with pytest.raises(ValidationError, match="normal_flow"):
+        ScenarioConfig.model_validate(
+            {**_normal_flow_dict(), "expected_conflict": VALID_HEAD_ON["expected_conflict"]}
+        )
