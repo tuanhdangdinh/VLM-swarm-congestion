@@ -153,6 +153,21 @@ Rules for maintaining it:
       non-derived yield.
   - **Not updated:** `docs/specs/module5_orchestrator.md` (still also
     missing the earlier stage-2 fields).
+  - **Mock smoke.** `retreat_choice_b.json` now forces the *shown* letter
+    B. Read `stage2.letter_assignment["B"]` or `grounded_label` for the
+    candidate it grounded. To force a particular candidate, pin
+    `prompt_robot_order_seed` to a value whose draw 0 puts B there.
+  - **Packaging.** `swarm_perception` is imported lazily. An M5 environment
+    without it still starts, and logs `calibration_unavailable` with stage 2
+    unmarked.
+  - **Parallax check for the T3b author.** The homography is at the marker
+    plane, so the rings sit where a robot marker would be seen.
+    - With the camera at 3 m over the origin, floor-level features at
+      |r| ≈ 1.83 m appear about 7 % closer to the image centre. That is
+      about 0.13 m, or ~29 px, against the 34 px ring radius.
+    - The top of a 0.9 m box lands about 0.6 m farther out.
+    - Check the obstacle's image footprint against the ring on an Isaac
+      frame, not in world coordinates.
   - **Pending:** the T3b scenario, and a VM run that shows `marks_drawn:
     true` with the letters over the right spots on a real frame. Check the
     M5 startup log for `stage2 marks enabled`. An unavailable-calibration
@@ -269,7 +284,9 @@ Rules for maintaining it:
     config keys) and `docs/specs/module3_rag_grounding.md`.
   - **Pending:** VM deploy and a mock smoke of a derived yield with
     `VGU_MOCK_RETREAT_CHOICE_FILE` (the B sidestep is −0.36 m, to the
-    robot's right).
+    robot's right; superseded by the later 2026-09-28 stage-2 completion
+    entry: the script now forces the *shown* letter B, whose candidate
+    depends on the letter draw).
   - **Deploy trap: a stale build silently stays legacy.** If
     `swarm_orchestrator` is colcon-stale while `config/` and `reasoning/`
     are synced, the old node never passes `params`, and grounding stays
