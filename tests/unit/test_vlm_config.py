@@ -11,6 +11,7 @@ from reasoning.vlm.backend_factory import (
     resolve_reasoner_config,
 )
 from reasoning.vlm.models import (
+    EffectiveSamplingConfig,
     GeminiBackendConfig,
     LlamaServerBackendConfig,
     OpenAIBackendConfig,
@@ -81,6 +82,7 @@ def test_describe_effective_sampling_records_shipped_openai_greedy_preset():
     assert effective.model_id == "gpt-4o"
     assert effective.temperature == 0.0
     assert effective.max_attempts == 4
+    assert effective.image_fallback_after_attempts == 2
     assert effective.top_p == 0.95
     assert effective.max_tokens == 2048
     assert effective.unsupported_sampling is None
@@ -98,6 +100,7 @@ def test_describe_effective_sampling_records_shipped_gemini_thinking_level():
     # Interactions API drops it (see unsupported_sampling).
     assert effective.temperature == 0.6
     assert effective.max_attempts == 2
+    assert effective.image_fallback_after_attempts is None
 
 
 def test_describe_effective_sampling_omits_model_id_without_backend_config():
@@ -116,3 +119,19 @@ def test_describe_effective_sampling_leaves_seed_unset_for_non_gemini_backend():
     assert effective.model_id == "cosmos-reason2-8b"
     assert effective.seed is None
     assert effective.thinking_level is None
+
+
+def test_describe_effective_sampling_records_shipped_llama_server_image_fallback_off():
+    effective = _shipped_effective(
+        "llama_server",
+        LlamaServerBackendConfig(**backend_section(_shipped_vlm(), "llama_server")),
+    )
+    assert effective.image_fallback_after_attempts is None
+
+
+def test_effective_sampling_config_parses_block_recorded_before_image_fallback_field():
+    recorded = describe_effective_sampling(ReasonerConfig(backend_id="mock")).model_dump(
+        mode="json"
+    )
+    del recorded["image_fallback_after_attempts"]
+    assert EffectiveSamplingConfig(**recorded).image_fallback_after_attempts is None

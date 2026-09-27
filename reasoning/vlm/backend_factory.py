@@ -74,6 +74,7 @@ def describe_effective_sampling(
         presence_penalty=reasoner_config.presence_penalty,
         max_attempts=reasoner_config.max_attempts,
         max_tokens=reasoner_config.max_tokens,
+        image_fallback_after_attempts=reasoner_config.image_fallback_after_attempts,
         seed=backend_config.seed if is_gemini else None,
         thinking_level=backend_config.thinking_level if is_gemini else None,
     )

@@ -224,6 +224,11 @@ class EffectiveSamplingConfig(BaseModel):
     presence_penalty: float
     max_attempts: int = Field(ge=1)
     max_tokens: int = Field(ge=1)
+    # The refusal-mitigation threshold as configured; None means the mitigation
+    # was off (every backend but openai in the shipped config). Defaults to None
+    # so blocks recorded before this field existed still parse, although those
+    # runs cannot be told apart from mitigation-off runs by this field alone.
+    image_fallback_after_attempts: int | None = Field(default=None, ge=1)
     # Gemini-only: the Interactions API exposes no temperature/top_p/top_k, so
     # these two are the only decoding controls it honours. None elsewhere.
     seed: int | None = None

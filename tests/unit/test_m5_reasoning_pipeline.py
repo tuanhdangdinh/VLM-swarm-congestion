@@ -1078,6 +1078,7 @@ def test_write_decision_artifact_records_shipped_openai_sampling_config(tmp_path
     assert effective["model_id"] == "gpt-4o"
     assert effective["temperature"] == 0.0
     assert effective["max_attempts"] == 4
+    assert effective["image_fallback_after_attempts"] == 2
     assert effective["max_tokens"] == 2048
     assert effective["unsupported_sampling"] is None
 
@@ -1103,6 +1104,7 @@ def test_write_decision_artifact_records_shipped_gemini_sampling_config(tmp_path
     # No per-backend override, so the shared reasoner block's Cosmos preset is
     # what was configured — recorded even though the API drops it.
     assert effective["temperature"] == 0.6
+    assert effective["image_fallback_after_attempts"] is None
     assert effective["unsupported_sampling"] == {"temperature": 0.6, "top_p": 0.95}
 
 

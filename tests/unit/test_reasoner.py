@@ -605,6 +605,7 @@ def test_run_records_effective_sampling_config_when_described(tmp_path):
     assert recorded.model_id == "gpt-4o"
     assert recorded.temperature == 0.0
     assert recorded.max_attempts == 4
+    assert recorded.image_fallback_after_attempts == 2
     assert recorded.unsupported_sampling is None
 
 
@@ -658,6 +659,7 @@ def test_write_reasoner_log_includes_effective_sampling_config_when_present(tmp_
     record = json.loads(log.read_text().strip().splitlines()[0])
     assert record["reasoner_config_effective"]["temperature"] == 0.0
     assert record["reasoner_config_effective"]["max_attempts"] == 4
+    assert record["reasoner_config_effective"]["image_fallback_after_attempts"] == 2
     assert record["reasoner_config_effective"]["model_id"] == "gpt-4o"
 
 
