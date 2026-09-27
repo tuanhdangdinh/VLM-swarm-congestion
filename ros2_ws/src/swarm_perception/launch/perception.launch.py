@@ -75,8 +75,21 @@ def generate_launch_description():
                         # 3.0s/0.15 gives more grace before marker occlusion
                         # flips status, and smooths velocity so a brief
                         # detection gap doesn't zero out perceived motion.
-                        "stale_after_sec": 3.0,
+                        # Retuned 2026-09-27 with the sim-time camera flip:
+                        # the 3.0 s was measured on wall-clock stamps, where at
+                        # Isaac's RTF ~0.38 it spanned ~1.14 sim-s. Overlapping-
+                        # marker flapping is physical (sim-time), so the same
+                        # anti-flap window on sim-time stamps is 1.15 s.
+                        "stale_after_sec": 1.15,
                         "velocity_alpha": 0.15,
+                        # A frame stamped > 1.0 s before the latest one is a
+                        # clock reset (Isaac timeline restart), not a late
+                        # frame: tracks are cleared and diagnostics carry
+                        # clock_reset=true. 1.0 s is ~15-30 frame periods, far
+                        # above DDS reordering, and bounds the blind window if a
+                        # smaller reset slips under it (frames drop only until
+                        # the new clock passes the old latest stamp).
+                        "clock_reset_threshold_sec": 1.0,
                         "expected_robot_ids": LaunchConfiguration("expected_robot_ids"),
                     }
                 ],

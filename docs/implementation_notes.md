@@ -396,6 +396,57 @@ Rules for maintaining it:
 
 ## M1 Perception
 
+- **2026-09-27** — **Backward-stamp-jump reset and `stale_after_sec`
+  retune for sim-time stamps** (`ce31a14`, `7d4a52b`; spec
+  `docs/specs/module1_perception.md` Rev 2).
+  - **Reset.** With sim-stamped frames (M6 entry, same date), an Isaac
+    timeline stop/restart makes stamps jump backwards. Before this change,
+    `StateEstimator`'s late-frame check would then have dropped every frame
+    until the new clock passed the old `_last_stamp`. Now a frame older than
+    the latest stamp by more than `clock_reset_threshold_sec` clears all
+    tracks and the baseline and is processed as a first frame. The flag
+    `diagnostics.clock_reset: true` and `clock_reset_prev_stamp` appear only
+    on that frame, so forward-only output is byte-identical (pinned by
+    `test_forward_path_output_unchanged_by_clock_reset_threshold`).
+    `PerceptionNode` logs a warning on it. Smaller jumps are still dropped as
+    late frames. Default and launch value 1.0 s: that is 15–30 frame periods,
+    far above DDS reordering, and it caps the blind window of a reset small
+    enough to slip under it. Live path: `runner.py:164` stops the timeline
+    after every repetition.
+  - **Stale retune.** `perception.launch.py` `stale_after_sec` 3.0 → 1.15.
+    The 3.0 was tuned on wall stamps, ≈ 1.14 sim-s at RTF 0.38, and the
+    overlapping-marker anti-flap window is physical. `safety.yaml` and
+    `safety.py` comments were updated to match (comments only). The M4
+    STALE-margin comment now reads 1.15 s × 0.2 m/s = 0.23 m, not 0.6 m.
+    `docs/specs/module4/safety-monitor.md` §7 still says "3 s" (historical
+    run-D text, left as is).
+  - **Not retuned (T1 tuning territory).** `stopped_threshold_mps` and
+    `slow_threshold_mps` keep their nominal values, which shifts their
+    effective values:
+
+  Effective thresholds (M1 speeds were ≈ RTF × true, RTF ≈ 0.38, per the
+  close-approach side finding):
+
+  | Quantity | Nominal | Effective before (wall stamps) | Effective after (sim stamps) |
+  |---|---|---|---|
+  | M1 `stopped_threshold_mps` | 0.01 | ≈ 0.026 sim-m/s | 0.01 sim-m/s |
+  | M1 `slow_threshold_mps` | 0.05 | ≈ 0.13 sim-m/s | 0.05 sim-m/s |
+  | M1 `stale_after_sec` | 3.0 → 1.15 | ≈ 1.14 sim-s | 1.15 sim-s |
+  | M4 `max_linear_velocity_mps` rule | 0.2 | ≈ 0.52 sim-m/s (never fired) | 0.2 sim-m/s (now live) |
+  | Arm B `stopped_speed_mps` | 0.05 | ≈ 0.13 sim-m/s | 0.05 sim-m/s (now meaningful) |
+  | M5 `proximity_slow_speed_mps` (close/slow stall pairs) | 0.05 | ≈ 0.13 sim-m/s | 0.05 sim-m/s |
+
+  Live-check risks: a stationary robot's ArUco jitter may now read SLOW
+  (floor 0.026 → 0.01), and M5's close/slow stall pairing now needs
+  ≤ 0.05 sim-m/s rather than ≤ 0.13, so the stall trigger may fire later.
+  Nav2 `max_vel_x` / `max_speed_xy` are 0.18, under M4's now-live 0.2 m/s
+  rule, but filtered-velocity overshoot near the cap is unverified.
+
+  Evidence: `docs/reports/2026-09-26-close-approach-analysis.md` side
+  finding (M1 0.060 m/s vs GT 0.155 m/s at RTF 0.38); prereg amendment
+  item 11 (`docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md`).
+  **Live verification pending** (combined VM run after merge).
+
 - **2026-09-16** — **Marker-plane calibration: 7.5 % radial bias removed.**
   `pixel_to_world_homography` computed the homography for the ground
   plane z = 0, but the ArUco marker sits at z = 0.21 m; for the nadir
@@ -422,7 +473,8 @@ Rules for maintaining it:
 - **2026-07-03** — Colliding/overlapping ArUco markers make robots go STALE
   (marker lost), not STOPPED, which delays stall detection. Mitigation:
   `stale_after_sec` ≥ 3.0 and `velocity_alpha` ≈ 0.15 in the perception
-  config for congestion scenarios.
+  config for congestion scenarios. (`stale_after_sec` value superseded by
+  2026-09-27 entry: 1.15 sim-s on sim-time stamps.)
 - **2026-06-17** — Marker placement contract: the ArUco marker prim must live
   under `aruco_marker_link` (a `base_link` child inside the physics
   hierarchy), not under the robot root, or physics parses fail;
@@ -1526,7 +1578,8 @@ Rules for maintaining it:
   reason (`safety_monitor_node.py:214-218`), so K1's "5880 safety stops" is
   about 58 s of latched time, not events. Only the line at `:176` carries the
   real reason. M1 `linear_velocity` is metres per wall-second (about
-  RTF × true), so the 0.2 m/s speed rule cannot fire at RTF 0.38.
+  RTF × true), so the 0.2 m/s speed rule cannot fire at RTF 0.38
+  (superseded by 2026-09-27 M6 entry: camera now sim-stamped).
   Recommended fix, not implemented: exempt only `yield`/`reverse`; Nav2-goal
   legs and waits must not exempt a pair. Pair it with failing Nav2 legs of
   held robots. Ranking and costs in
@@ -1890,6 +1943,39 @@ Rules for maintaining it:
 ---
 
 ## M6 Simulation / Isaac Sim
+
+- **2026-09-27** — **Camera frames now stamped with sim time**
+  (`a1aa81d`). `useSystemTime` is `False` on both the `/camera/image_raw`
+  and `/camera/camera_info` helpers (`isaac/vgu_sim/ros_graphs.py`). This
+  brings the code in line with M6 FR6.6.8, which always said sim time.
+  - **Why the old comment was obsolete.** It chose wall time because sim
+    time stayed at 0 in the 2026-06-18 static run. The runner has since
+    fixed that (`_set_timeline_window` plus `play()` + `app.update()`,
+    `runner.py:64-89,230-242`). `/clock`, odom and TF were already
+    sim-stamped, and Nav2 runs on `use_sim_time`.
+  - **Effect.** Wall stamps made M1's frame-stamp kinematics read ≈ RTF ×
+    true (0.38×) (`docs/reports/2026-09-26-close-approach-analysis.md` side
+    finding). The effective-threshold table is in the same-date M1 entry.
+  - **Zero-timestamp check: no gating needed.** The helper's
+    `IsaacSimulationGate` is keyed on sim time whatever `useSystemTime` is
+    (`docs/reports/2026-06-18-m6-m2-integration-gcp-run.md`). A frame
+    therefore only publishes once sim time is advancing, and
+    `_wait_for_ros_topics` fails the run loudly (`_TopicTimeoutError`)
+    unless a live `/camera/image_raw` sample arrives. At worst a single t=0
+    frame is harmless to M1 (forward-only).
+  - **USD rebuild is not needed.** The camera graphs are wired at run time
+    by `runner._wire_ros_graphs` → `create_global_ros_graphs`, after
+    `reset()`. `scenario_builder.py` authors only the empty
+    `/World/ROSGraphs` scopes. The flip takes effect on the next run once
+    the VM checkout has this code.
+  - **Related comments.** Comment-only edits in `camera_localizer_node.py`
+    and `nav2_robot.launch.py`, which said Isaac fills scene stamps from
+    system time. The latest-TF lookup is kept.
+  - **Timers unchanged.** M5's stall and command timers stay on
+    `time.monotonic()` (wall). Only M1's quantities changed basis.
+  - Offline guard: `tests/unit/test_m6_ros_graphs.py` (stubbed `omni`/`pxr`).
+  - **Live verification pending.** Next combined VM run: M1 speeds ≈ GT sim
+    speeds, status sanity, stall-trigger timing.
 
 - **2026-09-26** — **`_bshort` open-side passer goal widened from ±2.5 to
   ±2.6** (`dcfa144`). At ±2.5 the goal cleared the M3 escort endpoint

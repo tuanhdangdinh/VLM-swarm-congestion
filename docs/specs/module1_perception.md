@@ -3,6 +3,10 @@
 **Status:** Draft · **Level:** Design · **Source:** `project_proposal.md` §4.2
 **Layer:** 1 (perception input) · **Consumers:** M2 (VLM), M3 (RAG, indirectly), M5 (Orchestrator)
 
+**Revision history:**
+- Initial draft: M1 spec covering camera/calibration, ArUco detection, state estimation, annotation, and ROS2 interfaces.
+- Rev 2 (2026-09-27): added the §7 time-basis convention (frame-stamp time; sim time on the Isaac path) and the backward-stamp-jump clock reset (§4, §6.6, §9).
+
 ---
 
 ## 1. Overview
@@ -134,7 +138,11 @@ type alias exists to clarify intent in interfaces.
 **Calibration artifact** = `{ intrinsics, distortion, homography_H, image_size,
 created_at, source_id }` (serialized, e.g. YAML/JSON).
 
-`diagnostics` = `{ markers_detected: int, ids_missing: [str], dropped_frame: bool }`.
+`diagnostics` = `{ markers_detected: int, ids_missing: [str], ids_unexpected: [str], dropped_frame: bool }`.
+On the one frame that triggers a clock reset (§6.6) it additionally carries
+`clock_reset: true` and `clock_reset_prev_stamp: float` (the discarded latest
+stamp). The keys are absent on every other frame, so forward-only output is
+unchanged.
 `ids_missing` contains `robot_id` strings (e.g. `["robot_2"]`), not raw ArUco
 integer IDs.
 
@@ -603,6 +611,18 @@ Behavior:
   derived locally from velocity and staleness; it is never sourced from the
   registry.
 - Carries forward missing robots until staleness timeout is exceeded.
+- Late frames: a frame whose stamp is older than the latest processed stamp by
+  at most `clock_reset_threshold_sec` (default 1.0 s) is a late frame: no
+  robots are published and `dropped_frame` is set.
+- Clock reset: a frame older than the latest processed stamp by **more than**
+  `clock_reset_threshold_sec` is a clock reset (e.g. an Isaac timeline
+  stop/restart that restarts sim time). All tracks and the stamp baseline are
+  cleared, the frame is processed as the first frame of a new session
+  (velocities 0), and diagnostics carry `clock_reset: true` plus
+  `clock_reset_prev_stamp`. `PerceptionNode` logs a warning on that frame.
+  Without the reset every later frame would be dropped until the new clock
+  passed the old latest stamp. A reset smaller than the threshold therefore
+  blinds M1 for at most `clock_reset_threshold_sec` of stamp time.
 - Calls `build_scene_diagnostics(detections, expected_robot_ids or set(), dropped_frame)`
   internally and passes the result as the `diagnostics` field when constructing
   the frozen `SceneState`. Callers must not call `build_scene_diagnostics`
@@ -863,6 +883,21 @@ Behavior:
   `linear_velocity < v_slow`, else `MOVING`. Default values tuned to
   TurtleBot3 max speed (0.22 m/s): `v_slow = 0.05 m/s`, `v_stop = 0.01 m/s`
   (both configurable).
+- **Time basis:** every M1 kinematic and aging quantity (velocity finite
+  differences, STALE age) is computed from frame-stamp deltas, never from a
+  node clock, so M1 is clock-agnostic and its units are those of the frame
+  stamps. On the Isaac Sim path the camera helpers stamp frames with
+  **simulation time** (since 2026-09-27, `isaac/vgu_sim/ros_graphs.py`; M6
+  FR6.6.8), so velocities are sim-m/s and `stale_after_sec` is sim-seconds,
+  independent of the real-time factor. On hardware, `CameraNode` stamps with
+  the node clock (wall time). Before 2026-09-27 Isaac frames were wall-stamped
+  and M1 speeds read ≈ RTF × true (≈ 0.38× on the L4 host); see
+  `docs/reports/2026-09-26-close-approach-analysis.md` (side finding).
+- **Staleness / clock reset (Isaac launch values):** `stale_after_sec = 1.15`
+  sim-s (the anti-flap window for overlapping markers, carried over from
+  3.0 wall-s at RTF ≈ 0.38); `clock_reset_threshold_sec = 1.0` s, well above
+  frame reordering (a few frame periods) and bounding the blind window of an
+  undetected small reset.
 - **Reference parameters (proposal §4.2):** camera ≈2.5–3 m height, sensor
   1280×960, 15–30 FPS, `DICT_4X4_50`.
 
@@ -895,6 +930,9 @@ Behavior:
   envelope.
 - Dropped/late frame → flag `dropped_frame`; do not extrapolate velocity past
   staleness limit.
+- Backward stamp jump larger than `clock_reset_threshold_sec` (clock reset) →
+  clear tracks, restart from this frame, flag `clock_reset` in diagnostics
+  (§6.6); never silently.
 - Lighting variation (hardware) → expose detector params; document sim assumes
   ideal lighting.
 

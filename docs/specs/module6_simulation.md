@@ -16,6 +16,7 @@
   `docs/superpowers/plans/2026-09-18-head-on-asymmetric-family.md`. Design:
   `docs/superpowers/specs/2026-09-18-head-on-asymmetric-family-design.md`.
   Hardware verification: `docs/reports/2026-09-18-head-on-family-validity.md`.
+- Rev 5 (2026-09-27): FR6.6.8 unchanged, but the implementation now conforms: the camera image and camera_info helpers switched from system time to simulation time (`useSystemTime=False`).
 
 ---
 
@@ -319,7 +320,11 @@ absent prim, so validation has one path rather than an optional one.
   `/camera/image_raw`.
 - FR6.6.7 Publish calibration as `sensor_msgs/msg/CameraInfo` on
   `/camera/camera_info`.
-- FR6.6.8 Both messages use frame ID `overhead_camera` and simulation time.
+- FR6.6.8 Both messages use frame ID `overhead_camera` and simulation time
+  (`useSystemTime=False` on both helpers in `isaac/vgu_sim/ros_graphs.py`).
+  M1 derives velocity and STALE age from these stamps, so its speeds are
+  sim-m/s. The graphs are wired at run time by `runner._wire_ros_graphs`, not
+  baked into the scenario USD.
 - FR6.6.9 The camera is an ideal pinhole source. An ideal pinhole has zero lens
   distortion at any field of view, and the ground-plane homography is exact, so
   M1 keeps its zero-distortion / fixed-homography path even at `HFOV ~= 90 deg`.

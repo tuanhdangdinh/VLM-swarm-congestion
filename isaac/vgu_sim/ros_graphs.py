@@ -175,12 +175,21 @@ def create_global_ros_graphs(
                 ("pub_rgb.inputs:frameId",            config.frame_id),
                 ("pub_rgb.inputs:renderProductPath",  render_product.path),
                 ("pub_rgb.inputs:type",               "rgb"),
-                # Stamp frames with wall-clock time. Simulation time stays at 0
-                # in this static run, and the bridge drops any message with an
-                # invalid (0) timestamp. M1/M5 consume on wall-clock (no
-                # use_sim_time), so system time is both correct and required for
-                # frames to actually publish.
-                ("pub_rgb.inputs:useSystemTime",      True),
+                # Stamp frames with simulation time, the same basis as /clock,
+                # odom and TF. M1 derives velocity and STALE aging from
+                # frame-stamp deltas, so sim stamps make its speeds sim-m/s with
+                # no knowledge of the real-time factor; wall stamps made them
+                # ~RTF x real (~0.38x on the L4 host). The old wall-clock choice
+                # worked around sim time pinned at 0, which the runner has since
+                # fixed (_set_timeline_window + play() + app.update() in
+                # runner.py). No zero-stamp frame can reach M1 either way: the
+                # helper's IsaacSimulationGate is keyed on sim time whatever
+                # useSystemTime says (docs/reports/2026-06-18-m6-m2-integration-
+                # gcp-run.md), and runner._wait_for_ros_topics fails the run
+                # loudly unless a live /camera/image_raw sample arrives. Sim time
+                # can restart (timeline stop, next repetition's reopened stage);
+                # M1 resets its tracks on that backward stamp jump.
+                ("pub_rgb.inputs:useSystemTime",      False),
                 # Leave qosProfile at its node default (empty string). The Isaac
                 # ROS2 nodes treat qosProfile as a JSON document; the literal
                 # "default" is not valid JSON and floods the log with parse
@@ -204,7 +213,8 @@ def create_global_ros_graphs(
                 ("pub_cam_info.inputs:topicName",        "/camera/camera_info"),
                 ("pub_cam_info.inputs:frameId",           config.frame_id),
                 ("pub_cam_info.inputs:renderProductPath", render_product.path),
-                ("pub_cam_info.inputs:useSystemTime",     True),
+                # Same time basis as the image it describes (see pub_rgb above).
+                ("pub_cam_info.inputs:useSystemTime",     False),
             ],
         },
     )

@@ -536,6 +536,77 @@ class TestStateEstimatorUpdate:
         assert state2.robots[0].linear_velocity == pytest.approx(0.1, abs=1e-6)
         assert state2.robots[0].stamp == 10.1
 
+    def test_small_backward_jump_dropped_as_late_frame(self):
+        est = self._estimator()  # default clock_reset_threshold_sec=1.0
+        est.update([_make_detection(marker_id=0, center_world=(0.0, 0.0))], stamp=10.0)
+        state = est.update([_make_detection(marker_id=0, center_world=(5.0, 0.0))], stamp=9.5)
+        assert state.robots == []
+        assert state.diagnostics["dropped_frame"] is True
+        assert "clock_reset" not in state.diagnostics
+
+    def test_large_backward_jump_processes_frame_as_first(self):
+        est = self._estimator()
+        est.update([_make_detection(marker_id=0, center_world=(0.0, 0.0))], stamp=100.0)
+        state = est.update([_make_detection(marker_id=0, center_world=(1.0, 0.0))], stamp=2.0)
+        assert [r.robot_id for r in state.robots] == ["robot_0"]
+        assert state.robots[0].stamp == 2.0
+        assert state.robots[0].x == pytest.approx(1.0)
+        assert state.robots[0].linear_velocity == 0.0
+
+    def test_large_backward_jump_flags_clock_reset_in_diagnostics(self):
+        est = self._estimator()
+        est.update([_make_detection(marker_id=0)], stamp=100.0)
+        state = est.update([_make_detection(marker_id=0)], stamp=2.0)
+        assert state.diagnostics["clock_reset"] is True
+        assert state.diagnostics["clock_reset_prev_stamp"] == 100.0
+        assert state.diagnostics["dropped_frame"] is False
+
+    def test_large_backward_jump_clears_tracks_missing_from_reset_frame(self):
+        est = self._estimator()
+        est.update([_make_detection(0), _make_detection(1)], stamp=100.0)
+        state = est.update([_make_detection(0)], stamp=2.0)
+        assert {r.robot_id for r in state.robots} == {"robot_0"}
+
+    def test_tracking_resumes_after_clock_reset(self):
+        est = self._estimator()
+        est.update([_make_detection(marker_id=0, center_world=(0.0, 0.0))], stamp=100.0)
+        est.update([_make_detection(marker_id=0, center_world=(1.0, 0.0))], stamp=2.0)
+        state = est.update([_make_detection(marker_id=0, center_world=(1.01, 0.0))], stamp=2.1)
+        assert state.robots[0].linear_velocity == pytest.approx(0.1, abs=1e-6)
+        assert state.diagnostics["dropped_frame"] is False
+        assert "clock_reset" not in state.diagnostics
+
+    def test_clock_reset_threshold_configurable(self):
+        est = StateEstimator(velocity_alpha=1.0, clock_reset_threshold_sec=0.2)
+        est.update([_make_detection(marker_id=0)], stamp=10.0)
+        state = est.update([_make_detection(marker_id=0)], stamp=9.5)
+        assert state.diagnostics["clock_reset"] is True
+
+    def test_clock_reset_threshold_nonpositive_rejected(self):
+        with pytest.raises(ValueError):
+            StateEstimator(clock_reset_threshold_sec=0.0)
+
+    def test_forward_path_output_unchanged_by_clock_reset_threshold(self):
+        # A forward-only stream (plus a small late frame) never crosses any
+        # threshold, so output must match an estimator that effectively has none.
+        stamps = [0.0, 0.1, 0.2, 0.15, 0.3, 1.8, 1.9]
+        default = self._estimator()
+        no_reset = StateEstimator(
+            stopped_threshold_mps=0.01,
+            slow_threshold_mps=0.05,
+            stale_after_sec=1.0,
+            velocity_alpha=1.0,
+            clock_reset_threshold_sec=1e9,
+        )
+        for i, stamp in enumerate(stamps):
+            dets = [_make_detection(0, center_world=(0.01 * i, 0.0))] if i != 5 else []
+            a = default.update(dets, stamp=stamp)
+            b = no_reset.update(dets, stamp=stamp)
+            assert a.model_dump(mode="json") == b.model_dump(mode="json")
+            assert set(a.diagnostics) == {
+                "markers_detected", "ids_missing", "ids_unexpected", "dropped_frame",
+            }
+
     def test_multiple_robots(self):
         est = self._estimator()
         dets = [_make_detection(i) for i in range(4)]

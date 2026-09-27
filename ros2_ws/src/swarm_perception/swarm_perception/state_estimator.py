@@ -78,12 +78,34 @@ class StateEstimator:
         stale_after_sec: float = 1.0,
         velocity_alpha: float = 0.3,
         frame_id: str = "overhead_camera",
+        clock_reset_threshold_sec: float = 1.0,
     ) -> None:
+        """Create an estimator with empty tracking state.
+
+        Args:
+            stopped_threshold_mps: Speed below which a robot is STOPPED.
+            slow_threshold_mps: Speed below which a robot is SLOW.
+            stale_after_sec: Frame-stamp age after which an undetected robot is STALE.
+            velocity_alpha: Low-pass weight of the newest velocity measurement.
+            frame_id: Fallback SceneState frame_id when a frame carries none.
+            clock_reset_threshold_sec: A frame stamped more than this far before
+                the latest processed stamp is treated as a clock reset (e.g. an
+                Isaac timeline restart), not a late frame: tracks are cleared and
+                the frame is processed as the first of a new session.
+
+        Raises:
+            ValueError: If `clock_reset_threshold_sec` is not positive.
+        """
+        if clock_reset_threshold_sec <= 0.0:
+            raise ValueError(
+                f"clock_reset_threshold_sec must be > 0, got {clock_reset_threshold_sec}"
+            )
         self._stopped = stopped_threshold_mps
         self._slow = slow_threshold_mps
         self._stale = stale_after_sec
         self._alpha = velocity_alpha
         self._frame_id = frame_id
+        self._clock_reset_threshold = clock_reset_threshold_sec
         self._tracked: dict[str, RobotState] = {}
         self._last_stamp: float | None = None
 
@@ -107,6 +129,21 @@ class StateEstimator:
         if filter_ids is not None:
             for rogue_id in set(self._tracked) - filter_ids:
                 del self._tracked[rogue_id]
+
+        # A large backward jump is a clock reset (sim-time stamps restart when
+        # Isaac's timeline stops/restarts), not a late frame. Left alone, every
+        # later frame would sit below _last_stamp and be dropped until the new
+        # clock caught up with the old one, i.e. M1 blind for a whole episode.
+        # Drop all tracks, since their stamps are on the old timeline, and
+        # process this frame as the first of a new session.
+        clock_reset_prev_stamp: float | None = None
+        if (
+            self._last_stamp is not None
+            and self._last_stamp - stamp > self._clock_reset_threshold
+        ):
+            clock_reset_prev_stamp = self._last_stamp
+            self._tracked.clear()
+            self._last_stamp = None
 
         # A frame older than the latest one already processed is a late frame.
         # We cannot build a temporally consistent snapshot for a past time
@@ -198,6 +235,10 @@ class StateEstimator:
         self._last_stamp = stamp if self._last_stamp is None else max(self._last_stamp, stamp)
 
         diagnostics = build_scene_diagnostics(detections, expected, dropped_frame)
+        # Only present on the reset frame so forward-only output is unchanged.
+        if clock_reset_prev_stamp is not None:
+            diagnostics["clock_reset"] = True
+            diagnostics["clock_reset_prev_stamp"] = clock_reset_prev_stamp
         return SceneState(
             stamp=stamp,
             frame_id=frame_id or self._frame_id,

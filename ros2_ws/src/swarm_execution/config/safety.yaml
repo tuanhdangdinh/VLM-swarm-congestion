@@ -13,5 +13,7 @@ safety:
   stale_pose_is_unsafe: true
   # Band for the STALE fail-safe, on the last non-STALE pairwise distance.
   # min_distance_m + 0.15 m: a marker can vanish while the pair is still
-  # closing, and M1 needs stale_after_sec (3 s) to declare STALE.
+  # closing, and M1 needs stale_after_sec (1.15 sim-s since 2026-09-27; was
+  # 3 wall-s ~= 1.14 sim-s before camera frames were sim-stamped) to declare
+  # STALE.
   stale_unsafe_distance_m: 0.6
