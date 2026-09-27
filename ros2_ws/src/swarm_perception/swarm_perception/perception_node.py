@@ -53,6 +53,7 @@ class PerceptionNode(Node):
         self.declare_parameter("slow_threshold_mps", 0.05)
         self.declare_parameter("stale_after_sec", 1.0)
         self.declare_parameter("velocity_alpha", 0.3)
+        self.declare_parameter("clock_reset_threshold_sec", 1.0)
         self.declare_parameter("expected_robot_ids", "")
 
         cal_path = self.get_parameter("calibration_path").value
@@ -74,6 +75,7 @@ class PerceptionNode(Node):
             stale_after_sec=self.get_parameter("stale_after_sec").value,
             velocity_alpha=self.get_parameter("velocity_alpha").value,
             frame_id="overhead_camera",
+            clock_reset_threshold_sec=self.get_parameter("clock_reset_threshold_sec").value,
         )
         self._expected_robot_ids = _parse_expected_robot_ids(
             self.get_parameter("expected_robot_ids").value
@@ -174,6 +176,13 @@ class PerceptionNode(Node):
             expected_robot_ids=self._expected_robot_ids,
             marker_dictionary=self._marker_dictionary,
         )
+        if scene_state.diagnostics.get("clock_reset"):
+            self.get_logger().warning(
+                "perception clock_reset=true "
+                f"prev_stamp={scene_state.diagnostics.get('clock_reset_prev_stamp')} "
+                f"stamp={scene_state.stamp} frame_id={scene_state.frame_id}: "
+                "backward stamp jump, tracks cleared"
+            )
         publish_scene_state(self._state_pub, scene_state)
         publish_diagnostics(self._diag_pub, scene_state.diagnostics, scene_state.stamp)
         if self._annotated_pub is not None and self._bridge is not None:
