@@ -37,6 +37,63 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-27** — **Arm B shadow logging wired into M5** (`6d70238`). This
+  meets the spec's shadow-logging requirement: in Arm A, the classical
+  answer is also computed and logged for every decision. See "Experimental
+  arms, pairing, and shadow logging" in
+  `docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md`.
+  This is the code-level wiring for amendments blocker 12
+  (`docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md`). The blocker
+  is not discharged until the combined VM run validates it. The pure logic
+  is in `swarm_orchestrator/shadow_classical.py`, and the node only feeds it
+  and reads from it.
+  - **Evidence asymmetry.** The shadow frames carry goals from the registry.
+    The VLM request carries none: `build_reasoner_request` reads `goal` off
+    `RobotView`, which has no such field. This affects the claim that both
+    arms see "the same inputs". Recorded, not changed.
+  - **Isolation.** The shadow is observational. It never dispatches, and it
+    never touches the `ReasonerRequest` or the VLM decision.
+    - The node calls `evaluate` after the worker submit, so the shadow cannot
+      delay the VLM call. It calls `finalize` before the artifact write.
+    - Failures are recorded as `shadow_error` and never raised. A test pins
+      that every other artifact key is identical with and without a failing
+      shadow.
+  - **Buffer.** The buffer keeps 60 s of history on M1 stamps, at most one
+    frame per 0.25 s.
+    - The trigger snapshot is always the newest frame classified, even when
+      decimation skipped it.
+    - Dropped frames and robot-less frames are skipped.
+    - A stamp that goes backwards clears the buffer.
+    - Robot goals come from the M5 task registry.
+    - M1 velocities pass through unscaled, per blocker 11; see the comment in
+      `snapshot_to_frame`.
+  - **Config.** The new keys in `orchestrator.yaml` are:
+    - `shadow_classical: true`, the default.
+    - `shadow_classical_params_path: "config/rag.yaml"`.
+    - `shadow_classical_window_sec`. The loader rejects it unless it exceeds
+      `stall_threshold_sec`.
+    - `shadow_classical_sample_period_sec`. Startup rejects it unless it is
+      below `arrival_tie_sec`.
+    - `shadow_classical_zones: []`.
+
+    If the `classical:` params are invalid, M5 stops at startup. If the file
+    or the section is missing, every analysis records a `shadow_error`
+    instead of silently running on defaults.
+  - **Artifact.** Each decision artifact gets a top-level `shadow_classical`
+    block, which is null when the shadow is disabled. It holds:
+    - the classical decision, classification and `passing_order`;
+    - a `comparison` with `comparable` and the `DisagreementRecord`. When the
+      VLM gives `decision=None`, `comparable` is false and a reason is given.
+    - the full params dump;
+    - `prior_attempts`, counted per episode by the episode tracker, not by
+      `AttemptMemory`, which is off in the RQ5 control;
+    - the buffer extent (`frame_count`, `oldest_stamp`), so censored arrivals
+      can be detected offline.
+
+    The node logs one `shadow request=… scenario=… strategy=… yield=…
+    disagree=…` line per analysis. It has not been VM-validated yet; that is
+    planned as a combined run with the M1 sim-time work.
+
 - **2026-09-27** — **Failure-context depth policy adopted: the prompt carries
   the most recent attempt plus the most recent failed attempt** (`7f9884d`).
   Two blocks when they differ, one when the latest attempt is itself the
