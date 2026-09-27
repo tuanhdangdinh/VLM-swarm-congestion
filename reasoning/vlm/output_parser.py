@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Any
+from typing import Any, get_args
 
 from jsonschema import Draft202012Validator
 from pydantic import ValidationError
@@ -12,19 +12,38 @@ from reasoning.vlm.errors import (
     RetreatLabelError,
     VLMOutputParseError,
 )
-from reasoning.vlm.models import CongestionDecision, RetreatChoiceDecision
+from reasoning.vlm.models import (
+    BlockerKind,
+    CongestionDecision,
+    RetreatChoiceDecision,
+    is_permutation,
+)
 
 # Re-exported for backward compatibility; canonical home is reasoning.vlm.errors.
 __all__ = [
+    "DECISION_DEGRADATION_TAGS",
     "BackendTimeoutError",
     "DecisionValidationError",
     "RetreatLabelError",
     "VLMOutputParseError",
     "parse_decision_text",
+    "parse_decision_with_degradations",
     "parse_retreat_choice_text",
     "parse_vlm_decision",
     "validate_involved_robots",
 ]
+
+# Stage-1 degradation tags for the optional prompt-v2 fields, and the
+# measurement-plan cause each counts toward. An invalid value is nulled and
+# tagged; the rest of the decision stands, so an optional field never costs a
+# re-ask. An ABSENT value is None with no tag: whether None counts as
+# `invalid_label` is the scorer's call, made only where a tier scores the field
+# (T3a for `blocker_kind`, T2b for `crossing_order`).
+DECISION_DEGRADATION_TAGS: dict[str, str] = {
+    "blocker_kind=default:invalid_label": "invalid_label",
+    "crossing_order=default:non_permutation": "non_permutation_order",
+}
+_BLOCKER_KINDS: frozenset[str] = frozenset(get_args(BlockerKind))
 
 
 def _extract_json_object(text: str) -> Any:
@@ -48,24 +67,61 @@ def _extract_json_object(text: str) -> Any:
             raise VLMOutputParseError(f"VLM output is not valid JSON: {exc}") from exc
 
 
-def parse_decision_text(text: str) -> CongestionDecision:
-    """Extract JSON from raw VLM text and validate it as a CongestionDecision.
+def _dedupe(values: list[Any]) -> list[Any]:
+    seen: list[Any] = []
+    for value in values:
+        if value not in seen:
+            seen.append(value)
+    return seen
 
-    Tolerates markdown code fences and surrounding prose. Enforces the
-    congestion/strategy invariant in both directions. Enum lowercasing and
-    involved_robots deduplication are handled by CongestionDecision validators.
+
+def _sanitize_optional_fields(parsed: Any) -> list[str]:
+    """Null invalid prompt-v2 optional fields in place; return their tags."""
+    if not isinstance(parsed, dict):
+        return []
+    tags: list[str] = []
+    kind = parsed.get("blocker_kind")
+    if kind is not None and not (isinstance(kind, str) and kind.lower() in _BLOCKER_KINDS):
+        parsed["blocker_kind"] = None
+        tags.append("blocker_kind=default:invalid_label")
+    order = parsed.get("crossing_order")
+    if order is not None:
+        involved = parsed.get("involved_robots")
+        if isinstance(order, list) and not order:
+            # An empty list is how a model says "no order to give".
+            parsed["crossing_order"] = None
+        elif not (
+            isinstance(order, list)
+            and all(isinstance(robot_id, str) for robot_id in order)
+            and isinstance(involved, list)
+            # Checked against the deduplicated list the model validator sees.
+            and is_permutation(order, _dedupe(involved))
+        ):
+            parsed["crossing_order"] = None
+            tags.append("crossing_order=default:non_permutation")
+    return tags
+
+
+def parse_decision_with_degradations(text: str) -> tuple[CongestionDecision, list[str]]:
+    """Parse a decision, nulling invalid optional prompt-v2 fields instead of failing.
+
+    `blocker_kind` outside the vocabulary and a `crossing_order` that is not a
+    permutation of the involved robots each parse to None and add their
+    `DECISION_DEGRADATION_TAGS` entry. Everything else follows
+    `parse_decision_text`.
 
     Args:
         text: Raw assistant text from a VLM backend.
 
     Returns:
-        Validated, normalized decision.
+        The validated decision and its degradation tags (empty when none).
 
     Raises:
-        VLMOutputParseError: On JSON decode failure, schema violation, or a
-            self-contradictory decision.
+        VLMOutputParseError: On JSON decode failure, schema violation of a
+            core field, or a self-contradictory decision.
     """
     parsed = _extract_json_object(text)
+    degradations = _sanitize_optional_fields(parsed)
 
     try:
         decision = CongestionDecision(**parsed)
@@ -83,7 +139,29 @@ def parse_decision_text(text: str) -> CongestionDecision:
             "congestion_detected=true requires a non-'none' type and strategy and "
             "at least one involved robot."
         )
-    return decision
+    return decision, degradations
+
+
+def parse_decision_text(text: str) -> CongestionDecision:
+    """Extract JSON from raw VLM text and validate it as a CongestionDecision.
+
+    Tolerates markdown code fences and surrounding prose. Enforces the
+    congestion/strategy invariant in both directions. Enum lowercasing and
+    involved_robots deduplication are handled by CongestionDecision validators.
+    Invalid optional prompt-v2 fields parse to None; use
+    `parse_decision_with_degradations` to learn which.
+
+    Args:
+        text: Raw assistant text from a VLM backend.
+
+    Returns:
+        Validated, normalized decision.
+
+    Raises:
+        VLMOutputParseError: On JSON decode failure, schema violation, or a
+            self-contradictory decision.
+    """
+    return parse_decision_with_degradations(text)[0]
 
 
 def validate_involved_robots(

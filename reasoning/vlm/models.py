@@ -6,9 +6,16 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 # default ("pick the robot presented first") from an ID or geometry preference.
 RobotPresentationOrder = Literal["id_asc", "id_desc"]
 
-# What stands in a stalled robot's way (rev-8 stage-1 vocabulary). Only the
-# classical reasoner emits it today; CongestionDecision does not carry it yet.
+# What stands in a stalled robot's way (rev-8 stage-1 vocabulary), emitted by
+# both arms on `CongestionDecision.blocker_kind` since the prompt-v2 bundle.
 BlockerKind = Literal["robot", "object", "transient"]
+
+# Prompt template the builder renders. 1 is the frozen pre-bundle template every
+# artifact stored before 2026-09-27 was rendered with (`reasoning.vlm.prompt_v1`);
+# 2 is the prompt-v2 bundle. A Literal, so an unknown version fails validation
+# instead of silently rendering the current template.
+PromptVersion = Literal[1, 2]
+CURRENT_PROMPT_VERSION: PromptVersion = 2
 
 
 class RobotStateInput(BaseModel):
@@ -129,6 +136,10 @@ class ReasonerRequest(BaseModel):
     # every prompt rendered so far byte-identical; "id_desc" is the
     # counterbalanced condition that breaks the presentation-order confound.
     robot_presentation_order: RobotPresentationOrder = "id_asc"
+    # Which prompt template renders this request. New requests get the current
+    # template; the replay program sets 1 for artifacts that predate the field,
+    # so their stored prompts still reconstruct byte-identically.
+    prompt_version: PromptVersion = CURRENT_PROMPT_VERSION
 
     @model_validator(mode="after")
     def _validate_last_failed_needs_latest(self) -> "ReasonerRequest":
@@ -178,8 +189,14 @@ class CongestionDecision(BaseModel):
     # Only meaningful when strategy == "yield"; never required, since older
     # artifacts and models that omit it must still parse.
     yield_robot: str | None = None
+    # Prompt-v2 bundle fields, optional for the same reason as `yield_robot`.
+    # What blocks the stalled robots (T3a scores it against Arm B's verdict).
+    blocker_kind: BlockerKind | None = None
+    # Every involved robot in the order they should pass, first entry first; a
+    # yielder passes after the robots it yields to. Asked for at 3+ robots (T2b).
+    crossing_order: list[str] | None = None
 
-    @field_validator("type", "strategy", mode="before")
+    @field_validator("type", "strategy", "blocker_kind", mode="before")
     @classmethod
     def _lowercase_enum(cls, value: object) -> object:
         return value.lower() if isinstance(value, str) else value
@@ -201,6 +218,30 @@ class CongestionDecision(BaseModel):
                 f"{self.involved_robots!r}"
             )
         return self
+
+    @model_validator(mode="after")
+    def _validate_crossing_order_is_permutation(self) -> "CongestionDecision":
+        if self.crossing_order is not None and not is_permutation(
+            self.crossing_order, self.involved_robots
+        ):
+            raise ValueError(
+                f"crossing_order {self.crossing_order!r} is not a permutation of "
+                f"involved_robots {self.involved_robots!r}"
+            )
+        return self
+
+
+def is_permutation(order: list[str], robot_ids: list[str]) -> bool:
+    """Return whether `order` lists every robot of `robot_ids` exactly once.
+
+    Args:
+        order: Candidate ordering.
+        robot_ids: The robots it must cover (assumed duplicate-free).
+
+    Returns:
+        True when `order` is a rearrangement of `robot_ids`.
+    """
+    return len(order) == len(robot_ids) and set(order) == set(robot_ids)
 
 
 class RetreatChoiceDecision(BaseModel):
@@ -285,6 +326,10 @@ class ReasonerDiagnostics(BaseModel):
     # 1-based index of the attempt that carried the neutral image, or None when
     # the mitigation did not fire.
     image_fallback_attempt: int | None = Field(default=None, ge=1)
+    # Optional decision fields the parser nulled because the model's value was
+    # invalid (tag vocabulary: `output_parser.DECISION_DEGRADATION_TAGS`). The
+    # decision itself stayed valid; an absent field is not listed here.
+    decision_degradations: list[str] = Field(default_factory=list)
 
 
 class ReasonerResult(BaseModel):

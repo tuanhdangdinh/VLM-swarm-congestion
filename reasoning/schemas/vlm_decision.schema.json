@@ -33,7 +33,16 @@
         "reverse"
       ]
     },
-    "justification": { "type": "string" }
+    "justification": { "type": "string" },
+    "yield_robot": { "type": ["string", "null"] },
+    "blocker_kind": {
+      "type": ["string", "null"],
+      "enum": ["robot", "object", "transient", null]
+    },
+    "crossing_order": {
+      "type": ["array", "null"],
+      "items": { "type": "string" }
+    }
   },
   "additionalProperties": false
 }

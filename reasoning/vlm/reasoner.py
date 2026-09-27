@@ -23,7 +23,10 @@ from reasoning.vlm.models import (
     ReasonerRequest,
     ReasonerResult,
 )
-from reasoning.vlm.output_parser import parse_decision_text, validate_involved_robots
+from reasoning.vlm.output_parser import (
+    parse_decision_with_degradations,
+    validate_involved_robots,
+)
 from reasoning.vlm.prompt_builder import build_prompt_payload
 
 # Formatted via _REASK_SUFFIX.format(error_message=...) in build_reask_prompt.
@@ -298,7 +301,7 @@ class Reasoner:
                     response = invoke_backend(self._backend, payload, self._config)
                     last_raw = response.text
                     last_unsupported_sampling = _extract_unsupported_sampling(response.raw)
-                    decision = parse_decision_text(response.text)
+                    decision, degradations = parse_decision_with_degradations(response.text)
                     validate_involved_robots(decision, known_ids)
                     return ReasonerResult(
                         request_id=request.request_id,
@@ -322,6 +325,7 @@ class Reasoner:
                             refusal_attempts=refusal_attempts,
                             image_fallback_used=image_fallback_attempt is not None,
                             image_fallback_attempt=image_fallback_attempt,
+                            decision_degradations=degradations,
                         ),
                     )
                 except (BackendTimeoutError, ConnectionError) as exc:

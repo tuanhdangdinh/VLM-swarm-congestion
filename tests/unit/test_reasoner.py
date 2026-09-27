@@ -188,6 +188,25 @@ def test_run_returns_decision_on_first_try(tmp_path):
     assert result.diagnostics.attempts == 1
 
 
+def test_run_records_no_decision_degradations_for_a_clean_answer(tmp_path):
+    reasoner = Reasoner(MockBackend(response_text=_GOOD), ReasonerConfig(backend_id="mock"))
+    assert reasoner.run(_request_with_image(tmp_path)).diagnostics.decision_degradations == []
+
+
+def test_run_records_decision_degradations_without_a_reask(tmp_path):
+    text = _GOOD[:-1] + ', "blocker_kind": "wall", "crossing_order": ["robot_9"]}'
+    backend = MockBackend(response_text=text)
+    result = Reasoner(backend, ReasonerConfig(backend_id="mock")).run(_request_with_image(tmp_path))
+    assert result.decision is not None
+    assert result.decision.blocker_kind is None and result.decision.crossing_order is None
+    assert result.diagnostics.attempts == 1
+    assert result.diagnostics.parse_status == "valid"
+    assert result.diagnostics.decision_degradations == [
+        "blocker_kind=default:invalid_label",
+        "crossing_order=default:non_permutation",
+    ]
+
+
 def test_run_reasks_then_succeeds(tmp_path):
     backend = MockBackend(response_sequence=[_BAD, _GOOD])
     reasoner = Reasoner(backend, ReasonerConfig(backend_id="mock", max_attempts=2))
