@@ -37,6 +37,19 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-27** — **Amendments item 15a discharged in code: the v2 guidance
+  line now admits rendered goals and tasks as evidence** (`b4a8d91`;
+  `docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md` item 15). The
+  v1 line "Decide from the robot coordinates and the image, not from
+  assumptions about intent." contradicted v2's rendered `goal_x/goal_y/task`.
+  v2 now reads "Decide from the robot states (including their stated goals
+  and tasks) and the image; do not assume intentions beyond what is stated."
+  v1 (`prompt_v1.py`) and its pins are untouched; replay integrity still
+  reconstructs 74/74. The four v2 pins in `tests/unit/test_prompt_builder_v2.py`
+  were re-pinned (+49 chars each). This is free only because v2 is unfrozen
+  and no live data exists under it (calibration pilot, item 16, is
+  funding-blocked); after the freeze it would be a new prompt version.
+
 - **2026-09-27** — **The prompt-v2 bundle landed: the one planned
   prompt/contract break before the `prereg-v1` freeze** (`991ffae`,
   `3013e88`, `5af09e0`). Design: "The Prompt-v2 Bundle" in
