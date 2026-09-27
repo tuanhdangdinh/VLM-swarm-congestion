@@ -37,6 +37,124 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-28** — **Derived grounding and stage-2 retreat selection are wired
+  into M5, and `config/rag.yaml` now says `grounding.mode: derived`**
+  (`e358229` wiring, `1648dd2` flip; revert `1648dd2` alone to go back to
+  legacy). This finishes the M5 half of the Pillar 2 slice (2026-09-27 entry
+  below). VM deployment is pending and rides the next batch. `swarm_orchestrator`
+  gains a new module, so it needs a colcon rebuild; see the VM harness traps.
+  - **What existed and what was built.** The candidates, the grounder,
+    `RetreatChoiceDecision`, `parse_retreat_choice_text` and the schema all
+    existed. New in this change:
+    - the stage-2 prompt, `reasoning/vlm/stage2_prompt.py`;
+    - the call, `RetreatChooser` in `reasoning/vlm/retreat_chooser.py`;
+    - the M5 step, `swarm_orchestrator/retreat_stage2.py`.
+    `InProcessPipeline` builds one `SnapshotFrame` from the stage-1 request
+    (the analysed scene with registry goals). The same frame, geometry,
+    obstacles, gate mode and params go to both `run_retreat_stage2` and
+    `ground_fn`, so the letters resolve against the same poses.
+    `crossing_order` is not passed, so the grounder reads it off the decision.
+  - **Stage 2 ships with text-only letters (flagged gap).** Rev-8 A.1/A.3
+    have M1 draw lettered marks on a fresh decision frame, with arrows and
+    goals dropped. That is not built. The prompt lists the letters with
+    world coordinates, says they are not drawn, and reuses the stage-1
+    annotated frame as-is. This does not block the wiring, but it **blocks
+    T3b collection**: without marks, the VLM cannot tie a letter to the
+    obstacle it sees.
+  - **Stage-2 prompt, version 1** (`CURRENT_STAGE2_PROMPT_VERSION`,
+    independent of the stage-1 `PromptVersion`). Two renderings are
+    SHA-pinned in `tests/unit/test_stage2_prompt.py`: head-on 2-candidate
+    `4275d2ec…` and three-robot 4-candidate `d91e23c9…`. Candidates are listed
+    in letter order, never rank order, and without sweep clearances, so the
+    geometry-max answer does not leak. **Confound for T3b:** labels follow
+    generation order, and mirror-image candidates tie in the ranker and
+    break on label. In a symmetric scene, A is therefore both the
+    geometry-max default and the first-listed slot. The stage-1 first-slot
+    prior finding makes that worth controlling before T3b is scored.
+  - **Degradation chain.** Stage 2 never blocks, and every failure grounds
+    `ranked[0]`.
+    - It runs only for a `yield` in derived mode. Other cases record
+      `stage2: null`.
+    - It skips the call, with `status=skipped`, for any of these
+      `skip_reason`s: `yield_refused`, `no_candidates`, `single_candidate`
+      (k = 1, nothing to choose), `disabled` (the new
+      `stage2_retreat_selection: false` key in `orchestrator.yaml`), and
+      `no_backend`. The grounder then tags `retreat=default:no_choice`.
+    - Inside the call, timeouts, backend exceptions (such as an HTTP 429)
+      and refusal-shaped or unparsable text each spend an attempt, with a
+      re-ask for the last two. The attempts are bounded by the stage-1
+      `ReasonerConfig` (`max_attempts` × `timeout_sec`). Exhausting them
+      gives `status=degraded` with `failure_cause`
+      `timeout`/`backend_error`/`refusal`/`parse_failure`, and
+      `retreat=default:no_choice`.
+    - A well-formed answer naming an unrendered letter ends the call at once
+      (`failure_cause=invalid_label`). It is handed to the grounder, which
+      tags `retreat=default:invalid_label`: the measured cause is kept, not
+      retried away.
+    - Any exception in stage 2 itself is recorded as `error`, with the same
+      default.
+    - **Funding:** both API backends are blocked, so stage 1 fails first
+      and stage 2 never even fires live. When it does, the worst case with
+      the shipped config is 4 × 120 s on openai and 2 × 120 s on gemini,
+      the same bound as stage 1. A separate stage-2 attempt/timeout key
+      does not exist yet.
+  - **Mock.** The stage-1 mock is scripted, so sharing it would make stage 2
+    consume the next `VGU_MOCK_DECISION_FILE` entry. Stage 2 therefore gets
+    its own mock only when `VGU_MOCK_RETREAT_CHOICE_FILE` names a script, a
+    single object or an array (`config/mock_decisions/retreat_choice_b.json`
+    forces B, for T3b's smoke). Otherwise the result is
+    `skip_reason=no_backend`. Real backends reuse the stage-1 instance
+    (`build_retreat_choice_backend`).
+  - **Artifacts** (every triggered and probe artifact). `grounding_mode`;
+    `grounding_params_source` (path, `section_present`, params);
+    `grounding_degradations`, lifted from the command because per-action
+    messages drop it; and `stage2`. The `stage2` block holds the ranked
+    candidates with clearances, `default_label`, the prompt with SHA-256
+    hashes and the image path (never bytes), the `RetreatChoiceResult`, the
+    choice and the cause. There is also one `stage2 request=…` log line per
+    derived yield. Grounding params are loaded once at startup from
+    `grounding_params_path` (new key, default `config/rag.yaml`). A missing
+    file or invalid section stops M5; a missing section runs legacy and
+    warns.
+  - **The flip is not byte-equivalent, and no SHA pin says it is.** Both pins
+    in `tests/unit/test_command_grounder_derived.py` (`d1958150…`) cover
+    legacy mode only: `mode="legacy"`, and they assert no `degradations`.
+    What carries equivalence for the shipped config is:
+    - `test_reproduces_the_legacy_scene_geometry_maneuver`: 1.489 / 0.36 /
+      2.739 at the deadlock pose;
+    - the new `test_repo_config_is_derived_with_default_thresholds` (the
+      shipped config equals the params those tests use);
+    - `test_repo_config_keeps_the_verified_maneuver_m4_executes`: every key
+      M4 reads, plus the wait and resolution time, equals legacy at that
+      pose.
+
+    Derived commands also differ from legacy:
+    - they carry `degradations`;
+    - they carry `retreat_x_m`/`retreat_y_m`/`retreat_choice`/`crossing_order`
+      instead of `park_*`. Nothing in M4, M5 or `scripts/` reads `park_*`
+      (re-grepped). `park_coord_m` equals `retreat_x_m` there;
+    - passer waits carry `linked_position`;
+    - an out-of-band yield reroutes the yielder instead of being clamped;
+    - without a declared geometry, derived uses its own fallbacks (escort
+      clearance 0.5 vs legacy 0.65; backup from `backup_clearance_m`
+      instead of `PARK_ABS_X_M`), so the distances differ from legacy. M5
+      ships a geometry, so this does not apply live.
+
+    So post-flip decisions must not be pooled with legacy-grounded ones on
+    grounding-dependent outcomes.
+  - **Not updated:** `docs/specs/module5_orchestrator.md` (artifact fields,
+    config keys) and `docs/specs/module3_rag_grounding.md`.
+  - **Pending:** VM deploy and a mock smoke of a derived yield with
+    `VGU_MOCK_RETREAT_CHOICE_FILE` (the B sidestep is −0.36 m, to the
+    robot's right).
+  - **Deploy trap: a stale build silently stays legacy.** If
+    `swarm_orchestrator` is colcon-stale while `config/` and `reasoning/`
+    are synced, the old node never passes `params`, and grounding stays
+    legacy whatever `rag.yaml` says. Check that the M5 startup log shows
+    `grounding mode=derived`, and that every artifact has a
+    `grounding_mode` key. An artifact without that key came from a stale
+    build.
+
 - **2026-09-27** — **T3a blocker-kind pair authored with its oracle, and
   mock-smoked on the VM: both members PASS** (`ad379f1`, `8ee6393`; scenario
   headers `isaac/config/scenarios/blocked_path_{object,transient}.yaml`;
