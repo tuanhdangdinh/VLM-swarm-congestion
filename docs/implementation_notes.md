@@ -37,6 +37,17 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-27** — **M5's stall and cooldown clocks run on wall time, but
+  scenario timing is in sim time.** `stall_threshold_sec` (12) and
+  `cooldown_sec` (15) are measured on `time.monotonic()`
+  (`orchestrator_node._on_scene_state`). At the VM's real-time factor of about
+  0.38, that makes a stall trigger about 4.6 sim-s after the robot stops, and
+  re-analyses about 6.4 sim-s apart. In the T3c v2 smoke `20260927_125419`,
+  robot_1 stopped at about sim 31 and the first analysis fired on scene 35.2.
+  A scenario author who reads the thresholds as sim-seconds overestimates
+  every trigger delay by about 2.6x. The v2 YAML header was corrected
+  (comments only).
+
 - **2026-09-27** — **Probe freshness gate (Fix 1) verified live. The T3c v2
   smoke ran clean on apparatus, but got no M2 answer because Gemini hit its
   spending cap** (89884a3; `data/logs/vm_runs/t3c_v2/T3C_V2_SUMMARY.txt`).
