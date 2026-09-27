@@ -246,7 +246,14 @@ class TestStage2Flow:
         backend = build_retreat_choice_backend("mock", MockBackend())
         chooser = RetreatChooser(backend, ReasonerConfig(backend_id="mock"))
         outcome = _pipeline(chooser=chooser).run(_request())
-        assert _yield_params(outcome)["retreat_choice"] == "B"
+        # The script forces the *shown* letter B; which candidate that is
+        # depends on the letter draw, so read it off the assignment.
+        shown_b = outcome.stage2.letter_assignment["B"]
+        params = _yield_params(outcome)
+        assert params["retreat_choice"] == shown_b["candidate_label"]
+        assert (params["retreat_x_m"], params["retreat_y_m"]) == (
+            round(shown_b["x"], 3), round(shown_b["y"], 3)
+        )
         assert outcome.stage2.status == "answered"
         assert outcome.stage2.response["choice"]["retreat_choice"] == "B"
 
