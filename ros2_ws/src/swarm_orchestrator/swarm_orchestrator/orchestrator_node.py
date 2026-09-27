@@ -7,6 +7,7 @@ import time
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
+from typing import Any
 
 import rclpy
 import yaml
@@ -73,6 +74,12 @@ from swarm_orchestrator.reasoning_pipeline import (
     summarize_yield_grounding,
     write_decision_artifact,
 )
+from swarm_orchestrator.shadow_classical import (
+    ClassicalShadow,
+    ShadowClassicalRecord,
+    format_shadow_log,
+    load_shadow_params,
+)
 from swarm_orchestrator.state_machine import (
     DirectiveKind,
     OrchestratorStateMachine,
@@ -96,6 +103,22 @@ def _build_default_pipeline(config: OrchestratorConfig) -> ReasoningPipeline:
         scene_geometry=config.scenario_geometry,
         static_obstacles=config.static_obstacles,
         yield_feasibility_mode=config.grounding_yield_feasibility,
+    )
+
+
+def _build_shadow(config: OrchestratorConfig) -> ClassicalShadow | None:
+    """Build the Arm B shadow, or None when disabled.
+
+    Invalid `classical:` params raise here, stopping M5 at startup; a missing
+    file or section is carried into every shadow record instead.
+    """
+    if not config.shadow_classical:
+        return None
+    return ClassicalShadow(
+        load_shadow_params(Path(config.shadow_classical_params_path)),
+        config.shadow_classical_zones,
+        config.shadow_classical_window_sec,
+        config.shadow_classical_sample_period_sec,
     )
 
 
@@ -188,6 +211,8 @@ class OrchestratorNode(Node):
             )
         )
         self._pending_episode_index: int | None = None
+        self._shadow = _build_shadow(self._config)
+        self._pending_shadow: ShadowClassicalRecord | None = None
         self._last_scene_log_at = float("-inf")
         self._frame_rgb = None
         self._frame_stamp: float | None = None
@@ -232,6 +257,16 @@ class OrchestratorNode(Node):
         if self._config.scene_log_dir:
             Path(self._config.scene_log_dir).mkdir(parents=True, exist_ok=True)
         self.get_logger().info(f"session_id={self._session_id} run_id={self._run_id}")
+        if self._shadow is not None:
+            self.get_logger().info(
+                f"classical shadow enabled params={self._config.shadow_classical_params_path} "
+                f"window_sec={self._config.shadow_classical_window_sec} "
+                f"sample_period_sec={self._config.shadow_classical_sample_period_sec}"
+            )
+            if self._shadow.params_error is not None:
+                self.get_logger().warning(
+                    f"classical shadow degraded: {self._shadow.params_error}"
+                )
         self._publish_registry()
 
     # ---- config ----
@@ -264,6 +299,9 @@ class OrchestratorNode(Node):
         self._latest_snapshot = snapshot
         now = time.monotonic()
         self._latest_snapshot_at = now
+        if self._shadow is not None:
+            # Never raises; ingest failures surface in the next shadow record.
+            self._shadow.observe(snapshot, self._effective_goal)
         if (
             self._config.scene_log_dir
             and now - self._last_scene_log_at >= self._config.scene_log_period_sec
@@ -463,6 +501,19 @@ class OrchestratorNode(Node):
             return self._pipeline.run(request)
 
         self._future = self._executor.submit(task)
+        # After the submit so the shadow cannot delay the VLM call, and on the
+        # same snapshot and episode the request was built from. It reads
+        # nothing the request or dispatch path reads.
+        self._pending_shadow = None
+        if self._shadow is not None:
+            try:
+                self._pending_shadow = self._shadow.evaluate(
+                    request_id, snapshot, self._effective_goal, episode_index
+                )
+            except Exception as exc:  # evaluate() records its own errors; last resort
+                self.get_logger().error(
+                    f"shadow request={request_id} evaluate failed: {type(exc).__name__}: {exc}"
+                )
         return order
 
     def _handle_outcome(self, outcome: PipelineOutcome, now: float) -> None:
@@ -477,6 +528,7 @@ class OrchestratorNode(Node):
         self._pending_snapshot = None
         self._pending_distances = {}
         self._pending_episode_index = None
+        shadow_block = self._finalize_shadow(outcome)
         try:
             artifact_path = write_decision_artifact(
                 self._config.decision_log_dir,
@@ -492,6 +544,7 @@ class OrchestratorNode(Node):
                 prompt_robot_order_seed=self._order_seed,
                 episode_index=episode_index,
                 grounding_yield_feasibility=self._config.grounding_yield_feasibility,
+                shadow_classical=shadow_block,
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
         except OSError as exc:
@@ -522,6 +575,32 @@ class OrchestratorNode(Node):
                 f"stage={outcome.terminal_stage.value} reason={outcome.failure_reason}"
             )
         self._cleanup_frame(outcome.request_id)
+
+    def _finalize_shadow(self, outcome: PipelineOutcome) -> dict[str, Any] | None:
+        """Compare the pending shadow with the VLM outcome and log one line.
+
+        Returns the artifact block, or None when the shadow is disabled. Any
+        failure here is recorded in the block, never raised: the outcome must
+        reach the artifact write and the state machine unchanged.
+        """
+        record = self._pending_shadow
+        self._pending_shadow = None
+        if self._shadow is None:
+            return None
+        try:
+            if record is None:
+                raise RuntimeError("no shadow record was computed for this analysis (see log)")
+            final = self._shadow.finalize(
+                record, outcome.reasoner_result.decision, outcome.failure_reason
+            )
+            self.get_logger().info(format_shadow_log(final))
+            return final.model_dump(mode="json")
+        except Exception as exc:  # recorded in the artifact and the log
+            error = f"{type(exc).__name__}: {exc}"
+            self.get_logger().error(
+                f"shadow request={outcome.request_id} finalize failed: {error}"
+            )
+            return {"request_id": outcome.request_id, "shadow_error": error}
 
     def _dispatch(self, outcome: PipelineOutcome) -> None:
         grounded = filter_command_robot_ids(

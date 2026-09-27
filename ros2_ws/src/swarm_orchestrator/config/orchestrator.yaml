@@ -109,6 +109,25 @@ scenario_geometry:
 # it is set to. Quoted because bare `off` is YAML 1.1 boolean false.
 grounding_yield_feasibility: "off"
 
+# Arm B shadow (rev-8 shadow logging): on every VLM analysis, also compute the
+# classical answer from a snapshot ring buffer and write it, with the Arm A vs
+# Arm B disagreement flags, to the decision artifact's shadow_classical block.
+# Observational only: it never dispatches or changes the VLM decision, and a
+# failure inside it is recorded as shadow_error. Thresholds come from the
+# `classical:` section of shadow_classical_params_path; a missing file or
+# section is recorded per analysis, an invalid one stops M5 at startup.
+shadow_classical: true
+shadow_classical_params_path: "config/rag.yaml"
+# Ring buffer in M1 stamp seconds: must exceed stall_threshold_sec so zone
+# entries are still buffered at trigger time; the sample period must stay below
+# classical arrival_tie_sec (1.0 s) or FCFS is quantized at its tie scale.
+shadow_classical_window_sec: 60.0
+shadow_classical_sample_period_sec: 0.25
+# Mapped conflict zones for Arm B's intersection rule, per scenario (later
+# tiers). Empty for head-on scenarios: that rule derives its own pair zone.
+#   - { zone_id: crossing_1, x: 0.0, y: 0.0, radius_m: 1.5 }
+shadow_classical_zones: []
+
 # Fixed obstacles rendered into the VLM prompt when prompt_static_obstacles is
 # true. Like scenario_geometry above, these mirror the scenario file by hand
 # (here the head-on asymmetric family blocker) and must be set per scenario —

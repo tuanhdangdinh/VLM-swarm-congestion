@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from reasoning.baselines import ConflictZone
 from reasoning.rag.command_grounder import YieldFeasibilityMode
 from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import (
@@ -129,6 +130,28 @@ class OrchestratorConfig(BaseModel):
     # anything; "off" keeps every grounded command byte-identical to the ones
     # collected before the gate existed.
     grounding_yield_feasibility: YieldFeasibilityMode = "off"
+    # Arm B shadow (rev-8 shadow logging): compute and log the classical answer
+    # beside every VLM analysis. Observational only — it never dispatches or
+    # alters the VLM decision — so it defaults on.
+    shadow_classical: bool = True
+    # Arm B thresholds file (its `classical:` section), relative to M5's cwd
+    # like config/models.yaml.
+    shadow_classical_params_path: str = Field(default="config/rag.yaml", min_length=1)
+    # Snapshot history kept for FCFS arrival stamps, in M1 stamp seconds. The
+    # first analysis needs zone entry -> stop (~10 s wall at M1's current
+    # ~0.1 m/s reported speeds over ~1 m) plus stall_threshold_sec (12 s);
+    # 60 s covers that ~2.5x and usually the first re-analysis too (>= 27 s
+    # later). Older arrivals are censored to the oldest frame, which each
+    # shadow record states. Must exceed stall_threshold_sec (enforced below).
+    shadow_classical_window_sec: float = Field(default=60.0, gt=0.0)
+    # Minimum stamp gap between buffered snapshots. 0.25 s quantizes arrival
+    # stamps to a quarter of Arm B's 1.0 s arrival_tie_sec and damps M1 jitter
+    # in the commitment path length; 60 s holds at most 240 frames. Must be
+    # below arrival_tie_sec (checked against the loaded params at startup).
+    shadow_classical_sample_period_sec: float = Field(default=0.25, gt=0.0)
+    # Mapped conflict zones for the intersection rule (later tiers). Empty is
+    # valid: the head-on rule derives its own pair zone.
+    shadow_classical_zones: tuple[ConflictZone, ...] = ()
 
     @field_validator("initial_tasks")
     @classmethod
@@ -146,6 +169,19 @@ class OrchestratorConfig(BaseModel):
                 f"failure_context_window_sec={window} can never fire: a re-detection "
                 f"takes at least cooldown_sec + stall_threshold_sec = {bound} s; set it "
                 "above that bound, or 0 to disable"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _shadow_window_covers_stall(self) -> OrchestratorConfig:
+        # The stall timer runs on M5's monotonic clock and the window on M1
+        # stamps. Wall-clock stamps compare directly; sim-time stamps advance
+        # slower than wall time below real-time, so the check stays conservative.
+        if self.shadow_classical and self.shadow_classical_window_sec <= self.stall_threshold_sec:
+            raise ValueError(
+                f"shadow_classical_window_sec={self.shadow_classical_window_sec} must exceed "
+                f"stall_threshold_sec={self.stall_threshold_sec}: every zone entry would "
+                "fall out of the buffer before the analysis that needs it"
             )
         return self
 

@@ -339,6 +339,7 @@ def write_decision_artifact(
     episode_index: int | None = None,
     grounding_yield_feasibility: YieldFeasibilityMode | None = None,
     last_failed_context: FailureContext | None = None,
+    shadow_classical: dict[str, Any] | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
@@ -372,6 +373,10 @@ def write_decision_artifact(
         last_failed_context: Earlier-failed-attempt block attached to this
             request, if any; recorded in the same shape as `failure_context` so
             replay can rebuild the prompt.
+        shadow_classical: The Arm B shadow block (`ShadowClassicalRecord`
+            dumped to JSON) computed on this analysis's evidence, or None when
+            the shadow is disabled. Taken as a plain dict, built before this
+            call, so a shadow failure can never skip the artifact write.
 
     Returns:
         The artifact path.
@@ -430,6 +435,7 @@ def write_decision_artifact(
         "yield_refusal_reason": yield_grounding.refusal_reason,
         "scene": None if snapshot is None else snapshot.model_dump(mode="json"),
         "distance_to_goal_m": dict(distance_to_goal_m or {}),
+        "shadow_classical": shadow_classical,
     }
     artifact_path = output_path / f"{outcome.request_id}.json"
     artifact_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
