@@ -37,6 +37,114 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-28** — **The T3b obstacle-in-candidate scenario is built and
+  mock-smoked on the VM, both runs PASS. This was also the first live run of
+  the derived and stage-2 stack.** Commits: `e205f5f` (per-scenario band),
+  `9d4141a` (stage-2 mock passthrough in `fc_launch`), `58bb428` (scenario,
+  oracle, map, tests). Design header:
+  `isaac/config/scenarios/obstacle_in_candidate.yaml`. Evidence:
+  `data/logs/vm_runs/t3b_smoke/T3B_SMOKE_SUMMARY.txt`. The funded VLM run is
+  still pending.
+  - **Deviation: this is not the wopen_eopen shape.**
+    - The racks fill |x|, |y| > 0.6, so the family's far candidate is inside
+      a rack. At the family park point x = ±1.789, the far candidate sits at
+      +0.72, and with the 0.36 m sidestep it ranks first.
+    - Shrinking the sidestep until 2× fits in the aisle leaves the passer
+      about 3 cm from the parked yielder.
+    - The design moves the yield into the plus junction instead:
+      - the corridor is 0.55 × 1.6 m at x ∈ [0.4, 2.0];
+      - robot_1 spawns at (0, 0), robot_2 at (2.5, 0);
+      - robot_1's park point is x = −0.323. At the nominal standoff the
+        park-point floor sets the backup.
+  - **Candidates and the `ranked[0]` pin.** robot_1 yields; labels are M3's.
+    - Ranked order is C, A, B. C = (−0.323, +0.72) is occupied, A =
+      (−0.323, +0.36), B = (−0.323, −0.36). The band drops D.
+    - All three tie on sidestep clearance, so C ranks first on distance from
+      the corridor.
+    - The box is a grey `static_box` timed obstacle, 0.40 × 0.30 × 0.35 m at
+      (−0.32, 0.81). It spawns at 1 s, never despawns and is not baked into
+      the map.
+    - `tests/unit/test_obstacle_in_candidate_scenario.py` pins, using the
+      scenario's own numbers:
+      - k = 3;
+      - `ranked[0]` = C = the oracle's occupied and classical candidate;
+      - C's sweep enters the box;
+      - A's and B's sweeps keep ≥ 0.24 m from the box (robot half-width
+        0.09 + wall margin 0.15);
+      - all of the above across separations of 0.25–0.98 m, a ±0.2 m shift
+        of the meeting point, ±0.06 m yielder y, and a passer up to 0.04 m
+        north of the yielder;
+      - the known flip: a passer 0.05 m north makes B rank first.
+  - **Band delivery** (`e205f5f`).
+    - New key `grounding_aisle_y_band_m` in `orchestrator.yaml`, default
+      `null`, set per scenario like `scenario_geometry`. The goal table
+      there lists T3b's values: corridor centre 1.2, half-length 0.8, band
+      [−0.55, 1.0].
+    - It is merged into the grounding params once at startup, so the
+      pipeline and Arm B's `ClassicalRetreatContext` rank from the same
+      params.
+    - It is recorded as `grounding_params_source.aisle_y_band_override_m`
+      and appears in the startup log line.
+  - **Oracle.** New `RetreatOracleConfig` (`isaac/vgu_sim/config.py`),
+    added alongside the existing oracles: yielder, passer,
+    `candidate_count`, `occupied_candidate`, `correct_candidates`,
+    `classical_candidate`, objective `avoid_occupied_candidate`. Labels are
+    M3 labels (`grounded_label`), never shown letters.
+  - **First VM outing of derived + stage 2: no surprises in the plumbing.**
+    - The startup log showed `grounding mode=derived … band_override=True`
+      and `stage2 marks enabled`.
+    - 36/36 artifacts carry `grounding_mode: derived` and the band.
+    - The `fc_launch` mock passthrough (`MOCK_RETREAT_CHOICE_FILE`) worked.
+  - **Smoke S1** (`20260927_182225`, stage-2 mock forcing shown B, seed 1).
+    - Stage 2 answered B → M3 A (the default letter was A = C).
+      `marks_drawn: true`.
+    - The yielder parked 3.5 cm from A and 0.28 m from the box. robot_2 was
+      escorted past.
+    - Both robots arrived, verified at 0.09 m. The era-aware rescore gives
+      2/2 within tolerance.
+    - Arm B's `classical_retreat` was C, the occupied candidate
+      (`same_yielder` true, `equals_executed` false).
+    - The only safety latch was the standoff itself, before dispatch. The
+      family runs show the same burst (e.g. 1752 stops in `bshort2`
+      `20260926_065219`).
+  - **Parallax verdict: PASS**
+    (`data/logs/vm_runs/t3b_smoke/_analysis/s1_stage2_parallax.png`).
+    - The occupied candidate's ring is centred on the box's south part, and
+      the box fills most of it.
+    - The adjacent ring clears the box image by ~25 px.
+    - The floor edge images ~23 px inward, as the 0.21 m-plane homography
+      predicts.
+  - **Smoke S2** (`20260927_183837`, no stage-2 script, so
+    `skip_reason=no_backend`). This is the outcome contrast, and it is not
+    what the design note expected. Nav2 never refuses anything, because the
+    sidestep is raw `cmd_vel` on chassis odometry with Nav2 and
+    `collision_monitor` bypassed. Instead:
+    - The default C drove robot_1 into the box. It was pinned 0.038 m from
+      the face for 71 sim-s (`_analysis/s2_pinned_f870.png`).
+    - The yield ended FAILED only on M4's wall-clock bound, 242 wall-s after
+      dispatch. The hold never began, so robot_2 was never escorted.
+    - Both base missions resumed and re-deadlocked in the corridor mouth
+      (separation 0.40 m).
+    - The mock's scripted `none` answers meant nobody arrived. With a live
+      VLM the episode would be re-analysed.
+  - **Flags for the caller:**
+    - **Only robot_1 is a designed yielder.** If robot_2 yields, it parks at
+      x = 2.723, and the same band admits its +0.72 candidate, which is in
+      the NE rack. S2's Arm B did exactly that: robot_2's "C" at (2.83,
+      0.71). Collection must either restrict scoring to robot_1 yields or
+      force the yielder.
+    - **Criterion mismatch.** rev 8.6 tests ≥ 9/15 against chance 1/3
+      (p = 0.031). But avoiding one of three candidates has chance 2/3, and
+      against that 9/15 gives p = 0.80; α = 0.05 needs 14/15. This needs a
+      prereg decision; the test pins `chance_rate` = 2/3.
+    - Arm B's yielder is a first-come-first-served tie in this geometry.
+    - S1 showed an 18 s Nav2 pause when the robot re-entered the corridor
+      from the off-axis park.
+  - **VM state.** Tree 58bb428, 589/589 files. Pristine `orchestrator.yaml`
+    `c06bdb4e…`, `rag.yaml` `9fcc39ff…`. The USD is VM-only. End state
+    restored.
+  - **Not updated:** `docs/specs/module5_orchestrator.md` (new key).
+
 - **2026-09-28** — **Stage 2 is complete for T3b: set-of-mark letters are
   drawn, letters are counterbalanced, stage 2 has its own retry budget, and
   the shadow records Arm B's stage-2 answer** (`49416c7` drawing, `ad10aeb`
@@ -171,7 +279,10 @@ Rules for maintaining it:
   - **Pending:** the T3b scenario, and a VM run that shows `marks_drawn:
     true` with the letters over the right spots on a real frame. Check the
     M5 startup log for `stage2 marks enabled`. An unavailable-calibration
-    warning there means stage 2 runs unmarked.
+    warning there means stage 2 runs unmarked. (Superseded by the later
+    2026-09-28 T3b entry: scenario built, and VM run `20260927_182225`
+    showed `stage2 marks enabled` and `marks_drawn: true`, with the letters
+    on the right spots.)
 
 - **2026-09-28** — **Derived grounding and stage-2 retreat selection are wired
   into M5, and `config/rag.yaml` now says `grounding.mode: derived`**
@@ -286,7 +397,9 @@ Rules for maintaining it:
     `VGU_MOCK_RETREAT_CHOICE_FILE` (the B sidestep is −0.36 m, to the
     robot's right; superseded by the later 2026-09-28 stage-2 completion
     entry: the script now forces the *shown* letter B, whose candidate
-    depends on the letter draw).
+    depends on the letter draw). (Superseded by the later 2026-09-28 T3b
+    entry: deployed at `58bb428` and mock-smoked, `grounding mode=derived`
+    at startup and `grounding_mode` in every artifact.)
   - **Deploy trap: a stale build silently stays legacy.** If
     `swarm_orchestrator` is colcon-stale while `config/` and `reasoning/`
     are synced, the old node never passes `params`, and grounding stays
