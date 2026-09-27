@@ -34,6 +34,12 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 9 (2026-09-27): new A10 — Arm B's `blocked_path` rule gains a
+  parked-at-goal exclusion (`arrived_exclusion_radius_m: 0.35`,
+  `5e13805`), a pre-freeze rule change forced by the T0 verification
+  run's 60/60 rule-level false positives on parked robots; T0 is
+  live-verified (ER-2 FP 0/28) and T3c is re-scoped to a v2 re-author
+  (findings Rev 15 §AS).
 - Rev 8 (2026-09-27): blocker 8 progress — T0 tier and the Pillar 2
   stage-2 retreat machinery are built (battery design spec committed at
   `d255a09`; T0 `33232b8`…`ff96ead`; Pillar 2 merged `d3c2a7d`), leaving
@@ -313,6 +319,29 @@ pre-registered:
 infeasible yielder (R2 request `7482f0ad`, L4 request `ca63fbd5`;
 findings Rev 1 "Secondary Findings (a)", Rev 2 §D item 3). Both blocks are
 persisted structurally in decision artifacts for the RQ5 analysis.
+
+---
+
+## A10. Arm B Rule Amendment: Parked-at-Goal Exclusion
+
+**Binding.** `classify_scene`'s `blocked_path` candidacy (and the
+`unknown` involved set) excludes a stopped robot whose position lies
+within `arrived_exclusion_radius_m` (default 0.35, aligned with M5's
+`arrival_position_tolerance_m`) of its own goal; head-on and
+intersection rules, and the robot-ahead blocker check, are unchanged —
+an arrived robot can still block someone else. A goalless robot is never
+excluded. Commit `5e13805`; this amends the rev-8 Arm B specification at
+rev 9 absorption.
+
+**Rationale and evidence.** The T0 verification run exposed a rule-level
+false-positive rate of 100% on parked scenes: 60/60 post-arrival probes
+classified `blocked_path`/`anomaly`/`reroute` because the classifier has
+no concept of "stopped because arrived". Replaying all 65 recorded probe
+scenes: the old rule reproduces the recorded 60/5 tally exactly; the new
+rule gives 65× `none`. Pre-freeze rule changes to Arm B are legitimate
+under the tuning-parity clause (frozen at `prereg-v1` with everything
+else); this one is recorded here precisely because it post-dates the
+original Arm B specification.
 
 ---
 
