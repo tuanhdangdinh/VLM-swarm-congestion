@@ -1,7 +1,11 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from isaac.vgu_sim.config import TimedObstacleConfig
+
+# Where scenario_builder authors timed obstacles (deactivated until spawn).
+TIMED_OBSTACLE_ROOT = "/World/DynamicObstacles"
 
 
 @dataclass(order=True)
@@ -84,3 +88,51 @@ class EventScheduler:
             True if the obstacle has been spawned and not yet removed.
         """
         return obstacle_id in self._active
+
+
+def timed_obstacle_prim_path(obstacle_id: str) -> str:
+    """Return the stage path scenario_builder authors a timed obstacle at.
+
+    Args:
+        obstacle_id: The timed obstacle's identifier.
+
+    Returns:
+        The obstacle's prim path under `TIMED_OBSTACLE_ROOT`.
+    """
+    return f"{TIMED_OBSTACLE_ROOT}/{obstacle_id}"
+
+
+def prim_activation_callbacks(
+    get_stage: Callable[[], Any],
+) -> tuple[Callable[[str], None], Callable[[str], None]]:
+    """Build scheduler callbacks that toggle a timed obstacle prim's active flag.
+
+    scenario_builder authors each timed obstacle's geometry and collision up
+    front and deactivates the prim, so spawning is `SetActive(True)` and
+    removal is `SetActive(False)`. The stage is looked up at call time rather
+    than captured: the runner's `SimulationContext.reset()` reloads the stage
+    after the scheduler is built.
+
+    Args:
+        get_stage: Returns the live USD stage.
+
+    Returns:
+        `(activate_fn, deactivate_fn)` for `EventScheduler`.
+
+    Raises:
+        RuntimeError: From either callback, if the obstacle's prim is not on
+            the stage (a stale scenario USD); a silent no-op would leave the
+            run without its obstacle.
+    """
+
+    def _set_active(obstacle_id: str, active: bool) -> None:
+        path = timed_obstacle_prim_path(obstacle_id)
+        prim = get_stage().GetPrimAtPath(path)
+        if not prim.IsValid():
+            raise RuntimeError(f"timed obstacle prim missing: {path}")
+        prim.SetActive(active)
+
+    return (
+        lambda obstacle_id: _set_active(obstacle_id, True),
+        lambda obstacle_id: _set_active(obstacle_id, False),
+    )

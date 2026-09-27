@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import datetime
 import json
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from isaac.vgu_sim.acceptance_logging import (
     AcceptanceLogger,
     RobotPoseTracker,
     sample_robot_positions,
 )
-from isaac.vgu_sim.config import ResolvedRunConfig, RunResult
-from isaac.vgu_sim.event_scheduler import EventScheduler
+from isaac.vgu_sim.config import ResolvedRunConfig, RunResult, TimedObstacleConfig
+from isaac.vgu_sim.event_scheduler import EventScheduler, prim_activation_callbacks
 from isaac.vgu_sim.paths import run_output_dir
 
 
@@ -47,7 +49,7 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
     completed = False
     watchdog_executor = None
 
-    scheduler = EventScheduler(config.scenario.timed_obstacles)
+    scheduler = build_obstacle_scheduler(config.scenario.timed_obstacles, _current_stage)
 
     try:
         _open_stage(config.scenario_path)
@@ -140,7 +142,15 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
                 # steps under-advanced sim_time by ~1.9x versus Isaac's own
                 # /clock. Read the context's own clock instead.
                 sim_time = float(sim_ctx.current_time) - loop_start_time
-                scheduler.apply_due_events(sim_time)
+                applied = scheduler.apply_due_events(sim_time)
+                if applied:
+                    # The only record of a spawn/remove: GT carries robots only.
+                    obstacle_states = {oid: scheduler.is_active(oid) for oid in applied}
+                    print(
+                        f"timed obstacle event sim_time={sim_time:.2f} "
+                        f"active={obstacle_states}",
+                        flush=True,
+                    )
                 positions = sample_robot_positions(stage, robot_ids)
                 states = pose_tracker.update_from_positions(sim_time, positions)
                 logger.maybe_write(sim_time, states)
@@ -164,7 +174,12 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
             omni.timeline.get_timeline_interface().stop()
         except Exception:
             pass
-        scheduler.reset()
+        # reset() now deactivates live prims; a failure there must not skip
+        # the manifest write below.
+        try:
+            scheduler.reset()
+        except Exception as exc:
+            carb.log_warn(f"timed obstacle reset failed: {type(exc).__name__}: {exc}")
 
     _write_manifest(manifest_path, {
         "run_id": run_id,
@@ -190,6 +205,29 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
         manifest_path=manifest_path,
         failure=failure,
     )
+
+
+def build_obstacle_scheduler(
+    timed_obstacles: list[TimedObstacleConfig] | tuple[TimedObstacleConfig, ...],
+    get_stage: Callable[[], Any],
+) -> EventScheduler:
+    """Build the timed-obstacle scheduler wired to toggle prims on the live stage.
+
+    Args:
+        timed_obstacles: The scenario's `TimedObstacleConfig` entries.
+        get_stage: Returns the live USD stage at event time.
+
+    Returns:
+        A scheduler whose spawn/remove events activate/deactivate the
+        obstacles' prims.
+    """
+    activate_fn, deactivate_fn = prim_activation_callbacks(get_stage)
+    return EventScheduler(timed_obstacles, activate_fn, deactivate_fn)
+
+
+def _current_stage():
+    import omni.usd
+    return omni.usd.get_context().get_stage()
 
 
 class _TopicTimeoutError(RuntimeError):
