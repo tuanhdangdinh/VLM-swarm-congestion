@@ -34,6 +34,10 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 8 (2026-09-27): blocker 8 progress — T0 tier and the Pillar 2
+  stage-2 retreat machinery are built (battery design spec committed at
+  `d255a09`; T0 `33232b8`…`ff96ead`; Pillar 2 merged `d3c2a7d`), leaving
+  the prompt-v2 bundle as the gate for T3a/T2b authoring.
 - Rev 7 (2026-09-27): blockers 11 and 12 discharged — the sim-time-stamp
   fix (root cause was Isaac's `useSystemTime`, not M1) and the M5 shadow
   wiring are merged at `97634be` and live-verified (findings Rev 14 §AQ).
@@ -340,9 +344,20 @@ persisted structurally in decision artifacts for the RQ5 analysis.
 7. **B1 symmetric-`reverse` dispatch** — the handoff recommends keeping it as
    RQ5 evidence; ER-2 exercises it on every asymmetric episode. Confirm keep
    at freeze (Rev 3 §J item 3).
-8. **T0 / T2b / T3 authoring** — the battery beyond T1/T2a (negative probes,
-   downstream-traffic T2b, the three T3 tiers) has no authored scenarios or
-   oracle blocks yet.
+8. **T0 / T2b / T3 authoring** — design and build order fixed in
+   `docs/superpowers/specs/2026-09-27-scenario-battery-design.md`.
+   Progress 2026-09-27: **T0 built** (normal_flow scenario + M5 log-only
+   probe mode with structural and defensive no-dispatch layers; VM
+   verification pending) and **Pillar 2 stage-2 retreat machinery built**
+   (retreat-choice contract; `GroundingParams` with `legacy` default
+   pinned byte-identical by a SHA over 576 grounder outputs;
+   candidates/sweep/ranking with `ranked[0]` = classical stage-2 by
+   construction; derived grounding composed after the yield gate) —
+   unblocking T3b. Still open: the prompt-v2 bundle (gates T3a/T2b;
+   subsumes items 10 and 13), T3c oracle + smoke, T3a pairs, T2b
+   (3-robot verification + forced-order harness), the T3b scenario with a
+   widened `aisle_y_band_m`, and the M5 derived-mode wiring/config flip
+   after the bundle.
 9. **REQUIRED model-table rows** — recorded at freeze (A6).
 10. **Shared-contract fields for Arm B parity** — `CongestionDecision` has
     no `blocker_kind` or `crossing_order` (plan Task 1's additive optional

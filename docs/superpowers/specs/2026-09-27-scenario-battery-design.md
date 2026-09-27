@@ -208,13 +208,13 @@ N = 10 pairs, descriptive metrics only — no new machinery.
 
 | # | Item | Depends on | Size | Status |
 |---|---|---|---|---|
-| 1 | T0 scenario + probe mode | — | M | in progress |
+| 1 | T0 scenario + probe mode | — | M | **landed** (`33232b8`…`ff96ead`; VM/USD verification pending) |
 | 2 | Prompt-v2 bundle (fields + goals decision) | user sign-off on goals | M | awaiting decision |
 | 3 | T3c oracle + smoke | — | S | ready |
 | 4 | T3a pair (assets + YAMLs + oracle) | 2; marker-less asset; timed despawn check | M | ready after 2 |
 | 5 | T2b (3-robot + harness + oracle) | 2; 3-robot verification; forced-order harness | L | ready after 2 |
-| 6 | Pillar 2 slice (plan Tasks 3/8/9/11) | — (parallel-safe with 4/5) | L | queued |
-| 7 | T3b scenario | 6; untracked asset from 4 | M | last |
+| 6 | Pillar 2 slice (plan Tasks 3/8/9/11) | — | L | **landed** (`9d027e6`…`cf81fa9`, merged `d3c2a7d`; M5 wiring + config flip follow the bundle) |
+| 7 | T3b scenario | 6 ✓; untracked asset from 4; wider `aisle_y_band_m` for k = 3 (default head-on geometry yields only 2 candidates — test-proven) | M | last |
 
 Items 3 and 6 are parallel-safe with everything; 4 and 5 gate on the
 bundle so their oracles freeze against the final contract. Every tier's
