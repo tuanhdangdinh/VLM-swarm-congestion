@@ -225,8 +225,8 @@ authoring. Size: M (was S).
 | 3 | T3c v2 re-author (see re-scoped section) | scheduler fix live-verified ✓ | M | **authored + mechanically smoked** (`89884a3`); reasoning half + oracle pending funding and prompt-v2 |
 | 4 | T3a pair (assets + YAMLs + oracle) | 2 ✓; 15b ✓ | M | **built + mock-smoked, both members PASS** (`ad379f1`…`71f6fdd`); decision-scored per amendments 17a (no outcome contrast in this apparatus); funded VLM run pending |
 | 5 | T2b (3-robot + harness + oracle) | 2 ✓; feasibility report (`docs/reports/2026-09-27-three-robot-feasibility.md`) | XL + NEEDS-DECISION | investigation done: 12-item build list; safety items 9+11 (pair-scoped exemption, hold-until-last) REQUIRED before any wrong-order run — the both-orders harness otherwise collides or re-deadlocks; scope decision pending |
-| 6 | Pillar 2 slice (plan Tasks 3/8/9/11) | — | L | **landed** (`9d027e6`…`cf81fa9`, merged `d3c2a7d`; M5 wiring + config flip follow the bundle) |
-| 7 | T3b scenario | 6 ✓; untracked asset from 4; wider `aisle_y_band_m` for k = 3 (default head-on geometry yields only 2 candidates — test-proven) | M | last |
+| 6 | Pillar 2 slice + M5 wiring + derived flip | — | L | **complete** (`d3c2a7d`; wiring `e358229`, flip `1648dd2`; stage-2 prompt v1 pinned; VM deploy pending) |
+| 7 | T3b scenario | 6 ✓; asset ✓; wider band (test-proven); **NEW: set-of-mark letter drawing + letter counterbalancing (amendments items 21–22)** | M+M | blocked on 21–22 |
 
 Items 3 and 6 are parallel-safe with everything; 4 and 5 gate on the
 bundle so their oracles freeze against the final contract. Every tier's

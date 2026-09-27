@@ -34,6 +34,18 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 12 (2026-09-28): derived grounding + stage-2 retreat selection are
+  wired into M5 and the mode is flipped (`e358229`, `1648dd2` — the flip
+  is one-commit revertible); stage-2 prompt v1 pinned, full
+  degradation-to-geometry-max chain, mock retreat-letter support. New
+  measurement rule: post-flip decisions are not poolable with
+  legacy-grounded ones (`degradations`, `retreat_*`/`linked_position`
+  keys, out-of-band-yield behavior differ). New items 21–22: T3b is
+  blocked on set-of-mark letter drawing (text-only letters cannot tie a
+  letter to a seen obstacle) and on letter counterbalancing (ties order
+  by letter, so the default and first-listed coincide — a first-slot
+  confound); plus a stage-2 attempts/timeout key before the first funded
+  run and Arm B's stage-2 answer in the shadow block.
 - Rev 11 (2026-09-27): T3a is built and mock-smoked (both members PASS,
   real marker-less robot blocker; `ad379f1`…`71f6fdd`) and forces a
   run-matrix amendment — item 18: **T3a has no outcome contrast in this
