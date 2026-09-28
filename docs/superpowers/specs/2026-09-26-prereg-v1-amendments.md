@@ -624,3 +624,19 @@ original Arm B specification.
     scene folds a solo stall into a busy pair's episode until its
     command resolves. VM: USD, 3-robot smoke (record RTF and robot_3's
     position at trigger), and the forced-order margin runs pending.
+    **VM batch COMPLETE 2026-09-29** (notes `544000f`; artifacts
+    `data/logs/vm_runs/t2b_smoke/`): three-robot smoke PASS (ordered
+    release live, robot_3 admitted 0.04 s after robot_1 clears, yielder
+    resumes with the last passer; 55 s hold-back validated with 11–12 s
+    headroom at RTF 0.34; all arrivals verified), the **bystander latch
+    verified live** (the alternative arm's robot_2+robot_3 pair latched
+    at 0.43 m within 4 s of both moving, zero contacts — the safety
+    slice's missing live test, PASS on both seeds), and the **oracle
+    margin frozen: LOWER-BOUND 0.6485** (censored per the approved
+    rule; `7400482` writes it into the YAML with updated pins). Scorer
+    definition to pin at rev 9 (batch finding F6): what counts as an
+    arrival for a robot latched at its goal — harness GT scoring and
+    M5/rescore currently disagree. Also resurfaced: `--duration-sec`
+    is STILL a dead flag (F1, first logged Rev 1 §7 item 5); Arm B's
+    FCFS yielder at the symmetric standoff is a live coin flip (F4,
+    fine for the tier — the shadow records the actual pick).
