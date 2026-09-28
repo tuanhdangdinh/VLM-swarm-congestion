@@ -1,0 +1,149 @@
+schema_version: 1
+name: t2b_flow_ordering
+family: head_on
+seed: 42
+# The oracle order needs ~125 sim-s (standoff ~20, backup + sidestep ~15,
+# robot_1's 1.9 m escort ~19, robot_3's 4.2 m escort ~42, robot_2's return
+# ~25); fc_launch's --duration-sec overrides this anyway.
+duration_sec: 300.0
+
+# T2b flow ordering (battery design docs/superpowers/specs/
+# 2026-09-27-scenario-battery-design.md, "T2b"; feasibility report
+# docs/reports/2026-09-27-three-robot-feasibility.md Rev 2, whose numbering the
+# notes cite). A symmetric open head-on (both retreats feasible) between
+# robot_1 (west) and robot_2 (east), with robot_3 queued behind robot_1 as
+# eastbound downstream traffic. The side with traffic should pass first:
+# robot_2 yields once and robot_1 then robot_3 cross.
+#
+# Why the corridor is 1.0 m, not the family's 2.0 m (a deviation from the
+# design's wopen_eopen geometry, like T3b's). M4's ordered release drives every
+# passer to the same point, the yielder's park point plus the passer clearance
+# (0.65 m), on the far side:
+#   - With the 2.0 m corridor the park offset is 1.789 m, so robot_3's escort
+#     ends at x = 2.439 and robot_1, parked at its +2.5 goal, is 0.06 m away:
+#     the bystander latch (0.45 m) stops robot_3 short of its clearance and the
+#     oracle order itself never finishes. No goal beyond ~2.5 stays tracked.
+#   - With a 1.0 m corridor (barrier 0.55 x 1.0 m at x = 0) the park offset
+#     is 1.124 m and the escort end 1.774 m, 0.726 m short of robot_1's goal.
+#   - The standoff still forms nose to nose at the centre: the spawns stay at
+#     +-1.5, so the approach is the family's.
+#
+# Geometry (tests/unit/test_t2b_flow_ordering_scenario.py pins every number
+# with M3's own functions):
+#   - robot_1 spawns (-1.5, 0), goal (2.5, 0). robot_2 spawns (1.5, 0), goal
+#     (-2.0, 0). robot_3 spawns (-2.45, 0), goal (1.85, 0).
+#   - Standoff (corpus, 104 head-on runs): robots at ~+-0.12, formed 19-22
+#     sim-s into the run.
+#   - robot_3's hold-back spot x = -2.45 satisfies, at the corpus standoff and
+#     under +-0.2 m shifts, 0.23-0.98 m separations and +-0.1 m M1 bias:
+#       tracked by M1: |x| <= 2.5 (verified extent; homography edge 2.789);
+#       no spawn latch: 0.95 m from robot_1's spawn (> 0.45 + 0.1);
+#       Arm B sees a two-robot head_on: stopped robot_3 > r_conflict_m 1.5 m
+#         from both pair members (classify_scene run on the scene);
+#       robot_1 can reach its park point (-1.124, +0.36) (alternative order);
+#       robot_2's escort end in the alternative order (x = -1.774) is 0.676 m
+#         from robot_3 (> 0.45 latch, > 0.6 STALE band).
+#   - The feasibility report's band x in [-2.5, -2.24] was sized for the 2.0 m
+#     corridor; for this one the binding bound is robot_2's escort end:
+#     x <= -1.774 - 0.45 - 0.1 = -2.324, so the band is [-2.5, -2.324].
+#
+# Hold-back (M5 initial_tasks robot_3.start_delay_sec = 55). Goals all go out
+# when M5 starts, and a moving robot_3 closes the 0.95 m gap within the stall
+# window (report Layer 7). In the corpus the standoff forms 8.2-10.0 sim-s
+# after the robots start moving, M5's 12 wall-s stall window then fires the
+# trigger (4.0-4.6 sim-s later), and M5 start -> trigger measured 36.7-38.3
+# wall-s in the six 2026-09-28 calibration runs (~2 s of that is start-up
+# latency). Three robots run slower (report Layer 3: RTF ~0.34 vs 0.39):
+#   trigger ~ 10.0 / RTF + 12 + 2 wall-s -> 43 s at 0.34, 49.7 s at 0.28.
+# 55 s keeps robot_3 stationary-but-tracked at the trigger down to RTF ~0.25,
+# and releases it once the standoff has formed and been triggered on, while
+# the yielder is still backing up: a mock dispatch lands ~1 s after the
+# trigger, so by 55 s robot_3 is already under its linked wait and the release
+# only records its goal for when that wait ends (its turn comes after
+# robot_1's ~19 sim-s escort). The first three-robot smoke must record the
+# RTF and robot_3's position at the trigger; re-derive the delay from them.
+#
+# Predicted outcome of the alternative order (robot_1 yields, [robot_2,
+# robot_3] cross; the forced-order harness runs it): robot_2 clears at
+# x = -1.774 and its Nav2 leg to (-2.0, 0) and robot_3's eastbound escort then
+# close on each other in the 1.2 m aisle. The escort is a straight raw-cmd_vel
+# leg, so the pair-scoped bystander guard latches robot_2/robot_3 at 0.45 m and
+# neither can move again: the wrong order is likely infeasible (a safe
+# permanent stop), not merely slower. No robot_2 goal on the west side avoids
+# robot_3's escort line. If the harness confirms this, the >= 20% margin is a
+# censored lower bound and T2b's cost model is a feasibility contrast
+# (report Layer 7 option e) - an owner decision, not re-authoring.
+#
+# Grounding mode. The forced orders run legacy grounding
+# (config/rag.yaml grounding.mode: legacy): the first-passer guard exists only
+# there. Under the shipped derived mode the alternative order grounds a
+# reroute (robot_3 sits inside the 1.7 m backup clearance), and the oracle
+# order parks robot_2 at x = 1.58, which moves the escort end to 2.23, 0.27 m
+# from robot_1's goal: the same bystander latch. Live T2b collection in
+# derived mode therefore needs an owner decision as well.
+#
+# Flow evidence and order. Goals ride in the prompt (prompt-v2), so the VLM
+# sees robot_3 heading east behind robot_1. prompt_robot_order: random draws a
+# uniform permutation of the three robots per episode; condition every
+# analysis on it (amendments A2). Arm B's FCFS tiebreak yields robot_1 (equal
+# arrivals at the symmetric standoff), the contrast this tier exists for.
+#
+# M5 settings, set by hand in swarm_orchestrator/config/orchestrator.yaml
+# before a run (the goal table there lists them;
+# scripts/t2b_forced_order.py preflight refuses a run without them):
+#   - initial_tasks: robot_1 [2.5, 0.0], robot_2 [-2.0, 0.0], robot_3
+#     [1.85, 0.0] with start_delay_sec: 55.
+#   - scenario_geometry.corridor: center_m 0.0, half_length_m 0.5.
+#   - t0_probe_mode false; static_obstacles absent.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -1.5, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 2.5, y: 0.0}
+    initial_task: cross_narrow_aisle
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 1.5, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: -2.0, y: 0.0}
+    initial_task: cross_narrow_aisle
+  - robot_id: robot_3
+    marker_id: 3
+    spawn: {x: -2.45, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 1.85, y: 0.0}
+    initial_task: cross_narrow_aisle
+
+aisle_barrier:
+  effective_width_m: 0.55
+  center_x_m: 0.0
+  length_m: 1.0
+
+timed_obstacles: []
+static_obstacles: []
+
+# The standoff pair only: oracle.head_on_conflict_active is defined for
+# exactly two robots (report Layer 1).
+expected_conflict:
+  type: deadlock
+  involved_robots: [robot_1, robot_2]
+  onset_window_sec: [8.0, 40.0]
+  min_duration_sec: 2.0
+
+oracle:
+  correct_yielder: robot_2
+  fcfs_yielder: robot_1
+  feasible_yielders: [robot_1, robot_2]
+  objective: min_total_time_to_goal
+  correct_order: [robot_1, robot_3]
+  rationale: >-
+    flow asymmetry: robot_3 queues behind robot_1 heading the same way, so
+    passing the west side first clears both eastbound robots with one yield by
+    robot_2; yielding robot_1 instead sends robot_2 west into a second head-on
+    with robot_3 at the far end of the aisle. FCFS ties at the symmetric
+    standoff and yields robot_1.
+  # Written by `scripts/t2b_forced_order.py score --write-scenario` after the
+  # forced-order runs; null until then.
+  margin: null
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

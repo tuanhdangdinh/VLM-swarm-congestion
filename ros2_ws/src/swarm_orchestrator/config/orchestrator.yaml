@@ -89,6 +89,13 @@ frame_downscale_width: null
 #     scenario_geometry corridor center_m: 1.2, half_length_m: 0.8, AND
 #     grounding_aisle_y_band_m: [-0.55, 1.0] (k = 3; header of
 #     isaac/config/scenarios/obstacle_in_candidate.yaml)
+#   t2b_flow_ordering (T2b, three robots) -> robot_1 [2.5, 0.0], robot_2
+#     [-2.0, 0.0], AND robot_3: { task: cross_narrow_aisle, goal: [1.85, 0.0],
+#     start_delay_sec: 55 } (hold-back: its goal is sent 55 s after M5 starts),
+#     AND scenario_geometry corridor center_m: 0.0, half_length_m: 0.5; the
+#     forced-order harness also needs config/rag.yaml grounding.mode: legacy
+#     (header of isaac/config/scenarios/t2b_flow_ordering.yaml;
+#     scripts/t2b_forced_order.py preflight checks all of it)
 # Running a _gshort or _bshort scenario without changing these dispatches +-2.5
 # and the variant silently degrades to its beyond-goal twin, blocker back on
 # the goal path (isaac/config/scenarios/family/*_{gshort,bshort}_o0.yaml).
