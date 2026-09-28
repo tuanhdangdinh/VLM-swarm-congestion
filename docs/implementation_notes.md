@@ -37,6 +37,50 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-29** — **Rev 9.1: the nine `[REV9-OPEN]` markers are settled
+  as coordinator resolutions (reviewable at the tag), and two pre-tag code
+  items land.** Evidence: `25983a1` (spec), `a7730ee` (T3b rationale),
+  `37a0dd5` (code).
+  - **Spec.** The resolutions cover the following:
+    - A10 is a rule-gap fix, not tuning.
+    - The T0 denominator is 20 distinct moving-phase scenes.
+    - A per-tier channel table sets obstacles on for T1/T2 and off for T3,
+      with geometry true everywhere.
+    - T3c is exempt from the oracle block.
+    - T3b stops at 15 scored trials, with a cap of 30 episodes.
+    - The first yield-deciding analysis is the scored unit: T3a
+      absences count as misses, T3b is scored on answered trials only,
+      and more than 30% degraded makes a cell inconclusive.
+    - The gpt-4o snapshot is pinned at tag time, and the served model is
+      recorded per call.
+    - The backtrack is measured as peak minus minimum after the peak.
+  - **Residuals.** These are still open at the tag:
+    - The absent-decision rule for T0 probes and T2 RQ3.
+    - T0's `prompt_static_obstacles` value, which is inert because no
+      boxes are declared.
+    - `served_model` on stage-2 (`RetreatChooser`) records.
+  - **T3b rationale.** `obstacle_in_candidate.yaml` now states only the
+    construction. No test pinned the text. Its header comments still cite
+    the rev-8.6 ≥ 9/15 criterion and call yielder handling "an open
+    decision"; both are stale.
+  - **`served_model`.** Each backend parses the provider's `model` string
+    into `BackendResponse.served_model`:
+    - The `Reasoner` keeps the value from the last response, refusals and
+      failed cycles included.
+    - It writes the value to both `diagnostics` and
+      `reasoner_config_effective`.
+    - The value is None for mock, and for Gemini when the response has
+      no `model`.
+  - **`latched_at_goal`.** `rescore_arrivals.py` adds a row for any robot
+    with no M5 acceptance line whose final M1 sample is within 0.35 m of
+    its GT goal and fresh.
+    - The row is dated from the start of the final dwell.
+    - It counts as arrived and adds two CSV columns.
+    - On the two T2b alternative-arm runs it credits `robot_2` (0.089 m
+      and 0.085 m) and not `robot_3`.
+    - Pre-existing gap: `accepted_late` robots still get no row and do
+      not count as arrived.
+
 - **2026-09-29** — **Research design rev 9: the prereg amendment set is
   absorbed in place, and the spec is now the authoritative pre-`prereg-v1`
   text.** Documentation only; no code, config or VM change. Evidence:
@@ -53,15 +97,18 @@ Rules for maintaining it:
   - **Model table.** Filled: 1280 × 960 PNG as sent, `max_tokens` 2048
     (stage 2 inherits it), and the retry budgets. The config pins the
     alias `gpt-4o`, while the API served `gpt-4o-2024-08-06`; decision
-    artifacts do not record the served snapshot. Still REQUIRED: the ER-2
+    artifacts do not record the served snapshot (superseded by the
+    2026-09-29 rev 9.1 entry: `served_model` is recorded). Still REQUIRED: the ER-2
     version, which the API does not expose, and the prompt-template
     hashes at tag time.
   - **Arrival definition pinned (F6).** Only position-check arrivals
     count. A robot latched at its goal counts as arrived, flagged
     `latched_at_goal`. This is the harness scorer's reading, the one the
     frozen margin used. `rescore_arrivals.py` still needs a latched-at-goal
-    path: today it emits rows only for M5-reported arrivals.
-  - **Open for the coordinator.** There are 9 `[REV9-OPEN]` markers,
+    path: today it emits rows only for M5-reported arrivals (superseded
+    by the 2026-09-29 rev 9.1 entry).
+  - **Open for the coordinator** (superseded by the 2026-09-29 rev 9.1
+    entry). There are 9 `[REV9-OPEN]` markers,
     listed by `grep -n REV9-OPEN` on the spec. Among them:
     absent/degraded-decision scoring, the passer-backtrack definition,
     per-tier `prompt_static_obstacles`, the T3c oracle block, and the T3b
