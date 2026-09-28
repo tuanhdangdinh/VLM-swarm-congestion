@@ -11,6 +11,7 @@ from swarm_execution.safety import (
     CoordinationTracker,
     SafetyLimits,
     clearing_exempt_robots,
+    crossing_order_from_parameters,
     detect_proximity_violations,
     evaluate_latches,
     exceeds_speed_limit,
@@ -102,6 +103,7 @@ def _make_node(min_distance_m: float = 0.3) -> tuple[SafetyMonitorNode, list[str
     )
     node._latched_stops = set()
     node._coordination = CoordinationTracker()
+    node._exempt_pairs = frozenset()
     node._last_fresh_distances = {}
     node._cancel_nav2_goal = lambda _robot_id: None
     stops: list[str] = []
@@ -121,10 +123,13 @@ def _make_node(min_distance_m: float = 0.3) -> tuple[SafetyMonitorNode, list[str
 
 
 class _CommandMsg:
-    def __init__(self, command_id: str, robot_id: str, action: str) -> None:
+    def __init__(
+        self, command_id: str, robot_id: str, action: str, parameters_json: str = ""
+    ) -> None:
         self.command_id = command_id
         self.robot_id = robot_id
         self.action = action
+        self.parameters_json = parameters_json
 
 
 class _StatusMsg:
@@ -134,9 +139,16 @@ class _StatusMsg:
         self.status = status
 
 
-def _dispatch(node: SafetyMonitorNode, command_id: str, robot_id: str, action: str) -> None:
+def _dispatch(
+    node: SafetyMonitorNode,
+    command_id: str,
+    robot_id: str,
+    action: str,
+    parameters: dict | None = None,
+) -> None:
     """Feed one command and its ACTIVE status, as the command bus would."""
-    node._on_coord_command(_CommandMsg(command_id, robot_id, action))
+    parameters_json = "" if parameters is None else json.dumps(parameters)
+    node._on_coord_command(_CommandMsg(command_id, robot_id, action, parameters_json))
     node._on_coord_status(_StatusMsg(command_id, robot_id, "ACTIVE"))
 
 
@@ -329,8 +341,11 @@ def test_coordinating_robot_suppressed_from_safety_stop():
             {"robot_id": "robot_2", "x": 0.2, "y": 0.0},
         ]
     }
-    # robot_1 is executing a clearing maneuver (backing away).
+    # robot_1 is executing a clearing maneuver (backing away) and robot_2 is
+    # its partner, parked by the linked wait under the same command id (the
+    # production yield shape; a lone yield is pinned separately below).
     _dispatch(node, "req-yield", "robot_1", "yield")
+    _dispatch(node, "req-yield", "robot_2", "temporary_wait")
     node._on_scene_state(_StringMsg(json.dumps(scene)))
 
     # The whole pair is exempt while robot_1 coordinates: latching robot_2
@@ -933,3 +948,437 @@ def test_coordination_status_change_logged_with_action_and_exemption():
         "coordination status robot=robot_1 command=req-reroute "
         "status=ACTIVE action=reroute exempt=False"
     ]
+
+
+# ---------------------------------------------------------------------------
+# Pair-scoped clearing exemption (T2b safety prerequisite, 2026-09-28): a
+# clearing robot is exempt only against the robots of its own clearing command,
+# never against a bystander it could back into.
+# ---------------------------------------------------------------------------
+
+
+def _yield_command(
+    tracker: CoordinationTracker,
+    yielder: str,
+    passers: list[str],
+    command_id: str = "req-yield",
+    parameters: dict | None = None,
+) -> None:
+    if parameters is None:
+        parameters = {"passer_robot_id": passers[0]} if passers else {}
+    tracker.record_command(command_id, yielder, "yield", parameters)
+    tracker.record_status(command_id, yielder, "ACTIVE")
+    for position, passer in enumerate(passers):
+        tracker.record_command(
+            command_id, passer, "temporary_wait", {"linked_position": position}
+        )
+        tracker.record_status(command_id, passer, "ACTIVE")
+
+
+def _two_passer_order() -> dict:
+    return {"passer_robot_id": "robot_2", "crossing_order": ["robot_2", "robot_3"]}
+
+
+def test_exemption_covers_yielder_and_passer_pair():
+    tracker = CoordinationTracker()
+    _yield_command(tracker, "robot_1", ["robot_2"])
+
+    exemption = tracker.exemption()
+
+    assert exemption.clearing_robots == {"robot_1"}
+    assert exemption.pairs == {("robot_1", "robot_2")}
+
+
+def test_pair_scope_leaves_yielder_passer_pair_unflagged():
+    tracker = CoordinationTracker()
+    _yield_command(tracker, "robot_1", ["robot_2"])
+
+    flagged = detect_proximity_violations(_close_pair(), 0.45, tracker.exemption())
+
+    assert flagged == set()
+
+
+def test_pair_scope_flags_yielder_and_bystander():
+    # The report's wrong-order hazard: the yielder backs toward a third robot
+    # that is not part of its clearing command.
+    tracker = CoordinationTracker()
+    _yield_command(tracker, "robot_1", ["robot_2"])
+    robots = [
+        _fresh("robot_1", 0.0, 0.0),
+        _fresh("robot_2", 0.30, 0.0),
+        _fresh("robot_3", -0.30, 0.0),
+    ]
+
+    flagged = detect_proximity_violations(robots, 0.45, tracker.exemption())
+
+    assert flagged == {"robot_1", "robot_3"}
+
+
+def test_pair_scope_flags_passer_and_bystander():
+    tracker = CoordinationTracker()
+    _yield_command(tracker, "robot_1", ["robot_2"])
+    robots = [
+        _fresh("robot_1", -3.0, 0.0),
+        _fresh("robot_2", 0.0, 0.0),
+        _fresh("robot_3", 0.30, 0.0),
+    ]
+
+    flagged = detect_proximity_violations(robots, 0.45, tracker.exemption())
+
+    assert flagged == {"robot_2", "robot_3"}
+
+
+def test_lone_yield_does_not_exempt_uncommanded_neighbor():
+    # Intentional change from the robot-scoped rule: a yield command that
+    # names no partner has no pair to clear, so the neighbour is a bystander.
+    tracker = CoordinationTracker()
+    _yield_command(tracker, "robot_1", [])
+
+    flagged = detect_proximity_violations(_close_pair(), 0.45, tracker.exemption())
+
+    assert flagged == {"robot_1", "robot_2"}
+
+
+def test_pair_scope_flags_yielder_and_robot_on_other_command():
+    # The pair-scoped counterpart of test_pair_exempt_when_one_member_yields_
+    # and_other_reroutes: robot_2 was never part of the yield command.
+    tracker = _tracker_with(
+        ("req-yield", "robot_1", "yield"),
+        ("req2-reroute", "robot_2", "reroute"),
+    )
+
+    flagged = detect_proximity_violations(_close_pair(), 0.45, tracker.exemption())
+
+    assert flagged == {"robot_1", "robot_2"}
+
+
+def test_passer_stays_partner_after_its_wait_is_released():
+    # No-escort yield: the command bus completes the passer's wait at hold
+    # start ("released: yield holding") while the yielder is still ACTIVE.
+    # The pass itself must stay exempt.
+    tracker = CoordinationTracker()
+    _yield_command(tracker, "robot_1", ["robot_2"])
+
+    tracker.record_status("req-yield", "robot_2", "COMPLETED")
+
+    assert tracker.exemption().pairs == {("robot_1", "robot_2")}
+
+
+def test_passer_stays_partner_after_it_takes_a_new_command():
+    tracker = CoordinationTracker()
+    _yield_command(tracker, "robot_1", ["robot_2"])
+    tracker.record_status("req-yield", "robot_2", "COMPLETED")
+
+    tracker.record_command("req2-reroute", "robot_2", "reroute")
+    tracker.record_status("req2-reroute", "robot_2", "ACTIVE")
+
+    assert tracker.exemption().pairs == {("robot_1", "robot_2")}
+
+
+def test_reverse_fan_out_exempts_every_pair_of_its_robots():
+    tracker = _tracker_with(
+        ("req-reverse", "robot_1", "reverse"),
+        ("req-reverse", "robot_2", "reverse"),
+        ("req-reverse", "robot_3", "reverse"),
+    )
+
+    assert tracker.exemption().pairs == {
+        ("robot_1", "robot_2"),
+        ("robot_1", "robot_3"),
+        ("robot_2", "robot_3"),
+    }
+
+
+def test_reverse_does_not_exempt_robot_outside_its_command():
+    tracker = _tracker_with(
+        ("req-reverse", "robot_1", "reverse"),
+        ("req-reverse", "robot_2", "reverse"),
+    )
+
+    assert tracker.exemption().pairs == {("robot_1", "robot_2")}
+
+
+def test_waiting_passers_are_not_paired_with_each_other():
+    # Only the clearing robot's pairs are exempt: two waits of the same yield
+    # command keep the 0.45 m rule between them.
+    tracker = CoordinationTracker()
+    _yield_command(tracker, "robot_1", ["robot_2", "robot_3"], parameters=_two_passer_order())
+    tracker.record_status("req-yield", "robot_2", "COMPLETED")
+
+    assert ("robot_2", "robot_3") not in tracker.exemption().pairs
+
+
+def test_later_passer_not_partner_before_earlier_passer_released():
+    # During the backup and pull-off only crossing_order[0] is the yielder's
+    # partner; robot_3, queued further back, keeps full protection.
+    tracker = CoordinationTracker()
+    _yield_command(tracker, "robot_1", ["robot_2", "robot_3"], parameters=_two_passer_order())
+
+    assert tracker.exemption().pairs == {("robot_1", "robot_2")}
+
+
+def test_later_passer_admitted_once_earlier_passer_released():
+    tracker = CoordinationTracker()
+    _yield_command(tracker, "robot_1", ["robot_2", "robot_3"], parameters=_two_passer_order())
+
+    tracker.record_status("req-yield", "robot_2", "COMPLETED")
+
+    assert tracker.exemption().pairs == {("robot_1", "robot_2"), ("robot_1", "robot_3")}
+
+
+def test_busy_rejected_earlier_passer_does_not_admit_later_passer():
+    # A busy-reject FAILED is not a release: robot_2 never waited, and the
+    # yielder may still be backing toward robot_3.
+    tracker = CoordinationTracker()
+    _yield_command(tracker, "robot_1", ["robot_2", "robot_3"], parameters=_two_passer_order())
+
+    tracker.record_status("req-yield", "robot_2", "FAILED")
+
+    assert tracker.exemption().pairs == {("robot_1", "robot_2")}
+
+
+def test_exemption_ends_when_yield_completes():
+    tracker = CoordinationTracker()
+    _yield_command(tracker, "robot_1", ["robot_2", "robot_3"], parameters=_two_passer_order())
+    tracker.record_status("req-yield", "robot_2", "COMPLETED")
+
+    tracker.record_status("req-yield", "robot_1", "COMPLETED")
+
+    assert tracker.exemption().pairs == frozenset()
+
+
+def test_yield_without_order_parameters_pairs_every_command_member():
+    # A yield whose parameters were never seen (or carry no passer) falls back
+    # to the command's robot set, which is the two-robot yield shape.
+    tracker = _tracker_with(
+        ("req-yield", "robot_1", "yield"),
+        ("req-yield", "robot_2", "temporary_wait"),
+    )
+
+    assert tracker.exemption().pairs == {("robot_1", "robot_2")}
+
+
+def test_yield_passer_named_by_parameters_is_partner_before_its_wait_arrives():
+    tracker = CoordinationTracker()
+    tracker.record_command("req-yield", "robot_1", "yield", {"passer_robot_id": "robot_2"})
+    tracker.record_status("req-yield", "robot_1", "ACTIVE")
+
+    assert tracker.exemption().pairs == {("robot_1", "robot_2")}
+
+
+def test_tracker_bounds_command_memberships():
+    tracker = CoordinationTracker()
+    for i in range(CoordinationTracker.MAX_TRACKED_COMMANDS + 10):
+        tracker.record_command(f"req{i}-yield", "robot_1", "yield")
+
+    assert len(tracker._members_by_command) == CoordinationTracker.MAX_TRACKED_COMMANDS
+
+
+@pytest.mark.parametrize(
+    ("action", "parameters", "expected"),
+    [
+        ("yield", {"crossing_order": ["robot_2", "robot_3"]}, ("robot_2", "robot_3")),
+        ("yield", {"passer_robot_id": "robot_2"}, ("robot_2",)),
+        (
+            "yield",
+            {"passer_robot_id": "robot_2", "crossing_order": ["robot_2", "robot_3"]},
+            ("robot_2", "robot_3"),
+        ),
+        ("yield", {}, None),
+        ("yield", None, None),
+        ("yield", {"crossing_order": "robot_2"}, None),
+        ("yield", {"crossing_order": []}, None),
+        ("reverse", {"crossing_order": ["robot_2"]}, None),
+        ("temporary_wait", {"passer_robot_id": "robot_2"}, None),
+    ],
+)
+def test_crossing_order_from_parameters(action, parameters, expected):
+    assert crossing_order_from_parameters(action, parameters) == expected
+
+
+def test_stale_yielder_relatched_against_bystander_from_memory():
+    # The keep-latch half of the STALE rule stays robot-level for a clearing
+    # robot, but the remembered-distance half is pair-scoped: the bystander
+    # pair re-latches from its last fresh distance.
+    tracker = CoordinationTracker()
+    _yield_command(tracker, "robot_1", ["robot_2"])
+    robots = [
+        _stale("robot_1", 0.0, 0.0),
+        _fresh("robot_2", 2.0, 0.0),
+        # Carried pose is not close; only the remembered distance is.
+        _fresh("robot_3", -0.8, 0.0),
+    ]
+
+    result = evaluate_latches(
+        robots,
+        _LIMITS,
+        previous_latched={"robot_1", "robot_3"},
+        last_fresh_distances={("robot_1", "robot_3"): 0.44},
+        exempt=tracker.exemption(),
+    )
+
+    assert result.latched == {"robot_1", "robot_3"}
+
+
+def test_stale_yielder_with_only_partner_nearby_keeps_the_lift():
+    tracker = CoordinationTracker()
+    _yield_command(tracker, "robot_1", ["robot_2"])
+    robots = [
+        _stale("robot_1", 0.0, 0.0),
+        _fresh("robot_2", 0.05, 0.0),
+        _fresh("robot_3", 4.0, 0.0),
+    ]
+
+    result = evaluate_latches(
+        robots,
+        _LIMITS,
+        previous_latched={"robot_1", "robot_2"},
+        last_fresh_distances={_PAIR: 0.078, ("robot_1", "robot_3"): 4.0},
+        exempt=tracker.exemption(),
+    )
+
+    assert result.latched == frozenset()
+
+
+_THREE_ROBOT_SCENE = {
+    "robots": [
+        {"robot_id": "robot_1", "x": 0.0, "y": 0.0, "status": "MOVING"},
+        {"robot_id": "robot_2", "x": 0.30, "y": 0.0, "status": "MOVING"},
+        {"robot_id": "robot_3", "x": -0.30, "y": 0.0, "status": "MOVING"},
+    ]
+}
+
+
+def test_node_latches_clearing_yielder_against_bystander():
+    node, stops = _make_node(min_distance_m=0.45)
+    _dispatch(node, "req-yield", "robot_1", "yield", {"passer_robot_id": "robot_2"})
+    _dispatch(node, "req-yield", "robot_2", "temporary_wait")
+
+    node._on_scene_state(_StringMsg(json.dumps(_THREE_ROBOT_SCENE)))
+
+    assert node._latched_stops == {"robot_1", "robot_3"}
+    assert sorted(stops) == ["robot_1", "robot_3"]
+
+
+def test_node_latches_later_passer_against_backing_yielder():
+    node, _stops = _make_node(min_distance_m=0.45)
+    order = {"passer_robot_id": "robot_2", "crossing_order": ["robot_2", "robot_3"]}
+    _dispatch(node, "req-yield", "robot_1", "yield", order)
+    _dispatch(node, "req-yield", "robot_2", "temporary_wait", {"linked_position": 0})
+    _dispatch(node, "req-yield", "robot_3", "temporary_wait", {"linked_position": 1})
+
+    node._on_scene_state(_StringMsg(json.dumps(_THREE_ROBOT_SCENE)))
+
+    assert node._latched_stops == {"robot_1", "robot_3"}
+
+
+def test_node_admits_later_passer_after_earlier_passer_released():
+    node, _stops = _make_node(min_distance_m=0.45)
+    order = {"passer_robot_id": "robot_2", "crossing_order": ["robot_2", "robot_3"]}
+    _dispatch(node, "req-yield", "robot_1", "yield", order)
+    _dispatch(node, "req-yield", "robot_2", "temporary_wait", {"linked_position": 0})
+    _dispatch(node, "req-yield", "robot_3", "temporary_wait", {"linked_position": 1})
+    node._on_coord_status(_StatusMsg("req-yield", "robot_2", "COMPLETED"))
+
+    node._on_scene_state(_StringMsg(json.dumps(_THREE_ROBOT_SCENE)))
+
+    assert node._latched_stops == set()
+
+
+def test_node_tolerates_malformed_command_parameters():
+    node, _stops = _make_node(min_distance_m=0.45)
+    node._on_coord_command(_CommandMsg("req-yield", "robot_1", "yield", "not json{"))
+    node._on_coord_status(_StatusMsg("req-yield", "robot_1", "ACTIVE"))
+    _dispatch(node, "req-yield", "robot_2", "temporary_wait")
+
+    node._on_scene_state(_scene(0.30))
+
+    assert node._latched_stops == set()
+
+
+def test_node_speed_rule_still_exempts_clearing_robot():
+    # The speed rule is per robot, not per pair: a raw-cmd_vel backup is
+    # exempt from it exactly as before.
+    node, stops = _make_node(min_distance_m=0.45)
+    _dispatch(node, "req-yield", "robot_1", "yield", {"passer_robot_id": "robot_2"})
+    _dispatch(node, "req-yield", "robot_2", "temporary_wait")
+    scene = {
+        "robots": [
+            {"robot_id": "robot_1", "x": 0.0, "y": 0.0, "linear_velocity": 0.5},
+            {"robot_id": "robot_2", "x": 3.0, "y": 0.0, "linear_velocity": 0.1},
+        ]
+    }
+
+    node._on_scene_state(_StringMsg(json.dumps(scene)))
+
+    assert stops == []
+
+
+_EQUIV_DISTANCES = (0.05, 0.30, 0.44, 0.46, 0.55, 0.65, 2.0)
+_EQUIV_STATUSES = (
+    ("MOVING", "MOVING"),
+    ("STALE", "MOVING"),
+    ("MOVING", "STALE"),
+    ("STALE", "STALE"),
+)
+_EQUIV_PREVIOUS = (frozenset(), frozenset({"robot_1"}), frozenset({"robot_1", "robot_2"}))
+_EQUIV_MEMORY = (None, 0.078, 0.5, 0.7)
+
+
+def _equiv_shapes() -> dict[str, CoordinationTracker]:
+    shapes: dict[str, CoordinationTracker] = {}
+    for yielder, passer in (("robot_1", "robot_2"), ("robot_2", "robot_1")):
+        tracker = CoordinationTracker()
+        _yield_command(tracker, yielder, [passer])
+        shapes[f"yield-{yielder}"] = tracker
+        released = CoordinationTracker()
+        _yield_command(released, yielder, [passer])
+        released.record_status("req-yield", passer, "COMPLETED")
+        shapes[f"yield-{yielder}-released"] = released
+        derived = CoordinationTracker()
+        _yield_command(
+            derived,
+            yielder,
+            [passer],
+            parameters={"passer_robot_id": passer, "crossing_order": [passer]},
+        )
+        shapes[f"yield-{yielder}-derived"] = derived
+    shapes["yield-no-params"] = _tracker_with(
+        ("req-yield", "robot_1", "yield"), ("req-yield", "robot_2", "temporary_wait")
+    )
+    shapes["reverse"] = _tracker_with(
+        ("req-reverse", "robot_1", "reverse"), ("req-reverse", "robot_2", "reverse")
+    )
+    shapes["reroute"] = _tracker_with(
+        ("req-reroute", "robot_1", "reroute"), ("req-reroute", "robot_2", "temporary_wait")
+    )
+    shapes["none"] = CoordinationTracker()
+    return shapes
+
+
+@pytest.mark.parametrize("shape", sorted(_equiv_shapes()))
+def test_two_robot_pair_scope_matches_robot_scope(shape: str):
+    # Byte-identity pin: with two robots whose clearing command names both, the
+    # pair-scoped evaluation plus the speed-only subtraction equals the old
+    # robot-scoped evaluation minus the exempt robots, on every combination of
+    # distance, STALE status, prior latch and remembered distance.
+    tracker = _equiv_shapes()[shape]
+    exemption = tracker.exemption()
+    robot_scoped = tracker.exempt_robots()
+    for distance in _EQUIV_DISTANCES:
+        for status_1, status_2 in _EQUIV_STATUSES:
+            robots = [
+                {"robot_id": "robot_1", "x": 0.0, "y": 0.0, "status": status_1},
+                {"robot_id": "robot_2", "x": distance, "y": 0.0, "status": status_2},
+            ]
+            for previous in _EQUIV_PREVIOUS:
+                for remembered in _EQUIV_MEMORY:
+                    memory = None if remembered is None else {_PAIR: remembered}
+                    old = evaluate_latches(robots, _LIMITS, previous, memory, robot_scoped)
+                    new = evaluate_latches(robots, _LIMITS, previous, memory, exemption)
+                    old_effective = old.latched - robot_scoped
+                    assert new.latched == old_effective
+                    assert new.last_fresh_distances == old.last_fresh_distances
+                    assert {r: new.reasons[r] for r in new.latched} == {
+                        r: old.reasons[r] for r in old_effective
+                    }

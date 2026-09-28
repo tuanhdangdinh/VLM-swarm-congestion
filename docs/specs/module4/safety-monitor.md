@@ -30,6 +30,11 @@
   both latch rules armed (runs G4/K1). Corrected §7's exemption bound from
   20 s to the 120 s wall-monotonic Nav2-leg watchdog. Updated §2, §5.1, §7
   and §8 to match.
+- Rev 9 (2026-09-28): §10 exemption scoped to pairs. A clearing robot is
+  exempt only against the partners its own clearing command names; a yield's
+  later passers join only once the earlier passers are released. A bystander
+  keeps full protection. T2b safety prerequisite
+  (`docs/reports/2026-09-27-three-robot-feasibility.md` Layer 4). Updated §2.
 
 ---
 
@@ -65,7 +70,7 @@ geometry (robots stop before entering marker-overlap range).
 | `/perception/scene_state` | `std_msgs/String` (JSON `SceneState`) | M1 → monitor |
 | `/<robot_id>/cmd_vel` | `geometry_msgs/Twist` | monitor → Isaac drive |
 | `/safety/holds` | `std_msgs/String` (JSON `{"held": [...]}`) | monitor → coordination_client |
-| `/coordination/commands` | `swarm_interfaces/CoordinationCommand` | M5 → monitor (per-robot `action`, §10) |
+| `/coordination/commands` | `swarm_interfaces/CoordinationCommand` | M5 → monitor (per-robot `action`, command membership, a yield's passer order, §10) |
 | `/coordination/status` | `swarm_interfaces/CoordinationStatus` | command bus → monitor (`ACTIVE`/terminal, §10) |
 
 The monitor parses the same flat `robots[]` shape M5's `parse_scene_snapshot`
@@ -422,8 +427,9 @@ at 0.076 m for about 51 sim-s. Root cause and evidence:
 
 **Rule.** A robot is *exempt* while its current `ACTIVE` command's per-robot
 action is in `CLEARING_ACTIONS = {"yield", "reverse"}`. These are the
-raw-`cmd_vel` clearing primitives: backup, sidestep, hold and escort. A pair is
-exempt while at least one member is exempt. The exempt set feeds every rule:
+raw-`cmd_vel` clearing primitives: backup, sidestep, hold and escort. As
+written on 2026-09-26, a pair was exempt while at least one member was exempt
+(superseded by the pair scope below). The exempt set fed every rule:
 
 - the §1 distance rule skips an exempt pair;
 - the §7 STALE rule does not latch an exempt pair afresh, and an exempt STALE
@@ -531,3 +537,89 @@ installed (md5-verified). Artifacts are in `data/logs/vm_runs/m4fix/`.
   - Minimum pairwise distance was 0.276 m.
   - There was no latch during the backup, pull-off or escort. The escort
     passed the parked yielder at 0.392 m, unlatched.
+
+### Pair scope (2026-09-28)
+
+**Why.** With a third robot, the robot-scoped rule also silenced the
+yielder–bystander pair. `yield`/`reverse` backups publish raw `cmd_vel` and
+bypass `collision_monitor`, whose polygon is forward-only in any case. In T2b's
+non-oracle order the yielder reverses about 1.44 m along the lane where the
+third robot is queued, and no layer watched that pair
+(`docs/reports/2026-09-27-three-robot-feasibility.md`, Layer 4 and the
+biggest-risk section). The user's T2b build decision (2026-09-28) requires this
+fix before any wrong-order run.
+
+**Rule.** The exemption is a `ClearingExemption`
+(`swarm_execution/safety.py`) with two parts.
+
+- **Clearing robots** are defined as before. They feed the two per-robot
+  rules: the speed rule, and the §7 keep-the-existing-latch rule.
+- **Exempt pairs** feed the two pair rules: the §1 distance rule, and the §7
+  remembered-distance rule. Each clearing robot is paired only with the
+  partners its own `ACTIVE` command names (`admitted_partners`):
+  - A `reverse` pairs with every other robot its command addressed.
+  - A `yield` with a passer order pairs with the first passer from the
+    start. It pairs with a later passer only once every earlier passer's
+    wait under the same command has reached `COMPLETED`, that is, once the
+    command bus has released it. A busy-reject's `FAILED` does not count.
+    The order is the yield's `crossing_order` parameter, else its
+    `passer_robot_id`.
+  - A `yield` with neither parameter pairs with every other robot its command
+    addressed. That is the two-robot shape.
+
+Any robot outside the clearing command — a *bystander* — keeps both pair rules
+against the clearing robot. When a pair rule latches that pair, the clearing
+robot is latched too: the node's final subtraction now removes clearing robots
+only from the speed rule (`effective = latched | (speeders − clearing)`).
+
+**Where the pair comes from.** `/coordination/commands`, which already carries
+every robot of one decision under a shared `command_id`. `CoordinationTracker`
+records three things per command:
+
+- its robots, in arrival order;
+- a yield's passer order, decoded from `parameters_json`;
+- which robots' statuses for it reached `COMPLETED`.
+
+Unlike the per-robot action map, these records do not end on a member's own
+terminal status. In the no-escort flow the passer's wait completes at hold
+start ("released: yield holding") while the pass is still under way, and the
+pair must stay exempt through the pass. They share the 256-command bound.
+Unparseable parameters fail closed: the tracker falls back to the command's
+robot set, which never includes a bystander.
+
+**Consequences.**
+
+- **Two-robot behaviour is unchanged whenever the clearing command names both
+  robots.** That covers every production yield (yield plus the partner's
+  linked wait) and every `reverse` fan-out. It is pinned by
+  `test_two_robot_pair_scope_matches_robot_scope`: over every combination of
+  distance, STALE status, prior latch and remembered distance, the new
+  evaluation equals the old one minus the exempt robots.
+- **A lone clearing command now fails closed.** An example is a yield with no
+  partner, which M3 grounds when only one robot is involved. Its neighbour is
+  a bystander, so that pair latches. The old test
+  `test_coordinating_robot_suppressed_from_safety_stop` now dispatches the
+  partner's wait, as production does. The lone case is pinned by
+  `test_lone_yield_does_not_exempt_uncommanded_neighbor`.
+- **Two waits of one yield are never paired.** An example is two passers, or
+  a passer and a follower. The exemption covers only the clearing robot's
+  pairs. The queued-follower latch described in the feasibility report
+  (Layer 4, "A trailing robot latches the passer") is therefore unchanged. It
+  remains a Layer 7 geometry decision.
+- **A STALE clearing robot** loses its previous latch as before, but it is
+  re-latched by the remembered-distance rule when a bystander's last fresh
+  distance is inside the band.
+
+**Diagnostics.** The node logs `exempt pairs changed pairs=a+b,…` once each
+time the exempt pair set changes.
+
+**Implementation and tests.** `ClearingExemption`,
+`crossing_order_from_parameters`, `admitted_partners` and
+`CoordinationTracker.exemption` are in `swarm_execution/safety.py`.
+`detect_proximity_violations` and `evaluate_latches` accept either a
+`ClearingExemption` or a bare robot set; a bare set keeps the robot scope for
+callers without pair information. The node passes `exemption()`. The tests are
+in `tests/unit/test_safety_monitor.py`.
+
+**Verification.** Unit-tested only. The live regression is pending the next
+VM batch.

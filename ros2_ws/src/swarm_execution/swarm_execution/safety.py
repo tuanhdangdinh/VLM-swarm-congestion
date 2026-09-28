@@ -8,9 +8,10 @@ into these functions and actuates an emergency stop on the result.
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from itertools import combinations
+from typing import Any
 
 REASON_MIN_DISTANCE = "min_distance_violation"
 REASON_SPEED_LIMIT = "speed_limit_violation"
@@ -25,7 +26,9 @@ REASON_STALE_POSE = "stale_pose_unsafe"
 # the rule covers the rest.
 STALE_UNSAFE_MARGIN_M = 0.15
 
-# Per-robot coordination actions that exempt a pair from the latch rules. Both
+# Per-robot coordination actions that exempt pairs from the latch rules (only
+# the clearing robot's pairs with its own command's partners; see
+# `CoordinationTracker.exemption`). Both
 # are raw-cmd_vel clearing primitives (backup, sidestep, hold, escort) that
 # legitimately work inside min_distance_m. Nav2-goal legs (navigate, goal,
 # priority_override, reroute, convoy) and waits (wait, temporary_wait, stop)
@@ -36,6 +39,107 @@ STALE_UNSAFE_MARGIN_M = 0.15
 CLEARING_ACTIONS: frozenset[str] = frozenset({"yield", "reverse"})
 
 TERMINAL_STATUSES: frozenset[str] = frozenset({"COMPLETED", "FAILED", "CANCELLED"})
+
+
+@dataclass(frozen=True)
+class ClearingExemption:
+    """Which robot pairs the latch rules skip while clearing maneuvers run.
+
+    Attributes:
+        clearing_robots: Robots whose ACTIVE command is a clearing maneuver.
+            The speed rule and the STALE keep-latch rule are per robot and use
+            this set.
+        pairs: Sorted `(robot_id, robot_id)` pairs the distance rule and the
+            STALE remembered-distance rule skip: each clearing robot paired
+            with the partners its own clearing command names. None is the
+            pre-2026-09-28 robot scope, where every pair containing a clearing
+            robot is skipped; it remains for callers that pass a bare robot
+            set.
+    """
+
+    clearing_robots: frozenset[str] = frozenset()
+    pairs: frozenset[tuple[str, str]] | None = None
+
+    def covers_pair(self, a_id: str, b_id: str) -> bool:
+        """Return True if the pair `(a_id, b_id)` is exempt from the pair rules."""
+        if self.pairs is None:
+            return a_id in self.clearing_robots or b_id in self.clearing_robots
+        return _pair_key(a_id, b_id) in self.pairs
+
+
+ExemptInput = set[str] | frozenset[str] | ClearingExemption
+
+
+def _as_exemption(exempt: ExemptInput) -> ClearingExemption:
+    if isinstance(exempt, ClearingExemption):
+        return exempt
+    return ClearingExemption(clearing_robots=frozenset(exempt), pairs=None)
+
+
+def crossing_order_from_parameters(
+    action: str, parameters: Mapping[str, Any] | None
+) -> tuple[str, ...] | None:
+    """Return the ordered passers a yield command names, or None.
+
+    Args:
+        action: The per-robot `CoordinationCommand.action`.
+        parameters: The decoded `parameters_json`, or None when absent or
+            unparseable.
+
+    Returns:
+        `crossing_order` when the yield carries a non-empty list of robot ids,
+        else `(passer_robot_id,)` when it names a single passer, else None.
+        Always None for a non-yield action.
+    """
+    if action != "yield" or not parameters:
+        return None
+    order = parameters.get("crossing_order")
+    if isinstance(order, list) and order and all(isinstance(r, str) and r for r in order):
+        return tuple(order)
+    if order is not None:
+        return None
+    passer = parameters.get("passer_robot_id")
+    if isinstance(passer, str) and passer:
+        return (passer,)
+    return None
+
+
+def admitted_partners(
+    robot_id: str,
+    action: str | None,
+    members: Sequence[str],
+    order: Sequence[str] | None,
+    completed: set[str] | frozenset[str],
+) -> frozenset[str]:
+    """Return the robots a clearing robot is exempt against.
+
+    A `reverse`, or a yield that names no passers, pairs with every other
+    robot of its own command. A yield with a passer order pairs with
+    `order[0]` from the start, and with each later passer only once every
+    earlier passer's wait under the command has COMPLETED, i.e. the command
+    bus released it (a busy-reject's FAILED does not count). Before that, a
+    queued later passer keeps full protection against the yielder's backup.
+
+    Args:
+        robot_id: The clearing robot.
+        action: Its ACTIVE command's per-robot action.
+        members: Every robot the command addressed, in arrival order.
+        order: `crossing_order_from_parameters` of the yield, or None.
+        completed: Robots whose status for this command reached COMPLETED.
+
+    Returns:
+        Partner robot ids, never including `robot_id`.
+    """
+    if not is_clearing_action(action):
+        return frozenset()
+    if action != "yield" or order is None:
+        return frozenset(r for r in members if r != robot_id)
+    admitted: list[str] = []
+    for position, passer in enumerate(order):
+        if position > 0 and order[position - 1] not in completed:
+            break
+        admitted.append(passer)
+    return frozenset(r for r in admitted if r != robot_id)
 
 
 @dataclass(frozen=True)
@@ -94,12 +198,11 @@ def clearing_exempt_robots(
 ) -> frozenset[str]:
     """Return the robots whose ACTIVE coordination command is a clearing maneuver.
 
-    The result is the `exempt` set for `detect_proximity_violations` and
-    `evaluate_latches`. Those functions skip any pair with an exempt member, so
-    a pair is exempt exactly while a clearing maneuver is among its members'
-    ACTIVE commands. This keeps the yield flow working: the passer's linked
-    `temporary_wait` does not exempt it, but the pair stays exempt through the
-    yielder's own ACTIVE `yield`.
+    This is the per-robot half of `ClearingExemption` (the speed rule and the
+    STALE keep-latch rule); which pairs are exempt comes from
+    `CoordinationTracker.exemption`. The passer's linked `temporary_wait` does
+    not make it a clearing robot; its pair with the yielder is exempt through
+    the yielder's own ACTIVE `yield`.
 
     Args:
         active_by_robot: Robot id -> command id of its current ACTIVE command,
@@ -124,9 +227,14 @@ class CoordinationTracker:
     """Track per-robot ACTIVE coordination commands and their actions.
 
     ROS2-free bookkeeping for the safety monitor. Commands and statuses arrive
-    on separate topics with no cross-topic ordering guarantee, so the two maps
-    are joined only when `exempt_robots` is called; a status that lands before
-    its command resolves correctly once the command arrives.
+    on separate topics with no cross-topic ordering guarantee, so the maps
+    are joined only when `exempt_robots` or `exemption` is called; a status
+    that lands before its command resolves correctly once the command arrives.
+
+    Command membership (which robots a command addressed) and per-command
+    COMPLETED statuses are kept independently of the per-robot action map,
+    which a terminal status clears: a passer's wait completing at hold start
+    must not end the yielder-passer pair's exemption.
     """
 
     # Bound for command actions that never receive a terminal status (e.g. a
@@ -136,14 +244,25 @@ class CoordinationTracker:
     def __init__(self) -> None:
         self._action_by_key: dict[tuple[str, str], str] = {}
         self._active_by_robot: dict[str, str] = {}
+        self._members_by_command: dict[str, list[str]] = {}
+        self._order_by_command: dict[str, tuple[str, ...]] = {}
+        self._completed_by_command: dict[str, set[str]] = {}
 
-    def record_command(self, command_id: str, robot_id: str, action: str) -> None:
+    def record_command(
+        self,
+        command_id: str,
+        robot_id: str,
+        action: str,
+        parameters: Mapping[str, Any] | None = None,
+    ) -> None:
         """Remember the per-robot action of a dispatched coordination command.
 
         Args:
             command_id: `CoordinationCommand.command_id`.
             robot_id: `CoordinationCommand.robot_id`.
             action: `CoordinationCommand.action`, e.g. `yield` or `reroute`.
+            parameters: The decoded `parameters_json`, read only for a yield's
+                passer order; None when absent or unparseable.
         """
         if not command_id or not robot_id:
             return
@@ -152,6 +271,19 @@ class CoordinationTracker:
         self._action_by_key[key] = action
         while len(self._action_by_key) > self.MAX_TRACKED_COMMANDS:
             self._action_by_key.pop(next(iter(self._action_by_key)))
+
+        members = self._members_by_command.pop(command_id, [])
+        if robot_id not in members:
+            members.append(robot_id)
+        self._members_by_command[command_id] = members
+        order = crossing_order_from_parameters(action, parameters)
+        if order is not None:
+            self._order_by_command[command_id] = order
+        while len(self._members_by_command) > self.MAX_TRACKED_COMMANDS:
+            evicted = next(iter(self._members_by_command))
+            del self._members_by_command[evicted]
+            self._order_by_command.pop(evicted, None)
+            self._completed_by_command.pop(evicted, None)
 
     def record_status(self, command_id: str, robot_id: str, status: str) -> bool:
         """Apply one `/coordination/status` update.
@@ -177,6 +309,8 @@ class CoordinationTracker:
             return changed
         if status not in TERMINAL_STATUSES:
             return False
+        if status == "COMPLETED" and command_id in self._members_by_command:
+            self._completed_by_command.setdefault(command_id, set()).add(robot_id)
         self._action_by_key.pop((command_id, robot_id), None)
         if self._active_by_robot.get(robot_id) == command_id:
             del self._active_by_robot[robot_id]
@@ -199,14 +333,38 @@ class CoordinationTracker:
         return self._action_by_key.get((command_id, robot_id))
 
     def exempt_robots(self) -> frozenset[str]:
-        """Return the robots currently exempting their pairs (see `clearing_exempt_robots`)."""
+        """Return the robots running a clearing maneuver (`clearing_exempt_robots`)."""
         return clearing_exempt_robots(self._active_by_robot, self._action_by_key)
+
+    def exemption(self) -> ClearingExemption:
+        """Return the pair-scoped exemption for the current ACTIVE commands.
+
+        Each clearing robot is paired with `admitted_partners` of its own
+        ACTIVE command. A robot that command never addressed stays fully
+        protected against it.
+
+        Returns:
+            The clearing robots and their exempt pairs.
+        """
+        clearing = self.exempt_robots()
+        pairs: set[tuple[str, str]] = set()
+        for robot_id in clearing:
+            command_id = self._active_by_robot[robot_id]
+            partners = admitted_partners(
+                robot_id,
+                self._action_by_key.get((command_id, robot_id)),
+                self._members_by_command.get(command_id, ()),
+                self._order_by_command.get(command_id),
+                self._completed_by_command.get(command_id, frozenset()),
+            )
+            pairs.update(_pair_key(robot_id, partner) for partner in partners)
+        return ClearingExemption(clearing_robots=clearing, pairs=frozenset(pairs))
 
 
 def detect_proximity_violations(
     robots: list[dict],
     min_distance_m: float,
-    exempt: set[str] | frozenset[str] = frozenset(),
+    exempt: ExemptInput = frozenset(),
 ) -> set[str]:
     """Return the ids of robots in any pair closer than `min_distance_m`.
 
@@ -215,27 +373,29 @@ def detect_proximity_violations(
     only strictly-closer pairs are flagged. Both robots in a violating pair are
     returned so the caller can stop each one.
 
-    Pairs containing an `exempt` robot are skipped. The exempt set is the
-    robots executing a clearing maneuver (`clearing_exempt_robots`): a yielder
-    parked off-centerline during its hold must let the passer come closer than
-    `min_distance_m`. The yielder pulls off 0.35 m while the latch threshold is
-    0.45 m, so without the pair exemption the pass itself would latch the
-    passer and freeze both robots. Robot-level exemption on the caller side
-    cannot express this: it unlatches the yielder but still latches its
-    partner.
+    Exempt pairs are skipped: a yielder parked off-centerline during its
+    hold must let the passer come closer than `min_distance_m`. The yielder
+    pulls off 0.35 m while the latch threshold is 0.45 m, so without the pair
+    exemption the pass itself would latch the passer and freeze both robots.
+    Robot-level exemption on the caller side cannot express this: it
+    unlatches the yielder but still latches its partner. The monitor passes
+    `CoordinationTracker.exemption()`, which exempts only the clearing robot
+    paired with its own command's partners, so a bystander still latches
+    against a backing yielder.
 
     Args:
         robots: Robot state dicts, each with `robot_id`, `x`, and `y`.
         min_distance_m: Minimum allowed centre-to-centre separation in metres.
-        exempt: Robots whose ACTIVE command is a clearing maneuver; pairs with
-            at least one such member are not flagged.
+        exempt: A `ClearingExemption`, or a bare set of clearing robots, which
+            exempts every pair with at least one such member (robot scope).
 
     Returns:
         The set of `robot_id`s involved in at least one violating pair.
     """
+    exemption = _as_exemption(exempt)
     flagged: set[str] = set()
     for a, b in combinations(robots, 2):
-        if a["robot_id"] in exempt or b["robot_id"] in exempt:
+        if exemption.covers_pair(a["robot_id"], b["robot_id"]):
             continue
         distance = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
         if distance < min_distance_m:
@@ -258,7 +418,7 @@ def evaluate_latches(
     limits: SafetyLimits,
     previous_latched: set[str] | frozenset[str] = frozenset(),
     last_fresh_distances: Mapping[tuple[str, str], float] | None = None,
-    exempt: set[str] | frozenset[str] = frozenset(),
+    exempt: ExemptInput = frozenset(),
 ) -> LatchEvaluation:
     """Compute the latched-robot set for one scene snapshot.
 
@@ -288,11 +448,14 @@ def evaluate_latches(
     lifts only once a non-STALE reading shows the pair at or beyond
     `min_distance_m`.
 
-    Robots in `exempt` (an ACTIVE clearing maneuver, `clearing_exempt_robots`)
-    are exempt from rule 2 exactly as they are from rule 1: a commanded backup
-    is the designed way out of a close standoff and the fail-safe must not
-    stall it. A robot on a Nav2 leg or a wait is not exempt, so a latch that
-    fired before such a command went ACTIVE persists (run K1, 2026-09-26).
+    Exempt pairs skip rule 2's remembered-distance latch exactly as they skip
+    rule 1: a commanded backup is the designed way out of a close standoff and
+    the fail-safe must not stall it. The keep-the-existing-latch half is per
+    robot, so it is lifted for every clearing robot; a clearing robot that is
+    still within the band of a non-exempt robot (a bystander) is re-latched
+    by the pair-scoped half instead. A robot on a Nav2 leg or a wait is not
+    exempt, so a latch that fired before such a command went ACTIVE persists
+    (run K1, 2026-09-26).
 
     Args:
         robots: Robot state dicts with `robot_id`, `x`, `y`, and optionally
@@ -301,18 +464,20 @@ def evaluate_latches(
         previous_latched: Robot ids latched by the previous evaluation.
         last_fresh_distances: Pairwise-distance memory returned by the previous
             evaluation; `None` on the first call.
-        exempt: Robots whose ACTIVE command is a clearing maneuver.
+        exempt: A `ClearingExemption`, or a bare set of clearing robots
+            (robot scope; see `detect_proximity_violations`).
 
     Returns:
         The new latched set, the reason per latched robot, and the updated
         pairwise-distance memory.
     """
+    exemption = _as_exemption(exempt)
     memory = dict(last_fresh_distances or {})
     latched: set[str] = set()
     reasons: dict[str, str] = {}
 
     for robot_id in detect_proximity_violations(
-        robots, limits.min_distance_m, exempt
+        robots, limits.min_distance_m, exemption
     ):
         latched.add(robot_id)
         reasons[robot_id] = REASON_MIN_DISTANCE
@@ -334,7 +499,7 @@ def evaluate_latches(
     for a_id, b_id in combinations(robot_ids, 2):
         if a_id not in stale and b_id not in stale:
             continue
-        if a_id in exempt or b_id in exempt:
+        if exemption.covers_pair(a_id, b_id):
             continue
         last_distance = memory.get(_pair_key(a_id, b_id))
         if last_distance is None or last_distance >= limits.stale_unsafe_distance_m:
@@ -344,7 +509,7 @@ def evaluate_latches(
             reasons.setdefault(robot_id, REASON_STALE_POSE)
 
     for robot_id in stale & set(previous_latched):
-        if robot_id in exempt:
+        if robot_id in exemption.clearing_robots:
             continue
         latched.add(robot_id)
         reasons.setdefault(robot_id, REASON_STALE_POSE)

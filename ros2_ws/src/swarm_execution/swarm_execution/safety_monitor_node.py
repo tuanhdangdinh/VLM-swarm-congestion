@@ -13,13 +13,15 @@ net result is a slow crawl into the other robot rather than a stop. With the
 cancel, DWB stops immediately and the safety zero has no competition.
 
 Clearing-maneuver exemption: while a robot's ACTIVE coordination command is a
-`yield` or `reverse` (a raw-cmd_vel clearing maneuver), every pair containing
-that robot is exempt from the latch rules so the backup, pull-off and pass can
-work inside `min_distance_m`. Nav2-goal legs (`reroute`, `convoy`, `navigate`,
-...) and waits do not exempt anything. The action is read from
-`/coordination/commands`, because the command id carries the decision's
+`yield` or `reverse` (a raw-cmd_vel clearing maneuver), its pairs with the
+partners that same command names are exempt from the latch rules so the
+backup, pull-off and pass can work inside `min_distance_m`. Any robot outside
+that command (a bystander) keeps full protection against the clearing robot.
+Nav2-goal legs (`reroute`, `convoy`, `navigate`, ...) and waits do not exempt
+anything. The action, the command's robots and a yield's passer order are read
+from `/coordination/commands`, because the command id carries the decision's
 strategy, shared by all robots, not each robot's action. See
-`clearing_exempt_robots` and docs/specs/module4/safety-monitor.md §10.
+`CoordinationTracker.exemption` and docs/specs/module4/safety-monitor.md §10.
 
 STALE fail-safe: a robot whose marker M1 can no longer detect has an unknown
 pose, which is unsafe rather than absent, so it keeps its latch and can be
@@ -95,6 +97,7 @@ class SafetyMonitorNode(Node):
         self._stop_pubs: dict[str, object] = {}
         self._latched_stops: set[str] = set()
         self._coordination = CoordinationTracker()
+        self._exempt_pairs: frozenset[tuple[str, str]] | None = frozenset()
         self._last_fresh_distances: dict[tuple[str, str], float] = {}
         self.create_subscription(
             String, "/perception/scene_state", self._on_scene_state, 10
@@ -120,7 +123,25 @@ class SafetyMonitorNode(Node):
         )
 
     def _on_coord_command(self, msg) -> None:
-        self._coordination.record_command(msg.command_id, msg.robot_id, msg.action)
+        self._coordination.record_command(
+            msg.command_id, msg.robot_id, msg.action, self._command_parameters(msg)
+        )
+
+    def _command_parameters(self, msg) -> dict | None:
+        raw = getattr(msg, "parameters_json", "") or ""
+        if not raw:
+            return None
+        try:
+            parameters = json.loads(raw)
+        except (ValueError, TypeError) as exc:
+            # Fail closed: without a yield's passer order the tracker pairs the
+            # yielder only with robots its command addressed.
+            self.get_logger().warning(
+                f"command parameters parse failed command={msg.command_id} "
+                f"robot={msg.robot_id}: {exc}"
+            )
+            return None
+        return parameters if isinstance(parameters, dict) else None
 
     def _on_coord_status(self, msg) -> None:
         prior_action = self._coordination.active_action(msg.robot_id)
@@ -173,17 +194,23 @@ class SafetyMonitorNode(Node):
             ):
                 speeders.add(robot_id)
 
-        exempt = self._coordination.exempt_robots()
+        exemption = self._coordination.exemption()
+        if exemption.pairs != self._exempt_pairs:
+            self._exempt_pairs = exemption.pairs
+            pairs = ",".join(f"{a}+{b}" for a, b in sorted(exemption.pairs or ()))
+            self.get_logger().info(f"exempt pairs changed pairs={pairs or '-'}")
         evaluation = evaluate_latches(
             positions,
             self._limits,
             self._latched_stops,
             self._last_fresh_distances,
-            exempt,
+            exemption,
         )
         self._last_fresh_distances = evaluation.last_fresh_distances
-        flagged = set(evaluation.latched) | speeders
-        effective = flagged - exempt
+        # Pair rules are already scoped inside evaluate_latches, so a clearing
+        # robot latched against a bystander stays latched; only the per-robot
+        # speed rule still exempts clearing robots outright.
+        effective = set(evaluation.latched) | (speeders - exemption.clearing_robots)
 
         reasons = dict(evaluation.reasons)
         for robot_id in speeders:
