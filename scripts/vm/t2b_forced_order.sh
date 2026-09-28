@@ -9,7 +9,9 @@
 # It checks the deployed tree for the T2b safety slice (pair-scoped clearing
 # exemption 9c38042, ordered hold-until-last release 99f4699, first-passer
 # guard 38868d2, one passer parser fc441d4) and the robot_3 hold-back
-# (daa2558), by symbol and, in a git checkout, by ancestry; and M5/M3 for the
+# (daa2558), by symbol and - in a git checkout whose safety files equal HEAD;
+# an rsync deploy over an older checkout skips it with a NOTE - by ancestry;
+# and M5/M3 for the
 # T2b settings (initial_tasks with robot_3's start_delay_sec, the 1.0 m
 # corridor, grounding.mode legacy). The alternative arm reverses robot_1
 # toward the queued robot_3; it is safe only with both safety commits live.
@@ -21,7 +23,10 @@
 # M5 decision artifacts and an uptime snapshot (three-robot load, report item
 # 5) are collected into $OUT/<arm>_seed<SEED>/. At the end the runs are scored
 # into $OUT/margin.json; writing the margin into the scenario is left to the
-# operator (score --write-scenario) after a look at the per-run arrivals.
+# operator (score --write-scenario) after a look at the per-run arrivals. A
+# censored margin (an alternative run never finished) prints LOWER-BOUND, not
+# PASS, and is written only with --accept-censored: it is a feasibility
+# contrast, the report's Layer 7 option (e), which needs the owner's call.
 #
 # Usage (on the VM, from the repo):
 #   bash scripts/vm/t2b_forced_order.sh

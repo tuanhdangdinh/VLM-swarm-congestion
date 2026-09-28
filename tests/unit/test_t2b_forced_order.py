@@ -302,3 +302,58 @@ def test_driver_refuses_to_run_when_preflight_fails(tmp_path):
     assert "REFUSING TO RUN" in completed.stderr
     assert "pair-scoped clearing exemption (9c38042)" in completed.stderr
     assert not (stub.parent / "RAN").exists()
+
+
+def _git_init_commit(repo: Path) -> dict[str, str]:
+    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    for cmd in (["init", "-q"], ["add", "-A"], ["commit", "-qm", "x"]):
+        subprocess.run(["git", "-C", str(repo), *cmd], check=True, env=env,
+                       capture_output=True)
+    return env
+
+
+def test_an_rsync_deployed_tree_over_an_old_checkout_relies_on_symbols(tmp_path):
+    # HEAD lacks the safety commits, but the files were synced on top of it:
+    # ancestry cannot speak for them, the symbol checks do.
+    repo = _t2b_tree(tmp_path)
+    safety = repo / "ros2_ws/src/swarm_execution/swarm_execution/safety.py"
+    text = safety.read_text()
+    safety.write_text(text.replace("class ClearingExemption", "class X"))
+    _git_init_commit(repo)
+    safety.write_text(text)
+    assert preflight(repo) == []
+
+
+def _run_score(tmp_path, alternative_arrival_3, *extra):
+    runs = []
+    for seed in (42, 43):
+        runs += ["--run", "oracle:" + str(_write_gt(
+            tmp_path / f"o{seed}" / "gt", {"robot_1": 60.0, "robot_2": 120.0, "robot_3": 100.0}))]
+        runs += ["--run", "alternative:" + str(_write_gt(
+            tmp_path / f"a{seed}" / "gt",
+            {"robot_1": 150.0, "robot_2": 70.0, "robot_3": alternative_arrival_3}))]
+    return subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "t2b_forced_order.py"), "score", *runs, *extra],
+        capture_output=True, text=True, check=False,
+    )
+
+
+def test_score_reports_a_censored_margin_as_a_lower_bound_not_a_pass(tmp_path):
+    completed = _run_score(tmp_path, None)
+    assert completed.returncode == 0, completed.stderr
+    assert "LOWER-BOUND (feasibility contrast" in completed.stdout
+    assert " PASS" not in completed.stdout
+
+
+def test_score_refuses_to_write_a_censored_margin_without_consent(tmp_path):
+    completed = _run_score(tmp_path, None, "--write-scenario")
+    assert completed.returncode != 0
+    assert "--accept-censored" in completed.stderr
+    assert "  margin: null" in (ROOT / SCENARIO_RELPATH).read_text()
+
+
+def test_score_reports_a_finished_margin_as_pass_or_fail(tmp_path):
+    completed = _run_score(tmp_path, 180.0)
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.rstrip().endswith("PASS")

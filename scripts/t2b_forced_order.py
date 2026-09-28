@@ -142,7 +142,7 @@ def preflight(repo: Path) -> list[str]:
         text = path.read_text(encoding="utf-8") if path.is_file() else ""
         if needle not in text:
             problems.append(f"missing {what}: {needle!r} not in {relpath}")
-    if (repo / ".git").exists():
+    if ancestry_applies(repo):
         for commit, what in REQUIRED_COMMITS.items():
             ancestor = subprocess.run(
                 ["git", "-C", str(repo), "merge-base", "--is-ancestor", commit, "HEAD"],
@@ -157,6 +157,29 @@ def preflight(repo: Path) -> list[str]:
     problems += _check_orchestrator(repo / ORCHESTRATOR_RELPATH)
     problems += _check_grounding(repo / RAG_RELPATH)
     return problems
+
+
+def ancestry_applies(repo: Path) -> bool:
+    """Whether the commit-ancestry check can speak for the tree's files.
+
+    Only in a git checkout whose safety-slice files equal its HEAD. A tree
+    deployed by rsync over an older checkout has a HEAD that predates the
+    files it runs; there the symbol checks alone apply.
+
+    Args:
+        repo: Root of the deployed tree.
+
+    Returns:
+        True when HEAD describes the files the runs will use.
+    """
+    if not (repo / ".git").exists():
+        return False
+    paths = sorted({relpath for relpath, _needle, _what in REQUIRED_SIGNATURES})
+    diff = subprocess.run(
+        ["git", "-C", str(repo), "diff", "--quiet", "HEAD", "--", *paths],
+        capture_output=True, check=False,
+    )
+    return diff.returncode == 0
 
 
 def _check_orchestrator(path: Path) -> list[str]:
@@ -368,11 +391,15 @@ def write_margin(scenario_path: Path, record: dict[str, Any]) -> str:
 
 
 def _cmd_preflight(args: argparse.Namespace) -> int:
-    problems = preflight(Path(args.repo))
+    repo = Path(args.repo)
+    problems = preflight(repo)
     for problem in problems:
         print(f"PREFLIGHT FAIL: {problem}", file=sys.stderr)
     if problems:
         return 1
+    if not ancestry_applies(repo):
+        print("PREFLIGHT NOTE: commit ancestry not checked (no git checkout, or the "
+              "safety files differ from HEAD, e.g. an rsync deploy); symbols checked")
     print("PREFLIGHT OK: safety slice, hold-back and T2b config present")
     return 0
 
@@ -399,11 +426,21 @@ def _cmd_score(args: argparse.Namespace) -> int:
         print(f"{score.arm:12s} {score.run_id}  total={score.total_sec:.2f}s "
               f"censored={score.censored} time_to_goal={arrivals}")
     record = margin_record(scores)
-    verdict = "PASS" if record["margin"] >= record["threshold"] else "FAIL"
-    bound = " (lower bound: an alternative run never finished)" if record["censored"] else ""
-    print(f"margin={record['margin']:.4f} threshold={record['threshold']} {verdict}{bound}")
+    if record["censored"]:
+        # A run that never finished is not a slower order but an infeasible
+        # one: the margin is only a lower bound and the contrast is one of
+        # feasibility (feasibility report, Layer 7 option e) - an owner call.
+        verdict = "LOWER-BOUND (feasibility contrast: an alternative run never finished)"
+    else:
+        verdict = "PASS" if record["margin"] >= record["threshold"] else "FAIL"
+    print(f"margin={record['margin']:.4f} threshold={record['threshold']} {verdict}")
     if args.out:
         Path(args.out).write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+    if args.write_scenario and record["censored"] and not args.accept_censored:
+        raise SystemExit(
+            "refusing --write-scenario for a censored margin; decide the cost model "
+            "first and pass --accept-censored to record it anyway"
+        )
     if args.write_scenario:
         sys.path.insert(0, str(REPO_ROOT))
         from isaac.vgu_sim.config import ScenarioConfig
@@ -429,6 +466,8 @@ def main(argv: list[str] | None = None) -> int:
     score.add_argument("--run", action="append", required=True)
     score.add_argument("--out")
     score.add_argument("--write-scenario", action="store_true")
+    score.add_argument("--accept-censored", action="store_true",
+                       help="allow --write-scenario for a lower-bound (censored) margin")
     score.set_defaults(func=_cmd_score)
     args = parser.parse_args(argv)
     return args.func(args)
