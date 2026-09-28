@@ -16,6 +16,7 @@ except ImportError:
     CoordinationCommand = object
     CoordinationStatus = object
 
+from swarm_execution.crossing_chain import CrossingChain, plan_crossing
 from swarm_execution.nav2_adapter import Nav2Adapter
 
 
@@ -148,8 +149,12 @@ class CommandBusNode(Node):
                 return False
             self._adapter.send_waypoints(
                 robot_id,
-                [(float(p["x"]), float(p["y"])) if isinstance(p, dict) else (float(p[0]), float(p[1]))
-                 for p in waypoints],
+                [
+                    (float(p["x"]), float(p["y"]))
+                    if isinstance(p, dict)
+                    else (float(p[0]), float(p[1]))
+                    for p in waypoints
+                ],
                 on_result=self._make_nav_result_handler(msg),
             )
             return True
@@ -181,8 +186,6 @@ class CommandBusNode(Node):
             # mid-traverse, both robots re-entered together, 2026-07-03);
             # hold_sec remains the upper-bound backstop for a passer that
             # never moves.
-            passer_robot_id = params.get("passer_robot_id") if action == "yield" else None
-            passer_clear_m = float(params.get("passer_clear_m", 1.5))
             # passer_escort_distance_m (optional): when present, the passer is
             # DRIVEN through the gap by the raw-cmd_vel escort primitive
             # during the hold instead of resuming Nav2 — DWB could not
@@ -190,34 +193,17 @@ class CommandBusNode(Node):
             # ~0.01 m/s, H3 runs 4-7). While escorted, the passer's linked
             # wait stays ACTIVE (suppressing its base mission) and releases
             # via the normal yield-terminal path once the hold ends.
-            escort_distance = params.get("passer_escort_distance_m")
-            has_escort = passer_robot_id is not None and escort_distance is not None
+            # crossing_order (optional, 2+ passers): the passers are admitted
+            # one at a time in that order and the hold ends only when the
+            # LAST one has cleared; with a single passer the chain is exactly
+            # the hold described above. See crossing_chain.py.
+            passers = plan_crossing(params) if action == "yield" else ()
+            chain = CrossingChain(passers) if passers else None
 
             def _start_hold(command, _hold_sec: float) -> None:
                 self._publish_status(command, "ACTIVE", "holding for passing robot")
-                if has_escort:
-                    # Odom yaw 0 faces each robot's base goal (both spawn
-                    # facing their goal), so no map-frame knowledge needed.
-                    self._adapter.drive_heading(
-                        passer_robot_id,
-                        target_yaw_rad=0.0,
-                        distance_m=float(escort_distance),
-                        on_result=lambda status, detail: self.get_logger().info(
-                            f"escort {passer_robot_id}: {status} {detail}"
-                        ),
-                    )
-                else:
-                    # No escort grounded: release the linked wait NOW so the
-                    # passer traverses under Nav2 while the yielder is parked.
-                    # Released only at terminal, the passer sat frozen through
-                    # the whole hold and both robots re-entered the aisle
-                    # together, re-deadlocking (observed 2026-07-03).
-                    self._release_linked_waits(
-                        command.command_id, "COMPLETED",
-                        release_detail="released: yield holding",
-                    )
                 timer_ref: dict = {}
-                odom_ref: dict = {}
+                odom_subs: list = []
                 done_ref = {"done": False}
 
                 def _finish_hold(detail: str) -> None:
@@ -229,29 +215,71 @@ class CommandBusNode(Node):
                     if t is not None:
                         t.cancel()
                         self.destroy_timer(t)
-                    sub = odom_ref.get("sub")
-                    if sub is not None:
+                    for sub in odom_subs:
                         self.destroy_subscription(sub)
 
                 def _hold_expired() -> None:
                     _finish_hold("yield complete")
 
-                if passer_robot_id:
-                    start_ref: dict = {}
-
-                    def _on_passer_odom(odom_msg) -> None:
-                        p = odom_msg.pose.pose.position
-                        if "pos" not in start_ref:
-                            start_ref["pos"] = (p.x, p.y)
-                            return
-                        sx, sy = start_ref["pos"]
-                        moved = ((p.x - sx) ** 2 + (p.y - sy) ** 2) ** 0.5
-                        if moved >= passer_clear_m:
-                            _finish_hold("yield complete: passer cleared")
-
-                    odom_ref["sub"] = self.create_subscription(
-                        Odometry, f"/{passer_robot_id}/odom", _on_passer_odom, 10
+                def _on_passer_odom(passer_id: str, odom_msg) -> None:
+                    if done_ref["done"]:
+                        return
+                    p = odom_msg.pose.pose.position
+                    step = chain.on_odometry(passer_id, p.x, p.y)
+                    if step is None:
+                        return
+                    if step.next is None:
+                        _finish_hold("yield complete: passer cleared")
+                        return
+                    # An escorted passer's wait is still holding its base
+                    # mission; it is past the yielder now, so let it go.
+                    self._release_wait(
+                        command.command_id, step.cleared.robot_id, "released: passer cleared"
                     )
+                    _admit(step.next, "released: previous passer cleared")
+
+                def _admit(passer, release_detail: str) -> None:
+                    if passer.escort_m is not None:
+                        # Odom yaw 0 faces each robot's base goal (every robot
+                        # spawns facing its goal), so no map-frame knowledge.
+                        self._adapter.drive_heading(
+                            passer.robot_id,
+                            target_yaw_rad=0.0,
+                            distance_m=float(passer.escort_m),
+                            on_result=lambda status, detail, rid=passer.robot_id: (
+                                self.get_logger().info(f"escort {rid}: {status} {detail}")
+                            ),
+                        )
+                    elif chain.is_multi_passer:
+                        self._release_wait(command.command_id, passer.robot_id, release_detail)
+                    else:
+                        # No escort grounded: release the linked wait NOW so
+                        # the passer traverses under Nav2 while the yielder is
+                        # parked. Released only at terminal, the passer sat
+                        # frozen through the whole hold and both robots
+                        # re-entered the aisle together, re-deadlocking
+                        # (observed 2026-07-03).
+                        self._release_linked_waits(
+                            command.command_id, "COMPLETED", release_detail=release_detail
+                        )
+                    odom_subs.append(
+                        self.create_subscription(
+                            Odometry,
+                            f"/{passer.robot_id}/odom",
+                            lambda odom_msg, rid=passer.robot_id: _on_passer_odom(rid, odom_msg),
+                            10,
+                        )
+                    )
+
+                if chain is None:
+                    # No passer named: nothing to watch, release every linked
+                    # wait at hold start (same reason as the no-escort case).
+                    self._release_linked_waits(
+                        command.command_id, "COMPLETED",
+                        release_detail="released: yield holding",
+                    )
+                else:
+                    _admit(chain.current, "released: yield holding")
 
                 t = self.create_timer(_hold_sec, _hold_expired)
                 timer_ref["timer"] = t
@@ -395,7 +423,8 @@ class CommandBusNode(Node):
         msg.detail = detail
         self._status_pub.publish(msg)
         self.get_logger().info(
-            f"status published command={command.command_id} robot={command.robot_id} status={status}"
+            f"status published command={command.command_id} "
+            f"robot={command.robot_id} status={status}"
         )
         for delay_sec in (0.25, 0.75):
             self._schedule_status_republish(msg, delay_sec)
@@ -433,6 +462,27 @@ class CommandBusNode(Node):
                 self.destroy_timer(timer)
             self._publish_status(wait.command, "COMPLETED", detail)
 
+    def _release_wait(self, command_id: str, robot_id: str, detail: str) -> None:
+        """Complete one still-active linked wait, if it is still active.
+
+        The ordered release of a multi-passer yield: unlike
+        `_release_linked_waits`, later passers' waits under the same command
+        stay in place.
+
+        Args:
+            command_id: Command identifier shared by the yield and the wait.
+            robot_id: The passer whose wait is released.
+            detail: Status detail for the released wait.
+        """
+        wait = self._active_waits.pop((command_id, robot_id), None)
+        if wait is None:
+            return
+        timer = wait.timer_ref.get("timer")
+        if timer is not None:
+            timer.cancel()
+            self.destroy_timer(timer)
+        self._publish_status(wait.command, "COMPLETED", detail)
+
     def _update_in_flight_registry(self, robot_id: str, command_id: str, status: str) -> None:
         """Keep `_in_flight` in sync with the status that is about to publish.
 
@@ -465,7 +515,8 @@ class CommandBusNode(Node):
         def republish() -> None:
             self._status_pub.publish(msg)
             self.get_logger().info(
-                f"status republished command={msg.command_id} robot={msg.robot_id} status={msg.status}"
+                f"status republished command={msg.command_id} "
+                f"robot={msg.robot_id} status={msg.status}"
             )
             timer = timer_ref["timer"]
             timer.cancel()

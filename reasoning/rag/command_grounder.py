@@ -76,6 +76,14 @@ def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
+def _passer_budget(escorts_m: Sequence[float]) -> float:
+    # Backstop scale for a multi-passer yield, in units of one single-passer
+    # hold: each passer costs max(1, escort / MAX_ESCORT_M), the ratio the
+    # 45 s hold / 4.0 m escort pair was sized with. A backstop that expires
+    # mid-crossing re-creates the 2026-07-03 re-deadlock.
+    return sum(max(1.0, escort / MAX_ESCORT_M) for escort in escorts_m)
+
+
 def resolve_robot_order(decision: CongestionDecision) -> list[str]:
     """Order the involved robots with the model's stated yielder listed first.
 
@@ -291,7 +299,10 @@ def ground_reasoner_result(
 
     Everything above is the legacy mode: `params=None` or `params.mode ==
     "legacy"`, byte-identical to the grounder before the mode switch existed,
-    whatever `snapshot`, `retreat_choice` and `crossing_order` say. With
+    whatever `snapshot` and `retreat_choice` say, for every command with at
+    most one passer. A legacy yield with two or more passers (2026-09-28)
+    also commands every passer in `crossing_order` for M4's ordered
+    hold-until-last release (see `_ground_legacy`). With
     `params.mode == "derived"` the rev-8 Appendix A path runs instead (see
     `_ground_derived`): the snapshot replaces `robot_positions`, distances are
     feasibility-banded instead of clamped, the retreat is one of the ranked,
@@ -326,11 +337,13 @@ def ground_reasoner_result(
         retreat_choice: Derived mode only: the parsed stage-2 answer. None or
             a letter that names no validated candidate grounds the top-ranked
             candidate instead, tagged `retreat=default:*`.
-        crossing_order: Derived mode only: passing order for the non-yielders,
-            overriding the decision's own. None reads `decision.crossing_order`
-            (prompt-v2 field; every involved robot) minus the grounded yielder.
-            Must be a permutation of the involved robots minus the grounded
-            yielder, else the involved-robots order is used and tagged.
+        crossing_order: Passing order for the non-yielders, overriding the
+            decision's own. None reads `decision.crossing_order` (prompt-v2
+            field; every involved robot) minus the grounded yielder. Must be a
+            permutation of the involved robots minus the grounded yielder,
+            else the involved-robots order is used (and tagged, in derived
+            mode). Legacy mode reads it only for a yield with two or more
+            passers.
 
     Returns:
         Schema-validated coordination command dict.
@@ -352,8 +365,33 @@ def ground_reasoner_result(
             yield_feasibility_mode=yield_feasibility_mode,
         )
     return _ground_legacy(
-        result, robot_positions, geometry, static_obstacles, yield_feasibility_mode
+        result,
+        robot_positions,
+        geometry,
+        static_obstacles,
+        yield_feasibility_mode,
+        crossing_order=crossing_order,
     )
+
+
+def _legacy_passer_order(
+    robot_ids: Sequence[str],
+    decision: CongestionDecision,
+    crossing_order: Sequence[str] | None,
+) -> list[str]:
+    # The robots after the (post-gate) yielder, in the requested crossing
+    # order when one is given and is a permutation of them. Two robots have
+    # one passer, so any order is moot there.
+    rest = list(robot_ids[1:])
+    if len(rest) < 2:
+        return rest
+    requested = crossing_order if crossing_order is not None else decision.crossing_order
+    if requested is None:
+        return rest
+    candidate = [robot_id for robot_id in requested if robot_id != robot_ids[0]]
+    if sorted(candidate) == sorted(rest) and len(set(candidate)) == len(rest):
+        return candidate
+    return rest
 
 
 def _ground_legacy(
@@ -362,8 +400,16 @@ def _ground_legacy(
     geometry: SceneGeometry | None,
     static_obstacles: Sequence[StaticObstacleInput],
     yield_feasibility_mode: YieldFeasibilityMode,
+    crossing_order: Sequence[str] | None = None,
 ) -> dict[str, Any]:
-    """Scenario-tuned pre-rev-8 bridge; its output is pinned byte-identical."""
+    """Scenario-tuned pre-rev-8 bridge; its output is pinned byte-identical.
+
+    Byte-identical for one passer (two robots). A yield with two or more
+    passers (2026-09-28) commands every one of them: the yield carries the
+    passing order and a clearance per passer for M4's ordered hold-until-last
+    release, each passer gets a linked wait with its `linked_position`, and
+    the backstops scale with the passers' escort budget.
+    """
     decision = result.decision
     if decision is None or not decision.congestion_detected:
         raise CommandGroundingError("cannot ground an empty or non-congestion decision")
@@ -446,9 +492,14 @@ def _ground_legacy(
         park_coord: float | None = None
         park_axis: Literal["x", "y"] = "x"
         yield_refused = yield_refusal_reason is not None
+        passer_order = _legacy_passer_order(robot_ids, decision, crossing_order)
+        multi_passer = len(passer_order) > 1
+        # Fallback per-passer clearance, replaced below from each passer's own
+        # position when the scene is known.
+        crossing_clear = [passer_clear_m] * len(passer_order)
         if not yield_refused and len(robot_ids) > 1 and robot_positions is not None:
             yielder_position = robot_positions.get(robot_ids[0])
-            passer_position = robot_positions.get(robot_ids[1])
+            passer_position = robot_positions.get(passer_order[0])
             if yielder_position is not None and passer_position is not None:
                 corridor_center = 0.0
                 park_offset = PARK_ABS_X_M
@@ -501,6 +552,24 @@ def _ground_legacy(
                     )
                     passer_clear_m = escort_m
                     passer_escort_distance_m = escort_m
+                    if multi_passer:
+                        # Unclamped above: MAX_ESCORT_M sizes ONE passer
+                        # against the 45 s hold; a queued passer can be
+                        # farther, and a clamped clearance would end its
+                        # crossing before it is past the parked yielder. The
+                        # hold scales with the budget below instead.
+                        for position, passer_id in enumerate(passer_order):
+                            position_xy = robot_positions.get(passer_id)
+                            if position_xy is None:
+                                continue
+                            crossing_clear[position] = round(
+                                max(
+                                    MIN_ESCORT_M,
+                                    abs(position_xy[axis_index] - park_coord)
+                                    + passer_clearance,
+                                ),
+                                3,
+                            )
         if yield_refused:
             actions = [
                 {
@@ -537,10 +606,21 @@ def _ground_legacy(
                 if geometry is not None:
                     yield_parameters["park_axis"] = park_axis
                     yield_parameters["park_coord_m"] = park_coord
+            if multi_passer:
+                budget = _passer_budget(crossing_clear)
+                yield_parameters["hold_sec"] = round(yield_hold_sec * budget, 1)
+                passing_wait_sec = round(passing_wait_sec * budget, 1)
+                yield_total_sec = round(yield_total_sec * budget, 1)
+                passer_clear_m = crossing_clear[0]
+                passer_escort_distance_m = crossing_clear[0]
             if len(robot_ids) > 1:
-                yield_parameters["passer_robot_id"] = robot_ids[1]
+                yield_parameters["passer_robot_id"] = passer_order[0]
                 yield_parameters["passer_clear_m"] = passer_clear_m
                 yield_parameters["passer_escort_distance_m"] = passer_escort_distance_m
+            if multi_passer:
+                yield_parameters["crossing_order"] = list(passer_order)
+                yield_parameters["crossing_clear_m"] = list(crossing_clear)
+                yield_parameters["crossing_escort_m"] = list(crossing_clear)
             actions = [
                 {
                     "robot_id": robot_ids[0],
@@ -548,7 +628,21 @@ def _ground_legacy(
                     "parameters": yield_parameters,
                 },
             ]
-            if len(robot_ids) > 1:
+            if multi_passer:
+                # Every ordered passer is suppressed until M4's chain releases
+                # it (linked_position = its place in crossing_order).
+                actions.extend(
+                    {
+                        "robot_id": passer_id,
+                        "action": "temporary_wait",
+                        "parameters": {
+                            "duration_sec": passing_wait_sec,
+                            "linked_position": position,
+                        },
+                    }
+                    for position, passer_id in enumerate(passer_order)
+                )
+            elif len(robot_ids) > 1:
                 # Suppress the passing robot so M5 does not dispatch a
                 # competing command while the aisle is still blocked. The M4
                 # command bus releases this wait the moment the linked yield

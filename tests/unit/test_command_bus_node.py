@@ -1012,3 +1012,298 @@ def test_escort_params_drive_passer_instead_of_hold_start_release():
     assert not any(
         d.startswith("released:") for (_, _, _, d) in published
     )
+
+
+# ---------------------------------------------------------------------------
+# Ordered hold-until-last release (T2b safety prerequisite, 2026-09-28). The
+# two-robot pins below capture the full ordered status stream of every
+# single-passer flow, so the multi-passer chain cannot change it.
+# ---------------------------------------------------------------------------
+
+
+class _YieldRig:
+    """Command bus double with timer, odometry and escort capture."""
+
+    def __init__(self):
+        self.adapter = _NavLegAdapter()
+        self.escorts: list[tuple[str, float, float]] = []
+        self.adapter.drive_heading = (
+            lambda robot_id, target_yaw_rad, distance_m, on_result=None: self.escorts.append(
+                (robot_id, target_yaw_rad, distance_m)
+            )
+        )
+        self.node, self.published = _build_node(self.adapter)
+        self.timers: list[_FakeTimer] = []
+        self.odom: dict[str, callable] = {}
+        self.unsubscribed: list[str] = []
+
+        def create_timer(period, cb):
+            timer = _FakeTimer()
+            timer.period = period
+            timer.cb = cb
+            self.timers.append(timer)
+            return timer
+
+        def create_subscription(mtype, topic, cb, qos):
+            self.odom[topic] = cb
+            return topic
+
+        self.node.create_timer = create_timer
+        self.node.create_subscription = create_subscription
+        self.node.destroy_subscription = self.unsubscribed.append
+
+    def command(self, robot_id, action, parameters, command_id="cmd-Y"):
+        self.node._on_command(
+            _Msg(
+                command_id=command_id,
+                robot_id=robot_id,
+                action=action,
+                parameters_json=json.dumps(parameters),
+            )
+        )
+
+    def odom_at(self, robot_id, x, y):
+        self.odom[f"/{robot_id}/odom"](
+            SimpleNamespace(
+                pose=SimpleNamespace(pose=SimpleNamespace(position=SimpleNamespace(x=x, y=y)))
+            )
+        )
+
+    def timer(self, period):
+        return [t for t in self.timers if t.period == period][-1]
+
+
+_TWO_ROBOT_YIELD = {
+    "backup_distance_m": 0.8,
+    "hold_sec": 45.0,
+    "pull_off_lateral_m": 0.35,
+    "passer_robot_id": "robot_2",
+    "passer_clear_m": 1.5,
+}
+
+
+def _start_two_robot_yield(rig, yield_parameters):
+    rig.command("robot_2", "temporary_wait", {"duration_sec": 120.0})
+    rig.command("robot_1", "yield", yield_parameters)
+    rig.adapter.backup_on_result["robot_1"]("COMPLETED", "backup done")
+    rig.adapter.sidestep_on_result("COMPLETED", "side step complete: moved 0.350 m")
+
+
+def test_two_robot_no_escort_yield_status_stream_pinned():
+    rig = _YieldRig()
+    _start_two_robot_yield(rig, _TWO_ROBOT_YIELD)
+    rig.odom_at("robot_2", 0.3, 0.0)
+    rig.odom_at("robot_2", -0.5, 0.0)
+    rig.odom_at("robot_2", -1.3, 0.0)
+
+    assert rig.published == [
+        ("cmd-Y", "robot_2", "ACTIVE", "waiting"),
+        ("cmd-Y", "robot_1", "ACTIVE", "pulling off aisle centerline"),
+        ("cmd-Y", "robot_1", "ACTIVE", "holding for passing robot"),
+        ("cmd-Y", "robot_2", "COMPLETED", "released: yield holding"),
+        ("cmd-Y", "robot_1", "COMPLETED", "yield complete: passer cleared"),
+    ]
+    assert rig.escorts == []
+    assert rig.unsubscribed == ["/robot_2/odom"]
+    assert rig.timer(45.0).cancelled is True
+    assert rig.node._active_waits == {}
+
+
+def test_two_robot_escort_yield_status_stream_pinned():
+    rig = _YieldRig()
+    _start_two_robot_yield(
+        rig,
+        {**_TWO_ROBOT_YIELD, "passer_clear_m": 2.4, "passer_escort_distance_m": 2.4},
+    )
+    rig.odom_at("robot_2", 0.3, 0.0)
+    rig.odom_at("robot_2", -2.2, 0.0)
+
+    assert rig.published == [
+        ("cmd-Y", "robot_2", "ACTIVE", "waiting"),
+        ("cmd-Y", "robot_1", "ACTIVE", "pulling off aisle centerline"),
+        ("cmd-Y", "robot_1", "ACTIVE", "holding for passing robot"),
+        ("cmd-Y", "robot_1", "COMPLETED", "yield complete: passer cleared"),
+        ("cmd-Y", "robot_2", "COMPLETED", "released: yield complete"),
+    ]
+    assert rig.escorts == [("robot_2", 0.0, 2.4)]
+    assert rig.unsubscribed == ["/robot_2/odom"]
+
+
+def test_two_robot_hold_expiry_status_stream_pinned():
+    rig = _YieldRig()
+    _start_two_robot_yield(
+        rig,
+        {**_TWO_ROBOT_YIELD, "passer_clear_m": 2.4, "passer_escort_distance_m": 2.4},
+    )
+    rig.odom_at("robot_2", 0.3, 0.0)
+    rig.timer(45.0).cb()
+
+    assert rig.published == [
+        ("cmd-Y", "robot_2", "ACTIVE", "waiting"),
+        ("cmd-Y", "robot_1", "ACTIVE", "pulling off aisle centerline"),
+        ("cmd-Y", "robot_1", "ACTIVE", "holding for passing robot"),
+        ("cmd-Y", "robot_1", "COMPLETED", "yield complete"),
+        ("cmd-Y", "robot_2", "COMPLETED", "released: yield complete"),
+    ]
+    assert rig.unsubscribed == ["/robot_2/odom"]
+
+
+def test_two_robot_failed_backup_status_stream_pinned():
+    rig = _YieldRig()
+    rig.command("robot_2", "temporary_wait", {"duration_sec": 120.0})
+    rig.command("robot_1", "yield", _TWO_ROBOT_YIELD)
+    rig.adapter.backup_on_result["robot_1"]("FAILED", "backup timed out")
+
+    assert rig.published == [
+        ("cmd-Y", "robot_2", "ACTIVE", "waiting"),
+        ("cmd-Y", "robot_1", "FAILED", "backup timed out"),
+        ("cmd-Y", "robot_2", "COMPLETED", "released: yield failed"),
+    ]
+    assert rig.odom == {}
+
+
+def test_two_robot_busy_rejected_yield_status_stream_pinned():
+    rig = _YieldRig()
+    rig.command("robot_1", "navigate", {"goal": {"x": 1.0, "y": 0.0}}, command_id="nav-0")
+    rig.adapter.on_results["robot_1"]("ACTIVE", "goal accepted")
+    rig.command("robot_2", "temporary_wait", {"duration_sec": 120.0})
+    rig.command("robot_1", "yield", _TWO_ROBOT_YIELD)
+
+    assert rig.published == [
+        ("nav-0", "robot_1", "ACTIVE", "goal accepted"),
+        ("cmd-Y", "robot_2", "ACTIVE", "waiting"),
+        ("cmd-Y", "robot_1", "FAILED", "robot busy: nav-0"),
+        ("cmd-Y", "robot_2", "COMPLETED", "released: yield rejected"),
+    ]
+
+
+# T2b shape: robot_2 yields; robot_1 then robot_3 cross, in that order.
+_TWO_PASSER_YIELD = {
+    "backup_distance_m": 1.3,
+    "hold_sec": 90.0,
+    "pull_off_lateral_m": 0.35,
+    "passer_robot_id": "robot_1",
+    "passer_clear_m": 2.6,
+    "passer_escort_distance_m": 2.6,
+    "crossing_order": ["robot_1", "robot_3"],
+    "crossing_clear_m": [2.6, 4.9],
+    "crossing_escort_m": [2.6, 4.9],
+}
+
+
+def _start_two_passer_yield(rig, yield_parameters=None):
+    parameters = _TWO_PASSER_YIELD if yield_parameters is None else yield_parameters
+    rig.command("robot_2", "yield", parameters)
+    rig.command("robot_1", "temporary_wait", {"duration_sec": 240.0, "linked_position": 0})
+    rig.command("robot_3", "temporary_wait", {"duration_sec": 240.0, "linked_position": 1})
+    rig.adapter.backup_on_result["robot_2"]("COMPLETED", "backup done")
+    rig.adapter.sidestep_on_result("COMPLETED", "side step complete: moved 0.350 m")
+
+
+def _no_escort(parameters: dict) -> dict:
+    return {
+        k: v
+        for k, v in parameters.items()
+        if k not in ("passer_escort_distance_m", "crossing_escort_m")
+    }
+
+
+def test_two_passer_escort_hold_starts_with_first_passer_only():
+    rig = _YieldRig()
+    _start_two_passer_yield(rig)
+
+    assert rig.escorts == [("robot_1", 0.0, 2.6)]
+    assert list(rig.odom) == ["/robot_1/odom"]
+    assert ("cmd-Y", "robot_1") in rig.node._active_waits
+    assert ("cmd-Y", "robot_3") in rig.node._active_waits
+
+
+def test_two_passer_yield_not_complete_when_first_passer_clears():
+    rig = _YieldRig()
+    _start_two_passer_yield(rig)
+    rig.odom_at("robot_1", -0.3, 0.0)
+    rig.odom_at("robot_1", 2.4, 0.0)
+
+    assert not any(s[1] == "robot_2" and s[2] == "COMPLETED" for s in rig.published)
+    assert rig.escorts == [("robot_1", 0.0, 2.6), ("robot_3", 0.0, 4.9)]
+    assert ("cmd-Y", "robot_1") not in rig.node._active_waits
+    assert ("cmd-Y", "robot_3") in rig.node._active_waits
+
+
+def test_two_passer_escort_status_stream():
+    rig = _YieldRig()
+    _start_two_passer_yield(rig)
+    # robot_3 is not subscribed until its turn (pure chain tests pin that its
+    # earlier motion is ignored anyway).
+    assert "/robot_3/odom" not in rig.odom
+    rig.odom_at("robot_1", -0.3, 0.0)
+    rig.odom_at("robot_1", 2.4, 0.0)
+    rig.odom_at("robot_3", -2.5, 0.0)
+    rig.odom_at("robot_3", 2.5, 0.0)
+
+    assert rig.published == [
+        ("cmd-Y", "robot_1", "ACTIVE", "waiting"),
+        ("cmd-Y", "robot_3", "ACTIVE", "waiting"),
+        ("cmd-Y", "robot_2", "ACTIVE", "pulling off aisle centerline"),
+        ("cmd-Y", "robot_2", "ACTIVE", "holding for passing robot"),
+        ("cmd-Y", "robot_1", "COMPLETED", "released: passer cleared"),
+        ("cmd-Y", "robot_2", "COMPLETED", "yield complete: passer cleared"),
+        ("cmd-Y", "robot_3", "COMPLETED", "released: yield complete"),
+    ]
+    assert rig.unsubscribed == ["/robot_1/odom", "/robot_3/odom"]
+    assert rig.timer(90.0).cancelled is True
+
+
+def test_two_passer_no_escort_releases_waits_in_order():
+    rig = _YieldRig()
+    _start_two_passer_yield(rig, _no_escort(_TWO_PASSER_YIELD))
+
+    assert rig.escorts == []
+    assert ("cmd-Y", "robot_1") not in rig.node._active_waits
+    assert ("cmd-Y", "robot_3") in rig.node._active_waits
+
+    rig.odom_at("robot_1", -0.3, 0.0)
+    rig.odom_at("robot_1", 2.4, 0.0)
+    rig.odom_at("robot_3", -2.5, 0.0)
+    rig.odom_at("robot_3", 2.5, 0.0)
+
+    assert rig.published == [
+        ("cmd-Y", "robot_1", "ACTIVE", "waiting"),
+        ("cmd-Y", "robot_3", "ACTIVE", "waiting"),
+        ("cmd-Y", "robot_2", "ACTIVE", "pulling off aisle centerline"),
+        ("cmd-Y", "robot_2", "ACTIVE", "holding for passing robot"),
+        ("cmd-Y", "robot_1", "COMPLETED", "released: yield holding"),
+        ("cmd-Y", "robot_3", "COMPLETED", "released: previous passer cleared"),
+        ("cmd-Y", "robot_2", "COMPLETED", "yield complete: passer cleared"),
+    ]
+
+
+def test_two_passer_hold_backstop_releases_every_remaining_wait():
+    rig = _YieldRig()
+    _start_two_passer_yield(rig)
+    rig.odom_at("robot_1", -0.3, 0.0)
+    rig.timer(90.0).cb()
+
+    assert rig.published[-3:] == [
+        ("cmd-Y", "robot_2", "COMPLETED", "yield complete"),
+        ("cmd-Y", "robot_1", "COMPLETED", "released: yield complete"),
+        ("cmd-Y", "robot_3", "COMPLETED", "released: yield complete"),
+    ]
+    assert rig.node._active_waits == {}
+    assert rig.unsubscribed == ["/robot_1/odom"]
+
+
+def test_two_passer_failed_backup_releases_every_wait():
+    rig = _YieldRig()
+    rig.command("robot_2", "yield", _TWO_PASSER_YIELD)
+    rig.command("robot_1", "temporary_wait", {"duration_sec": 240.0, "linked_position": 0})
+    rig.command("robot_3", "temporary_wait", {"duration_sec": 240.0, "linked_position": 1})
+    rig.adapter.backup_on_result["robot_2"]("FAILED", "backup timed out")
+
+    assert rig.published[-3:] == [
+        ("cmd-Y", "robot_2", "FAILED", "backup timed out"),
+        ("cmd-Y", "robot_1", "COMPLETED", "released: yield failed"),
+        ("cmd-Y", "robot_3", "COMPLETED", "released: yield failed"),
+    ]
+    assert rig.escorts == []
+    assert rig.odom == {}

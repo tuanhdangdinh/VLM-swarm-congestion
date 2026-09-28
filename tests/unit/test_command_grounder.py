@@ -1,4 +1,5 @@
 import pytest
+from swarm_execution.crossing_chain import PasserPlan, plan_crossing
 
 from reasoning.rag.command_grounder import (
     CommandGroundingError,
@@ -674,3 +675,248 @@ def test_swap_does_not_touch_a_non_yield_strategy():
 
     assert [action["robot_id"] for action in command["actions"]] == ["robot_1", "robot_2"]
     assert all(action["action"] == "reverse" for action in command["actions"])
+
+
+# ---------------------------------------------------------------------------
+# Multi-passer yield fan-out (T2b ordered release, 2026-09-28)
+# ---------------------------------------------------------------------------
+
+
+def _ordered_result(
+    robots: list[str],
+    yield_robot: str | None = None,
+    crossing_order: list[str] | None = None,
+) -> ReasonerResult:
+    base = _result("yield", robots=robots, yield_robot=yield_robot)
+    decision = base.decision.model_copy(update={"crossing_order": crossing_order})
+    return base.model_copy(update={"decision": decision})
+
+
+_T2B_POSITIONS = {
+    "robot_1": (-0.35, 0.0),
+    "robot_2": (0.35, 0.0),
+    "robot_3": (-2.5, 0.0),
+}
+
+
+def test_two_robot_legacy_yield_payload_pinned():
+    assert ground_reasoner_result(_result("yield")) == {
+        "command_id": "req1-yield",
+        "actions": [
+            {
+                "robot_id": "robot_1",
+                "action": "yield",
+                "parameters": {
+                    "backup_distance_m": 1.3,
+                    "hold_sec": 45.0,
+                    "pull_off_lateral_m": 0.35,
+                    "reason": "head-on aisle conflict",
+                    "passer_robot_id": "robot_2",
+                    "passer_clear_m": 2.4,
+                    "passer_escort_distance_m": 2.4,
+                },
+            },
+            {
+                "robot_id": "robot_2",
+                "action": "temporary_wait",
+                "parameters": {"duration_sec": 120.0},
+            },
+        ],
+        "expected_resolution_time_sec": 150.0,
+        "fallback": "stop",
+    }
+
+
+def test_two_robot_legacy_yield_scene_aware_payload_pinned():
+    command = ground_reasoner_result(
+        _result("yield"), robot_positions={"robot_1": (-0.04, 0.0), "robot_2": (0.08, 0.0)}
+    )
+
+    assert command["actions"] == [
+        {
+            "robot_id": "robot_1",
+            "action": "yield",
+            "parameters": {
+                "backup_distance_m": 1.76,
+                "hold_sec": 45.0,
+                "pull_off_lateral_m": 0.35,
+                "reason": "head-on aisle conflict",
+                "park_x_m": -1.8,
+                "passer_robot_id": "robot_2",
+                "passer_clear_m": 2.53,
+                "passer_escort_distance_m": 2.53,
+            },
+        },
+        {
+            "robot_id": "robot_2",
+            "action": "temporary_wait",
+            "parameters": {"duration_sec": 120.0},
+        },
+    ]
+    assert command["expected_resolution_time_sec"] == 150.0
+
+
+@pytest.mark.parametrize("order", [["robot_1", "robot_2"], ["robot_2", "robot_1"]])
+def test_two_robot_legacy_yield_ignores_crossing_order(order):
+    positions = {"robot_1": (-0.04, 0.0), "robot_2": (0.08, 0.0)}
+    plain = ground_reasoner_result(
+        _result("yield"), robot_positions=positions, geometry=_geometry()
+    )
+
+    ordered = ground_reasoner_result(
+        _ordered_result(["robot_1", "robot_2"], crossing_order=order),
+        robot_positions=positions,
+        geometry=_geometry(),
+    )
+
+    assert ordered == plain
+
+
+def test_three_robot_yield_commands_every_ordered_passer():
+    command = ground_reasoner_result(
+        _ordered_result(
+            ["robot_1", "robot_2", "robot_3"],
+            yield_robot="robot_2",
+            crossing_order=["robot_1", "robot_3", "robot_2"],
+        ),
+        robot_positions=_T2B_POSITIONS,
+    )
+
+    assert [(a["robot_id"], a["action"]) for a in command["actions"]] == [
+        ("robot_2", "yield"),
+        ("robot_1", "temporary_wait"),
+        ("robot_3", "temporary_wait"),
+    ]
+    assert [a["parameters"]["linked_position"] for a in command["actions"][1:]] == [0, 1]
+
+
+def test_three_robot_yield_carries_crossing_order_and_per_passer_clearance():
+    command = ground_reasoner_result(
+        _ordered_result(
+            ["robot_1", "robot_2", "robot_3"],
+            yield_robot="robot_2",
+            crossing_order=["robot_2", "robot_1", "robot_3"],
+        ),
+        robot_positions=_T2B_POSITIONS,
+    )
+    params = command["actions"][0]["parameters"]
+
+    assert params["park_x_m"] == 1.8
+    assert params["backup_distance_m"] == pytest.approx(1.45)
+    assert params["passer_robot_id"] == "robot_1"
+    assert params["crossing_order"] == ["robot_1", "robot_3"]
+    # |x - park| + 0.65: robot_3 is 4.3 m from the east park point, so its
+    # clearance is NOT clamped at MAX_ESCORT_M (4.0) — a clamped value would
+    # end the chain before robot_3 is past the parked yielder.
+    assert params["crossing_clear_m"] == pytest.approx([2.8, 4.95])
+    assert params["crossing_escort_m"] == pytest.approx([2.8, 4.95])
+    assert params["passer_clear_m"] == pytest.approx(2.8)
+    assert params["passer_escort_distance_m"] == pytest.approx(2.8)
+
+
+def test_three_robot_yield_scales_backstops_with_passer_budget():
+    command = ground_reasoner_result(
+        _ordered_result(
+            ["robot_1", "robot_2", "robot_3"],
+            yield_robot="robot_2",
+            crossing_order=["robot_2", "robot_1", "robot_3"],
+        ),
+        robot_positions=_T2B_POSITIONS,
+    )
+
+    # Budget per passer = max(1, escort / MAX_ESCORT_M) of the single-passer
+    # sizing: 1 + 4.95 / 4.0 = 2.2375.
+    assert command["actions"][0]["parameters"]["hold_sec"] == pytest.approx(100.7)
+    assert [a["parameters"]["duration_sec"] for a in command["actions"][1:]] == pytest.approx(
+        [268.5, 268.5]
+    )
+    assert command["expected_resolution_time_sec"] == pytest.approx(335.6)
+
+
+def test_three_robot_yield_follows_decided_order():
+    command = ground_reasoner_result(
+        _ordered_result(
+            ["robot_1", "robot_2", "robot_3"],
+            yield_robot="robot_2",
+            crossing_order=["robot_2", "robot_3", "robot_1"],
+        ),
+        robot_positions=_T2B_POSITIONS,
+    )
+
+    assert command["actions"][0]["parameters"]["crossing_order"] == ["robot_3", "robot_1"]
+    assert command["actions"][0]["parameters"]["passer_robot_id"] == "robot_3"
+    assert [a["robot_id"] for a in command["actions"][1:]] == ["robot_3", "robot_1"]
+
+
+def test_three_robot_yield_explicit_crossing_order_overrides_decision():
+    command = ground_reasoner_result(
+        _ordered_result(
+            ["robot_1", "robot_2", "robot_3"],
+            yield_robot="robot_2",
+            crossing_order=["robot_2", "robot_1", "robot_3"],
+        ),
+        robot_positions=_T2B_POSITIONS,
+        crossing_order=["robot_3", "robot_1"],
+    )
+
+    assert command["actions"][0]["parameters"]["crossing_order"] == ["robot_3", "robot_1"]
+
+
+def test_three_robot_yield_without_order_uses_involved_order():
+    command = ground_reasoner_result(
+        _ordered_result(["robot_1", "robot_2", "robot_3"], yield_robot="robot_2"),
+        robot_positions=_T2B_POSITIONS,
+    )
+
+    assert command["actions"][0]["parameters"]["crossing_order"] == ["robot_1", "robot_3"]
+
+
+def test_three_robot_yield_non_permutation_explicit_order_falls_back():
+    command = ground_reasoner_result(
+        _ordered_result(["robot_1", "robot_2", "robot_3"], yield_robot="robot_2"),
+        robot_positions=_T2B_POSITIONS,
+        crossing_order=["robot_3", "robot_3"],
+    )
+
+    assert command["actions"][0]["parameters"]["crossing_order"] == ["robot_1", "robot_3"]
+
+
+def test_three_robot_yield_without_positions_uses_fallback_clearance():
+    command = ground_reasoner_result(
+        _ordered_result(["robot_1", "robot_2", "robot_3"], yield_robot="robot_2")
+    )
+    params = command["actions"][0]["parameters"]
+
+    assert params["crossing_clear_m"] == [2.4, 2.4]
+    assert params["crossing_escort_m"] == [2.4, 2.4]
+    assert params["hold_sec"] == 90.0
+    assert command["expected_resolution_time_sec"] == 300.0
+
+
+def test_three_robot_yield_missing_later_passer_position_uses_fallback():
+    positions = {k: v for k, v in _T2B_POSITIONS.items() if k != "robot_3"}
+
+    params = ground_reasoner_result(
+        _ordered_result(["robot_1", "robot_2", "robot_3"], yield_robot="robot_2"),
+        robot_positions=positions,
+    )["actions"][0]["parameters"]
+
+    assert params["crossing_clear_m"] == pytest.approx([2.8, 2.4])
+
+
+def test_three_robot_yield_plans_through_m4_chain():
+    # Contract check against M4's parser: the grounded parameters plan every
+    # passer in order with its own clearance.
+    command = ground_reasoner_result(
+        _ordered_result(
+            ["robot_1", "robot_2", "robot_3"],
+            yield_robot="robot_2",
+            crossing_order=["robot_2", "robot_1", "robot_3"],
+        ),
+        robot_positions=_T2B_POSITIONS,
+    )
+
+    assert plan_crossing(command["actions"][0]["parameters"]) == (
+        PasserPlan("robot_1", 2.8, 2.8),
+        PasserPlan("robot_3", 4.95, 4.95),
+    )
