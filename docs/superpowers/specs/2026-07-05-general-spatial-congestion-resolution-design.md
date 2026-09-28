@@ -120,14 +120,17 @@ not exist yet; nothing here is frozen until it does). From rev 9 this
 document is authoritative; the amendments document remains the historical
 decision record, and its item numbers are cited below as "amendments A*n*"
 or "amendments item *n*". Still open before the tag: amendments items 7
-(keep B1 symmetric-`reverse` dispatch), 9 (REQUIRED model-table rows,
-prompt-template hashes), 14 (T1 tuning basket), the item-15 wording veto,
-the explicit confirmation of the prompt-v2 goals rider (items 10/13), the
-coordinator defaults marked "reviewable at the tag" (items 15, 17 T2b
-defaults, 17a, 17b), and the nine rev-9 open questions, now settled as
-coordinator resolutions (Rev 9.1) that are likewise reviewable at the tag.
-Residuals those resolutions leave open are named where they occur (the
-absent-decision rule for T0 and T2 RQ3, in the run-matrix notes).
+(keep B1 symmetric-`reverse` dispatch), 9 (the prompt-template hashes,
+the one model-table row still REQUIRED, plus the tag-time
+`gpt-4o-2024-08-06` pin in `config/models.yaml`), 14 (T1 tuning basket),
+the item-15 wording veto, the explicit confirmation of the prompt-v2 goals
+rider (items 10/13), the coordinator defaults marked "reviewable at the
+tag" (items 15, 17 T2b defaults, 17a, 17b), and the nine rev-9 open
+questions, now settled as coordinator resolutions (Rev 9.1) that are
+likewise reviewable at the tag.
+Residuals those resolutions leave open are named where they occur: the
+absent-decision rule for T0 and T2 RQ3 (run-matrix notes) and T0's
+`prompt_static_obstacles` value (per-tier channel table).
 Predecessor system: the verified head-on yield protocol (H3 runs 8–13) and
 the M1→M5→M2→M3→M4 closed loop, live on the GCP/Isaac host.
 
@@ -770,6 +773,9 @@ Defined before data collection; "VLM cannot" is a reportable outcome.
     episode outcome** defined in the measurement plan, not Nav2 goal
     success.
   - **T0 discrimination:** false-positive rate ≤ 10% on log-only probes.
+    *Rev 9.1:* over 20 distinct moving-phase probe scenes; parked-phase
+    and frozen-replicate probes are separate, uncounted strata (T0
+    battery entry).
   - **T3 superiority:** T3a divergent-and-correct lower bound > 0.5
     (classical shadow non-divergent by construction); T3b ≥ 9/15
     avoidance of the occupied candidate (vs. chance 1/3). *Rev 9:*
@@ -781,7 +787,15 @@ Defined before data collection; "VLM cannot" is a reportable outcome.
     T3b criterion "≥ 9/15 avoidance vs. chance 1/3" is superseded
     (amendments item 24, user-approved 2026-09-28): **T3b occupied-choice
     rate below chance 1/3, exact one-sided binomial, α = 0.05**, on
-    executed-`robot_1`-yield trials (item 23).
+    executed-`robot_1`-yield trials (item 23). *Rev 9.1 (coordinator
+    resolutions, reviewable at the tag; run-matrix notes):* the scored unit
+    is the episode's first yield-deciding analysis. T3a scores a terminal
+    refusal, `decision=None` or non-detection across the episode as a
+    miss. T3b's test runs over **answered** stage-2 trials only, with
+    refusals, timeouts and defaults reported as a degraded rate. A T3b
+    cell with > 30% degraded trials is inconclusive, and one that reaches
+    the 30-episode cap before 15 scored trials is reported as
+    underpowered, not extended.
   - **RQ5 adaptation:** informed vs. memoryless difference significant
     (Fisher exact, α = 0.05) with informed-direction change in ≥ 11/15
     informed episodes.
@@ -1004,8 +1018,14 @@ reviewable at the tag):
 The repo default for `prompt_static_obstacles` is `false`; the collection
 value is asserted per run through the installed orchestrator YAML (A8).
 With the channel on, an empty `static_obstacles` list renders no block, so
-the prompt is byte-identical to off; "on" matters only where the installed
-YAML declares the tier's static boxes (T2a's blocker, per operator step).
+both the system and user prompts are byte-identical to off (checked by
+SHA-256 for prompt v1 and v2). Of the battery's scenario YAMLs only T2a's
+`_bshort` variants declare a static box (T2b's list is empty; T0 and T1
+declare none), so "on" is load-bearing for T2a alone. There the installed
+`static_obstacles` must carry the variant's blocker — an operator step
+covered by the A8 content assertion — because with the list commented out
+the launcher reports the channel on while nothing renders (findings Rev 2
+apparatus notes).
 
 Image-only cells are excluded from RQ5 (the failure context is textual).
 The offline input-encoding harness
