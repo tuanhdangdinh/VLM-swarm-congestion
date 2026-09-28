@@ -37,6 +37,82 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-28** — **Stage-2 prompt v3 lists the candidates in a seeded
+  order independent of the letters (amendments item 26)** (`526d957`). This
+  answers calibration divergence 2: v2 listed in letter order, so letter A
+  was always the first-listed slot and a first-slot prior read as pick-A.
+  Letter, listing slot and geometry rank are now decoupled three ways. The
+  letter→candidate assignment (`derive_letter_seed`, `assign_letters`) is
+  byte-unchanged. Needs a colcon rebuild of `swarm_orchestrator`.
+  - **Seed scheme** (`retreat_stage2.py`).
+    - `derive_listing_seed(base, i)` is SHA-256 of `"{base}:stage2list:{i}"`.
+      It reuses the letter draw's `letter_seed_base` and
+      `letter_draw_index`; the salt keeps it independent of the letter
+      stream (`"{base}:stage2:{i}"`).
+    - `draw_listing_order(letters, seed)` shuffles the sorted letters with
+      `random.Random(seed)`.
+    - Test-checked over 400 draws at k = 4: letter A lands 60–140 in every
+      slot, and so does the default letter. Over 1600 draws the joint
+      (default letter × slot of A) fills all 16 cells, 55–145.
+  - **Prompt.** v3 renders both the candidate lines and the answer
+    enumeration (`"<one of C, A, D, B>"`) in listing order. Otherwise the
+    enumeration would keep A first-mentioned. The text is v2's otherwise.
+    - `RetreatChoiceRequest.listing_order` is required under v3, so a
+      caller cannot silently fall back to letter order. Under v2 it must be
+      unset, and it must be a permutation of the letters.
+    - `candidates` stays in letter order, and the chooser's valid-label set
+      is unchanged.
+  - **Artifact.** `stage2` gains:
+    - `listing_order`: the shown letters in listed order;
+    - `listing_seed`.
+
+    `draw_listing_order(letters, listing_seed)` reproduces the order. A test
+    parses the `- X:` lines of the recorded `user_prompt` and checks they
+    equal `listing_order`. Both fields are null on skipped calls and on every
+    v2 record. The log line gains `listing=`.
+  - **Three positional readings, never merged** (on the `stage2` block, all
+    in *shown* letters):
+    - chose the first-listed: `choice == listing_order[0]`;
+    - chose the default: `choice == default_letter`, equivalently
+      `grounded_label == default_label`;
+    - chose letter A: `choice == "A"`.
+
+    Under v2 the first and third are the same event (first-listed is always
+    A). `TestListingOrder::test_three_positional_readings_stay_distinct`
+    pins a k = 3 draw (base 0, draw 0: default B, listed C first). Answering
+    A, B or C there makes exactly one reading true. The two-letter-space
+    trap of the item-22 entry still applies.
+  - **v2 is frozen history, not retired.** Its corpus is the six funded
+    stage-2 calls of the calibration mini-pilot
+    (`data/logs/vm_runs/calibration/20260928_104408` … `_122832`).
+    - `Stage2PromptVersion = Literal[2, 3]`, and `prompt_version=2` still
+      renders letter order.
+    - Pins are kept as `_V2_*`: marked `61502f20…`/`3ff66fe9…`, unmarked
+      `4275d2ec…`/`d91e23c9…`.
+    - v3 given the letter-order listing reproduces all four v2 SHAs byte for
+      byte (test). v2 and v3 share one template, so any later template edit
+      must fork it as a new version rather than edit it.
+    - All six calibration `user_sha256` values re-render through v2. That is
+      one inlined test (run `112237`: default B, answered A) and one
+      `skipif`-absent test over the git-ignored runs, which asserts 6.
+  - **v3 pins** (`tests/unit/test_stage2_prompt.py`). Listings are
+    head-on `[B, A]` and three-robot `[C, A, D, B]`:
+    - marked: `4655915e…` head-on, `27c1ed70…` three-robot;
+    - unmarked: `9c922b60…` / `d1899a4e…`.
+  - **Mock.** Unaffected. `retreat_choice_b.json` forces the *shown* letter
+    B, which does not depend on the listing: a test checks that two requests
+    differing only in `listing_order` get the same answer. The item-22 advice
+    stands; read `letter_assignment["B"]` or `grounded_label` for the
+    candidate.
+  - **Suite.** 2171 passed, 60 failed, 14 skipped, 3 collection errors. The
+    failing set is identical to the pre-change baseline (2137 passed). It is
+    M6/Isaac, ArUco parity and six unit tests, all pre-existing and none in
+    stage 2. `ruff check` is clean on the touched files; the repo-wide count
+    is unchanged at 152.
+  - **Pending:** a funded run showing a `stage2_prompt_version: 3` record
+    whose `listing_order` matches its prompt; `docs/specs/module5_orchestrator.md`
+    is still not updated with the stage-2 fields.
+
 - **2026-09-28** — **Calibration mini-pilot (amendments item 16) ran on both
   funded models. No outcome, timing or safety cliff. Of the two behavioural
   divergences, divergence 1 does not block the freeze; divergence 2 is a
@@ -92,7 +168,8 @@ Rules for maintaining it:
       policy lands exactly on chance (1/3) in T3b, and the approved
       occupied-choice < 1/3 test would come out null by prior.
     - Separating letter from slot changes the stage-2 rendering and its pinned
-      SHAs, so the user decides before the freeze.
+      SHAs, so the user decides before the freeze (superseded by the later
+      2026-09-28 listing-order entry: stage-2 prompt v3, item 26).
   - **Stage-2 health.**
     - All 6 answered on attempt 1: k = 2, marks drawn, 0 refusals, 0
       timeouts, 0 degraded. One valid `yield_refused` skip.
@@ -270,7 +347,9 @@ Rules for maintaining it:
       *annotated* frame (arrows and goal markers kept), not on a fresh M1
       frame with them dropped. The homography is at the marker plane
       (`plane_height_m` 0.21), the same plane M1's robot positions live on.
-  - **Stage-2 prompt v2.** `Stage2PromptVersion = Literal[2]`. v1 is
+  - **Stage-2 prompt v2.** `Stage2PromptVersion = Literal[2]` (superseded
+    by the later 2026-09-28 listing-order entry: `Literal[2, 3]`, current 3,
+    v2 frozen). v1 is
     retired, not frozen, because no v1 data exists:
     - `e358229` was never pushed; `git branch -a --contains` lists only this
       branch;
@@ -310,6 +389,8 @@ Rules for maintaining it:
       - "Chose the default" is `choice == default_letter`, or
         `grounded_label == default_label`.
       - Never compare `choice` with `retreat_choice`.
+      - (Extended by the later 2026-09-28 listing-order entry: "chose the
+        first-listed" is a third reading, `choice == listing_order[0]`.)
     - **Balance.** Default-letter balance is test-checked: 200 draws over k
       = 2 land 70–130 on A, and k = 4 is near-uniform.
   - **Rider: stage-2 budget.** New keys `stage2_max_attempts: 2` and
