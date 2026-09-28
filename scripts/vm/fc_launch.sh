@@ -5,7 +5,7 @@
 # Ported from scripts/run_gemini_er2_demo.sh (feat/gemini-er2-backend, 265
 # lines), itself derived from /home/ubuntu/fc_record_launch.sh (the run-H
 # recipe behind the live gemini_20260918_084649 run). Same six-stage bring-up
-# order (Isaac -> topics -> M1 -> Nav2 x2 -> M4 -> M5), `localization:=camera`,
+# order (Isaac -> topics -> M1 -> Nav2 per robot -> M4 -> M5), `localization:=camera`,
 # `-w /ws` on every `docker exec`, the OpenAI key sourced inside the
 # container (never interpolated into a docker-exec argv), per-run logs
 # collected on exit, and the reasoning_backend_id rewrite-then-restore
@@ -16,8 +16,13 @@
 #   - SCENARIO selects the Isaac scenario yaml and Nav2 map (instead of the
 #     hardcoded head_on_deadlock scenario/map).
 #   - Nav2 spawn poses are read from the scenario yaml (instead of hardcoded
-#     x:=-1.5 / x:=1.5). Assumes exactly two robots, robot_1 and robot_2,
-#     matching the fixed two-robot Nav2 bring-up stage below.
+#     x:=-1.5 / x:=1.5), and every stage that is per robot loops over the
+#     scenario's robots in robot-number order: the spawn parse, the Isaac
+#     odom/scan waits, one Nav2 stack each (the first one starts the shared
+#     map server), the action-server waits and the Nav2 log collection. A
+#     two-robot scenario runs exactly the commands the old fixed robot_1 /
+#     robot_2 stages ran (tests/unit/test_fc_launch_dry_run.py pins the
+#     DRY_RUN output against goldens recorded before the loop).
 #   - MOCK_DECISION_FILE forces the mock reasoning backend and makes it
 #     replay a scripted decision, for forced-mock runs that prove the
 #     family's frozen `oracle:` block against both yielder orders.
@@ -98,6 +103,9 @@
 #   REC_SEC / SIM_SEC       Recording / Isaac duration seconds (default
 #                          1000 / 1200). REC_SEC also bounds how long stage 8
 #                          tails the M5 log, independent of RECORD.
+#   SEED                   Isaac --seed (default 42, the value every run so far
+#                          used). Also names the ground-truth directory
+#                          (data/logs/simulation/<scenario>-seed<SEED>-rep000).
 #   DRY_RUN                 1 prints every external command instead of
 #                          executing it (see above).
 #   MODALITY               on|<unset> (default unset). Confirms an ON run of
@@ -140,6 +148,7 @@ MODALITY="${MODALITY:-}"
 RECORD="${RECORD:-0}"
 REC_SEC="${REC_SEC:-1000}"
 SIM_SEC="${SIM_SEC:-1200}"
+SEED="${SEED:-42}"
 STAMP=$(date -u +%Y%m%d_%H%M%S)
 
 # MOCK_DECISION_FILE only takes effect via the "mock" backend, so setting it
@@ -255,8 +264,10 @@ log "obstacle modality: prompt_static_obstacles=${OBSTACLE_MODALITY} (MODALITY=$
 
 ISAAC_LOG=/tmp/fc_${STAMP}_isaac.log
 M1_LOG=/tmp/fc_${STAMP}_m1.log
-NAV2_R1_LOG=/tmp/fc_${STAMP}_nav2_r1.log
-NAV2_R2_LOG=/tmp/fc_${STAMP}_nav2_r2.log
+# One Nav2 log per robot, named by robot number (robot_3 -> nav2_r3); filled
+# in once the scenario's robots are parsed (stage 2).
+NAV2_LOGS=""
+nav2_log_of() { printf '/tmp/fc_%s_nav2_r%s.log' "$STAMP" "${1#robot_}"; }
 M4_LOG=/tmp/fc_${STAMP}_m4.log
 M5_LOG=/tmp/fc_${STAMP}_m5.log
 REC_LOG=/tmp/fc_${STAMP}_rec.log
@@ -268,15 +279,18 @@ TAIL_LOG="${REC_DIR_HOST}/tail_logs.txt"
 
 ROS_SETUP='source /opt/ros/jazzy/setup.bash && source /ws/ros2_ws/install/setup.bash && export FASTRTPS_DEFAULT_PROFILES_FILE=/ws/config/dds/fastdds.xml && export PYTHONPATH=/ws:${PYTHONPATH:-}'
 
-# Reads robot_id/spawn.x/spawn.y/spawn.yaw_rad from the scenario yaml. Single
-# source of truth for both the DRY_RUN (host python3) and real (parsed
-# inside the container, which is guaranteed to have pyyaml) paths.
+# Reads robot_id/spawn.x/spawn.y/spawn.yaw_rad from the scenario yaml, one
+# line per robot in robot-number order (robot_1 first: it starts the map
+# server, as the fixed two-robot stages did). Single source of truth for both
+# the DRY_RUN (host python3) and real (parsed inside the container, which is
+# guaranteed to have pyyaml) paths.
 SPAWN_PARSE_PY_SRC=$(cat <<'PY'
 import sys
 import yaml
 
 data = yaml.safe_load(open(sys.argv[1]))
-for robot in data["robots"]:
+robots = sorted(data["robots"], key=lambda robot: int(robot["robot_id"].split("_")[1]))
+for robot in robots:
     spawn = robot["spawn"]
     print(robot["robot_id"], spawn["x"], spawn["y"], spawn["yaw_rad"])
 PY
@@ -358,7 +372,7 @@ cleanup() {
   sudo pkill -f "[i]saac.scripts.run_simulation" 2>/dev/null || true
   sudo pkill -f "[r]ecord_topic_video.py" 2>/dev/null || true
   sudo docker exec -w /ws "$CONTAINER" bash -lc "
-    for f in ${M1_LOG} ${M5_LOG} ${M4_LOG} ${REC_LOG} ${NAV2_R1_LOG} ${NAV2_R2_LOG}; do
+    for f in ${M1_LOG} ${M5_LOG} ${M4_LOG} ${REC_LOG} ${NAV2_LOGS}; do
       echo \"===\$f===\"; tail -n 60 \"\$f\" 2>/dev/null || true
     done" >"$TAIL_LOG" 2>/dev/null || true
   {
@@ -435,29 +449,46 @@ fi
 #      before hitting the same failure in the old (stage-5) location. ────
 check_map_exists
 SPAWN_POSES="$(parse_spawn_poses)"
-R1_X=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_1"{print $2}')
-R1_Y=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_1"{print $3}')
-R1_YAW=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_1"{print $4}')
-R2_X=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_2"{print $2}')
-R2_Y=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_2"{print $3}')
-R2_YAW=$(printf '%s\n' "$SPAWN_POSES" | awk '$1=="robot_2"{print $4}')
-for v in R1_X R1_Y R1_YAW R2_X R2_Y R2_YAW; do
-  if [ -z "${!v}" ]; then
-    echo "ERROR: failed to parse spawn pose (${v}) from ${SCENARIO_YAML_HOST}" >&2
+# Parallel indexed arrays, not an associative one: the script also runs
+# under macOS's bash 3.2 (DRY_RUN checks and the golden test).
+ROBOT_IDS=()
+SPAWN_X=()
+SPAWN_Y=()
+SPAWN_YAW=()
+POSES_TEXT=""
+while read -r rid x y yaw; do
+  # Only robot lines: a login shell inside the container may print other
+  # text, which the old per-robot awk lookups skipped the same way.
+  case "${rid}" in
+    robot_[0-9]*) ;;
+    *) continue ;;
+  esac
+  if [ -z "${x}" ] || [ -z "${y}" ] || [ -z "${yaw}" ]; then
+    echo "ERROR: failed to parse spawn pose (${rid}) from ${SCENARIO_YAML_HOST}" >&2
     exit 1
   fi
-done
-log "scenario validated: map present, spawn poses parsed (robot_1 x=${R1_X} y=${R1_Y} yaw=${R1_YAW}; robot_2 x=${R2_X} y=${R2_Y} yaw=${R2_YAW})"
+  ROBOT_IDS+=("$rid")
+  SPAWN_X+=("$x")
+  SPAWN_Y+=("$y")
+  SPAWN_YAW+=("$yaw")
+  POSES_TEXT="${POSES_TEXT:+${POSES_TEXT}; }${rid} x=${x} y=${y} yaw=${yaw}"
+  NAV2_LOGS="${NAV2_LOGS:+${NAV2_LOGS} }$(nav2_log_of "$rid")"
+done <<<"$SPAWN_POSES"
+if [ "${#ROBOT_IDS[@]}" -eq 0 ]; then
+  echo "ERROR: no robots parsed from ${SCENARIO_YAML_HOST}" >&2
+  exit 1
+fi
+log "scenario validated: map present, spawn poses parsed (${POSES_TEXT})"
 
 # ── 3. Isaac Sim ─────────────────────────────────────────────────────────────
-log "starting Isaac Sim ${SCENARIO} (headless, seed 42, ${SIM_SEC}s) -> ${ISAAC_LOG}"
+log "starting Isaac Sim ${SCENARIO} (headless, seed ${SEED}, ${SIM_SEC}s) -> ${ISAAC_LOG}"
 # LD_LIBRARY_PATH is required: the isaacsim.ros2.core extension resolves its
 # internal rclpy by itself, but the rmw/rcl C libraries must be on the path
 # or the bridge fails with "ROS2 Bridge startup failed".
 # sudo -H -u ubuntu: /home/ubuntu is mode 0750, so an SSH session under any
 # other account fails with "python3: Permission denied" launching python.sh.
 if [ "$DRY_RUN" = "1" ]; then
-  log "[DRY_RUN] nohup sudo -H -u ubuntu env ... /home/ubuntu/IsaacSim/python.sh -m isaac.scripts.run_simulation --scenario ${SCENARIO_YAML_HOST} --headless --seed 42 --duration-sec ${SIM_SEC} --topic-timeout-sec 180 > ${ISAAC_LOG} 2>&1 &"
+  log "[DRY_RUN] nohup sudo -H -u ubuntu env ... /home/ubuntu/IsaacSim/python.sh -m isaac.scripts.run_simulation --scenario ${SCENARIO_YAML_HOST} --headless --seed ${SEED} --duration-sec ${SIM_SEC} --topic-timeout-sec 180 > ${ISAAC_LOG} 2>&1 &"
 else
   nohup sudo -H -u ubuntu env \
     ROS_DISTRO=jazzy \
@@ -467,14 +498,14 @@ else
     PYTHONPATH="$REPO" \
     /home/ubuntu/IsaacSim/python.sh -m isaac.scripts.run_simulation \
       --scenario "$SCENARIO_YAML_HOST" \
-      --headless --seed 42 --duration-sec "$SIM_SEC" --topic-timeout-sec 180 \
+      --headless --seed "$SEED" --duration-sec "$SIM_SEC" --topic-timeout-sec 180 \
     >"$ISAAC_LOG" 2>&1 &
   log "Isaac PID $!"
 fi
 
 wait_topic /camera/image_raw 300
 docker_ros "timeout 60s ros2 topic echo --qos-reliability best_effort --once /camera/image_raw >/dev/null"
-for robot in robot_1 robot_2; do
+for robot in "${ROBOT_IDS[@]}"; do
   wait_topic "/${robot}/odom" 120
   wait_topic "/${robot}/scan" 120
 done
@@ -501,13 +532,22 @@ fi
 
 # ── 6. Nav2 bringup (localization:=camera; spawn poses + map already
 #      validated in stage 2, above) ──────────────────────────────────────────
-log "starting Nav2 robot_1 -> ${NAV2_R1_LOG}"
-docker_exec_bg "$NAV2_R1_LOG" "ros2 launch swarm_simulation nav2_robot.launch.py robot_id:=robot_1 x:=${R1_X} y:=${R1_Y} yaw:=${R1_YAW} start_map_server:=true localization:=camera map_yaml:=${MAP} >${NAV2_R1_LOG} 2>&1"
-xrun sleep 3
-log "starting Nav2 robot_2 -> ${NAV2_R2_LOG}"
-docker_exec_bg "$NAV2_R2_LOG" "ros2 launch swarm_simulation nav2_robot.launch.py robot_id:=robot_2 x:=${R2_X} y:=${R2_Y} yaw:=${R2_YAW} start_map_server:=false localization:=camera map_yaml:=${MAP} >${NAV2_R2_LOG} 2>&1"
-wait_action /robot_1/navigate_to_pose 150
-wait_action /robot_2/navigate_to_pose 150
+# The first robot's stack starts the one shared map server; the rest reuse
+# it (start_map_server:=false, nav2_robot.launch.py).
+MAP_SERVER=true
+for i in "${!ROBOT_IDS[@]}"; do
+  robot="${ROBOT_IDS[$i]}"
+  if [ "$MAP_SERVER" = "false" ]; then
+    xrun sleep 3
+  fi
+  nav2_log="$(nav2_log_of "$robot")"
+  log "starting Nav2 ${robot} -> ${nav2_log}"
+  docker_exec_bg "$nav2_log" "ros2 launch swarm_simulation nav2_robot.launch.py robot_id:=${robot} x:=${SPAWN_X[$i]} y:=${SPAWN_Y[$i]} yaw:=${SPAWN_YAW[$i]} start_map_server:=${MAP_SERVER} localization:=camera map_yaml:=${MAP} >${nav2_log} 2>&1"
+  MAP_SERVER=false
+done
+for robot in "${ROBOT_IDS[@]}"; do
+  wait_action "/${robot}/navigate_to_pose" 150
+done
 log "Nav2 action servers live"
 
 # ── 7. M4 Execution ──────────────────────────────────────────────────────────

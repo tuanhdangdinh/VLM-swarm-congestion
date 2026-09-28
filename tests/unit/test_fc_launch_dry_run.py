@@ -63,3 +63,73 @@ def test_two_robot_dry_run_matches_pre_loop_golden(case):
     scenario, extra_env = TWO_ROBOT_CASES[case]
     golden = (GOLDEN_DIR / f"{case}.txt").read_text(encoding="utf-8")
     assert dry_run(scenario, extra_env) == golden
+
+
+def _nav2_lines(output: str) -> list[str]:
+    return [line for line in output.splitlines() if "nav2_robot.launch.py" in line]
+
+
+def test_four_robot_scenario_launches_one_nav2_stack_per_robot():
+    output = dry_run("dynamic_anomaly", {})
+    launches = _nav2_lines(output)
+    assert [re.search(r"robot_id:=(robot_\d+)", line).group(1) for line in launches] == [
+        "robot_1", "robot_2", "robot_3", "robot_4",
+    ]
+    assert ["start_map_server:=true" in line for line in launches] == [
+        True, False, False, False,
+    ]
+    for n in (1, 2, 3, 4):
+        assert f"grep -qx /robot_{n}/odom" in output
+        assert f"grep -qx /robot_{n}/scan" in output
+        assert f"grep -qx /robot_{n}/navigate_to_pose" in output
+        assert f"/tmp/fc_<STAMP>_nav2_r{n}.log 2>&1" in output
+
+
+def _scratch_repo(tmp_path: Path, robots_yaml: str) -> Path:
+    scenarios = tmp_path / "isaac" / "config" / "scenarios"
+    scenarios.mkdir(parents=True)
+    (scenarios / "scratch.yaml").write_text(f"robots:\n{robots_yaml}", encoding="utf-8")
+    orch = tmp_path / "ros2_ws" / "src" / "swarm_orchestrator" / "config"
+    orch.mkdir(parents=True)
+    (orch / "orchestrator.yaml").write_text(
+        "prompt_static_obstacles: false\nreasoning_backend_id: openai\n", encoding="utf-8"
+    )
+    return tmp_path
+
+
+def test_robots_launch_in_robot_number_order_with_first_serving_the_map(tmp_path):
+    robots = "".join(
+        f"  - robot_id: {rid}\n    spawn: {{x: {x}, y: 0.0, yaw_rad: 0.0}}\n"
+        for rid, x in (("robot_3", -2.45), ("robot_1", -1.5), ("robot_2", 1.5))
+    )
+    repo = _scratch_repo(tmp_path, robots)
+    output = dry_run("scratch", {"REPO": str(repo)})
+    launches = _nav2_lines(output)
+    assert [re.search(r"robot_id:=(robot_\d+) x:=(\S+)", line).groups() for line in launches] == [
+        ("robot_1", "-1.5"), ("robot_2", "1.5"), ("robot_3", "-2.45"),
+    ]
+    assert "start_map_server:=true" in launches[0]
+    assert "spawn poses parsed (robot_1 x=-1.5 y=0.0 yaw=0.0; robot_2 x=1.5 y=0.0 " \
+        "yaw=0.0; robot_3 x=-2.45 y=0.0 yaw=0.0)" in output
+    # A 3 s settle precedes every stack after the first, as before the loop.
+    lines = output.splitlines()
+    starts = [i for i, line in enumerate(lines) if line.startswith("[fc-launch] starting Nav2")]
+    assert [lines[i - 1].endswith("sleep 3") for i in starts] == [False, True, True]
+
+
+def test_scenario_without_robots_is_refused(tmp_path):
+    repo = _scratch_repo(tmp_path, "  []\n")
+    env = {k: v for k, v in os.environ.items() if k not in _CLEARED_ENV}
+    env["PATH"] = f"{Path(sys.executable).parent}:{env.get('PATH', '')}"
+    env.update({"DRY_RUN": "1", "SCENARIO": "scratch", "REPO": str(repo)})
+    completed = subprocess.run(
+        ["bash", str(SCRIPT)], env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode == 1
+    assert "no robots parsed" in completed.stderr
+
+
+def test_seed_env_sets_the_isaac_seed():
+    output = dry_run("head_on_deadlock", {"SEED": "7"})
+    assert "(headless, seed 7, 1200s)" in output
+    assert "--headless --seed 7 --duration-sec" in output
