@@ -1,0 +1,59 @@
+[fc-launch] obstacle modality: prompt_static_obstacles=false (MODALITY=<unset>)
+[fc-launch] restarting ROS container
+[fc-launch] [DRY_RUN] sudo docker restart vgu_ros
+[fc-launch] [DRY_RUN] sudo pkill -f [i]saac.scripts.run_simulation
+[fc-launch] [DRY_RUN] sudo pkill -f [r]ecord_topic_video.py
+[fc-launch] [DRY_RUN] sleep 2
+[fc-launch] [DRY_RUN] sudo mkdir -p data/logs/m5_decisions data/logs/m5_frames data/logs/m5_scene <REPO>/data/logs/fc_run_<STAMP>
+[fc-launch] [DRY_RUN] sudo chmod 777 <REPO>/data/logs/fc_run_<STAMP>
+[fc-launch] reasoning_backend_id: openai -> openai (restored on exit)
+[fc-launch] [DRY_RUN] sed -i s/^reasoning_backend_id: .*/reasoning_backend_id: openai/ <REPO>/ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml
+[fc-launch] building swarm_orchestrator (merge-install) -> /tmp/fc_<STAMP>_build.log
+[fc-launch] [DRY_RUN] docker exec -w /ws vgu_ros bash -lc "colcon build --merge-install --packages-select swarm_orchestrator" > /tmp/fc_<STAMP>_build.log
+[fc-launch] scenario validated: map present, spawn poses parsed (robot_1 x=-1.5 y=0.0 yaw=0.0; robot_2 x=1.5 y=0.0 yaw=3.141592653589793)
+[fc-launch] starting Isaac Sim head_on_deadlock (headless, seed 42, 1200s) -> /tmp/fc_<STAMP>_isaac.log
+[fc-launch] [DRY_RUN] nohup sudo -H -u ubuntu env ... /home/ubuntu/IsaacSim/python.sh -m isaac.scripts.run_simulation --scenario <REPO>/isaac/config/scenarios/head_on_deadlock.yaml --headless --seed 42 --duration-sec 1200 --topic-timeout-sec 180 > /tmp/fc_<STAMP>_isaac.log 2>&1 &
+[fc-launch] waiting for publisher: /camera/image_raw
+[fc-launch] waiting for publisher: /robot_1/odom
+[fc-launch] waiting for publisher: /robot_1/scan
+[fc-launch] waiting for publisher: /robot_2/odom
+[fc-launch] waiting for publisher: /robot_2/scan
+[fc-launch] Isaac topics live
+[fc-launch] starting M1 perception -> /tmp/fc_<STAMP>_m1.log
+[fc-launch] [DRY_RUN] docker exec -d -w /ws vgu_ros bash -lc "$ROS_SETUP && ros2 launch swarm_perception perception.launch.py use_camera_node:=false >/tmp/fc_<STAMP>_m1.log 2>&1"
+[fc-launch] waiting for publisher: /perception/scene_state
+[fc-launch] waiting for publisher: /perception/annotated_frame
+[fc-launch] M1 perception live
+[fc-launch] RECORD=0 — skipping recorder stage
+[fc-launch] starting Nav2 robot_1 -> /tmp/fc_<STAMP>_nav2_r1.log
+[fc-launch] [DRY_RUN] docker exec -d -w /ws vgu_ros bash -lc "$ROS_SETUP && ros2 launch swarm_simulation nav2_robot.launch.py robot_id:=robot_1 x:=-1.5 y:=0.0 yaw:=0.0 start_map_server:=true localization:=camera map_yaml:=/ws/ros2_ws/install/share/swarm_simulation/maps/warehouse_map_head_on_deadlock.yaml >/tmp/fc_<STAMP>_nav2_r1.log 2>&1"
+[fc-launch] [DRY_RUN] sleep 3
+[fc-launch] starting Nav2 robot_2 -> /tmp/fc_<STAMP>_nav2_r2.log
+[fc-launch] [DRY_RUN] docker exec -d -w /ws vgu_ros bash -lc "$ROS_SETUP && ros2 launch swarm_simulation nav2_robot.launch.py robot_id:=robot_2 x:=1.5 y:=0.0 yaw:=3.141592653589793 start_map_server:=false localization:=camera map_yaml:=/ws/ros2_ws/install/share/swarm_simulation/maps/warehouse_map_head_on_deadlock.yaml >/tmp/fc_<STAMP>_nav2_r2.log 2>&1"
+[fc-launch] waiting for action server: /robot_1/navigate_to_pose
+[fc-launch] waiting for action server: /robot_2/navigate_to_pose
+[fc-launch] Nav2 action servers live
+[fc-launch] starting M4 execution -> /tmp/fc_<STAMP>_m4.log
+[fc-launch] [DRY_RUN] docker exec -d -w /ws vgu_ros bash -lc "$ROS_SETUP && ros2 launch swarm_execution execution.launch.py >/tmp/fc_<STAMP>_m4.log 2>&1"
+[fc-launch] [DRY_RUN] sleep 4
+[fc-launch] starting M5 orchestrator (openai backend, CWD /ws) -> /tmp/fc_<STAMP>_m5.log
+[fc-launch] [DRY_RUN] docker exec -d -w /ws vgu_ros bash -lc "$ROS_SETUP && set -a && source /ws/.env && set +a && export VGU_RUN_ID=<STAMP> && ros2 launch swarm_orchestrator orchestrator.launch.py >/tmp/fc_<STAMP>_m5.log 2>&1"
+[fc-launch] [DRY_RUN] sleep 5
+[fc-launch] all components started
+[fc-launch] --- M5 decisions will appear in <REPO>/data/logs/m5_decisions/ ---
+[fc-launch] --- tailing M5 log for live feedback ---
+[fc-launch] [DRY_RUN] sudo timeout 990s docker exec -w /ws vgu_ros bash -lc "tail -f /tmp/fc_<STAMP>_m5.log"
+[fc-launch] [DRY_RUN] skipping M5 decision summary (reads real data/logs/m5_decisions/)
+[fc-launch] done: STAMP=<STAMP> SCENARIO=head_on_deadlock MAP=/ws/ros2_ws/install/share/swarm_simulation/maps/warehouse_map_head_on_deadlock.yaml M5_LOG=/tmp/fc_<STAMP>_m5.log prompt_static_obstacles=false
+[fc-launch] [DRY_RUN] cleanup: restore reasoning_backend_id if changed, restart container, collect logs (skipped)
+[fc-launch] [DRY_RUN] docker exec -w /ws vgu_ros bash -lc "$ROS_SETUP && test -f '/ws/ros2_ws/install/share/swarm_simulation/maps/warehouse_map_head_on_deadlock.yaml'"
+[fc-launch] [DRY_RUN] docker exec -w /ws vgu_ros bash -lc "$ROS_SETUP && timeout 300s bash -lc 'until ros2 topic list 2>/dev/null | grep -qx /camera/image_raw; do sleep 1; done'"
+[fc-launch] [DRY_RUN] docker exec -w /ws vgu_ros bash -lc "$ROS_SETUP && timeout 60s ros2 topic echo --qos-reliability best_effort --once /camera/image_raw >/dev/null"
+[fc-launch] [DRY_RUN] docker exec -w /ws vgu_ros bash -lc "$ROS_SETUP && timeout 120s bash -lc 'until ros2 topic list 2>/dev/null | grep -qx /robot_1/odom; do sleep 1; done'"
+[fc-launch] [DRY_RUN] docker exec -w /ws vgu_ros bash -lc "$ROS_SETUP && timeout 120s bash -lc 'until ros2 topic list 2>/dev/null | grep -qx /robot_1/scan; do sleep 1; done'"
+[fc-launch] [DRY_RUN] docker exec -w /ws vgu_ros bash -lc "$ROS_SETUP && timeout 120s bash -lc 'until ros2 topic list 2>/dev/null | grep -qx /robot_2/odom; do sleep 1; done'"
+[fc-launch] [DRY_RUN] docker exec -w /ws vgu_ros bash -lc "$ROS_SETUP && timeout 120s bash -lc 'until ros2 topic list 2>/dev/null | grep -qx /robot_2/scan; do sleep 1; done'"
+[fc-launch] [DRY_RUN] docker exec -w /ws vgu_ros bash -lc "$ROS_SETUP && timeout 90s bash -lc 'until ros2 topic list 2>/dev/null | grep -qx /perception/scene_state; do sleep 1; done'"
+[fc-launch] [DRY_RUN] docker exec -w /ws vgu_ros bash -lc "$ROS_SETUP && timeout 90s bash -lc 'until ros2 topic list 2>/dev/null | grep -qx /perception/annotated_frame; do sleep 1; done'"
+[fc-launch] [DRY_RUN] docker exec -w /ws vgu_ros bash -lc "$ROS_SETUP && timeout 150s bash -lc 'until ros2 action list 2>/dev/null | grep -qx /robot_1/navigate_to_pose; do sleep 1; done'"
+[fc-launch] [DRY_RUN] docker exec -w /ws vgu_ros bash -lc "$ROS_SETUP && timeout 150s bash -lc 'until ros2 action list 2>/dev/null | grep -qx /robot_2/navigate_to_pose; do sleep 1; done'"
