@@ -37,6 +37,73 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-29** — **The first three-robot runs: the T2b smoke passes, and the
+  forced-order margin is a LOWER-BOUND of 0.6485 (the alternative order ends
+  in a permanent bystander latch).** Tree `6d66a0d`, all mock, runs
+  2026-09-28 16:50–18:46 UTC: smoke S1, the harness (`oracle`/`alternative`
+  × seeds 42, 43) and an oracle repeat R1 (seed 44). 0 apparatus failures.
+  Evidence: `data/logs/vm_runs/t2b_smoke/T2B_SMOKE_SUMMARY.txt`, with the
+  per-run dirs, `harness_20260928_171248/margin.json`,
+  `ARRIVALS_RESCORED_T2B.csv`, `_analysis/` and `_vm_driver/`.
+  - **Deploy.** Shipped `3ebb7ea..6d66a0d` (49 files). The tree checks
+    609/609, and the install 82/82 after rebuilding `swarm_orchestrator`,
+    `swarm_execution` and `swarm_simulation`.
+    - Pristine `orchestrator.yaml` `c06bdb4e…` → `ca35f94e…`. `rag.yaml` is
+      unchanged (`9fcc39ff…`). `fc_launch.sh` `cd7e49b6…` → `ffffb107…`; no
+      launcher copies exist outside the tree.
+    - The T2b USD builds and validates with 3 robots and markers 1–3.
+    - The runs used `gen_orch_t2b.py`: legacy grounding, `robot_3`
+      `start_delay_sec` 55, corridor half-length 0.5, `random` order.
+      Preflight FAILs on the pristine config and PASSes after apply (the
+      symbols-only NOTE: the VM has no `.git`).
+    - Restored afterwards: orchestrator `ca35f94e…` in source and install,
+      `rag.yaml` `9fcc39ff…`.
+  - **Smoke (S1): PASS.**
+    - `robot_3` stays stationary through the trigger in 6/6 runs (GT
+      displacement 0.000 m). The trigger comes at M5 start +42.7–43.9 s.
+    - The forced `robot_2` yield with `[robot_1, robot_3]` dispatches as
+      three commands.
+    - Ordered release: `robot_1` clears at +134.71 s after dispatch, and
+      `robot_3`'s escort starts 0.04 s later. The pair set grows
+      `robot_1+robot_2` → `+robot_2+robot_3` (it is cumulative). The
+      yielder completes in the same instant as the last passer.
+    - All three robots arrive (rescore 14/14 `within_tolerance` over 6
+      runs). No bystander latch.
+    - The literal `released: …` lines are not in any log: they are the status
+      message's `detail`, which is not logged. The release is shown by the
+      event order instead.
+    - The episode fold was never exercised (0 `trigger folded`).
+  - **RTF 0.34 with three robots** (two robots: ~0.39). The host is
+    CPU-bound: load ~14 on 8 vCPU, GPU ~20%. The 55 s hold-back is validated
+    with 11–12 s of headroom; no re-derivation is needed.
+  - **Margin.** Oracle totals are 319.1 and 311.1 s. Alternative totals are
+    514.3 and 524.6 s, with `robot_3` censored at the 300 sim-s horizon. The
+    harness prints `margin=0.6485 … LOWER-BOUND`. The `oracle.margin` record
+    in `margin.json` is NOT written into the YAML: that needs the owner's
+    option-(e) call and `--accept-censored`.
+    - With S1 and R1 added the margin is 0.6579 (supplementary).
+    - The permanent latch is conditional on the once-mock: M5 re-analysed the
+      stuck scene 34 times per run.
+  - **Findings.**
+    - `run_simulation --duration-sec` is ignored, so Isaac always stops at
+      the scenario's `duration_sec`. The T2b header's "overrides this
+      anyway" is wrong.
+    - The oracle's `robot_2` return leg stalls 8–19 sim-s at the east aisle
+      mouth in 4/4 oracle runs. This opens 5 solo-stall analyses per run.
+    - `robot_1`/`robot_3` end 0.604–0.613 m apart: above the latch, but only
+      0.004–0.013 m above the 0.6 m STALE band.
+    - Arm B's FCFS yielder at the symmetric standoff is `robot_1` in only
+      3/6 runs, so the header's "FCFS yields robot_1" is a coin flip live.
+    - The latch drops RTF to ~0.285.
+    - The harness GT scorer credits the latched alternative `robot_2`
+      (0.09 m from its goal) as arrived at 57.5 s. M5 and the rescorer never
+      do.
+    - Use `REC_SEC` ≥ 1000 for a latched arm: at 950 Isaac finished GT but was
+      killed before writing `run_manifest.json`.
+  - **Rescore at N = 3** works unchanged. `run_both_arrived_*` means "all
+    arrived", so only the column name is two-robot. The staging needs
+    `decisions/` and a mock-labelled `orchestrator.yaml.used`.
+
 - **2026-09-28** — **First funded battery batch (tree `3ebb7ea`): the T2b
   safety slice passes live, stage-2 v3 is verified on a real build, and T3c,
   T3a and T3b have their first model answers.** All B–D cells are probes at
@@ -190,7 +257,8 @@ Rules for maintaining it:
     - The alternative order will likely end in a permanent robot_2/robot_3
       bystander latch at the west end (infeasible, not slower). The margin
       is then a censored lower bound, and the cost model becomes report
-      option (e): an owner decision.
+      option (e): an owner decision. (Confirmed live on both seeds: see the
+      2026-09-29 T2b smoke entry; LOWER-BOUND 0.6485.)
     - Under the shipped derived mode, the alternative grounds a reroute, and
       the oracle's robot_3 escort ends 0.27 m from robot_1's goal (a latch).
       Live T2b collection in derived mode needs a decision; the harness runs
@@ -199,7 +267,9 @@ Rules for maintaining it:
       record the RTF and robot_3's position at the trigger. The brief also
       said "released when the standoff forms"; releasing then (~24–29
       wall-s) would move robot_3 ~0.7 m before the trigger, so "stationary
-      at trigger" took precedence.
+      at trigger" took precedence. (Superseded by the 2026-09-29 T2b smoke
+      entry: RTF 0.34, trigger at +42.7–43.9 s, robot_3 stationary in 6/6;
+      55 s validated.)
     - The fold has no proximity test. In any scene with three or more robots
       (e.g. the four-robot `dynamic_anomaly`), a solo stall anywhere during
       another pair's command is deferred until that command resolves, not
@@ -2592,6 +2662,33 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-29** — **The pair-scoped exemption and its bystander guard pass
+  their first live three-robot test, and so does ordered multi-passer
+  release.** Tree `6d66a0d`, T2b, mock. Evidence:
+  `data/logs/vm_runs/t2b_smoke/T2B_SMOKE_SUMMARY.txt`, section "Bystander-latch
+  evidence". This supersedes the entry below's "Not exercised".
+  - **Bystander.** In the alternative order (`robot_1` yields; `robot_2`
+    then `robot_3` pass), both seeds behave the same way.
+    - The exempt set at `robot_3`'s admission is
+      `robot_1+robot_2,robot_1+robot_3`.
+    - The released `robot_2`, heading west, and `robot_3`'s eastbound escort
+      close to 0.430 / 0.433 m (GT). `safety stop … min_distance_violation`
+      then fires on the non-exempt pair about 4 s after both start moving.
+    - The latch holds to the end of the run (~775 wall-s, ~38k stop lines per
+      robot). No contacts.
+    - The hold backstop completes the yield at +371.5 s. `robot_3`'s escort
+      then FAILS on its drive timeout.
+    - The exempt yielder never approached `robot_3` (≥ 0.95 m).
+  - **Ordered release** (oracle, 4 runs). Each next passer's escort starts
+    0.01–0.05 s after the previous passer's wait COMPLETED. The yielder
+    COMPLETES with the last passer.
+  - **Caveats.**
+    - The exempt set is cumulative: a released passer's pair stays exempt
+      until the yield ends.
+    - The `released: …` provenance is only in the status message `detail`,
+      never in a log line.
+    - The permanent latch cuts RTF from 0.34 to ~0.285.
+
 - **2026-09-28** — **The T2b safety slice passes its live two-robot
   regression** (run A1 `20260928_132235`, mock `head_on_yield_robot_2_once`
   on `_bshort` west, tree `3ebb7ea`; evidence
@@ -2617,7 +2714,10 @@ Rules for maintaining it:
     - a robot_2 yield in D2;
     - a two-robot `reverse` in D2.
   - **Not exercised:** the bystander case, ordered multi-passer release and
-    the first-passer guard. They wait for a T2b scenario run.
+    the first-passer guard. They wait for a T2b scenario run. (Superseded by
+    the 2026-09-29 T2b entry above: the bystander case and ordered release
+    are verified live; both forced arms were accepted by the first-passer
+    guard, whose refusal path is still not exercised live.)
   - **M5 lag (minor, not investigated).** M5 logged `resolved` 3.0 s after
     M4's COMPLETED; it was 0.1 s in CO1.
 
