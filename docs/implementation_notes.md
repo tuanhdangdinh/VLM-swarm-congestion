@@ -79,7 +79,13 @@ Rules for maintaining it:
     - On the two T2b alternative-arm runs it credits `robot_2` (0.089 m
       and 0.085 m) and not `robot_3`.
     - Pre-existing gap: `accepted_late` robots still get no row and do
-      not count as arrived.
+      not count as arrived. In the logged runs this has occurred once, in
+      the discarded funded-battery-1 run `20260928_155012`.
+    - Over all 12 run roots under `data/logs/vm_runs`, the only latched
+      rows are those two T2b runs. `t0_t3c_verify` still aborts on its
+      pre-existing clock-anchor error.
+  - **Success criteria.** `9b1c7b9` carries the T0 denominator and the
+    T3a/T3b absent-decision rules into the success criteria.
 
 - **2026-09-29** — **Research design rev 9: the prereg amendment set is
   absorbed in place, and the spec is now the authoritative pre-`prereg-v1`
