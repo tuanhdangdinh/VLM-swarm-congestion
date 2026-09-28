@@ -34,6 +34,11 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 15 (2026-09-29): absorbed into the research design as rev 9
+  (`docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md`),
+  which is now the authoritative text; this document remains the
+  historical decision record, and the questions it left unresolved are
+  the `[REV9-OPEN]` markers there.
 - Rev 14 (2026-09-28): T3b is built and mock-smoked (`e205f5f`…`19fafa0`)
   — the set-of-mark path verified live (parallax PASS), the classical
   arm picks the occupied candidate by construction, and the

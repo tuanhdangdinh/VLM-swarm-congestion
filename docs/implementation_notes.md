@@ -37,6 +37,38 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-29** — **Research design rev 9: the prereg amendment set is
+  absorbed in place, and the spec is now the authoritative pre-`prereg-v1`
+  text.** Documentation only; no code, config or VM change. Evidence:
+  `docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md`
+  (rev 9 entry, `Status:` line, inline `Rev 9:` notes) and the Rev 15
+  header line in `docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md`,
+  which stays as the decision record.
+  - **Absorbed.** A1–A10 and checklist items 1–26: the built battery with
+    real scenario names, T3a decision-scored (B-executed cell dropped),
+    the T3b test corrected to occupied-choice < 1/3 on
+    executed-`robot_1`-yield trials, T2b on legacy grounding with the
+    censored 0.6485 lower bound, the model table (gpt-4o + ER-2), and
+    prompt v2 / stage-2 v3.
+  - **Model table.** Filled: 1280 × 960 PNG as sent, `max_tokens` 2048
+    (stage 2 inherits it), and the retry budgets. The config pins the
+    alias `gpt-4o`, while the API served `gpt-4o-2024-08-06`; decision
+    artifacts do not record the served snapshot. Still REQUIRED: the ER-2
+    version, which the API does not expose, and the prompt-template
+    hashes at tag time.
+  - **Arrival definition pinned (F6).** Only position-check arrivals
+    count. A robot latched at its goal counts as arrived, flagged
+    `latched_at_goal`. This is the harness scorer's reading, the one the
+    frozen margin used. `rescore_arrivals.py` still needs a latched-at-goal
+    path: today it emits rows only for M5-reported arrivals.
+  - **Open for the coordinator.** There are 9 `[REV9-OPEN]` markers,
+    listed by `grep -n REV9-OPEN` on the spec. Among them:
+    absent/degraded-decision scoring, the passer-backtrack definition,
+    per-tier `prompt_static_obstacles`, the T3c oracle block, and the T3b
+    stopping rule.
+    - The T3b oracle `rationale` neutralisation (amendments item 24) is a
+      YAML edit and was deliberately not made.
+
 - **2026-09-29** — **The first three-robot runs: the T2b smoke passes, and the
   forced-order margin is a LOWER-BOUND of 0.6485 (the alternative order ends
   in a permanent bystander latch).** Tree `6d66a0d`, all mock, runs

@@ -97,10 +97,31 @@
   demonstration, not a T2a oracle-agreement result — see the family design
   spec's Status line and the 2026-09-19 design review for the full
   reasoning.
+- Rev 9 (2026-09-29): absorbs the pre-registration amendment set
+  (`docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md`, A1–A10
+  and the freeze checklist, items 1–26) in place — the built battery (T0
+  `normal_flow`, T2a `_bshort`, T2b `t2b_flow_ordering`, T3a
+  `blocked_path_*`, T3b
+  `obstacle_in_candidate`, T3c `dynamic_anomaly_v2`), random seeded
+  presentation order, the pre-gate RQ3 scoring rule, position-verified
+  outcomes, distance-channel safety reporting, the gpt-4o/ER-2 model table,
+  episode, provenance and failure-context-depth rules, the Arm B at-goal
+  exclusion, prompt v2 / stage-2 v3 and the corrected T3a/T3b tests — with
+  inline `Rev 9:` supersession notes and `[REV9-OPEN]` markers for questions
+  the amendments leave unresolved.
 
-Status: in user review. Predecessor system: the verified head-on yield
-protocol (H3 runs 8–13) and the M1→M5→M2→M3→M4 closed loop, live on the
-GCP/Isaac host.
+Status: **rev 9 — the binding text for the `prereg-v1` tag** (the tag does
+not exist yet; nothing here is frozen until it does). From rev 9 this
+document is authoritative; the amendments document remains the historical
+decision record, and its item numbers are cited below as "amendments A*n*"
+or "amendments item *n*". Still open before the tag: amendments items 7
+(keep B1 symmetric-`reverse` dispatch), 9 (REQUIRED model-table rows,
+prompt-template hashes), 14 (T1 tuning basket), the item-15 wording veto,
+the explicit confirmation of the prompt-v2 goals rider (items 10/13), the
+coordinator defaults marked "reviewable at the tag" (items 15, 17 T2b
+defaults, 17a, 17b), and every `[REV9-OPEN]` marker in this document.
+Predecessor system: the verified head-on yield protocol (H3 runs 8–13) and
+the M1→M5→M2→M3→M4 closed loop, live on the GCP/Isaac host.
 
 ---
 
@@ -150,7 +171,11 @@ series cited throughout project logs.
   (vs. the Arm B per-type policy table, outcome-measured).
 - **RQ3 Social reasoning:** its `yield_robot`/`crossing_order`
   assignments are effective (vs. FCFS + commitment-tiebreak baseline;
-  oracle-scored on T2).
+  oracle-scored on T2). *Rev 9 (amendments A3):* oracle agreement is
+  scored on each reasoner's **pre-gate** named assignment
+  (`decision.yield_robot`/`crossing_order` for Arm A, the FCFS answer
+  for Arm B), never on the post-gate executed assignment — see "M3 yield
+  feasibility gate" in the arms section.
 - **RQ4 Semantic advantage:** it exploits information no classical
   baseline has — blocker semantics and untracked visual elements (T3).
 - **RQ5 Closed-loop adaptation:** failure feedback deliberately changes
@@ -188,6 +213,50 @@ series cited throughout project logs.
   text-only / image-only, defined block-by-block in the apparatus
   section. The state table intentionally duplicates much of the image
   content; these conditions locate where the reasoning actually lives.
+- **Presentation order (rev 9, amendments A2):** `prompt_robot_order:
+  random`, seeded per run (`prompt_robot_order_seed`, else derived from
+  `VGU_RUN_ID`), drawn **once per episode** and constant across that
+  episode's re-analyses. With two scene robots the draw is
+  `id_asc`/`id_desc`; with three or more it is a **uniform permutation**
+  (`9d20b39`; before that fix `random` never listed `robot_2` first at
+  N = 3). Every decision artifact records `robot_presentation_order`,
+  `prompt_robot_order_mode`, `prompt_robot_order_seed` and
+  `episode_index`. **Every analysis of an obstacle-channel or feasibility
+  effect conditions on the drawn order**: under `id_asc` the first-slot
+  and `robot_1` priors coincide and swamp the feasibility evidence, so an
+  unconditioned rate averages an observable cell with a blind one
+  (findings Rev 6 §T, Rev 7 §AA). Per-cell drawn-order counts are
+  mandatory reporting; cells the draws leave empty are filled with
+  forced-order runs, labelled as such (findings Rev 7 §Z: batch 2 drew
+  order perfectly aligned with side).
+- **M3 yield feasibility gate (rev 9, amendments A3):**
+  `grounding_yield_feasibility: "swap"` (quoted; a bare `off` is YAML
+  `false`) in the shared M3 grounding stage, with
+  `yield_robot_grounded_from`, `yield_regrounded_reason` and
+  `yield_refusal_reason` in every artifact. Because grounding is shared,
+  the gate would also rescue Arm B's FCFS pick; RQ3 is therefore scored
+  **pre-gate** (see RQ3), while the episode outcome includes the gate
+  identically in both arms. The claim that the gate is *necessary* is
+  scoped to prompt-v1-era evidence: in the prompt-v2 calibration pilot
+  gpt-4o named the feasible `robot_2` on `_bshort` west 3/3 (gate 0/3),
+  cause ambiguous at n = 3 between the sim-time-era trigger scenes and
+  v2's rendered goals (amendments item 16(a)); the gate stays, as a
+  no-op on feasible namings.
+- **Episode rule (rev 9, amendments A7):** an episode is M5's
+  `AttemptMemory` scope — opened by a trigger on a robot set disjoint
+  from any open episode, closed only on a position-check-accepted arrival
+  of a tracked robot; the presentation order is drawn once per
+  episode. Solo-stall triggers enter the M2 pipeline and legitimately
+  open episodes; every per-episode analysis touching the opening strategy
+  conditions on trigger type (solo vs pair stall; findings Rev 6 §U).
+  **Three or more robots (T2b, `f76ae31`):** a solo stall outside a busy
+  command of two or more robots is *folded* — no analysis starts, and the
+  robot joins the episode's members and `AttemptMemory` scope; members
+  include dispatched command robots, overlap is tested against the
+  members, and the episode closes on the **last** member's arrival. The
+  fold has no proximity test: any 3+-robot scene defers a solo stall
+  anywhere during another pair's command until that command resolves (a
+  watch item). Two-robot semantics are pinned unchanged.
 
 ---
 
@@ -217,6 +286,23 @@ headings, velocities, goals). Rules, evaluated in order at trigger time:
   distinguish `object` from `transient`. This forced non-divergence is
   what T3a measures against.
 - **unknown:** anything else.
+- **Parked-at-goal exclusion (rev 9, amendments A10, `5e13805`):** the
+  `blocked_path` candidacy and the `unknown` involved set exclude a
+  stopped robot within `arrived_exclusion_radius_m` (default 0.35 m,
+  aligned with M5's `arrival_position_tolerance_m`) of its own goal. The
+  head-on and intersection rules and the robot-ahead blocker check are
+  unchanged — an arrived robot can still block another — and a goalless
+  robot is never excluded. Evidence: the T0 verification run's classical
+  shadow classified 60/60 parked-phase probes `blocked_path`/`anomaly`/
+  `reroute`; replaying all 65 recorded probe scenes, the old rule
+  reproduces 60/5 and the new rule gives 65× `none` (findings Rev 15 §AS).
+  [REV9-OPEN: the tuning-parity rule below permits Arm B tuning "only on
+  T1 scenarios", but A10 was derived from T0 (a test tier) data.
+  Amendments A10 justifies it as a pre-freeze rule change under that
+  clause without addressing the T1-only restriction; the coordinator
+  should state whether A10 is a rule-*gap* fix (outside the tuning clause)
+  or a tuning exception, since this is the exact critique the rule
+  exists to preempt.]
 
 ### Per-type policy table (RQ2 control)
 
@@ -236,6 +322,17 @@ length, from the ring buffer); higher commitment passes first. Residual
 ties break by lexicographic `robot_id`. This is both Arm B's ordering
 and the shadow answer logged in Arm A.
 
+*Rev 9 notes (live behavior, not rule changes).* At a symmetric standoff
+the FCFS yielder is a live coin flip: in the T2b smoke Arm B yielded
+`robot_1` in only 3/6 runs (finding F4, notes 2026-09-29), although
+`t2b_flow_ordering.yaml` records `fcfs_yielder: robot_1`. Arm B's RQ3
+score is the FCFS answer Arm B actually produced on each decision
+(amendments A3) — its executed decision, or in Arm A episodes the pick
+the shadow block recorded — never the YAML's `fcfs_yielder`. Arrival stamps are censored when a
+robot spawns on the conflict-zone boundary (`censored_arrivals` flag;
+findings Rev 14 §AQ); the zone radius versus the 1.5 m spawn distance is
+in the T1 tuning basket (amendments item 14).
+
 ### Stage-2 control
 
 Geometry-max ranking over the identical validated candidate set (Pillar
@@ -251,6 +348,15 @@ pre-registration freeze** (see Run matrix). They are frozen at the
 invalidates affected collected cells, which must be re-run. This
 preempts both "strawman baseline" and "tuned-on-test" critiques.
 
+*Rev 9 status.* Arm B's reasoning core is merged (`65cc850`) and its
+shadow logging is live on every analysis (`6d70238`, merged `97634be`).
+Pre-freeze rule changes on record: the parked-at-goal exclusion
+(amendments A10, above). Still to do before the tag (amendments item 14,
+T1 only): `stopped_threshold_mps` (parked STOPPED/SLOW flicker, ≈4× more
+transitions since sim-time stamps), the FCFS conflict-zone radius versus
+the 1.5 m spawn distance (censoring), Arm B `stopped_speed_mps`, and the
+M4 0.2 m/s speed-rule margin versus Nav2's 0.18 m/s cap.
+
 ---
 
 ## Scenario battery (the discriminating instrument)
@@ -260,6 +366,25 @@ preempts both "strawman baseline" and "tuned-on-test" critiques.
   in **log-only mode** (no command may be emitted — enforced, tested).
   Measures the false-positive side of RQ1 that the shared trigger
   otherwise hides.
+  **Rev 9 realization:** scenario `normal_flow` (two robots on parallel
+  right-hand-traffic lanes, `|x| ≤ 2.5` inside the tracked ROI, 0.70 m
+  pass at the nadir) plus M5 `t0_probe_mode` (`33232b8`…`ff96ead`):
+  off-trigger stage-1 analyses every `t0_probe_interval_sec`, artifacts
+  marked `probe: true` with their own order draw and null
+  `episode_index`, a structural and a defensive no-dispatch layer, and a
+  receipt-age gate that stops probes on a frozen scene (`089d56e`).
+  Live-verified (findings Rev 15 §AS, Rev 16 §AT): zero dispatches, zero
+  M4 traffic beyond base missions, ER-2 false positives 0/28 distinct
+  scenes. **Collection-protocol note:** that run yielded only 5
+  moving-phase scenes (22 parked, 1 transitional), so reaching 20
+  informative probes needs looped tasks or several runs per cell. T0
+  carries no `oracle:` block: every probe scene is non-congested by
+  construction, so any `congestion_detected=true` answer is a false
+  positive. [REV9-OPEN: which probes count toward the pre-registered
+  20 — distinct scenes, moving-phase scenes only, or all probes — is not
+  pinned by the amendments; findings Rev 15 §AS says only that the
+  protocol "needs looped tasks or several runs to get 20 informative
+  probes".]
 - **T1 Geometry-sufficient** (non-inferiority tier): current
   `head_on_deadlock` (0.55×2.0 corridor) and `intersection_bottleneck`.
   Classical solves these; the VLM must match it.
@@ -281,15 +406,148 @@ preempts both "strawman baseline" and "tuned-on-test" critiques.
   currently answerable by Arm A as prompted (rev 8.6, above; design review
   Findings 1–2) — collecting it needs the `yield_robot` field and the
   static-obstacle modality named in the Arm A pre-registration first.
+  *Rev 9: the two ±2.5-goal variants above are superseded as the T2a
+  instrument (amendments A1).*
+  **Rev 9 T2a instrument (amendments A1):** the cells run on
+  `head_on_asymmetric_w0p2_eopen_bshort_o0` and
+  `head_on_asymmetric_wopen_e0p2_bshort_o0` — blocked-side goal at the
+  blocked robot's spawn (±1.5), open-side passer goal at ±2.6, spawns,
+  blockers and oracle blocks byte-identical to the v1 variants (`e708ffa`,
+  `dcfa144`). The v1 ±2.5 goals put the blocker on the passer's goal path
+  (5 of 12 pilot episodes lost); the symmetric `_gshort` ±1.5 goals put
+  the passer's rest pose in the yielder's return path. The passer goal
+  was widened 2.5 → 2.6 to take the designed escort-endpoint margin from
+  0.061 m to 0.161 m; Nav2 stops the passer ≈0.07–0.10 m short, so the
+  realised margin is 0.063–0.096 m. Validation: east 3/3 and west 3/3
+  position-verified (findings Rev 10 §AI), and the gpt-4o pilot 6/6
+  (Rev 13 §AO). Attached conditions: arrival re-scoring carries the
+  `box_overlap` flag (`8e77bc4`; the blocked-side goal leaves 0.13 m
+  chassis-front clearance to the box near face, so the 0.35 m tolerance
+  could otherwise accept an overlapping pose); operator steps are part of
+  the protocol — `orchestrator.yaml` `initial_tasks` hand-set per variant
+  (M5 does not read scenario-YAML goals), scenario USDs regenerated after
+  any YAML change, installed configs verified by content/md5, never by
+  build exit code. The `yield_robot` field exists (rev 8.6) and the
+  static-obstacle channel is implemented; the pre-registered value of
+  that channel is open: [REV9-OPEN: rev 8.6 makes naming
+  `prompt_static_obstacles` in the Arm A pre-registration a precondition
+  for scoring T2a, but no amendment binds its value. Every `_bshort`
+  pilot ran it **on** (the "adopted apparatus", findings Rev 4 §N,
+  Rev 13 §AO; also the calibration pilot), the repo default is `false`,
+  and the T3a/T3b/T3c YAML headers require it **off** (their blockers
+  must be in no text channel). The per-tier value — and the same for
+  `prompt_pairwise_geometry` (repo default `true`) — needs pinning.]
+- **T2b flow ordering (rev 9 realization; amendments item 17):** built on
+  the user's 2026-09-28 BUILD decision as `t2b_flow_ordering` — a
+  symmetric open head-on between `robot_1` (west, spawn −1.5, goal +2.5)
+  and `robot_2` (east, spawn +1.5, goal −2.0), both retreats feasible,
+  with `robot_3` queued behind `robot_1` (spawn −2.45, goal +1.85) as
+  eastbound downstream traffic, held stationary by
+  `initial_tasks.robot_3.start_delay_sec: 55` so that it is tracked but
+  not moving at the trigger (validated in the smoke: stationary 6/6, RTF
+  0.34, 11–12 s headroom). Oracle: `robot_2` yields,
+  `correct_order: [robot_1, robot_3]`; FCFS contrasts only by chance
+  (see the FCFS rev 9 note). Tier-scoped apparatus differences, stated
+  as such in the pre-registration (coordinator defaults, reviewable at
+  the tag): **(a) legacy grounding** — T2b runs with `config/rag.yaml`
+  `grounding.mode: legacy` in both arms, because derived mode breaks
+  both orders geometrically (backup clearance versus the queued robot;
+  escort end versus the passer goal), the tier tests ordering rather
+  than retreat selection, and legacy is the only mode with the
+  first-passer guard; T2b decisions are therefore not poolable with
+  derived-mode decisions; **(b) corridor 1.0 m** (barrier 0.55 × 1.0 m
+  at x = 0), not the family's 2.0 m: M4's ordered release drives every
+  passer to the yielder's park point + 0.65 m, and with a 2.0 m corridor
+  `robot_3`'s escort end sits 0.06 m from `robot_1`'s goal, so even the
+  oracle order would latch; **(c) the censored-margin rule** (below,
+  oracle blocks). Required safety changes landed first (pair-scoped
+  exemption with fail-closed semantics and a bystander guarantee,
+  hold-until-last ordered release, first-passer guard; `9c38042`…
+  `b0ff818`) and were verified live: the bystander latch held the
+  alternative arm's `robot_2`+`robot_3` pair at 0.43 m with zero
+  contacts on both seeds. Three-robot smoke PASS (ordered release live,
+  `robot_3` admitted 0.04 s after `robot_1` clears, all arrivals
+  verified; notes 2026-09-29). Arm B still sees a two-robot `head_on`:
+  the stationary `robot_3` is > `r_conflict` from both pair members
+  (unit-pinned). Watch items: the episode fold (arms section) was not
+  exercised in the smoke; `run_simulation --duration-sec` is a dead flag
+  (Isaac stops at the YAML's `duration_sec`); `robot_2`'s return leg
+  stalls 8–19 sim-s at the east aisle mouth in every oracle run.
 - **T3 Semantics-required** (only-VLM tier): (a) paired blocker
   counterfactuals — near-identical geometry, static object vs. transient
   agent (divergent correct responses: `reroute` vs. `temporary_wait`);
   (b) obstacle-in-candidate — an **untracked** visual obstacle inside
   the geometry-max retreat candidate (classical picks it; the correct
-  choice requires vision); (c) `dynamic_anomaly` timed-obstacle runs.
+  choice requires vision); (c) `dynamic_anomaly` timed-obstacle runs
+  (rev 9: `dynamic_anomaly_v2`, below).
   M1 tracks only ArUco robots, so untracked elements exist in the image
   and in NO text channel — this asymmetry makes T3 vision-load-bearing
   by construction.
+  - **T3a, rev 9 realization — `blocked_path_object` /
+    `blocked_path_transient`** (`ad379f1`…`71f6fdd`; both members
+    mock-smoked PASS). A `blocked_path` scene: `robot_1` transiting its
+    lane meets a blocker; `robot_2` runs the north pocket, out of
+    conflict. The members are byte-identical except the blocker entity
+    and the oracle block: a static box (`object` → `reroute`) versus an
+    **unmarked robot-shaped agent** (zero M1 detections; `transient` →
+    `temporary_wait`), which is "not a robot" because "robot" means a
+    *listed* robot (amendments item 15(b), confirmed). **Decision-scored,
+    no outcome contrast (amendments item 17a / item 18):** in this
+    apparatus `reroute` re-sends the goal M4 already re-sends every 2 s,
+    so the object member cannot resolve under any strategy and the
+    transient member resolves under any once the blocker despawns; T3a
+    is scored on the decision — the divergent-and-correct rate against
+    the per-kind strategies and the `blocker_kind` verdict — with the
+    classical shadow's forced `object`/`reroute` recorded on every T3a
+    decision. **Recorded apparatus deviations (amendments item 17b /
+    items 19–20, reviewable at the tag):** the transient blocker is the
+    robot visual scaled **1.82×** so the 0.182 m single-plane lidar
+    intersects a plate (at 1× only the 7 cm head is scannable and Nav2
+    plans around it) — a visible size confound between the transient
+    agent and the tracked robots, accepted with this record; both
+    blockers spawn via `timed_obstacles` at 16 s on byte-identical maps
+    (a baked or t = 0 box strands the robot at spawn or moves the stall
+    point ≈1.5 m, and the members must differ only in the entity);
+    corridor 0.50 m (versus T1's 0.55) for closability; per-robot task
+    labels differ truthfully (`traverse_aisle`) and render in v2 prompts.
+  - **T3b, rev 9 realization — `obstacle_in_candidate`**
+    (`e205f5f`…`19fafa0`; mock-smoked PASS, parallax PASS). A head-on
+    yield where `robot_1`'s k = 3 retreat candidates are A (+0.36 m),
+    B (−0.36 m) and C (+0.72 m) at the park point x = −0.323 in the
+    junction, and an untracked 0.40 × 0.30 × 0.35 m box fills C — the
+    geometry-max `ranked[0]`, hence the stage-2 default and Arm B's
+    stage-2 answer (pinned over 269 parameter cases). Deviation from the
+    `wopen_eopen` shape (corridor 1.6 m, shifted east to put the park
+    point in the junction) is justified in the YAML header. Requires
+    derived grounding and stage 2 (see Decision flow) with a widened
+    `grounding_aisle_y_band_m`. **Yielder conditioning (amendments item
+    23, user-approved 2026-09-28):** only `robot_1` works as the yielder
+    in this geometry (a `robot_2` yield's top candidate lies inside the
+    NE rack past the image edge), so T3b is scored on
+    executed-`robot_1`-yield trials only, in both arms, with the discard
+    rate reported; no scene or gate change. **Outcome contrast:** the
+    occupied-default run shows the real one — M4's sidestep (raw
+    `cmd_vel`, no Nav2 or collision-monitor guard) drives the yielder
+    into the box and pins it until the wall-clock bound fails the yield
+    (amendments item 25; in T3b this contact is the *intended* outcome
+    mechanism). Oracle `rationale` wording: amendments item 24 asks for
+    it to be neutralised; the YAML still cites the rev-8.6 criterion.
+    [REV9-OPEN: neutralising the `obstacle_in_candidate.yaml` oracle
+    `rationale` is a config edit outside this documentation-only
+    absorption; it is pending, and the YAML's oracle pins must be
+    re-checked when it lands.]
+  - **T3c, rev 9 realization — `dynamic_anomaly_v2`** (`89884a3`;
+    re-authored after the `dynamic_anomaly` smoke found six defects,
+    findings Rev 15 §AS). `normal_flow`'s lanes; a 0.3 × 1.05 m box at
+    (1.5, −0.075), active 30–110 of 200 sim-s, spanning `robot_1`'s lane
+    so the detour is physically denied; untracked, in no text channel
+    (`prompt_static_obstacles` off), not baked into the Nav2 map.
+    Mechanically smoked PASS (findings Rev 16 §AT); the first model
+    answers came in funded battery 1. Descriptive tier. [REV9-OPEN: T3c
+    v2 has no `oracle:` block — the battery design deferred it to the
+    prompt-v2 `blocker_kind` field, which now exists — while the rev-8
+    rule below says every T3 YAML carries one. Either author it before
+    the tag or state that a descriptive tier is exempt.]
 - **Authored oracle blocks:** every T2/T3 scenario YAML carries an
   `oracle:` block — the pre-registered correct answer and the objective
   it optimizes — authored with the scenario and frozen at `prereg-v1`.
@@ -308,9 +566,56 @@ oracle:
     FCFS would pick robot_1, whose candidates all fail the sweep.
 ```
 
+- **Rev 9 — realized oracle schemas** (`isaac/vgu_sim/config.py`; the
+  block above is the rev-8 illustration, which mixed a T2a yielder with a
+  T2b order). Three frozen, `extra="forbid"` shapes:
+  - `OracleConfig` (T2a, T2b): `correct_yielder`, `fcfs_yielder`,
+    `feasible_yielders`, `objective: min_total_time_to_goal`,
+    `rationale`, and for T2b `correct_order` (every robot but the
+    yielder, first to pass first) plus a `margin` record
+    (`OracleMarginRecord`: oracle and alternative totals, alternative
+    yielder/order, `margin = alternative/oracle − 1`, `threshold` 0.20,
+    `censored`, `n_per_order`, run ids).
+  - `BlockerOracleConfig` (T3a): `correct_blocker_kind`,
+    `correct_strategy` (validated to be that kind's A.5 default),
+    `classical_blocker_kind`, `classical_strategy`,
+    `objective: blocker_kind_default`, `rationale`.
+  - `RetreatOracleConfig` (T3b): `yielder`, `passer`, `candidate_count`,
+    `occupied_candidate`, `correct_candidates` (partitioning the labels
+    with the occupied one), `classical_candidate` (= `ranked[0]`),
+    `objective: avoid_occupied_candidate`, `rationale`. Labels are M3's
+    generation-order candidate labels, never the counterbalanced letters
+    the VLM sees; the oracle holds only when `yielder` is the robot that
+    yields.
+- **Rev 9 — T2b oracle validity, censored-margin rule (amendments item
+  17, coordinator default (a), reviewable at the tag):** the ≥ 20%
+  dominance check is run by the forced-order harness
+  (`scripts/t2b_forced_order.py`, n = 2 seeds per order). **A censored
+  alternative arm counts as dominated**: a wrong order that never
+  finishes within the horizon makes the alternative total, and so the
+  margin, a **lower bound**; the harness labels it `LOWER-BOUND`, never
+  `PASS`, and writes it to the YAML only with `--accept-censored`.
+  Frozen record (`7400482`): oracle total 315.1 s, alternative total
+  519.45 s (alternative ended in the permanent `robot_2`+`robot_3`
+  bystander latch on both seeds, `robot_3` censored at the 300 sim-s
+  horizon), **margin ≥ 0.6485, `censored: true`**. Two qualifications
+  travel with it: the latch is permanent only because the mock answers
+  `none` after its first call (a live VLM would get the 34 re-analyses),
+  so "infeasible" means "infeasible without a second intervention"; and
+  the harness's ground-truth scorer credited the latched alternative
+  `robot_2` (0.09 m from its goal) as arrived at 57.5 s, which M5 and the
+  rescorer never do (finding F6) — the rev-9 arrival definition in the
+  measurement plan adopts the harness's reading, and crediting it lowers
+  the alternative total, so the bound stays conservative.
 - Authoring T2/T3 variants (scenario yamls + USD rebuilds + obstacle
   assets) is a first-class work item, not an afterthought — without them
-  the experiment cannot discriminate.
+  the experiment cannot discriminate. *Rev 9:* all tiers are built
+  (`docs/superpowers/specs/2026-09-27-scenario-battery-design.md`, build
+  table); scenario files under `isaac/config/scenarios/`: `normal_flow`,
+  `family/head_on_asymmetric_*_bshort_o0`, `t2b_flow_ordering`,
+  `blocked_path_object`, `blocked_path_transient`,
+  `obstacle_in_candidate`, `dynamic_anomaly_v2` (the original
+  `dynamic_anomaly` is retired from the battery).
 
 ---
 
@@ -334,19 +639,55 @@ pre-specified conditional extension, reported as such).
 | Cell | Scenarios | Arms / condition | N | Primary test |
 |---|---|---|---|---|
 | T1 non-inferiority | `head_on_deadlock`, `intersection_bottleneck` | A vs B paired, dual | 30 pairs/scenario (→ 60 by extension rule) | one-sided 95% bound on paired Δ success ≤ 10 pp (McNemar-style) |
-| T2 oracle agreement | T2a, T2b | A vs B paired, dual | 15 pairs/variant | oracle-agreement rate A vs B, Fisher exact, α = 0.05 |
-| T3a counterfactual pairs | object/transient pair | A executed (B shadow), dual; B executed on 5 pairs for outcome contrast | 15 pairs (= 30 episodes) + 10 B | divergent-and-correct rate: one-sided 95% binomial lower bound > 0.5 |
-| T3b obstacle-in-candidate | 1 scenario, k = 3 candidates | A executed (B shadow), dual; 5 B executed | 15 + 5 | binomial vs. chance 1/3, α = 0.05 (≥ 9/15 correct avoidance) |
-| T3c timed obstacle | `dynamic_anomaly` | A vs B paired, dual | 10 pairs | descriptive (time-to-resolution, degradations) |
-| T0 negative probes | normal-flow runs | A log-only, dual | 20 probes | false-positive rate ≤ 10% (≤ 2/20) |
+| T2 oracle agreement | T2a (`_bshort` west/east), T2b (`t2b_flow_ordering`, legacy grounding — rev 9) | A vs B paired, dual | 15 pairs/variant | oracle-agreement rate A vs B, Fisher exact, α = 0.05; scored pre-gate (rev 9) |
+| T3a counterfactual pairs | `blocked_path_object` / `blocked_path_transient` | A executed (B shadow), dual (rev 9: B-executed outcome cell dropped) | 15 pairs (= 30 episodes) | divergent-and-correct rate (decision-scored): one-sided 95% binomial lower bound > 0.5 |
+| T3b obstacle-in-candidate | `obstacle_in_candidate`, k = 3 candidates | A executed (B shadow), dual; 5 B executed; executed-`robot_1`-yield trials only (rev 9) | 15 + 5 | rev 9: occupied-choice rate < 1/3, exact one-sided binomial, α = 0.05 (≤ 1/15 at n = 15) |
+| T3c timed obstacle | `dynamic_anomaly_v2` (rev 9) | A vs B paired, dual | 10 pairs | descriptive (time-to-resolution, degradations) |
+| T0 negative probes | `normal_flow` runs, `t0_probe_mode` (rev 9) | A log-only, dual | 20 probes (looped tasks or several runs — rev 9) | false-positive rate ≤ 10% (≤ 2/20) |
 | RQ5 adaptation | forced-failure episodes | A informed vs A memoryless, dual | 15 + 15 | Fisher exact informed vs memoryless, α = 0.05; secondary: ≥ 11/15 informed-direction (binomial vs 0.5) |
-| Modality | 1 T1 scenario + T3a + T3b | A only: text-only, image-only | 10 per condition·scenario | descriptive deltas; T3 binomial per condition |
+| Modality | 1 T1 scenario + T3a + T3b | A only: text-only, image-only | 10 per condition·scenario | descriptive deltas; T3 binomial per condition (rev 9: T3b per the corrected occupied-choice test) |
 | Ablation: temporal | T2b (order-sensitive) | A, dual minus traces+motion table | 10 | oracle-agreement delta |
 | Ablation: annotation scheme | T3 subset | A, legacy vs legible | 10 per scheme | task-metric delta |
 
 Seeds are drawn once per cell and reused across arms/conditions within
 that cell. All tests, margins, and N values above are frozen at
 `prereg-v1`; deviations are reported as protocol deviations.
+
+**Rev 9 changes to the matrix (amendments items 17a, 17, 23–24).**
+
+- *T3a:* the rev-8 cell read "A executed (B shadow), dual; B executed on
+  5 pairs for outcome contrast | 15 pairs (= 30 episodes) + 10 B". The
+  B-executed outcome contrast is dropped (item 17a): the apparatus
+  offers T3a no outcome contrast, and the tier's contrast lives in the
+  decision, where the classical shadow's forced non-divergence is
+  recorded on every T3a decision.
+- *T3b:* the rev-8 test "binomial vs. chance 1/3, α = 0.05 (≥ 9/15
+  correct avoidance)" was vacuous — with k = 3 and one occupied
+  candidate, chance of *avoiding* it is 2/3 (P(≥ 9/15 | 2/3) ≈ 0.80;
+  item 24). The primary test is the **occupied-choice rate below chance
+  1/3, exact one-sided binomial**; at n = 15, ≤ 1/15 rejects
+  (P(X ≤ 1 | 1/3) ≈ 0.019; the amendments' "≈ 0.017" is P(X = 1)),
+  ≤ 2/15 does not (≈ 0.079). The unit is an executed-`robot_1`-yield
+  trial in both arms (item 23), with the discard rate reported; the
+  item's own recommendation is to size n upward to compensate.
+  [REV9-OPEN: the stopping rule under yielder conditioning is not
+  pinned — run a fixed number of episodes, or collect until 15 scored
+  trials? The approved option says only "sizing n upward to
+  compensate".]
+- *T2b:* the cell is pre-registered on legacy grounding (tier-scoped
+  apparatus difference; battery section), and Arm B is scored on the
+  FCFS answer it actually produced, not the YAML's `fcfs_yielder` (FCFS
+  rev 9 note).
+- *T2a:* the variants are the `_bshort` pair (amendments A1).
+- *Decision-scored units* (T0, T2 RQ3, T3a, T3b): [REV9-OPEN: neither
+  this document nor the amendments pin how an absent or degraded
+  decision is scored — terminal refusal, `decision=None`, non-detection
+  (`congestion_detected=false` on a trigger), parse failure, or a stage-2
+  default — nor which analysis of a multi-analysis episode is the scored
+  unit (first analysis, as A4's "first answer", or every analysis). It
+  matters most for T3b: stage 2 has no grey-image fallback, so a gpt-4o
+  stage-2 refusal defaults to `ranked[0]`, which is the occupied
+  candidate by construction.]
 
 ### Budget estimate (planning numbers)
 
@@ -355,13 +696,35 @@ wall-clock per episode ⇒ ≈ 33–43 h of simulation (batched unattended
 runs on the GCP/Isaac host). ≤ ≈ 1,200 VLM calls (1–3 per episode);
 hosted-API cost is negligible relative to sim time. The budget-shaping
 fact: T3 effects are constructed to be large, so T3 cells are cheap;
-T1 non-inferiority carries most of the episode budget.
+T1 non-inferiority carries most of the episode budget. *Rev 9: not
+re-costed.* The T3a B-executed cell (10 episodes) is dropped; T2b runs
+three robots at RTF ≈ 0.34 (two robots ≈ 0.39); T3b's yielder
+conditioning adds discarded episodes; gpt-4o refusals consume analysis
+slots (amendments A6).
 
 ### Pre-registration freeze
 
 Tag `prereg-v1` freezes: this document, Arm B config/thresholds, oracle
 blocks, prompt templates, and the model/decoding table. Episodes run
 before the tag are pilot data, excluded from headline results.
+
+*Rev 9 — what the tag freezes, concretely.* This document at rev 9
+(the amendments document is its decision record, not a second source);
+Arm B's rules including the A10 exclusion and the T1-basket values; every
+battery YAML's `oracle:` block including the T2b margin record; the
+stage-1 prompt template **v2** and the stage-2 prompt template **v3**
+with their content hashes (v1 and stage-2 v2 stay in the tree only for
+byte-identical replay of pilot artifacts); the model/decoding table
+below; and the collection configuration the amendments bind —
+`prompt_robot_order: random` (A2), `grounding_yield_feasibility: "swap"`
+(A3), `arrival_position_check: true` with 0.35 m tolerance (A4),
+`failure_context_window_sec: 60` with the A9 depth policy,
+`keep_debug_frames` and `keep_raw_frames` true (A8), derived grounding
+with stage 2 on (except T2b, legacy), and per-tier `initial_tasks`. The
+repo's committed `orchestrator.yaml` defaults (for example `id_asc` and
+gate `"off"`) are not the collection configuration; the installed YAML
+is asserted by content before every collected run (A8). Every run of
+2026-09-16 through the tag is pilot data.
 
 ---
 
@@ -376,10 +739,22 @@ Defined before data collection; "VLM cannot" is a reportable outcome.
     (The containment layer makes safety-envelope violations structurally
     impossible, so degradation frequency is the measured quantity; the
     per-cause breakdown below is mandatory reporting.)
+    *Rev 9 (amendments A4):* "success" is the **position-verified
+    episode outcome** defined in the measurement plan, not Nav2 goal
+    success.
   - **T0 discrimination:** false-positive rate ≤ 10% on log-only probes.
   - **T3 superiority:** T3a divergent-and-correct lower bound > 0.5
     (classical shadow non-divergent by construction); T3b ≥ 9/15
-    avoidance of the occupied candidate (vs. chance 1/3).
+    avoidance of the occupied candidate (vs. chance 1/3). *Rev 9:*
+    T3a is **decision-scored** — the divergent-and-correct rate against
+    the pre-registered per-kind strategies (object → `reroute`,
+    transient → `temporary_wait`) and the `blocker_kind` verdict, with
+    the classical shadow's forced `object`/`reroute` recorded on every
+    decision (amendments item 17a); no executed outcome enters it. The
+    T3b criterion "≥ 9/15 avoidance vs. chance 1/3" is superseded
+    (amendments item 24, user-approved 2026-09-28): **T3b occupied-choice
+    rate below chance 1/3, exact one-sided binomial, α = 0.05**, on
+    executed-`robot_1`-yield trials (item 23).
   - **RQ5 adaptation:** informed vs. memoryless difference significant
     (Fisher exact, α = 0.05) with informed-direction change in ≥ 11/15
     informed episodes.
@@ -393,22 +768,43 @@ Defined before data collection; "VLM cannot" is a reportable outcome.
 
 The apparatus supports four backends behind the `VLMBackend` protocol
 (`mock`, `llama_server`, `openai`, `anthropic` in
-`reasoning/vlm/backend_factory.py`). The research answer is scoped to
+`reasoning/vlm/backend_factory.py`) *(rev 9: five — `gemini` is also registered and
+is the secondary model below)*. The research answer is scoped to
 the pinned models below; the mock backend is for plumbing tests only and
 appears in no reported cell.
 
+*Rev 9 (amendments A6):* the table below replaces the rev-8 table. Rev-8
+values it supersedes: primary backend "`openai` (… swap from mock is on
+the critical path, blocked on API key)" — the key is live since
+2026-09-16; secondary backend "`llama_server` (local; per the
+2026-06-12 llama-server design)" with "exact local model +
+quantization" REQUIRED — replaced by ER-2; temperature "`llama_server`
+keeps the Cosmos Reason 2 CoT preset (0.6/0.95/20)" — no longer a
+reported cell. `llama_server` and `anthropic` remain in the backend
+factory and, like `mock`, appear in no reported cell. Values below are
+read from `config/models.yaml`, `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`,
+the camera config, and the `reasoner_config_effective` block recorded in
+funded decision artifacts.
+
 | Field | Value | Status |
 |---|---|---|
-| Primary backend | `openai` (hosted API; swap from mock is on the critical path, blocked on API key) | pinned |
-| Primary `model_id` | exact model string + version/date | **REQUIRED before freeze** |
-| Secondary backend | `llama_server` (local; per the 2026-06-12 llama-server design) | pinned |
-| Secondary `model_id` | exact local model + quantization | **REQUIRED before freeze** |
-| Temperature | 0.0 for `openai` (classification workload, per coding standards); `llama_server` keeps the Cosmos Reason 2 CoT preset (0.6/0.95/20) via the per-backend `vlm.<backend>.reasoner` override in `config/models.yaml` — resolves the 2026-07-08 reconciliation item | pinned (rev 8.4) |
+| Primary backend | `openai` (hosted API, chat completions) | pinned |
+| Primary `model_id` | config and every `reasoner_config_effective` carry the alias `gpt-4o`; the API served snapshot `gpt-4o-2024-08-06` in the 2026-09-16 key check and the 2026-09-28 funding probe; decision artifacts do not record the served snapshot | filled (rev 9); see marker below |
+| Secondary backend | `gemini` — Gemini Robotics-ER 2 via the Interactions API, replacing `llama_server` (amendments A6) | pinned (rev 9) |
+| Secondary `model_id` | `gemini-robotics-er-2-preview`, `thinking_level: low`, `force_schema: false`; the preview id carries no version/date and the API exposes none | id filled (rev 9); version **REQUIRED — not obtainable from the API** |
+| Temperature / sampling | gpt-4o: `temperature` 0.0 (plus the shared block's `top_p` 0.95, which the backend sends; `top_k` is omitted); ER-2: **no sampling control** — the API has no sampling fields, so the shared block's 0.6/0.95/20 are dropped and recorded per call as `unsupported_sampling` | pinned (rev 8.4; ER-2 rev 9) |
 | Images per call | 1 (single-frame rule; multi-image rejected rev 6) | pinned |
-| Image resolution | exact W×H of the annotated decision frame | **REQUIRED before freeze** |
-| Max output tokens | fixed value | **REQUIRED before freeze** |
-| Retry budget | transport retries and schema-repair reprompts, as implemented in the M2 reasoner | record exact values at freeze |
-| Prompt templates | content hash of stage-1/stage-2 templates per condition | recorded at freeze |
+| Image resolution | 1280 × 960 RGB PNG as sent (`camera.yaml`, calibration `image_size`; `frame_downscale_width: null`; stage-2 frames the same); gpt-4o requests `detail: "high"`; each provider rescales internally | filled (rev 9) |
+| Max output tokens | 2048 (`vlm.reasoner.max_tokens`; `max_tokens` for gpt-4o, `max_output_tokens` for ER-2; stage 2 inherits it) | filled (rev 9) |
+| Retry budget | stage 1: gpt-4o `max_attempts: 4` (amendments A6; terminal refusal 26.9% vs 57.1% at 2, p = 0.031), re-ask on, `image_fallback_after_attempts: 2` (same prompt text with a neutral grey image after two refused attempts); ER-2 `max_attempts: 2`, re-ask on, no image fallback; `timeout_sec: 120` per call for both. Stage 2: `stage2_max_attempts: 2` × `stage2_timeout_sec: 8.0`, no grey fallback | filled (rev 9) |
+| Prompt templates | stage-1 template v2 (`prompt_version: 2`), stage-2 template v3 (`stage2_prompt_version: 3`); content hashes per condition | hashes **REQUIRED — recorded at tag time** |
+
+[REV9-OPEN: the primary `model_id` is pinned as the alias `gpt-4o`,
+which OpenAI may re-point to a newer snapshot mid-collection without any
+artifact recording it. Amendments A6 lists "exact model strings and
+versions" as REQUIRED but does not say whether to pin the dated id
+`gpt-4o-2024-08-06` in `config/models.yaml` at the tag (a config change
+outside this absorption) or to record the served model per call.]
 
 Rules: data collection may not start until every REQUIRED row is frozen
 at `prereg-v1`. The **secondary model runs the headline cells only**
@@ -416,6 +812,37 @@ at `prereg-v1`. The **secondary model runs the headline cells only**
 attributable to a single model, and a "yes" gets a robustness check.
 Mid-experiment model deprecation ⇒ freeze a `prereg-v2` with the
 replacement and re-run affected cells.
+
+**Rev 9 model characteristics and reporting rules (amendments A6).**
+
+- **gpt-4o safety refusals** are a documented model characteristic,
+  stimulus-locked: the trigger is the **camera frame's content**, not the
+  text and not the annotation overlay (22/60 real vs 0/120 grey frames,
+  p = 1.5e-12, findings Rev 6 §S; raw frames refuse at least as often as
+  annotated ones on the skew-gated pairs, Rev 13 §AN); attempt-1 rate
+  14–25% on real head-on frames. Funded battery 1 found 0 refusals in 41
+  calls, 38 of which were T3a/T3c scenes with the robots metres apart —
+  consistent with the trigger being the close-robot head-on frame, which
+  the findings digest reads as sharpening the trigger from "camera
+  frames" to "the head-on frame" (findings Rev 17 §AU). Annotation masking and
+  downscaling are ruled out as mitigations; grey substitution is the only
+  image-side lever. **Refusal rates per cell are mandatory reporting**;
+  refusals consume analysis slots and are costed as such.
+- **Image fallback:** validated (Arm X: terminal refusals 10/84 → 0/84,
+  p = 1.5e-3) and kept; `image_fallback_after_attempts` is recorded in
+  `reasoner_config_effective` (`5386bd3`). Decisions with
+  `image_fallback_used: true` are **reported separately from every pooled
+  rate** (yielder agreement under the fallback rests on n = 1, and the
+  grey stimulus is the cell that moves yielder choice on standoffs).
+- **ER-2** (zero refusals in 300+ live and replay calls, preferred where a
+  lost analysis slot is costly) carries two structural confounds with
+  every number: no sampling controls (`unsupported_sampling` per call),
+  and thinking that is billed but never emitted, so its reasoning is not
+  inspectable. Documented characteristics, not fixed: an opening
+  `reverse` on asymmetric scenes (trigger-confounded — opening-strategy
+  analyses condition on trigger type) and an unanchored, near-chance
+  yielder choice (no `robot_1`/first-slot prior). ER-2's first decision
+  is not comparable to gpt-4o's first decision (amendments A4).
 
 ---
 
@@ -440,11 +867,56 @@ summaries below.
   set-of-mark letters, VLM selects `retreat_choice` + one-clause
   justification. Stage-2 failure → geometry-best candidate (= Arm B's
   answer — the fallback IS the control).
+- **Stage-1 prompt v2 (rev 9, amendments items 10, 13, 15;
+  `991ffae`…`ed152c7`, `b4a8d91`):** the output schema gains optional
+  `blocker_kind` (`object`/`transient`/`robot`, absent = valid) and
+  `crossing_order` (non-permutations degrade as `non_permutation_order`);
+  the state block carries each robot's **registry goal and task label**
+  (before v2 every prompt sent `goal=None`, while Arm B's rules read
+  goals — the goals-parity gap is closed by giving the VLM goals);
+  the header no longer claims "sorted by ID" under a non-ascending draw;
+  the guidance line reads "Decide from the robot states (including their
+  stated goals and tasks) and the image; do not assume intentions beyond
+  what is stated." (item 15(a), coordinator decision, user veto open
+  until the tag); the leakage-guard exemption for the literal schema
+  token `"blocker_kind"` is confirmed (item 15(c)). Templates are
+  versioned (`prompt_version`): v1 stays in the tree and every stored
+  artifact reconstructs byte-identically (130/130 integrity, 654/654
+  sweep). Nothing straddling the v1/v2 break is poolable. The goals
+  rider was implemented on the coordinator's recommended default;
+  explicit user confirmation is recorded as pending in amendments
+  item 13.
+- **Stage 2 as built (rev 9, amendments items 21–22, 26; `e358229`,
+  `1648dd2`, `49416c7`…`3366502`, `526d957`):** derived grounding and
+  stage-2 retreat selection are wired into M5 and the grounding mode is
+  flipped to `derived` (one-commit revertible). Set-of-mark letters are
+  drawn via `swarm_perception.geometry.world_to_pixel` with a
+  never-fatal fallback chain (`marks_drawn` recorded). **Deviation from
+  A.1/A.3:** letters are drawn on the stage-1 *annotated* frame
+  (`<request_id>_stage2.png`), not on a fresh frame. The marker-plane
+  homography puts rings ≈29 px off at floor level (versus the 34 px
+  ring), so a frame-level footprint check is part of authoring any
+  stage-2 tier. **Letter counterbalancing:** the letter↔M3-label mapping
+  is seeded per draw and recorded with its seed in every stage-2
+  artifact; the letter the VLM sees is never M3's label. **Listing
+  randomization (stage-2 prompt v3, item 26):** candidates are listed in
+  a seeded order independent of the letters, decoupling letter, listing
+  slot and geometry rank three ways (the calibration pilot showed a
+  letter-A prior 6/6 across both models, p = 1/64; v2 listed in letter
+  order). v2 is preserved for byte-reproduction. Budget 2 attempts ×
+  8 s; **no grey-image fallback in stage 2**, so gpt-4o stage-2
+  refusals surface as recorded defaults. `classical_retreat` (Arm B's
+  stage-2 answer) is in the shadow block. Stage-2 justification text
+  hallucinates obstacles on featureless scenes and is not evidence.
+  Scorer taxonomy and pooling rules: measurement plan.
 - **Annotation legibility (from the noise review):** identity = color,
   status = box style; boxes shrunk toward true footprint; labeled goals
   (G1/G2); candidate letters in a reserved color; leader-line labels in
   clusters; stage-2 frames drop arrows/goal markers; the prompt explains
-  the annotation scheme in one sentence.
+  the annotation scheme in one sentence. *(Rev 9: as built, the stage-2
+  frame is the stage-1 annotated frame plus letters — "Stage 2 as built"
+  above — so it does not drop the stage-1 overlays; a recorded
+  deviation, amendments items 21–22.)*
 - **Decision-frame rendering contract:** M5 invokes a pure rendering
   function in `swarm_perception.annotation`, passing snapshot history
   (trail points) and candidate pixels. Decision frames are produced
@@ -481,6 +953,13 @@ scene understanding — for the `openai` primary cell as much as for `gemini`.
 Turning the block on would change what Arm A is, so it stays out of the
 registered design until the type/strategy drift that report documents is
 resolved.
+
+*Rev 9:* under prompt v2 the robot state table row includes each
+robot's registry goal and task label; the failure-context row carries up
+to two blocks (amendments A9; Appendix A.1). The per-tier values of the
+two switchable rows (`prompt_pairwise_geometry`,
+`prompt_static_obstacles`) are the subject of the `[REV9-OPEN]` marker in
+the battery's T2a entry.
 
 Image-only cells are excluded from RQ5 (the failure context is textual).
 The offline input-encoding harness
@@ -524,6 +1003,39 @@ counted in the metrics. A wrong VLM answer produces a logged
 degradation, never unsafe motion — which is precisely what makes Arm A
 safe to run.
 
+*Rev 9 — M4 safety state and its limits (amendments A5, items 17, 25).*
+The claim above holds for the grounding layer; M4's execution layer has
+had three instances of one family of gaps, recorded here so the claim is
+read correctly:
+
+- **Coordination exemption (closed, `45e55f4`):** the G4 and K1 events
+  were ≈51 s each of driven nose-to-nose contact at 0.076 m, caused by
+  M4's exemption disarming the 0.45 m rule and the STALE fail-safe for
+  any pair with an ACTIVE command (an ER-2 `reroute` put both robots
+  ACTIVE). Now only `yield` and `reverse` exempt a pair, the per-robot
+  action comes from `/coordination/commands`, and unseen commands fail
+  closed; verified on the VM (the mock-forced exposure latches at
+  0.381 m with no contact). Arm B's `reroute` for `blocked_path` had the
+  identical exposure, so the fix gated both arms. Tracked non-blocking
+  residuals: the latch-first (K1) ordering is unit-covered but not
+  host-reproducible, and a Nav2 leg going ACTIVE after a latch holds its
+  goal until the 120 s watchdog.
+- **Pair scope and ordered release (landed for T2b, `9c38042`…
+  `b0ff818`):** the exemption is pair-scoped with fail-closed semantics
+  and a bystander guarantee (a yielder is no longer unguarded against a
+  third robot), the release is ordered hold-until-last
+  (`crossing_chain.py`), and a first-passer guard refuses mis-ordered
+  yields that would reverse the yielder onto a queued robot; two-robot
+  behavior is pinned byte-identical. The bystander latch is verified live
+  (0.43 m, zero contacts, both seeds).
+- **Raw-`cmd_vel` obstacle blindness (standing note, item 25):** maneuver
+  legs (backup, sidestep; the escort is raw `cmd_vel` too, Appendix A.7)
+  bypass Nav2 and the collision monitor entirely, so they are blind to
+  untracked obstacles. In T3b this is the *intended* outcome mechanism
+  (an occupied-default trial drives the yielder into the box in sim);
+  outside T3b it is an M4 hardening item for any post-prereg roadmap,
+  reproduced on a rack in funded battery 1.
+
 ---
 
 ## Measurement plan
@@ -549,6 +1061,81 @@ condition).
   geometry-max vs. fixed-left vs. random-valid — to isolate the value of
   visual selection within the validated set.
 - **Qualitative:** justification review on disagreement cases.
+
+### Rev 9 outcome, safety, and provenance rules (amendments A4, A5, A8)
+
+- **Primary per-episode outcome (A4):** every involved robot's arrival
+  **accepted by the arrival position check** (`arrival_position_check:
+  true`, tolerance 0.35 m, M1 cross-check; `4f39899`–`069e1f2`),
+  re-scored offline from the scene log by matching the acceptance lines
+  (`scripts/rescore_arrivals.py`), with the `box_overlap` flag on `_bshort`
+  (A1). "Resolution success" above means this outcome; Nav2 goal success
+  is not arrival (E1's false success sat 0.59 m from goal). Secondary:
+  the **first answer** — the pre-gate strategy and yielder of the
+  episode's first analysis. Resolution time (first analysis → last robot
+  arrived) is descriptive. First answer and outcome are reported
+  separately because they disagree on the same mechanism. At N = 3 the
+  rescorer's `run_both_arrived_*` columns mean "all arrived".
+- **Arrival definition, pinned at rev 9 (T2b finding F6, amendments item
+  17):** an arrival counts **only when accepted by the position check** —
+  the robot within the 0.35 m tolerance of its goal, cross-checked
+  against M1 — never on Nav2 goal success alone. **A robot latched at its
+  goal** (held by an M4 safety latch while within that tolerance, so Nav2
+  never reports success and M5 never emits an acceptance line) **counts as
+  arrived for the outcome, flagged `latched_at_goal`**, and flagged
+  arrivals are reported per cell. This is the definition the forced-order
+  harness's ground-truth scorer already applies — it credited the
+  alternative arm's latched `robot_2`, 0.09 m from its goal, at 57.5 s —
+  so the frozen T2b margin was computed under it. Tooling consequence:
+  `rescore_arrivals.py` currently emits rows only for M5-reported
+  arrivals, so it needs a latched-at-goal path before collection.
+- **Sim-time measurement notes (A4, findings Rev 14 §AQ):** scene logs
+  carry sim-time stamps since merge `97634be` (root cause: Isaac's
+  `useSystemTime` on the camera helpers, flipped at `a1aa81d`);
+  `rescore_arrivals.py` must use its era-aware path (a pre-fix script
+  silently scores every post-fix arrival `stale_estimate`). Offline joins
+  of M1 to ground truth shift by **−0.45 s** (constant M1 stamp lag).
+  M5's stall and cooldown thresholds still run on wall time (12 wall-s
+  ≈ 4.6 sim-s at RTF 0.38).
+- **Pooling rules.** Never pool, without stating the basis change: (a)
+  runs before and after the sim-time-stamp fix on any speed- or
+  status-derived measure (M1 speeds ≈2.6× larger post-fix; parked
+  STOPPED/SLOW flicker ≈4× more transitions); (b) decisions before and
+  after the **grounding-mode flip** to derived (`1648dd2`) —
+  `degradations`, `retreat_*`/`linked_position` keys and out-of-band
+  yield behavior differ — which also keeps T2b (legacy) apart from the
+  derived tiers; (c) anything straddling the stage-1 v1/v2 prompt break;
+  (d) stage-2 records across the v2/v3 break.
+- **Passer backtrack.** [REV9-OPEN: A4 requires one definition pinned
+  before the statistic is quoted comparatively — peak-minus-minimum or
+  first-turnaround, which disagree on `_gshort` H2 (0.878 m vs 0.580 m;
+  findings Rev 10 §AI) — and neither document picks one.]
+- **Safety columns (A5):** per run, the minimum pairwise centre-to-centre
+  distance and the percentage of ground-truth rows below `safety.yaml`
+  `min_distance_m` (0.45 m). Ground-truth contact flags
+  (`robot_robot_contacts`, `robot_static_contacts`) are **disqualified as
+  evidence** — no detector exists and they stayed silent through a
+  sustained 0.076 m wedge. 5–7% of rows below 0.45 m is the
+  design-expected signature of a completed head-on yield; sustained
+  breaches near contact depth (G4-class) are incidents, reported
+  individually. Ground truth records robots only, not obstacles.
+- **Stage-2 scoring taxonomy (amendments items 22, 26):** every stage-2
+  choice is scored three ways — chose the **first-listed** candidate,
+  chose the **default** (`choice == default_letter`, never a comparison
+  against M3's `retreat_choice`), chose **letter A**. Trust
+  `listing_order` only when `stage2_prompt_version == 3` (a v2-stamped
+  record with a listing means a stale deploy).
+- **Mandatory per-cell counts:** drawn presentation orders (A2),
+  refusal rates and `image_fallback_used` decisions (A6, the latter
+  reported separately), and the T3b yielder-discard rate (item 23).
+- **Run provenance (A8):** every collected run carries the VM tree
+  verified by md5 against the named commit; the installed orchestrator
+  YAML asserted by content before launch; `reasoner_config_effective` in
+  every decision artifact (`b518ed4`); `keep_debug_frames: true` and
+  `keep_raw_frames: true` (raw/annotated pairs are not same-instant —
+  |skew| mean 0.40 s — so annotation comparisons gate on the ≤ 0.2 s
+  subset); and `ground_truth.jsonl` rescued into the run directory before
+  the next launch.
 
 ---
 
@@ -638,7 +1225,11 @@ metrics) and larger robot counts beyond the 2–4-robot conflict scenarios.
 - `swarm_execution/` (sequenced release, rejoin, wait-expiry semantics,
   escort heading, projected-progress predicates)
 - `isaac/config/scenarios/` + assets (T2/T3 battery with `oracle:`
-  blocks, T0 normal-flow scenario, obstacle assets, USD rebuilds)
+  blocks, T0 normal-flow scenario, obstacle assets, USD rebuilds) —
+  *rev 9: built*, file names in the scenario battery section; oracle
+  schemas in `isaac/vgu_sim/config.py`; T2b forced-order harness
+  `scripts/t2b_forced_order.py`; arrival re-scoring
+  `scripts/rescore_arrivals.py`
 - **Docs kept in sync (required by project standards):**
   `docs/specs/module2_vlm_reasoning.md`, `module3_rag_grounding.md`,
   `module5_orchestrator.md`, and `reasoning/schemas/` docs for every
@@ -686,7 +1277,10 @@ VLM's choice. Therefore:
 - **Stage 2 (only when strategy = yield):** M5 generates validated
   retreat candidates for `yield_robot` (A.3), has M1 render them as
   markers on a fresh frame, and issues a second, narrow VLM call whose
-  only output is `retreat_choice` + one-clause justification.
+  only output is `retreat_choice` + one-clause justification. *Rev 9
+  (amendments items 21–22): as built, the markers are drawn on the
+  stage-1 annotated frame, not a fresh frame — a recorded deviation; see
+  "Stage 2 as built" in the Decision flow.*
 - **Latency:** one extra VLM round trip (~2–6 s) inside Layer 2's
   0.5–2 Hz budget; the robots are stationary in a standoff, so the cost
   is benign.
@@ -717,6 +1311,25 @@ VLM's choice. Therefore:
   did not run; and the block's closing advice states that
   `congestion_detected=false` is the right answer when the congestion is
   gone, so memory does not bias the model toward always choosing a strategy.
+  Depth (rev 9, amendments A9, `7f9884d`): re-analysis prompts carry the
+  most recent resolved attempt (the "Previous attempt in this episode:"
+  block, unchanged) and, when that attempt is not itself the failure,
+  the most recent failed attempt as a second "Earlier failed attempt in
+  this episode:" block (`ReasonerRequest.last_failed_context`). "Failed"
+  is any resolved outcome other than completed, `timed_out` included.
+  The failed block lives under `AttemptMemory`'s overlap-plus-window
+  scope — it must overlap the analysed robots and is dropped with the
+  window (60 s default) or on a disjoint robot set; a failure older than
+  the window is gone (a documented boundary, not a defect); a newer
+  failure replaces an older one; a completed attempt never displaces the
+  stored failure. Prompts without the second block are byte-identical to
+  the pre-policy rendering (SHA-pinned; replay 130/130). Both blocks are
+  persisted structurally in decision artifacts for RQ5. Motivation: the
+  one-deep context let a completed `temporary_wait` evict a failed yield,
+  and M2 re-selected the same infeasible yielder (R2 `7482f0ad`, L4
+  `ca63fbd5`). The "Scope: … current episode's prior attempt(s) only"
+  rule above is unchanged; the episode is defined in the arms section
+  (amendments A7).
 
 ### A.2 Pillar 1 — Derived maneuver distances
 
@@ -770,7 +1383,12 @@ grounding call site).
   **default**.
 - **Annotation:** M5 converts candidate poses to pixels via the
   existing homography and passes them in the M1 frame request; M1's
-  annotation pass draws lettered markers (Ⓐ/Ⓑ/Ⓒ).
+  annotation pass draws lettered markers (Ⓐ/Ⓑ/Ⓒ). *Rev 9 (amendments
+  items 21–22, 26): as built, letters are drawn onto the stage-1
+  annotated frame via `swarm_perception.geometry.world_to_pixel`; the
+  letter↔candidate mapping is seeded per draw (so the letter shown is
+  never M3's label) and, from stage-2 prompt v3, the listing order is
+  seeded independently of the letters.*
 - **Prompt (stage 2):** "choose the marked retreat position that best
   clears the conflict while preserving the passage space the other
   robots need and avoiding visible obstacles or traffic; answer with
@@ -808,7 +1426,14 @@ grounding call site).
 - **The yielder holds until the LAST robot in `crossing_order` clears**
   (same projected predicate), then rejoins (sidestep-back) and
   publishes COMPLETED. With N=2 the behavior degenerates to the
-  verified head-on flow plus rejoin.
+  verified head-on flow plus rejoin. *Rev 9 (amendments item 17):* the
+  hold-until-last ordered release is implemented
+  (`crossing_chain.py`, `9c38042`…`b0ff818`) together with the
+  pair-scoped exemption and a first-passer guard that refuses
+  mis-ordered yields; M3 fans a multi-passer yield out with per-passer
+  clearances. The first-passer guard exists in legacy grounding only,
+  one reason T2b is pre-registered on legacy grounding. Verified live in
+  the three-robot smoke (notes 2026-09-29).
 - **Timeout semantics:** a linked wait's upper bound expiring does
   **not** release the robot into an unresolved conflict. It publishes
   FAILED (detail `wait expired unresolved`) for the whole resolution
@@ -821,7 +1446,12 @@ grounding call site).
 ### A.5 Pillar 4 — Semantic-conditioned strategy arbitration
 
 - **Schema:** optional `blocker_kind: "robot" | "object" | "transient"`.
-  Prompt: classify what is blocking, from visible evidence.
+  Prompt: classify what is blocking, from visible evidence. *Rev 9
+  (amendments item 15(b), confirmed):* `robot` means a **listed** robot
+  (one in the prompt's robot state table), so T3a's deliberately unlisted
+  robot-shaped blocker labels `transient` — the tier's oracle depends on
+  this definition. The field is
+  in the contract and the prompt from stage-1 prompt v2.
 - **Conditioned arbitration, not a lookup:** `blocker_kind` does not
   fix the strategy; it constrains the **compatible strategy set**, and
   the VLM selects the final strategy within that set using current
@@ -927,3 +1557,13 @@ at runtime, and which are scripted or scenario-tuned.
   corridor unaided. Successful resolution in pilot runs demonstrates
   that the pipeline functions, not that the VLM adds value over a
   rule-based decision — that is precisely what Arm B tests.
+- **Rev 9 pointer (this audit is dated 2026-09-16 and is not rewritten).**
+  Changes since it that alter the "scripted" bullet: the yielder is no
+  longer read from list position — the decision's `yield_robot` (rev
+  8.6) passes the M3 `swap` feasibility gate (arms section); M3 runs
+  **derived** grounding with stage-2 retreat selection by default
+  (`1648dd2`), legacy only on T2b; the M4 exemption is scoped to
+  `yield`/`reverse` pairs and pair-scoped, with ordered hold-until-last
+  release (Containment, rev 9 notes); M1 and scene-log stamps are
+  sim-time since `97634be`; and localization and odometry remain
+  simulator ground truth as stated above.
