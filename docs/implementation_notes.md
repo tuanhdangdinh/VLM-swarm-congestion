@@ -37,6 +37,85 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-28** — **Calibration mini-pilot (amendments item 16) ran on both
+  funded models. No outcome, timing or safety cliff. Of the two behavioural
+  divergences, divergence 1 does not block the freeze; divergence 2 is a
+  freeze-timing decision for the user.** This was
+  the first funded run of prompt v2, derived grounding and stage 2. Evidence:
+  `data/logs/vm_runs/calibration/CALIBRATION_SUMMARY.txt`, with per-run
+  dirs, `ARRIVALS_RESCORED_CALIBRATION.csv` and `_vm_driver/`.
+  - **Funding probe.** One text-only call per backend from `vgu_ros`:
+    - gpt-4o: HTTP 200 (`gpt-4o-2024-08-06`; 500 RPM, 30k TPM).
+    - ER-2 Interactions API: HTTP 200. The 2026-09-27 monthly-cap 429 is
+      gone.
+    - No 429 appeared in any run.
+  - **Apparatus.**
+    - Cell: `_bshort` west, goals 2.6 / −1.5, n = 3 per model.
+    - Settings: gate `swap`, random order with seed null, obstacles ON (the
+      block is in 50/50 prompts), debug and raw frames, shadow on,
+      `t0_probe_mode` off.
+    - Tree: the VM tree is `58bb428`, verified 589/589 against local
+      `git archive`. Nothing was deployed.
+    - Verified in every run: startup lines `grounding mode=derived` and
+      `stage2 marks enabled`, and 50/50 artifacts with `prompt_version: 2`
+      and `grounding_mode: derived`.
+    - CE2 was an apparatus failure: robot_1's Nav2 lifecycle never went
+      active, so there were 0 API calls. That cell was re-run once as CE2b.
+  - **In band against N1–N3 and K4–K6/S1–S2:**
+    - episode outcome 6/6, position-verified. Of the 12 first arrivals, 11
+      pass the M1 check. CE3 robot_1 was accepted as `stale_estimate` and is
+      verified by GT only (0.126 m). The rescore CSV also has 10 repeat
+      lines; 0 flipped, 0 box overlap;
+    - first yield 150.8–152.7 s;
+    - minimum pairwise distance 0.223–0.262 m;
+    - backtrack 0–0.066 m;
+    - the derived park pose equals legacy, (1.79–1.81, ±0.36–0.38), or
+      1.44 after a reverse opening (legacy 1.46/1.52).
+  - **Divergence 1: gpt-4o now names robot_2 on west.** It did so on the
+    first yield decision in 3/3 runs, so the gate fired 0/3; in N it named
+    robot_1 3/3.
+    - Two of the three were `id_asc`, so it is not the first-slot prior.
+    - Its reasons cite robot_2 being "already stopped" (robot_1 was SLOW at
+      the trigger) or the goals new in v2.
+    - The robot_1 anchor, and so "the gate is necessary for gpt-4o", rests on
+      v1 data only.
+    - This does not block the freeze: outcomes are unchanged, and nothing is
+      pooled across the bundle.
+  - **Divergence 2: every stage-2 answer was letter "A", 6/6 across both
+    models.**
+    - Two of those were non-default picks. Under no letter preference,
+      P = 1/64.
+    - Letter and first-listed slot are confounded.
+    - The candidates are mirror-symmetric with nothing visible between them,
+      so this shows the prior exists, not that it overrides evidence.
+    - If the prior persists when a candidate is visibly occupied, a pick-A
+      policy lands exactly on chance (1/3) in T3b, and the approved
+      occupied-choice < 1/3 test would come out null by prior.
+    - Separating letter from slot changes the stage-2 rendering and its pinned
+      SHAs, so the user decides before the freeze.
+  - **Stage-2 health.**
+    - All 6 answered on attempt 1: k = 2, marks drawn, 0 refusals, 0
+      timeouts, 0 degraded. One valid `yield_refused` skip.
+    - Latency: gpt-4o 1.5–2.2 s, ER-2 3.8–5.2 s.
+    - The extra call adds about 3–6 s between the first analysis and
+      dispatch.
+  - **Refusals (gpt-4o).**
+    - Attempt 1 refused on 2/20 calls (10%). That is below the census band of
+      14–25%, but within noise at n = 20. Terminal 0.
+    - `image_fallback_used` fired once, reported separately: CO3's
+      yield-deciding call was answered on the grey image. It is the fallback's
+      first closed-loop use.
+  - **Other findings.**
+    - **Resolution-time tails.** CO3 took 422 s and CE3 645 s, driven by the
+      existing return-leg corridor-mouth Nav2 stall (80.5 and 139.7 sim-s,
+      baseline 3.6–44.7). CE3 had no commands during the stall.
+    - **CE3 stale arrival.** robot_1's online arrival was accepted as
+      `stale_estimate`; ground truth puts it 0.126 m from goal.
+    - **Repeat arrival lines.** M5 re-sends `temporary_wait` to a robot that
+      has already arrived, so arrival lines repeat. Scorers must dedupe.
+  - **VM end state.** `orchestrator.yaml` pristine, source and installed
+    `c06bdb4e…`; `vgu_ros` restarted; GPU idle; instance RUNNING.
+
 - **2026-09-28** — **The T3b obstacle-in-candidate scenario is built and
   mock-smoked on the VM, both runs PASS. This was also the first live run of
   the derived and stage-2 stack.** Commits: `e205f5f` (per-scenario band),
