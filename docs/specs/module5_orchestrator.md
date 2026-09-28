@@ -329,6 +329,15 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   (a command moving two robots covers both), so every two-robot rule above is
   unchanged (pinned against the pre-change tracker in
   `tests/unit/test_m5_presentation_order.py`).
+  **Permutations at three or more robots (2026-09-28).** With three or more
+  robots in the scene, `random` draws a uniform permutation of them (a tuple
+  of robot ids, recorded as a list in `robot_presentation_order`) instead of
+  one of the two id sorts, which at N = 3 never give `robot_2` of a
+  `robot_1`/`robot_2` standoff the first slot. The draw is per episode index
+  on its own seeded stream over the scene's robots at the episode's first
+  analysis (the T0 probe draws over its scene the same way), so two-robot
+  draws are the pre-change ones exactly. Analyses must condition on the drawn
+  permutation, as on the drawn id sort (amendments A2).
 - FR5.3.10 (2026-09-25) Every decision artifact records the outcome of M3's
   yield feasibility gate (`grounding_yield_feasibility`, FR3.x in
   `docs/specs/module3_rag_grounding.md`): the configured mode under that key,

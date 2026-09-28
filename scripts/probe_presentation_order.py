@@ -575,6 +575,28 @@ class CellContext:
     fcfs_yielder: str
 
 
+def first_listed_standoff_robot(known_robot_ids: list[str], scenario: ScenarioConfig) -> str:
+    """Return the first-listed robot of the scenario's standoff pair.
+
+    The slot hypothesis (H_slot) is about which of the two yield candidates
+    the prompt lists first. With two robots that is simply the first listed
+    robot; with a third robot in the scene (T2b's queued `robot_3`, listed
+    first under `id_desc`) it skips any robot outside
+    `expected_conflict.involved_robots`.
+
+    Args:
+        known_robot_ids: Robot ids in the order the prompt lists them.
+        scenario: The scenario the prompt was rendered from.
+
+    Returns:
+        The first listed member of the standoff pair, or the first listed
+        robot when the scenario declares no conflict.
+    """
+    conflict = scenario.expected_conflict
+    pair = set(conflict.involved_robots) if conflict is not None else set()
+    return next((rid for rid in known_robot_ids if rid in pair), known_robot_ids[0])
+
+
 def prepare_cells(
     scenarios: dict[str, ScenarioConfig], out_dir: Path, prompt_dir: Path | None = None
 ) -> dict[str, CellContext]:
@@ -614,7 +636,9 @@ def prepare_cells(
                     request=request,
                     prompt_sha256=sha256_text(payload.user_prompt),
                     image_path=image_path,
-                    first_listed_robot=payload.known_robot_ids[0],
+                    first_listed_robot=first_listed_standoff_robot(
+                        payload.known_robot_ids, scenario
+                    ),
                     correct_yielder=oracle.correct_yielder,
                     fcfs_yielder=oracle.fcfs_yielder,
                 )

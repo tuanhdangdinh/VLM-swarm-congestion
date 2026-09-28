@@ -44,7 +44,8 @@ prompt_static_obstacles: false
 # of the two per congestion episode, counterbalancing within a run; the drawn
 # order is constant across every re-analysis of one episode, and each decision
 # artifact records it alongside the mode, the seed and the episode index. Only
-# the ordering changes.
+# the ordering changes. With three or more robots in the scene (T2b), random
+# draws a uniform permutation of their ids instead (recorded as a list).
 prompt_robot_order: id_asc
 # Seed for the random draw. null derives it from VGU_RUN_ID, falling back to the
 # M5 session id, so paired runs launched with the same run id draw the same

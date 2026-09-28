@@ -5,7 +5,7 @@ from reasoning.vlm.models import (
     FailureContext,
     PromptPayload,
     ReasonerRequest,
-    RobotPresentationOrder,
+    RobotOrder,
     RobotStateInput,
     StaticObstacleInput,
 )
@@ -281,17 +281,22 @@ def format_robot_state_lines(robot_states: list[RobotStateInput]) -> list[str]:
 
 def order_robot_states(
     robot_states: list[RobotStateInput],
-    order: RobotPresentationOrder = "id_asc",
+    order: RobotOrder = "id_asc",
 ) -> list[RobotStateInput]:
     """Put robot states into the requested presentation order.
 
     Args:
         robot_states: Robot states in arbitrary order.
-        order: `"id_asc"` for ascending robot ID, `"id_desc"` for descending.
+        order: `"id_asc"` for ascending robot ID, `"id_desc"` for descending,
+            or a tuple of robot ids listed first in that order (robots it does
+            not name follow in ascending ID).
 
     Returns:
         A new list; the input is left untouched.
     """
+    if isinstance(order, tuple):
+        rank = {robot_id: index for index, robot_id in enumerate(order)}
+        return sorted(robot_states, key=lambda s: (rank.get(s.robot_id, len(rank)), s.robot_id))
     return sorted(robot_states, key=lambda s: s.robot_id, reverse=order == "id_desc")
 
 
@@ -303,7 +308,7 @@ def _faces(theta: float, dx: float, dy: float, distance: float) -> bool:
 
 def format_pairwise_geometry_lines(
     robot_states: list[RobotStateInput],
-    order: RobotPresentationOrder = "id_asc",
+    order: RobotOrder = "id_asc",
 ) -> list[str]:
     """Render distance and mutual facing for every robot pair, in presentation order.
 
@@ -313,7 +318,7 @@ def format_pairwise_geometry_lines(
 
     Args:
         robot_states: Robot states; pairs are formed in the requested order.
-        order: `"id_asc"` for ascending robot ID, `"id_desc"` for descending.
+        order: As `order_robot_states`.
 
     Returns:
         One line per pair, e.g. `robot_1 <-> robot_2: distance 1.00 m;

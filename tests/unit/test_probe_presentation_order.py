@@ -29,6 +29,7 @@ from scripts.probe_presentation_order import (
     PacedBackend,
     build_call_record,
     build_paced_backends,
+    first_listed_standoff_robot,
     plan_jobs,
     plan_seeded_jobs,
     summarize_cells,
@@ -250,3 +251,28 @@ def test_summarize_cells_keeps_seeded_and_temperature_rows_column_compatible():
 
     assert len(rows) == 2
     assert list(rows[0]) == list(rows[1])
+
+
+def _scenario(involved: list[str]):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(expected_conflict=SimpleNamespace(involved_robots=involved))
+
+
+def test_first_listed_standoff_robot_is_the_first_listed_robot_with_two_robots():
+    pair = _scenario(["robot_1", "robot_2"])
+    assert first_listed_standoff_robot(["robot_1", "robot_2"], pair) == "robot_1"
+    assert first_listed_standoff_robot(["robot_2", "robot_1"], pair) == "robot_2"
+
+
+def test_first_listed_standoff_robot_skips_a_queued_third_robot():
+    pair = _scenario(["robot_1", "robot_2"])
+    assert first_listed_standoff_robot(["robot_3", "robot_2", "robot_1"], pair) == "robot_2"
+
+
+def test_first_listed_standoff_robot_falls_back_without_a_conflict():
+    from types import SimpleNamespace
+
+    assert first_listed_standoff_robot(
+        ["robot_2", "robot_1"], SimpleNamespace(expected_conflict=None)
+    ) == "robot_2"

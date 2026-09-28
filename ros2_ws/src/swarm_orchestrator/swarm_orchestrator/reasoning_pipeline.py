@@ -27,7 +27,7 @@ from reasoning.vlm.models import (
     ReasonerRequest,
     ReasonerResult,
     RetreatChoiceDecision,
-    RobotPresentationOrder,
+    RobotOrder,
     RobotStateInput,
     SnapshotFrame,
     StaticObstacleInput,
@@ -186,7 +186,7 @@ def build_reasoner_request(
     include_pairwise_geometry: bool = True,
     static_obstacles: Sequence[StaticObstacleInput] = (),
     include_static_obstacles: bool = False,
-    robot_presentation_order: RobotPresentationOrder = "id_asc",
+    robot_presentation_order: RobotOrder = "id_asc",
     last_failed_context: FailureContext | None = None,
     prompt_version: PromptVersion = CURRENT_PROMPT_VERSION,
 ) -> ReasonerRequest:

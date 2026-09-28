@@ -37,7 +37,7 @@ from reasoning.vlm.models import (
     OpenAIBackendConfig,
     ReasonerConfig,
     ReasonerRequest,
-    RobotPresentationOrder,
+    RobotOrder,
 )
 from reasoning.vlm.reasoner import Reasoner
 from swarm_orchestrator.arrival import ArrivalDecision, ArrivalGate
@@ -597,7 +597,7 @@ class OrchestratorNode(Node):
         snapshot,
         robots: list[str],
         distance_to_goal_m: dict[str, float],
-    ) -> RobotPresentationOrder:
+    ) -> RobotOrder:
         """Build the request for one analysis and hand it to the worker thread.
 
         Args:
@@ -630,7 +630,9 @@ class OrchestratorNode(Node):
                 f"yield_robot={failed.yield_robot} executed={failed.executed_strategy} "
                 f"outcome={failed.outcome_status}"
             )
-        episode_index, order = self._episodes.order_for(robots)
+        episode_index, order = self._episodes.order_for(
+            robots, [view.robot_id for view in snapshot.robots]
+        )
         # Registry goals/tasks ride on the snapshot so the stored `scene` alone
         # reconstructs the prompt; the shadow keeps its own goal lookup.
         snapshot = attach_registry_assignments(
@@ -884,7 +886,7 @@ class OrchestratorNode(Node):
 
     def _submit_probe(
         self, request_id: str, probe_index: int, snapshot
-    ) -> RobotPresentationOrder:
+    ) -> RobotOrder:
         """Hand one probe's stage-1 analysis to the probe worker.
 
         Built like a triggered request, except that it carries no failure
@@ -896,7 +898,9 @@ class OrchestratorNode(Node):
             The presentation order the probe renders robots in.
         """
         image_path = str(Path(self._config.frame_dump_dir) / f"{request_id}.png")
-        order = self._probe_order.order_for_episode(probe_index)
+        order = self._probe_order.order_for_episode(
+            probe_index, [view.robot_id for view in snapshot.robots]
+        )
         snapshot = attach_registry_assignments(
             snapshot, self._effective_goal, self._registry.mission_task
         )

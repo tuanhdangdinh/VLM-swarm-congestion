@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
-from reasoning.vlm.models import RobotPresentationOrder
+from reasoning.vlm.models import RobotOrder, RobotPresentationOrder
 
 # What the M5 config may ask for: either fixed order, or a per-episode draw that
 # counterbalances the order within one run instead of across paired runs.
@@ -40,20 +40,31 @@ class PresentationOrderPolicy:
     `random.Random(seed)` stream and takes one independent draw per episode
     index, so the same seed and index always yield the same order and paired
     runs sharing a `VGU_RUN_ID` see the same sequence.
+
+    With three or more robots in the scene, `"random"` instead draws a uniform
+    permutation of them (a tuple of robot ids): the two id sorts cover only 2
+    of the N! orders, and at N = 3 no id sort puts `robot_2` of a
+    `robot_1`/`robot_2` standoff first. The draw uses its own stream per
+    episode index, so the two-robot draws are exactly the pre-2026-09-28 ones.
     """
 
     mode: RobotPresentationOrderMode
     seed: int
 
-    def order_for_episode(self, episode_index: int) -> RobotPresentationOrder:
+    def order_for_episode(
+        self, episode_index: int, robot_ids: Iterable[str] | None = None
+    ) -> RobotOrder:
         """Return the effective presentation order for one congestion episode.
 
         Args:
             episode_index: Zero-based index of the episode within the run.
+            robot_ids: The robots the prompt will list; only `"random"` reads
+                it, and only when it names three or more robots.
 
         Returns:
-            `"id_asc"` or `"id_desc"`; never the configured `"random"`, so the
-            caller always has a concrete order to render and to record.
+            `"id_asc"` or `"id_desc"`, or under `"random"` with three or more
+            robots a permutation of them; never the configured `"random"`, so
+            the caller always has a concrete order to render and to record.
 
         Raises:
             ValueError: If `episode_index` is negative.
@@ -62,6 +73,12 @@ class PresentationOrderPolicy:
             raise ValueError(f"episode_index must be >= 0, got {episode_index}")
         if self.mode != "random":
             return self.mode
+        robots = sorted(set(robot_ids or ()))
+        if len(robots) >= 3:
+            # String seeds hash with SHA-512 (not PYTHONHASHSEED), so this is
+            # stable across processes like the seed itself.
+            permutation_rng = random.Random(f"{self.seed}:permutation:{episode_index}")
+            return tuple(permutation_rng.sample(robots, len(robots)))
         rng = random.Random(self.seed)
         drawn = _DRAWABLE_ORDERS[0]
         for _ in range(episode_index + 1):
@@ -96,7 +113,7 @@ class EpisodeOrderTracker:
         self._robots: set[str] = set()
         self._members: set[str] = set()
         self._arrived: set[str] = set()
-        self._order: RobotPresentationOrder | None = None
+        self._order: RobotOrder | None = None
 
     def _multi_robot(self) -> bool:
         return len(self._members) >= 3
@@ -106,11 +123,15 @@ class EpisodeOrderTracker:
         """Zero-based index of the latest episode; -1 before the first one."""
         return self._index
 
-    def order_for(self, robot_ids: Iterable[str]) -> tuple[int, RobotPresentationOrder]:
+    def order_for(
+        self, robot_ids: Iterable[str], scene_robot_ids: Iterable[str] | None = None
+    ) -> tuple[int, RobotOrder]:
         """Return the episode index and presentation order for one analysis.
 
         Args:
             robot_ids: Robots the congestion event involves.
+            scene_robot_ids: Robots the prompt lists, for the policy's draw
+                when this analysis opens an episode.
 
         Returns:
             `(episode_index, order)`. Overlapping robots continue the current
@@ -121,7 +142,7 @@ class EpisodeOrderTracker:
         scope = self._members if self._multi_robot() else self._robots
         if self._order is None or not robots & scope:
             self._index += 1
-            self._order = self._policy.order_for_episode(self._index)
+            self._order = self._policy.order_for_episode(self._index, scene_robot_ids)
             self._robots = robots
             self._members = set(robots)
             self._arrived = set()

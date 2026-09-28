@@ -5,6 +5,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 # Order the prompt lists robots in. Counterbalancing it separates a positional
 # default ("pick the robot presented first") from an ID or geometry preference.
 RobotPresentationOrder = Literal["id_asc", "id_desc"]
+# An explicit presentation order: robot ids, first listed first. M5's `random`
+# mode draws one per episode once three or more robots are in the scene, where
+# the two id sorts are only 2 of the N! orders (2026-09-28, T2b).
+RobotPresentationPermutation = tuple[str, ...]
+RobotOrder = RobotPresentationOrder | RobotPresentationPermutation
 
 # What stands in a stalled robot's way (rev-8 stage-1 vocabulary), emitted by
 # both arms on `CongestionDecision.blocker_kind` since the prompt-v2 bundle.
@@ -135,7 +140,9 @@ class ReasonerRequest(BaseModel):
     # Ablation axis: the order robots are presented in. Default "id_asc" keeps
     # every prompt rendered so far byte-identical; "id_desc" is the
     # counterbalanced condition that breaks the presentation-order confound.
-    robot_presentation_order: RobotPresentationOrder = "id_asc"
+    # A tuple of robot ids is an explicit order (listed robots first, in that
+    # order; any robot it does not name follows in ascending id).
+    robot_presentation_order: RobotOrder = "id_asc"
     # Which prompt template renders this request. New requests get the current
     # template; the replay program sets 1 for artifacts that predate the field,
     # so their stored prompts still reconstruct byte-identically.
@@ -146,6 +153,15 @@ class ReasonerRequest(BaseModel):
         if self.last_failed_context is not None and self.failure_context is None:
             raise ValueError("last_failed_context requires failure_context")
         return self
+
+    @field_validator("robot_presentation_order")
+    @classmethod
+    def _validate_explicit_order(cls, value: RobotOrder) -> RobotOrder:
+        if isinstance(value, tuple) and (not value or len(set(value)) != len(value)):
+            raise ValueError(
+                f"an explicit robot_presentation_order must list distinct robot ids; got {value}"
+            )
+        return value
 
 
 class PromptPayload(BaseModel):

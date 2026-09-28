@@ -246,3 +246,66 @@ def test_fold_without_an_open_episode_is_a_no_op():
     tracker.note_dispatch(["robot_1", "robot_2", "robot_3"])
     assert tracker.order_for(["robot_3"])[0] == 0
     assert tracker.end_episode(["robot_3"]) is True
+
+
+def _pre_change_draw(seed: int, episode_index: int) -> str:
+    # PresentationOrderPolicy.order_for_episode for "random" as of 3ebb7ea.
+    import random
+
+    rng = random.Random(seed)
+    drawn = "id_asc"
+    for _ in range(episode_index + 1):
+        drawn = rng.choice(("id_asc", "id_desc"))
+    return drawn
+
+
+def test_two_robot_random_draws_match_the_pre_permutation_policy():
+    for seed in range(50):
+        policy = _random_policy(seed)
+        for k in range(12):
+            expected = _pre_change_draw(seed, k)
+            assert policy.order_for_episode(k) == expected
+            assert policy.order_for_episode(k, ["robot_2", "robot_1"]) == expected
+
+
+def test_random_draws_uniform_permutations_at_three_robots():
+    import itertools
+    from collections import Counter
+
+    robots = ["robot_1", "robot_2", "robot_3"]
+    counts = Counter(
+        _random_policy(seed).order_for_episode(k, robots)
+        for seed in range(200)
+        for k in range(6)
+    )
+    assert set(counts) == set(itertools.permutations(robots))
+    # 1200 draws, 200 expected per order; a +-25% band is > 4 sigma.
+    assert all(150 <= n <= 250 for n in counts.values()), counts
+    first = Counter(order[0] for order, n in counts.items() for _ in range(n))
+    assert all(350 <= first[r] <= 450 for r in robots), first
+
+
+def test_three_robot_draw_is_deterministic_and_input_order_free():
+    policy = _random_policy(11)
+    draws = [policy.order_for_episode(k, ["robot_3", "robot_1", "robot_2"]) for k in range(8)]
+    assert draws == [policy.order_for_episode(k, ["robot_1", "robot_2", "robot_3"])
+                     for k in range(8)]
+    assert all(sorted(d) == ["robot_1", "robot_2", "robot_3"] for d in draws)
+
+
+def test_fixed_modes_ignore_the_robot_count():
+    robots = ["robot_1", "robot_2", "robot_3"]
+    for mode in ("id_asc", "id_desc"):
+        policy = PresentationOrderPolicy(mode=mode, seed=3)
+        assert policy.order_for_episode(4, robots) == mode
+
+
+def test_tracker_draws_over_the_scene_robots_and_keeps_the_draw_in_the_episode():
+    policy = _random_policy(5)
+    tracker = EpisodeOrderTracker(policy)
+    scene = ["robot_1", "robot_2", "robot_3"]
+
+    index, order = tracker.order_for(["robot_1", "robot_2"], scene)
+
+    assert order == policy.order_for_episode(0, scene)
+    assert tracker.order_for(["robot_2"], ["robot_1", "robot_2"]) == (index, order)

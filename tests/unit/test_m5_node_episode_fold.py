@@ -100,3 +100,64 @@ def test_follower_stall_mid_maneuver_is_folded_then_analysed_in_the_same_episode
     started = node.get_logger().matching("starting analysis")
     assert "robots=['robot_3']" in started[-1]
     assert node._episodes.episode_index == 0
+
+
+def _artifact_order(node, request_id: str):
+    import json
+    from pathlib import Path
+
+    path = Path(node._config.decision_log_dir) / f"{request_id}.json"
+    return json.loads(path.read_text())["robot_presentation_order"]
+
+
+def test_three_robot_random_order_draws_a_permutation_of_the_scene(
+    node_env, tmp_path,  # noqa: F811
+):
+    from swarm_orchestrator.presentation_order import PresentationOrderPolicy
+
+    node_module, clock = node_env
+    pipeline = _FakePipeline()
+    node = node_module.OrchestratorNode(
+        config=_config(tmp_path, initial_tasks=_tasks(), t0_probe_mode=False,
+                       stall_threshold_sec=2.0, prompt_robot_order="random",
+                       prompt_robot_order_seed=4),
+        pipeline=pipeline,
+    )
+    node._frame_rgb = np.zeros((48, 64, 3), dtype=np.uint8)
+
+    _feed(node, clock, 10.0, _standoff(10.0, -2.85))
+    _feed(node, clock, 12.0, _standoff(12.0, -2.6))
+    node._future.result(timeout=WAIT_SEC)
+    node._on_timer()
+
+    scene = ["robot_1", "robot_2", "robot_3"]
+    expected = PresentationOrderPolicy(mode="random", seed=4).order_for_episode(0, scene)
+    assert _artifact_order(node, pipeline.run_calls[0]) == list(expected)
+
+
+def test_t0_probe_draws_over_every_scene_robot(node_env, tmp_path):  # noqa: F811
+    from swarm_orchestrator.presentation_order import PresentationOrderPolicy
+
+    node_module, clock = node_env
+    pipeline = _FakePipeline()
+    node = node_module.OrchestratorNode(
+        config=_config(tmp_path, initial_tasks=_tasks(), prompt_robot_order="random",
+                       prompt_robot_order_seed=9),
+        pipeline=pipeline,
+    )
+    node._frame_rgb = np.zeros((48, 64, 3), dtype=np.uint8)
+    snapshot = SceneSnapshot(stamp=50.0, frame_id="overhead_camera",
+                             robots=_maneuver(50.0, 1))
+    node._latest_snapshot = snapshot
+    node._frame_stamp = 50.0
+    clock.t = 1020.0
+    node._latest_snapshot_at = clock.t
+
+    node._on_timer()
+    probe = node._probe
+    probe.future.result(timeout=WAIT_SEC)
+    node._on_timer()
+
+    scene = ["robot_1", "robot_2", "robot_3"]
+    expected = PresentationOrderPolicy(mode="random", seed=9).order_for_episode(0, scene)
+    assert _artifact_order(node, probe.request_id) == list(expected)

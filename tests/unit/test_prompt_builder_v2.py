@@ -260,3 +260,59 @@ def test_v2_prompt_matches_its_pin(name: str):
     length, digest = _V2_PINS[name]
     assert len(prompt) == length
     assert _sha256(prompt) == digest
+
+
+# ---- explicit presentation orders (three-robot permutations, 2026-09-28) ----
+
+
+def _three_robot_states() -> list[RobotStateInput]:
+    return [
+        RobotStateInput(robot_id="robot_1", x=-0.12, y=0.0, theta=0.0),
+        RobotStateInput(robot_id="robot_2", x=0.12, y=0.0, theta=3.14),
+        RobotStateInput(robot_id="robot_3", x=-2.45, y=0.0, theta=0.0),
+    ]
+
+
+def test_explicit_two_robot_order_renders_exactly_like_the_id_sort_it_equals():
+    assert _prompt(robot_presentation_order=("robot_2", "robot_1")) == _prompt(
+        robot_presentation_order="id_desc"
+    )
+    assert _prompt(robot_presentation_order=("robot_1", "robot_2")) == _prompt()
+
+
+def test_explicit_three_robot_order_drives_state_lines_known_ids_and_pairs():
+    request = _request(
+        robot_states=_three_robot_states(),
+        robot_presentation_order=("robot_2", "robot_1", "robot_3"),
+    )
+    payload = build_prompt_payload(request)
+    prompt = payload.user_prompt
+
+    assert payload.known_robot_ids == ["robot_2", "robot_1", "robot_3"]
+    assert (
+        prompt.index("robot_id=robot_2")
+        < prompt.index("robot_id=robot_1")
+        < prompt.index("robot_id=robot_3")
+    )
+    assert "- robot_2 <-> robot_1:" in prompt
+    assert "- robot_2 <-> robot_3:" in prompt
+    assert "- robot_1 <-> robot_3:" in prompt
+
+
+def test_explicit_order_lists_unnamed_robots_last_in_ascending_id():
+    request = _request(
+        robot_states=_three_robot_states(), robot_presentation_order=("robot_3",)
+    )
+    assert build_prompt_payload(request).known_robot_ids == ["robot_3", "robot_1", "robot_2"]
+
+
+def test_explicit_order_must_list_distinct_robots():
+    with pytest.raises(ValidationError, match="distinct robot ids"):
+        _request(robot_presentation_order=("robot_1", "robot_1"))
+
+
+def test_explicit_order_round_trips_through_a_json_dump():
+    request = _request(robot_presentation_order=("robot_2", "robot_1"))
+    dumped = request.model_dump(mode="json")
+    assert dumped["robot_presentation_order"] == ["robot_2", "robot_1"]
+    assert ReasonerRequest(**dumped).robot_presentation_order == ("robot_2", "robot_1")
