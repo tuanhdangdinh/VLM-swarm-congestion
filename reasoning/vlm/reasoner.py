@@ -164,20 +164,25 @@ def _extract_unsupported_sampling(raw: dict[str, object]) -> dict[str, float] | 
 def attach_unsupported_sampling(
     effective: EffectiveSamplingConfig | None,
     unsupported_sampling: dict[str, float] | None,
+    served_model: str | None = None,
 ) -> EffectiveSamplingConfig | None:
-    """Fold a call's dropped-sampling report into the effective config block.
+    """Fold a call's per-call backend reports into the effective config block.
 
     Args:
         effective: The configured sampling block, or None when the caller
             described none.
         unsupported_sampling: Sampling fields the backend reported dropping.
+        served_model: The model string the provider reported serving the call.
 
     Returns:
-        A copy carrying `unsupported_sampling`, or None when `effective` is None.
+        A copy carrying `unsupported_sampling` and `served_model`, or None when
+        `effective` is None.
     """
     if effective is None:
         return None
-    return effective.model_copy(update={"unsupported_sampling": unsupported_sampling})
+    return effective.model_copy(
+        update={"unsupported_sampling": unsupported_sampling, "served_model": served_model}
+    )
 
 
 def build_failed_result(
@@ -192,6 +197,7 @@ def build_failed_result(
     refusal_attempts: int = 0,
     image_fallback_used: bool = False,
     image_fallback_attempt: int | None = None,
+    served_model: str | None = None,
 ) -> ReasonerResult:
     """Construct a safe failure result with decision=None after exhausted retries.
 
@@ -211,6 +217,8 @@ def build_failed_result(
         refusal_attempts: How many attempts were safety refusals.
         image_fallback_used: Whether the neutral-image retry fired.
         image_fallback_attempt: 1-based index of the neutral-image attempt.
+        served_model: The model string the provider reported on the last
+            response it returned, if any (a refusal still names its model).
 
     Returns:
         A `ReasonerResult` with `decision=None` and `parse_status='failed'`.
@@ -227,8 +235,9 @@ def build_failed_result(
             error_type=error_type,
             error_message=error_message,
             unsupported_sampling=unsupported_sampling,
+            served_model=served_model,
             reasoner_config_effective=attach_unsupported_sampling(
-                effective_sampling, unsupported_sampling
+                effective_sampling, unsupported_sampling, served_model
             ),
             refusal_attempts=refusal_attempts,
             image_fallback_used=image_fallback_used,
@@ -287,6 +296,7 @@ class Reasoner:
         last_error_type: str | None = None
         last_error_msg: str | None = None
         last_unsupported_sampling: dict[str, float] | None = None
+        last_served_model: str | None = None
         had_parse_failure = False
         refusal_attempts = 0
         image_fallback_attempt: int | None = None
@@ -301,6 +311,7 @@ class Reasoner:
                     response = invoke_backend(self._backend, payload, self._config)
                     last_raw = response.text
                     last_unsupported_sampling = _extract_unsupported_sampling(response.raw)
+                    last_served_model = response.served_model
                     decision, degradations = parse_decision_with_degradations(response.text)
                     validate_involved_robots(decision, known_ids)
                     return ReasonerResult(
@@ -319,8 +330,11 @@ class Reasoner:
                             error_type=last_error_type,
                             error_message=last_error_msg,
                             unsupported_sampling=last_unsupported_sampling,
+                            served_model=last_served_model,
                             reasoner_config_effective=attach_unsupported_sampling(
-                                self._effective_sampling, last_unsupported_sampling
+                                self._effective_sampling,
+                                last_unsupported_sampling,
+                                last_served_model,
                             ),
                             refusal_attempts=refusal_attempts,
                             image_fallback_used=image_fallback_attempt is not None,
@@ -363,6 +377,7 @@ class Reasoner:
                 refusal_attempts=refusal_attempts,
                 image_fallback_used=image_fallback_attempt is not None,
                 image_fallback_attempt=image_fallback_attempt,
+                served_model=last_served_model,
             )
         finally:
             if scratch is not None:
@@ -434,6 +449,8 @@ def write_reasoner_log(
     # readers/golden files that don't expect it are unaffected.
     if result.diagnostics.unsupported_sampling is not None:
         record["unsupported_sampling"] = result.diagnostics.unsupported_sampling
+    if result.diagnostics.served_model is not None:
+        record["served_model"] = result.diagnostics.served_model
     # Same rationale as above: a trace with no refusal and no fallback stays
     # byte-identical to one written before the mitigation existed.
     diagnostics = result.diagnostics

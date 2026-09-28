@@ -44,6 +44,25 @@ the box, so the `box_overlap` column flags an accepted M1 position within
 `ROBOT_HALF_WIDTH_M` of any box. It is a reporting flag only: the verdict is
 unchanged.
 
+Latched at goal (rev 9 arrival definition, T2b finding F6). A robot held by
+an M4 safety latch inside the tolerance band never gets a Nav2 success, so M5
+never logs an acceptance line for it, yet the pinned arrival definition counts
+it as arrived. After the per-event pass, every robot in the run with no M5
+acceptance line (`arrived at base goal` or `arrival accepted late`; a
+`rejected`-only robot still qualifies) is checked in the scene log's final
+state: its last M1 sample, run through `classify_arrival` against its goal
+(from ground truth; the scene log's `goal` is null) with its age measured from
+the scene log's last stamp. A `within_tolerance` verdict emits one row with
+`event_kind` and `latched_at_goal` set, `m5_reported_epoch` empty, and
+`latched_since_epoch` holding the start of the final contiguous
+within-tolerance dwell, which is the arrival time it contributes to
+`resolution_sec`. The robot then counts as arrived for `robot_arrived_*` and
+`run_both_arrived_*`. The latch itself is inferred from the final pose plus
+the missing acceptance line, not read from M4: the flag says "at its goal at
+the end, never accepted", whatever held it there. A final sample older than
+`--max-age-sec` (a robot M1 lost before the end, e.g. STALE) is not credited;
+a note names it.
+
 Scene-log clock eras. Before merge `97634be`, M1 scene stamps were wall-clock
 epoch seconds, directly comparable with the M5 log's `[<epoch>]` timestamps.
 From `97634be` on, the Isaac camera publishes sim-time stamps, so scene stamps
@@ -180,7 +199,14 @@ CSV_FIELDS = [
     "clock_offset_sec",
     "clock_anchor_count",
     "clock_anchor_spread_sec",
+    "latched_at_goal",
+    "latched_since_epoch",
 ]
+
+LATCHED_AT_GOAL = "latched_at_goal"
+# M5 lines that record an accepted arrival; a robot with either is never
+# re-credited as latched.
+ACCEPTANCE_EVENT_KINDS = ("reported", "accepted_late")
 
 ClockEra = Literal["wall", "sim", "n/a"]
 
@@ -220,6 +246,16 @@ class ObstacleBox:
     yaw_rad: float
     half_x_m: float
     half_y_m: float
+
+
+@dataclass(frozen=True)
+class LatchedAtGoal:
+    """A robot resting inside the tolerance band at the end of the scene log."""
+
+    final_sample: SceneSample
+    check: ArrivalCheck
+    age_sec: float
+    since_stamp: float
 
 
 @dataclass(frozen=True)
@@ -811,6 +847,49 @@ def nearest_gt_by_position(rows: list[GTRow], xy: tuple[float, float]) -> tuple[
     return best, math.dist((best.x, best.y), xy)
 
 
+def find_latched_at_goal(
+    samples: list[SceneSample],
+    goal: tuple[float, float],
+    scene_end_stamp: float,
+    tolerance_m: float,
+    max_age_sec: float,
+) -> tuple[LatchedAtGoal | None, ArrivalCheck | None]:
+    """Check whether a robot's final scene-log state is within tolerance of its goal.
+
+    Args:
+        samples: One robot's scene samples, sorted by stamp (wall clock).
+        goal: The robot's base goal `(x, y)` in world metres.
+        scene_end_stamp: The last stamp anywhere in the run's scene log, so a
+            robot M1 stopped reporting early has a non-zero age.
+        tolerance_m: Position tolerance (mirrors `arrival_position_tolerance_m`).
+        max_age_sec: Oldest final sample still trusted.
+
+    Returns:
+        `(latched, check)`: `latched` is set only for a `within_tolerance`
+        verdict; `check` is the verdict on the final sample, or None when the
+        robot has no samples.
+    """
+    if not samples:
+        return None, None
+    final = samples[-1]
+    age = scene_end_stamp - final.stamp
+    check = classify_arrival(
+        reported_goal=goal,
+        estimated_position=(final.x, final.y),
+        tolerance_m=tolerance_m,
+        estimate_age_sec=age,
+        max_estimate_age_sec=max_age_sec,
+    )
+    if check.reason != "within_tolerance":
+        return None, check
+    since = final.stamp
+    for sample in reversed(samples):
+        if math.dist((sample.x, sample.y), goal) > tolerance_m:
+            break
+        since = sample.stamp
+    return LatchedAtGoal(final_sample=final, check=check, age_sec=age, since_stamp=since), check
+
+
 def extract_metadata(run_dir: Path, orchestrator_yaml: Path | None) -> dict[str, str]:
     """Best-effort scenario/backend/order/gate metadata for one run.
 
@@ -886,8 +965,9 @@ def score_run(
             scenario to read its static obstacle boxes.
 
     Returns:
-        `(rows, notes)`: per-event CSV rows, and human-readable notes about
-        fallbacks taken for this run (e.g. no scene log).
+        `(rows, notes)`: per-event CSV rows plus one `latched_at_goal` row
+        per robot credited by `find_latched_at_goal`, and human-readable notes
+        about fallbacks taken for this run (e.g. no scene log).
 
     Raises:
         ClockReconciliationError: The scene log's stamps cannot be put on the
@@ -1050,6 +1130,8 @@ def score_run(
                 "clock_offset_sec": clock.offset_sec,
                 "clock_anchor_count": clock.anchor_count,
                 "clock_anchor_spread_sec": clock.anchor_spread_sec,
+                "latched_at_goal": False,
+                "latched_since_epoch": None,
             }
         )
         rows.append(row)
@@ -1060,6 +1142,80 @@ def score_run(
     # `20260924_205009`) that never appears in ground truth or in any report,
     # and including it would make every run look permanently short one robot.
     robots_in_run = set(gt_by_robot) | {e.robot_id for e in reported_events}
+
+    accepted_by_m5 = {e.robot_id for e in events if e.kind in ACCEPTANCE_EVENT_KINDS}
+    scene_end = max(
+        (s.stamp for series in scene_by_robot.values() for s in series), default=None
+    )
+    for robot_id in sorted(robots_in_run - accepted_by_m5):
+        gt_rows = gt_by_robot.get(robot_id)
+        if scene_end is None or not gt_rows:
+            continue
+        goal = gt_rows[-1].goal
+        latched, final_check = find_latched_at_goal(
+            scene_by_robot.get(robot_id, []), goal, scene_end, tolerance_m, max_age_sec
+        )
+        if latched is None:
+            if final_check is not None and final_check.reason == "stale_estimate":
+                notes.append(
+                    f"{robot_id}: no M5 acceptance and final M1 sample is "
+                    f"{scene_end - scene_by_robot[robot_id][-1].stamp:.1f} s old; "
+                    "not checked for latched-at-goal"
+                )
+            continue
+        final = latched.final_sample
+        gt_final = gt_rows[-1]
+        gt_latched = gt_final.dist_to_goal_m <= tolerance_m
+        first_accepted_m1.setdefault(robot_id, latched.since_stamp)
+        if gt_latched:
+            first_accepted_gt.setdefault(robot_id, latched.since_stamp)
+        box_overlap_obstacle = overlapping_obstacle((final.x, final.y), boxes) if boxes else None
+        notes.append(
+            f"{robot_id}: no M5 acceptance line; final M1 pose "
+            f"({final.x:.3f}, {final.y:.3f}) is {latched.check.distance_m:.3f} m from goal "
+            f"-> counted arrived, flagged {LATCHED_AT_GOAL}"
+        )
+        values: dict[str, object] = dict.fromkeys(CSV_FIELDS)
+        values.update(
+            {
+                "stamp": run_dir.name,
+                "scenario": meta["scenario"],
+                "backend": meta["backend"],
+                "order_mode": meta["order_mode"],
+                "gate_mode": meta["gate_mode"],
+                "robot_id": robot_id,
+                "event_index": 0,
+                "event_kind": LATCHED_AT_GOAL,
+                "goal_x": goal[0],
+                "goal_y": goal[1],
+                "m1_estimate_x": final.x,
+                "m1_estimate_y": final.y,
+                "m1_estimate_age_sec": latched.age_sec,
+                "m1_estimate_status": final.status,
+                "m1_dist_m": latched.check.distance_m,
+                "m1_verdict": latched.check.reason,
+                "gt_matched_sim_time_sec": gt_final.sim_time_sec,
+                "gt_matched_x": gt_final.x,
+                "gt_matched_y": gt_final.y,
+                "gt_dist_m": gt_final.dist_to_goal_m,
+                "gt_match_residual_m": math.dist((gt_final.x, gt_final.y), (final.x, final.y)),
+                "gt_min_dist_m": gt_min_dist.get(robot_id),
+                "m1_minus_gt_bias_m": latched.check.distance_m - gt_final.dist_to_goal_m,
+                "flipped": False,
+                "first_starting_analysis_epoch": first_analysis_ts,
+                "no_scene_log": no_scene_log,
+                "box_overlap": box_overlap_obstacle is not None if boxes else None,
+                "box_overlap_obstacle": box_overlap_obstacle,
+                "clock_era": clock.era,
+                "clock_offset_sec": clock.offset_sec,
+                "clock_anchor_count": clock.anchor_count,
+                "clock_anchor_spread_sec": clock.anchor_spread_sec,
+                "latched_at_goal": True,
+                "latched_since_epoch": latched.since_stamp,
+            }
+        )
+        rows.append(EventRow(values=values))
+
     both_arrived_m1 = all(r in first_accepted_m1 for r in robots_in_run) and bool(robots_in_run)
     both_arrived_gt = all(r in first_accepted_gt for r in robots_in_run) and bool(robots_in_run)
     resolution_sec: float | str | None = None
@@ -1127,9 +1283,11 @@ def main() -> int:
     n_runs = len({row.values["stamp"] for row in all_rows})
     n_flipped = sum(1 for row in all_rows if row.values["flipped"])
     n_overlap = sum(1 for row in all_rows if row.values["box_overlap"])
+    n_latched = sum(1 for row in all_rows if row.values["latched_at_goal"])
     print(
         f"scored {len(all_rows)} arrival events across {n_runs} runs; "
         f"{n_flipped} flipped (Nav2-reported, rejected at {args.tolerance_m} m); "
+        f"{n_latched} latched at goal without an M5 acceptance (counted arrived); "
         f"{n_overlap} accepted inside a box grown by {ROBOT_HALF_WIDTH_M} m -> {args.out}"
     )
     return 0

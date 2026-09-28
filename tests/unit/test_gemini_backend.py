@@ -352,3 +352,26 @@ def test_factory_builds_gemini_backend_with_default_config(monkeypatch):
     backend = build_backend("gemini", None)
     assert isinstance(backend, GeminiBackend)
     assert backend.model_id == "gemini-robotics-er-2-preview"
+
+
+def test_served_model_read_from_response_when_present(monkeypatch, tmp_path):
+    monkeypatch.setenv("GEMINI_API_KEY", "AQ.test-key-123")
+    body = {**_ok_body(), "model": "gemini-robotics-er-2-preview"}
+    monkeypatch.setattr(
+        "reasoning.vlm.gemini_backend.requests.post",
+        lambda url, json, headers, timeout: _FakeResponse(200, body),
+    )
+    resp = GeminiBackend().analyze(_payload(tmp_path), _cfg())
+    assert resp.served_model == "gemini-robotics-er-2-preview"
+
+
+def test_served_model_is_none_not_the_request_id_when_response_omits_it(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("GEMINI_API_KEY", "AQ.test-key-123")
+    monkeypatch.setattr(
+        "reasoning.vlm.gemini_backend.requests.post",
+        lambda url, json, headers, timeout: _FakeResponse(200, _ok_body()),
+    )
+    resp = GeminiBackend().analyze(_payload(tmp_path), _cfg())
+    assert resp.served_model is None

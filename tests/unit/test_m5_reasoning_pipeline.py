@@ -1183,6 +1183,34 @@ def test_write_decision_artifact_records_shipped_gemini_sampling_config(tmp_path
     assert effective["unsupported_sampling"] == {"temperature": 0.6, "top_p": 0.95}
 
 
+def test_write_decision_artifact_records_served_model_next_to_configured_alias(tmp_path):
+    class ServedSnapshotBackend:
+        def analyze(self, payload, config):
+            return BackendResponse(
+                text=_DECISION_JSON, backend_id="gpt-4o", served_model="gpt-4o-2024-08-06"
+            )
+
+    payload = _artifact_for(
+        ServedSnapshotBackend(),
+        "openai",
+        OpenAIBackendConfig(**backend_section(_shipped_vlm(), "openai")),
+        tmp_path,
+    )
+    assert payload["reasoner_config_effective"]["model_id"] == "gpt-4o"
+    assert payload["reasoner_config_effective"]["served_model"] == "gpt-4o-2024-08-06"
+    assert payload["diagnostics"]["served_model"] == "gpt-4o-2024-08-06"
+
+
+def test_write_decision_artifact_served_model_is_null_when_backend_reports_none(tmp_path):
+    payload = _artifact_for(
+        MockBackend(response_text=_DECISION_JSON),
+        "openai",
+        OpenAIBackendConfig(**backend_section(_shipped_vlm(), "openai")),
+        tmp_path,
+    )
+    assert payload["reasoner_config_effective"]["served_model"] is None
+
+
 def test_write_decision_artifact_sampling_config_is_null_when_undescribed(tmp_path):
     outcome = PipelineOutcome(
         request_id="r1",

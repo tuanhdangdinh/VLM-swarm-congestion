@@ -75,6 +75,7 @@ class LlamaServerBackend:
             backend_id=self.model_id,
             token_usage=token_usage,
             raw=data,
+            served_model=self._extract_served_model(data),
         )
 
     def is_ready(self) -> bool:
@@ -122,3 +123,9 @@ class LlamaServerBackend:
             return None
         keys = ("prompt_tokens", "completion_tokens", "total_tokens")
         return {k: usage[k] for k in keys if k in usage} or None
+
+    @staticmethod
+    def _extract_served_model(data: dict) -> str | None:
+        # llama-server echoes its loaded model name (alias or file) here.
+        model = data.get("model")
+        return model if isinstance(model, str) and model else None

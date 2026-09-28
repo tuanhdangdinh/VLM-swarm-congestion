@@ -154,3 +154,24 @@ def test_factory_builds_anthropic_backend(monkeypatch):
 def test_factory_requires_config_for_anthropic():
     with pytest.raises(ValueError, match="anthropic backend requires"):
         build_backend("anthropic", None)
+
+
+def test_served_model_read_from_response(monkeypatch, tmp_path):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-123")
+    body = {**_ok_body(), "model": "claude-opus-4-8"}
+    monkeypatch.setattr(
+        "reasoning.vlm.anthropic_backend.requests.post",
+        lambda url, json, headers, timeout: _FakeResponse(200, body),
+    )
+    resp = AnthropicBackend(model_id="claude-opus-4-8").analyze(_payload(tmp_path), _cfg())
+    assert resp.served_model == "claude-opus-4-8"
+
+
+def test_served_model_is_none_when_response_omits_model(monkeypatch, tmp_path):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-123")
+    monkeypatch.setattr(
+        "reasoning.vlm.anthropic_backend.requests.post",
+        lambda url, json, headers, timeout: _FakeResponse(200, _ok_body()),
+    )
+    resp = AnthropicBackend(model_id="claude-opus-4-8").analyze(_payload(tmp_path), _cfg())
+    assert resp.served_model is None

@@ -79,6 +79,7 @@ class AnthropicBackend:
             backend_id=self.model_id,
             token_usage=self._extract_usage(data),
             raw=data,
+            served_model=self._extract_served_model(data),
         )
 
     def _build_messages(self, payload: PromptPayload) -> list[dict]:
@@ -125,3 +126,9 @@ class AnthropicBackend:
             return None
         keys = ("input_tokens", "output_tokens")
         return {k: usage[k] for k in keys if k in usage} or None
+
+    @staticmethod
+    def _extract_served_model(data: dict) -> str | None:
+        # The Messages API echoes the model id that served the request.
+        model = data.get("model")
+        return model if isinstance(model, str) and model else None

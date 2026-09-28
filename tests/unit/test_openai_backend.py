@@ -131,3 +131,39 @@ def test_factory_builds_openai_backend(monkeypatch):
 def test_factory_requires_config_for_openai():
     with pytest.raises(ValueError, match="openai backend requires"):
         build_backend("openai", None)
+
+
+def test_served_model_read_from_response_when_alias_requested(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-123")
+    body = {**_ok_body(), "model": "gpt-4o-2024-08-06"}
+    monkeypatch.setattr(
+        "reasoning.vlm.openai_backend.requests.post",
+        lambda url, json, headers, timeout: _FakeResponse(200, body),
+    )
+    resp = OpenAIBackend(model_id="gpt-4o").analyze(_payload(tmp_path), _cfg())
+    assert resp.backend_id == "gpt-4o"
+    assert resp.served_model == "gpt-4o-2024-08-06"
+
+
+def test_served_model_recorded_on_refusal_response(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-123")
+    body = {
+        "model": "gpt-4o-2024-08-06",
+        "choices": [{"message": {"content": None, "refusal": "I'm sorry, I can't."}}],
+    }
+    monkeypatch.setattr(
+        "reasoning.vlm.openai_backend.requests.post",
+        lambda url, json, headers, timeout: _FakeResponse(200, body),
+    )
+    resp = OpenAIBackend(model_id="gpt-4o").analyze(_payload(tmp_path), _cfg())
+    assert resp.served_model == "gpt-4o-2024-08-06"
+
+
+def test_served_model_is_none_when_response_omits_model(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-123")
+    monkeypatch.setattr(
+        "reasoning.vlm.openai_backend.requests.post",
+        lambda url, json, headers, timeout: _FakeResponse(200, _ok_body()),
+    )
+    resp = OpenAIBackend(model_id="gpt-4o").analyze(_payload(tmp_path), _cfg())
+    assert resp.served_model is None

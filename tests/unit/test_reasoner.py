@@ -866,3 +866,94 @@ def test_write_reasoner_log_omits_image_fallback_without_a_refusal(tmp_path):
     record = json.loads(log.read_text().strip().splitlines()[0])
     assert "image_fallback_used" not in record
     assert "refusal_attempts" not in record
+
+
+def _served_backend(texts: list[str], served_model: str | None):
+    class ServedModelBackend:
+        def __init__(self) -> None:
+            self._texts = list(texts)
+
+        def analyze(self, payload, config):
+            return BackendResponse(
+                text=self._texts.pop(0), backend_id="gpt-4o", served_model=served_model
+            )
+
+    return ServedModelBackend()
+
+
+def test_llama_backend_served_model_read_from_response(tmp_path, monkeypatch):
+    image = tmp_path / "frame.png"
+    image.write_bytes(b"\x89PNG\r\n")
+    backend = LlamaServerBackend(model_id="cosmos", mmproj_path="/models/mmproj.gguf")
+    payload = PromptPayload(
+        system_prompt="sys", user_prompt="usr", image_path=str(image), known_robot_ids=["r"]
+    )
+
+    class _Resp:
+        status_code = 200
+
+        def json(self):
+            return {"model": "cosmos-reason2-8b", "choices": [{"message": {"content": _GOOD}}]}
+
+    monkeypatch.setattr(
+        "reasoning.vlm.llama_server_backend.requests.post",
+        lambda url, json, timeout: _Resp(),
+    )
+    resp = backend.analyze(payload, ReasonerConfig(backend_id="llama_server"))
+    assert resp.served_model == "cosmos-reason2-8b"
+
+
+def test_mock_backend_reports_no_served_model(tmp_path):
+    result = Reasoner(MockBackend(response_text=_GOOD), ReasonerConfig(backend_id="mock")).run(
+        _request_with_image(tmp_path)
+    )
+    assert result.diagnostics.served_model is None
+
+
+def test_describe_effective_sampling_leaves_served_model_unset():
+    assert _openai_effective().served_model is None
+
+
+def test_run_records_served_model_in_diagnostics_and_effective_config(tmp_path):
+    reasoner = Reasoner(
+        _served_backend([_GOOD], "gpt-4o-2024-08-06"),
+        ReasonerConfig(backend_id="openai"),
+        _openai_effective(),
+    )
+    result = reasoner.run(_request_with_image(tmp_path))
+    effective = result.diagnostics.reasoner_config_effective
+    assert result.diagnostics.served_model == "gpt-4o-2024-08-06"
+    assert effective.model_id == "gpt-4o"
+    assert effective.served_model == "gpt-4o-2024-08-06"
+
+
+def test_run_records_served_model_when_every_attempt_fails(tmp_path):
+    reasoner = Reasoner(
+        _served_backend([_BAD, _BAD], "gpt-4o-2024-08-06"),
+        ReasonerConfig(backend_id="openai", max_attempts=2),
+        _openai_effective(),
+    )
+    result = reasoner.run(_request_with_image(tmp_path))
+    assert result.decision is None
+    assert result.diagnostics.served_model == "gpt-4o-2024-08-06"
+    assert result.diagnostics.reasoner_config_effective.served_model == "gpt-4o-2024-08-06"
+
+
+def test_write_reasoner_log_includes_served_model_when_reported(tmp_path):
+    request = _request_with_image(tmp_path)
+    result = Reasoner(
+        _served_backend([_GOOD], "gpt-4o-2024-08-06"), ReasonerConfig(backend_id="openai")
+    ).run(request)
+    log = tmp_path / "trace.jsonl"
+    write_reasoner_log(log, request, result)
+    assert json.loads(log.read_text())["served_model"] == "gpt-4o-2024-08-06"
+
+
+def test_write_reasoner_log_omits_served_model_when_unreported(tmp_path):
+    request = _request_with_image(tmp_path)
+    result = Reasoner(MockBackend(response_text=_GOOD), ReasonerConfig(backend_id="mock")).run(
+        request
+    )
+    log = tmp_path / "trace.jsonl"
+    write_reasoner_log(log, request, result)
+    assert "served_model" not in json.loads(log.read_text())

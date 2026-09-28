@@ -104,6 +104,7 @@ class GeminiBackend:
             backend_id=self.model_id,
             token_usage=self._extract_usage(data),
             raw=raw,
+            served_model=self._extract_served_model(data),
         )
 
     def _build_body(self, payload: PromptPayload, config: ReasonerConfig) -> dict:
@@ -176,3 +177,10 @@ class GeminiBackend:
             if gemini_key in usage
         }
         return result or None
+
+    @staticmethod
+    def _extract_served_model(data: dict) -> str | None:
+        # The Interactions API is not documented to echo a served version; read
+        # `model` if it is present, else record None rather than the request id.
+        model = data.get("model")
+        return model if isinstance(model, str) and model else None

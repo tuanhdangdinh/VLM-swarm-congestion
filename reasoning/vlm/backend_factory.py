@@ -61,8 +61,9 @@ def describe_effective_sampling(
             from a `GeminiBackendConfig`, being the only API that honours them.
 
     Returns:
-        The effective sampling block, with `unsupported_sampling` left unset —
-        that is a per-call fact the `Reasoner` fills in from the response.
+        The effective sampling block, with `unsupported_sampling` and
+        `served_model` left unset — those are per-call facts the `Reasoner`
+        fills in from the response.
     """
     is_gemini = isinstance(backend_config, GeminiBackendConfig)
     return EffectiveSamplingConfig(

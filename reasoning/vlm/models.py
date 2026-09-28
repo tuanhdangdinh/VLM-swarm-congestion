@@ -181,6 +181,10 @@ class BackendResponse(BaseModel):
     latency_ms: int | None = Field(default=None, ge=0)
     token_usage: dict[str, int] | None = None
     raw: dict[str, object] = Field(default_factory=dict)
+    # The model string the provider says actually served the call (OpenAI
+    # answers the alias `gpt-4o` with a dated snapshot), or None when the
+    # provider response carries none. Parsed by each backend, never guessed.
+    served_model: str | None = None
 
 
 class CongestionDecision(BaseModel):
@@ -393,7 +397,9 @@ class EffectiveSamplingConfig(BaseModel):
     backend's own config), never a value echoed back by a provider: the point is
     to prove from an artifact alone which decoding parameters a run was
     collected under. A backend that drops some of them still records them here,
-    with the dropped subset repeated in `unsupported_sampling`.
+    with the dropped subset repeated in `unsupported_sampling`. The two
+    per-call exceptions, both filled from the response rather than the config,
+    are `unsupported_sampling` and `served_model`.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -419,6 +425,9 @@ class EffectiveSamplingConfig(BaseModel):
     # Mirrors `ReasonerDiagnostics.unsupported_sampling`, so the configured
     # values and the subset the backend could not honour read off one block.
     unsupported_sampling: dict[str, float] | None = None
+    # Mirrors `ReasonerDiagnostics.served_model`, so the configured `model_id`
+    # (possibly an alias) and the snapshot that answered read off one block.
+    served_model: str | None = None
 
 
 class ReasonerDiagnostics(BaseModel):
@@ -438,6 +447,10 @@ class ReasonerDiagnostics(BaseModel):
     # `reasoning.vlm.gemini_backend.GeminiBackend` for a backend that populates
     # this from `BackendResponse.raw["unsupported_sampling"]`.
     unsupported_sampling: dict[str, float] | None = None
+    # `BackendResponse.served_model` of the last response the backend returned
+    # (a refused or unparseable one included), or None when no response came
+    # back or the backend reports no model string.
+    served_model: str | None = None
     # None when the caller did not describe the effective config (e.g. a test
     # harness or a script that constructs a Reasoner without one); additive, so
     # artifacts written before this field existed stay readable.

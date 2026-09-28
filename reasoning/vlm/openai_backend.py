@@ -81,6 +81,7 @@ class OpenAIBackend:
             backend_id=self.model_id,
             token_usage=self._extract_usage(data),
             raw=data,
+            served_model=self._extract_served_model(data),
         )
 
     def _build_messages(self, payload: PromptPayload) -> list[dict]:
@@ -109,3 +110,10 @@ class OpenAIBackend:
             return None
         keys = ("prompt_tokens", "completion_tokens", "total_tokens")
         return {k: usage[k] for k in keys if k in usage} or None
+
+    @staticmethod
+    def _extract_served_model(data: dict) -> str | None:
+        # Chat Completions echoes the snapshot that served an alias request
+        # (`gpt-4o` -> `gpt-4o-2024-08-06`), refusals included.
+        model = data.get("model")
+        return model if isinstance(model, str) and model else None

@@ -99,14 +99,19 @@ def _write_scene_log(
 
 
 def _write_ground_truth(
-    run_dir: Path, rows: list[tuple[float, dict[str, tuple[float, float]]]]
+    run_dir: Path,
+    rows: list[tuple[float, dict[str, tuple[float, float]]]],
+    goals: dict[str, tuple[float, float]] | None = None,
 ) -> None:
     (run_dir / "ground_truth").mkdir(parents=True, exist_ok=True)
     lines = []
     for sim_t, positions in rows:
         robots = {}
         for robot_id, (x, y) in positions.items():
-            goal = GOAL_R1 if robot_id == "robot_1" else GOAL_R2
+            if goals is not None:
+                goal = goals[robot_id]
+            else:
+                goal = GOAL_R1 if robot_id == "robot_1" else GOAL_R2
             import math
 
             robots[robot_id] = {
@@ -588,3 +593,121 @@ def test_score_run_scores_real_s1_run_within_tolerance() -> None:
 
     assert [r.values["m1_verdict"] for r in rows] == ["within_tolerance"] * 2
     assert rows[0].values["clock_offset_sec"] == pytest.approx(1_790_272_483.644, abs=0.05)
+
+
+# The T2b alternative arm (`t2b_flow_ordering`, harness runs 20260928_173026 and
+# 20260928_180603): robot_1 arrives and M5 accepts it; robot_2 and robot_3 end
+# in the bystander latch, robot_2 0.09 m from its goal and robot_3 2.2 m short
+# of its own. Neither gets an M5 acceptance line.
+T2B_GOALS = {"robot_1": (2.5, 0.0), "robot_2": (-2.0, 0.0), "robot_3": (1.85, 0.0)}
+
+
+def _build_t2b_alternative_run(
+    tmp_path: Path,
+    robot_2_final_x: float = -1.91,
+    robot_2_stamps: tuple[float, ...] = (1030.0, 1049.9, 1060.0),
+) -> Path:
+    run_id = "20260928_173026"
+    run_dir = tmp_path / run_id
+    run_dir.mkdir()
+    _write_m5_log(run_dir, run_id, [(1050.0, "robot_1", T2B_GOALS["robot_1"])])
+    stamps = sorted({1020.0, *robot_2_stamps, 1049.9, 1060.0})
+    robot_2_series = [(1020.0, -1.2, 0.0, "MOVING")] + [
+        (s, robot_2_final_x, 0.0, "STOPPED") for s in robot_2_stamps
+    ]
+    _write_scene_log(
+        run_dir,
+        run_id,
+        {
+            "robot_1": [(1049.9, 2.42, 0.0, "STOPPED"), (1060.0, 2.42, 0.0, "STOPPED")],
+            "robot_2": robot_2_series,
+            "robot_3": [(s, -2.34, 0.0, "STOPPED") for s in stamps],
+        },
+    )
+    _write_ground_truth(
+        run_dir,
+        [
+            (10.0, {"robot_1": (0.0, 0.0), "robot_2": (-1.2, 0.0), "robot_3": (-2.34, 0.0)}),
+            (60.0, {"robot_1": (2.42, 0.0), "robot_2": (-1.91, 0.0), "robot_3": (-2.34, 0.0)}),
+        ],
+        goals=T2B_GOALS,
+    )
+    return run_dir
+
+
+def _rows_by_robot(rows) -> dict[str, dict]:
+    return {row.values["robot_id"]: row.values for row in rows}
+
+
+def test_score_run_emits_latched_at_goal_row_for_unaccepted_robot_at_goal(tmp_path: Path) -> None:
+    rows, _ = score_run(_build_t2b_alternative_run(tmp_path), tolerance_m=0.35, max_age_sec=2.0)
+
+    robot_2 = _rows_by_robot(rows)["robot_2"]
+    assert robot_2["event_kind"] == "latched_at_goal"
+    assert robot_2["latched_at_goal"] is True
+    assert robot_2["m5_reported_epoch"] is None
+    assert robot_2["m1_verdict"] == "within_tolerance"
+    assert robot_2["m1_dist_m"] == pytest.approx(0.09, abs=1e-6)
+
+
+def test_score_run_counts_latched_robot_as_arrived(tmp_path: Path) -> None:
+    rows, _ = score_run(_build_t2b_alternative_run(tmp_path), tolerance_m=0.35, max_age_sec=2.0)
+
+    robot_2 = _rows_by_robot(rows)["robot_2"]
+    assert robot_2["robot_arrived_m1"] is True
+    assert robot_2["robot_arrived_gt"] is True
+
+
+def test_score_run_emits_no_row_for_latched_robot_short_of_goal(tmp_path: Path) -> None:
+    rows, _ = score_run(_build_t2b_alternative_run(tmp_path), tolerance_m=0.35, max_age_sec=2.0)
+
+    by_robot = _rows_by_robot(rows)
+    assert "robot_3" not in by_robot
+    assert by_robot["robot_1"]["run_both_arrived_m1"] is False
+
+
+def test_score_run_leaves_m5_accepted_rows_unflagged(tmp_path: Path) -> None:
+    rows, _ = score_run(_build_t2b_alternative_run(tmp_path), tolerance_m=0.35, max_age_sec=2.0)
+
+    robot_1 = _rows_by_robot(rows)["robot_1"]
+    assert robot_1["event_kind"] == "reported"
+    assert robot_1["latched_at_goal"] is False
+    assert robot_1["latched_since_epoch"] is None
+
+
+def test_score_run_dates_latched_arrival_from_start_of_final_dwell(tmp_path: Path) -> None:
+    rows, _ = score_run(_build_t2b_alternative_run(tmp_path), tolerance_m=0.35, max_age_sec=2.0)
+
+    robot_2 = _rows_by_robot(rows)["robot_2"]
+    assert robot_2["latched_since_epoch"] == pytest.approx(1030.0)
+
+
+def test_score_run_does_not_credit_a_final_sample_outside_tolerance(tmp_path: Path) -> None:
+    run_dir = _build_t2b_alternative_run(tmp_path, robot_2_final_x=-1.5)
+
+    rows, _ = score_run(run_dir, tolerance_m=0.35, max_age_sec=2.0)
+
+    assert "robot_2" not in _rows_by_robot(rows)
+
+
+def test_score_run_does_not_credit_a_stale_final_sample(tmp_path: Path) -> None:
+    # robot_2's last M1 sample is 20 s before the scene log ends.
+    run_dir = _build_t2b_alternative_run(tmp_path, robot_2_stamps=(1030.0, 1040.0))
+
+    rows, notes = score_run(run_dir, tolerance_m=0.35, max_age_sec=2.0)
+
+    assert "robot_2" not in _rows_by_robot(rows)
+    assert any("robot_2" in note and "old" in note for note in notes)
+
+
+def test_score_run_does_not_relabel_an_accepted_late_robot_as_latched(tmp_path: Path) -> None:
+    run_dir = _build_t2b_alternative_run(tmp_path)
+    log = next((run_dir / "component_logs").glob("*_m5.log"))
+    log.write_text(
+        log.read_text()
+        + _m5_log_line(1041.0, "arrival accepted late robot=robot_2 distance_m=0.09 counts={}")
+    )
+
+    rows, _ = score_run(run_dir, tolerance_m=0.35, max_age_sec=2.0)
+
+    assert "robot_2" not in _rows_by_robot(rows)
