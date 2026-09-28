@@ -2236,6 +2236,69 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-09-28** — **T2b safety prerequisites landed: pair-scoped clearing
+  exemption (`9c38042`, `fc441d4`) and ordered hold-until-last release
+  (`99f4699`, `38868d2`). Unit-tested only; the live regression is pending the
+  next VM batch.** The
+  user decided on 2026-09-28 to build T2b, with these two items landing and
+  verifying before any wrong-order run
+  (`docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md`, commit
+  `ae2b22c`). Both items come from
+  `docs/reports/2026-09-27-three-robot-feasibility.md`.
+  - **Numbering.** The decision calls these items 9 and 11. The report's
+    build table numbers them #8 (pair-scoped exemption) and #10
+    (hold-until-last), and its #9 is the M3 N-robot yield grounding.
+  - **Pair scope.** A `yield`/`reverse` robot is now exempt only against the
+    partners its own command names. A bystander keeps the distance rule and
+    the STALE remembered-distance rule, and the clearing robot latches with
+    it. A yield's later passers join only after every earlier passer's wait
+    under the command has `COMPLETED`. Details:
+    `docs/specs/module4/safety-monitor.md` §10, "Pair scope".
+  - **Two-robot pins.** `test_two_robot_pair_scope_matches_robot_scope` shows
+    the new evaluation equals the old one on every distance/STALE/latch/memory
+    combination whenever the clearing command names both robots.
+  - **One intentional flip.** A lone yield with no partner command now fails
+    closed. `test_coordinating_robot_suppressed_from_safety_stop` was updated
+    to dispatch the partner's wait, as production does.
+  - **Ordered release.** `swarm_execution/crossing_chain.py` (pure) drives
+    `command_bus_node`'s hold. Passers are admitted one at a time in
+    `crossing_order`: an escorted passer is driven, an unescorted one has its
+    wait released. Each passer clears on its own odometry displacement since
+    admission. The yield completes only when the last passer clears.
+    - A cleared non-last passer's wait completes with `released: passer
+      cleared`.
+    - The next unescorted passer's wait completes with `released: previous
+      passer cleared`.
+    - A backstop, `FAILED` or busy-reject still releases every remaining wait
+      at once.
+    - The full status streams of the five two-robot flows are pinned
+      (`test_two_robot_*_status_stream_pinned`).
+  - **M3 legacy yield with ≥ 2 passers** (the live mode). The command now
+    carries every passer:
+    - a linked wait per passer, with `linked_position`;
+    - on the yield: `crossing_order`, from the explicit order or else the
+      decision's, minus the yielder, falling back to involved order;
+    - `crossing_clear_m`/`crossing_escort_m`, computed per passer as
+      `|x − park| + clearance` and not clamped at `MAX_ESCORT_M`;
+    - `hold_sec`, wait and resolution backstops scaled by
+      Σ max(1, escort / 4.0).
+    - Two-robot payloads are pinned unchanged, including under a
+      `crossing_order`.
+  - **First-passer guard (`38868d2`).** The pair scope trusts
+    `crossing_order[0]` as the standoff partner, exempt from the start. M3
+    therefore refuses a multi-passer yield whose first passer is not the
+    passer nearest the yielder, or whose order cannot be checked. It returns
+    the gate-style wait fan-out and never reorders. Without the guard, a
+    yielder with its queued follower named first backs onto that follower,
+    unguarded. Both intended T2b arms stay executable.
+  - **One parser (`fc441d4`).** The monitor reads a yield's passers through
+    the bus's `plan_crossing`, so the two readers cannot disagree.
+  - **Open items.**
+    - Derived mode still emits one `passer_clear_m`, so M4 reuses it for
+      later passers.
+    - `filter_command_robot_ids` does not prune `crossing_order`.
+    - Two waits of one yield are never paired, so the queued-follower latch
+      (report Layer 4) stands. It is the Layer 7 geometry decision.
 - **2026-09-26** — **The safety monitor's coordination exemption now covers
   only `yield` and `reverse` (fix `45e55f4`; host-verified).** Mitigation 1
   of `docs/reports/2026-09-26-close-approach-analysis.md` is implemented.

@@ -608,6 +608,13 @@ robot set, which never includes a bystander.
   pairs. The queued-follower latch described in the feasibility report
   (Layer 4, "A trailing robot latches the passer") is therefore unchanged. It
   remains a Layer 7 geometry decision.
+- **The first passer is trusted as the standoff partner.** It is exempt
+  against the yielder from the start, including during the backup. M3's
+  legacy grounder therefore refuses a multi-passer yield whose first passer is
+  not the passer nearest the yielder, or whose order cannot be checked
+  because a position is missing. The refusal is the gate-style wait fan-out
+  (`_first_passer_refusal`, `38868d2`). A queued robot named first would
+  otherwise sit on the yielder's reverse path, exempt from the start.
 - **A STALE clearing robot** loses its previous latch as before, but it is
   re-latched by the remembered-distance rule when a bystander's last fresh
   distance is inside the band.
