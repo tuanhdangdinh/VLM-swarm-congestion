@@ -16,6 +16,7 @@
 - Rev 10 (2026-09-26): adds the six-run `_bshort` validation batch at the widened ±2.6 passer goal — east (first ever) 3/3 and west 3/3, all position-verified — adopting `_bshort` as the pre-registration scenario; records a second G4-class interpenetration (K1, 0.076 m, pre-yield), a realised-goal-margin note, and the prereg amendment set this batch discharges into.
 - Rev 11 (2026-09-26): the K1/G4 root-cause analysis (`docs/reports/2026-09-26-close-approach-analysis.md`) lands its corrections — the 0.076 m events were 51 s of driven nose-to-nose **contact**, not interpenetration; M4's coordination exemption had disarmed the monitor during an ER-2 `reroute`; the contact fields are hard-coded `[]` (no detector exists); and, contra Rev 7 §AC, both robots **did** go STALE in both runs.
 - Rev 12 (2026-09-26): the M4 exemption fix lands and passes both VM regressions (mock-forced G4/K1 exposure now latches at 0.381 m with no contact; ER-2 yield flow unchanged), closing amendment A5; the Arm B classical reasoner slice (plan Tasks 4, 12–14) merges at `65cc850` with 70 new tests, discharging the "Arm B does not exist" freeze blocker at the reasoning-core level.
+- Rev 17 (2026-09-28): digest of the battery-completion and freeze-preparation campaign (§AU) — the prompt-v2 bundle with template versioning; T3a authored and decision-scored (no outcome contrast in this apparatus); derived grounding + stage-2 retreat selection with set-of-mark marks and, after a 6/6 letter-A prior in calibration, seeded listing randomization (v3); the T2b BUILD decision, its two safety changes (pair-scoped exemption, ordered hold-until-last) and main slices, including the find that `random` presentation order never permuted at N = 3; the calibration mini-pilot (no cliff; funding restored; the image fallback's first closed-loop use); and the first funded battery batch (first `blocker_kind` data — no wrong kinds; ER-2 full T3a hits including the Arm-B divergence; first stage-2 visual-grounding evidence; gpt-4o refusals 0/41 on non-head-on scenes, sharpening the trigger to the head-on frame).
 - Rev 16 (2026-09-27): the frozen-probe gate and the timed-obstacle wiring are live-verified (both PASS); T3c v2 (`dynamic_anomaly_v2`) is authored, built and mechanically smoked — obstacle on schedule, in M2's input frame and no text channel, Nav2 reacts, stall triggers, recovery and 2/2 arrivals — but M2's answer itself was never observed: the **Gemini project hit its monthly spending cap** mid-batch (all calls 429), so the ER-2 arm is funding-blocked and the smoke's reasoning half re-runs unchanged when funding returns.
 - Rev 15 (2026-09-27): the T0 tier is live-verified (all six checks PASS; ER-2 false positives 0/28, classical shadow 0/5 moving but 60/60 by rule on robots parked at goal — an Arm B rule gap) and the T3c smoke finds `dynamic_anomaly` unusable as authored (timed obstacles never spawn — a no-op `EventScheduler` wiring — plus five layout defects), re-scoping T3c to a re-author. Also: probes keep firing on a frozen scene after Isaac exits (fix dispatched), and two cosmetic prompt defects queued for the prompt-v2 bundle.
 - Rev 14 (2026-09-27): the shadow-logging and sim-time-stamp changes are live-verified (S1/S2, 12 of 13 checklist items clean) — M1 speeds now read sim-m/s (0.14 vs ground truth 0.15), trigger timing unchanged, shadow blocks on 13/13 analyses with classical-vs-ER-2 disagreement on 12/13 — discharging amendment blockers 11 and 12; records the S2 FCFS arrival-censoring FAIL (spawn-on-zone-boundary geometry), the `rescore_arrivals.py` sim-time regression (silent `stale_estimate` corruption; fix dispatched), a constant 0.45 sim-s M1-vs-ground-truth stamp offset, and a 4× parked-robot STOPPED/SLOW flicker at the 0.01 m/s threshold.
@@ -2831,3 +2832,97 @@ docs-only commits not shipped), installed packages 71/71, pristine
 `orchestrator.yaml` md5 `c19a244cd6d1896d1a1cd97d12f91094`, `rag.yaml`
 `d53aaed3881bde1dd7c27e8cc3a3416b`, `dynamic_anomaly_v2` USD built and
 validated, container restarted, GPU idle, instance RUNNING.
+
+---
+
+## AU. Rev 17 Digest — Battery Completion and Freeze Preparation
+
+This revision is a digest: the detailed records live in
+`docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md` (Rev 6 →
+current, items 15–26), `docs/superpowers/specs/2026-09-27-scenario-battery-design.md`
+(build-order table), the dated `docs/implementation_notes.md` entries,
+and the run summaries under `data/logs/vm_runs/`. Chronology, 2026-09-27
+evening → 2026-09-28:
+
+1. **Prompt v2** (`991ffae`…`ed152c7`): `blocker_kind` and
+   `crossing_order` output fields, registry goals and task labels in the
+   state block (the VLM had never seen goals), header honesty fix, all
+   behind template versioning — every stored artifact reconstructs
+   byte-identically (130/130 integrity plus a 654-artifact sweep). The
+   guidance line was reconciled to admit stated goals (`b4a8d91`,
+   amendment 15a).
+2. **T3a** (`ad379f1`…`71f6fdd`): the counterfactual pair authored with
+   a real marker-less robot blocker (zero M1 detections of it), both
+   members mock-smoked PASS. Structural finding: **this apparatus offers
+   T3a no outcome contrast** — `reroute` re-sends a goal M4 already
+   re-sends — so the tier is decision-scored (amendment 17a) with the
+   1.82× blocker-scale and map-baking deviations recorded (17b).
+3. **Derived grounding + stage 2** (`e358229`, `1648dd2`,
+   `49416c7`…`3366502`): Pillar 2 wired into M5 and flipped (one-commit
+   revertible), the stage-2 retreat call with a full
+   degradation-to-geometry-max chain, set-of-mark letters drawn via the
+   calibration homography, seeded letter counterbalancing, bounded 2 × 8 s
+   budget, `classical_retreat` in the shadow block. Post-flip decisions
+   do not pool with legacy-grounded ones.
+4. **T3b** (`e205f5f`…`19fafa0`): junction geometry with the
+   ranked[0]-occupied construction pinned over 269 parameter cases;
+   parallax PASS; the occupied-default smoke showed the tier's real
+   outcome contrast — the yielder drives into the box on raw `cmd_vel`
+   (amendment 25, the obstacle-blindness family's third instance). The
+   criterion bug (chance is 2/3, not 1/3) was caught and the test
+   re-specified as occupied-choice < 1/3 (items 23–24, user-approved).
+5. **T2b — user decision BUILD**: the safety slice
+   (`9c38042`…`b0ff818`: pair-scoped exemption with a bystander
+   guarantee, ordered hold-until-last release, a first-passer guard
+   closing a reversal-onto-the-queue hole) and the main slices
+   (`4295de2`…`3362a54`: oracle `correct_order`, the launcher's robot
+   loop golden-pinned, `start_delay_sec` hold-back, episode fold and
+   close-on-last-arrival, per-passer derived clearances, the
+   `t2b_flow_ordering` scenario and the forced-order harness with a
+   hard safety preflight). Instrument find: **`random` presentation
+   order never drew permutations at N = 3** — robot_2 could never be
+   listed first; fixed with uniformity pins. Coordinator defaults
+   recorded: censored wrong-order arms count as dominated
+   (LOWER-BOUND), T2b runs on legacy grounding (a tier-scoped apparatus
+   difference), corridor 1.0 m.
+6. **Calibration mini-pilot** (both backends funded again; 6/6
+   position-verified, all bands normal): no cliff. Divergences: gpt-4o
+   named `robot_2` on west 3/3 (cause ambiguous at n = 3 between the
+   sim-time-era trigger scenes and v2's goals — the gate-necessity
+   claim is scoped to v1-era evidence), and a **stage-2 letter-A prior,
+   6/6 across both models** (p = 1/64), fixed by seeded
+   listing-randomization (stage-2 v3, `526d957`, item 26) with v2
+   preserved byte-reproducibly. The image fallback had its first
+   closed-loop use: a yield decided on the grey image, executed
+   normally, reported separately.
+7. **Funded battery 1** (`7739ebe` notes; < $1 spend): safety-slice
+   live non-regression PASS with exemption-pair log evidence; **first
+   `blocker_kind` data ever** — six detected answers across T3c/T3a,
+   zero wrong kinds, misses all non-detections; ER-2 scored full T3a
+   hits on both members including the transient answer that diverges
+   from Arm B (the RQ4 shape working); **first stage-2
+   visual-grounding evidence** (ER-2: "Position C is completely clear
+   of the grey block obstacle which blocks position A"); T3b probes
+   avoided the occupied candidate 2/2 (n too small for inference);
+   gpt-4o refusals **0/41 on non-head-on scenes** — the refusal
+   trigger sharpens from "camera frames" to "the head-on frame". The
+   discarded D2 run reproduced amendment 25 on a rack.
+
+**State at this revision:** the scenario battery is structurally
+complete and funded; the T2b three-robot smoke and forced-order margin
+runs are the last build-phase batch; after them, rev 9 absorption of
+the amendment set into the research design and the `prereg-v1` tag
+package. Every coordinator default is indexed in the amendments for
+tag-time review.
+
+---
+
+## Rev 17 Provenance
+
+Documentation-only revision; commit trail `991ffae`…`7739ebe` as cited
+per item, plus this commit. Suite at the time of writing: ≈2 306 passed
+(environment-dependent skips), failing set unchanged throughout the
+campaign. VM at tree `3ebb7ea`, T2b batch in flight. Both API backends
+funded (probe 2026-09-28). Artifacts under `data/logs/vm_runs/`
+(git-ignored): `calibration/`, `funded_battery1/`, `t3a_smoke/`,
+`t3b_smoke/`, `t2b_smoke/` (in flight).
