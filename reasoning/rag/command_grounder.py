@@ -10,6 +10,7 @@ from reasoning.rag.maneuver_geometry import (
     GroundingParams,
     derive_backup_distance,
     derive_escort_distance,
+    derive_queued_passer_clearance,
     retreat_axes,
 )
 from reasoning.rag.retreat_candidates import (
@@ -132,7 +133,14 @@ def validate_coordination_command(command: dict[str, Any]) -> dict[str, Any]:
 def filter_command_robot_ids(
     command: dict[str, Any], allowed_robot_ids: set[str] | None
 ) -> dict[str, Any]:
-    """Drop grounded actions for robots absent from the current scene snapshot."""
+    """Drop grounded actions for robots absent from the current scene snapshot.
+
+    A yield's `crossing_order` (with its aligned `crossing_clear_m` /
+    `crossing_escort_m`) is pruned of the dropped robots too, and the
+    remaining waits' `linked_position` renumbered to match: M4's ordered
+    release would otherwise admit, and hold the yielder for, a robot that
+    received no command. A command that drops nothing is returned unchanged.
+    """
     if allowed_robot_ids is None:
         return command
 
@@ -146,7 +154,42 @@ def filter_command_robot_ids(
             "Command contains no actions for known robots: "
             f"allowed={sorted(allowed_robot_ids)}"
         )
+    if len(actions) != len(command.get("actions", [])):
+        actions = _prune_crossing_order(actions, allowed_robot_ids)
     return {**command, "actions": actions}
+
+
+def _prune_crossing_order(
+    actions: list[dict[str, Any]], allowed_robot_ids: set[str]
+) -> list[dict[str, Any]]:
+    pruned_order: list[str] | None = None
+    result: list[dict[str, Any]] = []
+    for action in actions:
+        parameters = action.get("parameters") or {}
+        order = parameters.get("crossing_order")
+        if action.get("action") == "yield" and isinstance(order, list):
+            keep = [i for i, robot_id in enumerate(order) if robot_id in allowed_robot_ids]
+            pruned_order = [order[i] for i in keep]
+            parameters = {**parameters, "crossing_order": pruned_order}
+            for key in ("crossing_clear_m", "crossing_escort_m"):
+                values = parameters.get(key)
+                if isinstance(values, list) and len(values) == len(order):
+                    parameters[key] = [values[i] for i in keep]
+            action = {**action, "parameters": parameters}
+        result.append(action)
+    if pruned_order is None:
+        return result
+    renumbered = []
+    for action in result:
+        parameters = action.get("parameters") or {}
+        if "linked_position" in parameters and action.get("robot_id") in pruned_order:
+            parameters = {
+                **parameters,
+                "linked_position": pruned_order.index(action["robot_id"]),
+            }
+            action = {**action, "parameters": parameters}
+        renumbered.append(action)
+    return renumbered
 
 
 def _beyond_corridor_same_side(
@@ -1130,9 +1173,27 @@ def _ground_derived(
         degradations.append(f"yield=infeasible:{escort.reason}")
         return _reroute_yielder(result, decision, roles, degradations)
 
+    hold_sec = params.hold_backstop_sec
+    wait_sec = params.wait_backstop_sec
+    resolution_sec = params.resolution_backstop_sec
+    crossing_clear: list[float] | None = None
+    if len(roles.crossing_order) > 1:
+        # One clearance per passer, each from its own position (M4 reuses the
+        # first passer's for every later one otherwise), and backstops scaled
+        # by the passers' budget, both as the legacy multi-passer yield does.
+        crossing_clear = [escort.value_m]
+        for robot_id in roles.crossing_order[1:]:
+            queued = derive_queued_passer_clearance(
+                snapshot, robot_id, (chosen.x, chosen.y), params, geometry=geometry
+            )
+            crossing_clear.append(queued.value_m if queued.value_m is not None else escort.value_m)
+        budget = _passer_budget(crossing_clear)
+        hold_sec = round(hold_sec * budget, 1)
+        wait_sec = round(wait_sec * budget, 1)
+        resolution_sec = round(resolution_sec * budget, 1)
     yield_parameters: dict[str, Any] = {
         "backup_distance_m": chosen.backup_m,
-        "hold_sec": params.hold_backstop_sec,
+        "hold_sec": hold_sec,
         "pull_off_lateral_m": chosen.lateral_m,
         "retreat_choice": chosen.label,
         "retreat_x_m": round(chosen.x, 3),
@@ -1143,6 +1204,9 @@ def _ground_derived(
         "passer_escort_distance_m": escort.value_m,
         "crossing_order": list(roles.crossing_order),
     }
+    if crossing_clear is not None:
+        yield_parameters["crossing_clear_m"] = list(crossing_clear)
+        yield_parameters["crossing_escort_m"] = list(crossing_clear)
     if roles.grounded_from is not None:
         yield_parameters["yield_robot_grounded_from"] = roles.grounded_from
         yield_parameters["yield_regrounded_reason"] = roles.regrounded_reason
@@ -1155,7 +1219,7 @@ def _ground_derived(
                 "robot_id": robot_id,
                 "action": "temporary_wait",
                 "parameters": {
-                    "duration_sec": params.wait_backstop_sec,
+                    "duration_sec": wait_sec,
                     "linked_position": position,
                 },
             }
@@ -1164,7 +1228,7 @@ def _ground_derived(
         {
             "command_id": f"{result.request_id}-yield",
             "actions": actions,
-            "expected_resolution_time_sec": params.resolution_backstop_sec,
+            "expected_resolution_time_sec": resolution_sec,
             "fallback": "stop",
             "degradations": degradations,
         }

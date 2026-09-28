@@ -990,3 +990,66 @@ def test_three_robot_yield_plans_through_m4_chain():
         PasserPlan("robot_1", 2.8, 2.8),
         PasserPlan("robot_3", 4.95, 4.95),
     )
+
+
+def _multi_passer_command() -> dict:
+    return {
+        "command_id": "req-yield",
+        "actions": [
+            {
+                "robot_id": "robot_2",
+                "action": "yield",
+                "parameters": {
+                    "passer_robot_id": "robot_1",
+                    "passer_clear_m": 1.91,
+                    "crossing_order": ["robot_1", "robot_3", "robot_4"],
+                    "crossing_clear_m": [1.91, 4.22, 5.0],
+                    "crossing_escort_m": [1.91, 4.22, 5.0],
+                },
+            },
+            {"robot_id": "robot_1", "action": "temporary_wait",
+             "parameters": {"duration_sec": 244.8, "linked_position": 0}},
+            {"robot_id": "robot_3", "action": "temporary_wait",
+             "parameters": {"duration_sec": 244.8, "linked_position": 1}},
+            {"robot_id": "robot_4", "action": "temporary_wait",
+             "parameters": {"duration_sec": 244.8, "linked_position": 2}},
+        ],
+        "expected_resolution_time_sec": 306.0,
+        "fallback": "stop",
+    }
+
+
+def test_filter_prunes_a_dropped_robot_from_the_crossing_order():
+    command = filter_command_robot_ids(
+        _multi_passer_command(), {"robot_1", "robot_2", "robot_4"}
+    )
+    p = command["actions"][0]["parameters"]
+    assert p["crossing_order"] == ["robot_1", "robot_4"]
+    assert p["crossing_clear_m"] == [1.91, 5.0]
+    assert p["crossing_escort_m"] == [1.91, 5.0]
+    waits = [(a["robot_id"], a["parameters"]["linked_position"]) for a in command["actions"][1:]]
+    assert waits == [("robot_1", 0), ("robot_4", 1)]
+
+
+def test_filter_leaves_the_crossing_order_alone_when_nothing_is_dropped():
+    original = _multi_passer_command()
+    command = filter_command_robot_ids(
+        original, {"robot_1", "robot_2", "robot_3", "robot_4"}
+    )
+    assert command == _multi_passer_command()
+
+
+def test_filter_does_not_mutate_the_grounded_command():
+    original = _multi_passer_command()
+    filter_command_robot_ids(original, {"robot_1", "robot_2"})
+    assert original == _multi_passer_command()
+
+
+def test_m4_plans_only_the_kept_passers_after_filtering():
+    from swarm_execution.crossing_chain import plan_crossing
+
+    command = filter_command_robot_ids(_multi_passer_command(), {"robot_1", "robot_2", "robot_3"})
+    plans = plan_crossing(command["actions"][0]["parameters"])
+    assert [(plan.robot_id, plan.clear_m) for plan in plans] == [
+        ("robot_1", 1.91), ("robot_3", 4.22),
+    ]

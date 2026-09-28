@@ -687,3 +687,91 @@ class TestCommandSchema:
                     "degradations": [3],
                 }
             )
+
+
+# Two-robot derived commands: every strategy x yielder x pose x geometry, as
+# grounded before the per-passer clearances and backstop scaling (tree
+# 9d20b39). One passer means no crossing_clear_m and unscaled backstops.
+_DERIVED_TWO_ROBOT_SHA256 = "702b7392f41efa548a5eac8b824f3e05dd2ad8152354d8b5eb34e9334e3a3913"
+
+
+def _derived_two_robot_digest() -> str:
+    outputs = []
+    poses = [
+        {"robot_1": (-0.3, 0.0), "robot_2": (0.3, 0.0)},
+        {"robot_1": (-0.12, 0.0), "robot_2": (0.12, 0.0)},
+        {"robot_1": (-0.04, 0.02), "robot_2": (0.08, -0.03)},
+    ]
+    for strategy, yield_robot, positions, geometry, params in itertools.product(
+        _MATRIX_STRATEGIES, [None, "robot_2"], poses, [None, _geometry()],
+        [_DERIVED, _DERIVED_GEOMETRY],
+    ):
+        frame = SnapshotFrame(
+            stamp=1.0,
+            robots=[
+                RobotStateInput(robot_id=rid, x=x, y=y, theta=0.0 if rid == "robot_1" else math.pi)
+                for rid, (x, y) in positions.items()
+            ],
+        )
+        outputs.append(
+            ground_reasoner_result(
+                _matrix_result(strategy, yield_robot),
+                snapshot=frame,
+                params=params,
+                geometry=geometry,
+            )
+        )
+    return hashlib.sha256(json.dumps(outputs, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def test_two_robot_derived_commands_are_unchanged():
+    assert _derived_two_robot_digest() == _DERIVED_TWO_ROBOT_SHA256
+
+
+class TestDerivedMultiPasser:
+    # T2b oracle order: robot_2 yields east, robot_1 then the queued robot_3 cross.
+    _T2B = _frame(
+        ("robot_1", -0.12, 0.0, 0.0),
+        ("robot_2", 0.12, 0.0, math.pi),
+        ("robot_3", -2.45, 0.0, 0.0),
+    )
+
+    def _ground(self):
+        decision = _decision(
+            involved_robots=["robot_1", "robot_2", "robot_3"],
+            yield_robot="robot_2",
+            crossing_order=["robot_1", "robot_3", "robot_2"],
+        )
+        return ground_reasoner_result(
+            _result(decision), snapshot=self._T2B, params=_DERIVED_GEOMETRY, geometry=_geometry()
+        )
+
+    def test_each_passer_gets_its_own_clearance(self):
+        p = self._ground()["actions"][0]["parameters"]
+        park_x = p["retreat_x_m"]
+        assert p["crossing_order"] == ["robot_1", "robot_3"]
+        assert p["crossing_clear_m"][0] == p["passer_clear_m"]
+        # Unbanded: 4.4 m exceeds the 3.5 m escort band that sizes one passer.
+        assert p["crossing_clear_m"][1] == pytest.approx(abs(-2.45 - park_x) + 0.65, abs=1e-3)
+        assert p["crossing_clear_m"][1] > _DERIVED_GEOMETRY.escort_band_m[1]
+        assert p["crossing_escort_m"] == p["crossing_clear_m"]
+
+    def test_m4_plans_the_per_passer_clearances(self):
+        from swarm_execution.crossing_chain import plan_crossing
+
+        p = self._ground()["actions"][0]["parameters"]
+        plans = plan_crossing(p)
+        assert [plan.robot_id for plan in plans] == ["robot_1", "robot_3"]
+        assert [plan.clear_m for plan in plans] == p["crossing_clear_m"]
+
+    def test_backstops_scale_by_the_passer_budget(self):
+        command = self._ground()
+        p = command["actions"][0]["parameters"]
+        budget = sum(max(1.0, c / 4.0) for c in p["crossing_clear_m"])
+        assert p["hold_sec"] == round(_DERIVED_GEOMETRY.hold_backstop_sec * budget, 1)
+        assert command["expected_resolution_time_sec"] == round(
+            _DERIVED_GEOMETRY.resolution_backstop_sec * budget, 1
+        )
+        waits = [a["parameters"]["duration_sec"] for a in command["actions"][1:]]
+        assert waits == [round(_DERIVED_GEOMETRY.wait_backstop_sec * budget, 1)] * 2
+        assert p["hold_sec"] > 2 * _DERIVED_GEOMETRY.hold_backstop_sec

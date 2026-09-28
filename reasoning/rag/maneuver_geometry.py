@@ -320,6 +320,46 @@ def derive_escort_distance(
     return Derivation(feasible=True, value_m=round(required, 3))
 
 
+def derive_queued_passer_clearance(
+    frame: SnapshotFrame,
+    passer_id: str,
+    yielder_parked_xy: tuple[float, float],
+    params: GroundingParams,
+    *,
+    geometry: SceneGeometry | None = None,
+) -> Derivation:
+    """Clearance for a later passer of a multi-passer yield (not the first).
+
+    Measured exactly as `derive_escort_distance` measures the first passer's,
+    but with no upper band: the band sizes ONE passer against the hold
+    backstop, and a queued passer is farther back by construction, so a
+    clamped or refused clearance would end its crossing before it is past the
+    parked yielder. The backstops scale with the passers' budget instead, as
+    the legacy grounder does. Floored at the band's lower bound.
+
+    Args:
+        frame: Current scene snapshot.
+        passer_id: The queued passer.
+        yielder_parked_xy: World position the yielder retreats to.
+        params: Geometry parameters.
+        geometry: Declared scene geometry, or None.
+
+    Returns:
+        Feasible derivation with `value_m` (millimetre-rounded), or infeasible
+        with `reason` when the passer is not in the snapshot.
+    """
+    passer = frame.find_robot(passer_id)
+    if passer is None:
+        return Derivation(feasible=False, reason=f"passer {passer_id} not in snapshot")
+    if geometry is None:
+        along = project_progress((passer.x, passer.y), yielder_parked_xy, passer.theta)
+    else:
+        axis_index = _axis_index(geometry)
+        along = abs((passer.x, passer.y)[axis_index] - yielder_parked_xy[axis_index])
+    required = along + maneuver_limits(params, geometry).escort_clearance_m
+    return Derivation(feasible=True, value_m=round(max(params.escort_band_m[0], required), 3))
+
+
 def load_grounding_params(path: Path = Path("config/rag.yaml")) -> GroundingParams:
     """Load the `grounding:` section of the RAG config.
 
