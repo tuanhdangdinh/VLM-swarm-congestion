@@ -490,9 +490,28 @@ original Arm B specification.
     exemption for the literal schema token `"blocker_kind"` is correct.
     The user's standing "continue" covers these defaults; final veto at
     the tag.
-16. **Calibration mini-pilot** (n = 3 per model on `_bshort` west, post
-    bundle, pre freeze) — funding-blocked: Gemini monthly cap hit,
-    OpenAI balance untested.
+16. ~~**Calibration mini-pilot**~~ — **discharged 2026-09-28** (both
+    backends funded; 6/6 position-verified, first yield 150.8–152.7 s
+    and safety columns all in band; stage-2 healthy 6/6 first-attempt;
+    the image fallback's first closed-loop use executed a yield decided
+    on the grey image, reported separately). Two divergences recorded:
+    (a) gpt-4o named `robot_2` on west 3/3 (gate 0/3, vs 3/3 in the N
+    batch) — cause ambiguous at n = 3 between the trigger-scene change
+    (robot_1 SLOW, a sim-time-era status) and v2's rendered goals; the
+    gate stays (it is a no-op on feasible namings) and the
+    gate-necessity claim is scoped to v1-era evidence in the prereg
+    text; (b) the stage-2 letter-A prior → item 26.
+26. **Stage-2 candidate-listing randomization (decided as coordinator
+    default 2026-09-28, reviewable at the tag):** both models chose
+    letter "A" 6/6 (p = 1/64), including over the default letter — a
+    letter/slot prior the instrument should not carry. Fix: list the
+    candidates in seeded-random order in the stage-2 prompt (decoupling
+    letter, slot and rank three ways), stage-2 prompt v3, re-pinned
+    pre-freeze. A pick-A policy would read null (chance) in the
+    approved T3b test either way, so this is a power fix, not a
+    validity fix. Also recorded: stage-2 justifications hallucinate
+    obstacles on featureless scenes — a caution against reading stage-2
+    justification text as evidence.
 17a. **T3a outcome-contrast amendment (item 18, decided 2026-09-27,
     reviewable at the tag):** T3a is scored on the decision — the
     divergent-and-correct rate against the pre-registered per-kind
