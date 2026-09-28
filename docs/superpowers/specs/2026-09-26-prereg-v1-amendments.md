@@ -566,3 +566,15 @@ original Arm B specification.
     feasibility report: safety items 9 (pair-scoped clearing exemption)
     and 11 (hold-until-last ordered release) land and verify FIRST;
     no wrong-order run before both are live.
+    **Safety slice LANDED 2026-09-28** (`9c38042`…`b0ff818`; the
+    feasibility report's own build-table numbering is #8/#10 — both
+    numberings cited in the notes entry): pair-scoped exemption with
+    fail-closed semantics and the bystander guarantee, ordered
+    hold-until-last release (`crossing_chain.py`), a first-passer guard
+    that refuses mis-ordered yields (which would otherwise reverse the
+    yielder onto the queued robot while exempt), M3 multi-passer yield
+    fan-out with per-passer clearances, and two-robot behavior pinned
+    byte-identical (status-stream pins written against the pre-change
+    code). Live VM regression pending the next batch. Remaining T2b
+    slices: launcher 3-robot loop, oracle `correct_order`, episode
+    scoping, order scheme, scenario + forced-order harness.
