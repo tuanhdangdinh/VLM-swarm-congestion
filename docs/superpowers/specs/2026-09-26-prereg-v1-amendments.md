@@ -501,8 +501,12 @@ original Arm B specification.
     gate stays (it is a no-op on feasible namings) and the
     gate-necessity claim is scoped to v1-era evidence in the prereg
     text; (b) the stage-2 letter-A prior → item 26.
-26. **Stage-2 candidate-listing randomization (decided as coordinator
-    default 2026-09-28, reviewable at the tag):** both models chose
+26. **Stage-2 candidate-listing randomization — IMPLEMENTED 2026-09-28**
+    (`526d957`; stage-2 prompt v3; v2 preserved with byte-reproduction
+    and the calibration corpus re-verified through it; three-way scorer
+    taxonomy — first-listed vs default vs letter-A — pinned; deploy-skew
+    trap: trust `listing_order` only when `stage2_prompt_version == 3`).
+    Original decision record:** both models chose
     letter "A" 6/6 (p = 1/64), including over the default letter — a
     letter/slot prior the instrument should not carry. Fix: list the
     candidates in seeded-random order in the stage-2 prompt (decoupling
