@@ -135,7 +135,23 @@ Rules for maintaining it:
       Live T2b collection in derived mode needs a decision; the harness runs
       legacy.
     - The 55 s delay assumes a three-robot RTF ≥ ~0.25. The smoke must
-      record the RTF and robot_3's position at the trigger.
+      record the RTF and robot_3's position at the trigger. The brief also
+      said "released when the standoff forms"; releasing then (~24–29
+      wall-s) would move robot_3 ~0.7 m before the trigger, so "stationary
+      at trigger" took precedence.
+    - The fold has no proximity test. In any scene with three or more robots
+      (e.g. the four-robot `dynamic_anomaly`), a solo stall anywhere during
+      another pair's command is deferred until that command resolves, not
+      analysed at once.
+    - `score` prints a censored margin as LOWER-BOUND (feasibility contrast),
+      never PASS, and writes it to the scenario only with
+      `--accept-censored`. Preflight checks commit ancestry only when the
+      safety files equal the checkout's HEAD. An rsync deploy over an older
+      checkout relies on the symbol checks, with a NOTE.
+    - `tests/unit/test_m5_node_t2b_dispatch.py` runs both arms through M5's
+      production pipeline (mock backend → parser → legacy grounding →
+      filter → fan-out) from a solo `robot_2` stall. Each dispatches the
+      forced three-robot yield with per-passer clearances.
     - `orchestrator.yaml` changed (the goal-table row and a `random`
       comment), so the VM's pristine-md5 `gen_orch` copies need refreshing.
 
