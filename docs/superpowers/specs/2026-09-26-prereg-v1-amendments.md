@@ -601,3 +601,26 @@ original Arm B specification.
     code). Live VM regression pending the next batch. Remaining T2b
     slices: launcher 3-robot loop, oracle `correct_order`, episode
     scoping, order scheme, scenario + forced-order harness.
+    **Main slices LANDED 2026-09-28** (`4295de2`…`3362a54`, 11 commits):
+    oracle `correct_order` + margin record; launcher robot loop
+    (golden-pinned two-robot byte-identity); `start_delay_sec`
+    hold-back; episode fold + close-on-last-arrival (300-sequence
+    two-robot pin); `random` order FIXED to draw uniform permutations at
+    N ≥ 3 (it never put robot_2 first before — a real instrument gap);
+    per-passer derived clearances; the `t2b_flow_ordering` scenario with
+    mutation-checked constraint pins; and the forced-order harness with
+    a hard safety preflight. Coordinator defaults recorded, reviewable
+    at the tag: (a) **a censored alternative arm counts as dominated** —
+    the wrong order most likely ends in a permanent bystander latch, so
+    the ≥20% margin is reported as a lower bound and the harness labels
+    it LOWER-BOUND, never PASS; (b) **T2b is pre-registered on legacy
+    grounding** — derived mode breaks both arms geometrically (backup
+    clearance vs queued robot; escort end vs passer goal), the tier
+    tests ordering rather than retreat selection, and legacy is the only
+    mode with the first-passer guard; a tier-scoped apparatus difference
+    to state in the prereg text; (c) corridor shortened to 1.0 m
+    (escort-end geometry, same authoring logic as T3b's junction). Watch
+    item: the episode fold rule has no proximity test — any 3+-robot
+    scene folds a solo stall into a busy pair's episode until its
+    command resolves. VM: USD, 3-robot smoke (record RTF and robot_3's
+    position at trigger), and the forced-order margin runs pending.
