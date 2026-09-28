@@ -2,7 +2,15 @@ import re
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 
 class Pose2D(BaseModel):
@@ -200,8 +208,51 @@ class HeadOnAsymmetricParams(BaseModel):
         return v
 
 
+class OracleMarginRecord(BaseModel):
+    """The authoring-time verification of an ordering oracle (T2b).
+
+    Written by the forced-order harness (`scripts/t2b_forced_order.py score`)
+    after scripted executions of both orders: the oracle order must beat the
+    alternative by `threshold` in total time-to-goal, else the scenario is
+    re-authored. `margin` is `alternative_total_sec / oracle_total_sec - 1`;
+    with `censored` set, at least one alternative run never finished, so the
+    alternative total (and the margin) is a lower bound.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    metric: Literal["total_time_to_goal_sec"] = "total_time_to_goal_sec"
+    oracle_total_sec: float = Field(gt=0.0)
+    alternative_total_sec: float = Field(gt=0.0)
+    alternative_yielder: str
+    alternative_order: tuple[str, ...]
+    margin: float
+    threshold: float = Field(default=0.20, ge=0.0)
+    censored: bool = False
+    n_per_order: int = Field(ge=1)
+    run_ids: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _margin_matches_totals(self) -> "OracleMarginRecord":
+        expected = self.alternative_total_sec / self.oracle_total_sec - 1.0
+        if abs(self.margin - expected) > 1e-3:
+            raise ValueError(
+                f"margin {self.margin} does not match alternative/oracle - 1 = {expected:.4f}"
+            )
+        return self
+
+    @property
+    def passes(self) -> bool:
+        """Whether the oracle order dominates by at least the threshold."""
+        return self.margin >= self.threshold
+
+
 class OracleConfig(BaseModel):
-    """The ground-truth yield decision and its rationale for a scenario."""
+    """The ground-truth yield decision and its rationale for a scenario.
+
+    `correct_order` (T2b flow ordering) names the robots that cross, first to
+    pass first; the correct yielder is not in it. `margin` records the
+    authoring-time verification that the order is worth scoring.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
     correct_yielder: str
@@ -209,6 +260,8 @@ class OracleConfig(BaseModel):
     feasible_yielders: tuple[str, ...]
     objective: Literal["min_total_time_to_goal"] = "min_total_time_to_goal"
     rationale: str
+    correct_order: tuple[str, ...] | None = None
+    margin: OracleMarginRecord | None = None
 
     @model_validator(mode="after")
     def _feasible_yielders_contain_correct(self) -> "OracleConfig":
@@ -219,7 +272,32 @@ class OracleConfig(BaseModel):
                 f"feasible_yielders must contain correct_yielder "
                 f"{self.correct_yielder!r}; got {self.feasible_yielders}"
             )
+        if self.correct_order is not None:
+            if len(self.correct_order) < 2:
+                raise ValueError(
+                    f"correct_order must order at least two crossing robots; "
+                    f"got {self.correct_order}"
+                )
+            if len(set(self.correct_order)) != len(self.correct_order):
+                raise ValueError(f"correct_order has duplicates: {self.correct_order}")
+            if self.correct_yielder in self.correct_order:
+                raise ValueError(
+                    f"correct_order must not contain the correct yielder "
+                    f"{self.correct_yielder!r}; got {self.correct_order}"
+                )
+        if self.margin is not None and self.correct_order is None:
+            raise ValueError("margin records an ordering oracle; set correct_order")
         return self
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_ordering(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        # The generated family YAMLs are compared byte for byte against a fresh
+        # dump; the ordering fields stay out of every dump that does not use them.
+        data = handler(self)
+        for key in ("correct_order", "margin"):
+            if data.get(key) is None:
+                data.pop(key, None)
+        return data
 
     @property
     def contrasts_fcfs(self) -> bool:
@@ -488,6 +566,34 @@ class ScenarioConfig(BaseModel):
                     raise ValueError(
                         f"oracle robot {rid!r} not in configured robots {robot_id_set}"
                     )
+            order = self.oracle.correct_order
+            if order is not None:
+                crossing = robot_id_set - {self.oracle.correct_yielder}
+                if set(order) != crossing:
+                    raise ValueError(
+                        f"correct_order must be a permutation of every robot but the "
+                        f"yielder {sorted(crossing)}; got {list(order)}"
+                    )
+                # oracle.head_on_conflict_active is defined for exactly the
+                # standoff pair; a longer list would log conflict_active=false
+                # for the whole run (three-robot feasibility report, Layer 1).
+                involved = (
+                    () if self.expected_conflict is None
+                    else self.expected_conflict.involved_robots
+                )
+                if self.family == "head_on" and len(involved) != 2:
+                    raise ValueError(
+                        f"an ordering oracle on the head_on family keeps "
+                        f"expected_conflict.involved_robots at the standoff pair; "
+                        f"got {list(involved)}"
+                    )
+            margin = self.oracle.margin
+            if margin is not None:
+                for rid in (margin.alternative_yielder, *margin.alternative_order):
+                    if rid not in robot_id_set:
+                        raise ValueError(
+                            f"margin robot {rid!r} not in configured robots {robot_id_set}"
+                        )
         if isinstance(self.oracle, RetreatOracleConfig):
             for rid in (self.oracle.yielder, self.oracle.passer):
                 if rid not in robot_id_set:

@@ -280,6 +280,105 @@ def test_oracle_contrasts_fcfs_when_yielders_differ():
     assert oracle.contrasts_fcfs is True
 
 
+def _three_robot_ordering(**oracle_overrides) -> dict:
+    robot_3 = {"robot_id": "robot_3", "marker_id": 3,
+               "spawn": {"x": -2.45, "y": 0.0, "yaw_rad": 0.0},
+               "goal": {"x": 1.85, "y": 0.0}, "initial_task": "cross_narrow_aisle"}
+    oracle = {"correct_yielder": "robot_2", "fcfs_yielder": "robot_1",
+              "feasible_yielders": ["robot_1", "robot_2"], "rationale": "x",
+              "correct_order": ["robot_1", "robot_3"], **oracle_overrides}
+    return {**VALID_HEAD_ON, "name": "t2b_case", "family": "head_on",
+            "robots": [*VALID_HEAD_ON["robots"], robot_3], "oracle": oracle}
+
+
+def _margin(**overrides) -> dict:
+    return {"oracle_total_sec": 100.0, "alternative_total_sec": 130.0,
+            "alternative_yielder": "robot_1",
+            "alternative_order": ["robot_2", "robot_3"], "margin": 0.3,
+            "n_per_order": 2, **overrides}
+
+
+def test_oracle_correct_order_parses_for_three_robots():
+    cfg = ScenarioConfig.model_validate(_three_robot_ordering())
+    assert cfg.oracle.correct_order == ("robot_1", "robot_3")
+    assert cfg.oracle.margin is None
+
+
+def test_oracle_correct_order_must_cover_every_non_yielder():
+    with pytest.raises(ValidationError, match="permutation of every robot but the yielder"):
+        ScenarioConfig.model_validate(
+            _three_robot_ordering(correct_order=["robot_1", "robot_9"])
+        )
+
+
+def test_oracle_correct_order_rejects_the_yielder():
+    with pytest.raises(ValidationError, match="must not contain the correct yielder"):
+        OracleConfig(correct_yielder="robot_2", fcfs_yielder="robot_1",
+                     feasible_yielders=("robot_2",), rationale="x",
+                     correct_order=("robot_2", "robot_1"))
+
+
+def test_oracle_correct_order_rejects_duplicates():
+    with pytest.raises(ValidationError, match="duplicates"):
+        OracleConfig(correct_yielder="robot_2", fcfs_yielder="robot_1",
+                     feasible_yielders=("robot_2",), rationale="x",
+                     correct_order=("robot_1", "robot_1"))
+
+
+def test_oracle_correct_order_keeps_head_on_involved_robots_at_the_pair():
+    data = _three_robot_ordering()
+    data["expected_conflict"] = {**data["expected_conflict"],
+                                 "involved_robots": ["robot_1", "robot_2", "robot_3"]}
+    with pytest.raises(ValidationError, match="standoff pair"):
+        ScenarioConfig.model_validate(data)
+
+
+def test_oracle_margin_record_parses_and_passes_threshold():
+    cfg = ScenarioConfig.model_validate(_three_robot_ordering(margin=_margin()))
+    assert cfg.oracle.margin.passes is True
+    assert cfg.oracle.margin.threshold == 0.20
+
+
+def test_oracle_margin_below_threshold_does_not_pass():
+    record = _margin(alternative_total_sec=110.0, margin=0.1)
+    cfg = ScenarioConfig.model_validate(_three_robot_ordering(margin=record))
+    assert cfg.oracle.margin.passes is False
+
+
+def test_oracle_margin_must_match_totals():
+    with pytest.raises(ValidationError, match="does not match"):
+        ScenarioConfig.model_validate(_three_robot_ordering(margin=_margin(margin=0.5)))
+
+
+def test_oracle_margin_requires_correct_order():
+    with pytest.raises(ValidationError, match="set correct_order"):
+        OracleConfig(correct_yielder="robot_2", fcfs_yielder="robot_1",
+                     feasible_yielders=("robot_2",), rationale="x",
+                     margin=_margin())
+
+
+def test_oracle_margin_robots_must_exist():
+    record = _margin(alternative_order=["robot_2", "robot_7"])
+    with pytest.raises(ValidationError, match="robot_7"):
+        ScenarioConfig.model_validate(_three_robot_ordering(margin=record))
+
+
+def test_oracle_dump_omits_unset_ordering_fields():
+    oracle = OracleConfig(correct_yielder="robot_2", fcfs_yielder="robot_1",
+                          feasible_yielders=("robot_2",), rationale="x")
+    assert list(oracle.model_dump(mode="json")) == [
+        "correct_yielder", "fcfs_yielder", "feasible_yielders", "objective", "rationale"
+    ]
+
+
+def test_oracle_dump_keeps_set_ordering_fields():
+    cfg = ScenarioConfig.model_validate(_three_robot_ordering(margin=_margin()))
+    dumped = cfg.model_dump(mode="json")["oracle"]
+    assert dumped["correct_order"] == ["robot_1", "robot_3"]
+    assert dumped["margin"]["margin"] == 0.3
+    assert ScenarioConfig.model_validate(cfg.model_dump(mode="json")) == cfg
+
+
 def test_parameters_round_trip_through_json_dump():
     cfg = ScenarioConfig.model_validate({**VALID_HEAD_ON, "parameters": {
         "blocker_west_m": 0.2, "blocker_east_m": None, "arrival_offset_m": 0.0}})
