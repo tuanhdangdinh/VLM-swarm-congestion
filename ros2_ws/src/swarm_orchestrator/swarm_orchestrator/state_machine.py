@@ -22,6 +22,28 @@ class DirectiveKind(str, Enum):
     DISPATCH = "dispatch"
     COOLDOWN = "cooldown"
     NONE = "none"
+    # A queued follower's solo stall while another robot pair's command is in
+    # flight: joins that episode instead of opening an analysis mid-maneuver.
+    FOLDED = "folded"
+
+
+def is_queued_follower(robots: list[str], busy_robots: set[str]) -> bool:
+    """Whether a stall is a queued follower's, to fold into the busy episode.
+
+    A single stalled robot outside a command that is moving two or more other
+    robots (T2b: `robot_3` stalled behind a yield it is not part of). Analysing
+    it now would open a new episode, and command the follower, in the middle of
+    that maneuver. With two robots in the scene a command moving two robots
+    covers every robot, so this is never true there.
+
+    Args:
+        robots: The event's involved robots.
+        busy_robots: Robots of every unresolved dispatched command.
+
+    Returns:
+        True for a solo stall disjoint from a busy set of at least two robots.
+    """
+    return len(robots) == 1 and len(busy_robots) >= 2 and not set(robots) & busy_robots
 
 
 @dataclass(frozen=True)
@@ -62,6 +84,8 @@ class OrchestratorStateMachine:
         gated = set(event.involved_robots) & (cooldown_robots | busy_robots)
         if gated:
             return Directive(kind=DirectiveKind.SUPPRESSED, robots=event.involved_robots)
+        if is_queued_follower(event.involved_robots, busy_robots):
+            return Directive(kind=DirectiveKind.FOLDED, robots=event.involved_robots)
         request_id = uuid.uuid4().hex
         self.state = OrchestratorState.ANALYZING
         self._active_request_id = request_id

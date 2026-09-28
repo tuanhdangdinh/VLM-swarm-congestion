@@ -316,6 +316,19 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   `episode_index`; the `starting analysis` log line carries `order=`. The 1 Hz
   scene log does not: most snapshots fall outside any episode, so the fields
   would be null on nearly every line.
+  **Three or more robots (2026-09-28, T2b).** The episode also tracks its
+  *members*: the analysed sets plus every robot a dispatched command names and
+  every queued follower folded into it. A single stalled robot outside the
+  robots of an in-flight command that moves two or more robots is **folded**
+  (`DirectiveKind.FOLDED`, `state_machine.is_queued_follower`): no analysis
+  starts mid-maneuver, the robot joins the episode's members and
+  `AttemptMemory`'s scope, and its next stall after the command resolves is
+  analysed inside the same episode. Once an episode has three or more members,
+  overlap is tested against the members and the episode closes on the **last**
+  member's arrival. A two-robot scene cannot reach three members or fold
+  (a command moving two robots covers both), so every two-robot rule above is
+  unchanged (pinned against the pre-change tracker in
+  `tests/unit/test_m5_presentation_order.py`).
 - FR5.3.10 (2026-09-25) Every decision artifact records the outcome of M3's
   yield feasibility gate (`grounding_yield_feasibility`, FR3.x in
   `docs/specs/module3_rag_grounding.md`): the configured mode under that key,

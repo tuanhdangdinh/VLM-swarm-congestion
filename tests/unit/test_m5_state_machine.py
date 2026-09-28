@@ -136,3 +136,48 @@ def test_frame_unavailable_suppresses_without_analyzing():
     )
     assert directive.kind is DirectiveKind.SUPPRESSED
     assert sm.state is OrchestratorState.MONITORING
+
+
+def test_solo_stall_outside_a_busy_pair_is_folded():
+    sm = OrchestratorStateMachine()
+    directive = sm.on_event(
+        _event(robots=("robot_3",)), cooldown_robots=set(),
+        busy_robots={"robot_1", "robot_2"}, now=11.0,
+    )
+    assert directive.kind is DirectiveKind.FOLDED
+    assert directive.robots == ["robot_3"]
+    assert sm.state is OrchestratorState.MONITORING
+
+
+def test_pair_stall_outside_a_busy_pair_still_starts_analysis():
+    sm = OrchestratorStateMachine()
+    directive = sm.on_event(
+        _event(robots=("robot_3", "robot_4")), cooldown_robots=set(),
+        busy_robots={"robot_1", "robot_2"}, now=11.0,
+    )
+    assert directive.kind is DirectiveKind.START_ANALYSIS
+
+
+def test_solo_stall_beside_a_single_busy_robot_still_starts_analysis():
+    sm = OrchestratorStateMachine()
+    directive = sm.on_event(
+        _event(robots=("robot_2",)), cooldown_robots=set(), busy_robots={"robot_1"}, now=11.0,
+    )
+    assert directive.kind is DirectiveKind.START_ANALYSIS
+
+
+def test_two_robot_scene_never_folds():
+    import itertools
+
+    pair = ["robot_1", "robot_2"]
+    subsets = [set(c) for n in range(3) for c in itertools.combinations(pair, n)]
+    for event_robots in (s for s in subsets if s):
+        for busy in subsets:
+            for cooldown in subsets:
+                directive = OrchestratorStateMachine().on_event(
+                    _event(robots=tuple(sorted(event_robots))), cooldown_robots=cooldown,
+                    busy_robots=busy, now=11.0,
+                )
+                gated = event_robots & (busy | cooldown)
+                expected = DirectiveKind.SUPPRESSED if gated else DirectiveKind.START_ANALYSIS
+                assert directive.kind is expected

@@ -139,3 +139,110 @@ def test_end_episode_reports_false_when_no_episode_tracks_the_robots():
 
 def test_episode_index_starts_before_the_first_episode():
     assert EpisodeOrderTracker(_random_policy()).episode_index == -1
+
+
+class _PreChangeTracker:
+    """EpisodeOrderTracker verbatim as of 3ebb7ea (two-robot reference)."""
+
+    def __init__(self, policy: PresentationOrderPolicy) -> None:
+        self._policy = policy
+        self._index = -1
+        self._robots: set[str] = set()
+        self._order = None
+
+    def order_for(self, robot_ids):
+        robots = set(robot_ids)
+        if self._order is None or not robots & self._robots:
+            self._index += 1
+            self._order = self._policy.order_for_episode(self._index)
+            self._robots = robots
+        else:
+            self._robots |= robots
+        return self._index, self._order
+
+    def end_episode(self, robot_ids):
+        if self._order is None or not set(robot_ids) & self._robots:
+            return False
+        self._order = None
+        self._robots = set()
+        return True
+
+
+def test_two_robot_episode_sequences_match_the_pre_change_tracker():
+    import random
+
+    pair = ("robot_1", "robot_2")
+    subsets = [["robot_1"], ["robot_2"], ["robot_1", "robot_2"]]
+    for trial in range(300):
+        rng = random.Random(trial)
+        new = EpisodeOrderTracker(_random_policy(trial))
+        old = _PreChangeTracker(_random_policy(trial))
+        for _ in range(40):
+            op = rng.choice(("order_for", "end_episode", "note_dispatch", "fold"))
+            robots = rng.choice(subsets)
+            if op == "order_for":
+                assert new.order_for(robots) == old.order_for(robots)
+            elif op == "end_episode":
+                assert new.end_episode(robots) == old.end_episode(robots)
+            elif op == "note_dispatch":
+                new.note_dispatch(rng.choice([list(pair), robots]))
+            else:
+                new.fold(robots)
+            assert new.episode_index == old._index
+
+
+def test_three_member_episode_closes_on_the_last_arrival():
+    tracker = EpisodeOrderTracker(_random_policy())
+    tracker.order_for(["robot_1", "robot_2"])
+    tracker.note_dispatch(["robot_2", "robot_1", "robot_3"])
+
+    assert tracker.end_episode(["robot_1"]) is False
+    assert tracker.end_episode(["robot_3"]) is False
+    assert tracker.order_for(["robot_2"])[0] == 0
+    assert tracker.end_episode(["robot_2"]) is True
+    assert tracker.order_for(["robot_2"])[0] == 1
+
+
+def test_three_member_episode_ignores_arrivals_of_non_members():
+    tracker = EpisodeOrderTracker(_random_policy())
+    tracker.order_for(["robot_1", "robot_2"])
+    tracker.note_dispatch(["robot_1", "robot_2", "robot_3"])
+
+    assert tracker.end_episode(["robot_9"]) is False
+    for robot_id in ("robot_1", "robot_2"):
+        tracker.end_episode([robot_id])
+    assert tracker.end_episode(["robot_3"]) is True
+
+
+def test_folded_follower_joins_the_episode_so_its_stall_continues_it():
+    tracker = EpisodeOrderTracker(_random_policy())
+    index, order = tracker.order_for(["robot_1", "robot_2"])
+
+    assert tracker.fold(["robot_3"]) is True
+    assert tracker.fold(["robot_3"]) is False
+    assert tracker.order_for(["robot_3"]) == (index, order)
+
+
+def test_follower_stall_without_fold_still_opens_a_new_episode():
+    # Two members only: the two-robot disjoint rule is unchanged.
+    tracker = EpisodeOrderTracker(_random_policy())
+    tracker.order_for(["robot_1", "robot_2"])
+
+    assert tracker.order_for(["robot_3"])[0] == 1
+
+
+def test_merged_three_member_episode_matches_an_overlap_with_any_member():
+    tracker = EpisodeOrderTracker(_random_policy())
+    tracker.order_for(["robot_1"])
+    tracker.note_dispatch(["robot_1", "robot_2", "robot_3"])
+
+    # robot_2 was never an analysed robot, only a member via dispatch.
+    assert tracker.order_for(["robot_2"])[0] == 0
+
+
+def test_fold_without_an_open_episode_is_a_no_op():
+    tracker = EpisodeOrderTracker(_random_policy())
+    assert tracker.fold(["robot_3"]) is False
+    tracker.note_dispatch(["robot_1", "robot_2", "robot_3"])
+    assert tracker.order_for(["robot_3"])[0] == 0
+    assert tracker.end_episode(["robot_3"]) is True

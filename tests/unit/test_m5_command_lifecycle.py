@@ -396,3 +396,40 @@ def test_attempt_memory_omits_last_failed_for_non_overlapping_robots():
 def test_attempt_memory_context_for_returns_latest_attempt_only():
     record = _l4_memory().context_for(["robot_1"], now=182.2)
     assert record is not None and record.command_id == "c2-wait"
+
+
+def test_attempt_memory_keeps_context_for_a_folded_follower():
+    memory = _memory()
+    memory.fold(["robot_3"])
+    memory.resolve("c1", "completed", now=10.0)
+
+    assert memory.context_for(["robot_3"], now=20.0).command_id == "c1"
+    assert memory.context_for(["robot_1"], now=21.0).command_id == "c1"
+
+
+def test_attempt_memory_without_fold_still_drops_a_disjoint_follower():
+    memory = _memory()
+    memory.resolve("c1", "completed", now=10.0)
+
+    assert memory.context_for(["robot_3"], now=20.0) is None
+    assert memory.context_for(["robot_1"], now=21.0) is None
+
+
+def test_attempt_memory_forgets_folded_robots_with_the_memory():
+    memory = _memory()
+    memory.fold(["robot_3"])
+    memory.resolve("c1", "completed", now=10.0)
+    assert memory.context_for(["robot_9"], now=20.0) is None
+
+    memory.record("c2", ["robot_1", "robot_2"], "yield", "robot_1", now=30.0)
+    memory.resolve("c2", "completed", now=40.0)
+    assert memory.context_for(["robot_3"], now=41.0) is None
+
+
+def test_attempt_memory_fold_without_a_record_is_a_no_op():
+    memory = AttemptMemory(window_sec=60.0)
+    memory.fold(["robot_3"])
+    memory.record("c1", ["robot_1", "robot_2"], "yield", "robot_1", now=0.0)
+    memory.resolve("c1", "completed", now=10.0)
+
+    assert memory.context_for(["robot_3"], now=20.0) is None

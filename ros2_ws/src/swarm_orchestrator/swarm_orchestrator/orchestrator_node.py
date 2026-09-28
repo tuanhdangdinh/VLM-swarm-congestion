@@ -498,6 +498,14 @@ class OrchestratorNode(Node):
             self.get_logger().info(
                 f"trigger suppressed robots={event.involved_robots} frame_ready={frame_ready}"
             )
+        elif directive.kind is DirectiveKind.FOLDED:
+            self._attempts.fold(event.involved_robots)
+            # Logged once per follower: the stall re-fires on every scene.
+            if self._episodes.fold(event.involved_robots):
+                self.get_logger().info(
+                    f"trigger folded into the in-flight episode robots={event.involved_robots} "
+                    f"busy={sorted(self._busy_robots())} episode={self._episodes.episode_index}"
+                )
 
     def _on_status(self, msg: CoordinationStatus) -> None:
         if msg.command_id == "base_mission":
@@ -791,6 +799,7 @@ class OrchestratorNode(Node):
         )
         messages = fan_out_command(grounded, self._config.command_timeout_sec)
         robot_ids = [m[1] for m in messages]
+        self._episodes.note_dispatch(robot_ids)
         timeout = messages[0][4] if messages else self._config.command_timeout_sec
         self._tracker.register(
             CommandRecord(

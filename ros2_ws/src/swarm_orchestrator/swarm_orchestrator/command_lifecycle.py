@@ -218,6 +218,19 @@ class AttemptMemory:
         self._window_sec = window_sec
         self._record: AttemptRecord | None = None
         self._last_failed: AttemptRecord | None = None
+        # Queued followers folded into the current episode (T2b): their later
+        # analysis overlaps the remembered attempt although no command named
+        # them. Dropped with the memory.
+        self._folded: set[str] = set()
+
+    def fold(self, robot_ids: list[str]) -> None:
+        """Count a queued follower as part of the remembered attempt's scope.
+
+        Args:
+            robot_ids: The follower folded into the in-flight episode.
+        """
+        if self._record is not None:
+            self._folded |= set(robot_ids)
 
     def record(
         self,
@@ -277,9 +290,10 @@ class AttemptMemory:
         if record is None or record.resolved_at is None:
             return AttemptContexts(None, None)
         expired = self._window_sec <= 0.0 or now - record.resolved_at > self._window_sec
-        if expired or not set(robot_ids) & set(record.robot_ids):
+        if expired or not set(robot_ids) & (set(record.robot_ids) | self._folded):
             self._record = None
             self._last_failed = None
+            self._folded = set()
             return AttemptContexts(None, None)
         failed = self._last_failed
         if _is_failure(record) or failed is None or not set(robot_ids) & set(failed.robot_ids):
