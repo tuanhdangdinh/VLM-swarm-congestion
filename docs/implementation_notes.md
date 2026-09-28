@@ -37,6 +37,67 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-28** — **First funded battery batch (tree `3ebb7ea`): the T2b
+  safety slice passes live, stage-2 v3 is verified on a real build, and T3c,
+  T3a and T3b have their first model answers.** All B–D cells are probes at
+  n = 1 per model, not collection. Evidence:
+  `data/logs/vm_runs/funded_battery1/FUNDED_BATTERY1_SUMMARY.txt`, with per-run
+  dirs, `ARRIVALS_RESCORED_FB1.csv` (17/17 within tolerance), `_analysis/` and
+  `_vm_driver/`.
+  - **Deploy.** `58bb428..3ebb7ea` was shipped: 20 files. The tree checks
+    591/591, and the install 80/80 after rebuilding `swarm_orchestrator` and
+    `swarm_execution`.
+    - The pristine `orchestrator.yaml` is unchanged at `c06bdb4e…`, and
+      `rag.yaml` at `9fcc39ff…`.
+    - The old deploy scripts' in-container import check had always died on
+      `ModuleNotFoundError: rclpy`, because `PYTHONPATH` was overwritten. It
+      is now appended.
+    - The VM stays at `3ebb7ea`. The T2b slices committed later (`4295de2`…)
+      are not deployed.
+  - **Group A (mock `_bshort` west yield): PASS.** The two-robot
+    byte-identical claim holds live; details are in the M4 entry below.
+  - **v3 deploy-skew check.** Run A carried a stage-2 mock, so the live build
+    was proven before any funded call. Every answered stage-2 record (A1, D1,
+    D2, D2b) has `stage2_prompt_version: 3`, and its `listing_order` equals
+    the prompt's `- X:` lines. This supersedes the stage-2 v3 entry's
+    "Pending: funded run".
+  - **B/C, first `blocker_kind` data.** Every detected-blocker answer had a
+    kind matching the member: `object` ×5 over 4 runs (T3c pallet, T3a box) and
+    `transient` ×1 (C4). Every `none` answer carried an explicit null, so the
+    key was never missing (71/71, including ER-2 with `force_schema` false).
+  - **Detection is the weak link, not kind.**
+    - gpt-4o detected the blocker on 2 of its 38 T3a/T3c analyses, and on 0/8
+      for the transient member. Its `none` answers reason only from pairwise
+      distance and facing.
+    - ER-2 detected it on the first or second analysis in 3/3 episodes, then
+      also reverted to `none` on re-analysis with the blocker still visible.
+    - So T3a/T3c oracle wording must fix which analysis per episode counts.
+  - **T3a hits.**
+    - C2 (ER-2, object) a1 answered anomaly/reroute/object: a full hit,
+      non-divergent from Arm B.
+    - C4 (ER-2, transient) a2 answered bottleneck/temporary_wait/transient:
+      the first divergent-and-correct T3a event.
+    - After the reroute failed, ER-2 answered `priority_override`, which
+      degraded to temporary_wait.
+    - The transient member resolved at the despawn even with no command (C3),
+      as item 18 predicted.
+  - **T3b under v3.** Both kept trials (D1 gpt-4o, D2b ER-2) avoided the
+    occupied candidate, and neither chose the first-listed, the default or
+    letter A. On each draw two of those readings coincided, and the choice was
+    neither.
+    - ER-2's D2b justification names the blocked letter.
+    - D2 (ER-2) named robot_2 and was discarded by item 23, then re-run as
+      D2b. Its robot_2 sidestep drove into the NE rack, and the yield FAILED on
+      the 242.8 s wall bound. The episode never resolved (item 25 again).
+  - **Refusals and errors.**
+    - gpt-4o refused on attempt 1 in 0/41 calls, with 0 fallbacks. The census
+      band of 14–25% came from head-on frames; these scenes differ.
+    - ER-2: one 120 s timeout (a ~128 s call) and two ConnectionErrors, all
+      recovered on attempt 2.
+    - No HTTP 429. Estimated spend is well under $1.
+  - **VM end state.** `orchestrator.yaml` restored (`c06bdb4e…`, source ==
+    installed); `vgu_ros` restarted; GPU idle; instance RUNNING.
+
 - **2026-09-28** — **The remaining T2b slices landed: oracle
   `correct_order`, the launcher robot loop, robot_3's hold-back, three-robot
   episode scoping, permutation presentation order, the M3 multi-passer
@@ -240,7 +301,9 @@ Rules for maintaining it:
       v2-stamped record with a non-null `listing_order` means a stale
       `reasoning/`.
   - **Pending:** a funded run showing a `stage2_prompt_version: 3` record
-    whose `listing_order` matches its prompt's `- X:` lines; `docs/specs/module5_orchestrator.md`
+    whose `listing_order` matches its prompt's `- X:` lines (superseded by
+    the later 2026-09-28 funded-battery entry: verified on D1, D2 and D2b
+    and on the mock run A1); `docs/specs/module5_orchestrator.md`
     is still not updated with the stage-2 fields.
 
 - **2026-09-28** — **Calibration mini-pilot (amendments item 16) ran on both
@@ -742,7 +805,8 @@ Rules for maintaining it:
   - **Prompt noise:** at trigger time robot_1's heading is whatever Nav2's
     spin recovery left. In W1 the prompt said "robot_1 faces robot_2: yes"
     at 2.6 m.
-  - **Pending:** a funded VLM run of the pair (N = 15 pairs + 10 Arm B
+  - **Pending:** (first funded probe, n = 1 per model per member: see the
+    2026-09-28 funded-battery entry) a funded VLM run of the pair (N = 15 pairs + 10 Arm B
     executed).
 
 - **2026-09-27** — **Amendments item 15a discharged in code: the v2 guidance
@@ -866,7 +930,9 @@ Rules for maintaining it:
     (type, strategy, justification) is still unobserved. OpenAI credits have
     also been exhausted since 2026-09-25. The oracle stays pending on two
     things: prompt-v2's `blocker_kind` field, and a funded re-run of the
-    unchanged v2 smoke.
+    unchanged v2 smoke. (Superseded by the 2026-09-28 funded-battery
+    entry: both models answered anomaly/reroute/`object` exactly once per
+    episode, then `none` on re-analysis.)
   - **Procedure gap:** the pre-flight check only confirms the key is present.
     A one-call canary before each run would catch an exhausted cap.
 
@@ -2525,6 +2591,35 @@ Rules for maintaining it:
 ---
 
 ## M4 Execution & Nav2
+
+- **2026-09-28** — **The T2b safety slice passes its live two-robot
+  regression** (run A1 `20260928_132235`, mock `head_on_yield_robot_2_once`
+  on `_bshort` west, tree `3ebb7ea`; evidence
+  `data/logs/vm_runs/funded_battery1/FUNDED_BATTERY1_SUMMARY.txt`, Group
+  A). This supersedes the entry below's "live regression is pending".
+  - **Exemption events.**
+    - `exempt pairs changed pairs=robot_1+robot_2` fires when the yield goes
+      ACTIVE, and `pairs=-` fires at COMPLETED. There are no other
+      transitions.
+    - The yielder logs `exempt=True`. The passer's `temporary_wait` logs
+      `exempt=False`, so only the pair is exempt.
+    - 0 `safety stop` lines fall inside the exempt window.
+  - **Latch timing.**
+    - The standoff latch lasted 13.2 s and began 12.8 s before the analysis
+      (calibration −12.0 to −12.9). It ended 0.01 s before the exemption
+      opened. No latch fired during backup, hold or escort.
+    - The yield phases are +46.8 / +80.7 / +151.9 s, against
+      calibration's 46.9–47.6 / 80.7–82.1 / 150.8–152.6 s.
+  - **Outcome.** Both robots arrived within tolerance. The GT minimum pairwise
+    distance was 0.262 m.
+  - **Other live exemptions, all with 0 stops inside the window:**
+    - robot_1 yields in D1 and D2b;
+    - a robot_2 yield in D2;
+    - a two-robot `reverse` in D2.
+  - **Not exercised:** the bystander case, ordered multi-passer release and
+    the first-passer guard. They wait for a T2b scenario run.
+  - **M5 lag (minor, not investigated).** M5 logged `resolved` 3.0 s after
+    M4's COMPLETED; it was 0.1 s in CO1.
 
 - **2026-09-28** — **T2b safety prerequisites landed: pair-scoped clearing
   exemption (`9c38042`, `fc441d4`) and ordered hold-until-last release
