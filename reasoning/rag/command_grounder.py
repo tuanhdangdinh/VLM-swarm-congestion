@@ -394,6 +394,35 @@ def _legacy_passer_order(
     return rest
 
 
+def _first_passer_refusal(
+    yielder_id: str,
+    passer_order: Sequence[str],
+    robot_positions: dict[str, tuple[float, float]] | None,
+) -> str | None:
+    # The park side and the backup are computed away from passer_order[0],
+    # which M4 treats as the standoff partner (escorted and pair-exempt from
+    # the start). A queued robot named first would put the yielder's reverse
+    # onto it, unguarded, or make it cross through the robot ahead of it. So
+    # the first passer must be the passer nearest the yielder; anything else,
+    # or an order that cannot be checked, is refused rather than reordered, so
+    # the executed order is always the decided one.
+    robots = [yielder_id, *passer_order]
+    if robot_positions is None or any(r not in robot_positions for r in robots):
+        return "yield refused: crossing order unverifiable without every robot's position"
+    yx, yy = robot_positions[yielder_id]
+    distance = {
+        robot_id: math.hypot(robot_positions[robot_id][0] - yx, robot_positions[robot_id][1] - yy)
+        for robot_id in passer_order
+    }
+    first = passer_order[0]
+    if distance[first] > min(distance[r] for r in passer_order[1:]):
+        return (
+            f"yield refused: first passer {first} is not the passer nearest the "
+            f"yielder {yielder_id}"
+        )
+    return None
+
+
 def _ground_legacy(
     result: ReasonerResult,
     robot_positions: dict[str, tuple[float, float]] | None,
@@ -494,6 +523,11 @@ def _ground_legacy(
         yield_refused = yield_refusal_reason is not None
         passer_order = _legacy_passer_order(robot_ids, decision, crossing_order)
         multi_passer = len(passer_order) > 1
+        if multi_passer and not yield_refused:
+            yield_refusal_reason = _first_passer_refusal(
+                robot_ids[0], passer_order, robot_positions
+            )
+            yield_refused = yield_refusal_reason is not None
         # Fallback per-passer clearance, replaced below from each passer's own
         # position when the scene is known.
         crossing_clear = [passer_clear_m] * len(passer_order)
