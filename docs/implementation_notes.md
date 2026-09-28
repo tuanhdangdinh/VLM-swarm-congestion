@@ -109,8 +109,20 @@ Rules for maintaining it:
     M6/Isaac, ArUco parity and six unit tests, all pre-existing and none in
     stage 2. `ruff check` is clean on the touched files; the repo-wide count
     is unchanged at 152.
+  - **Deploy trap: tree skew fails quietly in both directions.**
+    - A stale `swarm_orchestrator` build with a synced `reasoning/` builds a
+      v3 request with no `listing_order`. The validator raises, and the
+      stage-2 catch-all records `degraded` with `requires listing_order`.
+      Every call grounds the default, so the instrument is off.
+    - A rebuilt `swarm_orchestrator` with a stale `reasoning/` has the field
+      silently dropped (`extra` is ignored). The prompt renders in letter
+      order and is stamped `stage2_prompt_version: 2`, yet the record still
+      carries a `listing_order` that was never shown.
+    - Trust `listing_order` only when `stage2_prompt_version == 3`. A
+      v2-stamped record with a non-null `listing_order` means a stale
+      `reasoning/`.
   - **Pending:** a funded run showing a `stage2_prompt_version: 3` record
-    whose `listing_order` matches its prompt; `docs/specs/module5_orchestrator.md`
+    whose `listing_order` matches its prompt's `- X:` lines; `docs/specs/module5_orchestrator.md`
     is still not updated with the stage-2 fields.
 
 - **2026-09-28** — **Calibration mini-pilot (amendments item 16) ran on both
