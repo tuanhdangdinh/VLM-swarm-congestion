@@ -5,10 +5,14 @@ M5 draws each candidate's letter on a copy of the stage-1 annotated frame
 goes unmarked and the prompt says the letters are not drawn instead. Either
 way the letters are also listed with their world coordinates.
 
-Candidates are listed in letter order, never in rank order, and without their
-sweep clearances: either would leak the geometry-max answer the fallback
-already supplies. Which candidate carries which letter is M5's (seeded,
-counterbalanced) choice; this module renders whatever letters it is given.
+Candidates are never listed in rank order, and never with their sweep
+clearances: either would leak the geometry-max answer the fallback already
+supplies. Version 3 lists them, and enumerates the answer letters, in the
+request's `listing_order`, which M5 draws independently of the letters
+(amendments item 26). Version 2, frozen history, lists them in letter order,
+so there letter A is always the first-listed slot. Which candidate carries
+which letter, and the listing order, are M5's seeded choices; this module
+renders whatever it is given.
 """
 
 from reasoning.vlm.models import PromptPayload, RetreatChoiceRequest, RobotStateInput
@@ -16,8 +20,12 @@ from reasoning.vlm.prompt_builder import SYSTEM_PROMPT
 
 STAGE2_SYSTEM_PROMPT = SYSTEM_PROMPT
 
-# Version 2 (CURRENT_STAGE2_PROMPT_VERSION). The objective sentence is the
-# research design's A.3 wording; "marked" is dropped when no marks are drawn.
+# Versions 2 and 3 share this template; they differ only in the order the
+# candidate lines and the answer letters are rendered. A later template edit
+# is a new version with its own template: fork, never edit, so the v2 pins
+# (the calibration mini-pilot corpus) and the v3 pins keep holding. The
+# objective sentence is the research design's A.3 wording; "marked" is
+# dropped when no marks are drawn.
 _STAGE2_USER_TEMPLATE_V2 = """You are a warehouse swarm robotics traffic controller. \
 {yielder_id} will yield so that {passers} can pass: it backs up, then steps aside \
 to one of the lettered retreat positions below. Every position has already been \
@@ -65,14 +73,19 @@ def build_stage2_prompt_payload(request: RetreatChoiceRequest) -> PromptPayload:
     Returns:
         Payload whose image is the request's image (marked or not, as
         `request.marks_drawn` says) and whose `known_robot_ids` lists the
-        scene robots in ID order.
+        scene robots in ID order. The candidates and the answer letters are
+        rendered in `request.listing_order` (v3) or letter order (v2).
     """
     states = sorted(request.robot_states, key=lambda state: state.robot_id)
     robot_block = "\n".join(
         f"- {state.robot_id}: x={state.x:.2f}, y={state.y:.2f}{_role(state, request)}"
         for state in states
     )
-    candidates = sorted(request.candidates, key=lambda candidate: candidate.label)
+    by_label = {candidate.label: candidate for candidate in request.candidates}
+    listing = (
+        sorted(by_label) if request.listing_order is None else list(request.listing_order)
+    )
+    candidates = [by_label[label] for label in listing]
     candidate_block = "\n".join(
         f"- {c.label}: x={c.x:.2f}, y={c.y:.2f} (back up {c.backup_m:.2f} m, then "
         f"step {abs(c.lateral_m):.2f} m aside)"

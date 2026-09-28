@@ -13,6 +13,12 @@ the geometry-max default in every symmetric scene. The letters the VLM sees
 are therefore a seeded permutation of those labels, drawn per call; the
 answer is mapped back to M3's label before grounding, so the grounder is
 unchanged and resolves the candidate that was shown under the chosen letter.
+
+The listing order is randomized too (amendments item 26). With letters listed
+in letter order, letter A always sat in the first-listed slot, so a first-slot
+prior read as a letter-A prior. The prompt now lists the letters in a second,
+independently seeded permutation, decoupling letter, listing slot and
+geometry rank three ways.
 """
 from __future__ import annotations
 
@@ -83,6 +89,7 @@ def format_stage2_log(request_id: str, record: RetreatStage2Record) -> str:
         f"stage2 request={request_id} status={record.status} "
         f"skip_reason={record.skip_reason} failure_cause={record.failure_cause} "
         f"choice={choice} default_letter={record.default_letter} "
+        f"listing={''.join(record.listing_order or []) or '-'} "
         f"grounded_label={record.grounded_label} default={record.default_label} "
         f"candidates={labels} "
         f"marks_drawn={record.marks_drawn} attempts={attempts} error={record.error}"
@@ -110,6 +117,39 @@ def derive_letter_seed(base_seed: int, draw_index: int) -> int:
     """
     digest = hashlib.sha256(f"{base_seed}:stage2:{draw_index}".encode()).digest()
     return int.from_bytes(digest[:8], "big")
+
+
+def derive_listing_seed(base_seed: int, draw_index: int) -> int:
+    """Derive the seed of one stage-2 listing-order draw.
+
+    The letter draw's scheme under its own `stage2list` salt, so for the same
+    base seed and draw index the listing order is independent of the letters.
+
+    Args:
+        base_seed: The run's seed (the letter draw's `letter_seed_base`).
+        draw_index: The letter draw's `letter_draw_index`.
+
+    Returns:
+        A 64-bit seed.
+    """
+    digest = hashlib.sha256(f"{base_seed}:stage2list:{draw_index}".encode()).digest()
+    return int.from_bytes(digest[:8], "big")
+
+
+def draw_listing_order(letters: Sequence[str], seed: int) -> list[str]:
+    """Draw the order the stage-2 prompt lists the letters in.
+
+    Args:
+        letters: The shown letters, in any order.
+        seed: The draw's seed (`derive_listing_seed`).
+
+    Returns:
+        The letters as a uniform random permutation of their sorted order, so
+        each letter lands in each listing slot equally often.
+    """
+    order = sorted(letters)
+    random.Random(seed).shuffle(order)
+    return order
 
 
 def assign_letters(candidate_count: int, seed: int) -> list[int]:
@@ -258,6 +298,8 @@ def _run(
     letters = sorted(c.label for c in candidates)
     shown = {letter: candidates[rank] for letter, rank in zip(letters, order, strict=True)}
     default_letter = letters[order.index(0)]
+    listing_seed = derive_listing_seed(letter_seed_base, letter_draw_index)
+    listing_order = draw_listing_order(letters, listing_seed)
     lettered = {
         "candidates": [
             {**c.model_dump(mode="json"), "letter": letters[order.index(rank)]}
@@ -276,6 +318,8 @@ def _run(
             }
             for letter, rank in zip(letters, order, strict=True)
         },
+        "listing_order": listing_order,
+        "listing_seed": listing_seed,
     }
     marks = _render_marks(
         marker, request.request_id, request.image_path,
@@ -294,6 +338,7 @@ def _run(
             )
             for letter, c in shown.items()
         ],
+        listing_order=listing_order,
     )
     payload = build_stage2_prompt_payload(choice_request)
     prompt = {

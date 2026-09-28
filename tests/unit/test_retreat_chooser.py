@@ -34,6 +34,7 @@ def _request() -> RetreatChoiceRequest:
             RetreatCandidateOption(label="A", x=-1.79, y=0.36, backup_m=1.49, lateral_m=0.36),
             RetreatCandidateOption(label="B", x=-1.79, y=-0.36, backup_m=1.49, lateral_m=-0.36),
         ],
+        listing_order=["B", "A"],
     )
 
 

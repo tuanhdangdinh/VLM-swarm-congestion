@@ -264,8 +264,15 @@ class RetreatChoiceDecision(BaseModel):
 # Version 1 (text-only letters, e358229) never rendered a live call: it was
 # committed on an unpushed branch, never deployed, and no artifact carries a
 # `stage2` block, so it was retired rather than frozen (2026-09-28 notes).
-Stage2PromptVersion = Literal[2]
-CURRENT_STAGE2_PROMPT_VERSION: Stage2PromptVersion = 2
+# Version 2 lists the candidates in letter order, so letter A is always the
+# first-listed slot. It is frozen history, not retired: the six funded stage-2
+# calls of the 2026-09-28 calibration mini-pilot (data/logs/vm_runs/calibration/
+# 20260928_104408 .. 20260928_122832) were rendered with it. Version 3
+# (amendments item 26) lists them in a seeded order independent of the letters
+# (`RetreatChoiceRequest.listing_order`); its text is v2's, so v3 given the
+# letter-order listing renders v2 byte for byte.
+Stage2PromptVersion = Literal[2, 3]
+CURRENT_STAGE2_PROMPT_VERSION: Stage2PromptVersion = 3
 
 # Why a stage-2 call produced no rendered letter, in the measurement plan's
 # vocabulary where one exists (`invalid_label`, `parse_failure`); `refusal`,
@@ -310,6 +317,11 @@ class RetreatChoiceRequest(BaseModel):
     crossing_order: list[str]
     robot_states: list[RobotStateInput]
     candidates: list[RetreatCandidateOption] = Field(min_length=1)
+    # The letters in the order the prompt lists them (version 3 only). Required
+    # under v3, so a caller cannot silently fall back to letter order and
+    # re-confound letter A with the first-listed slot; absent under v2, which
+    # always lists in letter order.
+    listing_order: list[str] | None = None
     prompt_version: Stage2PromptVersion = CURRENT_STAGE2_PROMPT_VERSION
 
     @model_validator(mode="after")
@@ -317,6 +329,21 @@ class RetreatChoiceRequest(BaseModel):
         labels = [candidate.label for candidate in self.candidates]
         if len(labels) != len(set(labels)):
             raise ValueError(f"candidate labels must be unique, got {labels}")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_listing_order(self) -> "RetreatChoiceRequest":
+        if self.prompt_version == 2:
+            if self.listing_order is not None:
+                raise ValueError("stage-2 prompt v2 lists in letter order; listing_order unset")
+            return self
+        if self.listing_order is None:
+            raise ValueError(f"stage-2 prompt v{self.prompt_version} requires listing_order")
+        labels = sorted(candidate.label for candidate in self.candidates)
+        if sorted(self.listing_order) != labels:
+            raise ValueError(
+                f"listing_order must be a permutation of {labels}, got {self.listing_order}"
+            )
         return self
 
 

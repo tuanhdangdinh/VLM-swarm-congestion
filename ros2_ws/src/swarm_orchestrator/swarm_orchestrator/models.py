@@ -325,6 +325,17 @@ class RetreatStage2Record(BaseModel):
     letter_draw_index: int | None = None
     letter_seed: int | None = None
     letter_assignment: dict[str, dict[str, Any]] | None = None
+    # Listing randomization (amendments item 26, stage-2 prompt v3), set only
+    # when a call is made: the shown letters in the order the prompt listed
+    # them, and the draw's seed, `derive_listing_seed(letter_seed_base,
+    # letter_draw_index)`; `draw_listing_order(letters, listing_seed)`
+    # reproduces it. None on v2 records, which listed in letter order.
+    # Three distinct "positional" readings of an answer, never to be merged:
+    # chose the first-listed is `choice == listing_order[0]`; chose the
+    # default is `choice == default_letter`; chose letter A is
+    # `choice == "A"`. Under v2 the first and third coincide.
+    listing_order: list[str] | None = None
+    listing_seed: int | None = None
     # The rendered stage-2 prompt with SHA-256 hashes and the image path the
     # call referenced (never the image bytes); None when no call was made.
     prompt: dict[str, Any] | None = None

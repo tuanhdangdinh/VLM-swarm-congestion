@@ -1,6 +1,7 @@
 """M5 wiring of derived grounding and stage-2 retreat selection (no rclpy)."""
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -30,6 +31,8 @@ from swarm_orchestrator.reasoning_pipeline import (
 from swarm_orchestrator.retreat_stage2 import (
     assign_letters,
     derive_letter_seed,
+    derive_listing_seed,
+    draw_listing_order,
     format_stage2_log,
     run_retreat_stage2,
     snapshot_frame_from_request,
@@ -48,12 +51,16 @@ from reasoning.vlm.models import (
     ReasonerConfig,
     ReasonerDiagnostics,
     ReasonerResult,
+    RetreatCandidateOption,
     RetreatChoiceDecision,
+    RetreatChoiceRequest,
     RetreatChoiceResult,
+    RobotStateInput,
     SnapshotFrame,
     StaticObstacleInput,
 )
 from reasoning.vlm.retreat_chooser import RetreatChooser
+from reasoning.vlm.stage2_prompt import build_stage2_prompt_payload
 
 _DERIVED = GroundingParams(mode="derived")
 _ORCHESTRATOR_YAML = Path("ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml")
@@ -494,7 +501,7 @@ class TestArtifact:
             tmp_path, outcome, request=_request(), grounding_source=_source()
         ).read_text()
         stage2 = json.loads(text)["stage2"]
-        assert stage2["stage2_prompt_version"] == 2
+        assert stage2["stage2_prompt_version"] == 3
         assert stage2["prompt"]["image_path"] == "/tmp/r1.png"
         assert stage2["marks_drawn"] is False
         assert stage2["marks"]["reason"].startswith("marker_unavailable")
@@ -747,3 +754,238 @@ class TestLetterCounterbalancing:
         outcome = _pipeline(chooser=_FixedChooser("D", cause="invalid_label")).run(_request())
         assert outcome.stage2.grounded_label == "D"
         assert outcome.grounded_command["degradations"] == ["retreat=default:invalid_label"]
+
+
+# ---- Listing-order randomization (amendments item 26, stage-2 prompt v3) ----
+
+# With base seed 0 and a three-candidate band, draw 0 shows the default under
+# B and lists C first: default letter, first-listed letter and "A" all differ.
+_TAXONOMY_DRAW = 0
+_WIDE_BAND = GroundingParams(mode="derived", aisle_y_band_m=(-0.55, 1.0))
+
+
+def _listed_letters(user_prompt: str) -> list[str]:
+    return [
+        line[2] for line in user_prompt.splitlines() if line[:2] == "- " and line[3:4] == ":"
+    ]
+
+
+class TestListingOrder:
+    def test_listing_seed_is_salted_apart_from_the_letter_seed(self):
+        assert derive_listing_seed(5, 0) == derive_listing_seed(5, 0)
+        assert derive_listing_seed(5, 0) != derive_listing_seed(5, 1)
+        assert derive_listing_seed(5, 0) != derive_listing_seed(6, 0)
+        assert derive_listing_seed(5, 0) != derive_letter_seed(5, 0)
+
+    def test_listing_order_is_a_seeded_permutation(self):
+        seed = derive_listing_seed(123, 4)
+        listing = draw_listing_order(["D", "B", "A", "C"], seed)
+        assert sorted(listing) == ["A", "B", "C", "D"]
+        assert draw_listing_order(["A", "B", "C", "D"], seed) == listing
+
+    def test_letter_a_lands_in_every_listing_slot(self):
+        counts = [0, 0, 0, 0]
+        for index in range(400):
+            counts[draw_listing_order("ABCD", derive_listing_seed(11, index)).index("A")] += 1
+        assert all(60 <= count <= 140 for count in counts)
+
+    def test_default_letter_lands_in_every_listing_slot(self):
+        counts = [0, 0, 0, 0]
+        for index in range(400):
+            default = "ABCD"[assign_letters(4, derive_letter_seed(11, index)).index(0)]
+            listing = draw_listing_order("ABCD", derive_listing_seed(11, index))
+            counts[listing.index(default)] += 1
+        assert all(60 <= count <= 140 for count in counts)
+
+    def test_default_letter_and_slot_of_a_are_independent(self):
+        joint: dict[tuple[str, int], int] = {}
+        for index in range(1600):
+            default = "ABCD"[assign_letters(4, derive_letter_seed(11, index)).index(0)]
+            slot = draw_listing_order("ABCD", derive_listing_seed(11, index)).index("A")
+            joint[default, slot] = joint.get((default, slot), 0) + 1
+        assert len(joint) == 16
+        assert all(55 <= count <= 145 for count in joint.values())
+
+    def test_listing_order_is_recorded_and_recoverable(self, tmp_path):
+        chooser = _FixedChooser("B")
+        outcome = _pipeline(chooser=chooser, stage2_letter_seed=99).run(_request())
+        stage2 = json.loads(
+            write_decision_artifact(
+                tmp_path, outcome, request=_request(), grounding_source=_source()
+            ).read_text()
+        )["stage2"]
+        letters = sorted(stage2["letter_assignment"])
+        assert stage2["listing_seed"] == derive_listing_seed(99, 0)
+        assert stage2["listing_order"] == draw_listing_order(letters, stage2["listing_seed"])
+        # The record matches what was rendered and what was asked.
+        assert _listed_letters(stage2["prompt"]["user_prompt"]) == stage2["listing_order"]
+        [asked] = chooser.requests
+        assert asked.listing_order == stage2["listing_order"]
+        assert asked.prompt_version == 3
+
+    def test_listing_follows_the_draw_index(self):
+        orders = set()
+        for index in range(8):
+            _choice, record = run_retreat_stage2(
+                _request(), _decision(), snapshot_frame_from_request(_request()), _WIDE_BAND,
+                _FixedChooser("A"), geometry=_geometry(), letter_draw_index=index,
+            )
+            assert record.listing_seed == derive_listing_seed(0, index)
+            assert _listed_letters(record.prompt["user_prompt"]) == record.listing_order
+            orders.add(tuple(record.listing_order))
+        assert len(orders) > 1
+
+    def test_skipped_call_records_no_listing(self):
+        stage2 = _pipeline(chooser=None).run(_request()).stage2
+        assert stage2.listing_order is None
+        assert stage2.listing_seed is None
+
+    def test_listing_is_logged(self):
+        outcome = _pipeline(chooser=_FixedChooser("B")).run(_request())
+        line = format_stage2_log("r1", outcome.stage2)
+        assert f"listing={''.join(outcome.stage2.listing_order)}" in line
+
+    @pytest.mark.parametrize("answer", ["A", "B", "C"])
+    def test_three_positional_readings_stay_distinct(self, tmp_path, answer):
+        pipe = _pipeline(chooser=_FixedChooser(answer), params=_WIDE_BAND)
+        pipe._stage2_draws = _TAXONOMY_DRAW
+        outcome = pipe.run(_request())
+        stage2 = json.loads(
+            write_decision_artifact(
+                tmp_path, outcome, request=_request(), grounding_source=_source()
+            ).read_text()
+        )["stage2"]
+        choice = stage2["choice"]["retreat_choice"]
+        assert (stage2["default_letter"], stage2["listing_order"][0]) == ("B", "C")
+        readings = {
+            "chose_first_listed": choice == stage2["listing_order"][0],
+            "chose_default": choice == stage2["default_letter"],
+            "chose_letter_a": choice == "A",
+        }
+        assert sum(readings.values()) == 1
+        expected = {"A": "chose_letter_a", "B": "chose_default", "C": "chose_first_listed"}
+        assert readings[expected[answer]]
+        # The default reading agrees across the two letter spaces.
+        assert readings["chose_default"] == (
+            stage2["grounded_label"] == stage2["default_label"]
+        )
+
+    def test_mock_answer_is_listing_independent(self, monkeypatch):
+        monkeypatch.setenv(
+            "VGU_MOCK_RETREAT_CHOICE_FILE", "config/mock_decisions/retreat_choice_b.json"
+        )
+        requests = [
+            RetreatChoiceRequest(
+                request_id="r1", image_path="/tmp/r1.png", yielder_id="robot_1",
+                crossing_order=["robot_2"], robot_states=[],
+                candidates=[
+                    RetreatCandidateOption(label="A", x=-1.8, y=0.36, backup_m=1.5, lateral_m=0.36),
+                    RetreatCandidateOption(
+                        label="B", x=-1.8, y=-0.36, backup_m=1.5, lateral_m=-0.36
+                    ),
+                ],
+                listing_order=listing,
+            )
+            for listing in (["A", "B"], ["B", "A"])
+        ]
+        answers = []
+        for request in requests:
+            backend = build_retreat_choice_backend("mock", MockBackend())
+            chooser = RetreatChooser(backend, ReasonerConfig(backend_id="mock"))
+            answers.append(chooser.choose(request).choice)
+        assert answers[0] == answers[1]
+        assert answers[0].retreat_choice == "B"
+
+
+# ---- The stage-2 v2 corpus: the calibration mini-pilot (2026-09-28) ----
+
+# Run 20260928_112237 (gpt-4o): the default was shown under B and the model
+# answered A, the first-listed letter under v2. Inlined because
+# `data/logs/vm_runs/` is git-ignored.
+_CALIBRATION_ROBOTS = [
+    {"robot_id": "robot_1", "x": -0.1285708846463498, "y": -0.002179132872137446,
+     "theta": -0.04758234750964273},
+    {"robot_id": "robot_2", "x": 0.1372875547918655, "y": 0.0, "theta": math.pi},
+]
+_CALIBRATION_STAGE2 = {
+    "status": "answered",
+    "stage2_prompt_version": 2,
+    "yielder_id": "robot_2",
+    "crossing_order": ["robot_1"],
+    "candidates": [
+        {"backup_m": 1.652, "label": "A", "lateral_clearance_m": 1.918, "lateral_m": 0.36,
+         "letter": "B", "min_sweep_clearance_m": 0.266, "x": 1.7892875547918654, "y": -0.36},
+        {"backup_m": 1.652, "label": "B", "lateral_clearance_m": 1.918, "lateral_m": -0.36,
+         "letter": "A", "min_sweep_clearance_m": 0.266, "x": 1.7892875547918654, "y": 0.36},
+    ],
+    "default_label": "A",
+    "default_letter": "B",
+    "letter_seed_base": 733253476989578658,
+    "letter_draw_index": 0,
+    "letter_seed": 2780733127990461938,
+    "marks_drawn": True,
+    "prompt": {
+        "image_path": "data/logs/m5_frames/84d3ba7ffe9742a986267b6bbdb2a5ea_stage2.png",
+        "user_sha256": "76bb6640fc8e1a512093de6956844e423c8541172c76c82551bf7463d964413c",
+    },
+    "choice": {"retreat_choice": "A", "justification": "x"},
+    "grounded_label": "B",
+}
+_CALIBRATION_DIR = Path(__file__).resolve().parents[2] / "data/logs/vm_runs/calibration"
+
+
+def _rerender_v2(stage2: dict, robots: list[dict]) -> str:
+    record = RetreatStage2Record(**stage2)
+    request = RetreatChoiceRequest(
+        request_id="replay",
+        image_path=record.prompt["image_path"],
+        marks_drawn=record.marks_drawn,
+        yielder_id=record.yielder_id,
+        crossing_order=record.crossing_order,
+        robot_states=[
+            RobotStateInput(robot_id=r["robot_id"], x=r["x"], y=r["y"], theta=r["theta"])
+            for r in robots
+        ],
+        candidates=[
+            RetreatCandidateOption(
+                label=c["letter"], x=c["x"], y=c["y"], backup_m=c["backup_m"],
+                lateral_m=c["lateral_m"],
+            )
+            for c in record.candidates
+        ],
+        prompt_version=record.stage2_prompt_version,
+    )
+    return build_stage2_prompt_payload(request).user_prompt
+
+
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+class TestStage2V2Corpus:
+    def test_calibration_record_parses_without_a_listing(self):
+        record = RetreatStage2Record(**_CALIBRATION_STAGE2)
+        assert record.stage2_prompt_version == 2
+        assert record.listing_order is None
+        assert record.listing_seed is None
+
+    def test_calibration_prompt_rerenders_through_v2(self):
+        user_prompt = _rerender_v2(_CALIBRATION_STAGE2, _CALIBRATION_ROBOTS)
+        assert _sha256(user_prompt) == _CALIBRATION_STAGE2["prompt"]["user_sha256"]
+        # Under v2 the first-listed letter is always A: the confound v3 removes.
+        assert _listed_letters(user_prompt)[0] == "A"
+
+    @pytest.mark.skipif(
+        not _CALIBRATION_DIR.is_dir(), reason="git-ignored calibration runs not present"
+    )
+    def test_every_calibration_call_rerenders_through_v2(self):
+        rerendered = 0
+        for path in sorted(_CALIBRATION_DIR.glob("2*/decisions/*.json")):
+            artifact = json.loads(path.read_text())
+            stage2 = artifact.get("stage2")
+            if not stage2 or stage2["status"] == "skipped":
+                continue
+            user_prompt = _rerender_v2(stage2, artifact["scene"]["robots"])
+            assert _sha256(user_prompt) == stage2["prompt"]["user_sha256"], path
+            rerendered += 1
+        assert rerendered == 6
