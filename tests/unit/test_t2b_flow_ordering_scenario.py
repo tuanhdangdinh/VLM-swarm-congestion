@@ -145,10 +145,18 @@ class TestScenario:
         assert oracle.fcfs_yielder == "robot_1"
         assert oracle.contrasts_fcfs is True
         assert oracle.objective == "min_total_time_to_goal"
-        assert oracle.margin is None
 
-    def test_margin_placeholder_is_the_one_the_harness_rewrites(self):
-        assert SCENARIO_PATH.read_text().count("\n  margin: null\n") == 1
+    def test_margin_frozen_as_censored_lower_bound(self):
+        # Frozen 2026-09-29 from harness_20260928_171248 under the
+        # user-approved censored-counts-as-dominated rule; the alternative
+        # arm ended in the permanent bystander latch on both seeds.
+        margin = _scenario().oracle.margin
+        assert margin is not None
+        assert margin.margin == 0.6485
+        assert margin.censored is True
+        assert margin.n_per_order == 2
+        assert margin.threshold == 0.2
+        assert margin.passes
 
 
 class TestHoldBackPosition:
