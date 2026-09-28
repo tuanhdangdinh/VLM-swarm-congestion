@@ -142,10 +142,10 @@ oracle:
   rationale: >-
     the untracked box fills candidate C, robot_1's far-left retreat, which
     ties the other two on sidestep clearance and ranks first on distance from
-    the corridor, so the geometry-max default and Arm B's stage-2 answer both
-    pick it; either unoccupied candidate (A or B) avoids it, so a uniform
-    choice avoids it with probability 2/3, not the 1/3 the rev-8.6 criterion
-    (>= 9/15) is calibrated against
+    the corridor, so it is ranked[0], the geometry-max default and Arm B's
+    stage-2 answer; either unoccupied candidate (A or B) is correct; scored as
+    the occupied-choice rate below chance 1/3 on answered stage-2 trials in
+    which robot_1 is the executed yielder
 
 runtime:
   physics_hz: 60
