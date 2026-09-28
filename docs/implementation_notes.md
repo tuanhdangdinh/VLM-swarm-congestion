@@ -37,6 +37,108 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-28** — **The remaining T2b slices landed: oracle
+  `correct_order`, the launcher robot loop, robot_3's hold-back, three-robot
+  episode scoping, permutation presentation order, the M3 multi-passer
+  leftovers, and the `t2b_flow_ordering` scenario with its forced-order
+  harness** (`4295de2`, `9315b86`+`ea02da7`, `daa2558`, `f76ae31`, `9d20b39`,
+  `4e555ca`, `4f92163`). Unit-tested only. The VM work (T2b USD build, the
+  three-robot smoke with `mpstat`/`uptime`, the forced-order runs and the
+  margin) rides the next batch; another agent held the VM.
+  - **Numbering.** Items cite
+    `docs/reports/2026-09-27-three-robot-feasibility.md`. The brief numbered
+    the hold-back #6, episode scoping #7 and the order scheme #8, following
+    the Rev 2 Layer 7 text ("build item 6"). The report's build table numbers
+    them #12 (geometry option a), #6 and #7.
+  - **#3 Oracle** (`4295de2`). `OracleConfig` has an optional
+    `correct_order`: every robot but the correct yielder, no duplicates. It
+    also has an `OracleMarginRecord` (`margin`), which the harness writes.
+    An ordering oracle on the `head_on` family must keep
+    `expected_conflict.involved_robots` at the standoff pair. Unset fields
+    stay out of every dump, so the generated family YAMLs are unchanged.
+  - **#4 Launcher** (`ea02da7`). `fc_launch.sh` loops over the scenario's
+    robots in robot-number order for the spawn parse, the odom/scan waits,
+    one Nav2 stack each (the first starts the map server), the action waits
+    and the Nav2 log collection. It also takes `SEED` (default 42).
+    - Two-robot pin: DRY_RUN output of five two-robot cases equals goldens
+      recorded from the pre-loop script (`9315b86`,
+      `tests/unit/test_fc_launch_dry_run.py`).
+    - One difference: an abort before stage 2 no longer lists two empty
+      nav2 log sections in `tail_logs.txt`.
+    - The VM `gen_orch` scripts are VM-side and not in the repo; the next
+      batch writes a T2b one.
+  - **Hold-back** (`daa2558`; brief #6). `TaskAssignment.start_delay_sec`
+    (default 0).
+    - Until the delay (M5 wall clock) has passed, the registry entry carries
+      `"start_pending": true`. M4's `BaseMissionDriver` then records no
+      goal, and M5 gives the robot no stall or arrival evidence.
+    - The robot stays in the registry, so M1 keeps tracking it, and the
+      prompt still shows its goal.
+    - Absent or 0 publishes the exact old JSON (pinned).
+    - T2b uses 55 s. The justification from the corpus timing is in the
+      scenario header.
+  - **#6 Episode scoping** (`f76ae31`; brief #7).
+    - A solo stall outside a busy command of two or more robots is FOLDED:
+      no analysis starts, and the robot joins the episode's members and
+      `AttemptMemory`'s scope.
+    - Members also include dispatched command robots. With three or more
+      members, overlap is tested against the members (the merge) and the
+      episode closes on the last member's arrival.
+    - Two-robot pin: a two-robot scene cannot fold or reach three members.
+      300 random two-robot operation sequences match the pre-change tracker,
+      and every two-robot gate case is unchanged.
+    - The report's union-find is realised as this single-slot merge.
+      Multiple concurrently open episodes would change two-robot semantics.
+  - **#7 Order scheme** (`9d20b39`; brief #8). Verdict: `random` did NOT
+    draw permutations. It drew only `id_asc`/`id_desc`, which at N = 3 never
+    put `robot_2` first.
+    - `random` with three or more scene robots now draws a uniform
+      permutation (a tuple; recorded as a list). It uses its own per-episode
+      stream, so two-robot draws are identical (pinned against the old
+      policy over 50 seeds × 12 episodes). Uniformity is test-checked over
+      1200 draws.
+    - `ReasonerRequest.robot_presentation_order` accepts an explicit tuple.
+    - The T0 probe draws over its scene's robots.
+    - `probe_presentation_order.py` records the first-listed robot of the
+      standoff pair, not `known_robot_ids[0]`.
+  - **#9 M3 leftovers** (`4e555ca`).
+    - Derived multi-passer yields emit per-passer `crossing_clear_m` and
+      `crossing_escort_m` (a later passer's is unbanded, as in legacy), and
+      scale hold, wait and resolution backstops by the passer budget.
+    - `filter_command_robot_ids` prunes dropped robots from
+      `crossing_order` and its aligned lists, and renumbers
+      `linked_position`.
+    - Two-robot derived output is pinned by a digest taken at `9d20b39`.
+  - **#11 Scenario + harness, #2 map** (`4f92163`). The geometry deviates
+    from `wopen_eopen`: the corridor is 1.0 m, not 2.0 m.
+    - M4 drives every passer to park + 0.65 m. With the 2.0 m corridor,
+      robot_3's escort ends 0.06 m from robot_1's +2.5 goal, so the oracle
+      order itself would latch.
+    - robot_3 holds at x = −2.45, and the band for this corridor is
+      [−2.5, −2.324]. The constraint checks run as unit tests with M3's and
+      Arm B's own code: tracking, spawn latch, Arm B `head_on` across the
+      standoff grid, park reachability, and escort ends against the 0.45 m
+      latch and the 0.6 m STALE band.
+    - Harness: `scripts/t2b_forced_order.py` (preflight / plan / score) and
+      `scripts/vm/t2b_forced_order.sh`. Preflight refuses unless the safety
+      commits (`9c38042`, `99f4699`, `38868d2`, `fc441d4`) and the
+      hold-back are in the deployed tree, by symbol and, in a git checkout,
+      by ancestry. It also checks the T2b M5 settings and
+      `grounding.mode: legacy`.
+  - **Flags.**
+    - The alternative order will likely end in a permanent robot_2/robot_3
+      bystander latch at the west end (infeasible, not slower). The margin
+      is then a censored lower bound, and the cost model becomes report
+      option (e): an owner decision.
+    - Under the shipped derived mode, the alternative grounds a reroute, and
+      the oracle's robot_3 escort ends 0.27 m from robot_1's goal (a latch).
+      Live T2b collection in derived mode needs a decision; the harness runs
+      legacy.
+    - The 55 s delay assumes a three-robot RTF ≥ ~0.25. The smoke must
+      record the RTF and robot_3's position at the trigger.
+    - `orchestrator.yaml` changed (the goal-table row and a `random`
+      comment), so the VM's pristine-md5 `gen_orch` copies need refreshing.
+
 - **2026-09-28** — **Stage-2 prompt v3 lists the candidates in a seeded
   order independent of the letters (amendments item 26)** (`526d957`). This
   answers calibration divergence 2: v2 listed in letter order, so letter A
@@ -2888,6 +2990,19 @@ Rules for maintaining it:
 ---
 
 ## M6 Simulation / Isaac Sim
+
+- **2026-09-28** — **`fc_launch.sh` launches one Nav2 stack per scenario
+  robot, and the three-robot `t2b_flow_ordering` scenario and map exist; its
+  USD build and first smoke are pending the next VM batch** (`ea02da7`,
+  `4f92163`). This closes the Rev 15 §AS "four robots, two Nav2 stacks"
+  launcher defect for any scenario. Two-robot launches are byte-identical
+  (DRY_RUN goldens, `tests/unit/test_fc_launch_dry_run.py`).
+  - Scenario edits are inert until `build_scenario` regenerates the USD on
+    the VM.
+  - The map, `warehouse_map_t2b_flow_ordering`, is generated from the
+    scenario (1.0 m barrier) and pinned against regeneration.
+  - Details and flags: the Congestion-Resolution Experiment entry of the
+    same date.
 
 - **2026-09-27** — **Timed obstacles can now be a marker-less robot, and
   the T3a pair's map decision is recorded; the real asset worked on the VM**
