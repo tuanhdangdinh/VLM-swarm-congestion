@@ -59,6 +59,13 @@ class ClassicalParams(BaseModel):
     # added 2026-09-27, pre-freeze, after T0 verification showed a 100%
     # parked-phase blocked_path rate by rule (VERIFY_SUMMARY F-T0-2).
     arrived_exclusion_radius_m: float = Field(default=0.35, gt=0)
+    # Radius of the head_on FCFS zone around the pair midpoint, i.e. where
+    # arrival stamps and commitment are measured; None keeps the rev-8
+    # coupling to r_conflict_m. Decoupled pre-freeze (T1 basket, 2026-09-29)
+    # because T1/T2a robots spawn 1.5 m from the standoff midpoint, exactly on
+    # an r_conflict_m-sized zone boundary, so a robot could sit inside the
+    # zone at the oldest buffered frame and get a censored arrival stamp.
+    fcfs_zone_radius_m: float | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def _check_axis_window(self) -> "ClassicalParams":
@@ -69,14 +76,34 @@ class ClassicalParams(BaseModel):
             )
         return self
 
+    @model_validator(mode="after")
+    def _check_fcfs_zone_radius(self) -> "ClassicalParams":
+        # head_on pairs are at most r_conflict_m apart, so each member is at
+        # most r_conflict_m / 2 from the midpoint; a smaller FCFS zone could
+        # leave a classified robot never inside it, with no arrival stamp.
+        if self.fcfs_zone_radius_m is not None and self.fcfs_zone_radius_m < self.r_conflict_m / 2:
+            raise ValueError(
+                f"fcfs_zone_radius_m {self.fcfs_zone_radius_m} is below "
+                f"r_conflict_m / 2 ({self.r_conflict_m / 2})"
+            )
+        return self
+
+    @property
+    def head_on_fcfs_radius_m(self) -> float:
+        """Radius of the head_on FCFS zone: `fcfs_zone_radius_m`, else `r_conflict_m`."""
+        if self.fcfs_zone_radius_m is None:
+            return self.r_conflict_m
+        return self.fcfs_zone_radius_m
+
 
 class ClassicalClassification(BaseModel):
     """Geometry-classifier verdict (RQ1 control).
 
     `conflict_center`/`conflict_radius_m` locate the zone the verdict was
     reached at, so FCFS arrival is measured where the conflict is: the pair
-    midpoint with `r_conflict_m` for `head_on`, the matched mapped zone for
-    `intersection`, and None for the scenarios that carry no ordering.
+    midpoint with `ClassicalParams.head_on_fcfs_radius_m` for `head_on`, the
+    matched mapped zone for `intersection`, and None for the scenarios that
+    carry no ordering.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -156,7 +183,7 @@ def classify_scene(
             blocker_kind="robot",
             involved_robots=[a.robot_id, b.robot_id],
             conflict_center=((a.x + b.x) / 2.0, (a.y + b.y) / 2.0),
-            conflict_radius_m=params.r_conflict_m,
+            conflict_radius_m=params.head_on_fcfs_radius_m,
         )
 
     for zone in zones:

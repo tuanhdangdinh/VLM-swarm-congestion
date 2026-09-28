@@ -61,6 +61,7 @@ class TestClassicalParams:
             "stopped_speed_mps": 0.05,
             "goal_beyond_max_deg": 60.0,
             "arrived_exclusion_radius_m": 0.35,
+            "fcfs_zone_radius_m": None,
         }
 
     def test_axis_window_rejects_inverted_bounds(self):
@@ -71,6 +72,19 @@ class TestClassicalParams:
     def test_arrived_exclusion_radius_rejects_non_positive(self, radius):
         with pytest.raises(ValidationError):
             ClassicalParams(arrived_exclusion_radius_m=radius)
+
+    def test_head_on_fcfs_radius_defaults_to_r_conflict(self):
+        assert ClassicalParams(r_conflict_m=1.2).head_on_fcfs_radius_m == 1.2
+
+    def test_head_on_fcfs_radius_uses_fcfs_zone_radius_when_set(self):
+        assert ClassicalParams(fcfs_zone_radius_m=1.0).head_on_fcfs_radius_m == 1.0
+
+    def test_fcfs_zone_radius_rejects_below_half_r_conflict(self):
+        with pytest.raises(ValidationError):
+            ClassicalParams(r_conflict_m=1.5, fcfs_zone_radius_m=0.7)
+
+    def test_fcfs_zone_radius_accepts_half_r_conflict(self):
+        assert ClassicalParams(r_conflict_m=1.5, fcfs_zone_radius_m=0.75).fcfs_zone_radius_m == 0.75
 
 
 def _parked_pair() -> tuple[RobotStateInput, RobotStateInput]:
@@ -159,6 +173,26 @@ class TestClassifyHeadOn:
         assert c.conflict_center == pytest.approx((0.2, 0.0))
         assert c.conflict_radius_m == _PARAMS.r_conflict_m
         assert c.zone_id is None
+
+    def test_classify_head_on_conflict_radius_is_fcfs_zone_radius_when_set(self):
+        params = ClassicalParams(fcfs_zone_radius_m=1.0)
+        c = classify_scene([_frame(1.0, *_head_on_pair())], [], params)
+        assert c.conflict_radius_m == 1.0
+
+    def test_classify_head_on_verdict_unchanged_by_fcfs_zone_radius(self):
+        # The FCFS zone only dates arrivals; which robots form a head_on pair
+        # is still decided by r_conflict_m.
+        frame = _frame(
+            1.0,
+            _robot("robot_1", 0.0, 0.0, 0.0, goal=(5.0, 0.0)),
+            _robot("robot_2", 1.4, 0.0, math.pi, goal=(-5.0, 0.0)),
+        )
+        legacy = classify_scene([frame], [], _PARAMS)
+        tuned = classify_scene([frame], [], ClassicalParams(fcfs_zone_radius_m=0.75))
+        assert legacy.model_dump(exclude={"conflict_radius_m"}) == tuned.model_dump(
+            exclude={"conflict_radius_m"}
+        )
+        assert tuned.scenario == "head_on"
 
     def test_classify_head_on_ignores_distant_stopped_bystander(self):
         bystander = _robot("robot_3", 8.0, 8.0, 0.0, goal=(9.0, 8.0))
@@ -379,6 +413,29 @@ class TestDecideClassicalHeadOn:
         frames = _head_on_frames([(0.0, 0.4), (2.0, 0.4)])
         assert decide_classical(frames, [], _PARAMS).yield_robot == "robot_2"
 
+    def test_decide_head_on_dates_arrival_at_fcfs_zone_not_r_conflict(self):
+        # robot_1 starts 1.4 m from the final pair midpoint (inside r_conflict
+        # 1.5, outside a 1.0 m FCFS zone) and enters the smaller zone at t=3;
+        # robot_2 enters it at t=1. With the zone coupled to r_conflict_m,
+        # robot_1's arrival is censored at t=0 and it passes first.
+        frames = [
+            _frame(
+                stamp,
+                _robot("robot_1", x1, 0.0, 0.0, goal=(5.0, 0.0)),
+                _robot("robot_2", x2, 0.0, math.pi, goal=(-5.0, 0.0)),
+            )
+            for stamp, x1, x2 in [
+                (0.0, -1.4, 2.0),
+                (1.0, -1.3, 0.9),
+                (3.0, -0.9, 0.5),
+                (5.0, -0.3, 0.3),
+            ]
+        ]
+        coupled = resolve_classical(frames, [], _PARAMS)
+        tuned = resolve_classical(frames, [], ClassicalParams(fcfs_zone_radius_m=1.0))
+        assert coupled.passing_order == ["robot_1", "robot_2"]
+        assert tuned.passing_order == ["robot_2", "robot_1"]
+
     def test_decide_head_on_measures_arrival_at_pair_not_mapped_zone(self):
         # A mapped zone elsewhere must not become the FCFS reference for a
         # head-on pair; against it neither robot would ever "arrive".
@@ -561,8 +618,10 @@ _REPO_RAG_CONFIG = Path(__file__).resolve().parents[2] / "config" / "rag.yaml"
 
 
 class TestLoadClassicalParams:
-    def test_load_classical_params_repo_config_matches_rev8_defaults(self):
-        assert load_classical_params(_REPO_RAG_CONFIG) == ClassicalParams()
+    def test_load_classical_params_repo_config_matches_rev8_defaults_plus_t1_basket(self):
+        # The T1 tuning basket (2026-09-29) set exactly one value away from
+        # the rev-8 defaults: the head_on FCFS zone radius.
+        assert load_classical_params(_REPO_RAG_CONFIG) == ClassicalParams(fcfs_zone_radius_m=1.0)
 
     def test_load_classical_params_repo_config_declares_section(self):
         raw = yaml.safe_load(_REPO_RAG_CONFIG.read_text(encoding="utf-8"))

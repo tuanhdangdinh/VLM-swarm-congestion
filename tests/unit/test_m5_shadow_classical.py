@@ -269,7 +269,7 @@ def test_load_shadow_params_raises_when_section_invalid(tmp_path):
 def test_load_shadow_params_reads_repo_config():
     source = load_shadow_params(Path("config/rag.yaml"))
     assert source.error is None
-    assert source.params == ClassicalParams()
+    assert source.params == ClassicalParams(fcfs_zone_radius_m=1.0)
 
 
 # ---- OrchestratorConfig shadow keys ----
@@ -362,6 +362,22 @@ def test_shadow_flags_censored_arrival_when_robot_starts_inside_zone():
     # Flag only: the FCFS answer is unchanged.
     assert record.passing_order == ["robot_1", "robot_2"]
     assert record.decision.yield_robot == "robot_2"
+    assert record.shadow_error is None
+
+
+def test_shadow_flags_no_censored_arrival_when_fcfs_zone_excludes_start():
+    # Same history: robot_1 starts 1.4 m out, outside a 1.0 m FCFS zone, and
+    # both robots' zone entries fall inside the buffer.
+    source = ClassicalParamsSource(
+        path="config/rag.yaml",
+        section_present=True,
+        params=ClassicalParams(fcfs_zone_radius_m=1.0),
+        error=None,
+    )
+    record = _evaluated(_fed_shadow(params_source=source))
+    assert record.classification.conflict_radius_m == 1.0
+    assert record.censored_arrivals == []
+    assert record.passing_order == ["robot_1", "robot_2"]
     assert record.shadow_error is None
 
 

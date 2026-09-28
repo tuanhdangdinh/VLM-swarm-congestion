@@ -29,6 +29,13 @@ grounding:
 # intersection still see it). Keep it equal to orchestrator.yaml's
 # arrival_position_tolerance_m (0.35) so Arm B never flags a robot M5 counts
 # as arrived.
+# fcfs_zone_radius_m (T1 basket, 2026-09-29, pre-freeze) is the head_on FCFS
+# zone around the pair midpoint, decoupled from r_conflict_m (classification is
+# unchanged). T1/T2a robots spawn 1.5 m from that midpoint, on an
+# r_conflict_m-sized boundary, so 9 of 17 spawn-phase head_on shadow records
+# had a censored arrival; at 1.0 m (T1 corridor half-length, >= r_conflict_m/2
+# so both classified robots are always inside) none did. Evidence:
+# docs/reports/2026-09-29-t1-tuning-basket.md.
 classical:
   r_conflict_m: 1.5
   r_block_m: 1.0
@@ -39,3 +46,4 @@ classical:
   stopped_speed_mps: 0.05
   goal_beyond_max_deg: 60.0
   arrived_exclusion_radius_m: 0.35
+  fcfs_zone_radius_m: 1.0
