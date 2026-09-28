@@ -77,3 +77,55 @@ def test_mission_task_ignores_an_active_override():
 
 def test_mission_task_returns_none_for_unknown_robot():
     assert TaskRegistry().mission_task("ghost") is None
+
+
+def _delayed_config(delay: float) -> OrchestratorConfig:
+    base = _config()
+    tasks = dict(base.initial_tasks)
+    tasks["robot_3"] = TaskAssignment(task="cross", goal=(1.85, 0.0), start_delay_sec=delay)
+    return base.model_copy(update={"initial_tasks": tasks})
+
+
+def test_registry_json_without_start_delay_is_unchanged():
+    # The exact bytes every run before start_delay_sec published.
+    reg = TaskRegistry()
+    reg.load_initial(_config(), now=100.0)
+    assert reg.to_json() == (
+        '{"robot_0": {"goal": [3.0, 1.5], "task": "pick_a"}, '
+        '"robot_1": {"goal": [4.0, 2.0], "task": "pick_b"}}'
+    )
+    assert reg.release_due(1e9) == []
+
+
+def test_delayed_robot_is_published_pending_with_its_mission_goal():
+    reg = TaskRegistry()
+    reg.load_initial(_delayed_config(50.0), now=100.0)
+    payload = json.loads(reg.to_json())
+    assert payload["robot_3"] == {"task": "cross", "goal": [1.85, 0.0], "start_pending": True}
+    assert "start_pending" not in payload["robot_0"]
+    assert reg.is_pending("robot_3") is True
+    assert reg.is_pending("robot_0") is False
+
+
+def test_delayed_robot_is_released_once_its_delay_elapses():
+    reg = TaskRegistry()
+    reg.load_initial(_delayed_config(50.0), now=100.0)
+    assert reg.release_due(149.9) == []
+    assert reg.release_due(150.0) == ["robot_3"]
+    assert reg.release_due(151.0) == []
+    assert reg.is_pending("robot_3") is False
+    assert "start_pending" not in json.loads(reg.to_json())["robot_3"]
+
+
+def test_zero_start_delay_is_not_pending():
+    reg = TaskRegistry()
+    reg.load_initial(_delayed_config(0.0), now=100.0)
+    assert reg.is_pending("robot_3") is False
+    assert "start_pending" not in json.loads(reg.to_json())["robot_3"]
+
+
+def test_pending_robot_keeps_the_flag_under_an_override():
+    reg = TaskRegistry()
+    reg.load_initial(_delayed_config(50.0), now=100.0)
+    reg.set_override("robot_3", action="temporary_wait", goal=(1.85, 0.0), command_id="c1")
+    assert json.loads(reg.to_json())["robot_3"]["start_pending"] is True

@@ -45,6 +45,12 @@ class TaskAssignment(BaseModel):
 
     task: str = Field(min_length=1)
     goal: tuple[float, float]
+    # Hold-back (T2b's queued robot_3): M4 is given this robot's base goal to
+    # drive only once this many seconds have passed since M5 started, on the
+    # same wall clock as M5's stall and cooldown timers. Until then the robot is
+    # published with `start_pending: true` (still in M1's allowlist, so tracked)
+    # and gives no progress-stall evidence. 0 = released at startup.
+    start_delay_sec: float = Field(default=0.0, ge=0.0)
 
 
 class OrchestratorConfig(BaseModel):
@@ -426,7 +432,11 @@ def load_config(raw: dict[str, Any]) -> OrchestratorConfig:
     """
     tasks_in = raw.get("initial_tasks", {})
     initial_tasks = {
-        rid: TaskAssignment(task=spec["task"], goal=tuple(spec["goal"]))
+        rid: TaskAssignment(
+            task=spec["task"],
+            goal=tuple(spec["goal"]),
+            start_delay_sec=spec.get("start_delay_sec", 0.0),
+        )
         for rid, spec in tasks_in.items()
     }
     # Merge configured topic overrides over defaults so partial overrides keep the rest.

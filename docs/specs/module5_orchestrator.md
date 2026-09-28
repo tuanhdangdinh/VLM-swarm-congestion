@@ -415,6 +415,14 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
 - FR5.5.2 Load initial per-robot base assignments (task **and goal**) from
   `OrchestratorConfig` at startup and publish once at startup and on change. M5
   never derives motion status (MOVING/SLOW/STOPPED/STALE) — that stays local to M1.
+  A `TaskAssignment.start_delay_sec > 0` (added 2026-09-28 for T2b's queued
+  `robot_3`) holds that robot's base mission back: until the delay has passed
+  since M5 started (wall clock, like the stall and cooldown timers) its entry
+  also carries `"start_pending": true`, M4's base-mission driver does not drive
+  it, and it gives no progress-stall or arrival evidence; it stays in the
+  registry, so M1 keeps tracking it, and the prompt still shows its goal. The
+  timer then republishes the registry without the flag. Absent or 0 publishes
+  exactly the pre-existing JSON.
 - FR5.5.3 Provide deterministic JSON serialization (sorted by `robot_id`) so the
   published registry is reproducible and diff-friendly.
 - FR5.5.4 On command dispatch, set the override for each involved robot; when the
@@ -451,7 +459,7 @@ redefined.
 | failure_context_window_sec | float | seconds after command resolution in which the last attempt is attached to a re-analysis as `failure_context`; 0 disables (RQ5 memoryless control) |
 | command_timeout_sec | float | fallback timeout when grounded value absent |
 | reasoning_backend_id | str | passed through to M2 backend factory |
-| initial_tasks | dict[str, TaskAssignment] | robot_id → base task + goal, loaded at startup |
+| initial_tasks | dict[str, TaskAssignment] | robot_id → base task + goal (+ optional `start_delay_sec`, FR5.5.2), loaded at startup |
 | frame_dump_dir | str | directory for trigger-time frame PNGs (FR5.3.6) |
 | scene_log_dir | str or null | directory for the per-session 1 Hz scene JSONL (FR5.3.7); null disables |
 | scene_log_period_sec | float | scene-log period, default 1.0 (FR5.3.7) |

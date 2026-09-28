@@ -78,6 +78,29 @@ def test_load_config_parses_nested_yaml_dict_with_goal_lists():
     assert cfg.decision_log_dir == "data/logs/m5_decisions"
 
 
+def test_load_config_reads_start_delay_and_defaults_it_to_zero():
+    raw = {
+        "stall_threshold_sec": 12.0,
+        "progress_epsilon_m": 0.1,
+        "cooldown_sec": 15.0,
+        "command_timeout_sec": 20.0,
+        "reasoning_backend_id": "mock",
+        "frame_dump_dir": "data/logs/m5_frames",
+        "initial_tasks": {
+            "robot_1": {"task": "t", "goal": [2.5, 0.0]},
+            "robot_3": {"task": "t", "goal": [1.85, 0.0], "start_delay_sec": 50.0},
+        },
+    }
+    cfg = load_config(raw)
+    assert cfg.initial_tasks["robot_1"].start_delay_sec == 0.0
+    assert cfg.initial_tasks["robot_3"].start_delay_sec == 50.0
+
+
+def test_negative_start_delay_is_rejected():
+    with pytest.raises(ValidationError):
+        TaskAssignment(task="t", goal=(0.0, 0.0), start_delay_sec=-1.0)
+
+
 def test_shipped_orchestrator_yaml_goals_stay_inside_camera_roi():
     # +-3.0 is exactly the camera ROI edge (roi_width_m: 6.0), so a marker at
     # its goal is half off-frame and undetectable by M1; +-2.5 keeps 0.5 m of

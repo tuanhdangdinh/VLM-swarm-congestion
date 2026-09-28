@@ -287,7 +287,7 @@ class OrchestratorNode(Node):
         self._cooldown = CooldownTracker(self._config.cooldown_sec)
         self._attempts = AttemptMemory(self._config.failure_context_window_sec)
         self._registry = TaskRegistry()
-        self._registry.load_initial(self._config)
+        self._registry.load_initial(self._config, time.monotonic())
 
         self._bridge = CvBridge()
         # rclpy.spin is single-threaded: _attempts and the _pending_* contexts are
@@ -470,9 +470,9 @@ class OrchestratorNode(Node):
                 self.get_logger().error(f"scene log write failed: {exc}")
         # Before the detector, so a late-accepted arrival suppresses stall
         # evidence from this same scene rather than the next one.
-        for decision in self._arrival.on_scene(snapshot, self._effective_goal):
+        for decision in self._arrival.on_scene(snapshot, self._progress_goal):
             self._apply_arrival(decision)
-        event = self._detector.update(snapshot, self._effective_goal, now)
+        event = self._detector.update(snapshot, self._progress_goal, now)
         if event is None:
             return
         frame_ready = self._frame_is_fresh(snapshot.stamp)
@@ -560,6 +560,10 @@ class OrchestratorNode(Node):
 
     def _on_timer(self) -> None:
         now = time.monotonic()
+        released = self._registry.release_due(now)
+        if released:
+            self.get_logger().info(f"start delay elapsed, base mission released robots={released}")
+            self._publish_registry()
         for command_id in self._tracker.check_timeouts(now):
             self.get_logger().warning(f"command {command_id} timed out")
             self._resolve_command(command_id)
@@ -996,6 +1000,14 @@ class OrchestratorNode(Node):
     def _effective_goal(self, robot_id: str):
         eff = self._registry.effective(robot_id)
         return None if eff is None else eff[1]
+
+    def _progress_goal(self, robot_id: str):
+        # A held-back robot is not driven yet, so standing still is not a
+        # stall and it cannot be arriving. The prompt, the shadow and dispatch
+        # still see its mission goal through _effective_goal.
+        if self._registry.is_pending(robot_id):
+            return None
+        return self._effective_goal(robot_id)
 
     def _latest_estimate(self, robot_id: str):
         """Return M1's latest view of a robot and its age in seconds, or (None, None)."""

@@ -333,3 +333,39 @@ def test_node_retry_noop_after_goal_accepted():
     node._on_retry()
 
     assert node._adapter.goals == []
+
+
+def test_start_pending_robot_is_not_driven():
+    driver = BaseMissionDriver()
+
+    issues = driver.on_registry(
+        {
+            "robot_1": {"task": "cross", "goal": [2.5, 0.0]},
+            "robot_3": {"task": "cross", "goal": [1.85, 0.0], "start_pending": True},
+        }
+    )
+
+    assert issues == [("robot_1", (2.5, 0.0))]
+    assert driver.retry() == [("robot_1", (2.5, 0.0))]
+
+
+def test_released_robot_is_driven_on_the_next_registry():
+    driver = BaseMissionDriver()
+    driver.on_registry(
+        {"robot_3": {"task": "cross", "goal": [1.85, 0.0], "start_pending": True}}
+    )
+
+    issues = driver.on_registry({"robot_3": {"task": "cross", "goal": [1.85, 0.0]}})
+
+    assert issues == [("robot_3", (1.85, 0.0))]
+
+
+def test_released_robot_under_a_command_resumes_only_on_the_command_terminal():
+    driver = BaseMissionDriver()
+    driver.on_registry(
+        {"robot_3": {"task": "cross", "goal": [1.85, 0.0], "start_pending": True}}
+    )
+    assert driver.on_command("robot_3", "c1") is True
+
+    assert driver.on_registry({"robot_3": {"task": "cross", "goal": [1.85, 0.0]}}) == []
+    assert driver.on_status("robot_3", "c1", "COMPLETED") == [("robot_3", (1.85, 0.0))]

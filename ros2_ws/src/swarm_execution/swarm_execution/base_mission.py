@@ -76,8 +76,15 @@ class BaseMissionDriver:
         self._held = set(held)
 
     def on_registry(self, registry: dict[str, dict]) -> list[tuple[str, _Goal]]:
-        """Record effective goals; return navigate goals to issue for owned robots."""
+        """Record effective goals; return navigate goals to issue for owned robots.
+
+        An entry flagged `start_pending` (M5's per-robot `start_delay_sec` has
+        not elapsed) records no goal, so the robot is not driven until a later
+        registry carries it without the flag.
+        """
         for robot_id, entry in registry.items():
+            if entry.get("start_pending"):
+                continue
             self._goals[robot_id] = (float(entry["goal"][0]), float(entry["goal"][1]))
         return self._desired()
 
