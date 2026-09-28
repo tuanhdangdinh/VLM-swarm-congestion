@@ -109,6 +109,11 @@
   exclusion, prompt v2 / stage-2 v3 and the corrected T3a/T3b tests — with
   inline `Rev 9:` supersession notes and `[REV9-OPEN]` markers for questions
   the amendments leave unresolved.
+- Rev 9.1 (2026-09-29): the nine `[REV9-OPEN]` markers are replaced by
+  coordinator resolutions, each marked reviewable at the tag; the T3b
+  oracle rationale is neutralised (`a7730ee`), and decision artifacts record
+  the served model while the rescorer credits latched-at-goal arrivals
+  (`37a0dd5`).
 
 Status: **rev 9 — the binding text for the `prereg-v1` tag** (the tag does
 not exist yet; nothing here is frozen until it does). From rev 9 this
@@ -119,7 +124,10 @@ or "amendments item *n*". Still open before the tag: amendments items 7
 prompt-template hashes), 14 (T1 tuning basket), the item-15 wording veto,
 the explicit confirmation of the prompt-v2 goals rider (items 10/13), the
 coordinator defaults marked "reviewable at the tag" (items 15, 17 T2b
-defaults, 17a, 17b), and every `[REV9-OPEN]` marker in this document.
+defaults, 17a, 17b), and the nine rev-9 open questions, now settled as
+coordinator resolutions (Rev 9.1) that are likewise reviewable at the tag.
+Residuals those resolutions leave open are named where they occur (the
+absent-decision rule for T0 and T2 RQ3, in the run-matrix notes).
 Predecessor system: the verified head-on yield protocol (H3 runs 8–13) and
 the M1→M5→M2→M3→M4 closed loop, live on the GCP/Isaac host.
 
@@ -296,13 +304,13 @@ headings, velocities, goals). Rules, evaluated in order at trigger time:
   shadow classified 60/60 parked-phase probes `blocked_path`/`anomaly`/
   `reroute`; replaying all 65 recorded probe scenes, the old rule
   reproduces 60/5 and the new rule gives 65× `none` (findings Rev 15 §AS).
-  [REV9-OPEN: the tuning-parity rule below permits Arm B tuning "only on
-  T1 scenarios", but A10 was derived from T0 (a test tier) data.
-  Amendments A10 justifies it as a pre-freeze rule change under that
-  clause without addressing the T1-only restriction; the coordinator
-  should state whether A10 is a rule-*gap* fix (outside the tuning clause)
-  or a tuning exception, since this is the exact critique the rule
-  exists to preempt.]
+  **A10 is a rule-gap fix, not tuning** (coordinator resolution
+  2026-09-29, reviewable at the tag). It corrects a category error — a
+  robot stopped at its own goal is not congestion — rather than fitting a
+  threshold to improve a score, so it sits outside the tuning-parity
+  clause below. Its provenance is disclosed: it was found on
+  T0 (test-tier) probe data. The tuning-parity rule continues to govern
+  threshold values, A10's `arrived_exclusion_radius_m` included.
 
 ### Per-type policy table (RQ2 control)
 
@@ -351,11 +359,12 @@ preempts both "strawman baseline" and "tuned-on-test" critiques.
 *Rev 9 status.* Arm B's reasoning core is merged (`65cc850`) and its
 shadow logging is live on every analysis (`6d70238`, merged `97634be`).
 Pre-freeze rule changes on record: the parked-at-goal exclusion
-(amendments A10, above). Still to do before the tag (amendments item 14,
-T1 only): `stopped_threshold_mps` (parked STOPPED/SLOW flicker, ≈4× more
-transitions since sim-time stamps), the FCFS conflict-zone radius versus
-the 1.5 m spawn distance (censoring), Arm B `stopped_speed_mps`, and the
-M4 0.2 m/s speed-rule margin versus Nav2's 0.18 m/s cap.
+(amendments A10, above; classified a rule-gap fix, not tuning). Still to
+do before the tag (amendments item 14, T1 only): `stopped_threshold_mps`
+(parked STOPPED/SLOW flicker, ≈4× more transitions since sim-time stamps),
+the FCFS conflict-zone radius versus the 1.5 m spawn distance
+(censoring), Arm B `stopped_speed_mps`, and the M4 0.2 m/s speed-rule
+margin versus Nav2's 0.18 m/s cap.
 
 ---
 
@@ -380,11 +389,12 @@ M4 0.2 m/s speed-rule margin versus Nav2's 0.18 m/s cap.
   informative probes needs looped tasks or several runs per cell. T0
   carries no `oracle:` block: every probe scene is non-congested by
   construction, so any `congestion_detected=true` answer is a false
-  positive. [REV9-OPEN: which probes count toward the pre-registered
-  20 — distinct scenes, moving-phase scenes only, or all probes — is not
-  pinned by the amendments; findings Rev 15 §AS says only that the
-  protocol "needs looped tasks or several runs to get 20 informative
-  probes".]
+  positive. **Denominator** (coordinator resolution 2026-09-29,
+  reviewable at the tag): the false-positive criterion runs over **20
+  distinct moving-phase probe scenes**, collected via looped tasks or
+  multiple runs. Parked-phase
+  probes and frozen-replicate probes (the same scene re-probed) are
+  reported as separate strata and do not count toward the 20.
 - **T1 Geometry-sufficient** (non-inferiority tier): current
   `head_on_deadlock` (0.55×2.0 corridor) and `intersection_bottleneck`.
   Classical solves these; the VLM must match it.
@@ -428,15 +438,10 @@ M4 0.2 m/s speed-rule margin versus Nav2's 0.18 m/s cap.
   (M5 does not read scenario-YAML goals), scenario USDs regenerated after
   any YAML change, installed configs verified by content/md5, never by
   build exit code. The `yield_robot` field exists (rev 8.6) and the
-  static-obstacle channel is implemented; the pre-registered value of
-  that channel is open: [REV9-OPEN: rev 8.6 makes naming
-  `prompt_static_obstacles` in the Arm A pre-registration a precondition
-  for scoring T2a, but no amendment binds its value. Every `_bshort`
-  pilot ran it **on** (the "adopted apparatus", findings Rev 4 §N,
-  Rev 13 §AO; also the calibration pilot), the repo default is `false`,
-  and the T3a/T3b/T3c YAML headers require it **off** (their blockers
-  must be in no text channel). The per-tier value — and the same for
-  `prompt_pairwise_geometry` (repo default `true`) — needs pinning.]
+  static-obstacle channel is implemented. Its pre-registered per-tier
+  value — on for T2a — is pinned in the **per-tier channel table**
+  (modality section, after the condition table; coordinator resolution
+  2026-09-29, reviewable at the tag).
 - **T2b flow ordering (rev 9 realization; amendments item 17):** built on
   the user's 2026-09-28 BUILD decision as `t2b_flow_ordering` — a
   symmetric open head-on between `robot_1` (west, spawn −1.5, goal +2.5)
@@ -530,12 +535,13 @@ M4 0.2 m/s speed-rule margin versus Nav2's 0.18 m/s cap.
     `cmd_vel`, no Nav2 or collision-monitor guard) drives the yielder
     into the box and pins it until the wall-clock bound fails the yield
     (amendments item 25; in T3b this contact is the *intended* outcome
-    mechanism). Oracle `rationale` wording: amendments item 24 asks for
-    it to be neutralised; the YAML still cites the rev-8.6 criterion.
-    [REV9-OPEN: neutralising the `obstacle_in_candidate.yaml` oracle
-    `rationale` is a config edit outside this documentation-only
-    absorption; it is pending, and the YAML's oracle pins must be
-    re-checked when it lands.]
+    mechanism). Oracle `rationale` wording: neutralised per amendments
+    item 24 (`a7730ee`; coordinator resolution 2026-09-29, reviewable at
+    the tag). It now states only the construction: C is occupied and is
+    `ranked[0]`, either unoccupied candidate is correct, and the scoring
+    is the occupied-choice rate below chance 1/3 on answered stage-2
+    trials with `robot_1` as the executed yielder. No test pins the
+    rationale text; the scenario suite passes unchanged.
   - **T3c, rev 9 realization — `dynamic_anomaly_v2`** (`89884a3`;
     re-authored after the `dynamic_anomaly` smoke found six defects,
     findings Rev 15 §AS). `normal_flow`'s lanes; a 0.3 × 1.05 m box at
@@ -543,14 +549,18 @@ M4 0.2 m/s speed-rule margin versus Nav2's 0.18 m/s cap.
     so the detour is physically denied; untracked, in no text channel
     (`prompt_static_obstacles` off), not baked into the Nav2 map.
     Mechanically smoked PASS (findings Rev 16 §AT); the first model
-    answers came in funded battery 1. Descriptive tier. [REV9-OPEN: T3c
-    v2 has no `oracle:` block — the battery design deferred it to the
-    prompt-v2 `blocker_kind` field, which now exists — while the rev-8
-    rule below says every T3 YAML carries one. Either author it before
-    the tag or state that a descriptive tier is exempt.]
-- **Authored oracle blocks:** every T2/T3 scenario YAML carries an
+    answers came in funded battery 1. Descriptive tier, **exempt from
+    the mandatory `oracle:` block** (coordinator resolution 2026-09-29,
+    reviewable at the tag): T3c records its expected mechanics in
+    `expected_conflict` only. A `blocker_kind`
+    oracle would be ill-posed here, because the despawning pallet (the
+    0.3 × 1.05 m box above) is box-shaped and transient at once: in funded
+    battery 1 both models called it `object` (notes 2026-09-29), a
+    reasonable reading of its appearance rather than a miss.
+- **Authored oracle blocks:** every scored T2/T3 scenario YAML carries an
   `oracle:` block — the pre-registered correct answer and the objective
   it optimizes — authored with the scenario and frozen at `prereg-v1`.
+  Descriptive tiers (T3c) are exempt (rev 9.1).
   For T2b the objective is minimum total time-to-goal, and oracle
   validity is itself verified at authoring time: scripted executions of
   both orders must show the oracle order dominating by ≥ 20% total
@@ -641,9 +651,9 @@ pre-specified conditional extension, reported as such).
 | T1 non-inferiority | `head_on_deadlock`, `intersection_bottleneck` | A vs B paired, dual | 30 pairs/scenario (→ 60 by extension rule) | one-sided 95% bound on paired Δ success ≤ 10 pp (McNemar-style) |
 | T2 oracle agreement | T2a (`_bshort` west/east), T2b (`t2b_flow_ordering`, legacy grounding — rev 9) | A vs B paired, dual | 15 pairs/variant | oracle-agreement rate A vs B, Fisher exact, α = 0.05; scored pre-gate (rev 9) |
 | T3a counterfactual pairs | `blocked_path_object` / `blocked_path_transient` | A executed (B shadow), dual (rev 9: B-executed outcome cell dropped) | 15 pairs (= 30 episodes) | divergent-and-correct rate (decision-scored): one-sided 95% binomial lower bound > 0.5 |
-| T3b obstacle-in-candidate | `obstacle_in_candidate`, k = 3 candidates | A executed (B shadow), dual; 5 B executed; executed-`robot_1`-yield trials only (rev 9) | 15 + 5 | rev 9: occupied-choice rate < 1/3, exact one-sided binomial, α = 0.05 (≤ 1/15 at n = 15) |
+| T3b obstacle-in-candidate | `obstacle_in_candidate`, k = 3 candidates | A executed (B shadow), dual; 5 B executed; executed-`robot_1`-yield trials only (rev 9) | 15 scored, cap 30 episodes (rev 9.1) + 5 | rev 9: occupied-choice rate < 1/3, exact one-sided binomial, α = 0.05 (≤ 1/15 at n = 15) |
 | T3c timed obstacle | `dynamic_anomaly_v2` (rev 9) | A vs B paired, dual | 10 pairs | descriptive (time-to-resolution, degradations) |
-| T0 negative probes | `normal_flow` runs, `t0_probe_mode` (rev 9) | A log-only, dual | 20 probes (looped tasks or several runs — rev 9) | false-positive rate ≤ 10% (≤ 2/20) |
+| T0 negative probes | `normal_flow` runs, `t0_probe_mode` (rev 9) | A log-only, dual | 20 distinct moving-phase probe scenes (looped tasks or several runs; parked and frozen-replicate probes are separate strata — rev 9.1) | false-positive rate ≤ 10% (≤ 2/20) |
 | RQ5 adaptation | forced-failure episodes | A informed vs A memoryless, dual | 15 + 15 | Fisher exact informed vs memoryless, α = 0.05; secondary: ≥ 11/15 informed-direction (binomial vs 0.5) |
 | Modality | 1 T1 scenario + T3a + T3b | A only: text-only, image-only | 10 per condition·scenario | descriptive deltas; T3 binomial per condition (rev 9: T3b per the corrected occupied-choice test) |
 | Ablation: temporal | T2b (order-sensitive) | A, dual minus traces+motion table | 10 | oracle-agreement delta |
@@ -670,24 +680,37 @@ that cell. All tests, margins, and N values above are frozen at
   ≤ 2/15 does not (≈ 0.079). The unit is an executed-`robot_1`-yield
   trial in both arms (item 23), with the discard rate reported; the
   item's own recommendation is to size n upward to compensate.
-  [REV9-OPEN: the stopping rule under yielder conditioning is not
-  pinned — run a fixed number of episodes, or collect until 15 scored
-  trials? The approved option says only "sizing n upward to
-  compensate".]
+  **Stopping rule** (coordinator resolution 2026-09-29, reviewable at
+  the tag): collect until **15 scored trials** — an
+  executed-`robot_1`-yield episode whose stage-2 invocation was answered
+  — with a **hard cap of 30 episodes**. The
+  discard rate and the degraded rate are mandatory reporting. If the cap
+  is reached before 15 scored trials, the cell is reported as
+  underpowered; it is not extended.
 - *T2b:* the cell is pre-registered on legacy grounding (tier-scoped
   apparatus difference; battery section), and Arm B is scored on the
   FCFS answer it actually produced, not the YAML's `fcfs_yielder` (FCFS
   rev 9 note).
 - *T2a:* the variants are the `_bshort` pair (amendments A1).
-- *Decision-scored units* (T0, T2 RQ3, T3a, T3b): [REV9-OPEN: neither
-  this document nor the amendments pin how an absent or degraded
-  decision is scored — terminal refusal, `decision=None`, non-detection
-  (`congestion_detected=false` on a trigger), parse failure, or a stage-2
-  default — nor which analysis of a multi-analysis episode is the scored
-  unit (first analysis, as A4's "first answer", or every analysis). It
-  matters most for T3b: stage 2 has no grey-image fallback, so a gpt-4o
-  stage-2 refusal defaults to `ranked[0]`, which is the occupied
-  candidate by construction.]
+- *Decision-scored units* (coordinator resolution 2026-09-29, reviewable
+  at the tag). The scored unit is the episode's **first yield-deciding
+  analysis**: for T3a, the first
+  analysis with congestion detected; for T3b, the first answered stage-2
+  invocation. The classical shadow is recorded on every analysis
+  regardless. Absent or degraded decisions, per tier:
+  - *T3a:* a terminal refusal, `decision=None`, or non-detection across
+    the whole episode scores as a **miss**, because detection is part of
+    the tier's task.
+  - *T3b:* the choice test runs over **answered** stage-2 trials only.
+    Refusals, timeouts and defaults are excluded from the choice test —
+    stage 2 has no grey-image fallback, so a refused call defaults to
+    `ranked[0]`, the occupied candidate by construction, and the default
+    is not the model's choice. They are reported in a mandatory
+    degraded-rate column. Validity condition: a cell with **> 30%
+    degraded trials is inconclusive**.
+  - *Residual, not covered by this resolution:* the absent-decision rule
+    for T0 probes (not episode-based) and for T2 RQ3 remains open at the
+    tag.
 
 ### Budget estimate (planning numbers)
 
@@ -720,11 +743,15 @@ below; and the collection configuration the amendments bind —
 (A3), `arrival_position_check: true` with 0.35 m tolerance (A4),
 `failure_context_window_sec: 60` with the A9 depth policy,
 `keep_debug_frames` and `keep_raw_frames` true (A8), derived grounding
-with stage 2 on (except T2b, legacy), and per-tier `initial_tasks`. The
-repo's committed `orchestrator.yaml` defaults (for example `id_asc` and
-gate `"off"`) are not the collection configuration; the installed YAML
-is asserted by content before every collected run (A8). Every run of
-2026-09-16 through the tag is pilot data.
+with stage 2 on (except T2b, legacy), per-tier `initial_tasks`, and the
+per-tier text-channel values (`prompt_static_obstacles`,
+`prompt_pairwise_geometry`; per-tier channel table, rev 9.1). At the tag,
+`config/models.yaml` pins the dated `gpt-4o-2024-08-06` snapshot in place
+of the alias (rev 9.1). The repo's committed `orchestrator.yaml`
+defaults (for example `id_asc` and gate `"off"`) are not the collection
+configuration; the installed YAML is asserted by content before every
+collected run (A8). Every run of 2026-09-16 through the tag is pilot
+data.
 
 ---
 
@@ -789,9 +816,9 @@ funded decision artifacts.
 | Field | Value | Status |
 |---|---|---|
 | Primary backend | `openai` (hosted API, chat completions) | pinned |
-| Primary `model_id` | config and every `reasoner_config_effective` carry the alias `gpt-4o`; the API served snapshot `gpt-4o-2024-08-06` in the 2026-09-16 key check and the 2026-09-28 funding probe; decision artifacts do not record the served snapshot | filled (rev 9); see marker below |
+| Primary `model_id` | `gpt-4o-2024-08-06`, pinned in `config/models.yaml` at tag time (config currently carries the alias `gpt-4o`; the API served that snapshot in the 2026-09-16 key check and the 2026-09-28 funding probe); every stage-1 `reasoner_config_effective` records the provider-reported `served_model` per call (`37a0dd5`) | pin at tag (rev 9.1) |
 | Secondary backend | `gemini` — Gemini Robotics-ER 2 via the Interactions API, replacing `llama_server` (amendments A6) | pinned (rev 9) |
-| Secondary `model_id` | `gemini-robotics-er-2-preview`, `thinking_level: low`, `force_schema: false`; the preview id carries no version/date and the API exposes none | id filled (rev 9); version **REQUIRED — not obtainable from the API** |
+| Secondary `model_id` | `gemini-robotics-er-2-preview`, `thinking_level: low`, `force_schema: false`; the preview id carries no version/date and the API exposes none, so it is recorded as-is with the probe date (served 2026-09-28, funding probe) | recorded as-is with probe date (rev 9.1) |
 | Temperature / sampling | gpt-4o: `temperature` 0.0 (plus the shared block's `top_p` 0.95, which the backend sends; `top_k` is omitted); ER-2: **no sampling control** — the API has no sampling fields, so the shared block's 0.6/0.95/20 are dropped and recorded per call as `unsupported_sampling` | pinned (rev 8.4; ER-2 rev 9) |
 | Images per call | 1 (single-frame rule; multi-image rejected rev 6) | pinned |
 | Image resolution | 1280 × 960 RGB PNG as sent (`camera.yaml`, calibration `image_size`; `frame_downscale_width: null`; stage-2 frames the same); gpt-4o requests `detail: "high"`; each provider rescales internally | filled (rev 9) |
@@ -799,12 +826,16 @@ funded decision artifacts.
 | Retry budget | stage 1: gpt-4o `max_attempts: 4` (amendments A6; terminal refusal 26.9% vs 57.1% at 2, p = 0.031), re-ask on, `image_fallback_after_attempts: 2` (same prompt text with a neutral grey image after two refused attempts); ER-2 `max_attempts: 2`, re-ask on, no image fallback; `timeout_sec: 120` per call for both. Stage 2: `stage2_max_attempts: 2` × `stage2_timeout_sec: 8.0`, no grey fallback | filled (rev 9) |
 | Prompt templates | stage-1 template v2 (`prompt_version: 2`), stage-2 template v3 (`stage2_prompt_version: 3`); content hashes per condition | hashes **REQUIRED — recorded at tag time** |
 
-[REV9-OPEN: the primary `model_id` is pinned as the alias `gpt-4o`,
-which OpenAI may re-point to a newer snapshot mid-collection without any
-artifact recording it. Amendments A6 lists "exact model strings and
-versions" as REQUIRED but does not say whether to pin the dated id
-`gpt-4o-2024-08-06` in `config/models.yaml` at the tag (a config change
-outside this absorption) or to record the served model per call.]
+**Model id** (coordinator resolution 2026-09-29, reviewable at the
+tag): both. The dated snapshot `gpt-4o-2024-08-06` is pinned in
+`config/models.yaml` at tag time, so an alias re-point cannot change the
+model mid-collection. And the served
+model string is recorded per call from the API response into
+`reasoner_config_effective.served_model` (also `diagnostics.served_model`;
+`37a0dd5`), so any mismatch is visible from the artifact alone. The field
+is `null` where a backend reports no model string. Scope: stage-1 calls
+only — the stage-2 `RetreatChooser` record does not yet carry it. ER-2's
+unversioned preview id is recorded as-is with the probe date.
 
 Rules: data collection may not start until every REQUIRED row is frozen
 at `prereg-v1`. The **secondary model runs the headline cells only**
@@ -957,9 +988,24 @@ resolved.
 *Rev 9:* under prompt v2 the robot state table row includes each
 robot's registry goal and task label; the failure-context row carries up
 to two blocks (amendments A9; Appendix A.1). The per-tier values of the
-two switchable rows (`prompt_pairwise_geometry`,
-`prompt_static_obstacles`) are the subject of the `[REV9-OPEN]` marker in
-the battery's T2a entry.
+two switchable rows are pinned in the table below.
+
+**Per-tier channel table** (coordinator resolution 2026-09-29,
+reviewable at the tag):
+
+| Tier | `prompt_static_obstacles` | `prompt_pairwise_geometry` | Basis |
+|---|---|---|---|
+| T0 (`normal_flow`) | not set by the resolution (residual) | true | geometry: rev 8.4 everywhere; no static obstacle is declared, so on and off render the same prompt |
+| T1 | on | true | adopted collection default since findings Rev 2 §D item 1 (reaffirmed Rev 4 §N item 1) |
+| T2a (`_bshort`) | on | true | as T1; every `_bshort` pilot ran it on |
+| T2b (`t2b_flow_ordering`) | on | true | as T1; its `static_obstacles` is empty, so on renders no block |
+| T3a, T3b, T3c | off | true | blockers are untracked by construction and must appear in no text channel (their YAML headers already require it) |
+
+The repo default for `prompt_static_obstacles` is `false`; the collection
+value is asserted per run through the installed orchestrator YAML (A8).
+With the channel on, an empty `static_obstacles` list renders no block, so
+the prompt is byte-identical to off; "on" matters only where the installed
+YAML declares the tier's static boxes (T2a's blocker, per operator step).
 
 Image-only cells are excluded from RQ5 (the failure context is textual).
 The offline input-encoding harness
@@ -1106,10 +1152,12 @@ condition).
   yield behavior differ — which also keeps T2b (legacy) apart from the
   derived tiers; (c) anything straddling the stage-1 v1/v2 prompt break;
   (d) stage-2 records across the v2/v3 break.
-- **Passer backtrack.** [REV9-OPEN: A4 requires one definition pinned
-  before the statistic is quoted comparatively — peak-minus-minimum or
-  first-turnaround, which disagree on `_gshort` H2 (0.878 m vs 0.580 m;
-  findings Rev 10 §AI) — and neither document picks one.]
+- **Passer backtrack** (coordinator resolution 2026-09-29, reviewable at
+  the tag): **peak-|x| minus the minimum |x| after the peak** — the
+  definition the K, N and S batches used; it is direction-free and the
+  stricter of the two. The
+  first-turnaround variant is rejected (the two disagree on `_gshort` H2,
+  0.878 m vs 0.580 m; findings Rev 10 §AI).
 - **Safety columns (A5):** per run, the minimum pairwise centre-to-centre
   distance and the percentage of ground-truth rows below `safety.yaml`
   `min_distance_m` (0.45 m). Ground-truth contact flags
@@ -1127,7 +1175,9 @@ condition).
   record with a listing means a stale deploy).
 - **Mandatory per-cell counts:** drawn presentation orders (A2),
   refusal rates and `image_fallback_used` decisions (A6, the latter
-  reported separately), and the T3b yielder-discard rate (item 23).
+  reported separately), the T3b yielder-discard rate (item 23), and the
+  T3b stage-2 degraded rate (refusals, timeouts and defaults excluded from
+  the choice test; > 30% makes the cell inconclusive — rev 9.1).
 - **Run provenance (A8):** every collected run carries the VM tree
   verified by md5 against the named commit; the installed orchestrator
   YAML asserted by content before launch; `reasoner_config_effective` in
