@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from itertools import combinations
 from typing import Any
 
+from swarm_execution.crossing_chain import plan_crossing
+
 REASON_MIN_DISTANCE = "min_distance_violation"
 REASON_SPEED_LIMIT = "speed_limit_violation"
 REASON_STALE_POSE = "stale_pose_unsafe"
@@ -81,27 +83,27 @@ def crossing_order_from_parameters(
 ) -> tuple[str, ...] | None:
     """Return the ordered passers a yield command names, or None.
 
+    Delegates to the command bus's own parser (`plan_crossing`), so the
+    passers the monitor pairs with the yielder are exactly the passers the
+    bus escorts and releases.
+
     Args:
         action: The per-robot `CoordinationCommand.action`.
         parameters: The decoded `parameters_json`, or None when absent or
             unparseable.
 
     Returns:
-        `crossing_order` when the yield carries a non-empty list of robot ids,
-        else `(passer_robot_id,)` when it names a single passer, else None.
-        Always None for a non-yield action.
+        The passer ids in crossing order, or None for a non-yield action, a
+        yield naming no passer, or parameters the bus itself cannot parse
+        (it then fails the yield at dispatch, so nothing is exempt).
     """
     if action != "yield" or not parameters:
         return None
-    order = parameters.get("crossing_order")
-    if isinstance(order, list) and order and all(isinstance(r, str) and r for r in order):
-        return tuple(order)
-    if order is not None:
+    try:
+        plans = plan_crossing(parameters)
+    except (TypeError, ValueError):
         return None
-    passer = parameters.get("passer_robot_id")
-    if isinstance(passer, str) and passer:
-        return (passer,)
-    return None
+    return tuple(plan.robot_id for plan in plans) or None
 
 
 def admitted_partners(

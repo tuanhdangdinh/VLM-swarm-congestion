@@ -5,6 +5,7 @@ import json
 import math
 
 import pytest
+from swarm_execution.crossing_chain import plan_crossing
 from swarm_execution.safety import (
     REASON_MIN_DISTANCE,
     REASON_STALE_POSE,
@@ -1174,26 +1175,47 @@ def test_tracker_bounds_command_memberships():
     assert len(tracker._members_by_command) == CoordinationTracker.MAX_TRACKED_COMMANDS
 
 
+_ORDERED = {"passer_robot_id": "robot_2", "crossing_order": ["robot_2", "robot_3"]}
+
+
 @pytest.mark.parametrize(
     ("action", "parameters", "expected"),
     [
-        ("yield", {"crossing_order": ["robot_2", "robot_3"]}, ("robot_2", "robot_3")),
+        ("yield", _ORDERED, ("robot_2", "robot_3")),
         ("yield", {"passer_robot_id": "robot_2"}, ("robot_2",)),
-        (
-            "yield",
-            {"passer_robot_id": "robot_2", "crossing_order": ["robot_2", "robot_3"]},
-            ("robot_2", "robot_3"),
-        ),
+        ("yield", {"passer_robot_id": "robot_2", "crossing_order": ["robot_2"]}, ("robot_2",)),
         ("yield", {}, None),
         ("yield", None, None),
-        ("yield", {"crossing_order": "robot_2"}, None),
-        ("yield", {"crossing_order": []}, None),
-        ("reverse", {"crossing_order": ["robot_2"]}, None),
-        ("temporary_wait", {"passer_robot_id": "robot_2"}, None),
+        ("reverse", _ORDERED, None),
+        ("temporary_wait", _ORDERED, None),
     ],
 )
 def test_crossing_order_from_parameters(action, parameters, expected):
     assert crossing_order_from_parameters(action, parameters) == expected
+
+
+@pytest.mark.parametrize(
+    "parameters",
+    [
+        _ORDERED,
+        {"crossing_order": ["robot_2", "robot_3"]},  # no passer_robot_id
+        {**_ORDERED, "crossing_order": ["robot_3", "robot_2"]},  # disagrees with passer
+        {**_ORDERED, "crossing_order": ["robot_2", "robot_2"]},  # duplicate
+        {**_ORDERED, "crossing_order": ["robot_2", ""]},
+        {**_ORDERED, "crossing_order": "robot_2"},
+        {**_ORDERED, "crossing_order": []},
+        {**_ORDERED, "crossing_clear_m": ["far"]},
+        {**_ORDERED, "passer_clear_m": "far"},
+    ],
+)
+def test_monitor_and_command_bus_read_the_same_passer_order(parameters):
+    # One safety contract, one reader: the passers the monitor pairs with the
+    # yielder are exactly the passers the command bus escorts/releases.
+    try:
+        bus_order = tuple(plan.robot_id for plan in plan_crossing(parameters)) or None
+    except (TypeError, ValueError):
+        bus_order = None  # the bus fails the yield at dispatch: no exemption
+    assert crossing_order_from_parameters("yield", parameters) == bus_order
 
 
 def test_stale_yielder_relatched_against_bystander_from_memory():

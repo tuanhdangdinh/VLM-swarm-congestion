@@ -562,8 +562,10 @@ fix before any wrong-order run.
     start. It pairs with a later passer only once every earlier passer's
     wait under the same command has reached `COMPLETED`, that is, once the
     command bus has released it. A busy-reject's `FAILED` does not count.
-    The order is the yield's `crossing_order` parameter, else its
-    `passer_robot_id`.
+    The order is read with the command bus's own parser
+    (`crossing_chain.plan_crossing`): `passer_robot_id` first, then the rest of
+    a consistent `crossing_order`. The passers the monitor exempts are
+    therefore exactly the passers the bus escorts and releases.
   - A `yield` with neither parameter pairs with every other robot its command
     addressed. That is the two-robot shape.
 
@@ -614,7 +616,8 @@ robot set, which never includes a bystander.
 time the exempt pair set changes.
 
 **Implementation and tests.** `ClearingExemption`,
-`crossing_order_from_parameters`, `admitted_partners` and
+`crossing_order_from_parameters` (delegating to `plan_crossing`),
+`admitted_partners` and
 `CoordinationTracker.exemption` are in `swarm_execution/safety.py`.
 `detect_proximity_violations` and `evaluate_latches` accept either a
 `ClearingExemption` or a bare robot set; a bare set keeps the robot scope for
