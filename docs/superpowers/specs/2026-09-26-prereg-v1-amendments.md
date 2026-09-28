@@ -526,6 +526,7 @@ original Arm B specification.
     force the yielder. **Coordinator recommendation:** condition on the
     executed yielder (no scene or gate change; the discard rate is
     itself reportable), sizing n upward to compensate.
+    **APPROVED by user 2026-09-28** as recommended.
 24. **T3b criterion correction (blocks freezing the tier's test):** with
     k = 3 and one occupied candidate, chance of avoiding the occupied
     one is 2/3, not the run matrix's 1/3 — "≥ 9/15 vs chance 1/3" is
@@ -533,6 +534,9 @@ original Arm B specification.
     primary test as the occupied-choice rate BELOW chance 1/3 (exact
     one-sided binomial; ≤ 1/15 rejects at α ≈ 0.017), or raise n; fix
     the oracle `rationale` wording to neutral text once decided.
+    **APPROVED by user 2026-09-28**: occupied-choice rate < 1/3, exact
+    one-sided binomial; oracle rationale to be neutralised at rev 9
+    absorption.
 25. **M4 raw-`cmd_vel` obstacle blindness (standing safety note):**
     maneuver legs (backup, sidestep) bypass Nav2 and the collision
     monitor entirely — third instance of this family after the
@@ -558,3 +562,7 @@ original Arm B specification.
     considered and rejected: without a moving third robot there is no
     ordering dimension, only another feasibility contrast, which T2a
     already provides. Explicit user decision still required.
+    **DECIDED by user 2026-09-28: BUILD.** Execution order per the
+    feasibility report: safety items 9 (pair-scoped clearing exemption)
+    and 11 (hold-until-last ordered release) land and verify FIRST;
+    no wrong-order run before both are live.
