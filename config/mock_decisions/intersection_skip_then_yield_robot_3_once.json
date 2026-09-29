@@ -1,0 +1,39 @@
+[
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "No congestion reported on the first analysis.",
+    "strategy": "none",
+    "justification": "Scripted mock decision for the intersection_bottleneck north-south yielder run: the first analysis answers none, so the scripted yield lands on a later analysis of the four-way standoff instead of a start-up stall (smoke IB9 20260929_084557 spent a once-mock on robot_3 stalling at its spawn)."
+  },
+  {
+    "congestion_detected": true,
+    "type": "bottleneck",
+    "involved_robots": [
+      "robot_1",
+      "robot_2",
+      "robot_3",
+      "robot_4"
+    ],
+    "root_cause": "Four robots converged on the central intersection from all four arms and blocked each other.",
+    "strategy": "yield",
+    "yield_robot": "robot_3",
+    "crossing_order": [
+      "robot_4",
+      "robot_1",
+      "robot_2",
+      "robot_3"
+    ],
+    "blocker_kind": "robot",
+    "justification": "Scripted mock decision for the intersection_bottleneck north-south yielder run, in Arm B's intersection shape (yield plus a full passing order): robot_3 backs south out of the box along its own arm, then robot_4, robot_1 and robot_2 cross in turn."
+  },
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "Scene has cleared; robots are no longer blocking the intersection.",
+    "strategy": "none",
+    "justification": "Scripted mock decision for the intersection_bottleneck smoke: scene is clear after the yield."
+  }
+]

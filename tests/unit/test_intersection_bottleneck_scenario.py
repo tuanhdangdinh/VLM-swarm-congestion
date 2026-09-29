@@ -638,3 +638,23 @@ def test_legacy_grounding_parks_a_north_south_yielder_on_its_arm():
         round(IB10_STANDOFF["robot_2"][0] + 0.6 + 0.65, 3),
         round(IB10_STANDOFF["robot_4"][1] - park + 0.65, 3),
     ]
+
+
+def test_north_south_mock_is_the_skip_mock_with_robot_3_yielding():
+    # The v2 smoke's second run: the same scripted shape, the yield handed to
+    # a north-south robot so its own-arm grounding runs live.
+    skip, yield_decision, clear = json.loads(
+        (REPO_ROOT / "config/mock_decisions/intersection_skip_then_yield_robot_3_once.json")
+        .read_text()
+    )
+    _, reference, reference_clear = json.loads(SKIP_MOCK_PATH.read_text())
+    decision = parse_decision_text(json.dumps(yield_decision))
+    assert parse_decision_text(json.dumps(skip)).strategy == "none"
+    assert (decision.strategy, decision.yield_robot) == ("yield", "robot_3")
+    assert decision.crossing_order == ["robot_4", "robot_1", "robot_2", "robot_3"]
+    assert {k: v for k, v in yield_decision.items() if k not in (
+        "yield_robot", "crossing_order", "justification"
+    )} == {k: v for k, v in reference.items() if k not in (
+        "yield_robot", "crossing_order", "justification"
+    )}
+    assert clear == reference_clear
