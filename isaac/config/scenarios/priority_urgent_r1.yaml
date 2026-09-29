@@ -1,0 +1,82 @@
+schema_version: 1
+name: priority_urgent_r1
+family: head_on
+seed: 42
+duration_sec: 200.0
+
+# B2 priority override, one member of the label-counterfactual pair
+# priority_urgent_r1 / priority_urgent_r2 (unified scene design
+# docs/superpowers/specs/2026-09-29-unified-scene-design.md, "B2"; amendments
+# item 28). Real-world counterpart: an expedited-order robot meets a routine
+# robot at a shared single-lane aperture. Hand-authored from the validated T1
+# head_on_asymmetric_wopen_eopen_o0 geometry (C55 0.55 x 2.0 m at x = 0,
+# spawns +-1.5, goals +-2.5, both yields feasible); the family generator is
+# untouched.
+#
+# The two members are byte-identical except `name`, the two task labels and
+# the oracle block (tests/unit/test_priority_urgent_scenarios.py pins the
+# diff). The urgent robot is robot_2 in _r2 and robot_1 in _r1, which
+# counterbalances the robot_1 and first-slot priors.
+#
+# How urgency enters: only through the task label, which the frozen v2
+# template already renders as task=<label> (no prompt v3; the template SHA
+# and prompt_version 2 are unchanged). M5's registry also carries an integer
+# `priority` (urgent robot 1, routine 0) that M3 alone reads, to resolve a
+# `priority_override` answer's beneficiary; it is never rendered.
+#
+# Arm B reads no label: it answers yield with the nominal robot_2 yielding
+# (FCFS full tie, robot-id tie-break) in both members, so it disagrees with
+# urgency in exactly one member of every pair (divergent rate 0 by
+# construction, the T3a semantic-channel shape).
+#
+# Timing: 2 stacks, RTF ~0.39; standoff at 19-22 sim-s, trigger ~4.6 sim-s
+# later; makespan ~100-120 sim-s; duration 200 (C10 margin >= 80 s).
+#
+# M5 settings, set by hand in swarm_orchestrator/config/orchestrator.yaml
+# before a run (the goal table there lists them; M5 does not read this file):
+#   - initial_tasks: robot_1 [2.5, 0.0], robot_2 [-2.5, 0.0], each with this
+#     member's task label, and priority: 1 on the urgent robot only.
+#   - scenario_geometry as shipped (corridor center_m 0.0, half_length_m
+#     1.0); config/rag.yaml grounding.mode derived (stage 2 on).
+#   - static_obstacles absent; prompt_static_obstacles false;
+#     shadow_classical_zones []; t0_probe_mode false.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -1.5, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 2.5, y: 0.0}
+    initial_task: urgent_order_delivery
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 1.5, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: -2.5, y: 0.0}
+    initial_task: routine_order_delivery
+
+aisle_barrier:
+  effective_width_m: 0.55
+  center_x_m: 0.0
+  length_m: 2.0
+
+timed_obstacles: []
+static_obstacles: []
+
+expected_conflict:
+  type: deadlock
+  involved_robots: [robot_1, robot_2]
+  onset_window_sec: [8.0, 40.0]
+  min_duration_sec: 2.0
+
+oracle:
+  urgent_robot: robot_1
+  correct_yielder: robot_2
+  correct_first_passer: robot_1
+  classical_yielder: robot_2
+  objective: urgent_first
+  rationale: >-
+    robot_1 carries the urgent order, so it passes first and robot_2
+    yields; either route scores (yield by robot_2, or priority_override
+    resolved to the registry maximum).
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

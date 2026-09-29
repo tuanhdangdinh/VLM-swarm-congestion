@@ -1,0 +1,21 @@
+[
+  {
+    "congestion_detected": true,
+    "type": "bottleneck",
+    "involved_robots": ["robot_1", "robot_2", "robot_3"],
+    "root_cause": "robot_1 and robot_2 contend for the single-lane gate while robot_3 queues behind robot_1.",
+    "strategy": "yield",
+    "yield_robot": "robot_2",
+    "crossing_order": ["robot_1", "robot_3", "robot_2"],
+    "blocker_kind": "robot",
+    "justification": "Scripted mock decision for the bottleneck_merge smoke (oracle): robot_2 backs up its own arm, robot_1 then robot_3 pass through the gate."
+  },
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "Scene has cleared; robots are no longer blocking each other.",
+    "strategy": "none",
+    "justification": "Scripted mock decision for the bottleneck_merge smoke: scene is clear after the resolution."
+  }
+]

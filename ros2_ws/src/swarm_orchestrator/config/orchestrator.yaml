@@ -108,6 +108,33 @@ frame_downscale_width: null
 #     robot_3: { axis: y, side: -1 }, robot_4: { axis: y, side: 1 } } (each
 #     robot yields back along the arm it came in on); camera, robot and margins
 #     as shipped (header of isaac/config/scenarios/intersection_bottleneck.yaml)
+#   bottleneck_merge (B1, three robots, merge at the A55-E gate) -> robot_1
+#     [2.45, -0.3], robot_2 [1.9, 0.0], AND robot_3: { task:
+#     cross_narrow_aisle, goal: [2.45, 0.3], start_delay_sec: 80 } (all three
+#     tasks cross_narrow_aisle), AND scenario_geometry corridor { axis: x,
+#     center_m: 0.0, half_length_m: 0.6, aisle_half_width_m: 0.6,
+#     occluder_height_m: 0.0 } (the junction box; the barrier at x 1.2 is off
+#     the maneuver) with arms { robot_1: { axis: x, side: -1 }, robot_2:
+#     { axis: y, side: 1 }, robot_3: { axis: x, side: -1 } }, AND
+#     grounding_aisle_x_band_m: [-0.46, 0.46] (robot_2's sidestep stays in
+#     the N-S aisle); shadow_classical_zones stay []; static_obstacles stay
+#     absent and prompt_static_obstacles false: the aperture reaches no text
+#     channel (header of isaac/config/scenarios/bottleneck_merge.yaml)
+#   priority_urgent_r1 / priority_urgent_r2 (B2 pair, two robots) -> robot_1
+#     [2.5, 0.0], robot_2 [-2.5, 0.0] as written, with the member's task
+#     labels: _r1 robot_1 { task: urgent_order_delivery, priority: 1 },
+#     robot_2 { task: routine_order_delivery }; _r2 robot_1 { task:
+#     routine_order_delivery }, robot_2 { task: urgent_order_delivery,
+#     priority: 1 } (priority is read by M3 only, never rendered);
+#     scenario_geometry as shipped (headers of
+#     isaac/config/scenarios/priority_urgent_r{1,2}.yaml)
+#   convoy_counterflow (B3, four robots, A55-J gate) -> robot_1 [2.45, -0.3],
+#     robot_2 [-2.0, 0.0], AND robot_3: { task: cross_narrow_aisle, goal:
+#     [2.45, 0.3], start_delay_sec: 120 }, robot_4: { task:
+#     cross_narrow_aisle, goal: [1.85, 0.0], start_delay_sec: 120 }, AND
+#     scenario_geometry corridor center_m: 0.0, half_length_m: 0.5, AND
+#     config/rag.yaml grounding.mode: legacy (header of
+#     isaac/config/scenarios/convoy_counterflow.yaml)
 # Running a _gshort or _bshort scenario without changing these dispatches +-2.5
 # and the variant silently degrades to its beyond-goal twin, blocker back on
 # the goal path (isaac/config/scenarios/family/*_{gshort,bshort}_o0.yaml).
@@ -157,6 +184,12 @@ grounding_params_path: "config/rag.yaml"
 # declared aisle bound the sidestep (k = 2 on the head-on family). Recorded in
 # every artifact as grounding_params_source.aisle_y_band_override_m.
 grounding_aisle_y_band_m: null
+# Per-scenario world-frame x band [low, high] for a yielder whose declared
+# junction arm runs along y (scenario_geometry.arms axis: y): the N-S aisle's
+# walls, which the default band centred on the yielder's own x does not know.
+# Every other yielder ignores it; null (every scene but bottleneck_merge)
+# changes nothing. Recorded as grounding_params_source.aisle_x_band_override_m.
+grounding_aisle_x_band_m: null
 # Stage-2 retreat selection (derived mode, yields only): a second VLM call picks
 # one of the validated retreat candidates. false skips the call and every yield
 # grounds the geometry-max candidate (tagged retreat=default:no_choice). With

@@ -1,0 +1,20 @@
+[
+  {
+    "congestion_detected": true,
+    "type": "deadlock",
+    "involved_robots": ["robot_1", "robot_2", "robot_3", "robot_4"],
+    "root_cause": "A three-robot eastbound platoon meets the westbound robot_2 at the single-lane corridor.",
+    "strategy": "convoy",
+    "crossing_order": ["robot_1", "robot_3", "robot_4", "robot_2"],
+    "blocker_kind": "robot",
+    "justification": "Scripted mock decision for the convoy_counterflow smoke (convoy label): M3 grounds it as robot_2 yielding, then robot_1, robot_3 and robot_4 in turn."
+  },
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "Scene has cleared; robots are no longer blocking each other.",
+    "strategy": "none",
+    "justification": "Scripted mock decision for the convoy_counterflow smoke: scene is clear after the resolution."
+  }
+]

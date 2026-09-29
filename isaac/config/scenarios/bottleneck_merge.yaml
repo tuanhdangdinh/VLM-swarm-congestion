@@ -1,0 +1,120 @@
+schema_version: 1
+name: bottleneck_merge
+family: bottleneck
+seed: 42
+# Predicted oracle makespan ~120-130 sim-s (robot_2 backs up and holds,
+# robot_1 then robot_3 are escorted through, robot_2 returns ~3.6 m); + 60 s
+# margin (constraint C10). Isaac stops on THIS value.
+duration_sec: 200.0
+
+# B1 bottleneck merge (unified scene design docs/superpowers/specs/
+# 2026-09-29-unified-scene-design.md, "B1"; amendments item 28). Real-world
+# counterpart: a merge at a transfer-station gate. Two main-aisle robots
+# (robot_1 lead, robot_3 queued and held) and one cross-aisle robot (robot_2,
+# down the north arm) are all bound east through the A55-E gate, a C55
+# single-lane module (0.55 x 1.0 m barrier centred at x = 1.2, x in [0.7, 1.7]),
+# which leaves the north-south arms open (0.1 m clear of the N-S aisle edge).
+# No robot opposes another: the standoff is robot_1 and robot_2 latching
+# perpendicular at the gate mouth. robot_2 must yield (back up its own arm);
+# robot_1 then robot_3 pass.
+#
+# The aperture is deliberately absent from every text channel (amendments
+# item 28): no static_obstacles, prompt_static_obstacles false, and no mapped
+# zone. The type call (bottleneck) therefore rests on the image; the
+# registered image-only/text-only modality cell measures that dependence.
+#
+# Geometry (tests/unit/test_bottleneck_merge_scenario.py pins every number with
+# M3's and Arm B's own functions):
+#   - robot_1 spawns (-1.0, 0, 0) -> goal (2.45, -0.30); robot_2 spawns
+#     (0.0, 1.75, -pi/2) -> goal (1.90, 0.00); robot_3 spawns (-2.45, 0, 0)
+#     -> goal (2.45, +0.30). All tasks cross_narrow_aisle.
+#   - Merge synchrony: robot_1 travels 1.1 m to the merge (~0.1, 0), robot_2
+#     ~1.3 m to its latch pose ~(0.15, 0.45): dt ~ +1.4 s with robot_1
+#     leading. dt in (0, ~2.5) s gives the designed perpendicular latch;
+#     dt >= ~3 s is a no-event episode and dt < 0 a same-direction follower
+#     latch (apparatus failure, censored); both are counted, never re-run.
+#   - Grounded oracle (derived, junction box, arms): robot_2 backs up
+#     1.25-1.35 m to y 1.70 (0.10 inside the tracked 1.80) and sidesteps
+#     inside the N-S aisle (world x band [-0.46, 0.46]); robot_1 is escorted
+#     1.05-1.35 m and robot_3 3.70 m, both to x = 1.25.
+#   - A robot_1 yield is refused: no backup distance in [0.5, 2.0] m keeps
+#     the 1.7 m clearance with robot_3 behind it (derived grounding degrades
+#     it to a reroute). The oracle is feasibility-determined, like T2a, so the
+#     forced-order harness has no executable alternative arm: margin is
+#     absent, not measured.
+#   - Arm B: blocked_path [robot_3] (the held robot) without the held-robot
+#     exclusion; unknown [robot_1, robot_2] (temporary_wait, then reroute)
+#     with it. Arm B has no path to `bottleneck` here (goal axes are parallel,
+#     never crossing at 45-135 deg).
+#
+# Hold-back (M5 initial_tasks robot_3.start_delay_sec = 80). Three stacks run
+# at RTF ~0.34 (window 0.28-0.39). The standoff forms at ~18-22 sim-s, M5 fires
+# ~4 sim-s later (41-48 wall-s after M5 starts), and dispatch lands by ~75
+# wall-s even with gpt-4o refusal retries. robot_3 is released at
+# 12 + RTF * 80 = 34-43 sim-s: after dispatch (so its goal is only recorded
+# under its linked wait) and before its admission (~58 sim-s).
+#
+# M5 settings, set by hand in swarm_orchestrator/config/orchestrator.yaml
+# before a run (the goal table there lists them; M5 does not read this file):
+#   - initial_tasks: robot_1 [2.45, -0.3], robot_2 [1.9, 0.0], robot_3
+#     [2.45, 0.3] with start_delay_sec: 80 (all cross_narrow_aisle).
+#   - scenario_geometry.corridor: axis x, center_m 0.0, half_length_m 0.6,
+#     aisle_half_width_m 0.6, occluder_height_m 0.0 (the junction box; the
+#     barrier at x 1.2 is off the maneuver), with arms robot_1 x/-1,
+#     robot_2 y/+1, robot_3 x/-1.
+#   - grounding_aisle_x_band_m: [-0.46, 0.46]; config/rag.yaml grounding.mode
+#     derived (stage 2 on).
+#   - shadow_classical_zones: [] (a gate-mouth zone changes nothing: the goal
+#     axes never cross); static_obstacles absent; prompt_static_obstacles
+#     false; t0_probe_mode false.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -1.0, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 2.45, y: -0.3}
+    initial_task: cross_narrow_aisle
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 0.0, y: 1.75, yaw_rad: -1.5707963267948966}
+    goal: {x: 1.9, y: 0.0}
+    initial_task: cross_narrow_aisle
+  - robot_id: robot_3
+    marker_id: 3
+    spawn: {x: -2.45, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 2.45, y: 0.3}
+    initial_task: cross_narrow_aisle
+
+# A55-E: the C55 aperture, L = 1.0, centred at x = 1.2.
+aisle_barrier:
+  effective_width_m: 0.55
+  center_x_m: 1.2
+  length_m: 1.0
+
+timed_obstacles: []
+static_obstacles: []
+
+expected_conflict:
+  type: bottleneck
+  involved_robots: [robot_1, robot_2, robot_3]
+  onset_window_sec: [8.0, 40.0]
+  min_duration_sec: 2.0
+
+oracle:
+  correct_yielder: robot_2
+  # No Arm B FCFS referent: Arm B never classifies this scene head_on or
+  # intersection, so its FCFS rule does not run. Recorded as the naive
+  # first-come-first-served pick by the designed arrival (robot_1 reaches the
+  # merge ~1.4 s first, so robot_2 yields); annotation, not an Arm B answer.
+  fcfs_yielder: robot_2
+  feasible_yielders: [robot_2]
+  objective: min_total_time_to_goal
+  correct_order: [robot_1, robot_3]
+  rationale: >-
+    feasibility: robot_1 cannot yield because robot_3 queues behind it (no
+    backup distance in band keeps the 1.7 m clearance), so robot_2 backs up
+    its own arm and robot_1 then robot_3 pass through the gate. The
+    forced-order harness is skipped: no executable alternative arm exists.
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

@@ -1,0 +1,19 @@
+[
+  {
+    "congestion_detected": true,
+    "type": "deadlock",
+    "involved_robots": ["robot_1", "robot_2"],
+    "root_cause": "Two robots met head-on inside the narrow aisle and neither can pass.",
+    "strategy": "priority_override",
+    "blocker_kind": "robot",
+    "justification": "Scripted mock decision for the priority_urgent pair smoke (priority_override route): M3 resolves the beneficiary from the registry priority, so the same script serves both members."
+  },
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "Scene has cleared; robots are no longer blocking each other.",
+    "strategy": "none",
+    "justification": "Scripted mock decision for the priority_urgent pair smoke: scene is clear after the resolution."
+  }
+]

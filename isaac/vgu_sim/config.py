@@ -208,6 +208,14 @@ class HeadOnAsymmetricParams(BaseModel):
         return v
 
 
+# Mirrors reasoning.vlm.models (BlockerKind, CongestionDecision.strategy); kept
+# local because isaac/ runs inside Isaac Sim's Python and must not import the
+# reasoning package. tests/unit/test_blocked_path_scenarios.py pins the parity.
+OracleBlockerKind = Literal["robot", "object", "transient"]
+OracleStrategy = Literal[
+    "none", "yield", "reroute", "convoy", "priority_override", "temporary_wait", "reverse"
+]
+
 class OracleMarginRecord(BaseModel):
     """The authoring-time verification of an ordering oracle (T2b).
 
@@ -262,6 +270,13 @@ class OracleConfig(BaseModel):
     rationale: str
     correct_order: tuple[str, ...] | None = None
     margin: OracleMarginRecord | None = None
+    # Strategy-label tier (B3 convoy_counterflow): the label the decision is
+    # scored against, the labels accepted as correct (they execute
+    # identically), and the platoon the correct order must list consecutively
+    # before the yielder. All three are set together or not at all.
+    correct_strategy: OracleStrategy | None = None
+    accepted_strategies: tuple[OracleStrategy, ...] | None = None
+    platoon: tuple[str, ...] | None = None
 
     @model_validator(mode="after")
     def _feasible_yielders_contain_correct(self) -> "OracleConfig":
@@ -289,12 +304,39 @@ class OracleConfig(BaseModel):
             raise ValueError("margin records an ordering oracle; set correct_order")
         return self
 
+    @model_validator(mode="after")
+    def _strategy_label_fields_are_consistent(self) -> "OracleConfig":
+        fields = (self.correct_strategy, self.accepted_strategies, self.platoon)
+        if all(f is None for f in fields):
+            return self
+        if any(f is None for f in fields):
+            raise ValueError(
+                "correct_strategy, accepted_strategies and platoon are set together"
+            )
+        assert self.accepted_strategies is not None and self.platoon is not None
+        if self.correct_strategy not in self.accepted_strategies:
+            raise ValueError(
+                f"accepted_strategies {self.accepted_strategies} must contain "
+                f"correct_strategy {self.correct_strategy!r}"
+            )
+        order = self.correct_order
+        if order is None:
+            raise ValueError("platoon needs correct_order")
+        n = len(self.platoon)
+        if not any(tuple(order[i : i + n]) == self.platoon for i in range(len(order) - n + 1)):
+            raise ValueError(
+                f"platoon {self.platoon} must appear consecutively in correct_order {order}"
+            )
+        return self
+
     @model_serializer(mode="wrap")
     def _omit_unset_ordering(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
         # The generated family YAMLs are compared byte for byte against a fresh
         # dump; the ordering fields stay out of every dump that does not use them.
         data = handler(self)
-        for key in ("correct_order", "margin"):
+        for key in (
+            "correct_order", "margin", "correct_strategy", "accepted_strategies", "platoon"
+        ):
             if data.get(key) is None:
                 data.pop(key, None)
         return data
@@ -305,13 +347,6 @@ class OracleConfig(BaseModel):
         return self.correct_yielder != self.fcfs_yielder
 
 
-# Mirrors reasoning.vlm.models (BlockerKind, CongestionDecision.strategy); kept
-# local because isaac/ runs inside Isaac Sim's Python and must not import the
-# reasoning package. tests/unit/test_blocked_path_scenarios.py pins the parity.
-OracleBlockerKind = Literal["robot", "object", "transient"]
-OracleStrategy = Literal[
-    "none", "yield", "reroute", "convoy", "priority_override", "temporary_wait", "reverse"
-]
 # The deterministic per-kind default of the research design's blocker-kind
 # arbitration (rev 8.6, Appendix A.5): what a blocker of that kind calls for.
 # `robot` has no single default (the full multi-robot set applies).
@@ -469,9 +504,17 @@ FAMILY_BY_LEGACY_NAME: dict[str, str] = {
 # normal_flow is the T0 negative-control family: no conflict is expected, so
 # its scenarios carry `expected_conflict: null` (and only they may).
 # blocked_path is the T3a blocker-kind counterfactual pair: one robot stopped
-# by an untracked blocker on its lane.
+# by an untracked blocker on its lane. bottleneck (B1 bottleneck_merge) and
+# convoy (B3 convoy_counterflow) are the unified scene design's coverage
+# scenes; the B2 priority pair is a head-on and stays in head_on.
 ScenarioFamily = Literal[
-    "head_on", "intersection", "dynamic_anomaly", "normal_flow", "blocked_path"
+    "head_on",
+    "intersection",
+    "dynamic_anomaly",
+    "normal_flow",
+    "blocked_path",
+    "bottleneck",
+    "convoy",
 ]
 CONFLICT_FREE_FAMILIES: frozenset[str] = frozenset({"normal_flow"})
 
@@ -607,6 +650,11 @@ class ScenarioConfig(BaseModel):
                 if rid not in robot_id_set:
                     raise ValueError(
                         f"oracle robot {rid!r} not in configured robots {robot_id_set}"
+                    )
+            for rid in self.oracle.platoon or ():
+                if rid not in robot_id_set:
+                    raise ValueError(
+                        f"oracle platoon robot {rid!r} not in configured robots {robot_id_set}"
                     )
             order = self.oracle.correct_order
             if order is not None:

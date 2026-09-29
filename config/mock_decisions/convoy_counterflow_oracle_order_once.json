@@ -1,0 +1,21 @@
+[
+  {
+    "congestion_detected": true,
+    "type": "deadlock",
+    "involved_robots": ["robot_1", "robot_2", "robot_3", "robot_4"],
+    "root_cause": "A three-robot eastbound platoon meets the westbound robot_2 at the single-lane corridor.",
+    "strategy": "yield",
+    "yield_robot": "robot_2",
+    "crossing_order": ["robot_1", "robot_3", "robot_4", "robot_2"],
+    "blocker_kind": "robot",
+    "justification": "Scripted mock decision for the convoy_counterflow forced-order harness (oracle arm): robot_2 yields, robot_1, robot_3 then robot_4 cross."
+  },
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "Scene has cleared; robots are no longer blocking each other.",
+    "strategy": "none",
+    "justification": "Scripted mock decision for the convoy_counterflow forced-order harness: scene is clear after the resolution."
+  }
+]
