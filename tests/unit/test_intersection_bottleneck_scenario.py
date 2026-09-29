@@ -19,7 +19,11 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from swarm_orchestrator.shadow_classical import find_censored_arrivals
+from swarm_orchestrator.shadow_classical import (
+    ClassicalRetreatContext,
+    classical_retreat_answer,
+    find_censored_arrivals,
+)
 
 from isaac.scripts.generate_warehouse_map import build_occupancy_grid, load_scenario
 from isaac.vgu_sim.config import WarehouseConfig
@@ -32,12 +36,18 @@ from reasoning.baselines.classical_reasoner import (
 )
 from reasoning.rag.command_grounder import ground_reasoner_result
 from reasoning.rag.maneuver_geometry import load_grounding_params
-from reasoning.rag.scene_geometry import SceneGeometry
+from reasoning.rag.scene_geometry import (
+    SceneGeometry,
+    arm_geometry,
+    required_room_m,
+    yield_retreat_room_m,
+)
 from reasoning.vlm.models import (
     ReasonerDiagnostics,
     ReasonerResult,
     RobotStateInput,
     SnapshotFrame,
+    StaticObstacleInput,
 )
 from reasoning.vlm.output_parser import parse_decision_text
 
@@ -353,3 +363,278 @@ class TestSingleYieldGroundingAtFourWayStandoff:
             for w in (frame.find_robot("robot_3"), frame.find_robot("robot_4"))
         )
         assert closest == pytest.approx(standoff_m, abs=0.05)
+
+
+# The junction declaration of the goal-table row (orchestrator.yaml): the
+# junction box (the crossing of the two 1.2 m aisles, no barrier, so no
+# occluder) and each robot's approach arm with the arm's outward sign.
+JUNCTION_CORRIDOR = (
+    "{ axis: x, center_m: 0.0, half_length_m: 0.6, aisle_half_width_m: 0.6,\n"
+    "#     occluder_height_m: 0.0 }"
+)
+JUNCTION_ARMS = {
+    "robot_1": {"axis": "x", "side": -1},
+    "robot_2": {"axis": "x", "side": 1},
+    "robot_3": {"axis": "y", "side": -1},
+    "robot_4": {"axis": "y", "side": 1},
+}
+OPPOSITE = {"robot_1": "robot_2", "robot_2": "robot_1", "robot_3": "robot_4", "robot_4": "robot_3"}
+ROBOTS = ("robot_1", "robot_2", "robot_3", "robot_4")
+# Verified M1 tracking on y: GT (0, 1.75) tracked 366/366 rows (T3a smoke).
+VERIFIED_TRACKED_ABS_Y_M = 1.75
+# Robot half-width (nav2 footprint): the body must stay on free floor.
+HALF_WIDTH_M = 0.09
+# IB10 ground truth at the standoff (INTERSECTION_SMOKE_SUMMARY.txt).
+IB10_STANDOFF = {
+    "robot_1": (-0.2192, -0.0014),
+    "robot_2": (0.33, 0.0158),
+    "robot_3": (-0.0208, -0.2583),
+    "robot_4": (0.0045, 0.2773),
+}
+
+
+def _junction_geometry() -> SceneGeometry:
+    shipped = yaml.safe_load(ORCHESTRATOR_YAML.read_text())["scenario_geometry"]
+    corridor = {
+        "axis": "x", "center_m": 0.0, "half_length_m": 0.6,
+        "aisle_half_width_m": 0.6, "occluder_height_m": 0.0,
+    }
+    return SceneGeometry(**{**shipped, "corridor": corridor, "arms": JUNCTION_ARMS})
+
+
+def _ib10_frame() -> SnapshotFrame:
+    scenario = _scenario()
+    return SnapshotFrame(stamp=1.0, robots=[
+        RobotStateInput(
+            robot_id=r.robot_id, x=IB10_STANDOFF[r.robot_id][0], y=IB10_STANDOFF[r.robot_id][1],
+            theta=r.spawn.yaw_rad, status="STOPPED", goal=(r.goal.x, r.goal.y),
+        )
+        for r in scenario.robots
+    ])
+
+
+def _frames():
+    cases = [(f"standoff-{s}", _buffer(s, LAG_CASES[0])[-1]) for s in STANDOFFS_M]
+    return [*cases, ("ib10", _ib10_frame())]
+
+
+def _order(yielder: str) -> list[str]:
+    return [OPPOSITE[yielder], *[r for r in ROBOTS if r not in (yielder, OPPOSITE[yielder])]]
+
+
+def _yield_decision(yielder: str, order: list[str] | None = None) -> ReasonerResult:
+    decision = {
+        "congestion_detected": True, "type": "bottleneck", "involved_robots": list(ROBOTS),
+        "root_cause": "four-way standoff", "strategy": "yield",
+        "justification": "all four robots stopped at the crossing", "yield_robot": yielder,
+        "crossing_order": [yielder, *(order or _order(yielder))],
+    }
+    return ReasonerResult(
+        request_id="req-ib", decision=parse_decision_text(json.dumps(decision)), raw_text="{}",
+        diagnostics=ReasonerDiagnostics(
+            request_id="req-ib", backend_id="mock", attempts=1, parse_status="valid"
+        ),
+    )
+
+
+def _ground(yielder, frame, geometry=None, order=None, **kwargs) -> dict:
+    return ground_reasoner_result(
+        _yield_decision(yielder, order), geometry=geometry or _junction_geometry(),
+        snapshot=frame, params=load_grounding_params(REPO_ROOT / "config/rag.yaml"), **kwargs,
+    )
+
+
+def _yield_parameters(command: dict) -> dict:
+    (action,) = [a for a in command["actions"] if a["action"] == "yield"]
+    return action["parameters"]
+
+
+def _arm_room_from_map(robot_id: str) -> float:
+    # Free floor along the arm, from the junction mouth outward to the first
+    # occupied cell under the robot's body (centreline +- half-width).
+    cfg = WarehouseConfig()
+    grid, _ = build_occupancy_grid(cfg, obstacles=[], resolution_m=RESOLUTION_M)
+    arm = JUNCTION_ARMS[robot_id]
+    mouth = 0.6
+    s = mouth
+    while True:
+        coord = arm["side"] * s
+        for d in (-HALF_WIDTH_M, 0.0, HALF_WIDTH_M):
+            x, y = (coord, d) if arm["axis"] == "x" else (d, coord)
+            if _cell(grid, cfg, x, y) != 255:
+                return s - mouth
+        s += RESOLUTION_M
+
+
+class TestJunctionGeometry:
+    """Each robot yields back along the arm it came in on (S2 discharged)."""
+
+    def test_goal_table_declares_the_junction_and_every_arm(self):
+        table = ORCHESTRATOR_YAML.read_text()
+        assert f"scenario_geometry corridor\n#     {JUNCTION_CORRIDOR}" in table
+        for robot_id, arm in JUNCTION_ARMS.items():
+            assert f"{robot_id}: {{ axis: {arm['axis']}, side: {arm['side']} }}" in table
+
+    def test_arms_are_the_approach_arms_of_the_scenario(self):
+        for robot in _scenario().robots:
+            arm = JUNCTION_ARMS[robot.robot_id]
+            axis = "x" if robot.spawn.y == 0.0 else "y"
+            coord = robot.spawn.x if axis == "x" else robot.spawn.y
+            assert (arm["axis"], arm["side"]) == (axis, int(math.copysign(1, coord)))
+
+    def test_shipped_geometry_keeps_a_single_corridor(self):
+        shipped = yaml.safe_load(ORCHESTRATOR_YAML.read_text())["scenario_geometry"]
+        assert SceneGeometry(**shipped).arms is None
+
+    @pytest.mark.parametrize("yielder", ROBOTS)
+    @pytest.mark.parametrize(("case", "frame"), _frames())
+    def test_every_yielder_grounds_a_yield_along_its_own_arm(self, yielder, case, frame):
+        command = _ground(yielder, frame)
+        p = _yield_parameters(command)
+        start = frame.find_robot(yielder)
+        arm = JUNCTION_ARMS[yielder]
+        axis, perp = (0, 1) if arm["axis"] == "x" else (1, 0)
+        end = (p["retreat_x_m"], p["retreat_y_m"])
+        moved = (end[axis] - (start.x, start.y)[axis]) * arm["side"]
+        assert moved == pytest.approx(p["backup_distance_m"], abs=1e-3), case
+        assert abs(end[perp] - (start.x, start.y)[perp]) == pytest.approx(0.36, abs=1e-3)
+        assert [a["robot_id"] for a in command["actions"]] == [yielder, *_order(yielder)]
+
+    @pytest.mark.parametrize("yielder", ROBOTS)
+    @pytest.mark.parametrize(("case", "frame"), _frames())
+    def test_shipped_single_corridor_grounds_no_north_south_yield(self, yielder, case, frame):
+        # S2 as the smoke found it: under the single x corridor a north-south
+        # yielder degrades to a reroute; an east-west one grounds a yield.
+        command = _ground(yielder, frame, geometry=SceneGeometry(
+            **yaml.safe_load(ORCHESTRATOR_YAML.read_text())["scenario_geometry"]
+        ))
+        actions = {a["action"] for a in command["actions"]}
+        if JUNCTION_ARMS[yielder]["axis"] == "y":
+            assert "yield" not in actions, case
+        else:
+            assert "yield" in actions, case
+
+    @pytest.mark.parametrize("yielder", ROBOTS)
+    @pytest.mark.parametrize(("case", "frame"), _frames())
+    def test_retreat_stays_tracked_and_on_free_floor(self, yielder, case, frame):
+        p = _yield_parameters(_ground(yielder, frame))
+        start = frame.find_robot(yielder)
+        corner = (
+            (p["retreat_x_m"], start.y) if JUNCTION_ARMS[yielder]["axis"] == "x"
+            else (start.x, p["retreat_y_m"])
+        )
+        end = (p["retreat_x_m"], p["retreat_y_m"])
+        assert abs(end[0]) <= VERIFIED_TRACKED_ABS_X_M
+        assert abs(end[1]) <= VERIFIED_TRACKED_ABS_Y_M, case
+        cfg = WarehouseConfig()
+        grid, _ = build_occupancy_grid(cfg, obstacles=[], resolution_m=RESOLUTION_M)
+        for a, b in (((start.x, start.y), corner), (corner, end)):
+            for t in np.linspace(0.0, 1.0, 40):
+                x, y = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+                for dx, dy in ((HALF_WIDTH_M, 0), (-HALF_WIDTH_M, 0), (0, HALF_WIDTH_M),
+                               (0, -HALF_WIDTH_M)):
+                    assert _cell(grid, cfg, x + dx, y + dy) == 255, (yielder, case, x, y)
+
+    @pytest.mark.parametrize("robot_id", ROBOTS)
+    def test_map_leaves_every_arm_the_required_retreat_room(self, robot_id):
+        # Racks wall the arms laterally; axially each arm runs to the
+        # perimeter wall, far beyond the room a park point needs.
+        assert _arm_room_from_map(robot_id) >= required_room_m(_junction_geometry()) + 2.0
+
+    @pytest.mark.parametrize("yielder", ROBOTS)
+    def test_gate_scores_each_arm_against_its_own_map_wall(self, yielder):
+        # The perimeter walls as static obstacles: the gate measures each
+        # yielder's room along its own arm and it matches the map.
+        geometry = _junction_geometry()
+        walls = []
+        for robot_id, arm in JUNCTION_ARMS.items():
+            face = arm["side"] * (0.6 + _arm_room_from_map(robot_id))
+            centre = face + arm["side"] * 0.15
+            x, y = (centre, 0.0) if arm["axis"] == "x" else (0.0, centre)
+            walls.append(StaticObstacleInput(
+                obstacle_id=f"wall_{robot_id}", x=x, y=y, size_x_m=0.3, size_y_m=0.3,
+            ))
+        resolved, side = arm_geometry(geometry, yielder)
+        room = yield_retreat_room_m(IB10_STANDOFF[yielder], side, walls, resolved)
+        assert room == pytest.approx(_arm_room_from_map(yielder), abs=1e-6)
+        command = _ground(
+            yielder, _ib10_frame(), static_obstacles=walls, yield_feasibility_mode="swap"
+        )
+        assert _yield_parameters(command).get("yield_robot_grounded_from") is None
+        assert command["actions"][0]["robot_id"] == yielder
+
+    @pytest.mark.parametrize("standoff_m", STANDOFFS_M)
+    @pytest.mark.parametrize("lags", LAG_CASES)
+    def test_arm_b_retreat_is_computed_and_equals_the_grounded_one(self, standoff_m, lags):
+        # Arm B's shadow runs the same roles and ranking functions, so it
+        # follows the arms: whichever robot it picks, its retreat is computed
+        # and is the pose the grounder executes for that yield.
+        params = load_classical_params(REPO_ROOT / "config/rag.yaml")
+        frames = _buffer(standoff_m, lags)
+        classical = resolve_classical(frames, [ConflictZone(**ZONE)], params).decision
+        context = ClassicalRetreatContext(
+            params=load_grounding_params(REPO_ROOT / "config/rag.yaml"),
+            geometry=_junction_geometry(),
+        )
+        for yielder in ROBOTS:
+            order = [yielder, *[r for r in classical.crossing_order if r != yielder]]
+            decision = classical.model_copy(
+                update={"yield_robot": yielder, "crossing_order": order}
+            )
+            answer = classical_retreat_answer(decision, frames[-1], context)
+            assert answer.status == "computed", (yielder, answer.reason)
+            p = _yield_parameters(_ground(yielder, frames[-1], order=order[1:]))
+            assert (round(answer.x, 3), round(answer.y, 3)) == (p["retreat_x_m"], p["retreat_y_m"])
+
+
+class TestFourWayResidualsUnderJunctionGeometry:
+    """What the arms do NOT fix (S1 stays structural; predicted before the v2 smoke)."""
+
+    def test_robot_3_escort_still_runs_into_the_waiting_robot_4(self):
+        frame = _ib10_frame()
+        p = _yield_parameters(_ground("robot_2", frame, order=["robot_1", "robot_3", "robot_4"]))
+        passer, partner = frame.find_robot("robot_3"), frame.find_robot("robot_4")
+        escort = p["crossing_escort_m"][p["crossing_order"].index("robot_3")]
+        closest = min(
+            math.hypot(passer.x - partner.x, passer.y + s - partner.y)
+            for s in np.arange(0.0, escort, 0.05)
+        )
+        assert escort == pytest.approx(0.6 - passer.y + 0.65, abs=1e-3)
+        assert closest < LATCH_M
+
+    def test_first_passer_starts_inside_the_latch_of_the_cross_pair(self):
+        # robot_1 is never exempt against robot_3 / robot_4, so M4 holds it.
+        robot_1 = IB10_STANDOFF["robot_1"]
+        for other in ("robot_3", "robot_4"):
+            assert math.dist(robot_1, IB10_STANDOFF[other]) < LATCH_M
+
+    def test_north_south_same_arm_escort_leaves_the_tracked_band(self):
+        # robot_3 yields south; its opposing partner robot_4 must pass the
+        # parked yielder by the clearance, which ends beyond M1's y band.
+        frame = _ib10_frame()
+        p = _yield_parameters(_ground("robot_3", frame))
+        assert p["crossing_order"][0] == "robot_4"
+        end_y = frame.find_robot("robot_4").y - p["passer_escort_distance_m"]
+        assert end_y < -_tracked_band()[1]
+
+
+def test_legacy_grounding_parks_a_north_south_yielder_on_its_arm():
+    # Legacy mode (the T2b forced-order harness mode) honours the arms too:
+    # park point on robot_3's own arm, crossing passers cleared out of the
+    # junction along their own axes, the same-arm passer past the park point.
+    positions = {rid: xy for rid, xy in IB10_STANDOFF.items()}
+    command = ground_reasoner_result(
+        _yield_decision("robot_3", ["robot_1", "robot_2", "robot_4"]),
+        robot_positions=positions,
+        geometry=_junction_geometry(),
+    )
+    p = _yield_parameters(command)
+    park = round(-(0.6 * (3.0 - 0.21) / 3.0 + 0.06 + 0.4), 3)
+    assert (p["park_axis"], p["park_coord_m"]) == ("y", park)
+    assert "park_x_m" not in p
+    assert p["backup_distance_m"] == round(IB10_STANDOFF["robot_3"][1] - park, 3)
+    assert p["crossing_clear_m"] == [
+        round(0.6 - IB10_STANDOFF["robot_1"][0] + 0.65, 3),
+        round(IB10_STANDOFF["robot_2"][0] + 0.6 + 0.65, 3),
+        round(IB10_STANDOFF["robot_4"][1] - park + 0.65, 3),
+    ]

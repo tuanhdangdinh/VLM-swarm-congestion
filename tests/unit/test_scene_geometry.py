@@ -3,11 +3,14 @@ import pytest
 from pydantic import ValidationError
 
 from reasoning.rag.scene_geometry import (
+    ArmGeometry,
     CameraGeometry,
     CorridorGeometry,
     SceneGeometry,
+    arm_geometry,
     park_offset_m,
     passer_clearance_m,
+    passer_travel_m,
     pull_off_lateral_m,
     required_room_m,
     room_is_feasible,
@@ -203,3 +206,99 @@ def test_retreat_room_follows_the_declared_axis():
     room = yield_retreat_room_m((0.0, -0.3), -1.0, (blocker,), geometry)
 
     assert room == pytest.approx(0.7, abs=1e-9)
+
+
+def _junction_geometry(**arms) -> SceneGeometry:
+    return SceneGeometry(
+        corridor=CorridorGeometry(
+            axis="x",
+            center_m=0.0,
+            half_length_m=0.6,
+            aisle_half_width_m=0.6,
+            occluder_height_m=0.0,
+        ),
+        arms=arms or None,
+    )
+
+
+def test_arm_geometry_without_arms_returns_the_same_object():
+    geometry = _head_on_geometry()
+
+    resolved, side = arm_geometry(geometry, "robot_1")
+
+    assert resolved is geometry
+    assert side is None
+
+
+def test_arm_geometry_leaves_an_unlisted_robot_on_the_corridor():
+    geometry = _junction_geometry(robot_3=ArmGeometry(axis="y", side=-1))
+
+    resolved, side = arm_geometry(geometry, "robot_1")
+
+    assert resolved is geometry
+    assert side is None
+
+
+def test_arm_geometry_swaps_only_the_axis_for_a_crossing_arm():
+    geometry = _junction_geometry(robot_3=ArmGeometry(axis="y", side=-1))
+
+    resolved, side = arm_geometry(geometry, "robot_3")
+
+    assert side == -1.0
+    assert resolved.corridor.axis == "y"
+    assert resolved.corridor.model_dump(exclude={"axis"}) == geometry.corridor.model_dump(
+        exclude={"axis"}
+    )
+    assert park_offset_m(resolved) == park_offset_m(geometry)
+
+
+def test_arm_side_must_be_a_unit_sign():
+    with pytest.raises(ValidationError):
+        ArmGeometry(axis="y", side=0)
+
+
+def test_retreat_room_on_a_crossing_arm_runs_along_that_arm():
+    # A box 0.9 m past the south mouth of the north-south arm bounds robot_3;
+    # the same box is off the east-west lane, so it bounds nothing there.
+    geometry = _junction_geometry(robot_3=ArmGeometry(axis="y", side=-1))
+    box = StaticObstacleInput(obstacle_id="o", x=0.0, y=-1.65, size_x_m=0.3, size_y_m=0.3)
+    resolved, side = arm_geometry(geometry, "robot_3")
+
+    assert yield_retreat_room_m((0.0, -0.3), side, [box], resolved) == pytest.approx(0.9)
+    assert yield_retreat_room_m((-0.3, 0.0), -1.0, [box], geometry) is None
+
+
+def test_same_axis_passer_travels_past_the_parked_yielder():
+    geometry = _junction_geometry(
+        robot_1=ArmGeometry(axis="x", side=-1), robot_2=ArmGeometry(axis="x", side=1)
+    )
+
+    travel = passer_travel_m("robot_1", (-0.22, 0.0), (1.7, -0.34), geometry, "robot_2")
+
+    assert travel == pytest.approx(1.92)
+
+
+def test_crossing_passer_travels_to_the_far_junction_mouth():
+    geometry = _junction_geometry(
+        robot_2=ArmGeometry(axis="x", side=1), robot_3=ArmGeometry(axis="y", side=-1)
+    )
+
+    travel = passer_travel_m("robot_3", (-0.02, -0.26), (1.7, -0.34), geometry, "robot_2")
+
+    assert travel == pytest.approx(0.6 + 0.26)
+
+
+def test_crossing_passer_already_past_the_far_mouth_travels_nothing():
+    geometry = _junction_geometry(
+        robot_2=ArmGeometry(axis="x", side=1), robot_3=ArmGeometry(axis="y", side=-1)
+    )
+
+    assert passer_travel_m("robot_3", (0.0, 0.9), (1.7, 0.0), geometry, "robot_2") == 0.0
+
+
+def test_passer_travel_without_arms_is_the_corridor_axis_distance():
+    geometry = _head_on_geometry()
+
+    assert passer_travel_m("robot_1", (0.25, 3.0), (-1.789, 0.0), geometry, "robot_2") == (
+        abs(0.25 - -1.789)
+    )

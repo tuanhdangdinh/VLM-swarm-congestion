@@ -1307,3 +1307,36 @@ def test_two_passer_failed_backup_releases_every_wait():
     ]
     assert rig.escorts == []
     assert rig.odom == {}
+
+
+def test_safety_tracker_reads_the_yield_phase_from_the_bus_status_stream():
+    # Contract between the bus and the safety monitor: the monitor widens the
+    # yielder's exemption to every command member only while the published
+    # yield status says backup or pull-off, and narrows it at the hold.
+    from swarm_execution.safety import CoordinationTracker
+
+    rig = _YieldRig()
+    tracker = CoordinationTracker()
+    commands = [
+        ("robot_2", "yield", _TWO_PASSER_YIELD),
+        ("robot_1", "temporary_wait", {"duration_sec": 240.0, "linked_position": 0}),
+        ("robot_3", "temporary_wait", {"duration_sec": 240.0, "linked_position": 1}),
+    ]
+    for robot_id, action, parameters in commands:
+        rig.command(robot_id, action, parameters)
+        tracker.record_command("cmd-Y", robot_id, action, parameters)
+    fed = 0
+
+    def pairs_after_feeding():
+        nonlocal fed
+        for command_id, robot_id, status, detail in rig.published[fed:]:
+            tracker.record_status(command_id, robot_id, status, detail)
+        fed = len(rig.published)
+        return tracker.exemption().pairs
+
+    rig.adapter.backup_on_result["robot_2"]("ACTIVE", "backup started")
+    assert pairs_after_feeding() == {("robot_1", "robot_2"), ("robot_2", "robot_3")}
+    rig.adapter.backup_on_result["robot_2"]("COMPLETED", "backup done")
+    assert pairs_after_feeding() == {("robot_1", "robot_2"), ("robot_2", "robot_3")}
+    rig.adapter.sidestep_on_result("COMPLETED", "side step complete: moved 0.350 m")
+    assert pairs_after_feeding() == {("robot_1", "robot_2")}

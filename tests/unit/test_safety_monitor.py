@@ -18,6 +18,11 @@ from swarm_execution.safety import (
     exceeds_speed_limit,
 )
 from swarm_execution.safety_monitor_node import SafetyMonitorNode, holds_payload
+from swarm_execution.yield_phase import (
+    BACKUP_STARTED_DETAIL,
+    HOLD_STARTED_DETAIL,
+    PULL_OFF_DETAIL,
+)
 
 
 def _robot(robot_id: str, x: float, y: float, v: float = 0.0) -> dict:
@@ -1404,3 +1409,212 @@ def test_two_robot_pair_scope_matches_robot_scope(shape: str):
                     assert {r: new.reasons[r] for r in new.latched} == {
                         r: old.reasons[r] for r in old_effective
                     }
+
+
+# ---------------------------------------------------------------------------
+# Backup-phase exemption (intersection resolvability, 2026-09-29): while a
+# yield is backing up or pulling off, the yielder is exempt against every
+# robot its command addressed; from the hold on, progressive admission governs
+# unchanged. The phase is the ACTIVE status detail the command bus publishes.
+# ---------------------------------------------------------------------------
+
+_FOUR_WAY_ORDER = {
+    "passer_robot_id": "robot_1",
+    "crossing_order": ["robot_1", "robot_3", "robot_4"],
+}
+# IB10 (2026-09-29) ground truth at the standoff: robot_2 sat 0.418 / 0.445 m
+# from robot_4 / robot_3, and robot_1 0.325 / 0.357 m from robot_3 / robot_4.
+_IB10_STANDOFF = {
+    "robot_1": (-0.2192, -0.0014),
+    "robot_2": (0.33, 0.0158),
+    "robot_3": (-0.0208, -0.2583),
+    "robot_4": (0.0045, 0.2773),
+}
+
+
+class _DetailStatusMsg(_StatusMsg):
+    def __init__(self, command_id: str, robot_id: str, status: str, detail: str) -> None:
+        super().__init__(command_id, robot_id, status)
+        self.detail = detail
+
+
+def _four_way_yield(detail: str | None) -> CoordinationTracker:
+    tracker = CoordinationTracker()
+    _yield_command(
+        tracker, "robot_2", ["robot_1", "robot_3", "robot_4"], parameters=_FOUR_WAY_ORDER
+    )
+    if detail is not None:
+        tracker.record_status("req-yield", "robot_2", "ACTIVE", detail)
+    return tracker
+
+
+def _standoff_robots(**extra: tuple[float, float]) -> list[dict]:
+    poses = {**_IB10_STANDOFF, **extra}
+    return [_fresh(robot_id, x, y) for robot_id, (x, y) in poses.items()]
+
+
+@pytest.mark.parametrize("detail", [BACKUP_STARTED_DETAIL, PULL_OFF_DETAIL])
+def test_backing_up_yielder_is_exempt_against_every_command_member(detail):
+    tracker = _four_way_yield(detail)
+
+    assert tracker.exemption().pairs == {
+        ("robot_1", "robot_2"),
+        ("robot_2", "robot_3"),
+        ("robot_2", "robot_4"),
+    }
+
+
+def test_backing_up_yielder_in_the_scrum_is_not_latched():
+    # The IB10 failure: robot_2 sat inside 0.45 m of robot_3 and robot_4,
+    # which progressive admission had not yet admitted, and never moved.
+    tracker = _four_way_yield(BACKUP_STARTED_DETAIL)
+    robots = [_fresh(r, *_IB10_STANDOFF[r]) for r in ("robot_2", "robot_3", "robot_4")]
+
+    flagged = detect_proximity_violations(robots, 0.45, tracker.exemption())
+
+    assert flagged == set()
+
+
+def test_backing_up_yielder_is_latched_against_a_non_member_at_the_same_distance():
+    tracker = CoordinationTracker()
+    _yield_command(
+        tracker,
+        "robot_2",
+        ["robot_1", "robot_3"],
+        parameters={"passer_robot_id": "robot_1", "crossing_order": ["robot_1", "robot_3"]},
+    )
+    tracker.record_status("req-yield", "robot_2", "ACTIVE", BACKUP_STARTED_DETAIL)
+    robots = [_fresh(r, *_IB10_STANDOFF[r]) for r in ("robot_2", "robot_3", "robot_4")]
+
+    flagged = detect_proximity_violations(robots, 0.45, tracker.exemption())
+
+    assert flagged == {"robot_2", "robot_4"}
+
+
+def test_hold_start_returns_to_progressive_admission():
+    tracker = _four_way_yield(BACKUP_STARTED_DETAIL)
+
+    tracker.record_status("req-yield", "robot_2", "ACTIVE", HOLD_STARTED_DETAIL)
+
+    assert tracker.exemption().pairs == {("robot_1", "robot_2")}
+
+
+def test_late_backup_republish_after_hold_does_not_reopen_the_phase():
+    # The bus republishes every status 0.25 s and 0.75 s later; a fast
+    # sidestep can put the hold ahead of the pull-off's republish.
+    tracker = _four_way_yield(PULL_OFF_DETAIL)
+    tracker.record_status("req-yield", "robot_2", "ACTIVE", HOLD_STARTED_DETAIL)
+
+    tracker.record_status("req-yield", "robot_2", "ACTIVE", PULL_OFF_DETAIL)
+
+    assert tracker.exemption().pairs == {("robot_1", "robot_2")}
+
+
+@pytest.mark.parametrize("detail", [None, "", "escort started", "backup started "])
+def test_unknown_phase_fails_closed_to_progressive_admission(detail):
+    tracker = _four_way_yield(None)
+    tracker.record_status("req-yield", "robot_2", "ACTIVE", detail)
+
+    assert tracker.exemption().pairs == {("robot_1", "robot_2")}
+
+
+def test_backup_phase_of_an_earlier_command_does_not_carry_over():
+    tracker = _four_way_yield(BACKUP_STARTED_DETAIL)
+    tracker.record_status("req-yield", "robot_2", "FAILED")
+
+    _yield_command(
+        tracker, "robot_2", ["robot_1", "robot_3", "robot_4"], "req2-yield", _FOUR_WAY_ORDER
+    )
+
+    assert tracker.exemption().pairs == {("robot_1", "robot_2")}
+
+
+def test_backup_phase_never_pairs_two_passers():
+    # T2b's alternative arm (2026-09-29 live): robot_1 yields, and its two
+    # passers robot_2 and robot_3 close on each other. That pair is not the
+    # yielder's, so it latches in every phase.
+    for detail in (BACKUP_STARTED_DETAIL, PULL_OFF_DETAIL, HOLD_STARTED_DETAIL):
+        tracker = CoordinationTracker()
+        _yield_command(
+            tracker, "robot_1", ["robot_2", "robot_3"], parameters=_two_passer_order()
+        )
+        tracker.record_status("req-yield", "robot_1", "ACTIVE", detail)
+        tracker.record_status("req-yield", "robot_2", "COMPLETED")
+        robots = [
+            _fresh("robot_1", -1.124, 0.36),
+            _fresh("robot_2", -1.9, 0.0),
+            _fresh("robot_3", -2.33, 0.0),
+        ]
+
+        flagged = detect_proximity_violations(robots, 0.45, tracker.exemption())
+
+        assert flagged == {"robot_2", "robot_3"}, detail
+
+
+@pytest.mark.parametrize(
+    "detail", [None, BACKUP_STARTED_DETAIL, PULL_OFF_DETAIL, HOLD_STARTED_DETAIL, "unknown"]
+)
+@pytest.mark.parametrize("shape", sorted(_equiv_shapes()))
+def test_two_robot_exemption_is_phase_independent(shape: str, detail: str | None):
+    # Byte-identity pin for two-robot flows: every command member is already
+    # the admitted passer, so the backup phase adds no pair and evaluate_latches
+    # sees the same exemption as before the phase existed.
+    baseline = _equiv_shapes()[shape].exemption()
+    tracker = _equiv_shapes()[shape]
+    for robot_id in ("robot_1", "robot_2"):
+        command_id = tracker._active_by_robot.get(robot_id)
+        if command_id is not None:
+            tracker.record_status(command_id, robot_id, "ACTIVE", detail)
+
+    assert tracker.exemption() == baseline
+
+
+def test_first_passer_stays_latched_against_the_waiting_cross_pair():
+    # Predicted residual (S1, not discharged): after the hold starts, the
+    # first passer robot_1 still sits 0.325 / 0.357 m from robot_3 / robot_4,
+    # neither of which is ever its partner, so its escort cannot move it.
+    tracker = _four_way_yield(BACKUP_STARTED_DETAIL)
+    tracker.record_status("req-yield", "robot_2", "ACTIVE", HOLD_STARTED_DETAIL)
+    robots = _standoff_robots(robot_2=(1.704, -0.344))
+
+    result = evaluate_latches(robots, _LIMITS, exempt=tracker.exemption())
+
+    assert {"robot_1", "robot_3", "robot_4"} <= result.latched
+    assert "robot_2" not in result.latched
+
+
+def test_node_releases_backing_up_yielder_from_the_scrum_but_not_a_bystander():
+    node, _stops = _make_node(min_distance_m=0.45)
+    _dispatch(node, "req-yield", "robot_2", "yield", _FOUR_WAY_ORDER)
+    for position, passer in enumerate(("robot_1", "robot_3", "robot_4")):
+        _dispatch(node, "req-yield", passer, "temporary_wait", {"linked_position": position})
+    node._on_coord_status(
+        _DetailStatusMsg("req-yield", "robot_2", "ACTIVE", BACKUP_STARTED_DETAIL)
+    )
+    scene = {
+        "robots": [
+            {"robot_id": r, "x": x, "y": y, "status": "MOVING"}
+            for r, (x, y) in {**_IB10_STANDOFF, "robot_5": (0.33, -0.4)}.items()
+        ]
+    }
+
+    node._on_scene_state(_StringMsg(json.dumps(scene)))
+
+    assert "robot_2" in node._latched_stops
+    assert "robot_5" in node._latched_stops
+    del scene["robots"][-1]
+    node._on_scene_state(_StringMsg(json.dumps(scene)))
+    assert "robot_2" not in node._latched_stops
+
+
+def test_node_narrows_the_exemption_at_hold_start():
+    node, _stops = _make_node(min_distance_m=0.45)
+    _dispatch(node, "req-yield", "robot_2", "yield", _FOUR_WAY_ORDER)
+    node._on_coord_status(
+        _DetailStatusMsg("req-yield", "robot_2", "ACTIVE", BACKUP_STARTED_DETAIL)
+    )
+    node._on_coord_status(
+        _DetailStatusMsg("req-yield", "robot_2", "ACTIVE", HOLD_STARTED_DETAIL)
+    )
+
+    assert node._coordination.exemption().pairs == {("robot_1", "robot_2")}
