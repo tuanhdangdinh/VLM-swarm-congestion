@@ -452,7 +452,7 @@ class OrchestratorNode(Node):
         self._latest_snapshot_at = now
         if self._shadow is not None:
             # Never raises; ingest failures surface in the next shadow record.
-            self._shadow.observe(snapshot, self._effective_goal)
+            self._shadow.observe(snapshot, self._effective_goal, self._registry.is_pending)
         if (
             self._config.scene_log_dir
             and now - self._last_scene_log_at >= self._config.scene_log_period_sec
@@ -681,7 +681,11 @@ class OrchestratorNode(Node):
         if self._shadow is not None:
             try:
                 self._pending_shadow = self._shadow.evaluate(
-                    request_id, snapshot, self._effective_goal, episode_index
+                    request_id,
+                    snapshot,
+                    self._effective_goal,
+                    episode_index,
+                    self._registry.is_pending,
                 )
             except Exception as exc:  # evaluate() records its own errors; last resort
                 self.get_logger().error(
@@ -934,7 +938,9 @@ class OrchestratorNode(Node):
         shadow = None
         if self._shadow is not None:
             try:
-                shadow = self._shadow.evaluate_probe(request_id, snapshot, self._effective_goal)
+                shadow = self._shadow.evaluate_probe(
+                    request_id, snapshot, self._effective_goal, self._registry.is_pending
+                )
             except Exception as exc:  # evaluate_probe records its own errors; last resort
                 self.get_logger().error(
                     f"shadow request={request_id} evaluate failed: {type(exc).__name__}: {exc}"

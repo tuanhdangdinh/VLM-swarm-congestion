@@ -162,6 +162,199 @@ class TestClassifyParkedAtGoal:
         assert (c.scenario, c.involved_robots) == ("intersection", ["robot_1", "robot_2"])
 
 
+def _held_frame(stamp: float, held: tuple[str, ...], *robots: RobotStateInput) -> SnapshotFrame:
+    return SnapshotFrame(stamp=stamp, robots=list(robots), held_robot_ids=held)
+
+
+def _b1_merge(r1_x: float, r2: tuple[float, float, float]) -> list[RobotStateInput]:
+    # Unified scene design, B1 bottleneck_merge: robot_1 stopped at the merge,
+    # robot_2 latched coming down the north arm, robot_3 held at its spawn.
+    return [
+        _robot("robot_1", r1_x, 0.0, 0.0, goal=(2.45, -0.30)),
+        _robot("robot_2", r2[0], r2[1], math.radians(r2[2]), goal=(1.90, 0.0)),
+        _robot("robot_3", -2.45, 0.0, 0.0, goal=(2.45, 0.30)),
+    ]
+
+
+# The design doc's four predicted B1 standoff poses (robot_1 x; robot_2 x, y,
+# heading in degrees).
+_B1_POSES = [
+    (0.10, (0.15, 0.45, -80.0)),
+    (0.00, (0.20, 0.40, -70.0)),
+    (0.20, (0.30, 0.42, -60.0)),
+    (-0.10, (0.10, 0.35, -90.0)),
+]
+
+
+def _b3_standoff(separation: float, shift: float, jitter: float) -> list[RobotStateInput]:
+    # Unified scene design, B3 convoy_counterflow: the robot_1/robot_2 standoff
+    # (the T2b grid) with robot_3 and robot_4 held on the centreline, both
+    # queued robots shifted by the M1 jitter.
+    return [
+        _robot("robot_1", shift - separation / 2, 0.0, 0.0, goal=(2.45, -0.30)),
+        _robot("robot_2", shift + separation / 2, 0.0, math.pi, goal=(-2.00, 0.0)),
+        _robot("robot_3", -1.90 + jitter, 0.0, 0.0, goal=(2.45, 0.30)),
+        _robot("robot_4", -2.47 + jitter, 0.0, 0.0, goal=(1.85, 0.0)),
+    ]
+
+
+_B3_GRID = [
+    (separation, shift, jitter)
+    for separation in (0.24, 0.46, 0.70)
+    for shift in (-0.2, -0.1, 0.0, 0.1, 0.2)
+    for jitter in (-0.1, 0.0, 0.1)
+]
+# The 10 of 45 cases in which robot_3 crowds the head_on pair (within
+# r_conflict_m of robot_1): Arm B read them as blocked_path [robot_3].
+_B3_CROWDED = {
+    (0.24, -0.2, 0.1),
+    (0.46, -0.2, 0.0), (0.46, -0.2, 0.1), (0.46, -0.1, 0.1),
+    (0.70, -0.2, -0.1), (0.70, -0.2, 0.0), (0.70, -0.2, 0.1),
+    (0.70, -0.1, 0.0), (0.70, -0.1, 0.1), (0.70, 0.0, 0.1),
+}
+
+
+class TestClassifyHeldRobot:
+    """A10-mold held-robot exclusion (amendments item 28)."""
+
+    def test_held_robot_is_not_a_blocked_path_candidate(self):
+        frame = _held_frame(1.0, ("robot_1",), _robot("robot_1", 0.0, 0.0, 0.0, goal=(3.0, 0.0)))
+        c = classify_scene([frame], [], _PARAMS)
+        assert (c.scenario, c.involved_robots) == ("none", [])
+
+    def test_unheld_twin_is_blocked_path(self):
+        frame = _held_frame(1.0, (), _robot("robot_1", 0.0, 0.0, 0.0, goal=(3.0, 0.0)))
+        c = classify_scene([frame], [], _PARAMS)
+        assert (c.scenario, c.involved_robots) == ("blocked_path", ["robot_1"])
+
+    def test_decide_held_only_scene_reports_held_cause(self):
+        frame = _held_frame(1.0, ("robot_1",), _robot("robot_1", 0.0, 0.0, 0.0, goal=(3.0, 0.0)))
+        decision = decide_classical([frame], [], _PARAMS)
+        assert (decision.congestion_detected, decision.strategy) == (False, "none")
+        assert decision.root_cause == (
+            "classical: stopped robots are all parked at their goals or held back"
+        )
+
+    def test_decide_parked_cause_unchanged_without_held_robots(self):
+        decision = decide_classical([_frame(1.0, *_parked_pair())], [], _PARAMS)
+        assert decision.root_cause == "classical: stopped robots are all parked at their goals"
+
+    def test_unknown_excludes_held_robot(self):
+        # robot_2 is held and sits in robot_1's front, so robot_1 is not
+        # blocked_path; crosswise goals rule out head_on.
+        frame = _held_frame(
+            1.0,
+            ("robot_2",),
+            _robot("robot_1", 0.0, 0.0, 0.0, goal=(0.0, 5.0)),
+            _robot("robot_2", 0.5, 0.0, math.pi, goal=(0.5, 3.0)),
+        )
+        c = classify_scene([frame], [], _PARAMS)
+        assert (c.scenario, c.involved_robots) == ("unknown", ["robot_1"])
+
+    def test_held_robot_still_blocks_another(self):
+        # The held robot sits ahead of robot_1, so robot_1 is not blocked_path.
+        frame = _held_frame(
+            1.0,
+            ("robot_2",),
+            _robot("robot_1", 0.0, 0.0, 0.0, goal=(0.0, 5.0)),
+            _robot("robot_2", 0.5, 0.0, math.pi / 2, goal=(3.0, 3.0)),
+        )
+        assert classify_scene([frame], [], _PARAMS).scenario == "unknown"
+
+    def test_head_on_keeps_held_robot(self):
+        c = classify_scene([_held_frame(1.0, ("robot_1",), *_head_on_pair())], [], _PARAMS)
+        assert (c.scenario, c.involved_robots) == ("head_on", ["robot_1", "robot_2"])
+
+    def test_held_robot_still_crowds_head_on(self):
+        # Like a parked robot, a held one still counts for the crowding check.
+        crowd = _robot("robot_3", -1.0, 0.0, 0.0, goal=(5.0, 0.0))
+        c = classify_scene(
+            [_held_frame(1.0, ("robot_3",), *_head_on_pair(), crowd)], [], _PARAMS
+        )
+        assert c.scenario == "unknown"
+        assert c.involved_robots == ["robot_1", "robot_2"]
+
+    def test_intersection_keeps_held_robot(self):
+        c = classify_scene(
+            [_held_frame(1.0, ("robot_2",), *_crossing_pair())], [_ZONE], _PARAMS
+        )
+        assert (c.scenario, c.involved_robots) == ("intersection", ["robot_1", "robot_2"])
+
+    def test_only_latest_frame_held_set_is_read(self):
+        robot = _robot("robot_1", 0.0, 0.0, 0.0, goal=(3.0, 0.0))
+        frames = [_held_frame(0.0, ("robot_1",), robot), _held_frame(1.0, (), robot)]
+        assert classify_scene(frames, [], _PARAMS).scenario == "blocked_path"
+
+    def test_held_id_of_absent_robot_is_inert(self):
+        robot = _robot("robot_1", 0.0, 0.0, 0.0, goal=(3.0, 0.0))
+        held = resolve_classical([_held_frame(1.0, ("robot_9",), robot)], [], _PARAMS)
+        plain = resolve_classical([_frame(1.0, robot)], [], _PARAMS)
+        assert held.model_dump_json() == plain.model_dump_json()
+
+    @pytest.mark.parametrize(
+        "frames",
+        [
+            [_frame(1.0, *_head_on_pair())],
+            [_frame(1.0, *_crossing_pair())],
+            [_frame(1.0, *_parked_pair())],
+            [_frame(1.0, _robot("robot_1", 0.0, 0.0, 0.0, goal=(3.0, 0.0)))],
+        ],
+    )
+    def test_no_held_robot_resolution_byte_identical(self, frames):
+        # Frames built without the field and with an explicit empty held set
+        # resolve to the same bytes: the rule is inert until M5 marks a robot.
+        explicit = [f.model_copy(update={"held_robot_ids": ()}) for f in frames]
+        for zones in ([], [_ZONE]):
+            assert (
+                resolve_classical(frames, zones, _PARAMS).model_dump_json()
+                == resolve_classical(explicit, zones, _PARAMS).model_dump_json()
+            )
+
+    @pytest.mark.parametrize(("r1_x", "r2"), _B1_POSES)
+    def test_b1_merge_without_exclusion_names_held_robot_3(self, r1_x, r2):
+        # The recorded pre-rule behaviour: robot_3, held with a clear front,
+        # reads as blocked_path and Arm B would reroute (release) it.
+        c = classify_scene([_frame(30.0, *_b1_merge(r1_x, r2))], [], _PARAMS)
+        assert (c.scenario, c.involved_robots) == ("blocked_path", ["robot_3"])
+
+    @pytest.mark.parametrize(("r1_x", "r2"), _B1_POSES)
+    def test_b1_merge_with_held_robot_3_is_unknown_merge_pair(self, r1_x, r2):
+        frame = _held_frame(30.0, ("robot_3",), *_b1_merge(r1_x, r2))
+        resolution = resolve_classical([frame], [], _PARAMS)
+        assert resolution.classification.scenario == "unknown"
+        assert resolution.decision.involved_robots == ["robot_1", "robot_2"]
+        assert resolution.decision.strategy == "temporary_wait"
+
+    @pytest.mark.parametrize(("r1_x", "r2"), _B1_POSES)
+    def test_b1_merge_zone_changes_nothing(self, r1_x, r2):
+        # The design doc's optional gate-mouth zone: goal axes are parallel,
+        # so the intersection rule cannot fire either way.
+        zone = ConflictZone(zone_id="aperture_1", x=0.4, y=0.0, radius_m=1.5)
+        frame = _held_frame(30.0, ("robot_3",), *_b1_merge(r1_x, r2))
+        c = classify_scene([frame], [zone], _PARAMS)
+        assert (c.scenario, c.involved_robots) == ("unknown", ["robot_1", "robot_2"])
+
+    def test_b3_grid_without_exclusion_flips_10_of_45(self):
+        flipped = set()
+        for case in _B3_GRID:
+            c = classify_scene([_frame(30.0, *_b3_standoff(*case))], [], _PARAMS)
+            if c.scenario != "head_on":
+                assert (c.scenario, c.involved_robots) == ("blocked_path", ["robot_3"])
+                flipped.add(case)
+        assert flipped == _B3_CROWDED
+
+    @pytest.mark.parametrize("case", _B3_GRID)
+    def test_b3_grid_with_held_queue(self, case):
+        # Candidacy-only exclusion: the held robot_3 still crowds the pair, so
+        # the 10 crowded cases read unknown [robot_1, robot_2] (a wait), not
+        # head_on; the design doc's "45/45 head_on" presumed the held robots
+        # also left the crowding check, which item 28 did not approve.
+        frame = _held_frame(30.0, ("robot_3", "robot_4"), *_b3_standoff(*case))
+        c = classify_scene([frame], [], _PARAMS)
+        expected = "unknown" if case in _B3_CROWDED else "head_on"
+        assert (c.scenario, c.involved_robots) == (expected, ["robot_1", "robot_2"])
+
+
 class TestClassifyHeadOn:
     def test_classify_head_on_when_opposed_pair_goals_beyond(self):
         c = classify_scene([_frame(1.0, *_head_on_pair())], [], _PARAMS)

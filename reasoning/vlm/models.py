@@ -44,6 +44,11 @@ class SnapshotFrame(BaseModel):
 
     stamp: float = Field(ge=0)
     robots: list[RobotStateInput]
+    # Robots whose base mission M5 still holds back at this frame's instant
+    # (`start_pending` in its registry). Frame-level, not a RobotStateInput
+    # field, so no prompt-rendered contract changes; read only by Arm B's
+    # held-robot exclusion. Empty for every frame built before it existed.
+    held_robot_ids: tuple[str, ...] = ()
 
     def find_robot(self, robot_id: str) -> RobotStateInput | None:
         """Return the state for `robot_id`.

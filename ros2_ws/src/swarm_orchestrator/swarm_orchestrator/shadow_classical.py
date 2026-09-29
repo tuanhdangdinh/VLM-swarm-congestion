@@ -45,12 +45,17 @@ from reasoning.vlm.motion_table import derive_motion_table
 from swarm_orchestrator.models import SceneSnapshot
 
 GoalLookup = Callable[[str], tuple[float, float] | None]
+# Registry lookup of whether a robot's base mission is still held back
+# (`TaskRegistry.is_pending`, published as `start_pending`).
+HeldLookup = Callable[[str], bool]
 ResolveFn = Callable[..., ClassicalResolution]
 # (vlm, classical, *, classical_blocker_kind=..., classical_passing_order=...)
 CompareFn = Callable[..., DisagreementRecord]
 
 
-def snapshot_to_frame(snapshot: SceneSnapshot, goal_of: GoalLookup) -> SnapshotFrame:
+def snapshot_to_frame(
+    snapshot: SceneSnapshot, goal_of: GoalLookup, held_of: HeldLookup | None = None
+) -> SnapshotFrame:
     """Project one M5 scene snapshot into the reasoning-side `SnapshotFrame`.
 
     Args:
@@ -58,6 +63,10 @@ def snapshot_to_frame(snapshot: SceneSnapshot, goal_of: GoalLookup) -> SnapshotF
         goal_of: Registry lookup of a robot's effective goal; M1's SceneState
             goal is not carried by `RobotView`, so the task registry M5 owns is
             the goal source. Returns None for a robot with no assignment.
+        held_of: Registry lookup of whether a robot is still held back
+            (`start_pending`); its answer at this call is the frame's
+            `held_robot_ids`, which Arm B's held-robot exclusion reads. None
+            marks no robot held (every frame before the rule existed).
 
     Returns:
         Frame stamped with the scene stamp (M1's clock), one state per robot.
@@ -79,7 +88,12 @@ def snapshot_to_frame(snapshot: SceneSnapshot, goal_of: GoalLookup) -> SnapshotF
         )
         for view in snapshot.robots
     ]
-    return SnapshotFrame(stamp=snapshot.stamp, robots=robots)
+    held = (
+        ()
+        if held_of is None
+        else tuple(sorted(view.robot_id for view in snapshot.robots if held_of(view.robot_id)))
+    )
+    return SnapshotFrame(stamp=snapshot.stamp, robots=robots, held_robot_ids=held)
 
 
 def find_censored_arrivals(
@@ -556,7 +570,9 @@ class ClassicalShadow:
         """Why the shadow cannot run on frozen params, or None when it can."""
         return self._source.error
 
-    def observe(self, snapshot: SceneSnapshot, goal_of: GoalLookup) -> None:
+    def observe(
+        self, snapshot: SceneSnapshot, goal_of: GoalLookup, held_of: HeldLookup | None = None
+    ) -> None:
         """Feed one received scene into the buffer; never raises.
 
         Dropped frames (M1's late-frame suppression) and robot-less scenes are
@@ -566,13 +582,15 @@ class ClassicalShadow:
         Args:
             snapshot: Scene as received on the scene-state topic.
             goal_of: Registry lookup of a robot's effective goal.
+            held_of: Registry lookup of whether a robot is held back; None
+                marks none held.
         """
         try:
             if snapshot.dropped_frame or not snapshot.robots:
                 return
             if not self._buffer.accepts(snapshot.stamp):
                 return
-            self._buffer.add(snapshot_to_frame(snapshot, goal_of))
+            self._buffer.add(snapshot_to_frame(snapshot, goal_of, held_of))
         except Exception as exc:  # the shadow must never fail a scene callback
             self._feed_errors += 1
             self._last_feed_error = f"{type(exc).__name__}: {exc}"
@@ -583,6 +601,7 @@ class ClassicalShadow:
         snapshot: SceneSnapshot,
         goal_of: GoalLookup,
         episode_index: int,
+        held_of: HeldLookup | None = None,
     ) -> ShadowClassicalRecord:
         """Compute Arm B's answer on the evidence of one analysis; never raises.
 
@@ -591,6 +610,8 @@ class ClassicalShadow:
             snapshot: The scene that request was built from.
             goal_of: Registry lookup of a robot's effective goal.
             episode_index: M5's congestion-episode index for this analysis.
+            held_of: Registry lookup of whether a robot is held back; None
+                marks none held.
 
         Returns:
             Record with the classical decision, or with `shadow_error` set.
@@ -606,6 +627,7 @@ class ClassicalShadow:
             "episode_analyses",
             feed_errors,
             last_feed_error,
+            held_of,
         )
 
     def evaluate_probe(
@@ -613,6 +635,7 @@ class ClassicalShadow:
         request_id: str,
         snapshot: SceneSnapshot,
         goal_of: GoalLookup,
+        held_of: HeldLookup | None = None,
     ) -> ShadowClassicalRecord:
         """Compute Arm B's answer for a T0 log-only probe; never raises.
 
@@ -625,6 +648,8 @@ class ClassicalShadow:
             request_id: The probe's request id.
             snapshot: The scene the probe request was built from.
             goal_of: Registry lookup of a robot's effective goal.
+            held_of: Registry lookup of whether a robot is held back; None
+                marks none held.
 
         Returns:
             Record with the classical decision, or with `shadow_error` set.
@@ -637,6 +662,7 @@ class ClassicalShadow:
             "t0_probe",
             self._feed_errors,
             self._last_feed_error,
+            held_of,
         )
 
     def _evaluate(
@@ -648,6 +674,7 @@ class ClassicalShadow:
         prior_attempts_source: str,
         feed_errors: int,
         last_feed_error: str | None,
+        held_of: HeldLookup | None = None,
     ) -> ShadowClassicalRecord:
         params = self._source.params
         base: dict[str, Any] = {
@@ -672,7 +699,7 @@ class ClassicalShadow:
         try:
             latest = None
             if not snapshot.dropped_frame and snapshot.robots:
-                latest = snapshot_to_frame(snapshot, goal_of)
+                latest = snapshot_to_frame(snapshot, goal_of, held_of)
             frames = self._buffer.frames(latest)
             if frames:
                 base.update(

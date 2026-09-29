@@ -231,6 +231,61 @@ def test_snapshot_to_frame_leaves_goal_none_when_registry_has_no_goal():
     assert snapshot_to_frame(scene, _goal_of).robots[0].goal is None
 
 
+def test_snapshot_to_frame_marks_no_robot_held_without_lookup():
+    assert snapshot_to_frame(_trigger_scene(), _goal_of).held_robot_ids == ()
+
+
+def test_snapshot_to_frame_records_held_robots_sorted():
+    scene = _scene(
+        1.0,
+        _view("robot_3", -2.45, 0.0, 0.0, "STOPPED", 1.0),
+        _view("robot_1", 0.0, 0.0, 0.0, "STOPPED", 1.0),
+        _view("robot_2", 0.3, math.pi, 0.0, "STOPPED", 1.0),
+    )
+    held = {"robot_3", "robot_2"}
+    frame = snapshot_to_frame(scene, _goal_of, held.__contains__)
+    assert frame.held_robot_ids == ("robot_2", "robot_3")
+
+
+def test_snapshot_to_frame_robot_states_unchanged_by_held_lookup():
+    plain = snapshot_to_frame(_trigger_scene(), _goal_of)
+    held = snapshot_to_frame(_trigger_scene(), _goal_of, {"robot_1"}.__contains__)
+    assert [r.model_dump() for r in held.robots] == [r.model_dump() for r in plain.robots]
+
+
+def _t2b_held_scene(stamp: float = 10.0) -> SceneSnapshot:
+    # A lone stopped robot with a clear front: blocked_path unless held.
+    return _scene(stamp, _view("robot_3", -2.45, 0.0, 0.0, "STOPPED", stamp))
+
+
+def test_evaluate_excludes_robot_the_registry_holds():
+    record = _shadow().evaluate("req-1", _t2b_held_scene(), _goal_of, 0, {"robot_3"}.__contains__)
+    assert record.classification is not None
+    assert record.classification.scenario == "none"
+    assert record.decision is not None and record.decision.congestion_detected is False
+
+
+def test_evaluate_without_held_lookup_keeps_blocked_path():
+    record = _shadow().evaluate("req-1", _t2b_held_scene(), _goal_of, 0)
+    assert record.classification is not None
+    assert record.classification.scenario == "blocked_path"
+
+
+def test_evaluate_probe_excludes_robot_the_registry_holds():
+    record = _shadow().evaluate_probe(
+        "req-p", _t2b_held_scene(), _goal_of, {"robot_3"}.__contains__
+    )
+    assert record.classification is not None
+    assert record.classification.scenario == "none"
+
+
+def test_observe_records_held_robots_in_buffered_frames():
+    shadow = _shadow()
+    shadow.observe(_t2b_held_scene(1.0), _goal_of, {"robot_3"}.__contains__)
+    (frame,) = shadow._buffer.frames()
+    assert frame.held_robot_ids == ("robot_3",)
+
+
 # ---- load_shadow_params ----
 
 

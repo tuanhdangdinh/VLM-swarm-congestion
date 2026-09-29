@@ -126,7 +126,7 @@ def classify_scene(
 
     Rules evaluate in order `head_on` -> `intersection` -> `blocked_path` ->
     `unknown`; the verdict is `none` when no robot is stopped, or when no
-    rule matches and every stopped robot is parked at its goal. A robot is
+    rule matches and every stopped robot is parked at its goal or held. A robot is
     stopped when `|linear_velocity| < stopped_speed_mps`, or, with no
     velocity, when its status is STOPPED or STALE.
 
@@ -149,6 +149,15 @@ def classify_scene(
       `intersection`, and as another robot's blocker: reaching its goal does
       not stop it obstructing someone else. A robot with no goal is never
       excluded.
+    - Held robots: a robot in the latest frame's `held_robot_ids` (M5 still
+      holds its base mission back, `start_pending`) has not been sent
+      anywhere, so standing still is not a stall. It is excluded exactly like
+      a parked robot: no `blocked_path` candidate, not in the `unknown`
+      involved set, still counted for `head_on` (including its crowding
+      check), `intersection`, and as another robot's blocker. Rule added
+      2026-09-29, pre-freeze (amendments item 28), after the unified scene
+      design found Arm B naming the held queue robot `blocked_path` in the
+      bottleneck merge and in 10 of 45 convoy standoff cases.
 
     Args:
         frames: Snapshot history; only the latest frame (by stamp) is
@@ -199,7 +208,10 @@ def classify_scene(
                 zone_id=zone.zone_id,
             )
 
-    candidates = [s for s in stopped if not _parked_at_goal(s, params)]
+    held = set(latest.held_robot_ids)
+    candidates = [
+        s for s in stopped if not _parked_at_goal(s, params) and s.robot_id not in held
+    ]
     if not candidates:
         return ClassicalClassification(
             scenario="none", congestion_type="none", blocker_kind=None, involved_robots=[]
@@ -269,7 +281,7 @@ def resolve_classical(
 
     Returns:
         Frozen resolution; its `decision` has `congestion_detected=False` when
-        nothing is stopped or only robots parked at their goals are.
+        nothing is stopped or only robots parked at their goals or held are.
 
     Raises:
         ValueError: If `frames` is empty or `prior_attempts` is negative.
@@ -282,11 +294,13 @@ def resolve_classical(
 
     if scenario == "none":
         latest = max(frames, key=lambda frame: frame.stamp)
-        root_cause = (
-            "classical: stopped robots are all parked at their goals"
-            if any(_is_stopped(state, params) for state in latest.robots)
-            else "classical: no stopped robots"
-        )
+        stopped_ids = {s.robot_id for s in latest.robots if _is_stopped(s, params)}
+        if not stopped_ids:
+            root_cause = "classical: no stopped robots"
+        elif stopped_ids & set(latest.held_robot_ids):
+            root_cause = "classical: stopped robots are all parked at their goals or held back"
+        else:
+            root_cause = "classical: stopped robots are all parked at their goals"
         decision = CongestionDecision(
             congestion_detected=False,
             type="none",
