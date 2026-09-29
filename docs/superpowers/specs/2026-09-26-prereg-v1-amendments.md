@@ -34,6 +34,13 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 16 (2026-09-29): item 27 — `intersection_bottleneck` audited and
+  smoked pre-tag (light fixes `49ac434`; first live Arm B `intersection`
+  classification, 35/35 correct): the four-way is structurally
+  unresolvable by the single-yield primitive, so per USER DECISION C it
+  leaves T1 (replaced by `head_on_asymmetric_wopen_eopen_o0`) and
+  becomes the log-only T1-X classification cell (10 probes, RQ1);
+  multi-axis M3 grounding is a prereg-v2 candidate (spec Rev 9.3).
 - Rev 15 (2026-09-29): absorbed into the research design as rev 9
   (`docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md`),
   which is now the authoritative text; this document remains the

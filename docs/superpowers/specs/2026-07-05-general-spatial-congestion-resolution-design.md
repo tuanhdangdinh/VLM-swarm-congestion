@@ -114,6 +114,7 @@
   oracle rationale is neutralised (`a7730ee`), and decision artifacts record
   the served model while the rescorer credits latched-at-goal arrivals
   (`37a0dd5`).
+- Rev 9.3 (2026-09-29): T1 amendment by user decision C — `intersection_bottleneck` removed from the non-inferiority tier (structurally unresolvable by the single-yield primitive; Arm B's own answer inexecutable 33/35 live, the executable yield correctly held by the pair-scoped latch) and replaced with `head_on_asymmetric_wopen_eopen_o0`; the realigned scenario becomes the new log-only T1-X classification cell (10 probes, RQ1 only); multi-axis M3 grounding recorded as a prereg-v2 candidate.
 - Rev 9.2 (2026-09-29): T1 tuning basket (amendments item 14) — new Arm B
   parameter `fcfs_zone_radius_m` 1.0 m added to the tuning-parity list;
   M1 thresholds, Arm B `stopped_speed_mps` and the M4 speed rule kept
@@ -409,9 +410,29 @@ values kept (`docs/reports/2026-09-29-t1-tuning-basket.md`).
   multiple runs. Parked-phase
   probes and frozen-replicate probes (the same scene re-probed) are
   reported as separate strata and do not count toward the 20.
-- **T1 Geometry-sufficient** (non-inferiority tier): current
-  `head_on_deadlock` (0.55×2.0 corridor) and `intersection_bottleneck`.
-  Classical solves these; the VLM must match it.
+- **T1 Geometry-sufficient** (non-inferiority tier): `head_on_deadlock`
+  (0.55×2.0 corridor) and `head_on_asymmetric_wopen_eopen_o0` (the
+  validated symmetric-open family variant). Classical solves these; the
+  VLM must match it. *Rev 9.3 (user decision C, 2026-09-29):
+  `intersection_bottleneck` is REMOVED from this tier — the 2026-09-29
+  smoke (`data/logs/vm_runs/intersection_smoke/`, notes `c58f688`)
+  established the four-way plus geometry is structurally unresolvable by
+  the single-yield primitive regardless of the reasoner: Arm B's own
+  grounded answer was inexecutable in 33/35 live analyses, and the one
+  executable yield was correctly held by the pair-scoped safety latch
+  (the yielder sits < 0.45 m from robots outside its exempt pair). This
+  is recorded as an architecture finding, not a reasoner result. The
+  scenario itself (realigned at `49ac434`) moves to the new
+  T1-X classification cell below; multi-axis M3 grounding is a
+  prereg-v2 candidate.*
+- **T1-X Intersection classification probes** (log-only, RQ1 only):
+  the realigned `intersection_bottleneck` run with `t0_probe_mode`
+  machinery — the standoff forms and is probed; no resolution is
+  attempted or scored (it is structurally impossible, above). Scores
+  stage-1 classification (`type`, involved set) for Arm A against the
+  authored ground truth, with the Arm B shadow's `intersection` verdict
+  (35/35 correct in the smoke, zone `crossing_1`) recorded per probe.
+  n = 10 standoff-phase probes.
 - **T2 Geometry-ambiguous** (reasoning tier): variants where naive
   geometry is wrong or arbitrary — (a) asymmetric retreat space (one
   side's candidates infeasible; the correct yielder is NOT the FCFS pick
@@ -662,7 +683,8 @@ pre-specified conditional extension, reported as such).
 
 | Cell | Scenarios | Arms / condition | N | Primary test |
 |---|---|---|---|---|
-| T1 non-inferiority | `head_on_deadlock`, `intersection_bottleneck` | A vs B paired, dual | 30 pairs/scenario (→ 60 by extension rule) | one-sided 95% bound on paired Δ success ≤ 10 pp (McNemar-style) |
+| T1 non-inferiority | `head_on_deadlock`, `head_on_asymmetric_wopen_eopen_o0` *(rev 9.3: replaces `intersection_bottleneck`, structurally unresolvable — see the tier entry)* | A vs B paired, dual | 30 pairs/scenario (→ 60 by extension rule) | one-sided 95% bound on paired Δ success ≤ 10 pp (McNemar-style) |
+| T1-X intersection classification | `intersection_bottleneck` (realigned, `49ac434`) | A log-only probes, dual; Arm B shadow recorded | 10 standoff-phase probes | classification accuracy vs authored ground truth, descriptive; no resolution scored |
 | T2 oracle agreement | T2a (`_bshort` west/east), T2b (`t2b_flow_ordering`, legacy grounding — rev 9) | A vs B paired, dual | 15 pairs/variant | oracle-agreement rate A vs B, Fisher exact, α = 0.05; scored pre-gate (rev 9) |
 | T3a counterfactual pairs | `blocked_path_object` / `blocked_path_transient` | A executed (B shadow), dual (rev 9: B-executed outcome cell dropped) | 15 pairs (= 30 episodes) | divergent-and-correct rate (decision-scored): one-sided 95% binomial lower bound > 0.5 |
 | T3b obstacle-in-candidate | `obstacle_in_candidate`, k = 3 candidates | A executed (B shadow), dual; 5 B executed; executed-`robot_1`-yield trials only (rev 9) | 15 scored, cap 30 episodes (rev 9.1) + 5 | rev 9: occupied-choice rate < 1/3, exact one-sided binomial, α = 0.05 (≤ 1/15 at n = 15) |
