@@ -16,8 +16,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from reasoning.rag.scene_geometry import (
     SceneGeometry,
+    arm_geometry,
     park_offset_m,
     passer_clearance_m,
+    passer_travel_m,
     pull_off_lateral_m,
 )
 from reasoning.vlm.models import RobotStateInput, SnapshotFrame
@@ -147,6 +149,8 @@ def retreat_axes(
     heading. With one it runs along `corridor.axis`, away from the passer:
     the same side rule the legacy grounder and the yield feasibility gate
     use, so the gate's verdict and the candidates describe the same retreat.
+    A yielder with a declared junction arm retreats outward along that arm
+    instead (`scene_geometry.arm_geometry`), as the gate scores it.
 
     Args:
         frame: Current scene snapshot.
@@ -167,8 +171,7 @@ def retreat_axes(
         passer = frame.find_robot(passer_id) if passer_id is not None else None
         if passer is None:
             return None
-        axis_index = _axis_index(geometry)
-        side = _retreat_side(yielder, passer, axis_index)
+        axis_index, side, _ = _yield_side(yielder, passer, geometry)
         unit = (1.0, 0.0) if axis_index == 0 else (0.0, 1.0)
         heading = (-side * unit[0], -side * unit[1])
     return RetreatAxes(retreat=(-heading[0], -heading[1]), left=(-heading[1], heading[0]))
@@ -281,6 +284,7 @@ def derive_escort_distance(
     params: GroundingParams,
     *,
     geometry: SceneGeometry | None = None,
+    yielder_id: str | None = None,
 ) -> Derivation:
     """Escort distance placing the passer past the parked yielder (rev-8 A.2).
 
@@ -288,8 +292,9 @@ def derive_escort_distance(
     position, plus the escort clearance from `maneuver_limits`. Without a
     geometry it is measured along the passer's own heading (signed, so a
     passer facing away is infeasible); with one, along `corridor.axis`,
-    exactly as the legacy grounder measures it. Out-of-band requirements are
-    infeasible, never truncated.
+    exactly as the legacy grounder measures it, or for a passer on a crossing
+    junction arm to the junction's far mouth (`scene_geometry.passer_travel_m`).
+    Out-of-band requirements are infeasible, never truncated.
 
     Args:
         frame: Current scene snapshot.
@@ -297,6 +302,8 @@ def derive_escort_distance(
         yielder_parked_xy: World position the yielder retreats to.
         params: Geometry parameters.
         geometry: Declared scene geometry, or None.
+        yielder_id: The yielder, whose declared arm (if any) fixes the axis
+            the parked position is compared along.
 
     Returns:
         Feasible derivation with `value_m` (millimetre-rounded), or infeasible
@@ -308,8 +315,9 @@ def derive_escort_distance(
     if geometry is None:
         along = project_progress((passer.x, passer.y), yielder_parked_xy, passer.theta)
     else:
-        axis_index = _axis_index(geometry)
-        along = abs((passer.x, passer.y)[axis_index] - yielder_parked_xy[axis_index])
+        along = passer_travel_m(
+            passer_id, (passer.x, passer.y), yielder_parked_xy, geometry, yielder_id
+        )
     required = along + maneuver_limits(params, geometry).escort_clearance_m
     low, high = params.escort_band_m
     if required < low - _EPS or required > high + _EPS:
@@ -327,6 +335,7 @@ def derive_queued_passer_clearance(
     params: GroundingParams,
     *,
     geometry: SceneGeometry | None = None,
+    yielder_id: str | None = None,
 ) -> Derivation:
     """Clearance for a later passer of a multi-passer yield (not the first).
 
@@ -343,6 +352,7 @@ def derive_queued_passer_clearance(
         yielder_parked_xy: World position the yielder retreats to.
         params: Geometry parameters.
         geometry: Declared scene geometry, or None.
+        yielder_id: The yielder, as for `derive_escort_distance`.
 
     Returns:
         Feasible derivation with `value_m` (millimetre-rounded), or infeasible
@@ -354,8 +364,9 @@ def derive_queued_passer_clearance(
     if geometry is None:
         along = project_progress((passer.x, passer.y), yielder_parked_xy, passer.theta)
     else:
-        axis_index = _axis_index(geometry)
-        along = abs((passer.x, passer.y)[axis_index] - yielder_parked_xy[axis_index])
+        along = passer_travel_m(
+            passer_id, (passer.x, passer.y), yielder_parked_xy, geometry, yielder_id
+        )
     required = along + maneuver_limits(params, geometry).escort_clearance_m
     return Derivation(feasible=True, value_m=round(max(params.escort_band_m[0], required), 3))
 
@@ -384,6 +395,18 @@ def _axis_index(geometry: SceneGeometry) -> int:
     return 0 if geometry.corridor.axis == "x" else 1
 
 
+def _yield_side(
+    yielder: RobotStateInput, passer: RobotStateInput, geometry: SceneGeometry
+) -> tuple[int, float, SceneGeometry]:
+    # (axis index, retreat side, corridor geometry) of the yielder: its
+    # declared junction arm when it has one, else the passer-relative rule.
+    resolved, arm_side = arm_geometry(geometry, yielder.robot_id)
+    axis_index = _axis_index(resolved)
+    if arm_side is not None:
+        return axis_index, arm_side, resolved
+    return axis_index, _retreat_side(yielder, passer, axis_index), resolved
+
+
 def _retreat_side(yielder: RobotStateInput, passer: RobotStateInput, axis_index: int) -> float:
     # Identical to the legacy grounder and the feasibility gate, ties included.
     yielder_coord = (yielder.x, yielder.y)[axis_index]
@@ -396,8 +419,7 @@ def _park_backup_floor_m(
 ) -> float:
     # Rounded like the legacy park_coord so both paths land on the same
     # millimetre; a yielder already past its park point needs no floor.
-    axis_index = _axis_index(geometry)
-    side = _retreat_side(yielder, passer, axis_index)
-    park_coord = round(geometry.corridor.center_m + side * park_offset_m(geometry), 3)
+    axis_index, side, resolved = _yield_side(yielder, passer, geometry)
+    park_coord = round(resolved.corridor.center_m + side * park_offset_m(resolved), 3)
     yielder_coord = (yielder.x, yielder.y)[axis_index]
     return max(0.0, (park_coord - yielder_coord) * side)

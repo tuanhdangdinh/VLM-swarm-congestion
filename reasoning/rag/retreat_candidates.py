@@ -10,7 +10,7 @@ import math
 from pydantic import BaseModel, ConfigDict, Field
 
 from reasoning.rag.maneuver_geometry import GroundingParams, maneuver_limits, retreat_axes
-from reasoning.rag.scene_geometry import SceneGeometry
+from reasoning.rag.scene_geometry import SceneGeometry, arm_geometry
 from reasoning.vlm.models import RobotStateInput, SnapshotFrame
 
 _LABELS = ("A", "B", "C", "D")
@@ -61,7 +61,9 @@ def generate_retreat_candidates(
     axis come from it (`maneuver_limits`, `retreat_axes`), and unless
     `params.aisle_y_band_m` overrides it the aisle band is the yielder's lane
     widened by `pull_off_lateral_m` either side, perpendicular to the
-    corridor, which leaves only the 1x variants.
+    corridor (the yielder's own junction arm, when declared), which leaves
+    only the 1x variants. `aisle_y_band_m` is a world y band, so it suits only
+    yielders retreating along x.
 
     Args:
         frame: Current scene snapshot.
@@ -171,8 +173,10 @@ def _aisle_band(
     if geometry is None:
         return None
     # The corridor declares no perpendicular centre; like the feasibility
-    # gate's lateral band, it is taken at the yielder's own coordinate.
-    perp_index = 1 if geometry.corridor.axis == "x" else 0
+    # gate's lateral band, it is taken at the yielder's own coordinate, across
+    # the yielder's own junction arm when it has one.
+    corridor = arm_geometry(geometry, yielder.robot_id)[0].corridor
+    perp_index = 1 if corridor.axis == "x" else 0
     centre = (yielder.x, yielder.y)[perp_index]
     return (perp_index, centre - lateral_m, centre + lateral_m)
 

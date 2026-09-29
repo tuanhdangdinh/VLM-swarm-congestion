@@ -20,8 +20,10 @@ from reasoning.rag.retreat_candidates import (
 )
 from reasoning.rag.scene_geometry import (
     SceneGeometry,
+    arm_geometry,
     park_offset_m,
     passer_clearance_m,
+    passer_travel_m,
     pull_off_lateral_m,
     required_room_m,
     yield_feasible,
@@ -235,7 +237,8 @@ def _apply_yield_feasibility(
 
     Each involved robot is scored as the candidate yielder: it would retreat to
     its own side of the corridor (away from the other robot), so the static
-    obstacles beyond that corridor mouth bound how far back it can go.
+    obstacles beyond that corridor mouth bound how far back it can go. A robot
+    with a declared junction arm is scored outward along that arm instead.
 
     Args:
         robot_ids: Involved robots, the decided yielder first.
@@ -262,14 +265,18 @@ def _apply_yield_feasibility(
     feasible: dict[str, bool] = {}
     for robot_id, position in positions.items():
         assert position is not None
-        # The retreat side is taken against the first other involved robot,
-        # which is exact for the two-robot head-on scenes this gate targets; a
-        # three-robot conflict would need a per-pair side instead.
-        other = next(positions[o] for o in robot_ids if o != robot_id)
-        assert other is not None
-        side = -1.0 if position[axis_index] < other[axis_index] else 1.0
-        rooms[robot_id] = yield_retreat_room_m(position, side, static_obstacles, geometry)
-        feasible[robot_id] = yield_feasible(position, side, static_obstacles, geometry)
+        robot_geometry, arm_side = arm_geometry(geometry, robot_id)
+        if arm_side is not None:
+            side = arm_side
+        else:
+            # The retreat side is taken against the first other involved
+            # robot, which is exact for the two-robot head-on scenes this gate
+            # targets; a junction declares each robot's arm instead.
+            other = next(positions[o] for o in robot_ids if o != robot_id)
+            assert other is not None
+            side = -1.0 if position[axis_index] < other[axis_index] else 1.0
+        rooms[robot_id] = yield_retreat_room_m(position, side, static_obstacles, robot_geometry)
+        feasible[robot_id] = yield_feasible(position, side, static_obstacles, robot_geometry)
 
     decided = robot_ids[0]
     if feasible[decided]:
@@ -582,8 +589,12 @@ def _ground_legacy(
                 park_offset = PARK_ABS_X_M
                 passer_clearance = PASSER_CLEARANCE_M
                 axis_index = 0
+                # A yielder with a declared junction arm parks outward along it.
+                arm_side: float | None = None
+                yielder_geometry = geometry
                 if geometry is not None:
-                    park_axis = geometry.corridor.axis
+                    yielder_geometry, arm_side = arm_geometry(geometry, robot_ids[0])
+                    park_axis = yielder_geometry.corridor.axis
                     axis_index = 0 if park_axis == "x" else 1
                     corridor_center = geometry.corridor.center_m
                     park_offset = park_offset_m(geometry)
@@ -591,11 +602,11 @@ def _ground_legacy(
                     pull_off_lateral = round(pull_off_lateral_m(geometry), 3)
                 yielder_coord = yielder_position[axis_index]
                 passer_coord = passer_position[axis_index]
-                if geometry is not None:
+                if yielder_geometry is not None:
                     # The far park point would sit on the opposite side, so the
                     # reverse would traverse the whole corridor — refuse instead.
                     yield_refused = _beyond_corridor_same_side(
-                        yielder_position, passer_position, geometry
+                        yielder_position, passer_position, yielder_geometry
                     )
                     if yield_refused:
                         yield_refusal_reason = (
@@ -605,8 +616,22 @@ def _ground_legacy(
                 if not yield_refused:
                     # Park on the yielder's own side of the corridor, away
                     # from the passer, so the two never swap sides mid-maneuver.
-                    side = -1.0 if yielder_coord < passer_coord else 1.0
+                    if arm_side is not None:
+                        side = arm_side
+                    else:
+                        side = -1.0 if yielder_coord < passer_coord else 1.0
                     park_coord = round(corridor_center + side * park_offset, 3)
+
+                    def _travel(passer_id: str, passer_xy: tuple[float, float]) -> float:
+                        # Past the parked yielder along its axis, or out of the
+                        # junction for a passer on a crossing arm.
+                        if geometry is None:
+                            return abs(passer_xy[axis_index] - park_coord)
+                        parked_xy = (park_coord, park_coord)  # only the axis coord is read
+                        return passer_travel_m(
+                            passer_id, passer_xy, parked_xy, geometry, robot_ids[0]
+                        )
+
                     already_parked = (yielder_coord - park_coord) * side >= 0.0
                     # A yielder already past the park point must not reverse
                     # further away from the aisle; MIN_BACKUP_M is just enough
@@ -621,7 +646,7 @@ def _ground_legacy(
                     )
                     escort_m = round(
                         _clamp(
-                            abs(passer_coord - park_coord) + passer_clearance,
+                            _travel(passer_order[0], passer_position) + passer_clearance,
                             MIN_ESCORT_M,
                             MAX_ESCORT_M,
                         ),
@@ -642,8 +667,7 @@ def _ground_legacy(
                             crossing_clear[position] = round(
                                 max(
                                     MIN_ESCORT_M,
-                                    abs(position_xy[axis_index] - park_coord)
-                                    + passer_clearance,
+                                    _travel(passer_id, position_xy) + passer_clearance,
                                 ),
                                 3,
                             )
@@ -1007,7 +1031,9 @@ def resolve_yield_roles(
         if (
             yielder_position is not None
             and passer_position is not None
-            and _beyond_corridor_same_side(yielder_position, passer_position, geometry)
+            and _beyond_corridor_same_side(
+                yielder_position, passer_position, arm_geometry(geometry, robot_ids[0])[0]
+            )
         ):
             refusal = (
                 "yield refused: both robots outside the corridor on "
@@ -1167,7 +1193,12 @@ def _ground_derived(
 
     passer_id = roles.crossing_order[0]
     escort = derive_escort_distance(
-        snapshot, passer_id, (chosen.x, chosen.y), params, geometry=geometry
+        snapshot,
+        passer_id,
+        (chosen.x, chosen.y),
+        params,
+        geometry=geometry,
+        yielder_id=roles.yielder_id,
     )
     if not escort.feasible:
         degradations.append(f"yield=infeasible:{escort.reason}")
@@ -1184,7 +1215,12 @@ def _ground_derived(
         crossing_clear = [escort.value_m]
         for robot_id in roles.crossing_order[1:]:
             queued = derive_queued_passer_clearance(
-                snapshot, robot_id, (chosen.x, chosen.y), params, geometry=geometry
+                snapshot,
+                robot_id,
+                (chosen.x, chosen.y),
+                params,
+                geometry=geometry,
+                yielder_id=roles.yielder_id,
             )
             crossing_clear.append(queued.value_m if queued.value_m is not None else escort.value_m)
         budget = _passer_budget(crossing_clear)

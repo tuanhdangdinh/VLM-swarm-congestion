@@ -27,6 +27,17 @@ class CorridorGeometry(BaseModel):
     occluder_height_m: float = Field(ge=0.0)
 
 
+class ArmGeometry(BaseModel):
+    """The junction arm one robot approached on: its axis and its outward side."""
+
+    model_config = ConfigDict(frozen=True)
+
+    axis: Literal["x", "y"]
+    # Sign of the arm's outward direction from the junction centre along
+    # `axis`: the side the robot came from, so the side it retreats to.
+    side: Literal[-1, 1]
+
+
 class CameraGeometry(BaseModel):
     """Overhead camera mount and the plane its markers live on."""
 
@@ -62,6 +73,73 @@ class SceneGeometry(BaseModel):
     park_margin_m: float = Field(default=0.4, ge=0.0)
     wall_margin_m: float = Field(default=0.15, ge=0.0)
     passer_margin_m: float = Field(default=0.2, ge=0.0)
+    # Junction scenes: robot id -> the arm it approached on. A listed robot
+    # yields along its own arm (`arm_geometry`); every `corridor` dimension
+    # but the axis is shared, so the junction centre is `corridor.center_m` on
+    # both axes. None, or an unlisted robot, keeps the single corridor.
+    arms: dict[str, ArmGeometry] | None = None
+
+
+def arm_geometry(geometry: SceneGeometry, robot_id: str) -> tuple[SceneGeometry, float | None]:
+    """Resolve the corridor a robot yields along, and its retreat side if fixed.
+
+    Args:
+        geometry: Declared scene geometry.
+        robot_id: The robot that would retreat.
+
+    Returns:
+        `(geometry, None)` when the robot has no declared arm: the caller keeps
+        its passer-relative side rule on the single corridor. Otherwise the
+        geometry with `corridor.axis` set to the arm's axis (the same object
+        when the axis already matches) and the arm's outward side as `-1.0`
+        or `+1.0`.
+    """
+    arm = (geometry.arms or {}).get(robot_id)
+    if arm is None:
+        return geometry, None
+    if arm.axis != geometry.corridor.axis:
+        corridor = geometry.corridor.model_copy(update={"axis": arm.axis})
+        geometry = geometry.model_copy(update={"corridor": corridor})
+    return geometry, float(arm.side)
+
+
+def passer_travel_m(
+    passer_id: str,
+    passer_xy: tuple[float, float],
+    yielder_parked_xy: tuple[float, float],
+    geometry: SceneGeometry,
+    yielder_id: str | None,
+) -> float:
+    """How far a passer drives, before the clearance margin, to be clear.
+
+    A passer on the yielder's axis must get past the parked yielder: the
+    distance between them along that axis, as the single-corridor grounder
+    has always measured it. A passer on a crossing arm never meets the parked
+    yielder; it must leave the junction, so the distance runs along its own
+    axis to the far mouth (`corridor.half_length_m` past the centre, on the
+    side opposite the arm it came from), floored at 0.
+
+    Args:
+        passer_id: The passing robot.
+        passer_xy: Its world-frame `(x, y)` in metres.
+        yielder_parked_xy: World position the yielder retreats to; only its
+            coordinate on the yielder's axis is read.
+        geometry: Declared scene geometry.
+        yielder_id: The yielding robot, whose arm fixes the yielder's axis; None
+            uses `corridor.axis`.
+
+    Returns:
+        Travel distance in metres.
+    """
+    yielder_geometry = geometry if yielder_id is None else arm_geometry(geometry, yielder_id)[0]
+    axis_index = 0 if yielder_geometry.corridor.axis == "x" else 1
+    passer_arm = (geometry.arms or {}).get(passer_id)
+    if passer_arm is None or passer_arm.axis == yielder_geometry.corridor.axis:
+        return abs(passer_xy[axis_index] - yielder_parked_xy[axis_index])
+    own_index = 0 if passer_arm.axis == "x" else 1
+    forward = -float(passer_arm.side)
+    far_mouth = geometry.corridor.center_m + forward * geometry.corridor.half_length_m
+    return max(0.0, (far_mouth - passer_xy[own_index]) * forward)
 
 
 def visibility_boundary_m(geometry: SceneGeometry) -> float:
