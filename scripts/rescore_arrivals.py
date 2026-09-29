@@ -92,6 +92,20 @@ clock, but M1 stamps trail the ground-truth state they depict by a constant
 ~0.45 sim-s (per-row interpolation, median 0.451/0.454 s on the two
 `simtime_shadow_val` runs); any future time-based M1-to-GT join must shift M1
 stamps by -0.45 s first.
+
+Omitted-queue latch (B3 `convoy_counterflow`, unified scene design "The
+omitted-queue trap"). A command that lists only the standoff pair leaves the
+held queue outside every linked wait: once released, a queued robot drives
+into the parked yielder and M4's safety latch (0.45 m on M1 positions) holds
+the pair for good. `find_omitted_queue_latch` reads the dispatched command's
+robots off the first yield-deciding decision artifact in analysis order (the
+artifacts record the decision, not the grounded command; `convoy` and
+`priority_override` resolve through M3's own alias), then looks, after the
+dispatch, for a robot the command omits standing within 0.45 m of the yielder
+on M1's scene log, both not MOVING, for at least `OMITTED_QUEUE_MIN_SEC`.
+When that robot never arrived, every row of the run is flagged
+`censored_omitted_queue` (run level); the GT gap over the pair's co-stopped
+samples is reported beside the M1 gap.
 """
 from __future__ import annotations
 
@@ -201,6 +215,12 @@ CSV_FIELDS = [
     "clock_anchor_spread_sec",
     "latched_at_goal",
     "latched_since_epoch",
+    "censored_omitted_queue",
+    "omitted_queue_robots",
+    "omitted_queue_yielder",
+    "omitted_queue_latch_since_epoch",
+    "omitted_queue_min_m1_gap_m",
+    "omitted_queue_min_gt_gap_m",
 ]
 
 LATCHED_AT_GOAL = "latched_at_goal"
@@ -209,6 +229,19 @@ LATCHED_AT_GOAL = "latched_at_goal"
 ACCEPTANCE_EVENT_KINDS = ("reported", "accepted_late")
 
 ClockEra = Literal["wall", "sim", "n/a"]
+
+# M4's latch floor (safety.yaml min_distance_m), which acts on M1 positions.
+OMITTED_QUEUE_LATCH_M = 0.45
+# Shortest co-stopped span inside the latch floor that counts as a latch
+# (M5's stall trigger is 12 wall-s; a passing escort closes and opens a gap in
+# a few seconds).
+OMITTED_QUEUE_MIN_SEC = 10.0
+# Scene-log samples of the two robots further apart in time than this are not
+# paired (the log samples ~1 row per wall-second).
+OMITTED_QUEUE_PAIR_SKEW_SEC = 1.5
+# GT samples slower than this count as stopped for the GT gap report.
+OMITTED_QUEUE_GT_STOPPED_MPS = 0.02
+YIELD_LIKE_STRATEGIES = ("yield", "convoy", "priority_override")
 
 
 @dataclass(frozen=True)
@@ -226,6 +259,7 @@ class GTRow:
     y: float
     dist_to_goal_m: float
     goal: tuple[float, float]
+    speed_mps: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -256,6 +290,29 @@ class LatchedAtGoal:
     check: ArrivalCheck
     age_sec: float
     since_stamp: float
+
+
+@dataclass(frozen=True)
+class DispatchedCommand:
+    """The robots a dispatched yield-like command addresses."""
+
+    request_id: str
+    dispatched_epoch: float
+    strategy: str
+    yielder: str | None
+    commanded: frozenset[str]
+
+
+@dataclass(frozen=True)
+class OmittedQueueLatch:
+    """A robot the command omitted, latched against the parked yielder."""
+
+    robot_id: str
+    yielder: str
+    since_epoch: float
+    span_sec: float
+    min_m1_gap_m: float
+    min_gt_gap_m: float | None
 
 
 @dataclass(frozen=True)
@@ -728,6 +785,178 @@ def resolve_scene_clock(
     return resolution, to_wall
 
 
+def _load_priorities(orchestrator_yaml: Path | None) -> dict[str, int]:
+    if orchestrator_yaml is None:
+        return {}
+    config = yaml.safe_load(orchestrator_yaml.read_text(errors="replace")) or {}
+    return {
+        robot_id: int((task or {}).get("priority", 0))
+        for robot_id, task in (config.get("initial_tasks") or {}).items()
+    }
+
+
+def _resolve_alias(
+    decision: dict, scene: dict | None, priorities: dict[str, int]
+) -> tuple[str | None, list[str]]:
+    from reasoning.rag.command_grounder import resolve_strategy_alias
+    from reasoning.vlm.models import CongestionDecision, RobotStateInput, SnapshotFrame
+
+    robots = [
+        RobotStateInput(
+            robot_id=r["robot_id"], x=r["x"], y=r["y"], theta=r["theta"],
+            goal=None if r.get("goal") is None else tuple(r["goal"]),
+        )
+        for r in (scene or {}).get("robots") or []
+    ]
+    alias = resolve_strategy_alias(
+        CongestionDecision.model_validate(decision),
+        SnapshotFrame(stamp=0.0, robots=robots) if robots else None,
+        priorities=priorities,
+    )
+    if alias is None:
+        return None, []
+    return alias.decision.yield_robot, list(alias.decision.crossing_order or [])
+
+
+def find_dispatched_command(
+    run_dir: Path, m5_log_text: str, priorities: dict[str, int] | None = None
+) -> DispatchedCommand | None:
+    """The first yield-like command M5 dispatched, in analysis order.
+
+    Args:
+        run_dir: One run directory, holding `decisions/` or `m5_decisions/`.
+        m5_log_text: Full text of the run's M5 log (analysis order and wall
+            time come from its `starting analysis request=` lines).
+        priorities: M5's registry priorities, for a `priority_override` alias.
+
+    Returns:
+        The command's yielder and addressed robots (yielder, involved robots
+        and crossing order), or None when no analysis grounded a yield-like
+        decision.
+    """
+    for wall_ts, request_id in parse_analysis_requests(m5_log_text):
+        record = None
+        for name in DECISION_DIR_NAMES:
+            path = run_dir / name / f"{request_id}.json"
+            if path.is_file():
+                record = json.loads(path.read_text(errors="replace"))
+                break
+        decision = (record or {}).get("decision") or {}
+        if not record or not record.get("grounded_command_present"):
+            continue
+        strategy = decision.get("strategy")
+        if not decision.get("congestion_detected") or strategy not in YIELD_LIKE_STRATEGIES:
+            continue
+        involved = list(decision.get("involved_robots") or [])
+        yielder = decision.get("yield_robot")
+        order = list(decision.get("crossing_order") or [])
+        if strategy != "yield":
+            yielder, order = _resolve_alias(decision, record.get("scene"), priorities or {})
+        if yielder is None and strategy == "yield" and involved:
+            yielder = involved[0]
+        commanded = {*involved, *order} | ({yielder} if yielder else set())
+        return DispatchedCommand(
+            request_id=request_id, dispatched_epoch=wall_ts, strategy=strategy,
+            yielder=yielder, commanded=frozenset(commanded),
+        )
+    return None
+
+
+def _latch_spans(
+    robot: list[SceneSample], yielder: list[SceneSample], after_epoch: float
+) -> list[tuple[float, float, float]]:
+    """Co-stopped spans inside the latch floor: `(start, end, min_gap)`."""
+    yielder_stamps = [s.stamp for s in yielder]
+    spans: list[tuple[float, float, float]] = []
+    current: list[float] | None = None
+    for sample in robot:
+        if sample.stamp < after_epoch:
+            continue
+        i = bisect.bisect_left(yielder_stamps, sample.stamp)
+        near = [yielder[j] for j in (i - 1, i) if 0 <= j < len(yielder)]
+        partner = min(near, key=lambda s: abs(s.stamp - sample.stamp), default=None)
+        latched = (
+            partner is not None
+            and abs(partner.stamp - sample.stamp) <= OMITTED_QUEUE_PAIR_SKEW_SEC
+            and sample.status != "MOVING"
+            and partner.status != "MOVING"
+            and math.dist((sample.x, sample.y), (partner.x, partner.y)) < OMITTED_QUEUE_LATCH_M
+        )
+        if latched:
+            gap = math.dist((sample.x, sample.y), (partner.x, partner.y))
+            if current is None:
+                current = [sample.stamp, sample.stamp, gap]
+            else:
+                current[1], current[2] = sample.stamp, min(current[2], gap)
+        elif current is not None:
+            spans.append((current[0], current[1], current[2]))
+            current = None
+    if current is not None:
+        spans.append((current[0], current[1], current[2]))
+    return spans
+
+
+def _gt_costopped_min_gap(rows_a: list[GTRow], rows_b: list[GTRow]) -> float | None:
+    by_time = {r.sim_time_sec: r for r in rows_b}
+    gaps = [
+        math.dist((a.x, a.y), (b.x, b.y))
+        for a in rows_a
+        if (b := by_time.get(a.sim_time_sec)) is not None
+        and a.speed_mps < OMITTED_QUEUE_GT_STOPPED_MPS
+        and b.speed_mps < OMITTED_QUEUE_GT_STOPPED_MPS
+    ]
+    return min(gaps) if gaps else None
+
+
+def find_omitted_queue_latch(
+    command: DispatchedCommand,
+    robots_in_run: set[str],
+    arrived: set[str],
+    scene_by_robot: dict[str, list[SceneSample]],
+    gt_by_robot: dict[str, list[GTRow]],
+) -> list[OmittedQueueLatch]:
+    """Robots the command omitted that latched against the parked yielder, censored.
+
+    Args:
+        command: From `find_dispatched_command`.
+        robots_in_run: Every robot of the run (ground truth and reports).
+        arrived: Robots credited with an arrival (M1 rule, latched-at-goal
+            included); an arrived robot is never censored.
+        scene_by_robot: M1 scene samples on the M5 wall clock.
+        gt_by_robot: Ground-truth rows, for the GT gap report.
+
+    Returns:
+        One latch per omitted, never-arrived robot with a co-stopped span of
+        at least `OMITTED_QUEUE_MIN_SEC` within 0.45 m of the yielder after
+        the dispatch; empty when none.
+    """
+    if command.yielder is None or command.yielder not in scene_by_robot:
+        return []
+    latches = []
+    for robot_id in sorted(robots_in_run - command.commanded - arrived):
+        spans = [
+            span
+            for span in _latch_spans(
+                scene_by_robot.get(robot_id, []), scene_by_robot[command.yielder],
+                command.dispatched_epoch,
+            )
+            if span[1] - span[0] >= OMITTED_QUEUE_MIN_SEC
+        ]
+        if not spans:
+            continue
+        gt_gap = None
+        if robot_id in gt_by_robot and command.yielder in gt_by_robot:
+            gt_gap = _gt_costopped_min_gap(gt_by_robot[robot_id], gt_by_robot[command.yielder])
+        latches.append(
+            OmittedQueueLatch(
+                robot_id=robot_id, yielder=command.yielder, since_epoch=spans[0][0],
+                span_sec=spans[-1][1] - spans[0][0],
+                min_m1_gap_m=min(span[2] for span in spans), min_gt_gap_m=gt_gap,
+            )
+        )
+    return latches
+
+
 def check_events_reconciled(
     run_name: str,
     events: list[ArrivalEvent],
@@ -811,6 +1040,7 @@ def load_ground_truth(gt_file: Path) -> dict[str, list[GTRow]]:
                     y=robot["y"],
                     dist_to_goal_m=robot["distance_to_goal_m"],
                     goal=(robot["goal_x"], robot["goal_y"]),
+                    speed_mps=robot.get("speed_mps", 0.0),
                 )
             )
     for series in rows.values():
@@ -1230,7 +1460,41 @@ def score_run(
             )
             resolution_sec = f"n/a (missing {missing}; accepted so far: {partial or 'none'})"
 
+    omitted: list[OmittedQueueLatch] = []
+    command = find_dispatched_command(
+        run_dir, m5_text, _load_priorities(orchestrator_yaml)
+    )
+    if command is not None and scene_by_robot:
+        omitted = find_omitted_queue_latch(
+            command, robots_in_run, set(first_accepted_m1), scene_by_robot, gt_by_robot
+        )
+    for latch in omitted:
+        gt_text = "n/a" if latch.min_gt_gap_m is None else f"{latch.min_gt_gap_m:.3f}"
+        notes.append(
+            f"{latch.robot_id}: omitted by command {command.request_id} "
+            f"({command.strategy}, commanded {sorted(command.commanded)}), latched "
+            f"against yielder {latch.yielder} from {latch.since_epoch:.1f} "
+            f"(M1 gap {latch.min_m1_gap_m:.3f} m, GT co-stopped gap {gt_text} m) and "
+            "never arrived -> censored_omitted_queue"
+        )
+    run_level_omitted = {
+        "censored_omitted_queue": bool(omitted),
+        "omitted_queue_robots": ";".join(latch.robot_id for latch in omitted) or None,
+        "omitted_queue_yielder": omitted[0].yielder if omitted else None,
+        "omitted_queue_latch_since_epoch": (
+            min(latch.since_epoch for latch in omitted) if omitted else None
+        ),
+        "omitted_queue_min_m1_gap_m": (
+            min(latch.min_m1_gap_m for latch in omitted) if omitted else None
+        ),
+        "omitted_queue_min_gt_gap_m": (
+            min((latch.min_gt_gap_m for latch in omitted if latch.min_gt_gap_m is not None),
+                default=None)
+        ),
+    }
+
     for row in rows:
+        row.values.update(run_level_omitted)
         rid = row.values["robot_id"]
         row.values["robot_arrived_m1"] = rid in first_accepted_m1
         row.values["robot_arrived_gt"] = rid in first_accepted_gt
@@ -1284,11 +1548,14 @@ def main() -> int:
     n_flipped = sum(1 for row in all_rows if row.values["flipped"])
     n_overlap = sum(1 for row in all_rows if row.values["box_overlap"])
     n_latched = sum(1 for row in all_rows if row.values["latched_at_goal"])
+    n_omitted = len({row.values["stamp"] for row in all_rows
+                     if row.values["censored_omitted_queue"]})
     print(
         f"scored {len(all_rows)} arrival events across {n_runs} runs; "
         f"{n_flipped} flipped (Nav2-reported, rejected at {args.tolerance_m} m); "
         f"{n_latched} latched at goal without an M5 acceptance (counted arrived); "
-        f"{n_overlap} accepted inside a box grown by {ROBOT_HALF_WIDTH_M} m -> {args.out}"
+        f"{n_overlap} accepted inside a box grown by {ROBOT_HALF_WIDTH_M} m; "
+        f"{n_omitted} runs censored_omitted_queue -> {args.out}"
     )
     return 0
 

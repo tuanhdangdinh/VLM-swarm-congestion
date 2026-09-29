@@ -711,3 +711,126 @@ def test_score_run_does_not_relabel_an_accepted_late_robot_as_latched(tmp_path: 
     rows, _ = score_run(run_dir, tolerance_m=0.35, max_age_sec=2.0)
 
     assert "robot_2" not in _rows_by_robot(rows)
+
+
+# B3 omitted-queue latch: robot_2 yields to robot_1 only; the released robot_3
+# drives into the parked robot_2 (lateral 0.36) and never arrives.
+B3_GOALS = {
+    "robot_1": (2.45, -0.3), "robot_2": (-2.0, 0.0),
+    "robot_3": (2.45, 0.3), "robot_4": (1.85, 0.0),
+}
+PAIR_YIELD = {
+    "congestion_detected": True, "type": "deadlock", "involved_robots": ["robot_1", "robot_2"],
+    "root_cause": "x", "strategy": "yield", "yield_robot": "robot_2", "blocker_kind": "robot",
+    "justification": "x",
+}
+
+
+def _build_b3_run(
+    tmp_path: Path,
+    decision: dict | None = None,
+    latch_sec: float = 30.0,
+    robot_3_arrives: bool = False,
+) -> Path:
+    run_dir = tmp_path / "20260930_000000"
+    run_dir.mkdir()
+    _write_m5_log(run_dir, run_dir.name, [(1060.0, "robot_1", B3_GOALS["robot_1"])])
+    decisions = run_dir / "decisions"
+    decisions.mkdir()
+    scene_robots = [
+        {"robot_id": "robot_1", "x": -0.12, "y": 0.0, "theta": 0.0, "goal": [2.45, -0.3]},
+        {"robot_id": "robot_2", "x": 0.12, "y": 0.0, "theta": math.pi, "goal": [-2.0, 0.0]},
+        {"robot_id": "robot_3", "x": -1.9, "y": 0.0, "theta": 0.0, "goal": [2.45, 0.3]},
+        {"robot_id": "robot_4", "x": -2.47, "y": 0.0, "theta": 0.0, "goal": [1.85, 0.0]},
+    ]
+    (decisions / "r1.json").write_text(json.dumps({
+        "request_id": "r1", "grounded_command_present": True,
+        "decision": decision or PAIR_YIELD, "scene": {"stamp": 1005.0, "robots": scene_robots},
+    }))
+    park = (1.124, 0.36)
+    latch_end = 1020.0 + latch_sec
+    samples: dict[str, list[tuple[float, float, float, str]]] = {
+        "robot_1": [(t, 2.45, -0.3, "STOPPED") for t in range(1000, 1081)],
+        "robot_2": [(t, *park, "STOPPED") for t in range(1000, 1081)],
+        "robot_3": [],
+        "robot_4": [(t, -2.47, 0.0, "STOPPED") for t in range(1000, 1081)],
+    }
+    for t in range(1000, 1081):
+        if t < 1020:
+            pos, status = (-1.9, 0.0), "STOPPED"
+        elif t <= latch_end:
+            pos, status = (1.124 - 0.2, 0.0), "STOPPED"  # 0.415 m from the park
+        elif robot_3_arrives:
+            pos, status = B3_GOALS["robot_3"], "STOPPED"
+        else:
+            pos, status = (0.5, 0.0), "STOPPED"  # held off elsewhere, never arrives
+        samples["robot_3"].append((float(t), pos[0], pos[1], status))
+    _write_scene_log(run_dir, run_dir.name, samples)
+    gt_rows = [
+        (float(t), {rid: (s[1], s[2]) for rid in samples for s in samples[rid] if s[0] == t})
+        for t in range(1000, 1081, 5)
+    ]
+    _write_ground_truth(run_dir, gt_rows, goals=B3_GOALS)
+    return run_dir
+
+
+def test_score_run_flags_an_omitted_queue_robot_latched_on_the_yielder(tmp_path: Path) -> None:
+    rows, notes = score_run(_build_b3_run(tmp_path), tolerance_m=0.35, max_age_sec=2.0)
+
+    robot_1 = _rows_by_robot(rows)["robot_1"]
+    assert robot_1["censored_omitted_queue"] is True
+    assert robot_1["omitted_queue_robots"] == "robot_3"
+    assert robot_1["omitted_queue_yielder"] == "robot_2"
+    expected_gap = math.dist((0.924, 0.0), (1.124, 0.36))
+    assert robot_1["omitted_queue_min_m1_gap_m"] == pytest.approx(expected_gap)
+    assert robot_1["omitted_queue_latch_since_epoch"] == pytest.approx(1020.0)
+    assert any("censored_omitted_queue" in note for note in notes)
+
+
+def test_score_run_does_not_flag_a_command_that_lists_the_queue(tmp_path: Path) -> None:
+    ordered = {**PAIR_YIELD, "involved_robots": ["robot_1", "robot_2", "robot_3", "robot_4"],
+               "crossing_order": ["robot_1", "robot_3", "robot_4", "robot_2"]}
+
+    rows, _ = score_run(_build_b3_run(tmp_path, decision=ordered), tolerance_m=0.35,
+                        max_age_sec=2.0)
+
+    assert _rows_by_robot(rows)["robot_1"]["censored_omitted_queue"] is False
+
+
+def test_score_run_resolves_a_convoy_decision_through_the_alias(tmp_path: Path) -> None:
+    convoy = {**PAIR_YIELD, "involved_robots": ["robot_1", "robot_2", "robot_3", "robot_4"],
+              "strategy": "convoy", "yield_robot": None}
+
+    rows, _ = score_run(_build_b3_run(tmp_path, decision=convoy), tolerance_m=0.35,
+                        max_age_sec=2.0)
+
+    assert _rows_by_robot(rows)["robot_1"]["censored_omitted_queue"] is False
+
+
+def test_find_dispatched_command_reads_the_alias_yielder(tmp_path: Path) -> None:
+    from scripts.rescore_arrivals import find_dispatched_command
+
+    convoy = {**PAIR_YIELD, "involved_robots": ["robot_1", "robot_2", "robot_3", "robot_4"],
+              "strategy": "convoy", "yield_robot": None}
+    run_dir = _build_b3_run(tmp_path, decision=convoy)
+    m5_text = next((run_dir / "component_logs").glob("*_m5.log")).read_text()
+
+    command = find_dispatched_command(run_dir, m5_text)
+
+    assert command is not None
+    assert command.yielder == "robot_2"
+    assert command.commanded == {"robot_1", "robot_2", "robot_3", "robot_4"}
+
+
+def test_score_run_does_not_flag_a_short_contact(tmp_path: Path) -> None:
+    rows, _ = score_run(_build_b3_run(tmp_path, latch_sec=5.0), tolerance_m=0.35,
+                        max_age_sec=2.0)
+
+    assert _rows_by_robot(rows)["robot_1"]["censored_omitted_queue"] is False
+
+
+def test_score_run_does_not_flag_an_omitted_robot_that_arrived(tmp_path: Path) -> None:
+    rows, _ = score_run(_build_b3_run(tmp_path, robot_3_arrives=True), tolerance_m=0.35,
+                        max_age_sec=2.0)
+
+    assert _rows_by_robot(rows)["robot_1"]["censored_omitted_queue"] is False
