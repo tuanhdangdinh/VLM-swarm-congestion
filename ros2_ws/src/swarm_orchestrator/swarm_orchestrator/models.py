@@ -51,6 +51,25 @@ class TaskAssignment(BaseModel):
     # published with `start_pending: true` (still in M1's allowlist, so tracked)
     # and gives no progress-stall evidence. 0 = released at startup.
     start_delay_sec: float = Field(default=0.0, ge=0.0)
+    # Dispatch priority (B2 priority_urgent pair): higher passes first. Read
+    # by M3 only, to resolve a `priority_override` decision's beneficiary; it
+    # is never rendered into any prompt (rendering it would be a prompt
+    # version change) and never published to M1/M4. 0 = routine, and every
+    # scene without a priority is byte-identical to before the field existed.
+    priority: int = 0
+
+
+def registry_priorities(tasks: dict[str, TaskAssignment]) -> dict[str, int]:
+    """Return the non-zero base priorities M3 grounds `priority_override` with.
+
+    Args:
+        tasks: The configured `initial_tasks`.
+
+    Returns:
+        Robot id -> priority for every robot with a non-zero one; empty when no
+        scene priority is declared, which M5 treats as "pass nothing to M3".
+    """
+    return {rid: task.priority for rid, task in sorted(tasks.items()) if task.priority != 0}
 
 
 class OrchestratorConfig(BaseModel):
@@ -440,6 +459,7 @@ def load_config(raw: dict[str, Any]) -> OrchestratorConfig:
             task=spec["task"],
             goal=tuple(spec["goal"]),
             start_delay_sec=spec.get("start_delay_sec", 0.0),
+            priority=spec.get("priority", 0),
         )
         for rid, spec in tasks_in.items()
     }

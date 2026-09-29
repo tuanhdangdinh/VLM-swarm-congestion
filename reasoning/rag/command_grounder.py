@@ -1,5 +1,5 @@
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any, Literal, NamedTuple
 
 from jsonschema import Draft202012Validator
@@ -322,6 +322,7 @@ def ground_reasoner_result(
     params: GroundingParams | None = None,
     retreat_choice: RetreatChoiceDecision | None = None,
     crossing_order: Sequence[str] | None = None,
+    priorities: Mapping[str, int] | None = None,
 ) -> dict[str, Any]:
     """Convert a validated VLM decision into an executable coordination command.
 
@@ -394,6 +395,10 @@ def ground_reasoner_result(
             else the involved-robots order is used (and tagged, in derived
             mode). Legacy mode reads it only for a yield with two or more
             passers.
+        priorities: M5's registry priorities (robot id -> priority; absent
+            means 0), which the prompt never sees. Read only to resolve a
+            `priority_override` decision's beneficiary; None or empty leaves
+            every command as it was before the field existed.
 
     Returns:
         Schema-validated coordination command dict.

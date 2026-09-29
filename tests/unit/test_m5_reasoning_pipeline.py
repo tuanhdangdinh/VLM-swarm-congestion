@@ -35,6 +35,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     summarize_yield_grounding,
     write_decision_artifact,
 )
+from swarm_orchestrator.task_registry import TaskRegistry
 
 from reasoning.rag.command_grounder import ground_reasoner_result
 from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
@@ -406,6 +407,91 @@ def test_pipeline_passes_snapshot_positions_to_grounder():
 
     assert seen["positions"] == {"robot_0": (1.0, 2.0)}
     assert seen["geometry"] == geometry
+
+
+def test_pipeline_passes_no_priorities_kwarg_without_a_declared_priority():
+    seen: dict[str, object] = {}
+
+    def _record(result, robot_positions=None, geometry=None, **kwargs):
+        seen.update(kwargs)
+        return {
+            "command_id": "c1",
+            "actions": [{"robot_id": "robot_0", "action": "yield"}],
+            "expected_resolution_time_sec": 18.0,
+            "fallback": "stop",
+        }
+
+    for priorities in (None, {}):
+        seen.clear()
+        InProcessPipeline(
+            reasoner=_FakeReasoner(_ok_result()), ground_fn=_record, priorities=priorities
+        ).run(_request())
+        assert "priorities" not in seen
+
+
+def test_pipeline_passes_declared_priorities_to_grounder():
+    seen: dict[str, object] = {}
+
+    def _record(result, robot_positions=None, geometry=None, **kwargs):
+        seen.update(kwargs)
+        return {
+            "command_id": "c1",
+            "actions": [{"robot_id": "robot_0", "action": "yield"}],
+            "expected_resolution_time_sec": 18.0,
+            "fallback": "stop",
+        }
+
+    InProcessPipeline(
+        reasoner=_FakeReasoner(_ok_result()), ground_fn=_record, priorities={"robot_0": 1}
+    ).run(_request())
+    assert seen["priorities"] == {"robot_0": 1}
+
+
+def _priority_prompt(priorities: dict[str, int]) -> tuple[str, str]:
+    # The M5 path that builds a prompt: registry -> attached assignments ->
+    # request -> payload. Labels are the B2 _r2 member's.
+    tasks = {
+        "robot_1": TaskAssignment(task="routine_order_delivery", goal=(2.5, 0.0),
+                                  priority=priorities.get("robot_1", 0)),
+        "robot_2": TaskAssignment(task="urgent_order_delivery", goal=(-2.5, 0.0),
+                                  priority=priorities.get("robot_2", 0)),
+    }
+    config = OrchestratorConfig(
+        stall_threshold_sec=12.0, progress_epsilon_m=0.1, cooldown_sec=15.0,
+        command_timeout_sec=20.0, reasoning_backend_id="mock",
+        frame_dump_dir="data/logs/m5_frames", initial_tasks=tasks,
+    )
+    registry = TaskRegistry()
+    registry.load_initial(config)
+    snapshot = SceneSnapshot(
+        stamp=30.0,
+        frame_id="cam0",
+        robots=[
+            RobotView(robot_id="robot_1", x=-0.12, y=0.0, theta=0.0,
+                      linear_velocity=0.0, status="STOPPED", stamp=30.0),
+            RobotView(robot_id="robot_2", x=0.12, y=0.0, theta=3.14159,
+                      linear_velocity=0.0, status="STOPPED", stamp=30.0),
+        ],
+    )
+
+    def goal_of(rid):
+        effective = registry.effective(rid)
+        return None if effective is None else effective[1]
+
+    attached = attach_registry_assignments(snapshot, goal_of, registry.mission_task)
+    request = build_reasoner_request("req-b2", attached, "/tmp/req-b2.png")
+    payload = build_prompt_payload(request)
+    return payload.system_prompt, payload.user_prompt
+
+
+def test_priority_is_never_rendered_in_the_prompt():
+    plain = _priority_prompt({})
+    for priorities in ({"robot_2": 1}, {"robot_1": 1}, {"robot_1": 7, "robot_2": 3}):
+        assert _priority_prompt(priorities) == plain
+    # "priority" occurs in the prompt only as the strategy enum value.
+    user = plain[1]
+    assert user.count("priority") == user.count("priority_override")
+    assert "task=urgent_order_delivery" in user
 
 
 def test_pipeline_passes_no_geometry_to_grounder_when_unconfigured():

@@ -15,6 +15,7 @@ from swarm_orchestrator.models import (
     TerminalStage,
     load_config,
     parse_scene_snapshot,
+    registry_priorities,
 )
 
 from reasoning.vlm.models import ReasonerDiagnostics, ReasonerResult
@@ -94,6 +95,35 @@ def test_load_config_reads_start_delay_and_defaults_it_to_zero():
     cfg = load_config(raw)
     assert cfg.initial_tasks["robot_1"].start_delay_sec == 0.0
     assert cfg.initial_tasks["robot_3"].start_delay_sec == 50.0
+
+
+def test_load_config_reads_priority_and_defaults_it_to_zero():
+    raw = {
+        "stall_threshold_sec": 12.0,
+        "progress_epsilon_m": 0.1,
+        "cooldown_sec": 15.0,
+        "command_timeout_sec": 20.0,
+        "reasoning_backend_id": "mock",
+        "frame_dump_dir": "data/logs/m5_frames",
+        "initial_tasks": {
+            "robot_1": {"task": "routine_order_delivery", "goal": [2.5, 0.0]},
+            "robot_2": {"task": "urgent_order_delivery", "goal": [-2.5, 0.0], "priority": 1},
+        },
+    }
+    cfg = load_config(raw)
+    assert cfg.initial_tasks["robot_1"].priority == 0
+    assert cfg.initial_tasks["robot_2"].priority == 1
+    assert registry_priorities(cfg.initial_tasks) == {"robot_2": 1}
+
+
+def test_registry_priorities_empty_without_a_declared_priority():
+    tasks = {"robot_1": TaskAssignment(task="t", goal=(0.0, 0.0))}
+    assert registry_priorities(tasks) == {}
+
+
+def test_task_assignment_dump_gains_only_the_priority_key():
+    dumped = TaskAssignment(task="t", goal=(1.0, 0.0)).model_dump()
+    assert dumped == {"task": "t", "goal": (1.0, 0.0), "start_delay_sec": 0.0, "priority": 0}
 
 
 def test_negative_start_delay_is_rejected():

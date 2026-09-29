@@ -97,6 +97,18 @@ def test_registry_json_without_start_delay_is_unchanged():
     assert reg.release_due(1e9) == []
 
 
+def test_registry_json_never_publishes_priority():
+    # priority is M3-only: M1 and M4 read this JSON, and it must not change.
+    base = _config()
+    tasks = {
+        rid: task.model_copy(update={"priority": 5}) for rid, task in base.initial_tasks.items()
+    }
+    plain, prioritised = TaskRegistry(), TaskRegistry()
+    plain.load_initial(base, now=100.0)
+    prioritised.load_initial(base.model_copy(update={"initial_tasks": tasks}), now=100.0)
+    assert prioritised.to_json() == plain.to_json()
+
+
 def test_delayed_robot_is_published_pending_with_its_mission_goal():
     reg = TaskRegistry()
     reg.load_initial(_delayed_config(50.0), now=100.0)

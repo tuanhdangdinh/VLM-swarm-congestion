@@ -56,6 +56,7 @@ from swarm_orchestrator.models import (
     PipelineOutcome,
     load_config,
     parse_scene_snapshot,
+    registry_priorities,
 )
 from swarm_orchestrator.presentation_order import (
     EpisodeOrderTracker,
@@ -162,6 +163,7 @@ def _build_default_pipeline(
         stage2_enabled=config.stage2_retreat_selection,
         candidate_marker=marker,
         stage2_letter_seed=letter_seed,
+        priorities=registry_priorities(config.initial_tasks),
     )
 
 

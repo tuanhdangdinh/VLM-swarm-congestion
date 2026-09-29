@@ -362,6 +362,42 @@ class BlockerOracleConfig(BaseModel):
         )
 
 
+class PriorityOracleConfig(BaseModel):
+    """The ground-truth answer for one member of the B2 priority-urgent pair.
+
+    The semantic-channel counterpart of `OracleConfig` (unified scene design,
+    "Oracle-block conventions"): urgency reaches the VLM only through the task
+    label, and the registry `priority` M3 reads is never rendered. The urgent
+    robot passes first, so the other robot yields. `classical_yielder` is Arm
+    B's answer, which reads no label and is therefore the same in both
+    members: it disagrees with urgency in exactly one member of every pair.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    urgent_robot: str
+    correct_yielder: str
+    correct_first_passer: str
+    classical_yielder: str
+    objective: Literal["urgent_first"] = "urgent_first"
+    rationale: str
+
+    @model_validator(mode="after")
+    def _urgent_robot_passes_first(self) -> "PriorityOracleConfig":
+        if self.correct_first_passer != self.urgent_robot:
+            raise ValueError(
+                f"correct_first_passer must be the urgent robot {self.urgent_robot!r}; "
+                f"got {self.correct_first_passer!r}"
+            )
+        if self.correct_yielder == self.urgent_robot:
+            raise ValueError(f"the urgent robot {self.urgent_robot!r} cannot be the yielder")
+        return self
+
+    @property
+    def contrasts_classical(self) -> bool:
+        """Whether Arm B's (label-blind) yielder is the urgent robot."""
+        return self.classical_yielder != self.correct_yielder
+
+
 # M3's retreat-candidate labels, in generation order (reasoning/rag/
 # retreat_candidates.py `_LABELS`); kept local for the same reason as the
 # literals above.
@@ -452,7 +488,13 @@ class ScenarioConfig(BaseModel):
     static_obstacles: tuple[StaticObstacleConfig, ...] = ()
     aisle_barrier: AisleBarrierConfig | None = None
     parameters: HeadOnAsymmetricParams | None = None
-    oracle: OracleConfig | BlockerOracleConfig | RetreatOracleConfig | None = None
+    oracle: (
+        OracleConfig
+        | BlockerOracleConfig
+        | RetreatOracleConfig
+        | PriorityOracleConfig
+        | None
+    ) = None
     # Required but nullable: every scenario must state its conflict, and null
     # is the explicit "none expected" of a conflict-free family.
     expected_conflict: ExpectedConflictConfig | None
@@ -594,6 +636,16 @@ class ScenarioConfig(BaseModel):
                         raise ValueError(
                             f"margin robot {rid!r} not in configured robots {robot_id_set}"
                         )
+        if isinstance(self.oracle, PriorityOracleConfig):
+            for rid in (
+                self.oracle.urgent_robot,
+                self.oracle.correct_yielder,
+                self.oracle.classical_yielder,
+            ):
+                if rid not in robot_id_set:
+                    raise ValueError(
+                        f"oracle robot {rid!r} not in configured robots {robot_id_set}"
+                    )
         if isinstance(self.oracle, RetreatOracleConfig):
             for rid in (self.oracle.yielder, self.oracle.passer):
                 if rid not in robot_id_set:

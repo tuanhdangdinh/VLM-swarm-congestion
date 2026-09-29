@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, NamedTuple, Protocol
 
@@ -62,7 +62,9 @@ class GroundFn(Protocol):
 
     Mirrors `ground_reasoner_result`. The keyword-only arguments drive derived
     mode and are ignored in legacy mode; `crossing_order` is not passed, so
-    the grounder reads it off the decision.
+    the grounder reads it off the decision. `priorities` is passed only when
+    the scene declares a non-zero registry priority, so every other call is
+    the call made before the field existed.
     """
 
     def __call__(
@@ -76,6 +78,7 @@ class GroundFn(Protocol):
         snapshot: SnapshotFrame | None = None,
         params: GroundingParams | None = None,
         retreat_choice: RetreatChoiceDecision | None = None,
+        priorities: Mapping[str, int] | None = None,
     ) -> dict[str, Any]: ...
 
 
@@ -727,8 +730,13 @@ class InProcessPipeline:
         stage2_enabled: bool = True,
         candidate_marker: CandidateMarker | None = None,
         stage2_letter_seed: int = 0,
+        priorities: Mapping[str, int] | None = None,
     ) -> None:
         self._reasoner = reasoner
+        # Registry priorities (`registry_priorities`), M3-only: never part of
+        # the request, so the prompt cannot see them. Empty or None passes
+        # nothing to M3, keeping every priority-less scene's call unchanged.
+        self._priorities = dict(priorities or {})
         self._ground_fn = ground_fn
         # None grounds in legacy mode, as every caller did before derived mode
         # was wired; derived mode also enables stage 2 for yields.
@@ -795,6 +803,9 @@ class InProcessPipeline:
             # positions (the request carries them verbatim from
             # SceneSnapshot.robots) and the configured geometry.
             positions = {robot.robot_id: (robot.x, robot.y) for robot in request.robot_states}
+            priority_kwargs: dict[str, Any] = (
+                {"priorities": dict(self._priorities)} if self._priorities else {}
+            )
             grounded = filter_command_robot_ids(
                 self._ground_fn(
                     result,
@@ -805,6 +816,7 @@ class InProcessPipeline:
                     snapshot=frame,
                     params=params,
                     retreat_choice=retreat_choice,
+                    **priority_kwargs,
                 ),
                 allowed_robot_ids,
             )

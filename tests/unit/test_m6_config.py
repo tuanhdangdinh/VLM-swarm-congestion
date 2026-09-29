@@ -9,6 +9,7 @@ from isaac.vgu_sim.config import (
     CameraConfig,
     ObstacleSize,
     OracleConfig,
+    PriorityOracleConfig,
     RobotAssetConfig,
     ScenarioConfig,
 )
@@ -414,3 +415,49 @@ def test_normal_flow_family_rejects_expected_conflict_block():
         ScenarioConfig.model_validate(
             {**_normal_flow_dict(), "expected_conflict": VALID_HEAD_ON["expected_conflict"]}
         )
+
+
+def _priority_oracle(**overrides) -> dict:
+    oracle = {
+        "urgent_robot": "robot_2",
+        "correct_yielder": "robot_1",
+        "correct_first_passer": "robot_2",
+        "classical_yielder": "robot_2",
+        "objective": "urgent_first",
+        "rationale": "robot_2 carries the urgent order and passes first",
+    }
+    oracle.update(overrides)
+    return oracle
+
+
+def test_priority_oracle_parses_on_a_head_on_scene():
+    scenario = ScenarioConfig(**{**VALID_HEAD_ON, "oracle": _priority_oracle()})
+    assert isinstance(scenario.oracle, PriorityOracleConfig)
+    assert scenario.oracle.contrasts_classical is True
+
+
+def test_priority_oracle_matching_classical_does_not_contrast():
+    oracle = PriorityOracleConfig(**_priority_oracle(
+        urgent_robot="robot_1", correct_yielder="robot_2", correct_first_passer="robot_1"
+    ))
+    assert oracle.contrasts_classical is False
+
+
+def test_priority_oracle_first_passer_must_be_the_urgent_robot():
+    with pytest.raises(ValidationError, match="urgent robot"):
+        PriorityOracleConfig(**_priority_oracle(correct_first_passer="robot_1"))
+
+
+def test_priority_oracle_urgent_robot_cannot_yield():
+    with pytest.raises(ValidationError, match="cannot be the yielder"):
+        PriorityOracleConfig(**_priority_oracle(correct_yielder="robot_2"))
+
+
+def test_priority_oracle_robots_must_exist():
+    with pytest.raises(ValidationError, match="not in configured robots"):
+        ScenarioConfig(**{**VALID_HEAD_ON, "oracle": _priority_oracle(classical_yielder="robot_9")})
+
+
+def test_priority_oracle_rejects_unknown_keys():
+    with pytest.raises(ValidationError):
+        PriorityOracleConfig(**_priority_oracle(fcfs_yielder="robot_1"))
