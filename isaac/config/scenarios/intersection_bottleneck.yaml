@@ -41,6 +41,13 @@ duration_sec: 300.0
 # arrival zone: every classified robot is inside it, and each spawn is 0.25 m
 # outside it, beyond M1's ~0.1 m bias, so no arrival stamp is censored.
 #
+# STATUS 2026-09-29: NOT tag-ready, re-authoring needed. The four-way mock
+# smoke (IB10 20260929_085349) formed the standoff and Arm B classified it
+# `intersection`, but no single-yield command can clear two opposing pairs:
+# the robots stop 0.33-0.45 m from the cross pair, M4 exempts only the
+# yielder's pair with its admitted passer, so the yielder's own backup was
+# latched and the yield failed (docs/implementation_notes.md, same date).
+#
 # No oracle block: T1 has none (Arm B's own answer is the reference).
 #
 # M5 takes goals from swarm_orchestrator/config/orchestrator.yaml

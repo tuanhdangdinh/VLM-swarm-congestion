@@ -47,6 +47,7 @@ MAPS_DIR = REPO_ROOT / "ros2_ws/src/swarm_simulation/maps"
 ORCHESTRATOR_YAML = REPO_ROOT / "ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml"
 CALIBRATION_YAML = REPO_ROOT / "ros2_ws/src/swarm_perception/config/calibration.yaml"
 MOCK_PATH = REPO_ROOT / "config/mock_decisions/intersection_yield_once.json"
+SKIP_MOCK_PATH = REPO_ROOT / "config/mock_decisions/intersection_skip_then_yield_once.json"
 RESOLUTION_M = 0.05
 
 # Verified M1 tracking extent on x (head-on family goals at +-2.5; +-3.0 gave
@@ -276,6 +277,13 @@ class TestMockDecision:
         assert decision.yield_robot == "robot_2"
         assert sorted(decision.crossing_order) == ["robot_1", "robot_2", "robot_3", "robot_4"]
         assert [parse_decision_text(json.dumps(d)).strategy for d in rest] == ["none"]
+
+    def test_skip_variant_answers_none_first_then_the_same_yield(self):
+        # Smoke IB10's mock: the first analysis may be a start-up stall of one
+        # robot, so the scripted yield is the second answer.
+        skip, *rest = json.loads(SKIP_MOCK_PATH.read_text())
+        assert parse_decision_text(json.dumps(skip)).strategy == "none"
+        assert rest == json.loads(MOCK_PATH.read_text())
 
 
 class TestSingleYieldGroundingAtFourWayStandoff:
