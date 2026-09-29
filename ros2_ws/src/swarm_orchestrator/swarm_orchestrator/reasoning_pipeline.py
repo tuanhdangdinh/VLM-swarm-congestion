@@ -21,6 +21,7 @@ from pydantic import (
 from reasoning.rag.command_grounder import (
     YieldFeasibilityMode,
     filter_command_robot_ids,
+    resolve_strategy_alias,
     validate_coordination_command,
 )
 from reasoning.rag.maneuver_geometry import GroundingParams
@@ -780,10 +781,17 @@ class InProcessPipeline:
         params = self._grounding_params
         retreat_choice: RetreatChoiceDecision | None = None
         stage2: RetreatStage2Record | None = None
-        if params is not None and params.mode == "derived" and decision.strategy == "yield":
+        # A convoy / priority_override decision that M3 grounds as an ordered
+        # yield gets the yield's stage 2 too, on the same aliased roles the
+        # grounder derives again from the same frame.
+        alias = resolve_strategy_alias(
+            decision, frame, geometry=self._scene_geometry, priorities=self._priorities
+        )
+        staged = decision if alias is None else alias.decision
+        if params is not None and params.mode == "derived" and staged.strategy == "yield":
             retreat_choice, stage2 = run_retreat_stage2(
                 request,
-                decision,
+                staged,
                 frame,
                 params,
                 self._retreat_chooser,

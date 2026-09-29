@@ -34,6 +34,7 @@ from reasoning.vlm.models import (
     CongestionDecision,
     ReasonerResult,
     RetreatChoiceDecision,
+    RobotStateInput,
     SnapshotFrame,
     StaticObstacleInput,
 )
@@ -213,6 +214,136 @@ def _beyond_corridor_same_side(
     return both_beyond and d_first * d_second > 0
 
 
+_ALIASED_STRATEGIES = frozenset({"convoy", "priority_override"})
+# Goal bearings more than this far apart oppose each other (counter-flow).
+_OPPOSED_BEARING_DEG = 90.0
+
+
+class StrategyAlias(NamedTuple):
+    """A `convoy` / `priority_override` decision mapped onto an ordered yield."""
+
+    # The yield decision that is grounded in the original's place: its
+    # `yield_robot` and full `crossing_order` (yielder last) are set.
+    decision: CongestionDecision
+    # The decided strategy, recorded as the `strategy=aliased:<strategy>` tag.
+    requested_strategy: str
+
+
+def resolve_strategy_alias(
+    decision: CongestionDecision,
+    snapshot: SnapshotFrame | None,
+    *,
+    geometry: SceneGeometry | None = None,
+    priorities: Mapping[str, int] | None = None,
+) -> StrategyAlias | None:
+    """Map a `convoy` or `priority_override` decision onto the ordered yield.
+
+    Neither strategy has a maneuver template of its own; both mean "one robot
+    gives way, the rest pass in a stated order", which the single-yield
+    primitive and M4's ordered release already execute (unified scene design,
+    B2 and B3 grounding):
+
+    - `convoy`: the yielder is the unique involved robot whose goal bearing
+      opposes (> 90 degrees) every other involved robot's, while those others
+      (at least two: the platoon) do not oppose each other. They cross in the
+      decision's `crossing_order` when it is a valid permutation, else in
+      queue order by distance to the gate (the corridor centre along its
+      axis; the yielder without a geometry), ties by robot id.
+    - `priority_override`: the beneficiary is the unique registry-max
+      `priority` among the involved robots, which passes first; the robot
+      below it yields. Only two involved robots can map: with more, every
+      robot below the maximum would have to yield, which one yield cannot do.
+
+    Args:
+        decision: A validated decision.
+        snapshot: The scene frame; `convoy` reads positions and goals from it.
+        geometry: Declared scene geometry, locating the gate for queue order.
+        priorities: M5's registry priorities; an absent robot is 0.
+
+    Returns:
+        The alias, or None when the decision uses neither strategy or no
+        unique mapping exists (no unique counter-flow robot, a missing goal
+        or position, no unique maximum priority, more than two robots). None
+        leaves the decision to the legacy bounded wait tagged
+        `strategy=unsupported`, the behaviour before the alias existed.
+    """
+    if not decision.congestion_detected or decision.strategy not in _ALIASED_STRATEGIES:
+        return None
+    involved = list(decision.involved_robots)
+    if decision.strategy == "priority_override":
+        levels = {rid: (priorities or {}).get(rid, 0) for rid in involved}
+        if len(involved) != 2:
+            return None
+        top = max(levels.values())
+        leaders = [rid for rid in involved if levels[rid] == top]
+        if len(leaders) != 1:
+            return None
+        yielder = next(rid for rid in involved if rid != leaders[0])
+        order = [leaders[0], yielder]
+    else:
+        if snapshot is None:
+            return None
+        states: dict[str, RobotStateInput] = {}
+        for rid in involved:
+            state = snapshot.find_robot(rid)
+            if state is None or state.goal is None:
+                return None
+            states[rid] = state
+        bearing = {
+            rid: math.atan2(s.goal[1] - s.y, s.goal[0] - s.x)  # goal checked above
+            for rid, s in states.items()
+            if s.goal is not None
+        }
+
+        def opposed(a: str, b: str) -> bool:
+            diff = abs(bearing[a] - bearing[b]) % (2 * math.pi)
+            return math.degrees(min(diff, 2 * math.pi - diff)) > _OPPOSED_BEARING_DEG
+
+        minority = [
+            rid
+            for rid in involved
+            if len(involved) >= 3
+            and all(opposed(rid, other) for other in involved if other != rid)
+            and not any(
+                opposed(a, b)
+                for a in involved
+                for b in involved
+                if rid not in (a, b) and a < b
+            )
+        ]
+        if len(minority) != 1:
+            return None
+        yielder = minority[0]
+        platoon = [rid for rid in involved if rid != yielder]
+        requested = [rid for rid in (decision.crossing_order or []) if rid != yielder]
+        if sorted(requested) == sorted(platoon) and len(set(requested)) == len(platoon):
+            passers = requested
+        else:
+            passers = sorted(
+                platoon,
+                key=lambda rid: (_gate_distance(states[rid], states[yielder], geometry), rid),
+            )
+        order = [*passers, yielder]
+    aliased = decision.model_copy(
+        update={"strategy": "yield", "yield_robot": yielder, "crossing_order": order}
+    )
+    return StrategyAlias(decision=aliased, requested_strategy=decision.strategy)
+
+
+def _gate_distance(
+    state: RobotStateInput, yielder: RobotStateInput, geometry: SceneGeometry | None
+) -> float:
+    if geometry is None:
+        return math.hypot(state.x - yielder.x, state.y - yielder.y)
+    coord = state.x if geometry.corridor.axis == "x" else state.y
+    return abs(coord - geometry.corridor.center_m)
+
+
+def _tag_alias(command: dict[str, Any], alias: StrategyAlias) -> dict[str, Any]:
+    tags = [*command.get("degradations", []), f"strategy=aliased:{alias.requested_strategy}"]
+    return validate_coordination_command({**command, "degradations": tags})
+
+
 class _YieldFeasibility(NamedTuple):
     """Outcome of the feasibility gate: who yields, and why that changed."""
 
@@ -331,7 +462,10 @@ def ground_reasoner_result(
     maneuver (the yielding robot reverses to open a blocked aisle), temporary_wait
     cancels Nav2 goals, reroute forwards explicit waypoints when present, and the
     remaining semantic strategies degrade to a temporary wait rather than
-    inventing unsafe motion.
+    inventing unsafe motion. A `convoy` or `priority_override` decision that
+    maps uniquely onto an ordered yield (`resolve_strategy_alias`) is grounded
+    as that yield, in either mode, and tagged `strategy=aliased:<strategy>`;
+    one that does not keeps the bounded wait.
 
     When `robot_positions` carries both yield participants, the yield distances
     are derived from where the robots actually are instead of the legacy
@@ -408,8 +542,18 @@ def ground_reasoner_result(
             or names an unsupported strategy, or if the built command fails
             schema validation.
     """
+    alias = (
+        None
+        if result.decision is None
+        else resolve_strategy_alias(
+            result.decision, snapshot, geometry=geometry, priorities=priorities
+        )
+    )
+    if alias is not None:
+        # Executed exactly as the equivalent yield; only the tag differs.
+        result = result.model_copy(update={"decision": alias.decision})
     if params is not None and params.mode == "derived":
-        return _ground_derived(
+        command = _ground_derived(
             result,
             snapshot=snapshot,
             params=params,
@@ -419,14 +563,16 @@ def ground_reasoner_result(
             static_obstacles=static_obstacles,
             yield_feasibility_mode=yield_feasibility_mode,
         )
-    return _ground_legacy(
-        result,
-        robot_positions,
-        geometry,
-        static_obstacles,
-        yield_feasibility_mode,
-        crossing_order=crossing_order,
-    )
+    else:
+        command = _ground_legacy(
+            result,
+            robot_positions,
+            geometry,
+            static_obstacles,
+            yield_feasibility_mode,
+            crossing_order=crossing_order,
+        )
+    return command if alias is None else _tag_alias(command, alias)
 
 
 def _legacy_passer_order(
@@ -865,9 +1011,14 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     "yield=infeasible": "infeasible_geometry",
     # The legacy reverse template's corridor same-side refusal.
     "reverse=infeasible": "infeasible_geometry",
-    # convoy / priority_override: no maneuver template exists, so the legacy
-    # templates run a bounded wait. Not a measurement-plan cause.
+    # convoy / priority_override with no unique mapping onto the ordered
+    # yield (`resolve_strategy_alias`): the legacy templates run a bounded
+    # wait. Not a measurement-plan cause.
     "strategy=unsupported": None,
+    # Provenance: a convoy / priority_override decision grounded as the
+    # ordered yield it maps onto (`resolve_strategy_alias`); decisions with
+    # these strategies do not pool across the alias commit.
+    "strategy=aliased": None,
     # The backup is feasible but every retreat candidate failed the sweep.
     "retreat=no-valid-candidate": "infeasible_geometry",
     # A stage-2 letter naming no validated candidate.
