@@ -37,6 +37,35 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-29** — **`intersection_bottleneck` v2 (user decision: the
+  four-way must be resolvable): S2 and the yielder-latch mechanism are
+  DISCHARGED live; S1 stays OPEN, so the scene is still not resolvable.**
+  Code `8397509` (M3), `2613575` (M4), `0514333` (goal-table row),
+  `60a00bf`/`e758136` (tests, robot_3 mock). Evidence:
+  `data/logs/vm_runs/intersection_v2/INTERSECTION_V2_SUMMARY.txt`
+  (git-ignored), failure pre-registered in `PREDICTION_pre_run.txt` there.
+  This partly supersedes the 2026-09-29 audit entry below (its S2 and
+  latch findings).
+  - **S2 discharged (M3).** `SceneGeometry.arms` gives each robot the arm
+    it approached on; its yield grounds, gates and sweeps along that arm.
+    Without `arms` the code path is identical: the 576-output SHA and the
+    family-oracle pins pass untouched. Live, run IBB4 grounded a
+    north-south yield for `robot_3` (retreat (0.334, −1.789)).
+  - **Yielder latch discharged (M4).** During a yield's backup and pull-off
+    (read from the bus's ACTIVE status details, `yield_phase.py`), the
+    yielder is exempt against every robot its command addresses; from the
+    hold on, progressive admission is unchanged. Live: IBA1 `robot_2`
+    backed out 1.512 m (GT) and IBB4 `robot_3` 1.626 m south along its own
+    arm, each with 0 safety stops during the backup (IB10: 0 m).
+  - **S1 OPEN.** Each first passer sits 0.28–0.42 m from the cross pair,
+    pairs no command exempts, so its escort is held (IBA1 `robot_1`
+    0.004 m, IBB4 `robot_4` 0.0 m). A same-lane passer's straight escort
+    would also run into its waiting opposing partner. Both runs: 0/4
+    arrivals, 0 contacts, the hold backstop ends the yield.
+  - **Binding text.** This conflicts with rev 9.3 (decision C, `3177615`):
+    its T1-X log-only fallback REMAINS the binding text until a resolvable
+    command decomposition exists (an S1 design study is next).
+
 - **2026-09-29** — **`intersection_bottleneck` (mandatory T1 #2): pre-tag
   audit done. NOT tag-ready: re-authoring is needed.** Light fixes are in
   `49ac434`; the smoke mock and status are in `fa20d21`. The smoke is
