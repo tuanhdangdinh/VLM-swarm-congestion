@@ -473,8 +473,12 @@ original Arm B specification.
     rules use. Decide before the tag: give the VLM goals (changes every
     prompt; breaks comparability with all pilots) or pre-register the
     asymmetry as a documented arms difference.
-14. **T1 tuning basket** (tuning-parity rule applies: T1 only, before the
-    tag): `stopped_threshold_mps` (parked STOPPED/SLOW flicker, ≈4×
+14. **T1 tuning basket — discharged 2026-09-29, pending coordinator
+    review** (`docs/reports/2026-09-29-t1-tuning-basket.md`, `caaf95f`):
+    new `fcfs_zone_radius_m` 1.0; the M1 thresholds, Arm B
+    `stopped_speed_mps` and the M4 0.2 m/s rule kept (0.03 recorded as
+    the rejected `stopped_threshold_mps` option). Original item
+    (tuning-parity rule applies: T1 only, before the tag): `stopped_threshold_mps` (parked STOPPED/SLOW flicker, ≈4×
     transitions since sim-time), the FCFS conflict-zone radius vs the
     1.5 m spawn distance (censoring), Arm B `stopped_speed_mps`, and the
     M4 0.2 m/s speed-rule margin vs Nav2's 0.18 cap.

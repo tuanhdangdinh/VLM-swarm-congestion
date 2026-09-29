@@ -114,6 +114,10 @@
   oracle rationale is neutralised (`a7730ee`), and decision artifacts record
   the served model while the rescorer credits latched-at-goal arrivals
   (`37a0dd5`).
+- Rev 9.2 (2026-09-29): T1 tuning basket (amendments item 14) — new Arm B
+  parameter `fcfs_zone_radius_m` 1.0 m added to the tuning-parity list;
+  M1 thresholds, Arm B `stopped_speed_mps` and the M4 speed rule kept
+  (`docs/reports/2026-09-29-t1-tuning-basket.md`).
 
 Status: **rev 9 — the binding text for the `prereg-v1` tag** (the tag does
 not exist yet; nothing here is frozen until it does). From rev 9 this
@@ -122,7 +126,8 @@ decision record, and its item numbers are cited below as "amendments A*n*"
 or "amendments item *n*". Still open before the tag: amendments items 7
 (keep B1 symmetric-`reverse` dispatch), 9 (the prompt-template hashes,
 the one model-table row still REQUIRED, plus the tag-time
-`gpt-4o-2024-08-06` pin in `config/models.yaml`), 14 (T1 tuning basket),
+`gpt-4o-2024-08-06` pin in `config/models.yaml`), 14 (T1 tuning basket;
+discharged pending coordinator review at Rev 9.2),
 the item-15 wording veto, the explicit confirmation of the prompt-v2 goals
 rider (items 10/13), the coordinator defaults marked "reviewable at the
 tag" (items 15, 17 T2b defaults, 17a, 17b), and the nine rev-9 open
@@ -342,7 +347,11 @@ score is the FCFS answer Arm B actually produced on each decision
 the shadow block recorded — never the YAML's `fcfs_yielder`. Arrival stamps are censored when a
 robot spawns on the conflict-zone boundary (`censored_arrivals` flag;
 findings Rev 14 §AQ); the zone radius versus the 1.5 m spawn distance is
-in the T1 tuning basket (amendments item 14).
+in the T1 tuning basket (amendments item 14). *Rev 9.2:* the basket
+decoupled the head_on FCFS zone from `r_conflict` — a new
+`fcfs_zone_radius_m`, 1.0 m (`caaf95f`), dates arrivals and commitment
+while `r_conflict` 1.5 m still decides the head_on pairing
+(`docs/reports/2026-09-29-t1-tuning-basket.md`).
 
 ### Stage-2 control
 
@@ -353,7 +362,7 @@ Arm B's stage-2 answer — the fallback is the control.
 ### Tuning-parity rule (pre-registered)
 
 Arm B parameters (`r_conflict`, `r_block`, angle windows, arrival-tie
-window) may be tuned **only on T1 scenarios, only before the
+window, the head_on FCFS zone radius `fcfs_zone_radius_m`) may be tuned **only on T1 scenarios, only before the
 pre-registration freeze** (see Run matrix). They are frozen at the
 `prereg-v1` tag together with this document. Any post-freeze change
 invalidates affected collected cells, which must be re-run. This
@@ -367,7 +376,9 @@ do before the tag (amendments item 14, T1 only): `stopped_threshold_mps`
 (parked STOPPED/SLOW flicker, ≈4× more transitions since sim-time stamps),
 the FCFS conflict-zone radius versus the 1.5 m spawn distance
 (censoring), Arm B `stopped_speed_mps`, and the M4 0.2 m/s speed-rule
-margin versus Nav2's 0.18 m/s cap.
+margin versus Nav2's 0.18 m/s cap. *Rev 9.2:* discharged pending
+coordinator review — `fcfs_zone_radius_m` 1.0 added, the other four
+values kept (`docs/reports/2026-09-29-t1-tuning-basket.md`).
 
 ---
 
