@@ -37,6 +37,59 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-29** — **`intersection_bottleneck` (mandatory T1 #2): pre-tag
+  audit done. NOT tag-ready: re-authoring is needed.** Light fixes are in
+  `49ac434`; the smoke mock and status are in `fa20d21`. The smoke is
+  `data/logs/vm_runs/intersection_smoke/IB10_20260929_085349`
+  (git-ignored; `INTERSECTION_SMOKE_SUMMARY.txt` has the audit table and
+  the checklist).
+  - **Fixed (light).**
+    - Spawns and goals moved to 1.75 m on all four arms. The June spawns
+      at (±3.0, 0) were out of frame. (0, ±2.0) sat 0.09 m inside the
+      2.092 homography y-edge. The derived y band is 1.80.
+    - The approach radii are now equal. Unequal radii give a two-robot
+      head_on first.
+    - Added the per-scenario map.
+    - `duration_sec` is now 300.
+    - `family: intersection` is now explicit.
+    - Added an `orchestrator.yaml` goal-table row, with the Arm B zone
+      `crossing_1` (origin, r 1.5 = `r_conflict_m`). The shipped
+      `shadow_classical_zones` stays `[]`.
+    - Pinned by `tests/unit/test_intersection_bottleneck_scenario.py`.
+  - **Live, working.**
+    - M1 tracked all four robots in every full-rate row.
+    - The standoff formed. The GT intersection oracle was active from
+      31 sim-s to the end.
+    - The trigger fired.
+    - **Arm B's first live `intersection` classification is positive:**
+      35/35 analyses, zone `crossing_1`, no censoring at the first
+      standoff analysis. Its pick matched the forced mock.
+  - **Structural defects.**
+    - Two opposing pairs meet at the centre. No single-yield command can
+      clear them. The robots stop 0.33–0.45 m from the cross pair, and M4
+      exempts only yielder↔admitted-passer pairs. So the latch held the
+      yielder's own backup, and the yield FAILED after 219 s with zero
+      arrivals. This was predicted offline before the run.
+    - M3's single-axis corridor cannot ground a north-south yielder. Arm
+      B's own retreat was ungroundable in 33/35 analyses.
+  - **Apparatus.**
+    - Four Nav2 stacks overload g2-standard-8: load1 ~15 (max 30), RTF
+      ~0.22.
+    - Nav2 lifecycle bring-up failed in 3 of 8 launches: two "Aborting
+      bringup" and one stack not active after 90 s. `fc_launch.sh`'s
+      action-list wait does not catch it.
+    - The stage-9 `tail -f` races M5's log creation.
+    - Both were worked around VM-side only: a lifecycle gate plus a
+      pre-created log in `_vm_driver/run_ib.sh`. `fc_launch.sh` is
+      unchanged.
+  - **Re-author options (coordinator decision).**
+    - (A) A two-robot perpendicular crossing. This needs a shared M3
+      per-yielder retreat axis and a formation pilot.
+    - (B) Drop the scenario from T1 and amend the matrix. T1 would be
+      `head_on_deadlock` plus `head_on_asymmetric_wopen_eopen_o0`.
+  - **VM.** The pristine `orchestrator.yaml` md5 goes from `ca35f94e…` to
+    `8c2c64ce…`. `rag.yaml` is unchanged (`e18c723c…`).
+
 - **2026-09-29** — **T1 tuning basket (amendments item 14): discharged,
   pending coordinator review.** One value changed, four kept, all frozen at
   `prereg-v1`. Evidence: `docs/reports/2026-09-29-t1-tuning-basket.md`;
