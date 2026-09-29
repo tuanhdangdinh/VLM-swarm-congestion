@@ -1,0 +1,270 @@
+"""Unit tests for the B1/B2/B3 ground-truth scorers (synthetic GT, offline)."""
+from __future__ import annotations
+
+import json
+import math
+from pathlib import Path
+
+import pytest
+
+from scripts.coverage_scene_scores import (
+    Sample,
+    conflict_timeline,
+    decision_route,
+    final_crossing,
+    first_passer,
+    gate_passage,
+    load_scenario,
+    score_b1,
+    score_b2,
+    score_b2_episode,
+    score_conflict,
+    stop_time_sec,
+)
+
+DT = 0.1
+
+
+def _write_gt(gt_dir: Path, frames: list[dict[str, tuple[float, float, float, float]]],
+              goals: dict[str, tuple[float, float]]) -> Path:
+    """frames[i] = robot -> (x, y, theta, speed) at sim t = i * DT."""
+    gt_dir.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for i, robots in enumerate(frames):
+        lines.append(json.dumps({
+            "sim_time_sec": round(i * DT, 4),
+            "robots": {
+                rid: {"x": x, "y": y, "theta": th, "speed_mps": v,
+                      "goal_x": goals[rid][0], "goal_y": goals[rid][1],
+                      "distance_to_goal_m": math.dist((x, y), goals[rid])}
+                for rid, (x, y, th, v) in robots.items()
+            },
+        }))
+    (gt_dir / "ground_truth.jsonl").write_text("\n".join(lines) + "\n")
+    return gt_dir
+
+
+def _track(points: list[tuple[float, float]], n: int) -> list[tuple[float, float]]:
+    """Piecewise-linear path through `points`, resampled to n positions."""
+    if len(points) == 1:
+        return points * n
+    seg = [(points[i], points[i + 1]) for i in range(len(points) - 1)]
+    lengths = [math.dist(a, b) for a, b in seg]
+    total = sum(lengths) or 1.0
+    out = []
+    for k in range(n):
+        d = total * k / (n - 1)
+        for (a, b), length in zip(seg, lengths, strict=True):
+            if d <= length or (a, b) == seg[-1]:
+                f = 0.0 if length == 0 else min(d / length, 1.0)
+                out.append((a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1])))
+                break
+            d -= length
+    return out
+
+
+def _frames(tracks: dict[str, list[tuple[float, float]]],
+            headings: dict[str, float] | None = None):
+    n = len(next(iter(tracks.values())))
+    frames = []
+    for i in range(n):
+        robots = {}
+        for rid, path in tracks.items():
+            x, y = path[i]
+            px, py = path[i - 1] if i else path[i]
+            v = math.dist((x, y), (px, py)) / DT
+            th = (headings or {}).get(rid, math.atan2(y - py, x - px) if v else 0.0)
+            robots[rid] = (x, y, th, v)
+        frames.append(robots)
+    return frames
+
+
+def _hold(point, n):
+    return [point] * n
+
+
+def test_stop_time_counts_only_spells_of_at_least_one_second():
+    samples = [Sample(t=i * DT, x=0, y=0, theta=0, speed=0.0 if i < 5 or 10 <= i < 30 else 0.1,
+                      distance_to_goal=1.0) for i in range(40)]
+    # 0.0-0.4 (0.4 s, dropped) and 1.0-2.9 (1.9 s, kept)
+    assert stop_time_sec(samples, 0.0, 4.0) == pytest.approx(1.9)
+
+
+def test_gate_passage_uses_the_last_lane_crossing():
+    xs = [0.5, 0.8, 1.2, 1.8, 1.5, 1.6, 1.75, 2.0]
+    samples = [Sample(t=float(i), x=x, y=0.0, theta=0, speed=0.1, distance_to_goal=1.0)
+               for i, x in enumerate(xs)]
+    entry, exit_t = gate_passage(samples, (0.7, 1.7), 0.275)
+    assert (entry, exit_t) == (1.0, 6.0)
+
+
+def test_gate_passage_ignores_crossings_outside_the_lane():
+    samples = [Sample(t=float(i), x=x, y=0.5, theta=0, speed=0.1, distance_to_goal=1.0)
+               for i, x in enumerate([0.5, 1.0, 1.9])]
+    assert gate_passage(samples, (0.7, 1.7), 0.275) == (None, None)
+
+
+def test_final_crossing_ignores_a_yielder_that_pokes_past_and_backs_away():
+    xs = [-0.5, 0.05, 0.05, -1.0, -1.7]
+    samples = [Sample(t=float(i), x=x, y=0, theta=0, speed=0, distance_to_goal=1.0)
+               for i, x in enumerate(xs)]
+    assert final_crossing(samples, 0.0, 1.0) is None
+
+
+def test_final_crossing_takes_the_last_crossing_that_stays_past():
+    xs = [-0.5, 0.05, -1.0, -0.2, 0.3, 2.4]
+    samples = [Sample(t=float(i), x=x, y=0, theta=0, speed=0, distance_to_goal=1.0)
+               for i, x in enumerate(xs)]
+    assert final_crossing(samples, 0.0, 1.0) == 4.0
+
+
+def _b2_gt(tmp_path: Path, first: str) -> Path:
+    """robot_1 east (-1.5 -> 2.5), robot_2 west (1.5 -> -2.5); `first` passes first."""
+    n_stand, n_pass, n_back = 40, 60, 60
+    side = {"robot_1": -1.0, "robot_2": 1.0}
+    goal = {"robot_1": (2.5, 0.0), "robot_2": (-2.5, 0.0)}
+    tracks = {}
+    for rid in ("robot_1", "robot_2"):
+        s = side[rid]
+        standoff = (0.12 * s, 0.0)
+        if rid == first:
+            path = (_track([(1.5 * s, 0.0), standoff], n_stand) + _hold(standoff, n_back)
+                    + _track([standoff, goal[rid]], n_pass) + _hold(goal[rid], n_pass))
+        else:
+            park = (1.8 * s, 0.36)
+            path = (_track([(1.5 * s, 0.0), standoff], n_stand) + _track([standoff, park], n_back)
+                    + _hold(park, n_pass) + _track([park, goal[rid]], n_pass))
+        tracks[rid] = path
+    return _write_gt(tmp_path / f"gt_{first}", _frames(tracks), goal)
+
+
+def test_first_passer_is_the_robot_that_crosses_centre_first(tmp_path):
+    from scripts.coverage_scene_scores import load_ground_truth
+
+    series = load_ground_truth(_b2_gt(tmp_path, "robot_2"))
+    passer, times = first_passer(series)
+    assert passer == "robot_2"
+    assert times["robot_1"] is not None and times["robot_2"] < times["robot_1"]
+
+
+def test_b2_episode_scores_cp_against_the_members_urgent_robot(tmp_path):
+    gt = _b2_gt(tmp_path, "robot_2")
+    assert score_b2_episode("r2", gt)["cp"] is True
+    assert score_b2_episode("r1", gt)["cp"] is False
+
+
+def test_b2_pair_is_divergent_and_correct_only_when_both_members_score(tmp_path):
+    r2_good = score_b2_episode("r2", _b2_gt(tmp_path / "a", "robot_2"))
+    r1_good = score_b2_episode("r1", _b2_gt(tmp_path / "b", "robot_1"))
+    r1_bad = score_b2_episode("r1", _b2_gt(tmp_path / "c", "robot_2"))
+    result = score_b2([("r1", 42, r1_good), ("r2", 42, r2_good),
+                       ("r1", 43, r1_bad), ("r2", 43, r2_good)])
+    assert [p["divergent_and_correct"] for p in result["pairs"]] == [True, False]
+    assert result["divergent_and_correct_rate"] == 0.5
+    assert result["members"]["r1"]["cp_rate"] == 0.5
+    assert result["members"]["r2"]["cp_rate"] == 1.0
+
+
+def test_b2_label_blind_answer_scores_zero_pairs(tmp_path):
+    # Arm B's shape: the same robot (robot_1) passes first in both members.
+    r1 = score_b2_episode("r1", _b2_gt(tmp_path / "a", "robot_1"))
+    r2 = score_b2_episode("r2", _b2_gt(tmp_path / "b", "robot_1"))
+    assert score_b2([("r1", 1, r1), ("r2", 1, r2)])["divergent_and_correct_rate"] == 0.0
+
+
+def test_decision_route_reads_priority_override_as_the_registry_maximum(tmp_path):
+    (tmp_path / "a.json").write_text(json.dumps({
+        "grounded_command_present": True,
+        "decision": {"congestion_detected": True, "strategy": "priority_override",
+                     "involved_robots": ["robot_1", "robot_2"]},
+    }))
+    (tmp_path / "b.json").write_text(json.dumps({
+        "grounded_command_present": False,
+        "decision": {"congestion_detected": False, "strategy": "none", "involved_robots": []},
+    }))
+    route = decision_route(tmp_path, "robot_2")
+    assert route["route"] == "priority_override"
+    assert route["first_passer"] == "robot_2"
+
+
+def test_decision_route_reads_a_yield_as_the_non_yielder(tmp_path):
+    (tmp_path / "a.json").write_text(json.dumps({
+        "grounded_command_present": True,
+        "decision": {"congestion_detected": True, "strategy": "yield", "yield_robot": "robot_2",
+                     "involved_robots": ["robot_1", "robot_2"]},
+    }))
+    assert decision_route(tmp_path, "robot_2")["first_passer"] == "robot_1"
+
+
+def _b1_gt(tmp_path: Path, *, robot_2_first: bool = False) -> Path:
+    goals = {"robot_1": (2.45, -0.3), "robot_2": (1.9, 0.0), "robot_3": (2.45, 0.3)}
+    n = 60
+    if robot_2_first:
+        r2 = _track([(0.0, 1.75), (0.0, 0.0), (0.6, 0.0)], n) + _hold((0.6, 0.0), 200)
+        r1 = _track([(-1.0, 0.0), (0.28, 0.0)], n) + _hold((0.28, 0.0), 200)
+        r3 = _hold((-2.45, 0.0), n + 200)
+        return _write_gt(tmp_path / "gt_follower",
+                         _frames({"robot_1": r1, "robot_2": r2, "robot_3": r3}), goals)
+    r1 = (_track([(-1.0, 0.0), (0.1, 0.0)], n) + _hold((0.1, 0.0), 60)
+          + _track([(0.1, 0.0), (1.7, 0.0), (2.45, -0.3)], 120) + _hold(goals["robot_1"], 160))
+    r2 = (_track([(0.0, 1.75), (0.15, 0.45)], n) + _hold((0.15, 0.45), 60)
+          + _track([(0.15, 0.45), (0.3, 1.7)], 60) + _hold((0.3, 1.7), 100)
+          + _track([(0.3, 1.7), (0.0, 0.0), (1.9, 0.0)], 120))
+    r3 = (_hold((-2.45, 0.0), n + 60) + _hold((-2.45, 0.0), 60)
+          + _track([(-2.45, 0.0), (1.7, 0.0), (2.45, 0.3)], 160) + _hold(goals["robot_3"], 60))
+    headings = None
+    frames = _frames({"robot_1": r1, "robot_2": r2, "robot_3": r3}, headings)
+    # robot_2 comes down its arm heading -80 deg at the latch.
+    for i in range(n, n + 60):
+        x, y, _th, v = frames[i]["robot_2"]
+        frames[i]["robot_2"] = (x, y, math.radians(-80.0), v)
+    return _write_gt(tmp_path / "gt_b1", frames, goals)
+
+
+def test_b1_scores_the_designed_perpendicular_latch(tmp_path):
+    result = score_b1(_b1_gt(tmp_path))
+    merge = result["merge"]
+    assert merge["merge_mode"] == "perpendicular_latch"
+    assert merge["robot_2_east_of_robot_1"] is True
+    assert merge["standoff_gap_m"] == pytest.approx(math.dist((0.1, 0.0), (0.15, 0.45)), abs=0.01)
+    assert result["conflict"]["onset_sec"] is not None
+    assert result["n_arrived"] == 3
+    assert result["makespan_sec"] is not None
+    assert result["gate"]["n_exited"] == 3
+    assert result["gate"]["flow_per_100s"] > 0
+
+
+def test_b1_flags_the_follower_latch_when_robot_2_turns_in_first(tmp_path):
+    result = score_b1(_b1_gt(tmp_path, robot_2_first=True))
+    assert result["merge"]["merge_mode"] == "follower_latch"
+    assert result["censored"] is True
+    assert result["makespan_sec"] is None
+
+
+def test_b1_stop_time_charges_the_held_robot_its_wait(tmp_path):
+    result = score_b1(_b1_gt(tmp_path))
+    assert result["stop_time_sec"]["robot_3"] > result["stop_time_sec"]["robot_1"]
+
+
+def test_conflict_timeline_skips_pairs_parked_at_their_goals(tmp_path):
+    from scripts.coverage_scene_scores import load_ground_truth
+
+    goals = {"robot_1": (2.45, -0.3), "robot_3": (2.45, 0.3)}
+    gt = _write_gt(tmp_path / "gt", _frames({"robot_1": _hold(goals["robot_1"], 30),
+                                             "robot_3": _hold(goals["robot_3"], 30)}), goals)
+    assert conflict_timeline(load_ground_truth(gt), (0.7, 1.7))["onset_sec"] is None
+
+
+def test_score_conflict_checks_the_onset_window(tmp_path):
+    from scripts.coverage_scene_scores import load_ground_truth
+
+    goals = {"robot_1": (2.45, -0.3), "robot_2": (-2.0, 0.0)}
+    frames = _frames({
+        "robot_1": _track([(-1.2, 0.0), (-0.12, 0.0)], 100) + _hold((-0.12, 0.0), 300),
+        "robot_2": _track([(1.2, 0.0), (0.12, 0.0)], 100) + _hold((0.12, 0.0), 300),
+    })
+    result = score_conflict(load_scenario("convoy_counterflow"),
+                            load_ground_truth(_write_gt(tmp_path / "gt", frames, goals)))
+    assert result["onset_sec"] == pytest.approx(10.0, abs=0.2)
+    assert result["onset_in_window"] is False  # window [15, 50]
+    assert result["min_duration_met"] is True
