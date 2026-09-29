@@ -461,3 +461,51 @@ def test_priority_oracle_robots_must_exist():
 def test_priority_oracle_rejects_unknown_keys():
     with pytest.raises(ValidationError):
         PriorityOracleConfig(**_priority_oracle(fcfs_yielder="robot_1"))
+
+
+_STRATEGY_LABEL = {
+    "correct_strategy": "convoy",
+    "accepted_strategies": ["convoy", "yield"],
+    "platoon": ["robot_1", "robot_3"],
+}
+
+
+def test_strategy_label_oracle_parses_and_round_trips():
+    cfg = ScenarioConfig.model_validate(_three_robot_ordering(**_STRATEGY_LABEL))
+    assert cfg.oracle.correct_strategy == "convoy"
+    assert cfg.oracle.platoon == ("robot_1", "robot_3")
+    assert ScenarioConfig.model_validate(cfg.model_dump(mode="json")) == cfg
+
+
+def test_strategy_label_fields_are_set_together():
+    with pytest.raises(ValidationError, match="set together"):
+        ScenarioConfig.model_validate(_three_robot_ordering(correct_strategy="convoy"))
+
+
+def test_correct_strategy_must_be_accepted():
+    with pytest.raises(ValidationError, match="must contain correct_strategy"):
+        ScenarioConfig.model_validate(
+            _three_robot_ordering(**{**_STRATEGY_LABEL, "accepted_strategies": ["yield"]})
+        )
+
+
+def test_platoon_must_be_consecutive_in_the_correct_order():
+    with pytest.raises(ValidationError, match="consecutively"):
+        ScenarioConfig.model_validate(
+            _three_robot_ordering(**{**_STRATEGY_LABEL, "platoon": ["robot_3", "robot_1"]})
+        )
+
+
+def test_unset_strategy_label_fields_stay_out_of_the_dump():
+    dumped = ScenarioConfig.model_validate(_three_robot_ordering()).model_dump(mode="json")
+    for key in _STRATEGY_LABEL:
+        assert key not in dumped["oracle"]
+
+
+@pytest.mark.parametrize("family", ["bottleneck", "convoy"])
+def test_coverage_families_accept_a_multi_robot_ordering_oracle(family):
+    data = _three_robot_ordering()
+    data["family"] = family
+    data["expected_conflict"] = {**data["expected_conflict"],
+                                 "involved_robots": ["robot_1", "robot_2", "robot_3"]}
+    assert ScenarioConfig.model_validate(data).family == family
