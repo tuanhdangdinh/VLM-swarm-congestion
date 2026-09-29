@@ -347,6 +347,54 @@ wait_action() {
   docker_ros "timeout ${timeout}s bash -lc 'until ros2 action list 2>/dev/null | grep -qx ${action}; do sleep 1; done'"
 }
 
+# Nav2 lifecycle gate. The action-list wait above passes once each stack's
+# servers are registered, not once its lifecycle manager has activated them:
+# with four stacks one bring-up in three failed behind it (intersection smoke
+# 2026-09-29: robot_3 "Aborting bringup" with every goal rejected, IB2; robot_3
+# active ~80 s and robot_4 >90 s after launch while M5 was already dispatching,
+# IB7), and a two-robot stack once never went active at all (CE2, bshort
+# gpt-4o batch). Wait until every robot's lifecycle_manager_navigation has
+# logged "Managed nodes are active", so M5 only ever dispatches to active
+# stacks and the robots depart together; an "Aborting bringup" in any stack,
+# or the budget running out, aborts the launch with NAV2_BRINGUP_FAILED (the
+# EXIT trap then restores the backend and restarts the container).
+NAV2_ACTIVE_RE='lifecycle_manager_navigation\]: .*Managed nodes are active'
+NAV2_ABORT_RE='Aborting bringup'
+NAV2_ACTIVE_TIMEOUT_SEC="${NAV2_ACTIVE_TIMEOUT_SEC:-240}"
+
+# Prints the Nav2 logs (one per line) matching the extended regex $1.
+nav2_logs_matching() {
+  # shellcheck disable=SC2086 # NAV2_LOGS is a space-separated path list.
+  sudo docker exec "$CONTAINER" grep -lE -e "$1" $NAV2_LOGS 2>/dev/null || true
+}
+
+wait_nav2_active() {
+  local want="${#ROBOT_IDS[@]}" waited=0 active aborted
+  log "waiting for Nav2 lifecycle: ${want} stack(s) active (<= ${NAV2_ACTIVE_TIMEOUT_SEC}s)"
+  if [ "$DRY_RUN" = "1" ]; then
+    log "[DRY_RUN] poll ${NAV2_LOGS} every 2s for /${NAV2_ACTIVE_RE}/ in all ${want}, abort on /${NAV2_ABORT_RE}/"
+    return 0
+  fi
+  while :; do
+    aborted="$(nav2_logs_matching "$NAV2_ABORT_RE" | tr '\n' ' ')"
+    active="$(nav2_logs_matching "$NAV2_ACTIVE_RE" | grep -c . || true)"
+    if [ -n "$aborted" ]; then
+      log "NAV2_BRINGUP_FAILED: Aborting bringup in ${aborted}(active ${active}/${want} after ${waited}s)"
+      exit 1
+    fi
+    if [ "$active" -ge "$want" ]; then
+      log "Nav2 lifecycle active: ${active}/${want} stacks after ${waited}s"
+      return 0
+    fi
+    if [ "$waited" -ge "$NAV2_ACTIVE_TIMEOUT_SEC" ]; then
+      log "NAV2_BRINGUP_FAILED: only ${active}/${want} stacks active after ${waited}s"
+      exit 1
+    fi
+    sleep 2
+    waited=$((waited + 2))
+  done
+}
+
 cleanup() {
   if [ "$DRY_RUN" = "1" ]; then
     log "[DRY_RUN] cleanup: restore reasoning_backend_id if changed, restart container, collect logs (skipped)"
@@ -549,6 +597,7 @@ for robot in "${ROBOT_IDS[@]}"; do
   wait_action "/${robot}/navigate_to_pose" 150
 done
 log "Nav2 action servers live"
+wait_nav2_active
 
 # ── 7. M4 Execution ──────────────────────────────────────────────────────────
 log "starting M4 execution -> ${M4_LOG}"
@@ -571,6 +620,12 @@ if [ -n "$MOCK_RETREAT_CHOICE_FILE_CONTAINER" ]; then
   M5_INNER="${M5_INNER} && export VGU_MOCK_RETREAT_CHOICE_FILE=${MOCK_RETREAT_CHOICE_FILE_CONTAINER}"
 fi
 M5_INNER="${M5_INNER} && ros2 launch swarm_orchestrator orchestrator.launch.py >${M5_LOG} 2>&1"
+# Stage 9 tails this log 5 s after the backgrounded launch below. Under four
+# Nav2 stacks M5's shell took longer than that to reach its redirect, GNU tail
+# exited on the missing file and the launcher went straight to cleanup
+# (intersection smoke IB1, 2026-09-29). Create it first; M5's `>` truncates
+# the same file.
+xrun sudo docker exec "$CONTAINER" touch "$M5_LOG"
 log "starting M5 orchestrator (${BACKEND_ID} backend, CWD /ws) -> ${M5_LOG}"
 docker_exec_bg "$M5_LOG" "$M5_INNER"
 xrun sleep 5

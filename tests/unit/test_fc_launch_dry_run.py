@@ -4,6 +4,12 @@ The two-robot goldens under tests/unit/data/fc_launch/ were recorded from the
 launcher BEFORE its robot loop (tree 3ebb7ea, hard-coded robot_1/robot_2), so
 a two-robot scenario must keep producing byte-identical commands. The
 three-robot cases check the loop itself.
+
+Two stages were added after the goldens (the lifecycle-gate fold, 2026-09-29):
+the Nav2 lifecycle gate after the action-server waits and the M5 log
+pre-create before M5 starts. They print only the lines `GATE_LINE_PREFIXES`
+matches, so the goldens stay byte-identical once those lines are removed, and
+the new lines are pinned on their own below.
 """
 import os
 import re
@@ -34,7 +40,7 @@ TWO_ROBOT_CASES: dict[str, tuple[str, dict[str, str]]] = {
 
 _CLEARED_ENV = (
     "BACKEND_ID", "MOCK_DECISION_FILE", "MOCK_RETREAT_CHOICE_FILE", "MODALITY",
-    "RECORD", "REC_SEC", "SIM_SEC", "SEED", "CONTAINER", "REPO",
+    "RECORD", "REC_SEC", "SIM_SEC", "SEED", "CONTAINER", "REPO", "NAV2_ACTIVE_TIMEOUT_SEC",
 )
 
 
@@ -58,11 +64,65 @@ def normalize(text: str) -> str:
     return text.replace(str(ROOT), "<REPO>")
 
 
+GATE_LINE_PREFIXES = (
+    "[fc-launch] waiting for Nav2 lifecycle: ",
+    "[fc-launch] [DRY_RUN] poll /tmp/fc_<STAMP>_nav2_r",
+    "[fc-launch] [DRY_RUN] sudo docker exec vgu_ros touch /tmp/fc_<STAMP>_m5.log",
+)
+
+
+def without_gate_lines(output: str) -> str:
+    """Drop the lines of the stages added after the goldens were recorded."""
+    return "".join(
+        line for line in output.splitlines(keepends=True)
+        if not line.startswith(GATE_LINE_PREFIXES)
+    )
+
+
 @pytest.mark.parametrize("case", sorted(TWO_ROBOT_CASES))
 def test_two_robot_dry_run_matches_pre_loop_golden(case):
     scenario, extra_env = TWO_ROBOT_CASES[case]
     golden = (GOLDEN_DIR / f"{case}.txt").read_text(encoding="utf-8")
-    assert dry_run(scenario, extra_env) == golden
+    assert without_gate_lines(dry_run(scenario, extra_env)) == golden
+
+
+@pytest.mark.parametrize("case", sorted(TWO_ROBOT_CASES))
+def test_two_robot_dry_run_adds_exactly_the_three_gate_lines(case):
+    scenario, extra_env = TWO_ROBOT_CASES[case]
+    output = dry_run(scenario, extra_env)
+    added = [line for line in output.splitlines() if line.startswith(GATE_LINE_PREFIXES)]
+    assert added == [
+        "[fc-launch] waiting for Nav2 lifecycle: 2 stack(s) active (<= 240s)",
+        "[fc-launch] [DRY_RUN] poll /tmp/fc_<STAMP>_nav2_r1.log /tmp/fc_<STAMP>_nav2_r2.log "
+        "every 2s for /lifecycle_manager_navigation\\]: .*Managed nodes are active/ in all 2, "
+        "abort on /Aborting bringup/",
+        "[fc-launch] [DRY_RUN] sudo docker exec vgu_ros touch /tmp/fc_<STAMP>_m5.log",
+    ]
+
+
+def test_lifecycle_gate_runs_after_the_action_waits_and_before_m4():
+    lines = dry_run("dynamic_anomaly", {}).splitlines()
+    gate = lines.index("[fc-launch] waiting for Nav2 lifecycle: 4 stack(s) active (<= 240s)")
+    servers_live = lines.index("[fc-launch] Nav2 action servers live")
+    m4 = next(i for i, line in enumerate(lines) if line.startswith("[fc-launch] starting M4"))
+    assert servers_live < gate < m4
+    assert all(f"/tmp/fc_<STAMP>_nav2_r{n}.log" in lines[gate + 1] for n in (1, 2, 3, 4))
+    assert "in all 4," in lines[gate + 1]
+
+
+def test_m5_log_is_created_before_m5_is_launched_and_tailed():
+    lines = dry_run("dynamic_anomaly", {}).splitlines()
+    touch = lines.index("[fc-launch] [DRY_RUN] sudo docker exec vgu_ros touch /tmp/fc_<STAMP>_m5.log")
+    m5_launch = next(
+        i for i, line in enumerate(lines) if "orchestrator.launch.py >/tmp/fc_<STAMP>_m5.log" in line
+    )
+    tail = next(i for i, line in enumerate(lines) if "tail -f /tmp/fc_<STAMP>_m5.log" in line)
+    assert touch < m5_launch < tail
+
+
+def test_gate_budget_env_overrides_the_default():
+    output = dry_run("head_on_deadlock", {"NAV2_ACTIVE_TIMEOUT_SEC": "90"})
+    assert "[fc-launch] waiting for Nav2 lifecycle: 2 stack(s) active (<= 90s)" in output
 
 
 def _nav2_lines(output: str) -> list[str]:
