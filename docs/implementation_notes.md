@@ -37,6 +37,50 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-29** — **T1 tuning basket (amendments item 14): discharged,
+  pending coordinator review.** One value changed, four kept, all frozen at
+  `prereg-v1`. Evidence: `docs/reports/2026-09-29-t1-tuning-basket.md`;
+  code `caaf95f`; T1 run `data/logs/vm_runs/t1_basket/T1B1_20260929_000054`
+  (git-ignored).
+  - **Changed: the head_on FCFS zone.** A new `ClassicalParams.fcfs_zone_radius_m`
+    is set to 1.0 in `config/rag.yaml`.
+    - Default `None` falls back to `r_conflict_m`. A validator requires at
+      least `r_conflict_m` / 2.
+    - `r_conflict_m` 1.5 still decides the head_on pairing.
+    - Spawn-phase censoring fell from 9/17 to 0/17 corpus records.
+    - On T1B1, 1.5 censors both robots and 1.0 censors neither. The rebuilt
+      full-rate buffer reproduces the live record.
+    - The 56 window-truncated records stay censored at any radius. The
+      `censored_arrivals` flag still reports them.
+  - **Kept.**
+    - M1 `stopped_threshold_mps` 0.01: no clean separator. Real 1–5 cm/s
+      creep overlaps the parked-jitter tail. 0.03 is recorded as the named
+      rejected option for the tag: parked SLOW falls 11.75% → 0.27% on the
+      corpus and 27.2% → 1.0% on T1, but all T1 creep would read STOPPED.
+    - M1 `slow_threshold_mps` 0.05: parked max 0.055, maneuver min 0.079.
+    - Arm B `stopped_speed_mps` 0.05: stall max 0.038 at snapshots, motion
+      min 0.079.
+    - M4 `max_linear_velocity_mps` 0.2: full-rate T1 transit max 0.1803,
+      p99 0.169, 0 rows above 0.19. The rule sits 0.02 above that and 0.02
+      below the 0.22 mechanical max.
+  - **Gotchas.**
+    - `speed_limit_violation` counts in `m4.log` are not evidence. The first
+      latch reason wins, and clearing robots are exempt.
+    - An M1 marker-identity swap on T1B1 (`robot_2` reported at `robot_1`'s
+      pose for one frame, 46.5 sim-s) drove the EMA to 5.47 m/s on a parked
+      robot. It was masked only by the yield exemption. A glitch detector is
+      out of scope and recorded as a limitation.
+    - The full-rate recorder (`/perception/scene_state`, passive, inside
+      `vgu_ros`) is the only way to see M4's actual input. The M5 scene log
+      samples about 1 row per wall-second.
+  - **Spec.** The research design gets a Rev 9.2 line, and
+    `fcfs_zone_radius_m` joins the tuning-parity parameter list.
+  - **VM.** The tree is now `caaf95f` (manifest
+    `/home/ubuntu/caaf95f_md5.txt`). This includes the
+    `obstacle_in_candidate.yaml` resync from the Status residual. The
+    pristine copies are `~/rag_pristine_caaf95f.yaml` and
+    `~/orchestrator_pristine_caaf95f.yaml`.
+
 - **2026-09-29** — **Rev 9.1: the nine `[REV9-OPEN]` markers are settled
   as coordinator resolutions (reviewable at the tag), and two pre-tag code
   items land.** Evidence: `25983a1` (spec), `a7730ee` (T3b rationale),
