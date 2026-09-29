@@ -37,6 +37,23 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-29** — **Intersection resolvability design study: recommendation
+  D — the T1-X log-only fallback stands** (`0c27a4d`,
+  `docs/superpowers/specs/2026-09-29-intersection-resolvable-design.md`).
+  Decisive: robots stop 0.24–0.42 m apart (latch latency), so a formed
+  four-way jam is never clearable — every scheme's first-passer transit is
+  ≤ 0.351 m vs the 0.45 m floor; the schemes that complete episodes (A, C′
+  with junction-scoped J1/J2 changes) degenerate to two sequential
+  head-ons — Arm B classifies `head_on`, the GT intersection oracle never
+  fires — so the tier identity is lost either way. N-S escorts sit only
+  0.032–0.132 m inside M1's tracked band even under J2. Standalone
+  finding: robots held inside the zone are always FCFS-censored and
+  always ordered first — a same-axis filter is prerequisite to ANY
+  junction ordering. The genuine four-way needs a composite command
+  (cross pair reverses, then the axis pair yields) — named as the
+  prereg-v2 candidate. C′'s build list is recorded in the study should
+  the owner override.
+
 - **2026-09-29** — **`intersection_bottleneck` v2 (user decision: the
   four-way must be resolvable): S2 and the yielder-latch mechanism are
   DISCHARGED live; S1 stays OPEN, so the scene is still not resolvable.**
