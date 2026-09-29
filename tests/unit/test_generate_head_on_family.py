@@ -82,11 +82,12 @@ def test_manifest_rows_mark_tier_and_contrast(base, geometry):
     assert len(rows) == 3
     by_variant = {row["variant"]: row for row in rows}
     assert by_variant["w0p2_eopen_o0"]["tier"] == "T2a"
-    assert by_variant["w0p2_eopen_o0"]["contrasts_fcfs"] == "true"
+    assert by_variant["w0p2_eopen_o0"]["contrasts_fcfs"] == "false"
     assert by_variant["wopen_e0p2_o0"]["tier"] == "T2a"
-    assert by_variant["wopen_e0p2_o0"]["contrasts_fcfs"] == "false"
+    assert by_variant["wopen_e0p2_o0"]["contrasts_fcfs"] == "true"
     assert by_variant["wopen_eopen_o0"]["tier"] == "T1"
-    assert by_variant["wopen_eopen_o0"]["contrasts_fcfs"] == "false"
+    assert by_variant["wopen_eopen_o0"]["contrasts_fcfs"] == "true"
+    assert {row["fcfs_yielder"] for row in rows} == {"robot_2"}
 
 
 def test_write_family_writes_three_yamls_and_manifest(tmp_path):

@@ -55,7 +55,7 @@ parameters:
   arrival_offset_m: 0.0
 oracle:
   correct_yielder: robot_2
-  fcfs_yielder: robot_1
+  fcfs_yielder: robot_2
   feasible_yielders:
   - robot_2
   objective: min_total_time_to_goal

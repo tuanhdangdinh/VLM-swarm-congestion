@@ -142,8 +142,11 @@ class TestScenario:
         oracle = _scenario().oracle
         assert oracle.correct_yielder == "robot_2"
         assert oracle.correct_order == ("robot_1", "robot_3")
-        assert oracle.fcfs_yielder == "robot_1"
-        assert oracle.contrasts_fcfs is True
+        # Corrected 2026-09-29: Arm B's full tie yields robot_2, the oracle's
+        # own yielder, so T2b's FCFS contrast is nominally absent (live
+        # answers are coin flips around the tie).
+        assert oracle.fcfs_yielder == "robot_2"
+        assert oracle.contrasts_fcfs is False
         assert oracle.objective == "min_total_time_to_goal"
 
     def test_margin_frozen_as_censored_lower_bound(self):

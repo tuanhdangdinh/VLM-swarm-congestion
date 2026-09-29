@@ -85,8 +85,12 @@ duration_sec: 300.0
 # Flow evidence and order. Goals ride in the prompt (prompt-v2), so the VLM
 # sees robot_3 heading east behind robot_1. prompt_robot_order: random draws a
 # uniform permutation of the three robots per episode; condition every
-# analysis on it (amendments A2). Arm B's FCFS tiebreak yields robot_1 (equal
-# arrivals at the symmetric standoff), the contrast this tier exists for.
+# analysis on it (amendments A2). Arm B's FCFS tiebreak at the symmetric
+# standoff (a full tie: equal arrivals and commitment) passes robot_1 first by
+# robot id and yields robot_2, the oracle's own yielder, so the FCFS contrast
+# is nominally absent and live Arm B answers are coin flips around the tie.
+# (Corrected 2026-09-29, amendments item 28: this header, the oracle's
+# fcfs_yielder and its rationale said robot_1, the opposite reading.)
 #
 # M5 settings, set by hand in swarm_orchestrator/config/orchestrator.yaml
 # before a run (the goal table there lists them;
@@ -130,7 +134,7 @@ expected_conflict:
 
 oracle:
   correct_yielder: robot_2
-  fcfs_yielder: robot_1
+  fcfs_yielder: robot_2
   feasible_yielders: [robot_1, robot_2]
   objective: min_total_time_to_goal
   correct_order: [robot_1, robot_3]
@@ -139,7 +143,7 @@ oracle:
     passing the west side first clears both eastbound robots with one yield by
     robot_2; yielding robot_1 instead sends robot_2 west into a second head-on
     with robot_3 at the far end of the aisle. FCFS ties at the symmetric
-    standoff and yields robot_1.
+    standoff and its robot-id tiebreak yields robot_2.
   # Frozen 2026-09-29 from harness_20260928_171248 (n=2 seeds per arm,
   # user-approved censored-counts-as-dominated rule): the alternative arm
   # ended in the permanent robot_2+robot_3 bystander latch on both seeds,

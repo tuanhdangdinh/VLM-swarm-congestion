@@ -66,17 +66,33 @@ def side_feasible(blocker_m: float | None, geometry: SceneGeometry) -> bool:
     return room_is_feasible(room_from_mouth_m(blocker_m), geometry)
 
 
+# The recorded correct yielder when both sides can park (T1, wopen_eopen).
+# It was once derived from the FCFS tiebreak under the robot_1 reading; the
+# 2026-09-29 fcfs_yielder correction changes the fact, not this answer, which
+# only an owner decision may change. T1 is geometry-sufficient: Arm B's own
+# answer is its scoring reference (unified scene design, oracle conventions).
+SIDE_ROBOT_BOTH_FEASIBLE_YIELDER: str = "robot_1"
+
+
 def fcfs_yielder(arrival_offset_m: float) -> str:
-    """The robot a naive first-come-first-served policy would pick to yield.
+    """The robot Arm B's first-come-first-served rule picks to yield.
+
+    Arm B orders a head-on pair by arrival, then by commitment, then by
+    robot id, and yields the last (`classical_reasoner._passing_order`). An
+    equal-speed standoff is always a full tie (unified scene design, B2
+    section), which the id tie-break resolves as robot_1 first, robot_2
+    yielding (`test_decide_head_on_breaks_full_tie_by_robot_id`). Before
+    2026-09-29 this returned robot_1 for a tie, the opposite reading;
+    corrected as a recorded fact (amendments item 28), not an oracle change.
 
     Args:
         arrival_offset_m: How much later robot_2 arrives at the corridor
             relative to robot_1, in meters of travel; `0.0` is a tie.
 
     Returns:
-        `"robot_2"` when it arrives later, otherwise `"robot_1"`.
+        `"robot_2"` when it arrives later or ties, otherwise `"robot_1"`.
     """
-    return "robot_2" if arrival_offset_m > 0 else "robot_1"
+    return "robot_2" if arrival_offset_m >= 0 else "robot_1"
 
 
 def blocker_center_x_m(
@@ -130,11 +146,12 @@ def compute_oracle(
 
     if west_feasible and east_feasible:
         rationale = (
-            f"both sides can park (required room {req:.2f} m); "
-            f"FCFS tiebreak yields {fcfs}"
+            f"both sides can park (required room {req:.2f} m); the recorded "
+            f"answer is {SIDE_ROBOT_BOTH_FEASIBLE_YIELDER} (Arm B's FCFS full "
+            f"tie yields {fcfs})"
         )
         return OracleConfig(
-            correct_yielder=fcfs,
+            correct_yielder=SIDE_ROBOT_BOTH_FEASIBLE_YIELDER,
             fcfs_yielder=fcfs,
             feasible_yielders=("robot_1", "robot_2"),
             rationale=rationale,
