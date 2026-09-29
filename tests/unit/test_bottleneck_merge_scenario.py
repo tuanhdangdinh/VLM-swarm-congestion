@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from swarm_orchestrator.models import RobotView, SceneSnapshot
 from swarm_orchestrator.reasoning_pipeline import (
+    InProcessPipeline,
     attach_registry_assignments,
     build_reasoner_request,
 )
@@ -42,11 +43,14 @@ from reasoning.vlm.models import (
     CongestionDecision,
     ReasonerDiagnostics,
     ReasonerResult,
+    RetreatChoiceDecision,
+    RetreatChoiceResult,
     RobotStateInput,
     SnapshotFrame,
 )
 from reasoning.vlm.output_parser import parse_decision_text
 from reasoning.vlm.prompt_builder import build_prompt_payload
+from reasoning.vlm.stage2_prompt import build_stage2_prompt_payload
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCENARIO_PATH = REPO_ROOT / "isaac/config/scenarios/bottleneck_merge.yaml"
@@ -564,6 +568,74 @@ class TestTextChannels:
             text = (payload.system_prompt + payload.user_prompt).lower()
             for term in ("aperture", "barrier", "gate", "static obstacles", "1.2, 0"):
                 assert term not in text, (order, term)
+
+
+class _RecordingChooser:
+    def __init__(self) -> None:
+        self.requests = []
+
+    def choose(self, request):
+        self.requests.append(request)
+        return RetreatChoiceResult(
+            request_id=request.request_id, backend_id="fixed",
+            choice=RetreatChoiceDecision(retreat_choice="A", justification="j"),
+            raw_text="{}", attempts=1,
+        )
+
+
+class _MockReasoner:
+    def run(self, request):
+        return _result(_mock_decision())
+
+
+class TestStage2TextChannel:
+    """Stage 2 is the other text channel B1 opens (derived, stage 2 on)."""
+
+    # The design poses with two in-band candidates, where stage 2 is called.
+    TWO_CANDIDATE_POSES = ((0.20, (0.30, 0.42, -60.0)), (-0.10, (0.10, 0.35, -90.0)))
+
+    def _request(self, r1_x, r2):
+        goals = _goals()
+        snapshot = SceneSnapshot(
+            stamp=30.0,
+            frame_id="overhead_camera",
+            robots=[
+                RobotView(robot_id=s.robot_id, x=s.x, y=s.y, theta=s.theta,
+                          linear_velocity=0.0, status="STOPPED", stamp=30.0)
+                for s in _frame(r1_x, r2).robots
+            ],
+        )
+        attached = attach_registry_assignments(
+            snapshot, goals.get, lambda _rid: "cross_narrow_aisle"
+        )
+        return build_reasoner_request("req-b1", attached, "/tmp/req-b1.png")
+
+    @pytest.mark.parametrize(("r1_x", "r2"), TWO_CANDIDATE_POSES)
+    def test_stage2_prompt_names_no_aperture(self, r1_x, r2):
+        chooser = _RecordingChooser()
+        pipe = InProcessPipeline(
+            reasoner=_MockReasoner(), ground_fn=ground_reasoner_result,
+            scene_geometry=_geometry(), grounding_params=_params(), retreat_chooser=chooser,
+        )
+        outcome = pipe.run(self._request(r1_x, r2))
+        assert outcome.stage2 is not None and outcome.stage2.status == "answered"
+        (request,) = chooser.requests
+        payload = build_stage2_prompt_payload(request)
+        text = (payload.system_prompt + payload.user_prompt).lower()
+        for term in ("aperture", "barrier", "gate", "corridor", "static obstacles"):
+            assert term not in text, term
+        for candidate in request.candidates:
+            assert NS_BAND[0] - 1e-9 <= candidate.x <= NS_BAND[1] + 1e-9
+
+    def test_single_candidate_poses_skip_stage2(self):
+        chooser = _RecordingChooser()
+        pipe = InProcessPipeline(
+            reasoner=_MockReasoner(), ground_fn=ground_reasoner_result,
+            scene_geometry=_geometry(), grounding_params=_params(), retreat_chooser=chooser,
+        )
+        outcome = pipe.run(self._request(0.10, (0.15, 0.45, -80.0)))
+        assert outcome.stage2.skip_reason == "single_candidate"
+        assert chooser.requests == []
 
 
 class TestM5Settings:
