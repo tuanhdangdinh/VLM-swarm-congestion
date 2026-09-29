@@ -34,6 +34,28 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 17 (2026-09-29): coverage-check decisions, USER-APPROVED ("Ok"):
+  item 28 — build B1/B2/B3 per the unified scene design (`3b3a529`) under
+  the CONSERVATIVE migration (existing scenes grandfathered, deviations
+  D1–D3 recorded; zero re-validation): B1 with the aperture deliberately
+  absent from every text channel and a registered image-only/text-only
+  modality cell (the type call's image-dependence becomes a measured
+  quantity); B2 as the 2-robot label-swapped pair (`priority` field read
+  by M3 only, never rendered; no new prompt version); B3 first-to-slip
+  to v2; plus the A10-mold Arm B rule change: a held robot
+  (`start_pending`) is excluded from `blocked_path` candidacy (required
+  by B1 and 10/45 B3 grid cases). Item 29 — STRATEGY-REGRET scoring
+  registered: forced-strategy mock sweeps produce a per-scene strategy
+  cost table, and the model's choice is scored as time regret against
+  the best executable strategy, alongside label correctness. Item 30 —
+  the prereg-v2 registry: (a) the composite recede-then-yield command
+  (single cost-ranked yielder per the literature review), (b) the LOOP
+  MAP (a second E-W aisle creating cycles, making `reroute` a genuine
+  alternative and enabling wait-vs-detour trade-off scenes with visual
+  blocker-persistence judgment), (c) the B2-VISUAL urgency pair (loaded
+  vs empty robot via the prop machinery). Also ordered: the factual
+  `fcfs_yielder` correction (full ties yield robot_2, not robot_1) in
+  the family manifest, T2b YAML and spec annotations, with pin updates.
 - Rev 16 (2026-09-29): item 27 — `intersection_bottleneck` audited and
   smoked pre-tag (light fixes `49ac434`; first live Arm B `intersection`
   classification, 35/35 correct): the four-way is structurally
