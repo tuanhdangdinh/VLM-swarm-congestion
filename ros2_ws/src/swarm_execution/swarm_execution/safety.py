@@ -14,6 +14,7 @@ from itertools import combinations
 from typing import Any
 
 from swarm_execution.crossing_chain import plan_crossing
+from swarm_execution.yield_phase import YIELD_BACKUP_PHASE_DETAILS
 
 REASON_MIN_DISTANCE = "min_distance_violation"
 REASON_SPEED_LIMIT = "speed_limit_violation"
@@ -112,15 +113,19 @@ def admitted_partners(
     members: Sequence[str],
     order: Sequence[str] | None,
     completed: set[str] | frozenset[str],
+    backing_up: bool = False,
 ) -> frozenset[str]:
     """Return the robots a clearing robot is exempt against.
 
     A `reverse`, or a yield that names no passers, pairs with every other
-    robot of its own command. A yield with a passer order pairs with
-    `order[0]` from the start, and with each later passer only once every
-    earlier passer's wait under the command has COMPLETED, i.e. the command
-    bus released it (a busy-reject's FAILED does not count). Before that, a
-    queued later passer keeps full protection against the yielder's backup.
+    robot of its own command. A yield with a passer order pairs, while the
+    yielder is known to be backing up or pulling off (`backing_up`), with
+    every robot its command addressed: it is driving away from the scrum it
+    was grounded to clear, and M3 swept that path clear of every robot. From
+    the hold on, or when the phase is unknown, it pairs with `order[0]`, and
+    with each later passer only once every earlier passer's wait under the
+    command has COMPLETED, i.e. the command bus released it (a busy-reject's
+    FAILED does not count). A robot outside the command is never a partner.
 
     Args:
         robot_id: The clearing robot.
@@ -128,6 +133,8 @@ def admitted_partners(
         members: Every robot the command addressed, in arrival order.
         order: `crossing_order_from_parameters` of the yield, or None.
         completed: Robots whose status for this command reached COMPLETED.
+        backing_up: True only while the yield's latest phase signal is its
+            backup or pull-off (`CoordinationTracker.record_status`).
 
     Returns:
         Partner robot ids, never including `robot_id`.
@@ -136,6 +143,8 @@ def admitted_partners(
         return frozenset()
     if action != "yield" or order is None:
         return frozenset(r for r in members if r != robot_id)
+    if backing_up:
+        return frozenset(r for r in (*members, *order) if r != robot_id)
     admitted: list[str] = []
     for position, passer in enumerate(order):
         if position > 0 and order[position - 1] not in completed:
@@ -237,6 +246,13 @@ class CoordinationTracker:
     COMPLETED statuses are kept independently of the per-robot action map,
     which a terminal status clears: a passer's wait completing at hold start
     must not end the yielder-passer pair's exemption.
+
+    A yield's phase comes from the ACTIVE status details the command bus
+    publishes (`yield_phase.YIELD_BACKUP_PHASE_DETAILS`, then
+    `HOLD_STARTED_DETAIL`). It is monotonic per command and robot: once any
+    other non-empty detail is seen the backup phase is over for good, so a
+    late republish of a backup-phase status cannot reopen it. A missing
+    detail carries no phase and is never the backup phase (fail closed).
     """
 
     # Bound for command actions that never receive a terminal status (e.g. a
@@ -249,6 +265,9 @@ class CoordinationTracker:
         self._members_by_command: dict[str, list[str]] = {}
         self._order_by_command: dict[str, tuple[str, ...]] = {}
         self._completed_by_command: dict[str, set[str]] = {}
+        # (command_id, robot_id) -> True while backing up, False once past it
+        # for good; absent while no phase detail has been seen.
+        self._backing_up_by_key: dict[tuple[str, str], bool] = {}
 
     def record_command(
         self,
@@ -287,7 +306,9 @@ class CoordinationTracker:
             self._order_by_command.pop(evicted, None)
             self._completed_by_command.pop(evicted, None)
 
-    def record_status(self, command_id: str, robot_id: str, status: str) -> bool:
+    def record_status(
+        self, command_id: str, robot_id: str, status: str, detail: str | None = None
+    ) -> bool:
         """Apply one `/coordination/status` update.
 
         A terminal status clears a robot only when it belongs to the command
@@ -299,6 +320,8 @@ class CoordinationTracker:
             command_id: `CoordinationStatus.command_id`.
             robot_id: `CoordinationStatus.robot_id`.
             status: `CoordinationStatus.status`.
+            detail: `CoordinationStatus.detail`; an ACTIVE status's detail
+                is the yield's phase signal. None counts as unknown.
 
         Returns:
             True if the robot's ACTIVE command changed.
@@ -306,6 +329,7 @@ class CoordinationTracker:
         if not robot_id:
             return False
         if status == "ACTIVE":
+            self._record_phase(command_id, robot_id, detail)
             changed = self._active_by_robot.get(robot_id) != command_id
             self._active_by_robot[robot_id] = command_id
             return changed
@@ -314,10 +338,22 @@ class CoordinationTracker:
         if status == "COMPLETED" and command_id in self._members_by_command:
             self._completed_by_command.setdefault(command_id, set()).add(robot_id)
         self._action_by_key.pop((command_id, robot_id), None)
+        self._backing_up_by_key.pop((command_id, robot_id), None)
         if self._active_by_robot.get(robot_id) == command_id:
             del self._active_by_robot[robot_id]
             return True
         return False
+
+    def _record_phase(self, command_id: str, robot_id: str, detail: str | None) -> None:
+        key = (command_id, robot_id)
+        if self._backing_up_by_key.get(key) is False:
+            return
+        self._backing_up_by_key.pop(key, None)
+        if not detail:
+            return
+        self._backing_up_by_key[key] = detail in YIELD_BACKUP_PHASE_DETAILS
+        while len(self._backing_up_by_key) > self.MAX_TRACKED_COMMANDS:
+            self._backing_up_by_key.pop(next(iter(self._backing_up_by_key)))
 
     def active_action(self, robot_id: str) -> str | None:
         """Return the action of the robot's ACTIVE command, or None.
@@ -342,8 +378,8 @@ class CoordinationTracker:
         """Return the pair-scoped exemption for the current ACTIVE commands.
 
         Each clearing robot is paired with `admitted_partners` of its own
-        ACTIVE command. A robot that command never addressed stays fully
-        protected against it.
+        ACTIVE command, in the phase its latest status signalled. A robot that
+        command never addressed stays fully protected against it.
 
         Returns:
             The clearing robots and their exempt pairs.
@@ -358,6 +394,7 @@ class CoordinationTracker:
                 self._members_by_command.get(command_id, ()),
                 self._order_by_command.get(command_id),
                 self._completed_by_command.get(command_id, frozenset()),
+                backing_up=self._backing_up_by_key.get((command_id, robot_id), False),
             )
             pairs.update(_pair_key(robot_id, partner) for partner in partners)
         return ClearingExemption(clearing_robots=clearing, pairs=frozenset(pairs))

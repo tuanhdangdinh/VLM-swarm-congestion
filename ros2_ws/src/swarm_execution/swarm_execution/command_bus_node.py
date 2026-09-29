@@ -18,6 +18,7 @@ except ImportError:
 
 from swarm_execution.crossing_chain import CrossingChain, plan_crossing
 from swarm_execution.nav2_adapter import Nav2Adapter
+from swarm_execution.yield_phase import HOLD_STARTED_DETAIL, PULL_OFF_DETAIL
 
 
 class _ActiveWait(NamedTuple):
@@ -201,7 +202,7 @@ class CommandBusNode(Node):
             chain = CrossingChain(passers) if passers else None
 
             def _start_hold(command, _hold_sec: float) -> None:
-                self._publish_status(command, "ACTIVE", "holding for passing robot")
+                self._publish_status(command, "ACTIVE", HOLD_STARTED_DETAIL)
                 timer_ref: dict = {}
                 odom_subs: list = []
                 done_ref = {"done": False}
@@ -309,7 +310,7 @@ class CommandBusNode(Node):
                     self._publish_status(command, status, detail)
                     return
                 if has_pull_off:
-                    self._publish_status(command, "ACTIVE", "pulling off aisle centerline")
+                    self._publish_status(command, "ACTIVE", PULL_OFF_DETAIL)
                     self._adapter.sidestep(
                         robot_id,
                         float(pull_off_lateral),

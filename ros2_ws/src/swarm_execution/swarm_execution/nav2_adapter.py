@@ -120,6 +120,8 @@ except ImportError:
             def __init__(self) -> None:
                 self.goal_info = _GoalInfo()
 
+from swarm_execution.yield_phase import BACKUP_STARTED_DETAIL
+
 
 class Nav2Adapter(Node):
     """Per-robot Nav2 action-client wrapper: send_goal, send_waypoints, cancel."""
@@ -315,7 +317,7 @@ class Nav2Adapter(Node):
         timer = self._node.create_timer(0.05, _tick)
         self._backup_timers[robot_id] = timer
         if on_result is not None:
-            on_result("ACTIVE", "backup started")
+            on_result("ACTIVE", BACKUP_STARTED_DETAIL)
 
     def sidestep(
         self,

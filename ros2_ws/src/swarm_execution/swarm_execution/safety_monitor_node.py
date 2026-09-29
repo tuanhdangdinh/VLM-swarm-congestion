@@ -15,8 +15,11 @@ cancel, DWB stops immediately and the safety zero has no competition.
 Clearing-maneuver exemption: while a robot's ACTIVE coordination command is a
 `yield` or `reverse` (a raw-cmd_vel clearing maneuver), its pairs with the
 partners that same command names are exempt from the latch rules so the
-backup, pull-off and pass can work inside `min_distance_m`. Any robot outside
-that command (a bystander) keeps full protection against the clearing robot.
+backup, pull-off and pass can work inside `min_distance_m`. During a yield's
+backup and pull-off (read from the ACTIVE status `detail`) that is every robot
+the command addressed; from the hold on, the passers admitted so far. Any robot
+outside that command (a bystander) keeps full protection against the clearing
+robot.
 Nav2-goal legs (`reroute`, `convoy`, `navigate`, ...) and waits do not exempt
 anything. The action, the command's robots and a yield's passer order are read
 from `/coordination/commands`, because the command id carries the decision's
@@ -145,7 +148,9 @@ class SafetyMonitorNode(Node):
 
     def _on_coord_status(self, msg) -> None:
         prior_action = self._coordination.active_action(msg.robot_id)
-        if self._coordination.record_status(msg.command_id, msg.robot_id, msg.status):
+        if self._coordination.record_status(
+            msg.command_id, msg.robot_id, msg.status, getattr(msg, "detail", None)
+        ):
             # Once per ACTIVE-command change, not per 0.25/0.75 s republish, so
             # the host log shows whether each maneuver armed or disarmed rules.
             # A terminal status has already dropped the action, hence prior.
