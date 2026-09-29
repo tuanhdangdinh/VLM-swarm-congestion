@@ -101,8 +101,13 @@ frame_downscale_width: null
 #     robot_4: { task: cross_intersection, goal: [0.0, -1.75] } (all four
 #     tasks cross_intersection), AND shadow_classical_zones:
 #     [{ zone_id: crossing_1, x: 0.0, y: 0.0, radius_m: 1.5 }] (Arm B cannot
-#     classify `intersection` without it); scenario_geometry stays as shipped
-#     (header of isaac/config/scenarios/intersection_bottleneck.yaml)
+#     classify `intersection` without it), AND scenario_geometry corridor
+#     { axis: x, center_m: 0.0, half_length_m: 0.6, aisle_half_width_m: 0.6,
+#     occluder_height_m: 0.0 } (the junction box, no barrier) with arms
+#     { robot_1: { axis: x, side: -1 }, robot_2: { axis: x, side: 1 },
+#     robot_3: { axis: y, side: -1 }, robot_4: { axis: y, side: 1 } } (each
+#     robot yields back along the arm it came in on); camera, robot and margins
+#     as shipped (header of isaac/config/scenarios/intersection_bottleneck.yaml)
 # Running a _gshort or _bshort scenario without changing these dispatches +-2.5
 # and the variant silently degrades to its beyond-goal twin, blocker back on
 # the goal path (isaac/config/scenarios/family/*_{gshort,bshort}_o0.yaml).
@@ -117,7 +122,10 @@ initial_tasks:
 # isaac/config/scenarios/head_on_deadlock.yaml (barrier spans x=+-1.0, 0.9 m
 # tall), isaac/config/warehouse.yaml (nominal_aisle_width_m 1.2) and
 # vgu_sim CameraConfig (camera at z=3.0); keep them in sync by hand until M5
-# reads the scenario file directly.
+# reads the scenario file directly. A junction scene also declares `arms`
+# (robot id -> { axis, side }: the arm that robot approached on, side = the
+# arm's outward sign); a listed robot yields along its own arm with the
+# corridor's other dimensions. Absent (as shipped), every robot uses `corridor`.
 scenario_geometry:
   corridor: { axis: x, center_m: 0.0, half_length_m: 1.0, aisle_half_width_m: 0.6, occluder_height_m: 0.9 }
   camera: { height_m: 3.0, marker_height_m: 0.21 }

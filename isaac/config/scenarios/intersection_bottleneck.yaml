@@ -54,6 +54,15 @@ duration_sec: 300.0
 # initial_tasks, NOT from here: set all four goals below (robot_3 and robot_4
 # added) before a run, or M5 dispatches the head-on +-2.5 centreline goals to
 # robot_1 and robot_2 and none to the others.
+#
+# M3 junction geometry (goal-table row of orchestrator.yaml, 2026-09-29): the
+# corridor is the junction box (half_length_m 0.6 = the aisle half-width, no
+# barrier so occluder_height_m 0.0) and `arms` gives each robot the arm it
+# approached on, so every robot yields back along its own arm (park offset
+# 1.018 m; the 1.7 m backup clearance binds, parking a north-south yielder at
+# |y| ~ 1.70-1.72, inside the verified tracked 1.75, and every retreat path
+# stays on free floor). Pinned by TestJunctionGeometry in
+# tests/unit/test_intersection_bottleneck_scenario.py.
 robots:
   - robot_id: robot_1
     marker_id: 1
