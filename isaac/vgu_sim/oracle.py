@@ -7,6 +7,13 @@ _SLOW_MPS = 0.03
 _HEAD_ON_DISTANCE_M = 0.8
 _INTERSECTION_RADIUS_M = 1.0
 _ANOMALY_UPSTREAM_M = 1.0
+# Bottleneck (B1/B3): how far from the aperture's lane segment a stopped pair's
+# midpoint may sit (B1's designed merge is ~0.6 m west of the A55-E mouth), and
+# the radius inside which a robot counts as parked at its own goal (M5's
+# arrival_position_tolerance_m), so two robots resting at neighbouring goals
+# beyond the gate never read as a conflict.
+_BOTTLENECK_APPROACH_M = 1.0
+_ARRIVED_RADIUS_M = 0.35
 
 
 def is_stopped(planar_speed_mps: float) -> bool:
@@ -100,6 +107,75 @@ def intersection_conflict_active(
         return False
     mean_speed = sum(speeds[i] for i in in_radius) / len(in_radius)
     return is_slow(mean_speed)
+
+
+def _distance_to_segment(
+    point: tuple[float, float], x_span: tuple[float, float], lane_y: float
+) -> float:
+    x = min(max(point[0], x_span[0]), x_span[1])
+    return _dist(point, (x, lane_y))
+
+
+def bottleneck_conflict_active(
+    positions: list[tuple[float, float]],
+    speeds: list[float],
+    gate_x_span: tuple[float, float],
+    *,
+    distances_to_goal: list[float | None] | None = None,
+    lane_y: float = 0.0,
+) -> bool:
+    """True when a stopped pair is jammed at a single-lane aperture (B1, B3).
+
+    A pair qualifies when both robots are stopped (the head-on threshold,
+    0.01 m/s), neither is parked at its own goal (within 0.35 m), their
+    centres are closer than 0.8 m (the head-on distance), and the pair's
+    midpoint lies within 1.0 m of the aperture's lane segment. Any
+    qualifying pair makes the conflict active, whatever the headings: the
+    B1 merge latches perpendicular, the B3 standoff head-on, and a follower
+    latch behind either counts too.
+
+    Args:
+        positions: World-frame (x, y) positions in metres for every robot.
+        speeds: Planar speeds in metres per second, same order.
+        gate_x_span: The aperture's `(x_low, x_high)` in world metres (the
+            scenario's `aisle_barrier` centre -/+ half its length).
+        distances_to_goal: Each robot's distance to its own goal, same order;
+            None (or a None entry) never excludes a robot.
+        lane_y: World y of the aperture's lane centreline.
+
+    Returns:
+        True when at least one qualifying pair exists.
+
+    Raises:
+        ValueError: If the lists differ in length or the span is reversed.
+    """
+    if len(positions) != len(speeds) or (
+        distances_to_goal is not None and len(distances_to_goal) != len(positions)
+    ):
+        raise ValueError("positions, speeds and distances_to_goal must align")
+    if gate_x_span[0] > gate_x_span[1]:
+        raise ValueError(f"gate_x_span {gate_x_span} is reversed")
+    candidates = [
+        i
+        for i, speed in enumerate(speeds)
+        if is_stopped(speed)
+        and not (
+            distances_to_goal is not None
+            and distances_to_goal[i] is not None
+            and distances_to_goal[i] <= _ARRIVED_RADIUS_M
+        )
+    ]
+    for n, i in enumerate(candidates):
+        for j in candidates[n + 1 :]:
+            if _dist(positions[i], positions[j]) >= _HEAD_ON_DISTANCE_M:
+                continue
+            midpoint = (
+                (positions[i][0] + positions[j][0]) / 2.0,
+                (positions[i][1] + positions[j][1]) / 2.0,
+            )
+            if _distance_to_segment(midpoint, gate_x_span, lane_y) <= _BOTTLENECK_APPROACH_M:
+                return True
+    return False
 
 
 def anomaly_conflict_active(
