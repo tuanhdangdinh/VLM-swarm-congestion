@@ -37,6 +37,46 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-29** — **Coverage scenes B1/B2/B3 built offline** per the unified
+  scene design (`3b3a529`) and amendments items 28–30 (`ce04bad`); **no VM
+  work — the smoke batch is pending**, and the new scenes' USDs regenerate
+  VM-side (C13). Landed: held-robot exclusion in Arm B (`2f5a2d1`,
+  `SnapshotFrame.held_robot_ids` fed from `TaskRegistry.is_pending`; the
+  `RobotStateInput` contract is untouched); world x band for y-arm yielders,
+  `grounding_aisle_x_band_m` (`86bee0d`); M3-only `TaskAssignment.priority`
+  + `PriorityOracleConfig` (`6dfef27`, prompts pinned byte-identical with
+  and without it); `convoy`/`priority_override` grounded as the ordered
+  yield, tag `strategy=aliased:*` (`cb44d7a`; pooling addendum: those
+  strategies do not pool across this commit); `fcfs_yielder` fact
+  correction (`6d511be`); the scenes, maps, goal-table rows, mocks and
+  C1–C13 pin tests (`16df6d5`, `f159644`); `scripts/strategy_regret.py`
+  for item 29 (`78fca50`). Findings where the design doc does not
+  reproduce, each pinned: (a) the approved exclusion is candidacy-only
+  (parked-robot shape), so the 10/45 crowded B3 cases read `unknown
+  [robot_1, robot_2]` (a wait), not the design's 45/45 `head_on` — that
+  needs the held robot out of the crowding check too, an owner decision;
+  (b) B1's refused `robot_1` yield degrades to a reroute of `robot_1`,
+  it is NOT re-grounded to `robot_2` (the swap gate needs static
+  obstacles, B1 has none); (c) B3's `robot_3`/`robot_4` escorts are
+  3.674/4.244 m, not 3.574/4.174 (those came from the rejected east-shifted
+  queue; ends still x 1.774); (d) B1 has a level-or-past sub-case (robot_2
+  not east of robot_1) that Arm B reads `blocked_path [robot_1]`; (e) B1's
+  reverse-along-heading gate needs x0 ≥ 1.35·cos|θ| − 0.46 (x0 ≥ 0.174 at
+  −62°), narrower than the design's wording. The `fcfs_yielder` correction
+  changed all 7 manifest rows to `robot_2`; `contrasts_fcfs` flips
+  true→false for the three `w0p2_*` rows and T2b, false→true for the three
+  `wopen_e0p2_*` rows and `wopen_eopen` (whose `correct_yielder` stays
+  `robot_1`, now a named constant, rationale reworded); the design-doc and
+  rev-8.6 annotations under `docs/superpowers/` are left for the owner.
+  Not built (design build items outside this slice): B1 GT
+  `bottleneck_conflict_active` + gate-flow scorer, B2 %CP scorer, B3
+  `censored_omitted_queue` rescorer, the fc_launch four-stack lifecycle
+  gate, and a VM driver for the strategy sweeps; `acceptance_logging`
+  computes `conflict_active` only for `head_on`, so B1/B3 log false until
+  the GT functions land. M5 decision artifacts do not record the grounded
+  command, so the regret harness maps an artifact to its arm from the
+  decision, the analysed scene and M3's yield provenance.
+
 - **2026-09-29** — **Unified scene design committed** (`3b3a529`,
   `docs/superpowers/specs/2026-09-29-unified-scene-design.md`): C55
   single-lane module (0.55 m, workable band [0.50, 0.63)), A55-J/A55-E
