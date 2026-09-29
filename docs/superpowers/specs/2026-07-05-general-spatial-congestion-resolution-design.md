@@ -114,6 +114,7 @@
   oracle rationale is neutralised (`a7730ee`), and decision artifacts record
   the served model while the rescorer credits latched-at-goal arrivals
   (`37a0dd5`).
+- Rev 9.4 (2026-09-29): factual correction — head-on FCFS at equal speeds is always a tie and the tiebreak yields robot_2, so every `fcfs_yielder: robot_1` record was wrong; the family manifest and YAMLs are corrected at `6d511be`, `contrasts_fcfs` flips on 7 rows, and any FCFS-contrast cell reads from the corrected manifest. Scoring is unaffected (rev 9 scores Arm B's ACTUAL answer).
 - Rev 9.3 (2026-09-29): T1 amendment by user decision C — `intersection_bottleneck` removed from the non-inferiority tier (structurally unresolvable by the single-yield primitive; Arm B's own answer inexecutable 33/35 live, the executable yield correctly held by the pair-scoped latch) and replaced with `head_on_asymmetric_wopen_eopen_o0`; the realigned scenario becomes the new log-only T1-X classification cell (10 probes, RQ1 only); multi-axis M3 grounding recorded as a prereg-v2 candidate.
 - Rev 9.2 (2026-09-29): T1 tuning basket (amendments item 14) — new Arm B
   parameter `fcfs_zone_radius_m` 1.0 m added to the tuning-parity list;

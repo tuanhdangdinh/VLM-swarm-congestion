@@ -34,6 +34,26 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 18 (2026-09-29): B1/B2/B3 BUILT (`2f5a2d1`…`ae11362`, 361 tests;
+  suite 2885): held-robot exclusion (candidacy-only), arm-aware lateral
+  band, M3-only `priority`, convoy/priority_override aliased onto the
+  ordered yield (`strategy=aliased:*` tagged), the three scenes with
+  C1–C13 grids, the strategy-regret harness (arms keyed by EXECUTED
+  roles; censored arms never the reference), and the `fcfs_yielder`
+  factual correction (blast radius: all 7 manifest rows now robot_2;
+  `contrasts_fcfs` flipped on 7 rows — the FCFS-contrast set is
+  reconstituted accordingly). Six design-doc claims corrected by
+  measurement and pinned (B3 escorts 3.674/4.244 m; B1 heading gate
+  0.174 at −62°; k=1 at 2 of 4 B1 stage-2 poses; etc.). Coordinator
+  rulings, reviewable at the tag: (a) the held-robot exclusion is NOT
+  extended to the head_on crowding check — Arm B answering `unknown`→
+  wait on 10/45 crowded B3 grid cases is recorded as the baseline's own
+  limitation (its B3 outcome is censored by construction regardless);
+  (b) B1's refused robot_1 yield degrading to a reroute (no static
+  obstacles → no swap re-grounding) stands — the regret metric prices
+  the wrong decision. Still pending for the smoke batch: B1 gate-flow +
+  B2 %CP + B3 censored-queue scorers, the fc_launch four-stack
+  lifecycle gate, VM USDs and smokes.
 - Rev 17 (2026-09-29): coverage-check decisions, USER-APPROVED ("Ok"):
   item 28 — build B1/B2/B3 per the unified scene design (`3b3a529`) under
   the CONSERVATIVE migration (existing scenes grandfathered, deviations
