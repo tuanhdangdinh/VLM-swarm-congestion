@@ -1,28 +1,72 @@
 schema_version: 1
 name: intersection_bottleneck
+family: intersection
 seed: 42
-duration_sec: 60.0
+# The four-way approach takes ~10 sim-s after departure (1.4 m at 0.15 m/s);
+# four robots run the VM at RTF ~0.28-0.31, so 300 sim-s is ~1000 wall-s, room
+# for the trigger, a yield maneuver with three passers (~80 sim-s of 0.1 m/s
+# escorts) and the robots' final Nav2 legs. Isaac stops on THIS value
+# (run_simulation's --duration-sec is never applied).
+duration_sec: 300.0
 
+# T1 geometry-sufficient tier, second scenario (research design rev 8.6,
+# "Scenario battery"): four robots, one on each arm of the central cross aisle,
+# each driving to the opposite arm through the intersection. Re-audited
+# 2026-09-29 against the modern apparatus (the June yaml predated M1's tracked
+# band, the sim-time camera, the per-scenario map and Arm B's mapped zones);
+# the same kind of light fixes as normal_flow and dynamic_anomaly_v2:
+#   - Spawns and goals sit 1.75 m from the origin on every arm, inside M1's
+#     tracked area on both axes. The M1 homography sees the marker plane to
+#     |x| <= 2.789 and |y| <= 2.092 (swarm_perception config/calibration.yaml);
+#     the verified tracked band is |x| <= 2.5 (0.29 m inside the x edge;
+#     |x| = 3.0 gave 0/146 detections), and the same inset on y is 1.80. A
+#     robot parked at GT (0, 1.75) was tracked for 366/366 scene rows with no
+#     STALE (T3a smoke, 2026-09-27). The June spawns at (+-3.0, 0) were out of
+#     frame and (0, +-2.0) sat 0.09 m inside the y edge.
+#   - All four approach radii are equal, so the robots reach the centre
+#     together. With the June radii (3.0 vs 2.0) the north-south pair would
+#     stall ~7 sim-s before the east-west pair arrived, and M5 and Arm B would
+#     see a two-robot head_on, not an intersection.
+#   - Every lane is the aisle centreline (|y| < 0.6 east-west, |x| < 0.6
+#     north-south are the only free floor; rack blocks fill the four
+#     quadrants). No aisle_barrier: the barrier narrows the east-west aisle
+#     only, and at the intersection centre its blocks would wall off the
+#     north-south aisle. No obstacles, so warehouse_map_intersection_bottleneck
+#     equals the default map.
+#
+# Arm B classifies `intersection` only against a mapped conflict zone; set
+# orchestrator.yaml shadow_classical_zones to the zone in the goal table there
+# (crossing_1 at the origin, radius_m 1.5) for this scenario only. 1.5 is both
+# the membership radius the rule uses (classical r_conflict_m) and the FCFS
+# arrival zone: every classified robot is inside it, and each spawn is 0.25 m
+# outside it, beyond M1's ~0.1 m bias, so no arrival stamp is censored.
+#
+# No oracle block: T1 has none (Arm B's own answer is the reference).
+#
+# M5 takes goals from swarm_orchestrator/config/orchestrator.yaml
+# initial_tasks, NOT from here: set all four goals below (robot_3 and robot_4
+# added) before a run, or M5 dispatches the head-on +-2.5 centreline goals to
+# robot_1 and robot_2 and none to the others.
 robots:
   - robot_id: robot_1
     marker_id: 1
-    spawn: {x: -3.0, y: 0.0, yaw_rad: 0.0}
-    goal: {x: 3.0, y: 0.0}
+    spawn: {x: -1.75, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 1.75, y: 0.0}
     initial_task: cross_intersection
   - robot_id: robot_2
     marker_id: 2
-    spawn: {x: 3.0, y: 0.0, yaw_rad: 3.141592653589793}
-    goal: {x: -3.0, y: 0.0}
+    spawn: {x: 1.75, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: -1.75, y: 0.0}
     initial_task: cross_intersection
   - robot_id: robot_3
     marker_id: 3
-    spawn: {x: 0.0, y: -2.0, yaw_rad: 1.5707963267948966}
-    goal: {x: 0.0, y: 2.0}
+    spawn: {x: 0.0, y: -1.75, yaw_rad: 1.5707963267948966}
+    goal: {x: 0.0, y: 1.75}
     initial_task: cross_intersection
   - robot_id: robot_4
     marker_id: 4
-    spawn: {x: 0.0, y: 2.0, yaw_rad: -1.5707963267948966}
-    goal: {x: 0.0, y: -2.0}
+    spawn: {x: 0.0, y: 1.75, yaw_rad: -1.5707963267948966}
+    goal: {x: 0.0, y: -1.75}
     initial_task: cross_intersection
 
 timed_obstacles: []
@@ -30,7 +74,11 @@ timed_obstacles: []
 expected_conflict:
   type: bottleneck
   involved_robots: [robot_1, robot_2, robot_3, robot_4]
-  onset_window_sec: [5.0, 30.0]
+  # Departure ~10.6 sim-s after Isaac start (the M5 bring-up), plus ~10 sim-s
+  # of approach: the same schedule as the head-on family's +-1.5 spawns, whose
+  # standoff formed at 19-22 sim-s (T2b header); the window allows for four
+  # Nav2 stacks departing apart.
+  onset_window_sec: [8.0, 40.0]
   min_duration_sec: 2.0
 
 runtime:

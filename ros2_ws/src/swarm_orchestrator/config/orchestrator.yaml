@@ -96,6 +96,13 @@ frame_downscale_width: null
 #     forced-order harness also needs config/rag.yaml grounding.mode: legacy
 #     (header of isaac/config/scenarios/t2b_flow_ordering.yaml;
 #     scripts/t2b_forced_order.py preflight checks all of it)
+#   intersection_bottleneck (T1, four robots) -> robot_1 [1.75, 0.0], robot_2
+#     [-1.75, 0.0], AND robot_3: { task: cross_intersection, goal: [0.0, 1.75] },
+#     robot_4: { task: cross_intersection, goal: [0.0, -1.75] } (all four
+#     tasks cross_intersection), AND shadow_classical_zones:
+#     [{ zone_id: crossing_1, x: 0.0, y: 0.0, radius_m: 1.5 }] (Arm B cannot
+#     classify `intersection` without it); scenario_geometry stays as shipped
+#     (header of isaac/config/scenarios/intersection_bottleneck.yaml)
 # Running a _gshort or _bshort scenario without changing these dispatches +-2.5
 # and the variant silently degrades to its beyond-goal twin, blocker back on
 # the goal path (isaac/config/scenarios/family/*_{gshort,bshort}_o0.yaml).
@@ -181,6 +188,10 @@ shadow_classical_window_sec: 60.0
 shadow_classical_sample_period_sec: 0.25
 # Mapped conflict zones for Arm B's intersection rule, per scenario (later
 # tiers). Empty for head-on scenarios: that rule derives its own pair zone.
+# Set per scenario by hand like initial_tasks (goal table above), and keep it
+# empty otherwise: a zone left over at the origin would let the intersection
+# rule fire on any scene with two stopped robots whose goal axes cross near
+# the centre. intersection_bottleneck (T1) declares:
 #   - { zone_id: crossing_1, x: 0.0, y: 0.0, radius_m: 1.5 }
 shadow_classical_zones: []
 
