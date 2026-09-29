@@ -37,6 +37,26 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-29** — **Unified scene design committed** (`3b3a529`,
+  `docs/superpowers/specs/2026-09-29-unified-scene-design.md`): C55
+  single-lane module (0.55 m, workable band [0.50, 0.63)), A55-J/A55-E
+  aperture placements, derived goal/length rules replacing per-scene
+  magic numbers, a 13-check constraint table, MiR250-anchored fidelity
+  frame (s ≈ 3.3 by width; latency forgiveness 10.9–20× recorded as a
+  scoped fidelity limit), and full specs for B1 `bottleneck_merge` (3
+  robots), B2 `priority_urgent_*` (2-robot label-swapped pair; urgency
+  via task label — NO new prompt version) and B3 `convoy_counterflow`
+  (4 robots; Arm B's outcome censored by construction). Migration
+  recommendation: CONSERVATIVE (grandfather existing scenes, record
+  deviations D1–D3, 0 re-validation runs) vs full consistency (~25–45
+  runs, invalidates A1/margins/pins for no measurable gain). Findings
+  requiring pre-tag action: `fcfs_yielder: robot_1` in the family
+  manifest/T2b YAML/rev 8.6 is FACTUALLY WRONG (full ties yield
+  robot_2 — pinned test), so `contrasts_fcfs` annotations need
+  correction; a held-robot exclusion in Arm B is a new rule decision
+  (fixes B1 and 10/45 B3 grid cases); T2b Arm-B-executed episodes risk
+  a B3-style latch (inferred — check before collection).
+
 - **2026-09-29** — **Intersection resolvability design study: recommendation
   D — the T1-X log-only fallback stands** (`0c27a4d`,
   `docs/superpowers/specs/2026-09-29-intersection-resolvable-design.md`).
