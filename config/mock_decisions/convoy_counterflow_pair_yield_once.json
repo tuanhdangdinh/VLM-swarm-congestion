@@ -1,0 +1,20 @@
+[
+  {
+    "congestion_detected": true,
+    "type": "deadlock",
+    "involved_robots": ["robot_1", "robot_2"],
+    "root_cause": "Two robots met head-on inside the narrow aisle and neither can pass.",
+    "strategy": "yield",
+    "yield_robot": "robot_2",
+    "blocker_kind": "robot",
+    "justification": "Scripted mock decision for the convoy_counterflow strategy sweep (omitted-queue arm, Arm B's shape): robot_2 yields to robot_1 only; the held queue is not commanded."
+  },
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "Scene has cleared; robots are no longer blocking each other.",
+    "strategy": "none",
+    "justification": "Scripted mock decision for the convoy_counterflow strategy sweep: scene is clear after the resolution."
+  }
+]

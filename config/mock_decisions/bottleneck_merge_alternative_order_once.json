@@ -1,0 +1,21 @@
+[
+  {
+    "congestion_detected": true,
+    "type": "bottleneck",
+    "involved_robots": ["robot_1", "robot_2", "robot_3"],
+    "root_cause": "robot_1 and robot_2 contend for the single-lane gate while robot_3 queues behind robot_1.",
+    "strategy": "yield",
+    "yield_robot": "robot_1",
+    "crossing_order": ["robot_2", "robot_3", "robot_1"],
+    "blocker_kind": "robot",
+    "justification": "Scripted mock decision for the bottleneck_merge strategy sweep (alternative arm): robot_1 yields; derived grounding refuses the backup (robot_3 behind it) and reroutes robot_1."
+  },
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "Scene has cleared; robots are no longer blocking each other.",
+    "strategy": "none",
+    "justification": "Scripted mock decision for the bottleneck_merge strategy sweep: scene is clear after the resolution."
+  }
+]
