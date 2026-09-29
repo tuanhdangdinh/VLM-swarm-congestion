@@ -149,6 +149,10 @@ class OrchestratorConfig(BaseModel):
     # geometry like scenario_geometry, so it lives here and is set per
     # scenario; None keeps the file's value and every scenario's k unchanged.
     grounding_aisle_y_band_m: tuple[float, float] | None = None
+    # Per-scenario world-frame x band for a yielder whose declared junction
+    # arm runs along y (B1 bottleneck_merge's north-arm yielder): the N-S
+    # aisle's walls. None (every scene before B1) changes nothing.
+    grounding_aisle_x_band_m: tuple[float, float] | None = None
     # Stage-2 retreat selection (rev-8 A.3): in derived grounding mode, ask the
     # VLM to pick one of the validated retreat candidates of a yield. False
     # skips the call, and every yield grounds the geometry-max default

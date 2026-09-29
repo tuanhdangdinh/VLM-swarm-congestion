@@ -8,7 +8,7 @@ from reasoning.rag.retreat_candidates import (
     generate_retreat_candidates,
     rank_candidates,
 )
-from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
+from reasoning.rag.scene_geometry import ArmGeometry, CorridorGeometry, SceneGeometry
 from reasoning.vlm.models import RobotStateInput, SnapshotFrame
 
 
@@ -196,3 +196,124 @@ class TestRankCandidates:
 
         ranked = rank_candidates([candidate("A", 0.5), candidate("B", None)], 0.0, (0.0, 0.0))
         assert [c.label for c in ranked] == ["B", "A"]
+
+
+def _junction_geometry() -> SceneGeometry:
+    # B1 bottleneck_merge's goal-table row: the junction box (half-length 0.6,
+    # no occluder), robot_1/robot_3 on the west arm, robot_2 on the north arm.
+    return SceneGeometry(
+        corridor=CorridorGeometry(
+            axis="x",
+            center_m=0.0,
+            half_length_m=0.6,
+            aisle_half_width_m=0.6,
+            occluder_height_m=0.0,
+        ),
+        arms={
+            "robot_1": ArmGeometry(axis="x", side=-1),
+            "robot_2": ArmGeometry(axis="y", side=1),
+            "robot_3": ArmGeometry(axis="x", side=-1),
+        },
+    )
+
+
+def _merge_frame(r2_x: float) -> SnapshotFrame:
+    return _frame(
+        ("robot_1", 0.10, 0.0, 0.0),
+        ("robot_2", r2_x, 0.45, math.radians(-80.0)),
+        ("robot_3", -2.45, 0.0, 0.0),
+    )
+
+
+# The N-S aisle's walls for a 0.09 m half-width robot with 0.05 m margin
+# (R-POCKET: |x| + 0.09 + 0.05 <= 0.6).
+_NS_BAND = (-0.46, 0.46)
+
+
+class TestArmAwareAisleBand:
+    """A world x band bounds only a yielder whose own arm runs along y (B1)."""
+
+    def test_north_arm_yielder_without_x_band_sidesteps_into_the_rack(self):
+        candidates = generate_retreat_candidates(
+            _merge_frame(0.15), "robot_2", 1.25, GroundingParams(),
+            geometry=_junction_geometry(), passer_id="robot_1",
+        )
+        xs = sorted(round(c.x, 3) for c in candidates)
+        assert xs == [-0.21, 0.51]
+        assert max(xs) > _NS_BAND[1]
+
+    def test_north_arm_yielder_with_x_band_keeps_only_in_aisle_candidates(self):
+        candidates = generate_retreat_candidates(
+            _merge_frame(0.15), "robot_2", 1.25, GroundingParams(aisle_x_band_m=_NS_BAND),
+            geometry=_junction_geometry(), passer_id="robot_1",
+        )
+        assert [(round(c.x, 3), round(c.y, 3)) for c in candidates] == [(-0.21, 1.7)]
+
+    @pytest.mark.parametrize("r2_x", [0.0, 0.1, 0.15, 0.2, 0.3])
+    def test_every_north_arm_candidate_stays_inside_the_band(self, r2_x):
+        candidates = generate_retreat_candidates(
+            _merge_frame(r2_x), "robot_2", 1.25, GroundingParams(aisle_x_band_m=_NS_BAND),
+            geometry=_junction_geometry(), passer_id="robot_1",
+        )
+        assert candidates
+        for c in candidates:
+            assert _NS_BAND[0] - 1e-9 <= c.x <= _NS_BAND[1] + 1e-9
+
+    def test_x_band_ignored_for_x_axis_yielder(self):
+        frame = _merge_frame(0.15)
+        geometry = _junction_geometry()
+        plain = generate_retreat_candidates(
+            frame, "robot_1", 1.0, GroundingParams(), geometry=geometry, passer_id="robot_2"
+        )
+        banded = generate_retreat_candidates(
+            frame, "robot_1", 1.0, GroundingParams(aisle_x_band_m=_NS_BAND),
+            geometry=geometry, passer_id="robot_2",
+        )
+        assert banded == plain
+
+    def test_x_band_ignored_without_geometry(self):
+        plain = generate_retreat_candidates(_HEAD_ON, "robot_1", 1.3, GroundingParams())
+        banded = generate_retreat_candidates(
+            _HEAD_ON, "robot_1", 1.3, GroundingParams(aisle_x_band_m=(-0.1, 0.1))
+        )
+        assert banded == plain
+
+    @pytest.mark.parametrize(
+        ("half_length", "y_band"),
+        [(1.0, None), (0.5, None), (0.8, (-0.55, 1.0))],
+        ids=["t1_family", "t2b_a55j", "t3b"],
+    )
+    @pytest.mark.parametrize("yielder", ["robot_1", "robot_2"])
+    def test_x_axis_scenes_byte_identical_with_x_band_set(self, half_length, y_band, yielder):
+        geometry = _geometry().model_copy(
+            update={"corridor": _geometry().corridor.model_copy(
+                update={"half_length_m": half_length})}
+        )
+        passer = "robot_2" if yielder == "robot_1" else "robot_1"
+        plain = generate_retreat_candidates(
+            _DEADLOCK, yielder, 1.3, GroundingParams(aisle_y_band_m=y_band),
+            geometry=geometry, passer_id=passer,
+        )
+        banded = generate_retreat_candidates(
+            _DEADLOCK, yielder, 1.3,
+            GroundingParams(aisle_y_band_m=y_band, aisle_x_band_m=_NS_BAND),
+            geometry=geometry, passer_id=passer,
+        )
+        assert [c.model_dump_json() for c in banded] == [c.model_dump_json() for c in plain]
+
+
+class TestAisleXBandParam:
+    def test_unset_x_band_is_omitted_from_the_dump(self):
+        assert "aisle_x_band_m" not in GroundingParams().model_dump()
+        assert "aisle_x_band_m" not in GroundingParams().model_dump_json()
+
+    def test_set_x_band_is_dumped(self):
+        assert GroundingParams(aisle_x_band_m=_NS_BAND).model_dump()["aisle_x_band_m"] == _NS_BAND
+
+    def test_dump_round_trips(self):
+        params = GroundingParams(aisle_x_band_m=_NS_BAND)
+        assert GroundingParams(**params.model_dump()) == params
+
+    def test_inverted_x_band_rejected(self):
+        with pytest.raises(ValueError, match="aisle_x_band_m"):
+            GroundingParams(aisle_x_band_m=(0.46, -0.46))

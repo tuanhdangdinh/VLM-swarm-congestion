@@ -63,7 +63,8 @@ def generate_retreat_candidates(
     widened by `pull_off_lateral_m` either side, perpendicular to the
     corridor (the yielder's own junction arm, when declared), which leaves
     only the 1x variants. `aisle_y_band_m` is a world y band, so it suits only
-    yielders retreating along x.
+    yielders retreating along x; a yielder whose own arm runs along y takes
+    `params.aisle_x_band_m` (a world x band) instead when one is set.
 
     Args:
         frame: Current scene snapshot.
@@ -168,6 +169,11 @@ def _aisle_band(
     lateral_m: float,
 ) -> tuple[int, float, float] | None:
     # (coordinate index, low, high) the swept path must stay inside.
+    if params.aisle_x_band_m is not None and geometry is not None:
+        # Own-arm pattern: only a yielder retreating along y is bounded by
+        # the world x band; everyone else keeps the bands below unchanged.
+        if arm_geometry(geometry, yielder.robot_id)[0].corridor.axis == "y":
+            return (0, *params.aisle_x_band_m)
     if params.aisle_y_band_m is not None:
         return (1, *params.aisle_y_band_m)
     if geometry is None:

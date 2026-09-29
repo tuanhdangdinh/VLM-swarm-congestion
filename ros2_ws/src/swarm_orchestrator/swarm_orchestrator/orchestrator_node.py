@@ -74,6 +74,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     LatestRawFrame,
     ReasoningPipeline,
     append_scene_log,
+    apply_aisle_x_band_override,
     apply_aisle_y_band_override,
     attach_registry_assignments,
     build_failed_outcome,
@@ -259,9 +260,12 @@ class OrchestratorNode(Node):
         # Fail fast: a missing file, an invalid `grounding:` section or an
         # inverted per-scenario band stops M5 here, since these parameters
         # shape every command it dispatches.
-        self._grounding = apply_aisle_y_band_override(
-            load_grounding_source(Path(self._config.grounding_params_path)),
-            self._config.grounding_aisle_y_band_m,
+        self._grounding = apply_aisle_x_band_override(
+            apply_aisle_y_band_override(
+                load_grounding_source(Path(self._config.grounding_params_path)),
+                self._config.grounding_aisle_y_band_m,
+            ),
+            self._config.grounding_aisle_x_band_m,
         )
         # Groups artifacts per M5 process; VGU_RUN_ID (set by the launcher) names
         # the scenario run across all modules. Set before the pipeline, whose
@@ -369,7 +373,12 @@ class OrchestratorNode(Node):
             f"section_present={self._grounding.section_present} "
             f"aisle_y_band_m={self._grounding.params.aisle_y_band_m} "
             f"band_override={self._grounding.aisle_y_band_override_m is not None} "
-            f"stage2_retreat_selection={self._config.stage2_retreat_selection}"
+            + (
+                ""
+                if self._grounding.aisle_x_band_override_m is None
+                else f"aisle_x_band_m={self._grounding.aisle_x_band_override_m} "
+            )
+            + f"stage2_retreat_selection={self._config.stage2_retreat_selection}"
         )
         if self._marker is not None:
             if self._marker.available:

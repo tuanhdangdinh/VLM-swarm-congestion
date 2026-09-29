@@ -10,7 +10,13 @@ from typing import Any, NamedTuple, Protocol
 import cv2
 import numpy as np
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+)
 
 from reasoning.rag.command_grounder import (
     YieldFeasibilityMode,
@@ -87,6 +93,17 @@ class GroundingParamsSource(BaseModel):
     # the file's `aisle_y_band_m` in `params`; None when the file's value (or
     # its default) is in force.
     aisle_y_band_override_m: tuple[float, float] | None = None
+    # The per-scenario world x band for yielders retreating along y, when one
+    # was set; omitted from the dump when None so artifacts of every scene
+    # without it are unchanged.
+    aisle_x_band_override_m: tuple[float, float] | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_x_band(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data = handler(self)
+        if data.get("aisle_x_band_override_m") is None:
+            data.pop("aisle_x_band_override_m", None)
+        return data
 
 
 def load_grounding_source(path: Path) -> GroundingParamsSource:
@@ -148,6 +165,33 @@ def apply_aisle_y_band_override(
         return source
     params = GroundingParams(**{**source.params.model_dump(), "aisle_y_band_m": band_m})
     return source.model_copy(update={"params": params, "aisle_y_band_override_m": band_m})
+
+
+def apply_aisle_x_band_override(
+    source: GroundingParamsSource, band_m: tuple[float, float] | None
+) -> GroundingParamsSource:
+    """Set the world x band that bounds a y-axis yielder's retreat candidates.
+
+    The x counterpart of `apply_aisle_y_band_override`, for a yielder whose
+    declared junction arm runs along y (B1's north-arm merge yielder); every
+    other yielder ignores it.
+
+    Args:
+        source: The params, possibly already carrying a y-band override.
+        band_m: World-frame `(low, high)` x band, or None to keep `source`.
+
+    Returns:
+        `source` unchanged for None; otherwise a copy whose params carry the
+        band, with the override recorded.
+
+    Raises:
+        pydantic.ValidationError: If the band's lower bound exceeds its upper
+            bound.
+    """
+    if band_m is None:
+        return source
+    params = GroundingParams(**{**source.params.model_dump(), "aisle_x_band_m": band_m})
+    return source.model_copy(update={"params": params, "aisle_x_band_override_m": band_m})
 
 
 def build_failed_outcome(request_id: str, reason: str) -> PipelineOutcome:

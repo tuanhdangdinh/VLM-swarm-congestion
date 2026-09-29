@@ -22,6 +22,7 @@ from swarm_orchestrator.models import (
 from swarm_orchestrator.reasoning_pipeline import (
     GroundingParamsSource,
     InProcessPipeline,
+    apply_aisle_x_band_override,
     apply_aisle_y_band_override,
     attach_registry_assignments,
     build_reasoner_request,
@@ -416,6 +417,34 @@ class TestLoadGroundingSource:
         source = load_grounding_source(Path("config/rag.yaml"))
         assert source.section_present is True
         assert source.path == "config/rag.yaml"
+
+
+class TestAisleXBandOverride:
+    def test_no_band_keeps_the_loaded_source(self):
+        source = _source()
+        assert apply_aisle_x_band_override(source, None) is source
+
+    def test_band_replaces_only_the_x_band_and_is_recorded(self):
+        source = apply_aisle_y_band_override(_source(), (-0.55, 1.0))
+        overridden = apply_aisle_x_band_override(source, (-0.46, 0.46))
+        assert overridden.params.aisle_x_band_m == (-0.46, 0.46)
+        assert overridden.aisle_x_band_override_m == (-0.46, 0.46)
+        assert overridden.params.aisle_y_band_m == (-0.55, 1.0)
+        assert overridden.aisle_y_band_override_m == (-0.55, 1.0)
+
+    def test_unset_x_band_stays_out_of_the_artifact_dump(self):
+        dumped = _source().model_dump(mode="json")
+        assert "aisle_x_band_override_m" not in dumped
+        assert "aisle_x_band_m" not in dumped["params"]
+
+    def test_set_x_band_is_in_the_artifact_dump(self):
+        dumped = apply_aisle_x_band_override(_source(), (-0.46, 0.46)).model_dump(mode="json")
+        assert dumped["aisle_x_band_override_m"] == [-0.46, 0.46]
+        assert dumped["params"]["aisle_x_band_m"] == [-0.46, 0.46]
+
+    def test_inverted_band_fails_fast(self):
+        with pytest.raises(ValidationError, match="aisle_x_band_m"):
+            apply_aisle_x_band_override(_source(), (0.46, -0.46))
 
 
 class TestAisleYBandOverride:

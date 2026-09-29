@@ -9,10 +9,17 @@ on `GroundingParams` are the fallbacks for callers without one.
 import math
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+    model_validator,
+)
 
 from reasoning.rag.scene_geometry import (
     SceneGeometry,
@@ -60,6 +67,12 @@ class GroundingParams(BaseModel):
     # aisle). None leaves the sweep unbounded laterally unless a declared
     # geometry supplies a band (see `retreat_candidates`).
     aisle_y_band_m: tuple[float, float] | None = None
+    # World-frame x band for a yielder whose own retreat axis is y (a junction
+    # arm declared `axis: y`): the N-S aisle's walls, which the lane band
+    # centred on the yielder's own x does not know (B1 bottleneck_merge). It
+    # takes precedence over `aisle_y_band_m` for such a yielder only; None
+    # leaves every yielder on the pre-existing bands, byte for byte.
+    aisle_x_band_m: tuple[float, float] | None = None
     hold_backstop_sec: float = Field(default=45.0, gt=0)
     wait_backstop_sec: float = Field(default=120.0, gt=0)
     resolution_backstop_sec: float = Field(default=150.0, gt=0)
@@ -69,6 +82,8 @@ class GroundingParams(BaseModel):
         bands = {"backup_band_m": self.backup_band_m, "escort_band_m": self.escort_band_m}
         if self.aisle_y_band_m is not None:
             bands["aisle_y_band_m"] = self.aisle_y_band_m
+        if self.aisle_x_band_m is not None:
+            bands["aisle_x_band_m"] = self.aisle_x_band_m
         for name, (low, high) in bands.items():
             if low > high:
                 raise ValueError(f"{name} lower bound {low} exceeds upper bound {high}")
@@ -76,6 +91,15 @@ class GroundingParams(BaseModel):
             if bands[name][0] < 0:
                 raise ValueError(f"{name} must be non-negative, got {bands[name]}")
         return self
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_x_band(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        # Decision artifacts dump these params; an unset x band stays out of
+        # the dump so every artifact of a scene without one is unchanged.
+        data = handler(self)
+        if data.get("aisle_x_band_m") is None:
+            data.pop("aisle_x_band_m", None)
+        return data
 
 
 class Derivation(BaseModel):

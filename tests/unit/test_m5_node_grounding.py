@@ -59,6 +59,17 @@ def test_startup_applies_and_logs_a_per_scenario_band(node_env, tmp_path):  # no
     assert "aisle_y_band_m=(-0.55, 1.0) band_override=True" in line
 
 
+def test_startup_applies_and_logs_a_per_scenario_x_band(node_env, tmp_path):  # noqa: F811
+    path = tmp_path / "rag.yaml"
+    path.write_text("grounding:\n  mode: derived\n", encoding="utf-8")
+    node = _node(node_env, tmp_path, grounding_params_path=str(path),
+                 grounding_aisle_x_band_m=(-0.46, 0.46))
+    assert node._grounding.params.aisle_x_band_m == (-0.46, 0.46)
+    assert node._grounding.params.aisle_y_band_m is None
+    [line] = node.get_logger().matching("grounding mode=")
+    assert "band_override=False aisle_x_band_m=(-0.46, 0.46) stage2" in line
+
+
 def test_startup_fails_fast_on_an_inverted_band(node_env, tmp_path):  # noqa: F811
     with pytest.raises(ValidationError, match="aisle_y_band_m"):
         _node(node_env, tmp_path, grounding_aisle_y_band_m=(1.0, -0.55))
