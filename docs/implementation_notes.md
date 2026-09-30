@@ -37,6 +37,155 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-30** — **Rev 20's two apparatus defects characterized; both SCOPED, no code fix** (VM
+  `vgu-vgu-thule-base-isaac-workstation-vm`, tree verified 645/647 clean against HEAD `1e8080d`
+  before and after — the 2 mismatches are `docs/superpowers/` files, out of scope here and
+  untouched; pristine `orchestrator.yaml`/`config/rag.yaml` md5 `dd1c5b7ff4fd628a0812c40157023c71`
+  / `e18c723cff9cada3f320d564c2ecee5a`, matching the installed copies; artifacts
+  `data/logs/vm_runs/dispatch_fix/`). **301e77f's "structural, all 3 runs" and "fails on
+  min_distance_violation" claims are superseded by this entry's evidence below.**
+
+  **(b) B3 4-robot dispatch gap — NOT a registry/BaseMissionDriver/retry bug; a probabilistic
+  robot_1/robot_3 goal-separation latch.** Traced every layer named in the task and found each
+  correct: `robot_4` is in the B1/B3 goal table (`scripts/strategy_regret.py:195-202`,
+  `initial_tasks`), `TaskRegistry.release_due`/`to_json` (`task_registry.py:38-119`) releases and
+  publishes it like any robot, and `BaseMissionDriver._desired()` (`base_mission.py:55-63`)
+  correctly excludes only `_held`/`_suppressed_by` robots — confirmed by a clean, fully successful
+  4/4-arrival replicate of this exact scenario/mock/seed
+  (`data/logs/vm_runs/bscene_smoke/B3S_20260929_161207`: `m4.log:1356` `resume base mission
+  robot=robot_4`, `nav2_r4.log:271` `Begin navigating from current location (1.78, 0.00) to (1.85,
+  0.00)`, `m5.log:4020` `robot robot_4 arrived at base goal (1.85, 0.0) distance_m=0.09`) that
+  exercises the identical code path end to end. The actual, reproduced failure (3 of 4 known runs —
+  `B3PROBE_20260930_044351`, `bscene_smoke/b3_oracle_20260930_013059`, and this session's
+  `dispatch_fix/B3DISP_20260930_073750`): once the crossing chain's intermediate release
+  (`command_bus_node.py:237-240`) resumes `robot_3`'s base-mission Nav2 goal toward `(2.45, 0.3)`
+  while `robot_4` is still being escorted through the same single-lane corridor, `robot_3`'s live
+  approach passes close enough to `robot_1` (already parked at `(2.45, -0.3)`, only 0.6 m away) to
+  breach the 0.45 m floor (`config/safety.yaml:2`) for real: GT center-to-center distance at the
+  frozen end state is `0.4256 m` (B3PROBE), `0.4442 m` (b3_oracle) and `0.4324 m` (B3DISP, this
+  session — `min_pairwise_distance_m` in that run's final GT row is actually the robot_3/robot_4
+  pair, even tighter), all `< 0.45`, and `robot_3`/`robot_4` separately end up at `0.3977 m` /
+  `0.4163 m` / sub-0.45 m across the three failing runs. The 0.45 m breach is genuine
+  proximity (not a perception artifact): the newly-flagged safety-stop lines
+  (`nav2 cancel-all requested robot=robot_3` / `robot=robot_1`, same tick) are the real reason, not
+  the hardcoded `reason=min_distance_violation` text repeated on every 40 Hz hold line. Per
+  `safety.py:110-153` (`admitted_partners`) and its own pinned tests
+  (`tests/unit/test_safety_monitor.py::test_waiting_passers_are_not_paired_with_each_other`,
+  `::test_backup_phase_never_pairs_two_passers`, the latter citing the live-verified T2b
+  "bystander latch" as the reason), two passers of the same multi-passer yield are DELIBERATELY
+  never exempt from each other — loosening that would undo a load-bearing, GPU-verified T2b safety
+  invariant, so it is not touched. Once latched, `BaseMissionDriver.retry()` correctly skips held
+  robots (`base_mission.py:55-63`) — "robot_3's leg is never retried" is *correct*, not a bug: two
+  robots held at zero-twist never produce a fresh >=0.45 m separation on their own, so the latch is
+  permanent by construction, not a missed retry. `robot_4` separately never gets a `resume base
+  mission`/Nav2 dispatch in the 2 failing runs because by the time its `temporary_wait` reaches
+  COMPLETED (chain finished — most likely `hold_sec` backstop, not "passer cleared": `escort
+  robot_4: COMPLETED` never prints in either failing run) it is *already* `_held` from the same
+  robot_1/robot_3 cluster, so `_desired()` correctly omits it — this is the already-registered
+  finding F6 (arrival definition; `docs/implementation_notes.md` M2/M5 section, 2026-09-2x entry)
+  applied to a robot latched at its goal, not a new dispatch defect. **Root cause is therefore B3's
+  goal table**: `robot_1`'s and `robot_3`'s goals (`(2.45, -0.3)` / `(2.45, 0.3)`,
+  `isaac/config/scenarios/convoy_counterflow.yaml` via `scripts/strategy_regret.py:197-199`) are
+  only 0.6 m apart — the scenario's own test suite checks `robot_4`'s goal against the other two
+  (`GOAL_STACK_M = 0.60`, `tests/unit/test_convoy_counterflow_scenario.py::TestC7GoalStack`) but
+  never checks `robot_1` against `robot_3` directly — and the live, non-straight-line Nav2 approach
+  into the shared corridor occasionally (not always: `B3S` is clean, `B3PROBE`/`b3_oracle`/`B3DISP`
+  are not) closes that 0.6 m margin below 0.45 m before either robot settles. **Separately
+  confirmed, worth its own line item**: `robot_4`'s raw-cmd_vel escort (`drive_heading`,
+  `nav2_adapter.py`) advanced ~5.2 cm (GT x: `1.7086` at sim 163.3 -> `1.7603` at the run's final
+  row, sim 260.0) *after* the M6 `cmd_vel_watchdog` relay logged `cmd_vel relay hold engaged
+  robot=robot_4` (`isaac.log`, B3PROBE) — a small, real violation of the invariant
+  `docs/specs/module4/safety-monitor.md` §8 states plainly ("A held robot's wheels receive zero
+  irrespective of `cmd_vel`"), in the same "M4 raw-cmd_vel obstacle blindness" family already
+  tracked (prereg-v1-amendments item 25) but not previously observed to leak through the *gated*
+  relay itself, only to bypass the Nav2 collision_monitor. Flagged for the M4/M6 owner; not fixed
+  here (reported per instruction, not diagnosed to a line-level cause — candidates are a narrow
+  20 Hz relay-vs-physics race or residual momentum, not distinguished). **Verdict: SCOPE, not fix.**
+  A safe fix is a scenario goal-table change (widen the `robot_1`/`robot_3` goal separation,
+  analogous to B1's `half_length_m` fix) requiring its own local sweep + VM re-verification + pin
+  rewrite across `test_convoy_counterflow_scenario.py`'s ~30 pinned exact values — out of this
+  task's budget and, per `B3S`'s clean replicate, not even validatable from one more smoke (the
+  failure is probabilistic, roughly 3-of-4 to date). **B3 outcome/flow-metric collection stays
+  blocked** until the coordinator orders that goal-table revision; this session's VM replicate
+  (`dispatch_fix/B3DISP_20260930_073750`, seed 42, `convoy_counterflow_oracle_order_once.json`) is
+  reported as a 4th data point (failed the same way, only `robot_1`+`robot_2` got M5 arrival
+  lines), not a PASS/FAIL verdict, and "robot_3 retries after cancellation" is not an attainable
+  PASS criterion without weakening `base_mission.py`'s correct held-robot exclusion.
+
+  **(a) B1 default-candidate backup/sidestep failure — confirmed candidate- and heading-specific,
+  refuting "sweep uses nominal poses."** `generate_retreat_candidates`/`_sweep_clears`
+  (`reasoning/rag/retreat_candidates.py:38-124, 201-212`) validate against `frame.robots`, i.e. the
+  live snapshot at grounding time — current poses, not nominal ones; that hypothesis is refuted by
+  the code itself. The actual, 3/3-reproduced failure (`B1FIX_S43`, `SWFIX_oracle_s42`,
+  `SWFIX_oracle_s43`, all `retreat=default:no_choice`): the yield's FAILED status arrives
+  202.3-202.5 s after the pull-off/sidestep ACTIVE in every run — an exact match (within logging
+  jitter) to `Nav2Adapter.sidestep`'s own wall-clock safety deadline
+  (`nav2_adapter.py:198-228,375`: `max(15 * (pi/0.5 + |lateral_m|/0.1), 30)` = `202.25 s` for
+  `lateral_m = -0.72`) — i.e. the sidestep genuinely times out (`"side step timed out in phase
+  {phase}"`), not a safety-monitor rejection (zero `safety stop` log lines for any robot in the
+  entire `[pull-off ACTIVE, FAILED]` window of `B1FIX_S43`, and zero `robot_static_contacts` /
+  `robot_robot_contacts` anywhere in that run's GT). `rank_candidates` (`retreat_candidates.py:
+  127-162`) ties both surviving candidates' `lateral_clearance_m` at this geometry and its
+  tie-break ("farther from the corridor is better") picks candidate `B` (`lateral_m = -0.72`, the
+  2x/farther option) as `ranked[0]` — confirmed from the decision JSON's own `stage2.default_label
+  = "B"` — while the one stage-2-forced comparison run (`B1FIX_S43R`, mock answers letter "B" which
+  `letter_assignment` maps to `grounded_label = "A"`, `lateral_m = -0.36`) completes its sidestep
+  cleanly in ~39 s (`m4.log:1381-1386`, backup ACTIVE -> pull-off ACTIVE -> hold ACTIVE with no
+  FAILED). GT trajectory for the default candidate (`B1FIX_S43`) pins the mechanism exactly: the
+  backup and turn-out phases complete normally, but the drive segment overshoots the candidate's
+  own validated target (`x ~= -0.38` to `-0.42`, inside the `aisle_x_band_m = [-0.46, 0.46]`
+  feasibility band) to GT `x = -0.56` — 0.10 m past the band edge — after which `theta` oscillates
+  at the +-pi wrap boundary with zero net progress and zero speed for the remainder of the
+  deadline. This is the same mechanism as the already-documented residual ("M4 backup overshoots
+  the NS_BAND west edge at 2 of 8 measured poses", `301e77f`'s notes entry above): the swept
+  validation models the backup/sidestep as idealized straight-line segments
+  (`axes.retreat`/`axes.left`, world frame), while M4 executes them as a heading-relative,
+  odometry-closed loop (`nav2_adapter.py` `backup`/`sidestep`) whose cumulative drift scales with
+  maneuver distance — large enough for the 2x/`-0.72 m` candidate to carry the yielder past the
+  validated band into the wall, small enough for the 1x/`-0.36 m` candidate to stay clear. This is
+  a genuine, reproducible candidate-validation gap, but principled fix requires modeling M4's
+  actual execution geometry (or its empirically-measured drift) inside the sweep/ranking used by
+  every derived-mode scene (`T3b`'s pre-registered occupied-choice test, `T2b`, Arm B's stage-2
+  answer, every other B1 pose) — out of budget to validate safely here. **Verdict: SCOPE, not
+  fix**, per the task's own option (ii): B1 trials where the DEFAULT (no stage-2) candidate is used
+  are outcome-contaminated (100% reproduced sidestep timeout, 3/3) and must be excluded from
+  flow-metric collection / scored decision-only; only stage-2-selected-candidate trials are valid
+  for B1 flow metrics. Sharper than the task's own framing: the exclusion rule is *"default
+  candidate is the tied-clearance, farther-from-corridor 2x lateral variant"*, not merely "steep
+  yielder heading" — all 3 default-candidate runs times differ in heading (`-69.8 deg`, `-67.2
+  deg`, `-58.3 deg`) but fail identically; the mechanism is the candidate's excursion distance
+  relative to the aisle band, heading sets how much drift accumulates over that excursion.
+
+  **VM verification (this session, `data/logs/vm_runs/dispatch_fix/`):** `B3DISP_20260930_073750`
+  (convoy_counterflow, seed 42, oracle-order mock) — 4th replicate of the same failure shape, not a
+  PASS (see above). `B1DISP_20260930_075853` (bottleneck_merge, seed 43, yield mock, no stage-2) —
+  4th consecutive reproduction of the exact `retreat=default:no_choice` / 202.4 s sidestep-timeout
+  failure shape (202.43 s this run); reported as "failure shape confirmed unchanged", not a PASS,
+  per the (a) scoping verdict above. **Container pytest baseline** (tree `1e8080d`, full
+  `ROS_SETUP`, inside `vgu_ros`): diagnosed the "collects only 1 test" symptom precisely —
+  `tests/unit/test_lidar.py` and `tests/unit/test_robot_drive.py` each do a *module-level*
+  `pytest.importorskip("pxr")`; `pxr` (USD) is genuinely absent from this ROS2 container (it lives
+  only in the separate Isaac Sim `python.sh` environment), and the ROS2 `launch_testing`/
+  `launch_testing_ros` pytest plugins' `pytest_pycollect_makemodule` hook imports every `.py` file
+  to probe for a launch-test entrypoint; the resulting `Skipped` (a `BaseException`, not
+  `Exception`) escapes that hook's own error handling and silently truncates the *whole* session to
+  "no tests collected" whenever either file is combined with others (confirmed by bisection: each
+  collects fine alone). Workaround for this run only (no code change): `--ignore` both files plus
+  three more `isaac.vgu_sim` tests with unconditional, unguarded `pxr` imports
+  (`test_marker_asset.py`, `test_robot_asset.py`, `test_scenario_builder.py`) — all five are
+  Isaac-Sim/USD-only tests, out of scope for a ROS2-container run by design, the same class of
+  environment split as the local/container difference already on record. Result: **3015 collected,
+  2980 passed, 23 failed, 12 skipped** (80.18 s) — not directly comparable to the prior "local
+  58/2921 / container 63/2926" figures since the excluded-file set differs; this is the first
+  container run to separate the `pxr`-environment-split files out explicitly instead of either
+  failing on them or silently collecting zero. Full lists in
+  `data/logs/vm_runs/dispatch_fix/SUMMARY.txt`. **VM end state:** tree re-verified against HEAD
+  `1e8080d` (645/647 match; the 2 mismatches are the same out-of-scope `docs/superpowers/` files),
+  `orchestrator.yaml`/`rag.yaml` restored pristine (md5s above, installed copies match), container
+  restarted, no stray Isaac/`fc_launch` processes, GPU idle (0%, 171 MiB). No code change lands
+  with this entry (0 commits touch `ros2_ws/`, `reasoning/`, or `isaac/`); this is a `docs:` notes
+  entry only.
+
 - **2026-09-30** — **B1 `bottleneck_merge` geometry fix landed and
   GPU-validated** (`5dbb3a5`; VM `vgu-vgu-thule-base-isaac-workstation-vm`,
   tree verified 647/647 clean before and after; artifacts
