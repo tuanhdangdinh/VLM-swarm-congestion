@@ -34,6 +34,17 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 21 (2026-09-30): absorbed into the research design as rev 9.5
+  (`docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md`),
+  which is now the authoritative text; this document remains the historical
+  decision record. Absorbed: items 28–30 and the Rev 17–20 records (the
+  B1/B2/B3 coverage battery, the STRATEGY-REGRET metric and its first
+  frozen B1/B2 instances, the per-class flow/%CP/censored-queue metrics,
+  the coverage-check scoping sentences, the prereg-v2 registry, and the
+  Arm B held-robot exclusion generalized beyond A10). The two apparatus
+  defects Rev 20 opened (a, b) and the B1 trial-counting denominator are
+  the questions this absorption leaves unresolved, as the `[REV95-OPEN]`
+  markers there.
 - Rev 20 (2026-09-30): B1 geometry FIXED and validated (`5dbb3a5`:
   `half_length_m` 0.6→1.1 after both suggested levers were GPU-probed
   and rejected; feasibility pinned at all 8 MEASURED trigger poses,
