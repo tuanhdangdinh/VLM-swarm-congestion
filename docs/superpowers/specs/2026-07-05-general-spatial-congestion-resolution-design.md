@@ -155,10 +155,12 @@ likewise reviewable at the tag.
 Residuals those resolutions leave open are named where they occur: the
 absent-decision rule for T0 and T2 RQ3 (run-matrix notes) and T0's
 `prompt_static_obstacles` value (per-tier channel table).
-**Rev 9.5 open items** (amendments items 28–30, Rev 17–20). A
-`[REV95-OPEN]` marker recurs in the body at each place a distinct item
-below is discussed (several appear in both a battery entry and the
-measurement plan or run matrix); this list names each distinct item once:
+**Rev 9.5 open items** (amendments items 28–30, Rev 17–20). Most of the
+items below carry a `[REV95-OPEN]` marker in the body, recurring at each
+place a distinct item is discussed (several appear in both a battery
+entry and the measurement plan or run matrix); one item below (the
+container baseline split) is a plain pre-tag to-do with no marker. This
+list names each distinct item once:
 the B1 trial-counting denominator (no-event/censored episodes;
 run-matrix notes); the B1 STRATEGY-REGRET table's censored reference arm
 (measurement plan); whether B2's STRATEGY-REGRET is interpretable at
@@ -172,9 +174,7 @@ margin at all yet (scenario battery, run matrix); whether B1's and B2's
 cells belong in the "VLM can" success-criteria conjunction (success
 criteria); the B2 and B3 `prompt_static_obstacles` collection-value
 mismatch against their T1/T2b bases (per-tier channel table, two rows);
-the Rev 20 vs. YAML/notes discrepancy over the adopted geometry's
-floor-clearance margin, "≥ 0.167 m" vs. 0.267 m (scenario battery); the
-container-vs-local suite baseline split (58/2921 vs 63/2926 —
+the container-vs-local suite baseline split (58/2921 vs 63/2926 —
 re-baseline the container before the tag); and whether the B-scene
 cost-table values, which live under the git-ignored `data/logs/vm_runs/`
 tree, need a
@@ -701,12 +701,16 @@ values kept (`docs/reports/2026-09-29-t1-tuning-basket.md`).
     pose's required escort by the same +0.5 m: **≈ 1.27–1.37 m at 1.1,
     derived, not separately tabulated**, giving a floor-clearance margin
     of ≈ 0.27–0.37 m — the tightest pose (`SW1_wait_s42`) at ≈ 0.267 m,
-    which reproduces the YAML's own figure. **Discrepancy, not resolved
-    here:** amendments Rev 20 states the margin as "≥ 0.167 m," a figure
-    the YAML header and the implementation notes instead attribute to
-    `half_length_m` **1.0** (the bare-minimum candidate, not the adopted
-    1.1, where they both give 0.267 m at the tightest pose). Flagged for
-    reconciliation, not adjudicated by this absorption. The design grid's
+    reproducing the YAML header's own precise figure for the adopted
+    `half_length_m` 1.1. **Wording note, resolved, not an open item:**
+    amendments Rev 20 and the implementation notes both state the margin
+    as "≥ 0.167 m" — a true but loose bound (0.167 m is the exact tightest
+    margin at `half_length_m` **1.0**, the bare-minimum candidate that was
+    *not* adopted; the YAML header itself gives both figures precisely,
+    "0.167 m at half_length_m 1.0 (0.267 m at 1.1)", and the slope-1
+    derivation above reproduces both). At the adopted 1.1 the tightest
+    margin is 0.267 m, not 0.167 m; "≥ 0.167 m" remains technically true
+    there, just not the tightest true statement. The design grid's
     four nominal standoff poses (a *different*, smaller set than the 8
     measured GT poses) give post-fix escorts `robot_1` 1.55–1.85 m,
     `robot_3` 4.20 m (both +0.5 m over the pre-fix design-grid values
@@ -798,8 +802,9 @@ values kept (`docs/reports/2026-09-29-t1-tuning-basket.md`).
     label rate; the A4 outcome. **Mock smoke (`bscene_smoke`, both
     members, 2026-09-29/30 — apparatus validation, not a reasoner
     result):** alias tag correct, %CP 1.0 both members,
-    divergent-and-correct 1.0 both members. **STRATEGY-REGRET (amendments
-    item 29), uncensored, but likely noise at this n:** the harness's two
+    divergent-and-correct 1.0 (pair-level). **STRATEGY-REGRET (amendments
+    item 29), uncensored, but not distinguishable from noise at n = 2:**
+    the harness's two
     arms are named by who is *forced* to yield — `yield_routine` forces
     the routine robot to yield (the `priority_override` route's executed
     arm, matching `PriorityOracleConfig.correct_yielder`); `yield_urgent`
@@ -1140,9 +1145,12 @@ plus its arms), `grounding_aisle_x_band_m: [-0.46, 0.46]`, and
 `robot_3`'s `start_delay_sec: 80`; B2's per-member task labels and
 `priority` values in `initial_tasks`, and its `scenario_geometry.corridor`
 (`half_length_m: 1.0`, as shipped, unchanged from T1); B3's
-`scenario_geometry.corridor` (`half_length_m: 0.5`), `grounding.mode:
-legacy`, and
-`robot_3`/`robot_4`'s `start_delay_sec: 120`. **The B1 and B2
+`scenario_geometry.corridor` (`half_length_m: 0.5`) and
+`robot_3`/`robot_4`'s `start_delay_sec: 120`. **`grounding.mode` lives in
+`config/rag.yaml`, not `orchestrator.yaml`:** `derived` for B1 and B2
+(stage 2 on, as T1), `legacy` for B3 (stage 2 off, as T2b) — asserted per
+run alongside the rest of the A8 content check. **The B1 and B2
+STRATEGY-REGRET cost
 STRATEGY-REGRET cost
 tables are not freezable as files**: `data/logs/vm_runs/b1_fix/` and
 `data/logs/vm_runs/bscene_smoke/` sit under `data/logs/*`, which
@@ -1641,7 +1649,8 @@ condition).
   margin rule). The model's decided strategy is scored two ways: label
   correctness (per-tier criteria above) and time regret against the best
   *executable* strategy in the table.
-  - **B2 — frozen, uncensored, likely noise at this n.** The harness's
+  - **B2 — frozen, uncensored, not distinguishable from noise at n = 2.**
+    The harness's
     arms are named by who is *forced* to yield: `yield_routine` forces
     the routine robot (the `priority_override` route's executed arm,
     matching `PriorityOracleConfig.correct_yielder`); `yield_urgent`
