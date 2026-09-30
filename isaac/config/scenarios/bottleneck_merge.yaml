@@ -23,8 +23,79 @@ duration_sec: 200.0
 # zone. The type call (bottleneck) therefore rests on the image; the
 # registered image-only/text-only modality cell measures that dependence.
 #
-# Geometry (tests/unit/test_bottleneck_merge_scenario.py pins every number with
-# M3's and Arm B's own functions):
+# REV-19b GEOMETRY FIX (2026-09-30). As authored (junction-box half_length_m
+# 0.6), this scene was UNRESOLVABLE: 8/8 measured trigger poses across the
+# predecessor's B1S1 smoke, this session's b1_oracle/b1_oracle_r2
+# replications, and four sweep-batch first analyses (SW1_oracle_s42,
+# SW1_alternative_s42/s43, SW1_wait_s42; all in
+# data/logs/vm_runs/bscene_smoke/, GT robot_1.x 0.148-0.483) ground the
+# oracle yield infeasible or on the edge of feasible with no usable margin:
+# `derive_escort_distance`'s crossing-arm branch (a robot_1/robot_3-class
+# passer, whose arm axis differs from the yielder's) reduces to
+#   required_escort = (corridor.half_length_m - robot_1.x) + escort_clearance_m
+# with escort_clearance_m = robot.safety_radius_m 0.45 + passer_margin_m 0.2
+# = 0.65 (reproduces every artifact's reported deficit to the millimetre).
+# At half_length_m 0.6 this is 0.65 + 0.6 - robot_1.x, i.e. 0.77-0.87 m
+# against the escort_band_m floor 1.0 m in config/rag.yaml (shared, not
+# scenario-scoped, out of scope to change) -> the oracle yield grounds
+# infeasible -> degrades to a reroute of all three -> permanent three-way
+# latch, 0/3 arrivals (bscene_smoke Rev 19).
+#
+# TWO PHYSICAL LEVERS WERE TRIED AND REJECTED ON MEASURED DATA (deviation
+# from the task's candidate-lever list, both GPU-probed, not hand-derived):
+#   1. Shifting the A55-E gate east and pulling robot_2's goal in with it:
+#      does not reach the trigger at all (the standoff forms at
+#      robot_1.x < 0.5, robot_2.y ~0.3-0.4, well before either robot reaches
+#      the gate at x >= 0.7); rejected without a GPU run on that basis.
+#   2. robot_2 spawn moved 0.2 m west (probe_geomfix,
+#      data/logs/vm_runs/bscene_smoke/ VM run 2026-09-30 03:00 UTC): measured
+#      robot_1.x rose to 0.591 (escort deficit worsened to 0.659 m short).
+#      robot_2 spawn moved 0.55 m further east to +0.35 (probe_geomfix2,
+#      03:12 UTC): measured robot_1.x was 0.435 -- inside the ORIGINAL
+#      geometry's own 0.148-0.483 spread, i.e. statistically indistinguishable
+#      from not moving it, and it additionally pushed robot_2.x to 0.523,
+#      past the NS_BAND [-0.46, 0.46] edge (`retreat=no-valid-candidate`).
+#      One GPU sample per config cannot resolve a slope smaller than that
+#      spread; the spawn lever is closed in both directions on this evidence,
+#      not merely under-explored.
+#
+# THE FIX INSTEAD RAISES `scenario_geometry.corridor.half_length_m` FROM 0.6
+# TO 1.1 (set in swarm_orchestrator/config/orchestrator.yaml's B1 goal-table
+# row, not this file -- M5 does not read scenario YAML geometry). This
+# constant is shared, by design, between robot_1/robot_3's escort distance
+# (the far-mouth branch above) and robot_2's OWN backup/park distance (the
+# comment in reasoning/rag/scene_geometry.py: "every corridor dimension but
+# the axis is shared, so the junction centre is corridor.center_m on both
+# axes") -- raising it was suspected to push robot_2's park y past the
+# tracked 1.80 m ceiling (park y is already 1.70 at half_length 0.6). Verified
+# false: robot_2's park y is set by `backup_clearance_m` (the 1.7 m distance
+# to keep from robot_1), not by half_length_m, until half_length_m exceeds
+# roughly 1.3 (park_offset_m ~ visibility boundary + margins ~1.02 at 0.6,
+# well under the 1.7 m clearance floor); a local sweep of half_length_m in
+# {0.6, 0.8, 0.9, 1.0, 1.1} against all 8 measured GT poses (not a synthetic
+# grid) confirms park y = 1.70 unchanged at every value, backup unchanged at
+# 1.34-1.43 m, while the escort margin rises linearly with half_length_m and
+# clears 1.0 m at every measured pose once half_length_m >= 1.0. 1.1 is
+# chosen over the bare-minimum 1.0 for headroom against M1/Nav2 noise: the
+# tightest of the 8 poses clears the 1.0 m floor by only 0.167 m at
+# half_length_m 1.0 (0.267 m at 1.1). `escort_band_m` and the shared corridor
+# constants in reasoning/rag/ and config/rag.yaml are unchanged; only the
+# scenario-scoped goal-table value moves.
+#
+# RESIDUAL, NOT FIXED BY THIS CHANGE: M4's reverse-along-heading backup (the
+# actual maneuver: it reverses on odometry along robot_2's heading, not the
+# arm axis) overshoots the NS_BAND west edge (-0.46) at the two shallowest
+# measured headings (B1S1, -52.5 deg, end x -0.486; SW1_alternative_s42,
+# -55.9 deg, end x -0.466) -- 2 of the 8 measured poses, INDEPENDENT of
+# half_length_m (the backup distance is set by the 1.7 m clearance to
+# robot_1, not the escort formula this fix touches). Reported here, not
+# patched: pinning it would need a different backup-distance or NS_BAND
+# change, out of this fix's scope (config/rag.yaml, shared).
+#
+# Geometry (tests/unit/test_bottleneck_merge_scenario.py pins every number
+# with M3's and Arm B's own functions; spawns/goals/barrier are UNCHANGED
+# from the original design -- only the goal-table's corridor.half_length_m
+# moved):
 #   - robot_1 spawns (-1.0, 0, 0) -> goal (2.45, -0.30); robot_2 spawns
 #     (0.0, 1.75, -pi/2) -> goal (1.90, 0.00); robot_3 spawns (-2.45, 0, 0)
 #     -> goal (2.45, +0.30). All tasks cross_narrow_aisle.
@@ -33,10 +104,14 @@ duration_sec: 200.0
 #     leading. dt in (0, ~2.5) s gives the designed perpendicular latch;
 #     dt >= ~3 s is a no-event episode and dt < 0 a same-direction follower
 #     latch (apparatus failure, censored); both are counted, never re-run.
-#   - Grounded oracle (derived, junction box, arms): robot_2 backs up
-#     1.25-1.35 m to y 1.70 (0.10 inside the tracked 1.80) and sidesteps
-#     inside the N-S aisle (world x band [-0.46, 0.46]); robot_1 is escorted
-#     1.05-1.35 m and robot_3 3.70 m, both to x = 1.25.
+#     UNCHANGED by this fix (no spawn/timing value moved).
+#   - Grounded oracle (derived, junction box half_length_m now 1.1, arms):
+#     robot_2 backs up 1.25-1.35 m to y 1.70 (0.10 inside the tracked 1.80,
+#     unchanged) and sidesteps inside the N-S aisle (world x band
+#     [-0.46, 0.46]); robot_1 is escorted 1.55-1.85 m (was 1.05-1.35 m at
+#     half_length_m 0.6) and robot_3 4.20 m (was 3.70 m), both crossing
+#     distances +0.5 m from the half_length_m delta, ending 0.5 m farther
+#     east than before.
 #   - A robot_1 yield is refused: no backup distance in [0.5, 2.0] m keeps
 #     the 1.7 m clearance with robot_3 behind it (derived grounding degrades
 #     it to a reroute). The oracle is feasibility-determined, like T2a, so the
@@ -45,7 +120,11 @@ duration_sec: 200.0
 #   - Arm B: blocked_path [robot_3] (the held robot) without the held-robot
 #     exclusion; unknown [robot_1, robot_2] (temporary_wait, then reroute)
 #     with it. Arm B has no path to `bottleneck` here (goal axes are parallel,
-#     never crossing at 45-135 deg).
+#     never crossing at 45-135 deg). At the measured (LEVEL_OR_PAST) trigger
+#     sub-case (robot_2.x < robot_1.x in 7 of 8 measured poses), blocked_path
+#     reads [robot_1, robot_3] without the held exclusion -- the untested
+#     sub-case the pre-fix constraint grid excluded from every feasibility
+#     check, now pinned in tests/unit/test_bottleneck_merge_scenario.py.
 #
 # Hold-back (M5 initial_tasks robot_3.start_delay_sec = 80). Three stacks run
 # at RTF ~0.34 (window 0.28-0.39). The standoff forms at ~18-22 sim-s, M5 fires
@@ -58,10 +137,10 @@ duration_sec: 200.0
 # before a run (the goal table there lists them; M5 does not read this file):
 #   - initial_tasks: robot_1 [2.45, -0.3], robot_2 [1.9, 0.0], robot_3
 #     [2.45, 0.3] with start_delay_sec: 80 (all cross_narrow_aisle).
-#   - scenario_geometry.corridor: axis x, center_m 0.0, half_length_m 0.6,
-#     aisle_half_width_m 0.6, occluder_height_m 0.0 (the junction box; the
-#     barrier at x 1.2 is off the maneuver), with arms robot_1 x/-1,
-#     robot_2 y/+1, robot_3 x/-1.
+#   - scenario_geometry.corridor: axis x, center_m 0.0, half_length_m 1.1
+#     (rev-19b: was 0.6), aisle_half_width_m 0.6, occluder_height_m 0.0 (the
+#     junction box; the barrier at x 1.2 is off the maneuver), with arms
+#     robot_1 x/-1, robot_2 y/+1, robot_3 x/-1.
 #   - grounding_aisle_x_band_m: [-0.46, 0.46]; config/rag.yaml grounding.mode
 #     derived (stage 2 on).
 #   - shadow_classical_zones: [] (a gate-mouth zone changes nothing: the goal

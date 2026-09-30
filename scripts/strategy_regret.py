@@ -158,8 +158,12 @@ SCENES: dict[str, SceneSpec] = {
             "robot_2": _task([1.9, 0.0]),
             "robot_3": _task([2.45, 0.3], start_delay_sec=80.0),
         },
+        # half_length_m raised 0.6 -> 1.1 by the rev-19b geometry fix
+        # (isaac/config/scenarios/bottleneck_merge.yaml header): restores the
+        # escort margin at the measured trigger poses without moving any
+        # spawn, goal or barrier position.
         corridor={
-            "axis": "x", "center_m": 0.0, "half_length_m": 0.6,
+            "axis": "x", "center_m": 0.0, "half_length_m": 1.1,
             "aisle_half_width_m": 0.6, "occluder_height_m": 0.0,
         },
         scenario_geometry_arms={

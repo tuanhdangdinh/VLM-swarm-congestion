@@ -112,8 +112,11 @@ frame_downscale_width: null
 #     [2.45, -0.3], robot_2 [1.9, 0.0], AND robot_3: { task:
 #     cross_narrow_aisle, goal: [2.45, 0.3], start_delay_sec: 80 } (all three
 #     tasks cross_narrow_aisle), AND scenario_geometry corridor { axis: x,
-#     center_m: 0.0, half_length_m: 0.6, aisle_half_width_m: 0.6,
-#     occluder_height_m: 0.0 } (the junction box; the barrier at x 1.2 is off
+#     center_m: 0.0, half_length_m: 1.1, aisle_half_width_m: 0.6,
+#     occluder_height_m: 0.0 } (the junction box; half_length_m raised from
+#     0.6 by the rev-19b geometry fix -- header of
+#     isaac/config/scenarios/bottleneck_merge.yaml -- to restore the escort
+#     margin at the measured trigger poses; the barrier at x 1.2 is off
 #     the maneuver) with arms { robot_1: { axis: x, side: -1 }, robot_2:
 #     { axis: y, side: 1 }, robot_3: { axis: x, side: -1 } }, AND
 #     grounding_aisle_x_band_m: [-0.46, 0.46] (robot_2's sidestep stays in

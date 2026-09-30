@@ -119,9 +119,14 @@ def _goals() -> dict[str, tuple[float, float]]:
 
 def _geometry() -> SceneGeometry:
     # The shipped block with the goal-table row's junction box and arms.
+    # half_length_m raised 0.6 -> 1.1 by the rev-19b geometry fix (header of
+    # isaac/config/scenarios/bottleneck_merge.yaml): restores the escort
+    # margin at the measured trigger poses (TestMeasuredPoses below) without
+    # moving robot_2's park y (verified unchanged: it is set by
+    # backup_clearance_m, not half_length_m, until half_length_m > ~1.3).
     data = yaml.safe_load(ORCHESTRATOR_YAML.read_text())["scenario_geometry"]
     data["corridor"] = {
-        "axis": "x", "center_m": 0.0, "half_length_m": 0.6,
+        "axis": "x", "center_m": 0.0, "half_length_m": 1.1,
         "aisle_half_width_m": 0.6, "occluder_height_m": 0.0,
     }
     data["arms"] = {
@@ -274,7 +279,8 @@ class TestC1TrackedBand:
             starts = {s.robot_id: s.x for s in frame.robots}
             for rid, clear in zip(p["crossing_order"], p["crossing_clear_m"], strict=True):
                 end = starts[rid] + clear
-                assert end == pytest.approx(1.25, abs=1e-3), case
+                # +0.5 from the original 1.25: rev-19b half_length_m fix.
+                assert end == pytest.approx(1.75, abs=1e-3), case
                 assert end + MARKER_HALF_M <= TRACKED_X_M, case
 
 
@@ -302,7 +308,8 @@ class TestC2PairGaps:
         for case, frame in _grid_frames():
             p = _yield(_ground(frame))["parameters"]
             assert p["crossing_order"][-1] == "robot_3", case
-            assert p["crossing_clear_m"][-1] == pytest.approx(3.70, abs=1e-3), case
+            # +0.5 from the original 3.70: rev-19b half_length_m fix.
+            assert p["crossing_clear_m"][-1] == pytest.approx(4.20, abs=1e-3), case
 
     def test_goals_are_pairwise_legal(self):
         for a, b in itertools.combinations(_goals().values(), 2):
@@ -389,9 +396,12 @@ class TestC5ParkFeasibility:
         frame = _frame(r1_x, r2)
         p = _yield(_ground(frame))["parameters"]
         backup = {0.10: 1.25, 0.00: 1.30, 0.20: 1.28, -0.10: 1.35}[r1_x]
-        escort = {0.10: 1.15, 0.00: 1.25, 0.20: 1.05, -0.10: 1.35}[r1_x]
+        # +0.5 from the original {1.15, 1.25, 1.05, 1.35} / 3.70: the
+        # rev-19b half_length_m 0.6 -> 1.1 fix adds a flat 0.5 m to every
+        # crossing-arm passer's escort distance (far_mouth moves +0.5).
+        escort = {0.10: 1.65, 0.00: 1.75, 0.20: 1.55, -0.10: 1.85}[r1_x]
         assert p["backup_distance_m"] == pytest.approx(backup, abs=1e-3)
-        assert p["crossing_clear_m"] == pytest.approx([escort, 3.70], abs=1e-3)
+        assert p["crossing_clear_m"] == pytest.approx([escort, 4.20], abs=1e-3)
 
     def test_alternative_robot_1_yield_is_refused(self):
         # The feasibility contrast: robot_3 behind robot_1 leaves no backup in
@@ -408,6 +418,149 @@ class TestC5ParkFeasibility:
                 "yield=infeasible:no backup distance in band [0.5, 2.0] m satisfies "
                 "clearance 1.7 m"
             ], case
+
+
+# The as-authored (half_length_m 0.6) geometry's real trigger poses (rev-19b
+# root cause), read from ground truth in data/logs/vm_runs/bscene_smoke/: the
+# predecessor's B1S1 smoke, this session's b1_oracle/b1_oracle_r2
+# replications, and four sweep-batch first analyses (SW1_oracle_s42 seed 42;
+# SW1_alternative_s42/s43 and SW1_wait_s42 -- SW1_oracle_s43 produced no
+# scoreable dispatch and is not included). All GT (M1 differs by <=0.03 m /
+# <=4 deg on every field). Seven of the eight land in the LEVEL_OR_PAST
+# sub-case (robot_2.x < robot_1.x) the pre-fix GRID excluded from every
+# feasibility check -- the class of error this fix closes. Fields:
+# (robot_1.x, robot_1.y, robot_1.theta_rad, robot_2.x, robot_2.y,
+# robot_2.theta_rad).
+MEASURED_TRIGGER_POSES = (
+    ("B1S1", (0.3852, -0.0558, 0.0407), (0.3601, 0.3101, -0.9161)),
+    ("b1_oracle", (0.4325, -0.0061, -0.0599), (0.3267, 0.3108, -1.1530)),
+    ("b1_oracle_r2", (0.4114, -0.0270, -0.1916), (0.2797, 0.3225, -1.2280)),
+    ("SW1_oracle_s42", (0.3840, -0.0492, -0.0469), (0.2873, 0.3626, -1.1036)),
+    ("SW1_alternative_s42", (0.4648, -0.0524, 0.0419), (0.3341, 0.2728, -0.9754)),
+    ("SW1_alternative_s43", (0.4307, -0.0303, -0.0703), (0.2899, 0.3075, -1.1662)),
+    ("SW1_wait_s42", (0.4829, -0.0582, 0.0851), (0.3306, 0.2676, -1.1220)),
+    ("SW1_wait_s43", (0.1477, -0.0090, 0.1268), (0.2737, 0.3598, -1.1631)),
+)
+
+
+def _measured_frame(r1: tuple[float, float, float], r2: tuple[float, float, float]) -> SnapshotFrame:
+    return SnapshotFrame(
+        stamp=30.0,
+        robots=[
+            RobotStateInput(robot_id="robot_1", x=r1[0], y=r1[1], theta=r1[2],
+                             linear_velocity=0.0, status="STOPPED", goal=(2.45, -0.3)),
+            RobotStateInput(robot_id="robot_2", x=r2[0], y=r2[1], theta=r2[2],
+                             linear_velocity=0.0, status="STOPPED", goal=(1.9, 0.0)),
+            RobotStateInput(robot_id="robot_3", x=-2.4625, y=0.0, theta=0.0,
+                             linear_velocity=0.0, status="STOPPED", goal=(2.45, 0.3)),
+        ],
+        held_robot_ids=(),
+    )
+
+
+class TestMeasuredTriggerPosesWereInfeasiblePreFix:
+    """Regression pin for the rev-19b root cause (bscene_smoke Rev 19).
+
+    Re-grounds the 8 measured poses at the PRE-FIX half_length_m (0.6) --
+    fixed numeric inputs to the grounding functions, independent of the
+    scenario YAML -- so the diagnosis stays locked in if the escort formula
+    or its constants ever regress.
+    """
+
+    def _pre_fix_geometry(self) -> SceneGeometry:
+        return _geometry().model_copy(
+            update={"corridor": _geometry().corridor.model_copy(update={"half_length_m": 0.6})}
+        )
+
+    def test_seven_of_eight_are_the_untested_level_or_past_sub_case(self):
+        sub_d = [name for name, r1, r2 in MEASURED_TRIGGER_POSES if r2[0] < r1[0]]
+        assert sub_d == [
+            "B1S1", "b1_oracle", "b1_oracle_r2", "SW1_oracle_s42",
+            "SW1_alternative_s42", "SW1_alternative_s43", "SW1_wait_s42",
+        ]
+
+    def test_seven_of_eight_ground_the_oracle_yield_infeasible(self):
+        # far_mouth (corridor.half_length_m, 0.6 pre-fix) minus robot_1.x,
+        # plus escort_clearance_m (robot.safety_radius_m 0.45 +
+        # passer_margin_m 0.2 = 0.65): required = 1.25 - robot_1.x.
+        deficits = {
+            "B1S1": 0.865, "b1_oracle": 0.818, "b1_oracle_r2": 0.839,
+            "SW1_oracle_s42": 0.866, "SW1_alternative_s42": 0.785,
+            "SW1_alternative_s43": 0.819, "SW1_wait_s42": 0.767,
+        }
+        geo = self._pre_fix_geometry()
+        for name, r1, r2 in MEASURED_TRIGGER_POSES:
+            if name not in deficits:
+                continue
+            command = ground_reasoner_result(
+                _result(_mock_decision()), snapshot=_measured_frame(r1, r2),
+                geometry=geo, params=_params(),
+            )
+            assert command["degradations"] == [
+                "retreat=default:no_choice",
+                f"yield=infeasible:required escort {deficits[name]:.3f} m outside "
+                "band [1.0, 3.5] m",
+            ], name
+
+    def test_the_eighth_pose_is_feasible_but_under_margin(self):
+        # SW1_wait_s43: the one measured pose in the "std" (r2.x > r1.x)
+        # sub-case, already handled by the pre-fix GRID -- feasible at the
+        # 1.0 m floor, but with only 0.102 m of margin, well under this
+        # fix's 0.15 m target (see TestMeasuredPosesGroundFeasibleWithMargin).
+        name, r1, r2 = next(p for p in MEASURED_TRIGGER_POSES if p[0] == "SW1_wait_s43")
+        geo = self._pre_fix_geometry()
+        command = ground_reasoner_result(
+            _result(_mock_decision()), snapshot=_measured_frame(r1, r2),
+            geometry=geo, params=_params(),
+        )
+        assert command["degradations"] == ["retreat=default:no_choice"]
+        p = _yield(command)["parameters"]
+        assert p["crossing_clear_m"][0] - 1.0 == pytest.approx(0.102, abs=1e-3)
+
+
+class TestMeasuredPosesGroundFeasibleWithMargin:
+    """The rev-19b fix's actual acceptance test: at half_length_m 1.1 (the
+    shipped value), every one of the 8 measured trigger poses grounds the
+    oracle yield feasible with >= 0.15 m of escort margin over the 1.0 m
+    floor -- the task's pass condition, checked directly, not inferred from
+    the formula.
+    """
+
+    def test_every_measured_pose_clears_the_floor_with_margin(self):
+        for name, r1, r2 in MEASURED_TRIGGER_POSES:
+            command = _ground(_measured_frame(r1, r2))
+            action = _yield(command)
+            assert action["robot_id"] == "robot_2", name
+            assert not any(t.startswith("yield=infeasible") for t in command["degradations"]), name
+            escort = action["parameters"]["crossing_clear_m"][0]
+            assert escort - 1.0 >= 0.15, (name, escort)
+
+    def test_robot_2_park_y_is_unchanged_by_the_half_length_fix(self):
+        # The coupling this fix had to verify was safe: half_length_m also
+        # feeds robot_2's own backup/park geometry (shared corridor object).
+        # park y is set by backup_clearance_m (the 1.7 m clearance to
+        # robot_1), not half_length_m, until half_length_m exceeds ~1.3, so
+        # it stays 1.70 (0.10 inside the 1.80 tracked ceiling) at 1.1.
+        for name, r1, r2 in MEASURED_TRIGGER_POSES:
+            command = _ground(_measured_frame(r1, r2))
+            park_y = _yield(command)["parameters"]["retreat_y_m"]
+            assert park_y == pytest.approx(1.70, abs=0.02), name
+
+    def test_reverse_along_heading_residual_at_two_shallow_headings(self):
+        # NOT fixed by this change (documented residual, header of
+        # isaac/config/scenarios/bottleneck_merge.yaml): M4's actual reverse
+        # maneuver runs along robot_2's heading, not the arm axis, and
+        # overshoots the NS_BAND west edge at the two shallowest measured
+        # headings. The backup distance is set by the 1.7 m clearance to
+        # robot_1, independent of half_length_m, so this is unaffected by
+        # the escort fix in either direction.
+        known_fails = {"B1S1", "SW1_alternative_s42"}
+        for name, r1, r2 in MEASURED_TRIGGER_POSES:
+            command = _ground(_measured_frame(r1, r2))
+            backup = _yield(command)["parameters"]["backup_distance_m"]
+            end_x = r2[0] + backup * math.cos(r2[2] + math.pi)
+            in_band = end_x >= NS_BAND[0]
+            assert in_band == (name not in known_fails), (name, end_x)
 
 
 class TestC6RetreatCandidates:
