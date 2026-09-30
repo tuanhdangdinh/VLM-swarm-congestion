@@ -47,6 +47,40 @@
   (a, b), the B1 trial-counting denominator, and B2's STRATEGY-REGRET
   ranking, which this absorption found not distinguishable from noise at
   n = 2 seeds/arm.
+- Rev 22 (2026-09-30): defect round verdicts (notes `414037b`) SUPERSEDE
+  Rev 20's framing in part: (b) is NOT a dispatch bug — the
+  dispatch/retry/registry code is correct (one clean 4/4 B3 replicate
+  falsifies "never in any run"); the real cause is the B3 goal table
+  (robot_1/robot_3 goals 0.6 m apart → the release-approach passes
+  0.426–0.444 m from the parked robot and latches under the correct
+  passer-passer non-exemption). **B3 goal-table revision ORDERED**
+  (B1-style: widen the goal stack, pins updated, smoke-verified);
+  outcome collection stays gated until it lands. (a) is NOT a
+  nominal-pose sweep bug (refuted at file:line) — the Nav2 sidestep's
+  odometry drift overshoots only the FAR (2×, −0.72 m) candidate past
+  the aisle band (4/4 at the adapter's exact 202.25 s deadline; the 1×
+  candidate completes in 39 s). **Adopted scoring rule (resolves
+  REV95-OPEN #4): B1 trials whose EXECUTED retreat is the 2× lateral
+  candidate are excluded from flow metrics, decision-scored** — keyed
+  on the executed candidate, not the degradation tag; the ranking
+  tie-break revision (prefer lesser excursion on tied clearance) is
+  REGISTERED for v2/tuning, not applied (it would re-rank T3b's
+  pre-registered occupied candidate). Also recorded: the ~5 cm
+  held-robot crawl (cmd_vel_watchdog invariant breach, M4 §8) as a
+  standing apparatus note. Coordinator resolutions of the remaining
+  REV95-OPEN items: #1 B1 counts 15 scored EVENT episodes (no-event
+  rate reported, cap 25); #2/#3 the B1 and B2 strategy-regret columns
+  are DESCRIPTIVE-ONLY at current n (B2's "best_arm=yield_urgent" in
+  Rev 19 is annotated: it is the anti-priority arm and the ranking is
+  indistinguishable from noise at n = 2); #6 B1/B2 do NOT join the
+  "VLM can" conjunction — coverage cells are secondary; #7 the channel
+  table records B2 as ON-vacuous (no obstacles declared; ON == OFF
+  byte-identical, SHA-verified) and B1/B3 OFF per their headers; #8
+  the container baseline is 2980 passed / 23 failed / 12 skipped with
+  the five documented pxr-file ignores (the launch_testing collection
+  bug is diagnosed in the notes); #9 the rev 9.5 spec text is the
+  cost tables' freeze point (B3's table appends when its revision
+  lands).
 - Rev 20 (2026-09-30): B1 geometry FIXED and validated (`5dbb3a5`:
   `half_length_m` 0.6→1.1 after both suggested levers were GPU-probed
   and rejected; feasibility pinned at all 8 MEASURED trigger poses,
