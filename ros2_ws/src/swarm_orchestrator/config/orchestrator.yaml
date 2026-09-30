@@ -131,13 +131,18 @@ frame_downscale_width: null
 #     priority: 1 } (priority is read by M3 only, never rendered);
 #     scenario_geometry as shipped (headers of
 #     isaac/config/scenarios/priority_urgent_r{1,2}.yaml)
-#   convoy_counterflow (B3, four robots, A55-J gate) -> robot_1 [2.45, -0.3],
+#   convoy_counterflow (B3, four robots, A55-J gate) -> robot_1 [2.45, -0.36],
 #     robot_2 [-2.0, 0.0], AND robot_3: { task: cross_narrow_aisle, goal:
-#     [2.45, 0.3], start_delay_sec: 120 }, robot_4: { task:
+#     [2.45, 0.36], start_delay_sec: 120 }, robot_4: { task:
 #     cross_narrow_aisle, goal: [1.85, 0.0], start_delay_sec: 120 }, AND
 #     scenario_geometry corridor center_m: 0.0, half_length_m: 0.5, AND
 #     config/rag.yaml grounding.mode: legacy (header of
-#     isaac/config/scenarios/convoy_counterflow.yaml)
+#     isaac/config/scenarios/convoy_counterflow.yaml). robot_1/robot_3
+#     lateral raised 0.3 -> 0.36 by the Rev 22 B3 goal-table fix (notes
+#     2026-09-30): widest value under this scene's own wall_margin_m
+#     discipline (= pull_off_lateral_m, matching robot_2's own parked
+#     lateral here) that still clears the 0.45 m floor + 0.15 m margin on
+#     goal-to-goal separation (0.72 m, was 0.6 m with no headroom).
 # Running a _gshort or _bshort scenario without changing these dispatches +-2.5
 # and the variant silently degrades to its beyond-goal twin, blocker back on
 # the goal path (isaac/config/scenarios/family/*_{gshort,bshort}_o0.yaml).

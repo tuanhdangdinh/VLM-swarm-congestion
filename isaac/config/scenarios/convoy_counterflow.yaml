@@ -21,8 +21,8 @@ duration_sec: 260.0
 #
 # Geometry (tests/unit/test_convoy_counterflow_scenario.py pins every number
 # with M3's and Arm B's own functions):
-#   - robot_1 (-1.2, 0, 0) -> (2.45, -0.30); robot_2 (1.2, 0, pi) ->
-#     (-2.00, 0.00); robot_3 (-1.90, 0, 0) -> (2.45, +0.30), held;
+#   - robot_1 (-1.2, 0, 0) -> (2.45, -0.36); robot_2 (1.2, 0, pi) ->
+#     (-2.00, 0.00); robot_3 (-1.90, 0, 0) -> (2.45, +0.36), held;
 #     robot_4 (-2.47, 0, 0) -> (1.85, 0.00), held. All cross_narrow_aisle.
 #   - Queue spacing: robot_1-robot_3 0.70 m, robot_3-robot_4 0.57 m (the
 #     R-QUEUE-2 floor); robot_4 at x -2.47 sits 0.03 m inside the tracked
@@ -30,10 +30,32 @@ duration_sec: 260.0
 #     makes Arm B's crowding flips worse (18/45).
 #   - Grounded oracle (legacy, positions): robot_2 backs up 1.00-1.08 m to
 #     park x 1.124, lateral 0.36; robot_1 / robot_3 / robot_4 escorts
-#     1.89-1.97 / 3.674 / 4.244 m, every escort ending at x = 1.774, 0.74 m
-#     from the (2.45, +-0.3) goals. (The design doc's 3.574 / 4.174 were
+#     1.89-1.97 / 3.674 / 4.244 m, every escort ending at x = 1.774, 0.766 m
+#     from the (2.45, +-0.36) goals. (The design doc's 3.574 / 4.174 were
 #     computed from the rejected queue 0.1 m east; its 190 sim-s makespan
 #     grows by ~2 s.)
+#   - **B3 goal-table revision (Rev 22, notes `414037b`/this entry)**:
+#     robot_1/robot_3's goal lateral was +-0.30 m (0.6 m apart), the same as
+#     M4's `min_distance_m` + `stale_unsafe_distance_m` margin floor with no
+#     headroom. Once the crossing chain resumes robot_3's base-mission Nav2
+#     goal while robot_4 is still escorted, robot_3's live approach passed
+#     0.426-0.444 m from the parked robot_1 (< 0.45 m) in 3 of 4 VM
+#     replicates, latching permanently under the correct passer-passer
+#     non-exemption (`safety.py` `admitted_partners`). Widened to +-0.36 m
+#     (0.72 m apart): this is exactly `pull_off_lateral_m` for this scene
+#     (`aisle_half_width_m` 0.6 - `robot.half_width_m` 0.09 -
+#     `wall_margin_m` 0.15 = 0.36, `reasoning/rag/scene_geometry.py`) --
+#     the same margin discipline already governing robot_2's own parked
+#     lateral offset in this identical aisle, so neither passer goal sits
+#     closer to the rack face (|y| = 0.6, `nominal_aisle_width_m` / 2,
+#     `warehouse_builder._build_rack_blocks`) than robot_2 already safely
+#     does. The candidate +-0.45 (0.9 m apart, only 0.06 m robot-edge
+#     clearance to the rack face) was rejected: it undercuts that same
+#     0.15 m `wall_margin_m` floor by 0.09 m. Goal-to-goal separation is now
+#     0.72 m (>= the 0.45 m floor + 0.15 m margin discipline, with 0.12 m
+#     headroom instead of the original 0.00 m); robot_4's goal (1.85, 0.00)
+#     clears both new goals at 0.6997 m (was 0.671 m). VM-verified: see
+#     `data/logs/vm_runs/b3_fix/`.
 #   - robot_2's goal (-2.0, 0) is 0.1 m from robot_3's spawn: robot_2 only
 #     returns once robot_4 (admitted after robot_3 clears) has cleared, so
 #     robot_3 has left its spawn long before robot_2 can arrive.
@@ -54,8 +76,8 @@ duration_sec: 260.0
 #
 # M5 settings, set by hand in swarm_orchestrator/config/orchestrator.yaml
 # before a run (the goal table there lists them; M5 does not read this file):
-#   - initial_tasks: robot_1 [2.45, -0.3], robot_2 [-2.0, 0.0], robot_3
-#     [2.45, 0.3] and robot_4 [1.85, 0.0], both with start_delay_sec: 120
+#   - initial_tasks: robot_1 [2.45, -0.36], robot_2 [-2.0, 0.0], robot_3
+#     [2.45, 0.36] and robot_4 [1.85, 0.0], both with start_delay_sec: 120
 #     (all cross_narrow_aisle).
 #   - scenario_geometry.corridor: center_m 0.0, half_length_m 0.5 (the T2b
 #     A55-J edit); config/rag.yaml grounding.mode legacy (no stage 2).
@@ -67,7 +89,7 @@ robots:
   - robot_id: robot_1
     marker_id: 1
     spawn: {x: -1.2, y: 0.0, yaw_rad: 0.0}
-    goal: {x: 2.45, y: -0.3}
+    goal: {x: 2.45, y: -0.36}
     initial_task: cross_narrow_aisle
   - robot_id: robot_2
     marker_id: 2
@@ -77,7 +99,7 @@ robots:
   - robot_id: robot_3
     marker_id: 3
     spawn: {x: -1.9, y: 0.0, yaw_rad: 0.0}
-    goal: {x: 2.45, y: 0.3}
+    goal: {x: 2.45, y: 0.36}
     initial_task: cross_narrow_aisle
   - robot_id: robot_4
     marker_id: 4

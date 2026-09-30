@@ -194,10 +194,17 @@ SCENES: dict[str, SceneSpec] = {
     "priority_urgent_r2": _b2("r2", "robot_2", "robot_1"),
     "convoy_counterflow": SceneSpec(
         name="convoy_counterflow",
+        # robot_1/robot_3 goal lateral raised 0.3 -> 0.36 (Rev 22 B3 goal-table
+        # fix, notes 2026-09-30): the old +-0.3 stack (0.6 m apart) let
+        # robot_3's released base-mission approach pass 0.426-0.444 m from
+        # the parked robot_1 (< the 0.45 m floor), latching under the correct
+        # passer-passer non-exemption in 3/4 VM replicates. 0.36 m is this
+        # scene's own pull_off_lateral_m (isaac/config/scenarios/
+        # convoy_counterflow.yaml header derives the full margin math).
         initial_tasks={
-            "robot_1": _task([2.45, -0.3]),
+            "robot_1": _task([2.45, -0.36]),
             "robot_2": _task([-2.0, 0.0]),
-            "robot_3": _task([2.45, 0.3], start_delay_sec=120.0),
+            "robot_3": _task([2.45, 0.36], start_delay_sec=120.0),
             "robot_4": _task([1.85, 0.0], start_delay_sec=120.0),
         },
         corridor={"axis": "x", "center_m": 0.0, "half_length_m": 0.5},

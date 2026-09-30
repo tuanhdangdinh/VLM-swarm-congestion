@@ -56,6 +56,13 @@ LATCH_M = 0.45
 LEGAL_GAP_M = 0.55
 SPAWN_GAP_M = 0.57
 GOAL_STACK_M = 0.60
+# R-GOAL-SEP: robot_1/robot_3's own goal-to-goal separation must clear the
+# 0.45 m floor plus a 0.15 m margin (Rev 22 B3 goal-table fix). The pre-fix
+# stack (+-0.3, 0.6 m apart) sat exactly on this bar with zero headroom --
+# the root cause of the latch this fix closes -- so this threshold is chosen
+# to fail against that old geometry, not just the new one.
+GOAL_SEP_FLOOR_M = LATCH_M + 0.15
+R1R3_GOAL_LATERAL_M = 0.36
 M1_BIAS_M = 0.1
 BACKUP_MPS = 0.09
 ESCORT_MPS = 0.10
@@ -170,9 +177,9 @@ class TestScenario:
         rows = {r.robot_id: (r.spawn.x, r.spawn.y, r.goal.x, r.goal.y, r.initial_task)
                 for r in _scenario().robots}
         assert rows == {
-            "robot_1": (-1.2, 0.0, 2.45, -0.3, "cross_narrow_aisle"),
+            "robot_1": (-1.2, 0.0, 2.45, -0.36, "cross_narrow_aisle"),
             "robot_2": (1.2, 0.0, -2.0, 0.0, "cross_narrow_aisle"),
-            "robot_3": (-1.9, 0.0, 2.45, 0.3, "cross_narrow_aisle"),
+            "robot_3": (-1.9, 0.0, 2.45, 0.36, "cross_narrow_aisle"),
             "robot_4": (-2.47, 0.0, 1.85, 0.0, "cross_narrow_aisle"),
         }
 
@@ -344,19 +351,48 @@ class TestC5ParkFeasibility:
 class TestC7GoalStack:
     def test_later_escort_ends_clear_the_goals(self):
         for goal in (_goals()["robot_1"], _goals()["robot_3"]):
-            assert math.dist((1.774, 0.0), goal) == pytest.approx(0.74, abs=0.01)
+            assert math.dist((1.774, 0.0), goal) == pytest.approx(0.766, abs=0.01)
 
     def test_robot_4_goal_clears_the_parked_robot_2_and_the_other_goals(self):
         goal_4 = _goals()["robot_4"]
         assert math.dist(goal_4, (1.124, 0.36)) == pytest.approx(0.81, abs=0.01)
         for rid in ("robot_1", "robot_3"):
-            assert math.dist(goal_4, _goals()[rid]) == pytest.approx(0.67, abs=0.01)
+            assert math.dist(goal_4, _goals()[rid]) == pytest.approx(0.70, abs=0.01)
             assert math.dist(goal_4, _goals()[rid]) >= GOAL_STACK_M
 
     def test_passer_goals_lie_past_their_escort_end(self):
         # R-GOAL-FAR: every passer goal is beyond the 1.774 escort end.
         for rid in ("robot_1", "robot_3", "robot_4"):
             assert _goals()[rid][0] - 1.774 >= 0.05
+
+    def test_robot_1_and_robot_3_goal_separation_clears_the_safety_margin(self):
+        # R-GOAL-SEP (Rev 22): the pair the pre-fix grid never checked
+        # directly. robot_3's released base-mission approach passes close to
+        # the parked robot_1, so their own goal-to-goal separation is the
+        # number that actually mattered -- not just each one's distance from
+        # robot_4 or from the escort end. The pre-fix +-0.3 stack (0.6 m
+        # apart) sat exactly on GOAL_SEP_FLOOR_M with zero headroom, which is
+        # the root cause this fix closes: assert that explicitly, so a
+        # regression back to +-0.3 fails this test on its own.
+        g1, g3 = _goals()["robot_1"], _goals()["robot_3"]
+        separation = math.dist(g1, g3)
+        assert separation == pytest.approx(2 * R1R3_GOAL_LATERAL_M, abs=1e-6)
+        assert separation >= GOAL_SEP_FLOOR_M
+        pre_fix_separation = 2 * 0.3
+        assert pre_fix_separation == pytest.approx(GOAL_SEP_FLOOR_M)
+        assert separation > pre_fix_separation
+
+    def test_goal_lateral_matches_this_scenes_own_pull_off_margin(self):
+        # The adopted +-0.36 is exactly pull_off_lateral_m for this scene
+        # (aisle_half_width_m 0.6 - robot.half_width_m 0.09 - wall_margin_m
+        # 0.15): the same margin discipline already governing robot_2's own
+        # parked lateral offset here (TestC2PairGaps), so neither passer
+        # goal sits closer to the rack face than robot_2 already safely does.
+        from reasoning.rag.scene_geometry import pull_off_lateral_m
+
+        assert R1R3_GOAL_LATERAL_M == pytest.approx(pull_off_lateral_m(_geometry()))
+        for goal in (_goals()["robot_1"], _goals()["robot_3"]):
+            assert abs(goal[1]) == pytest.approx(R1R3_GOAL_LATERAL_M)
 
 
 class TestVacatedSpawnClearance:
