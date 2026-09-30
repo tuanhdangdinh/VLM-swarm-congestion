@@ -34,6 +34,22 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 19 (2026-09-30): B-scene smoke batch complete with independent
+  replication (an Opus rate-limit cutoff left a near-finished batch; the
+  successor replicated before discovering it — both kept). **B2 full
+  PASS twice over** (%CP 1.0 both members, divergent-and-correct 1.0,
+  uncensored regret 13.1/5.1 s; tag-ready). **B3 mostly PASS** (alias
+  executes as ordered yield; 4-stack gate 4/4-in-0s; geometry to
+  design) with an arrival-variance watch item (replication 2/4 M5
+  arrivals: one 0.36 m near-miss vs the 0.35 m tolerance, one missing
+  arrival line at 0.10 m GT; predecessor 4/4). **B1 UNRESOLVABLE AS
+  AUTHORED, 5/5 executions**: measured trigger poses leave 0.82–0.87 m
+  escort vs the 1.0 m floor → yield grounds infeasible → reroute-all →
+  permanent three-way latch, 0/3 arrivals (onset itself in-window).
+  Geometry revision ORDERED before B1 enters the matrix. Also open:
+  B1's stage-2 aperture-absence was unit-pinned but never live-checked
+  (stage 2 always skipped). fc_launch gate landed at `ed75288`;
+  inherited scorer commits verified (suite 2926).
 - Rev 18 (2026-09-29): B1/B2/B3 BUILT (`2f5a2d1`…`ae11362`, 361 tests;
   suite 2885): held-robot exclusion (candidacy-only), arm-aware lateral
   band, M3-only `priority`, convoy/priority_override aliased onto the
