@@ -47,6 +47,20 @@
   (a, b), the B1 trial-counting denominator, and B2's STRATEGY-REGRET
   ranking, which this absorption found not distinguishable from noise at
   n = 2 seeds/arm.
+- Rev 24 (2026-09-30): demo-recording session finding with a
+  pre-registration consequence — **B1 is timing-sensitive to recorder
+  load**: the identical seed/mock/retreat config that completes cleanly
+  at RECORD=0 (`b1_fix` B1FIX_S43R) failed in two different modes at
+  RECORD=1 (yield resolved FAILED; then the trigger caught a different
+  stall set and grounded reroute). APPARATUS RULE registered: **scored
+  B1 collection runs with recording OFF** (`keep_debug_frames` stays
+  on; the video recorder does not), else the no-event/failure rate is
+  confounded by observational load. B2 and B3 demos verified and
+  delivered (B3's release-approach metric is robot_3-vs-PARKED-robot_1
+  — caption/spec templates assuming robot_3-vs-robot_2 are wrong;
+  measured 0.4847 m this run). Recorder playback ratio is per-scene
+  (0.68×/1.36× measured), not the previously assumed ~1.2×. B1's two
+  INCOMPLETE recordings are retained as diagnostics only.
 - Rev 23 (2026-09-30): **the B3 gate CLOSES** (coordinator ruling on
   `4c06800`'s split verdict). The revision (`b5c573a`: goal stack
   ±0.30→±0.36, the widest consistent with the scene's own
