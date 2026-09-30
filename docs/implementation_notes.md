@@ -37,6 +37,69 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-30** — **B1 `bottleneck_merge` geometry fix landed and
+  GPU-validated** (`5dbb3a5`; VM `vgu-vgu-thule-base-isaac-workstation-vm`,
+  tree verified 647/647 clean before and after; artifacts
+  `data/logs/vm_runs/b1_fix/`). Root cause pinned exactly:
+  `derive_escort_distance`'s crossing-arm branch reduces to
+  `required_escort = corridor.half_length_m - robot_1.x + 0.65` at this
+  geometry; at `half_length_m` 0.6 this is 0.77-0.87 m against the 1.0 m
+  `escort_band_m` floor across all 8 measured GT trigger poses (the prior
+  entry's 5, plus 3 more pulled from `SW1_alternative_s42/s43` and
+  `SW1_wait_s42`), 7 of which are the LEVEL_OR_PAST sub-case
+  (`robot_2.x < robot_1.x`) the pre-fix constraint grid excluded from every
+  feasibility check. **Two physical levers were GPU-probed and rejected on
+  measured data, not hand-derived:** shifting the A55-E gate east (rejected
+  without a run: the standoff forms at `robot_1.x < 0.5`, well before either
+  robot nears the gate at `x >= 0.7`) and moving `robot_2`'s spawn (probed
+  both directions: -0.2 m raised `robot_1.x` to 0.591, worse; +0.35 m gave
+  0.435, inside the original geometry's own 0.148-0.483 spread — one GPU
+  sample per config cannot resolve a slope inside that noise, so the lever is
+  closed, not under-explored). **The fix instead raises
+  `scenario_geometry.corridor.half_length_m` 0.6 -> 1.1** in
+  `orchestrator.yaml`'s B1 goal-table row (and `strategy_regret.py`'s
+  `SceneSpec`) — a lever outside the task's candidate list, adopted after a
+  local sweep (`half_length_m` in `{0.6, 0.8, 0.9, 1.0, 1.1}` against all 8
+  measured poses, not a synthetic grid) showed `robot_2`'s own park y is set
+  by `backup_clearance_m` (1.7 m), not `half_length_m`, until it exceeds
+  ~1.3 — so the suspected C1 coupling (shared corridor object sizes both
+  robot_1/3's escort and robot_2's own backup/park) does not bind here. At
+  1.1 every measured pose clears the escort floor by >= 0.167 m (0.267 m at
+  the tightest pose, `SW1_wait_s42`). No scenario spawn, goal, barrier or map
+  value changed. **Residual, not fixed:** M4's actual reverse-along-heading
+  backup overshoots the NS_BAND west edge at 2 of the 8 measured poses
+  (B1S1 -52.5°, SW1_alternative_s42 -55.9°), independent of `half_length_m`
+  (governed by the 1.7 m clearance, not the escort formula). **GPU
+  validation:** smoke seed 42 drew a no-event episode (Δt >= 3 s, the
+  scenario's own documented trimodal outcome, not a fix failure); smoke seed
+  43 grounded the oracle yield FEASIBLE (confirms the fix) but exposed a
+  **new, previously-unobservable M4 finding**: `robot_2`'s backup command
+  itself resolved FAILED on the DEFAULT (`retreat=default:no_choice`) park
+  candidate, on `safety_monitor_node` `min_distance_violation` — reproduced
+  3/3 times on every run that skipped stage 2 (`B1FIX_S43`, `SWFIX_oracle_s42`,
+  `SWFIX_oracle_s43`) — while the one run that set
+  `VGU_MOCK_RETREAT_CHOICE_FILE` (forcing stage-2 candidate `B`) resolved
+  COMPLETED cleanly. This was never observable before this fix: grounding
+  always refused the yield first. Flagged for M4/retreat-candidate owner
+  attention, not fixed here (out of scope). The stage-2 aperture-absence gap
+  flagged in the prior entry is now closed: live-grepped the executed stage-2
+  prompt (`B1FIX_S43R`) for aperture/barrier/gate/corridor/static-obstacle
+  tokens — 0 hits, `status=answered`. B1 strategy-regret sweep (n=2
+  seeds/arm, uncensored insofar as grounding is concerned) gives
+  `oracle` 424.1 s (best, still GT-censored by the M4 finding above) vs
+  `alternative` 556.35 s (+132.25 s regret) and `wait` 558.0 s (+133.9 s
+  regret) — oracle is the clear cost-minimizing arm even under the M4
+  apparatus issue. B3 arrival probe (3rd B3 run,
+  `B3PROBE_20260930_044351`): `robot_3` GT final distance 0.3757 m, a second
+  near-miss just outside the 0.35 m tolerance (predecessor 0.0941 m clean;
+  prior session's replication 0.3586 m); `robot_4` GT distance 0.090 m
+  (comfortably inside tolerance) but M5 never logs its acceptance in any of
+  the 3 B3 runs to date, and Nav2 never logs a "Begin navigating" for
+  `robot_4` in any of them either — a structural M5/Nav2-dispatch gap for
+  that robot, not merely a tight tolerance. `robot_3`'s single Nav2 attempt
+  in each of the 2 near-miss runs gets canceled ~8 s after starting and is
+  never retried.
+
 - **2026-09-30** — **Coverage-scene B1/B2/B3 smoke batch + sweeps completed**
   (VM `vgu-vgu-thule-base-isaac-workstation-vm`, tree `4393155`,
   `data/logs/vm_runs/bscene_smoke/BSCENE_SMOKE_SUMMARY.txt`). Inherited-commit
