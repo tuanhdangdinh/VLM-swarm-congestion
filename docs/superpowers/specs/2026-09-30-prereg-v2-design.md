@@ -4,6 +4,13 @@
 
 **Revision history:**
 
+- Rev 2 (2026-10-01): USER DIRECTION — the composite command gains a
+  VLM-emitted `proposed_plan` channel (propose-verify): the VLM may emit
+  the full ordered action list, M3 audits and minimally repairs it
+  rather than authoring the sequence outright, and plan agreement /
+  edit distance / executed-plan provenance become registered metrics.
+  Rewrites section (a)'s "Decision contract" and "Scoring"; the rev-1
+  single-token contract survives as the degradation path.
 - Rev 1 (2026-09-30): initial design, written immediately after the
   `prereg-v1` checkpoint tag, from the prereg-v2 registry (design spec
   rev 9.5 "Prereg-v2 registry", amendments item 30), the intersection
@@ -44,6 +51,7 @@ after v1 collection completes and this design survives its own smokes.
 | Gap in v1 | v2 instrument |
 |---|---|
 | Four-way jam is classification-only (T1-X); no architecture on earth in our survey commands recovery from a formed scrum | (a) composite recede-then-yield → (d) resolution-scored IB10 |
+| Whether the VLM can *sequence* a multi-robot recovery (vs only name the situation) is unmeasured in v1 | (a) `proposed_plan` propose-verify channel + plan-quality metrics (rev 2) |
 | `reroute` is a no-op re-send on the single-aisle map, so wait-vs-detour judgment is untestable | (b) loop map with a genuine alternative path |
 | B2 urgency rides a text label (`priority` field); the visual channel is untested for urgency | (c) loaded-vs-empty prop pair |
 | B3 scores only the ordered outcome; who *initiates* the slip is unobserved | (e) B3 first-to-slip variant (Rev 17: "B3 first-to-slip to v2") |
@@ -57,19 +65,40 @@ everything else is supporting coverage.
 
 ## (a) Composite recede-then-yield command
 
-### Decision contract
+### Decision contract (rev 2: propose-verify)
 
-New M2 strategy enum value **`junction_clear`** (single token, not a
-free-form action list). Rationale: the architecture's division of labor
-is that the VLM names the semantic resolution and M3 grounds it; an
-ordered multi-action list emitted by the VLM would multiply the parse /
-refusal / validation surface and put geometric sequencing — which the
-presentation-order study showed the VLM does *not* do reliably — into
-the least reliable component. The VLM may optionally name the axis or
-pair it believes should recede (`recede_axis: NS|EW|null`); M3 treats
-that like it treats `yield_robot` today — an auditable suggestion behind
-a feasibility gate, swap-corrected when infeasible. This reuses the
-exact defense filmed in the 2026-09-30 live gpt-4o demo.
+New M2 strategy enum value **`junction_clear`**, plus an **optional
+`proposed_plan` field**: an ordered list of
+`{robot_id, action ∈ reverse|yield|cross}` entries, Pydantic-validated
+(each robot at most once, at least one `reverse` or `yield`, unknown
+robot_ids rejected). The VLM is invited — not required — to emit the
+full recovery sequence; this is the channel that exercises its
+multi-step spatial reasoning (user direction, rev 2).
+
+Division of labor: **the VLM proposes, M3 verifies and minimally
+repairs.** This generalizes the v1 swap gate from one robot to a
+sequence, keeping the defense filmed in the 2026-09-30 live gpt-4o
+demo:
+
+- `proposed_plan` present and every leg feasible (retreat room, band
+  limits, exemption pairing, ordering executable) → **executed
+  verbatim**, provenance `vlm_verbatim`.
+- One or more legs infeasible → M3 applies the **minimal repair**
+  (swap-style substitutions and reorderings toward its own χ-ranked
+  plan, fewest edits first), provenance `repaired`, every edit logged
+  with its reason (the sequence analogue of `yield_regrounded_reason`).
+- Field absent, unparseable, or repair distance exceeds a registered
+  bound → M3's own χ-ranked plan executes, provenance `m3_default`
+  (the rev-1 single-token contract, now the degradation path).
+
+Rationale for not making the plan *mandatory*: the presentation-order
+study, ER-2's unused geometry block, and the live demo's infeasible
+yielder all say VLM sequencing may be unreliable; propose-verify turns
+that reliability into a measured quantity (below) instead of a source
+of unresolved episodes, exactly as B1 turned image-dependence into a
+measured quantity. Parse/refusal surface grows only by one structured
+field at temperature 0; a plan-less `junction_clear` answer remains
+valid.
 
 ### Grounding (M3)
 
@@ -125,6 +154,16 @@ the remaining robots (single yield or no-op) and logs the phase reached
 - **Resolution-scored IB10** replaces T1-X's RQ1-only scoring: episode
   succeeds when all four robots reach goals, position-verified; phase
   reached is the ordinal partial score.
+- **Plan-quality metrics (rev 2, registered):** per decision,
+  (i) *plan emission rate* (VLM supplied a parseable `proposed_plan`),
+  (ii) *plan agreement rate* (verbatim-executable without repair),
+  (iii) *plan edit distance* (repairs applied, with reasons), and
+  (iv) *executed-plan provenance* (`vlm_verbatim` / `repaired` /
+  `m3_default`). Arm B emits its plan through the identical field, so
+  every metric has a classical comparator. Condition on presentation
+  order per amendments A2. These are RQ-level outcomes, not
+  diagnostics: they are the direct measurement of whether the VLM
+  performs multi-robot sequencing or only situation naming.
 - **Oracle:** correct recede pair by χ; correct order inside-first. The
   C′ caveat (GT oracle inactive at h = 1.2) applies to the *staged*
   variant, not the formed-jam composite — the jam forms first here, so
@@ -204,9 +243,13 @@ makes an explicit include/exclude call.
 2. Arm B same-axis filter + tests (v2 branch; protocol note that this
    diverges from the v1-frozen Arm B).
 3. M1 y-extent verification run at |y| ≈ 1.2 (one VM session, mock).
-4. `junction_clear` contract: schema field, M3 χ-ranked grounding +
-   staggered recede, M5 phased dispatch, prompt wording (new
-   `prompt_v2 → v3` template version, hash-frozen at v2).
+4. `junction_clear` contract: schema fields (strategy token +
+   `proposed_plan`), M3 χ-ranked grounding + staggered recede + the
+   plan verify/repair engine with provenance logging, M5 phased
+   dispatch, prompt wording inviting the plan (new `prompt_v2 → v3`
+   template version, hash-frozen at v2). The repair-distance bound for
+   falling back to `m3_default` is sized from the mock sweep in step 5
+   and frozen before live smokes.
 5. IB10 composite mock smoke → live smoke (phase-by-phase).
 6. Intersection oracle + regret extension; freeze IB10 scoring.
 7. Loop map: USD + Nav2 + reroute grounding; the pre-emption control
