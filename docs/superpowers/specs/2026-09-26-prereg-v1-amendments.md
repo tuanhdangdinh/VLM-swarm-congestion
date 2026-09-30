@@ -34,6 +34,25 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 20 (2026-09-30): B1 geometry FIXED and validated (`5dbb3a5`:
+  `half_length_m` 0.6→1.1 after both suggested levers were GPU-probed
+  and rejected; feasibility pinned at all 8 MEASURED trigger poses,
+  margin ≥ 0.167 m; the pre-fix grid's LEVEL_OR_PAST blind spot — 7/8
+  real poses — is now a pinned regression class). B1 cost table:
+  oracle regret-best by +132/+134 s over alternative/wait. Stage-2
+  aperture live-check CLOSED (answered stage-2 prompt, 0 token hits).
+  TWO NEW APPARATUS DEFECTS, fix ordered before B3 outcome collection:
+  (a) B1's DEFAULT retreat candidate fails its own backup on
+  min_distance_violation 3/3 (completes when stage-2 selects — so
+  stage-2-degraded B1 trials contaminate outcomes; characterize + fix
+  or scope); (b) a structural 4-robot dispatch gap — robot_4 never
+  receives "Begin navigating"/M5 acceptance in any of 3 B3 runs
+  despite reaching goal in GT, and robot_3's canceled Nav2 leg is
+  never retried (the 0.36 m near-misses trace to retry logic, not the
+  tolerance — no goal nudge). Residuals: M4 backup overshoots the
+  NS band at 2/8 steep-heading poses (documented); suite baseline is
+  environment-split (local 58/2921 vs container 63/2926) — container
+  re-baseline before the tag.
 - Rev 19 (2026-09-30): B-scene smoke batch complete with independent
   replication (an Opus rate-limit cutoff left a near-finished batch; the
   successor replicated before discovering it — both kept). **B2 full
