@@ -47,6 +47,22 @@
   (a, b), the B1 trial-counting denominator, and B2's STRATEGY-REGRET
   ranking, which this absorption found not distinguishable from noise at
   n = 2 seeds/arm.
+- Rev 23 (2026-09-30): **the B3 gate CLOSES** (coordinator ruling on
+  `4c06800`'s split verdict). The revision (`b5c573a`: goal stack
+  ±0.30→±0.36, the widest consistent with the scene's own
+  `wall_margin_m`; the ordered ±0.45 was correctly rejected against the
+  rack floor) is VM-verified on both seeds: full chain, 4/4 accepted
+  arrivals, rescore 8/8, measured release-approach minima 0.463/0.475 m
+  vs the failing 0.426–0.444 m. The 0.45 m floor is the binding
+  invariant and clears; the +0.15 design margin is geometrically
+  unreachable by widening (≈±0.65 needed, past the rack) and is
+  WAIVED for this scene with the mechanism pinned in tests and this
+  valve pre-registered: a B3 episode whose release-approach latches is
+  scored APPARATUS-CENSORED (flagged, rate reported, excluded from
+  flow metrics) — bounded risk at the measured 0.013–0.025 m headroom,
+  n = 2 clean + 1 prior clean vs 3 prior latched. With this, EVERY
+  battery cell is smoke-validated on the final apparatus and the
+  pre-registration is ready for the tag.
 - Rev 22 (2026-09-30): defect round verdicts (notes `414037b`) SUPERSEDE
   Rev 20's framing in part: (b) is NOT a dispatch bug — the
   dispatch/retry/registry code is correct (one clean 4/4 B3 replicate
