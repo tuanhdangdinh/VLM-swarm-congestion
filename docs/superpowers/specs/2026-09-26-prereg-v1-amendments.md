@@ -41,10 +41,11 @@
   B1/B2/B3 coverage battery, the STRATEGY-REGRET metric and its first
   frozen B1/B2 instances, the per-class flow/%CP/censored-queue metrics,
   the coverage-check scoping sentences, the prereg-v2 registry, and the
-  Arm B held-robot exclusion generalized beyond A10). The two apparatus
-  defects Rev 20 opened (a, b) and the B1 trial-counting denominator are
-  the questions this absorption leaves unresolved, as the `[REV95-OPEN]`
-  markers there.
+  Arm B held-robot exclusion generalized beyond A10), and the questions
+  it leaves unresolved are the `[REV95-OPEN]` markers there, listed in
+  its Status line — among them the two apparatus defects Rev 20 opened
+  (a, b), the B1 trial-counting denominator, and a B2 STRATEGY-REGRET
+  reading this absorption found likely to be noise at n = 2 seeds/arm.
 - Rev 20 (2026-09-30): B1 geometry FIXED and validated (`5dbb3a5`:
   `half_length_m` 0.6→1.1 after both suggested levers were GPU-probed
   and rejected; feasibility pinned at all 8 MEASURED trigger poses,

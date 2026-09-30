@@ -114,12 +114,6 @@
   oracle rationale is neutralised (`a7730ee`), and decision artifacts record
   the served model while the rescorer credits latched-at-goal arrivals
   (`37a0dd5`).
-- Rev 9.4 (2026-09-29): factual correction — head-on FCFS at equal speeds is always a tie and the tiebreak yields robot_2, so every `fcfs_yielder: robot_1` record was wrong; the family manifest and YAMLs are corrected at `6d511be`, `contrasts_fcfs` flips on 7 rows, and any FCFS-contrast cell reads from the corrected manifest. Scoring is unaffected (rev 9 scores Arm B's ACTUAL answer).
-- Rev 9.3 (2026-09-29): T1 amendment by user decision C — `intersection_bottleneck` removed from the non-inferiority tier (structurally unresolvable by the single-yield primitive; Arm B's own answer inexecutable 33/35 live, the executable yield correctly held by the pair-scoped latch) and replaced with `head_on_asymmetric_wopen_eopen_o0`; the realigned scenario becomes the new log-only T1-X classification cell (10 probes, RQ1 only); multi-axis M3 grounding recorded as a prereg-v2 candidate.
-- Rev 9.2 (2026-09-29): T1 tuning basket (amendments item 14) — new Arm B
-  parameter `fcfs_zone_radius_m` 1.0 m added to the tuning-parity list;
-  M1 thresholds, Arm B `stopped_speed_mps` and the M4 speed rule kept
-  (`docs/reports/2026-09-29-t1-tuning-basket.md`).
 - Rev 9.5 (2026-09-30): absorbs the coverage-battery amendments
   (`docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md`, items 28–30
   and the Rev 17–20 records) in place — the B1 `bottleneck_merge`, B2
@@ -134,15 +128,22 @@
   never carried through), and `[REV95-OPEN]` markers for the two apparatus
   defects Rev 20 opened (a: B1's DEFAULT-retreat backup failure; b: B3's
   robot_4 dispatch gap) and the residuals they leave.
+- Rev 9.4 (2026-09-29): factual correction — head-on FCFS at equal speeds is always a tie and the tiebreak yields robot_2, so every `fcfs_yielder: robot_1` record was wrong; the family manifest and YAMLs are corrected at `6d511be`, `contrasts_fcfs` flips on 7 rows, and any FCFS-contrast cell reads from the corrected manifest. Scoring is unaffected (rev 9 scores Arm B's ACTUAL answer).
+- Rev 9.3 (2026-09-29): T1 amendment by user decision C — `intersection_bottleneck` removed from the non-inferiority tier (structurally unresolvable by the single-yield primitive; Arm B's own answer inexecutable 33/35 live, the executable yield correctly held by the pair-scoped latch) and replaced with `head_on_asymmetric_wopen_eopen_o0`; the realigned scenario becomes the new log-only T1-X classification cell (10 probes, RQ1 only); multi-axis M3 grounding recorded as a prereg-v2 candidate.
+- Rev 9.2 (2026-09-29): T1 tuning basket (amendments item 14) — new Arm B
+  parameter `fcfs_zone_radius_m` 1.0 m added to the tuning-parity list;
+  M1 thresholds, Arm B `stopped_speed_mps` and the M4 speed rule kept
+  (`docs/reports/2026-09-29-t1-tuning-basket.md`).
 
 Status: **rev 9.5 — the binding text for the `prereg-v1` tag** (the tag
 does not exist yet; nothing here is frozen until it does). From rev 9 this
 document is authoritative; the amendments document remains the historical
 decision record, and its item numbers are cited below as "amendments A*n*"
 or "amendments item *n*". Still open before the tag: amendments items 7
-(keep the **H3-run-series** symmetric-`reverse` dispatch — historical
-run-series "B1", unrelated to the rev-9.5 coverage scene `bottleneck_merge`,
-also nicknamed B1; disambiguated on first use in this document), 9 (the
+(keep the symmetric-`reverse` dispatch nicknamed **"B1"** in the pilot
+findings, `docs/reports/2026-09-25-overnight-findings.md` §J item 3 —
+unrelated to the rev-9.5 coverage scene `bottleneck_merge`, also
+nicknamed B1; disambiguated on first use in this document), 9 (the
 prompt-template hashes, the one model-table row still REQUIRED, plus the
 tag-time `gpt-4o-2024-08-06` pin in `config/models.yaml`), 14 (T1 tuning
 basket; discharged pending coordinator review at Rev 9.2),
@@ -154,18 +155,31 @@ likewise reviewable at the tag.
 Residuals those resolutions leave open are named where they occur: the
 absent-decision rule for T0 and T2 RQ3 (run-matrix notes) and T0's
 `prompt_static_obstacles` value (per-tier channel table).
-**Rev 9.5 open items** (amendments items 28–30, Rev 17–20), named where
-they occur and listed together here: the B1 trial-counting denominator
-(no-event/censored episodes; run-matrix notes); the B1 STRATEGY-REGRET
-table's censored reference arm (measurement plan); the scoring rule for
-DEFAULT-retreat B1 trials pending apparatus defect (a)'s verdict
-(measurement plan); B3 outcome collection gated on apparatus defect (b)
-(scenario battery, run matrix); the container-vs-local suite baseline split
-(58/2921 vs 63/2926 — re-baseline the container before the tag); and
-whether the B-scene cost-table values, which live under the git-ignored
-`data/logs/vm_runs/` tree, need a YAML-side freeze point the way T2b's
-margin got one (`7400482`) rather than resting on this document's text
-alone.
+**Rev 9.5 open items** (amendments items 28–30, Rev 17–20). A
+`[REV95-OPEN]` marker recurs in the body at each place a distinct item
+below is discussed (several appear in both a battery entry and the
+measurement plan or run matrix); this list names each distinct item once:
+the B1 trial-counting denominator (no-event/censored episodes;
+run-matrix notes); the B1 STRATEGY-REGRET table's censored reference arm
+(measurement plan); whether B2's STRATEGY-REGRET is interpretable at
+n = 2 seeds/arm at all, and if so which arm is the reference — the
+cost-minimizing arm or the `urgent_first`-correct arm (measurement plan,
+battery entry); the scoring rule for DEFAULT-retreat B1 trials pending
+apparatus defect (a)'s verdict, keyed on the executed candidate rather
+than only `retreat=default:no_choice` (measurement plan); B3 outcome
+collection gated on apparatus defect (b), and B3 having no cost table or
+margin at all yet (scenario battery, run matrix); whether B1's and B2's
+cells belong in the "VLM can" success-criteria conjunction (success
+criteria); the B2 and B3 `prompt_static_obstacles` collection-value
+mismatch against their T1/T2b bases (per-tier channel table, two rows);
+the Rev 20 vs. YAML/notes discrepancy over the adopted geometry's
+floor-clearance margin, "≥ 0.167 m" vs. 0.267 m (scenario battery); the
+container-vs-local suite baseline split (58/2921 vs 63/2926 —
+re-baseline the container before the tag); and whether the B-scene
+cost-table values, which live under the git-ignored `data/logs/vm_runs/`
+tree, need a
+YAML-side freeze point the way T2b's margin got one (`7400482`) rather
+than resting on this document's text alone.
 Predecessor system: the verified head-on yield protocol (H3 runs 8–13) and
 the M1→M5→M2→M3→M4 closed loop, live on the GCP/Isaac host.
 
@@ -391,7 +405,7 @@ the FCFS yielder is a live coin flip: in the T2b smoke Arm B yielded
 `t2b_flow_ordering.yaml` records `fcfs_yielder: robot_1` *(Rev 9.5: this
 sentence is now stale text this document never carried through the rev-9.4
 correction — `6d511be` corrected `t2b_flow_ordering.yaml`'s
-`fcfs_yielder` to `robot_2`, verified in the installed YAML)*. Arm B's RQ3
+`fcfs_yielder` to `robot_2`, verified in the committed YAML)*. Arm B's RQ3
 score is the FCFS answer Arm B actually produced on each decision
 (amendments A3) — its executed decision, or in Arm A episodes the pick
 the shadow block recorded — never the YAML's `fcfs_yielder`. Arrival stamps are censored when a
@@ -677,13 +691,26 @@ values kept (`docs/reports/2026-09-29-t1-tuning-basket.md`).
     after two other levers (shifting the gate east; moving `robot_2`'s
     spawn ± 0.2–0.35 m) were GPU-probed and rejected on measured data, not
     hand-derived. At 0.6 the crossing-arm escort formula
-    (`required_escort = half_length_m − robot_1.x + 0.65`) cleared the
-    1.0 m `escort_band_m` floor by only 0.77–0.87 m across all 8 measured
-    GT trigger poses — 7 of them the untested LEVEL_OR_PAST sub-case
-    (`robot_2.x < robot_1.x`) the pre-fix constraint grid excluded from
-    every feasibility check; at 1.1 every measured pose clears by
-    ≥ 0.167 m. Post-fix escorts: `robot_1` 1.55–1.85 m, `robot_3` 4.20 m
-    (both +0.5 m over the pre-fix 1.05–1.35 m / 3.70 m). **The oracle is
+    (`required_escort = half_length_m − robot_1.x + 0.65`) gave a
+    **required** escort of only 0.77–0.87 m across all 8 measured GT
+    trigger poses — **short of** the 1.0 m `escort_band_m` floor every
+    time, grounding the oracle yield infeasible — 7 of those 8 poses the
+    untested LEVEL_OR_PAST sub-case (`robot_2.x < robot_1.x`) the pre-fix
+    constraint grid excluded from every feasibility check. The formula has
+    slope 1 in `half_length_m`, so raising it 0.6 → 1.1 (+0.5) shifts every
+    pose's required escort by the same +0.5 m: **≈ 1.27–1.37 m at 1.1,
+    derived, not separately tabulated**, giving a floor-clearance margin
+    of ≈ 0.27–0.37 m — the tightest pose (`SW1_wait_s42`) at ≈ 0.267 m,
+    which reproduces the YAML's own figure. **Discrepancy, not resolved
+    here:** amendments Rev 20 states the margin as "≥ 0.167 m," a figure
+    the YAML header and the implementation notes instead attribute to
+    `half_length_m` **1.0** (the bare-minimum candidate, not the adopted
+    1.1, where they both give 0.267 m at the tightest pose). Flagged for
+    reconciliation, not adjudicated by this absorption. The design grid's
+    four nominal standoff poses (a *different*, smaller set than the 8
+    measured GT poses) give post-fix escorts `robot_1` 1.55–1.85 m,
+    `robot_3` 4.20 m (both +0.5 m over the pre-fix design-grid values
+    1.05–1.35 m / 3.70 m). **The oracle is
     feasibility-determined, like T2a:** a `robot_1` yield is refused (no
     backup distance in `[0.5, 2.0]` m keeps the 1.7 m clearance with
     `robot_3` behind it) and **degrades to a reroute of `robot_1` alone —
@@ -695,11 +722,13 @@ values kept (`docs/reports/2026-09-29-t1-tuning-basket.md`).
     `correct_order: [robot_1, robot_3]`; the forced-order harness has no
     executable alternative arm, so **the margin is absent by construction,
     not measured**; the YAML's `fcfs_yielder: robot_2` is a naive-FCFS
-    annotation for the record, never an Arm B answer — Arm B has no
-    classification path to this scene at all (below). Reverse-along-heading
-    gate: `x0 ≥ 1.35·cos|θ| − 0.46` (≥ 0.174 m at −62°; amendments Rev 18);
-    `k = 1` (a single valid retreat candidate) at 2 of 4 live stage-2
-    poses. **Residual, not fixed by the geometry change:** M4's actual
+    annotation for the record, never an Arm B answer — Arm B never
+    classifies this scene `head_on` or `intersection`, so its FCFS rule
+    never runs here (below). Reverse-along-heading gate: `x0 ≥
+    1.35·cos|θ| − 0.46` (≥ 0.174 m at −62°; amendments Rev 18); `k = 1` (a
+    single valid retreat candidate) at 2 of the design's 4 stage-2 grid
+    poses (pinned offline; `k` at the 8 measured GT trigger poses is
+    unrecorded). **Residual, not fixed by the geometry change:** M4's actual
     reverse-along-heading backup overshoots the N-S band's west edge at 2
     of the 8 measured poses (heading −52.5°, end x −0.486; heading −55.9°,
     end x −0.466), independent of `half_length_m` (set by the 1.7 m
@@ -714,21 +743,28 @@ values kept (`docs/reports/2026-09-29-t1-tuning-basket.md`).
     `VGU_MOCK_RETREAT_CHOICE_FILE` completed cleanly. This exposure is
     wider than "stage 2 was skipped": the text-only modality cell always
     hits it (stage 2 is `condition_constrained` off by the modality
-    table), and the 2 of 4 live stage-2 poses with `k = 1` default
+    table); a `k = 1` pose (2 of the design's 4 stage-2 grid poses) defaults
     identically even when stage 2 is answered, because there is nothing to
-    choose. **[REV95-OPEN]:** the B1 scoring treatment in the measurement
+    choose; and — only the `no_choice`-default path has been observed
+    failing (3/3) — an answered stage-2 call that names the default letter
+    executes the same candidate and is **unverified**, not confirmed safe.
+    **[REV95-OPEN]:** the B1 scoring treatment in the measurement
     plan below is this absorption's proposal, not a recorded ruling — Rev
     20 orders "characterize + fix or scope," and the verdict belongs to
     the parallel apparatus-defect track, not yet returned.
-    **Arm B** (`classify_scene`): no path to `bottleneck` — the goal axes
-    are parallel, never crossing at 45–135°. Without the held-robot
-    exclusion: `blocked_path [robot_3]` at the designed standoff,
+    **Arm B** (`classify_scene`): no path to `bottleneck` — it never
+    classifies this scene `head_on` or `intersection` (the goal axes are
+    parallel, never crossing at 45–135°), so its FCFS rule never runs
+    here. Without the held-robot exclusion: `blocked_path [robot_3]` at
+    the designed standoff (`robot_2` counts as ahead of `robot_1` there),
     `blocked_path [robot_1, robot_3]` at the measured LEVEL_OR_PAST
-    sub-case (7 of 8 poses). **With the exclusion** (`robot_3` is held,
-    dropped from candidacy): `blocked_path [robot_1]` → `reroute` at
-    **both** sub-cases — not the unified scene design's `unknown [robot_1,
-    robot_2]` → `temporary_wait` reading, because `robot_1` still has no
-    robot ahead of it once `robot_3` drops out of the candidate pool.
+    sub-case (7 of 8 poses, where `robot_2` no longer does). **With the
+    exclusion** (`robot_3` is held, dropped from candidacy): at the
+    **designed** standoff, `unknown [robot_1, robot_2]` → `temporary_wait`
+    → `reroute` — the unified scene design's reading holds here. At the
+    **measured LEVEL_OR_PAST sub-case** (7 of 8 poses), it does **not**:
+    `robot_1` alone has no robot ahead of it once `robot_3` drops out, so
+    the verdict is `blocked_path [robot_1]` → `reroute`, not `unknown`.
     **Metrics:** gate flow rate (exits at x = 1.7 per 100 sim-s, from
     first entry at x = 0.7), per-robot stop time (GT speed < 0.02 m/s,
     spells ≥ 1 s), makespan, the A4 outcome, the type label — scorer built
@@ -762,13 +798,34 @@ values kept (`docs/reports/2026-09-29-t1-tuning-basket.md`).
     label rate; the A4 outcome. **Mock smoke (`bscene_smoke`, both
     members, 2026-09-29/30 — apparatus validation, not a reasoner
     result):** alias tag correct, %CP 1.0 both members,
-    divergent-and-correct 1.0 both members. **STRATEGY-REGRET, uncensored
-    — the first frozen instances (amendments item 29):** `_r1`
-    `yield_urgent` (`robot_1` yields) best at 188.85 s, `yield_routine`
-    201.95 s (**+13.1 s regret**); `_r2` `yield_urgent` (`robot_2` yields)
-    best at 190.7 s, `yield_routine` 195.8 s (**+5.1 s regret**), n = 2
-    seeds/arm each. The cost-table JSON files sit under
-    `data/logs/vm_runs/bscene_smoke/`, which is git-ignored
+    divergent-and-correct 1.0 both members. **STRATEGY-REGRET (amendments
+    item 29), uncensored, but likely noise at this n:** the harness's two
+    arms are named by who is *forced* to yield — `yield_routine` forces
+    the routine robot to yield (the `priority_override` route's executed
+    arm, matching `PriorityOracleConfig.correct_yielder`); `yield_urgent`
+    forces the urgent robot to yield instead
+    (`scripts/strategy_regret.py`'s `_b2`, the anti-priority arm). `_r1`:
+    `yield_urgent` (`robot_1`, urgent, yields) 188.85 s (cost-minimizing),
+    `yield_routine` (`robot_2` yields, `robot_1` passes first, matching
+    the oracle) 201.95 s (**+13.1 s regret**). `_r2`: `yield_urgent`
+    (`robot_2`, urgent, yields) 190.7 s (cost-minimizing), `yield_routine`
+    (`robot_1` yields, `robot_2` passes first, matching the oracle) 195.8 s
+    (**+5.1 s regret**); n = 2 seeds/arm each. **Caveat that undercuts
+    reading this as a systematic priority-vs-cost conflict:** the two
+    members are physically identical scenes (labels and the M3-only
+    `priority` are the only difference), so the *same* physical maneuver
+    can be compared across members — "`robot_1` yields" costs 188.85 s in
+    `_r1` but 195.8 s in `_r2` (a 6.95 s spread); "`robot_2` yields" costs
+    201.95 s in `_r1` but 190.7 s in `_r2` (an 11.25 s spread). Those
+    cross-member spreads, for what should be the same maneuver, are the
+    same size as the regrets above, and which yielder is cheaper flips
+    between members. At n = 2 seeds/arm, "the urgent robot yielding is
+    cheaper in both members" is not distinguishable from noise.
+    **[REV95-OPEN]:** whether B2's STRATEGY-REGRET is interpretable at
+    this n at all, and — separately — which arm should be the reference
+    (the cost-minimizing arm, as computed above, or the
+    `urgent_first`-correct arm) once/if it is. The cost-table JSON files
+    sit under `data/logs/vm_runs/bscene_smoke/`, which is git-ignored
     (`data/logs/*`), so these values are frozen **in this text**, not by
     the tag over the files.
   - **B3 `convoy_counterflow`** (strategy `convoy`, 4 robots; **first to
@@ -786,7 +843,7 @@ values kept (`docs/reports/2026-09-29-t1-tuning-basket.md`).
     + platoon order" are executionally identical, so the label is scored
     separately (secondary, novelty claim, no external baseline) from the
     primary platoon-correct decision rate. Escorts, pinned (correcting the
-    unified scene design's pre-measurement 3.574/4.244 m, computed from a
+    unified scene design's pre-measurement 3.574/4.174 m, computed from a
     rejected east-shifted queue): `robot_1`/`robot_3`/`robot_4` 1.89–1.97 /
     **3.674** / **4.244** m, every escort ending at x = 1.774. **Arm B,
     without the held-robot exclusion:** `head_on (robot_1, robot_2)`,
@@ -821,7 +878,8 @@ values kept (`docs/reports/2026-09-29-t1-tuning-basket.md`).
     to this missing retry, not the tolerance value). No cost table or
     margin exists for B3 yet: the strategy-regret sweep and the
     four-robot forced-order harness extension were not run
-    (`correct_order`/`margin: pending` in the YAML). **[REV95-OPEN]:**
+    (`correct_order` is pinned; `margin: pending` in the YAML).
+    **[REV95-OPEN]:**
     outcome collection stays gated until defect (b) is characterized and
     fixed or scoped by the parallel apparatus track; the mechanical smoke
     (four-stack lifecycle gate, alias tag, park position, vacated-spawn
@@ -1035,7 +1093,8 @@ B1 modality cell (10 per condition × 2 conditions = 20 more episodes, ≈
 3.3 h at B1's per-episode wall time) added to the Modality row above — the
 two deltas are reported separately, not summed into "+80." ≈ 80–240 more
 VLM calls at 1–3 per episode; OpenAI credit is exhausted, so gpt-4o cells
-are gated on a top-up (project memory); ≈ 15 pre-collection smoke runs.
+are gated on a top-up (unified scene design §5, "Budget"); ≈ 15
+pre-collection smoke runs.
 
 ### Pre-registration freeze
 
@@ -1065,13 +1124,26 @@ configuration; the installed YAML is asserted by content before every
 collected run (A8). Every run of 2026-09-16 through the tag is pilot
 data.
 
-*Rev 9.5 additions to the freeze.* The three B-scene YAMLs
+*Rev 9.5 additions to the freeze.* The four B-scene YAMLs
 (`bottleneck_merge.yaml`, `priority_urgent_r1.yaml`,
 `priority_urgent_r2.yaml`, `convoy_counterflow.yaml`) with their `oracle:`
-blocks (B1's absent margin, B3's `margin: pending` included as-is — see
-battery entries); the held-robot exclusion and the `convoy`/
-`priority_override` aliasing commit (`cb44d7a`); the per-tier channel
-table's three new rows (below). **The B1 and B2 STRATEGY-REGRET cost
+blocks (B1's absent margin, B3's `correct_order` pinned but `margin:
+pending` — see battery entries); the held-robot exclusion and the
+`convoy`/`priority_override` aliasing commit (`cb44d7a`); the per-tier
+channel table's three new rows (below). **Scenario geometry lives in
+`orchestrator.yaml`'s goal table, not the scenario YAML** (each B-scene
+YAML's own header says so — "M5 does not read this file"; also the
+operator-steps precedent in amendments A1) — **so the freeze must also
+cover the per-scene collection settings there:** B1's
+`scenario_geometry.corridor` (`half_length_m: 1.1`, fixed at `5dbb3a5`,
+plus its arms), `grounding_aisle_x_band_m: [-0.46, 0.46]`, and
+`robot_3`'s `start_delay_sec: 80`; B2's per-member task labels and
+`priority` values in `initial_tasks`, and its `scenario_geometry.corridor`
+(`half_length_m: 1.0`, as shipped, unchanged from T1); B3's
+`scenario_geometry.corridor` (`half_length_m: 0.5`), `grounding.mode:
+legacy`, and
+`robot_3`/`robot_4`'s `start_delay_sec: 120`. **The B1 and B2
+STRATEGY-REGRET cost
 tables are not freezable as files**: `data/logs/vm_runs/b1_fix/` and
 `data/logs/vm_runs/bscene_smoke/` sit under `data/logs/*`, which
 `.gitignore` excludes (confirmed by `git check-ignore`), unlike T2b's
@@ -1352,7 +1424,7 @@ reviewable at the tag):
 | T3a, T3b, T3c | off | true | blockers are untracked by construction and must appear in no text channel (their YAML headers already require it) |
 | B1 (`bottleneck_merge`, rev 9.5) | off | true | the YAML header states this explicitly (amendments item 28): the aperture must appear in no text channel so the `bottleneck` type call rests on the image (modality cell, above) |
 | B2 (`priority_urgent_r1`/`_r2`, rev 9.5) | **off** | true | the YAML header states `off` explicitly, despite B2 being hand-authored from the T1 `wopen_eopen` geometry whose own row above is `on` — **flagged inconsistency, not yet reconciled:** functionally inert either way (B2 declares no `static_obstacles`, so on and off render the same prompt, as for T0), but the collection-value convention differs from its T1 base without a recorded reason; `[REV95-OPEN]` |
-| B3 (`convoy_counterflow`, rev 9.5) | off | true | as T2b (empty `static_obstacles`), but the YAML header states `off` explicitly rather than following T2b's `on` convention; also functionally inert (empty list) |
+| B3 (`convoy_counterflow`, rev 9.5) | **off** | true | as T2b (empty `static_obstacles`), but the YAML header states `off` explicitly rather than following T2b's `on` convention — the same kind of unreconciled convention mismatch as B2's row above; also functionally inert (empty list); `[REV95-OPEN]` |
 
 The repo default for `prompt_static_obstacles` is `false`; the collection
 value is asserted per run through the installed orchestrator YAML (A8).
@@ -1569,12 +1641,30 @@ condition).
   margin rule). The model's decided strategy is scored two ways: label
   correctness (per-tier criteria above) and time regret against the best
   *executable* strategy in the table.
-  - **B2 — the first frozen, uncensored instances.** `priority_urgent_r1`:
-    `yield_urgent` (robot_1 yields) 188.85 s (reference, regret 0),
-    `yield_routine` 201.95 s (**regret +13.1 s**). `priority_urgent_r2`:
-    `yield_urgent` (robot_2 yields) 190.7 s (reference), `yield_routine`
-    195.8 s (**regret +5.1 s**). Both n = 2 seeds/arm, `bscene_smoke`,
-    2026-09-29/30.
+  - **B2 — frozen, uncensored, likely noise at this n.** The harness's
+    arms are named by who is *forced* to yield: `yield_routine` forces
+    the routine robot (the `priority_override` route's executed arm,
+    matching `PriorityOracleConfig.correct_yielder`); `yield_urgent`
+    forces the urgent robot instead (the anti-priority arm,
+    `scripts/strategy_regret.py`'s `_b2`). `priority_urgent_r1`:
+    `yield_urgent` (`robot_1`, urgent, yields) 188.85 s (cost-minimizing,
+    reference, regret 0), `yield_routine` (`robot_2` yields, matching the
+    oracle) 201.95 s (**regret +13.1 s**). `priority_urgent_r2`:
+    `yield_urgent` (`robot_2`, urgent, yields) 190.7 s (reference),
+    `yield_routine` (`robot_1` yields, matching the oracle) 195.8 s
+    (**regret +5.1 s**). Both n = 2 seeds/arm, `bscene_smoke`,
+    2026-09-29/30. **Caveat:** the two members are the same physical
+    scene (labels and the M3-only `priority` are the only difference), so
+    the same maneuver is comparable across members — "`robot_1` yields"
+    costs 188.85 s in `_r1` vs. 195.8 s in `_r2` (6.95 s spread);
+    "`robot_2` yields" costs 201.95 s in `_r1` vs. 190.7 s in `_r2`
+    (11.25 s spread). Those spreads are the same size as the regrets
+    above and the cheaper yielder flips between members, so "the urgent
+    robot yielding is cheaper in both members" is not distinguishable
+    from noise at n = 2. **[REV95-OPEN]:** whether B2's STRATEGY-REGRET is
+    interpretable at this n, and which arm should be the reference (the
+    cost-minimizing arm above, or the `urgent_first`-correct arm) if it
+    is.
   - **B1 — frozen with a censoring caveat.**
     `data/logs/vm_runs/b1_fix/COST_TABLE_bottleneck_merge.json` (`5dbb3a5`
     validation, n = 2 seeds/arm): `oracle` (yield robot_2) mean 424.1 s,
@@ -1589,7 +1679,16 @@ condition).
     proven bound direction; the harness's own `regret_is_lower_bound: true`
     label does not resolve this. This table freezes as a record of what
     the sweep measured, not as a validated regret bound, until apparatus
-    defect (a) is characterized/fixed or a clean re-sweep is run.
+    defect (a) is characterized/fixed or a clean re-sweep is run. One
+    observation, not a finding: the `alternative` (robot_1-yield/reroute)
+    and `wait` arms **roughly** correspond to Arm B's two possible executed
+    answers on this scene (blocked_path→reroute or unknown→wait — the
+    sweep's `wait` arm holds all three robots, where Arm B's `unknown`
+    holds only the two non-held robots, so the correspondence is not
+    exact), and both sweep arms are censored — consistent with, though not
+    proof of, the scenario battery's prediction that Arm B's B1 outcome is
+    censored
+    either way.
   - **B3 — no table.** The four-robot forced-order harness extension and
     the strategy-regret sweep were not run; the YAML's `correct_order` has
     no `margin` (`margin: pending`). **[REV95-OPEN]**, gated on apparatus
@@ -1613,21 +1712,32 @@ condition).
   executed command has closed to < 0.45 m of a parked yielder — the T2b
   bystander-latch mechanism (battery entry, above).
 - **B1 scoring exposure to apparatus defect (a) — coordinator proposal,
-  not a recorded ruling.** Every B1 trial whose stage-2 record carries
-  `retreat=default:no_choice` — stage 2 `condition_constrained` off
-  (always true for the B1 text-only modality cell) or a `k = 1` candidate
-  set (2 of 4 measured live poses) or an unanswered stage-2 call — selects
-  the same DEFAULT candidate that fails its own M4 backup 3/3 (defect (a)
-  above). **Proposed treatment:** such trials remain **decision-scored**
-  (the type/strategy/yielder call still counts toward the type-label rate
-  and the pre-gate agreement test) but are **excluded from the flow
-  metrics** (gate flow rate, per-robot stop time, makespan), which the M4
-  defect confounds independently of the reasoning being scored. **This is
-  this absorption's proposal, not amendments text:** Rev 20 orders
-  "characterize + fix or scope," and does not itself state a scoring rule.
-  **[REV95-OPEN]** pending the parallel apparatus-defect track's verdict;
-  if the fix lands and clears the exposure, this note is superseded rather
-  than rewritten.
+  not a recorded ruling.** The defect belongs to the **DEFAULT retreat
+  candidate** (`selection.candidates[0]`), not narrowly to
+  `retreat=default:no_choice`: any B1 trial that **executes that
+  candidate** is exposed, whether it got there via
+  `retreat=default:no_choice` (stage 2 `condition_constrained` off —
+  always true for the B1 text-only modality cell — or a `k = 1` candidate
+  set, 2 of the design's 4 stage-2 grid poses, or an unanswered stage-2
+  call) **or** via an answered stage-2 call whose `retreat_choice` names
+  the default letter (`choice == default_letter`). Only the
+  `no_choice`-default path has been observed failing, 3/3
+  (`min_distance_violation`); the answered-default path executes the
+  identical candidate but has **not** been separately run, so its failure
+  rate is unverified, not confirmed either way. **Proposed treatment:**
+  a trial matching either key remains **decision-scored** (the
+  type/strategy/yielder call still counts toward the type-label rate and
+  the pre-gate agreement test) but is **excluded from the flow metrics**
+  (gate flow rate, per-robot stop time, makespan), which the M4 defect
+  confounds independently of the reasoning being scored. Keying only on
+  `retreat=default:no_choice` would exclude some default executions
+  (unanswered/condition-constrained) but not others (answered-default),
+  biasing the flow metrics against whichever models more often *choose*
+  the default letter on request. **This is this absorption's proposal,
+  not amendments text:** Rev 20 orders "characterize + fix or scope," and
+  does not itself state a scoring rule. **[REV95-OPEN]** pending the
+  parallel apparatus-defect track's verdict; if the fix lands and clears
+  the exposure, this note is superseded rather than rewritten.
 
 ---
 
@@ -1703,8 +1813,8 @@ claims with no external baseline (`convoy` as a commanded, scored
 strategy; priority override from a text urgency channel) and the
 fidelity/latency scoping (the sim is 2.6–4.1× slow for its size, 11–20×
 more forgiving of reasoner latency than the MiR250 reference) — left out
-of this list because the task mapping this absorption follows names only
-the four above; they are not contradicted, only not yet registered here.
+of this section because this absorption registers only the four above;
+they are not contradicted, only not yet registered here.
 The battery **represents** the canonical episodic classes reachable under
 its constraints; it does not claim to be exhaustive (coverage check,
 same paragraph).
