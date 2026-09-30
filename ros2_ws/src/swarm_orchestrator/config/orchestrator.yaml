@@ -144,9 +144,14 @@ frame_downscale_width: null
 #     lateral here). Goal-to-goal separation (0.72 m, was 0.6 m with no
 #     headroom vs the 0.45 m floor + 0.15 m margin) is necessary but not the
 #     root cause -- the actual failure was robot_3's dynamic release
-#     approach, modeled and pinned as a closest-point-to-segment check in
-#     isaac/config/scenarios/convoy_counterflow.yaml's header (0.549 m at
-#     the old stack, below the margin; 0.636 m at this one, clearing it).
+#     approach, modeled (nominally) and pinned as a closest-point-to-segment
+#     check in isaac/config/scenarios/convoy_counterflow.yaml's header
+#     (0.549 m nominal at the old stack, below the margin; 0.636 m nominal
+#     at this one). The nominal model overstates the real gain: measured VM
+#     minima (same header) are 0.463-0.475 m at this stack, clearing the
+#     0.45 m floor but not the fuller 0.15 m margin -- see that header for
+#     the full measured table and why the margin is not reachable by
+#     widening y alone.
 # Running a _gshort or _bshort scenario without changing these dispatches +-2.5
 # and the variant silently degrades to its beyond-goal twin, blocker back on
 # the goal path (isaac/config/scenarios/family/*_{gshort,bshort}_o0.yaml).

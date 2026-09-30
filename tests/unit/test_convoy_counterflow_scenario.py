@@ -409,18 +409,25 @@ class TestC7GoalStack:
         assert separation > pre_fix_separation
 
     def test_robot_3_release_approach_clears_the_parked_robot_1(self):
-        # R-APPROACH (Rev 22): the actual failure mechanism. Once robot_3's
-        # escort ends at (1.774, 0.0) (TestC7's own pin), its released
-        # base-mission Nav2 leg runs roughly straight to its own goal --
-        # cutting inside the goal-to-goal separation on the way. Model that
-        # leg as the segment from the escort end to robot_3's goal and take
-        # its closest approach to the parked robot_1: at the pre-fix +-0.3
-        # stack this is 0.549 m, BELOW GOAL_SEP_FLOOR_M (0.60) -- consistent
-        # with the measured VM approach (0.426-0.444 m once real Nav2
-        # drift/timing is added). At the adopted +-0.36 stack it is 0.636 m,
-        # clearing the floor. This is the pin the pre-fix 45-case standoff
-        # grid never computed (it only ever placed robot_3 at its spawn, not
-        # partway down its post-escort approach).
+        # R-APPROACH (Rev 22): a NOMINAL model of the actual failure
+        # mechanism, kept as a regression pin, not a quantitative predictor.
+        # Once robot_3's escort ends at (1.774, 0.0) (TestC7's own pin), its
+        # released base-mission Nav2 leg runs roughly toward its own goal --
+        # cutting inside the goal-to-goal separation on the way. Modeling
+        # that leg as the straight segment from the escort end to robot_3's
+        # goal and taking its closest approach to the parked robot_1: at the
+        # pre-fix +-0.3 stack this is 0.549 m, BELOW GOAL_SEP_FLOOR_M (0.60);
+        # at the adopted +-0.36 stack it is 0.636 m. The nominal model
+        # overstates the real gain -- measured VM GT minima (data/logs/
+        # vm_runs/b3_fix/, and 0.426-0.444 m pre-fix) were 0.463-0.475 m at
+        # +-0.36, clearing the 0.45 m floor but not this 0.60 m nominal
+        # value, because robot_1 is still settling and robot_3's real
+        # Delta-x at closest approach is smaller than the idealized line
+        # assumes (see the scenario YAML header for the full measured
+        # table). This is still the pin the pre-fix 45-case standoff grid
+        # never computed (it only ever placed robot_3 at its spawn, not
+        # partway down its post-escort approach), and it correctly separates
+        # the two stacks in the right direction.
         escort_end = (1.774, 0.0)
         g1, g3 = _goals()["robot_1"], _goals()["robot_3"]
         closest = _closest_point_on_segment(g1, escort_end, g3)

@@ -37,12 +37,15 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
-- **2026-09-30** — **B3 goal-table revision landed and VM-verified; outcome-collection
-  gate CLOSES on the task's stated bar, with a thin margin flagged for the coordinator**
-  (Rev 22 order, commits `b5c573a`, `e91a2a2`; VM `vgu-vgu-thule-base-isaac-workstation-vm`,
-  tree verified 644/647 clean against HEAD `e91a2a2` before and after — the 3 mismatches are
-  the same pre-existing `docs/` files out of scope for this task, untouched; new pristine
-  `orchestrator.yaml` md5 `fdbbccc61169b465181abdb931a38c85`, `config/rag.yaml` unchanged at
+- **2026-09-30** — **B3 goal-table revision landed and VM-verified; both smokes clear the
+  0.45 m safety floor and the full chain, but fall well short of the 0.60 m margin
+  discipline, which geometry alone cannot reach — gate closure left to the coordinator**
+  (Rev 22 order, commits `b5c573a`, `e91a2a2`, `7d6abd9` superseded in part by this entry's
+  corrected numbers; VM `vgu-vgu-thule-base-isaac-workstation-vm`, tree verified 644/647
+  clean against HEAD before and after — the 3 mismatches are the same pre-existing `docs/`
+  files out of scope for this task, untouched; new pristine `orchestrator.yaml` md5
+  `fdbbccc61169b465181abdb931a38c85` (changes again with this entry's follow-up comment
+  fixes — see VM end state below for the final value), `config/rag.yaml` unchanged at
   `e18c723cff9cada3f320d564c2ecee5a`; artifacts `data/logs/vm_runs/b3_fix/`).
 
   **Root cause (confirmed by `414037b`, this entry closes it):** `robot_1`/`robot_3`'s goals
@@ -50,95 +53,119 @@ Rules for maintaining it:
   discipline, with zero headroom. That static number was never the real hazard (two robots
   resting 0.6 m apart are safe): the hazard is dynamic — once the crossing chain resumes
   `robot_3`'s base-mission Nav2 goal while `robot_4` is still escorted, `robot_3`'s released
-  approach runs roughly straight from its escort end `(1.774, 0.0)` to its own goal, cutting
-  inside the static separation on the way, and passed 0.426–0.444 m from the parked `robot_1`
-  in 3 of 4 prior VM replicates (< 0.45 m), latching permanently under the correct
-  passer-passer non-exemption (`safety.py` `admitted_partners`).
+  approach runs roughly toward its own goal, cutting inside the static separation on the way,
+  and passed 0.426–0.444 m from the parked `robot_1` in 3 of 4 prior VM replicates (< 0.45 m),
+  latching permanently under the correct passer-passer non-exemption (`safety.py`
+  `admitted_partners`).
 
-  **Fix (B1-style geometry widen, `isaac/config/scenarios/convoy_counterflow.yaml`,
-  `scripts/strategy_regret.py`, `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`):**
-  widened to `(2.45, ∓0.36)` — **not** the task's own `±0.45` candidate, which was checked
-  and rejected: at `±0.45` a robot's footprint edge sits only 0.06 m from the rack face
-  (`|y| = 0.6`, `nominal_aisle_width_m / 2`, `warehouse_builder._build_rack_blocks`), 0.09 m
-  inside the 0.15 m `wall_margin_m` floor that this exact scene's own `pull_off_lateral_m`
-  already enforces for `robot_2`'s parked lateral offset (`reasoning/rag/scene_geometry.py`).
-  `±0.36` is exactly that `pull_off_lateral_m` value (`aisle_half_width_m` 0.6 − `half_width_m`
-  0.09 − `wall_margin_m` 0.15) — the widest offset consistent with the margin `robot_2` already
-  safely uses in this identical aisle, derived, not guessed. Verified at measured poses (per
-  `docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md`'s own
-  precedent for B1): modeling `robot_3`'s post-escort approach as the segment
-  `(1.774, 0.0) -> robot_3's goal` and taking its closest point to `robot_1`'s goal gives
-  0.549 m at the old `±0.30` stack (already below the 0.45 + 0.15 m discipline, consistent
-  with the measured VM deficit) and 0.636 m at the adopted `±0.36` — pinned as
-  `tests/unit/test_convoy_counterflow_scenario.py::
-  TestC7GoalStack::test_robot_3_release_approach_clears_the_parked_robot_1`, confirmed to fail
-  on the pre-fix geometry standalone. Static goal-to-goal separation is now 0.72 m (was 0.6 m,
-  zero headroom) — necessary, pinned as a cheap regression guard
-  (`test_robot_1_and_robot_3_goal_separation_clears_the_safety_margin`), but the segment-closest
-  -approach pin above is the one that actually models the failure mechanism; the old test file's
-  45-case standoff grid never computed it (it only ever placed `robot_3` at its spawn, never
-  partway down its post-escort approach) — this is the "direct robot_1↔robot_3 check the old
-  grid missed." `robot_4`'s goal `(1.85, 0.0)` clearance to both new goals: 0.6997 m (was
-  0.671 m). M1 tracked band (`|y|` up to ~1.7–1.75 elsewhere) is non-binding. Map: confirmed
-  unaffected (`TestC13Map`, goal coordinates are not map-side). USD: the task's premise that
-  "goals aren't in the USD" is not quite right — `scenario_builder._author_robot` authors a
-  purely-cosmetic, non-physics goal marker sphere per robot (visible in raw camera frames,
-  confirmed by inspecting `bscene_smoke/B3S_20260929_161207/frames/*_raw.png`), which
-  read-through code review confirms no GT/M5/Nav2 logic ever reads back — genuinely
-  non-functional, but rebuilt anyway for correctness (`isaac/scripts/build_scenario.py`, VM
-  `python.sh`) after both smoke seeds so the tag-candidate tree is fully current; `validate_
-  simulation.py` reports `PASS: isaac/scenarios/convoy_counterflow.usd`.
+  **Fix (`isaac/config/scenarios/convoy_counterflow.yaml`, `scripts/strategy_regret.py`,
+  `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`):** widened to `(2.45, ∓0.36)` —
+  **not** the task's own `±0.45` candidate, which was checked and rejected: at `±0.45` a
+  robot's footprint edge sits only 0.06 m from the rack face (`|y| = 0.6`,
+  `nominal_aisle_width_m / 2`, `warehouse_builder._build_rack_blocks`), 0.09 m inside the
+  0.15 m `wall_margin_m` floor that this exact scene's own `pull_off_lateral_m` already
+  enforces for `robot_2`'s parked lateral offset (`reasoning/rag/scene_geometry.py`). `±0.36`
+  is exactly that `pull_off_lateral_m` value (`aisle_half_width_m` 0.6 − `half_width_m` 0.09
+  − `wall_margin_m` 0.15) — the widest offset consistent with the margin `robot_2` already
+  safely uses in this identical aisle, derived, not guessed.
 
-  **VM verification — B3 oracle smoke ×2 (`data/logs/vm_runs/b3_fix/`), both PASS on the
-  task's stated bar (full chain + `robot_3`'s release-approach ≥ 0.45 m + a measured margin +
-  4/4 position-verified M5 arrivals), independently cross-checked by
+  **Nominal model vs. measured poses — the nominal model overstates the gain.** Modeling
+  `robot_3`'s post-escort approach as the idealized straight segment `(1.774, 0.0) ->
+  robot_3's goal` and taking its closest point to `robot_1`'s goal (pinned as a regression
+  guard, `tests/unit/test_convoy_counterflow_scenario.py::TestC7GoalStack::
+  test_robot_3_release_approach_clears_the_parked_robot_1`, confirmed to fail standalone on
+  the pre-fix geometry) gives 0.549 m at the old `±0.30` stack and 0.636 m at `±0.36` — a
+  nominal +0.087 m gain. The **measured GT table** (below) shows only ~+0.03 m: at the instant
+  of closest approach `robot_1` is still settling toward its goal (not yet at its full offset)
+  and `robot_3`'s real Δx is smaller than the idealized line assumes. Static goal-to-goal
+  separation is 0.72 m by config (was 0.6 m), but robots settle inside Nav2 tolerance toward
+  the centreline to a **measured parked separation of only ~0.57–0.58 m**. `robot_4`'s goal
+  `(1.85, 0.0)` clearance to both new goals: 0.6997 m nominal (was 0.671 m). M1 tracked band
+  (`|y|` up to ~1.7–1.75 elsewhere) is non-binding. Map: confirmed unaffected (`TestC13Map`,
+  goal coordinates are not map-side). USD: the task's premise that "goals aren't in the USD"
+  is not quite right — `scenario_builder._author_robot` authors a purely-cosmetic, non-physics
+  goal marker sphere per robot (visible in raw camera frames, confirmed by inspecting
+  `bscene_smoke/B3S_20260929_161207/frames/*_raw.png`), which read-through code review
+  confirms no GT/M5/Nav2 logic ever reads back — genuinely non-functional, but rebuilt anyway
+  for correctness (`isaac/scripts/build_scenario.py`, VM `python.sh`) after both smoke seeds
+  so the tag-candidate tree is fully current; `validate_simulation.py` reports
+  `PASS: isaac/scenarios/convoy_counterflow.usd`.
+
+  **VM verification — B3 oracle smoke ×2 (`data/logs/vm_runs/b3_fix/`), full chain + 4/4
+  position-verified M5 arrivals on both, independently cross-checked by
   `scripts/rescore_arrivals.py` (era-aware; both runs: 4/4 scored, 0 flipped, 0
-  latched-without-acceptance, 0 censored):**
-  - **Seed 42** (`20260930_090446`): chain complete — single `cancel-all` pair at the initial
-    standoff (`robot_1`/`robot_2`, the yield trigger itself), `resume base mission robot=robot_3`
-    fires at the same instant `escort robot_4: ACTIVE` starts (the exact defect-trigger
-    condition), zero `cancel-all` for `robot_3` at any point, `escort robot_4: COMPLETED`
-    printed (absent in every prior failing run). All 4 M5 acceptance lines `check=within_
-    tolerance`: `robot_1` 0.06 m, `robot_3` 0.10 m, `robot_4` 0.07 m, `robot_2` 0.09 m.
-    **Measured GT minimum `robot_1`↔`robot_3`: 0.4746 m** (sim_t = 117.8 s) — clears the 0.45 m
-    floor by 0.025 m.
-  - **Seed 43** (`20260930_093313`): same clean chain and all 4 M5 acceptances (`robot_1` 0.07,
-    `robot_3` 0.11, `robot_4` 0.07, `robot_2` 0.05 m). **Measured GT minimum `robot_1`↔`robot_3`:
-    0.4628 m** (sim_t = 118.5 s) — clears the floor by 0.013 m. One transient, non-blocking
-    anomaly: a `min_distance_violation` `cancel-all` pair for `robot_1`/`robot_3` fired ~4 s
-    *after* `robot_3`'s position-verified M5 arrival — the whole-run GT minimum for this pair
-    (0.4628 m, occurring earlier at sim_t 118.5) never breaches 0.45, so this is almost
-    certainly M1's own perception noise (not GT) dipping below 0.45 at the tight new margin,
-    not a real approach breach; it did not latch (both robots' final GT rows show clean
-    settlement, `distance_to_goal_m` 0.07/0.11).
+  latched-without-acceptance, 0 censored) — measured `robot_1`↔`robot_3` GT minima below:**
 
-  **Neither seed reaches the fuller 0.45 + 0.15 m (0.60 m) margin discipline used to size the
-  original candidate** — both measured minima (0.4746, 0.4628) sit in the 0.45–0.60 m band, a
-  real but modest improvement over the pre-fix 0.426–0.444 m (deficit was 0.006–0.024 m below
-  the floor; now 0.013–0.025 m above it). **The B3 outcome-collection gate CLOSES per the task's
-  literal PASS bar** (chain + ≥ 0.45 m + a measured margin + 4/4 verified arrivals, both seeds),
-  but the margin is thin and seed 43's transient safety-stop blip shows M1 noise can approach
-  the floor even when GT does not — flagged for the coordinator as a candidate for a future,
-  wider revision (e.g. `±0.41`, the Nav2 global-costmap-inflation boundary
-  `aisle_half_width_m − half_width_m − inflation_radius_m` = 0.6 − 0.09 − 0.10, `nav2_params.
-  yaml`) if further incidents are observed, rather than declaring the geometry work fully done.
+  | stack | run | measured min (GT) | status |
+  |---|---|---|---|
+  | ±0.30 | B3PROBE / b3_oracle / B3DISP | 0.426 / 0.444 / ~0.432 m | latched (< 0.45) |
+  | ±0.30 | B3S (one clean replicate) | 0.462 m | clean |
+  | ±0.36 | seed 42 (this fix) | 0.475 m | clean |
+  | ±0.36 | seed 43 (this fix) | 0.463 m | clean |
+
+  - **Seed 42** (`20260930_090446`): chain complete — single `cancel-all` pair at the initial
+    standoff (`robot_1`/`robot_2`, the yield trigger itself), `resume base mission
+    robot=robot_3` fires at the same instant `escort robot_4: ACTIVE` starts (the exact
+    defect-trigger condition), zero `cancel-all` for `robot_3` at any point, `escort robot_4:
+    COMPLETED` printed (absent in every prior failing run). All 4 M5 acceptance lines
+    `check=within_tolerance`: `robot_1` 0.06 m, `robot_3` 0.10 m, `robot_4` 0.07 m, `robot_2`
+    0.09 m. GT minimum 0.4746 m at sim_t 117.8 s.
+  - **Seed 43** (`20260930_093313`): same clean chain and all 4 M5 acceptances (`robot_1`
+    0.07, `robot_3` 0.11, `robot_4` 0.07, `robot_2` 0.05 m). GT minimum 0.4628 m at sim_t
+    118.5 s. One transient anomaly, checked thoroughly rather than hand-waved: a
+    `min_distance_violation` `cancel-all` pair for `robot_1`/`robot_3` fired at epoch
+    ~1790761249, ~4 s after `robot_3`'s M5 arrival — its FIRST logged reason was
+    `stale_pose_unsafe` (an M1 tracking dropout, not a distance reading), the hold lasted
+    ~3 s (last `safety stop robot=robot_3` line at epoch 1252.04) and self-cleared ~292 s
+    before the run's own end (1544) — i.e. genuinely transient, not a latch that happened to
+    look survivable. A full GT scan (every row, not just the global minimum) confirms `robot_1`
+    stayed motionless at its already-parked pose for the entire window and `robot_1`↔`robot_3`
+    distance has exactly one dip below 0.55 m in the whole run (the approach pass at sim_t
+    116.9–120.0, minimum 0.4628 at 118.5) — there is no second dip near epoch 1249, confirming
+    the safety-monitor event there was driven by M1 perception noise on an already-safe pair,
+    not a second real approach.
+
+  **Sensitivity and the margin discipline is not reachable by widening y alone.** Two clean
+  runs at `±0.36` following a documented 3-of-4 failure rate at `±00.30` is suggestive but not
+  proof at n = 2 (≈ 6% under a no-improvement null) — especially since `B3S`, a clean replicate
+  already recorded at the *old* `±0.30` geometry, measured 0.462 m, statistically
+  indistinguishable from both new seeds. Extrapolating the same measured-approach method:
+  `±0.41` (the Nav2 global-costmap-inflation boundary, `aisle_half_width_m − half_width_m −
+  inflation_radius_m` = 0.6 − 0.09 − 0.10, `nav2_params.yaml`) projects to ≈0.49 m and the
+  task's own `±0.45` candidate to ≈0.51 m measured — reaching the full 0.60 m margin
+  discipline would need roughly `±0.65`, past the rack face entirely. **The 0.15 m margin is
+  therefore not achievable by widening this goal stack's y offset under any legal value; only
+  the 0.45 m hard floor is.** Both seeds pass the floor, the full chain, and 4/4 verified
+  arrivals — the task's literal PASS bar. Whether that is enough to fully close the B3
+  outcome-collection gate, given the margin discipline cannot be met by this lever, is left
+  to the coordinator rather than declared unilaterally here. The optional strategy-regret
+  oracle arm (time-permitting per the task) was not run this session.
 
   **Container pytest baseline** (tree `e91a2a2`, full `ROS_SETUP`, inside `vgu_ros`, same 5
   documented `pxr`-file ignores as `dispatch_fix`'s entry above): **2998 collected, 2970
-  passed, 18 failed, 10 skipped** (82.3 s) — fewer failures but also fewer collected than the
-  prior container baseline (2980/23/12, 3015 collected); the 17-item collection drift is not
-  investigated here (out of scope for this task) and none of the newly-failing/newly-passing
-  tests touch `convoy_counterflow`, `strategy_regret`, or this fix's changed files. Local
-  baseline unaffected: `tests/unit` (same ignores) still 58 failed / 2921+ passed, this fix
-  adds one new passing test (`test_robot_3_release_approach_clears_the_parked_robot_1`) and
-  strengthens one existing one, both green. **VM end state:** tree re-verified against HEAD
-  `e91a2a2` (644/647 match, same 3 pre-existing `docs/` mismatches); `.pristine` scratch
-  backups deleted; `orchestrator.yaml`/`rag.yaml` restored to the fix's own committed content
-  (not the pre-fix `dispatch_fix` baseline) and rebuilt (`colcon build --merge-install
-  --packages-select swarm_orchestrator` at `-w /ws/ros2_ws`, not `-w /ws` — the latter fails
-  outside a rebuilt `swarm_interfaces`/`swarm_perception` context, a pitfall for the next
-  session doing a manual rebuild outside `fc_launch.sh`); installed copy, source copy and
-  `git show HEAD:` all hash-match. Container restarted, no stray Isaac/`fc_launch` processes,
+  passed, 18 failed, 10 skipped** (82.3 s) — fewer collected than the prior container
+  baseline (2980/23/12, 3015 collected, tree `1e8080d`); the ~17-item collection drift across
+  the intervening commits is not investigated here (out of scope for this task). None of the
+  18 failing test names (`test_aruco_generation`, `test_fc_launch_dry_run`,
+  `test_gemini_backend`, `test_m5_congestion_detector`, `test_m5_reasoning_pipeline`,
+  `test_m6_config`, `test_m6_validation`, `test_openai_backend`, `test_t2b_forced_order`)
+  touch this fix's files; `test_convoy_counterflow_scenario.py` +
+  `test_strategy_regret.py` run standalone inside the container: 100/100 passed. Local
+  baseline unaffected: `tests/unit` (same ignores) still 58 failed / 2924 passed / 9 skipped
+  (was ~58/2921+); this fix adds **three** new passing tests across `b5c573a`/`e91a2a2`
+  (`test_robot_1_and_robot_3_goal_separation_clears_the_safety_margin`,
+  `test_goal_lateral_matches_this_scenes_own_pull_off_margin`,
+  `test_robot_3_release_approach_clears_the_parked_robot_1`), all green, all confirmed to
+  fail on the pre-fix geometry standalone. **VM end state:** tree re-verified against HEAD
+  (644/647 match, same 3 pre-existing `docs/` mismatches); `.pristine` scratch backups
+  deleted; `orchestrator.yaml`/`rag.yaml` restored to this fix's own committed content (not
+  the pre-fix `dispatch_fix` baseline) and rebuilt (`colcon build --merge-install
+  --packages-select swarm_orchestrator`, cwd `/ws/ros2_ws`, inside a login shell `bash -lc`
+  as `fc_launch.sh` itself uses — a plain non-login `docker exec ... bash -c` without
+  `ROS_SETUP` sourced first fails outside a rebuilt `swarm_interfaces`/`swarm_perception`
+  context, a pitfall for a manual rebuild outside `fc_launch.sh`); installed copy, source
+  copy and `git show HEAD:` all hash-match. Container restarted; `pgrep -f
+  'run_simulation|fc_launch'` confirms no stray Isaac/`fc_launch` processes,
   GPU idle (0 %, 171 MiB).
 
 - **2026-09-30** — **Rev 20's two apparatus defects characterized; both SCOPED, no code fix** (VM
