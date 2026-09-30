@@ -37,6 +37,64 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-30** — **Coverage-scene B1/B2/B3 smoke batch + sweeps completed**
+  (VM `vgu-vgu-thule-base-isaac-workstation-vm`, tree `4393155`,
+  `data/logs/vm_runs/bscene_smoke/BSCENE_SMOKE_SUMMARY.txt`). Inherited-commit
+  verification (`5d2ce53`, `34d6b53`, `4393155`): all pass, suite 63 failed /
+  2926 passed / 14 skipped / 3 errors (same 63 failing tests as the a830d4e
+  baseline; the delta is new passing tests only), no fix-forward needed. Part
+  A (`fc_launch` four-stack lifecycle gate) was already landed in `ed75288`
+  before the three inherited commits — verified live under 3 stacks (B1) and
+  4 stacks (B3, first attempt, `NAV2_BRINGUP_FAILED` never triggered); no new
+  commit made. **B1 finding:** `bottleneck_merge`'s oracle mock did not
+  reliably resolve at seed 42 across 5 independent executions (1 predecessor
+  smoke + 2 replications this session + 2 sweep runs): the trigger typically
+  fires when `robot_1` is within 0.82–0.87 m of the gate exit, below the
+  derived escort-band floor of 1.0 m, so the yield grounds infeasible and
+  degrades to a reroute of all three robots, producing a permanent ~0.33 m
+  three-way latch (0/3 arrivals); the one sweep execution that avoided this
+  path still censored by a different mechanism. Not tuned or fixed (task
+  scope was smoke verification); B1's strategy-regret sweep was not extended
+  further since `strategy_regret.py` keys an arm by executed roles
+  (`roles_from_command`), and at this trigger geometry both the oracle and
+  alternative arms collapse toward the same reroute/censored regime. **B2**
+  (`priority_urgent_r1`/`_r2`) fully replicated both members' predictions
+  (alias tag, %CP 1.0, byte-level label-only prompt diff, sweep
+  `best_arm=yield_urgent` uncensored in both, regret 13.1s / 5.1s). **B3**
+  (`convoy_counterflow`) replicated the four-stack gate, the `aliased:convoy`
+  tag + oracle crossing order, park position, and vacated-spawn clearance,
+  but this session's independent replication confirmed only 2 of 4
+  arrivals via M5's own arrival-gate log (robot_3 stalled 0.36 m from goal,
+  just outside `arrival_position_tolerance_m: 0.35`; robot_4 sat 0.10 m from
+  goal per GT but never got an M5 "arrived" log line and Nav2's own log shows
+  no terminal status for either robot) — a partial-pass deviation from the
+  predecessor's clean 4/4 run, reported not resolved. B3's sweep was not run
+  (time budget; matches the predecessor's own "if time" deprioritization).
+  **Process note:** this session discovered, only after independently
+  re-verifying Part A and re-running all four smokes from scratch, that a
+  near-complete 2026-09-29 batch already existed under
+  `data/logs/vm_runs/bscene_smoke/` (all four smokes + B1/B2 sweeps executed
+  and scored, only the summary's placeholder sections and this notes entry
+  left unfinished) — consistent with the predecessor being cut off by a rate
+  limit near the finish line. The duplication cost real GPU wall-time; it is
+  kept as independent replication evidence (materially strengthening the B1
+  finding) rather than discarded. A same-named ad-hoc driver script,
+  `_vm_driver/run_bscene.sh`, was overwritten by this session's own version
+  before the collision was noticed (its behavioral difference — ending
+  `fc_launch`'s stage-9 tail at Isaac's actual exit rather than an idle
+  `REC_SEC` — is preserved in prose in the summary; the original file
+  content is not recoverable). No other predecessor driver file was touched
+  (verified by mtime). This session's `apply_scene.py` duplicates the
+  pre-existing `gen_orch_bscene.py`; it fixed one bug the original did not
+  have (merging `scenario_geometry.corridor` onto a pristine copy instead of
+  replacing it wholesale, which would have silently dropped
+  `occluder_height_m` for B2/B3) before any B2/B3 run. VM end state: tree and
+  installed packages re-verified byte-identical to HEAD's 647-file manifest,
+  `orchestrator.yaml`/`config/rag.yaml` restored to pristine
+  (`d0f390694f12bf1d8fcd90e0cb02d6df` / `e18c723cff9cada3f320d564c2ecee5a`,
+  matching the predecessor's own recorded values), container restarted, GPU
+  idle.
+
 - **2026-09-29** — **Coverage scenes B1/B2/B3 built offline** per the unified
   scene design (`3b3a529`) and amendments items 28–30 (`ce04bad`); **no VM
   work — the smoke batch is pending**, and the new scenes' USDs regenerate
