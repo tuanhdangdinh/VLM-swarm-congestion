@@ -37,12 +37,23 @@ duration_sec: 260.0
 #   - **B3 goal-table revision (Rev 22, notes `414037b`/this entry)**:
 #     robot_1/robot_3's goal lateral was +-0.30 m (0.6 m apart), the same as
 #     M4's `min_distance_m` + `stale_unsafe_distance_m` margin floor with no
-#     headroom. Once the crossing chain resumes robot_3's base-mission Nav2
-#     goal while robot_4 is still escorted, robot_3's live approach passed
-#     0.426-0.444 m from the parked robot_1 (< 0.45 m) in 3 of 4 VM
-#     replicates, latching permanently under the correct passer-passer
-#     non-exemption (`safety.py` `admitted_partners`). Widened to +-0.36 m
-#     (0.72 m apart): this is exactly `pull_off_lateral_m` for this scene
+#     headroom -- necessary but not sufficient: two robots resting 0.6 m
+#     apart are safe at rest, so this static number is a cheap regression
+#     guard, not the root cause. The root cause is dynamic: once the
+#     crossing chain resumes robot_3's base-mission Nav2 goal while robot_4
+#     is still escorted, robot_3's live approach (running roughly straight
+#     from its escort end (1.774, 0.0) to its own goal, cutting inside the
+#     goal-to-goal separation on the way) passed 0.426-0.444 m from the
+#     parked robot_1 (< 0.45 m) in 3 of 4 VM replicates, latching
+#     permanently under the correct passer-passer non-exemption
+#     (`safety.py` `admitted_partners`). Modeling that approach as the
+#     segment (1.774, 0.0) -> robot_3's goal and taking its closest point to
+#     robot_1's goal (`tests/unit/test_convoy_counterflow_scenario.py::
+#     test_robot_3_release_approach_clears_the_parked_robot_1`) gives 0.549 m
+#     at the old +-0.30 stack -- already below the 0.45 + 0.15 m margin
+#     discipline, consistent with the measured VM deficit -- and 0.636 m at
+#     the adopted +-0.36 m stack, clearing it. Widened to +-0.36 m (0.72 m
+#     apart): this is exactly `pull_off_lateral_m` for this scene
 #     (`aisle_half_width_m` 0.6 - `robot.half_width_m` 0.09 -
 #     `wall_margin_m` 0.15 = 0.36, `reasoning/rag/scene_geometry.py`) --
 #     the same margin discipline already governing robot_2's own parked
@@ -53,7 +64,8 @@ duration_sec: 260.0
 #     clearance to the rack face) was rejected: it undercuts that same
 #     0.15 m `wall_margin_m` floor by 0.09 m. Goal-to-goal separation is now
 #     0.72 m (>= the 0.45 m floor + 0.15 m margin discipline, with 0.12 m
-#     headroom instead of the original 0.00 m); robot_4's goal (1.85, 0.00)
+#     headroom instead of the original 0.00 m) -- necessary, and the closest-
+#     approach math above is the sufficient check; robot_4's goal (1.85, 0.00)
 #     clears both new goals at 0.6997 m (was 0.671 m). VM-verified: see
 #     `data/logs/vm_runs/b3_fix/`.
 #   - robot_2's goal (-2.0, 0) is 0.1 m from robot_3's spawn: robot_2 only

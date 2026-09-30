@@ -162,6 +162,29 @@ def _yield_parameters(command: dict) -> dict:
     return action["parameters"]
 
 
+def _closest_point_on_segment(
+    point: tuple[float, float], a: tuple[float, float], b: tuple[float, float]
+) -> float:
+    """Distance from `point` to its closest point on segment `a`-`b`.
+
+    Args:
+        point: The fixed point (a parked robot's goal).
+        a: Segment start (a released robot's escort end).
+        b: Segment end (that robot's own goal).
+
+    Returns:
+        The minimum distance in metres, clamped to the segment (not the
+        infinite line).
+    """
+    ax, ay = a
+    bx, by = b
+    px, py = point
+    dx, dy = bx - ax, by - ay
+    t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)
+    t = max(0.0, min(1.0, t))
+    return math.dist((ax + t * dx, ay + t * dy), point)
+
+
 class TestScenario:
     def test_four_robots_with_matching_markers(self):
         assert [(r.robot_id, r.marker_id) for r in _scenario().robots] == [
@@ -367,13 +390,16 @@ class TestC7GoalStack:
 
     def test_robot_1_and_robot_3_goal_separation_clears_the_safety_margin(self):
         # R-GOAL-SEP (Rev 22): the pair the pre-fix grid never checked
-        # directly. robot_3's released base-mission approach passes close to
-        # the parked robot_1, so their own goal-to-goal separation is the
-        # number that actually mattered -- not just each one's distance from
-        # robot_4 or from the escort end. The pre-fix +-0.3 stack (0.6 m
-        # apart) sat exactly on GOAL_SEP_FLOOR_M with zero headroom, which is
-        # the root cause this fix closes: assert that explicitly, so a
-        # regression back to +-0.3 fails this test on its own.
+        # directly. The pre-fix +-0.3 stack (0.6 m apart) happened to sit
+        # exactly on GOAL_SEP_FLOOR_M with zero headroom -- a necessary
+        # condition for the fix, and a cheap regression guard -- but it is
+        # NOT itself the root cause: two robots resting 0.6 m apart are safe
+        # at rest. The root cause is dynamic (see
+        # test_robot_3_release_approach_clears_the_parked_robot_1 below):
+        # robot_3's released base-mission approach cuts the corner toward its
+        # own goal and passes closer to the parked robot_1 than the static
+        # separation would suggest. This test only guards the static number
+        # from regressing back to the old, no-headroom stack.
         g1, g3 = _goals()["robot_1"], _goals()["robot_3"]
         separation = math.dist(g1, g3)
         assert separation == pytest.approx(2 * R1R3_GOAL_LATERAL_M, abs=1e-6)
@@ -381,6 +407,30 @@ class TestC7GoalStack:
         pre_fix_separation = 2 * 0.3
         assert pre_fix_separation == pytest.approx(GOAL_SEP_FLOOR_M)
         assert separation > pre_fix_separation
+
+    def test_robot_3_release_approach_clears_the_parked_robot_1(self):
+        # R-APPROACH (Rev 22): the actual failure mechanism. Once robot_3's
+        # escort ends at (1.774, 0.0) (TestC7's own pin), its released
+        # base-mission Nav2 leg runs roughly straight to its own goal --
+        # cutting inside the goal-to-goal separation on the way. Model that
+        # leg as the segment from the escort end to robot_3's goal and take
+        # its closest approach to the parked robot_1: at the pre-fix +-0.3
+        # stack this is 0.549 m, BELOW GOAL_SEP_FLOOR_M (0.60) -- consistent
+        # with the measured VM approach (0.426-0.444 m once real Nav2
+        # drift/timing is added). At the adopted +-0.36 stack it is 0.636 m,
+        # clearing the floor. This is the pin the pre-fix 45-case standoff
+        # grid never computed (it only ever placed robot_3 at its spawn, not
+        # partway down its post-escort approach).
+        escort_end = (1.774, 0.0)
+        g1, g3 = _goals()["robot_1"], _goals()["robot_3"]
+        closest = _closest_point_on_segment(g1, escort_end, g3)
+        assert closest == pytest.approx(0.636, abs=1e-3)
+        assert closest >= GOAL_SEP_FLOOR_M
+
+        pre_fix_g1, pre_fix_g3 = (2.45, -0.3), (2.45, 0.3)
+        pre_fix_closest = _closest_point_on_segment(pre_fix_g1, escort_end, pre_fix_g3)
+        assert pre_fix_closest == pytest.approx(0.549, abs=1e-3)
+        assert pre_fix_closest < GOAL_SEP_FLOOR_M
 
     def test_goal_lateral_matches_this_scenes_own_pull_off_margin(self):
         # The adopted +-0.36 is exactly pull_off_lateral_m for this scene

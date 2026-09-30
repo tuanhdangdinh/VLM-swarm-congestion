@@ -141,8 +141,12 @@ frame_downscale_width: null
 #     lateral raised 0.3 -> 0.36 by the Rev 22 B3 goal-table fix (notes
 #     2026-09-30): widest value under this scene's own wall_margin_m
 #     discipline (= pull_off_lateral_m, matching robot_2's own parked
-#     lateral here) that still clears the 0.45 m floor + 0.15 m margin on
-#     goal-to-goal separation (0.72 m, was 0.6 m with no headroom).
+#     lateral here). Goal-to-goal separation (0.72 m, was 0.6 m with no
+#     headroom vs the 0.45 m floor + 0.15 m margin) is necessary but not the
+#     root cause -- the actual failure was robot_3's dynamic release
+#     approach, modeled and pinned as a closest-point-to-segment check in
+#     isaac/config/scenarios/convoy_counterflow.yaml's header (0.549 m at
+#     the old stack, below the margin; 0.636 m at this one, clearing it).
 # Running a _gshort or _bshort scenario without changing these dispatches +-2.5
 # and the variant silently degrades to its beyond-goal twin, blocker back on
 # the goal path (isaac/config/scenarios/family/*_{gshort,bshort}_o0.yaml).
