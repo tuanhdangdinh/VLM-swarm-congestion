@@ -79,7 +79,7 @@ def test_describe_effective_sampling_records_shipped_openai_greedy_preset():
         "openai", OpenAIBackendConfig(**backend_section(_shipped_vlm(), "openai"))
     )
     assert effective.backend_id == "openai"
-    assert effective.model_id == "gpt-4o"
+    assert effective.model_id == "gpt-4o-2024-08-06"
     assert effective.temperature == 0.0
     assert effective.max_attempts == 4
     assert effective.image_fallback_after_attempts == 2

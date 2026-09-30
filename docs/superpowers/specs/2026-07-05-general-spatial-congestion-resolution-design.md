@@ -1246,7 +1246,7 @@ funded decision artifacts.
 | Field | Value | Status |
 |---|---|---|
 | Primary backend | `openai` (hosted API, chat completions) | pinned |
-| Primary `model_id` | `gpt-4o-2024-08-06`, pinned in `config/models.yaml` at tag time (config currently carries the alias `gpt-4o`; the API served that snapshot in the 2026-09-16 key check and the 2026-09-28 funding probe); every stage-1 `reasoner_config_effective` records the provider-reported `served_model` per call (`37a0dd5`) | pin at tag (rev 9.1) |
+| Primary `model_id` | `gpt-4o-2024-08-06`, pinned in `config/models.yaml` at the `prereg-v1` tag (2026-09-30; the API served that snapshot in the 2026-09-16 key check and the 2026-09-28 funding probe); every stage-1 `reasoner_config_effective` records the provider-reported `served_model` per call (`37a0dd5`) | **pinned at tag** (rev 9.1) |
 | Secondary backend | `gemini` — Gemini Robotics-ER 2 via the Interactions API, replacing `llama_server` (amendments A6) | pinned (rev 9) |
 | Secondary `model_id` | `gemini-robotics-er-2-preview`, `thinking_level: low`, `force_schema: false`; the preview id carries no version/date and the API exposes none, so it is recorded as-is with the probe date (served 2026-09-28, funding probe) | recorded as-is with probe date (rev 9.1) |
 | Temperature / sampling | gpt-4o: `temperature` 0.0 (plus the shared block's `top_p` 0.95, which the backend sends; `top_k` is omitted); ER-2: **no sampling control** — the API has no sampling fields, so the shared block's 0.6/0.95/20 are dropped and recorded per call as `unsupported_sampling` | pinned (rev 8.4; ER-2 rev 9) |
@@ -1254,11 +1254,11 @@ funded decision artifacts.
 | Image resolution | 1280 × 960 RGB PNG as sent (`camera.yaml`, calibration `image_size`; `frame_downscale_width: null`; stage-2 frames the same); gpt-4o requests `detail: "high"`; each provider rescales internally | filled (rev 9) |
 | Max output tokens | 2048 (`vlm.reasoner.max_tokens`; `max_tokens` for gpt-4o, `max_output_tokens` for ER-2; stage 2 inherits it) | filled (rev 9) |
 | Retry budget | stage 1: gpt-4o `max_attempts: 4` (amendments A6; terminal refusal 26.9% vs 57.1% at 2, p = 0.031), re-ask on, `image_fallback_after_attempts: 2` (same prompt text with a neutral grey image after two refused attempts); ER-2 `max_attempts: 2`, re-ask on, no image fallback; `timeout_sec: 120` per call for both. Stage 2: `stage2_max_attempts: 2` × `stage2_timeout_sec: 8.0`, no grey fallback | filled (rev 9) |
-| Prompt templates | stage-1 template v2 (`prompt_version: 2`), stage-2 template v3 (`stage2_prompt_version: 3`); content hashes per condition | hashes **REQUIRED — recorded at tag time** |
+| Prompt templates | stage-1 template v2 (`prompt_version: 2`), stage-2 template v3 (`stage2_prompt_version: 3`); content hashes per condition | **frozen — recorded below (prereg-v1 freeze record)** |
 
 **Model id** (coordinator resolution 2026-09-29, reviewable at the
 tag): both. The dated snapshot `gpt-4o-2024-08-06` is pinned in
-`config/models.yaml` at tag time, so an alias re-point cannot change the
+`config/models.yaml` at the tag, so an alias re-point cannot change the
 model mid-collection. And the served
 model string is recorded per call from the API response into
 `reasoner_config_effective.served_model` (also `diagnostics.served_model`;
@@ -1273,6 +1273,37 @@ at `prereg-v1`. The **secondary model runs the headline cells only**
 attributable to a single model, and a "yes" gets a robustness check.
 Mid-experiment model deprecation ⇒ freeze a `prereg-v2` with the
 replacement and re-run affected cells.
+
+*Prereg-v1 freeze record (2026-09-30; amendments Rev 25).* File-level
+SHA-256 of the sources that define the frozen prompt templates and their
+version numbers (`git show prereg-v1:<path> | shasum -a 256` reproduces
+each):
+
+| File | SHA-256 | Defines |
+|---|---|---|
+| `reasoning/vlm/prompt_v1.py` | `6bc35798e70beaf966e0ec63f854043a6d6f797b73c6cddb5cc8283020018c41` | stage-1 `prompt_version: 1` (frozen, byte-identical replay only — not used for new collection) |
+| `reasoning/vlm/prompt_builder.py` | `5d936a5c67aed4c8a25de8778a82c53db328582fb3fd03777df083229a143d9f` | stage-1 `prompt_version: 2` (current, `CURRENT_PROMPT_VERSION`) |
+| `reasoning/vlm/stage2_prompt.py` | `ad3a2d9b585c49e77ff3c3c79e518223ea6bf4e917d70a1c68f82c43e2f76753` | stage-2 `prompt_version: 2` (replay) and `3` (current, `CURRENT_STAGE2_PROMPT_VERSION`) — one template, parameterized by `listing_order` |
+| `reasoning/vlm/models.py` | `ac981a42b4322a806b58720b5ef61a14950f99fb8bce4d7158f3539573c7b20c` | version constants (`CURRENT_PROMPT_VERSION=2`, `CURRENT_STAGE2_PROMPT_VERSION=3`) + the `PromptPayload`/request/response schemas — contract file, not template text |
+
+These are whole-file hashes, not the "per condition" rendered-prompt
+hashes the row above calls for; the per-condition pins already exist as
+test fixtures — `tests/unit/test_prompt_v1_frozen.py` (v1 rendering
+matrix), `tests/unit/test_prompt_builder_v2.py` (v2), and
+`tests/unit/test_stage2_prompt.py` (stage-2 v2/v3) — and are the
+authoritative per-condition record; this table freezes the modules that
+produce them.
+
+Also frozen at the tag: `config/models.yaml` pins `vlm.openai.model_id`
+to `gpt-4o-2024-08-06` (SHA-256 of the pinned file:
+`fc32c0d3a1dabd0f0df5e1f4ab662e0c4f5444422146ef944f1fc86f7101abf3`); the
+two collection configs are asserted pristine by MD5 before every run
+(A8) — `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`
+`1f656533a30a35882d57d0d64a57bd0d`, `config/rag.yaml`
+`e18c723cff9cada3f320d564c2ecee5a`. The `prereg-v1` tag points at the
+commit that lands this freeze record (child of `3959d7f` on
+`fix/deadlock-collision-resolution`; resolve with `git rev-parse
+prereg-v1^{}`).
 
 **Rev 9 model characteristics and reporting rules (amendments A6).**
 

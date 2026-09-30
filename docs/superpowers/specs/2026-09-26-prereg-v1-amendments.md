@@ -34,6 +34,30 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 25 (2026-09-30): **the `prereg-v1` tag.** (a) Two live-VLM demo
+  episodes recorded 2026-09-30, footage in
+  `data/logs/vm_runs/live_demo/` (gitignored): ER-2 run `20260930_152222`
+  — clean yield of `robot_2`, 2/2 arrivals; gpt-4o run `20260930_154216`
+  — named `robot_1`, the swap gate re-grounded to `robot_2` ("robot_1 has
+  0.70 m retreat room < 1.08 m required"), then `temporary_wait` on
+  re-analysis, 2/2 arrivals, 0 refusals. (b) The tag itself: `config/models.yaml`
+  pins the primary model to the dated snapshot `gpt-4o-2024-08-06` (was
+  the floating alias `gpt-4o`), with the secondary already pinned to
+  `gemini-robotics-er-2-preview`; six shipped-config-reading unit test
+  assertions across `tests/unit/test_vlm_config.py`,
+  `tests/unit/test_m5_reasoning_pipeline.py`, and
+  `tests/unit/test_reasoner.py` updated mechanically to the dated
+  snapshot to track the pin (no reasoning/prompt/oracle logic touched).
+  The prompt-hash table (SHA-256 of `prompt_v1.py`, `prompt_builder.py`,
+  `stage2_prompt.py`, `models.py`), the two pristine collection-config
+  MD5s, and the tag's target commit are recorded in the research design
+  spec's "Model and decoding pre-registration" section (rev 9.5, the
+  "Prereg-v1 freeze record" note after the model/decoding table) rather
+  than duplicated here. Tag freezes: this document, the design spec at
+  rev 9.5 together with the Rev 22–24 resolutions of its
+  `[REV95-OPEN]` markers, Arm B config/thresholds, oracle blocks, the
+  frozen prompt templates above, and the model/decoding table. Episodes
+  run before the tag remain pilot data.
 - Rev 21 (2026-09-30): absorbed into the research design as rev 9.5
   (`docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md`),
   which is now the authoritative text; this document remains the historical

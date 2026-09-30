@@ -1236,7 +1236,7 @@ def test_write_decision_artifact_records_shipped_openai_sampling_config(tmp_path
     )
     effective = payload["reasoner_config_effective"]
     assert effective["backend_id"] == "openai"
-    assert effective["model_id"] == "gpt-4o"
+    assert effective["model_id"] == "gpt-4o-2024-08-06"
     assert effective["temperature"] == 0.0
     assert effective["max_attempts"] == 4
     assert effective["image_fallback_after_attempts"] == 2
@@ -1282,7 +1282,7 @@ def test_write_decision_artifact_records_served_model_next_to_configured_alias(t
         OpenAIBackendConfig(**backend_section(_shipped_vlm(), "openai")),
         tmp_path,
     )
-    assert payload["reasoner_config_effective"]["model_id"] == "gpt-4o"
+    assert payload["reasoner_config_effective"]["model_id"] == "gpt-4o-2024-08-06"
     assert payload["reasoner_config_effective"]["served_model"] == "gpt-4o-2024-08-06"
     assert payload["diagnostics"]["served_model"] == "gpt-4o-2024-08-06"
 

@@ -621,7 +621,7 @@ def test_run_records_effective_sampling_config_when_described(tmp_path):
     result = reasoner.run(_request_with_image(tmp_path))
     recorded = result.diagnostics.reasoner_config_effective
     assert recorded is not None
-    assert recorded.model_id == "gpt-4o"
+    assert recorded.model_id == "gpt-4o-2024-08-06"
     assert recorded.temperature == 0.0
     assert recorded.max_attempts == 4
     assert recorded.image_fallback_after_attempts == 2
@@ -679,7 +679,7 @@ def test_write_reasoner_log_includes_effective_sampling_config_when_present(tmp_
     assert record["reasoner_config_effective"]["temperature"] == 0.0
     assert record["reasoner_config_effective"]["max_attempts"] == 4
     assert record["reasoner_config_effective"]["image_fallback_after_attempts"] == 2
-    assert record["reasoner_config_effective"]["model_id"] == "gpt-4o"
+    assert record["reasoner_config_effective"]["model_id"] == "gpt-4o-2024-08-06"
 
 
 def test_write_reasoner_log_omits_effective_sampling_config_when_none(tmp_path):
@@ -923,7 +923,7 @@ def test_run_records_served_model_in_diagnostics_and_effective_config(tmp_path):
     result = reasoner.run(_request_with_image(tmp_path))
     effective = result.diagnostics.reasoner_config_effective
     assert result.diagnostics.served_model == "gpt-4o-2024-08-06"
-    assert effective.model_id == "gpt-4o"
+    assert effective.model_id == "gpt-4o-2024-08-06"
     assert effective.served_model == "gpt-4o-2024-08-06"
 
 

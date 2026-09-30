@@ -37,6 +37,21 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-09-30** — **`prereg-v1` tag: live-VLM demo verification + freeze.** Two live-VLM
+  demo episodes recorded (footage in `data/logs/vm_runs/live_demo/`, gitignored): ER-2 run
+  `20260930_152222` (clean yield of `robot_2`, 2/2 arrivals) and gpt-4o run `20260930_154216`
+  (named `robot_1`, swap gate re-grounded to `robot_2`, then `temporary_wait` on re-analysis,
+  2/2 arrivals, 0 refusals) — full detail in
+  `docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md` Rev 25. Tag freezes the primary
+  model pin (`config/models.yaml` `gpt-4o` alias → dated snapshot `gpt-4o-2024-08-06`,
+  secondary already pinned to `gemini-robotics-er-2-preview`), the prompt-hash table and
+  pristine config MD5s recorded in the design spec's "Model and decoding pre-registration"
+  section (rev 9.5, "Prereg-v1 freeze record"), and six shipped-config-reading test
+  assertions updated to match the pin (`tests/unit/test_vlm_config.py`,
+  `tests/unit/test_m5_reasoning_pipeline.py`, `tests/unit/test_reasoner.py`) — no
+  reasoning/prompt/oracle code touched. Local suite unaffected by this change (confirmed via
+  A/B stash comparison): 63 failed / 2935 passed / 14 skipped both before and after, 3 known
+  pxr-only files ignored per the documented local/container environment split.
 - **2026-09-30** — **B3 goal-table revision landed and VM-verified; both smokes clear the
   0.45 m safety floor and the full chain, but fall well short of the 0.60 m margin
   discipline, which geometry alone cannot reach — gate closure left to the coordinator**
