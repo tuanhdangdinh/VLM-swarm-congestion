@@ -401,6 +401,18 @@ In two-robot head-ons the machinery reduces to the existing swap gate
 (a one-leg plan repair), so v2 changes no v1 outcome semantics there —
 it only starts *measuring* what the VLM proposed.
 
+**Repair-semantics rulings (2026-10-02, from the contract-core build;
+details in `docs/implementation_notes.md`):** (1) reorder repairs MAY
+resolve 3+-robot plan-present scenes that v1's refuse-only ordering
+policy would abandon — that capability is this contract's purpose and
+v1 (plan-absent) behavior is untouched; (2) equal-cost repair
+candidates tie-break TOWARD M3's derived plan, including its yielder
+pick (the spec's "toward its own derived plan" made operational —
+fixes the two swept cells where a yielder reassignment bypassed the
+candidate scan); (3) the engine's `m3_default`/derived-plan path must
+be verified equivalent to the SHIPPED derived-mode grounding, not
+only legacy mode, before the head-on equivalence smoke counts.
+
 Rationale for optional, not mandatory: the presentation-order study,
 ER-2's unused geometry block, and the live demo's infeasible yielder
 all say VLM sequencing may be unreliable; propose-verify turns that
