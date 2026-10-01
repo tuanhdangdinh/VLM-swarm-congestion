@@ -14,6 +14,14 @@
 #            robot_1 (marker 1) moved 0.10 m off the failing x to -1.65 --
 #            the candidate scene-level fix for IB10 -- plus a bonus
 #            far-side nudge on robot_2/marker 2 to +1.85.
+#   goalpose -- isaac/config/scenarios/m1_stale_rootcause_probe_goalpose.yaml:
+#            all four robots held at their intersection_bottleneck.yaml GOAL
+#            positions, all at yaw 0 (Nav2's actual arrival orientation,
+#            since cross_intersection goals are plain [x, y] lists ->
+#            command_bus_node.py defaults yaw to 0.0) -- closes the gap the
+#            swap run left open (marker 1 was only tested at (+1.75, 0,
+#            yaw PI) there, not the real arrival yaw 0; N-S arrival poses
+#            were never tested at yaw 0 either).
 #
 # Modeled directly on scripts/vm/m1_y_extent_probe.sh (same mechanism:
 # rewrite orchestrator.yaml's initial_tasks to a 100000 s start_delay hold
@@ -41,10 +49,12 @@
 # Usage (on the VM, from the repo root):
 #   bash scripts/vm/m1_stale_rootcause_probe.sh swap
 #   bash scripts/vm/m1_stale_rootcause_probe.sh nudge
+#   bash scripts/vm/m1_stale_rootcause_probe.sh goalpose
 #
 # Env: REC_SEC (default 650), SEED (default 42), CONTAINER (default
-#   vgu_ros). Output: data/logs/vm_runs/stale_rootcause/<swap|nudge>_<UTC
-#   stamp>/{scenario.yaml,gt/,m5_scene.jsonl,launcher.log,restore_build.log}.
+#   vgu_ros). Output: data/logs/vm_runs/stale_rootcause/<swap|nudge|
+#   goalpose>_<UTC stamp>/{scenario.yaml,gt/,m5_scene.jsonl,launcher.log,
+#   restore_build.log}.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -52,12 +62,13 @@ REPO="${REPO:-$(cd "$HERE/../.." && pwd)}"
 CONTAINER="${CONTAINER:-vgu_ros}"
 REC_SEC="${REC_SEC:-650}"
 SEED="${SEED:-42}"
-RUN="${1:?usage: m1_stale_rootcause_probe.sh swap|nudge}"
+RUN="${1:?usage: m1_stale_rootcause_probe.sh swap|nudge|goalpose}"
 
 case "$RUN" in
-  swap)  SCENARIO=m1_stale_rootcause_probe_swap ;;
-  nudge) SCENARIO=m1_stale_rootcause_probe_nudge ;;
-  *) echo "ERROR: RUN must be 'swap' or 'nudge'; got '${RUN}'" >&2; exit 1 ;;
+  swap)     SCENARIO=m1_stale_rootcause_probe_swap ;;
+  nudge)    SCENARIO=m1_stale_rootcause_probe_nudge ;;
+  goalpose) SCENARIO=m1_stale_rootcause_probe_goalpose ;;
+  *) echo "ERROR: RUN must be 'swap', 'nudge', or 'goalpose'; got '${RUN}'" >&2; exit 1 ;;
 esac
 
 ORCH_CONFIG="$REPO/ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml"
@@ -73,11 +84,16 @@ if [ "$RUN" = swap ]; then
   robot_2: { task: hold_position, goal: [-1.75, 0.0], start_delay_sec: 100000 }
   robot_3: { task: hold_position, goal: [0.0, -1.2], start_delay_sec: 100000 }
   robot_4: { task: hold_position, goal: [0.0, 1.2], start_delay_sec: 100000 }'
-else
+elif [ "$RUN" = nudge ]; then
   BLOCK='  robot_1: { task: hold_position, goal: [-1.65, 0.0], start_delay_sec: 100000 }
   robot_2: { task: hold_position, goal: [1.85, 0.0], start_delay_sec: 100000 }
   robot_3: { task: hold_position, goal: [0.0, -1.2], start_delay_sec: 100000 }
   robot_4: { task: hold_position, goal: [0.0, 1.2], start_delay_sec: 100000 }'
+else
+  BLOCK='  robot_1: { task: hold_position, goal: [1.75, 0.0], start_delay_sec: 100000 }
+  robot_2: { task: hold_position, goal: [-1.75, 0.0], start_delay_sec: 100000 }
+  robot_3: { task: hold_position, goal: [0.0, 1.75], start_delay_sec: 100000 }
+  robot_4: { task: hold_position, goal: [0.0, -1.75], start_delay_sec: 100000 }'
 fi
 
 PRISTINE_ORCH_MD5=1f656533a30a35882d57d0d64a57bd0d

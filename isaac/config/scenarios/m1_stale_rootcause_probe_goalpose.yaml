@@ -1,0 +1,61 @@
+schema_version: 1
+name: m1_stale_rootcause_probe_goalpose
+family: normal_flow
+seed: 42
+duration_sec: 120.0
+
+# Third root-cause probe (companion to m1_stale_rootcause_probe_swap and
+# _nudge -- see those files' headers for the full rationale; this task's
+# report is docs/reports/2026-10-01-robot1-stale-rootcause.md).
+#
+# swap and nudge both used each scenario's *spawn* yaw (robot_1/robot_2 at
+# 0 / pi rad, matching intersection_bottleneck.yaml's spawn convention).
+# But command_bus_node.py's goal dispatch (`yaw = goal.get("yaw", 0.0) if
+# isinstance(goal, dict) else 0.0`) and intersection_bottleneck.yaml's
+# cross_intersection goals (plain `[x, y]` lists, e.g. orchestrator.yaml's
+# own documented example `robot_2: { ..., goal: [-1.75, 0.0] }`) mean every
+# robot's Nav2 ARRIVAL yaw defaults to 0.0, regardless of travel direction
+# -- robot_2 (spawn yaw pi) ends IB10 parked at (-1.75, 0) facing yaw 0, not
+# pi. The swap run happened to cover marker_id 2 at (-1.75, 0, yaw 0)
+# (its spawn there was authored at yaw 0 for exactly this reason), but
+# marker_id 1 at (+1.75, 0, yaw 0) -- robot_1's actual IB10 goal pose -- was
+# never tested (the swap run put marker 1 at (+1.75, 0, yaw PI) instead, a
+# different, untested orientation), and the N-S arrival poses
+# (0, +-1.75, yaw 0) were never tested at yaw 0 either (prior y-extent
+# probes used the spawn-convention yaw +-pi/2 at that position).
+#
+# This scenario holds all four robots directly at their intersection_
+# bottleneck.yaml GOAL positions, all at yaw 0 (the actual Nav2 arrival
+# orientation every robot gets there), closing that gap: it is the direct
+# measurement of "is M1 tracking still reliable at the exact (position,
+# marker, orientation) tuple IB10's position-verified arrival scoring and
+# Arm B's shadow classification will actually read."
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: 1.75, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 1.75, y: 0.0}
+    initial_task: hold_position
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: -1.75, y: 0.0, yaw_rad: 0.0}
+    goal: {x: -1.75, y: 0.0}
+    initial_task: hold_position
+  - robot_id: robot_3
+    marker_id: 3
+    spawn: {x: 0.0, y: 1.75, yaw_rad: 0.0}
+    goal: {x: 0.0, y: 1.75}
+    initial_task: hold_position
+  - robot_id: robot_4
+    marker_id: 4
+    spawn: {x: 0.0, y: -1.75, yaw_rad: 0.0}
+    goal: {x: 0.0, y: -1.75}
+    initial_task: hold_position
+
+timed_obstacles: []
+
+expected_conflict: null
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30
