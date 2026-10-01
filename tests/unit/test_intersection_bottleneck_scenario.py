@@ -505,7 +505,12 @@ class TestJunctionGeometry:
         moved = (end[axis] - (start.x, start.y)[axis]) * arm["side"]
         assert moved == pytest.approx(p["backup_distance_m"], abs=1e-3), case
         assert abs(end[perp] - (start.x, start.y)[perp]) == pytest.approx(0.36, abs=1e-3)
-        assert [a["robot_id"] for a in command["actions"]] == [yielder, *_order(yielder)]
+        # J1 (v2-branch divergence from the v1-frozen Arm B, design study
+        # 2026-09-29): in this symmetric four-way, the two cross-axis robots
+        # are each other's opposite-side partner, so both drop out of the
+        # order; only the yielder's own-axis opposite robot keeps an action.
+        same_axis_order = [r for r in _order(yielder) if JUNCTION_ARMS[r]["axis"] == arm["axis"]]
+        assert [a["robot_id"] for a in command["actions"]] == [yielder, *same_axis_order]
 
     @pytest.mark.parametrize("yielder", ROBOTS)
     @pytest.mark.parametrize(("case", "frame"), _frames())
@@ -595,19 +600,22 @@ class TestJunctionGeometry:
 
 
 class TestFourWayResidualsUnderJunctionGeometry:
-    """What the arms do NOT fix (S1 stays structural; predicted before the v2 smoke)."""
+    """What the arms fix at grounding (S1 resolved by J1, v2-branch divergence
+    from the v1-frozen Arm B) and what they do not (S2 stays discharged)."""
 
-    def test_robot_3_escort_still_runs_into_the_waiting_robot_4(self):
+    def test_cross_axis_held_pair_gets_no_action_instead_of_an_inexecutable_one(self):
+        # Pre-J1 this was `test_robot_3_escort_still_runs_into_the_waiting_
+        # robot_4`: robot_3's queued escort ran straight through robot_4 at
+        # 0.000 m (the design study's standing finding). J1 drops the
+        # mutually opposite-side pair (robot_3, robot_4) from the order
+        # instead of grounding an inexecutable escort for either of them.
         frame = _ib10_frame()
-        p = _yield_parameters(_ground("robot_2", frame, order=["robot_1", "robot_3", "robot_4"]))
-        passer, partner = frame.find_robot("robot_3"), frame.find_robot("robot_4")
-        escort = p["crossing_escort_m"][p["crossing_order"].index("robot_3")]
-        closest = min(
-            math.hypot(passer.x - partner.x, passer.y + s - partner.y)
-            for s in np.arange(0.0, escort, 0.05)
-        )
-        assert escort == pytest.approx(0.6 - passer.y + 0.65, abs=1e-3)
-        assert closest < LATCH_M
+        command = _ground("robot_2", frame, order=["robot_1", "robot_3", "robot_4"])
+        p = _yield_parameters(command)
+        assert p["crossing_order"] == ["robot_1"]
+        assert "crossing_escort_m" not in p
+        assert [a["robot_id"] for a in command["actions"]] == ["robot_2", "robot_1"]
+        assert "order=junction_same_axis" in command["degradations"]
 
     def test_first_passer_starts_inside_the_latch_of_the_cross_pair(self):
         # robot_1 is never exempt against robot_3 / robot_4, so M4 holds it.

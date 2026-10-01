@@ -37,6 +37,43 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-01** — **v2 build-order step 2: J1 same-axis filter landed on
+  `feat/v2-armb-filter` (v2 branch only, per
+  `docs/superpowers/specs/2026-09-30-prereg-v2-design.md` Prerequisites item
+  2; a v1-frozen file, `reasoning/rag/command_grounder.py`).** Implements
+  `docs/superpowers/specs/2026-09-29-intersection-resolvable-design.md`
+  Decision's standing finding ("Arm B's intersection order puts censored
+  held robots first... inexecutable: the escort runs through the partner at
+  0.000 m") and Owner-Override Build List item 2. The study's literal "drop
+  every robot whose declared arm axis differs from the yielder's" is
+  **narrower in practice**: a new `_junction_same_axis_order` helper only
+  drops a cross-axis robot when its own-axis, opposite-side partner is also
+  in the order (the actual `passer_travel_m` far-mouth collision
+  mechanism) — the literal reading refuses the already-shipped
+  `bottleneck_merge` (B1) T-junction yield outright, where the yielder's
+  declared arm is legitimately perpendicular to its only passer with no
+  opposite-side partner. Found by running the full local suite before
+  committing (22 of 39 new failures were `test_bottleneck_merge_scenario.py`);
+  fixed, then reran clean. Tag `order=junction_same_axis`, no-op when
+  `geometry.arms` is unset (every scene outside the two that declare arms).
+  Updated two pre-existing `test_intersection_bottleneck_scenario.py` pins
+  to the new (intended) executable order:
+  `test_every_yielder_grounds_a_yield_along_its_own_arm` and the former
+  `test_robot_3_escort_still_runs_into_the_waiting_robot_4` (replaced by
+  `test_cross_axis_held_pair_gets_no_action_instead_of_an_inexecutable_one`,
+  `TestFourWayResidualsUnderJunctionGeometry`). New unit tests in
+  `tests/unit/test_command_grounder_derived.py`
+  (`TestJunctionSameAxisFilter`, `TestCrossAxisPasserWithNoPartner`) and
+  `tests/unit/test_m5_shadow_classical.py` (Arm B's shadow stage-2 consumer,
+  `classical_retreat_answer`). Full local suite before/after on the same
+  tree: 58 failed / 2933 passed / 13 skipped after vs. 58 failed / 2922
+  passed / 13 skipped on a clean throwaway worktree at the same base commit
+  — identical failing-test sets, 11 net new passing tests, 3 pxr-only files
+  ignored (`test_marker_asset.py`, `test_robot_asset.py`,
+  `test_scenario_builder.py`) per the documented local/container split.
+  `reasoning/baselines/classical_reasoner.py` (the v1-frozen Arm B
+  classifier itself) is untouched, as the study specifies.
+
 - **2026-10-01** — **J2 (junction-scoped backup clearance) landed on
   `feat/v2-j2`** — v2 build-order prerequisite 1
   (`docs/superpowers/specs/2026-09-30-prereg-v2-design.md` Prerequisites item

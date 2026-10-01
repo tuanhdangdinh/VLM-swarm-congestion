@@ -1031,6 +1031,12 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # Three or more robots with no explicit crossing order: involved-robots
     # order was used. Convention markers, not measurement-plan causes.
     "order=implicit": None,
+    # J1 same-axis filter (v2-branch divergence from the v1-frozen Arm B,
+    # design study 2026-09-29): a robot held opposite a same-axis partner
+    # also in the order was dropped from it instead of leading it (see
+    # `_junction_same_axis_order`). Provenance, not a measurement-plan cause
+    # -- the order was never a model output.
+    "order=junction_same_axis": None,
     "roles=legacy-convention": None,
     # Provenance: the feasibility gate grounded a different yielder than M2
     # named (scored pre-gate, prereg amendments).
@@ -1100,6 +1106,63 @@ class RetreatSelection(BaseModel):
     candidates: list[RetreatCandidate]
 
 
+def _junction_same_axis_order(
+    order: list[str], yielder_id: str, geometry: SceneGeometry
+) -> list[str]:
+    """Drop a crossing robot held opposite a same-axis partner in the order.
+
+    J1 (v2-branch divergence from the v1-frozen Arm B; design study
+    2026-09-29, "Arm B classification against where the waiting robots are
+    held"): two robots held on the same declared arm axis but opposite sides
+    cannot both be given a `passer_travel_m` exit without one running
+    through the other -- a crossing-axis exit leaves via the far mouth of
+    the robot's own corridor, straight past whoever is parked at that
+    mouth's opposite end (the study's IB10 escort-through-partner defect,
+    0.000 m). Filtering is scoped to exactly that pattern, not to "any robot
+    off the yielder's axis": a robot already on the yielder's own axis is
+    never dropped, and a cross-axis robot keeps its place unless its own
+    same-axis, opposite-side partner is also in the order. That is why a
+    legitimate cross-axis passer (e.g. the `bottleneck_merge` T-junction,
+    whose yielder's arm is perpendicular to its only passer, with no
+    opposite-side partner on that passer's axis) is untouched, while the
+    four-way's held N-S pair -- mutually opposite on their own axis, both
+    off the yielder's axis -- drop out together.
+
+    Args:
+        order: Crossing order with the yielder already excluded.
+        yielder_id: The robot that yields.
+        geometry: Declared scene geometry.
+
+    Returns:
+        `order` unchanged when the yielder has no declared arm, or no robot
+        in it has an opposite-side same-axis partner also present.
+    """
+    arms = geometry.arms or {}
+    yielder_arm = arms.get(yielder_id)
+    if yielder_arm is None:
+        return order
+
+    def has_opposite_partner(robot_id: str) -> bool:
+        arm = arms.get(robot_id)
+        if arm is None:
+            return False
+        return any(
+            other_id != robot_id
+            and arms.get(other_id) is not None
+            and arms[other_id].axis == arm.axis
+            and arms[other_id].side == -arm.side
+            for other_id in order
+        )
+
+    return [
+        robot_id
+        for robot_id in order
+        if arms.get(robot_id) is None
+        or arms[robot_id].axis == yielder_arm.axis
+        or not has_opposite_partner(robot_id)
+    ]
+
+
 def resolve_yield_roles(
     decision: CongestionDecision,
     snapshot: SnapshotFrame,
@@ -1114,8 +1177,10 @@ def resolve_yield_roles(
     The same steps derived-mode grounding runs, exposed so a caller can learn
     the grounded yielder before rendering stage 2 for it: `yield_robot` (or
     the first involved robot, tagged `roles=legacy-convention`), then the
-    yield feasibility gate on the snapshot positions, then the corridor
-    same-side refusal, then the crossing order.
+    yield feasibility gate on the snapshot positions, then the crossing
+    order, then the junction same-axis filter (v2-branch divergence from the
+    v1-frozen Arm B; a no-op when `geometry.arms` is unset), then the
+    corridor same-side refusal.
 
     Args:
         decision: A congestion decision with `strategy == "yield"`.
@@ -1180,6 +1245,31 @@ def resolve_yield_roles(
             degradations.append("order=default:non_permutation")
     elif len(order) > 1:
         degradations.append("order=implicit")
+
+    if geometry is not None:
+        # J1, v2-branch divergence from the v1-frozen Arm B (design study
+        # 2026-09-29, "Arm B classification against where the waiting robots
+        # are held"; prereg-v2-design.md Prerequisites item 2). Scoped to one
+        # pattern, not "cross-axis from the yielder": see
+        # `_junction_same_axis_order`.
+        filtered_order = _junction_same_axis_order(order, robot_ids[0], geometry)
+        if filtered_order != order:
+            degradations.append("order=junction_same_axis")
+            order = filtered_order
+
+    if not order:
+        degradations.append("yield=no-passer")
+        return YieldRoles(
+            robot_ids=robot_ids,
+            crossing_order=[],
+            grounded_from=grounded_from,
+            regrounded_reason=regrounded_reason,
+            refusal_reason=(
+                "yield refused: every involved robot is paired against a "
+                "same-axis partner holding the opposite side"
+            ),
+            degradations=degradations,
+        )
 
     if geometry is not None:
         yielder_position = positions.get(robot_ids[0])
