@@ -111,6 +111,16 @@ class TestRunItemWithAScriptedCorrectAnswer:
         assert record.correct is False
         assert record.failure_cause is None  # a valid but wrong letter, not a parse failure
 
+    def test_a_refusal_is_tagged_separately_from_a_parse_failure(self, logs_root):
+        root, frame_path = logs_root
+        item = _robot_count_item(sha256_file(frame_path))
+        backend = MockBackend(response_text="I'm sorry, but I can't assist with that request.")
+        config = ReasonerConfig(backend_id="mock", temperature=0.0)
+        record = run_item(item, backend, config, root, root)
+        assert record.correct is False
+        assert record.failure_cause == "refusal"
+        assert record.parsed_letter is None
+
 
 class TestRunItemFailureHandling:
     def test_missing_frame_is_scored_as_backend_error_not_a_crash(self, tmp_path):

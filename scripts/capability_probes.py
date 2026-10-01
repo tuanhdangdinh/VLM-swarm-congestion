@@ -53,6 +53,7 @@ from reasoning.vlm.capability_probes.prompt import (  # noqa: E402
 )
 from reasoning.vlm.capability_probes.scorer import score_records  # noqa: E402
 from reasoning.vlm.models import BackendResponse, ReasonerConfig  # noqa: E402
+from reasoning.vlm.reasoner import is_refusal  # noqa: E402
 
 
 def _image_for_item(
@@ -119,7 +120,14 @@ def run_item(
             attempts=1,
         )
 
-    letter, failure_cause = parse_probe_answer(response.text, valid_letters)
+    if response.text is not None and is_refusal(response.text):
+        # Tagged ahead of the generic parser: a refusal and an unparseable
+        # answer are different capability findings (see answer_parser's
+        # AnswerFailureCause docstring), and gpt-4o's annotated-frame refusal
+        # rate is a known, separately-tracked confound for this project.
+        letter, failure_cause = None, "refusal"
+    else:
+        letter, failure_cause = parse_probe_answer(response.text, valid_letters)
     correct = failure_cause is None and letter == choices.correct_letter
     return ProbeAnswerRecord(
         item_id=item.item_id,

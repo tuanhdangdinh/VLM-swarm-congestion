@@ -37,10 +37,73 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
-- **2026-10-02** — **v2 build-order step 10 correction: grid/left-right
-  margins were too small at collection scale, item set rebuilt** (supersedes
-  the manifest numbers in the entry below, same branch, same
-  `--seed 20261002`). A visual spot-check of the first frozen manifest
+- **2026-10-02** — **v2 build-order step 10, second correction: grid-badge
+  occlusion, nearest_first/robot_count scene validity, refusal tagging**
+  (supersedes the manifest numbers in the margin-correction entry below,
+  same branch, same `--seed 20261002`). A wider visual-check pass (multiple
+  rendered `locate_robot`/`left_right`/`nearest_first`/`robot_count` items
+  against the real annotated frames, not one item) found the first margin
+  fix was incomplete: a grid badge is drawn at each cell's fixed centre, and
+  several named robots in the rebuilt set landed close enough to their own
+  cell's centre that the badge overlapped the robot's status box or ID
+  label -- unanswerable from the image even though the GT cell computation
+  itself was correct. Separately, `nearest_first`'s edge check covered only
+  the named robot, not the other robots that are its answer options, and
+  `robot_count` had no frame-level validity check at all (two visibly
+  unlabeled round obstacles sit in several scenes alongside the tracked
+  robots). Fixes:
+  - New `reasoning/vlm/capability_probes/occlusion.py`: replicates
+    `swarm_perception.annotation.draw_robot_overlay`'s exact box/label pixel
+    geometry (not an approximation) and checks it against all 9 fixed grid
+    badge positions (`grid.badge_radius_px`, extracted for this reuse).
+    Wired into the build script as a `locate_robot` candidate filter
+    (drop reason `badge_occludes_label`); 7 new unit tests
+    (`test_capability_probe_occlusion.py`).
+  - `scripts/build_capability_probe_manifest.py`: `nearest_first` candidates
+    now require every robot in the scene (not just the one named) to clear
+    `is_away_from_frame_edge`, since the other robots are its answer
+    options. New `_robot_count_scene_is_clean` requires every robot clear
+    the frame edge, no M1 status `STALE`, and every pair at least
+    `ground_truth.MIN_ROBOT_SEPARATION_PX` (70 px) apart (drop reason
+    `robot_count_scene_invalid`); `robot_count`'s question text changed from
+    "how many robots" to "how many ID-labelled robots (each shown with a
+    colored status box and an ID label)", to disambiguate against the
+    unmarked round obstacles visible in several scenes -- a manifest
+    `question`-field change only, no prompt-template re-pin.
+  - `ProbeTypeSummary.failure_cause_counts` (new field,
+    `failure_cause -> count` incl. `"none"` for a scored answer) and the
+    runner (`scripts/capability_probes.py`) now tags a refusal via
+    `reasoning.vlm.reasoner.is_refusal` *before* generic answer parsing, so
+    a declined response is never counted as a measured capability gap --
+    this project's own prior finding is a 19-38% gpt-4o refusal rate on
+    annotated frames (`docs/reports/2026-09-25-frame-replay.md`).
+  - Rebuilt manifest (same seed): still 15/15 items per probe type across
+    10 distinct `data/logs/vm_runs` run families and 17 distinct scenarios
+    (both counted directly from the manifest). Per type: `robot_count` 11
+    scenes, 5/5/5 across {2,3,4}; `left_right` 9 scenes, 8 left / 7 right;
+    `locate_robot` 9 scenes, cells {1,3,4,5,7} (3,4,4,3,1 respectively -- of
+    9 possible, the other 4 had no occlusion-clear candidate); `nearest_first`
+    6 scenes, spread over all 4 tracked robot ids. New drop tallies:
+    `badge_occludes_label` 341, `robot_count_scene_invalid` 125 (on top of
+    the carried-forward `grid_boundary_too_close` 200, `near_frame_edge` 69,
+    `margin_too_small` 653, `too_few_robots` 675, `no_matching_gt` 181,
+    `m1_gt_disagreement` 16, `frame_missing` 4).
+  - Re-verified with 7 rendered full-frame spot-checks across all four probe
+    types against the real annotated frames (not resized contact-sheet
+    crops, which proved too small to judge by eye) -- all 7 correct,
+    including one `robot_count` frame showing 3 ID-labelled robots beside 3
+    unlabelled round obstacles, confirming the reworded question matches
+    what GT actually counts. Full-suite zero-delta re-confirmed (same 63
+    pre-existing failures, 4075 -> 4185 passing, +110 total new tests across
+    both correction rounds).
+  - **Known residual gap, carried forward, not fixed**: the model-pin gap
+    below still applies unchanged.
+
+- **2026-10-02** — **v2 build-order step 10 correction (SUPERSEDED by the
+  entry above for all item counts and scene tallies; the margin-sizing
+  reasoning and the constants it introduced stand)**: grid/left-right
+  margins were too small at collection scale, item set rebuilt. A visual
+  spot-check of the first frozen manifest
   (overlaying the drawn grid and a highlight on the GT-computed correct cell
   over the actual annotated frame) found the robot's own footprint
   (~0.15 m radius, ~34 px at this calibration's ~0.00436 m/px) plus the

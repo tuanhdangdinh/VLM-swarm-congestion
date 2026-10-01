@@ -78,6 +78,9 @@ def score_records(
         correct = sum(1 for item in items if item.correct)
         lo, hi = wilson_interval(correct, n)
         chance_rates = [chance_rate_by_item[item.item_id] for item in items]
+        failure_counts: dict[str, int] = defaultdict(int)
+        for item in items:
+            failure_counts[item.failure_cause or "none"] += 1
         summaries.append(
             ProbeTypeSummary(
                 probe_type=probe_type,
@@ -87,6 +90,7 @@ def score_records(
                 wilson_lo=lo,
                 wilson_hi=hi,
                 chance_rate=sum(chance_rates) / len(chance_rates),
+                failure_cause_counts=dict(failure_counts),
             )
         )
     summaries.sort(key=lambda s: s.probe_type)

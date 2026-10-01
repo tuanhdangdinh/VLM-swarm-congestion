@@ -14,7 +14,15 @@ import re
 from collections.abc import Sequence
 from typing import Literal
 
-AnswerFailureCause = Literal["empty_response", "parse_failure", "invalid_letter"]
+# "refusal" is tagged by the caller (`scripts/capability_probes.py`, via
+# `reasoning.vlm.reasoner.is_refusal`) before this parser ever runs, not
+# produced here: a refusal's text would otherwise just fall through to
+# `parse_failure`, which conflates "the model declined to engage" with "the
+# model tried and its answer could not be read" -- two different capability
+# findings the battery exists to tell apart (the project's own prior finding
+# is that annotated frames trigger gpt-4o refusals on 19-38% of first
+# attempts; see docs/reports/2026-09-25-frame-replay.md).
+AnswerFailureCause = Literal["empty_response", "parse_failure", "invalid_letter", "refusal"]
 
 _JSON_OBJECT_RE = re.compile(r"\{[^{}]*\}", re.DOTALL)
 _BARE_LETTER_RE = re.compile(r"^[A-Za-z]$")

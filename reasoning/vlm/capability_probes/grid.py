@@ -92,9 +92,18 @@ def cell_index_for_pixel(u: int, v: int, image_width: int, image_height: int) ->
     return row * GRID_COLS + col
 
 
+def badge_radius_px(image_width: int) -> int:
+    """Return the drawn letter badge's radius in pixels for a frame this wide.
+
+    Shared by the drawing pass and by `occlusion.robot_overlaps_any_grid_badge`,
+    so the occlusion check tests against the exact radius actually drawn.
+    """
+    return max(16, round(0.016 * image_width))
+
+
 def _draw_cell_badge(image: np.ndarray, letter: str, centre: tuple[int, int]) -> None:
     height, width = image.shape[:2]
-    radius = max(16, round(0.016 * width))
+    radius = badge_radius_px(width)
     cv2.circle(image, centre, radius, _WHITE, -1, cv2.LINE_AA)
     cv2.circle(image, centre, radius, _BLACK, 2, cv2.LINE_AA)
     font = cv2.FONT_HERSHEY_SIMPLEX

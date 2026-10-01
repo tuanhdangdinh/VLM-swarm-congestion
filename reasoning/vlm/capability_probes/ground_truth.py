@@ -171,6 +171,12 @@ def grid_cell_answer(
 # must be answerable from a fully visible label.
 EDGE_MARGIN_PX = 70
 
+# Two robots' drawn 40x40 status boxes (box half-size 20 px,
+# `swarm_perception.annotation.draw_robot_overlay`) start touching at 40 px
+# of separation; this gives slack so a `robot_count` frame's boxes/labels
+# stay visually distinct rather than merging into one blob.
+MIN_ROBOT_SEPARATION_PX = 70
+
 
 def is_away_from_frame_edge(u: int, v: int, image_width: int, image_height: int) -> bool:
     """Return whether `(u, v)` clears `EDGE_MARGIN_PX` from every frame edge.

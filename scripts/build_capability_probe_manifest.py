@@ -45,6 +45,7 @@ if str(REPO_ROOT) not in sys.path:
 import cv2  # noqa: E402
 
 from reasoning.vlm.capability_probes import ground_truth as gtlib  # noqa: E402
+from reasoning.vlm.capability_probes import occlusion  # noqa: E402
 from reasoning.vlm.capability_probes.grid import GRID_CELL_COUNT  # noqa: E402
 from reasoning.vlm.capability_probes.manifest_io import save_manifest, sha256_file  # noqa: E402
 from reasoning.vlm.capability_probes.models import ProbeItem, ProbeManifest, ProbeType  # noqa: E402
@@ -75,9 +76,41 @@ class _Candidate:
     m1_gt_max_disagreement_m: float
 
 
+def _robot_count_scene_is_clean(
+    gt_robots: dict[str, dict],
+    gt_pixels: dict[str, tuple[int, int]],
+    m1_robots: dict[str, dict],
+    width: int,
+    height: int,
+) -> bool:
+    """Return whether a frame's robots are all distinctly, fully, reliably visible.
+
+    All three conditions must hold for `robot_count` to trust "count the
+    ID-labelled robots" as unambiguous: every robot clear of the frame edge
+    (full label visible), every pair of robots far enough apart that their
+    boxes/labels cannot visually merge, and no robot M1 itself marked STALE
+    (an M1 status the project's own notes record as unreliable positioning).
+    """
+    pixels = list(gt_pixels.values())
+    if any(not gtlib.is_away_from_frame_edge(u, v, width, height) for u, v in pixels):
+        return False
+    if any(m1_robots.get(rid, {}).get("status") == "STALE" for rid in gt_robots):
+        return False
+    for i in range(len(pixels)):
+        for j in range(i + 1, len(pixels)):
+            du = pixels[i][0] - pixels[j][0]
+            dv = pixels[i][1] - pixels[j][1]
+            if (du * du + dv * dv) ** 0.5 < gtlib.MIN_ROBOT_SEPARATION_PX:
+                return False
+    return True
+
+
 def _question_for(probe_type: ProbeType, reference_robot_id: str | None) -> str:
     if probe_type == "robot_count":
-        return "How many robots are visible in the image?"
+        return (
+            "How many ID-labelled robots (each shown with a colored status box "
+            "and an ID label above it) are visible in the image?"
+        )
     if probe_type == "left_right":
         return (
             f"Looking at the image, is robot {reference_robot_id} positioned in the "
@@ -151,7 +184,10 @@ def _scan_episode(
             scene = decision["scene"]
             request_id = decision["request_id"]
             stamp = float(scene["stamp"])
-            m1_robots = {r["robot_id"]: {"x": r["x"], "y": r["y"]} for r in scene["robots"]}
+            m1_robots = {
+                r["robot_id"]: {"x": r["x"], "y": r["y"], "status": r.get("status")}
+                for r in scene["robots"]
+            }
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             drop_counts["unparseable_decision"] += 1
             continue
@@ -192,23 +228,39 @@ def _scan_episode(
             m1_gt_max_disagreement_m=disagreement,
         )
 
-        if 1 <= len(gt_robots) <= 5:
-            candidates.append(
-                _Candidate(
-                    probe_type="robot_count",
-                    reference_robot_id=None,
-                    question=_question_for("robot_count", None),
-                    options=[str(n) for n in range(1, 6)],
-                    correct_answer=str(len(gt_robots)),
-                    image_choices=False,
-                    **base,
+        gt_pixels = {
+            rid: gtlib.world_to_pixel(pos["x"], pos["y"], homography)
+            for rid, pos in gt_robots.items()
+        }
+
+        if _robot_count_scene_is_clean(gt_robots, gt_pixels, m1_robots, width, height):
+            if 1 <= len(gt_robots) <= 5:
+                candidates.append(
+                    _Candidate(
+                        probe_type="robot_count",
+                        reference_robot_id=None,
+                        question=_question_for("robot_count", None),
+                        options=[str(n) for n in range(1, 6)],
+                        correct_answer=str(len(gt_robots)),
+                        image_choices=False,
+                        **base,
+                    )
                 )
-            )
+            else:
+                drop_counts["robot_count_out_of_scope"] += 1
         else:
-            drop_counts["robot_count_out_of_scope"] += 1
+            drop_counts["robot_count_scene_invalid"] += 1
+
+        # nearest_first's answer options are every OTHER tracked robot, so
+        # every robot in the scene -- not just whichever is asked about --
+        # must have a fully visible, readable ID label for any nearest_first
+        # item from this frame to be answerable.
+        all_robots_readable = all(
+            gtlib.is_away_from_frame_edge(u, v, width, height) for u, v in gt_pixels.values()
+        )
 
         for robot_id, pos in gt_robots.items():
-            robot_u, robot_v = gtlib.world_to_pixel(pos["x"], pos["y"], homography)
+            robot_u, robot_v = gt_pixels[robot_id]
             if not gtlib.is_away_from_frame_edge(robot_u, robot_v, width, height):
                 # Too close to the frame edge: M1's drawn ID label for this
                 # robot may be clipped, so no item can ask about it by name.
@@ -230,7 +282,13 @@ def _scan_episode(
                 )
 
             cell = gtlib.grid_cell_answer(pos["x"], pos["y"], homography, width, height)
-            if cell is not None:
+            if cell is None:
+                drop_counts["grid_boundary_too_close"] += 1
+            elif occlusion.robot_overlaps_any_grid_badge(
+                robot_id, robot_u, robot_v, width, height
+            ):
+                drop_counts["badge_occludes_label"] += 1
+            else:
                 candidates.append(
                     _Candidate(
                         probe_type="locate_robot",
@@ -242,12 +300,16 @@ def _scan_episode(
                         **base,
                     )
                 )
-            else:
-                drop_counts["grid_boundary_too_close"] += 1
 
-            if len(gt_robots) >= 3:
+            if len(gt_robots) < 3:
+                drop_counts["too_few_robots"] += 1
+            elif not all_robots_readable:
+                drop_counts["near_frame_edge"] += 1
+            else:
                 nearest = gtlib.nearest_first_answer(gt_robots, robot_id)
-                if nearest is not None:
+                if nearest is None:
+                    drop_counts["too_few_robots"] += 1
+                else:
                     nearest_id, gap = nearest
                     if gap >= gtlib.NEAREST_FIRST_MARGIN_M:
                         others = sorted(rid for rid in gt_robots if rid != robot_id)
@@ -264,8 +326,6 @@ def _scan_episode(
                         )
                     else:
                         drop_counts["margin_too_small"] += 1
-            else:
-                drop_counts["too_few_robots"] += 1
 
     return candidates
 

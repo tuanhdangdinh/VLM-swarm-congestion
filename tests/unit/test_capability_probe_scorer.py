@@ -34,7 +34,9 @@ class TestWilsonInterval:
         assert (hi_large - lo_large) < (hi_small - lo_small)
 
 
-def _record(item_id: str, probe_type: str, correct: bool) -> ProbeAnswerRecord:
+def _record(
+    item_id: str, probe_type: str, correct: bool, failure_cause: str | None = None
+) -> ProbeAnswerRecord:
     return ProbeAnswerRecord(
         item_id=item_id,
         probe_type=probe_type,
@@ -43,7 +45,7 @@ def _record(item_id: str, probe_type: str, correct: bool) -> ProbeAnswerRecord:
         parsed_letter="A",
         correct_letter="A" if correct else "B",
         correct=correct,
-        failure_cause=None,
+        failure_cause=failure_cause,
         latency_ms=5,
         attempts=1,
     )
@@ -85,3 +87,17 @@ class TestScoreRecords:
         summary = score_records([], {}, backend_id="mock", manifest_seed=1)
         assert summary.by_type == []
         assert summary.n_items == 0
+
+    def test_failure_cause_counts_separate_refusals_from_wrong_answers(self):
+        records = [
+            _record("robot_count_000", "robot_count", True),
+            _record("robot_count_001", "robot_count", False),
+            _record("robot_count_002", "robot_count", False, failure_cause="refusal"),
+            _record("robot_count_003", "robot_count", False, failure_cause="parse_failure"),
+        ]
+        chance = dict.fromkeys(
+            ["robot_count_000", "robot_count_001", "robot_count_002", "robot_count_003"], 0.2
+        )
+        summary = score_records(records, chance, backend_id="mock", manifest_seed=1)
+        counts = summary.by_type[0].failure_cause_counts
+        assert counts == {"none": 2, "refusal": 1, "parse_failure": 1}

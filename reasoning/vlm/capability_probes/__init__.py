@@ -40,6 +40,10 @@ from reasoning.vlm.capability_probes.models import (
     ProbeType,
     ProbeTypeSummary,
 )
+from reasoning.vlm.capability_probes.occlusion import (
+    robot_annotation_rects,
+    robot_overlaps_any_grid_badge,
+)
 from reasoning.vlm.capability_probes.prompt import (
     CAPABILITY_PROBE_PROMPT_V1,
     CAPABILITY_PROBE_PROMPT_VERSION,
@@ -68,7 +72,9 @@ __all__ = [
     "max_m1_gt_disagreement_m",
     "nearest_first_answer",
     "parse_probe_answer",
+    "robot_annotation_rects",
     "robot_count_answer",
+    "robot_overlaps_any_grid_badge",
     "save_manifest",
     "score_records",
     "sha256_file",

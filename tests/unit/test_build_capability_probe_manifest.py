@@ -7,14 +7,33 @@ unit test. Uses the repository's own calibration file (checked in, not
 gitignored) for a real homography.
 """
 import json
+import sys
+from pathlib import Path
 
 import cv2
 import numpy as np
 import pytest
 
-from scripts.build_capability_probe_manifest import build_manifest
+sys.path.insert(0, str(Path("ros2_ws/src/swarm_perception").resolve()))
+from swarm_perception.calibration import load_calibration  # noqa: E402
+from swarm_perception.geometry import pixel_to_world  # noqa: E402
+
+from scripts.build_capability_probe_manifest import build_manifest  # noqa: E402
 
 _CALIBRATION_PATH = "ros2_ws/src/swarm_perception/config/calibration.yaml"
+_CALIBRATION = load_calibration(_CALIBRATION_PATH)
+
+
+def _world_at(u: float, v: float) -> dict[str, float]:
+    """World-frame `{"x", "y"}` for a chosen pixel target, via the real calibration.
+
+    Deriving fixture positions from pixel targets (rather than guessing world
+    coordinates and hoping they land where intended) keeps them legible: each
+    robot's placement relative to grid cells, badges, and frame edges is
+    chosen in pixel space, where this battery's margins are also defined.
+    """
+    x, y = pixel_to_world((u, v), _CALIBRATION.homography)
+    return {"x": x, "y": y}
 
 
 def _write_episode(root, run_name, episode_name, robots_by_request, scenario="synthetic_scene"):
@@ -53,14 +72,19 @@ def _write_episode(root, run_name, episode_name, robots_by_request, scenario="sy
 
 @pytest.fixture
 def synthetic_logs_root(tmp_path):
-    # Two robots, well clear of the frame's centre column and grid
-    # boundaries at this calibration's scale (~0.00436 m/px), spread across
-    # 3 distinct scenes so the ">= 3 scenes" requirement is satisfiable.
-    robots_two = {"robot_1": {"x": -2.0, "y": 0.0}, "robot_2": {"x": 2.0, "y": 0.0}}
+    # Pixel targets, not hand-derived world coordinates: each chosen to clear
+    # every build-script margin at once on a 1280x960 frame -- >=70px from
+    # every frame edge, >=60px from a grid-cell boundary, and far enough from
+    # every cell's centre (where a letter badge is drawn) and from the other
+    # robots that no occlusion or minimum-separation check can trip.
+    robots_two = {
+        "robot_1": _world_at(120, 100),  # left side, top row
+        "robot_2": _world_at(1150, 100),  # right side, top row
+    }
     robots_three = {
-        "robot_1": {"x": -2.0, "y": 0.0},
-        "robot_2": {"x": 2.0, "y": 0.0},
-        "robot_3": {"x": 0.0, "y": 1.22},
+        "robot_1": _world_at(120, 100),
+        "robot_2": _world_at(1150, 100),
+        "robot_3": _world_at(560, 850),  # bottom row, away from both others
     }
     for i in range(4):
         _write_episode(

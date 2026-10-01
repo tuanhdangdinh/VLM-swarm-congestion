@@ -26,7 +26,9 @@ DropReason = Literal[
     "frame_missing",
     "calibration_scale_mismatch",
     "robot_count_out_of_scope",
+    "robot_count_scene_invalid",
     "near_frame_edge",
+    "badge_occludes_label",
     "too_few_robots",
     "margin_too_small",
     "grid_boundary_too_close",
@@ -169,6 +171,11 @@ class ProbeTypeSummary(BaseModel):
     # robots in the scene -> more candidates), so this is the mean of
     # 1 / option_count across the type's items.
     chance_rate: float = Field(ge=0.0, le=1.0)
+    # `ProbeAnswerRecord.failure_cause` (or "none" for a parsed, scored
+    # answer -- right or wrong) -> count, for this probe type. Separates a
+    # measured capability gap (a wrong-but-valid letter) from a refused or
+    # unparseable response, so the latter cannot be misread as the former.
+    failure_cause_counts: dict[str, int] = Field(default_factory=dict)
 
 
 class ProbeRunSummary(BaseModel):
