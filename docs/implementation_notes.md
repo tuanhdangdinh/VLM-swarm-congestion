@@ -37,12 +37,99 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-02** — **v2 build-order step 10, fourth correction: inter-robot
+  label occlusion, distance-based dedup, fail-loud runner, geometry-fidelity
+  tests** (supersedes the manifest numbers and the audit-coverage claims of
+  the third-correction entry below; same branch, same `--seed 20261002`).
+  Closes four gaps a review of the third correction found: (1) its
+  `scanning.scene_is_legible` only checked centre-to-centre distance between
+  robots, not whether one robot's drawn box could still cover part of
+  *another* robot's label despite centres being >=70 px apart -- the same
+  clipped-label defect as the first two corrections, one level removed; (2)
+  its bucket-rounded dedup key (`round(x / 0.05)`) could put two positions a
+  millimetre apart in different buckets and miss them as duplicates -- a
+  direct distance check on the real, frozen manifest found 6 such pairs
+  (mostly `nearest_first`, which the second-correction entry's own letter
+  distribution had already hinted at: `robot_2` in 6 of 15 items from only 5
+  scenes); (3) `occlusion.py`'s replica of M1's drawing geometry was
+  asserted correct by inspection, never tested against the real drawing
+  function it replicates; (4) the runner scored a missing/drifted frame as a
+  `"backend_error"` record and kept going, which would silently deflate an
+  accuracy number after real (paid) backend calls, rather than failing the
+  run before any call was made. Fixes:
+  - `reasoning/vlm/capability_probes/occlusion.py`: new `SLACK_PX = 3` (line
+    thickness + anti-aliasing) applied to the existing badge-overlap check
+    and a new public `rects_overlap`; new `tests/unit/test_annotation_geometry_fidelity.py`
+    renders the real `swarm_perception.annotation.draw_robot_overlay` and
+    `grid._draw_cell_badge` on a blank canvas and asserts every painted
+    pixel stays inside the replica geometry plus `SLACK_PX` (with a negative
+    control proving the test isn't vacuous) -- the accurate claim is "shares
+    one definition with the builder, tested against the real renderer",
+    not "immune to a shared bug" (corrected wording from the entry below).
+  - `scanning.scene_is_legible` now also rejects a frame when any two
+    robots' M1 box/label rects overlap each other (not just when their
+    centres are close), via `occlusion.rects_overlap`.
+  - `scanning.dedup_key` (bucket rounding) replaced by
+    `scanning.deduplicate_by_distance` + `max_displacement_m`: two
+    candidates naming the same reference robot (or both none, `robot_count`)
+    over the same tracked robot set are the same configuration when their
+    largest per-robot GT displacement is under
+    `NEAR_DUPLICATE_MAX_DISPLACEMENT_M` (0.10 m) -- one definition, used by
+    both the builder's selection step and the audit script's own duplicate
+    check (previously the audit re-derived the old bucketed key, which could
+    not catch what that key itself missed).
+  - `scripts/capability_probes.py`: split into `prepare_item` (materialize +
+    build the prompt; raises on any failure) and `run_item` (the backend
+    call only; still never raises). `run_battery` now prepares every item
+    before constructing the backend or making any call, so a missing/drifted
+    frame aborts the whole run with no JSONL/summary written, instead of
+    being scored. New `ProbeAnswerRecord.error_type`/`error_message` capture
+    a genuine backend exception's diagnostics (CLAUDE.md: no silent
+    swallowing).
+  - New tests: `test_capability_probe_scanning.py` (17, direct coverage of
+    `scene_is_legible`/`deduplicate_by_distance`/`max_displacement_m`/GT
+    matching -- previously only exercised indirectly), 3 in
+    `test_annotation_geometry_fidelity.py`, plus the runner's
+    `prepare_item`/`run_item` split test updates in
+    `test_capability_probes_runner.py` (missing-frame now asserted to
+    `raise`, not to produce a record).
+  - Rebuilt manifest (same seed): still 15/15 per type, across 11 run
+    families and 14 scenarios. Per type: `robot_count` 10 scenes, 5/5/5
+    across {2,3,4}; `left_right` 10 scenes, 8 right / 7 left; `locate_robot`
+    5 scenes (down from 6 -- the extra occlusion check removed more
+    candidates), cells {1,3,4,5} at 3,4,4,4; `nearest_first` 5 scenes,
+    {robot_1: 4, robot_2: 7, robot_3: 2, robot_4: 2} (the `robot_2`
+    concentration persists after the dedup fix -- a property of which
+    scenes exist in the logs, not a remaining dedup gap: the audit's
+    distance check now passes clean). Correct-letter distributions are not
+    degenerate to one letter for any type (e.g. `left_right` 6 A / 9 B,
+    `nearest_first` 8 A / 7 B).
+  - `scripts/audit_capability_probe_manifest.py` (updated for the shared
+    `scanning` functions above) reports `OK: all 60 items passed every
+    check` on the rebuilt manifest -- this is now the verification method of
+    record; see the gap report for what it does not cover.
+  - Full-suite zero-delta re-confirmed (same 63 pre-existing failures, 4075
+    -> 4211 passing across all four correction rounds plus the original
+    build, 136 new tests total).
+  - **Known residual gaps, carried forward, not fixed**: the model-pin gap
+    (runner defaults to backend-factory config, i.e. the `gpt-4o` alias for
+    openai and no config at all -- a hard error -- for anthropic/llama_server);
+    the round, unlabeled objects visible in several scenes remain
+    unidentified ("unmarked round objects", not "obstacles" -- never
+    confirmed); the grid's 9 cells are not evenly reachable (`locate_robot`
+    draws from 5 of 9 after every filter); `y_extent_probe` kept no frames
+    and contributed nothing; the left/right operationalization (image-frame
+    halves, not a world-frame aisle side) is unchanged and still flagged for
+    the v2-freeze owner's confirmation.
+
 - **2026-10-02** — **v2 build-order step 10, third correction: M1-vs-GT
   answer agreement, frame-wide occlusion, cell uniqueness, duplicate-scene
-  dedup, independent audit script** (supersedes the manifest numbers AND the
-  "all correct" verification claim of the second-correction entry below --
-  two of that round's own spot-check images were misread; see below -- same
-  branch, same `--seed 20261002`). The second correction's occlusion check
+  dedup, independent audit script** (SUPERSEDED by the entry above for
+  manifest numbers and audit coverage -- the entry's own "all 60 items
+  passed every check" is accurate for the checks that existed at the time,
+  which did not yet include inter-robot label occlusion or a true
+  distance-based duplicate check; the M1-vs-GT agreement and cell-uniqueness
+  logic it introduced stand unchanged). The second correction's occlusion check
   tested only the *named* robot against the grid badges; a further look at
   its own rendered evidence (two images it had called "correct") showed a
   *different* tracked robot's label clipped by a badge in the same frame,

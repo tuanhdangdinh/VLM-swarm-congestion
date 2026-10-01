@@ -154,6 +154,16 @@ class ProbeAnswerRecord(BaseModel):
     failure_cause: str | None = None
     latency_ms: int | None = None
     attempts: int = Field(ge=1)
+    # Populated only for `failure_cause == "backend_error"`: the exception
+    # type/message from the failed `backend.analyze` call, so a run's JSONL
+    # shows *why* a call failed, not just that it did (CLAUDE.md: runtime
+    # failures from external systems belong in diagnostics, never swallowed
+    # silently). Never set from a materialization failure -- those are not
+    # caught here at all; `scripts/capability_probes.py`'s `run_battery`
+    # prepares (materializes + builds the prompt for) every item before any
+    # backend call, and raises past this model entirely on failure.
+    error_type: str | None = None
+    error_message: str | None = None
 
 
 class ProbeTypeSummary(BaseModel):

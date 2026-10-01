@@ -1,22 +1,39 @@
-"""Shared GT-matching, legibility, and dedup-key logic for the probe battery.
+"""Shared GT-matching, legibility, and duplicate-scene logic for the probe battery.
 
 Used by both `scripts/build_capability_probe_manifest.py` (selecting the
 frozen item set) and `scripts/audit_capability_probe_manifest.py`
 (independently re-verifying it from the same source logs): the two tools
 must agree on what "a legible scene" or "a duplicate configuration" means, so
-this is one definition, not two that could drift apart.
+this is one definition, not two that could drift apart. This matters
+concretely for duplicate detection: an earlier, bucket-rounded key let a
+position a millimetre on either side of a rounding boundary pass as
+"different" (2026-10-02, third-correction review found 6 such near-duplicate
+pairs the key had missed); `deduplicate_by_distance` replaces it with a
+direct distance comparison every caller shares.
 """
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import TypeVar
 
 from reasoning.vlm.capability_probes import ground_truth as gtlib
+from reasoning.vlm.capability_probes import occlusion
 
 # How many GT-matched robots a frame's `scene.stamp` must land within, to be
 # used at all. Episodes in this battery log GT at a fixed physics tick
 # (<=1/60 s); a looser bound tolerates the coarser cadence of older runs.
 GT_MATCH_TOLERANCE_SEC = 0.5
+
+# Two scenes naming the same reference robot, over the same tracked robot
+# set, whose largest per-robot GT displacement is under this are treated as
+# the same configuration: consecutive decision calls during a stalled
+# episode log nearly identical positions a few seconds apart, and should not
+# both count as independent evidence.
+NEAR_DUPLICATE_MAX_DISPLACEMENT_M = 0.10
+
+T = TypeVar("T")
 
 
 def load_gt_rows(gt_path: Path) -> list[dict]:
@@ -49,27 +66,68 @@ def nearest_gt_row(rows: list[dict], stamp: float) -> dict | None:
     return best
 
 
-def dedup_key(reference_robot_id: str | None, gt_robots: dict[str, dict]) -> str:
-    """Return a scene-configuration fingerprint for duplicate detection.
-
-    The reference robot plus every robot's GT position, rounded to 5 cm, so
-    two frames of a stalled episode -- same robots, same positions, a few
-    seconds apart -- fingerprint identically and cannot both enter the
-    candidate pool as if they were independent evidence.
+def max_displacement_m(a: dict[str, dict], b: dict[str, dict]) -> float | None:
+    """Return the largest per-robot GT displacement between two scenes.
 
     Args:
-        reference_robot_id: The item's named robot, or None (`robot_count`).
-        gt_robots: GT robot_id -> `{"x", "y"}` for every tracked robot.
+        a: robot_id -> `{"x", "y"}`.
+        b: robot_id -> `{"x", "y"}`.
 
     Returns:
-        A string key, equal for two calls with the same reference robot and
-        the same (rounded) robot positions.
+        The max Euclidean per-robot displacement, or None when `a` and `b`
+        do not track the same set of robots (not comparable -- never counted
+        as a duplicate of each other).
     """
-    positions = ",".join(
-        f"{rid}:{round(pos['x'] / 0.05)}:{round(pos['y'] / 0.05)}"
-        for rid, pos in sorted(gt_robots.items())
+    if set(a) != set(b):
+        return None
+    return max(
+        ((a[rid]["x"] - b[rid]["x"]) ** 2 + (a[rid]["y"] - b[rid]["y"]) ** 2) ** 0.5
+        for rid in a
     )
-    return f"{reference_robot_id}|{positions}"
+
+
+def deduplicate_by_distance(
+    candidates: Sequence[T],
+    reference_robot_id: Callable[[T], str | None],
+    gt_robots: Callable[[T], dict[str, dict]],
+    max_displacement: float = NEAR_DUPLICATE_MAX_DISPLACEMENT_M,
+) -> list[T]:
+    """Keep the first of each near-duplicate scene-configuration group.
+
+    Two candidates are the same configuration when they name the same
+    reference robot (or both name none, e.g. `robot_count`) and
+    `max_displacement_m` between their GT robot positions is under
+    `max_displacement`. O(n^2) in `len(candidates)`; the battery's candidate
+    pools (low thousands at most) make this cheap enough for a one-shot
+    build script.
+
+    Args:
+        candidates: Candidates to deduplicate, in scan order (the first of
+            a duplicate group is kept, so scan order decides which).
+        reference_robot_id: Accessor for a candidate's named robot.
+        gt_robots: Accessor for a candidate's GT robot_id -> `{"x", "y"}`.
+        max_displacement: Threshold below which two scenes are "the same".
+
+    Returns:
+        `candidates` with later members of each duplicate group removed.
+    """
+    kept: list[T] = []
+    kept_data: list[tuple[str | None, dict[str, dict]]] = []
+    for candidate in candidates:
+        ref = reference_robot_id(candidate)
+        robots = gt_robots(candidate)
+        is_duplicate = False
+        for other_ref, other_robots in kept_data:
+            if other_ref != ref:
+                continue
+            displacement = max_displacement_m(robots, other_robots)
+            if displacement is not None and displacement < max_displacement:
+                is_duplicate = True
+                break
+        if not is_duplicate:
+            kept.append(candidate)
+            kept_data.append((ref, robots))
+    return kept
 
 
 def scene_is_legible(
@@ -84,11 +142,14 @@ def scene_is_legible(
     other-robot options and `locate_robot`/`left_right`'s single named robot
     all need the same guarantee. Checked against M1's own drawn pixel
     positions, not GT: M1 is what the image actually shows, and GT can differ
-    from it by up to `ground_truth.M1_GT_MAX_DISAGREEMENT_M`. Three
-    conditions: every robot clear of the frame edge (full label visible),
-    every pair of robots far enough apart that their boxes/labels cannot
-    visually merge, and no robot M1 itself marked STALE (unreliable
-    positioning, by the project's own notes).
+    from it by up to `ground_truth.M1_GT_MAX_DISAGREEMENT_M`. Four
+    conditions: every robot clear of the frame edge (full label visible), no
+    robot M1 itself marked STALE (unreliable positioning, by the project's
+    own notes), every pair of robots far enough apart that their boxes/labels
+    cannot visually merge, and -- the centre-distance check alone does not
+    rule this out (two centres 70 px apart can still have one robot's status
+    box overlapping the other's label rect) -- no robot's drawn box or label
+    rect overlaps another robot's.
 
     Args:
         m1_robots: M1 robot_id -> `{"x", "y", "status"}` (status optional).
@@ -97,17 +158,26 @@ def scene_is_legible(
         height: Frame height in pixels.
 
     Returns:
-        True when the frame is legible under all three conditions.
+        True when the frame is legible under all four conditions.
     """
     pixels = list(m1_pixels.values())
     if any(not gtlib.is_away_from_frame_edge(u, v, width, height) for u, v in pixels):
         return False
     if any(robot.get("status") == "STALE" for robot in m1_robots.values()):
         return False
-    for i in range(len(pixels)):
-        for j in range(i + 1, len(pixels)):
-            du = pixels[i][0] - pixels[j][0]
-            dv = pixels[i][1] - pixels[j][1]
+    ids = list(m1_pixels)
+    for i in range(len(ids)):
+        for j in range(i + 1, len(ids)):
+            (u_i, v_i), (u_j, v_j) = m1_pixels[ids[i]], m1_pixels[ids[j]]
+            du, dv = u_i - u_j, v_i - v_j
             if (du * du + dv * dv) ** 0.5 < gtlib.MIN_ROBOT_SEPARATION_PX:
+                return False
+            rects_i = occlusion.robot_annotation_rects(ids[i], u_i, v_i)
+            rects_j = occlusion.robot_annotation_rects(ids[j], u_j, v_j)
+            if any(
+                occlusion.rects_overlap(rect_i, rect_j)
+                for rect_i in rects_i
+                for rect_j in rects_j
+            ):
                 return False
     return True

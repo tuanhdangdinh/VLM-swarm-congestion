@@ -52,7 +52,7 @@ from reasoning.vlm.capability_probes.prompt import (  # noqa: E402
     build_capability_probe_prompt_payload,
 )
 from reasoning.vlm.capability_probes.scorer import score_records  # noqa: E402
-from reasoning.vlm.models import BackendResponse, ReasonerConfig  # noqa: E402
+from reasoning.vlm.models import BackendResponse, PromptPayload, ReasonerConfig  # noqa: E402
 from reasoning.vlm.reasoner import is_refusal  # noqa: E402
 
 
@@ -73,40 +73,69 @@ def _image_for_item(
     return dest
 
 
-def run_item(
-    item: ProbeItem,
-    backend,
-    config: ReasonerConfig,
-    logs_root: Path,
-    out_dir: Path,
-) -> ProbeAnswerRecord:
-    """Materialize, prompt, call the backend, and score one item; never raises.
+def prepare_item(
+    item: ProbeItem, logs_root: Path, out_dir: Path
+) -> tuple[ItemChoices, PromptPayload]:
+    """Materialize the frame and build the prompt for one item; never swallows errors.
+
+    Deliberately separate from the backend call: a missing or drifted frame,
+    or a grid-overlay drawing failure, is a battery-integrity problem, not a
+    transient per-call one, so it must stop the whole run rather than be
+    scored as if the backend had failed (2026-10-02, fourth correction --
+    CLAUDE.md's "do not swallow exceptions silently").
 
     Args:
         item: The manifest item.
-        backend: A constructed `VLMBackend`.
-        config: Sampling config for the call (temperature 0 where supported).
         logs_root: Root the item's frame is materialized relative to.
         out_dir: Where a `locate_robot` item's grid-overlay copy is written.
 
     Returns:
-        The scored record. A materialization, drawing, or backend failure is
-        captured as a `"backend_error"` record, never raised past this call.
+        `(choices, payload)`.
+
+    Raises:
+        FileNotFoundError: The item's frame is missing under `logs_root`.
+        ValueError: The frame's content hash no longer matches, or (for a
+            `locate_robot` item) the grid overlay could not be drawn/written.
     """
     choices = build_item_choices(item.options, item.correct_answer, item.seed)
+    source_frame = materialize_frame(item, logs_root)
+    image_path = _image_for_item(item, source_frame, choices, out_dir)
+    payload = build_capability_probe_prompt_payload(
+        question=item.question,
+        choices=choices,
+        image_path=str(image_path),
+        image_choices=item.image_choices,
+        known_robot_ids=[item.reference_robot_id] if item.reference_robot_id else [],
+    )
+    return choices, payload
+
+
+def run_item(
+    item: ProbeItem,
+    choices: ItemChoices,
+    payload: PromptPayload,
+    backend,
+    config: ReasonerConfig,
+) -> ProbeAnswerRecord:
+    """Call the backend and score one already-prepared item; never raises.
+
+    Args:
+        item: The manifest item.
+        choices: This item's seeded letter assignment (`prepare_item`).
+        payload: This item's rendered prompt (`prepare_item`).
+        backend: A constructed `VLMBackend`.
+        config: Sampling config for the call (temperature 0 where supported).
+
+    Returns:
+        The scored record. Only a `backend.analyze` failure is caught here
+        (as `"backend_error"`, with `error_type`/`error_message` set); a
+        materialization or prompt-building failure is `prepare_item`'s to
+        raise, before this function is ever called for the item.
+    """
     valid_letters = sorted(choices.option_by_letter)
     try:
-        source_frame = materialize_frame(item, logs_root)
-        image_path = _image_for_item(item, source_frame, choices, out_dir)
-        payload = build_capability_probe_prompt_payload(
-            question=item.question,
-            choices=choices,
-            image_path=str(image_path),
-            image_choices=item.image_choices,
-            known_robot_ids=[item.reference_robot_id] if item.reference_robot_id else [],
-        )
         response: BackendResponse = backend.analyze(payload, config)
-    except Exception:  # the battery must score every item, never crash on one
+    except Exception as exc:  # the battery must score every item, never crash on one
         return ProbeAnswerRecord(
             item_id=item.item_id,
             probe_type=item.probe_type,
@@ -118,6 +147,8 @@ def run_item(
             failure_cause="backend_error",
             latency_ms=None,
             attempts=1,
+            error_type=type(exc).__name__,
+            error_message=str(exc),
         )
 
     if response.text is not None and is_refusal(response.text):
@@ -156,15 +187,26 @@ def run_battery(
 
     Returns:
         `(records, summary_dict)`.
+
+    Raises:
+        FileNotFoundError: Any item's frame is missing under `logs_root`.
+        ValueError: Any frame's content hash has drifted, or a `locate_robot`
+            item's grid overlay could not be drawn/written. Raised before any
+            backend call is made for *any* item (not just the offending one):
+            a battery-integrity problem should stop the run, not silently
+            shrink or skew the scored set.
     """
     manifest = load_manifest(manifest_path)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    prepared = [prepare_item(item, logs_root, out_dir) for item in manifest.items]
+
     backend = build_backend(backend_id)
     config = ReasonerConfig(backend_id=backend_id, temperature=0.0)
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-    records: list[ProbeAnswerRecord] = []
-    for item in manifest.items:
-        records.append(run_item(item, backend, config, logs_root, out_dir))
+    records: list[ProbeAnswerRecord] = [
+        run_item(item, choices, payload, backend, config)
+        for item, (choices, payload) in zip(manifest.items, prepared, strict=True)
+    ]
 
     chance_rate_by_item = {item.item_id: 1.0 / len(item.options) for item in manifest.items}
     summary = score_records(records, chance_rate_by_item, backend_id, manifest.seed)

@@ -71,12 +71,10 @@ class _Candidate:
     correct_answer: str
     image_choices: bool
     m1_gt_max_disagreement_m: float
-    # Scene-configuration fingerprint (reference robot + every robot's
-    # GT position, rounded to 5 cm), so two frames of a stalled episode that
-    # differ only by a few seconds of simulated time -- same robots, same
-    # positions -- cannot both enter the pool as if they were independent
-    # evidence (2026-10-02, third correction).
-    dedup_key: str
+    # This candidate's GT robot_id -> {"x", "y"}, kept so near-duplicate
+    # scenes (2026-10-02, third correction; refined to a direct distance
+    # comparison in the fourth) can be deduplicated before selection.
+    gt_robots: dict[str, dict]
 
 
 def _question_for(probe_type: ProbeType, reference_robot_id: str | None) -> str:
@@ -204,7 +202,7 @@ def _scan_episode(
                     options=[str(n) for n in range(1, 6)],
                     correct_answer=str(len(gt_robots)),
                     image_choices=False,
-                    dedup_key=scanning.dedup_key(None, gt_robots),
+                    gt_robots=gt_robots,
                     **base,
                 )
             )
@@ -242,7 +240,7 @@ def _scan_episode(
                         options=["left", "right"],
                         correct_answer=side,
                         image_choices=False,
-                        dedup_key=scanning.dedup_key(robot_id, gt_robots),
+                        gt_robots=gt_robots,
                         **base,
                     )
                 )
@@ -274,7 +272,7 @@ def _scan_episode(
                             options=[str(i) for i in range(GRID_CELL_COUNT)],
                             correct_answer=str(cell),
                             image_choices=True,
-                            dedup_key=scanning.dedup_key(robot_id, gt_robots),
+                            gt_robots=gt_robots,
                             **base,
                         )
                     )
@@ -303,7 +301,7 @@ def _scan_episode(
                     options=others,
                     correct_answer=nearest_id,
                     image_choices=False,
-                    dedup_key=scanning.dedup_key(robot_id, gt_robots),
+                    gt_robots=gt_robots,
                     **base,
                 )
             )
@@ -374,16 +372,15 @@ def build_manifest(
 
     selected: list[ProbeItem] = []
     for probe_type, candidates in candidates_by_type.items():
-        deduped: dict[str, _Candidate] = {}
-        duplicates = 0
-        for candidate in candidates:
-            if candidate.dedup_key in deduped:
-                duplicates += 1
-            else:
-                deduped[candidate.dedup_key] = candidate
+        deduped = scanning.deduplicate_by_distance(
+            candidates,
+            reference_robot_id=lambda c: c.reference_robot_id,
+            gt_robots=lambda c: c.gt_robots,
+        )
+        duplicates = len(candidates) - len(deduped)
         if duplicates:
             drop_counts[f"duplicate_scene_{probe_type}"] += duplicates
-        candidates = list(deduped.values())
+        candidates = deduped
 
         balance_key = (
             _balance_by_correct_answer

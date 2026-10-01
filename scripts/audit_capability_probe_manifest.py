@@ -200,28 +200,36 @@ def audit_manifest(
 ) -> dict[str, list[str]]:
     """Run every item's audit; return `item_id -> failures` for items with any.
 
-    Also checks for duplicate scene-configuration keys within each probe
-    type, re-deriving each item's key from its own re-loaded GT row (not
-    trusting the manifest to have been built with the current dedup logic).
+    Also checks, within each probe type, for near-duplicate scenes using the
+    same `scanning.max_displacement_m` distance comparison the build script's
+    own dedup uses: two items naming the same reference robot (or both
+    naming none) over the same tracked robot set, whose largest per-robot GT
+    displacement is under `scanning.NEAR_DUPLICATE_MAX_DISPLACEMENT_M`.
     """
     from swarm_perception.calibration import load_calibration
 
     homography = load_calibration(str(calibration_path)).homography
 
     failures_by_item: dict[str, list[str]] = {}
-    keys_by_type: dict[str, dict[str, str]] = {}
+    seen_by_type: dict[str, list[tuple[str, str | None, dict[str, dict]]]] = {}
     for item in manifest.items:
         failures = _audit_item(item, logs_root, homography)
         try:
             _m1_robots, gt_robots = _load_source(item, logs_root)
-            key = scanning.dedup_key(item.reference_robot_id, gt_robots)
-            seen = keys_by_type.setdefault(item.probe_type, {})
-            if key in seen:
-                failures.append(
-                    f"duplicate scene configuration, shared with item {seen[key]!r}"
-                )
-            else:
-                seen[key] = item.item_id
+            scenes_seen = seen_by_type.setdefault(item.probe_type, [])
+            for other_id, other_ref, other_robots in scenes_seen:
+                if other_ref != item.reference_robot_id:
+                    continue
+                displacement = scanning.max_displacement_m(gt_robots, other_robots)
+                if (
+                    displacement is not None
+                    and displacement < scanning.NEAR_DUPLICATE_MAX_DISPLACEMENT_M
+                ):
+                    failures.append(
+                        f"near-duplicate scene (max displacement {displacement:.3f} m), "
+                        f"shared with item {other_id!r}"
+                    )
+            scenes_seen.append((item.item_id, item.reference_robot_id, gt_robots))
         except (FileNotFoundError, ValueError, KeyError):
             pass  # already reported by _audit_item's own source re-load check
         if failures:

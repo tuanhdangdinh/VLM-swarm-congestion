@@ -9,20 +9,32 @@ shared pytest fixture here -- rather than importing one test module's fixture
 into another -- is the standard pattern and avoids the name collisions a
 cross-module fixture import creates for static analysis.
 """
+import functools
 import json
-import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
 import pytest
 
-sys.path.insert(0, str(Path("ros2_ws/src/swarm_perception").resolve()))
-from swarm_perception.calibration import load_calibration  # noqa: E402
-from swarm_perception.geometry import pixel_to_world  # noqa: E402
+# pyproject.toml's `pythonpath` already puts swarm_perception on sys.path for
+# pytest; no sys.path surgery needed here. Anchored to this file, not the
+# working directory: this module is collected for every one of the suite's
+# ~4000 tests (not only the capability-probe ones), so it must not depend on
+# pytest being invoked from the repo root.
+CAPABILITY_PROBE_CALIBRATION_PATH = str(
+    Path(__file__).resolve().parents[2]
+    / "ros2_ws" / "src" / "swarm_perception" / "config" / "calibration.yaml"
+)
 
-CAPABILITY_PROBE_CALIBRATION_PATH = "ros2_ws/src/swarm_perception/config/calibration.yaml"
-_CALIBRATION = load_calibration(CAPABILITY_PROBE_CALIBRATION_PATH)
+
+@functools.lru_cache(maxsize=1)
+def _calibration():
+    # Loaded lazily (only once `synthetic_logs_root` is actually used, not at
+    # collection time for every test module in this directory).
+    from swarm_perception.calibration import load_calibration
+
+    return load_calibration(CAPABILITY_PROBE_CALIBRATION_PATH)
 
 
 def _world_at(u: float, v: float) -> dict[str, float]:
@@ -33,7 +45,9 @@ def _world_at(u: float, v: float) -> dict[str, float]:
     robot's placement relative to grid cells, badges, and frame edges is
     chosen in pixel space, where this battery's margins are also defined.
     """
-    x, y = pixel_to_world((u, v), _CALIBRATION.homography)
+    from swarm_perception.geometry import pixel_to_world
+
+    x, y = pixel_to_world((u, v), _calibration().homography)
     return {"x": x, "y": y}
 
 
