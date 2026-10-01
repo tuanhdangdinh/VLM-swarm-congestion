@@ -358,12 +358,33 @@ head-ons, junction scenes, convoys, and the loop map — not just IB10.
   the missing robots, logged as `plan_completed_legs`, not counted as
   a repair — so partial plans degrade gracefully instead of being
   rejected, and omission rate is itself observable.
-- **Plan lifecycle (rev 4):** every accepted plan gets a monotonic
-  `plan_id`; dispatched commands carry the `plan_id` they serve; the
-  prompt's plan-state block shows the active plan with per-leg status
+- **Plan lifecycle (rev 4; amended 2026-10-02 from the integration
+  build):** every accepted plan gets a monotonic `plan_id`; dispatched
+  commands carry the `plan_id` they serve; the prompt's plan-state
+  block shows the active plan with per-leg status
   (`pending/active/done/failed`). A new plan supersedes the active one
-  explicitly; M5 cancels superseded legs in dependency order via the
-  ordered-release machinery.
+  explicitly; supersession cancels the superseded plan's PENDING
+  (never-dispatched) legs in dependency order — an in-flight leg runs
+  to its terminal status and feeds the next invocation, because M4
+  exposes no command-cancel channel and building one is a
+  safety-relevant M4 capability registered OUT of v2 scope (the
+  measured `cancel_order` and `dispatch_matches_plan` fields make the
+  gap visible rather than hidden).
+- **Hold semantics (ruling 2026-10-02):** when a new analysis's
+  verified plan has legs identical to the active plan's REMAINING
+  (non-done) legs, M5 records a HOLD — `plan_id` unchanged,
+  `plan_holds` incremented — not a new acceptance. `replan_count`
+  counts only genuinely different accepted plans, which is what makes
+  the step-4 smoke criterion ("zero unforced replans" on the clean
+  two-robot head-on) well-defined: post-resolution re-checks that
+  find no congestion accept no plan, and a re-affirmed plan is a
+  hold, not churn. The plan-state advice ("revise only for a
+  reason") states exactly these semantics.
+- **Probe prompts stay on their frozen version** (v2): T0 probes are
+  an RQ1 instrument whose comparability spans v1 collection; a v2 run
+  with the plan channel on therefore intentionally mixes prompt v3
+  (triggered analyses) with v2 (probes), recorded here so the mix is
+  a design fact, not an accident.
 - **Action vocabulary = the grounded primitives, nothing else:**
   `yield` (backup + sidestep + hold), `reverse`, `cross` (an ordered
   release slot), `wait` (hold in place), `reroute`, `continue`
