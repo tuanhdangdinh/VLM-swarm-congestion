@@ -35,7 +35,7 @@
 
 **commit:** `3f24ac9` (swap + nudge probes), `f155d7a` (goalpose probe),
 `82ae057` (initial report), `5c7b833` (yieldpark probe), `4edd4c8` (rev 2),
-`173d036` (rev 3 draft), branch `feat/v2-stale-rootcause`
+`173d036`/`dedb71b` (rev 3), branch `feat/v2-stale-rootcause`
 
 ---
 

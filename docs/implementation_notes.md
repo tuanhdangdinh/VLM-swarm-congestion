@@ -2318,8 +2318,8 @@ Rules for maintaining it:
   composite command's own geometry is unverified, and the recommendation
   is to instrument rather than assume safe** (`docs/reports/2026-10-01-
   robot1-stale-rootcause.md` rev 3, branch `feat/v2-stale-rootcause`,
-  commits `5c7b833`, `4edd4c8`, `173d036`, plus the commit landing this
-  note). **Supersedes the entry below's scope
+  commits `5c7b833`, `4edd4c8`, `173d036`, `dedb71b`, plus the commit
+  landing this note). **Supersedes the entry below's scope
   claim** ("confined to robot_1's pre-departure spawn dwell" was correct
   but incomplete — it had not checked the dwell robot_1 gets if chosen as
   the single-yield junction yielder, which lasts the whole maneuver, not a
