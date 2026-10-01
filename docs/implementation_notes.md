@@ -37,6 +37,45 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-01** — **J2 (junction-scoped backup clearance) landed on
+  `feat/v2-j2`** — v2 build-order prerequisite 1
+  (`docs/superpowers/specs/2026-09-30-prereg-v2-design.md` Prerequisites item
+  1; derivation in `docs/superpowers/specs/2026-09-29-intersection-resolvable-design.md`
+  section 3, owner-override build list item 1). Added
+  `SceneGeometry.junction_backup_clearance_m: float | None = Field(default=None,
+  gt=0.0)` (`reasoning/rag/scene_geometry.py`); `derive_backup_distance`
+  (`reasoning/rag/maneuver_geometry.py`) substitutes it for
+  `GroundingParams.backup_clearance_m` only when the yielder has a declared
+  `arms` entry and the override is set. Confirmed the single consumption
+  site with `grep -rn "backup_clearance" reasoning/ ros2_ws/src/`:
+  `retreat_candidates.py` and `shadow_classical.py` consume the
+  already-derived `backup_m`/retreat pose, not the raw clearance, so no
+  other call site needed a change; legacy-mode grounding never calls
+  `derive_backup_distance`, so J2 cannot affect it either (matches the
+  study's framing as a derived-mode, scene-scoped override only). Default
+  stays `None`: shipped `orchestrator.yaml` `scenario_geometry` and
+  `config/rag.yaml` are untouched and pinned by test. 13 new tests
+  (`tests/unit/test_maneuver_geometry.py::TestJunctionBackupClearance`, 7
+  tests; `tests/unit/test_intersection_bottleneck_scenario.py` — a
+  shipped-default pin plus `TestJunctionBackupClearanceOverride`, 6 tests)
+  reproduce the study's section-3 sweep at `junction_backup_clearance_m=1.1`:
+  the park floor (`park_offset_m` = 1.018 m) binds for standoff ≥ 0.082 m
+  and the N-S passer end holds at 1.668 m for s ∈ {0.10, 0.13, 0.20, 0.27},
+  vs. 2.08–2.25 m (outside the 1.80 m tracked band) under the shipped 1.7 m
+  — pinned both through `derive_backup_distance`/`derive_escort_distance`
+  directly and through `ground_reasoner_result` end to end (the latter as a
+  plain two-robot yield decision; `_yield_decision`'s four-way
+  `involved_robots` list is incompatible with a two-robot crossing order and
+  silently falls back to the implicit order, a trap hit and fixed while
+  writing this pin). Full local unit suite (3 `pxr`-only files
+  uncollectable in this environment, ignored): 58 failed / 2935 passed / 13
+  skipped with J2, vs. 58 failed / 2922 passed / 13 skipped on the same
+  tree with J2 stashed out — identical failing test names, zero new
+  failures, 13 new passes. This count differs from the 63 failed / 2935
+  passed / 14 skipped recorded at the `prereg-v1` tag entry below; the gap
+  predates this change (2 more files fail `pxr` collection entirely in
+  this session's environment) and is an environment/session difference,
+  not a regression.
 - **2026-09-30** — **`prereg-v1` tag: live-VLM demo verification + freeze.** Two live-VLM
   demo episodes recorded (footage in `data/logs/vm_runs/live_demo/`, gitignored): ER-2 run
   `20260930_152222` (clean yield of `robot_2`, 2/2 arrivals) and gpt-4o run `20260930_154216`

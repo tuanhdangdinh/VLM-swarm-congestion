@@ -232,7 +232,9 @@ def derive_backup_distance(
 
     Finds the smallest `d` in `params.backup_band_m` such that the
     retreat-axis-projected separation to every robot in `other_ids` is at
-    least `params.backup_clearance_m`. With a declared geometry `d` must also
+    least `params.backup_clearance_m`, or `geometry.junction_backup_clearance_m`
+    when the yielder has a declared arm and that override is set (J2, design
+    study 2026-09-29 S1 section 3). With a declared geometry `d` must also
     reach the yielder's park point (`scene_geometry.park_offset_m` from the
     corridor centre, on the yielder's own side), which keeps the parked marker
     clear of the occluder's projection. Out-of-band requirements are
@@ -287,6 +289,15 @@ def derive_backup_distance(
             )
     start = max(low, floor)
     clearance = params.backup_clearance_m
+    if (
+        geometry is not None
+        and geometry.junction_backup_clearance_m is not None
+        and (geometry.arms or {}).get(yielder_id) is not None
+    ):
+        # J2: a yielder retreating along a declared junction arm clears to the
+        # scene's junction-scoped value instead of the shipped head-on
+        # tuning (design study 2026-09-29 S1, section 3).
+        clearance = geometry.junction_backup_clearance_m
     candidates = sorted({start} | {s + clearance for s in offsets if s + clearance > start})
     for d in candidates:
         if d > high + _EPS:

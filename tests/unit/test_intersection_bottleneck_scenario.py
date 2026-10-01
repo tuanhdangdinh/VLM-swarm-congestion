@@ -486,6 +486,13 @@ class TestJunctionGeometry:
         shipped = yaml.safe_load(ORCHESTRATOR_YAML.read_text())["scenario_geometry"]
         assert SceneGeometry(**shipped).arms is None
 
+    def test_shipped_geometry_has_no_junction_clearance_override(self):
+        # J2 (design study 2026-09-29 S1, section 3) is off by default: the
+        # shipped goal-table geometry declares no override, so every v1 and
+        # v2-pre-J2 scene keeps the verified 1.7 m head-on tuning.
+        shipped = yaml.safe_load(ORCHESTRATOR_YAML.read_text())["scenario_geometry"]
+        assert SceneGeometry(**shipped).junction_backup_clearance_m is None
+
     @pytest.mark.parametrize("yielder", ROBOTS)
     @pytest.mark.parametrize(("case", "frame"), _frames())
     def test_every_yielder_grounds_a_yield_along_its_own_arm(self, yielder, case, frame):
@@ -616,6 +623,86 @@ class TestFourWayResidualsUnderJunctionGeometry:
         assert p["crossing_order"][0] == "robot_4"
         end_y = frame.find_robot("robot_4").y - p["passer_escort_distance_m"]
         assert end_y < -_tracked_band()[1]
+
+
+class TestJunctionBackupClearanceOverride:
+    """J2 end to end through `ground_reasoner_result` (design study
+    2026-09-29 S1, section 3): the two-robot N-S yield the table grounds,
+    not the four-way order `_yield_decision`/`_ground` build. The shipped
+    1.7 m clearance is what `test_north_south_same_arm_escort_leaves_the_tracked_band`
+    shows failing the band; 1.1 m is the study's fix.
+    """
+
+    @staticmethod
+    def _standoff_frame(standoff_m: float) -> SnapshotFrame:
+        # E-W robots parked at their goal arms (the study's 1.75 m row), N-S
+        # robots at the two-robot yield's standoff offset +-standoff_m. The
+        # E-W pair is scene dressing only: it is not in this decision's
+        # crossing order.
+        return SnapshotFrame(stamp=1.0, robots=[
+            RobotStateInput(
+                robot_id="robot_1", x=-1.75, y=0.0, theta=0.0, status="STOPPED",
+                goal=(1.75, 0.0),
+            ),
+            RobotStateInput(
+                robot_id="robot_2", x=1.75, y=0.0, theta=math.pi, status="STOPPED",
+                goal=(-1.75, 0.0),
+            ),
+            RobotStateInput(
+                robot_id="robot_3", x=0.0, y=-standoff_m, theta=math.pi / 2, status="STOPPED",
+                goal=(0.0, standoff_m),
+            ),
+            RobotStateInput(
+                robot_id="robot_4", x=0.0, y=standoff_m, theta=-math.pi / 2, status="STOPPED",
+                goal=(0.0, -standoff_m),
+            ),
+        ])
+
+    @staticmethod
+    def _ground_ns_yield(frame: SnapshotFrame, geometry: SceneGeometry) -> dict:
+        # A plain two-robot yield (robot_3 yields, robot_4 the only passer),
+        # as the study's section-3 sweep grounds it: `_yield_decision` always
+        # declares all four `ROBOTS` involved, which a two-robot crossing
+        # order fails to cover and falls back to the implicit four-way order.
+        decision = {
+            "congestion_detected": True, "type": "bottleneck",
+            "involved_robots": ["robot_3", "robot_4"], "root_cause": "n-s yield",
+            "strategy": "yield", "justification": "n-s pair stopped at the junction",
+            "yield_robot": "robot_3", "crossing_order": ["robot_3", "robot_4"],
+        }
+        result = ReasonerResult(
+            request_id="req-ns", decision=parse_decision_text(json.dumps(decision)),
+            raw_text="{}", diagnostics=ReasonerDiagnostics(
+                request_id="req-ns", backend_id="mock", attempts=1, parse_status="valid"
+            ),
+        )
+        command = ground_reasoner_result(
+            result, geometry=geometry, snapshot=frame,
+            params=load_grounding_params(REPO_ROOT / "config/rag.yaml"),
+        )
+        return _yield_parameters(command)
+
+    @pytest.mark.parametrize("standoff_m", [0.10, 0.13, 0.20, 0.27])
+    def test_junction_clearance_keeps_the_n_s_passer_in_band(self, standoff_m):
+        geometry = _junction_geometry().model_copy(
+            update={"junction_backup_clearance_m": 1.1}
+        )
+        frame = self._standoff_frame(standoff_m)
+        p = self._ground_ns_yield(frame, geometry)
+        assert p["backup_distance_m"] == round(1.018 - standoff_m, 3)
+        end_y = frame.find_robot("robot_4").y - p["passer_escort_distance_m"]
+        assert abs(end_y) == pytest.approx(1.668, abs=1e-3)
+        assert abs(end_y) <= 1.70
+
+    def test_without_the_override_the_shipped_clearance_still_governs(self):
+        # Regression: the same end-to-end path, no override set, reproduces
+        # the shipped-clearance row of the study's table (section 3) exactly.
+        geometry = _junction_geometry()  # junction_backup_clearance_m defaults None
+        frame = self._standoff_frame(0.13)
+        p = self._ground_ns_yield(frame, geometry)
+        assert p["backup_distance_m"] == 1.44
+        end_y = frame.find_robot("robot_4").y - p["passer_escort_distance_m"]
+        assert abs(end_y) == pytest.approx(2.22, abs=1e-3)
 
 
 def test_legacy_grounding_parks_a_north_south_yielder_on_its_arm():

@@ -78,6 +78,13 @@ class SceneGeometry(BaseModel):
     # but the axis is shared, so the junction centre is `corridor.center_m` on
     # both axes. None, or an unlisted robot, keeps the single corridor.
     arms: dict[str, ArmGeometry] | None = None
+    # J2 (design study 2026-09-29 S1, section 3): backup clearance used in
+    # place of GroundingParams.backup_clearance_m for a yielder with a
+    # declared arm. The shipped 1.7 m clearance is the verified head-on
+    # tuning and ends an N-S junction pass 0.28-0.45 m outside the tracked
+    # band; None (default) keeps that tuning everywhere, including junction
+    # scenes with no override declared, so every v1 pin stays byte-identical.
+    junction_backup_clearance_m: float | None = Field(default=None, gt=0.0)
 
 
 def arm_geometry(geometry: SceneGeometry, robot_id: str) -> tuple[SceneGeometry, float | None]:

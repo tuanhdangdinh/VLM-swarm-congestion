@@ -16,6 +16,7 @@ from reasoning.rag.maneuver_geometry import (
     retreat_axes,
 )
 from reasoning.rag.scene_geometry import (
+    ArmGeometry,
     CorridorGeometry,
     SceneGeometry,
     passer_clearance_m,
@@ -224,6 +225,87 @@ class TestDeriveBackupDistance:
             geometry=_geometry(),
         )
         assert derived.value_m == legacy["backup_distance_m"]
+
+
+def _junction_geometry(junction_backup_clearance_m: float | None) -> SceneGeometry:
+    # Mirrors the intersection_bottleneck junction corridor (half_length 0.6,
+    # aisle_half_width 0.6, no occluder) with robot_1/robot_2 on opposite
+    # sides of its y arm, as the design study's N-S two-robot yield sweep
+    # (2026-09-29 S1, section 3) grounds it.
+    return SceneGeometry(
+        corridor=CorridorGeometry(
+            axis="y", center_m=0.0, half_length_m=0.6, aisle_half_width_m=0.6,
+            occluder_height_m=0.0,
+        ),
+        arms={"robot_1": ArmGeometry(axis="y", side=-1), "robot_2": ArmGeometry(axis="y", side=1)},
+        junction_backup_clearance_m=junction_backup_clearance_m,
+    )
+
+
+def _standoff_frame(standoff_m: float) -> SnapshotFrame:
+    return _frame(
+        ("robot_1", 0.0, -standoff_m, math.pi / 2), ("robot_2", 0.0, standoff_m, -math.pi / 2)
+    )
+
+
+class TestJunctionBackupClearance:
+    """J2: a junction-scoped backup clearance override (design study
+    2026-09-29 S1, section 3; owner-override build list item 1). The shipped
+    1.7 m clearance ends every N-S junction pass 0.28-0.45 m outside the
+    verified 1.80 m tracked band; 1.1 m floors the park point at
+    `park_offset_m` (1.018 m) and holds the passer end to 1.668 m.
+    """
+
+    def test_default_override_is_unset(self):
+        assert SceneGeometry(
+            corridor=CorridorGeometry(
+                axis="y", center_m=0.0, half_length_m=0.6, aisle_half_width_m=0.6,
+                occluder_height_m=0.0,
+            )
+        ).junction_backup_clearance_m is None
+
+    def test_no_override_reproduces_the_shipped_clearance_pin(self):
+        # Regression (a): an arm-declared yielder with no override set still
+        # grounds on the shipped 1.7 m clearance, exactly as
+        # test_geometry_matches_legacy_park_backup_where_park_dominates pins
+        # the single-corridor case.
+        geometry = _junction_geometry(None)
+        result = derive_backup_distance(
+            _standoff_frame(0.13), "robot_1", ["robot_2"], GroundingParams(), geometry=geometry
+        )
+        assert result.feasible
+        assert result.value_m == 1.44  # 1.7 - 2*0.13, the shipped-clearance candidate
+
+    def test_override_without_a_declared_arm_is_inert(self):
+        # Regression (a): an override value alone, with no arm declared for
+        # the yielder, must not move test_geometry_floors_backup_at_the_park_point's
+        # pinned single-corridor fixture, even though 1.1 m would otherwise
+        # change the park-dominated answer.
+        geometry = _geometry().model_copy(update={"junction_backup_clearance_m": 1.1})
+        result = derive_backup_distance(
+            _head_on(-0.3, 0.3), "robot_1", ["robot_2"], GroundingParams(), geometry=geometry
+        )
+        assert result.feasible
+        assert result.value_m == 1.489  # unchanged: no arm declared for robot_1
+
+    @pytest.mark.parametrize("standoff_m", [0.10, 0.13, 0.20, 0.27])
+    def test_junction_override_floors_park_and_bounds_passer_end(self, standoff_m):
+        geometry = _junction_geometry(1.1)
+        params = GroundingParams()
+        frame = _standoff_frame(standoff_m)
+
+        backup = derive_backup_distance(frame, "robot_1", ["robot_2"], params, geometry=geometry)
+        assert backup.feasible
+        park_m = round(standoff_m + backup.value_m, 3)
+        assert park_m == 1.018  # park_offset_m floor binds for every s >= 0.082
+
+        escort = derive_escort_distance(
+            frame, "robot_2", (0.0, -park_m), params, geometry=geometry, yielder_id="robot_1"
+        )
+        assert escort.feasible
+        passer_end_m = round(standoff_m - escort.value_m, 3)
+        assert abs(passer_end_m) == pytest.approx(1.668, abs=1e-3)
+        assert abs(passer_end_m) <= 1.70
 
 
 class TestDeriveEscortDistance:
