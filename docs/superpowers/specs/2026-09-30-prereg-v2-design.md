@@ -4,6 +4,19 @@
 
 **Revision history:**
 
+- Rev 6 (2026-10-01): round-2 literature integration (`reports/VLM
+  coordination recent advances.md`): claims 2/4/5 narrowed against
+  four <4-month-old concurrent papers (GAVEL, Physical Agentic AI,
+  SyncPlan, Seeing-Saying-Solving) while claims 1/3 stand; provenance
+  term confirmed free (RoCo Table 2 re-plan counts = nearest kin);
+  new "Prompt apparatus" subsection (adopt: metric grid,
+  reasoning-first JSON, permutation voting, mirror-flip diagnostic;
+  A/B: multi-frame/trails/schematic/zoom; prohibit: spatial text-CoT,
+  VLM self-verifier); new "Statistics and reporting" section (paired
+  McNemar/Wilson/clustered SEs, KM+RMST for censoring, prereg-claim
+  phrasing, nondeterminism caveats, cost Pareto); reading gates moved
+  to the v2 freeze checklist; timing note (concurrent-work framing
+  decays — freeze v2 promptly after v1 collection).
 - Rev 5 (2026-10-01): literature-review integration (user: "from those
   findings what can improve the v2"; review at `reports/VLM centralized
   multi robot coordination.md` + four note files). New "Positioning and
@@ -162,23 +175,45 @@ differentiate):
    M1 pipeline on a hardware-validated scenario family — phrase as
    such; "real physical camera" is claimable only if the optional
    physical-camera episode below runs.
-2. **Deterministic non-LLM minimal repair with three-way per-leg
-   provenance as a first-class reported metric** — an empty cell in
-   the repair taxonomy (the field re-prompts the model to fix its own
-   plans); framed as *plan stability (Fox, Gerevini, Long, Serina,
-   ICAPS 2006) transplanted to the VLM-proposer setting*.
+2. **(NARROWED rev 6)** **Three-way per-leg provenance
+   (verbatim/repaired/defaulted) as a first-class reported metric,
+   with deterministic minimal repair of multi-robot congestion
+   plans** — the repair-harness idea alone is now concurrent work:
+   GAVEL (arXiv:2609.19315, Sep 2026, deterministic graph-world-model
+   repair, single-robot) and Physical Agentic AI (arXiv:2608.22657,
+   Aug 2026, per-dispatch deterministic gating of a multi-robot LLM
+   plan with step-level fault stats) must be cited as such. What
+   remains unclaimed (verified by deep-reads): the preserved-fraction
+   trichotomy itself — Garg executes VLM JSON with zero verification
+   or repair anywhere; LLMDR delegates validity to PIBT by
+   construction; RoCo's Table 2 re-plan counts (e.g. 3.5 attempts,
+   Pack Grocery) are the nearest kin — whole-plan *rejection
+   iterations*, not per-leg *preserved fraction*; the AV/shielding
+   vocabulary sweep (disengagement per-mile, shield intervention
+   per-action, CBF activation per-cycle) found no equivalent. Framed
+   as *plan stability (Fox, Gerevini, Long, Serina, ICAPS 2006)
+   transplanted to the VLM-proposer setting*.
 3. **Matched two-arm comparison**: central VLM congestion resolver vs
    a literature-grounded rule-based coordinator on identical Nav2
-   warehouse scenarios — no published head-to-head exists.
-4. **Scene-wide ordered plan output, audited leg-by-leg** — vs
+   warehouse scenarios — no published head-to-head exists (recheck
+   held 2026-10-01). Cite Seeing-Saying-Solving (arXiv:2505.13376,
+   decentralized warehouse conflict recovery with TL verification)
+   as the decentralized cousin; Virtual Traffic Lights
+   (arXiv:2511.07811) as live validation of Arm B's family.
+4. **(NARROWED rev 6)** **Scene-wide ordered plan output,
+   audited-and-repaired leg-by-leg with logged provenance** —
+   audit-and-REFUSE now exists (Physical Agentic AI);
+   audit-and-repair-with-provenance does not. Also vs
    leader+waypoints (Garg) and priority hints (LLMDR,
    arXiv:2503.00717).
-5. **Persistent, incrementally edited central plan** (rev-4
-   lifecycle) — the review found no surveyed system whose central
-   model holds a plan and edits it against execution feedback;
-   closed-loop systems re-propose wholesale (COHERENT) or intervene
-   per-event (Garg, LLMDR). Measured via the supersession label
-   below.
+5. **(NARROWED rev 6)** **Persistent central plan with minimal
+   in-place edits, embodied (Nav2), integrated with provenance** —
+   SyncPlan (arXiv:2608.01652, Aug 2026) now has a persistent central
+   LLM plan with staleness-triggered correction and execution
+   feedback, but in game environments, replan-not-edit, no
+   embodiment; cite as concurrent work. Closed-loop robot systems
+   still re-propose wholesale (COHERENT) or intervene per-event
+   (Garg, LLMDR). Measured via the supersession label below.
 
 **Claims to refuse** (prior art is immediate): centralized/commanded
 deadlock recovery per se (A-DRIVE, LLMDR, Garg); the fast/slow rate
@@ -211,11 +246,94 @@ hardware episode (any n, demo-grade) with a physical overhead camera
 would upgrade claim 1's wording to "real physical camera." Not
 required by the design; recorded so the option is a conscious call.
 
-**Verification debts before camera-ready** (tracked, not blocking
-design): full-PDF metric extraction for Garg et al., LLMDR, Grover et
-al., RoCo's replan-count tables; sweep AV "intervention/override
-rate" vocabulary for a hidden provenance-equivalent; verify flagged
-arXiv IDs (GameChat venue, PIVOT, SpatialVLM, VADER, SELP).
+**Verification debts** (rev 6 status): CLOSED 2026-10-01 by deep-reads
+(`research_notes/VLM coordination recent advances/verification_debts.md`)
+— Garg/LLMDR/RoCo/Grover extracted with page-level quotes; vocabulary
+sweep negative; IDs verified (PIVOT 2402.07872 ✓, SpatialVLM
+2401.12168 ✓, GameChat 2503.12333 ✓, SELP = 2409.19471 ICRA 2025,
+multi-robot VADER = 2405.16021). One standing caution: Garg's
+per-model reach rates exist only as figures — never quote numbers
+from them. REMAINING, moved to the v2 freeze checklist: read GAVEL's
+evaluation section (a two-way repaired-vs-replanned stat there would
+force "three-way, per-leg, multi-robot" wording on claim 2); manually
+fetch the two 403-blocked MDPI texts (MAKE 8(1):22, Robotics
+15(4):80 — possible plan-preservation statistics); skim DeepFleet
+(arXiv:2508.08574); confirm PhAIL's estimator is KM.
+
+**Timing note (rev 6):** the concurrent-work framing for GAVEL /
+Physical Agentic AI / SyncPlan is only credible while those papers
+are months old — freeze v2 promptly once v1 collection completes.
+
+**Prompt apparatus (rev 6, from the techniques review)**
+
+Adopt as v2 defaults (prompt v3 territory, hash-frozen at the
+freeze):
+
+- **Labeled world-frame metric grid** drawn on the annotated frame
+  (~1× cost; localization IoU 0.27→0.56 precedent, arXiv:2411.18270)
+  — image and state block then share one coordinate language,
+  attacking both the left/right weakness and the ignored-geometry
+  finding.
+- **Reasoning-field-first JSON**: the plan/decision schema opens with
+  a bounded free-text reasoning field; strict JSON stays for
+  classification fields (premature-serialization effect,
+  arXiv:2408.02442 + two-pass recovery evidence).
+- **Permutation voting**: 3 cyclic shifts of robot/menu order per
+  decision, majority vote (3× API cost — owner-visible tradeoff).
+  Cancels the registered first-slot/robot_1 prior per decision
+  rather than per dataset, and doubles as the correct test-time
+  ensemble at temperature 0 (and on ER-2, which has no temperature
+  control). The single-draw condition is retained as an ablation
+  cell so the voting gain is itself measured.
+- **Mirror-flip consistency diagnostic** (log-only at first): the
+  classical layer re-asks a horizontally flipped frame on a
+  registered subsample; a yielder choice that fails to invert is
+  logged. Own inference, no literature — flagged as such.
+
+A/B-registered cells (each an arm against the single-frame default):
+2–3 timestamped keyframes (+17–19pp direction-question precedent,
+arXiv:2607.12304); motion-trail overlay baked into one frame (no
+literature exists — a free novel measurement, trails are cheap in
+M1's annotator); schematic re-render (also the only prompt-level
+candidate against the gpt-4o realistic-frame refusals, 0/240
+synthetic vs 22–25% live); zoomed congestion-crop tile.
+
+Prohibited, with citations recorded: free-text spatial
+chain-of-thought (degrades spatial accuracy across 17 models / 13
+benchmarks, arXiv:2604.16060); any VLM self-verifier / best-of-N
+self-selection / pairwise tournament (majority voting beats them;
+reported verifier gains were a decoding artifact, arXiv:2506.17417,
+arXiv:2608.01207) — M3 is the verifier; agentic image-tool loops
+(infra cost; pre-rendered manipulations instead).
+
+**Statistics and reporting (rev 6, from the methodology review)**
+
+- Paired two-arm design keyed on (scenario, seed); McNemar exact
+  tests on paired binary outcomes; Wilson CIs on proportions;
+  scenario-clustered or bootstrap SEs (Kress-Gazit et al.
+  arXiv:2409.09491; Miller arXiv:2411.00640). This exceeds the
+  field's median practice (n=10–20, no CIs) — cite, don't apologize.
+- Censored episodes: Kaplan–Meier time-to-resolution curves +
+  RMST-difference at the horizon with bootstrap CI (Royston &
+  Parmar; robotics precedent PhAIL arXiv:2605.29710). Naive means
+  over censored runs are documented as biased (47%-censoring /
+  3×-length example, arXiv:2605.24756). Applies retroactively in
+  phrasing to T2b's censored margin.
+- Pre-registration claim: *"we are not aware of any pre-registered
+  evaluation of an LLM/VLM robot-coordination system"* — never
+  "first pre-registered robotics experiment" (HRI counterexamples,
+  arXiv:2309.01822). Option recorded: mirror the git tag to OSF for
+  external timestamping.
+- Nondeterminism caveats in the paper: temperature 0 is not
+  determinism (arXiv:2511.07585); dated snapshots pinned (done at
+  v1); report run-date windows and within-cell variance.
+- Report dollar cost and latency as system variables (Pareto
+  framing, arXiv:2407.01502) — Layer-2 latency couples into
+  time-to-resolution here, which most LLM-agent papers cannot say.
+- Related-work table situating the battery vs PARTNR,
+  LLM-Coordination, Tool-RoCo, CoCoBench: none covers centralized
+  VLM warehouse congestion; our metric set (regret, provenance,
+  stability) is strictly richer.
 
 ---
 
@@ -513,7 +631,10 @@ makes an explicit include/exclude call.
     freeze it, run once per backend; results recorded in the freeze
     record (rev 5).
 11. prereg-v2 freeze: hash table, pins, veto list, probe results —
-    same procedure as v1.
+    same procedure as v1 — plus the rev-6 reading gates: GAVEL's
+    evaluation section, the two MDPI texts, DeepFleet skim, PhAIL
+    estimator confirmation; adjust claim wording if any of them
+    bites before freezing.
 
 Steps 1–3 are independent of v1 collection and can start immediately;
 step 4 onward should be sequenced against collection so GPU-VM time and
