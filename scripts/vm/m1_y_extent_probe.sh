@@ -85,16 +85,31 @@ else
   robot_4: { task: hold_position, goal: [0.0, 2.0], start_delay_sec: 100000 }'
 fi
 
+PRISTINE_ORCH_MD5=1f656533a30a35882d57d0d64a57bd0d
+
 cleanup() {
   set +e
   log "restoring orchestrator.yaml initial_tasks from ${BACKUP}"
   python3 "$HERE/patch_initial_tasks.py" "$ORCH_CONFIG" --restore "$BACKUP"
+  # touch belt-and-suspenders the fresh-mtime guarantee patch_initial_tasks.py
+  # --restore already provides (plain copy, not copy2): colcon's incremental
+  # build skips re-copying a config file whose source mtime is NOT newer than
+  # the package's last build output, silently leaving a stale installed copy
+  # even though `colcon build` reports success (observed 2026-10-01 on this
+  # exact probe -- the project's "never trust colcon exit codes" rule
+  # applies to a post-run restore, not just a deploy).
+  touch "$ORCH_CONFIG"
   sudo docker exec -w /ws "$CONTAINER" bash -lc \
     "source /opt/ros/jazzy/setup.bash && cd ros2_ws && colcon build --merge-install --packages-select swarm_orchestrator" \
     >"$OUT/restore_build.log" 2>&1
   SRC_MD5=$(md5sum "$ORCH_CONFIG" 2>/dev/null | awk '{print $1}')
-  INSTALLED_MD5=$(sudo docker exec "$CONTAINER" md5sum /ws/ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml 2>/dev/null | awk '{print $1}')
-  log "orchestrator.yaml md5 after restore: src=${SRC_MD5} installed=${INSTALLED_MD5} (pristine 1f656533a30a35882d57d0d64a57bd0d)"
+  INSTALLED_MD5=$(sudo docker exec "$CONTAINER" md5sum /ws/ros2_ws/install/share/swarm_orchestrator/config/orchestrator.yaml 2>/dev/null | awk '{print $1}')
+  log "orchestrator.yaml md5 after restore: src=${SRC_MD5} installed=${INSTALLED_MD5} (pristine ${PRISTINE_ORCH_MD5})"
+  if [ "$SRC_MD5" != "$PRISTINE_ORCH_MD5" ] || [ "$INSTALLED_MD5" != "$PRISTINE_ORCH_MD5" ]; then
+    log "RESTORE VERIFICATION FAILED -- orchestrator.yaml is NOT pristine; fix by hand before any other scenario runs"
+  else
+    log "restore verified: both copies pristine"
+  fi
 }
 trap cleanup EXIT
 
