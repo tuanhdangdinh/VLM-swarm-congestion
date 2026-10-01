@@ -15,6 +15,12 @@ RobotOrder = RobotPresentationOrder | RobotPresentationPermutation
 # both arms on `CongestionDecision.blocker_kind` since the prompt-v2 bundle.
 BlockerKind = Literal["robot", "object", "transient"]
 
+# The grounded primitives a `proposed_plan` leg may name (prereg-v2 (a0),
+# "Universal proposed_plan channel"): every value maps to a maneuver M3/M4 can
+# already ground and execute. "continue" is the lenient-completion default for
+# a tracked robot a plan omits.
+PlanLegAction = Literal["yield", "reverse", "cross", "wait", "reroute", "continue"]
+
 # Prompt template the builder renders. 1 is the frozen pre-bundle template every
 # artifact stored before 2026-09-27 was rendered with (`reasoning.vlm.prompt_v1`);
 # 2 is the prompt-v2 bundle. A Literal, so an unknown version fails validation
@@ -192,6 +198,25 @@ class BackendResponse(BaseModel):
     served_model: str | None = None
 
 
+class ProposedPlanLeg(BaseModel):
+    """One robot's leg in a `CongestionDecision.proposed_plan` (a0 contract).
+
+    A plain `{robot_id, action}` pair; list position in the owning
+    `proposed_plan` is the proposed execution order, not encoded on the leg
+    itself.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    robot_id: str = Field(min_length=1)
+    action: PlanLegAction
+
+    @field_validator("action", mode="before")
+    @classmethod
+    def _lowercase_action(cls, value: object) -> object:
+        return value.lower() if isinstance(value, str) else value
+
+
 class CongestionDecision(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -220,6 +245,21 @@ class CongestionDecision(BaseModel):
     # Every involved robot in the order they should pass, first entry first; a
     # yielder passes after the robots it yields to. Asked for at 3+ robots (T2b).
     crossing_order: list[str] | None = None
+    # (a0) universal proposed_plan channel (prereg-v2 rev 4, "Universal
+    # proposed_plan channel"): the VLM's full scene-wide resolution sequence,
+    # carried on the stage-1 response for every strategy and scenario, not
+    # just this decision's own involved robots. Optional so every artifact and
+    # backend that predates the field, and every re-ask that omits it, still
+    # parses byte-identically; `reasoning.rag.command_grounder`'s verify/repair
+    # engine audits it leg-by-leg before anything is dispatched, and a `None`
+    # here degrades to that engine's own derived plan (provenance
+    # `m3_default`) in every scenario, same as v1's behaviour before this
+    # field existed. Structural defects in raw VLM text (a duplicate robot, an
+    # unrecognised action, an unknown shape) are nulled to `None` by
+    # `output_parser._sanitize_optional_fields` with a logged degradation tag,
+    # same pattern as `blocker_kind`/`crossing_order`; this field's own
+    # validator is the backstop for direct construction.
+    proposed_plan: list[ProposedPlanLeg] | None = None
 
     @field_validator("type", "strategy", "blocker_kind", mode="before")
     @classmethod
@@ -253,6 +293,19 @@ class CongestionDecision(BaseModel):
                 f"crossing_order {self.crossing_order!r} is not a permutation of "
                 f"involved_robots {self.involved_robots!r}"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_proposed_plan_robot_ids_unique(self) -> "CongestionDecision":
+        # Schema-level invariant ("each robot at most once"); unknown
+        # robot_ids and strategy-consistency are checked later by M3's
+        # verify/repair engine, which alone knows the tracked robot roster.
+        if self.proposed_plan is not None:
+            robot_ids = [leg.robot_id for leg in self.proposed_plan]
+            if len(robot_ids) != len(set(robot_ids)):
+                raise ValueError(
+                    f"proposed_plan lists a robot more than once: {robot_ids!r}"
+                )
         return self
 
 

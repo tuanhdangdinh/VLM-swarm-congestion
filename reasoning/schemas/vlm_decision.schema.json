@@ -42,6 +42,21 @@
     "crossing_order": {
       "type": ["array", "null"],
       "items": { "type": "string" }
+    },
+    "proposed_plan": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "required": ["robot_id", "action"],
+        "properties": {
+          "robot_id": { "type": "string" },
+          "action": {
+            "type": "string",
+            "enum": ["yield", "reverse", "cross", "wait", "reroute", "continue"]
+          }
+        },
+        "additionalProperties": false
+      }
     }
   },
   "additionalProperties": false

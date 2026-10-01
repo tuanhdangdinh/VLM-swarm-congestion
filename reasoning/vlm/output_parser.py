@@ -15,6 +15,7 @@ from reasoning.vlm.errors import (
 from reasoning.vlm.models import (
     BlockerKind,
     CongestionDecision,
+    ProposedPlanLeg,
     RetreatChoiceDecision,
     is_permutation,
 )
@@ -42,6 +43,15 @@ __all__ = [
 DECISION_DEGRADATION_TAGS: dict[str, str] = {
     "blocker_kind=default:invalid_label": "invalid_label",
     "crossing_order=default:non_permutation": "non_permutation_order",
+    # (a0) proposed_plan: structurally malformed raw JSON (not a list, a leg
+    # missing robot_id/action, an action outside PlanLegAction, or a robot
+    # repeated) nulls the whole field rather than failing the decision. An
+    # unknown robot_id (relative to the tracked scene) and a plan inconsistent
+    # with the strategy token are NOT tagged here: both need the scene roster
+    # M3's verify/repair engine has and this parser does not, so they are
+    # M3-side rejections (`m3_default` provenance with a logged reason), never
+    # a stage-1 parse degradation.
+    "proposed_plan=default:invalid_structure": "invalid_plan_structure",
 }
 _BLOCKER_KINDS: frozenset[str] = frozenset(get_args(BlockerKind))
 
@@ -99,6 +109,23 @@ def _sanitize_optional_fields(parsed: Any) -> list[str]:
         ):
             parsed["crossing_order"] = None
             tags.append("crossing_order=default:non_permutation")
+    plan = parsed.get("proposed_plan")
+    if plan is not None:
+        if isinstance(plan, list) and not plan:
+            # An empty list is how a model says "no plan to give", same
+            # convention as an empty crossing_order.
+            parsed["proposed_plan"] = None
+        else:
+            try:
+                if not isinstance(plan, list):
+                    raise ValueError("proposed_plan must be a list")
+                legs = [ProposedPlanLeg(**leg) for leg in plan]
+                robot_ids = [leg.robot_id for leg in legs]
+                if len(robot_ids) != len(set(robot_ids)):
+                    raise ValueError("duplicate robot_id in proposed_plan")
+            except (TypeError, ValueError, ValidationError):
+                parsed["proposed_plan"] = None
+                tags.append("proposed_plan=default:invalid_structure")
     return tags
 
 

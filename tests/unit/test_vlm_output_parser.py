@@ -323,6 +323,7 @@ def test_decision_degradation_tags_map_to_measurement_plan_causes():
     assert DECISION_DEGRADATION_TAGS == {
         "blocker_kind=default:invalid_label": "invalid_label",
         "crossing_order=default:non_permutation": "non_permutation_order",
+        "proposed_plan=default:invalid_structure": "invalid_plan_structure",
     }
 
 

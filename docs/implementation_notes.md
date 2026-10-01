@@ -37,6 +37,292 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-01** — **v2 build-order step 4 (CORE): the (a0) universal
+  `proposed_plan` coordinator contract landed on `feat/v2-plan-contract`**,
+  per `docs/superpowers/specs/2026-09-30-prereg-v2-design.md` "The VLM
+  Coordinator (rev 4)" and "(a0) Universal proposed_plan channel". Scope is
+  schema + M3 verify/repair engine + plan-metrics scorer only; M5 plan
+  tracking (`plan_id`, per-leg status, supersession cancels), the plan-state
+  prompt block, and Arm B plan emission are deliberately deferred to the
+  next task, as instructed.
+  - **Schema** (`reasoning/vlm/models.py`): `PlanLegAction` (the six grounded
+    primitives) and `ProposedPlanLeg{robot_id, action}`;
+    `CongestionDecision.proposed_plan: list[ProposedPlanLeg] | None = None`,
+    backward-compatible (absent/null parses byte-identically to before,
+    pinned in `tests/unit/test_plan_contract.py`). A model validator rejects
+    a duplicate `robot_id` at construction time; live VLM text instead gets
+    sanitized in `output_parser._sanitize_optional_fields` (malformed
+    shape/action/duplicate nulls the whole field, tag
+    `proposed_plan=default:invalid_structure`, registered in
+    `DECISION_DEGRADATION_TAGS` with cause `invalid_plan_structure`) so one
+    bad optional field never fails the whole decision parse — same pattern
+    as `blocker_kind`/`crossing_order`. `reasoning/schemas/vlm_decision.schema.json`
+    synced (additionalProperties:false required the add). An unknown
+    robot_id (relative to the tracked scene) is deliberately NOT checked
+    here or via `validate_involved_robots` (that path triggers a re-ask,
+    which would change v1 attempt counts for a plan-only defect); it is an
+    M3-side rejection instead (see below).
+  - **M3 verify/repair engine** (`reasoning/rag/command_grounder.py`:
+    `verify_and_repair_plan`, `VerifiedPlan`, `PlanEdit`, `PlanRepairParams`,
+    `PlanProvenance`, `PlanRejectionStage`). Division of labor per spec: VLM
+    proposes, M3 verifies. Branches, in order: plan absent -> `m3_default`;
+    plan names an unknown robot -> treated as unparseable, `m3_default`
+    (never partially repaired); scene-wide lenient completion (robots the
+    plan omits get an appended `continue` leg, logged in
+    `plan_completed_legs`, not a repair); consistency check against the
+    strategy token (`yield` ⇒ exactly one `yield` leg, `temporary_wait` ⇒
+    >=1 `wait` leg, `reroute` ⇒ >=1 `reroute` leg; no rule registered for
+    `reverse`/`convoy`/`priority_override`/`none` since the spec is silent
+    there — inventing one would be reinterpretation); leg-by-leg feasibility
+    audit reusing the EXISTING checks rather than duplicating them
+    (`yield_feasible`/`yield_retreat_room_m` for yield room,
+    `_beyond_corridor_same_side` for reverse, `_first_passer_refusal` for
+    nearest-first crossing order, `_junction_same_axis_order` for the J1
+    same-axis-opposite-side pattern, plus a yield-scoped "exemption
+    pairing" check: an involved robot explicitly marked `continue` under a
+    `yield` decision is infeasible, not a lenient omission). M3's own
+    default plan (`_derive_default_plan`, the repair target and the
+    `m3_default` output) is built ONLY from `resolve_strategy_alias` /
+    `resolve_yield_roles` / `resolve_robot_order` — never a
+    re-implementation — so a plan-less decision's default always matches
+    what `ground_reasoner_result` would already have dispatched.
+  - **Repair algorithm**: bounded breadth-first search (default bound 2,
+    `PlanRepairParams.max_repair_edits`, explicit placeholder per the spec's
+    "sized from the mock sweep... frozen before live smokes", build-order
+    step 5) over three primitives defined on list POSITIONS: `substitute(i)`
+    (change one robot's action toward M3's derived action for it),
+    `swap(i,j)` (exchange which robot holds two FIXED positions/actions —
+    the one-leg swap-gate generalized), `reorder(i,j)` (exchange two whole
+    legs' positions, each robot keeping its own action — for an
+    ordering-only defect). `swap` is only generated when the two positions'
+    actions differ (else it is identical to `reorder` and would be a
+    redundant duplicate state). Acceptance = consistent-with-strategy AND
+    zero feasibility problems; BFS depth gives "fewest edits first" by
+    construction, with a fixed per-depth enumeration order
+    (substitutions, then swaps, then reorders, each sorted by position) for
+    deterministic tie-breaking. Exceeding the bound -> `m3_default`,
+    `rejection_stage="repair_bound_exceeded"` (distinct from
+    `absent`/`unknown_robot`/`inconsistent`, so `plan_metrics` can still
+    score emission=True for a plan that reached but failed the repair
+    search).
+  - **CRITICAL regression verified, generalized past hand-picked fixtures
+    after code review**: on the two-robot head-on (`head_on_deadlock`
+    geometry/obstacle fixtures), a VLM plan naming the infeasible decided
+    yielder repairs with EXACTLY ONE `swap` edit, and the resulting
+    yielder/order are identical to `_apply_yield_feasibility`'s existing
+    `"swap"` mode / `resolve_yield_roles`. With `proposed_plan` absent,
+    `_derive_default_plan`'s output was checked against the ACTUAL
+    `ground_reasoner_result` (LEGACY mode) dispatch, not just
+    `resolve_yield_roles` in isolation, over an exhaustive sweep: the full
+    2-robot strategy x yielder x position x geometry x gate matrix (384
+    combos, pinned in `TestDefaultPlanMatchesLegacyGrounding`) plus a
+    3-robot multi-passer matrix (2 yielders x 2 crossing orders x 2 position
+    sets x 5 gates = 40 combos, pinned in
+    `TestDefaultPlanMatchesLegacyThreeRobotMultiPasserMatrix`; it does not
+    cover `yield_robot=None` or `geometry=None`, which the 2-robot matrix
+    does). This sweep caught a real gap: `resolve_yield_roles` does not
+    itself apply `_ground_legacy`'s nearest-first-passer refusal
+    (`_first_passer_refusal` is only called inside `_ground_legacy`'s own
+    multi-passer branch), so a 3+-robot default plan with a bad crossing
+    order was NOT being refused the way `ground_reasoner_result` refuses it.
+    Fixed by calling `_first_passer_refusal` from `_derive_default_plan`'s
+    yield branch too (reusing the existing function, not duplicating its
+    logic) — closes the gap for every case in the 40-combo sweep. The
+    existing frozen SHA pins
+    in `tests/unit/test_command_grounder_derived.py` (`_LEGACY_MATRIX_SHA256`,
+    `_DERIVED_TWO_ROBOT_SHA256`) and all of `tests/unit/test_command_grounder.py`
+    pass unmodified — this engine is additive and is not wired into
+    `ground_reasoner_result` or any dispatch path in this task.
+  - **KNOWN, EXPLICITLY FLAGGED BOUNDARY (not fixed in this task)**: the
+    equivalence above covers LEGACY-mode grounding only. DERIVED-mode's
+    backup-band / retreat-candidate sweep (`GroundingParams`,
+    `prepare_retreat_selection`, `derive_backup_distance`) can degrade a
+    yield that passes the legacy room check to a `reroute` (confirmed with a
+    deliberately-impossible `backup_band_m`:
+    `test_default_plan_does_not_model_derived_mode_band_infeasibility`).
+    `verify_and_repair_plan` takes no `GroundingParams`/stage-2
+    `retreat_choice` in this CORE step, so `_derive_default_plan` cannot see
+    this and can diverge from a live DERIVED-mode dispatch in that specific
+    case. Wiring the full retreat-candidate-sweep machinery into the plan
+    engine was judged out of scope for "schema + verify/repair engine +
+    metrics scorer" and risks overlapping the next task's M5 wiring; left as
+    an open item for whichever task next touches DERIVED-mode plan grounding.
+  - **Plan vs `yield_robot`/`crossing_order` disagreement**: a VLM plan whose
+    own `yield` leg or crossing order contradicts the SAME decision's
+    `yield_robot`/`crossing_order` fields (its stated choice at decision
+    time) is treated as inconsistent -> `m3_default`, not silently executed
+    as a different, unverified answer — picking one of the model's two
+    conflicting outputs over the other would be reinterpretation.
+    `_plan_disagrees_with_decision_fields` checks this ONCE against the
+    VLM's original plan only, never inside the repair search (repair must
+    stay free to reassign the yield role, the swap gate generalized).
+  - **Reorder-not-substitution case** (explicitly required by the task):
+    three robots, yield + two `cross` legs in the wrong (farther-first)
+    order with both legs' actions already matching M3's default — no
+    substitution can fix it (the actions are already right), so the BFS
+    finds the one-edit `reorder` repair, verified in
+    `TestReorderIsAMinimalRepairWhenSubstitutionCannotFix`. The BFS's
+    per-depth operation enumeration order is `swap`, then `reorder`, then
+    `substitute` (deliberately, found during review): `substitute` can
+    "bench" a robot to `wait`, which is a degenerate but equally-cheap fix
+    for a pure ordering defect once `_derive_default_plan` itself also
+    refuses a bad multi-passer order (the fix above) — trying swap/reorder
+    first keeps every robot an active participant whenever a positional fix
+    is equally minimal.
+  - **Plan-metrics scorer** (`reasoning/rag/plan_metrics.py`, new,
+    ROS2-free): `score_plan_decision` computes emission, agreement, edit
+    distance, provenance, and oracle-order agreement (scored against the
+    VLM's PROPOSED pre-repair order, excluding `continue` legs, never the
+    repaired order — verified by a test where a post-repair-matching oracle
+    scores False and the pre-repair-matching oracle scores True on the SAME
+    decision). `edit_distance` is `int | None`: `None` when the plan was not
+    emitted OR emitted but `repair_bound_exceeded` (no finite distance was
+    found), never `0` for either — `0` means verbatim, and conflating
+    "unrepairable" with "verbatim" would bias a mean edit distance low
+    (caught in review). `compute_plan_churn` / `classify_revision_cause` /
+    `compute_episode_plan_stability` are the plan-stability building
+    blocks; `classify_revision_cause` is a pure classifier over a
+    caller-supplied failed-robot set because this module has no access to
+    M5's per-leg execution-status tracking (next build-order step).
+  - **Ambiguities resolved conservatively, flagged per task instructions**:
+    (1) "unknown robot_ids rejected" needs the tracked-robot roster, which
+    only M3's engine has (not the stage-1 parser) — implemented M3-side, not
+    as a parser degradation or a reasoner re-ask. (2) No consistency rule
+    invented for `reverse`/`convoy`/`priority_override`/`none` — spec names
+    only `yield`/`temporary_wait`/`reroute`/`junction_clear` (the last not
+    yet in the strategy enum; deferred to build-order step 5). (3) An
+    involved robot marked `continue` instead of `cross` under a `yield`
+    decision is treated as an infeasible "exemption pairing" defect (gets
+    substituted), scoped to `yield` only, not generalized to other
+    strategies. (4) `reroute`/`wait`/`continue` legs have no scene geometry
+    check of their own (none exists yet in M3 to reuse; loop-map reroute
+    grounding is build-order step 8) — flagged as a known placeholder, not
+    silently assumed feasible without comment. (5) A plan's `yield`
+    leg/order disagreeing with the SAME decision's own `yield_robot`/
+    `crossing_order` is treated as inconsistent (`m3_default`), not
+    reinterpreted by preferring one field over the other. (6) `_derive_default_plan`
+    is verified equivalent to `ground_reasoner_result` for LEGACY-mode
+    grounding only; DERIVED-mode's backup-band/retreat-candidate sweep is a
+    known, explicitly flagged boundary (not modeled, documented above and in
+    the task report), since wiring `GroundingParams`/stage-2 retreat choice
+    into the plan engine was judged out of scope for this CORE step.
+  - **Round-3/4 code review caught FOUR real bugs in `_plan_problems`/
+    `_repair_plan`, all fixed before landing**, found by extending the
+    equivalence sweep to the PLAN-PRESENT path (not just plan-absent) over
+    the 2-robot matrix (384 cells: 6 strategies x 2 yielders x 4 positions x
+    2 geometry x 4 gates; 256 of them have a plan-vocabulary primitive to
+    test with, since `convoy`/`priority_override` have none -- the other 128
+    are skipped, not run-and-ignored): (a) the room/obstacle feasibility
+    check ran unconditionally whenever `geometry` was set, ignoring
+    `yield_feasibility_mode` entirely -- `"off"` (never re-ground) and
+    `"refuse"` (never reassign, always refuse outright) were both silently
+    behaving like `"swap"`; fixed by threading the mode into `_plan_problems`.
+    (b) the corridor same-side refusal was only ever checked for
+    `reverse`-vs-`reverse` leg pairs, never for a `yield` leg at all, and for
+    `reverse` it dissolved the instant one of the pair was substituted away
+    to `wait` (only one `reverse` leg left, so the pairwise check never
+    fired) -- fixed by keying both checks on the DECISION's own robot
+    pairing, not on which leg currently holds which action. (c) `"off"`/
+    `"refuse"` could still have the yield role reassigned via a `swap` edit
+    that happened to fix an unrelated ordering defect too, breaking the
+    "yielder never reassigned" mode contract -- fixed by excluding any
+    `swap` that touches the `yield` action unless
+    `yield_feasibility_mode == "swap"`, and by trying `reorder` before
+    `swap` in the BFS tie-break order (final order: reorder, swap,
+    substitute). (d) in `"refuse"` mode with `decision.yield_robot` unset,
+    the room check validated `resolve_robot_order(decision)[0]` (the legacy
+    default) regardless of which robot the PLAN actually named as yielder,
+    so a plan naming a genuinely infeasible alternative yielder passed
+    straight through as `vlm_verbatim` -- fixed by unifying the room check
+    for `"swap"`/`"refuse"` to always validate whichever robot the CANDIDATE
+    currently assigns (the two modes differ only in whether a `swap` edit
+    may later try an alternative, never in which robot is checked).
+    (e, SUPERSEDES an intermediate round-4 fix) `_plan_disagrees_with_decision_fields`
+    briefly made the expected yielder mode-dependent (`"swap"` mode compared
+    only against an explicit `yield_robot`, letting an unset one go
+    unchecked) -- this reopened the SAME class of bug one level up: in
+    `"swap"` mode, a two-ROBOT head-on with `yield_robot` unset and a plan
+    naming `robot_2` executed verbatim even though v1 grounds `robot_1`
+    (`resolve_robot_order`'s default), breaking the two-robot bit-identical
+    guarantee at the one case the sweep's own `_v1_shaped_plan` helper could
+    not see (it always names `yield_robot or "robot_1"`). Fixed by making the
+    expected yielder `resolve_robot_order(decision)[0]` in EVERY mode,
+    unconditionally -- a plan proposing a different yielder from the start is
+    only ever honored through feasibility-driven REPAIR (a `swap` edit),
+    never accepted verbatim, in any mode. Added
+    `TestPlanCannotOverrideV1YielderWhenUnset` (32 cells: the full two-robot
+    position/geometry/gate matrix with `yield_robot=None` and the plan
+    naming the OTHER robot) specifically to close the gap the existing
+    sweeps' own plan-construction helper could not reach. After all five
+    fixes the two-robot plan-present sweep (256 run cells plus this 32-cell
+    addition) is clean against `ground_reasoner_result`'s actual ordered
+    dispatch, compared leg-by-leg INCLUDING crossing order (a
+    dict-of-actions comparison would have missed an ordering-only
+    divergence), pinned in `TestPlanPresentTwoRobotMatchesLegacyGrounding`
+    and `TestPlanCannotOverrideV1YielderWhenUnset`.
+  - **OPEN CONTRACT QUESTION for the owner (plan present, 3+ robots only;
+    the two-robot and plan-absent guarantees above are unaffected)**: a
+    3-robot sweep (40 cells: 2 yielders x 2 crossing orders x 2 position
+    sets x 5 gates) with a compound defect (one robot room-infeasible AND an
+    independent crossing-order violation) found 14 cells where this
+    engine's repair finds a different, feasible resolution while v1's own
+    algorithm (`_first_passer_refusal`'s comment: the order is "refused
+    rather than reordered, so the executed order is always the decided
+    one") gives up to a full wait fan-out. VERIFIED BREAKDOWN (printed
+    `verified.edits` for each, not assumed): 12 of the 14 are pure `reorder`
+    repairs -- the yielder is NEVER touched, including 2 of the 4
+    `"swap"`-mode cells (there the decided yielder already has room; only
+    the crossing order was wrong). Only 2 cells are genuine yielder
+    reassignments, both `"swap"`-mode with `robot_1` as the decided (and
+    room-infeasible) yielder: one resolves in a single `swap` edit (to
+    `robot_3`), the other needs `reorder` then `swap` (2 edits, also to
+    `robot_3`) -- in NEITHER case does the repair search even attempt
+    `robot_2` (`_apply_yield_feasibility`'s own first-feasible pick here),
+    because the fixed enumeration order (reorder, then swap, then
+    substitute, each sorted by position) finds `robot_3` first; a same-depth
+    path to `robot_2` was not confirmed absent, only not reached. This is
+    NOT resolved as "intended" here -- it is flagged for the owner to pick
+    between: (i) keep `reorder`'s ability to overturn v1's "never reorder,
+    only refuse" design (the current, pinned behaviour); (ii) make an
+    ordering-only defect refuse exactly like v1 instead of reordering, for
+    `3+`-robot scenes; (iii) in `"swap"` mode specifically, break the
+    enumeration tie toward whichever robot `_apply_yield_feasibility`'s own
+    scan would have picked, for the 2 yielder-reassignment cells only (the
+    12 reorder-only cells are a separate question, (i)/(ii)). Whichever is
+    chosen,
+    "repair toward M3's own derived plan" should be narrowed in the spec
+    text to mean "substitutions move toward D" specifically -- in all 14
+    cells D itself (computed via `resolve_yield_roles`, which equals v1's
+    refusal here) is the all-wait fan-out, and the accepted repair moves
+    AWAY from it, so the phrase does not describe what happens. The current
+    (unchanged) behaviour is pinned exactly, cell-by-cell, in
+    `TestPlanPresentThreeRobotMultiPasserMatrix`'s
+    `_DIVERGENT_THREE_ROBOT_CELLS`, so a future change to either direction
+    is a deliberate, visible diff to that set, not a silent behavior change.
+    `convoy`/`priority_override` plan-present behavior is UNVERIFIED by any
+    sweep (`ground_reasoner_result` aliases them to a yield via
+    `resolve_strategy_alias` before dispatch; `verify_and_repair_plan`'s own
+    consistency/feasibility checks, including the refuse-mode fix above,
+    run on the un-aliased strategy token) -- flagged, not silently assumed
+    correct.
+  - Tests: `tests/unit/test_plan_contract.py` (18),
+    `tests/unit/test_plan_verifier.py` (913 collected; 128 skipped in
+    isolation -- the convoy/priority_override cells of the two-robot
+    plan-present sweep, intentionally unverified per above),
+    `tests/unit/test_plan_metrics.py` (20) — all new, 951 collected / 823
+    passing + 128 skipped in isolation. Targeted reruns of
+    `test_command_grounder.py` / `test_command_grounder_derived.py` /
+    `test_vlm_output_parser.py` / `test_reasoner.py` / `test_gemini_backend.py`
+    (272 tests) pass unmodified in behavior (one exact-dict test in
+    `test_vlm_output_parser.py` updated to include the new degradation tag).
+    Full local suite before/after on this worktree (branched from
+    `feat/prereg-v2-composite`, 3 pxr-only files ignored): 63 failed / 2957
+    passed / 16 skipped before, 63 failed / 3780 passed / 144 skipped after
+    — identical failing-test NAME set (diffed, zero delta). (The task
+    brief's stated baseline, 58/2946/13, was measured on a different base
+    tree; the pre-change baseline actually captured on this worktree's
+    branch point is the one compared here.)
+
 - **2026-10-01** — **v2 build-order step 2: J1 same-axis filter landed on
   `feat/v2-armb-filter` (v2 branch only, per
   `docs/superpowers/specs/2026-09-30-prereg-v2-design.md` Prerequisites item
