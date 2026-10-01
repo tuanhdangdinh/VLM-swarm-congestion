@@ -37,6 +37,360 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-02** — **v2 build-order step 4 (INTEGRATION): M5 plan tracking,
+  the plan-state prompt block + prompt v3, Arm B plan emission, and three
+  repair-semantics rulings on the CORE engine, landed on
+  `feat/v2-plan-integration`**, per
+  `docs/superpowers/specs/2026-09-30-prereg-v2-design.md` and the
+  2026-10-02 "Repair-semantics rulings" addendum to it. Branch point
+  `dcc0ed7` (the CORE step above).
+  - **Ruling 1 (reorder may resolve what v1 refuses)**: confirmed intended,
+    not fixed further — `command_grounder.verify_and_repair_plan`'s
+    docstring and `tests/unit/test_plan_verifier.py`'s
+    `TestRepairCanResolveWhatLegacyRefuses` reworded from "OPEN CONTRACT
+    QUESTION" to "RESOLVED"; no behavior change.
+  - **Ruling 2 (equal-cost repair ties break toward M3's own yielder pick)**:
+    new `_preferred_yielder` (`command_grounder.py`) exposes
+    `_apply_yield_feasibility`'s candidate-scan pick independently of
+    `_derive_default_plan`'s final output (which collapses to an all-wait
+    fan-out for the affected cells via `_first_passer_refusal`, so it has no
+    yielder of its own to compare against there). `_repair_plan`'s BFS now
+    collects every accepted candidate at a given depth before returning,
+    and prefers one whose `yield` leg matches `_preferred_yielder` — never
+    widening the search past the minimal depth (only a same-depth tie is
+    ever broken this way). Verified: the two `yield_robot="robot_1"`,
+    `"swap"`-mode cells of `_DIVERGENT_THREE_ROBOT_CELLS`
+    (`TestPlanPresentThreeRobotMultiPasserMatrix`) now land on `robot_2` as
+    yielder (previously `robot_3`, via the BFS's fixed enumeration order
+    alone) — pinned explicitly in new
+    `TestTieBreakPrefersFeasibilityGateYielder`. The other 12 divergent
+    cells (pure reorders, yielder untouched) are unaffected by construction
+    (`_preferred_yielder` returns None outside `"swap"` mode, and for the
+    decided-yielder-already-feasible cells it returns that SAME robot).
+  - **Ruling 3 (derived-mode default-plan equivalence)**: `_derive_default_plan`
+    gained an optional `grounding_params: GroundingParams | None` parameter;
+    with `mode == "derived"` its `yield` branch now runs the SAME
+    backup-band / retreat-candidate / escort sweep `_ground_derived` runs
+    (new `_derived_yield_degrades_to_reroute`, reusing
+    `prepare_retreat_selection` + `derive_escort_distance`, never a
+    re-implementation) and degrades to the identical `reroute` shape
+    `_reroute_yielder` dispatches when that sweep fails. `grounding_params=None`
+    (every pre-ruling-3 call site) is unchanged. New
+    `TestDefaultPlanMatchesDerivedGrounding` sweeps the full two-robot
+    strategy/yielder/position/gate matrix against `ground_reasoner_result`
+    run in DERIVED mode with the SHIPPED `config/rag.yaml` `grounding:`
+    section (loaded from disk, not hand-copied) plus a deliberately
+    impossible `backup_band_m` case; the previously-gap-documenting
+    `test_default_plan_does_not_model_derived_mode_band_infeasibility` is
+    kept (renamed, still true for the `grounding_params=None` call shape)
+    and joined by a new sibling asserting parity when the params ARE
+    passed. Caveat carried forward: a specific stage-2 `retreat_choice` is
+    still not modelled (this engine accepts none); the check runs against
+    the best-ranked candidate, matching `_ground_derived` with no stage-2
+    choice.
+  - Left as-is per task instruction: the convoy/priority_override 128-skip
+    gap in the two-robot plan-present sweep. Touched the adjacent reroute
+    branch of `_derive_default_plan` for ruling 3's neighbor code, so added
+    a `TODO(junction_clear, ...)` comment there pointing at the existing
+    "reroute/wait/continue legs have no scene geometry check of their own"
+    placeholder (build-order step 8 owns it) — not a new gap, just made
+    visible in-code, not only in this log.
+  - **M5 plan tracking** (`ros2_ws/src/swarm_orchestrator/swarm_orchestrator/plan_tracker.py`,
+    new, ROS2-free): `PlanTracker` assigns a monotonic `plan_id` to every
+    accepted `VerifiedPlan` via `accept_plan` — including `m3_default` ones,
+    per spec — tracks each leg's `pending/active/done/failed` status with a
+    validated state machine (`set_leg_status`; terminal statuses are
+    terminal, re-reporting the same terminal status is a no-op), and
+    computes dependency-ordered supersession cancellation (`Supersession.cancel_order`):
+    a superseded plan's non-terminal legs whose action the new plan does
+    not carry forward unchanged, in the REVERSE of the old plan's own leg
+    order. That direction is argued from, not copied out of,
+    `swarm_execution/crossing_chain.py`'s admission contract (admit one
+    passer at a time in `crossing_order`, hold ends only when the LAST one
+    clears) — a plan's leg list is already in that same
+    `[yielder, *crossing_order, ...]` execution order
+    (`_derive_default_plan`'s convention), so retiring it safely means
+    starting from whichever leg was admitted LAST; there is no live
+    timer/odometry state here to reuse code from, only the direction.
+    `plan_state_context(plan_id, since_plan_id=...)` projects a tracked
+    plan to the prompt-v3 plan-state block's input, computing
+    `changed_robot_ids` via `plan_metrics.compute_plan_churn` (reused, not
+    duplicated) against whatever plan_id the CALLER last rendered — pushed
+    to the caller deliberately, so the same plan shown across several
+    unchanged invocations reports an empty change set each time instead of
+    replaying its original acceptance diff forever. 39 new tests,
+    `tests/unit/test_m5_plan_tracker.py`.
+  - **Wiring, behind `plan_channel_enabled: bool = False`** (`OrchestratorConfig`,
+    `orchestrator.yaml`): `InProcessPipeline.run()` (`reasoning_pipeline.py`)
+    calls `verify_and_repair_plan` and `PlanTracker.accept_plan` only when a
+    `plan_tracker` was injected; flag off means that whole block, and the
+    `_attach_plan_id` command-mutation helper, never execute — the grounded
+    command and `PipelineOutcome` are the exact same object graph as before
+    this step, confirmed by the full-suite identical-failing-name-set
+    comparison and by `test_plan_tracker_omitted_leaves_the_outcome_and_command_untouched`.
+    Flag on: `plan_id` is injected into every dispatched action's
+    `parameters` (an unconstrained object in
+    `coordination_command.schema.json`, already used this way for a
+    reroute's injected `goal` — no schema change, M4's handlers read known
+    keys and ignore the rest), `PipelineOutcome.plan` carries a new
+    `PlanDispatchInfo` (plan_id, provenance, legs, edits, rejection_reason,
+    superseded_plan_id, cancel_order), and `write_decision_artifact` adds a
+    `"plan"` key ONLY when `outcome.plan is not None` (same conditional-add
+    pattern as `probe`/`probe_index`, so a flag-off artifact is byte-for-byte
+    unchanged — no `"plan": null`). `orchestrator_node.py`: one `PlanTracker`
+    per M5 session; `_on_status` (M4's `CoordinationStatus` feedback) now
+    also calls a new `_apply_plan_leg_status`, which maps `ACTIVE`/`COMPLETED`/`FAILED`
+    to the leg vocabulary via a `command_id -> plan_id` side table
+    (`self._plan_id_by_command_id`, populated in `_dispatch`) and swallows
+    `KeyError`/`ValueError` (unknown command, untranslatable status, invalid
+    transition) as a logged warning, never a crash — mirroring
+    `_finalize_shadow_record`'s own failure handling.
+  - **FLAGGED GAP, not fixed in this task**: M5 has no existing mechanism to
+    actually CANCEL an in-flight command on M4's `CoordinationCommand`
+    channel. Read `swarm_execution/command_bus_node.py`'s `_on_command`
+    before assuming otherwise: a robot with an in-flight `command_id`
+    REJECTS any second command as "robot busy" (publishes `FAILED` for the
+    new one; the old one is untouched) — there is no automatic
+    cancel-and-replace on a new dispatch, and the project memory records a
+    prior "cancel-all race" bug from a bulk-cancel attempt
+    (`project_phase3_backup_not_moving_fix`). `PlanTracker.accept_plan`
+    therefore computes `Supersession.cancel_order` as a pure DATA PRODUCT
+    (attached to the artifact, so the intended teardown order is at least
+    observable), but nothing in this task turns it into a dispatched
+    cancel: doing so would be a new M4 (`swarm_execution`) capability —
+    outside `ros2_ws/src/swarm_orchestrator/`'s scope for this step, and a
+    safety-relevant change that needs its own design/test cycle, not an
+    improvisation under this task. Flagged for the owner rather than
+    silently assumed solved.
+  - **Prompt v3** (`reasoning/vlm/`): `PromptVersion` extended to
+    `Literal[1, 2, 3]`; `CURRENT_PROMPT_VERSION` STAYS 2 (v3 is opt-in,
+    `prompt_version=3` passed explicitly behind `plan_channel_enabled`) —
+    the existing `test_reasoner_request_defaults_to_the_current_prompt_version`
+    frozen pin (`test_prompt_builder_v2.py`) is unmodified. Followed the
+    v1→v2 precedent exactly: today's HEAD (`dcc0ed7`) `prompt_builder.py`
+    body was copied byte-for-byte into a new, self-contained
+    `reasoning/vlm/prompt_v2.py` (no import from `prompt_builder`, its own
+    private helper copies, `SYSTEM_PROMPT_V2`/`render_user_prompt_v2`) and
+    `build_prompt_payload` now dispatches version 2 there; all of
+    `test_prompt_builder_v2.py`'s hash pins (`_V2_PINS`) pass unmodified,
+    proving the delegation is byte-identical. `prompt_builder.py` itself
+    becomes v3's live template, adding: (a) a bounded free-text `reasoning`
+    field — new `CongestionDecision.reasoning: str | None` (`max_length`
+    `REASONING_MAX_LENGTH=2000`), declared FIRST on the model so
+    `model_dump`/schema property order matches what v3 asks for FIRST in
+    the JSON (rev 6 "reasoning-field-first JSON" / premature-serialization
+    effect); `output_parser._sanitize_optional_fields` truncates an
+    over-length raw value to the bound (tag `reasoning=truncated`, never
+    rejects) and nulls a non-string one (`reasoning=default:invalid_type`);
+    `vlm_decision.schema.json` gained the matching `reasoning` property
+    (`additionalProperties: false` required the add, same as `proposed_plan`
+    before it). (b) the scenario-agnostic `proposed_plan` invitation
+    sentence (`_PLAN_INVITATION`, a fixed constant, no scenario/strategy/robot
+    named) plus a `"proposed_plan"` bullet in the JSON field list — the
+    (a0) channel existed in the schema/parser since the CORE step but was
+    never actually mentioned in any prompt until now. (c) the plan-state
+    block (`render_plan_state_block`, generalizing `render_failure_context_block`):
+    active `plan_id`, every leg's action+status, and `changed_robot_ids`
+    ("what changed since the last invocation") — rendered only when
+    `ReasonerRequest.plan_state: PlanStateContext | None` is set (new model,
+    `reasoning/vlm/models.py`), independent of `failure_context`/
+    `last_failed_context` (a request may carry any combination). New
+    `tests/unit/test_prompt_builder_v3.py` (25 tests): versioning, the
+    reasoning-first field ordering, the invitation's scenario-agnosticism,
+    the plan-state block's content and its absence/coexistence with
+    failure-context, and 6 rendered-prompt SHA-256 hash pins
+    (`_V3_PINS`) computed from the actual renderer (never hand-typed) —
+    baseline, id_desc, no_geometry, goals_obstacles, plan_state,
+    failure_context.
+  - **Arm B plan emission** (`reasoning/baselines/classical_reasoner.py`):
+    new pure `_build_arm_b_plan`, wired into every `resolve_classical`
+    branch, degrades Arm B's OWN yielder / FCFS passing order / strategy
+    choice to the (a0) leg vocabulary, scene-wide (`continue` for every
+    tracked robot its decision does not involve) — deliberately NEVER
+    routed through M3's `_derive_default_plan` (that would make the
+    classical comparator M3's own default instead of Arm B's, defeating the
+    "every metric has a classical comparator" point). `proposed_plan` was
+    already a field on `CongestionDecision` (added, always `None`, in the
+    CORE step); populating it is additive per the task's own framing, not a
+    change to a v1-frozen field — the CLASSIFIER (`classify_scene`) and
+    every pre-existing decision field (`congestion_detected`/`type`/
+    `strategy`/`yield_robot`/`blocker_kind`/`crossing_order`/`root_cause`/
+    `justification`/`involved_robots`) are untouched, confirmed by the full
+    pre-existing `test_classical_reasoner.py` suite (226 tests, now 233
+    with the new ones) passing unmodified. `shadow_classical.py` needed NO
+    changes: `ShadowClassicalRecord.decision` is already the full
+    `CongestionDecision`, so once Arm B populates `proposed_plan` the
+    shadow log carries it automatically — confirmed by new
+    `test_shadow_records_arm_b_plan_for_the_plan_metrics_comparator`
+    (`tests/unit/test_m5_shadow_classical.py`). 7 new tests in
+    `test_classical_reasoner.py`'s `TestArmBEmitsProposedPlan`.
+  - **Review-round fixes** (code review before handoff caught five real
+    issues; all fixed except one deliberately left for the owner):
+    1. **Flag-off artifact byte-identity gap**: `CongestionDecision.reasoning`
+       (always present, even as `null`, in `model_dump`) would have added a
+       key to EVERY decision dump regardless of `plan_channel_enabled`,
+       including every Arm A/B decision ever written. Fixed with a
+       `model_serializer(mode="wrap")` (`_omit_unset_reasoning`, mirroring
+       `GroundingParamsSource._omit_unset_x_band`'s existing pattern) that
+       drops the key when `reasoning` is None. Re-verified byte-for-byte: a
+       fixed `PipelineOutcome` run through `write_decision_artifact` at
+       `dcc0ed7` and again at this branch's HEAD (flag off) produces
+       IDENTICAL bytes (`diff`, zero output). Separately confirmed
+       `compare_decisions` (Arm A/B shadow disagreement) reads neither
+       `reasoning` nor `proposed_plan` — Arm B's now-populated
+       `proposed_plan` cannot flip `any_disagreement`.
+    2. **`PlanTracker` cross-thread race**: `InProcessPipeline.run` (calling
+       `accept_plan`) executes on the pipeline's `ThreadPoolExecutor` worker
+       thread; `_on_status` and request-building (calling `set_leg_status`/
+       `plan_state_context`) run on the rclpy spin thread. Without a lock, a
+       `set_leg_status` call reading a stale `self._active` could race an
+       `accept_plan` call and revert the active-plan pointer to a superseded
+       plan. Fixed with a `threading.Lock` guarding every `PlanTracker`
+       public method's body; pinned with `TestConcurrentAccess` in
+       `test_m5_plan_tracker.py` (best-effort stress tests, not a guaranteed
+       repro of the pre-fix race, but a real invariant check that passes
+       deterministically now).
+    3. **Plan-channel exception could silently skip an otherwise-good
+       dispatch**: the `verify_and_repair_plan`/`accept_plan` block in
+       `InProcessPipeline.run` had no try/except, breaking the adapter's own
+       "never raised past this adapter" contract (FR5.3.2) for this new
+       code path. Fixed: wrapped in try/except; on failure `grounded` is
+       dispatched untouched (never `_attach_plan_id`-mutated), `plan=None`,
+       and a new `PipelineOutcome.plan_error: str | None` records why
+       (conditional artifact key, same pattern as `plan`). Pinned with
+       `test_plan_channel_failure_never_blocks_an_otherwise_successful_dispatch`
+       (an injected `accept_plan`-raising double).
+    4. **Verified plan vs. actual dispatch can diverge, unmeasured**: the
+       CORE engine's `verify_and_repair_plan` is a standalone audit — for
+       the 14 `_DIVERGENT_THREE_ROBOT_CELLS` (ruling 1's accepted divergence)
+       and for a plan-present DERIVED-mode yield (the backup-band sweep gap
+       `_plan_problems` still does not model, a narrower pre-existing
+       boundary), the tracked plan's legs can legitimately differ from what
+       `ground_fn` actually dispatches. Recording `plan_id`/`provenance` as
+       if they always describe the executed command would be misleading.
+       Fixed with a measured (not improvised) mitigation: new
+       `command_grounder.project_dispatched_legs` / `plan_matches_dispatch`
+       and `PlanDispatchInfo.dispatch_matches_plan: bool`, computed in
+       `InProcessPipeline.run` by projecting the actual `grounded` command
+       onto the same leg vocabulary and comparing per-robot actions.
+       Verified `True` on the real two-robot head-on grounder run in the
+       SHIPPED DERIVED mode (`config/rag.yaml`'s own `grounding:` section,
+       not legacy — ruling 3 is what makes this hold:
+       `test_plan_matches_dispatch_on_the_real_two_robot_head_on_grounder`).
+       The 14 `_DIVERGENT_THREE_ROBOT_CELLS` three-robot plan-present cells
+       are exactly where it would read `False` by the same per-robot-action
+       definition the existing pin uses (legacy mode; not separately
+       re-swept in derived mode). The narrower derived-mode gap is NOT
+       merely named: `test_plan_present_derived_mode_band_gap_is_measured_not_hidden`
+       constructs a plan naming the decided, room-feasible yielder under a
+       deliberately impossible `backup_band_m` and confirms it verifies as
+       `vlm_verbatim` while the real dispatch reroutes —
+       `dispatch_matches_plan` reads `False`, concretely, not just in
+       principle. Whether dispatch should ever be made to EXECUTE
+       `VerifiedPlan.legs` instead of `ground_fn`'s own output is
+       explicitly NOT decided here — flagged for the owner.
+    5. **NOT fixed, flagged for the owner — plan-state prompt advice is
+       internally inconsistent with how M5 actually calls `accept_plan`**:
+       `_PLAN_INVITATION` tells the model that omitting `proposed_plan`
+       "lets the system derive" a plan, while `_PLAN_STATE_ADVICE` tells it
+       to "propose a new `proposed_plan` only when you are revising it for
+       a reason" — implying a plan can be explicitly HELD. But
+       `InProcessPipeline.run` calls `accept_plan` on every single
+       congestion-detected analysis, with no mechanism to recognize "this
+       resolution is identical to the already-active plan, so this is not
+       really a replan." Consequences: `plan_metrics.compute_episode_plan_stability`'s
+       `replan_count` (`len(plans) - 1`) is always `num_analyses - 1`
+       regardless of whether the VLM (or M3's own re-derivation) actually
+       changed anything, and the plan-stability metric the spec registers
+       (incremental/wholesale, evidence-driven/unforced) has no "no replan
+       happened" case to contrast against. **This blocks build-order step
+       4's own regression gate, not just a future refinement**: the spec
+       requires the two-robot head-on smoke to show "zero unforced
+       replans," and under the shipped semantics ANY episode with two or
+       more analyses records a replan — including a re-detection after a
+       yield that completed successfully, which even with the timeout-leg
+       fix above (review item 1) is classified `unforced` (nothing failed).
+       The smoke cannot pass that criterion until the owner picks a reading
+       of "hold." A plausible fix (collapse `accept_plan` to a no-op, same
+       plan_id, when the new verified plan's legs are identical to the
+       active plan's) would resolve the prompt's own internal inconsistency
+       and make `replan_count` meaningful, but changes what "every accepted
+       plan ... every executed resolution has a plan" means in the spec's
+       own words — not decided here, per the task's "stop rather than
+       improvise" instruction. Left as specified (every analysis bumps
+       `plan_id`); the owner must pick a reading before the head-on smoke
+       can be run for real, not just before live v3 collection.
+    6. **Replay could not rebuild a v3 prompt**: `write_decision_artifact`
+       never persisted `request.plan_state`, so
+       `scripts/replay_live_decisions.py`'s `reconstruct_request` (the
+       "integrity arm" that re-renders a stored prompt and re-asserts its
+       SHA-256) could not reproduce the plan-state block. Fixed: a
+       conditional `plan_state` artifact key (same byte-identity-preserving
+       pattern as `plan`/`plan_error` — NOT the always-present-nullable
+       pattern `failure_context`/`last_failed_context` use, since those
+       predate flag-gating) plus `Artifact.plan_state` / `reconstruct_request`
+       support in the replay script. Pinned in both
+       `test_m5_reasoning_pipeline.py` and `test_replay_live_decisions.py`
+       (`test_reconstruct_request_carries_plan_state_when_recorded`).
+    7. **`orchestrator_node.py` had zero test coverage in this environment
+       — but not because it needs real `rclpy`**: `tests/unit/test_m5_node_*.py`
+       already ship a harness (`test_m5_node_probe.py`'s `node_env` fixture)
+       that stubs `rclpy`/`cv_bridge`/`swarm_interfaces` in `sys.modules`
+       and imports the REAL `orchestrator_node` against them — "everything
+       past the ROS2 surface... is the real code" (its own docstring). These
+       files were among the "10 collection errors" above for an unrelated
+       reason (the same stray-`site-packages/tests/` namespace-package
+       collision noted there, confirmed by temporarily adding untracked
+       `tests/__init__.py` / `tests/unit/__init__.py`
+       — never committed — and rerunning: all 5 `test_m5_node_*.py` files
+       collect and pass, 52/52, with no ROS2 runtime involved). New
+       `tests/unit/test_m5_node_plan_channel.py` (6 tests) exercises
+       `orchestrator_node.py`'s OWN plan-channel wiring this way: `PlanTracker`
+       construction behind the flag, the `command_id -> plan_id` side table
+       built in `_dispatch`, `_apply_plan_leg_status`'s translation of M4's
+       `ACTIVE`/`COMPLETED`/`FAILED` vocabulary onto a real tracked plan's
+       leg (end to end through a real `_on_scene_state` -> pipeline-run ->
+       `_dispatch` -> `_on_status` cycle), and a timed-out command's legs
+       being marked `failed` via the `_on_timer` hook added in the review
+       round below. This file joins the existing namespace-collision-affected
+       set (does not collect in this environment's normal invocation; 58/58
+       pass under the temporary `__init__.py` workaround) — it does not
+       change the before/after failing-name-set comparison below (never
+       collected in either state) but is real, durable coverage for
+       whichever environment collects it.
+    8. **Second review pass found one more real gap: a timed-out command
+       never marked its plan legs `failed`.** `_on_timer`'s
+       `self._tracker.check_timeouts(now)` -> `_resolve_command` path never
+       goes through `_on_status`, so `_apply_plan_leg_status` never saw a
+       timeout — a yield M5 gives up on stayed `active`/`pending` forever
+       on the plan side. Consequences mirrored item 5's: a stale plan-state
+       block, and the NEXT revision misclassified `unforced` instead of
+       `evidence_driven` (the exact distinction the plan-stability metric
+       needs). Fixed: in `_on_timer`, for each timed-out `command_id`,
+       `self._tracker.robots_of(command_id)` is marked `"FAILED"` via the
+       existing `_apply_plan_leg_status` (which already swallows an
+       already-terminal leg's `ValueError`, e.g. a robot that completed
+       before its sibling in the same multi-robot command timed out).
+       Pinned with `test_timed_out_command_marks_its_plan_legs_failed`
+       (`test_m5_node_plan_channel.py`, now 6 tests, 58 with the other
+       5 node files under the workaround).
+  - Full local suite on this worktree (branched from `feat/prereg-v2-composite`
+    at `dcc0ed7`; 10 files fail to COLLECT in this coordinator's environment
+    specifically — 3 genuinely need `pxr`/Isaac, the other 7 (now 8 with the
+    new `test_m5_node_plan_channel.py`) are an unrelated pre-existing `tests`
+    namespace-package collision with a stray `site-packages/tests/` from
+    another pip install, confirmed present and identical before any change
+    in this task, AND confirmed to collect and pass cleanly once worked
+    around locally -- see item 7 above): clean-worktree baseline at the
+    branch point 29 failed / 3729 passed / 137 skipped / 10 collection
+    errors; after this task, same 29 failing test names (diffed, zero
+    delta), same 10 collection-error files (the new node-channel test file
+    is the 11th, new, not in the baseline to begin with), passed count up
+    by the new tests added. The task brief's quoted baseline
+    (58 failed / 3769 passed / 141 skipped) was measured in a different
+    environment; this worktree's own clean-branch-point measurement is
+    the one the before/after comparison uses.
+
 - **2026-10-01** — **v2 build-order step 4 (CORE): the (a0) universal
   `proposed_plan` coordinator contract landed on `feat/v2-plan-contract`**,
   per `docs/superpowers/specs/2026-09-30-prereg-v2-design.md` "The VLM

@@ -402,6 +402,18 @@ def test_shadow_records_head_on_yield_for_normal_decision():
     assert record.comparison is None
 
 
+def test_shadow_records_arm_b_plan_for_the_plan_metrics_comparator():
+    # prereg-v2 (a0): "Arm B emits its plan through the identical field, so
+    # every metric has a classical comparator" -- the shadow log is simply
+    # the full Arm B decision, so once `resolve_classical` populates
+    # `proposed_plan` the shadow record carries it with no extra wiring.
+    record = _evaluated(_fed_shadow())
+    assert record.decision.proposed_plan is not None
+    by_robot = {leg.robot_id: leg.action for leg in record.decision.proposed_plan}
+    assert by_robot["robot_2"] == "yield"  # record.decision.yield_robot == "robot_2"
+    assert by_robot["robot_1"] == "cross"
+
+
 def test_shadow_records_buffer_extent_for_censoring_checks():
     record = _evaluated(_fed_shadow())
     assert record.frame_count == 11

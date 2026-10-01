@@ -270,6 +270,36 @@ def test_parse_decision_with_degradations_nulls_non_string_blocker_kind_with_tag
     assert tags == ["blocker_kind=default:invalid_label"]
 
 
+def test_parse_decision_with_degradations_keeps_a_valid_reasoning_string():
+    decision, tags = parse_decision_with_degradations(
+        _decision_json(reasoning="robot_1 and robot_2 are nose to nose in the aisle.")
+    )
+    assert decision.reasoning == "robot_1 and robot_2 are nose to nose in the aisle."
+    assert tags == []
+
+
+def test_parse_decision_with_degradations_nulls_non_string_reasoning_with_tag():
+    decision, tags = parse_decision_with_degradations(_decision_json(reasoning=3))
+    assert decision.reasoning is None
+    assert tags == ["reasoning=default:invalid_type"]
+
+
+def test_parse_decision_with_degradations_truncates_overlong_reasoning_with_tag():
+    from reasoning.vlm.models import REASONING_MAX_LENGTH
+
+    overlong = "x" * (REASONING_MAX_LENGTH + 500)
+    decision, tags = parse_decision_with_degradations(_decision_json(reasoning=overlong))
+    assert decision.reasoning == "x" * REASONING_MAX_LENGTH
+    assert tags == ["reasoning=truncated"]
+
+
+def test_congestion_decision_rejects_an_overlong_reasoning_constructed_directly():
+    from reasoning.vlm.models import REASONING_MAX_LENGTH
+
+    with pytest.raises(ValidationError):
+        _model(reasoning="x" * (REASONING_MAX_LENGTH + 1))
+
+
 def test_parse_decision_with_degradations_nulls_non_permutation_order_with_tag():
     decision, tags = parse_decision_with_degradations(
         _decision_json(crossing_order=["robot_1", "robot_4", "robot_3"])
@@ -324,6 +354,8 @@ def test_decision_degradation_tags_map_to_measurement_plan_causes():
         "blocker_kind=default:invalid_label": "invalid_label",
         "crossing_order=default:non_permutation": "non_permutation_order",
         "proposed_plan=default:invalid_structure": "invalid_plan_structure",
+        "reasoning=default:invalid_type": "invalid_reasoning",
+        "reasoning=truncated": "reasoning_truncated",
     }
 
 

@@ -19,16 +19,20 @@ from pydantic import (
 )
 
 from reasoning.rag.command_grounder import (
+    PlanRepairParams,
     YieldFeasibilityMode,
     filter_command_robot_ids,
+    plan_matches_dispatch,
     resolve_strategy_alias,
     validate_coordination_command,
+    verify_and_repair_plan,
 )
 from reasoning.rag.maneuver_geometry import GroundingParams
 from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import (
     CURRENT_PROMPT_VERSION,
     FailureContext,
+    PlanStateContext,
     PromptVersion,
     ReasonerDiagnostics,
     ReasonerRequest,
@@ -43,10 +47,12 @@ from reasoning.vlm.prompt_builder import build_prompt_payload
 from swarm_orchestrator.command_lifecycle import AttemptContexts, AttemptRecord
 from swarm_orchestrator.models import (
     PipelineOutcome,
+    PlanDispatchInfo,
     RetreatStage2Record,
     SceneSnapshot,
     TerminalStage,
 )
+from swarm_orchestrator.plan_tracker import PlanTracker
 from swarm_orchestrator.presentation_order import RobotPresentationOrderMode
 from swarm_orchestrator.retreat_stage2 import (
     RetreatChoiceCaller,
@@ -237,6 +243,7 @@ def build_reasoner_request(
     robot_presentation_order: RobotOrder = "id_asc",
     last_failed_context: FailureContext | None = None,
     prompt_version: PromptVersion = CURRENT_PROMPT_VERSION,
+    plan_state: PlanStateContext | None = None,
 ) -> ReasonerRequest:
     """Project a SceneSnapshot plus a dumped image path into a ReasonerRequest.
 
@@ -258,6 +265,10 @@ def build_reasoner_request(
             attempt in `failure_context`.
         prompt_version: Prompt template to render; replay passes a stored
             artifact's version so its prompt reconstructs byte-identically.
+        plan_state: The (a0) plan channel's active plan for the prompt-v3
+            plan-state block; None (the default) renders byte-identically to
+            every request built before plan tracking existed. Only the v3
+            template reads it.
 
     Returns:
         The request M2 is called with.
@@ -288,6 +299,7 @@ def build_reasoner_request(
         include_static_obstacles=include_static_obstacles,
         robot_presentation_order=robot_presentation_order,
         prompt_version=prompt_version,
+        plan_state=plan_state,
     )
 
 
@@ -450,6 +462,34 @@ class LatestRawFrame:
         return self._frame, self._stamp
 
 
+def _attach_plan_id(grounded: dict[str, Any], plan_id: int) -> dict[str, Any]:
+    """Tag every dispatched action with the (a0) plan it serves.
+
+    "Dispatched commands carry the `plan_id` they serve" (prereg-v2 rev 4,
+    "Plan lifecycle"). `parameters` is an unconstrained object in the
+    coordination-command schema (`reasoning/schemas/coordination_command.schema.json`),
+    already used this way for a reroute's injected `goal` -- so this needs no
+    schema change and M4's per-action handlers, which read known keys by name
+    and ignore the rest, are unaffected by the new one. Only called behind
+    `plan_channel_enabled`; the flag-off path never calls this.
+
+    Args:
+        grounded: A schema-valid grounded command (post `validate_fn`).
+        plan_id: The plan id this command's actions serve.
+
+    Returns:
+        A new command dict with `plan_id` added to every action's parameters;
+        `grounded` itself is left untouched.
+    """
+    return {
+        **grounded,
+        "actions": [
+            {**action, "parameters": {**action.get("parameters", {}), "plan_id": plan_id}}
+            for action in grounded["actions"]
+        ],
+    }
+
+
 def fan_out_command(
     grounded: dict[str, Any], fallback_timeout: float
 ) -> list[tuple[str, str, str, str, float]]:
@@ -589,6 +629,16 @@ def write_decision_artifact(
             list (derived mode only) is lifted to `grounding_degradations`,
             and a derived yield's stage-2 record to `stage2`.
 
+    `outcome.plan` (the (a0) plan channel, behind `plan_channel_enabled`) adds
+    a `plan` key with `plan_id`, `provenance`, `legs`, `edits`,
+    `rejection_reason`, `superseded_plan_id` and `cancel_order` -- only when
+    it is not None, same conditional-add pattern as `probe`/`probe_index`, so
+    a flag-off artifact is byte-identical to one written before this channel
+    existed. `outcome.plan_error`, likewise conditional, records why the
+    channel itself raised (`plan` is then None but the command still
+    dispatched -- a plan-channel failure never costs an otherwise-successful
+    decision).
+
     Returns:
         The artifact path.
     """
@@ -666,6 +716,24 @@ def write_decision_artifact(
     if probe_index is not None:
         payload["probe"] = True
         payload["probe_index"] = probe_index
+    # (a0) plan channel (prereg-v2 rev 4): added only when plan tracking is
+    # on (`outcome.plan is not None`), same conditional-add pattern as
+    # `probe`/`probe_index` above, so a flag-off artifact is byte-identical
+    # to one written before this channel existed -- no `"plan": null` key.
+    if outcome.plan is not None:
+        payload["plan"] = outcome.plan.model_dump(mode="json")
+    if outcome.plan_error is not None:
+        payload["plan_error"] = outcome.plan_error
+    # v3's plan-state block (unlike failure_context/last_failed_context,
+    # which predate flag-gating and are always-present-but-nullable keys)
+    # is added only when set, so a flag-off/pre-v3 artifact's bytes are
+    # unchanged. Needed for replay: the integrity arm rebuilds a
+    # ReasonerRequest from stored artifact fields and re-asserts the
+    # rendered prompt's SHA-256 (`scripts/replay_live_decisions.py`
+    # `reconstruct_request`), and a v3 artifact's plan-state block cannot be
+    # rebuilt without this.
+    if request is not None and request.plan_state is not None:
+        payload["plan_state"] = request.plan_state.model_dump(mode="json")
     artifact_path = output_path / f"{outcome.request_id}.json"
     artifact_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return artifact_path
@@ -732,6 +800,8 @@ class InProcessPipeline:
         candidate_marker: CandidateMarker | None = None,
         stage2_letter_seed: int = 0,
         priorities: Mapping[str, int] | None = None,
+        plan_tracker: PlanTracker | None = None,
+        plan_repair_params: PlanRepairParams | None = None,
     ) -> None:
         self._reasoner = reasoner
         # Registry priorities (`registry_priorities`), M3-only: never part of
@@ -764,6 +834,13 @@ class InProcessPipeline:
         # Default to the M3 schema validator (FR5.3.2 / spec §5: grounded commands
         # are schema-validated before they can reach OK and be dispatched).
         self._validate_fn = validate_fn or validate_coordination_command
+        # (a0) plan channel (prereg-v2 rev 4, build-order step 4), behind the
+        # `plan_channel_enabled` flag: None (the default, every caller before
+        # this step) means `run()` never calls `verify_and_repair_plan` and
+        # never touches the grounded command's parameters, so the dispatch
+        # path is byte-identical to before this channel existed.
+        self._plan_tracker = plan_tracker
+        self._plan_repair_params = plan_repair_params
 
     def run(self, request: ReasonerRequest) -> PipelineOutcome:
         try:
@@ -838,6 +915,51 @@ class InProcessPipeline:
                 failure_reason=f"grounding failed: {exc}",
                 stage2=stage2,
             )
+        plan_info: PlanDispatchInfo | None = None
+        plan_error: str | None = None
+        if self._plan_tracker is not None:
+            # A plan-channel failure must never cost an otherwise-successful
+            # dispatch (the adapter's own "never raised past this adapter"
+            # contract, FR5.3.2, extended to this channel): `grounded` here
+            # is already the fully validated command, so on any exception it
+            # is dispatched exactly as grounded, untouched by `_attach_plan_id`.
+            try:
+                verified = verify_and_repair_plan(
+                    decision,
+                    frame,
+                    geometry=self._scene_geometry,
+                    static_obstacles=self._static_obstacles,
+                    yield_feasibility_mode=self._yield_feasibility_mode,
+                    repair_params=self._plan_repair_params,
+                    priorities=dict(self._priorities) if self._priorities else None,
+                    grounding_params=params,
+                )
+                acceptance = self._plan_tracker.accept_plan(verified)
+                known_robot_ids = [robot.robot_id for robot in request.robot_states]
+                dispatch_matches_plan = plan_matches_dispatch(
+                    verified.legs, grounded, known_robot_ids
+                )
+                grounded = _attach_plan_id(grounded, acceptance.plan.plan_id)
+                plan_info = PlanDispatchInfo(
+                    plan_id=acceptance.plan.plan_id,
+                    provenance=verified.provenance,
+                    legs=acceptance.plan.legs,
+                    dispatch_matches_plan=dispatch_matches_plan,
+                    edits=tuple(verified.edits),
+                    rejection_reason=verified.rejection_reason,
+                    superseded_plan_id=(
+                        acceptance.supersedes.superseded_plan_id
+                        if acceptance.supersedes is not None
+                        else None
+                    ),
+                    cancel_order=(
+                        acceptance.supersedes.cancel_order
+                        if acceptance.supersedes is not None
+                        else ()
+                    ),
+                )
+            except Exception as exc:  # plan channel failure — bounded here, never raised
+                plan_error = f"plan channel failed: {exc}"
         return PipelineOutcome(
             request_id=request.request_id,
             reasoner_result=result,
@@ -845,6 +967,8 @@ class InProcessPipeline:
             terminal_stage=TerminalStage.OK,
             failure_reason=None,
             stage2=stage2,
+            plan=plan_info,
+            plan_error=plan_error,
         )
 
     def analyze(self, request: ReasonerRequest) -> PipelineOutcome:

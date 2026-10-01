@@ -78,6 +78,7 @@ from reasoning.vlm.models import (  # noqa: E402
     BackendResponse,
     FailureContext,
     OpenAIBackendConfig,
+    PlanStateContext,
     PromptPayload,
     ReasonerConfig,
     ReasonerRequest,
@@ -251,6 +252,10 @@ class Artifact:
     # before the prompt-v2 bundle (2026-09-27) carry no `prompt_version` key
     # and were all rendered by the frozen v1 template.
     prompt_version: int = 1
+    # v3's plan-state block input (prereg-v2 rev 4); absent on every artifact
+    # written before the (a0) plan channel existed, or with it disabled, and
+    # on every v1/v2 artifact (the field is v3-only).
+    plan_state: dict[str, Any] | None = None
 
     @property
     def raw_image_path(self) -> Path:
@@ -393,6 +398,7 @@ def load_artifacts(
                     raw_frame_skew_sec=skews.get(request_id),
                     last_failed_context=data.get("last_failed_context"),
                     prompt_version=int(data.get("prompt_version") or 1),
+                    plan_state=data.get("plan_state"),
                 )
             )
         loaded.sort(key=lambda a: (log_order.get(a.request_id, 10**6), a.stamp))
@@ -426,6 +432,9 @@ def reconstruct_request(
         if artifact.last_failed_context
         else None
     )
+    plan_state = (
+        PlanStateContext(**artifact.plan_state) if artifact.plan_state else None
+    )
     obstacles = (
         artifact.include_static_obstacles
         if include_static_obstacles is None
@@ -442,6 +451,7 @@ def reconstruct_request(
         include_static_obstacles=obstacles,
         robot_presentation_order=order or artifact.stored_order,
         prompt_version=artifact.prompt_version,
+        plan_state=plan_state,
     )
 
 

@@ -266,6 +266,20 @@ t0_probe_max_probes: 0
 # only the receipt age stops probes re-analysing the final frozen scene.
 t0_probe_max_snapshot_age_sec: 3.0
 
+# (a0) universal proposed_plan channel (prereg-v2 rev 4, build-order step 4).
+# false (default): the dispatch path -- grounded command, prompt version
+# (v2), decision artifact -- is byte-identical to every run before this
+# channel existed; this is the regression gate the two-robot head-on
+# equivalence smoke runs against. true: every triggered analysis is also
+# verified/repaired via `verify_and_repair_plan` and tracked by
+# `PlanTracker` (plan_id, per-leg pending/active/done/failed status,
+# dependency-ordered supersession cancels); dispatched actions carry the
+# accepted plan_id, M5 renders prompt v3 (the plan-state block plus the
+# `proposed_plan` invitation) instead of v2, and the decision artifact gains
+# a `plan` block. Never enabled for a T0 log-only probe (the probe path
+# never grounds or dispatches, so there is nothing to track).
+plan_channel_enabled: false
+
 # Fixed obstacles rendered into the VLM prompt when prompt_static_obstacles is
 # true. Like scenario_geometry above, these mirror the scenario file by hand
 # (here the head-on asymmetric family blocker) and must be set per scenario —

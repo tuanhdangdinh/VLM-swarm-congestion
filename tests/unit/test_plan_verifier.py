@@ -20,6 +20,7 @@ from reasoning.rag.command_grounder import (
     resolve_yield_roles,
     verify_and_repair_plan,
 )
+from reasoning.rag.maneuver_geometry import GroundingParams
 from reasoning.rag.scene_geometry import ArmGeometry, CorridorGeometry, SceneGeometry
 from reasoning.vlm.models import (
     CongestionDecision,
@@ -615,11 +616,14 @@ class TestDefaultPlanMatchesLegacyGrounding:
             "robot_3": "wait",
         }
 
-    def test_default_plan_does_not_model_derived_mode_band_infeasibility(self):
-        # Documents the known divergence: DERIVED mode's backup-band sweep can
-        # degrade a yield to a reroute; `_derive_default_plan` has no
-        # `GroundingParams` and cannot see this, so it still says yield/cross.
-        # This test exists to make the boundary visible, not to assert parity.
+    def test_default_plan_without_grounding_params_does_not_model_derived_mode(self):
+        # Pre-ruling-3 behaviour, still exact when `grounding_params` is
+        # omitted: DERIVED mode's backup-band sweep can degrade a yield to a
+        # reroute, but with no `GroundingParams` passed in `_derive_default_plan`
+        # has no way to see that, so it still says yield/cross. Omitting
+        # `grounding_params` is a caller choice (e.g. LEGACY-mode callers that
+        # have none), not a remaining gap -- see the next test for the ruling
+        # 3 fix when it IS passed.
         from reasoning.rag.maneuver_geometry import GroundingParams
 
         snapshot = _DEADLOCK
@@ -647,6 +651,43 @@ class TestDefaultPlanMatchesLegacyGrounding:
 
         assert command["actions"][0]["action"] == "reroute"  # derived mode degrades
         assert {leg.robot_id: leg.action for leg in default_legs}["robot_1"] == "yield"
+
+    def test_default_plan_with_grounding_params_models_derived_mode_band_infeasibility(self):
+        # Repair-semantics ruling 3 (2026-10-02): WITH `grounding_params`
+        # passed, the default plan now models the SAME backup-band sweep
+        # `ground_reasoner_result`'s derived-mode dispatch runs, and reaches
+        # the SAME reroute degradation -- the gap the previous test documents
+        # is closed when the caller supplies the params it was always missing.
+        from reasoning.rag.maneuver_geometry import GroundingParams
+
+        snapshot = _DEADLOCK
+        decision = _decision()
+        result = ReasonerResult(
+            request_id="req1",
+            decision=decision,
+            raw_text="{}",
+            diagnostics=ReasonerDiagnostics(
+                request_id="req1", backend_id="openai", attempts=1, parse_status="valid"
+            ),
+        )
+        impossible_band = GroundingParams(mode="derived", backup_band_m=(0.01, 0.02))
+        command = ground_reasoner_result(
+            result, snapshot=snapshot, params=impossible_band, geometry=_geometry()
+        )
+        default_legs = _derive_default_plan(
+            decision,
+            snapshot,
+            geometry=_geometry(),
+            static_obstacles=(),
+            yield_feasibility_mode="off",
+            priorities=None,
+            grounding_params=impossible_band,
+        )
+
+        assert command["actions"][0]["action"] == "reroute"
+        by_robot = {leg.robot_id: leg.action for leg in default_legs}
+        assert by_robot["robot_1"] == "reroute"
+        assert by_robot["robot_2"] == "wait"
 
 
 def _ordered_active_legs(legs: list[ProposedPlanLeg]) -> list[tuple[str, str]]:
@@ -678,6 +719,128 @@ def _project_legacy_command_ordered(command: dict, known_ids: list[str]) -> list
         if robot_id not in named:
             ordered.append((robot_id, "continue"))
     return ordered
+
+
+def _derived_grounding_params():
+    """The SHIPPED `config/rag.yaml` `grounding:` section, loaded from disk.
+
+    Not hand-copied: a future edit to the shipped config changes this sweep's
+    inputs automatically, so the equivalence claim stays pinned to "what M5
+    actually runs" rather than a snapshot of it.
+    """
+    import yaml
+
+    with open("config/rag.yaml", encoding="utf-8") as handle:
+        raw = yaml.safe_load(handle)
+    return GroundingParams(**raw["grounding"])
+
+
+class TestDefaultPlanMatchesDerivedGrounding:
+    """Repair-semantics ruling 3 (2026-10-02): `_derive_default_plan` with
+    `grounding_params` set must match what `ground_reasoner_result` (DERIVED
+    mode) actually dispatches -- the equivalence `TestDefaultPlanMatchesLegacyGrounding`
+    proves for LEGACY mode, now extended to the mode the fleet actually ships
+    (`config/rag.yaml` `grounding.mode: derived`). The two-robot head-on
+    equivalence smoke (prereg-v2 build-order step 4) runs derived mode and
+    counts only if this class is green.
+    """
+
+    @pytest.mark.parametrize(
+        "strategy, yield_robot, positions, gate",
+        list(
+            itertools.product(
+                _MATRIX_STRATEGIES,
+                [None, "robot_2"],
+                _MATRIX_POSITIONS_2,
+                _MATRIX_GATES,
+            )
+        ),
+    )
+    def test_default_plan_matches_derived_command_two_robot(
+        self, strategy, yield_robot, positions, gate
+    ):
+        obstacles, mode = gate
+        geometry = _geometry()
+        params = _derived_grounding_params()
+        decision = CongestionDecision(
+            congestion_detected=True,
+            type="deadlock",
+            involved_robots=["robot_1", "robot_2"],
+            root_cause="head-on aisle conflict",
+            strategy=strategy,
+            justification="robots are stopped face to face",
+            yield_robot=yield_robot,
+        )
+        result = ReasonerResult(
+            request_id="req1",
+            decision=decision,
+            raw_text="{}",
+            diagnostics=ReasonerDiagnostics(
+                request_id="req1", backend_id="openai", attempts=1, parse_status="valid"
+            ),
+        )
+        snapshot = SnapshotFrame(
+            stamp=1.0,
+            robots=[
+                RobotStateInput(robot_id=rid, x=x, y=y, theta=0.0)
+                for rid, (x, y) in positions.items()
+            ],
+        )
+        command = ground_reasoner_result(
+            result,
+            geometry=geometry,
+            static_obstacles=obstacles,
+            yield_feasibility_mode=mode,
+            snapshot=snapshot,
+            params=params,
+        )
+        default_legs = _derive_default_plan(
+            decision,
+            snapshot,
+            geometry=geometry,
+            static_obstacles=obstacles,
+            yield_feasibility_mode=mode,
+            priorities=None,
+            grounding_params=params,
+        )
+
+        assert {leg.robot_id: leg.action for leg in default_legs} == _project_legacy_command(
+            command, list(positions)
+        )
+
+    def test_default_plan_matches_derived_command_with_an_impossible_backup_band(self):
+        # The exact fixture
+        # `test_default_plan_with_grounding_params_models_derived_mode_band_infeasibility`
+        # pins directly, re-asserted here as a member of the systematic sweep
+        # rather than a hand-picked case.
+        geometry = _geometry()
+        params = GroundingParams(mode="derived", backup_band_m=(0.01, 0.02))
+        snapshot = _DEADLOCK
+        decision = _decision()
+        result = ReasonerResult(
+            request_id="req1",
+            decision=decision,
+            raw_text="{}",
+            diagnostics=ReasonerDiagnostics(
+                request_id="req1", backend_id="openai", attempts=1, parse_status="valid"
+            ),
+        )
+        command = ground_reasoner_result(
+            result, snapshot=snapshot, params=params, geometry=geometry
+        )
+        default_legs = _derive_default_plan(
+            decision,
+            snapshot,
+            geometry=geometry,
+            static_obstacles=(),
+            yield_feasibility_mode="off",
+            priorities=None,
+            grounding_params=params,
+        )
+
+        assert {leg.robot_id: leg.action for leg in default_legs} == _project_legacy_command(
+            command, ["robot_1", "robot_2"]
+        )
 
 
 class TestPlanPresentTwoRobotMatchesLegacyGrounding:
@@ -844,10 +1007,10 @@ class TestYieldFeasibilityModeContractNeverBrokenByRepair:
 
 
 class TestRepairCanResolveWhatLegacyRefuses:
-    """OPEN CONTRACT QUESTION, pinned as current behaviour (plan PRESENT
-    only; the plan-ABSENT path above is unaffected and still matches v1
-    exactly -- see `docs/implementation_notes.md`'s "OPEN CONTRACT QUESTION"
-    entry for the full owner-facing writeup).
+    """RESOLVED by repair-semantics ruling 1 (2026-10-02, pinned as current
+    behaviour; plan PRESENT only -- the plan-ABSENT path above is unaffected
+    and still matches v1 exactly). See `docs/implementation_notes.md` for the
+    full writeup.
 
     For a 3+-robot multi-passer scene with an independent ordering defect
     AND a room defect together, `_ground_legacy`'s swap gate only tries a
@@ -856,14 +1019,14 @@ class TestRepairCanResolveWhatLegacyRefuses:
     deliberate ("refused rather than reordered, so the executed order is
     always the decided one"). This engine's repair search is allowed to
     reorder AND reassign, so it can find a minimal, fully feasible
-    resolution where legacy output is a wait fan-out for every robot. This
-    test PINS that behaviour (it is what the engine does today, and the task
-    explicitly asks for a reorder repair case), but whether a 3+-robot
-    ordering-only defect SHOULD be fixed by reorder rather than refused like
-    v1 is an open question for the owner, not settled by this task -- the
-    bit-identical requirement this task must satisfy is scoped to the
-    plan-ABSENT case and the two-robot swap gate, both verified exactly
-    elsewhere in this file; it says nothing about this case either way.
+    resolution where legacy output is a wait fan-out for every robot. Ruling
+    1 confirms this is intended, not an accident: reorder repairs MAY resolve
+    a 3+-robot plan-PRESENT scene v1's refuse-only ordering policy would
+    abandon -- that capability is this contract's purpose, and v1's
+    plan-ABSENT behaviour (the bit-identical requirement, verified exactly
+    elsewhere in this file) is untouched either way. The two cells of this
+    sweep that are genuine yielder reassignments (not pure reorders) are
+    further pinned by `TestTieBreakPrefersFeasibilityGateYielder` (ruling 2).
     """
 
     def test_repair_can_find_a_feasible_plan_where_v1_swap_mode_refuses(self):
@@ -928,6 +1091,69 @@ class TestRepairCanResolveWhatLegacyRefuses:
             verified.legs, decision, snapshot, _geometry(), (west_blocker,), "swap"
         )
         assert problems == []
+
+
+class TestTieBreakPrefersFeasibilityGateYielder:
+    """Repair-semantics ruling 2 (2026-10-02, `docs/implementation_notes.md`):
+    equal-cost repair candidates tie-break toward M3's derived plan,
+    "including its yielder pick". Pins the exact two cells the ruling names
+    (`_DIVERGENT_THREE_ROBOT_CELLS`'s two "swap"-mode, `yield_robot="robot_1"`
+    entries): before this ruling the fixed `_ops` enumeration order found a
+    feasible repair naming `robot_3` as yielder first; `_apply_yield_feasibility`'s
+    own candidate scan (`"swap"` mode, `robot_ids[1:]` in order) would have
+    picked `robot_2` -- the first room-feasible candidate -- so the repair
+    must now land there instead, at the SAME minimal edit depth (never a
+    deeper one: ruling 2 is a same-depth tie-break, not a search widening).
+    """
+
+    @pytest.mark.parametrize(
+        "order",
+        [
+            ["robot_1", "robot_2", "robot_3"],
+            ["robot_1", "robot_3", "robot_2"],
+        ],
+    )
+    def test_repair_prefers_the_feasibility_gates_candidate_yielder(self, order):
+        positions = {"robot_1": (-0.3, 0.0), "robot_2": (1.5, 0.0), "robot_3": (0.3, 0.0)}
+        plan = [ProposedPlanLeg(robot_id="robot_1", action="yield")] + [
+            ProposedPlanLeg(robot_id=rid, action="cross") for rid in order if rid != "robot_1"
+        ]
+        decision = CongestionDecision(
+            congestion_detected=True,
+            type="deadlock",
+            involved_robots=["robot_1", "robot_2", "robot_3"],
+            root_cause="x",
+            strategy="yield",
+            justification="j",
+            yield_robot="robot_1",
+            crossing_order=order,
+            proposed_plan=plan,
+        )
+        snapshot = SnapshotFrame(
+            stamp=1.0,
+            robots=[
+                RobotStateInput(robot_id=rid, x=x, y=y, theta=0.0)
+                for rid, (x, y) in positions.items()
+            ],
+        )
+        verified = verify_and_repair_plan(
+            decision,
+            snapshot,
+            geometry=_geometry(),
+            static_obstacles=(_WEST_BLOCKER,),
+            yield_feasibility_mode="swap",
+        )
+
+        assert verified.provenance == "repaired"
+        yield_legs = [leg for leg in verified.legs if leg.action == "yield"]
+        assert len(yield_legs) == 1
+        # The feasibility gate's own candidate scan (robot_ids[1:] in order,
+        # first room-feasible wins) picks robot_2 over robot_3 here -- never
+        # reached by the BFS's fixed enumeration order alone before this fix.
+        assert yield_legs[0].robot_id == "robot_2"
+        assert not _plan_problems_for_test(
+            verified.legs, decision, snapshot, _geometry(), (_WEST_BLOCKER,), "swap"
+        )
 
 
 def _plan_problems_for_test(legs, decision, snapshot, geometry, static_obstacles, mode):

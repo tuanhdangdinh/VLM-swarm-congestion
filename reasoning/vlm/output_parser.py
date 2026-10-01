@@ -13,6 +13,7 @@ from reasoning.vlm.errors import (
     VLMOutputParseError,
 )
 from reasoning.vlm.models import (
+    REASONING_MAX_LENGTH,
     BlockerKind,
     CongestionDecision,
     ProposedPlanLeg,
@@ -52,6 +53,13 @@ DECISION_DEGRADATION_TAGS: dict[str, str] = {
     # M3-side rejections (`m3_default` provenance with a logged reason), never
     # a stage-1 parse degradation.
     "proposed_plan=default:invalid_structure": "invalid_plan_structure",
+    # Prompt v3 "reasoning-field-first JSON": a non-string raw value nulls the
+    # field (never crashes the decision parse); an over-length string is
+    # truncated to `REASONING_MAX_LENGTH`, not nulled -- unlike the other
+    # fields here, a too-long reasoning trace is not a structural defect, so
+    # discarding it entirely would lose a usable (if verbose) rationale.
+    "reasoning=default:invalid_type": "invalid_reasoning",
+    "reasoning=truncated": "reasoning_truncated",
 }
 _BLOCKER_KINDS: frozenset[str] = frozenset(get_args(BlockerKind))
 
@@ -126,6 +134,14 @@ def _sanitize_optional_fields(parsed: Any) -> list[str]:
             except (TypeError, ValueError, ValidationError):
                 parsed["proposed_plan"] = None
                 tags.append("proposed_plan=default:invalid_structure")
+    reasoning = parsed.get("reasoning")
+    if reasoning is not None:
+        if not isinstance(reasoning, str):
+            parsed["reasoning"] = None
+            tags.append("reasoning=default:invalid_type")
+        elif len(reasoning) > REASONING_MAX_LENGTH:
+            parsed["reasoning"] = reasoning[:REASONING_MAX_LENGTH]
+            tags.append("reasoning=truncated")
     return tags
 
 

@@ -15,6 +15,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from reasoning.vlm.models import (
     BlockerKind,
     CongestionDecision,
+    PlanLegAction,
+    ProposedPlanLeg,
     RobotStateInput,
     SnapshotFrame,
 )
@@ -253,6 +255,58 @@ class ClassicalResolution(BaseModel):
     passing_order: list[str] | None = None
 
 
+def _build_arm_b_plan(
+    scenario: ClassicalScenario,
+    decision: CongestionDecision,
+    order: list[str] | None,
+    latest: SnapshotFrame,
+) -> list[ProposedPlanLeg] | None:
+    """Arm B's plan through the identical `proposed_plan` channel (prereg-v2 (a0)).
+
+    Degrades Arm B's OWN yielder / FCFS passing order / strategy choice to
+    the (a0) leg vocabulary, scene-wide (`continue` for every tracked robot
+    Arm B's decision does not involve) -- never routed through M3's
+    `_derive_default_plan`: that would make the comparator M3's own default
+    plan instead of Arm B's, defeating the point of a classical comparator
+    for the plan-quality metrics ("Arm B emits its plan through the
+    identical field, so every metric has a classical comparator").
+
+    Args:
+        scenario: The classifier's scenario label for this decision.
+        decision: Arm B's own decision for this scene, already built (with
+            `proposed_plan` still unset).
+        order: The FCFS passing order, yielder last, for
+            `head_on`/`intersection`; ignored (and may be None) otherwise.
+        latest: The latest buffered frame, for the scene-wide robot roster.
+
+    Returns:
+        A complete plan (every `latest` robot gets exactly one leg), or None
+        for `scenario == "none"` -- no congestion, nothing to plan.
+    """
+    if scenario == "none":
+        return None
+    actions: dict[str, PlanLegAction] = {state.robot_id: "continue" for state in latest.robots}
+    ordered: list[str] = []
+    if scenario in ("head_on", "intersection"):
+        assert order is not None, f"{scenario} always carries a passing order"
+        yielder, passers = order[-1], order[:-1]
+        actions[yielder] = "yield"
+        for robot_id in passers:
+            actions[robot_id] = "cross"
+        ordered = [yielder, *passers]
+    elif scenario == "blocked_path":
+        for robot_id in decision.involved_robots:
+            actions[robot_id] = "reroute"
+        ordered = list(decision.involved_robots)
+    else:  # "unknown"
+        leg_action: PlanLegAction = "wait" if decision.strategy == "temporary_wait" else "reroute"
+        for robot_id in decision.involved_robots:
+            actions[robot_id] = leg_action
+        ordered = list(decision.involved_robots)
+    remaining = [robot_id for robot_id in actions if robot_id not in ordered]
+    return [ProposedPlanLeg(robot_id=rid, action=actions[rid]) for rid in [*ordered, *remaining]]
+
+
 def resolve_classical(
     frames: Sequence[SnapshotFrame],
     zones: Sequence[ConflictZone],
@@ -291,6 +345,9 @@ def resolve_classical(
     classification = classify_scene(frames, zones, params)
     involved = classification.involved_robots
     scenario = classification.scenario
+    # For the (a0) plan channel below: the scene-wide robot roster every
+    # branch's plan completes against (`continue` for an uninvolved robot).
+    latest_for_plan = max(frames, key=lambda frame: frame.stamp)
 
     if scenario == "none":
         latest = max(frames, key=lambda frame: frame.stamp)
@@ -330,6 +387,8 @@ def resolve_classical(
             # two-robot order is fixed by the yielder alone.
             crossing_order=order if len(order) >= 3 else None,
         )
+        plan = _build_arm_b_plan(scenario, decision, order, latest_for_plan)
+        decision = decision.model_copy(update={"proposed_plan": plan})
         return ClassicalResolution(
             decision=decision, classification=classification, passing_order=order
         )
@@ -344,6 +403,8 @@ def resolve_classical(
             justification="classical policy: blocked_path blocker is always object -> reroute",
             blocker_kind=classification.blocker_kind,
         )
+        plan = _build_arm_b_plan(scenario, decision, None, latest_for_plan)
+        decision = decision.model_copy(update={"proposed_plan": plan})
         return ClassicalResolution(decision=decision, classification=classification)
 
     strategy = "temporary_wait" if prior_attempts == 0 else "reroute"
@@ -359,6 +420,8 @@ def resolve_classical(
         ),
         blocker_kind=classification.blocker_kind,
     )
+    plan = _build_arm_b_plan(scenario, decision, None, latest_for_plan)
+    decision = decision.model_copy(update={"proposed_plan": plan})
     return ClassicalResolution(decision=decision, classification=classification)
 
 

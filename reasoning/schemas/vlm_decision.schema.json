@@ -11,6 +11,7 @@
     "justification"
   ],
   "properties": {
+    "reasoning": { "type": ["string", "null"], "maxLength": 2000 },
     "congestion_detected": { "type": "boolean" },
     "type": {
       "type": "string",
