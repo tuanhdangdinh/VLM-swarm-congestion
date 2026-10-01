@@ -37,10 +37,88 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-02** — **v2 build-order step 10, third correction: M1-vs-GT
+  answer agreement, frame-wide occlusion, cell uniqueness, duplicate-scene
+  dedup, independent audit script** (supersedes the manifest numbers AND the
+  "all correct" verification claim of the second-correction entry below --
+  two of that round's own spot-check images were misread; see below -- same
+  branch, same `--seed 20261002`). The second correction's occlusion check
+  tested only the *named* robot against the grid badges; a further look at
+  its own rendered evidence (two images it had called "correct") showed a
+  *different* tracked robot's label clipped by a badge in the same frame,
+  and -- independently -- that several `locate_robot` items had two or three
+  tracked robots sharing one cell, so the item did not actually require
+  identifying the named robot (any guess near the cluster scored correct).
+  Separately, many near-duplicate items had entered the pool: consecutive
+  decision calls during a stalled episode log nearly identical robot
+  positions a few seconds apart, and the per-run item cap did not catch
+  this, so `n=15` per type overstated how much independent evidence the set
+  held. Fixes:
+  - New `reasoning/vlm/capability_probes/scanning.py` centralizes GT-row
+    matching, the per-frame legibility check, and the scene-configuration
+    dedup key, shared by both the build script and the new audit script
+    below (one definition, not two that could drift).
+  - `scripts/build_capability_probe_manifest.py`: `scanning.scene_is_legible`
+    (edge-clear, >=70 px separated, no STALE, computed from **M1** pixel
+    positions -- M1 is what the image actually shows) now gates *every*
+    probe type per frame, not `robot_count` alone. Badge occlusion
+    (`occlusion.robot_overlaps_any_grid_badge`) is checked for *every*
+    tracked robot in the frame, not only the named one: any collision
+    disqualifies every `locate_robot` item from that frame. A `locate_robot`
+    candidate is further dropped when any other tracked robot shares its GT
+    cell (`cell_not_unique`). Every candidate's GT-derived answer
+    (cell/side/nearest) must now also equal the same answer computed from
+    **M1** positions (`m1_gt_answer_disagreement`) -- a principled
+    replacement for guessing a safety margin in pixels/metres: if the
+    displayed (M1) and scored (GT) positions would give different answers,
+    the item is ambiguous regardless of how close either is to a boundary.
+    Candidates are deduped per probe type on `scanning.dedup_key` (reference
+    robot + every robot's GT position, rounded to 5 cm) before selection.
+  - New `scripts/audit_capability_probe_manifest.py`: re-reads each frozen
+    item's own decision JSON and GT row from `--logs-root` independently of
+    the build script's in-memory state, and re-asserts every check above
+    (plus frame rematerialization and the dedup-key uniqueness) against the
+    *current* source logs -- a regression oracle a shared bug between
+    "build" and "verify" cannot fool. `python scripts/audit_capability_probe_manifest.py
+    --logs-root <path>` exits 0 and prints `OK: all 60 items passed every
+    check` on this manifest; committed so the v2-freeze agent can re-run it
+    before any live collection. 3 new unit tests
+    (`test_audit_capability_probe_manifest.py`, synthetic logs, incl. two
+    negative tests that corrupt source data after building and confirm the
+    audit catches it).
+  - Rebuilt manifest (same seed): still 15/15 items per probe type, across 8
+    distinct run families and 15 distinct scenarios. Per type: `robot_count`
+    10 scenes, 5/5/5 across {2,3,4}; `left_right` 8 scenes, 8 left / 7
+    right; `locate_robot` 8 scenes, cells {1,3,4,5,7} (3,4,4,3,1); `nearest_first`
+    5 scenes, {robot_1: 3, robot_2: 6, robot_3: 3, robot_4: 3}. New drop
+    tallies: `badge_occludes_label` 770 (was per-robot-only before, now
+    frame-wide), `cell_not_unique` 325, `m1_gt_answer_disagreement` 2,
+    `duplicate_scene_*` 786/248/352/449 (left_right/locate_robot/nearest_first/
+    robot_count) -- the duplicate count alone confirms this was a real,
+    substantial gap in the prior two builds, not a theoretical one.
+  - Verification method changed: replaced ad hoc visual spot-checking (two
+    prior rounds each missed a real defect) with the audit script above as
+    the primary method, plus 5 targeted renders -- each cropped and ringed
+    on the named robot's own **M1** pixel position, not a cell centre or a
+    guessed crop window, which is what made the two prior rounds' images
+    misreadable -- confirming the audit's "pass" is also human-legible.
+  - Full-suite zero-delta re-confirmed (same 63 pre-existing failures, 4075
+    -> 4188 passing across all three correction rounds plus the original
+    build, 113 new tests total).
+  - **Known residual gaps, carried forward, not fixed**: the model-pin gap
+    (below) stands; the round, unlabeled objects visible in several scenes
+    (e.g. `robot_count_005`) remain unidentified (not confirmed as inert
+    scenery vs. something the scenario intends as an obstacle) -- call them
+    "unmarked round objects" in any further note, not "obstacles", since
+    that was never verified; the grid's 9 cells are not evenly reachable
+    (`locate_robot` draws only from 5 of 9 after every filter); `y_extent_probe`
+    kept no frames and contributed nothing.
+
 - **2026-10-02** — **v2 build-order step 10, second correction: grid-badge
   occlusion, nearest_first/robot_count scene validity, refusal tagging**
-  (supersedes the manifest numbers in the margin-correction entry below,
-  same branch, same `--seed 20261002`). A wider visual-check pass (multiple
+  (SUPERSEDED by the entry above for manifest numbers AND for its own
+  verification claim -- see above; the occlusion/refusal-tagging code
+  changes it introduced stand). A wider visual-check pass (multiple
   rendered `locate_robot`/`left_right`/`nearest_first`/`robot_count` items
   against the real annotated frames, not one item) found the first margin
   fix was incomplete: a grid badge is drawn at each cell's fixed centre, and
