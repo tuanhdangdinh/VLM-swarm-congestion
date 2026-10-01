@@ -1,0 +1,411 @@
+#!/usr/bin/env python3
+"""Scan run logs and freeze the capability-probe manifest (prereg-v2 step 10).
+
+Scans `--logs-root` (a `data/logs/vm_runs` tree) for every
+`<run>/<episode>/decisions/*.json` alongside a `gt/ground_truth.jsonl`,
+matches each decision to the Isaac Sim ground-truth row at its `scene.stamp`,
+and -- only where M1's estimate and GT agree within
+`ground_truth.M1_GT_MAX_DISAGREEMENT_M` -- derives the GT-correct answer for
+whichever of the four probe types the frame supports (a 2-robot frame cannot
+support `nearest_first`; a robot near the frame's centre column cannot
+support `left_right`; etc.). Item selection is a deterministic, seeded,
+balanced sample (`reasoning.vlm.capability_probes.selection`) across the
+eligible candidates, never hand-picked and never padded with synthetic items:
+a probe type with too few eligible candidates is reported short, not topped
+up.
+
+This script makes no VLM backend calls -- it is pure log scanning, GT
+arithmetic, and image I/O (reading frame dimensions, writing the grid-overlay
+preview for `locate_robot` items is the runner's job, not this script's).
+
+Usage:
+    python scripts/build_capability_probe_manifest.py \\
+        --logs-root /path/to/data/logs/vm_runs \\
+        --calibration ros2_ws/src/swarm_perception/config/calibration.yaml \\
+        --out reasoning/vlm/capability_probes/manifest_v1.json \\
+        --seed 20261002 --target-per-type 15
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import sys
+from collections import Counter
+from dataclasses import dataclass
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+PERCEPTION_SRC = REPO_ROOT / "ros2_ws" / "src" / "swarm_perception"
+if str(PERCEPTION_SRC) not in sys.path:
+    sys.path.insert(0, str(PERCEPTION_SRC))
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+import cv2  # noqa: E402
+
+from reasoning.vlm.capability_probes import ground_truth as gtlib  # noqa: E402
+from reasoning.vlm.capability_probes.grid import GRID_CELL_COUNT  # noqa: E402
+from reasoning.vlm.capability_probes.manifest_io import save_manifest, sha256_file  # noqa: E402
+from reasoning.vlm.capability_probes.models import ProbeItem, ProbeManifest, ProbeType  # noqa: E402
+from reasoning.vlm.capability_probes.selection import balanced_sample  # noqa: E402
+
+# How many GT-matched robots a frame's `scene.stamp` must land within, to be
+# used at all. Episodes in this battery log GT at a fixed physics tick
+# (<=1/60 s); a looser bound tolerates the coarser cadence of older runs.
+_GT_MATCH_TOLERANCE_SEC = 0.5
+_ANNOTATED_SUFFIXES = ("_raw.png", "_stage2.png")
+
+
+@dataclass
+class _Candidate:
+    probe_type: ProbeType
+    run_id: str
+    scenario: str
+    request_id: str
+    frame_path: Path
+    image_width: int
+    image_height: int
+    sim_time_sec: float
+    reference_robot_id: str | None
+    question: str
+    options: list[str]
+    correct_answer: str
+    image_choices: bool
+    m1_gt_max_disagreement_m: float
+
+
+def _question_for(probe_type: ProbeType, reference_robot_id: str | None) -> str:
+    if probe_type == "robot_count":
+        return "How many robots are visible in the image?"
+    if probe_type == "left_right":
+        return (
+            f"Looking at the image, is robot {reference_robot_id} positioned in the "
+            "left half or the right half of the frame?"
+        )
+    if probe_type == "nearest_first":
+        return f"Which other robot is positioned nearest to robot {reference_robot_id}?"
+    if probe_type == "locate_robot":
+        return f"Which lettered grid cell is robot {reference_robot_id} in?"
+    raise ValueError(f"unknown probe_type {probe_type!r}")
+
+
+def _load_gt_rows(gt_path: Path) -> list[dict]:
+    rows = []
+    with gt_path.open(encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    return rows
+
+
+def _nearest_gt_row(rows: list[dict], stamp: float) -> dict | None:
+    if not rows:
+        return None
+    best = min(rows, key=lambda r: abs(r["sim_time_sec"] - stamp))
+    if abs(best["sim_time_sec"] - stamp) > _GT_MATCH_TOLERANCE_SEC:
+        return None
+    return best
+
+
+def _annotated_frame_path(frames_dir: Path, request_id: str) -> Path | None:
+    candidate = frames_dir / f"{request_id}.png"
+    if not candidate.is_file():
+        return None
+    for suffix in _ANNOTATED_SUFFIXES:
+        if candidate.name.endswith(suffix):
+            return None
+    return candidate
+
+
+def _scan_episode(
+    episode_dir: Path,
+    logs_root: Path,
+    homography,
+    calibration_image_size: tuple[int, int],
+    drop_counts: Counter,
+) -> list[_Candidate]:
+    gt_path = episode_dir / "gt" / "ground_truth.jsonl"
+    decisions_dir = episode_dir / "decisions"
+    frames_dir = episode_dir / "frames"
+    if not (gt_path.is_file() and decisions_dir.is_dir() and frames_dir.is_dir()):
+        return []
+
+    manifest_path = episode_dir / "gt" / "run_manifest.json"
+    scenario = episode_dir.name
+    if manifest_path.is_file():
+        try:
+            scenario = json.loads(manifest_path.read_text(encoding="utf-8")).get(
+                "scenario", scenario
+            )
+        except (json.JSONDecodeError, OSError):
+            pass
+    run_id = str(episode_dir.relative_to(logs_root))
+    gt_rows = _load_gt_rows(gt_path)
+
+    candidates: list[_Candidate] = []
+    for decision_path in sorted(decisions_dir.glob("*.json")):
+        try:
+            decision = json.loads(decision_path.read_text(encoding="utf-8"))
+            scene = decision["scene"]
+            request_id = decision["request_id"]
+            stamp = float(scene["stamp"])
+            m1_robots = {r["robot_id"]: {"x": r["x"], "y": r["y"]} for r in scene["robots"]}
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            drop_counts["unparseable_decision"] += 1
+            continue
+
+        gt_row = _nearest_gt_row(gt_rows, stamp)
+        if gt_row is None:
+            drop_counts["no_matching_gt"] += 1
+            continue
+        gt_robots = {rid: {"x": r["x"], "y": r["y"]} for rid, r in gt_row["robots"].items()}
+
+        disagreement = gtlib.max_m1_gt_disagreement_m(m1_robots, gt_robots)
+        if disagreement > gtlib.M1_GT_MAX_DISAGREEMENT_M:
+            drop_counts["m1_gt_disagreement"] += 1
+            continue
+
+        frame_path = _annotated_frame_path(frames_dir, request_id)
+        if frame_path is None:
+            drop_counts["frame_missing"] += 1
+            continue
+
+        image = cv2.imread(str(frame_path))
+        if image is None:
+            drop_counts["frame_missing"] += 1
+            continue
+        height, width = image.shape[:2]
+        if (width, height) != tuple(calibration_image_size):
+            drop_counts["calibration_scale_mismatch"] += 1
+            continue
+
+        base = dict(
+            run_id=run_id,
+            scenario=scenario,
+            request_id=request_id,
+            frame_path=frame_path,
+            image_width=width,
+            image_height=height,
+            sim_time_sec=gt_row["sim_time_sec"],
+            m1_gt_max_disagreement_m=disagreement,
+        )
+
+        if 1 <= len(gt_robots) <= 5:
+            candidates.append(
+                _Candidate(
+                    probe_type="robot_count",
+                    reference_robot_id=None,
+                    question=_question_for("robot_count", None),
+                    options=[str(n) for n in range(1, 6)],
+                    correct_answer=str(len(gt_robots)),
+                    image_choices=False,
+                    **base,
+                )
+            )
+        else:
+            drop_counts["robot_count_out_of_scope"] += 1
+
+        for robot_id, pos in gt_robots.items():
+            side, margin = gtlib.left_right_answer(pos["x"], homography, width, height)
+            if margin >= gtlib.LEFT_RIGHT_MARGIN_M:
+                candidates.append(
+                    _Candidate(
+                        probe_type="left_right",
+                        reference_robot_id=robot_id,
+                        question=_question_for("left_right", robot_id),
+                        options=["left", "right"],
+                        correct_answer=side,
+                        image_choices=False,
+                        **base,
+                    )
+                )
+
+            cell = gtlib.grid_cell_answer(pos["x"], pos["y"], homography, width, height)
+            if cell is not None:
+                candidates.append(
+                    _Candidate(
+                        probe_type="locate_robot",
+                        reference_robot_id=robot_id,
+                        question=_question_for("locate_robot", robot_id),
+                        options=[str(i) for i in range(GRID_CELL_COUNT)],
+                        correct_answer=str(cell),
+                        image_choices=True,
+                        **base,
+                    )
+                )
+            else:
+                drop_counts["grid_boundary_too_close"] += 1
+
+            if len(gt_robots) >= 3:
+                nearest = gtlib.nearest_first_answer(gt_robots, robot_id)
+                if nearest is not None:
+                    nearest_id, gap = nearest
+                    if gap >= gtlib.NEAREST_FIRST_MARGIN_M:
+                        others = sorted(rid for rid in gt_robots if rid != robot_id)
+                        candidates.append(
+                            _Candidate(
+                                probe_type="nearest_first",
+                                reference_robot_id=robot_id,
+                                question=_question_for("nearest_first", robot_id),
+                                options=others,
+                                correct_answer=nearest_id,
+                                image_choices=False,
+                                **base,
+                            )
+                        )
+                    else:
+                        drop_counts["margin_too_small"] += 1
+            else:
+                drop_counts["too_few_robots"] += 1
+
+    return candidates
+
+
+def _balance_by_correct_answer(candidate: _Candidate) -> str:
+    return candidate.correct_answer
+
+
+def _balance_by_scene_robot_count(candidate: _Candidate) -> str:
+    # nearest_first has no natural "correct answer" axis to balance (the
+    # correct robot id is scene-specific); balance by how many robots were in
+    # the scene instead, so the item set spans 3-, 4-, and 5-robot scenes
+    # rather than whichever happens to be scanned first.
+    return str(len(candidate.options) + 1)
+
+
+def _scene_key(candidate: _Candidate) -> str:
+    return candidate.run_id
+
+
+def _item_seed(manifest_seed: int, item_id: str) -> int:
+    digest = hashlib.sha256(f"{manifest_seed}:item:{item_id}".encode()).digest()
+    return int.from_bytes(digest[:8], "big")
+
+
+def build_manifest(
+    logs_root: Path,
+    calibration_path: Path,
+    seed: int,
+    target_per_type: int,
+    max_per_scene: int,
+) -> tuple[ProbeManifest, Counter]:
+    """Scan `logs_root` and select a frozen, balanced item set.
+
+    Args:
+        logs_root: Root of a `data/logs/vm_runs` tree.
+        calibration_path: M1's `calibration.yaml` the dumped frames were
+            rendered under.
+        seed: Selection and lettering seed.
+        target_per_type: Max items to select per probe type.
+        max_per_scene: Max items any one run/episode may contribute per type.
+
+    Returns:
+        `(manifest, drop_counts)`; `drop_counts` tallies why candidates were
+        excluded, for the gap report.
+    """
+    from swarm_perception.calibration import load_calibration
+
+    calibration = load_calibration(str(calibration_path))
+    homography = calibration.homography
+
+    drop_counts: Counter = Counter()
+    candidates_by_type: dict[ProbeType, list[_Candidate]] = {
+        "robot_count": [],
+        "left_right": [],
+        "nearest_first": [],
+        "locate_robot": [],
+    }
+    episode_dirs = sorted({p.parent for p in logs_root.rglob("decisions") if p.is_dir()})
+    for episode_dir in episode_dirs:
+        for candidate in _scan_episode(
+            episode_dir, logs_root, homography, calibration.image_size, drop_counts
+        ):
+            candidates_by_type[candidate.probe_type].append(candidate)
+
+    selected: list[ProbeItem] = []
+    for probe_type, candidates in candidates_by_type.items():
+        balance_key = (
+            _balance_by_correct_answer
+            if probe_type in ("robot_count", "left_right", "locate_robot")
+            else _balance_by_scene_robot_count
+        )
+        chosen = balanced_sample(
+            candidates,
+            balance_key=balance_key,
+            scene_key=_scene_key,
+            target=target_per_type,
+            seed=seed,
+            max_per_scene=max_per_scene,
+        )
+        for index, candidate in enumerate(chosen):
+            item_id = f"{probe_type}_{index:03d}"
+            item_seed = _item_seed(seed, item_id)
+            selected.append(
+                ProbeItem(
+                    item_id=item_id,
+                    probe_type=candidate.probe_type,
+                    run_id=candidate.run_id,
+                    scenario=candidate.scenario,
+                    request_id=candidate.request_id,
+                    frame_relpath=str(candidate.frame_path.relative_to(logs_root)),
+                    frame_sha256=sha256_file(candidate.frame_path),
+                    image_width=candidate.image_width,
+                    image_height=candidate.image_height,
+                    sim_time_sec=candidate.sim_time_sec,
+                    reference_robot_id=candidate.reference_robot_id,
+                    question=candidate.question,
+                    options=candidate.options,
+                    correct_answer=candidate.correct_answer,
+                    image_choices=candidate.image_choices,
+                    seed=item_seed,
+                    m1_gt_max_disagreement_m=candidate.m1_gt_max_disagreement_m,
+                )
+            )
+
+    manifest = ProbeManifest(seed=seed, items=selected)
+    return manifest, drop_counts
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--logs-root", type=Path, required=True)
+    parser.add_argument(
+        "--calibration",
+        type=Path,
+        default=REPO_ROOT / "ros2_ws" / "src" / "swarm_perception" / "config" / "calibration.yaml",
+    )
+    parser.add_argument(
+        "--out", type=Path, default=REPO_ROOT / "reasoning/vlm/capability_probes/manifest_v1.json"
+    )
+    parser.add_argument("--seed", type=int, default=20261002)
+    parser.add_argument("--target-per-type", type=int, default=15)
+    parser.add_argument("--max-per-scene", type=int, default=5)
+    args = parser.parse_args()
+
+    manifest, drop_counts = build_manifest(
+        args.logs_root, args.calibration, args.seed, args.target_per_type, args.max_per_scene
+    )
+    save_manifest(manifest, args.out)
+
+    by_type: Counter = Counter(item.probe_type for item in manifest.items)
+    scenarios_by_type: dict[str, set[str]] = {}
+    for item in manifest.items:
+        scenarios_by_type.setdefault(item.probe_type, set()).add(item.scenario)
+
+    print(f"wrote {args.out} ({len(manifest.items)} items, seed={args.seed})")
+    for probe_type in sorted(by_type):
+        n_scenes = len(scenarios_by_type[probe_type])
+        short = " SHORT" if by_type[probe_type] < args.target_per_type else ""
+        print(f"  {probe_type}: {by_type[probe_type]}/{args.target_per_type} items, "
+              f"{n_scenes} scenes{short}")
+    if drop_counts:
+        print("dropped candidates:")
+        for reason, count in sorted(drop_counts.items()):
+            print(f"  {reason}: {count}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

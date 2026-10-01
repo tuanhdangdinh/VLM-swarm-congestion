@@ -37,6 +37,76 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-02** — **v2 build-order step 10 (BUILD ONLY, no live API calls):
+  capability-probe battery built and frozen on `feat/v2-capability-probes`**,
+  per `docs/superpowers/specs/2026-09-30-prereg-v2-design.md`
+  ("Capability-probe battery (registered, pre-collection)" and build-order
+  item 10). New package `reasoning/vlm/capability_probes/` (models, letters,
+  grid, ground_truth, prompt, answer_parser, scorer, manifest_io, selection)
+  plus `scripts/build_capability_probe_manifest.py` (scan + freeze) and
+  `scripts/capability_probes.py` (per-backend runner, reuses
+  `reasoning.vlm.backend_factory.build_backend`).
+  - **Item set**: `reasoning/vlm/capability_probes/manifest_v1.json`, 60
+    items (15 per probe type: locate-robot-by-id, left-vs-right, robot
+    count, nearest-first), machine-derived from `gt/ground_truth.jsonl`
+    (Isaac Sim's own logged poses, matched to each decision's `scene.stamp`;
+    never `scene.robots`, M1's own estimate, and never hand-labeled), drawn
+    from 6-10 scenes per type (well above the ">=3 scenes" bar) across 15
+    `data/logs/vm_runs` run families. An M1-vs-GT disagreement filter
+    (<=0.1 m) and type-specific margin filters (left_right >=0.2 m from the
+    frame's centre column; nearest_first >=0.3 m gap between 1st/2nd
+    nearest; grid items >=18px from a cell boundary) exclude ambiguous
+    candidates rather than keeping them. Balanced by seeded sampling
+    (`selection.balanced_sample`): robot_count 5/5/5 across {2,3,4};
+    left_right 7/8 across {left,right}; locate_robot 3x5 across the 5
+    grid cells that had eligible candidates (of 9); nearest_first spread
+    over all tracked robot ids. Verified against a hand overlay (GT world
+    position projected through `ros2_ws/src/swarm_perception/config/
+    calibration.yaml` lands exactly on the ArUco body M1 labelled) before
+    any item was built.
+  - **Left-vs-right operationalization (flagged for v2-freeze owner
+    confirmation)**: defined as image-frame left/right of the frame's own
+    horizontal centre column (projected via the calibration homography),
+    not a world-frame aisle-centreline side — the two coincide for every
+    scenario this battery draws from (verified), but would not for an
+    aisle running top-to-bottom in-frame. Recorded in
+    `reasoning/vlm/capability_probes/ground_truth.py`'s module docstring.
+  - **locate_robot marked-choice design**: a fixed pixel-space 3x3 grid
+    (`capability_probes/grid.py`), independent of calibration; GT cell is
+    computed by projecting the Isaac Sim position through the calibration
+    homography. Which physical cell shows which letter is a per-item
+    seeded draw (mirrors `swarm_orchestrator.retreat_stage2`'s
+    letter/listing split, reimplemented rather than imported to keep M2
+    independent of the M5 ROS2 package), so the correct letter is not
+    always the centre cell.
+  - **Prompt**: `capability_probes/prompt.py`,
+    `CAPABILITY_PROBE_PROMPT_VERSION = 1`, self-contained and independent
+    of the stage-1 (`PromptVersion`)/stage-2 (`Stage2PromptVersion`)
+    lineages; raw template and system prompt SHA-256 pinned, plus two
+    rendered fixtures (text-choice and image-choice), in
+    `tests/unit/test_capability_probe_prompt.py`.
+  - **Tests** (101 passing, 0 new failures): `test_capability_probe_models.py`
+    (manifest/item schema), `test_capability_probe_letters.py` (seeded
+    letter/listing determinism), `test_capability_probe_grid.py`,
+    `test_capability_probe_ground_truth.py`, `test_capability_probe_scorer.py`
+    (Wilson CI known values), `test_capability_probe_answer_parser.py`,
+    `test_capability_probe_selection.py` (deterministic balanced sampling),
+    `test_capability_probe_manifest_io.py` (fail-loudly materialization),
+    `test_capability_probe_prompt.py` (SHA pins),
+    `test_build_capability_probe_manifest.py` (end-to-end scan on a
+    synthetic log tree), `test_capability_probes_runner.py` (`--backend
+    mock` end to end, both the scripted-correct and default-unparseable
+    paths). Full-suite zero-delta confirmed: 63 failed / 4176 passed / 144
+    skipped on this branch vs. 63 failed / 4075 passed / 144 skipped on a
+    clean `49c98a4` worktree (`vgu-vlm-swarm-v2`) in the same environment —
+    identical failing-test-name set, +101 new passing tests, no live API
+    calls made (`--backend mock` only; real per-backend runs are deferred
+    to the v2 freeze per the task).
+  - **Gap, not padded**: no probe items were built from `y_extent_probe`
+    (no `frames/` directory was kept for that run) or from any run whose
+    `scene.stamp` had no `ground_truth.jsonl` row within 0.5 s (181
+    candidates dropped as `no_matching_gt`, mostly pre-sim-time-fix runs).
+
 - **2026-10-02** — **v2 build-order step 4 (INTEGRATION): M5 plan tracking,
   the plan-state prompt block + prompt v3, Arm B plan emission, and three
   repair-semantics rulings on the CORE engine, landed on
