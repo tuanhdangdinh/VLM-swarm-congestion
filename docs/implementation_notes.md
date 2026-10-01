@@ -48,11 +48,12 @@ Rules for maintaining it:
   clipped-label defect as the first two corrections, one level removed; (2)
   its bucket-rounded dedup key (`round(x / 0.05)`) could put two positions a
   millimetre apart in different buckets and miss them as duplicates -- a
-  direct distance check on the real, frozen manifest found 6 such pairs
-  (mostly `nearest_first`, which the second-correction entry's own letter
-  distribution had already hinted at: `robot_2` in 6 of 15 items from only 5
-  scenes); (3) `occlusion.py`'s replica of M1's drawing geometry was
-  asserted correct by inspection, never tested against the real drawing
+  direct distance check on the real, frozen manifest found 6 affected items
+  (7 duplicate pairs: one item, `nearest_first_011`, duplicated two others)
+  (mostly `nearest_first`, which the third-correction entry's own *answer*
+  distribution had already hinted at: `robot_2` correct in 6 of 15 items
+  from only 5 scenes); (3) `occlusion.py`'s replica of M1's drawing geometry
+  was asserted correct by inspection, never tested against the real drawing
   function it replicates; (4) the runner scored a missing/drifted frame as a
   `"backend_error"` record and kept going, which would silently deflate an
   accuracy number after real (paid) backend calls, rather than failing the
@@ -96,14 +97,19 @@ Rules for maintaining it:
   - Rebuilt manifest (same seed): still 15/15 per type, across 11 run
     families and 14 scenarios. Per type: `robot_count` 10 scenes, 5/5/5
     across {2,3,4}; `left_right` 10 scenes, 8 right / 7 left; `locate_robot`
-    5 scenes (down from 6 -- the extra occlusion check removed more
-    candidates), cells {1,3,4,5} at 3,4,4,4; `nearest_first` 5 scenes,
-    {robot_1: 4, robot_2: 7, robot_3: 2, robot_4: 2} (the `robot_2`
-    concentration persists after the dedup fix -- a property of which
-    scenes exist in the logs, not a remaining dedup gap: the audit's
-    distance check now passes clean). Correct-letter distributions are not
-    degenerate to one letter for any type (e.g. `left_right` 6 A / 9 B,
-    `nearest_first` 8 A / 7 B).
+    5 scenes, cells {1,3,4,5} (3,4,4,4) -- **4 of 9 cells**, down from 8
+    scenes at the top of this correction: the new inter-robot occlusion
+    check took it to 6, and switching to distance-based dedup took it to 5;
+    `nearest_first` 5 scenes, answers {robot_1: 4, robot_2: 7, robot_3: 2,
+    robot_4: 2}. The audit's distance check passes clean on this set (no
+    remaining dedup gap), but `nearest_first` is balanced on *scene robot
+    count* (`_balance_by_scene_robot_count`), not on the correct answer, so
+    whether the `robot_2` concentration reflects the source logs or the
+    balance key is not established -- flagged as a gap below, not asserted
+    either way. Correct-letter distributions are not degenerate to one
+    letter for any type (e.g. `left_right` 6 A / 9 B, `nearest_first` 8 A /
+    7 B; `robot_count` D at 6/15, the rest 1-3 each -- within noise at
+    n=15, not itself a flag).
   - `scripts/audit_capability_probe_manifest.py` (updated for the shared
     `scanning` functions above) reports `OK: all 60 items passed every
     check` on the rebuilt manifest -- this is now the verification method of
@@ -117,10 +123,19 @@ Rules for maintaining it:
     the round, unlabeled objects visible in several scenes remain
     unidentified ("unmarked round objects", not "obstacles" -- never
     confirmed); the grid's 9 cells are not evenly reachable (`locate_robot`
-    draws from 5 of 9 after every filter); `y_extent_probe` kept no frames
-    and contributed nothing; the left/right operationalization (image-frame
-    halves, not a world-frame aisle side) is unchanged and still flagged for
-    the v2-freeze owner's confirmation.
+    draws from only 4 of 9 after every filter: {1,3,4,5}); `y_extent_probe`
+    kept no frames and contributed nothing; the left/right operationalization
+    (image-frame halves, not a world-frame aisle side) is unchanged and still
+    flagged for the v2-freeze owner's confirmation; `nearest_first`'s correct
+    answers skew toward `robot_2` (7/15) and away from `robot_3`/`robot_4`
+    (2/15 each) -- unexplained (see above) and worth checking against the
+    project's own recorded gpt-4o `robot_1`-naming prior
+    (`project_presentation_order_finding`) before attributing a live run's
+    `nearest_first` errors to a located-reasoning gap rather than an ID
+    prior; `--backend mock` end-to-end testing only exercises the
+    parse-failure path (its default canned text is not a probe letter), not
+    a scripted-correct run through the CLI itself (covered instead via
+    direct `prepare_item`/`run_item` calls in the unit tests).
 
 - **2026-10-02** — **v2 build-order step 10, third correction: M1-vs-GT
   answer agreement, frame-wide occlusion, cell uniqueness, duplicate-scene

@@ -2,14 +2,19 @@
 """Independently re-verify every frozen capability-probe item against source logs.
 
 Re-reads each manifest item's own decision JSON and matched `ground_truth.jsonl`
-row from `--logs-root`, recomputes everything the build script computed, and
-asserts it still holds -- a regression oracle separate from
-`scripts/build_capability_probe_manifest.py` itself, so a bug shared between
-"build" and "verify" cannot hide a defect (2026-10-02, third correction: two
-prior visual spot-check rounds each missed a real defect the build script's
-own filters had not yet been taught to catch; this script replaces ad hoc
-visual checking with a full, re-derived, by-construction audit of all 60
-items).
+row from `--logs-root` and recomputes everything the build script computed,
+independently of the build script's in-memory state (it re-derives from the
+source files on disk, not from the frozen manifest's own recorded fields).
+It shares its check definitions (`reasoning.vlm.capability_probes.scanning`
+and `.occlusion`) with the build script, so it cannot catch a defect in
+those definitions themselves -- but `tests/unit/test_annotation_geometry_fidelity.py`
+ties `occlusion.py`'s replica of M1's drawing geometry to the real
+`swarm_perception.annotation.draw_robot_overlay`/`grid._draw_cell_badge`
+functions it replicates, closing that gap for the geometry the occlusion
+checks depend on (2026-10-02, fourth correction). Earlier: third correction
+-- two prior visual spot-check rounds each missed a real defect the build
+script's own filters had not yet been taught to catch; this script replaces
+ad hoc visual checking with a full, re-derived audit of all 60 items.
 
 Checks, per item:
     - The frame rematerializes and its content hash still matches.
@@ -24,8 +29,13 @@ Checks, per item:
       equals `correct_answer`.
     - `robot_count`: the scene is legible (edge-clear, separated, no STALE)
       and the tracked robot count equals `correct_answer`.
-    - No two items of the same probe type share a scene-configuration key
-      (the dedup key the build script selects on).
+    - Every robot-naming item: the frame is legible under
+      `scanning.scene_is_legible` (edge-clear, separated, no STALE, no
+      inter-robot box/label overlap).
+    - No two items of the same probe type are a near-duplicate scene: same
+      reference robot (or both none), same tracked robot set, and
+      `scanning.max_displacement_m` under
+      `scanning.NEAR_DUPLICATE_MAX_DISPLACEMENT_M`.
 
 Exits non-zero if any item fails any check, printing every failure (not just
 the first), so every defect in a run is visible at once.
