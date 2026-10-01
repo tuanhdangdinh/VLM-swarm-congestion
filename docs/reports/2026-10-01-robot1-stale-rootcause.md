@@ -18,9 +18,24 @@
   actually varied for marker 1 at the failing position) and added the
   `position-verified` scoring source and the arrival-yaw structural
   guarantee, both previously assumed rather than cited.
+- Rev 3 (2026-10-01): a second review pass found the first `position-
+  verified` citation (`congestion_detector.py`) was the wrong file — it is
+  M5's live stall trigger, not the arrival scorer. Replaced with the actual
+  implementation (`swarm_orchestrator/arrival.py::classify_arrival`/
+  `ArrivalGate`), and added the distinction between that live, stale-
+  tolerant online gate (what any future IB10 run is actually scored by) and
+  `scripts/rescore_arrivals.py`'s stricter, legacy-only offline rescorer
+  (pre-dates the online gate, not used on new runs). Softened "confirmed
+  clean"/"neighborhood" language to per-pose claims, since the mechanism is
+  a sub-pixel-phase effect with no established "neighborhood" of safety,
+  and flagged that the v2 composite `junction_clear` command step 6 is
+  meant to test does not exist in code yet, so the single-yield geometry
+  this task verified does not necessarily cover it. Recommendation changed
+  from "accept as-is, well-supported" to "instrument by default".
 
 **commit:** `3f24ac9` (swap + nudge probes), `f155d7a` (goalpose probe),
-`5c7b833` (yieldpark probe), branch `feat/v2-stale-rootcause`
+`82ae057` (initial report), `5c7b833` (yieldpark probe), `4edd4c8` (rev 2),
+`173d036` (rev 3 draft), branch `feat/v2-stale-rootcause`
 
 ---
 
@@ -288,8 +303,8 @@ probe holds robot_1 at the real-IB10-standoff pose `(-1.37, 0.359, yaw=0)`
 directly (yaw 0: backing up does not rotate the robot, and robot_1's
 approach heading toward its `+x` goal is already `0`), plus robot_2 at its
 own computed park pose `(1.481, -0.344, yaw=pi)` as a bonus check. Result:
-**100% fresh, 97.87% exact-stamp-match, 0 `STALE`** for robot_1 — clean,
-not a risk.
+**100% fresh, 97.87% exact-stamp-match, 0 `STALE`** for robot_1 — clean at
+that pose.
 
 ---
 
@@ -300,28 +315,46 @@ the "all four robots reach goals, position-verified" resolution criterion
 (`docs/superpowers/specs/2026-09-30-prereg-v2-design.md`, "(a)" > "Scoring"),
 and Arm B's shadow classification. "Position-verified" has a precise,
 already-implemented meaning in this codebase, found by tracing the term
-rather than assumed: `swarm_orchestrator/arrival.py::classify_arrival`
-gates M4's relayed Nav2 "Goal succeeded" report against M1's own position
-estimate (its module docstring: "a Nav2 false success cannot become a false
-episode success"), and `scripts/rescore_arrivals.py` re-derives the same
-verdict offline, using ground truth only as an independent cross-check
-column, not as the scoring input. Critically, **`classify_arrival`'s
-handling of a stale or missing M1 estimate is to accept the report, not
-reject it** (`reason="stale_estimate"`, `accepted=True` — "an M1 outage
-must not block every arrival in a run, it only means the arrival is
-unverified"). A fresh M1 reading that is `beyond_tolerance` is the only way
-this gate rejects an arrival; this study's measured bias on fresh reads is
-a few millimetres everywhere, nowhere near a tolerance-breaking error. The
-one path where a `STALE` read directly costs a credit is narrower:
-`rescore_arrivals.py`'s "latched at goal" fallback (for a robot held by an
-M4 safety latch that never gets an explicit Nav2-success line) requires the
-robot's *final* scene-log sample to be fresh enough; if that last sample
-falls inside a `STALE` streak, it is not credited. So this dropout is not
-the scoring hazard the original registered risk implied for the primary
-arrival-acceptance path — M1 is designed to tolerate it there — and the
-residual risk is specific to the narrower latched-at-goal case, plus
-whatever Arm B's own sampling does (not traced to its exact mechanism in
-this task either).
+rather than assumed, and there are two distinct implementations with
+**different** `STALE`-handling that must not be conflated:
+
+- **The live, online gate — the one that governs every current and future
+  run, including IB10's step 6** — is `swarm_orchestrator/arrival.py::
+  ArrivalGate`/`classify_arrival`, which gates M4's relayed Nav2 "Goal
+  succeeded" report against M1's own position estimate (module docstring:
+  "a Nav2 false success cannot become a false episode success"; shipped
+  active, `orchestrator.yaml`: `arrival_position_check: true`). This gate
+  is **stale-tolerant by design**: a stale or missing M1 estimate is
+  accepted, not rejected (`reason="stale_estimate"`, `accepted=True`, and
+  `on_nav2_success` calls `mark_arrived` on any `accepted` verdict,
+  stale included — "an M1 outage must not block every arrival in a run, it
+  only means the arrival is unverified"). A fresh M1 reading that is
+  `beyond_tolerance` is the only way this gate rejects an arrival; this
+  study's measured bias on fresh reads is a few millimetres everywhere,
+  nowhere near a tolerance-breaking error.
+- **A separate, offline rescorer, `scripts/rescore_arrivals.py`, is
+  stricter — but it only re-scores runs recorded *before* the online gate
+  existed** (its own docstring: runs predating commit `4f39899`), using
+  ground truth as an independent cross-check column, not the primary
+  scoring input. Its own `robot_arrived_m1`/`run_both_arrived_m1` columns
+  credit only `reason == "within_tolerance"`, explicitly passing over a
+  `stale_estimate` verdict as "not evidence either way" — stricter than the
+  online gate, but **not the mechanism any future IB10 run would be scored
+  by**, since it is a legacy-data tool, not referenced anywhere in the v2
+  design spec or the orchestrator config. Its "latched at goal" fallback
+  (for a robot held by an M4 safety latch that never gets an explicit
+  Nav2-success line, requiring the robot's *final* scene-log sample to be
+  fresh enough) is the one place a `STALE` read costs a credit in *that*
+  tool specifically.
+
+So for IB10's actual future step-6 run, the operative mechanism is the
+online gate, and it is stale-tolerant: this dropout is not the scoring
+hazard the original registered risk implied for the primary
+arrival-acceptance path. The residual risk is Arm B's own sampling (not
+traced to its exact mechanism in this task) and, if this project's
+scoring pipeline ever revives an offline re-score step for new runs too
+(not established here either way), the stricter `within_tolerance`-only
+rule that step would apply.
 
 With that correction, the four runs above describe each pose directly —
 each result is a single tested point, not a claim about a continuous
@@ -436,12 +469,15 @@ durable guarantee for every pose the eventual composite command will use.
 out but need more than this task established before being safe to pick.**
 
 1. **Accept as-is.** Possible, but not fully supported by this task alone:
-   the primary position-verified arrival path is confirmed stale-tolerant
-   by design (`classify_arrival`), and every pose checked here is clean or
-   near-clean — but "every pose checked here" excludes the composite
-   command's own geometry (not yet built) and was never meant to be
-   exhaustive over every dwell IB10 could produce. Revisit once
-   `junction_clear` exists and its own poses can be checked the same way.
+   the primary, *online* position-verified arrival path is confirmed
+   stale-tolerant by design (`classify_arrival`, `ArrivalGate.
+   on_nav2_success` — a stale M1 estimate is still `accepted=True` and
+   still calls `mark_arrived`), and every non-spawn pose checked here is
+   clean or near-clean — but "every non-spawn pose checked here" excludes
+   the composite command's own geometry (not yet built) and was never
+   meant to be exhaustive over every dwell IB10 could produce. Revisit
+   once `junction_clear` exists and its own poses can be checked the same
+   way.
 2. **Symmetric redesign.** Nudge the whole E-W arm (both `robot_1` and
    `robot_2` spawns/goals) by the same delta to a jointly-clean radius,
    re-deriving `test_approach_radii_are_equal` and the downstream park-
@@ -457,8 +493,9 @@ out but need more than this task established before being safe to pick.**
    streak on *any* robot at *any* stationary dwell — spawn, single-yield
    park, composite recede/park, or goal arrival — not just robot_1's
    pre-departure window specifically. Given the mechanism is a per-pose
-   phase effect that this task's five tested poses cannot generalize from,
-   a running check that catches it wherever it next appears is more
+   phase effect, and marker 1 has now been tested at 6 distinct poses
+   across this study and the y-extent study (failing chronically at 1 of
+   them), a running check that catches it wherever it next appears is more
    proportionate than hand-verifying every future pose one VM run at a
    time.
 

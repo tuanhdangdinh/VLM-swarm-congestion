@@ -2317,8 +2317,9 @@ Rules for maintaining it:
   park dwell are clean at the specific poses tested; the not-yet-built v2
   composite command's own geometry is unverified, and the recommendation
   is to instrument rather than assume safe** (`docs/reports/2026-10-01-
-  robot1-stale-rootcause.md` rev 2, branch `feat/v2-stale-rootcause`,
-  commits `5c7b833`, `4edd4c8`). **Supersedes the entry below's scope
+  robot1-stale-rootcause.md` rev 3, branch `feat/v2-stale-rootcause`,
+  commits `5c7b833`, `4edd4c8`, `173d036`, plus the commit landing this
+  note). **Supersedes the entry below's scope
   claim** ("confined to robot_1's pre-departure spawn dwell" was correct
   but incomplete — it had not checked the dwell robot_1 gets if chosen as
   the single-yield junction yielder, which lasts the whole maneuver, not a
@@ -2347,18 +2348,26 @@ Rules for maintaining it:
   robot_1 is ever structurally given (`TaskAssignment.goal` is a bare
   `tuple[float, float]`, no yaw field — `swarm_orchestrator/models.py:47`),
   but the original claim of having "ruled out" yaw was not warranted.
-  Traced `position-verified` to its actual implementation,
-  `swarm_orchestrator/arrival.py::classify_arrival` (ground truth is used
-  only as an independent offline cross-check, in `scripts/
-  rescore_arrivals.py`, not as the scoring input) — and found it is
+  Traced `position-verified` to its actual implementation — first cited
+  `congestion_detector.py` (wrong: that is M5's live stall trigger, not the
+  arrival scorer), corrected to `swarm_orchestrator/arrival.py::
+  classify_arrival`/`ArrivalGate`, the gate every current/future run
+  (including IB10 step 6) is actually scored by (shipped active,
+  `orchestrator.yaml`: `arrival_position_check: true`) — and found it is
   explicitly **stale-tolerant by design**: a stale or missing M1 estimate
   is accepted, not rejected (`reason="stale_estimate"`, `accepted=True`,
-  "an M1 outage must not block every arrival in a run, it only means the
-  arrival is unverified"); only a *fresh* out-of-tolerance reading rejects
-  an arrival. The one place a `STALE` read can still cost a credit is
-  `rescore_arrivals.py`'s narrower "latched at goal" fallback (a robot
-  never explicitly accepted, scored off its final sample), which has not
-  been resolved either way here. No fix applied, same reasoning as below
+  `on_nav2_success` calls `mark_arrived` on it regardless, "an M1 outage
+  must not block every arrival in a run, it only means the arrival is
+  unverified"); only a *fresh* out-of-tolerance reading rejects an arrival.
+  A separate, stricter offline rescorer (`scripts/rescore_arrivals.py`,
+  ground truth used only as its independent cross-check column) credits
+  only `within_tolerance`, passing over `stale_estimate` as "not evidence
+  either way" — but it only re-scores runs that predate the online gate
+  (its own docstring: before commit `4f39899`), so it is not the mechanism
+  any future IB10 run is scored by. The one place a `STALE` read can still
+  cost a credit in *that* legacy tool specifically is its "latched at goal"
+  fallback (a robot never explicitly accepted, scored off its final
+  sample). No fix applied, same reasoning as below
   plus one more ruled-out option: swapping which robot starts on which
   side of the E-W arm does not dodge this for free, since robot_1 (the
   marker that actually fails) would then arrive at the original failing
