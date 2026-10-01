@@ -4,6 +4,18 @@
 
 **Revision history:**
 
+- Rev 5 (2026-10-01): literature-review integration (user: "from those
+  findings what can improve the v2"; review at `reports/VLM centralized
+  multi robot coordination.md` + four note files). New "Positioning and
+  claims" section (4 claims / 3 refusals / verification debts);
+  plan-stability naming (Fox et al. 2006) and the registered
+  provenance-conditioned outcome analysis; supersessions labeled
+  incremental vs wholesale (persistent-plan articulation gap); the
+  marked-choice rule for all spatial selections (SoM/MOKA);
+  Arm B citation pedigree (zone-control + AIM-FCFS + A-DRIVE);
+  per-backend capability-probe battery; robot-count scope bound (≤5);
+  claim-1 camera wording + optional physical-camera episode (owner
+  decision).
 - Rev 4 (2026-10-01): USER DIRECTION — the architecture is named and
   completed as a **Centralized Multi-Agent Coordinator (VLM)**: new
   leading section defines the coordinator role; (a0) plans become
@@ -130,6 +142,83 @@ coordinator *contract* is fully testable single-conflict.
 
 ---
 
+## Positioning and claims (rev 5, from the 2026-10-01 literature review)
+
+Source: `reports/VLM centralized multi robot coordination.md` (+ four
+note files in `research_notes/VLM centralized multi robot
+coordination/`). The architecture is **CMAS at the semantic layer**
+(Chen et al., arXiv:2309.15943); adopt the field's vocabulary for
+discoverability: CMAS, fast–slow (dual-system) architecture,
+event-triggered high-level replanning, plan stability.
+
+**Claims v2 is designed to support** (each with its nearest prior to
+differentiate):
+
+1. **VLM coordinator on an overhead warehouse camera with a semantic
+   strategy taxonomy** — vs Garg et al. (arXiv:2404.06413 / PMLR 2026:
+   simulation, synthetic top-views, leader+waypoints, no taxonomy) and
+   Oxford CCTV (arXiv:2606.06762: real cameras, deliberately non-VLM).
+   WORDING CONSTRAINT: our frames are Isaac-rendered through the real
+   M1 pipeline on a hardware-validated scenario family — phrase as
+   such; "real physical camera" is claimable only if the optional
+   physical-camera episode below runs.
+2. **Deterministic non-LLM minimal repair with three-way per-leg
+   provenance as a first-class reported metric** — an empty cell in
+   the repair taxonomy (the field re-prompts the model to fix its own
+   plans); framed as *plan stability (Fox, Gerevini, Long, Serina,
+   ICAPS 2006) transplanted to the VLM-proposer setting*.
+3. **Matched two-arm comparison**: central VLM congestion resolver vs
+   a literature-grounded rule-based coordinator on identical Nav2
+   warehouse scenarios — no published head-to-head exists.
+4. **Scene-wide ordered plan output, audited leg-by-leg** — vs
+   leader+waypoints (Garg) and priority hints (LLMDR,
+   arXiv:2503.00717).
+5. **Persistent, incrementally edited central plan** (rev-4
+   lifecycle) — the review found no surveyed system whose central
+   model holds a plan and edits it against execution feedback;
+   closed-loop systems re-propose wholesale (COHERENT) or intervene
+   per-event (Garg, LLMDR). Measured via the supersession label
+   below.
+
+**Claims to refuse** (prior art is immediate): centralized/commanded
+deadlock recovery per se (A-DRIVE, LLMDR, Garg); the fast/slow rate
+split or ~1 Hz central cadence (RHCR, VLM-UDMC, VLMLight);
+LLM-vs-classical comparison in general; propose-verify over
+multi-robot motion as such (RoCo) — the differentiator is *who
+repairs and whether it is logged*.
+
+**Arm B citation pedigree** (anti-strawman defense, recorded for the
+paper): conflict detection ≈ zone-control circular-wait tests; yielder
+selection = FCFS per Dresner & Stone's AIM (JAIR 2008); commanded
+retreat ≈ A-DRIVE's detect-and-back-up (IV 2022). Arm B is a
+literature-grounded representative of the classical family.
+
+**Capability-probe battery (registered, pre-collection):** one cheap
+per-backend probe set, run once per model before v2 collection and
+frozen with the battery — locate-robot-by-id, left-vs-right of
+aisle, robot count, nearest-first ordering — on project frames.
+Rationale: Garg et al. pre-test model capabilities before trusting
+them, and published benchmarks put left/right discrimination near
+chance (LRR-Bench); probe results make plan-metric failures
+attributable to measured primitive deficits rather than speculation.
+
+**Scope bound:** v2 scenes stay at ≤ 5 active robots, justified by the
+documented degradation of centralized model planning beyond ~6 agents
+(survey arXiv:2502.03814) — a cited boundary, not an apology.
+
+**Optional physical-camera episode (owner decision):** a single
+hardware episode (any n, demo-grade) with a physical overhead camera
+would upgrade claim 1's wording to "real physical camera." Not
+required by the design; recorded so the option is a conscious call.
+
+**Verification debts before camera-ready** (tracked, not blocking
+design): full-PDF metric extraction for Garg et al., LLMDR, Grover et
+al., RoCo's replan-count tables; sweep AV "intervention/override
+rate" vocabulary for a hidden provenance-equivalent; verify flagged
+arXiv IDs (GameChat venue, PIVOT, SpatialVLM, VADER, SELP).
+
+---
+
 ## (a0) Universal `proposed_plan` channel (rev 3, scene-wide per rev 4)
 
 A single optional field on the **stage-1 response for every strategy
@@ -216,12 +305,32 @@ prompt (v3 template, hash-frozen at the v2 freeze).
   priority-first, B3's convoy order, IB10's inside-first. This
   separates "can't sequence feasibly" from "sequences feasibly but
   picks the wrong order" — two different failure stories.
-- (vi) *plan stability (rev 4)* — replan count per episode, churn
-  (legs changed between consecutive plans), and revision cause:
-  `evidence_driven` (a leg reported `failed` since the last
-  invocation) vs `unforced` (nothing failed — dithering). A good
-  coordinator revises when execution contradicts the plan and
-  otherwise holds it.
+- (vi) *plan stability (rev 4; named for Fox et al., ICAPS 2006,
+  per rev 5)* — replan count per episode, churn (legs changed between
+  consecutive plans), revision cause: `evidence_driven` (a leg
+  reported `failed` since the last invocation) vs `unforced` (nothing
+  failed — dithering), and revision type: `incremental` (churn below
+  a registered fraction of legs) vs `wholesale` — the measurement
+  behind positioning claim 5. A good coordinator revises when
+  execution contradicts the plan and otherwise holds it.
+
+**Registered analysis (rev 5): provenance-conditioned outcomes.**
+Episode outcome metrics (resolution, time-to-resolution, regret) are
+analyzed split by executed-plan provenance (`vlm_verbatim` /
+`repaired` / `m3_default`), pre-registered here so the decomposition
+is confirmatory, not post-hoc. This is what makes a null result
+interpretable: it separates "the VLM proposes well but repair erases
+its contribution" from "the VLM's surviving decisions genuinely
+outperform the classical arm."
+
+**Marked-choice rule (rev 5):** every spatial selection offered to the
+VLM anywhere in v2 is a set-of-mark multiple choice over annotated
+options (as stage-2 already does), never a continuous coordinate —
+MOKA's principle (arXiv:2403.03174) that VLMs are better at
+multiple-choice than at producing continuous locations, backed by
+near-chance left/right discrimination results (LRR-Bench). In
+particular, junction recede pockets are lettered marks, not
+positions.
 
 Arm B emits its plan through the identical field, so every metric has
 a classical comparator. Condition on presentation order per amendments
@@ -400,7 +509,11 @@ makes an explicit include/exclude call.
 8. Loop map: USD + Nav2 + reroute grounding; the pre-emption control
    smoke before any scenario authoring.
 9. B2-visual pair + B3 first-to-slip scenarios + oracles.
-10. prereg-v2 freeze: hash table, pins, veto list — same procedure as v1.
+10. Capability-probe battery: author the probe set on project frames,
+    freeze it, run once per backend; results recorded in the freeze
+    record (rev 5).
+11. prereg-v2 freeze: hash table, pins, veto list, probe results —
+    same procedure as v1.
 
 Steps 1–3 are independent of v1 collection and can start immediately;
 step 4 onward should be sequenced against collection so GPU-VM time and
