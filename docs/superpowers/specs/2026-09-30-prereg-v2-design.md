@@ -623,6 +623,12 @@ makes an explicit include/exclude call.
    The repair-distance bound for falling back to `m3_default` is sized
    from the mock sweep in step 6 and frozen before live smokes.
 6. IB10 composite mock smoke → live smoke (phase-by-phase).
+   GATE (2026-10-01, y-extent probe rev 2): root-cause the replicated
+   robot_1 STALE loss at IB10's exact spawn pose (−1.75, 0) —
+   74–82% STALE across two probe runs, position+marker specific
+   (mirror point and other x clean) — before any IB10 scoring run;
+   it bears on position-verified arrivals and Arm B's shadow frames.
+   Evidence: `docs/reports/2026-10-01-m1-y-extent-verification.md`.
 7. Intersection oracle + regret extension; freeze IB10 scoring.
 8. Loop map: USD + Nav2 + reroute grounding; the pre-emption control
    smoke before any scenario authoring.
