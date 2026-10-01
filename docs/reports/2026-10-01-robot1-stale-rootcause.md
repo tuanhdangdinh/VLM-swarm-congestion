@@ -10,9 +10,17 @@
   the exact spawn of `isaac/config/scenarios/intersection_bottleneck.yaml`'s
   robot_1) before v2 build-order step 6 (IB10 composite mock smoke,
   `docs/superpowers/specs/2026-09-30-prereg-v2-design.md`).
+- Rev 2 (2026-10-01): added a fourth probe (`yieldpark`) after review caught
+  a gap — the original scope section only checked robot_1's transient
+  pre-departure dwell and its goal arrival, not the much longer dwell it
+  gets if chosen as the single-yield junction yielder. Corrected two
+  over-claims (the marker footprint is not position-dependent; yaw was not
+  actually varied for marker 1 at the failing position) and added the
+  `position-verified` scoring source and the arrival-yaw structural
+  guarantee, both previously assumed rather than cited.
 
 **commit:** `3f24ac9` (swap + nudge probes), `f155d7a` (goalpose probe),
-branch `feat/v2-stale-rootcause`
+`5c7b833` (yieldpark probe), branch `feat/v2-stale-rootcause`
 
 ---
 
@@ -34,7 +42,7 @@ applied to `intersection_bottleneck.yaml` or to M1 code.
 
 ## Method
 
-Three short mock-backend VM runs (`BACKEND_ID=mock`, zero VLM calls —
+Four short mock-backend VM runs (`BACKEND_ID=mock`, zero VLM calls —
 confirmed below), each holding all four robots **stationary** for 120 sim-s
 (same mechanism as the y-extent probe: `orchestrator.yaml`'s `initial_tasks`
 rewritten to a 100000 s `start_delay_sec` hold, restored byte-for-byte on
@@ -55,15 +63,16 @@ container `vgu_ros`):
   robot_2 (marker 2) gets a bonus far-side nudge to `+1.85`. Tests the
   cheapest candidate fix directly.
 - `isaac/config/scenarios/m1_stale_rootcause_probe_goalpose.yaml` — **goal-
-  pose probe**, added after the first two runs (see "Why a third run" below).
-  All four robots held at their actual `intersection_bottleneck.yaml` GOAL
-  positions, all at `yaw = 0` — the real Nav2 arrival orientation
-  (`command_bus_node.py`: `yaw = goal.get("yaw", 0.0) if isinstance(goal,
-  dict) else 0.0`; IB10's `cross_intersection` goals are plain `[x, y]`
-  lists, so every robot's commanded arrival yaw defaults to 0, not its
-  spawn yaw).
+  pose probe**, added after the first two runs (see "Closing the yaw gap"
+  below). All four robots held at their actual `intersection_bottleneck.yaml`
+  GOAL positions, all at `yaw = 0` — the real Nav2 arrival orientation.
+- `isaac/config/scenarios/m1_stale_rootcause_probe_yieldpark.yaml` —
+  **yield-park probe**, added after review of the first three runs (see
+  "Closing the yield-park gap" below). robot_1 and robot_2 held at the real
+  pose a single-yield junction yielder parks at, computed directly from the
+  project's own grounding code rather than assumed.
 
-All three scenarios built, validated (`validate_simulation.py`: `PASS` on
+All four scenarios built, validated (`validate_simulation.py`: `PASS` on
 every USD) and run through `scripts/vm/fc_launch.sh` via a new driver,
 `scripts/vm/m1_stale_rootcause_probe.sh` (modeled on, but kept separate
 from, `scripts/vm/m1_y_extent_probe.sh`). `orchestrator.yaml` was restored
@@ -72,7 +81,7 @@ and installed copies) after every run. Detection scored the same way as the
 y-extent report, via `scripts/m1_y_extent_probe_analysis.py` against each
 run's own `scenario.yaml` spawns and `gt/ground_truth.jsonl`.
 
-**Zero VLM spend, all three runs:** `data/logs/m5_decisions/` carried the
+**Zero VLM spend, all four runs:** `data/logs/m5_decisions/` carried the
 same file count (2177) and newest file (`b14c2237...`, dated before this
 task) before and after every run — the held-stationary robots never got
 close enough, or stalled with a goal, to trip the congestion detector.
@@ -95,10 +104,14 @@ close enough, or stalled with a goal, to trip the congestion detector.
 | goalpose | robot_2 (2) | `(-1.75, 0, 0)` | 96.63% | 70.03% | 2.633 | 5 |
 | goalpose | robot_3 (3) | `(0, 1.75, 0)` | 100% | 100% | 0.0 | 0 |
 | goalpose | robot_4 (4) | `(0, -1.75, 0)` | 100% | 93.27% | 0.367 | 0 |
+| yieldpark | robot_1 (1) | `(-1.37, 0.359, 0)` | 100% | 97.87% | 0.067 | 0 |
+| yieldpark | robot_2 (2) | `(1.481, -0.344, pi)` | 100% | 100% | 0.0 | 0 |
+| yieldpark | robot_3 (3) | `(0, -1.2, pi/2)` | 100% | 100% | 0.0 | 0 |
+| yieldpark | robot_4 (4) | `(0, 1.2, -pi/2)` | 100% | 100% | 0.0 | 0 |
 
-GT cross-check (all three runs): every robot stayed within `0.0001`-`0.0003`
+GT cross-check (all four runs): every robot stayed within `0.0001`-`0.0003`
 m of its authored spawn for the whole episode (stationary premise holds),
-and `min_pairwise_distance_m` stayed at `2.04`-`2.47` m throughout every run
+and `min_pairwise_distance_m` stayed at `1.61`-`2.47` m throughout every run
 — far beyond any marker-overlap range, ruling out the overlapping-marker
 `STALE` mechanism (hypothesis 5) directly from this task's own GT, same as
 the y-extent report's run.
@@ -108,8 +121,8 @@ the y-extent report's run.
 ## Mechanism
 
 Five hypotheses were in play. Static scene inspection ruled out three
-before any VM time was spent, and the swap/nudge/goalpose runs resolved the
-rest:
+before any VM time was spent, and the swap/nudge/goalpose/yieldpark runs
+resolved the rest:
 
 1. **Static occlusion/prop or lighting asymmetry — ruled out by scene
    inspection, not a VM run.** `isaac/vgu_sim/warehouse_builder.py`'s
@@ -131,7 +144,7 @@ rest:
    y-extent report.** The mirror point `(+1.75, 0)` is clean in every run
    that tests it with marker 1 (swap: 100%/93.15%; goalpose: 100%/100%).
 3. **Overlapping-marker STALE (2026-07 mechanism) — ruled out.** GT
-   `min_pairwise_distance_m` stayed 2.04-2.47 m in every run here (and
+   `min_pairwise_distance_m` stayed 1.61-2.47 m in every run here (and
    2.122 m in the original y-extent runs).
 4. **Marker-identity vs. position, resolved by direct test.** The **swap
    run** shows the catastrophic failure does **not** travel with marker 1:
@@ -140,48 +153,70 @@ rest:
    marker: marker 2 at `(-1.75, 0)` shows only mild, scattered degradation
    (95.55% fresh, 7-row max streak) — nowhere near marker 1's historical
    74-82% `STALE` rate there. The **goalpose run** independently replicates
-   this exact split (marker 1 at its own goal, `(1.75, 0, yaw 0)`: 100%/100%;
-   marker 2 at `(-1.75, 0, yaw 0)`: 96.63%/70.03%, 5-row streak) at a second
-   yaw, ruling out yaw as the discriminator. **The severe failure needs
-   both the specific marker_id=1 bit pattern and the specific position
-   `x ~= -1.75` together** — neither alone reproduces it.
-5. **A real, position-generic background marginality exists underneath
-   it, measured directly.** Every run that places *any* marker at
-   `|x| ~= 1.75-1.85` shows some exact-stamp-match degradation even when
-   `fresh_rate` stays 100% (robot_1/swap at `+1.75`: 93.15%;
-   robot_4/goalpose at `0,-1.75`: 93.27%; robot_2's own mirror position in
-   the original y-extent study: 87.7%/92.4%) — a shared, low-severity noise
-   floor from the marker's small rendered footprint (next point), not
-   unique to marker 1 or to `x = -1.75`'s sign.
+   this exact split at `(1.75, 0, yaw 0)` for marker 1 (100%/100%) and
+   `(-1.75, 0, yaw 0)` for marker 2 (96.63%/70.03%, 5-row streak). Note what
+   this does and does not establish on yaw: marker 2 was tested at
+   `(-1.75, 0, yaw 0)` in *both* the swap and goalpose runs (the same yaw
+   both times, not two different ones), and marker 1 has only ever been
+   tested at the failing position `(-1.75, 0)` at `yaw 0` (the original
+   y-extent runs). Yaw as a possible factor there is untested, not ruled
+   out — it does not change the IB10 conclusion, since `yaw = 0` is the
+   only orientation robot_1 is ever structurally given at that position
+   (see "Closing the yaw gap" below), but the claim is narrower than "yaw
+   is ruled out". **The severe failure needs both the specific
+   marker_id=1 bit pattern and the specific position `x ~= -1.75`
+   together** — neither alone reproduces it.
+5. **A real, generic background marginality exists underneath it, measured
+   directly — but it is not position-localized.** Every run shows some
+   exact-stamp-match degradation even when `fresh_rate` stays 100%:
+   `93.15%` at `(1.75, 0)`, `93.27%` at `(0, -1.75)`, `97.87%` at
+   `(-1.37, 0.359)`, `87.7%-92.4%` at `(1.75, 0)` in the original y-extent
+   study — and `100%` at `(1.2, 0.0)`/`(2.4, 0.0)`-class points in the same
+   studies. This noise is **not** a function of distance from the camera
+   centre: the camera is nadir and `aruco.yaml`'s homography is pure
+   scale-plus-offset with no perspective term (confirmed by the intrinsics/
+   homography values themselves), so the marker's rendered pixel footprint
+   is identical at `x = 0`, `x = 1.2`, `x = 1.75`, and `x = 2.4` alike — a
+   uniformly small footprint cannot by itself explain *why* a given
+   position is worse than its neighbor. What varies with position instead
+   is the **sub-pixel sampling phase**: at this footprint, a small shift in
+   world x shifts exactly where cell boundaries land on the camera's pixel
+   grid, and decode success is sensitive to that phase. Degradation shows
+   up at some poses near radius 1.75-1.8 and not at others (`1.2`, `1.65`,
+   `1.85`, `2.0`, `2.4` were all clean or near-clean in this study and the
+   y-extent study) — a phase effect, not a radial band.
 
-**Where the marginality comes from (measured, not inferred from frames —
-no debug frames were captured on these runs; this is reasoned from the
-asset's own pixel geometry and OpenCV's documented defaults, not from
-rendered output).** `isaac/vgu_sim/marker_asset.py`'s `MARKER_SIZE_M = 0.12`
-quad carries `aruco.yaml`'s `marker_size_m` texture at `640x640` px; the
-black 6x6 ArUco cell (border + 4x4 data) occupies the center `512/640 = 80%`
-of that texture (measured directly: `cv2.imread` + threshold on
+**Where the marginality comes from (inferred from the asset's own pixel
+geometry and OpenCV's documented defaults — no debug frames were captured
+on these runs, so this is not confirmed against rendered output).**
+`isaac/vgu_sim/marker_asset.py`'s `MARKER_SIZE_M = 0.12` quad carries
+`aruco.yaml`'s `marker_size_m` texture at `640x640` px; the black 6x6 ArUco
+cell (border + 4x4 data) occupies the center `512/640 = 80%` of that
+texture (measured directly: `cv2.imread` + threshold on
 `isaac/assets/markers/aruco_4x4_50/marker_1.png`), i.e. `0.096` m physical.
 `aruco.yaml`'s homography gives `0.0043583` m/pixel at the overhead camera's
-resolution, so the full marker quad projects to `27.5` camera px and the
-black 6x6 cell to `22.0` px — **`3.67` px per ArUco cell**. OpenCV's
+resolution (uniformly, per the point above), so the full marker quad
+projects to `27.5` camera px and the black 6x6 cell to `22.0` px —
+**`3.67` px per ArUco cell**, everywhere in frame. OpenCV's
 `cv2.aruco.DetectorParameters()` default `perspectiveRemovePixelPerCell` is
 `4` (confirmed by direct inspection of the installed
-`opencv-contrib-python` in this task's environment) — the marker's rendered
-footprint sits *below* the resolution OpenCV's own default decode step
-expects per cell. This is a generic marginal-footprint condition at
-`|x| ~= 1.75-1.85` that costs any marker a few percent of exact-frame
-detections; which specific marker IDs tip from "a few percent of frames"
-to "74-82% chronically STALE" at which specific position is then a function
-of that ID's exact bit pattern interacting with the sub-pixel sampling
-phase at that exact world coordinate under `errorCorrectionRate=0.6`
-nearest-dictionary-entry matching — a renderer/decode-level interaction,
-observed here only through its effect on `STALE` rates, not confirmed
-against captured frames. Also note this interaction is **not** a clean
-`|x|`-symmetric band: `-1.75` (yaw 0) is markedly worse for both tested
-markers than `+1.75` is for marker 1, despite the camera, homography and
-rack layout all being structurally symmetric — an unexplained renderer-level
-asymmetry, reported as an open detail rather than resolved.
+`opencv-contrib-python` in this task's environment): the marker's rendered
+footprint is comparable to, not comfortably above, OpenCV's own default
+per-cell resample grid. A footprint this close to the resample resolution
+makes decode outcomes sensitive to exactly where cell boundaries fall
+against the pixel grid — i.e. to sub-pixel phase — everywhere in frame; it
+is this phase sensitivity, not the footprint size itself, that is
+position-dependent. Which specific marker IDs tip from "a few percent of
+frames" to "74-82% chronically STALE" at which specific phase is then a
+function of that ID's exact bit pattern interacting with
+`errorCorrectionRate=0.6` nearest-dictionary-entry matching at that phase —
+a renderer/decode-level interaction, observed here only through its effect
+on `STALE` rates, not confirmed against captured frames. This interaction
+is also **not** symmetric in the one place it could be checked directly:
+`-1.75` (yaw 0) is markedly worse for both tested markers than `+1.75` is
+for marker 1, despite the camera, homography and rack layout all being
+structurally symmetric — an unexplained renderer-level asymmetry, reported
+as an open detail rather than resolved.
 
 No config-exposed ArUco detection parameter exists to tune this today:
 `perception_node.py` never declares or wires a `detector_params` ROS
@@ -197,31 +232,93 @@ occurrences are test-mock function signatures in `test_perception.py` /
 
 ---
 
-## Why a third run (goalpose)
+## Closing the yaw gap (goalpose run)
 
 The swap run alone left a gap: it tested marker 1 at `(+1.75, 0, yaw=pi)`,
-not at `(+1.75, 0, yaw=0)` — robot_1's *actual* IB10 goal orientation, since
-`command_bus_node.py` defaults every Nav2 arrival yaw to `0.0` regardless of
-spawn yaw (`intersection_bottleneck.yaml`'s goals are plain `[x, y]`, not
-`{x, y, yaw}` dicts). The N-S arrival poses `(0, +-1.75, yaw=0)` were never
-tested at that yaw either. The goalpose run closes this gap directly and
-narrows the practical IB10 risk considerably (see Scope below).
+not at `(+1.75, 0, yaw=0)` — robot_1's *actual* IB10 goal orientation.
+This is structurally guaranteed, not just the observed default: M5's base-
+mission goal type, `TaskAssignment.goal` (`swarm_orchestrator/models.py:47`),
+is typed `tuple[float, float]` — it has no yaw field at all — and
+`command_bus_node.py`'s dispatch (`yaw = goal.get("yaw", 0.0) if
+isinstance(goal, dict) else 0.0`) falls back to `0.0` for exactly this
+shape. `intersection_bottleneck.yaml`'s `cross_intersection` goals are
+plain `[x, y]` lists (`orchestrator.yaml`'s own documented example:
+`robot_2: { ..., goal: [-1.75, 0.0] }`), so every robot's Nav2 arrival yaw
+is `0`, never its spawn yaw. The N-S arrival poses `(0, +-1.75, yaw=0)`
+were never tested at that yaw either. The goalpose run closes this gap
+directly.
+
+## Closing the yield-park gap (yieldpark run)
+
+The first three runs characterized robot_1's *transient* pre-departure
+spawn dwell and its *goal* arrival, but missed a third, longer dwell:
+if robot_1 is chosen as the composite command's single-yield **yielder**,
+it backs up and parks for the whole maneuver (tens of seconds), not a
+transient window. `intersection_bottleneck.yaml`'s own header notes "the
+1.7 m backup clearance binds, parking a north-south yielder at
+`|y| ~= 1.70-1.72`" — close enough to the failing `-1.75` that this needed
+checking directly rather than assumed benign or assumed dangerous either
+way. That number is specific to the **north-south** yielder, though: the
+backup distance (`reasoning/rag/maneuver_geometry.py:derive_backup_distance`)
+is computed per-yielder from its own real-time offsets to the crossing
+robots, not a fixed geometric constant shared across axes, so it does not
+by itself establish where an **east-west** yielder (robot_1) parks.
+
+Computed directly from the project's own pinned grounding code
+(`tests/unit/test_intersection_bottleneck_scenario.py`'s existing
+`_frames()`/`_ground()` helpers, run locally — not a new test, the existing
+pinned coverage already includes `robot_1` as yielder) against both the
+synthetic standoff cases and the real IB10 ground-truth standoff frame
+(`IB10_STANDOFF`, from the smoke run `INTERSECTION_SMOKE_SUMMARY.txt`),
+robot_1's park pose as the E-W yielder is:
+
+| Case | retreat (x, y) |
+|---|---|
+| standoff 0.3 m | `(-1.40, 0.36)` |
+| standoff 0.4 m | `(-1.30, 0.36)` |
+| standoff 0.5 m | `(-1.20, 0.36)` |
+| real IB10 standoff | `(-1.37, 0.359)` |
+
+None of these are anywhere near `-1.75` — and the pull-off sidestep also
+moves the park point off the `y = 0` centreline (`y ~= 0.36`), a third
+variable neither the spawn nor the goal pose had varied. The yieldpark
+probe holds robot_1 at the real-IB10-standoff pose `(-1.37, 0.359, yaw=0)`
+directly (yaw 0: backing up does not rotate the robot, and robot_1's
+approach heading toward its `+x` goal is already `0`), plus robot_2 at its
+own computed park pose `(1.481, -0.344, yaw=pi)` as a bonus check. Result:
+**100% fresh, 97.87% exact-stamp-match, 0 `STALE`** for robot_1 — clean,
+not a risk.
 
 ---
 
 ## Scope against IB10
 
 The registered risk worried about two IB10-scored consumers of M1 state:
-the "all four robots reach goals, position-verified" resolution criterion,
-and Arm B's shadow classification. The goalpose run measures exactly the
-first of these directly, and both the swap and goalpose runs together
-narrow the second:
+the "all four robots reach goals, position-verified" resolution criterion
+(`docs/superpowers/specs/2026-09-30-prereg-v2-design.md`, "(a)" > "Scoring"),
+and Arm B's shadow classification. Both read M1's `/perception/scene_state`,
+not Isaac ground truth — confirmed for the live congestion-detection path by
+`swarm_orchestrator/congestion_detector.py`'s `update()`, which skips a
+robot's progress bookkeeping entirely while `robot.status == "STALE"`
+(the scene projection it is handed is M1's, per its own docstring: "Latest
+scene projection from M1"); the terminal resolution-scoring script itself
+was not traced to its exact implementation in this task, but nothing in
+this pipeline reads Isaac GT as a scoring input anywhere else checked here,
+so a `STALE` M1 read is the mechanism by which this dropout could reach
+either consumer, not a non-issue bypassed by GT. With that established, the
+four runs above answer the question directly:
 
 - **robot_1's own IB10 goal arrival, `(1.75, 0, yaw=0)`: confirmed clean**
   (100% fresh, 100% exact-stamp-match, 0 `STALE`, in both the swap run at a
   different yaw and the goalpose run at the real arrival yaw). The marker
   that actually fails catastrophically is clean at the position it will
   actually be commanded to reach.
+- **robot_1's own IB10 yield-park pose, `(-1.37, 0.359, yaw=0)` (if chosen
+  as the single-yield yielder): confirmed clean** (100% fresh, 97.87%
+  exact-stamp-match, 0 `STALE` — the yieldpark run). The longer-duration
+  parked dwell this task's review flagged as a gap is not a risk either:
+  the real computed park point sits well clear of the failing `x ~= -1.75`
+  neighborhood.
 - **robot_2's IB10 goal arrival, `(-1.75, 0, yaw=0)` — the position that
   broke marker 1: only mild, generic degradation** (95.6%/96.6% fresh
   across the two runs that test it, 70-74% exact-stamp-match, longest
@@ -232,17 +329,18 @@ narrow the second:
 - **robot_3/robot_4's IB10 goal arrivals, `(0, +-1.75, yaw=0)`: clean**
   (100% fresh both; exact-stamp-match 100%/93.27%, in line with the
   background floor).
-- **The catastrophic 74-82% `STALE` failure is specific to robot_1 sitting
-  still at its own IB10 *spawn*, `(-1.75, 0, yaw=0)`, before it departs** —
-  not to any of the four scored goal arrivals. In the real IB10 run robot_1
-  is only stationary there during the ~8-10 s M5/Nav2 bring-up window before
-  `cross_intersection` dispatches its goal (per `expected_conflict.
-  onset_window_sec: [8.0, 40.0]`); once it departs it moves off `x = -1.75`
-  and, per the above, is clean again at every other position tested. Whether
-  this transient pre-departure window reaches any scored output depends on
-  exactly when Arm B first samples `/perception/scene_state` relative to
-  that bring-up — not established by this task; flagged for the step-6
-  owner to check against Arm B's actual sampling start, not assumed benign.
+- **The catastrophic 74-82% `STALE` failure remains confined to robot_1
+  sitting still at its own IB10 *spawn*, `(-1.75, 0, yaw=0)`, before it
+  departs** — not to any goal arrival and not to the yield-park dwell
+  either. In the real IB10 run robot_1 is only stationary there during the
+  M5/Nav2 bring-up window (~10.6 sim-s per the scenario header) before
+  `cross_intersection` dispatches its goal; once it departs it moves off
+  `x = -1.75` and, per the above, is clean again at every other position
+  checked. Whether this transient pre-departure window reaches any scored
+  output depends on exactly when Arm B first samples
+  `/perception/scene_state` relative to that bring-up — not established by
+  this task; flagged for the step-6 owner to check against the composite
+  mock smoke's own logs, not assumed benign.
 
 ---
 
@@ -274,12 +372,20 @@ to) the general "tests/pins" caveat the task anticipated:
   changed spawn radius.
 - **The Scope section above found the practical risk narrower than the
   nudge would fix anyway.** The nudge fixes robot_1's *spawn*; the
-  position-verified *goal* arrivals (the actually-scored checkpoint) are
-  already confirmed clean for robot_1 and only mildly noisy for robot_2 —
-  the IB10-relevant question is not simply "does nudging -1.75 help"
-  (yes) but "does the un-nudged scenario's scored output actually need it"
-  (narrower than originally feared, and not fully settled here — see the
-  open Arm B sampling-timing question above).
+  position-verified *goal* arrival and the yield-park dwell (the two
+  longer-duration, actually-consequential dwells) are already confirmed
+  clean for robot_1 — the remaining open question is only the transient
+  pre-departure spawn window's interaction with Arm B's sampling timing,
+  which a spawn-position nudge is not the only possible answer to (see
+  Recommendation option 1).
+- **Swapping the E-W roles instead (robot_1 spawns east, robot_2 spawns
+  west) does not avoid this for free.** It keeps the approach radii equal
+  (passes the pin) and might look like a cost-free fix, but robot_1 (the
+  marker that actually fails) would then be the one arriving at
+  `(-1.75, 0, yaw=0)` — the original failing pose, since Nav2 arrival yaw
+  is always `0` regardless of which side a robot starts on (see "Closing
+  the yaw gap"). This data already rules that option out; it is not a
+  free lunch for whoever re-authors IB10.
 
 This is the same STOP-after-diagnosis posture the task specifies for an M1
 code change, applied here to a shared, already-flagged-for-redesign
@@ -299,18 +405,21 @@ work; it is out of scope here since it touches `perception_node.py`/
 
 Three options, none applied here:
 
-1. **Accept as-is.** If Arm B's first `/perception/scene_state` sample
-   post-dates robot_1's departure from `x ~= -1.75` (needs a direct check
-   against the composite mock smoke's own logs), the catastrophic window
-   never reaches a scored consumer and no scenario change is needed — only
-   the mild, already-quantified background noise at robot_2's goal arrival
-   remains, which is within the range already tolerated elsewhere in this
-   study.
+1. **Accept as-is.** Now well-supported: the only scored/consequential
+   dwells this task could identify (both goal arrivals, and the yield-park
+   dwell if robot_1 is the yielder) are confirmed clean. The one open
+   question is narrower than originally feared — whether Arm B's first
+   `/perception/scene_state` sample, during the ~10.6 s bring-up window
+   before robot_1 departs its spawn, ever lands inside the catastrophic
+   streak (needs a direct check against the composite mock smoke's own
+   logs, not re-derived here). If it does not, no scenario change is
+   needed at all.
 2. **Symmetric redesign.** Nudge the whole E-W arm (both `robot_1` and
    `robot_2` spawns/goals) by the same delta to a jointly-clean radius,
    re-deriving `test_approach_radii_are_equal` and the downstream park-
    offset/backup-clearance numbers consistently, as part of IB10's already-
-   planned re-authoring.
+   planned re-authoring. (Swapping which robot starts on which side,
+   instead of changing the radius, does not work — see "Fix: not applied".)
 3. **Instrument, don't move.** Leave geometry untouched and have the step-6
    mock smoke explicitly check for this signature (a long `robot_1` `STALE`
    streak confined to the pre-departure window) so it is recognized as this
@@ -322,16 +431,17 @@ Three options, none applied here:
 
 - Scenario yamls: `isaac/config/scenarios/m1_stale_rootcause_probe_swap.yaml`,
   `isaac/config/scenarios/m1_stale_rootcause_probe_nudge.yaml`,
-  `isaac/config/scenarios/m1_stale_rootcause_probe_goalpose.yaml`.
+  `isaac/config/scenarios/m1_stale_rootcause_probe_goalpose.yaml`,
+  `isaac/config/scenarios/m1_stale_rootcause_probe_yieldpark.yaml`.
 - Driver: `scripts/vm/m1_stale_rootcause_probe.sh`.
 - Analysis (reused from the y-extent probe, unmodified):
   `scripts/m1_y_extent_probe_analysis.py`.
 - VM raw logs (git-ignored, left on the VM at
   `/home/ubuntu/vgu-vlm-swarm/data/logs/vm_runs/stale_rootcause/`):
   `swap_20261001_160116/`, `nudge_20261001_161427/`,
-  `goalpose_20261001_163514/`.
+  `goalpose_20261001_163514/`, `yieldpark_20261001_170347/`.
 - Synced copy, durable in the main checkout (git-ignored, under
-  `data/logs/`, not just this worktree): same three directory names under
+  `data/logs/`, not just this worktree): same four directory names under
   `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm/data/logs/vm_runs/stale_rootcause/`,
   each holding `scenario.yaml`, `m5_scene.jsonl`, `gt/ground_truth.jsonl`,
   `m1.log`, `m5.log`, `isaac.log`, `launcher.log`, `restore_build.log`.
@@ -342,7 +452,8 @@ Reproduce the tables above:
 python3 scripts/m1_y_extent_probe_analysis.py \
   data/logs/vm_runs/stale_rootcause/swap_20261001_160116 \
   data/logs/vm_runs/stale_rootcause/nudge_20261001_161427 \
-  data/logs/vm_runs/stale_rootcause/goalpose_20261001_163514
+  data/logs/vm_runs/stale_rootcause/goalpose_20261001_163514 \
+  data/logs/vm_runs/stale_rootcause/yieldpark_20261001_170347
 ```
 
 ---
@@ -354,15 +465,28 @@ python3 scripts/m1_y_extent_probe_analysis.py \
 - `config/rag.yaml`: untouched, md5 `e18c723cff9cada3f320d564c2ecee5a`.
 - `data/logs/m5_decisions/`: 2177 files, newest unchanged
   (`b14c2237c2fd4cba8437f2a4dadeff47.json`, predates this task) — zero VLM
-  spend across all three runs.
+  spend across all four runs.
 - No `run_simulation`/Isaac `kit` process on the host; no `ros2`/orchestrator/
   perception/Nav2 process inside `vgu_ros`; `nvidia-smi` shows `0%` GPU
   utilization, `171 MiB`/`24570 MiB` memory. GPU idle.
 - Deploy tarballs (`/tmp/stale_rootcause_repo*.tar`) removed from the VM.
-- Local `pytest` on this dev machine has 63 pre-existing failures unrelated
-  to this task (an `opencv-contrib-python 5.0.0.93` vs. the `requirements.txt`
-  `>=4.8` floor API-shape mismatch — e.g. `test_aruco_parity.py`'s
-  `detect_aruco_markers` call raises `IndexError` on this machine's cv2
-  before this task's changes existed; all three new scenario yamls and the
-  new driver script add zero new failures, confirmed by name-matching the
-  failure list against files this task touched).
+- **VM tree additions this task leaves behind** (for the next md5-manifest
+  deploy to account for): 4 scenario yamls under
+  `isaac/config/scenarios/m1_stale_rootcause_probe_{swap,nudge,goalpose,
+  yieldpark}.yaml`; 4 built USDs under
+  `isaac/scenarios/m1_stale_rootcause_probe_*.usd`; 4 generated maps under
+  `ros2_ws/src/swarm_simulation/maps/warehouse_map_m1_stale_rootcause_
+  probe_*.{pgm,yaml}`, present in both the source tree and the `colcon`-
+  installed copy; the driver `scripts/vm/m1_stale_rootcause_probe.sh`.
+  `orchestrator.yaml` itself is pristine (see above) — only new files were
+  added, no shared file was left modified.
+- Local `pytest` on this dev machine has 63 pre-existing failures in code
+  this task did not touch (an `opencv-contrib-python 5.0.0.93` vs. the
+  `requirements.txt` `>=4.8` floor API-shape mismatch — e.g.
+  `test_aruco_parity.py`'s `detect_aruco_markers` call raises `IndexError`
+  on this machine's cv2). Not independently verified against a clean
+  checkout predating this task's commits; the basis for calling it
+  pre-existing and unrelated is that none of this task's changes touch
+  `detection.py`, any marker asset, or `requirements.txt`, and no test in
+  the failure list globs or otherwise references the new scenario yamls or
+  driver script this task added.
