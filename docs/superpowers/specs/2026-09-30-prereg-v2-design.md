@@ -635,6 +635,22 @@ makes an explicit include/exclude call.
    The repair-distance bound for falling back to `m3_default` is sized
    from the mock sweep in step 6 and frozen before live smokes.
 6. IB10 composite mock smoke → live smoke (phase-by-phase).
+   GATE RESOLVED BY DIAGNOSIS (2026-10-02,
+   `docs/reports/2026-10-01-robot1-stale-rootcause.md` rev 3): the
+   robot_1 STALE loss at the IB10 spawn is a sub-pixel
+   sampling-phase ArUco decode marginality — marker-pattern ×
+   world-x specific, no occluder/homography/overlap mechanism, no
+   config-exposed detector knob (a code fix would touch v1-frozen
+   M1). Spawn-dwell only: the arrival gate is stale-tolerant, and
+   robot_1's goal (100%/100%) and yield-park pose (100%/97.9%) are
+   verified clean. RULING: proceed under INSTRUMENTATION — every
+   step-6 (and later scored) run's analysis must flag any long
+   STALE streak during any stationary dwell, any robot (the probe
+   analysis script's streak check is the model); a 0.10 m symmetric
+   spawn re-radius (1.75 → 1.65 both arms, preserving the
+   equal-radii invariant; −1.65 verified clean, +1.65 untested) is
+   the registered fallback IF the flag fires in scored runs — an
+   owner scenario-redesign call, not applied now.
 7. Intersection oracle + regret extension; freeze IB10 scoring.
 8. Loop map: USD + Nav2 + reroute grounding; the pre-emption control
    smoke before any scenario authoring.
