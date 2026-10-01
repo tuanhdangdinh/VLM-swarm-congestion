@@ -106,7 +106,15 @@ log "launching fc_launch.sh SCENARIO=${SCENARIO} BACKEND_ID=mock SEED=${SEED} RE
 SCENARIO="$SCENARIO" BACKEND_ID=mock SEED="$SEED" REC_SEC="$REC_SEC" RECORD=0 \
   bash "$REPO/scripts/vm/fc_launch.sh" </dev/null 2>&1 | tee "$OUT/launcher.log"
 
-STAMP="$(grep -aoE 'STAMP=[0-9]{8}_[0-9]{6}' "$OUT/launcher.log" | tail -1 | sed 's/STAMP=//')"
+# fc_launch.sh's own final "done: STAMP=..." line is NOT a reliable source:
+# its stage-11 decision summary runs `ls -t m5_decisions/*.json | head -3`
+# under `set -e -o pipefail`, which this project's m5_decisions/ directory
+# (shared across every scenario ever run) will eventually accumulate more
+# than 3 old files in -- SIGPIPE on `ls`'s write end then aborts the whole
+# script before the done line prints (observed on run A, 2026-10-01: 9
+# leftover files, done line never printed, yet the run itself completed
+# cleanly). The M1-perception start line is unaffected and always present.
+STAMP="$(grep -aoE '/tmp/fc_[0-9]{8}_[0-9]{6}_m1\.log' "$OUT/launcher.log" | head -1 | sed -E 's#.*/fc_([0-9]{8}_[0-9]{6})_m1\.log#\1#')"
 log "fc_launch run stamp: ${STAMP:-UNKNOWN}"
 
 GT_DIR="$REPO/data/logs/simulation/${SCENARIO}-seed${SEED}-rep000"
