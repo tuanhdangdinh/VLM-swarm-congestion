@@ -2312,9 +2312,49 @@ Rules for maintaining it:
 
 ## M1 Perception
 
+- **2026-10-01** — **robot_1/`x=-1.75` STALE dropout root-caused: marker_1 x
+  position interaction at a marginal pixel footprint, not occlusion/
+  lighting/homography; no fix applied (scenario-geometry and M1-code fix
+  candidates both out of this task's scope)**
+  (`docs/reports/2026-10-01-robot1-stale-rootcause.md`, branch
+  `feat/v2-stale-rootcause`, commits `3f24ac9`, `f155d7a`). Three mock-
+  backend VM runs (swap, nudge, goalpose) resolve the entry below: static
+  occlusion/lighting/homography asymmetry and the overlapping-marker
+  mechanism are all ruled out by scene inspection + GT (racks and camera
+  are programmatically symmetric, markers are fully emissive so lighting
+  can't shade them unevenly, GT `min_pairwise_distance_m` stayed
+  `2.04`-`2.47` m). A swap of which position robot_1/robot_2 spawn at shows
+  the catastrophic failure follows neither the marker alone nor the
+  position alone: marker_1 is clean at `(+1.75, 0)` (93-100%
+  exact-stamp-match) and marker_2 at `(-1.75, 0)` is only mildly degraded
+  (70-74% exact-stamp-match, 5-7 row streaks) — the combination is
+  required. Measured mechanism: the marker's rendered footprint is `~3.67`
+  px/ArUco-cell at this homography scale, below OpenCV's default
+  `perspectiveRemovePixelPerCell=4` — a generic marginal-decode condition
+  at `|x| ~= 1.75-1.85` that costs any marker a few percent of exact-frame
+  detections, with marker_1's specific bit pattern tipping that into 74-82%
+  chronic `STALE` specifically near `x = -1.75`. A 0.10 m spawn nudge
+  (`-1.75` -> `-1.65`) fully clears it (100%/100%, 0 `STALE`) but is **not**
+  applied: it breaks the pinned `test_approach_radii_are_equal` (radii
+  `{1.75}`, `tests/unit/test_intersection_bottleneck_scenario.py:183-185`)
+  and the equal-approach-radii design invariant that IB10's derived park-
+  offset/backup-clearance geometry is built on — a scenario-redesign
+  decision for whoever re-authors the already-flagged "NOT tag-ready" IB10,
+  not a unilateral edit here. A fourth run (goalpose: all four robots at
+  their actual IB10 goal poses, real Nav2 arrival yaw 0) found the
+  practical IB10 risk narrower than first feared: robot_1's own goal
+  arrival is clean (100%/100%), and only robot_2's goal arrival at the
+  ex-problem position carries the same mild background noise any marker
+  shows there — the catastrophic failure is confined to robot_1's
+  pre-departure *spawn* dwell, whose scoring impact depends on Arm B's
+  sampling timing (not established here). No config-exposed ArUco detector
+  parameter exists to tune this (`detector_params` is never wired from
+  `perception_node.py`; `aruco.yaml`'s `min_detection_confidence` is dead
+  config) — any such fix is an M1-code change, out of scope (v1-frozen).
 - **2026-10-01** — **Y-extent PASS replicated (n=2); the `robot_1`/`x=-1.75`
   dropout below also replicated and is now a registered risk, not noise**
-  (same report, rev 2: `docs/reports/2026-10-01-m1-y-extent-verification.md`).
+  (same report, rev 2: `docs/reports/2026-10-01-m1-y-extent-verification.md`)
+  — **root-caused by the entry above.**
   A second run of the `|y| = 1.2` scenario (same seed, ~20 min later, full
   container restart between) reproduced the PASS near-exactly: `robot_3`/
   `robot_4` 100% fresh, 0 `STALE`, bias `0.0029`/`0.0072` m both times. It
