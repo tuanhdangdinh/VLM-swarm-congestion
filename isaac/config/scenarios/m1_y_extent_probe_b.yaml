@@ -1,0 +1,54 @@
+schema_version: 1
+name: m1_y_extent_probe_b
+family: normal_flow
+seed: 42
+duration_sec: 120.0
+
+# M1 y-extent verification probe, run B (companion to m1_y_extent_probe_a;
+# see that file's header for the full rationale). All four robots held
+# STATIONARY at spawn (orchestrator.yaml initial_tasks must set
+# start_delay_sec far beyond duration_sec for every robot below).
+#
+# This run spends its two free N-S slots on the open question the study
+# actually flags, not on a second look at the already-verified 1.2 m point:
+# docs/superpowers/specs/2026-09-29-intersection-resolvable-design.md
+# Constraint 2 calls |y| <= 1.80 "verified" (IBB4 tracked robot_3 at GT
+# y = -1.80 with 0 STALE while moving) and leaves 1.80-2.03 "unverified" (the
+# homography y-edge is 2.092; marker half-size 0.06 clips visibility at
+# ~2.032). robot_3 re-checks the 1.80 point stationary (it was previously
+# only confirmed in motion); robot_4 pushes to 2.0, inside the unverified
+# band and still inside the optical edge.
+#
+# robot_1/robot_2 spend their two free E-W slots the same way: a cheap bonus
+# x-sweep near the verified |x| <= 2.5 edge (header of
+# intersection_bottleneck.yaml: |x| = 3.0 gave 0/146 detections), at x =
+# +-2.4, 0.1 m inside that edge.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -2.4, y: 0.0, yaw_rad: 0.0}
+    goal: {x: -2.4, y: 0.0}
+    initial_task: hold_position
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 2.4, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: 2.4, y: 0.0}
+    initial_task: hold_position
+  - robot_id: robot_3
+    marker_id: 3
+    spawn: {x: 0.0, y: -1.8, yaw_rad: 1.5707963267948966}
+    goal: {x: 0.0, y: -1.8}
+    initial_task: hold_position
+  - robot_id: robot_4
+    marker_id: 4
+    spawn: {x: 0.0, y: 2.0, yaw_rad: -1.5707963267948966}
+    goal: {x: 0.0, y: 2.0}
+    initial_task: hold_position
+
+timed_obstacles: []
+
+expected_conflict: null
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

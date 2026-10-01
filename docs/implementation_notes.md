@@ -2312,6 +2312,61 @@ Rules for maintaining it:
 
 ## M1 Perception
 
+- **2026-10-01** — **Y-extent PASS replicated (n=2); the `robot_1`/`x=-1.75`
+  dropout below also replicated and is now a registered risk, not noise**
+  (same report, rev 2: `docs/reports/2026-10-01-m1-y-extent-verification.md`).
+  A second run of the `|y| = 1.2` scenario (same seed, ~20 min later, full
+  container restart between) reproduced the PASS near-exactly: `robot_3`/
+  `robot_4` 100% fresh, 0 `STALE`, bias `0.0029`/`0.0072` m both times. It
+  also reproduced `robot_1`'s `STALE` flapping at `(x, y) = (-1.75, 0)`:
+  82.1% `STALE` this time vs. 74.0% the first time, 51 vs. 53-row streaks,
+  19.8 vs. 20.6 s max carried-forward age — ruling out a one-off artifact.
+  That point is `robot_1`'s exact spawn (and `marker_id`) in
+  `isaac/config/scenarios/intersection_bottleneck.yaml`, the IB10 cell v2
+  is building toward; `robot_2` (`marker_id=2`) at the mirror `x = +1.75`
+  and `robot_1` itself at a different `x` (`-2.4`, the other run) were both
+  100% fresh in every run, so neither "that x" nor "that marker" alone
+  explains it — the combination does. Not root-caused (out of this probe's
+  scope); **recommended as a build-order item before step 6 (IB10 composite
+  mock smoke)**, since it bears on that cell's position-verified arrival
+  scoring and Arm B's shadow classification, both of which read M1 state.
+  **Supersedes the entry below's "looks like a transient... not a position
+  or marker-id defect" characterization of the same observation** — it is
+  reproducible, and it is specific to a (position, marker) pair, just not
+  the single-variable defect first guessed.
+- **2026-10-01** — **Y-extent verified at the composite command's recede
+  endpoints, `|y| ~= 1.2`: PASS, wide margin** (v2 build-order step 3,
+  `docs/reports/2026-10-01-m1-y-extent-verification.md`, branch
+  `feat/v2-y-extent` commits `a742768`..`f4cb623`). Two mock-backend VM runs
+  with all four robots held stationary: `robot_3`/`robot_4` at
+  `y = -1.2`/`+1.2` tracked 100% fresh (285/285 rows), 0 `STALE`, bias
+  `0.0029`-`0.0072` m — an order of magnitude under the study's own M1
+  error budget. A second run additionally found `y = 1.8` (stationary, not
+  just in motion) and `y = 2.0` (inside the previously-"unverified"
+  `1.80-2.03` band) both 100% fresh, 0 `STALE`, bias up to `0.0113` m —
+  narrowing but not closing that open question (only two discrete points
+  checked). Unrelated surprise, same run: the x-axis reference point
+  `robot_1` (`x = -1.75`, nominally "verified") flickered `STALE` for 74%
+  of one run (longest streak 53 consecutive ~1 s rows) while its mirror
+  `robot_2` (`x = +1.75`) and `robot_1` itself at a different `x` (run 2)
+  stayed 100% fresh — looks like a transient per-run artifact, not a
+  position or marker-id defect, but unexplained; flagged for a follow-up
+  probe before any long-dwell stationary-robot scenario assumes 100% M1
+  uptime. Two tooling bugs found and fixed while running this probe (both
+  general, not scenario-specific): `fc_launch.sh`'s decision-summary stage
+  (`ls -t m5_decisions/*.json | head -3` under `set -e -o pipefail`) aborts
+  silently before its final `done: STAMP=...` line once more than 3 old
+  decision files have accumulated (2180 were present) — the run itself is
+  unaffected, only a caller parsing that line; and `patch_initial_tasks.py`
+  originally restored `orchestrator.yaml` with `shutil.copy2` (preserves
+  the backup's old mtime), which made colcon's incremental build silently
+  skip re-copying the restored file into `install/` on the very next build
+  — the project's "never trust colcon exit codes" trap, triggered by a
+  config *restore* rather than a deploy. Caught only by an end-of-task
+  manual md5 check of the installed path (the driver's own post-restore
+  log line was checking the wrong path, a second bug also fixed); both
+  fixed in `scripts/vm/patch_initial_tasks.py` / `scripts/vm/m1_y_extent_probe.sh`
+  before the VM was left pristine.
 - **2026-09-27** — **Backward-stamp-jump reset and `stale_after_sec`
   retune for sim-time stamps** (`ce31a14`, `7d4a52b`; spec
   `docs/specs/module1_perception.md` Rev 2).

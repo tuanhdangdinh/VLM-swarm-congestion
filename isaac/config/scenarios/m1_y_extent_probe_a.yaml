@@ -1,0 +1,61 @@
+schema_version: 1
+name: m1_y_extent_probe_a
+family: normal_flow
+seed: 42
+# 120 sim-s of parked dwell is far more than enough M1 rows at scene_log's
+# 1.0 s period (orchestrator.yaml scene_log_dir/scene_log_period_sec): ~110
+# rows per robot after the ~10 s M5 bring-up window.
+duration_sec: 120.0
+
+# M1 y-extent verification probe, run A (v2 build-order step 3,
+# docs/superpowers/specs/2026-09-30-prereg-v2-design.md "Prerequisites" item
+# 3): all four robots held STATIONARY at spawn (orchestrator.yaml
+# initial_tasks must set start_delay_sec far beyond duration_sec for every
+# robot below, or M5 dispatches the shipped +-2.5 head-on goals) so M1's
+# per-frame detection is measured with no motion, no Nav2 commands and no
+# congestion ever possible (family: normal_flow, expected_conflict: null).
+#
+# This run targets the actual prereg-v2 requirement point: the composite
+# `junction_clear` command's cross-pair recede endpoints, |y| ~= 1.2 (study
+# `docs/superpowers/specs/2026-09-29-intersection-resolvable-design.md`,
+# "Prereg-v2 Path - Composite Junction Clear": "the cross pair first
+# reverses along its own arms to |y| ~= 1.2"). robot_3/robot_4 sit on the
+# N-S arm at y = -1.2 / +1.2 (both signs, since the composite command backs
+# up both members of the cross pair). robot_1/robot_2 sit on the E-W arm at
+# the already-verified x = +-1.75 (intersection_bottleneck.yaml precedent)
+# as a live two-axis reference, not a new measurement.
+#
+# Lane legality: the warehouse cross aisle is |x| < 0.6 (north-south) and
+# |y| < 0.6 (east-west) free floor; rack blocks fill the four quadrants
+# beyond that (intersection_bottleneck.yaml header). Every spawn below sits
+# on its own axis at |other-axis| = 0, so all four are on free floor, clear
+# of rack geometry.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -1.75, y: 0.0, yaw_rad: 0.0}
+    goal: {x: -1.75, y: 0.0}
+    initial_task: hold_position
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 1.75, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: 1.75, y: 0.0}
+    initial_task: hold_position
+  - robot_id: robot_3
+    marker_id: 3
+    spawn: {x: 0.0, y: -1.2, yaw_rad: 1.5707963267948966}
+    goal: {x: 0.0, y: -1.2}
+    initial_task: hold_position
+  - robot_id: robot_4
+    marker_id: 4
+    spawn: {x: 0.0, y: 1.2, yaw_rad: -1.5707963267948966}
+    goal: {x: 0.0, y: 1.2}
+    initial_task: hold_position
+
+timed_obstacles: []
+
+expected_conflict: null
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30
