@@ -171,12 +171,14 @@ resolved the rest:
    exact-stamp-match degradation even when `fresh_rate` stays 100%:
    `93.15%` at `(1.75, 0)`, `93.27%` at `(0, -1.75)`, `97.87%` at
    `(-1.37, 0.359)`, `87.7%-92.4%` at `(1.75, 0)` in the original y-extent
-   study — and `100%` at `(1.2, 0.0)`/`(2.4, 0.0)`-class points in the same
-   studies. This noise is **not** a function of distance from the camera
-   centre: the camera is nadir and `aruco.yaml`'s homography is pure
-   scale-plus-offset with no perspective term (confirmed by the intrinsics/
-   homography values themselves), so the marker's rendered pixel footprint
-   is identical at `x = 0`, `x = 1.2`, `x = 1.75`, and `x = 2.4` alike — a
+   study — and `100%` exact-stamp-match at `(0, -1.2)`/`(0, 1.2)` (this
+   study's own robot_3/robot_4 controls, every run) and at `(-2.4, 0)`
+   (robot_1 itself, the original y-extent study's run B). This noise is
+   **not** a function of distance from the camera centre: the camera is
+   nadir and `aruco.yaml`'s homography is pure scale-plus-offset with no
+   perspective term (confirmed by the intrinsics/homography values
+   themselves), so the marker's rendered pixel footprint is identical at
+   `x = 0`, `x = 1.2`, `x = 1.75`, and `x = 2.4` alike — a
    uniformly small footprint cannot by itself explain *why* a given
    position is worse than its neighbor. What varies with position instead
    is the **sub-pixel sampling phase**: at this footprint, a small shift in
@@ -296,51 +298,68 @@ not a risk.
 The registered risk worried about two IB10-scored consumers of M1 state:
 the "all four robots reach goals, position-verified" resolution criterion
 (`docs/superpowers/specs/2026-09-30-prereg-v2-design.md`, "(a)" > "Scoring"),
-and Arm B's shadow classification. Both read M1's `/perception/scene_state`,
-not Isaac ground truth — confirmed for the live congestion-detection path by
-`swarm_orchestrator/congestion_detector.py`'s `update()`, which skips a
-robot's progress bookkeeping entirely while `robot.status == "STALE"`
-(the scene projection it is handed is M1's, per its own docstring: "Latest
-scene projection from M1"); the terminal resolution-scoring script itself
-was not traced to its exact implementation in this task, but nothing in
-this pipeline reads Isaac GT as a scoring input anywhere else checked here,
-so a `STALE` M1 read is the mechanism by which this dropout could reach
-either consumer, not a non-issue bypassed by GT. With that established, the
-four runs above answer the question directly:
+and Arm B's shadow classification. "Position-verified" has a precise,
+already-implemented meaning in this codebase, found by tracing the term
+rather than assumed: `swarm_orchestrator/arrival.py::classify_arrival`
+gates M4's relayed Nav2 "Goal succeeded" report against M1's own position
+estimate (its module docstring: "a Nav2 false success cannot become a false
+episode success"), and `scripts/rescore_arrivals.py` re-derives the same
+verdict offline, using ground truth only as an independent cross-check
+column, not as the scoring input. Critically, **`classify_arrival`'s
+handling of a stale or missing M1 estimate is to accept the report, not
+reject it** (`reason="stale_estimate"`, `accepted=True` — "an M1 outage
+must not block every arrival in a run, it only means the arrival is
+unverified"). A fresh M1 reading that is `beyond_tolerance` is the only way
+this gate rejects an arrival; this study's measured bias on fresh reads is
+a few millimetres everywhere, nowhere near a tolerance-breaking error. The
+one path where a `STALE` read directly costs a credit is narrower:
+`rescore_arrivals.py`'s "latched at goal" fallback (for a robot held by an
+M4 safety latch that never gets an explicit Nav2-success line) requires the
+robot's *final* scene-log sample to be fresh enough; if that last sample
+falls inside a `STALE` streak, it is not credited. So this dropout is not
+the scoring hazard the original registered risk implied for the primary
+arrival-acceptance path — M1 is designed to tolerate it there — and the
+residual risk is specific to the narrower latched-at-goal case, plus
+whatever Arm B's own sampling does (not traced to its exact mechanism in
+this task either).
 
-- **robot_1's own IB10 goal arrival, `(1.75, 0, yaw=0)`: confirmed clean**
-  (100% fresh, 100% exact-stamp-match, 0 `STALE`, in both the swap run at a
-  different yaw and the goalpose run at the real arrival yaw). The marker
-  that actually fails catastrophically is clean at the position it will
-  actually be commanded to reach.
-- **robot_1's own IB10 yield-park pose, `(-1.37, 0.359, yaw=0)` (if chosen
-  as the single-yield yielder): confirmed clean** (100% fresh, 97.87%
-  exact-stamp-match, 0 `STALE` — the yieldpark run). The longer-duration
-  parked dwell this task's review flagged as a gap is not a risk either:
-  the real computed park point sits well clear of the failing `x ~= -1.75`
-  neighborhood.
-- **robot_2's IB10 goal arrival, `(-1.75, 0, yaw=0)` — the position that
-  broke marker 1: only mild, generic degradation** (95.6%/96.6% fresh
-  across the two runs that test it, 70-74% exact-stamp-match, longest
-  streak 5-7 rows ~ 5-7 s), matching the same order of magnitude as the
-  background noise floor measured at other markers/positions in this study
-  and the prior y-extent report. Not zero risk to a scoring check sampled
-  at an unlucky instant, but not the chronic 74-82% failure either.
-- **robot_3/robot_4's IB10 goal arrivals, `(0, +-1.75, yaw=0)`: clean**
-  (100% fresh both; exact-stamp-match 100%/93.27%, in line with the
-  background floor).
-- **The catastrophic 74-82% `STALE` failure remains confined to robot_1
-  sitting still at its own IB10 *spawn*, `(-1.75, 0, yaw=0)`, before it
-  departs** — not to any goal arrival and not to the yield-park dwell
-  either. In the real IB10 run robot_1 is only stationary there during the
-  M5/Nav2 bring-up window (~10.6 sim-s per the scenario header) before
-  `cross_intersection` dispatches its goal; once it departs it moves off
-  `x = -1.75` and, per the above, is clean again at every other position
-  checked. Whether this transient pre-departure window reaches any scored
-  output depends on exactly when Arm B first samples
-  `/perception/scene_state` relative to that bring-up — not established by
-  this task; flagged for the step-6 owner to check against the composite
-  mock smoke's own logs, not assumed benign.
+With that correction, the four runs above describe each pose directly —
+each result is a single tested point, not a claim about a continuous
+"clean neighborhood" around it, since the mechanism (Mechanism point 5
+above) is a sub-pixel-phase effect, not a radius-based one:
+
+- **robot_1 at its own IB10 goal pose, `(1.75, 0, yaw=0)`: clean at that
+  pose** (100% fresh, 100% exact-stamp-match, 0 `STALE`, in both the swap
+  run at a different yaw and the goalpose run at the real arrival yaw).
+- **robot_1 at the single-yield yielder's park pose, `(-1.37, 0.359,
+  yaw=0)`: clean at that pose** (100% fresh, 97.87% exact-stamp-match, 0
+  `STALE` — the yieldpark run). This covers the fallback single-yield
+  grounding path that exists in code today
+  (`reasoning/rag/maneuver_geometry.py`); the v2 composite `junction_clear`
+  command the prereg-v2 spec describes for IB10's actual step-6 smoke does
+  not exist in this codebase yet (`grep -rl junction_clear reasoning/
+  ros2_ws/src` finds nothing), so its own recede-phase geometry — which
+  may put the E-W pair somewhere other than this single-yield park point —
+  is **not** covered by this probe and cannot be until that command is
+  built.
+- **robot_2 at its own IB10 goal pose, `(-1.75, 0, yaw=0)` — the position
+  that broke marker 1: mild, generic degradation at that pose** (95.6%/96.6%
+  fresh across the two runs that test it, 70-74% exact-stamp-match, longest
+  streak 5-7 rows ~ 5-7 s), the same order of magnitude as the background
+  noise floor measured at other markers/positions in this study and the
+  prior y-extent report.
+- **robot_3/robot_4 at their own IB10 goal poses, `(0, +-1.75, yaw=0)`:
+  clean at those poses** (100% fresh both; exact-stamp-match 100%/93.27%,
+  in line with the background floor).
+- **The catastrophic 74-82% `STALE` failure has only ever been observed at
+  one pose: robot_1 sitting still at its own IB10 *spawn*,
+  `(-1.75, 0, yaw=0)`.** In the real IB10 run robot_1 is stationary there
+  only during the M5/Nav2 bring-up window (~10.6 sim-s per the scenario
+  header) before `cross_intersection` dispatches its goal. Given
+  `classify_arrival`'s stale-tolerant design, this window is unlikely to
+  cost the primary position-verified arrival credit directly; it remains a
+  live question for the narrower latched-at-goal path and for Arm B's own
+  sampling — neither traced to a conclusive answer in this task.
 
 ---
 
@@ -370,14 +389,17 @@ to) the general "tests/pins" caveat the task anticipated:
   belongs with whoever re-authors it, alongside the live open question of
   how the composite command's yield/backup geometry interacts with any
   changed spawn radius.
-- **The Scope section above found the practical risk narrower than the
-  nudge would fix anyway.** The nudge fixes robot_1's *spawn*; the
-  position-verified *goal* arrival and the yield-park dwell (the two
-  longer-duration, actually-consequential dwells) are already confirmed
-  clean for robot_1 — the remaining open question is only the transient
-  pre-departure spawn window's interaction with Arm B's sampling timing,
-  which a spawn-position nudge is not the only possible answer to (see
-  Recommendation option 1).
+- **The Scope section above found the practical risk narrower, and
+  differently shaped, than the nudge would fix anyway.** The nudge fixes
+  robot_1's *spawn*; the two longer-duration poses tested (robot_1's own
+  goal arrival, and the single-yield park point) are clean at the specific
+  points tested, and `classify_arrival`'s own stale-tolerant design means a
+  `STALE` read at the primary arrival-acceptance gate does not cost a
+  credit the way the original registered risk assumed. The real remaining
+  exposure (the narrower latched-at-goal path, Arm B's sampling, and the
+  not-yet-built composite command's own geometry) is not something a
+  spawn-position nudge is known to fix, since none of it was shown to need
+  fixing in the first place — see Recommendation below.
 - **Swapping the E-W roles instead (robot_1 spawns east, robot_2 spawns
   west) does not avoid this for free.** It keeps the approach radii equal
   (passes the pin) and might look like a cost-free fix, but robot_1 (the
@@ -403,27 +425,42 @@ work; it is out of scope here since it touches `perception_node.py`/
 
 ## Recommendation for the step-6 owner
 
-Three options, none applied here:
+The mechanism is a sub-pixel-phase effect (Mechanism point 5), not a
+radius-based one, and the v2 composite `junction_clear` command step 6
+actually needs to smoke-test does not exist in code yet — its own
+recede-phase geometry for the E-W pair is unknown and unverifiable until
+it is built. Both facts argue against treating any one computed pose
+(including the single-yield park point this task verified clean) as a
+durable guarantee for every pose the eventual composite command will use.
+**Recommendation: option 3 is the default; options 1 and 2 are not ruled
+out but need more than this task established before being safe to pick.**
 
-1. **Accept as-is.** Now well-supported: the only scored/consequential
-   dwells this task could identify (both goal arrivals, and the yield-park
-   dwell if robot_1 is the yielder) are confirmed clean. The one open
-   question is narrower than originally feared — whether Arm B's first
-   `/perception/scene_state` sample, during the ~10.6 s bring-up window
-   before robot_1 departs its spawn, ever lands inside the catastrophic
-   streak (needs a direct check against the composite mock smoke's own
-   logs, not re-derived here). If it does not, no scenario change is
-   needed at all.
+1. **Accept as-is.** Possible, but not fully supported by this task alone:
+   the primary position-verified arrival path is confirmed stale-tolerant
+   by design (`classify_arrival`), and every pose checked here is clean or
+   near-clean — but "every pose checked here" excludes the composite
+   command's own geometry (not yet built) and was never meant to be
+   exhaustive over every dwell IB10 could produce. Revisit once
+   `junction_clear` exists and its own poses can be checked the same way.
 2. **Symmetric redesign.** Nudge the whole E-W arm (both `robot_1` and
    `robot_2` spawns/goals) by the same delta to a jointly-clean radius,
    re-deriving `test_approach_radii_are_equal` and the downstream park-
    offset/backup-clearance numbers consistently, as part of IB10's already-
    planned re-authoring. (Swapping which robot starts on which side,
    instead of changing the radius, does not work — see "Fix: not applied".)
-3. **Instrument, don't move.** Leave geometry untouched and have the step-6
-   mock smoke explicitly check for this signature (a long `robot_1` `STALE`
-   streak confined to the pre-departure window) so it is recognized as this
-   known, bounded issue rather than re-investigated from scratch.
+   A phase-dependent mechanism also means the chosen replacement radius
+   needs its own clean-pose check, not an assumption that "away from 1.75"
+   is automatically safe.
+3. **Instrument, don't move (recommended default).** Leave geometry
+   untouched and have the step-6 mock smoke (and any later composite-
+   command smoke) check for this signature generically: a long `STALE`
+   streak on *any* robot at *any* stationary dwell — spawn, single-yield
+   park, composite recede/park, or goal arrival — not just robot_1's
+   pre-departure window specifically. Given the mechanism is a per-pose
+   phase effect that this task's five tested poses cannot generalize from,
+   a running check that catches it wherever it next appears is more
+   proportionate than hand-verifying every future pose one VM run at a
+   time.
 
 ---
 
