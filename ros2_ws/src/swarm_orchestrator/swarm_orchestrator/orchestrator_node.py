@@ -30,6 +30,7 @@ from reasoning.vlm import (
     resolve_reasoner_config,
 )
 from reasoning.vlm.models import (
+    CURRENT_PROMPT_VERSION,
     AnthropicBackendConfig,
     FailureContext,
     GeminiBackendConfig,
@@ -58,6 +59,7 @@ from swarm_orchestrator.models import (
     parse_scene_snapshot,
     registry_priorities,
 )
+from swarm_orchestrator.plan_tracker import PlanTracker
 from swarm_orchestrator.presentation_order import (
     EpisodeOrderTracker,
     PresentationOrderPolicy,
@@ -105,6 +107,17 @@ from swarm_orchestrator.state_machine import (
 )
 from swarm_orchestrator.task_registry import TaskRegistry
 
+# (a0) plan channel: M4's CoordinationStatus vocabulary (command_bus_node.py's
+# `_publish_status` calls) translated to a plan leg's status vocabulary
+# (`swarm_orchestrator.plan_tracker.PlanLegStatus`). A status this table does
+# not name (there is none today) is left untranslated -- no leg update, not a
+# crash -- rather than guessing.
+_PLAN_LEG_STATUS_BY_COMMAND_STATUS: dict[str, str] = {
+    "ACTIVE": "active",
+    "COMPLETED": "done",
+    "FAILED": "failed",
+}
+
 
 def _build_candidate_marker(config: OrchestratorConfig) -> CandidateMarker:
     """Load M1's calibration for the stage-2 letters; never raises.
@@ -131,6 +144,7 @@ def _build_default_pipeline(
     grounding: GroundingParamsSource,
     marker: CandidateMarker | None = None,
     letter_seed: int = 0,
+    plan_tracker: PlanTracker | None = None,
 ) -> ReasoningPipeline:
     reasoner_config, backend_config = _load_vlm_config(config.reasoning_backend_id)
     backend = build_backend(config.reasoning_backend_id, backend_config)
@@ -164,6 +178,7 @@ def _build_default_pipeline(
         candidate_marker=marker,
         stage2_letter_seed=letter_seed,
         priorities=registry_priorities(config.initial_tasks),
+        plan_tracker=plan_tracker,
     )
 
 
@@ -282,14 +297,31 @@ class OrchestratorNode(Node):
         # Only the default pipeline draws stage-2 letters; an injected one
         # brings its own marker (or none).
         self._marker = None if pipeline is not None else _build_candidate_marker(self._config)
+        # (a0) plan channel (prereg-v2 rev 4, build-order step 4): None unless
+        # `plan_channel_enabled`, so a flag-off pipeline never calls
+        # `verify_and_repair_plan` and the dispatch path stays byte-identical
+        # to before this channel existed. One tracker for the node's whole
+        # session, matching how `self._attempts`/`self._tracker` are scoped.
+        self._plan_tracker = PlanTracker() if self._config.plan_channel_enabled else None
+        # Which plan_id was last shown in a rendered prompt's plan-state
+        # block, so `PlanTracker.plan_state_context` reports an empty
+        # `changed_robot_ids` on every invocation except the one right after
+        # a supersession (see that method's docstring).
+        self._last_shown_plan_id: int | None = None
         self._pipeline = pipeline or _build_default_pipeline(
-            self._config, self._grounding, self._marker, self._order_seed
+            self._config, self._grounding, self._marker, self._order_seed, self._plan_tracker
         )
 
         self._detector = CongestionDetector(self._config)
         self._arrival = ArrivalGate(self._config, self._detector.mark_arrived)
         self._machine = OrchestratorStateMachine()
         self._tracker = CommandTracker()
+        # (a0) plan channel: which plan a dispatched command_id serves, so
+        # `_on_status` can route M4's per-robot status back onto the right
+        # plan's leg. Every entry is set in `_dispatch`, never cleared (a
+        # late/duplicate status for a long-resolved command_id still finds
+        # its plan); unused unless `self._plan_tracker` is set.
+        self._plan_id_by_command_id: dict[str, int] = {}
         self._cooldown = CooldownTracker(self._config.cooldown_sec)
         self._attempts = AttemptMemory(self._config.failure_context_window_sec)
         self._registry = TaskRegistry()
@@ -531,8 +563,34 @@ class OrchestratorNode(Node):
                     )
             return
         self._tracker.apply_status(msg.command_id, msg.robot_id, msg.status)
+        self._apply_plan_leg_status(msg.command_id, msg.robot_id, msg.status)
         if self._tracker.is_resolved(msg.command_id):
             self._resolve_command(msg.command_id)
+
+    def _apply_plan_leg_status(self, command_id: str, robot_id: str, status: str) -> None:
+        """Route M4's per-robot command status onto its plan's leg, behind the flag.
+
+        Never raises into `_on_status`: an unknown command_id (a plan-less
+        dispatch, or one from before the plan channel was enabled), an
+        untranslatable status, or an invalid transition (e.g. a duplicate
+        terminal status racing itself) is logged and otherwise ignored,
+        exactly like `_finalize_shadow_record`'s own failure handling.
+        """
+        if self._plan_tracker is None:
+            return
+        plan_id = self._plan_id_by_command_id.get(command_id)
+        if plan_id is None:
+            return
+        mapped = _PLAN_LEG_STATUS_BY_COMMAND_STATUS.get(status.upper())
+        if mapped is None:
+            return
+        try:
+            self._plan_tracker.set_leg_status(plan_id, robot_id, mapped)
+        except (KeyError, ValueError) as exc:
+            self.get_logger().warning(
+                f"plan leg status update failed plan={plan_id} robot={robot_id} "
+                f"status={mapped}: {exc}"
+            )
 
     def _on_trigger_analysis(
         self,
@@ -585,6 +643,15 @@ class OrchestratorNode(Node):
             self._publish_registry()
         for command_id in self._tracker.check_timeouts(now):
             self.get_logger().warning(f"command {command_id} timed out")
+            # A timeout never goes through `_on_status`/`_apply_plan_leg_status`
+            # (no CoordinationStatus arrives for a command M4 never received or
+            # never finished), so without this the plan-state block would keep
+            # telling the model a dead leg is still pending/active, and the
+            # NEXT revision would misclassify as `unforced` (dithering) instead
+            # of `evidence_driven` -- the exact distinction the plan-stability
+            # metric is built on.
+            for robot_id in self._tracker.robots_of(command_id):
+                self._apply_plan_leg_status(command_id, robot_id, "FAILED")
             self._resolve_command(command_id)
         if self._future is not None and self._future.done():
             try:
@@ -649,6 +716,19 @@ class OrchestratorNode(Node):
         snapshot = attach_registry_assignments(
             snapshot, self._effective_goal, self._registry.mission_task
         )
+        # (a0) plan channel: v3's plan-state block shows M2 its own active
+        # plan; None (flag off, or no plan accepted yet) renders exactly like
+        # today. `_last_shown_plan_id` is this analysis's own bookkeeping,
+        # consumed and updated here only, so a request that is built but
+        # never actually sent (an exception before dispatch) cannot desync it
+        # from what the NEXT request shows.
+        plan_state = None
+        if self._plan_tracker is not None and self._plan_tracker.active_plan is not None:
+            active_plan_id = self._plan_tracker.active_plan.plan_id
+            plan_state = self._plan_tracker.plan_state_context(
+                active_plan_id, since_plan_id=self._last_shown_plan_id
+            )
+            self._last_shown_plan_id = active_plan_id
         # Built here, not in the worker, so the artifact can record the exact request.
         request = build_reasoner_request(
             request_id,
@@ -660,6 +740,8 @@ class OrchestratorNode(Node):
             static_obstacles=self._config.static_obstacles,
             include_static_obstacles=self._config.prompt_static_obstacles,
             robot_presentation_order=order,
+            prompt_version=3 if self._config.plan_channel_enabled else CURRENT_PROMPT_VERSION,
+            plan_state=plan_state,
         )
         self._pending_failure_context = failure_context
         self._pending_last_failed_context = last_failed_context
@@ -814,6 +896,8 @@ class OrchestratorNode(Node):
             outcome.grounded_command,
             set(self._config.initial_tasks),
         )
+        if outcome.plan is not None:
+            self._plan_id_by_command_id[grounded["command_id"]] = outcome.plan.plan_id
         messages = fan_out_command(grounded, self._config.command_timeout_sec)
         robot_ids = [m[1] for m in messages]
         self._episodes.note_dispatch(robot_ids)

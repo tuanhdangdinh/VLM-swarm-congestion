@@ -13,7 +13,7 @@ from reasoning.baselines.classical_reasoner import (
     load_classical_params,
     resolve_classical,
 )
-from reasoning.vlm.models import RobotStateInput, SnapshotFrame
+from reasoning.vlm.models import ProposedPlanLeg, RobotStateInput, SnapshotFrame
 
 
 def _robot(
@@ -750,6 +750,110 @@ class TestArmBEmitsPromptV2Fields:
         frames = [_frame(1.0, _robot("robot_1", 0.0, 0.0, 0.0, v=0.4))]
         decision = decide_classical(frames, [], _PARAMS)
         assert decision.blocker_kind is None and decision.crossing_order is None
+
+
+class TestArmBEmitsProposedPlan:
+    """Arm B emits its plan through the identical `proposed_plan` field
+    (prereg-v2 (a0), "Arm B emits its plan through the identical field"):
+    its OWN yielder/FCFS order/strategy, never M3's `_derive_default_plan`
+    (which would make the comparator M3's own default instead of Arm B's).
+
+    `proposed_plan` is additive: every assertion elsewhere in this file about
+    `congestion_detected`/`type`/`strategy`/`yield_robot`/`blocker_kind`/
+    `crossing_order` is unchanged (regression pin by the rest of this test
+    module passing unmodified); these tests check only the new field.
+    """
+
+    def test_head_on_plan_names_yielder_first_then_the_passer(self):
+        resolution = resolve_classical(_head_on_frames([(0.0, 5.0), (2.0, 0.4)]), [], _PARAMS)
+        assert resolution.decision.yield_robot == "robot_2"
+        assert resolution.decision.proposed_plan == [
+            ProposedPlanLeg(robot_id="robot_2", action="yield"),
+            ProposedPlanLeg(robot_id="robot_1", action="cross"),
+        ]
+
+    def test_intersection_plan_names_yielder_first_then_passers_in_fcfs_order(self):
+        frames = _crossing_frames(
+            {
+                "robot_1": [(-4.0, 0.0), (-0.8, 0.0), (-0.8, 0.0)],
+                "robot_2": [(0.0, -4.0), (0.0, -4.0), (0.0, -0.8)],
+                "robot_3": [(0.8, 0.3), (0.8, 0.3), (0.8, 0.3)],
+            },
+            [0.0, 2.0, 4.0],
+        )
+        resolution = resolve_classical(frames, [_ZONE], _PARAMS)
+        assert resolution.passing_order == ["robot_3", "robot_1", "robot_2"]
+        assert resolution.decision.yield_robot == "robot_2"
+        assert resolution.decision.proposed_plan == [
+            ProposedPlanLeg(robot_id="robot_2", action="yield"),
+            ProposedPlanLeg(robot_id="robot_3", action="cross"),
+            ProposedPlanLeg(robot_id="robot_1", action="cross"),
+        ]
+
+    def test_blocked_path_plan_reroutes_the_blocked_robot_only(self):
+        frames = [
+            _frame(
+                1.0,
+                _robot("robot_1", 0.0, 0.0, 0.0, goal=(5.0, 0.0)),
+                _robot("robot_2", 3.0, 0.0, 0.0, v=0.3),
+            )
+        ]
+        decision = decide_classical(frames, [], _PARAMS)
+        assert decision.proposed_plan == [
+            ProposedPlanLeg(robot_id="robot_1", action="reroute"),
+            ProposedPlanLeg(robot_id="robot_2", action="continue"),
+        ]
+
+    def test_unknown_plan_waits_on_first_attempt(self):
+        frames = [
+            _frame(
+                1.0,
+                _robot("robot_1", 0.0, 0.0, 0.0, goal=(0.0, 5.0)),
+                _robot("robot_2", 0.5, 0.0, math.pi, goal=(0.0, -5.0)),
+            )
+        ]
+        decision = decide_classical(frames, [], _PARAMS, prior_attempts=0)
+        assert decision.strategy == "temporary_wait"
+        assert {leg.robot_id: leg.action for leg in decision.proposed_plan} == {
+            "robot_1": "wait",
+            "robot_2": "wait",
+        }
+
+    def test_unknown_plan_reroutes_after_prior_attempt(self):
+        frames = [
+            _frame(
+                1.0,
+                _robot("robot_1", 0.0, 0.0, 0.0, goal=(0.0, 5.0)),
+                _robot("robot_2", 0.5, 0.0, math.pi, goal=(0.0, -5.0)),
+            )
+        ]
+        decision = decide_classical(frames, [], _PARAMS, prior_attempts=1)
+        assert decision.strategy == "reroute"
+        assert {leg.robot_id: leg.action for leg in decision.proposed_plan} == {
+            "robot_1": "reroute",
+            "robot_2": "reroute",
+        }
+
+    def test_no_congestion_emits_no_plan(self):
+        frames = [_frame(1.0, _robot("robot_1", 0.0, 0.0, 0.0, v=0.4))]
+        decision = decide_classical(frames, [], _PARAMS)
+        assert decision.proposed_plan is None
+
+    def test_plan_is_scene_wide_uninvolved_robot_continues(self):
+        # A third, uninvolved robot elsewhere in the same frame gets `continue`,
+        # not omission: the (a0) contract is scene-wide, and Arm B's own plan
+        # must satisfy it like any other.
+        frames = [
+            _frame(
+                1.0,
+                *_head_on_pair(),
+                _robot("robot_3", 10.0, 10.0, 0.0, v=0.4),
+            )
+        ]
+        decision = decide_classical(frames, [], _PARAMS)
+        assert {leg.robot_id: leg.action for leg in decision.proposed_plan}["robot_3"] == (
+            "continue"
+        )
 
 
 class TestDecideClassicalOtherScenarios:

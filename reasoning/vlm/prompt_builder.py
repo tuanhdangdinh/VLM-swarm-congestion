@@ -3,6 +3,8 @@ import math
 
 from reasoning.vlm.models import (
     FailureContext,
+    PlanStateContext,
+    PlanStateLeg,
     PromptPayload,
     ReasonerRequest,
     RobotOrder,
@@ -10,6 +12,7 @@ from reasoning.vlm.models import (
     StaticObstacleInput,
 )
 from reasoning.vlm.prompt_v1 import SYSTEM_PROMPT_V1, render_user_prompt_v1
+from reasoning.vlm.prompt_v2 import SYSTEM_PROMPT_V2, render_user_prompt_v2
 
 # "faces" = the robot's heading is within 60° of the direction to the other robot.
 # Opposite headings alone cannot tell head-on from diverging; the VLM misread two
@@ -28,11 +31,15 @@ _STATIC_OBSTACLE_HEADER = "Static obstacles (world-frame axis-aligned boxes):"
 # Ref: https://nvidia-cosmos.github.io/cosmos-cookbook/getting_started/prompt_guide/reason_guide.html
 SYSTEM_PROMPT = "You are a helpful assistant."
 
-# Prompt v2 (the prompt-v2 bundle, 2026-09-27). Against v1 (`prompt_v1`, frozen)
-# it adds the `blocker_kind` and `crossing_order` output bullets and drops the
-# "(sorted by ID)" header claim, which was false under `id_desc`; stating the
-# drawn order instead would add a region that differs between the
-# counterbalanced order conditions. Goals and the task label render through
+# Prompt v3 (prereg-v2 rev 4/6, 2026-10-02). Against v2 (`prompt_v2`, frozen)
+# it generalizes the failure-context block into a scene-wide plan-state block
+# (the active plan, per-leg status, what changed since the last invocation),
+# adds the scenario-agnostic `proposed_plan` invitation and output bullet (the
+# (a0) universal channel, previously accepted by the schema/parser but never
+# mentioned in any prompt), and moves to reasoning-field-first JSON: a bounded
+# free-text `reasoning` field opens the response schema, before any strict
+# classification field (the premature-serialization effect, rev 6 "Prompt
+# apparatus"). Goals and the task label render through
 # `format_robot_state_lines` once M5 supplies them. Any edit to this template
 # is a new prompt version: bump `PromptVersion`, freeze this one first.
 _USER_TEMPLATE = """You are a warehouse swarm robotics traffic controller. Analyze the \
@@ -68,7 +75,11 @@ type="bottleneck" and strategy="temporary_wait" or "yield".
 - Decide from the robot states (including their stated goals and tasks) and the \
 image; do not assume intentions beyond what is stated.
 {visual_crosscheck_block}
+{plan_invitation}
 Produce a JSON object with exactly these fields:
+- "reasoning": one to three sentences of your analysis, written before you commit \
+to the fields below (what you see, why it is or is not congestion, and your plan \
+if any)
 - "congestion_detected": true or false
 - "type": "none" | "deadlock" | "bottleneck" | "crowding" | "anomaly"
 - "involved_robots": list of robot_id strings, from the known IDs only
@@ -85,6 +96,10 @@ congestion_detected is false
 - "crossing_order": when three or more robots must be ordered, every involved \
 robot ID in the order they should pass, first to pass first (a robot that yields \
 passes after the robots it yields to); otherwise null
+- "proposed_plan": optional; your full proposed resolution as an ordered list of \
+{{"robot_id": ..., "action": ...}}, action one of "yield", "reverse", "cross", \
+"wait", "reroute", "continue" ("continue" for a known robot not part of the \
+resolution); omit it, or set it to null, to let the system derive one for you
 
 Rules:
 - Only use robot IDs from the known list above.
@@ -179,6 +194,60 @@ _LAST_FAILED_CONTEXT_ADVICE = (
     "If the congestion persists, do not repeat this failed attempt unless the scene "
     "has changed."
 )
+
+# Scenario-agnostic (prereg-v2 (a0), "one scenario-agnostic invitation
+# sentence in the prompt"): names the field and the division of labor
+# (propose-verify), never a strategy or scenario, so it reads identically on
+# every v3 decision regardless of what the scene turns out to be.
+_PLAN_INVITATION = (
+    "You may also propose the full multi-robot resolution yourself, as "
+    '"proposed_plan" below: an ordered list naming every known robot. The '
+    "system verifies it and, if needed, minimally repairs it before anything "
+    "is dispatched; omitting it (or setting it to null) lets the system "
+    "derive the resolution for you instead."
+)
+
+_PLAN_STATE_HEADER = "Active plan (plan_id={plan_id}):"
+
+# Generic on purpose, like _FAILURE_CONTEXT_ADVICE: naming which strategy to
+# pick next would hand the model the answer the experiment measures. A
+# revision is always legal; this only says when the scene gives evidence for
+# one.
+_PLAN_STATE_ADVICE = (
+    "Hold this plan unless the scene has changed or a leg above is failed: "
+    'propose a new "proposed_plan" only when you are revising it for a '
+    "reason, not by default."
+)
+
+
+def _render_plan_state_leg_line(leg: PlanStateLeg) -> str:
+    return f"- {leg.robot_id}: {leg.action} ({leg.status})"
+
+
+def render_plan_state_block(context: PlanStateContext) -> str:
+    """Render the active-plan block for prompt v3 (rev 4 "plan-state block").
+
+    Generalizes `render_failure_context_block` from "the previous
+    single-conflict attempt" to "the scene-wide plan M5 is currently
+    executing": every leg's current status, plus which robots' legs changed
+    since the last invocation that produced this plan.
+
+    Args:
+        context: M5's current plan state for this request.
+
+    Returns:
+        A multi-line block with no leading or trailing newline.
+    """
+    lines = [_PLAN_STATE_HEADER.format(plan_id=context.plan_id)]
+    lines.extend(_render_plan_state_leg_line(leg) for leg in context.legs)
+    if context.changed_robot_ids:
+        lines.append(
+            "Changed since the last invocation: " + ", ".join(context.changed_robot_ids)
+        )
+    else:
+        lines.append("Nothing has changed since this plan was accepted.")
+    lines.append(_PLAN_STATE_ADVICE)
+    return "\n".join(lines)
 
 
 def _render_attempt_lines(context: FailureContext) -> list[str]:
@@ -361,9 +430,11 @@ def format_static_obstacle_lines(obstacles: list[StaticObstacleInput]) -> list[s
 def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
     """Build a deterministic, fully-rendered prompt payload from a request.
 
-    `request.prompt_version` selects the template: 1 renders through the frozen
-    `prompt_v1` module (byte-identical to every pre-bundle artifact), 2 through
-    this module's template.
+    `request.prompt_version` selects the template: 1 renders through the
+    frozen `prompt_v1` module (byte-identical to every pre-bundle artifact),
+    2 through the frozen `prompt_v2` module (byte-identical to every
+    prompt-v2-bundle artifact), 3 (the current template) through this
+    module's own text.
 
     Args:
         request: Validated reasoning request from M5/M1.
@@ -378,6 +449,13 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
         return PromptPayload(
             system_prompt=SYSTEM_PROMPT_V1,
             user_prompt=render_user_prompt_v1(request),
+            image_path=request.image_path,
+            known_robot_ids=known_ids,
+        )
+    if request.prompt_version == 2:
+        return PromptPayload(
+            system_prompt=SYSTEM_PROMPT_V2,
+            user_prompt=render_user_prompt_v2(request),
             image_path=request.image_path,
             known_robot_ids=known_ids,
         )
@@ -412,6 +490,13 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
         failure_block += (
             "\n" + render_last_failed_context_block(request.last_failed_context) + "\n"
         )
+    # Plan-state block (rev 4): independent of failure_context/last_failed_context
+    # above -- a request may carry either, both, or neither. Appended after them
+    # so a plan-tracking caller that ALSO attaches a failure context (e.g. a
+    # non-plan-tracked re-ask mixed into a plan-tracked episode) sees both, most
+    # specific last.
+    if request.plan_state is not None:
+        failure_block += "\n" + render_plan_state_block(request.plan_state) + "\n"
     crosscheck_block = (
         "\n" + render_visual_crosscheck_block(request.include_pairwise_geometry) + "\n"
         if request.include_visual_crosscheck
@@ -424,6 +509,7 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
         static_obstacle_block=obstacle_block,
         failure_context_block=failure_block,
         visual_crosscheck_block=crosscheck_block,
+        plan_invitation=_PLAN_INVITATION,
         **(_GEOMETRY_ON if request.include_pairwise_geometry else _GEOMETRY_OFF),
         # Gated on the rendered lines, not on the flag: the ON clause asserts the
         # listed obstacles are the only ones present, which with an empty list

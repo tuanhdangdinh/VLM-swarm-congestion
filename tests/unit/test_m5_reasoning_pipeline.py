@@ -20,6 +20,7 @@ from swarm_orchestrator.models import (
     TaskAssignment,
     TerminalStage,
 )
+from swarm_orchestrator.plan_tracker import PlanTracker
 from swarm_orchestrator.reasoning_pipeline import (
     InProcessPipeline,
     LatestRawFrame,
@@ -38,6 +39,7 @@ from swarm_orchestrator.reasoning_pipeline import (
 from swarm_orchestrator.task_registry import TaskRegistry
 
 from reasoning.rag.command_grounder import ground_reasoner_result
+from reasoning.rag.maneuver_geometry import GroundingParams
 from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
 from reasoning.vlm.backend_factory import (
     backend_section,
@@ -51,6 +53,7 @@ from reasoning.vlm.models import (
     FailureContext,
     GeminiBackendConfig,
     OpenAIBackendConfig,
+    ProposedPlanLeg,
     ReasonerDiagnostics,
     ReasonerRequest,
     ReasonerResult,
@@ -291,6 +294,267 @@ def test_pipeline_grounding_failure_terminates_at_grounding():
     outcome = pipe.run(_request())
     assert outcome.terminal_stage is TerminalStage.GROUNDING
     assert "schema invalid" in outcome.failure_reason
+
+
+# ---- (a0) plan channel, behind plan_channel_enabled ----
+
+
+def _fixed_ground_fn(grounded):
+    return lambda result, robot_positions=None, geometry=None, **_gate: dict(grounded)
+
+
+def _yield_result(request_id="r1", proposed_plan=None, yield_robot=None):
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type="deadlock",
+        involved_robots=["robot_0"],
+        root_cause="head-on",
+        strategy="yield",
+        justification="x",
+        yield_robot=yield_robot,
+        proposed_plan=proposed_plan,
+    )
+    diag = ReasonerDiagnostics(
+        request_id=request_id, backend_id="mock", attempts=1, parse_status="valid"
+    )
+    return ReasonerResult(
+        request_id=request_id, decision=decision, raw_text="{}", diagnostics=diag
+    )
+
+
+def _head_on_request() -> ReasonerRequest:
+    snapshot = SceneSnapshot(
+        stamp=5.0,
+        frame_id="cam0",
+        robots=[
+            RobotView(robot_id="robot_1", x=-0.3, y=0.0, theta=0.0, linear_velocity=0.0,
+                      status="STOPPED", stamp=5.0),
+            RobotView(robot_id="robot_2", x=0.3, y=0.0, theta=3.14159, linear_velocity=0.0,
+                      status="STOPPED", stamp=5.0),
+        ],
+        dropped_frame=False,
+    )
+    return build_reasoner_request(request_id="r1", snapshot=snapshot, image_path="/tmp/r1.png")
+
+
+def _head_on_yield_result() -> ReasonerResult:
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type="deadlock",
+        involved_robots=["robot_1", "robot_2"],
+        root_cause="head-on",
+        strategy="yield",
+        justification="x",
+        yield_robot="robot_1",
+    )
+    diag = ReasonerDiagnostics(request_id="r1", backend_id="mock", attempts=1, parse_status="valid")
+    return ReasonerResult(request_id="r1", decision=decision, raw_text="{}", diagnostics=diag)
+
+
+def _shipped_grounding_params() -> GroundingParams:
+    import yaml
+
+    with open("config/rag.yaml", encoding="utf-8") as handle:
+        raw = yaml.safe_load(handle)
+    return GroundingParams(**raw["grounding"])
+
+
+def test_plan_matches_dispatch_on_the_real_two_robot_head_on_grounder():
+    # The CORE engine's own exhaustively-verified claim, checked against the
+    # SHIPPED mode (config/rag.yaml's grounding.mode: derived, not legacy):
+    # in a two-robot head-on, the tracked plan's legs ARE what
+    # ground_reasoner_result actually dispatches (ruling 3 extended the
+    # default-plan equivalence to derived mode). Uses the real grounder
+    # (not a mock ground_fn), so this is the one live check that
+    # `dispatch_matches_plan` reports True where the engine's own sweeps
+    # already prove it must.
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_head_on_yield_result()),
+        ground_fn=ground_reasoner_result,
+        grounding_params=_shipped_grounding_params(),
+        plan_tracker=PlanTracker(),
+    )
+    outcome = pipe.run(_head_on_request())
+    assert outcome.plan is not None
+    assert outcome.plan.dispatch_matches_plan is True
+
+
+def test_plan_present_derived_mode_band_gap_is_measured_not_hidden():
+    # The one documented, narrower boundary (CORE step's note, re-flagged in
+    # this task): `_plan_problems` does not model DERIVED mode's backup-band
+    # sweep for a VLM-supplied verbatim plan, so a plan naming the decided
+    # (feasible-by-the-room-check) yielder can pass verification as
+    # `vlm_verbatim` while the REAL derived-mode dispatch reroutes under an
+    # impossible band. `dispatch_matches_plan` makes that divergence visible
+    # instead of silently assumed away.
+    impossible_band = GroundingParams(mode="derived", backup_band_m=(0.01, 0.02))
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type="deadlock",
+        involved_robots=["robot_1", "robot_2"],
+        root_cause="head-on",
+        strategy="yield",
+        justification="x",
+        yield_robot="robot_1",
+        proposed_plan=[
+            ProposedPlanLeg(robot_id="robot_1", action="yield"),
+            ProposedPlanLeg(robot_id="robot_2", action="cross"),
+        ],
+    )
+    diag = ReasonerDiagnostics(
+        request_id="r1", backend_id="mock", attempts=1, parse_status="valid"
+    )
+    result = ReasonerResult(request_id="r1", decision=decision, raw_text="{}", diagnostics=diag)
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(result),
+        ground_fn=ground_reasoner_result,
+        grounding_params=impossible_band,
+        plan_tracker=PlanTracker(),
+    )
+    outcome = pipe.run(_head_on_request())
+    assert outcome.plan is not None
+    assert outcome.plan.provenance == "vlm_verbatim"
+    assert outcome.grounded_command["actions"][0]["action"] == "reroute"
+    assert outcome.plan.dispatch_matches_plan is False
+
+
+def test_plan_tracker_omitted_leaves_the_outcome_and_command_untouched():
+    # Flag off (no plan_tracker passed, the default): `run()` must never call
+    # verify_and_repair_plan or touch the grounded command, so the dispatch
+    # path is byte-identical to before this channel existed.
+    grounded = {
+        "command_id": "c1",
+        "actions": [{"robot_id": "robot_0", "action": "yield", "parameters": {}}],
+        "expected_resolution_time_sec": 18.0,
+        "fallback": "stop",
+    }
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_ok_result()), ground_fn=_fixed_ground_fn(grounded)
+    )
+    outcome = pipe.run(_request())
+    assert outcome.plan is None
+    assert outcome.grounded_command == grounded
+    assert "plan_id" not in outcome.grounded_command["actions"][0]["parameters"]
+
+
+def test_plan_tracker_enabled_assigns_a_plan_id_and_tags_every_action():
+    grounded = {
+        "command_id": "c1",
+        "actions": [{"robot_id": "robot_0", "action": "yield", "parameters": {"x": 1}}],
+        "expected_resolution_time_sec": 18.0,
+        "fallback": "stop",
+    }
+    tracker = PlanTracker()
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_ok_result()),
+        ground_fn=_fixed_ground_fn(grounded),
+        plan_tracker=tracker,
+    )
+    outcome = pipe.run(_request())
+    assert outcome.plan is not None
+    assert outcome.plan.plan_id == 1
+    # Not emitted by _ok_result's decision -> M3's own derived plan.
+    assert outcome.plan.provenance == "m3_default"
+    assert outcome.plan.superseded_plan_id is None
+    assert outcome.grounded_command["actions"][0]["parameters"]["plan_id"] == 1
+    # The rest of parameters survives untouched.
+    assert outcome.grounded_command["actions"][0]["parameters"]["x"] == 1
+    assert tracker.active_plan is not None and tracker.active_plan.plan_id == 1
+
+
+def test_plan_tracker_leaves_grounded_command_shape_otherwise_unchanged():
+    grounded = {
+        "command_id": "c1",
+        "actions": [{"robot_id": "robot_0", "action": "yield", "parameters": {}}],
+        "expected_resolution_time_sec": 18.0,
+        "fallback": "stop",
+    }
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_ok_result()),
+        ground_fn=_fixed_ground_fn(grounded),
+        plan_tracker=PlanTracker(),
+    )
+    outcome = pipe.run(_request())
+    tagged = outcome.grounded_command
+    assert tagged["command_id"] == grounded["command_id"]
+    assert tagged["expected_resolution_time_sec"] == grounded["expected_resolution_time_sec"]
+    assert tagged["fallback"] == grounded["fallback"]
+    assert tagged["actions"][0]["robot_id"] == "robot_0"
+    assert tagged["actions"][0]["action"] == "yield"
+
+
+def test_plan_tracker_second_decision_supersedes_the_first():
+    grounded = {
+        "command_id": "c1",
+        "actions": [{"robot_id": "robot_0", "action": "yield", "parameters": {}}],
+        "expected_resolution_time_sec": 18.0,
+        "fallback": "stop",
+    }
+    tracker = PlanTracker()
+    ground_fn = _fixed_ground_fn(grounded)
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_ok_result()), ground_fn=ground_fn, plan_tracker=tracker
+    )
+    first = pipe.run(_request())
+    assert first.plan.plan_id == 1
+
+    pipe2 = InProcessPipeline(
+        reasoner=_FakeReasoner(_no_congestion_result()), ground_fn=ground_fn, plan_tracker=tracker
+    )
+    # A congestion_detected=False analysis never reaches the plan channel
+    # (it terminates at VLM, before grounding); confirm that, then supersede
+    # with a second real decision.
+    cleared = pipe2.run(_request())
+    assert cleared.plan is None
+
+    pipe3 = InProcessPipeline(
+        reasoner=_FakeReasoner(_yield_result()), ground_fn=ground_fn, plan_tracker=tracker
+    )
+    second = pipe3.run(_request())
+    assert second.plan.plan_id == 2
+    assert second.plan.superseded_plan_id == 1
+
+
+class _RaisingPlanTracker:
+    """A plan_tracker double whose `accept_plan` always raises."""
+
+    def accept_plan(self, verified):
+        raise RuntimeError("plan tracker exploded")
+
+
+def test_plan_channel_failure_never_blocks_an_otherwise_successful_dispatch():
+    # "never raised past this adapter" (FR5.3.2), extended to the plan
+    # channel: a verify_and_repair_plan/accept_plan exception must still let
+    # the already-grounded command dispatch, untouched by _attach_plan_id.
+    grounded = {
+        "command_id": "c1",
+        "actions": [{"robot_id": "robot_0", "action": "yield", "parameters": {}}],
+        "expected_resolution_time_sec": 18.0,
+        "fallback": "stop",
+    }
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_ok_result()),
+        ground_fn=_fixed_ground_fn(grounded),
+        plan_tracker=_RaisingPlanTracker(),
+    )
+    outcome = pipe.run(_request())
+    assert outcome.terminal_stage is TerminalStage.OK
+    assert outcome.grounded_command == grounded
+    assert "plan_id" not in outcome.grounded_command["actions"][0]["parameters"]
+    assert outcome.plan is None
+    assert outcome.plan_error is not None
+    assert "plan tracker exploded" in outcome.plan_error
+
+
+def test_write_decision_artifact_records_plan_error_when_present(tmp_path):
+    outcome = _ok_outcome().model_copy(update={"plan_error": "plan tracker exploded"})
+    payload = json.loads(write_decision_artifact(tmp_path, outcome).read_text())
+    assert payload["plan_error"] == "plan tracker exploded"
+
+
+def test_write_decision_artifact_omits_plan_error_key_when_absent(tmp_path):
+    payload = json.loads(write_decision_artifact(tmp_path, _ok_outcome()).read_text())
+    assert "plan_error" not in payload
 
 
 class _RaisingReasoner:
@@ -571,6 +835,38 @@ def test_write_decision_artifact_records_prompt_version(tmp_path):
 def test_write_decision_artifact_prompt_version_is_none_without_request(tmp_path):
     payload = json.loads(write_decision_artifact(tmp_path, _ok_outcome()).read_text())
     assert payload["prompt_version"] is None
+
+
+def test_write_decision_artifact_records_plan_state_when_request_carries_one(tmp_path):
+    from swarm_orchestrator.plan_tracker import PlanTracker
+
+    from reasoning.rag.command_grounder import VerifiedPlan
+    from reasoning.vlm.models import ProposedPlanLeg
+
+    tracker = PlanTracker()
+    verified = VerifiedPlan(
+        legs=[
+            ProposedPlanLeg(robot_id="robot_1", action="yield"),
+            ProposedPlanLeg(robot_id="robot_2", action="cross"),
+        ],
+        provenance="vlm_verbatim",
+    )
+    accepted = tracker.accept_plan(verified)
+    plan_state = tracker.plan_state_context(accepted.plan.plan_id, since_plan_id=None)
+    request = build_reasoner_request(
+        "r1", _snapshot(), "/tmp/r1.png", prompt_version=3, plan_state=plan_state
+    )
+    path = write_decision_artifact(tmp_path, _ok_outcome(), request=request)
+    payload = json.loads(path.read_text())
+    assert payload["plan_state"]["plan_id"] == accepted.plan.plan_id
+    assert payload["plan_state"]["legs"][0]["robot_id"] == "robot_1"
+
+
+def test_write_decision_artifact_omits_plan_state_key_when_absent(tmp_path):
+    payload = json.loads(
+        write_decision_artifact(tmp_path, _ok_outcome(), request=_request()).read_text()
+    )
+    assert "plan_state" not in payload
 
 
 def test_write_decision_artifact_records_image_fallback_diagnostics(tmp_path):
@@ -933,6 +1229,50 @@ def test_write_decision_artifact_nulls_measurement_fields_when_absent(tmp_path):
     assert payload["prompt_robot_order_mode"] is None
     assert payload["prompt_robot_order_seed"] is None
     assert payload["episode_index"] is None
+
+
+def test_write_decision_artifact_omits_plan_key_when_plan_channel_is_off(tmp_path):
+    # Flag-off byte-identity: outcome.plan is None (every caller before the
+    # (a0) plan channel existed), so the artifact gains no "plan" key at all
+    # -- not even `"plan": null` -- matching the probe/probe_index pattern.
+    payload = json.loads(write_decision_artifact(tmp_path, _ok_outcome()).read_text())
+    assert "plan" not in payload
+
+
+def test_write_decision_artifact_records_plan_dispatch_info_when_present(tmp_path):
+    from swarm_orchestrator.models import PlanDispatchInfo
+    from swarm_orchestrator.plan_tracker import TrackedLeg
+
+    from reasoning.rag.command_grounder import PlanEdit
+
+    outcome = _ok_outcome().model_copy(
+        update={
+            "plan": PlanDispatchInfo(
+                plan_id=2,
+                provenance="repaired",
+                legs=(
+                    TrackedLeg(robot_id="robot_1", action="yield", status="pending"),
+                    TrackedLeg(robot_id="robot_2", action="cross", status="pending"),
+                ),
+                edits=(PlanEdit(op="swap", robot_ids=("robot_1", "robot_2"), reason="r"),),
+                superseded_plan_id=1,
+                cancel_order=("robot_2",),
+                dispatch_matches_plan=True,
+            )
+        }
+    )
+    payload = json.loads(write_decision_artifact(tmp_path, outcome).read_text())
+    assert payload["plan"]["plan_id"] == 2
+    assert payload["plan"]["provenance"] == "repaired"
+    assert payload["plan"]["superseded_plan_id"] == 1
+    assert payload["plan"]["cancel_order"] == ["robot_2"]
+    assert payload["plan"]["edits"][0]["op"] == "swap"
+    assert payload["plan"]["legs"][0] == {
+        "robot_id": "robot_1",
+        "action": "yield",
+        "status": "pending",
+    }
+    assert payload["plan"]["dispatch_matches_plan"] is True
 
 
 def test_write_decision_artifact_records_presentation_order_provenance(tmp_path):

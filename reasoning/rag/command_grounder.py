@@ -1960,6 +1960,49 @@ def _plan_problems(
     return problems
 
 
+def _derived_yield_degrades_to_reroute(
+    snapshot: SnapshotFrame,
+    roles: YieldRoles,
+    grounding_params: GroundingParams,
+    geometry: SceneGeometry,
+) -> bool:
+    """Whether DERIVED-mode grounding would reroute this yield instead (ruling 3).
+
+    Reuses `prepare_retreat_selection` and `derive_escort_distance`, exactly
+    as `_ground_derived` does, so this can never drift from the shipped
+    degradation logic. Checked against the best-ranked candidate
+    (`selection.candidates[0]`), matching `_ground_derived` with no stage-2
+    `retreat_choice` -- this engine accepts none.
+
+    Args:
+        snapshot: Scene frame supplying every robot's position.
+        roles: The gated yield roles (`resolve_yield_roles`'s non-refused
+            output).
+        grounding_params: M3's derived-mode grounding parameters.
+        geometry: Declared scene geometry.
+
+    Returns:
+        True when the backup is infeasible, no candidate survives, or the
+        best candidate's escort is infeasible -- the same three conditions
+        `_ground_derived` checks before calling `_reroute_yielder`.
+    """
+    selection = prepare_retreat_selection(
+        snapshot, roles.yielder_id, roles.crossing_order, grounding_params, geometry=geometry
+    )
+    if not selection.backup.feasible or not selection.candidates:
+        return True
+    chosen = selection.candidates[0]
+    escort = derive_escort_distance(
+        snapshot,
+        roles.crossing_order[0],
+        (chosen.x, chosen.y),
+        grounding_params,
+        geometry=geometry,
+        yielder_id=roles.yielder_id,
+    )
+    return not escort.feasible
+
+
 def _derive_default_plan(
     decision: CongestionDecision,
     snapshot: SnapshotFrame,
@@ -1968,6 +2011,7 @@ def _derive_default_plan(
     static_obstacles: Sequence[StaticObstacleInput],
     yield_feasibility_mode: YieldFeasibilityMode,
     priorities: Mapping[str, int] | None,
+    grounding_params: GroundingParams | None = None,
 ) -> list[ProposedPlanLeg]:
     """M3's own scene-wide plan for `decision`: the repair target and fallback.
 
@@ -1977,6 +2021,19 @@ def _derive_default_plan(
     decision's `m3_default` plan always names the same yielder/order/action
     the legacy and derived templates would already have dispatched.
 
+    Repair-semantics ruling 3 (2026-10-02, `docs/implementation_notes.md`):
+    with `grounding_params.mode == "derived"`, a `yield` decision also runs
+    the SAME backup-band / retreat-candidate / escort feasibility sweep
+    `_ground_derived` runs (`prepare_retreat_selection`, then
+    `derive_escort_distance` for the best-ranked candidate), and degrades to
+    the identical `reroute`-the-yielder shape `_reroute_yielder` dispatches
+    when that sweep fails -- never a re-implementation of that degradation
+    either. `grounding_params=None` (or `mode != "derived"`) is the pre-ruling-3
+    behaviour exactly (LEGACY mode has no band to model). Like `_ground_derived`
+    called with no stage-2 `retreat_choice` (this engine accepts none), the
+    best-ranked candidate (`selection.candidates[0]`) is the one checked; a
+    specific stage-2 pick is not modelled here.
+
     Args:
         decision: A validated, congestion-detected decision.
         snapshot: Scene frame supplying every tracked robot and its position.
@@ -1984,6 +2041,8 @@ def _derive_default_plan(
         static_obstacles: Fixed obstacles of the running scenario.
         yield_feasibility_mode: The yield feasibility gate mode.
         priorities: M5's registry priorities, for `priority_override`.
+        grounding_params: M3's derived-mode grounding parameters, or None for
+            the legacy-only behaviour predating ruling 3.
 
     Returns:
         A complete plan: every `snapshot` robot gets exactly one leg.
@@ -2016,6 +2075,20 @@ def _derive_default_plan(
             for robot_id in roles.robot_ids:
                 actions[robot_id] = "wait"
             ordered = list(roles.robot_ids)
+        elif (
+            grounding_params is not None
+            and grounding_params.mode == "derived"
+            and geometry is not None
+            and _derived_yield_degrades_to_reroute(
+                snapshot, roles, grounding_params, geometry
+            )
+        ):
+            # Mirrors `_reroute_yielder`'s dispatch shape exactly: the yielder
+            # reroutes, every crossing-order robot waits.
+            actions[roles.yielder_id] = "reroute"
+            for robot_id in roles.crossing_order:
+                actions[robot_id] = "wait"
+            ordered = [roles.yielder_id, *roles.crossing_order]
         else:
             actions[roles.yielder_id] = "yield"
             for robot_id in roles.crossing_order:
@@ -2040,6 +2113,13 @@ def _derive_default_plan(
         order = resolve_robot_order(working)
         if order:
             actions[order[0]] = "reroute"
+            # TODO(junction_clear, prereg-v2 design.md build-order step 5): a
+            # `wait` leg has no scene-geometry feasibility check of its own
+            # yet (same documented placeholder as `_plan_problems`'s "reroute/
+            # wait/continue legs have no scene geometry check of their own" --
+            # `docs/implementation_notes.md`). The loop-map reroute grounding
+            # (build-order step 8) is the natural owner; not silently assumed
+            # feasible, just not modelled here either.
             for robot_id in order[1:]:
                 actions[robot_id] = "wait"
         ordered = order
@@ -2053,6 +2133,59 @@ def _derive_default_plan(
 
     remaining = [rid for rid in known_robot_ids if rid not in ordered]
     return [ProposedPlanLeg(robot_id=rid, action=actions[rid]) for rid in [*ordered, *remaining]]
+
+
+def _preferred_yielder(
+    decision: CongestionDecision,
+    snapshot: SnapshotFrame,
+    geometry: SceneGeometry | None,
+    static_obstacles: Sequence[StaticObstacleInput],
+    yield_feasibility_mode: YieldFeasibilityMode,
+) -> str | None:
+    """The yielder M3's own feasibility candidate scan would pick, if any.
+
+    Repair-semantics ruling 2 (2026-10-02, `docs/implementation_notes.md`):
+    equal-cost repair candidates tie-break toward M3's derived plan,
+    "including its yielder pick". For a 3+-robot compound defect (a
+    room-infeasible decided yielder AND an independent crossing-order
+    violation), `_derive_default_plan`'s own output has no yielder to
+    compare against -- `_first_passer_refusal` collapses it to an all-wait
+    fan-out, matching v1's own refusal there (see the OPEN CONTRACT
+    QUESTION entry this ruling resolves). The candidate `_apply_yield_feasibility`
+    itself would reground to (the first room-feasible robot in
+    `robot_ids[1:]`, `"swap"` mode only) is still well-defined at that
+    point, before the downstream multi-passer refusal discards it -- this
+    exposes exactly that pick, independently of `_derive_default_plan`, so
+    the repair search can prefer it without changing what `_derive_default_plan`
+    itself returns.
+
+    Args:
+        decision: The decision the plan refines.
+        snapshot: Scene frame supplying every robot's position.
+        geometry: Declared scene geometry; None means the gate cannot run.
+        static_obstacles: Fixed obstacles of the running scenario.
+        yield_feasibility_mode: The yield feasibility gate mode; only
+            `"swap"` ever reassigns a yielder, so every other mode returns
+            None (no preference -- matches the "yielder never reassigned"
+            hard mode contract).
+
+    Returns:
+        The robot id M3's own gate would assign the yield role to, or None
+        when the decision is not a yield, geometry is absent, the mode never
+        reassigns, or a position is missing.
+    """
+    if decision.strategy != "yield" or geometry is None or yield_feasibility_mode != "swap":
+        return None
+    robot_ids = resolve_robot_order(decision)
+    if len(robot_ids) < 2:
+        return None
+    positions = {state.robot_id: (state.x, state.y) for state in snapshot.robots}
+    if any(robot_id not in positions for robot_id in robot_ids):
+        return None
+    result = _apply_yield_feasibility(
+        robot_ids, positions, static_obstacles, geometry, yield_feasibility_mode
+    )
+    return result.robot_ids[0] if result.refusal_reason is None else None
 
 
 def _edit_reason(
@@ -2101,11 +2234,18 @@ def _repair_plan(
     fixed positions, generalizing the one-leg swap gate), `reorder` (exchange
     two whole legs' positions, for an ordering-only defect), and `substitute`
     toward M3's derived action for that robot. Breadth-first search over a
-    bounded depth makes "fewest edits first" true by construction: the first
-    accepted plan found is at the minimal depth, and ties at that depth break
+    bounded depth makes "fewest edits first" true by construction: every
+    accepted plan found at a given depth is collected before any is returned,
+    so a minimal-depth tie between several accepted candidates is broken by
+    preference, not by discovery order alone (repair-semantics ruling 2,
+    2026-10-02): a candidate whose `yield` leg matches `_preferred_yielder`
+    (M3's own feasibility-gate pick, when the decision is a yield under
+    `"swap"` mode) is preferred over one that does not; remaining ties break
     on a fixed, deterministic operation order (swaps, then reorders, then
     substitutions, each sorted by position -- see `_ops`'s docstring comment
-    for why that order, not the reverse).
+    for why that order, not the reverse). This never widens the search past
+    the minimal depth: a preferred-yielder candidate only wins over another
+    candidate already accepted at the SAME depth.
 
     Args:
         legs: The VLM's plan after lenient completion (every snapshot robot
@@ -2125,6 +2265,9 @@ def _repair_plan(
         `(repaired_legs, edits)` for the minimal repair found, or
         `(None, [])` when no accepted plan exists within `max_edits`.
     """
+    preferred_yielder = _preferred_yielder(
+        decision, snapshot, geometry, static_obstacles, yield_feasibility_mode
+    )
     touchable = [i for i, leg in enumerate(legs) if leg.robot_id in set(decision.involved_robots)]
 
     def _problems(state: Sequence[ProposedPlanLeg]) -> dict[int, str]:
@@ -2192,10 +2335,17 @@ def _repair_plan(
     def _key(state: Sequence[ProposedPlanLeg]) -> tuple[tuple[str, str], ...]:
         return tuple((leg.robot_id, leg.action) for leg in state)
 
+    def _matches_preferred_yielder(state: Sequence[ProposedPlanLeg]) -> bool:
+        if preferred_yielder is None:
+            return False
+        yield_leg = next((leg for leg in state if leg.action == "yield"), None)
+        return yield_leg is not None and yield_leg.robot_id == preferred_yielder
+
     frontier: list[tuple[list[ProposedPlanLeg], list[PlanEdit]]] = [(legs, [])]
     visited = {_key(legs)}
     for _depth in range(max_edits):
         next_frontier: list[tuple[list[ProposedPlanLeg], list[PlanEdit]]] = []
+        accepted: list[tuple[list[ProposedPlanLeg], list[PlanEdit]]] = []
         for state, edits in frontier:
             problems_by_index = _problems(state)
             for op, idx, extra in _ops(state):
@@ -2208,8 +2358,18 @@ def _repair_plan(
                 robot_ids = tuple(sorted({state[i].robot_id for i in idx}))
                 new_edits = [*edits, PlanEdit(op=op, robot_ids=robot_ids, reason=reason)]
                 if _accepted(candidate):
-                    return candidate, new_edits
-                next_frontier.append((candidate, new_edits))
+                    accepted.append((candidate, new_edits))
+                else:
+                    next_frontier.append((candidate, new_edits))
+        if accepted:
+            # Equal-cost (same minimal depth) tie-break toward M3's own
+            # feasibility-gate yielder pick (ruling 2); the first-found
+            # candidate (fixed `_ops` enumeration order) wins when none
+            # matches, preserving every pre-existing outcome.
+            preferred = [
+                candidate for candidate in accepted if _matches_preferred_yielder(candidate[0])
+            ]
+            return preferred[0] if preferred else accepted[0]
         frontier = next_frontier
         if not frontier:
             break
@@ -2225,25 +2385,36 @@ def verify_and_repair_plan(
     yield_feasibility_mode: YieldFeasibilityMode = "off",
     repair_params: PlanRepairParams | None = None,
     priorities: Mapping[str, int] | None = None,
+    grounding_params: GroundingParams | None = None,
 ) -> VerifiedPlan:
     """Audit, and if needed minimally repair, a decision's `proposed_plan`.
 
     Per-decision outcome (prereg-v2 (a0), "Verify/repair contract"):
 
     - Plan absent -> M3's own derived plan, provenance `m3_default`. For
-      LEGACY-mode grounding (no `GroundingParams`/derived-mode retreat
-      selection, which this engine does not accept) this has been verified
-      to match `ground_reasoner_result`'s actual dispatched command exactly,
-      over the full two-robot strategy/yielder/position/geometry/gate matrix
+      LEGACY-mode grounding (`grounding_params=None` or `mode != "derived"`)
+      this has been verified to match `ground_reasoner_result`'s actual
+      dispatched command exactly, over the full two-robot
+      strategy/yielder/position/geometry/gate matrix
       (`TestDefaultPlanMatchesLegacyGrounding`) plus a 3-robot multi-passer
       matrix (`TestDefaultPlanMatchesLegacyThreeRobotMultiPasserMatrix`), both
       in `tests/unit/test_plan_verifier.py`.
-      KNOWN BOUNDARY: DERIVED-mode's backup-band / retreat-candidate sweep
-      (`prepare_retreat_selection`) can degrade a feasible-by-the-legacy-check
-      yield to a `reroute`; this engine has no `GroundingParams` to see that,
-      so its `m3_default` can diverge from a derived-mode dispatch in that
-      specific case (documented, not silently claimed away; see
-      `test_default_plan_does_not_model_derived_mode_band_infeasibility`).
+      RESOLVED by repair-semantics ruling 3 (2026-10-02): with
+      `grounding_params.mode == "derived"`, the DERIVED-mode backup-band /
+      retreat-candidate sweep (`prepare_retreat_selection`, then
+      `derive_escort_distance`) is also modelled
+      (`_derived_yield_degrades_to_reroute`), so a feasible-by-the-legacy-check
+      yield that DERIVED mode would actually reroute now defaults to that
+      `reroute` too -- verified against `ground_reasoner_result`'s actual
+      derived-mode dispatch, including the shipped `config/rag.yaml` values
+      and a deliberately-impossible `backup_band_m`
+      (`TestDefaultPlanMatchesDerivedGrounding`,
+      `test_default_plan_does_not_model_derived_mode_band_infeasibility`,
+      now flipped to assert parity). `grounding_params=None` keeps the
+      pre-ruling-3 LEGACY-only behaviour exactly; a specific stage-2
+      `retreat_choice` is still not modelled (this engine accepts none), so
+      the check runs against the best-ranked candidate, matching
+      `_ground_derived` with no stage-2 choice.
     - Plan present but naming a robot outside `snapshot` -> treated as
       unparseable, `m3_default`, reason logged (never reinterpreted as a
       partial plan).
@@ -2282,22 +2453,22 @@ def verify_and_repair_plan(
     `yield_feasibility_mode == "swap"`, mirroring `_apply_yield_feasibility`'s
     own mode gate exactly).
 
-    OPEN CONTRACT QUESTION, not settled by this task (plan PRESENT, 3+ robots
-    only -- the two-robot and plan-absent guarantees above are unaffected
-    and fully verified): `_first_passer_refusal`'s own comment records a
-    deliberate v1 design choice -- a bad crossing order is "refused rather
-    than reordered, so the executed order is always the decided one". This
-    engine's repair search is explicitly built to reorder (the task asks for
-    a reorder-repair case), so for a 3+-robot scene with an independent
-    ordering defect it can find a feasible resolution (sometimes via
-    `reorder` alone, sometimes via `swap` picking a different robot than
-    legacy's own candidate scan would, when that also happens to fix the
-    order in one edit) where legacy output is a wait fan-out for every
-    robot. This is current, pinned behaviour
-    (`TestRepairCanResolveWhatLegacyRefuses`,
-    `TestPlanPresentThreeRobotMultiPasserMatrix`), not a confirmed design
-    decision -- see `docs/implementation_notes.md`'s "OPEN CONTRACT
-    QUESTION" entry for the options recorded for the owner.
+    RESOLVED by repair-semantics rulings 1-2 (2026-10-02,
+    `docs/implementation_notes.md`; plan PRESENT, 3+ robots only -- the
+    two-robot and plan-absent guarantees above are unaffected and fully
+    verified). `_first_passer_refusal`'s own comment records a deliberate v1
+    design choice -- a bad crossing order is "refused rather than reordered,
+    so the executed order is always the decided one" -- but ruling 1 confirms
+    that reorder repairs MAY resolve a 3+-robot plan-PRESENT scene v1's
+    refuse-only ordering policy would abandon: that capability is this
+    contract's purpose, and v1's plan-ABSENT behaviour is untouched. For the
+    two cells of that sweep that are genuine yielder reassignments (not pure
+    reorders), ruling 2 settles which robot wins a same-depth tie: toward
+    `_apply_yield_feasibility`'s own candidate-scan pick (`_preferred_yielder`),
+    not the first candidate the BFS's fixed enumeration order happens to find.
+    Current, pinned behaviour: `TestRepairCanResolveWhatLegacyRefuses`,
+    `TestTieBreakPrefersFeasibilityGateYielder`,
+    `TestPlanPresentThreeRobotMultiPasserMatrix`.
 
     Args:
         decision: A validated, congestion-detected decision.
@@ -2312,6 +2483,8 @@ def verify_and_repair_plan(
             default.
         priorities: M5's registry priorities, for a `priority_override`
             decision's default plan.
+        grounding_params: M3's derived-mode grounding parameters (ruling 3);
+            None keeps the default plan LEGACY-only, as before this ruling.
 
     Returns:
         The verified (or repaired, or defaulted) plan.
@@ -2330,6 +2503,7 @@ def verify_and_repair_plan(
         static_obstacles=static_obstacles,
         yield_feasibility_mode=yield_feasibility_mode,
         priorities=priorities,
+        grounding_params=grounding_params,
     )
 
     if decision.proposed_plan is None:
@@ -2397,3 +2571,74 @@ def verify_and_repair_plan(
     return VerifiedPlan(
         legs=repaired, provenance="repaired", edits=edits, plan_completed_legs=completed
     )
+
+
+def project_dispatched_legs(
+    command: dict[str, Any], known_robot_ids: Sequence[str]
+) -> dict[str, str]:
+    """Project an actually-dispatched grounded command onto the (a0) leg vocabulary.
+
+    `verify_and_repair_plan` is a standalone audit: in two-robot head-ons its
+    output is verified to match `ground_reasoner_result`'s real dispatch
+    exactly, but for a 3+-robot plan-PRESENT scene (repair-semantics ruling 1)
+    and for a plan-present yield under DERIVED mode's backup-band sweep (which
+    `_plan_problems` does not model), the executed command CAN legitimately
+    differ from `VerifiedPlan.legs` -- the engine measures what the VLM
+    proposed, it does not drive what M4 receives. This function makes that
+    comparison possible rather than silently assumed away: it projects the
+    actually-dispatched command back onto the SAME per-robot action
+    vocabulary, so a caller (`InProcessPipeline`) can record whether the
+    tracked plan's legs are what actually went out.
+
+    A `temporary_wait` action is a `cross` leg exactly when the command also
+    contains a `yield` (M4's ordered-release convention for a suppressed
+    passer; both `_ground_legacy` and `_ground_derived` use it); otherwise it
+    is a genuine `wait`. A robot the command names no action for gets
+    `continue` (the plan's own scene-wide completion convention).
+
+    Args:
+        command: A grounded, schema-valid coordination command.
+        known_robot_ids: Every tracked robot in the scene.
+
+    Returns:
+        `{robot_id: action}` in the (a0) `PlanLegAction` vocabulary, one
+        entry per `known_robot_ids`.
+    """
+    acted = {action["robot_id"]: action["action"] for action in command.get("actions", [])}
+    has_yield = any(action == "yield" for action in acted.values())
+    projected: dict[str, str] = {}
+    for robot_id in known_robot_ids:
+        action = acted.get(robot_id, "continue")
+        if action == "temporary_wait":
+            projected[robot_id] = "cross" if has_yield else "wait"
+        else:
+            projected[robot_id] = action
+    return projected
+
+
+def plan_matches_dispatch(
+    plan_legs: Sequence[ProposedPlanLeg],
+    command: dict[str, Any],
+    known_robot_ids: Sequence[str],
+) -> bool:
+    """Whether a tracked plan's legs are the SAME actions the command actually dispatches.
+
+    Per-robot action equality only (not execution order): the plan-stability
+    and provenance metrics are about which maneuver each robot was assigned,
+    and order-only divergences are the documented ruling-1 reorder case,
+    already a known, accepted gap -- this flag is about the stronger failure
+    mode, a robot's recorded leg action being one nobody actually commanded.
+
+    Args:
+        plan_legs: The accepted plan's legs (`TrackedPlan.as_proposed_plan()`
+            or `VerifiedPlan.legs`).
+        command: The actually-dispatched grounded command.
+        known_robot_ids: Every tracked robot in the scene.
+
+    Returns:
+        True when every robot's projected dispatched action equals its plan
+        leg's action.
+    """
+    dispatched = project_dispatched_legs(command, known_robot_ids)
+    plan_by_robot = {leg.robot_id: leg.action for leg in plan_legs}
+    return dispatched == plan_by_robot

@@ -199,6 +199,32 @@ def test_reconstruct_request_carries_last_failed_context_when_recorded(fc_artifa
     assert sha256_text(rendered) != FC_USER_SHA256
 
 
+def test_reconstruct_request_carries_plan_state_when_recorded(fc_artifact):
+    # The (a0) plan channel's plan-state block (prompt v3): write_decision_artifact
+    # persists `request.plan_state` precisely so this reconstruction is possible;
+    # without it a v3 artifact's prompt could never be replay-verified.
+    plan_state = {
+        "plan_id": 3,
+        "legs": [
+            {"robot_id": "robot_1", "action": "yield", "status": "active"},
+            {"robot_id": "robot_2", "action": "cross", "status": "pending"},
+        ],
+        "changed_robot_ids": ["robot_2"],
+    }
+    artifact = dataclasses.replace(fc_artifact, prompt_version=3, plan_state=plan_state)
+    request = reconstruct_request(artifact)
+    assert request.plan_state is not None
+    assert request.plan_state.model_dump(mode="json") == plan_state
+    rendered = build_prompt_payload(request).user_prompt
+    assert "Active plan (plan_id=3):" in rendered
+    assert "Changed since the last invocation: robot_2" in rendered
+
+
+def test_reconstruct_request_plan_state_absent_by_default(fc_artifact):
+    request = reconstruct_request(fc_artifact)
+    assert request.plan_state is None
+
+
 def test_reconstructed_prompt_sha_matches_live_under_id_desc(tmp_path):
     artifact = make_artifact(
         tmp_path,

@@ -84,8 +84,11 @@ def test_reasoner_request_defaults_to_the_current_prompt_version():
 
 
 def test_reasoner_request_rejects_an_unknown_prompt_version():
+    # 3 is now a known version (prompt v3, prereg-v2 rev 4/6); the boundary
+    # this test checks moved with it, not been dropped -- see
+    # tests/unit/test_prompt_builder_v3.py for the v3-specific pins.
     with pytest.raises(ValidationError):
-        _request(prompt_version=3)
+        _request(prompt_version=4)
 
 
 def test_prompt_version_1_dispatches_to_the_frozen_renderer():

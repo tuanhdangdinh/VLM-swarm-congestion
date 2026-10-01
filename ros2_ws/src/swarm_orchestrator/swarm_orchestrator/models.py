@@ -8,12 +8,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from reasoning.baselines import ConflictZone
-from reasoning.rag.command_grounder import YieldFeasibilityMode
+from reasoning.rag.command_grounder import PlanEdit, PlanProvenance, YieldFeasibilityMode
 from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import (
     ReasonerResult,
     StaticObstacleInput,
 )
+from swarm_orchestrator.plan_tracker import TrackedLeg
 from swarm_orchestrator.presentation_order import RobotPresentationOrderMode
 
 # Default ROS2 topic/service names (spec §5; overridable via config `topics`).
@@ -227,6 +228,17 @@ class OrchestratorConfig(BaseModel):
     # and frame stamps freeze together and pass the skew check, and only the
     # receipt age shows the feed is dead.
     t0_probe_max_snapshot_age_sec: float = Field(default=3.0, gt=0.0)
+    # (a0) universal proposed_plan channel (prereg-v2 rev 4, build-order step
+    # 4): off, `verify_and_repair_plan`/`PlanTracker` never run and the
+    # dispatch path (grounded command, prompt version, decision artifact) is
+    # byte-identical to before this channel existed. On, every triggered
+    # analysis is also verified/repaired/tracked: the grounded command's
+    # dispatched actions carry the accepted `plan_id`, M5 renders prompt v3
+    # (the plan-state block plus the `proposed_plan` invitation) instead of
+    # the current default, and the decision artifact gains a `plan` block.
+    # Default False: this is the regression gate (prereg-v2 design.md build
+    # order step 4's two-robot head-on equivalence smoke runs with it off).
+    plan_channel_enabled: bool = False
 
     @field_validator("initial_tasks")
     @classmethod
@@ -387,6 +399,44 @@ class RetreatStage2Record(BaseModel):
     error: str | None = None
 
 
+class PlanDispatchInfo(BaseModel):
+    """The (a0) plan channel's outcome for one dispatched decision, behind `plan_channel_enabled`.
+
+    Present on `PipelineOutcome.plan` only when plan tracking is on; None
+    (the default) keeps every flag-off outcome, and the decision artifact
+    built from it, byte-identical to before this field existed.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    plan_id: int = Field(ge=1)
+    provenance: PlanProvenance
+    # Every leg of the accepted plan (robot_id, action, status) at acceptance
+    # time -- all "pending" here; later status transitions live in the
+    # `PlanTracker` instance and are not re-persisted per transition (that
+    # would mean a new artifact write per status change). "Per-leg status
+    # tracked by M5 and persisted into decision artifacts" (prereg-v2 rev 4).
+    legs: tuple[TrackedLeg, ...]
+    edits: tuple[PlanEdit, ...] = ()
+    rejection_reason: str | None = None
+    # None when no plan was previously active (the episode's first plan);
+    # set whenever this plan explicitly superseded one.
+    superseded_plan_id: int | None = Field(default=None, ge=1)
+    # Robots whose superseded leg must be retired, in dependency order
+    # (`plan_tracker._cancel_order`); empty when nothing superseded, or when
+    # the new plan carries every old non-terminal leg forward unchanged.
+    cancel_order: tuple[str, ...] = ()
+    # Whether this plan's legs are the SAME per-robot actions the command
+    # actually dispatched (`command_grounder.plan_matches_dispatch`). True for
+    # every two-robot head-on (verified exhaustively); a plan-present 3+-robot
+    # scene with a pure-reorder repair (ruling 1), or a derived-mode yield
+    # the backup-band sweep would reroute but `_plan_problems` does not model,
+    # can legitimately be False -- the engine measures what the VLM proposed,
+    # it does not drive what M4 receives. Exists so that divergence is
+    # measured, not silently assumed away.
+    dispatch_matches_plan: bool
+
+
 class PipelineOutcome(BaseModel):
     """Result of one M2->M3 reasoning pipeline run."""
 
@@ -400,6 +450,17 @@ class PipelineOutcome(BaseModel):
     # Set only for a yield grounded in derived mode (the stage-2 applicable
     # case); None everywhere else.
     stage2: RetreatStage2Record | None = None
+    # (a0) plan channel outcome; None unless `plan_channel_enabled` (the
+    # default), so a flag-off run's outcome is unchanged from before this
+    # field existed.
+    plan: PlanDispatchInfo | None = None
+    # Set when `plan_channel_enabled` but `verify_and_repair_plan`/
+    # `PlanTracker.accept_plan` itself raised: `plan` is then None (no plan_id
+    # was assigned, so the grounded command is dispatched untouched) but the
+    # command still reaches OK -- a plan-channel failure must never cost an
+    # otherwise-successful dispatch (FR5.3.2's "never raised past this
+    # adapter", extended to this channel). None in every other case.
+    plan_error: str | None = None
 
 
 def parse_scene_snapshot(raw: str) -> SceneSnapshot:

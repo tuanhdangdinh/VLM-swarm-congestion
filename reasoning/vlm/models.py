@@ -1,6 +1,14 @@
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 # Order the prompt lists robots in. Counterbalancing it separates a positional
 # default ("pick the robot presented first") from an ID or geometry preference.
@@ -21,11 +29,23 @@ BlockerKind = Literal["robot", "object", "transient"]
 # a tracked robot a plan omits.
 PlanLegAction = Literal["yield", "reverse", "cross", "wait", "reroute", "continue"]
 
+# Bound for `CongestionDecision.reasoning` (prompt v3's "bounded free-text
+# reasoning field"). Sized generously for a few sentences of justification,
+# not a full chain-of-thought transcript -- free-text spatial CoT is
+# prohibited in the prompt apparatus (prereg-v2 rev 6), and this field is a
+# short rationale, not that trace.
+REASONING_MAX_LENGTH = 2000
+
 # Prompt template the builder renders. 1 is the frozen pre-bundle template every
 # artifact stored before 2026-09-27 was rendered with (`reasoning.vlm.prompt_v1`);
-# 2 is the prompt-v2 bundle. A Literal, so an unknown version fails validation
-# instead of silently rendering the current template.
-PromptVersion = Literal[1, 2]
+# 2 is the frozen prompt-v2 bundle (`reasoning.vlm.prompt_v2`); 3 is the
+# plan-state / reasoning-first-JSON bundle (prereg-v2 rev 4/6). A Literal, so
+# an unknown version fails validation instead of silently rendering the
+# current template. `CURRENT_PROMPT_VERSION` stays 2, not 3: v3 is opt-in
+# (M5 passes `prompt_version=3` explicitly, e.g. behind
+# `orchestrator.yaml`'s `plan_channel_enabled`) so every existing caller that
+# does not ask for it keeps rendering byte-identical prompts.
+PromptVersion = Literal[1, 2, 3]
 CURRENT_PROMPT_VERSION: PromptVersion = 2
 
 
@@ -117,6 +137,42 @@ class FailureContext(BaseModel):
     failure_detail: str = Field(min_length=1)
 
 
+# M5's per-leg execution status (prereg-v2 rev 4, "Plan lifecycle"); owned by
+# `swarm_orchestrator.plan_tracker.PlanTracker`, mirrored here only as the
+# vocabulary the prompt-v3 plan-state block renders.
+PlanLegStatus = Literal["pending", "active", "done", "failed"]
+
+
+class PlanStateLeg(BaseModel):
+    """One leg of the active plan, as M5 reports its execution status."""
+
+    model_config = ConfigDict(frozen=True)
+
+    robot_id: str = Field(min_length=1)
+    action: PlanLegAction
+    status: PlanLegStatus
+
+
+class PlanStateContext(BaseModel):
+    """What M2 is shown of its own active plan (prereg-v2 rev 4 plan-state block).
+
+    Generalizes `FailureContext` from "the previous single-conflict attempt"
+    to "the scene-wide plan M5 is currently executing": the active plan's
+    `plan_id`, every leg's current status, and which robots' legs changed
+    since the last invocation that produced this plan (`changed_robot_ids` --
+    empty for the plan's first rendering). Optional on `ReasonerRequest` so a
+    request that predates plan tracking, or one built with
+    `plan_channel_enabled=False`, renders byte-identically to before this
+    field existed.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    plan_id: int = Field(ge=1)
+    legs: list[PlanStateLeg]
+    changed_robot_ids: tuple[str, ...] = ()
+
+
 class ReasonerRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -132,6 +188,13 @@ class ReasonerRequest(BaseModel):
     # the prompt (failure-context depth policy, 2026-09-27). Default None renders
     # byte-identically to every prompt stored before the field existed.
     last_failed_context: FailureContext | None = None
+    # Prompt-v3 plan-state block (prereg-v2 rev 4): the active plan M5 is
+    # executing, generalizing `failure_context`. Independent of it -- a
+    # request may carry both, or neither. None renders byte-identically to
+    # every request built before plan tracking existed; only rendered by the
+    # v3 template (prompt_version == 3), so a v1/v2 request carrying it is a
+    # caller error the prompt silently ignores rather than a render-time one.
+    plan_state: PlanStateContext | None = None
     # Ablation axis (rev-8 modality table): False withholds the derived pairwise
     # distance/facing lines so the VLM must judge geometry from coordinates + image.
     include_pairwise_geometry: bool = True
@@ -220,6 +283,23 @@ class ProposedPlanLeg(BaseModel):
 class CongestionDecision(BaseModel):
     model_config = ConfigDict(frozen=True)
 
+    # Prompt v3 "reasoning-field-first JSON" (prereg-v2 rev 6, "Prompt
+    # apparatus"): a bounded free-text field the v3 schema asks for FIRST,
+    # before any strict classification field, so the model writes its
+    # reasoning before committing to one (the premature-serialization
+    # effect). Declared first here too, so `model_dump`/the JSON schema
+    # property order matches what v3 asks the model to emit; every other
+    # field's strictness and validation are unchanged. `max_length` is the
+    # "bounded" in "bounded free-text reasoning field" (mirrored in
+    # `reasoning/schemas/vlm_decision.schema.json`'s `maxLength`); absent on
+    # every v1/v2 artifact and never required, so it costs nothing when the
+    # backend or prompt version does not ask for it. An over-length raw
+    # value is TRUNCATED to the bound before construction, never rejected,
+    # by `output_parser._sanitize_optional_fields` (tag `reasoning=truncated`),
+    # so this constraint is never what actually raises; a non-string value is
+    # nulled instead (tag `reasoning=default:invalid_type`), same pattern as
+    # `blocker_kind`.
+    reasoning: str | None = Field(default=None, max_length=REASONING_MAX_LENGTH)
     congestion_detected: bool
     type: Literal["none", "deadlock", "bottleneck", "crowding", "anomaly"]
     involved_robots: list[str]
@@ -307,6 +387,21 @@ class CongestionDecision(BaseModel):
                     f"proposed_plan lists a robot more than once: {robot_ids!r}"
                 )
         return self
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_reasoning(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        # `reasoning` (prompt v3) is None for every v1/v2 decision -- every
+        # decision ever collected, and every decision a flag-off run produces
+        # from here on. Dropping the key then (same pattern as
+        # `GroundingParamsSource._omit_unset_x_band`) keeps a flag-off
+        # artifact's `decision` block, and the replay reconstructor's
+        # re-rendering of it, byte-identical to one written before this field
+        # existed; a v3 decision that DOES state a reasoning value still
+        # carries the key.
+        data = handler(self)
+        if data.get("reasoning") is None:
+            data.pop("reasoning", None)
+        return data
 
 
 def is_permutation(order: list[str], robot_ids: list[str]) -> bool:
