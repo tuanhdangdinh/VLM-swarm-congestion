@@ -1,0 +1,57 @@
+schema_version: 1
+name: m1_stale_rootcause_probe_nudge
+family: normal_flow
+seed: 42
+duration_sec: 120.0
+
+# Second root-cause probe (companion to m1_stale_rootcause_probe_swap -- see
+# that file's header for the full rationale and the registered risk this
+# traces back to, docs/reports/2026-10-01-m1-y-extent-verification.md).
+#
+# This run tests the cheapest candidate FIX for the robot_1 (marker_id 1)
+# dropout at (x, y) = (-1.75, 0): a small spawn-position nudge, +-0.10 m,
+# away from the exact x that reproduced the failure. No marker swap here
+# (that question is this probe's companion run) -- marker_id keeps its
+# usual robot, only x moves:
+#   - robot_1 (marker_id 1) moves to x = -1.65 (0.10 m toward the origin) --
+#     the IB10-scoped candidate fix: if this clears the dropout, nudging
+#     only intersection_bottleneck.yaml's robot_1 spawn/goal x (and nothing
+#     else) is a one-line, scenario-local mitigation.
+#   - robot_2 (marker_id 2) moves to x = +1.85 (0.10 m away from the
+#     origin, the opposite nudge direction from robot_1, on the
+#     already-clean mirror side): a bonus data point on whether the
+#     generic pixel-scale band (hypothesis 4) extends outward past 1.75 on
+#     a marker that has been clean at 1.75 in every prior run, without
+#     risking any new confound (it sits far from robot_1/robot_3, no
+#     collision or framing interaction).
+#   - robot_3/robot_4 are unchanged controls at the already-verified
+#     |y| = 1.2 points (100% fresh in both m1_y_extent_probe_a replicates).
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -1.65, y: 0.0, yaw_rad: 0.0}
+    goal: {x: -1.65, y: 0.0}
+    initial_task: hold_position
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 1.85, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: 1.85, y: 0.0}
+    initial_task: hold_position
+  - robot_id: robot_3
+    marker_id: 3
+    spawn: {x: 0.0, y: -1.2, yaw_rad: 1.5707963267948966}
+    goal: {x: 0.0, y: -1.2}
+    initial_task: hold_position
+  - robot_id: robot_4
+    marker_id: 4
+    spawn: {x: 0.0, y: 1.2, yaw_rad: -1.5707963267948966}
+    goal: {x: 0.0, y: 1.2}
+    initial_task: hold_position
+
+timed_obstacles: []
+
+expected_conflict: null
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

@@ -1,0 +1,70 @@
+schema_version: 1
+name: m1_stale_rootcause_probe_yieldpark
+family: normal_flow
+seed: 42
+duration_sec: 120.0
+
+# Fourth root-cause probe (companion to _swap/_nudge/_goalpose -- see their
+# headers for the shared rationale; this task's report is docs/reports/
+# 2026-10-01-robot1-stale-rootcause.md).
+#
+# The report's Scope section originally argued the catastrophic marker_1
+# STALE failure at (-1.75, 0) only ever matters during robot_1's transient
+# pre-departure spawn dwell, since its IB10 GOAL arrival (+1.75, 0, yaw 0)
+# is confirmed clean (goalpose probe). Review flagged a gap: if robot_1
+# becomes the single-yield YIELDER, it backs up and parks for the
+# maneuver's full duration (tens of seconds, not transient) -- a second,
+# potentially much more consequential dwell this task had not checked.
+#
+# This computes the REAL park pose directly from the project's own pinned
+# grounding code (reasoning/rag/maneuver_geometry.py's
+# derive_backup_distance via ground_reasoner_result), run against
+# tests/unit/test_intersection_bottleneck_scenario.py's actual IB10
+# ground-truth standoff frame (IB10_STANDOFF, from INTERSECTION_SMOKE_
+# SUMMARY.txt) -- not a guess from the scenario header's north-south-only
+# "1.7 m clearance binds, |y| ~= 1.70-1.72" note, which review correctly
+# pointed out does not establish the EAST-WEST yielder's park point (that
+# clearance is computed per-yielder from its own real offsets to the
+# crossing robots at grounding time, not a fixed geometric constant shared
+# across axes). Computed yield-park poses, robot_1 as yielder (E-W, side
+# -1), across every case the existing pinned test already covers plus the
+# real IB10 standoff:
+#   standoff 0.3 m: retreat (-1.40, 0.36)   standoff 0.4 m: (-1.30, 0.36)
+#   standoff 0.5 m: retreat (-1.20, 0.36)   real IB10 standoff: (-1.37, 0.359)
+# None of these are anywhere near -1.75 -- the pull-off sidestep also moves
+# the park point off the y = 0 centreline (y ~= 0.36), a third untested
+# variable. This scenario holds robot_1 (marker 1) at the real IB10-standoff
+# park pose (-1.37, 0.359, yaw 0 -- backing up does not rotate the robot,
+# and robot_1's approach heading toward its +x goal is 0) directly, plus
+# robot_2 (marker 2) at its own computed park pose as a bonus mirror check
+# (1.481, -0.344, yaw pi). robot_3/robot_4 stay at the already-verified
+# |y| = 1.2 control.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -1.37, y: 0.359, yaw_rad: 0.0}
+    goal: {x: -1.37, y: 0.359}
+    initial_task: hold_position
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 1.481, y: -0.344, yaw_rad: 3.141592653589793}
+    goal: {x: 1.481, y: -0.344}
+    initial_task: hold_position
+  - robot_id: robot_3
+    marker_id: 3
+    spawn: {x: 0.0, y: -1.2, yaw_rad: 1.5707963267948966}
+    goal: {x: 0.0, y: -1.2}
+    initial_task: hold_position
+  - robot_id: robot_4
+    marker_id: 4
+    spawn: {x: 0.0, y: 1.2, yaw_rad: -1.5707963267948966}
+    goal: {x: 0.0, y: 1.2}
+    initial_task: hold_position
+
+timed_obstacles: []
+
+expected_conflict: null
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

@@ -1,0 +1,67 @@
+schema_version: 1
+name: m1_stale_rootcause_probe_swap
+family: normal_flow
+seed: 42
+# 120 sim-s stationary dwell, same mechanism as m1_y_extent_probe_a/b
+# (orchestrator.yaml initial_tasks start_delay_sec set far beyond
+# duration_sec for every robot below, so M5 never dispatches a Nav2 goal).
+duration_sec: 120.0
+
+# Root-cause probe for docs/reports/2026-10-01-m1-y-extent-verification.md's
+# "Registered risk": robot_1 (marker_id 1) at (-1.75, 0) went STALE 74.0% /
+# 82.1% across two replicated 120 s runs, while the mirror point robot_2
+# (marker_id 2) at (+1.75, 0) was 100% fresh both times, and robot_1 itself
+# was 100% fresh at a different x (-2.4, run B). This is the exact spawn
+# used by isaac/config/scenarios/intersection_bottleneck.yaml's robot_1,
+# so it gates v2 build-order step 6 (prereg-v2-design.md).
+#
+# This scenario swaps WHICH SPAWN POSITION each robot (and its fixed
+# marker_id -- isaac/vgu_sim/config.py's ScenarioConfig validator requires
+# robot_N to carry marker_id=N, so marker identity cannot be reassigned
+# independently of robot_id) sits at: robot_1 (marker_id 1) now spawns at
+# the previously-clean mirror point (+1.75, 0), and robot_2 (marker_id 2)
+# now spawns at the position that broke robot_1, (-1.75, 0). Yaw travels
+# with the pose (robot_1 keyed to its old 0 rad since it is now on the
+# "robot_2 side", robot_2 to pi), so the camera-relative viewing geometry at
+# each position is unchanged from the original runs -- only which marker
+# pattern occupies which position changes:
+#   - If the dropout now appears on marker_id 1 at its new position
+#     (+1.75, 0) and (-1.75, 0) is clean under marker_id 2: the failure
+#     follows the MARKER (hypothesis 2 -- marker_1's bit pattern is fragile
+#     at this viewing geometry, independent of which side it sits on).
+#   - If the dropout stays pinned to (-1.75, 0) instead (now marker_id 2):
+#     the failure follows the POSITION (hypothesis 1 static scene effect, or
+#     4 generic pixel-scale marginality that any marker hits at that exact
+#     sub-pixel phase).
+# robot_3/robot_4 are unchanged controls at the already-verified |y| = 1.2
+# points (100% fresh in both m1_y_extent_probe_a replicates) -- a sanity
+# check that this run's M1/launch behaved normally.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: 1.75, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: 1.75, y: 0.0}
+    initial_task: hold_position
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: -1.75, y: 0.0, yaw_rad: 0.0}
+    goal: {x: -1.75, y: 0.0}
+    initial_task: hold_position
+  - robot_id: robot_3
+    marker_id: 3
+    spawn: {x: 0.0, y: -1.2, yaw_rad: 1.5707963267948966}
+    goal: {x: 0.0, y: -1.2}
+    initial_task: hold_position
+  - robot_id: robot_4
+    marker_id: 4
+    spawn: {x: 0.0, y: 1.2, yaw_rad: -1.5707963267948966}
+    goal: {x: 0.0, y: 1.2}
+    initial_task: hold_position
+
+timed_obstacles: []
+
+expected_conflict: null
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

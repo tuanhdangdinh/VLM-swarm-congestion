@@ -2598,9 +2598,114 @@ Rules for maintaining it:
 
 ## M1 Perception
 
+- **2026-10-01** — **robot_1/`x=-1.75` STALE dropout, scope narrowed
+  further but NOT fully closed: the goal arrival and the single-yield
+  park dwell are clean at the specific poses tested; the not-yet-built v2
+  composite command's own geometry is unverified, and the recommendation
+  is to instrument rather than assume safe** (`docs/reports/2026-10-01-
+  robot1-stale-rootcause.md` rev 3, branch `feat/v2-stale-rootcause`,
+  commits `5c7b833`, `4edd4c8`, `173d036`, `dedb71b`, plus the commit
+  landing this note). **Supersedes the entry below's scope
+  claim** ("confined to robot_1's pre-departure spawn dwell" was correct
+  but incomplete — it had not checked the dwell robot_1 gets if chosen as
+  the single-yield junction yielder, which lasts the whole maneuver, not a
+  transient window) **and its footprint-vs-position framing** (the
+  marker's rendered pixel footprint is uniform across the frame — nadir
+  camera, pure scale-plus-offset homography, no perspective term — so the
+  marginality is inferred to be a sub-pixel-*phase* effect, not a
+  `|x|`-radial band; inferred from the asset's own pixel geometry and
+  OpenCV's documented defaults, not confirmed against captured frames, no
+  debug frames having been kept on these runs). Computed the real
+  yield-park pose directly from the project's own pinned grounding code
+  (`reasoning/rag/maneuver_geometry.py:derive_backup_distance`, run against
+  `tests/unit/test_intersection_bottleneck_scenario.py`'s existing IB10
+  ground-truth standoff frame) rather than assumed from the scenario
+  header's north-south-only "1.7 m clearance binds" note: robot_1 as the
+  east-west yielder parks at `(-1.37, 0.359)`, not near `-1.75`. A fourth
+  VM run held robot_1 there directly: 100% fresh, 97.87% exact-stamp-match,
+  0 `STALE` — clean at that pose. That single-yield path is the only
+  grounding code that exists today, though: the v2 composite
+  `junction_clear` command the prereg-v2 spec actually wants step 6 to
+  smoke-test is not implemented anywhere in this codebase yet, so its own
+  recede-phase geometry for the E-W pair remains unknown. Also corrected a
+  second over-claim: yaw was never actually varied for marker 1 at the
+  failing position (only `yaw=0` has been tested there) — doesn't change
+  the IB10 conclusion, since `yaw=0` is the only arrival/park orientation
+  robot_1 is ever structurally given (`TaskAssignment.goal` is a bare
+  `tuple[float, float]`, no yaw field — `swarm_orchestrator/models.py:47`),
+  but the original claim of having "ruled out" yaw was not warranted.
+  Traced `position-verified` to its actual implementation — first cited
+  `congestion_detector.py` (wrong: that is M5's live stall trigger, not the
+  arrival scorer), corrected to `swarm_orchestrator/arrival.py::
+  classify_arrival`/`ArrivalGate`, the gate every current/future run
+  (including IB10 step 6) is actually scored by (shipped active,
+  `orchestrator.yaml`: `arrival_position_check: true`) — and found it is
+  explicitly **stale-tolerant by design**: a stale or missing M1 estimate
+  is accepted, not rejected (`reason="stale_estimate"`, `accepted=True`,
+  `on_nav2_success` calls `mark_arrived` on it regardless, "an M1 outage
+  must not block every arrival in a run, it only means the arrival is
+  unverified"); only a *fresh* out-of-tolerance reading rejects an arrival.
+  A separate, stricter offline rescorer (`scripts/rescore_arrivals.py`,
+  ground truth used only as its independent cross-check column) credits
+  only `within_tolerance`, passing over `stale_estimate` as "not evidence
+  either way" — but it only re-scores runs that predate the online gate
+  (its own docstring: before commit `4f39899`), so it is not the mechanism
+  any future IB10 run is scored by. The one place a `STALE` read can still
+  cost a credit in *that* legacy tool specifically is its "latched at goal"
+  fallback (a robot never explicitly accepted, scored off its final
+  sample). No fix applied, same reasoning as below
+  plus one more ruled-out option: swapping which robot starts on which
+  side of the E-W arm does not dodge this for free, since robot_1 (the
+  marker that actually fails) would then arrive at the original failing
+  pose anyway (yaw always 0). Recommendation revised to make "instrument
+  every stationary dwell for a long STALE streak, on any robot" the
+  default, over "accept as-is", given the composite command's geometry is
+  simply not yet known.
+- **2026-10-01** — **robot_1/`x=-1.75` STALE dropout root-caused: marker_1 x
+  position interaction at a marginal pixel footprint, not occlusion/
+  lighting/homography; no fix applied (scenario-geometry and M1-code fix
+  candidates both out of this task's scope)** — **scope claim and the
+  footprint-vs-position framing both superseded by the entry above;
+  mechanism's existence and the non-fix reasoning otherwise stand.**
+  (`docs/reports/2026-10-01-robot1-stale-rootcause.md`, branch
+  `feat/v2-stale-rootcause`, commits `3f24ac9`, `f155d7a`). Three mock-
+  backend VM runs (swap, nudge, goalpose) resolve the entry below: static
+  occlusion/lighting/homography asymmetry and the overlapping-marker
+  mechanism are all ruled out by scene inspection + GT (racks and camera
+  are programmatically symmetric, markers are fully emissive so lighting
+  can't shade them unevenly, GT `min_pairwise_distance_m` stayed
+  `2.04`-`2.47` m). A swap of which position robot_1/robot_2 spawn at shows
+  the catastrophic failure follows neither the marker alone nor the
+  position alone: marker_1 is clean at `(+1.75, 0)` (93-100%
+  exact-stamp-match) and marker_2 at `(-1.75, 0)` is only mildly degraded
+  (70-74% exact-stamp-match, 5-7 row streaks) — the combination is
+  required. Measured mechanism: the marker's rendered footprint is `~3.67`
+  px/ArUco-cell at this homography scale, below OpenCV's default
+  `perspectiveRemovePixelPerCell=4` — a generic marginal-decode condition
+  at `|x| ~= 1.75-1.85` that costs any marker a few percent of exact-frame
+  detections, with marker_1's specific bit pattern tipping that into 74-82%
+  chronic `STALE` specifically near `x = -1.75`. A 0.10 m spawn nudge
+  (`-1.75` -> `-1.65`) fully clears it (100%/100%, 0 `STALE`) but is **not**
+  applied: it breaks the pinned `test_approach_radii_are_equal` (radii
+  `{1.75}`, `tests/unit/test_intersection_bottleneck_scenario.py:183-185`)
+  and the equal-approach-radii design invariant that IB10's derived park-
+  offset/backup-clearance geometry is built on — a scenario-redesign
+  decision for whoever re-authors the already-flagged "NOT tag-ready" IB10,
+  not a unilateral edit here. A fourth run (goalpose: all four robots at
+  their actual IB10 goal poses, real Nav2 arrival yaw 0) found the
+  practical IB10 risk narrower than first feared: robot_1's own goal
+  arrival is clean (100%/100%), and only robot_2's goal arrival at the
+  ex-problem position carries the same mild background noise any marker
+  shows there — the catastrophic failure is confined to robot_1's
+  pre-departure *spawn* dwell, whose scoring impact depends on Arm B's
+  sampling timing (not established here). No config-exposed ArUco detector
+  parameter exists to tune this (`detector_params` is never wired from
+  `perception_node.py`; `aruco.yaml`'s `min_detection_confidence` is dead
+  config) — any such fix is an M1-code change, out of scope (v1-frozen).
 - **2026-10-01** — **Y-extent PASS replicated (n=2); the `robot_1`/`x=-1.75`
   dropout below also replicated and is now a registered risk, not noise**
-  (same report, rev 2: `docs/reports/2026-10-01-m1-y-extent-verification.md`).
+  (same report, rev 2: `docs/reports/2026-10-01-m1-y-extent-verification.md`)
+  — **root-caused by the entry above.**
   A second run of the `|y| = 1.2` scenario (same seed, ~20 min later, full
   container restart between) reproduced the PASS near-exactly: `robot_3`/
   `robot_4` 100% fresh, 0 `STALE`, bias `0.0029`/`0.0072` m both times. It
