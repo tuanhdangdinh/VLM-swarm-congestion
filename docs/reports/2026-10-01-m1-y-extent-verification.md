@@ -17,9 +17,8 @@
   tree-state section.
 
 **commit:** `a742768` (scenario yamls + driver script), `04cc9b0` / `ac2f689`
-(two driver fixes found while running this probe), branch `feat/v2-y-extent`
-(the rev 2 replicate + this revision land in the commit introducing this
-file version — see `git log -- docs/reports/2026-10-01-m1-y-extent-verification.md`)
+(two driver fixes found while running this probe), `ccd11b4` (rev 2:
+replicate run + this revision), branch `feat/v2-y-extent`
 
 ---
 
