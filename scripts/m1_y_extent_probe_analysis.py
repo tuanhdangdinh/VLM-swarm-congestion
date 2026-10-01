@@ -17,6 +17,15 @@ append_scene_log`):
   forward last-known pose, not a new detection -- CLAUDE.md's "late/lost
   frames" convention).
 - `fresh_rate`: fresh / rows.
+- `exact_stamp_match_rate`: the fraction of rows where `robot.stamp ==
+  scene.stamp` exactly -- the strict per-frame detection signal (CLAUDE.md's
+  `RobotState.stamp <= SceneState.stamp` invariant: a carried-forward robot
+  keeps its last stamp while the scene's own stamp advances), stricter than
+  `fresh_rate` because `status != STALE` only means the gap has not yet
+  crossed `stale_after_sec` (1.15 s, `perception.launch.py`).
+- `max_age_sec`: the largest `scene.stamp - robot.stamp` seen, i.e. the
+  longest any single detection was carried forward before either a fresh
+  detection or the stale threshold.
 - `longest_stale_streak`: the longest run of consecutive STALE rows, for
   distinguishing "briefly drops out, recovers" from "latches permanently".
 - `bias_x_m` / `bias_y_m`: mean, median and max absolute error of M1's
@@ -72,6 +81,8 @@ def score_scene_log(scene_log: Path, spawns: dict[str, tuple[float, float]]) -> 
         rid: {
             "rows": 0,
             "fresh": 0,
+            "exact_stamp_match": 0,
+            "max_age_sec": 0.0,
             "errors_x": [],
             "errors_y": [],
             "stale_run": 0,
@@ -83,12 +94,22 @@ def score_scene_log(scene_log: Path, spawns: dict[str, tuple[float, float]]) -> 
         if not line.strip():
             continue
         record = json.loads(line)
+        scene_stamp = record["scene"]["stamp"]
         for robot in record["scene"]["robots"]:
             rid = robot["robot_id"]
             if rid not in per_robot:
                 continue
             state = per_robot[rid]
             state["rows"] += 1
+            # Per-frame freshness per CLAUDE.md's RobotState.stamp invariant:
+            # a robot carried forward without a new detection keeps its last
+            # stamp while the scene's own stamp advances. `status != STALE`
+            # only means the gap has not yet crossed `stale_after_sec`; the
+            # stamp comparison is the stricter, exact-detection signal.
+            age = scene_stamp - robot["stamp"]
+            state["max_age_sec"] = max(state["max_age_sec"], age)
+            if age < 1e-6:
+                state["exact_stamp_match"] += 1
             if robot["status"] == "STALE":
                 state["stale_run"] += 1
                 state["longest_stale_streak"] = max(
@@ -104,11 +125,14 @@ def score_scene_log(scene_log: Path, spawns: dict[str, tuple[float, float]]) -> 
     results = {}
     for rid, state in per_robot.items():
         ex, ey = state["errors_x"], state["errors_y"]
+        rows = state["rows"]
         results[rid] = {
             "spawn": spawns[rid],
-            "rows": state["rows"],
+            "rows": rows,
             "fresh": state["fresh"],
-            "fresh_rate": round(state["fresh"] / state["rows"], 4) if state["rows"] else None,
+            "fresh_rate": round(state["fresh"] / rows, 4) if rows else None,
+            "exact_stamp_match_rate": round(state["exact_stamp_match"] / rows, 4) if rows else None,
+            "max_age_sec": round(state["max_age_sec"], 3),
             "longest_stale_streak": state["longest_stale_streak"],
             "bias_x_m": _summary(ex),
             "bias_y_m": _summary(ey),
@@ -175,7 +199,10 @@ def main() -> None:
             gt_dev = gt_scores.get(rid)
             print(
                 f"  {rid} spawn={s['spawn']} rows={s['rows']} fresh={s['fresh']} "
-                f"fresh_rate={s['fresh_rate']} longest_stale_streak={s['longest_stale_streak']} "
+                f"fresh_rate={s['fresh_rate']} "
+                f"exact_stamp_match_rate={s['exact_stamp_match_rate']} "
+                f"max_age_sec={s['max_age_sec']} "
+                f"longest_stale_streak={s['longest_stale_streak']} "
                 f"bias_x_m={s['bias_x_m']} bias_y_m={s['bias_y_m']} gt_settle_bias_m={gt_dev}"
             )
 
