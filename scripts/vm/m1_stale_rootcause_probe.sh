@@ -22,6 +22,19 @@
 #            swap run left open (marker 1 was only tested at (+1.75, 0,
 #            yaw PI) there, not the real arrival yaw 0; N-S arrival poses
 #            were never tested at yaw 0 either).
+#   yieldpark -- isaac/config/scenarios/m1_stale_rootcause_probe_yieldpark.yaml:
+#            robot_1/robot_2 held at the REAL single-yield park pose a
+#            junction yielder gets, computed directly from
+#            reasoning/rag/maneuver_geometry.py's derive_backup_distance
+#            against tests/unit/test_intersection_bottleneck_scenario.py's
+#            own IB10 ground-truth standoff frame (not the scenario header's
+#            north-south-only "1.7 m clearance binds" note, which does not
+#            establish the east-west yielder's park point -- that clearance
+#            is computed per-yielder from its own real offsets to the
+#            crossing robots, not a fixed geometric constant shared across
+#            axes). Closes the gap review flagged: an IB10 yield parks a
+#            robot for the whole maneuver, not just the transient
+#            pre-departure window the goalpose run covered.
 #
 # Modeled directly on scripts/vm/m1_y_extent_probe.sh (same mechanism:
 # rewrite orchestrator.yaml's initial_tasks to a 100000 s start_delay hold
@@ -50,11 +63,12 @@
 #   bash scripts/vm/m1_stale_rootcause_probe.sh swap
 #   bash scripts/vm/m1_stale_rootcause_probe.sh nudge
 #   bash scripts/vm/m1_stale_rootcause_probe.sh goalpose
+#   bash scripts/vm/m1_stale_rootcause_probe.sh yieldpark
 #
 # Env: REC_SEC (default 650), SEED (default 42), CONTAINER (default
 #   vgu_ros). Output: data/logs/vm_runs/stale_rootcause/<swap|nudge|
-#   goalpose>_<UTC stamp>/{scenario.yaml,gt/,m5_scene.jsonl,launcher.log,
-#   restore_build.log}.
+#   goalpose|yieldpark>_<UTC stamp>/{scenario.yaml,gt/,m5_scene.jsonl,
+#   launcher.log,restore_build.log}.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -62,13 +76,14 @@ REPO="${REPO:-$(cd "$HERE/../.." && pwd)}"
 CONTAINER="${CONTAINER:-vgu_ros}"
 REC_SEC="${REC_SEC:-650}"
 SEED="${SEED:-42}"
-RUN="${1:?usage: m1_stale_rootcause_probe.sh swap|nudge|goalpose}"
+RUN="${1:?usage: m1_stale_rootcause_probe.sh swap|nudge|goalpose|yieldpark}"
 
 case "$RUN" in
-  swap)     SCENARIO=m1_stale_rootcause_probe_swap ;;
-  nudge)    SCENARIO=m1_stale_rootcause_probe_nudge ;;
-  goalpose) SCENARIO=m1_stale_rootcause_probe_goalpose ;;
-  *) echo "ERROR: RUN must be 'swap', 'nudge', or 'goalpose'; got '${RUN}'" >&2; exit 1 ;;
+  swap)      SCENARIO=m1_stale_rootcause_probe_swap ;;
+  nudge)     SCENARIO=m1_stale_rootcause_probe_nudge ;;
+  goalpose)  SCENARIO=m1_stale_rootcause_probe_goalpose ;;
+  yieldpark) SCENARIO=m1_stale_rootcause_probe_yieldpark ;;
+  *) echo "ERROR: RUN must be 'swap', 'nudge', 'goalpose', or 'yieldpark'; got '${RUN}'" >&2; exit 1 ;;
 esac
 
 ORCH_CONFIG="$REPO/ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml"
@@ -89,11 +104,16 @@ elif [ "$RUN" = nudge ]; then
   robot_2: { task: hold_position, goal: [1.85, 0.0], start_delay_sec: 100000 }
   robot_3: { task: hold_position, goal: [0.0, -1.2], start_delay_sec: 100000 }
   robot_4: { task: hold_position, goal: [0.0, 1.2], start_delay_sec: 100000 }'
-else
+elif [ "$RUN" = goalpose ]; then
   BLOCK='  robot_1: { task: hold_position, goal: [1.75, 0.0], start_delay_sec: 100000 }
   robot_2: { task: hold_position, goal: [-1.75, 0.0], start_delay_sec: 100000 }
   robot_3: { task: hold_position, goal: [0.0, 1.75], start_delay_sec: 100000 }
   robot_4: { task: hold_position, goal: [0.0, -1.75], start_delay_sec: 100000 }'
+else
+  BLOCK='  robot_1: { task: hold_position, goal: [-1.37, 0.359], start_delay_sec: 100000 }
+  robot_2: { task: hold_position, goal: [1.481, -0.344], start_delay_sec: 100000 }
+  robot_3: { task: hold_position, goal: [0.0, -1.2], start_delay_sec: 100000 }
+  robot_4: { task: hold_position, goal: [0.0, 1.2], start_delay_sec: 100000 }'
 fi
 
 PRISTINE_ORCH_MD5=1f656533a30a35882d57d0d64a57bd0d
