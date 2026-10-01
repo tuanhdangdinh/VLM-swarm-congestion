@@ -287,3 +287,33 @@ class TestEpisodePlanStability:
         assert len(stability.churns) == 2
         assert stability.churns[0].changed_robot_ids == ("robot_1",)
         assert stability.churns[1].changed_robot_ids == ("robot_1",)
+
+    def test_holds_from_plan_tracker_do_not_inflate_replan_count(self):
+        # The caller contract the docstring now states: `plans` is one entry
+        # per GENUINELY accepted `PlanAcceptance` (held=False), never one
+        # entry per analysis. A re-affirmed plan (ruling 2026-10-02) must
+        # not count toward replan_count -- this is what makes "zero unforced
+        # replans" well-defined on a two-robot head-on re-asked more than
+        # once.
+        from swarm_orchestrator.plan_tracker import PlanTracker
+
+        from reasoning.rag.command_grounder import VerifiedPlan
+
+        tracker = PlanTracker()
+        verified_a = VerifiedPlan(
+            legs=[ProposedPlanLeg(robot_id="robot_1", action="yield")],
+            provenance="vlm_verbatim",
+        )
+        verified_b = VerifiedPlan(
+            legs=[ProposedPlanLeg(robot_id="robot_1", action="wait")],
+            provenance="vlm_verbatim",
+        )
+        accepted_plans = []
+        for verified in (verified_a, verified_a, verified_a, verified_b):
+            acceptance = tracker.accept_plan(verified)
+            if not acceptance.held:
+                accepted_plans.append(acceptance.plan.as_proposed_plan())
+
+        assert tracker.plan_holds == 2  # the two repeats of verified_a
+        stability = compute_episode_plan_stability(accepted_plans)
+        assert stability.replan_count == 1  # only verified_a -> verified_b

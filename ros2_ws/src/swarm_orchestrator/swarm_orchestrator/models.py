@@ -412,10 +412,13 @@ class PlanDispatchInfo(BaseModel):
     plan_id: int = Field(ge=1)
     provenance: PlanProvenance
     # Every leg of the accepted plan (robot_id, action, status) at acceptance
-    # time -- all "pending" here; later status transitions live in the
-    # `PlanTracker` instance and are not re-persisted per transition (that
-    # would mean a new artifact write per status change). "Per-leg status
-    # tracked by M5 and persisted into decision artifacts" (prereg-v2 rev 4).
+    # time -- all "pending" for a genuine accept; on a hold (`plan_held`
+    # True) this is the ALREADY-active plan's current legs, whatever their
+    # live status is, since a hold never resets them. Later status
+    # transitions live in the `PlanTracker` instance and are not
+    # re-persisted per transition (that would mean a new artifact write per
+    # status change). "Per-leg status tracked by M5 and persisted into
+    # decision artifacts" (prereg-v2 rev 4).
     legs: tuple[TrackedLeg, ...]
     edits: tuple[PlanEdit, ...] = ()
     rejection_reason: str | None = None
@@ -435,6 +438,11 @@ class PlanDispatchInfo(BaseModel):
     # it does not drive what M4 receives. Exists so that divergence is
     # measured, not silently assumed away.
     dispatch_matches_plan: bool
+    # Hold semantics (ruling 2026-10-02): True when `plan_tracker.PlanTracker
+    # .accept_plan` re-affirmed the already-active plan (`plan_id` above is
+    # that unchanged active plan_id, not a new one) rather than accepting a
+    # new one. False for every genuine accept, including the episode's first.
+    plan_held: bool = False
 
 
 class PipelineOutcome(BaseModel):
