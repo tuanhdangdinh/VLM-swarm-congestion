@@ -69,7 +69,14 @@ def score_scene_log(scene_log: Path, spawns: dict[str, tuple[float, float]]) -> 
         Mapping of robot_id to its per-robot score dict (see module docstring).
     """
     per_robot: dict[str, dict] = {
-        rid: {"rows": 0, "fresh": 0, "errors_x": [], "errors_y": [], "stale_run": 0, "longest_stale_streak": 0}
+        rid: {
+            "rows": 0,
+            "fresh": 0,
+            "errors_x": [],
+            "errors_y": [],
+            "stale_run": 0,
+            "longest_stale_streak": 0,
+        }
         for rid in spawns
     }
     for line in scene_log.read_text().splitlines():
@@ -84,7 +91,9 @@ def score_scene_log(scene_log: Path, spawns: dict[str, tuple[float, float]]) -> 
             state["rows"] += 1
             if robot["status"] == "STALE":
                 state["stale_run"] += 1
-                state["longest_stale_streak"] = max(state["longest_stale_streak"], state["stale_run"])
+                state["longest_stale_streak"] = max(
+                    state["longest_stale_streak"], state["stale_run"]
+                )
             else:
                 state["stale_run"] = 0
                 state["fresh"] += 1
@@ -110,7 +119,11 @@ def score_scene_log(scene_log: Path, spawns: dict[str, tuple[float, float]]) -> 
 def _summary(values: list[float]) -> dict[str, float] | None:
     if not values:
         return None
-    return {"mean": round(mean(values), 4), "median": round(median(values), 4), "max": round(max(values), 4)}
+    return {
+        "mean": round(mean(values), 4),
+        "median": round(median(values), 4),
+        "max": round(max(values), 4),
+    }
 
 
 def score_gt(gt_path: Path, spawns: dict[str, tuple[float, float]]) -> dict[str, float]:
@@ -138,7 +151,9 @@ def score_gt(gt_path: Path, spawns: dict[str, tuple[float, float]]) -> dict[str,
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("run_dirs", nargs="+", type=Path)
     args = parser.parse_args()
 
