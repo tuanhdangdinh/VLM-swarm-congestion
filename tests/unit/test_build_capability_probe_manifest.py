@@ -60,7 +60,7 @@ def synthetic_logs_root(tmp_path):
     robots_three = {
         "robot_1": {"x": -2.0, "y": 0.0},
         "robot_2": {"x": 2.0, "y": 0.0},
-        "robot_3": {"x": 0.0, "y": 1.0},
+        "robot_3": {"x": 0.0, "y": 1.22},
     }
     for i in range(4):
         _write_episode(

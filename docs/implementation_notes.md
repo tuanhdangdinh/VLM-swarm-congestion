@@ -37,6 +37,54 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-02** — **v2 build-order step 10 correction: grid/left-right
+  margins were too small at collection scale, item set rebuilt** (supersedes
+  the manifest numbers in the entry below, same branch, same
+  `--seed 20261002`). A visual spot-check of the first frozen manifest
+  (overlaying the drawn grid and a highlight on the GT-computed correct cell
+  over the actual annotated frame) found the robot's own footprint
+  (~0.15 m radius, ~34 px at this calibration's ~0.00436 m/px) plus the
+  allowed M1-vs-GT disagreement (0.1 m, ~23 px) could straddle a grid
+  boundary even though each alone was within the old 18 px margin, and one
+  item's named robot had its ID label clipped at the frame edge. Fixes, all
+  in `reasoning/vlm/capability_probes/`:
+  - `grid._BOUNDARY_MARGIN_PX`: 18 -> 60 px (57 px = footprint + disagreement,
+    rounded up).
+  - `ground_truth.LEFT_RIGHT_MARGIN_M`: 0.2 -> 0.3 m (0.25 m = footprint +
+    disagreement, rounded up); new `ground_truth.ROBOT_FOOTPRINT_RADIUS_M`
+    constant documents the figure both margins derive from.
+  - New `ground_truth.is_away_from_frame_edge` (`EDGE_MARGIN_PX = 70`),
+    wired into `scripts/build_capability_probe_manifest.py`'s per-robot
+    candidate loop (drop reason `near_frame_edge`): a robot within 70 px of
+    any frame edge produces no item naming it.
+  - Rebuilt manifest (same seed): still 15/15 items per probe type.
+    left_right now 9 scenes (was 8) / 8 left, 7 right; locate_robot now 11
+    scenes (was 10) / cells {1,3,4,5,7} at 3 each (of 9 possible -- the other
+    4 cells had no candidate clearing the new margin); nearest_first
+    unchanged at 6 scenes; robot_count unchanged at 10 scenes, 5/5/5 across
+    {2,3,4}. 11 distinct `data/logs/vm_runs` run families, 17 distinct
+    scenarios (both counted directly from the manifest, correcting the
+    unverified "15 run families" / "mostly pre-sim-time-fix" phrasing
+    below). Re-verified with 6 rendered spot-checks (4 `locate_robot`
+    contact-sheet crops, 2 `left_right` centre-line overlays) against the
+    real annotated frames -- all 6 correct.
+  - Gap report unchanged in kind, counts shifted: `grid_boundary_too_close`
+    63 -> 200 and `too_few_robots` 744 -> 675 (the larger grid margin and new
+    edge filter removed more candidates before the too-few-robots check ran),
+    plus the new `near_frame_edge` reason (69). Full-suite zero-delta
+    re-confirmed after the fix (same 63 pre-existing failures, +101 passing).
+  - **Known residual gap, not fixed**: the runner
+    (`scripts/capability_probes.py`) calls `build_backend(backend_id)` with
+    no config, which answers `openai`/`gemini` with their hardcoded default
+    model aliases (e.g. `gpt-4o`), not the dated snapshot pinned in
+    `config/models.yaml` for collection, and raises for `anthropic`/
+    `llama_server` (both require explicit config). The v2-freeze runner
+    invocation must resolve config the way `scripts/probe_presentation_order.py`
+    does (`resolve_reasoner_config` / `backend_section` against
+    `models.yaml`) before results can be attributed to the collection
+    model snapshot; `--backend mock` (the only backend this task exercises)
+    is unaffected.
+
 - **2026-10-02** — **v2 build-order step 10 (BUILD ONLY, no live API calls):
   capability-probe battery built and frozen on `feat/v2-capability-probes`**,
   per `docs/superpowers/specs/2026-09-30-prereg-v2-design.md`
@@ -46,24 +94,21 @@ Rules for maintaining it:
   plus `scripts/build_capability_probe_manifest.py` (scan + freeze) and
   `scripts/capability_probes.py` (per-backend runner, reuses
   `reasoning.vlm.backend_factory.build_backend`).
-  - **Item set**: `reasoning/vlm/capability_probes/manifest_v1.json`, 60
-    items (15 per probe type: locate-robot-by-id, left-vs-right, robot
-    count, nearest-first), machine-derived from `gt/ground_truth.jsonl`
-    (Isaac Sim's own logged poses, matched to each decision's `scene.stamp`;
-    never `scene.robots`, M1's own estimate, and never hand-labeled), drawn
-    from 6-10 scenes per type (well above the ">=3 scenes" bar) across 15
-    `data/logs/vm_runs` run families. An M1-vs-GT disagreement filter
-    (<=0.1 m) and type-specific margin filters (left_right >=0.2 m from the
-    frame's centre column; nearest_first >=0.3 m gap between 1st/2nd
-    nearest; grid items >=18px from a cell boundary) exclude ambiguous
-    candidates rather than keeping them. Balanced by seeded sampling
-    (`selection.balanced_sample`): robot_count 5/5/5 across {2,3,4};
-    left_right 7/8 across {left,right}; locate_robot 3x5 across the 5
-    grid cells that had eligible candidates (of 9); nearest_first spread
-    over all tracked robot ids. Verified against a hand overlay (GT world
+  - **Item set** (margins and exact counts superseded by the correction
+    entry above; shape and provenance method unchanged): `reasoning/vlm/
+    capability_probes/manifest_v1.json`, 60 items (15 per probe type:
+    locate-robot-by-id, left-vs-right, robot count, nearest-first),
+    machine-derived from `gt/ground_truth.jsonl` (Isaac Sim's own logged
+    poses, matched to each decision's `scene.stamp`; never `scene.robots`,
+    M1's own estimate, and never hand-labeled), drawn from >=6 scenes per
+    type (well above the ">=3 scenes" bar). An M1-vs-GT disagreement filter
+    (<=0.1 m) and type-specific margin filters exclude ambiguous candidates
+    rather than keeping them. Balanced by seeded sampling
+    (`selection.balanced_sample`). Verified against a hand overlay (GT world
     position projected through `ros2_ws/src/swarm_perception/config/
     calibration.yaml` lands exactly on the ArUco body M1 labelled) before
-    any item was built.
+    any item was built -- the single-item check that the correction entry
+    above found insufficient on its own.
   - **Left-vs-right operationalization (flagged for v2-freeze owner
     confirmation)**: defined as image-frame left/right of the frame's own
     horizontal centre column (projected via the calibration homography),

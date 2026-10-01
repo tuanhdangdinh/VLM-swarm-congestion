@@ -17,7 +17,9 @@ from reasoning.vlm.capability_probes.ground_truth import (
 )
 
 _IDENTITY_H = np.eye(3)
-_WIDTH, _HEIGHT = 300, 300  # centre column/row at world (150, 150)
+# Large enough that a grid cell (300 x 300) comfortably exceeds the grid
+# module's boundary margin (60 px) on every side of a well-inside point.
+_WIDTH, _HEIGHT = 900, 900  # centre column/row at world (450, 450)
 
 
 class TestRobotCountAnswer:
@@ -56,28 +58,30 @@ class TestNearestFirstAnswer:
 
 
 class TestLeftRightAnswer:
+    # Identity homography, 900x900: the centre column is world x = 450.
     def test_world_x_left_of_centre_is_left(self):
-        side, margin = left_right_answer(100.0, _IDENTITY_H, _WIDTH, _HEIGHT)
+        side, margin = left_right_answer(400.0, _IDENTITY_H, _WIDTH, _HEIGHT)
         assert side == "left"
         assert margin == 50.0
 
     def test_world_x_right_of_centre_is_right(self):
-        side, margin = left_right_answer(200.0, _IDENTITY_H, _WIDTH, _HEIGHT)
+        side, margin = left_right_answer(500.0, _IDENTITY_H, _WIDTH, _HEIGHT)
         assert side == "right"
         assert margin == 50.0
 
     def test_margin_is_distance_from_centre(self):
-        _, margin = left_right_answer(149.0, _IDENTITY_H, _WIDTH, _HEIGHT)
+        _, margin = left_right_answer(449.0, _IDENTITY_H, _WIDTH, _HEIGHT)
         assert margin == 1.0
 
 
 class TestGridCellAnswer:
     def test_centre_point_is_the_centre_cell(self):
-        assert grid_cell_answer(150.0, 150.0, _IDENTITY_H, _WIDTH, _HEIGHT) == 4
+        assert grid_cell_answer(450.0, 450.0, _IDENTITY_H, _WIDTH, _HEIGHT) == 4
 
     def test_top_left_point_is_cell_zero(self):
-        # Clear of the grid's own boundary margin (not the literal corner).
-        assert grid_cell_answer(40.0, 40.0, _IDENTITY_H, _WIDTH, _HEIGHT) == 0
+        # Mid-cell, not the literal corner: must clear the grid's own
+        # boundary margin on both axes (each cell here is 300 px square).
+        assert grid_cell_answer(150.0, 150.0, _IDENTITY_H, _WIDTH, _HEIGHT) == 0
 
     def test_off_frame_point_is_none(self):
         assert grid_cell_answer(-10.0, 10.0, _IDENTITY_H, _WIDTH, _HEIGHT) is None

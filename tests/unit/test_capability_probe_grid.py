@@ -30,12 +30,12 @@ class TestCellIndexForPixel:
         assert cell_index_for_pixel(640, 480, 1280, 960) == 4
 
     def test_top_left_area_is_cell_zero(self):
-        # Not the literal corner pixel: must clear the boundary margin on
-        # both axes (see test_point_on_a_cell_boundary_is_none).
-        assert cell_index_for_pixel(50, 50, 1280, 960) == 0
+        # Not the literal corner pixel: must clear the (generous) boundary
+        # margin on both axes (see test_point_on_a_cell_boundary_is_none).
+        assert cell_index_for_pixel(200, 150, 1280, 960) == 0
 
     def test_bottom_right_area_is_the_last_cell(self):
-        assert cell_index_for_pixel(1200, 900, 1280, 960) == GRID_CELL_COUNT - 1
+        assert cell_index_for_pixel(1080, 800, 1280, 960) == GRID_CELL_COUNT - 1
 
     def test_off_frame_point_is_none(self):
         assert cell_index_for_pixel(-5, 100, 1280, 960) is None

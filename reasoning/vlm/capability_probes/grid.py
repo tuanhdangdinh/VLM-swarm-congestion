@@ -24,10 +24,15 @@ GRID_COLS = 3
 GRID_CELL_COUNT = GRID_ROWS * GRID_COLS
 
 # A point within this many pixels of a cell boundary is excluded from the
-# candidate pool (`ground_truth.grid_cell_for_pixel` returns None): close to a
-# boundary, a few pixels of M1/GT disagreement or rendering jitter could flip
-# the "correct" cell, which would make the item's frozen answer unreliable.
-_BOUNDARY_MARGIN_PX = 18
+# candidate pool (`cell_index_for_pixel` returns None). Sized from two
+# effects, not rendering jitter alone (2026-10-02 visual-check correction):
+# the robot's own footprint (~0.15 m radius at calibration scale ~0.00436
+# m/px is ~34 px) can straddle a boundary even when its *centre* does not,
+# and M1's drawn ID label sits at M1's own estimate, which can disagree with
+# the GT centre used for scoring by up to `ground_truth.M1_GT_MAX_DISAGREEMENT_M`
+# (0.1 m, ~23 px) -- so a boundary-adjacent GT centre could have its visible
+# label rendered on the *other* side of the line. 34 + 23 = 57, rounded up.
+_BOUNDARY_MARGIN_PX = 60
 
 _WHITE = (255, 255, 255)
 _BLACK = (0, 0, 0)

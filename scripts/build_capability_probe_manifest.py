@@ -208,6 +208,13 @@ def _scan_episode(
             drop_counts["robot_count_out_of_scope"] += 1
 
         for robot_id, pos in gt_robots.items():
+            robot_u, robot_v = gtlib.world_to_pixel(pos["x"], pos["y"], homography)
+            if not gtlib.is_away_from_frame_edge(robot_u, robot_v, width, height):
+                # Too close to the frame edge: M1's drawn ID label for this
+                # robot may be clipped, so no item can ask about it by name.
+                drop_counts["near_frame_edge"] += 1
+                continue
+
             side, margin = gtlib.left_right_answer(pos["x"], homography, width, height)
             if margin >= gtlib.LEFT_RIGHT_MARGIN_M:
                 candidates.append(

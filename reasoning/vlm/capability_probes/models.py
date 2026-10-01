@@ -26,6 +26,7 @@ DropReason = Literal[
     "frame_missing",
     "calibration_scale_mismatch",
     "robot_count_out_of_scope",
+    "near_frame_edge",
     "too_few_robots",
     "margin_too_small",
     "grid_boundary_too_close",

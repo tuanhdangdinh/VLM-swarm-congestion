@@ -26,20 +26,30 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import numpy as np
 
-# Minimum |x_world - aisle_centre_x| (metres) for a left_right candidate to be
-# kept: close to the centre column, a few pixels of M1/GT disagreement could
-# flip which half of the frame the robot is actually in.
-LEFT_RIGHT_MARGIN_M = 0.2
-
-# Minimum gap (metres) between the nearest and second-nearest other robot for
-# a nearest_first candidate to be kept, for the same reason.
-NEAREST_FIRST_MARGIN_M = 0.3
-
 # Maximum per-axis disagreement (metres) between M1's estimate and Isaac's GT
 # for every robot in a frame, for the frame to be usable at all: beyond this,
 # the ID label M1 drew is no longer trustworthy evidence of where the GT
 # position actually is in the image.
 M1_GT_MAX_DISAGREEMENT_M = 0.1
+
+# A robot occupies roughly this radius around its centre point (a TurtleBot3
+# is ~0.3 m across; mirrors swarm_orchestrator.stage2_marks's
+# _FOOTPRINT_RADIUS_M). A margin check against a centre point alone would let
+# an item through where the robot's drawn body straddles the line being
+# checked against.
+ROBOT_FOOTPRINT_RADIUS_M = 0.15
+
+# Minimum |x_world - aisle_centre_x| (metres) for a left_right candidate to be
+# kept (2026-10-02, corrected after a visual spot-check): must clear both the
+# robot's own footprint and the M1-vs-GT disagreement bound, so neither the
+# robot's physical body nor M1's drawn label can land on the wrong side of
+# the centre column. `ROBOT_FOOTPRINT_RADIUS_M + M1_GT_MAX_DISAGREEMENT_M`
+# is 0.25; rounded up for slack.
+LEFT_RIGHT_MARGIN_M = 0.3
+
+# Minimum gap (metres) between the nearest and second-nearest other robot for
+# a nearest_first candidate to be kept, for the same reason.
+NEAREST_FIRST_MARGIN_M = 0.3
 
 
 def world_to_pixel(x: float, y: float, homography: np.ndarray) -> tuple[int, int]:
@@ -153,6 +163,33 @@ def grid_cell_answer(
 
     u, v = world_to_pixel(x, y, homography)
     return cell_index_for_pixel(u, v, image_width, image_height)
+
+
+# A robot within this many pixels of a frame edge may have its M1-drawn ID
+# label clipped (2026-10-02, visual spot-check: a robot_1 label was cut off
+# at the right edge of a kept item's frame). Any probe item naming a robot
+# must be answerable from a fully visible label.
+EDGE_MARGIN_PX = 70
+
+
+def is_away_from_frame_edge(u: int, v: int, image_width: int, image_height: int) -> bool:
+    """Return whether `(u, v)` clears `EDGE_MARGIN_PX` from every frame edge.
+
+    Args:
+        u: Pixel column.
+        v: Pixel row.
+        image_width: Frame width in pixels.
+        image_height: Frame height in pixels.
+
+    Returns:
+        True when a robot centred at `(u, v)` is far enough from every edge
+        that its ID label (drawn by M1's annotation pass near the robot) is
+        unlikely to be clipped.
+    """
+    return (
+        EDGE_MARGIN_PX <= u <= image_width - EDGE_MARGIN_PX
+        and EDGE_MARGIN_PX <= v <= image_height - EDGE_MARGIN_PX
+    )
 
 
 def max_m1_gt_disagreement_m(m1_robots: dict[str, dict], gt_robots: dict[str, dict]) -> float:
