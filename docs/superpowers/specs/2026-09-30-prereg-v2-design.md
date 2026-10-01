@@ -4,6 +4,14 @@
 
 **Revision history:**
 
+- Rev 4 (2026-10-01): USER DIRECTION — the architecture is named and
+  completed as a **Centralized Multi-Agent Coordinator (VLM)**: new
+  leading section defines the coordinator role; (a0) plans become
+  scene-wide (every tracked robot gets a leg) with a plan lifecycle
+  (`plan_id`, plan-state prompt block generalizing failure-context,
+  explicit supersession, M5 plan tracking); plan-stability metrics
+  registered; multi-conflict scenes recorded as an explicit
+  include/exclude call at the v2 freeze (recommended: v3).
 - Rev 3 (2026-10-01): USER DIRECTION — `proposed_plan` generalized from
   a `junction_clear`-only field to a strategy- and scenario-agnostic
   channel: new top-level section "(a0) Universal `proposed_plan`
@@ -59,6 +67,7 @@ after v1 collection completes and this design survives its own smokes.
 |---|---|
 | Four-way jam is classification-only (T1-X); no architecture on earth in our survey commands recovery from a formed scrum | (a) composite recede-then-yield → (d) resolution-scored IB10 |
 | Whether the VLM can *sequence* a multi-robot resolution (vs only name the situation) is unmeasured in v1 | (a0) universal `proposed_plan` propose-verify channel, scored on every v2 decision in every scenario (rev 3) |
+| The VLM is invoked as a per-conflict consultant; whether it can *hold and revise* a coordination plan over an episode is unmeasured | VLM Coordinator contract (rev 4): scene-wide plans, plan lifecycle with execution-status feedback, plan-stability metrics |
 | `reroute` is a no-op re-send on the single-aisle map, so wait-vs-detour judgment is untestable | (b) loop map with a genuine alternative path |
 | B2 urgency rides a text label (`priority` field); the visual channel is untested for urgency | (c) loaded-vs-empty prop pair |
 | B3 scores only the ordered outcome; who *initiates* the slip is unobserved | (e) B3 first-to-slip variant (Rev 17: "B3 first-to-slip to v2") |
@@ -70,7 +79,58 @@ everything else is supporting coverage.
 
 ---
 
-## (a0) Universal `proposed_plan` channel (rev 3)
+## The VLM Coordinator (rev 4)
+
+v2's architectural identity, per user direction: **the VLM is the
+Centralized Multi-Agent Coordinator — a congestion-resolution
+planner** — not a per-conflict consultant. The module roles under this
+framing:
+
+- **M2 (VLM)** plans: it owns the scene-wide resolution plan, sees its
+  own active plan and that plan's execution status on every
+  invocation, and may revise it.
+- **M3** verifies: every plan is audited leg-by-leg and minimally
+  repaired against geometric feasibility (the (a0) contract).
+- **M5** executes the plan as a tracked object: each dispatched
+  command carries the `plan_id` it serves; plan state (per-leg
+  `pending/active/done/failed`) is M5's, and is what M2 is shown.
+- **M4** remains the safety authority — a plan never overrides an
+  invariant.
+- **Arm B** is the classical coordinator run through the identical
+  contract, so "VLM coordination vs classical coordination" is the
+  experiment's headline comparison, phrased at the plan level.
+
+What this adds concretely to rev 3 (all owned by (a0) below):
+
+1. **Scene-wide scope.** A consistent plan assigns every tracked robot
+   a leg; robots not involved in the resolution get `continue`. The
+   plan is a complete coordination statement, not a conflict-pair
+   excerpt.
+2. **Plan lifecycle.** Plans are versioned (`plan_id`, monotonic). The
+   prompt's failure-context block generalizes to a **plan-state
+   block**: the active plan, each leg's execution status, and what
+   changed since the last invocation. A new plan explicitly supersedes
+   the active one; M5 cancels superseded legs in dependency order
+   (reusing the ordered-release machinery) rather than blindly.
+3. **Re-planning as measured behavior.** Plan-stability metrics
+   (below): replan count per episode, churn (legs changed between
+   consecutive plans), and whether each revision follows a leg
+   `failed` status (evidence-driven) or none (dithering). The
+   trigger cadence itself is unchanged — stall-triggered plus
+   completion re-checks, as shipped — so stability is attributable to
+   the model, not to a new scheduler.
+
+**Multi-conflict scenes** (two simultaneous congestion events in one
+plan) are the coordinator's full generality, but every v1/v2 battery
+scene is single-conflict, and a multi-conflict scene is a fresh
+scenario-engineering effort (natural host: two head-ons on the loop
+map's two aisles). Recorded as an explicit include/exclude call at the
+v2 freeze; **recommendation: exclude, first v3 item** — the
+coordinator *contract* is fully testable single-conflict.
+
+---
+
+## (a0) Universal `proposed_plan` channel (rev 3, scene-wide per rev 4)
 
 A single optional field on the **stage-1 response for every strategy
 and every scenario**, not a `junction_clear` extra: an ordered list of
@@ -85,6 +145,18 @@ head-ons, junction scenes, convoys, and the loop map — not just IB10.
 - `proposed_plan: list[{robot_id, action}] | null`, Pydantic-validated:
   each robot at most once; unknown robot_ids rejected; list order is
   the proposed execution order.
+- **Scene-wide scope (rev 4):** a complete plan assigns every tracked
+  robot a leg (`continue` for uninvolved robots). A plan that omits
+  robots is **leniently completed** — M3 appends `continue` legs for
+  the missing robots, logged as `plan_completed_legs`, not counted as
+  a repair — so partial plans degrade gracefully instead of being
+  rejected, and omission rate is itself observable.
+- **Plan lifecycle (rev 4):** every accepted plan gets a monotonic
+  `plan_id`; dispatched commands carry the `plan_id` they serve; the
+  prompt's plan-state block shows the active plan with per-leg status
+  (`pending/active/done/failed`). A new plan supersedes the active one
+  explicitly; M5 cancels superseded legs in dependency order via the
+  ordered-release machinery.
 - **Action vocabulary = the grounded primitives, nothing else:**
   `yield` (backup + sidestep + hold), `reverse`, `cross` (an ordered
   release slot), `wait` (hold in place), `reroute`, `continue`
@@ -144,6 +216,12 @@ prompt (v3 template, hash-frozen at the v2 freeze).
   priority-first, B3's convoy order, IB10's inside-first. This
   separates "can't sequence feasibly" from "sequences feasibly but
   picks the wrong order" — two different failure stories.
+- (vi) *plan stability (rev 4)* — replan count per episode, churn
+  (legs changed between consecutive plans), and revision cause:
+  `evidence_driven` (a leg reported `failed` since the last
+  invocation) vs `unforced` (nothing failed — dithering). A good
+  coordinator revises when execution contradicts the plan and
+  otherwise holds it.
 
 Arm B emits its plan through the identical field, so every metric has
 a classical comparator. Condition on presentation order per amendments
@@ -285,7 +363,10 @@ machinery with them.
 
 ## Explicitly not in v2 (unchanged from rev 9.5)
 
-The robot-blocker anomaly, the token-scale crowding scene, and the
+Multi-conflict scenes (two simultaneous congestion events in one
+coordinator plan) carry a recommendation to defer to v3 — see "The VLM
+Coordinator"; the v2 freeze makes the explicit call. The robot-blocker
+anomaly, the token-scale crowding scene, and the
 three-active-robot B2 junction variant remain unregistered candidates.
 The last is structurally impossible under v1 primitives (unified scene
 design, B2 section); re-assess only after (a) exists, since
@@ -300,13 +381,16 @@ makes an explicit include/exclude call.
 2. Arm B same-axis filter + tests (v2 branch; protocol note that this
    diverges from the v1-frozen Arm B).
 3. M1 y-extent verification run at |y| ≈ 1.2 (one VM session, mock).
-4. (a0) universal plan channel: schema + consistency rules, the M3
-   verify/repair engine with provenance logging, the plan-metrics
-   scorer, Arm B plan emission, and the scenario-agnostic prompt
-   invitation (`prompt_v2 → v3` template, hash-frozen at v2). Smoked
-   first on the two-robot head-on, where it must reproduce v1's
-   outcomes exactly (the swap gate as a one-leg repair) — that
-   equivalence is the regression gate for everything after it.
+4. (a0) coordinator contract: plan schema + consistency rules +
+   lenient completion, the M3 verify/repair engine with provenance
+   logging, M5 plan tracking (`plan_id`, per-leg status, supersession
+   cancels), the plan-state prompt block (generalizing
+   failure-context) and scenario-agnostic plan invitation
+   (`prompt_v2 → v3` template, hash-frozen at v2), the plan-metrics
+   scorer incl. stability, and Arm B plan emission. Smoked first on
+   the two-robot head-on, where it must reproduce v1's outcomes
+   exactly (the swap gate as a one-leg repair, zero unforced replans)
+   — that equivalence is the regression gate for everything after it.
 5. `junction_clear` contract on top of (a0): M3 χ-ranked grounding +
    staggered recede, M5 phased dispatch, junction consistency rules.
    The repair-distance bound for falling back to `m3_default` is sized
