@@ -35,7 +35,7 @@ from swarm_orchestrator.shadow_classical import (
 from reasoning.baselines import ClassicalParams, ConflictZone
 from reasoning.rag.command_grounder import ground_reasoner_result, prepare_retreat_selection
 from reasoning.rag.maneuver_geometry import GroundingParams
-from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
+from reasoning.rag.scene_geometry import ArmGeometry, CorridorGeometry, SceneGeometry
 from reasoning.vlm.models import (
     CongestionDecision,
     ReasonerDiagnostics,
@@ -828,6 +828,88 @@ def test_classical_retreat_not_applicable_for_a_non_yield_decision():
     retreat = classical_retreat_answer(decision, frame, _DERIVED_CONTEXT)
     assert retreat.status == "not_applicable"
     assert retreat.reason == "classical strategy=reroute"
+
+
+def _junction_geometry(**arms: ArmGeometry) -> SceneGeometry:
+    # Same corridor as `_corridor()` (so robot_1/robot_2's backup and escort
+    # math is the already-verified two-robot case); junction arms added for
+    # the held cross-axis pair.
+    return SceneGeometry(
+        corridor=CorridorGeometry(
+            axis="x", center_m=0.0, half_length_m=1.0, aisle_half_width_m=0.6, occluder_height_m=0.9
+        ),
+        arms=arms or None,
+    )
+
+
+_FOUR_WAY_ARMS = {
+    "robot_1": ArmGeometry(axis="x", side=-1),
+    "robot_2": ArmGeometry(axis="x", side=1),
+    "robot_3": ArmGeometry(axis="y", side=-1),
+    "robot_4": ArmGeometry(axis="y", side=1),
+}
+
+
+def _four_way_frame() -> SnapshotFrame:
+    # robot_1/robot_2 at the proven _trigger_scene positions; robot_3/robot_4
+    # held at h = 1.2 (the design study's C' offset, section "C' -- held in
+    # zone") on the crossing N-S arm.
+    return SnapshotFrame(
+        stamp=10.0,
+        robots=[
+            RobotStateInput(robot_id="robot_1", x=-0.3, y=0.0, theta=0.0),
+            RobotStateInput(robot_id="robot_2", x=0.3, y=0.0, theta=math.pi),
+            RobotStateInput(robot_id="robot_3", x=0.0, y=-1.2, theta=math.pi / 2),
+            RobotStateInput(robot_id="robot_4", x=0.0, y=1.2, theta=-math.pi / 2),
+        ],
+    )
+
+
+def _four_way_decision() -> CongestionDecision:
+    # Mirrors the 2026-09-29 design study's section-4 table: Arm B's own
+    # FCFS order leads with the held cross pair, yielder robot_2 last.
+    return CongestionDecision(
+        congestion_detected=True,
+        type="bottleneck",
+        involved_robots=["robot_1", "robot_2", "robot_3", "robot_4"],
+        root_cause="classical: intersection between robot_1, robot_2, robot_3, robot_4",
+        strategy="yield",
+        justification="classical FCFS with commitment tiebreak",
+        yield_robot="robot_2",
+        crossing_order=["robot_3", "robot_4", "robot_1", "robot_2"],
+    )
+
+
+def test_classical_retreat_filters_held_cross_axis_robots_from_the_order():
+    # J1 (v2-branch divergence from the v1-frozen Arm B, design study
+    # 2026-09-29 Decision: "Arm B's intersection order puts censored held
+    # robots first... that order is inexecutable: the escort runs through
+    # the partner at 0.000 m"). Through this exact call site
+    # (`classical_retreat_answer`, Arm B's shadow stage-2 consumer of
+    # `resolve_yield_roles`), the held N-S pair no longer leads the order,
+    # and the surviving same-axis order is actually computable.
+    context = ClassicalRetreatContext(
+        params=GroundingParams(mode="derived"), geometry=_junction_geometry(**_FOUR_WAY_ARMS)
+    )
+
+    retreat = classical_retreat_answer(_four_way_decision(), _four_way_frame(), context)
+
+    assert retreat.yielder_id == "robot_2"
+    assert retreat.crossing_order == ["robot_1"]
+    assert retreat.status == "computed"
+
+
+def test_classical_retreat_leads_with_held_robots_without_declared_arms():
+    # Regression pin: with no declared arms (every v1 scene), the same
+    # decision grounds the pre-J1 order byte-identically -- this is the
+    # "inexecutable" shape the study found (robot_3, a held N-S robot,
+    # leading the order ahead of the actual same-axis passer robot_1).
+    context = ClassicalRetreatContext(params=GroundingParams(mode="derived"), geometry=_corridor())
+
+    retreat = classical_retreat_answer(_four_way_decision(), _four_way_frame(), context)
+
+    assert retreat.yielder_id == "robot_2"
+    assert retreat.crossing_order == ["robot_3", "robot_4", "robot_1"]
 
 
 def test_classical_retreat_failure_keeps_the_decision(monkeypatch):

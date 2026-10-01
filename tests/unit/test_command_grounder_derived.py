@@ -21,7 +21,7 @@ from reasoning.rag.command_grounder import (
     validate_coordination_command,
 )
 from reasoning.rag.maneuver_geometry import GroundingParams
-from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
+from reasoning.rag.scene_geometry import ArmGeometry, CorridorGeometry, SceneGeometry
 from reasoning.vlm.models import (
     CongestionDecision,
     ReasonerDiagnostics,
@@ -77,6 +77,17 @@ def _geometry() -> SceneGeometry:
         corridor=CorridorGeometry(
             axis="x", center_m=0.0, half_length_m=1.0, aisle_half_width_m=0.6, occluder_height_m=0.9
         )
+    )
+
+
+def _junction_geometry(**arms: ArmGeometry) -> SceneGeometry:
+    # Mirrors the four-way corridor in the 2026-09-29 design study (section
+    # 4, "Arm B classification against where the waiting robots are held").
+    return SceneGeometry(
+        corridor=CorridorGeometry(
+            axis="x", center_m=0.0, half_length_m=0.6, aisle_half_width_m=0.6, occluder_height_m=0.0
+        ),
+        arms=arms or None,
     )
 
 
@@ -614,6 +625,201 @@ class TestResolveYieldRoles:
         assert (p["retreat_x_m"], p["retreat_y_m"]) == (round(rendered.x, 3), round(rendered.y, 3))
 
 
+class TestJunctionSameAxisFilter:
+    """J1 (v2-branch divergence from the v1-frozen Arm B, design study
+    2026-09-29 section 4 / Decision): two robots held on the same declared
+    arm axis but opposite sides cannot both get a sane crossing action --
+    the IB10 replay has `robot_3`'s escort pass through `robot_4` at
+    0.000 m. The filter drops such a pair, not "any robot off the yielder's
+    axis": a legitimate cross-axis passer with no opposite-side partner
+    (e.g. `bottleneck_merge`'s T-junction) is untouched -- see
+    `TestCrossAxisPasserWithNoPartner` below.
+    """
+
+    _FOUR_WAY_ARMS = {
+        "robot_1": ArmGeometry(axis="x", side=-1),
+        "robot_2": ArmGeometry(axis="x", side=1),
+        "robot_3": ArmGeometry(axis="y", side=-1),
+        "robot_4": ArmGeometry(axis="y", side=1),
+    }
+
+    def _four_way_frame(self) -> SnapshotFrame:
+        # h = 1.2, the study's C' held-in-zone offset (section "C' -- held in
+        # zone"); robot_2 yields E-W, robot_1 is its same-axis passer.
+        return _positions_frame(
+            {
+                "robot_1": (-0.33, 0.0),
+                "robot_2": (0.33, 0.0),
+                "robot_3": (0.0, -1.2),
+                "robot_4": (0.0, 1.2),
+            }
+        )
+
+    def test_cross_axis_waiters_are_dropped_from_the_lead_of_the_order(self):
+        # Arm B's own order (study table, section 4): robot_3, robot_4,
+        # robot_1, yielder robot_2 last.
+        decision = _decision(
+            involved_robots=["robot_1", "robot_2", "robot_3", "robot_4"],
+            type="bottleneck",
+            yield_robot="robot_2",
+            crossing_order=["robot_3", "robot_4", "robot_1", "robot_2"],
+        )
+        geometry = _junction_geometry(**self._FOUR_WAY_ARMS)
+
+        roles = resolve_yield_roles(decision, self._four_way_frame(), geometry=geometry)
+
+        # Study: "Executed order with J1 | robot_1 only (one passer)".
+        assert roles.crossing_order == ["robot_1"]
+        assert roles.refusal_reason is None
+        assert "order=junction_same_axis" in roles.degradations
+
+    def test_same_axis_waiter_is_kept_in_place(self):
+        # Tie/edge case: a same-axis waiter ahead of the eventual passer
+        # survives the filter untouched, in its original FCFS position.
+        decision = _decision(
+            involved_robots=["robot_1", "robot_2", "robot_5"],
+            type="bottleneck",
+            yield_robot="robot_2",
+            crossing_order=["robot_5", "robot_1", "robot_2"],
+        )
+        arms = {**self._FOUR_WAY_ARMS, "robot_5": ArmGeometry(axis="x", side=-1)}
+        geometry = _junction_geometry(**arms)
+        frame = _positions_frame(
+            {"robot_1": (-0.33, 0.0), "robot_2": (0.33, 0.0), "robot_5": (-0.5, 0.0)}
+        )
+
+        roles = resolve_yield_roles(decision, frame, geometry=geometry)
+
+        assert roles.crossing_order == ["robot_5", "robot_1"]
+        assert "order=junction_same_axis" not in roles.degradations
+
+    def test_an_undeclared_arm_waiter_is_not_filtered(self):
+        # A robot with no declared arm carries no axis to differ by, so it
+        # is left on the single corridor's crossing order untouched.
+        decision = _decision(
+            involved_robots=["robot_1", "robot_2", "robot_6"],
+            type="bottleneck",
+            yield_robot="robot_2",
+            crossing_order=["robot_6", "robot_1", "robot_2"],
+        )
+        geometry = _junction_geometry(**self._FOUR_WAY_ARMS)
+        frame = _positions_frame(
+            {"robot_1": (-0.33, 0.0), "robot_2": (0.33, 0.0), "robot_6": (-0.5, 0.0)}
+        )
+
+        roles = resolve_yield_roles(decision, frame, geometry=geometry)
+
+        assert roles.crossing_order == ["robot_6", "robot_1"]
+        assert "order=junction_same_axis" not in roles.degradations
+
+    def test_refuses_when_no_involved_robot_shares_the_yielder_axis(self):
+        decision = _decision(
+            involved_robots=["robot_2", "robot_3", "robot_4"],
+            type="bottleneck",
+            yield_robot="robot_2",
+            crossing_order=["robot_3", "robot_4", "robot_2"],
+        )
+        geometry = _junction_geometry(**self._FOUR_WAY_ARMS)
+        frame = _positions_frame(
+            {"robot_2": (0.33, 0.0), "robot_3": (0.0, -1.2), "robot_4": (0.0, 1.2)}
+        )
+
+        roles = resolve_yield_roles(decision, frame, geometry=geometry)
+
+        assert roles.crossing_order == []
+        assert roles.refusal_reason is not None
+        assert "order=junction_same_axis" in roles.degradations
+        assert "yield=no-passer" in roles.degradations
+
+    def test_filter_is_a_noop_without_a_declared_yielder_arm(self):
+        # Regression pin: a geometry that declares no `arms` at all (every
+        # non-junction scene, e.g. `_geometry()`) must ground
+        # byte-identically -- the filter never fires.
+        decision = _decision(
+            involved_robots=["robot_1", "robot_2", "robot_3"],
+            type="bottleneck",
+            yield_robot="robot_2",
+            crossing_order=["robot_3", "robot_1", "robot_2"],
+        )
+        frame = _positions_frame(
+            {"robot_1": (-0.33, 0.0), "robot_2": (0.33, 0.0), "robot_3": (0.0, -1.2)}
+        )
+
+        roles = resolve_yield_roles(decision, frame, geometry=_geometry())
+
+        assert roles.crossing_order == ["robot_3", "robot_1"]
+        assert "order=junction_same_axis" not in roles.degradations
+
+    def test_filter_is_a_noop_with_no_geometry_at_all(self):
+        decision = _decision(
+            involved_robots=["robot_1", "robot_2", "robot_3"],
+            type="bottleneck",
+            yield_robot="robot_2",
+            crossing_order=["robot_3", "robot_1", "robot_2"],
+        )
+        frame = _positions_frame(
+            {"robot_1": (-0.33, 0.0), "robot_2": (0.33, 0.0), "robot_3": (0.0, -1.2)}
+        )
+
+        roles = resolve_yield_roles(decision, frame)
+
+        assert roles.crossing_order == ["robot_3", "robot_1"]
+        assert "order=junction_same_axis" not in roles.degradations
+
+
+class TestCrossAxisPasserWithNoPartner:
+    """A cross-axis passer with no opposite-side partner is NOT the J1
+    pattern (`reasoning/rag/command_grounder.py:_junction_same_axis_order`):
+    mirrors the real, already-shipped `bottleneck_merge` (B1) T-junction,
+    whose yielder's declared arm is perpendicular to its only passer.
+    Regression pin found by running the full local suite after landing J1 --
+    the literal "drop every robot off the yielder's axis" reading refused
+    this scene outright (`tests/unit/test_bottleneck_merge_scenario.py`).
+    """
+
+    _T_JUNCTION_ARMS = {
+        "robot_1": ArmGeometry(axis="x", side=-1),
+        "robot_2": ArmGeometry(axis="y", side=1),
+        "robot_3": ArmGeometry(axis="x", side=-1),
+    }
+
+    def test_lone_cross_axis_passer_is_kept(self):
+        decision = _decision(
+            involved_robots=["robot_1", "robot_2"],
+            type="bottleneck",
+            yield_robot="robot_2",
+            crossing_order=["robot_1", "robot_2"],
+        )
+        geometry = _junction_geometry(**self._T_JUNCTION_ARMS)
+        frame = _positions_frame({"robot_1": (-0.3, 0.0), "robot_2": (0.2, 0.4)})
+
+        roles = resolve_yield_roles(decision, frame, geometry=geometry)
+
+        assert roles.crossing_order == ["robot_1"]
+        assert roles.refusal_reason is None
+        assert "order=junction_same_axis" not in roles.degradations
+
+    def test_a_same_side_queue_behind_the_passer_is_kept(self):
+        # robot_1 and robot_3 are both on the yielder's cross axis, same
+        # side (queued one behind the other), not opposite -- no pair to
+        # drop (the mock bottleneck_merge_yield_once.json shape).
+        decision = _decision(
+            involved_robots=["robot_1", "robot_2", "robot_3"],
+            type="bottleneck",
+            yield_robot="robot_2",
+            crossing_order=["robot_1", "robot_3", "robot_2"],
+        )
+        geometry = _junction_geometry(**self._T_JUNCTION_ARMS)
+        frame = _positions_frame(
+            {"robot_1": (-0.3, 0.0), "robot_2": (0.2, 0.4), "robot_3": (-0.6, 0.0)}
+        )
+
+        roles = resolve_yield_roles(decision, frame, geometry=geometry)
+
+        assert roles.crossing_order == ["robot_1", "robot_3"]
+        assert "order=junction_same_axis" not in roles.degradations
+
+
 class TestPrepareRetreatSelection:
     def test_selection_exposes_ranked_candidates(self):
         selection = prepare_retreat_selection(_head_on_frame(), "robot_1", ["robot_2"], _DERIVED)
@@ -645,6 +851,7 @@ class TestDegradationTags:
             ("retreat=default:no_choice", None),
             ("order=default:non_permutation", "non_permutation_order"),
             ("order=implicit", None),
+            ("order=junction_same_axis", None),
             ("roles=legacy-convention", None),
             ("yield_robot=regrounded", None),
             ("strategy=unsupported:convoy", None),
