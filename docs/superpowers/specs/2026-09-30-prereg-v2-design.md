@@ -730,6 +730,33 @@ makes an explicit include/exclude call.
    (5) define fallback-exhaustion semantics (cross-phase timeout →
    reroute fails → terminal state must be a scorable outcome, not
    an undefined freeze).
+   STEP-7a OUTCOME (2026-10-03,
+   `docs/reports/2026-10-02-step7a-blocker-fixes.md`): all five
+   fixes landed and pinned; IB10 mock reached 4/4 — but NOT
+   attributably to the designed ordering, because of a newly found
+   M4-M5 RACE: `/coordination/commands` and `/coordination/status`
+   have no cross-topic ordering, so a successor command processed
+   before its predecessor's terminal status lets that terminal
+   later free the robot permanently. RULINGS for 7b:
+   (i) RACE GUARD — a terminal status frees a robot only when its
+   command_id matches the robot's active command (narrow
+   command_bus_node change, protocol note, v1-path regression
+   pins);
+   (ii) REPAIR BOUND freeze procedure — re-sweep bounds 1–4 with
+   the full corpus (incl. recede_order_swapped); freeze the
+   smallest bound with full repairable coverage; if none ≤ 4,
+   freeze 3 and document the uncovered tail as
+   m3_default-by-design;
+   (iii) ATTRIBUTABLE RELEASE — CrossingChain gate events get
+   sim-stamped logging; the 7b IB10 rerun (final code redeployed)
+   passes only on 4/4 AND decidable ordering attribution;
+   (iv) the 82 s recede-hold STALE streak: identify the parked
+   pair's separation; if < 0.6 m (the known overlapping-marker
+   band), prefer STAGGERED recede-pocket offsets within the
+   tracked band over the spawn re-radius; re-radius stays the
+   registered fallback;
+   (v) clear `_last_trigger_robot_ids` after dispatch (latent
+   staleness window).
 8. Loop map: USD + Nav2 + reroute grounding; the pre-emption control
    smoke before any scenario authoring.
 9. B2-visual pair + B3 first-to-slip scenarios + oracles.
