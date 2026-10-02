@@ -289,11 +289,14 @@ None of these windows overlaps the `junction_clear` trigger's own snapshot
 stamp (34.333 s, confirmed `STOPPED` for every robot in the decision
 artifact itself). `robot_1`'s and `robot_2`'s windows are both pre-trigger
 (bring-up and early approach). `robot_4`'s 15-row/4.5 s streak at 73.4-
-77.9 s falls inside its own ACTIVE recede maneuver (robot_4's reverse
-command dispatched at wall 1790939873, its phase-advance-complete logged at
-wall 1790939917 -- the 73-78 s sim window sits inside that span), not a
-settled dwell -- worth distinguishing from a parked hold, though the
-stale-tolerant `ArrivalGate` governs neither case. No run observed a STALE
+77.9 s is confirmed directly from the raw scene log (position frozen at
+`(0.000, 1.204)`, velocity ~0.003 m/s, continuously from sim 46.1 s to past
+80 s) to fall inside its settled, PARKED recede-pocket hold -- robot_4
+reached its recede pocket and stopped at sim~46 s, well before this STALE
+window, and stayed there through the subsequent robot_3 recede and cross
+phases. This is exactly the stationary-dwell category the resolved gate's
+instrumentation rule targets, though the stale-tolerant `ArrivalGate`
+still governs no credit either way for a mid-sequence hold. No run observed a STALE
 event during `robot_1`'s OWN park dwell (the cross-phase yield, much later
 in the run): this neither confirms nor rules out the solved-row park pose
 (~(-1.018, 0.36), never directly probed by `docs/reports/2026-10-01-
@@ -526,7 +529,7 @@ overlaps a trigger snapshot or an active phase/maneuver window:
 
 | Run | robot_1 | robot_2 | robot_3 | robot_4 |
 |---|---|---|---|---|
-| A (`m3_default` mock) | 4 rows @ 16.9-17.7s (bring-up) | 10 rows @ 44.7-47.4s (pre-trigger approach) | 0 | 15 rows @ 73.4-77.9s (DURING its active recede maneuver) |
+| A (`m3_default` mock) | 4 rows @ 16.9-17.7s (bring-up) | 10 rows @ 44.7-47.4s (pre-trigger approach) | 0 | 15 rows @ 73.4-77.9s (parked recede-pocket HOLD, confirmed stationary from sim 46.1s) |
 | B (`vlm_verbatim` mock) | 0 | 2 rows @ 30.4-30.6s (pre-trigger stall window, trigger itself fresh) | 0 | 0 |
 | Live (ER-2) | 3 rows @ 16.8-17.3s (bring-up) | 0 | 25 rows @ 108.8-114.7s (DURING the unresolved post-decision-2 recovery attempt) | 0 |
 
