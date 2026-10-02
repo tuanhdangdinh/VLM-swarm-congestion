@@ -37,6 +37,31 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-02** — **v2 build-order step 6, episode 2 (extended live
+  re-run, one-re-run allowance): the `junction_clear` composite's own
+  fallback path can itself fail.** `docs/reports/2026-10-02-ib10-
+  composite-smoke.md`'s Episode 2 section, same branch. Re-ran the live
+  episode with `REC_SEC=1350`/`SIM_SEC=1400` (sized to the measured 0.27
+  real-time factor) after discovering episode 1's apparent "no progress"
+  was the ROS2 stack dying early. Episode 2's own measured RTF places its
+  control-stack teardown PAST the scenario's 300 s GT cap, so its full
+  trajectory is genuinely, continuously supervised -- confirming, not
+  truncating, the result. Outcome: 10 real VLM calls (vs. 2 in episode 1),
+  the model oscillating between `reverse` and a narrower `junction_clear`
+  for the same `robot_3`/`robot_4` conflict, before a fourth composite
+  attempt's CROSS phase fails to resolve for 495 real seconds and M5's own
+  documented fallback (derived-mode `reroute`, all four robots) ALSO
+  fails for every robot. Scene frozen (0.388 m separation, zero velocity)
+  from sim~180 s to the 300 s cap under a confirmed-alive stack. Same 1/4
+  arrival result as episode 1 (`robot_2` only), but via a different,
+  worse failure mode -- answers the "does more time help" question the
+  first episode left open: no. Also reproduces episode 1's `robot_3`
+  out-of-tracked-band `reverse` excursion (`|y|=2.42` this time vs `2.38`)
+  at the same sim-time window both times (108.6-114.9 s), now a confirmed,
+  not one-off, pattern. Added as freeze-blocking finding 5. VM restored
+  pristine a second time (same `1f656533`/`e18c723` pair, all four
+  copies), GPU idle, no stray processes.
+
 - **2026-10-02** — **v2 build-order step 6: IB10 `junction_clear` composite
   smoke, mock (2 runs) + one live ER-2 episode, full report
   `docs/reports/2026-10-02-ib10-composite-smoke.md`, branch
