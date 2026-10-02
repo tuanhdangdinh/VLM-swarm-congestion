@@ -373,6 +373,15 @@ class OrchestratorNode(Node):
         self._pending_request: ReasonerRequest | None = None
         self._pending_snapshot = None
         self._pending_distances: dict[str, float] = {}
+        # Step-7a fix 3 (freeze-blocking finding 3): the ORIGINAL congestion
+        # event's robot set for the in-flight request, consumed by
+        # `_handle_outcome` into `_last_trigger_robot_ids` right before
+        # `_dispatch` -- `_with_plan_continue_partners` narrows the plan's
+        # `continue` legs to this set so a scene-wide plan's lenient
+        # completion (every untouched robot gets `continue`) does not turn
+        # into a blanket same-scene exemption for every `reverse`.
+        self._pending_trigger_robots: frozenset[str] = frozenset()
+        self._last_trigger_robot_ids: frozenset[str] = frozenset()
         self._episodes = EpisodeOrderTracker(
             PresentationOrderPolicy(
                 mode=self._config.prompt_robot_order, seed=self._order_seed
@@ -793,6 +802,7 @@ class OrchestratorNode(Node):
         self._pending_request = request
         self._pending_snapshot = snapshot
         self._pending_distances = dict(distance_to_goal_m)
+        self._pending_trigger_robots = frozenset(robots)
         self._pending_episode_index = episode_index
         # Snapshotted here, not read inside the worker: a newer camera message
         # may land before the worker runs, and the dump must be the frame whose
@@ -837,11 +847,18 @@ class OrchestratorNode(Node):
         request, snapshot = self._pending_request, self._pending_snapshot
         distances = self._pending_distances
         episode_index = self._pending_episode_index
+        # Step-7a fix 3: carried past the clear below (as `_last_trigger_
+        # robot_ids`, not re-cleared here) so `_dispatch` -> `_publish_
+        # fanned_out` -> `_with_plan_continue_partners`, later in this SAME
+        # synchronous call, can narrow a reverse leg's plan-continue
+        # exemption to the robots THIS congestion event actually involved.
+        self._last_trigger_robot_ids = self._pending_trigger_robots
         self._pending_failure_context = None
         self._pending_last_failed_context = None
         self._pending_request = None
         self._pending_snapshot = None
         self._pending_distances = {}
+        self._pending_trigger_robots = frozenset()
         self._pending_episode_index = None
         shadow_block = self._finalize_shadow(outcome)
         try:
@@ -1050,15 +1067,24 @@ class OrchestratorNode(Node):
         SAME accepted plan. There is no other channel carrying that
         membership to M4 (the wire `CoordinationCommand` has no `plan_id`
         field), so it travels on the reverse leg's own `parameters_json`
-        instead -- the smallest change that keeps the v1 (no-plan) path
-        byte-identical: untouched when `plan_id` is None (no plan channel,
-        or `m3_default`'s derived plan is never tracked this way either --
-        only an ACCEPTED, tracked plan has a `plan_id`), and additive only
-        when the SAME plan names at least one other `continue` robot.
-        `swarm_execution.safety.admitted_partners` reads this field as an
-        EXTRA exemption, scoped to exactly these named robots -- never a
-        blanket "every robot in the scene" exemption (pair-scope
-        discipline, M4 protocol note in `docs/implementation_notes.md`).
+        instead -- untouched when `plan_id` is None (the v1, no-plan-channel
+        path; a SINGLE `_handle_outcome`-to-`_dispatch` call never sets
+        `_last_trigger_robot_ids` to anything the plan-less path reads).
+
+        Narrowed to `_last_trigger_robot_ids` (pair-scope discipline, M4
+        protocol note in `docs/implementation_notes.md`): plans are
+        SCENE-WIDE (a0 rev 4) -- EVERY tracked robot the plan omits is
+        lenient-completed to `continue`, whatever the plan's provenance
+        (`PlanTracker.accept_plan` tracks `m3_default` plans too, not only
+        VLM-authored ones). Without this narrowing, every `continue` robot
+        in the WHOLE SCENE would be named here, making every `reverse`
+        exempt against every other robot -- exactly the blanket exemption
+        this fix must not be. Restricting to the ORIGINAL congestion
+        event's own robot set (not `decision.involved_robots`, which the
+        VLM may have narrowed further) keeps episode 1 decision 2's own
+        case correct: the event was `['robot_1','robot_3','robot_4']`, so
+        `robot_1` (`continue`, part of the event) stays exempt while
+        `robot_2` (`continue`, never part of this event) does not.
 
         Args:
             params_json: The reverse leg's own encoded parameters.
@@ -1066,8 +1092,9 @@ class OrchestratorNode(Node):
             robot_id: The reversing robot (excluded from its own partner list).
 
         Returns:
-            `params_json` unchanged when there is no tracked plan or it
-            names no other `continue` robot; otherwise with
+            `params_json` unchanged when there is no tracked plan, or it
+            names no other `continue` robot that was also part of the
+            triggering congestion event; otherwise with
             `plan_continue_partners` added.
         """
         if plan_id is None or self._plan_tracker is None:
@@ -1078,7 +1105,9 @@ class OrchestratorNode(Node):
         partners = [
             leg.robot_id
             for leg in plan.legs
-            if leg.action == "continue" and leg.robot_id != robot_id
+            if leg.action == "continue"
+            and leg.robot_id != robot_id
+            and leg.robot_id in self._last_trigger_robot_ids
         ]
         if not partners:
             return params_json
