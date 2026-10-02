@@ -26,6 +26,17 @@
   byte-identity test passing, recorded here as the one v1-frozen-artifact
   touch this build makes (relationship-to-v1 rule 2: v2-branch-only, never
   merged into the collection tree pre-completion).
+- Rev 3 (final): live VM smoke. **PASS on both runs**, after finding and
+  fixing a previously-invisible infrastructure bug: `generate_warehouse_map
+  .write_map()` applied an erroneous vertical flip that silently mirrored
+  any Y-asymmetric map feature to the wrong side of `y=0` on load by
+  `nav2_map_server` — invisible until now because every scenario's map
+  (including every v1-frozen one) is Y-symmetric about `y=0`. Four baseline
+  attempts under the bug are invalidated (the loop was never actually in
+  Nav2's map, so "no detour" was vacuous); fixed, verified byte-identical
+  for every existing committed map, redeployed, and both runs re-executed
+  under the fix. New Section 6 ("Live smoke") carries the evidence; Section
+  7 carries the bug writeup. VM restored pristine and idle after every run.
 
 ---
 
@@ -255,24 +266,153 @@ loop* when a new obstacle narrows its existing plan" (the actual risk).
 
 ---
 
-## 6. What the live VM smoke still owes (next revision)
+## 6. Live smoke — PASS on both runs
 
-1. Builder extension + unit tests (pure-Python: config validation, map
-   rasterization — runnable locally) and USD authoring (needs `pxr`, VM-only).
-2. Map regeneration + byte-identical regression check on every existing map.
-3. A short stationary M1-coverage probe (mirroring the y-extent probe
-   pattern) with one robot held at the second aisle's worst-case point
-   (near the connector, close to the flagged residual corner) — empirical
-   confirmation of Section 3's analysis, not required for the GO verdict
-   above but registered as the cheap close-out for the one residual noted
-   there.
-4. Baseline run (no blocker): confirm Nav2 does not take the loop
-   spuriously, from global-plan topic logs and GT trajectory.
-5. Partial-blocker run: confirm Nav2 pushes through/waits in the primary
-   aisle without self-detouring, same evidence; mock backend confirmed
-   silent (no dispatch, no decision artifact) on both runs.
-6. Mitigation ladder (blocker footprint / connector-side costmap inflation,
-   scenario-local only) only if run 5 fails, with measured numbers either
-   way.
-7. STALE streak check on every run's stationary dwell.
-8. VM pristine restore, md5 verification, logs synced.
+All three VM runs used `scripts/vm/loop_preemption_probe.sh` (mock backend,
+`BACKEND_ID=mock`, zero API spend), on the standing VM
+(`vgu-vgu-thule-base-isaac-workstation-vm`, container `vgu_ros`). Every run
+observed the new standing trap (wait for `pgrep -f run_simulation` empty
+before relaunch) and ended with a verified pristine restore (both
+`orchestrator.yaml` and `config/rag.yaml` matched the recorded pristine
+md5s, `1f656533a30a35882d57d0d64a57bd0d` / `e18c723cff9cada3f320d564c2ecee5a`,
+on every single run below, including the four invalidated ones in Section 7).
+
+**Positive control** (`ros2 action send_goal /robot_1/compute_path_to_pose`
+into the second aisle at `(1.2, 1.2)`), run once per scenario before the
+robot's own goal dispatch, proves the loop is genuinely in Nav2's map, not
+just in the YAML — the gate Section 7's bug made necessary.
+
+| Run | Scenario | Positive control | Mock dispatches | GT max `\|y\|` | First arrival (sim-s) | STALE streak |
+|---|---|---|---|---|---|---|
+| Baseline | `loop_map_preemption_probe_baseline` | SUCCEEDED (real path to `(1.2,1.2)`) | 0 | 0.0304 | 42.6 | 0 |
+| Blocker | `loop_map_preemption_probe` | SUCCEEDED (real path to `(1.2,1.2)`) | 0 | 0.2244 | 43.3 | 0 |
+| Coverage | `loop_map_m1_coverage_probe` (stationary) | n/a | 0 | n/a (held) | n/a | 0 (both robots) |
+
+**Run 1 — baseline (`baseline_20261002_085254`).** PASS. Robot_1 went
+straight from spawn `(-2.4, 0)` to goal `(2.3, 0)`: GT `max|y| = 0.030`,
+every sampled global plan had `max_abs_y = 0.0`, `entered_second_aisle:
+false` on every sample. The positive control's SUCCESS on this same run
+proves the "no detour" result is not vacuous — the loop was available and
+unused, not absent.
+
+**Run 2 — blocker (`blocker_20261002_090205`, the actual go/no-go
+question).** **PASS.** With the timed-obstacle blocker narrowing the
+primary aisle to the registered 0.55 m C55 gap: robot_1 reached its goal
+(`distance_to_goal_m = 0.057` at the 180 s horizon, the usual Nav2
+stopping-tolerance realised margin); GT `max|y| = 0.224` over the whole
+run — well inside the primary aisle (`|y| < 0.6`) and nowhere near the
+second aisle's south edge (`0.6`); every one of the ~200 sampled global
+plans had `entered_second_aisle: false` (0 occurrences); the positive
+control still SUCCEEDED on this same run, confirming the loop remained a
+genuinely available, unused alternative throughout, not an artifact of the
+blocker somehow disabling it. **Throttling**: first-arrival time 43.3 s vs
+the baseline's 42.6 s (+0.7 s) — the narrowed gap cost Nav2 almost nothing
+in time, a smaller throttle than the design doc's framing implied;
+recorded as measured, not assumed.
+**Mock decision layer: silent on both runs** (`m5_dispatch_count.txt: 0`;
+`m5.log` shows no dispatch line; `newest_m5_decisions.txt` unchanged from
+the pre-run listing) — the default `MockBackend` response
+(`congestion_detected: false, strategy: none`) never fires a command, so
+the "decision stays with M2/M3" half of the control held by construction,
+not by luck.
+**STALE instrumentation rule**: `m5_scene.jsonl` shows `longest_stale_streak
+= 0` for robot_1 on both runs (status counts dominated by `STOPPED`/`SLOW`/
+`MOVING`, no `STALE` at all) — clean throughout, including the stationary
+pre-dispatch dwell.
+
+**Run 3 — M1-coverage probe (`coverage_20261002_082817`), bonus, empirical
+close-out of Section 3's one residual.** Two robots held stationary 120 s
+dwell at `(1.2, 1.2)` (second-aisle centreline) and `(1.8, 1.0)` (0.041 m
+north of the computed shadow boundary, near the connector mouth).
+**100% fresh rate, 0 STALE streak, for both robots.** Tracking bias:
+robot_1 mean `0.0072` m / max `0.0078` m; robot_2 mean `0.0061` m / max
+`0.0065` m — on the same order as the y-extent report's other verified
+points (`0.0029`–`0.0113` m), and inside the study's own M1 error budget.
+GT confirms both robots drifted < `0.002` m from spawn over the whole
+dwell — which also confirms the USD physics carve is structurally sound
+(a robot resting inside a still-active collision volume would be ejected
+or would drift; neither happened). **M1 coverage verdict: confirmed
+empirically**, not just by the Section 3 computation.
+
+No mitigation ladder was needed (run 2 PASSed on the first live attempt
+once the map-orientation bug, Section 7, was fixed).
+
+## 7. Bug found and fixed: `write_map()`'s north/south flip
+
+**The positive control FAILED on every attempt before this fix** (4
+baseline runs, `20261002_074912` / `080247` / `081943` / `083411`):
+`ros2 action send_goal /robot_1/compute_path_to_pose` to `(1.2, 1.2)`
+returned `error_code: 208`, `status: ABORTED`, replicated identically
+twice; `planner_server`'s own log pinned it exactly: `plugin failed to plan
+from (-2.41, 0.00) to (1.20, 1.20): "Failed to create plan with tolerance
+of: 0.500000"`. Persistent, not transient (identical at `t=0` and `t=70s`
+in a dedicated check). **This made every one of those four runs'
+"Nav2 did not self-reroute" results vacuous** — the loop was never
+reachable, so there was nothing for Nav2 to choose not to take. None of
+them is counted as a run; none is included in Section 6's table.
+
+**Root cause, isolated empirically, in order:**
+
+1. Raw-grid BFS (pure Python, no Isaac) confirmed the generated PGM *was*
+   fully connected from spawn to `(1.2, 1.2)` — no bug in the carve's own
+   shape.
+2. The M1-coverage probe's GT (Section 6, run 3) confirmed both robots sat
+   motionless inside the former NE rack volume for 120 s with `< 0.002 m`
+   drift — the USD/physics carve (`scenario_builder._author_loop_connectors`,
+   NE deactivated + 4 replacement cubes) was physically correct.
+3. `ros2 param get /map_server yaml_filename` on a live run returned the
+   correct, scenario-specific file path — map_server was loading the right
+   file.
+4. Dumping the live `/map` topic (transient-local, map_server's own
+   publish) and decoding specific cells directly showed the carved region
+   OCCUPIED at its intended (north) location and FREE at its exact mirror
+   image south of `y=0` — e.g. `(1.2, 1.2)` read occupied while
+   `(1.2, -1.2)` read free, and `(0.6, 1.2)` occupied while `(0.6, -1.2)`
+   free, in a scenario with nothing built on the south side at all.
+5. Reading the saved PGM file's own bytes directly (bypassing map_server)
+   under the two candidate row conventions confirmed which one
+   `nav2_map_server` actually uses: file row 0 = world **+y (north)**, with
+   **no additional flip on load**. `write_map()`'s `np.flipud(grid)` call
+   was therefore an erroneous *extra* flip on top of an array whose row 0
+   was already north (`build_occupancy_grid`'s own docstring), mirroring
+   every Y-asymmetric feature to the wrong side of `y=0`.
+
+**Why this was invisible until now.** The flip is a no-op on a
+Y-symmetric array. The base warehouse (four rack quadrants mirrored
+NE↔SE, NW↔SW), every `aisle_barrier` (always authored as a `(+y,-y)`
+pair), and every existing scenario's own geometry are all Y-symmetric
+about `y=0` — so the bug produced byte-identical output for every map
+ever committed, including every v1-frozen one. The loop map's second
+aisle is the first feature ever built only on one side of `y=0`, which is
+exactly what exposed it.
+
+**Fix**: removed the `np.flipud` call in
+`isaac/scripts/generate_warehouse_map.py:write_map()` (one line), with the
+reasoning recorded in the function's own docstring. **Regression check**:
+regenerated the default map and every existing per-scenario map and
+diffed against the committed copies — byte-identical for all of them
+(confirming the fix is a no-op for every symmetric scene, including the
+v1-frozen family) — and confirmed changed (correctly, now carving the
+north side) for the three loop-map scenarios only. New regression tests
+(`tests/unit/test_loop_map.py`) pin both properties: the carve lands on
+the requested side, and a Y-symmetric map's round-trip is a self-mirror
+(so this exact regression cannot silently return).
+
+**Protocol note.** This is a touch to shared, nominally-frozen harness
+code (`generate_warehouse_map.py`, used by every v1 scenario), landed on
+the v2 branch only, per relationship-to-v1 rule 2 — the same class of
+exception already used for the Arm-B same-axis filter. Unlike that case,
+this one is verified a no-op for every existing committed artifact, so it
+carries no v1-collection risk; still recorded here and in
+`docs/implementation_notes.md` as the protocol requires, and flagged for
+the coordinator's awareness since it affects shared infrastructure, not
+just this scenario.
+
+**Separate, unresolved observation (not fixed, not in scope).** While
+checking whether other scenarios' maps were affected, `obstacle_in_candidate.yaml`
+(T3b)'s own `static_obstacles` entry (`pose: {x: -0.32, y: 0.81}`, itself
+Y-asymmetric) was found to be absent from its own committed map at *both*
+`y=0.81` and its mirror `y=-0.81` — i.e. that obstacle does not appear to
+be baked into T3b's map at all, unrelated to the flip bug. Not
+investigated further (out of this task's scope); flagged for the
+coordinator.

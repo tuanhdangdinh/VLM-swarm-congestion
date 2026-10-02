@@ -5272,6 +5272,55 @@ Rules for maintaining it:
 
 ## M6 Simulation / Isaac Sim
 
+- **2026-10-02** — **Loop-map Nav2 pre-emption control smoke: PASS on both
+  runs, after finding and fixing a previously-invisible `generate_warehouse_
+  map.write_map()` bug** (`docs/reports/2026-10-02-loop-preemption-smoke.md`
+  Rev 3, Sections 6-7; v2 build-order step 8, Phase 1). Full write-up in the
+  report; summary here:
+  - **Bug**: `write_map()` applied an erroneous `np.flipud` before saving
+    the PGM. `nav2_map_server` loads a PGM's row 0 directly as the map's
+    +y (north) edge with no additional flip of its own — the extra flip
+    silently mirrored any Y-asymmetric map feature to the wrong side of
+    `y=0`. Invisible on every scenario built before this one because the
+    base warehouse and every existing scenario's own geometry are
+    Y-symmetric about `y=0` (flipping a symmetric array is a no-op).
+    First exposed by the loop map's second aisle, the first ever
+    one-sided feature.
+  - **Fix**: removed the flip (one line); regenerated every existing
+    committed map and confirmed byte-identical (the fix is provably a
+    no-op for every v1-frozen scenario); new regression tests in
+    `tests/unit/test_loop_map.py` pin both the carve-lands-on-the-right-
+    side property and the symmetric-map self-mirror invariant.
+  - **Builder extension**: `LoopMapConfig` on `ScenarioConfig`
+    (`isaac/vgu_sim/config.py`); `scenario_builder._author_loop_connectors`
+    deactivates the shared NE rack block via a scenario-local USD override
+    and authors 4 replacement cubes (2 at the shared 0.9 m rack height, 2
+    lowered to 0.3 m specifically to keep the camera's line of sight to
+    the second aisle clear — see the report's camera-occlusion model,
+    Section 3); `generate_warehouse_map.rasterize_loop_map` mirrors the
+    same carve into the 2D map. NW/SE/SW racks untouched; the shared
+    `warehouse.usd` and default map are untouched (verified byte-identical).
+  - **Live results**: positive control (`compute_path_to_pose` into the
+    second aisle) SUCCEEDED on every post-fix run, proving the loop is
+    genuinely navigable; the blocker run still never entered the second
+    aisle (GT `max|y| = 0.224`, 0/~200 sampled plans with
+    `entered_second_aisle: true`) — Nav2 pushed through the narrowed
+    primary-aisle gap instead, exactly as designed. Mock decision layer
+    silent on every run (0 dispatches). M1-coverage bonus probe: 100%
+    fresh, 0 STALE, both robots, bias 0.006-0.008 m.
+  - **Protocol note**: the `write_map()` fix and the `loop_map: null`
+    addition to the 7 committed head-on-family fixtures (mechanical,
+    null-field-only, from adding an optional field to `ScenarioConfig`)
+    are both touches to nominally-frozen v1 artifacts, landed on
+    `feat/v2-loop-map` (off `feat/prereg-v2-composite`) only, per
+    relationship-to-v1 rule 2 — both verified byte-identical/safe for
+    every existing v1 artifact before landing.
+  - **Separate open item, not investigated**: `obstacle_in_candidate.yaml`
+    (T3b)'s own Y-asymmetric static obstacle does not appear baked into
+    its committed map at either its position or its mirror — unrelated to
+    the flip bug (confirmed: both sides read free), flagged for the
+    coordinator, out of this task's scope.
+
 - **2026-09-28** — **`fc_launch.sh` launches one Nav2 stack per scenario
   robot, and the three-robot `t2b_flow_ordering` scenario and map exist; its
   USD build and first smoke are pending the next VM batch** (`ea02da7`,
