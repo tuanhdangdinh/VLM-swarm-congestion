@@ -19,6 +19,21 @@
   metric-hole finding instead of calling it harmless, and added the full
   md5 manifest check. Every number this revision changed is marked
   "correction" in place; nothing is silently rewritten.
+- Rev 3 (further review pass, before close-out): the live episode's
+  "no net progress, Nav2 cycling" replacement claim was ALSO wrong -- a
+  review pass measured this episode's own real-time factor directly from
+  two decision stamps (0.273) and found `REC_SEC=450` only kept the ROS2
+  control stack alive to sim~134.6 s, so everything in GT after that is a
+  dead-stack artifact, not navigation. Retraced the real mechanism inside
+  the alive window (a `continue` leg not exempted against a `reverse`,
+  confirmed via `m4.log`'s safety-stop lines + GT's own trajectory, plus a
+  newly-found out-of-tracked-band excursion coinciding with that robot's
+  STALE streak) and re-ran the episode once more, with `REC_SEC`/`SIM_SEC`
+  sized to the measured RTF, under the one-re-run allowance (harness
+  truncation is an infra failure, not a result). Both episodes' decisions
+  are kept as data. Also fixed run A/B's re-trigger sim-times (computed
+  from wall-clock assuming 1x instead of the measured RTF) and added a
+  consolidated freeze-blocking findings section.
 
 **commit:** branch `feat/v2-ib10-smoke`, worktree
 `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v2-ib10`, branched from
