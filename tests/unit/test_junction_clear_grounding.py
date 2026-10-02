@@ -416,6 +416,29 @@ class TestStaggeredNeverSimultaneous:
         }
         assert {"robot_3", "robot_4"} <= held
 
+    def test_release_phase_actions_are_a_passive_hold_not_a_maneuver(self):
+        # Regression pin for a real bug this task's own VM verification run
+        # caught: `command_bus_node`'s `yield` branch always runs
+        # `Nav2Adapter.backup` FIRST, defaulting `backup_distance_m` to
+        # 0.3 m when absent -- an unrequested 0.3 m backup for an
+        # already-correctly-parked held robot. `backup_distance_m: 0.0`
+        # must be explicit (completes on the first odometry tick, no real
+        # motion), and `hold_sec` must be positive or the hold/CrossingChain
+        # logic (`_on_backup_result`'s `hold_sec <= 0.0` branch) never
+        # engages at all -- the release would complete immediately after
+        # the (near-instant) backup step, never actually waiting for the
+        # lead's clearance.
+        plan = ground_junction_clear_phases(
+            _result(_decision()), snapshot=_frame(), params=GroundingParams(mode="derived"),
+            geometry=_geometry(),
+        )
+        release = next(p for p in plan.phases if p.label == "release")
+        for action in release.command["actions"]:
+            assert action["action"] == "yield"
+            assert action["parameters"]["backup_distance_m"] == 0.0
+            assert action["parameters"]["hold_sec"] > 0.0
+            assert action["parameters"]["passer_robot_id"] == "robot_4"
+
     def test_cross_phase_matches_the_studys_c_prime_numbers_only_with_j2_declared(self):
         # Advisor-review finding: without `junction_backup_clearance_m`
         # (J2) ALSO declared, the cross phase grounds with the shipped
@@ -434,11 +457,17 @@ class TestStaggeredNeverSimultaneous:
             _result(_decision()), snapshot=_frame(), params=GroundingParams(mode="derived"),
             geometry=_geometry().model_copy(update={"junction_backup_clearance_m": 1.1}),
         )
+        # The cross phase specifically, not `phases[-1]`: with 2+ recede
+        # candidates (step-7a fix) a trailing "release" phase follows it,
+        # whose held robots ALSO use `action == "yield"` (the staggered
+        # post-composite release, a different command entirely).
+        cross_without = next(p for p in without_j2.phases if p.label == "cross")
+        cross_with = next(p for p in with_j2.phases if p.label == "cross")
         yielder_without = next(
-            a for a in without_j2.phases[-1].command["actions"] if a["action"] == "yield"
+            a for a in cross_without.command["actions"] if a["action"] == "yield"
         )
         yielder_with = next(
-            a for a in with_j2.phases[-1].command["actions"] if a["action"] == "yield"
+            a for a in cross_with.command["actions"] if a["action"] == "yield"
         )
         assert yielder_without["parameters"]["backup_distance_m"] == 1.151  # shipped 1.7 m
         assert yielder_with["parameters"]["backup_distance_m"] == 0.799  # J2 1.1 m, in [0.69, 0.91]
@@ -474,11 +503,13 @@ class TestStaggeredNeverSimultaneous:
             _result(_decision()), snapshot=_frame(post_positions),
             params=GroundingParams(mode="derived"), geometry=geometry,
         )
+        cross_pre = next(p for p in pre.phases if p.label == "cross")
+        cross_post = next(p for p in post.phases if p.label == "cross")
         yielder_pre = next(
-            a for a in pre.phases[-1].command["actions"] if a["action"] == "yield"
+            a for a in cross_pre.command["actions"] if a["action"] == "yield"
         )
         yielder_post = next(
-            a for a in post.phases[-1].command["actions"] if a["action"] == "yield"
+            a for a in cross_post.command["actions"] if a["action"] == "yield"
         )
         safety_keys = (
             "backup_distance_m",
@@ -627,10 +658,16 @@ class TestShippedUnsolvedLoudnessGuard:
         # shipped 1.7 m clearance. The tag must be loud wherever a caller
         # looks: phase one (the single-command contract's return value),
         # every recede phase, the cross phase, and the fallback -- naming
-        # only the field actually missing (the pocket is declared).
+        # only the field actually missing (the pocket is declared). The
+        # trailing "release" phase (step-7a fix) is excluded on purpose: its
+        # geometry (`passer_clear_m`) never reads `junction_backup_clearance_m`
+        # at all, so tagging it would misattribute a degradation it does not
+        # have.
         tag = "junction_geometry=shipped_unsolved:missing=junction_backup_clearance_m"
         plan = self._plan(offset_m=1.2, backup_clearance_m=None)
         for phase in plan.phases:
+            if phase.label == "release":
+                continue
             assert tag in phase.command["degradations"], phase.label
         assert tag in plan.fallback_command["degradations"]
         top_level = ground_reasoner_result(
@@ -650,9 +687,8 @@ class TestShippedUnsolvedLoudnessGuard:
             tag.startswith("junction_geometry=shipped_unsolved")
             for tag in plan.fallback_command["degradations"]
         )
-        yielder = next(
-            a for a in plan.phases[-1].command["actions"] if a["action"] == "yield"
-        )
+        cross = next(p for p in plan.phases if p.label == "cross")
+        yielder = next(a for a in cross.command["actions"] if a["action"] == "yield")
         # The study's solved "1, E-W, J2" row (also pinned, without the tag
         # question, by test_cross_phase_matches_the_studys_c_prime_numbers_
         # only_with_j2_declared above): the guard changes no grounded number.
@@ -672,3 +708,64 @@ class TestShippedUnsolvedLoudnessGuard:
         for a, b in zip(with_j2.phases, without_j2.phases, strict=True):
             if a.label == "recede":
                 assert a.command["actions"] == b.command["actions"]
+
+
+# ---- recede-set membership and order audit (step-7a fix, freeze-blocking
+# finding 1: a plan naming the wrong recede pair, or the right pair in the
+# wrong order, used to verify vlm_verbatim with no repair offered) ----
+
+
+class TestRecedeSetAudit:
+    def test_correct_plan_still_verifies_verbatim(self):
+        # Confirmation, not a change (the step-6 sweep's control case): the
+        # chi-ranked pair, in chi order, with the yield-axis legs after.
+        decision = _decision(
+            proposed_plan=[
+                {"robot_id": "robot_4", "action": "reverse"},
+                {"robot_id": "robot_3", "action": "reverse"},
+                {"robot_id": "robot_1", "action": "yield"},
+                {"robot_id": "robot_2", "action": "cross"},
+            ]
+        )
+        verified = _verify(decision, _geometry())
+        assert verified.provenance == "vlm_verbatim"
+        assert verified.edits == []
+
+    def test_wrong_recede_pair_is_no_longer_accepted_verbatim(self):
+        # The step-4 sweep's exact finding: the yield-axis pair named as the
+        # recede set (and vice versa) used to verify vlm_verbatim -- a
+        # metric hole, since the actual dispatch (chi-ranked, structural)
+        # would never match it. Now flagged and repaired (or, if the repair
+        # distance is exhausted, defaulted) -- never silently verbatim.
+        decision = _decision(
+            proposed_plan=[
+                {"robot_id": "robot_1", "action": "reverse"},
+                {"robot_id": "robot_2", "action": "reverse"},
+                {"robot_id": "robot_3", "action": "yield"},
+                {"robot_id": "robot_4", "action": "cross"},
+            ]
+        )
+        verified = _verify(decision, _geometry())
+        assert verified.provenance != "vlm_verbatim"
+
+    def test_recede_legs_in_the_wrong_relative_order_become_repaired(self):
+        # Run B's exact live bug: both recede candidates correctly membered,
+        # but listed in the order OPPOSITE chi's (robot_4 before robot_3,
+        # per TestChiRanking.test_ib10_robot_4_ranks_before_robot_3) -- a
+        # single `reorder` edit fixes it, well within the shipped bound.
+        decision = _decision(
+            proposed_plan=[
+                {"robot_id": "robot_3", "action": "reverse"},
+                {"robot_id": "robot_4", "action": "reverse"},
+                {"robot_id": "robot_1", "action": "yield"},
+                {"robot_id": "robot_2", "action": "cross"},
+            ]
+        )
+        verified = _verify(decision, _geometry())
+        assert verified.provenance == "repaired"
+        assert len(verified.edits) == 1
+        assert verified.edits[0].op == "reorder"
+        assert [leg.robot_id for leg in verified.legs if leg.action == "reverse"] == [
+            "robot_4",
+            "robot_3",
+        ]

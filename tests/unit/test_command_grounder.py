@@ -9,7 +9,7 @@ from reasoning.rag.command_grounder import (
     resolve_robot_order,
     validate_coordination_command,
 )
-from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
+from reasoning.rag.scene_geometry import ArmGeometry, CorridorGeometry, SceneGeometry
 from reasoning.vlm.models import (
     CongestionDecision,
     ReasonerDiagnostics,
@@ -472,6 +472,74 @@ def test_reverse_guard_not_applied_without_geometry():
     command = ground_reasoner_result(_result("reverse"), robot_positions=positions)
 
     assert [action["action"] for action in command["actions"]] == ["reverse", "reverse"]
+
+
+def _tracked_band_geometry(tracked_extent_m: float | None) -> SceneGeometry:
+    # Mirrors IB10's declared N-S arms (orchestrator.yaml); robot_3 retreats
+    # south (side=-1), matching both live episodes' overshoot direction.
+    return SceneGeometry(
+        corridor=CorridorGeometry(
+            axis="x", center_m=0.0, half_length_m=0.6, aisle_half_width_m=0.6,
+            occluder_height_m=0.0,
+        ),
+        arms={"robot_3": ArmGeometry(axis="y", side=-1)},
+        tracked_extent_m=tracked_extent_m,
+    )
+
+
+def test_reverse_is_clamped_to_the_tracked_band_when_declared():
+    # Freeze-blocking finding 4 (step-7a fix), pinned against episode 1's
+    # exact numbers: robot_3 at y=-1.13 (already well outward on its own
+    # arm after a post-composite base-mission release) backing up a further
+    # fixed 1.3 m would land at y=-2.43 -- past the verified |y|<=1.75
+    # extent and close to the actually-observed 2.38 m overshoot. Clamped,
+    # it stops exactly at the extent.
+    command = ground_reasoner_result(
+        _result("reverse", ["robot_3"]),
+        robot_positions={"robot_3": (0.0, -1.13)},
+        geometry=_tracked_band_geometry(tracked_extent_m=1.75),
+    )
+
+    assert command["actions"] == [
+        {"robot_id": "robot_3", "action": "reverse", "parameters": {"backup_distance_m": 0.62}}
+    ]
+
+
+def test_reverse_near_the_junction_is_not_clamped():
+    # Plenty of headroom (robot_3 at its pre-recede standoff position): the
+    # clamp must not touch an unaffected reverse.
+    command = ground_reasoner_result(
+        _result("reverse", ["robot_3"]),
+        robot_positions={"robot_3": (0.0, -0.26)},
+        geometry=_tracked_band_geometry(tracked_extent_m=1.75),
+    )
+
+    assert command["actions"][0]["parameters"]["backup_distance_m"] == 1.3
+
+
+def test_reverse_not_clamped_without_a_declared_tracked_extent():
+    # None (default) keeps every existing scene, including every v1 pin,
+    # byte-identical -- no clamp without an explicit declaration.
+    command = ground_reasoner_result(
+        _result("reverse", ["robot_3"]),
+        robot_positions={"robot_3": (0.0, -1.13)},
+        geometry=_tracked_band_geometry(tracked_extent_m=None),
+    )
+
+    assert command["actions"][0]["parameters"]["backup_distance_m"] == 1.3
+
+
+def test_reverse_not_clamped_for_a_robot_with_no_declared_arm():
+    # Scoped to declared-arm robots only (the same precondition
+    # `junction_recede_offset_m` uses): a plain corridor scene has no axis
+    # convention to clamp against.
+    command = ground_reasoner_result(
+        _result("reverse", ["robot_1"]),
+        robot_positions={"robot_1": (0.0, -1.13)},
+        geometry=_tracked_band_geometry(tracked_extent_m=1.75),
+    )
+
+    assert command["actions"][0]["parameters"]["backup_distance_m"] == 1.3
 
 
 def test_filter_command_robot_ids_drops_hallucinated_robot_actions():

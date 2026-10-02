@@ -127,6 +127,39 @@ class TestLegStatusStateMachine:
         with pytest.raises(ValueError, match="invalid leg status transition"):
             tracker.set_leg_status(plan_id, "robot_1", "pending")
 
+    @pytest.mark.parametrize("origin", ["pending", "active", "failed"])
+    def test_exhausted_is_reachable_from_pending_active_or_failed(self, origin):
+        # Step-7a fix (freeze-blocking finding 5): `orchestrator_node.
+        # _mark_fallback_exhausted` marks EVERY one of a failed fallback's
+        # robots `exhausted`, including one still `pending` (held through
+        # every phase, never individually resolved) or `active`, not only
+        # one already `failed` from an earlier phase.
+        tracker = PlanTracker()
+        plan_id = tracker.accept_plan(_verified(("robot_1", "yield"))).plan.plan_id
+        if origin != "pending":
+            tracker.set_leg_status(plan_id, "robot_1", origin)
+        leg = tracker.set_leg_status(plan_id, "robot_1", "exhausted")
+        assert leg.status == "exhausted"
+
+    def test_exhausted_is_terminal(self):
+        tracker = PlanTracker()
+        plan_id = tracker.accept_plan(_verified(("robot_1", "yield"))).plan.plan_id
+        tracker.set_leg_status(plan_id, "robot_1", "exhausted")
+        # Re-reporting the same terminal status is a no-op, not an error.
+        assert tracker.set_leg_status(plan_id, "robot_1", "exhausted").status == "exhausted"
+        with pytest.raises(ValueError, match="invalid leg status transition"):
+            tracker.set_leg_status(plan_id, "robot_1", "done")
+        with pytest.raises(ValueError, match="invalid leg status transition"):
+            tracker.set_leg_status(plan_id, "robot_1", "failed")
+
+    def test_done_cannot_become_exhausted(self):
+        # A genuinely completed leg is never retroactively exhausted.
+        tracker = PlanTracker()
+        plan_id = tracker.accept_plan(_verified(("robot_1", "yield"))).plan.plan_id
+        tracker.set_leg_status(plan_id, "robot_1", "done")
+        with pytest.raises(ValueError, match="invalid leg status transition"):
+            tracker.set_leg_status(plan_id, "robot_1", "exhausted")
+
     def test_unknown_plan_id_raises_key_error(self):
         tracker = PlanTracker()
         with pytest.raises(KeyError):

@@ -1104,6 +1104,49 @@ def test_reverse_does_not_exempt_robot_outside_its_command():
     assert tracker.exemption().pairs == {("robot_1", "robot_2")}
 
 
+def test_no_plan_reverse_plus_an_uninvolved_robot_still_latches():
+    # Regression pin for the step-7a fix (freeze-blocking finding 3): a
+    # plain `reverse` with no `plan_continue_partners` in its parameters
+    # (every pre-step-7a command, and every v1/no-plan-channel dispatch) is
+    # byte-identical to before -- an uninvolved robot stays fully latched.
+    tracker = CoordinationTracker()
+    tracker.record_command("req-reverse", "robot_4", "reverse", {})
+    tracker.record_status("req-reverse", "robot_4", "ACTIVE")
+
+    assert tracker.exemption().pairs == set()
+    assert not tracker.exemption().covers_pair("robot_1", "robot_4")
+
+
+def test_reverse_exempts_a_same_plan_continue_partner():
+    # Freeze-blocking finding 3 (2026-10-02 IB10 composite smoke, episode 1
+    # decision 2): `robot_1`'s `continue` leg of the SAME accepted plan as
+    # `robot_4`'s `reverse` is named on the reverse command's own
+    # parameters (`orchestrator_node._with_plan_continue_partners`) and must
+    # be exempt even though `robot_1` was never addressed by any command.
+    tracker = CoordinationTracker()
+    tracker.record_command(
+        "req-reverse", "robot_4", "reverse", {"plan_continue_partners": ["robot_1"]}
+    )
+    tracker.record_status("req-reverse", "robot_4", "ACTIVE")
+
+    assert tracker.exemption().covers_pair("robot_1", "robot_4")
+    assert tracker.exemption().pairs == {("robot_1", "robot_4")}
+
+
+def test_reverse_does_not_exempt_an_other_plan_continue_robot():
+    # Pair-scope discipline: a `continue` robot NOT named on this reverse's
+    # own `plan_continue_partners` (e.g. a different plan's robot, or one
+    # simply not part of this plan) stays fully latched -- this is never a
+    # blanket "every continuing robot in the scene" exemption.
+    tracker = CoordinationTracker()
+    tracker.record_command(
+        "req-reverse", "robot_4", "reverse", {"plan_continue_partners": ["robot_1"]}
+    )
+    tracker.record_status("req-reverse", "robot_4", "ACTIVE")
+
+    assert not tracker.exemption().covers_pair("robot_2", "robot_4")
+
+
 def test_waiting_passers_are_not_paired_with_each_other():
     # Only the clearing robot's pairs are exempt: two waits of the same yield
     # command keep the 0.45 m rule between them.

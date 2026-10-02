@@ -2,6 +2,7 @@
 
 from reasoning.rag.command_grounder import verify_and_repair_plan
 from reasoning.rag.plan_metrics import (
+    any_leg_exhausted,
     classify_revision_cause,
     compute_episode_plan_stability,
     compute_plan_churn,
@@ -317,3 +318,16 @@ class TestEpisodePlanStability:
         assert tracker.plan_holds == 2  # the two repeats of verified_a
         stability = compute_episode_plan_stability(accepted_plans)
         assert stability.replan_count == 1  # only verified_a -> verified_b
+
+
+class TestAnyLegExhausted:
+    """Step-7a fix (freeze-blocking finding 5): the exhausted-flag scorer."""
+
+    def test_true_when_a_leg_is_exhausted(self):
+        assert any_leg_exhausted(["done", "exhausted", "failed"]) is True
+
+    def test_false_when_no_leg_is_exhausted(self):
+        assert any_leg_exhausted(["done", "failed", "pending", "active"]) is False
+
+    def test_false_for_an_empty_plan(self):
+        assert any_leg_exhausted([]) is False

@@ -496,6 +496,7 @@ def test_junction_clear_seeds_phases_and_matches_dispatch():
         "recede",
         "recede",
         "cross",
+        "release",
     ]
     assert outcome.grounded_command["command_id"] == outcome.junction_phases.phases[0].command[
         "command_id"

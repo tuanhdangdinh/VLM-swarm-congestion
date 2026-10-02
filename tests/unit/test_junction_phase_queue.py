@@ -95,12 +95,30 @@ class TestStartAndOrdinaryAdvance:
         assert advance.phase_reached == "cross"
         assert advance.done is False
 
-    def test_completed_cross_resolves_the_queue(self):
+    def test_completed_cross_advances_to_the_staggered_release_phase(self):
+        # Step-7a fix (freeze-blocking finding 2): with 2 recede candidates,
+        # the cross phase's own resolution does NOT end the queue -- it
+        # advances to one more "release" phase that holds every recede
+        # candidate but the chi-lead one (plus the yielder) via M4's
+        # odometry-gated `CrossingChain`, instead of letting every hold
+        # lapse together the instant cross resolves.
         queue = JunctionPhaseQueue(_plan())
         first = queue.start()
         second = queue.on_resolved(first["command_id"], completed=True).command
         third = queue.on_resolved(second["command_id"], completed=True).command
         advance = queue.on_resolved(third["command_id"], completed=True)
+        assert advance.command["command_id"] == "req-jc-junction-release"
+        assert advance.phase_reached == "release"
+        assert advance.done is False
+        assert queue.done is False
+
+    def test_completed_release_resolves_the_queue(self):
+        queue = JunctionPhaseQueue(_plan())
+        first = queue.start()
+        second = queue.on_resolved(first["command_id"], completed=True).command
+        third = queue.on_resolved(second["command_id"], completed=True).command
+        fourth = queue.on_resolved(third["command_id"], completed=True).command
+        advance = queue.on_resolved(fourth["command_id"], completed=True)
         assert advance.command is None
         assert advance.phase_reached == "resolved"
         assert advance.done is True

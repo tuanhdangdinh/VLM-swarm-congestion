@@ -569,6 +569,13 @@ class TestJunctionGeometry:
         assert "junction_backup_clearance_m: 1.1" in table
         assert "junction_geometry=shipped_unsolved" in table
 
+    def test_goal_table_declares_the_step_7a_tracked_extent_field(self):
+        # Step 7a fix (freeze-blocking finding 4): the goal table must
+        # document `tracked_extent_m` too, or a deployed IB10 run grounds a
+        # plain `reverse` with no clamp against the verified M1 y-extent.
+        table = ORCHESTRATOR_YAML.read_text()
+        assert "tracked_extent_m: 1.75" in table
+
     def test_arms_are_the_approach_arms_of_the_scenario(self):
         for robot in _scenario().robots:
             arm = JUNCTION_ARMS[robot.robot_id]
@@ -586,6 +593,12 @@ class TestJunctionGeometry:
         # v2-pre-J2 scene keeps the verified 1.7 m head-on tuning.
         shipped = yaml.safe_load(ORCHESTRATOR_YAML.read_text())["scenario_geometry"]
         assert SceneGeometry(**shipped).junction_backup_clearance_m is None
+
+    def test_shipped_geometry_has_no_tracked_extent_clamp(self):
+        # Step-7a fix (finding 4) is off by default too: None keeps every
+        # scene without an explicit declaration byte-identical.
+        shipped = yaml.safe_load(ORCHESTRATOR_YAML.read_text())["scenario_geometry"]
+        assert SceneGeometry(**shipped).tracked_extent_m is None
 
     @pytest.mark.parametrize("yielder", ROBOTS)
     @pytest.mark.parametrize(("case", "frame"), _frames())

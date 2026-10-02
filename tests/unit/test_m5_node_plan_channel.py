@@ -196,3 +196,97 @@ def test_timed_out_command_marks_its_plan_legs_failed(node_env, tmp_path):  # no
     plan = node._plan_tracker.plan(plan_id)
     assert plan.leg_for("robot_2").status == "failed"
     assert plan.leg_for("robot_1").status == "failed"
+
+
+def _reverse_plan_command(request_id: str) -> dict:
+    return {
+        "command_id": f"cmd-{request_id}",
+        "actions": [
+            {"robot_id": "robot_2", "action": "reverse", "parameters": {"backup_distance_m": 0.8}},
+        ],
+        "expected_resolution_time_sec": 18.0,
+        "fallback": "stop",
+    }
+
+
+class _ReverseContinuePlanFakePipeline:
+    """A plan with one `reverse` leg and one `continue` leg of ANOTHER robot.
+
+    Freeze-blocking finding 3 (step-7a fix): pins `orchestrator_node.
+    _with_plan_continue_partners` against the real node, mirroring episode
+    1 decision 2's exact shape (`robot_2` reverses, `robot_1` continues, the
+    SAME accepted plan).
+    """
+
+    def __init__(self, tracker: PlanTracker) -> None:
+        self._tracker = tracker
+
+    def run(self, request):
+        from reasoning.rag.command_grounder import VerifiedPlan
+        from reasoning.vlm.models import ProposedPlanLeg
+
+        verified = VerifiedPlan(
+            legs=[
+                ProposedPlanLeg(robot_id="robot_2", action="reverse"),
+                ProposedPlanLeg(robot_id="robot_1", action="continue"),
+            ],
+            provenance="vlm_verbatim",
+        )
+        acceptance = self._tracker.accept_plan(verified)
+        return PipelineOutcome(
+            request_id=request.request_id,
+            reasoner_result=_result(request.request_id),
+            grounded_command=_reverse_plan_command(request.request_id),
+            terminal_stage=TerminalStage.OK,
+            plan=_plan_dispatch_info(acceptance),
+        )
+
+
+def test_reverse_leg_carries_the_same_plans_continue_partner(node_env, tmp_path):  # noqa: F811
+    from tests.unit.test_m5_node_probe import _FakePipeline
+
+    node, clock = _make_node(
+        node_env, tmp_path, _FakePipeline(), t0_probe_mode=False, plan_channel_enabled=True
+    )
+    node._pipeline = _ReverseContinuePlanFakePipeline(node._plan_tracker)
+
+    _trigger_real(node, stamp=60.0)
+    node._future.result(timeout=5.0)
+    node._on_timer()
+
+    published = _commands(node)
+    reverse_msgs = [msg for msg in published if msg.action == "reverse"]
+    assert reverse_msgs, "no reverse command was dispatched"
+    params = json.loads(reverse_msgs[0].parameters_json or "{}")
+    assert params.get("plan_continue_partners") == ["robot_1"]
+
+
+def test_reverse_leg_without_a_tracked_plan_carries_no_continue_partners(
+    node_env, tmp_path  # noqa: F811
+):
+    # v1/no-plan-channel regression pin: the plan-channel flag is off, so
+    # `_with_plan_continue_partners` must be a byte-identical no-op.
+    from tests.unit.test_m5_node_probe import _FakePipeline
+
+    class _ReverseOnlyFakePipeline:
+        def run(self, request):
+            return PipelineOutcome(
+                request_id=request.request_id,
+                reasoner_result=_result(request.request_id),
+                grounded_command=_reverse_plan_command(request.request_id),
+                terminal_stage=TerminalStage.OK,
+                plan=None,
+            )
+
+    node, clock = _make_node(node_env, tmp_path, _FakePipeline(), t0_probe_mode=False)
+    node._pipeline = _ReverseOnlyFakePipeline()
+
+    _trigger_real(node, stamp=60.0)
+    node._future.result(timeout=5.0)
+    node._on_timer()
+
+    published = _commands(node)
+    reverse_msgs = [msg for msg in published if msg.action == "reverse"]
+    assert reverse_msgs, "no reverse command was dispatched"
+    params = json.loads(reverse_msgs[0].parameters_json or "{}")
+    assert "plan_continue_partners" not in params

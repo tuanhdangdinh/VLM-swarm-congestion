@@ -233,7 +233,12 @@ class TestOrdinaryPhaseAdvance:
         assert "req-jc-junction-cross" in command_ids
         assert "req-jc-junction-cross" in node._junction_phase_queues
 
-    def test_completed_cross_phase_empties_the_queue(self, node_env, tmp_path):  # noqa: F811
+    def test_completed_cross_phase_advances_to_release_not_empty_yet(
+        self, node_env, tmp_path  # noqa: F811
+    ):
+        # Step-7a fix (freeze-blocking finding 2): the cross phase's own
+        # resolution no longer empties the queue directly -- one more
+        # staggered "release" phase follows it.
         node, clock = _node(node_env, tmp_path)
         _dispatch_via_handle_outcome(node, clock)
         first_id = _commands(node)[0].command_id
@@ -241,6 +246,18 @@ class TestOrdinaryPhaseAdvance:
         _complete_command(node, "req-jc-junction-recede-robot_3")
 
         _complete_command(node, "req-jc-junction-cross")
+
+        assert "req-jc-junction-release" in node._junction_phase_queues
+
+    def test_completed_release_phase_empties_the_queue(self, node_env, tmp_path):  # noqa: F811
+        node, clock = _node(node_env, tmp_path)
+        _dispatch_via_handle_outcome(node, clock)
+        first_id = _commands(node)[0].command_id
+        _complete_command(node, first_id)
+        _complete_command(node, "req-jc-junction-recede-robot_3")
+        _complete_command(node, "req-jc-junction-cross")
+
+        _complete_command(node, "req-jc-junction-release")
 
         assert node._junction_phase_queues == {}
 
@@ -307,6 +324,84 @@ class TestFailureFallback:
 
         command_ids = {msg.command_id for msg in _commands(node)}
         assert "req-jc-yield" in command_ids
+
+
+def _fail_every_robot(node, command_id: str) -> None:
+    """Report FAILED for EVERY robot a dispatched command addressed.
+
+    Mirrors episode 2's actual fallback failure (`docs/reports/2026-10-02-
+    ib10-composite-smoke.md`: "that reroute command ALSO resolves
+    status=failed, repeatedly, for every robot"), unlike `_fail_command`
+    (one active FAILED, the rest held-COMPLETED) -- freeze-blocking finding
+    5's exhaustion marking must cover every one of them, not just whichever
+    one happened to be the "active" leg.
+    """
+    for robot_id in node._tracker.robots_of(command_id):
+        node._on_status(
+            SimpleNamespace(command_id=command_id, robot_id=robot_id, status="FAILED")
+        )
+
+
+class TestFallbackExhaustion:
+    """Freeze-blocking finding 5 (step-7a fix): the fallback itself can also fail."""
+
+    def test_fallback_that_also_fails_is_logged_loudly(self, node_env, tmp_path):  # noqa: F811
+        node, clock = _node(node_env, tmp_path)
+        _dispatch_via_handle_outcome(node, clock)
+        first_id = _commands(node)[0].command_id
+        _fail_command(node, first_id)
+
+        _fail_every_robot(node, "req-jc-yield")
+
+        lines = node.get_logger().matching("junction_clear fallback exhausted")
+        assert any("outcome=fallback_exhausted" in line for line in lines)
+
+    def test_fallback_that_also_fails_marks_every_leg_exhausted(self, node_env, tmp_path):  # noqa: F811
+        node, clock = _node(node_env, tmp_path)
+        _dispatch_via_handle_outcome(node, clock)
+        first_id = _commands(node)[0].command_id
+        _fail_command(node, first_id)
+        plan_id = node._plan_tracker.active_plan.plan_id
+        fallback_robots = node._tracker.robots_of("req-jc-yield")
+
+        _fail_every_robot(node, "req-jc-yield")
+
+        plan = node._plan_tracker.plan(plan_id)
+        for robot_id in fallback_robots:
+            assert plan.leg_for(robot_id).status == "exhausted"
+
+    def test_fallback_that_also_fails_is_not_re_triggered(self, node_env, tmp_path):  # noqa: F811
+        node, clock = _node(node_env, tmp_path)
+        _dispatch_via_handle_outcome(node, clock)
+        first_id = _commands(node)[0].command_id
+        _fail_command(node, first_id)
+        fallback_robots = set(node._tracker.robots_of("req-jc-yield"))
+
+        _fail_every_robot(node, "req-jc-yield")
+
+        assert fallback_robots <= node._exhausted_robots
+
+    def test_fallback_resolving_completed_never_marks_anything_exhausted(
+        self, node_env, tmp_path  # noqa: F811
+    ):
+        # Regression pin: the fallback DOES recover sometimes (M5 spec's own
+        # "partial credit is scorable" case) -- that must never be marked
+        # `exhausted` (the fallback's acting robots, robot_1/robot_2, reach
+        # plain `done`; robot_3/robot_4 stay held, a pre-existing, unrelated
+        # nuance `TestFallbackHoldsAlreadyRecededRobots` already covers).
+        node, clock = _node(node_env, tmp_path)
+        _dispatch_via_handle_outcome(node, clock)
+        first_id = _commands(node)[0].command_id
+        _fail_command(node, first_id)
+        plan_id = node._plan_tracker.active_plan.plan_id
+
+        _complete_command(node, "req-jc-yield")
+
+        plan = node._plan_tracker.plan(plan_id)
+        assert node._exhausted_robots == set()
+        assert plan.leg_for("robot_1").status == "done"
+        assert plan.leg_for("robot_2").status == "done"
+        assert all(leg.status != "exhausted" for leg in plan.legs)
 
 
 class TestFlagOffByteIdentity:
@@ -467,10 +562,15 @@ class TestAttemptResolutionDeferred:
         first_id = _commands(node)[0].command_id
         _complete_command(node, first_id)
         _complete_command(node, "req-jc-junction-recede-robot_3")
-
         _complete_command(node, "req-jc-junction-cross")
 
+        # The trailing "release" phase (step-7a fix) is still part of the
+        # SAME attempt: resolving cross must not resolve it early.
         record = node._attempts._record  # noqa: SLF001
+        assert record.resolved_at is None
+
+        _complete_command(node, "req-jc-junction-release")
+
         assert record.resolved_at is not None
         assert record.outcome_status == "completed"
 
