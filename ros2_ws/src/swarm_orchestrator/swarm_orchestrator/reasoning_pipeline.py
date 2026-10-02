@@ -631,13 +631,16 @@ def write_decision_artifact(
 
     `outcome.plan` (the (a0) plan channel, behind `plan_channel_enabled`) adds
     a `plan` key with `plan_id`, `provenance`, `legs`, `edits`,
-    `rejection_reason`, `superseded_plan_id` and `cancel_order` -- only when
-    it is not None, same conditional-add pattern as `probe`/`probe_index`, so
-    a flag-off artifact is byte-identical to one written before this channel
-    existed. `outcome.plan_error`, likewise conditional, records why the
-    channel itself raised (`plan` is then None but the command still
-    dispatched -- a plan-channel failure never costs an otherwise-successful
-    decision).
+    `rejection_reason`, `superseded_plan_id`, `cancel_order` and `plan_held`
+    -- only when it is not None, same conditional-add pattern as
+    `probe`/`probe_index`, so a flag-off artifact is byte-identical to one
+    written before this channel existed. `plan_held` (ruling 2026-10-02) is
+    true exactly when this decision re-affirmed the already-active plan
+    (`plan_id` is then that unchanged active plan_id, not a new one) rather
+    than being accepted as a new one. `outcome.plan_error`, likewise
+    conditional, records why the channel itself raised (`plan` is then None
+    but the command still dispatched -- a plan-channel failure never costs an
+    otherwise-successful decision).
 
     Returns:
         The artifact path.
@@ -957,6 +960,7 @@ class InProcessPipeline:
                         if acceptance.supersedes is not None
                         else ()
                     ),
+                    plan_held=acceptance.held,
                 )
             except Exception as exc:  # plan channel failure — bounded here, never raised
                 plan_error = f"plan channel failed: {exc}"

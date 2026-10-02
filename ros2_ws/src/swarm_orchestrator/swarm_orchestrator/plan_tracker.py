@@ -22,6 +22,17 @@ changed -- means retiring whichever leg was admitted LAST first:
 cancellation order is the REVERSE of the superseded plan's own leg order,
 restricted to legs not already terminal.
 
+Hold semantics (ruling 2026-10-02, `docs/implementation_notes.md`): not
+every `accept_plan` call is a replan. When the new analysis's verified plan
+names the exact same action for every one of the active plan's REMAINING
+(non-`done`) legs, this is a re-affirmation of the resolution already in
+progress, not a new one -- `plan_id` stays unchanged, `plan_holds` counts it,
+and leg statuses are untouched. This is what makes "zero unforced replans"
+on a clean two-robot head-on well-defined: a post-resolution re-check that
+still proposes the same thing is a hold, not churn, and `replan_count`
+(`plan_metrics`/episode stability) counts only plans that DO consume a new
+`plan_id` -- genuinely different accepted plans.
+
 This module never dispatches a command or touches a ROS2 topic; node code
 converts and delegates (CLAUDE.md "ROS2 Code": keep callbacks thin).
 
@@ -127,7 +138,58 @@ class PlanAcceptance(BaseModel):
     plan: TrackedPlan
     # None for the episode's first accepted plan; set whenever a plan was
     # already active (explicit supersession, never an implicit/blind one).
+    # Always None when `held` is True -- a hold supersedes nothing.
     supersedes: Supersession | None = None
+    # Hold semantics (ruling 2026-10-02): True when this call re-affirmed the
+    # active plan rather than accepting a new one -- `plan` is then the SAME
+    # `TrackedPlan` that was already active (same `plan_id`, same leg
+    # statuses), not a new object, and no `plan_id` was consumed.
+    held: bool = False
+
+
+def _is_hold(active: TrackedPlan, verified_legs: Sequence[ProposedPlanLeg]) -> bool:
+    """Whether `verified_legs` is IDENTICAL to `active`'s REMAINING (non-`done`) legs.
+
+    Hold semantics (ruling 2026-10-02): a new analysis whose verified plan
+    names the exact same action, in the exact same order, for every one of
+    the active plan's non-terminal-by-completion legs is a re-affirmation,
+    not a replan -- "revise only for a reason" (the plan-state prompt
+    advice) needs exactly this read to be well-defined. Order matters: a
+    REORDER repair (the same per-robot actions, a different execution
+    sequence) is exactly one of the revisions the plan-stability metric
+    means to catch, so it must not be absorbed into a hold. A new plan
+    naming an extra robot the active plan's remaining legs do not cover
+    (a scene-wide completion gaining a robot M1 only now confirms, say) is
+    likewise not identical, so it is a replan too -- `filtered` below can
+    only equal `remaining` when it is the same length.
+
+    Restricted to non-`done` legs on purpose: a robot whose leg already
+    finished does not need to be named again (or named the same way) for
+    the new plan to count as holding the resolution it is still carrying
+    out; what the new plan says about an already-`done` robot is dropped
+    from the comparison entirely, never compared. A plan with no remaining
+    legs (every leg `done`) is never a hold -- there is nothing left to
+    re-affirm, so any plan accepted at that point is judged a fresh one on
+    its own merits.
+
+    Args:
+        active: The currently active tracked plan.
+        verified_legs: The new analysis's verified (post-repair) legs, in
+            their proposed execution order.
+
+    Returns:
+        True when `verified_legs`, with every already-`done` robot's leg
+        dropped, is the exact same ordered `(robot_id, action)` sequence as
+        `active`'s remaining legs.
+    """
+    remaining = [(leg.robot_id, leg.action) for leg in active.legs if leg.status != "done"]
+    if not remaining:
+        return False
+    done_ids = {leg.robot_id for leg in active.legs if leg.status == "done"}
+    filtered = [
+        (leg.robot_id, leg.action) for leg in verified_legs if leg.robot_id not in done_ids
+    ]
+    return filtered == remaining
 
 
 def _cancel_order(old: TrackedPlan, new: TrackedPlan) -> list[str]:
@@ -156,6 +218,12 @@ class PlanTracker:
         self._next_plan_id = 1
         self._active: TrackedPlan | None = None
         self._plans: dict[int, TrackedPlan] = {}
+        # Hold semantics (ruling 2026-10-02): counts `accept_plan` calls that
+        # re-affirmed the active plan instead of accepting a new one. Never
+        # consumes a `plan_id` -- `replan_count` (plan_metrics / episode
+        # stability) is meant to count only genuinely different accepted
+        # plans, which is exactly the plans that DO get a new `plan_id`.
+        self._plan_holds = 0
         # Not reentrant: no method below calls another public method of this
         # class while holding it (module docstring explains why one is needed
         # at all).
@@ -167,6 +235,12 @@ class PlanTracker:
         with self._lock:
             return self._active
 
+    @property
+    def plan_holds(self) -> int:
+        """Count of `accept_plan` calls that re-affirmed the active plan (ruling 2026-10-02)."""
+        with self._lock:
+            return self._plan_holds
+
     def plan(self, plan_id: int) -> TrackedPlan | None:
         """Look up a plan (active or superseded) by id, e.g. for a late status update."""
         with self._lock:
@@ -177,20 +251,29 @@ class PlanTracker:
 
         Called for every v2-channel decision, whatever `verified.provenance`
         is: "every accepted plan (including `m3_default` ones) ... every
-        executed resolution has a plan" (prereg-v2 (a0)). A previously active
-        plan is explicitly superseded (never silently dropped); its
-        non-terminal legs that the new plan does not carry forward unchanged
-        are retired in dependency order (`_cancel_order`).
+        executed resolution has a plan" (prereg-v2 (a0)) -- EXCEPT a hold
+        (ruling 2026-10-02): when `verified.legs` names the exact same action
+        for every one of the active plan's REMAINING (non-`done`) legs, this
+        call records a HOLD instead -- the active `plan_id` is unchanged, no
+        new `TrackedPlan` is created, `plan_holds` is incremented, and leg
+        statuses are left exactly as they were (a hold never resets them). A
+        genuinely different plan is still a replan (explicit supersession);
+        its non-terminal legs that the new plan does not carry forward
+        unchanged are retired in dependency order (`_cancel_order`).
 
         Args:
             verified: `command_grounder.verify_and_repair_plan`'s output for
                 the decision just dispatched.
 
         Returns:
-            The new tracked plan plus, when one was already active, the
-            `Supersession` describing how to retire it.
+            On a hold: the unchanged active plan, `supersedes=None`,
+            `held=True`. Otherwise: the new tracked plan plus, when one was
+            already active, the `Supersession` describing how to retire it.
         """
         with self._lock:
+            if self._active is not None and _is_hold(self._active, verified.legs):
+                self._plan_holds += 1
+                return PlanAcceptance(plan=self._active, held=True)
             plan_id = self._next_plan_id
             self._next_plan_id += 1
             legs = tuple(

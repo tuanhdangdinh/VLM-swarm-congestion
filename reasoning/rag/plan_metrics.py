@@ -221,9 +221,21 @@ def compute_episode_plan_stability(
 ) -> EpisodePlanStability:
     """Stability building blocks across one episode's sequence of accepted plans.
 
+    `replan_count` counts only GENUINELY DIFFERENT accepted plans (the hold
+    ruling, 2026-10-02): a caller building `plans` from an artifact stream or
+    from `PlanTracker` must supply one entry per distinct accepted `plan_id`
+    -- i.e. skip every decision whose `PlanDispatchInfo.plan_held` is True
+    (or, from `PlanTracker.accept_plan`'s own return value, every
+    `PlanAcceptance` with `held=True`) -- NOT one entry per analysis. A hold
+    re-affirms the active plan rather than accepting a new one, so it must
+    never inflate this count; this is what makes the step-4 smoke's "zero
+    unforced replans" criterion well-defined on a two-robot head-on where the
+    VLM is re-asked the same question more than once.
+
     Args:
-        plans: Each accepted plan (`VerifiedPlan.legs`), in the order it was
-            adopted during the episode.
+        plans: Each GENUINELY ACCEPTED plan (`VerifiedPlan.legs`), in the
+            order it was adopted during the episode -- holds excluded, not
+            one entry per analysis.
         incremental_fraction_bound: Forwarded to `compute_plan_churn` for
             every consecutive pair.
 

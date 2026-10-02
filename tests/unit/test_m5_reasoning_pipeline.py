@@ -484,6 +484,55 @@ def test_plan_tracker_leaves_grounded_command_shape_otherwise_unchanged():
 
 
 def test_plan_tracker_second_decision_supersedes_the_first():
+    # _ok_result()'s decision (single robot, strategy "yield", no declared
+    # scene geometry) derives an m3_default plan of a single "wait" leg
+    # (_derive_default_plan has no counterpart robot to yield to). A second
+    # decision with an EXPLICIT, genuinely different leg (a "yield" leg,
+    # consistent with the strategy per `_is_consistent`) is what exercises
+    # supersession here -- an identical second decision would now be a HOLD
+    # (ruling 2026-10-02; see TestHoldSemantics-equivalent coverage in
+    # test_m5_plan_tracker.py), not a supersession.
+    grounded = {
+        "command_id": "c1",
+        "actions": [{"robot_id": "robot_0", "action": "yield", "parameters": {}}],
+        "expected_resolution_time_sec": 18.0,
+        "fallback": "stop",
+    }
+    tracker = PlanTracker()
+    ground_fn = _fixed_ground_fn(grounded)
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_ok_result()), ground_fn=ground_fn, plan_tracker=tracker
+    )
+    first = pipe.run(_request())
+    assert first.plan.plan_id == 1
+    assert first.plan.plan_held is False
+
+    pipe2 = InProcessPipeline(
+        reasoner=_FakeReasoner(_no_congestion_result()), ground_fn=ground_fn, plan_tracker=tracker
+    )
+    # A congestion_detected=False analysis never reaches the plan channel
+    # (it terminates at VLM, before grounding); confirm that, then supersede
+    # with a second real decision.
+    cleared = pipe2.run(_request())
+    assert cleared.plan is None
+
+    pipe3 = InProcessPipeline(
+        reasoner=_FakeReasoner(
+            _yield_result(proposed_plan=[ProposedPlanLeg(robot_id="robot_0", action="yield")])
+        ),
+        ground_fn=ground_fn,
+        plan_tracker=tracker,
+    )
+    second = pipe3.run(_request())
+    assert second.plan.plan_id == 2
+    assert second.plan.superseded_plan_id == 1
+    assert second.plan.plan_held is False
+
+
+def test_plan_tracker_identical_second_decision_is_a_hold_not_a_replan():
+    # The step-4 regression gate's "zero unforced replans": a second analysis
+    # whose verified plan is identical to the active plan's remaining legs is
+    # a HOLD (ruling 2026-10-02) -- same plan_id, no supersession.
     grounded = {
         "command_id": "c1",
         "actions": [{"robot_id": "robot_0", "action": "yield", "parameters": {}}],
@@ -499,20 +548,13 @@ def test_plan_tracker_second_decision_supersedes_the_first():
     assert first.plan.plan_id == 1
 
     pipe2 = InProcessPipeline(
-        reasoner=_FakeReasoner(_no_congestion_result()), ground_fn=ground_fn, plan_tracker=tracker
+        reasoner=_FakeReasoner(_ok_result()), ground_fn=ground_fn, plan_tracker=tracker
     )
-    # A congestion_detected=False analysis never reaches the plan channel
-    # (it terminates at VLM, before grounding); confirm that, then supersede
-    # with a second real decision.
-    cleared = pipe2.run(_request())
-    assert cleared.plan is None
-
-    pipe3 = InProcessPipeline(
-        reasoner=_FakeReasoner(_yield_result()), ground_fn=ground_fn, plan_tracker=tracker
-    )
-    second = pipe3.run(_request())
-    assert second.plan.plan_id == 2
-    assert second.plan.superseded_plan_id == 1
+    second = pipe2.run(_request())
+    assert second.plan.plan_id == 1
+    assert second.plan.plan_held is True
+    assert second.plan.superseded_plan_id is None
+    assert tracker.plan_holds == 1
 
 
 class _RaisingPlanTracker:
@@ -1273,6 +1315,30 @@ def test_write_decision_artifact_records_plan_dispatch_info_when_present(tmp_pat
         "status": "pending",
     }
     assert payload["plan"]["dispatch_matches_plan"] is True
+    assert payload["plan"]["plan_held"] is False
+
+
+def test_write_decision_artifact_records_a_held_plan(tmp_path):
+    # Hold semantics (ruling 2026-10-02): a re-affirmed plan's artifact
+    # records plan_held: true alongside the UNCHANGED active plan_id.
+    from swarm_orchestrator.models import PlanDispatchInfo
+    from swarm_orchestrator.plan_tracker import TrackedLeg
+
+    outcome = _ok_outcome().model_copy(
+        update={
+            "plan": PlanDispatchInfo(
+                plan_id=1,
+                provenance="vlm_verbatim",
+                legs=(TrackedLeg(robot_id="robot_1", action="yield", status="active"),),
+                dispatch_matches_plan=True,
+                plan_held=True,
+            )
+        }
+    )
+    payload = json.loads(write_decision_artifact(tmp_path, outcome).read_text())
+    assert payload["plan"]["plan_held"] is True
+    assert payload["plan"]["plan_id"] == 1
+    assert payload["plan"]["superseded_plan_id"] is None
 
 
 def test_write_decision_artifact_records_presentation_order_provenance(tmp_path):

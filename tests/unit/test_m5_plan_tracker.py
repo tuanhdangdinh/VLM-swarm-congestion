@@ -32,9 +32,13 @@ class TestPlanIdAssignment:
         assert acceptance.supersedes is None
 
     def test_plan_ids_are_monotonic_across_accepts(self):
+        # Each accept must genuinely differ from the one before it, or the
+        # hold ruling (2026-10-02) re-affirms instead of minting a new id.
         tracker = PlanTracker()
+        actions = ["wait", "yield", "wait"]
         ids = [
-            tracker.accept_plan(_verified(("robot_1", "wait"))).plan.plan_id for _ in range(3)
+            tracker.accept_plan(_verified(("robot_1", action))).plan.plan_id
+            for action in actions
         ]
         assert ids == [1, 2, 3]
 
@@ -202,12 +206,16 @@ class TestSupersessionCancelOrder:
         # retiring a maneuver that already finished.
         assert second.supersedes.cancel_order == ("robot_1",)
 
-    def test_a_plan_with_no_changed_legs_cancels_nothing(self):
+    def test_a_plan_with_no_changed_legs_is_a_hold_not_a_supersession(self):
+        # Superseded by the hold ruling (2026-10-02): an accept whose legs are
+        # identical to the active plan's remaining legs is now a HOLD, not an
+        # explicit supersession that happens to cancel nothing -- see
+        # TestHoldSemantics below.
         tracker = PlanTracker()
         tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
         second = tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
-        assert second.supersedes is not None  # still an explicit supersession
-        assert second.supersedes.cancel_order == ()
+        assert second.held is True
+        assert second.supersedes is None
 
     def test_a_robot_the_new_plan_drops_entirely_is_cancelled(self):
         tracker = PlanTracker()
@@ -216,6 +224,152 @@ class TestSupersessionCancelOrder:
         )
         second = tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
         assert second.supersedes.cancel_order == ("robot_3",)
+
+
+# ---- hold semantics (ruling 2026-10-02) ----
+
+
+class TestHoldSemantics:
+    def test_hold_on_identical_remaining_legs(self):
+        tracker = PlanTracker()
+        first = tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
+        second = tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
+        assert second.held is True
+        assert second.plan.plan_id == first.plan.plan_id
+        assert second.supersedes is None
+
+    def test_replan_on_different_legs(self):
+        tracker = PlanTracker()
+        first = tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
+        second = tracker.accept_plan(_verified(("robot_1", "wait"), ("robot_2", "cross")))
+        assert second.held is False
+        assert second.plan.plan_id == first.plan.plan_id + 1
+        assert second.supersedes is not None
+        assert second.supersedes.superseded_plan_id == first.plan.plan_id
+
+    def test_reordered_same_actions_is_a_replan_not_a_hold(self):
+        # Same per-robot actions, different execution order -- a REORDER
+        # repair, exactly one of the revisions plan-stability must catch, so
+        # it must never be absorbed into a hold.
+        tracker = PlanTracker()
+        first = tracker.accept_plan(
+            _verified(("robot_1", "yield"), ("robot_2", "cross"), ("robot_3", "cross"))
+        )
+        second = tracker.accept_plan(
+            _verified(("robot_1", "yield"), ("robot_3", "cross"), ("robot_2", "cross"))
+        )
+        assert second.held is False
+        assert second.plan.plan_id == first.plan.plan_id + 1
+
+    def test_an_added_robot_the_active_plan_did_not_cover_is_a_replan(self):
+        # A scene-wide plan gaining a leg for a robot the active plan's
+        # remaining legs never named is not identical, even though every
+        # robot the active plan DOES cover is unchanged.
+        tracker = PlanTracker()
+        first = tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
+        second = tracker.accept_plan(
+            _verified(("robot_1", "yield"), ("robot_2", "cross"), ("robot_3", "continue"))
+        )
+        assert second.held is False
+        assert second.plan.plan_id == first.plan.plan_id + 1
+
+    def test_hold_survives_after_some_remaining_legs_are_done(self):
+        # robot_1's leg completes; robot_2's "cross" is still open. A new
+        # analysis that still names the SAME action for robot_2 (whatever it
+        # says, or omits, about the now-done robot_1) is a hold.
+        tracker = PlanTracker()
+        first = tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
+        tracker.set_leg_status(first.plan.plan_id, "robot_1", "active")
+        tracker.set_leg_status(first.plan.plan_id, "robot_1", "done")
+        second = tracker.accept_plan(_verified(("robot_1", "continue"), ("robot_2", "cross")))
+        assert second.held is True
+        assert second.plan.plan_id == first.plan.plan_id
+
+    def test_a_done_robots_action_is_not_compared_at_all(self):
+        # Same scenario, but the new plan re-proposes a DIFFERENT action for
+        # the already-done robot_1 -- still a hold, because only the
+        # remaining (non-done) legs are compared.
+        tracker = PlanTracker()
+        first = tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
+        tracker.set_leg_status(first.plan.plan_id, "robot_1", "active")
+        tracker.set_leg_status(first.plan.plan_id, "robot_1", "done")
+        second = tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
+        assert second.held is True
+        assert second.plan.plan_id == first.plan.plan_id
+
+    def test_replan_when_the_one_remaining_leg_after_completion_changes(self):
+        tracker = PlanTracker()
+        first = tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
+        tracker.set_leg_status(first.plan.plan_id, "robot_1", "active")
+        tracker.set_leg_status(first.plan.plan_id, "robot_1", "done")
+        second = tracker.accept_plan(_verified(("robot_1", "continue"), ("robot_2", "wait")))
+        assert second.held is False
+        assert second.supersedes.superseded_plan_id == first.plan.plan_id
+
+    def test_failed_leg_reproposed_identically_is_still_a_hold_flagged_gap(self):
+        # FLAGGED, not fixed here: "non-done" (the ruling's own wording)
+        # includes `failed`, not just `pending`/`active`. A re-analysis that
+        # proposes the EXACT SAME action for a robot whose leg just FAILED
+        # (e.g. a retry after a timeout) is therefore a hold under this
+        # reading, not an evidence-driven replan -- `plan_id` stays the
+        # same, so the retry's dispatched command keeps citing the old,
+        # already-terminal leg. Pinned so the behavior is measured, not
+        # silently assumed away; see docs/implementation_notes.md's matching
+        # 2026-10-02 entry for the consequence this has on
+        # `classify_revision_cause`.
+        tracker = PlanTracker()
+        first = tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
+        tracker.set_leg_status(first.plan.plan_id, "robot_1", "active")
+        tracker.set_leg_status(first.plan.plan_id, "robot_1", "failed")
+        second = tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
+        assert second.held is True
+        assert second.plan.plan_id == first.plan.plan_id
+        assert second.plan.leg_for("robot_1").status == "failed"
+
+    def test_a_plan_where_every_leg_is_already_done_is_never_a_hold(self):
+        # Nothing remains to re-affirm; the next accepted plan is judged
+        # fresh, even if its content happens to repeat the exhausted one.
+        tracker = PlanTracker()
+        first = tracker.accept_plan(_verified(("robot_1", "yield")))
+        tracker.set_leg_status(first.plan.plan_id, "robot_1", "active")
+        tracker.set_leg_status(first.plan.plan_id, "robot_1", "done")
+        second = tracker.accept_plan(_verified(("robot_1", "yield")))
+        assert second.held is False
+        assert second.plan.plan_id == first.plan.plan_id + 1
+
+    def test_the_first_accepted_plan_is_never_a_hold(self):
+        tracker = PlanTracker()
+        first = tracker.accept_plan(_verified(("robot_1", "yield")))
+        assert first.held is False
+
+    def test_hold_does_not_reset_leg_statuses(self):
+        tracker = PlanTracker()
+        first = tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
+        tracker.set_leg_status(first.plan.plan_id, "robot_1", "active")
+        second = tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
+        assert second.held is True
+        assert second.plan.leg_for("robot_1").status == "active"
+        assert second.plan.leg_for("robot_2").status == "pending"
+        assert tracker.active_plan.leg_for("robot_1").status == "active"
+
+    def test_hold_does_not_consume_a_plan_id(self):
+        tracker = PlanTracker()
+        tracker.accept_plan(_verified(("robot_1", "yield")))
+        tracker.accept_plan(_verified(("robot_1", "yield")))  # hold
+        third = tracker.accept_plan(_verified(("robot_1", "wait")))  # genuine replan
+        assert third.plan.plan_id == 2
+
+    def test_plan_holds_counter_increments_only_on_a_hold(self):
+        tracker = PlanTracker()
+        assert tracker.plan_holds == 0
+        tracker.accept_plan(_verified(("robot_1", "yield")))
+        assert tracker.plan_holds == 0  # the episode's first plan is never a hold
+        tracker.accept_plan(_verified(("robot_1", "yield")))  # hold
+        assert tracker.plan_holds == 1
+        tracker.accept_plan(_verified(("robot_1", "yield")))  # hold again
+        assert tracker.plan_holds == 2
+        tracker.accept_plan(_verified(("robot_1", "wait")))  # genuine replan
+        assert tracker.plan_holds == 2
 
 
 # ---- plan-state context for the prompt-v3 plan-state block ----
@@ -281,8 +435,17 @@ class TestConcurrentAccess:
         plan_count = 200
 
         def accept_many() -> None:
-            for _ in range(plan_count):
-                tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
+            # Alternate the legs every iteration so each accept genuinely
+            # differs from the one immediately before it -- an identical
+            # accept is a hold (ruling 2026-10-02) and would not mint a new
+            # plan_id, which would break this test's own plan_id arithmetic
+            # independently of the race it is checking for.
+            for i in range(plan_count):
+                # Start on "wait" (i=0): the already-active first plan is
+                # "cross", so every iteration differs from whatever was
+                # active just before it.
+                robot_2_action = "wait" if i % 2 == 0 else "cross"
+                tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", robot_2_action)))
 
         def update_first_plan_status() -> None:
             # Hammers the FIRST plan's leg status concurrently with new plans

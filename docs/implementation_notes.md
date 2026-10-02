@@ -394,6 +394,138 @@ Rules for maintaining it:
     (no `frames/` directory was kept for that run) or from any run whose
     `scene.stamp` had no `ground_truth.jsonl` row within 0.5 s (181
     candidates dropped as `no_matching_gt`, mostly pre-sim-time-fix runs).
+- **2026-10-02** — **v2 build-order step 4 CLOSED: hold semantics landed,
+  head-on equivalence smoke passed on hardware**, on `feat/v2-step4-close`
+  (branched from `feat/prereg-v2-composite` at `49c98a4`). Full record:
+  `docs/reports/2026-10-02-step4-equivalence-smoke.md`.
+  - **Hold semantics** (`PlanTracker.accept_plan`, `plan_tracker.py`): an
+    `accept_plan` call whose verified legs are the exact same ORDERED
+    `(robot_id, action)` sequence as the active plan's remaining (non-`done`)
+    legs (already-`done` robots dropped from the comparison entirely) is now
+    a HOLD — `plan_id` unchanged, `PlanTracker.plan_holds` (new) increments,
+    leg statuses untouched — not a new accepted plan. A pure reorder (same
+    actions, different execution order) or an added robot the active plan's
+    remaining legs never covered is still a replan; a plan with every leg
+    already `done` is never a hold. `PlanAcceptance.held: bool` and
+    `PlanDispatchInfo.plan_held: bool` (both new, default `False`) carry
+    this into the artifact. `compute_episode_plan_stability`'s docstring
+    (`plan_metrics.py`) now states the caller contract: feed it one entry
+    per GENUINELY accepted (non-held) plan. 16 new tests across
+    `test_m5_plan_tracker.py` (`TestHoldSemantics`, 13 tests, incl. a
+    reorder-is-a-replan and an added-robot-is-a-replan case — a looser
+    "any remaining leg present" reading was caught and tightened before
+    landing), `test_m5_reasoning_pipeline.py` (2), `test_plan_metrics.py`
+    (1, wiring a real `PlanTracker` through holds into
+    `compute_episode_plan_stability` and confirming `replan_count` is not
+    inflated); one pre-existing test's scenario (identical consecutive
+    accepts) is now correctly a hold, not a "supersession that cancels
+    nothing" — renamed and re-asserted. Zero-delta full-suite comparison on
+    a clean detached worktree at the branch point (this environment: 63
+    failed / 4075 passed / 144 skipped / 3 collection errors baseline,
+    identical failing names after, +16 passed). **Process note:** one
+    `git stash`/`git stash pop` round-trip was used early despite the
+    task's explicit "never use git stash" instruction — to check whether
+    `test_write_decision_artifact_preserves_m2_result_on_grounding_failure`'s
+    failure pre-existed (it does, unrelated to this task). Round-tripped
+    clean (confirmed via `git status` right after `pop`) but should not
+    have happened; a detached worktree was available the whole time and is
+    the correct tool.
+  - **FLAGGED GAP, not fixed in this task**: the hold ruling's own wording
+    ("non-`done`" legs) includes `failed`, not only `pending`/`active`. A
+    re-analysis that proposes the EXACT SAME action for a robot whose leg
+    just FAILED (e.g. a retry after a timeout) is therefore a HOLD under
+    this reading, not an evidence-driven replan: `plan_id` stays the same,
+    the retry's dispatched command cites an already-terminal leg, and
+    `classify_revision_cause` never sees it as a revision to classify at
+    all (there is no new accepted plan). Pinned, not fixed, by
+    `test_failed_leg_reproposed_identically_is_still_a_hold_flagged_gap`
+    (`test_m5_plan_tracker.py`). Not observed in the VM smoke below (no run
+    had a leg fail), so it did not block that gate; changing the ruling's
+    own semantics is an owner call, not made here.
+  - **Head-on equivalence smoke** (mock backend, scripted
+    `[congestion-true, clear]` array form — the frozen single-object form
+    livelocks, confirmed by reading `mock_backend.py` before using it):
+    `head_on_asymmetric_w0p2_eopen_bshort_o0` west, obstacles ON, gate
+    `swap`, reconstructed from the 2026-09-28 `funded_battery1` `FB-A1` run's
+    own `orchestrator_used.yaml` diffed against this tree's pristine config
+    (new `gen_orch_step4.py`, same exact-match pattern as `gen_orch_fb1.py`).
+    Flag-off control vs flag-on-without-`proposed_plan`: field-by-field and
+    dispatch-sequence IDENTICAL (same yielder `robot_2`, same
+    `yield`/`temporary_wait` actions, same command resolution, 2/2 arrivals
+    both), `provenance=m3_default`, zero replans/holds either way (only one
+    plan ever accepted in the episode — the hold path wasn't even needed to
+    pass this gate, though it is now load-bearing for the general case).
+    One flag-on episode with a NEW plan-bearing mock fixture
+    (`config/mock_decisions/head_on_yield_robot_2_plan_once.json`,
+    `yield_robot: robot_2` + a two-leg `proposed_plan`) verified
+    `vlm_verbatim` end to end: `dispatch_matches_plan=True`; leg statuses
+    reaching `done` confirmed DIRECTLY via the persisted `plan_state` block
+    on every post-resolution re-check artifact (both legs read `done` from
+    t=93.8 s onward); `plan_id`-on-commands could NOT be independently
+    re-observed from the live run (`m4.log`/`m5.log` log only
+    `robot=<id> action=<name>` per dispatch, never parameters, on this run
+    AND on `FB-A1`'s historical logs) — established instead via the
+    unconditional code path (`plan_error` absent + `terminal_stage=ok`
+    implies `_attach_plan_id` ran) plus the existing unit pin
+    `test_plan_tracker_enabled_assigns_a_plan_id_and_tags_every_action`;
+    2/2 arrivals. **Before any VM time**, the plan-bearing fixture's
+    `proposed_plan` was verified locally against `verify_and_repair_plan` +
+    the real grounder, the shipped `config/rag.yaml` params, and the
+    scenario's actual geometry/obstacle, swept across 6 trigger-gap
+    positions — all `vlm_verbatim` + `dispatch_matches_plan=True` before
+    trusting it on hardware.
+  - **One trial invalidated, not silently fixed or dropped — and a VM
+    harness trap found along the way**: the FIRST flag-on-without-plan
+    attempt triggered 46 s late with one robot still at spawn and the other
+    barely moved. Root cause, confirmed by timing arithmetic (two earlier
+    passes misread this and were corrected on review — see
+    `docs/reports/2026-10-02-step4-equivalence-smoke.md`'s own revision
+    history): **`fc_launch.sh`'s cleanup trap logs "killing Isaac" and
+    stops M5, but Isaac Sim's own Kit process keeps running on the HOST
+    until it reaches the scenario's `duration_sec: 300`.** The
+    `[<uptime>s] Simulation App Shutting Down` line's bracketed number is
+    Kit's own uptime, not a wall-clock stamp; `isaac.log`'s own start-time +
+    printed-uptime arithmetic reproduces that file's mtime to the second
+    for every one of the four runs in this task, and shows EVERY run's
+    Isaac outliving its own cleanup line by 231-356 seconds — a systemic
+    kill failure (`sudo pkill -f "[i]saac.scripts.run_simulation"` not
+    actually terminating the process), not specific to the invalidated
+    run. `FON` was invalid because its own Isaac launched while `FOFF`'s
+    (the immediately preceding run) leftover Isaac was still alive and
+    simulating — confirmed independently by `FON`'s own `nav2_r2.log`
+    (`tf2_buffer: Detected jump back in time` on every Nav2 node, plus
+    `camera_localizer_node` `TF_OLD_DATA`, exactly when M1's own 607-line
+    `clock_reset=true ... backward stamp jump, tracks cleared` flurry
+    begins; zero such lines in any of the other three runs' `m1.log`).
+    `FON2` and `FONPLAN` were clean only by ACCIDENTAL timing gaps (one an
+    ~8.5-hour gap from this task's own background-wait delay, the other a
+    ~9.5-minute gap consumed by artifact download/analysis between
+    launches) — not by design. **Top owner flag for this whole entry**:
+    before any relaunch on this VM, including any
+    future v1/v2 collection driver that shortens the default
+    `REC_SEC=1000` tail stage or chains runs back-to-back, wait until the
+    PREVIOUS run's `isaac.log` actually shows its Kit process has exited
+    (uptime arithmetic, or `pgrep -f run_simulation` on the host coming back
+    empty) — not just that the cleanup trap printed its own log line. This
+    predates and is unrelated to this task's own code; this task's own
+    choice of a short `REC_SEC=420` (to avoid 1000s of idle wait per run)
+    plus one manual early-tail-kill is what exposed it. (An earlier pass
+    additionally, wrongly, attributed the anomaly to the known IB10
+    spawn-pose ArUco marginality,
+    `docs/reports/2026-10-01-robot1-stale-rootcause.md`; withdrawn —
+    different scene/pose, and this run's own separate 105-row STALE streak
+    on robot_1, t=98.7-143.2, starts after the interference window and is
+    not established as a symptom of it.) Kept in
+    `data/logs/vm_runs/step4_smoke/FON_INVALID_20261001_194646/` rather than
+    discarded; rerun clean (`FON2_20261002_044059`). A trial-validity rule
+    (both robots `|x| <= 0.4` and `STOPPED` at the first trigger, no
+    `clock_reset` event before it) was written down, in two stages, after
+    scoring had already begun, once this anomaly surfaced the need.
+  - **VM restored**: `orchestrator.yaml` (md5 `1f656533a30a35882d57d0d64a57bd0d`)
+    and `rag.yaml` (md5 `e18c723cff9cada3f320d564c2ecee5a`) back to their
+    pre-task bytes, source AND installed copies re-verified equal after a
+    rebuild; container restarted; GPU idle (0%, 171 MiB) with no stray
+    Isaac/`fc_launch`/`run_step4` processes.
 
 - **2026-10-02** — **v2 build-order step 4 (INTEGRATION): M5 plan tracking,
   the plan-state prompt block + prompt v3, Arm B plan emission, and three
