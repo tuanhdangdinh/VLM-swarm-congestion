@@ -37,6 +37,185 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-02** — **v2 build-order step 5: `junction_clear` contract landed
+  on `feat/v2-junction-clear`** (branched from `feat/prereg-v2-composite` at
+  `a3e458e`), per `docs/superpowers/specs/2026-09-30-prereg-v2-design.md`
+  "(a) Composite recede-then-yield command" and the (a0)/M5 sections,
+  **LOCAL BUILD + UNIT TESTS ONLY** -- no VM, no live API calls; step 6
+  (IB10 mock/live smoke) is a separate task. Spec sync first: the branch had
+  diverged from `fix/deadlock-collision-resolution`'s five 2026-10-02 doc
+  commits (repair-semantics rulings, step-6 STALE-gate resolution, plan
+  lifecycle pending-only-cancel/hold rulings, capability-battery note, the
+  hold-vs-replan REFINEMENT); cherry-picked in order onto a reset branch tip
+  (`28d9bd2`..`4e285a0`), one trivial append conflict resolved by hand;
+  `git diff fix/deadlock-collision-resolution -- docs/superpowers/specs/
+  2026-09-30-prereg-v2-design.md` confirmed empty after.
+  - **Strategy token** (`reasoning/vlm/models.py` `CongestionDecision.
+    strategy`, `reasoning/schemas/vlm_decision.schema.json`,
+    `isaac/vgu_sim/config.py` `OracleStrategy` -- a pinned parity mirror,
+    caught by the existing `test_oracle_literals_match_the_decision_
+    contract`): `junction_clear` added to the shared Literal. Only prompt
+    v3's strategy list mentions it (`reasoning/vlm/prompt_builder.py`
+    `_USER_TEMPLATE`); v1/v2 (`prompt_v1.py`/`prompt_v2.py`) are separate,
+    untouched frozen modules, confirmed by re-running their hash-pin tests
+    unchanged. No scene-specific guidance bullet added for it (an owner
+    call per the advisor review below; the risk is handing IB10 its own
+    answer). DECISION (recorded, not changed): the Literal is shared across
+    every prompt version, same as `blocker_kind`/`crossing_order`/
+    `proposed_plan` already are -- a v1/v2-prompted response that happened
+    to emit the string now parses instead of raising, consistent with how
+    every other v2+-only field already behaves under every prompt version;
+    not a new inconsistency this token introduces, so no
+    `prompt_version`-gated validation was added.
+  - **(a0) consistency rule**: `_is_consistent` gained `junction_clear ->
+    >= 1 reverse or yield leg` (`command_grounder.py`).
+  - **(a) Grounding -- chi cost-ranked recede selection**
+    (`reasoning/rag/maneuver_geometry.py`): chi = s*D_SPACE + t*N_f
+    (A-DRIVE, arXiv:2204.04910). New `GroundingParams` fields, all
+    placeholders in the same convention as `PlanRepairParams.
+    max_repair_edits`: `junction_recede_cost_space_weight=1.0`,
+    `junction_recede_cost_follower_weight=0.5`,
+    `junction_recede_tolerance_m=0.1`, `junction_recede_hold_sec=120.0`.
+    New `SceneGeometry.junction_recede_offset_m: float | None` (the
+    declared pocket target, the study's C' h ~= 1.2 m -- a SCENE CONSTANT,
+    not derived from J2's clearance arithmetic; confirmed by hand:
+    `recede_distance_m` gives D_SPACE(robot_3)=0.942, D_SPACE(robot_4)=0.923
+    against the IB10 GT standoff, both landing at the declared |y|=1.2,
+    matching the study's "0.93-0.95 m from +-0.25-0.27" within rounding).
+    New pure functions `recede_axis_offset_m`/`recede_distance_m`/
+    `recede_follower_count`/`recede_cost`/`rank_recede_candidates`/
+    `is_at_recede_pocket`.
+  - **INTERPRETATION, flagged (not settled by name in either spec)**: the
+    recede candidate SET is structural -- involved robots whose declared
+    arm axis differs from `geometry.corridor.axis` -- not chi-discovered;
+    chi only orders WITHIN that set. Verified this matters: ranking all
+    four IB10 robots unrestricted puts robot_2 (yield axis) first by chi, so
+    without the structural restriction the oracle's "correct recede pair by
+    chi" would be wrong. Pinned in
+    `test_candidates_restricted_to_the_yield_axis_are_never_chosen`
+    (`tests/unit/test_junction_clear_grounding.py`).
+  - **M3 grounding, real dispatch** (`command_grounder.py`): discovered via
+    advisor review that the (a0) verify/repair engine (`_derive_default_
+    plan`/`verify_and_repair_plan`) is measurement-only -- it does NOT
+    drive what M4 receives (`ground_reasoner_result`/`_ground_derived` do,
+    independently; `plan_matches_dispatch` only AUDITS agreement). New
+    `ground_junction_clear_phases` builds the REAL ordered command
+    sequence: one `reverse` command per recede candidate (chi order), each
+    holding EVERY involved robot via `temporary_wait` (not just the active
+    one) so `safety.admitted_partners` exempts the active robot against the
+    whole scrum -- a single-robot recede command would latch immediately,
+    confirmed by reading `admitted_partners`/`CLEARING_ACTIONS` before
+    writing this, per the advisor review's flag. The final `cross` phase
+    reuses `_ground_derived`'s existing yield branch verbatim (via a new
+    `_as_yield_decision` rebuild helper) and ALSO holds every recede
+    candidate via `temporary_wait` -- `reverse` never holds on its own
+    (`command_bus_node.py` always resolves it with `hold_sec=0.0`), so
+    without this a receded robot's base mission could resume toward its
+    original goal, back through the junction, mid-crossing. `_ground_
+    derived`'s own `junction_clear` branch returns ONLY `plan.phases[0].
+    command` (`ground_reasoner_result`'s single-command contract preserved
+    for every strategy: "the NEXT unresolved step"); falls back to plain
+    `yield` over every involved robot (unchanged geometry, J1 drops the
+    cross-axis pair to no-op) when no pocket is declared or no candidate
+    survives chi -- exactly "v1 behavior ... single yield or no-op" (M5
+    spec section), reusing the SAME code path the real fallback dispatch
+    uses. **Scope cut**: implemented for DERIVED mode only (the shipped,
+    live `config/rag.yaml` mode, the only one IB10 is tested under);
+    LEGACY mode (`_ground_legacy`) degrades `junction_clear` to the
+    existing non-spatial wait fan-out (added to the `{"convoy",
+    "priority_override"}` degradation set) rather than raising
+    `CommandGroundingError`.
+  - **(a0) default-plan derivation** (`_derive_default_plan`): extended
+    with a `junction_clear` branch producing the FULL sequence in one
+    `proposed_plan`-shaped list (recede legs in chi order, then the
+    yield-axis `yield`/`cross` legs via a new shared `_yield_default_
+    actions` helper, factored out of the existing `yield` branch so both
+    paths can never drift). `_plan_problems` gained the matching ordering
+    AUDIT of a VLM-proposed plan: any yield-axis `yield`/`cross` leg
+    positioned before a recede candidate's `reverse` leg is infeasible
+    (the escort would run while that candidate is still 0.24-0.34 m away,
+    unexempted outside its own command); the repair engine resolves it with
+    a pure REORDER, pinned in `test_a_plan_that_crosses_before_receding_is_
+    repaired`.
+  - **M5 phase queue** (new `ros2_ws/src/swarm_orchestrator/swarm_
+    orchestrator/junction_phase_queue.py`, ROS2-free, exported from the
+    package `__init__.py`): `JunctionPhaseQueue` tracks one `junction_
+    clear` decision's PRECOMPUTED phase sequence (`ground_junction_clear_
+    phases`'s output, computed once from the triggering snapshot -- the
+    scene does not change mid-sequence since every phase's command holds
+    every uninvolved robot). `on_resolved(command_id, completed)` advances
+    to the next phase on COMPLETED, or to the precomputed plain-`yield`
+    fallback on FAILED (never retried, never simultaneous with another
+    recede). **DESIGN CORRECTION from the advisor review**: the first draft
+    re-derived one phase per M2 cycle (stateless); dropped because it would
+    log phantom unforced replans (one per phase, with no failed leg),
+    pin plan agreement at 0 for junction_clear, and make the IB10
+    inside-first oracle unscoreable (no single plan ever names the whole
+    sequence). The landed design computes the whole sequence once,
+    accepted as ONE plan (one `plan_id`, zero replans for a clean run); M5
+    advances through it by updating leg status via direct command
+    dispatch, bypassing M2/`PlanTracker.accept_plan` entirely for phases
+    2+. Wired into `orchestrator_node.py`: `_dispatch` seeds a queue from
+    `outcome.junction_phases` (new `PipelineOutcome` field, same
+    `plan_channel_enabled` gate as `plan`); `_resolve_command` (the single
+    place both `_on_status` and the `_on_timer` timeout path funnel
+    through) calls the new `_advance_junction_phase`, which publishes the
+    next phase via a new `_dispatch_junction_phase` -- sharing
+    `_publish_fanned_out` (extracted from `_dispatch`) for the identical
+    per-robot publish/override/log sequence, but deliberately skipping
+    `self._attempts.record` (a phase advance is not a new M2 decision; only
+    the original `_dispatch` call records the one attempt the whole
+    resolution counts as). Each later phase's command_id is mapped to the
+    SAME `plan_id` so `_apply_plan_leg_status` keeps routing status onto
+    the one tracked plan's legs.
+  - **FLAGGED, not resolved by static reading (step-6's to watch for)**:
+    the race between a receded robot's base mission resuming (once its
+    `reverse` command's override clears) and M5 dispatching the next
+    phase's `temporary_wait` hold for it -- argued safe by precedent
+    (base-mission resumption elsewhere in this codebase also gates on a
+    periodic timer tick, never synchronously inside the same status
+    callback, per `_on_timer`'s own `release_due` pattern) but not provable
+    without a live run.
+  - **Hold-vs-replan REFINEMENT** (`plan_tracker.py` `_is_hold`): if any leg
+    of the active plan has reached `failed`, an identical re-issue is now
+    NEVER a hold, regardless of the remaining-legs comparison -- closes the
+    FLAGGED gap the step-4 CORE build pinned (`test_failed_leg_reproposed_
+    identically_is_still_a_hold_flagged_gap`, now renamed and flipped to
+    `test_failed_leg_reproposed_identically_is_an_evidence_driven_replan`:
+    `held=False`, new `plan_id`, `classify_revision_cause(["robot_1"]) ==
+    "evidence_driven"`).
+  - **Dispatch logging** (`orchestrator_node.py` `_publish_fanned_out`):
+    the per-robot dispatch log line gains ` plan_id=<n>`, appended only
+    when a plan_id is tracked for that command_id, so a flag-off line
+    stays byte-identical (re-pinned by
+    `test_dispatch_log_line_has_no_plan_id_when_the_flag_is_off`).
+  - **Tests** (zero-delta, +48 new passing): `tests/unit/
+    test_junction_clear_grounding.py` (23: chi hand-computed cells incl. a
+    synthetic follower cell, IB10 D_SPACE pins, consistency rule,
+    default-plan derivation incl. both fallback paths, phase-ordering audit
+    + repair, staggered-never-simultaneous, legacy-mode degradation, the
+    single-command contract), `tests/unit/test_junction_phase_queue.py`
+    (13, pure), `tests/unit/test_m5_node_junction_clear.py` (11, ROS2
+    stubbed per `test_m5_node_probe.py`'s harness: seeding, ordinary
+    advance, failure fallback, timeout fallback, flag-off byte identity),
+    `tests/unit/test_m5_plan_tracker.py` (flipped test),
+    `tests/unit/test_prompt_builder_v3.py` (6 pins re-computed, +19 chars
+    each from the strategy-list addition; v1/v2 untouched). Full-suite
+    zero-delta confirmed against a clean detached worktree at the branch
+    point (`a3e458e`, this environment, 3 pxr-only files ignored per the
+    documented local/container split): 63 failed / 4227 passed / 144
+    skipped before, 63 failed / 4275 passed / 144 skipped after, identical
+    failing-test-name set. `make lint` (ruff) clean on every touched file.
+  - **Not built, explicitly out of scope for this task**: stage-2 (retreat
+    letter choice) for the `cross` phase (`retreat_choice` is accepted and
+    forwarded but a dedicated stage-2 call is not wired for it, same
+    `retreat=default:no_choice` degradation as an ordinary yield with no
+    choice supplied); the `wait`-leg feasibility placeholder noted in the
+    CORE build stays a documented placeholder (the study does not define a
+    junction-scoped check); `max_repair_edits`/the chi weights/
+    `junction_recede_hold_sec` remain placeholders, to be sized from the
+    step-6 mock sweep per the spec's own build-order text.
+
 - **2026-10-02** — **v2 build-order step 10, fourth correction: inter-robot
   label occlusion, distance-based dedup, fail-loud runner, geometry-fidelity
   tests** (supersedes the manifest numbers and the audit-coverage claims of
