@@ -22,6 +22,7 @@ from pydantic import (
 )
 
 from reasoning.rag.scene_geometry import (
+    ArmGeometry,
     SceneGeometry,
     arm_geometry,
     park_offset_m,
@@ -76,6 +77,27 @@ class GroundingParams(BaseModel):
     hold_backstop_sec: float = Field(default=45.0, gt=0)
     wait_backstop_sec: float = Field(default=120.0, gt=0)
     resolution_backstop_sec: float = Field(default=150.0, gt=0)
+    # `junction_clear` cost-ranked recede selection (prereg-v2 (a) Grounding):
+    # chi = s * D_SPACE + t * N_f, per A-DRIVE (arXiv:2204.04910). Placeholder
+    # defaults, same convention as `command_grounder.PlanRepairParams.
+    # max_repair_edits`: not yet sized against live data, registered here so
+    # the weighting is config, not a buried constant. s=1.0 makes distance the
+    # unit cost; t=0.5 gives a follower half as much weight as one metre of
+    # travel -- a gentle, not a dominant, preference against receding a robot
+    # with queued followers on its own arm.
+    junction_recede_cost_space_weight: float = Field(default=1.0, ge=0.0)
+    junction_recede_cost_follower_weight: float = Field(default=0.5, ge=0.0)
+    # How close to `SceneGeometry.junction_recede_offset_m` counts as "already
+    # receded": the M1 static-error budget the intersection-resolvability
+    # study measured (median <= 0.011 m, max 0.084 m), rounded up with margin.
+    junction_recede_tolerance_m: float = Field(default=0.1, ge=0.0)
+    # Hold duration for a recede leg's clearing command (`reverse` + the other
+    # involved robots' `temporary_wait`, see `command_grounder.
+    # ground_junction_clear_phases`): generous upper bound on how long the
+    # remaining phases of one `junction_clear` resolution should take.
+    # Placeholder, same convention as `max_repair_edits`: sized from the
+    # build-order step 6 mock sweep, not yet from live data.
+    junction_recede_hold_sec: float = Field(default=120.0, gt=0)
 
     @model_validator(mode="after")
     def _check_bands(self) -> "GroundingParams":
@@ -458,3 +480,184 @@ def _park_backup_floor_m(
     park_coord = round(resolved.corridor.center_m + side * park_offset_m(resolved), 3)
     yielder_coord = (yielder.x, yielder.y)[axis_index]
     return max(0.0, (park_coord - yielder_coord) * side)
+
+
+# ---- junction_clear cost-ranked recede selection (prereg-v2 (a) Grounding) ----
+
+
+def recede_axis_offset_m(
+    position: tuple[float, float], arm: ArmGeometry, geometry: SceneGeometry
+) -> float:
+    """Signed progress of `position` outward along its own declared arm.
+
+    The same axis convention `arm_geometry`/`derive_backup_distance` use:
+    positive is outward on the arm's own `side`, measured from the corridor
+    centre. A recede target (`SceneGeometry.junction_recede_offset_m`) and a
+    candidate's current position are compared in this one coordinate.
+
+    Args:
+        position: World-frame `(x, y)` in metres.
+        arm: The robot's declared arm.
+        geometry: Declared scene geometry (for the corridor centre).
+
+    Returns:
+        Signed offset in metres; positive means already on the arm's own
+        outward side of the junction centre.
+    """
+    axis_index = 0 if arm.axis == "x" else 1
+    return (position[axis_index] - geometry.corridor.center_m) * arm.side
+
+
+def recede_distance_m(
+    frame: SnapshotFrame, robot_id: str, geometry: SceneGeometry
+) -> float | None:
+    """D_SPACE: outstanding straight-line distance to the declared recede pocket.
+
+    Unlike `derive_backup_distance`'s clearance-band search, this is plain
+    arithmetic against a DECLARED target (`SceneGeometry.
+    junction_recede_offset_m`, the intersection-resolvability study's C'
+    owner-override |y| ~= 1.2 m): the pocket is a scene constant, not derived
+    from another robot's position.
+
+    Args:
+        frame: Current scene snapshot.
+        robot_id: Candidate recede robot.
+        geometry: Declared scene geometry.
+
+    Returns:
+        None when `robot_id` has no declared arm, is absent from `frame`, or
+        `geometry.junction_recede_offset_m` is unset -- each means "not a
+        recede candidate under this geometry", not a zero cost. Otherwise the
+        outstanding distance in metres, floored at 0.0 for a robot already
+        past its pocket, rounded to the millimetre.
+    """
+    state = frame.find_robot(robot_id)
+    arm = (geometry.arms or {}).get(robot_id)
+    offset_m = geometry.junction_recede_offset_m
+    if state is None or arm is None or offset_m is None:
+        return None
+    current = recede_axis_offset_m((state.x, state.y), arm, geometry)
+    return max(0.0, round(offset_m - current, 3))
+
+
+def is_at_recede_pocket(
+    frame: SnapshotFrame,
+    robot_id: str,
+    geometry: SceneGeometry,
+    params: GroundingParams,
+) -> bool:
+    """Whether `robot_id` already sits within `junction_recede_tolerance_m` of its pocket.
+
+    Args:
+        frame: Current scene snapshot.
+        robot_id: Candidate recede robot.
+        geometry: Declared scene geometry.
+        params: Grounding parameters (the tolerance).
+
+    Returns:
+        False when `robot_id` is not a recede candidate under this geometry
+        (`recede_distance_m` returns None), never True by default.
+    """
+    distance = recede_distance_m(frame, robot_id, geometry)
+    return distance is not None and distance <= params.junction_recede_tolerance_m
+
+
+def recede_follower_count(frame: SnapshotFrame, robot_id: str, geometry: SceneGeometry) -> int:
+    """N_f: other tracked robots queued farther out on `robot_id`'s own arm.
+
+    A-DRIVE's (arXiv:2204.04910) "followers stacked behind" the robot that
+    would recede: other robots declared on the SAME arm (axis AND side)
+    whose own outward offset (`recede_axis_offset_m`) is strictly greater --
+    they sit between `robot_id` and its recede pocket, in the way of a
+    straight recede outward.
+
+    Args:
+        frame: Current scene snapshot.
+        robot_id: Candidate recede robot.
+        geometry: Declared scene geometry.
+
+    Returns:
+        0 when `robot_id` has no declared arm or is absent from `frame`.
+    """
+    state = frame.find_robot(robot_id)
+    arm = (geometry.arms or {}).get(robot_id)
+    if state is None or arm is None:
+        return 0
+    own_offset = recede_axis_offset_m((state.x, state.y), arm, geometry)
+    count = 0
+    for other in frame.robots:
+        if other.robot_id == robot_id:
+            continue
+        other_arm = (geometry.arms or {}).get(other.robot_id)
+        if other_arm is None or other_arm.axis != arm.axis or other_arm.side != arm.side:
+            continue
+        if recede_axis_offset_m((other.x, other.y), other_arm, geometry) > own_offset:
+            count += 1
+    return count
+
+
+def recede_cost(
+    frame: SnapshotFrame,
+    robot_id: str,
+    geometry: SceneGeometry,
+    params: GroundingParams,
+) -> float | None:
+    """chi = s * D_SPACE + t * N_f (prereg-v2 (a) Grounding, A-DRIVE arXiv:2204.04910).
+
+    Args:
+        frame: Current scene snapshot.
+        robot_id: Candidate recede robot.
+        geometry: Declared scene geometry.
+        params: Grounding parameters (the chi weights).
+
+    Returns:
+        None when `robot_id` is not a recede candidate under this geometry
+        (`recede_distance_m` returns None); otherwise the cost, lower is
+        cheaper/preferred, rounded to six places.
+    """
+    distance = recede_distance_m(frame, robot_id, geometry)
+    if distance is None:
+        return None
+    followers = recede_follower_count(frame, robot_id, geometry)
+    return round(
+        params.junction_recede_cost_space_weight * distance
+        + params.junction_recede_cost_follower_weight * followers,
+        6,
+    )
+
+
+def rank_recede_candidates(
+    frame: SnapshotFrame,
+    candidate_ids: Sequence[str],
+    geometry: SceneGeometry,
+    params: GroundingParams,
+) -> list[str]:
+    """Rank recede candidates ascending by chi (cheapest/preferred first).
+
+    Single recede by default: the first entry is M3's preferred lone
+    yielder-equivalent. A two-robot (or more) staggered sequential recede
+    (`command_grounder.ground_junction_clear_phases`) simply takes this
+    order's next entry once the previous one is confirmed at its pocket --
+    never simultaneous.
+
+    Args:
+        frame: Current scene snapshot.
+        candidate_ids: Robots to rank.
+        geometry: Declared scene geometry.
+        params: Grounding parameters (chi weights, tolerance).
+
+    Returns:
+        `candidate_ids` filtered to those with a resolvable cost (a
+        candidate `recede_cost` returns None for is not a recede candidate at
+        all under the current geometry, so it is dropped rather than ranked
+        last), ordered ascending by chi; ties break by robot_id so the order
+        is deterministic.
+    """
+    scored = [
+        (robot_id, recede_cost(frame, robot_id, geometry, params)) for robot_id in candidate_ids
+    ]
+    ranked = sorted(
+        ((robot_id, cost) for robot_id, cost in scored if cost is not None),
+        key=lambda pair: (pair[1], pair[0]),
+    )
+    return [robot_id for robot_id, _ in ranked]

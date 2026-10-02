@@ -12,6 +12,11 @@ from swarm_orchestrator.command_lifecycle import (
     CooldownTracker,
 )
 from swarm_orchestrator.congestion_detector import CongestionDetector
+from swarm_orchestrator.junction_phase_queue import (
+    JunctionPhaseAdvance,
+    JunctionPhaseQueue,
+    JunctionPhaseReached,
+)
 from swarm_orchestrator.models import (
     CongestionEvent,
     OrchestratorConfig,
@@ -52,6 +57,9 @@ __all__ = [
     "Directive",
     "DirectiveKind",
     "InProcessPipeline",
+    "JunctionPhaseAdvance",
+    "JunctionPhaseQueue",
+    "JunctionPhaseReached",
     "OrchestratorConfig",
     "OrchestratorState",
     "OrchestratorStateMachine",

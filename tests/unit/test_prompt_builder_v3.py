@@ -242,29 +242,32 @@ def test_v3_renders_goal_and_task_when_present():
 # reasoning-first bundle landed, before any live data collected under v3; after
 # the v2 freeze a change here is a new prompt version, not a re-pin.
 _V3_PINS: dict[str, tuple[int, str]] = {
+    # Re-pinned (prereg-v2 build-order step 5, 2026-10-02): the strategy
+    # list gained "junction_clear" (+19 chars on every cell); no other v3
+    # text changed. v1/v2 are frozen, separate modules and are unaffected.
     "baseline": (
-        4642,
-        "45de3546ae70ac073bf89f86a38a490302bd0f267cb5e16446bfe6302946674b",
+        4661,
+        "22baf2df179c58fbbf1a757f2e7fe9ed435a533c434d966b272be3dcec551286",
     ),
     "id_desc": (
-        4642,
-        "adafcd84d6a21d6fca7733e978fef37b2de55981df08706969311fb08fa48b93",
+        4661,
+        "fc27578362bdc4aa530777ba8dc1a3dd6f9ade3da0a077a66ed449aa623d5cf9",
     ),
     "no_geometry": (
-        4456,
-        "8e513c4b561a76e80472be7136f8c3cf9aec8fafdeac0cfdd127a44ea53226a8",
+        4475,
+        "5b669e6cfe1a49f0ed1103e2ec0911e01cf860d64bf21e06433bbe3d5801e4fb",
     ),
     "goals_obstacles": (
-        5045,
-        "8c9ce445ee84d35bb03c6e4934a9ad4c09466cb153b4d6ad8ddf9b360eea478c",
+        5064,
+        "e939fb4d63b2fc3736823270108ec4082a2b9156543d805772b7ec218ce72544",
     ),
     "plan_state": (
-        4924,
-        "1536eaec10d7446f207dc62cd22bdfe3590507fea50e8de5cf61d16ea88e9e9a",
+        4943,
+        "007e5f520502acca76b76c65f53095498348ab7d4a97245528f7f155f2e07d3c",
     ),
     "failure_context": (
-        5001,
-        "2f9cc036f198e8512ff2ca4ffc55935150d3f2725120f6539b7ae2627df05b8b",
+        5020,
+        "babebe160fb82c2a7203e36d0ab99fdbafd47466a58b6ba0731c857b88ecb145",
     ),
 }
 

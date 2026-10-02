@@ -213,7 +213,14 @@ class HeadOnAsymmetricParams(BaseModel):
 # reasoning package. tests/unit/test_blocked_path_scenarios.py pins the parity.
 OracleBlockerKind = Literal["robot", "object", "transient"]
 OracleStrategy = Literal[
-    "none", "yield", "reroute", "convoy", "priority_override", "temporary_wait", "reverse"
+    "none",
+    "yield",
+    "reroute",
+    "convoy",
+    "priority_override",
+    "temporary_wait",
+    "reverse",
+    "junction_clear",
 ]
 
 class OracleMarginRecord(BaseModel):

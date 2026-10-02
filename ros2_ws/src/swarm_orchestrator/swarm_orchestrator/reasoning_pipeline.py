@@ -19,9 +19,12 @@ from pydantic import (
 )
 
 from reasoning.rag.command_grounder import (
+    CommandGroundingError,
+    JunctionClearPhasePlan,
     PlanRepairParams,
     YieldFeasibilityMode,
     filter_command_robot_ids,
+    ground_junction_clear_phases,
     plan_matches_dispatch,
     resolve_strategy_alias,
     validate_coordination_command,
@@ -920,6 +923,7 @@ class InProcessPipeline:
             )
         plan_info: PlanDispatchInfo | None = None
         plan_error: str | None = None
+        junction_phases: JunctionClearPhasePlan | None = None
         if self._plan_tracker is not None:
             # A plan-channel failure must never cost an otherwise-successful
             # dispatch (the adapter's own "never raised past this adapter"
@@ -943,6 +947,36 @@ class InProcessPipeline:
                     verified.legs, grounded, known_robot_ids
                 )
                 grounded = _attach_plan_id(grounded, acceptance.plan.plan_id)
+                if (
+                    decision.strategy == "junction_clear"
+                    and params is not None
+                    and params.mode == "derived"
+                    and self._scene_geometry is not None
+                ):
+                    # `junction_clear`'s full precomputed phase sequence
+                    # (prereg-v2 (a) M5, build-order step 5), behind the
+                    # SAME `plan_channel_enabled` flag `plan_info` is
+                    # (`self._plan_tracker is not None`): the ONE place this
+                    # pipeline seeds M5's phase queue, from the SAME
+                    # snapshot/params/geometry `grounded` (phase 0 already)
+                    # was computed from.
+                    try:
+                        junction_phases = ground_junction_clear_phases(
+                            result,
+                            snapshot=frame,
+                            params=params,
+                            geometry=self._scene_geometry,
+                            static_obstacles=self._static_obstacles,
+                            yield_feasibility_mode=self._yield_feasibility_mode,
+                            retreat_choice=retreat_choice,
+                        )
+                    except CommandGroundingError:
+                        # No recede candidate survives chi ranking: `grounded`
+                        # above already took the SAME plain-`yield` fallback
+                        # path (`_ground_derived`'s own `junction_clear`
+                        # branch, same geometry), so there is nothing to
+                        # queue -- one ordinary yield command, no phases.
+                        junction_phases = None
                 plan_info = PlanDispatchInfo(
                     plan_id=acceptance.plan.plan_id,
                     provenance=verified.provenance,
@@ -973,6 +1007,7 @@ class InProcessPipeline:
             stage2=stage2,
             plan=plan_info,
             plan_error=plan_error,
+            junction_phases=junction_phases,
         )
 
     def analyze(self, request: ReasonerRequest) -> PipelineOutcome:

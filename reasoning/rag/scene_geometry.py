@@ -85,6 +85,19 @@ class SceneGeometry(BaseModel):
     # band; None (default) keeps that tuning everywhere, including junction
     # scenes with no override declared, so every v1 pin stays byte-identical.
     junction_backup_clearance_m: float | None = Field(default=None, gt=0.0)
+    # `junction_clear` (prereg-v2 build-order step 5): the absolute offset
+    # from the junction centre, along a recede candidate's own arm axis, that
+    # its "evacuation pocket" sits at (|y| in the study's IB10 geometry). This
+    # is a DECLARED scene constant, not derived from backup-clearance
+    # arithmetic: the intersection-resolvability study's C′ owner-override
+    # path sizes it (~1.2 m) from a composite of constraints unrelated to
+    # J2's own clearance -- the worst-lane yielder-return margin (>= ~1.0 m),
+    # the FCFS crowding radius staying inside 1.5 m, and M1's tracked-band
+    # edge -- never from `derive_backup_distance`'s clearance-band search
+    # (see `maneuver_geometry.recede_distance_m`). None (default) keeps every
+    # existing scene byte-identical and makes `junction_clear` grounding
+    # degrade to the plain `yield` fallback (no pocket target to recede to).
+    junction_recede_offset_m: float | None = Field(default=None, gt=0.0)
 
 
 def arm_geometry(geometry: SceneGeometry, robot_id: str) -> tuple[SceneGeometry, float | None]:

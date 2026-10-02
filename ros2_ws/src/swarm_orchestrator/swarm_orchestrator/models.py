@@ -8,7 +8,12 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from reasoning.baselines import ConflictZone
-from reasoning.rag.command_grounder import PlanEdit, PlanProvenance, YieldFeasibilityMode
+from reasoning.rag.command_grounder import (
+    JunctionClearPhasePlan,
+    PlanEdit,
+    PlanProvenance,
+    YieldFeasibilityMode,
+)
 from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import (
     ReasonerResult,
@@ -469,6 +474,18 @@ class PipelineOutcome(BaseModel):
     # otherwise-successful dispatch (FR5.3.2's "never raised past this
     # adapter", extended to this channel). None in every other case.
     plan_error: str | None = None
+    # `junction_clear`'s full precomputed phase sequence (prereg-v2 (a) M5,
+    # build-order step 5): None unless `grounded_command`'s decision is
+    # `junction_clear` AND a non-degenerate recede set was groundable
+    # (`command_grounder.ground_junction_clear_phases`) AND plan tracking is
+    # enabled (`plan_channel_enabled`) -- the SAME flag `plan` is gated on,
+    # per the M5 spec section ("Behind the SAME `plan_channel_enabled`
+    # flag"). `_dispatch` seeds a `JunctionPhaseQueue` from this instead of
+    # dispatching `grounded_command` alone; a flag-off run never sets this,
+    # so its dispatch is unchanged -- just the one phase
+    # `grounded_command` already is (`ground_reasoner_result`'s own
+    # single-command contract: "the NEXT unresolved step").
+    junction_phases: JunctionClearPhasePlan | None = None
 
 
 def parse_scene_snapshot(raw: str) -> SceneSnapshot:
