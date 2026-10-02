@@ -707,6 +707,29 @@ makes an explicit include/exclude call.
    the registered fallback IF the flag fires in scored runs — an
    owner scenario-redesign call, not applied now.
 7. Intersection oracle + regret extension; freeze IB10 scoring.
+   STEP-6 OUTCOME (2026-10-02,
+   `docs/reports/2026-10-02-ib10-composite-smoke.md`): mocks PASS
+   (full phase sequence, solved-row geometry, correct provenance);
+   repair bound stays 2; live ER-2 episode 1 chose `junction_clear`
+   (inconsistent own plan → clean m3_default fallback); episode 2
+   (fully supervised, 10 live decisions) shows the PRIMARY jam
+   clears but the run does NOT reach 4/4 — the released secondary
+   N-S conflict freezes in the latch and even the fallback reroute
+   fails. FIVE FREEZE BLOCKERS now define step 7's fix scope,
+   before any scoring freeze:
+   (1) audit recede-set membership + recede order (wrong pair
+   currently verifies vlm_verbatim — metric hole);
+   (2) ordered release of held base missions after the composite
+   resolves (the secondary conflict must go through the ordered
+   machinery, not a free-for-all);
+   (3) exempt a `continue` leg against a `reverse` in a different
+   command of the same plan (4th member of the exemption family;
+   M4-adjacent — protocol note required);
+   (4) bound plain `reverse` to the tracked band (|y| overshoot to
+   2.38/2.42 reproduced in BOTH live episodes, same window);
+   (5) define fallback-exhaustion semantics (cross-phase timeout →
+   reroute fails → terminal state must be a scorable outcome, not
+   an undefined freeze).
 8. Loop map: USD + Nav2 + reroute grounding; the pre-emption control
    smoke before any scenario authoring.
 9. B2-visual pair + B3 first-to-slip scenarios + oracles.
