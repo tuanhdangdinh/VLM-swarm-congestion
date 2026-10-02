@@ -495,6 +495,79 @@ grounding gaps for the plain `reverse` strategy, not `junction_clear`-
 specific, and out of this task's scope to fix -- added to the freeze-
 blocking list below.
 
+### Episode 2 (extended re-run, `REC_SEC=1350`/`SIM_SEC=1400`, run `20261002_125412`)
+
+Re-run under the one-re-run allowance (episode 1's truncation was an infra
+measurement issue, not a result). This episode's own measured RTF (two
+decision stamps: `(158.6 - 20.5) sim-s / (wall gap) = 0.255`) and the
+`fc-launch cleanup` wall-time place the container teardown at **sim~359 s
+-- past GT's own 300 s recording cap**. Unlike episode 1, this means
+**the entire GT trajectory (0-300 s) for this episode is backed by a
+genuinely alive control stack throughout**; nothing in this episode's data
+is a dead-stack artifact.
+
+Ten real VLM calls fired (vs. 2 in episode 1) -- a much more contested
+scene. By strategy and trigger stamp (read from each decision's own
+`scene.stamp`, not estimated):
+
+| stamp (sim-s) | request | strategy | involved | provenance |
+|---|---|---|---|---|
+| 20.5 | `f2e5ebff...` | none | -- | -- |
+| 30.4 | `32ead4ee...` | `junction_clear` | all 4 | `m3_default` |
+| 96.2 | `f37f9a5c...` | `reverse` | robot_3, robot_4 | `vlm_verbatim` |
+| 116.1 | `6b6a23d5...` | none | -- | -- |
+| 120.7 | `d3d08954...` | none | -- | -- |
+| 125.7 | `125d841c...` | `junction_clear` | robot_3, robot_4 | -- |
+| 130.4 | `c781656c...` | `reverse` | robot_3, robot_4 | `m3_default` |
+| 150.1 | `aa879d03...` | none | -- | -- |
+| 154.3 | `4acb8b6b...` | none | -- | -- |
+| 158.6 | `bed37d40...` | `junction_clear` | all 4 | `m3_default` |
+
+The first decision (sim 30.4) resolves identically to every mock/episode-1
+run so far: `m3_default` composite, solved-row numbers, `done=True`. The
+secondary N-S conflict then gets re-analyzed repeatedly, with the model
+oscillating between `reverse` and a narrower, 2-robot `junction_clear`,
+twice each, before a FOURTH composite attempt (`bed37d40`, sim 158.6, all
+four robots again) is dispatched.
+
+**New finding, not seen in episode 1: the composite's OWN cross phase can
+fail outright, and its fallback can fail too.** `bed37d40`'s two recede
+phases (robot_4, then robot_3) both complete normally. Its cross phase
+(`bed37d40...-junction-cross`, dispatched at wall+70.4s from this
+decision) does NOT resolve for **495 real seconds** -- `m5.log` shows
+nothing between its dispatch and `junction_clear phase advance ...
+completed=False phase_reached=fallback done=False`, M5's documented
+fallback path (M5 spec section: "Failure at any phase falls back to the
+v1 behavior..."). The fallback dispatches `reroute` (not `yield` -- this
+is derived-mode's own yield-degrades-to-reroute path, `_derived_yield_
+degrades_to_reroute`, triggered because the scene's own feasibility bands
+no longer permit a yield at this point) to **all four robots** -- and that
+reroute command **also** resolves `status=failed`, repeatedly, for every
+robot. GT confirms the scene is already fully frozen (`min_pairwise_
+distance_m=0.388`, inside the 0.45 m latch, zero velocity on every robot)
+from sim~180 s onward, continuously, through the 300 s cap -- a genuine,
+actively-supervised stuck state (the stack is alive throughout, per the
+RTF finding above), not a drift. **This is reported as found, not fixed**:
+it is the composite's own documented fallback path failing on its own
+second leg, a case the M5 spec anticipates ("partial credit is scorable")
+but does not describe recovering from when the fallback itself fails --
+added to the freeze-blocking list below as a fifth item.
+
+**Arrival result:** 1/4 (`robot_2` only, `ArrivalGate`: `distance_m=0.05`,
+`check=within_tolerance`) -- **identical to episode 1's conclusion, now
+confirmed under ~20x more real time and a fully alive control stack for
+the entire scenario window.** This answers the question episode 1 left
+open: given enough time, the harder-fought version of this conflict does
+NOT reach 4/4 on its own -- it ends in a different, worse failure mode (the
+composite's own cross phase and fallback both failing) rather than simply
+running out of clock. This **strengthens** freeze-blocking finding #2 (the
+post-resolution N-S conflict is not merely slow to resolve, it can defeat
+the system's own documented recovery path) and is independent evidence for
+finding #5 below.
+
+Episode 2's own API spend (10 calls): prompt 27815, completion 2362,
+thought 5192, total 35369 tokens.
+
 ### STALE instrumentation (episode 1)
 
 Recomputed with the corrected raw-row method (see run A's correction note):
@@ -517,17 +590,21 @@ an M1 tracking artifact), but it is reported here because the resolved
 gate's instrumentation rule asks for exactly this kind of overlap check,
 and this is the one run where a real overlap exists.
 
-### API spend
+### API spend (both episodes + preflight, this task's entire live usage)
 
-Two live decision calls plus the one preflight call, this task's entire
-live API usage:
-
-| Call | prompt_tokens | completion_tokens | thought_tokens | total_tokens |
+| Call set | prompt_tokens | completion_tokens | thought_tokens | total_tokens |
 |---|---|---|---|---|
-| Preflight | 2089 | 25 | 483 | 2597 |
-| Decision 1 (`junction_clear`) | 2659 | 341 | 305 | 3305 |
-| Decision 2 (`reverse`) | 2756 | 273 | 370 | 3399 |
-| **Sum** | **7504** | **639** | **1158** | **9301** |
+| Preflight (1 call) | 2089 | 25 | 483 | 2597 |
+| Episode 1 (2 calls) | 5415 | 614 | 675 | 6704 |
+| Episode 2 (10 calls) | 27815 | 2362 | 5192 | 35369 |
+| **Sum (13 calls)** | **35319** | **3001** | **6350** | **44670** |
+
+(The prior draft's table summed preflight + episode 1's two decisions
+together as 7504/639/1158/9301 -- arithmetically consistent with that
+grouping, just regrouped here with the preflight broken out as its own row
+so episode 2 can be added cleanly: episode 1 alone is its two decisions,
+5415/614/675/6704; the grand total re-verified: 2089+5415+27815=35319,
+25+614+2362=3001, 483+675+5192=6350, 2597+6704+35369=44670.)
 
 Published price, sourced live (WebSearch, cross-confirmed by two
 independent listings -- [tldl.io](https://www.tldl.io/guides/gemini-api-pricing),
@@ -538,9 +615,10 @@ this model; this estimate **assumes** completion + thought tokens both
 bill as output (the common Gemini thinking-model convention), flagged as
 an assumption, not a confirmed line item:
 
-- Input: 7504 tokens x $1.00/1M = **$0.0075**
-- Output (639 + 1158 = 1797 tokens) x $5.00/1M = **$0.0090**
-- **Total: ~$0.017** (1.7 cents) for this task's entire live-API footprint.
+- Input: 35319 tokens x $1.00/1M = **$0.0353**
+- Output (3001 + 6350 = 9351 tokens) x $5.00/1M = **$0.0468**
+- **Total: ~$0.082** (8.2 cents) for this task's entire live-API footprint
+  across both episodes and the preflight.
 
 ---
 
@@ -548,7 +626,7 @@ an assumption, not a confirmed line item:
 
 Per the resolved gate's ruling (`docs/superpowers/specs/2026-09-30-prereg-
 v2-design.md` build-order step 6), every run was checked for a long STALE
-streak on any robot during any stationary dwell. Summary across all three
+streak on any robot during any stationary dwell. Summary across all four
 runs (full per-run tables in each run's own section above):
 
 Longest streak (raw rows, the project's own authoritative method --
@@ -559,26 +637,33 @@ overlaps a trigger snapshot or an active phase/maneuver window:
 |---|---|---|---|---|
 | A (`m3_default` mock) | 4 rows @ 16.9-17.7s (bring-up) | 10 rows @ 44.7-47.4s (pre-trigger approach) | 0 | 15 rows @ 73.4-77.9s (parked recede-pocket HOLD, confirmed stationary from sim 46.1s) |
 | B (`vlm_verbatim` mock) | 0 | 2 rows @ 30.4-30.6s (pre-trigger stall window, trigger itself fresh) | 0 | 0 |
-| Live (ER-2) | 3 rows @ 16.8-17.3s (bring-up) | 0 | 25 rows @ 108.8-114.7s (DURING the unresolved post-decision-2 recovery attempt) | 0 |
+| Live episode 1 (ER-2) | 3 rows @ 16.8-17.3s (bring-up) | 0 | 25 rows @ 108.8-114.7s (DURING `robot_3`'s out-of-tracked-band `reverse` excursion) | 0 |
+| Live episode 2 (ER-2) | 5 rows @ 71.5-73.1s | 0 | 18 rows @ 108.6-114.9s (DURING the SAME out-of-tracked-band excursion, reproduced) | 11 rows @ 60.8-63.4s |
 
 **Correction from this report's first draft**: the first pass collapsed
 repeated scene-log rows sharing one M1 stamp down to their first
 occurrence, which erased every transition into STALE and undercounted
 every one of these numbers to "0 or 1 isolated frame." Recomputed from raw
-rows, two streaks genuinely overlap an active window (run A's robot_4
-during its own recede backup; the live run's robot_3 during the unresolved
-secondary-conflict recovery traced in Step 5) rather than a settled dwell.
-No streak overlaps a `junction_clear` TRIGGER's own snapshot stamp in any
-run -- every trigger snapshot (run A 34.333s, run B 34.4s, live decision 1
-30.233s, live decision 2 96.267s) independently confirms every robot
-`STOPPED`, not `STALE`, at that exact instant (from each decision
-artifact's own `scene` block). `robot_1`'s own solved-row park dwell
-(cross-phase yield) shows no STALE event in any of the three runs, but
-that is an absence-of-evidence result, not a probe of that specific pose
-(~(-1.018, 0.36), still never directly tested the way `docs/reports/
-2026-10-01-robot1-stale-rootcause.md`'s yieldpark run tested the
-shipped-clearance pose). Per the resolved gate's ruling, none of this
-invalidates any of the three runs (no scored-arrival-window overlap in any
+rows, three streaks genuinely overlap an active window: run A's robot_4
+during its own recede backup (a parked hold, not a maneuver -- relabeled
+above), and -- the significant one -- `robot_3`'s out-of-tracked-band
+`reverse` excursion at essentially the SAME sim-time window (108.6-114.9 s)
+in BOTH live episodes independently. This is no longer a single
+coincidence: the plain `reverse` grounding's backup distance for this
+2-robot conflict geometry reliably drives `robot_3` past the verified
+`|y|<=1.75` extent, and reliably coincides with a tracking dropout there,
+reproduced twice. No streak overlaps a `junction_clear` TRIGGER's own
+snapshot stamp in any run -- every trigger snapshot checked (run A
+34.333s, run B 34.4s, episode 1 decisions at 30.233s/96.267s, episode 2's
+five real decisions at 20.5/30.4/96.2/125.7/130.4/158.6s) independently
+confirms every robot `STOPPED`, not `STALE`, at that exact instant (from
+each decision artifact's own `scene` block). `robot_1`'s own solved-row
+park dwell (cross-phase yield) shows no STALE event in any of the four
+runs, but that is an absence-of-evidence result, not a probe of that
+specific pose (~(-1.018, 0.36), still never directly tested the way
+`docs/reports/2026-10-01-robot1-stale-rootcause.md`'s yieldpark run tested
+the shipped-clearance pose). Per the resolved gate's ruling, none of this
+invalidates any of the four runs (no scored-arrival-window overlap in any
 case -- the `ArrivalGate` governs none of the overlapping windows above);
 the registered fallback (a 0.10 m symmetric spawn re-radius) is not
 triggered.
@@ -587,7 +672,7 @@ triggered.
 
 ## Freeze-blocking findings (consolidated)
 
-Four findings this task surfaced that the (a0)/`junction_clear`/`reverse`
+Five findings this task surfaced that the (a0)/`junction_clear`/`reverse`
 machinery does not currently cover, none fixed here (out of this task's
 scope -- each is a separate, scoped change for the coordinator to decide):
 
@@ -601,29 +686,49 @@ scope -- each is a separate, scoped change for the coordinator to decide):
    (iv) over-credit both defect classes unless read alongside
    `dispatch_matches_plan`/the oracle-order metric specifically.
 2. **Releasing held robots' base missions after `junction_clear` resolves
-   creates an unordered secondary conflict.** `junction_phase_queue`
-   releases every recede candidate to its original base-mission goal the
-   instant the cross phase resolves; when two candidates parked on
-   opposite arms, this is a fresh encounter the composite's own contract
-   never orders. M5's detector does keep re-triggering on it (confirmed:
-   8+ real re-triggers across runs A/B); whether it resolves depends
-   entirely on the backend answering with something new, which a finite
-   scripted mock cannot do.
+   creates an unordered secondary conflict that the system does not reliably
+   recover from even given ample time.** `junction_phase_queue` releases
+   every recede candidate to its original base-mission goal the instant
+   the cross phase resolves; when two candidates parked on opposite arms,
+   this is a fresh encounter the composite's own contract never orders.
+   M5's detector does keep re-triggering on it (confirmed: 8+ real
+   re-triggers across runs A/B, 9 more real decisions across episode 2) --
+   this is not a backend-answering problem alone (episode 2 used a real
+   backend throughout, with the control stack confirmed alive for the
+   entire 300 s scenario window, and still only reached 1/4 arrivals; see
+   finding 5).
 3. **A `continue` leg is not safety-exempted against a `reverse` leg in a
    different command.** `admitted_partners` only exempts members of the
    SAME command from each other; an uninvolved robot left on `continue`
    that closes within the safety latch of an active `reverse` triggers a
-   `min_distance_violation` safety stop that can permanently stall the
-   `reverse` command's own resolution (observed live: `robot_1`/`robot_4`
-   in the live episode's decision 2).
+   `min_distance_violation` safety stop that can stall the `reverse`
+   command's own resolution (observed live in episode 1's decision 2:
+   `robot_1`/`robot_4`).
 4. **The plain `reverse` strategy has no tracked-band bound on its backup
-   distance.** `junction_clear`'s own recede pockets are declared scene
-   constants, kept inside the verified tracking extent by design (J2 +
-   the pocket offset). The plain `reverse` grounding used for a 2-robot
-   conflict outside `junction_clear` has no equivalent check: the live
-   episode's `robot_3` backed up to `|y| = 2.38`, past the verified
-   `|y| <= 1.75` extent and the homography's own 2.09 m edge, coinciding
-   with that robot's longest STALE streak of the whole task.
+   distance -- reproduced in both live episodes.** `junction_clear`'s own
+   recede pockets are declared scene constants, kept inside the verified
+   tracking extent by design (J2 + the pocket offset). The plain `reverse`
+   grounding used for the 2-robot `robot_3`/`robot_4` conflict outside
+   `junction_clear` has no equivalent check: `robot_3` backed up past
+   `|y| = 1.75` (the verified extent) and the homography's own 2.09 m edge
+   in BOTH episode 1 (`|y|=2.38`) and episode 2 (`|y|=2.42`), at
+   essentially the same sim-time window (108.6-114.9 s) both times,
+   coinciding with its longest STALE streak each time. Not a one-off.
+5. **The composite's own documented fallback path can itself fail,
+   leaving no further recovery.** Episode 2's fourth attempt at this
+   conflict (`junction_clear`, all four robots, `m3_default`) completed
+   both recede phases normally, then its CROSS phase failed to resolve for
+   495 real seconds before M5 declared it failed and dispatched the
+   documented fallback (M5 spec: "Failure at any phase falls back to the
+   v1 behavior for the remaining robots"). The fallback itself -- a
+   derived-mode `reroute` for all four robots (yield degraded to reroute
+   by the scene's own feasibility bands at that point) -- ALSO resolved
+   `status=failed` for every robot. GT confirms the scene is then frozen
+   (0.388 m separation, inside the safety latch, zero velocity on every
+   robot) continuously from sim~180 s to the 300 s cap, under a control
+   stack confirmed alive the whole time (not a dead-stack artifact). The
+   M5 spec's "partial credit is scorable" provision does not describe what
+   happens when the fallback itself fails.
 
 ---
 
@@ -683,6 +788,25 @@ expected side effect of deploying a real code change, not a config file
 the standing convention restores, and consistent with the VM's own
 "whoever deploys next" shared-tree model (confirmed by the VM having no
 `.git` directory at all -- it is a plain extracted tree, not a clone).
+
+**Second deploy/restore cycle (episode 2, the one-re-run allowance):** after
+the manifest check below, the IB10-deployed `orchestrator.yaml` was
+redeployed (same file, byte-identical to the first deploy -- confirmed by
+md5 `010805192c9e33b4b29a27fd7ecd8ea9` on both source and installed copies
+again) for the extended `REC_SEC=1350`/`SIM_SEC=1400` re-run. After that
+run: Kit-drain confirmed (`pgrep -f isaac.scripts.run_simulation` empty,
+checked with a process-name pattern that does not self-match), GPU idle
+(0%/171 MiB), no `ros2`/orchestrator/perception/Nav2 process in `vgu_ros`,
+container up and clean. `orchestrator.yaml`/`rag.yaml` restored a second
+time from the same `/tmp/ib10_pristine/` backup (source + `touch` +
+rebuild), **all four copies re-verified pristine** a second time: source
+and installed (host + container) all `1f656533a30a35882d57d0d64a57bd0d`,
+`rag.yaml` `e18c723cff9cada3f320d564c2ecee5a`. All of this task's remaining
+`/tmp` artifacts removed (`ib10_log_bundle2*`, `ib10_pristine/`,
+`ib10_deployed_orchestrator.yaml`, `ib10_local_manifest.txt`,
+`ib10_rerun_build.log`, `ib10_live2.log`); VM `/tmp` confirmed clean of
+every `ib10_*` file. The three pre-existing, unrelated `ship_*_delta.tar`
+files from Sep 30 are untouched, as before.
 
 **Manifest check** (standing trap: verify the deploy left nothing else
 drifted): a full 724-file md5 manifest of this branch's `git ls-files` at
