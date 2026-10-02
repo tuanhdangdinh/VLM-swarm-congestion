@@ -184,15 +184,64 @@ Rules for maintaining it:
   confirmed NOT to be what failed). Fixing it is a change to
   `BaseMissionDriver`/`command_bus_node` or the status-ordering contract
   between them, out of this task's scope — **the design-level finding for
-  the coordinator**, per the task's own framing. GT's own
-  `robot_robot_contacts` field recorded no physical contact at any point
-  in the run, including the 0.0761 m minimum-separation row at sim
-  106.1 s, despite 14,910 safety-monitor `min_distance_violation` log
-  lines over the whole run (not traced further to which specific pairs
-  produced each line). No VM state changed by this correction (same
-  attempt-3 artifacts, re-read, not re-run); the restore/cleanup already
-  recorded above stands. Full report corrected in place, per its own
-  revision history: `docs/reports/2026-10-02-step7a-blocker-fixes.md`.
+  the coordinator**, per the task's own framing. No VM state changed by
+  this correction (same attempt-3 artifacts, re-read, not re-run); the
+  restore/cleanup already recorded above stands. Full report corrected in
+  place, per its own revision history:
+  `docs/reports/2026-10-02-step7a-blocker-fixes.md`.
+
+- **2026-10-02** — **THIRD CORRECTION (same task, step 7a): two more
+  factual errors in the entry above, from a third advisor-review pass on
+  the SAME attempt-3 logs (no further VM run); plus a real bug found and
+  fixed in fix 3 (separate from the VM finding).** (1) The race direction
+  above is backwards. `BaseMissionDriver.on_command` (`base_mission.py`)
+  deliberately does nothing when a robot is ALREADY suppressed, so a
+  SUCCESSOR command (the release's own `yield` for `robot_4`) reaching
+  `coordination_client_node` BEFORE it has processed the PREDECESSOR
+  phase's terminal status for that robot is IGNORED, not a transient win
+  -- the predecessor's terminal, processed moments later, then frees the
+  robot PERMANENTLY (no retry). The "six times" count is also wrong:
+  `resume base mission` fires once per `_desired()` call per status
+  event, including re-issues of a goal not yet Nav2-accepted, not one
+  race per line. (2) `robot_3`/`robot_4`'s long stall during the
+  close-parked dwell is NOT a safety-latch effect: `m4.log` shows ZERO
+  `safety stop robot=robot_3`/`robot=robot_4` lines anywhere in the
+  release's own 452 s window -- `safety_monitor_node: exempt pairs
+  changed pairs=robot_1+robot_3,robot_3+robot_4` (wall 1790957587.948)
+  confirms the release's own `yield` actions (naming `robot_3` as
+  `passer_robot_id`) make `robot_1`/`robot_4` EACH exempt against
+  `robot_3` -- the EXISTING exemption machinery working exactly as
+  designed. `robot_3`'s own stall shows up instead as repeated `cancel-all
+  robot=robot_3 action=navigate_to_pose ... goals_canceling=1` lines, a
+  separate Nav2-level goal-churn effect not traced to its own root cause
+  (out of this task's scope). The 452 s / ~120 sim-s timer-match claim is
+  weakened accordingly: this run's own RTF was never separately computed
+  (the ~0.27 figure cited was historical, not measured for THIS run), so
+  the "timer, not clearance" conclusion rests on the lead's own speed
+  (0.00-0.04 m/s for the whole window -- 2.85 m of displacement could not
+  have happened regardless of timing), not on the RTF arithmetic. (3)
+  **Separately, fix 3's OWN first draft was found to be a blanket
+  exemption in real dispatch** (`orchestrator_node._with_plan_continue_
+  partners`): plans are scene-wide, so EVERY tracked robot a decision
+  omits becomes a `continue` leg, and `PlanTracker.accept_plan` tracks
+  `m3_default` plans too ("every executed resolution has a plan") -- so
+  naming every `continue` leg of the tracked plan, as shipped, named
+  every OTHER robot in the WHOLE SCENE as exempt against any `reverse`,
+  violating the task's own "do NOT blanket-exempt" instruction. Fixed:
+  narrowed to `_last_trigger_robot_ids`, the ORIGINAL congestion event's
+  own robot set, captured once per fresh analysis (`_handle_outcome`,
+  just before `_dispatch`) from data the pipeline already computes
+  (`CongestionEvent.involved_robots`) -- no new computation, a new
+  `frozenset` instance attribute only. Episode 1 decision 2's own shape is
+  now pinned directly: `robot_1` (part of the triggering event) stays
+  exempt, `robot_2` (never part of it) does not. Local suite zero-delta
+  maintained (byte-identical failing-test-name set to the `d3aa0f3`
+  baseline) through all three corrections; `ruff check` clean. Fix 3's own
+  section, its pins, and the M4 protocol note are all updated in the
+  report to the narrowed version; this note documents the mistake and the
+  fix, per the maintenance rule, rather than rewriting the first SAFETY
+  fix-3 note above it. `docs/reports/2026-10-02-step7a-blocker-fixes.md`
+  carries the corrected sections.
 
 - **2026-10-02** — **M4 protocol note (step 7a, fix 3): `swarm_execution/
   safety.py`'s `admitted_partners` gained an ADDITIVE, v2-branch-only

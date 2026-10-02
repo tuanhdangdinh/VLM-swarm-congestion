@@ -21,19 +21,33 @@
   attempt-3 logs more carefully shows that reading was also wrong: the
   release resolved via its sim-clock hold-timer backstop (clearance was
   structurally unreachable, since the lead never moved), and one held
-  robot left independently through a pre-existing M4 race
-  (`BaseMissionDriver` resuming a robot's base mission from a terminal
-  status that arrived on an un-ordered topic, ahead of the next phase's
-  own suppressing command) before the release's hold ever acted on it.
+  robot left independently through a pre-existing M4 race -- a SUCCESSOR
+  command (the release's own `yield`) reaching `BaseMissionDriver` BEFORE
+  it has processed the PREDECESSOR phase's terminal status for the same
+  robot, so `on_command` (which deliberately never steals suppression
+  from an already-suppressed robot) ignores the successor, and the
+  predecessor's terminal later frees the robot for good, with no retry.
   4/4 stands as a fact (`ArrivalGate` confirms it); "ordered release"
   does not, and the criteria table and the attribution section below are
   corrected accordingly — this is the design-level finding for the
   coordinator.
+- Rev 4 (third advisor-review pass, local-only, no VM run): fix 3's own
+  first draft was itself a blanket exemption in real dispatch (plans are
+  scene-wide, so every `continue`-lenient-completed robot in the WHOLE
+  scene was being named, not just the ones relevant to this conflict) --
+  the exact thing the task's own instructions forbid. Narrowed to the
+  triggering congestion event's own robot set before this report's
+  pins/sections below were treated as final; fix 3's section, pins, and
+  the M4 protocol note are all updated in place to the narrowed version.
 
 **Commits:** branch `feat/v2-blockers`, worktree
 `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v2-fix`, branched from
-`feat/prereg-v2-composite` at `d3aa0f3`. `1e6f628` (source, includes the
-rev-2 release-command fix), `e54ad76` (test pins). No merge, no push.
+`feat/prereg-v2-composite` at `d3aa0f3`. Commits, in order: `1e6f628` (the
+five fixes, incl. the rev-2 release-command fix), `e54ad76` (test pins),
+`524a27f`/`29f7e3f` (this report's first two revisions), `4e1a7a9` (the
+rev-4 safety narrowing fix), `924c197` (its pin), and this file's own
+latest commit (rev 4's report text + the implementation-notes THIRD
+CORRECTION). No merge, no push.
 
 ---
 
@@ -266,8 +280,29 @@ with a non-None `plan_id`) looks up the SAME tracked plan's OTHER
 `continue` legs and writes them into the reverse leg's OWN
 `parameters_json` as `plan_continue_partners`. `safety.py`'s
 `admitted_partners` reads this as an ADDITIVE exemption, scoped to exactly
-the named robots — never a blanket same-plan-or-wider exemption. Untouched
-(byte-identical) when `plan_id` is None: the v1 (no-plan-channel) path.
+the named robots. Untouched (byte-identical) when `plan_id` is None: the
+v1 (no-plan-channel) path.
+
+**Bug found by advisor review before handback, fixed before the pins below
+counted as final: the first draft of this fix was a blanket exemption in
+real dispatch, not a pair-scoped one.** Plans are SCENE-WIDE ((a0) rev 4):
+every tracked robot the plan omits is lenient-completed to `continue` --
+and `PlanTracker.accept_plan` tracks `m3_default` plans too, not only
+VLM-authored ones ("every executed resolution has a plan"), so a `plan_id`
+is present for EVERY decision once the plan channel is on, whatever its
+provenance. Reading every `continue` leg of the tracked plan, as the first
+draft did, names every OTHER robot in the WHOLE SCENE as exempt against
+any `reverse` -- exactly the blanket exemption the task's own instructions
+forbid. Fixed: `_with_plan_continue_partners` now intersects the plan's
+`continue` legs with `_last_trigger_robot_ids` -- the ORIGINAL congestion
+event's own robot set (not `decision.involved_robots`, which the VLM may
+narrow further), captured once per fresh analysis in `_handle_outcome`
+just before `_dispatch`, reusing data the pipeline already computes
+(`CongestionEvent.involved_robots`) rather than adding a new computation.
+Episode 1 decision 2's own case is the exact test: the triggering event was
+`['robot_1','robot_3','robot_4']`, so `robot_1` (`continue`, part of that
+event) stays exempt while `robot_2` (`continue`, never part of it) does
+not -- pair-scope discipline restored.
 
 **M4 protocol note:** this touches `ros2_ws/src/swarm_execution/
 swarm_execution/safety.py`, a v1-frozen, safety-relevant file. The change
@@ -282,10 +317,13 @@ a safety-relevant M4 change needs a protocol note.
 (`test_no_plan_reverse_plus_an_uninvolved_robot_still_latches` — v1
 regression pin; `test_reverse_exempts_a_same_plan_continue_partner`;
 `test_reverse_does_not_exempt_an_other_plan_continue_robot` — pair-scope
-discipline pin), `tests/unit/test_m5_node_plan_channel.py`
+discipline pin at the M4 layer), `tests/unit/test_m5_node_plan_channel.py`
 (`test_reverse_leg_carries_the_same_plans_continue_partner`;
 `test_reverse_leg_without_a_tracked_plan_carries_no_continue_partners` —
-flag-off/no-plan regression pin against the real node).
+flag-off/no-plan regression pin; `test_plan_continue_partners_narrowed_to_
+the_triggering_event_not_the_whole_scene` — episode 1 decision 2's exact
+4-leg shape, `robot_2` absent while `robot_1` is present;
+`test_plan_continue_partners_empty_when_the_plan_channel_tracks_no_plan`).
 
 ---
 
@@ -480,49 +518,86 @@ marked "ordered release" PASS) shows the 4/4 was not reached through fix
    robot_3`) requires 2.85 m of `robot_3`'s own odometry displacement to
    admit the held robots — structurally unreachable while `robot_3` is
    not moving.
-2. **A held robot left anyway.** `/tmp/fc_20261002_160626_m4.log`:
-   `resume base mission robot=robot_4 goal=(0.0, -1.75)` fires at wall
-   `1790957587.891` — the SAME instant the cross phase resolves and the
-   release command (which is supposed to hold `robot_4` via a `yield`
-   naming `robot_3` as the passer) is dispatched. `robot_4` then arrives
-   at its own goal at wall `1790958022.056` — BEFORE the release
-   command's own COMPLETED status (`1790958039.438`). A robot genuinely
-   held by a `yield` cannot independently drive ~3 m to its goal; `robot_
-   4` escaped the hold via `BaseMissionDriver`'s own resume path, not
-   through anything fix 2 dispatched.
-3. **The release command's own 452 s duration matches the HOLD TIMER, not
-   clearance.** `ACTIVE` at wall `1790957587.49`, `COMPLETED` at
-   `1790958039.44` = 452 wall-s. This project's `create_timer` calls run
-   on the node clock, which tracks `/clock` (sim time) under this
-   project's standing `use_sim_time`; at this run's own measured RTF
-   (~0.27, from the trigger's own `scene.stamp=34.2` and later decision
-   stamps), 452 wall-s is ~122 sim-s — matching `hold_sec=junction_
-   recede_hold_sec=120` almost exactly. The hold ended on the TIMER
-   backstop this fix reuses, not on `_finish_hold("yield complete: passer
-   cleared")` (which (1) shows could never have fired).
+2. **A held robot left anyway, and the escape is permanent by construction,
+   not a transient race.** `/tmp/fc_20261002_160626_m4.log`: the release
+   command reaches `command_bus_node` and goes `ACTIVE` for `robot_4` at
+   wall `1790957587.49`. `BaseMissionDriver.on_command` (`base_mission.py`)
+   deliberately does nothing when the robot is ALREADY suppressed —
+   `if robot_id in self._suppressed_by: return False` — exactly so a
+   busy-rejected command cannot steal suppression from the command that
+   actually owns the robot. `/coordination/commands` and `/coordination/
+   status` are separate topics with no ordering guarantee between them
+   (`CoordinationTracker`'s own module docstring says so); here the
+   release's OWN command for `robot_4` reaches `coordination_client_node`
+   BEFORE that node has processed `robot_4`'s prior (cross-phase) terminal
+   status, so `on_command` finds `robot_4` still suppressed by the CROSS
+   command and returns `False` — it never takes ownership. Moments later
+   `_on_status` finally processes the cross phase's own terminal for
+   `robot_4`: still matching the recorded owner (the release's bid never
+   overwrote it), so it un-suppresses `robot_4` for good — `resume base
+   mission robot=robot_4 goal=(0.0, -1.75)` at wall `1790957587.891`. No
+   later command ever retries taking ownership, so this is permanent, not
+   self-correcting. `robot_4` eventually reaches its own goal at wall
+   `1790958022.056` — BEFORE the release command's own COMPLETED status
+   (`1790958039.438`) — but not immediately: GT shows it near-stationary
+   for roughly 100 sim-s after the resume before actually completing the
+   trip (see finding 3's own safety-exemption note for why that stall is
+   NOT the safety latch). A robot genuinely held by a `yield` cannot reach
+   its own goal at all while held; `robot_4` left through `BaseMission
+   Driver`'s resume path, not through anything fix 2 dispatched.
+3. **The release command's own long duration is consistent with the HOLD
+   TIMER, not clearance, and the stall is not a safety-latch effect
+   either.** `ACTIVE` at wall `1790957587.49`, `COMPLETED` at
+   `1790958039.44` = 452 wall-s later. `create_timer`'s `hold_sec` runs on
+   the node clock (sim time under this project's standing `use_sim_time`),
+   the same convention `junction_recede_hold_sec` already uses elsewhere
+   (fix 2's own section above) — a 452 s wall duration for a 120 (sim-)
+   second timer implies a real-time factor consistent with this program's
+   historical range, though this run's own RTF was not separately computed
+   here; the more direct evidence is (1) above: the lead's speed never
+   leaves 0.00-0.04 m/s for the whole window, so 2.85 m of its own
+   odometry displacement — the `CrossingChain`'s only other way to end the
+   hold (`_finish_hold("yield complete: passer cleared")`) — could not
+   have fired regardless of timing. Separately: `m4.log` shows ZERO
+   `safety stop robot=robot_3` or `robot=robot_4` lines anywhere in this
+   452 s window (the nearest ones are wall `1790957334-408`, well before
+   the release even dispatches) — `safety_monitor_node: exempt pairs
+   changed pairs=robot_1+robot_3,robot_3+robot_4` fires at wall
+   `1790957587.948`, confirming the release's own `yield` actions (with
+   `passer_robot_id=robot_3`) make `robot_1` and `robot_4` EACH exempt
+   against `robot_3` for exactly this reason — so the 0.076-0.15 m
+   separation between `robot_3`/`robot_4` is not what is holding either
+   one still; `m4.log` instead shows repeated `cancel-all robot=robot_3
+   action=navigate_to_pose ... goals_canceling=1` lines through this same
+   window, i.e. `robot_3`'s own Nav2 goal being repeatedly re-sent without
+   settling — a separate, Nav2-level stall this report did not trace to
+   its own root cause (out of this task's scope).
 
 **Attribution — the same mechanism explains the same-side placement too.**
-`BaseMissionDriver` resumes a robot's base mission on the terminal status
-of whichever command currently "owns" it; `CoordinationTracker`'s own
-module docstring states "Commands and statuses arrive on separate topics
-with no cross-topic ordering guarantee." A later phase's new command
-(e.g. the release's `yield`, meant to re-suppress `robot_4`) is not
-guaranteed to land before `BaseMissionDriver` processes the PRIOR phase's
-terminal status for the same robot and issues a fresh Nav2 goal. The SAME
-race explains `robot_3`'s own recede landing it close to `robot_4`'s side
-in the first place (both receded while repeatedly becoming briefly
-"un-suppressed" at each intermediate phase boundary — `m4.log` shows
-`resume base mission robot=robot_3` firing six times across the run, at
-every phase transition `robot_3` is held through) — this single,
-pre-existing M4 mechanism (a) produced the same-side placement fix 2's
-clearance-distance derivation assumed would not happen (two pockets on
-OPPOSITE sides, per the (a) Grounding geometry), (b) let a held robot
-leave before fix 2's hold could gate it, and (c) made the 2.85 m
-clearance target unreachable once the lead stopped moving. It is a
-pre-existing M4 architecture property (not touched by, and not fixable
-within, this task's five fixes) that this report did not identify
-correctly on the first pass; the corrected attribution is the design-level
-finding the task asked for.
+Finding 2's exact race (a successor command processed before its
+predecessor's own terminal status, so the predecessor's terminal frees the
+robot permanently once it finally arrives) is not special to the release
+phase. `m4.log` shows `resume base mission robot=robot_3` firing more than
+once earlier in the SAME run, at the recede-to-cross and cross-to-release
+boundaries `robot_3` is held through — each occurrence is `_desired()`
+re-issuing a goal `coordination_client_node` does not yet show as
+NAV2-accepted (its own 2 s retry convention), so not every occurrence is
+automatically a fresh instance of the race, but the mechanism recedes this
+scenario's "opposite declared sides" assumption is built on: two robots
+briefly un-suppressed and resuming their OWN base-mission goals at
+intermediate phase boundaries, rather than staying strictly ordered by
+the phase sequence, is consistent with how both recede candidates ended
+up on the SAME side in both of this task's live VM attempts (2 and 3).
+This one pre-existing M4 property (a) is consistent with the same-side
+placement fix 2's clearance-distance derivation assumed would not happen
+(two pockets on OPPOSITE sides, per the (a) Grounding geometry), (b) let
+a held robot leave before fix 2's hold could act on it at all, and (c)
+made the 2.85 m clearance target unreachable once the lead stopped
+making progress. It is a property of the message contract between
+`command_bus_node` and `coordination_client_node` (not touched by, and not
+fixable within, this task's five fixes) that this report did not identify
+correctly on its first two passes; the corrected attribution is the
+design-level finding the task asked for.
 
 **Criteria table (corrected):**
 
@@ -533,7 +608,7 @@ finding the task asked for.
 | Ordered secondary release (fix 2's own criterion) | **FAIL — not demonstrated.** The release command resolved via its sim-clock hold-timer backstop, not via the `CrossingChain`'s real clearance tracking (unreachable, since the lead never moved); one held robot left independently through the pre-existing `BaseMissionDriver` race before the release's own hold could act on it at all. See the traced mechanism above. |
 | 4/4 position-verified arrivals | **PASS, but not attributable to fix 2's ordering** — reached through the `BaseMissionDriver` race (item 2 above) plus the hold-timer backstop eventually releasing everyone else, not through genuine clearance-gated sequencing. |
 | No tracked-band excursion | **PASS** — GT max `\|x\|`/`\|y\|` per robot over the whole run: `robot_1` (1.7501, 0.37), `robot_2` (1.7501, 0.03), `robot_3` (0.27, 1.7501), `robot_4` (0.35, 1.7501) — every extreme is the robot's OWN goal coordinate, never exceeded. The plain `reverse` strategy (fix 4's target) was never dispatched this run (the mock script never answers the secondary conflict with `reverse`), so fix 4 itself is not exercised by this run — confirmed separately by unit pins. |
-| Safety during the close-parked window | **No physical contact recorded** — GT's own `robot_robot_contacts` field is empty for every row of the entire run, including the 0.0761 m minimum-separation row at sim 106.1 s. The safety monitor DID log many `min_distance_violation` stops through this window (14,910 lines over the whole run), consistent with `robot_3`/`robot_4` being mutually close but not necessarily in actual contact; not traced further to which specific pairs/exemptions produced each line. |
+| Safety during the close-parked window | **No physical contact recorded, and the closeness was by design (exempt), not a near-miss the safety monitor was guarding against.** GT's own `robot_robot_contacts` field is empty for every row of the entire run, including the 0.0761 m minimum-separation row at sim 106.1 s. `m4.log` confirms WHY no safety stop fired for `robot_3`/`robot_4` specifically in this window (zero lines, vs. 14,910 `min_distance_violation` lines total across the whole run for other robots/windows): the release's own `yield` actions name `robot_3` as `passer_robot_id`, which `admitted_partners` reads as a same-command exemption, logged directly as `exempt pairs changed pairs=robot_1+robot_3,robot_3+robot_4` at wall `1790957587.948` — this is the EXISTING, correct exemption machinery working as designed, not a gap. |
 | STALE streak check | **FLAGGED, run not invalidated.** `robot_1`: longest streak 1 row (trivial). `robot_2`: 0. **`robot_3` and `robot_4`: a 275-row streak each, sim 101.2-183.2 s (~82 s)** — materially longer than any streak this program has recorded before (prior max 26 rows / ~6 s). Coincides exactly with the two recede candidates sitting parked 0.08-0.15 m apart (the `BaseMissionDriver`-race characteristic traced above) — plausibly an ArUco occlusion/confusion effect from two markers that close together, not traced further (M1 territory, out of scope). Per the resolved gate's own ruling, this does NOT invalidate the run: the streak is during a stationary, non-scored dwell, with no overlap with the trigger snapshot or either arrival. It IS a new data point for the registered instrumentation rule, reported here as required, and is materially bigger than prior observations — worth the coordinator's attention for whether the registered 1.65 m spawn-re-radius fallback should now be considered, still an owner call, not applied here. |
 
 **This is the design-level finding for the coordinator** (the task's own
