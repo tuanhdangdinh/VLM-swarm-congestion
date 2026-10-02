@@ -4,6 +4,21 @@
 
 **Revision history:**
 
+- Rev 4 (2026-10-02): Rev 3's "mechanism not established" conclusion was
+  itself wrong — the uptime-vs-wall-clock arithmetic was misread. Redone
+  correctly: `isaac.log`'s `[<uptime>s] Simulation App Shutting Down` line
+  is Kit's own uptime counter, not a wall-clock stamp; adding each run's
+  own start time plus its printed uptime reproduces that file's mtime to
+  the second for all four runs, and shows EVERY run's Isaac process
+  outliving `fc_launch.sh`'s own "killing Isaac" cleanup line by
+  220-356 seconds. `FON` was invalid because it launched while `FOFF`'s own
+  leftover Isaac was still alive and simulating (confirmed independently by
+  `FON`'s own Nav2 logs: `tf2_buffer: Detected jump back in time` on every
+  Nav2 node, exactly when M1's `clock_reset` flurry begins). `FON2` and
+  `FONPLAN` were clean by accidental timing gaps, not by design. Promoted
+  to the top owner flag: wait for actual Isaac exit (uptime arithmetic or
+  `pgrep`), not just the cleanup trap's own log line, before any relaunch
+  on this VM.
 - Rev 3 (2026-10-02): ran the actual full key-level diff (previously only a
   hand-picked table) — confirms exactly the predicted 4-key remainder,
   zero `decision.*` differences; recovered `isaac.log`/`build.log` for all
@@ -254,7 +269,7 @@ before it. Applied to all four runs retroactively.
 | `FON2` (`20261002_044059`) | flag ON, without-plan mock, rerun | 25.9 | robot_2 x=0.122, robot_1 x=-0.111, both STOPPED | YES |
 | `FONPLAN` (`20261002_041932`) | flag ON, **with** `proposed_plan` mock | 25.8 | robot_2 x=0.116, robot_1 x=-0.118, both STOPPED | YES |
 
-### Invalidated trial: `FON` — an M1 perception-clock anomaly, not a plan-channel regression
+### Invalidated trial: `FON` — the preceding run's Isaac Sim process was never actually killed
 
 `FON`'s only congestion-true trigger fired at t=72.8 s — 46 s later than
 every other run — with robot_2 still essentially at its spawn pose
@@ -263,65 +278,90 @@ every other run — with robot_2 still essentially at its spawn pose
 real head-on ever formed; the 9 re-checks after it (t=94–143 s) are a still
 -stuck pair being told "clear", not a resolved episode. Zero of 2 arrivals.
 
-**What is directly established from `m1.log`** (not inferred): M1's
-`perception_node` logged **607** lines of
-`perception clock_reset=true prev_stamp=<~220-300> stamp=<~0-68> frame_id=overhead_camera:
-backward stamp jump, tracks cleared`, starting at the very first perception
-callback after this run's own launch and continuing until t=68.3 s — M1 was
-receiving camera frames whose timestamp alternated between a value in the
-~220-300 range and the new run's own ~0-68 range, clearing its
-tracked-robot state on every one of those 607 resets. Zero `clock_reset=true`
-lines appear in `FOFF`, `FON2`, or `FONPLAN`'s `m1.log` — this is anomalous
-to `FON` specifically. This is **not** caused by this task's code:
-`plan_tracker.py`/`reasoning_pipeline.py`/`models.py` touch only the
-M2-decision/M3-plan layer, which runs long after M1 and Nav2 and cannot
-itself make M1 receive a stale-stamped frame; `m5.log`'s startup line
-SEQUENCE (session init through `grounding mode=derived`/`stage2 marks
-enabled`/`classical shadow enabled`) matches `FOFF`'s (session IDs, PIDs,
-timestamps necessarily differ).
+**Root cause, confirmed by timing arithmetic (this report's second revision
+got this wrong — see below):** `fc_launch.sh`'s cleanup trap logs
+`cleanup: restarting container + killing Isaac` and stops M5/the rclpy
+spin thread, but the Isaac Sim ("Kit") application itself keeps running on
+the HOST well past that point, until the scenario's own `duration_sec: 300`
+is reached. The `[<uptime>s] Simulation App Shutting Down` line's bracketed
+number is Kit's own UPTIME, not a wall-clock stamp — computing
+`isaac.log`'s own start time (`19:38:30`) plus its own printed uptime
+(`780.561s`) gives `19:51:30.56`, which matches that file's mtime
+(`19:51:30.88`) to the second. Doing this for all four runs:
 
-**What the mechanism is NOT established to be — checked, not confirmed**:
-the `prev_stamp` values climb from ~219.5 to ~300.3 IN STEP with the new
-values climbing from 0.1 to 68.3, which reads like a second LIVE publisher
-with its own advancing clock, not a single stale/latched message. 300 is
-also suspiciously close to the scenario's own `duration_sec: 300.0`. The
-natural hypothesis — `FOFF`'s own Isaac Sim instance (the immediately
-preceding run, sharing the same container) was not fully torn down by
-`fc_launch.sh`'s cleanup trap and kept running/publishing — was checked
-directly and NOT confirmed:
-- `FOFF`'s own recovered `isaac.log` (not synced in the first draft of
-  this report; now at
-  `data/logs/vm_runs/step4_smoke/FOFF_20261001_193814/isaac.log`) prints
-  its OWN clean `[780.561s] Simulation App Shutting Down` at
-  `2026-10-01T19:45:45Z`, matching `fc_launch.sh`'s own `cleanup:
-  restarting container + killing Isaac` line 10s earlier — no unclean exit.
-- `FOFF`'s own scene log never exceeds sim-stamp 162.9 (consistent with
-  ~0.4 sim-s per wall-second over its ~7.25 min run — the ratio
-  `docs/reports/2026-09-29-t1-tuning-basket.md` records), well short of the
-  ~219-300 range seen in `FON`'s resets, so `FOFF`'s own simulation clock
-  could not have been the source even if it had lingered.
-- No earlier pre-existing `isaac.log` on this VM (several from hours
-  earlier, unrelated to this task) shows an unclean shutdown either, and no
-  live Isaac/python process was found at any point this task checked.
-- The isaac.log-mtime-vs-last-content-line gap (~4-6 minutes) that first
-  looked suspicious for `FON` turns out to be present on ALL FOUR runs
-  uniformly (a teardown/flush artifact, not specific to the anomalous one),
-  so it does not support the hypothesis either.
+| Run | Isaac start | Printed uptime | Computed real exit | Cleanup line | Outlived cleanup by |
+|---|---|---|---|---|---|
+| `FOFF` | 19:38:30 | 780.561s | 19:51:30.56 | 19:45:35 | ~356s |
+| `FON` | 19:47:03 | 753.487s | 19:59:36.49 | 19:54:34 | ~302s |
+| `FONPLAN` | 04:19:48 | 700.677s | 04:31:28.68 | 04:27:38 | ~231s |
+| `FON2` | 04:41:16 | 704.644s | 04:53:00.64 | 04:49:08 | ~233s |
 
-The mechanism is therefore an open question, not a confirmed VM-harness
-trap: the WHAT (607 resets, unique to this run, before its trigger) is
-solid; the WHY (a DDS/SHM transport artifact retaining a buffered tail of
-frames across a rapid back-to-back relaunch is a plausible alternative,
-consistent with this project's own documented "Isaac DDS UDP profile"
-transport traps, but not verified here) is not. Flagged for the owner as an
-open VM-harness observation, not asserted as a known cause.
+**Every run's Isaac process outlived its own cleanup by 220-356 seconds —
+this is a systemic kill failure, not specific to `FON`.** `FON` was invalid
+because `FON`'s own Isaac launched (`19:47:03`) WHILE `FOFF`'s leftover
+Isaac was still alive and simulating (until `19:51:30`), a ~4.5-minute
+overlap. `FON2` and `FONPLAN`, by contrast, happened to launch onto a
+genuinely idle VM: `FONPLAN` launched ~8.5 hours after `FON`'s own leftover
+Isaac had long since exited (an accidental consequence of this task's own
+background-wait delay, not a deliberate safety margin — see Part 1's
+process notes), and `FON2` launched ~9.5 minutes after `FONPLAN`'s leftover
+Isaac exited (04:31:28.68), a comfortable but ALSO ACCIDENTAL gap (consumed
+by this task's own artifact-download-and-analysis steps between launching
+runs, not a deliberate wait). Had `FON2` been launched immediately on
+seeing `FONPLAN`'s "COLLECTED to" line, it would likely have been
+contaminated the same way.
 
-A 105-row STALE streak on robot_1 appears from t=98.7–143.2 — **30 seconds
-after** the clock-reset flurry stopped (t=68.3) and well after the
-premature trigger (t=72.8) it was first (wrongly) blamed for in an earlier
-draft of this report. Its cause is NOT established by anything in this
-task's evidence; it is reported as a separate, unexplained observation in
-the same run, not as a corroborating symptom of the clock-reset window.
+**Directly corroborated by `FON`'s own Nav2 logs**, independent of the M1
+evidence: `nav2_r2.log` shows `Detected jump back in time. Clearing TF
+buffer` from EVERY Nav2 node (`smoother_server`, `bt_navigator`,
+`opennav_docking`, `collision_monitor`, `behavior_server`, `planner_server`,
+`controller_server`) plus `camera_localizer_node`'s own
+`TF_OLD_DATA ignoring data from the past` warnings, all at the same instant
+M1's own `clock_reset=true` flurry begins. `FON2`'s `nav2_r2.log` shows no
+such pattern (one benign one-off extrapolation warning during ordinary
+startup). A second live `/clock`/camera/TF source is exactly what explains
+robot_2 freezing at spawn (Nav2 lost valid localization to the TF clear)
+and the later Nav2 false-success report — not a vaguer "unconfirmed
+transport artifact" as an earlier revision of this report concluded.
+
+M1's own evidence remains as directly observed: **607** lines of
+`perception clock_reset=true prev_stamp=<~220-300> stamp=<~0-68>
+frame_id=overhead_camera: backward stamp jump, tracks cleared` from launch
+until t=68.3s — the `prev_stamp` range (~220-300) is `FOFF`'s OWN leftover
+Isaac still counting up toward its scenario's `duration_sec: 300`, climbing
+in step with `FON`'s own fresh `~0-68` stamps, consistent with two live
+publishers rather than one stale/latched message. Zero `clock_reset=true`
+lines in `FOFF`, `FON2`, or `FONPLAN`'s own `m1.log`.
+
+**Not caused by this task's code**: `plan_tracker.py`/`reasoning_pipeline.py`/
+`models.py` touch only the M2-decision/M3-plan layer, which cannot make M1
+or Nav2 receive a second simulator's topics. **What exposed this
+pre-existing kill-failure trap on this task specifically, rather than on
+every prior run on this VM**: the default `REC_SEC=1000` tail stage (used
+throughout this project's prior history) comfortably outlasts Isaac's own
+~700-780s true lifetime, so by the time a human/script moves on to the next
+run, the previous Isaac has already exited on its own — the failed kill
+goes unnoticed. This task used `REC_SEC=420` (to avoid 1000s of idle wait
+per run) and manually interrupted `FOFF`'s own stuck tail stage early,
+which meant the NEXT run (`FON`) could launch well within the ~220-356s
+window the leftover Isaac needed to actually exit. **Not diagnosed here**:
+why `sudo pkill -f "[i]saac.scripts.run_simulation"` (`fc_launch.sh`'s own
+kill line) fails to terminate the process — left for the owner.
+
+**Top owner flag**: before any relaunch on this VM — including any future
+v1/v2 collection driver that shortens `REC_SEC` or chains runs back-to-back
+— wait until the PREVIOUS run's `isaac.log` actually contains `Simulation
+App Shutting Down` (by uptime arithmetic, not just the cleanup trap having
+printed its line), or confirm `pgrep -f run_simulation` returns empty on
+the host, before starting the next one. This is a VM-harness trap that
+predates and is unrelated to this task's own code; it just happened to be
+exposed by this task's own choice of a short `REC_SEC`.
+
+A separate, unexplained observation in the same run: a 105-row STALE streak
+on robot_1 from t=98.7–143.2 (`FON`'s OWN clock, after `clock_reset` stopped
+firing at t=68.3). This is after the interference window identified above,
+and this task's evidence does not establish its cause — reported as its own
+open item, not folded into the Isaac-survival finding.
 
 Per the trial-validity rule, `FON` fails it outright and is excluded from
 the equivalence score; `FON2` is its clean rerun. Kept in

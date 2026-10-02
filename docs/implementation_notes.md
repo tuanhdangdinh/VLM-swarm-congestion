@@ -117,32 +117,48 @@ Rules for maintaining it:
     scenario's actual geometry/obstacle, swept across 6 trigger-gap
     positions — all `vlm_verbatim` + `dispatch_matches_plan=True` before
     trusting it on hardware.
-  - **One trial invalidated, not silently fixed or dropped**: the FIRST
-    flag-on-without-plan attempt triggered 46 s late with one robot still
-    at spawn and the other barely moved. What is DIRECTLY established from
-    `m1.log`: 607 `perception clock_reset=true ... backward stamp jump,
-    tracks cleared` warnings from this run's own launch until t=68.3 s
-    (just before its trigger), zero such lines in any of the other three
-    runs. The mechanism was checked, not confirmed: the natural hypothesis
-    (the PRECEDING run's Isaac Sim instance not fully torn down before this
-    run's own instance started) was tested directly against the recovered
-    `isaac.log`s for all four runs and did NOT hold up — the preceding
-    run's own Isaac logged a clean shutdown matching `fc_launch.sh`'s
-    cleanup trap, its own sim-clock never reached the stale range observed,
-    no stray Isaac process was found, and the isaac.log mtime-vs-content
-    gap that first looked suspicious is uniform across all four runs, not
-    specific to this one. The WHAT stands; the WHY is an open VM-harness
-    observation, not a confirmed trap — flagged for the owner (a
-    DDS/transport-layer artifact across rapid back-to-back relaunches is a
-    plausible untested alternative). (An earlier draft of the smoke report
-    additionally, wrongly, attributed this to the known IB10 spawn-pose
-    ArUco marginality, `docs/reports/2026-10-01-robot1-stale-rootcause.md`;
-    withdrawn — different scene/pose, and this run's own 105-row STALE
-    streak starts 30s AFTER the resets stop and well after the trigger, so
-    it is reported as a separate, unexplained observation, not a symptom of
-    the same window.) Not caused by this task's code: M1 runs upstream of
-    the plan channel, and `m5.log`'s startup line SEQUENCE matches the
-    clean control run's. Kept in
+  - **One trial invalidated, not silently fixed or dropped — and a VM
+    harness trap found along the way**: the FIRST flag-on-without-plan
+    attempt triggered 46 s late with one robot still at spawn and the other
+    barely moved. Root cause, confirmed by timing arithmetic (two earlier
+    passes misread this and were corrected on review — see
+    `docs/reports/2026-10-02-step4-equivalence-smoke.md`'s own revision
+    history): **`fc_launch.sh`'s cleanup trap logs "killing Isaac" and
+    stops M5, but Isaac Sim's own Kit process keeps running on the HOST
+    until it reaches the scenario's `duration_sec: 300`.** The
+    `[<uptime>s] Simulation App Shutting Down` line's bracketed number is
+    Kit's own uptime, not a wall-clock stamp; `isaac.log`'s own start-time +
+    printed-uptime arithmetic reproduces that file's mtime to the second
+    for every one of the four runs in this task, and shows EVERY run's
+    Isaac outliving its own cleanup line by 220-356 seconds — a systemic
+    kill failure (`sudo pkill -f "[i]saac.scripts.run_simulation"` not
+    actually terminating the process), not specific to the invalidated
+    run. `FON` was invalid because its own Isaac launched while `FOFF`'s
+    (the immediately preceding run) leftover Isaac was still alive and
+    simulating — confirmed independently by `FON`'s own `nav2_r2.log`
+    (`tf2_buffer: Detected jump back in time` on every Nav2 node, plus
+    `camera_localizer_node` `TF_OLD_DATA`, exactly when M1's own 607-line
+    `clock_reset=true ... backward stamp jump, tracks cleared` flurry
+    begins; zero such lines in any of the other three runs' `m1.log`).
+    `FON2` and `FONPLAN` were clean only by ACCIDENTAL timing gaps (one an
+    ~8.5-hour gap from this task's own background-wait delay, the other a
+    ~9.5-minute gap consumed by artifact download/analysis between
+    launches) — not by design. **Top owner flag for this whole entry**:
+    before any relaunch on this VM, including any
+    future v1/v2 collection driver that shortens the default
+    `REC_SEC=1000` tail stage or chains runs back-to-back, wait until the
+    PREVIOUS run's `isaac.log` actually shows its Kit process has exited
+    (uptime arithmetic, or `pgrep -f run_simulation` on the host coming back
+    empty) — not just that the cleanup trap printed its own log line. This
+    predates and is unrelated to this task's own code; this task's own
+    choice of a short `REC_SEC=420` (to avoid 1000s of idle wait per run)
+    plus one manual early-tail-kill is what exposed it. (An earlier pass
+    additionally, wrongly, attributed the anomaly to the known IB10
+    spawn-pose ArUco marginality,
+    `docs/reports/2026-10-01-robot1-stale-rootcause.md`; withdrawn —
+    different scene/pose, and this run's own separate 105-row STALE streak
+    on robot_1, t=98.7-143.2, starts after the interference window and is
+    not established as a symptom of it.) Kept in
     `data/logs/vm_runs/step4_smoke/FON_INVALID_20261001_194646/` rather than
     discarded; rerun clean (`FON2_20261002_044059`). A trial-validity rule
     (both robots `|x| <= 0.4` and `STOPPED` at the first trigger, no
