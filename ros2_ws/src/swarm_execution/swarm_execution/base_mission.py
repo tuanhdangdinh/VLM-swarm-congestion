@@ -58,6 +58,16 @@ class BaseMissionDriver:
         # successor command can be seen here before the predecessor's own
         # terminal status is processed.
         self._pending_next: dict[str, str] = {}
+        # robot_id -> command_ids whose own terminal status was already seen
+        # (and matched neither owner nor pending, i.e. fell to on_status's
+        # "unknown" case) BEFORE this driver's on_command ever saw that same
+        # command_id. Such a command will never send another terminal (the
+        # command bus publishes each status a bounded number of times), so
+        # recording it as pending later would promote it to owner on the
+        # current owner's terminal and strand the robot suppressed forever,
+        # with no terminal left to ever free it. on_command consults this to
+        # discard such a command instead of queuing it.
+        self._resolved_unmatched: dict[str, set[str]] = {}
         self._held: set[str] = set()
         # Log-worthy events since the last drain_events() call (race-guard
         # decisions); kept out of the return-value contract every existing
@@ -113,12 +123,25 @@ class BaseMissionDriver:
             suppressed. In the latter case the original owner is kept: the
             command bus busy-rejects a second command for a mid-maneuver
             robot, so that command must not steal the suppression it never
-            actually held. `command_id` is still recorded as the robot's
+            actually held. `command_id` is recorded as the robot's
             latest-seen command (step-7b race guard) so a stale terminal for
             the OLD owner, arriving after this one, is not mistaken for the
-            robot's real, currently-active command.
+            robot's real, currently-active command -- UNLESS `command_id`'s
+            own terminal already arrived and was seen as unmatched before
+            this call (`_resolved_unmatched`): that command will never send
+            another terminal, so recording it as pending now would promote
+            it to owner later and strand the robot suppressed forever. Such
+            a command is discarded instead, leaving the current owner
+            untouched.
         """
         if robot_id in self._suppressed_by:
+            if command_id in self._resolved_unmatched.get(robot_id, ()):
+                self._resolved_unmatched[robot_id].discard(command_id)
+                self._events.append(
+                    "race guard: command resolved before being seen, discarded "
+                    f"robot={robot_id} command={command_id}"
+                )
+                return False
             self._pending_next[robot_id] = command_id
             return False
         self._suppressed_by[robot_id] = command_id
@@ -194,12 +217,22 @@ class BaseMissionDriver:
                 )
                 self._suppressed_by.pop(robot_id, None)
                 return self._desired()
+            # This command_id never took ownership; a redelivery of its own
+            # on_command (DDS retry) must not re-queue it as pending either,
+            # since this was its one-and-only terminal.
+            self._resolved_unmatched.setdefault(robot_id, set()).add(command_id)
             self._events.append(
                 "race guard: stale terminal ignored "
                 f"robot={robot_id} command={command_id} status={status} "
                 f"reason=pending_never_owned owner={owner}"
             )
             return []
+        # Neither the recorded owner nor the pending command: most often
+        # this command_id's own terminal, arriving before this driver's
+        # on_command for it ever did (no cross-topic ordering guarantee).
+        # Recorded so a LATER on_command for this exact command_id (step-7b
+        # race guard) knows it already resolved, rather than queuing it.
+        self._resolved_unmatched.setdefault(robot_id, set()).add(command_id)
         self._events.append(
             "race guard: stale terminal ignored "
             f"robot={robot_id} command={command_id} status={status} "

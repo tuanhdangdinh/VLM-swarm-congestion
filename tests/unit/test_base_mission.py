@@ -238,6 +238,47 @@ def test_three_command_phase_chain_recede_cross_release():
     ]
 
 
+def test_command_terminal_seen_before_its_own_on_command_is_not_stranded():
+    """Advisor-review regression pin: a command's terminal status can arrive
+    (and be seen as unmatched) BEFORE this driver's on_command for that same
+    command_id ever does -- no cross-topic ordering guarantee. If that
+    command_id were then queued as pending on its (late) on_command, the
+    owner's later terminal would promote it to owner -- but it already sent
+    its one-and-only terminal and will never send another, stranding the
+    robot suppressed forever. It must be discarded instead."""
+    driver = BaseMissionDriver()
+    driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}})
+    driver.on_command("robot_1", "cmd-1")
+
+    # cmd-2's busy-reject FAILED arrives before cmd-2's own on_command.
+    assert driver.on_status("robot_1", "cmd-2", "FAILED") == []
+    # cmd-2's on_command arrives late; it must be discarded, not pending.
+    assert driver.on_command("robot_1", "cmd-2") is False
+
+    # The true owner's terminal must resume normally -- not get stuck
+    # waiting for cmd-2 (which will never send another terminal).
+    assert driver.on_status("robot_1", "cmd-1", "COMPLETED") == [
+        ("robot_1", (3.0, 0.0))
+    ]
+
+
+def test_redelivered_on_command_for_an_already_resolved_pending_is_discarded():
+    """The FAILED-pending case's own redelivery: once a pending command's
+    own terminal (FAILED, never-took-ownership) has been consumed, a
+    redelivery of its on_command (DDS retry) must not re-queue it either."""
+    driver = BaseMissionDriver()
+    driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}})
+    driver.on_command("robot_1", "cmd-1")
+    driver.on_command("robot_1", "cmd-2")
+    assert driver.on_status("robot_1", "cmd-2", "FAILED") == []
+
+    # Redelivery of cmd-2's on_command must be discarded, not re-pending'd.
+    assert driver.on_command("robot_1", "cmd-2") is False
+    assert driver.on_status("robot_1", "cmd-1", "COMPLETED") == [
+        ("robot_1", (3.0, 0.0))
+    ]
+
+
 def test_genuine_busy_reject_terminal_still_does_not_free_the_owner():
     """Regression pin for the EXISTING busy-reject contract: a command that
     never even reached on_command (command_bus_node's own busy-reject,
