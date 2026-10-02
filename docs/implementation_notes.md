@@ -139,6 +139,61 @@ Rules for maintaining it:
   section in place, per its own revision history):
   `docs/reports/2026-10-02-step7a-blocker-fixes.md`.
 
+- **2026-10-02** — **SECOND CORRECTION (same task, step 7a, same attempt-3
+  run, no further VM run needed): the entry above's "4/4" is real, but its
+  "ordered release" claim is not — the correct, final design-level
+  finding.** A second advisor-review pass on the SAME attempt-3 logs
+  (`/tmp/fc_20261002_160626_m4.log`, the run's own GT) found that the
+  release resolved via its sim-clock HOLD-TIMER backstop
+  (`hold_sec=junction_recede_hold_sec=120`, consumed by `create_timer`,
+  which runs on the node clock — i.e. sim time under this project's
+  standing `use_sim_time`, NOT wall time: 452 observed wall-s at this
+  run's own measured RTF ~0.27 is ~122 sim-s, matching `hold_sec` almost
+  exactly), not via the `CrossingChain`'s real clearance tracking — which
+  could never have fired, because GT shows the release's own lead
+  (`robot_3`, ranked[0]) staying at speed 0.00-0.04 m/s for the entire
+  sim 100-180 s window, never approaching the required 2.85 m of
+  displacement. Worse: `robot_4`, one of the TWO robots the release is
+  supposed to hold until that clearance, independently reached its own
+  goal (arrived at wall 1790958022, BEFORE the release's own COMPLETED at
+  1790958039) — `m4.log` shows `resume base mission robot=robot_4
+  goal=(0.0, -1.75)` firing at wall 1790957587.891, the SAME instant the
+  cross phase resolves and the release command is dispatched. A robot
+  genuinely held by a `yield` cannot independently drive ~3 m to its own
+  goal; `robot_4` escaped through `BaseMissionDriver`'s own resume path,
+  not through anything fix 2 dispatched. **Root cause, and why it also
+  explains the same-side recede placement this task's first two VM
+  attempts both observed without correctly attributing it**:
+  `CoordinationTracker`'s own module docstring states "Commands and
+  statuses arrive on separate topics with no cross-topic ordering
+  guarantee" — `BaseMissionDriver` (a SEPARATE node, `coordination_
+  client_node.py`) resumes a robot's base mission on the terminal status
+  of whichever command currently owns it, and a LATER phase's new
+  command is not guaranteed to land before that resume fires;
+  `m4.log` shows this same race firing for `robot_3` itself six times
+  across the run, at every phase boundary it is held through, which is
+  the actual mechanism that put the two recede candidates on the same
+  side in the first place (not an M4 `reverse`-execution anomaly, as an
+  earlier, now-corrected reading of this same evidence guessed). This one
+  pre-existing M4 mechanism produced the same-side placement, let a held
+  robot leave early, and made the clearance target unreachable — it is a
+  property of the message contract between `command_bus_node` and
+  `coordination_client_node`, not of fix 2's own phase-level machinery
+  (the new `release` phase, its triggering, and the geometry-derived
+  clearance distance are implemented exactly as specified and are
+  confirmed NOT to be what failed). Fixing it is a change to
+  `BaseMissionDriver`/`command_bus_node` or the status-ordering contract
+  between them, out of this task's scope — **the design-level finding for
+  the coordinator**, per the task's own framing. GT's own
+  `robot_robot_contacts` field recorded no physical contact at any point
+  in the run, including the 0.0761 m minimum-separation row at sim
+  106.1 s, despite 14,910 safety-monitor `min_distance_violation` log
+  lines over the whole run (not traced further to which specific pairs
+  produced each line). No VM state changed by this correction (same
+  attempt-3 artifacts, re-read, not re-run); the restore/cleanup already
+  recorded above stands. Full report corrected in place, per its own
+  revision history: `docs/reports/2026-10-02-step7a-blocker-fixes.md`.
+
 - **2026-10-02** — **M4 protocol note (step 7a, fix 3): `swarm_execution/
   safety.py`'s `admitted_partners` gained an ADDITIVE, v2-branch-only
   exemption parameter.** `plan_partners: frozenset[str] = frozenset()`
