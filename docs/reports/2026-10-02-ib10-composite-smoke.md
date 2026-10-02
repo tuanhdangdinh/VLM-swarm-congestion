@@ -410,20 +410,31 @@ plain `reverse` strategy and every leg feasible, so it executed exactly as
 proposed: `dispatch request=4362ae... command=...-reverse robot=robot_3`
 then `robot=robot_4`.
 
-**Arrival result:** 1/4 by the `ArrivalGate` log (`robot_2`, `distance_m=
-0.05`, `check=within_tolerance`; no rejections or late-accepts the whole
-~440 s M5 session, well past the GT's 300 s cap). GT cross-check: `robot_1`
-(1.881 m) and `robot_4` (1.238 m) at sim_time 300 s; `robot_3` (2.147 m)
-still moving (`speed_mps=0.133`).
+**Correction, twice over -- both retracted, replaced with a traced
+mechanism.** The first draft claimed "1/4, ran out of time" (wrong: decision
+2's trigger stamp, read from its own artifact, is 96.267 s, not the ~306 s
+a wall-clock estimate gave). The second draft then claimed "1/4, no net
+progress for 170 s, Nav2 cycling" (also wrong, caught on a further review
+pass): `REC_SEC=450` bounds how long `fc_launch.sh` keeps the ROS2 control
+stack (M1/M4/M5/Nav2, everything inside the `vgu_ros` container) alive, in
+WALL seconds -- and this episode's own two decision-artifact stamps give a
+directly measured real-time factor: `(96.267 - 30.233) sim-s / (1790943022.82
+- 1790942780.68) wall-s = 0.273`. At that RTF, 450 wall-seconds covers only
+~123 sim-seconds from M5's own start, and the actual `fc-launch cleanup:
+restarting container + killing Isaac` line lands at a wall-time that maps
+to **sim_time ~134.6 s** -- so everything after that in GT (robot_4 "frozen
+at a fixed point," robot_3 "oscillating in a small box") is a **dead-stack
+artifact**: no M1/M4/M5/Nav2 process is running, so GT after 134.6 s is
+just physics continuing to integrate whatever velocity each robot held at
+shutdown, not navigation. **Arrivals in this episode are therefore not
+meaningfully measured past sim~135 s** -- the `ArrivalGate` log shows the
+same single `robot_2` acceptance as before, but the window during which a
+second arrival could have happened was never actually run. A second
+episode, with a corrected `REC_SEC`/`SIM_SEC` sized to this measured RTF,
+follows below; this episode's own first ~135 s remain valid data.
 
-**Correction -- this is NOT "ran out of time," and the first draft's claim
-that it was is retracted.** Decision 2's trigger stamp is 96.267 s, not
-~306 s; `robot_3`/`robot_4` had roughly 200 s of the 300 s window left, and
-made essentially no net progress in it (GT sampled every 10 s from 130 s to
-300 s: `robot_3` oscillates inside a 0.2 m x 0.25 m box, `distance_to_goal_m`
-cycling between 2.06 and 2.27 with no trend; `robot_4` is motionless at
-`(0.09, -0.52)`, `speed_mps=0.000`, for the entire 170 s from ~130 s to
-300 s). The actual mechanism, traced through `m4.log` and GT together:
+**The traced mechanism, confirmed through `m4.log` + GT together, entirely
+within the alive window (sim 96-135 s):**
 
 1. Decision 2's own `proposed_plan` marks `robot_1` `continue` -- it is not
    involved in this trigger's conflict at all, and keeps driving its base
@@ -434,38 +445,42 @@ cycling between 2.06 and 2.27 with no trend; `robot_4` is motionless at
    `robot_4`'s `admitted_partners` (that exemption only covers `robot_3`,
    the other member of command `4362ae...-reverse`), so M4's safety monitor
    fires `safety stop robot=robot_4 reason=min_distance_violation`
-   repeatedly from wall 1790943020 onward (confirmed in `m4.log`).
+   repeatedly from wall 1790943020 onward.
 3. `robot_4`'s `reverse` command never reaches `status=COMPLETED` anywhere
-   in the log (last line is `status republished ... status=ACTIVE` at wall
-   1790943029.9) -- it stays stuck mid-maneuver, explaining its permanent
-   freeze at the position GT shows.
-4. `robot_3`'s own `reverse` DOES complete (`status=COMPLETED` at wall
-   1790943086, 59 s after dispatch -- itself delayed by the same safety-
-   stop storm, confirmed by its own `safety stop ... min_distance_violation`
-   lines starting at wall 1790943027) and `resume base mission robot=robot_3
-   goal=(0.0, 1.75)` fires correctly -- but with `robot_4` frozen nearby and
-   blocking the direct path, Nav2 appears to cycle/replan without making
-   net progress (the oscillation GT shows).
+   in the alive window (last line is `status republished ... status=ACTIVE`
+   at wall 1790943029.9) -- GT confirms it stops dead at `(0.169, -0.628)`
+   by sim 99.5 s and never moves again, consistent with the command simply
+   never resolving, not with a later architectural stall.
+4. `robot_3`'s own `reverse` overshoots badly: GT shows it driving
+   continuously south from `(0.04, -1.13)` at sim 97 s to `(0.00, -2.38)`
+   by sim 111 s -- past the verified-tracked `|y| <= 1.75` extent and the
+   homography's own 2.09 m edge. This is the EXACT window of this run's
+   longest STALE streak (108.8-114.7 s, below) -- a real overlap between an
+   active maneuver and a tracking dropout, not the coincidence a settled
+   dwell would be. `robot_3`'s own `reverse` then does complete
+   (`status=COMPLETED` at wall 1790943086) and `resume base mission
+   robot=robot_3 goal=(0.0, 1.75)` fires correctly; GT shows it driving
+   north at ~0.15-0.17 m/s from sim 112 s, reaching `(0.34, -0.60)` by sim
+   124 s -- then slowing to a stop near `robot_4`'s frozen position
+   (within the safety latch again) by sim 126-130 s, which is the last
+   real-control-window state GT records before the ~134.6 s shutdown.
 5. With `robot_4`'s own action inside command `4362ae...` never resolving,
-   M5's busy-robot bookkeeping keeps the trigger suppressed continuously
-   from this point to the end of the run (every subsequent `m5.log` line in
-   this window is `trigger suppressed`, never another `starting analysis`)
-   -- unlike runs A/B, where the SAME robot set re-triggered repeatedly.
+   M5's busy-robot bookkeeping keeps the trigger suppressed for the rest of
+   the alive window (confirmed: every subsequent `m5.log` line before
+   shutdown is `trigger suppressed`, never another `starting analysis`).
 
-**This is a genuine, different result, reported as found**: a plain
-`reverse` decision that leaves an uninvolved, still-approaching robot
-(`robot_1`) on `continue` is not safety-exempted against the robots it is
-about to encroach on -- `admitted_partners` only covers members of the
-SAME command. The model's own plan did not anticipate this (ER-2 was never
-shown a forward prediction of `robot_1`'s trajectory, only the snapshot),
-and nothing downstream caught it either. Not fixed here -- this is M3/M4
-grounding behavior for the plain `reverse` strategy generally, not
-`junction_clear`-specific, and well outside this task's scope -- but it is
-the actual reason this episode's secondary conflict never resolved, and it
-is a materially different, and more specific, finding than "insufficient
-wall time."
+**Reported as found, backup bound not fixed here**: a plain `reverse`
+decision that leaves an uninvolved, still-approaching robot (`robot_1`) on
+`continue` is not safety-exempted against the robots it is about to
+encroach on (`admitted_partners` only covers same-command members); and
+`robot_3`'s own backup distance for this 2-robot conflict geometry ran it
+~1.2 m past the verified tracking extent, with no tracked-band bound the
+way `junction_clear`'s own recede pockets have one. Both are M3/M4
+grounding gaps for the plain `reverse` strategy, not `junction_clear`-
+specific, and out of this task's scope to fix -- added to the freeze-
+blocking list below.
 
-### STALE instrumentation (live episode)
+### STALE instrumentation (episode 1)
 
 Recomputed with the corrected raw-row method (see run A's correction note):
 
@@ -477,12 +492,10 @@ Recomputed with the corrected raw-row method (see run A's correction note):
 | robot_4 | 0 | 0.0% | 0 | 0.467 | -- |
 
 `robot_1`'s streak is pre-trigger bring-up (well before the 30.233 s
-trigger). `robot_3`'s 25-row/5.9 s streak at 108.8-114.7 s falls squarely
-inside the window just traced above: `robot_3`'s `reverse` command
-resolved at wall 1790943086 (resume-base-mission fired), and the oscillation
-phase (Nav2 cycling near the frozen `robot_4`) runs from roughly there to
-the end of the episode -- this STALE streak is therefore DURING the
-active, unresolved recovery attempt this section's finding describes, not
+trigger). `robot_3`'s 25-row/5.9 s streak at 108.8-114.7 s overlaps its
+out-of-tracked-band excursion traced above (step 4) almost exactly -- this
+STALE streak is therefore DURING an active maneuver gone past the verified
+tracking extent, not
 an idle dwell. It does not change the finding (the mechanism traced above
 is a safety-exemption gap confirmed independently through `m4.log`/GT, not
 an M1 tracking artifact), but it is reported here because the resolved
