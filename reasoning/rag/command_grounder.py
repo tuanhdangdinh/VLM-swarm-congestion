@@ -2279,11 +2279,23 @@ class PlanRepairParams(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    # Placeholder (prereg-v2 (a0) build order item 5: "sized from the mock
-    # sweep ... and frozen before live smokes"). 2 covers the swap gate (one
-    # edit) with one edit of headroom for a second simultaneous defect; not
-    # yet validated against a live battery.
-    max_repair_edits: int = Field(default=2, ge=0)
+    # Frozen (step-7b ruling (ii), prereg-v2 (a0) build order item 7: re-swept
+    # bounds 1-4 over the full 18-case `junction_clear` corpus, including
+    # `recede_order_swapped` (`scripts/junction_clear_repair_bound_sweep.py`,
+    # table in `docs/reports/2026-10-03-step7b-oracle-freeze.md`). No bound
+    # in 1-4 reaches full repairable coverage (two depth-5 cases remain
+    # m3_default even at bound=4); per the ruling's own freeze procedure
+    # ("smallest full-coverage bound, else 3 with the documented tail"),
+    # freezes at 3 -- which covers 11/14 repairable cases (79%), leaving
+    # the two depth-5 cases (`recede_pair_full_axis_swap`,
+    # `combined_wrong_pair_and_order`) and the one depth-4 case
+    # (`missing_both_recede_candidates`) m3_default-by-design. This bound is
+    # global (every v2 strategy's plan channel shares `PlanRepairParams`,
+    # not just `junction_clear`); the step-4 two-robot head-on equivalence
+    # smoke is unaffected because raising the bound only ever makes MORE
+    # plans repairable, never fewer, and every swap-gate repair there costs
+    # at most one edit (verified: full suite zero-delta after this change).
+    max_repair_edits: int = Field(default=3, ge=0)
 
 
 class VerifiedPlan(BaseModel):

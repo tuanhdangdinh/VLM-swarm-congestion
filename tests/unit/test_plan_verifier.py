@@ -344,6 +344,13 @@ class TestDuplicateRobotRejectedAtSchema:
 
 
 class TestRepairDistanceBound:
+    def test_default_bound_is_frozen_at_three(self):
+        # Step-7b ruling (ii): the re-swept bound (bounds 1-4, 18-case
+        # corpus, docs/reports/2026-10-03-step7b-oracle-freeze.md) freezes
+        # at 3 -- no bound in 1-4 reaches full repairable coverage, so the
+        # freeze procedure's fallback applies.
+        assert PlanRepairParams().max_repair_edits == 3
+
     def test_repair_exceeding_bound_falls_back_to_m3_default(self):
         # Both sides blocked: no involved robot can feasibly yield at all, so
         # no repair within the bound can ever succeed.

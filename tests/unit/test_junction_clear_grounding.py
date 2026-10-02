@@ -737,6 +737,12 @@ class TestRecedeSetAudit:
         # metric hole, since the actual dispatch (chi-ranked, structural)
         # would never match it. Now flagged and repaired (or, if the repair
         # distance is exhausted, defaulted) -- never silently verbatim.
+        #
+        # Step-7b ruling (ii): this is the sweep's `recede_pair_full_axis_
+        # swap` case (true minimal repair depth 5), one of the two
+        # documented m3_default-by-design cases at the frozen default bound
+        # (3) -- `scripts/junction_clear_repair_bound_sweep.py`,
+        # docs/reports/2026-10-03-step7b-oracle-freeze.md.
         decision = _decision(
             proposed_plan=[
                 {"robot_id": "robot_1", "action": "reverse"},
@@ -746,7 +752,22 @@ class TestRecedeSetAudit:
             ]
         )
         verified = _verify(decision, _geometry())
-        assert verified.provenance != "vlm_verbatim"
+        assert verified.provenance == "m3_default"
+        assert verified.rejection_stage == "repair_bound_exceeded"
+
+    def test_missing_both_recede_candidates_falls_to_m3_default_at_the_frozen_bound(self):
+        # The sweep's `missing_both_recede_candidates` case (true minimal
+        # repair depth 4): just over the frozen bound (3), the third
+        # documented m3_default-by-design case.
+        decision = _decision(
+            proposed_plan=[
+                {"robot_id": "robot_1", "action": "yield"},
+                {"robot_id": "robot_2", "action": "cross"},
+            ]
+        )
+        verified = _verify(decision, _geometry())
+        assert verified.provenance == "m3_default"
+        assert verified.rejection_stage == "repair_bound_exceeded"
 
     def test_recede_legs_in_the_wrong_relative_order_become_repaired(self):
         # Run B's exact live bug: both recede candidates correctly membered,

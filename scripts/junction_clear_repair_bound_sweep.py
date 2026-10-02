@@ -45,7 +45,7 @@ JUNCTION_ARMS = {
 # a real minimum (verified below: nothing in the corpus hits this ceiling
 # except the categories expected to be unrepairable at any depth).
 PROBE_BOUND = 10
-CANDIDATE_BOUNDS = (1, 2, 3)
+CANDIDATE_BOUNDS = (1, 2, 3, 4)
 
 
 def _geometry() -> SceneGeometry:
