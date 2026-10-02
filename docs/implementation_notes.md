@@ -89,7 +89,35 @@ Rules for maintaining it:
   Zero-delta local suite maintained throughout (58 failed/4311 passed/139
   skipped vs. the `955b962` baseline, identical failing-test-name set).
   VM (`vgu-vgu-thule-base-isaac-workstation-vm`) restored pristine on all
-  four `orchestrator.yaml`/`rag.yaml` copies, GPU idle, no stray processes.
+  four `orchestrator.yaml`/`rag.yaml` copies (independently confirmed by a
+  full 724-file `git ls-files` md5 manifest diff against the VM: only the
+  two restored config files and two since-updated doc files differ, no
+  code), GPU idle, no stray processes.
+  **CORRECTION (same task, same report, post-advisor-review):** three
+  claims in the first pass were wrong, all fixed in the report, not here:
+  (1) the STALE table above used a collapse-to-first-row method that
+  erased every real dropout -- recomputed with the project's own raw-row
+  method (`m1_y_extent_probe_analysis.py`'s `score_scene_log`), the true
+  numbers run 2-26 rows per streak, not 0-1; one streak (live run,
+  `robot_3`, 25 rows) overlaps an ACTIVE unresolved-conflict window, not an
+  idle dwell. (2) Arrivals were re-verified against the actual scoring
+  instrument (`ArrivalGate`'s `arrived at base goal`/`arrival accepted`/
+  `arrival rejected` log lines), which agrees with the GT-distance estimate
+  in all three runs (1/4, `robot_2` only) -- the instrument was right, just
+  previously unconfirmed directly. (3) The live episode's "1/4, ran out of
+  time" framing was wrong: decision 2's trigger stamp (read from the
+  decision artifact, not estimated from wall-clock) is 96 s, not ~306 s;
+  the real mechanism, traced through `m4.log` + GT, is that the decision's
+  own `continue` leg for the uninvolved `robot_1` let it close to within
+  the 0.45 m safety latch of the reversing `robot_4` (`admitted_partners`
+  only exempts same-command members), permanently stalling `robot_4`'s
+  `reverse` and, with it, the command's resolution and M5's retrigger.
+  Also newly folded in: run B's `junction_clear` dispatch order (chi
+  re-ranked `robot_3` before `robot_4` live, opposite the proposed plan)
+  verifies `vlm_verbatim`/`dispatch_matches_plan=true` despite executing a
+  different sequence -- the SAME metric hole as the step-4 sweep's
+  wrong-recede-pair finding (no recede-vs-recede order check exists),
+  now confirmed live, not just swept.
 
 - **2026-10-02** — **v2 build-order step 5, post-landing advisor-review
   fixes** (same branch, same task; six real bugs found by independent

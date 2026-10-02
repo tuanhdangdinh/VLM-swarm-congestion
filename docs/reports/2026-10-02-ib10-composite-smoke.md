@@ -8,6 +8,17 @@
   sweep) complete and committed; VM sections (mock smoke, live episode,
   STALE instrumentation, restore) in progress, drafted as stubs so the local
   findings are durable independent of the VM session's outcome.
+- Rev 2 (post-VM, post-advisor-review): filled in all three VM runs, close-
+  out, and API spend; then corrected three errors the review caught: the
+  STALE analysis (a collapse-to-first-row method erased every real
+  dropout), arrivals (now cited against the actual `ArrivalGate` log, not
+  GT distance alone -- confirms the same 1/4 conclusion), and the live
+  episode's second decision (its real trigger stamp is 96 s, not ~306 s as
+  wall-clock estimated; traced the actual mechanism through `m4.log` + GT
+  instead). Also folded run B's dispatch-order mismatch into the step-4
+  metric-hole finding instead of calling it harmless, and added the full
+  md5 manifest check. Every number this revision changed is marked
+  "correction" in place; nothing is silently rewritten.
 
 **commit:** branch `feat/v2-ib10-smoke`, worktree
 `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v2-ib10`, branched from
@@ -32,6 +43,16 @@ ruling this task reads (STALE gate resolution, plan lifecycle, repair-
 semantics) is byte-identical on both branches. Step-5's `junction_clear`
 machinery (`ground_junction_clear_phases`, `junction_phase_queue.py`,
 `plan_tracker.py` wiring) is committed on the branch point, not pending.
+
+**For the coordinator:** `feat/prereg-v2-composite` has moved from this
+branch's merge-base (`955b962`) to `d193c39` while this task ran (other
+work landed on it concurrently -- confirmed via the shared scratchpad and
+VM evidence in the VM-preflight section below). This branch's own diff
+(`git diff 955b962..HEAD`) is the correct, minimal one to review -- 9
+files, two new JSON mocks, no deletions outside one 15-line orchestrator.
+yaml edit; diffing against the CURRENT tip of `feat/prereg-v2-composite`
+instead shows unrelated files this task never touched. A rebase (not
+performed here, per "no merge, no push") will be needed before landing.
 
 ---
 
@@ -164,7 +185,15 @@ metrics (ii)/(iv) must be read alongside `dispatch_matches_plan`/the
 oracle-order metric for this strategy specifically, never alone. Not fixed
 here -- out of this task's scope (the engine is shared, v2-wide machinery;
 amending it is a separate, scoped change the coordinator should decide,
-not a unilateral edit during a sizing sweep).
+not a unilateral edit during a sizing sweep). **Confirmed live, not just
+swept**: run B (below) independently reproduces the same category of gap
+-- a `junction_clear` plan whose two recede legs are correctly MEMBERED but
+wrongly ORDERED relative to each other also verifies `vlm_verbatim` with no
+repair offered, because `_plan_problems` has no recede-vs-recede order
+check either. Both the membership gap (this sweep) and the order gap (run
+B) share one root cause: the junction_clear consistency/feasibility audit
+checks recede-vs-yield-axis ordering only, never anything about the
+recede set's own membership or internal order.
 
 Commit: `6e65ab1`.
 
@@ -225,53 +254,91 @@ spent (per the standing rule and specifically re-confirmed by review):
 
 | Criterion | Result |
 |---|---|
-| Jam forms first | **PASS** -- all four robots within 0.15 m of the IB10 standoff reference positions by sim_time 26.5 s (GT `ground_truth.jsonl`); global min pairwise distance 0.133 m at 47.1 s |
+| Jam forms first | **PASS** -- stricter than a GT-proximity check: the trigger decision's OWN snapshot (`decision_junction_clear.json`'s `scene.stamp=34.333`) shows all four robots already `STOPPED` at the standoff (verified against GT, which independently shows all four within 0.15 m of the standoff reference by sim_time 26.5 s, 7.8 s before this exact trigger) |
 | Full phase sequence executes (recede robot_4, then robot_3, staggered sequential; yield phase; done) | **PASS** -- `phase advance ... phase_reached=recede done=False` (robot_4), then `phase_reached=cross done=False` (robot_3), then `phase_reached=resolved done=True` (cross phase); never two recede legs in one command (confirmed from the dispatch lines: each recede command addresses exactly one active `reverse` robot) |
 | Provenance correct | **PASS** -- decision artifact `5e42a221d4dc488c9632957e21a2acee.json`: `plan.provenance="m3_default"`, `plan.rejection_reason="plan absent"` (no `proposed_plan` in run A's mock, as designed), `plan.dispatch_matches_plan=true`, legs `[robot_4 reverse, robot_3 reverse, robot_1 yield, robot_2 cross]` -- the exact chi order |
 | Deploy check (no `shipped_unsolved` tag) | **PASS** -- `grounding_degradations: ["junction_clear=recede"]` only, confirming both J2 fields reached the installed config |
 | Ordered crossing (yielder re-enters last) | **PASS for the phase itself** -- the cross phase's own command grounded `robot_1` yield + `robot_2` cross per the solved row; see the FAIL below for what happens after |
-| 4/4 position-verified arrivals | **FAIL within this run's window** -- at scenario end (sim_time 300 s), only `robot_2` arrived (`distance_to_goal_m=0.104`); `robot_1`/`robot_3`/`robot_4` frozen (`speed_mps=0.000`) from sim_time ~120 s onward, `min_pairwise_distance_m` pinned at 0.398 m. See the correction below: this is the mock script's finite length, not a stable architectural deadlock -- M5 keeps re-triggering, the mock just has nothing new left to say. |
+| 4/4 position-verified arrivals | **FAIL within this run's window** -- scored by the actual scoring instrument, `swarm_orchestrator.arrival.ArrivalGate` (`docs/reports/2026-10-01-robot1-stale-rootcause.md`'s own finding of which gate governs scoring), not GT distance alone: `m5.log` carries exactly one `robot ... arrived at base goal` line for the whole run (`robot_2`, `distance_m=0.09`, `check=within_tolerance`), no `arrival rejected`/`arrival accepted late` lines at all. GT cross-check agrees: `robot_1`/`robot_3`/`robot_4` frozen (`speed_mps=0.000`) from sim_time ~120 s onward, `min_pairwise_distance_m` pinned at 0.398 m. See the correction below: this is the mock script's finite length, not a stable architectural deadlock -- M5 keeps re-triggering, the mock just has nothing new left to say. |
 
 **Root-cause finding, corrected after the live episode below surfaced the full picture (do not read this paragraph without that correction):** the composite's own phase sequence has no scope over what happens after `done=True`. M5's `junction_phase_queue` releases every held recede candidate back to its **original base-mission goal** the moment the cross phase resolves (`resume base mission robot=robot_4 goal=(0.0, -1.75)` / `robot=robot_3 goal=(0.0, 1.75)` in `fc_20261002_111456_m4.log`) -- robot_3 and robot_4 parked on OPPOSITE sides of the junction during their staggered recede and are released toward each other's original goals on the opposite arm, a fresh N-S encounter the `junction_clear` contract never orders. The scene log shows M5's congestion detector repeatedly noticing this and re-triggering a NEW analysis for the stuck robots -- 8 separate `starting analysis` calls for `['robot_1','robot_3','robot_4']`/subsets between sim_time ~230 s and run end (`request=8c60a56c...` through `request=37f2a5ab...`), not a one-time suppression. **The real cause the first pass of this report missed**: `MockBackend` (`reasoning/vlm/mock_backend.py`) replays `VGU_MOCK_DECISION_FILE`'s scripted array in order and **holds the LAST entry forever once exhausted** -- run A's 3-entry script ends on `none` (congestion_detected=false), so every one of those 8 re-triggers gets answered "no congestion" and nothing is ever dispatched for the stuck trio. This is a property of the finite mock script, not of M5's retry/cooldown machinery, which the live episode (Step 5 below) demonstrates DOES eventually resolve the identical secondary conflict once a backend that always answers something is in the loop. **Reported as a result, re-scoped by the live run**: the composite's own job (recede + yield + cross, phase-by-phase, provenance-correct, solved-row numbers) is fully verified working; the post-resolution base-mission release creates a genuine secondary conflict outside the composite's own scope, M5's detector does keep retrying it (not a suppression bug), and whether it resolves depends on the backend actually answering it -- which a finite scripted mock, by construction, cannot do indefinitely.
 
 ### STALE instrumentation (run A)
 
-Per-robot streaks over the M5 scene log (`m5_scene/fbe42f6dee3b40b5b6dcf2f5540f26c2.jsonl`, 370 logged cycles), collapsed to DISTINCT M1 frame stamps first (M5's own cycle rate re-logs one unchanged M1 frame several times while M1 itself is between publishes, which inflates a naive row-count streak 15x without a single additional stale frame actually occurring -- confirmed by inspection: `robot_4`'s raw 15-row "streak" is one single frame at stamp 72.133 s, re-logged 15 times):
+**Correction from this report's first draft**: the first pass collapsed
+consecutive scene-log rows sharing one M1 frame stamp down to their FIRST
+occurrence, on the theory that M5 re-logs one unchanged frame several times
+per M1 publish. That collapse is wrong -- a frozen stamp is exactly what a
+STALE dwell looks like (M1 stops advancing the stamp, M5 keeps logging at
+its own rate, and status genuinely transitions STOPPED -> STALE across
+those same-stamp rows as carried-forward age crosses the threshold); taking
+the first row at each stamp discards every transition to STALE. Recomputed
+using the project's own authoritative method (`scripts/m1_y_extent_probe_
+analysis.py`'s `score_scene_log`: raw per-row counts, `age = scene_stamp -
+robot_stamp`, streak = consecutive raw rows), over the real `m5_scene/
+fbe42f6dee3b40b5b6dcf2f5540f26c2.jsonl` (370 rows/robot):
 
-| Robot | Distinct-frame STALE events | Longest streak (distinct frames) | Window |
-|---|---|---|---|
-| robot_1 | 1 | 1 | t=6.0 s (pre-departure bring-up) |
-| robot_2 | 0 | 0 | -- |
-| robot_3 | 0 | 0 | -- |
-| robot_4 | 1 | 1 | t=72.1 s (during its recede-pocket dwell) |
+| Robot | STALE rows | % | Longest streak | max_age (s) | Window (sim-s) |
+|---|---|---|---|---|---|
+| robot_1 | 4 | 1.1% | 4 | 11.667 | 16.93-17.67 |
+| robot_2 | 19 | 5.1% | 10 | 4.033 | 44.73-47.37 |
+| robot_3 | 0 | 0.0% | 0 | 0.067 | -- |
+| robot_4 | 26 | 7.0% | 15 | 5.767 | 73.37-77.90 |
 
-Neither event is a streak (both are single isolated frames) and neither coincides with a scoring-relevant window: robot_1's is pre-trigger bring-up (never a scored dwell), robot_4's is mid-recede-dwell under the stale-tolerant `ArrivalGate` (costs no credit per the resolved gate's own finding). Both are consistent with the established background noise floor (`docs/reports/2026-10-01-robot1-stale-rootcause.md`'s "a few percent of frames" mechanism), not the catastrophic 74-82% rate that mechanism's one failing pose produces. Per the ruling, this does NOT invalidate the run; flagged here per the instrumentation requirement.
+None of these windows overlaps the `junction_clear` trigger's own snapshot
+stamp (34.333 s, confirmed `STOPPED` for every robot in the decision
+artifact itself). `robot_1`'s and `robot_2`'s windows are both pre-trigger
+(bring-up and early approach). `robot_4`'s 15-row/4.5 s streak at 73.4-
+77.9 s falls inside its own ACTIVE recede maneuver (robot_4's reverse
+command dispatched at wall 1790939873, its phase-advance-complete logged at
+wall 1790939917 -- the 73-78 s sim window sits inside that span), not a
+settled dwell -- worth distinguishing from a parked hold, though the
+stale-tolerant `ArrivalGate` governs neither case. No run observed a STALE
+event during `robot_1`'s OWN park dwell (the cross-phase yield, much later
+in the run): this neither confirms nor rules out the solved-row park pose
+(~(-1.018, 0.36), never directly probed by `docs/reports/2026-10-01-
+robot1-stale-rootcause.md`'s yieldpark run, which tested the shipped-
+clearance pose `(-1.37, 0.359)` instead) -- absence of an observed event
+across three runs is suggestive, not a probe of that specific pose. Per the
+resolved gate's ruling, none of these streaks invalidate the run (no
+scored-arrival-window overlap), but they are materially different numbers
+from the first draft's "1 isolated frame" claim and are reported as such.
 
 ### Run B results (`vlm_verbatim`, run `20261002_113936`)
 
 | Criterion | Result |
 |---|---|
-| Jam forms first | **PASS** -- all four within 0.15 m of the standoff by sim_time 27.4 s |
+| Jam forms first | **PASS** -- trigger snapshot `scene.stamp=34.4` shows all four `STOPPED` at the standoff (GT independently shows all four within 0.15 m by sim_time 27.4 s, 6.6 s earlier) |
 | Full phase sequence executes | **PASS** -- `phase_reached=recede` (robot_3), then `phase_reached=cross` (robot_4), then `phase_reached=resolved done=True`; staggered, never simultaneous |
-| Provenance correct | **PASS** -- `plan.provenance="vlm_verbatim"`, `edits=[]`: the scripted plan (naming `robot_4` then `robot_3`) verified feasible and executed with zero repair |
+| Provenance correct | **PASS on action-membership, FAIL on sequence order -- see the finding below, folded into the step-4 freeze-blocking metric hole, not a separate harmless note** |
 | Deploy check (no `shipped_unsolved` tag) | **PASS** -- `grounding_degradations: ["junction_clear=recede"]` only |
 | Ordered crossing (yielder re-enters last) | **PASS for the phase itself**, same caveat as run A below |
-| 4/4 position-verified arrivals | **FAIL within this run's window** -- only `robot_2` arrived (`dist_to_goal_m=0.069`); `robot_1` (1.202 m), `robot_3` (2.865 m), `robot_4` (0.961 m) frozen, `min_pairwise_distance_m` bottoming at 0.331 m -- same mock-exhaustion cause as run A (see below), not a second independent deadlock mechanism |
+| 4/4 position-verified arrivals | **FAIL within this run's window** -- `ArrivalGate` log: exactly one `arrived at base goal` line all run (`robot_2`, `distance_m=0.06`), no rejections/late-accepts. GT agrees: `robot_1` (1.202 m), `robot_3` (2.865 m), `robot_4` (0.961 m) frozen -- same mock-exhaustion cause as run A, not a second independent deadlock mechanism |
 
-**Live-position chi re-ranking, confirmed in a real run (not just the hand-computed tie from the step-5 landing notes):** the actual dispatch order was **robot_3 first, then robot_4** -- the OPPOSITE of run A's order and of this run's own scripted `proposed_plan` (which named `robot_4` then `robot_3`, matching the synthetic standoff frame's D_SPACE numbers, 0.923 vs 0.942). `ground_junction_clear_phases` ranks chi from the LIVE snapshot at the actual trigger moment, not a fixed reference frame, and the two candidates are a near-exact tie there -- small real trajectory noise flips which one chi ranks cheaper. This did not cost `vlm_verbatim` provenance or `dispatch_matches_plan` (both stayed true): `junction_clear_plan_matches_dispatch` compares each robot's ASSIGNED ACTION, never the relative order between the two recede candidates (confirmed by reading `_plan_problems`'s junction_clear ordering audit, which only checks "every recede leg precedes every yield-axis leg," not recede-vs-recede order), and `_repair_plan`'s search space does not include a recede/recede reorder as a tracked edit either. This is consistent with -- and now empirically reproduces -- the step-5 landing note's own finding 5 ("the cosmetic `extra_holds` LIST ORDER... CAN differ... harmless and not actually exercised twice by this system").
+**Correction, folded into the step-4 freeze-blocking finding (this was wrongly called harmless in the first draft):** the actual dispatch order was **robot_3 first, then robot_4** -- the OPPOSITE of run A's order and of this run's own scripted `proposed_plan` (which named `robot_4` then `robot_3`). `ground_junction_clear_phases` ranks chi from the LIVE snapshot at the trigger moment, not a fixed reference frame, and the two candidates are a near-exact tie there. `verify_and_repair_plan` still reports `provenance="vlm_verbatim"` and `dispatch_matches_plan=true` -- **but "executed verbatim" is literally false for this plan**: the model proposed `[robot_4, robot_3, robot_1, robot_2]` and M5 dispatched `[robot_3, robot_4, robot_1, robot_2]`, a different sequence. `junction_clear_plan_matches_dispatch` masks this because it compares each robot's ASSIGNED ACTION, never the order between the two recede legs. This is **not** explained by step-5's finding 5 (which is about `extra_holds` list-order cosmetics, not the primary recede sequence), and it is **not** a case `_repair_plan` structurally cannot fix: its `reorder` op swaps any two touchable legs, including two `reverse` legs -- the reason this run's plan was never even offered to repair is that `_plan_problems`'s junction_clear audit only checks "every recede leg precedes every yield-axis leg," never recede-vs-recede relative order, so a plan with the two recede legs swapped is never flagged as a problem in the first place and is accepted verbatim at zero edits. **This is the step-4 metric hole's twin, now observed live, not just swept**: the (a0) consistency/feasibility audit has no recede-vs-recede order check, so provenance and `dispatch_matches_plan` both over-credit a plan whose proposed order the live dispatch did not follow.
 
 Same root-cause as run A, corrected the same way: `resume base mission robot=robot_3 goal=(0.0, 1.75)` / `robot=robot_1 goal=(1.75, 0.0)` / `robot=robot_2 goal=(-1.75, 0.0)` fire the moment `done=True`, releasing the N-S pair toward each other's original goals with no further ordering. M5's detector re-triggers for this stuck set repeatedly (confirmed: `starting analysis` for `['robot_1','robot_3','robot_4']`/`['robot_3','robot_4']` fires at least 4 more times after resolution, e.g. `request=7f7b4550...`, `request=3fba3218...`, `request=04c41327...`, `request=9b2aec5d...`), and each is answered by `MockBackend`'s held-last-entry `none` (both `04c41327...` and `9b2aec5d...` decision artifacts confirm `backend_id="mock"`, `strategy="none"`, the run B script's own final justification text). **Two independent runs, same mock-exhaustion cause** -- the composite and M5's retry loop both work; a 3-entry scripted mock cannot answer a conflict it was never scripted to resolve.
 
 ### STALE instrumentation (run B)
 
-| Robot | Distinct-frame STALE events | Longest streak | Window |
-|---|---|---|---|
-| robot_1 | 0 | 0 | -- |
-| robot_2 | 0 | 0 | -- |
-| robot_3 | 0 | 0 | -- |
-| robot_4 | 0 | 0 | -- |
+Recomputed with the corrected raw-row method (see run A's correction note):
 
-Zero STALE frames across all four robots for the whole 300 s episode (389 distinct M1 frames per robot). Consistent with the mechanism being a per-pose phase effect that does not fire on every run (the rootcause report's own framing); does not conflict with run A's two single-frame blips -- both are well inside the documented noise floor.
+| Robot | STALE rows | % | Longest streak | max_age (s) | Window (sim-s) |
+|---|---|---|---|---|---|
+| robot_1 | 0 | 0.0% | 0 | 0.233 | -- |
+| robot_2 | 2 | 0.5% | 2 | 1.633 | 30.37-30.60 |
+| robot_3 | 0 | 0.0% | 0 | 0.267 | -- |
+| robot_4 | 0 | 0.0% | 0 | 0.033 | -- |
+
+`robot_2`'s brief 2-row/0.23 s blip at 30.37-30.60 s falls inside the
+pre-trigger stall-accumulation window (the detector's own 12 s stall
+threshold means it was accumulating evidence from roughly 22.4 s onward for
+the 34.4 s trigger) but the trigger snapshot itself (34.4 s) shows
+`robot_2` `STOPPED`, not `STALE` -- the blip resolved before the decision
+was made. Much lower overall than run A (this run's own mechanism-level
+background noise is simply quieter), consistent with the resolved gate's
+framing of a per-pose phase effect that does not fire identically every
+run. No streak invalidates this run.
 
 ---
 
@@ -318,10 +385,12 @@ output, not a synthetic one**: a plausible-but-structurally-wrong plan
 caught and replaced before it ever reached M4, with the substitution
 logged and attributable.
 
-**Decision 2** (`4362ae3848e24ef7bde0a1e66dfe56c1`, dispatched 4.3 s after
-the second trigger, itself fired at the same post-resolution N-S conflict
-runs A/B hit -- `starting analysis ... robots=['robot_1','robot_3','robot_4']
-reason=3 robot(s) stalled >= 12.0s`):
+**Decision 2** (`4362ae3848e24ef7bde0a1e66dfe56c1`, trigger snapshot
+`stamp=96.267` -- confirmed by the decision artifact's own `scene` block,
+not a wall-clock estimate -- dispatched 4.3 s after the second trigger,
+itself fired at the same post-resolution N-S conflict runs A/B hit --
+`starting analysis ... robots=['robot_1','robot_3','robot_4'] reason=3
+robot(s) stalled >= 12.0s`):
 
 - strategy: `reverse` (not `junction_clear` -- a genuine result, per the
   task's own framing, not a failure to retry)
@@ -338,35 +407,84 @@ plain `reverse` strategy and every leg feasible, so it executed exactly as
 proposed: `dispatch request=4362ae... command=...-reverse robot=robot_3`
 then `robot=robot_4`.
 
-**Arrival result:** 1/4 at sim_time 300 s (`robot_2`, `distance_to_goal_m=
-0.061`); `robot_1` (1.881 m) and `robot_4` (1.238 m) stationary; `robot_3`
-(2.147 m) **still moving** (`speed_mps=0.133`) when the window closed. No
-robot-robot or robot-static contacts anywhere in the GT (0/3001 rows).
-**This is a materially different shape of result from runs A/B, and the
-report says so plainly**: decision 2 dispatched at wall-elapsed ~306 s
-since M5 start -- essentially at the edge of the scenario's own 300 s
-window -- so `robot_3`/`robot_4`'s `reverse` maneuver had almost no time
-to execute before recording stopped. Runs A/B's mock never got a real
-answer to this same secondary conflict at all (it held `none` forever);
-the live model answered correctly and promptly (two real calls, ~4-5 s
-turnaround each) both times it was asked, and the composite + the post-
-resolution recovery decision were both handled on their merits. Whether
-the full episode would reach 4/4 given more wall time past 300 s is not
-established by this run (not re-run, per the one-re-run-is-for-infra-
-failures-only rule -- this is a timing/window observation on a result that
-already landed, not an infra failure to retry past once).
+**Arrival result:** 1/4 by the `ArrivalGate` log (`robot_2`, `distance_m=
+0.05`, `check=within_tolerance`; no rejections or late-accepts the whole
+~440 s M5 session, well past the GT's 300 s cap). GT cross-check: `robot_1`
+(1.881 m) and `robot_4` (1.238 m) at sim_time 300 s; `robot_3` (2.147 m)
+still moving (`speed_mps=0.133`).
+
+**Correction -- this is NOT "ran out of time," and the first draft's claim
+that it was is retracted.** Decision 2's trigger stamp is 96.267 s, not
+~306 s; `robot_3`/`robot_4` had roughly 200 s of the 300 s window left, and
+made essentially no net progress in it (GT sampled every 10 s from 130 s to
+300 s: `robot_3` oscillates inside a 0.2 m x 0.25 m box, `distance_to_goal_m`
+cycling between 2.06 and 2.27 with no trend; `robot_4` is motionless at
+`(0.09, -0.52)`, `speed_mps=0.000`, for the entire 170 s from ~130 s to
+300 s). The actual mechanism, traced through `m4.log` and GT together:
+
+1. Decision 2's own `proposed_plan` marks `robot_1` `continue` -- it is not
+   involved in this trigger's conflict at all, and keeps driving its base
+   mission uninterrupted while `robot_3`/`robot_4` reverse.
+2. `robot_1` was already closing on `robot_4` before the trigger (GT:
+   `d(robot_1, robot_4)` falls from 1.11 m at sim 94 s to 0.433 m by sim
+   99.3 s -- below the 0.45 m safety latch) -- `robot_1` is not one of
+   `robot_4`'s `admitted_partners` (that exemption only covers `robot_3`,
+   the other member of command `4362ae...-reverse`), so M4's safety monitor
+   fires `safety stop robot=robot_4 reason=min_distance_violation`
+   repeatedly from wall 1790943020 onward (confirmed in `m4.log`).
+3. `robot_4`'s `reverse` command never reaches `status=COMPLETED` anywhere
+   in the log (last line is `status republished ... status=ACTIVE` at wall
+   1790943029.9) -- it stays stuck mid-maneuver, explaining its permanent
+   freeze at the position GT shows.
+4. `robot_3`'s own `reverse` DOES complete (`status=COMPLETED` at wall
+   1790943086, 59 s after dispatch -- itself delayed by the same safety-
+   stop storm, confirmed by its own `safety stop ... min_distance_violation`
+   lines starting at wall 1790943027) and `resume base mission robot=robot_3
+   goal=(0.0, 1.75)` fires correctly -- but with `robot_4` frozen nearby and
+   blocking the direct path, Nav2 appears to cycle/replan without making
+   net progress (the oscillation GT shows).
+5. With `robot_4`'s own action inside command `4362ae...` never resolving,
+   M5's busy-robot bookkeeping keeps the trigger suppressed continuously
+   from this point to the end of the run (every subsequent `m5.log` line in
+   this window is `trigger suppressed`, never another `starting analysis`)
+   -- unlike runs A/B, where the SAME robot set re-triggered repeatedly.
+
+**This is a genuine, different result, reported as found**: a plain
+`reverse` decision that leaves an uninvolved, still-approaching robot
+(`robot_1`) on `continue` is not safety-exempted against the robots it is
+about to encroach on -- `admitted_partners` only covers members of the
+SAME command. The model's own plan did not anticipate this (ER-2 was never
+shown a forward prediction of `robot_1`'s trajectory, only the snapshot),
+and nothing downstream caught it either. Not fixed here -- this is M3/M4
+grounding behavior for the plain `reverse` strategy generally, not
+`junction_clear`-specific, and well outside this task's scope -- but it is
+the actual reason this episode's secondary conflict never resolved, and it
+is a materially different, and more specific, finding than "insufficient
+wall time."
 
 ### STALE instrumentation (live episode)
 
-| Robot | Distinct-frame STALE events | Longest streak | Window |
-|---|---|---|---|
-| robot_1 | 1 | 1 | t=6.97 s (pre-departure bring-up) |
-| robot_2 | 0 | 0 | -- |
-| robot_3 | 0 | 0 | -- |
-| robot_4 | 0 | 0 | -- |
+Recomputed with the corrected raw-row method (see run A's correction note):
 
-Same shape as run A (one isolated pre-trigger blip), inside the documented
-noise floor, no scoring-relevant window affected.
+| Robot | STALE rows | % | Longest streak | max_age (s) | Window (sim-s) |
+|---|---|---|---|---|---|
+| robot_1 | 3 | 0.8% | 3 | 10.300 | 16.83-17.27 |
+| robot_2 | 0 | 0.0% | 0 | 0.600 | -- |
+| robot_3 | 25 | 6.4% | 25 | 7.233 | 108.80-114.73 |
+| robot_4 | 0 | 0.0% | 0 | 0.467 | -- |
+
+`robot_1`'s streak is pre-trigger bring-up (well before the 30.233 s
+trigger). `robot_3`'s 25-row/5.9 s streak at 108.8-114.7 s falls squarely
+inside the window just traced above: `robot_3`'s `reverse` command
+resolved at wall 1790943086 (resume-base-mission fired), and the oscillation
+phase (Nav2 cycling near the frozen `robot_4`) runs from roughly there to
+the end of the episode -- this STALE streak is therefore DURING the
+active, unresolved recovery attempt this section's finding describes, not
+an idle dwell. It does not change the finding (the mechanism traced above
+is a safety-exemption gap confirmed independently through `m4.log`/GT, not
+an M1 tracking artifact), but it is reported here because the resolved
+gate's instrumentation rule asks for exactly this kind of overlap check,
+and this is the one run where a real overlap exists.
 
 ### API spend
 
@@ -402,21 +520,37 @@ v2-design.md` build-order step 6), every run was checked for a long STALE
 streak on any robot during any stationary dwell. Summary across all three
 runs (full per-run tables in each run's own section above):
 
+Longest streak (raw rows, the project's own authoritative method --
+`scripts/m1_y_extent_probe_analysis.py`'s `score_scene_log`) and whether it
+overlaps a trigger snapshot or an active phase/maneuver window:
+
 | Run | robot_1 | robot_2 | robot_3 | robot_4 |
 |---|---|---|---|---|
-| A (`m3_default` mock) | 1 frame @ t=6.0s (bring-up) | 0 | 0 | 1 frame @ t=72.1s (recede dwell) |
-| B (`vlm_verbatim` mock) | 0 | 0 | 0 | 0 |
-| Live (ER-2) | 1 frame @ t=6.97s (bring-up) | 0 | 0 | 0 |
+| A (`m3_default` mock) | 4 rows @ 16.9-17.7s (bring-up) | 10 rows @ 44.7-47.4s (pre-trigger approach) | 0 | 15 rows @ 73.4-77.9s (DURING its active recede maneuver) |
+| B (`vlm_verbatim` mock) | 0 | 2 rows @ 30.4-30.6s (pre-trigger stall window, trigger itself fresh) | 0 | 0 |
+| Live (ER-2) | 3 rows @ 16.8-17.3s (bring-up) | 0 | 25 rows @ 108.8-114.7s (DURING the unresolved post-decision-2 recovery attempt) | 0 |
 
-No run showed a streak longer than a single distinct M1 frame (every
-apparent multi-row "streak" in the raw scene log collapses to one frame
-once M5's own re-logging of an unchanged M1 frame is accounted for -- see
-run A's section for the worked example). None coincided with a scoring-
-relevant window: the bring-up blips predate every trigger, and the one
-recede-dwell blip (run A, robot_4) sits under the stale-tolerant
-`ArrivalGate`, which costs no credit on a stale read. Per the ruling, this
-flag does **not** invalidate any of the three runs; the registered fallback
-(a 0.10 m symmetric spawn re-radius) is not triggered.
+**Correction from this report's first draft**: the first pass collapsed
+repeated scene-log rows sharing one M1 stamp down to their first
+occurrence, which erased every transition into STALE and undercounted
+every one of these numbers to "0 or 1 isolated frame." Recomputed from raw
+rows, two streaks genuinely overlap an active window (run A's robot_4
+during its own recede backup; the live run's robot_3 during the unresolved
+secondary-conflict recovery traced in Step 5) rather than a settled dwell.
+No streak overlaps a `junction_clear` TRIGGER's own snapshot stamp in any
+run -- every trigger snapshot (run A 34.333s, run B 34.4s, live decision 1
+30.233s, live decision 2 96.267s) independently confirms every robot
+`STOPPED`, not `STALE`, at that exact instant (from each decision
+artifact's own `scene` block). `robot_1`'s own solved-row park dwell
+(cross-phase yield) shows no STALE event in any of the three runs, but
+that is an absence-of-evidence result, not a probe of that specific pose
+(~(-1.018, 0.36), still never directly tested the way `docs/reports/
+2026-10-01-robot1-stale-rootcause.md`'s yieldpark run tested the
+shipped-clearance pose). Per the resolved gate's ruling, none of this
+invalidates any of the three runs (no scored-arrival-window overlap in any
+case -- the `ArrivalGate` governs none of the overlapping windows above);
+the registered fallback (a 0.10 m symmetric spawn re-radius) is not
+triggered.
 
 ---
 
@@ -476,3 +610,14 @@ expected side effect of deploying a real code change, not a config file
 the standing convention restores, and consistent with the VM's own
 "whoever deploys next" shared-tree model (confirmed by the VM having no
 `.git` directory at all -- it is a plain extracted tree, not a clone).
+
+**Manifest check** (standing trap: verify the deploy left nothing else
+drifted): a full 724-file md5 manifest of this branch's `git ls-files` at
+HEAD, generated locally and diffed against the live VM tree. Three
+differences, all expected: `ros2_ws/src/swarm_orchestrator/config/
+orchestrator.yaml` (the intentional pristine-restore difference above) and
+`docs/implementation_notes.md`/`docs/reports/2026-10-02-ib10-composite-
+smoke.md` (this task kept editing these two docs locally after its one
+`git archive` deploy; the VM's copies are simply an earlier revision of the
+same files -- inert, since nothing on the VM reads them). No other file
+differs; the deploy is otherwise byte-identical to this branch's HEAD.
