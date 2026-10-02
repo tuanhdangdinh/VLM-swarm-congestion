@@ -53,6 +53,7 @@ aisle_barrier:
   effective_width_m: 0.55
   center_x_m: 0.0
   length_m: 2.0
+loop_map: null
 parameters:
   blocker_west_m: 0.2
   blocker_east_m: null

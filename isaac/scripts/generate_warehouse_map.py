@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from isaac.vgu_sim.config import (
     AisleBarrierConfig,
+    LoopMapConfig,
     ScenarioConfig,
     StaticObstacleConfig,
     WarehouseConfig,
@@ -48,6 +49,7 @@ def build_occupancy_grid(
     resolution_m: float,
     aisle_barrier: AisleBarrierConfig | None = None,
     static_obstacles: Sequence[StaticObstacleConfig] = (),
+    loop_map: LoopMapConfig | None = None,
 ) -> tuple[np.ndarray, float]:
     """Build a uint8 occupancy grid from warehouse dimensions and obstacle list.
 
@@ -74,6 +76,10 @@ def build_occupancy_grid(
         static_obstacles: Scenario static-obstacle configs, rasterized OCCUPIED
             on top of everything above. Timed obstacles are never baked -- they
             are runtime-spawned bodies, not part of the static map.
+        loop_map: Scenario loop-map geometry, or None for every scenario that
+            does not carve a second aisle. When given, the second aisle and
+            its one new N-S connector are cleared (FREE) out of the NE rack
+            block, mirroring ``scenario_builder._author_loop_connectors``.
 
     Returns:
         Tuple of ``(grid, resolution_m)`` where ``grid`` is a uint8 numpy
@@ -101,6 +107,9 @@ def build_occupancy_grid(
     for obstacle in obstacles:
         _mark_obstacle(grid, config, obstacle, resolution_m)
 
+    if loop_map is not None:
+        rasterize_loop_map(grid, loop_map, config, resolution_m)
+
     if aisle_barrier is not None:
         rasterize_aisle_barrier(grid, aisle_barrier, config, resolution_m)
 
@@ -108,6 +117,51 @@ def build_occupancy_grid(
         rasterize_static_obstacles(grid, static_obstacles, config, resolution_m)
 
     return grid, resolution_m
+
+
+def rasterize_loop_map(
+    grid: np.ndarray,
+    loop_cfg: LoopMapConfig,
+    config: WarehouseConfig,
+    resolution_m: float,
+) -> None:
+    """Clear (FREE) the second aisle + one new N-S connector into an existing grid.
+
+    Mirrors ``isaac.vgu_sim.scenario_builder._author_loop_connectors`` exactly
+    (same three world rectangles), run after the NE rack block has already
+    been marked OCCUPIED by the default rack pass above, so this carves a
+    hole into it rather than conflicting with it. Mutates ``grid`` in place.
+    Height plays no role here -- the 2D occupancy grid has no z axis -- so,
+    unlike the USD authoring path, there is no analogue of the connector
+    remnants' reduced height; only their world (x, y) footprint matters.
+
+    Args:
+        grid: uint8 occupancy grid to mutate, shape ``(height_px, width_px)``.
+        loop_cfg: Scenario loop-map geometry.
+        config: Warehouse geometry supplying the grid's world-to-cell mapping.
+        resolution_m: Meters per pixel of ``grid``.
+    """
+    base_half = config.nominal_aisle_width_m / 2.0
+    aisle_y_min = loop_cfg.second_aisle_center_y_m - loop_cfg.second_aisle_width_m / 2.0
+    aisle_y_max = loop_cfg.second_aisle_center_y_m + loop_cfg.second_aisle_width_m / 2.0
+    conn_x_min = loop_cfg.connector_center_x_m - loop_cfg.connector_width_m / 2.0
+    conn_x_max = loop_cfg.connector_center_x_m + loop_cfg.connector_width_m / 2.0
+
+    for center_x, center_y, width, depth in (
+        (
+            (loop_cfg.second_aisle_x_min_m + loop_cfg.second_aisle_x_max_m) / 2.0,
+            loop_cfg.second_aisle_center_y_m,
+            loop_cfg.second_aisle_x_max_m - loop_cfg.second_aisle_x_min_m,
+            aisle_y_max - aisle_y_min,
+        ),
+        (
+            loop_cfg.connector_center_x_m,
+            (base_half + aisle_y_min) / 2.0,
+            conn_x_max - conn_x_min,
+            aisle_y_min - base_half,
+        ),
+    ):
+        _mark_free(grid, config, (center_x, center_y, width, depth), resolution_m)
 
 
 def rasterize_aisle_barrier(
@@ -253,7 +307,31 @@ def _mark_obstacle(
     obstacle: tuple[float, float, float, float],
     resolution_m: float,
 ) -> None:
-    center_x, center_y, obs_width_m, obs_depth_m = obstacle
+    _rasterize_rect(grid, config, obstacle, resolution_m, OCCUPIED)
+
+
+def _mark_free(
+    grid: np.ndarray,
+    config: WarehouseConfig,
+    region: tuple[float, float, float, float],
+    resolution_m: float,
+) -> None:
+    """Clear an axis-aligned world rectangle to FREE on an existing grid.
+
+    Inverse of `_mark_obstacle`: used to carve a loop-map aisle/connector
+    opening out of a rack block that an earlier pass already marked OCCUPIED.
+    """
+    _rasterize_rect(grid, config, region, resolution_m, FREE)
+
+
+def _rasterize_rect(
+    grid: np.ndarray,
+    config: WarehouseConfig,
+    rect: tuple[float, float, float, float],
+    resolution_m: float,
+    value: int,
+) -> None:
+    center_x, center_y, obs_width_m, obs_depth_m = rect
     x_min = center_x - obs_width_m / 2
     x_max = center_x + obs_width_m / 2
     y_min = center_y - obs_depth_m / 2
@@ -270,7 +348,7 @@ def _mark_obstacle(
     row_min = max(0, row_min)
     row_max = min(height_px, row_max)
 
-    grid[row_min:row_max, col_min:col_max] = OCCUPIED
+    grid[row_min:row_max, col_min:col_max] = value
 
 
 def write_map(
@@ -358,6 +436,7 @@ def main() -> None:
     scenario = load_scenario(args.scenario) if args.scenario is not None else None
     barrier = scenario.aisle_barrier if scenario is not None else None
     static_obstacles = scenario.static_obstacles if scenario is not None else ()
+    loop_map = scenario.loop_map if scenario is not None else None
     default_stem = "warehouse_map" if scenario is None else f"warehouse_map_{scenario.name}"
     stem = args.output or default_stem
 
@@ -368,6 +447,7 @@ def main() -> None:
         resolution_m=args.resolution_m,
         aisle_barrier=barrier,
         static_obstacles=static_obstacles,
+        loop_map=loop_map,
     )
     write_map(grid, resolution_m, config, args.out_dir, stem=stem)
     print(f"Map written to: {args.out_dir / f'{stem}.pgm'} and {args.out_dir / f'{stem}.yaml'}")

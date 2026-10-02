@@ -17,7 +17,7 @@ from isaac.vgu_sim.config import (
 )
 from isaac.vgu_sim.marker_asset import author_aruco_marker
 from isaac.vgu_sim.paths import aruco_dict_name, marker_png_path
-from isaac.vgu_sim.validation import validate_scenario_obstacles
+from isaac.vgu_sim.validation import validate_loop_connectors, validate_scenario_obstacles
 
 # The imported robot asset's variant set. "none" composes the visual meshes
 # and static collision shapes only: no articulation, rigid bodies or joints.
@@ -73,6 +73,8 @@ def build_scenario_stage(
     _author_static_obstacles(stage, config)
     if config.aisle_barrier is not None:
         _author_aisle_barrier(stage, config.aisle_barrier)
+    if config.loop_map is not None:
+        _author_loop_connectors(stage, config.loop_map)
 
     meta = stage.DefinePrim("/World/Scenario/Metadata")
     meta.SetMetadata("customData", {
@@ -85,6 +87,7 @@ def build_scenario_stage(
 
     _validate_references(stage, output_path)
     validate_scenario_obstacles(stage, config)
+    validate_loop_connectors(stage, config)
     stage.Save()
     return output_path
 
@@ -321,6 +324,99 @@ def _author_aisle_barrier(stage, barrier_cfg) -> None:
             Gf.Vec3f(float(barrier_cfg.center_x_m), float(y), z_center),
             Gf.Vec3f(float(block_half_x), float(block_half_y), z_half),
         )
+
+
+def _author_loop_connectors(stage, loop_cfg) -> None:
+    """Carve the second E-W aisle + one new N-S connector into the NE rack.
+
+    The shared `/World/Environment/RackBlocks/NE` cube (authored once in the
+    warehouse asset, sublayered by every scenario) is deactivated via an
+    `over` in this scenario's own root layer -- the warehouse `.usd` file on
+    disk is never touched, so every other scenario's map and physics stay
+    byte-identical. Four replacement cubes reconstruct NE's footprint minus
+    the second-aisle strip and the new connector notch:
+
+    - two untouched-height (0.9 m) remnants far from the carve, which carry
+      no camera-occlusion risk (`docs/reports/2026-10-02-loop-preemption-
+      smoke.md`, "Visibility");
+    - two reduced-height (`loop_cfg.connector_remnant_height_m`) remnants
+      immediately flanking the new connector, lowered so their camera
+      shadow does not blanket the second aisle, while staying taller than
+      the 0.182 m lidar scan plane so Nav2 still reads them as solid.
+
+    NW/SE/SW rack blocks are untouched. `generate_warehouse_map.py`'s
+    `rasterize_loop_map` must carve the identical three world rectangles
+    (second aisle + connector) out of the static map, or AMCL/the global
+    planner will disagree with what the lidar actually sees here, exactly
+    the failure mode that module's own docstring already warns about for
+    `aisle_barrier`.
+    """
+    from pxr import Gf, UsdGeom
+
+    warehouse = WarehouseConfig()
+    base_half = warehouse.nominal_aisle_width_m / 2.0
+    rack_half_width = (warehouse.width_m / 2.0 - base_half) / 2.0
+    rack_half_depth = (warehouse.depth_m / 2.0 - base_half) / 2.0
+    ne_x_max = base_half + rack_half_width * 2.0
+    ne_y_max = base_half + rack_half_depth * 2.0
+    rack_h = 0.9
+    low_h = loop_cfg.connector_remnant_height_m
+
+    ne_prim = stage.GetPrimAtPath("/World/Environment/RackBlocks/NE")
+    if not ne_prim.IsValid():
+        raise ScenarioBuildError(
+            "Expected /World/Environment/RackBlocks/NE from the sublayered "
+            "warehouse asset before authoring a loop-map override"
+        )
+    ne_prim.SetActive(False)
+
+    aisle_y_min = loop_cfg.second_aisle_center_y_m - loop_cfg.second_aisle_width_m / 2.0
+    aisle_y_max = loop_cfg.second_aisle_center_y_m + loop_cfg.second_aisle_width_m / 2.0
+    aisle_x_min = loop_cfg.second_aisle_x_min_m
+    aisle_x_max = loop_cfg.second_aisle_x_max_m
+    conn_x_min = loop_cfg.connector_center_x_m - loop_cfg.connector_width_m / 2.0
+    conn_x_max = loop_cfg.connector_center_x_m + loop_cfg.connector_width_m / 2.0
+
+    loop_root = UsdGeom.Xform.Define(stage, "/World/Scenario/LoopRackBlocks")
+    loop_root.GetPrim().SetMetadata(
+        "customData",
+        {
+            "second_aisle_center_y_m": loop_cfg.second_aisle_center_y_m,
+            "second_aisle_width_m": loop_cfg.second_aisle_width_m,
+            "connector_center_x_m": loop_cfg.connector_center_x_m,
+            "connector_remnant_height_m": low_h,
+        },
+    )
+
+    # (x_min, x_max, y_min, y_max, height) for each NE remainder, matching
+    # rasterize_loop_map's three carved rectangles exactly.
+    remainders = [
+        ("top_slab", base_half, ne_x_max, aisle_y_max, ne_y_max, rack_h),
+        ("aisle_east_of_loop", aisle_x_max, ne_x_max, aisle_y_min, aisle_y_max, rack_h),
+        ("connector_west_remnant", base_half, conn_x_min, base_half, aisle_y_min, low_h),
+        ("connector_east_remnant", conn_x_max, ne_x_max, base_half, aisle_y_min, low_h),
+    ]
+    for name, x_min, x_max, y_min, y_max, height in remainders:
+        half_x = (x_max - x_min) / 2.0
+        half_y = (y_max - y_min) / 2.0
+        center_x = (x_min + x_max) / 2.0
+        center_y = (y_min + y_max) / 2.0
+        _author_rack_remnant_cube(
+            stage,
+            f"/World/Scenario/LoopRackBlocks/{name}",
+            Gf.Vec3f(center_x, center_y, height / 2.0),
+            Gf.Vec3f(half_x, half_y, height / 2.0),
+        )
+
+
+def _author_rack_remnant_cube(stage, path: str, translate, scale) -> None:
+    from pxr import UsdGeom, UsdPhysics
+
+    cube = UsdGeom.Cube.Define(stage, path)
+    cube.CreateSizeAttr(2.0)
+    cube.AddTranslateOp().Set(translate)
+    cube.AddScaleOp().Set(scale)
+    UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
 
 
 def _author_barrier_cube(stage, path: str, translate, scale) -> None:

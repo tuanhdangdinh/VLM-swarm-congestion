@@ -142,6 +142,75 @@ class AisleBarrierConfig(BaseModel):
         return v
 
 
+class LoopMapConfig(BaseModel):
+    """A second E-W aisle plus one new N-S connector, closing a cycle.
+
+    The existing N-S strip (`\\|x\\| <= nominal_aisle_width_m / 2`) already
+    connects the primary aisle to any y, for free, so only one new connector
+    is authored (east of the primary aisle's junction square); the second
+    aisle and the connector are carved out of the NE rack block only
+    (`docs/reports/2026-10-02-loop-preemption-smoke.md`, "Minimal loop
+    topology"). NW/SE/SW rack blocks are untouched.
+
+    `connector_remnant_height_m` is lower than the shared warehouse's 0.9 m
+    rack height by design: at the standard height the connector-flanking
+    rack remnant's camera shadow blankets most of the second aisle (same
+    report, "Visibility"); a low divider (still above the 0.182 m lidar
+    scan plane, so Nav2 still sees it as solid) keeps the aisle visible to
+    the overhead camera.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    second_aisle_center_y_m: float
+    second_aisle_width_m: float = Field(gt=0)
+    second_aisle_x_min_m: float
+    second_aisle_x_max_m: float
+    connector_center_x_m: float
+    connector_width_m: float = Field(gt=0)
+    connector_remnant_height_m: float = Field(default=0.3, gt=0)
+
+    @field_validator("second_aisle_center_y_m")
+    @classmethod
+    def _second_aisle_north_of_primary(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError(f"second_aisle_center_y_m must be > 0; got {v}")
+        return v
+
+    @model_validator(mode="after")
+    def _second_aisle_extent_increasing(self) -> "LoopMapConfig":
+        if self.second_aisle_x_min_m >= self.second_aisle_x_max_m:
+            raise ValueError(
+                "second_aisle_x_min_m must be < second_aisle_x_max_m; got "
+                f"{self.second_aisle_x_min_m} >= {self.second_aisle_x_max_m}"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _connector_inside_second_aisle_extent(self) -> "LoopMapConfig":
+        half = self.connector_width_m / 2.0
+        c = self.connector_center_x_m
+        if not (self.second_aisle_x_min_m <= c - half and c + half <= self.second_aisle_x_max_m):
+            raise ValueError(
+                "connector_center_x_m +- connector_width_m/2 must sit inside "
+                f"[second_aisle_x_min_m, second_aisle_x_max_m]; got centre {c}, "
+                f"half-width {half}, extent [{self.second_aisle_x_min_m}, "
+                f"{self.second_aisle_x_max_m}]"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _second_aisle_south_edge_above_primary_aisle(self) -> "LoopMapConfig":
+        base_half = WarehouseConfig().nominal_aisle_width_m / 2.0
+        south_edge = self.second_aisle_center_y_m - self.second_aisle_width_m / 2.0
+        if south_edge <= base_half:
+            raise ValueError(
+                "second aisle south edge "
+                f"({south_edge}) must sit north of the primary aisle "
+                f"(half-width {base_half}), leaving room for the connector band"
+            )
+        return self
+
+
 class ExpectedConflictConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     type: Literal["deadlock", "bottleneck", "anomaly"]
@@ -530,6 +599,7 @@ class ScenarioConfig(BaseModel):
     timed_obstacles: tuple[TimedObstacleConfig, ...] = ()
     static_obstacles: tuple[StaticObstacleConfig, ...] = ()
     aisle_barrier: AisleBarrierConfig | None = None
+    loop_map: LoopMapConfig | None = None
     parameters: HeadOnAsymmetricParams | None = None
     oracle: (
         OracleConfig

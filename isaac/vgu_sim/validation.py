@@ -132,6 +132,43 @@ def validate_scenario_obstacles(stage, config: ScenarioConfig) -> None:
             raise ValidationError(f"Configured obstacle prim missing: {path}")
 
 
+def validate_loop_connectors(stage, config: ScenarioConfig) -> None:
+    """Assert a `loop_map` scenario deactivated NE and authored its remnants.
+
+    Mirrors `validate_scenario_obstacles`'s "every configured thing actually
+    landed on the stage" check for the loop-map carve
+    (`scenario_builder._author_loop_connectors`): catches a stale stage or a
+    builder gap at build time, not mid-run.
+
+    Args:
+        stage: USD stage being validated.
+        config: Scenario config whose `loop_map`, if set, must be authored.
+
+    Raises:
+        ValidationError: If `loop_map` is set but NE was left active, or any
+            expected remnant cube is missing.
+    """
+    if config.loop_map is None:
+        return
+
+    ne_prim = stage.GetPrimAtPath("/World/Environment/RackBlocks/NE")
+    if ne_prim.IsValid() and ne_prim.IsActive():
+        raise ValidationError(
+            "loop_map is set but /World/Environment/RackBlocks/NE is still "
+            "active; _author_loop_connectors must deactivate it"
+        )
+
+    for name in (
+        "top_slab",
+        "aisle_east_of_loop",
+        "connector_west_remnant",
+        "connector_east_remnant",
+    ):
+        path = f"/World/Scenario/LoopRackBlocks/{name}"
+        if not stage.GetPrimAtPath(path).IsValid():
+            raise ValidationError(f"Configured loop-map remnant prim missing: {path}")
+
+
 def validate_no_unresolved_references(stage) -> None:
     errors = list(stage.GetCompositionErrors())
     if errors:
