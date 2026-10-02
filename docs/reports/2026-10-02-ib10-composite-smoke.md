@@ -277,20 +277,146 @@ Zero STALE frames across all four robots for the whole 300 s episode (389 distin
 
 ## Step 5: live episode (VM, ER-2)
 
-**STATUS: PENDING.**
+Run `20261002_120337`, `BACKEND_ID=gemini` (`gemini-robotics-er-2-preview`,
+pinned in `config/models.yaml`), plan channel on (prompt v3 rendered),
+IB10's deployed obstacles config (none, as shipped). Preflight: one minimal
+real call through `backend_factory.build_backend("gemini", ...)` before the
+episode (two synthetic robots, a marker PNG as the image, `max_tokens=512`)
+-- transport/auth/schema round-trip confirmed (`served_model=gemini-
+robotics-er-2-preview`, a real `token_usage` block back); the call's own
+output got truncated by the preflight script's deliberately small
+`max_tokens`, which is a property of that throwaway script, not of the
+deployed config (`ReasonerConfig`'s real default is 2048).
 
-To be filled in after the run: the live model's verbatim decision (strategy,
-`recede_axis`/`proposed_plan`, justification), gate/repair handling,
-provenance, phase execution, arrival verification, STALE streaks, and API
-spend (computed from logged token usage x published ER-2 price; stated
-explicitly if the price cannot be sourced, not estimated from memory).
+The live episode produced exactly two VLM-triggered decisions. Both quoted
+verbatim from their decision artifacts:
+
+**Decision 1** (`78d932839ee748f3a1946cbef11399e7`, dispatched at the
+formed four-way standoff):
+
+- strategy: `junction_clear`
+- involved_robots: `[robot_1, robot_2, robot_3, robot_4]`
+- crossing_order: `[robot_1, robot_2, robot_3, robot_4]`
+- proposed_plan: `[{cross, robot_1}, {wait, robot_2}, {wait, robot_3}, {wait, robot_4}]`
+- justification: "A sequential clearance of the junction is required where
+  some robots yield or reverse to allow others to pass sequentially."
+- token_usage: `{prompt_tokens: 2659, completion_tokens: 341, thought_tokens: 305, total_tokens: 3305}`
+
+**Gate/repair handling:** the model picked the right strategy token
+(`junction_clear`) but its own `proposed_plan` has **zero** `reverse` or
+`yield` legs (`cross` + three `wait`), failing `junction_clear`'s own (a0)
+consistency rule (">= 1 reverse or yield leg") outright -- an inconsistent
+plan, never reaching the repair search. `verify_and_repair_plan` correctly
+rejected it: `plan.provenance="m3_default"`, and M3's own chi-ranked
+derivation ran the full composite exactly as runs A/B's `m3_default` case
+did (`grounding_degradations: ["junction_clear=recede"]`, no `shipped_
+unsolved` tag -- deploy check passes a third time). Phases executed and
+resolved (`phase_reached=recede` x2, then `cross`, then `resolved done=True`)
+precisely as before. **This is the (a0) safety net working on a REAL model
+output, not a synthetic one**: a plausible-but-structurally-wrong plan
+(the model named a passer and three waits, no recede/yield at all) was
+caught and replaced before it ever reached M4, with the substitution
+logged and attributable.
+
+**Decision 2** (`4362ae3848e24ef7bde0a1e66dfe56c1`, dispatched 4.3 s after
+the second trigger, itself fired at the same post-resolution N-S conflict
+runs A/B hit -- `starting analysis ... robots=['robot_1','robot_3','robot_4']
+reason=3 robot(s) stalled >= 12.0s`):
+
+- strategy: `reverse` (not `junction_clear` -- a genuine result, per the
+  task's own framing, not a failure to retry)
+- involved_robots: `[robot_3, robot_4]` (`robot_1` named in the trigger but
+  not in the decision's own involved set)
+- proposed_plan: `[{reverse, robot_3}, {reverse, robot_4}, {continue, robot_1}, {continue, robot_2}]`
+- justification: "Both robots are head-on and within the physical conflict
+  distance threshold, so they must reverse to clear the deadlock."
+- token_usage: `{prompt_tokens: 2756, completion_tokens: 273, thought_tokens: 370, total_tokens: 3399}`
+
+**Gate/repair handling:** `plan.provenance="vlm_verbatim"`, `dispatch_
+matches_plan=true`, zero edits -- the plan is internally consistent for a
+plain `reverse` strategy and every leg feasible, so it executed exactly as
+proposed: `dispatch request=4362ae... command=...-reverse robot=robot_3`
+then `robot=robot_4`.
+
+**Arrival result:** 1/4 at sim_time 300 s (`robot_2`, `distance_to_goal_m=
+0.061`); `robot_1` (1.881 m) and `robot_4` (1.238 m) stationary; `robot_3`
+(2.147 m) **still moving** (`speed_mps=0.133`) when the window closed. No
+robot-robot or robot-static contacts anywhere in the GT (0/3001 rows).
+**This is a materially different shape of result from runs A/B, and the
+report says so plainly**: decision 2 dispatched at wall-elapsed ~306 s
+since M5 start -- essentially at the edge of the scenario's own 300 s
+window -- so `robot_3`/`robot_4`'s `reverse` maneuver had almost no time
+to execute before recording stopped. Runs A/B's mock never got a real
+answer to this same secondary conflict at all (it held `none` forever);
+the live model answered correctly and promptly (two real calls, ~4-5 s
+turnaround each) both times it was asked, and the composite + the post-
+resolution recovery decision were both handled on their merits. Whether
+the full episode would reach 4/4 given more wall time past 300 s is not
+established by this run (not re-run, per the one-re-run-is-for-infra-
+failures-only rule -- this is a timing/window observation on a result that
+already landed, not an infra failure to retry past once).
+
+### STALE instrumentation (live episode)
+
+| Robot | Distinct-frame STALE events | Longest streak | Window |
+|---|---|---|---|
+| robot_1 | 1 | 1 | t=6.97 s (pre-departure bring-up) |
+| robot_2 | 0 | 0 | -- |
+| robot_3 | 0 | 0 | -- |
+| robot_4 | 0 | 0 | -- |
+
+Same shape as run A (one isolated pre-trigger blip), inside the documented
+noise floor, no scoring-relevant window affected.
+
+### API spend
+
+Two live decision calls plus the one preflight call, this task's entire
+live API usage:
+
+| Call | prompt_tokens | completion_tokens | thought_tokens | total_tokens |
+|---|---|---|---|---|
+| Preflight | 2089 | 25 | 483 | 2597 |
+| Decision 1 (`junction_clear`) | 2659 | 341 | 305 | 3305 |
+| Decision 2 (`reverse`) | 2756 | 273 | 370 | 3399 |
+| **Sum** | **7504** | **639** | **1158** | **9301** |
+
+Published price, sourced live (WebSearch, cross-confirmed by two
+independent listings -- [tldl.io](https://www.tldl.io/guides/gemini-api-pricing),
+[aifreeapi.com](https://www.aifreeapi.com/en/posts/gemini-api-pricing-2026)):
+**Gemini Robotics-ER 2 Preview: input $1.00 / 1M tokens, output $5.00 / 1M
+tokens.** Neither source lists a separate rate for "thinking" tokens on
+this model; this estimate **assumes** completion + thought tokens both
+bill as output (the common Gemini thinking-model convention), flagged as
+an assumption, not a confirmed line item:
+
+- Input: 7504 tokens x $1.00/1M = **$0.0075**
+- Output (639 + 1158 = 1797 tokens) x $5.00/1M = **$0.0090**
+- **Total: ~$0.017** (1.7 cents) for this task's entire live-API footprint.
 
 ---
 
 ## Step 6: STALE instrumentation
 
-**STATUS: PENDING** (applies to every run above; filled in alongside each
-run's results).
+Per the resolved gate's ruling (`docs/superpowers/specs/2026-09-30-prereg-
+v2-design.md` build-order step 6), every run was checked for a long STALE
+streak on any robot during any stationary dwell. Summary across all three
+runs (full per-run tables in each run's own section above):
+
+| Run | robot_1 | robot_2 | robot_3 | robot_4 |
+|---|---|---|---|---|
+| A (`m3_default` mock) | 1 frame @ t=6.0s (bring-up) | 0 | 0 | 1 frame @ t=72.1s (recede dwell) |
+| B (`vlm_verbatim` mock) | 0 | 0 | 0 | 0 |
+| Live (ER-2) | 1 frame @ t=6.97s (bring-up) | 0 | 0 | 0 |
+
+No run showed a streak longer than a single distinct M1 frame (every
+apparent multi-row "streak" in the raw scene log collapses to one frame
+once M5's own re-logging of an unchanged M1 frame is accounted for -- see
+run A's section for the worked example). None coincided with a scoring-
+relevant window: the bring-up blips predate every trigger, and the one
+recede-dwell blip (run A, robot_4) sits under the stale-tolerant
+`ArrivalGate`, which costs no credit on a stale read. Per the ruling, this
+flag does **not** invalidate any of the three runs; the registered fallback
+(a 0.10 m symmetric spawn re-radius) is not triggered.
 
 ---
 
