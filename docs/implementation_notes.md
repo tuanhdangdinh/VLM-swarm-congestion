@@ -118,6 +118,17 @@ Rules for maintaining it:
   different sequence -- the SAME metric hole as the step-4 sweep's
   wrong-recede-pair finding (no recede-vs-recede order check exists),
   now confirmed live, not just swept.
+  **SUPERSEDES the "permanently stalling"/"~200 s" framing two sentences
+  up** (same task, further review pass found `REC_SEC=450` bounds the ROS2
+  control stack in WALL seconds while this scenario runs at a measured real-
+  time factor of 0.27 -- the container teardown this episode hit lands at
+  sim~134.6 s, not after a long stall; `robot_4`'s `reverse` simply never
+  resolved inside the ~37 s it had before the harness tore the stack down.
+  A second, longer episode (`REC_SEC=1350`) reproduced the same `continue`-
+  vs-`reverse` safety-latch trigger on the SAME scene twice more, but both
+  times the commands resolved within ~53 s given more time -- "stalls"
+  under the original harness, not an unconditional deadlock. See the full
+  report for the corrected trace and the second episode's own results.
 
 - **2026-10-02** — **v2 build-order step 5, post-landing advisor-review
   fixes** (same branch, same task; six real bugs found by independent
