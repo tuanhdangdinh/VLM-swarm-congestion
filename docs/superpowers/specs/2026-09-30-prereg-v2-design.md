@@ -593,7 +593,22 @@ re-send.
   update, M3 reroute grounding to a concrete alternate path (waypoint
   via the far aisle, not a goal re-send), scenario YAMLs, oracle cost
   tables from forced-wait and forced-reroute sweeps.
-- **Risk:** Nav2 on a loop map may reroute *on its own* when the global
+- **Phase-1 gate: PASS (2026-10-02,
+  `docs/reports/2026-10-02-loop-preemption-smoke.md`).** Minimal loop
+  built (second aisle at y=1.2, one new east connector, lowered
+  connector-flanking racks for camera visibility); with the
+  sub-lethal blocker, 0/~200 sampled Nav2 global plans entered the
+  second aisle — the detour decision stays with M2/M3. M1 coverage
+  on the loop verified (100% fresh, mm-level bias). PROTOCOL
+  EXCEPTION recorded: `generate_warehouse_map.py`'s erroneous
+  vertical flip (silently mirrored Y-asymmetric map features;
+  invisible on all Y-symmetric v1 scenes) fixed on the v2 branch,
+  proven a byte-identical no-op for every v1 map, regression-pinned.
+  Follow-up check queued for step 9: whether T3b's Y-asymmetric
+  static obstacle being absent from its baked map is by design
+  (sensor-seen prop) — likely yes, verify when touching props.
+- **Risk (retired by the phase-1 gate, kept for the record):** Nav2
+  on a loop map may reroute *on its own* when the global
   costmap sees the blocker, pre-empting the decision layer. Design
   control: blocker placed so the global planner's path stays viable
   (narrowed-not-blocked, below costmap lethal threshold) while transit
