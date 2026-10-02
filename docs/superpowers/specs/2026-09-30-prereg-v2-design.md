@@ -379,7 +379,12 @@ head-ons, junction scenes, convoys, and the loop map — not just IB10.
   two-robot head-on) well-defined: post-resolution re-checks that
   find no congestion accept no plan, and a re-affirmed plan is a
   hold, not churn. The plan-state advice ("revise only for a
-  reason") states exactly these semantics.
+  reason") states exactly these semantics. REFINEMENT (2026-10-02,
+  from the step-4 smoke): if any leg has reached `failed` since the
+  last invocation, an identical re-issue is an **evidence-driven
+  replan**, never a hold — a retry is a response to evidence, and
+  counting it as a hold would hide exactly the revisions the
+  stability metric exists to see. (Implementation lands with step 5.)
 - **Probe prompts stay on their frozen version** (v2): T0 probes are
   an RQ1 instrument whose comparability spans v1 collection; a v2 run
   with the plan channel on therefore intentionally mixes prompt v3
