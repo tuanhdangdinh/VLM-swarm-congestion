@@ -15,7 +15,7 @@ duration_sec: 120.0
 # congestion is ever possible: family normal_flow, expected_conflict null).
 #
 # Points probed (report Section 3, camera-occlusion model):
-#   - robot_1 at (1.4, 1.2): the second aisle's centreline, representative of
+#   - robot_1 at (1.2, 1.2): the second aisle's centreline, representative of
 #     a normal transit of the carved aisle.
 #   - robot_2 at (1.8, 1.0): near the connector's mouth into the second
 #     aisle, 0.041 m north of the computed shadow boundary (0.959) from the
@@ -24,6 +24,12 @@ duration_sec: 120.0
 #     residual shadow sliver itself (y in [0.925, 0.959], unreachable by
 #     the robot's own 0.09 m half-width footprint on any path that keeps it
 #     inside the carved aisle).
+#
+# Separation: sqrt(0.6^2 + 0.2^2) = 0.632 m, clear of the 0.45 m latch and
+# the 0.57 m C3 spawn-pair rule (R-QUEUE-2 derivation, unified scene design
+# doc) -- the first choice, (1.4, 1.2), was only 0.447 m from robot_2, under
+# both thresholds, which could trip M5's congestion detector and make a
+# "stationary" probe call the mock backend after all.
 #
 # Both points sit inside the verified-clean tracked band (|x|<=2.5,
 # |y|<=2.0); robot_2 additionally reuses marker_id 2, avoiding the
@@ -36,8 +42,8 @@ duration_sec: 120.0
 robots:
   - robot_id: robot_1
     marker_id: 1
-    spawn: {x: 1.4, y: 1.2, yaw_rad: 0.0}
-    goal: {x: 1.4, y: 1.2}
+    spawn: {x: 1.2, y: 1.2, yaw_rad: 0.0}
+    goal: {x: 1.2, y: 1.2}
     initial_task: hold_position
   - robot_id: robot_2
     marker_id: 2

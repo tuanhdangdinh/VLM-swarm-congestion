@@ -100,6 +100,18 @@ def test_blocker_sits_strictly_between_the_arm_and_the_new_connector():
     assert blocker_x_max < connector_x_min
 
 
+def test_coverage_probe_robots_clear_the_spawn_pair_separation_rule():
+    # R-QUEUE-2 / C3 (unified scene design doc): spawn pairs need >= 0.57 m
+    # GT separation (0.45 m latch + 0.084 m M1 max bias), or a close pair
+    # could trip M5's congestion detector even though both robots are
+    # commanded to hold -- the first-choice point (1.4, 1.2) was only
+    # 0.447 m from (1.8, 1.0) and failed this.
+    cfg = _load("loop_map_m1_coverage_probe")
+    r1, r2 = (r.spawn for r in cfg.robots)
+    separation = ((r1.x - r2.x) ** 2 + (r1.y - r2.y) ** 2) ** 0.5
+    assert separation >= 0.57, separation
+
+
 def test_blocker_lidar_cross_section_clears_the_scan_plane():
     # nav2_params.yaml / T3a header: the lidar scans a single plane at
     # 0.182 m. A blocker shorter than that is invisible to Nav2 regardless

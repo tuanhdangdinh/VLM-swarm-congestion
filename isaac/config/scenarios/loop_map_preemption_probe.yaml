@@ -25,9 +25,15 @@ duration_sec: 180.0
 # real lidar detection would, not as a structural aisle_barrier baked into
 # the map from t=0 (that would just re-test the already-proven "Nav2 plans
 # through a 0.55 m gap" result, not the pre-emption risk). Present from
-# spawn_at_sec 0.0 so the planner's very first global plan already reflects
-# it (no mid-episode costmap-update timing to reason about for this
-# go/no-go check):
+# spawn_at_sec 0.0, not injected mid-episode, so there is no
+# transient/object timing question to reason about -- but "present from 0"
+# is NOT the same as "in the very first costmap": the blocker's near face
+# sits 3.475 m from spawn, inside nav2_params.yaml's obstacle_max_range
+# (3.5 m) by only 0.025 m, so whether the literal first plan reflects it is
+# sensor-geometry-fragile and not asserted. What the design needs -- lidar
+# detection well before the robot reaches the gap, not a map-baked fact --
+# holds regardless, since the robot closes the remaining distance quickly
+# and 3.475 m is already inside range at spawn:
 #   - asset: static_box, size 0.25 x 0.65 x 0.35 m (z clears the 0.182 m
 #     lidar scan plane, reusing T3a's box height), pose (1.2, -0.275, 0):
 #     spans y in [-0.6, 0.05], leaving a y in [0.05, 0.6] gap, i.e. a

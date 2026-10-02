@@ -12,6 +12,20 @@
   under "(b) Loop map". This revision answers only the STOP/GO geometry
   question; builder extensions and the live VM smoke follow in later
   revisions.
+- Rev 2: builder extension landed (Section 4) and scenario YAMLs authored
+  (Section 5), both local-only (no VM time): (a) the M1-coverage bonus
+  probe's second point moved from `(1.4, 1.2)` to `(1.2, 1.2)` — the
+  original was only 0.447 m from the other probe point, under both the
+  0.45 m latch and the 0.57 m spawn-pair rule; (b) the blocker's "present
+  from `t=0`" claim narrowed to not assert literal-first-costmap timing
+  (Section 5 — the 3.5 m `obstacle_max_range` margin is only 0.025 m);
+  (c) protocol note: adding `loop_map` to `ScenarioConfig` makes
+  `generate_head_on_family.py`'s generic `model_dump` emit a new
+  `loop_map: null` line in all 7 committed v1 head-on-family fixtures —
+  mechanical, null-only, required to keep that generator's own
+  byte-identity test passing, recorded here as the one v1-frozen-artifact
+  touch this build makes (relationship-to-v1 rule 2: v2-branch-only, never
+  merged into the collection tree pre-completion).
 
 ---
 
@@ -226,6 +240,14 @@ loop* when a new obstacle narrows its existing plan" (the actual risk).
   0.6]` gap, i.e. a **0.55 m remaining corridor width**, the same proven
   C55 floor used everywhere else in the battery (reused evidence, not a new
   number).
+- Present from `spawn_at_sec: 0.0` (not injected mid-episode), so there is
+  no transient/object timing question. **Not claimed:** that the literal
+  first costmap update reflects it — `nav2_params.yaml`'s
+  `obstacle_max_range` is 3.5 m, and the box's near face sits 3.475 m from
+  spawn, a 0.025 m margin too thin to assert sensor-geometry timing on.
+  What the design actually needs — lidar detection well before the robot
+  reaches the gap, not a map-baked fact — holds regardless: the box is
+  already inside range at spawn and the robot closes distance immediately.
 - Baseline run: identical scenario with `timed_obstacles: []`.
 - Both runs keep `aisle_barrier: null` — the primary aisle stays its full
   structural 1.2 m; only the timed box narrows it, so the two runs differ
