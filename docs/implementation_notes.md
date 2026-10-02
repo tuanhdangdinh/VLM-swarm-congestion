@@ -130,7 +130,7 @@ Rules for maintaining it:
     Kit's own uptime, not a wall-clock stamp; `isaac.log`'s own start-time +
     printed-uptime arithmetic reproduces that file's mtime to the second
     for every one of the four runs in this task, and shows EVERY run's
-    Isaac outliving its own cleanup line by 220-356 seconds — a systemic
+    Isaac outliving its own cleanup line by 231-356 seconds — a systemic
     kill failure (`sudo pkill -f "[i]saac.scripts.run_simulation"` not
     actually terminating the process), not specific to the invalidated
     run. `FON` was invalid because its own Isaac launched while `FOFF`'s

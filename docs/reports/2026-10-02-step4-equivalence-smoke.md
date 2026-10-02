@@ -11,7 +11,7 @@
   own start time plus its printed uptime reproduces that file's mtime to
   the second for all four runs, and shows EVERY run's Isaac process
   outliving `fc_launch.sh`'s own "killing Isaac" cleanup line by
-  220-356 seconds. `FON` was invalid because it launched while `FOFF`'s own
+  231-356 seconds. `FON` was invalid because it launched while `FOFF`'s own
   leftover Isaac was still alive and simulating (confirmed independently by
   `FON`'s own Nav2 logs: `tf2_buffer: Detected jump back in time` on every
   Nav2 node, exactly when M1's `clock_reset` flurry begins). `FON2` and
@@ -253,9 +253,12 @@ Written down in two stages, both AFTER runs had already been scored, not
 before any run as an earlier draft of this report claimed: a first version
 (both robots `|x| <= 0.4` and `STOPPED` at the first trigger, no long STALE
 streak before it) was applied once `FON`'s anomaly surfaced the need; the
-`clock_reset=true` clause replaced the STALE-streak clause after the
-STALE-streak timing turned out not to explain the anomaly (see below).
-Final rule: a trigger is a valid trial only if, at the FIRST
+`clock_reset=true` clause replaced the STALE-streak clause once the actual
+root cause (the preceding run's leftover Isaac process, below) was traced
+to M1's `clock_reset` lines directly, which is the earlier and more precise
+signal — the STALE streak turned out to be a separate, later, unexplained
+observation in the same run, not the thing to gate on. Final rule: a
+trigger is a valid trial only if, at the FIRST
 congestion-detected analysis, both robots report `|x| <= 0.4` and
 `status == STOPPED`, and M1's own log shows no `clock_reset=true` line
 before it. Applied to all four runs retroactively.
@@ -296,7 +299,7 @@ number is Kit's own UPTIME, not a wall-clock stamp — computing
 | `FONPLAN` | 04:19:48 | 700.677s | 04:31:28.68 | 04:27:38 | ~231s |
 | `FON2` | 04:41:16 | 704.644s | 04:53:00.64 | 04:49:08 | ~233s |
 
-**Every run's Isaac process outlived its own cleanup by 220-356 seconds —
+**Every run's Isaac process outlived its own cleanup by 231-356 seconds —
 this is a systemic kill failure, not specific to `FON`.** `FON` was invalid
 because `FON`'s own Isaac launched (`19:47:03`) WHILE `FOFF`'s leftover
 Isaac was still alive and simulating (until `19:51:30`), a ~4.5-minute
@@ -312,17 +315,20 @@ seeing `FONPLAN`'s "COLLECTED to" line, it would likely have been
 contaminated the same way.
 
 **Directly corroborated by `FON`'s own Nav2 logs**, independent of the M1
-evidence: `nav2_r2.log` shows `Detected jump back in time. Clearing TF
-buffer` from EVERY Nav2 node (`smoother_server`, `bt_navigator`,
+evidence, and checked with `grep -c` on BOTH stacks and all four runs as a
+control (not a hand-picked excerpt): `nav2_r1.log`/`nav2_r2.log` carry
+**33616** / **33640** lines of `Detected jump back in time. Clearing TF
+buffer` (every Nav2 node: `smoother_server`, `bt_navigator`,
 `opennav_docking`, `collision_monitor`, `behavior_server`, `planner_server`,
-`controller_server`) plus `camera_localizer_node`'s own
-`TF_OLD_DATA ignoring data from the past` warnings, all at the same instant
-M1's own `clock_reset=true` flurry begins. `FON2`'s `nav2_r2.log` shows no
-such pattern (one benign one-off extrapolation warning during ordinary
-startup). A second live `/clock`/camera/TF source is exactly what explains
-robot_2 freezing at spawn (Nav2 lost valid localization to the TF clear)
-and the later Nav2 false-success report — not a vaguer "unconfirmed
-transport artifact" as an earlier revision of this report concluded.
+`controller_server`) and `camera_localizer_node`'s own
+`TF_OLD_DATA ignoring data from the past` warnings — a CONTINUOUS, extensive
+pattern throughout `FON`'s run, starting from Nav2's own bring-up (its
+first log line is at 19:47:38.44, about 2.5s before M1's first
+`clock_reset` line at 19:47:40.98 — i.e. at Nav2 startup, not "at the same
+instant" as an earlier pass here claimed). `FOFF`, `FON2`, and `FONPLAN`
+show **zero** such lines on either stack. A second live `/clock`/camera/TF source throughout the
+run is exactly what explains robot_2 freezing at spawn (Nav2 never had
+usable localization) and the later Nav2 false-success report.
 
 M1's own evidence remains as directly observed: **607** lines of
 `perception clock_reset=true prev_stamp=<~220-300> stamp=<~0-68>
@@ -343,7 +349,7 @@ throughout this project's prior history) comfortably outlasts Isaac's own
 run, the previous Isaac has already exited on its own — the failed kill
 goes unnoticed. This task used `REC_SEC=420` (to avoid 1000s of idle wait
 per run) and manually interrupted `FOFF`'s own stuck tail stage early,
-which meant the NEXT run (`FON`) could launch well within the ~220-356s
+which meant the NEXT run (`FON`) could launch well within the ~231-356s
 window the leftover Isaac needed to actually exit. **Not diagnosed here**:
 why `sudo pkill -f "[i]saac.scripts.run_simulation"` (`fc_launch.sh`'s own
 kill line) fails to terminate the process — left for the owner.
@@ -421,6 +427,12 @@ table below also shows field-by-field.
 | Arrivals | robot_1 d=0.09 m, robot_2 d=0.10 m, both within 0.35 m tolerance | robot_1 d=0.12 m, robot_2 d=0.06 m, both within tolerance | YES (2/2 both) |
 | `FON2`'s own plan fields | — | `plan_id=1`, `provenance=m3_default`, `dispatch_matches_plan=true`, `plan_held=false` | (flag-on only, as expected) |
 | `prompt_version` | 2 | 3 | excluded by design (v2 vs v3 template) |
+
+**Seed source, traced rather than assumed**: in both artifacts,
+`stage2.letter_seed_base == prompt_robot_order_seed` exactly (confirmed by
+direct comparison) — a single per-run random draw feeds both the robot
+presentation order and the stage-2 letter draw, explaining why both differ
+together and confirming the variance is one source, not two.
 
 **Caveat, stated plainly rather than overclaimed**: neither `m5.log` nor
 `m4.log` logs a dispatched command's full parameters (confirmed on
