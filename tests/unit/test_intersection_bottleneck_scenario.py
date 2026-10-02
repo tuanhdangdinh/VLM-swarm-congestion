@@ -34,8 +34,12 @@ from reasoning.baselines.classical_reasoner import (
     load_classical_params,
     resolve_classical,
 )
-from reasoning.rag.command_grounder import ground_reasoner_result
-from reasoning.rag.maneuver_geometry import load_grounding_params
+from reasoning.rag.command_grounder import (
+    PlanRepairParams,
+    ground_reasoner_result,
+    verify_and_repair_plan,
+)
+from reasoning.rag.maneuver_geometry import GroundingParams, load_grounding_params
 from reasoning.rag.scene_geometry import (
     SceneGeometry,
     arm_geometry,
@@ -58,6 +62,12 @@ ORCHESTRATOR_YAML = REPO_ROOT / "ros2_ws/src/swarm_orchestrator/config/orchestra
 CALIBRATION_YAML = REPO_ROOT / "ros2_ws/src/swarm_perception/config/calibration.yaml"
 MOCK_PATH = REPO_ROOT / "config/mock_decisions/intersection_yield_once.json"
 SKIP_MOCK_PATH = REPO_ROOT / "config/mock_decisions/intersection_skip_then_yield_once.json"
+JUNCTION_CLEAR_M3_DEFAULT_MOCK_PATH = (
+    REPO_ROOT / "config/mock_decisions/intersection_junction_clear_m3_default_once.json"
+)
+JUNCTION_CLEAR_VLM_VERBATIM_MOCK_PATH = (
+    REPO_ROOT / "config/mock_decisions/intersection_junction_clear_vlm_verbatim_once.json"
+)
 RESOLUTION_M = 0.05
 
 # Verified M1 tracking extent on x (head-on family goals at +-2.5; +-3.0 gave
@@ -296,6 +306,80 @@ class TestMockDecision:
         assert rest == json.loads(MOCK_PATH.read_text())
 
 
+class TestJunctionClearMockDecisions:
+    """Step-6 composite smoke mocks: both runs skip once (the same one-trigger
+    pattern `SKIP_MOCK_PATH` uses, sized from the IB9 20260929_084557 smoke
+    this scenario shares its spawns/speeds with) before the real
+    `junction_clear` decision -- run A names only the strategy token (M3's
+    chi-ranked derivation owns the sequence, `m3_default`); run B also names
+    a valid `proposed_plan` for the chi recede pair in order, so every leg is
+    feasible verbatim.
+    """
+
+    @staticmethod
+    def _geometry() -> SceneGeometry:
+        shipped = yaml.safe_load(ORCHESTRATOR_YAML.read_text())["scenario_geometry"]
+        return SceneGeometry(**{
+            **shipped,
+            "corridor": {
+                "axis": "x", "center_m": 0.0, "half_length_m": 0.6,
+                "aisle_half_width_m": 0.6, "occluder_height_m": 0.0,
+            },
+            "arms": JUNCTION_ARMS,
+            "junction_recede_offset_m": 1.2,
+            "junction_backup_clearance_m": 1.1,
+        })
+
+    def test_both_runs_skip_once_then_answer_junction_clear_then_clear(self):
+        for path in (JUNCTION_CLEAR_M3_DEFAULT_MOCK_PATH, JUNCTION_CLEAR_VLM_VERBATIM_MOCK_PATH):
+            skip, decision_json, clear = json.loads(path.read_text())
+            assert parse_decision_text(json.dumps(skip)).strategy == "none"
+            decision = parse_decision_text(json.dumps(decision_json))
+            assert decision.strategy == "junction_clear"
+            assert sorted(decision.involved_robots) == list(ROBOTS)
+            assert parse_decision_text(json.dumps(clear)).strategy == "none"
+
+    def test_run_a_has_no_proposed_plan(self):
+        _skip, decision_json, _clear = json.loads(JUNCTION_CLEAR_M3_DEFAULT_MOCK_PATH.read_text())
+        assert "proposed_plan" not in decision_json
+
+    def test_run_b_names_the_chi_recede_pair_in_chi_order(self):
+        _skip, decision_json, _clear = json.loads(
+            JUNCTION_CLEAR_VLM_VERBATIM_MOCK_PATH.read_text()
+        )
+        actions = {leg["robot_id"]: leg["action"] for leg in decision_json["proposed_plan"]}
+        assert actions == {
+            "robot_4": "reverse", "robot_3": "reverse", "robot_1": "yield", "robot_2": "cross",
+        }
+        order = [leg["robot_id"] for leg in decision_json["proposed_plan"]]
+        assert order.index("robot_4") < order.index("robot_3")  # D_SPACE 0.923 < 0.942
+
+    def test_run_a_decision_verifies_as_m3_default(self):
+        _skip, decision_json, _clear = json.loads(JUNCTION_CLEAR_M3_DEFAULT_MOCK_PATH.read_text())
+        decision = parse_decision_text(json.dumps(decision_json))
+        verified = verify_and_repair_plan(
+            decision, _ib10_frame(), geometry=self._geometry(),
+            repair_params=PlanRepairParams(), grounding_params=GroundingParams(mode="derived"),
+        )
+        assert verified.provenance == "m3_default"
+        assert verified.rejection_reason == "plan absent"
+
+    def test_run_b_decision_verifies_verbatim_before_any_vm_time_is_spent(self):
+        # Advisor review: confirm run B's scripted plan grounds with no
+        # repair under the EXACT geometry it will be deployed with, locally,
+        # before spending VM time on it.
+        _skip, decision_json, _clear = json.loads(
+            JUNCTION_CLEAR_VLM_VERBATIM_MOCK_PATH.read_text()
+        )
+        decision = parse_decision_text(json.dumps(decision_json))
+        verified = verify_and_repair_plan(
+            decision, _ib10_frame(), geometry=self._geometry(),
+            repair_params=PlanRepairParams(), grounding_params=GroundingParams(mode="derived"),
+        )
+        assert verified.provenance == "vlm_verbatim"
+        assert verified.edits == []
+
+
 class TestSingleYieldGroundingAtFourWayStandoff:
     """The structural defect the audit predicted before the smoke.
 
@@ -474,6 +558,16 @@ class TestJunctionGeometry:
         assert f"scenario_geometry corridor\n#     {JUNCTION_CORRIDOR}" in table
         for robot_id, arm in JUNCTION_ARMS.items():
             assert f"{robot_id}: {{ axis: {arm['axis']}, side: {arm['side']} }}" in table
+
+    def test_goal_table_declares_the_step_6_junction_clear_fields(self):
+        # Step 6 (build-order, this scenario's composite smoke): the goal
+        # table must document BOTH J2 fields together, or the cross phase
+        # silently grounds the unsolved shipped row (bug 4,
+        # docs/implementation_notes.md 2026-10-02 step-5 post-landing entry).
+        table = ORCHESTRATOR_YAML.read_text()
+        assert "junction_recede_offset_m: 1.2" in table
+        assert "junction_backup_clearance_m: 1.1" in table
+        assert "junction_geometry=shipped_unsolved" in table
 
     def test_arms_are_the_approach_arms_of_the_scenario(self):
         for robot in _scenario().robots:

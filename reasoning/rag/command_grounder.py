@@ -1063,6 +1063,18 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # or no `junction_recede_offset_m` target): degraded to plain `yield`
     # ("v1 behavior... single yield or no-op", M5 spec section).
     "junction_clear=fallback:no_candidates": None,
+    # Loudness guard (step-6 coordinator ruling): `junction_clear` grounded
+    # without BOTH `junction_recede_offset_m` and `junction_backup_
+    # clearance_m` (J2) declared -- emitted on the `no_candidates` fallback
+    # when a field is the reason (never when a declared-but-empty chi
+    # ranking is), and on every phase/fallback command when the composite
+    # proceeds with J2 still undeclared, grounding the shipped 1.7 m
+    # head-on clearance instead of the study's junction-scoped number (the
+    # unsolved-row silent failure build-order step 5 found). Suffix names
+    # the missing field(s): `:missing=junction_recede_offset_m`,
+    # `:missing=junction_backup_clearance_m`, or both comma-joined.
+    # Provenance only: the tag never changes which numbers are grounded.
+    "junction_geometry=shipped_unsolved": None,
     # Stage-1 parser tags for the prompt-v2 optional decision fields, recorded
     # on `ReasonerDiagnostics.decision_degradations`; merged here so one
     # `degradation_cause` covers the whole breakdown.
@@ -1086,6 +1098,42 @@ def degradation_cause(tag: str) -> str | None:
         if tag == key or tag.startswith(f"{key}:"):
             return DEGRADATION_TAGS[key]
     raise KeyError(f"unknown degradation tag: {tag!r}")
+
+
+def _junction_geometry_missing_fields(geometry: SceneGeometry | None) -> list[str]:
+    """Which of the two step-6 goal-table fields `geometry` fails to declare.
+
+    `geometry is None` counts as both missing: with no declared geometry at
+    all there is no `junction_recede_offset_m` pocket and no
+    `junction_backup_clearance_m` (J2) override to miss separately.
+
+    Args:
+        geometry: Declared scene geometry, or None.
+
+    Returns:
+        `[]` when both fields are declared; otherwise the missing field
+        name(s), `junction_recede_offset_m` before `junction_backup_clearance_m`.
+    """
+    if geometry is None:
+        return ["junction_recede_offset_m", "junction_backup_clearance_m"]
+    missing = []
+    if geometry.junction_recede_offset_m is None:
+        missing.append("junction_recede_offset_m")
+    if geometry.junction_backup_clearance_m is None:
+        missing.append("junction_backup_clearance_m")
+    return missing
+
+
+def _shipped_unsolved_tag(missing_fields: Sequence[str]) -> str:
+    """The loudness guard's degradation tag, naming the missing field(s).
+
+    Args:
+        missing_fields: Non-empty output of `_junction_geometry_missing_fields`.
+
+    Returns:
+        `junction_geometry=shipped_unsolved:missing=<field,field,...>`.
+    """
+    return f"junction_geometry=shipped_unsolved:missing={','.join(missing_fields)}"
 
 
 _SPATIAL_STRATEGIES = frozenset({"yield", "reverse", "junction_clear"})
@@ -1510,7 +1558,17 @@ def _ground_derived(
                 static_obstacles=static_obstacles,
                 yield_feasibility_mode=yield_feasibility_mode,
             )
-            return _with_degradations(command, ["junction_clear=fallback:no_candidates"])
+            tags = ["junction_clear=fallback:no_candidates"]
+            # Loudness guard (step-6 coordinator ruling): `no_candidates` also
+            # fires for an unrelated, legitimate reason (no cross-axis arms
+            # under a fully-declared geometry), so it is not on its own a
+            # signal that a goal-table field is missing. This tag is added
+            # ONLY when a field actually is, independent of why `ranked` came
+            # back empty, so its absence is a clean deploy check.
+            missing = _junction_geometry_missing_fields(geometry)
+            if missing:
+                tags.append(_shipped_unsolved_tag(missing))
+            return _with_degradations(command, tags)
         plan = ground_junction_clear_phases(
             result,
             snapshot=snapshot,
@@ -1757,6 +1815,15 @@ def ground_junction_clear_phases(
 
     Returns:
         The full phase sequence plus the plain-`yield` fallback command.
+        Every returned command's `degradations` carries
+        `junction_geometry=shipped_unsolved:missing=junction_backup_clearance_m`
+        when `geometry` declares `junction_recede_offset_m` (required to
+        reach this function at all) without also declaring
+        `junction_backup_clearance_m` (J2): the cross phase and fallback
+        still ground, but through the shipped 1.7 m head-on clearance
+        rather than the study's junction-scoped number
+        (loudness guard, step-6 coordinator ruling; never changes which
+        numbers are grounded, only tags the command).
 
     Raises:
         CommandGroundingError: If the decision is empty, not
@@ -1778,6 +1845,19 @@ def ground_junction_clear_phases(
         raise CommandGroundingError(
             "junction_clear: no recede candidate survives chi ranking under this geometry"
         )
+    # Loudness guard (step-6 coordinator ruling): a pocket is declared
+    # (`junction_recede_offset_m`, or `ranked` would be empty above) but J2's
+    # junction-scoped clearance may not be -- the cross phase below then
+    # grounds through `_ground_derived`'s ordinary yield branch, which falls
+    # back to the shipped 1.7 m head-on clearance with no error (bug 4,
+    # `docs/implementation_notes.md` 2026-10-02 step-5 post-landing entry).
+    # Never behavior-changing: every phase still grounds exactly the numbers
+    # it would have without this guard, only the tag is added. `missing` is
+    # always `[]` or exactly `["junction_backup_clearance_m"]` here --
+    # `junction_recede_offset_m` is guaranteed present, or `ranked` above
+    # would already be empty.
+    missing = _junction_geometry_missing_fields(geometry)
+    missing_j2 = bool(missing)
 
     fallback_result = result.model_copy(update={"decision": _as_yield_decision(decision)})
     fallback_command = _ground_derived(
@@ -1809,6 +1889,11 @@ def ground_junction_clear_phases(
         fallback_command = validate_coordination_command(
             {**fallback_command, "actions": [*fallback_command["actions"], *fallback_extra_holds]}
         )
+    if missing_j2:
+        fallback_command = _with_degradations(
+            fallback_command,
+            [*fallback_command.get("degradations", []), _shipped_unsolved_tag(missing)],
+        )
 
     phases: list[JunctionClearPhase] = []
     for robot_id in ranked:
@@ -1833,13 +1918,16 @@ def ground_junction_clear_phases(
                 }
             )
             held_robot_ids.append(other_id)
+        recede_degradations = ["junction_clear=recede"]
+        if missing_j2:
+            recede_degradations.append(_shipped_unsolved_tag(missing))
         command = validate_coordination_command(
             {
                 "command_id": f"{result.request_id}-junction-recede-{robot_id}",
                 "actions": actions,
                 "expected_resolution_time_sec": params.junction_recede_hold_sec,
                 "fallback": "stop",
-                "degradations": ["junction_clear=recede"],
+                "degradations": recede_degradations,
             }
         )
         phases.append(
@@ -1875,12 +1963,19 @@ def ground_junction_clear_phases(
         for robot_id in ranked
         if robot_id not in acting_robot_ids
     ]
+    cross_degradations = [*yield_command.get("degradations", []), "junction_clear=cross"]
+    if missing_j2:
+        # This is the actual silent-failure site: with no J2 override, this
+        # yield branch falls back to the shipped 1.7 m head-on clearance
+        # instead of the study's junction-scoped number, parking an N-S
+        # yielder outside the tracked band with no error otherwise.
+        cross_degradations.append(_shipped_unsolved_tag(missing))
     yield_command = validate_coordination_command(
         {
             **yield_command,
             "command_id": f"{result.request_id}-junction-cross",
             "actions": [*yield_command["actions"], *extra_holds],
-            "degradations": [*yield_command.get("degradations", []), "junction_clear=cross"],
+            "degradations": cross_degradations,
         }
     )
     # Every recede candidate is held (never acting) in the cross phase,

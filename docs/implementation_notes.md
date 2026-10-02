@@ -176,6 +176,123 @@ Rules for maintaining it:
   timed obstacle, not a static one); no code change, no T3b yaml edit (a
   v1-frozen cell). The T3b yaml header needed no correction since it already
   states the by-design rationale.
+- **2026-10-02** — **v2 build-order step 6, episode 2 (extended live
+  re-run, one-re-run allowance): the `junction_clear` composite's own
+  fallback path can itself fail.** `docs/reports/2026-10-02-ib10-
+  composite-smoke.md`'s Episode 2 section, same branch. Re-ran the live
+  episode with `REC_SEC=1350`/`SIM_SEC=1400` (sized to the measured 0.27
+  real-time factor) after discovering episode 1's apparent "no progress"
+  was the ROS2 stack dying early. Episode 2's own measured RTF places its
+  control-stack teardown PAST the scenario's 300 s GT cap, so its full
+  trajectory is genuinely, continuously supervised -- confirming, not
+  truncating, the result. Outcome: 10 real VLM calls (vs. 2 in episode 1),
+  the model oscillating between `reverse` and a narrower `junction_clear`
+  for the same `robot_3`/`robot_4` conflict, before a fourth composite
+  attempt's CROSS phase fails to resolve for 495 real seconds and M5's own
+  documented fallback (derived-mode `reroute`, all four robots) ALSO
+  fails for every robot. Scene frozen (0.388 m separation, zero velocity)
+  from sim~180 s to the 300 s cap under a confirmed-alive stack. Same 1/4
+  arrival result as episode 1 (`robot_2` only), but via a different,
+  worse failure mode -- answers the "does more time help" question the
+  first episode left open: no. Also reproduces episode 1's `robot_3`
+  out-of-tracked-band `reverse` excursion (`|y|=2.42` this time vs `2.38`)
+  at the same sim-time window both times (108.6-114.9 s), now a confirmed,
+  not one-off, pattern. Added as freeze-blocking finding 5. VM restored
+  pristine a second time (same `1f656533`/`e18c723` pair, all four
+  copies), GPU idle, no stray processes.
+
+- **2026-10-02** — **v2 build-order step 6: IB10 `junction_clear` composite
+  smoke, mock (2 runs) + one live ER-2 episode, full report
+  `docs/reports/2026-10-02-ib10-composite-smoke.md`, branch
+  `feat/v2-ib10-smoke` (from `feat/prereg-v2-composite` at `955b962`).**
+  (1) **Goal-table fix landed**: `ros2_ws/src/swarm_orchestrator/config/
+  orchestrator.yaml`'s IB10 comment now documents `junction_recede_
+  offset_m: 1.2` + `junction_backup_clearance_m: 1.1` together (the step-5
+  post-landing bug-4 fix); verified end to end through the real `load_
+  config` path, not a hand-built dict. (2) **Loudness guard widened**
+  (`reasoning/rag/command_grounder.py`): `junction_geometry=shipped_
+  unsolved:missing=<field,field>` now fires whenever `junction_clear`
+  grounds without BOTH fields, independent of which code path produced the
+  fallback (the first draft only caught one of three cases; a coordinator-
+  review correction). (3) **Repair-bound sweep** (`scripts/junction_clear_
+  repair_bound_sweep.py`, local, no VM): confirms `max_repair_edits=2`
+  (the shipped default, unchanged) clears every case that reaches repair at
+  all in a 17-case deterministic corpus -- but surfaces a FREEZE-BLOCKING
+  metric hole, not fixed here: a `junction_clear` plan naming the WRONG
+  recede pair verifies `vlm_verbatim` (no membership check exists for
+  recede-set correctness under `yield_feasibility_mode="off"`), while
+  `junction_clear_plan_matches_dispatch` correctly flags it `False` --
+  metrics (ii)/(iv) alone would silently over-credit this defect class.
+  (4) **Mock smoke, 2/2 runs**: full recede(staggered)-then-yield-then-cross
+  phase sequence executes correctly both times (run A `m3_default`, run B
+  `vlm_verbatim`, chi order flipped between runs on live near-tied
+  positions -- confirms step-5's own "cosmetic, not exercised twice" chi-tie
+  finding in a real run), solved-row numbers (backup 0.799 m / park
+  |x|=1.018 m / escort 1.998 m) grounded both times, deploy check clean
+  (no `shipped_unsolved` tag). Both runs land at 1/4 arrivals within their
+  300 s window -- ROOT CAUSE (corrected mid-task after the live episode,
+  do not read the mock-run sections of the report without this): NOT a
+  suppression/cooldown bug -- M5's detector re-triggers the post-resolution
+  N-S conflict (robot_3/robot_4 released toward each other's original
+  goals after the composite's `done=True`) 4-8 times per run, but
+  `MockBackend` holds its scripted array's LAST entry (`none`) forever once
+  exhausted, so a finite 3-entry mock can never answer a conflict it wasn't
+  scripted for. (5) **Live ER-2 episode confirms this**: two live decisions
+  (`junction_clear` -> model's own plan is inconsistent, `m3_default`
+  correctly substituted, composite resolves identically to the mocks; then
+  `reverse` for the same secondary N-S pair, `vlm_verbatim`, dispatched) --
+  1/4 arrived but `robot_3` was still moving when the 300 s window closed
+  (decision 2 landed at wall-elapsed ~306 s, almost no time left to
+  execute), a materially different (in-progress, not frozen) result from
+  the mocks. API spend: 3 live calls (1 preflight + 2 episode), ~9.3k
+  tokens total, ~$0.017 at the published ER-2 rate (input $1/1M, output
+  $5/1M, sourced live -- thinking-token billing assumed, not confirmed for
+  this model specifically). STALE instrumentation: every run showed at
+  most one single-frame blip (never a streak), none in a scoring-relevant
+  window -- does not invalidate any run per the resolved gate's ruling.
+  Zero-delta local suite maintained throughout (58 failed/4311 passed/139
+  skipped vs. the `955b962` baseline, identical failing-test-name set).
+  VM (`vgu-vgu-thule-base-isaac-workstation-vm`) restored pristine on all
+  four `orchestrator.yaml`/`rag.yaml` copies (independently confirmed by a
+  full 724-file `git ls-files` md5 manifest diff against the VM: only the
+  two restored config files and two since-updated doc files differ, no
+  code), GPU idle, no stray processes.
+  **CORRECTION (same task, same report, post-advisor-review):** three
+  claims in the first pass were wrong, all fixed in the report, not here:
+  (1) the STALE table above used a collapse-to-first-row method that
+  erased every real dropout -- recomputed with the project's own raw-row
+  method (`m1_y_extent_probe_analysis.py`'s `score_scene_log`), the true
+  numbers run 2-26 rows per streak, not 0-1; one streak (live run,
+  `robot_3`, 25 rows) overlaps an ACTIVE unresolved-conflict window, not an
+  idle dwell. (2) Arrivals were re-verified against the actual scoring
+  instrument (`ArrivalGate`'s `arrived at base goal`/`arrival accepted`/
+  `arrival rejected` log lines), which agrees with the GT-distance estimate
+  in all three runs (1/4, `robot_2` only) -- the instrument was right, just
+  previously unconfirmed directly. (3) The live episode's "1/4, ran out of
+  time" framing was wrong: decision 2's trigger stamp (read from the
+  decision artifact, not estimated from wall-clock) is 96 s, not ~306 s;
+  the real mechanism, traced through `m4.log` + GT, is that the decision's
+  own `continue` leg for the uninvolved `robot_1` let it close to within
+  the 0.45 m safety latch of the reversing `robot_4` (`admitted_partners`
+  only exempts same-command members), permanently stalling `robot_4`'s
+  `reverse` and, with it, the command's resolution and M5's retrigger.
+  Also newly folded in: run B's `junction_clear` dispatch order (chi
+  re-ranked `robot_3` before `robot_4` live, opposite the proposed plan)
+  verifies `vlm_verbatim`/`dispatch_matches_plan=true` despite executing a
+  different sequence -- the SAME metric hole as the step-4 sweep's
+  wrong-recede-pair finding (no recede-vs-recede order check exists),
+  now confirmed live, not just swept.
+  **SUPERSEDES the "permanently stalling"/"~200 s" framing two sentences
+  up** (same task, further review pass found `REC_SEC=450` bounds the ROS2
+  control stack in WALL seconds while this scenario runs at a measured real-
+  time factor of 0.27 -- the container teardown this episode hit lands at
+  sim~134.6 s, not after a long stall; `robot_4`'s `reverse` simply never
+  resolved inside the ~37 s it had before the harness tore the stack down.
+  A second, longer episode (`REC_SEC=1350`) reproduced the same `continue`-
+  vs-`reverse` safety-latch trigger on the SAME scene twice more, but both
+  times the commands resolved within ~53 s given more time -- "stalls"
+  under the original harness, not an unconditional deadlock. See the full
+  report for the corrected trace and the second episode's own results.
 
 - **2026-10-02** — **v2 build-order step 5, post-landing advisor-review
   fixes** (same branch, same task; six real bugs found by independent

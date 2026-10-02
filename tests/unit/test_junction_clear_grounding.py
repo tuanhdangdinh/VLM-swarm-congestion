@@ -544,3 +544,131 @@ class TestSingleCommandContract:
         assert "junction_clear=fallback:no_candidates" in command["degradations"]
         actions = {a["robot_id"]: a["action"] for a in command["actions"]}
         assert "robot_3" not in actions and "robot_4" not in actions
+
+
+# ---- loudness guard (step-6 coordinator ruling): neither field declared,
+# one missing, or both declared ----
+
+
+class TestShippedUnsolvedLoudnessGuard:
+    """IB10's goal table must declare BOTH `junction_recede_offset_m` and
+    `junction_backup_clearance_m` to reach the study's solved row. This guard
+    makes the unsolved-row silent failure (bug 4,
+    docs/implementation_notes.md 2026-10-02 step-5 post-landing entry)
+    log-visible without changing any grounded number.
+    """
+
+    def _plan(self, *, offset_m, backup_clearance_m):
+        geometry = _geometry(offset_m=offset_m)
+        if backup_clearance_m is not None:
+            geometry = geometry.model_copy(
+                update={"junction_backup_clearance_m": backup_clearance_m}
+            )
+        return ground_junction_clear_phases(
+            _result(_decision()), snapshot=_frame(), params=GroundingParams(mode="derived"),
+            geometry=geometry,
+        )
+
+    def test_both_fields_missing_tags_no_candidates_and_shipped_unsolved(self):
+        # No pocket, no J2: never reaches `ground_junction_clear_phases` at
+        # all (it would raise), so `ground_reasoner_result`'s own top-level
+        # fallback applies. The field-missing tag is independent of WHY the
+        # fallback fired (coordinator ruling), so both tags are present, the
+        # second naming both missing fields.
+        command = ground_reasoner_result(
+            _result(_decision()), geometry=_geometry(offset_m=None), snapshot=_frame(),
+            params=GroundingParams(mode="derived"),
+        )
+        assert "junction_clear=fallback:no_candidates" in command["degradations"]
+        assert (
+            "junction_geometry=shipped_unsolved:"
+            "missing=junction_recede_offset_m,junction_backup_clearance_m"
+            in command["degradations"]
+        )
+
+    def test_backup_clearance_alone_without_recede_offset_tags_the_missing_offset(self):
+        # J2 declared but no pocket: `ranked` is empty regardless (the offset
+        # gate short-circuits before J2 is ever consulted), same top-level
+        # fallback as the fully-missing case -- J2 alone cannot trigger the
+        # composite -- but now the tag names only the field that is actually
+        # missing (J2 itself is present).
+        command = ground_reasoner_result(
+            _result(_decision()), geometry=_geometry(offset_m=None).model_copy(
+                update={"junction_backup_clearance_m": 1.1}
+            ), snapshot=_frame(), params=GroundingParams(mode="derived"),
+        )
+        assert "junction_clear=fallback:no_candidates" in command["degradations"]
+        assert (
+            "junction_geometry=shipped_unsolved:missing=junction_recede_offset_m"
+            in command["degradations"]
+        )
+
+    def test_no_candidates_for_an_unrelated_reason_never_gets_the_field_tag(self):
+        # Both fields declared, but no cross-axis robot survives chi (no
+        # `arms` declared at all): `no_candidates` fires for a geometric
+        # reason, not a missing field, so the new tag must NOT appear --
+        # this is exactly the false-positive `no_candidates` alone cannot
+        # rule out (coordinator review finding).
+        geometry = SceneGeometry(
+            corridor=_corridor(), junction_recede_offset_m=1.2, junction_backup_clearance_m=1.1,
+        )
+        command = ground_reasoner_result(
+            _result(_decision()), geometry=geometry, snapshot=_frame(),
+            params=GroundingParams(mode="derived"),
+        )
+        assert "junction_clear=fallback:no_candidates" in command["degradations"]
+        assert not any(
+            tag.startswith("junction_geometry=shipped_unsolved") for tag in command["degradations"]
+        )
+
+    def test_recede_offset_alone_without_j2_tags_every_phase_shipped_unsolved(self):
+        # The actual silent-failure case: the composite proceeds (a pocket is
+        # declared) but grounds the cross phase and fallback through the
+        # shipped 1.7 m clearance. The tag must be loud wherever a caller
+        # looks: phase one (the single-command contract's return value),
+        # every recede phase, the cross phase, and the fallback -- naming
+        # only the field actually missing (the pocket is declared).
+        tag = "junction_geometry=shipped_unsolved:missing=junction_backup_clearance_m"
+        plan = self._plan(offset_m=1.2, backup_clearance_m=None)
+        for phase in plan.phases:
+            assert tag in phase.command["degradations"], phase.label
+        assert tag in plan.fallback_command["degradations"]
+        top_level = ground_reasoner_result(
+            _result(_decision()), geometry=_geometry(offset_m=1.2), snapshot=_frame(),
+            params=GroundingParams(mode="derived"),
+        )
+        assert tag in top_level["degradations"]
+
+    def test_both_fields_present_tags_nothing_and_grounds_the_solved_row(self):
+        plan = self._plan(offset_m=1.2, backup_clearance_m=1.1)
+        for phase in plan.phases:
+            assert not any(
+                tag.startswith("junction_geometry=shipped_unsolved")
+                for tag in phase.command["degradations"]
+            ), phase.label
+        assert not any(
+            tag.startswith("junction_geometry=shipped_unsolved")
+            for tag in plan.fallback_command["degradations"]
+        )
+        yielder = next(
+            a for a in plan.phases[-1].command["actions"] if a["action"] == "yield"
+        )
+        # The study's solved "1, E-W, J2" row (also pinned, without the tag
+        # question, by test_cross_phase_matches_the_studys_c_prime_numbers_
+        # only_with_j2_declared above): the guard changes no grounded number.
+        assert yielder["parameters"]["backup_distance_m"] == 0.799
+        assert abs(yielder["parameters"]["retreat_x_m"]) == pytest.approx(1.018, abs=1e-3)
+        assert 1.77 <= yielder["parameters"]["passer_escort_distance_m"] <= 2.00
+
+    def test_tagged_and_untagged_runs_ground_identical_numbers_elsewhere(self):
+        # The guard must be purely additive to `degradations`: strip that key
+        # from both plans' commands and the rest must match byte-for-byte,
+        # since the untagged (both-fields) and tagged (J2-missing) runs
+        # legitimately ground DIFFERENT yield numbers (solved vs. unsolved
+        # row) -- what must NOT differ is the recede phase (which never reads
+        # `junction_backup_clearance_m`) and every command's shape.
+        with_j2 = self._plan(offset_m=1.2, backup_clearance_m=1.1)
+        without_j2 = self._plan(offset_m=1.2, backup_clearance_m=None)
+        for a, b in zip(with_j2.phases, without_j2.phases, strict=True):
+            if a.label == "recede":
+                assert a.command["actions"] == b.command["actions"]
