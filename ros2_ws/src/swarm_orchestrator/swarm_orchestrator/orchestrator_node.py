@@ -51,6 +51,7 @@ from swarm_orchestrator.command_lifecycle import (
     summarize_outcome,
 )
 from swarm_orchestrator.congestion_detector import CongestionDetector
+from swarm_orchestrator.junction_phase_queue import JunctionPhaseAdvance, JunctionPhaseQueue
 from swarm_orchestrator.models import (
     CongestionEvent,
     OrchestratorConfig,
@@ -322,6 +323,30 @@ class OrchestratorNode(Node):
         # late/duplicate status for a long-resolved command_id still finds
         # its plan); unused unless `self._plan_tracker` is set.
         self._plan_id_by_command_id: dict[str, int] = {}
+        # `junction_clear`'s M5 phase queue (prereg-v2 (a) M5, build-order
+        # step 5), keyed by the CURRENT active command_id of each in-flight
+        # resolution: looked up in `_on_status` to advance to the next
+        # precomputed phase, or the fallback, on that command's terminal
+        # status. Behind the SAME `plan_channel_enabled` flag `plan_info`
+        # is -- only ever populated from `outcome.junction_phases`, which
+        # `InProcessPipeline.run` sets only when `self._plan_tracker` is
+        # not None. Re-keyed to the NEW active command_id on every advance
+        # (`_advance_junction_phase`); the entry for a done queue is popped.
+        self._junction_phase_queues: dict[str, JunctionPhaseQueue] = {}
+        # Per active command_id, the robots THAT command addresses only to
+        # hold (`JunctionClearPhase.held_robot_ids`): `_apply_plan_leg_status`
+        # must never route one of their statuses onto the tracked plan's leg
+        # for them from this command -- that leg's real action is dispatched
+        # by a DIFFERENT (earlier-or-later) phase. Populated alongside
+        # `_junction_phase_queues`, re-keyed the same way on every advance,
+        # and popped together.
+        self._junction_held_robots: dict[str, frozenset[str]] = {}
+        # Maps a junction_clear phase's CURRENT command_id back to the
+        # ORIGINAL (phase-0) command_id its `_attempts` entry was recorded
+        # under, so the attempt is resolved ONCE, with the WHOLE sequence's
+        # final outcome, never prematurely when an intermediate phase
+        # resolves (`_resolve_command`).
+        self._junction_original_command_id: dict[str, str] = {}
         self._cooldown = CooldownTracker(self._config.cooldown_sec)
         self._attempts = AttemptMemory(self._config.failure_context_window_sec)
         self._registry = TaskRegistry()
@@ -575,8 +600,16 @@ class OrchestratorNode(Node):
         untranslatable status, or an invalid transition (e.g. a duplicate
         terminal status racing itself) is logged and otherwise ignored,
         exactly like `_finalize_shadow_record`'s own failure handling.
+
+        `junction_clear` exception: `robot_id` is skipped entirely when this
+        command only HOLDS it (`self._junction_held_robots`) -- that robot's
+        real plan leg is dispatched by a different phase, still `pending`;
+        routing a hold's `COMPLETED` onto it would mark it `done` before it
+        ever ran.
         """
         if self._plan_tracker is None:
+            return
+        if robot_id in self._junction_held_robots.get(command_id, frozenset()):
             return
         plan_id = self._plan_id_by_command_id.get(command_id)
         if plan_id is None:
@@ -922,6 +955,43 @@ class OrchestratorNode(Node):
             time.monotonic(),
             executed_strategy=summarize_executed_strategy([m[2] for m in messages], strategy),
         )
+        self._publish_fanned_out(outcome.request_id, messages)
+        if outcome.plan is not None and outcome.junction_phases is not None:
+            # `junction_clear`'s M5 phase queue (prereg-v2 (a) M5,
+            # build-order step 5): `grounded` above IS
+            # `outcome.junction_phases.phases[0].command` already (M3's own
+            # single-command contract for this strategy, "the NEXT
+            # unresolved step" -- `command_grounder._ground_derived`'s
+            # `junction_clear` branch), so `queue.start()`'s return is
+            # discarded here, never re-dispatched; only its side effect
+            # (recording the already-dispatched command_id as active)
+            # matters.
+            queue = JunctionPhaseQueue(outcome.junction_phases)
+            queue.start()
+            self._junction_phase_queues[grounded["command_id"]] = queue
+            self._junction_held_robots[grounded["command_id"]] = frozenset(
+                queue.active_held_robot_ids
+            )
+
+    def _publish_fanned_out(
+        self,
+        request_id: str,
+        messages: list[tuple[str, str, str, str, float]],
+    ) -> None:
+        """Publish one fanned-out command's per-robot messages and log each dispatch.
+
+        Shared by `_dispatch` (a fresh M2 decision's command) and
+        `_dispatch_junction_phase` (a later `junction_clear` phase or its
+        fallback, dispatched by M5 directly, no new M2 call): both need the
+        IDENTICAL publish/override/log sequence, never two implementations
+        that could drift.
+
+        Args:
+            request_id: Logged only (`request=` on every dispatch line): the
+                triggering M2 request_id for `_dispatch`, or a
+                `<previous_command_id>-phase` label for a phase advance.
+            messages: `fan_out_command`'s per-robot tuples.
+        """
         for command_id, robot_id, action, params_json, _timeout in messages:
             msg = CoordinationCommand()
             msg.command_id = command_id
@@ -939,10 +1009,118 @@ class OrchestratorNode(Node):
             msg.timeout_sec = _timeout
             self._cmd_pub.publish(msg)
             self._registry.set_override(robot_id, action, goal, command_id)
-            self.get_logger().info(
-                f"dispatch request={outcome.request_id} command={command_id} robot={robot_id}"
-            )
+            plan_id = self._plan_id_by_command_id.get(command_id)
+            log_line = f"dispatch request={request_id} command={command_id} robot={robot_id}"
+            if plan_id is not None:
+                # Step-4 flag-3 mitigation: makes plan_id-on-commands
+                # observable live, not just unit-tested
+                # (`test_plan_tracker_enabled_assigns_a_plan_id_and_tags_every_action`).
+                # Appended only when set, so a flag-off/plan-less dispatch's
+                # log line is byte-identical to before this field existed.
+                log_line += f" plan_id={plan_id}"
+            self.get_logger().info(log_line)
         self._publish_registry()
+
+    def _advance_junction_phase(
+        self, command_id: str, completed: bool
+    ) -> JunctionPhaseAdvance | None:
+        """Advance `junction_clear`'s M5 phase queue on a resolved command, if any.
+
+        Called from `_resolve_command` for EVERY resolved command (both the
+        `_on_status` and `_on_timer` paths funnel into it); a no-op unless
+        `command_id` is the current active command of a tracked
+        `JunctionPhaseQueue` (`_junction_phase_queues`, seeded in
+        `_dispatch`). Never issues a new plan or calls M2 -- "phases advance
+        by updating leg status... so no replan is counted" (prereg-v2 (a)
+        M5): the plan_id this whole resolution serves is carried forward
+        onto each later phase's command_id in `_dispatch_junction_phase`,
+        exactly like `_apply_plan_leg_status` already routes each phase's
+        own per-robot status onto that SAME plan's legs.
+
+        Args:
+            command_id: The just-resolved command's id.
+            completed: True for an overall-COMPLETED resolution
+                (`summarize_outcome(states) == "completed"`), False for any
+                other terminal outcome (a timeout included).
+
+        Returns:
+            None when `command_id` names no tracked queue (the caller's
+            attempt-resolution stays unaffected); otherwise the queue's own
+            `JunctionPhaseAdvance`, so the caller (`_resolve_command`) can
+            tell an INTERMEDIATE phase's resolution (`done=False`: defer
+            the original attempt's resolution) from the sequence's own
+            terminal one (`done=True`: resolve it now, with THIS outcome).
+        """
+        queue = self._junction_phase_queues.pop(command_id, None)
+        if queue is None:
+            return None
+        advance = queue.on_resolved(command_id, completed)
+        self.get_logger().info(
+            f"junction_clear phase advance command={command_id} completed={completed} "
+            f"phase_reached={advance.phase_reached} done={advance.done}"
+        )
+        if advance.command is not None:
+            new_command_id = self._dispatch_junction_phase(
+                command_id, advance.command, advance.held_robot_ids
+            )
+            if not advance.done:
+                self._junction_phase_queues[new_command_id] = queue
+        return advance
+
+    def _dispatch_junction_phase(
+        self,
+        previous_command_id: str,
+        command: dict[str, Any],
+        held_robot_ids: tuple[str, ...],
+    ) -> str:
+        """Publish one precomputed `junction_clear` phase command (or its fallback).
+
+        Mirrors `_dispatch`'s own per-robot publish/registry/tracker
+        bookkeeping (`_publish_fanned_out`, `CommandTracker.register`,
+        `_episodes.note_dispatch`) but deliberately never calls
+        `self._attempts.record`: this is NOT a new M2 decision, so it must
+        not add a second entry to the failure-context attempt history the
+        NEXT ordinary analysis would read -- the original `_dispatch` call
+        for phase 0 already recorded the one attempt this whole
+        `junction_clear` resolution counts as (its OWN resolution is
+        deferred by `_resolve_command` until the sequence finishes).
+
+        Args:
+            previous_command_id: The command this phase follows; its
+                tracked `plan_id` (if any) carries forward onto the new
+                command_id unchanged.
+            command: The next phase's precomputed, schema-valid command
+                (`JunctionPhaseAdvance.command`).
+            held_robot_ids: `JunctionPhaseAdvance.held_robot_ids` for this
+                SAME command -- recorded under the (possibly
+                `filter_command_robot_ids`-filtered) dispatched command_id
+                so `_apply_plan_leg_status` skips them for it.
+
+        Returns:
+            The dispatched command_id (post-`filter_command_robot_ids`).
+        """
+        grounded = filter_command_robot_ids(command, set(self._config.initial_tasks))
+        command_id = grounded["command_id"]
+        plan_id = self._plan_id_by_command_id.get(previous_command_id)
+        if plan_id is not None:
+            self._plan_id_by_command_id[command_id] = plan_id
+        self._junction_held_robots[command_id] = frozenset(held_robot_ids)
+        messages = fan_out_command(grounded, self._config.command_timeout_sec)
+        robot_ids = [m[1] for m in messages]
+        self._episodes.note_dispatch(robot_ids)
+        timeout = messages[0][4] if messages else self._config.command_timeout_sec
+        self._tracker.register(
+            CommandRecord(
+                command_id=command_id,
+                robot_ids=robot_ids,
+                dispatched_at=time.monotonic(),
+                timeout_sec=timeout,
+                fallback=grounded.get("fallback", ""),
+                request_id=f"{previous_command_id}-phase",
+            )
+        )
+        self._publish_fanned_out(f"{previous_command_id}-phase", messages)
+        return command_id
 
     # ---- T0 log-only probes ----
 
@@ -1103,7 +1281,27 @@ class OrchestratorNode(Node):
         }
         outcome_status = summarize_outcome(states)
         now = time.monotonic()
-        self._attempts.resolve(command_id, outcome_status, now)
+        # `junction_clear`'s M5 phase queue (build-order step 5): advanced
+        # BEFORE `_publish_registry()` below, so a later phase's own
+        # overrides (set inside `_dispatch_junction_phase`) are already in
+        # effect when the registry topic reflects this resolution -- never
+        # a published moment where every override reads cleared. A no-op
+        # (`advance is None`) unless `command_id` is the active command of
+        # a tracked queue.
+        advance = self._advance_junction_phase(command_id, outcome_status == "completed")
+        # Attempt bookkeeping: resolve the ORIGINAL (phase-0) command_id's
+        # attempt record ONCE, with the WHOLE junction_clear sequence's
+        # final outcome -- never prematurely when only an intermediate
+        # phase resolves (`advance.done is False`), or the next ordinary
+        # analysis's failure_context would see "junction_clear completed"
+        # after just the first recede, even if a LATER phase goes on to
+        # fail. `original_id == command_id` for a plan-less dispatch or
+        # phase 0 itself (nothing was ever recorded under a DIFFERENT id).
+        original_id = self._junction_original_command_id.pop(command_id, command_id)
+        if advance is None or advance.done:
+            self._attempts.resolve(original_id, outcome_status, now)
+        elif advance.command is not None:
+            self._junction_original_command_id[advance.command["command_id"]] = original_id
         self.get_logger().info(f"command {command_id} resolved status={outcome_status}")
         self._machine.on_command_resolved(robots, outcome_status == "completed")
         self._cooldown.start(robots, now)

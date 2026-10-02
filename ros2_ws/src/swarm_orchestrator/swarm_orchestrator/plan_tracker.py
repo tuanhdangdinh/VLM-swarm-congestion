@@ -31,7 +31,10 @@ and leg statuses are untouched. This is what makes "zero unforced replans"
 on a clean two-robot head-on well-defined: a post-resolution re-check that
 still proposes the same thing is a hold, not churn, and `replan_count`
 (`plan_metrics`/episode stability) counts only plans that DO consume a new
-`plan_id` -- genuinely different accepted plans.
+`plan_id` -- genuinely different accepted plans. REFINEMENT (2026-10-02,
+from the step-4 smoke; landed with build-order step 5): if any leg of the
+active plan has reached `failed`, an identical re-issue is never a hold --
+see `_is_hold`.
 
 This module never dispatches a command or touches a ROS2 topic; node code
 converts and delegates (CLAUDE.md "ROS2 Code": keep callbacks thin).
@@ -172,16 +175,30 @@ def _is_hold(active: TrackedPlan, verified_legs: Sequence[ProposedPlanLeg]) -> b
     re-affirm, so any plan accepted at that point is judged a fresh one on
     its own merits.
 
+    REFINEMENT (2026-10-02, spec `docs/superpowers/specs/2026-09-30-
+    prereg-v2-design.md` "(a0) Hold semantics", from the step-4 smoke): if
+    ANY leg of `active` has reached `failed` since it was accepted, an
+    identical re-issue is never a hold, whatever the remaining-legs
+    comparison says -- a retry is a response to evidence
+    (`plan_metrics.classify_revision_cause` would call it
+    `evidence_driven`), and counting it as a hold would hide exactly the
+    revision the plan-stability metric exists to see. This replaces the
+    FLAGGED (not fixed) gap pinned at CORE landing: "non-`done`" legs
+    included `failed`, so an identical re-issue after a failure read as a
+    hold under the un-refined wording.
+
     Args:
         active: The currently active tracked plan.
         verified_legs: The new analysis's verified (post-repair) legs, in
             their proposed execution order.
 
     Returns:
-        True when `verified_legs`, with every already-`done` robot's leg
-        dropped, is the exact same ordered `(robot_id, action)` sequence as
-        `active`'s remaining legs.
+        True when no leg of `active` has `failed`, and `verified_legs`, with
+        every already-`done` robot's leg dropped, is the exact same ordered
+        `(robot_id, action)` sequence as `active`'s remaining legs.
     """
+    if any(leg.status == "failed" for leg in active.legs):
+        return False
     remaining = [(leg.robot_id, leg.action) for leg in active.legs if leg.status != "done"]
     if not remaining:
         return False

@@ -40,7 +40,7 @@ from swarm_orchestrator.task_registry import TaskRegistry
 
 from reasoning.rag.command_grounder import ground_reasoner_result
 from reasoning.rag.maneuver_geometry import GroundingParams
-from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
+from reasoning.rag.scene_geometry import ArmGeometry, CorridorGeometry, SceneGeometry
 from reasoning.vlm.backend_factory import (
     backend_section,
     describe_effective_sampling,
@@ -416,6 +416,110 @@ def test_plan_present_derived_mode_band_gap_is_measured_not_hidden():
     assert outcome.plan.provenance == "vlm_verbatim"
     assert outcome.grounded_command["actions"][0]["action"] == "reroute"
     assert outcome.plan.dispatch_matches_plan is False
+
+
+_IB10_STANDOFF = {
+    "robot_1": (-0.2192, -0.0014),
+    "robot_2": (0.33, 0.0158),
+    "robot_3": (-0.0208, -0.2583),
+    "robot_4": (0.0045, 0.2773),
+}
+_JUNCTION_ARMS = {
+    "robot_1": ArmGeometry(axis="x", side=-1),
+    "robot_2": ArmGeometry(axis="x", side=1),
+    "robot_3": ArmGeometry(axis="y", side=-1),
+    "robot_4": ArmGeometry(axis="y", side=1),
+}
+
+
+def _junction_clear_geometry() -> SceneGeometry:
+    corridor = CorridorGeometry(
+        axis="x", center_m=0.0, half_length_m=0.6, aisle_half_width_m=0.6, occluder_height_m=0.0
+    )
+    return SceneGeometry(
+        corridor=corridor,
+        arms=_JUNCTION_ARMS,
+        junction_recede_offset_m=1.2,
+        junction_backup_clearance_m=1.1,
+    )
+
+
+def _junction_clear_request() -> ReasonerRequest:
+    snapshot = SceneSnapshot(
+        stamp=1.0,
+        frame_id="cam0",
+        robots=[
+            RobotView(
+                robot_id=rid, x=xy[0], y=xy[1], theta=0.0, linear_velocity=0.0,
+                status="STOPPED", stamp=1.0,
+            )
+            for rid, xy in _IB10_STANDOFF.items()
+        ],
+        dropped_frame=False,
+    )
+    return build_reasoner_request(request_id="r1", snapshot=snapshot, image_path="/tmp/r1.png")
+
+
+def _junction_clear_result(request_id: str = "r1") -> ReasonerResult:
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type="deadlock",
+        involved_robots=list(_IB10_STANDOFF),
+        root_cause="four-way standoff",
+        strategy="junction_clear",
+        justification="jam",
+    )
+    diag = ReasonerDiagnostics(
+        request_id=request_id, backend_id="mock", attempts=1, parse_status="valid"
+    )
+    return ReasonerResult(request_id=request_id, decision=decision, raw_text="{}", diagnostics=diag)
+
+
+def test_junction_clear_seeds_phases_and_matches_dispatch():
+    # Advisor-review regression: comparing phase one ALONE against the
+    # accepted plan's full recede-then-yield sequence made
+    # `dispatch_matches_plan` read False for every `junction_clear`
+    # decision, even this clean one -- `junction_clear_plan_matches_dispatch`
+    # reconstructs the whole sequence's per-robot action instead.
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_junction_clear_result()),
+        ground_fn=ground_reasoner_result,
+        grounding_params=GroundingParams(mode="derived"),
+        scene_geometry=_junction_clear_geometry(),
+        plan_tracker=PlanTracker(),
+    )
+    outcome = pipe.run(_junction_clear_request())
+    assert outcome.plan is not None
+    assert outcome.plan.dispatch_matches_plan is True
+    assert outcome.junction_phases is not None
+    assert [phase.label for phase in outcome.junction_phases.phases] == [
+        "recede",
+        "recede",
+        "cross",
+    ]
+    assert outcome.grounded_command["command_id"] == outcome.junction_phases.phases[0].command[
+        "command_id"
+    ]
+
+
+def test_junction_clear_absent_without_a_declared_pocket_still_matches():
+    # The plain-`yield` fallback path (`_ground_derived`'s own junction_clear
+    # branch): no `junction_phases` to seed, and the single dispatched
+    # command IS the whole resolution, so the ordinary `plan_matches_dispatch`
+    # must still read True.
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_junction_clear_result()),
+        ground_fn=ground_reasoner_result,
+        grounding_params=GroundingParams(mode="derived"),
+        scene_geometry=_junction_clear_geometry().model_copy(
+            update={"junction_recede_offset_m": None}
+        ),
+        plan_tracker=PlanTracker(),
+    )
+    outcome = pipe.run(_junction_clear_request())
+    assert outcome.junction_phases is None
+    assert outcome.plan is not None
+    assert outcome.plan.dispatch_matches_plan is True
 
 
 def test_plan_tracker_omitted_leaves_the_outcome_and_command_untouched():

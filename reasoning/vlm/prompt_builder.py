@@ -85,7 +85,7 @@ if any)
 - "involved_robots": list of robot_id strings, from the known IDs only
 - "root_cause": one sentence
 - "strategy": "none" | "yield" | "reroute" | "convoy" | "priority_override" | \
-"temporary_wait" | "reverse"
+"temporary_wait" | "reverse" | "junction_clear"
 - "justification": one or two sentences
 - "yield_robot": the robot that should yield, or null when the strategy is not \
 "yield"

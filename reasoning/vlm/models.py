@@ -312,6 +312,17 @@ class CongestionDecision(BaseModel):
         "priority_override",
         "temporary_wait",
         "reverse",
+        # Composite recede-then-yield for a formed multi-robot junction jam
+        # (prereg-v2 (a), build-order step 5). Prompt v1/v2 never mention it
+        # (frozen); only prompt v3's strategy list offers it
+        # (`reasoning.vlm.prompt_builder._USER_TEMPLATE`). Shared Literal
+        # with v1/v2, same precedent as `blocker_kind`/`crossing_order`/
+        # `proposed_plan` (all v2+-only prompt fields the parser already
+        # accepts at every prompt version): a v1/v2-prompted response that
+        # happened to emit this string parses instead of raising, consistent
+        # with how every other v2+-only field already behaves, not a new
+        # inconsistency this token introduces.
+        "junction_clear",
     ]
     justification: str
     # The model's stated choice of yielder at decision time, distinct from

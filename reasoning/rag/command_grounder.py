@@ -13,6 +13,8 @@ from reasoning.rag.maneuver_geometry import (
     derive_backup_distance,
     derive_escort_distance,
     derive_queued_passer_clearance,
+    rank_recede_candidates,
+    recede_distance_m,
     retreat_axes,
 )
 from reasoning.rag.retreat_candidates import (
@@ -975,7 +977,12 @@ def _ground_legacy(
             }
             for robot_id in robot_ids[1:]
         ]
-    elif decision.strategy in {"convoy", "priority_override"}:
+    elif decision.strategy in {"convoy", "priority_override", "junction_clear"}:
+        # `junction_clear` (prereg-v2 build-order step 5): LEGACY mode has no
+        # feasibility bands to stage a recede-then-yield sequence against, so
+        # it gets the same non-spatial wait fan-out every strategy this
+        # bridge has no specific case for already gets -- never the
+        # `CommandGroundingError` an actually-unsupported strategy raises.
         actions = [
             {
                 "robot_id": robot_id,
@@ -1046,6 +1053,16 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # named (scored pre-gate, prereg amendments).
     "yield_robot=regrounded": None,
     "yield=no-passer": None,
+    # `junction_clear` phase markers (`ground_junction_clear_phases`):
+    # provenance of which phase a dispatched command represents, not a
+    # measurement-plan cause -- the phasing is M3/M5 machinery, never a
+    # model output.
+    "junction_clear=recede": None,
+    "junction_clear=cross": None,
+    # The geometry declares no recede precondition (no cross-axis candidate,
+    # or no `junction_recede_offset_m` target): degraded to plain `yield`
+    # ("v1 behavior... single yield or no-op", M5 spec section).
+    "junction_clear=fallback:no_candidates": None,
     # Stage-1 parser tags for the prompt-v2 optional decision fields, recorded
     # on `ReasonerDiagnostics.decision_degradations`; merged here so one
     # `degradation_cause` covers the whole breakdown.
@@ -1071,7 +1088,7 @@ def degradation_cause(tag: str) -> str | None:
     raise KeyError(f"unknown degradation tag: {tag!r}")
 
 
-_SPATIAL_STRATEGIES = frozenset({"yield", "reverse"})
+_SPATIAL_STRATEGIES = frozenset({"yield", "reverse", "junction_clear"})
 # Matches the legacy grounder's non-spatial wait; kept separate so the legacy
 # body stays verbatim.
 _NONSPATIAL_WAIT_SEC = 8.0
@@ -1165,6 +1182,63 @@ def _junction_same_axis_order(
         or arms[robot_id].axis == yielder_arm.axis
         or not has_opposite_partner(robot_id)
     ]
+
+
+def _junction_recede_candidates(
+    decision: CongestionDecision, geometry: SceneGeometry
+) -> list[str]:
+    """The `junction_clear` recede set: involved robots off the yield axis.
+
+    Interpretation (prereg-v2 build-order step 5; not settled by name in
+    either spec): `geometry.corridor.axis` is the scene's declared primary
+    yield axis (the single corridor an ordinary `yield` decision already
+    grounds along, per `test_shipped_single_corridor_grounds_no_north_south_
+    yield`); a recede candidate is an involved robot with a declared arm on
+    the OTHER axis. This makes the axis a structural precondition, not
+    something chi chooses between: chi (`maneuver_geometry.
+    rank_recede_candidates`) only orders robots WITHIN this set (never a
+    yield-axis robot against it), so a symmetric D_SPACE across axes can
+    never make chi pick an E-W robot over the N-S cross pair by itself.
+
+    Args:
+        decision: A `junction_clear` decision.
+        geometry: Declared scene geometry.
+
+    Returns:
+        Involved robots whose declared arm axis differs from
+        `geometry.corridor.axis`, in `decision.involved_robots` order.
+        Empty when `geometry.arms` is unset or no involved robot has a
+        cross-axis arm.
+    """
+    arms = geometry.arms or {}
+    corridor_axis = geometry.corridor.axis
+    return [
+        robot_id
+        for robot_id in decision.involved_robots
+        if (arm := arms.get(robot_id)) is not None and arm.axis != corridor_axis
+    ]
+
+
+def _junction_yield_axis_robots(
+    decision: CongestionDecision, geometry: SceneGeometry
+) -> list[str]:
+    """The `junction_clear` yield set: involved robots on the yield axis.
+
+    Complements `_junction_recede_candidates`: an involved robot with no
+    declared arm, or whose declared arm matches `geometry.corridor.axis`, is
+    on the yield axis and runs the ordinary single-yield resolution once the
+    recede set has cleared.
+
+    Args:
+        decision: A `junction_clear` decision.
+        geometry: Declared scene geometry.
+
+    Returns:
+        Involved robots not returned by `_junction_recede_candidates`, in
+        `decision.involved_robots` order.
+    """
+    recede = set(_junction_recede_candidates(decision, geometry))
+    return [robot_id for robot_id in decision.involved_robots if robot_id not in recede]
 
 
 def resolve_yield_roles(
@@ -1400,6 +1474,62 @@ def _ground_derived(
         if snapshot is None
         else {state.robot_id: (state.x, state.y) for state in snapshot.robots}
     )
+    if decision.strategy == "junction_clear" and snapshot is not None:
+        # Scope (prereg-v2 build-order step 5): `junction_clear`'s composite
+        # grounding is implemented for DERIVED mode only -- the shipped,
+        # live `config/rag.yaml` mode and the only one IB10 is tested under.
+        # LEGACY mode has no feasibility bands to stage a recede-then-yield
+        # sequence against, so it is deliberately left on the generic
+        # catch-all below (the same degradation every strategy this mode
+        # has no specific case for already gets), consistent with how
+        # legacy mode is "the pre-switch grounder, frozen" territory.
+        candidates = (
+            _junction_recede_candidates(decision, geometry) if geometry is not None else []
+        )
+        ranked = (
+            rank_recede_candidates(snapshot, candidates, geometry, params)
+            if geometry is not None and geometry.junction_recede_offset_m is not None
+            else []
+        )
+        if not ranked:
+            # No recede precondition (no declared pocket, or no cross-axis
+            # candidate survives chi): "v1 behavior ... single yield or
+            # no-op" (M5 spec section) -- plain `yield` over every involved
+            # robot; J1 (`_junction_same_axis_order`) already drops a
+            # cross-axis robot to no-op there, with no recede at all.
+            fallback_result = result.model_copy(
+                update={"decision": _as_yield_decision(decision)}
+            )
+            command = _ground_derived(
+                fallback_result,
+                snapshot=snapshot,
+                params=params,
+                retreat_choice=retreat_choice,
+                crossing_order=crossing_order,
+                geometry=geometry,
+                static_obstacles=static_obstacles,
+                yield_feasibility_mode=yield_feasibility_mode,
+            )
+            return _with_degradations(command, ["junction_clear=fallback:no_candidates"])
+        plan = ground_junction_clear_phases(
+            result,
+            snapshot=snapshot,
+            params=params,
+            geometry=geometry,  # geometry is not None: ranked is non-empty only then
+            static_obstacles=static_obstacles,
+            yield_feasibility_mode=yield_feasibility_mode,
+            retreat_choice=retreat_choice,
+        )
+        # The standalone, single-command contract every other strategy keeps
+        # (`ground_reasoner_result` always returns one dict): the NEXT
+        # unresolved step. Flag-off (`plan_tracker is None`, no phase queue
+        # to advance it) dispatches just this one phase and stops there --
+        # safe (the exemption pairing is already correct for it) but not
+        # fully orchestrated; flag-on, M5's phase queue
+        # (`swarm_orchestrator.junction_phase_queue`) calls
+        # `ground_junction_clear_phases` itself for the REST of `plan.phases`
+        # and `plan.fallback_command`, seeded from this SAME decision cycle.
+        return plan.phases[0].command
     if decision.strategy != "yield" or snapshot is None:
         legacy = _ground_legacy(
             result, positions, geometry, static_obstacles, yield_feasibility_mode
@@ -1518,6 +1648,254 @@ def _ground_derived(
             "fallback": "stop",
             "degradations": degradations,
         }
+    )
+
+
+class JunctionClearPhase(BaseModel):
+    """One dispatched command of a `junction_clear` resolution's sequence."""
+
+    model_config = ConfigDict(frozen=True)
+
+    label: Literal["recede", "cross"]
+    # The receding robot, for a "recede" phase; None for the final "cross"
+    # (yield-axis) phase.
+    robot_id: str | None
+    command: dict[str, Any]
+    # Every robot `command` addresses only to hold it (`temporary_wait`),
+    # not to execute a leg of the ACCEPTED plan in this phase. M5 must
+    # never route one of these robots' status from THIS command onto the
+    # tracked plan's leg for it: that leg's real action (e.g. robot_1's
+    # eventual `yield`) is still `pending`, dispatched by a LATER phase --
+    # routing this phase's hold-`COMPLETED` onto it would mark it `done`
+    # before it ever ran. Disjoint from the command's acting robot(s).
+    held_robot_ids: tuple[str, ...] = ()
+
+
+class JunctionClearPhasePlan(BaseModel):
+    """The full ordered phase sequence M3 grounds for one `junction_clear` decision.
+
+    Computed entirely from the ONE snapshot the triggering decision was made
+    on: the scene does not change while an earlier phase's command is in
+    flight (no other M2 analysis runs mid-sequence, and the robots not yet
+    dispatched in the current phase are held by it, `temporary_wait`), so
+    every later phase's geometry is valid when computed up front, not only
+    when M5 is about to dispatch it. M5's phase queue
+    (`swarm_orchestrator.junction_phase_queue`) owns dispatching `phases` in
+    order and substituting `fallback_command` for the remaining robots on a
+    FAILED recede, never re-deriving this plan or re-invoking M2.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    phases: list[JunctionClearPhase] = Field(min_length=1)
+    # Plain `yield` over every involved robot (`_as_yield_decision` with no
+    # restriction) -- "v1 behavior ... single yield or no-op" exactly, per
+    # the M5 spec section. Dispatched by M5 in place of whichever phase
+    # resolves FAILED, for every robot that phase (and every one after it)
+    # would have addressed. Also holds every recede candidate that may
+    # already have receded by the time of a later failure
+    # (`fallback_held_robot_ids`): J1 drops them from the plain yield's own
+    # order, but a ALREADY-receded one's base mission must still not be
+    # free to resume through the junction while the fallback yield runs.
+    fallback_command: dict[str, Any]
+    fallback_held_robot_ids: tuple[str, ...] = ()
+
+
+def ground_junction_clear_phases(
+    result: ReasonerResult,
+    *,
+    snapshot: SnapshotFrame,
+    params: GroundingParams,
+    geometry: SceneGeometry,
+    static_obstacles: Sequence[StaticObstacleInput] = (),
+    yield_feasibility_mode: YieldFeasibilityMode = "off",
+    retreat_choice: RetreatChoiceDecision | None = None,
+) -> JunctionClearPhasePlan:
+    """Ground a `junction_clear` decision's full recede-then-yield dispatch sequence.
+
+    One command per phase, each independently schema-valid and
+    dispatchable: a `reverse` command per recede candidate, in chi order
+    (`maneuver_geometry.rank_recede_candidates` -- "Single yielder by
+    default; a two-robot recede ... is a staggered sequential fallback,
+    never simultaneous" is this same ascending order, one phase per
+    candidate, never two in the same command), then the ordinary single
+    `yield` command for the yield-axis robots (`_ground_derived`'s own yield
+    branch, reused verbatim via `_as_yield_decision`, never a second
+    implementation).
+
+    Every phase's command addresses EVERY involved robot: the active one
+    with its real maneuver, every other one with `temporary_wait`. This is
+    load-bearing for safety, not cosmetic: `safety.admitted_partners` exempts
+    a `reverse` only against the OTHER members of its OWN command (the (a)
+    Safety section's citation), and the recede legs start 0.24-0.34 m from
+    the yield-axis pair -- a single-robot command would latch immediately,
+    before the recede could even begin. The held robots also stay
+    `temporary_wait`-ed through the FINAL phase: `reverse` never holds (M4's
+    command bus always resolves it with `hold_sec=0.0`), so without this a
+    receded robot's base mission could resume toward its original goal, back
+    through the junction, while the yield-axis pair is still crossing.
+
+    Args:
+        result: Validated M2 reasoner output, strategy `junction_clear`.
+        snapshot: The scene frame every phase is grounded from (see
+            `JunctionClearPhasePlan`'s docstring).
+        params: Grounding parameters: the chi weights and recede hold
+            (`junction_recede_cost_*`, `junction_recede_hold_sec`), and the
+            ordinary yield bands/clearances the final phase uses.
+        geometry: Declared scene geometry; must declare `arms` and
+            `junction_recede_offset_m` for a non-degenerate plan -- the
+            caller (`_ground_derived`'s `junction_clear` branch) is
+            responsible for falling back to plain `yield` first when it does
+            not, or when no candidate survives chi ranking; this function
+            does not degrade on its own.
+        static_obstacles: Fixed obstacles of the running scenario.
+        yield_feasibility_mode: The yield feasibility gate mode for the final
+            (yield-axis) phase.
+        retreat_choice: Derived-mode stage-2 answer for the final phase, if
+            any; never meaningful for a recede phase (no stage 2 exists for
+            a straight-line recede to a declared pocket).
+
+    Returns:
+        The full phase sequence plus the plain-`yield` fallback command.
+
+    Raises:
+        CommandGroundingError: If the decision is empty, not
+            `congestion_detected`, not `junction_clear`, or no recede
+            candidate survives chi ranking under `geometry` (the caller's
+            job to check first).
+    """
+    decision = result.decision
+    if decision is None or not decision.congestion_detected:
+        raise CommandGroundingError("cannot ground an empty or non-congestion decision")
+    if decision.strategy != "junction_clear":
+        raise CommandGroundingError(
+            "ground_junction_clear_phases needs a junction_clear decision, got "
+            f"{decision.strategy!r}"
+        )
+    candidates = _junction_recede_candidates(decision, geometry)
+    ranked = rank_recede_candidates(snapshot, candidates, geometry, params)
+    if not ranked:
+        raise CommandGroundingError(
+            "junction_clear: no recede candidate survives chi ranking under this geometry"
+        )
+
+    fallback_result = result.model_copy(update={"decision": _as_yield_decision(decision)})
+    fallback_command = _ground_derived(
+        fallback_result,
+        snapshot=snapshot,
+        params=params,
+        retreat_choice=None,
+        crossing_order=None,
+        geometry=geometry,
+        static_obstacles=static_obstacles,
+        yield_feasibility_mode=yield_feasibility_mode,
+    )
+    # Hold every recede candidate the fallback's own plain-yield grounding
+    # does not already address (J1 drops them from its order on purpose):
+    # one of them may already have receded by the time of a later failure,
+    # and its base mission must not be free to resume through the junction
+    # while this fallback yield runs.
+    fallback_addressed = {action["robot_id"] for action in fallback_command["actions"]}
+    fallback_extra_holds = [
+        {
+            "robot_id": robot_id,
+            "action": "temporary_wait",
+            "parameters": {"duration_sec": params.wait_backstop_sec},
+        }
+        for robot_id in ranked
+        if robot_id not in fallback_addressed
+    ]
+    if fallback_extra_holds:
+        fallback_command = validate_coordination_command(
+            {**fallback_command, "actions": [*fallback_command["actions"], *fallback_extra_holds]}
+        )
+
+    phases: list[JunctionClearPhase] = []
+    for robot_id in ranked:
+        distance = recede_distance_m(snapshot, robot_id, geometry)
+        assert distance is not None  # guaranteed by `rank_recede_candidates`
+        actions: list[dict[str, Any]] = [
+            {
+                "robot_id": robot_id,
+                "action": "reverse",
+                "parameters": {"backup_distance_m": distance, "reason": decision.root_cause},
+            }
+        ]
+        held_robot_ids: list[str] = []
+        for other_id in decision.involved_robots:
+            if other_id == robot_id:
+                continue
+            actions.append(
+                {
+                    "robot_id": other_id,
+                    "action": "temporary_wait",
+                    "parameters": {"duration_sec": params.junction_recede_hold_sec},
+                }
+            )
+            held_robot_ids.append(other_id)
+        command = validate_coordination_command(
+            {
+                "command_id": f"{result.request_id}-junction-recede-{robot_id}",
+                "actions": actions,
+                "expected_resolution_time_sec": params.junction_recede_hold_sec,
+                "fallback": "stop",
+                "degradations": ["junction_clear=recede"],
+            }
+        )
+        phases.append(
+            JunctionClearPhase(
+                label="recede",
+                robot_id=robot_id,
+                command=command,
+                held_robot_ids=tuple(held_robot_ids),
+            )
+        )
+
+    yield_robots = _junction_yield_axis_robots(decision, geometry)
+    yield_result = result.model_copy(
+        update={"decision": _as_yield_decision(decision, yield_robots)}
+    )
+    yield_command = _ground_derived(
+        yield_result,
+        snapshot=snapshot,
+        params=params,
+        retreat_choice=retreat_choice,
+        crossing_order=None,
+        geometry=geometry,
+        static_obstacles=static_obstacles,
+        yield_feasibility_mode=yield_feasibility_mode,
+    )
+    acting_robot_ids = {action["robot_id"] for action in yield_command["actions"]}
+    extra_holds = [
+        {
+            "robot_id": robot_id,
+            "action": "temporary_wait",
+            "parameters": {"duration_sec": params.wait_backstop_sec},
+        }
+        for robot_id in ranked
+        if robot_id not in acting_robot_ids
+    ]
+    yield_command = validate_coordination_command(
+        {
+            **yield_command,
+            "command_id": f"{result.request_id}-junction-cross",
+            "actions": [*yield_command["actions"], *extra_holds],
+            "degradations": [*yield_command.get("degradations", []), "junction_clear=cross"],
+        }
+    )
+    # Every recede candidate is held (never acting) in the cross phase,
+    # whether or not its own hold needed `extra_holds` above (it may
+    # already be a `temporary_wait`/absent-but-filtered member of
+    # `yield_command` for an unrelated reason -- `ranked` is still the
+    # correct, complete held set for THIS phase either way).
+    phases.append(
+        JunctionClearPhase(
+            label="cross", robot_id=None, command=yield_command, held_robot_ids=tuple(ranked)
+        )
+    )
+
+    return JunctionClearPhasePlan(
+        phases=phases, fallback_command=fallback_command, fallback_held_robot_ids=tuple(ranked)
     )
 
 
@@ -1753,7 +2131,8 @@ def _is_consistent(strategy: str, legs: Sequence[ProposedPlanLeg]) -> bool:
 
     Only the strategies the design spec names carry a constraint
     (`yield` -> exactly one `yield` leg, `temporary_wait` -> at least one
-    `wait` leg, `reroute` -> at least one `reroute` leg); `reverse`, `convoy`,
+    `wait` leg, `reroute` -> at least one `reroute` leg, `junction_clear` ->
+    at least one `reverse` or `yield` leg); `reverse`, `convoy`,
     `priority_override` and `none` are left unconstrained because the spec is
     silent on them -- inventing a rule there would be reinterpretation, not
     verification.
@@ -1772,6 +2151,8 @@ def _is_consistent(strategy: str, legs: Sequence[ProposedPlanLeg]) -> bool:
         return counts["reroute"] >= 1
     if strategy == "temporary_wait":
         return counts["wait"] >= 1
+    if strategy == "junction_clear":
+        return counts["reverse"] >= 1 or counts["yield"] >= 1
     return True
 
 
@@ -1957,6 +2338,40 @@ def _plan_problems(
                         problems.append(
                             (i, f"{legs[i].robot_id} held opposite a same-axis partner (J1)")
                         )
+
+    if decision.strategy == "junction_clear" and geometry is not None:
+        # (a) Grounding's "recede before yield/cross": a recede candidate's
+        # `reverse` leg (a `maneuver_geometry.rank_recede_candidates`
+        # candidate) must precede every yield-axis `yield`/`cross` leg in
+        # list order -- the plan's own analogue of M5's phased dispatch
+        # (`ground_junction_clear_phases` never dispatches the yield-axis
+        # phase until every recede leg it grounds has resolved). A VLM plan
+        # that lists them the other way around is infeasible, not merely
+        # suboptimal: the yield-axis escort would run while a recede
+        # candidate is still 0.24-0.34 m away, unexempted by
+        # `admitted_partners` outside its own command.
+        recede_candidates = set(_junction_recede_candidates(decision, geometry))
+        recede_idx = [
+            i
+            for i in active_idx
+            if legs[i].robot_id in recede_candidates and legs[i].action == "reverse"
+        ]
+        later_idx = [
+            i
+            for i in active_idx
+            if legs[i].robot_id not in recede_candidates and legs[i].action in ("yield", "cross")
+        ]
+        if recede_idx and later_idx:
+            last_recede = max(recede_idx)
+            for i in later_idx:
+                if i < last_recede:
+                    problems.append(
+                        (
+                            i,
+                            f"{legs[i].robot_id}'s {legs[i].action} leg precedes a recede "
+                            "leg; junction_clear recedes before it yields/crosses",
+                        )
+                    )
     return problems
 
 
@@ -2001,6 +2416,191 @@ def _derived_yield_degrades_to_reroute(
         yielder_id=roles.yielder_id,
     )
     return not escort.feasible
+
+
+def _yield_default_actions(
+    working: CongestionDecision,
+    snapshot: SnapshotFrame,
+    positions: Mapping[str, tuple[float, float]],
+    geometry: SceneGeometry | None,
+    static_obstacles: Sequence[StaticObstacleInput],
+    yield_feasibility_mode: YieldFeasibilityMode,
+    grounding_params: GroundingParams | None,
+) -> tuple[dict[str, PlanLegAction], list[str]]:
+    """The `yield` branch of `_derive_default_plan`'s default-plan derivation.
+
+    Extracted so `junction_clear`'s yield-axis phase, and its fallback to
+    plain `yield` (`_junction_clear_default_actions`), run through the
+    IDENTICAL derivation an ordinary `yield` decision gets -- never a second
+    implementation that could drift from it.
+
+    Args:
+        working: A decision with `strategy == "yield"` (the alias-resolved
+            decision, or a `junction_clear` sub-decision rebuilt as one --
+            see `_junction_clear_default_actions`).
+        snapshot: Scene frame supplying every tracked robot and its position.
+        positions: `{robot_id: (x, y)}` from `snapshot`, precomputed once by
+            the caller.
+        geometry: Declared scene geometry, or None for the legacy fallback.
+        static_obstacles: Fixed obstacles of the running scenario.
+        yield_feasibility_mode: The yield feasibility gate mode.
+        grounding_params: M3's derived-mode grounding parameters, or None.
+
+    Returns:
+        `(actions, ordered)`: per-robot action overrides for every robot this
+        branch assigns a leg to, and those robots in execution order.
+    """
+    roles = resolve_yield_roles(
+        working,
+        snapshot,
+        geometry=geometry,
+        static_obstacles=static_obstacles,
+        yield_feasibility_mode=yield_feasibility_mode,
+    )
+    actions: dict[str, PlanLegAction] = {}
+    # `resolve_yield_roles` does not itself apply the legacy multi-passer
+    # nearest-first refusal (`_ground_legacy`'s own check, not duplicated
+    # there either): apply it here so a 3+-robot default plan refuses
+    # exactly where `_ground_legacy` would.
+    multi_passer_refusal = (
+        _first_passer_refusal(roles.yielder_id, roles.crossing_order, positions)
+        if roles.refusal_reason is None and len(roles.crossing_order) > 1
+        else None
+    )
+    if roles.refusal_reason is not None or multi_passer_refusal is not None:
+        for robot_id in roles.robot_ids:
+            actions[robot_id] = "wait"
+        return actions, list(roles.robot_ids)
+    if (
+        grounding_params is not None
+        and grounding_params.mode == "derived"
+        and geometry is not None
+        and _derived_yield_degrades_to_reroute(snapshot, roles, grounding_params, geometry)
+    ):
+        # Mirrors `_reroute_yielder`'s dispatch shape exactly: the yielder
+        # reroutes, every crossing-order robot waits.
+        actions[roles.yielder_id] = "reroute"
+        for robot_id in roles.crossing_order:
+            actions[robot_id] = "wait"
+        return actions, [roles.yielder_id, *roles.crossing_order]
+    actions[roles.yielder_id] = "yield"
+    for robot_id in roles.crossing_order:
+        actions[robot_id] = "cross"
+    return actions, [roles.yielder_id, *roles.crossing_order]
+
+
+def _as_yield_decision(
+    working: CongestionDecision, involved_robots: Sequence[str] | None = None
+) -> CongestionDecision:
+    """Rebuild `working` as a `strategy == "yield"` decision for `_yield_default_actions`.
+
+    `resolve_yield_roles` raises on any decision whose `strategy != "yield"`;
+    this is the one place `junction_clear`'s default-plan derivation
+    (`_junction_clear_default_actions`) crosses that boundary, always via an
+    explicit rebuild, never by mutating `working.strategy` in place.
+
+    Args:
+        working: The alias-resolved decision to rebuild.
+        involved_robots: The sub-decision's involved robots, or None to keep
+            `working.involved_robots` unchanged (the plain-yield fallback).
+
+    Returns:
+        A copy with `strategy="yield"`, `involved_robots` as given,
+        `yield_robot` carried over only if it is still involved, and
+        `crossing_order` cleared (the restricted robot set may not be a
+        permutation of the original order; `resolve_yield_roles` falls back
+        to its own implicit order either way, so clearing avoids a spurious
+        `order=default:non_permutation` degradation tag).
+    """
+    robots = list(working.involved_robots) if involved_robots is None else list(involved_robots)
+    yield_robot = working.yield_robot if working.yield_robot in robots else None
+    return working.model_copy(
+        update={
+            "strategy": "yield",
+            "involved_robots": robots,
+            "yield_robot": yield_robot,
+            "crossing_order": None,
+        }
+    )
+
+
+def _junction_clear_default_actions(
+    working: CongestionDecision,
+    snapshot: SnapshotFrame,
+    positions: Mapping[str, tuple[float, float]],
+    geometry: SceneGeometry | None,
+    static_obstacles: Sequence[StaticObstacleInput],
+    yield_feasibility_mode: YieldFeasibilityMode,
+    grounding_params: GroundingParams | None,
+) -> tuple[dict[str, PlanLegAction], list[str]]:
+    """`junction_clear`'s default plan: the recede set in chi order, then the yield.
+
+    (a) Grounding's "cost-ranked recede selection": chi orders
+    `_junction_recede_candidates` (`maneuver_geometry.rank_recede_candidates`)
+    -- the involved robots off the yield axis -- lowest cost first; every one
+    of them gets a `reverse` leg, in that order (the STAGGERED fallback for
+    the two-robot IB10 cross pair is this same ordering, never a
+    simultaneous pair). The yield-axis robots then get the IDENTICAL
+    derivation an ordinary `yield` decision gets (`_yield_default_actions`,
+    via `_as_yield_decision`), listed AFTER every recede leg -- "recede
+    before yield/cross" is a property of this ORDER, mirrored in
+    `_plan_problems`' audit of a VLM-proposed plan.
+
+    Falls back to plain `yield` over every involved robot -- "v1 behavior
+    ... single yield or no-op" exactly as the M5 spec section states it,
+    since `yield`'s own J1 filter (`_junction_same_axis_order`) already
+    drops a cross-axis robot to no-op there -- when the geometry declares no
+    recede precondition: no `junction_recede_offset_m` target, or no involved
+    robot has a cross-axis declared arm.
+
+    Args:
+        working: The alias-resolved `junction_clear` decision.
+        snapshot: Scene frame supplying every tracked robot and its position.
+        positions: `{robot_id: (x, y)}` from `snapshot`.
+        geometry: Declared scene geometry, or None (always the fallback).
+        static_obstacles: Fixed obstacles of the running scenario.
+        yield_feasibility_mode: The yield feasibility gate mode.
+        grounding_params: M3's derived-mode grounding parameters, or None.
+
+    Returns:
+        `(actions, ordered)` covering every involved robot.
+    """
+    if geometry is None or geometry.junction_recede_offset_m is None:
+        return _yield_default_actions(
+            _as_yield_decision(working),
+            snapshot,
+            positions,
+            geometry,
+            static_obstacles,
+            yield_feasibility_mode,
+            grounding_params,
+        )
+    candidates = _junction_recede_candidates(working, geometry)
+    recede_params = grounding_params if grounding_params is not None else GroundingParams()
+    ranked = rank_recede_candidates(snapshot, candidates, geometry, recede_params)
+    if not ranked:
+        return _yield_default_actions(
+            _as_yield_decision(working),
+            snapshot,
+            positions,
+            geometry,
+            static_obstacles,
+            yield_feasibility_mode,
+            grounding_params,
+        )
+    actions: dict[str, PlanLegAction] = {robot_id: "reverse" for robot_id in ranked}
+    yield_robots = _junction_yield_axis_robots(working, geometry)
+    yield_actions, yield_ordered = _yield_default_actions(
+        _as_yield_decision(working, yield_robots),
+        snapshot,
+        positions,
+        geometry,
+        static_obstacles,
+        yield_feasibility_mode,
+        grounding_params,
+    )
+    actions.update(yield_actions)
+    return actions, [*ranked, *yield_ordered]
 
 
 def _derive_default_plan(
@@ -2055,45 +2655,29 @@ def _derive_default_plan(
     ordered: list[str] = []
 
     if working.strategy == "yield":
-        roles = resolve_yield_roles(
+        yield_actions, yield_ordered = _yield_default_actions(
             working,
             snapshot,
-            geometry=geometry,
-            static_obstacles=static_obstacles,
-            yield_feasibility_mode=yield_feasibility_mode,
+            positions,
+            geometry,
+            static_obstacles,
+            yield_feasibility_mode,
+            grounding_params,
         )
-        # `resolve_yield_roles` does not itself apply the legacy multi-passer
-        # nearest-first refusal (`_ground_legacy`'s own check, not duplicated
-        # there either): apply it here so a 3+-robot default plan refuses
-        # exactly where `_ground_legacy` would.
-        multi_passer_refusal = (
-            _first_passer_refusal(roles.yielder_id, roles.crossing_order, positions)
-            if roles.refusal_reason is None and len(roles.crossing_order) > 1
-            else None
+        actions.update(yield_actions)
+        ordered = yield_ordered
+    elif working.strategy == "junction_clear":
+        junction_actions, junction_ordered = _junction_clear_default_actions(
+            working,
+            snapshot,
+            positions,
+            geometry,
+            static_obstacles,
+            yield_feasibility_mode,
+            grounding_params,
         )
-        if roles.refusal_reason is not None or multi_passer_refusal is not None:
-            for robot_id in roles.robot_ids:
-                actions[robot_id] = "wait"
-            ordered = list(roles.robot_ids)
-        elif (
-            grounding_params is not None
-            and grounding_params.mode == "derived"
-            and geometry is not None
-            and _derived_yield_degrades_to_reroute(
-                snapshot, roles, grounding_params, geometry
-            )
-        ):
-            # Mirrors `_reroute_yielder`'s dispatch shape exactly: the yielder
-            # reroutes, every crossing-order robot waits.
-            actions[roles.yielder_id] = "reroute"
-            for robot_id in roles.crossing_order:
-                actions[robot_id] = "wait"
-            ordered = [roles.yielder_id, *roles.crossing_order]
-        else:
-            actions[roles.yielder_id] = "yield"
-            for robot_id in roles.crossing_order:
-                actions[robot_id] = "cross"
-            ordered = [roles.yielder_id, *roles.crossing_order]
+        actions.update(junction_actions)
+        ordered = junction_ordered
     elif working.strategy == "reverse":
         order = resolve_robot_order(working)
         refused = geometry is not None and any(
@@ -2640,5 +3224,42 @@ def plan_matches_dispatch(
         leg's action.
     """
     dispatched = project_dispatched_legs(command, known_robot_ids)
+    plan_by_robot = {leg.robot_id: leg.action for leg in plan_legs}
+    return dispatched == plan_by_robot
+
+
+def junction_clear_plan_matches_dispatch(
+    plan_legs: Sequence[ProposedPlanLeg],
+    plan: JunctionClearPhasePlan,
+    known_robot_ids: Sequence[str],
+) -> bool:
+    """`plan_matches_dispatch`'s analogue for a `junction_clear` phase sequence.
+
+    A SINGLE dispatched command cannot be compared against the tracked
+    plan's full sequence for this strategy the way `plan_matches_dispatch`
+    compares an ordinary decision's one command: `junction_clear` phases
+    across SEVERAL commands, each addressing every involved robot but only
+    ACTING on some of them (`JunctionClearPhase.held_robot_ids` for the
+    rest). This reconstructs the per-robot action the WHOLE sequence
+    dispatches -- each robot's action from whichever phase actually acts on
+    it, every phase's held robots excluded from its own contribution -- and
+    compares that reconstruction to the tracked plan instead.
+
+    Args:
+        plan_legs: The accepted plan's legs.
+        plan: The full precomputed phase sequence
+            (`ground_junction_clear_phases`'s output).
+        known_robot_ids: Every tracked robot in the scene.
+
+    Returns:
+        True when every robot's reconstructed action equals its plan leg's
+        action.
+    """
+    dispatched: dict[str, str] = dict.fromkeys(known_robot_ids, "continue")
+    for phase in plan.phases:
+        held = set(phase.held_robot_ids)
+        for robot_id, action in project_dispatched_legs(phase.command, known_robot_ids).items():
+            if robot_id not in held:
+                dispatched[robot_id] = action
     plan_by_robot = {leg.robot_id: leg.action for leg in plan_legs}
     return dispatched == plan_by_robot

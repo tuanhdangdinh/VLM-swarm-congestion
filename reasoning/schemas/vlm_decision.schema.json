@@ -31,7 +31,8 @@
         "convoy",
         "priority_override",
         "temporary_wait",
-        "reverse"
+        "reverse",
+        "junction_clear"
       ]
     },
     "justification": { "type": "string" },

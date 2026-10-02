@@ -358,12 +358,38 @@ head-ons, junction scenes, convoys, and the loop map — not just IB10.
   the missing robots, logged as `plan_completed_legs`, not counted as
   a repair — so partial plans degrade gracefully instead of being
   rejected, and omission rate is itself observable.
-- **Plan lifecycle (rev 4):** every accepted plan gets a monotonic
-  `plan_id`; dispatched commands carry the `plan_id` they serve; the
-  prompt's plan-state block shows the active plan with per-leg status
+- **Plan lifecycle (rev 4; amended 2026-10-02 from the integration
+  build):** every accepted plan gets a monotonic `plan_id`; dispatched
+  commands carry the `plan_id` they serve; the prompt's plan-state
+  block shows the active plan with per-leg status
   (`pending/active/done/failed`). A new plan supersedes the active one
-  explicitly; M5 cancels superseded legs in dependency order via the
-  ordered-release machinery.
+  explicitly; supersession cancels the superseded plan's PENDING
+  (never-dispatched) legs in dependency order — an in-flight leg runs
+  to its terminal status and feeds the next invocation, because M4
+  exposes no command-cancel channel and building one is a
+  safety-relevant M4 capability registered OUT of v2 scope (the
+  measured `cancel_order` and `dispatch_matches_plan` fields make the
+  gap visible rather than hidden).
+- **Hold semantics (ruling 2026-10-02):** when a new analysis's
+  verified plan has legs identical to the active plan's REMAINING
+  (non-done) legs, M5 records a HOLD — `plan_id` unchanged,
+  `plan_holds` incremented — not a new acceptance. `replan_count`
+  counts only genuinely different accepted plans, which is what makes
+  the step-4 smoke criterion ("zero unforced replans" on the clean
+  two-robot head-on) well-defined: post-resolution re-checks that
+  find no congestion accept no plan, and a re-affirmed plan is a
+  hold, not churn. The plan-state advice ("revise only for a
+  reason") states exactly these semantics. REFINEMENT (2026-10-02,
+  from the step-4 smoke): if any leg has reached `failed` since the
+  last invocation, an identical re-issue is an **evidence-driven
+  replan**, never a hold — a retry is a response to evidence, and
+  counting it as a hold would hide exactly the revisions the
+  stability metric exists to see. (Implementation lands with step 5.)
+- **Probe prompts stay on their frozen version** (v2): T0 probes are
+  an RQ1 instrument whose comparability spans v1 collection; a v2 run
+  with the plan channel on therefore intentionally mixes prompt v3
+  (triggered analyses) with v2 (probes), recorded here so the mix is
+  a design fact, not an accident.
 - **Action vocabulary = the grounded primitives, nothing else:**
   `yield` (backup + sidestep + hold), `reverse`, `cross` (an ordered
   release slot), `wait` (hold in place), `reroute`, `continue`
@@ -400,6 +426,18 @@ demo. Per decision:
 In two-robot head-ons the machinery reduces to the existing swap gate
 (a one-leg plan repair), so v2 changes no v1 outcome semantics there —
 it only starts *measuring* what the VLM proposed.
+
+**Repair-semantics rulings (2026-10-02, from the contract-core build;
+details in `docs/implementation_notes.md`):** (1) reorder repairs MAY
+resolve 3+-robot plan-present scenes that v1's refuse-only ordering
+policy would abandon — that capability is this contract's purpose and
+v1 (plan-absent) behavior is untouched; (2) equal-cost repair
+candidates tie-break TOWARD M3's derived plan, including its yielder
+pick (the spec's "toward its own derived plan" made operational —
+fixes the two swept cells where a yielder reassignment bypassed the
+candidate scan); (3) the engine's `m3_default`/derived-plan path must
+be verified equivalent to the SHIPPED derived-mode grounding, not
+only legacy mode, before the head-on equivalence smoke counts.
 
 Rationale for optional, not mandatory: the presentation-order study,
 ER-2's unused geometry block, and the live demo's infeasible yielder
@@ -623,13 +661,39 @@ makes an explicit include/exclude call.
    The repair-distance bound for falling back to `m3_default` is sized
    from the mock sweep in step 6 and frozen before live smokes.
 6. IB10 composite mock smoke → live smoke (phase-by-phase).
+   GATE RESOLVED BY DIAGNOSIS (2026-10-02,
+   `docs/reports/2026-10-01-robot1-stale-rootcause.md` rev 3): the
+   robot_1 STALE loss at the IB10 spawn is a sub-pixel
+   sampling-phase ArUco decode marginality — marker-pattern ×
+   world-x specific, no occluder/homography/overlap mechanism, no
+   config-exposed detector knob (a code fix would touch v1-frozen
+   M1). Spawn-dwell only: the arrival gate is stale-tolerant, and
+   robot_1's goal (100%/100%) and yield-park pose (100%/97.9%) are
+   verified clean. RULING: proceed under INSTRUMENTATION — every
+   step-6 (and later scored) run's analysis must flag any long
+   STALE streak during any stationary dwell, any robot (the probe
+   analysis script's streak check is the model); a 0.10 m symmetric
+   spawn re-radius (1.75 → 1.65 both arms, preserving the
+   equal-radii invariant; −1.65 verified clean, +1.65 untested) is
+   the registered fallback IF the flag fires in scored runs — an
+   owner scenario-redesign call, not applied now.
 7. Intersection oracle + regret extension; freeze IB10 scoring.
 8. Loop map: USD + Nav2 + reroute grounding; the pre-emption control
    smoke before any scenario authoring.
 9. B2-visual pair + B3 first-to-slip scenarios + oracles.
 10. Capability-probe battery: author the probe set on project frames,
     freeze it, run once per backend; results recorded in the freeze
-    record (rev 5).
+    record (rev 5). BUILT 2026-10-02 (manifest_v1, 60 items, prompt
+    hash-pinned). Freeze-time follow-ups before the live per-backend
+    runs: (a) wire the runner through `resolve_reasoner_config` so it
+    uses the PINNED model ids, not backend default aliases; (b) owner
+    confirms the left/right operationalization (image-frame side of
+    centre column — coincides with the aisle side in every sourced
+    scene, would not on a vertical in-frame aisle); (c) note
+    `locate_robot` covers 4 of 9 grid cells after filters, and
+    `nearest_first`'s robot_2-skewed answers must be read against the
+    recorded robot-id priors before attributing errors to spatial
+    reasoning.
 11. prereg-v2 freeze: hash table, pins, veto list, probe results —
     same procedure as v1 — plus the rev-6 reading gates: GAVEL's
     evaluation section, the two MDPI texts, DeepFleet skim, PhAIL

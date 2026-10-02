@@ -6,6 +6,7 @@ import pytest
 from swarm_orchestrator.plan_tracker import PlanTracker
 
 from reasoning.rag.command_grounder import PlanEdit, VerifiedPlan
+from reasoning.rag.plan_metrics import classify_revision_cause
 from reasoning.vlm.models import ProposedPlanLeg
 
 
@@ -306,25 +307,28 @@ class TestHoldSemantics:
         assert second.held is False
         assert second.supersedes.superseded_plan_id == first.plan.plan_id
 
-    def test_failed_leg_reproposed_identically_is_still_a_hold_flagged_gap(self):
-        # FLAGGED, not fixed here: "non-done" (the ruling's own wording)
-        # includes `failed`, not just `pending`/`active`. A re-analysis that
-        # proposes the EXACT SAME action for a robot whose leg just FAILED
-        # (e.g. a retry after a timeout) is therefore a hold under this
-        # reading, not an evidence-driven replan -- `plan_id` stays the
-        # same, so the retry's dispatched command keeps citing the old,
-        # already-terminal leg. Pinned so the behavior is measured, not
-        # silently assumed away; see docs/implementation_notes.md's matching
-        # 2026-10-02 entry for the consequence this has on
-        # `classify_revision_cause`.
+    def test_failed_leg_reproposed_identically_is_an_evidence_driven_replan(self):
+        # REFINEMENT (2026-10-02, spec "(a0) Hold semantics", landed with
+        # build-order step 5): "non-done" (the ruling's own wording) includes
+        # `failed`, not just `pending`/`active`, so without this refinement
+        # a re-analysis that proposes the EXACT SAME action for a robot
+        # whose leg just FAILED (e.g. a retry after a timeout) would read as
+        # a hold, not an evidence-driven replan. Previously pinned as a
+        # FLAGGED gap by
+        # `test_failed_leg_reproposed_identically_is_still_a_hold_flagged_gap`;
+        # now pins the ruling instead -- a retry after a failure always gets
+        # a NEW plan_id and is classifiable `evidence_driven`
+        # (`plan_metrics.classify_revision_cause(["robot_1"])`).
         tracker = PlanTracker()
         first = tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
         tracker.set_leg_status(first.plan.plan_id, "robot_1", "active")
         tracker.set_leg_status(first.plan.plan_id, "robot_1", "failed")
         second = tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
-        assert second.held is True
-        assert second.plan.plan_id == first.plan.plan_id
-        assert second.plan.leg_for("robot_1").status == "failed"
+        assert second.held is False
+        assert second.plan.plan_id == first.plan.plan_id + 1
+        assert second.supersedes is not None
+        assert second.supersedes.superseded_plan_id == first.plan.plan_id
+        assert classify_revision_cause(["robot_1"]) == "evidence_driven"
 
     def test_a_plan_where_every_leg_is_already_done_is_never_a_hold(self):
         # Nothing remains to re-affirm; the next accepted plan is judged
