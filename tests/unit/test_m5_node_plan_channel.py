@@ -21,6 +21,7 @@ from swarm_orchestrator.plan_tracker import PlanTracker
 from tests.unit.test_m5_node_probe import (  # noqa: F401  (node_env is a fixture)
     _commands,
     _make_node,
+    _Message,
     _result,
     _trigger_real,
     node_env,
@@ -282,6 +283,43 @@ def test_reverse_leg_without_a_tracked_plan_carries_no_continue_partners(
     node._pipeline = _ReverseOnlyFakePipeline()
 
     _trigger_real(node, stamp=60.0)
+    node._future.result(timeout=5.0)
+    node._on_timer()
+
+    published = _commands(node)
+    reverse_msgs = [msg for msg in published if msg.action == "reverse"]
+    assert reverse_msgs, "no reverse command was dispatched"
+    params = json.loads(reverse_msgs[0].parameters_json or "{}")
+    assert "plan_continue_partners" not in params
+
+
+def test_manual_trigger_reverse_gets_no_plan_continue_partners(
+    node_env, tmp_path  # noqa: F811
+):
+    # FOURTH CORRECTION regression pin (step-7a, fix 3): the operator/test
+    # manual-trigger RPC (`_on_trigger_analysis`) reports EVERY snapshot
+    # robot as "involved" in its `CongestionEvent`, not the real conflict
+    # set -- so without `_submit_pipeline`'s `trigger_robots=frozenset()`
+    # override on this path, `_last_trigger_robot_ids` would become the
+    # whole scene and every `continue` leg of ANY plan would ride along as
+    # a `reverse`'s exempt partner, exactly the blanket exemption the task
+    # forbids. Same plan shape as `test_reverse_leg_carries_the_same_plans_
+    # continue_partner` (`robot_2` reverses, `robot_1` continues) but
+    # triggered manually: `plan_continue_partners` must be ABSENT, unlike
+    # the detector-driven test's `["robot_1"]`.
+    from tests.unit.test_m5_node_probe import _FakePipeline
+
+    node, _clock = _make_node(
+        node_env, tmp_path, _FakePipeline(), t0_probe_mode=False, plan_channel_enabled=True
+    )
+    node._pipeline = _ReverseContinuePlanFakePipeline(node._plan_tracker)
+
+    request = _Message()
+    request.reason = "operator smoke test"
+    response = _Message()
+    node._on_trigger_analysis(request, response)
+    assert response.accepted, response.message
+
     node._future.result(timeout=5.0)
     node._on_timer()
 
