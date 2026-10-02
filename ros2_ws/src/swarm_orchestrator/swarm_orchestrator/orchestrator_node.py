@@ -679,7 +679,17 @@ class OrchestratorNode(Node):
             frame_ready=self._frame_is_fresh(snapshot.stamp),
         )
         if directive.kind is DirectiveKind.START_ANALYSIS:
-            self._submit_pipeline(directive.request_id, snapshot, event.involved_robots, {})
+            self._submit_pipeline(
+                directive.request_id,
+                snapshot,
+                event.involved_robots,
+                {},
+                # Manual trigger always reports EVERY snapshot robot as
+                # "involved" (not the real conflict set) -- fails closed to
+                # no-narrowing (v1) exemption scope rather than exempting the
+                # whole scene (step-7a FOURTH CORRECTION).
+                trigger_robots=frozenset(),
+            )
             response.accepted = True
             response.analysis_id = directive.request_id
             response.message = "analysis started"
@@ -729,6 +739,7 @@ class OrchestratorNode(Node):
         snapshot,
         robots: list[str],
         distance_to_goal_m: dict[str, float],
+        trigger_robots: frozenset[str] | None = None,
     ) -> RobotOrder:
         """Build the request for one analysis and hand it to the worker thread.
 
@@ -737,6 +748,14 @@ class OrchestratorNode(Node):
             snapshot: The M1 scene the request is built from.
             robots: Robots the congestion event involves.
             distance_to_goal_m: The detector's per-robot distance at trigger time.
+            trigger_robots: Overrides `_pending_trigger_robots` (fix 3's
+                plan-continue exemption scope) when the caller's own `robots`
+                is not the real conflict set -- e.g. the operator/test manual
+                trigger (`_on_trigger_analysis`) always passes every snapshot
+                robot as `robots`, so it must pass `frozenset()` here to fail
+                closed to no-narrowing (v1) behavior instead of exempting the
+                whole scene. `None` (the detector-driven path) keeps the
+                existing `frozenset(robots)` derivation.
 
         Returns:
             The presentation order this episode renders robots in, for the
@@ -802,7 +821,9 @@ class OrchestratorNode(Node):
         self._pending_request = request
         self._pending_snapshot = snapshot
         self._pending_distances = dict(distance_to_goal_m)
-        self._pending_trigger_robots = frozenset(robots)
+        self._pending_trigger_robots = (
+            trigger_robots if trigger_robots is not None else frozenset(robots)
+        )
         self._pending_episode_index = episode_index
         # Snapshotted here, not read inside the worker: a newer camera message
         # may land before the worker runs, and the dump must be the frame whose
