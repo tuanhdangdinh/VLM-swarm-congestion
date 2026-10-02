@@ -570,6 +570,48 @@ triggered.
 
 ---
 
+## Freeze-blocking findings (consolidated)
+
+Four findings this task surfaced that the (a0)/`junction_clear`/`reverse`
+machinery does not currently cover, none fixed here (out of this task's
+scope -- each is a separate, scoped change for the coordinator to decide):
+
+1. **Recede-set membership and order are unaudited.** `_plan_problems`'s
+   `junction_clear` check only verifies recede-legs-precede-yield-axis-legs
+   ordering; it checks neither WHICH robots hold the recede legs (the
+   step-4 sweep's wrong-recede-pair cases verify `vlm_verbatim`) nor the
+   order BETWEEN the two recede legs themselves (run B's live dispatch
+   order, the opposite of its own proposed plan, also verifies
+   `vlm_verbatim`/`dispatch_matches_plan=true`). Plan-quality metrics (ii)/
+   (iv) over-credit both defect classes unless read alongside
+   `dispatch_matches_plan`/the oracle-order metric specifically.
+2. **Releasing held robots' base missions after `junction_clear` resolves
+   creates an unordered secondary conflict.** `junction_phase_queue`
+   releases every recede candidate to its original base-mission goal the
+   instant the cross phase resolves; when two candidates parked on
+   opposite arms, this is a fresh encounter the composite's own contract
+   never orders. M5's detector does keep re-triggering on it (confirmed:
+   8+ real re-triggers across runs A/B); whether it resolves depends
+   entirely on the backend answering with something new, which a finite
+   scripted mock cannot do.
+3. **A `continue` leg is not safety-exempted against a `reverse` leg in a
+   different command.** `admitted_partners` only exempts members of the
+   SAME command from each other; an uninvolved robot left on `continue`
+   that closes within the safety latch of an active `reverse` triggers a
+   `min_distance_violation` safety stop that can permanently stall the
+   `reverse` command's own resolution (observed live: `robot_1`/`robot_4`
+   in the live episode's decision 2).
+4. **The plain `reverse` strategy has no tracked-band bound on its backup
+   distance.** `junction_clear`'s own recede pockets are declared scene
+   constants, kept inside the verified tracking extent by design (J2 +
+   the pocket offset). The plain `reverse` grounding used for a 2-robot
+   conflict outside `junction_clear` has no equivalent check: the live
+   episode's `robot_3` backed up to `|y| = 2.38`, past the verified
+   `|y| <= 1.75` extent and the homography's own 2.09 m edge, coinciding
+   with that robot's longest STALE streak of the whole task.
+
+---
+
 ## Local verification
 
 Full local unit suite, `--ignore` on the five documented `pxr`-only files
