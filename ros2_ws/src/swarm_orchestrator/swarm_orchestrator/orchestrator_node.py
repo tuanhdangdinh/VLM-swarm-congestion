@@ -382,6 +382,17 @@ class OrchestratorNode(Node):
         # into a blanket same-scene exemption for every `reverse`.
         self._pending_trigger_robots: frozenset[str] = frozenset()
         self._last_trigger_robot_ids: frozenset[str] = frozenset()
+        # Step-7b ruling (v): `_last_trigger_robot_ids` is cleared right after
+        # the triggering dispatch (below) so a later, UNRELATED dispatch can
+        # never read a stale leftover trigger set. A `junction_clear`
+        # resolution's LATER phases (recede phase 2, release) are dispatched
+        # from `_advance_junction_phase` -> `_dispatch_junction_phase`, a
+        # separate synchronous call that runs well after that clear, so the
+        # trigger set this resolution's `reverse` legs must keep reading is
+        # instead bound to the plan (`outcome.plan.plan_id`, which every
+        # later phase's command_id maps back to via
+        # `_plan_id_by_command_id`), not to this transient attribute.
+        self._trigger_robots_by_plan: dict[int, frozenset[str]] = {}
         self._episodes = EpisodeOrderTracker(
             PresentationOrderPolicy(
                 mode=self._config.prompt_robot_order, seed=self._order_seed
@@ -930,6 +941,15 @@ class OrchestratorNode(Node):
                 f"request={outcome.request_id} no dispatch "
                 f"stage={outcome.terminal_stage.value} reason={outcome.failure_reason}"
             )
+        # Step-7b ruling (v): this outcome's one synchronous use of
+        # `_last_trigger_robot_ids` (inside `_dispatch`, if it ran) is over by
+        # now, and any plan-bound copy a junction_clear resolution's later
+        # phases will need was already persisted into
+        # `_trigger_robots_by_plan` above. Clearing here removes a latent
+        # staleness window where a LATER, unrelated dispatch (e.g. a plain
+        # `reverse` with no plan) could otherwise read this request's
+        # leftover trigger set.
+        self._last_trigger_robot_ids = frozenset()
         self._cleanup_frame(outcome.request_id)
 
     def _finalize_shadow(self, outcome: PipelineOutcome) -> dict[str, Any] | None:
@@ -981,6 +1001,13 @@ class OrchestratorNode(Node):
         )
         if outcome.plan is not None:
             self._plan_id_by_command_id[grounded["command_id"]] = outcome.plan.plan_id
+            # Step-7b ruling (v): bind this resolution's trigger-robot set to
+            # the plan BEFORE `_last_trigger_robot_ids` is cleared (by the
+            # caller, `_handle_outcome`, right after this call returns) so
+            # every later phase's `reverse` dispatch
+            # (`_dispatch_junction_phase` -> `_publish_fanned_out` ->
+            # `_with_plan_continue_partners`) still finds it.
+            self._trigger_robots_by_plan[outcome.plan.plan_id] = self._last_trigger_robot_ids
         messages = fan_out_command(grounded, self._config.command_timeout_sec)
         robot_ids = [m[1] for m in messages]
         self._episodes.note_dispatch(robot_ids)
@@ -1107,6 +1134,15 @@ class OrchestratorNode(Node):
         `robot_1` (`continue`, part of the event) stays exempt while
         `robot_2` (`continue`, never part of this event) does not.
 
+        Step-7b ruling (v): reads `_trigger_robots_by_plan[plan_id]`, a copy
+        of the triggering event's robot set bound to the plan when it was
+        first dispatched (`_dispatch`), not the transient
+        `_last_trigger_robot_ids` attribute — which `_handle_outcome` clears
+        after every outcome so it cannot leak into a later, unrelated
+        dispatch. A `junction_clear` resolution's LATER phases (recede phase
+        2, release) call this same function well after that clear, so they
+        need the plan-bound copy to still narrow correctly.
+
         Args:
             params_json: The reverse leg's own encoded parameters.
             plan_id: The dispatching command's tracked plan id, or None.
@@ -1123,12 +1159,13 @@ class OrchestratorNode(Node):
         plan = self._plan_tracker.plan(plan_id)
         if plan is None:
             return params_json
+        trigger_robot_ids = self._trigger_robots_by_plan.get(plan_id, frozenset())
         partners = [
             leg.robot_id
             for leg in plan.legs
             if leg.action == "continue"
             and leg.robot_id != robot_id
-            and leg.robot_id in self._last_trigger_robot_ids
+            and leg.robot_id in trigger_robot_ids
         ]
         if not partners:
             return params_json

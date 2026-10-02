@@ -360,7 +360,9 @@ def test_plan_continue_partners_narrowed_to_the_triggering_event_not_the_whole_s
         provenance="vlm_verbatim",
     )
     plan_id = node._plan_tracker.accept_plan(verified).plan.plan_id
-    node._last_trigger_robot_ids = frozenset({"robot_1", "robot_3", "robot_4"})
+    # Step-7b ruling (v): the live attribute is cleared after every dispatch,
+    # so `_with_plan_continue_partners` now reads the plan-bound copy instead.
+    node._trigger_robots_by_plan[plan_id] = frozenset({"robot_1", "robot_3", "robot_4"})
 
     params_json = node._with_plan_continue_partners("{}", plan_id, "robot_3")
 
@@ -376,8 +378,114 @@ def test_plan_continue_partners_empty_when_the_plan_channel_tracks_no_plan(
     node, _clock = _make_node(
         node_env, tmp_path, _FakePipeline(), t0_probe_mode=False, plan_channel_enabled=True
     )
-    node._last_trigger_robot_ids = frozenset({"robot_1", "robot_3", "robot_4"})
+    node._trigger_robots_by_plan[999] = frozenset({"robot_1", "robot_3", "robot_4"})
 
     params_json = node._with_plan_continue_partners("{}", 999, "robot_3")
 
     assert params_json == "{}"
+
+
+# ---------------------------------------------------------------------------
+# Step-7b ruling (v): clear `_last_trigger_robot_ids` after each dispatch;
+# a junction_clear resolution's LATER phases must still get their partners.
+# ---------------------------------------------------------------------------
+
+
+def test_last_trigger_robot_ids_cleared_after_dispatch(node_env, tmp_path):  # noqa: F811
+    """The transient attribute must not survive past the dispatch that used it
+    (a latent staleness window: a later, unrelated dispatch must never read
+    a leftover trigger set from a previous congestion event)."""
+    from tests.unit.test_m5_node_probe import _FakePipeline
+
+    node, _clock = _make_node(
+        node_env, tmp_path, _FakePipeline(), t0_probe_mode=False, plan_channel_enabled=True
+    )
+    node._pipeline = _ReverseContinuePlanFakePipeline(node._plan_tracker)
+
+    _trigger_real(node, stamp=60.0)
+    node._future.result(timeout=5.0)
+    node._on_timer()
+
+    assert node._last_trigger_robot_ids == frozenset()
+
+
+def test_junction_phase2_reverse_still_gets_plan_continue_partners(
+    node_env, tmp_path  # noqa: F811
+):
+    """A `junction_clear` resolution's phase-2 `reverse` (dispatched from
+    `_dispatch_junction_phase`, well after `_handle_outcome` already cleared
+    `_last_trigger_robot_ids`) must still carry the SAME plan's continue
+    partners -- read from the plan-bound `_trigger_robots_by_plan` copy, not
+    the transient attribute."""
+    from reasoning.rag.command_grounder import VerifiedPlan
+    from reasoning.vlm.models import ProposedPlanLeg
+    from tests.unit.test_m5_node_probe import _FakePipeline, _result
+
+    class _Phase1ReversePlanFakePipeline:
+        def __init__(self, tracker: PlanTracker) -> None:
+            self._tracker = tracker
+
+        def run(self, request):
+            verified = VerifiedPlan(
+                legs=[
+                    ProposedPlanLeg(robot_id="robot_2", action="reverse"),
+                    ProposedPlanLeg(robot_id="robot_1", action="continue"),
+                ],
+                provenance="vlm_verbatim",
+            )
+            acceptance = self._tracker.accept_plan(verified)
+            command = {
+                "command_id": f"cmd-{request.request_id}",
+                "actions": [
+                    {
+                        "robot_id": "robot_2",
+                        "action": "reverse",
+                        "parameters": {"backup_distance_m": 0.8},
+                    },
+                ],
+                "expected_resolution_time_sec": 18.0,
+                "fallback": "stop",
+            }
+            return PipelineOutcome(
+                request_id=request.request_id,
+                reasoner_result=_result(request.request_id),
+                grounded_command=command,
+                terminal_stage=TerminalStage.OK,
+                plan=_plan_dispatch_info(acceptance),
+            )
+
+    node, _clock = _make_node(
+        node_env, tmp_path, _FakePipeline(), t0_probe_mode=False, plan_channel_enabled=True
+    )
+    node._pipeline = _Phase1ReversePlanFakePipeline(node._plan_tracker)
+
+    _trigger_real(node, stamp=60.0)
+    node._future.result(timeout=5.0)
+    node._on_timer()
+
+    # Phase 1 dispatched; the transient attribute is now cleared, same as
+    # the previous test -- the plan-bound copy is what phase 2 must rely on.
+    assert node._last_trigger_robot_ids == frozenset()
+    phase1_id = _commands(node)[-1].command_id
+
+    phase2_command = {
+        "command_id": "phase2-cmd",
+        "actions": [
+            {
+                "robot_id": "robot_2",
+                "action": "reverse",
+                "parameters": {"backup_distance_m": 0.8},
+            },
+        ],
+        "expected_resolution_time_sec": 18.0,
+        "fallback": "stop",
+    }
+    node._dispatch_junction_phase(phase1_id, phase2_command, held_robot_ids=())
+
+    published = _commands(node)
+    phase2_msgs = [
+        m for m in published if m.command_id == "phase2-cmd" and m.action == "reverse"
+    ]
+    assert phase2_msgs, "phase 2 reverse was not dispatched"
+    params = json.loads(phase2_msgs[0].parameters_json or "{}")
+    assert params.get("plan_continue_partners") == ["robot_1"]
