@@ -37,6 +37,60 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-02** — **v2 build-order step 6: IB10 `junction_clear` composite
+  smoke, mock (2 runs) + one live ER-2 episode, full report
+  `docs/reports/2026-10-02-ib10-composite-smoke.md`, branch
+  `feat/v2-ib10-smoke` (from `feat/prereg-v2-composite` at `955b962`).**
+  (1) **Goal-table fix landed**: `ros2_ws/src/swarm_orchestrator/config/
+  orchestrator.yaml`'s IB10 comment now documents `junction_recede_
+  offset_m: 1.2` + `junction_backup_clearance_m: 1.1` together (the step-5
+  post-landing bug-4 fix); verified end to end through the real `load_
+  config` path, not a hand-built dict. (2) **Loudness guard widened**
+  (`reasoning/rag/command_grounder.py`): `junction_geometry=shipped_
+  unsolved:missing=<field,field>` now fires whenever `junction_clear`
+  grounds without BOTH fields, independent of which code path produced the
+  fallback (the first draft only caught one of three cases; a coordinator-
+  review correction). (3) **Repair-bound sweep** (`scripts/junction_clear_
+  repair_bound_sweep.py`, local, no VM): confirms `max_repair_edits=2`
+  (the shipped default, unchanged) clears every case that reaches repair at
+  all in a 17-case deterministic corpus -- but surfaces a FREEZE-BLOCKING
+  metric hole, not fixed here: a `junction_clear` plan naming the WRONG
+  recede pair verifies `vlm_verbatim` (no membership check exists for
+  recede-set correctness under `yield_feasibility_mode="off"`), while
+  `junction_clear_plan_matches_dispatch` correctly flags it `False` --
+  metrics (ii)/(iv) alone would silently over-credit this defect class.
+  (4) **Mock smoke, 2/2 runs**: full recede(staggered)-then-yield-then-cross
+  phase sequence executes correctly both times (run A `m3_default`, run B
+  `vlm_verbatim`, chi order flipped between runs on live near-tied
+  positions -- confirms step-5's own "cosmetic, not exercised twice" chi-tie
+  finding in a real run), solved-row numbers (backup 0.799 m / park
+  |x|=1.018 m / escort 1.998 m) grounded both times, deploy check clean
+  (no `shipped_unsolved` tag). Both runs land at 1/4 arrivals within their
+  300 s window -- ROOT CAUSE (corrected mid-task after the live episode,
+  do not read the mock-run sections of the report without this): NOT a
+  suppression/cooldown bug -- M5's detector re-triggers the post-resolution
+  N-S conflict (robot_3/robot_4 released toward each other's original
+  goals after the composite's `done=True`) 4-8 times per run, but
+  `MockBackend` holds its scripted array's LAST entry (`none`) forever once
+  exhausted, so a finite 3-entry mock can never answer a conflict it wasn't
+  scripted for. (5) **Live ER-2 episode confirms this**: two live decisions
+  (`junction_clear` -> model's own plan is inconsistent, `m3_default`
+  correctly substituted, composite resolves identically to the mocks; then
+  `reverse` for the same secondary N-S pair, `vlm_verbatim`, dispatched) --
+  1/4 arrived but `robot_3` was still moving when the 300 s window closed
+  (decision 2 landed at wall-elapsed ~306 s, almost no time left to
+  execute), a materially different (in-progress, not frozen) result from
+  the mocks. API spend: 3 live calls (1 preflight + 2 episode), ~9.3k
+  tokens total, ~$0.017 at the published ER-2 rate (input $1/1M, output
+  $5/1M, sourced live -- thinking-token billing assumed, not confirmed for
+  this model specifically). STALE instrumentation: every run showed at
+  most one single-frame blip (never a streak), none in a scoring-relevant
+  window -- does not invalidate any run per the resolved gate's ruling.
+  Zero-delta local suite maintained throughout (58 failed/4311 passed/139
+  skipped vs. the `955b962` baseline, identical failing-test-name set).
+  VM (`vgu-vgu-thule-base-isaac-workstation-vm`) restored pristine on all
+  four `orchestrator.yaml`/`rag.yaml` copies, GPU idle, no stray processes.
+
 - **2026-10-02** — **v2 build-order step 5, post-landing advisor-review
   fixes** (same branch, same task; six real bugs found by independent
   review of the entry below, none caught by the tests that existed at that

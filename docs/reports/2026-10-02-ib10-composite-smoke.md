@@ -426,26 +426,53 @@ Full local unit suite, `--ignore` on the five documented `pxr`-only files
 (the local/container environment split on record in `docs/
 implementation_notes.md`): a disposable detached worktree at the exact
 branch point (`955b962`) gives a trusted baseline of **58 failed / 4299
-passed / 139 skipped**, identical failing-test-name set to this task's
-every intermediate checkpoint. After all local commits above: **58 failed /
-4311 passed / 139 skipped**, same failing-test-name set, zero delta.
-`make lint` (ruff) clean on every touched Python file.
+passed / 139 skipped**. After every commit on this branch, re-run with the
+identical command: **58 failed / 4311 passed / 139 skipped**, byte-identical
+failing-test-name set to the baseline at every checkpoint, confirmed a
+final time after all VM work and the restore above. `make lint` (ruff)
+clean on every touched Python file, checked a final time too.
 
 (Note: a scratchpad file this task used for an earlier, narrower baseline
 comparison was overwritten mid-task by what the environment confirms is a
-concurrent, unrelated process sharing the same scratchpad directory -- see
-"VM preflight" below. The disposable-worktree baseline above is the
-trustworthy one; it does not depend on that file.)
+concurrent, unrelated process sharing the same scratchpad directory. The
+disposable-worktree baseline above does not depend on that file and is the
+one this report relies on throughout.)
 
 ---
 
-## VM preflight
+## VM state: preflight and close-out
 
-**STATUS: IN PROGRESS.** To be filled in: idle-state confirmation
-(`pgrep -f run_simulation`, no `ros2`/orchestrator/perception/Nav2 process
-in `vgu_ros`, `nvidia-smi` idle, no stray `/tmp/*.tar` deploy artifacts, no
-VM-tree files modified in the last 2 hours), pre-deploy md5 of orchestrator.
-yaml/rag.yaml (source and installed, both expected `1f656533a30a35882d57
-d0d64a57bd0d` / `e18c723cff9cada3f320d564c2ecee5a` per the standing VM
-state the 2026-10-01 stale-rootcause task left it in), and a backup copy at
-`/tmp/ib10_pristine/` before any deploy.
+**Preflight** (before any deploy): `pgrep -f run_simulation` empty, no
+`ros2`/orchestrator/perception/Nav2 process inside `vgu_ros`, GPU 0%/171 MiB,
+pre-deploy md5 of `orchestrator.yaml`/`rag.yaml` matched the standing
+convention exactly on every copy (source, installed, host, container):
+`1f656533a30a35882d57d0d64a57bd0d` / `e18c723cff9cada3f320d564c2ecee5a`,
+backed up verbatim to `/tmp/ib10_pristine/`. Three stray `/tmp/ship_*_
+delta.tar` files predate this task (Sep 30) and are unrelated to it --
+left alone, not this task's to clean up. The VM tree had files modified
+within the prior ~2 hours (orchestrator.yaml itself, several `colcon`
+build logs timestamped ~09:00-09:10 UTC the same morning) despite the
+process/GPU checks showing idle -- consistent with a different task's
+clean, completed run earlier that morning (its own restore left
+`orchestrator.yaml` pristine, confirmed by the matching md5), not a
+concurrent conflict; proceeded on that basis per the coordinator review.
+
+**Close-out** (after the live episode, this task's last VM activity):
+`orchestrator.yaml`/`rag.yaml` restored from the `/tmp/ib10_pristine/`
+backup (plain copy + `touch`, not `copy2`, per the project's own documented
+colcon-mtime-skip trap), `swarm_orchestrator` rebuilt, and **all four
+copies re-verified pristine**: source `1f656533a30a35882d57d0d64a57bd0d`,
+installed host `1f656533a30a35882d57d0d64a57bd0d`, installed container
+`1f656533a30a35882d57d0d64a57bd0d`, `rag.yaml` `e18c723cff9cada3f320d
+564c2ecee5a`. GPU idle (0%/171 MiB), no `run_simulation`/ROS2/orchestrator/
+perception/Nav2 process anywhere, container `vgu_ros` up and clean. All of
+this task's `/tmp` deploy artifacts removed from the VM (`ib10_deploy.tar`,
+the deployed orchestrator.yaml, build logs, the log bundle, the pristine
+backup directory, the three launcher logs). The pre-step-5 source tree this
+task's `git archive` deploy overwrote (command_grounder.py, the
+orchestrator package, tests, scripts, mock decisions) is left updated to
+this branch's `bfc3000`/`47c4121`-era content on the VM -- an intentional,
+expected side effect of deploying a real code change, not a config file
+the standing convention restores, and consistent with the VM's own
+"whoever deploys next" shared-tree model (confirmed by the VM having no
+`.git` directory at all -- it is a plain extracted tree, not a clone).
