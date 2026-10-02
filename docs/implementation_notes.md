@@ -359,7 +359,11 @@ Rules for maintaining it:
   above left an unverified claim ("nothing attempt-3's evidence is used
   for depends on fix 3's exemption scope") -- now checked against the
   run's own decision artifact, not assumed.** `data/logs/m5_decisions/
-  fff3e18376454ab4b7f63c5f978b61d0.json` (the run's only trigger,
+  fff3e18376454ab4b7f63c5f978b61d0.json` (the run's only DISPATCHED
+  trigger -- checked against all 11 `m5_decisions` artifacts carrying
+  this run's `run_id`; the other 10 are `strategy=none`,
+  `grounded_command_present=False`, no plan, `terminal_stage=vlm` --
+  M5's own no-congestion-detected analyses during the busy dwell,
   `m3_default` junction_clear) shows `involved_robots=["robot_1",
   "robot_2", "robot_3", "robot_4"]` -- ALL FOUR scene robots, so the
   blanket and narrowed trigger-set scopes are IDENTICAL for this run

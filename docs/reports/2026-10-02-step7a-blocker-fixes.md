@@ -723,32 +723,43 @@ pre-existing, unrelated `ship_*_delta.tar` files from Sep 30 left
 untouched.
 
 **Code provenance, checked after the fact (md5, no VM run): the VM's
-source tree is NOT at this branch's final commit.** `orchestrator_node.py`
-on the VM (source, `build/`, and `install/` copies, host and container
-paths all identical) md5s to `9f0e758d89db65e41156bba6381b0cde`, matching
-this file's content as of `1e6f628` (the commit that landed the five
-fixes; `git diff --name-only 1e6f628 HEAD -- '*.py' ':!tests'` shows
-`orchestrator_node.py` as the ONLY non-test code file that differs --
-`29f7e3f` is a docs-only commit with the same `.py` tree, cited earlier
-only because that was the commit checked out when this run was deployed),
-i.e. BEFORE fix 3's trigger-set narrowing (`4e1a7a9`) and the
-manual-trigger closure (`643d9ae`) were written. **Attempt 3, the run
-this report scores, ran fix 3's first-draft blanket exemption**; the
-narrowed and manual-trigger-safe versions exist only as unit-pinned code
-on this branch and were never exercised live. **This is verified, not
-assumed, not to change anything the attempt-3 evidence in this report is
-used for**, for three independent reasons, checked against the run's own
-decision artifact (`data/logs/m5_decisions/
-fff3e18376454ab4b7f63c5f978b61d0.json`): (1) its trigger named ALL FOUR
-scene robots as `involved_robots`, so the blanket and narrowed trigger-set
-scopes are identical for this run regardless; (2) its `plan.legs`
-(`robot_3`/`robot_4`: `reverse`, `robot_1`: `yield`, `robot_2`: `cross`)
-contain ZERO `continue` legs, so `_with_plan_continue_partners` finds
-nothing to exempt either way; (3) that function only runs for
-`action == "reverse"` dispatches, and fix 2's own release-phase actions
-(what findings 1-3 above analyze) are all `yield`, never `reverse`, so
-fix 3's code path is not even reached by the command this report's own
-findings are about. The branch must still be redeployed before its NEXT
+source tree is behind this branch's HEAD in exactly one file.** Every
+non-test `.py` file this branch touches (`git diff --name-only d3aa0f3
+HEAD -- '*.py' ':!tests'`: `command_grounder.py`, `plan_metrics.py`,
+`scene_geometry.py`, `vlm/models.py`, `safety.py`,
+`junction_phase_queue.py`, `orchestrator_node.py`, `plan_tracker.py`,
+the sweep script) was md5'd on the VM (source, `build/`, and
+`install/lib/python3.12/site-packages/` copies, host and container paths
+all identical where applicable) against local HEAD: all match BYTE FOR
+BYTE except `orchestrator_node.py`, which is `9f0e758d89db65e41156bba6
+381b0cde` on the VM vs `791525e2e6642c04da9b394688be8b5f` at HEAD. The
+deploy was a working-tree copy, not a commit checkout, so no single
+commit hash is an exact deploy marker; the VM's content matches this
+file as it stood between `1e6f628` (the commit that first landed the
+five fixes, confirmed by `git show 1e6f628:...` still filtering on
+`leg.action == "continue"` with no trigger-set narrowing at all -- the
+exact blanket shape) and `29f7e3f` (a docs-only commit with the same
+`.py` tree), i.e. BEFORE fix 3's trigger-set narrowing (`4e1a7a9`) and
+the manual-trigger closure (`643d9ae`). **Attempt 3, the run this report
+scores, ran fix 3's first-draft blanket exemption and nothing else on
+this branch is behind**; the narrowed and manual-trigger-safe versions
+exist only as unit-pinned code. **This is verified, not assumed, not to
+change anything the attempt-3 evidence in this report is used for**,
+for three independent reasons, checked against the run's own decision
+artifacts (all 11 `m5_decisions` records sharing this run's `run_id`;
+`fff3e18376454ab4b7f63c5f978b61d0.json` is the only one with
+`grounded_command_present=True` -- the other 10 are `strategy=none`,
+no plan, M5's own no-congestion-detected analyses during the busy
+dwell): (1) the one dispatched trigger named ALL FOUR scene robots as
+`involved_robots`, so the blanket and narrowed trigger-set scopes are
+identical for this run regardless; (2) its `plan.legs` (`robot_3`/
+`robot_4`: `reverse`, `robot_1`: `yield`, `robot_2`: `cross`) contain
+ZERO `continue` legs, so `_with_plan_continue_partners` finds nothing to
+exempt either way; (3) that function only runs for `action == "reverse"`
+dispatches, and fix 2's own release-phase actions (what findings 1-3
+above analyze) are all `yield`, never `reverse`, so fix 3's code path is
+not even reached by the command this report's own findings are about.
+The branch must still be redeployed before its NEXT
 VM run; this task does not perform that redeploy (out of scope; no
 further VM run was authorized past attempt 3). Only the two config files
 are the standing-convention pristine-restore target -- the source tree
