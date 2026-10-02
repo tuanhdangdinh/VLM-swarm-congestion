@@ -37,6 +37,38 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-02** — **T3b's map-bake open item is resolved: by design, not a
+  bug** (v2 build-order step 9 pre-check; resolves the open item flagged in
+  the loop-map entry below, "`obstacle_in_candidate.yaml` (T3b)'s own
+  Y-asymmetric static obstacle does not appear baked into its committed map
+  ... flagged for the coordinator"). `obstacle_in_candidate.yaml`'s
+  `candidate_box` is declared under `timed_obstacles` (`asset: static_box`,
+  `spawn_at_sec: 1.0`, `remove_at_sec: null`), not under `static_obstacles`.
+  `generate_warehouse_map.build_occupancy_grid`'s own docstring states the
+  rule generally: "Timed obstacles are never baked -- they are runtime-
+  spawned bodies, not part of the static map" — only `rasterize_static_obstacles`
+  (the `static_obstacles` list) and `rasterize_aisle_barrier` touch the grid
+  beyond the default rack/wall pass. The scenario's own header already
+  documents this as intentional, predating the open item by several days
+  (`58bb428`, 2026-09-28): "Nav2 layer. The box is not baked into the map.
+  It spawns at 1 s, before M5's first scene (~12 s), so Nav2's lidar marks
+  it from the start... The yield is not a Nav2 leg... Nav2 never refuses
+  anything, because nothing asks it" — i.e. the box must stay off the
+  Nav2-map text/geometry channel (T3b's whole point is that avoiding it
+  needs the image, not a map or lidar-refusal signal), and `static_obstacles`
+  would also leak into `prompt_static_obstacles`/M5's text channel, which
+  T3b's header separately requires to stay absent. Two cheap confirmations
+  (local, no VM): (1) the committed `warehouse_map_obstacle_in_candidate.pgm`
+  reads 255 (FREE) at the box's world cell and its 0.05 m neighborhood
+  (world (−0.32, 0.81), the box's declared `pose`); (2) regenerating the map
+  from `obstacle_in_candidate.yaml` via `generate_warehouse_map.py` is
+  byte-identical to the committed `.pgm`/`.yaml` (resolution 0.05,
+  origin [−6.0, −4.0, 0.0] unchanged). RULING: the loop-map entry's "own
+  Y-asymmetric static obstacle" phrasing was a mislabel (T3b's obstacle is a
+  timed obstacle, not a static one); no code change, no T3b yaml edit (a
+  v1-frozen cell). The T3b yaml header needed no correction since it already
+  states the by-design rationale.
+
 - **2026-10-02** — **v2 build-order step 5, post-landing advisor-review
   fixes** (same branch, same task; six real bugs found by independent
   review of the entry below, none caught by the tests that existed at that
