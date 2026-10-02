@@ -55,6 +55,19 @@
   consistent with a race-order-dependent mechanism rather than a
   fixed-robot bug (attempt 1 never reached the release phase, so it has
   no data point here).
+- Rev 6 (fifth advisor-review pass, local-only plus one read-only VM md5
+  check, no VM run): a second bug in fix 3, found and fixed -- the
+  operator/test manual-trigger path (`_on_trigger_analysis`) reports every
+  snapshot robot as "involved," so it reproduced the exact blanket
+  exemption fix 3 removed from the detector-driven path; fixed
+  (`_submit_pipeline`'s new `trigger_robots` parameter, fails closed to
+  no-narrowing on that path), pinned, suite re-verified zero-delta. Also
+  corrected: an md5 check shows the VM's deployed `orchestrator_node.py`
+  predates BOTH this fix and fix 3's own narrowing fix -- attempt 3 ran
+  the pre-narrowing blanket exemption, not validated here before now; and
+  the "all four config copies" claim in the VM-close-out section
+  double-counted a bind-mounted container view of the same two host
+  files as separate copies -- there are three files, not four.
 
 **Commits:** branch `feat/v2-blockers`, worktree
 `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v2-fix`, branched from
@@ -320,6 +333,21 @@ Episode 1 decision 2's own case is the exact test: the triggering event was
 event) stays exempt while `robot_2` (`continue`, never part of it) does
 not -- pair-scope discipline restored.
 
+**Second bug found by advisor review before handback: the narrowing above
+was itself a blanket exemption on one path.** `orchestrator_node._on_
+trigger_analysis` (the operator/test manual-trigger RPC) builds its own
+`CongestionEvent.involved_robots` from EVERY robot in the latest snapshot,
+not the real conflict set -- so `_last_trigger_robot_ids` would become the
+whole scene on that path, reproducing the exact blanket-exemption pattern
+the fix above exists to remove. Fixed: `_submit_pipeline` gained a
+`trigger_robots: frozenset[str] | None = None` parameter; `_on_trigger_
+analysis` passes `frozenset()` (fails closed to v1/no-narrowing behavior on
+the manual path -- the robot stays latched, not exempted scene-wide); the
+detector-driven call site passes nothing, so its behavior (the narrowing
+above) is unchanged. **This fix is unit-pinned only -- it was written
+after VM attempt 3 and is NOT on the VM** (see "VM state: close-out"
+below for the exact code-provenance check).
+
 **M4 protocol note:** this touches `ros2_ws/src/swarm_execution/
 swarm_execution/safety.py`, a v1-frozen, safety-relevant file. The change
 is additive-only (a new optional `plan_partners` parameter, defaulting to
@@ -339,7 +367,9 @@ discipline pin at the M4 layer), `tests/unit/test_m5_node_plan_channel.py`
 flag-off/no-plan regression pin; `test_plan_continue_partners_narrowed_to_
 the_triggering_event_not_the_whole_scene` — episode 1 decision 2's exact
 4-leg shape, `robot_2` absent while `robot_1` is present;
-`test_plan_continue_partners_empty_when_the_plan_channel_tracks_no_plan`).
+`test_plan_continue_partners_empty_when_the_plan_channel_tracks_no_plan`),
+`test_manual_trigger_reverse_gets_no_plan_continue_partners` (the second
+bug's own regression pin).
 
 ---
 
@@ -662,22 +692,48 @@ make.
 
 `orchestrator.yaml` restored from its pristine backup after EACH of the
 three attempts (plain copy + `touch`, the documented colcon-mtime-skip
-convention), `swarm_orchestrator` rebuilt each time, **all four copies
-re-verified pristine** after the final attempt: source and installed
-(host + container) `orchestrator.yaml` `1f656533a30a35882d57d0d64a57bd0d`,
-`rag.yaml` `e18c723cff9cada3f320d564c2ecee5a` (never modified, re-confirmed
-unchanged throughout). GPU idle (0%/171 MiB) and no stray Isaac/ROS2/Nav2
-process after each attempt, including killing attempts 1 and 2's leftover
-Isaac processes by hand (attempt 3 exited cleanly on its own). This task's
-own `/tmp` artifacts removed after the final attempt (both deploy
-archives, both pristine-backup directories, all three run logs, the small
-GT-analysis scripts copied in for the criteria table); the three
+convention), `swarm_orchestrator` rebuilt each time, re-verified pristine
+after the final attempt: there are three distinct config files on disk --
+`orchestrator.yaml` source (`.../src/swarm_orchestrator/config/`) and
+installed (`.../install/share/swarm_orchestrator/config/`), plus `rag.yaml`
+source only -- all `1f656533a30a35882d57d0d64a57bd0d` /
+`e18c723cff9cada3f320d564c2ecee5a` respectively (never modified,
+re-confirmed unchanged throughout). An earlier pass of this section said
+"all four copies," double-counting: the `vgu_ros` container bind-mounts
+the SAME host tree at `/ws` rather than holding separate files, so the
+host-path and container-path views of these three files are the same
+inodes, not four independent ones -- corrected here, not four files. GPU
+idle (0%/171 MiB) and no stray Isaac/ROS2/Nav2 process after each attempt,
+including killing attempts 1 and 2's leftover Isaac processes by hand
+(attempt 3 exited cleanly on its own); the `vgu_ros` container itself is
+up but idle (`sleep infinity` as its only process). This task's own `/tmp`
+artifacts removed after the final attempt (both deploy archives, both
+pristine-backup directories, all three run logs, the small GT-analysis
+scripts copied in for the criteria table, plus one more found and removed
+on a later read-only pass, `gt_run3_displacement.py`); the three
 pre-existing, unrelated `ship_*_delta.tar` files from Sep 30 left
-untouched. The VM's source tree is left at this branch's final commit's
-code (the intentional, expected side effect of deploying a real code
-change, per the standing "whoever deploys next" shared-tree model this VM
-has no `.git` directory to enforce otherwise) — only the two config files
-are the standing-convention pristine-restore target.
+untouched.
+
+**Code provenance, checked after the fact (md5, no VM run): the VM's
+source tree is NOT at this branch's final commit.** `orchestrator_node.py`
+on the VM (source, `build/`, and `install/` copies, host and container
+paths all identical) md5s to `9f0e758d89db65e41156bba6381b0cde`, matching
+`git show 29f7e3f:ros2_ws/.../orchestrator_node.py` -- the commit
+immediately after the SECOND CORRECTION, before fix 3's trigger-set
+narrowing (`4e1a7a9`) and the manual-trigger closure (`643d9ae`) were
+written. **Attempt 3, the run this report scores, ran fix 3's first-draft
+blanket exemption**; the narrowed and manual-trigger-safe versions exist
+only as unit-pinned code on this branch and were never exercised live.
+This does not change anything the attempt-3 evidence in this report is
+used for (none of the five fixes' VM-scored behavior -- the phase
+sequence, the 4/4 arrivals, finding 1's clearance ambiguity, finding 2's
+race, fix 4/5's own criteria -- depends on fix 3's exemption scope), but
+the branch must be redeployed before its NEXT VM run; this task does not
+perform that redeploy (out of scope; no further VM run was authorized
+past attempt 3). Only the two config files are the standing-convention
+pristine-restore target -- the source tree being behind the branch tip is
+the known, accepted state for "whoever deploys next," now stated
+precisely instead of assumed current.
 
 ---
 

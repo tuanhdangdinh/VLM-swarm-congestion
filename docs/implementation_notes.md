@@ -317,6 +317,44 @@ Rules for maintaining it:
   `docs/reports/2026-10-02-step7a-blocker-fixes.md` carries the corrected
   finding 1, attribution paragraph, and both affected table rows.
 
+- **2026-10-02** — **FIFTH CORRECTION (same task, step 7a): the entry
+  above's closing claim is false. The VM does NOT carry item (a)'s fix
+  (or the fix-3 narrowing fix before it) — verified by md5, no further
+  VM run performed beyond that read.** `orchestrator_node.py` on the VM
+  (all three copies: `ros2_ws/src/.../orchestrator_node.py`, the colcon
+  `build/` copy, and the `install/` copy -- identical in both the host
+  filesystem and the `vgu_ros` container, which bind-mounts
+  `/home/ubuntu/vgu-vlm-swarm` at `/ws` rather than holding a separate
+  copy) md5s to `9f0e758d89db65e41156bba6381b0cde`, which matches
+  `git show 29f7e3f:ros2_ws/.../orchestrator_node.py` exactly -- the
+  commit right after the SECOND CORRECTION, BEFORE `4e1a7a9` (fix 3's
+  trigger-set narrowing) and `643d9ae` (this entry's own manual-trigger
+  closure) were written. **The VM run this report scores (attempt 3) was
+  executed against fix 3's first-draft blanket exemption, not the
+  narrowed or manual-trigger-safe versions** -- those two fixes are
+  unit-pinned only, never exercised live. Nothing in the attempt-3
+  VM evidence this report and log rely on (the five fixes' phase
+  sequence, the 4/4 arrivals, the release-window ambiguity, the
+  same-side race) depends on fix 3's own exemption scope, so none of it
+  is invalidated by this -- but the branch must be redeployed (plain
+  copy + rebuild, the documented colcon-mtime-skip convention) before
+  its NEXT VM run, which this task does not perform (out of scope; no
+  VM run beyond read-only verification was authorized past attempt 3).
+  **Also corrected, same read:** the "all four copies" pristine-config
+  claim in the CORRECTION/SECOND CORRECTION entries and the report's own
+  VM-close-out section overcounts by conflating host-path and
+  container-path views of the SAME bind-mounted files (`vgu_ros`
+  mounts the host tree at `/ws`, not a separate copy) -- there are three
+  distinct files on disk (`orchestrator.yaml` source + installed,
+  `rag.yaml` source only), all independently re-verified pristine just
+  now (`1f656533.../e18c723...`, host and container paths agree because
+  they are the same inode), GPU idle (0%/171 MiB), no Isaac/Nav2 process,
+  one leftover `/tmp/gt_run3_displacement.py` scratch script from this
+  task's own earlier forensic read removed. `docs/reports/2026-10-02-
+  step7a-blocker-fixes.md`'s VM-close-out section and fix 3's own section
+  are corrected to state the VM-validated version plainly and drop "all
+  four."
+
 - **2026-10-02** — **M4 protocol note (step 7a, fix 3): `swarm_execution/
   safety.py`'s `admitted_partners` gained an ADDITIVE, v2-branch-only
   exemption parameter.** `plan_partners: frozenset[str] = frozenset()`
@@ -337,6 +375,13 @@ Rules for maintaining it:
   reverse's own parameters stays fully latched, `test_reverse_does_not_
   exempt_an_other_plan_continue_robot`) — never a blanket same-plan-or-wider
   exemption.
+  **Superseded in part by the THIRD and FIFTH CORRECTION entries above**:
+  this entry's "the SAME plan names another robot `continue`" undersells
+  the actual scope by the time of this log's last entry — the shipped
+  code also requires that robot to be in `_last_trigger_robot_ids` (added
+  by THIRD CORRECTION) and that narrowing is itself bypassed to empty on
+  the manual-trigger path (closed by FIFTH CORRECTION). Not rewritten
+  here per the append-only rule.
 
 - **2026-10-02** — **v2 build-order step 9: B2-visual urgency pair and B3
   first-to-slip authored (local only; branch `feat/v2-b-scenarios`)** (prereg-v2
