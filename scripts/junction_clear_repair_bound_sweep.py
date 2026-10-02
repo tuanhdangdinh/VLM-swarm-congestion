@@ -143,6 +143,18 @@ CASES: list[tuple[str, str, list[tuple[str, str]] | None]] = [
             ("robot_3", "reverse"), ("robot_1", "yield"),
         ],
     ),
+    # --- wrong recede order: BOTH recede candidates correctly membered, but
+    # listed in the opposite order from chi (step-7a fix target, modeled on
+    # the live run B bug: the proposed order survived verbatim/
+    # dispatch_matches_plan=true despite the actual dispatch using chi's own
+    # order) ---
+    (
+        "recede_order_swapped", "wrong_recede_order",
+        [
+            ("robot_3", "reverse"), ("robot_4", "reverse"),
+            ("robot_1", "yield"), ("robot_2", "cross"),
+        ],
+    ),
     # --- missing legs: the plan omits a robot; lenient completion appends
     # `continue` for it (never counted as a repair edit by itself) ---
     (

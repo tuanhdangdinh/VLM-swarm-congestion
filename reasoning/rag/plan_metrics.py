@@ -23,7 +23,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from reasoning.rag.command_grounder import PlanProvenance, PlanRejectionStage, VerifiedPlan
-from reasoning.vlm.models import CongestionDecision, ProposedPlanLeg
+from reasoning.vlm.models import CongestionDecision, PlanLegStatus, ProposedPlanLeg
 
 # Whether a replan followed at least one leg execution failure since the last
 # invocation (rev 4, "Re-planning as measured behavior").
@@ -251,3 +251,27 @@ def compute_episode_plan_stability(
         for i in range(1, len(plans))
     ]
     return EpisodePlanStability(replan_count=max(0, len(plans) - 1), churns=churns)
+
+
+def any_leg_exhausted(statuses: Sequence[PlanLegStatus]) -> bool:
+    """Whether a tracked plan reached the terminal `exhausted` outcome on any leg.
+
+    Freeze-blocking finding 5 (step-7a fix): `exhausted` means the
+    `junction_clear` composite's own documented fallback ALSO failed, after
+    an earlier phase already had -- `orchestrator_node._mark_fallback_
+    exhausted` is the only writer of this status. Scored alongside
+    `JunctionPhaseReached`'s existing ordinal (`swarm_orchestrator.
+    junction_phase_queue`): together they make "the fallback itself failed"
+    a distinguishable, scorable episode outcome instead of an
+    indistinguishable plain `failed`. A pure function over whatever leg
+    statuses the caller supplies (a live `TrackedPlan.legs`, or a stored
+    decision artifact's `PlanDispatchInfo.legs`, re-read offline), matching
+    this module's existing building-block convention.
+
+    Args:
+        statuses: Every leg's `PlanLegStatus` of one tracked plan.
+
+    Returns:
+        True when at least one status is `"exhausted"`.
+    """
+    return "exhausted" in statuses

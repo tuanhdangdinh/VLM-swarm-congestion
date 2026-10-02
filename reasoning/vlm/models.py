@@ -139,8 +139,13 @@ class FailureContext(BaseModel):
 
 # M5's per-leg execution status (prereg-v2 rev 4, "Plan lifecycle"); owned by
 # `swarm_orchestrator.plan_tracker.PlanTracker`, mirrored here only as the
-# vocabulary the prompt-v3 plan-state block renders.
-PlanLegStatus = Literal["pending", "active", "done", "failed"]
+# vocabulary the prompt-v3 plan-state block renders. `exhausted` (step-7a
+# fix, freeze-blocking finding 5): the `junction_clear` composite's own
+# documented fallback ALSO failed, after an earlier phase already had -- a
+# terminal outcome distinct from plain `failed` (which a fallback dispatch
+# may still follow), so M5 stops re-dispatching for it and it is scorable
+# as its own outcome, not folded into ordinary failure.
+PlanLegStatus = Literal["pending", "active", "done", "failed", "exhausted"]
 
 
 class PlanStateLeg(BaseModel):

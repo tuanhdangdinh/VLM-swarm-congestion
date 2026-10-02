@@ -348,6 +348,14 @@ class OrchestratorNode(Node):
         # resolves (`_resolve_command`).
         self._junction_original_command_id: dict[str, str] = {}
         self._cooldown = CooldownTracker(self._config.cooldown_sec)
+        # Freeze-blocking finding 5 (step-7a fix): robots a `junction_clear`
+        # fallback ALSO failed for. Permanent for the rest of the episode
+        # (never cleared, unlike `_cooldown`'s time-bounded set) -- folded
+        # into `cooldown_robots` at every trigger check so M5 stops
+        # re-dispatching a conflict its own documented recovery already
+        # exhausted, instead of re-triggering it every stall interval
+        # forever.
+        self._exhausted_robots: set[str] = set()
         self._attempts = AttemptMemory(self._config.failure_context_window_sec)
         self._registry = TaskRegistry()
         self._registry.load_initial(self._config, time.monotonic())
@@ -546,7 +554,11 @@ class OrchestratorNode(Node):
         frame_ready = self._frame_is_fresh(snapshot.stamp)
         directive = self._machine.on_event(
             event,
-            cooldown_robots=self._cooldown.active_robots(now),
+            # `_exhausted_robots` folded in (step-7a fix, finding 5): a
+            # permanent, never-expiring suppression, unlike `_cooldown`'s
+            # time-bounded one -- the same gate, reused rather than a new
+            # directive kind, for the robots a fallback already exhausted.
+            cooldown_robots=self._cooldown.active_robots(now) | self._exhausted_robots,
             busy_robots=self._busy_robots(),
             now=now,
             frame_ready=frame_ready,
@@ -997,6 +1009,7 @@ class OrchestratorNode(Node):
             msg.command_id = command_id
             msg.robot_id = robot_id
             msg.action = action
+            plan_id = self._plan_id_by_command_id.get(command_id)
             # Inject the robot's current task goal into reroute params so the
             # command_bus can resume navigation to the original goal when M3
             # did not supply explicit waypoints (the common case for this grounder).
@@ -1005,11 +1018,12 @@ class OrchestratorNode(Node):
                 p = json.loads(params_json or "{}")
                 p.setdefault("goal", {"x": goal[0], "y": goal[1]})
                 params_json = json.dumps(p)
+            elif action == "reverse":
+                params_json = self._with_plan_continue_partners(params_json, plan_id, robot_id)
             msg.parameters_json = params_json
             msg.timeout_sec = _timeout
             self._cmd_pub.publish(msg)
             self._registry.set_override(robot_id, action, goal, command_id)
-            plan_id = self._plan_id_by_command_id.get(command_id)
             log_line = f"dispatch request={request_id} command={command_id} robot={robot_id}"
             if plan_id is not None:
                 # Step-4 flag-3 mitigation: makes plan_id-on-commands
@@ -1020,6 +1034,57 @@ class OrchestratorNode(Node):
                 log_line += f" plan_id={plan_id}"
             self.get_logger().info(log_line)
         self._publish_registry()
+
+    def _with_plan_continue_partners(
+        self, params_json: str, plan_id: int | None, robot_id: str
+    ) -> str:
+        """Add the tracked plan's OTHER `continue` robots to a `reverse` leg's parameters.
+
+        Freeze-blocking finding 3 (2026-10-02 IB10 composite smoke, episode
+        1 decision 2): M4's `admitted_partners` (`swarm_execution.safety`)
+        only exempts a `reverse` against the OTHER members of its OWN
+        dispatched command -- a `continue` leg never gets a command at all,
+        so a plan naming `{reverse: robot_3, reverse: robot_4, continue:
+        robot_1, continue: robot_2}` leaves `robot_1` fully unexempted
+        against `robot_4`'s `reverse`, even though both legs are part of the
+        SAME accepted plan. There is no other channel carrying that
+        membership to M4 (the wire `CoordinationCommand` has no `plan_id`
+        field), so it travels on the reverse leg's own `parameters_json`
+        instead -- the smallest change that keeps the v1 (no-plan) path
+        byte-identical: untouched when `plan_id` is None (no plan channel,
+        or `m3_default`'s derived plan is never tracked this way either --
+        only an ACCEPTED, tracked plan has a `plan_id`), and additive only
+        when the SAME plan names at least one other `continue` robot.
+        `swarm_execution.safety.admitted_partners` reads this field as an
+        EXTRA exemption, scoped to exactly these named robots -- never a
+        blanket "every robot in the scene" exemption (pair-scope
+        discipline, M4 protocol note in `docs/implementation_notes.md`).
+
+        Args:
+            params_json: The reverse leg's own encoded parameters.
+            plan_id: The dispatching command's tracked plan id, or None.
+            robot_id: The reversing robot (excluded from its own partner list).
+
+        Returns:
+            `params_json` unchanged when there is no tracked plan or it
+            names no other `continue` robot; otherwise with
+            `plan_continue_partners` added.
+        """
+        if plan_id is None or self._plan_tracker is None:
+            return params_json
+        plan = self._plan_tracker.plan(plan_id)
+        if plan is None:
+            return params_json
+        partners = [
+            leg.robot_id
+            for leg in plan.legs
+            if leg.action == "continue" and leg.robot_id != robot_id
+        ]
+        if not partners:
+            return params_json
+        parameters = json.loads(params_json or "{}")
+        parameters["plan_continue_partners"] = partners
+        return json.dumps(parameters)
 
     def _advance_junction_phase(
         self, command_id: str, completed: bool
@@ -1302,10 +1367,65 @@ class OrchestratorNode(Node):
             self._attempts.resolve(original_id, outcome_status, now)
         elif advance.command is not None:
             self._junction_original_command_id[advance.command["command_id"]] = original_id
+        # Freeze-blocking finding 5 (step-7a fix): `advance.phase_reached ==
+        # "fallback" and advance.done` fires exactly once per sequence --
+        # when the FALLBACK command's own terminal status (not its dispatch)
+        # arrives. `outcome_status != "completed"` then means the composite's
+        # own documented recovery path ALSO failed: mark it loudly and stop
+        # re-dispatching for these robots, rather than leaving it indistinct
+        # from an ordinary phase failure that a fallback still follows.
+        if (
+            advance is not None
+            and advance.done
+            and advance.phase_reached == "fallback"
+            and outcome_status != "completed"
+        ):
+            self._mark_fallback_exhausted(command_id, robots)
         self.get_logger().info(f"command {command_id} resolved status={outcome_status}")
         self._machine.on_command_resolved(robots, outcome_status == "completed")
         self._cooldown.start(robots, now)
         self._publish_registry()
+
+    def _mark_fallback_exhausted(self, command_id: str, robots: list[str]) -> None:
+        """Terminal handling for a `junction_clear` fallback that ALSO failed.
+
+        Freeze-blocking finding 5 (2026-10-02 IB10 composite smoke, episode
+        2): a cross-phase failure's documented fallback (plain `yield`/
+        `reroute`) can itself fail, leaving the M5 spec's "partial credit is
+        scorable" provision with no description of what happens next. This
+        logs the outcome loudly (`outcome=fallback_exhausted`, grep-able
+        independent of any artifact), re-routes every one of this fallback's
+        robots' plan legs from `failed` to the new terminal `exhausted`
+        status (scorable going forward: `PlanStateContext`/decision artifacts
+        already serialize whatever `PlanLegStatus` a tracked leg carries, so
+        this needs no separate artifact field), and adds them to the
+        permanent re-trigger suppression set (`_exhausted_robots`, folded
+        into `cooldown_robots` at every future trigger check) so M5 stops
+        re-dispatching for a conflict its own documented recovery already
+        gave up on -- never an infinite retry loop, but also never silently
+        indistinguishable from an ordinary failure.
+
+        Args:
+            command_id: The fallback command's own id.
+            robots: Every robot the fallback command addressed.
+        """
+        self.get_logger().error(
+            f"junction_clear fallback exhausted command={command_id} "
+            f"robots={sorted(robots)} outcome=fallback_exhausted"
+        )
+        self._exhausted_robots.update(robots)
+        if self._plan_tracker is None:
+            return
+        plan_id = self._plan_id_by_command_id.get(command_id)
+        if plan_id is None:
+            return
+        for robot_id in robots:
+            try:
+                self._plan_tracker.set_leg_status(plan_id, robot_id, "exhausted")
+            except (KeyError, ValueError) as exc:
+                self.get_logger().warning(
+                    f"plan leg exhaustion update failed plan={plan_id} robot={robot_id}: {exc}"
+                )
 
     # ---- helpers ----
 

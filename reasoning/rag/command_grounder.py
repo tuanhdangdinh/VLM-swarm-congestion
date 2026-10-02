@@ -14,6 +14,7 @@ from reasoning.rag.maneuver_geometry import (
     derive_escort_distance,
     derive_queued_passer_clearance,
     rank_recede_candidates,
+    recede_axis_offset_m,
     recede_distance_m,
     retreat_axes,
 )
@@ -218,6 +219,45 @@ def _beyond_corridor_same_side(
     half_length = geometry.corridor.half_length_m
     both_beyond = abs(d_first) > half_length and abs(d_second) > half_length
     return both_beyond and d_first * d_second > 0
+
+
+def _clamp_reverse_distance_to_tracked_band(
+    robot_id: str,
+    distance_m: float,
+    position: tuple[float, float] | None,
+    geometry: SceneGeometry | None,
+) -> float:
+    """Clamp a plain `reverse` leg's backup distance to stay inside `tracked_extent_m`.
+
+    Freeze-blocking finding 4 (step-7a fix): a plain `reverse` had no
+    awareness of where M1's verified tracking extent ends, reliably driving
+    a robot already well outward on its own arm (e.g. mid-transit after a
+    post-composite release) past it. Scoped to robots with a DECLARED arm
+    only (`geometry.arms`), the same precondition `junction_recede_offset_m`
+    uses -- a plain corridor scene with no arms has no axis convention to
+    clamp against and is left untouched.
+
+    Args:
+        robot_id: The reversing robot.
+        distance_m: The otherwise-computed backup distance.
+        position: The robot's current `(x, y)`, or None if unknown.
+        geometry: Declared scene geometry, or None.
+
+    Returns:
+        `distance_m` unchanged when `geometry`, `geometry.tracked_extent_m`,
+        the robot's declared arm, or `position` is absent; otherwise the
+        largest distance (never negative) that keeps the robot's post-backup
+        progress along its own arm (`maneuver_geometry.recede_axis_offset_m`)
+        at or inside `tracked_extent_m`.
+    """
+    if geometry is None or geometry.tracked_extent_m is None or position is None:
+        return distance_m
+    arm = (geometry.arms or {}).get(robot_id)
+    if arm is None:
+        return distance_m
+    current_progress = recede_axis_offset_m(position, arm, geometry)
+    headroom = geometry.tracked_extent_m - current_progress
+    return round(max(0.0, min(distance_m, headroom)), 3)
 
 
 _ALIASED_STRATEGIES = frozenset({"convoy", "priority_override"})
@@ -944,7 +984,12 @@ def _ground_legacy(
                     "robot_id": robot_id,
                     "action": "reverse",
                     "parameters": {
-                        "backup_distance_m": backup_distance_m,
+                        "backup_distance_m": _clamp_reverse_distance_to_tracked_band(
+                            robot_id,
+                            backup_distance_m,
+                            robot_positions.get(robot_id) if robot_positions else None,
+                            geometry,
+                        ),
                     },
                 }
                 for robot_id in robot_ids
@@ -1714,9 +1759,11 @@ class JunctionClearPhase(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    label: Literal["recede", "cross"]
+    label: Literal["recede", "cross", "release"]
     # The receding robot, for a "recede" phase; None for the final "cross"
-    # (yield-axis) phase.
+    # (yield-axis) phase and for the trailing "release" phase (freeze-
+    # blocking finding 2, step-7a fix: no new maneuver is commanded here,
+    # only a staggered hold).
     robot_id: str | None
     command: dict[str, Any]
     # Every robot `command` addresses only to hold it (`temporary_wait`),
@@ -1741,6 +1788,31 @@ class JunctionClearPhasePlan(BaseModel):
     (`swarm_orchestrator.junction_phase_queue`) owns dispatching `phases` in
     order and substituting `fallback_command` for the remaining robots on a
     FAILED recede, never re-deriving this plan or re-invoking M2.
+
+    Freeze-blocking finding 2 (2026-10-02 IB10 composite smoke, episode 2):
+    with 2+ recede candidates, `phases` carries one trailing `"release"`
+    phase after `"cross"`. Without it, every recede candidate's hold
+    (`held_robot_ids` in the cross phase) lapses together the instant
+    `cross` resolves, so M4's per-robot base-mission resume (`BaseMissionDriver.
+    on_status`, keyed on that SHARED command's terminal status) releases
+    them all back toward their own base-mission goals at once -- a fresh,
+    unordered encounter on the SAME N-S line the composite just cleared
+    (both recede pockets sit on one axis coordinate, so there is no lateral
+    room to pass). The `"release"` phase holds every recede candidate but
+    the chi-cheapest one (`ranked[0]`, already the first to recede) PLUS the
+    grounded yielder (`"the yielder re-enters last"`, (a) Sequencing) via a
+    plain `yield` action whose `passer_robot_id` is `ranked[0]` -- reusing
+    M4's existing odometry-gated `CrossingChain` (`swarm_execution.
+    crossing_chain`) UNCHANGED, never a new M4 mechanism or a fixed timer
+    (which would reproduce the exact bug: two identical fixed waits release
+    together regardless of real clearance). `ranked[0]` itself is addressed
+    by NO command in this phase, so nothing re-suppresses it: it resumes
+    immediately, exactly like any other robot whose last owning command
+    resolved with none to follow. Scoped to exactly ONE release stage (lead
+    goes first, every other held robot follows together once the lead
+    clears) -- correct for IB10's 2-candidate case; a 3+-candidate scene
+    would need a full N-way chain, not built here (out of this task's
+    scope).
     """
 
     model_config = ConfigDict(frozen=True)
@@ -1988,6 +2060,79 @@ def ground_junction_clear_phases(
             label="cross", robot_id=None, command=yield_command, held_robot_ids=tuple(ranked)
         )
     )
+
+    if len(ranked) >= 2:
+        # Freeze-blocking finding 2 (step-7a fix): stagger the post-composite
+        # release instead of letting every recede candidate's hold lapse
+        # together the moment the cross phase resolves (`JunctionClearPhasePlan`'s
+        # docstring has the full mechanism). `ranked[0]` (chi-cheapest,
+        # already first to recede) is addressed by NO action here, so it is
+        # free to resume the instant this phase is reached; every other
+        # recede candidate, PLUS the grounded yielder ("the yielder re-enters
+        # last", (a) Sequencing), is held via a plain `yield` action naming
+        # `ranked[0]` as `passer_robot_id` -- M4's existing `CrossingChain`
+        # (single-passer path, unchanged) ends each hold once `ranked[0]`'s
+        # own odometry shows it cleared `passer_clear_m`, never on a fixed
+        # timer. The clearance is geometry-derived, not a constant: twice the
+        # recede offset (far enough to have passed the SECOND candidate's own
+        # pocket, which sits on the identical axis coordinate -- there is no
+        # lateral room to pass it closer) plus `params.min_distance_m` (the
+        # same safety-latch magnitude M4's own monitor enforces, redeclared
+        # here rather than imported, since M3 must not depend on M4 config).
+        lead_id = ranked[0]
+        yielder_id = next(
+            (
+                action["robot_id"]
+                for action in yield_command["actions"]
+                if action["action"] == "yield"
+            ),
+            None,
+        )
+        release_held = [*ranked[1:], *([yielder_id] if yielder_id is not None else [])]
+        recede_offset_m = geometry.junction_recede_offset_m
+        assert recede_offset_m is not None  # guaranteed non-empty `ranked` above
+        passer_clear_m = 2.0 * recede_offset_m + params.min_distance_m
+        release_actions = [
+            {
+                "robot_id": robot_id,
+                "action": "yield",
+                "parameters": {
+                    # A PASSIVE hold, not a maneuver: `command_bus_node`'s
+                    # `yield` branch always runs `Nav2Adapter.backup` first
+                    # (`backup_distance_m` defaults to 0.3 m when absent --
+                    # these robots are already correctly parked, so an
+                    # unrequested 0.3 m additional backup would itself be a
+                    # bug, not a hold). 0.0 completes that step on its first
+                    # odometry tick, with no real motion. `hold_sec` must be
+                    # positive or the hold/CrossingChain logic is skipped
+                    # entirely (`_on_backup_result`'s `hold_sec <= 0.0`
+                    # branch) -- reusing `junction_recede_hold_sec` as the
+                    # same wall-second backstop the recede phases use.
+                    "backup_distance_m": 0.0,
+                    "hold_sec": params.junction_recede_hold_sec,
+                    "passer_robot_id": lead_id,
+                    "passer_clear_m": passer_clear_m,
+                },
+            }
+            for robot_id in release_held
+        ]
+        release_command = validate_coordination_command(
+            {
+                "command_id": f"{result.request_id}-junction-release",
+                "actions": release_actions,
+                "expected_resolution_time_sec": params.junction_recede_hold_sec,
+                "fallback": "stop",
+                "degradations": ["junction_clear=release"],
+            }
+        )
+        phases.append(
+            JunctionClearPhase(
+                label="release",
+                robot_id=None,
+                command=release_command,
+                held_robot_ids=tuple(release_held),
+            )
+        )
 
     return JunctionClearPhasePlan(
         phases=phases, fallback_command=fallback_command, fallback_held_robot_ids=tuple(ranked)
@@ -2258,6 +2403,7 @@ def _plan_problems(
     geometry: SceneGeometry | None,
     static_obstacles: Sequence[StaticObstacleInput],
     yield_feasibility_mode: YieldFeasibilityMode,
+    grounding_params: GroundingParams | None = None,
 ) -> list[tuple[int, str]]:
     """Leg-by-leg feasibility audit, reusing M3's existing grounding checks.
 
@@ -2298,6 +2444,10 @@ def _plan_problems(
             without it (nothing to verify against, same as the legacy gate).
         static_obstacles: Fixed obstacles the yield room check scores against.
         yield_feasibility_mode: The yield feasibility gate mode.
+        grounding_params: M3's derived-mode grounding parameters (the chi
+            weights); None uses the placeholder default. Only consulted by
+            the `junction_clear` recede-set audit below, to recompute the
+            SAME chi order `ground_junction_clear_phases` will dispatch.
 
     Returns:
         `(index, reason)` pairs into `legs` for every leg that fails a check;
@@ -2467,6 +2617,68 @@ def _plan_problems(
                             "leg; junction_clear recedes before it yields/crosses",
                         )
                     )
+
+        # Freeze-blocking finding 1 (2026-10-02 IB10 composite smoke, step-4
+        # sweep + run B live): the recede-before-yield check above only
+        # verifies RELATIVE POSITION; it never checks WHICH robots hold the
+        # recede legs (a plan naming the yield-axis pair as the recede set
+        # verifies `vlm_verbatim`, a metric hole) or the ORDER BETWEEN the
+        # two recede legs themselves (run B's live dispatch order, the
+        # opposite of its own proposed plan, also verified `vlm_verbatim`).
+        # The recede set is a structural precondition of the geometry
+        # (`_junction_recede_candidates`), not something the VLM gets to
+        # choose, and its dispatch order is `rank_recede_candidates`' chi
+        # order on this SAME snapshot -- recomputed here, never re-derived,
+        # so this audit flags exactly the plans `ground_junction_clear_phases`
+        # would actually dispatch differently from.
+        if recede_candidates:
+            wrong_membership_idx = [i for i in active_idx if legs[i].action == "reverse"
+                                     and legs[i].robot_id not in recede_candidates]
+            for i in wrong_membership_idx:
+                problems.append(
+                    (
+                        i,
+                        f"{legs[i].robot_id} holds a reverse leg but is not a structural "
+                        "recede candidate (off the yield axis); junction_clear's recede "
+                        "set is fixed by geometry, not chosen by the plan",
+                    )
+                )
+            missing_candidate_idx = [
+                i
+                for i, leg in enumerate(legs)
+                if leg.robot_id in recede_candidates and leg.action != "reverse"
+            ]
+            for i in missing_candidate_idx:
+                problems.append(
+                    (
+                        i,
+                        f"{legs[i].robot_id} is a structural recede candidate but holds "
+                        f"{legs[i].action!r} instead of reverse",
+                    )
+                )
+            if not wrong_membership_idx and not missing_candidate_idx:
+                recede_order_idx = [
+                    i
+                    for i in active_idx
+                    if legs[i].robot_id in recede_candidates and legs[i].action == "reverse"
+                ]
+                if len(recede_order_idx) >= 2:
+                    chi_params = (
+                        grounding_params if grounding_params is not None else GroundingParams()
+                    )
+                    chi_order = rank_recede_candidates(
+                        snapshot, sorted(recede_candidates), geometry, chi_params
+                    )
+                    actual_order = [legs[i].robot_id for i in recede_order_idx]
+                    if actual_order != chi_order:
+                        for i in recede_order_idx:
+                            problems.append(
+                                (
+                                    i,
+                                    f"recede order {actual_order!r} disagrees with the "
+                                    f"chi-ranked order {chi_order!r}",
+                                )
+                            )
     return problems
 
 
@@ -2905,6 +3117,7 @@ def _repair_plan(
     yield_feasibility_mode: YieldFeasibilityMode,
     default_by_robot: Mapping[str, PlanLegAction],
     max_edits: int,
+    grounding_params: GroundingParams | None = None,
 ) -> tuple[list[ProposedPlanLeg] | None, list[PlanEdit]]:
     """Breadth-first minimal repair toward `default_by_robot`.
 
@@ -2939,6 +3152,10 @@ def _repair_plan(
         default_by_robot: M3's own derived action per robot
             (`_derive_default_plan`), the repair's substitution target.
         max_edits: Inclusive bound on the number of edits tried.
+        grounding_params: M3's derived-mode grounding parameters (the chi
+            weights); forwarded to `_plan_problems` so the `junction_clear`
+            recede-order audit searches toward the SAME chi order
+            `ground_junction_clear_phases` will dispatch, not a default one.
 
     Returns:
         `(repaired_legs, edits)` for the minimal repair found, or
@@ -2952,7 +3169,13 @@ def _repair_plan(
     def _problems(state: Sequence[ProposedPlanLeg]) -> dict[int, str]:
         return dict(
             _plan_problems(
-                state, decision, snapshot, geometry, static_obstacles, yield_feasibility_mode
+                state,
+                decision,
+                snapshot,
+                geometry,
+                static_obstacles,
+                yield_feasibility_mode,
+                grounding_params,
             )
         )
 
@@ -3224,7 +3447,13 @@ def verify_and_repair_plan(
         )
 
     if not _plan_problems(
-        legs, decision, snapshot, geometry, static_obstacles, yield_feasibility_mode
+        legs,
+        decision,
+        snapshot,
+        geometry,
+        static_obstacles,
+        yield_feasibility_mode,
+        grounding_params,
     ):
         return VerifiedPlan(legs=legs, provenance="vlm_verbatim", plan_completed_legs=completed)
 
@@ -3238,6 +3467,7 @@ def verify_and_repair_plan(
         yield_feasibility_mode,
         default_by_robot,
         repair_params.max_repair_edits,
+        grounding_params,
     )
     if repaired is None:
         return VerifiedPlan(
@@ -3353,8 +3583,15 @@ def junction_clear_plan_matches_dispatch(
     dispatched: dict[str, str] = dict.fromkeys(known_robot_ids, "continue")
     for phase in plan.phases:
         held = set(phase.held_robot_ids)
+        # A phase only contributes for a robot it actually addresses (step-7a
+        # fix: the trailing "release" phase addresses only the held-over
+        # robots, never the already-released lead -- without this guard, the
+        # lead's `project_dispatched_legs` default of "continue" for a robot
+        # the command never names would overwrite its REAL action from an
+        # earlier phase purely because it is also not `held` here).
+        acted_robot_ids = {action["robot_id"] for action in phase.command.get("actions", [])}
         for robot_id, action in project_dispatched_legs(phase.command, known_robot_ids).items():
-            if robot_id not in held:
+            if robot_id not in held and robot_id in acted_robot_ids:
                 dispatched[robot_id] = action
     plan_by_robot = {leg.robot_id: leg.action for leg in plan_legs}
     return dispatched == plan_by_robot

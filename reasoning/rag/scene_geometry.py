@@ -98,6 +98,19 @@ class SceneGeometry(BaseModel):
     # existing scene byte-identical and makes `junction_clear` grounding
     # degrade to the plain `yield` fallback (no pocket target to recede to).
     junction_recede_offset_m: float | None = Field(default=None, gt=0.0)
+    # Freeze-blocking finding 4 (2026-10-02 IB10 composite smoke, both live
+    # episodes): the verified M1 tracking extent along a declared arm's own
+    # axis (`docs/reports/*y-extent*`: |y| <= 1.75 for IB10's N-S arms). A
+    # plain `reverse` leg's backup distance is clamped so the robot's
+    # post-backup progress along its OWN arm (`maneuver_geometry.
+    # recede_axis_offset_m`, the SAME convention `junction_recede_offset_m`
+    # uses) never exceeds this extent -- reproduced in BOTH live episodes
+    # (|y|=2.38/2.42) when a robot already well outward on its arm (e.g.
+    # mid-transit after a post-composite release) received a further fixed
+    # backup with no awareness of where tracking ends. None (default) keeps
+    # every existing scene, including every v1 pin, byte-identical -- no
+    # clamp is applied without an explicit declaration.
+    tracked_extent_m: float | None = Field(default=None, gt=0.0)
 
 
 def arm_geometry(geometry: SceneGeometry, robot_id: str) -> tuple[SceneGeometry, float | None]:

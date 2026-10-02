@@ -65,17 +65,24 @@ from reasoning.vlm.models import (
 )
 
 # The state machine M5 reports a leg's execution through. `pending` (accepted,
-# not yet dispatched/admitted), `active` (dispatched and in flight), `done` and
-# `failed` are terminal -- once a leg reaches either, it never changes status
-# again (a new maneuver for that robot is a NEW plan's NEW leg, not a status
-# change on the old one).
-_TERMINAL_STATUSES: frozenset[PlanLegStatus] = frozenset({"done", "failed"})
+# not yet dispatched/admitted), `active` (dispatched and in flight), `done`,
+# `failed`, and `exhausted` are terminal -- once a leg reaches one of these
+# three, it never changes status again (a new maneuver for that robot is a
+# NEW plan's NEW leg, not a status change on the old one). `exhausted`
+# (step-7a fix, freeze-blocking finding 5) is M5 (`orchestrator_node.
+# _mark_fallback_exhausted`) observing a `junction_clear` fallback's own
+# terminal outcome being a failure, for every robot the fallback addressed
+# -- including one still `pending` (e.g. held through every phase, never
+# individually resolved, same precedent as the existing `pending -> failed`
+# transition below) and one already `failed` from an earlier phase.
+_TERMINAL_STATUSES: frozenset[PlanLegStatus] = frozenset({"done", "failed", "exhausted"})
 
 _VALID_TRANSITIONS: dict[PlanLegStatus, frozenset[PlanLegStatus]] = {
-    "pending": frozenset({"pending", "active", "done", "failed"}),
-    "active": frozenset({"active", "done", "failed"}),
+    "pending": frozenset({"pending", "active", "done", "failed", "exhausted"}),
+    "active": frozenset({"active", "done", "failed", "exhausted"}),
     "done": frozenset({"done"}),
-    "failed": frozenset({"failed"}),
+    "failed": frozenset({"failed", "exhausted"}),
+    "exhausted": frozenset({"exhausted"}),
 }
 
 

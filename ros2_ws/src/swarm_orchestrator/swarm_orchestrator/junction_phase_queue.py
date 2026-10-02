@@ -24,11 +24,13 @@ from reasoning.rag.command_grounder import JunctionClearPhasePlan
 # Ordinal partial-credit vocabulary for the resolution-scored IB10 cell
 # (prereg-v2 (a) Scoring: "phase reached is the ordinal partial score"):
 # "recede" (a recede phase is the active/awaited one), "cross" (the
-# yield-axis phase is active/awaited), "resolved" (every phase completed),
-# "fallback" (a phase FAILED; the plain-`yield` fallback is active/awaited,
-# or has itself resolved -- the fallback is a terminal step either way, not
-# a phase of its own to score further).
-JunctionPhaseReached = Literal["recede", "cross", "resolved", "fallback"]
+# yield-axis phase is active/awaited), "release" (step-7a fix, freeze-
+# blocking finding 2: the trailing staggered post-composite release phase,
+# only present with 2+ recede candidates), "resolved" (every phase
+# completed), "fallback" (a phase FAILED; the plain-`yield` fallback is
+# active/awaited, or has itself resolved -- the fallback is a terminal step
+# either way, not a phase of its own to score further).
+JunctionPhaseReached = Literal["recede", "cross", "release", "resolved", "fallback"]
 
 
 class JunctionPhaseAdvance(BaseModel):

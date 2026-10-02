@@ -120,7 +120,14 @@ frame_downscale_width: null
 #     affected command whenever either field (or both) is missing
 #     (`command_grounder.ground_junction_clear_phases`/`_ground_derived`,
 #     docs/implementation_notes.md 2026-10-02 step-5 post-landing entry,
-#     bug 4).
+#     bug 4). Step-7a fix (freeze-blocking finding 4, 2026-10-02 composite
+#     smoke): ALSO set scenario_geometry tracked_extent_m: 1.75 (the
+#     verified M1 y-extent) -- without it a plain `reverse` leg's backup
+#     distance has no clamp, and a robot already outward on its own arm
+#     (e.g. mid-transit after the composite's post-resolution release) can
+#     be driven past the tracked band (reproduced |y|=2.38/2.42 in both
+#     live episodes). None (default) keeps every scene without this field
+#     byte-identical.
 #   bottleneck_merge (B1, three robots, merge at the A55-E gate) -> robot_1
 #     [2.45, -0.3], robot_2 [1.9, 0.0], AND robot_3: { task:
 #     cross_narrow_aisle, goal: [2.45, 0.3], start_delay_sec: 80 } (all three

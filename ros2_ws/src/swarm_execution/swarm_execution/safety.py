@@ -107,6 +107,37 @@ def crossing_order_from_parameters(
     return tuple(plan.robot_id for plan in plans) or None
 
 
+def plan_continue_partners_from_parameters(
+    action: str, parameters: Mapping[str, Any] | None
+) -> frozenset[str]:
+    """Return a `reverse` leg's extra same-plan `continue` partners, or empty.
+
+    Freeze-blocking finding 3 (2026-10-02 IB10 composite smoke, step-7a
+    fix): `admitted_partners`'s own-command `members` scope has no way to
+    see a `continue` leg of the SAME accepted plan, since a `continue`
+    robot receives no command at all. M5 (`orchestrator_node.
+    _with_plan_continue_partners`) carries that membership on the reverse
+    leg's own `parameters_json` instead -- this is the M4-side read of that
+    field, narrowly scoped to exactly the named robots (never a blanket
+    same-command-or-wider exemption).
+
+    Args:
+        action: The per-robot `CoordinationCommand.action`.
+        parameters: The decoded `parameters_json`, or None when absent or
+            unparseable.
+
+    Returns:
+        The named robot ids, or an empty frozenset for a non-`reverse`
+        action, absent parameters, or a malformed/non-list field.
+    """
+    if action != "reverse" or not parameters:
+        return frozenset()
+    partners = parameters.get("plan_continue_partners")
+    if not isinstance(partners, list) or not all(isinstance(p, str) and p for p in partners):
+        return frozenset()
+    return frozenset(partners)
+
+
 def admitted_partners(
     robot_id: str,
     action: str | None,
@@ -114,6 +145,7 @@ def admitted_partners(
     order: Sequence[str] | None,
     completed: set[str] | frozenset[str],
     backing_up: bool = False,
+    plan_partners: frozenset[str] = frozenset(),
 ) -> frozenset[str]:
     """Return the robots a clearing robot is exempt against.
 
@@ -125,7 +157,13 @@ def admitted_partners(
     the hold on, or when the phase is unknown, it pairs with `order[0]`, and
     with each later passer only once every earlier passer's wait under the
     command has COMPLETED, i.e. the command bus released it (a busy-reject's
-    FAILED does not count). A robot outside the command is never a partner.
+    FAILED does not count). A robot outside the command is never a partner,
+    EXCEPT `plan_partners` (freeze-blocking finding 3, step-7a fix): a
+    `continue` leg of the SAME accepted plan as this `reverse`, named
+    explicitly on the command's own parameters
+    (`plan_continue_partners_from_parameters`) since it receives no command
+    of its own to be a `member` of. Additive only, never a substitute for
+    the own-command scope above.
 
     Args:
         robot_id: The clearing robot.
@@ -135,22 +173,26 @@ def admitted_partners(
         completed: Robots whose status for this command reached COMPLETED.
         backing_up: True only while the yield's latest phase signal is its
             backup or pull-off (`CoordinationTracker.record_status`).
+        plan_partners: `plan_continue_partners_from_parameters`'s output for
+            this SAME command/robot; empty for every pre-step-7a caller and
+            for any action other than a plain `reverse` with a tracked plan.
 
     Returns:
         Partner robot ids, never including `robot_id`.
     """
     if not is_clearing_action(action):
         return frozenset()
+    extra = frozenset(r for r in plan_partners if r != robot_id)
     if action != "yield" or order is None:
-        return frozenset(r for r in members if r != robot_id)
+        return frozenset(r for r in members if r != robot_id) | extra
     if backing_up:
-        return frozenset(r for r in (*members, *order) if r != robot_id)
+        return frozenset(r for r in (*members, *order) if r != robot_id) | extra
     admitted: list[str] = []
     for position, passer in enumerate(order):
         if position > 0 and order[position - 1] not in completed:
             break
         admitted.append(passer)
-    return frozenset(r for r in admitted if r != robot_id)
+    return frozenset(r for r in admitted if r != robot_id) | extra
 
 
 @dataclass(frozen=True)
@@ -268,6 +310,10 @@ class CoordinationTracker:
         # (command_id, robot_id) -> True while backing up, False once past it
         # for good; absent while no phase detail has been seen.
         self._backing_up_by_key: dict[tuple[str, str], bool] = {}
+        # (command_id, robot_id) -> this reverse leg's extra same-plan
+        # `continue` partners (freeze-blocking finding 3, step-7a fix); empty
+        # for every pre-step-7a command and absent entirely once evicted.
+        self._plan_partners_by_key: dict[tuple[str, str], frozenset[str]] = {}
 
     def record_command(
         self,
@@ -282,16 +328,24 @@ class CoordinationTracker:
             command_id: `CoordinationCommand.command_id`.
             robot_id: `CoordinationCommand.robot_id`.
             action: `CoordinationCommand.action`, e.g. `yield` or `reroute`.
-            parameters: The decoded `parameters_json`, read only for a yield's
-                passer order; None when absent or unparseable.
+            parameters: The decoded `parameters_json`, read for a yield's
+                passer order and (step-7a fix) a reverse leg's extra
+                same-plan `continue` partners; None when absent or
+                unparseable.
         """
         if not command_id or not robot_id:
             return
         key = (command_id, robot_id)
         self._action_by_key.pop(key, None)
         self._action_by_key[key] = action
+        self._plan_partners_by_key.pop(key, None)
+        plan_partners = plan_continue_partners_from_parameters(action, parameters)
+        if plan_partners:
+            self._plan_partners_by_key[key] = plan_partners
         while len(self._action_by_key) > self.MAX_TRACKED_COMMANDS:
-            self._action_by_key.pop(next(iter(self._action_by_key)))
+            evicted_key = next(iter(self._action_by_key))
+            self._action_by_key.pop(evicted_key)
+            self._plan_partners_by_key.pop(evicted_key, None)
 
         members = self._members_by_command.pop(command_id, [])
         if robot_id not in members:
@@ -378,8 +432,10 @@ class CoordinationTracker:
         """Return the pair-scoped exemption for the current ACTIVE commands.
 
         Each clearing robot is paired with `admitted_partners` of its own
-        ACTIVE command, in the phase its latest status signalled. A robot that
-        command never addressed stays fully protected against it.
+        ACTIVE command, in the phase its latest status signalled. A robot
+        that command never addressed stays fully protected against it,
+        EXCEPT a `continue` robot of the SAME tracked plan the reverse leg's
+        own `parameters_json` names explicitly (step-7a fix, finding 3).
 
         Returns:
             The clearing robots and their exempt pairs.
@@ -388,13 +444,15 @@ class CoordinationTracker:
         pairs: set[tuple[str, str]] = set()
         for robot_id in clearing:
             command_id = self._active_by_robot[robot_id]
+            key = (command_id, robot_id)
             partners = admitted_partners(
                 robot_id,
-                self._action_by_key.get((command_id, robot_id)),
+                self._action_by_key.get(key),
                 self._members_by_command.get(command_id, ()),
                 self._order_by_command.get(command_id),
                 self._completed_by_command.get(command_id, frozenset()),
-                backing_up=self._backing_up_by_key.get((command_id, robot_id), False),
+                backing_up=self._backing_up_by_key.get(key, False),
+                plan_partners=self._plan_partners_by_key.get(key, frozenset()),
             )
             pairs.update(_pair_key(robot_id, partner) for partner in partners)
         return ClearingExemption(clearing_robots=clearing, pairs=frozenset(pairs))
