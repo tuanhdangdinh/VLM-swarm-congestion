@@ -37,6 +37,129 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-02** — **v2 build-order step 7a: five IB10 freeze-blocker fixes
+  landed (branch `feat/v2-blockers`, from `feat/prereg-v2-composite` at
+  `d3aa0f3`), full report `docs/reports/2026-10-02-step7a-blocker-fixes.md`.**
+  (1) **Recede-set membership/order audit** (`command_grounder.
+  _plan_problems`): a `junction_clear` plan naming the wrong recede pair, or
+  the right pair in the wrong relative order, no longer verifies
+  `vlm_verbatim` — closes the step-6 sweep's metric hole and run B's live
+  order bug. Re-run sweep (18 cases, +1 new order-only case): `max_repair_
+  edits=2` no longer covers every repairable case (now 7/14 = 50%, down
+  from 100% pre-fix) — membership defects cost 2-5 edits under the shipped
+  `yield_feasibility_mode="off"` (no cheap yield-touching swap available),
+  while the pure order defect costs exactly 1 (a `reorder`). Flagged as a
+  NEW freeze-relevant finding for the coordinator (raise the bound for
+  `junction_clear`? accept `m3_default` for severe cases? — not decided
+  here). (2) **Staggered post-composite release**
+  (`ground_junction_clear_phases` gains a trailing `"release"` phase, 2+
+  recede candidates only): the chi-lead recede candidate is released
+  immediately; every other recede candidate plus the yielder are held via
+  a plain `yield` naming the lead as `passer_robot_id`, reusing M4's
+  existing odometry-gated `CrossingChain` UNCHANGED (never a fixed timer).
+  Clearance is geometry-derived (`2 * junction_recede_offset_m + min_
+  distance_m`), not a constant. (3) **Cross-command continue-vs-reverse
+  exemption** (M4-adjacent; see the protocol note immediately below).
+  (4) **Reverse tracked-band clamp**: new `SceneGeometry.tracked_extent_m`
+  (None default, byte-identical without it); a plain `reverse` leg's backup
+  distance is clamped so a robot's post-backup progress along its own
+  declared arm never exceeds it — pinned against both live episodes'
+  overshoot numbers (2.38/2.42 m, both would now stop at 1.75 m). (5)
+  **Fallback-exhaustion semantics**: new terminal `PlanLegStatus`
+  `"exhausted"`, written by a new `orchestrator_node._mark_fallback_
+  exhausted` when a `junction_clear` fallback's own resolution is itself a
+  failure (not just an earlier phase's) — logs loudly
+  (`outcome=fallback_exhausted`), and permanently folds the affected robots
+  into the trigger-suppression gate (`_exhausted_robots`, unioned into
+  `cooldown_robots`) so M5 stops re-dispatching an already-exhausted
+  conflict. `plan_metrics.any_leg_exhausted` is the scoring-side building
+  block. Confirmed the phase QUEUE itself already terminates correctly on a
+  failed fallback (`done=True` unconditionally, never retried) — the
+  re-trigger source this fix actually had to stop was M5's OWN congestion
+  detector re-firing on the still-stalled robots, not the phase queue.
+  Local suite zero-delta (`d3aa0f3` baseline, byte-identical failing-test-
+  name set): 63 failed / 4384 passed / 152 skipped / 3 collection errors
+  before, 63 failed / 4412 passed / 152 skipped / 3 errors after (+28 new/
+  renamed pins). `ruff check` clean on every touched file.
+  **VM mock verification (first two attempts) and their "0/4, design-level
+  finding" framing: SUPERSEDED, see the correction entry immediately
+  below** — the real cause was this task's own bug (the release action's
+  `yield` parameters), not an M4/design limitation. First VM attempt was
+  truncated by an under-sized `REC_SEC` relative to the measured real-time
+  factor (~0.27-0.31, not close to 1x even for a zero-latency mock run) —
+  the SAME RTF-miscalibration trap the composite-smoke report's own live
+  episodes hit; treated under the standing one-re-run allowance (still
+  accurate, unaffected by the correction below). The Isaac-survival
+  `pgrep` gate caught a REAL leftover on both of the first two attempts —
+  the host Isaac process outlived `fc-launch`'s own "killing Isaac" cleanup
+  line by 10+ minutes each time, consuming GPU the whole time; killed by
+  hand both times, confirmed gone before proceeding (still accurate).
+
+- **2026-10-02** — **CORRECTION (same task, step 7a): the VM's "0/4,
+  design-level finding" was this task's own implementation bug in fix 2,
+  not an M4/design limitation — found by advisor review, fixed, and
+  re-verified: 4/4.** The release phase's `yield` action (fix 2) carried
+  only `passer_robot_id`/`passer_clear_m`, on the wrong assumption that a
+  `yield` with no backup/pull-off parameters is a passive hold.
+  `command_bus_node`'s `yield`/`reverse` branch unconditionally runs
+  `Nav2Adapter.backup(robot_id, params.get("backup_distance_m", 0.3), ...)`
+  FIRST (an unrequested 0.3 m backup on an already-parked robot), and
+  `hold_sec = params.get("hold_sec", 0.0)` — left unset, `_on_backup_
+  result` never calls `_start_hold` at all, so the `CrossingChain`/
+  odometry-gated wait this fix exists to reuse never engaged; the command
+  just completed ~35 s after the unrequested backup, with no relation to
+  the lead's real clearance. That is what the second VM attempt's 0/4 and
+  the persistent `min_pairwise_distance_m=0.118` cluster actually were —
+  not a 120 s backstop (the release resolved in 35 s, not 120), not M4's
+  `reverse` execution going the wrong way. Fixed: `"backup_distance_m":
+  0.0` (completes on the first odometry tick, no real motion) and
+  `"hold_sec": params.junction_recede_hold_sec` (now a genuine backstop
+  behind the real `CrossingChain` wait, not instead of it). Pinned:
+  `test_release_phase_actions_are_a_passive_hold_not_a_maneuver`. Re-ran
+  locally (zero-delta maintained) and on the VM (third attempt, same
+  `REC_SEC=1050`/`SIM_SEC=1100`): full phase sequence, no fallback, **4/4
+  arrivals** (`ArrivalGate`: robot_2 0.06 m, robot_4 0.07 m, robot_3
+  0.06 m, robot_1 0.08 m, all `within_tolerance`), jam-forms-first
+  confirmed from GT (all four stopped within 1 m of centre by sim 28.0 s,
+  before the 34.3 s trigger), no tracked-band excursion (every robot's max
+  `|x|`/`|y|` is its own goal coordinate). Isaac exited cleanly on its own
+  this time (no leftover process). **New STALE finding, flagged per the
+  registered instrumentation rule, run NOT invalidated**: `robot_3`/
+  `robot_4` each showed a 275-row (~82 s) STALE streak, sim 101.2-183.2 s —
+  materially longer than any prior recorded streak (previous max 26 rows) —
+  coincident with the two recede candidates parked 0.08-0.15 m apart (see
+  the characteristic noted above). No overlap with the trigger snapshot or
+  either robot's own arrival, so it does not invalidate this run per the
+  resolved gate's ruling, but it is a new, larger data point for whether
+  the registered 1.65 m spawn-re-radius fallback should now be considered
+  — an owner call, not applied here. VM restored pristine
+  (`1f656533`/`e18c723`, all four copies, re-verified after each of the
+  three attempts), GPU idle, no stray processes, this task's own `/tmp`
+  artifacts removed. Full report (superseding its own first-draft VM
+  section in place, per its own revision history):
+  `docs/reports/2026-10-02-step7a-blocker-fixes.md`.
+
+- **2026-10-02** — **M4 protocol note (step 7a, fix 3): `swarm_execution/
+  safety.py`'s `admitted_partners` gained an ADDITIVE, v2-branch-only
+  exemption parameter.** `plan_partners: frozenset[str] = frozenset()`
+  (sourced from a NEW `plan_continue_partners_from_parameters` reader on a
+  `reverse` leg's own `parameters_json`, populated only by `orchestrator_
+  node._with_plan_continue_partners` when a tracked `plan_id` is present
+  and the SAME plan names another robot `continue`). This is additive to
+  the existing own-command `members` scope, never a substitute: a v1 (no
+  plan channel) `reverse` command never carries `plan_continue_partners`,
+  so `admitted_partners`'s behavior for every v1 scenario is byte-
+  identical (regression-pinned, `test_no_plan_reverse_plus_an_uninvolved_
+  robot_still_latches`). Rationale: a `continue` leg of the same accepted
+  plan as a `reverse` receives no command of its own, so it is invisible to
+  the existing `members`-based scope; the wire `CoordinationCommand` has no
+  `plan_id` field, so the information travels on the reverse leg's own
+  parameters instead of a cross-command lookup. Scoped narrowly (pair-
+  scope discipline pinned: a `continue` robot NOT named on this specific
+  reverse's own parameters stays fully latched, `test_reverse_does_not_
+  exempt_an_other_plan_continue_robot`) — never a blanket same-plan-or-wider
+  exemption.
+
 - **2026-10-02** — **v2 build-order step 9: B2-visual urgency pair and B3
   first-to-slip authored (local only; branch `feat/v2-b-scenarios`)** (prereg-v2
   design docs/superpowers/specs/2026-09-30-prereg-v2-design.md, "(c)"/"(e)").
