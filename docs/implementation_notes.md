@@ -355,7 +355,29 @@ Rules for maintaining it:
   are corrected to state the VM-validated version plainly and drop "all
   four."
 
-- **2026-10-02** — **M4 protocol note (step 7a, fix 3): `swarm_execution/
+- **2026-10-02** — **SIXTH CORRECTION (same task, step 7a): the entry
+  above left an unverified claim ("nothing attempt-3's evidence is used
+  for depends on fix 3's exemption scope") -- now checked against the
+  run's own decision artifact, not assumed.** `data/logs/m5_decisions/
+  fff3e18376454ab4b7f63c5f978b61d0.json` (the run's only trigger,
+  `m3_default` junction_clear) shows `involved_robots=["robot_1",
+  "robot_2", "robot_3", "robot_4"]` -- ALL FOUR scene robots, so the
+  blanket and narrowed trigger-set scopes are IDENTICAL for this run
+  regardless (first reason). Its `plan.legs` are `robot_3: reverse,
+  robot_4: reverse, robot_1: yield, robot_2: cross` -- ZERO `continue`
+  legs, directly confirming FOURTH CORRECTION's point (3)(b) ("IB10's
+  junction_clear plans carry no continue legs to exempt") from the
+  artifact itself, not inference (second, independent reason:
+  `_with_plan_continue_partners` filters for `continue` legs and finds
+  none either way). A third, independent reason neither prior entry
+  named: `_with_plan_continue_partners` is only ever called for
+  `action == "reverse"` (`_publish_fanned_out`'s own dispatch, fix 3's
+  own section above) -- the release phase's own actions (fix 2) are all
+  `yield`, never `reverse`, so fix 3's code path is not even reached by
+  the release command fix 2 and finding 2/3 analyze. All three reasons
+  independently guarantee fix 3's exemption-scope bug (blanket vs.
+  narrowed vs. manual-trigger-safe) could not have changed this run's
+  outcome. No VM state changed (local artifact read only).
   safety.py`'s `admitted_partners` gained an ADDITIVE, v2-branch-only
   exemption parameter.** `plan_partners: frozenset[str] = frozenset()`
   (sourced from a NEW `plan_continue_partners_from_parameters` reader on a
@@ -375,13 +397,15 @@ Rules for maintaining it:
   reverse's own parameters stays fully latched, `test_reverse_does_not_
   exempt_an_other_plan_continue_robot`) — never a blanket same-plan-or-wider
   exemption.
-  **Superseded in part by the THIRD and FIFTH CORRECTION entries above**:
-  this entry's "the SAME plan names another robot `continue`" undersells
-  the actual scope by the time of this log's last entry — the shipped
-  code also requires that robot to be in `_last_trigger_robot_ids` (added
-  by THIRD CORRECTION) and that narrowing is itself bypassed to empty on
-  the manual-trigger path (closed by FIFTH CORRECTION). Not rewritten
-  here per the append-only rule.
+  **Superseded in part by the THIRD and FOURTH CORRECTION entries above
+  (FIFTH notes the fix is not yet deployed)**: this entry's "the SAME
+  plan names another robot `continue`" undersells the actual scope by
+  the time of this log's last entry — the shipped code also requires
+  that robot to be in `_last_trigger_robot_ids` (added by THIRD
+  CORRECTION) and that narrowing is itself bypassed to empty on the
+  manual-trigger path (closed by FOURTH CORRECTION's item (3)(a); FIFTH
+  CORRECTION found this closure was never exercised on the VM). Not
+  rewritten here per the append-only rule.
 
 - **2026-10-02** — **v2 build-order step 9: B2-visual urgency pair and B3
   first-to-slip authored (local only; branch `feat/v2-b-scenarios`)** (prereg-v2

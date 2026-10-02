@@ -68,6 +68,14 @@
   the "all four config copies" claim in the VM-close-out section
   double-counted a bind-mounted container view of the same two host
   files as separate copies -- there are three files, not four.
+- Rev 7 (verifying Rev 6's own "does not change anything attempt-3's
+  evidence is used for" claim against data instead of leaving it
+  asserted): confirmed via the run's own decision artifact, for three
+  independent reasons -- the trigger named all four scene robots
+  (blanket and narrowed scopes are identical for this run), the accepted
+  plan has zero `continue` legs, and `_with_plan_continue_partners` only
+  ever runs for `reverse` dispatches, which fix 2's own release-phase
+  actions (all `yield`) never are.
 
 **Commits:** branch `feat/v2-blockers`, worktree
 `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v2-fix`, branched from
@@ -718,22 +726,34 @@ untouched.
 source tree is NOT at this branch's final commit.** `orchestrator_node.py`
 on the VM (source, `build/`, and `install/` copies, host and container
 paths all identical) md5s to `9f0e758d89db65e41156bba6381b0cde`, matching
-`git show 29f7e3f:ros2_ws/.../orchestrator_node.py` -- the commit
-immediately after the SECOND CORRECTION, before fix 3's trigger-set
-narrowing (`4e1a7a9`) and the manual-trigger closure (`643d9ae`) were
-written. **Attempt 3, the run this report scores, ran fix 3's first-draft
-blanket exemption**; the narrowed and manual-trigger-safe versions exist
-only as unit-pinned code on this branch and were never exercised live.
-This does not change anything the attempt-3 evidence in this report is
-used for (none of the five fixes' VM-scored behavior -- the phase
-sequence, the 4/4 arrivals, finding 1's clearance ambiguity, finding 2's
-race, fix 4/5's own criteria -- depends on fix 3's exemption scope), but
-the branch must be redeployed before its NEXT VM run; this task does not
-perform that redeploy (out of scope; no further VM run was authorized
-past attempt 3). Only the two config files are the standing-convention
-pristine-restore target -- the source tree being behind the branch tip is
-the known, accepted state for "whoever deploys next," now stated
-precisely instead of assumed current.
+this file's content as of `1e6f628` (the commit that landed the five
+fixes; `git diff --name-only 1e6f628 HEAD -- '*.py' ':!tests'` shows
+`orchestrator_node.py` as the ONLY non-test code file that differs --
+`29f7e3f` is a docs-only commit with the same `.py` tree, cited earlier
+only because that was the commit checked out when this run was deployed),
+i.e. BEFORE fix 3's trigger-set narrowing (`4e1a7a9`) and the
+manual-trigger closure (`643d9ae`) were written. **Attempt 3, the run
+this report scores, ran fix 3's first-draft blanket exemption**; the
+narrowed and manual-trigger-safe versions exist only as unit-pinned code
+on this branch and were never exercised live. **This is verified, not
+assumed, not to change anything the attempt-3 evidence in this report is
+used for**, for three independent reasons, checked against the run's own
+decision artifact (`data/logs/m5_decisions/
+fff3e18376454ab4b7f63c5f978b61d0.json`): (1) its trigger named ALL FOUR
+scene robots as `involved_robots`, so the blanket and narrowed trigger-set
+scopes are identical for this run regardless; (2) its `plan.legs`
+(`robot_3`/`robot_4`: `reverse`, `robot_1`: `yield`, `robot_2`: `cross`)
+contain ZERO `continue` legs, so `_with_plan_continue_partners` finds
+nothing to exempt either way; (3) that function only runs for
+`action == "reverse"` dispatches, and fix 2's own release-phase actions
+(what findings 1-3 above analyze) are all `yield`, never `reverse`, so
+fix 3's code path is not even reached by the command this report's own
+findings are about. The branch must still be redeployed before its NEXT
+VM run; this task does not perform that redeploy (out of scope; no
+further VM run was authorized past attempt 3). Only the two config files
+are the standing-convention pristine-restore target -- the source tree
+being behind the branch tip is the known, accepted state for "whoever
+deploys next," now stated precisely instead of assumed current.
 
 ---
 
