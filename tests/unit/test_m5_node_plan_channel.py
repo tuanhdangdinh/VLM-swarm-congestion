@@ -290,3 +290,56 @@ def test_reverse_leg_without_a_tracked_plan_carries_no_continue_partners(
     assert reverse_msgs, "no reverse command was dispatched"
     params = json.loads(reverse_msgs[0].parameters_json or "{}")
     assert "plan_continue_partners" not in params
+
+
+def test_plan_continue_partners_narrowed_to_the_triggering_event_not_the_whole_scene(
+    node_env, tmp_path  # noqa: F811
+):
+    # Advisor-review regression pin (freeze-blocking finding 3, corrected):
+    # plans are scene-wide (a0 rev 4) -- EVERY tracked robot the plan omits
+    # becomes a `continue` leg. Without narrowing to the robots the
+    # TRIGGERING congestion event actually named, every `continue` robot in
+    # the whole scene would be exempt against every `reverse` -- a blanket
+    # exemption the task explicitly forbids. Mirrors episode 1 decision 2's
+    # exact shape: a 4-robot plan (`reverse` robot_3/robot_4, `continue`
+    # robot_1/robot_2), where only `robot_1` was part of the triggering
+    # event (`robot_2` never was) -- `robot_1` must stay exempt, `robot_2`
+    # must not.
+    from reasoning.rag.command_grounder import VerifiedPlan
+    from reasoning.vlm.models import ProposedPlanLeg
+    from tests.unit.test_m5_node_probe import _FakePipeline
+
+    node, _clock = _make_node(
+        node_env, tmp_path, _FakePipeline(), t0_probe_mode=False, plan_channel_enabled=True
+    )
+    verified = VerifiedPlan(
+        legs=[
+            ProposedPlanLeg(robot_id="robot_3", action="reverse"),
+            ProposedPlanLeg(robot_id="robot_4", action="reverse"),
+            ProposedPlanLeg(robot_id="robot_1", action="continue"),
+            ProposedPlanLeg(robot_id="robot_2", action="continue"),
+        ],
+        provenance="vlm_verbatim",
+    )
+    plan_id = node._plan_tracker.accept_plan(verified).plan.plan_id
+    node._last_trigger_robot_ids = frozenset({"robot_1", "robot_3", "robot_4"})
+
+    params_json = node._with_plan_continue_partners("{}", plan_id, "robot_3")
+
+    params = json.loads(params_json)
+    assert params["plan_continue_partners"] == ["robot_1"]
+
+
+def test_plan_continue_partners_empty_when_the_plan_channel_tracks_no_plan(
+    node_env, tmp_path  # noqa: F811
+):
+    from tests.unit.test_m5_node_probe import _FakePipeline
+
+    node, _clock = _make_node(
+        node_env, tmp_path, _FakePipeline(), t0_probe_mode=False, plan_channel_enabled=True
+    )
+    node._last_trigger_robot_ids = frozenset({"robot_1", "robot_3", "robot_4"})
+
+    params_json = node._with_plan_continue_partners("{}", 999, "robot_3")
+
+    assert params_json == "{}"
