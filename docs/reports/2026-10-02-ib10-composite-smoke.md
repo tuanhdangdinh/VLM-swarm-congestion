@@ -172,11 +172,34 @@ Commit: `6e65ab1`.
 
 ## Step 3: mock composite smoke (VM)
 
-**STATUS: PENDING** (VM preflight in progress at the time this draft was
-written; this section is a stub so the local findings above are durable
-independent of the VM session's outcome, per review guidance -- the VM
-runs are long and a lost session should not take the completed local work
-with it).
+**VM state at deploy:** standing host `vgu-vgu-thule-base-isaac-workstation-vm`
+confirmed idle (`pgrep -f run_simulation` empty, no `ros2`/orchestrator/
+perception/Nav2 process in `vgu_ros`, GPU 0%/171 MiB, container up 2h from
+an apparently-unrelated prior task's clean exit earlier the same morning).
+Pre-deploy md5 of `orchestrator.yaml`/`rag.yaml` (source + installed, host
+and container) matched the standing convention exactly
+(`1f656533a30a35882d57d0d64a57bd0d` / `e18c723cff9cada3f320d564c2ecee5a`),
+backed up verbatim to `/tmp/ib10_pristine/` before any edit. **Correction
+to this report's own earlier assumption:** the VM tree predates step 5
+entirely (`grep -c ground_junction_clear_phases` on the VM's pre-deploy
+`command_grounder.py` returned 0) -- the restore target after this task is
+the standing `1f656533`/`e18c723` pair (the shared-VM convention every
+other task's driver script restores to), not this branch's own committed
+md5; this branch's `orchestrator.yaml` differs from `1f656533` by design
+(the step-6 comment addition), which is expected drift, not a pristine-
+state violation. Deployed via `git archive HEAD` (`bfc3000`) extracted over
+the VM tree (USD/map build products untouched -- not git-tracked -- per
+the task's "USD already built" note, confirmed present), the IB10-specific
+`orchestrator.yaml` (initial_tasks x4, `shadow_classical_zones`, junction
+`corridor`+`arms`, both J2 fields, `plan_channel_enabled: true` --
+identical to the file this report's Step 1-2 section verified through
+`load_config` locally) copied in over the archived shipped copy, and
+`swarm_orchestrator`/`swarm_simulation` rebuilt via colcon. **Deploy check
+passed**: installed config md5 matched the deployed source exactly
+(`010805192c9e33b4b29a27fd7ecd8ea9`, both host and container copies), and
+`reasoning/`/`config/mock_decisions/` (live-mounted at `/ws`, not colcon-
+built) confirmed visible inside the container with the new code/mocks
+present.
 
 Mock decision files prepared and verified locally before any VM time is
 spent (per the standing rule and specifically re-confirmed by review):
@@ -198,11 +221,35 @@ spent (per the standing rule and specifically re-confirmed by review):
 - Parse/shape tests: `tests/unit/test_intersection_bottleneck_scenario.py
   ::TestJunctionClearMockDecisions` (5 tests).
 
-To be filled in after the VM runs: per-run criteria table (4/4 position-
-verified arrivals, phase-reached log, provenance per run, jam-formation
-evidence from GT timestamps against the trigger stamp), phase timeline,
-STALE streak numbers, and the deploy-check confirmation (installed-config
-md5 plus absence of `junction_geometry=shipped_unsolved` in run logs).
+### Run A results (`m3_default`, run `20261002_111456`)
+
+| Criterion | Result |
+|---|---|
+| Jam forms first | **PASS** -- all four robots within 0.15 m of the IB10 standoff reference positions by sim_time 26.5 s (GT `ground_truth.jsonl`); global min pairwise distance 0.133 m at 47.1 s |
+| Full phase sequence executes (recede robot_4, then robot_3, staggered sequential; yield phase; done) | **PASS** -- `phase advance ... phase_reached=recede done=False` (robot_4), then `phase_reached=cross done=False` (robot_3), then `phase_reached=resolved done=True` (cross phase); never two recede legs in one command (confirmed from the dispatch lines: each recede command addresses exactly one active `reverse` robot) |
+| Provenance correct | **PASS** -- decision artifact `5e42a221d4dc488c9632957e21a2acee.json`: `plan.provenance="m3_default"`, `plan.rejection_reason="plan absent"` (no `proposed_plan` in run A's mock, as designed), `plan.dispatch_matches_plan=true`, legs `[robot_4 reverse, robot_3 reverse, robot_1 yield, robot_2 cross]` -- the exact chi order |
+| Deploy check (no `shipped_unsolved` tag) | **PASS** -- `grounding_degradations: ["junction_clear=recede"]` only, confirming both J2 fields reached the installed config |
+| Ordered crossing (yielder re-enters last) | **PASS for the phase itself** -- the cross phase's own command grounded `robot_1` yield + `robot_2` cross per the solved row; see the FAIL below for what happens after |
+| 4/4 position-verified arrivals | **FAIL** -- at scenario end (sim_time 300 s, Isaac given 450 s, 150 s of slack beyond the scenario's own `duration_sec`), only `robot_2` arrived (`distance_to_goal_m=0.104`). `robot_1` (1.931 m), `robot_3` (0.965 m), `robot_4` (2.886 m) did not. GT confirms `robot_1`/`robot_3`/`robot_4` are fully **stationary** (`speed_mps=0.000`, positions frozen) continuously from sim_time ~120 s to 300 s (180 s), `min_pairwise_distance_m` pinned at exactly 0.398 m the whole time -- a genuine stable deadlock, not insufficient run time. |
+
+**Root-cause finding (confirms the coordinator-review flag before this run, not a new discovery made blind):** the composite's own phase sequence has no scope over what happens after `done=True`. M5's `junction_phase_queue` releases every held recede candidate back to its **original base-mission goal** the moment the cross phase resolves (`resume base mission robot=robot_4 goal=(0.0, -1.75)` / `robot=robot_3 goal=(0.0, 1.75)` in `fc_20261002_111456_m4.log`) -- robot_3 and robot_4 parked on OPPOSITE sides of the junction during their staggered recede (robot_3 south pocket, robot_4 north pocket) and are then released simultaneously toward each other's original goals on the opposite arm, a fresh N-S encounter the `junction_clear` contract never orders. The scene log shows M5's congestion detector DID notice the resulting conflict (`trigger suppressed robots=['robot_1', 'robot_3', 'robot_4'] frame_ready=True`, repeated from roughly sim_time 230 s onward) but the trigger stayed suppressed (cooldown/busy guard in `_machine.on_event`, not investigated further -- out of this task's scope to fix), so no second decision ever dispatches and the three robots freeze at the mutual safety latch (`min_distance_m=0.45` in `config/rag.yaml`; observed separation 0.398 m, just inside it). This is exactly the gap the M5 spec section's "remaining robots cross inside-first" language does not cover and the step-5 landing's own "FLAGGED, not resolved by static reading" note anticipated for a different race (base-mission resumption timing) but not this one (base-mission *destination*, post-resolution). **Reported as a result, not patched**: the composite's own job (recede + yield + cross, phase-by-phase, provenance-correct, solved-row numbers) is fully verified working; a second, separable gap exists one layer up, in what M5 does with the held robots' own base missions after the composite resolves.
+
+### STALE instrumentation (run A)
+
+Per-robot streaks over the M5 scene log (`m5_scene/fbe42f6dee3b40b5b6dcf2f5540f26c2.jsonl`, 370 logged cycles), collapsed to DISTINCT M1 frame stamps first (M5's own cycle rate re-logs one unchanged M1 frame several times while M1 itself is between publishes, which inflates a naive row-count streak 15x without a single additional stale frame actually occurring -- confirmed by inspection: `robot_4`'s raw 15-row "streak" is one single frame at stamp 72.133 s, re-logged 15 times):
+
+| Robot | Distinct-frame STALE events | Longest streak (distinct frames) | Window |
+|---|---|---|---|
+| robot_1 | 1 | 1 | t=6.0 s (pre-departure bring-up) |
+| robot_2 | 0 | 0 | -- |
+| robot_3 | 0 | 0 | -- |
+| robot_4 | 1 | 1 | t=72.1 s (during its recede-pocket dwell) |
+
+Neither event is a streak (both are single isolated frames) and neither coincides with a scoring-relevant window: robot_1's is pre-trigger bring-up (never a scored dwell), robot_4's is mid-recede-dwell under the stale-tolerant `ArrivalGate` (costs no credit per the resolved gate's own finding). Both are consistent with the established background noise floor (`docs/reports/2026-10-01-robot1-stale-rootcause.md`'s "a few percent of frames" mechanism), not the catastrophic 74-82% rate that mechanism's one failing pose produces. Per the ruling, this does NOT invalidate the run; flagged here per the instrumentation requirement.
+
+### Run B results
+
+**STATUS: IN PROGRESS at the time this section was written** -- filled in below once the run resolves.
 
 ---
 
