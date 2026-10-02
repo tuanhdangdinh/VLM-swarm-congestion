@@ -1,0 +1,32 @@
+[
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "No congestion reported on the first analysis.",
+    "strategy": "none",
+    "justification": "Scripted mock decision for the IB10 junction_clear composite smoke, run B: the first analysis answers none, so the scripted decision lands on a later analysis of the four-way standoff instead of a start-up stall (same one-skip pattern as config/mock_decisions/intersection_skip_then_yield_once.json, sized from the IB9 20260929_084557 smoke this scenario shares its spawns/speeds with)."
+  },
+  {
+    "congestion_detected": true,
+    "type": "bottleneck",
+    "involved_robots": ["robot_1", "robot_2", "robot_3", "robot_4"],
+    "root_cause": "Four robots converged on the central intersection from all four arms and blocked each other.",
+    "strategy": "junction_clear",
+    "justification": "Scripted mock decision for the IB10 junction_clear composite smoke, run B: a valid proposed_plan naming the chi-ranked recede pair in order (robot_4, then robot_3 -- the same order the study's D_SPACE numbers rank them, 0.923 m before 0.942 m), then the yield-axis yield/cross pair, so the (a0) verify/repair engine finds every leg feasible and records provenance vlm_verbatim.",
+    "proposed_plan": [
+      { "robot_id": "robot_4", "action": "reverse" },
+      { "robot_id": "robot_3", "action": "reverse" },
+      { "robot_id": "robot_1", "action": "yield" },
+      { "robot_id": "robot_2", "action": "cross" }
+    ]
+  },
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "Scene has cleared; robots are no longer blocking the intersection.",
+    "strategy": "none",
+    "justification": "Scripted mock decision for the IB10 junction_clear composite smoke, run B: scene is clear after the full recede-then-yield sequence resolves."
+  }
+]
