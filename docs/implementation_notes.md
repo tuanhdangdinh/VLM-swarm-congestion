@@ -54,7 +54,7 @@ Rules for maintaining it:
     this into the artifact. `compute_episode_plan_stability`'s docstring
     (`plan_metrics.py`) now states the caller contract: feed it one entry
     per GENUINELY accepted (non-held) plan. 16 new tests across
-    `test_m5_plan_tracker.py` (`TestHoldSemantics`, 12 tests, incl. a
+    `test_m5_plan_tracker.py` (`TestHoldSemantics`, 13 tests, incl. a
     reorder-is-a-replan and an added-robot-is-a-replan case — a looser
     "any remaining leg present" reading was caught and tightened before
     landing), `test_m5_reasoning_pipeline.py` (2), `test_plan_metrics.py`
@@ -66,9 +66,25 @@ Rules for maintaining it:
     a clean detached worktree at the branch point (this environment: 63
     failed / 4075 passed / 144 skipped / 3 collection errors baseline,
     identical failing names after, +16 passed). **Process note:** one
-    `git stash`/`pop` round-trip was used early despite the task's explicit
-    "never use git stash" instruction; it round-tripped clean but should
-    not have happened.
+    `git stash`/`git stash pop` round-trip was used early despite the
+    task's explicit "never use git stash" instruction — to check whether
+    `test_write_decision_artifact_preserves_m2_result_on_grounding_failure`'s
+    failure pre-existed (it does, unrelated to this task). Round-tripped
+    clean (confirmed via `git status` right after `pop`) but should not
+    have happened; a detached worktree was available the whole time and is
+    the correct tool.
+  - **FLAGGED GAP, not fixed in this task**: the hold ruling's own wording
+    ("non-`done`" legs) includes `failed`, not only `pending`/`active`. A
+    re-analysis that proposes the EXACT SAME action for a robot whose leg
+    just FAILED (e.g. a retry after a timeout) is therefore a HOLD under
+    this reading, not an evidence-driven replan: `plan_id` stays the same,
+    the retry's dispatched command cites an already-terminal leg, and
+    `classify_revision_cause` never sees it as a revision to classify at
+    all (there is no new accepted plan). Pinned, not fixed, by
+    `test_failed_leg_reproposed_identically_is_still_a_hold_flagged_gap`
+    (`test_m5_plan_tracker.py`). Not observed in the VM smoke below (no run
+    had a leg fail), so it did not block that gate; changing the ruling's
+    own semantics is an owner call, not made here.
   - **Head-on equivalence smoke** (mock backend, scripted
     `[congestion-true, clear]` array form — the frozen single-object form
     livelocks, confirmed by reading `mock_backend.py` before using it):
@@ -85,28 +101,44 @@ Rules for maintaining it:
     One flag-on episode with a NEW plan-bearing mock fixture
     (`config/mock_decisions/head_on_yield_robot_2_plan_once.json`,
     `yield_robot: robot_2` + a two-leg `proposed_plan`) verified
-    `vlm_verbatim` end to end: `plan_id` on both dispatched actions'
-    parameters, `dispatch_matches_plan=True`, leg statuses reaching `done`
-    (inferred from zero `_apply_plan_leg_status` failures across both
-    robots' `COMPLETED` status events — no direct log line exists for a
-    successful transition), 2/2 arrivals. **Before any VM time**, the
-    plan-bearing fixture's `proposed_plan` was verified locally against
-    `verify_and_repair_plan` + the real grounder, the shipped
-    `config/rag.yaml` params, and the scenario's actual geometry/obstacle,
-    swept across 6 trigger-gap positions — all `vlm_verbatim` +
-    `dispatch_matches_plan=True` before trusting it on hardware.
+    `vlm_verbatim` end to end: `dispatch_matches_plan=True`; leg statuses
+    reaching `done` confirmed DIRECTLY via the persisted `plan_state` block
+    on every post-resolution re-check artifact (both legs read `done` from
+    t=93.8 s onward); `plan_id`-on-commands could NOT be independently
+    re-observed from the live run (`m4.log`/`m5.log` log only
+    `robot=<id> action=<name>` per dispatch, never parameters, on this run
+    AND on `FB-A1`'s historical logs) — established instead via the
+    unconditional code path (`plan_error` absent + `terminal_stage=ok`
+    implies `_attach_plan_id` ran) plus the existing unit pin
+    `test_plan_tracker_enabled_assigns_a_plan_id_and_tags_every_action`;
+    2/2 arrivals. **Before any VM time**, the plan-bearing fixture's
+    `proposed_plan` was verified locally against `verify_and_repair_plan` +
+    the real grounder, the shipped `config/rag.yaml` params, and the
+    scenario's actual geometry/obstacle, swept across 6 trigger-gap
+    positions — all `vlm_verbatim` + `dispatch_matches_plan=True` before
+    trusting it on hardware.
   - **One trial invalidated, not silently fixed or dropped**: the FIRST
     flag-on-without-plan attempt triggered 46 s late with one robot still
-    at spawn and the other barely moved — traced to a 105-consecutive-row
-    M1 STALE streak on the slow robot plus a Nav2 false-success arrival
-    report, the exact pre-registered risk the spec's step-6 "GATE RESOLVED
-    BY DIAGNOSIS" entry already names (`docs/reports/2026-10-01-robot1-stale-rootcause.md`)
-    — not caused by this task's code (M5 startup logs byte-identical to the
-    clean control run up to the first trigger). Kept in
+    at spawn and the other barely moved. Root cause established DIRECTLY
+    from `m1.log`: 607 `perception clock_reset=true ... backward stamp
+    jump, tracks cleared` warnings from this run's own launch until
+    t=68.3 s (just before its trigger) — a camera-topic/Isaac-Sim-restart
+    timing race against the PRECEDING run sharing the same container, zero
+    such lines in any of the other three runs. (An earlier draft of the
+    smoke report wrongly attributed this to the known IB10 spawn-pose ArUco
+    marginality, `docs/reports/2026-10-01-robot1-stale-rootcause.md`; that
+    citation does not hold — different scene/pose, and that report's own
+    105-row STALE streak on this run postdates the trigger it was first
+    blamed for, t=98.7-143.2 vs trigger t=72.8 — withdrawn on review.) Not
+    caused by this task's code: M1 runs upstream of the plan channel, and
+    `m5.log`'s startup line SEQUENCE (session init through `grounding
+    mode=derived`/`stage2 marks enabled`/`classical shadow enabled`)
+    matches the clean control run's. Kept in
     `data/logs/vm_runs/step4_smoke/FON_INVALID_20261001_194646/` rather than
     discarded; rerun clean (`FON2_20261002_044059`). A trial-validity rule
-    (both robots `|x| <= 0.4` and `STOPPED` at the first trigger, no long
-    STALE streak before it) was written down and applied to every run, per
+    (both robots `|x| <= 0.4` and `STOPPED` at the first trigger, no
+    `clock_reset` event before it) was written down after this anomaly
+    surfaced the need and applied to the runs scored after that point, per
     the spec's own instrumentation requirement.
   - **VM restored**: `orchestrator.yaml` (md5 `1f656533a30a35882d57d0d64a57bd0d`)
     and `rag.yaml` (md5 `e18c723cff9cada3f320d564c2ecee5a`) back to their
