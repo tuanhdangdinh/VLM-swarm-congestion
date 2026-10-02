@@ -728,9 +728,10 @@ non-test `.py` file this branch touches (`git diff --name-only d3aa0f3
 HEAD -- '*.py' ':!tests'`: `command_grounder.py`, `plan_metrics.py`,
 `scene_geometry.py`, `vlm/models.py`, `safety.py`,
 `junction_phase_queue.py`, `orchestrator_node.py`, `plan_tracker.py`,
-the sweep script) was md5'd on the VM (source, `build/`, and
-`install/lib/python3.12/site-packages/` copies, host and container paths
-all identical where applicable) against local HEAD: all match BYTE FOR
+the sweep script) was md5'd on the VM (source and `install/lib/python3.
+12/site-packages/` copies for both ROS packages, plus the `build/` copy
+for `orchestrator_node.py` specifically; host and container paths
+identical where applicable) against local HEAD: all match BYTE FOR
 BYTE except `orchestrator_node.py`, which is `9f0e758d89db65e41156bba6
 381b0cde` on the VM vs `791525e2e6642c04da9b394688be8b5f` at HEAD. The
 deploy was a working-tree copy, not a commit checkout, so no single
@@ -748,9 +749,11 @@ change anything the attempt-3 evidence in this report is used for**,
 for three independent reasons, checked against the run's own decision
 artifacts (all 11 `m5_decisions` records sharing this run's `run_id`;
 `fff3e18376454ab4b7f63c5f978b61d0.json` is the only one with
-`grounded_command_present=True` -- the other 10 are `strategy=none`,
-no plan, M5's own no-congestion-detected analyses during the busy
-dwell): (1) the one dispatched trigger named ALL FOUR scene robots as
+`grounded_command_present=True` -- the other 10 have `strategy=none`,
+no plan, so nothing was dispatched; their stamps are 30.7 s (before the
+34.2 s trigger) and 218.3-253.6 s (after the release window, sim
+94.9-215.4, had already resolved)): (1) the one dispatched trigger named
+ALL FOUR scene robots as
 `involved_robots`, so the blanket and narrowed trigger-set scopes are
 identical for this run regardless; (2) its `plan.legs` (`robot_3`/
 `robot_4`: `reverse`, `robot_1`: `yield`, `robot_2`: `cross`) contain

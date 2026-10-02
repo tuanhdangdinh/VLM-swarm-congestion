@@ -361,9 +361,10 @@ Rules for maintaining it:
   run's own decision artifact, not assumed.** `data/logs/m5_decisions/
   fff3e18376454ab4b7f63c5f978b61d0.json` (the run's only DISPATCHED
   trigger -- checked against all 11 `m5_decisions` artifacts carrying
-  this run's `run_id`; the other 10 are `strategy=none`,
-  `grounded_command_present=False`, no plan, `terminal_stage=vlm` --
-  M5's own no-congestion-detected analyses during the busy dwell,
+  this run's `run_id`; the other 10 have `strategy=none`,
+  `grounded_command_present=False`, no plan, so nothing was dispatched;
+  their stamps are 30.7 s (before the 34.2 s trigger) and 218.3-253.6 s
+  (after the release window, sim 94.9-215.4, had already resolved),
   `m3_default` junction_clear) shows `involved_robots=["robot_1",
   "robot_2", "robot_3", "robot_4"]` -- ALL FOUR scene robots, so the
   blanket and narrowed trigger-set scopes are IDENTICAL for this run
