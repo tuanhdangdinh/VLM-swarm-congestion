@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
-from swarm_orchestrator.models import PipelineOutcome, TerminalStage
+from swarm_orchestrator.models import PipelineOutcome, TaskAssignment, TerminalStage
 
 from reasoning.rag.command_grounder import ground_junction_clear_phases, verify_and_repair_plan
 from reasoning.rag.maneuver_geometry import GroundingParams
@@ -157,7 +157,19 @@ def _fail_command(node, command_id: str) -> None:
         )
 
 
+_IB10_INITIAL_TASKS = {
+    rid: TaskAssignment(task="t", goal=(0.0, 0.0)) for rid in IB10_STANDOFF
+}
+
+
 def _node(node_env, tmp_path, **overrides):  # noqa: F811
+    # All FOUR IB10 robots, not the harness default's two: `_dispatch`/
+    # `_dispatch_junction_phase` both run every command through
+    # `filter_command_robot_ids(command, set(self._config.initial_tasks))`,
+    # which would silently drop robot_3/robot_4 (and their `temporary_wait`
+    # holds) from every phase under the harness's 2-robot default --
+    # masking exactly the held-robot wiring this file means to exercise.
+    overrides.setdefault("initial_tasks", _IB10_INITIAL_TASKS)
     node, clock = _make_node(
         node_env,
         tmp_path,
@@ -311,3 +323,180 @@ class TestFlagOffByteIdentity:
         lines = node.get_logger().matching("dispatch request=")
         assert lines, "no dispatch logged"
         assert all("plan_id=" not in line for line in lines)
+
+
+class TestAllFourRobotsAddressed:
+    """Advisor-review regression: the 2-robot harness default silently
+    filtered robot_3/robot_4 out of every phase via `filter_command_robot_
+    ids`, masking the held-robot wiring entirely. `_node()` now declares all
+    four IB10 robots; this class pins that the real multi-robot shape is
+    actually dispatched.
+    """
+
+    def test_phase_one_publishes_reverse_for_robot_4_and_holds_the_other_three(
+        self, node_env, tmp_path  # noqa: F811
+    ):
+        node, clock = _node(node_env, tmp_path)
+        _dispatch_via_handle_outcome(node, clock)
+
+        first_id = _commands(node)[0].command_id
+        by_robot = {
+            msg.robot_id: msg.action for msg in _commands(node) if msg.command_id == first_id
+        }
+        assert by_robot == {
+            "robot_4": "reverse",
+            "robot_1": "temporary_wait",
+            "robot_2": "temporary_wait",
+            "robot_3": "temporary_wait",
+        }
+
+
+class TestHeldRobotsNeverCorruptTheirRealPlanLeg:
+    """Advisor-review regression: `_apply_plan_leg_status` routed a held
+    robot's `temporary_wait` COMPLETED straight onto its REAL (different,
+    not-yet-dispatched) plan leg, marking robot_1's `yield` (or robot_3's
+    `reverse`) `done` before either ever ran.
+    """
+
+    def test_holding_robot_1_during_recede_does_not_touch_its_yield_leg(
+        self, node_env, tmp_path  # noqa: F811
+    ):
+        node, clock = _node(node_env, tmp_path)
+        _dispatch_via_handle_outcome(node, clock)
+        plan_id = node._plan_tracker.active_plan.plan_id
+        first_id = _commands(node)[0].command_id
+
+        _complete_command(node, first_id)
+
+        plan = node._plan_tracker.plan(plan_id)
+        assert plan.leg_for("robot_1").status == "pending"
+        assert plan.leg_for("robot_2").status == "pending"
+        # robot_4 IS the acting robot of phase one -- its own leg legitimately
+        # reaches done.
+        assert plan.leg_for("robot_4").status == "done"
+
+    def test_holding_robot_3_during_the_cross_phase_does_not_mark_it_done_twice(
+        self, node_env, tmp_path  # noqa: F811
+    ):
+        node, clock = _node(node_env, tmp_path)
+        _dispatch_via_handle_outcome(node, clock)
+        plan_id = node._plan_tracker.active_plan.plan_id
+        first_id = _commands(node)[0].command_id
+        _complete_command(node, first_id)
+        second_id = "req-jc-junction-recede-robot_3"
+        _complete_command(node, second_id)
+
+        cross_id = "req-jc-junction-cross"
+        robot_ids = node._tracker.robots_of(cross_id)
+        for robot_id in robot_ids:
+            if robot_id in ("robot_3", "robot_4"):
+                continue
+            node._on_status(
+                SimpleNamespace(command_id=cross_id, robot_id=robot_id, status="ACTIVE")
+            )
+
+        plan = node._plan_tracker.plan(plan_id)
+        # robot_3/robot_4 already finished their OWN (recede) legs; the
+        # cross phase holding them again must not disturb that terminal
+        # status, and must never raise on the done -> active transition
+        # attempt a naive routing would make.
+        assert plan.leg_for("robot_3").status == "done"
+        assert plan.leg_for("robot_4").status == "done"
+        assert plan.leg_for("robot_1").status == "active"
+
+
+class TestFallbackHoldsAlreadyRecededRobots:
+    """Advisor-review regression: the fallback's own plain-yield grounding
+    drops the cross-axis pair from its YIELD order via J1 (correctly, for
+    the dispatch shape), but originally dispatched NO command at all for
+    either -- letting an already-receded one's base mission resume through
+    the junction mid-yield.
+    """
+
+    def test_fallback_after_the_second_recede_fails_still_holds_both_cross_axis_robots(
+        self, node_env, tmp_path  # noqa: F811
+    ):
+        node, clock = _node(node_env, tmp_path)
+        _dispatch_via_handle_outcome(node, clock)
+        first_id = _commands(node)[0].command_id
+        _complete_command(node, first_id)  # robot_4 receded successfully
+        second_id = "req-jc-junction-recede-robot_3"
+
+        _fail_command(node, second_id)  # robot_3's recede fails
+
+        fallback_id = "req-jc-yield"
+        by_robot = {
+            msg.robot_id: msg.action for msg in _commands(node) if msg.command_id == fallback_id
+        }
+        assert by_robot.get("robot_1") == "yield" or by_robot.get("robot_2") == "yield"
+        # Neither cross-axis robot gets a `yield`/`cross` ROLE (J1 still
+        # drops both from the yield's own order), but neither is left
+        # unaddressed either -- robot_4 (receded successfully) and robot_3
+        # (whose own recede just failed) are both held.
+        assert by_robot.get("robot_4") == "temporary_wait"
+        assert by_robot.get("robot_3") == "temporary_wait"
+
+
+class TestAttemptResolutionDeferred:
+    """Advisor-review regression: `_attempts.resolve` fired on PHASE ONE's
+    own resolution (the only command_id ever `record`-ed), marking the
+    whole `junction_clear` attempt "completed" after just the first recede
+    -- before the cross phase had even been dispatched.
+    """
+
+    def test_attempt_stays_unresolved_after_the_first_recede_completes(
+        self, node_env, tmp_path  # noqa: F811
+    ):
+        node, clock = _node(node_env, tmp_path)
+        _dispatch_via_handle_outcome(node, clock)
+        first_id = _commands(node)[0].command_id
+
+        _complete_command(node, first_id)
+
+        record = node._attempts._record  # noqa: SLF001
+        assert record is not None
+        assert record.command_id == first_id
+        assert record.resolved_at is None
+        assert record.outcome_status is None
+
+    def test_attempt_resolves_completed_only_once_the_whole_sequence_finishes(
+        self, node_env, tmp_path  # noqa: F811
+    ):
+        node, clock = _node(node_env, tmp_path)
+        _dispatch_via_handle_outcome(node, clock)
+        first_id = _commands(node)[0].command_id
+        _complete_command(node, first_id)
+        _complete_command(node, "req-jc-junction-recede-robot_3")
+
+        _complete_command(node, "req-jc-junction-cross")
+
+        record = node._attempts._record  # noqa: SLF001
+        assert record.resolved_at is not None
+        assert record.outcome_status == "completed"
+
+    def test_attempt_resolves_failed_when_a_later_phase_fails(
+        self, node_env, tmp_path  # noqa: F811
+    ):
+        node, clock = _node(node_env, tmp_path)
+        _dispatch_via_handle_outcome(node, clock)
+        first_id = _commands(node)[0].command_id
+        _complete_command(node, first_id)
+        second_id = "req-jc-junction-recede-robot_3"
+
+        _fail_command(node, second_id)
+        record_mid = node._attempts._record  # noqa: SLF001
+        assert record_mid.resolved_at is None  # still deferred mid-fallback
+
+        _complete_command(node, "req-jc-yield")
+
+        record = node._attempts._record  # noqa: SLF001
+        assert record.resolved_at is not None
+        assert record.outcome_status == "completed"
+
+
+# `dispatch_matches_plan` for `junction_clear` is tested against the REAL
+# `InProcessPipeline` (not this file's `_JunctionClearFakePipeline`, which
+# hard-codes the field and would make the check vacuous) in
+# `test_m5_reasoning_pipeline.py::test_junction_clear_seeds_phases_and_
+# matches_dispatch` / `test_junction_clear_absent_without_a_declared_
+# pocket_still_matches`.

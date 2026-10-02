@@ -1661,6 +1661,14 @@ class JunctionClearPhase(BaseModel):
     # (yield-axis) phase.
     robot_id: str | None
     command: dict[str, Any]
+    # Every robot `command` addresses only to hold it (`temporary_wait`),
+    # not to execute a leg of the ACCEPTED plan in this phase. M5 must
+    # never route one of these robots' status from THIS command onto the
+    # tracked plan's leg for it: that leg's real action (e.g. robot_1's
+    # eventual `yield`) is still `pending`, dispatched by a LATER phase --
+    # routing this phase's hold-`COMPLETED` onto it would mark it `done`
+    # before it ever ran. Disjoint from the command's acting robot(s).
+    held_robot_ids: tuple[str, ...] = ()
 
 
 class JunctionClearPhasePlan(BaseModel):
@@ -1684,8 +1692,13 @@ class JunctionClearPhasePlan(BaseModel):
     # restriction) -- "v1 behavior ... single yield or no-op" exactly, per
     # the M5 spec section. Dispatched by M5 in place of whichever phase
     # resolves FAILED, for every robot that phase (and every one after it)
-    # would have addressed.
+    # would have addressed. Also holds every recede candidate that may
+    # already have receded by the time of a later failure
+    # (`fallback_held_robot_ids`): J1 drops them from the plain yield's own
+    # order, but a ALREADY-receded one's base mission must still not be
+    # free to resume through the junction while the fallback yield runs.
     fallback_command: dict[str, Any]
+    fallback_held_robot_ids: tuple[str, ...] = ()
 
 
 def ground_junction_clear_phases(
@@ -1777,6 +1790,25 @@ def ground_junction_clear_phases(
         static_obstacles=static_obstacles,
         yield_feasibility_mode=yield_feasibility_mode,
     )
+    # Hold every recede candidate the fallback's own plain-yield grounding
+    # does not already address (J1 drops them from its order on purpose):
+    # one of them may already have receded by the time of a later failure,
+    # and its base mission must not be free to resume through the junction
+    # while this fallback yield runs.
+    fallback_addressed = {action["robot_id"] for action in fallback_command["actions"]}
+    fallback_extra_holds = [
+        {
+            "robot_id": robot_id,
+            "action": "temporary_wait",
+            "parameters": {"duration_sec": params.wait_backstop_sec},
+        }
+        for robot_id in ranked
+        if robot_id not in fallback_addressed
+    ]
+    if fallback_extra_holds:
+        fallback_command = validate_coordination_command(
+            {**fallback_command, "actions": [*fallback_command["actions"], *fallback_extra_holds]}
+        )
 
     phases: list[JunctionClearPhase] = []
     for robot_id in ranked:
@@ -1789,6 +1821,7 @@ def ground_junction_clear_phases(
                 "parameters": {"backup_distance_m": distance, "reason": decision.root_cause},
             }
         ]
+        held_robot_ids: list[str] = []
         for other_id in decision.involved_robots:
             if other_id == robot_id:
                 continue
@@ -1799,6 +1832,7 @@ def ground_junction_clear_phases(
                     "parameters": {"duration_sec": params.junction_recede_hold_sec},
                 }
             )
+            held_robot_ids.append(other_id)
         command = validate_coordination_command(
             {
                 "command_id": f"{result.request_id}-junction-recede-{robot_id}",
@@ -1808,7 +1842,14 @@ def ground_junction_clear_phases(
                 "degradations": ["junction_clear=recede"],
             }
         )
-        phases.append(JunctionClearPhase(label="recede", robot_id=robot_id, command=command))
+        phases.append(
+            JunctionClearPhase(
+                label="recede",
+                robot_id=robot_id,
+                command=command,
+                held_robot_ids=tuple(held_robot_ids),
+            )
+        )
 
     yield_robots = _junction_yield_axis_robots(decision, geometry)
     yield_result = result.model_copy(
@@ -1824,7 +1865,7 @@ def ground_junction_clear_phases(
         static_obstacles=static_obstacles,
         yield_feasibility_mode=yield_feasibility_mode,
     )
-    held_robot_ids = {action["robot_id"] for action in yield_command["actions"]}
+    acting_robot_ids = {action["robot_id"] for action in yield_command["actions"]}
     extra_holds = [
         {
             "robot_id": robot_id,
@@ -1832,7 +1873,7 @@ def ground_junction_clear_phases(
             "parameters": {"duration_sec": params.wait_backstop_sec},
         }
         for robot_id in ranked
-        if robot_id not in held_robot_ids
+        if robot_id not in acting_robot_ids
     ]
     yield_command = validate_coordination_command(
         {
@@ -1842,9 +1883,20 @@ def ground_junction_clear_phases(
             "degradations": [*yield_command.get("degradations", []), "junction_clear=cross"],
         }
     )
-    phases.append(JunctionClearPhase(label="cross", robot_id=None, command=yield_command))
+    # Every recede candidate is held (never acting) in the cross phase,
+    # whether or not its own hold needed `extra_holds` above (it may
+    # already be a `temporary_wait`/absent-but-filtered member of
+    # `yield_command` for an unrelated reason -- `ranked` is still the
+    # correct, complete held set for THIS phase either way).
+    phases.append(
+        JunctionClearPhase(
+            label="cross", robot_id=None, command=yield_command, held_robot_ids=tuple(ranked)
+        )
+    )
 
-    return JunctionClearPhasePlan(phases=phases, fallback_command=fallback_command)
+    return JunctionClearPhasePlan(
+        phases=phases, fallback_command=fallback_command, fallback_held_robot_ids=tuple(ranked)
+    )
 
 
 def _legacy_template_degradations(
@@ -3172,5 +3224,42 @@ def plan_matches_dispatch(
         leg's action.
     """
     dispatched = project_dispatched_legs(command, known_robot_ids)
+    plan_by_robot = {leg.robot_id: leg.action for leg in plan_legs}
+    return dispatched == plan_by_robot
+
+
+def junction_clear_plan_matches_dispatch(
+    plan_legs: Sequence[ProposedPlanLeg],
+    plan: JunctionClearPhasePlan,
+    known_robot_ids: Sequence[str],
+) -> bool:
+    """`plan_matches_dispatch`'s analogue for a `junction_clear` phase sequence.
+
+    A SINGLE dispatched command cannot be compared against the tracked
+    plan's full sequence for this strategy the way `plan_matches_dispatch`
+    compares an ordinary decision's one command: `junction_clear` phases
+    across SEVERAL commands, each addressing every involved robot but only
+    ACTING on some of them (`JunctionClearPhase.held_robot_ids` for the
+    rest). This reconstructs the per-robot action the WHOLE sequence
+    dispatches -- each robot's action from whichever phase actually acts on
+    it, every phase's held robots excluded from its own contribution -- and
+    compares that reconstruction to the tracked plan instead.
+
+    Args:
+        plan_legs: The accepted plan's legs.
+        plan: The full precomputed phase sequence
+            (`ground_junction_clear_phases`'s output).
+        known_robot_ids: Every tracked robot in the scene.
+
+    Returns:
+        True when every robot's reconstructed action equals its plan leg's
+        action.
+    """
+    dispatched: dict[str, str] = dict.fromkeys(known_robot_ids, "continue")
+    for phase in plan.phases:
+        held = set(phase.held_robot_ids)
+        for robot_id, action in project_dispatched_legs(phase.command, known_robot_ids).items():
+            if robot_id not in held:
+                dispatched[robot_id] = action
     plan_by_robot = {leg.robot_id: leg.action for leg in plan_legs}
     return dispatched == plan_by_robot

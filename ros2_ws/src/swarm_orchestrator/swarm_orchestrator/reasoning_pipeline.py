@@ -25,6 +25,7 @@ from reasoning.rag.command_grounder import (
     YieldFeasibilityMode,
     filter_command_robot_ids,
     ground_junction_clear_phases,
+    junction_clear_plan_matches_dispatch,
     plan_matches_dispatch,
     resolve_strategy_alias,
     validate_coordination_command,
@@ -943,10 +944,6 @@ class InProcessPipeline:
                 )
                 acceptance = self._plan_tracker.accept_plan(verified)
                 known_robot_ids = [robot.robot_id for robot in request.robot_states]
-                dispatch_matches_plan = plan_matches_dispatch(
-                    verified.legs, grounded, known_robot_ids
-                )
-                grounded = _attach_plan_id(grounded, acceptance.plan.plan_id)
                 if (
                     decision.strategy == "junction_clear"
                     and params is not None
@@ -977,6 +974,19 @@ class InProcessPipeline:
                         # branch, same geometry), so there is nothing to
                         # queue -- one ordinary yield command, no phases.
                         junction_phases = None
+                if junction_phases is not None:
+                    # A single dispatched command (`grounded`, one phase) is
+                    # not comparable to the full sequence the same way an
+                    # ordinary decision's one command is; reconstruct the
+                    # WHOLE sequence's per-robot action instead.
+                    dispatch_matches_plan = junction_clear_plan_matches_dispatch(
+                        verified.legs, junction_phases, known_robot_ids
+                    )
+                else:
+                    dispatch_matches_plan = plan_matches_dispatch(
+                        verified.legs, grounded, known_robot_ids
+                    )
+                grounded = _attach_plan_id(grounded, acceptance.plan.plan_id)
                 plan_info = PlanDispatchInfo(
                     plan_id=acceptance.plan.plan_id,
                     provenance=verified.provenance,

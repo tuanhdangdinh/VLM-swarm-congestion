@@ -42,6 +42,13 @@ class JunctionPhaseAdvance(BaseModel):
     # involved. Also None once `done` -- nothing further to dispatch.
     command: dict[str, Any] | None
     phase_reached: JunctionPhaseReached
+    # Every robot `command` addresses only to hold (never route its status
+    # onto the tracked plan's leg for it -- see
+    # `command_grounder.JunctionClearPhase.held_robot_ids`); `()` when
+    # `command` is None. The caller MUST use this, never re-derive it, to
+    # decide which of `command`'s robots' statuses to route to
+    # `PlanTracker.set_leg_status`.
+    held_robot_ids: tuple[str, ...] = ()
     # True once this queue has nothing further to dispatch: every phase
     # resolved COMPLETED, or a FAILED phase's fallback has itself resolved
     # (COMPLETED or FAILED -- "falls back to v1 behavior" is itself the
@@ -60,8 +67,10 @@ class JunctionPhaseQueue:
     def __init__(self, plan: JunctionClearPhasePlan) -> None:
         self._phases = list(plan.phases)
         self._fallback_command = plan.fallback_command
+        self._fallback_held_robot_ids = tuple(plan.fallback_held_robot_ids)
         self._index = 0
         self._active_command_id: str | None = None
+        self._active_held_robot_ids: tuple[str, ...] = ()
         self._fallback_dispatched = False
         self._done = False
 
@@ -71,9 +80,10 @@ class JunctionPhaseQueue:
         Returns:
             `plan.phases[0].command`, as grounded at decision time.
         """
-        command = self._phases[0].command
-        self._active_command_id = command["command_id"]
-        return command
+        phase = self._phases[0]
+        self._active_command_id = phase.command["command_id"]
+        self._active_held_robot_ids = phase.held_robot_ids
+        return phase.command
 
     @property
     def done(self) -> bool:
@@ -88,6 +98,18 @@ class JunctionPhaseQueue:
         if self._index >= len(self._phases):
             return "resolved"
         return self._phases[self._index].label
+
+    @property
+    def active_held_robot_ids(self) -> tuple[str, ...]:
+        """The CURRENT active command's held (never leg-status-routed) robots.
+
+        Mirrors `start()`'s return and the `held_robot_ids` of the most
+        recent `JunctionPhaseAdvance`; exposed separately so a caller that
+        already dispatched `start()`'s command (never re-dispatching it,
+        e.g. `_dispatch`, which already published it as `grounded`) can
+        still look up its held set.
+        """
+        return self._active_held_robot_ids
 
     def on_resolved(self, command_id: str, completed: bool) -> JunctionPhaseAdvance:
         """Advance the queue on one dispatched command's terminal status.
@@ -109,7 +131,10 @@ class JunctionPhaseQueue:
         """
         if self._done or command_id != self._active_command_id:
             return JunctionPhaseAdvance(
-                command=None, phase_reached=self.phase_reached, done=self._done
+                command=None,
+                phase_reached=self.phase_reached,
+                held_robot_ids=self._active_held_robot_ids,
+                done=self._done,
             )
         if self._fallback_dispatched:
             # The fallback command's own resolution: nothing further is
@@ -123,15 +148,23 @@ class JunctionPhaseQueue:
             # SAME recede or a later phase.
             self._fallback_dispatched = True
             self._active_command_id = self._fallback_command["command_id"]
+            self._active_held_robot_ids = self._fallback_held_robot_ids
             return JunctionPhaseAdvance(
-                command=self._fallback_command, phase_reached="fallback", done=False
+                command=self._fallback_command,
+                phase_reached="fallback",
+                held_robot_ids=self._fallback_held_robot_ids,
+                done=False,
             )
         self._index += 1
         if self._index >= len(self._phases):
             self._done = True
             return JunctionPhaseAdvance(command=None, phase_reached="resolved", done=True)
-        next_command = self._phases[self._index].command
-        self._active_command_id = next_command["command_id"]
+        next_phase = self._phases[self._index]
+        self._active_command_id = next_phase.command["command_id"]
+        self._active_held_robot_ids = next_phase.held_robot_ids
         return JunctionPhaseAdvance(
-            command=next_command, phase_reached=self._phases[self._index].label, done=False
+            command=next_phase.command,
+            phase_reached=next_phase.label,
+            held_robot_ids=next_phase.held_robot_ids,
+            done=False,
         )

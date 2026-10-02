@@ -416,6 +416,80 @@ class TestStaggeredNeverSimultaneous:
         }
         assert {"robot_3", "robot_4"} <= held
 
+    def test_cross_phase_matches_the_studys_c_prime_numbers_only_with_j2_declared(self):
+        # Advisor-review finding: without `junction_backup_clearance_m`
+        # (J2) ALSO declared, the cross phase grounds with the shipped
+        # 1.7 m clearance -- the study's "1, E-W, shipped" row, whose
+        # park->passer-goal race (0.39-0.52 m, < 0.45 in 6/8 rows) is
+        # exactly what this feature exists to avoid. The scene MUST
+        # declare both `junction_recede_offset_m` (this feature) AND
+        # `junction_backup_clearance_m` (J2) for the yield phase to run at
+        # the study's "1, E-W, J2" row numbers (backup 0.69-0.91, park |x|
+        # 1.02, escort 1.77-2.00) instead.
+        without_j2 = ground_junction_clear_phases(
+            _result(_decision()), snapshot=_frame(), params=GroundingParams(mode="derived"),
+            geometry=_geometry(),
+        )
+        with_j2 = ground_junction_clear_phases(
+            _result(_decision()), snapshot=_frame(), params=GroundingParams(mode="derived"),
+            geometry=_geometry().model_copy(update={"junction_backup_clearance_m": 1.1}),
+        )
+        yielder_without = next(
+            a for a in without_j2.phases[-1].command["actions"] if a["action"] == "yield"
+        )
+        yielder_with = next(
+            a for a in with_j2.phases[-1].command["actions"] if a["action"] == "yield"
+        )
+        assert yielder_without["parameters"]["backup_distance_m"] == 1.151  # shipped 1.7 m
+        assert yielder_with["parameters"]["backup_distance_m"] == 0.799  # J2 1.1 m, in [0.69, 0.91]
+        assert abs(yielder_with["parameters"]["retreat_x_m"]) == pytest.approx(1.018, abs=1e-3)
+        escort_with = yielder_with["parameters"]["passer_escort_distance_m"]
+        assert 1.77 <= escort_with <= 2.00
+
+    def test_cross_phase_safety_numbers_do_not_react_to_the_recede_pairs_position(self):
+        # Pinning the `JunctionClearPhasePlan` docstring's own "the scene
+        # does not change mid-sequence" assumption (advisor review): ground
+        # the cross phase from the PRE-recede snapshot and again from a
+        # POST-recede one (robot_3/robot_4 already at their |y|=1.2
+        # pockets); the SAFETY-CRITICAL yield parameters -- the ones a
+        # band/room/escort sweep could react to -- must be identical either
+        # way, since none of them reads a cross-axis robot's position.
+        # FINDING, reported rather than papered over: the `extra_holds`
+        # LIST ORDER (robot_3 vs robot_4 first) can differ between the two
+        # snapshots -- chi re-ranks on whichever positions it is given, and
+        # the two recede candidates are an exact tie at |y|=1.2 -- but this
+        # never happens in this system's actual use (one
+        # `ground_junction_clear_phases` call per decision, from one
+        # snapshot, never re-ground from a later one), and the tie is
+        # broken by robot_id either way, so it is deterministic, not a race.
+        geometry = _geometry().model_copy(update={"junction_backup_clearance_m": 1.1})
+        pre = ground_junction_clear_phases(
+            _result(_decision()), snapshot=_frame(), params=GroundingParams(mode="derived"),
+            geometry=geometry,
+        )
+        post_positions = dict(IB10_STANDOFF)
+        post_positions["robot_3"] = (-0.0208, -1.2)
+        post_positions["robot_4"] = (0.0045, 1.2)
+        post = ground_junction_clear_phases(
+            _result(_decision()), snapshot=_frame(post_positions),
+            params=GroundingParams(mode="derived"), geometry=geometry,
+        )
+        yielder_pre = next(
+            a for a in pre.phases[-1].command["actions"] if a["action"] == "yield"
+        )
+        yielder_post = next(
+            a for a in post.phases[-1].command["actions"] if a["action"] == "yield"
+        )
+        safety_keys = (
+            "backup_distance_m",
+            "pull_off_lateral_m",
+            "retreat_x_m",
+            "retreat_y_m",
+            "passer_escort_distance_m",
+        )
+        for key in safety_keys:
+            assert yielder_pre["parameters"][key] == yielder_post["parameters"][key], key
+
     def test_the_fallback_is_a_plain_yield_dropping_the_cross_pair_via_j1(self):
         plan = ground_junction_clear_phases(
             _result(_decision()), snapshot=_frame(), params=GroundingParams(mode="derived"),
@@ -425,8 +499,14 @@ class TestStaggeredNeverSimultaneous:
         assert "order=junction_same_axis" in plan.fallback_command["degradations"]
         actions = {a["robot_id"]: a["action"] for a in plan.fallback_command["actions"]}
         assert actions.get("robot_1") == "yield" or actions.get("robot_2") == "yield"
-        assert "robot_3" not in actions
-        assert "robot_4" not in actions
+        # J1 still drops both cross-axis robots from the YIELD's own order,
+        # but neither is left unaddressed: a recede candidate may already
+        # have receded (or failed mid-recede) by the time of this fallback,
+        # and its base mission must not be free to resume through the
+        # junction while the fallback yield runs.
+        assert actions.get("robot_3") == "temporary_wait"
+        assert actions.get("robot_4") == "temporary_wait"
+        assert plan.fallback_held_robot_ids == ("robot_4", "robot_3")
 
     def test_raises_when_no_candidate_survives_chi(self):
         with pytest.raises(CommandGroundingError):
