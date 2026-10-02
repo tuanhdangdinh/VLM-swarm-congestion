@@ -247,9 +247,31 @@ Per-robot streaks over the M5 scene log (`m5_scene/fbe42f6dee3b40b5b6dcf2f5540f2
 
 Neither event is a streak (both are single isolated frames) and neither coincides with a scoring-relevant window: robot_1's is pre-trigger bring-up (never a scored dwell), robot_4's is mid-recede-dwell under the stale-tolerant `ArrivalGate` (costs no credit per the resolved gate's own finding). Both are consistent with the established background noise floor (`docs/reports/2026-10-01-robot1-stale-rootcause.md`'s "a few percent of frames" mechanism), not the catastrophic 74-82% rate that mechanism's one failing pose produces. Per the ruling, this does NOT invalidate the run; flagged here per the instrumentation requirement.
 
-### Run B results
+### Run B results (`vlm_verbatim`, run `20261002_113936`)
 
-**STATUS: IN PROGRESS at the time this section was written** -- filled in below once the run resolves.
+| Criterion | Result |
+|---|---|
+| Jam forms first | **PASS** -- all four within 0.15 m of the standoff by sim_time 27.4 s |
+| Full phase sequence executes | **PASS** -- `phase_reached=recede` (robot_3), then `phase_reached=cross` (robot_4), then `phase_reached=resolved done=True`; staggered, never simultaneous |
+| Provenance correct | **PASS** -- `plan.provenance="vlm_verbatim"`, `edits=[]`: the scripted plan (naming `robot_4` then `robot_3`) verified feasible and executed with zero repair |
+| Deploy check (no `shipped_unsolved` tag) | **PASS** -- `grounding_degradations: ["junction_clear=recede"]` only |
+| Ordered crossing (yielder re-enters last) | **PASS for the phase itself**, same caveat as run A below |
+| 4/4 position-verified arrivals | **FAIL** -- only `robot_2` arrived (`dist_to_goal_m=0.069`); `robot_1` (1.202 m), `robot_3` (2.865 m), `robot_4` (0.961 m) frozen, `min_pairwise_distance_m` bottoming at 0.331 m in the `[150, 300]` s window -- the same shape of outcome as run A, independently reproduced |
+
+**Live-position chi re-ranking, confirmed in a real run (not just the hand-computed tie from the step-5 landing notes):** the actual dispatch order was **robot_3 first, then robot_4** -- the OPPOSITE of run A's order and of this run's own scripted `proposed_plan` (which named `robot_4` then `robot_3`, matching the synthetic standoff frame's D_SPACE numbers, 0.923 vs 0.942). `ground_junction_clear_phases` ranks chi from the LIVE snapshot at the actual trigger moment, not a fixed reference frame, and the two candidates are a near-exact tie there -- small real trajectory noise flips which one chi ranks cheaper. This did not cost `vlm_verbatim` provenance or `dispatch_matches_plan` (both stayed true): `junction_clear_plan_matches_dispatch` compares each robot's ASSIGNED ACTION, never the relative order between the two recede candidates (confirmed by reading `_plan_problems`'s junction_clear ordering audit, which only checks "every recede leg precedes every yield-axis leg," not recede-vs-recede order), and `_repair_plan`'s search space does not include a recede/recede reorder as a tracked edit either. This is consistent with -- and now empirically reproduces -- the step-5 landing note's own finding 5 ("the cosmetic `extra_holds` LIST ORDER... CAN differ... harmless and not actually exercised twice by this system").
+
+Same root-cause as run A: `resume base mission robot=robot_3 goal=(0.0, 1.75)` / `robot=robot_1 goal=(1.75, 0.0)` / `robot=robot_2 goal=(-1.75, 0.0)` fire the moment `done=True`, releasing the N-S pair toward each other's original goals with no further ordering; `trigger suppressed robots=['robot_1', 'robot_3', 'robot_4']` (then narrowing to `['robot_1', 'robot_3']`) appears repeatedly after resolution, same suppressed-cooldown pattern, same stall. **Two independent runs, same shape of failure** -- this is a reproducible gap in what happens after the composite resolves, not a one-off artifact of either mock script.
+
+### STALE instrumentation (run B)
+
+| Robot | Distinct-frame STALE events | Longest streak | Window |
+|---|---|---|---|
+| robot_1 | 0 | 0 | -- |
+| robot_2 | 0 | 0 | -- |
+| robot_3 | 0 | 0 | -- |
+| robot_4 | 0 | 0 | -- |
+
+Zero STALE frames across all four robots for the whole 300 s episode (389 distinct M1 frames per robot). Consistent with the mechanism being a per-pose phase effect that does not fire on every run (the rootcause report's own framing); does not conflict with run A's two single-frame blips -- both are well inside the documented noise floor.
 
 ---
 
