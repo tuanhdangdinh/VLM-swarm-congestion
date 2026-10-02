@@ -44,10 +44,16 @@ class ChainStep:
         cleared: The passer that just cleared.
         next: The passer admitted in its place, or None when it was the last
             one and the hold ends.
+        moved_m: The cleared passer's own odometry displacement since its
+            admission, i.e. the measured value compared against
+            `cleared.clear_m` to decide clearance (step-7b ruling (iii):
+            gate-event logging needs this to make a release attributable,
+            not just the yes/no clearance decision).
     """
 
     cleared: PasserPlan
     next: PasserPlan | None
+    moved_m: float
 
 
 def _valid_order(order: Any, first: str) -> list[str] | None:
@@ -171,6 +177,6 @@ class CrossingChain:
         self._reference = None
         if self._index == len(self._passers) - 1:
             self._finished = True
-            return ChainStep(cleared=cleared, next=None)
+            return ChainStep(cleared=cleared, next=None, moved_m=moved)
         self._index += 1
-        return ChainStep(cleared=cleared, next=self.current)
+        return ChainStep(cleared=cleared, next=self.current, moved_m=moved)

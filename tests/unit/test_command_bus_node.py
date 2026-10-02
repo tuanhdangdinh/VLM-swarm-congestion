@@ -22,6 +22,31 @@ if _command_bus_node_mod.CoordinationStatus is object:
     _command_bus_node_mod.CoordinationStatus = _CoordinationStatusStub
 
 
+class _NullLogger:
+    """Step-7b ruling (iii): a `get_logger()` stand-in for the gate-event
+    logging now reached by every yield-hold path. Captures lines (`.lines`)
+    so a test can assert on them, same cost as discarding them."""
+
+    def __init__(self):
+        self.lines: list[str] = []
+
+    def info(self, msg):
+        self.lines.append(msg)
+
+    def error(self, msg):
+        self.lines.append(msg)
+
+    def matching(self, text: str) -> list[str]:
+        return [line for line in self.lines if text in line]
+
+
+class _FixedClock:
+    """A `get_clock()` stand-in for `_sim_now()` (step-7b ruling (iii))."""
+
+    def now(self):
+        return SimpleNamespace(nanoseconds=0)
+
+
 class _Msg:
     def __init__(
         self,
@@ -215,6 +240,8 @@ def test_command_bus_yield_holds_after_pull_off_completes():
     )
     node.create_timer = lambda period, cb: cb() or object()
     node.destroy_timer = lambda t: None
+    node.get_logger = lambda: _NullLogger()
+    node.get_clock = lambda: _FixedClock()
 
     node._dispatch(
         _Msg(action="yield"),
@@ -255,6 +282,8 @@ def test_command_bus_yield_without_pull_off_holds_directly_after_backup():
     node._publish_status = lambda command, status, detail: statuses.append((status, detail))
     node.create_timer = lambda period, cb: cb() or object()
     node.destroy_timer = lambda t: None
+    node.get_logger = lambda: _NullLogger()
+    node.get_clock = lambda: _FixedClock()
 
     node._dispatch(
         _Msg(action="yield"),
@@ -284,14 +313,13 @@ def _build_node(adapter):
     node.create_timer = lambda period, cb: object()
     node.destroy_timer = lambda t: None
 
-    class Logger:
-        def info(self, msg):
-            pass
-
-        def error(self, msg):
-            pass
-
-    node.get_logger = lambda: Logger()
+    # A single persistent instance (not a fresh one per call) so step-7b
+    # ruling (iii)'s gate-event log lines, emitted across several
+    # get_logger().info(...) calls over the life of one hold, accumulate
+    # somewhere a test can inspect via node.get_logger().lines.
+    logger = _NullLogger()
+    node.get_logger = lambda: logger
+    node.get_clock = lambda: _FixedClock()
 
     published = []
 
@@ -1291,6 +1319,74 @@ def test_two_passer_hold_backstop_releases_every_remaining_wait():
     ]
     assert rig.node._active_waits == {}
     assert rig.unsubscribed == ["/robot_1/odom"]
+
+
+# ---------------------------------------------------------------------------
+# Step-7b ruling (iii): CrossingChain gate-event logging, sim-stamped and
+# structured, so release attribution is decidable from logs alone (7a's own
+# report could not tell "cleared via CrossingChain" from "released by the
+# hold_sec timer backstop" for the SAME run without this).
+# ---------------------------------------------------------------------------
+
+
+def test_gate_events_log_admit_cleared_and_clearance_release():
+    rig = _YieldRig()
+    _start_two_passer_yield(rig, _no_escort(_TWO_PASSER_YIELD))
+    rig.odom_at("robot_1", -0.3, 0.0)
+    rig.odom_at("robot_1", 2.4, 0.0)  # robot_1 clears (2.7 m >= 1.5 m)
+    rig.odom_at("robot_3", -2.5, 0.0)
+    rig.odom_at("robot_3", 2.5, 0.0)  # robot_3 clears -> hold ends
+
+    lines = rig.node.get_logger().lines
+    admits = [line for line in lines if "crossing_chain gate_admit" in line]
+    cleared = [line for line in lines if "crossing_chain gate_cleared" in line]
+    releases = [line for line in lines if "crossing_chain gate_release" in line]
+
+    assert any("passer=robot_1" in line for line in admits)
+    assert any("passer=robot_3" in line for line in admits)
+    assert any(
+        "passer=robot_1" in line and "moved_m=" in line and "clear_m=" in line
+        for line in cleared
+    )
+    assert any("passer=robot_3" in line for line in cleared)
+    # Exactly one release decision, explicitly attributed to clearance.
+    assert len(releases) == 1
+    assert "reason=clearance" in releases[0]
+    assert "sim_t=" in releases[0]
+    assert "command=cmd-Y" in releases[0] and "yielder=robot_2" in releases[0]
+
+
+def test_gate_release_logs_hold_timer_reason_when_passer_never_clears():
+    rig = _YieldRig()
+    _start_two_passer_yield(rig)
+    rig.odom_at("robot_1", -0.3, 0.0)  # admitted, never clears
+    rig.timer(90.0).cb()  # hold_sec backstop fires
+
+    releases = [
+        line
+        for line in rig.node.get_logger().lines
+        if "crossing_chain gate_release" in line
+    ]
+    assert len(releases) == 1
+    assert "reason=hold_timer" in releases[0]
+    assert "reason=clearance" not in releases[0]
+
+
+def test_gate_release_reason_distinguishes_clearance_from_hold_timer_single_passer():
+    # Single-passer case (no crossing_order): the SAME two reasons must be
+    # distinguishable, not just in the two-passer chain.
+    rig = _YieldRig()
+    _start_two_robot_yield(rig, _TWO_ROBOT_YIELD)
+    rig.odom_at("robot_2", 0.3, 0.0)
+    rig.odom_at("robot_2", -1.3, 0.0)  # clears (1.6 m >= 1.5 m)
+
+    releases = [
+        line
+        for line in rig.node.get_logger().lines
+        if "crossing_chain gate_release" in line
+    ]
+    assert len(releases) == 1
+    assert "reason=clearance" in releases[0]
 
 
 def test_two_passer_failed_backup_releases_every_wait():

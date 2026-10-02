@@ -5648,6 +5648,67 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-10-03** — **Step-7b rulings (i)/(iii)/(v): M4 race guard + CrossingChain
+  gate-event logging, both additive-only.** Branch `feat/v2-step7b`, cut from
+  `feat/prereg-v2-composite`. Executes
+  `docs/superpowers/specs/2026-09-30-prereg-v2-design.md` build-order step 7,
+  STEP-7a OUTCOME rulings for 7b
+  (`docs/reports/2026-10-02-step7a-blocker-fixes.md`); full report:
+  `docs/reports/2026-10-03-step7b-oracle-freeze.md`.
+  - **M4 PROTOCOL NOTE (ruling i, race guard).** 7a traced the "ordered
+    release not demonstrated" finding to `BaseMissionDriver`
+    (`ros2_ws/src/swarm_execution/swarm_execution/base_mission.py`) and
+    `CoordinationClientNode`
+    (`.../coordination_client_node.py`) — **not** `command_bus_node.py`,
+    which the spec text names; recorded here as the file deviation the spec
+    assumed wrongly, since the race is in the client's own cross-topic
+    ordering (`/coordination/commands` vs `/coordination/status`), not the
+    bus's dispatch logic. Fix: `BaseMissionDriver` now tracks, per robot,
+    the latest command_id seen while already suppressed
+    (`_pending_next`), so a terminal for the recorded SUPPRESSION OWNER that
+    arrives after a successor command was already seen (but not yet taken,
+    because ownership transfer waits for the owner's own terminal) is
+    recognized as stale and promotes the successor to owner instead of
+    resuming base navigation. Symmetric handling for the successor's own
+    terminal arriving first. Additive-only: one new dict, the existing
+    `on_command`/`on_status` return contracts unchanged, the v1
+    single-command path produces byte-identical call sequences (no second
+    command is ever seen while suppressed, so `_pending_next` stays empty
+    throughout). `BaseMissionDriver` stays ROS2-free; log-worthy decisions
+    are queued (`drain_events()`) and drained by the node after each
+    `on_command`/`on_status` call, not logged from the pure driver.
+  - **M4 PROTOCOL NOTE (ruling iii, gate-event logging).**
+    `command_bus_node.py`'s yield-hold closures (`_admit`, `_on_passer_odom`,
+    `_finish_hold`) and `crossing_chain.py`'s `ChainStep` (new `moved_m`
+    field) gained sim-stamped, structured log lines
+    (`crossing_chain gate_admit` / `gate_cleared` / `gate_release`) at every
+    admission/release decision — state transitions only, never per
+    odometry tick. `gate_release` carries an explicit
+    `reason=clearance|hold_timer`: 7a's own report could not distinguish,
+    from logs alone, whether the SAME attempt-3 run's hold ended via
+    genuine `CrossingChain` tracking or the `hold_sec` timer backstop; this
+    closes that gap for every future run, live or mock. Additive-only:
+    no control-flow change, only new log lines plus one new dataclass
+    field with no default (both existing construction sites updated, no
+    third-party caller exists).
+  - **Ruling (v).** `_last_trigger_robot_ids`
+    (`ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py`)
+    is now cleared at the end of every `_handle_outcome` call (closing a
+    latent staleness window where a later, unrelated dispatch could read a
+    leftover trigger set). A `junction_clear` resolution's LATER phases
+    (`_dispatch_junction_phase`, which runs after that clear) still need
+    the triggering event's robot set for `_with_plan_continue_partners`'s
+    pair-scope narrowing, so it is persisted into a new
+    `_trigger_robots_by_plan[plan_id]` dict at the point `_dispatch` learns
+    the plan_id (before the clear), and `_with_plan_continue_partners` now
+    reads that plan-bound copy instead of the transient attribute.
+  - **Verification.** Full local suite, clean detached baseline at
+    `cf368ec`: 63 failed / 4416 passed / 152 skipped / 3 collection errors
+    (environment-specific `pxr`/API-key/USD failures, pre-existing).
+    After rulings (i)/(iii)/(v): 63 failed / 4426 passed / 152 skipped / 3
+    errors — failing-test-name set byte-identical to baseline (`diff`
+    confirmed empty); +10 is this task's own new pins.
+
 - **2026-09-29** — **The pair-scoped exemption and its bystander guard pass
   their first live three-robot test, and so does ordered multi-passer
   release.** Tree `6d66a0d`, T2b, mock. Evidence:

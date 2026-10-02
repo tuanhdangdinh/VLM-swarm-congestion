@@ -72,6 +72,16 @@ class CommandBusNode(Node):
         self.create_timer(self.NAV_WATCHDOG_SWEEP_PERIOD_SEC, self._sweep_nav_watchdogs)
         self.get_logger().info("Command bus started.")
 
+    def _sim_now(self) -> float:
+        """Sim-stamped seconds from the node clock (`use_sim_time`).
+
+        Step-7b ruling (iii): CrossingChain gate-event logging must be
+        sim-stamped, not wall-clock, so a gate line can be read against the
+        same GT/decision-artifact timeline every other sim-time log in this
+        project uses.
+        """
+        return self.get_clock().now().nanoseconds / 1e9
+
     def _on_command(self, msg: CoordinationCommand) -> None:
         self.get_logger().info(
             f"command received command={msg.command_id} robot={msg.robot_id} action={msg.action}"
@@ -207,10 +217,20 @@ class CommandBusNode(Node):
                 odom_subs: list = []
                 done_ref = {"done": False}
 
-                def _finish_hold(detail: str) -> None:
+                def _finish_hold(detail: str, reason: str) -> None:
                     if done_ref["done"]:
                         return
                     done_ref["done"] = True
+                    # Step-7b ruling (iii): the only way to tell "the chain's
+                    # own clearance tracking ended the hold" from "the
+                    # hold_sec timer backstop ended it" from logs alone --
+                    # 7a's own report could not distinguish these for the
+                    # SAME attempt-3 run without this line.
+                    self.get_logger().info(
+                        "crossing_chain gate_release "
+                        f"command={command.command_id} yielder={command.robot_id} "
+                        f"reason={reason} sim_t={self._sim_now():.3f}"
+                    )
                     self._publish_status(command, "COMPLETED", detail)
                     t = timer_ref.get("timer")
                     if t is not None:
@@ -220,7 +240,7 @@ class CommandBusNode(Node):
                         self.destroy_subscription(sub)
 
                 def _hold_expired() -> None:
-                    _finish_hold("yield complete")
+                    _finish_hold("yield complete", reason="hold_timer")
 
                 def _on_passer_odom(passer_id: str, odom_msg) -> None:
                     if done_ref["done"]:
@@ -229,8 +249,14 @@ class CommandBusNode(Node):
                     step = chain.on_odometry(passer_id, p.x, p.y)
                     if step is None:
                         return
+                    self.get_logger().info(
+                        "crossing_chain gate_cleared "
+                        f"command={command.command_id} yielder={command.robot_id} "
+                        f"passer={step.cleared.robot_id} moved_m={step.moved_m:.3f} "
+                        f"clear_m={step.cleared.clear_m:.3f} sim_t={self._sim_now():.3f}"
+                    )
                     if step.next is None:
-                        _finish_hold("yield complete: passer cleared")
+                        _finish_hold("yield complete: passer cleared", reason="clearance")
                         return
                     # An escorted passer's wait is still holding its base
                     # mission; it is past the yielder now, so let it go.
@@ -240,6 +266,12 @@ class CommandBusNode(Node):
                     _admit(step.next, "released: previous passer cleared")
 
                 def _admit(passer, release_detail: str) -> None:
+                    self.get_logger().info(
+                        "crossing_chain gate_admit "
+                        f"command={command.command_id} yielder={command.robot_id} "
+                        f"passer={passer.robot_id} clear_m={passer.clear_m:.3f} "
+                        f"escort_m={passer.escort_m} sim_t={self._sim_now():.3f}"
+                    )
                     if passer.escort_m is not None:
                         # Odom yaw 0 faces each robot's base goal (every robot
                         # spawns facing its goal), so no map-frame knowledge.
