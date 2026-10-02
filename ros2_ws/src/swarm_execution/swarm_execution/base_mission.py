@@ -50,7 +50,19 @@ class BaseMissionDriver:
         self._accepted: dict[str, _Goal] = {}
         # robot_id -> command_id that owns the suppression (see on_command).
         self._suppressed_by: dict[str, str] = {}
+        # robot_id -> the latest command_id seen for a robot that was already
+        # suppressed (step-7b race guard; see on_command/on_status). Tracks
+        # "the robot's currently-active command" independently of which
+        # command this driver believes it owns, because /coordination/commands
+        # and /coordination/status have no cross-topic ordering guarantee: a
+        # successor command can be seen here before the predecessor's own
+        # terminal status is processed.
+        self._pending_next: dict[str, str] = {}
         self._held: set[str] = set()
+        # Log-worthy events since the last drain_events() call (race-guard
+        # decisions); kept out of the return-value contract every existing
+        # caller already depends on.
+        self._events: list[str] = []
 
     def _desired(self) -> list[tuple[str, _Goal]]:
         """Owned, unheld robots whose Nav2-accepted goal differs from desired."""
@@ -101,32 +113,104 @@ class BaseMissionDriver:
             suppressed. In the latter case the original owner is kept: the
             command bus busy-rejects a second command for a mid-maneuver
             robot, so that command must not steal the suppression it never
-            actually held.
+            actually held. `command_id` is still recorded as the robot's
+            latest-seen command (step-7b race guard) so a stale terminal for
+            the OLD owner, arriving after this one, is not mistaken for the
+            robot's real, currently-active command.
         """
         if robot_id in self._suppressed_by:
+            self._pending_next[robot_id] = command_id
             return False
         self._suppressed_by[robot_id] = command_id
+        self._pending_next.pop(robot_id, None)
         self._accepted.pop(robot_id, None)
         return True
 
     def on_status(
         self, robot_id: str, command_id: str, status: str
     ) -> list[tuple[str, _Goal]]:
-        """On the owning command's terminal status, re-issue base navigation.
+        """On the robot's currently-active command's terminal, resume base navigation.
 
-        Only the suppression owner's terminal unsuppresses: a terminal for
-        any other command (busy-reject FAILED, stale republish after the
-        owner changed) returns `[]` and leaves suppression, held-set, and
-        registry state untouched. The owner check also makes republished
-        statuses (the command bus emits each ~3×) resume exactly once, since
-        the first terminal removes the owner entry.
+        Only the robot's currently-active command's terminal unsuppresses.
+        That is usually the suppression owner (`_suppressed_by`), but not
+        always: `/coordination/commands` and `/coordination/status` carry no
+        cross-topic ordering guarantee, so a successor command's `on_command`
+        call can be processed here before the predecessor's own terminal
+        status is (step-7b race guard, from a reproduced M4 race where a
+        junction-phase successor was processed first and the predecessor's
+        later, stale terminal then freed the robot for good instead of the
+        successor holding it). Three cases, by which command_id this status
+        matches:
+
+        - The recorded owner, with no newer command seen since: genuine
+          completion — unsuppress and resume, exactly as before.
+        - The recorded owner, but a newer command was already seen for this
+          robot (`_pending_next`): this terminal is stale for a superseded
+          command. Logged and ignored in the sense that it never resumes
+          base navigation — but the newer command is promoted to owner
+          now, since the predecessor it was waiting behind has genuinely
+          terminated.
+        - The pending (not-yet-owning) command itself, arriving before the
+          recorded owner's own terminal: a COMPLETED means the command bus
+          had already finished it for real (this is the race's other
+          direction) — promote and resume now. A FAILED means it never took
+          ownership at all (e.g. a genuine busy-reject) — logged and
+          ignored, the recorded owner is untouched.
+        - Anything else (a duplicate/already-superseded terminal) is logged
+          and ignored.
+
+        Args:
+            robot_id: Robot the status belongs to.
+            command_id: Command the status belongs to.
+            status: `ACTIVE`/`COMPLETED`/`FAILED`; only a terminal status
+                (`COMPLETED`/`FAILED`) is acted on.
+
+        Returns:
+            Navigate goals to (re)issue, or `[]` when nothing resumes.
         """
         if status not in _TERMINAL_STATUSES:
             return []
-        if self._suppressed_by.get(robot_id) != command_id:
+        owner = self._suppressed_by.get(robot_id)
+        pending = self._pending_next.get(robot_id)
+        if command_id == owner:
+            if pending is not None and pending != command_id:
+                self._events.append(
+                    "race guard: superseded terminal ignored "
+                    f"robot={robot_id} command={command_id} status={status} "
+                    f"promoted_to={pending}"
+                )
+                self._suppressed_by[robot_id] = pending
+                self._pending_next.pop(robot_id, None)
+                return []
+            del self._suppressed_by[robot_id]
+            self._pending_next.pop(robot_id, None)
+            return self._desired()
+        if command_id == pending:
+            self._pending_next.pop(robot_id, None)
+            if status == "COMPLETED":
+                self._events.append(
+                    "race guard: pending command completed before predecessor "
+                    f"terminal robot={robot_id} command={command_id} owner_was={owner}"
+                )
+                self._suppressed_by.pop(robot_id, None)
+                return self._desired()
+            self._events.append(
+                "race guard: stale terminal ignored "
+                f"robot={robot_id} command={command_id} status={status} "
+                f"reason=pending_never_owned owner={owner}"
+            )
             return []
-        del self._suppressed_by[robot_id]
-        return self._desired()
+        self._events.append(
+            "race guard: stale terminal ignored "
+            f"robot={robot_id} command={command_id} status={status} "
+            f"reason=unknown_command owner={owner}"
+        )
+        return []
+
+    def drain_events(self) -> list[str]:
+        """Return and clear log-worthy race-guard decisions since the last call."""
+        events, self._events = self._events, []
+        return events
 
     def on_goal_accepted(self, robot_id: str, goal: _Goal) -> None:
         """Record that Nav2 accepted a navigate goal, so it is not re-issued."""

@@ -89,6 +89,7 @@ class CoordinationClientNode(Node):
             # The command bus uses a separate Nav2Adapter, so cancel our own
             # navigate goal here to avoid two action goals fighting on this robot.
             self._adapter.cancel(msg.robot_id)
+        self._log_driver_events()
 
     def _on_status(self, msg: CoordinationStatus) -> None:
         for robot_id, goal in self._driver.on_status(
@@ -96,6 +97,15 @@ class CoordinationClientNode(Node):
         ):
             self.get_logger().info(f"resume base mission robot={robot_id} goal={goal}")
             self._issue_navigate(robot_id, goal)
+        self._log_driver_events()
+
+    def _log_driver_events(self) -> None:
+        # Step-7b race guard: `BaseMissionDriver` queues log-worthy ownership
+        # decisions (stale terminals, pending-command promotions) rather than
+        # logging directly, since it stays ROS2-free. Drained after every
+        # on_command/on_status call so nothing is lost between calls.
+        for line in self._driver.drain_events():
+            self.get_logger().info(line)
 
     def _on_holds(self, msg: String) -> None:
         try:

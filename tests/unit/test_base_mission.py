@@ -151,6 +151,109 @@ def test_non_owner_terminal_status_keeps_suppression():
     ]
 
 
+# ---------------------------------------------------------------------------
+# Step-7b ruling (i): race guard (successor command processed before the
+# predecessor's own terminal status; /coordination/commands and
+# /coordination/status carry no cross-topic ordering guarantee).
+# ---------------------------------------------------------------------------
+
+
+def test_v1_single_command_path_is_byte_identical():
+    """Regression pin: a robot with only ever one command resumes exactly as before."""
+    driver = BaseMissionDriver()
+    driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}})
+
+    assert driver.on_command("robot_1", "cmd-1") is True
+    assert driver.on_status("robot_1", "cmd-1", "COMPLETED") == [
+        ("robot_1", (3.0, 0.0))
+    ]
+    assert driver.drain_events() == []
+
+
+def test_7a_race_successor_seen_before_predecessor_terminal_is_not_freed():
+    """Reproduces 7a's exact race: a successor's on_command is processed
+    before the predecessor's own terminal status. The predecessor's stale
+    terminal must not resume base navigation; the successor becomes owner."""
+    driver = BaseMissionDriver()
+    driver.on_registry({"robot_4": {"task": "cross", "goal": [0.0, -1.75]}})
+    driver.on_command("robot_4", "cross-cmd")
+
+    # The release phase's successor command is seen (and, from this driver's
+    # view, busy-rejected) BEFORE the cross phase's own terminal arrives.
+    assert driver.on_command("robot_4", "release-cmd") is False
+
+    # The predecessor's stale terminal must not resume the base mission.
+    assert driver.on_status("robot_4", "cross-cmd", "COMPLETED") == []
+    events = driver.drain_events()
+    assert any("promoted_to=release-cmd" in e for e in events)
+
+    # The robot stays suppressed under the successor; a registry update
+    # issues nothing for it.
+    assert driver.on_registry({"robot_4": {"task": "cross", "goal": [0.0, -1.75]}}) == []
+
+    # Only the successor's own terminal frees the robot.
+    assert driver.on_status("robot_4", "release-cmd", "COMPLETED") == [
+        ("robot_4", (0.0, -1.75))
+    ]
+
+
+def test_race_successor_terminal_arrives_before_predecessor_terminal():
+    """The other race direction: the successor's own terminal (a fast
+    maneuver) is processed before the stale predecessor terminal ever
+    arrives. The successor's COMPLETED must resume; the later, stale
+    predecessor terminal must then be a no-op."""
+    driver = BaseMissionDriver()
+    driver.on_registry({"robot_4": {"task": "cross", "goal": [0.0, -1.75]}})
+    driver.on_command("robot_4", "cross-cmd")
+    driver.on_command("robot_4", "release-cmd")
+
+    assert driver.on_status("robot_4", "release-cmd", "COMPLETED") == [
+        ("robot_4", (0.0, -1.75))
+    ]
+    events = driver.drain_events()
+    assert any("race guard: pending command completed" in e for e in events)
+
+    # The stale predecessor terminal, arriving late, must not double-resume.
+    assert driver.on_status("robot_4", "cross-cmd", "COMPLETED") == []
+
+
+def test_three_command_phase_chain_recede_cross_release():
+    """Models the full junction_clear phase chain (recede -> cross ->
+    release) on one robot, with the SAME race at both phase boundaries."""
+    driver = BaseMissionDriver()
+    driver.on_registry({"robot_3": {"task": "cross", "goal": [0.0, 1.75]}})
+
+    driver.on_command("robot_3", "recede-cmd")
+    # cross's command is seen before recede's own terminal (race #1).
+    driver.on_command("robot_3", "cross-cmd")
+    assert driver.on_status("robot_3", "recede-cmd", "COMPLETED") == []
+
+    # release's command is seen before cross's own terminal (race #2).
+    driver.on_command("robot_3", "release-cmd")
+    assert driver.on_status("robot_3", "cross-cmd", "COMPLETED") == []
+
+    # Only release's own terminal frees the robot, at the end of the chain.
+    assert driver.on_status("robot_3", "release-cmd", "COMPLETED") == [
+        ("robot_3", (0.0, 1.75))
+    ]
+
+
+def test_genuine_busy_reject_terminal_still_does_not_free_the_owner():
+    """Regression pin for the EXISTING busy-reject contract: a command that
+    never even reached on_command (command_bus_node's own busy-reject,
+    which the client observes only as a FAILED status) must not free the
+    robot, same as before this ruling's change."""
+    driver = BaseMissionDriver()
+    driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}})
+    driver.on_command("robot_1", "cmd-1")
+
+    assert driver.on_status("robot_1", "cmd-2", "FAILED") == []
+    assert driver.on_registry({"robot_1": {"task": "cross", "goal": [3.0, 0.0]}}) == []
+    assert driver.on_status("robot_1", "cmd-1", "COMPLETED") == [
+        ("robot_1", (3.0, 0.0))
+    ]
+
+
 def test_initial_issue_skips_held_robot():
     driver = BaseMissionDriver()
     driver.on_holds({"robot_1"})
