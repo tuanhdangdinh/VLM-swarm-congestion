@@ -190,66 +190,6 @@ Rules for maintaining it:
   place, per its own revision history:
   `docs/reports/2026-10-02-step7a-blocker-fixes.md`.
 
-- **2026-10-02** — **FOURTH CORRECTION (same task, step 7a): the THIRD
-  CORRECTION entry below made a factual error of its own, and separately
-  dropped a sentence from the SECOND CORRECTION entry it was appended
-  after — both found on a further advisor-review pass, SAME attempt-3
-  logs/GT, no further VM run.** (1) **Factual error, same mechanism as the
-  earlier ones: a speed range read too coarsely.** The THIRD CORRECTION's
-  point (2) says the lead's speed is "0.00-0.04 m/s for the whole window
-  -- 2.85 m of displacement could not have happened regardless of
-  timing." A precise GT read (every row, not a coarse sample) over the
-  release's own window — computed from this run's OWN measured RTF
-  (`(253.57-30.73) sim-s / 836.49 wall-s = 0.2664`, not the historical
-  ~0.27 figure), giving sim 94.9-215.4 for wall `ACTIVE`/`COMPLETED`
-  `1790957587.49`/`1790958039.44` — shows `robot_3` near-stationary
-  (0.00-0.04 m/s) only through sim ~100-195 s, THEN moving at 0.15-0.17
-  m/s for the final ~20 s, reaching a straight-line displacement of
-  **2.90 m from window start to window end — just OVER, not under, the
-  2.85 m `passer_clear_m` threshold**. Whether `CrossingChain`'s own
-  tracked "moved" value (measured from the passer's first post-admission
-  odometry sample, not necessarily this window's exact start) crossed
-  2.85 m before or after the ~120.5 s window closed cannot be
-  distinguished from the logs alone — genuinely AMBIGUOUS, not
-  "could not have happened regardless of timing" as THIRD CORRECTION
-  claimed. The report's finding 1 and its "Ordered secondary release" /
-  "Safety during the close-parked window" table rows are corrected to
-  this ambiguous framing (not VM-re-verified; a re-read of the same
-  artifacts). This also affects attribution: in THIS run (attempt 3) it
-  is `robot_4` — not `robot_3`, as attempts 1/2 showed — that ends up
-  parked on the other robot's declared side, confirming the same-side
-  placement is race-order-dependent across attempts, not a fixed
-  directional bug. (2) **Append-only violation, self-caught: restoring a
-  dropped sentence.** When THIRD CORRECTION was appended below (commit
-  `819bf65`), the SECOND CORRECTION entry immediately above it was edited
-  to drop its own closing sentence instead of being left untouched, losing
-  this fact: GT's own `robot_robot_contacts` field recorded no physical
-  contact at any point in the run, including the 0.0761 m
-  minimum-separation row at sim 106.1 s, despite 14,910 safety-monitor
-  `min_distance_violation` log lines over the whole run (not traced
-  further to which specific pairs produced each line). Restated here per
-  the append-only rule rather than re-editing SECOND CORRECTION again.
-  (3) **Three non-blocking disclosures, recorded rather than fixed (out of
-  this task's five-fix scope):** (a) fix 3's trigger-set narrowing
-  (`_last_trigger_robot_ids`) is correct for the detector-driven path, but
-  `orchestrator_node._on_trigger_analysis` (the operator/test manual-
-  trigger RPC) builds its `CongestionEvent.involved_robots` from EVERY
-  robot in the latest snapshot, not the actual conflict set — so a
-  `reverse` dispatched after a manually-triggered analysis still gets a
-  scene-wide `plan_continue_partners` set, i.e. the blanket-exemption
-  pattern fix 3 was built to remove still exists on that one path; (b)
-  `_last_trigger_robot_ids` is set in `_handle_outcome` but never cleared
-  afterward, so it holds the previous cycle's robot set between analyses
-  (harmless for the IB10 composite scenario, whose junction_clear plans
-  carry no `continue` legs to exempt, but a latent staleness window on
-  scenes that do); (c) the first CORRECTION entry's "before the 34.3 s
-  trigger" figure is off by the last digit — the report's own trigger
-  decision artifact (`fff3e18...`) reads `scene.stamp=34.2` s; corrected
-  here, not edited in place there, per the append-only rule. No VM state
-  changed by any of this (same attempt-3 artifacts, re-read, not re-run).
-  `docs/reports/2026-10-02-step7a-blocker-fixes.md` carries the corrected
-  finding 1, attribution paragraph, and both affected table rows.
-
 - **2026-10-02** — **THIRD CORRECTION (same task, step 7a): two more
   factual errors in the entry above, from a third advisor-review pass on
   the SAME attempt-3 logs (no further VM run); plus a real bug found and
@@ -302,6 +242,80 @@ Rules for maintaining it:
   fix, per the maintenance rule, rather than rewriting the first SAFETY
   fix-3 note above it. `docs/reports/2026-10-02-step7a-blocker-fixes.md`
   carries the corrected sections.
+
+- **2026-10-02** — **FOURTH CORRECTION (same task, step 7a): the THIRD
+  CORRECTION entry above made a factual error of its own, and separately
+  dropped a sentence from the SECOND CORRECTION entry it was appended
+  after — both found on a further advisor-review pass, SAME attempt-3
+  logs/GT, no further VM run; plus a real, cheap fix landed for a
+  disclosure this entry found, below.** (1) **Factual error, same
+  mechanism as the earlier ones: a speed range read too coarsely.** The
+  THIRD CORRECTION's point (2) says the lead's speed is "0.00-0.04 m/s
+  for the whole window -- 2.85 m of displacement could not have happened
+  regardless of timing." A precise GT read (every row, not a coarse
+  sample) over the release's own window — computed from this run's OWN
+  measured RTF (`(253.57-30.73) sim-s / 836.49 wall-s = 0.2664`, not the
+  historical ~0.27 figure), giving sim 94.9-215.4 for wall
+  `ACTIVE`/`COMPLETED` `1790957587.49`/`1790958039.44` — shows `robot_3`
+  near-stationary (0.00-0.04 m/s) only through sim ~100-195 s, THEN
+  moving at 0.15-0.17 m/s for the final ~20 s, reaching a straight-line
+  displacement of **2.90 m from window start to window end — just OVER,
+  not under, the 2.85 m `passer_clear_m` threshold**. Whether
+  `CrossingChain`'s own tracked "moved" value (measured from the passer's
+  first post-admission odometry sample, not necessarily this window's
+  exact start) crossed 2.85 m before or after the ~120.5 s window closed
+  cannot be distinguished from the logs alone — genuinely AMBIGUOUS, not
+  "could not have happened regardless of timing" as THIRD CORRECTION
+  claimed. The report's finding 1 and its "Ordered secondary release" /
+  "Safety during the close-parked window" table rows are corrected to
+  this ambiguous framing (not VM-re-verified; a re-read of the same
+  artifacts). This also affects attribution: in THIS run (attempt 3) it
+  is `robot_4` — not `robot_3`, as attempt 2 showed (attempt 1 never
+  reached the release phase, so it contributes no data point here) —
+  that ends up parked on the other robot's declared side, which is
+  CONSISTENT WITH a race-order-dependent mechanism, not proof of one with
+  only two data points. (2) **Append-only violation, self-caught:
+  restoring a dropped sentence.** When THIRD CORRECTION was appended
+  after it (commit `819bf65`), the SECOND CORRECTION entry immediately
+  above it was edited to drop its own closing sentence instead of being
+  left untouched, losing this fact: GT's own `robot_robot_contacts` field
+  recorded no physical contact at any point in the run, including the
+  0.0761 m minimum-separation row at sim 106.1 s, despite 14,910
+  safety-monitor `min_distance_violation` log lines over the whole run
+  (not traced further to which specific pairs produced each line).
+  Restated here per the append-only rule rather than re-editing SECOND
+  CORRECTION again. (3) **Disclosures: one fixed, two left open (out of
+  this task's five-fix scope).** (a) **Fixed**: fix 3's trigger-set
+  narrowing (`_last_trigger_robot_ids`) was correct for the
+  detector-driven path, but `orchestrator_node._on_trigger_analysis` (the
+  operator/test manual-trigger RPC) built its own `CongestionEvent.
+  involved_robots` from EVERY robot in the latest snapshot, not the
+  actual conflict set — so a `reverse` dispatched after a
+  manually-triggered analysis still got a scene-wide `plan_continue_
+  partners` set, i.e. an instance of the exact blanket-exemption pattern
+  fix 3 exists to remove, on this one path. Fixed by giving
+  `_submit_pipeline` a `trigger_robots: frozenset[str] | None = None`
+  parameter that `_on_trigger_analysis` passes as `frozenset()` (fails
+  closed to v1/no-narrowing behavior on the manual path, rather than
+  scene-wide); the detector-driven call site is unchanged (passes
+  `None`, preserving the real trigger set). Pinned:
+  `test_manual_trigger_reverse_gets_no_plan_continue_partners`. Local
+  suite zero-delta maintained (byte-identical failing-test-name set to
+  the `d3aa0f3` baseline, main-repo `.venv`); `ruff check` clean. (b)
+  **Still open**: `_last_trigger_robot_ids` is set in `_handle_outcome`
+  but never cleared afterward, so it holds the previous cycle's robot set
+  between analyses (harmless for the IB10 composite scenario, whose
+  `junction_clear` plans carry no `continue` legs to exempt, but a latent
+  staleness window on scenes that do) — not fixed here, flagged for the
+  coordinator. (c) the first CORRECTION entry's "before the 34.3 s
+  trigger" figure is off by the last digit — the report's own trigger
+  decision artifact (`fff3e18...`) reads `scene.stamp=34.2` s; corrected
+  here, not edited in place there, per the append-only rule. No VM state
+  changed by the forensic re-reads in this entry (same attempt-3
+  artifacts, re-read, not re-run); item (a)'s code fix is new and is
+  included in the VM-deployed branch tip for whoever runs it next.
+  `docs/reports/2026-10-02-step7a-blocker-fixes.md` carries the corrected
+  finding 1, attribution paragraph, and both affected table rows.
 
 - **2026-10-02** — **M4 protocol note (step 7a, fix 3): `swarm_execution/
   safety.py`'s `admitted_partners` gained an ADDITIVE, v2-branch-only
