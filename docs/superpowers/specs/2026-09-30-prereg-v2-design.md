@@ -628,6 +628,20 @@ text-only (v1) vs image-only (v2) urgency. No new prompt version —
 the prompt already carries no urgency text in the v2 cell by
 construction.
 
+BUILT 2026-10-02 (`priority_visual_r1/_r2`, flush-mounted load prop
+with pinned marker/lidar clearances; both members' prompts
+byte-identical; no-text pin at grep level). DESIGN NOTE recorded at
+build: with no registry priority at all, `priority_override` cannot
+ground in this cell (0–0 tie → unsupported); the executable oracle
+route is `yield` naming the empty robot — an asymmetry vs v1 B2 that
+is the point of the cell (urgency must come from the image), kept.
+B3 first-to-slip also BUILT (`convoy_counterflow_slip`, slip-onset =
+0.05 m sustained ≥1.0 s after conflict onset, identity + latency
+scored; identity degenerate under correct execution, informative
+under divergence). T3b map-bake question CLOSED: by design
+(timed_obstacles are never baked). VM visual pass is turnkey per the
+step-9 report checklist.
+
 ---
 
 ## (e) B3 first-to-slip
