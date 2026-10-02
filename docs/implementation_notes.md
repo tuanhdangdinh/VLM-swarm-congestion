@@ -37,6 +37,114 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-02** — **v2 build-order step 9: B2-visual urgency pair and B3
+  first-to-slip authored (local only; branch `feat/v2-b-scenarios`)** (prereg-v2
+  design docs/superpowers/specs/2026-09-30-prereg-v2-design.md, "(c)"/"(e)").
+  - **B2-visual (`priority_visual_r1`/`_r2`, `isaac/config/scenarios/`).**
+    Byte-identical T1 `wopen_eopen` geometry to v1's `priority_urgent_r1`/
+    `_r2` pair, but urgency carries ONLY visually: one robot's
+    `robots[].loaded: true` authors a pallet/load prop
+    (`isaac/vgu_sim/load_prop_asset.py`) rigidly mounted flush to its
+    chassis rear (local x = -0.102, no floating gap); both robots share one
+    neutral task label (`cross_narrow_aisle`) and NO robot carries a
+    registry `priority` (v1's pair sets `priority: 1` on the urgent robot,
+    unrendered; this pair has none, so `priority_override` cannot ground --
+    it needs a unique registry max, and a 0-0 tie has none -- degrading to
+    `strategy=unsupported`: a deliberate asymmetry against v1 B2, recorded
+    in the scenario header; the executable route is `yield` naming the
+    empty robot, per the new mocks
+    `config/mock_decisions/priority_visual_r{1,2}_yield_once.json`).
+    `RobotScenarioConfig.loaded` is additive (default `False`, omitted from
+    every dump via a new `model_serializer`, mirroring `OracleConfig`'s
+    ordering-field pattern), so every v1 scenario's dump stays byte-identical
+    (verified: `tests/unit/test_generate_head_on_family.py`'s 34 cases still
+    pass). Reuses `PriorityOracleConfig` unchanged (no contract change).
+    Mounting geometry and the marker/lidar-plane clearance are pure Python
+    (`marker_clearance_m`, `lidar_plane_clearance_m`; both verified positive,
+    0.042 m each, pinned in `tests/unit/test_load_prop_asset.py` with no
+    simulator); the USD authoring (`author_load_prop`) and its validator
+    (`isaac/vgu_sim/validation.py::validate_robot_load_prop`, wired into
+    `scenario_builder.build_scenario_stage`) are pxr-only and pinned with
+    `pytest.importorskip("pxr")` the same way `test_m6_validation.py`
+    already does (`tests/unit/test_load_prop_asset_pxr.py`, skipped
+    locally, 4 cases). The no-text-urgency pin
+    (`tests/unit/test_priority_visual_scenarios.py::TestNoTextUrgency`)
+    renders this pair's actual prompt and diffs it against the raw v2
+    template to confirm the only two superficially-matching terms
+    ("priority", from `priority_override`'s strategy-enum listing; "empty",
+    from an unrelated field-rendering rule) are template-fixed, not a leak --
+    every other candidate term (urgent/load/pallet/cargo/payload) is absent
+    in both presentation orders and both members, which render byte-identical
+    prompts to each other (unlike v1's pair, whose task labels swap).
+    Both members' maps are pinned byte-identical to the T1 map (no physics
+    change: the prop carries no `CollisionAPI`/`RigidBodyAPI`/`MassAPI`, and
+    its top, local z = 0.13, stays under the lidar's single scan plane,
+    local z = 0.172).
+  - **B3 first-to-slip (`convoy_counterflow_slip`,
+    `isaac/config/scenarios/convoy_counterflow_slip.yaml`).** A variant
+    scene, byte-identical geometry to the v1-frozen `convoy_counterflow`
+    cell (diff confined to `name` and `oracle`, pinned in
+    `tests/unit/test_convoy_counterflow_slip_scenario.py`; map pinned equal
+    too) that changes only what is SCORED: which platoon member
+    (`oracle.platoon`) is first to actually resume motion once the yielder
+    clears the gate, and how long that takes. New `OracleConfig.first_slipper`
+    field (additive, optional, validated as a `platoon` member, omitted from
+    the dump when unset -- same discipline as the existing ordering fields).
+    **Slip-onset criterion** (`scripts/coverage_scene_scores.py`,
+    `slip_onset_sec`/`first_slipper`/`score_b3`): a platoon member slips at
+    the first GT sample after the conflict onset whose departure from its
+    own onset-time position (> 0.05 m) is sustained for >= 1.0 s
+    continuously (mirrors `stop_time_sec`'s spell rule, inverted); the
+    first-to-slip identity ties to the lower robot id
+    (`first_passer`'s existing convention), and
+    `first_slip_latency_sec` is that onset minus the conflict onset. Reads
+    only each robot's own GT track, so a scripted command (e.g. the
+    robot_3/robot_4 hold-back release at ~43-51 sim-s) cannot trigger it by
+    itself. **Bug caught by the test suite, fixed before landing:** an
+    earlier version scanned each robot's FULL GT track, which read a lead
+    robot's own pre-standoff APPROACH (necessarily far from its not-yet-
+    reached onset position) as an immediate false slip at t=0; fixed by
+    restricting the scan to samples at/after the conflict onset. Pinned with
+    a synthetic GT fixture covering jitter-below-threshold, a poke-and-
+    return shorter than the hold, a robot that never moves, and -- the
+    regression case for the bug above -- identity flipping to a non-lead
+    platoon member (`tests/unit/test_coverage_scene_scores.py`, 8 new
+    cases). **Degeneracy, flagged per the build task's instruction, not
+    treated as a defect:** under the scene's own designed/correct execution,
+    `first_slipper` (`robot_1`, the platoon lead) is already implied by
+    `oracle.correct_order[0]`, so the identity call is not independently
+    informative for a correctly-executed episode; it is scored anyway
+    because (a) a live, imperfectly-grounded run can diverge from the design
+    (a wrong identity is itself diagnostic), and (b) latency is a new
+    continuous metric with no v1 counterpart. No M2/M3 VLM-facing contract
+    changed (confirmed: `OracleConfig` is scenario/oracle-side only).
+  - **Suite:** full local run at the branch point (`955b962`, clean venv,
+    `requirements-dev.txt`) vs. the same tree with both items landed: 63
+    failed / 4310 passed / 144 skipped / 3 collection errors (baseline) vs.
+    63 failed / 4372 passed / 152 skipped / 3 errors (final) -- the FAILED
+    test-name set is byte-identical (diffed), so zero regressions; the +62
+    passed / +8 skipped are this task's own new tests (the 8 skips are the
+    pxr-only authoring/validation cases, matching the project's existing
+    convention of skipping rather than erroring without Isaac Sim's `pxr`).
+    The 3 pre-existing collection errors (`test_marker_asset.py`,
+    `test_robot_asset.py`, `test_scenario_builder.py`, all missing a
+    `pytest.importorskip("pxr")` guard) and the 63 pre-existing failures
+    (49 `test_aruco_parity` cases plus 14 others, all pxr- or
+    environment-dependent) are untouched, out of this task's scope.
+  - **Turnkey for the VM pass (USD rebuild + visual verification, not done
+    here):** build both `priority_visual_r{1,2}` scenes and confirm (1) the
+    load prop renders visibly in the overhead annotated frame without
+    covering the ArUco marker at the standoff AND at the ROI edges near each
+    robot's spawn/goal; (2) M1 marker detection is unaffected (100% fresh,
+    0% STALE, matching the step-6 STALE-streak instrumentation rule) on both
+    the loaded and the empty robot; (3) a same-pose loaded-vs-empty crop
+    comparison between the two members is a free visual A/B; (4) both
+    scenes' Nav2 maps regenerate byte-identical to the committed ones (no-op,
+    already verified without Isaac from the authored YAML); (5) run the new
+    `scripts/coverage_scene_scores.py b3 --gt <dir>` subcommand once against
+    a real `convoy_counterflow_slip` GT log and sanity-check `first_slipper`/
+    `first_slip_latency_sec` against the live trajectory.
+
 - **2026-10-02** — **T3b's map-bake open item is resolved: by design, not a
   bug** (v2 build-order step 9 pre-check; resolves the open item flagged in
   the loop-map entry below, "`obstacle_in_candidate.yaml` (T3b)'s own

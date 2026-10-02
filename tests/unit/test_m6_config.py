@@ -527,6 +527,30 @@ def test_unset_first_slipper_stays_out_of_the_dump():
     assert "first_slipper" not in dumped["oracle"]
 
 
+def test_robot_loaded_defaults_false_and_round_trips():
+    cfg = ScenarioConfig.model_validate(VALID_HEAD_ON)
+    assert all(r.loaded is False for r in cfg.robots)
+    loaded = ScenarioConfig.model_validate({**VALID_HEAD_ON, "robots": [
+        {**VALID_HEAD_ON["robots"][0], "loaded": True}, VALID_HEAD_ON["robots"][1],
+    ]})
+    assert loaded.robots[0].loaded is True
+    assert ScenarioConfig.model_validate(loaded.model_dump(mode="json")) == loaded
+
+
+def test_unset_robot_loaded_stays_out_of_the_dump():
+    dumped = ScenarioConfig.model_validate(VALID_HEAD_ON).model_dump(mode="json")
+    assert all("loaded" not in robot for robot in dumped["robots"])
+
+
+def test_loaded_robot_keeps_the_key_in_the_dump():
+    cfg = ScenarioConfig.model_validate({**VALID_HEAD_ON, "robots": [
+        {**VALID_HEAD_ON["robots"][0], "loaded": True}, VALID_HEAD_ON["robots"][1],
+    ]})
+    dumped = cfg.model_dump(mode="json")
+    assert dumped["robots"][0]["loaded"] is True
+    assert "loaded" not in dumped["robots"][1]
+
+
 @pytest.mark.parametrize("family", ["bottleneck", "convoy"])
 def test_coverage_families_accept_a_multi_robot_ordering_oracle(family):
     data = _three_robot_ordering()

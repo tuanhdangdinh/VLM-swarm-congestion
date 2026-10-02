@@ -1,0 +1,19 @@
+[
+  {
+    "congestion_detected": true,
+    "type": "deadlock",
+    "involved_robots": ["robot_1", "robot_2"],
+    "root_cause": "Two robots met head-on inside the narrow aisle and neither can pass.",
+    "strategy": "yield",
+    "yield_robot": "robot_2",
+    "justification": "Scripted mock decision for the priority_visual_r1 smoke: robot_2 (empty) yields, robot_1 (loaded) passes."
+  },
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "Scene has cleared; robots are no longer blocking each other.",
+    "strategy": "none",
+    "justification": "Scripted mock decision for the priority_visual_r1 smoke: scene is clear after the yield."
+  }
+]

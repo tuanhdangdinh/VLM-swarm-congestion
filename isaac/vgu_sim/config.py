@@ -33,6 +33,11 @@ class RobotScenarioConfig(BaseModel):
     spawn: Pose2D
     goal: Goal2D
     initial_task: str
+    # B2-visual pair (priority_visual_r1/r2): a pallet/load prop rigidly
+    # mounted behind the chassis (isaac.vgu_sim.load_prop_asset), with no
+    # registry or text-channel signal. Additive and off by default, so every
+    # existing scenario dump stays byte-identical (see `_omit_unset_loaded`).
+    loaded: bool = False
 
     @field_validator("robot_id")
     @classmethod
@@ -47,6 +52,17 @@ class RobotScenarioConfig(BaseModel):
         if not (1 <= v <= 49):
             raise ValueError(f"marker_id must be in 1..49; got {v}")
         return v
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_loaded(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        # Every scenario authored before `loaded` existed, and every robot
+        # that does not carry a load, dumps with no `loaded` key -- the same
+        # byte-for-byte family-generator discipline as `OracleConfig`'s
+        # ordering fields.
+        data = handler(self)
+        if data.get("loaded") is False:
+            data.pop("loaded", None)
+        return data
 
 
 class ObstacleSize(BaseModel):

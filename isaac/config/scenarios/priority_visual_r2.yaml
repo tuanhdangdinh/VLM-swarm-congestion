@@ -1,0 +1,106 @@
+schema_version: 1
+name: priority_visual_r2
+family: head_on
+seed: 42
+duration_sec: 200.0
+
+# B2-visual urgency pair, one member of priority_visual_r1 / priority_visual_r2
+# (prereg-v2 design docs/superpowers/specs/2026-09-30-prereg-v2-design.md,
+# "(c) B2-visual urgency pair"). v1's `priority_urgent_r1`/`_r2` carries
+# urgency through the task label (text, never rendered as a number); this
+# pair carries it ONLY through the image: one robot is loaded (a pallet/load
+# prop rigidly mounted behind its chassis, `isaac.vgu_sim.load_prop_asset`),
+# the other is empty, and NO text or registry channel names which one.
+# Hand-authored from the same validated T1 `head_on_asymmetric_wopen_eopen_o0`
+# geometry as the v1 pair (C55 0.55 x 2.0 m at x = 0, spawns +-1.5, goals
+# +-2.5, both yields feasible); the family generator is untouched.
+#
+# The two members are byte-identical except `name`, which robot's
+# `robots[].loaded` is true, and the oracle block
+# (`tests/unit/test_priority_visual_scenarios.py` pins the diff). The loaded
+# robot is `robot_2` in `_r2` and `robot_1` in `_r1`, counterbalancing the
+# robot_1 and first-slot priors exactly as v1's pair does.
+#
+# No-text-urgency design (the whole point of this pair, pinned by a
+# grep-level test like B1's aperture-absence pin):
+#   - BOTH robots carry the SAME task label, `cross_narrow_aisle` -- the
+#     project's existing neutral label (T1/T2b/B3 use it for every robot
+#     that carries no semantic signal) -- so, unlike v1's pair, no label
+#     differs between the robots at all.
+#   - M5's registry carries NO `priority` field on either robot (v1's pair
+#     sets `priority: 1` on the urgent robot, read by M3 only, never
+#     rendered; this pair omits it entirely, so there is no backend signal
+#     either, only the image).
+#   - Consequence: `priority_override` cannot ground here. M3's alias grounds
+#     it as a yield by every robot below the UNIQUE registry-max priority
+#     (build item 3); with no robot carrying a priority, there is no unique
+#     max, so the route reads `strategy=unsupported` (today's behaviour) --
+#     an asymmetry against v1 B2, where the override route IS executable.
+#     The only executable route for this pair is `yield` naming the empty
+#     robot as yielder (see the mock
+#     `config/mock_decisions/priority_visual_yield_once.json`).
+#
+# Mounting geometry (full derivation and marker-clearance check:
+# `isaac/vgu_sim/load_prop_asset.py` module docstring; pinned without a
+# simulator in `tests/unit/test_load_prop_asset.py`): the prop is mounted
+# flush to the chassis rear (local x = -0.102, no floating gap), so it adds
+# nothing inside the robot's existing silhouette -- the marker neighbourhood
+# reads exactly as an empty robot's already does -- and its top (local
+# z = 0.13) stays under the lidar's single scan plane (local z = 0.172), with
+# no CollisionAPI/RigidBodyAPI/MassAPI, so Nav2, the lidar and the safety
+# monitor cannot see it either.
+#
+# Timing: 2 stacks, RTF ~0.39 (identical geometry to v1's pair); standoff at
+# 19-22 sim-s, trigger ~4.6 sim-s later; makespan ~100-120 sim-s; duration 200
+# (C10 margin >= 80 s).
+#
+# M5 settings, set by hand in swarm_orchestrator/config/orchestrator.yaml
+# before a run (the goal table there lists them; M5 does not read this file):
+#   - initial_tasks: robot_1 [2.5, 0.0], robot_2 [-2.5, 0.0], both with task
+#     `cross_narrow_aisle`; NO `priority` key on either robot.
+#   - scenario_geometry as shipped (corridor center_m 0.0, half_length_m
+#     1.0); config/rag.yaml grounding.mode derived (stage 2 on).
+#   - static_obstacles absent; prompt_static_obstacles false;
+#     shadow_classical_zones []; t0_probe_mode false.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -1.5, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 2.5, y: 0.0}
+    initial_task: cross_narrow_aisle
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 1.5, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: -2.5, y: 0.0}
+    initial_task: cross_narrow_aisle
+    loaded: true
+
+aisle_barrier:
+  effective_width_m: 0.55
+  center_x_m: 0.0
+  length_m: 2.0
+
+timed_obstacles: []
+static_obstacles: []
+
+expected_conflict:
+  type: deadlock
+  involved_robots: [robot_1, robot_2]
+  onset_window_sec: [8.0, 40.0]
+  min_duration_sec: 2.0
+
+oracle:
+  urgent_robot: robot_2
+  correct_yielder: robot_1
+  correct_first_passer: robot_2
+  classical_yielder: robot_2
+  objective: urgent_first
+  rationale: >-
+    robot_2 carries the visible load, so it passes first and robot_1
+    yields; urgency reaches the model only through the image (the loaded
+    robot), with no task-label or registry-priority signal in either
+    member of the pair.
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

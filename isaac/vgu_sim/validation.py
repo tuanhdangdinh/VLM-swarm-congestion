@@ -106,6 +106,40 @@ def validate_robot_marker(stage, robot_prim_path: str) -> None:
         raise ValidationError(f"aruco_marker at {marker_path} has no texture file")
 
 
+def validate_robot_load_prop(stage, robot_prim_path: str, expected: bool) -> None:
+    """Assert a robot's B2-visual load prop is present (or absent) and inert.
+
+    Catches a scenario config whose `robots[].loaded` never reached the USD
+    (a stale stage or a builder gap), and the one invariant the load prop
+    must never violate: no physics API, so it cannot appear to Nav2, the
+    lidar, or the safety monitor (isaac.vgu_sim.load_prop_asset).
+
+    Args:
+        stage: USD stage being validated.
+        robot_prim_path: Robot root prim, e.g. `/World/Robots/robot_1`.
+        expected: Whether this robot's config set `loaded: true`.
+
+    Raises:
+        ValidationError: If presence does not match `expected`, or a present
+            prop carries `CollisionAPI`, `RigidBodyAPI` or `MassAPI`.
+    """
+    from pxr import UsdGeom, UsdPhysics
+
+    prop_path = (
+        f"{robot_prim_path}/Geometry/base_footprint/base_link/load_prop"
+    )
+    cube = UsdGeom.Cube.Get(stage, prop_path)
+    if expected and not cube:
+        raise ValidationError(f"robot is loaded but load_prop missing at {prop_path}")
+    if not expected and cube:
+        raise ValidationError(f"robot is not loaded but load_prop present at {prop_path}")
+    if cube:
+        prim = cube.GetPrim()
+        for api in (UsdPhysics.CollisionAPI, UsdPhysics.RigidBodyAPI, UsdPhysics.MassAPI):
+            if prim.HasAPI(api):
+                raise ValidationError(f"load_prop at {prop_path} unexpectedly carries {api}")
+
+
 def validate_scenario_obstacles(stage, config: ScenarioConfig) -> None:
     """Assert every configured obstacle has a prim authored on the stage.
 

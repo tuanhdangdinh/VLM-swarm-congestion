@@ -143,6 +143,56 @@ def test_validate_scenario_obstacles_passes_when_prims_exist(tmp_path):
     validate_scenario_obstacles(stage, _obstacle_scenario())  # no exception
 
 
+class TestValidateRobotLoadProp:
+    def test_raises_when_loaded_but_prop_missing(self, tmp_path):
+        pytest.importorskip("pxr")
+        from isaac.vgu_sim.validation import validate_robot_load_prop
+
+        stage = _make_stage(tmp_path)
+        with pytest.raises(ValidationError, match="loaded but load_prop missing"):
+            validate_robot_load_prop(stage, "/World/Robots/robot_1", True)
+
+    def test_raises_when_not_loaded_but_prop_present(self, tmp_path):
+        pytest.importorskip("pxr")
+        from pxr import UsdGeom
+
+        from isaac.vgu_sim.validation import validate_robot_load_prop
+
+        stage = _make_stage(tmp_path)
+        UsdGeom.Cube.Define(
+            stage, "/World/Robots/robot_1/Geometry/base_footprint/base_link/load_prop"
+        )
+        with pytest.raises(ValidationError, match="not loaded but load_prop present"):
+            validate_robot_load_prop(stage, "/World/Robots/robot_1", False)
+
+    def test_passes_when_presence_matches_expected(self, tmp_path):
+        pytest.importorskip("pxr")
+        from pxr import UsdGeom
+
+        from isaac.vgu_sim.validation import validate_robot_load_prop
+
+        stage = _make_stage(tmp_path)
+        validate_robot_load_prop(stage, "/World/Robots/robot_1", False)  # no exception
+        UsdGeom.Cube.Define(
+            stage, "/World/Robots/robot_1/Geometry/base_footprint/base_link/load_prop"
+        )
+        validate_robot_load_prop(stage, "/World/Robots/robot_1", True)  # no exception
+
+    def test_raises_when_prop_carries_a_collider(self, tmp_path):
+        pytest.importorskip("pxr")
+        from pxr import UsdGeom, UsdPhysics
+
+        from isaac.vgu_sim.validation import validate_robot_load_prop
+
+        stage = _make_stage(tmp_path)
+        cube = UsdGeom.Cube.Define(
+            stage, "/World/Robots/robot_1/Geometry/base_footprint/base_link/load_prop"
+        )
+        UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+        with pytest.raises(ValidationError, match="unexpectedly carries"):
+            validate_robot_load_prop(stage, "/World/Robots/robot_1", True)
+
+
 def test_calibration_position_error_euclidean():
     from isaac.vgu_sim.validation import calibration_position_error
 

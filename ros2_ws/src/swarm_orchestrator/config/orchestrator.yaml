@@ -152,6 +152,20 @@ frame_downscale_width: null
 #     0.45 m floor but not the fuller 0.15 m margin -- see that header for
 #     the full measured table and why the margin is not reachable by
 #     widening y alone.
+#   priority_visual_r1 / priority_visual_r2 (B2-visual pair, two robots) ->
+#     robot_1 [2.5, 0.0], robot_2 [-2.5, 0.0] as written, BOTH with task
+#     cross_narrow_aisle on BOTH robots in BOTH members (no label differs);
+#     NO `priority` key on either robot in either member -- urgency reaches
+#     the model only through the image (one robot's load prop); M5 does not
+#     set `loaded` (that is a USD/scenario authoring field, not a registry
+#     one; the registry carries no urgency signal at all for this pair);
+#     scenario_geometry as shipped (headers of
+#     isaac/config/scenarios/priority_visual_r{1,2}.yaml)
+#   convoy_counterflow_slip (B3 first-to-slip, four robots, A55-J gate) ->
+#     identical M5 settings to convoy_counterflow above (same geometry,
+#     same goals, same start_delay_sec, same grounding.mode: legacy); only
+#     what is SCORED differs (header of
+#     isaac/config/scenarios/convoy_counterflow_slip.yaml)
 # Running a _gshort or _bshort scenario without changing these dispatches +-2.5
 # and the variant silently degrades to its beyond-goal twin, blocker back on
 # the goal path (isaac/config/scenarios/family/*_{gshort,bshort}_o0.yaml).

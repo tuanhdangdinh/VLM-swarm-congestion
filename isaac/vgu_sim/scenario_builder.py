@@ -15,9 +15,14 @@ from isaac.vgu_sim.config import (
     TimedObstacleConfig,
     WarehouseConfig,
 )
+from isaac.vgu_sim.load_prop_asset import author_load_prop
 from isaac.vgu_sim.marker_asset import author_aruco_marker
 from isaac.vgu_sim.paths import aruco_dict_name, marker_png_path
-from isaac.vgu_sim.validation import validate_loop_connectors, validate_scenario_obstacles
+from isaac.vgu_sim.validation import (
+    validate_loop_connectors,
+    validate_robot_load_prop,
+    validate_scenario_obstacles,
+)
 
 # The imported robot asset's variant set. "none" composes the visual meshes
 # and static collision shapes only: no articulation, rigid bodies or joints.
@@ -88,6 +93,10 @@ def build_scenario_stage(
     _validate_references(stage, output_path)
     validate_scenario_obstacles(stage, config)
     validate_loop_connectors(stage, config)
+    for robot_cfg in config.robots:
+        validate_robot_load_prop(
+            stage, f"/World/Robots/{robot_cfg.robot_id}", robot_cfg.loaded
+        )
     stage.Save()
     return output_path
 
@@ -123,6 +132,13 @@ def _author_robot(stage, robot_cfg, robot_asset_path: Path, scenario_dir: Path) 
     marker_png = marker_png_path(aruco_dict_name(), robot_cfg.marker_id)
     rel_marker = _relative_path(scenario_dir, marker_png)
     author_aruco_marker(stage, prim_path, str(rel_marker))
+
+    # B2-visual pair (priority_visual_r1/r2): a visual-only pallet/load prop,
+    # mounted flush to the chassis rear so it cannot occlude the marker and
+    # carries no physics API so it cannot appear to Nav2, the lidar, or the
+    # safety monitor (isaac.vgu_sim.load_prop_asset).
+    if robot_cfg.loaded:
+        author_load_prop(stage, prim_path)
 
 
 def _author_box(
