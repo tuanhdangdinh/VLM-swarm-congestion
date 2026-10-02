@@ -12,11 +12,12 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from isaac.scripts.generate_warehouse_map import build_occupancy_grid, world_to_cell
+from isaac.scripts.generate_warehouse_map import build_occupancy_grid, world_to_cell, write_map
 from isaac.vgu_sim.config import LoopMapConfig, WarehouseConfig
 
 VALID_LOOP = dict(
@@ -145,3 +146,46 @@ def test_loop_map_does_not_touch_primary_aisle():
     grid_default, _ = build_occupancy_grid(cfg, obstacles=[], resolution_m=0.05)
     for x in (-2.4, -1.2, 0.0, 1.2, 1.8, 2.3):
         assert _cell(grid_loop, cfg, res, x, 0.0) == _cell(grid_default, cfg, res, x, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# write_map orientation regression (2026-10-02 bug: an erroneous np.flipud
+# mirrored every Y-asymmetric feature to the wrong side of y=0; invisible
+# for every prior, Y-symmetric scenario map, first exposed by this carve).
+# docs/reports/2026-10-02-loop-preemption-smoke.md, "map-orientation bug".
+# ---------------------------------------------------------------------------
+
+
+def test_write_map_round_trip_places_the_carve_on_the_requested_side(tmp_path):
+    from PIL import Image
+
+    cfg = WarehouseConfig()
+    loop_cfg = LoopMapConfig(**VALID_LOOP)  # second aisle at y = +1.2 (north)
+    grid, res = build_occupancy_grid(cfg, obstacles=[], resolution_m=0.05, loop_map=loop_cfg)
+    write_map(grid, res, cfg, tmp_path, stem="t")
+
+    img = np.array(Image.open(tmp_path / "t.pgm"))
+    # Mirror the world_to_cell convention (row 0 = +y edge) exactly: this is
+    # what a reader of the saved file (nav2_map_server, empirically
+    # confirmed on the VM) uses row 0 for, with no additional flip.
+    def file_pixel(x: float, y: float) -> int:
+        row, col = world_to_cell(x, y, cfg, res)
+        return int(img[row, col])
+
+    # The carve must land at the requested north point, not its south mirror.
+    assert file_pixel(1.2, 1.2) == 255
+    assert file_pixel(1.2, -1.2) == 0
+    assert file_pixel(1.8, 0.75) == 255
+    assert file_pixel(1.8, -0.75) == 0
+
+
+def test_write_map_round_trip_is_unchanged_for_a_y_symmetric_map(tmp_path):
+    from PIL import Image
+
+    cfg = WarehouseConfig()
+    grid, res = build_occupancy_grid(cfg, obstacles=[], resolution_m=0.05)  # no loop_map: Y-symmetric
+    write_map(grid, res, cfg, tmp_path, stem="t")
+    img = np.array(Image.open(tmp_path / "t.pgm"))
+    # A Y-symmetric occupancy grid is invariant under the flip this bug
+    # removed, so the saved file must equal its own vertical mirror.
+    assert (img == np.flipud(img)).all()

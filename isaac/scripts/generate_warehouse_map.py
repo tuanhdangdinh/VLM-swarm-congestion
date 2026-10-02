@@ -360,10 +360,42 @@ def write_map(
 ) -> None:
     """Write occupancy grid to PGM and YAML files in out_dir.
 
-    The PGM image is flipped vertically before saving because PIL row 0 is the
-    top of the image, while the grid's row 0 is the world +y (north) edge —
-    these happen to match, but np.flipud ensures the PGM file has the correct
-    orientation when map_server loads it with origin at the bottom-left.
+    No vertical flip: PIL's row 0 is the top of the saved image, and
+    `nav2_map_server` (verified empirically on the VM, 2026-10-02 --
+    see docs/reports/2026-10-02-loop-preemption-smoke.md Section on the
+    map-orientation bug) loads a PGM's row 0 directly as the map's
+    highest-y row -- i.e. file row 0 = world +y (north) edge, with no
+    additional flip on its own part. `build_occupancy_grid`'s row 0 is
+    already the world +y edge (its own docstring), so the array written
+    here must be the array AS BUILT, unflipped, for the saved file's rows
+    to land on the world y-coordinates the rest of this module (and
+    `scenario_builder._author_loop_connectors`) assumes.
+
+    PREVIOUSLY (through 2026-10-02) this function applied `np.flipud`
+    before saving, on the mistaken belief that map_server re-flips on
+    load. That extra flip silently mirrored every Y-asymmetric map
+    feature to the wrong side of y=0. It was never observed because every
+    map built before the loop-map carve is Y-symmetric about y=0 (the
+    warehouse's own four rack quadrants mirror NE<->SE and NW<->SW, every
+    `aisle_barrier` block is authored as a `(+y, -y)` pair, and every
+    scenario's own obstacles/barriers sit on or symmetric about y=0) --
+    flipping a Y-symmetric array is a no-op, so the bug produced
+    byte-identical output for every scenario ever committed. It surfaced
+    only once a scenario carved something asymmetric (the loop map's
+    second aisle, built only on the north side): the carve was written
+    into the file at the mirrored (south, SE-rack) position instead of
+    where `scenario_builder.py`'s physically-correct USD carve put it,
+    confirmed on the VM: `nav2_map_server`'s own `/map` publish read FREE
+    at the carve's intended (north) coordinates' mirror image and
+    OCCUPIED at the coordinates themselves, while
+    `ros2 param get /map_server yaml_filename` confirmed the correct
+    per-scenario file was loaded and the USD/physics carve (GT: two
+    robots held motionless inside the former NE rack volume, zero drift)
+    was independently correct -- isolating the bug to this flip.
+    Removing it reproduces byte-identical output for every existing
+    (Y-symmetric) committed map -- verified by regenerating all of them
+    and diffing against the committed copies -- and only changes output
+    for the (new, asymmetric) loop-map scenarios.
 
     Args:
         grid: uint8 occupancy grid array with shape (height_px, width_px).
@@ -378,7 +410,7 @@ def write_map(
     pgm_path = out_dir / f"{stem}.pgm"
     yaml_path = out_dir / f"{stem}.yaml"
 
-    Image.fromarray(np.flipud(grid), mode="L").save(pgm_path)
+    Image.fromarray(grid, mode="L").save(pgm_path)
 
     origin_x = -config.width_m / 2
     origin_y = -config.depth_m / 2
