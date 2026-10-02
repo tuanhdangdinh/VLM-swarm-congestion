@@ -37,6 +37,111 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-02** — **v2 build-order step 5, post-landing advisor-review
+  fixes** (same branch, same task; six real bugs found by independent
+  review of the entry below, none caught by the tests that existed at that
+  point because the node-harness tests ran under the 2-robot default
+  `initial_tasks`, silently filtering robot_3/robot_4 out of every phase
+  and masking the held-robot wiring entirely):
+  1. **Held robots corrupted their own future plan leg.** A phase's
+     `temporary_wait` hold resolving COMPLETED was routed by
+     `_apply_plan_leg_status` onto the HELD robot's real (different,
+     still-`pending`) plan leg, marking it `done` before it ever ran (e.g.
+     robot_1's `yield` after phase one's robot_4-only recede). Fixed by a
+     new `JunctionClearPhase.held_robot_ids` (and `JunctionClearPhasePlan.
+     fallback_held_robot_ids`), threaded through `JunctionPhaseAdvance`
+     into a new `orchestrator_node._junction_held_robots` side table;
+     `_apply_plan_leg_status` now skips a robot entirely when it is held
+     for that command_id. Pinned:
+     `TestHeldRobotsNeverCorruptTheirRealPlanLeg` (`test_m5_node_
+     junction_clear.py`).
+  2. **The fallback left an already-receded (or mid-failure) cross-axis
+     robot unaddressed.** J1 correctly drops both cross-axis robots from
+     the fallback yield's own order, but the fallback command named
+     neither at all -- a receded robot's base mission could resume through
+     the junction while the fallback yield ran. Fixed: `ground_junction_
+     clear_phases` now adds the SAME `extra_holds` pattern the cross phase
+     already used to the fallback command too, for every `ranked`
+     candidate it does not already address. Pinned:
+     `TestFallbackHoldsAlreadyRecededRobots`, `test_the_fallback_is_a_
+     plain_yield_dropping_the_cross_pair_via_j1` (updated).
+  3. **`dispatch_matches_plan` read False on every clean `junction_clear`
+     run.** It compared phase one alone (`grounded`) against the tracked
+     plan's FULL sequence -- a category mismatch, since one phase is never
+     the whole resolution. Fixed: new `command_grounder.junction_clear_
+     plan_matches_dispatch` reconstructs the whole sequence's per-robot
+     action (each robot's action from whichever phase actually acts on it,
+     every phase's held robots excluded from its own contribution) and
+     `InProcessPipeline.run` uses it instead of `plan_matches_dispatch`
+     when `junction_phases is not None`. Pinned against the REAL
+     `InProcessPipeline` (the node-harness fake pipeline hard-codes this
+     field, which is what let the bug through originally):
+     `test_junction_clear_seeds_phases_and_matches_dispatch`,
+     `test_junction_clear_absent_without_a_declared_pocket_still_matches`
+     (`test_m5_reasoning_pipeline.py`).
+  4. **The cross phase silently used the shipped 1.7 m clearance, not
+     C''s.** None of this task's test geometries declared
+     `junction_backup_clearance_m` (J2) alongside `junction_recede_
+     offset_m`; without both, the cross phase grounds the study's "1, E-W,
+     shipped" row (backup 1.151 m, retreat_x -1.37 m) -- the SAME
+     park->passer-goal race the design exists to avoid -- instead of "1,
+     E-W, J2" (backup 0.799 m, confirmed in [0.69, 0.91]; park |x| 1.018 m,
+     matching the table's 1.02; escort 1.998 m, matching [1.77, 2.00]).
+     Not a code defect -- `SceneGeometry.junction_backup_clearance_m` was
+     already read correctly wherever declared -- but a test-fixture and
+     DEPLOYMENT-REQUIREMENT gap: **step 6's IB10 goal-table row MUST
+     declare BOTH `junction_recede_offset_m: 1.2` AND `junction_backup_
+     clearance_m: 1.1`**, or `junction_clear` quietly runs the cross phase
+     at the unsolved shipped numbers with no error, only the absence of
+     any `junction_clear=fallback:*` tag to notice by. Pinned:
+     `test_cross_phase_matches_the_studys_c_prime_numbers_only_with_j2_
+     declared` (`test_junction_clear_grounding.py`).
+  5. **The "compute once from one snapshot" assumption, verified, not just
+     argued.** Grounded the cross phase from the pre-recede snapshot and
+     again from a POST-recede one (robot_3/robot_4 at their final |y| =
+     1.2 pockets): every SAFETY-CRITICAL yield parameter (backup, pull-off,
+     retreat x/y, escort distance) is identical either way, confirming
+     `JunctionClearPhasePlan`'s own docstring claim -- none of them reads a
+     cross-axis robot's position. FINDING, reported rather than papered
+     over: the cosmetic `extra_holds` LIST ORDER (robot_3 vs robot_4 first)
+     CAN differ between the two groundings, because chi re-ranks on
+     whichever positions it is given and the two candidates are an exact
+     tie at |y| = 1.2; harmless (M4 has no ordering dependency between two
+     `temporary_wait` entries) and not actually exercised twice by this
+     system (`ground_junction_clear_phases` runs once per decision, from
+     one snapshot, never re-grounded from a later one), but a real
+     divergence, not nothing. Pinned: `test_cross_phase_safety_numbers_do_
+     not_react_to_the_recede_pairs_position`.
+  6. **Attempt bookkeeping resolved after phase one, not the whole
+     sequence.** `_resolve_command` called `self._attempts.resolve`
+     unconditionally; since `.record()` is only ever called once (for
+     phase 0, in `_dispatch`), phase one's OWN resolution matched that
+     recorded command_id and closed the attempt "completed" after just the
+     first recede -- before the cross phase had even been dispatched, so a
+     LATER phase's failure would never reach `failure_context`. Fixed:
+     `_resolve_command` now defers `self._attempts.resolve` until
+     `JunctionPhaseAdvance.done` (carrying the ORIGINAL phase-0 command_id
+     forward through a new `_junction_original_command_id` side table,
+     re-keyed on every advance) and resolves it once, with the terminal
+     outcome. Also reordered `_advance_junction_phase` to run BEFORE
+     `_publish_registry()` (a smaller finding from the same review: the
+     old order published one moment with every override cleared before the
+     next phase's overrides were set). Pinned: `TestAttemptResolutionDeferred`.
+  - **Test-fixture fix, not a separate bug**: `test_m5_node_junction_
+    clear.py`'s `_node()` now declares `initial_tasks` for all four IB10
+    robots (the harness default is two) -- without it,
+    `filter_command_robot_ids` silently dropped robot_3/robot_4 from every
+    dispatched phase, which is exactly how all six bugs above went
+    unnoticed by the FIRST round of tests. New `TestAllFourRobotsAddressed`
+    pins the real 4-robot dispatch shape directly.
+  - **Tests**: 159 passing in the targeted files after these fixes (up
+    from 148 before this round); full-suite zero-delta re-confirmed
+    against the SAME baseline file as the entry below (`/tmp/
+    jc_baseline_failed_names.txt`, this environment, 63 failed / 4227
+    passed / 144 skipped at `a3e458e`): 63 failed / 4286 passed / 144
+    skipped after, identical failing-test-name set. `make lint` (ruff)
+    clean.
+
 - **2026-10-02** — **v2 build-order step 5: `junction_clear` contract landed
   on `feat/v2-junction-clear`** (branched from `feat/prereg-v2-composite` at
   `a3e458e`), per `docs/superpowers/specs/2026-09-30-prereg-v2-design.md`
