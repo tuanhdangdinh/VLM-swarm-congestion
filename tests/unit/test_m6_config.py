@@ -502,6 +502,31 @@ def test_unset_strategy_label_fields_stay_out_of_the_dump():
         assert key not in dumped["oracle"]
 
 
+def test_first_slipper_parses_and_round_trips():
+    cfg = ScenarioConfig.model_validate(
+        _three_robot_ordering(**_STRATEGY_LABEL, first_slipper="robot_1")
+    )
+    assert cfg.oracle.first_slipper == "robot_1"
+    assert ScenarioConfig.model_validate(cfg.model_dump(mode="json")) == cfg
+
+
+def test_first_slipper_must_be_in_the_platoon():
+    with pytest.raises(ValidationError, match="must be in platoon"):
+        ScenarioConfig.model_validate(
+            _three_robot_ordering(**_STRATEGY_LABEL, first_slipper="robot_2")
+        )
+
+
+def test_first_slipper_needs_a_platoon():
+    with pytest.raises(ValidationError, match="first_slipper needs platoon"):
+        ScenarioConfig.model_validate(_three_robot_ordering(first_slipper="robot_1"))
+
+
+def test_unset_first_slipper_stays_out_of_the_dump():
+    dumped = ScenarioConfig.model_validate(_three_robot_ordering()).model_dump(mode="json")
+    assert "first_slipper" not in dumped["oracle"]
+
+
 @pytest.mark.parametrize("family", ["bottleneck", "convoy"])
 def test_coverage_families_accept_a_multi_robot_ordering_oracle(family):
     data = _three_robot_ordering()

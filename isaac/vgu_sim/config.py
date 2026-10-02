@@ -353,6 +353,23 @@ class OracleConfig(BaseModel):
     correct_strategy: OracleStrategy | None = None
     accepted_strategies: tuple[OracleStrategy, ...] | None = None
     platoon: tuple[str, ...] | None = None
+    # First-to-slip tier (B3 `convoy_counterflow_slip`): the pre-registered
+    # platoon member predicted to be the first to resume motion through the
+    # gate once the yielder clears it. Scored from GT by
+    # `scripts/coverage_scene_scores.score_b3` against `platoon`; needs no
+    # other oracle field and is independent of `correct_strategy`.
+    first_slipper: str | None = None
+
+    @model_validator(mode="after")
+    def _first_slipper_is_a_platoon_member(self) -> "OracleConfig":
+        if self.first_slipper is not None:
+            if not self.platoon:
+                raise ValueError("first_slipper needs platoon")
+            if self.first_slipper not in self.platoon:
+                raise ValueError(
+                    f"first_slipper {self.first_slipper!r} must be in platoon {self.platoon}"
+                )
+        return self
 
     @model_validator(mode="after")
     def _feasible_yielders_contain_correct(self) -> "OracleConfig":
@@ -411,7 +428,8 @@ class OracleConfig(BaseModel):
         # dump; the ordering fields stay out of every dump that does not use them.
         data = handler(self)
         for key in (
-            "correct_order", "margin", "correct_strategy", "accepted_strategies", "platoon"
+            "correct_order", "margin", "correct_strategy", "accepted_strategies", "platoon",
+            "first_slipper",
         ):
             if data.get(key) is None:
                 data.pop(key, None)

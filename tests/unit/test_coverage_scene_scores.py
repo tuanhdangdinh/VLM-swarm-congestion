@@ -13,12 +13,15 @@ from scripts.coverage_scene_scores import (
     decision_route,
     final_crossing,
     first_passer,
+    first_slipper,
     gate_passage,
     load_scenario,
     score_b1,
     score_b2,
     score_b2_episode,
+    score_b3,
     score_conflict,
+    slip_onset_sec,
     stop_time_sec,
 )
 
@@ -268,3 +271,97 @@ def test_score_conflict_checks_the_onset_window(tmp_path):
     assert result["onset_sec"] == pytest.approx(10.0, abs=0.2)
     assert result["onset_in_window"] is False  # window [15, 50]
     assert result["min_duration_met"] is True
+
+
+def test_slip_onset_sec_ignores_jitter_below_threshold():
+    # Noise up to 0.04 m, under the 0.05 m threshold, forever.
+    samples = [Sample(t=i * DT, x=0.04 if i % 2 else -0.04, y=0.0, theta=0, speed=0.0,
+                      distance_to_goal=1.0) for i in range(40)]
+    assert slip_onset_sec(samples, (0.0, 0.0)) is None
+
+
+def test_slip_onset_sec_ignores_a_poke_and_return_shorter_than_the_hold():
+    # Departs past 0.05 m for 0.5 s (5 samples), then returns: shorter than
+    # the 1.0 s hold, so it never counts as a slip.
+    xs = [0.0] * 10 + [0.2] * 5 + [0.0] * 25
+    samples = [Sample(t=i * DT, x=x, y=0.0, theta=0, speed=0.1, distance_to_goal=1.0)
+               for i, x in enumerate(xs)]
+    assert slip_onset_sec(samples, (0.0, 0.0)) is None
+
+
+def test_slip_onset_sec_returns_the_first_sustained_spells_onset():
+    # Departs at t=1.0 and stays departed for 1.5 s: the slip.
+    xs = [0.0] * 10 + [0.2] * 15 + [0.4] * 5
+    samples = [Sample(t=i * DT, x=x, y=0.0, theta=0, speed=0.1, distance_to_goal=1.0)
+               for i, x in enumerate(xs)]
+    assert slip_onset_sec(samples, (0.0, 0.0)) == pytest.approx(1.0)
+
+
+def test_slip_onset_sec_returns_none_for_a_robot_that_never_moves():
+    samples = [Sample(t=i * DT, x=-2.47, y=0.0, theta=0, speed=0.0, distance_to_goal=5.0)
+               for i in range(300)]
+    assert slip_onset_sec(samples, (-2.47, 0.0)) is None
+
+
+def _b3_gt(tmp_path: Path, slip_order: tuple[str, str, str]) -> Path:
+    """robot_1/robot_2 approach to the standoff (onset ~10 s); robot_3/robot_4
+    held at spawn. `slip_order` gives when each of robot_1/robot_3/robot_4
+    departs its onset-time position, earliest first (the never-moving member
+    is last and stays put for the whole fixture)."""
+    goals = {"robot_1": (2.45, -0.36), "robot_2": (-2.0, 0.0),
+             "robot_3": (2.45, 0.36), "robot_4": (1.85, 0.0)}
+    spawn = {"robot_1": (-1.2, 0.0), "robot_3": (-1.9, 0.0), "robot_4": (-2.47, 0.0)}
+    standoff = {"robot_1": (-0.12, 0.0)}
+    # Slip times (sim-s after t=0) for the first- and second-to-slip members;
+    # the third never moves. 100 samples (10 s) to reach position, then hold
+    # until its slip time, then a sustained 2 s move away.
+    slip_time = {slip_order[0]: 15.0, slip_order[1]: 25.0}
+    n_total = 400
+    tracks: dict[str, list[tuple[float, float]]] = {}
+    for rid in ("robot_1", "robot_3", "robot_4"):
+        onset_pos = standoff.get(rid, spawn[rid])
+        approach = _track([spawn[rid]] * 1 + [onset_pos], 100) if rid == "robot_1" else []
+        pre_hold_n = 100 if rid == "robot_1" else 150
+        path = (approach or _hold(onset_pos, 0)) + _hold(onset_pos, pre_hold_n - len(approach))
+        t_slip = slip_time.get(rid)
+        if t_slip is None:
+            path += _hold(onset_pos, n_total - len(path))
+        else:
+            hold_n = round(t_slip / DT) - len(path)
+            move_n = 20  # 2 s sustained move, well past the 1.0 s hold rule
+            path += _hold(onset_pos, hold_n)
+            path += _track([onset_pos, (onset_pos[0] + 0.5, onset_pos[1])], move_n)
+            path += _hold((onset_pos[0] + 0.5, onset_pos[1]), n_total - len(path))
+        tracks[rid] = path[:n_total]
+    tracks["robot_2"] = (_track([(1.2, 0.0), (0.12, 0.0)], 100) + _hold((0.12, 0.0), n_total - 100))
+    return _write_gt(tmp_path / f"gt_{slip_order[0]}", _frames(tracks), goals)
+
+
+def test_first_slipper_is_the_earliest_departing_platoon_member(tmp_path):
+    from scripts.coverage_scene_scores import load_ground_truth
+
+    series = load_ground_truth(_b3_gt(tmp_path, ("robot_1", "robot_3", "robot_4")))
+    slipper, onsets = first_slipper(series, ("robot_1", "robot_3", "robot_4"), onset_sec=10.0)
+    assert slipper == "robot_1"
+    assert onsets["robot_4"] is None
+    assert onsets["robot_1"] < onsets["robot_3"]
+
+
+def test_first_slipper_identity_is_not_hardcoded_to_robot_1(tmp_path):
+    """robot_3 slips first here: the identity tracks the GT, not queue order."""
+    from scripts.coverage_scene_scores import load_ground_truth
+
+    series = load_ground_truth(_b3_gt(tmp_path, ("robot_3", "robot_1", "robot_4")))
+    slipper, _onsets = first_slipper(series, ("robot_1", "robot_3", "robot_4"), onset_sec=10.0)
+    assert slipper == "robot_3"
+
+
+def test_score_b3_reports_identity_and_latency_from_conflict_onset(tmp_path):
+    result = score_b3(
+        _b3_gt(tmp_path, ("robot_1", "robot_3", "robot_4")),
+        scenario=load_scenario("convoy_counterflow_slip"),
+    )
+    assert result["conflict"]["onset_sec"] == pytest.approx(10.0, abs=0.2)
+    assert result["first_slipper"] == "robot_1"
+    assert result["slip_onset_sec"]["robot_4"] is None
+    assert result["first_slip_latency_sec"] == pytest.approx(5.0, abs=0.3)

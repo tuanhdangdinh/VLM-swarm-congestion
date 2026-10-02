@@ -1,0 +1,218 @@
+schema_version: 1
+name: convoy_counterflow_slip
+family: convoy
+seed: 42
+# Predicted oracle makespan ~190 sim-s (robot_2 backs up and holds, then
+# robot_1, robot_3 and robot_4 are escorted in turn and robot_2 returns);
+# + 70 s margin (constraint C10). At RTF 0.21 an episode is ~1,240 wall-s.
+duration_sec: 260.0
+
+# B3 first-to-slip (prereg-v2 design docs/superpowers/specs/
+# 2026-09-30-prereg-v2-design.md, "(e) B3 first-to-slip"; registered "to v2"
+# at amendments Rev 17). Byte-identical geometry to the v1 `convoy_counterflow`
+# cell (`tests/unit/test_convoy_counterflow_slip_scenario.py` pins the diff to
+# `name` and `oracle`); this variant changes only what is SCORED. v1 scores
+# the categorical outcome (did the platoon cross in `correct_order`); this
+# variant additionally scores WHICH platoon member is first to actually
+# resume motion once robot_2 clears the gate, and how long that takes
+# (`first_slipper`, `scripts/coverage_scene_scores.score_b3`) -- a
+# finer-grained, continuous read on decisiveness that the categorical order
+# cannot show (e.g. a live run that still produces the correct `correct_order`
+# but with a slow, hesitant first mover, or a wrong first mover due to a
+# grounding/dispatch race, both now visible).
+#
+# Slip-onset criterion (GT-only, no M5/M3 dispatch log needed): a platoon
+# member (`oracle.platoon`) "slips" at the first sim time its GT position
+# sustains a departure of > 0.05 m from its own position at the conflict
+# onset (`score_conflict`'s `onset_sec`, the standoff/hold-back point) for
+# at least 1.0 s continuously (`slip_onset_sec`, mirroring `stop_time_sec`'s
+# spell rule, inverted). A poke-and-return shorter than that window, or
+# jitter below the threshold, does not count; the criterion reads only the
+# robot's own GT track, so the scripted robot_3/robot_4 hold-back release
+# command (~43-51 sim-s) cannot by itself trigger it -- only actual sustained
+# motion does. `first_slipper` = the platoon member with the earliest onset
+# (tie -> lowest robot_id, `first_passer`'s existing convention);
+# `first_slip_latency_sec` = that onset minus the conflict onset.
+#
+# Degeneracy note: by design, `oracle.first_slipper` (robot_1, the platoon
+# lead) is already implied by `oracle.correct_order[0]` under the designed
+# execution -- the identity call is not independently informative for a
+# correctly-executed episode. The question is scored anyway because (a) the
+# IDENTITY can diverge from the design in a live, imperfectly-grounded run
+# (a wrong `first_slipper` is itself diagnostic of an execution-order bug,
+# not just a wrong label), and (b) `first_slip_latency_sec` is a new
+# continuous metric with no v1 counterpart. Flagged per the build task's
+# instruction, not treated as a defect.
+#
+# B3 convoy counterflow (unified scene design docs/superpowers/specs/
+# 2026-09-29-unified-scene-design.md, "B3"; amendments item 28; first to slip
+# to v2 if the freeze is threatened). Real-world counterpart: a wave-released
+# platoon of three same-direction AMRs meets one counter-flow robot at a
+# single-lane corridor. A T2b extension on the same A55-J gate (C55 0.55 x
+# 1.0 m barrier at x = 0) with legacy grounding, the tier-scoped apparatus
+# difference T2b already registers. robot_1 leads the eastbound platoon,
+# robot_3 and robot_4 queue behind it on the centreline, held; robot_2 is the
+# counter-flow robot. Correct: one yield by robot_2, then the platoon nose to
+# tail. A `convoy` answer and "yield robot_2 + platoon order" execute
+# identically (M3's convoy alias); the label is scored separately.
+#
+# Geometry (tests/unit/test_convoy_counterflow_scenario.py pins every number
+# with M3's and Arm B's own functions):
+#   - robot_1 (-1.2, 0, 0) -> (2.45, -0.36); robot_2 (1.2, 0, pi) ->
+#     (-2.00, 0.00); robot_3 (-1.90, 0, 0) -> (2.45, +0.36), held;
+#     robot_4 (-2.47, 0, 0) -> (1.85, 0.00), held. All cross_narrow_aisle.
+#   - Queue spacing: robot_1-robot_3 0.70 m, robot_3-robot_4 0.57 m (the
+#     R-QUEUE-2 floor); robot_4 at x -2.47 sits 0.03 m inside the tracked
+#     band. The queue is pinned as far west as the band allows: 0.1 m east
+#     makes Arm B's crowding flips worse (18/45).
+#   - Grounded oracle (legacy, positions): robot_2 backs up 1.00-1.08 m to
+#     park x 1.124, lateral 0.36; robot_1 / robot_3 / robot_4 escorts
+#     1.89-1.97 / 3.674 / 4.244 m, every escort ending at x = 1.774, 0.766 m
+#     from the (2.45, +-0.36) goals. (The design doc's 3.574 / 4.174 were
+#     computed from the rejected queue 0.1 m east; its 190 sim-s makespan
+#     grows by ~2 s.)
+#   - **B3 goal-table revision (Rev 22, notes `414037b`/this entry)**:
+#     robot_1/robot_3's goal lateral was +-0.30 m (0.6 m apart), the same as
+#     M4's `min_distance_m` + `stale_unsafe_distance_m` margin floor with no
+#     headroom -- necessary but not sufficient: two robots resting 0.6 m
+#     apart are safe at rest, so this static number is a cheap regression
+#     guard, not the root cause. The root cause is dynamic: once the
+#     crossing chain resumes robot_3's base-mission Nav2 goal while robot_4
+#     is still escorted, robot_3's live approach (running roughly straight
+#     from its escort end (1.774, 0.0) to its own goal, cutting inside the
+#     goal-to-goal separation on the way) passed 0.426-0.444 m from the
+#     parked robot_1 (< 0.45 m) in 3 of 4 VM replicates, latching
+#     permanently under the correct passer-passer non-exemption
+#     (`safety.py` `admitted_partners`). Modeling that approach as the
+#     segment (1.774, 0.0) -> robot_3's goal and taking its closest point to
+#     robot_1's goal (`tests/unit/test_convoy_counterflow_scenario.py::
+#     test_robot_3_release_approach_clears_the_parked_robot_1`) gives 0.549 m
+#     at the old +-0.30 stack -- already below the 0.45 + 0.15 m margin
+#     discipline -- and 0.636 m at the adopted +-0.36 m stack. This is a
+#     NOMINAL, idealized-straight-line model (a regression pin, not a
+#     prediction): the measured VM minima (below) land well under both
+#     numbers, because at the moment of closest approach robot_1 is still
+#     settling toward its goal (not yet at its full new offset) and
+#     robot_3's own path Delta-x at that instant is smaller than the nominal
+#     line assumes. Measured (data/logs/vm_runs/b3_fix/, GT, not M1):
+#     old +-0.30 -- 0.426 / 0.444 / ~0.432 m (3 latched replicates) and
+#     0.462 m (one clean replicate, B3S); new +-0.36 -- 0.475 m (seed 42),
+#     0.463 m (seed 43), both clean, both clearing the 0.45 m floor by only
+#     0.013-0.025 m. The measured shift (~+0.03 m mean) is smaller than the
+#     nominal model's (+0.087 m): two clean runs at +-0.36 against a prior
+#     3-of-4 failure rate is suggestive (~6% under a no-improvement null),
+#     not conclusive at n=2. The full 0.45 + 0.15 m discipline is NOT
+#     reachable by widening y alone short of the rack face (extrapolated:
+#     +-0.41 ~= 0.49 m, +-0.45 ~= 0.51 m measured, +-0.60 needed for 0.60 m
+#     margin is past |y| = 0.6). Widened to +-0.36 m (0.72 m goal-to-goal,
+#     though robots settle inside Nav2 tolerance toward the centreline to a
+#     measured ~0.57-0.58 m parked separation): this is exactly
+#     `pull_off_lateral_m` for this scene
+#     (`aisle_half_width_m` 0.6 - `robot.half_width_m` 0.09 -
+#     `wall_margin_m` 0.15 = 0.36, `reasoning/rag/scene_geometry.py`) --
+#     the same margin discipline already governing robot_2's own parked
+#     lateral offset in this identical aisle, so neither passer goal sits
+#     closer to the rack face (|y| = 0.6, `nominal_aisle_width_m` / 2,
+#     `warehouse_builder._build_rack_blocks`) than robot_2 already safely
+#     does. The candidate +-0.45 (0.9 m apart, only 0.06 m robot-edge
+#     clearance to the rack face) was rejected: it undercuts that same
+#     0.15 m `wall_margin_m` floor by 0.09 m. Goal-to-goal separation is now
+#     0.72 m (>= the 0.45 m floor + 0.15 m margin discipline, with 0.12 m
+#     headroom instead of the original 0.00 m) -- necessary, and the closest-
+#     approach math above is the sufficient check; robot_4's goal (1.85, 0.00)
+#     clears both new goals at 0.6997 m (was 0.671 m). VM-verified: see
+#     `data/logs/vm_runs/b3_fix/`.
+#   - robot_2's goal (-2.0, 0) is 0.1 m from robot_3's spawn: robot_2 only
+#     returns once robot_4 (admitted after robot_3 clears) has cleared, so
+#     robot_3 has left its spawn long before robot_2 can arrive.
+#   - Arm B: head_on (robot_1, robot_2), yield, nominal robot_2 (FCFS full
+#     tie), crossing_order null, over 35/45 of the standoff grid; the other
+#     10/45 (robot_3 within r_conflict of robot_1) read blocked_path
+#     [robot_3] without the held-robot exclusion and unknown [robot_1,
+#     robot_2] with it. Any answer that omits the queued robots ends in the
+#     permanent bystander latch (released robot_3 passes the parked robot_2
+#     at lateral 0.36 < 0.45): Arm B's executed outcome is censored by
+#     construction.
+#
+# Timing (4 stacks, RTF 0.19-0.26; M5 starts at ~20 sim-s). The standoff forms
+# at ~27 sim-s, the trigger 2.3-3.1 sim-s later (39-49 wall-s after M5
+# starts), dispatch by ~75 wall-s. Hold-back D = 120 wall-s releases robot_3
+# and robot_4 at 20 + RTF * 120 = 43-51 sim-s: after dispatch (both under
+# linked waits) and before robot_3's admission (~70 sim-s).
+#
+# M5 settings, set by hand in swarm_orchestrator/config/orchestrator.yaml
+# before a run (the goal table there lists them; M5 does not read this file):
+#   - initial_tasks: robot_1 [2.45, -0.36], robot_2 [-2.0, 0.0], robot_3
+#     [2.45, 0.36] and robot_4 [1.85, 0.0], both with start_delay_sec: 120
+#     (all cross_narrow_aisle).
+#   - scenario_geometry.corridor: center_m 0.0, half_length_m 0.5 (the T2b
+#     A55-J edit); config/rag.yaml grounding.mode legacy (no stage 2).
+#   - static_obstacles absent; prompt_static_obstacles false;
+#     shadow_classical_zones []; t0_probe_mode false.
+#   - scripts/vm/fc_launch.sh with the four-stack lifecycle gate (build item
+#     2, not yet landed): 3 of 8 four-stack bring-ups failed without it.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -1.2, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 2.45, y: -0.36}
+    initial_task: cross_narrow_aisle
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 1.2, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: -2.0, y: 0.0}
+    initial_task: cross_narrow_aisle
+  - robot_id: robot_3
+    marker_id: 3
+    spawn: {x: -1.9, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 2.45, y: 0.36}
+    initial_task: cross_narrow_aisle
+  - robot_id: robot_4
+    marker_id: 4
+    spawn: {x: -2.47, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 1.85, y: 0.0}
+    initial_task: cross_narrow_aisle
+
+# A55-J: the C55 aperture, L = 1.0, centred at the junction (T2b's barrier).
+aisle_barrier:
+  effective_width_m: 0.55
+  center_x_m: 0.0
+  length_m: 1.0
+
+timed_obstacles: []
+static_obstacles: []
+
+expected_conflict:
+  type: deadlock
+  involved_robots: [robot_1, robot_2, robot_3, robot_4]
+  # Four-stack M5 start ~20 sim-s, standoff ~27 sim-s.
+  onset_window_sec: [15.0, 50.0]
+  min_duration_sec: 2.0
+
+oracle:
+  correct_yielder: robot_2
+  # Arm B's FCFS at the symmetric standoff is a full tie; its robot-id
+  # tie-break yields robot_2, matching the oracle only by that tie-break.
+  fcfs_yielder: robot_2
+  feasible_yielders: [robot_1, robot_2]
+  objective: min_total_time_to_goal
+  correct_order: [robot_1, robot_3, robot_4]
+  correct_strategy: convoy
+  accepted_strategies: [convoy, yield]
+  platoon: [robot_1, robot_3, robot_4]
+  first_slipper: robot_1
+  rationale: >-
+    flow: three eastbound robots queue behind robot_1, so one yield by the
+    counter-flow robot_2 clears all of them nose to tail; yielding robot_1
+    instead escorts robot_2 west to x -1.774, 0.13 m from the held robot_3
+    (a latch: the alternative is censored, a lower-bound margin as in T2b).
+    first_slipper: robot_1 leads the platoon, so under the designed
+    execution it is the first released to resume motion once robot_2 clears
+    the gate; scored from GT (score_b3) for identity and latency, not
+    pre-registered as a distinct hypothesis (see the header's degeneracy
+    note).
+  # margin: pending the four-robot forced-order harness (VM smoke batch).
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

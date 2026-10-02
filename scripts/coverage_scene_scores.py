@@ -25,13 +25,20 @@ Subcommands:
   (divergent-and-correct: urgent first in both members). A `:DECISIONS` suffix
   adds the decision-level route read off the run's first yield-deciding M5
   artifact.
+- `b3 --gt DIR`: B3 first-to-slip (`convoy_counterflow_slip`) -- which
+  platoon member (`oracle.platoon`) is first to sustain a departure from its
+  own GT position at conflict onset (`slip_onset_sec`), its identity
+  (`first_slipper`) and latency relative to the conflict onset, plus the
+  conflict timeline.
 
-Definitions fixed before any smoke run (2026-09-29); see each function.
+Definitions fixed before any smoke run (2026-09-29; B3 first-to-slip added
+2026-10-02); see each function.
 
 Usage:
     python3 scripts/coverage_scene_scores.py conflict --scenario convoy_counterflow --gt runs/x/gt
     python3 scripts/coverage_scene_scores.py b1 --gt runs/b1_smoke/gt --out b1.json
     python3 scripts/coverage_scene_scores.py b2 --run r1:42:runs/r1/gt --run r2:42:runs/r2/gt
+    python3 scripts/coverage_scene_scores.py b3 --gt runs/b3_slip_smoke/gt --out b3.json
 """
 from __future__ import annotations
 
@@ -66,6 +73,11 @@ B1_REACHED_M = 0.05
 # A perpendicular latch: robot_2 still heading down its arm (design: -70 to
 # -90 deg), taken as within 45 deg of -90 deg.
 B1_PERPENDICULAR_HEADING_DEG = (-135.0, -45.0)
+# B3 first-to-slip (design docs/superpowers/specs/2026-09-30-prereg-v2-design.md
+# "(e)"): a platoon member "slips" once its departure from its own GT position
+# at conflict onset is sustained for at least this long, past this threshold.
+SLIP_DISPLACEMENT_THRESHOLD_M = 0.05
+SLIP_HOLD_MIN_SEC = 1.0
 
 
 @dataclass(frozen=True)
@@ -562,6 +574,129 @@ def score_b2(episodes: list[tuple[str, int, dict[str, Any]]]) -> dict[str, Any]:
     }
 
 
+def slip_onset_sec(
+    samples: list[Sample], hold_point: tuple[float, float],
+    threshold_m: float = SLIP_DISPLACEMENT_THRESHOLD_M,
+    min_sustained_sec: float = SLIP_HOLD_MIN_SEC,
+) -> float | None:
+    """First sim time a robot's departure from `hold_point` is sustained.
+
+    Mirrors `stop_time_sec`'s spell rule, inverted: a sample "departed" when
+    it is more than `threshold_m` from `hold_point`. The first departed spell
+    that lasts at least `min_sustained_sec` is the slip; its onset is the
+    spell's first sample, so a poke-and-return shorter than the window never
+    counts and jitter below `threshold_m` is ignored outright. The criterion
+    reads only the robot's own GT track, so a scripted command (e.g. a
+    hold-back release) cannot by itself trigger it -- only sustained actual
+    motion does.
+
+    Args:
+        samples: One robot's GT samples.
+        hold_point: The robot's queued/standoff position, normally its GT
+            position closest to the conflict onset.
+        threshold_m: A sample farther than this from `hold_point` counts as
+            departed.
+        min_sustained_sec: Shorter departed spells do not count as a slip.
+
+    Returns:
+        The slip onset time (sim-s), or None if the robot never sustains a
+        departure.
+    """
+    spell_start: float | None = None
+    last_t: float | None = None
+    for sample in samples:
+        departed = math.dist((sample.x, sample.y), hold_point) > threshold_m
+        if departed:
+            if spell_start is None:
+                spell_start = sample.t
+            last_t = sample.t
+            continue
+        if spell_start is not None and last_t - spell_start >= min_sustained_sec:
+            return spell_start
+        spell_start = None
+    if spell_start is not None and last_t - spell_start >= min_sustained_sec:
+        return spell_start
+    return None
+
+
+def first_slipper(
+    series: dict[str, list[Sample]], platoon: tuple[str, ...], onset_sec: float,
+) -> tuple[str | None, dict[str, float | None]]:
+    """Which platoon member is first to sustain departure from its onset position.
+
+    Each member's hold point is its own GT position closest to `onset_sec`
+    (the robot_1 lead's standoff pose, the held robot_3/robot_4's spawn), so
+    every platoon member is read uniformly regardless of whether it was
+    moving or queued at onset. Only samples at or after `onset_sec` are
+    scanned for a slip, so a lead robot's own approach to the standoff
+    (necessarily far from a not-yet-reached hold point) is never mistaken
+    for a slip.
+
+    Args:
+        series: Per-robot GT samples; only `platoon` members are read (the
+            yielder is excluded by construction).
+        platoon: The platoon robot ids (`oracle.platoon`).
+        onset_sec: The conflict onset (`score_conflict`'s `onset_sec`).
+
+    Returns:
+        `(first slipper or None, slip onset times)`; a tie goes to the lower id.
+    """
+    hold_points = {
+        rid: (p.x, p.y)
+        for rid in platoon
+        for p in (min(series[rid], key=lambda s: abs(s.t - onset_sec)),)
+    }
+    # Samples before onset_sec are the approach/queueing phase, not candidates
+    # for a slip; a lead robot still closing on the standoff is routinely far
+    # from its (not-yet-reached) onset position, which would otherwise read
+    # as an immediate false departure at its very first GT sample.
+    after_onset = {
+        rid: [s for s in series[rid] if s.t >= onset_sec] for rid in platoon
+    }
+    onsets = {rid: slip_onset_sec(after_onset[rid], hold_points[rid]) for rid in platoon}
+    slipped = {r: t for r, t in onsets.items() if t is not None}
+    if not slipped:
+        return None, onsets
+    return min(slipped, key=lambda r: (slipped[r], r)), onsets
+
+
+def score_b3(gt_dir: Path, scenario: dict[str, Any] | None = None) -> dict[str, Any]:
+    """B3 first-to-slip identity and latency, plus the conflict timeline.
+
+    Args:
+        gt_dir: The run's ground-truth directory.
+        scenario: The scenario dict (default: `convoy_counterflow_slip.yaml`,
+            falling back to `convoy_counterflow.yaml`'s geometry since both
+            share the same `platoon`/gate; pass explicitly to score a v1
+            `convoy_counterflow` run against this question).
+
+    Returns:
+        The conflict timeline, the platoon, `first_slipper`, each member's
+        slip onset time, and `first_slip_latency_sec` (the first slipper's
+        onset minus the conflict onset; None if either is unscored).
+    """
+    scenario = scenario or load_scenario("convoy_counterflow_slip")
+    series = load_ground_truth(gt_dir)
+    conflict = score_conflict(scenario, series)
+    onset = conflict["onset_sec"]
+    platoon = tuple(scenario["oracle"]["platoon"])
+    slipper: str | None = None
+    onsets: dict[str, float | None] = dict.fromkeys(platoon)
+    if onset is not None:
+        slipper, onsets = first_slipper(series, platoon, onset)
+    latency = None
+    if slipper is not None and onset is not None and onsets[slipper] is not None:
+        latency = round(onsets[slipper] - onset, 2)
+    return {
+        "scene": scenario.get("name"),
+        "conflict": conflict,
+        "platoon": list(platoon),
+        "first_slipper": slipper,
+        "slip_onset_sec": onsets,
+        "first_slip_latency_sec": latency,
+    }
+
+
 def _dump(result: Any, out: str | None) -> None:
     text = json.dumps(result, indent=2)
     print(text)
@@ -594,6 +729,11 @@ def _cmd_b2(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_b3(args: argparse.Namespace) -> int:
+    _dump(score_b3(Path(args.gt)), args.out)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -611,6 +751,10 @@ def main(argv: list[str] | None = None) -> int:
     b2.add_argument("--run", action="append", required=True)
     b2.add_argument("--out")
     b2.set_defaults(func=_cmd_b2)
+    b3 = sub.add_parser("b3", help="B3 first-to-slip identity and latency")
+    b3.add_argument("--gt", required=True)
+    b3.add_argument("--out")
+    b3.set_defaults(func=_cmd_b3)
     args = parser.parse_args(argv)
     return args.func(args)
 
