@@ -1,0 +1,91 @@
+schema_version: 1
+name: loop_map_preemption_probe
+family: normal_flow
+seed: 42
+duration_sec: 180.0
+
+# v2 build-order step 8, Phase 1: the Nav2 pre-emption control smoke
+# (docs/superpowers/specs/2026-09-30-prereg-v2-design.md, "(b) Loop map" ->
+# "Risk"; geometry analysis and GO verdict in
+# docs/reports/2026-10-02-loop-preemption-smoke.md). This is run 2 of 2: the
+# PARTIAL-BLOCKER case. loop_map_preemption_probe_baseline.yaml is
+# byte-identical except `name`, `timed_obstacles` and this header.
+#
+# Purpose (the actual go/no-go question): with the blocker narrowing the
+# primary aisle but leaving it plannable, does Nav2's global planner prefer
+# the shorter direct path through the narrowed gap, or does it self-reroute
+# through the loop? PASS = direct path (or a hold in the primary aisle);
+# FAIL = any global plan or GT trajectory sample enters the second aisle
+# (y > 0.6) before the mock decision layer (silent by construction) issues
+# anything. Measured from Nav2 /plan logs + GT, not eyeballed (report
+# Section 6).
+#
+# Blocker (report Section 5): sensor-seen, not map-baked -- a
+# `timed_obstacles` entry, so the global costmap only "sees" it the way a
+# real lidar detection would, not as a structural aisle_barrier baked into
+# the map from t=0 (that would just re-test the already-proven "Nav2 plans
+# through a 0.55 m gap" result, not the pre-emption risk). Present from
+# spawn_at_sec 0.0 so the planner's very first global plan already reflects
+# it (no mid-episode costmap-update timing to reason about for this
+# go/no-go check):
+#   - asset: static_box, size 0.25 x 0.65 x 0.35 m (z clears the 0.182 m
+#     lidar scan plane, reusing T3a's box height), pose (1.2, -0.275, 0):
+#     spans y in [-0.6, 0.05], leaving a y in [0.05, 0.6] gap, i.e. a
+#     REMAINING 0.55 m corridor width -- the same proven C55 floor used
+#     throughout the rest of the battery (narrowed-not-blocked,
+#     sub-lethal: reused evidence, not a new number).
+#   - center_x = 1.2: strictly between the N-S strip (|x|<=0.6, the loop's
+#     west leg) and the new connector (x in [1.525, 2.075]), so the only
+#     way around it is the real loop, not a local dodge inside the open
+#     junction square.
+#
+# Geometry (robot spawn/goal, second aisle, connector): identical to
+# loop_map_preemption_probe_baseline.yaml; see that file's header for the
+# full derivation.
+#
+# Mitigation ladder (report Section 6, run only if this probe FAILs):
+#   1. Tighten the blocker footprint (scenario-local; e.g. widen the
+#      remaining gap toward 0.63 m, still inside the C55 band) and re-run.
+#   2. If footprint tuning cannot keep the direct path preferred, report the
+#      measured threshold where self-rerouting starts -- a coordinator
+#      decision on the loop-map design, not a silent fix. Nav2 costmap
+#      inflation parameters (nav2_params.yaml) are shared with v1 and are
+#      NOT edited to pass this probe.
+#
+# M5 takes goals from swarm_orchestrator/config/orchestrator.yaml
+# initial_tasks, NOT from here: set robot_1 -> [2.3, 0.0] before a run.
+#
+# STALE instrumentation rule (build-order step 6 ruling, applies here too):
+# flag any long STALE streak during any stationary dwell in the run's
+# analysis.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -2.4, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 2.3, y: 0.0}
+    initial_task: cross_narrow_aisle
+
+loop_map:
+  second_aisle_center_y_m: 1.2
+  second_aisle_width_m: 0.55
+  second_aisle_x_min_m: 0.6
+  second_aisle_x_max_m: 2.2
+  connector_center_x_m: 1.8
+  connector_width_m: 0.55
+  connector_remnant_height_m: 0.3
+
+aisle_barrier: null
+timed_obstacles:
+  - obstacle_id: blocker
+    asset: static_box
+    spawn_at_sec: 0.0
+    remove_at_sec: null
+    pose: {x: 1.2, y: -0.275, yaw_rad: 0.0}
+    size: {x_m: 0.25, y_m: 0.65, z_m: 0.35}
+static_obstacles: []
+
+expected_conflict: null
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

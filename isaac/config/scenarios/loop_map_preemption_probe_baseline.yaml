@@ -1,0 +1,69 @@
+schema_version: 1
+name: loop_map_preemption_probe_baseline
+family: normal_flow
+seed: 42
+duration_sec: 180.0
+
+# v2 build-order step 8, Phase 1: the Nav2 pre-emption control smoke
+# (docs/superpowers/specs/2026-09-30-prereg-v2-design.md, "(b) Loop map" ->
+# "Risk"; geometry analysis and GO verdict in
+# docs/reports/2026-10-02-loop-preemption-smoke.md). This is run 1 of 2: the
+# NO-BLOCKER baseline. loop_map_preemption_probe.yaml is byte-identical
+# except `name`, `timed_obstacles` (the blocker) and this header -- the pair
+# is the same T3a-style counterfactual, diffing by exactly one obstacle.
+#
+# Purpose: confirm Nav2 does NOT take the loop spuriously when there is
+# nothing to avoid. If robot_1 ever detours through the second aisle here,
+# the control is broken before the blocker is even introduced, and run 2's
+# result would be uninterpretable.
+#
+# Geometry (report Sections 2-3; family: normal_flow / expected_conflict:
+# null because this is a go/no-go control, not a scored congestion cell --
+# same convention as isaac/config/scenarios/m1_y_extent_probe_a.yaml):
+#   - robot_1 spawns (-2.4, 0, 0): robot_1/marker_id 1's verified-clean point
+#     (y-extent report Run B, 100% fresh, bias 0.0123 m), NOT the registered
+#     STALE point at x=-1.75.
+#   - Goal (2.3, 0, 0): on the primary aisle, 0.225 m east of the new
+#     connector's mouth (x=2.075) and 0.2 m inside the |x|<=2.5 verified
+#     tracked edge.
+#   - loop_map: second aisle at y=1.2 (the single most-verified off-axis
+#     point in the corpus), width 0.55 m, x in [0.6, 2.2]; one new connector
+#     at x=1.8, width 0.55 m. The west side of the loop reuses the warehouse's
+#     existing N-S strip (|x|<=0.6, always open) -- no second connector is
+#     built; see report Section 2, "Minimal loop topology".
+#   - Direct path (spawn -> goal, primary aisle): 4.7 m. Loop detour (spawn ->
+#     N-S strip -> second aisle -> new connector -> goal): ~6.1 m, ~30% longer.
+#   - No aisle_barrier, no timed/static obstacles: the primary aisle is its
+#     full structural 1.2 m width throughout.
+#
+# M5 takes goals from swarm_orchestrator/config/orchestrator.yaml
+# initial_tasks, NOT from here: set robot_1 -> [2.3, 0.0] before a run.
+#
+# STALE instrumentation rule (build-order step 6 ruling, applies here too):
+# flag any long STALE streak during any stationary dwell in the run's
+# analysis.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -2.4, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 2.3, y: 0.0}
+    initial_task: cross_narrow_aisle
+
+loop_map:
+  second_aisle_center_y_m: 1.2
+  second_aisle_width_m: 0.55
+  second_aisle_x_min_m: 0.6
+  second_aisle_x_max_m: 2.2
+  connector_center_x_m: 1.8
+  connector_width_m: 0.55
+  connector_remnant_height_m: 0.3
+
+aisle_barrier: null
+timed_obstacles: []
+static_obstacles: []
+
+expected_conflict: null
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30
