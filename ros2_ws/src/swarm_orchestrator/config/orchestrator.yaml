@@ -107,7 +107,18 @@ frame_downscale_width: null
 #     { robot_1: { axis: x, side: -1 }, robot_2: { axis: x, side: 1 },
 #     robot_3: { axis: y, side: -1 }, robot_4: { axis: y, side: 1 } } (each
 #     robot yields back along the arm it came in on); camera, robot and margins
-#     as shipped (header of isaac/config/scenarios/intersection_bottleneck.yaml)
+#     as shipped (header of isaac/config/scenarios/intersection_bottleneck.yaml).
+#     For the v2 `junction_clear` composite (prereg-v2 build-order step 6,
+#     intersection-resolvability study S1 section 3's C' geometry): ALSO set
+#     scenario_geometry junction_recede_offset_m: 1.2 AND
+#     junction_backup_clearance_m: 1.1 -- both required together, or the cross
+#     phase silently grounds the shipped-clearance unsolved row (backup
+#     1.44 m, park |y| ~2.22 m, outside the tracked band) instead of the
+#     solved row (backup 0.799 m, park |x| 1.018 m, escort 1.998 m); the
+#     loudness guard tags `junction_geometry=shipped_unsolved` on every
+#     affected command when either is missing (`command_grounder.
+#     ground_junction_clear_phases`, docs/implementation_notes.md 2026-10-02
+#     step-5 post-landing entry, bug 4).
 #   bottleneck_merge (B1, three robots, merge at the A55-E gate) -> robot_1
 #     [2.45, -0.3], robot_2 [1.9, 0.0], AND robot_3: { task:
 #     cross_narrow_aisle, goal: [2.45, 0.3], start_delay_sec: 80 } (all three
