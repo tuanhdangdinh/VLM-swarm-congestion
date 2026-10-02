@@ -119,27 +119,35 @@ Rules for maintaining it:
     trusting it on hardware.
   - **One trial invalidated, not silently fixed or dropped**: the FIRST
     flag-on-without-plan attempt triggered 46 s late with one robot still
-    at spawn and the other barely moved. Root cause established DIRECTLY
-    from `m1.log`: 607 `perception clock_reset=true ... backward stamp
-    jump, tracks cleared` warnings from this run's own launch until
-    t=68.3 s (just before its trigger) — a camera-topic/Isaac-Sim-restart
-    timing race against the PRECEDING run sharing the same container, zero
-    such lines in any of the other three runs. (An earlier draft of the
-    smoke report wrongly attributed this to the known IB10 spawn-pose ArUco
-    marginality, `docs/reports/2026-10-01-robot1-stale-rootcause.md`; that
-    citation does not hold — different scene/pose, and that report's own
-    105-row STALE streak on this run postdates the trigger it was first
-    blamed for, t=98.7-143.2 vs trigger t=72.8 — withdrawn on review.) Not
-    caused by this task's code: M1 runs upstream of the plan channel, and
-    `m5.log`'s startup line SEQUENCE (session init through `grounding
-    mode=derived`/`stage2 marks enabled`/`classical shadow enabled`)
-    matches the clean control run's. Kept in
+    at spawn and the other barely moved. What is DIRECTLY established from
+    `m1.log`: 607 `perception clock_reset=true ... backward stamp jump,
+    tracks cleared` warnings from this run's own launch until t=68.3 s
+    (just before its trigger), zero such lines in any of the other three
+    runs. The mechanism was checked, not confirmed: the natural hypothesis
+    (the PRECEDING run's Isaac Sim instance not fully torn down before this
+    run's own instance started) was tested directly against the recovered
+    `isaac.log`s for all four runs and did NOT hold up — the preceding
+    run's own Isaac logged a clean shutdown matching `fc_launch.sh`'s
+    cleanup trap, its own sim-clock never reached the stale range observed,
+    no stray Isaac process was found, and the isaac.log mtime-vs-content
+    gap that first looked suspicious is uniform across all four runs, not
+    specific to this one. The WHAT stands; the WHY is an open VM-harness
+    observation, not a confirmed trap — flagged for the owner (a
+    DDS/transport-layer artifact across rapid back-to-back relaunches is a
+    plausible untested alternative). (An earlier draft of the smoke report
+    additionally, wrongly, attributed this to the known IB10 spawn-pose
+    ArUco marginality, `docs/reports/2026-10-01-robot1-stale-rootcause.md`;
+    withdrawn — different scene/pose, and this run's own 105-row STALE
+    streak starts 30s AFTER the resets stop and well after the trigger, so
+    it is reported as a separate, unexplained observation, not a symptom of
+    the same window.) Not caused by this task's code: M1 runs upstream of
+    the plan channel, and `m5.log`'s startup line SEQUENCE matches the
+    clean control run's. Kept in
     `data/logs/vm_runs/step4_smoke/FON_INVALID_20261001_194646/` rather than
     discarded; rerun clean (`FON2_20261002_044059`). A trial-validity rule
     (both robots `|x| <= 0.4` and `STOPPED` at the first trigger, no
-    `clock_reset` event before it) was written down after this anomaly
-    surfaced the need and applied to the runs scored after that point, per
-    the spec's own instrumentation requirement.
+    `clock_reset` event before it) was written down, in two stages, after
+    scoring had already begun, once this anomaly surfaced the need.
   - **VM restored**: `orchestrator.yaml` (md5 `1f656533a30a35882d57d0d64a57bd0d`)
     and `rag.yaml` (md5 `e18c723cff9cada3f320d564c2ecee5a`) back to their
     pre-task bytes, source AND installed copies re-verified equal after a

@@ -4,6 +4,22 @@
 
 **Revision history:**
 
+- Rev 3 (2026-10-02): ran the actual full key-level diff (previously only a
+  hand-picked table) — confirms exactly the predicted 4-key remainder,
+  zero `decision.*` differences; recovered `isaac.log`/`build.log` for all
+  four runs from the VM host (previously 0 bytes, a gap against the "run
+  logs synced" deliverable) and checked, directly, whether `FOFF`'s Isaac
+  process survived cleanup into `FON`'s launch (the natural explanation for
+  the `clock_reset` anomaly) — NOT confirmed (clean shutdown logged at
+  19:45:45Z matching the cleanup trap; `FOFF`'s own sim-clock never reached
+  the stale range seen; the mtime gap that first looked suspicious is
+  uniform across all four runs). The clock-reset anomaly's WHAT stands;
+  its WHY is now reported as open, not asserted. Corrected the STALE-streak
+  claim (it starts 30s AFTER the resets stop, so it is not established as
+  the same window's symptom — downgraded to "unexplained, separate
+  observation"). Corrected the trial-validity-rule history (written after
+  scoring began, in two stages, not before any run). Added a VM-state note
+  that the restored config predates the plan channel entirely.
 - Rev 2 (2026-10-02): corrected three overclaims caught in review (full
   artifact diff including `stage2`, direct `plan_state` evidence for leg
   `done` status instead of an inference from silence, downgraded the
@@ -218,14 +234,16 @@ on `feat/v2-step4-close` (branched from `feat/prereg-v2-composite` at
 
 ### Trial-validity rule
 
-Written down **after** the first flag-on run's anomaly surfaced it as a
-real need, and applied to the two runs scored after that point (`FON2`,
-`FONPLAN`) and retroactively to `FOFF` and the invalidated `FON`: a trigger
-is a valid trial only if, at the FIRST congestion-detected analysis, both
-robots report `|x| <= 0.4` and `status == STOPPED` (the classic formed
-head-on, not a robot still at spawn or mid-approach), and M1's own log
-shows no startup camera-clock instability (`clock_reset=true` lines) before
-it.
+Written down in two stages, both AFTER runs had already been scored, not
+before any run as an earlier draft of this report claimed: a first version
+(both robots `|x| <= 0.4` and `STOPPED` at the first trigger, no long STALE
+streak before it) was applied once `FON`'s anomaly surfaced the need; the
+`clock_reset=true` clause replaced the STALE-streak clause after the
+STALE-streak timing turned out not to explain the anomaly (see below).
+Final rule: a trigger is a valid trial only if, at the FIRST
+congestion-detected analysis, both robots report `|x| <= 0.4` and
+`status == STOPPED`, and M1's own log shows no `clock_reset=true` line
+before it. Applied to all four runs retroactively.
 
 ### Runs
 
@@ -236,7 +254,7 @@ it.
 | `FON2` (`20261002_044059`) | flag ON, without-plan mock, rerun | 25.9 | robot_2 x=0.122, robot_1 x=-0.111, both STOPPED | YES |
 | `FONPLAN` (`20261002_041932`) | flag ON, **with** `proposed_plan` mock | 25.8 | robot_2 x=0.116, robot_1 x=-0.118, both STOPPED | YES |
 
-### Invalidated trial: `FON` — a camera/sim startup race, not a plan-channel regression
+### Invalidated trial: `FON` — an M1 perception-clock anomaly, not a plan-channel regression
 
 `FON`'s only congestion-true trigger fired at t=72.8 s — 46 s later than
 every other run — with robot_2 still essentially at its spawn pose
@@ -245,45 +263,65 @@ every other run — with robot_2 still essentially at its spawn pose
 real head-on ever formed; the 9 re-checks after it (t=94–143 s) are a still
 -stuck pair being told "clear", not a resolved episode. Zero of 2 arrivals.
 
-**Root cause, established directly from `m1.log`** (not inferred): M1's
+**What is directly established from `m1.log`** (not inferred): M1's
 `perception_node` logged **607** lines of
 `perception clock_reset=true prev_stamp=<~220-300> stamp=<~0-68> frame_id=overhead_camera:
 backward stamp jump, tracks cleared`, starting at the very first perception
-callback after this run's own launch and continuing until t=68.3 s — i.e.
-M1 was receiving camera frames whose timestamp alternated between a stale
-high value (consistent with a leftover publisher from the PRECEDING run,
-`FOFF`, not fully torn down before `FON`'s Isaac Sim instance started) and
-the new run's own low value, clearing its tracked-robot state on every one
-of those 607 resets. This is a camera-topic/Isaac-Sim-restart timing race
-between two consecutive runs sharing one container, **not** an M1 perception
-defect and **not** caused by this task's code: `plan_tracker.py`/
-`reasoning_pipeline.py`/`models.py` touch only the M2-decision/M3-plan
-layer, which runs long after M1 and Nav2 and cannot itself make M1 receive
-a stale-stamped frame. Corroborating, weaker evidence: a 105-row STALE
-streak on robot_1 from t=98.7–143.2 (AFTER the trigger, so it is a further
-symptom of the same unstable window, not itself the cause of the premature
-trigger) and a Nav2 false-success report (`arrival rejected robot=robot_2
-distance_m=3.00 ... (Nav2 reported success)`), both consistent with Nav2
-having lost good localization input during the same 0–68s window.
+callback after this run's own launch and continuing until t=68.3 s — M1 was
+receiving camera frames whose timestamp alternated between a value in the
+~220-300 range and the new run's own ~0-68 range, clearing its
+tracked-robot state on every one of those 607 resets. Zero `clock_reset=true`
+lines appear in `FOFF`, `FON2`, or `FONPLAN`'s `m1.log` — this is anomalous
+to `FON` specifically. This is **not** caused by this task's code:
+`plan_tracker.py`/`reasoning_pipeline.py`/`models.py` touch only the
+M2-decision/M3-plan layer, which runs long after M1 and Nav2 and cannot
+itself make M1 receive a stale-stamped frame; `m5.log`'s startup line
+SEQUENCE (session init through `grounding mode=derived`/`stage2 marks
+enabled`/`classical shadow enabled`) matches `FOFF`'s (session IDs, PIDs,
+timestamps necessarily differ).
 
-Zero `clock_reset=true` lines appear in `FOFF`, `FON2`, or `FONPLAN`'s
-`m1.log` — confirming this is anomalous to `FON` specifically, not a
-standing property of this scene or this container. An EARLIER draft of
-this report incorrectly attributed this to the known IB10 spawn-pose ArUco
-marginality (`docs/reports/2026-10-01-robot1-stale-rootcause.md`); that
-citation is wrong (different scene, different spawn pose, and that
-streak's own timing postdates the trigger it was blamed for) and is
-withdrawn. The cause IS a startup race between consecutive VM runs; its
-deeper mechanism (why the prior run's publisher survived) is not further
-diagnosed here — flagged for the owner as an observation on this VM's
-launch/cleanup sequencing between back-to-back runs, not a scenario defect.
+**What the mechanism is NOT established to be — checked, not confirmed**:
+the `prev_stamp` values climb from ~219.5 to ~300.3 IN STEP with the new
+values climbing from 0.1 to 68.3, which reads like a second LIVE publisher
+with its own advancing clock, not a single stale/latched message. 300 is
+also suspiciously close to the scenario's own `duration_sec: 300.0`. The
+natural hypothesis — `FOFF`'s own Isaac Sim instance (the immediately
+preceding run, sharing the same container) was not fully torn down by
+`fc_launch.sh`'s cleanup trap and kept running/publishing — was checked
+directly and NOT confirmed:
+- `FOFF`'s own recovered `isaac.log` (not synced in the first draft of
+  this report; now at
+  `data/logs/vm_runs/step4_smoke/FOFF_20261001_193814/isaac.log`) prints
+  its OWN clean `[780.561s] Simulation App Shutting Down` at
+  `2026-10-01T19:45:45Z`, matching `fc_launch.sh`'s own `cleanup:
+  restarting container + killing Isaac` line 10s earlier — no unclean exit.
+- `FOFF`'s own scene log never exceeds sim-stamp 162.9 (consistent with
+  ~0.4 sim-s per wall-second over its ~7.25 min run — the ratio
+  `docs/reports/2026-09-29-t1-tuning-basket.md` records), well short of the
+  ~219-300 range seen in `FON`'s resets, so `FOFF`'s own simulation clock
+  could not have been the source even if it had lingered.
+- No earlier pre-existing `isaac.log` on this VM (several from hours
+  earlier, unrelated to this task) shows an unclean shutdown either, and no
+  live Isaac/python process was found at any point this task checked.
+- The isaac.log-mtime-vs-last-content-line gap (~4-6 minutes) that first
+  looked suspicious for `FON` turns out to be present on ALL FOUR runs
+  uniformly (a teardown/flush artifact, not specific to the anomalous one),
+  so it does not support the hypothesis either.
 
-`m5.log` startup (session init through `grounding mode=derived` / `stage2
-marks enabled` / `classical shadow enabled`) shows the **same line
-sequence** as `FOFF`'s (session IDs, PIDs and timestamps necessarily
-differ) — the plan channel's only footprint before the first analysis is
-`PlanTracker` construction, which cannot itself make M1 receive a
-stale-stamped frame.
+The mechanism is therefore an open question, not a confirmed VM-harness
+trap: the WHAT (607 resets, unique to this run, before its trigger) is
+solid; the WHY (a DDS/SHM transport artifact retaining a buffered tail of
+frames across a rapid back-to-back relaunch is a plausible alternative,
+consistent with this project's own documented "Isaac DDS UDP profile"
+transport traps, but not verified here) is not. Flagged for the owner as an
+open VM-harness observation, not asserted as a known cause.
+
+A 105-row STALE streak on robot_1 appears from t=98.7–143.2 — **30 seconds
+after** the clock-reset flurry stopped (t=68.3) and well after the
+premature trigger (t=72.8) it was first (wrongly) blamed for in an earlier
+draft of this report. Its cause is NOT established by anything in this
+task's evidence; it is reported as a separate, unexplained observation in
+the same run, not as a corroborating symptom of the clock-reset window.
 
 Per the trial-validity rule, `FON` fails it outright and is excluded from
 the equivalence score; `FON2` is its clean rerun. Kept in
@@ -305,6 +343,26 @@ reported rather than silently excluded: `robot_presentation_order`
 `prompt_robot_order_seed: null` is configured, so each process draws its own
 order; by design, unrelated to the plan channel) and the stage-2 letter
 draw (below).
+
+**Full key-level diff, actually run** (every top-level key, and every
+`decision` sub-key, whose value differs between the two artifacts, minus
+the excluded set above):
+
+```
+prompt_robot_order_seed | OFF= 7548592556280586652 | ON= 11066327717832631696
+robot_presentation_order | OFF= 'id_desc'          | ON= 'id_asc'
+shadow_classical         | OFF= {...backup_m: 1.658...} | ON= {...backup_m: 1.667...}
+stage2                   | OFF= {...backup_m: 1.658, listing_order: [B,A]...} | ON= {...backup_m: 1.667, listing_order: [A,B]...}
+TOTAL DIFFERING KEYS: 4
+```
+
+Exactly the predicted remainder: `prompt_robot_order_seed` (the random draw
+itself) and `robot_presentation_order` (its effect), plus `shadow_classical`
+and `stage2` (whose internal numbers are position-dependent — see below).
+**Zero `decision.*` sub-keys differ** — the decision block itself is
+byte-for-byte identical between the two runs. No other top-level key
+appears, so the full diff supports the same conclusion the hand-picked
+table below also shows field-by-field.
 
 | Field | `FOFF` | `FON2` | Match |
 |---|---|---|---|
@@ -432,7 +490,14 @@ three SCORED runs.
 - `ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml`: restored to
   the EXACT bytes present before this task started
   (md5 `1f656533a30a35882d57d0d64a57bd0d`), both on the host source tree
-  and the container's installed copy (rebuilt and re-verified equal).
+  and the container's installed copy (rebuilt and re-verified equal). This
+  restored file PREDATES the plan channel entirely (no
+  `plan_channel_enabled` key) and now sits on top of this task's code
+  (`5ec6085` and later). Harmless — `OrchestratorConfig.plan_channel_enabled: bool = False`
+  is the Pydantic field default, so the next launch from this config is
+  flag-off until an operator edits it in — but worth a next-agent's
+  attention: the deployed SOURCE tree and the deployed CONFIG are from two
+  different points in this project's history.
 - `config/rag.yaml`: untouched throughout (md5 `e18c723cff9cada3f320d564c2ecee5a`
   the whole time, source and installed).
 - Container `vgu_ros`: restarted; `docker ps` shows `Up` cleanly.
