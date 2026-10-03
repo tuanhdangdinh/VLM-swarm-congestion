@@ -30,21 +30,32 @@ Subcommands:
   own GT position at conflict onset (`slip_onset_sec`), its identity
   (`first_slipper`) and latency relative to the conflict onset, plus the
   conflict timeline.
+- `ib10 --gt DIR [--decisions DIR] [--m5-log F] [--m4-log F] [--scene F]`:
+  the IB10 `junction_clear` resolution oracle (`intersection_bottleneck`
+  `oracle:` block) -- the formed-jam validity gate, chi-pair correctness
+  (proposed and executed), inside-first order, the phase-reached ordinal
+  with the `fallback`/`fallback_exhausted` flags, CrossingChain release
+  attribution, position-verified arrivals, the tracked-band check and the
+  STALE-streak instrumentation.
 
 Definitions fixed before any smoke run (2026-09-29; B3 first-to-slip added
-2026-10-02); see each function.
+2026-10-02; IB10 frozen 2026-10-03, step-7b Part 3); see each function.
 
 Usage:
     python3 scripts/coverage_scene_scores.py conflict --scenario convoy_counterflow --gt runs/x/gt
     python3 scripts/coverage_scene_scores.py b1 --gt runs/b1_smoke/gt --out b1.json
     python3 scripts/coverage_scene_scores.py b2 --run r1:42:runs/r1/gt --run r2:42:runs/r2/gt
     python3 scripts/coverage_scene_scores.py b3 --gt runs/b3_slip_smoke/gt --out b3.json
+    python3 scripts/coverage_scene_scores.py ib10 --gt runs/ib10/gt \
+        --decisions runs/ib10/decisions --m5-log runs/ib10/m5.log \
+        --m4-log runs/ib10/m4.log --scene runs/ib10/scene.jsonl
 """
 from __future__ import annotations
 
 import argparse
 import json
 import math
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -56,7 +67,17 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from isaac.vgu_sim.oracle import bottleneck_conflict_active  # noqa: E402
+from isaac.vgu_sim.oracle import (  # noqa: E402
+    bottleneck_conflict_active,
+    intersection_conflict_active,
+)
+from reasoning.rag.maneuver_geometry import (  # noqa: E402
+    load_grounding_params,
+    rank_recede_candidates,
+)
+from reasoning.rag.scene_geometry import SceneGeometry  # noqa: E402
+from reasoning.vlm.models import RobotStateInput, SnapshotFrame  # noqa: E402
+from scripts.strategy_regret import SCENES  # noqa: E402
 from scripts.t2b_forced_order import score_ground_truth  # noqa: E402
 
 SCENARIOS_DIR = REPO_ROOT / "isaac" / "config" / "scenarios"
@@ -78,6 +99,20 @@ B1_PERPENDICULAR_HEADING_DEG = (-135.0, -45.0)
 # at conflict onset is sustained for at least this long, past this threshold.
 SLIP_DISPLACEMENT_THRESHOLD_M = 0.05
 SLIP_HOLD_MIN_SEC = 1.0
+# IB10 (step-7b Part 3): `isaac.vgu_sim.oracle.intersection_conflict_active`'s
+# own membership radius, re-read here only to count robots inside it at onset.
+IB10_JAM_RADIUS_M = 1.0
+# M1's verified tracked band (intersection_bottleneck.yaml header): |x| <= 2.5,
+# |y| <= 1.80 (the study's abort criterion for the N-S arms).
+IB10_TRACKED_BAND_M = (2.5, 1.80)
+# Ordinal partial score (oracle.phase_ordinal); 0 when no junction_clear
+# phase was ever dispatched.
+IB10_PHASE_NONE = "none"
+_PHASE_ADVANCE_RE = re.compile(r"junction_clear phase advance .*phase_reached=(\w+) done=(\w+)")
+_GATE_RE = re.compile(
+    r"crossing_chain (gate_admit|gate_cleared|gate_release) command=(\S+) yielder=(\S+)"
+    r"(?: passer=(\S+))?.*?(?:reason=(\w+) )?sim_t=([-\d.]+)"
+)
 
 
 @dataclass(frozen=True)
@@ -697,6 +732,456 @@ def score_b3(gt_dir: Path, scenario: dict[str, Any] | None = None) -> dict[str, 
     }
 
 
+def _ib10_series_instants(series: dict[str, list[Sample]]):
+    for t, robots in _instants(series):
+        ids = sorted(robots)
+        yield t, ids, robots
+
+
+def formed_jam(series: dict[str, list[Sample]], scenario: dict[str, Any]) -> dict[str, Any]:
+    """The IB10 formed-jam validity gate.
+
+    `intersection_conflict_active` (>= 3 robots within 1.0 m of the origin,
+    mean speed < 0.03 m/s) evaluated at every GT instant, as
+    `conflict_timeline` does for the aperture scenes. The gate passes when
+    the onset lies inside `expected_conflict.onset_window_sec`, the longest
+    active interval lasts at least `min_duration_sec`, and at least
+    `oracle.jam_robots_in_radius` robots are inside the radius at onset (the
+    jam forms first, with every robot in it). A run that fails the gate is
+    invalid, not a failed resolution.
+
+    Args:
+        series: Per-robot GT samples.
+        scenario: The scenario YAML as a dict (needs `oracle` and
+            `expected_conflict`).
+
+    Returns:
+        The timeline, `robots_in_radius_at_onset`, the three gate checks and
+        `valid`.
+    """
+    intervals: list[list[float]] = []
+    previous_t: float | None = None
+    in_radius_at_onset = 0
+    for t, ids, robots in _ib10_series_instants(series):
+        active = intersection_conflict_active(
+            [(robots[r].x, robots[r].y) for r in ids], [robots[r].speed for r in ids]
+        )
+        if active:
+            if not intervals:
+                in_radius_at_onset = sum(
+                    1 for r in ids if math.hypot(robots[r].x, robots[r].y) < IB10_JAM_RADIUS_M
+                )
+            if intervals and intervals[-1][1] == previous_t:
+                intervals[-1][1] = t
+            else:
+                intervals.append([t, t])
+        previous_t = t
+    expected = scenario.get("expected_conflict") or {}
+    window = expected.get("onset_window_sec")
+    onset = intervals[0][0] if intervals else None
+    longest = max((b - a for a, b in intervals), default=0.0)
+    onset_in_window = None if window is None or onset is None else window[0] <= onset <= window[1]
+    min_duration_met = bool(intervals) and longest >= expected.get("min_duration_sec", 0.0)
+    needed = scenario["oracle"]["jam_robots_in_radius"]
+    return {
+        "onset_sec": onset,
+        "onset_window_sec": window,
+        "onset_in_window": onset_in_window,
+        "longest_interval_sec": round(longest, 2),
+        "min_duration_met": min_duration_met,
+        "robots_in_radius_at_onset": in_radius_at_onset,
+        "robots_in_radius_needed": needed,
+        "valid": bool(onset_in_window) and min_duration_met and in_radius_at_onset >= needed,
+    }
+
+
+def _ib10_geometry() -> SceneGeometry:
+    spec = SCENES["intersection_bottleneck"]
+    return SceneGeometry(
+        corridor=spec.corridor,
+        arms=spec.scenario_geometry_arms,
+        junction_recede_offset_m=spec.junction_recede_offset_m,
+    )
+
+
+def dispatched_junction_decision(decisions_dir: Path) -> dict[str, Any] | None:
+    """The run's first dispatched `junction_clear` decision artifact.
+
+    The dispatched decision has a detected congestion, a grounded command and
+    the `junction_clear` strategy; with several, the earliest by its scene
+    stamp is the trigger the composite ran from.
+
+    Args:
+        decisions_dir: The run's copied M5 decision artifacts.
+
+    Returns:
+        The artifact, or None when the run dispatched no `junction_clear`.
+    """
+    found = []
+    for path in sorted(decisions_dir.glob("*.json")):
+        record = json.loads(path.read_text(encoding="utf-8"))
+        decision = record.get("decision") or {}
+        if (
+            decision.get("congestion_detected")
+            and record.get("grounded_command_present")
+            and decision.get("strategy") == "junction_clear"
+        ):
+            found.append(((record.get("scene") or {}).get("stamp", 0.0), path.name, record))
+    if not found:
+        return None
+    _stamp, name, record = min(found, key=lambda item: (item[0], item[1]))
+    return {**record, "_artifact": name}
+
+
+def chi_order(record: dict[str, Any], recede_pair: list[str]) -> list[str]:
+    """The chi-ranked recede order at the dispatched decision's own snapshot.
+
+    Recomputed with M3's own `rank_recede_candidates` (chi weights from
+    `config/rag.yaml`, geometry from `strategy_regret.SCENES`), never read
+    back from the executed plan, so the executed order is scored against an
+    independent reference.
+
+    Args:
+        record: The dispatched decision artifact (its `scene` snapshot).
+        recede_pair: `oracle.recede_pair`.
+
+    Returns:
+        `recede_pair` in ascending chi order.
+    """
+    scene = record["scene"]
+    frame = SnapshotFrame(
+        stamp=max(0.0, float(scene.get("stamp") or 0.0)),
+        robots=[
+            RobotStateInput(
+                robot_id=robot["robot_id"], x=robot["x"], y=robot["y"],
+                theta=robot.get("theta", 0.0), status=robot.get("status"),
+            )
+            for robot in scene["robots"]
+        ],
+    )
+    params = load_grounding_params(REPO_ROOT / "config" / "rag.yaml")
+    return rank_recede_candidates(frame, recede_pair, _ib10_geometry(), params)
+
+
+def _recede_legs(legs: list[dict[str, Any]] | None) -> list[str] | None:
+    if legs is None:
+        return None
+    return [leg["robot_id"] for leg in legs if leg.get("action") == "reverse"]
+
+
+def score_chi_pair(record: dict[str, Any], oracle: dict[str, Any]) -> dict[str, Any]:
+    """Chi-pair correctness of the proposed (pre-repair) and executed plans.
+
+    A plan's recede set is its `reverse` legs. `*_pair_correct`: that set is
+    exactly `oracle.recede_pair`. `*_order_correct`: its order equals
+    `chi_order` at the trigger snapshot. The proposed fields are None when
+    the decision carried no `proposed_plan` (strategy token only, the
+    `m3_default` contract).
+
+    Args:
+        record: The dispatched decision artifact.
+        oracle: The scenario's `oracle:` block.
+
+    Returns:
+        The chi order, both recede lists, the four correctness flags, the
+        executed provenance and the grounded yielder.
+    """
+    pair = list(oracle["recede_pair"])
+    reference = chi_order(record, pair)
+    proposed = _recede_legs((record.get("decision") or {}).get("proposed_plan"))
+    plan = record.get("plan") or {}
+    executed = _recede_legs(plan.get("legs"))
+    yielder = next(
+        (leg["robot_id"] for leg in plan.get("legs") or [] if leg.get("action") == "yield"), None
+    )
+
+    def pair_ok(legs: list[str] | None) -> bool | None:
+        return None if legs is None else sorted(legs) == sorted(pair)
+
+    def order_ok(legs: list[str] | None) -> bool | None:
+        return None if legs is None else legs == reference
+
+    return {
+        "artifact": record.get("_artifact"),
+        "chi_order": reference,
+        "proposed_recede": proposed,
+        "proposed_pair_correct": pair_ok(proposed),
+        "proposed_order_correct": order_ok(proposed),
+        "executed_recede": executed,
+        "executed_pair_correct": pair_ok(executed),
+        "executed_order_correct": order_ok(executed),
+        "provenance": plan.get("provenance"),
+        "yielder": yielder,
+    }
+
+
+def junction_crossing(
+    samples: list[Sample], axis: str, direction: float
+) -> float | None:
+    """Time of a robot's final crossing of the junction centre toward its goal.
+
+    `final_crossing` along the robot's own travel axis: the line through the
+    centre perpendicular to the axis, crossed in `direction`, counting only
+    a crossing after which the robot stays past the line.
+
+    Args:
+        samples: One robot's GT samples.
+        axis: `x` or `y`, the robot's travel axis.
+        direction: +1 or -1, the sign of its goal coordinate minus its spawn.
+
+    Returns:
+        Sim time of the final crossing, or None.
+    """
+    if axis == "x":
+        return final_crossing(samples, 0.0, direction)
+    swapped = [
+        Sample(t=s.t, x=s.y, y=s.x, theta=s.theta, speed=s.speed,
+               distance_to_goal=s.distance_to_goal)
+        for s in samples
+    ]
+    return final_crossing(swapped, 0.0, direction)
+
+
+def score_inside_first(
+    series: dict[str, list[Sample]], scenario: dict[str, Any], yielder: str | None
+) -> dict[str, Any]:
+    """Inside-first order from GT final junction crossings.
+
+    Inside robots are `oracle.inside_pair` minus the grounded yielder; the
+    recede robots are `oracle.recede_pair`. `inside_first` is True when
+    every inside robot crossed and every recede robot's crossing (if any)
+    is later than the last inside crossing, False when a recede robot
+    crossed first, None when an inside robot never crossed. `yielder_last`
+    (descriptive, not part of the oracle: M4 releases the yielder and the
+    second recede robot on the same gate) is True when the yielder crossed
+    after every other robot that crossed.
+
+    Args:
+        series: Per-robot GT samples.
+        scenario: The scenario dict (robots' spawns and goals, the oracle).
+        yielder: The executed plan's yielder, or None.
+
+    Returns:
+        Per-robot crossing times, the crossing order and both flags.
+    """
+    oracle = scenario["oracle"]
+    times: dict[str, float | None] = {}
+    for robot in scenario["robots"]:
+        rid = robot["robot_id"]
+        dx = robot["goal"]["x"] - robot["spawn"]["x"]
+        dy = robot["goal"]["y"] - robot["spawn"]["y"]
+        axis = "x" if abs(dx) >= abs(dy) else "y"
+        direction = math.copysign(1.0, dx if axis == "x" else dy)
+        times[rid] = junction_crossing(series[rid], axis, direction)
+    inside = [r for r in oracle["inside_pair"] if r != yielder]
+    recede = list(oracle["recede_pair"])
+    inside_times = [times[r] for r in inside]
+    if any(t is None for t in inside_times):
+        inside_first = None
+    else:
+        last_inside = max(inside_times)
+        inside_first = all(times[r] is None or times[r] > last_inside for r in recede)
+    yielder_last = None
+    if yielder is not None and times.get(yielder) is not None:
+        others = [t for r, t in times.items() if r != yielder and t is not None]
+        yielder_last = all(times[yielder] > t for t in others)
+    crossed = sorted((t, r) for r, t in times.items() if t is not None)
+    return {
+        "crossing_sec": {r: (None if t is None else round(t, 2)) for r, t in times.items()},
+        "crossing_order": [r for _t, r in crossed],
+        "inside_robots": inside,
+        "inside_first": inside_first,
+        "yielder_last": yielder_last,
+    }
+
+
+def phase_reached(m5_log: str) -> dict[str, Any]:
+    """The phase-reached ordinal and the fallback flags from M5's log.
+
+    `recede` is reached once any `-junction-recede-` command is dispatched
+    (phase 0 has no advance line of its own); every later phase is read off
+    `junction_clear phase advance ... phase_reached=<p>` lines. The ordinal
+    is the highest of `oracle.phase_ordinal` reached (`none` 0, `recede` 1,
+    `cross` 2, `release` 3, `resolved` 4); `fallback` (a phase failed and
+    the plain-yield fallback ran) and `fallback_exhausted` (M5's
+    `outcome=fallback_exhausted`: that fallback failed too) are flags.
+
+    Args:
+        m5_log: The run's M5 (orchestrator) log text.
+
+    Returns:
+        `phase_reached`, `phase_ordinal`, `fallback`, `fallback_exhausted`
+        and the advance sequence.
+    """
+    ordinal = ("none", "recede", "cross", "release", "resolved")
+    reached = IB10_PHASE_NONE
+    if re.search(r"dispatch request=\S+ command=\S+-junction-recede-", m5_log):
+        reached = "recede"
+    sequence = []
+    fallback = False
+    for match in _PHASE_ADVANCE_RE.finditer(m5_log):
+        phase, done = match.group(1), match.group(2) == "True"
+        sequence.append({"phase_reached": phase, "done": done})
+        if phase == "fallback":
+            fallback = True
+        elif phase in ordinal and ordinal.index(phase) > ordinal.index(reached):
+            reached = phase
+    return {
+        "phase_reached": reached,
+        "phase_ordinal": ordinal.index(reached),
+        "fallback": fallback,
+        "fallback_exhausted": "outcome=fallback_exhausted" in m5_log,
+        "advances": sequence,
+    }
+
+
+def release_attribution(m4_log: str) -> dict[str, Any]:
+    """CrossingChain gate events of the `-junction-release` command (step-7b ruling iii).
+
+    Args:
+        m4_log: The run's M4 log text.
+
+    Returns:
+        The release command's gate events in log order and, per held robot,
+        its release `reason` (`clearance` or `hold_timer`). `ordered_release`
+        is True when every held robot was released by `clearance`, None when
+        no release-command gate event was logged.
+    """
+    events = []
+    for match in _GATE_RE.finditer(m4_log):
+        kind, command, yielder, passer, reason, sim_t = match.groups()
+        if "-junction-release" not in command:
+            continue
+        events.append({
+            "event": kind, "command": command, "yielder": yielder, "passer": passer,
+            "reason": reason, "sim_t": float(sim_t),
+        })
+    reasons = {e["yielder"]: e["reason"] for e in events if e["event"] == "gate_release"}
+    return {
+        "events": events,
+        "release_reason": reasons,
+        "ordered_release": None if not reasons else all(
+            r == "clearance" for r in reasons.values()
+        ),
+    }
+
+
+def tracked_band(series: dict[str, list[Sample]], t0: float) -> dict[str, Any]:
+    """Each robot's largest |x| and |y| after t0, against M1's tracked band."""
+    extent = {
+        rid: (
+            round(max((abs(s.x) for s in samples if s.t >= t0), default=0.0), 3),
+            round(max((abs(s.y) for s in samples if s.t >= t0), default=0.0), 3),
+        )
+        for rid, samples in sorted(series.items())
+    }
+    return {
+        "max_abs_xy": {rid: list(xy) for rid, xy in extent.items()},
+        "band": list(IB10_TRACKED_BAND_M),
+        "in_band": all(
+            x <= IB10_TRACKED_BAND_M[0] and y <= IB10_TRACKED_BAND_M[1]
+            for x, y in extent.values()
+        ),
+    }
+
+
+def stale_streaks(scene_log: Path) -> dict[str, dict[str, float]]:
+    """Longest STALE streak per robot in M5's scene log (step-6 instrumentation rule).
+
+    Args:
+        scene_log: The run's `m5_scene/<session>.jsonl`.
+
+    Returns:
+        Per robot: `rows`, `stale_rows`, `longest_streak_rows` and
+        `longest_streak_sec` (stamp span of that streak).
+    """
+    out: dict[str, dict[str, Any]] = {}
+    for line in scene_log.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        record = json.loads(line)
+        # A STALE robot's own stamp freezes at its last fresh detection, so
+        # the streak span is read off the scene's stamp instead.
+        stamp = record["scene"]["stamp"]
+        for robot in record["scene"]["robots"]:
+            state = out.setdefault(robot["robot_id"], {
+                "rows": 0, "stale_rows": 0, "longest_streak_rows": 0,
+                "longest_streak_sec": 0.0, "_run": 0, "_start": None,
+            })
+            state["rows"] += 1
+            if robot["status"] == "STALE":
+                state["stale_rows"] += 1
+                state["_run"] += 1
+                if state["_start"] is None:
+                    state["_start"] = stamp
+                if state["_run"] > state["longest_streak_rows"]:
+                    state["longest_streak_rows"] = state["_run"]
+                    state["longest_streak_sec"] = round(stamp - state["_start"], 2)
+            else:
+                state["_run"], state["_start"] = 0, None
+    return {
+        rid: {k: v for k, v in state.items() if not k.startswith("_")}
+        for rid, state in sorted(out.items())
+    }
+
+
+def score_ib10(
+    gt_dir: Path,
+    *,
+    decisions_dir: Path | None = None,
+    m5_log: str | None = None,
+    m4_log: str | None = None,
+    scene_log: Path | None = None,
+    scenario: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Every IB10 `junction_clear` resolution criterion for one run.
+
+    `resolved` (episode success) is the formed-jam gate passing and all
+    robots position-verified at their goals (`score_ground_truth`'s arrival
+    rule); None when the gate fails (the run is invalid, not scored).
+
+    Args:
+        gt_dir: The run's ground-truth directory.
+        decisions_dir: The run's M5 decision artifacts (chi-pair).
+        m5_log: The run's M5 log text (phase reached, fallback flags).
+        m4_log: The run's M4 log text (release attribution).
+        scene_log: The run's M5 scene log (STALE streaks).
+        scenario: The scenario dict (default: `intersection_bottleneck.yaml`).
+
+    Returns:
+        The scored record; a section is None when its input was not given.
+    """
+    scenario = scenario or load_scenario("intersection_bottleneck")
+    series = load_ground_truth(gt_dir)
+    run = score_ground_truth("ib10", gt_dir)
+    jam = formed_jam(series, scenario)
+    record = (
+        None if decisions_dir is None else dispatched_junction_decision(decisions_dir)
+    )
+    chi = None if record is None else score_chi_pair(record, scenario["oracle"])
+    yielder = None if chi is None else chi["yielder"]
+    arrivals = {rid: (None if at is None else round(at - run.t0_sec, 2))
+                for rid, at in run.arrivals_sec.items()}
+    n_arrived = sum(v is not None for v in arrivals.values())
+    all_arrived = n_arrived == len(arrivals)
+    return {
+        "scene": scenario.get("name"),
+        "t0_sec": run.t0_sec,
+        "end_sec": run.end_sec,
+        "formed_jam": jam,
+        "chi_pair": chi,
+        "order": score_inside_first(series, scenario, yielder),
+        "phase": None if m5_log is None else phase_reached(m5_log),
+        "release": None if m4_log is None else release_attribution(m4_log),
+        "arrivals_after_t0_sec": arrivals,
+        "n_arrived": n_arrived,
+        "all_arrived": all_arrived,
+        "tracked_band": tracked_band(series, run.t0_sec),
+        "stale_streaks": None if scene_log is None else stale_streaks(scene_log),
+        "resolved": all_arrived if jam["valid"] else None,
+    }
+
+
 def _dump(result: Any, out: str | None) -> None:
     text = json.dumps(result, indent=2)
     print(text)
@@ -734,6 +1219,23 @@ def _cmd_b3(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_ib10(args: argparse.Namespace) -> int:
+    def text(path: str | None) -> str | None:
+        return None if path is None else Path(path).read_text(encoding="utf-8", errors="replace")
+
+    _dump(
+        score_ib10(
+            Path(args.gt),
+            decisions_dir=None if args.decisions is None else Path(args.decisions),
+            m5_log=text(args.m5_log),
+            m4_log=text(args.m4_log),
+            scene_log=None if args.scene is None else Path(args.scene),
+        ),
+        args.out,
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -755,6 +1257,14 @@ def main(argv: list[str] | None = None) -> int:
     b3.add_argument("--gt", required=True)
     b3.add_argument("--out")
     b3.set_defaults(func=_cmd_b3)
+    ib10 = sub.add_parser("ib10", help="IB10 junction_clear resolution oracle")
+    ib10.add_argument("--gt", required=True)
+    ib10.add_argument("--decisions")
+    ib10.add_argument("--m5-log")
+    ib10.add_argument("--m4-log")
+    ib10.add_argument("--scene")
+    ib10.add_argument("--out")
+    ib10.set_defaults(func=_cmd_ib10)
     args = parser.parse_args(argv)
     return args.func(args)
 

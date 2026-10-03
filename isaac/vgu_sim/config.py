@@ -606,6 +606,51 @@ class RetreatOracleConfig(BaseModel):
         return len(self.correct_candidates) / self.candidate_count
 
 
+# The ordinal partial score of a `junction_clear` episode (prereg-v2 (a)
+# Scoring: "phase reached is the ordinal partial score"), in M5's own
+# `JunctionPhaseReached` vocabulary (swarm_orchestrator.junction_phase_queue),
+# kept local for the same reason as the literals above.
+JUNCTION_PHASE_ORDINAL: tuple[str, ...] = ("recede", "cross", "release", "resolved")
+JunctionPhase = Literal["recede", "cross", "release", "resolved"]
+
+
+class JunctionOracleConfig(BaseModel):
+    """The `junction_clear` resolution oracle for the IB10 four-way cell.
+
+    The v2 counterpart of `OracleConfig` (prereg-v2 (a) Scoring, step-7b
+    Part 3): the episode succeeds when every robot is position-verified at
+    its goal; `recede_pair` is the cross-axis pair M3 recedes (its order is
+    chi-ranked per episode, so none is registered); `inside_pair` crosses
+    first, inside-first, except for its grounded yielder; a run counts only
+    when the jam forms first, with `jam_robots_in_radius` robots inside
+    `oracle.intersection_conflict_active`'s radius at onset.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    correct_strategy: Literal["junction_clear"] = "junction_clear"
+    accepted_strategies: tuple[Literal["junction_clear"], ...] = ("junction_clear",)
+    objective: Literal["min_total_time_to_goal"] = "min_total_time_to_goal"
+    jam_robots_in_radius: int = Field(ge=3)
+    recede_pair: tuple[str, str]
+    inside_pair: tuple[str, str]
+    phase_ordinal: tuple[JunctionPhase, ...] = JUNCTION_PHASE_ORDINAL
+    rationale: str
+
+    @model_validator(mode="after")
+    def _pairs_partition_and_ordinal_is_canonical(self) -> "JunctionOracleConfig":
+        if set(self.recede_pair) & set(self.inside_pair):
+            raise ValueError(
+                f"recede_pair {list(self.recede_pair)} and inside_pair "
+                f"{list(self.inside_pair)} must be disjoint"
+            )
+        if self.phase_ordinal != JUNCTION_PHASE_ORDINAL:
+            raise ValueError(
+                f"phase_ordinal must be {list(JUNCTION_PHASE_ORDINAL)}; "
+                f"got {list(self.phase_ordinal)}"
+            )
+        return self
+
+
 FAMILY_BY_LEGACY_NAME: dict[str, str] = {
     "head_on_deadlock": "head_on",
     "intersection_bottleneck": "intersection",
@@ -647,6 +692,7 @@ class ScenarioConfig(BaseModel):
         | BlockerOracleConfig
         | RetreatOracleConfig
         | PriorityOracleConfig
+        | JunctionOracleConfig
         | None
     ) = None
     # Required but nullable: every scenario must state its conflict, and null
@@ -811,6 +857,17 @@ class ScenarioConfig(BaseModel):
                     raise ValueError(
                         f"oracle robot {rid!r} not in configured robots {robot_id_set}"
                     )
+        if isinstance(self.oracle, JunctionOracleConfig):
+            for rid in (*self.oracle.recede_pair, *self.oracle.inside_pair):
+                if rid not in robot_id_set:
+                    raise ValueError(
+                        f"oracle robot {rid!r} not in configured robots {robot_id_set}"
+                    )
+            if self.oracle.jam_robots_in_radius > len(self.robots):
+                raise ValueError(
+                    f"jam_robots_in_radius {self.oracle.jam_robots_in_radius} exceeds "
+                    f"the {len(self.robots)} configured robots"
+                )
 
         return self
 

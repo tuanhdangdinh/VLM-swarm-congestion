@@ -26,7 +26,7 @@ from swarm_orchestrator.shadow_classical import (
 )
 
 from isaac.scripts.generate_warehouse_map import build_occupancy_grid, load_scenario
-from isaac.vgu_sim.config import WarehouseConfig
+from isaac.vgu_sim.config import JunctionOracleConfig, WarehouseConfig
 from isaac.vgu_sim.paths import aruco_dict_name, marker_png_path
 from reasoning.baselines.classical_reasoner import (
     ConflictZone,
@@ -158,9 +158,15 @@ class TestScenario:
         for robot in _scenario().robots:
             assert marker_png_path(dictionary, robot.marker_id).is_file(), robot.robot_id
 
-    def test_t1_carries_no_oracle_and_no_scene_objects(self):
+    def test_t1_carries_only_the_v2_junction_oracle_and_no_scene_objects(self):
+        # The v1 T1 cell keeps no yield oracle (Arm B's answer is its
+        # reference); step-7b Part 3 adds only the v2 `junction_clear`
+        # resolution oracle, additively.
         scenario = _scenario()
-        assert scenario.oracle is None
+        assert isinstance(scenario.oracle, JunctionOracleConfig)
+        assert scenario.oracle.recede_pair == ("robot_3", "robot_4")
+        assert scenario.oracle.inside_pair == ("robot_1", "robot_2")
+        assert scenario.oracle.jam_robots_in_radius == 4
         assert scenario.aisle_barrier is None
         assert scenario.static_obstacles == ()
         assert scenario.timed_obstacles == ()

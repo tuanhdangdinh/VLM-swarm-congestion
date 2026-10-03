@@ -11,17 +11,25 @@ from scripts.coverage_scene_scores import (
     Sample,
     conflict_timeline,
     decision_route,
+    dispatched_junction_decision,
     final_crossing,
     first_passer,
     first_slipper,
     gate_passage,
+    load_ground_truth,
     load_scenario,
+    phase_reached,
+    release_attribution,
     score_b1,
     score_b2,
     score_b2_episode,
     score_b3,
+    score_chi_pair,
     score_conflict,
+    score_ib10,
+    score_inside_first,
     slip_onset_sec,
+    stale_streaks,
     stop_time_sec,
 )
 
@@ -365,3 +373,297 @@ def test_score_b3_reports_identity_and_latency_from_conflict_onset(tmp_path):
     assert result["first_slipper"] == "robot_1"
     assert result["slip_onset_sec"]["robot_4"] is None
     assert result["first_slip_latency_sec"] == pytest.approx(5.0, abs=0.3)
+
+
+# ---- IB10 junction_clear resolution oracle (step-7b Part 3) ----
+
+IB10_GOALS = {
+    "robot_1": (1.75, 0.0),
+    "robot_2": (-1.75, 0.0),
+    "robot_3": (0.0, 1.75),
+    "robot_4": (0.0, -1.75),
+}
+# The designed episode: the four-way jam forms at ~15 s; the lead robot_4
+# recedes north to its 1.2 pocket, robot_3 south to its staggered 1.0 pocket,
+# robot_1 yields west and robot_2 crosses; then robot_4 re-enters first and
+# robot_3 and the yielder robot_1 last.
+IB10_DESIGNED = {
+    "robot_1": [(0, -1.75, 0.0), (10, -1.75, 0.0), (15, -0.25, 0.0), (25, -0.25, 0.0),
+                (35, -1.0, 0.0), (72, -1.0, 0.0), (87, 1.75, 0.0)],
+    "robot_2": [(0, 1.75, 0.0), (10, 1.75, 0.0), (15, 0.25, 0.0), (40, 0.25, 0.0),
+                (55, -1.75, 0.0)],
+    "robot_3": [(0, 0.0, -1.75), (10, 0.0, -1.75), (15, 0.0, -0.25), (28, 0.0, -0.25),
+                (33, 0.0, -1.0), (70, 0.0, -1.0), (85, 0.0, 1.75)],
+    "robot_4": [(0, 0.0, 1.75), (10, 0.0, 1.75), (15, 0.0, 0.25), (25, 0.0, 0.25),
+                (28, 0.0, 1.2), (55, 0.0, 1.2), (70, 0.0, -1.75)],
+}
+
+
+def _keyframe_position(keys: list[tuple[float, float, float]], t: float) -> tuple[float, float]:
+    if t >= keys[-1][0]:
+        return keys[-1][1], keys[-1][2]
+    for (t0, x0, y0), (t1, x1, y1) in zip(keys, keys[1:], strict=False):
+        if t0 <= t <= t1:
+            f = 0.0 if t1 == t0 else (t - t0) / (t1 - t0)
+            return x0 + f * (x1 - x0), y0 + f * (y1 - y0)
+    return keys[0][1], keys[0][2]
+
+
+def _ib10_gt(tmp_path: Path, keys: dict, end_sec: float = 100.0, name: str = "gt") -> Path:
+    n = round(end_sec / DT) + 1
+    tracks = {
+        rid: [_keyframe_position(k, i * DT) for i in range(n)] for rid, k in keys.items()
+    }
+    return _write_gt(tmp_path / name, _frames(tracks), IB10_GOALS)
+
+
+def _ib10_record(proposed: list[str] | None, executed: list[str]) -> dict:
+    # The trigger snapshot: the IB10 GT standoff, where chi ranks robot_4
+    # (0.923 m to its pocket) before robot_3 (0.942 m).
+    standoff = {
+        "robot_1": (-0.2192, -0.0014), "robot_2": (0.33, 0.0158),
+        "robot_3": (-0.0208, -0.2583), "robot_4": (0.0045, 0.2773),
+    }
+    decision = {"congestion_detected": True, "strategy": "junction_clear"}
+    if proposed is not None:
+        decision["proposed_plan"] = [
+            *({"robot_id": r, "action": "reverse"} for r in proposed),
+            {"robot_id": "robot_1", "action": "yield"},
+            {"robot_id": "robot_2", "action": "cross"},
+        ]
+    return {
+        "decision": decision,
+        "grounded_command_present": True,
+        "scene": {
+            "stamp": 33.9,
+            "robots": [
+                {"robot_id": r, "x": x, "y": y, "theta": 0.0, "status": "STOPPED"}
+                for r, (x, y) in standoff.items()
+            ],
+        },
+        "plan": {
+            "provenance": "repaired",
+            "legs": [
+                *({"robot_id": r, "action": "reverse"} for r in executed),
+                {"robot_id": "robot_1", "action": "yield"},
+                {"robot_id": "robot_2", "action": "cross"},
+            ],
+        },
+    }
+
+
+class TestIb10OracleBlock:
+    def test_oracle_block_names_the_pairs_and_the_canonical_ordinal(self):
+        oracle = load_scenario("intersection_bottleneck")["oracle"]
+        assert oracle["correct_strategy"] == "junction_clear"
+        assert oracle["recede_pair"] == ["robot_3", "robot_4"]
+        assert oracle["inside_pair"] == ["robot_1", "robot_2"]
+        assert oracle["jam_robots_in_radius"] == 4
+        assert oracle["phase_ordinal"] == ["recede", "cross", "release", "resolved"]
+
+
+class TestIb10FormedJam:
+    def test_designed_jam_passes_the_validity_gate(self, tmp_path):
+        result = score_ib10(_ib10_gt(tmp_path, IB10_DESIGNED))
+        jam = result["formed_jam"]
+        assert jam["onset_sec"] == pytest.approx(15.0, abs=0.3)
+        assert jam["robots_in_radius_at_onset"] == 4
+        assert jam["valid"] is True
+
+    def test_a_jam_forming_after_the_window_is_invalid_not_failed(self, tmp_path):
+        late = {
+            rid: [(t + 30 if t >= 10 else t, x, y) for t, x, y in keys]
+            for rid, keys in IB10_DESIGNED.items()
+        }
+        result = score_ib10(_ib10_gt(tmp_path, late, end_sec=130.0))
+        assert result["formed_jam"]["onset_in_window"] is False
+        assert result["formed_jam"]["valid"] is False
+        assert result["resolved"] is None
+
+    def test_a_three_robot_jam_fails_the_four_robot_gate(self, tmp_path):
+        three = dict(IB10_DESIGNED)
+        three["robot_4"] = [(0, 0.0, 1.75), (100, 0.0, 1.75)]
+        result = score_ib10(_ib10_gt(tmp_path, three))
+        assert result["formed_jam"]["robots_in_radius_at_onset"] == 3
+        assert result["formed_jam"]["valid"] is False
+
+
+class TestIb10ChiPair:
+    def test_correct_pair_in_chi_order_scores_correct_on_both_plans(self):
+        result = score_chi_pair(
+            _ib10_record(["robot_4", "robot_3"], ["robot_4", "robot_3"]),
+            load_scenario("intersection_bottleneck")["oracle"],
+        )
+        assert result["chi_order"] == ["robot_4", "robot_3"]
+        assert result["proposed_pair_correct"] is True
+        assert result["proposed_order_correct"] is True
+        assert result["executed_order_correct"] is True
+        assert result["yielder"] == "robot_1"
+
+    def test_proposed_order_is_scored_before_repair(self):
+        result = score_chi_pair(
+            _ib10_record(["robot_3", "robot_4"], ["robot_4", "robot_3"]),
+            load_scenario("intersection_bottleneck")["oracle"],
+        )
+        assert result["proposed_pair_correct"] is True
+        assert result["proposed_order_correct"] is False
+        assert result["executed_order_correct"] is True
+
+    def test_wrong_recede_pair_is_a_pair_error(self):
+        result = score_chi_pair(
+            _ib10_record(["robot_1", "robot_2"], ["robot_4", "robot_3"]),
+            load_scenario("intersection_bottleneck")["oracle"],
+        )
+        assert result["proposed_pair_correct"] is False
+
+    def test_strategy_token_only_has_no_proposed_score(self):
+        result = score_chi_pair(
+            _ib10_record(None, ["robot_4", "robot_3"]),
+            load_scenario("intersection_bottleneck")["oracle"],
+        )
+        assert result["proposed_recede"] is None
+        assert result["proposed_pair_correct"] is None
+        assert result["executed_pair_correct"] is True
+
+    def test_dispatched_decision_is_the_earliest_junction_clear(self, tmp_path):
+        early = _ib10_record(None, ["robot_4", "robot_3"])
+        late = {**early, "scene": {**early["scene"], "stamp": 90.0}}
+        skip = {"decision": {"congestion_detected": False, "strategy": "none"},
+                "grounded_command_present": False, "scene": {"stamp": 1.0}}
+        for name, record in (("a.json", late), ("b.json", early), ("c.json", skip)):
+            (tmp_path / name).write_text(json.dumps(record))
+        found = dispatched_junction_decision(tmp_path)
+        assert found["_artifact"] == "b.json"
+
+
+class TestIb10InsideFirst:
+    def test_designed_order_is_inside_first_with_the_yielder_last(self, tmp_path):
+        result = score_ib10(_ib10_gt(tmp_path, IB10_DESIGNED))
+        order = score_inside_first(
+            load_ground_truth(tmp_path / "gt"), load_scenario("intersection_bottleneck"), "robot_1"
+        )
+        assert order["inside_robots"] == ["robot_2"]
+        assert order["inside_first"] is True
+        assert order["yielder_last"] is True
+        assert order["crossing_order"][0] == "robot_2"
+        assert result["all_arrived"] is True
+        assert result["resolved"] is True
+
+    def test_a_recede_robot_crossing_before_the_passer_breaks_inside_first(self, tmp_path):
+        early = dict(IB10_DESIGNED)
+        early["robot_4"] = [(0, 0.0, 1.75), (10, 0.0, 1.75), (15, 0.0, 0.25), (25, 0.0, 0.25),
+                            (38, 0.0, -1.75)]
+        early["robot_2"] = [(0, 1.75, 0.0), (10, 1.75, 0.0), (15, 0.25, 0.0), (45, 0.25, 0.0),
+                            (60, -1.75, 0.0)]
+        series = load_ground_truth(_ib10_gt(tmp_path, early))
+        order = score_inside_first(series, load_scenario("intersection_bottleneck"), "robot_1")
+        assert order["inside_first"] is False
+
+    def test_a_passer_that_never_crosses_leaves_the_order_undecided(self, tmp_path):
+        stuck = dict(IB10_DESIGNED)
+        stuck["robot_2"] = [(0, 1.75, 0.0), (10, 1.75, 0.0), (15, 0.25, 0.0)]
+        series = load_ground_truth(_ib10_gt(tmp_path, stuck))
+        order = score_inside_first(series, load_scenario("intersection_bottleneck"), "robot_1")
+        assert order["inside_first"] is None
+
+
+IB10_M5_LOG = """\
+[orchestrator_node]: dispatch request=r1 command=r1-junction-recede-robot_4 robot=robot_4 plan_id=1
+[orchestrator_node]: junction_clear phase advance command=r1-junction-recede-robot_4 \
+completed=True phase_reached=recede done=False
+[orchestrator_node]: junction_clear phase advance command=r1-junction-recede-robot_3 \
+completed=True phase_reached=cross done=False
+[orchestrator_node]: junction_clear phase advance command=r1-junction-cross \
+completed=True phase_reached=release done=False
+"""
+
+
+class TestIb10PhaseReached:
+    def test_no_dispatch_is_ordinal_zero(self):
+        result = phase_reached("nothing here\n")
+        assert result["phase_reached"] == "none"
+        assert result["phase_ordinal"] == 0
+
+    def test_release_is_ordinal_three(self):
+        result = phase_reached(IB10_M5_LOG)
+        assert result["phase_reached"] == "release"
+        assert result["phase_ordinal"] == 3
+        assert result["fallback"] is False
+
+    def test_resolved_is_ordinal_four(self):
+        log = IB10_M5_LOG + (
+            "[orchestrator_node]: junction_clear phase advance command=r1-junction-release "
+            "completed=True phase_reached=resolved done=True\n"
+        )
+        assert phase_reached(log)["phase_ordinal"] == 4
+
+    def test_fallback_keeps_the_last_phase_and_flags_exhaustion(self):
+        log = (
+            "dispatch request=r1 command=r1-junction-recede-robot_4 robot=robot_4\n"
+            "junction_clear phase advance command=r1-junction-recede-robot_4 completed=True "
+            "phase_reached=recede done=False\n"
+            "junction_clear phase advance command=r1-junction-recede-robot_3 completed=False "
+            "phase_reached=fallback done=False\n"
+            "junction_clear fallback exhausted command=r1-fb robots=['robot_1'] "
+            "outcome=fallback_exhausted\n"
+        )
+        result = phase_reached(log)
+        assert result["phase_reached"] == "recede"
+        assert result["fallback"] is True
+        assert result["fallback_exhausted"] is True
+
+
+class TestIb10ReleaseAttribution:
+    def test_clearance_releases_are_an_ordered_release(self):
+        log = (
+            "crossing_chain gate_admit command=r1-junction-release yielder=robot_3 "
+            "passer=robot_4 clear_m=2.650 escort_m=None sim_t=100.000\n"
+            "crossing_chain gate_cleared command=r1-junction-release yielder=robot_3 "
+            "passer=robot_4 moved_m=2.700 clear_m=2.650 sim_t=150.000\n"
+            "crossing_chain gate_release command=r1-junction-release yielder=robot_3 "
+            "reason=clearance sim_t=150.100\n"
+            "crossing_chain gate_release command=r1-junction-release yielder=robot_1 "
+            "reason=clearance sim_t=150.200\n"
+            "crossing_chain gate_release command=r1-junction-cross yielder=robot_1 "
+            "reason=hold_timer sim_t=90.000\n"
+        )
+        result = release_attribution(log)
+        assert result["release_reason"] == {"robot_3": "clearance", "robot_1": "clearance"}
+        assert result["ordered_release"] is True
+        assert [e["event"] for e in result["events"]] == [
+            "gate_admit", "gate_cleared", "gate_release", "gate_release",
+        ]
+        assert result["events"][1]["passer"] == "robot_4"
+
+    def test_a_hold_timer_release_is_not_attributable(self):
+        log = (
+            "crossing_chain gate_release command=r1-junction-release yielder=robot_3 "
+            "reason=hold_timer sim_t=150.100\n"
+        )
+        assert release_attribution(log)["ordered_release"] is False
+
+    def test_no_release_events_is_undecided(self):
+        assert release_attribution("")["ordered_release"] is None
+
+
+class TestIb10Instrumentation:
+    def test_an_excursion_past_the_tracked_band_is_flagged(self, tmp_path):
+        out = dict(IB10_DESIGNED)
+        out["robot_4"] = [*IB10_DESIGNED["robot_4"][:5], (40, 0.0, 2.38), (55, 0.0, 1.2),
+                          (70, 0.0, -1.75)]
+        result = score_ib10(_ib10_gt(tmp_path, out))
+        assert result["tracked_band"]["in_band"] is False
+        assert result["tracked_band"]["max_abs_xy"]["robot_4"][1] == pytest.approx(2.38)
+
+    def test_stale_streak_rows_and_span(self, tmp_path):
+        lines = []
+        for i, status in enumerate(["STOPPED", "STALE", "STALE", "STALE", "STOPPED", "STALE"]):
+            lines.append(json.dumps({"scene": {"stamp": 10.0 + i, "robots": [
+                {"robot_id": "robot_3", "status": status, "stamp": 10.0},
+            ]}}))
+        path = tmp_path / "scene.jsonl"
+        path.write_text("\n".join(lines) + "\n")
+        result = stale_streaks(path)["robot_3"]
+        assert result["stale_rows"] == 4
+        assert result["longest_streak_rows"] == 3
+        assert result["longest_streak_sec"] == 2.0

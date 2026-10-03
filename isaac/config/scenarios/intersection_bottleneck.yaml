@@ -48,7 +48,11 @@ duration_sec: 300.0
 # yielder's pair with its admitted passer, so the yielder's own backup was
 # latched and the yield failed (docs/implementation_notes.md, same date).
 #
-# No oracle block: T1 has none (Arm B's own answer is the reference).
+# Oracle block (step-7b Part 3, 2026-10-03): the v2 `junction_clear`
+# resolution oracle, additive only (the v1 T1 cell keeps no oracle; Arm B's
+# own answer stays its reference). Scored by
+# `scripts/coverage_scene_scores.py ib10`; criteria frozen in
+# docs/reports/2026-10-03-step7b-oracle-freeze.md ("IB10 scoring frozen").
 #
 # M5 takes goals from swarm_orchestrator/config/orchestrator.yaml
 # initial_tasks, NOT from here: set all four goals below (robot_3 and robot_4
@@ -96,6 +100,40 @@ expected_conflict:
   # Nav2 stacks departing apart.
   onset_window_sec: [8.0, 40.0]
   min_duration_sec: 2.0
+
+oracle:
+  correct_strategy: junction_clear
+  accepted_strategies: [junction_clear]
+  objective: min_total_time_to_goal
+  # Formed-jam validity gate: `isaac.vgu_sim.oracle.intersection_conflict_active`
+  # over GT, onset inside expected_conflict.onset_window_sec, longest active
+  # interval >= min_duration_sec, and this many robots within its 1.0 m
+  # radius at onset. A run failing the gate is INVALID (not scored), not a
+  # failed resolution.
+  jam_robots_in_radius: 4
+  # chi-pair: the recede set is the cross-axis pair (M3's
+  # `_junction_recede_candidates`); its order is chi-ranked per episode from
+  # the dispatched decision's own trigger snapshot, so no fixed order is
+  # registered. Scored on the proposed plan (pre-repair) and on the executed
+  # plan.
+  recede_pair: [robot_3, robot_4]
+  # Inside-first: every inside_pair robot except the grounded yielder makes
+  # its final junction-centre crossing before either recede_pair robot's.
+  inside_pair: [robot_1, robot_2]
+  # Phase-reached ordinal (M5 `junction_clear phase advance` log lines):
+  # none 0 < recede 1 < cross 2 < release 3 < resolved 4; `fallback` and
+  # `fallback_exhausted` are reported as flags beside the ordinal.
+  phase_ordinal: [recede, cross, release, resolved]
+  rationale: >-
+    four-way formed jam: no single yielder clears two opposing pairs (v1
+    T1-X), so the cross-axis pair recedes along its own arms in chi order,
+    the yield-axis pair runs one yield, and the receded robots re-enter
+    after it, the chi lead first. Episode success is all four robots
+    position-verified at their goals.
+  # margin: pending the forced-arm harness (`strategy_regret.py`,
+  # junction_clear vs best_single_yield). best_single_yield is censored by
+  # construction (v1 T1-X), so the margin is a censored lower bound as in
+  # T2b.
 
 runtime:
   physics_hz: 60
