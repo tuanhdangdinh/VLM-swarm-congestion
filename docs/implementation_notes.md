@@ -37,6 +37,47 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-03** — **VLM-planning review fixes: prompt v3.1 plan grammar
+  + emission/consistency metric split landed; χ-epsilon rule STOPPED for
+  a ruling; live ER-2 calibration on IB10 PASSES 4/4 and the plan shape
+  changed.** Branch `feat/v2-plan-grammar` (from
+  `feat/prereg-v2-composite` at `af7cec5`). Full report:
+  `docs/reports/2026-10-03-plan-grammar-fixes.md`.
+  - **v3.1 (`13d7392`):** a static `_PLAN_GRAMMAR` block (action meanings
+    + the `_is_consistent` rules) and a gloss for all eight strategy
+    tokens. Re-pinned in place under `prompt_version=3`; artifacts are
+    told apart by `user_sha256` (v3.0 baseline `22baf2df…`, v3.1
+    `42463ce2…`). v1/v2 pins are unchanged.
+  - **Metric split (`7bf4e89`):** `emitted` = parseable; new
+    `consistent`. Oracle-order agreement stays gated on consistency. Old
+    artifacts score by recomputation.
+  - **Gotcha — the χ order "flips" are jam-formation asymmetry, not
+    snapshot timing** (supersedes the "snapshot-timing dependent" reading
+    in the next entry). Settled-margin noise within a run is ≤ 5 mm;
+    margins between runs range from −0.142 to +0.049 m in a scene that is
+    symmetric by design.
+  - **Gotcha — ε on the recede-order audit reopens freeze-blocker 1.**
+    Dispatch is grounded from the raw decision, before verification,
+    always in χ order, and `junction_clear_plan_matches_dispatch` ignores
+    order.
+  - **Gotcha — ε ≥ 0.02 m changes the bound freeze.** It drops two
+    depth-5 sweep cases to depth 4, so bound 4 reaches full coverage.
+  - **Calibration (`fc_run_20261003_154833`):** ER-2 proposed its first
+    recede legs: `reverse` for robot_1/robot_2 (the E-W axis), `cross`
+    for robot_3/robot_4. The plan was consistent and `repaired` at
+    exactly bound 3. The outcome was 4/4, `outcome_rank` (1, 4, 4),
+    yielder last. With χ tied (0.939/0.939), a 0.01 m flip would have
+    made the same plan `m3_default`. Bundle:
+    `data/logs/vm_runs/plan_grammar_cal/` (gitignored).
+  - **Apparatus gotchas:**
+    - The driver's `GATE OK` also fires on a Nav2-bringup abort, because
+      `logs saved to` is printed on the failure path.
+    - An aborted early run leaves Isaac simulating its full 300 sim-s
+      (more than 12 min), so the next launch's 420 s guard refuses.
+      Kill it by PID and confirm the GPU is idle.
+  - Suite: 63 / 4565 / 152 against a baseline of 63 / 4551 / 152; the
+    failing set is identical.
+
 - **2026-10-03** — **v2 demo episodes recorded on IB10 (scripted 4/4 +
   LIVE ER-2 4/4), with four apparatus gotchas.** Runs
   `fc_run_20261003_062051` (scripted) and `fc_run_20261003_064912`
@@ -55,7 +96,8 @@ Rules for maintaining it:
   Isaac — re-time from the last recorder progress line inside the
   Isaac-active window; (3) IB10's χ order flips between runs
   ([robot_4, robot_3] in the 7b rerun vs [robot_3, robot_4] in both
-  demo runs — snapshot-timing dependent), so the
+  demo runs — snapshot-timing dependent; superseded by 2026-10-03
+  plan-grammar entry: between-run jam-formation asymmetry), so the
   `intersection_junction_clear_vlm_verbatim_once.json` mock can score
   `repaired` instead of `vlm_verbatim`; any fixture pinning verbatim
   provenance must derive the recede order from the live snapshot, not
