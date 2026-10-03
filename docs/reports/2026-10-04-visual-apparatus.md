@@ -34,12 +34,14 @@ With every flag off, three things are pinned unchanged:
 | 4 | Permutation voting | M5 `prompt_permutation_votes` (default 1) | M5 |
 | 5 | Verifier-candidate-options block | M5 `prompt_candidate_options` | M3 derives, M5 renders |
 
-Suite: **63 failed / 4790 passed / 153 skipped / 3 errors**, against the
+Suite: **63 failed / 4796 passed / 153 skipped / 3 errors**, against the
 clean detached baseline at `aec58cc` of 63 / 4581 / 152 / 3.
 
 - The failing-name set is identical.
-- The +209 passes are this branch's new tests.
-- The +1 skip is the OpenCV-build-specific frame hash pin; see "Pins".
+- The +215 passes are this branch's new tests.
+- The +1 local skip is the `launch_ros` annotation-loader test, since
+  `launch_ros` is absent locally. In the VM container the skip is instead
+  the build-gated frame hash pin; see "Pins".
 - The VM container ran the apparatus test files on OpenCV 4.6.0: 209 passed, 1 skipped.
 
 VM smoke: see "VM Verification Smoke".
@@ -225,14 +227,24 @@ so all three consume the winning call only.
     single-call policy (pinned per call).
 - **Vote** on `(congestion_detected, type, strategy, yield_robot)`.
   Calls whose decision is None (exhausted or refused) abstain.
-- **Tie rule (registered):** among the keys tied for the most votes, the
-  key held by the **earliest call** wins.
-  - Call 0 is the order M5's presentation-order policy drew for this
-    episode: the decision's "registry order", the order the single-draw
-    condition would have rendered.
-  - A tie therefore resolves to the drawn order whenever that call voted,
-    otherwise to the least-shifted voting call. The rule is total.
+- **Tie rule (registered, as the brief states it):** among the keys tied
+  for the most votes, the key voted by the call whose rendered order
+  **matches the registry order** wins.
+  - The registry order is M5's task-registry robot order: the
+    `initial_tasks` order, restricted to the request's robots, with
+    robots the registry does not name following in ascending id. It is
+    passed as `InProcessPipeline(registry_order=…)`.
+  - **Fallback**, to keep the rule total: if no tied call rendered the
+    registry order, the earliest call wins. Call 0 is the episode's
+    drawn order.
+  - The record carries `registry_order` and `tie_resolved_by`
+    (`registry_order` / `earliest_call` / null).
   - If every call abstains, the outcome is call 0's failure.
+  - **Design gap (open item 2):** with three or more robots under a
+    `random` or `id_desc` draw, the cyclic shifts of the drawn base need
+    not include the registry order at all, e.g. id_desc (3, 2, 1) never
+    rotates to (1, 2, 3). Every tie in such a cell resolves by the
+    fallback, which is pinned by test.
 - **Winner's response, whole.** `proposed_plan`, `reasoning`,
   `root_cause`, `justification`, `crossing_order` and `blocker_kind` are
   the winning call's own answer, never merged across calls (pinned).
@@ -240,6 +252,7 @@ so all three consume the winning call only.
   - every call: index, shift, order, system/user SHA-256, vote, decision,
     raw text, diagnostics;
   - `vote_counts` with call indices;
+  - `registry_order` and `tie_resolved_by`;
   - `winner_index`, `winner_vote`, `tie_broken`, `tie_rule`;
   - `distinct_orders`;
   - `total_backend_attempts`.
@@ -502,6 +515,7 @@ Artifact excerpt (`decisions/484af59e….json`, `permutation_votes`):
 ```text
 votes_requested=3 distinct_orders=2 winner_index=1 tie_broken=False
 tie_rule=earliest_call_first:call_0_is_the_episode_drawn_order total_backend_attempts=3
+(the VM ran the pre-`registry_order` tie code; no tie occurred, so the outcome is unaffected)
 call 0 shift 0 order [robot_1, robot_2] user_sha256 e4ea7a476a4c… vote yield/robot_1
 call 1 shift 1 order [robot_2, robot_1] user_sha256 c3599e5007ce… vote yield/robot_2
 call 2 shift 0 order [robot_1, robot_2] user_sha256 e4ea7a476a4c… vote yield/robot_2
@@ -518,30 +532,54 @@ decision.justification = call 1's ("…call 1: robot_2 yields (the majority answ
   criterion cannot hold at N = 3 with two robots.
 - M1 freshness with overlays off: 0 STALE for either robot (649 rows).
 
+### Coordinator criteria, met / not met
+
+| Criterion | Status |
+|---|---|
+| Grid renders recessively and legibly at real resolution | **Met** (evidence 01, 03) |
+| Grid occludes no marker or robot | **Met** (footprint mask; evidence 01, 06) |
+| M1 detection stays 100 % fresh under the overlays | **Not met as stated.** robot_2 had 9 STALE rows (1.4 %), all at a 0.149 m separation where the markers physically overlap in the RAW frame (evidence 06). Detection runs before annotation, so the overlays cannot cause it; the flag-off comparator jams formed farther apart (0.263 m, 0.222 m). |
+| Trails draw correctly for moving robots | **Met**, faint at backup speed (open item 5) |
+| Zoom tile generated with correct crop bounds | **Met** (crop_px / world_bounds recorded; evidence 02, 07) |
+| Three calls per analysis in `permutation_votes`, per-call prompt hashes | **Met** |
+| Distinct order draws | **Not met: inherent.** With two robots and N = 3, calls 0 and 2 render the same order and prompt hash (open item 1). |
+| Majority vote resolves per the tie rule | Majority **met** live (2-1, winner call 1). The **tie path was not exercised live** (no tie occurred); it is covered by unit tests only. |
+| Dispatched decision matches the winning call | **Met** (yield robot_2 dispatched and COMPLETED) |
+
 ---
 
 ## Open Items for the Coordinator
 
-1. **Two-robot vote wrap** (Item 4). Choose N = 2 / even N / distinct-order
-   voting for two-robot cells, or accept the 2:1 drawn-order weight.
-2. **Candidate-options probe contexts** (Item 5). Ratify the per-action
+1. **Two-robot vote wrap** (Item 4). Choose N = 2, an even N, or
+   distinct-order voting for two-robot cells, or accept the 2:1
+   drawn-order weight. Observed live in `votes_r1`.
+2. **Tie rule vs. the drawn order** (Item 4). Ties go to the call
+   rendering the registry order, per the brief. But cyclic shifts of a
+   `random`/`id_desc` base may never render that order, and then the
+   earliest-call fallback decides. If the intent is "ties go to the
+   registry order whenever possible", the shift set would have to include
+   it: an owner design call.
+3. **Candidate-options probe contexts** (Item 5). Ratify the per-action
    context table, especially `reverse` under `junction_clear` when arms
    are declared.
-3. **Zoom framing set.** The tile frames the robots the analysis was
-   *triggered for*: M5's stall detector set, which in both VM runs was a
-   single robot per analysis. At the head-on trigger that was robot_1
-   alone; robot_2, 0.13 m away, was inside the 0.6 m margin and fully in
-   the tile. A partner farther than the margin would fall outside it. A
-   framing over every robot within some radius, or scene-wide, is a
-   one-line change if preferred.
+4. **Zoom framing set.** The tile frames the robots the analysis was
+   *triggered for*: M5's stall-detector set, which in both VM runs was a
+   single robot per analysis.
+   - At the head-on trigger that was robot_1 alone. robot_2, 0.13 m away,
+     was inside the 0.6 m margin and fully in the tile.
+   - A partner farther than the margin would fall outside it.
+   - Framing over every robot within some radius, or scene-wide, is a
+     one-line change if preferred.
 5. **Trail legibility at backup speed.** Trails render correctly but
-   faintly at the head-on's 0.1 m/s. The 0.20 m footprint mask consumes
-   about 2 s of a 3 s window, and a reversing robot's trail lies on the
-   same side as M1's heading arrow. That arrow is pre-existing M1
-   behaviour: it follows theta, not the motion direction. A longer window
-   (e.g. 6 s) would lengthen the visible trail. It is a registered
-   parameter, not a cosmetic tweak, so it was left at 3.0 s for a ruling.
-4. **Grid during probes.** If the grid is ever on during T0 probe
+   faintly at the head-on's 0.1 m/s.
+   - The 0.20 m footprint mask consumes about 2 s of a 3 s window.
+   - A reversing robot's trail lies on the same side as M1's heading
+     arrow. That arrow is pre-existing M1 behaviour: it follows theta,
+     not the motion direction.
+   - A longer window (e.g. 6 s) would lengthen the visible trail. It is a
+     registered parameter, not a cosmetic tweak, so it was left at 3.0 s
+     for a ruling.
+6. **Grid during probes.** If the grid is ever on during T0 probe
    collection, the frozen v2 probe prompt does not state it while the
-   image carries it. That is recorded per artifact, but it is a confound
-   to rule on.
+   image carries it. The record is per artifact, but it is a confound to
+   rule on.
