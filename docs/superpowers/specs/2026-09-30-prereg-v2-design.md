@@ -246,6 +246,30 @@ hardware episode (any n, demo-grade) with a physical overhead camera
 would upgrade claim 1's wording to "real physical camera." Not
 required by the design; recorded so the option is a conscious call.
 
+**Round-3 scan deltas (2026-10-04, `reports/VLM planner coordinator
+recent work.md`):** claim 2 WORDING TIGHTENED — GAVEL's eval (read)
+quantifies repair-vs-replan only as an ablation (76.2% repair-only vs
+91.8% full, 1.00 vs 1.5 LLM attempts), no per-leg or per-failure
+tabulation; the claim emphasizes per-leg THREE-way provenance
+(incl. defaulted) logged as an experimental quantity + multi-robot +
+embodied Nav2 — four axes GAVEL lacks. New concurrent work to cite:
+arXiv:2609.27816 (VLM-LLM + reachability gate; ego-camera,
+audit-and-REJECT, no congestion, no baseline), DuoMind (2610.02161,
+distributed manipulation), Fresh Memory Stale Plans (2609.03340,
+persistent-plan currency, non-embodied — claim 5's "embodied"
+qualifier holds). MDPI reading gates PARTIALLY CLEARED: both papers
+identified (Pesjak & Žabkar MAKE 8(1):22; Peña Narváez et al.
+Robotics 15(4):80), both single-robot, full text inaccessible on all
+routes — cite as adjacent, never quote internals. REMAINING one-paper
+read before the freeze: EvoPlan (2607.06724). Supporting citations
+gained: in-prompt grammar > constrained decoding (2505.14763, 7%→23%
+vs 98%-semantically-wrong), "missing-step" failure taxonomy (EAI,
+NeurIPS 2024) names the no-recede-legs class, Steps-to-Validity
+(2508.01300) as nearest plan-scoring kin; axis-mirror errors and
+mirror-scoring protocols have NO published analog (ours is a stated
+novel choice); metric-grid overlays can HURT some backends — the
+apparatus grid ships as a per-backend A/B, not a default.
+
 **Verification debts** (rev 6 status): CLOSED 2026-10-01 by deep-reads
 (`research_notes/VLM coordination recent advances/verification_debts.md`)
 — Garg/LLMDR/RoCo/Grover extracted with page-level quotes; vocabulary
