@@ -4,7 +4,7 @@ from collections.abc import Mapping
 
 import numpy as np
 
-from swarm_perception.annotation import render_annotated_frame
+from swarm_perception.annotation import MetricGridSpec, TrailHistory, render_annotated_frame
 from swarm_perception.calibration import undistort_frame
 from swarm_perception.detection import (
     build_marker_detections,
@@ -24,6 +24,9 @@ def process_frame(
     detector_params: Mapping[str, object] | None = None,
     annotation_style: Mapping[str, object] | None = None,
     marker_dictionary: str = "DICT_4X4_50",
+    *,
+    metric_grid: MetricGridSpec | None = None,
+    motion_trails: TrailHistory | None = None,
 ) -> tuple[SceneState, np.ndarray]:
     """Pure end-to-end perception pass; preferred unit/integration test entrypoint.
 
@@ -32,6 +35,12 @@ def process_frame(
 
     Does not publish to ROS2. Detection failures are represented in diagnostics,
     not raised as exceptions.
+
+    `metric_grid` / `motion_trails` switch on the prompt-apparatus overlays
+    (prereg-v2 rev 6, A/B conditions, default off). When either is on, the
+    diagnostics gain `annotation_overlays` (and `metric_grid_spacing_m` for the
+    grid) so M5 states in the prompt only what M1 actually drew; with both off
+    the diagnostics and the annotated frame are byte-identical to before.
     """
     undistorted = undistort_frame(frame.image, calibration)
     marker_ids, marker_corners = detect_aruco_markers(
@@ -52,5 +61,27 @@ def process_frame(
         expected_robot_ids=allowed_ids,
         frame_id=frame.frame_id,
     )
-    annotated = render_annotated_frame(undistorted, scene_state, calibration, style=annotation_style)
+    if motion_trails is not None:
+        motion_trails.update(scene_state)
+    annotated = render_annotated_frame(
+        undistorted,
+        scene_state,
+        calibration,
+        style=annotation_style,
+        metric_grid=metric_grid,
+        motion_trails=motion_trails,
+    )
+    overlays = [
+        name
+        for name, enabled in (
+            ("metric_grid", metric_grid is not None),
+            ("motion_trails", motion_trails is not None),
+        )
+        if enabled
+    ]
+    if overlays:
+        diagnostics = {**scene_state.diagnostics, "annotation_overlays": overlays}
+        if metric_grid is not None:
+            diagnostics["metric_grid_spacing_m"] = metric_grid.spacing_m
+        scene_state = scene_state.model_copy(update={"diagnostics": diagnostics})
     return scene_state, annotated

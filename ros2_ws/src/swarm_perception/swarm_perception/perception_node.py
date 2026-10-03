@@ -19,6 +19,7 @@ except ImportError:
     RosString = None
     _HAS_ROS2 = False
 
+from swarm_perception.annotation import TrailHistory, metric_grid_spec
 from swarm_perception.calibration import load_calibration
 from swarm_perception.detection import validate_marker_dictionary
 from swarm_perception.models import Frame, SceneState, scene_state_to_json_dict
@@ -55,6 +56,15 @@ class PerceptionNode(Node):
         self.declare_parameter("velocity_alpha", 0.3)
         self.declare_parameter("clock_reset_threshold_sec", 1.0)
         self.declare_parameter("expected_robot_ids", "")
+        # Prompt-apparatus overlays (prereg-v2 rev 6 A/B conditions). All off by
+        # default so the published annotated frame is byte-identical to before;
+        # perception.launch.py reads them from config/annotation.yaml.
+        self.declare_parameter("annotation.metric_grid", False)
+        self.declare_parameter("annotation.metric_grid_spacing_m", 0.5)
+        self.declare_parameter("annotation.motion_trails", False)
+        self.declare_parameter("annotation.motion_trail_window_sec", 3.0)
+        self.declare_parameter("annotation.motion_trail_min_step_sec", 0.1)
+        self.declare_parameter("annotation.motion_trail_max_points", 40)
 
         cal_path = self.get_parameter("calibration_path").value
         if not cal_path:
@@ -83,6 +93,33 @@ class PerceptionNode(Node):
         if self._expected_robot_ids is not None:
             self.get_logger().info(
                 f"Filtering perception to expected robots: {sorted(self._expected_robot_ids)}"
+            )
+
+        self._metric_grid = (
+            metric_grid_spec(
+                self._calibration,
+                float(self.get_parameter("annotation.metric_grid_spacing_m").value),
+            )
+            if self.get_parameter("annotation.metric_grid").value
+            else None
+        )
+        self._motion_trails = (
+            TrailHistory(
+                window_sec=float(self.get_parameter("annotation.motion_trail_window_sec").value),
+                min_step_sec=float(
+                    self.get_parameter("annotation.motion_trail_min_step_sec").value
+                ),
+                max_points=int(self.get_parameter("annotation.motion_trail_max_points").value),
+            )
+            if self.get_parameter("annotation.motion_trails").value
+            else None
+        )
+        if self._metric_grid is not None or self._motion_trails is not None:
+            self.get_logger().info(
+                "annotation overlays "
+                f"metric_grid={self._metric_grid is not None} "
+                f"spacing_m={None if self._metric_grid is None else self._metric_grid.spacing_m} "
+                f"motion_trails={self._motion_trails is not None}"
             )
 
         self._task_registry: dict[str, Mapping[str, object]] = {}
@@ -175,6 +212,8 @@ class PerceptionNode(Node):
             self._task_registry,
             expected_robot_ids=self._expected_robot_ids,
             marker_dictionary=self._marker_dictionary,
+            metric_grid=self._metric_grid,
+            motion_trails=self._motion_trails,
         )
         if scene_state.diagnostics.get("clock_reset"):
             self.get_logger().warning(
