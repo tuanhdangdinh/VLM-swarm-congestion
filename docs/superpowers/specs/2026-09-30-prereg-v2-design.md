@@ -757,6 +757,22 @@ makes an explicit include/exclude call.
    registered fallback;
    (v) clear `_last_trigger_robot_ids` after dispatch (latent
    staleness window).
+   STEP-7b RULINGS (2026-10-03, after
+   `docs/reports/2026-10-03-step7b-oracle-freeze.md`; rulings
+   (i)–(v) landed, repair bound FROZEN AT 3 with a documented
+   depth-4/5 m3_default tail, race guard lives in
+   `base_mission.py`/`coordination_client_node.py` per the traced
+   mechanism — accepted deviation from the spec's named file):
+   (vi) RELEASE ORDER — the yielder chains BEHIND the second
+   receder via the ordered multi-passer path (crossing_order
+   [lead, second receder] + linked temporary_wait; M3-only): the
+   spec's "yielder re-enters last," now implemented relative to
+   every receder; requires one more VM rerun whose PASS is 4/4 +
+   decidable attribution + yielder-last observed in the gate log;
+   (vii) PHASE ORDINAL stays a process label; episode success
+   stays arrivals-based; the scorer adds a derived `outcome_rank`
+   ordering (ordinal 4, 4/4) strictly above (ordinal 4, partial)
+   so the two can never read as the same score.
 8. Loop map: USD + Nav2 + reroute grounding; the pre-emption control
    smoke before any scenario authoring.
 9. B2-visual pair + B3 first-to-slip scenarios + oracles.
