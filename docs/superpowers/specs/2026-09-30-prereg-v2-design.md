@@ -607,7 +607,32 @@ re-send.
   Follow-up check queued for step 9: whether T3b's Y-asymmetric
   static obstacle being absent from its baked map is by design
   (sensor-seen prop) — likely yes, verify when touching props.
-- **Risk (retired by the phase-1 gate, kept for the record):** Nav2
+- **PHASE-2 OUTCOME — the detour-judgment FAMILY is PROVISIONALLY
+  DEFERRED TO v3 (coordinator ruling 2026-10-03, owner may
+  override;** `docs/reports/2026-10-03-loop-family-and-visual-pass.md`).
+  The phase-1 risk returned at family severity: a gap narrow enough
+  to stall the robot (collision stop box 0.24 m) is already past
+  the planner's flip point (NavFn direct at 0.30 m, loops at
+  0.22 m), so Nav2 self-detours before the decision layer is ever
+  asked (3/3 runs) — and the live planner looped even on a clean
+  costmap, an UNEXPLAINED mechanism that makes any gap-tuning
+  untrustworthy until resolved. Separately, a tracked faulted robot
+  cannot be the transient blocker (the 0.45 m latch outranges the
+  0.38 m collision stop → permanent latch). Detour length is capped
+  by the tracked band, so "lengthen the detour" has no room; shared
+  Nav2 param changes are rejected (blast radius over every
+  validated scene); a sub-lidar stall box would require physical
+  contact (violates the zero-contact invariant); scoring Nav2's own
+  detour abandons the RQ. KEPT IN v2: the loop map + builder, M1
+  coverage, the map-flip fix, `reroute_waypoints` grounding
+  (M4 `follow_waypoints` live path marked UNVALIDATED — watchdog
+  failure on first live use), oracle schema + scorer, and both
+  family yamls with "do not collect" blocks. v3 prerequisites
+  registered: explain the clean-costmap loop; validate
+  follow_waypoints; a stall mechanism that is planner-invisible
+  without contact.
+- **Risk (retired by the phase-1 gate for its original severity,
+  kept for the record):** Nav2
   on a loop map may reroute *on its own* when the global
   costmap sees the blocker, pre-empting the decision layer. Design
   control: blocker placed so the global planner's path stays viable
