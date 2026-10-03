@@ -13,8 +13,22 @@ import pytest
 from reasoning.vlm.capability_probes.manifest_io import save_manifest, sha256_file
 from reasoning.vlm.capability_probes.models import ProbeItem, ProbeManifest
 from reasoning.vlm.mock_backend import MockBackend
-from reasoning.vlm.models import ReasonerConfig
-from scripts.capability_probes import prepare_item, run_battery, run_item
+from reasoning.vlm.models import (
+    GeminiBackendConfig,
+    OpenAIBackendConfig,
+    ReasonerConfig,
+)
+from scripts import capability_probes
+from scripts.capability_probes import (
+    BatteryAbortedError,
+    load_backend_settings,
+    prepare_item,
+    run_battery,
+    run_item,
+)
+
+_PINNED_OPENAI = "gpt-4o-2024-08-06"
+_PINNED_GEMINI = "gemini-robotics-er-2-preview"
 
 
 def _write_frame(path, width=120, height=90) -> None:
@@ -193,3 +207,191 @@ class TestRunBatteryEndToEnd:
             run_battery(manifest_path, "mock", tmp_path, out_dir)
         # No JSONL/summary should exist: the run aborted in the prepare phase.
         assert list(out_dir.glob("*.jsonl")) == []
+
+
+class _ServedMock(MockBackend):
+    """A mock that also reports a served model, token usage and dropped sampling."""
+
+    def __init__(self, served_model, unsupported=None, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._served_model = served_model
+        self._unsupported = unsupported
+
+    def analyze(self, payload, config):
+        response = super().analyze(payload, config)
+        raw = {"unsupported_sampling": self._unsupported} if self._unsupported else {}
+        return response.model_copy(
+            update={
+                "served_model": self._served_model,
+                "token_usage": {"prompt_tokens": 900, "completion_tokens": 8},
+                "raw": raw,
+            }
+        )
+
+
+class _RaisingBackend:
+    def __init__(self, message: str) -> None:
+        self.calls = 0
+        self._message = message
+
+    def analyze(self, payload, config):
+        self.calls += 1
+        raise ConnectionError(self._message)
+
+
+def _two_item_manifest(tmp_path, frame_path):
+    frame_hash = sha256_file(frame_path)
+    manifest = ProbeManifest(
+        seed=1, items=[_robot_count_item(frame_hash), _locate_robot_item(frame_hash)]
+    )
+    manifest_path = tmp_path / "manifest.json"
+    save_manifest(manifest, manifest_path)
+    return manifest_path
+
+
+@pytest.fixture
+def captured_build(monkeypatch):
+    """Replace the runner's `build_backend`, capturing what it was asked to build."""
+    captured: dict = {}
+
+    def install(backend):
+        def fake_build_backend(backend_id, backend_config=None):
+            captured["backend_id"] = backend_id
+            captured["backend_config"] = backend_config
+            return backend
+
+        monkeypatch.setattr(capability_probes, "build_backend", fake_build_backend)
+        return captured
+
+    return install
+
+
+class TestLoadBackendSettingsFromShippedConfig:
+    def test_openai_resolves_to_the_pinned_snapshot(self):
+        _, backend_config = load_backend_settings("openai")
+        assert isinstance(backend_config, OpenAIBackendConfig)
+        assert backend_config.model_id == _PINNED_OPENAI
+
+    def test_openai_samples_at_temperature_zero(self):
+        reasoner_config, _ = load_backend_settings("openai")
+        assert reasoner_config.temperature == 0.0
+        assert reasoner_config.backend_id == "openai"
+
+    def test_gemini_resolves_to_the_pinned_preview_id(self):
+        _, backend_config = load_backend_settings("gemini")
+        assert isinstance(backend_config, GeminiBackendConfig)
+        assert backend_config.model_id == _PINNED_GEMINI
+
+    def test_gemini_temperature_is_forced_to_zero_over_the_shared_preset(self):
+        reasoner_config, _ = load_backend_settings("gemini")
+        assert reasoner_config.temperature == 0.0
+
+    def test_mock_needs_no_backend_config(self):
+        reasoner_config, backend_config = load_backend_settings("mock")
+        assert backend_config is None
+        assert reasoner_config.temperature == 0.0
+
+    def test_an_unsupported_backend_is_rejected(self):
+        with pytest.raises(ValueError, match="does not support"):
+            load_backend_settings("llama_server")
+
+
+class TestRunBatteryModelPinWiring:
+    def test_openai_backend_is_built_with_the_pinned_model(
+        self, logs_root, tmp_path, captured_build
+    ):
+        root, frame_path = logs_root
+        captured = captured_build(_ServedMock(_PINNED_OPENAI, response_text='{"choice": "A"}'))
+        run_battery(_two_item_manifest(tmp_path, frame_path), "openai", root, tmp_path / "out")
+        assert captured["backend_id"] == "openai"
+        assert captured["backend_config"].model_id == _PINNED_OPENAI
+
+    def test_each_call_is_sent_at_temperature_zero(self, logs_root, tmp_path, captured_build):
+        root, frame_path = logs_root
+        backend = _ServedMock(_PINNED_OPENAI, response_text='{"choice": "A"}')
+        captured_build(backend)
+        run_battery(_two_item_manifest(tmp_path, frame_path), "openai", root, tmp_path / "out")
+        assert backend.last_config.temperature == 0.0
+
+    def test_records_carry_configured_and_served_model_and_usage(
+        self, logs_root, tmp_path, captured_build
+    ):
+        root, frame_path = logs_root
+        captured_build(_ServedMock("gpt-4o-2024-08-06", response_text='{"choice": "A"}'))
+        records, _ = run_battery(
+            _two_item_manifest(tmp_path, frame_path), "openai", root, tmp_path / "out"
+        )
+        for record in records:
+            assert record.backend_id == "openai"
+            assert record.configured_model_id == _PINNED_OPENAI
+            assert record.served_model == "gpt-4o-2024-08-06"
+            assert record.token_usage == {"prompt_tokens": 900, "completion_tokens": 8}
+
+    def test_summary_records_effective_config_with_the_one_call_policy(
+        self, logs_root, tmp_path, captured_build
+    ):
+        root, frame_path = logs_root
+        captured_build(_ServedMock(_PINNED_OPENAI, response_text='{"choice": "A"}'))
+        _, summary = run_battery(
+            _two_item_manifest(tmp_path, frame_path), "openai", root, tmp_path / "out"
+        )
+        effective = summary["reasoner_config_effective"]
+        assert effective["model_id"] == _PINNED_OPENAI
+        assert effective["temperature"] == 0.0
+        assert effective["max_attempts"] == 1
+        assert effective["image_fallback_after_attempts"] is None
+        assert summary["served_model_counts"] == {_PINNED_OPENAI: 2}
+        assert summary["prompt_version"] == 1
+        assert len(summary["manifest_sha256"]) == 64
+
+    def test_gemini_dropped_sampling_is_recorded_per_call(
+        self, logs_root, tmp_path, captured_build
+    ):
+        root, frame_path = logs_root
+        dropped = {"temperature": 0.0, "top_p": 0.95, "top_k": 20, "presence_penalty": 0.0}
+        captured = captured_build(
+            _ServedMock(None, unsupported=dropped, response_text='{"choice": "A"}')
+        )
+        records, summary = run_battery(
+            _two_item_manifest(tmp_path, frame_path), "gemini", root, tmp_path / "out"
+        )
+        assert captured["backend_config"].model_id == _PINNED_GEMINI
+        assert all(record.unsupported_sampling == dropped for record in records)
+        assert summary["served_model_counts"] == {"unreported": 2}
+
+    def test_parsed_option_and_lettering_are_recorded(self, logs_root, tmp_path, captured_build):
+        root, frame_path = logs_root
+        captured_build(_ServedMock(_PINNED_OPENAI, response_text='{"choice": "B"}'))
+        records, _ = run_battery(
+            _two_item_manifest(tmp_path, frame_path), "openai", root, tmp_path / "out"
+        )
+        for record in records:
+            assert record.parsed_option == record.option_by_letter["B"]
+            assert sorted(record.listing_order) == sorted(record.option_by_letter)
+
+
+class TestRunBatteryAbortsOnFatalBackendErrors:
+    def test_exhausted_quota_aborts_after_the_first_call(
+        self, logs_root, tmp_path, captured_build
+    ):
+        root, frame_path = logs_root
+        backend = _RaisingBackend('OpenAI returned HTTP 429: {"code": "insufficient_quota"}')
+        captured_build(backend)
+        out_dir = tmp_path / "out"
+        with pytest.raises(BatteryAbortedError, match="insufficient_quota"):
+            run_battery(_two_item_manifest(tmp_path, frame_path), "openai", root, out_dir)
+        assert backend.calls == 1
+        assert len(list(out_dir.glob("*_aborted.jsonl"))) == 1
+        assert list(out_dir.glob("*_summary.json")) == []
+
+    def test_a_transient_rate_limit_is_scored_not_aborted(
+        self, logs_root, tmp_path, captured_build
+    ):
+        root, frame_path = logs_root
+        backend = _RaisingBackend("OpenAI returned HTTP 429: rate_limit_exceeded")
+        captured_build(backend)
+        records, _ = run_battery(
+            _two_item_manifest(tmp_path, frame_path), "openai", root, tmp_path / "out"
+        )
+        assert backend.calls == 2
+        assert all(record.failure_cause == "backend_error" for record in records)

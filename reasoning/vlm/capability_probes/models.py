@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from reasoning.vlm.models import EffectiveSamplingConfig
+
 # The four registered probe types (prereg-v2 build-order step 10), exactly as
 # named in the design spec: locate-robot-by-id, left-vs-right of aisle, robot
 # count, nearest-first ordering.
@@ -164,6 +166,22 @@ class ProbeAnswerRecord(BaseModel):
     # backend call, and raises past this model entirely on failure.
     error_type: str | None = None
     error_message: str | None = None
+    # The model id the runner was configured to send (the pinned snapshot
+    # from `config/models.yaml`), and the one the provider says answered
+    # (`BackendResponse.served_model`; None when the provider echoes none).
+    # Kept apart so an alias re-point is visible per call, never assumed.
+    configured_model_id: str | None = None
+    served_model: str | None = None
+    token_usage: dict[str, int] | None = None
+    # Sampling fields the backend dropped from the request (Gemini's
+    # Interactions API has no temperature/top_p/top_k), as reported per call.
+    unsupported_sampling: dict[str, float] | None = None
+    # The canonical option behind `parsed_letter`, plus the item's lettering
+    # and prompt listing order, so position/ID-prior analysis needs no
+    # re-derivation of the seeded draw.
+    parsed_option: str | None = None
+    option_by_letter: dict[str, str] | None = None
+    listing_order: list[str] | None = None
 
 
 class ProbeTypeSummary(BaseModel):
@@ -198,3 +216,11 @@ class ProbeRunSummary(BaseModel):
     manifest_seed: int
     n_items: int = Field(ge=0)
     by_type: list[ProbeTypeSummary]
+    # Run provenance, filled by `scripts/capability_probes.py`: the sampling
+    # block the run was configured under (with `max_attempts` = the runner's
+    # own one-call policy, not the reasoner's), each served model string seen
+    # -> call count, and the hashes of the frozen inputs.
+    reasoner_config_effective: EffectiveSamplingConfig | None = None
+    served_model_counts: dict[str, int] = Field(default_factory=dict)
+    manifest_sha256: str | None = None
+    prompt_version: int | None = None
