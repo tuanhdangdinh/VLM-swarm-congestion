@@ -85,11 +85,18 @@ class OpenAIBackend:
         )
 
     def _build_messages(self, payload: PromptPayload) -> list[dict]:
-        data_url = self._encode_image(payload.image_path)
-        user_content = [
-            {"type": "text", "text": payload.user_prompt},
-            {"type": "image_url", "image_url": {"url": data_url, "detail": "high"}},
-        ]
+        # Chat Completions takes any number of image parts in one user
+        # message; the overhead frame stays first and any prompt-apparatus
+        # extra image (the zoom tile) follows it, matching the prompt's
+        # "a second image follows the overhead view".
+        user_content: list[dict] = [{"type": "text", "text": payload.user_prompt}]
+        for image_path in [payload.image_path, *payload.extra_image_paths]:
+            user_content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": self._encode_image(image_path), "detail": "high"},
+                }
+            )
         return [
             {"role": "system", "content": payload.system_prompt},
             {"role": "user", "content": user_content},

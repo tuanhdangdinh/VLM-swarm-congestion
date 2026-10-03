@@ -200,6 +200,11 @@ class CandidateMarker:
         return self._calibration is not None
 
     @property
+    def calibration(self) -> CalibrationArtifact | None:
+        """The loaded calibration (also used for the prompt-apparatus zoom tile)."""
+        return self._calibration
+
+    @property
     def unavailable_reason(self) -> str | None:
         """Why no calibration is loaded, or None when one is."""
         return self._unavailable_reason

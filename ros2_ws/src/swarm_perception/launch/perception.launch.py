@@ -8,6 +8,27 @@ from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
+_ANNOTATION_KEYS = (
+    "metric_grid",
+    "metric_grid_spacing_m",
+    "motion_trails",
+    "motion_trail_window_sec",
+    "motion_trail_min_step_sec",
+    "motion_trail_max_points",
+)
+
+
+def _load_annotation_params(path):
+    try:
+        with open(path) as f:
+            cfg = yaml.safe_load(f)
+    except FileNotFoundError:
+        return {}
+    section = cfg.get("annotation") if isinstance(cfg, dict) else None
+    if not isinstance(section, dict):
+        return {}
+    return {f"annotation.{key}": section[key] for key in _ANNOTATION_KEYS if key in section}
+
 
 def generate_launch_description():
     pkg_share = get_package_share_directory("swarm_perception")
@@ -25,6 +46,12 @@ def generate_launch_description():
             marker_dictionary = aruco_section.get("dictionary", marker_dictionary)
     except FileNotFoundError:
         pass
+
+    # Prompt-apparatus overlays (prereg-v2 rev 6 A/B conditions), all off by
+    # default. A missing or malformed file keeps them off, like aruco.yaml.
+    annotation_params = _load_annotation_params(
+        os.path.join(pkg_share, "config", "annotation.yaml")
+    )
 
     return LaunchDescription(
         [
@@ -91,6 +118,7 @@ def generate_launch_description():
                         # the new clock passes the old latest stamp).
                         "clock_reset_threshold_sec": 1.0,
                         "expected_robot_ids": LaunchConfiguration("expected_robot_ids"),
+                        **annotation_params,
                     }
                 ],
             ),

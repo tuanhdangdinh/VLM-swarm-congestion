@@ -23,6 +23,7 @@ from reasoning.rag.command_grounder import (
     JunctionClearPhasePlan,
     PlanRepairParams,
     YieldFeasibilityMode,
+    derive_candidate_options,
     filter_command_robot_ids,
     ground_junction_clear_phases,
     junction_clear_dispatch_match,
@@ -35,6 +36,7 @@ from reasoning.rag.maneuver_geometry import GroundingParams
 from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import (
     CURRENT_PROMPT_VERSION,
+    CandidateOption,
     FailureContext,
     PlanStateContext,
     PromptVersion,
@@ -42,6 +44,7 @@ from reasoning.vlm.models import (
     ReasonerRequest,
     ReasonerResult,
     RetreatChoiceDecision,
+    RobotCandidateOptions,
     RobotOrder,
     RobotStateInput,
     SnapshotFrame,
@@ -50,12 +53,14 @@ from reasoning.vlm.models import (
 from reasoning.vlm.prompt_builder import build_prompt_payload
 from swarm_orchestrator.command_lifecycle import AttemptContexts, AttemptRecord
 from swarm_orchestrator.models import (
+    AnnotationOverlayReport,
     PipelineOutcome,
     PlanDispatchInfo,
     RetreatStage2Record,
     SceneSnapshot,
     TerminalStage,
 )
+from swarm_orchestrator.permutation_votes import run_permutation_votes, shifted_request
 from swarm_orchestrator.plan_tracker import PlanTracker
 from swarm_orchestrator.presentation_order import RobotPresentationOrderMode
 from swarm_orchestrator.retreat_stage2 import (
@@ -64,6 +69,7 @@ from swarm_orchestrator.retreat_stage2 import (
     snapshot_frame_from_request,
 )
 from swarm_orchestrator.stage2_marks import CandidateMarker
+from swarm_orchestrator.zoom_tile import ZoomTileRecord
 
 ValidateFn = Callable[[dict[str, Any]], dict[str, Any]]
 
@@ -248,6 +254,10 @@ def build_reasoner_request(
     last_failed_context: FailureContext | None = None,
     prompt_version: PromptVersion = CURRENT_PROMPT_VERSION,
     plan_state: PlanStateContext | None = None,
+    metric_grid_spacing_m: float | None = None,
+    motion_trails_drawn: bool = False,
+    zoom_tile_path: str | None = None,
+    candidate_options: list[RobotCandidateOptions] | None = None,
 ) -> ReasonerRequest:
     """Project a SceneSnapshot plus a dumped image path into a ReasonerRequest.
 
@@ -273,6 +283,14 @@ def build_reasoner_request(
             plan-state block; None (the default) renders byte-identically to
             every request built before plan tracking existed. Only the v3
             template reads it.
+        metric_grid_spacing_m: Spacing of the metric grid M1 drew on the
+            frame, when the grid sentence is to be stated; None states none.
+        motion_trails_drawn: Whether to state the motion-trail convention.
+        zoom_tile_path: The written zoom tile, attached as a second image.
+        candidate_options: Verifier-candidate-options block contents.
+
+    The four apparatus arguments (prereg-v2 rev 6) default to off, which
+    renders byte-identically to every request built before they existed.
 
     Returns:
         The request M2 is called with.
@@ -304,7 +322,165 @@ def build_reasoner_request(
         robot_presentation_order=robot_presentation_order,
         prompt_version=prompt_version,
         plan_state=plan_state,
+        metric_grid_spacing_m=metric_grid_spacing_m,
+        motion_trails_drawn=motion_trails_drawn,
+        zoom_tile_path=zoom_tile_path,
+        candidate_options=candidate_options,
     )
+
+
+def build_candidate_options(
+    snapshot: SceneSnapshot,
+    *,
+    geometry: SceneGeometry | None,
+    static_obstacles: Sequence[StaticObstacleInput],
+    yield_feasibility_mode: YieldFeasibilityMode,
+    grounding_params: GroundingParams | None,
+) -> list[RobotCandidateOptions]:
+    """Project M3's verifier-accepted actions into the prompt's options block.
+
+    Runs `derive_candidate_options` on the same positions, geometry, obstacles,
+    gate mode and params the plan audit will verify this decision against.
+
+    Args:
+        snapshot: The M1 scene the request is built from.
+        geometry: Declared scene geometry.
+        static_obstacles: Fixed obstacles of the running scenario.
+        yield_feasibility_mode: The M3 yield gate mode.
+        grounding_params: M3's grounding parameters.
+
+    Returns:
+        One entry per snapshot robot, in snapshot order (the prompt re-orders).
+    """
+    frame = SnapshotFrame(
+        stamp=snapshot.stamp,
+        robots=[
+            RobotStateInput(robot_id=r.robot_id, x=r.x, y=r.y, theta=r.theta, status=r.status)
+            for r in snapshot.robots
+        ],
+    )
+    derived = derive_candidate_options(
+        frame,
+        geometry=geometry,
+        static_obstacles=static_obstacles,
+        yield_feasibility_mode=yield_feasibility_mode,
+        grounding_params=grounding_params,
+    )
+    return [
+        RobotCandidateOptions(
+            robot_id=robot_id,
+            options=[CandidateOption(action=action, detail=detail) for action, detail in options],
+        )
+        for robot_id, options in derived.items()
+    ]
+
+
+class OverlayCondition(BaseModel):
+    """One M1-drawn apparatus overlay: asked for, drawn, and stated."""
+
+    model_config = ConfigDict(frozen=True)
+
+    requested: bool
+    m1_drawn: bool
+    stated: bool
+
+
+class PromptConditions(BaseModel):
+    """The `prompt_conditions` artifact block: every apparatus flag, every decision.
+
+    Recorded whatever the values (all-off included), so an artifact set can be
+    partitioned by apparatus condition from the artifact alone -- in
+    particular the verifier-candidate-options construct change.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    metric_grid: OverlayCondition
+    metric_grid_spacing_m: float | None = None
+    motion_trails: OverlayCondition
+    zoom_tile_requested: bool
+    zoom_tile: ZoomTileRecord | None = None
+    permutation_votes: int = Field(ge=1)
+    candidate_options_requested: bool
+    candidate_options: list[RobotCandidateOptions] | None = None
+    # True exactly when the options block was rendered: the plan channel then
+    # measures constrained selection among verifier-accepted actions, not
+    # free planning.
+    construct_constrained_selection: bool = False
+    prompt_version: int | None = None
+
+
+def build_prompt_conditions(
+    *,
+    request: ReasonerRequest | None,
+    overlays: AnnotationOverlayReport,
+    prompt_metric_grid: bool,
+    prompt_motion_trails: bool,
+    prompt_zoom_tile: bool,
+    zoom_tile: ZoomTileRecord | None,
+    permutation_votes: int,
+    prompt_candidate_options: bool,
+) -> PromptConditions:
+    """Assemble the artifact's apparatus record from config, M1's report and the request.
+
+    Args:
+        request: The request actually sent (None when none was built).
+        overlays: What M1 reported drawing on the frame.
+        prompt_metric_grid: Config flag.
+        prompt_motion_trails: Config flag.
+        prompt_zoom_tile: Config flag.
+        zoom_tile: The tile record, when a tile was attempted.
+        permutation_votes: Configured vote count (1 = single call).
+        prompt_candidate_options: Config flag.
+
+    Returns:
+        The block.
+    """
+    stated_grid = request is not None and request.metric_grid_spacing_m is not None
+    stated_trails = request is not None and request.motion_trails_drawn
+    options = None if request is None else request.candidate_options
+    return PromptConditions(
+        metric_grid=OverlayCondition(
+            requested=prompt_metric_grid, m1_drawn=overlays.metric_grid, stated=stated_grid
+        ),
+        metric_grid_spacing_m=overlays.metric_grid_spacing_m,
+        motion_trails=OverlayCondition(
+            requested=prompt_motion_trails, m1_drawn=overlays.motion_trails, stated=stated_trails
+        ),
+        zoom_tile_requested=prompt_zoom_tile,
+        zoom_tile=zoom_tile,
+        permutation_votes=permutation_votes,
+        candidate_options_requested=prompt_candidate_options,
+        candidate_options=options,
+        construct_constrained_selection=options is not None,
+        prompt_version=None if request is None else request.prompt_version,
+    )
+
+
+def apparatus_request_fields(
+    *,
+    prompt_metric_grid: bool,
+    prompt_motion_trails: bool,
+    overlays: AnnotationOverlayReport,
+) -> dict[str, Any]:
+    """Grid/trail request fields: stated only when asked for AND drawn by M1.
+
+    Args:
+        prompt_metric_grid: Config flag.
+        prompt_motion_trails: Config flag.
+        overlays: What M1 reported drawing.
+
+    Returns:
+        `metric_grid_spacing_m` and `motion_trails_drawn` for the request.
+    """
+    return {
+        "metric_grid_spacing_m": (
+            overlays.metric_grid_spacing_m
+            if prompt_metric_grid and overlays.metric_grid
+            else None
+        ),
+        "motion_trails_drawn": prompt_motion_trails and overlays.motion_trails,
+    }
 
 
 def attach_registry_assignments(
@@ -585,6 +761,7 @@ def write_decision_artifact(
     shadow_classical: dict[str, Any] | None = None,
     probe_index: int | None = None,
     grounding_source: GroundingParamsSource | None = None,
+    prompt_conditions: PromptConditions | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
@@ -646,12 +823,23 @@ def write_decision_artifact(
     but the command still dispatched -- a plan-channel failure never costs an
     otherwise-successful decision).
 
+    `prompt_conditions` (prereg-v2 rev 6 apparatus) is always written, null
+    only when the caller passed none; M5 passes it on every analysis, all-off
+    included. With permutation voting (`outcome.permutation_votes`), the
+    artifact gains a `permutation_votes` block with every call, and the
+    top-level `prompt` / `robot_presentation_order` are the WINNING call's,
+    so they match the stored decision (and replay re-hashes the right prompt).
+
     Returns:
         The artifact path.
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     result = outcome.reasoner_result
+    votes = outcome.permutation_votes
+    if request is not None and votes is not None and votes.winner_index is not None:
+        winner = votes.calls[votes.winner_index]
+        request = shifted_request(request, winner.order, winner.index)
     prompt = None
     if request is not None:
         rendered = build_prompt_payload(request)
@@ -741,6 +929,11 @@ def write_decision_artifact(
     # rebuilt without this.
     if request is not None and request.plan_state is not None:
         payload["plan_state"] = request.plan_state.model_dump(mode="json")
+    payload["prompt_conditions"] = (
+        None if prompt_conditions is None else prompt_conditions.model_dump(mode="json")
+    )
+    if votes is not None:
+        payload["permutation_votes"] = votes.model_dump(mode="json")
     artifact_path = output_path / f"{outcome.request_id}.json"
     artifact_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return artifact_path
@@ -809,8 +1002,20 @@ class InProcessPipeline:
         priorities: Mapping[str, int] | None = None,
         plan_tracker: PlanTracker | None = None,
         plan_repair_params: PlanRepairParams | None = None,
+        permutation_votes: int = 1,
+        registry_order: Sequence[str] = (),
     ) -> None:
         self._reasoner = reasoner
+        # Prompt-apparatus permutation voting (prereg-v2 rev 6): 1 (default)
+        # is the single call every run made before it existed; N > 1 votes
+        # over N presentation-order shifts BEFORE stage 2, grounding and the
+        # plan channel, so all three consume the winning call only.
+        if permutation_votes < 1:
+            raise ValueError(f"permutation_votes must be >= 1, got {permutation_votes}")
+        self._permutation_votes = permutation_votes
+        # M5's task-registry robot order (`initial_tasks`), for the vote's
+        # registered tie rule (`permutation_votes.run_permutation_votes`).
+        self._registry_order = tuple(registry_order)
         # Registry priorities (`registry_priorities`), M3-only: never part of
         # the request, so the prompt cannot see them. Empty or None passes
         # nothing to M3, keeping every priority-less scene's call unchanged.
@@ -850,10 +1055,22 @@ class InProcessPipeline:
         self._plan_repair_params = plan_repair_params
 
     def run(self, request: ReasonerRequest) -> PipelineOutcome:
+        votes = None
         try:
-            result = self._reasoner.run(request)
+            if self._permutation_votes > 1:
+                result, votes, request = run_permutation_votes(
+                    self._reasoner, request, self._permutation_votes, self._registry_order
+                )
+            else:
+                result = self._reasoner.run(request)
         except Exception as exc:  # unexpected M2 failure — bounded here, never raised
             return build_failed_outcome(request.request_id, f"reasoner raised: {exc}")
+        outcome = self._run_from_result(request, result)
+        if votes is not None:
+            outcome = outcome.model_copy(update={"permutation_votes": votes})
+        return outcome
+
+    def _run_from_result(self, request: ReasonerRequest, result: ReasonerResult) -> PipelineOutcome:
         decision = result.decision
         if decision is None:
             return self._vlm_terminal(request.request_id, result, "decision=None")

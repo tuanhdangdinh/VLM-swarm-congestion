@@ -3736,3 +3736,198 @@ def junction_clear_dispatch_match(
     if recede_orders_equivalent(snapshot, plan_order, dispatched_order, geometry, params):
         return JunctionDispatchMatch(matches=actions_match, order_equivalent=True)
     return JunctionDispatchMatch(matches=False)
+
+
+# Verifier-candidate-options condition (prereg-v2 rev 6 apparatus, round-3
+# "constraints-in-prompt" recipe; 2026-10-04). The actions offered, in plan
+# vocabulary order. `continue` is never listed: it is the "not part of the
+# resolution" leg every robot may take, already stated by the plan grammar.
+_CANDIDATE_OPTION_ACTIONS: tuple[PlanLegAction, ...] = (
+    "yield",
+    "reverse",
+    "cross",
+    "wait",
+    "reroute",
+)
+_ARM_NAMES: dict[tuple[str, int], str] = {
+    ("x", 1): "east arm",
+    ("x", -1): "west arm",
+    ("y", 1): "north arm",
+    ("y", -1): "south arm",
+}
+
+
+def _nearest_partner(snapshot: SnapshotFrame, robot_id: str) -> str | None:
+    state = snapshot.find_robot(robot_id)
+    if state is None:
+        return None
+    others = [s for s in snapshot.robots if s.robot_id != robot_id]
+    if not others:
+        return None
+    return min(
+        others, key=lambda s: (math.hypot(s.x - state.x, s.y - state.y), s.robot_id)
+    ).robot_id
+
+
+def _probe_decision(
+    strategy: str, involved: list[str], yield_robot: str | None = None
+) -> CongestionDecision:
+    return CongestionDecision(
+        congestion_detected=True,
+        type="deadlock",
+        involved_robots=involved,
+        root_cause="candidate-option probe",
+        strategy=strategy,
+        justification="candidate-option probe",
+        yield_robot=yield_robot,
+    )
+
+
+def _probe_flags(
+    decision: CongestionDecision,
+    assigned: Mapping[str, PlanLegAction],
+    snapshot: SnapshotFrame,
+    robot_ids: Sequence[str],
+    *,
+    geometry: SceneGeometry | None,
+    static_obstacles: Sequence[StaticObstacleInput],
+    yield_feasibility_mode: YieldFeasibilityMode,
+    grounding_params: GroundingParams | None,
+) -> set[str]:
+    # Lists the assigned legs first, in the given order, then every other
+    # snapshot robot as `continue` -- the scene-wide shape the audit expects.
+    known = [state.robot_id for state in snapshot.robots]
+    order = [*assigned, *(rid for rid in known if rid not in assigned)]
+    legs = [ProposedPlanLeg(robot_id=rid, action=assigned.get(rid, "continue")) for rid in order]
+    problems = _plan_problems(
+        legs,
+        decision,
+        snapshot,
+        geometry,
+        static_obstacles,
+        yield_feasibility_mode,
+        grounding_params,
+    )
+    flagged = {legs[index].robot_id for index, _ in problems}
+    return flagged & set(robot_ids)
+
+
+def derive_candidate_options(
+    snapshot: SnapshotFrame,
+    *,
+    geometry: SceneGeometry | None = None,
+    static_obstacles: Sequence[StaticObstacleInput] = (),
+    yield_feasibility_mode: YieldFeasibilityMode = "off",
+    grounding_params: GroundingParams | None = None,
+) -> dict[str, list[tuple[PlanLegAction, str | None]]]:
+    """Per-robot plan actions the verifier's own audit accepts in this scene.
+
+    Never a hand-written option list: every (robot, action) pair is decided by
+    running `_plan_problems` -- the exact leg audit `verify_and_repair_plan`
+    applies -- on a probe plan, and offered iff the audit flags nothing on
+    that robot's leg. The audit is strategy-conditioned (it takes a decision),
+    so each action is probed under ONE registered context (open design item,
+    `docs/reports/2026-10-04-visual-apparatus.md`):
+
+    - `yield`: strategy `yield`, involved = [robot, nearest other robot],
+      yield_robot = robot, legs [robot: yield, partner: cross] (room/obstacle
+      gate per `yield_feasibility_mode`, corridor same-side refusal).
+    - `reverse`: when the scene declares junction arms and the all-robot
+      `junction_clear` recede set is non-empty, strategy `junction_clear`
+      over every robot with legs [robot: reverse] (only structural recede
+      candidates pass -- the axis-mirror recede set is never offered);
+      otherwise strategy `reverse`, involved = [robot, nearest], both
+      reversing (corridor same-side refusal).
+    - `cross`: offered iff some other robot's yield probe, with this robot as
+      its crosser, flags neither leg (the cross leg needs a releasing yield).
+    - `wait`, `reroute`: strategies `temporary_wait` / `reroute` with
+      [robot: wait|reroute, partner: wait]; the audit has no geometry check
+      for either today, so both are offered whenever the probe passes.
+
+    Args:
+        snapshot: The scene the decision will be made on.
+        geometry: Declared scene geometry; without it most checks are no-ops
+            (same as the audit itself).
+        static_obstacles: Fixed obstacles of the running scenario.
+        yield_feasibility_mode: The yield feasibility gate mode the audit runs.
+        grounding_params: M3's derived-mode params (chi weights).
+
+    Returns:
+        Robot id -> `(action, detail)` pairs in vocabulary order; `detail` is
+        the declared arm (e.g. `"south arm"`) for a `reverse`, else None.
+        Every snapshot robot is a key, possibly with an empty list.
+    """
+    audit = {
+        "geometry": geometry,
+        "static_obstacles": static_obstacles,
+        "yield_feasibility_mode": yield_feasibility_mode,
+        "grounding_params": grounding_params,
+    }
+    known = [state.robot_id for state in snapshot.robots]
+    junction_context = (
+        geometry is not None
+        and bool(geometry.arms)
+        and bool(_junction_recede_candidates(_probe_decision("junction_clear", known), geometry))
+    )
+    yield_ok: dict[tuple[str, str], tuple[bool, bool]] = {}
+    for yielder in known:
+        for crosser in known:
+            if crosser == yielder:
+                continue
+            flagged = _probe_flags(
+                _probe_decision("yield", [yielder, crosser], yielder),
+                {yielder: "yield", crosser: "cross"},
+                snapshot,
+                [yielder, crosser],
+                **audit,
+            )
+            yield_ok[(yielder, crosser)] = (yielder not in flagged, crosser not in flagged)
+
+    options: dict[str, list[tuple[PlanLegAction, str | None]]] = {}
+    for robot_id in known:
+        partner = _nearest_partner(snapshot, robot_id)
+        accepted: list[tuple[PlanLegAction, str | None]] = []
+        for action in _CANDIDATE_OPTION_ACTIONS:
+            detail: str | None = None
+            if action == "yield":
+                ok = partner is not None and yield_ok[(robot_id, partner)][0]
+            elif action == "cross":
+                ok = any(
+                    both[0] and both[1]
+                    for (yielder, crosser), both in yield_ok.items()
+                    if crosser == robot_id
+                )
+            elif action == "reverse":
+                if junction_context:
+                    ok = robot_id not in _probe_flags(
+                        _probe_decision("junction_clear", known),
+                        {robot_id: "reverse"},
+                        snapshot,
+                        [robot_id],
+                        **audit,
+                    )
+                else:
+                    involved = [robot_id] if partner is None else [robot_id, partner]
+                    ok = robot_id not in _probe_flags(
+                        _probe_decision("reverse", involved),
+                        dict.fromkeys(involved, "reverse"),
+                        snapshot,
+                        [robot_id],
+                        **audit,
+                    )
+                arm = (geometry.arms or {}).get(robot_id) if geometry is not None else None
+                if arm is not None:
+                    detail = _ARM_NAMES.get((arm.axis, arm.side))
+            else:
+                strategy = "temporary_wait" if action == "wait" else "reroute"
+                involved = [robot_id] if partner is None else [robot_id, partner]
+                assigned: dict[str, PlanLegAction] = {robot_id: action}
+                if partner is not None:
+                    assigned[partner] = "wait"
+                ok = robot_id not in _probe_flags(
+                    _probe_decision(strategy, involved), assigned, snapshot, [robot_id], **audit
+                )
+            if ok:
+                accepted.append((action, detail))
+        options[robot_id] = accepted
+    return options

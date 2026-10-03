@@ -19,6 +19,7 @@ from reasoning.vlm.models import (
     ReasonerResult,
     StaticObstacleInput,
 )
+from swarm_orchestrator.permutation_votes import PermutationVoteRecord
 from swarm_orchestrator.plan_tracker import TrackedLeg
 from swarm_orchestrator.presentation_order import RobotPresentationOrderMode
 
@@ -244,6 +245,32 @@ class OrchestratorConfig(BaseModel):
     # Default False: this is the regression gate (prereg-v2 design.md build
     # order step 4's two-robot head-on equivalence smoke runs with it off).
     plan_channel_enabled: bool = False
+    # Prompt apparatus (prereg-v2 rev 6 + round-3 deltas, 2026-10-04): five
+    # registered A/B conditions, ALL default off, each recorded in every
+    # decision artifact's `prompt_conditions` block whatever its value
+    # (`docs/reports/2026-10-04-visual-apparatus.md`). The grid and the trails
+    # are DRAWN by M1 (swarm_perception config/annotation.yaml); these two
+    # flags only let M5 state them in the prompt, and only when M1's scene
+    # diagnostics report it actually drew them (a mismatch is logged and
+    # recorded, never papered over). The metric grid is a per-backend A/B,
+    # never a default (round-3 delta: grid overlays can hurt some backends).
+    prompt_metric_grid: bool = False
+    prompt_motion_trails: bool = False
+    # Second image: an enlarged crop of the annotated frame around the robots
+    # the analysis was triggered for, `prompt_zoom_tile_margin_m` of world
+    # margin around their bounding box, resized to `prompt_zoom_tile_width_px`.
+    prompt_zoom_tile: bool = False
+    prompt_zoom_tile_margin_m: float = Field(default=0.6, gt=0.0)
+    prompt_zoom_tile_width_px: int = Field(default=640, ge=64)
+    # Permutation voting: 1 = today's single call. N > 1 renders the SAME
+    # snapshot under N cyclic shifts of the robot presentation order, makes N
+    # full reasoner calls (N x the API cost and up to N x the latency) and
+    # majority-votes the decision (`swarm_orchestrator.permutation_votes`).
+    prompt_permutation_votes: int = Field(default=1, ge=1)
+    # Verifier-candidate-options condition: list, per robot, the plan actions
+    # M3's own audit accepts in the current scene. CONSTRUCT CHANGE: plan
+    # metrics under this flag measure constrained selection, not free planning.
+    prompt_candidate_options: bool = False
 
     @field_validator("initial_tasks")
     @classmethod
@@ -274,6 +301,29 @@ class OrchestratorConfig(BaseModel):
                 f"shadow_classical_window_sec={self.shadow_classical_window_sec} must exceed "
                 f"stall_threshold_sec={self.stall_threshold_sec}: every zone entry would "
                 "fall out of the buffer before the analysis that needs it"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _prompt_apparatus_needs_prompt_v3(self) -> OrchestratorConfig:
+        # The apparatus sentences, the zoom tile and the options block are
+        # rendered by the prompt-v3 template only (v1/v2 are frozen), and M5
+        # renders v3 only behind `plan_channel_enabled`; a flag that could not
+        # take effect fails here instead of silently running the control cell.
+        requested = [
+            name
+            for name in (
+                "prompt_metric_grid",
+                "prompt_motion_trails",
+                "prompt_zoom_tile",
+                "prompt_candidate_options",
+            )
+            if getattr(self, name)
+        ]
+        if requested and not self.plan_channel_enabled:
+            raise ValueError(
+                f"{', '.join(requested)} require plan_channel_enabled (prompt v3); "
+                "the frozen v1/v2 templates render none of them"
             )
         return self
 
@@ -493,6 +543,57 @@ class PipelineOutcome(BaseModel):
     # `grounded_command` already is (`ground_reasoner_result`'s own
     # single-command contract: "the NEXT unresolved step").
     junction_phases: JunctionClearPhasePlan | None = None
+    # Permutation-voting record (`prompt_permutation_votes` > 1): every call's
+    # order, prompt hashes, raw response and vote, plus the winner. None for a
+    # single-call run, whose outcome is then unchanged.
+    permutation_votes: PermutationVoteRecord | None = None
+
+
+class AnnotationOverlayReport(BaseModel):
+    """Which prompt-apparatus overlays M1 says it drew on its annotated frame."""
+
+    model_config = ConfigDict(frozen=True)
+
+    overlays: tuple[str, ...] = ()
+    metric_grid_spacing_m: float | None = None
+
+    @property
+    def metric_grid(self) -> bool:
+        """Whether the labeled metric grid was drawn."""
+        return "metric_grid" in self.overlays
+
+    @property
+    def motion_trails(self) -> bool:
+        """Whether motion trails were drawn."""
+        return "motion_trails" in self.overlays
+
+
+def parse_annotation_overlays(raw: str) -> AnnotationOverlayReport:
+    """Read M1's `annotation_overlays` diagnostics off a SceneState JSON string.
+
+    Kept apart from `SceneSnapshot` so the snapshot -- stored verbatim in every
+    artifact and scene log -- is unchanged by the apparatus.
+
+    Args:
+        raw: JSON string published on `/perception/scene_state`.
+
+    Returns:
+        The report; empty when M1 drew no overlay or the payload is malformed.
+    """
+    try:
+        diagnostics = json.loads(raw).get("diagnostics", {}) or {}
+    except (json.JSONDecodeError, AttributeError):
+        return AnnotationOverlayReport()
+    overlays = diagnostics.get("annotation_overlays") or []
+    spacing = diagnostics.get("metric_grid_spacing_m")
+    return AnnotationOverlayReport(
+        overlays=tuple(str(name) for name in overlays if isinstance(name, str)),
+        metric_grid_spacing_m=(
+            float(spacing)
+            if isinstance(spacing, (int, float)) and not isinstance(spacing, bool) and spacing > 0
+            else None
+        ),
+    )
 
 
 def parse_scene_snapshot(raw: str) -> SceneSnapshot:

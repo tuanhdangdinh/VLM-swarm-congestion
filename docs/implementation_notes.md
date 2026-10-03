@@ -77,6 +77,42 @@ Rules for maintaining it:
     `data/logs/capability_probes/{gemini_20261003T201320Z,openai_20261003T201935Z}/`.
   - **Still open:** follow-up (b), the owner confirming the left/right
     operationalization.
+- **2026-10-04** — **Prompt apparatus v2 built on `feat/v2-apparatus`
+  (report `docs/reports/2026-10-04-visual-apparatus.md`).** Five rev-6
+  items, each an A/B flag, all default off.
+  - **Flag-off pins hold:** the six v3.2 prompt pins are untouched, the
+    flag-off frame equals the pre-apparatus code path, and the
+    openai/gemini bodies match their `aec58cc` hashes.
+  - **New per-condition pins:** grid `5e454e84…`, trails `e8448cd3…`,
+    tile `edadb429…`, options `bb8c8674…`, all-on `fec35f08…`.
+  - **Gating.** Every sentence is v3-only and gated on what was actually
+    rendered: M1 reports `diagnostics.annotation_overlays`, and a tile
+    sentence needs a written tile.
+  - **`prompt_conditions`.** Every decision artifact now carries this
+    block with all five flags, all-off included. It is the one deliberate
+    exception to conditional-add byte identity.
+  - **Neutral-image fallback** now neutralizes the zoom tile too.
+  - **Permutation-vote tie rule:** ties go to the call rendering the
+    registry (`initial_tasks`) order. If no call rendered it, the earliest
+    call wins.
+  - **Candidate options are derived by running `_plan_problems` itself on
+    probe plans.** On IB10 only the N-S recede pair is offered `reverse`;
+    the axis-mirror is never offered. The options flag is a CONSTRUCT
+    CHANGE (constrained selection) and is recorded per artifact.
+  - **Mock VM smoke passed** (annotation run `fc_run_20261003_204630`,
+    vote run `fc_run_20261003_210400`): the grid is legible and occludes
+    nothing, the tile crop bounds are correct, and the 3-call vote
+    dispatched the majority call. The VM was restored pristine and is
+    idle.
+  - **Gotchas.**
+    - Anti-aliased frame hashes differ between OpenCV builds (local 5.0.0
+      vs container 4.6.0), so the frame hash pin is build-gated.
+    - Two-robot cyclic shifts wrap (N=3 gives 2 distinct orders), so the
+      drawn order gets a 2:1 weight.
+    - Shifts of a random/id_desc base may never render the registry
+      order.
+    - Both are open for a ruling, with the candidate-options probe
+      contexts and the trail window.
 
 - **2026-10-03** — **The χ-epsilon and grammar rulings are implemented
   (report Rev 2, `docs/reports/2026-10-03-plan-grammar-fixes.md`).**

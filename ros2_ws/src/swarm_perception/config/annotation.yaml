@@ -1,0 +1,13 @@
+# Prompt-apparatus overlays on the annotated frame (prereg-v2 rev 6, A/B
+# conditions -- never defaults; docs/reports/2026-10-04-visual-apparatus.md).
+# Every flag off = the shipped annotated frame, byte-identical.
+annotation:
+  # Labeled world-frame metric grid: columns lettered west->east, rows
+  # numbered north->south (cell "C4"); thin blended lines, margin labels.
+  metric_grid: false
+  metric_grid_spacing_m: 0.5
+  # Fading polyline of each robot's recently detected positions.
+  motion_trails: false
+  motion_trail_window_sec: 3.0
+  motion_trail_min_step_sec: 0.1
+  motion_trail_max_points: 40
