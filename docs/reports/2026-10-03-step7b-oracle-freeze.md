@@ -247,12 +247,17 @@ together from their designed positions. In attempt 3, robot_4's race exit
 masked it.
 
 Candidate fix (NOT applied; needs a ruling, since it changes the release
-sequencing 7a designed). Chain the yielder behind the second receder: its
-release `yield` names the second receder as passer, using the same
-CrossingChain single-passer path, with a clearance that takes that robot
-past the yielder's crossing point. Alternatively, use CrossingChain's
-ordered multi-passer path [lead, second]. Either keeps M4 unchanged. A
-second VM rerun would be needed after the ruling.
+sequencing 7a designed). Use M4's existing ordered multi-passer path, which
+the spec says to reuse (`crossing_chain.py`: `plan_crossing` reads
+`crossing_order`/`crossing_clear_m`; `CrossingChain` admits one passer at a
+time; `command_bus_node._release_wait` releases each later passer's linked
+`temporary_wait` only when its predecessor clears). The release command
+would carry one `yield` for the yielder with `passer_robot_id` = lead,
+`crossing_order` = [lead, second] and per-passer clearances. The second
+receder would be held by a linked `temporary_wait` instead of its own
+`yield`. Order: lead, then second receder, then yielder. This is an M3-only
+change to `ground_junction_clear_phases` with M4 unchanged. A second VM
+rerun would be needed after the ruling.
 
 Also observed, not a blocker: the lead stalled at (0.25, 0.20) for ~22 sim
 s (105-127 s) before passing robot_3 at 0.34 m (exempt pair, same release
@@ -273,8 +278,8 @@ its pin:
 |---|---|---|---|---|
 | 1 | Formed-jam validity gate | `intersection_conflict_active` over GT; onset in `expected_conflict.onset_window_sec` [8, 40]; longest interval >= 2.0 s; >= `jam_robots_in_radius` (4) robots within 1.0 m at onset. Failing it makes the run INVALID (`resolved: None`), not failed. | `formed_jam` | `TestIb10FormedJam` (3) |
 | 2 | chi-pair correctness | recede set = `reverse` legs; `pair_correct`: set == `recede_pair` [robot_3, robot_4]; `order_correct`: order == chi order recomputed at the dispatched decision's snapshot (`rank_recede_candidates`, rag.yaml weights). Scored on the proposed plan (pre-repair, None if token-only) and the executed plan; provenance reported beside it. | `score_chi_pair`, `chi_order`, `dispatched_junction_decision` | `TestIb10ChiPair` (5) |
-| 3 | Inside-first order | GT final junction-centre crossing on each robot's travel axis. True iff every `inside_pair` robot except the grounded yielder crosses, and every recede robot that crosses does so later. None if an inside robot never crosses. `yielder_last` reported, descriptive only. | `score_inside_first`, `junction_crossing` | `TestIb10InsideFirst` (3) |
-| 4 | Phase-reached ordinal | none 0 < recede 1 < cross 2 < release 3 < resolved 4, from M5 `dispatch ... -junction-recede-` and `phase advance ... phase_reached=` lines. | `phase_reached` | `TestIb10PhaseReached` (4) |
+| 3 | Inside-first order | GT final junction-centre crossing on each robot's travel axis. True iff every `inside_pair` robot except the grounded yielder crosses, and every recede robot that crosses does so later. None if an inside robot never crosses. `yielder_last` is reported but **contingent on the release ruling**: today's release frees the yielder and the second receder together, which is the defect above. If the yielder is chained last, that order becomes deterministic and `yielder_last` is a candidate oracle criterion again. | `score_inside_first`, `junction_crossing` | `TestIb10InsideFirst` (3) |
+| 4 | Phase-reached ordinal | none 0 < recede 1 < cross 2 < release 3 < resolved 4, from M5 `dispatch ... -junction-recede-` and `phase advance ... phase_reached=` lines. **Open item:** this is M5's own phase label, and `resolved` means the release command completed, not that robots arrived. This rerun scored ordinal 4 with 2/4 arrivals, the same partial score as a full success. Options for the coordinator: require all arrivals for ordinal 4, or keep the label and score success only via criterion 6. Not changed here. | `phase_reached` | `TestIb10PhaseReached` (4) |
 | 5 | `fallback` / `fallback_exhausted` | flags: a `phase_reached=fallback` advance; M5's `outcome=fallback_exhausted`. | `phase_reached` | `test_fallback_keeps_the_last_phase_and_flags_exhaustion` |
 | 6 | Arrivals (episode success) | `score_ground_truth`'s rule (within 0.35 m, never beyond 0.5 m after); `resolved` = gate valid AND all four arrived. | `score_ib10` | `test_designed_order_is_inside_first_with_the_yielder_last` |
 | 7 | Ordered-release attribution | `-junction-release` gate events; `ordered_release` True iff every held robot's `gate_release` has `reason=clearance`. | `release_attribution` | `TestIb10ReleaseAttribution` (3) |
