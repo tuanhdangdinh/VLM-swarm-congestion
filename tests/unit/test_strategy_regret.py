@@ -33,6 +33,18 @@ def _first_decision(path: str) -> dict:
     return json.loads((ROOT / path).read_text())[0]
 
 
+def _first_congestion_decision(path: str) -> dict:
+    # Some scripted mocks (the one-skip pattern, e.g. IB10's junction_clear
+    # file) answer "none" on the first analysis so the scripted decision
+    # lands on a later one instead of a start-up stall. For every OTHER
+    # registered arm's mock, decision[0] already has congestion_detected
+    # True, so this is index-0 there too -- not a special case.
+    for decision in json.loads((ROOT / path).read_text()):
+        if decision.get("congestion_detected"):
+            return decision
+    raise AssertionError(f"{path}: no congestion_detected decision in the script")
+
+
 def _score(arm: str, total: float, *, censored: bool = False, run: str = "r") -> RunScore:
     # Two robots: one arrives at `total`, the other at t0 (or never).
     return RunScore(
@@ -56,6 +68,16 @@ def _scene_tree(tmp_path: Path, name: str) -> Path:
         orch["scenario_geometry"]["arms"] = scene.scenario_geometry_arms
     if scene.aisle_x_band_m is not None:
         orch["grounding_aisle_x_band_m"] = list(scene.aisle_x_band_m)
+    for field_name, value in (
+        ("junction_recede_offset_m", scene.junction_recede_offset_m),
+        ("junction_backup_clearance_m", scene.junction_backup_clearance_m),
+        ("tracked_extent_m", scene.tracked_extent_m),
+    ):
+        if value is not None:
+            orch["scenario_geometry"][field_name] = value
+    if scene.shadow_classical_zones is not None:
+        orch["shadow_classical_zones"] = [dict(z) for z in scene.shadow_classical_zones]
+    orch["plan_channel_enabled"] = scene.plan_channel_enabled
     (repo / ORCH_RELPATH).parent.mkdir(parents=True, exist_ok=True)
     (repo / ORCH_RELPATH).write_text(yaml.safe_dump(orch), encoding="utf-8")
     rag = yaml.safe_load((ROOT / "config/rag.yaml").read_text())
@@ -71,7 +93,7 @@ class TestRegistry:
     )
     def test_each_arm_mock_executes_as_the_arm(self, scene, arm):
         spec = SCENES[scene]
-        decision = _first_decision(spec.arms[arm].mock_decision_file)
+        decision = _first_congestion_decision(spec.arms[arm].mock_decision_file)
         parse_decision_text(json.dumps(decision))
         assert roles_from_decision(spec, decision) in spec.arms[arm].roles
 
@@ -322,3 +344,88 @@ class TestCli:
         assert main(["plan", "--scene", "bottleneck_merge", "--seeds", "42", "--tsv"]) == 0
         lines = capsys.readouterr().out.strip().splitlines()
         assert [line.split("\t")[0] for line in lines] == ["oracle", "alternative", "wait"]
+
+
+class TestIntersectionBottleneck:
+    """Step-7b Part 3: `junction_clear`-forced vs `best_single_yield`-forced,
+    freezing IB10 scoring. `best_single_yield` mirrors the T2b/T1-X
+    precedent -- v1's own finding that no single yielder recovers a formed
+    four-way scrum makes it a CENSORED arm by construction.
+    """
+
+    def _junction_clear_command(self) -> dict:
+        # The real phase-0 command shape (`ground_junction_clear_phases`'s
+        # recede phase): one `reverse` leg, the rest held `temporary_wait`.
+        return {
+            "command_id": "req-junction-recede-robot_4",
+            "actions": [
+                {"robot_id": "robot_4", "action": "reverse", "parameters": {}},
+                {"robot_id": "robot_1", "action": "temporary_wait", "parameters": {}},
+                {"robot_id": "robot_2", "action": "temporary_wait", "parameters": {}},
+                {"robot_id": "robot_3", "action": "temporary_wait", "parameters": {}},
+            ],
+        }
+
+    def test_junction_clear_phase_command_matches_the_arm(self):
+        assert roles_from_command(self._junction_clear_command()) == ("reverse",)
+        spec = SCENES["intersection_bottleneck"]
+        assert roles_from_command(self._junction_clear_command()) in spec.arms[
+            "junction_clear"
+        ].roles
+
+    def test_m3_default_mock_also_executes_as_the_junction_clear_arm(self):
+        # Strategy-token-only (no proposed_plan): m3_default owns the
+        # sequence, but the DECISION's own strategy token is still
+        # `junction_clear` -- the same arm, different provenance.
+        spec = SCENES["intersection_bottleneck"]
+        decision = _first_congestion_decision(
+            "config/mock_decisions/intersection_junction_clear_m3_default_once.json"
+        )
+        assert roles_from_decision(spec, decision) in spec.arms["junction_clear"].roles
+
+    def test_best_single_yield_is_censored_by_construction(self):
+        # Mirrors T2b/T1-X: a forced single-yield sweep of a formed four-way
+        # jam is expected not to reach 4/4 -- registered here as the
+        # EXPECTED shape of its own cost-table entry, not a live result.
+        scores = [
+            _score("junction_clear", 220.0, run="a"),
+            _score("junction_clear", 230.0, run="b"),
+            RunScore(
+                arm="best_single_yield", run_id="best_single_yield_a", t0_sec=0.0,
+                arrivals_sec={"robot_1": 40.0, "robot_2": None, "robot_3": None, "robot_4": None},
+                end_sec=300.0,
+            ),
+            RunScore(
+                arm="best_single_yield", run_id="best_single_yield_b", t0_sec=0.0,
+                arrivals_sec={"robot_1": 42.0, "robot_2": None, "robot_3": None, "robot_4": None},
+                end_sec=300.0,
+            ),
+        ]
+        table = cost_table(SCENES["intersection_bottleneck"], scores)
+        assert table["best_arm"] == "junction_clear"
+        assert table["best_censored"] is False
+        single = table["arms"]["best_single_yield"]
+        assert single["censored"] is True
+        assert single["regret_is_lower_bound"] is True
+        assert single["regret_sec"] > 0.0
+
+    def test_junction_clear_regret_against_the_single_yield_censored_table(self):
+        scores = [
+            _score("junction_clear", 220.0, run="a"),
+            _score("junction_clear", 230.0, run="b"),
+            RunScore(
+                arm="best_single_yield", run_id="best_single_yield_a", t0_sec=0.0,
+                arrivals_sec={"robot_1": 40.0, "robot_2": None, "robot_3": None, "robot_4": None},
+                end_sec=300.0,
+            ),
+            RunScore(
+                arm="best_single_yield", run_id="best_single_yield_b", t0_sec=0.0,
+                arrivals_sec={"robot_1": 42.0, "robot_2": None, "robot_3": None, "robot_4": None},
+                end_sec=300.0,
+            ),
+        ]
+        table = cost_table(SCENES["intersection_bottleneck"], scores)
+        result = score_regret(table, {"grounded_command": self._junction_clear_command()})
+        assert result["arm"] == "junction_clear"
+        assert result["regret_sec"] == 0.0
+        assert result["regret_is_lower_bound"] is False

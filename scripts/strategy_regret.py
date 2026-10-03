@@ -88,6 +88,16 @@ class SceneSpec:
     # Accepted labels by strategy, for label scoring (None: not a label tier).
     accepted_strategies: tuple[str, ...] | None = None
     notes: tuple[str, ...] = field(default_factory=tuple)
+    # Step-7b Part 3 (IB10 `junction_clear` regret extension): the
+    # composite's own geometry overlay, additive-only -- every other scene
+    # leaves these None and `preflight` skips the checks entirely, matching
+    # `scenario_geometry_arms`/`aisle_x_band_m`'s own None-is-a-no-op
+    # convention.
+    junction_recede_offset_m: float | None = None
+    junction_backup_clearance_m: float | None = None
+    tracked_extent_m: float | None = None
+    shadow_classical_zones: tuple[dict[str, Any], ...] | None = None
+    plan_channel_enabled: bool = False
 
     @property
     def scenario_relpath(self) -> Path:
@@ -227,6 +237,58 @@ SCENES: dict[str, SceneSpec] = {
             ),
         },
     ),
+    # Step-7b Part 3 (IB10 oracle + regret extension, freezing IB10 scoring):
+    # `junction_clear`-forced vs `best_single_yield`-forced. The T2b/T1-X
+    # precedent this mirrors: v1's own finding (no architecture recovers a
+    # formed four-way scrum from a single yielder) makes `best_single_yield`
+    # a CENSORED arm by construction -- a forced sweep of
+    # `intersection_yield_once.json` is expected not to reach 4/4, so its
+    # regret is only ever a lower bound (`RunScore.censored`,
+    # `cost_table`'s existing censored-reference handling), exactly T2b's
+    # own margin semantics. `junction_clear` is this scene's `vlm_verbatim`
+    # mock (`config/mock_decisions/intersection_junction_clear_vlm_verbatim_
+    # once.json`): the chi-ranked recede pair in order, then the yield-axis
+    # pair, so the (a0) engine finds every leg feasible and runs it
+    # verbatim -- the cell this scoring freeze is about.
+    "intersection_bottleneck": SceneSpec(
+        name="intersection_bottleneck",
+        initial_tasks={
+            "robot_1": {"task": "cross_intersection", "goal": [1.75, 0.0]},
+            "robot_2": {"task": "cross_intersection", "goal": [-1.75, 0.0]},
+            "robot_3": {"task": "cross_intersection", "goal": [0.0, 1.75]},
+            "robot_4": {"task": "cross_intersection", "goal": [0.0, -1.75]},
+        },
+        corridor={
+            "axis": "x", "center_m": 0.0, "half_length_m": 0.6,
+            "aisle_half_width_m": 0.6, "occluder_height_m": 0.0,
+        },
+        scenario_geometry_arms={
+            "robot_1": {"axis": "x", "side": -1},
+            "robot_2": {"axis": "x", "side": 1},
+            "robot_3": {"axis": "y", "side": -1},
+            "robot_4": {"axis": "y", "side": 1},
+        },
+        shadow_classical_zones=({"zone_id": "crossing_1", "x": 0.0, "y": 0.0, "radius_m": 1.5},),
+        junction_recede_offset_m=1.2,
+        junction_backup_clearance_m=1.1,
+        tracked_extent_m=1.75,
+        plan_channel_enabled=True,
+        grounding_mode="derived",
+        arms={
+            "junction_clear": ArmSpec(
+                "junction_clear",
+                "config/mock_decisions/intersection_junction_clear_vlm_verbatim_once.json",
+                (("reverse",),),
+            ),
+            # Forced single-yield (Arm B's own intersection shape, v1
+            # vocabulary): expected CENSORED -- registered so the contrast
+            # is expressible, not because this sweep is expected to pass.
+            "best_single_yield": ArmSpec(
+                "yield", "config/mock_decisions/intersection_yield_once.json",
+                (("yield", "robot_2", ("robot_1", "robot_3", "robot_4")),),
+            ),
+        },
+    ),
 }
 
 
@@ -280,8 +342,38 @@ def preflight(scene: SceneSpec, repo: Path) -> list[str]:
     for flag in ("t0_probe_mode", "prompt_static_obstacles"):
         if config.get(flag):
             problems.append(f"orchestrator.yaml {flag} must be false for {scene.name}")
-    if config.get("shadow_classical_zones"):
-        problems.append(f"orchestrator.yaml shadow_classical_zones must be [] for {scene.name}")
+    # Most scenes need an EMPTY zone list (a zone left over from another
+    # scene would let Arm B's intersection rule fire on any scene with two
+    # stopped robots whose goal axes cross near the centre); a scene that
+    # registers its own zones (IB10) needs exactly those instead.
+    expected_zones = [dict(z) for z in scene.shadow_classical_zones or ()]
+    if (config.get("shadow_classical_zones") or []) != expected_zones:
+        problems.append(
+            f"orchestrator.yaml shadow_classical_zones is "
+            f"{config.get('shadow_classical_zones')!r}, {scene.name} needs {expected_zones!r}"
+        )
+    # (a0) plan channel (step-7b Part 3): only `junction_clear` needs it on;
+    # every other registered scene needs it off (byte-identical v1/v2
+    # dispatch path is the regression gate the step-4 equivalence smoke
+    # checks, elsewhere).
+    if bool(config.get("plan_channel_enabled")) != scene.plan_channel_enabled:
+        problems.append(
+            f"orchestrator.yaml plan_channel_enabled is "
+            f"{config.get('plan_channel_enabled')!r}, {scene.name} needs "
+            f"{scene.plan_channel_enabled!r}"
+        )
+    for field_name, expected in (
+        ("junction_recede_offset_m", scene.junction_recede_offset_m),
+        ("junction_backup_clearance_m", scene.junction_backup_clearance_m),
+        ("tracked_extent_m", scene.tracked_extent_m),
+    ):
+        if expected is None:
+            continue
+        if geometry.get(field_name) != expected:
+            problems.append(
+                f"orchestrator.yaml scenario_geometry.{field_name} is "
+                f"{geometry.get(field_name)!r}, {scene.name} needs {expected!r}"
+            )
     rag_path = repo / RAG_RELPATH
     if not rag_path.is_file():
         problems.append(f"missing file {RAG_RELPATH}")
@@ -436,6 +528,16 @@ def roles_from_command(command: dict[str, Any]) -> Roles | None:
                 order = [] if passer is None else [passer]
             return ("yield", action["robot_id"], tuple(order))
     for action in actions:
+        if action.get("action") == "reverse":
+            # `junction_clear`'s own phase commands (step-7b Part 3): a plain
+            # `reverse` strategy also dispatches this action, but on THIS
+            # scene's only registered arms, every `reverse` dispatch is a
+            # `junction_clear` phase (the plain-`reverse` strategy has no
+            # registered arm here) -- coarse by kind, not by WHICH robot
+            # recedes first, since chi order can vary by trigger snapshot
+            # while the scene registers only one `junction_clear` arm.
+            return ("reverse",)
+    for action in actions:
         if action.get("action") == "reroute":
             return ("reroute", action["robot_id"])
     if actions and all(a.get("action") == "temporary_wait" for a in actions):
@@ -495,6 +597,10 @@ def roles_from_decision(
         return ("yield", yielder, tuple(order))
     if parsed.strategy == "reroute":
         return ("reroute", involved[0])
+    if parsed.strategy == "junction_clear":
+        # Matches `roles_from_command`'s own coarse-by-kind key (step-7b
+        # Part 3): this scene registers only one `junction_clear` arm.
+        return ("reverse",)
     if parsed.strategy in ("temporary_wait", "convoy", "priority_override"):
         # An unmapped alias runs as the legacy bounded wait.
         return ("temporary_wait", tuple(sorted(involved)))
