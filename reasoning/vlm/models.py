@@ -178,6 +178,32 @@ class PlanStateContext(BaseModel):
     changed_robot_ids: tuple[str, ...] = ()
 
 
+class CandidateOption(BaseModel):
+    """One plan action the verifier accepts for one robot in the current scene.
+
+    A plain projection of M3's candidate-option derivation
+    (`reasoning.rag.command_grounder.derive_candidate_options`), so M2 never
+    imports M3 -- same pattern as `RetreatCandidateOption`.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    action: PlanLegAction
+    # Short scene-derived qualifier rendered in parentheses after the action
+    # (e.g. "south arm" for a reverse along a declared junction arm); None
+    # renders the bare action.
+    detail: str | None = None
+
+
+class RobotCandidateOptions(BaseModel):
+    """Every action the verifier accepts for one robot, in vocabulary order."""
+
+    model_config = ConfigDict(frozen=True)
+
+    robot_id: str = Field(min_length=1)
+    options: list[CandidateOption]
+
+
 class ReasonerRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -226,6 +252,22 @@ class ReasonerRequest(BaseModel):
     # template; the replay program sets 1 for artifacts that predate the field,
     # so their stored prompts still reconstruct byte-identically.
     prompt_version: PromptVersion = CURRENT_PROMPT_VERSION
+    # Prompt-apparatus conditions (prereg-v2 rev 6, 2026-10-04; A/B cells,
+    # never defaults). Each records what the request ACTUALLY carries -- M5
+    # sets them from what M1 drew / what M5 attached, not from config alone --
+    # and each is rendered by the v3 template only (v1/v2 are frozen and
+    # ignore them, like `plan_state`). All unset = byte-identical prompt.
+    # Spacing of the labeled metric grid M1 drew on the frame; None = no grid.
+    metric_grid_spacing_m: float | None = Field(default=None, gt=0)
+    # Whether M1 drew motion trails on the frame.
+    motion_trails_drawn: bool = False
+    # Second image: an enlarged crop of the annotated frame around the
+    # robots this analysis was triggered for; None = single-image request.
+    zoom_tile_path: str | None = Field(default=None, min_length=1)
+    # Verifier-candidate-options condition: per-robot actions M3's own audit
+    # accepts in this scene. CONSTRUCT CHANGE when set -- the plan channel
+    # measures constrained selection, not free planning.
+    candidate_options: list[RobotCandidateOptions] | None = None
 
     @model_validator(mode="after")
     def _validate_last_failed_needs_latest(self) -> "ReasonerRequest":
@@ -250,6 +292,10 @@ class PromptPayload(BaseModel):
     user_prompt: str
     image_path: str
     known_robot_ids: list[str]
+    # Further images sent after `image_path`, in order (prompt-apparatus zoom
+    # tile). Empty for every single-image request, which every backend then
+    # sends exactly as before this field existed.
+    extra_image_paths: list[str] = Field(default_factory=list)
 
 
 class BackendResponse(BaseModel):

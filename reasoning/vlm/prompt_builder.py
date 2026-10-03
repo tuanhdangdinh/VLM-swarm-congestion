@@ -2,11 +2,13 @@ import json
 import math
 
 from reasoning.vlm.models import (
+    CandidateOption,
     FailureContext,
     PlanStateContext,
     PlanStateLeg,
     PromptPayload,
     ReasonerRequest,
+    RobotCandidateOptions,
     RobotOrder,
     RobotStateInput,
     StaticObstacleInput,
@@ -252,6 +254,40 @@ yield_robot and crossing_order answers
 - strategy "junction_clear": at least one "reverse" or "yield" leg
 - any other strategy: no constraint on the legs"""
 
+# Prompt-apparatus sentences (prereg-v2 rev 6 + round-3 deltas, 2026-10-04).
+# Each is an A/B condition, never a default, and renders only when the request
+# says the frame/attachment ACTUALLY carries the thing it names (M5 sets the
+# request fields from what M1 drew and what M5 attached, the same "gate on what
+# was rendered" rule `_OBSTACLES_ON` follows). Static, scenario-agnostic text:
+# they name a convention, never a robot, a scene or a strategy. All are
+# appended into the cross-check slot of `_USER_TEMPLATE`, so with every
+# condition off the slot renders exactly as before and the six v3 pins hold.
+_METRIC_GRID_SENTENCE = (
+    "The overhead image carries a labeled metric grid on the floor, one line "
+    "every {spacing} m: columns are lettered from west to east and rows are "
+    "numbered from north to south along the image margins, and a cell is named "
+    "by its column letter and row number, e.g. C4."
+)
+_MOTION_TRAILS_SENTENCE = (
+    "Each robot's recently detected positions are drawn behind it as a fading "
+    "trail in its status color: the faint end is the oldest position, the solid "
+    "end the most recent."
+)
+_ZOOM_TILE_SENTENCE = (
+    "A second image follows the overhead view: an enlarged crop of the same "
+    "annotated frame around the robots this analysis was triggered for. It shows "
+    "part of the same scene at higher magnification, not additional robots."
+)
+# Verifier-candidate-options condition (round-3 "constraints-in-prompt"
+# recipe, arXiv:2401.03630): ONE framing sentence, then one line per robot
+# listing the actions M3's own audit accepts in this scene. This changes the
+# measured construct from free planning to constrained selection -- recorded
+# per decision in the artifact's `prompt_conditions`.
+_CANDIDATE_OPTIONS_HEADER = (
+    "Plan actions the system's verifier accepts for each robot in the current "
+    "scene (a plan leg outside these is repaired or the plan is replaced):"
+)
+
 _PLAN_STATE_HEADER = "Active plan (plan_id={plan_id}):"
 
 # Generic on purpose, like _FAILURE_CONTEXT_ADVICE: naming which strategy to
@@ -303,6 +339,56 @@ def _render_attempt_lines(context: FailureContext) -> list[str]:
     # crossing_order is accepted on FailureContext but not rendered in this slice
     # (Phase 1 plan Task 5 adds the ordered-crossing prompt block).
     return [f"- {attempt}", f"- detail: {context.failure_detail}"]
+
+
+def _render_option(option: CandidateOption) -> str:
+    return option.action if option.detail is None else f"{option.action} ({option.detail})"
+
+
+def render_candidate_options_block(
+    candidate_options: list[RobotCandidateOptions], robot_order: list[str]
+) -> str:
+    """Render the verifier-candidate-options block (prompt v3 A/B condition).
+
+    Args:
+        candidate_options: Per-robot accepted actions, from M3 via M5.
+        robot_order: Presentation order of the prompt's robot list; the block
+            follows it so a presentation-order shift rotates this block too.
+
+    Returns:
+        A multi-line block with no leading or trailing newline.
+    """
+    by_robot = {entry.robot_id: entry for entry in candidate_options}
+    ordered = [by_robot[rid] for rid in robot_order if rid in by_robot] + [
+        entry for entry in candidate_options if entry.robot_id not in robot_order
+    ]
+    lines = [_CANDIDATE_OPTIONS_HEADER]
+    for entry in ordered:
+        rendered = ", ".join(_render_option(option) for option in entry.options) or "none"
+        lines.append(f"- {entry.robot_id}: {rendered}")
+    return "\n".join(lines)
+
+
+def render_visual_apparatus_block(request: ReasonerRequest) -> str:
+    """Render the image-convention sentences for whatever the request carries.
+
+    Args:
+        request: The request; reads `metric_grid_spacing_m`,
+            `motion_trails_drawn` and `zoom_tile_path`.
+
+    Returns:
+        The sentences, one per line, or "" when the request carries none.
+    """
+    sentences = []
+    if request.metric_grid_spacing_m is not None:
+        sentences.append(
+            _METRIC_GRID_SENTENCE.format(spacing=f"{request.metric_grid_spacing_m:g}")
+        )
+    if request.motion_trails_drawn:
+        sentences.append(_MOTION_TRAILS_SENTENCE)
+    if request.zoom_tile_path is not None:
+        sentences.append(_ZOOM_TILE_SENTENCE)
+    return "\n".join(sentences)
 
 
 def render_failure_context_block(context: FailureContext) -> str:
@@ -479,7 +565,9 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
     frozen `prompt_v1` module (byte-identical to every pre-bundle artifact),
     2 through the frozen `prompt_v2` module (byte-identical to every
     prompt-v2-bundle artifact), 3 (the current template) through this
-    module's own text.
+    module's own text. The prompt-apparatus fields (metric grid, motion
+    trails, zoom tile, candidate options) are v3-only: v1/v2 render neither
+    their sentences nor the zoom tile attachment.
 
     Args:
         request: Validated reasoning request from M5/M1.
@@ -547,6 +635,16 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
         if request.include_visual_crosscheck
         else ""
     )
+    # Prompt-apparatus conditions share the cross-check slot (after it), each
+    # as its own blank-line-separated block, so an all-off request adds
+    # nothing and renders byte-identically.
+    apparatus = render_visual_apparatus_block(request)
+    if apparatus:
+        crosscheck_block += "\n" + apparatus + "\n"
+    if request.candidate_options is not None:
+        crosscheck_block += (
+            "\n" + render_candidate_options_block(request.candidate_options, known_ids) + "\n"
+        )
     user_prompt = _USER_TEMPLATE.format(
         robot_state_block=block,
         known_robot_ids_json=json.dumps(known_ids),
@@ -567,4 +665,5 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
         user_prompt=user_prompt,
         image_path=request.image_path,
         known_robot_ids=known_ids,
+        extra_image_paths=[] if request.zoom_tile_path is None else [request.zoom_tile_path],
     )
