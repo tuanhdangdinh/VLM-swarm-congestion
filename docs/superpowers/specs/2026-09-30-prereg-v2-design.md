@@ -421,12 +421,37 @@ head-ons, junction scenes, convoys, and the loop map — not just IB10.
   and (i-b) *consistency rate given emission*; declining to plan and
   planning inconsistently are different behaviors, never binned
   together.
-- **χ-epsilon verbatim rule (2026-10-03 review, fix 3):** when the χ
-  margin between recede candidates is below a registered epsilon
-  (sized from measured snapshot noise), either recede order passes
-  verification — provenance must not pick up trigger-timing noise
-  (the observed [robot_3, robot_4] / [robot_4, robot_3] flips across
-  IB10 runs).
+- **χ-epsilon verbatim rule (2026-10-03 review, fix 3; RULED same
+  day after measurement):** the measurement refuted the
+  snapshot-noise framing — within-run χ spread is ≤ 5 mm, while the
+  nominally symmetric jam forms with between-run margins up to
+  0.142 m; no structural ranking difference (≥ 0.5 per follower) was
+  ever observed. RULING = option (b): ε applies to VERIFICATION
+  ONLY — dispatch stays in χ order (deterministic, frozen 7b
+  machinery untouched) — with `ε = 0.15`, absorbing every observed
+  asymmetry and sitting far below the 0.5 smallest structural
+  margin; ε must be re-measured for any scene family where follower
+  counts differ. The dispatch-match check becomes order-aware with
+  an `order_equivalent` flag so a within-ε divergence between the
+  verified plan and the dispatched order is RECORDED, never hidden —
+  this is what keeps freeze-blocker 1 closed (the recede-SET audit
+  stays strict; within-ε order is a defined equivalence class, not
+  an unaudited hole). Consequence, per the registered 7b bound
+  procedure: with ε, `recede_order_swapped` leaves the defect corpus
+  and bound 4 reaches full coverage of the remaining repairable
+  cases — the repair bound RE-FREEZES AT 4 (procedure followed, not
+  preference).
+- **Mirrored-axis composite caveat (2026-10-03 calibration):** ER-2's
+  first consistent live plan chose the E-W pair to recede — the
+  axis-mirror of the geometry-fixed N-S candidate set. The audit
+  scores this `repaired` BY CONVENTION (the mirrored composite is
+  unmodeled — no derived pockets/clearances on that axis), not by
+  proven infeasibility. Registered as an analysis caveat on IB10
+  plan metrics and a v3 candidate (axis-choice freedom).
+- **Oracle-order agreement stays gated on `consistent`** (review
+  item 3): the registered population is consistent plans;
+  inconsistent plans' orders remain recomputable offline for
+  exploratory analysis, never for confirmatory counts.
 
 ### Verify/repair contract
 
@@ -474,7 +499,9 @@ prompt (v3 template, hash-frozen at the v2 freeze).
 
 ### Plan-quality metrics (registered, scored on every v2 decision)
 
-- (i) *plan emission rate* — a parseable, consistent plan was supplied;
+- (i-a) *plan emission rate* — a parseable plan was supplied; (i-b)
+  *consistency rate* — given emission, the plan refines the strategy
+  (split per the 2026-10-03 review, fix 2);
 - (ii) *plan agreement rate* — verbatim-executable without repair;
 - (iii) *plan edit distance* — repairs applied, with reasons;
 - (iv) *executed-plan provenance* — `vlm_verbatim` / `repaired` /
