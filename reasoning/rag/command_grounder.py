@@ -2103,35 +2103,77 @@ def ground_junction_clear_phases(
         second_pocket_m = recede_pocket_offset_m(geometry, 1)
         assert lead_pocket_m is not None and second_pocket_m is not None
         passer_clear_m = round(lead_pocket_m + second_pocket_m + params.min_distance_m, 3)
+        def _passive_hold(hold_sec: float) -> dict[str, Any]:
+            # A PASSIVE hold, not a maneuver: `command_bus_node`'s `yield`
+            # branch always runs `Nav2Adapter.backup` first
+            # (`backup_distance_m` defaults to 0.3 m when absent -- these
+            # robots are already correctly parked, so an unrequested 0.3 m
+            # additional backup would itself be a bug, not a hold). 0.0
+            # completes that step on its first odometry tick, with no real
+            # motion. `hold_sec` must be positive or the hold/CrossingChain
+            # logic is skipped entirely (`_on_backup_result`'s
+            # `hold_sec <= 0.0` branch).
+            return {
+                "backup_distance_m": 0.0,
+                "hold_sec": hold_sec,
+                "passer_robot_id": lead_id,
+                "passer_clear_m": passer_clear_m,
+            }
+
+        # Every non-lead receder: a passive hold gated on the lead alone, as
+        # in step 7a. Its own `yield` naming the lead is also what exempts
+        # the receder/lead pair while the lead squeezes past it in the aisle
+        # (`safety.admitted_partners`; the step-7b rerun measured 0.34 m).
         release_actions = [
             {
                 "robot_id": robot_id,
                 "action": "yield",
-                "parameters": {
-                    # A PASSIVE hold, not a maneuver: `command_bus_node`'s
-                    # `yield` branch always runs `Nav2Adapter.backup` first
-                    # (`backup_distance_m` defaults to 0.3 m when absent --
-                    # these robots are already correctly parked, so an
-                    # unrequested 0.3 m additional backup would itself be a
-                    # bug, not a hold). 0.0 completes that step on its first
-                    # odometry tick, with no real motion. `hold_sec` must be
-                    # positive or the hold/CrossingChain logic is skipped
-                    # entirely (`_on_backup_result`'s `hold_sec <= 0.0`
-                    # branch) -- reusing `junction_recede_hold_sec` as the
-                    # same wall-second backstop the recede phases use.
-                    "backup_distance_m": 0.0,
-                    "hold_sec": params.junction_recede_hold_sec,
-                    "passer_robot_id": lead_id,
-                    "passer_clear_m": passer_clear_m,
-                },
+                "parameters": _passive_hold(params.junction_recede_hold_sec),
             }
-            for robot_id in release_held
+            for robot_id in ranked[1:]
         ]
+        expected_resolution_sec = params.junction_recede_hold_sec
+        if yielder_id is not None:
+            # Step-7b ruling (vi): the yielder re-enters LAST, behind every
+            # receder, through M4's ordered multi-passer path
+            # (`crossing_chain.plan_crossing`): passers [lead, *receders],
+            # each admitted once its predecessor clears, the hold ending only
+            # when the last receder has cleared. Step 7a gated the yielder on
+            # the lead alone, so it and the second receder were released at
+            # the same instant onto crossing paths (rerun
+            # fc_run_20261003_022532: permanent 0.416 m latch). A receder
+            # clears once it has crossed the junction box: its pocket offset
+            # plus the box half-length plus `min_distance_m`. The second
+            # receder keeps its own lead-gated `yield` above instead of the
+            # linked `temporary_wait` the ruling's text names: a
+            # `temporary_wait` is not a clearing action, so the receder/lead
+            # pair would lose its exemption mid-pass and latch (M4 unchanged).
+            # The yielder's backstop is twice the receders' so that even a
+            # timer-ended hold never frees it together with them.
+            receder_pockets = [recede_pocket_offset_m(geometry, r) for r in range(1, len(ranked))]
+            receder_clears = [
+                round(pocket + geometry.corridor.half_length_m + params.min_distance_m, 3)
+                for pocket in receder_pockets
+                if pocket is not None
+            ]
+            assert len(receder_clears) == len(ranked) - 1
+            expected_resolution_sec = 2.0 * params.junction_recede_hold_sec
+            release_actions.append(
+                {
+                    "robot_id": yielder_id,
+                    "action": "yield",
+                    "parameters": {
+                        **_passive_hold(expected_resolution_sec),
+                        "crossing_order": [lead_id, *ranked[1:]],
+                        "crossing_clear_m": [passer_clear_m, *receder_clears],
+                    },
+                }
+            )
         release_command = validate_coordination_command(
             {
                 "command_id": f"{result.request_id}-junction-release",
                 "actions": release_actions,
-                "expected_resolution_time_sec": params.junction_recede_hold_sec,
+                "expected_resolution_time_sec": expected_resolution_sec,
                 "fallback": "stop",
                 "degradations": ["junction_clear=release"],
             }

@@ -881,3 +881,116 @@ class TestStaggeredRecedePockets:
     def test_stagger_as_deep_as_the_pocket_is_rejected(self):
         with pytest.raises(ValueError):
             self._staggered(1.2)
+
+
+class TestYielderReentersLast:
+    """Step-7b ruling (vi): the release chains the yielder behind every receder.
+
+    Rerun fc_run_20261003_022532 released the second receder (robot_3) and the
+    yielder (robot_1) on the same lead gate at the same instant; their paths
+    crossed and both latched for good at 0.416 m. The yielder now holds
+    through M4's ordered multi-passer path [lead, second receder].
+    """
+
+    @staticmethod
+    def _release(stagger_m: float | None = 0.2) -> dict:
+        geometry = SceneGeometry(
+            corridor=_corridor(), arms=JUNCTION_ARMS, junction_recede_offset_m=1.2,
+            junction_recede_stagger_m=stagger_m, junction_backup_clearance_m=1.1,
+        )
+        plan = ground_junction_clear_phases(
+            _result(_decision()), snapshot=_frame(), params=GroundingParams(mode="derived"),
+            geometry=geometry,
+        )
+        return next(p for p in plan.phases if p.label == "release").command
+
+    @staticmethod
+    def _params(command: dict, robot_id: str) -> dict:
+        return next(a for a in command["actions"] if a["robot_id"] == robot_id)["parameters"]
+
+    def test_release_holds_the_second_receder_then_the_yielder(self):
+        command = self._release()
+        assert [(a["robot_id"], a["action"]) for a in command["actions"]] == [
+            ("robot_3", "yield"),
+            ("robot_1", "yield"),
+        ]
+
+    def test_second_receder_is_gated_on_the_lead_alone(self):
+        params = self._params(self._release(), "robot_3")
+        assert params["passer_robot_id"] == "robot_4"
+        assert params["passer_clear_m"] == 2.65
+        assert "crossing_order" not in params
+
+    def test_yielder_crossing_order_is_lead_then_second_receder(self):
+        params = self._params(self._release(), "robot_1")
+        assert params["passer_robot_id"] == "robot_4"
+        assert params["crossing_order"] == ["robot_4", "robot_3"]
+        # Lead: its pocket + the second pocket + min_distance (1.2+1.0+0.45).
+        # Second receder: its pocket + the junction box half-length +
+        # min_distance (1.0+0.6+0.45), i.e. out of the box past the yielder's
+        # lane.
+        assert params["crossing_clear_m"] == [2.65, 2.05]
+
+    def test_unstaggered_second_receder_clearance_uses_its_own_pocket(self):
+        params = self._params(self._release(stagger_m=None), "robot_1")
+        assert params["crossing_clear_m"] == [2.85, 2.25]
+
+    def test_second_receder_clearance_is_reachable_before_its_goal(self):
+        # robot_3 travels from its 1.0 pocket to ~1.65 (the lead stopped
+        # 0.10 m short of a 1.75 goal in the rerun GT), ~2.65 m: the gate
+        # must clear on travel, never fall back to the hold timer.
+        clear_m = self._params(self._release(), "robot_1")["crossing_clear_m"][1]
+        assert clear_m < 1.0 + 1.75 - 0.10
+
+    def test_yielder_backstop_outlasts_the_receders(self):
+        command = self._release()
+        receder_hold = self._params(command, "robot_3")["hold_sec"]
+        yielder_hold = self._params(command, "robot_1")["hold_sec"]
+        assert yielder_hold > receder_hold
+        assert command["expected_resolution_time_sec"] == yielder_hold
+
+    def test_m4_parses_the_order_the_grounder_emits(self):
+        from swarm_execution.crossing_chain import plan_crossing
+
+        passers = plan_crossing(self._params(self._release(), "robot_1"))
+        assert [(p.robot_id, p.clear_m, p.escort_m) for p in passers] == [
+            ("robot_4", 2.65, None),
+            ("robot_3", 2.05, None),
+        ]
+
+    def test_yielder_is_released_only_after_the_second_receder_clears(self):
+        from swarm_execution.crossing_chain import CrossingChain, plan_crossing
+
+        command = self._release()
+        receder = CrossingChain(plan_crossing(self._params(command, "robot_3")))
+        yielder = CrossingChain(plan_crossing(self._params(command, "robot_1")))
+        for chain in (receder, yielder):
+            chain.on_odometry("robot_4", 0.0, 0.0)
+        # The lead clears: the receder's hold ends, the yielder's admits robot_3.
+        assert receder.on_odometry("robot_4", 2.7, 0.0).next is None
+        step = yielder.on_odometry("robot_4", 2.7, 0.0)
+        assert step.next.robot_id == "robot_3"
+        assert receder.finished and not yielder.finished
+        yielder.on_odometry("robot_3", 0.0, 0.0)
+        assert yielder.on_odometry("robot_3", 1.0, 0.0) is None
+        assert not yielder.finished
+        assert yielder.on_odometry("robot_3", 2.1, 0.0).next is None
+        assert yielder.finished
+
+    def test_lead_pass_stays_exempt_and_the_yielder_receder_pair_does_not(self):
+        # Why the second receder keeps its own `yield` rather than a linked
+        # `temporary_wait`: only a clearing action earns M4 exemptions.
+        from swarm_execution.safety import admitted_partners, crossing_order_from_parameters
+
+        command = self._release()
+        members = [a["robot_id"] for a in command["actions"]]
+        partners = {
+            a["robot_id"]: admitted_partners(
+                a["robot_id"], a["action"], members,
+                crossing_order_from_parameters(a["action"], a["parameters"]), set(),
+            )
+            for a in command["actions"]
+        }
+        assert "robot_4" in partners["robot_3"]
+        assert partners["robot_1"] == frozenset({"robot_4"})
+        assert admitted_partners("robot_3", "temporary_wait", members, None, set()) == frozenset()
