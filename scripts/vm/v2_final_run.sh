@@ -24,6 +24,8 @@
 #   MOCK       repo-relative mock decision file (default empty)
 #   OUT_ROOT   output root (default data/logs/vm_runs/loop_family)
 #   SAMPLER    1 = run scripts/vm/loop_family_sampler.py on robot_1 (default 0)
+#   SNAPSHOTS  1 = run scripts/vm/frame_snapshots.py (PNG every 4 sim-s of the
+#              annotated and raw frames, into $OUT/snapshots) (default 0)
 #   RECORD     passed to fc_launch (default 0)
 #   REC_SEC / SIM_SEC / SEED   passed to fc_launch (defaults 900 / 1000 / 42)
 #   CONTAINER  default vgu_ros
@@ -38,6 +40,7 @@ OVERLAY="${OVERLAY:-none}"
 MOCK="${MOCK:-}"
 OUT_ROOT="${OUT_ROOT:-$REPO/data/logs/vm_runs/loop_family}"
 SAMPLER="${SAMPLER:-0}"
+SNAPSHOTS="${SNAPSHOTS:-0}"
 RECORD="${RECORD:-0}"
 REC_SEC="${REC_SEC:-900}"
 SIM_SEC="${SIM_SEC:-1000}"
@@ -80,6 +83,7 @@ cp -p "$RAG" "$BACKUP_DIR/rag.yaml"
 restore() {
   set +e
   if [ -n "${SAMPLER_PID:-}" ]; then kill "$SAMPLER_PID" 2>/dev/null; fi
+  if [ -n "${SNAP_PID:-}" ]; then kill "$SNAP_PID" 2>/dev/null; fi
   cp "$BACKUP_DIR/orchestrator.yaml" "$ORCH" && touch "$ORCH"
   cp "$BACKUP_DIR/rag.yaml" "$RAG" && touch "$RAG"
   docker exec -w /ws "$CONTAINER" bash -lc \
@@ -119,6 +123,21 @@ SCENARIO="$SCENARIO" BACKEND_ID=mock MOCK_DECISION_FILE="$MOCK" SEED="$SEED" \
   bash "$REPO/scripts/vm/fc_launch.sh" </dev/null >"$OUT/launcher.log" 2>&1 &
 FC_PID=$!
 
+if [ "$SAMPLER" = "1" ] || [ "$SNAPSHOTS" = "1" ]; then
+  for _ in $(seq 1 200); do
+    grep -q "Nav2 action servers live" "$OUT/launcher.log" 2>/dev/null && break
+    sleep 3
+  done
+fi
+if [ "$SNAPSHOTS" = "1" ]; then
+  docker cp "$HERE/frame_snapshots.py" "$CONTAINER":/tmp/frame_snapshots.py
+  docker exec -w /ws "$CONTAINER" bash -lc \
+    "source /opt/ros/jazzy/setup.bash && source /ws/ros2_ws/install/setup.bash && export FASTRTPS_DEFAULT_PROFILES_FILE=/ws/config/dds/fastdds.xml && python3 /tmp/frame_snapshots.py /tmp/snapshots_${LABEL} $((REC_SEC - 30))" \
+    >"$OUT/snapshots_stderr.log" 2>&1 &
+  SNAP_PID=$!
+  log "snapshot grabber started"
+fi
+
 if [ "$SAMPLER" = "1" ]; then
   for _ in $(seq 1 200); do
     grep -q "Nav2 action servers live" "$OUT/launcher.log" 2>/dev/null && break
@@ -143,6 +162,12 @@ if [ -n "${SAMPLER_PID:-}" ]; then
   docker cp "$CONTAINER":/tmp/loop_family_sampler_${LABEL}.jsonl "$OUT/sampler.jsonl" 2>/dev/null \
     && log "sampler output copied" || log "WARNING: no sampler output"
   SAMPLER_PID=""
+fi
+if [ -n "${SNAP_PID:-}" ]; then
+  wait "$SNAP_PID" 2>/dev/null
+  docker cp "$CONTAINER":/tmp/snapshots_${LABEL} "$OUT/snapshots" 2>/dev/null \
+    && log "snapshots copied ($(ls "$OUT/snapshots" | wc -l) files)" || log "WARNING: no snapshots"
+  SNAP_PID=""
 fi
 
 if grep -q "logs saved to" "$OUT/launcher.log"; then
