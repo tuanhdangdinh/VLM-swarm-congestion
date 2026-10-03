@@ -37,6 +37,32 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-03** — **v2 demo episodes recorded on IB10 (scripted 4/4 +
+  LIVE ER-2 4/4), with four apparatus gotchas.** Runs
+  `fc_run_20261003_062051` (scripted) and `fc_run_20261003_064912`
+  (live, `gemini-robotics-er-2-preview`, prompt v3, plan channel on):
+  both resolved 4/4 with yielder-last attribution; the live model chose
+  `junction_clear` unprompted, its own plan (one `cross` + three
+  `wait`s, no receders) was rejected as inconsistent → `m3_default`
+  (first live datum for the plan-emission metrics); videos + scorer
+  outputs under `data/logs/vm_runs/v2_demo/` (gitignored). Gotchas for
+  future runs: (1) `intersection_bottleneck.yaml` `duration_sec: 300`
+  governs — `run_simulation` never applies `--duration-sec`, so
+  `SIM_SEC` beyond 300 sim-s only records idle frames; (2) with four
+  Nav2 stacks `/perception/annotated_frame` drops to ~1.0–1.9 fps (vs
+  6–7 Hz pre-Nav2), and the recorder's literal frames÷seconds
+  re-timing recipe overstates duration when the recorder outlives
+  Isaac — re-time from the last recorder progress line inside the
+  Isaac-active window; (3) IB10's χ order flips between runs
+  ([robot_4, robot_3] in the 7b rerun vs [robot_3, robot_4] in both
+  demo runs — snapshot-timing dependent), so the
+  `intersection_junction_clear_vlm_verbatim_once.json` mock can score
+  `repaired` instead of `vlm_verbatim`; any fixture pinning verbatim
+  provenance must derive the recede order from the live snapshot, not
+  hardcode it; (4) the bracketed `pgrep '[r]un_simulation'` guard is
+  defeated by any concurrent command line containing the bare string —
+  keep the literal out of every SSH command.
+
 - **2026-10-03** — **v2 build-order step 8 phase 2 (loop-detour family)
   STOPS on a design-control failure; step-9 visual pass PASSES.** Branch
   `feat/v2-final-wave` (from `feat/prereg-v2-composite` at `1ee23d2`); full
