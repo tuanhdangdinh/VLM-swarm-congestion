@@ -9,6 +9,8 @@ import pytest
 from PIL import Image
 from swarm_orchestrator.models import PipelineOutcome, TerminalStage
 from swarm_orchestrator.permutation_votes import (
+    BALLOT_RULE,
+    NO_BALLOT_ERROR,
     TIE_RULE,
     cyclic_shift_orders,
     permutation_votes_log,
@@ -316,6 +318,169 @@ class TestVoting:
         assert "n=3" in line and "winner=0" in line and "yield/robot_1" in line
 
 
+_TWO = ("robot_1", "robot_2")
+
+
+class TestBallotRule:
+    """Apparatus ruling 2026-10-04: one ballot per DISTINCT rendered order."""
+
+    def test_agreeing_duplicated_order_is_one_ballot_and_ties(self, tmp_path):
+        # Two robots, three shifts: (1,2), (2,1), (1,2). Calls 0 and 2 agree on
+        # robot_1, so the drawn order casts ONE ballot -- 1:1, not the old 2:1.
+        texts = [
+            _decision_json(yield_robot="robot_1"),
+            _decision_json(yield_robot="robot_2"),
+            _decision_json(yield_robot="robot_1"),
+        ]
+        reasoner, _ = _reasoner(texts)
+        _, record, _ = run_permutation_votes(reasoner, _request(tmp_path, robots=_TWO), 3)
+        assert [b.call_indices for b in record.ballots] == [(0, 2), (1,)]
+        assert [vc.count for vc in record.vote_counts] == [1, 1]
+        assert record.tie_broken
+        assert record.intra_order_inconsistency is False
+
+    def test_double_weighted_drawn_order_loses_the_tie_to_the_registry_order(self, tmp_path):
+        # id_desc base: calls render (2,1), (1,2), (2,1). Calls 0 and 2 (the
+        # drawn order) say robot_2; call 1 (the registry order) says robot_1.
+        # The old per-call count gave robot_2 2:1; the 1:1 tie now goes to call 1.
+        texts = [
+            _decision_json(yield_robot="robot_2"),
+            _decision_json(yield_robot="robot_1"),
+            _decision_json(yield_robot="robot_2"),
+        ]
+        reasoner, _ = _reasoner(texts)
+        request = _request(tmp_path, robots=_TWO, robot_presentation_order="id_desc")
+        result, record, winning_request = run_permutation_votes(
+            reasoner, request, 3, registry_order=_TWO
+        )
+        assert record.tie_broken and record.tie_resolved_by == "registry_order"
+        assert record.winner_index == 1
+        assert result.decision.yield_robot == "robot_1"
+        assert winning_request.robot_presentation_order == _TWO
+
+    def test_double_weighted_tie_without_registry_order_goes_to_the_earliest_call(
+        self, tmp_path
+    ):
+        texts = [
+            _decision_json(yield_robot="robot_2"),
+            _decision_json(yield_robot="robot_1"),
+            _decision_json(yield_robot="robot_2"),
+        ]
+        reasoner, _ = _reasoner(texts)
+        request = _request(tmp_path, robots=_TWO, robot_presentation_order="id_desc")
+        result, record, _ = run_permutation_votes(reasoner, request, 3)
+        assert record.tie_resolved_by == "earliest_call" and record.winner_index == 0
+        assert result.decision.yield_robot == "robot_2"
+
+    def test_two_votes_two_robots_is_one_ballot_per_order(self, tmp_path):
+        texts = [_decision_json(yield_robot="robot_1"), _decision_json(yield_robot="robot_2")]
+        reasoner, _ = _reasoner(texts)
+        request = _request(tmp_path, robots=_TWO, robot_presentation_order="id_desc")
+        result, record, _ = run_permutation_votes(reasoner, request, 2, registry_order=_TWO)
+        assert record.distinct_orders == 2 and len(record.ballots) == 2
+        assert record.tie_resolved_by == "registry_order" and record.winner_index == 1
+        assert result.decision.yield_robot == "robot_2"
+
+    def test_reconciled_agreement_counts_one_ballot_per_order(self, tmp_path):
+        reasoner, _ = _reasoner([_decision_json(yield_robot="robot_2")] * 3)
+        _, record, _ = run_permutation_votes(reasoner, _request(tmp_path, robots=_TWO), 3)
+        assert len(record.vote_counts) == 1
+        assert record.vote_counts[0].count == 2
+        assert record.vote_counts[0].call_indices == (0, 1, 2)
+        assert record.winner_index == 0 and not record.tie_broken
+        assert record.intra_order_inconsistency is False and record.inconsistent_orders == []
+
+    def test_abstaining_duplicate_does_not_void_the_order(self, tmp_path):
+        # Call 0 refuses; call 2 alone speaks for the (1,2) order.
+        texts = [
+            _REFUSAL,
+            _decision_json(yield_robot="robot_2"),
+            _decision_json(yield_robot="robot_2"),
+        ]
+        reasoner, _ = _reasoner(texts)
+        _, record, _ = run_permutation_votes(reasoner, _request(tmp_path, robots=_TWO), 3)
+        assert [(b.order, b.call_indices) for b in record.ballots] == [
+            (("robot_2", "robot_1"), (1,)),
+            (("robot_1", "robot_2"), (2,)),
+        ]
+        assert record.ballots[1].representative_index == 2
+        assert record.intra_order_inconsistency is False
+
+    def test_disagreeing_duplicated_order_casts_no_ballot(self, tmp_path):
+        # The 2026-10-03 VM smoke script (`votes_r1`): call 0 robot_1, calls 1
+        # and 2 robot_2. Calls 0 and 2 share the (1,2) order and disagree, so
+        # only (2,1) votes: robot_2 wins 1:0, flagged inconsistent.
+        texts = [
+            _decision_json(yield_robot="robot_1"),
+            _decision_json(yield_robot="robot_2"),
+            _decision_json(yield_robot="robot_2"),
+        ]
+        reasoner, _ = _reasoner(texts)
+        result, record, _ = run_permutation_votes(
+            reasoner, _request(tmp_path, robots=_TWO), 3, registry_order=_TWO
+        )
+        assert record.intra_order_inconsistency is True
+        assert [(i.order, i.call_indices) for i in record.inconsistent_orders] == [
+            (_TWO, (0, 2))
+        ]
+        assert [b.order for b in record.ballots] == [("robot_2", "robot_1")]
+        assert record.winner_index == 1 and not record.tie_broken
+        assert result.decision.yield_robot == "robot_2"
+
+    def test_no_surviving_ballot_returns_no_decision(self, tmp_path):
+        # (1,2) is inconsistent and (2,1) abstains: call 0's valid decision
+        # must not be returned, or the pipeline would ground a voided vote.
+        texts = [
+            _decision_json(yield_robot="robot_1"),
+            _REFUSAL,
+            _decision_json(yield_robot="robot_2"),
+        ]
+        reasoner, _ = _reasoner(texts)
+        result, record, request = run_permutation_votes(
+            reasoner, _request(tmp_path, robots=_TWO), 3
+        )
+        assert record.winner_index is None and record.ballots == []
+        assert record.intra_order_inconsistency is True
+        assert result.decision is None and result.raw_text is None
+        assert result.diagnostics.error_type == NO_BALLOT_ERROR
+        assert request.robot_presentation_order == "id_asc"
+
+    def test_artifact_records_the_inconsistency_flag_and_indices(self, tmp_path):
+        texts = [
+            _decision_json(yield_robot="robot_1"),
+            _decision_json(yield_robot="robot_2"),
+            _decision_json(yield_robot="robot_2"),
+        ]
+        reasoner, _ = _reasoner(texts)
+        request = _request(tmp_path, robots=_TWO)
+        result, record, _ = run_permutation_votes(reasoner, request, 3)
+        outcome = PipelineOutcome(
+            request_id="req-v", reasoner_result=result, grounded_command=None,
+            terminal_stage=TerminalStage.VLM, failure_reason="x", permutation_votes=record,
+        )
+        block = json.loads(
+            write_decision_artifact(tmp_path / "out", outcome, request=request).read_text()
+        )["permutation_votes"]
+        assert block["intra_order_inconsistency"] is True
+        assert block["inconsistent_orders"] == [
+            {"order": ["robot_1", "robot_2"], "call_indices": [0, 2]}
+        ]
+        assert block["ballot_rule"] == BALLOT_RULE
+
+    def test_artifact_writes_a_false_inconsistency_flag(self, tmp_path):
+        reasoner, _ = _reasoner([_decision_json()] * 3)
+        request = _request(tmp_path)
+        result, record, _ = run_permutation_votes(reasoner, request, 3)
+        outcome = PipelineOutcome(
+            request_id="req-v", reasoner_result=result, grounded_command=None,
+            terminal_stage=TerminalStage.VLM, failure_reason="x", permutation_votes=record,
+        )
+        block = json.loads(
+            write_decision_artifact(tmp_path / "out", outcome, request=request).read_text()
+        )["permutation_votes"]
+        assert block["intra_order_inconsistency"] is False
+
+
 def _parsed(text: str):
     from reasoning.vlm.output_parser import parse_decision_text
 
@@ -390,6 +555,20 @@ class TestPipelineIntegration:
         assert outcome.permutation_votes.registry_order == ("robot_1", "robot_2")
         assert outcome.permutation_votes.tie_resolved_by == "registry_order"
         assert outcome.reasoner_result.decision.yield_robot == "robot_1"
+
+    def test_pipeline_never_grounds_a_vote_with_no_surviving_ballot(self, tmp_path):
+        texts = [
+            _decision_json(yield_robot="robot_1"),
+            _REFUSAL,
+            _decision_json(yield_robot="robot_2"),
+        ]
+        reasoner, _ = _reasoner(texts)
+        outcome = InProcessPipeline(
+            reasoner=reasoner, ground_fn=_never_ground, permutation_votes=3
+        ).run(_request(tmp_path, robots=("robot_1", "robot_2")))
+        assert outcome.terminal_stage is TerminalStage.VLM
+        assert outcome.reasoner_result.decision is None
+        assert outcome.permutation_votes.intra_order_inconsistency is True
 
     def test_pipeline_rejects_zero_votes(self):
         with pytest.raises(ValueError):

@@ -10,24 +10,33 @@ policy), and the decision is majority-voted.
 Vote: the tuple (congestion_detected, type, strategy, yield_robot). Calls
 whose decision is None (exhausted retries, refusals) abstain.
 
-Tie rule (registered, per the brief): among the keys tied for the most
-votes, the key voted by the call whose RENDERED order matches the registry
-order wins -- M5's task-registry robot order (`initial_tasks` order,
-restricted to the request's robots; robots the registry does not name
-follow in ascending id). Fallback, so the rule is total: when no tied call
-rendered the registry order (it abstained, or no cyclic shift of the drawn
-base equals it -- possible with 3+ robots under a `random` or `id_desc`
-draw), the key held by the EARLIEST call wins (call 0 is the drawn order).
-`tie_resolved_by` records which branch fired.
+Ballot rule (apparatus ruling, 2026-10-04): the majority is taken over
+DISTINCT rendered orders, one ballot each. With fewer robots than votes the
+shifts wrap (`k mod n`): a two-robot scene under three votes renders
+[A, B], [B, A], [A, B], so the base order is rendered twice. A duplicated
+order's voting calls are reconciled first: if they agree on the voted
+fields, the order casts ONE ballot; if any two disagree, the order casts NO
+ballot and the record sets `intra_order_inconsistency` with the disagreeing
+call indices (a measured T=0 same-prompt divergence). An abstaining call is
+not a disagreement: the order's ballot is reconciled over the calls that
+voted, and an order whose calls all abstained casts no ballot. Each ballot
+is represented by its earliest voting call.
 
-The winning call's `ReasonerResult` is returned whole: `proposed_plan`,
-`reasoning`, `root_cause`, `justification`, `crossing_order` and
-`blocker_kind` are that one call's answer, never merged across calls.
+Tie rule (registered): among the keys tied for the most ballots, the key
+whose ballot was cast by the order matching the registry order wins -- M5's
+task-registry robot order (`initial_tasks` order, restricted to the
+request's robots; robots the registry does not name follow in ascending
+id). Fallback, so the rule is total: when no tied ballot came from the
+registry order (that order cast none, or no cyclic shift of the drawn base
+equals it -- possible with 3+ robots under a `random` or `id_desc` draw),
+the key whose ballot's representative call is EARLIEST wins (call 0 is the
+drawn order). `tie_resolved_by` records which branch fired.
 
-With fewer robots than votes the shifts wrap (`k mod n`): a two-robot scene
-under three votes renders [A, B], [B, A], [A, B] -- the base order twice.
-`distinct_orders` records this so the effective counterbalancing is
-visible per decision.
+The winning ballot's representative call's `ReasonerResult` is returned
+whole: `proposed_plan`, `reasoning`, `root_cause`, `justification`,
+`crossing_order` and `blocker_kind` are that one call's answer, never merged
+across calls. When no ballot survives, the returned result has
+`decision=None`, so nothing is grounded or dispatched.
 """
 from __future__ import annotations
 
@@ -46,6 +55,8 @@ from reasoning.vlm.models import (
 from reasoning.vlm.prompt_builder import build_prompt_payload, order_robot_states
 
 TIE_RULE = "registry_order_call_first:fallback_earliest_call"
+BALLOT_RULE = "one_ballot_per_distinct_order:duplicates_reconciled_disagreement_voids"
+NO_BALLOT_ERROR = "permutation_vote_no_ballot"
 
 
 class _Runs(Protocol):
@@ -79,13 +90,37 @@ class PermutationCall(BaseModel):
     diagnostics: ReasonerDiagnostics
 
 
+class Ballot(BaseModel):
+    """One distinct rendered order's reconciled ballot."""
+
+    model_config = ConfigDict(frozen=True)
+
+    order: tuple[str, ...]
+    vote: VoteKey
+    # Every voting call of this order (all agree); abstaining calls excluded.
+    call_indices: tuple[int, ...]
+    # The earliest voting call: its result is returned if this ballot wins.
+    representative_index: int = Field(ge=0)
+
+
+class OrderInconsistency(BaseModel):
+    """A duplicated order whose voting calls disagreed, so it cast no ballot."""
+
+    model_config = ConfigDict(frozen=True)
+
+    order: tuple[str, ...]
+    call_indices: tuple[int, ...]
+
+
 class VoteCount(BaseModel):
-    """How many calls cast one vote key, and which."""
+    """How many ballots one vote key received, and from which calls."""
 
     model_config = ConfigDict(frozen=True)
 
     vote: VoteKey
+    # Ballots (distinct orders), not calls.
     count: int = Field(ge=1)
+    # Every call behind those ballots, duplicated-order calls included.
     call_indices: tuple[int, ...]
 
 
@@ -96,8 +131,11 @@ class PermutationVoteRecord(BaseModel):
 
     votes_requested: int = Field(ge=1)
     distinct_orders: int = Field(ge=1)
+    ballot_rule: str = BALLOT_RULE
     tie_rule: str = TIE_RULE
-    # None when every call abstained (the outcome is then call 0's failure).
+    # None when no ballot survived (every call abstained, or every order
+    # that voted was intra-order inconsistent); the outcome is then a
+    # decision=None result.
     winner_index: int | None
     winner_vote: VoteKey | None
     tie_broken: bool
@@ -105,6 +143,10 @@ class PermutationVoteRecord(BaseModel):
     # tie: "registry_order", "earliest_call" (fallback), or None (no tie).
     registry_order: tuple[str, ...] | None = None
     tie_resolved_by: str | None = None
+    ballots: list[Ballot] = Field(default_factory=list)
+    # Always written: False is a measurement, not an absent field.
+    intra_order_inconsistency: bool = False
+    inconsistent_orders: list[OrderInconsistency] = Field(default_factory=list)
     vote_counts: list[VoteCount]
     # Sum of every call's backend attempts: the realised cost multiplier.
     total_backend_attempts: int = Field(ge=0)
@@ -198,8 +240,10 @@ def run_permutation_votes(
             None skips the registry branch (earliest call breaks ties).
 
     Returns:
-        `(winning result, vote record, winning call's request)`. With no
-        voting call, call 0's failed result and request.
+        `(winning result, vote record, winning call's request)`: the winning
+        ballot's representative call. With no surviving ballot, a
+        decision=None result (call 0's own failure when every call
+        abstained) and call 0's request.
 
     Raises:
         ValueError: If `votes` < 1, or as `Reasoner.run` raises for invalid input.
@@ -233,66 +277,135 @@ def run_permutation_votes(
                 diagnostics=result.diagnostics,
             )
         )
-    tally: Counter[VoteKey] = Counter(call.vote for call in calls if call.vote is not None)
-    first_index: dict[VoteKey, int] = {}
-    for call in calls:
-        if call.vote is not None:
-            first_index.setdefault(call.vote, call.index)
-    counts = sorted(
-        (
-            VoteCount(
-                vote=key,
-                count=count,
-                call_indices=tuple(c.index for c in calls if c.vote == key),
-            )
-            for key, count in tally.items()
-        ),
-        key=lambda vc: (-vc.count, first_index[vc.vote]),
-    )
+    ballots, inconsistent = reconcile_ballots(calls)
     target = (
         None
         if registry_order is None
         else registry_presentation_order(registry_order, [s.robot_id for s in request.robot_states])
     )
-    winner_index: int | None = None
-    winner_vote: VoteKey | None = None
-    tie_broken = False
-    tie_resolved_by: str | None = None
-    if counts:
-        top = counts[0].count
-        tied = [vc for vc in counts if vc.count == top]
-        tie_broken = len(tied) > 1
-        winner_vote = tied[0].vote
-        winner_index = first_index[winner_vote]
-        if tie_broken:
-            tied_votes = {vc.vote for vc in tied}
-            registry_call = next(
-                (
-                    call
-                    for call in calls
-                    if target is not None and call.order == target and call.vote in tied_votes
-                ),
-                None,
-            )
-            if registry_call is not None:
-                winner_vote, winner_index = registry_call.vote, registry_call.index
-                tie_resolved_by = "registry_order"
-            else:
-                tie_resolved_by = "earliest_call"
+    winner, tie_broken, tie_resolved_by = _elect(ballots, target)
+    counts = _vote_counts(ballots)
     record = PermutationVoteRecord(
         votes_requested=votes,
         distinct_orders=len(set(orders)),
-        winner_index=winner_index,
-        winner_vote=winner_vote,
+        winner_index=None if winner is None else winner.representative_index,
+        winner_vote=None if winner is None else winner.vote,
         tie_broken=tie_broken,
         registry_order=target,
         tie_resolved_by=tie_resolved_by,
+        ballots=ballots,
+        intra_order_inconsistency=bool(inconsistent),
+        inconsistent_orders=inconsistent,
         vote_counts=counts,
         total_backend_attempts=sum(call.diagnostics.attempts for call in calls),
         calls=calls,
     )
-    chosen = 0 if winner_index is None else winner_index
-    return results[chosen], record, requests[chosen]
+    if winner is not None:
+        chosen = winner.representative_index
+        return results[chosen], record, requests[chosen]
+    return _no_ballot_result(results[0], inconsistent), record, requests[0]
+
+
+def reconcile_ballots(
+    calls: list[PermutationCall],
+) -> tuple[list[Ballot], list[OrderInconsistency]]:
+    """Reduce the calls to one ballot per distinct rendered order.
+
+    Args:
+        calls: Every call of the vote, in call order.
+
+    Returns:
+        `(ballots, inconsistencies)`: ballots sorted by representative call,
+        inconsistencies in order of first call. An order whose voting calls
+        agree casts one ballot; one whose voting calls disagree casts none and
+        is listed as inconsistent; one whose calls all abstained appears in
+        neither.
+    """
+    by_order: dict[tuple[str, ...], list[PermutationCall]] = {}
+    for call in calls:
+        by_order.setdefault(call.order, []).append(call)
+    ballots: list[Ballot] = []
+    inconsistent: list[OrderInconsistency] = []
+    for order, group in by_order.items():
+        voting = [call for call in group if call.vote is not None]
+        if not voting:
+            continue
+        indices = tuple(call.index for call in voting)
+        if len({call.vote for call in voting}) > 1:
+            inconsistent.append(OrderInconsistency(order=order, call_indices=indices))
+            continue
+        ballots.append(
+            Ballot(
+                order=order,
+                vote=voting[0].vote,
+                call_indices=indices,
+                representative_index=voting[0].index,
+            )
+        )
+    ballots.sort(key=lambda ballot: ballot.representative_index)
+    return ballots, inconsistent
+
+
+def _elect(
+    ballots: list[Ballot], target: tuple[str, ...] | None
+) -> tuple[Ballot | None, bool, str | None]:
+    """Majority over ballots with the registered tie rule; `(winner, tied, branch)`."""
+    if not ballots:
+        return None, False, None
+    tally = Counter(ballot.vote for ballot in ballots)
+    top = max(tally.values())
+    tied_votes = {vote for vote, count in tally.items() if count == top}
+    # Ballots are sorted by representative call, so the first is the earliest.
+    candidates = [ballot for ballot in ballots if ballot.vote in tied_votes]
+    if len(tied_votes) == 1:
+        return candidates[0], False, None
+    registry_ballot = next(
+        (ballot for ballot in candidates if target is not None and ballot.order == target), None
+    )
+    if registry_ballot is not None:
+        return registry_ballot, True, "registry_order"
+    return candidates[0], True, "earliest_call"
+
+
+def _vote_counts(ballots: list[Ballot]) -> list[VoteCount]:
+    first: dict[VoteKey, int] = {}
+    for ballot in ballots:
+        first.setdefault(ballot.vote, ballot.representative_index)
+    return sorted(
+        (
+            VoteCount(
+                vote=vote,
+                count=sum(1 for b in ballots if b.vote == vote),
+                call_indices=tuple(
+                    sorted(i for b in ballots if b.vote == vote for i in b.call_indices)
+                ),
+            )
+            for vote in first
+        ),
+        key=lambda vc: (-vc.count, first[vc.vote]),
+    )
+
+
+def _no_ballot_result(
+    call_zero: ReasonerResult, inconsistent: list[OrderInconsistency]
+) -> ReasonerResult:
+    """Call 0's failure, or -- when calls voted but no ballot survived -- a decision=None result.
+
+    The voided calls' own decisions stay in the record's `calls`; none is
+    returned, so the pipeline cannot ground or dispatch a voided decision.
+    """
+    if call_zero.decision is None and not inconsistent:
+        return call_zero
+    voided = [list(item.call_indices) for item in inconsistent]
+    diagnostics = call_zero.diagnostics.model_copy(
+        update={
+            "error_type": NO_BALLOT_ERROR,
+            "error_message": f"no order cast a ballot; intra-order inconsistent calls {voided}",
+        }
+    )
+    return call_zero.model_copy(
+        update={"decision": None, "raw_text": None, "diagnostics": diagnostics}
+    )
 
 
 def permutation_votes_log(request_id: str, record: PermutationVoteRecord) -> str:
@@ -304,6 +417,8 @@ def permutation_votes_log(request_id: str, record: PermutationVoteRecord) -> str
     return (
         f"permutation votes request={request_id} n={record.votes_requested} "
         f"distinct_orders={record.distinct_orders} votes={votes} "
+        f"ballots={len(record.ballots)} "
+        f"intra_order_inconsistency={record.intra_order_inconsistency} "
         f"winner={record.winner_index} tie_broken={record.tie_broken} "
         f"attempts={record.total_backend_attempts}"
     )

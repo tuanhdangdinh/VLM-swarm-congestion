@@ -38,6 +38,16 @@ class TestCropBounds:
         assert 0 <= x0 < x1 <= 1280 and 0 <= y0 < y1 <= 960
         assert x1 == 1280 and y0 == 0
 
+    def test_two_robot_involved_set_beyond_the_margin_is_framed_whole(self):
+        # Apparatus ruling 2026-10-04: the tile frames the involved SET. The
+        # pair is 1.6 m apart, so a 0.6 m margin around either alone misses the other.
+        involved = {"robot_1": (-0.8, 0.0), "robot_2": (0.8, 0.1)}
+        (x0, y0, x1, y1), bounds = _crop(involved)
+        assert bounds == pytest.approx((-1.4, 1.4, -0.6, 0.7))
+        for position in involved.values():
+            u, v = world_to_pixel(position, _CALIBRATION.homography)
+            assert x0 <= u <= x1 and y0 <= v <= y1
+
     def test_far_apart_robots_cap_at_the_full_frame(self):
         crop, _ = _crop({"a": (-2.7, 0.0), "b": (2.7, 0.0)})
         assert crop == (0, 0, 1280, 960)

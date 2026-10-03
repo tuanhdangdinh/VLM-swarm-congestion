@@ -1709,6 +1709,7 @@ class OrchestratorNode(Node):
                 )
         zoom_record: ZoomTileRecord | None = None
         if config.prompt_zoom_tile:
+            # `robots` is the event's whole involved set (ruling 2026-10-04).
             positions = {r.robot_id: (r.x, r.y) for r in snapshot.robots if r.robot_id in robots}
             calibration = None if self._tile_marker is None else self._tile_marker.calibration
             zoom_record = write_zoom_tile(

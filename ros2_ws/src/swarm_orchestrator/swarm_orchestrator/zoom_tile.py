@@ -2,10 +2,12 @@
 
 Prereg-v2 rev 6 registers a "zoomed congestion-crop tile" A/B cell. The tile
 is cut from the SAME annotated frame M2 receives (M1's annotation pipeline,
-overlays included), around the world-frame bounding box of the robots the
-analysis was triggered for plus a registered margin, widened to the frame's
-aspect ratio and resized to a registered width. It is written beside the
-stage-1 dump as `<request_id>_zoom.png`.
+overlays included), around the world-frame bounding box of the congestion
+event's INVOLVED set (the detector's `CongestionEvent.involved_robots`, every
+robot of it, not one trigger robot; apparatus ruling 2026-10-04) plus a
+registered margin, widened to the frame's aspect ratio and resized to a
+registered width. It is written beside the stage-1 dump as
+`<request_id>_zoom.png`.
 
 Every failure degrades to "no tile" with the reason recorded -- the request
 then carries no second image and the prompt no tile sentence, so a failed
@@ -121,7 +123,8 @@ def write_zoom_tile(
         frame_rgb: The annotated RGB frame M2 is sent, `(H, W, 3)`.
         request_id: Identifier of the analysis cycle (names the file).
         frame_dump_dir: Directory the stage-1 frame is dumped into.
-        robot_positions: World `(x, y)` of the robots to frame, by robot id.
+        robot_positions: World `(x, y)` of the event's involved robots, by id;
+            the crop covers all of them.
         calibration: M1's calibration, or None when unavailable.
         margin_m: World margin around the robots' bounding box.
         width_px: Output tile width; height follows the frame's aspect ratio.

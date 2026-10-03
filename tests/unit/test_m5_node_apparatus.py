@@ -10,6 +10,8 @@ from pydantic import ValidationError
 from swarm_orchestrator.models import (
     AnnotationOverlayReport,
     PipelineOutcome,
+    RobotView,
+    SceneSnapshot,
     TerminalStage,
     parse_annotation_overlays,
 )
@@ -167,6 +169,31 @@ class TestZoomTile:
         assert tile["output_size"] == [640, 480]
         assert _ZOOM_TILE_SENTENCE in payload["prompt"]["user_prompt"]
 
+    def test_tile_frames_the_whole_involved_set(self, node_env, tmp_path):  # noqa: F811
+        # Apparatus ruling 2026-10-04: the tile frames the congestion event's
+        # involved set -- here two robots 1.6 m apart, beyond one 0.6 m margin --
+        # and not an uninvolved robot in the same scene.
+        node, _ = _node(
+            node_env, tmp_path, _RecordingPipeline(), plan_channel_enabled=True,
+            prompt_zoom_tile=True, stage2_calibration_path=_CALIBRATION,
+        )
+        snapshot = SceneSnapshot(
+            stamp=60.0,
+            frame_id="overhead_camera",
+            robots=[
+                RobotView(robot_id=rid, x=x, y=y, theta=0.0, linear_velocity=0.0,
+                          status="STOPPED", stamp=60.0)
+                for rid, x, y in (
+                    ("robot_1", -0.8, 0.0), ("robot_2", 0.8, 0.1), ("robot_3", 2.0, 1.5)
+                )
+            ],
+        )
+        _, record = node._apparatus_inputs(
+            "req-zoom", snapshot, ["robot_1", "robot_2"], node._frame_rgb
+        )
+        assert record.attached and record.robot_ids == ("robot_1", "robot_2")
+        assert record.world_bounds_m == pytest.approx((-1.4, 1.4, -0.6, 0.7))
+
     def test_tile_removed_with_the_frame_when_frames_are_not_kept(self, node_env, tmp_path):  # noqa: F811
         pipeline = _RecordingPipeline()
         node, _ = _node(
@@ -232,6 +259,40 @@ class TestProbeArtifact:
         assert conditions["prompt_version"] == 2
         assert conditions["metric_grid"] == {"requested": True, "m1_drawn": True, "stated": False}
         assert conditions["permutation_votes"] == 1
+
+    def test_grid_on_t0_run_tags_the_probe_frame_condition(self, node_env, tmp_path):  # noqa: F811
+        # Apparatus ruling 2026-10-04: a T0 run with M1's grid/trails on but
+        # every prompt flag off (the frozen v2 probe prompt) must still show
+        # the frame condition on each probe artifact, so grid-on probes are
+        # never pooled with grid-off ones.
+        from types import SimpleNamespace
+
+        node, clock = _node(node_env, tmp_path, _RecordingPipeline(), t0_probe_mode=True)
+        payload = _snapshot(50.0).model_dump(mode="json")
+        payload.pop("dropped_frame")
+        payload["diagnostics"] = {
+            "annotation_overlays": ["metric_grid", "motion_trails"],
+            "metric_grid_spacing_m": 0.5,
+        }
+        node._on_scene_state(SimpleNamespace(data=json.dumps(payload)))
+        assert node._future is None, "the scene must not trigger a real analysis"
+        request_id = _run_probe(node, clock, at=1020.0)
+        artifact = _artifact(node, request_id)
+        assert artifact["probe"] is True
+        conditions = artifact["prompt_conditions"]
+        assert conditions["metric_grid"] == {"requested": False, "m1_drawn": True, "stated": False}
+        assert conditions["motion_trails"] == {
+            "requested": False, "m1_drawn": True, "stated": False
+        }
+        assert conditions["metric_grid_spacing_m"] == 0.5
+        assert conditions["prompt_version"] == 2
+
+    def test_grid_off_t0_run_tags_the_probe_frame_condition_off(self, node_env, tmp_path):  # noqa: F811
+        node, clock = _node(node_env, tmp_path, _RecordingPipeline(), t0_probe_mode=True)
+        request_id = _run_probe(node, clock, at=1020.0)
+        conditions = _artifact(node, request_id)["prompt_conditions"]
+        assert conditions["metric_grid"]["m1_drawn"] is False
+        assert conditions["motion_trails"]["m1_drawn"] is False
 
 
 class TestDefaultPipelineVotes:
