@@ -307,7 +307,15 @@ parity); +56 passes are this branch's new pins.
 Pristine `orchestrator.yaml` restored (plain copy + `touch`), rebuilt, and
 re-verified on source and installed copies, with `rag.yaml` never
 modified: `1f656533a30a35882d57d0d64a57bd0d` /
-`e18c723cff9cada3f320d564c2ecee5a`. No Isaac, Kit or `run_simulation`
+`e18c723cff9cada3f320d564c2ecee5a`. After the run, the branch's final tree
+was redeployed with both config files excluded from the archive. Every
+tracked file md5-matches the final branch HEAD except the pristine
+`orchestrator.yaml`, and every installed `swarm_orchestrator`/
+`swarm_execution` module matches its source. No rebuild was needed: nothing
+under `ros2_ws` changed after `7070813`. Isaac's own interpreter
+(`IsaacSim/python.sh`, the `ScenarioConfig.model_validate` path
+`run_simulation` uses) parses the new IB10 oracle block as
+`JunctionOracleConfig`. No Isaac, Kit or `run_simulation`
 process remains, the GPU is idle (0 %, 171 MiB), and the `vgu_ros`
 container is up and idle. Run bundle:
 `/home/ubuntu/step7b_runs/ib10_7b_20261003_022532` (local copy in the
