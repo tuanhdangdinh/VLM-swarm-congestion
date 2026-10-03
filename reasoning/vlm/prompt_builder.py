@@ -42,6 +42,11 @@ SYSTEM_PROMPT = "You are a helpful assistant."
 # apparatus"). Goals and the task label render through
 # `format_robot_state_lines` once M5 supplies them. Any edit to this template
 # is a new prompt version: bump `PromptVersion`, freeze this one first.
+# Exception, same as the step-5 `junction_clear` re-pin: v3 is not frozen
+# until the prereg-v2 freeze, so pre-freeze revisions re-pin in place under
+# `prompt_version=3`. Revision v3.1 (2026-10-03) adds `_PLAN_GRAMMAR` and a
+# one-line gloss for every strategy token; artifacts from before it are told
+# apart by `user_sha256` (old baseline pin 22baf2df...).
 _USER_TEMPLATE = """You are a warehouse swarm robotics traffic controller. Analyze the \
 overhead camera view together with the robot states below and detect congestion \
 patterns such as deadlocks, bottlenecks, crowding, or anomalies.
@@ -76,6 +81,7 @@ type="bottleneck" and strategy="temporary_wait" or "yield".
 image; do not assume intentions beyond what is stated.
 {visual_crosscheck_block}
 {plan_invitation}
+{plan_grammar}
 Produce a JSON object with exactly these fields:
 - "reasoning": one to three sentences of your analysis, written before you commit \
 to the fields below (what you see, why it is or is not congestion, and your plan \
@@ -84,8 +90,16 @@ if any)
 - "type": "none" | "deadlock" | "bottleneck" | "crowding" | "anomaly"
 - "involved_robots": list of robot_id strings, from the known IDs only
 - "root_cause": one sentence
-- "strategy": "none" | "yield" | "reroute" | "convoy" | "priority_override" | \
-"temporary_wait" | "reverse" | "junction_clear"
+- "strategy": one of
+  - "none": no congestion to resolve
+  - "yield": one robot (yield_robot) backs up and steps aside while the others pass
+  - "reroute": a robot takes an alternative path around the blockage
+  - "convoy": robots heading the same way pass through in single file, in order
+  - "priority_override": the higher-priority robot passes first; the others give way
+  - "temporary_wait": the involved robots hold in place until the way clears
+  - "reverse": the involved robots back straight out along their own lanes
+  - "junction_clear": multi-robot junction recovery: some robots first back out, \
+then an ordered crossing
 - "justification": one or two sentences
 - "yield_robot": the robot that should yield, or null when the strategy is not \
 "yield"
@@ -206,6 +220,32 @@ _PLAN_INVITATION = (
     "is dispatched; omitting it (or setting it to null) lets the system "
     "derive the resolution for you instead."
 )
+
+# Prompt v3.1 plan grammar: the operational meaning of each plan action and the
+# consistency contract M3 enforces (`command_grounder._is_consistent`, the (a0)
+# "Consistency rule"), stated so a plan is not discarded for a rule the model
+# was never shown. Generic on purpose, like `_PLAN_INVITATION`: a static
+# constant outside every conditional block, so it renders byte-identically on
+# every v3 decision in every scenario. It states the contract, never which
+# strategy or action fits a scene -- no examples, scene references or robot
+# counts. The rule lines must track `_is_consistent` exactly; the second
+# "inconsistent" path (`_plan_disagrees_with_decision_fields`, a yield leg or
+# cross order that contradicts the same answer's yield_robot/crossing_order) is
+# deliberately not stated here.
+_PLAN_GRAMMAR = """Plan actions, for "proposed_plan":
+- "yield": back up, step aside, and hold until the passing robots have cleared
+- "reverse": back straight out along its own lane
+- "cross": proceed through in its assigned turn (the plan's list order)
+- "wait": hold in place
+- "reroute": take an alternative path
+- "continue": proceed unchanged; not part of the resolution
+A proposed plan must refine the chosen strategy; a plan that does not is \
+ignored and the system derives the resolution instead:
+- strategy "yield": exactly one "yield" leg
+- strategy "temporary_wait": at least one "wait" leg
+- strategy "reroute": at least one "reroute" leg
+- strategy "junction_clear": at least one "reverse" or "yield" leg
+- any other strategy: no constraint on the legs"""
 
 _PLAN_STATE_HEADER = "Active plan (plan_id={plan_id}):"
 
@@ -510,6 +550,7 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
         failure_context_block=failure_block,
         visual_crosscheck_block=crosscheck_block,
         plan_invitation=_PLAN_INVITATION,
+        plan_grammar=_PLAN_GRAMMAR,
         **(_GEOMETRY_ON if request.include_pairwise_geometry else _GEOMETRY_OFF),
         # Gated on the rendered lines, not on the flag: the ON clause asserts the
         # listed obstacles are the only ones present, which with an empty list

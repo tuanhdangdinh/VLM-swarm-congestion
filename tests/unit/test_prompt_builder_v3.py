@@ -2,20 +2,25 @@
 and the scenario-agnostic `proposed_plan` invitation."""
 
 import hashlib
+import re
 
 import pytest
 from pydantic import ValidationError
 
+from reasoning.rag.command_grounder import _is_consistent
 from reasoning.vlm.models import (
     CURRENT_PROMPT_VERSION,
+    CongestionDecision,
     FailureContext,
     PlanStateContext,
     PlanStateLeg,
+    ProposedPlanLeg,
     ReasonerRequest,
     RobotStateInput,
     StaticObstacleInput,
 )
 from reasoning.vlm.prompt_builder import (
+    _PLAN_GRAMMAR,
     _PLAN_INVITATION,
     SYSTEM_PROMPT,
     build_prompt_payload,
@@ -166,6 +171,113 @@ def test_v2_has_neither_proposed_plan_mention_nor_invitation():
     assert _PLAN_INVITATION not in prompt
 
 
+# ---- plan grammar (v3.1, 2026-10-03) ----
+
+_STRATEGIES = list(CongestionDecision.model_fields["strategy"].annotation.__args__)
+_ACTIONS = list(ProposedPlanLeg.model_fields["action"].annotation.__args__)
+
+
+def _junction_states() -> list[RobotStateInput]:
+    # IB10 formed-jam geometry (demo ep2 trigger snapshot, rounded).
+    return [
+        RobotStateInput(robot_id="robot_1", x=-0.24, y=0.01, theta=0.07, status="STOPPED"),
+        RobotStateInput(robot_id="robot_2", x=0.24, y=0.02, theta=2.87, status="STOPPED"),
+        RobotStateInput(robot_id="robot_3", x=-0.03, y=-0.29, theta=1.77, status="SLOW"),
+        RobotStateInput(robot_id="robot_4", x=0.00, y=0.26, theta=-1.42, status="STOPPED"),
+    ]
+
+
+def _plan_region(prompt: str) -> str:
+    # Extracted from the invitation to the schema header, independently of
+    # `_PLAN_GRAMMAR` itself, so the byte-identity check below cannot pass
+    # merely because the constant is a substring of both renders.
+    return prompt[prompt.index("You may also propose") : prompt.index("Produce a JSON object")]
+
+
+def test_v3_renders_the_plan_grammar_between_invitation_and_schema():
+    prompt = _prompt()
+    assert _PLAN_GRAMMAR in prompt
+    assert prompt.index(_PLAN_INVITATION) < prompt.index(_PLAN_GRAMMAR)
+    assert prompt.index(_PLAN_GRAMMAR) < prompt.index("Produce a JSON object")
+
+
+def test_v3_plan_grammar_renders_byte_identically_on_head_on_and_junction_scenes():
+    head_on = _prompt(robot_states=_goal_states(), static_obstacles=[_obstacle()],
+                      include_static_obstacles=True)
+    junction = _prompt(robot_states=_junction_states(), plan_state=_plan_state())
+    assert head_on != junction
+    assert _plan_region(head_on) == _plan_region(junction)
+    assert _plan_region(head_on) == _PLAN_INVITATION + "\n" + _PLAN_GRAMMAR + "\n"
+
+
+def test_v3_plan_grammar_glosses_every_plan_action_once():
+    for action in _ACTIONS:
+        assert _PLAN_GRAMMAR.count(f'\n- "{action}": ') == 1
+
+
+def test_v3_glosses_every_strategy_token_in_the_same_register():
+    # No strategy is singled out: every enum value gets exactly one gloss line.
+    prompt = _prompt()
+    for strategy in _STRATEGIES:
+        assert prompt.count(f'\n  - "{strategy}": ') == 1
+
+
+@pytest.mark.parametrize(
+    ("strategy", "action", "minimum", "exact"),
+    [
+        ("yield", "yield", 1, True),
+        ("temporary_wait", "wait", 1, False),
+        ("reroute", "reroute", 1, False),
+    ],
+)
+def test_v3_plan_grammar_count_rules_match_is_consistent(
+    strategy: str, action: str, minimum: int, exact: bool
+):
+    rule = "exactly one" if exact else "at least one"
+    assert f'- strategy "{strategy}": {rule} "{action}" leg' in _PLAN_GRAMMAR
+
+    def legs(n: int) -> list[ProposedPlanLeg]:
+        return [ProposedPlanLeg(robot_id=f"robot_{i}", action=action) for i in range(n)] + [
+            ProposedPlanLeg(robot_id="robot_9", action="continue")
+        ]
+
+    assert _is_consistent(strategy, legs(minimum))
+    assert not _is_consistent(strategy, legs(minimum - 1))
+    assert _is_consistent(strategy, legs(minimum + 1)) is not exact
+
+
+def test_v3_plan_grammar_junction_clear_rule_matches_is_consistent():
+    assert '- strategy "junction_clear": at least one "reverse" or "yield" leg' in _PLAN_GRAMMAR
+    for action in ("reverse", "yield"):
+        assert _is_consistent("junction_clear", [ProposedPlanLeg(robot_id="r", action=action)])
+    others = [a for a in _ACTIONS if a not in ("reverse", "yield")]
+    other_legs = [ProposedPlanLeg(robot_id=f"r{i}", action=a) for i, a in enumerate(others)]
+    assert not _is_consistent("junction_clear", other_legs)
+
+
+def test_v3_plan_grammar_other_strategies_are_unconstrained_in_is_consistent():
+    constrained = {"yield", "temporary_wait", "reroute", "junction_clear"}
+    for strategy in _STRATEGIES:
+        if strategy in constrained:
+            continue
+        assert f'strategy "{strategy}"' not in _PLAN_GRAMMAR
+        assert _is_consistent(strategy, [ProposedPlanLeg(robot_id="r", action="continue")])
+
+
+def test_v3_plan_grammar_is_scenario_agnostic():
+    # Contract only: no robot ids, sides, scene nouns or counts.
+    words = set(re.findall(r"[a-z_.-]+", _PLAN_GRAMMAR.lower()))
+    for term in ["west", "east", "north", "south", "aisle", "intersection", "head-on",
+                 "example", "e.g."]:
+        assert term not in words
+    assert "robot_" not in _PLAN_GRAMMAR
+    assert not any(ch.isdigit() for ch in _PLAN_GRAMMAR)
+
+
+def test_v2_has_no_plan_grammar():
+    assert _PLAN_GRAMMAR not in _prompt(prompt_version=2)
+
+
 # ---- plan-state block (rev 4, generalizing failure-context) ----
 
 
@@ -245,29 +357,35 @@ _V3_PINS: dict[str, tuple[int, str]] = {
     # Re-pinned (prereg-v2 build-order step 5, 2026-10-02): the strategy
     # list gained "junction_clear" (+19 chars on every cell); no other v3
     # text changed. v1/v2 are frozen, separate modules and are unaffected.
+    # Re-pinned again for revision v3.1 (2026-10-03, still pre-freeze): the
+    # static `_PLAN_GRAMMAR` block and a one-line gloss per strategy token
+    # (+1255 chars on every cell, identical delta everywhere). The v3.0
+    # baseline digest was 22baf2df179c58fbbf1a757f2e7fe9ed435a533c434d966b272be3dcec551286
+    # -- stored v3 artifacts carry `prompt_version: 3` either way, so
+    # `user_sha256` is what tells a v3.0 decision from a v3.1 one.
     "baseline": (
-        4661,
-        "22baf2df179c58fbbf1a757f2e7fe9ed435a533c434d966b272be3dcec551286",
+        5916,
+        "42463ce2c2610273d649dd5eca9dc61ff8bf3272023730a2feba3703130b9a4c",
     ),
     "id_desc": (
-        4661,
-        "fc27578362bdc4aa530777ba8dc1a3dd6f9ade3da0a077a66ed449aa623d5cf9",
+        5916,
+        "1f37f1a6310c66d63907e6708dd5244ca844d969498e179c2ea9be73b3110a1b",
     ),
     "no_geometry": (
-        4475,
-        "5b669e6cfe1a49f0ed1103e2ec0911e01cf860d64bf21e06433bbe3d5801e4fb",
+        5730,
+        "53950df569eff3c5cf7d5f79c265390e571e60d60088455fd8119bf6eb713175",
     ),
     "goals_obstacles": (
-        5064,
-        "e939fb4d63b2fc3736823270108ec4082a2b9156543d805772b7ec218ce72544",
+        6319,
+        "74391670baedd21204882607d147f24316588b90b296186d0be87081e9b8591d",
     ),
     "plan_state": (
-        4943,
-        "007e5f520502acca76b76c65f53095498348ab7d4a97245528f7f155f2e07d3c",
+        6198,
+        "7f11e58db4827c75815d0ec07856f4911b9d48f2c471bd608154085703c45383",
     ),
     "failure_context": (
-        5020,
-        "babebe160fb82c2a7203e36d0ab99fdbafd47466a58b6ba0731c857b88ecb145",
+        6275,
+        "066b774bda38da683f6efe88d623fbf2cbe01e61ea745ed7d36de00ab48dc988",
     ),
 }
 
