@@ -479,7 +479,7 @@ def test_junction_clear_seeds_phases_and_matches_dispatch():
     # Advisor-review regression: comparing phase one ALONE against the
     # accepted plan's full recede-then-yield sequence made
     # `dispatch_matches_plan` read False for every `junction_clear`
-    # decision, even this clean one -- `junction_clear_plan_matches_dispatch`
+    # decision, even this clean one -- `junction_clear_dispatch_match`
     # reconstructs the whole sequence's per-robot action instead.
     pipe = InProcessPipeline(
         reasoner=_FakeReasoner(_junction_clear_result()),
@@ -501,6 +501,56 @@ def test_junction_clear_seeds_phases_and_matches_dispatch():
     assert outcome.grounded_command["command_id"] == outcome.junction_phases.phases[0].command[
         "command_id"
     ]
+
+
+def test_junction_clear_within_epsilon_recede_order_is_recorded_order_equivalent():
+    # Chi-epsilon verbatim rule (RULED 2026-10-03): a plan listing the recede
+    # pair opposite chi (margin 0.019 < 0.15) verifies vlm_verbatim, dispatch
+    # stays in chi order, and the divergence is RECORDED -- the freeze-
+    # blocker-1 hole stays closed.
+    plan = [
+        ProposedPlanLeg(robot_id="robot_3", action="reverse"),
+        ProposedPlanLeg(robot_id="robot_4", action="reverse"),
+        ProposedPlanLeg(robot_id="robot_1", action="yield"),
+        ProposedPlanLeg(robot_id="robot_2", action="cross"),
+    ]
+    base = _junction_clear_result()
+    result = base.model_copy(
+        update={"decision": base.decision.model_copy(update={"proposed_plan": plan})}
+    )
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(result),
+        ground_fn=ground_reasoner_result,
+        grounding_params=GroundingParams(mode="derived"),
+        scene_geometry=_junction_clear_geometry(),
+        plan_tracker=PlanTracker(),
+    )
+    outcome = pipe.run(_junction_clear_request())
+    assert outcome.plan is not None
+    assert outcome.plan.provenance == "vlm_verbatim"
+    assert outcome.plan.dispatch_matches_plan is True
+    assert outcome.plan.order_equivalent is True
+    receders = [
+        action["robot_id"]
+        for phase in outcome.junction_phases.phases
+        if phase.label == "recede"
+        for action in phase.command["actions"]
+        if action["action"] == "reverse"
+    ]
+    assert receders == ["robot_4", "robot_3"]
+
+
+def test_junction_clear_chi_order_plan_is_not_flagged_order_equivalent():
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_junction_clear_result()),
+        ground_fn=ground_reasoner_result,
+        grounding_params=GroundingParams(mode="derived"),
+        scene_geometry=_junction_clear_geometry(),
+        plan_tracker=PlanTracker(),
+    )
+    outcome = pipe.run(_junction_clear_request())
+    assert outcome.plan is not None
+    assert outcome.plan.order_equivalent is False
 
 
 def test_junction_clear_absent_without_a_declared_pocket_still_matches():

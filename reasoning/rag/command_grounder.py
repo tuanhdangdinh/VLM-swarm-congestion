@@ -16,6 +16,7 @@ from reasoning.rag.maneuver_geometry import (
     rank_recede_candidates,
     recede_axis_offset_m,
     recede_distance_m,
+    recede_orders_equivalent,
     recede_pocket_offset_m,
     retreat_axes,
 )
@@ -2357,7 +2358,17 @@ class PlanRepairParams(BaseModel):
     # smoke is unaffected because raising the bound only ever makes MORE
     # plans repairable, never fewer, and every swap-gate repair there costs
     # at most one edit (verified: full suite zero-delta after this change).
-    max_repair_edits: int = Field(default=3, ge=0)
+    #
+    # RE-FROZEN AT 4 (χ-epsilon verbatim rule, RULED 2026-10-03, same
+    # registered procedure): with `GroundingParams.
+    # junction_recede_order_epsilon`, `recede_order_swapped` leaves the defect
+    # corpus (verbatim by rule) and the two depth-5 cases drop to depth 4, so
+    # bound 4 reaches full coverage of the 13 remaining repairable cases
+    # (m3_default per bound 1/2/3/4: 9/5/3/0;
+    # `docs/reports/2026-10-03-plan-grammar-fixes.md`). The procedure picks
+    # the smallest full-coverage bound <= 4: procedure, not preference. The
+    # depth-3 tail above is therefore no longer m3_default-by-design.
+    max_repair_edits: int = Field(default=4, ge=0)
 
 
 class VerifiedPlan(BaseModel):
@@ -2744,7 +2755,16 @@ def _plan_problems(
                         snapshot, sorted(recede_candidates), geometry, chi_params
                     )
                     actual_order = [legs[i].robot_id for i in recede_order_idx]
-                    if actual_order != chi_order:
+                    # χ-epsilon verbatim rule (RULED 2026-10-03): an order
+                    # within `junction_recede_order_epsilon` of chi's is the
+                    # same equivalence class, so it is not a problem here.
+                    # Verification only -- dispatch stays in chi order, and
+                    # `junction_clear_dispatch_match` records the divergence
+                    # as `order_equivalent`. The recede SET audit above
+                    # stays strict.
+                    if not recede_orders_equivalent(
+                        snapshot, actual_order, chi_order, geometry, chi_params
+                    ):
                         for i in recede_order_idx:
                             problems.append(
                                 (
@@ -3627,12 +3647,42 @@ def plan_matches_dispatch(
     return dispatched == plan_by_robot
 
 
-def junction_clear_plan_matches_dispatch(
+class JunctionDispatchMatch(BaseModel):
+    """Order-aware comparison of a tracked plan against a `junction_clear` phase sequence."""
+
+    model_config = ConfigDict(frozen=True)
+
+    # Every robot's reconstructed dispatched action equals its plan leg's
+    # action AND the plan's recede order is the dispatched recede order or
+    # within its χ-epsilon equivalence class.
+    matches: bool
+    # True exactly when the plan's recede order differs from the dispatched
+    # (χ) order but is within `GroundingParams.junction_recede_order_epsilon`
+    # (the χ-epsilon verbatim rule): the verified plan and the dispatch
+    # diverge inside the defined equivalence class, recorded, never hidden.
+    order_equivalent: bool = False
+
+
+def _dispatched_recede_order(plan: JunctionClearPhasePlan) -> list[str]:
+    order: list[str] = []
+    for phase in plan.phases:
+        for action in phase.command.get("actions", []):
+            if action["action"] == "reverse" and action["robot_id"] not in order:
+                if action["robot_id"] not in phase.held_robot_ids:
+                    order.append(action["robot_id"])
+    return order
+
+
+def junction_clear_dispatch_match(
     plan_legs: Sequence[ProposedPlanLeg],
     plan: JunctionClearPhasePlan,
     known_robot_ids: Sequence[str],
-) -> bool:
-    """`plan_matches_dispatch`'s analogue for a `junction_clear` phase sequence.
+    *,
+    snapshot: SnapshotFrame,
+    geometry: SceneGeometry,
+    params: GroundingParams,
+) -> JunctionDispatchMatch:
+    """`plan_matches_dispatch`'s order-aware analogue for a `junction_clear` sequence.
 
     A SINGLE dispatched command cannot be compared against the tracked
     plan's full sequence for this strategy the way `plan_matches_dispatch`
@@ -3642,17 +3692,27 @@ def junction_clear_plan_matches_dispatch(
     rest). This reconstructs the per-robot action the WHOLE sequence
     dispatches -- each robot's action from whichever phase actually acts on
     it, every phase's held robots excluded from its own contribution -- and
-    compares that reconstruction to the tracked plan instead.
+    compares that reconstruction to the tracked plan.
+
+    Order-aware since the χ-epsilon verbatim rule (RULED 2026-10-03): the
+    plan's `reverse` legs, in list order, are also compared with the order
+    the recede phases dispatch them in. Dispatch always follows χ, so a
+    verified plan whose recede order differs within epsilon is still a
+    match, flagged `order_equivalent`; a difference beyond epsilon is not a
+    match (freeze-blocker 1 stays closed).
 
     Args:
         plan_legs: The accepted plan's legs.
         plan: The full precomputed phase sequence
             (`ground_junction_clear_phases`'s output).
         known_robot_ids: Every tracked robot in the scene.
+        snapshot: The snapshot the phases were grounded from (χ is ranked
+            on it).
+        geometry: Declared scene geometry the phases were grounded under.
+        params: Grounding parameters (χ weights and the epsilon).
 
     Returns:
-        True when every robot's reconstructed action equals its plan leg's
-        action.
+        The match and the order-equivalence flag.
     """
     dispatched: dict[str, str] = dict.fromkeys(known_robot_ids, "continue")
     for phase in plan.phases:
@@ -3668,4 +3728,11 @@ def junction_clear_plan_matches_dispatch(
             if robot_id not in held and robot_id in acted_robot_ids:
                 dispatched[robot_id] = action
     plan_by_robot = {leg.robot_id: leg.action for leg in plan_legs}
-    return dispatched == plan_by_robot
+    actions_match = dispatched == plan_by_robot
+    plan_order = [leg.robot_id for leg in plan_legs if leg.action == "reverse"]
+    dispatched_order = _dispatched_recede_order(plan)
+    if plan_order == dispatched_order:
+        return JunctionDispatchMatch(matches=actions_match)
+    if recede_orders_equivalent(snapshot, plan_order, dispatched_order, geometry, params):
+        return JunctionDispatchMatch(matches=actions_match, order_equivalent=True)
+    return JunctionDispatchMatch(matches=False)

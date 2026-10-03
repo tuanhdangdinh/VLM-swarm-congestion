@@ -443,6 +443,13 @@ class PlanDispatchInfo(BaseModel):
     # it does not drive what M4 receives. Exists so that divergence is
     # measured, not silently assumed away.
     dispatch_matches_plan: bool
+    # χ-epsilon verbatim rule (prereg-v2 (a0), RULED 2026-10-03): True when a
+    # `junction_clear` plan's recede order differs from the dispatched (χ)
+    # order but within `GroundingParams.junction_recede_order_epsilon`
+    # (`command_grounder.JunctionDispatchMatch`). `dispatch_matches_plan` is
+    # then still True; this flag is what keeps the divergence visible. False
+    # for every other decision.
+    order_equivalent: bool = False
     # Hold semantics (ruling 2026-10-02): True when `plan_tracker.PlanTracker
     # .accept_plan` re-affirmed the already-active plan (`plan_id` above is
     # that unchanged active plan_id, not a new one) rather than accepting a

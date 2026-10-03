@@ -8,18 +8,21 @@ recede pocket declared, per the step-6 goal-table fix), at the J2-solved
 geometry only (the unsolved-row geometry is a separate, already-covered
 degradation, not a repair-bound question). For each malformed plan this finds
 the TRUE minimal repair depth (BFS over a generous bound), then reports, for
-each candidate `max_repair_edits` in {1, 2, 3}, how many cases are executed as
-`repaired` vs. fall through to `m3_default`.
+each candidate `max_repair_edits` in {1, 2, 3, 4}, how many cases are executed
+as `repaired` vs. fall through to `m3_default`. Runs with the shipped
+`GroundingParams` defaults, including the χ-epsilon verbatim rule's
+`junction_recede_order_epsilon` (RULED 2026-10-03), under which the bound
+re-froze at 4 (`docs/reports/2026-10-03-plan-grammar-fixes.md`).
 
 No VM dependency; run locally:
 
     python3 scripts/junction_clear_repair_bound_sweep.py
 
-This is a sizing tool, not a test: it prints a table and a recommendation. It
-does NOT change `PlanRepairParams.max_repair_edits`'s shipped default -- the
-spec requires reporting before any change, and this sweep's own recommendation
-is recorded in `docs/reports/2026-10-02-ib10-composite-smoke.md`, not applied
-here.
+This is a sizing tool, not a test: it prints a table. It does NOT change
+`PlanRepairParams.max_repair_edits`'s shipped default; each freeze is recorded
+in a report (step 6: `docs/reports/2026-10-02-ib10-composite-smoke.md`; step
+7b: `docs/reports/2026-10-03-step7b-oracle-freeze.md`; χ-epsilon re-freeze:
+`docs/reports/2026-10-03-plan-grammar-fixes.md`).
 """
 from __future__ import annotations
 
@@ -143,18 +146,14 @@ CASES: list[tuple[str, str, list[tuple[str, str]] | None]] = [
             ("robot_3", "reverse"), ("robot_1", "yield"),
         ],
     ),
-    # --- wrong recede order: BOTH recede candidates correctly membered, but
-    # listed in the opposite order from chi (step-7a fix target, modeled on
-    # the live run B bug: the proposed order survived verbatim/
-    # dispatch_matches_plan=true despite the actual dispatch using chi's own
-    # order) ---
-    (
-        "recede_order_swapped", "wrong_recede_order",
-        [
-            ("robot_3", "reverse"), ("robot_4", "reverse"),
-            ("robot_1", "yield"), ("robot_2", "cross"),
-        ],
-    ),
+    # --- wrong recede order: REMOVED from the corpus (χ-epsilon verbatim
+    # rule, RULED 2026-10-03). Its only case, `recede_order_swapped` (both
+    # candidates correctly membered, listed opposite chi), sits at this
+    # fixture's chi margin of 0.019 m, inside `GroundingParams.
+    # junction_recede_order_epsilon` (0.15): it now verifies vlm_verbatim by
+    # rule, so it is no longer a defect to size the bound against. An order
+    # difference beyond epsilon is still a reorder problem (unit-pinned in
+    # tests/unit/test_junction_clear_grounding.py::TestRecedeSetAudit). ---
     # --- missing legs: the plan omits a robot; lenient completion appends
     # `continue` for it (never counted as a repair edit by itself) ---
     (

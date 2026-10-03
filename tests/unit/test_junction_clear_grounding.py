@@ -15,9 +15,11 @@ import pytest
 
 from reasoning.rag.command_grounder import (
     CommandGroundingError,
+    PlanRepairParams,
     _derive_default_plan,
     ground_junction_clear_phases,
     ground_reasoner_result,
+    junction_clear_dispatch_match,
     verify_and_repair_plan,
 )
 from reasoning.rag.maneuver_geometry import (
@@ -27,6 +29,7 @@ from reasoning.rag.maneuver_geometry import (
     recede_cost,
     recede_distance_m,
     recede_follower_count,
+    recede_orders_equivalent,
     recede_pocket_offset_m,
 )
 from reasoning.rag.scene_geometry import ArmGeometry, CorridorGeometry, SceneGeometry
@@ -737,13 +740,13 @@ class TestRecedeSetAudit:
         # recede set (and vice versa) used to verify vlm_verbatim -- a
         # metric hole, since the actual dispatch (chi-ranked, structural)
         # would never match it. Now flagged and repaired (or, if the repair
-        # distance is exhausted, defaulted) -- never silently verbatim.
+        # distance is exhausted, defaulted) -- never silently verbatim. The
+        # recede-SET audit stays strict under the chi-epsilon rule.
         #
-        # Step-7b ruling (ii): this is the sweep's `recede_pair_full_axis_
-        # swap` case (true minimal repair depth 5), one of the two
-        # documented m3_default-by-design cases at the frozen default bound
-        # (3) -- `scripts/junction_clear_repair_bound_sweep.py`,
-        # docs/reports/2026-10-03-step7b-oracle-freeze.md.
+        # The sweep's `recede_pair_full_axis_swap` case: depth 5 before the
+        # chi-epsilon rule, depth 4 under it, so it is repaired at the
+        # re-frozen bound (4) -- `scripts/junction_clear_repair_bound_sweep.py`,
+        # docs/reports/2026-10-03-plan-grammar-fixes.md.
         decision = _decision(
             proposed_plan=[
                 {"robot_id": "robot_1", "action": "reverse"},
@@ -753,13 +756,34 @@ class TestRecedeSetAudit:
             ]
         )
         verified = _verify(decision, _geometry())
+        assert verified.provenance == "repaired"
+        assert len(verified.edits) == 4
+        assert sorted(leg.robot_id for leg in verified.legs if leg.action == "reverse") == [
+            "robot_3",
+            "robot_4",
+        ]
+
+    def test_wrong_recede_pair_still_exceeds_the_old_bound(self):
+        decision = _decision(
+            proposed_plan=[
+                {"robot_id": "robot_1", "action": "reverse"},
+                {"robot_id": "robot_2", "action": "reverse"},
+                {"robot_id": "robot_3", "action": "yield"},
+                {"robot_id": "robot_4", "action": "cross"},
+            ]
+        )
+        verified = verify_and_repair_plan(
+            decision, _frame(), geometry=_geometry(),
+            grounding_params=GroundingParams(mode="derived"),
+            repair_params=PlanRepairParams(max_repair_edits=3),
+        )
         assert verified.provenance == "m3_default"
         assert verified.rejection_stage == "repair_bound_exceeded"
 
-    def test_missing_both_recede_candidates_falls_to_m3_default_at_the_frozen_bound(self):
+    def test_missing_both_recede_candidates_is_repaired_at_the_frozen_bound(self):
         # The sweep's `missing_both_recede_candidates` case (true minimal
-        # repair depth 4): just over the frozen bound (3), the third
-        # documented m3_default-by-design case.
+        # repair depth 4): m3_default-by-design at the old bound (3),
+        # repaired at the re-frozen bound (4).
         decision = _decision(
             proposed_plan=[
                 {"robot_id": "robot_1", "action": "yield"},
@@ -767,14 +791,15 @@ class TestRecedeSetAudit:
             ]
         )
         verified = _verify(decision, _geometry())
-        assert verified.provenance == "m3_default"
-        assert verified.rejection_stage == "repair_bound_exceeded"
+        assert verified.provenance == "repaired"
+        assert len(verified.edits) == 4
 
-    def test_recede_legs_in_the_wrong_relative_order_become_repaired(self):
-        # Run B's exact live bug: both recede candidates correctly membered,
-        # but listed in the order OPPOSITE chi's (robot_4 before robot_3,
-        # per TestChiRanking.test_ib10_robot_4_ranks_before_robot_3) -- a
-        # single `reorder` edit fixes it, well within the shipped bound.
+    def test_recede_order_within_epsilon_verifies_verbatim(self):
+        # Run B's shape: both recede candidates correctly membered, listed
+        # opposite chi (robot_3 before robot_4; chi 0.942 vs 0.923, margin
+        # 0.019 < 0.15). Under the chi-epsilon verbatim rule (RULED
+        # 2026-10-03) that is the same equivalence class: verbatim, no
+        # reorder repair, the plan's own order kept.
         decision = _decision(
             proposed_plan=[
                 {"robot_id": "robot_3", "action": "reverse"},
@@ -784,13 +809,137 @@ class TestRecedeSetAudit:
             ]
         )
         verified = _verify(decision, _geometry())
+        assert verified.provenance == "vlm_verbatim"
+        assert verified.edits == []
+        assert [leg.robot_id for leg in verified.legs if leg.action == "reverse"] == [
+            "robot_3",
+            "robot_4",
+        ]
+
+    def test_recede_order_beyond_epsilon_is_still_repaired(self):
+        # robot_3 moved 0.2 m inward: chi margin ~0.22 > 0.15, a genuine
+        # ranking difference, so the opposite order is a reorder problem.
+        positions = {**IB10_STANDOFF, "robot_3": (-0.0208, -0.0583)}
+        decision = _decision(
+            proposed_plan=[
+                {"robot_id": "robot_3", "action": "reverse"},
+                {"robot_id": "robot_4", "action": "reverse"},
+                {"robot_id": "robot_1", "action": "yield"},
+                {"robot_id": "robot_2", "action": "cross"},
+            ]
+        )
+        verified = verify_and_repair_plan(
+            decision, _frame(positions), geometry=_geometry(),
+            grounding_params=GroundingParams(mode="derived"),
+        )
         assert verified.provenance == "repaired"
-        assert len(verified.edits) == 1
-        assert verified.edits[0].op == "reorder"
+        assert [edit.op for edit in verified.edits] == ["reorder"]
         assert [leg.robot_id for leg in verified.legs if leg.action == "reverse"] == [
             "robot_4",
             "robot_3",
         ]
+
+    def test_zero_epsilon_restores_the_strict_order_audit(self):
+        decision = _decision(
+            proposed_plan=[
+                {"robot_id": "robot_3", "action": "reverse"},
+                {"robot_id": "robot_4", "action": "reverse"},
+                {"robot_id": "robot_1", "action": "yield"},
+                {"robot_id": "robot_2", "action": "cross"},
+            ]
+        )
+        verified = verify_and_repair_plan(
+            decision, _frame(), geometry=_geometry(),
+            grounding_params=GroundingParams(mode="derived", junction_recede_order_epsilon=0.0),
+        )
+        assert verified.provenance == "repaired"
+        assert [edit.op for edit in verified.edits] == ["reorder"]
+
+
+class TestRecedeOrderEquivalence:
+    """The chi-epsilon verbatim rule's equivalence relation (RULED 2026-10-03)."""
+
+    def test_default_epsilon_is_registered_at_0_15(self):
+        assert GroundingParams().junction_recede_order_epsilon == 0.15
+
+    def test_identical_orders_are_equivalent(self):
+        params = GroundingParams(junction_recede_order_epsilon=0.0)
+        order = ["robot_4", "robot_3"]
+        assert recede_orders_equivalent(_frame(), order, order, _geometry(), params)
+
+    def test_swap_within_epsilon_is_equivalent(self):
+        assert recede_orders_equivalent(
+            _frame(), ["robot_3", "robot_4"], ["robot_4", "robot_3"], _geometry(),
+            GroundingParams(),
+        )
+
+    def test_swap_beyond_epsilon_is_not_equivalent(self):
+        # IB10_STANDOFF margin is 0.019 (0.942 vs 0.923).
+        assert not recede_orders_equivalent(
+            _frame(), ["robot_3", "robot_4"], ["robot_4", "robot_3"], _geometry(),
+            GroundingParams(junction_recede_order_epsilon=0.018),
+        )
+
+    def test_different_sets_are_never_equivalent(self):
+        assert not recede_orders_equivalent(
+            _frame(), ["robot_3"], ["robot_4", "robot_3"], _geometry(), GroundingParams()
+        )
+        assert not recede_orders_equivalent(
+            _frame(), ["robot_3", "robot_3"], ["robot_3", "robot_3", "robot_4"], _geometry(),
+            GroundingParams(),
+        )
+
+
+class TestJunctionDispatchMatchIsOrderAware:
+    @staticmethod
+    def _phases(positions=None):
+        return ground_junction_clear_phases(
+            _result(_decision()), snapshot=_frame(positions),
+            params=GroundingParams(mode="derived"), geometry=_geometry(),
+        )
+
+    @staticmethod
+    def _legs(*pairs: tuple[str, str]) -> list[ProposedPlanLeg]:
+        return [ProposedPlanLeg(robot_id=rid, action=action) for rid, action in pairs]
+
+    def _match(self, legs, positions=None):
+        return junction_clear_dispatch_match(
+            legs, self._phases(positions), list(IB10_STANDOFF),
+            snapshot=_frame(positions), geometry=_geometry(),
+            params=GroundingParams(mode="derived"),
+        )
+
+    def test_chi_order_plan_matches_without_the_flag(self):
+        match = self._match(self._legs(
+            ("robot_4", "reverse"), ("robot_3", "reverse"), ("robot_1", "yield"),
+            ("robot_2", "cross"),
+        ))
+        assert match.matches is True
+        assert match.order_equivalent is False
+
+    def test_within_epsilon_order_divergence_matches_and_is_flagged(self):
+        match = self._match(self._legs(
+            ("robot_3", "reverse"), ("robot_4", "reverse"), ("robot_1", "yield"),
+            ("robot_2", "cross"),
+        ))
+        assert match.matches is True
+        assert match.order_equivalent is True
+
+    def test_order_divergence_beyond_epsilon_does_not_match(self):
+        positions = {**IB10_STANDOFF, "robot_3": (-0.0208, -0.0583)}
+        match = self._match(self._legs(
+            ("robot_3", "reverse"), ("robot_4", "reverse"), ("robot_1", "yield"),
+            ("robot_2", "cross"),
+        ), positions)
+        assert match.matches is False
+        assert match.order_equivalent is False
+
+    def test_action_mismatch_does_not_match_even_in_chi_order(self):
+        match = self._match(self._legs(
+            ("robot_4", "reverse"), ("robot_3", "reverse"), ("robot_1", "cross"),
+            ("robot_2", "yield"),
+        ))
+        assert match.matches is False
 
 
 class TestStaggeredRecedePockets:

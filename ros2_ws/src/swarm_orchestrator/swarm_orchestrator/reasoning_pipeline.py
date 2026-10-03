@@ -25,7 +25,7 @@ from reasoning.rag.command_grounder import (
     YieldFeasibilityMode,
     filter_command_robot_ids,
     ground_junction_clear_phases,
-    junction_clear_plan_matches_dispatch,
+    junction_clear_dispatch_match,
     plan_matches_dispatch,
     resolve_strategy_alias,
     validate_coordination_command,
@@ -974,14 +974,24 @@ class InProcessPipeline:
                         # branch, same geometry), so there is nothing to
                         # queue -- one ordinary yield command, no phases.
                         junction_phases = None
+                order_equivalent = False
                 if junction_phases is not None:
                     # A single dispatched command (`grounded`, one phase) is
                     # not comparable to the full sequence the same way an
                     # ordinary decision's one command is; reconstruct the
-                    # WHOLE sequence's per-robot action instead.
-                    dispatch_matches_plan = junction_clear_plan_matches_dispatch(
-                        verified.legs, junction_phases, known_robot_ids
+                    # WHOLE sequence's per-robot action instead, order-aware
+                    # (the chi-epsilon verbatim rule: a within-epsilon recede
+                    # order divergence is recorded, not hidden).
+                    junction_match = junction_clear_dispatch_match(
+                        verified.legs,
+                        junction_phases,
+                        known_robot_ids,
+                        snapshot=frame,
+                        geometry=self._scene_geometry,
+                        params=params,
                     )
+                    dispatch_matches_plan = junction_match.matches
+                    order_equivalent = junction_match.order_equivalent
                 else:
                     dispatch_matches_plan = plan_matches_dispatch(
                         verified.legs, grounded, known_robot_ids
@@ -992,6 +1002,7 @@ class InProcessPipeline:
                     provenance=verified.provenance,
                     legs=acceptance.plan.legs,
                     dispatch_matches_plan=dispatch_matches_plan,
+                    order_equivalent=order_equivalent,
                     edits=tuple(verified.edits),
                     rejection_reason=verified.rejection_reason,
                     superseded_plan_id=(

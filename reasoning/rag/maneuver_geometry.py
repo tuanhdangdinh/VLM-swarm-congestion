@@ -91,6 +91,18 @@ class GroundingParams(BaseModel):
     # receded": the M1 static-error budget the intersection-resolvability
     # study measured (median <= 0.011 m, max 0.084 m), rounded up with margin.
     junction_recede_tolerance_m: float = Field(default=0.1, ge=0.0)
+    # χ-epsilon verbatim rule (prereg-v2 (a0), RULED 2026-10-03): two recede
+    # orders whose differently-ordered pairs all sit within this χ margin are
+    # one equivalence class at VERIFICATION only -- a plan listing them in
+    # the non-χ order is not a reorder problem, while dispatch stays in χ
+    # order and the divergence is recorded (`command_grounder.
+    # JunctionDispatchMatch.order_equivalent`). Measured on every IB10 run
+    # with geometry on disk: within-run χ spread <= 5 mm, between-run
+    # jam-formation margins up to 0.142 m in the nominally symmetric scene;
+    # no structural difference (>= 0.5 per follower at the shipped weights)
+    # ever observed (docs/reports/2026-10-03-plan-grammar-fixes.md).
+    # Re-measure for any scene family whose follower counts differ.
+    junction_recede_order_epsilon: float = Field(default=0.15, ge=0.0)
     # Hold duration for a recede leg's clearing command (`reverse` + the other
     # involved robots' `temporary_wait`, see `command_grounder.
     # ground_junction_clear_phases`): generous upper bound on how long the
@@ -700,3 +712,47 @@ def rank_recede_candidates(
         key=lambda pair: (pair[1], pair[0]),
     )
     return [robot_id for robot_id, _ in ranked]
+
+
+def recede_orders_equivalent(
+    frame: SnapshotFrame,
+    first: Sequence[str],
+    second: Sequence[str],
+    geometry: SceneGeometry,
+    params: GroundingParams,
+) -> bool:
+    """Whether two recede orders are one χ-epsilon equivalence class.
+
+    The χ-epsilon verbatim rule (prereg-v2 (a0), RULED 2026-10-03): two
+    orders of the SAME recede set are equivalent when every pair of robots
+    they order differently has a χ margin strictly below
+    `params.junction_recede_order_epsilon`. Identical orders are trivially
+    equivalent. Used at verification only; dispatch always follows
+    `rank_recede_candidates`.
+
+    Args:
+        frame: Current scene snapshot (the one χ is ranked on).
+        first: One recede order.
+        second: The other recede order.
+        geometry: Declared scene geometry.
+        params: Grounding parameters (χ weights and the epsilon).
+
+    Returns:
+        False when the two orders name different robots, repeat a robot, or
+        any robot in them has no resolvable χ (not a recede candidate).
+    """
+    if list(first) == list(second):
+        return True
+    if len(set(first)) != len(first) or sorted(first) != sorted(second):
+        return False
+    costs = {robot_id: recede_cost(frame, robot_id, geometry, params) for robot_id in first}
+    if any(cost is None for cost in costs.values()):
+        return False
+    position = {robot_id: index for index, robot_id in enumerate(second)}
+    for i, a in enumerate(first):
+        for b in first[i + 1 :]:
+            if position[a] > position[b] and abs(costs[a] - costs[b]) >= (
+                params.junction_recede_order_epsilon
+            ):
+                return False
+    return True
