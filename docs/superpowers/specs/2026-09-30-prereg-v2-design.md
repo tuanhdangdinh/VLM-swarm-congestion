@@ -360,11 +360,18 @@ report `docs/reports/2026-10-04-visual-apparatus.md`):**
   `intra_order_inconsistency` flag — itself a measured quantity (a
   live T=0 same-prompt divergence was observed in the smoke,
   consistent with the registered nondeterminism caveat).
-- TIE RULE (registered): among tied ballots prefer the call whose
-  rendered order matches the registry order; else the earliest tied
-  call. With 3+ robots under random/id_desc draws the registry order
-  may be absent from the cyclic shifts — the earliest-tied fallback
-  is unbiased because shift position is a rotation of a random draw.
+- TIE RULE (REVISED 2026-10-04, superseding the registry-order
+  preference): ties go to the EARLIEST tied ballot's representative
+  call. Rationale for the revision: the registry order is id_asc —
+  the exact rendering the presentation-order finding tied to the
+  first-slot/robot_1 priors — so preferring it would resolve every
+  two-robot inter-order disagreement toward the biased order,
+  reimporting the prior the vote exists to remove. The earliest
+  ballot's representative is call 0, the episode's randomized draw:
+  unbiased across episodes, deterministic within one. (Abstention
+  interpretation ratified: a refused call is not a disagreement; a
+  no-surviving-ballot vote dispatches nothing,
+  `error_type=permutation_vote_no_ballot`.)
 - CANDIDATE-OPTIONS CONTEXT TABLE: ratified as built — options are
   derived from M3's own `_plan_problems` audit under one fixed
   strategy context per action (incl. `reverse` under `junction_clear`
