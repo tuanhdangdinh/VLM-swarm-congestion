@@ -18,6 +18,7 @@ from scripts.coverage_scene_scores import (
     gate_passage,
     load_ground_truth,
     load_scenario,
+    outcome_rank,
     phase_reached,
     release_attribution,
     score_b1,
@@ -667,3 +668,91 @@ class TestIb10Instrumentation:
         assert result["stale_rows"] == 4
         assert result["longest_streak_rows"] == 3
         assert result["longest_streak_sec"] == 2.0
+
+
+# fc_run_20261003_022532's own release-command gate lines (request id elided):
+# step 7a's same-gate release, robot_1 and robot_3 freed at the same instant.
+IB10_RERUN_SAME_GATE_LOG = """\
+crossing_chain gate_admit command=r-junction-release yielder=robot_3 passer=robot_4 \
+clear_m=2.650 escort_m=None sim_t=95.867
+crossing_chain gate_admit command=r-junction-release yielder=robot_1 passer=robot_4 \
+clear_m=2.650 escort_m=None sim_t=95.867
+crossing_chain gate_cleared command=r-junction-release yielder=robot_3 passer=robot_4 \
+moved_m=2.653 clear_m=2.650 sim_t=139.967
+crossing_chain gate_release command=r-junction-release yielder=robot_3 reason=clearance \
+sim_t=139.967
+crossing_chain gate_cleared command=r-junction-release yielder=robot_1 passer=robot_4 \
+moved_m=2.653 clear_m=2.650 sim_t=139.967
+crossing_chain gate_release command=r-junction-release yielder=robot_1 reason=clearance \
+sim_t=139.967
+"""
+# Ruling (vi)'s chained release: the yielder's multi-passer chain admits
+# robot_3 when the lead clears and ends only once robot_3 has cleared.
+IB10_CHAINED_LOG = """\
+crossing_chain gate_admit command=r-junction-release yielder=robot_3 passer=robot_4 \
+clear_m=2.650 escort_m=None sim_t=95.867
+crossing_chain gate_admit command=r-junction-release yielder=robot_1 passer=robot_4 \
+clear_m=2.650 escort_m=None sim_t=95.867
+crossing_chain gate_cleared command=r-junction-release yielder=robot_3 passer=robot_4 \
+moved_m=2.653 clear_m=2.650 sim_t=139.967
+crossing_chain gate_release command=r-junction-release yielder=robot_3 reason=clearance \
+sim_t=139.967
+crossing_chain gate_cleared command=r-junction-release yielder=robot_1 passer=robot_4 \
+moved_m=2.653 clear_m=2.650 sim_t=139.967
+crossing_chain gate_admit command=r-junction-release yielder=robot_1 passer=robot_3 \
+clear_m=2.050 escort_m=None sim_t=139.967
+crossing_chain gate_cleared command=r-junction-release yielder=robot_1 passer=robot_3 \
+moved_m=2.061 clear_m=2.050 sim_t=155.400
+crossing_chain gate_release command=r-junction-release yielder=robot_1 reason=clearance \
+sim_t=155.400
+"""
+
+
+class TestIb10YielderLast:
+    def test_same_gate_release_is_not_yielder_last(self):
+        result = release_attribution(
+            IB10_RERUN_SAME_GATE_LOG, yielder="robot_1", receders=["robot_3", "robot_4"]
+        )
+        assert result["ordered_release"] is True
+        assert result["yielder_last"] is False
+
+    def test_chained_release_is_yielder_last(self):
+        result = release_attribution(
+            IB10_CHAINED_LOG, yielder="robot_1", receders=["robot_3", "robot_4"]
+        )
+        assert result["ordered_release"] is True
+        assert result["yielder_last"] is True
+
+    def test_a_linked_wait_receder_is_timed_by_the_yielder_admitting_it(self):
+        log = "\n".join(
+            line for line in IB10_CHAINED_LOG.replace("\\\n", "").splitlines()
+            if "yielder=robot_3" not in line
+        )
+        result = release_attribution(log, yielder="robot_1", receders=["robot_3", "robot_4"])
+        assert result["yielder_last"] is True
+
+    def test_no_yielder_release_is_undecided(self):
+        assert release_attribution("", yielder="robot_1", receders=["robot_3"])[
+            "yielder_last"
+        ] is None
+
+
+class TestIb10OutcomeRank:
+    def test_full_success_ranks_above_the_rerun_partial_at_the_same_ordinal(self):
+        # fc_run_20261003_022532: phase ordinal 4 (`resolved`) with 2/4.
+        rerun = outcome_rank(True, 4, 2, False)
+        assert rerun == (0, 4, 2)
+        assert outcome_rank(True, 4, 4, True) > rerun
+
+    def test_a_partial_at_a_higher_phase_ranks_above_a_lower_phase(self):
+        assert outcome_rank(True, 4, 2, False) > outcome_rank(True, 3, 2, False)
+
+    def test_any_full_success_ranks_above_any_partial(self):
+        assert outcome_rank(True, 3, 4, True) > outcome_rank(True, 4, 3, False)
+
+    def test_more_arrivals_break_a_phase_tie(self):
+        assert outcome_rank(True, 4, 3, False) > outcome_rank(True, 4, 2, False)
+
+    def test_invalid_jam_or_unknown_phase_has_no_rank(self):
+        assert outcome_rank(False, 4, 4, True) is None
+        assert outcome_rank(True, None, 4, True) is None

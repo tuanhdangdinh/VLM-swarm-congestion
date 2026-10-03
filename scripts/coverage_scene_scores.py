@@ -35,8 +35,9 @@ Subcommands:
   `oracle:` block) -- the formed-jam validity gate, chi-pair correctness
   (proposed and executed), inside-first order, the phase-reached ordinal
   with the `fallback`/`fallback_exhausted` flags, CrossingChain release
-  attribution, position-verified arrivals, the tracked-band check and the
-  STALE-streak instrumentation.
+  attribution and yielder-last, position-verified arrivals, the derived
+  `outcome_rank`, the tracked-band check and the STALE-streak
+  instrumentation.
 
 Definitions fixed before any smoke run (2026-09-29; B3 first-to-slip added
 2026-10-02; IB10 frozen 2026-10-03, step-7b Part 3); see each function.
@@ -1035,35 +1036,90 @@ def phase_reached(m5_log: str) -> dict[str, Any]:
     }
 
 
-def release_attribution(m4_log: str) -> dict[str, Any]:
+def release_attribution(
+    m4_log: str,
+    *,
+    yielder: str | None = None,
+    receders: list[str] | tuple[str, ...] = (),
+) -> dict[str, Any]:
     """CrossingChain gate events of the `-junction-release` command (step-7b ruling iii).
+
+    `yielder_last` (step-7b ruling vi) reads the same events: a receder's
+    release time is its own `gate_release` or, when it is held by a linked
+    wait instead, the yielder's `gate_admit` naming it; the yielder is last
+    when its own `gate_release` is strictly later than every receder's
+    release time.
 
     Args:
         m4_log: The run's M4 log text.
+        yielder: The executed plan's yielder, or None.
+        receders: `oracle.recede_pair`.
 
     Returns:
         The release command's gate events in log order and, per held robot,
         its release `reason` (`clearance` or `hold_timer`). `ordered_release`
         is True when every held robot was released by `clearance`, None when
-        no release-command gate event was logged.
+        no release-command gate event was logged. `yielder_last` is None when
+        the yielder's release or every receder's release time is missing.
     """
     events = []
     for match in _GATE_RE.finditer(m4_log):
-        kind, command, yielder, passer, reason, sim_t = match.groups()
+        kind, command, held, passer, reason, sim_t = match.groups()
         if "-junction-release" not in command:
             continue
         events.append({
-            "event": kind, "command": command, "yielder": yielder, "passer": passer,
+            "event": kind, "command": command, "yielder": held, "passer": passer,
             "reason": reason, "sim_t": float(sim_t),
         })
-    reasons = {e["yielder"]: e["reason"] for e in events if e["event"] == "gate_release"}
+    releases = {e["yielder"]: e for e in events if e["event"] == "gate_release"}
+    reasons = {robot: e["reason"] for robot, e in releases.items()}
+    yielder_last = None
+    if yielder is not None and yielder in releases:
+        times = []
+        for robot in receders:
+            if robot in releases:
+                times.append(releases[robot]["sim_t"])
+                continue
+            admits = [
+                e["sim_t"] for e in events
+                if e["event"] == "gate_admit" and e["yielder"] == yielder and e["passer"] == robot
+            ]
+            if admits:
+                times.append(admits[0])
+        if times:
+            yielder_last = all(releases[yielder]["sim_t"] > t for t in times)
     return {
         "events": events,
         "release_reason": reasons,
         "ordered_release": None if not reasons else all(
             r == "clearance" for r in reasons.values()
         ),
+        "yielder_last": yielder_last,
     }
+
+
+def outcome_rank(
+    jam_valid: bool, phase_ordinal: int | None, n_arrived: int, all_arrived: bool
+) -> tuple[int, int, int] | None:
+    """The derived episode ranking (step-7b ruling vii).
+
+    The phase ordinal stays M5's process label; success stays arrivals-based.
+    The rank orders episodes lexicographically by (every robot arrived, phase
+    ordinal, arrivals), so (ordinal 4, 4/4) always ranks strictly above
+    (ordinal 4, partial) and any full success above any partial one.
+
+    Args:
+        jam_valid: The formed-jam gate (`formed_jam`'s `valid`).
+        phase_ordinal: `phase_reached`'s ordinal, or None without the M5 log.
+        n_arrived: Position-verified arrivals.
+        all_arrived: Whether every robot arrived.
+
+    Returns:
+        The rank tuple; None for an invalid run or an unknown phase.
+    """
+    if not jam_valid or phase_ordinal is None:
+        return None
+    return (int(all_arrived), phase_ordinal, n_arrived)
 
 
 def tracked_band(series: dict[str, list[Sample]], t0: float) -> dict[str, Any]:
@@ -1164,6 +1220,7 @@ def score_ib10(
                 for rid, at in run.arrivals_sec.items()}
     n_arrived = sum(v is not None for v in arrivals.values())
     all_arrived = n_arrived == len(arrivals)
+    phase = None if m5_log is None else phase_reached(m5_log)
     return {
         "scene": scenario.get("name"),
         "t0_sec": run.t0_sec,
@@ -1171,14 +1228,19 @@ def score_ib10(
         "formed_jam": jam,
         "chi_pair": chi,
         "order": score_inside_first(series, scenario, yielder),
-        "phase": None if m5_log is None else phase_reached(m5_log),
-        "release": None if m4_log is None else release_attribution(m4_log),
+        "phase": phase,
+        "release": None if m4_log is None else release_attribution(
+            m4_log, yielder=yielder, receders=scenario["oracle"]["recede_pair"]
+        ),
         "arrivals_after_t0_sec": arrivals,
         "n_arrived": n_arrived,
         "all_arrived": all_arrived,
         "tracked_band": tracked_band(series, run.t0_sec),
         "stale_streaks": None if scene_log is None else stale_streaks(scene_log),
         "resolved": all_arrived if jam["valid"] else None,
+        "outcome_rank": None if phase is None else outcome_rank(
+            jam["valid"], phase["phase_ordinal"], n_arrived, all_arrived
+        ),
     }
 
 
