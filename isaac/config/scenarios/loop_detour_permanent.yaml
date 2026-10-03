@@ -4,6 +4,17 @@ family: blocked_path
 seed: 42
 duration_sec: 240.0
 
+# STATUS (2026-10-03, VM): DESIGN CONTROL FAILED -- do NOT collect this
+# family as scored cells pending a coordinator ruling (report
+# docs/reports/2026-10-03-loop-family-and-visual-pass.md, "STOP finding").
+# On the VM, robot_1 never reached the gap: Nav2's global planner put
+# robot_1 onto the loop from its second plan (t ~ 13 s) and robot_1 left the
+# primary aisle at ~25 s, before any decision was dispatched (runs
+# perm_wait_s42, perm_reroute_s42); the self-detour then wedged at the
+# second-aisle mouth, and the declared reroute waypoints also failed to
+# drive (follow_waypoints watchdog). The geometry claims below are the
+# AUTHORED design, not verified Nav2 behavior.
+#
 # Loop-map wait-vs-detour family, PERMANENT cell (prereg-v2 design
 # docs/superpowers/specs/2026-09-30-prereg-v2-design.md, "(b) Loop map";
 # build-order step 8 phase 2; report
@@ -39,11 +50,12 @@ duration_sec: 240.0
 #     aisle and the connector centreline (x = 1.8).
 #   - Blocker: lidar cross-section y in [-0.25, 0.03] against the corridor's
 #     south wall, x in [0.875, 1.125], leaving a 0.22 m gap on the north
-#     side. That gap is the design control. It is wider than NavFn's
-#     closure (cells farther than the 0.07 m inscribed radius from both
-#     edges survive), so the global plan stays THROUGH the gap and Nav2
-#     never self-detours round the loop (phase-1's pre-emption control,
-#     restated for a stalling blocker); but it is narrower than the
+#     side. That gap is the INTENDED design control (see STATUS: it did not
+#     hold on the VM). It is wider than NavFn's closure (cells farther than
+#     the 0.07 m inscribed radius from both edges survive), so the global
+#     plan was meant to stay THROUGH the gap with no self-detour round the
+#     loop (phase-1's pre-emption control, restated for a stalling
+#     blocker); and it is narrower than the
 #     collision_monitor's 0.24 m forward stop box, so robot_1 is stopped
 #     short of it and stalls (M5's progress trigger fires). A
 #     passage-closing blocker (T3a's design) would make NavFn replan onto

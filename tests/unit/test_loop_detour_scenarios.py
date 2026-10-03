@@ -2,9 +2,11 @@
 
 `loop_detour_permanent` (a box: never moves) and `loop_detour_transient`
 (the marker-less robot visual: leaves at the registered dwell) differ only
-in the blocker entity and the oracle. These pins hold the design control
-(a gap NavFn still plans through but the collision monitor stops robot_1
-short of, so the detour decision stays with M2/M3), the no-text-persistence
+in the blocker entity and the oracle. These pins hold the AUTHORED design
+(a gap meant to stay plannable for NavFn but narrower than the collision
+monitor's stop box) -- authored geometry only: on the VM the design control
+did not hold (Nav2 self-detoured; see the scenario headers' STATUS block and
+docs/reports/2026-10-03-loop-family-and-visual-pass.md) -- the no-text-persistence
 property (grep level, B1/B2-visual style), the tracked band, Arm B's
 per-cell answer, the oracle/cost-record validators, the VM config overlay,
 and the GT scorer.
@@ -120,7 +122,11 @@ class TestPairDiff:
 
 
 class TestDesignControl:
-    """The gap NavFn keeps but the collision monitor refuses."""
+    """The authored gap geometry, against the shipped Nav2 parameters.
+
+    Pins arithmetic on the authored scene only; it is not evidence about live
+    NavFn behavior, which the VM contradicted (report, "STOP finding").
+    """
 
     @pytest.mark.parametrize("cell", CELLS)
     def test_both_cells_leave_the_same_gap(self, cell):

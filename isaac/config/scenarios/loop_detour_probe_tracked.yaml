@@ -4,7 +4,8 @@ family: blocked_path
 seed: 42
 duration_sec: 240.0
 
-# DIAGNOSTIC PROBE, not a family cell (prereg-v2 (b), build-order step 8
+# DIAGNOSTIC PROBE (authored and USD-built, NOT run on the VM: superseded by
+# the self-detour STOP finding in the report), not a family cell (prereg-v2 (b), build-order step 8
 # phase 2; report docs/reports/2026-10-03-loop-family-and-visual-pass.md,
 # "Tracked-robot blocker"). The literal faulted-robot design: the transient
 # blocker is a TRACKED robot (robot_2, marker 2) held mid-corridor by M5's
