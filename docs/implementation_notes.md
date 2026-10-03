@@ -37,6 +37,49 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-03** — **v2 build-order step 8 phase 2 (loop-detour family)
+  STOPS on a design-control failure; step-9 visual pass PASSES.** Branch
+  `feat/v2-final-wave` (from `feat/prereg-v2-composite` at `1ee23d2`); full
+  report `docs/reports/2026-10-03-loop-family-and-visual-pass.md`.
+  - **Built:** M3 reroute grounding to declared far-aisle waypoints
+    (`SceneGeometry.reroute_waypoints`, None = byte-identical `waypoints:
+    []`). Also built: `loop_detour_{permanent,transient}` (one factor, two
+    cells; the minimal loop has one detour length), the
+    `LoopDetourOracleConfig`/`LoopDetourCostRecord` oracle,
+    `coverage_scene_scores.py loop`/`loop-cost`, the regret arms, and the VM
+    drivers (`scripts/vm/v2_final_run.sh`, `v2_overlay.py`,
+    `loop_family_sampler.py`, `frame_snapshots.py`).
+  - **STOP (gotcha):** a 0.22 m blocker gap stops robot_1 by the
+    collision monitor's 0.24 m stop box, but it also makes NavFn prefer the
+    loop. Every global plan from t = 13 s went round the loop, and robot_1
+    left the primary aisle at about 25 s, before any dispatch, in 3 of 3
+    runs. Mechanism: live lidar marks of the box plus the global inflation
+    band make every gap cell high-cost. A standalone NavFn sweep on baked
+    maps flips at a 0.22 m gap (loop) but not at 0.30 m (direct); the
+    0.50 m pinch alone does not flip it. Phase 1's PASS (0.55 m gap, no
+    stall) does not carry over to a stalling blocker.
+  - **Loop drivability:** 1 of 3 drives of the loop completed. Phase 1
+    only planned into it. The declared waypoint route failed by M4's
+    Nav2-leg watchdog, and the self-detour wedged once at the second-aisle
+    mouth (0.3 m remnant corner).
+  - **Tracked faulted robot:** infeasible as a transient blocker. The M4
+    pair latch (0.45 m) fires before the collision monitor can stop
+    robot_1 (≤ 0.38 m reach), and it is permanent. The authored transient
+    cell uses T3a's untracked visual instead (deviation, for a ruling).
+  - **Not collected:** no cost table; transient dwell provisional and
+    unregistered; both yamls carry a STATUS "do not collect" block.
+    Coordinator options are listed in the report.
+  - **Visual pass:** B2-visual and B3-slip USDs built and validated. The
+    load prop is visible and never covers the marker (spawn, standoff,
+    goal). The loaded robot is 100% fresh in both members. A/B diff:
+    0 pixels changed in the marker window. Maps are byte-identical. `b3`
+    on a real GT log gives first_slipper robot_1, latency 28.6 s,
+    consistent with GT.
+  - **Flagged:** live Arm B shadow yielder differs from the registered
+    `classical_yielder` in r1. The B3 goal-stack latch recurred at
+    0.4448 m (censoring valve). Suite: 63 / 4551 / 152 vs baseline
+    63 / 4490 / 152 at `1ee23d2`, identical failing set.
+
 - **2026-10-03** — **Step 7b closed: STEP-7b RULINGS (vi)/(vii) landed and
   the IB10 mock rerun PASSES 4/4** (supersedes the "STOP for a ruling" in
   the next entry). Report: `docs/reports/2026-10-03-step7b-oracle-freeze.md`
