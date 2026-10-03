@@ -37,6 +37,39 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-03** — **The χ-epsilon and grammar rulings are implemented
+  (report Rev 2, `docs/reports/2026-10-03-plan-grammar-fixes.md`).**
+  - **χ-epsilon rule (`b176e56`):** option (b), with
+    `GroundingParams.junction_recede_order_epsilon = 0.15`.
+    - Verification only: a within-ε recede order is no reorder problem,
+      while the recede-SET audit stays strict and dispatch stays in χ
+      order.
+    - `junction_clear_plan_matches_dispatch` is replaced by the
+      order-aware `junction_clear_dispatch_match` → `JunctionDispatchMatch
+      {matches, order_equivalent}`. `PlanDispatchInfo.order_equivalent`
+      is now in every artifact's `plan` block.
+  - **Repair bound RE-FROZEN AT 4** (supersedes the step-7b freeze at 3,
+    same procedure). `recede_order_swapped` left the sweep corpus, and the
+    two depth-5 cases are now depth 4. m3_default at bounds 1/2/3/4 is
+    9/5/3/0 over 13 repairable cases.
+  - **Prompt re-pinned to v3.2 (`9bb6780`).** The decision-field agreement
+    rule rides the `"yield"` rule line, since
+    `_plan_disagrees_with_decision_fields` is yield-only. The convoy gloss
+    adds "while an opposing robot gives way". Baseline pin `c3fb9fcf…`;
+    the live calibration ran on v3.1 (`42463ce2…`).
+  - **Mirrored-axis composite caveat** recorded as in the spec; no code
+    change.
+  - **Apparatus gotchas from the calibration run:**
+    - The v2 driver's `GATE OK` also fires on a Nav2-abort cleanup
+      (`logs saved to` is printed on the failure path), so it is not proof
+      of a run.
+    - A failed early run leaves Isaac alive for more than 12 min (it
+      simulates out its 300 sim-s at 0.27 RTF), longer than the 231–356 s
+      cleanup-survival figure. The next launch's 420 s guard refuses;
+      kill by PID and confirm the GPU is idle.
+  - Suite: 63 / 4581 / 152 against a baseline of 63 / 4551 / 152; the
+    failing set is identical.
+
 - **2026-10-03** — **VLM-planning review fixes: prompt v3.1 plan grammar
   + emission/consistency metric split landed; χ-epsilon rule STOPPED for
   a ruling; live ER-2 calibration on IB10 PASSES 4/4 and the plan shape
