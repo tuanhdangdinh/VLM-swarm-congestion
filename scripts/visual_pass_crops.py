@@ -179,9 +179,18 @@ def cmd_ab(args: argparse.Namespace) -> int:
     cv2.imwrite(str(out / f"ab_{args.robot}_empty.png"), b)
     cv2.imwrite(str(out / f"ab_{args.robot}_absdiff.png"), diff)
     cv2.imwrite(str(out / f"ab_{args.robot}_side_by_side.png"), np.hstack([a, b, diff]))
-    gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
-    meta["diff"] = {"mean_abs": round(float(gray.mean()), 2),
-                    "pixels_over_40": int((gray > 40).sum()), "crop_px": [h, w]}
+    # Per-pixel max over channels: the brown prop on the grey floor differs
+    # mostly in hue, not luminance. The marker window is the centre square
+    # (the 0.12 m marker is ~28 px across at this scale): near-zero there
+    # means the load prop changed nothing on the marker itself.
+    chan = diff.max(axis=2)
+    cy, cx, r = h // 2, w // 2, 14
+    marker = chan[cy - r:cy + r, cx - r:cx + r]
+    meta["diff"] = {"mean_abs_maxchan": round(float(chan.mean()), 2),
+                    "pixels_over_30": int((chan > 30).sum()),
+                    "marker_window_mean_abs": round(float(marker.mean()), 2),
+                    "marker_window_pixels_over_30": int((marker > 30).sum()),
+                    "crop_px": [h, w]}
     (out / f"ab_{args.robot}.json").write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(meta, indent=2))
     return 0
