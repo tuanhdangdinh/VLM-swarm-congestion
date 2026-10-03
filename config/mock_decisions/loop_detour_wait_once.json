@@ -1,0 +1,18 @@
+[
+  {
+    "congestion_detected": true,
+    "type": "anomaly",
+    "involved_robots": ["robot_1"],
+    "root_cause": "Something stands in robot_1's lane at the pinch ahead of it.",
+    "strategy": "temporary_wait",
+    "justification": "Scripted mock decision forcing the loop-detour wait arm: robot_1 waits."
+  },
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "Scripted follow-up: no new decision after the forced wait.",
+    "strategy": "none",
+    "justification": "Scripted mock decision: re-analyses dispatch nothing, so the first command is the only one."
+  }
+]

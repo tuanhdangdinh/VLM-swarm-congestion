@@ -99,6 +99,10 @@ class SceneSpec:
     tracked_extent_m: float | None = None
     shadow_classical_zones: tuple[dict[str, Any], ...] | None = None
     plan_channel_enabled: bool = False
+    # Loop-map detour (prereg-v2 (b), step 8 phase 2): the scene's declared
+    # `scenario_geometry.reroute_waypoints`; None (every other scene) skips
+    # the check, the same None-is-a-no-op convention as the fields above.
+    reroute_waypoints: tuple[tuple[float, float], ...] | None = None
 
     @property
     def scenario_relpath(self) -> Path:
@@ -294,6 +298,37 @@ SCENES: dict[str, SceneSpec] = {
 }
 
 
+def _loop_detour(cell: str) -> SceneSpec:
+    # Prereg-v2 (b) loop-detour family (build-order step 8 phase 2): robot_1
+    # alone, stopped short of a blocker in the primary aisle's pinch
+    # corridor. The two arms are the wait-vs-detour question: `temporary_wait`
+    # (hold, then the base mission retries the primary aisle) and `reroute`
+    # (M3's declared far-aisle waypoints). The permanent cell's wait arm is
+    # censored by construction (the box never moves), T2b's censored-margin
+    # precedent; one run per arm per cell (`score --min-runs 1`).
+    return SceneSpec(
+        name=f"loop_detour_{cell}",
+        initial_tasks={"robot_1": _task([2.3, 0.0])},
+        corridor={"axis": "x", "center_m": 0.0, "half_length_m": 1.0},
+        grounding_mode="derived",
+        reroute_waypoints=((0.3, 1.2), (1.8, 1.2)),
+        arms={
+            "wait": ArmSpec(
+                "temporary_wait", "config/mock_decisions/loop_detour_wait_once.json",
+                (("temporary_wait", ("robot_1",)),),
+            ),
+            "reroute": ArmSpec(
+                "reroute", "config/mock_decisions/loop_detour_reroute_once.json",
+                (("reroute", "robot_1"),),
+            ),
+        },
+    )
+
+
+SCENES["loop_detour_permanent"] = _loop_detour("permanent")
+SCENES["loop_detour_transient"] = _loop_detour("transient")
+
+
 def _scene(name: str) -> SceneSpec:
     if name not in SCENES:
         raise SystemExit(f"unknown scene {name!r}; registered: {sorted(SCENES)}")
@@ -376,6 +411,14 @@ def preflight(scene: SceneSpec, repo: Path) -> list[str]:
             problems.append(
                 f"orchestrator.yaml scenario_geometry.{field_name} is "
                 f"{geometry.get(field_name)!r}, {scene.name} needs {expected!r}"
+            )
+    if scene.reroute_waypoints is not None:
+        declared = geometry.get("reroute_waypoints")
+        expected_waypoints = [list(point) for point in scene.reroute_waypoints]
+        if declared is None or [list(point) for point in declared] != expected_waypoints:
+            problems.append(
+                f"orchestrator.yaml scenario_geometry.reroute_waypoints is {declared!r}, "
+                f"{scene.name} needs {expected_waypoints!r}"
             )
     rag_path = repo / RAG_RELPATH
     if not rag_path.is_file():

@@ -190,6 +190,16 @@ frame_downscale_width: null
 #     same goals, same start_delay_sec, same grounding.mode: legacy); only
 #     what is SCORED differs (header of
 #     isaac/config/scenarios/convoy_counterflow_slip.yaml)
+#   loop_detour_permanent / loop_detour_transient (prereg-v2 (b) loop-map
+#     wait-vs-detour family, one robot) -> robot_1 { task:
+#     cross_narrow_aisle, goal: [2.3, 0.0] } ONLY (no robot_2), AND
+#     scenario_geometry reroute_waypoints: [[0.3, 1.2], [1.8, 1.2]] (the
+#     far-aisle detour M3 grounds a reroute to; the base mission resumes the
+#     goal from the connector top); grounding.mode as shipped (derived); no
+#     static_obstacles, prompt_static_obstacles false -- the blocker must
+#     reach no text channel (headers of
+#     isaac/config/scenarios/loop_detour_{permanent,transient}.yaml;
+#     scripts/vm/v2_overlay.py applies exactly this row)
 # Running a _gshort or _bshort scenario without changing these dispatches +-2.5
 # and the variant silently degrades to its beyond-goal twin, blocker back on
 # the goal path (isaac/config/scenarios/family/*_{gshort,bshort}_o0.yaml).

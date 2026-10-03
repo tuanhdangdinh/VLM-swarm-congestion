@@ -606,6 +606,106 @@ class RetreatOracleConfig(BaseModel):
         return len(self.correct_candidates) / self.candidate_count
 
 
+LoopDetourArm = Literal["temporary_wait", "reroute"]
+
+
+class LoopDetourCostRecord(BaseModel):
+    """The forced-arm cost table of one loop-detour cell (prereg-v2 (b)).
+
+    Written from forced-wait and forced-reroute mock sweeps on the VM
+    (`scripts/strategy_regret.py score`, the T2b forced-order precedent):
+    each arm's time-to-goal from departure, from Isaac ground truth. A
+    censored arm never reached the goal inside the episode, so its time is
+    the episode end and only a lower bound. `winner` is the faster arm and
+    must be uncensored; `margin` is `loser / winner - 1` (a lower bound when
+    the loser is censored).
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    metric: Literal["time_to_goal_sec"] = "time_to_goal_sec"
+    wait_time_to_goal_sec: float = Field(gt=0.0)
+    wait_censored: bool
+    reroute_time_to_goal_sec: float = Field(gt=0.0)
+    reroute_censored: bool
+    winner: LoopDetourArm
+    margin: float
+    threshold: float = Field(default=0.20, ge=0.0)
+    n_per_arm: int = Field(ge=1)
+    run_ids: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _winner_and_margin_match_the_table(self) -> "LoopDetourCostRecord":
+        times = {
+            "temporary_wait": (self.wait_time_to_goal_sec, self.wait_censored),
+            "reroute": (self.reroute_time_to_goal_sec, self.reroute_censored),
+        }
+        win_sec, win_censored = times[self.winner]
+        lose_sec, _ = times["reroute" if self.winner == "temporary_wait" else "temporary_wait"]
+        if win_censored:
+            raise ValueError(f"winner {self.winner!r} is censored: no oracle is defined")
+        if win_sec > lose_sec:
+            raise ValueError(
+                f"winner {self.winner!r} ({win_sec}s) is slower than the other arm ({lose_sec}s)"
+            )
+        expected = lose_sec / win_sec - 1.0
+        if abs(self.margin - expected) > 1e-3:
+            raise ValueError(
+                f"margin {self.margin} does not match loser/winner - 1 = {expected:.4f}"
+            )
+        return self
+
+    @property
+    def passes(self) -> bool:
+        """Whether the winner dominates by at least the threshold."""
+        return self.margin >= self.threshold
+
+
+class LoopDetourOracleConfig(BaseModel):
+    """The wait-vs-detour oracle for one loop-map cell (prereg-v2 (b)).
+
+    The loop-map counterpart of `BlockerOracleConfig`: robot_1 is stopped
+    short of a blocker in the primary aisle with a real detour round the
+    loop's far aisle. The manipulated variable is the blocker's persistence,
+    carried only by its look (a box never moves; a marker-less robot
+    resumes), and the correct answer is the cheaper forced arm in `cost`:
+    `reroute` (the far-aisle detour) or `temporary_wait`. A permanent
+    blocker makes waiting unbounded, so its correct answer is `reroute` by
+    construction; `classical_strategy` is Arm B's answer, which reads no
+    image and is the same in both cells.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    persistence: Literal["permanent", "transient"]
+    correct_strategy: LoopDetourArm
+    accepted_strategies: tuple[LoopDetourArm, ...]
+    classical_strategy: OracleStrategy
+    classical_scenario: Literal["blocked_path", "unknown"]
+    objective: Literal["min_time_to_goal"] = "min_time_to_goal"
+    cost: LoopDetourCostRecord | None = None
+    rationale: str
+
+    @model_validator(mode="after")
+    def _answer_matches_persistence_and_cost(self) -> "LoopDetourOracleConfig":
+        if self.correct_strategy not in self.accepted_strategies:
+            raise ValueError(
+                f"accepted_strategies {self.accepted_strategies} must contain "
+                f"correct_strategy {self.correct_strategy!r}"
+            )
+        if self.persistence == "permanent" and self.correct_strategy != "reroute":
+            raise ValueError("a permanent blocker never clears: correct_strategy is reroute")
+        if self.cost is not None and self.cost.winner != self.correct_strategy:
+            raise ValueError(
+                f"cost winner {self.cost.winner!r} disagrees with correct_strategy "
+                f"{self.correct_strategy!r}"
+            )
+        return self
+
+    @property
+    def contrasts_classical(self) -> bool:
+        """Whether the correct answer differs from Arm B's."""
+        return self.classical_strategy not in self.accepted_strategies
+
+
 # The ordinal partial score of a `junction_clear` episode (prereg-v2 (a)
 # Scoring: "phase reached is the ordinal partial score"), in M5's own
 # `JunctionPhaseReached` vocabulary (swarm_orchestrator.junction_phase_queue),
@@ -693,6 +793,7 @@ class ScenarioConfig(BaseModel):
         | RetreatOracleConfig
         | PriorityOracleConfig
         | JunctionOracleConfig
+        | LoopDetourOracleConfig
         | None
     ) = None
     # Required but nullable: every scenario must state its conflict, and null

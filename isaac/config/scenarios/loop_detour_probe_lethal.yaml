@@ -1,0 +1,58 @@
+schema_version: 1
+name: loop_detour_probe_lethal
+family: blocked_path
+seed: 42
+duration_sec: 240.0
+
+# DIAGNOSTIC PROBE, not a family cell (prereg-v2 (b), build-order step 8
+# phase 2; report docs/reports/2026-10-03-loop-family-and-visual-pass.md,
+# "Lethal blocker"). Geometry identical to loop_detour_permanent.yaml
+# except the box spans the whole 0.50 m corridor (y in [-0.25, 0.25]):
+# a passage-closing blocker, T3a's design. Question: does Nav2 replan onto
+# the loop by itself (self-detour, pre-empting the decision layer) when
+# the primary aisle is closed? M5 overlay: robot_1
+# { cross_narrow_aisle, [2.3, 0.0] }.
+
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -2.4, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 2.3, y: 0.0}
+    initial_task: cross_narrow_aisle
+
+loop_map:
+  second_aisle_center_y_m: 1.2
+  second_aisle_width_m: 0.55
+  second_aisle_x_min_m: 0.6
+  second_aisle_x_max_m: 2.2
+  connector_center_x_m: 1.8
+  connector_width_m: 0.55
+  connector_remnant_height_m: 0.3
+
+aisle_barrier:
+  effective_width_m: 0.50
+  center_x_m: 0.975
+  length_m: 0.55
+
+timed_obstacles:
+  # Passage-closing box (probe only).
+  - obstacle_id: blocker
+    asset: static_box
+    spawn_at_sec: 0.0
+    remove_at_sec: null
+    pose: {x: 1.0, y: 0.0, yaw_rad: 0.0}
+    size: {x_m: 0.25, y_m: 0.50, z_m: 0.35}
+static_obstacles: []
+
+expected_conflict:
+  type: anomaly
+  involved_robots: [robot_1]
+  # From departure (~11-14 s) to a generous bound on the first stall
+  # trigger: robot_1 stops short of the gap (~3 m of transit at ~0.15 m/s)
+  # and M5 needs 12 wall-s (~3-5 sim-s) without progress.
+  onset_window_sec: [20.0, 60.0]
+  min_duration_sec: 12.0
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

@@ -1,0 +1,138 @@
+schema_version: 1
+name: loop_detour_transient
+family: blocked_path
+seed: 42
+duration_sec: 240.0
+
+# Loop-map wait-vs-detour family, TRANSIENT cell (prereg-v2 design
+# docs/superpowers/specs/2026-09-30-prereg-v2-design.md, "(b) Loop map";
+# build-order step 8 phase 2; report
+# docs/reports/2026-10-03-loop-family-and-visual-pass.md).
+# loop_detour_permanent.yaml and loop_detour_transient.yaml are
+# byte-identical except `name`, this header's first paragraph, the
+# timed_obstacles entry (the blocker entity) and the `oracle:` block;
+# tests/unit/test_loop_detour_scenarios.py pins the diff. The blocker here
+# is the marker-less robot visual ("paused robot"), untracked like T3a's
+# transient, removed at the registered dwell `remove_at_sec`.
+#
+# Manipulated variable: blocker PERSISTENCE, carried ONLY by the blocker's
+# look. Here: a grey box ("fallen box") that never moves -> waiting is
+# unbounded, the far-aisle detour is the answer. In the transient cell the
+# blocker is the marker-less robot visual ("paused robot") at the same
+# lidar footprint, which leaves after a registered dwell. No text channel
+# carries persistence: the blocker is untracked in both cells (no marker,
+# prompt_static_obstacles false, no orchestrator.yaml static_obstacles), the
+# only tracked robot is robot_1 with the neutral task label
+# cross_narrow_aisle, so both cells render byte-identical prompts.
+#
+# Geometry (all inside M1's verified tracked band |x| <= 2.5, |y| <= 2.0):
+#   - Loop map: identical to the phase-1 probes
+#     (docs/reports/2026-10-02-loop-preemption-smoke.md): second aisle at
+#     y = 1.2 (0.55 m wide, x in [0.6, 2.2]), one new connector at x = 1.8,
+#     connector-flanking remnants lowered to 0.3 m for camera visibility.
+#     Only one detour length exists on the minimal loop (one connector), so
+#     the family is ONE factor with two cells, not a 2x2.
+#   - Pinch corridor: aisle_barrier 0.50 m wide (the T3a-proven plannable
+#     corridor width; the collision_monitor's +-0.12 m stop box clears its
+#     walls by 0.13 m when centred) over x in [0.7, 1.25], between the
+#     junction square (|x| <= 0.6) and the new connector (x >= 1.525). Its
+#     0.9 m blocks shadow x in [0.93, 1.67], y in [0.31, 0.80] for the
+#     overhead camera: clear of the junction, the N-S strip, the second
+#     aisle and the connector centreline (x = 1.8).
+#   - Blocker: lidar cross-section y in [-0.25, 0.03] against the corridor's
+#     south wall, x in [0.875, 1.125], leaving a 0.22 m gap on the north
+#     side. That gap is the design control. It is wider than NavFn's
+#     closure (cells farther than the 0.07 m inscribed radius from both
+#     edges survive), so the global plan stays THROUGH the gap and Nav2
+#     never self-detours round the loop (phase-1's pre-emption control,
+#     restated for a stalling blocker); but it is narrower than the
+#     collision_monitor's 0.24 m forward stop box, so robot_1 is stopped
+#     short of it and stalls (M5's progress trigger fires). A
+#     passage-closing blocker (T3a's design) would make NavFn replan onto
+#     the loop at 1 Hz -- the decision would never reach M2/M3.
+#   - robot_1: spawn (-2.4, 0, 0) (marker 1's verified-clean point, not the
+#     registered x = -1.75 STALE point), goal (2.3, 0) as in the phase-1
+#     probes, 0.2 m inside the |x| <= 2.5 tracked edge.
+#   - Reroute: M3 grounds the declared detour (orchestrator.yaml
+#     scenario_geometry.reroute_waypoints [[0.3, 1.2], [1.8, 1.2]]): up the
+#     N-S strip, along the second aisle, to the connector top; the base
+#     mission then resumes the goal down the connector.
+#
+# Blocker (both cells spawn it at t = 0, so Nav2 and M1 see the same scene
+# until the transient leaves): a static_box 0.25 x 0.28 x 0.35 m centred
+# (1.0, -0.11); z clears the 0.182 m lidar plane like T3a's box. Its 0.28 m
+# width matches the transient's lidar footprint (the marker-less visual's
+# middle plate, ~0.25 m at scale 1.82, centred 0.095 m south of the
+# centreline), so both cells leave the same 0.22 m gap.
+#
+# M5 takes goals from swarm_orchestrator/config/orchestrator.yaml
+# initial_tasks, NOT from here: set robot_1 -> { task: cross_narrow_aisle,
+# goal: [2.3, 0.0] } and scenario_geometry.reroute_waypoints before a run
+# (scripts/vm/loop_family.sh does both and restores the pristine file).
+#
+# STALE instrumentation rule (build-order step 6 ruling): every run's
+# analysis flags any long STALE streak during any stationary dwell
+# (`scripts/coverage_scene_scores.py loop`).
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -2.4, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 2.3, y: 0.0}
+    initial_task: cross_narrow_aisle
+
+loop_map:
+  second_aisle_center_y_m: 1.2
+  second_aisle_width_m: 0.55
+  second_aisle_x_min_m: 0.6
+  second_aisle_x_max_m: 2.2
+  connector_center_x_m: 1.8
+  connector_width_m: 0.55
+  connector_remnant_height_m: 0.3
+
+aisle_barrier:
+  effective_width_m: 0.50
+  center_x_m: 0.975
+  length_m: 0.55
+
+timed_obstacles:
+  # Transient cell: the marker-less robot visual (scale 1.82, the T3a
+  # transient), heading east like robot_1 (a paused robot ahead in the
+  # pinch); `size` is its footprint, not authored. Its middle plate (the
+  # lidar cross-section, ~0.25 m) spans y in [-0.22, 0.03]: the same 0.22 m
+  # north gap as the permanent cell's box. It leaves at the registered
+  # dwell `remove_at_sec` (sim-s; the report's registration section).
+  - obstacle_id: blocker
+    asset: robot_visual_no_marker
+    spawn_at_sec: 0.0
+    remove_at_sec: 45.0
+    pose: {x: 1.0, y: -0.095, yaw_rad: 0.0}
+    size: {x_m: 0.25, y_m: 0.28, z_m: 0.35}
+static_obstacles: []
+
+expected_conflict:
+  type: anomaly
+  involved_robots: [robot_1]
+  # From departure (~11-14 s) to a generous bound on the first stall
+  # trigger: robot_1 stops short of the gap (~3 m of transit at ~0.15 m/s)
+  # and M5 needs 12 wall-s (~3-5 sim-s) without progress.
+  onset_window_sec: [20.0, 60.0]
+  min_duration_sec: 12.0
+
+oracle:
+  persistence: transient
+  correct_strategy: temporary_wait
+  accepted_strategies: [temporary_wait]
+  classical_strategy: reroute
+  classical_scenario: blocked_path
+  cost: null
+  rationale: >-
+    an unmarked robot-shaped agent paused in robot_1's lane moves on by
+    itself at the registered dwell, so waiting costs the remaining dwell
+    plus the short direct run, cheaper than the far-aisle detour (the
+    forced-arm cost table records both); Arm B, with no image, sees the
+    same blocked_path as in the permanent cell and reroutes, so this is the
+    family's divergent cell
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

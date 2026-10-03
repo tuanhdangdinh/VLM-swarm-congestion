@@ -1,0 +1,59 @@
+schema_version: 1
+name: loop_detour_probe_tracked
+family: blocked_path
+seed: 42
+duration_sec: 240.0
+
+# DIAGNOSTIC PROBE, not a family cell (prereg-v2 (b), build-order step 8
+# phase 2; report docs/reports/2026-10-03-loop-family-and-visual-pass.md,
+# "Tracked-robot blocker"). The literal faulted-robot design: the transient
+# blocker is a TRACKED robot (robot_2, marker 2) held mid-corridor by M5's
+# hold-back (initial_tasks start_delay_sec) and released after the dwell.
+# Geometry identical to loop_detour_permanent.yaml except the blocker is
+# robot_2 instead of the box. Question: does robot_1 stall short of
+# robot_2 at a distance that lets robot_2 leave (> M4's 0.45 m
+# min_distance latch), or does the pair latch (or Nav2 self-detour)?
+# M5 overlay: robot_1 { cross_narrow_aisle, [2.3, 0.0] }, robot_2
+# { cross_narrow_aisle, [2.0, -0.45], start_delay_sec: 200 } (wall-s).
+
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -2.4, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 2.3, y: 0.0}
+    initial_task: cross_narrow_aisle
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 1.0, y: -0.14, yaw_rad: 0.0}
+    goal: {x: 2.0, y: -0.45}
+    initial_task: cross_narrow_aisle
+
+loop_map:
+  second_aisle_center_y_m: 1.2
+  second_aisle_width_m: 0.55
+  second_aisle_x_min_m: 0.6
+  second_aisle_x_max_m: 2.2
+  connector_center_x_m: 1.8
+  connector_width_m: 0.55
+  connector_remnant_height_m: 0.3
+
+aisle_barrier:
+  effective_width_m: 0.50
+  center_x_m: 0.975
+  length_m: 0.55
+
+timed_obstacles: []
+static_obstacles: []
+
+expected_conflict:
+  type: anomaly
+  involved_robots: [robot_1]
+  # From departure (~11-14 s) to a generous bound on the first stall
+  # trigger: robot_1 stops short of the gap (~3 m of transit at ~0.15 m/s)
+  # and M5 needs 12 wall-s (~3-5 sim-s) without progress.
+  onset_window_sec: [20.0, 60.0]
+  min_duration_sec: 12.0
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

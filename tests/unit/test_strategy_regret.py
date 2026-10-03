@@ -76,6 +76,8 @@ def _scene_tree(tmp_path: Path, name: str) -> Path:
     ):
         if value is not None:
             orch["scenario_geometry"][field_name] = value
+    if scene.reroute_waypoints is not None:
+        orch["scenario_geometry"]["reroute_waypoints"] = [list(p) for p in scene.reroute_waypoints]
     if scene.shadow_classical_zones is not None:
         orch["shadow_classical_zones"] = [dict(z) for z in scene.shadow_classical_zones]
     orch["plan_channel_enabled"] = scene.plan_channel_enabled
