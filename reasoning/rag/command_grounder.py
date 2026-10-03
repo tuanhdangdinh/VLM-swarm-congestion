@@ -622,6 +622,15 @@ def ground_reasoner_result(
     return command if alias is None else _tag_alias(command, alias)
 
 
+def _reroute_waypoints(geometry: SceneGeometry | None) -> list[dict[str, float]]:
+    # The scene's declared detour (loop map) as M4's `waypoints` list; empty
+    # (M4 re-sends the goal) for every scene that declares none, so the
+    # command is byte-identical to the pre-loop-map grounder there.
+    if geometry is None or geometry.reroute_waypoints is None:
+        return []
+    return [{"x": float(x), "y": float(y)} for x, y in geometry.reroute_waypoints]
+
+
 def _legacy_passer_order(
     robot_ids: Sequence[str],
     decision: CongestionDecision,
@@ -1013,7 +1022,7 @@ def _ground_legacy(
             {
                 "robot_id": robot_ids[0],
                 "action": "reroute",
-                "parameters": {"waypoints": []},
+                "parameters": {"waypoints": _reroute_waypoints(geometry)},
             }
         ] + [
             {

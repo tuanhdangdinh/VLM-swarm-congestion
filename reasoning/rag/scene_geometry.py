@@ -123,6 +123,21 @@ class SceneGeometry(BaseModel):
     # every existing scene, including every v1 pin, byte-identical -- no
     # clamp is applied without an explicit declaration.
     tracked_extent_m: float | None = Field(default=None, gt=0.0)
+    # Loop-map reroute (prereg-v2 (b), build-order step 8 phase 2): the
+    # world-frame `(x, y)` waypoints, in order, that take a rerouted robot
+    # round the loop map's far aisle instead of re-sending its goal. M4
+    # follows them (`follow_waypoints`) and the base mission then resumes
+    # the robot's own goal from the last one, so the goal is not listed.
+    # Declared per scene because only the loop map has an alternative path
+    # to name. None (default) keeps every existing scene byte-identical: a
+    # reroute there still grounds `waypoints: []` (a goal re-send).
+    reroute_waypoints: tuple[tuple[float, float], ...] | None = None
+
+    @model_validator(mode="after")
+    def _reroute_waypoints_not_empty(self) -> SceneGeometry:
+        if self.reroute_waypoints is not None and not self.reroute_waypoints:
+            raise ValueError("reroute_waypoints must list at least one waypoint, or be None")
+        return self
 
     @model_validator(mode="after")
     def _stagger_needs_a_pocket(self) -> SceneGeometry:
