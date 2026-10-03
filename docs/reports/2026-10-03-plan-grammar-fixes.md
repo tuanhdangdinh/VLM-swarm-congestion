@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: FIX 1 (prompt v3.1 plan grammar) and FIX 2 (emission/consistency metric split) landed on `feat/v2-plan-grammar`. FIX 3 (χ-epsilon verbatim rule) is measured but NOT implemented: it is stopped for a ruling on a design-level dispatch conflict. FIX 4 ran one live ER-2 calibration episode on IB10 under prompt v3.1.
+- Rev 2: coordinator rulings implemented. FIX 3 is option (b) with ε = 0.15 (verification only, order-aware dispatch match with `order_equivalent`), and the repair bound is re-frozen at 4. The grammar re-pins as v3.2 (decision-field agreement rule, convoy gloss). The Mirrored-axis composite caveat is recorded.
 
 ---
 
@@ -18,7 +19,7 @@ section (a0).
 |---|---|
 | 1. Prompt v3.1 plan grammar | Landed (`13d7392`). One static, scenario-agnostic block plus a one-line gloss for every strategy token. v1/v2 pins are unchanged; the six v3 pins are re-pinned in place (pre-freeze, step-5 precedent). The block is byte-identical on head-on and junction renders (test-pinned). |
 | 2. Emission/consistency split | Landed (`7bf4e89`). `emitted` now means "a parseable plan was supplied". The new `consistent: bool \| None` carries the rejection. `agreement`, `edit_distance`, provenance and oracle-order agreement are unchanged. Old artifacts score by recomputation (checked on three stored live decisions). |
-| 3. χ-epsilon verbatim rule | **STOPPED for a ruling.** The measurement is done (table below). As specified, the rule reopens freeze-blocker 1: dispatch never follows the plan's recede order. With ε ≥ 0.02 m it also changes the step-7b bound-freeze outcome: bound 4 reaches full coverage. |
+| 3. χ-epsilon verbatim rule | Rev 1: stopped for a ruling. **Rev 2: implemented as ruled** (option (b), ε = 0.15, bound re-frozen at 4); see "Rev 2 — Rulings Implemented". |
 | 4. Live ER-2 calibration | One episode, PASS 4/4, `outcome_rank` (1, 4, 4), yielder last. **The plan shape changed.** Under v3.1, ER-2 proposed its first-ever recede legs (two `reverse`), on the E-W pair. The plan was consistent and `repaired` at exactly the frozen bound (3 edits). One apparatus re-run was used (Nav2 bringup flake). |
 
 Suite: 63 failed / 4565 passed / 152 skipped / 3 errors, against the
@@ -371,7 +372,145 @@ Interactions API), and a single prompt change. The shape change is
 
 ---
 
-## Open Items for the Coordinator
+## Rev 2 — Rulings Implemented
+
+The rulings are in the spec, (a0) section: "χ-epsilon verbatim rule
+(RULED)" and "Mirrored-axis composite caveat".
+
+### FIX 3 as ruled: option (b), ε = 0.15 (`b176e56`)
+
+- **The ε field:** `GroundingParams.junction_recede_order_epsilon: float
+  = 0.15` (ge 0). `config/rag.yaml` is untouched, so the default applies
+  and the pristine md5 still holds.
+- **The equivalence test:** `maneuver_geometry.recede_orders_equivalent`.
+  Two orders of the same recede set are one class when every pair they
+  order differently has a χ margin < ε.
+- **Verification only:** `_plan_problems` no longer flags a recede order
+  that is within ε of χ order, so no reorder repair is made. The
+  recede-SET audit (wrong membership, a missing candidate) stays strict.
+  Dispatch is untouched: `ground_junction_clear_phases` still uses χ
+  order.
+- **Order-aware dispatch match:** `junction_clear_plan_matches_dispatch`
+  is replaced by `junction_clear_dispatch_match(plan_legs, plan,
+  known_robot_ids, *, snapshot, geometry, params) -> JunctionDispatchMatch`,
+  with fields `matches: bool` and `order_equivalent: bool`. The plan's
+  `reverse` legs, in list order, are compared with the order the recede
+  phases dispatch them in:
+  - Identical order: `matches` = per-robot actions match, and
+    `order_equivalent=False`.
+  - Different order but within ε: `matches` = actions match, and
+    `order_equivalent=True`.
+  - Different order beyond ε: `matches=False`.
+- **Artifact surface:** `PlanDispatchInfo.order_equivalent: bool = False`
+  (`swarm_orchestrator/models.py`). The pipeline sets it from the junction
+  match, and it is serialized in every decision artifact's `plan` block.
+  It is False for every non-`junction_clear` decision. Pinned by
+  `test_junction_clear_within_epsilon_recede_order_is_recorded_order_equivalent`:
+  a run-B-shaped plan verifies `vlm_verbatim`, dispatches
+  [robot_4, robot_3], and records `dispatch_matches_plan=True,
+  order_equivalent=True`. Freeze-blocker 1 stays closed because the
+  divergence is recorded, not hidden.
+
+**Final sweep** (`scripts/junction_clear_repair_bound_sweep.py`, shipped
+defaults). `recede_order_swapped` has left the corpus, which is now 17
+cases.
+
+| Case | Category | Min depth | b=1 | b=2 | b=3 | b=4 |
+|---|---|---|---|---|---|---|
+| recede_pair_full_axis_swap | wrong_recede_pair | 4 (was 5) | m3_default | m3_default | m3_default | repaired |
+| recede_pair_one_wrong_robot1 | wrong_recede_pair | 3 | m3_default | m3_default | repaired | repaired |
+| recede_pair_one_wrong_robot2 | wrong_recede_pair | 1 | repaired | repaired | repaired | repaired |
+| order_fully_reversed | wrong_order | 2 | m3_default | repaired | repaired | repaired |
+| order_yield_first_only | wrong_order | 1 | repaired | repaired | repaired | repaired |
+| order_cross_before_recede | wrong_order | 2 | m3_default | repaired | repaired | repaired |
+| missing_one_recede_candidate | missing_legs | 3 | m3_default | m3_default | repaired | repaired |
+| missing_yielder | missing_legs | 2 | m3_default | repaired | repaired | repaired |
+| missing_both_recede_candidates | missing_legs | 4 | m3_default | m3_default | m3_default | repaired |
+| missing_everything_but_one_reverse | missing_legs | 1 | repaired | repaired | repaired | repaired |
+| inconsistent_all_{continue,wait,cross} | inconsistent_strategy | n/a | m3_default | m3_default | m3_default | m3_default |
+| combined_wrong_pair_and_order | combined | 4 (was 5) | m3_default | m3_default | m3_default | repaired |
+| combined_missing_leg_and_wrong_order | combined | 2 | m3_default | repaired | repaired | repaired |
+| plan_absent | control_absent | n/a | m3_default | m3_default | m3_default | m3_default |
+| plan_correct_verbatim | control_correct | 0 | vlm_verbatim | vlm_verbatim | vlm_verbatim | vlm_verbatim |
+
+On the repairable rows (13; inconsistent and absent excluded), the
+m3_default count at bounds 1/2/3/4 is **9/5/3/0**. It was 11/7/3/2 over
+14 before ε. Bound 4 is the smallest bound with full coverage, so
+`PlanRepairParams.max_repair_edits` is **re-frozen at 4**, per the
+registered 7b procedure. The pin test is
+`test_plan_verifier.py::TestRepairDistanceBound::test_default_bound_is_frozen_at_four`.
+
+Unit pins (`test_junction_clear_grounding.py`):
+- `TestRecedeSetAudit`:
+  - The full axis swap and missing-both cases are now `repaired` with 4
+    edits; the full axis swap is still `m3_default` at bound 3.
+  - Run B's order is verbatim within ε.
+  - A 0.22 m-margin order is still repaired with one `reorder`.
+  - ε = 0 restores the strict audit.
+- `TestRecedeOrderEquivalence` and `TestJunctionDispatchMatchIsOrderAware`
+  cover the new helper and match function.
+
+### Grammar re-pin, v3.2 (`9bb6780`)
+
+The two ruled additions; nothing else changed. The decision-field
+agreement rule rides the `"yield"` rule line, because
+`_plan_disagrees_with_decision_fields` runs for strategy `"yield"` only.
+Stating it as a general rule would describe a check that does not exist
+for the other strategies; this placement is flagged for the coordinator.
+
+```text
+Plan actions, for "proposed_plan":
+- "yield": back up, step aside, and hold until the passing robots have cleared
+- "reverse": back straight out along its own lane
+- "cross": proceed through in its assigned turn (the plan's list order)
+- "wait": hold in place
+- "reroute": take an alternative path
+- "continue": proceed unchanged; not part of the resolution
+A proposed plan must refine the chosen strategy; a plan that does not is ignored and the system derives the resolution instead:
+- strategy "yield": exactly one "yield" leg, and the plan must agree with your own yield_robot and crossing_order answers
+- strategy "temporary_wait": at least one "wait" leg
+- strategy "reroute": at least one "reroute" leg
+- strategy "junction_clear": at least one "reverse" or "yield" leg
+- any other strategy: no constraint on the legs
+```
+
+The convoy gloss now reads: `"convoy": robots heading the same way pass
+through in single file, in order, while an opposing robot gives way`.
+
+v3.2 pins. Each grows by +113 characters over v3.1; v1/v2 are unchanged.
+The calibration episode above ran on v3.1 (baseline pin `42463ce2…`).
+
+| Pin | Length | SHA-256 |
+|---|---|---|
+| baseline | 6029 | `c3fb9fcf4031f3c11961bfe7015887a38901d01049810f289b0c45324c36f873` |
+| id_desc | 6029 | `b5aa9b3540547a80db96c7a4d76b738edeb5eb0cb5216cf2d17a7d7e19d143d6` |
+| no_geometry | 5843 | `43eb4d90350bdbd5e08fd9aee3a3212b9b51401ac870aedc68886ce12ccc5f11` |
+| goals_obstacles | 6432 | `0e117f10d978030346e5cf04c23417c79997facfbd58605539f0b95203bda860` |
+| plan_state | 6311 | `080c12e4ae1c893f190aba29f063d978481432f119d1ff09b9521dcd6f950454` |
+| failure_context | 6388 | `495e565168db91d48621613496d498cc4f91ea7ccd8b4b64572b9ce4e34b9ea1` |
+
+### Oracle-order agreement and the Mirrored-axis composite caveat
+
+- `oracle_order_agreement` stays gated on `consistent`, as ruled; this
+  was already the Rev 1 implementation.
+- **Mirrored-axis composite caveat** (spec name). The calibration's
+  E-W-axis recede plan scores `repaired` *by convention*, not by proven
+  infeasibility: the mirrored composite is unmodeled, with no derived
+  pockets or clearances on that axis. It is recorded as an analysis
+  caveat on IB10 plan metrics; no code change.
+- Under the re-frozen bound the calibration plan stays `repaired` (3
+  edits). The 0.01 m χ-flip counterfactual is no longer bound-sensitive:
+  ε keeps the order within the class, and bound 4 would cover it anyway.
+
+### Suite (Rev 2)
+
+63 failed / 4581 passed / 152 skipped / 3 errors, against the
+`af7cec5` baseline of 63 / 4551 / 152 / 3. The failing-name set is
+identical; the +30 are this branch's tests.
+
+---
+
+## Open Items for the Coordinator (Rev 1; items 1, 2, 3 and 7 since ruled)
 
 1. FIX 3 ruling: option (a) or (b) above, and which ε reading (≈ 0.01 or
    ≈ 0.15) if any. Note the bound-4 consequence for the step-7b freeze
