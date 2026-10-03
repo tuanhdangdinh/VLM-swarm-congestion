@@ -345,6 +345,42 @@ reported verifier gains were a decoding artifact, arXiv:2506.17417,
 arXiv:2608.01207) — M3 is the verifier; agentic image-tool loops
 (infra cost; pre-rendered manipulations instead).
 
+**Apparatus rulings (2026-10-04, after the wave-1 build + VM smoke;
+report `docs/reports/2026-10-04-visual-apparatus.md`):**
+
+- All five flags BUILT and VM-verified (grid recessive/legible, no
+  marker occlusion — the 1.4% STALE at 0.149 m separation is the
+  known marker-contact mechanism, present in overlays-off
+  comparators; detection precedes annotation). Flag-off prompt,
+  frame, and request bodies pinned byte-identical.
+- VOTE BALLOT RULE (ruling): the majority is taken over DISTINCT
+  rendered orders, one ballot each. A duplicated order's calls are
+  first reconciled: agreement → one ballot; disagreement → no ballot
+  from that order, and the disagreement is recorded as an
+  `intra_order_inconsistency` flag — itself a measured quantity (a
+  live T=0 same-prompt divergence was observed in the smoke,
+  consistent with the registered nondeterminism caveat).
+- TIE RULE (registered): among tied ballots prefer the call whose
+  rendered order matches the registry order; else the earliest tied
+  call. With 3+ robots under random/id_desc draws the registry order
+  may be absent from the cyclic shifts — the earliest-tied fallback
+  is unbiased because shift position is a rotation of a random draw.
+- CANDIDATE-OPTIONS CONTEXT TABLE: ratified as built — options are
+  derived from M3's own `_plan_problems` audit under one fixed
+  strategy context per action (incl. `reverse` under `junction_clear`
+  when arms are declared); options are advisory, free-plan legality
+  unchanged.
+- `prompt_conditions` on EVERY artifact: ratified (deliberate break
+  from add-when-set; condition visibility wins).
+- ZOOM FRAMING (ruling): the tile frames the detector's INVOLVED
+  set, not only the trigger robot (small follow-up fix).
+- GRID × T0 PROBES (ruling): probe artifacts record the frame
+  condition; grid-on runs' probes are NOT poolable with grid-off
+  probes across cells — a documented comparability bound, since the
+  frozen probe prompt cannot mention the grid.
+- Trail window stays at the registered 3 s (A/B later if trails
+  underperform at low speeds).
+
 **Statistics and reporting (rev 6, from the methodology review)**
 
 - Paired two-arm design keyed on (scenario, seed); McNemar exact
