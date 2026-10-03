@@ -38,6 +38,17 @@ Subcommands:
   attribution and yielder-last, position-verified arrivals, the derived
   `outcome_rank`, the tracked-band check and the STALE-streak
   instrumentation.
+- `loop --scenario S --gt DIR [--decisions DIR] [--scene F] [--sampler F]`:
+  one loop-detour run (prereg-v2 (b), `loop_detour_*`): robot_1's
+  time-to-goal (censored when it never arrives), its stall onset and pose,
+  whether and when it entered the loop (y > 0.6), the first dispatched
+  decision's strategy and stamp, the self-detour flag (entered the loop
+  with no reroute dispatched before it -- Nav2 pre-empting the decision
+  layer), the decision's oracle correctness and `outcome_rank`, the
+  tracked-band check and the STALE streaks.
+- `loop-cost --table F`: turn a `scripts/strategy_regret.py score` cost
+  table for a `loop_detour_*` scene into the scenario's `oracle.cost`
+  record (`LoopDetourCostRecord`), validated.
 
 Definitions fixed before any smoke run (2026-09-29; B3 first-to-slip added
 2026-10-02; IB10 frozen 2026-10-03, step-7b Part 3); see each function.
@@ -50,6 +61,10 @@ Usage:
     python3 scripts/coverage_scene_scores.py ib10 --gt runs/ib10/gt \
         --decisions runs/ib10/decisions --m5-log runs/ib10/m5.log \
         --m4-log runs/ib10/m4.log --scene runs/ib10/scene.jsonl
+    python3 scripts/coverage_scene_scores.py loop --scenario loop_detour_permanent \
+        --gt runs/perm_wait/gt --decisions runs/perm_wait/decisions \
+        --scene runs/perm_wait/m5_scene.jsonl --sampler runs/perm_wait/sampler.jsonl
+    python3 scripts/coverage_scene_scores.py loop-cost --table perm_cost_table.json
 """
 from __future__ import annotations
 
@@ -109,6 +124,13 @@ IB10_TRACKED_BAND_M = (2.5, 1.80)
 # Ordinal partial score (oracle.phase_ordinal); 0 when no junction_clear
 # phase was ever dispatched.
 IB10_PHASE_NONE = "none"
+# Loop-detour family (prereg-v2 (b)): the primary aisle's north edge; any
+# robot_1 GT sample (or Nav2 global-plan pose) north of it is in the
+# connector band / far aisle, i.e. on the loop.
+LOOP_ENTRY_Y_M = 0.6
+# M1's verified tracked band for the loop map (y-extent report Run B and the
+# loop smoke's coverage probe): |x| <= 2.5, |y| <= 2.0.
+LOOP_TRACKED_BAND_M = (2.5, 2.0)
 _PHASE_ADVANCE_RE = re.compile(r"junction_clear phase advance .*phase_reached=(\w+) done=(\w+)")
 _GATE_RE = re.compile(
     r"crossing_chain (gate_admit|gate_cleared|gate_release) command=(\S+) yielder=(\S+)"
@@ -1244,6 +1266,197 @@ def score_ib10(
     }
 
 
+def first_dispatch(decisions_dir: Path) -> dict[str, Any] | None:
+    """The run's first dispatched decision (any strategy), by scene stamp.
+
+    Args:
+        decisions_dir: The run's copied M5 decision artifacts.
+
+    Returns:
+        `{"stamp", "strategy", "artifact"}`, or None when nothing was
+        dispatched (no artifact with a detected congestion and a grounded
+        command).
+    """
+    found = []
+    for path in sorted(decisions_dir.glob("*.json")):
+        record = json.loads(path.read_text(encoding="utf-8"))
+        decision = record.get("decision") or {}
+        if decision.get("congestion_detected") and record.get("grounded_command_present"):
+            stamp = (record.get("scene") or {}).get("stamp", 0.0)
+            found.append((stamp, path.name, decision.get("strategy")))
+    if not found:
+        return None
+    stamp, name, strategy = min(found)
+    return {"stamp": stamp, "strategy": strategy, "artifact": name}
+
+
+def stall_onset(
+    samples: list[Sample], start: float, end: float,
+    speed_mps: float = STOP_SPEED_MPS, min_spell_sec: float = STOP_MIN_SPELL_SEC,
+) -> Sample | None:
+    """The first sample of the first stopped spell of at least `min_spell_sec`.
+
+    Same spell rule as `stop_time_sec` (speed < 0.02 m/s for >= 1 s).
+
+    Args:
+        samples: One robot's GT samples.
+        start: Window start (sim-s), normally t0.
+        end: Window end (sim-s).
+        speed_mps: A sample slower than this is stopped.
+        min_spell_sec: Shorter spells do not count.
+
+    Returns:
+        The spell's first sample, or None when the robot never stalls.
+    """
+    spell: Sample | None = None
+    for sample in samples:
+        if not start <= sample.t <= end:
+            continue
+        if sample.speed < speed_mps:
+            if spell is None:
+                spell = sample
+            elif sample.t - spell.t >= min_spell_sec:
+                return spell
+        else:
+            spell = None
+    return None
+
+
+def score_loop(
+    gt_dir: Path,
+    scenario: dict[str, Any],
+    *,
+    decisions_dir: Path | None = None,
+    scene_log: Path | None = None,
+    sampler_log: Path | None = None,
+    robot_id: str = "robot_1",
+) -> dict[str, Any]:
+    """One loop-detour run (prereg-v2 (b), build-order step 8 phase 2).
+
+    Time-to-goal follows the T2b arrival rule (`score_ground_truth`); a run
+    that never arrives is censored (time to the episode end, a lower
+    bound). `self_detour` is the pre-emption failure the family's design
+    control exists to prevent: robot_1 on the loop with no `reroute`
+    dispatched before it got there. `outcome_rank` orders episodes
+    (arrived first, then faster), mirroring IB10's derived rank.
+
+    Args:
+        gt_dir: The run's ground-truth directory.
+        scenario: The scenario dict (its `oracle` scores the decision).
+        decisions_dir: The run's M5 decision artifacts.
+        scene_log: The run's M5 scene log (STALE streaks).
+        sampler_log: The run's `loop_family_sampler.py` JSONL.
+        robot_id: The decision robot.
+
+    Returns:
+        The scored record; a section is None when its input was not given.
+    """
+    series = load_ground_truth(gt_dir)
+    run = score_ground_truth("loop", gt_dir)
+    samples = series[robot_id]
+    arrival = run.arrivals_sec.get(robot_id)
+    censored = arrival is None
+    time_to_goal = round((run.end_sec if censored else arrival) - run.t0_sec, 2)
+    stall = stall_onset(samples, run.t0_sec, run.end_sec if censored else arrival)
+    on_loop = next((s for s in samples if s.y > LOOP_ENTRY_Y_M), None)
+    dispatch = None if decisions_dir is None else first_dispatch(decisions_dir)
+    reroute_at = (
+        dispatch["stamp"] if dispatch is not None and dispatch["strategy"] == "reroute" else None
+    )
+    self_detour = None
+    if on_loop is not None and decisions_dir is not None:
+        self_detour = reroute_at is None or on_loop.t < reroute_at
+    elif on_loop is None:
+        self_detour = False
+    oracle = scenario.get("oracle") or {}
+    accepted = oracle.get("accepted_strategies")
+    label = None if dispatch is None else dispatch["strategy"]
+    plans = None
+    if sampler_log is not None and sampler_log.is_file():
+        rows = [json.loads(line) for line in sampler_log.read_text(encoding="utf-8").splitlines()
+                if line.strip()]
+        before = [r for r in rows if reroute_at is None or (r.get("sim") or 0.0) < reroute_at]
+        bottlenecks = [r["global_gap_bottleneck"] for r in rows
+                       if r.get("global_gap_bottleneck") is not None]
+        plans = {
+            "rows": len(rows),
+            "plan_rows": sum(1 for r in rows if r.get("plan")),
+            "plan_on_loop_before_reroute": sum(
+                1 for r in before if (r.get("plan") or {}).get("entered_second_aisle")
+            ),
+            "max_global_gap_bottleneck": max(bottlenecks) if bottlenecks else None,
+            "min_global_gap_bottleneck": min(bottlenecks) if bottlenecks else None,
+        }
+    return {
+        "scene": scenario.get("name"),
+        "t0_sec": run.t0_sec,
+        "end_sec": run.end_sec,
+        "arrived": not censored,
+        "time_to_goal_sec": time_to_goal,
+        "censored": censored,
+        "stall": None if stall is None else {
+            "onset_sec": round(stall.t, 2), "x": round(stall.x, 3), "y": round(stall.y, 3),
+        },
+        "entered_loop_sec": None if on_loop is None else round(on_loop.t, 2),
+        "max_y": round(max(s.y for s in samples), 3),
+        "dispatch": dispatch,
+        "self_detour": self_detour,
+        "plans": plans,
+        "decision_correct": (
+            None if accepted is None or label is None else label in accepted
+        ),
+        "outcome_rank": (int(not censored), -time_to_goal),
+        "tracked_band": {
+            "max_abs_x": round(max(abs(s.x) for s in samples), 3),
+            "max_abs_y": round(max(abs(s.y) for s in samples), 3),
+            "in_band": all(
+                abs(s.x) <= LOOP_TRACKED_BAND_M[0] and abs(s.y) <= LOOP_TRACKED_BAND_M[1]
+                for s in samples
+            ),
+        },
+        "stale_streaks": None if scene_log is None else stale_streaks(scene_log),
+    }
+
+
+def loop_cost_record(table: dict[str, Any]) -> dict[str, Any]:
+    """A loop-detour cell's `oracle.cost` record from its strategy cost table.
+
+    Args:
+        table: `scripts/strategy_regret.py score` output for a
+            `loop_detour_*` scene (arms `wait` and `reroute`).
+
+    Returns:
+        The record as validated `LoopDetourCostRecord` fields.
+
+    Raises:
+        ValueError: If an arm is missing, the faster arm is censored, or the
+            record fails validation.
+    """
+    from isaac.vgu_sim.config import LoopDetourCostRecord
+
+    arms = table["arms"]
+    missing = {"wait", "reroute"} - set(arms)
+    if missing:
+        raise ValueError(f"cost table lacks arms {sorted(missing)}")
+    wait, reroute = arms["wait"], arms["reroute"]
+    winner_arm = "wait" if wait["mean_total_sec"] <= reroute["mean_total_sec"] else "reroute"
+    loser_arm = "reroute" if winner_arm == "wait" else "wait"
+    win, lose = arms[winner_arm], arms[loser_arm]
+    record = {
+        "metric": "time_to_goal_sec",
+        "wait_time_to_goal_sec": wait["mean_total_sec"],
+        "wait_censored": bool(wait["censored"]),
+        "reroute_time_to_goal_sec": reroute["mean_total_sec"],
+        "reroute_censored": bool(reroute["censored"]),
+        "winner": "temporary_wait" if winner_arm == "wait" else "reroute",
+        "margin": round(lose["mean_total_sec"] / win["mean_total_sec"] - 1.0, 4),
+        "threshold": 0.20,
+        "n_per_arm": min(wait["n"], reroute["n"]),
+        "run_ids": [*wait["run_ids"], *reroute["run_ids"]],
+    }
+    return LoopDetourCostRecord(**record).model_dump(mode="json")
+
+
 def _dump(result: Any, out: str | None) -> None:
     text = json.dumps(result, indent=2)
     print(text)
@@ -1298,6 +1511,29 @@ def _cmd_ib10(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_loop(args: argparse.Namespace) -> int:
+    def path(value: str | None) -> Path | None:
+        return None if value is None else Path(value)
+
+    _dump(
+        score_loop(
+            Path(args.gt),
+            load_scenario(args.scenario),
+            decisions_dir=path(args.decisions),
+            scene_log=path(args.scene),
+            sampler_log=path(args.sampler),
+        ),
+        args.out,
+    )
+    return 0
+
+
+def _cmd_loop_cost(args: argparse.Namespace) -> int:
+    table = json.loads(Path(args.table).read_text(encoding="utf-8"))
+    _dump(loop_cost_record(table), args.out)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -1327,6 +1563,18 @@ def main(argv: list[str] | None = None) -> int:
     ib10.add_argument("--scene")
     ib10.add_argument("--out")
     ib10.set_defaults(func=_cmd_ib10)
+    loop = sub.add_parser("loop", help="one loop-detour run (prereg-v2 (b))")
+    loop.add_argument("--scenario", required=True)
+    loop.add_argument("--gt", required=True)
+    loop.add_argument("--decisions")
+    loop.add_argument("--scene")
+    loop.add_argument("--sampler")
+    loop.add_argument("--out")
+    loop.set_defaults(func=_cmd_loop)
+    loop_cost = sub.add_parser("loop-cost", help="a loop-detour cell's oracle.cost record")
+    loop_cost.add_argument("--table", required=True)
+    loop_cost.add_argument("--out")
+    loop_cost.set_defaults(func=_cmd_loop_cost)
     args = parser.parse_args(argv)
     return args.func(args)
 

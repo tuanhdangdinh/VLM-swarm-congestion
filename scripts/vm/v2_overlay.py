@@ -74,7 +74,7 @@ def overlay_orchestrator(text: str, scene: str) -> str:
     """
     if scene not in SCENE_TASKS:
         raise ValueError(f"unknown scene {scene!r}; known: {sorted(SCENE_TASKS)}")
-    if "reroute_waypoints:" in text:
+    if re.search(r"^  reroute_waypoints:", text, re.MULTILINE):
         raise ValueError("reroute_waypoints already present: restore the pristine file first")
     tasks = "initial_tasks:\n" + "\n".join(SCENE_TASKS[scene]) + "\n"
     text = _sub_once(TASKS_RE, lambda _m: tasks, text, "initial_tasks: block")
