@@ -167,9 +167,9 @@ class TestVoting:
         assert winning_request.robot_presentation_order == "id_asc"
         assert record.tie_rule == TIE_RULE
 
-    def test_tie_goes_to_the_call_rendering_the_registry_order(self, tmp_path):
-        # Drawn base (robot_2, robot_3, robot_1): shift 2 renders the registry
-        # order (robot_1, robot_2, robot_3), so a 1-1-1 tie goes to call 2.
+    def test_tie_ignores_a_call_rendering_the_registry_order(self, tmp_path):
+        # Revised tie rule (2026-10-04): shift 2 renders the registry order
+        # (robot_1, robot_2, robot_3), but a 1-1-1 tie still goes to call 0.
         texts = [
             _decision_json(strategy="reverse"),
             _decision_json(strategy="temporary_wait"),
@@ -181,10 +181,10 @@ class TestVoting:
             reasoner, request, 3, registry_order=("robot_1", "robot_2", "robot_3")
         )
         assert record.calls[2].order == ("robot_1", "robot_2", "robot_3")
-        assert record.tie_broken and record.winner_index == 2
-        assert record.tie_resolved_by == "registry_order"
-        assert result.decision.strategy == "yield"
-        assert winning_request.robot_presentation_order == ("robot_1", "robot_2", "robot_3")
+        assert record.tie_broken and record.winner_index == 0
+        assert record.tie_resolved_by == "earliest_call"
+        assert result.decision.strategy == "reverse"
+        assert winning_request.robot_presentation_order == ("robot_2", "robot_3", "robot_1")
 
     def test_tie_falls_back_to_earliest_call_when_no_call_renders_the_registry_order(
         self, tmp_path
@@ -204,9 +204,30 @@ class TestVoting:
         assert record.winner_index == 0 and record.tie_resolved_by == "earliest_call"
         assert result.decision.strategy == "reverse"
 
-    def test_two_robot_tie_resolves_to_the_registry_order_call(self, tmp_path):
-        # id_desc two-robot base: calls render (2,1), (1,2), (2,1); call 0
-        # abstains, calls 1 and 2 disagree -> the registry order (1,2) is call 1.
+    @pytest.mark.parametrize("base", ["id_asc", "id_desc"])
+    def test_two_robot_disagreement_goes_to_call_zero_whichever_order_is_id_asc(
+        self, tmp_path, base
+    ):
+        # Revised tie rule: an inter-order disagreement is a 1:1 tie that goes
+        # to call 0's ballot (the drawn order), whether or not it is id_asc.
+        texts = [_decision_json(yield_robot="robot_1"), _decision_json(yield_robot="robot_2")]
+        reasoner, _ = _reasoner(texts)
+        request = _request(
+            tmp_path, robots=("robot_1", "robot_2"), robot_presentation_order=base
+        )
+        result, record, winning_request = run_permutation_votes(
+            reasoner, request, 2, registry_order=("robot_1", "robot_2")
+        )
+        assert record.tie_broken and record.tie_resolved_by == "earliest_call"
+        assert record.winner_index == 0
+        assert result.decision.yield_robot == "robot_1"
+        assert winning_request.robot_presentation_order == base
+
+    def test_two_robot_tie_after_an_abstaining_call_zero_goes_to_the_earliest_ballot(
+        self, tmp_path
+    ):
+        # id_desc base: calls render (2,1), (1,2), (2,1); call 0 abstains, so
+        # (2,1)'s ballot is call 2's and (1,2)'s ballot (call 1) is earliest.
         texts = [
             _REFUSAL,
             _decision_json(yield_robot="robot_1"),
@@ -219,7 +240,7 @@ class TestVoting:
         result, record, _ = run_permutation_votes(
             reasoner, request, 3, registry_order=("robot_1", "robot_2")
         )
-        assert record.winner_index == 1 and record.tie_resolved_by == "registry_order"
+        assert record.winner_index == 1 and record.tie_resolved_by == "earliest_call"
         assert result.decision.yield_robot == "robot_1"
 
     def test_majority_ignores_the_registry_order(self, tmp_path):
@@ -339,10 +360,11 @@ class TestBallotRule:
         assert record.tie_broken
         assert record.intra_order_inconsistency is False
 
-    def test_double_weighted_drawn_order_loses_the_tie_to_the_registry_order(self, tmp_path):
+    def test_double_weighted_drawn_order_ties_and_the_drawn_order_wins(self, tmp_path):
         # id_desc base: calls render (2,1), (1,2), (2,1). Calls 0 and 2 (the
-        # drawn order) say robot_2; call 1 (the registry order) says robot_1.
-        # The old per-call count gave robot_2 2:1; the 1:1 tie now goes to call 1.
+        # drawn order) say robot_2; call 1 (id_asc) says robot_1. The old
+        # per-call count gave robot_2 2:1; now 1:1, and the tie goes to call 0
+        # although call 1 rendered the registry order.
         texts = [
             _decision_json(yield_robot="robot_2"),
             _decision_json(yield_robot="robot_1"),
@@ -350,26 +372,10 @@ class TestBallotRule:
         ]
         reasoner, _ = _reasoner(texts)
         request = _request(tmp_path, robots=_TWO, robot_presentation_order="id_desc")
-        result, record, winning_request = run_permutation_votes(
-            reasoner, request, 3, registry_order=_TWO
-        )
-        assert record.tie_broken and record.tie_resolved_by == "registry_order"
-        assert record.winner_index == 1
-        assert result.decision.yield_robot == "robot_1"
-        assert winning_request.robot_presentation_order == _TWO
-
-    def test_double_weighted_tie_without_registry_order_goes_to_the_earliest_call(
-        self, tmp_path
-    ):
-        texts = [
-            _decision_json(yield_robot="robot_2"),
-            _decision_json(yield_robot="robot_1"),
-            _decision_json(yield_robot="robot_2"),
-        ]
-        reasoner, _ = _reasoner(texts)
-        request = _request(tmp_path, robots=_TWO, robot_presentation_order="id_desc")
-        result, record, _ = run_permutation_votes(reasoner, request, 3)
-        assert record.tie_resolved_by == "earliest_call" and record.winner_index == 0
+        result, record, _ = run_permutation_votes(reasoner, request, 3, registry_order=_TWO)
+        assert [vc.count for vc in record.vote_counts] == [1, 1]
+        assert record.tie_broken and record.tie_resolved_by == "earliest_call"
+        assert record.winner_index == 0
         assert result.decision.yield_robot == "robot_2"
 
     def test_two_votes_two_robots_is_one_ballot_per_order(self, tmp_path):
@@ -378,8 +384,8 @@ class TestBallotRule:
         request = _request(tmp_path, robots=_TWO, robot_presentation_order="id_desc")
         result, record, _ = run_permutation_votes(reasoner, request, 2, registry_order=_TWO)
         assert record.distinct_orders == 2 and len(record.ballots) == 2
-        assert record.tie_resolved_by == "registry_order" and record.winner_index == 1
-        assert result.decision.yield_robot == "robot_2"
+        assert record.tie_resolved_by == "earliest_call" and record.winner_index == 0
+        assert result.decision.yield_robot == "robot_1"
 
     def test_reconciled_agreement_counts_one_ballot_per_order(self, tmp_path):
         reasoner, _ = _reasoner([_decision_json(yield_robot="robot_2")] * 3)
@@ -539,9 +545,9 @@ class TestPipelineIntegration:
         )
         assert len(backend.payloads) == 1
 
-    def test_pipeline_passes_the_registry_order_to_the_tie_rule(self, tmp_path):
+    def test_pipeline_records_the_registry_order_without_using_it(self, tmp_path):
         texts = [
-            _REFUSAL,
+            _decision_json(yield_robot="robot_2"),
             _decision_json(yield_robot="robot_1"),
             _decision_json(yield_robot="robot_2"),
         ]
@@ -553,8 +559,8 @@ class TestPipelineIntegration:
             _request(tmp_path, robots=("robot_1", "robot_2"), robot_presentation_order="id_desc")
         )
         assert outcome.permutation_votes.registry_order == ("robot_1", "robot_2")
-        assert outcome.permutation_votes.tie_resolved_by == "registry_order"
-        assert outcome.reasoner_result.decision.yield_robot == "robot_1"
+        assert outcome.permutation_votes.tie_resolved_by == "earliest_call"
+        assert outcome.reasoner_result.decision.yield_robot == "robot_2"
 
     def test_pipeline_never_grounds_a_vote_with_no_surviving_ballot(self, tmp_path):
         texts = [

@@ -22,15 +22,14 @@ not a disagreement: the order's ballot is reconciled over the calls that
 voted, and an order whose calls all abstained casts no ballot. Each ballot
 is represented by its earliest voting call.
 
-Tie rule (registered): among the keys tied for the most ballots, the key
-whose ballot was cast by the order matching the registry order wins -- M5's
-task-registry robot order (`initial_tasks` order, restricted to the
-request's robots; robots the registry does not name follow in ascending
-id). Fallback, so the rule is total: when no tied ballot came from the
-registry order (that order cast none, or no cyclic shift of the drawn base
-equals it -- possible with 3+ robots under a `random` or `id_desc` draw),
-the key whose ballot's representative call is EARLIEST wins (call 0 is the
-drawn order). `tie_resolved_by` records which branch fired.
+Tie rule (REVISED 2026-10-04): among the keys tied for the most ballots,
+the EARLIEST tied ballot's representative call wins, full stop. Call 0 is
+the episode's randomized draw, so this is unbiased across episodes and
+deterministic within one. The former registry-order preference is dropped:
+the registry order is id_asc, the rendering the presentation-order finding
+tied to the first-slot/robot_1 priors, so preferring it would resolve every
+two-robot inter-order disagreement toward the biased order. The registry
+order is still recorded (`registry_order`) but never decides anything.
 
 The winning ballot's representative call's `ReasonerResult` is returned
 whole: `proposed_plan`, `reasoning`, `root_cause`, `justification`,
@@ -54,7 +53,7 @@ from reasoning.vlm.models import (
 )
 from reasoning.vlm.prompt_builder import build_prompt_payload, order_robot_states
 
-TIE_RULE = "registry_order_call_first:fallback_earliest_call"
+TIE_RULE = "earliest_tied_ballot"
 BALLOT_RULE = "one_ballot_per_distinct_order:duplicates_reconciled_disagreement_voids"
 NO_BALLOT_ERROR = "permutation_vote_no_ballot"
 
@@ -139,8 +138,8 @@ class PermutationVoteRecord(BaseModel):
     winner_index: int | None
     winner_vote: VoteKey | None
     tie_broken: bool
-    # The registry order the tie rule looks for, and which branch resolved a
-    # tie: "registry_order", "earliest_call" (fallback), or None (no tie).
+    # M5's registry order, recorded for analysis only (it decides nothing),
+    # and "earliest_call" when a tie was broken, else None.
     registry_order: tuple[str, ...] | None = None
     tie_resolved_by: str | None = None
     ballots: list[Ballot] = Field(default_factory=list)
@@ -236,8 +235,8 @@ def run_permutation_votes(
         reasoner: The stage-1 reasoner (`Reasoner.run`).
         request: The episode's request; its order is shift 0.
         votes: Number of calls (>= 1).
-        registry_order: M5's task-registry robot order for the tie rule;
-            None skips the registry branch (earliest call breaks ties).
+        registry_order: M5's task-registry robot order, recorded on the
+            record only; it never affects the outcome (revised tie rule).
 
     Returns:
         `(winning result, vote record, winning call's request)`: the winning
@@ -283,7 +282,7 @@ def run_permutation_votes(
         if registry_order is None
         else registry_presentation_order(registry_order, [s.robot_id for s in request.robot_states])
     )
-    winner, tie_broken, tie_resolved_by = _elect(ballots, target)
+    winner, tie_broken, tie_resolved_by = _elect(ballots)
     counts = _vote_counts(ballots)
     record = PermutationVoteRecord(
         votes_requested=votes,
@@ -346,25 +345,18 @@ def reconcile_ballots(
     return ballots, inconsistent
 
 
-def _elect(
-    ballots: list[Ballot], target: tuple[str, ...] | None
-) -> tuple[Ballot | None, bool, str | None]:
-    """Majority over ballots with the registered tie rule; `(winner, tied, branch)`."""
+def _elect(ballots: list[Ballot]) -> tuple[Ballot | None, bool, str | None]:
+    """Majority over ballots; a tie goes to the earliest tied ballot. `(winner, tied, branch)`."""
     if not ballots:
         return None, False, None
     tally = Counter(ballot.vote for ballot in ballots)
     top = max(tally.values())
     tied_votes = {vote for vote, count in tally.items() if count == top}
     # Ballots are sorted by representative call, so the first is the earliest.
-    candidates = [ballot for ballot in ballots if ballot.vote in tied_votes]
+    winner = next(ballot for ballot in ballots if ballot.vote in tied_votes)
     if len(tied_votes) == 1:
-        return candidates[0], False, None
-    registry_ballot = next(
-        (ballot for ballot in candidates if target is not None and ballot.order == target), None
-    )
-    if registry_ballot is not None:
-        return registry_ballot, True, "registry_order"
-    return candidates[0], True, "earliest_call"
+        return winner, False, None
+    return winner, True, "earliest_call"
 
 
 def _vote_counts(ballots: list[Ballot]) -> list[VoteCount]:

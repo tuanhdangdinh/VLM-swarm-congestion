@@ -46,13 +46,19 @@ Rules for maintaining it:
     disagreement gives none, and the order is recorded under
     `intra_order_inconsistency` (always written) / `inconsistent_orders`.
   - Abstaining calls are not disagreement. The earliest voting call
-    represents its ballot. The tie rule is unchanged, applied over ballots.
+    represents its ballot.
+  - **Tie rule REVISED (spec "TIE RULE (REVISED 2026-10-04)"):** a tie goes
+    to the earliest tied ballot's representative call, full stop. The
+    registry-order preference is dropped, because the registry order is
+    id_asc and would take every two-robot disagreement toward the biased
+    order. `registry_order` is still recorded but decides nothing
+    (`tie_rule=earliest_tied_ballot`).
   - **No surviving ballot returns `decision=None`**
     (`error_type=permutation_vote_no_ballot`), so a voided call 0 is never
     grounded.
   - **Smoke script replayed:** the `votes_r1` script would now be
     inconsistent on calls [0, 2] and robot_2 would win 1:0. An agreeing
-    duplicate becomes a 1:1 tie.
+    duplicate becomes a 1:1 tie, which call 0's ballot wins.
   - **Zoom framing needed no code change:** M5 already framed
     `CongestionEvent.involved_robots`. The live single-robot tiles came
     from single-robot detector events, which this ruling leaves as they
@@ -117,7 +123,7 @@ Rules for maintaining it:
   - **Neutral-image fallback** now neutralizes the zoom tile too.
   - **Permutation-vote tie rule:** ties go to the call rendering the
     registry (`initial_tasks`) order. If no call rendered it, the earliest
-    call wins.
+    call wins (superseded by 2026-10-04 apparatus-rulings entry).
   - **Candidate options are derived by running `_plan_problems` itself on
     probe plans.** On IB10 only the N-S recede pair is offered `reverse`;
     the axis-mirror is never offered. The options flag is a CONSTRUCT
