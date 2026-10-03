@@ -37,6 +37,29 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-04** — **Apparatus rulings implemented on
+  `feat/v2-apparatus-fixes` (`788a5a7`; rulings in the prereg-v2 spec's
+  "Apparatus rulings (2026-10-04…)" block).** Supersedes the 2:1 wrap
+  gotcha in the apparatus-build entry below.
+  - **Ballot rule:** one ballot per DISTINCT rendered order. A duplicated
+    order's voting calls are reconciled first. Agreement gives one ballot;
+    disagreement gives none, and the order is recorded under
+    `intra_order_inconsistency` (always written) / `inconsistent_orders`.
+  - Abstaining calls are not disagreement. The earliest voting call
+    represents its ballot. The tie rule is unchanged, applied over ballots.
+  - **No surviving ballot returns `decision=None`**
+    (`error_type=permutation_vote_no_ballot`), so a voided call 0 is never
+    grounded.
+  - **Smoke script replayed:** the `votes_r1` script would now be
+    inconsistent on calls [0, 2] and robot_2 would win 1:0. An agreeing
+    duplicate becomes a 1:1 tie.
+  - **Zoom framing needed no code change:** M5 already framed
+    `CongestionEvent.involved_robots`. The live single-robot tiles came
+    from single-robot detector events, which this ruling leaves as they
+    are. Now pinned.
+  - **Probe frame tag needed no code change:** probes already carried
+    `prompt_conditions` (`m1_drawn`). Now pinned via a grid/trails-on
+    scene with every prompt flag off.
 - **2026-10-04** — **Capability-probe battery run live, once per backend;
   model pin wired (step-10 follow-up (a))**
   (`docs/reports/2026-10-04-capability-probe-results.md`).
@@ -108,7 +131,8 @@ Rules for maintaining it:
     - Anti-aliased frame hashes differ between OpenCV builds (local 5.0.0
       vs container 4.6.0), so the frame hash pin is build-gated.
     - Two-robot cyclic shifts wrap (N=3 gives 2 distinct orders), so the
-      drawn order gets a 2:1 weight.
+      drawn order gets a 2:1 weight (superseded by 2026-10-04
+      apparatus-rulings entry).
     - Shifts of a random/id_desc base may never render the registry
       order.
     - Both are open for a ruling, with the candidate-options probe
