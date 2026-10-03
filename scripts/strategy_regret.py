@@ -95,6 +95,7 @@ class SceneSpec:
     # convention.
     junction_recede_offset_m: float | None = None
     junction_backup_clearance_m: float | None = None
+    junction_recede_stagger_m: float | None = None
     tracked_extent_m: float | None = None
     shadow_classical_zones: tuple[dict[str, Any], ...] | None = None
     plan_channel_enabled: bool = False
@@ -271,6 +272,7 @@ SCENES: dict[str, SceneSpec] = {
         shadow_classical_zones=({"zone_id": "crossing_1", "x": 0.0, "y": 0.0, "radius_m": 1.5},),
         junction_recede_offset_m=1.2,
         junction_backup_clearance_m=1.1,
+        junction_recede_stagger_m=0.2,
         tracked_extent_m=1.75,
         plan_channel_enabled=True,
         grounding_mode="derived",
@@ -365,6 +367,7 @@ def preflight(scene: SceneSpec, repo: Path) -> list[str]:
     for field_name, expected in (
         ("junction_recede_offset_m", scene.junction_recede_offset_m),
         ("junction_backup_clearance_m", scene.junction_backup_clearance_m),
+        ("junction_recede_stagger_m", scene.junction_recede_stagger_m),
         ("tracked_extent_m", scene.tracked_extent_m),
     ):
         if expected is None:

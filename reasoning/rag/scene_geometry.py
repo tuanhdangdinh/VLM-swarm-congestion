@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from reasoning.vlm.models import StaticObstacleInput
 
@@ -98,6 +98,18 @@ class SceneGeometry(BaseModel):
     # existing scene byte-identical and makes `junction_clear` grounding
     # degrade to the plain `yield` fallback (no pocket target to recede to).
     junction_recede_offset_m: float | None = Field(default=None, gt=0.0)
+    # Step-7b ruling (iv): staggered recede pockets. The k-th recede
+    # candidate in chi order (k = 0 is the lead) recedes to
+    # `junction_recede_offset_m - k * junction_recede_stagger_m` instead of
+    # the one shared pocket. The lead is released first and drives to its
+    # goal on the SECOND candidate's arm, so with one shared 1.2 m pocket the
+    # lead parks 0.45 m behind the second candidate (step-7b rerun GT:
+    # (0.08, -1.65) vs (0.01, -1.21), exactly `min_distance_m`) and the pair
+    # latches for good. A shallower second pocket keeps that endgame
+    # separation outside M4's 0.6 m STALE band. Chi ranking always uses the
+    # unstaggered offset, so the stagger never changes which robot leads.
+    # None (default) keeps every scene byte-identical.
+    junction_recede_stagger_m: float | None = Field(default=None, gt=0.0)
     # Freeze-blocking finding 4 (2026-10-02 IB10 composite smoke, both live
     # episodes): the verified M1 tracking extent along a declared arm's own
     # axis (`docs/reports/*y-extent*`: |y| <= 1.75 for IB10's N-S arms). A
@@ -111,6 +123,18 @@ class SceneGeometry(BaseModel):
     # every existing scene, including every v1 pin, byte-identical -- no
     # clamp is applied without an explicit declaration.
     tracked_extent_m: float | None = Field(default=None, gt=0.0)
+
+    @model_validator(mode="after")
+    def _stagger_needs_a_pocket(self) -> SceneGeometry:
+        if self.junction_recede_stagger_m is None:
+            return self
+        if self.junction_recede_offset_m is None:
+            raise ValueError("junction_recede_stagger_m needs junction_recede_offset_m")
+        if self.junction_recede_stagger_m >= self.junction_recede_offset_m:
+            raise ValueError(
+                "junction_recede_stagger_m must be smaller than junction_recede_offset_m"
+            )
+        return self
 
 
 def arm_geometry(geometry: SceneGeometry, robot_id: str) -> tuple[SceneGeometry, float | None]:

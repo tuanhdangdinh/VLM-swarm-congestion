@@ -127,7 +127,11 @@ frame_downscale_width: null
 #     (e.g. mid-transit after the composite's post-resolution release) can
 #     be driven past the tracked band (reproduced |y|=2.38/2.42 in both
 #     live episodes). None (default) keeps every scene without this field
-#     byte-identical.
+#     byte-identical. Step-7b ruling (iv): ALSO set scenario_geometry
+#     junction_recede_stagger_m: 0.2 -- the second recede candidate in chi
+#     order then recedes to |y| 1.0 instead of 1.2, so the lead (released
+#     first, parking at its goal on that same arm) stops >= 0.65 m behind it
+#     instead of 0.45 m (the step-7b rerun's permanent min-distance latch).
 #   bottleneck_merge (B1, three robots, merge at the A55-E gate) -> robot_1
 #     [2.45, -0.3], robot_2 [1.9, 0.0], AND robot_3: { task:
 #     cross_narrow_aisle, goal: [2.45, 0.3], start_delay_sec: 80 } (all three

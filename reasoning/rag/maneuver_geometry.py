@@ -508,8 +508,42 @@ def recede_axis_offset_m(
     return (position[axis_index] - geometry.corridor.center_m) * arm.side
 
 
+def recede_pocket_offset_m(geometry: SceneGeometry, rank: int) -> float | None:
+    """The pocket offset for the `rank`-th recede candidate in chi order.
+
+    `junction_recede_offset_m - rank * junction_recede_stagger_m` (step-7b
+    ruling (iv), `SceneGeometry.junction_recede_stagger_m`); every rank
+    shares `junction_recede_offset_m` when no stagger is declared.
+
+    Args:
+        geometry: Declared scene geometry.
+        rank: Zero-based position in chi order (0 is the lead).
+
+    Returns:
+        The offset in metres, or None when no pocket is declared.
+
+    Raises:
+        ValueError: If `rank` is negative or the staggered pocket would sit
+            at or inside the junction centre.
+    """
+    if rank < 0:
+        raise ValueError(f"rank must be >= 0, got {rank}")
+    offset_m = geometry.junction_recede_offset_m
+    if offset_m is None:
+        return None
+    stagger_m = geometry.junction_recede_stagger_m or 0.0
+    pocket_m = round(offset_m - rank * stagger_m, 3)
+    if pocket_m <= 0.0:
+        raise ValueError(f"staggered recede pocket for rank {rank} is {pocket_m} m, not outward")
+    return pocket_m
+
+
 def recede_distance_m(
-    frame: SnapshotFrame, robot_id: str, geometry: SceneGeometry
+    frame: SnapshotFrame,
+    robot_id: str,
+    geometry: SceneGeometry,
+    *,
+    offset_m: float | None = None,
 ) -> float | None:
     """D_SPACE: outstanding straight-line distance to the declared recede pocket.
 
@@ -523,6 +557,10 @@ def recede_distance_m(
         frame: Current scene snapshot.
         robot_id: Candidate recede robot.
         geometry: Declared scene geometry.
+        offset_m: The pocket offset to measure against, for a staggered
+            pocket (`recede_pocket_offset_m`); None uses the unstaggered
+            `geometry.junction_recede_offset_m`, which chi ranking always
+            does. Ignored when no pocket is declared at all.
 
     Returns:
         None when `robot_id` has no declared arm, is absent from `frame`, or
@@ -533,11 +571,12 @@ def recede_distance_m(
     """
     state = frame.find_robot(robot_id)
     arm = (geometry.arms or {}).get(robot_id)
-    offset_m = geometry.junction_recede_offset_m
-    if state is None or arm is None or offset_m is None:
+    declared_m = geometry.junction_recede_offset_m
+    if state is None or arm is None or declared_m is None:
         return None
+    target_m = declared_m if offset_m is None else offset_m
     current = recede_axis_offset_m((state.x, state.y), arm, geometry)
-    return max(0.0, round(offset_m - current, 3))
+    return max(0.0, round(target_m - current, 3))
 
 
 def is_at_recede_pocket(

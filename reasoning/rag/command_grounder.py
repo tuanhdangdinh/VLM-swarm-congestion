@@ -16,6 +16,7 @@ from reasoning.rag.maneuver_geometry import (
     rank_recede_candidates,
     recede_axis_offset_m,
     recede_distance_m,
+    recede_pocket_offset_m,
     retreat_axes,
 )
 from reasoning.rag.retreat_candidates import (
@@ -1968,8 +1969,13 @@ def ground_junction_clear_phases(
         )
 
     phases: list[JunctionClearPhase] = []
-    for robot_id in ranked:
-        distance = recede_distance_m(snapshot, robot_id, geometry)
+    for rank, robot_id in enumerate(ranked):
+        # Step-7b ruling (iv): the pocket is assigned by chi rank AFTER
+        # ranking (chi itself measures the unstaggered offset), so a declared
+        # stagger moves only the non-lead candidates' pockets inward.
+        distance = recede_distance_m(
+            snapshot, robot_id, geometry, offset_m=recede_pocket_offset_m(geometry, rank)
+        )
         assert distance is not None  # guaranteed by `rank_recede_candidates`
         actions: list[dict[str, Any]] = [
             {
@@ -2073,10 +2079,10 @@ def ground_junction_clear_phases(
         # `ranked[0]` as `passer_robot_id` -- M4's existing `CrossingChain`
         # (single-passer path, unchanged) ends each hold once `ranked[0]`'s
         # own odometry shows it cleared `passer_clear_m`, never on a fixed
-        # timer. The clearance is geometry-derived, not a constant: twice the
-        # recede offset (far enough to have passed the SECOND candidate's own
-        # pocket, which sits on the identical axis coordinate -- there is no
-        # lateral room to pass it closer) plus `params.min_distance_m` (the
+        # timer. The clearance is geometry-derived, not a constant: the lead's
+        # pocket offset plus the SECOND candidate's (far enough to have
+        # passed the second candidate's own pocket on the same axis -- there
+        # is no lateral room to pass it closer) plus `params.min_distance_m` (the
         # same safety-latch magnitude M4's own monitor enforces, redeclared
         # here rather than imported, since M3 must not depend on M4 config).
         lead_id = ranked[0]
@@ -2089,9 +2095,14 @@ def ground_junction_clear_phases(
             None,
         )
         release_held = [*ranked[1:], *([yielder_id] if yielder_id is not None else [])]
-        recede_offset_m = geometry.junction_recede_offset_m
-        assert recede_offset_m is not None  # guaranteed non-empty `ranked` above
-        passer_clear_m = 2.0 * recede_offset_m + params.min_distance_m
+        # Step-7b ruling (iv): with staggered pockets the lead travels from
+        # its own pocket past the SECOND candidate's (shallower) pocket, so
+        # the two offsets are summed; without a stagger this is exactly the
+        # original `2 * junction_recede_offset_m + min_distance_m`.
+        lead_pocket_m = recede_pocket_offset_m(geometry, 0)
+        second_pocket_m = recede_pocket_offset_m(geometry, 1)
+        assert lead_pocket_m is not None and second_pocket_m is not None
+        passer_clear_m = round(lead_pocket_m + second_pocket_m + params.min_distance_m, 3)
         release_actions = [
             {
                 "robot_id": robot_id,

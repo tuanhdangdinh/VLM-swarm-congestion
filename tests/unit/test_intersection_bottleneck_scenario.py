@@ -576,6 +576,28 @@ class TestJunctionGeometry:
         table = ORCHESTRATOR_YAML.read_text()
         assert "tracked_extent_m: 1.75" in table
 
+    def test_goal_table_declares_the_step_7b_recede_stagger(self):
+        # Step-7b ruling (iv): without the stagger, the lead parks at its
+        # goal 0.45 m behind the second recede candidate and the pair
+        # latches (step-7b rerun, 3/4).
+        assert "junction_recede_stagger_m: 0.2" in ORCHESTRATOR_YAML.read_text()
+
+    def test_staggered_second_pocket_clears_the_lead_goal_and_the_yielder_return(self):
+        # The second pocket (1.2 - 0.2 = 1.0) must sit:
+        # - at least M4's 0.6 m STALE band from the lead's goal on the same
+        #   arm, after the 0.10 m Nav2 goal shortfall the rerun GT recorded
+        #   (lead stopped at |y| 1.65 for a 1.75 goal);
+        # - no shallower than the S1 study's ~1.0 m lower bound (worst-lane
+        #   yielder return >= 0.55 m, docs/superpowers/specs/
+        #   2026-09-29-intersection-resolvable-design.md, C' h window).
+        safety = yaml.safe_load(
+            (REPO_ROOT / "ros2_ws/src/swarm_execution/config/safety.yaml").read_text()
+        )["safety"]
+        second_pocket_m = 1.2 - 0.2
+        goal_m = max(abs(r.goal.y) for r in _scenario().robots)
+        assert goal_m - 0.10 - second_pocket_m >= safety["stale_unsafe_distance_m"]
+        assert second_pocket_m >= 1.0
+
     def test_arms_are_the_approach_arms_of_the_scenario(self):
         for robot in _scenario().robots:
             arm = JUNCTION_ARMS[robot.robot_id]

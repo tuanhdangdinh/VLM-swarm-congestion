@@ -27,6 +27,7 @@ from reasoning.rag.maneuver_geometry import (
     recede_cost,
     recede_distance_m,
     recede_follower_count,
+    recede_pocket_offset_m,
 )
 from reasoning.rag.scene_geometry import ArmGeometry, CorridorGeometry, SceneGeometry
 from reasoning.vlm.models import (
@@ -790,3 +791,93 @@ class TestRecedeSetAudit:
             "robot_4",
             "robot_3",
         ]
+
+
+class TestStaggeredRecedePockets:
+    """Step-7b ruling (iv): the k-th recede candidate in chi order recedes to
+    `junction_recede_offset_m - k * junction_recede_stagger_m`.
+
+    The lead is released first and parks at its goal on the second
+    candidate's arm. With one shared 1.2 m pocket, the step-7b rerun GT
+    ended with the lead at (0.08, -1.65) and the second candidate at
+    (0.01, -1.21), 0.45 m apart, and the pair latched for good.
+    """
+
+    @staticmethod
+    def _staggered(stagger_m: float | None = 0.2) -> SceneGeometry:
+        return SceneGeometry(
+            corridor=_corridor(), arms=JUNCTION_ARMS, junction_recede_offset_m=1.2,
+            junction_recede_stagger_m=stagger_m,
+        )
+
+    def _plan(self, geometry: SceneGeometry):
+        return ground_junction_clear_phases(
+            _result(_decision()), snapshot=_frame(), params=GroundingParams(mode="derived"),
+            geometry=geometry,
+        )
+
+    @staticmethod
+    def _backups(plan) -> dict[str, float]:
+        return {
+            action["robot_id"]: action["parameters"]["backup_distance_m"]
+            for phase in plan.phases
+            if phase.label == "recede"
+            for action in phase.command["actions"]
+            if action["action"] == "reverse"
+        }
+
+    def test_no_stagger_is_the_default(self):
+        assert _geometry().junction_recede_stagger_m is None
+
+    def test_no_stagger_keeps_one_shared_pocket(self):
+        # Byte-identical to the pre-7b grounding: both legs measured to 1.2.
+        plan = self._plan(_geometry())
+        assert self._backups(plan) == {"robot_4": 0.923, "robot_3": 0.942}
+        release = next(p for p in plan.phases if p.label == "release")
+        for action in release.command["actions"]:
+            assert action["parameters"]["passer_clear_m"] == 2.85
+
+    def test_the_lead_keeps_the_declared_pocket(self):
+        # robot_4 is the lead (TestChiRanking): 1.2 - 0.2773.
+        assert self._backups(self._plan(self._staggered()))["robot_4"] == 0.923
+
+    def test_the_second_candidate_recedes_to_the_shallower_pocket(self):
+        # robot_3 is second: 1.0 - 0.2583, not 1.2 - 0.2583.
+        assert self._backups(self._plan(self._staggered()))["robot_3"] == 0.742
+
+    def test_the_stagger_never_changes_the_chi_order(self):
+        plan = self._plan(self._staggered())
+        assert [p.robot_id for p in plan.phases if p.label == "recede"] == [
+            "robot_4",
+            "robot_3",
+        ]
+        assert rank_recede_candidates(
+            _frame(), list(IB10_STANDOFF), self._staggered(), GroundingParams(mode="derived")
+        ) == rank_recede_candidates(
+            _frame(), list(IB10_STANDOFF), _geometry(), GroundingParams(mode="derived")
+        )
+
+    def test_release_clearance_sums_the_lead_and_second_pockets(self):
+        # 1.2 (lead pocket) + 1.0 (second pocket) + 0.45 (min_distance_m).
+        release = next(p for p in self._plan(self._staggered()).phases if p.label == "release")
+        for action in release.command["actions"]:
+            assert action["parameters"]["passer_clear_m"] == 2.65
+
+    def test_pocket_offset_by_rank(self):
+        geometry = self._staggered()
+        assert recede_pocket_offset_m(geometry, 0) == 1.2
+        assert recede_pocket_offset_m(geometry, 1) == 1.0
+        assert recede_pocket_offset_m(_geometry(), 1) == 1.2
+        assert recede_pocket_offset_m(_geometry(offset_m=None), 0) is None
+
+    def test_a_pocket_staggered_through_the_centre_is_rejected(self):
+        with pytest.raises(ValueError):
+            recede_pocket_offset_m(self._staggered(0.7), 2)
+
+    def test_stagger_without_a_pocket_is_rejected(self):
+        with pytest.raises(ValueError):
+            SceneGeometry(corridor=_corridor(), arms=JUNCTION_ARMS, junction_recede_stagger_m=0.2)
+
+    def test_stagger_as_deep_as_the_pocket_is_rejected(self):
+        with pytest.raises(ValueError):
+            self._staggered(1.2)

@@ -71,6 +71,7 @@ def _scene_tree(tmp_path: Path, name: str) -> Path:
     for field_name, value in (
         ("junction_recede_offset_m", scene.junction_recede_offset_m),
         ("junction_backup_clearance_m", scene.junction_backup_clearance_m),
+        ("junction_recede_stagger_m", scene.junction_recede_stagger_m),
         ("tracked_extent_m", scene.tracked_extent_m),
     ):
         if value is not None:
