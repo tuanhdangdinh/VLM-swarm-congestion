@@ -58,6 +58,7 @@ class TestScorePlanDecisionProvenancePaths:
         metrics = score_plan_decision(decision, verified)
 
         assert metrics.emitted is False
+        assert metrics.consistent is None
         assert metrics.agreement is False
         assert metrics.edit_distance is None
         assert metrics.provenance == "m3_default"
@@ -74,6 +75,7 @@ class TestScorePlanDecisionProvenancePaths:
         metrics = score_plan_decision(decision, verified)
 
         assert metrics.emitted is True
+        assert metrics.consistent is True
         assert metrics.agreement is True
         assert metrics.edit_distance == 0
         assert metrics.provenance == "vlm_verbatim"
@@ -93,11 +95,16 @@ class TestScorePlanDecisionProvenancePaths:
         metrics = score_plan_decision(decision, verified)
 
         assert metrics.emitted is True
+        assert metrics.consistent is True
         assert metrics.agreement is False
         assert metrics.edit_distance == 1
         assert metrics.provenance == "repaired"
 
-    def test_inconsistent_plan_scores_not_emitted(self):
+    def test_inconsistent_plan_scores_emitted_but_not_consistent(self):
+        # Split 2026-10-03: a parseable plan that breaks the consistency rule
+        # WAS emitted; it is the `consistent` flag that records the rejection.
+        # Downstream semantics are unchanged: still m3_default, no agreement,
+        # no edit distance.
         decision = _decision(
             proposed_plan=[
                 ProposedPlanLeg(robot_id="robot_1", action="yield"),
@@ -107,9 +114,42 @@ class TestScorePlanDecisionProvenancePaths:
         verified = verify_and_repair_plan(decision, _DEADLOCK, geometry=_geometry())
         metrics = score_plan_decision(decision, verified)
 
-        assert metrics.emitted is False
+        assert metrics.emitted is True
+        assert metrics.consistent is False
+        assert metrics.agreement is False
+        assert metrics.provenance == "m3_default"
         assert metrics.rejection_stage == "inconsistent"
         assert metrics.edit_distance is None
+
+    def test_plan_disagreeing_with_own_yield_robot_scores_not_consistent(self):
+        # The second "inconsistent" path (`_plan_disagrees_with_decision_fields`).
+        decision = _decision(
+            proposed_plan=[
+                ProposedPlanLeg(robot_id="robot_2", action="yield"),
+                ProposedPlanLeg(robot_id="robot_1", action="cross"),
+            ]
+        )
+        verified = verify_and_repair_plan(decision, _DEADLOCK, geometry=_geometry())
+        metrics = score_plan_decision(decision, verified)
+
+        assert metrics.emitted is True
+        assert metrics.consistent is False
+        assert metrics.rejection_stage == "inconsistent"
+
+    def test_unknown_robot_plan_scores_not_emitted(self):
+        # Naming a robot outside the snapshot is unparseable, not inconsistent.
+        decision = _decision(
+            proposed_plan=[
+                ProposedPlanLeg(robot_id="robot_1", action="yield"),
+                ProposedPlanLeg(robot_id="robot_7", action="cross"),
+            ]
+        )
+        verified = verify_and_repair_plan(decision, _DEADLOCK, geometry=_geometry())
+        metrics = score_plan_decision(decision, verified)
+
+        assert metrics.emitted is False
+        assert metrics.consistent is None
+        assert metrics.rejection_stage == "unknown_robot"
 
     def test_repair_bound_exceeded_still_scores_emitted(self):
         # The plan WAS parseable and consistent; it just could not be
@@ -137,6 +177,7 @@ class TestScorePlanDecisionProvenancePaths:
         metrics = score_plan_decision(decision, verified)
 
         assert metrics.emitted is True
+        assert metrics.consistent is True
         assert metrics.provenance == "m3_default"
         assert metrics.rejection_stage == "repair_bound_exceeded"
         # Not 0: a bound-exceeded plan is not indistinguishable from a
@@ -200,6 +241,20 @@ class TestOracleOrderAgreementScoredPreRepair:
         decision = _decision()  # no plan at all
         verified = verify_and_repair_plan(decision, _DEADLOCK, geometry=_geometry())
         metrics = score_plan_decision(decision, verified, oracle_order=["robot_2"])
+        assert metrics.oracle_order_agreement is None
+
+    def test_agreement_none_when_emitted_plan_is_inconsistent(self):
+        # Gated on consistency, as before the emitted/consistent split, so the
+        # split leaves this metric's population unchanged.
+        decision = _decision(
+            proposed_plan=[
+                ProposedPlanLeg(robot_id="robot_1", action="yield"),
+                ProposedPlanLeg(robot_id="robot_2", action="yield"),
+            ]
+        )
+        verified = verify_and_repair_plan(decision, _DEADLOCK, geometry=_geometry())
+        metrics = score_plan_decision(decision, verified, oracle_order=["robot_2"])
+        assert metrics.emitted is True
         assert metrics.oracle_order_agreement is None
 
     def test_agreement_false_when_plan_omits_an_oracle_robot(self):

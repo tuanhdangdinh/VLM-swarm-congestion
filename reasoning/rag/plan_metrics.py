@@ -37,13 +37,20 @@ class PlanDecisionMetrics(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    # (i) plan emission rate: a parseable, consistent plan was supplied.
-    # True even when the plan later needed repair, or the repair distance
-    # exceeded the bound -- emission is about reaching feasibility
-    # auditing, not about surviving it.
+    # (i) plan emission rate: a parseable plan was supplied (present, every
+    # robot_id known), whether or not it refines the strategy. Split from
+    # `consistent` on 2026-10-03 so "the model proposed nothing" and "the
+    # model proposed a plan that breaks the consistency rule" stop reading
+    # as the same score; before the split this field meant "parseable AND
+    # consistent", i.e. today's `consistent is True`.
     emitted: bool
+    # Whether the emitted plan passed the (a0) consistency rule (and agreed
+    # with the decision's own yield_robot/crossing_order) -- i.e. reached the
+    # feasibility audit. True even when it then needed repair or exceeded the
+    # repair bound. None when nothing was emitted.
+    consistent: bool | None
     # (ii) plan agreement rate: executed verbatim, no repair needed. Always
-    # False when `emitted` is False.
+    # False when `consistent` is not True.
     agreement: bool
     # (iii) plan edit distance: repairs applied. 0 for `vlm_verbatim`,
     # `len(verified.edits)` for `repaired`. None when there is no finite
@@ -55,13 +62,16 @@ class PlanDecisionMetrics(BaseModel):
     edit_distance: int | None = Field(default=None, ge=0)
     # (iv) executed-plan provenance.
     provenance: PlanProvenance
-    # Structured reason `emitted` is False, or why an emitted plan still
+    # Structured reason `emitted` is False (`absent`/`unknown_robot`),
+    # `consistent` is False (`inconsistent`), or a consistent plan still
     # ended up `m3_default` (`repair_bound_exceeded`); None when the
     # executed plan is vlm_verbatim or repaired.
     rejection_stage: PlanRejectionStage | None
     # (v) oracle-order agreement, scored against the VLM's PROPOSED order
     # before any repair (never the executed/repaired order): None when no
-    # oracle was registered for this cell, or no plan was emitted to score.
+    # oracle was registered for this cell, or no consistent plan was emitted
+    # to score. Still gated on consistency after the 2026-10-03 split, so its
+    # population is unchanged by it.
     oracle_order_agreement: bool | None
 
 
@@ -81,11 +91,18 @@ def score_plan_decision(
             inside-first), restricted to the robots it names; None where the
             cell registers no oracle.
 
+    Every field is recomputed from `decision` and `verified`, never read from
+    a stored metrics record, so a decision artifact written before a field
+    existed (e.g. `consistent`) still scores: re-run
+    `verify_and_repair_plan` on its stored decision and snapshot, then call
+    this.
+
     Returns:
         The per-decision metrics.
     """
-    emitted = verified.rejection_stage not in ("absent", "unknown_robot", "inconsistent")
-    agreement = emitted and verified.provenance == "vlm_verbatim"
+    emitted = verified.rejection_stage not in ("absent", "unknown_robot")
+    consistent = (verified.rejection_stage != "inconsistent") if emitted else None
+    agreement = consistent is True and verified.provenance == "vlm_verbatim"
     edit_distance: int | None
     if verified.provenance == "repaired":
         edit_distance = len(verified.edits)
@@ -98,18 +115,19 @@ def score_plan_decision(
         edit_distance = None
     return PlanDecisionMetrics(
         emitted=emitted,
+        consistent=consistent,
         agreement=agreement,
         edit_distance=edit_distance,
         provenance=verified.provenance,
         rejection_stage=verified.rejection_stage,
-        oracle_order_agreement=_score_oracle_order(decision, emitted, oracle_order),
+        oracle_order_agreement=_score_oracle_order(decision, consistent is True, oracle_order),
     )
 
 
 def _score_oracle_order(
-    decision: CongestionDecision, emitted: bool, oracle_order: Sequence[str] | None
+    decision: CongestionDecision, scorable: bool, oracle_order: Sequence[str] | None
 ) -> bool | None:
-    if oracle_order is None or not emitted or decision.proposed_plan is None:
+    if oracle_order is None or not scorable or decision.proposed_plan is None:
         return None
     oracle_robots = list(oracle_order)
     # A "continue" leg carries no sequencing information, so it is not part
