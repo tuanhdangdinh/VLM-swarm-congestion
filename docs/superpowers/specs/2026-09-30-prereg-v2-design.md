@@ -402,7 +402,31 @@ head-ons, junction scenes, convoys, and the loop map — not just IB10.
   `temporary_wait` ⇒ a `wait` leg, `reroute` ⇒ a `reroute` leg,
   `junction_clear` ⇒ at least one `reverse` or `yield`. An
   inconsistent plan is treated as unparseable (reason logged), never
-  silently reinterpreted.
+  silently reinterpreted. DECIDED (2026-10-03, VLM-planning review
+  item 5): `reverse`, `convoy`, `priority_override` and `none` carry
+  NO consistency constraint by design — the spec defines none, and
+  inventing one would be reinterpretation; recorded here so the v2
+  freeze inherits a decision, not an omission.
+- **Grammar-in-prompt rule (2026-10-03 review, fix 1):** prompt v3
+  states the plan grammar — action semantics and the per-strategy
+  refinement rules above — as ONE scenario-agnostic block rendered
+  identically on every v3 decision in every scenario. Rationale: the
+  contract is told, the application of it is measured; grading plans
+  against unstated rules confounds "cannot sequence" with "was never
+  told the grammar" (the live ER-2 plan rejections'
+  construct-validity threat). The block never names a scene, a robot
+  count, or a preferred strategy.
+- **Emission/consistency split (2026-10-03 review, fix 2):** metric
+  (i) splits into (i-a) *emission* — a parseable plan was supplied —
+  and (i-b) *consistency rate given emission*; declining to plan and
+  planning inconsistently are different behaviors, never binned
+  together.
+- **χ-epsilon verbatim rule (2026-10-03 review, fix 3):** when the χ
+  margin between recede candidates is below a registered epsilon
+  (sized from measured snapshot noise), either recede order passes
+  verification — provenance must not pick up trigger-timing noise
+  (the observed [robot_3, robot_4] / [robot_4, robot_3] flips across
+  IB10 runs).
 
 ### Verify/repair contract
 
