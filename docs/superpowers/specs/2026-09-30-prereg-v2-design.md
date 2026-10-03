@@ -233,9 +233,24 @@ per-backend probe set, run once per model before v2 collection and
 frozen with the battery — locate-robot-by-id, left-vs-right of
 aisle, robot count, nearest-first ordering — on project frames.
 Rationale: Garg et al. pre-test model capabilities before trusting
-them, and published benchmarks put left/right discrimination near
-chance (LRR-Bench); probe results make plan-metric failures
-attributable to measured primitive deficits rather than speculation.
+them; probe results make plan-metric failures attributable to
+measured primitive deficits rather than speculation.
+CITATION CORRECTION (2026-10-04, from the baseline run's primary-text
+check): the earlier "left/right near chance (LRR-Bench)" wording
+OVERSTATED the paper — LRR-Bench's basic Position task has GPT-4o at
+78–80% (humans 95); the near-chance/near-zero results are its
+composite-position and 3D movement/rotation tasks; the previously
+quoted 55.33% figure is unsourced in the paper and is withdrawn.
+BASELINE RESULTS (2026-10-04, freeze-citable:
+`docs/reports/2026-10-04-capability-probe-results.md`; manifest
+`9659782d…`, prompt `b1af71e8…`): ER-2 60/60; gpt-4o 58/60 (both
+misses near-centreline left_right), 0/60 refusals both backends,
+no robot-id or first-slot prior visible in nearest_first (0/8 wrong
+robot_1 picks). INTERPRETATION BOUND: the battery is at ceiling on
+clean, filtered frames — it certifies primitives ≥~80% there and
+cannot rank backends; it says nothing about crowded congestion-onset
+frames. Visual primitives are therefore NOT the measured bottleneck;
+plan-level failures must be attributed upstream of perception.
 
 **Scope bound:** v2 scenes stay at ≤ 5 active robots, justified by the
 documented degradation of centralized model planning beyond ~6 agents
@@ -558,8 +573,12 @@ outperform the classical arm."
 VLM anywhere in v2 is a set-of-mark multiple choice over annotated
 options (as stage-2 already does), never a continuous coordinate —
 MOKA's principle (arXiv:2403.03174) that VLMs are better at
-multiple-choice than at producing continuous locations, backed by
-near-chance left/right discrimination results (LRR-Bench). In
+multiple-choice than at producing continuous locations. (The former
+supporting cite "near-chance left/right (LRR-Bench)" is WITHDRAWN per
+the 2026-10-04 citation correction — LRR-Bench's basic position task
+is 78–80% for GPT-4o; its near-chance results are composite/3D
+tasks. The rule stands on MOKA plus the grounding-vs-regression
+evidence, e.g. the Mark-Grid point-grounding gains.) In
 particular, junction recede pockets are lettered marks, not
 positions.
 
