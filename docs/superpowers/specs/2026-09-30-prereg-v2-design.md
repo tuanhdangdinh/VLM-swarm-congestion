@@ -911,11 +911,13 @@ makes an explicit include/exclude call.
     freeze it, run once per backend; results recorded in the freeze
     record (rev 5). BUILT 2026-10-02 (manifest_v1, 60 items, prompt
     hash-pinned). Freeze-time follow-ups before the live per-backend
-    runs: (a) wire the runner through `resolve_reasoner_config` so it
-    uses the PINNED model ids, not backend default aliases; (b) owner
-    confirms the left/right operationalization (image-frame side of
-    centre column — coincides with the aisle side in every sourced
-    scene, would not on a vertical in-frame aisle); (c) note
+    runs: (a) DONE 2026-10-04 (runner wired through
+    `resolve_reasoner_config`; baseline runs executed — see the
+    CITATION CORRECTION/BASELINE block above); (b) CONFIRMED
+    2026-10-04: the left/right operationalization stays image-frame
+    side of centre column — it coincides with the aisle side in
+    every sourced scene, and the vertical-in-frame-aisle caveat
+    stands as a documented validity bound on the item type; (c) note
     `locate_robot` covers 4 of 9 grid cells after filters, and
     `nearest_first`'s robot_2-skewed answers must be read against the
     recorded robot-id priors before attributing errors to spatial
