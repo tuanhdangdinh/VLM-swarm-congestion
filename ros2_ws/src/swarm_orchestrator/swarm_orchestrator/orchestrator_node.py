@@ -189,6 +189,7 @@ def _build_default_pipeline(
         priorities=registry_priorities(config.initial_tasks),
         plan_tracker=plan_tracker,
         permutation_votes=config.prompt_permutation_votes,
+        registry_order=tuple(config.initial_tasks),
     )
 
 

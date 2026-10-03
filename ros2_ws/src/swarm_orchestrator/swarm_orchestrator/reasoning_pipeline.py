@@ -1003,6 +1003,7 @@ class InProcessPipeline:
         plan_tracker: PlanTracker | None = None,
         plan_repair_params: PlanRepairParams | None = None,
         permutation_votes: int = 1,
+        registry_order: Sequence[str] = (),
     ) -> None:
         self._reasoner = reasoner
         # Prompt-apparatus permutation voting (prereg-v2 rev 6): 1 (default)
@@ -1012,6 +1013,9 @@ class InProcessPipeline:
         if permutation_votes < 1:
             raise ValueError(f"permutation_votes must be >= 1, got {permutation_votes}")
         self._permutation_votes = permutation_votes
+        # M5's task-registry robot order (`initial_tasks`), for the vote's
+        # registered tie rule (`permutation_votes.run_permutation_votes`).
+        self._registry_order = tuple(registry_order)
         # Registry priorities (`registry_priorities`), M3-only: never part of
         # the request, so the prompt cannot see them. Empty or None passes
         # nothing to M3, keeping every priority-less scene's call unchanged.
@@ -1055,7 +1059,7 @@ class InProcessPipeline:
         try:
             if self._permutation_votes > 1:
                 result, votes, request = run_permutation_votes(
-                    self._reasoner, request, self._permutation_votes
+                    self._reasoner, request, self._permutation_votes, self._registry_order
                 )
             else:
                 result = self._reasoner.run(request)

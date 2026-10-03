@@ -12,6 +12,7 @@ from swarm_orchestrator.permutation_votes import (
     TIE_RULE,
     cyclic_shift_orders,
     permutation_votes_log,
+    registry_presentation_order,
     run_permutation_votes,
     shifted_request,
     vote_key,
@@ -148,7 +149,7 @@ class TestVoting:
         assert not record.tie_broken
         assert winning_request.robot_presentation_order == ("robot_2", "robot_3", "robot_1")
 
-    def test_three_way_tie_goes_to_call_zero_the_drawn_order(self, tmp_path):
+    def test_three_way_tie_without_registry_goes_to_call_zero(self, tmp_path):
         texts = [
             _decision_json(
                 yield_robot="robot_3", involved_robots=["robot_1", "robot_2", "robot_3"]
@@ -163,6 +164,79 @@ class TestVoting:
         assert result.decision.yield_robot == "robot_3"
         assert winning_request.robot_presentation_order == "id_asc"
         assert record.tie_rule == TIE_RULE
+
+    def test_tie_goes_to_the_call_rendering_the_registry_order(self, tmp_path):
+        # Drawn base (robot_2, robot_3, robot_1): shift 2 renders the registry
+        # order (robot_1, robot_2, robot_3), so a 1-1-1 tie goes to call 2.
+        texts = [
+            _decision_json(strategy="reverse"),
+            _decision_json(strategy="temporary_wait"),
+            _decision_json(yield_robot="robot_2"),
+        ]
+        reasoner, _ = _reasoner(texts)
+        request = _request(tmp_path, robot_presentation_order=("robot_2", "robot_3", "robot_1"))
+        result, record, winning_request = run_permutation_votes(
+            reasoner, request, 3, registry_order=("robot_1", "robot_2", "robot_3")
+        )
+        assert record.calls[2].order == ("robot_1", "robot_2", "robot_3")
+        assert record.tie_broken and record.winner_index == 2
+        assert record.tie_resolved_by == "registry_order"
+        assert result.decision.strategy == "yield"
+        assert winning_request.robot_presentation_order == ("robot_1", "robot_2", "robot_3")
+
+    def test_tie_falls_back_to_earliest_call_when_no_call_renders_the_registry_order(
+        self, tmp_path
+    ):
+        # id_desc base (3, 2, 1): its cyclic shifts never equal (1, 2, 3).
+        texts = [
+            _decision_json(strategy="reverse"),
+            _decision_json(strategy="temporary_wait"),
+            _decision_json(yield_robot="robot_2"),
+        ]
+        reasoner, _ = _reasoner(texts)
+        request = _request(tmp_path, robot_presentation_order="id_desc")
+        result, record, _ = run_permutation_votes(
+            reasoner, request, 3, registry_order=("robot_1", "robot_2", "robot_3")
+        )
+        assert ("robot_1", "robot_2", "robot_3") not in [call.order for call in record.calls]
+        assert record.winner_index == 0 and record.tie_resolved_by == "earliest_call"
+        assert result.decision.strategy == "reverse"
+
+    def test_two_robot_tie_resolves_to_the_registry_order_call(self, tmp_path):
+        # id_desc two-robot base: calls render (2,1), (1,2), (2,1); call 0
+        # abstains, calls 1 and 2 disagree -> the registry order (1,2) is call 1.
+        texts = [
+            _REFUSAL,
+            _decision_json(yield_robot="robot_1"),
+            _decision_json(yield_robot="robot_2"),
+        ]
+        reasoner, _ = _reasoner(texts)
+        request = _request(
+            tmp_path, robots=("robot_1", "robot_2"), robot_presentation_order="id_desc"
+        )
+        result, record, _ = run_permutation_votes(
+            reasoner, request, 3, registry_order=("robot_1", "robot_2")
+        )
+        assert record.winner_index == 1 and record.tie_resolved_by == "registry_order"
+        assert result.decision.yield_robot == "robot_1"
+
+    def test_majority_ignores_the_registry_order(self, tmp_path):
+        texts = [
+            _decision_json(yield_robot="robot_1"),
+            _decision_json(yield_robot="robot_2"),
+            _decision_json(yield_robot="robot_2"),
+        ]
+        reasoner, _ = _reasoner(texts)
+        _, record, _ = run_permutation_votes(
+            reasoner, _request(tmp_path), 3, registry_order=("robot_1", "robot_2", "robot_3")
+        )
+        assert record.winner_index == 1 and record.tie_resolved_by is None
+
+    def test_registry_order_lists_unnamed_robots_after_in_ascending_id(self):
+        order = registry_presentation_order(
+            ("robot_3", "robot_9"), ["robot_1", "robot_3", "robot_2"]
+        )
+        assert order == ("robot_3", "robot_1", "robot_2")
 
     def test_tie_without_call_zero_goes_to_the_earliest_voting_call(self, tmp_path):
         texts = [_REFUSAL, _decision_json(strategy="reverse"), _decision_json(strategy="yield")]
@@ -299,6 +373,23 @@ class TestPipelineIntegration:
             _request(tmp_path)
         )
         assert len(backend.payloads) == 1
+
+    def test_pipeline_passes_the_registry_order_to_the_tie_rule(self, tmp_path):
+        texts = [
+            _REFUSAL,
+            _decision_json(yield_robot="robot_1"),
+            _decision_json(yield_robot="robot_2"),
+        ]
+        reasoner, _ = _reasoner(texts)
+        outcome = InProcessPipeline(
+            reasoner=reasoner, ground_fn=_GroundSpy(), validate_fn=lambda c: c,
+            permutation_votes=3, registry_order=("robot_1", "robot_2"),
+        ).run(
+            _request(tmp_path, robots=("robot_1", "robot_2"), robot_presentation_order="id_desc")
+        )
+        assert outcome.permutation_votes.registry_order == ("robot_1", "robot_2")
+        assert outcome.permutation_votes.tie_resolved_by == "registry_order"
+        assert outcome.reasoner_result.decision.yield_robot == "robot_1"
 
     def test_pipeline_rejects_zero_votes(self):
         with pytest.raises(ValueError):

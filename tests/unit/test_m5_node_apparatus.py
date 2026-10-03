@@ -241,6 +241,7 @@ class TestDefaultPipelineVotes:
             config=_config(tmp_path, prompt_permutation_votes=3, t0_probe_mode=False)
         )
         assert node._pipeline._permutation_votes == 3
+        assert node._pipeline._registry_order == ("robot_1", "robot_2")
 
 
 class TestConfigValidation:

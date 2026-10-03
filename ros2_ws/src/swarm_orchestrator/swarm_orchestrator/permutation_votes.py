@@ -10,12 +10,15 @@ policy), and the decision is majority-voted.
 Vote: the tuple (congestion_detected, type, strategy, yield_robot). Calls
 whose decision is None (exhausted retries, refusals) abstain.
 
-Tie rule (registered): among the keys tied for the most votes, the key held
-by the EARLIEST call wins, and call 0 is the unshifted request -- the order
-M5's presentation-order policy drew for this episode (the "registry order"
-of the decision: the order the single-draw condition would have rendered).
-So a tie always resolves to the registered draw when that draw voted, and
-otherwise to the least-shifted voting call; the rule is total.
+Tie rule (registered, per the brief): among the keys tied for the most
+votes, the key voted by the call whose RENDERED order matches the registry
+order wins -- M5's task-registry robot order (`initial_tasks` order,
+restricted to the request's robots; robots the registry does not name
+follow in ascending id). Fallback, so the rule is total: when no tied call
+rendered the registry order (it abstained, or no cyclic shift of the drawn
+base equals it -- possible with 3+ robots under a `random` or `id_desc`
+draw), the key held by the EARLIEST call wins (call 0 is the drawn order).
+`tie_resolved_by` records which branch fired.
 
 The winning call's `ReasonerResult` is returned whole: `proposed_plan`,
 `reasoning`, `root_cause`, `justification`, `crossing_order` and
@@ -42,7 +45,7 @@ from reasoning.vlm.models import (
 )
 from reasoning.vlm.prompt_builder import build_prompt_payload, order_robot_states
 
-TIE_RULE = "earliest_call_first:call_0_is_the_episode_drawn_order"
+TIE_RULE = "registry_order_call_first:fallback_earliest_call"
 
 
 class _Runs(Protocol):
@@ -98,6 +101,10 @@ class PermutationVoteRecord(BaseModel):
     winner_index: int | None
     winner_vote: VoteKey | None
     tie_broken: bool
+    # The registry order the tie rule looks for, and which branch resolved a
+    # tie: "registry_order", "earliest_call" (fallback), or None (no tie).
+    registry_order: tuple[str, ...] | None = None
+    tie_resolved_by: str | None = None
     vote_counts: list[VoteCount]
     # Sum of every call's backend attempts: the realised cost multiplier.
     total_backend_attempts: int = Field(ge=0)
@@ -155,8 +162,28 @@ def shifted_request(
     return request.model_copy(update={"robot_presentation_order": order})
 
 
+def registry_presentation_order(
+    registry_order: tuple[str, ...] | list[str], robot_ids: list[str]
+) -> tuple[str, ...]:
+    """The registry order restricted to a request's robots.
+
+    Args:
+        registry_order: M5's task-registry robot ids, in registry order.
+        robot_ids: The request's robots.
+
+    Returns:
+        Registry-named robots in registry order, then the rest in ascending id.
+    """
+    present = set(robot_ids)
+    named = [rid for rid in registry_order if rid in present]
+    return tuple(named + sorted(present - set(named)))
+
+
 def run_permutation_votes(
-    reasoner: _Runs, request: ReasonerRequest, votes: int
+    reasoner: _Runs,
+    request: ReasonerRequest,
+    votes: int,
+    registry_order: tuple[str, ...] | list[str] | None = None,
 ) -> tuple[ReasonerResult, PermutationVoteRecord, ReasonerRequest]:
     """Run one decision as `votes` presentation-order-shifted calls and vote.
 
@@ -167,6 +194,8 @@ def run_permutation_votes(
         reasoner: The stage-1 reasoner (`Reasoner.run`).
         request: The episode's request; its order is shift 0.
         votes: Number of calls (>= 1).
+        registry_order: M5's task-registry robot order for the tie rule;
+            None skips the registry branch (earliest call breaks ties).
 
     Returns:
         `(winning result, vote record, winning call's request)`. With no
@@ -220,21 +249,44 @@ def run_permutation_votes(
         ),
         key=lambda vc: (-vc.count, first_index[vc.vote]),
     )
+    target = (
+        None
+        if registry_order is None
+        else registry_presentation_order(registry_order, [s.robot_id for s in request.robot_states])
+    )
     winner_index: int | None = None
     winner_vote: VoteKey | None = None
     tie_broken = False
+    tie_resolved_by: str | None = None
     if counts:
         top = counts[0].count
         tied = [vc for vc in counts if vc.count == top]
         tie_broken = len(tied) > 1
         winner_vote = tied[0].vote
         winner_index = first_index[winner_vote]
+        if tie_broken:
+            tied_votes = {vc.vote for vc in tied}
+            registry_call = next(
+                (
+                    call
+                    for call in calls
+                    if target is not None and call.order == target and call.vote in tied_votes
+                ),
+                None,
+            )
+            if registry_call is not None:
+                winner_vote, winner_index = registry_call.vote, registry_call.index
+                tie_resolved_by = "registry_order"
+            else:
+                tie_resolved_by = "earliest_call"
     record = PermutationVoteRecord(
         votes_requested=votes,
         distinct_orders=len(set(orders)),
         winner_index=winner_index,
         winner_vote=winner_vote,
         tie_broken=tie_broken,
+        registry_order=target,
+        tie_resolved_by=tie_resolved_by,
         vote_counts=counts,
         total_backend_attempts=sum(call.diagnostics.attempts for call in calls),
         calls=calls,
