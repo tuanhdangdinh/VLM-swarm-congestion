@@ -1,4 +1,4 @@
-# Step 7b: Race Guard, Bound Freeze, Stagger, IB10 Oracle
+# Step 7b: Race Guard, Stagger, Release Order, IB10 Oracle
 
 **Prepared:** 2026-10-03
 
@@ -8,6 +8,11 @@
   oracle and regret extension built, one scripted IB10 mock rerun on the
   final runtime code. The rerun FAILS 4/4 (2/4) on a new design-level
   release-sequencing finding, reported here for a ruling; no fix attempted.
+- Rev 2 (STEP-7b RULINGS (vi)/(vii) in the spec): the yielder now re-enters
+  behind every receder through M4's ordered multi-passer path (one
+  documented deviation from the ruling's text, below), the scorer gains
+  `yielder_last` and the derived `outcome_rank`, and a second VM rerun
+  PASSES: 4/4, attributable release, yielder last in the gate log.
 
 ---
 
@@ -15,8 +20,8 @@
 
 Executes build-order step 7 of
 `docs/superpowers/specs/2026-09-30-prereg-v2-design.md`, the STEP-7a
-OUTCOME rulings (i)-(v), on branch `feat/v2-step7b` (cut from
-`feat/prereg-v2-composite` at `cf368ec`).
+OUTCOME rulings (i)-(v) and the STEP-7b RULINGS (vi)-(vii), on branch
+`feat/v2-step7b` (cut from `feat/prereg-v2-composite` at `cf368ec`).
 
 | Ruling | Outcome |
 |---|---|
@@ -26,7 +31,10 @@ OUTCOME rulings (i)-(v), on branch `feat/v2-step7b` (cut from
 | (iv) 82 s STALE streak | Pair separation 0.076-0.144 m (< 0.6), race-caused. Staggered pockets implemented (second candidate 1.0 m, lead 1.2 m). Rerun: no streak (max 5 rows / 1.37 s); the lead parks 0.69 m from the second pocket instead of 0.45 m, no latch between them. |
 | (v) trigger staleness | `_last_trigger_robot_ids` cleared after each dispatch; later junction phases read a plan-bound copy. |
 | Part 3 | IB10 oracle block + `coverage_scene_scores.py ib10` + `JunctionOracleConfig`; regret arms registered. IB10 scoring frozen (section below). |
-| Rerun (Part 2) | **FAIL: 2/4.** Full composite reached `resolved`, ordered release attributable (both held robots `reason=clearance` at sim 139.967), no band excursion, no STALE streak. But the release frees the second receder and the yielder **on the same gate at the same instant**, onto crossing paths; they latch for good 3 s later (0.416 m). **Design-level: STOP.** |
+| Rerun 1 (Part 2) | **FAIL: 2/4.** Full composite reached `resolved`, ordered release attributable (both held robots `reason=clearance` at sim 139.967), no band excursion, no STALE streak. But the release frees the second receder and the yielder **on the same gate at the same instant**, onto crossing paths; they latch for good 3 s later (0.416 m). Design-level: stopped for a ruling. |
+| (vi) release order | The yielder's release `yield` chains [lead, second receder] (`crossing_order`, per-robot clearances 2.65/2.05 m), backstop 240 vs 120 s. The second receder keeps its lead-gated passive `yield` rather than a linked `temporary_wait`: deviation from the ruling's text, forced by M4's exemption rule (below). |
+| (vii) outcome rank | Phase ordinal kept as M5's label; the scorer adds `outcome_rank` = (all arrived, ordinal, arrivals), so rerun 1 ranks (0, 4, 2) and a full success (1, 4, 4). |
+| Rerun 2 | **PASS.** 4/4 position-verified, release attributable (every held robot `reason=clearance`), yielder last in the gate log (sim 185.800 after robot_3's 153.667), in band, no STALE streak (max 1 row). `outcome_rank` (1, 4, 4). |
 
 ---
 
@@ -174,7 +182,7 @@ captured at dispatch (commit `d685cc9`). Pins:
 
 ---
 
-## VM rerun (Part 2)
+## Rerun 1 (Part 2)
 
 **Deploy.** `git archive 7070813` extracted with `tar -m` (fresh mtimes,
 so colcon never skips a file), IB10 overlay (the step-7a key set plus
@@ -227,6 +235,8 @@ M5 phase sequence: `phase_reached=recede` → `cross` → `release` →
 
 ### Design-level finding: the release frees two robots onto crossing paths
 
+(Resolved by ruling (vi); see "Ruling (vi)" and "Rerun 2" below.)
+
 At sim 139.967 the release gate frees **both** held robots at once:
 robot_3 (second receder, heading north from (0.007, -0.978)) and robot_1
 (the yielder, heading east from (-0.985, -0.408)). Their paths cross just
@@ -246,8 +256,8 @@ staggered, this is the first time the two have actually been released
 together from their designed positions. In attempt 3, robot_4's race exit
 masked it.
 
-Candidate fix (NOT applied; needs a ruling, since it changes the release
-sequencing 7a designed). Use M4's existing ordered multi-passer path, which
+Candidate fix, as proposed before the ruling (the landed version differs
+in one respect; see "Ruling (vi)"). Use M4's existing ordered multi-passer path, which
 the spec says to reuse (`crossing_chain.py`: `plan_crossing` reads
 `crossing_order`/`crossing_clear_m`; `CrossingChain` admits one passer at a
 time; `command_bus_node._release_wait` releases each later passer's linked
@@ -265,6 +275,122 @@ command). The predecessor's rerun shows the same stall at (0.36, 0.44).
 
 ---
 
+## Ruling (vi): the yielder re-enters last
+
+`ground_junction_clear_phases`' release phase (commit `589aeb3`, M3 only,
+M4 unchanged):
+
+- Each non-lead receder: a passive `yield` (`backup_distance_m: 0.0`),
+  `passer_robot_id` = lead, `passer_clear_m` 2.65 m, `hold_sec` =
+  `junction_recede_hold_sec` (120). Unchanged from step 7a.
+- The yielder: the same passive `yield` plus `crossing_order` [lead,
+  *receders] and `crossing_clear_m` [2.65, 2.05]. A receder clears once it
+  has crossed the junction box: its pocket offset + `corridor.half_length_m`
+  + `min_distance_m` (1.0 + 0.6 + 0.45; robot_3 can travel ~2.65 m, so the
+  gate clears on travel, not the timer). Its backstop is twice the
+  receders' (240 s), so even a timer-ended hold never frees it with them.
+  The command's `expected_resolution_time_sec` is that 240 s.
+
+**Deviation from the ruling's text.** The ruling says the second receder is
+held "by a linked `temporary_wait`". Checked against
+`safety.admitted_partners` before building, that structure drops the
+lead/receder exemption. A `temporary_wait` is not a clearing action, and
+the lead is not addressed, so it never reaches COMPLETED and the yielder's
+chain never adds the receder as a partner:
+
+```text
+literal  robot_1 yield order [robot_4, robot_3] -> frozenset({'robot_4'})
+literal  robot_3 temporary_wait                 -> frozenset()
+landed   robot_3 yield order [robot_4]          -> frozenset({'robot_4'})
+```
+
+The lead squeezes past the second receder inside the aisle (0.34 m in
+rerun 1, 0.248 m in rerun 2), so without the exemption both latch
+mid-pass. The landed structure keeps the ruling's order (lead, then
+second receder, then yielder), its mechanism (the ordered multi-passer
+path) and its scope (M3 only); only the receder's hold differs. Under the
+landed structure `command_bus_node._release_wait` has no linked wait to
+release for the receder, and its own lead-gated `yield` frees it at the
+same odometry instant the yielder's chain admits it.
+
+Pins: `TestYielderReentersLast` (9 tests, `test_junction_clear_grounding.py`):
+the emitted structure, order and clearances, the unstaggered clearances,
+reachability, the backstop ordering, `plan_crossing` parsing the emitted
+order, a `CrossingChain` simulation that holds the yielder until the second
+receder has cleared, and the `admitted_partners` result above.
+
+---
+
+## Ruling (vii): outcome rank
+
+The phase ordinal stays M5's process label; episode success stays
+arrivals-based. `score_ib10` adds `outcome_rank` = (1 if every robot
+arrived else 0, phase ordinal, arrivals), compared lexicographically, so
+(ordinal 4, 4/4) always ranks above (ordinal 4, partial). None for an
+invalid jam or a missing M5 log. Rerun 1 rescored: (0, 4, 2). Pins:
+`TestIb10OutcomeRank` (5), including that exact case. The same commit
+(`4d7ee48`) adds `release_attribution`'s `yielder_last`: the yielder's
+`gate_release` is strictly later than every receder's release, where a
+receder's release time is its own `gate_release` or, when it is held by a
+linked wait, the yielder's `gate_admit` naming it. Pins:
+`TestIb10YielderLast` (4), including rerun 1's exact same-gate lines
+(False) and both chained log shapes (True).
+
+---
+
+## Rerun 2 (ruling vi)
+
+**Deploy.** `git archive 4d7ee48` (the final code; later commits are docs
+only), `tar -m`, the same IB10 overlay, `colcon build --merge-install`.
+Manifest: every tracked file md5-matches `4d7ee48` except the overlaid
+`orchestrator.yaml`; installed modules match their sources. Preflight: no
+Isaac process (`ps` with a self-excluding pattern), GPU 0 %, pristine md5s
+confirmed.
+
+**Run.** `fc_run_20261003_030944`, the same mock, `REC_SEC=1050
+SIM_SEC=1100`, launched as root, `logs saved to` gate present (`fc_rc=141`,
+the same post-save SIGPIPE).
+
+| Criterion | Result |
+|---|---|
+| Formed-jam gate | valid: onset 27.1 s, longest 17.0 s, 4/4 in radius |
+| chi-pair | chi order [robot_4, robot_3]; proposed and executed correct; `vlm_verbatim`; yielder robot_1 |
+| Inside-first | True; GT crossing order robot_2 78.6, robot_4 143.7, robot_3 178.5, robot_1 210.4 s (`yielder_last` True on GT too) |
+| Phase reached | `resolved` (4), no fallback, not exhausted |
+| Ordered release | True: robot_3 and robot_1 both `reason=clearance` |
+| Yielder last (gate log) | **True**: robot_1 released at 185.800, robot_3 at 153.667 |
+| Arrivals | **4/4**: robot_2 77.1, robot_4 136.3, robot_3 170.8, robot_1 203.0 s after t0 |
+| Tracked band | in band (max \|y\| 1.750, a spawn/goal) |
+| STALE | longest streak 1 row (robot_1, robot_4); robot_2/robot_3 0 |
+| `resolved` / `outcome_rank` | True / (1, 4, 4) |
+
+Gate log, quoted (`m4.log`, request id elided as `<req>`):
+
+```text
+crossing_chain gate_admit command=<req>-junction-cross yielder=robot_1 passer=robot_2 clear_m=1.897 escort_m=1.897 sim_t=75.633
+crossing_chain gate_cleared command=<req>-junction-cross yielder=robot_1 passer=robot_2 moved_m=1.898 clear_m=1.897 sim_t=97.467
+crossing_chain gate_release command=<req>-junction-cross yielder=robot_1 reason=clearance sim_t=97.467
+crossing_chain gate_admit command=<req>-junction-release yielder=robot_3 passer=robot_4 clear_m=2.650 escort_m=None sim_t=97.533
+crossing_chain gate_admit command=<req>-junction-release yielder=robot_1 passer=robot_4 clear_m=2.650 escort_m=None sim_t=97.533
+crossing_chain gate_cleared command=<req>-junction-release yielder=robot_3 passer=robot_4 moved_m=2.651 clear_m=2.650 sim_t=153.667
+crossing_chain gate_release command=<req>-junction-release yielder=robot_3 reason=clearance sim_t=153.667
+crossing_chain gate_cleared command=<req>-junction-release yielder=robot_1 passer=robot_4 moved_m=2.651 clear_m=2.650 sim_t=153.667
+crossing_chain gate_admit command=<req>-junction-release yielder=robot_1 passer=robot_3 clear_m=2.050 escort_m=None sim_t=153.667
+crossing_chain gate_cleared command=<req>-junction-release yielder=robot_1 passer=robot_3 moved_m=2.053 clear_m=2.050 sim_t=185.800
+crossing_chain gate_release command=<req>-junction-release yielder=robot_1 reason=clearance sim_t=185.800
+```
+
+Other observations. The race guard logged 37 lines. The lead passed
+robot_3 at 0.248 m (sim 150.5) inside its exempt pair. When robot_3's own
+hold ended at 153.667 the exemption dropped while the two were still
+close, giving a ~0.2 s burst of `min_distance_violation` stops (48 lines)
+before robot_3 drove north out of range; no lasting latch. robot_1 kept at
+least 1.094 m from robot_3 after the release started. The lead again
+paused near (0.36, 0.45) for ~20 sim s before passing, as in both earlier
+reruns. GT recorded zero robot contacts.
+
+---
+
 ## IB10 scoring frozen
 
 Oracle: `isaac/config/scenarios/intersection_bottleneck.yaml` `oracle:`
@@ -278,14 +404,15 @@ its pin:
 |---|---|---|---|---|
 | 1 | Formed-jam validity gate | `intersection_conflict_active` over GT; onset in `expected_conflict.onset_window_sec` [8, 40]; longest interval >= 2.0 s; >= `jam_robots_in_radius` (4) robots within 1.0 m at onset. Failing it makes the run INVALID (`resolved: None`), not failed. | `formed_jam` | `TestIb10FormedJam` (3) |
 | 2 | chi-pair correctness | recede set = `reverse` legs; `pair_correct`: set == `recede_pair` [robot_3, robot_4]; `order_correct`: order == chi order recomputed at the dispatched decision's snapshot (`rank_recede_candidates`, rag.yaml weights). Scored on the proposed plan (pre-repair, None if token-only) and the executed plan; provenance reported beside it. | `score_chi_pair`, `chi_order`, `dispatched_junction_decision` | `TestIb10ChiPair` (5) |
-| 3 | Inside-first order | GT final junction-centre crossing on each robot's travel axis. True iff every `inside_pair` robot except the grounded yielder crosses, and every recede robot that crosses does so later. None if an inside robot never crosses. `yielder_last` is reported but **contingent on the release ruling**: today's release frees the yielder and the second receder together, which is the defect above. If the yielder is chained last, that order becomes deterministic and `yielder_last` is a candidate oracle criterion again. | `score_inside_first`, `junction_crossing` | `TestIb10InsideFirst` (3) |
-| 4 | Phase-reached ordinal | none 0 < recede 1 < cross 2 < release 3 < resolved 4, from M5 `dispatch ... -junction-recede-` and `phase advance ... phase_reached=` lines. **Open item:** this is M5's own phase label, and `resolved` means the release command completed, not that robots arrived. This rerun scored ordinal 4 with 2/4 arrivals, the same partial score as a full success. Options for the coordinator: require all arrivals for ordinal 4, or keep the label and score success only via criterion 6. Not changed here. | `phase_reached` | `TestIb10PhaseReached` (4) |
+| 3 | Inside-first order | GT final junction-centre crossing on each robot's travel axis. True iff every `inside_pair` robot except the grounded yielder crosses, and every recede robot that crosses does so later. None if an inside robot never crosses. `yielder_last` (GT: the yielder's crossing is later than every other robot's) is **no longer contingent**: ruling (vi) chains the yielder behind every receder, and rerun 2 observed it on GT and in the gate log (criterion 7). | `score_inside_first`, `junction_crossing` | `TestIb10InsideFirst` (3) |
+| 4 | Phase-reached ordinal | none 0 < recede 1 < cross 2 < release 3 < resolved 4, from M5 `dispatch ... -junction-recede-` and `phase advance ... phase_reached=` lines. Ruling (vii): a process label only (`resolved` means the release command completed, not that robots arrived); episodes are ranked by criterion 11. | `phase_reached` | `TestIb10PhaseReached` (4) |
 | 5 | `fallback` / `fallback_exhausted` | flags: a `phase_reached=fallback` advance; M5's `outcome=fallback_exhausted`. | `phase_reached` | `test_fallback_keeps_the_last_phase_and_flags_exhaustion` |
 | 6 | Arrivals (episode success) | `score_ground_truth`'s rule (within 0.35 m, never beyond 0.5 m after); `resolved` = gate valid AND all four arrived. | `score_ib10` | `test_designed_order_is_inside_first_with_the_yielder_last` |
-| 7 | Ordered-release attribution | `-junction-release` gate events; `ordered_release` True iff every held robot's `gate_release` has `reason=clearance`. | `release_attribution` | `TestIb10ReleaseAttribution` (3) |
+| 7 | Ordered-release attribution and yielder last | `-junction-release` gate events; `ordered_release` True iff every held robot's `gate_release` has `reason=clearance`; `yielder_last` True iff the yielder's `gate_release` is strictly later than every receder's release (its own `gate_release`, or the yielder's `gate_admit` naming it). | `release_attribution` | `TestIb10ReleaseAttribution` (3), `TestIb10YielderLast` (4) |
 | 8 | Tracked band | max \|x\| <= 2.5, \|y\| <= 1.80 per robot after t0. | `tracked_band` | `test_an_excursion_past_the_tracked_band_is_flagged` |
 | 9 | STALE instrumentation | longest STALE streak per robot (rows, scene-stamp span) from the M5 scene log; reported, per the step-6 gate ruling. | `stale_streaks` | `test_stale_streak_rows_and_span` |
 | 10 | Regret | `junction_clear`-forced (`intersection_junction_clear_vlm_verbatim_once.json`) vs `best_single_yield`-forced (`intersection_yield_once.json`). The single-yield arm is censored by construction (v1 T1-X), so its regret is a lower bound (`regret_is_lower_bound`, T2b semantics). The oracle block's `margin:` stays pending the forced-arm sweep. | `SCENES["intersection_bottleneck"]`, `cost_table`, `score_regret`, `preflight` | `TestIntersectionBottleneck` (4) |
+| 11 | Outcome rank | Ruling (vii): (1 if all robots arrived else 0, phase ordinal, arrivals), compared lexicographically; None for an invalid jam or unknown phase. (ordinal 4, 4/4) = (1, 4, 4) ranks strictly above (ordinal 4, 2/4) = (0, 4, 2). | `outcome_rank` | `TestIb10OutcomeRank` (5) |
 
 Schema pins: `test_t1_carries_only_the_v2_junction_oracle_and_no_scene_objects`,
 `TestIb10OracleBlock`.
@@ -297,29 +424,27 @@ Schema pins: `test_t1_carries_only_the_v2_junction_oracle_and_no_scene_objects`,
 Full local suite, `pytest -q --continue-on-collection-errors`. The clean
 detached baseline is at the branch point `cf368ec`
 (`scratchpad/step7b/baseline_cf368ec`): 63 failed / 4416 passed / 152
-skipped / 3 collection errors. At `aefbecb`: 63 failed / 4472 passed / 152
-skipped / 3 errors. The failing-name set is identical (`diff` empty). The
-63 failures are pre-existing environment ones (`pxr`/USD, API key, ArUco
-parity); +56 passes are this branch's new pins.
+skipped / 3 collection errors. At `4d7ee48` (the last code commit): 63
+failed / 4490 passed / 152 skipped / 3 errors. The failing-name set is
+identical (`diff` empty). The 63 failures are pre-existing environment ones
+(`pxr`/USD, API key, ArUco parity); +74 passes are this branch's new pins.
 
 ## VM state
 
-Pristine `orchestrator.yaml` restored (plain copy + `touch`), rebuilt, and
-re-verified on source and installed copies, with `rag.yaml` never
-modified: `1f656533a30a35882d57d0d64a57bd0d` /
-`e18c723cff9cada3f320d564c2ecee5a`. After the run, the branch's final tree
-was redeployed with both config files excluded from the archive. Every
-tracked file md5-matches the final branch HEAD except the pristine
-`orchestrator.yaml`, and every installed `swarm_orchestrator`/
-`swarm_execution` module matches its source. No rebuild was needed: nothing
-under `ros2_ws` changed after `7070813`. Isaac's own interpreter
-(`IsaacSim/python.sh`, the `ScenarioConfig.model_validate` path
-`run_simulation` uses) parses the new IB10 oracle block as
-`JunctionOracleConfig`. No Isaac, Kit or `run_simulation`
-process remains, the GPU is idle (0 %, 171 MiB), and the `vgu_ros`
-container is up and idle. Run bundle:
-`/home/ubuntu/step7b_runs/ib10_7b_20261003_022532` (local copy in the
-session scratchpad).
+After rerun 2: the Isaac drain check was clean (no Isaac, Kit or
+`run_simulation` process; GPU 0 %, 171 MiB). Pristine `orchestrator.yaml`
+was restored (plain copy + `touch`) and rebuilt. Source and installed
+copies are `1f656533a30a35882d57d0d64a57bd0d`; `rag.yaml` was never
+modified (`e18c723cff9cada3f320d564c2ecee5a`). The VM tree is `4d7ee48`:
+every tracked file md5-matches it except the pristine `orchestrator.yaml`.
+Later commits are docs only, synced afterwards. Installed
+`swarm_orchestrator`/`swarm_execution` modules match their sources. Isaac's
+own interpreter (`IsaacSim/python.sh`, the `ScenarioConfig.model_validate`
+path) parses the IB10 oracle block, checked after rerun 1. The VM is
+running, and the `vgu_ros` container is up and idle. Run bundles:
+`/home/ubuntu/step7b_runs/ib10_7b_20261003_022532` (rerun 1) and
+`/home/ubuntu/step7b_runs/ib10_7b_vi_20261003_030944` (rerun 2), with local
+copies in the session scratchpad.
 
 ## Mock API spend
 

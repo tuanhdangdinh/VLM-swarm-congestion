@@ -37,6 +37,26 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-03** — **Step 7b closed: STEP-7b RULINGS (vi)/(vii) landed and
+  the IB10 mock rerun PASSES 4/4** (supersedes the "STOP for a ruling" in
+  the next entry). Report: `docs/reports/2026-10-03-step7b-oracle-freeze.md`
+  (Rev 2). (vi) The release `yield` of the yielder now carries
+  `crossing_order` [lead, *receders] with `crossing_clear_m` [lead pocket +
+  second pocket + `min_distance_m`, receder pocket + `corridor.half_length_m`
+  + `min_distance_m`] (IB10: [2.65, 2.05]) and twice the receders' backstop,
+  so M4's ordered multi-passer path frees it only after the last receder
+  clears (`589aeb3`, M3 only). **Gotcha / deviation from the ruling text:**
+  the second receder keeps its lead-gated passive `yield` instead of a
+  linked `temporary_wait`. `safety.admitted_partners` gives a
+  `temporary_wait` no partners, and the unaddressed lead never COMPLETEs,
+  so the literal structure loses the lead/receder exemption the lead needs
+  to squeeze past (0.248-0.34 m measured). (vii) `outcome_rank` = (all
+  arrived, phase ordinal, arrivals) plus `release_attribution`'s
+  `yielder_last` (`4d7ee48`). Rerun `fc_run_20261003_030944` (code
+  `4d7ee48`): 4/4, every release `reason=clearance`, yielder `gate_release`
+  at sim 185.800 after robot_3's at 153.667, in band, STALE max 1 row,
+  `outcome_rank` (1, 4, 4). Suite 63 failed / 4490 passed vs baseline 63 /
+  4416, failing-name set identical.
 - **2026-10-03** — **v2 build-order step 7b: rulings (i)-(v) landed, IB10
   scoring frozen, IB10 mock rerun FAILS 2/4 on a new design-level
   release-sequencing finding (STOP for a ruling).** Branch
