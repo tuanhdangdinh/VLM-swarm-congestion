@@ -12,16 +12,19 @@ import importlib.util
 import math
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 import yaml
 from swarm_perception.annotation import (
     MetricGridSpec,
     TrailHistory,
+    draw_robot_overlay,
     metric_grid_cell_bounds,
     metric_grid_cell_label,
     metric_grid_spec,
     render_annotated_frame,
+    status_to_color,
 )
 from swarm_perception.calibration import load_calibration
 from swarm_perception.geometry import world_to_pixel
@@ -33,8 +36,13 @@ _PKG = Path("ros2_ws/src/swarm_perception")
 _CALIBRATION = load_calibration(str(_PKG / "config" / "calibration.yaml"))
 
 # SHA-256 of `render_annotated_frame(_image(), _scene(), _CALIBRATION)` on the
-# clean baseline (aec58cc, before the apparatus existed). Flag-off must match.
+# clean baseline (aec58cc, before the apparatus existed), recorded with the
+# OpenCV/numpy build below. Anti-aliased drawing differs between OpenCV builds
+# (the VM container's 4.6.0 renders other bytes), so the hash pin runs only on
+# the recording build; the reference-implementation test below pins the same
+# byte identity on every build.
 _FLAG_OFF_FRAME_SHA256 = "079de2b7ce89f15f821d783661b23773ae99ff506c0c353d5207d6e7deeeebd6"
+_PIN_BUILD = ("5.0.0", "2.4.6")
 
 
 def _image() -> np.ndarray:
@@ -80,16 +88,32 @@ def _history_for(scene_robots: list[RobotState]) -> TrailHistory:
     return history
 
 
+def _pre_apparatus_render(image, scene_state, calibration):
+    # Verbatim body of `render_annotated_frame` at aec58cc.
+    annotated = image.copy()
+    for robot in scene_state.robots:
+        draw_robot_overlay(annotated, robot, status_to_color(robot.status), calibration)
+    return annotated
+
+
+_ON_PIN_BUILD = (cv2.__version__, np.__version__) == _PIN_BUILD
+
+
 class TestFlagOffByteIdentity:
+    @pytest.mark.skipif(not _ON_PIN_BUILD, reason="hash recorded on OpenCV 5.0.0 / numpy 2.4.6")
     def test_flag_off_frame_matches_the_pre_apparatus_baseline(self):
         out = render_annotated_frame(_image(), _scene(), _CALIBRATION)
         assert hashlib.sha256(out.tobytes()).hexdigest() == _FLAG_OFF_FRAME_SHA256
 
-    def test_explicit_none_overlays_match_the_baseline(self):
+    def test_flag_off_frame_equals_the_pre_apparatus_code_path(self):
+        out = render_annotated_frame(_image(), _scene(), _CALIBRATION)
+        assert np.array_equal(out, _pre_apparatus_render(_image(), _scene(), _CALIBRATION))
+
+    def test_explicit_none_overlays_equal_the_pre_apparatus_code_path(self):
         out = render_annotated_frame(
             _image(), _scene(), _CALIBRATION, metric_grid=None, motion_trails=None
         )
-        assert hashlib.sha256(out.tobytes()).hexdigest() == _FLAG_OFF_FRAME_SHA256
+        assert np.array_equal(out, _pre_apparatus_render(_image(), _scene(), _CALIBRATION))
 
     def test_process_frame_flag_off_adds_no_diagnostics_keys(self):
         frame = Frame(
