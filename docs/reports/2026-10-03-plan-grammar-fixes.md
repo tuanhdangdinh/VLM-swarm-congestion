@@ -386,3 +386,22 @@ Interactions API), and a single prompt change. The shape change is
    cleanup). A failed early run leaves Isaac alive for its full 300 sim-s
    (more than 12 min), longer than the 231–356 s figure, so a re-run
    needs a PID kill or a longer wait.
+7. The `convoy` gloss ("robots heading the same way pass through in
+   single file, in order") is broader than what M3 can ground.
+   `resolve_strategy_alias` maps `convoy` only when there is a unique
+   counter-flow robot that gives way (3+ involved). A pure same-direction
+   queue, which is B1's shape and where the guidance points to
+   `temporary_wait`/`yield`, falls through to `strategy=unsupported`.
+   Suggested wording: "…pass through in single file, in order, while an
+   opposing robot gives way". Not edited here: that would re-pin v3.1
+   and orphan this calibration run's `user_sha256` (`9957de3f…`).
+
+Evidence notes:
+
+- The step-6 run A/B, both 7b reruns and v2-demo ep1 are mock-backend
+  runs (`reasoner_config_effective.backend_id: mock`). Their proposed
+  plans are scripted fixtures, so run B's [r4, r3] order was written by
+  a fixture, not a model.
+- The 7b bundles are not under `ib10_smoke`. Local copies exist only in
+  the earlier session's scratchpad (`…/scratchpad/step7b/ib10_7b_*`);
+  the originals are on the VM at `/home/ubuntu/step7b_runs/`.
