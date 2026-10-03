@@ -37,6 +37,37 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-03** — **v2 build-order step 7b: rulings (i)-(v) landed, IB10
+  scoring frozen, IB10 mock rerun FAILS 2/4 on a new design-level
+  release-sequencing finding (STOP for a ruling).** Branch
+  `feat/v2-step7b` (from `feat/prereg-v2-composite` at `cf368ec`); full
+  report `docs/reports/2026-10-03-step7b-oracle-freeze.md`. (ii) Repair
+  bound re-swept 1-4 on the 18-case corpus, frozen at **3** (no bound
+  reaches full coverage; documented m3_default tail: two depth-5 cases plus
+  `missing_both_recede_candidates`), `8071f8a`. (iv) Attempt-3's 82 s
+  streak was a race artifact (robot_3/robot_4 0.076-0.144 m apart on the
+  same arm). The race-free endgame (predecessor rerun, `cdf18b5`) exposed
+  the real pocket problem: the lead parks at its goal 0.45 m behind the
+  second receder's 1.2 m pocket and latches (3/4). Fix: new
+  `SceneGeometry.junction_recede_stagger_m` (k-th chi candidate recedes to
+  `offset - k * stagger`, assigned after ranking; release clearance = lead +
+  second pocket + `min_distance_m`); IB10 declares 0.2, so the second pocket
+  sits at 1.0 m (window [1.0, 1.05] from the 0.6 m STALE band and the S1
+  yielder-return bound), `7070813`. Part 3: `JunctionOracleConfig` +
+  IB10 `oracle:` block + `coverage_scene_scores.py ib10` (`aefbecb`), regret
+  arms `junction_clear` vs censored `best_single_yield` (`062cd21`). Rerun
+  `fc_run_20261003_022532` (code `7070813`, manifest-verified): valid jam,
+  chi pair and order correct, inside-first, phase `resolved`, release
+  attributable (`gate_release ... reason=clearance sim_t=139.967` for both
+  held robots), no band excursion, no STALE streak (max 5 rows), but
+  **2/4**. The release frees the second receder (robot_3, northbound) and
+  the yielder (robot_1, eastbound) on the same gate at the same instant;
+  their paths cross and they latch for good 3 s later at 0.416 m. The
+  spec's "the yielder re-enters last" is not implemented relative to the
+  second receder. The candidate fix (chain the yielder behind the second
+  receder, M3-only) is NOT applied and awaits a ruling. Suite: baseline 63
+  failed / 4416 passed, branch 63 / 4472, failing-name set identical.
+
 - **2026-10-02** — **v2 build-order step 7a: five IB10 freeze-blocker fixes
   landed (branch `feat/v2-blockers`, from `feat/prereg-v2-composite` at
   `d3aa0f3`), full report `docs/reports/2026-10-02-step7a-blocker-fixes.md`.**
