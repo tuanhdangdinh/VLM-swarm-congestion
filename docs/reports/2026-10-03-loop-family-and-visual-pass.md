@@ -7,7 +7,12 @@
 - Initial draft: Part A (loop-map wait-vs-detour family) authored, pinned
   and taken to the VM, where its design control failed (STOP finding, for a
   coordinator ruling; no cost tables collected). Part B (step-9 visual
-  pass) complete: both B2-visual USDs and the B3 first-to-slip USD built
+  pass) complete. Rev 1.1 (same day, review pass): the mechanism is
+  restated as partly characterized, with the contradicting live probe
+  added. The reroute failure is no longer folded into "undrivable". The
+  checklist row now names the 99.55% empty-robot fresh rate. The evidence
+  is persisted under `data/logs/vm_runs/loop_family/navfn_sweep/`. Part B:
+  both B2-visual USDs and the B3 first-to-slip USD built
   and validated, load prop verified visible without occluding the marker,
   M1 detection unaffected, A/B crops saved, maps byte-identical, `b3`
   scored against a real GT log.
@@ -27,9 +32,9 @@ loop-map scenario family and its oracle) and the step-9 VM visual pass
 |---|---|
 | A: M3 reroute grounding | Built (spec (b) "Builds"; it was never built in phase 1). `SceneGeometry.reroute_waypoints` grounds a `reroute` to the declared far-aisle waypoints in both grounding modes; every scene without the field still grounds `waypoints: []`, byte-identical. |
 | A: family authoring | Built and pinned: `loop_detour_permanent` (box) and `loop_detour_transient` (marker-less robot visual), one factor with two cells. The minimal loop has one connector, so it supports only one detour length. Oracle block (`LoopDetourOracleConfig` + `LoopDetourCostRecord`), scorer (`coverage_scene_scores.py loop`, `loop-cost`), regret arms (`strategy_regret.py`), VM drivers. |
-| A: VM | **STOP: the design control failed.** On the VM Nav2 self-detours in the permanent cell before any decision, in 3 of 3 runs. robot_1 never reaches the blocker, so the wait-vs-detour question is never asked of M2/M3. No cost table was collected. Details below. |
+| A: VM | **STOP: the design control failed.** On the VM Nav2 self-detours in the permanent cell before any decision, in 3 of 3 runs. robot_1 never reaches the blocker, so the wait-vs-detour question is never asked of M2/M3. The self-detour is robust; its mechanism is only partly characterized (below). No cost table was collected. |
 | A: tracked-robot blocker | **STOP (design):** a tracked "faulted robot" blocker cannot stall robot_1 without a permanent M4 pair latch or a Nav2 self-detour (arithmetic below). The authored transient cell therefore uses T3a's untracked marker-less visual. This deviates from the task's note and needs a coordinator ruling. |
-| B: visual pass | **PASS** on every checklist item (table below). One flagged recurrence: the B3 goal-stack latch at 0.445 m, which the registered censoring valve covers. |
+| B: visual pass | **PASS** (table below). One caveat: the empty robot_1 in r2 was 99.55% fresh (a 2-row blip on the robot without a prop), against the checklist's 100%. One flagged recurrence: the B3 goal-stack latch at 0.445 m, which the registered censoring valve covers. |
 
 VM state at close-out: pristine configs restored and md5-verified after
 every run, GPU idle, no Isaac process, and the VM tree equals the branch
@@ -86,29 +91,31 @@ the `logs saved to` gate and ended with RESTORE OK. Scores come from
 | Run (stamp) | Mock | Left primary aisle (y > 0.6) | First dispatch | Outcome | STALE |
 |---|---|---|---|---|---|
 | `perm_wait_s42` (20261003_041339) | wait once | 26.4 s | `temporary_wait` @ 34.3 s | never arrived (censored 228.3 s), wedged at the second-aisle mouth (0.47–0.56, 0.68–0.93) for > 150 s | 44-row (20.4 s) streak, 219.5–240.0 s, during the final dwell at (0.559, 0.933) beside the 0.3 m remnant corner; flagged |
-| `perm_reroute_s42` (20261003_043348) | reroute once | 25.3 s | `reroute` @ 36.3 s | `follow_waypoints` never progressed: the robot sat at (0.31, 0.90), 0.3 m from waypoint 1. M4's Nav2-leg watchdog FAILED the command after about 121 wall-s; the robot ended at (0.564, 0.395) and never arrived | max 3 rows |
+| `perm_reroute_s42` (20261003_043348) | reroute once | 25.3 s | `reroute` @ 36.3 s (robot already on its self-detour, at (0.31, 0.90)) | `follow_waypoints` never progressed: robot_1 sat 0.3 m from waypoint 1 for about 60 s. M4's Nav2-leg watchdog FAILED the command after about 121 wall-s; the robot ended at (0.564, 0.395) and never arrived | max 3 rows |
 | `diag_costmap_s42` (20261003_054917) | silent (default) | 26.7 s | none | Nav2's own detour drove the loop after a 15 s pause at the aisle mouth; arrived at 55.9 s after t0 | 0 |
 
-In all three runs (`self_detour: true`), NavFn's first plan went direct
-(t = 12.1 s, max |y| 0.125). **From the second plan, at t = 13 s, every
-global plan went round the loop.** That was while robot_1 was still near
-x ≈ -2.3, long before it reached the gap. The collision-monitor stall the
-design depends on therefore never occurred.
+In all three runs (`self_detour: true`), NavFn's first sampled plan went
+direct (sim 10.8 / 12.1 / 12.6 s, max |y| 0.13). **From the next sample on
+(11.7 / 13.0 / 13.6 s), every global plan went round the loop.** That was
+while robot_1 was still near x ≈ -2.3, long before it reached the gap. The
+collision-monitor stall the design depends on therefore never occurred.
 
-### Mechanism
+### Mechanism (partly characterized)
 
-The sampler's gap-box reading was misleading: the box only partly overlaps
-the pinch. Full costmap dumps settle the mechanism:
+The self-detour is robust. Its mechanism is only partly established.
+Evidence is in `data/logs/vm_runs/loop_family/navfn_sweep/` (README there),
+plus `diag_costmap_s42/costmap_series.jsonl`.
 
-1. **Live global costmap** (`diag_costmap_s42/costmap_series.jsonl`, from
-   sim 10.4 s, before departure). Compared with the same static map loaded
-   standalone, it carries lidar marks of the box and its corner at x ≈
-   0.78–1.03, y ≈ -0.125..0.125. Those marks are not in the static map.
-   With the global inflation band (inscribed radius 0.08 m from the
-   footprint; inflation 0.10 m), every cell of the pinch is high-cost
-   (OccupancyGrid 80–99) except a few at the gap's north edge.
-2. **Standalone NavFn sweep** (no Isaac; the shipped `planner_server` and
-   global-costmap settings on baked maps; isolated ROS domain). Results:
+1. **Contributing factor: the gap's cost.**
+   - At sim 10.4 s, before departure, the live global costmap of
+     `diag_costmap_s42` carried lidar marks of the box and its corner at
+     x ≈ 0.78–1.03, y ≈ -0.125..0.125. Those marks are absent from the
+     same static map loaded standalone (`standalone_C_corr50.json`).
+   - With the global inflation band (inscribed radius 0.08 m, inflation
+     0.10 m), almost every pinch cell is then high-cost (OccupancyGrid
+     80–99).
+   - A standalone NavFn sweep on baked maps (no Isaac; shipped
+     planner and global-costmap settings; `sweep_results.txt`):
 
    | Map (loop present) | From (-2.4, 0) | From (0.5, 0) |
    |---|---|---|
@@ -117,27 +124,48 @@ the pinch. Full costmap dumps settle the mechanism:
    | box leaving a **0.22 m** gap (open aisle) | **loop** | direct (max \|y\| 0.45) |
    | box leaving 0.30 / 0.40 / 0.55 m | direct | direct |
 
-   The pinch alone does not flip NavFn. A **0.22 m** box gap flips it from
-   the spawn, and a 0.30 m gap does not.
+   A 0.22 m box gap alone flips NavFn from the spawn; 0.30 m does not. The
+   collision monitor stops a centred robot only below 0.24 m. At the tested
+   widths, no gap stalls robot_1 without also making NavFn prefer the loop
+   on cost (cell cost ≈ 50 + 0.8 × costmap cost, against the loop's extra
+   1.4–2.4 m).
+2. **Unexplained contradiction.** In `perm_reroute_s42` at sim 54.8 the
+   gap cost no longer applied, yet the live planner still preferred the
+   loop:
+   - `costmap_marks.py` found zero lethal sensor marks in the whole live
+     global grid.
+   - The live pinch crop matched the static map: centre band cost 0, 80 at
+     |y| = 0.175, 99 at 0.225 (`costmap_dump_perm_reroute.json`).
+   - A live `ComputePathToPose` still went round the loop from every
+     tested start, including (0.65, 0) at the corridor mouth
+     (`live_plan_probe_perm_reroute_s42.json`).
+   - Standalone NavFn on the same static map plans direct.
 
-**Reading.** The flip is a cost effect, not a closure. A sub-0.24 m gap puts
-every path cell inside the inflation band of the box and the wall. Under
-NavFn's cost weighting (cell cost ≈ 50 + 0.8 × costmap cost) that costs
-more than the loop's extra 1.4–2.4 m. Live lidar marking widens the
-box by about one cell, which only makes this worse. The collision monitor
-stops a centred robot only below 0.24 m. Under the shipped Nav2 parameters,
-no gap was found that stalls robot_1 without making NavFn prefer the loop:
-0.22 flips and 0.30 passes. This is bracketed at the tested widths, not
-proven for every geometry.
+   One lead is not followed up. Along the whole primary aisle, the live
+   wall cells read 99 at y = ±0.525 where the standalone costmap reads 80
+   (lidar marks the rack faces just inside the map's wall cell). This
+   would not obviously close a 5-cell zero-cost centre band. **The live
+   planner's preference cannot yet be fully explained by the costmap it
+   publishes.**
 
-A second finding: **the loop is not reliably drivable**. Phase 1 only
-*planned* into it with `compute_path_to_pose`, and nothing ever drove it.
+Consequence for the options below: option (a), lengthening the detour,
+assumes the flip is purely cost-relative. Item 2 means that is **not
+established**.
 
-- 1 of 3 drives completed: Nav2's own detour in the diagnostic run.
-- 1 of 3 wedged at the second-aisle mouth for over 150 s. The 0.3 m
-  connector-flanking remnant corner is at (0.6, 0.6–0.925).
-- 1 of 3 was the declared waypoint route: `follow_waypoints` failed by
-  watchdog, with 8 Nav2 "Failed to make progress" aborts.
+Second finding, on **loop drivability**. Phase 1 only *planned* into the
+loop with `compute_path_to_pose`, and nothing ever drove it.
+
+- Nav2's own detour completed once, in the diagnostic run (silent mock).
+- It wedged once at the second-aisle mouth for over 150 s
+  (`perm_wait_s42`, after a `temporary_wait` cancelled and resumed it).
+  The 0.3 m connector-flanking remnant corner is at (0.6, 0.6–0.925).
+- **The declared reroute is unit-pinned but its live M4 path is
+  unvalidated.** This was the first-ever live `follow_waypoints` in this
+  stack. It was dispatched mid-self-detour and stalled 0.3 m from
+  waypoint 1 (8 Nav2 "Failed to make progress" aborts, then the
+  watchdog). It was not root-caused; it could be an integration issue
+  (the M4 `follow_waypoints` leg) or geometry. It should not be read as
+  "the loop is undrivable".
 
 The global obstacle layer was also observed to keep stale box marks until
 raytraced away. `perm_reroute_s42` at sim 54.8 showed zero sensor marks

@@ -50,18 +50,22 @@ Rules for maintaining it:
     drivers (`scripts/vm/v2_final_run.sh`, `v2_overlay.py`,
     `loop_family_sampler.py`, `frame_snapshots.py`).
   - **STOP (gotcha):** a 0.22 m blocker gap stops robot_1 by the
-    collision monitor's 0.24 m stop box, but it also makes NavFn prefer the
-    loop. Every global plan from t = 13 s went round the loop, and robot_1
-    left the primary aisle at about 25 s, before any dispatch, in 3 of 3
-    runs. Mechanism: live lidar marks of the box plus the global inflation
-    band make every gap cell high-cost. A standalone NavFn sweep on baked
-    maps flips at a 0.22 m gap (loop) but not at 0.30 m (direct); the
-    0.50 m pinch alone does not flip it. Phase 1's PASS (0.55 m gap, no
-    stall) does not carry over to a stalling blocker.
-  - **Loop drivability:** 1 of 3 drives of the loop completed. Phase 1
-    only planned into it. The declared waypoint route failed by M4's
-    Nav2-leg watchdog, and the self-detour wedged once at the second-aisle
-    mouth (0.3 m remnant corner).
+    collision monitor's 0.24 m stop box, but NavFn prefers the loop. In
+    3 of 3 runs every global plan from the second sample (11.7–13.6 s) went
+    round the loop, and robot_1 left the primary aisle at about 25 s,
+    before any dispatch. The mechanism is only PARTLY characterized:
+    - Contributing factor: lidar box marks plus the global inflation band
+      make the gap high-cost. A standalone NavFn sweep flips at a 0.22 m
+      gap and not at 0.30 m.
+    - Unexplained: at sim 54.8 the live grid had no sensor marks and a
+      zero-cost pinch centre, yet the live planner still planned the loop.
+    Evidence: `data/logs/vm_runs/loop_family/navfn_sweep/`. Phase 1's PASS
+    (0.55 m gap, no stall) does not carry over to a stalling blocker.
+  - **Loop drivability:** Nav2's own detour completed once and wedged once
+    at the second-aisle mouth (0.3 m remnant corner). The declared reroute
+    (the first live `follow_waypoints`) stalled 0.3 m from waypoint 1 and
+    failed by watchdog. It is not root-caused, so its live M4 path is
+    unvalidated.
   - **Tracked faulted robot:** infeasible as a transient blocker. The M4
     pair latch (0.45 m) fires before the collision monitor can stop
     robot_1 (≤ 0.38 m reach), and it is permanent. The authored transient
@@ -71,7 +75,8 @@ Rules for maintaining it:
     Coordinator options are listed in the report.
   - **Visual pass:** B2-visual and B3-slip USDs built and validated. The
     load prop is visible and never covers the marker (spawn, standoff,
-    goal). The loaded robot is 100% fresh in both members. A/B diff:
+    goal). The loaded robot is 100% fresh in both members (the empty
+    robot_1 in r2 was 99.55%, a 2-row blip). A/B diff:
     0 pixels changed in the marker window. Maps are byte-identical. `b3`
     on a real GT log gives first_slipper robot_1, latency 28.6 s,
     consistent with GT.
