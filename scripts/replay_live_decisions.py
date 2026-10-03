@@ -82,6 +82,7 @@ from reasoning.vlm.models import (  # noqa: E402
     PromptPayload,
     ReasonerConfig,
     ReasonerRequest,
+    RobotCandidateOptions,
     RobotPresentationOrder,
     StaticObstacleInput,
 )
@@ -256,6 +257,9 @@ class Artifact:
     # written before the (a0) plan channel existed, or with it disabled, and
     # on every v1/v2 artifact (the field is v3-only).
     plan_state: dict[str, Any] | None = None
+    # Prompt-apparatus record (prereg-v2 rev 6, 2026-10-04); absent on every
+    # artifact written before it existed, which then reconstructs as all-off.
+    prompt_conditions: dict[str, Any] | None = None
 
     @property
     def raw_image_path(self) -> Path:
@@ -399,6 +403,7 @@ def load_artifacts(
                     last_failed_context=data.get("last_failed_context"),
                     prompt_version=int(data.get("prompt_version") or 1),
                     plan_state=data.get("plan_state"),
+                    prompt_conditions=data.get("prompt_conditions"),
                 )
             )
         loaded.sort(key=lambda a: (log_order.get(a.request_id, 10**6), a.stamp))
@@ -452,7 +457,28 @@ def reconstruct_request(
         robot_presentation_order=order or artifact.stored_order,
         prompt_version=artifact.prompt_version,
         plan_state=plan_state,
+        **_apparatus_kwargs(artifact, Path(image_path or artifact.image_path)),
     )
+
+
+def _apparatus_kwargs(artifact: Artifact, image_path: Path) -> dict[str, Any]:
+    """Rebuild the prompt-apparatus request fields from `prompt_conditions`."""
+    conditions = artifact.prompt_conditions or {}
+    if not conditions:
+        return {}
+    kwargs: dict[str, Any] = {}
+    if (conditions.get("metric_grid") or {}).get("stated"):
+        kwargs["metric_grid_spacing_m"] = conditions.get("metric_grid_spacing_m")
+    if (conditions.get("motion_trails") or {}).get("stated"):
+        kwargs["motion_trails_drawn"] = True
+    zoom = conditions.get("zoom_tile") or {}
+    if zoom.get("attached"):
+        kwargs["zoom_tile_path"] = str(image_path.with_name(f"{artifact.request_id}_zoom.png"))
+    if conditions.get("candidate_options") is not None:
+        kwargs["candidate_options"] = [
+            RobotCandidateOptions(**entry) for entry in conditions["candidate_options"]
+        ]
+    return kwargs
 
 
 def sha256_text(text: str) -> str:
