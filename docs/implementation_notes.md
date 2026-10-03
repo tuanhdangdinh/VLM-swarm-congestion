@@ -37,6 +37,47 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-04** — **Capability-probe battery run live, once per backend;
+  model pin wired (step-10 follow-up (a))**
+  (`docs/reports/2026-10-04-capability-probe-results.md`).
+  These are the pre-collection baseline runs the v2 freeze cites (manifest
+  `9659782d…`, prompt v1 template `b1af71e8…`).
+  - **Pin wiring (`7ba1170`):** `scripts/capability_probes.py` now resolves
+    `openai`/`gemini` from `config/models.yaml`, using the
+    `probe_presentation_order` precedent.
+    - Temperature is forced to 0.0.
+    - Each item gets one `analyze` call. The reasoner's re-ask and
+      grey-image fallback are deliberately not applied.
+    - Every record carries the configured model and the served model.
+  - **Served models:** `gpt-4o-2024-08-06` ×60 and
+    `gemini-robotics-er-2-preview` ×60.
+  - **Frames:** all 60 re-materialized hash-clean from the main checkout's
+    `data/logs/vm_runs` (audit `OK`).
+  - **Gemini ER-2:** 60/60, i.e. 15/15 on every type.
+  - **gpt-4o:** 58/60. It scored 15/15 on every type except `left_right`,
+    where it got 13/15 [0.62, 0.96].
+    - Both misses are near the centre line (margins 0.46 m and 0.64 m).
+    - Both answers were letter A, listed first.
+  - **gpt-4o refused 0/60 times on real annotated frames**, against the
+    19–38% recorded on the congestion prompt. The task text and the frame
+    distribution changed together, so the cause is not identified.
+  - **`nearest_first` priors:** 0/8 robot_1 picks where robot_1 was wrong,
+    and 5/5 correct where the first-listed option was wrong. Follow-up (c)
+    is answered for this battery.
+  - **Ceiling:** at n=15 a perfect score's Wilson lower bound is 0.796, so
+    the battery cannot rank the backends.
+  - **LRR-Bench:** checked against the paper's Tables II and III. Its
+    near-chance and near-zero results are on the composite-position and 3D
+    movement tasks. On basic Position, GPT-4o scores 78–80 against 95 for
+    humans. The spec's "left/right near chance" wording should be fixed at
+    freeze, and the research note's "55.33%" figure is absent from the v1
+    HTML.
+  - **Spend:** about $0.25 total.
+  - **Results JSONL** (gitignored):
+    `data/logs/capability_probes/{gemini_20261003T201320Z,openai_20261003T201935Z}/`.
+  - **Still open:** follow-up (b), the owner confirming the left/right
+    operationalization.
+
 - **2026-10-03** — **The χ-epsilon and grammar rulings are implemented
   (report Rev 2, `docs/reports/2026-10-03-plan-grammar-fixes.md`).**
   - **χ-epsilon rule (`b176e56`):** option (b), with
