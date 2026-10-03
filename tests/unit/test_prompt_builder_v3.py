@@ -7,7 +7,7 @@ import re
 import pytest
 from pydantic import ValidationError
 
-from reasoning.rag.command_grounder import _is_consistent
+from reasoning.rag.command_grounder import _is_consistent, _plan_disagrees_with_decision_fields
 from reasoning.vlm.models import (
     CURRENT_PROMPT_VERSION,
     CongestionDecision,
@@ -246,6 +246,36 @@ def test_v3_plan_grammar_count_rules_match_is_consistent(
     assert _is_consistent(strategy, legs(minimum + 1)) is not exact
 
 
+def test_v3_plan_grammar_states_the_decision_field_agreement_rule_on_yield_only():
+    # `_plan_disagrees_with_decision_fields` runs for strategy "yield" only,
+    # so the agreement rule rides that line and no other.
+    yield_line = next(
+        line for line in _PLAN_GRAMMAR.splitlines() if line.startswith('- strategy "yield"')
+    )
+    assert yield_line.endswith(
+        "and the plan must agree with your own yield_robot and crossing_order answers"
+    )
+    assert _PLAN_GRAMMAR.count("yield_robot") == 1
+    yield_decision = CongestionDecision(
+        congestion_detected=True, type="deadlock", involved_robots=["robot_1", "robot_2"],
+        root_cause="r", strategy="yield", justification="j", yield_robot="robot_1",
+        proposed_plan=[
+            ProposedPlanLeg(robot_id="robot_2", action="yield"),
+            ProposedPlanLeg(robot_id="robot_1", action="cross"),
+        ],
+    )
+    assert _plan_disagrees_with_decision_fields(yield_decision, yield_decision.proposed_plan)
+    other = yield_decision.model_copy(update={"strategy": "junction_clear"})
+    assert _plan_disagrees_with_decision_fields(other, other.proposed_plan) is None
+
+
+def test_v3_convoy_gloss_names_the_opposing_robot():
+    assert (
+        '  - "convoy": robots heading the same way pass through in single file, in order, '
+        "while an opposing robot gives way\n"
+    ) in _prompt()
+
+
 def test_v3_plan_grammar_junction_clear_rule_matches_is_consistent():
     assert '- strategy "junction_clear": at least one "reverse" or "yield" leg' in _PLAN_GRAMMAR
     for action in ("reverse", "yield"):
@@ -363,29 +393,35 @@ _V3_PINS: dict[str, tuple[int, str]] = {
     # baseline digest was 22baf2df179c58fbbf1a757f2e7fe9ed435a533c434d966b272be3dcec551286
     # -- stored v3 artifacts carry `prompt_version: 3` either way, so
     # `user_sha256` is what tells a v3.0 decision from a v3.1 one.
+    # Re-pinned for v3.2 (2026-10-03 coordinator ruling): the "yield" rule
+    # line states the decision-field agreement rule and the convoy gloss
+    # gains "while an opposing robot gives way" (+113 chars everywhere).
+    # The v3.1 baseline digest was
+    # 42463ce2c2610273d649dd5eca9dc61ff8bf3272023730a2feba3703130b9a4c (the
+    # 2026-10-03 live ER-2 calibration episode ran on v3.1).
     "baseline": (
-        5916,
-        "42463ce2c2610273d649dd5eca9dc61ff8bf3272023730a2feba3703130b9a4c",
+        6029,
+        "c3fb9fcf4031f3c11961bfe7015887a38901d01049810f289b0c45324c36f873",
     ),
     "id_desc": (
-        5916,
-        "1f37f1a6310c66d63907e6708dd5244ca844d969498e179c2ea9be73b3110a1b",
+        6029,
+        "b5aa9b3540547a80db96c7a4d76b738edeb5eb0cb5216cf2d17a7d7e19d143d6",
     ),
     "no_geometry": (
-        5730,
-        "53950df569eff3c5cf7d5f79c265390e571e60d60088455fd8119bf6eb713175",
+        5843,
+        "43eb4d90350bdbd5e08fd9aee3a3212b9b51401ac870aedc68886ce12ccc5f11",
     ),
     "goals_obstacles": (
-        6319,
-        "74391670baedd21204882607d147f24316588b90b296186d0be87081e9b8591d",
+        6432,
+        "0e117f10d978030346e5cf04c23417c79997facfbd58605539f0b95203bda860",
     ),
     "plan_state": (
-        6198,
-        "7f11e58db4827c75815d0ec07856f4911b9d48f2c471bd608154085703c45383",
+        6311,
+        "080c12e4ae1c893f190aba29f063d978481432f119d1ff09b9521dcd6f950454",
     ),
     "failure_context": (
-        6275,
-        "066b774bda38da683f6efe88d623fbf2cbe01e61ea745ed7d36de00ab48dc988",
+        6388,
+        "495e565168db91d48621613496d498cc4f91ea7ccd8b4b64572b9ce4e34b9ea1",
     ),
 }
 

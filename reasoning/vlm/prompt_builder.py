@@ -45,8 +45,10 @@ SYSTEM_PROMPT = "You are a helpful assistant."
 # Exception, same as the step-5 `junction_clear` re-pin: v3 is not frozen
 # until the prereg-v2 freeze, so pre-freeze revisions re-pin in place under
 # `prompt_version=3`. Revision v3.1 (2026-10-03) adds `_PLAN_GRAMMAR` and a
-# one-line gloss for every strategy token; artifacts from before it are told
-# apart by `user_sha256` (old baseline pin 22baf2df...).
+# one-line gloss for every strategy token; v3.2 (same day, coordinator
+# ruling) states the decision-field agreement rule and narrows the convoy
+# gloss. Artifacts are told apart by `user_sha256` (baseline pins: v3.0
+# 22baf2df..., v3.1 42463ce2...).
 _USER_TEMPLATE = """You are a warehouse swarm robotics traffic controller. Analyze the \
 overhead camera view together with the robot states below and detect congestion \
 patterns such as deadlocks, bottlenecks, crowding, or anomalies.
@@ -94,7 +96,8 @@ if any)
   - "none": no congestion to resolve
   - "yield": one robot (yield_robot) backs up and steps aside while the others pass
   - "reroute": a robot takes an alternative path around the blockage
-  - "convoy": robots heading the same way pass through in single file, in order
+  - "convoy": robots heading the same way pass through in single file, in order, \
+while an opposing robot gives way
   - "priority_override": the higher-priority robot passes first; the others give way
   - "temporary_wait": the involved robots hold in place until the way clears
   - "reverse": the involved robots back straight out along their own lanes
@@ -228,10 +231,11 @@ _PLAN_INVITATION = (
 # constant outside every conditional block, so it renders byte-identically on
 # every v3 decision in every scenario. It states the contract, never which
 # strategy or action fits a scene -- no examples, scene references or robot
-# counts. The rule lines must track `_is_consistent` exactly; the second
-# "inconsistent" path (`_plan_disagrees_with_decision_fields`, a yield leg or
-# cross order that contradicts the same answer's yield_robot/crossing_order) is
-# deliberately not stated here.
+# counts. The rule lines must track `_is_consistent` exactly, plus the second
+# "inconsistent" path (`_plan_disagrees_with_decision_fields`: a yield leg or
+# cross order that contradicts the same answer's yield_robot/crossing_order),
+# stated on the "yield" line because that check runs for strategy "yield"
+# only (v3.2 re-pin, 2026-10-03 ruling).
 _PLAN_GRAMMAR = """Plan actions, for "proposed_plan":
 - "yield": back up, step aside, and hold until the passing robots have cleared
 - "reverse": back straight out along its own lane
@@ -241,7 +245,8 @@ _PLAN_GRAMMAR = """Plan actions, for "proposed_plan":
 - "continue": proceed unchanged; not part of the resolution
 A proposed plan must refine the chosen strategy; a plan that does not is \
 ignored and the system derives the resolution instead:
-- strategy "yield": exactly one "yield" leg
+- strategy "yield": exactly one "yield" leg, and the plan must agree with your own \
+yield_robot and crossing_order answers
 - strategy "temporary_wait": at least one "wait" leg
 - strategy "reroute": at least one "reroute" leg
 - strategy "junction_clear": at least one "reverse" or "yield" leg
