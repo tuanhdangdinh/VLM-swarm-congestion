@@ -15,6 +15,13 @@ edits on the PRISTINE files and nothing else:
   -> identical M5 settings to convoy_counterflow"): the four-robot
   `initial_tasks`, `scenario_geometry.corridor.half_length_m: 0.5`, and
   `config/rag.yaml` `grounding.mode: legacy`.
+- `apparatus_annotation` / `apparatus_votes` (prompt-apparatus VM smoke,
+  2026-10-04, `docs/reports/2026-10-04-visual-apparatus.md`): the
+  `_bshort` head-on `initial_tasks` (robot_1 -> (2.6, 0), robot_2 ->
+  (-1.5, 0)), `keep_debug_frames: true`, and the apparatus flags appended
+  at the end of the file -- annotation: plan channel (prompt v3) + grid,
+  trails and zoom-tile sentences, plus `keep_raw_frames: true`; votes:
+  `prompt_permutation_votes: 3` only. `config/rag.yaml` untouched.
 
 Restoring is NOT this script's job: the driver copies the verbatim backups
 back (plain copy, fresh mtime) and verifies the pristine md5s.
@@ -44,6 +51,29 @@ SCENE_TASKS: dict[str, list[str]] = {
         "  robot_3: { task: cross_narrow_aisle, goal: [2.45, 0.36], start_delay_sec: 120 }",
         "  robot_4: { task: cross_narrow_aisle, goal: [1.85, 0.0], start_delay_sec: 120 }",
     ],
+    "apparatus_annotation": [
+        "  robot_1: { task: cross_narrow_aisle, goal: [2.6, 0.0] }",
+        "  robot_2: { task: cross_narrow_aisle, goal: [-1.5, 0.0] }",
+    ],
+    "apparatus_votes": [
+        "  robot_1: { task: cross_narrow_aisle, goal: [2.6, 0.0] }",
+        "  robot_2: { task: cross_narrow_aisle, goal: [-1.5, 0.0] }",
+    ],
+}
+# Prompt-apparatus smoke: `^key: value$` replacements, then lines appended at
+# the end (the keys the pristine file does not carry).
+APPARATUS_REPLACE: dict[str, dict[str, str]] = {
+    "apparatus_annotation": {"keep_debug_frames": "true", "keep_raw_frames": "true"},
+    "apparatus_votes": {"keep_debug_frames": "true"},
+}
+APPARATUS_APPEND: dict[str, list[str]] = {
+    "apparatus_annotation": [
+        "plan_channel_enabled: true",
+        "prompt_metric_grid: true",
+        "prompt_motion_trails: true",
+        "prompt_zoom_tile: true",
+    ],
+    "apparatus_votes": ["prompt_permutation_votes: 3"],
 }
 WAYPOINTS_LINE = "  reroute_waypoints: [[0.3, 1.2], [1.8, 1.2]]"
 TASKS_RE = re.compile(r"^initial_tasks:\n(?:  robot_\d+:.*\n)+", re.MULTILINE)
@@ -78,6 +108,27 @@ def overlay_orchestrator(text: str, scene: str) -> str:
         raise ValueError("reroute_waypoints already present: restore the pristine file first")
     tasks = "initial_tasks:\n" + "\n".join(SCENE_TASKS[scene]) + "\n"
     text = _sub_once(TASKS_RE, lambda _m: tasks, text, "initial_tasks: block")
+    if scene in APPARATUS_REPLACE:
+        for key, value in APPARATUS_REPLACE[scene].items():
+            text = _sub_once(
+                re.compile(rf"^{key}: .*$", re.MULTILINE),
+                lambda _m, k=key, v=value: f"{k}: {v}", text, f"{key}: line",
+            )
+        appended: list[str] = []
+        for line in APPARATUS_APPEND[scene]:
+            key = line.split(":")[0]
+            pattern = re.compile(rf"^{key}: .*$", re.MULTILINE)
+            found = pattern.findall(text)
+            if any(value.strip() == line for value in found):
+                raise ValueError(f"{line!r} already set: restore the pristine file first")
+            if found:
+                # A newer pristine file already carries the key (default off).
+                text = _sub_once(pattern, lambda _m, new=line: new, text, f"{key}: line")
+            else:
+                appended.append(line)
+        if not appended:
+            return text
+        return text.rstrip("\n") + "\n" + "\n".join(appended) + "\n"
     if scene.startswith("loop_"):
         return _sub_once(
             MARGIN_RE, lambda m: m.group(1) + WAYPOINTS_LINE + "\n", text,

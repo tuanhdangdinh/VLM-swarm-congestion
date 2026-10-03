@@ -1,0 +1,37 @@
+[
+  {
+    "congestion_detected": true,
+    "type": "deadlock",
+    "involved_robots": ["robot_1", "robot_2"],
+    "root_cause": "Vote call 0: two robots met head-on inside the narrow aisle.",
+    "strategy": "yield",
+    "justification": "Scripted permutation-vote call 0: robot_1 yields (the minority answer).",
+    "yield_robot": "robot_1"
+  },
+  {
+    "congestion_detected": true,
+    "type": "deadlock",
+    "involved_robots": ["robot_2", "robot_1"],
+    "root_cause": "Vote call 1: two robots met head-on inside the narrow aisle.",
+    "strategy": "yield",
+    "justification": "Scripted permutation-vote call 1: robot_2 yields (the majority answer).",
+    "yield_robot": "robot_2"
+  },
+  {
+    "congestion_detected": true,
+    "type": "deadlock",
+    "involved_robots": ["robot_2", "robot_1"],
+    "root_cause": "Vote call 2: two robots met head-on inside the narrow aisle.",
+    "strategy": "yield",
+    "justification": "Scripted permutation-vote call 2: robot_2 yields (the majority answer).",
+    "yield_robot": "robot_2"
+  },
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "Scene has cleared; robots are no longer in a head-on conflict.",
+    "strategy": "none",
+    "justification": "Scripted mock decision: scene is clear after the voted yield resolved."
+  }
+]
