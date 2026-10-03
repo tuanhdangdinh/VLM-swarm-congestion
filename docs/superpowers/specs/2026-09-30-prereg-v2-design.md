@@ -773,6 +773,18 @@ makes an explicit include/exclude call.
    stays arrivals-based; the scorer adds a derived `outcome_rank`
    ordering (ordinal 4, 4/4) strictly above (ordinal 4, partial)
    so the two can never read as the same score.
+   STEP 7 CLOSED (2026-10-03, report Rev 2): the deciding IB10
+   rerun PASSED ALL CRITERIA — 4/4 position-verified arrivals,
+   every release by clearance, yielder-last decidable in the gate
+   log (robot_3 at sim 153.7, robot_1 at 185.8), zero contacts,
+   max STALE streak 1 row. The formed four-way jam is RESOLVED
+   end-to-end by the composite command. Accepted deviation from
+   ruling (vi)'s text: the second receder keeps a lead-gated
+   passive `yield` (a linked `temporary_wait` would carry no
+   `admitted_partners` exemption and latch the lead mid-pass);
+   order and M3-only scope as ruled. IB10 scoring FROZEN at 11
+   criteria (incl. `outcome_rank`, `yielder_last` no longer
+   contingent) — the v2 freeze references the report's pin table.
 8. Loop map: USD + Nav2 + reroute grounding; the pre-emption control
    smoke before any scenario authoring.
 9. B2-visual pair + B3 first-to-slip scenarios + oracles.
