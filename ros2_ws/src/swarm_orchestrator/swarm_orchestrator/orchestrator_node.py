@@ -53,13 +53,16 @@ from swarm_orchestrator.command_lifecycle import (
 from swarm_orchestrator.congestion_detector import CongestionDetector
 from swarm_orchestrator.junction_phase_queue import JunctionPhaseAdvance, JunctionPhaseQueue
 from swarm_orchestrator.models import (
+    AnnotationOverlayReport,
     CongestionEvent,
     OrchestratorConfig,
     PipelineOutcome,
     load_config,
+    parse_annotation_overlays,
     parse_scene_snapshot,
     registry_priorities,
 )
+from swarm_orchestrator.permutation_votes import permutation_votes_log
 from swarm_orchestrator.plan_tracker import PlanTracker
 from swarm_orchestrator.presentation_order import (
     EpisodeOrderTracker,
@@ -76,13 +79,17 @@ from swarm_orchestrator.reasoning_pipeline import (
     GroundingParamsSource,
     InProcessPipeline,
     LatestRawFrame,
+    PromptConditions,
     ReasoningPipeline,
+    apparatus_request_fields,
     append_scene_log,
     apply_aisle_x_band_override,
     apply_aisle_y_band_override,
     attach_registry_assignments,
+    build_candidate_options,
     build_failed_outcome,
     build_failure_contexts,
+    build_prompt_conditions,
     build_reasoner_request,
     dump_frame_png,
     fan_out_command,
@@ -107,6 +114,7 @@ from swarm_orchestrator.state_machine import (
     OrchestratorStateMachine,
 )
 from swarm_orchestrator.task_registry import TaskRegistry
+from swarm_orchestrator.zoom_tile import ZoomTileRecord, write_zoom_tile, zoom_tile_path
 
 # (a0) plan channel: M4's CoordinationStatus vocabulary (command_bus_node.py's
 # `_publish_status` calls) translated to a plan leg's status vocabulary
@@ -180,6 +188,7 @@ def _build_default_pipeline(
         stage2_letter_seed=letter_seed,
         priorities=registry_priorities(config.initial_tasks),
         plan_tracker=plan_tracker,
+        permutation_votes=config.prompt_permutation_votes,
     )
 
 
@@ -223,6 +232,7 @@ class _PendingProbe:
     snapshot: Any
     future: Future[PipelineOutcome]
     shadow: ShadowClassicalRecord | None
+    prompt_conditions: Any = None
 
 
 def _raw_frame_qos() -> QoSProfile:
@@ -275,6 +285,10 @@ class OrchestratorNode(Node):
         super().__init__("orchestrator_node")
         self.declare_parameter("config_file", "")
         self._config = config or self._load_config_from_param()
+        if self._config.prompt_zoom_tile and self._config.reasoning_backend_id == "llama_server":
+            # Fail fast: that backend refuses extra images (unverified
+            # multi-image support), so every tile-on analysis would fail.
+            raise ValueError("prompt_zoom_tile is not supported by the llama_server backend")
         # Fail fast: a missing file, an invalid `grounding:` section or an
         # inverted per-scenario band stops M5 here, since these parameters
         # shape every command it dispatches.
@@ -312,6 +326,16 @@ class OrchestratorNode(Node):
         self._pipeline = pipeline or _build_default_pipeline(
             self._config, self._grounding, self._marker, self._order_seed, self._plan_tracker
         )
+        # Prompt apparatus (prereg-v2 rev 6). The zoom tile is placed with M1's
+        # calibration, shared with the stage-2 marker when there is one.
+        self._tile_marker = (
+            (self._marker or _build_candidate_marker(self._config))
+            if self._config.prompt_zoom_tile
+            else None
+        )
+        # What M1's latest scene says it drew; read on the callback thread only.
+        self._latest_overlays = AnnotationOverlayReport()
+        self._pending_prompt_conditions: PromptConditions | None = None
 
         self._detector = CongestionDetector(self._config)
         self._arrival = ArrivalGate(self._config, self._detector.mark_arrived)
@@ -544,6 +568,7 @@ class OrchestratorNode(Node):
             self.get_logger().warning(f"skipping malformed SceneState: {exc}")
             return
         self._latest_snapshot = snapshot
+        self._latest_overlays = parse_annotation_overlays(msg.data)
         now = time.monotonic()
         self._latest_snapshot_at = now
         if self._shadow is not None:
@@ -813,6 +838,7 @@ class OrchestratorNode(Node):
                 active_plan_id, since_plan_id=self._last_shown_plan_id
             )
             self._last_shown_plan_id = active_plan_id
+        apparatus, zoom_record = self._apparatus_inputs(request_id, snapshot, robots, frame)
         # Built here, not in the worker, so the artifact can record the exact request.
         request = build_reasoner_request(
             request_id,
@@ -826,6 +852,10 @@ class OrchestratorNode(Node):
             robot_presentation_order=order,
             prompt_version=3 if self._config.plan_channel_enabled else CURRENT_PROMPT_VERSION,
             plan_state=plan_state,
+            **apparatus,
+        )
+        self._pending_prompt_conditions = self._prompt_conditions(
+            request, zoom_record, self._config.prompt_permutation_votes
         )
         self._pending_failure_context = failure_context
         self._pending_last_failed_context = last_failed_context
@@ -879,6 +909,8 @@ class OrchestratorNode(Node):
         request, snapshot = self._pending_request, self._pending_snapshot
         distances = self._pending_distances
         episode_index = self._pending_episode_index
+        prompt_conditions = self._pending_prompt_conditions
+        self._pending_prompt_conditions = None
         # Step-7a fix 3: carried past the clear below (as `_last_trigger_
         # robot_ids`, not re-cleared here) so `_dispatch` -> `_publish_
         # fanned_out` -> `_with_plan_continue_partners`, later in this SAME
@@ -910,10 +942,15 @@ class OrchestratorNode(Node):
                 grounding_yield_feasibility=self._config.grounding_yield_feasibility,
                 shadow_classical=shadow_block,
                 grounding_source=self._grounding,
+                prompt_conditions=prompt_conditions,
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
         except OSError as exc:
             self.get_logger().error(f"decision artifact write failed: {exc}")
+        if outcome.permutation_votes is not None:
+            self.get_logger().info(
+                permutation_votes_log(outcome.request_id, outcome.permutation_votes)
+            )
 
         # Surfaced in the live log too: the gate changes which robot executes,
         # so a run that swapped must be legible without opening the artifact.
@@ -1342,6 +1379,10 @@ class OrchestratorNode(Node):
             include_static_obstacles=self._config.prompt_static_obstacles,
             robot_presentation_order=order,
         )
+        # Probes render the frozen v2 template (no apparatus text) and never
+        # vote (`analyze`), but M1's overlays still reach their image channel,
+        # so the record states what the frame carried.
+        probe_conditions = self._prompt_conditions(request, None, 1)
         frame = self._frame_rgb
         downscale = self._config.frame_downscale_width
         raw_dump = self._raw_frame_dump(request_id)
@@ -1370,7 +1411,9 @@ class OrchestratorNode(Node):
                 self.get_logger().error(
                     f"shadow request={request_id} evaluate failed: {type(exc).__name__}: {exc}"
                 )
-        self._probe = _PendingProbe(request_id, probe_index, request, snapshot, future, shadow)
+        self._probe = _PendingProbe(
+            request_id, probe_index, request, snapshot, future, shadow, probe_conditions
+        )
         return order
 
     def _harvest_probe(self) -> None:
@@ -1406,6 +1449,7 @@ class OrchestratorNode(Node):
                 shadow_classical=shadow_block,
                 probe_index=probe.probe_index,
                 grounding_source=self._grounding,
+                prompt_conditions=probe.prompt_conditions,
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
         except OSError as exc:
@@ -1629,6 +1673,86 @@ class OrchestratorNode(Node):
         path = Path(self._config.frame_dump_dir) / f"{request_id}.png"
         path.unlink(missing_ok=True)
         Path(stage2_image_path(str(path), request_id)).unlink(missing_ok=True)
+        zoom_tile_path(self._config.frame_dump_dir, request_id).unlink(missing_ok=True)
+
+    def _apparatus_inputs(
+        self, request_id: str, snapshot, robots: list[str], frame
+    ) -> tuple[dict[str, Any], ZoomTileRecord | None]:
+        """Prompt-apparatus request fields for one triggered analysis.
+
+        Grid/trail sentences are stated only when configured AND reported
+        drawn by M1; the zoom tile is cut synchronously here (a sub-ms crop)
+        so the request never names a tile that failed; the options block is
+        derived from M3's audit on this snapshot. Never raises: any failure
+        drops that one condition, logged and recorded.
+        """
+        config = self._config
+        overlays = self._latest_overlays
+        fields: dict[str, Any] = {}
+        if config.plan_channel_enabled:
+            fields.update(
+                apparatus_request_fields(
+                    prompt_metric_grid=config.prompt_metric_grid,
+                    prompt_motion_trails=config.prompt_motion_trails,
+                    overlays=overlays,
+                )
+            )
+        for name, requested, drawn in (
+            ("metric_grid", config.prompt_metric_grid, overlays.metric_grid),
+            ("motion_trails", config.prompt_motion_trails, overlays.motion_trails),
+        ):
+            if requested != drawn:
+                self.get_logger().warning(
+                    f"apparatus mismatch request={request_id} overlay={name} "
+                    f"prompt_flag={requested} m1_drawn={drawn}"
+                )
+        zoom_record: ZoomTileRecord | None = None
+        if config.prompt_zoom_tile:
+            positions = {r.robot_id: (r.x, r.y) for r in snapshot.robots if r.robot_id in robots}
+            calibration = None if self._tile_marker is None else self._tile_marker.calibration
+            zoom_record = write_zoom_tile(
+                frame,
+                request_id,
+                config.frame_dump_dir,
+                positions,
+                calibration,
+                config.prompt_zoom_tile_margin_m,
+                config.prompt_zoom_tile_width_px,
+            )
+            if zoom_record.attached:
+                fields["zoom_tile_path"] = zoom_record.path
+            else:
+                self.get_logger().warning(
+                    f"zoom tile dropped request={request_id} reason={zoom_record.reason}"
+                )
+        if config.prompt_candidate_options:
+            try:
+                fields["candidate_options"] = build_candidate_options(
+                    snapshot,
+                    geometry=config.scenario_geometry,
+                    static_obstacles=config.static_obstacles,
+                    yield_feasibility_mode=config.grounding_yield_feasibility,
+                    grounding_params=self._grounding.params,
+                )
+            except Exception as exc:  # the options block is dropped, never the analysis
+                self.get_logger().error(
+                    f"candidate options failed request={request_id}: {type(exc).__name__}: {exc}"
+                )
+        return fields, zoom_record
+
+    def _prompt_conditions(
+        self, request: ReasonerRequest, zoom_record: ZoomTileRecord | None, votes: int
+    ) -> PromptConditions:
+        return build_prompt_conditions(
+            request=request,
+            overlays=self._latest_overlays,
+            prompt_metric_grid=self._config.prompt_metric_grid,
+            prompt_motion_trails=self._config.prompt_motion_trails,
+            prompt_zoom_tile=self._config.prompt_zoom_tile,
+            zoom_tile=zoom_record,
+            permutation_votes=votes,
+            prompt_candidate_options=self._config.prompt_candidate_options,
+        )
 
     def _publish_registry(self) -> None:
         payload = self._registry.to_json()

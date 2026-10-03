@@ -1995,6 +1995,11 @@ _TRIGGERED_ARTIFACT_KEYS = _PRE_PROBE_ARTIFACT_KEYS | {
     "grounding_params_source",
     "grounding_degradations",
     "stage2",
+    # Prompt-apparatus record (prereg-v2 rev 6, 2026-10-04): written on
+    # EVERY artifact by design (the brief requires every flag, all-off
+    # included, in every decision artifact) -- the one deliberate exception
+    # to the conditional-add byte-identity pattern.
+    "prompt_conditions",
 }
 
 
