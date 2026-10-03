@@ -108,7 +108,14 @@ class GeminiBackend:
         )
 
     def _build_body(self, payload: PromptPayload, config: ReasonerConfig) -> dict:
-        image_data, mime_type = self._encode_image(payload.image_path)
+        # The Interactions API `input` is an ordered list of content parts and
+        # accepts several `image` parts (ai.google.dev image-understanding
+        # guide, multi-image example, checked 2026-10-04); the overhead frame
+        # stays first, any prompt-apparatus extra image (zoom tile) follows.
+        image_parts: list[dict[str, str]] = []
+        for image_path in [payload.image_path, *payload.extra_image_paths]:
+            image_data, mime_type = self._encode_image(image_path)
+            image_parts.append({"type": "image", "data": image_data, "mime_type": mime_type})
         generation_config: dict[str, object] = {
             "thinking_level": self.thinking_level,
             "max_output_tokens": config.max_tokens,
@@ -119,10 +126,7 @@ class GeminiBackend:
         body: dict[str, object] = {
             "model": self.model_id,
             "system_instruction": payload.system_prompt,
-            "input": [
-                {"type": "text", "text": payload.user_prompt},
-                {"type": "image", "data": image_data, "mime_type": mime_type},
-            ],
+            "input": [{"type": "text", "text": payload.user_prompt}, *image_parts],
             "generation_config": generation_config,
         }
         if self.force_schema:

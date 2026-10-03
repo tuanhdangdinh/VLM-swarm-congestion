@@ -92,6 +92,14 @@ class LlamaServerBackend:
     # ------------------------------------------------------------------
 
     def _build_messages(self, payload: PromptPayload) -> list[dict]:
+        if payload.extra_image_paths:
+            # Multi-image input through llama-server's mtmd path is unverified
+            # for the served models; refuse rather than silently drop the
+            # prompt-apparatus zoom tile the prompt text announces.
+            raise ValueError(
+                "llama_server backend does not support extra images "
+                f"({len(payload.extra_image_paths)} given); disable prompt_zoom_tile"
+            )
         system = {"role": "system", "content": payload.system_prompt}
 
         if self.mmproj_path is not None:

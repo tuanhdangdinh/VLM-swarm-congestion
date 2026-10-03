@@ -83,18 +83,22 @@ class AnthropicBackend:
         )
 
     def _build_messages(self, payload: PromptPayload) -> list[dict]:
-        media_type, image_data = self._encode_image(payload.image_path)
-        user_content = [
-            {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": media_type,
-                    "data": image_data,
-                },
-            },
-            {"type": "text", "text": payload.user_prompt},
-        ]
+        # Image-first, as before; a prompt-apparatus extra image (zoom tile)
+        # follows the overhead frame, then the text.
+        user_content: list[dict] = []
+        for image_path in [payload.image_path, *payload.extra_image_paths]:
+            media_type, image_data = self._encode_image(image_path)
+            user_content.append(
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": image_data,
+                    },
+                }
+            )
+        user_content.append({"type": "text", "text": payload.user_prompt})
         return [{"role": "user", "content": user_content}]
 
     @staticmethod

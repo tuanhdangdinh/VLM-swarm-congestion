@@ -289,6 +289,9 @@ class Reasoner:
             raise FileNotFoundError(f"image_path does not exist: {request.image_path}")
 
         base_payload = build_prompt_payload(request)
+        for extra in base_payload.extra_image_paths:
+            if not Path(extra).is_file():
+                raise FileNotFoundError(f"extra image does not exist: {extra}")
         payload = base_payload
         known_ids = set(robot_ids)
         attempts = 0
@@ -401,9 +404,10 @@ class Reasoner:
     ) -> PromptPayload | None:
         """Build the fallback payload: the original prompt text, a neutral image.
 
-        The re-ask suffix is deliberately absent — the refusal is not a formatting
-        failure, so correcting the format would change the prompt for no reason
-        and break comparability with the un-refused call. Returns None when the
+        Every image is replaced, the zoom tile included. The re-ask suffix is
+        deliberately absent — the refusal is not a formatting failure, so
+        correcting the format would change the prompt for no reason and break
+        comparability with the un-refused call. Returns None when the
         neutral image cannot be produced, so an unreadable frame degrades to the
         ordinary re-ask path instead of crashing the caller (M2 contract: failures
         surface as diagnostics, never as an exception out of `run`).
@@ -412,9 +416,19 @@ class Reasoner:
             neutral = make_neutral_image(
                 base_payload.image_path, Path(scratch_dir) / "neutral.png"
             )
+            # A prompt-apparatus extra image (the zoom tile) is a crop of the
+            # same realistic annotated frame -- the refusal trigger -- so it is
+            # neutralized too; the image count and sizes stay as sent.
+            extras = [
+                str(make_neutral_image(path, Path(scratch_dir) / f"neutral_extra_{index}.png"))
+                for index, path in enumerate(base_payload.extra_image_paths)
+            ]
         except OSError:
             return None
-        return base_payload.model_copy(update={"image_path": str(neutral)})
+        update: dict[str, object] = {"image_path": str(neutral)}
+        if extras:
+            update["extra_image_paths"] = extras
+        return base_payload.model_copy(update=update)
 
 
 def write_reasoner_log(
