@@ -287,6 +287,37 @@ single frame vs trails (amortized history) vs 2–3 keyframes (raw
 history) — directly testing whether amortization captures what raw
 frames provide.
 
+**Battery v2 RESULTS + RULINGS (2026-10-05,
+`docs/reports/2026-10-04-battery-v2-results.md`; manifest_v2
+`faf1953b…`, 139 items, ~$0.70):**
+- THE CEILING BROKE WHERE REGISTERED: `conflict_prediction`
+  separates the backends — ER-2 16/20 vs gpt-4o 9/20 (at chance);
+  gpt-4o also returned refusals on dynamic frames (6/139 + 24
+  temporal abstentions; v1 static was 0/60) and shows a systematic
+  temporal INVERSION (picks the later robot 13/15 when it answers).
+  ER-2 is measurably stronger on dynamic scene reasoning.
+- QUARANTINE: `temporal_order` scores are NOT capability scores —
+  triply confounded (robot-id prior 15/19, lagging status colour
+  23/30, wide event spacing) and missing the M1-agreement filter;
+  correctly not rebuilt post-hoc. `motion_direction` is confounded
+  by M1's own heading arrow (statically readable; ER-2 35/35
+  ceiling).
+- REGISTERED v2.1 FIXES (build when probes next run): manifest
+  rebuild for temporal_order with the M1-agreement filter, id-prior
+  counterbalancing, and tighter event spacing; an arrow-suppressed
+  M1 overlay flag so motion_direction tests motion integration
+  rather than arrow reading.
+- TRAILS NULL (weak evidence): no gain in 40 matched pairs per
+  backend (McNemar p=1.0 / 0.69) — but the frozen probe prompt
+  carries no trail-convention sentence, arrows already encode
+  motion, and n is 11–15 per type. The deployed-prompt three-way
+  A/B (single vs trails vs keyframes) STAYS registered; the
+  probe-level null does not test it. The keyframes arm needs a
+  multi-image probe path (not yet built).
+- RATIFIED: the three builder rules fixed pre-call (exact-geometry
+  edge gate; yes-exclusion window asymmetry; reachability filter
+  for "no" items) — all documented with candidate-level counts.
+
 **Rejected with reason (2026-10-04):** feeding a computed
 congestion metric (the Arul & Manocha Voronoi-style scalar,
 arXiv:2202.11334) into the stage-1 prompt — it IS the congestion
