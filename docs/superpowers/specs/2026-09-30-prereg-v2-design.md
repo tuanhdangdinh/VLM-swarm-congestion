@@ -261,6 +261,38 @@ cannot rank backends; it says nothing about crowded congestion-onset
 frames. Visual primitives are therefore NOT the measured bottleneck;
 plan-level failures must be attributed upstream of perception.
 
+**Battery v2 — predictive/temporal probes (registered 2026-10-04,
+from the user-folder review; SocialNav-SUB arXiv:2509.08757 is the
+benchmark kin to cite):** the static battery is at ceiling and static
+primitives are not the bottleneck, so a SECOND frozen manifest
+(`manifest_v2`, separate from v1 for comparability) adds GT-derivable
+DYNAMIC items on project frames: motion-direction ("which robot is
+moving toward X"), conflict prediction ("will A and B come within
+0.5 m in the next 10 s"), and temporal order ("which robot reached
+the standoff first") — every answer machine-derived from ground
+truth, seeded multiple-choice lettering, same auditor discipline.
+These measure the motion-integration and conflict-prediction
+reasoning that congestion detection and planning actually require —
+the headroom above the v1 ceiling. Fresh mock VM runs may harvest
+mid-motion frames+GT where logged frames lack dynamic moments; a
+trails-on frame subset is harvested in the same runs so the battery
+can compare the same question on trails-on vs trails-off frames.
+
+**Trails = amortized temporal context (reframed 2026-10-04):** the
+motion-trail overlay is the inference-time analog of ContextVLA's
+amortized multi-frame context (arXiv:2510.04246; convergent evidence
+CronusVLA 2506.19816, NaVid 2402.15852): history compressed into one
+image at zero extra tokens. The frame A/B becomes a three-way —
+single frame vs trails (amortized history) vs 2–3 keyframes (raw
+history) — directly testing whether amortization captures what raw
+frames provide.
+
+**Rejected with reason (2026-10-04):** feeding a computed
+congestion metric (the Arul & Manocha Voronoi-style scalar,
+arXiv:2202.11334) into the stage-1 prompt — it IS the congestion
+answer and would contaminate RQ1 classification. Permitted only
+inside M3/diagnostics, where detection is not being measured.
+
 **Scope bound:** v2 scenes stay at ≤ 5 active robots, justified by the
 documented degradation of centralized model planning beyond ~6 agents
 (survey arXiv:2502.03814) — a cited boundary, not an apology.
