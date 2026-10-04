@@ -208,10 +208,12 @@ def test_command_window_excludes_conflict_items_in_its_horizon(tmp_path):
     # Analysis at wall 1000 <- decision stamp 10.0; resolution maps to ~20 s.
     prefix = "[orchestrator_node-1] [INFO] [{}] [orchestrator_node]: "
     log = (
-        prefix.format("1000.000000000") + "starting analysis request=ab12 robots=[] reason=x\n"
+        prefix.format("1000.000000000")
+        + "starting analysis request=ab12 robots=[] reason=x\n"
         + prefix.format("1000.500000000")
         + "dispatch request=ab12 command=ab12-yield robot=robot_1 plan_id=1\n"
-        + prefix.format("1010.000000000") + "command ab12-yield resolved status=completed\n"
+        + prefix.format("1010.000000000")
+        + "command ab12-yield resolved status=completed\n"
     )
     episode = _write_episode(tmp_path, "off", [], m5_log=log)
     (episode / "decisions").mkdir()
@@ -268,3 +270,30 @@ def test_v2_legibility_keeps_v1_separation_and_stale_rules():
     stale = {"robot_1": {"status": "STALE"}, "robot_2": {"status": "STOPPED"}}
     far = {"robot_1": (300, 480), "robot_2": (900, 480)}
     assert not scene_is_legible_v2(stale, far, 1280, 960, h)
+
+
+def test_fresh_build_has_no_near_duplicate_on_either_pair_side(v2_logs_root):
+    from reasoning.vlm.capability_probes import scanning
+
+    manifest, _, _ = _build(v2_logs_root)
+    for condition in ("trails_off", "trails_on"):
+        members = [
+            i
+            for i in manifest.items
+            if i.subset == "trails_pair" and i.frame_condition == condition
+        ]
+        rows = {}
+        for item in members:
+            rows[item.item_id] = {
+                rid: {
+                    "x": _pose(rid, item.gt_sim_time_sec)[0],
+                    "y": _pose(rid, item.gt_sim_time_sec)[1],
+                }
+                for rid in _GOALS
+            }
+        for i, a in enumerate(members):
+            for b in members[i + 1 :]:
+                if a.question_key != b.question_key:
+                    continue
+                disp = scanning.max_displacement_m(rows[a.item_id], rows[b.item_id])
+                assert disp >= scanning.NEAR_DUPLICATE_MAX_DISPLACEMENT_M

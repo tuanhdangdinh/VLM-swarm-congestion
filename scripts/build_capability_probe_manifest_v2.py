@@ -230,6 +230,32 @@ def match_pairs(candidates: list[Candidate]) -> list[tuple[Candidate, Candidate]
     return pairs
 
 
+def dedupe_pairs(
+    pairs: list[tuple[Candidate, Candidate]],
+) -> list[tuple[Candidate, Candidate]]:
+    """Drop a pair when EITHER member near-duplicates the same member of a kept pair.
+
+    Deduplicating on the trails-off member alone let two trails-on members
+    sit 0.09 m apart (caught by the audit, 2026-10-04): both arms of the
+    comparison must be free of near-duplicate scenes.
+    """
+    kept: list[tuple[Candidate, Candidate]] = []
+    for pair in pairs:
+        duplicate = False
+        for other in kept:
+            if other[0].derived.question_key != pair[0].derived.question_key:
+                continue
+            for side in (0, 1):
+                disp = scanning.max_displacement_m(
+                    pair[side].gt_positions, other[side].gt_positions
+                )
+                if disp is not None and disp < scanning.NEAR_DUPLICATE_MAX_DISPLACEMENT_M:
+                    duplicate = True
+        if not duplicate:
+            kept.append(pair)
+    return kept
+
+
 def _item_seed(manifest_seed: int, key: str) -> int:
     digest = hashlib.sha256(f"{manifest_seed}:item:{key}".encode()).digest()
     return int.from_bytes(digest[:8], "big")
@@ -316,11 +342,7 @@ def build_manifest(
             )
 
         pairs = match_pairs(of_type)
-        pairs_deduped = scanning.deduplicate_by_distance(
-            pairs,
-            reference_robot_id=lambda p: p[0].derived.question_key,
-            gt_robots=lambda p: p[0].gt_positions,
-        )
+        pairs_deduped = dedupe_pairs(pairs)
         pools[f"{probe_type}/pairs_eligible"] = len(pairs_deduped)
         chosen_pairs = balanced_sample(
             pairs_deduped,
