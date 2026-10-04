@@ -275,8 +275,25 @@ persistent-plan currency, non-embodied — claim 5's "embodied"
 qualifier holds). MDPI reading gates PARTIALLY CLEARED: both papers
 identified (Pesjak & Žabkar MAKE 8(1):22; Peña Narváez et al.
 Robotics 15(4):80), both single-robot, full text inaccessible on all
-routes — cite as adjacent, never quote internals. REMAINING one-paper
-read before the freeze: EvoPlan (2607.06724). Supporting citations
+routes — cite as adjacent, never quote internals. EvoPlan GATE
+CLOSED (2026-10-04, full 24-page read,
+`research_notes/VLM planner coordinator recent work/evoplan_read.md`):
+provenance claim UNTOUCHED — EvoPlan's LLM does both proposal and
+repair ("invalid plans are demoted by the cascade, not by an LLM
+critic"; validators gate, never edit), single-robot, text/symbolic
+benchmarks, preprint-only, no code. Its validated-prefix fraction
+(Fig. 2) is the nearest published quantity and must be named:
+tracks validator acceptance per iteration, NOT per-leg origin — a
+leg surviving verbatim and a leg rewritten five times are
+indistinguishable in it. TWO TIGHTENED SENTENCES adopted for the
+thesis text (full wording in the notes file): the
+deterministic-minimal-repair sentence pre-empts EvoPlan's
+regex-rewrite and prefix-truncation mechanisms; the no-per-leg-
+provenance sentence names and distinguishes Fig. 2. Cite EvoPlan as
+the closest propose-verify analogue, contrasted on origin labels /
+repair agent / domain. OPTIONAL residual skim (low risk, same
+family): GenePlan (2603.09481, ICAPS 2026, LLM-mutation
+evolutionary PDDL). Supporting citations
 gained: in-prompt grammar > constrained decoding (2505.14763, 7%→23%
 vs 98%-semantically-wrong), "missing-step" failure taxonomy (EAI,
 NeurIPS 2024) names the no-recede-legs class, Steps-to-Validity
