@@ -13,6 +13,7 @@ import hashlib
 from pathlib import Path
 
 from reasoning.vlm.capability_probes.models import ProbeItem, ProbeManifest
+from reasoning.vlm.capability_probes.models_v2 import ProbeItemV2, ProbeManifestV2
 
 _HASH_CHUNK_BYTES = 1 << 16
 
@@ -38,6 +39,19 @@ def load_manifest(path: Path) -> ProbeManifest:
     return ProbeManifest.model_validate_json(path.read_text(encoding="utf-8"))
 
 
+def load_manifest_v2(path: Path) -> ProbeManifestV2:
+    """Load and validate a frozen battery-v2 manifest file."""
+    return ProbeManifestV2.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+def load_any_manifest(path: Path) -> ProbeManifest | ProbeManifestV2:
+    """Load a v1 or v2 manifest, chosen by its `manifest_version` field."""
+    text = path.read_text(encoding="utf-8")
+    if '"manifest_version": 2' in text:
+        return ProbeManifestV2.model_validate_json(text)
+    return ProbeManifest.model_validate_json(text)
+
+
 def save_manifest(manifest: ProbeManifest, path: Path) -> None:
     """Write a manifest as pretty-printed, newline-terminated JSON.
 
@@ -48,7 +62,7 @@ def save_manifest(manifest: ProbeManifest, path: Path) -> None:
     path.write_text(manifest.model_dump_json(indent=2) + "\n", encoding="utf-8")
 
 
-def materialize_frame(item: ProbeItem, logs_root: Path) -> Path:
+def materialize_frame(item: ProbeItem | ProbeItemV2, logs_root: Path) -> Path:
     """Resolve and content-verify one item's source frame under `logs_root`.
 
     Args:

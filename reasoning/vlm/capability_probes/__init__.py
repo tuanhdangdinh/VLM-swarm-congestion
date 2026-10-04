@@ -27,7 +27,9 @@ from reasoning.vlm.capability_probes.ground_truth import (
 )
 from reasoning.vlm.capability_probes.letters import ItemChoices, build_item_choices
 from reasoning.vlm.capability_probes.manifest_io import (
+    load_any_manifest,
     load_manifest,
+    load_manifest_v2,
     materialize_frame,
     save_manifest,
     sha256_file,
@@ -39,6 +41,11 @@ from reasoning.vlm.capability_probes.models import (
     ProbeRunSummary,
     ProbeType,
     ProbeTypeSummary,
+)
+from reasoning.vlm.capability_probes.models_v2 import (
+    ProbeItemV2,
+    ProbeManifestV2,
+    ProbeTypeV2,
 )
 from reasoning.vlm.capability_probes.occlusion import (
     robot_annotation_rects,
@@ -59,15 +66,20 @@ __all__ = [
     "ItemChoices",
     "ProbeAnswerRecord",
     "ProbeItem",
+    "ProbeItemV2",
     "ProbeManifest",
+    "ProbeManifestV2",
     "ProbeRunSummary",
     "ProbeType",
     "ProbeTypeSummary",
+    "ProbeTypeV2",
     "build_capability_probe_prompt_payload",
     "build_item_choices",
     "grid_cell_answer",
     "left_right_answer",
+    "load_any_manifest",
     "load_manifest",
+    "load_manifest_v2",
     "materialize_frame",
     "max_m1_gt_disagreement_m",
     "nearest_first_answer",

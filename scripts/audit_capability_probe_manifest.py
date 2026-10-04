@@ -37,6 +37,17 @@ Checks, per item:
       `scanning.max_displacement_m` under
       `scanning.NEAR_DUPLICATE_MAX_DISPLACEMENT_M`.
 
+Battery v2 (`manifest_version: 2`, 2026-10-04): the same script re-derives
+every `motion_direction` / `conflict_prediction` / `temporal_order` item
+from its episode's GT, M1 state and M5 log through the shared
+`reasoning.vlm.capability_probes.episode_v2` definitions (`audit_manifest_v2`):
+frame hash, frame condition (M1-reported overlays), exact M1 state, every
+frame gate, the answer, options, question wording, derivation facts, and --
+for the trails pairs -- that both members still match (same scenario,
+different episodes, GT configuration within the duplicate bound, temporal
+lag within tolerance). Near-duplicates are checked per (subset, type,
+condition).
+
 Exits non-zero if any item fails any check, printing every failure (not just
 the first), so every defect in a run is visible at once.
 
@@ -247,6 +258,136 @@ def audit_manifest(
     return failures_by_item
 
 
+def _derivations_match(recorded: dict, derived: dict) -> bool:
+    if set(recorded) != set(derived):
+        return False
+    for key, value in recorded.items():
+        other = derived[key]
+        if isinstance(value, float) or isinstance(other, float):
+            if other is None or value is None or abs(float(value) - float(other)) > 1e-6:
+                return False
+        elif value != other:
+            return False
+    return True
+
+
+def audit_manifest_v2(manifest, logs_root: Path, calibration_path: Path) -> dict[str, list[str]]:
+    """Re-derive every battery-v2 item from source logs; `item_id -> failures`."""
+    from swarm_perception.calibration import load_calibration
+
+    from reasoning.vlm.capability_probes import episode_v2 as ep
+
+    calibration = load_calibration(str(calibration_path))
+    episodes: dict[str, object] = {}
+    failures_by_item: dict[str, list[str]] = {}
+    gt_by_item: dict[str, dict[str, dict]] = {}
+    lag_by_item: dict[str, float] = {}
+
+    for item in manifest.items:
+        failures: list[str] = []
+        try:
+            materialize_frame(item, logs_root)
+        except (FileNotFoundError, ValueError) as exc:
+            failures_by_item[item.item_id] = [f"frame materialization: {exc}"]
+            continue
+        if item.run_id not in episodes:
+            episodes[item.run_id] = ep.load_episode(logs_root / item.run_id, logs_root)
+        episode = episodes[item.run_id]
+        if episode is None:
+            failures_by_item[item.item_id] = ["episode GT missing"]
+            continue
+        frame = ep.find_frame(episode.episode_dir, item.frame_source, item.frame_ref)
+        if frame is None:
+            failures_by_item[item.item_id] = ["frame/M1 state no longer found"]
+            continue
+        if str(frame.path.relative_to(logs_root)) != item.frame_relpath:
+            failures.append("frame path differs from frame_relpath")
+        if frame.condition != item.frame_condition:
+            failures.append(
+                f"frame condition {frame.condition!r} != recorded {item.frame_condition!r}"
+            )
+        if abs(frame.stamp - item.sim_time_sec) > 1e-6:
+            failures.append(f"frame stamp {frame.stamp} != recorded {item.sim_time_sec}")
+        ctx, reason = ep.gate_frame(episode, frame, calibration.homography, calibration.image_size)
+        if ctx is None:
+            failures.append(f"frame gate fails: {reason}")
+            failures_by_item[item.item_id] = failures
+            continue
+        if abs(ctx.gt_row["sim_time_sec"] - item.gt_sim_time_sec) > 1e-6:
+            failures.append("matched GT row differs from recorded gt_sim_time_sec")
+        if abs(ctx.disagreement_m - item.m1_gt_max_disagreement_m) > 1e-9:
+            failures.append("M1-vs-GT disagreement differs from recorded")
+        if (item.image_width, item.image_height) != (ctx.width, ctx.height):
+            failures.append("image size differs from recorded")
+        derived = ep.derive(episode, ctx, item.probe_type, item.question_key)
+        if isinstance(derived, str):
+            failures.append(f"{item.probe_type}: no longer derivable ({derived})")
+        else:
+            if derived.correct_answer != item.correct_answer:
+                failures.append(
+                    f"{item.probe_type}: GT answer {derived.correct_answer!r} != recorded "
+                    f"{item.correct_answer!r}"
+                )
+            if derived.options != item.options:
+                failures.append(f"options {derived.options} != recorded {item.options}")
+            if derived.question != item.question or ep.question_text(
+                item.probe_type, item.question_key
+            ) != item.question:
+                failures.append("question text differs from the registered wording")
+            if derived.reference_robot_id != item.reference_robot_id:
+                failures.append("reference_robot_id differs")
+            if not _derivations_match(item.derivation, derived.derivation):
+                failures.append("derivation facts differ from recorded")
+            if item.probe_type == "temporal_order":
+                lag_by_item[item.item_id] = derived.derivation["since_later_event_sec"]
+        gt_by_item[item.item_id] = {
+            rid: {"x": r["x"], "y": r["y"]} for rid, r in ctx.gt_robots.items()
+        }
+        if failures:
+            failures_by_item[item.item_id] = failures
+
+    groups: dict[tuple, list] = {}
+    for item in manifest.items:
+        if item.item_id not in gt_by_item:
+            continue
+        key = (item.subset, item.probe_type, item.frame_condition)
+        for other in groups.setdefault(key, []):
+            if other.question_key != item.question_key:
+                continue
+            disp = scanning.max_displacement_m(gt_by_item[item.item_id], gt_by_item[other.item_id])
+            if disp is not None and disp < scanning.NEAR_DUPLICATE_MAX_DISPLACEMENT_M:
+                failures_by_item.setdefault(item.item_id, []).append(
+                    f"near-duplicate scene (max displacement {disp:.3f} m) with {other.item_id!r}"
+                )
+        groups[key].append(item)
+
+    from reasoning.vlm.capability_probes.dynamics import PAIR_EVENT_LAG_TOLERANCE_SEC
+
+    pairs: dict[str, list] = {}
+    for item in manifest.items:
+        if item.pair_id is not None:
+            pairs.setdefault(item.pair_id, []).append(item)
+    for members in pairs.values():
+        off = next(m for m in members if m.frame_condition == "trails_off")
+        on = next(m for m in members if m.frame_condition == "trails_on")
+        problems = []
+        if off.scenario != on.scenario:
+            problems.append("pair members come from different scenarios")
+        if off.run_id == on.run_id:
+            problems.append("pair members come from the same episode")
+        if off.item_id in gt_by_item and on.item_id in gt_by_item:
+            disp = scanning.max_displacement_m(gt_by_item[off.item_id], gt_by_item[on.item_id])
+            if disp is None or disp >= scanning.NEAR_DUPLICATE_MAX_DISPLACEMENT_M:
+                problems.append(f"pair GT configurations differ (max displacement {disp})")
+        if off.item_id in lag_by_item and on.item_id in lag_by_item:
+            lag = abs(lag_by_item[off.item_id] - lag_by_item[on.item_id])
+            if lag > PAIR_EVENT_LAG_TOLERANCE_SEC:
+                problems.append("pair time-since-later-event differs beyond tolerance")
+        for problem in problems:
+            failures_by_item.setdefault(off.item_id, []).append(problem)
+    return failures_by_item
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -262,8 +403,15 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    manifest = load_manifest(args.manifest)
-    failures_by_item = audit_manifest(manifest, args.logs_root, args.calibration)
+    raw = json.loads(args.manifest.read_text(encoding="utf-8"))
+    if raw.get("manifest_version") == 2:
+        from reasoning.vlm.capability_probes.manifest_io import load_manifest_v2
+
+        manifest = load_manifest_v2(args.manifest)
+        failures_by_item = audit_manifest_v2(manifest, args.logs_root, args.calibration)
+    else:
+        manifest = load_manifest(args.manifest)
+        failures_by_item = audit_manifest(manifest, args.logs_root, args.calibration)
 
     if not failures_by_item:
         print(f"OK: all {len(manifest.items)} items passed every check")

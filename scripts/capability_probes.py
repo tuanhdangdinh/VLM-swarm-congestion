@@ -29,6 +29,13 @@ Usage:
         --out-dir data/logs/capability_probes/gemini_<stamp> \\
         --min-interval-sec 3
 
+Battery v2 (`manifest_v2.json`, 2026-10-04): the same runner takes a v2
+manifest (chosen by its `manifest_version`); every v2 item is a text-option
+item rendered through the SAME frozen v1 prompt template. `--subset` and
+`--frame-condition` restrict a v2 run to one arm (the main battery, or one
+side of the trails pairs), and the filter is recorded in the summary, so no
+summary mixes arms.
+
 No secrets or base64 image data are ever written to the JSONL or summary;
 only the backend's raw assistant text and the parsed/scored outcome.
 """
@@ -64,7 +71,7 @@ from reasoning.vlm.capability_probes.answer_parser import parse_probe_answer  # 
 from reasoning.vlm.capability_probes.grid import draw_grid_overlay  # noqa: E402
 from reasoning.vlm.capability_probes.letters import ItemChoices, build_item_choices  # noqa: E402
 from reasoning.vlm.capability_probes.manifest_io import (  # noqa: E402
-    load_manifest,
+    load_any_manifest,
     materialize_frame,
     sha256_file,
 )
@@ -272,6 +279,31 @@ def _write_jsonl(records: list[ProbeAnswerRecord], path: Path) -> None:
             handle.write(record.model_dump_json() + "\n")
 
 
+def select_items(manifest, item_filter: dict[str, str] | None) -> list:
+    """Return the manifest items a run covers (all, or a v2 arm filter).
+
+    Args:
+        manifest: A v1 or v2 manifest.
+        item_filter: Field -> required value (v2 `subset` /
+            `frame_condition`), or None for every item.
+
+    Raises:
+        ValueError: A filter on a v1 manifest, or one matching no item.
+    """
+    if not item_filter:
+        return list(manifest.items)
+    if getattr(manifest, "manifest_version", 1) != 2:
+        raise ValueError("--subset/--frame-condition apply to battery-v2 manifests only")
+    items = [
+        item
+        for item in manifest.items
+        if all(getattr(item, key) == value for key, value in item_filter.items())
+    ]
+    if not items:
+        raise ValueError(f"no manifest item matches {item_filter}")
+    return items
+
+
 def run_battery(
     manifest_path: Path,
     backend_id: str,
@@ -279,6 +311,7 @@ def run_battery(
     out_dir: Path,
     models_yaml: Path = MODELS_YAML,
     min_interval_sec: float = 0.0,
+    item_filter: dict[str, str] | None = None,
 ) -> tuple[list[ProbeAnswerRecord], dict]:
     """Run every manifest item through one backend and score the results.
 
@@ -290,6 +323,7 @@ def run_battery(
         models_yaml: Shipped model config the hosted backends are pinned from.
         min_interval_sec: Minimum spacing between call starts, so a run stays
             under the account's rate limit instead of scoring HTTP 429s.
+        item_filter: Battery-v2 arm restriction (`select_items`).
 
     Returns:
         `(records, summary_dict)`.
@@ -304,10 +338,11 @@ def run_battery(
         BatteryAbortedError: A call failed on credentials or exhausted quota;
             the records so far are written to `*_aborted.jsonl` first.
     """
-    manifest = load_manifest(manifest_path)
+    manifest = load_any_manifest(manifest_path)
+    items = select_items(manifest, item_filter)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    prepared = [prepare_item(item, logs_root, out_dir) for item in manifest.items]
+    prepared = [prepare_item(item, logs_root, out_dir) for item in items]
 
     config, backend_config = load_backend_settings(backend_id, models_yaml)
     backend = build_backend(backend_id, backend_config)
@@ -316,7 +351,7 @@ def run_battery(
 
     records: list[ProbeAnswerRecord] = []
     next_start = 0.0
-    for item, (choices, payload) in zip(manifest.items, prepared, strict=True):
+    for item, (choices, payload) in zip(items, prepared, strict=True):
         delay = next_start - time.monotonic()
         if delay > 0:
             time.sleep(delay)
@@ -338,7 +373,7 @@ def run_battery(
                 f"-- aborted after {len(records)} call(s); partial records in {aborted_path}"
             )
 
-    chance_rate_by_item = {item.item_id: 1.0 / len(item.options) for item in manifest.items}
+    chance_rate_by_item = {item.item_id: 1.0 / len(item.options) for item in items}
     effective = describe_effective_sampling(config, backend_config).model_copy(
         update={"max_attempts": RUNNER_MAX_ATTEMPTS, "image_fallback_after_attempts": None}
     )
@@ -349,6 +384,8 @@ def run_battery(
             "served_model_counts": dict(served_counts),
             "manifest_sha256": sha256_file(manifest_path),
             "prompt_version": CAPABILITY_PROBE_PROMPT_VERSION,
+            "manifest_version": getattr(manifest, "manifest_version", 1),
+            "item_filter": dict(item_filter) if item_filter else None,
         }
     )
 
@@ -376,6 +413,10 @@ def main() -> int:
     parser.add_argument("--logs-root", type=Path, required=True)
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--models-yaml", type=Path, default=MODELS_YAML)
+    parser.add_argument("--subset", choices=["main", "trails_pair"], default=None)
+    parser.add_argument(
+        "--frame-condition", choices=["trails_off", "trails_on"], default=None
+    )
     parser.add_argument(
         "--min-interval-sec",
         type=float,
@@ -392,6 +433,12 @@ def main() -> int:
         args.out_dir,
         models_yaml=args.models_yaml,
         min_interval_sec=args.min_interval_sec,
+        item_filter={
+            key: value
+            for key, value in (("subset", args.subset), ("frame_condition", args.frame_condition))
+            if value is not None
+        }
+        or None,
     )
     elapsed = time.monotonic() - start
 

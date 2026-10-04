@@ -8,6 +8,18 @@ from reasoning.vlm.models import EffectiveSamplingConfig
 # named in the design spec: locate-robot-by-id, left-vs-right of aisle, robot
 # count, nearest-first ordering.
 ProbeType = Literal["locate_robot", "left_right", "robot_count", "nearest_first"]
+# Every probe type a scored record or summary may carry: v1's four plus the
+# battery-v2 dynamic types (`models_v2.ProbeTypeV2`, registered 2026-10-04).
+# `ProbeItem` itself stays v1-only; v2 items are `models_v2.ProbeItemV2`.
+AnyProbeType = Literal[
+    "locate_robot",
+    "left_right",
+    "robot_count",
+    "nearest_first",
+    "motion_direction",
+    "conflict_prediction",
+    "temporal_order",
+]
 
 # `locate_robot` answers are a 3x3 grid-cell index ("0".."8", row-major from
 # the image's top-left) rather than a world coordinate, per the rev-6
@@ -145,7 +157,7 @@ class ProbeAnswerRecord(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     item_id: str
-    probe_type: ProbeType
+    probe_type: AnyProbeType
     backend_id: str
     raw_text: str | None
     parsed_letter: str | None
@@ -189,7 +201,7 @@ class ProbeTypeSummary(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    probe_type: ProbeType
+    probe_type: AnyProbeType
     n: int = Field(ge=0)
     correct: int = Field(ge=0)
     accuracy: float = Field(ge=0.0, le=1.0)
@@ -224,3 +236,9 @@ class ProbeRunSummary(BaseModel):
     served_model_counts: dict[str, int] = Field(default_factory=dict)
     manifest_sha256: str | None = None
     prompt_version: int | None = None
+    # Battery v2 runs: the manifest's version and the item filter the run
+    # was restricted to (e.g. {"subset": "trails_pair", "frame_condition":
+    # "trails_on"}), so one summary never mixes the main battery with a
+    # trails-pair arm. None for v1 runs.
+    manifest_version: int | None = None
+    item_filter: dict[str, str] | None = None
