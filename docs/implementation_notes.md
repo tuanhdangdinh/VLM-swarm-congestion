@@ -48,7 +48,7 @@ Rules for maintaining it:
     was needed.
   - **Harvest:** 4 mock runs (head-on bshort and convoy_counterflow,
     trails off/on twins) via `frame_snapshots.py` at 0.5 sim-s, which now
-    also logs every M1 `SceneState` (exact per-frame M1 state, 2,291/2,291
+    also logs every M1 `SceneState` (exact per-frame M1 state, 1,791/1,791
     matched).
     - VM restored to the pre-deploy tree (782 paths md5-identical).
     - **New trap:** colcon's `build/` cache silently reinstalls deleted

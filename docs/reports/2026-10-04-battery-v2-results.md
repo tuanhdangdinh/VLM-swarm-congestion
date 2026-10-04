@@ -23,8 +23,13 @@ Branch `feat/v2-battery2`, cut from `feat/prereg-v2-composite` at `5f0eaf1`.
 Headline findings:
 
 - **v2 has the headroom v1 lacked.** v1 was 60/60 and 58/60. On v2
-  the two backends separate: Gemini 81% [0.70, 0.89] against gpt-4o
-  44% [0.32, 0.57] on the main battery.
+  the two backends separate.
+  - **Excluding temporal_order** (confounded, see below): Gemini 36/40
+    [0.77, 0.96] against gpt-4o 25/40 [0.47, 0.76].
+  - The all-type main figures (81% vs 44%) include temporal_order, where
+    gpt-4o's 11 abstentions are scored wrong, so do not cite them as the
+    backend comparison.
+  - **conflict_prediction is the discriminating result.**
 - **motion_direction is not a motion-integration probe on these frames.**
   - Gemini scores 20/20 and gpt-4o 16/20.
   - M1 already draws a heading arrow and a MOVING/SLOW/STOPPED colour on
@@ -115,6 +120,19 @@ audit), `b9a0337` (yes-item horizon, exact edge gate), `c6ffb9a`
 
 ## Item Types and Registered Rules
 
+**Rule timing (pre-registration integrity).** The spec registers the
+three types and their thresholds. The build added three rule decisions
+the spec does not spell out:
+
+- the exact drawn-rect edge gate;
+- the "yes"-item exclusion horizon ending at the first 0.5 m crossing;
+- the reachability filter on "no" items.
+
+All three were fixed from GT distributions and dry builds only, before
+any backend call on a manifest item. The manifest was frozen at `23e36c5`;
+the first live call was at 18:15Z, after that commit. They are listed
+for the owner's ruling, not as settled registration.
+
 Every answer is machine-derived from Isaac GT (`gt/ground_truth.jsonl`,
 10 Hz). Motion is always the GT **position** difference over the 0.5 s
 before the frame, never `theta × speed_mps`. GT `speed_mps` is unsigned,
@@ -143,7 +161,7 @@ M1 state is exact for both sources, never interpolated:
 
 - **Decision frames:** the decision artifact's own `scene`.
 - **Snapshots:** the harvest saved every `/perception/scene_state`. All
-  2,291 harvested annotated frames had an exact-stamp state (530/530,
+  1,791 harvested annotated frames had an exact-stamp state (530/530,
   528/528, 370/370 and 363/363 per run).
 
 ### motion_direction — "Which robot is currently moving toward X?"
@@ -417,6 +435,9 @@ free-flow phases after a command resolves.
 | Pacing | ≥ 3 s | ≥ 3 s |
 | Arms | `main` (59), `trails_pair` × `trails_off` (40), `trails_pair` × `trails_on` (40) | same |
 
+Tables in this report come from
+`scripts/summarize_capability_probes_v2.py <run_root>`.
+
 Results (gitignored):
 `data/logs/capability_probes/battery_v2_20261004/<backend>__<arm>/`. Each
 holds the per-item JSONL, `*_summary.json` (manifest SHA `faf1953b…`,
@@ -506,6 +527,20 @@ Behaviour under these confounds:
     systematic inversion of "first", so the 5% is not a chance-level
     score.
 
+**A filter the other two types got was not applied here.**
+motion_direction and conflict_prediction drop frames where M1's drawn
+status contradicts the GT motion class. temporal_order only RECORDS the
+statuses (`derivation.m1_status_*`).
+
+- In 12 of 30 trails-off temporal frames, a robot the question says "has
+  come to a stop" or "reached its goal" is drawn MOVING (green, arrow
+  shown).
+- The image contradicts the question's premise there, which plausibly
+  drives gpt-4o's "unable to determine" answers.
+- The manifest is not rebuilt for this: changing it after seeing results
+  would be post-hoc. A future temporal_order rebuild should apply the same
+  status-agreement filter (open item 1).
+
 ---
 
 ## Trails Comparison (Same Items, Trails-Off vs Trails-On Frames)
@@ -559,8 +594,10 @@ states would supply its frames.
 | gpt-4o | 6/139 (4.3%): conflict ×4 (main 017, 019; pair 002_off, 011_off), temporal ×2 (pair 003_on, 007_on) | 24/139, all temporal_order | 0 | 0 |
 
 - **gpt-4o refusals.** v1 had 0/60. All six are verbatim "I'm sorry, I
-  can't assist with that." Five of the six are on convoy-scene or
-  four-robot frames. The rate sits far below the 19–38% recorded on the
+  can't assist with that."
+  - Four are on convoy frames (four robots).
+  - One is on a `bottleneck_merge` decision frame (three robots).
+  - One is on a head-on "yes" approach snapshot (two robots). The rate sits far below the 19–38% recorded on the
   congestion prompt.
 - **First-listed position.** The first-listed option was correct on
   32/59 main items.
@@ -645,8 +682,9 @@ Suite (`pytest --continue-on-collection-errors`, same venv):
 ## Open Items
 
 1. **temporal_order rebalance.** Harvest a scene where higher ids arrive
-   first (or permute spawn ids), and keep frames inside the trail window
-   of BOTH events (gap ≤ 3 s), or the type stays confounded.
+   first (or permute spawn ids), keep frames inside the trail window of
+   BOTH events (gap ≤ 3 s), and apply the M1 status-agreement filter the
+   other types use, or the type stays confounded.
 2. **Arrow-free motion_direction variant.** It would test motion
    integration instead of arrow reading. It needs an M1 overlay flag, so
    it is an owner decision.
