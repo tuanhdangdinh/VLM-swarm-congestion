@@ -18,7 +18,12 @@
 #   LABEL       run directory name (required)
 #   OVERLAY     v2_overlay.py scene (apparatus_annotation | apparatus_votes)
 #   MOCK        repo-relative scripted mock decision file
-#   ANNOTATION  1 = M1 grid + trails on for this run (default 0)
+#   ANNOTATION  1 = M1 overlays on for this run (default 0)
+#   OVERLAYS    which annotation.yaml flags ANNOTATION=1 turns on, space
+#               separated (default "metric_grid motion_trails"; the battery-v2
+#               harvest uses "motion_trails" alone, 2026-10-04)
+#   OUT_ROOT    default data/logs/vm_runs/apparatus_smoke
+#   SNAP_INTERVAL / SNAP_TOPICS  passed to v2_final_run.sh
 #   SNAPSHOTS   passed to v2_final_run.sh (default = ANNOTATION)
 #   SCENARIO    default head_on_asymmetric_w0p2_eopen_bshort_o0
 set -uo pipefail
@@ -30,9 +35,10 @@ LABEL="${LABEL:?LABEL required}"
 OVERLAY="${OVERLAY:?OVERLAY required}"
 MOCK="${MOCK:-}"
 ANNOTATION="${ANNOTATION:-0}"
+OVERLAYS="${OVERLAYS:-metric_grid motion_trails}"
 SNAPSHOTS="${SNAPSHOTS:-$ANNOTATION}"
 SCENARIO="${SCENARIO:-head_on_asymmetric_w0p2_eopen_bshort_o0}"
-OUT_ROOT="$REPO/data/logs/vm_runs/apparatus_smoke"
+OUT_ROOT="${OUT_ROOT:-$REPO/data/logs/vm_runs/apparatus_smoke}"
 OUT="$OUT_ROOT/$LABEL"
 ANN="$REPO/ros2_ws/src/swarm_perception/config/annotation.yaml"
 ANN_INSTALLED=/ws/ros2_ws/install/share/swarm_perception/config/annotation.yaml
@@ -76,10 +82,21 @@ trap restore_annotation EXIT
 
 if [ "$ANNOTATION" = "1" ]; then
   cp -p "$ANN" "$BACKUP"
-  sed -i -E 's/^  (metric_grid|motion_trails): false$/  \1: true/' "$ANN"
+  for flag in $OVERLAYS; do
+    case "$flag" in
+      metric_grid|motion_trails) sed -i -E "s/^  ${flag}: false$/  ${flag}: true/" "$ANN" ;;
+      *) log "ERROR: unknown overlay flag ${flag}"; exit 1 ;;
+    esac
+  done
   touch "$ANN"
   build_perception "$OUT/annotation_on_build.log"
-  if [ "$(installed_md5)" != "$(md5_of "$ANN")" ] || ! grep -qE '^  metric_grid: true' "$ANN"; then
+  FLAGS_OK=1
+  for flag in metric_grid motion_trails; do
+    want=false
+    case " $OVERLAYS " in *" $flag "*) want=true ;; esac
+    grep -qE "^  ${flag}: ${want}$" "$ANN" || FLAGS_OK=0
+  done
+  if [ "$(installed_md5)" != "$(md5_of "$ANN")" ] || [ "$FLAGS_OK" != "1" ]; then
     log "ERROR: installed annotation.yaml does not match the flags-on source; refusing to launch"
     exit 1
   fi
@@ -88,5 +105,6 @@ if [ "$ANNOTATION" = "1" ]; then
 fi
 
 LABEL="$LABEL" SCENARIO="$SCENARIO" OVERLAY="$OVERLAY" MOCK="$MOCK" OUT_ROOT="$OUT_ROOT" \
-  SNAPSHOTS="$SNAPSHOTS" bash "$HERE/v2_final_run.sh"
+  SNAPSHOTS="$SNAPSHOTS" SNAP_INTERVAL="${SNAP_INTERVAL:-4.0}" \
+  SNAP_TOPICS="${SNAP_TOPICS:-annotated,raw}" bash "$HERE/v2_final_run.sh"
 log "v2_final_run exited rc=$?"

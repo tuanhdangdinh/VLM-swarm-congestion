@@ -22,6 +22,13 @@ edits on the PRISTINE files and nothing else:
   at the end of the file -- annotation: plan channel (prompt v3) + grid,
   trails and zoom-tile sentences, plus `keep_raw_frames: true`; votes:
   `prompt_permutation_votes: 3` only. `config/rag.yaml` untouched.
+- `battery_v2_head_on` (battery-v2 frame harvest, 2026-10-04,
+  `docs/reports/2026-10-04-battery-v2-results.md`): the same `_bshort`
+  head-on `initial_tasks`, `keep_debug_frames: true` and the plan channel
+  (so the annotation smoke's known-good `*_plan_once` yield mock resolves
+  the jam), but none of the prompt-apparatus flags: the trails-off and
+  trails-on harvest runs share this one M5 overlay, and only M1's
+  `annotation.yaml` differs between them. `config/rag.yaml` untouched.
 
 Restoring is NOT this script's job: the driver copies the verbatim backups
 back (plain copy, fresh mtime) and verifies the pristine md5s.
@@ -59,12 +66,17 @@ SCENE_TASKS: dict[str, list[str]] = {
         "  robot_1: { task: cross_narrow_aisle, goal: [2.6, 0.0] }",
         "  robot_2: { task: cross_narrow_aisle, goal: [-1.5, 0.0] }",
     ],
+    "battery_v2_head_on": [
+        "  robot_1: { task: cross_narrow_aisle, goal: [2.6, 0.0] }",
+        "  robot_2: { task: cross_narrow_aisle, goal: [-1.5, 0.0] }",
+    ],
 }
 # Prompt-apparatus smoke: `^key: value$` replacements, then lines appended at
 # the end (the keys the pristine file does not carry).
 APPARATUS_REPLACE: dict[str, dict[str, str]] = {
     "apparatus_annotation": {"keep_debug_frames": "true", "keep_raw_frames": "true"},
     "apparatus_votes": {"keep_debug_frames": "true"},
+    "battery_v2_head_on": {"keep_debug_frames": "true"},
 }
 APPARATUS_APPEND: dict[str, list[str]] = {
     "apparatus_annotation": [
@@ -74,6 +86,7 @@ APPARATUS_APPEND: dict[str, list[str]] = {
         "prompt_zoom_tile: true",
     ],
     "apparatus_votes": ["prompt_permutation_votes: 3"],
+    "battery_v2_head_on": ["plan_channel_enabled: true"],
 }
 WAYPOINTS_LINE = "  reroute_waypoints: [[0.3, 1.2], [1.8, 1.2]]"
 TASKS_RE = re.compile(r"^initial_tasks:\n(?:  robot_\d+:.*\n)+", re.MULTILINE)

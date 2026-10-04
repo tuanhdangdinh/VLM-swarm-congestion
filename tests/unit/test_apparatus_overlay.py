@@ -56,3 +56,28 @@ def test_overlaying_twice_is_refused(scene):
     once = overlay_orchestrator(ORCH.read_text(), scene)
     with pytest.raises(ValueError):
         overlay_orchestrator(once, scene)
+
+
+def test_battery_v2_head_on_scene_turns_on_only_the_plan_channel():
+    config = _config("battery_v2_head_on")
+    assert config.plan_channel_enabled
+    assert not (
+        config.prompt_metric_grid
+        or config.prompt_motion_trails
+        or config.prompt_zoom_tile
+        or config.prompt_candidate_options
+    )
+    assert config.prompt_permutation_votes == 1
+    assert config.keep_debug_frames and not config.keep_raw_frames
+    assert config.initial_tasks["robot_1"].goal == (2.6, 0.0)
+    assert config.initial_tasks["robot_2"].goal == (-1.5, 0.0)
+
+
+def test_battery_v2_head_on_scene_leaves_rag_untouched():
+    assert overlay_rag("grounding:\n  mode: derived\n", "battery_v2_head_on") is None
+
+
+def test_battery_v2_head_on_scene_refuses_a_second_overlay():
+    once = overlay_orchestrator(ORCH.read_text(), "battery_v2_head_on")
+    with pytest.raises(ValueError):
+        overlay_orchestrator(once, "battery_v2_head_on")

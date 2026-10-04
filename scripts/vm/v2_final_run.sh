@@ -26,6 +26,8 @@
 #   SAMPLER    1 = run scripts/vm/loop_family_sampler.py on robot_1 (default 0)
 #   SNAPSHOTS  1 = run scripts/vm/frame_snapshots.py (PNG every 4 sim-s of the
 #              annotated and raw frames, into $OUT/snapshots) (default 0)
+#   SNAP_INTERVAL / SNAP_TOPICS  frame_snapshots.py's interval (sim-s,
+#              default 4.0) and topic list (default annotated,raw)
 #   RECORD     passed to fc_launch (default 0)
 #   REC_SEC / SIM_SEC / SEED   passed to fc_launch (defaults 900 / 1000 / 42)
 #   CONTAINER  default vgu_ros
@@ -41,6 +43,8 @@ MOCK="${MOCK:-}"
 OUT_ROOT="${OUT_ROOT:-$REPO/data/logs/vm_runs/loop_family}"
 SAMPLER="${SAMPLER:-0}"
 SNAPSHOTS="${SNAPSHOTS:-0}"
+SNAP_INTERVAL="${SNAP_INTERVAL:-4.0}"
+SNAP_TOPICS="${SNAP_TOPICS:-annotated,raw}"
 RECORD="${RECORD:-0}"
 REC_SEC="${REC_SEC:-900}"
 SIM_SEC="${SIM_SEC:-1000}"
@@ -132,7 +136,7 @@ fi
 if [ "$SNAPSHOTS" = "1" ]; then
   docker cp "$HERE/frame_snapshots.py" "$CONTAINER":/tmp/frame_snapshots.py
   docker exec -w /ws "$CONTAINER" bash -lc \
-    "source /opt/ros/jazzy/setup.bash && source /ws/ros2_ws/install/setup.bash && export FASTRTPS_DEFAULT_PROFILES_FILE=/ws/config/dds/fastdds.xml && python3 /tmp/frame_snapshots.py /tmp/snapshots_${LABEL} $((REC_SEC - 30))" \
+    "source /opt/ros/jazzy/setup.bash && source /ws/ros2_ws/install/setup.bash && export FASTRTPS_DEFAULT_PROFILES_FILE=/ws/config/dds/fastdds.xml && python3 /tmp/frame_snapshots.py /tmp/snapshots_${LABEL} $((REC_SEC - 30)) ${SNAP_INTERVAL} ${SNAP_TOPICS}" \
     >"$OUT/snapshots_stderr.log" 2>&1 &
   SNAP_PID=$!
   log "snapshot grabber started"
