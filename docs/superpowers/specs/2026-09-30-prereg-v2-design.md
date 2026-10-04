@@ -169,8 +169,17 @@ differentiate):
 
 1. **VLM coordinator on an overhead warehouse camera with a semantic
    strategy taxonomy** — vs Garg et al. (arXiv:2404.06413 / PMLR 2026:
-   simulation, synthetic top-views, leader+waypoints, no taxonomy) and
-   Oxford CCTV (arXiv:2606.06762: real cameras, deliberately non-VLM).
+   simulation, synthetic top-views, leader+waypoints, no taxonomy),
+   Oxford CCTV (arXiv:2606.06762: real cameras, deliberately non-VLM),
+   and — CARVE-OUT added 2026-10-04 from the user's paper folder
+   (`research_notes/VLM planner coordinator recent work/
+   user_paper_folder_review.md`) — SwarmVLM (arXiv:2508.07814:
+   ceiling-camera VLM+RAG in a warehouse, but the VLM only
+   feature-extracts obstacles for a six-row impedance-parameter
+   lookup — no congestion classification, no strategy selection, no
+   plans, no robot–robot conflict, n=2 leader–follower; cite its
+   ImpedanceGPT/HetSwarm lineage as the orthogonal
+   "VLM-tunes-control-parameters" family).
    WORDING CONSTRAINT: our frames are Isaac-rendered through the real
    M1 pipeline on a hardware-validated scenario family — phrase as
    such; "real physical camera" is claimable only if the optional
