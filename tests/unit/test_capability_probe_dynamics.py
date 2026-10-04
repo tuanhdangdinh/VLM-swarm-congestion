@@ -344,3 +344,18 @@ def test_temporal_order_stop_needs_a_standoff():
         "robot_1",
         "ok",
     )
+
+
+def test_yes_exclusion_horizon_ends_at_first_threshold_crossing():
+    answer, _, facts = dyn.conflict_prediction_answer(_head_on_track(), "robot_1", "robot_2", 12.0)
+    assert answer == "yes"
+    crossing = facts["first_within_threshold_sec"]
+    # Crossing 0.5 m: robot_1 reaches x = 1.0 at t = 3.0 / 0.15 = 20.0 s.
+    assert crossing == pytest.approx(20.0, abs=0.11)
+    assert dyn.exclusion_horizon_sec("yes", 12.0, facts) == pytest.approx(crossing - 12.0)
+    # A command dispatched after the crossing cannot change a "yes".
+    assert dyn.horizon_is_command_free(12.0, crossing - 12.0, [(crossing + 0.5, 40.0)])
+
+
+def test_no_exclusion_horizon_is_the_full_horizon():
+    assert dyn.exclusion_horizon_sec("no", 5.0, {}) == dyn.CONFLICT_HORIZON_SEC

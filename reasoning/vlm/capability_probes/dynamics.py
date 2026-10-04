@@ -331,10 +331,28 @@ def conflict_prediction_answer(
     d_min = min(pair_distance(r, a, b) for r in future)
     facts["future_min_distance_m"] = d_min
     if d_min <= CONFLICT_YES_MAX_M:
+        facts["first_within_threshold_sec"] = next(
+            r["sim_time_sec"] for r in future if pair_distance(r, a, b) <= CONFLICT_THRESHOLD_M
+        )
         return "yes", "ok", facts
     if d_min >= CONFLICT_NO_MIN_M:
         return "no", "ok", facts
     return None, "margin_too_small", facts
+
+
+def exclusion_horizon_sec(answer: str, t: float, facts: dict[str, float]) -> float:
+    """Return how far past `t` a command could still change the answer.
+
+    A "no" can be overturned by a command anywhere in the 10 s horizon. A
+    "yes" is settled the moment the pair first comes within 0.5 m: a
+    command acting after that cannot undo it, so only `[t, first crossing]`
+    must be command-free. This is exact, not a relaxation -- it is the
+    registered rule ("a command after the stamp changes the answer") read
+    literally.
+    """
+    if answer == "yes":
+        return facts["first_within_threshold_sec"] - t
+    return CONFLICT_HORIZON_SEC
 
 
 def horizon_is_command_free(

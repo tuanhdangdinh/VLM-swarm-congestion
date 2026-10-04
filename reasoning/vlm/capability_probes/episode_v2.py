@@ -40,6 +40,15 @@ from reasoning.vlm.capability_probes import scanning
 # Scope bound shared with v1 and the v2 design (<= 5 active robots).
 MAX_ROBOTS = 5
 
+# v2 edge gate (replaces v1's fixed `EDGE_MARGIN_PX` = 70 px centre margin,
+# 2026-10-04): every rect M1 draws for a robot (status box, id label) AND
+# the robot's own footprint disc must lie at least this far inside the frame.
+# This is the exact condition the 70 px margin approximated ("a fully
+# visible label"); the approximation would have excluded every frame after
+# an arrival in both harvest scenes, whose goals sit at u ~ 1200-1218 px
+# with labels ending <= 1253 px of 1280.
+EDGE_SLACK_PX = 10
+
 _ANALYSIS_RE = re.compile(
     r"\[(\d+\.\d+)\] \[orchestrator_node\]: starting analysis request=([0-9a-f]+)"
 )
@@ -337,7 +346,7 @@ def gate_frame(
     m1_pixels = {
         rid: gtlib.world_to_pixel(r["x"], r["y"], homography) for rid, r in frame.m1_robots.items()
     }
-    if not scanning.scene_is_legible(frame.m1_robots, m1_pixels, width, height):
+    if not scene_is_legible_v2(frame.m1_robots, m1_pixels, width, height, homography):
         return None, "scene_not_legible"
     motions: dict[str, dyn.RobotMotion] = {}
     for rid, r in gt_robots.items():
@@ -365,6 +374,53 @@ def gate_frame(
         FrameContext(frame, row, gt_robots, width, height, disagreement, motions),
         "ok",
     )
+
+
+def scene_is_legible_v2(
+    m1_robots: dict[str, dict],
+    m1_pixels: dict[str, tuple[int, int]],
+    width: int,
+    height: int,
+    homography,
+) -> bool:
+    """v1's `scanning.scene_is_legible` with the exact edge check (`EDGE_SLACK_PX`).
+
+    Separation, no-STALE and no box/label overlap are v1's conditions with
+    v1's constants; only the edge condition differs.
+    """
+    from reasoning.vlm.capability_probes import occlusion
+
+    radius_px = gtlib.ROBOT_FOOTPRINT_RADIUS_M * _pixels_per_metre(homography)
+    for rid, (u, v) in m1_pixels.items():
+        rects = occlusion.robot_annotation_rects(rid, u, v)
+        rects.append((u - radius_px, v - radius_px, u + radius_px, v + radius_px))
+        for x0, y0, x1, y1 in rects:
+            if x0 < EDGE_SLACK_PX or y0 < EDGE_SLACK_PX:
+                return False
+            if x1 > width - EDGE_SLACK_PX or y1 > height - EDGE_SLACK_PX:
+                return False
+    # v1's remaining conditions, unchanged (`scanning.scene_is_legible`):
+    # no STALE robot, centres at least `MIN_ROBOT_SEPARATION_PX` apart, and
+    # no robot's box/label overlapping another robot's.
+    if any(robot.get("status") == "STALE" for robot in m1_robots.values()):
+        return False
+    ids = list(m1_pixels)
+    for i, a in enumerate(ids):
+        for b in ids[i + 1 :]:
+            (ua, va), (ub, vb) = m1_pixels[a], m1_pixels[b]
+            if ((ua - ub) ** 2 + (va - vb) ** 2) ** 0.5 < gtlib.MIN_ROBOT_SEPARATION_PX:
+                return False
+            rects_a = occlusion.robot_annotation_rects(a, ua, va)
+            rects_b = occlusion.robot_annotation_rects(b, ub, vb)
+            if any(occlusion.rects_overlap(ra, rb) for ra in rects_a for rb in rects_b):
+                return False
+    return True
+
+
+def _pixels_per_metre(homography) -> float:
+    u0, v0 = _world_to_pixel_float(0.0, 0.0, homography)
+    u1, v1 = _world_to_pixel_float(1.0, 0.0, homography)
+    return ((u1 - u0) ** 2 + (v1 - v0) ** 2) ** 0.5
 
 
 def _world_to_pixel_float(x: float, y: float, homography) -> tuple[float, float]:
@@ -489,7 +545,8 @@ def derive(
             if not _m1_consistent(ctx.frame.m1_robots[rid].get("status"), m.motion):
                 return "m1_gt_answer_disagreement"
         windows = list(episode.command_windows) + list(episode.onset_windows)
-        if not dyn.horizon_is_command_free(t, dyn.CONFLICT_HORIZON_SEC, windows):
+        horizon = dyn.exclusion_horizon_sec(answer, t, facts)
+        if not dyn.horizon_is_command_free(t, horizon, windows):
             return "command_in_horizon"
         derivation = {k: round(v, 4) for k, v in facts.items()}
         return Derived(

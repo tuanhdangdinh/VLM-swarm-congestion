@@ -233,3 +233,38 @@ def test_grid_drawn_frames_are_never_used(tmp_path):
     manifest, drops, _ = _build(tmp_path)
     assert drops["frame:metric_grid_drawn"] == len(_FRAME_TIMES)
     assert all("grid" not in i.run_id for i in manifest.items)
+
+
+def _calibration_homography():
+    from swarm_perception.calibration import load_calibration
+
+    return load_calibration(_CALIBRATION_PATH).homography
+
+
+def test_v2_edge_gate_keeps_a_fully_drawn_robot_near_the_edge():
+    from reasoning.vlm.capability_probes.episode_v2 import scene_is_legible_v2
+
+    robots = {"robot_1": {"status": "STOPPED"}, "robot_2": {"status": "STOPPED"}}
+    # u = 1218: inside v1's 70 px margin, but every drawn rect ends <= 1253.
+    pixels = {"robot_1": (1218, 480), "robot_2": (640, 480)}
+    assert scene_is_legible_v2(robots, pixels, 1280, 960, _calibration_homography())
+
+
+def test_v2_edge_gate_drops_a_clipped_label():
+    from reasoning.vlm.capability_probes.episode_v2 import scene_is_legible_v2
+
+    robots = {"robot_1": {"status": "STOPPED"}, "robot_2": {"status": "STOPPED"}}
+    pixels = {"robot_1": (1250, 480), "robot_2": (640, 480)}
+    assert not scene_is_legible_v2(robots, pixels, 1280, 960, _calibration_homography())
+
+
+def test_v2_legibility_keeps_v1_separation_and_stale_rules():
+    from reasoning.vlm.capability_probes.episode_v2 import scene_is_legible_v2
+
+    h = _calibration_homography()
+    close = {"robot_1": (600, 480), "robot_2": (650, 480)}
+    stopped = {"robot_1": {"status": "STOPPED"}, "robot_2": {"status": "STOPPED"}}
+    assert not scene_is_legible_v2(stopped, close, 1280, 960, h)
+    stale = {"robot_1": {"status": "STALE"}, "robot_2": {"status": "STOPPED"}}
+    far = {"robot_1": (300, 480), "robot_2": (900, 480)}
+    assert not scene_is_legible_v2(stale, far, 1280, 960, h)
