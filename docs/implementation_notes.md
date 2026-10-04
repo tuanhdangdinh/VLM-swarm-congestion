@@ -37,6 +37,39 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-04** — **Battery v2 (predictive/temporal probes) built,
+  harvested and run live on `feat/v2-battery2`**
+  (`docs/reports/2026-10-04-battery-v2-results.md`; manifest
+  `faf1953b…`, `23e36c5`; v1 manifest and prompt untouched).
+  - **Types:** `motion_direction`, `conflict_prediction`,
+    `temporal_order`. GT-derived in `capability_probes/dynamics.py` and
+    `episode_v2.py`, shared by the builder and the auditor (`OK: all
+    139`). Rendered through the frozen v1 template; no v2 prompt version
+    was needed.
+  - **Harvest:** 4 mock runs (head-on bshort and convoy_counterflow,
+    trails off/on twins) via `frame_snapshots.py` at 0.5 sim-s, which now
+    also logs every M1 `SceneState` (exact per-frame M1 state, 2,291/2,291
+    matched).
+    - VM restored to the pre-deploy tree (782 paths md5-identical).
+    - **New trap:** colcon's `build/` cache silently reinstalls deleted
+      modules. Purge `build/<pkg>/build/lib/...` as well as `install/`
+      when restoring.
+  - **Results (main):** Gemini 48/59, gpt-4o 26/59. conflict_prediction
+    is the discriminating type (16/20 vs 9/20).
+    - motion_direction is arrow/colour reading: M1's heading arrow is
+      truthful once reversers are excluded.
+    - temporal_order is confounded: lower id correct 15/19, and the
+      lagging status colour cues the later robot in 23/30 frames.
+  - **Trails pairs (40/backend, config-matched, not stamp-matched):**
+    null. Gemini 36 vs 35, gpt-4o 17 vs 15; McNemar p ≥ 0.69.
+  - **gpt-4o:** 6/139 refusals and 24 temporal abstentions; when it does
+    answer temporal items it picks the later robot 13/15 times.
+  - **Registered v2 rule decisions:**
+    - exact drawn-rect edge gate (replaces v1's 70 px margin for v2);
+    - conflict "yes" items exclude commands only up to the first 0.5 m
+      crossing;
+    - "no" items must have the threshold reachable at current speeds.
+
 - **2026-10-04** — **Apparatus rulings implemented on
   `feat/v2-apparatus-fixes` (`788a5a7`; rulings in the prereg-v2 spec's
   "Apparatus rulings (2026-10-04…)" block).** Supersedes the 2:1 wrap
