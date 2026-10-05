@@ -37,6 +37,37 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-05** — **Foundations-round flow metrics landed on
+  `feat/v2-flow-metrics` (`af14b4d`); the free-flow harvest is STOPPED on
+  a design-level finding** (`docs/reports/2026-10-05-flow-metrics.md`).
+  - **Fields (additive):** `delay_vs_free_flow`, `conflict_dissolution`,
+    `aperture_throughput`, `outcome_class` + `outcome_evidence`. Added to
+    the `b1`/`b3`/`ib10`/`loop` scorers and a new generic `flow`
+    subcommand (`scripts/coverage_scene_scores.py`).
+  - **Free-flow table:** schema, loud loader and harvest builder are in
+    `scripts/free_flow_table.py`. The table goes at
+    `config/free_flow/free_flow_v1.json` once harvested (not committed).
+  - **Gotchas:**
+    - Delay origin is each robot's OWN departure, not the common t0.
+      Otherwise held robots carry their scripted hold as fake delay.
+    - M5 `ArrivalGate` lines are wall-clock stamped, so they never time an
+      arrival.
+    - A re-trigger is a second DISPATCHED decision; no-congestion
+      re-analyses do not count.
+    - A re-clog after dissolution needs a PAIR back inside 0.45 m for
+      M5's 12 s stall threshold. Step-7b rerun 2's yielder stalls 14 s
+      alone after release, and that is not a re-clog.
+  - **Harvest blocker:** solo-in-time staggering is infeasible for every
+    v2 cell except B1. M4's latch covers idle bystanders, and in these swap
+    scenes goals sit at or past other robots' spawns. IB10 is circular in
+    every order. Recommended fix: solo-in-space variants, about 16 runs.
+    The VM was not touched.
+  - **Re-score:** step-7b 4/4 rerun `resolved`, step-6 episode 2 `clogged`
+    (via censoring; its log predates `fallback_exhausted`), demo ep2
+    `resolved`. Step-6 live ep1 is `null` (harness-invalid, dead stack).
+  - **Suite:** zero-delta vs `10f9b62` (63 failed / 4959 passed vs
+    4903).
+
 - **2026-10-04** — **Battery v2 (predictive/temporal probes) built,
   harvested and run live on `feat/v2-battery2`**
   (`docs/reports/2026-10-04-battery-v2-results.md`; manifest
