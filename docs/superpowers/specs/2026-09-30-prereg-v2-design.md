@@ -339,6 +339,19 @@ foundations.md`):**
   throughput (dos Passos, arXiv:2201.09335) where a cell measures
   flow; delay-vs-free-flow via one single-robot free-flow run per
   cell (cheap, registered as a per-cell baseline run at collection).
+  METHOD RULED (2026-10-05): free-flow baselines are SOLO-IN-SPACE —
+  each robot traverses the course ALONE (per-robot scenario
+  variants, own USD builds; blocker cells get blocker-free variants;
+  B2-visual r1 covers r2, the load prop is collision-free) — because
+  solo-in-time fails in 5/6 v2 cells (swap-scene goals lie past
+  other robots' spawns → 0.00 m clearance to the 0.45 m latch;
+  per-order table in `docs/reports/2026-10-05-flow-metrics.md`), and
+  because free flow in the flow literature means an unobstructed
+  course: a parked robot is an obstacle. ONE method for the whole
+  table (no B1 solo-in-time mixing). Scorer fields + outcome classes
+  (resolved/intermittent/clogged) BUILT 2026-10-05, additive-only;
+  pinned calibration passed (step-6 ep2 clogged, step-7b 4/4
+  resolved, demo ep2 resolved).
 - TAXONOMY FOOTING: deadlock ↔ circular wait (AGV resource theory) /
   force-equilibrium (Grover, arXiv:1911.09146) / clogged absorbing
   state; bottleneck ↔ intermittent clogging at a constriction;
