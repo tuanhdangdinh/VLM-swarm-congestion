@@ -6065,36 +6065,41 @@ Rules for maintaining it:
 - **2026-10-05** — **Phantom second-aisle lethal cells: one source plus one
   amplifier; diagnosis only, no fix applied.** Branch
   `feat/v2-costmap-probe`. Report:
-  `docs/reports/2026-10-05-costmap-source-probe.md`. Bundles:
-  `data/logs/vm_runs/costmap_probe/`. Tooling: `681f5c6`, `83cef79`,
-  `f6bc0b0`, `db40763`.
+  `docs/reports/2026-10-05-costmap-source-probe.md` (Rev 2). Bundles:
+  `data/logs/vm_runs/costmap_probe/`. Tooling: `681f5c6` … `c568964`.
   - **Amplifier (shared Nav2 params).** Both costmaps' obstacle layers run
-    with `clearing: false`, the Jazzy default; `nav2_params.yaml` never sets
-    it (verified live with `ros2 param get`). Marks therefore leave only on
-    ClearEntireCostmap. Also, `raytrace_max_range` 3.0 < `obstacle_max_range`
-    3.5. The waypoints report's "raytraced open" at sim 38.5 was the BT
-    recovery clear at sim 37.8.
-  - **Source (M1 localizer).** The lag term −ω × L (L fitted at 0.43–0.60 s)
-    is behind every closure:
-    - Run 2's first closure is reproduced by a GT-driven forward model at the
-      same update (7 vs 5 columns, 72 vs 71 cells). The cause is DWB weave
-      (|ω| ≤ 0.37 rad/s), giving about 0.15 rad of error.
-    - The Rev 2 "≤ 0.06 rad" came from a probe whose rows lagged about 2 s and
-      caught about 20 % of the `map -> odom` publishes.
-    - A 0.78 rad/s in-place turn closes 6–13 columns in 2–4 s.
+    with `clearing: false`, the Jazzy default, never set in
+    `nav2_params.yaml` (verified live with `ros2 param get`). Marks leave
+    only on ClearEntireCostmap. Also, `raytrace_max_range` 3.0 <
+    `obstacle_max_range` 3.5. The waypoints report's "raytraced open" at sim
+    38.5 was the BT recovery clear at sim 37.8.
+  - **Source (M1 localizer).** The registration error equals the
+    `map -> odom` yaw: −ω × (M1 upstream latency 0.04–0.20 s + `Time()`
+    pairing, median 0.10–0.32 s, max 0.43 s).
+    - A 0.81 rad/s turn (0.39–0.50 rad of error) closes 6–13 columns in
+      2–4 s.
     - Static parks (280 sim-s, 2 poses) close 0.
+    - Run 2's first closure is reproduced from its own recorded
+      `map -> odom` samples, re-timed: the waypoint probe's rows lagged
+      about 2.2 s, so the −0.194 rad sample preceded the closure.
+  - **GT clock gotcha.** `ground_truth.jsonl` `sim_time_sec` runs 0.300 s
+    behind ROS stamps: odometry at stamp t equals GT at t − 0.300, to
+    0.2 mm. Comparing M1, odometry or TF with GT at equal numeric times
+    inflates lag by 0.3 s. That inflated the waypoints report's "M1 lags
+    0.3–0.45 s" and this report's initial draft.
   - **Geometry.** Legitimate half-cell returns (y 0.925 / 1.475) plus RTX
-    range-noise tails narrow the aisle by about one row per side but never
-    close it alone (17 % of run 2's pre-clear marks).
+    range-noise tails narrow the aisle but never close it alone (17 % of
+    run 2's pre-clear marks).
   - **Validation.** A bag replay through the recorded TF reproduces the
-    recorded costmap at recall 0.98–1.00. There are no ground or pitch
+    recorded costmap at recall 0.987–0.998. There are no ground or pitch
     returns.
-  - **Fix matrix.** Replay counterfactuals give 0 closed columns for
-    `clearing: true` with raytrace 3.5 (H), and for the perfect-localizer
-    bound with H. A alone leaves 1–3 columns at fast rotation; C alone fails
-    within 2 m. Every option but E/F/G touches all live-Nav2 frozen v2
-    results, and H also changes the persistence of removed blockers and robot
-    trails.
+  - **Fix matrix.** Replay counterfactuals on fast rotation: H
+    (`clearing: true`, raytrace 3.5) gives 0 / 0 / 0. A (stamp-matched
+    lookup) gives 7 / 0 / 9, so it is insufficient alone. A + H gives
+    0 / 0 / 0, as does a perfect-timing localizer. C fails within 2 m.
+    Every option but E/F/G touches all live-Nav2 frozen v2 results. H's
+    blast radius is likely the largest (persistence of removed blockers and
+    robot trails, inferred, not measured).
 
 - **2026-10-05** — **`follow_waypoints` is not the defect behind "reroute is a
   no-op"; the fix is blocked on a shared change (STOP).** Branch
