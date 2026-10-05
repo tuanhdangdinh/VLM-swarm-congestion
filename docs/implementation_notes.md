@@ -54,12 +54,13 @@ Rules for maintaining it:
     timed obstacles are never baked into maps. fc_launch takes a
     `MAP_SCENARIO` override, so no map is installed.
   - **Results:**
-    - The table covers 8 cells and 12 scenes (`priority_visual_r1` covers
+    - The table covers 8 cells and 11 scenes (`priority_visual_r1` covers
       `_r2` and the urgent pair by identity).
     - The effective free-flow speed is 0.15 m/s everywhere.
     - IB10 arms are 20.7–20.9 s.
-    - Re-score: every delay is positive, and the IB10 passer is 50–58 s vs
-      the held robots' 101–182 s.
+    - Re-score: every delay is positive. The IB10 passer is 50–81 s, below
+      every held robot's delay or censored bound; in the resolved episodes it
+      is 52–57 s vs measured 112–182 s.
   - **Gotchas:**
     - `run_simulation --duration-sec` is dead in code; the yaml governs.
     - Ending fc_launch's M5 tail once Isaac exits on its own cuts a solo run
@@ -69,10 +70,9 @@ Rules for maintaining it:
   - **Suite:** zero-delta vs `b264e9d` (63 failed / 5111 passed vs 4962).
   - **VM:** restored to the 764-path pre-deploy snapshot with the GPU idle.
     It is still RUNNING, left as found.
-  - **Open (rulings):**
-    - `blocked_path_*`: the M5 goal for robot_2 is the north pocket, not the
-      scenario goal.
-    - `convoy_counterflow`: whether it is covered by the slip variant.
+  - **Open:** optional `blocked_path_*` harvest (4 runs; scenario and M5
+    goals agree). Ruling needed on whether `convoy_counterflow` is covered by
+    the slip variant.
 - **2026-10-05** — **Foundations-round flow metrics landed on
   `feat/v2-flow-metrics` (`af14b4d`); the free-flow harvest is STOPPED on
   a design-level finding** (`docs/reports/2026-10-05-flow-metrics.md`).
@@ -97,7 +97,7 @@ Rules for maintaining it:
     v2 cell except B1. M4's latch covers idle bystanders, and in these swap
     scenes goals sit at or past other robots' spawns. IB10 is circular in
     every order. Recommended fix: solo-in-space variants, about 16 runs.
-    The VM was not touched.
+    The VM was not touched. (superseded by 2026-10-05 free_flow_v1 entry)
   - **Re-score:** step-7b 4/4 rerun `resolved`, step-6 episode 2 `clogged`
     (via censoring; its log predates `fallback_exhausted`), demo ep2
     `resolved`. Step-6 live ep1 is `null` (harness-invalid, dead stack).

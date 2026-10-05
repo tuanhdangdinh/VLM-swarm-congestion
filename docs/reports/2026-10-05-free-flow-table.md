@@ -28,8 +28,8 @@ ruled out.
 |---|---|
 | Generator | `scripts/make_free_flow_variants.py` emits 22 variants plus `manifest.json` into `isaac/config/scenarios/free_flow/`. 144 unit tests (`tests/unit/test_free_flow_variants.py`). |
 | Runs | **22 of 22 valid.** The 8 cells are the 6 v2-scored cells plus `obstacle_in_candidate` and `dynamic_anomaly_v2`. Every run passed every check: zero decision artifacts (so zero dispatches), one M5 accepted arrival, GT `completed: true`, `RESTORE OK`, and zero jump-back warnings. |
-| Table | `config/free_flow/free_flow_v1.json`: 12 scenes and 28 entries. 22 entries are measured. 6 entries carry the `priority_visual_r1` measurements under the three registered identical cells. The schema test now runs (no longer skipped), and the loader check is green. |
-| Re-score | Every delay is positive. On IB10 the passer's delay (50–58 s) is below the held robots' delays (101–182 s) in every episode. |
+| Table | `config/free_flow/free_flow_v1.json`: 11 scenes and 28 entries. 22 entries are measured. 6 entries carry the `priority_visual_r1` measurements under the three registered identical cells. The schema test now runs (no longer skipped), and the loader check is green. |
+| Re-score | Every delay is positive. On IB10 the passer's delay (50–81 s) is below every held robot's delay or censored lower bound in every episode. In the three resolved episodes it is 52–57 s against measured delays of 112–182 s. |
 | Suite | Zero-delta against a clean detached baseline (`b264e9d`): the same 66 failing/erroring test ids, and +149 passing. |
 | VM | Restored: 764 pre-deploy paths are md5-identical, the variant USDs are removed, and the configs are pristine. GPU idle. Zero API spend. |
 
@@ -231,7 +231,8 @@ below).
     24.2, 24.4 and 24.2 s.
   - IB10's four symmetric arms time at 20.7–20.9 s.
   - The two 5.0 m lanes of `dynamic_anomaly_v2` time at 31.0 and 30.9 s.
-  - Run-to-run spread is therefore about 0.2 s.
+  - Agreement across courses is therefore about 0.2 s. This is cross-course
+    agreement, not replication: each entry is a single run (n = 1).
 - **Departure is M5's dispatch, not a spawn-settle blip.** Departures fall at
   10.4–13.9 sim-s, which is the M5 start ("all components started", about
   25 wall-s after Isaac's topics went live). The first GT sample has speed 0 by
@@ -269,7 +270,7 @@ against the yamls and are pinned by
 - **The prop does not change the time.** robot_1 was measured loaded (24.4 s)
   and robot_2 unloaded (24.2 s) on mirror-identical 4.0 m courses. T2b
   robot_1, unloaded on the same 4.0 m eastbound course, times 24.2 s. So the
-  prop's effect is within the 0.2 s run-to-run spread.
+  prop's effect is within the 0.2 s cross-course agreement.
 
 ---
 
@@ -332,10 +333,9 @@ classes are unchanged from Part 3.
 - **`blocked_path_object` / `_transient` were not in this run list.** The
   generator handles them, since `blocked_path_*` are registered blocker cells
   and a test dry-generates one. Adding them to `FREE_FLOW_CELLS` and running 4
-  more variants is about 25 min of VM time. Their M5 goal for robot_2 is the
-  north pocket (0.0, 1.75), not the scenario's own goal (orchestrator goal
-  table), so that needs a ruling before harvest: free flow to the scenario
-  goal, or to the M5 goal.
+  more variants is about 25 min of VM time. Their robot_2 goal is the north
+  pocket (0.0, 1.75) in both the scenario yaml and the M5 goal table, so no
+  goal ruling is needed.
 - **`convoy_counterflow` (B3 non-slip) is not in the table.** It was not in
   the run list and is not registered as covered by
   `convoy_counterflow_slip`; covering it would need a geometry check and a
@@ -388,11 +388,10 @@ analyses were triggered.
 
 ## Open Items
 
-- Rulings needed before extending the table:
-  - `blocked_path_*`: free flow to the scenario goal or to M5's north-pocket
-    goal.
-  - `convoy_counterflow`: whether it is covered by
-    `convoy_counterflow_slip`.
+- Optional extension: harvest `blocked_path_*` (4 runs, about 25 min) by
+  adding them to `FREE_FLOW_CELLS`.
+- Ruling needed: whether `convoy_counterflow` is covered by
+  `convoy_counterflow_slip`.
 - The `t2b_flow_ordering.yaml` header claim that fc_launch's
   `--duration-sec` overrides the yaml duration is wrong. The flag is dead.
   The comment is left untouched, since changing it is a scenario-file edit.
