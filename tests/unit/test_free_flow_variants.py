@@ -190,3 +190,16 @@ def test_priority_visual_r1_covers_its_registered_cells():
 
 def test_committed_variants_equal_the_generator_output():
     assert mffv.main(["--check"]) == 0
+
+
+def test_committed_table_entries_trace_to_their_solo_variant_runs():
+    from scripts.free_flow_table import DEFAULT_TABLE_PATH, load_free_flow_table
+
+    table = load_free_flow_table(DEFAULT_TABLE_PATH)
+    for scene, robots in table.scenes.items():
+        source = MANIFEST["covered_by"].get(scene, scene)
+        for robot_id, entry in robots.items():
+            variant = entry.run_id.split(":")[0]
+            assert variant == mffv.variant_name(source, robot_id)
+            assert entry.mechanism == "solo_in_space"
+            assert entry.min_clearance_m is None
