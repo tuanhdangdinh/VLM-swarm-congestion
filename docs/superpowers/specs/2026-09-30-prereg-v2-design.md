@@ -951,6 +951,29 @@ re-send.
   v2-era frozen results (IB10 4/4, free_flow_v1); v1 collection is
   unaffected (runs from the tag). Secondary shared issue noted, not
   chased: the DWB corner wedge frees only on a new goal.
+  SOURCE ATTRIBUTED + FIX RULED (2026-10-05,
+  `docs/reports/2026-10-05-costmap-source-probe.md` Rev 2): one
+  source — camera-localizer registration error (−ω·L, effective lag
+  0.14–0.35 s; 66% of closure cells) — one amplifier — the costmap
+  NEVER CLEARS (`obstacle_layer.scan.clearing: False`, the unset
+  Jazzy default; raytrace 3.0 < obstacle 3.5) — and a geometry
+  narrowing (17%) that never closes alone. Static robot: 0 columns
+  closed in every phase; fast rotation: 12/17 within seconds;
+  replay reproduces the costmap at recall 0.987–0.998. RULING: the
+  fix is **A′ + H** (stamp-matched, latency-compensated localizer
+  lookup + `clearing: true` with raytrace 3.5 — the only
+  combination zeroing closures in both datasets), to be built and
+  live-validated on a PARKED v3-prep branch, NOT merged into the v2
+  line: no v2 scored cell exercises the defect, v2's frozen results
+  are internally consistent under current behavior, and v1
+  collection runs from the tag regardless. The parked branch ships
+  with its re-validation batch (IB10 composite rerun, free-flow
+  spot checks, loop re-smoke) so v3 inherits a proven fix, not a
+  patch. CROSS-CUTTING CORRECTION to audit: GT `sim_time_sec` runs
+  0.300 s behind ROS stamps — any analysis equating ROS-stamped
+  data with ground_truth.jsonl at equal times is biased (two
+  reports already corrected; audit the rest, incl. how the
+  empirical −0.45 s M1↔GT join offset decomposes).
 - **Risk (retired by the phase-1 gate for its original severity,
   kept for the record):** Nav2
   on a loop map may reroute *on its own* when the global
