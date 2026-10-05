@@ -7,10 +7,18 @@
 - Initial draft: Part 1 scorer fields landed, Part 2 free-flow harvest
   stopped before the VM on a design-level finding, Part 3 local re-score of
   the known IB10 and B1 episodes.
+- Rev 2 (review pass):
+  - composite cells without M5's log no longer class `resolved` (`null`
+    instead);
+  - the harvest builder refuses a solo-in-time traversal that passes a
+    parked robot inside 0.45 m;
+  - the VM state is now read-only verified;
+  - the bundle scenario YAMLs were checked against the current ones;
+  - suite counts were re-run on the final commit.
 
 **commit:** branch `feat/v2-flow-metrics` (worktree
 `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v2-fm`), branched from
-`feat/prereg-v2-composite` at `10f9b62`; code `af14b4d`.
+`feat/prereg-v2-composite` at `10f9b62`; code `af14b4d` + `27a16f9`.
 
 ---
 
@@ -23,7 +31,7 @@ citations come from `reports/Swarm congestion foundations.md` section 2.
 
 | Part | Status |
 |---|---|
-| 1. Scorer fields | **Landed.** `delay_vs_free_flow`, `conflict_dissolution`, `aperture_throughput` and `outcome_class`, with `outcome_evidence`. They are added to the `b1`, `b3`, `ib10` and `loop` scorers and to a new generic `flow` subcommand. Additive only. 56 new tests. Full local suite zero-delta. |
+| 1. Scorer fields | **Landed.** `delay_vs_free_flow`, `conflict_dissolution`, `aperture_throughput` and `outcome_class`, with `outcome_evidence`. They are added to the `b1`, `b3`, `ib10` and `loop` scorers and to a new generic `flow` subcommand. Additive only. 59 new tests. Full local suite zero-delta. |
 | 2. Free-flow harvest (VM) | **STOPPED before the VM: design-level finding.** Solo-in-time staggering cannot produce a free-flow traversal in 5 of the 6 v2-scored cells. In each of those 5 cells, some robot's path or goal is another robot's spawn. The VM was not touched, no table was committed and there was zero API spend. Options are listed below. |
 | 3. Re-score (local) | **Done.** Expected classes hold: step-7b 4/4 rerun `resolved`, step-6 episode 2 `clogged`, demo ep2 `resolved`. Delays are `null` (`no_table`) everywhere. The scorers never invent a baseline. |
 
@@ -33,7 +41,7 @@ citations come from `reports/Swarm congestion foundations.md` section 2.
 
 Code: `scripts/coverage_scene_scores.py` (fields and wiring) and
 `scripts/free_flow_table.py` (table schema, loud loader, harvest builder).
-Tests: `tests/unit/test_flow_metrics.py` (56 tests plus one skip; the skip
+Tests: `tests/unit/test_flow_metrics.py` (59 tests plus one skip; the skip
 validates the committed table and runs only once that table exists).
 
 Every scorer keeps its existing fields byte-for-byte. A test pins B1's full
@@ -139,6 +147,7 @@ one mapping, `classify_outcome`, shared by every scorer:
 | Any robot censored at the horizon | `clogged` |
 | All arrived, and ≥ 2 dispatched decisions or a `fallback` phase | `intermittent` |
 | All arrived, dispatch count unknown | `null` (never guessed) |
+| All arrived, composite cell (oracle `phase_ordinal`, IB10) without M5's log | `null` (a cross-phase fallback cannot be ruled out) |
 | All arrived, ≤ 1 dispatched decision, no fallback | `resolved` |
 
 - **Citations:**
@@ -254,8 +263,9 @@ risks rework.
    conflict.
 
 The harvest tooling is already built and tested: schema, loud loader,
-`derive`, `build`, `check`, the zero-dispatch check and the solo-traversal
-check. Only the run mechanism needs the ruling.
+`derive`, `build`, `check`, the zero-dispatch check, the solo-traversal check,
+and a refusal of any solo-in-time traversal passing a parked robot inside the
+0.45 m latch (`LATCH_CLEARANCE_M`). Only the run mechanism needs the ruling.
 
 ---
 
@@ -273,6 +283,16 @@ Bundles used:
   the main checkout;
 - the step-7b reruns from the predecessor session's scratchpad copies
   (`.../scratchpad/step7b/ib10_7b_{,vi_}2026100*`).
+
+All bundles were scored against the current scenario YAMLs. That choice was
+checked:
+
+- The step-6 `ib10_smoke` bundles' own `scenario.yaml` differs from the
+  current one only by the later-added `oracle:` block. Spawns, goals and
+  `expected_conflict` are identical.
+- The demo bundles' YAMLs are identical.
+- `bottleneck_merge.yaml` changed only in comments between B1S1 (09-29) and
+  now. The rev-19b fix was an `orchestrator.yaml` corridor change.
 
 ### IB10 outcome classes and dissolution
 
@@ -362,6 +382,9 @@ Window and dissolution are in seconds.
   robot_3 is stuck at the gate at 1.02 m.
 - **The horizon rate shows it.** That rate falls for clogged apertures, which
   is why both rates are reported.
+- **B1S1 is the pre-fix 09-29 smoke.** It is genuinely censored, as
+  documented in `bscene_smoke/BSCENE_SMOKE_SUMMARY.txt` ("all three arms
+  CENSORED").
 - **`B1FIX_S43R` is a near miss.** All three robots exited, but robot_3
   parked 0.363 m from its goal, just outside the 0.35 m rule. It is therefore
   censored, and the episode classes `clogged`. This is an arrival-rule
@@ -378,12 +401,12 @@ Full local suite on a clean detached baseline (`/tmp/fm_baseline_10f9b62`, at
 | Tree | Failed | Passed | Skipped | Errors |
 |---|---|---|---|---|
 | Baseline | 63 | 4903 | 153 | 3 |
-| Branch | 63 | 4959 | 154 | 3 |
+| Branch (`27a16f9`) | 63 | 4962 | 154 | 3 |
 
 - **Zero-delta:** the failing-test-name sets are byte-identical.
 - **Pre-existing failures and errors:** 3 `pxr` collection errors and the
   `t2b_forced_order` margin-placeholder failures, among others.
-- **Branch changes:** +56 passing tests, plus 1 skip (the
+- **Branch changes:** +59 passing tests, plus 1 skip (the
   committed-table check).
 - **Lint:** `ruff check` is clean on every touched file.
 
@@ -391,10 +414,20 @@ Full local suite on a clean detached baseline (`/tmp/fm_baseline_10f9b62`, at
 
 ## VM State
 
-The VM was not touched: no deploy, no run, no config edit. Its state is
-whatever the battery-v2 session left: pristine and restored
-(`orchestrator.yaml` `1f656533…`, `rag.yaml` `e18c723c…`). API spend was
-zero.
+The VM was not deployed to, run, or edited this session. A read-only check
+was made on 2026-10-05:
+
+| Check | Result |
+|---|---|
+| `gcloud ... describe` | `RUNNING` (left as found; stopping it is the owner's call) |
+| `pgrep -af '[r]un_simulation'` | empty |
+| `nvidia-smi` | 0 % utilisation, 171 MiB, no compute apps |
+| `orchestrator.yaml` source | `1f656533a30a35882d57d0d64a57bd0d` |
+| `orchestrator.yaml` installed in `vgu_ros` | `1f656533a30a35882d57d0d64a57bd0d` |
+| `config/rag.yaml` | `e18c723cff9cada3f320d564c2ecee5a` |
+
+The VM is pristine and the GPU is idle. The host load average reads 1.00,
+which was not investigated. API spend was zero.
 
 ---
 

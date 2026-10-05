@@ -65,8 +65,15 @@ Rules for maintaining it:
   - **Re-score:** step-7b 4/4 rerun `resolved`, step-6 episode 2 `clogged`
     (via censoring; its log predates `fallback_exhausted`), demo ep2
     `resolved`. Step-6 live ep1 is `null` (harness-invalid, dead stack).
-  - **Suite:** zero-delta vs `10f9b62` (63 failed / 4959 passed vs
-    4903).
+  - **Suite:** zero-delta vs `10f9b62` (63 failed / 4962 passed vs
+    4903, at `27a16f9`).
+  - **Review-pass guards (`27a16f9`):**
+    - An all-arrived composite (IB10) episode scored without M5's log
+      classes `null`, not `resolved`.
+    - The harvest builder refuses a solo-in-time traversal that passes a
+      parked robot inside 0.45 m.
+  - **VM:** verified read-only as pristine with the GPU idle. It is still
+    RUNNING, left as found.
 
 - **2026-10-04** — **Battery v2 (predictive/temporal probes) built,
   harvested and run live on `feat/v2-battery2`**
