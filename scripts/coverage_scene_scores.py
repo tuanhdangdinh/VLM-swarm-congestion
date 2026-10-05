@@ -49,9 +49,23 @@ Subcommands:
 - `loop-cost --table F`: turn a `scripts/strategy_regret.py score` cost
   table for a `loop_detour_*` scene into the scenario's `oracle.cost`
   record (`LoopDetourCostRecord`), validated.
+- `flow --scenario S --gt DIR [--decisions DIR] [--m5-log F]
+  [--invalid-reason TEXT]`: the foundations-round flow fields alone, for
+  any cell (the head-on family, T2b, B2, B2-visual included).
+
+Foundations round (prereg-v2 spec "Foundations round adopted (2026-10-05)",
+`reports/Swarm congestion foundations.md` section 2): `b1`, `b3`, `ib10`,
+`loop` and `flow` also emit, additively, `delay_vs_free_flow` (per-robot
+delay against the committed free-flow table, `scripts/free_flow_table.py`;
+`--free-flow F` or the committed default, `--no-free-flow` to skip),
+`conflict_dissolution` (Aguilar et al., Science 2018), `aperture_throughput`
+(dos Passos et al., arXiv:2201.09335; B1 and oracle-declared apertures) and
+`outcome_class` (`OutcomeClass`, Zuriguel et al., Sci Rep 2014). No
+existing field changes.
 
 Definitions fixed before any smoke run (2026-09-29; B3 first-to-slip added
-2026-10-02; IB10 frozen 2026-10-03, step-7b Part 3); see each function.
+2026-10-02; IB10 frozen 2026-10-03, step-7b Part 3; flow fields 2026-10-05);
+see each function.
 
 Usage:
     python3 scripts/coverage_scene_scores.py conflict --scenario convoy_counterflow --gt runs/x/gt
@@ -73,7 +87,9 @@ import json
 import math
 import re
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -93,8 +109,18 @@ from reasoning.rag.maneuver_geometry import (  # noqa: E402
 )
 from reasoning.rag.scene_geometry import SceneGeometry  # noqa: E402
 from reasoning.vlm.models import RobotStateInput, SnapshotFrame  # noqa: E402
+from scripts.free_flow_table import (  # noqa: E402
+    FreeFlowTable,
+    count_dispatches,
+    default_table,
+    load_free_flow_table,
+)
 from scripts.strategy_regret import SCENES  # noqa: E402
-from scripts.t2b_forced_order import score_ground_truth  # noqa: E402
+from scripts.t2b_forced_order import (  # noqa: E402
+    DEPARTURE_SPEED_MPS,
+    RunScore,
+    score_ground_truth,
+)
 
 SCENARIOS_DIR = REPO_ROOT / "isaac" / "config" / "scenarios"
 # Design, B1 metrics: "GT speed < 0.02 m/s summed over >= 1 s spells".
@@ -131,6 +157,28 @@ LOOP_ENTRY_Y_M = 0.6
 # M1's verified tracked band for the loop map (y-extent report Run B and the
 # loop smoke's coverage probe): |x| <= 2.5, |y| <= 2.0.
 LOOP_TRACKED_BAND_M = (2.5, 2.0)
+# Foundations round (prereg-v2 spec, "Foundations round adopted (2026-10-05)"):
+# a conflict has DISSOLVED once every involved robot is at least this far from
+# every other involved robot -- M4's own safety latch distance
+# (ros2_ws/src/swarm_execution/config/safety.yaml min_distance_m), i.e. no
+# pair is any longer inside the interaction range that freezes it -- and each
+# is arrived or progressing toward its goal, sustained for the slip window.
+DISSOLUTION_SEPARATION_M = 0.45
+DISSOLUTION_HOLD_MIN_SEC = SLIP_HOLD_MIN_SEC
+# A robot "progresses" when at least this fast (the arrival scorer's own
+# departure speed) and its distance to goal shrank since its previous sample.
+PROGRESS_SPEED_MPS = DEPARTURE_SPEED_MPS
+# After a dissolution, the cluster counts as re-formed only when two involved,
+# not-yet-arrived robots are back inside DISSOLUTION_SEPARATION_M of each other
+# for at least M5's own stall_threshold_sec (orchestrator.yaml): a cluster
+# needs two robots, and a stall that long is one M5 itself would re-trigger
+# on. A lone robot's navigation stall after the release (step-7b rerun 2's
+# yielder, 14 s at sim 194-208 with nobody within 2 m) is not a re-clog.
+RECLOG_MIN_SEC = 12.0
+# Cells whose aperture throughput is scored: B1's A55-E gate (from its
+# `aisle_barrier`). Any other cell opts in by an `aperture:` mapping in its
+# oracle block ({x_span: [lo, hi], lane_y, half_width_m}).
+APERTURE_SCENES = frozenset({"bottleneck_merge"})
 _PHASE_ADVANCE_RE = re.compile(r"junction_clear phase advance .*phase_reached=(\w+) done=(\w+)")
 _GATE_RE = re.compile(
     r"crossing_chain (gate_admit|gate_cleared|gate_release) command=(\S+) yielder=(\S+)"
@@ -415,16 +463,28 @@ def b1_merge(
     return record
 
 
-def score_b1(gt_dir: Path, scenario: dict[str, Any] | None = None) -> dict[str, Any]:
+def score_b1(
+    gt_dir: Path,
+    scenario: dict[str, Any] | None = None,
+    *,
+    free_flow: FreeFlowTable | None = None,
+    decisions_dir: Path | None = None,
+    m5_log: str | None = None,
+) -> dict[str, Any]:
     """All B1 metrics for one run.
 
     Args:
         gt_dir: The run's ground-truth directory.
         scenario: The scenario dict (default: `bottleneck_merge.yaml`).
+        free_flow: The free-flow table (`delay_vs_free_flow`), or None.
+        decisions_dir: The run's decision artifacts (outcome re-triggers).
+        m5_log: The run's M5 log text (outcome fallback flags).
 
     Returns:
         Arrivals, makespan, gate flow, per-robot stop time, merge record and
-        conflict timeline.
+        conflict timeline, plus the foundations-round `flow_fields`
+        (`delay_vs_free_flow`, `conflict_dissolution`, `aperture_throughput`
+        through the A55-E gate, `outcome_class`, `outcome_evidence`).
     """
     scenario = scenario or load_scenario("bottleneck_merge")
     series = load_ground_truth(gt_dir)
@@ -465,6 +525,8 @@ def score_b1(gt_dir: Path, scenario: dict[str, Any] | None = None) -> dict[str, 
         "stop_time_sec": stops,
         "merge": b1_merge(series, conflict["onset_sec"], run.t0_sec, span, half),
         "conflict": conflict,
+        **flow_fields(scenario, series, run, table=free_flow, decisions_dir=decisions_dir,
+                      m5_log=m5_log),
     }
 
 
@@ -660,14 +722,38 @@ def slip_onset_sec(
         The slip onset time (sim-s), or None if the robot never sustains a
         departure.
     """
+    return sustained_spell_onset(
+        ((s.t, math.dist((s.x, s.y), hold_point) > threshold_m) for s in samples),
+        min_sustained_sec,
+    )
+
+
+def sustained_spell_onset(
+    flags: Iterable[tuple[float, bool]], min_sustained_sec: float
+) -> float | None:
+    """The onset of the first spell in which a condition holds for long enough.
+
+    The spell rule shared by `slip_onset_sec` (B3 first-to-slip) and
+    `conflict_dissolution`: a spell starts at the first sample whose flag is
+    True and lasts while the flag stays True; the first spell spanning at
+    least `min_sustained_sec` (last True sample minus first) counts, and its
+    onset is returned. A spell still running at the last sample counts when
+    it is already long enough.
+
+    Args:
+        flags: `(sim time, condition)` pairs in time order.
+        min_sustained_sec: Shorter spells do not count.
+
+    Returns:
+        The qualifying spell's first sample time, or None.
+    """
     spell_start: float | None = None
     last_t: float | None = None
-    for sample in samples:
-        departed = math.dist((sample.x, sample.y), hold_point) > threshold_m
-        if departed:
+    for t, on in flags:
+        if on:
             if spell_start is None:
-                spell_start = sample.t
-            last_t = sample.t
+                spell_start = t
+            last_t = t
             continue
         if spell_start is not None and last_t - spell_start >= min_sustained_sec:
             return spell_start
@@ -718,7 +804,14 @@ def first_slipper(
     return min(slipped, key=lambda r: (slipped[r], r)), onsets
 
 
-def score_b3(gt_dir: Path, scenario: dict[str, Any] | None = None) -> dict[str, Any]:
+def score_b3(
+    gt_dir: Path,
+    scenario: dict[str, Any] | None = None,
+    *,
+    free_flow: FreeFlowTable | None = None,
+    decisions_dir: Path | None = None,
+    m5_log: str | None = None,
+) -> dict[str, Any]:
     """B3 first-to-slip identity and latency, plus the conflict timeline.
 
     Args:
@@ -727,14 +820,19 @@ def score_b3(gt_dir: Path, scenario: dict[str, Any] | None = None) -> dict[str, 
             falling back to `convoy_counterflow.yaml`'s geometry since both
             share the same `platoon`/gate; pass explicitly to score a v1
             `convoy_counterflow` run against this question).
+        free_flow: The free-flow table (`delay_vs_free_flow`), or None.
+        decisions_dir: The run's decision artifacts (outcome re-triggers).
+        m5_log: The run's M5 log text (outcome fallback flags).
 
     Returns:
         The conflict timeline, the platoon, `first_slipper`, each member's
         slip onset time, and `first_slip_latency_sec` (the first slipper's
-        onset minus the conflict onset; None if either is unscored).
+        onset minus the conflict onset; None if either is unscored), plus
+        arrivals after t0 and the foundations-round `flow_fields`.
     """
     scenario = scenario or load_scenario("convoy_counterflow_slip")
     series = load_ground_truth(gt_dir)
+    run = score_ground_truth("b3", gt_dir)
     conflict = score_conflict(scenario, series)
     onset = conflict["onset_sec"]
     platoon = tuple(scenario["oracle"]["platoon"])
@@ -752,6 +850,10 @@ def score_b3(gt_dir: Path, scenario: dict[str, Any] | None = None) -> dict[str, 
         "first_slipper": slipper,
         "slip_onset_sec": onsets,
         "first_slip_latency_sec": latency,
+        "arrivals_after_t0_sec": {rid: (None if at is None else round(at - run.t0_sec, 2))
+                                  for rid, at in run.arrivals_sec.items()},
+        **flow_fields(scenario, series, run, table=free_flow, decisions_dir=decisions_dir,
+                      m5_log=m5_log),
     }
 
 
@@ -1211,20 +1313,27 @@ def score_ib10(
     m4_log: str | None = None,
     scene_log: Path | None = None,
     scenario: dict[str, Any] | None = None,
+    free_flow: FreeFlowTable | None = None,
+    invalid_reason: str | None = None,
 ) -> dict[str, Any]:
     """Every IB10 `junction_clear` resolution criterion for one run.
 
     `resolved` (episode success) is the formed-jam gate passing and all
     robots position-verified at their goals (`score_ground_truth`'s arrival
     rule); None when the gate fails (the run is invalid, not scored).
+    The foundations-round `flow_fields` are added on top (`outcome_class`
+    None for an invalid jam or a harness-invalid run).
 
     Args:
         gt_dir: The run's ground-truth directory.
-        decisions_dir: The run's M5 decision artifacts (chi-pair).
+        decisions_dir: The run's M5 decision artifacts (chi-pair, re-triggers).
         m5_log: The run's M5 log text (phase reached, fallback flags).
         m4_log: The run's M4 log text (release attribution).
         scene_log: The run's M5 scene log (STALE streaks).
         scenario: The scenario dict (default: `intersection_bottleneck.yaml`).
+        free_flow: The free-flow table (`delay_vs_free_flow`), or None.
+        invalid_reason: Marks a harness-invalid run (e.g. the control stack
+            died mid-episode), whose censoring is an artifact, not `clogged`.
 
     Returns:
         The scored record; a section is None when its input was not given.
@@ -1263,6 +1372,8 @@ def score_ib10(
         "outcome_rank": None if phase is None else outcome_rank(
             jam["valid"], phase["phase_ordinal"], n_arrived, all_arrived
         ),
+        **flow_fields(scenario, series, run, table=free_flow, decisions_dir=decisions_dir,
+                      m5_log=m5_log, valid=jam["valid"], invalid_reason=invalid_reason),
     }
 
 
@@ -1330,6 +1441,7 @@ def score_loop(
     scene_log: Path | None = None,
     sampler_log: Path | None = None,
     robot_id: str = "robot_1",
+    free_flow: FreeFlowTable | None = None,
 ) -> dict[str, Any]:
     """One loop-detour run (prereg-v2 (b), build-order step 8 phase 2).
 
@@ -1347,9 +1459,11 @@ def score_loop(
         scene_log: The run's M5 scene log (STALE streaks).
         sampler_log: The run's `loop_family_sampler.py` JSONL.
         robot_id: The decision robot.
+        free_flow: The free-flow table (`delay_vs_free_flow`), or None.
 
     Returns:
         The scored record; a section is None when its input was not given.
+        The foundations-round `flow_fields` are added on top.
     """
     series = load_ground_truth(gt_dir)
     run = score_ground_truth("loop", gt_dir)
@@ -1415,6 +1529,7 @@ def score_loop(
             ),
         },
         "stale_streaks": None if scene_log is None else stale_streaks(scene_log),
+        **flow_fields(scenario, series, run, table=free_flow, decisions_dir=decisions_dir),
     }
 
 
@@ -1457,11 +1572,537 @@ def loop_cost_record(table: dict[str, Any]) -> dict[str, Any]:
     return LoopDetourCostRecord(**record).model_dump(mode="json")
 
 
+class OutcomeClass(str, Enum):
+    """The episode outcome class shared by every cell scorer (foundations round).
+
+    - `resolved`: every robot arrived with at most one dispatched decision and
+      no fallback -- the conflict was dissolved by its first intervention.
+    - `intermittent`: every robot arrived, but only after at least one
+      re-trigger (a second dispatched decision) or a retry (a composite
+      `fallback` phase) -- Zuriguel et al.'s intermittent regime (Sci Rep
+      2014): flow that stops and restarts with heavy-tailed but FINITE
+      resolution times.
+    - `clogged`: censored at the horizon (some robot never arrived) or M5's
+      `fallback_exhausted` -- the clogged state of the same paper, defined by
+      the DIVERGENCE of the mean time between passages (power-law tail
+      exponent <= 2; also arXiv:2004.04413): a never-resolving episode is a
+      distinct outcome, not a large resolution time. This is the principled
+      frame for T2b's censored margin and IB10's `fallback_exhausted`.
+    """
+
+    RESOLVED = "resolved"
+    INTERMITTENT = "intermittent"
+    CLOGGED = "clogged"
+
+
+def classify_outcome(
+    *,
+    valid: bool,
+    all_arrived: bool | None,
+    n_dispatches: int | None,
+    fallback: bool | None,
+    fallback_exhausted: bool | None,
+) -> OutcomeClass | None:
+    """Map one episode's existing outcome fields onto `OutcomeClass`.
+
+    The mapping, pinned against known episodes (`docs/reports/
+    2026-10-05-flow-metrics.md`): `clogged` when `fallback_exhausted` or any
+    robot is censored (step-6 IB10 episode 2, 1/4 at the 300 s cap; step-7b
+    rerun 1, 2/4); otherwise, with every robot arrived, `intermittent` when
+    there were >= 2 dispatched decisions or a fallback phase, else `resolved`
+    (step-7b rerun 2, 4/4 on one dispatch; the v2 demo's live episode 2).
+    Re-analyses that dispatch nothing (`congestion_detected: false`) are not
+    re-triggers.
+
+    Args:
+        valid: False for a run that is not an episode at all (IB10's failed
+            formed-jam gate, a harness artifact such as a dead control stack).
+        all_arrived: Every robot position-verified at its goal; None unknown.
+        n_dispatches: Dispatched decisions (`count_dispatches`); None unknown.
+        fallback: A composite `fallback` phase ran; None unknown.
+        fallback_exhausted: M5 logged `outcome=fallback_exhausted`; None unknown.
+
+    Returns:
+        The class, or None for an invalid run or when the evidence needed to
+        separate `resolved` from `intermittent` is missing (never guessed).
+    """
+    if not valid:
+        return None
+    if fallback_exhausted:
+        return OutcomeClass.CLOGGED
+    if all_arrived is None:
+        return None
+    if not all_arrived:
+        return OutcomeClass.CLOGGED
+    if (n_dispatches is not None and n_dispatches >= 2) or fallback:
+        return OutcomeClass.INTERMITTENT
+    if n_dispatches is None:
+        return None
+    return OutcomeClass.RESOLVED
+
+
+def retrigger_evidence(
+    decisions_dir: Path | None = None, m5_log: str | None = None
+) -> dict[str, Any]:
+    """The re-trigger/retry evidence `classify_outcome` reads.
+
+    Args:
+        decisions_dir: The run's decision artifacts (dispatch count).
+        m5_log: The run's M5 log text (`fallback`/`fallback_exhausted`).
+
+    Returns:
+        `n_dispatches`, `fallback` and `fallback_exhausted`, each None when its
+        input was not given.
+    """
+    phase = None if m5_log is None else phase_reached(m5_log)
+    return {
+        "n_dispatches": None if decisions_dir is None else count_dispatches(decisions_dir),
+        "fallback": None if phase is None else phase["fallback"],
+        "fallback_exhausted": None if phase is None else phase["fallback_exhausted"],
+    }
+
+
+def own_departure_sec(samples: list[Sample]) -> float | None:
+    """A robot's own departure: its first sample faster than `DEPARTURE_SPEED_MPS`.
+
+    The per-robot origin shared with the free-flow table
+    (`scripts/free_flow_table.py`, `origin_rule: own_departure`), so a
+    held-back robot's scripted hold is never charged as delay.
+    """
+    return next((s.t for s in samples if s.speed > DEPARTURE_SPEED_MPS), None)
+
+
+def delay_vs_free_flow(
+    series: dict[str, list[Sample]],
+    arrivals: dict[str, float | None],
+    end_sec: float,
+    scene: str | None,
+    table: FreeFlowTable | None,
+) -> dict[str, Any]:
+    """Per-robot delay against the cell's free-flow baseline.
+
+    Delay = (accepted arrival - own departure) - the same robot's free-flow
+    time on the same cell (`config/free_flow/`). Free-flow speed is the
+    fundamental diagram's zero-density intercept (Greenshields 1935;
+    Lighthill & Whitham 1955), so delay against a single-robot run is exactly
+    the flow-theoretic quantity (`reports/Swarm congestion foundations.md`
+    section 2; prereg-v2 spec "Foundations round adopted (2026-10-05)").
+    Never fabricated: a robot is null when the table lacks the cell or robot
+    (`no_table` / `no_baseline`), never departed, or never arrived (then
+    `delay_lower_bound_sec` charges it to the episode end, flagged censored).
+    The episode aggregates `sum_sec` / `max_sec` are null unless every robot
+    scored; `sum_lower_bound_sec` adds the censored robots' lower bounds when
+    every robot has a baseline.
+
+    Args:
+        series: Per-robot GT samples.
+        arrivals: Accepted arrival sim times (`score_ground_truth`).
+        end_sec: The episode's last GT sample.
+        scene: The scenario name (the table key).
+        table: The free-flow table, or None.
+
+    Returns:
+        `table_id`, `per_robot`, `sum_sec`, `max_sec`, `sum_lower_bound_sec`,
+        `n_scored` and `complete`.
+    """
+    per_robot: dict[str, dict[str, Any]] = {}
+    for rid in sorted(series):
+        start = own_departure_sec(series[rid])
+        end = arrivals.get(rid)
+        entry = None if table is None or scene is None else table.lookup(scene, rid)
+        row: dict[str, Any] = {
+            "departure_sec": start,
+            "arrival_sec": end,
+            "travel_sec": None if start is None or end is None else round(end - start, 2),
+            "free_flow_sec": None if entry is None else entry.time_sec,
+            "delay_sec": None,
+            "delay_lower_bound_sec": None,
+            "censored": end is None,
+            "reason": None,
+        }
+        if table is None:
+            row["reason"] = "no_table"
+        elif entry is None:
+            row["reason"] = "no_baseline"
+        elif start is None:
+            row["reason"] = "never_departed"
+        elif end is None:
+            row["reason"] = "censored"
+            row["delay_lower_bound_sec"] = round(end_sec - start - entry.time_sec, 2)
+        else:
+            row["delay_sec"] = round(end - start - entry.time_sec, 2)
+        per_robot[rid] = row
+    delays = [r["delay_sec"] for r in per_robot.values()]
+    complete = bool(delays) and all(d is not None for d in delays)
+    bounds = [r["delay_sec"] if r["delay_sec"] is not None else r["delay_lower_bound_sec"]
+              for r in per_robot.values()]
+    return {
+        "table_id": None if table is None else table.table_id,
+        "per_robot": per_robot,
+        "sum_sec": round(sum(delays), 2) if complete else None,
+        "max_sec": max(delays) if complete else None,
+        "sum_lower_bound_sec": (
+            round(sum(bounds), 2) if bounds and all(b is not None for b in bounds)
+            and not complete else None
+        ),
+        "n_scored": sum(d is not None for d in delays),
+        "complete": complete,
+    }
+
+
+def conflict_onset_sec(scenario: dict[str, Any], series: dict[str, list[Sample]]) -> float | None:
+    """The scene's GT conflict onset under the existing oracle conventions.
+
+    IB10 (`intersection_bottleneck`): `formed_jam`'s onset
+    (`intersection_conflict_active`). Any scene with an `aisle_barrier`:
+    `conflict_timeline`'s onset (`bottleneck_conflict_active` over the gate
+    span). Otherwise None (no registered onset convention).
+    """
+    if scenario.get("name") == "intersection_bottleneck":
+        return formed_jam(series, scenario)["onset_sec"]
+    if scenario.get("aisle_barrier"):
+        return conflict_timeline(series, gate_span(scenario))["onset_sec"]
+    return None
+
+
+def _arrived(t: float, arrived_at: float | None) -> bool:
+    return arrived_at is not None and t >= arrived_at
+
+
+def _progressing(
+    sample: Sample, previous: Sample | None, departed_at: float | None,
+    arrived_at: float | None,
+) -> bool:
+    if _arrived(sample.t, arrived_at):
+        return True
+    # Not yet dispatched (a scripted hold-back): it has no goal to progress
+    # toward yet, so it neither blocks nor completes the dissolution.
+    if departed_at is None or sample.t < departed_at:
+        return True
+    if previous is None or sample.distance_to_goal is None or previous.distance_to_goal is None:
+        return False
+    closer = sample.distance_to_goal < previous.distance_to_goal
+    return sample.speed >= PROGRESS_SPEED_MPS and closer
+
+
+def conflict_dissolution(
+    series: dict[str, list[Sample]],
+    involved: list[str],
+    onset_sec: float | None,
+    arrivals: dict[str, float | None],
+    *,
+    separation_m: float = DISSOLUTION_SEPARATION_M,
+    hold_sec: float = DISSOLUTION_HOLD_MIN_SEC,
+    reclog_sec: float = RECLOG_MIN_SEC,
+) -> dict[str, Any]:
+    """Conflict onset -> dissolution, and onset -> full resolution (arrivals).
+
+    Cluster-dissolution time after Aguilar et al. (Science 361, 2018), who
+    score strategies by the frequency of flow-stopping clogs and the
+    DISSOLUTION TIME of the clusters that do form; jam duration in the
+    single-file robot experiment (arXiv:2403.08683) is the same kin. The
+    conflict has dissolved at the first instant from which, for at least
+    `hold_sec` (the B3 slip window, `sustained_spell_onset`), every involved
+    robot is at least `separation_m` from every other involved robot (M4's
+    0.45 m latch distance) AND each is arrived or progressing toward its
+    goal (>= 0.03 m/s with its distance to goal shrinking; a receding or
+    holding robot is not; a robot not yet dispatched by a scripted hold-back
+    is neutral). This is distinct from `time_to_full_resolution_sec` (onset
+    to the last involved robot's accepted arrival): a conflict dissolves when
+    the cluster opens, long before the last robot parks.
+
+    Args:
+        series: Per-robot GT samples.
+        involved: The conflict's robots (`expected_conflict.involved_robots`).
+        onset_sec: The conflict onset (`conflict_onset_sec`), or None.
+        arrivals: Accepted arrival sim times.
+        separation_m: The registered pairwise separation.
+        hold_sec: The sustained-spell window.
+        reclog_sec: How long a re-formed pair must persist after the
+            dissolution to count as a new clog.
+
+    Returns:
+        `onset_sec`, `dissolved_at_sec`, `conflict_dissolution_sec` (None and
+        `censored` True when it never dissolves), `reclogged_at_sec` (onset of
+        the first spell of at least `reclog_sec` after the dissolution in
+        which two involved, not-yet-arrived robots are back inside
+        `separation_m` of each other; `dissolution_final` is False then -- a
+        dissolution followed by a new clog is reported, not erased),
+        `time_to_full_resolution_sec` (None and `resolution_censored` True
+        unless every involved robot arrived), the parameters and the
+        involved set.
+    """
+    record: dict[str, Any] = {
+        "onset_sec": onset_sec,
+        "involved": list(involved),
+        "separation_m": separation_m,
+        "hold_sec": hold_sec,
+        "reclog_sec": reclog_sec,
+        "dissolved_at_sec": None,
+        "conflict_dissolution_sec": None,
+        "censored": None,
+        "reclogged_at_sec": None,
+        "dissolution_final": None,
+        "time_to_full_resolution_sec": None,
+        "resolution_censored": None,
+    }
+    if onset_sec is None:
+        return record
+    members = [rid for rid in involved if rid in series]
+    departed = {rid: own_departure_sec(series[rid]) for rid in members}
+    previous: dict[str, Sample] = {}
+    flags: list[tuple[float, bool]] = []
+    clustered: list[tuple[float, bool]] = []
+    for t, robots in _instants({rid: series[rid] for rid in members}):
+        ok = True
+        present = [rid for rid in members if rid in robots]
+        for rid in present:
+            if not _progressing(robots[rid], previous.get(rid), departed[rid], arrivals.get(rid)):
+                ok = False
+            previous[rid] = robots[rid]
+        close = [
+            (a, b) for i, a in enumerate(present) for b in present[i + 1:]
+            if math.dist((robots[a].x, robots[a].y), (robots[b].x, robots[b].y)) < separation_m
+        ]
+        if t >= onset_sec:
+            flags.append((t, ok and not close))
+            clustered.append((t, any(
+                not _arrived(t, arrivals.get(a)) and not _arrived(t, arrivals.get(b))
+                for a, b in close
+            )))
+    dissolved = sustained_spell_onset(flags, hold_sec)
+    reclogged = None
+    if dissolved is not None:
+        # Step-7b rerun 1: released at 139.7 s, latched for good 3 s later.
+        reclogged = sustained_spell_onset(
+            ((t, c) for t, c in clustered if t > dissolved), reclog_sec
+        )
+    record["reclogged_at_sec"] = None if reclogged is None else round(reclogged, 2)
+    record["dissolution_final"] = None if dissolved is None else reclogged is None
+    record["dissolved_at_sec"] = None if dissolved is None else round(dissolved, 2)
+    record["conflict_dissolution_sec"] = (
+        None if dissolved is None else round(dissolved - onset_sec, 2)
+    )
+    record["censored"] = dissolved is None
+    member_arrivals = [arrivals.get(rid) for rid in members]
+    resolved = bool(member_arrivals) and all(a is not None for a in member_arrivals)
+    record["time_to_full_resolution_sec"] = (
+        round(max(member_arrivals) - onset_sec, 2) if resolved else None
+    )
+    record["resolution_censored"] = not resolved
+    return record
+
+
+def aperture_region(scenario: dict[str, Any]) -> dict[str, Any] | None:
+    """The registered aperture of a cell, or None when it declares none.
+
+    `oracle.aperture` (`{x_span: [lo, hi], lane_y, half_width_m}`) when the
+    oracle block carries one; otherwise, for `APERTURE_SCENES` (B1), the
+    `aisle_barrier` gate (`gate_span`, `lane_half_width`, lane y 0).
+    """
+    declared = (scenario.get("oracle") or {}).get("aperture")
+    if declared:
+        lo, hi = declared["x_span"]
+        return {"x_span": (float(lo), float(hi)), "lane_y": float(declared.get("lane_y", 0.0)),
+                "half_width_m": float(declared["half_width_m"])}
+    if scenario.get("name") in APERTURE_SCENES and scenario.get("aisle_barrier"):
+        return {"x_span": gate_span(scenario), "lane_y": 0.0,
+                "half_width_m": lane_half_width(scenario)}
+    return None
+
+
+def _mirror_x(samples: list[Sample]) -> list[Sample]:
+    return [Sample(t=s.t, x=-s.x, y=s.y, theta=s.theta, speed=s.speed,
+                   distance_to_goal=s.distance_to_goal) for s in samples]
+
+
+def aperture_throughput(
+    scenario: dict[str, Any], series: dict[str, list[Sample]], end_sec: float
+) -> dict[str, Any] | None:
+    """Robots per second through the cell's registered aperture.
+
+    After dos Passos, Duquesne & Marcolino (arXiv:2201.09335): the throughput
+    of a bounded common target area stays FINITE as arrival time per robot
+    diverges, which makes it the scale-stable efficiency measure where a cell
+    measures flow; lifelong MAPF uses the same quantity (goals per timestep)
+    as its warehouse objective. A passage is a robot's last lane crossing of
+    the aperture's far mouth in its own travel direction (sign of goal x
+    minus spawn x; `gate_passage`, mirrored for westbound robots) preceded by
+    a lane crossing of the near mouth. The active window runs from the first
+    entry to the last exit: `throughput_rps` = exits / window, which for B1
+    equals `gate.flow_per_100s` / 100. `n_expected` counts the robots whose
+    spawn and goal lie on opposite sides of the aperture; with fewer exits
+    the aperture clogged within the horizon (`complete` False), and
+    `horizon_throughput_rps` (exits / first entry to episode end) is the
+    rate that tends to zero for a clogged aperture.
+
+    Args:
+        scenario: The scenario dict (robots' spawns and goals).
+        series: Per-robot GT samples.
+        end_sec: The episode's last GT sample.
+
+    Returns:
+        The record, or None when the cell registers no aperture.
+    """
+    region = aperture_region(scenario)
+    if region is None:
+        return None
+    lo, hi = region["x_span"]
+    passages: dict[str, dict[str, float | None]] = {}
+    expected = 0
+    for robot in scenario["robots"]:
+        rid = robot["robot_id"]
+        spawn_x, goal_x = robot["spawn"]["x"], robot["goal"]["x"]
+        eastbound = goal_x >= spawn_x
+        if (spawn_x < lo and goal_x > hi) if eastbound else (spawn_x > hi and goal_x < lo):
+            expected += 1
+        if rid not in series:
+            continue
+        if eastbound:
+            entry, exit_ = gate_passage(series[rid], (lo, hi), region["half_width_m"],
+                                        region["lane_y"])
+        else:
+            entry, exit_ = gate_passage(_mirror_x(series[rid]), (-hi, -lo),
+                                        region["half_width_m"], region["lane_y"])
+        passages[rid] = {"entry_sec": entry, "exit_sec": exit_}
+    entries = [p["entry_sec"] for p in passages.values()
+               if p["entry_sec"] is not None and p["exit_sec"] is not None]
+    exits = [p["exit_sec"] for p in passages.values() if p["exit_sec"] is not None]
+    window = None if not entries or not exits else max(exits) - min(entries)
+    horizon = None if not entries else end_sec - min(entries)
+    return {
+        "x_span": [lo, hi],
+        "passages": dict(sorted(passages.items())),
+        "n_exited": len(exits),
+        "n_expected": expected,
+        "complete": len(exits) >= expected,
+        "window_sec": None if window is None else round(window, 2),
+        "throughput_rps": None if not window or window <= 0 else round(len(exits) / window, 5),
+        "horizon_throughput_rps": (
+            None if not horizon or horizon <= 0 else round(len(exits) / horizon, 5)
+        ),
+    }
+
+
+def flow_fields(
+    scenario: dict[str, Any],
+    series: dict[str, list[Sample]],
+    run: RunScore,
+    *,
+    table: FreeFlowTable | None = None,
+    decisions_dir: Path | None = None,
+    m5_log: str | None = None,
+    valid: bool = True,
+    invalid_reason: str | None = None,
+) -> dict[str, Any]:
+    """The foundations-round fields every cell scorer adds (additive only).
+
+    `delay_vs_free_flow` (Greenshields/LWR free-flow intercept),
+    `conflict_dissolution` (Aguilar et al., Science 2018), `aperture_throughput`
+    (dos Passos et al., arXiv:2201.09335; None without a registered aperture)
+    and `outcome_class` (Zuriguel et al., Sci Rep 2014: resolved /
+    intermittent / clogged), with the re-trigger evidence behind the class.
+
+    Args:
+        scenario: The scenario dict.
+        series: Per-robot GT samples.
+        run: `score_ground_truth`'s arrivals and episode end.
+        table: The free-flow table, or None (delays then null, `no_table`).
+        decisions_dir: The run's decision artifacts (dispatch count).
+        m5_log: The run's M5 log text (fallback flags).
+        valid: False for a run that is not an episode (the outcome is None).
+        invalid_reason: Why the run is not an episode (e.g. a dead stack),
+            which also makes it invalid.
+
+    Returns:
+        The five new fields.
+    """
+    involved = list((scenario.get("expected_conflict") or {}).get("involved_robots")
+                    or sorted(series))
+    evidence = retrigger_evidence(decisions_dir, m5_log)
+    all_arrived = all(v is not None for v in run.arrivals_sec.values())
+    is_valid = valid and invalid_reason is None
+    outcome = classify_outcome(
+        valid=is_valid, all_arrived=all_arrived, n_dispatches=evidence["n_dispatches"],
+        fallback=evidence["fallback"], fallback_exhausted=evidence["fallback_exhausted"],
+    )
+    return {
+        "delay_vs_free_flow": delay_vs_free_flow(
+            series, run.arrivals_sec, run.end_sec, scenario.get("name"), table
+        ),
+        "conflict_dissolution": conflict_dissolution(
+            series, involved, conflict_onset_sec(scenario, series), run.arrivals_sec
+        ),
+        "aperture_throughput": aperture_throughput(scenario, series, run.end_sec),
+        "outcome_class": None if outcome is None else outcome.value,
+        "outcome_evidence": {
+            **evidence, "all_arrived": all_arrived, "valid": is_valid,
+            "invalid_reason": invalid_reason,
+        },
+    }
+
+
+def score_flow(
+    gt_dir: Path,
+    scenario: dict[str, Any],
+    *,
+    table: FreeFlowTable | None = None,
+    decisions_dir: Path | None = None,
+    m5_log: str | None = None,
+    invalid_reason: str | None = None,
+) -> dict[str, Any]:
+    """The foundations-round flow fields for one run of any cell.
+
+    Args:
+        gt_dir: The run's ground-truth directory.
+        scenario: The scenario dict.
+        table: The free-flow table, or None.
+        decisions_dir: The run's decision artifacts.
+        m5_log: The run's M5 log text.
+        invalid_reason: Marks a harness-invalid run (outcome None).
+
+    Returns:
+        Scene, t0/end, arrivals after t0 and the `flow_fields`; for IB10 the
+        formed-jam gate also decides validity, as in `score_ib10`.
+    """
+    series = load_ground_truth(gt_dir)
+    run = score_ground_truth("flow", gt_dir)
+    valid = True
+    if scenario.get("name") == "intersection_bottleneck":
+        valid = formed_jam(series, scenario)["valid"]
+    return {
+        "scene": scenario.get("name"),
+        "t0_sec": run.t0_sec,
+        "end_sec": run.end_sec,
+        "arrivals_after_t0_sec": {rid: (None if at is None else round(at - run.t0_sec, 2))
+                                  for rid, at in run.arrivals_sec.items()},
+        **flow_fields(scenario, series, run, table=table, decisions_dir=decisions_dir,
+                      m5_log=m5_log, valid=valid, invalid_reason=invalid_reason),
+    }
+
+
 def _dump(result: Any, out: str | None) -> None:
     text = json.dumps(result, indent=2)
     print(text)
     if out:
         Path(out).write_text(text + "\n", encoding="utf-8")
+
+
+def _path(value: str | None) -> Path | None:
+    return None if value is None else Path(value)
+
+
+def _text(path: str | None) -> str | None:
+    return None if path is None else Path(path).read_text(encoding="utf-8", errors="replace")
+
+
+def _table(args: argparse.Namespace) -> FreeFlowTable | None:
+    """`--free-flow F` loads F loudly; without it the committed default, if any."""
+    if getattr(args, "no_free_flow", False):
+        return None
+    if args.free_flow:
+        return load_free_flow_table(Path(args.free_flow))
+    return default_table()[0]
 
 
 def _cmd_conflict(args: argparse.Namespace) -> int:
@@ -1471,7 +2112,8 @@ def _cmd_conflict(args: argparse.Namespace) -> int:
 
 
 def _cmd_b1(args: argparse.Namespace) -> int:
-    _dump(score_b1(Path(args.gt)), args.out)
+    _dump(score_b1(Path(args.gt), free_flow=_table(args), decisions_dir=_path(args.decisions),
+                   m5_log=_text(args.m5_log)), args.out)
     return 0
 
 
@@ -1490,21 +2132,21 @@ def _cmd_b2(args: argparse.Namespace) -> int:
 
 
 def _cmd_b3(args: argparse.Namespace) -> int:
-    _dump(score_b3(Path(args.gt)), args.out)
+    _dump(score_b3(Path(args.gt), free_flow=_table(args), decisions_dir=_path(args.decisions),
+                   m5_log=_text(args.m5_log)), args.out)
     return 0
 
 
 def _cmd_ib10(args: argparse.Namespace) -> int:
-    def text(path: str | None) -> str | None:
-        return None if path is None else Path(path).read_text(encoding="utf-8", errors="replace")
-
     _dump(
         score_ib10(
             Path(args.gt),
-            decisions_dir=None if args.decisions is None else Path(args.decisions),
-            m5_log=text(args.m5_log),
-            m4_log=text(args.m4_log),
-            scene_log=None if args.scene is None else Path(args.scene),
+            decisions_dir=_path(args.decisions),
+            m5_log=_text(args.m5_log),
+            m4_log=_text(args.m4_log),
+            scene_log=_path(args.scene),
+            free_flow=_table(args),
+            invalid_reason=args.invalid_reason,
         ),
         args.out,
     )
@@ -1512,16 +2154,14 @@ def _cmd_ib10(args: argparse.Namespace) -> int:
 
 
 def _cmd_loop(args: argparse.Namespace) -> int:
-    def path(value: str | None) -> Path | None:
-        return None if value is None else Path(value)
-
     _dump(
         score_loop(
             Path(args.gt),
             load_scenario(args.scenario),
-            decisions_dir=path(args.decisions),
-            scene_log=path(args.scene),
-            sampler_log=path(args.sampler),
+            decisions_dir=_path(args.decisions),
+            scene_log=_path(args.scene),
+            sampler_log=_path(args.sampler),
+            free_flow=_table(args),
         ),
         args.out,
     )
@@ -1532,6 +2172,30 @@ def _cmd_loop_cost(args: argparse.Namespace) -> int:
     table = json.loads(Path(args.table).read_text(encoding="utf-8"))
     _dump(loop_cost_record(table), args.out)
     return 0
+
+
+def _cmd_flow(args: argparse.Namespace) -> int:
+    _dump(
+        score_flow(
+            Path(args.gt),
+            load_scenario(args.scenario),
+            table=_table(args),
+            decisions_dir=_path(args.decisions),
+            m5_log=_text(args.m5_log),
+            invalid_reason=args.invalid_reason,
+        ),
+        args.out,
+    )
+    return 0
+
+
+def _flow_args(parser: argparse.ArgumentParser, *, logs: bool = True) -> None:
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--free-flow", help="free-flow table (default: the committed one, if any)")
+    group.add_argument("--no-free-flow", action="store_true", help="score delays as no_table")
+    if logs:
+        parser.add_argument("--decisions")
+        parser.add_argument("--m5-log")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1546,6 +2210,7 @@ def main(argv: list[str] | None = None) -> int:
     b1 = sub.add_parser("b1", help="B1 gate flow, stop time, makespan, merge")
     b1.add_argument("--gt", required=True)
     b1.add_argument("--out")
+    _flow_args(b1)
     b1.set_defaults(func=_cmd_b1)
     b2 = sub.add_parser("b2", help="B2 %%CP per episode and per seed-matched pair")
     b2.add_argument("--run", action="append", required=True)
@@ -1554,6 +2219,7 @@ def main(argv: list[str] | None = None) -> int:
     b3 = sub.add_parser("b3", help="B3 first-to-slip identity and latency")
     b3.add_argument("--gt", required=True)
     b3.add_argument("--out")
+    _flow_args(b3)
     b3.set_defaults(func=_cmd_b3)
     ib10 = sub.add_parser("ib10", help="IB10 junction_clear resolution oracle")
     ib10.add_argument("--gt", required=True)
@@ -1561,7 +2227,9 @@ def main(argv: list[str] | None = None) -> int:
     ib10.add_argument("--m5-log")
     ib10.add_argument("--m4-log")
     ib10.add_argument("--scene")
+    ib10.add_argument("--invalid-reason")
     ib10.add_argument("--out")
+    _flow_args(ib10, logs=False)
     ib10.set_defaults(func=_cmd_ib10)
     loop = sub.add_parser("loop", help="one loop-detour run (prereg-v2 (b))")
     loop.add_argument("--scenario", required=True)
@@ -1570,11 +2238,19 @@ def main(argv: list[str] | None = None) -> int:
     loop.add_argument("--scene")
     loop.add_argument("--sampler")
     loop.add_argument("--out")
+    _flow_args(loop, logs=False)
     loop.set_defaults(func=_cmd_loop)
     loop_cost = sub.add_parser("loop-cost", help="a loop-detour cell's oracle.cost record")
     loop_cost.add_argument("--table", required=True)
     loop_cost.add_argument("--out")
     loop_cost.set_defaults(func=_cmd_loop_cost)
+    flow = sub.add_parser("flow", help="foundations-round flow fields for any cell")
+    flow.add_argument("--scenario", required=True)
+    flow.add_argument("--gt", required=True)
+    flow.add_argument("--invalid-reason")
+    flow.add_argument("--out")
+    _flow_args(flow)
+    flow.set_defaults(func=_cmd_flow)
     args = parser.parse_args(argv)
     return args.func(args)
 
