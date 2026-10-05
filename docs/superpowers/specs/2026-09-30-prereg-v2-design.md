@@ -974,6 +974,26 @@ re-send.
   data with ground_truth.jsonl at equal times is biased (two
   reports already corrected; audit the rest, incl. how the
   empirical −0.45 s M1↔GT join offset decomposes).
+  FIX VALIDATED + PARKED (2026-10-06,
+  `docs/reports/2026-10-05-costmap-fix-validation.md`; branch
+  `feat/v3-costmap-fix` @ 0b2e755, local only, NOT merged): A′
+  refined by root cause — M1 LOSES the marker for up to 0.6 s
+  during fast turns and carries the old pose with a FROZEN stamp;
+  the localizer now pairs odometry at the entry's own stamp (M1's
+  true latency is ~0.0075 s median, not 0.04–0.20 — those were
+  carried-forward rows). ALL validations PASS: rotation closures
+  12–13/17 → 0 ×2; DECLARED REROUTE COMPLETES through the second
+  aisle ×2 — the reroute gap is CLOSED on this branch; IB10 4/4 +
+  yielder-last; free-flow spot checks within ±0.8 s; the loop
+  pre-emption conclusion survives. Quantified v3 re-baselines: T3c
+  post-removal stall −18.4 s; IB10 last arrival −55.5 s. GT AUDIT:
+  NO frozen number moves (self_detour margins 6.4–10.7 s; 0/199
+  probe-answer flips), but the GT clock offset is PER-RUN (0.300 s
+  single-robot, 0.500 s four-robot — the −0.45 s join offset is
+  mostly GT clock, not M1 latency): GT must be offset-fitted per
+  run from odometry; 18/41 temporal_order frames fall inside the
+  eligibility floor under shift — folded into the registered
+  battery-v2.1 rebuild.
 - **Risk (retired by the phase-1 gate for its original severity,
   kept for the record):** Nav2
   on a loop map may reroute *on its own* when the global
