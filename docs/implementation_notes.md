@@ -6072,18 +6072,21 @@ Rules for maintaining it:
     blocker-free runs. Hypotheses (a)–(e) are refuted. `perm_reroute_s42`
     was wedged at the aisle mouth under its own NavigateToPose before the
     reroute was dispatched.
-  - **Root cause (shared, M1 localizer).** `camera_localizer_node` pairs a
-    0.3–0.45 s old M1 pose with the latest odom (`Time()` lookup). That puts
-    −ω × lag plus M1 heading noise into `map -> odom`: up to 0.6 rad while
-    rotating and about 0.2 rad while driving straight. The global obstacle
-    layer misregisters long-range lidar returns and closes the 0.55 m second
-    aisle (probe costmap crop, 16/17 columns lethal). The planner then fails
-    to reach WP1 and uses a 0.5 m-tolerance plan into the remnant corner,
-    where DWB holds a near-zero twist until M4's 120 s watchdog fires.
-    Reproduced in `wp_fwd_s42` and `wp_fwd_s43` (both FAIL).
-  - **Options A–E** (localizer stamp-matched lookup or filtering, global
-    obstacle range, DWB rotation speed, a loop-only params file) all touch
-    shared behaviour or need a protocol ruling. None was applied.
+  - **Root cause (shared global costmap).** Phantom lethal marks, 2–3.3 m
+    from the robot, close the 0.55 m second aisle (probe costmap crop, up to
+    16/17 columns). The planner then fails to reach WP1 and uses a 0.5 m
+    tolerance plan into the remnant corner, where DWB holds a near-zero
+    twist until M4's 120 s watchdog fires. Reproduced in `wp_fwd_s42` and
+    `wp_fwd_s43` (both FAIL).
+  - **Phantom source, partly established.** Demonstrated contributor:
+    `camera_localizer_node` pairs a 0.3–0.45 s old M1 pose with the latest
+    odom (`Time()` lookup), which puts up to 0.6 rad of yaw error into
+    `map -> odom` while rotating. But the first closure (sim 18.1 s) came
+    with ≤ 0.06 rad, so a second source is not excluded.
+  - **Options A–G.** All candidates touch shared behaviour or need a
+    protocol ruling: localizer lookup or filtering, global obstacle range
+    (C, the only option covering both sources), DWB rotation speed, and a
+    loop-only params file. None was applied.
   - **Landed, M4 protocol note.** Log-only `waypoint leg progress` lines from
     `send_waypoints` feedback (`36d26de`). The `send_goal` path is
     byte-identical: pinned, and confirmed live by the head-on regression

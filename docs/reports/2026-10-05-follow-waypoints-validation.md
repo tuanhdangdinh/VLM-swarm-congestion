@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: diagnosis of the `perm_reroute_s42` stall, the M4 waypoint-progress logging change, two blocker-free validation runs (both FAIL, same shared root cause), one head-on regression run (PASS), and a STOP on the fix, which needs a change to a shared component.
+- Rev 2 (same day, review pass): the first aisle closure came with ≤ 0.06 rad of map→odom yaw error, so the localizer is restated as a demonstrated contributor, not the sole phantom source. Also: the option ranking now favours C, the (d) wording is no longer a message-pairing claim, and the watchdog interval and leg count are corrected.
 
 ---
 
@@ -14,8 +15,8 @@ Branch `feat/v2-waypoints`, cut from `feat/prereg-v2-composite` at `fb54ebb`.
 
 | Item | Outcome |
 |---|---|
-| `follow_waypoints` plumbing (M3 grounding → M4 → waypoint follower → bt_navigator) | **Works.** It was exercised live four times: the original run plus legs 0 and 1 of both validation runs. Every leg was accepted, forwarded and planned. In both validation runs waypoint 0 was reached, 0.054 m and 0.082 m from the declared pose. Hypotheses (a)–(e) are all refuted (table below). |
-| Root cause of "reroute is a no-op" | **Shared, upstream of M4.** The camera localizer (`swarm_perception/camera_localizer_node.py`) pairs a 0.3–0.45 s old M1 pose with the *latest* odometry. That puts the robot's M1 heading error into `map -> robot_1/odom`: up to 0.6 rad during in-place rotations and about 0.2 rad during straight driving. The global costmap's obstacle layer then marks long-range lidar returns in the wrong place, which fills the 0.55 m second aisle with lethal cells. The planner cannot reach the declared waypoint 1 (`Failed to create plan`), falls back to a 0.5 m-tolerance plan, and drives the robot into the remnant corner at the aisle mouth. There DWB settles on a near-zero twist and the robot stays wedged until M4's 120 s watchdog fires. |
+| `follow_waypoints` plumbing (M3 grounding → M4 → waypoint follower → bt_navigator) | **Works.** Five live legs were exercised: the original run's leg 0, plus legs 0 and 1 in each validation run. Every leg was accepted, forwarded and planned. In both validation runs waypoint 0 was reached, 0.054 m and 0.082 m from the declared pose. Hypotheses (a)–(e) are all refuted (table below). |
+| Root cause of "reroute is a no-op" | **Shared, upstream of M4.** Phantom lethal cells fill the 0.55 m second aisle in the shared *global* costmap. These are cells free in the static map with nothing physically there, marked at 2–3.3 m range. The planner cannot reach the declared waypoint 1 (`Failed to create plan`), falls back to a 0.5 m-tolerance plan, and drives the robot into the remnant corner at the aisle mouth. There DWB settles on a near-zero twist and the robot stays wedged until M4's 120 s watchdog fires. This chain is directly evidenced. **The phantom source is partly established:**<br>• *Demonstrated contributor:* the camera localizer (`swarm_perception/camera_localizer_node.py`) pairs a 0.3–0.45 s old M1 pose with the *latest* odometry. That injects up to 0.6 rad of yaw error into `map -> robot_1/odom` during in-place rotations; it is also the dominant correlate of the closures after WP0.<br>• *Not explained by it:* the first closure (sim 18.1 s) came with at most 0.06 rad of map→odom yaw error. A second phantom source is not excluded, for example low or ground returns from chassis pitch or lidar beam spread on grazing far-wall hits. |
 | Fix | **STOP (not applied).** Every candidate fix touches a shared component (the localizer, global-costmap or DWB parameters) or is a scene-scoped Nav2 overlay that needs a protocol ruling. The blast-radius analysis is below. |
 | M4 code change landed | Log-only: `send_waypoints` now logs each change of `current_waypoint` (`36d26de`). The plain NavigateToPose path is byte-identical (pinned). |
 | Validation run 1, `wp_fwd_s42` | **FAIL.** WP0 reached; leg 1 was never driven; watchdog kill at 120.5 wall-s; base arrival rejected (0.39 m > 0.35 m). |
@@ -49,13 +50,13 @@ The same wedge occurs under plain NavigateToPose in both sibling runs:
 |---|---|---|
 | (a) Waypoint acceptance tolerance tighter than DWB's stopping error | Refuted | The follower forwards each waypoint as a NavigateToPose goal and uses the same goal checker (0.1 m). The robot moved 0 m. In both validation runs WP0 was accepted at 0.054 / 0.082 m. |
 | (b) Jazzy int/float parameter trap in `waypoint_follower` | Refuted | `nav2_params.yaml` passes only `use_sim_time`. The node configured and activated, and logged `Waypoint pause duration is set to zero, disabling task executor plugin`. |
-| (c) Watchdog measuring progress against the final goal | Refuted | `CommandBusNode._arm_nav_watchdog` is a pure monotonic deadline of max(3 × 20 s, 120 s) = 120 s from ACTIVE; it never measures progress. It fired at 121.4 / 120.5 / 121.4 wall-s, which is correct given zero motion. |
-| (d) Stop/pause at waypoint vs the collision monitor's `stop_pub_timeout` | Refuted | The pause executor is disabled. The collision monitor never logged `Robot to stop due to forward_stop polygon` in any of the three runs, and that string is in the installed `libcollision_monitor_core.so`. In both validation runs `cmd_vel_nav` equals `cmd_vel` through the whole wedge (456/456 and 443/443 samples). |
+| (c) Watchdog measuring progress against the final goal | Refuted | `CommandBusNode._arm_nav_watchdog` is a pure monotonic deadline of max(3 × 20 s, 120 s) = 120 s from ACTIVE; it never measures progress. It fired at 121.3 / 120.5 / 121.4 wall-s after ACTIVE (original / run 1 / run 2), which is correct given zero motion. |
+| (d) Stop/pause at waypoint vs the collision monitor's `stop_pub_timeout` | Refuted | The pause executor is disabled. The collision monitor never logged `Robot to stop due to forward_stop polygon` in any of the three runs, and that string is in the installed `libcollision_monitor_core.so`. Nonzero commands pass through: in the wedge windows the probe recorded equal sample counts on both topics (456 / 443), and only 2 / 6 `cmd_vel` zeros fall within 0.1 s of a nonzero `cmd_vel_nav`. The probe's Python receive stamps are jittered by its `/tf` load, so this is not a strict message-by-message pairing. Either way, DWB's own output was already near zero (below). |
 | (e) Wrong frame or unreachable waypoint from M3 | Refuted as an M3 defect | The waypoints are in the `map` frame, and (0.3, 1.2) and (1.8, 1.2) are free in the static map. WP1 became unreachable only through the dynamic costmap (below). |
 
 ---
 
-## Root cause (shared): camera-localizer yaw error closes the second aisle
+## Root cause (shared): phantom global-costmap marks close the second aisle
 
 **1. The yaw error, and why it scales with turn rate.** `CameraLocalizerNode._lookup_odom_pose` uses `Time()`, the latest odom, by design: its comment dates from when camera stamps were system time. M1's heading lags the true heading by 0.3–0.45 s. So `map -> odom` absorbs `−ω × lag`, plus M1 heading noise. Measured as M1 θ − GT θ against GT ω (`_analysis/lag.py`; every rotating sample has the sign opposite to ω):
 
@@ -68,13 +69,14 @@ The same wedge occurs under plain NavigateToPose in both sibling runs:
 
 The probe recorded the published TF directly. In `wp_fwd_s42`, `map -> robot_1/odom` yaw was 0.000 before motion, at most 0.117 rad over sim 10–22 s, and 0.168 / 0.326 / 0.592 rad at sim 35.07 / 35.33 / 37.63 s. That is the rotate-to-goal at WP0.
 
-**2. Misregistered lidar fills the aisle.** The fix for this run was a full-grid plus incremental-update crop of `/robot_1/global_costmap/costmap`. It covered x ∈ [0.4, 2.1], y ∈ [0.6, 1.5], and the "closed" metric counts aisle columns (x 0.65–1.5) whose cheapest cell across the aisle is ≥ 99. The prediction, registered before the run, was that free aisle cells read ≥ 99 within seconds of a map→odom yaw spike of ≥ 0.15 rad. In `wp_fwd_s43`:
+**2. Phantom marks fill the aisle.** The probe for run 2 added a full-grid plus incremental-update crop of `/robot_1/global_costmap/costmap`. It covered x ∈ [0.4, 2.1], y ∈ [0.6, 1.5], and the "closed" metric counts aisle columns (x 0.65–1.5) whose cheapest cell across the aisle is ≥ 99. The prediction, registered before the run, was that free aisle cells read ≥ 99 within seconds of a map→odom yaw spike of ≥ 0.15 rad. In `wp_fwd_s43`:
 
 | sim (s) | Closed columns / 17 | Max \|map→odom yaw\|, prior 3 s | Robot |
 |---|---|---|---|
 | 8.0 (first full grid) | 0 (bottleneck 0) | 0.000 | spawn |
-| 18.07 | 5 (first closure) | ≥ 0.15 (0.194 at sim 10–22) | primary aisle, x ≈ −1.5 |
-| 20.20 | 8 | 0.194 | (−1.23, −0.02) |
+| 18.07 | 5 (first closure) | **0.060** | (−1.54, 0.00), primary aisle |
+| 19.20 | 8 | 0.060 | (−1.38, −0.01) |
+| 20.20 | 8 | 0.194 (spike at 19.67, after the first closure) | (−1.23, −0.02) |
 | 24.43 | 15 | 0.149 | turning toward WP0 |
 | 34.20 | 16 (every aisle and connector cell lethal) | 0.044 | at WP0 |
 | 38.53 | 0 (bottleneck 80; raytraced open) | 0.436 | rotating at WP0 |
@@ -82,7 +84,21 @@ The probe recorded the published TF directly. In `wp_fwd_s42`, `map -> robot_1/o
 | 76.83 | 0 (after recovery cleared the costmap) | 0.017 | wedge |
 | 77.97 / 79.03 | 2 / 4 | 0.008 / 0.155 | leaving the wedge |
 
-The prediction holds at every closure except the small 2-column one at 77.97 s, which is not explained. Renders of the crop are in `probe.jsonl` (`kind: costmap_crop`). At sim 34.2 the aisle is solid `#` from x 0.55 to 2.05 in the static-free band.
+**The prediction fails for the first closure.** The aisle first closed at sim 18.07 s (5 columns) and reached 8 columns by 19.2 s. Over the 3 s before each, the map→odom yaw error was at most 0.06 rad; the 0.194 rad spike came at 19.67 s, after both. The new lethal cells at 18.07 s:
+
+- form a filled blob over x ≈ 0.95–1.6 and y ≈ 0.98–1.43, plus the junction cells west of the remnant;
+- lie 2.07–3.28 m from the robot;
+- are not a thin rotated wall segment or a single fixed-range arc, so their shape does not discriminate the two candidate sources.
+
+At 3 m range, 0.06 rad displaces a return by 0.18 m. That is about half of the 0.39 m inscribed-free band, so accumulated small jitter could contribute, but this is not shown. A second phantom source is therefore **not excluded**: low or ground returns from chassis pitch, or RTX beam spread on grazing hits against the far 0.9 m aisle wall.
+
+The prediction does hold for the later, larger events:
+
+- the rotation spikes at 37.5–39.6 s re-closed the aisle after a raytrace had reopened it (38.53 s, bottleneck 80);
+- after the recovery cleared the costmap at 76.8 s, the 79.03 s closure followed a 0.152 rad spike;
+- the small 2-column closure at 77.97 s is not explained.
+
+Renders of the crop are in `probe.jsonl` (`kind: costmap_crop`). At sim 34.2 s the aisle is solid lethal from x 0.55 to 2.05 in the band that is free in the static map.
 
 **3. The planner substitutes a tolerance goal, and the robot wedges.** Leg 1 starts at sim 35.0 / 35.8 s. About 1.5–2 s later the planner logs `GridBased plugin failed to plan from (0.28, 1.15) to (1.80, 1.20): "Failed to create plan with tolerance of: 0.500000"` (run 1, sim 36.5 s; run 2, sim 37.8 s). It then serves plans ending at (1.75, 1.0), (1.7, 0.95) and (1.6, 0.8): connector cells within 0.5 m of WP1, reached via the primary aisle. The robot turns south into the remnant corner, where the controller finds 219–419 valid trajectories but chooses vx 0–0.0095, wz ±0.079 for about 35 s. That is the smallest rotation sample, and the robot does not physically turn at that rate (`evaluation` rows). This DWB local minimum is a **secondary shared finding** that is not chased here. A *new* goal frees it at once: the base-mission resend at sim 79 in both runs. The progress-checker aborts do not.
 
@@ -219,9 +235,11 @@ Every scene launched by `fc_launch.sh` runs `nav2_robot.launch.py localization:=
 | D. Lower DWB `max_vel_theta` (1.5 rad/s) or the RotateToGoal speed | Shared Nav2 parameter | Every Nav2-driven motion and its timing, including the free-flow speeds and the arrival rotations | Shrinks only the rotation term. The straight-driving closure at sim 18 s in run 2 remains. |
 | E. Scene-scoped Nav2 params for the loop family only (C or D applied via a per-scenario params file) | fc_launch / launch plumbing, default-off | No other scene, but the loop family would run a different Nav2 configuration from every other family | A protocol call. The loop-family numbers would not be comparable to the rest. |
 | F. M4: waypoint yaw = bearing to the next waypoint, or `navigate_through_poses` instead of `follow_waypoints` | M4, `follow_waypoints` only | None beyond reroute | Moves or softens the stop-and-rotate at WP0, but the error scales with ω and the turn into the aisle is required. Run 2's aisle was already closed at sim 18 s, before any waypoint rotation, so **F cannot fix this alone**. It is listed as a candidate aggravator fix, not applied. |
-| G. Waypoint geometry (for example, WP0 moved into the junction) | M3 / overlay | None beyond reroute | Not attempted (advisor ruling): it relocates the spike without fixing it, and a pass would hide the defect. |
+| G. Waypoint geometry (for example, WP0 moved into the junction) | M3 / overlay | None beyond reroute | Not attempted. The localizer term scales with ω, not with where the turn happens, so this only moves the spike. The first closure happened in the primary aisle before any reroute. A pass would hide the defect, not fix it. |
 
-A, B or C is the real fix. The coordinator must decide whether to take a shared change, with re-validation of the frozen scenes, or to scope the loop family's Nav2 (E). Also flagged:
+**Ranking.** C is the only option that covers both candidate phantom sources, because it bounds how far any long-range return can be misplaced. A and B remove only the localizer term, which is demonstrated for the rotation spikes but does not explain the first closure. D shrinks only the rotation term.
+
+**Decision needed.** The coordinator must choose between a shared change (C, possibly with A), which means re-validating the frozen scenes, and scoping the loop family's Nav2 (E). A cheap way to settle the open source question before choosing is a static-robot probe, with no rotation and no motion, that watches the second-aisle crop. Also add a full-grid dump to separate arcs from rotated walls. Also flagged:
 
 - **DWB corner local minimum.** Near-zero twist with hundreds of valid trajectories; only a new goal frees it.
 - **The M5 arrival gate correctly caught a tolerance-substituted Nav2 "success".** In run 1, Nav2 reported success at 0.39 m.
