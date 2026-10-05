@@ -6095,7 +6095,8 @@ Rules for maintaining it:
     returns.
   - **Fix matrix.** Replay counterfactuals on fast rotation: H
     (`clearing: true`, raytrace 3.5) gives 0 / 0 / 0. A (stamp-matched
-    lookup) gives 7 / 0 / 9, so it is insufficient alone. A + H gives
+    lookup) gives 13→7 / 7→0 / 9→9 against its own as-is baseline, so it is
+    run-dependent and insufficient alone. A + H gives
     0 / 0 / 0, as does a perfect-timing localizer. C fails within 2 m.
     Every option but E/F/G touches all live-Nav2 frozen v2 results. H's
     blast radius is likely the largest (persistence of removed blockers and
