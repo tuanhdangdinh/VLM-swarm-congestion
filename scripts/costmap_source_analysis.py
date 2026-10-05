@@ -16,7 +16,9 @@ Believed-pose models (`--model`):
 
 - `gt`   : believed = ground truth. Whatever this marks is geometry-only
            (legitimate returns, incl. resolution bleed into static-free cells).
-- `lag`  : the camera localizer's pairing. map->odom is computed from an M1
+- `recorded`: the waypoint probe's own `map -> odom` samples, re-timed
+           (`RecordedTF`; the strongest of the three, it uses no lag model).
+- `lag`  : a smooth model of the camera localizer's pairing. map->odom is computed from an M1
            pose `L` seconds old and the latest odom, and the costmap reads it
            `D` seconds later (map->odom is future-stamped by
            transform_tolerance 0.3 s): believed(t) = GT(tau) + (GT(t_c)^-1 +
@@ -174,8 +176,43 @@ def inverse(a):
     return -c * a[0] - s * a[1], s * a[0] - c * a[1], -a[2]
 
 
-def believed_pose(gt: GroundTruth, t: float, model: str, lag: float, delay: float):
-    """Pose the costmap uses to register a scan taken at `t`."""
+class RecordedTF:
+    """`map -> odom` as a waypoint-probe bundle recorded it, re-timed.
+
+    The waypoint probe's rows arrived ~2 s after their content (its Python
+    executor was saturated) and caught ~20 % of the 20 Hz publishes, and the
+    GT log's `sim_time_sec` runs `gt_offset` (0.30 s, fitted on the costmap
+    probe runs) behind ROS stamps. A scan at GT time T is registered with the
+    sample the probe received at T + gt_offset + shift, composed with the true
+    odometry (GT relative to spawn: Isaac's odometry is drift-free).
+    """
+
+    def __init__(self, probe_path: Path, shift: float, gt_offset: float = 0.30) -> None:
+        rows = [json.loads(line) for line in probe_path.open()]
+        self.series = [{"stamp": r["sim"], "x": r["x"], "y": r["y"],
+                        "yaw": 2.0 * math.atan2(r["qz"], r["qw"])}
+                       for r in rows if r["kind"] == "map_odom"]
+        self.shift, self.gt_offset = shift, gt_offset
+
+    def believed(self, gt: GroundTruth, t: float):
+        """Believed base pose for a scan at GT time t."""
+        x, y, th = gt.pose(t)
+        sx, sy = gt.p[0][0], gt.p[0][1]
+        q = t + self.gt_offset + self.shift
+        m = _interp_series(self.series, q)
+        if m is None:
+            m = (sx, sy, 0.0) if q < self.series[0]["stamp"] else (
+                self.series[-1]["x"], self.series[-1]["y"], self.series[-1]["yaw"])
+        return compose(m, (x - sx, y - sy, th))
+
+
+def believed_pose(gt: GroundTruth, t: float, model, lag: float, delay: float):
+    """Pose the costmap uses to register a scan taken at `t`.
+
+    `model` is "gt", "lag", or a `RecordedTF`.
+    """
+    if isinstance(model, RecordedTF):
+        return model.believed(gt, t)
     if model == "gt" or (lag == 0.0):
         return gt.pose(t)
     t_c = t - delay
@@ -305,9 +342,10 @@ def compare(bundle: Path, probe: Path, t0: float, t1: float, model: str, lag: fl
             "obs_closed": row["aisle_closed_cols"], "pred_closed": crop.closed_cols(ge99),
         })
         if any(abs(row["sim"] - s) < 0.05 for s in show):
-            print(f"--- sim {row['sim']} model={model} lag={lag} delay={delay}")
+            print(f"--- sim {row['sim']} model={getattr(model, 'shift', model)} lag={lag} "
+                  f"delay={delay}")
             print(render(crop.static_lethal, obs, pred, crop))
-    return {"model": model, "lag": lag, "delay": delay, "rows": table}
+    return {"model": str(model), "lag": lag, "delay": delay, "rows": table}
 
 
 def _interp_series(series: list[dict], t: float) -> tuple[float, float, float] | None:
@@ -381,6 +419,41 @@ class Replay:
         lidar = [r for r in rows if r["kind"] == "tf_static" and r["child"].endswith("base_scan")]
         self.lidar_x = lidar[0]["x"] if lidar else LIDAR_OFFSET_X
         self.static = static_lethal_indices(self.meta, run_dir / "scenario.yaml")
+        self.odom = sorted((r for r in rows if r["kind"] == "odom"), key=lambda r: r["stamp"])
+        self.scene_rows = [r for r in rows if r["kind"] == "scene" and r["stamp"] is not None]
+        self.spawn = self.gt.p[0]
+        self.gt_offset = self._fit_gt_offset()
+
+    def _fit_gt_offset(self) -> float:
+        """Seconds to subtract from a ROS stamp to index the GT log.
+
+        The GT log's `sim_time_sec` and the ROS header stamps are not the same
+        clock: Isaac's odometry at ROS stamp t equals the GT pose at
+        t - offset (offset ~0.30 s, residual ~0.2 mm). Fitted on moving samples.
+        """
+        moving = [r for r in self.odom if abs(r["vx"]) > 0.05][::3]
+        if not moving:
+            return 0.0
+        sx, sy = self.spawn[0], self.spawn[1]
+
+        def err(off):
+            return float(np.mean([math.hypot(r["x"] + sx - g[0], r["y"] + sy - g[1])
+                                  for r in moving
+                                  for g in [self.gt.pose(r["stamp"] - off)]]))
+
+        offs = np.arange(-0.6, 0.6, 1.0 / 60.0)
+        return float(offs[int(np.argmin([err(o) for o in offs]))])
+
+    def truth(self, t: float):
+        """Ground-truth base pose at ROS stamp t (GT log re-timed by the offset)."""
+        return self.gt.pose(t - self.gt_offset)
+
+    def odom_truth(self, t: float):
+        """Base pose from drift-free odometry at ROS stamp t (spawn-relative, yaw 0)."""
+        o = _interp_series(self.odom_tf, t)
+        if o is None:
+            return None
+        return compose((self.spawn[0], self.spawn[1], 0.0), o)
 
     def cell_index(self, x: float, y: float) -> int | None:
         """Flat global-costmap index of a world point, or None off-grid."""
@@ -472,7 +545,7 @@ class Replay:
                 if not (t0 < s["stamp"] <= t_cut):
                     continue
                 base = self.tf_base(s["stamp"])
-                gt_base = self.gt.pose(s["stamp"])
+                gt_base = self.truth(s["stamp"])
                 gt_l = self.lidar_pose(gt_base)
                 gt_marks |= self.project(s, gt_l)
                 ideal_marks |= self.project(self.ideal_scan(s, gt_l), gt_l)
@@ -560,9 +633,66 @@ class Replay:
         for s in self.scans:
             if not (t0 < s["stamp"] <= t_cut):
                 continue
-            base = self.tf_base(s["stamp"]) if registration == "tf" else self.gt.pose(s["stamp"])
+            base = (self.tf_base(s["stamp"]) if registration == "tf"
+                    else self.truth(s["stamp"]))
             if base is None:
                 continue
+            ox, oy, th = self.lidar_pose(base)
+            r = np.array([v if v is not None else -1.0 for v in s["ranges"]])
+            a = th + s["amin"] + np.arange(len(r)) * s["ainc"]
+            ok = (r >= s["rmin"]) & (r < s["rmax"])
+            yield ox, oy, r[ok], a[ok]
+
+    def localizer_corrections(self, mode: str) -> list[tuple[float, tuple]]:
+        """Re-derive the localizer's map->odom corrections from the recorded M1 scenes.
+
+        Each scene (stamp s) arrives at sim time a (its bag receive time mapped
+        through the odometry rows' receive->stamp relation). `asis` pairs it
+        with odometry at a, as `_lookup_odom_pose`'s `Time()` lookup does;
+        `stamp` pairs it with odometry at s (option A). Returns
+        `(active_from, correction)` with active_from = a + 0.3 s: the node
+        future-stamps by transform_tolerance, so a scan at t uses the newest
+        correction published at or before t - 0.3.
+        """
+        recs = np.array([r["rec"] for r in self.odom], dtype=float)
+        sts = np.array([r["stamp"] for r in self.odom])
+        out = []
+        for r in self.scene_rows:
+            if r.get("status") == "STALE":
+                continue
+            a = float(np.interp(r["rec"], recs, sts))
+            o = _interp_series(self.odom_tf, a if mode == "asis" else r["stamp"])
+            if o is None:
+                continue
+            out.append((a + 0.3, compose((r["x"], r["y"], r["theta"]), inverse(o))))
+        out.sort(key=lambda c: c[0])
+        return out
+
+    def phase_scans_localizer(self, index: int, mode: str):
+        """Like `phase_scans`, registered through re-derived localizer corrections.
+
+        `mode`: `asis` / `stamp` (see `localizer_corrections`) or `odom`
+        (map->odom fixed at the spawn pose: a perfect localizer).
+        """
+        corr = self.localizer_corrections(mode) if mode != "odom" else []
+        times = [c[0] for c in corr]
+        start = next(m for m in self.markers if m["event"] == "phase_start" and m["index"] == index)
+        end = next(m for m in self.markers if m["event"] == "phase_end" and m["index"] == index)
+        grids = [g for g in self.grids if start["sim"] < g["stamp"] <= end["sim"]]
+        t_cut = grids[-1]["stamp"] if grids else end["sim"]
+        for s in self.scans:
+            if not (start["sim"] < s["stamp"] <= t_cut):
+                continue
+            o = _interp_series(self.odom_tf, s["stamp"])
+            if o is None:
+                continue
+            if mode == "odom":
+                base = compose((self.spawn[0], self.spawn[1], 0.0), o)
+            else:
+                k = bisect.bisect_right(times, s["stamp"]) - 1
+                if k < 0:
+                    continue
+                base = compose(corr[k][1], o)
             ox, oy, th = self.lidar_pose(base)
             r = np.array([v if v is not None else -1.0 for v in s["ranges"]])
             a = th + s["amin"] + np.arange(len(r)) * s["ainc"]
@@ -583,7 +713,7 @@ class Replay:
         rows = []
         t = t0
         while t <= t1:
-            base, g = self.tf_base(t), self.gt.pose(t)
+            base, g = self.tf_base(t), self.truth(t)
             grid = None
             for gr in self.grids:
                 if gr["stamp"] <= t:
@@ -592,7 +722,7 @@ class Replay:
                 "t": round(t, 2),
                 "yaw_err": None if base is None else round(
                     (base[2] - g[2] + math.pi) % (2 * math.pi) - math.pi, 4),
-                "gt_wz": round((self.gt.pose(t + 0.05)[2] - self.gt.pose(t - 0.05)[2]) / 0.1, 3),
+                "gt_wz": round((self.truth(t + 0.05)[2] - self.truth(t - 0.05)[2]) / 0.1, 3),
                 "obs_closed": _closed_cols_from_crop(grid) if grid else None,
                 "obs_new_crop": _new_in_crop(grid) if grid else None,
             })
@@ -695,6 +825,7 @@ COUNTERFACTUALS = (
 def main_counterfactual(run_dir: Path) -> int:
     """Closed aisle columns per phase under obstacle-layer parameter variants."""
     rp = Replay(run_dir)
+    print(f"GT log offset vs ROS stamps: {rp.gt_offset:+.3f} s")
     static = rp.static_cells()
     starts = [m for m in rp.markers if m["event"] == "phase_start"]
     for ph in starts:
@@ -703,17 +834,20 @@ def main_counterfactual(run_dir: Path) -> int:
         for name, clearing, omax, rmax in COUNTERFACTUALS:
             marks = accumulate(rp.phase_scans(i, "tf"), clearing, omax, rmax)
             print(f"  {name:42s} closed {closed_cols_from_marks(marks, static):2d}")
-        marks = accumulate(rp.phase_scans(i, "gt"), False, 3.5, 3.0)
-        print(f"  {'A bound: perfect localizer (GT), as configured':42s} closed "
-              f"{closed_cols_from_marks(marks, static):2d}")
-        marks = accumulate(rp.phase_scans(i, "gt"), True, 3.5, 3.5)
-        print(f"  {'A bound + H (clearing on, raytrace 3.5)':42s} closed "
-              f"{closed_cols_from_marks(marks, static):2d}")
+        for name, mode, clearing, rmax in (
+                ("localizer model, as-is (validation)", "asis", False, 3.0),
+                ("A: stamp-matched odom lookup", "stamp", False, 3.0),
+                ("A + H (raytrace 3.5)", "stamp", True, 3.5),
+                ("bound: perfect localizer (odom truth)", "odom", False, 3.0),
+                ("bound + H (raytrace 3.5)", "odom", True, 3.5)):
+            marks = accumulate(rp.phase_scans_localizer(i, mode), clearing, 3.5, rmax)
+            print(f"  {name:42s} closed {closed_cols_from_marks(marks, static):2d}")
     return 0
 
 
-def forward_counterfactual(bundle: Path, t0: float, t1: float, lag: float, delay: float) -> int:
-    """Run-2 forward model (lag registration) under the same variants."""
+def forward_counterfactual(bundle: Path, t0: float, t1: float, lag: float, delay: float,
+                           model="lag") -> int:
+    """Run-2 forward model (lag or recorded-TF registration) under the same variants."""
     gt = GroundTruth(bundle / "gt" / "ground_truth.jsonl")
     crop = Crop(bundle / "probe.jsonl")
     static = {(crop.c0 + j, crop.r0 + i) for i, j in zip(*np.nonzero(crop.static_lethal),
@@ -728,13 +862,15 @@ def forward_counterfactual(bundle: Path, t0: float, t1: float, lag: float, delay
             lx, ly = x + LIDAR_OFFSET_X * math.cos(th), y + LIDAR_OFFSET_X * math.sin(th)
             rng = raycast(lx, ly, th + beams, rects)
             ok = (rng >= RANGE_MIN) & (rng < RANGE_MAX)
-            bx, by, bth = believed_pose(gt, t, "lag", lag, delay)
+            bx, by, bth = believed_pose(gt, t, model, lag, delay)
             yield (bx + LIDAR_OFFSET_X * math.cos(bth), by + LIDAR_OFFSET_X * math.sin(bth),
                    rng[ok], bth + beams[ok])
             t += 1.0 / SCAN_HZ
 
     for t_end in (18.07, 24.43, t1):
-        print(f"forward model lag={lag} delay={delay}, sim {t0} -> {t_end}:")
+        label = (f"recorded TF shift={model.shift}" if isinstance(model, RecordedTF)
+                 else f"lag={lag} delay={delay}")
+        print(f"forward model {label}, sim {t0} -> {t_end}:")
         for name, clearing, omax, rmax in COUNTERFACTUALS:
             marks = accumulate(scans(t_end), clearing, omax, rmax)
             print(f"  {name:42s} closed {closed_cols_from_marks(marks, static):2d}")
@@ -776,7 +912,11 @@ def main() -> int:
     ap.add_argument("--probe", type=Path, default=None)
     ap.add_argument("--start", type=float, default=8.0)
     ap.add_argument("--end", type=float, default=37.8)
-    ap.add_argument("--model", choices=["gt", "lag"], default="lag")
+    ap.add_argument("--model", choices=["gt", "lag", "recorded"], default="lag")
+    ap.add_argument("--tf-shift", type=float, default=1.9,
+                    help="recorded model: probe receive lag of the map->odom rows (s)")
+    ap.add_argument("--gt-offset", type=float, default=0.30,
+                    help="recorded model: GT log time behind ROS stamps (s)")
     ap.add_argument("--lag", type=float, default=0.45)
     ap.add_argument("--delay", type=float, default=0.3)
     ap.add_argument("--phases", default="0", help="comma-separated beam phase offsets (deg)")
@@ -788,12 +928,18 @@ def main() -> int:
     if args.replay:
         return main_replay(args.bundle, args.json)
     if args.counterfactual:
-        return forward_counterfactual(args.bundle, args.start, args.end, args.lag, args.delay)
+        model = (RecordedTF(args.probe or args.bundle / "probe.jsonl", args.tf_shift,
+                            args.gt_offset) if args.model == "recorded" else "lag")
+        return forward_counterfactual(args.bundle, args.start, args.end, args.lag, args.delay,
+                                      model)
     probe = args.probe or args.bundle / "probe.jsonl"
     phases = [float(p) for p in args.phases.split(",")]
     show = [float(s) for s in args.show.split(",") if s]
-    res = compare(args.bundle, probe, args.start, args.end, args.model, args.lag,
+    model = (RecordedTF(probe, args.tf_shift, args.gt_offset) if args.model == "recorded"
+             else args.model)
+    res = compare(args.bundle, probe, args.start, args.end, model, args.lag,
                   args.delay, phases, show)
+    res["model"] = args.model if args.model != "recorded" else f"recorded(shift={args.tf_shift})"
     print(f"model={res['model']} lag={res['lag']} delay={res['delay']}")
     print(" sim    obs_new pred_new  tp  recall prec  closed(obs/pred)")
     for r in res["rows"]:
