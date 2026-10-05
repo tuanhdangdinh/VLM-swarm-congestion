@@ -1,0 +1,218 @@
+{
+  "generator": "scripts/make_free_flow_variants.py",
+  "mechanism": "solo_in_space",
+  "duration_sec": 120.0,
+  "covered_by": {
+    "priority_urgent_r1": "priority_visual_r1",
+    "priority_urgent_r2": "priority_visual_r1",
+    "priority_visual_r2": "priority_visual_r1"
+  },
+  "variants": {
+    "head_on_asymmetric_w0p2_eopen_bshort_o0_ff_robot_1": {
+      "parent": "head_on_asymmetric_w0p2_eopen_bshort_o0",
+      "parent_path": "isaac/config/scenarios/family/head_on_asymmetric_w0p2_eopen_bshort_o0.yaml",
+      "parent_sha256": "389be01a98eb355edf6322c9af00a16dcdbbf1a4c82ae1af8713287250c02da7",
+      "robot_id": "robot_1",
+      "map_scenario": "head_on_asymmetric_w0p2_eopen_bshort_o0",
+      "m5_task_line": "  robot_1: { task: cross_narrow_aisle, goal: [2.6, 0.0] }",
+      "stripped_obstacles": []
+    },
+    "head_on_asymmetric_w0p2_eopen_bshort_o0_ff_robot_2": {
+      "parent": "head_on_asymmetric_w0p2_eopen_bshort_o0",
+      "parent_path": "isaac/config/scenarios/family/head_on_asymmetric_w0p2_eopen_bshort_o0.yaml",
+      "parent_sha256": "389be01a98eb355edf6322c9af00a16dcdbbf1a4c82ae1af8713287250c02da7",
+      "robot_id": "robot_2",
+      "map_scenario": "head_on_asymmetric_w0p2_eopen_bshort_o0",
+      "m5_task_line": "  robot_2: { task: cross_narrow_aisle, goal: [-1.5, 0.0] }",
+      "stripped_obstacles": []
+    },
+    "t2b_flow_ordering_ff_robot_1": {
+      "parent": "t2b_flow_ordering",
+      "parent_path": "isaac/config/scenarios/t2b_flow_ordering.yaml",
+      "parent_sha256": "7deb32b3e67215780ad8d0135603a6a07eb6c035e6005080ecab0de37bf95f84",
+      "robot_id": "robot_1",
+      "map_scenario": "t2b_flow_ordering",
+      "m5_task_line": "  robot_1: { task: cross_narrow_aisle, goal: [2.5, 0.0] }",
+      "stripped_obstacles": []
+    },
+    "t2b_flow_ordering_ff_robot_2": {
+      "parent": "t2b_flow_ordering",
+      "parent_path": "isaac/config/scenarios/t2b_flow_ordering.yaml",
+      "parent_sha256": "7deb32b3e67215780ad8d0135603a6a07eb6c035e6005080ecab0de37bf95f84",
+      "robot_id": "robot_2",
+      "map_scenario": "t2b_flow_ordering",
+      "m5_task_line": "  robot_2: { task: cross_narrow_aisle, goal: [-2.0, 0.0] }",
+      "stripped_obstacles": []
+    },
+    "t2b_flow_ordering_ff_robot_3": {
+      "parent": "t2b_flow_ordering",
+      "parent_path": "isaac/config/scenarios/t2b_flow_ordering.yaml",
+      "parent_sha256": "7deb32b3e67215780ad8d0135603a6a07eb6c035e6005080ecab0de37bf95f84",
+      "robot_id": "robot_3",
+      "map_scenario": "t2b_flow_ordering",
+      "m5_task_line": "  robot_3: { task: cross_narrow_aisle, goal: [1.85, 0.0] }",
+      "stripped_obstacles": []
+    },
+    "bottleneck_merge_ff_robot_1": {
+      "parent": "bottleneck_merge",
+      "parent_path": "isaac/config/scenarios/bottleneck_merge.yaml",
+      "parent_sha256": "c575109452ac9542bccdd8718cf64565ba887670e6163aa30c0a063b47967343",
+      "robot_id": "robot_1",
+      "map_scenario": "bottleneck_merge",
+      "m5_task_line": "  robot_1: { task: cross_narrow_aisle, goal: [2.45, -0.3] }",
+      "stripped_obstacles": []
+    },
+    "bottleneck_merge_ff_robot_2": {
+      "parent": "bottleneck_merge",
+      "parent_path": "isaac/config/scenarios/bottleneck_merge.yaml",
+      "parent_sha256": "c575109452ac9542bccdd8718cf64565ba887670e6163aa30c0a063b47967343",
+      "robot_id": "robot_2",
+      "map_scenario": "bottleneck_merge",
+      "m5_task_line": "  robot_2: { task: cross_narrow_aisle, goal: [1.9, 0.0] }",
+      "stripped_obstacles": []
+    },
+    "bottleneck_merge_ff_robot_3": {
+      "parent": "bottleneck_merge",
+      "parent_path": "isaac/config/scenarios/bottleneck_merge.yaml",
+      "parent_sha256": "c575109452ac9542bccdd8718cf64565ba887670e6163aa30c0a063b47967343",
+      "robot_id": "robot_3",
+      "map_scenario": "bottleneck_merge",
+      "m5_task_line": "  robot_3: { task: cross_narrow_aisle, goal: [2.45, 0.3] }",
+      "stripped_obstacles": []
+    },
+    "priority_visual_r1_ff_robot_1": {
+      "parent": "priority_visual_r1",
+      "parent_path": "isaac/config/scenarios/priority_visual_r1.yaml",
+      "parent_sha256": "ee4e2a36bf0866fea34dcac35fd765cde6f306b288b40dc046eac572048a75a6",
+      "robot_id": "robot_1",
+      "map_scenario": "priority_visual_r1",
+      "m5_task_line": "  robot_1: { task: cross_narrow_aisle, goal: [2.5, 0.0] }",
+      "stripped_obstacles": []
+    },
+    "priority_visual_r1_ff_robot_2": {
+      "parent": "priority_visual_r1",
+      "parent_path": "isaac/config/scenarios/priority_visual_r1.yaml",
+      "parent_sha256": "ee4e2a36bf0866fea34dcac35fd765cde6f306b288b40dc046eac572048a75a6",
+      "robot_id": "robot_2",
+      "map_scenario": "priority_visual_r1",
+      "m5_task_line": "  robot_2: { task: cross_narrow_aisle, goal: [-2.5, 0.0] }",
+      "stripped_obstacles": []
+    },
+    "convoy_counterflow_slip_ff_robot_1": {
+      "parent": "convoy_counterflow_slip",
+      "parent_path": "isaac/config/scenarios/convoy_counterflow_slip.yaml",
+      "parent_sha256": "2bfa3372bd5000094089e0f3fe4ab4c9f0c4e6c323f8e56202c233b576268ad4",
+      "robot_id": "robot_1",
+      "map_scenario": "convoy_counterflow_slip",
+      "m5_task_line": "  robot_1: { task: cross_narrow_aisle, goal: [2.45, -0.36] }",
+      "stripped_obstacles": []
+    },
+    "convoy_counterflow_slip_ff_robot_2": {
+      "parent": "convoy_counterflow_slip",
+      "parent_path": "isaac/config/scenarios/convoy_counterflow_slip.yaml",
+      "parent_sha256": "2bfa3372bd5000094089e0f3fe4ab4c9f0c4e6c323f8e56202c233b576268ad4",
+      "robot_id": "robot_2",
+      "map_scenario": "convoy_counterflow_slip",
+      "m5_task_line": "  robot_2: { task: cross_narrow_aisle, goal: [-2.0, 0.0] }",
+      "stripped_obstacles": []
+    },
+    "convoy_counterflow_slip_ff_robot_3": {
+      "parent": "convoy_counterflow_slip",
+      "parent_path": "isaac/config/scenarios/convoy_counterflow_slip.yaml",
+      "parent_sha256": "2bfa3372bd5000094089e0f3fe4ab4c9f0c4e6c323f8e56202c233b576268ad4",
+      "robot_id": "robot_3",
+      "map_scenario": "convoy_counterflow_slip",
+      "m5_task_line": "  robot_3: { task: cross_narrow_aisle, goal: [2.45, 0.36] }",
+      "stripped_obstacles": []
+    },
+    "convoy_counterflow_slip_ff_robot_4": {
+      "parent": "convoy_counterflow_slip",
+      "parent_path": "isaac/config/scenarios/convoy_counterflow_slip.yaml",
+      "parent_sha256": "2bfa3372bd5000094089e0f3fe4ab4c9f0c4e6c323f8e56202c233b576268ad4",
+      "robot_id": "robot_4",
+      "map_scenario": "convoy_counterflow_slip",
+      "m5_task_line": "  robot_4: { task: cross_narrow_aisle, goal: [1.85, 0.0] }",
+      "stripped_obstacles": []
+    },
+    "intersection_bottleneck_ff_robot_1": {
+      "parent": "intersection_bottleneck",
+      "parent_path": "isaac/config/scenarios/intersection_bottleneck.yaml",
+      "parent_sha256": "c81d26e9410871e2e617bee1dd76d6f5d52adf3b53b75c5a6472af642f1a9a48",
+      "robot_id": "robot_1",
+      "map_scenario": "intersection_bottleneck",
+      "m5_task_line": "  robot_1: { task: cross_intersection, goal: [1.75, 0.0] }",
+      "stripped_obstacles": []
+    },
+    "intersection_bottleneck_ff_robot_2": {
+      "parent": "intersection_bottleneck",
+      "parent_path": "isaac/config/scenarios/intersection_bottleneck.yaml",
+      "parent_sha256": "c81d26e9410871e2e617bee1dd76d6f5d52adf3b53b75c5a6472af642f1a9a48",
+      "robot_id": "robot_2",
+      "map_scenario": "intersection_bottleneck",
+      "m5_task_line": "  robot_2: { task: cross_intersection, goal: [-1.75, 0.0] }",
+      "stripped_obstacles": []
+    },
+    "intersection_bottleneck_ff_robot_3": {
+      "parent": "intersection_bottleneck",
+      "parent_path": "isaac/config/scenarios/intersection_bottleneck.yaml",
+      "parent_sha256": "c81d26e9410871e2e617bee1dd76d6f5d52adf3b53b75c5a6472af642f1a9a48",
+      "robot_id": "robot_3",
+      "map_scenario": "intersection_bottleneck",
+      "m5_task_line": "  robot_3: { task: cross_intersection, goal: [0.0, 1.75] }",
+      "stripped_obstacles": []
+    },
+    "intersection_bottleneck_ff_robot_4": {
+      "parent": "intersection_bottleneck",
+      "parent_path": "isaac/config/scenarios/intersection_bottleneck.yaml",
+      "parent_sha256": "c81d26e9410871e2e617bee1dd76d6f5d52adf3b53b75c5a6472af642f1a9a48",
+      "robot_id": "robot_4",
+      "map_scenario": "intersection_bottleneck",
+      "m5_task_line": "  robot_4: { task: cross_intersection, goal: [0.0, -1.75] }",
+      "stripped_obstacles": []
+    },
+    "obstacle_in_candidate_ff_robot_1": {
+      "parent": "obstacle_in_candidate",
+      "parent_path": "isaac/config/scenarios/obstacle_in_candidate.yaml",
+      "parent_sha256": "c4f8cc803ae7eec57edc8422ac51433a6a75587a25410fa0fedc32692bb21482",
+      "robot_id": "robot_1",
+      "map_scenario": "obstacle_in_candidate",
+      "m5_task_line": "  robot_1: { task: cross_narrow_aisle, goal: [2.5, 0.0] }",
+      "stripped_obstacles": [
+        "candidate_box"
+      ]
+    },
+    "obstacle_in_candidate_ff_robot_2": {
+      "parent": "obstacle_in_candidate",
+      "parent_path": "isaac/config/scenarios/obstacle_in_candidate.yaml",
+      "parent_sha256": "c4f8cc803ae7eec57edc8422ac51433a6a75587a25410fa0fedc32692bb21482",
+      "robot_id": "robot_2",
+      "map_scenario": "obstacle_in_candidate",
+      "m5_task_line": "  robot_2: { task: cross_narrow_aisle, goal: [-2.5, 0.0] }",
+      "stripped_obstacles": [
+        "candidate_box"
+      ]
+    },
+    "dynamic_anomaly_v2_ff_robot_1": {
+      "parent": "dynamic_anomaly_v2",
+      "parent_path": "isaac/config/scenarios/dynamic_anomaly_v2.yaml",
+      "parent_sha256": "4694565133e2126aa6c33fd334205e7abb017aedcaf41ecbd11641fa4f3d9801",
+      "robot_id": "robot_1",
+      "map_scenario": "dynamic_anomaly_v2",
+      "m5_task_line": "  robot_1: { task: traverse_aisle, goal: [2.5, -0.35] }",
+      "stripped_obstacles": [
+        "pallet_1"
+      ]
+    },
+    "dynamic_anomaly_v2_ff_robot_2": {
+      "parent": "dynamic_anomaly_v2",
+      "parent_path": "isaac/config/scenarios/dynamic_anomaly_v2.yaml",
+      "parent_sha256": "4694565133e2126aa6c33fd334205e7abb017aedcaf41ecbd11641fa4f3d9801",
+      "robot_id": "robot_2",
+      "map_scenario": "dynamic_anomaly_v2",
+      "m5_task_line": "  robot_2: { task: traverse_aisle, goal: [-2.5, 0.35] }",
+      "stripped_obstacles": [
+        "pallet_1"
+      ]
+    }
+  }
+}

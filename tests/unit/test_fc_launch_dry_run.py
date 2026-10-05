@@ -41,6 +41,7 @@ TWO_ROBOT_CASES: dict[str, tuple[str, dict[str, str]]] = {
 _CLEARED_ENV = (
     "BACKEND_ID", "MOCK_DECISION_FILE", "MOCK_RETREAT_CHOICE_FILE", "MODALITY",
     "RECORD", "REC_SEC", "SIM_SEC", "SEED", "CONTAINER", "REPO", "NAV2_ACTIVE_TIMEOUT_SEC",
+    "MAP_SCENARIO",
 )
 
 
@@ -193,3 +194,21 @@ def test_seed_env_sets_the_isaac_seed():
     output = dry_run("head_on_deadlock", {"SEED": "7"})
     assert "(headless, seed 7, 1200s)" in output
     assert "--headless --seed 7 --duration-sec" in output
+
+
+def test_free_flow_variant_resolves_from_its_dir_and_reuses_the_parent_map():
+    output = dry_run(
+        "t2b_flow_ordering_ff_robot_3", {"MAP_SCENARIO": "t2b_flow_ordering"}
+    )
+    assert "--scenario <REPO>/isaac/config/scenarios/free_flow/t2b_flow_ordering_ff_robot_3.yaml" \
+        in output
+    launches = _nav2_lines(output)
+    assert len(launches) == 1
+    assert "robot_id:=robot_3 x:=-2.45" in launches[0]
+    assert "map_yaml:=/ws/ros2_ws/install/share/swarm_simulation/maps/" \
+        "warehouse_map_t2b_flow_ordering.yaml" in launches[0]
+
+
+def test_map_defaults_to_the_scenario_name():
+    output = dry_run("t2b_flow_ordering_ff_robot_3", {})
+    assert "warehouse_map_t2b_flow_ordering_ff_robot_3.yaml" in _nav2_lines(output)[0]

@@ -59,9 +59,13 @@
 #   SCENARIO              Scenario name (default head_on_deadlock). Resolved
 #                          as isaac/config/scenarios/$SCENARIO.yaml (legacy),
 #                          else isaac/config/scenarios/family/$SCENARIO.yaml
-#                          (generated), else this script exits 1 naming both
-#                          paths tried. MAP is derived as
-#                          warehouse_map_${SCENARIO}.yaml and is checked to
+#                          (generated), else isaac/config/scenarios/free_flow/
+#                          $SCENARIO.yaml (generated solo free-flow variants),
+#                          else this script exits 1 naming every path tried.
+#                          MAP is derived as
+#                          warehouse_map_${MAP_SCENARIO:-$SCENARIO}.yaml (a
+#                          free-flow variant passes its parent cell as
+#                          MAP_SCENARIO) and is checked to
 #                          exist inside the container before Isaac Sim
 #                          starts (stage 2), not just before Nav2 — a
 #                          missing/misnamed map should fail in about a
@@ -185,21 +189,29 @@ xrun_soft() {
 # ── Resolve SCENARIO -> scenario yaml (legacy, then family) + MAP ──────────
 SCENARIO_YAML_LEGACY="$REPO/isaac/config/scenarios/${SCENARIO}.yaml"
 SCENARIO_YAML_FAMILY="$REPO/isaac/config/scenarios/family/${SCENARIO}.yaml"
+SCENARIO_YAML_FREE_FLOW="$REPO/isaac/config/scenarios/free_flow/${SCENARIO}.yaml"
 if [ -f "$SCENARIO_YAML_LEGACY" ]; then
   SCENARIO_YAML_HOST="$SCENARIO_YAML_LEGACY"
 elif [ -f "$SCENARIO_YAML_FAMILY" ]; then
   SCENARIO_YAML_HOST="$SCENARIO_YAML_FAMILY"
+elif [ -f "$SCENARIO_YAML_FREE_FLOW" ]; then
+  SCENARIO_YAML_HOST="$SCENARIO_YAML_FREE_FLOW"
 else
   echo "ERROR: scenario '${SCENARIO}' not found; tried:" >&2
   echo "  ${SCENARIO_YAML_LEGACY}" >&2
   echo "  ${SCENARIO_YAML_FAMILY}" >&2
+  echo "  ${SCENARIO_YAML_FREE_FLOW}" >&2
   exit 1
 fi
 # Container-side path for parsing the yaml inside the container (real runs):
 # $REPO is bind-mounted at /ws in $CONTAINER regardless of its host path.
 SCENARIO_YAML_CONTAINER="/ws${SCENARIO_YAML_HOST#"$REPO"}"
 
-MAP="/ws/ros2_ws/install/share/swarm_simulation/maps/warehouse_map_${SCENARIO}.yaml"
+# A solo free-flow variant reuses its parent cell's map, whose grid it equals
+# byte for byte (tests/unit/test_free_flow_variants.py): no variant map is
+# installed.
+MAP_SCENARIO="${MAP_SCENARIO:-$SCENARIO}"
+MAP="/ws/ros2_ws/install/share/swarm_simulation/maps/warehouse_map_${MAP_SCENARIO}.yaml"
 
 # MOCK_DECISION_FILE -> the path M5 (cwd /ws inside the container) should
 # read. A repo-relative path is passed through unchanged (it already

@@ -179,6 +179,22 @@ def test_derive_refuses_a_solo_traversal_that_brushes_a_parked_robot(tmp_path):
         derive_entries(gt, mechanism="solo_in_time", run_id="r", robots=["robot_1"])
 
 
+def test_derive_refuses_a_solo_in_space_run_holding_another_robot(tmp_path):
+    with pytest.raises(ValueError, match="must hold only robot_1"):
+        derive_entries(_solo_in_time_gt(tmp_path), mechanism="solo_in_space", run_id="r",
+                       robots=["robot_1"])
+
+
+def test_derive_times_a_solo_in_space_run(tmp_path):
+    goals = {"robot_2": (0.0, 2.0)}
+    track = _hold((0.0, 0.0), 30) + _track([(0.0, 0.0), (0.0, 2.0)], 100) + _hold((0.0, 2.0), 50)
+    gt = _write_gt(tmp_path / "gt", _frames({"robot_2": track}), goals)
+    entries = derive_entries(gt, mechanism="solo_in_space", run_id="r")
+    assert list(entries) == ["robot_2"]
+    assert entries["robot_2"]["min_clearance_m"] is None
+    assert entries["robot_2"]["time_sec"] == pytest.approx((2.0 - 0.35) / 0.2, abs=0.3)
+
+
 def test_derive_refuses_a_robot_that_never_arrives(tmp_path):
     goals = {"robot_1": (5.0, 0.0)}
     gt = _write_gt(tmp_path / "gt", _frames({"robot_1": _track([(0.0, 0.0), (1.0, 0.0)], 50)}),

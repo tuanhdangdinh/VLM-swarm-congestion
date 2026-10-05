@@ -257,6 +257,10 @@ def derive_entries(
     for rid in robots or sorted(tracks):
         if rid not in tracks:
             raise ValueError(f"{gt_dir}: {rid} not in ground truth")
+        if mechanism == "solo_in_space" and set(tracks) != {rid}:
+            raise ValueError(
+                f"{gt_dir}: a solo-in-space run must hold only {rid}; GT holds {sorted(tracks)}"
+            )
         start, end = departure_sec(tracks[rid]), arrival_sec(tracks[rid])
         if start is None or end is None:
             raise ValueError(f"{gt_dir}: {rid} departure={start} arrival={end}; not a traversal")
