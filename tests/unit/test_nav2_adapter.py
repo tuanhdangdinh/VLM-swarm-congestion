@@ -69,10 +69,12 @@ class _FakeActionClient:
 
     def __init__(self) -> None:
         self.sent_goals: list = []
+        self.sent_kwargs: list[dict] = []
         self._handle = _FakeGoalHandle()
 
-    def send_goal_async(self, goal_msg) -> _FakeFuture:
+    def send_goal_async(self, goal_msg, **kwargs) -> _FakeFuture:
         self.sent_goals.append(goal_msg)
+        self.sent_kwargs.append(kwargs)
         return _FakeFuture(self._handle)
 
     def wait_for_server(self, timeout_sec=None) -> bool:
@@ -308,6 +310,63 @@ def test_send_waypoints_sets_map_frame_and_requested_positions(adapter: Nav2Adap
         assert pose.header.frame_id == "map"
         assert pose.pose.position.x == x
         assert pose.pose.position.y == y
+
+
+def _feedback(index: int) -> SimpleNamespace:
+    return SimpleNamespace(feedback=SimpleNamespace(current_waypoint=index))
+
+
+def _progress_lines(adapter: Nav2Adapter) -> list[str]:
+    return [m for m in adapter._node.get_logger().infos if m.startswith("waypoint leg progress")]
+
+
+def test_send_goal_passes_no_feedback_callback(adapter: Nav2Adapter) -> None:
+    """The NavigateToPose path sends the goal alone, exactly as before waypoint logging."""
+    adapter.send_goal("robot_1", x=1.0, y=2.0, yaw=0.0)
+
+    client: _FakeActionClient = adapter._goal_clients["robot_1"]
+    assert client.sent_kwargs == [{}]
+
+
+def test_send_waypoints_logs_each_leg_change_once(adapter: Nav2Adapter) -> None:
+    """Repeated feedback for the same leg logs once; a new leg logs again."""
+    adapter._node.clock.seconds = 41.5
+    adapter.send_waypoints("robot_1", waypoints=[(0.3, 1.2), (1.8, 1.2)])
+    callback = adapter._waypoint_clients["robot_1"].sent_kwargs[-1]["feedback_callback"]
+
+    for index in (0, 0, 0, 1, 1):
+        callback(_feedback(index))
+
+    assert _progress_lines(adapter) == [
+        "waypoint leg progress robot=robot_1 current_waypoint=0 of=2 "
+        "target=(0.30, 1.20) sim_t=41.500",
+        "waypoint leg progress robot=robot_1 current_waypoint=1 of=2 "
+        "target=(1.80, 1.20) sim_t=41.500",
+    ]
+
+
+def test_send_waypoints_restarts_progress_for_a_new_route(adapter: Nav2Adapter) -> None:
+    """A second route logs its first leg even if the index equals the last one logged."""
+    adapter.send_waypoints("robot_1", waypoints=[(0.3, 1.2), (1.8, 1.2)])
+    first = adapter._waypoint_clients["robot_1"].sent_kwargs[-1]["feedback_callback"]
+    first(_feedback(0))
+
+    adapter.send_waypoints("robot_1", waypoints=[(1.0, 0.0)])
+    second = adapter._waypoint_clients["robot_1"].sent_kwargs[-1]["feedback_callback"]
+    second(_feedback(0))
+
+    assert len(_progress_lines(adapter)) == 2
+    assert _progress_lines(adapter)[1].endswith("current_waypoint=0 of=1 target=(1.00, 0.00) sim_t=0.000")
+
+
+def test_send_waypoints_logs_out_of_range_index_without_target(adapter: Nav2Adapter) -> None:
+    """An index past the route (server reporting completion) still logs, with no target."""
+    adapter.send_waypoints("robot_1", waypoints=[(0.3, 1.2)])
+    callback = adapter._waypoint_clients["robot_1"].sent_kwargs[-1]["feedback_callback"]
+
+    callback(_feedback(1))
+
+    assert "current_waypoint=1 of=1 target=none" in _progress_lines(adapter)[0]
 
 
 # ---------------------------------------------------------------------------

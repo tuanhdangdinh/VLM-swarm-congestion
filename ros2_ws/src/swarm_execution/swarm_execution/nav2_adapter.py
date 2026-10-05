@@ -181,7 +181,13 @@ class Nav2Adapter(Node):
         waypoints: list[tuple[float, float]],
         on_result: Callable[[str, str], None] | None = None,
     ):
-        """Send a FollowWaypoints goal for a route."""
+        """Send a FollowWaypoints goal for a route.
+
+        Unlike `send_goal`, this subscribes to the action's feedback and logs
+        each change of the server's `current_waypoint`, so a multi-leg route's
+        progress is visible in the M4 log (the first live use of this path
+        stalled with no record of which leg it was on).
+        """
         self.cancel(robot_id)
         client = self._waypoint_clients.setdefault(
             robot_id, self._make_client(robot_id, "follow_waypoints")
@@ -189,11 +195,45 @@ class Nav2Adapter(Node):
         goal_msg = FollowWaypoints.Goal()
         for x, y in waypoints:
             goal_msg.poses.append(_pose_at(x, y))
-        future = client.send_goal_async(goal_msg)
+        progress: dict[str, int | None] = {"current": None}
+        future = client.send_goal_async(
+            goal_msg,
+            feedback_callback=lambda feedback, rid=robot_id, route=list(waypoints): (
+                self._on_waypoint_feedback(rid, route, progress, feedback)
+            ),
+        )
         future.add_done_callback(
             lambda done, rid=robot_id, cb=on_result: self._on_goal_response(rid, done, cb)
         )
         return future
+
+    def _on_waypoint_feedback(
+        self,
+        robot_id: str,
+        route: list[tuple[float, float]],
+        progress: dict[str, int | None],
+        feedback_msg,
+    ) -> None:
+        """Log a FollowWaypoints route's leg index each time it changes.
+
+        Args:
+            robot_id: Robot following the route.
+            route: The waypoints sent, as `(x, y)` in the map frame.
+            progress: Per-goal mutable state holding the last logged index.
+            feedback_msg: The action feedback message (`.feedback.current_waypoint`).
+        """
+        feedback = getattr(feedback_msg, "feedback", feedback_msg)
+        index = getattr(feedback, "current_waypoint", None)
+        if index is None or index == progress["current"]:
+            return
+        progress["current"] = int(index)
+        target = route[index] if 0 <= index < len(route) else None
+        target_text = "none" if target is None else f"({target[0]:.2f}, {target[1]:.2f})"
+        sim_t = self._node.get_clock().now().nanoseconds / 1e9
+        self._node.get_logger().info(
+            f"waypoint leg progress robot={robot_id} current_waypoint={index} "
+            f"of={len(route)} target={target_text} sim_t={sim_t:.3f}"
+        )
 
     def backup(
         self,
