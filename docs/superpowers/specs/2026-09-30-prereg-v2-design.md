@@ -351,7 +351,22 @@ foundations.md`):**
   table (no B1 solo-in-time mixing). Scorer fields + outcome classes
   (resolved/intermittent/clogged) BUILT 2026-10-05, additive-only;
   pinned calibration passed (step-6 ep2 clogged, step-7b 4/4
-  resolved, demo ep2 resolved).
+  resolved, demo ep2 resolved). TABLE FROZEN (2026-10-05):
+  `config/free_flow/free_flow_v1.json` — 22 solo-in-space runs, 8
+  cells, 28 entries (priority family covered by measured identity,
+  md5-verified maps + collision-free prop); all delays in the
+  historical re-score positive, passer < held robots in every IB10
+  episode, B1's unobstructed pair within 0.5 s of solo times
+  (`docs/reports/2026-10-05-free-flow-table.md`). RULINGS:
+  `convoy_counterflow` is COVERED by `convoy_counterflow_slip`'s
+  entries (byte-identical geometry, pinned at step 9) — add the
+  aliased rows via the generator at the next table touch, never by
+  hand (the committed-equals-generated test governs);
+  `blocked_path_*` baselines deferred (decision-scored cells, ~25
+  min whenever wanted); the stale `--duration-sec` claim in
+  t2b_flow_ordering.yaml's header is noted for the next permitted
+  touch of that frozen file (the flag is parsed but unused — the
+  variant yaml's duration_sec is what stops Isaac).
 - TAXONOMY FOOTING: deadlock ↔ circular wait (AGV resource theory) /
   force-equilibrium (Grover, arXiv:1911.09146) / clogged absorbing
   state; bottleneck ↔ intermittent clogging at a constriction;
