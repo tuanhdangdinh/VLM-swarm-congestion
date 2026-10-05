@@ -545,6 +545,39 @@ class Replay:
             str(int(round((m["ox"] + (c + 0.5) * m["res"]) * 10)) % 10) for c in range(c0, c1 + 1)))
         return "\n".join(lines)
 
+    def static_cells(self) -> set[tuple[int, int]]:
+        """Static-map lethal cells as `(col, row)`."""
+        w = self.meta["w"]
+        return {(i % w, i // w) for i in self.static}
+
+    def phase_scans(self, index: int, registration: str = "tf"):
+        """Yield `(ox, oy, ranges, angles)` for one phase, as `accumulate` takes."""
+        start = next(m for m in self.markers if m["event"] == "phase_start" and m["index"] == index)
+        end = next(m for m in self.markers if m["event"] == "phase_end" and m["index"] == index)
+        t0, t1 = start["sim"], end["sim"]
+        grids = [g for g in self.grids if t0 < g["stamp"] <= t1]
+        t_cut = grids[-1]["stamp"] if grids else t1
+        for s in self.scans:
+            if not (t0 < s["stamp"] <= t_cut):
+                continue
+            base = self.tf_base(s["stamp"]) if registration == "tf" else self.gt.pose(s["stamp"])
+            if base is None:
+                continue
+            ox, oy, th = self.lidar_pose(base)
+            r = np.array([v if v is not None else -1.0 for v in s["ranges"]])
+            a = th + s["amin"] + np.arange(len(r)) * s["ainc"]
+            ok = (r >= s["rmin"]) & (r < s["rmax"])
+            yield ox, oy, r[ok], a[ok]
+
+    def observed_closed(self, index: int) -> int:
+        """Closed columns of the last recorded grid of a phase (from its new marks)."""
+        start = next(m for m in self.markers if m["event"] == "phase_start" and m["index"] == index)
+        end = next(m for m in self.markers if m["event"] == "phase_end" and m["index"] == index)
+        grids = [g for g in self.grids if start["sim"] < g["stamp"] <= end["sim"]]
+        w = self.meta["w"]
+        marks = {(i % w, i // w) for i in grids[-1]["new_lethal"]}
+        return closed_cols_from_marks(marks, self.static_cells())
+
     def timeline(self, t0: float, t1: float, step: float = 0.5) -> list[dict]:
         """Registration error and observed aisle marks, time-aligned on sim time."""
         rows = []
@@ -567,6 +600,66 @@ class Replay:
         return rows
 
 
+def _ray_cells(ox: float, oy: float, ex: float, ey: float) -> list[tuple[int, int]]:
+    """Cells crossed from (ox, oy) towards (ex, ey), excluding the end cell."""
+    n = max(1, int(math.hypot(ex - ox, ey - oy) / (RES / 4)))
+    end = cell_of(ex, ey)
+    out, last = [], None
+    for k in range(n):
+        c = cell_of(ox + (ex - ox) * k / n, oy + (ey - oy) * k / n)
+        if c != last and c != end:
+            out.append(c)
+            last = c
+    return out
+
+
+def accumulate(scans, clearing: bool, obstacle_max: float, raytrace_max: float) -> set:
+    """Obstacle-layer marks after a scan sequence, with or without raytrace clearing.
+
+    Mirrors nav2_costmap_2d::ObstacleLayer per scan: when `clearing`, free
+    every cell a ray crosses up to `raytrace_max` (end cell excluded); then
+    mark every return closer than `obstacle_max`.
+
+    Args:
+        scans: Iterable of `(ox, oy, ranges, world_angles)`; ranges already
+            filtered to valid returns.
+        clearing: The observation source's `clearing` flag.
+        obstacle_max: `obstacle_max_range`.
+        raytrace_max: `raytrace_max_range`.
+
+    Returns:
+        Set of `(col, row)` lethal cells.
+    """
+    marks: set = set()
+    for ox, oy, rng, ang in scans:
+        ex, ey = ox + rng * np.cos(ang), oy + rng * np.sin(ang)
+        if clearing and marks:
+            for r, a, x, y in zip(rng, ang, ex, ey, strict=True):
+                if r > raytrace_max:
+                    x, y = ox + raytrace_max * math.cos(a), oy + raytrace_max * math.sin(a)
+                for c in _ray_cells(ox, oy, x, y):
+                    marks.discard(c)
+        keep = rng < obstacle_max
+        marks |= {cell_of(x, y) for x, y in zip(ex[keep], ey[keep], strict=True)}
+    return marks
+
+
+def closed_cols_from_marks(marks: set, static_cells: set) -> int:
+    """Closed aisle columns: every aisle cell within the inscribed radius of a lethal cell.
+
+    Inscribed radius 0.08 m covers exactly the 3x3 neighbourhood at 0.05 m.
+    """
+    lethal = marks | static_cells
+    rows = [cell_of(0.0, y)[1] for y in np.arange(AISLE_Y[0], AISLE_Y[1] + 1e-9, RES)]
+    cols = [cell_of(x, 0.0)[0] for x in np.arange(AISLE_X[0] + RES / 2, AISLE_X[1], RES)]
+    closed = 0
+    for c in cols:
+        if all(any((c + dc, r + dr) in lethal for dc in (-1, 0, 1) for dr in (-1, 0, 1))
+               for r in rows):
+            closed += 1
+    return closed
+
+
 def _crop_y0_x0(grid: dict) -> tuple[float, float]:
     return ORIGIN[1] + (grid["crop_r0"] + 0.5) * RES, ORIGIN[0] + (grid["crop_c0"] + 0.5) * RES
 
@@ -587,6 +680,62 @@ def _new_in_crop(grid: dict) -> int:
     nr, nc = len(grid["crop"]), len(grid["crop"][0])
     return sum(1 for i in grid["new_lethal"]
                if r0 <= i // w < r0 + nr and c0 <= i % w < c0 + nc)
+
+
+COUNTERFACTUALS = (
+    ("as configured: clearing off, 3.5 m", False, 3.5, 3.0),
+    ("C: obstacle_max_range 2.5", False, 2.5, 3.0),
+    ("C: obstacle_max_range 2.0", False, 2.0, 3.0),
+    ("H: clearing on, raytrace 3.0 (default)", True, 3.5, 3.0),
+    ("H: clearing on, raytrace 3.5", True, 3.5, 3.5),
+    ("H+C: clearing on, 2.5 / 3.0", True, 2.5, 3.0),
+)
+
+
+def main_counterfactual(run_dir: Path) -> int:
+    """Closed aisle columns per phase under obstacle-layer parameter variants."""
+    rp = Replay(run_dir)
+    static = rp.static_cells()
+    starts = [m for m in rp.markers if m["event"] == "phase_start"]
+    for ph in starts:
+        i = ph["index"]
+        print(f"phase {i} {ph['kind']} wz={ph.get('wz')}: observed closed {rp.observed_closed(i)}")
+        for name, clearing, omax, rmax in COUNTERFACTUALS:
+            marks = accumulate(rp.phase_scans(i, "tf"), clearing, omax, rmax)
+            print(f"  {name:42s} closed {closed_cols_from_marks(marks, static):2d}")
+        marks = accumulate(rp.phase_scans(i, "gt"), False, 3.5, 3.0)
+        print(f"  {'A bound: perfect localizer (GT), as configured':42s} closed "
+              f"{closed_cols_from_marks(marks, static):2d}")
+    return 0
+
+
+def forward_counterfactual(bundle: Path, t0: float, t1: float, lag: float, delay: float) -> int:
+    """Run-2 forward model (lag registration) under the same variants."""
+    gt = GroundTruth(bundle / "gt" / "ground_truth.jsonl")
+    crop = Crop(bundle / "probe.jsonl")
+    static = {(crop.c0 + j, crop.r0 + i) for i, j in zip(*np.nonzero(crop.static_lethal),
+                                                        strict=True)}
+    rects = loop_map_rects()
+    beams = np.deg2rad(np.arange(360.0))
+
+    def scans(t_end):
+        t = t0
+        while t <= t_end + 1e-9:
+            x, y, th = gt.pose(t)
+            lx, ly = x + LIDAR_OFFSET_X * math.cos(th), y + LIDAR_OFFSET_X * math.sin(th)
+            rng = raycast(lx, ly, th + beams, rects)
+            ok = (rng >= RANGE_MIN) & (rng < RANGE_MAX)
+            bx, by, bth = believed_pose(gt, t, "lag", lag, delay)
+            yield (bx + LIDAR_OFFSET_X * math.cos(bth), by + LIDAR_OFFSET_X * math.sin(bth),
+                   rng[ok], bth + beams[ok])
+            t += 1.0 / SCAN_HZ
+
+    for t_end in (18.07, 24.43, t1):
+        print(f"forward model lag={lag} delay={delay}, sim {t0} -> {t_end}:")
+        for name, clearing, omax, rmax in COUNTERFACTUALS:
+            marks = accumulate(scans(t_end), clearing, omax, rmax)
+            print(f"  {name:42s} closed {closed_cols_from_marks(marks, static):2d}")
+    return 0
 
 
 def main_replay(run_dir: Path, json_out: Path | None) -> int:
@@ -617,6 +766,8 @@ def main() -> int:
     """CLI entry point."""
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("bundle", type=Path)
+    ap.add_argument("--counterfactual", action="store_true",
+                    help="closed columns under obstacle-layer variants (replay or forward)")
     ap.add_argument("--replay", action="store_true",
                     help="BUNDLE is a costmap_probe run dir (export.jsonl + phases.jsonl + gt/)")
     ap.add_argument("--probe", type=Path, default=None)
@@ -629,8 +780,12 @@ def main() -> int:
     ap.add_argument("--show", default="", help="comma-separated crop sim times to render")
     ap.add_argument("--json", type=Path, default=None)
     args = ap.parse_args()
+    if args.replay and args.counterfactual:
+        return main_counterfactual(args.bundle)
     if args.replay:
         return main_replay(args.bundle, args.json)
+    if args.counterfactual:
+        return forward_counterfactual(args.bundle, args.start, args.end, args.lag, args.delay)
     probe = args.probe or args.bundle / "probe.jsonl"
     phases = [float(p) for p in args.phases.split(",")]
     show = [float(s) for s in args.show.split(",") if s]
