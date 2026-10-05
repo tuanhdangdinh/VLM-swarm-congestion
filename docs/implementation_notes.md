@@ -37,6 +37,21 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-05** — **GT-offset audit: no frozen number changes; the GT
+  clock offset is scene-dependent.** (`docs/reports/2026-10-05-costmap-
+  fix-validation.md` Part 0; `scripts/gt_offset_audit.py`.) All v2
+  scorers are GT-only or offset-free except `score_loop.self_detour`
+  (biased toward True by the clock offset; real margins 6–11 s) and the
+  battery-v2 derivations (frame stamp used as GT time): 0 answer flips
+  over 139 v2 + 60 v1 items at shifts 0.30 / 0.45 / 0.55 s; only
+  eligibility margins move (temporal_order frames sit ~0.3–0.5 s closer
+  to the later event than the registered 0.5 s floor). The GT log lags
+  ROS stamps by **0.300 s with one robot but 0.500 s in 4-robot IB10**
+  (odometry vs GT, < 0.1 mm residual); M1's own latency is only tens of
+  ms. So the standing −0.45 s M1↔GT join offset is ≈ the GT clock
+  offset, not "0.300 + 0.15 M1": any future ROS-time→GT join must fit
+  the offset per run from odometry (the probe's `_fit_gt_offset`).
+
 - **2026-10-05** — **`free_flow_v1` FROZEN, solo-in-space, 22/22 runs
   valid** (`docs/reports/2026-10-05-free-flow-table.md`; branch
   `feat/v2-freeflow-harvest`, code `b3a4c99`, table `fc8c704`). This
@@ -4772,6 +4787,21 @@ Rules for maintaining it:
 
 ## M1 Perception
 
+- **2026-10-05** — **Camera localizer pairing defect, root cause refined
+  (v3-parked fix A′ on `feat/v3-costmap-fix`).** During fast in-place
+  turns M1 loses the ArUco marker for up to 0.6 s (`markers_detected: 0`)
+  and carries the last pose forward with its OLD robot stamp while the
+  scene stamp advances (status stays SLOW, not STALE). The localizer's
+  `Time()` lookup composed that frozen pose with fresh odometry: up to
+  0.46 rad of `map -> odom` yaw error. Fix: `odom_lookup_stamp` pairs at
+  the robot entry's own stamp minus `m1_latency_compensation_sec`
+  (default 0.01 s, measured ROS-domain on fresh detections: median
+  0.0075 s, range −0.015…0.06; `scripts/m1_latency_fit.py`). Offline
+  replay: A′ alone zeroes every probe closure even with clearing off;
+  d = 0.15 s re-opens them. The probe report's "M1 upstream 0.04–0.20 s"
+  was carried-forward rows (superseded by this entry). Report:
+  `docs/reports/2026-10-05-costmap-fix-validation.md`.
+
 - **2026-10-01** — **robot_1/`x=-1.75` STALE dropout, scope narrowed
   further but NOT fully closed: the goal arrival and the single-yield
   park dwell are clean at the specific poses tested; the not-yet-built v2
@@ -6062,6 +6092,33 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-10-05** — **Costmap fix A′ + H built and live-validated on the
+  PARKED v3 branch `feat/v3-costmap-fix` (local only, never merged into
+  the v2 line; v2/v1 run as-is by the spec ruling).** Report:
+  `docs/reports/2026-10-05-costmap-fix-validation.md`. Bundles: main
+  checkout `data/logs/vm_runs/costmap_fix/`.
+  - **H (shared Nav2 params, v3-parked):** `obstacle_layer.scan`
+    `clearing: true`, `marking: true`, `raytrace_max_range: 3.5` on both
+    costmaps (`nav2_params.yaml`); pinned in `test_nav2_params_config.py`.
+  - **A′ refined (shared M1 node, v3-parked):** see the M1 entry of the
+    same date — pairing at the M1 robot entry's own stamp, not the scene
+    stamp.
+  - **Live, post-fix:** rotation probe 0 / 0 closed columns (pre-fix
+    12 / 13); `wp_fwd` reroute COMPLETED on both seeds, WP1 reached
+    0.07 m, arrival accepted — the follow_waypoints reroute gap is closed
+    on this branch; IB10 composite 4/4 yielder-last (1, 4, 4); free-flow
+    spot checks within ±1.5 s; loop pre-emption still no self-detour.
+  - **Protocol (v3 must know):** H changes outcome TIMING, not outcomes.
+    T3c (same tree, pre/post): the removed pallet's stale local-costmap
+    marks no longer stall robot_1 for ~17 s, arrival after removal
+    32.0 → 13.6 s. IB10 (same-tree pre-fix A/B): same outcome and order,
+    last arrival 183.9 → 128.4 s after t0, passer transits roughly halved. Any v3
+    comparison against a v2-frozen time must account for it.
+  - **VM:** restored to the PRE-FIX pristine state after the batch (source
+    = `a8fc1bc` manifest except the pristine orchestrator.yaml; installed
+    swarm_perception / swarm_simulation md5-identical to the pre-deploy
+    snapshot); the fix lives only in the branch.
+
 - **2026-10-05** — **Phantom second-aisle lethal cells: one source plus one
   amplifier; diagnosis only, no fix applied.** Branch
   `feat/v2-costmap-probe`. Report:
@@ -6075,7 +6132,9 @@ Rules for maintaining it:
     38.5 was the BT recovery clear at sim 37.8.
   - **Source (M1 localizer).** The registration error equals the
     `map -> odom` yaw: −ω × (M1 upstream latency 0.04–0.20 s + `Time()`
-    pairing, median 0.10–0.32 s, max 0.43 s).
+    pairing, median 0.10–0.32 s, max 0.43 s). (The "M1 upstream" term is
+    superseded by the 2026-10-05 M1 entry: it was carried-forward poses;
+    fresh-detection latency is ~0.01 s.)
     - A 0.81 rad/s turn (0.39–0.50 rad of error) closes 6–13 columns in
       2–4 s.
     - Static parks (280 sim-s, 2 poses) close 0.
@@ -6087,6 +6146,8 @@ Rules for maintaining it:
     0.2 mm. Comparing M1, odometry or TF with GT at equal numeric times
     inflates lag by 0.3 s. That inflated the waypoints report's "M1 lags
     0.3–0.45 s" and this report's initial draft.
+    (The 0.300 s value holds for single-robot runs only; superseded by the
+    2026-10-05 GT-offset audit entry: 0.500 s in 4-robot IB10.)
   - **Geometry.** Legitimate half-cell returns (y 0.925 / 1.475) plus RTX
     range-noise tails narrow the aisle but never close it alone (17 % of
     run 2's pre-clear marks).
