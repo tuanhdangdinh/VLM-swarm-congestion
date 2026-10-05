@@ -294,7 +294,7 @@ $P scripts/costmap_source_analysis.py $D/costmap_probe/cp_a_s42 --replay --count
   - two docs commits and the probe tooling;
   - nothing under `ros2_ws/src`, so no colcon rebuild was needed and no module was deleted (the build-cache purge was not applicable).
 
-  The method was `git archive` of exactly that file list, then `tar -xzmf`, then `touch`. The md5 of every shipped file equals the local file. The exporter fix was re-shipped the same way. After the last run, the tip's delta was re-shipped and re-verified (8 / 8 md5 match).
+  The method was `git archive` of exactly that file list, then `tar -xzmf`, then `touch`. The md5 of every shipped file equals the local file. The exporter fix was re-shipped the same way. After the last run and the final commit, the tip's delta was re-shipped and re-verified (9 / 9 md5 match).
 - **Per run.** Each run passed:
   - the `pgrep -f run_simulation`-empty gate (0 s wait each time);
   - `GATE OK: logs saved to present`;
@@ -303,7 +303,7 @@ $P scripts/costmap_source_analysis.py $D/costmap_probe/cp_a_s42 --replay --count
   - the bag stopped by SIGINT before fc_launch's container restart (`Recording stopped`), then exported and copied out.
 
   Run A s42's in-run export failed on a marker-key collision. It was re-exported from the host-copied bag after the fix, so no data was lost.
-- **VM at close-out (14:10 UTC).** `pgrep` for Isaac, fc_launch and `isaac.scripts` is empty. The GPU is at 0 % / 171 MiB, and there is no bag or probe process in the container. The VM is left running and idle, as found.
+- **VM at close-out (14:23 UTC).** `pgrep` for Isaac, fc_launch and `isaac.scripts` is empty. The GPU is at 0 % / 171 MiB, and there is no bag or probe process in the container. The VM is left running and idle, as found.
 
 ---
 
