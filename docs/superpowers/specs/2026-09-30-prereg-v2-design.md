@@ -328,6 +328,22 @@ inside M3/diagnostics, where detection is not being measured.
 documented degradation of centralized model planning beyond ~6 agents
 (survey arXiv:2502.03814) — a cited boundary, not an apology.
 
+**`crowding` DROPPED from measured scope (USER DECISION 2026-10-05):**
+the type stays in the M2 enum and schema (removing it would churn the
+v1-frozen prompt lineage and break classification comparability with
+v1 collection), but it is formally OUT of every coverage and accuracy
+claim: no battery cell instantiates it, no GT labels it, and a live
+`crowding` answer scores as a misclassification against the cell's
+registered type. The type-coverage statement for the thesis is:
+three measured congestion types + the none control, each with built
+and smoked cells — deadlock (head-on family, T2b, B2/B2-visual pairs,
+B3 + first-to-slip, T3b), bottleneck (B1, IB10 — the thinnest at two
+cells, both v2-scored), anomaly (T3a blocked_path pair, T3c
+dynamic_anomaly_v2; loop scenes exist but are do-not-collect) — plus
+T0 normal_flow for none. The former token-scale crowding candidate
+remains unregistered (rev 9.5 "Not registered here"), now with this
+explicit drop on record.
+
 **Optional physical-camera episode (owner decision):** a single
 hardware episode (any n, demo-grade) with a physical overhead camera
 would upgrade claim 1's wording to "real physical camera." Not
