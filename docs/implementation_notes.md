@@ -6121,7 +6121,12 @@ Rules for maintaining it:
     `camera_localizer_node` pairs a 0.3–0.45 s old M1 pose with the latest
     odom (`Time()` lookup), which puts up to 0.6 rad of yaw error into
     `map -> odom` while rotating. But the first closure (sim 18.1 s) came
-    with ≤ 0.06 rad, so a second source is not excluded.
+    with ≤ 0.06 rad, so a second source is not excluded. **Superseded in part
+    by the 2026-10-05 costmap-probe entry:** "0.3–0.45 s" and "up to 0.6 rad"
+    are inflated by the GT log's 0.300 s clock offset. The ROS-domain lag is
+    0.14–0.35 s. The "≤ 0.06 rad" was a time-shifted, sparse sample, so no
+    second source is needed. The direct `map -> odom` readings (0.168 /
+    0.326 / 0.592 rad at WP0) were genuine values, only time-shifted.
   - **Options A–G.** All candidates touch shared behaviour or need a
     protocol ruling: localizer lookup or filtering, global obstacle range
     (C, the only option covering both sources), DWB rotation speed, and a
