@@ -706,6 +706,9 @@ def main_counterfactual(run_dir: Path) -> int:
         marks = accumulate(rp.phase_scans(i, "gt"), False, 3.5, 3.0)
         print(f"  {'A bound: perfect localizer (GT), as configured':42s} closed "
               f"{closed_cols_from_marks(marks, static):2d}")
+        marks = accumulate(rp.phase_scans(i, "gt"), True, 3.5, 3.5)
+        print(f"  {'A bound + H (clearing on, raytrace 3.5)':42s} closed "
+              f"{closed_cols_from_marks(marks, static):2d}")
     return 0
 
 
