@@ -37,6 +37,42 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-05** — **`free_flow_v1` FROZEN, solo-in-space, 22/22 runs
+  valid** (`docs/reports/2026-10-05-free-flow-table.md`; branch
+  `feat/v2-freeflow-harvest`, code `b3a4c99`, table `fc8c704`). This
+  supersedes the "harvest blocker" sub-bullet of the entry below.
+  - **Generator:** `scripts/make_free_flow_variants.py` writes
+    `isaac/config/scenarios/free_flow/<cell>_ff_<robot>.yaml` plus
+    `manifest.json`. Each variant has:
+    - the one robot, verbatim;
+    - the parent's course, except that blocker cells lose their blockers;
+    - `family: normal_flow`, no oracle;
+    - 120 sim-s duration.
+    `--check` and the tests pin that the committed files are the
+    generator's output.
+  - **Maps reused:** every variant grid equals its parent's grid, because
+    timed obstacles are never baked into maps. fc_launch takes a
+    `MAP_SCENARIO` override, so no map is installed.
+  - **Results:**
+    - The table covers 8 cells and 12 scenes (`priority_visual_r1` covers
+      `_r2` and the urgent pair by identity).
+    - The effective free-flow speed is 0.15 m/s everywhere.
+    - IB10 arms are 20.7–20.9 s.
+    - Re-score: every delay is positive, and the IB10 passer is 50–58 s vs
+      the held robots' 101–182 s.
+  - **Gotchas:**
+    - `run_simulation --duration-sec` is dead in code; the yaml governs.
+    - Ending fc_launch's M5 tail once Isaac exits on its own cuts a solo run
+      to about 5.3 wall-min, and no Isaac outlives its run
+      (`scripts/vm/free_flow_run.sh`).
+    - `build_scenario --config` now takes many configs: 22 USDs in 19 s.
+  - **Suite:** zero-delta vs `b264e9d` (63 failed / 5111 passed vs 4962).
+  - **VM:** restored to the 764-path pre-deploy snapshot with the GPU idle.
+    It is still RUNNING, left as found.
+  - **Open (rulings):**
+    - `blocked_path_*`: the M5 goal for robot_2 is the north pocket, not the
+      scenario goal.
+    - `convoy_counterflow`: whether it is covered by the slip variant.
 - **2026-10-05** — **Foundations-round flow metrics landed on
   `feat/v2-flow-metrics` (`af14b4d`); the free-flow harvest is STOPPED on
   a design-level finding** (`docs/reports/2026-10-05-flow-metrics.md`).
