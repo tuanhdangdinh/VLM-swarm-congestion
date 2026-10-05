@@ -169,6 +169,16 @@ def test_derive_refuses_a_solo_in_time_traversal_with_company(tmp_path):
                        run_id="r")
 
 
+def test_derive_refuses_a_solo_traversal_that_brushes_a_parked_robot(tmp_path):
+    # robot_2 parked 0.3 m off robot_1's line: the M4 latch would fire.
+    goals = {"robot_1": (2.0, 0.0), "robot_2": (1.0, 0.3)}
+    r1 = _hold((0.0, 0.0), 5) + _track([(0.0, 0.0), (2.0, 0.0)], 100) + _hold((2.0, 0.0), 50)
+    gt = _write_gt(tmp_path / "gt", _frames({"robot_1": r1, "robot_2": _hold((1.0, 0.3), 155)}),
+                   goals)
+    with pytest.raises(ValueError, match="not free flow"):
+        derive_entries(gt, mechanism="solo_in_time", run_id="r", robots=["robot_1"])
+
+
 def test_derive_refuses_a_robot_that_never_arrives(tmp_path):
     goals = {"robot_1": (5.0, 0.0)}
     gt = _write_gt(tmp_path / "gt", _frames({"robot_1": _track([(0.0, 0.0), (1.0, 0.0)], 50)}),
@@ -470,6 +480,20 @@ def test_outcome_class_mapping(label, kwargs, expected):
     assert classify_outcome(valid=True, **kwargs) == expected, label
 
 
+def test_a_composite_without_m5s_log_is_not_guessed_resolved():
+    # IB10's cross phase can fail into a fallback while all four still
+    # arrive (intermittent); without the M5 log that cannot be ruled out.
+    assert classify_outcome(valid=True, all_arrived=True, n_dispatches=1, fallback=None,
+                            fallback_exhausted=None, composite=True) is None
+    assert classify_outcome(valid=True, all_arrived=False, n_dispatches=1, fallback=None,
+                            fallback_exhausted=None, composite=True) == OutcomeClass.CLOGGED
+
+
+def test_ib10_scored_without_m5_log_has_no_class(tmp_path):
+    result = score_ib10(_ib10_gt(tmp_path, IB10_DESIGNED), decisions_dir=_decisions(tmp_path, 1))
+    assert result["outcome_class"] is None
+
+
 def test_an_invalid_run_has_no_outcome_class():
     # step-6 live episode 1: the control stack died ~134.6 sim-s; its
     # censoring is a harness artifact, not a clog.
@@ -479,6 +503,13 @@ def test_an_invalid_run_has_no_outcome_class():
 
 def test_outcome_class_values_are_the_registered_strings():
     assert [c.value for c in OutcomeClass] == ["resolved", "intermittent", "clogged"]
+
+
+RESOLVED_M5_LOG = (
+    "dispatch request=r1 command=r1-junction-recede-robot_4 robot=robot_4\n"
+    "junction_clear phase advance command=r1-junction-release completed=True "
+    "phase_reached=resolved done=True\n"
+)
 
 
 def _decisions(tmp_path: Path, n: int, no_congestion: int = 0) -> Path:
@@ -498,7 +529,8 @@ def _decisions(tmp_path: Path, n: int, no_congestion: int = 0) -> Path:
 def test_ib10_designed_episode_classes_resolved_despite_re_analyses(tmp_path):
     # The 4/4 rerun's shape: one dispatch, then no-congestion re-analyses.
     result = score_ib10(_ib10_gt(tmp_path, IB10_DESIGNED),
-                        decisions_dir=_decisions(tmp_path, 1, no_congestion=4))
+                        decisions_dir=_decisions(tmp_path, 1, no_congestion=4),
+                        m5_log=RESOLVED_M5_LOG)
     assert result["outcome_class"] == "resolved"
     assert result["outcome_evidence"]["n_dispatches"] == 1
 
@@ -551,8 +583,11 @@ def test_flow_cli_scores_any_cell_with_an_explicit_table(tmp_path, capsys):
     table = build_table("free_flow_test", {"intersection_bottleneck": {
         rid: _entry(10.0) for rid in IB10_DESIGNED}})
     path = _write_table(tmp_path / "t.json", table)
+    log = tmp_path / "m5.log"
+    log.write_text(RESOLVED_M5_LOG)
     assert main(["flow", "--scenario", "intersection_bottleneck", "--gt", str(gt),
-                 "--free-flow", str(path), "--decisions", str(_decisions(tmp_path, 1))]) == 0
+                 "--free-flow", str(path), "--decisions", str(_decisions(tmp_path, 1)),
+                 "--m5-log", str(log)]) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["delay_vs_free_flow"]["table_id"] == "free_flow_test"
     assert out["delay_vs_free_flow"]["complete"] is True

@@ -1602,6 +1602,7 @@ def classify_outcome(
     n_dispatches: int | None,
     fallback: bool | None,
     fallback_exhausted: bool | None,
+    composite: bool = False,
 ) -> OutcomeClass | None:
     """Map one episode's existing outcome fields onto `OutcomeClass`.
 
@@ -1621,6 +1622,11 @@ def classify_outcome(
         n_dispatches: Dispatched decisions (`count_dispatches`); None unknown.
         fallback: A composite `fallback` phase ran; None unknown.
         fallback_exhausted: M5 logged `outcome=fallback_exhausted`; None unknown.
+        composite: The cell runs a phased composite (IB10 `junction_clear`),
+            whose cross phase can fail into a fallback while every robot
+            still arrives; without M5's log (`fallback` None) such an
+            all-arrived episode cannot be told `resolved` from
+            `intermittent`.
 
     Returns:
         The class, or None for an invalid run or when the evidence needed to
@@ -1636,7 +1642,7 @@ def classify_outcome(
         return OutcomeClass.CLOGGED
     if (n_dispatches is not None and n_dispatches >= 2) or fallback:
         return OutcomeClass.INTERMITTENT
-    if n_dispatches is None:
+    if n_dispatches is None or (composite and fallback is None):
         return None
     return OutcomeClass.RESOLVED
 
@@ -2025,6 +2031,7 @@ def flow_fields(
     outcome = classify_outcome(
         valid=is_valid, all_arrived=all_arrived, n_dispatches=evidence["n_dispatches"],
         fallback=evidence["fallback"], fallback_exhausted=evidence["fallback_exhausted"],
+        composite=bool((scenario.get("oracle") or {}).get("phase_ordinal")),
     )
     return {
         "delay_vs_free_flow": delay_vs_free_flow(

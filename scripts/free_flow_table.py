@@ -72,6 +72,10 @@ from scripts.t2b_forced_order import (  # noqa: E402
 DEFAULT_TABLE_PATH = REPO_ROOT / "config" / "free_flow" / "free_flow_v1.json"
 ORIGIN_RULE = "own_departure"
 ARRIVAL_RULE = "gt_within_0.35_stay_0.5"
+# M4's min-distance latch (swarm_execution/config/safety.yaml) covers idle
+# bystanders too: a solo-in-time traversal passing a parked robot closer than
+# this latched or detoured, so it is not a free-flow time.
+LATCH_CLEARANCE_M = 0.45
 _ROBOT_ID_RE = re.compile(r"^robot_\d+$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -240,7 +244,8 @@ def derive_entries(
 
     Raises:
         ValueError: If a robot never departs or never arrives, or (solo in
-            time) another robot moved during its traversal.
+            time) another robot moved during its traversal or it passed a
+            parked robot inside `LATCH_CLEARANCE_M`.
     """
     rows = _rows(gt_dir)
     tracks: dict[str, list[tuple[float, dict[str, Any]]]] = {}
@@ -270,6 +275,11 @@ def derive_entries(
                     )
                 gap = ((me["x"] - robot["x"]) ** 2 + (me["y"] - robot["y"]) ** 2) ** 0.5
                 clearance = gap if clearance is None else min(clearance, gap)
+        if mechanism == "solo_in_time" and clearance is not None and clearance < LATCH_CLEARANCE_M:
+            raise ValueError(
+                f"{gt_dir}: {rid} passed a parked robot at {clearance:.3f} m < "
+                f"{LATCH_CLEARANCE_M} m during its solo traversal; not free flow"
+            )
         entry = {
             "time_sec": round(end - start, 2),
             "run_id": run_id,
