@@ -328,6 +328,36 @@ inside M3/diagnostics, where detection is not being measured.
 documented degradation of centralized model planning beyond ~6 agents
 (survey arXiv:2502.03814) — a cited boundary, not an apology.
 
+**Foundations round adopted (2026-10-05, `reports/Swarm congestion
+foundations.md`):**
+- METRIC CITATIONS adopted for the oracle cost tables and scorers:
+  time-to-resolution ↔ cluster-dissolution time / jam duration
+  (Aguilar Science 2018; arXiv:2403.08683); the censored
+  never-resolves outcome ↔ Zuriguel's clogged-state divergence
+  criterion (Sci Rep 2014) — retroactively the principled frame for
+  T2b's censored margin and `fallback_exhausted`; asymptotic
+  throughput (dos Passos, arXiv:2201.09335) where a cell measures
+  flow; delay-vs-free-flow via one single-robot free-flow run per
+  cell (cheap, registered as a per-cell baseline run at collection).
+- TAXONOMY FOOTING: deadlock ↔ circular wait (AGV resource theory) /
+  force-equilibrium (Grover, arXiv:1911.09146) / clogged absorbing
+  state; bottleneck ↔ intermittent clogging at a constriction;
+  `anomaly` has NO flow-physics counterpart — conceded in print. The
+  resource-vs-dynamical unification is claimable synthesis.
+- SCALE-BRIDGING CHAIN registered as the answer to the small-N
+  objection (five verified links, macro transitions → few-body
+  arches → tractable N=2–3 → micro-policy sets macro flow → conflict
+  conventions eliminate the jammed branch): 2–5-robot structured
+  cells are congestion's unit of formation.
+- ANCHOR for the architecture premise: Marcolino et al. 2017 —
+  reactive avoidance reaches a non-arriving equilibrium — the swarm
+  field's own concession that a higher-level mechanism is needed.
+- ABSENCE SENTENCE adopted verbatim (no semantic/VLM reasoning in
+  the congestion canon; SwarmVLM/ImpedanceGPT carve-out). Strategy
+  pedigree: SQF ≈ convoy, TRVF ≈ reroute.
+- Pre-camera-ready debts tracked in the report's closing (venue/page
+  verifications; ANTS sweep; arXiv:2506.12710 skim).
+
 **`crowding` DROPPED from measured scope (USER DECISION 2026-10-05):**
 the type stays in the M2 enum and schema (removing it would churn the
 v1-frozen prompt lineage and break classification comparability with
