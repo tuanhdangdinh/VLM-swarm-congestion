@@ -931,6 +931,26 @@ re-send.
   registered: explain the clean-costmap loop; validate
   follow_waypoints; a stall mechanism that is planner-invisible
   without contact.
+  UPDATE (2026-10-05,
+  `docs/reports/2026-10-05-follow-waypoints-validation.md`):
+  `follow_waypoints` EXONERATED — the waypoint pipeline works end to
+  end (waypoint 0 reached at 0.054/0.082 m in both validation runs;
+  M4 gained log-only leg-progress lines, plain path pinned
+  byte-identical). The REAL defect: PHANTOM LETHAL CELLS close the
+  0.55 m second aisle in the shared global costmap (up to 16/17
+  aisle columns lethal, nothing physically there) → planner failure
+  → 0.5 m-tolerance fallback into the remnant corner → DWB
+  near-zero-command wedge until the watchdog. Demonstrated
+  contributor: `camera_localizer_node` pairs a 0.3–0.45 s-old M1
+  pose with LATEST odometry, injecting up to 0.6 rad map→odom yaw
+  error during in-place rotations; one closure (≤0.06 rad) is NOT
+  explained — second source open. Leading candidate for the
+  phase-2 "unexplained clean-costmap loop" above. All fix options
+  are SHARED components; NONE APPLIED pending a discriminating
+  static-aisle probe — a shared change would require re-validating
+  v2-era frozen results (IB10 4/4, free_flow_v1); v1 collection is
+  unaffected (runs from the tag). Secondary shared issue noted, not
+  chased: the DWB corner wedge frees only on a new goal.
 - **Risk (retired by the phase-1 gate for its original severity,
   kept for the record):** Nav2
   on a loop map may reroute *on its own* when the global
