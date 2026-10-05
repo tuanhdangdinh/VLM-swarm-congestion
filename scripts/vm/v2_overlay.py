@@ -29,6 +29,11 @@ edits on the PRISTINE files and nothing else:
   the jam), but none of the prompt-apparatus flags: the trails-off and
   trails-on harvest runs share this one M5 overlay, and only M1's
   `annotation.yaml` differs between them. `config/rag.yaml` untouched.
+- `costmap_probe_a` / `costmap_probe_b` (costmap-source probe, 2026-10-05,
+  `docs/reports/2026-10-05-costmap-source-probe.md`): only robot_1's
+  `initial_tasks` goal -- the park pose the probe holds the robot at
+  ((-1.55, 0) in the primary aisle / (0.3, 1.2) at the second-aisle
+  mouth). No `reroute_waypoints`, `config/rag.yaml` untouched.
 
 Restoring is NOT this script's job: the driver copies the verbatim backups
 back (plain copy, fresh mtime) and verifies the pristine md5s.
@@ -70,7 +75,11 @@ SCENE_TASKS: dict[str, list[str]] = {
         "  robot_1: { task: cross_narrow_aisle, goal: [2.6, 0.0] }",
         "  robot_2: { task: cross_narrow_aisle, goal: [-1.5, 0.0] }",
     ],
+    "costmap_probe_a": ["  robot_1: { task: cross_narrow_aisle, goal: [-1.55, 0.0] }"],
+    "costmap_probe_b": ["  robot_1: { task: cross_narrow_aisle, goal: [0.3, 1.2] }"],
 }
+# Scenes whose only edit is `initial_tasks`.
+TASKS_ONLY_SCENES: frozenset[str] = frozenset({"costmap_probe_a", "costmap_probe_b"})
 # Prompt-apparatus smoke: `^key: value$` replacements, then lines appended at
 # the end (the keys the pristine file does not carry).
 APPARATUS_REPLACE: dict[str, dict[str, str]] = {
@@ -121,6 +130,8 @@ def overlay_orchestrator(text: str, scene: str) -> str:
         raise ValueError("reroute_waypoints already present: restore the pristine file first")
     tasks = "initial_tasks:\n" + "\n".join(SCENE_TASKS[scene]) + "\n"
     text = _sub_once(TASKS_RE, lambda _m: tasks, text, "initial_tasks: block")
+    if scene in TASKS_ONLY_SCENES:
+        return text
     if scene in APPARATUS_REPLACE:
         for key, value in APPARATUS_REPLACE[scene].items():
             text = _sub_once(

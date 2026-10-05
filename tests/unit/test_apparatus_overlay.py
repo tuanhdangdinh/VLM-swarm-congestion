@@ -81,3 +81,16 @@ def test_battery_v2_head_on_scene_refuses_a_second_overlay():
     once = overlay_orchestrator(ORCH.read_text(), "battery_v2_head_on")
     with pytest.raises(ValueError):
         overlay_orchestrator(once, "battery_v2_head_on")
+
+
+@pytest.mark.parametrize(
+    ("scene", "goal"), [("costmap_probe_a", (-1.55, 0.0)), ("costmap_probe_b", (0.3, 1.2))]
+)
+def test_costmap_probe_scenes_set_only_the_robot_1_park_goal(scene, goal):
+    pristine = ORCH.read_text()
+    overlaid = overlay_orchestrator(pristine, scene)
+    tasks = load_config(yaml.safe_load(overlaid)).initial_tasks
+    assert set(tasks) == {"robot_1"}
+    assert tasks["robot_1"].goal == goal
+    assert "\n  reroute_waypoints:" not in overlaid
+    assert overlay_rag("grounding:\n  mode: derived\n", scene) is None
