@@ -6062,6 +6062,40 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-10-05** — **Phantom second-aisle lethal cells: one source plus one
+  amplifier; diagnosis only, no fix applied.** Branch
+  `feat/v2-costmap-probe`. Report:
+  `docs/reports/2026-10-05-costmap-source-probe.md`. Bundles:
+  `data/logs/vm_runs/costmap_probe/`. Tooling: `681f5c6`, `83cef79`,
+  `f6bc0b0`, `db40763`.
+  - **Amplifier (shared Nav2 params).** Both costmaps' obstacle layers run
+    with `clearing: false`, the Jazzy default; `nav2_params.yaml` never sets
+    it (verified live with `ros2 param get`). Marks therefore leave only on
+    ClearEntireCostmap. Also, `raytrace_max_range` 3.0 < `obstacle_max_range`
+    3.5. The waypoints report's "raytraced open" at sim 38.5 was the BT
+    recovery clear at sim 37.8.
+  - **Source (M1 localizer).** The lag term −ω × L (L fitted at 0.43–0.60 s)
+    is behind every closure:
+    - Run 2's first closure is reproduced by a GT-driven forward model at the
+      same update (7 vs 5 columns, 72 vs 71 cells). The cause is DWB weave
+      (|ω| ≤ 0.37 rad/s), giving about 0.15 rad of error.
+    - The Rev 2 "≤ 0.06 rad" came from a probe whose rows lagged about 2 s and
+      caught about 20 % of the `map -> odom` publishes.
+    - A 0.78 rad/s in-place turn closes 6–13 columns in 2–4 s.
+    - Static parks (280 sim-s, 2 poses) close 0.
+  - **Geometry.** Legitimate half-cell returns (y 0.925 / 1.475) plus RTX
+    range-noise tails narrow the aisle by about one row per side but never
+    close it alone (17 % of run 2's pre-clear marks).
+  - **Validation.** A bag replay through the recorded TF reproduces the
+    recorded costmap at recall 0.98–1.00. There are no ground or pitch
+    returns.
+  - **Fix matrix.** Replay counterfactuals give 0 closed columns for
+    `clearing: true` with raytrace 3.5 (H), and for the perfect-localizer
+    bound with H. A alone leaves 1–3 columns at fast rotation; C alone fails
+    within 2 m. Every option but E/F/G touches all live-Nav2 frozen v2
+    results, and H also changes the persistence of removed blockers and robot
+    trails.
+
 - **2026-10-05** — **`follow_waypoints` is not the defect behind "reroute is a
   no-op"; the fix is blocked on a shared change (STOP).** Branch
   `feat/v2-waypoints`. Full report:

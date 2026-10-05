@@ -271,7 +271,7 @@ Probe tooling only; no shared component changed:
 | `scripts/vm/costmap_probe.py` | In-container phase controller (park wait, clear, static / rotate, markers) | `681f5c6` |
 | `scripts/vm/costmap_bag_export.py` | In-container rosbag2_py → JSONL exporter | `681f5c6`, `83cef79` (marker-key fix) |
 | `scripts/vm/v2_overlay.py` | Scenes `costmap_probe_a` / `costmap_probe_b`, which set only robot_1's park goal | `681f5c6` |
-| `scripts/costmap_source_analysis.py` | Forward model, bag replay attribution, counterfactuals | `681f5c6`, `83cef79`, `f6bc0b0` |
+| `scripts/costmap_source_analysis.py` | Forward model, bag replay attribution, counterfactuals | `681f5c6`, `83cef79`, `f6bc0b0`, `db40763` |
 | `tests/unit/test_apparatus_overlay.py` | +2 pins: the probe scenes set only robot_1's goal | `681f5c6` |
 
 Reproduce the analysis with:
