@@ -10,6 +10,11 @@ writes this edge.
 All the maths lives in `camera_localizer.py` (no ROS imports, unit-tested
 offline); this module only converts messages, looks up TF, and broadcasts.
 
+Odometry is looked up at the M1 pose's own time (`odom_lookup:=stamped`, the
+v3 costmap fix A-prime): the robot entry's stamp minus
+`m1_latency_compensation_sec`. `odom_lookup:=latest` restores the pre-fix
+`Time()` pairing for A/B runs only.
+
 Run it through `nav2_robot.launch.py`, or pass `use_sim_time:=true` explicitly:
 outgoing transforms are stamped from this node's clock, so on system time it
 would stamp them onto a timeline the sim-time TF buffer never reaches.
@@ -56,7 +61,15 @@ except ImportError:
     LookupException = ConnectivityException = ExtrapolationException = _Tf2Error
     _HAS_ROS2 = False
 
-from swarm_perception.camera_localizer import CameraLocalizer, Pose2D, normalize_yaw
+from swarm_perception.camera_localizer import (
+    DEFAULT_M1_LATENCY_COMPENSATION_SEC,
+    CameraLocalizer,
+    Pose2D,
+    normalize_yaw,
+    odom_lookup_stamp,
+)
+
+ODOM_LOOKUP_MODES = ("stamped", "latest")
 
 
 class CameraLocalizerNode(Node):
@@ -82,6 +95,13 @@ class CameraLocalizerNode(Node):
         self.declare_parameter("initial_pose.x", 0.0)
         self.declare_parameter("initial_pose.y", 0.0)
         self.declare_parameter("initial_pose.yaw", 0.0)
+        # v3 costmap fix A-prime: `stamped` pairs each M1 pose with odometry at
+        # the pose's own time (`camera_localizer.odom_lookup_stamp`); `latest`
+        # is the pre-fix Time() lookup, kept only as an A/B switch.
+        self.declare_parameter("odom_lookup", "stamped")
+        self.declare_parameter(
+            "m1_latency_compensation_sec", DEFAULT_M1_LATENCY_COMPENSATION_SEC
+        )
 
         self._robot_id = str(self.get_parameter("robot_id").value or "")
         if not self._robot_id:
@@ -105,6 +125,20 @@ class CameraLocalizerNode(Node):
         publish_rate_hz = float(self.get_parameter("publish_rate_hz").value)
         if publish_rate_hz <= 0.0:
             raise ValueError(f"publish_rate_hz must be > 0; got {publish_rate_hz}")
+        self._odom_lookup = str(self.get_parameter("odom_lookup").value)
+        if self._odom_lookup not in ODOM_LOOKUP_MODES:
+            raise ValueError(
+                f"odom_lookup must be one of {ODOM_LOOKUP_MODES}; got {self._odom_lookup!r}"
+            )
+        self._latency_compensation_sec = float(
+            self.get_parameter("m1_latency_compensation_sec").value
+        )
+        if not 0.0 <= self._latency_compensation_sec < 1.0:
+            raise ValueError(
+                "m1_latency_compensation_sec must be in [0, 1); got "
+                f"{self._latency_compensation_sec}"
+            )
+        self._stamped_lookup_failures = 0
 
         # Seed map -> odom with the spawn pose, exactly as AMCL's
         # set_initial_pose does: IsaacComputeOdometry's odom frame is
@@ -138,6 +172,8 @@ class CameraLocalizerNode(Node):
             f"scene_state_topic={scene_state_topic} "
             f"tf={self._map_frame}->{self._odom_frame} "
             f"odom_lookup={self._odom_frame}->{self._base_frame} "
+            f"odom_lookup_mode={self._odom_lookup} "
+            f"m1_latency_compensation_sec={self._latency_compensation_sec} "
             f"publish_rate_hz={publish_rate_hz}"
         )
         if initial_map_to_odom is not None:
@@ -163,7 +199,17 @@ class CameraLocalizerNode(Node):
             )
             return
 
-        odom_pose = self._lookup_odom_pose()
+        if self._odom_lookup == "stamped":
+            lookup_stamp = odom_lookup_stamp(
+                scene_state, self._robot_id, self._latency_compensation_sec
+            )
+            if lookup_stamp is None:
+                # Robot absent (or unstamped): nothing to pair; update() holds.
+                self._localizer.update(scene_state, None)
+                return
+            odom_pose = self._lookup_odom_pose(lookup_stamp)
+        else:
+            odom_pose = self._lookup_odom_pose(None)
         if odom_pose is None:
             return
         # Track the *transition* into the first real update (0 -> 1), not
@@ -192,34 +238,40 @@ class CameraLocalizerNode(Node):
             self.get_logger().info(
                 f"camera_localizer robot_id={self._robot_id} "
                 f"updates={self._localizer.updates} holds={self._localizer.holds} "
+                f"stamped_lookup_failures={self._stamped_lookup_failures} "
                 f"map_odom=({transform[0]:.3f}, {transform[1]:.3f}, {transform[2]:.3f}) "
                 f"scene_stamp={self._localizer.last_update_stamp}"
             )
 
-    def _lookup_odom_pose(self) -> Pose2D | None:
-        """Look up the latest `<robot>/odom -> <robot>/base_footprint` as a Pose2D.
+    def _lookup_odom_pose(self, stamp: float | None) -> Pose2D | None:
+        """Look up `<robot>/odom -> <robot>/base_footprint` as a Pose2D.
+
+        Args:
+            stamp: ROS time (seconds) to look the transform up at, or None for
+                the latest available transform (the pre-fix `latest` mode).
 
         Returns:
             The odometry pose as `(x, y, yaw)`, or None when TF cannot serve it.
         """
+        if stamp is not None and stamp < 0.0:
+            self._stamped_lookup_failures += 1
+            return None
+        # `stamped`: no TF wait (timeout 0). The listener shares this node's
+        # executor, so a blocking wait inside this callback could never be
+        # satisfied; the pose time is in the past by M1's pipeline latency, so
+        # odometry (60 Hz) normally covers it already. An extrapolation miss
+        # holds the previous correction; it must never fall back to the latest
+        # transform, which is exactly the pre-fix pairing error.
+        when = Time() if stamp is None else Time(nanoseconds=int(round(stamp * 1e9)))
         try:
-            # WHY the LATEST transform (Time()) and not the scene stamp: this
-            # was written when Isaac stamped camera frames (and so
-            # scene_state.stamp) with SYSTEM time while TF ran on SIM time, so a
-            # stamped lookup asked about an unrelated timeline. Since
-            # 2026-09-27 the camera is sim-stamped and the timelines agree; the
-            # latest lookup is kept because a stamped one would add a TF-buffer
-            # wait/extrapolation failure mode for a small gain. Its cost is a
-            # latency error bounded by speed * camera latency: <= 0.2 m/s *
-            # ~0.1 s = <= 2 cm, below the localization error AMCL degenerates
-            # to during the yield manoeuvre this replaces.
-            tf = self._tf_buffer.lookup_transform(
-                self._odom_frame, self._base_frame, Time()
-            )
+            tf = self._tf_buffer.lookup_transform(self._odom_frame, self._base_frame, when)
         except (LookupException, ConnectivityException, ExtrapolationException) as exc:
+            if stamp is not None:
+                self._stamped_lookup_failures += 1
             self.get_logger().warning(
                 f"camera_localizer robot_id={self._robot_id} no TF "
-                f"{self._odom_frame}->{self._base_frame}: {exc}",
+                f"{self._odom_frame}->{self._base_frame} at stamp={stamp} "
+                f"stamped_lookup_failures={self._stamped_lookup_failures}: {exc}",
                 throttle_duration_sec=5.0,
             )
             return None

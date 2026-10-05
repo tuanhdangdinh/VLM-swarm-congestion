@@ -22,6 +22,62 @@ Pose2D = tuple[float, float, float]
 
 _REQUIRED_POSE_KEYS = ("x", "y", "theta")
 
+DEFAULT_M1_LATENCY_COMPENSATION_SEC = 0.01
+"""M1's measured upstream latency: a pose stamped `s` is the robot's pose at `s - d`.
+
+Measured in the ROS domain only (truth = spawn . drift-free odometry, no GT
+clock involved), on FRESH detections (robot stamp == scene stamp) with M1's
+constant position bias removed, in the three costmap-probe bags
+(`scripts/m1_latency_fit.py`, `docs/reports/2026-10-05-costmap-fix-validation.md`):
+six per-run translation/rotation fits span -0.015..0.060 s, median 0.0075 s,
+rounded to 0.01 s -- under a third of a 30 Hz camera frame. The probe report's
+"M1 upstream 0.04-0.20 s" included carried-forward rows (see
+`odom_lookup_stamp`); on fresh detections the latency is near zero.
+"""
+
+def _numeric(value: object) -> float | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+        return float(value)
+    return None
+
+
+def odom_lookup_stamp(
+    scene_state: Mapping[str, object],
+    robot_id: str,
+    latency_compensation_sec: float = DEFAULT_M1_LATENCY_COMPENSATION_SEC,
+) -> float | None:
+    """Return the ROS time at which this robot's M1 pose was true (the A-prime pairing).
+
+    The odometry pose composed with an M1 pose must be the odometry at the
+    instant that M1 pose depicts. That instant is the robot entry's OWN `stamp`
+    (the frame of its last fresh detection), not the scene stamp: during a fast
+    turn M1 loses the marker for up to ~0.6 s and carries the last pose
+    forward with its old stamp while the scene stamp advances, and pairing
+    that carried pose with newer odometry injected up to 0.46 rad of yaw error
+    (costmap-probe bags, `markers_detected: 0` rows). Pairing at the robot
+    stamp instead reproduces the original correction exactly (odometry is
+    drift-free), so a carried row becomes a natural hold. The measured
+    upstream latency is then subtracted.
+
+    Args:
+        scene_state: Parsed `/perception/scene_state` payload.
+        robot_id: Robot whose pose time is wanted.
+        latency_compensation_sec: M1's upstream latency `d` (seconds).
+
+    Returns:
+        `robot.stamp - d`, or `scene.stamp - d` when the robot entry carries no
+        usable stamp, or None when the robot is absent or no stamp is usable.
+    """
+    entry = _find_robot(scene_state, robot_id)
+    if entry is None:
+        return None
+    stamp = _numeric(entry.get("stamp"))
+    if stamp is None:
+        stamp = _numeric(scene_state.get("stamp"))
+    if stamp is None:
+        return None
+    return stamp - latency_compensation_sec
+
 
 def normalize_yaw(yaw: float) -> float:
     """Wrap an angle into the half-open interval `(-pi, pi]`.

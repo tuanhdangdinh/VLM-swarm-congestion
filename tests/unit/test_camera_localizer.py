@@ -10,11 +10,13 @@ import math
 
 import pytest
 from swarm_perception.camera_localizer import (
+    DEFAULT_M1_LATENCY_COMPENSATION_SEC,
     CameraLocalizer,
     compose,
     invert,
     map_to_odom,
     normalize_yaw,
+    odom_lookup_stamp,
 )
 
 IDENTITY = (0.0, 0.0, 0.0)
@@ -177,3 +179,96 @@ def test_yaw_normalized():
         # Same rotation, different representative.
         assert math.cos(wrapped) == pytest.approx(math.cos(yaw), abs=1e-9)
         assert math.sin(wrapped) == pytest.approx(math.sin(yaw), abs=1e-9)
+
+
+def _stamped_robot(robot_id: str, stamp: float | None, status: str = "SLOW") -> dict:
+    robot = _robot(robot_id, 0.8, 0.0, 1.15, status=status)
+    if stamp is not None:
+        robot["stamp"] = stamp
+    return robot
+
+
+def test_odom_lookup_stamp_fresh_detection_uses_scene_stamp_minus_latency():
+    scene = _scene_state(123.4, _stamped_robot("robot_1", 123.4))
+
+    assert odom_lookup_stamp(scene, "robot_1", 0.03) == pytest.approx(123.37, abs=1e-9)
+
+
+def test_odom_lookup_stamp_carried_pose_uses_its_own_detection_stamp():
+    # The cp_a_s42 bag at sim 123.0: marker lost since 122.767, M1 carries the
+    # old pose forward (robot stamp frozen, scene stamp advancing, SLOW).
+    scene = _scene_state(123.0, _stamped_robot("robot_1", 122.766666666))
+
+    assert odom_lookup_stamp(scene, "robot_1", 0.03) == pytest.approx(122.736666666, abs=1e-9)
+
+
+def test_odom_lookup_stamp_missing_robot_stamp_falls_back_to_scene_stamp():
+    scene = _scene_state(50.0, _stamped_robot("robot_1", None))
+
+    assert odom_lookup_stamp(scene, "robot_1", 0.03) == pytest.approx(49.97, abs=1e-9)
+
+
+def test_odom_lookup_stamp_absent_robot_returns_none():
+    scene = _scene_state(50.0, _stamped_robot("robot_2", 50.0))
+
+    assert odom_lookup_stamp(scene, "robot_1", 0.03) is None
+
+
+def test_odom_lookup_stamp_unstamped_scene_and_robot_returns_none():
+    scene = {"robots": [_stamped_robot("robot_1", None)]}
+
+    assert odom_lookup_stamp(scene, "robot_1", 0.03) is None
+
+
+def test_odom_lookup_stamp_rejects_boolean_stamp():
+    scene = _scene_state(50.0, _stamped_robot("robot_1", True))
+
+    assert odom_lookup_stamp(scene, "robot_1", 0.0) == pytest.approx(50.0, abs=1e-9)
+
+
+def test_odom_lookup_stamp_stale_entry_still_resolves_but_update_holds():
+    # STALE is the localizer's own hold rule (`update`), not the lookup's: the
+    # stamp resolves, and the update that follows holds the correction.
+    scene = _scene_state(60.0, _stamped_robot("robot_1", 58.5, status="STALE"))
+    localizer = CameraLocalizer("robot_1", initial_map_to_odom=(-2.4, 0.0, 0.0))
+
+    assert odom_lookup_stamp(scene, "robot_1", 0.03) == pytest.approx(58.47, abs=1e-9)
+    assert localizer.update(scene, (3.2, 0.0, 1.15)) == (-2.4, 0.0, 0.0)
+    assert localizer.holds == 1
+
+
+def test_odom_lookup_stamp_default_latency_is_measured_value():
+    scene = _scene_state(10.0, _stamped_robot("robot_1", 10.0))
+
+    assert odom_lookup_stamp(scene, "robot_1") == pytest.approx(
+        10.0 - DEFAULT_M1_LATENCY_COMPENSATION_SEC, abs=1e-12
+    )
+    assert 0.0 < DEFAULT_M1_LATENCY_COMPENSATION_SEC < 0.1
+
+
+def test_carried_pose_paired_at_its_stamp_reproduces_fresh_correction():
+    # Drift-free odometry: the robot turns in place at 0.8 rad/s from yaw 0
+    # (spawn (-2.4, 0, 0)). The fresh fix at t=1.0 and the same pose carried
+    # to t=1.4 must give the same map->odom when each is paired with odometry
+    # at the pose's own time; pairing the carried pose with odometry at 1.4
+    # (the pre-fix latest lookup) is off by -0.8 * 0.4 = -0.32 rad.
+    spawn = (-2.4, 0.0, 0.0)
+    rate = 0.8
+
+    def odom_at(t: float) -> tuple[float, float, float]:
+        return (0.0, 0.0, normalize_yaw(rate * t))
+
+    camera_pose = compose(spawn, odom_at(1.0))
+    fresh = _scene_state(1.0, {**_stamped_robot("robot_1", 1.0), "x": camera_pose[0],
+                               "y": camera_pose[1], "theta": camera_pose[2]})
+    carried = _scene_state(1.4, {**_stamped_robot("robot_1", 1.0), "x": camera_pose[0],
+                                 "y": camera_pose[1], "theta": camera_pose[2]})
+    localizer = CameraLocalizer("robot_1")
+
+    first = localizer.update(fresh, odom_at(odom_lookup_stamp(fresh, "robot_1", 0.0)))
+    second = localizer.update(carried, odom_at(odom_lookup_stamp(carried, "robot_1", 0.0)))
+    latest = map_to_odom(camera_pose, odom_at(1.4))
+
+    assert first == pytest.approx(spawn, abs=1e-9)
+    assert second == pytest.approx(spawn, abs=1e-9)
+    assert latest[2] == pytest.approx(-0.32, abs=1e-9)

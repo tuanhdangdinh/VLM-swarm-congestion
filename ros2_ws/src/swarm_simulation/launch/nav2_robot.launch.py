@@ -203,7 +203,12 @@ not comparable, so a stamped lookup would fail or extrapolate wildly. The
 resulting latency error is bounded by speed * camera latency (<= 0.2 m/s *
 ~0.1 s = <= 2 cm). (Since 2026-09-27 Isaac stamps camera frames with SIM
 time, so the two stamps now share a timeline; the latest-lookup is kept
-unchanged and its latency bound still holds.) The node carries no node-level `/tf` remaps, for the same
+unchanged and its latency bound still holds.) (2026-10-05, v3 costmap fix A-prime,
+parked branch `feat/v3-costmap-fix`: superseded -- the node now pairs each M1
+pose with odometry at the pose's OWN stamp minus M1's measured latency,
+`camera_localizer.odom_lookup_stamp`; the latest lookup paired M1's
+carried-forward poses with fresh odometry, up to 0.46 rad of yaw error in a
+fast turn.) The node carries no node-level `/tf` remaps, for the same
 reason the AMCL node below carries none.
 
 2026-09-16 — `map_yaml` launch argument, defaulting to the shared
