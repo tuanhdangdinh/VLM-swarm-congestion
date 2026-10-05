@@ -6062,6 +6062,41 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-10-05** — **`follow_waypoints` is not the defect behind "reroute is a
+  no-op"; the fix is blocked on a shared change (STOP).** Branch
+  `feat/v2-waypoints`. Full report:
+  `docs/reports/2026-10-05-follow-waypoints-validation.md`. Bundles:
+  `data/logs/vm_runs/waypoints_validation/`.
+  - **What works.** Waypoints are grounded, sent and accepted, each leg is
+    forwarded to bt_navigator, and WP0 is reached (0.054 / 0.082 m) in both
+    blocker-free runs. Hypotheses (a)–(e) are refuted. `perm_reroute_s42`
+    was wedged at the aisle mouth under its own NavigateToPose before the
+    reroute was dispatched.
+  - **Root cause (shared, M1 localizer).** `camera_localizer_node` pairs a
+    0.3–0.45 s old M1 pose with the latest odom (`Time()` lookup). That puts
+    −ω × lag plus M1 heading noise into `map -> odom`: up to 0.6 rad while
+    rotating and about 0.2 rad while driving straight. The global obstacle
+    layer misregisters long-range lidar returns and closes the 0.55 m second
+    aisle (probe costmap crop, 16/17 columns lethal). The planner then fails
+    to reach WP1 and uses a 0.5 m-tolerance plan into the remnant corner,
+    where DWB holds a near-zero twist until M4's 120 s watchdog fires.
+    Reproduced in `wp_fwd_s42` and `wp_fwd_s43` (both FAIL).
+  - **Options A–E** (localizer stamp-matched lookup or filtering, global
+    obstacle range, DWB rotation speed, a loop-only params file) all touch
+    shared behaviour or need a protocol ruling. None was applied.
+  - **Landed, M4 protocol note.** Log-only `waypoint leg progress` lines from
+    `send_waypoints` feedback (`36d26de`). The `send_goal` path is
+    byte-identical: pinned, and confirmed live by the head-on regression
+    `reg_pv_r1_s42`, whose flow matches `pv_r1_s42` line for line (PASS).
+  - **Gotchas.**
+    - A blocker-free scene never trips M5's stall trigger. Use
+      `/orchestrator/trigger_analysis` (`scripts/vm/waypoint_probe.py`).
+    - Each waypoint pose carries yaw 0, which forces a stop and a fast
+      rotate-to-goal at every waypoint. That aggravates the spike but does
+      not cause it.
+    - M5's arrival gate rejected a tolerance-substituted Nav2 success
+      (0.39 m) in `wp_fwd_s42`.
+
 - **2026-10-03** — **Step-7b rulings (i)/(iii)/(v): M4 race guard + CrossingChain
   gate-event logging, both additive-only.** Branch `feat/v2-step7b`, cut from
   `feat/prereg-v2-composite`. Executes
