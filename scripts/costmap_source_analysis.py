@@ -29,9 +29,17 @@ the bundle's probe output (lethal = 100), with the static layer taken from
 the first full-grid crop, inflation re-applied (cost >= 99 within the
 inscribed radius), and the waypoint probe's closed-column metric.
 
+Replay mode (`--replay RUN_DIR`, a scripts/vm/costmap_probe.sh run with
+`export.jsonl`, `phases.jsonl`, `gt/` and `scenario.yaml`): re-projects every
+RECORDED scan per probe phase three ways -- through the recorded TF exactly as
+the costmap does (`tf`), at the ground-truth pose (`gt`: real returns incl.
+range noise), and as an exact ray-cast at the ground-truth pose (`ideal`) --
+and scores each against the recorded grid's new lethal cells.
+
 Usage:
     costmap_source_analysis.py BUNDLE --start 8.0 --end 37.8 \
         [--model lag --lag 0.45 --delay 0.3] [--probe probe.jsonl]
+    costmap_source_analysis.py RUN_DIR --replay [--json out.json]
 """
 from __future__ import annotations
 
@@ -195,7 +203,7 @@ def simulate_marks(gt, t0, t1, model, lag, delay, rects, phase_deg=0.0):
         ang = bth + beams[ok]
         px = blx + rng[ok] * np.cos(ang)
         py = bly + rng[ok] * np.sin(ang)
-        cells = {cell_of(a, b) for a, b in zip(px, py)}
+        cells = {cell_of(a, b) for a, b in zip(px, py, strict=True)}
         yield t, cells
         t += 1.0 / SCAN_HZ
 
@@ -229,7 +237,7 @@ class Crop:
         out = self.static >= 99
         k = int(math.ceil(INSCRIBED / RES))
         ii, jj = np.nonzero(lethal)
-        for i, j in zip(ii, jj):
+        for i, j in zip(ii, jj, strict=True):
             for di in range(-k, k + 1):
                 for dj in range(-k, k + 1):
                     if math.hypot(di, dj) * RES <= INSCRIBED + 1e-9:
@@ -302,10 +310,315 @@ def compare(bundle: Path, probe: Path, t0: float, t1: float, model: str, lag: fl
     return {"model": model, "lag": lag, "delay": delay, "rows": table}
 
 
+def _interp_series(series: list[dict], t: float) -> tuple[float, float, float] | None:
+    """Linear (x, y, yaw) interpolation of stamp-sorted TF rows; None if outside."""
+    stamps = [r["stamp"] for r in series]
+    i = bisect.bisect_left(stamps, t)
+    if i <= 0 or i >= len(series):
+        return None
+    a, b = series[i - 1], series[i]
+    w = (t - a["stamp"]) / (b["stamp"] - a["stamp"]) if b["stamp"] > a["stamp"] else 0.0
+    dyaw = (b["yaw"] - a["yaw"] + math.pi) % (2 * math.pi) - math.pi
+    return a["x"] + w * (b["x"] - a["x"]), a["y"] + w * (b["y"] - a["y"]), a["yaw"] + w * dyaw
+
+
+def static_lethal_indices(meta: dict, scenario_yaml: Path) -> set[int]:
+    """Flat global-costmap indices the static layer marks lethal.
+
+    Rebuilds the scenario's Nav2 map with the same generator the VM uses
+    (`isaac/scripts/generate_warehouse_map.py`); map_server row 0 is the
+    north edge, the costmap's row 0 the south edge.
+    """
+    import sys
+
+    repo = Path(__file__).resolve().parents[1]
+    if str(repo) not in sys.path:
+        sys.path.insert(0, str(repo))
+    from isaac.scripts.generate_warehouse_map import (
+        OCCUPIED,
+        build_occupancy_grid,
+        load_scenario,
+    )
+    from isaac.vgu_sim.config import WarehouseConfig
+
+    scenario = load_scenario(scenario_yaml)
+    grid, _ = build_occupancy_grid(
+        # The VM map is generated at exactly 0.05 m; the costmap reports it as
+        # float32 (0.0500000007), which would shift the rasterization by a row.
+        WarehouseConfig(), obstacles=[], resolution_m=round(meta["res"], 6),
+        aisle_barrier=scenario.aisle_barrier, static_obstacles=scenario.static_obstacles,
+        loop_map=scenario.loop_map)
+    h, w = grid.shape
+    if (h, w) != (meta["h"], meta["w"]):
+        raise ValueError(f"map {w}x{h} != costmap {meta['w']}x{meta['h']}")
+    rows, cols = np.nonzero(grid == OCCUPIED)
+    return {int((h - 1 - r) * w + c) for r, c in zip(rows, cols, strict=True)}
+
+
+class Replay:
+    """Re-project a costmap-probe bag export's scans two ways and score them.
+
+    `tf` registers each scan exactly as the global costmap does (map->odom
+    and odom->base_footprint interpolated at the scan stamp, then the fixed
+    base_scan mount); `gt` registers it with the ground-truth pose at the
+    same stamp. Marks accumulate from each `cleared` phase marker (the
+    costmap was cleared there) and are compared with the recorded grid.
+    """
+
+    def __init__(self, run_dir: Path) -> None:
+        rows = [json.loads(line) for line in (run_dir / "export.jsonl").open()]
+        self.meta = next(r for r in rows if r["kind"] == "grid_meta")
+        self.scans = sorted((r for r in rows if r["kind"] == "scan"), key=lambda r: r["stamp"])
+        self.map_odom = sorted((r for r in rows if r["kind"] == "map_odom"),
+                               key=lambda r: r["stamp"])
+        self.odom_tf = sorted((r for r in rows if r["kind"] == "odom_tf"), key=lambda r: r["stamp"])
+        self.grids = sorted((r for r in rows if r["kind"] == "grid"), key=lambda r: r["rec"])
+        self.scene = sorted((r for r in rows if r["kind"] == "scene" and r["stamp"] is not None),
+                            key=lambda r: r["stamp"])
+        self.markers = [json.loads(line) for line in (run_dir / "phases.jsonl").open()]
+        self.gt = GroundTruth(run_dir / "gt" / "ground_truth.jsonl")
+        self.rects = loop_map_rects()
+        lidar = [r for r in rows if r["kind"] == "tf_static" and r["child"].endswith("base_scan")]
+        self.lidar_x = lidar[0]["x"] if lidar else LIDAR_OFFSET_X
+        self.static = static_lethal_indices(self.meta, run_dir / "scenario.yaml")
+
+    def cell_index(self, x: float, y: float) -> int | None:
+        """Flat global-costmap index of a world point, or None off-grid."""
+        m = self.meta
+        c = int(math.floor((x - m["ox"]) / m["res"]))
+        r = int(math.floor((y - m["oy"]) / m["res"]))
+        if 0 <= c < m["w"] and 0 <= r < m["h"]:
+            return r * m["w"] + c
+        return None
+
+    def project(self, scan: dict, pose) -> set[int]:
+        """Cells marked by one scan registered at lidar `pose` (x, y, yaw)."""
+        out = set()
+        rmax = min(scan["rmax"], RANGE_MAX)
+        for i, r in enumerate(scan["ranges"]):
+            if r is None or r < scan["rmin"] or r >= rmax:
+                continue
+            a = pose[2] + scan["amin"] + i * scan["ainc"]
+            idx = self.cell_index(pose[0] + r * math.cos(a), pose[1] + r * math.sin(a))
+            if idx is not None:
+                out.add(idx)
+        return out
+
+    def lidar_pose(self, base) -> tuple[float, float, float]:
+        """Lidar pose from a base_footprint pose (identity-rotation mount)."""
+        return compose(base, (self.lidar_x, 0.0, 0.0))
+
+    def tf_base(self, t: float):
+        """Base pose the costmap uses at stamp t, or None when TF cannot serve it."""
+        mo, ot = _interp_series(self.map_odom, t), _interp_series(self.odom_tf, t)
+        if mo is None or ot is None:
+            return None
+        return compose(mo, ot)
+
+    def ideal_scan(self, scan: dict, gt_lidar) -> dict:
+        """The same scan with every range replaced by the exact ray-cast range."""
+        n = len(scan["ranges"])
+        ang = gt_lidar[2] + scan["amin"] + np.arange(n) * scan["ainc"]
+        ray = raycast(gt_lidar[0], gt_lidar[1], ang, self.rects)
+        return dict(scan, ranges=[float(r) if r < scan["rmax"] else None for r in ray])
+
+    def beam_residuals(self, scan: dict, gt_lidar) -> dict:
+        """Measured-vs-raycast range residuals from the ground-truth lidar pose."""
+        n = len(scan["ranges"])
+        ang = gt_lidar[2] + scan["amin"] + np.arange(n) * scan["ainc"]
+        ray = raycast(gt_lidar[0], gt_lidar[1], ang, self.rects)
+        short = long_ = phantom = 0
+        for i, r in enumerate(scan["ranges"]):
+            expect = ray[i] if ray[i] < scan["rmax"] else None
+            # Isaac's RTX scan encodes "no return" as -1.0 (< range_min), which
+            # laser_geometry drops exactly like a max-range reading.
+            if r is None or r < scan["rmin"] or r >= scan["rmax"]:
+                long_ += expect is not None
+                continue
+            if expect is None:
+                phantom += 1
+            elif r < expect - 0.10:
+                short += 1
+        return {"short": short, "missing": long_, "no_geometry": phantom}
+
+    def run(self, aisle_only_box=(0.4, 2.1, 0.6, 1.5)) -> list[dict]:
+        """Score every phase; returns one summary dict per phase."""
+        m = self.meta
+        x0, x1, y0, y1 = aisle_only_box
+
+        def in_box(idx):
+            r, c = divmod(idx, m["w"])
+            x, y = m["ox"] + (c + 0.5) * m["res"], m["oy"] + (r + 0.5) * m["res"]
+            return x0 <= x <= x1 and y0 <= y <= y1
+
+        starts = [mk for mk in self.markers if mk["event"] == "phase_start"]
+        ends = {mk["index"]: mk for mk in self.markers if mk["event"] == "phase_end"}
+        clears = [mk["sim"] for mk in self.markers if mk["event"] == "cleared"]
+        out = []
+        for ph in starts:
+            t0 = max(c for c in clears if c <= ph["sim"] + 1e-6)
+            t1 = ends[ph["index"]]["sim"] if ph["index"] in ends else self.scans[-1]["stamp"]
+            # The last grid published inside this phase (stamps are sim);
+            # scans are accumulated up to that grid's stamp, so a grid
+            # published after the next clear is never scored.
+            grid = None
+            for g in self.grids:
+                if t0 < g["stamp"] <= t1:
+                    grid = g
+            t_cut = grid["stamp"] if grid else t1
+            tf_marks, gt_marks, ideal_marks = set(), set(), set()
+            yaw_err, pos_err, beams = [], [], {"short": 0, "missing": 0, "no_geometry": 0, "n": 0}
+            for s in self.scans:
+                if not (t0 < s["stamp"] <= t_cut):
+                    continue
+                base = self.tf_base(s["stamp"])
+                gt_base = self.gt.pose(s["stamp"])
+                gt_l = self.lidar_pose(gt_base)
+                gt_marks |= self.project(s, gt_l)
+                ideal_marks |= self.project(self.ideal_scan(s, gt_l), gt_l)
+                if base is not None:
+                    tf_marks |= self.project(s, self.lidar_pose(base))
+                    yaw_err.append((base[2] - gt_base[2] + math.pi) % (2 * math.pi) - math.pi)
+                    pos_err.append(math.hypot(base[0] - gt_base[0], base[1] - gt_base[1]))
+                res = self.beam_residuals(s, gt_l)
+                for k, v in res.items():
+                    beams[k] += v
+                beams["n"] += 1
+            obs = set(grid["new_lethal"]) if grid else set()
+            obs_box = {i for i in obs if in_box(i)}
+            tf_box = {i for i in tf_marks if in_box(i)}
+            gt_box = {i for i in gt_marks if in_box(i)}
+            ideal_box = {i for i in ideal_marks if in_box(i)}
+            def score(o, p, static=self.static):
+                # new_lethal already excludes the static map; so must the prediction.
+                p = p - static
+                tp = len(o & p)
+                return {"obs": len(o), "pred": len(p), "tp": tp,
+                        "recall": round(tp / len(o), 3) if o else None,
+                        "precision": round(tp / len(p), 3) if p else None}
+
+            ya = np.abs(np.array(yaw_err)) if yaw_err else np.array([np.nan])
+            out.append({
+                "phase": ph, "t0": t0, "t1": t1, "grid_stamp": grid["stamp"] if grid else None,
+                "whole_tf": score(obs, tf_marks), "whole_gt": score(obs, gt_marks),
+                "aisle_tf": score(obs_box, tf_box), "aisle_gt": score(obs_box, gt_box),
+                "aisle_obs_minus_tf": len(obs_box - tf_box - gt_box),
+                "aisle_obs_ideal_geometry": len(obs_box & ideal_box),
+                "aisle_obs_range_noise": len((obs_box & gt_box) - ideal_box),
+                "aisle_obs_geometry": len(obs_box & gt_box),
+                "aisle_obs_registration": len(obs_box & (tf_box - gt_box)),
+                "yaw_err_max": round(float(np.nanmax(ya)), 4),
+                "yaw_err_rms": round(float(np.sqrt(np.nanmean(ya ** 2))), 4),
+                "pos_err_max": round(max(pos_err), 4) if pos_err else None,
+                "beams": beams,
+                "closed_cols": _closed_cols_from_crop(grid) if grid else None,
+                "render": self.render_box(obs_box, gt_box, tf_box),
+            })
+        return out
+
+    def render_box(self, obs: set[int], gt: set[int], tf: set[int],
+                   box=(0.4, 2.1, 0.6, 1.5)) -> str:
+        """Crop map: S static, G observed+geometry, R observed+registration-only,
+        U observed unexplained, g/r predicted-only (geometry / registration)."""
+        m = self.meta
+        c0 = int(math.floor((box[0] - m["ox"]) / m["res"]))
+        c1 = int(math.floor((box[1] - m["ox"]) / m["res"]))
+        r0 = int(math.floor((box[2] - m["oy"]) / m["res"]))
+        r1 = int(math.floor((box[3] - m["oy"]) / m["res"]))
+        lines = []
+        for r in range(r1, r0 - 1, -1):
+            row = []
+            for c in range(c0, c1 + 1):
+                i = r * m["w"] + c
+                if i in self.static:
+                    row.append("S")
+                elif i in obs:
+                    row.append("G" if i in gt else ("R" if i in tf else "U"))
+                elif i in gt:
+                    row.append("g")
+                elif i in tf:
+                    row.append("r")
+                else:
+                    row.append(".")
+            lines.append(f"{m['oy'] + (r + 0.5) * m['res']:5.3f} " + "".join(row))
+        lines.append("      " + "".join(
+            str(int(round((m["ox"] + (c + 0.5) * m["res"]) * 10)) % 10) for c in range(c0, c1 + 1)))
+        return "\n".join(lines)
+
+    def timeline(self, t0: float, t1: float, step: float = 0.5) -> list[dict]:
+        """Registration error and observed aisle marks, time-aligned on sim time."""
+        rows = []
+        t = t0
+        while t <= t1:
+            base, g = self.tf_base(t), self.gt.pose(t)
+            grid = None
+            for gr in self.grids:
+                if gr["stamp"] <= t:
+                    grid = gr
+            rows.append({
+                "t": round(t, 2),
+                "yaw_err": None if base is None else round(
+                    (base[2] - g[2] + math.pi) % (2 * math.pi) - math.pi, 4),
+                "gt_wz": round((self.gt.pose(t + 0.05)[2] - self.gt.pose(t - 0.05)[2]) / 0.1, 3),
+                "obs_closed": _closed_cols_from_crop(grid) if grid else None,
+                "obs_new_crop": _new_in_crop(grid) if grid else None,
+            })
+            t += step
+        return rows
+
+
+def _crop_y0_x0(grid: dict) -> tuple[float, float]:
+    return ORIGIN[1] + (grid["crop_r0"] + 0.5) * RES, ORIGIN[0] + (grid["crop_c0"] + 0.5) * RES
+
+
+def _closed_cols_from_crop(grid: dict) -> int:
+    """The waypoint probe's closed-column metric on an exported crop."""
+    y0, x0 = _crop_y0_x0(grid)
+    crop = grid["crop"]
+    rows = [i for i in range(len(crop)) if AISLE_Y[0] <= y0 + i * RES <= AISLE_Y[1]]
+    cols = [j for j in range(len(crop[0])) if AISLE_X[0] <= x0 + j * RES <= AISLE_X[1]]
+    return sum(1 for j in cols if min(crop[i][j] for i in rows) >= 99)
+
+
+def _new_in_crop(grid: dict) -> int:
+    """New (non-static) lethal cells inside the exported crop."""
+    w = int(round(2 * -ORIGIN[0] / RES))
+    r0, c0 = grid["crop_r0"], grid["crop_c0"]
+    nr, nc = len(grid["crop"]), len(grid["crop"][0])
+    return sum(1 for i in grid["new_lethal"]
+               if r0 <= i // w < r0 + nr and c0 <= i % w < c0 + nc)
+
+
+def main_replay(run_dir: Path, json_out: Path | None) -> int:
+    """Print the per-phase replay attribution for one costmap-probe run."""
+    rp = Replay(run_dir)
+    res = rp.run()
+    for r in res:
+        ph = r["phase"]
+        print(f"phase {ph['index']} {ph['kind']} wz={ph.get('wz')} sec={ph['sec']} "
+              f"[{r['t0']:.2f}, {r['t1']:.2f}] grid@{r['grid_stamp']}")
+        print(f"  yaw_err max {r['yaw_err_max']} rms {r['yaw_err_rms']}  "
+              f"pos_err max {r['pos_err_max']}")
+        print(f"  whole grid: TF-replay {r['whole_tf']}  GT-replay {r['whole_gt']}")
+        print(f"  aisle crop: TF-replay {r['aisle_tf']}  GT-replay {r['aisle_gt']}")
+        print(f"  aisle obs geometry split: ideal ray-cast {r['aisle_obs_ideal_geometry']}, "
+              f"range noise only {r['aisle_obs_range_noise']}")
+        print(f"  aisle obs = geometry {r['aisle_obs_geometry']} + registration "
+              f"{r['aisle_obs_registration']} + unexplained {r['aisle_obs_minus_tf']}; "
+              f"closed cols {r['closed_cols']}")
+        print(f"  beams {r['beams']}")
+        print(r["render"])
+    if json_out:
+        json_out.write_text(json.dumps(res, indent=1, default=str))
+    return 0
+
+
 def main() -> int:
     """CLI entry point."""
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("bundle", type=Path)
+    ap.add_argument("--replay", action="store_true",
+                    help="BUNDLE is a costmap_probe run dir (export.jsonl + phases.jsonl + gt/)")
     ap.add_argument("--probe", type=Path, default=None)
     ap.add_argument("--start", type=float, default=8.0)
     ap.add_argument("--end", type=float, default=37.8)
@@ -316,6 +629,8 @@ def main() -> int:
     ap.add_argument("--show", default="", help="comma-separated crop sim times to render")
     ap.add_argument("--json", type=Path, default=None)
     args = ap.parse_args()
+    if args.replay:
+        return main_replay(args.bundle, args.json)
     probe = args.probe or args.bundle / "probe.jsonl"
     phases = [float(p) for p in args.phases.split(",")]
     show = [float(s) for s in args.show.split(",") if s]

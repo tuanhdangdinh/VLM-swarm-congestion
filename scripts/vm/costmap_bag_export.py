@@ -16,7 +16,8 @@ time `rec` (ns, wall) for ordering:
 - `scene`     : robot's row of `/perception/scene_state` (M1), with the
                 scene stamp.
 - `cmd_vel`   : `/<robot>/cmd_vel` (no header; `rec` only).
-- `phase`     : `/costmap_probe/phase` markers (sim time inside).
+- `phase`     : `/costmap_probe/phase` markers, under `marker` (sim time
+                inside).
 - `grid`      : the global costmap after every full grid or update, as the
                 cells that are lethal (100) now but were not in the FIRST full
                 grid (the static map), as flat indices, plus the crop of the
@@ -115,7 +116,7 @@ def main() -> int:
         elif topic == f"/{robot}/cmd_vel":
             write("cmd_vel", rec, vx=msg.linear.x, wz=msg.angular.z)
         elif topic == "/costmap_probe/phase":
-            write("phase", rec, **json.loads(msg.data))
+            write("phase", rec, marker=json.loads(msg.data))
         elif topic == f"/{robot}/global_costmap/costmap":
             info = msg.info
             grid = {"w": info.width, "h": info.height, "res": info.resolution,
@@ -132,7 +133,8 @@ def main() -> int:
                 continue
             for row in range(msg.height):
                 start = (msg.y + row) * grid["w"] + msg.x
-                grid["data"][start:start + msg.width] = msg.data[row * msg.width:(row + 1) * msg.width]
+                patch = msg.data[row * msg.width:(row + 1) * msg.width]
+                grid["data"][start:start + msg.width] = patch
             write_grid(rec, _stamp(msg.header), "update")
     out.close()
     return 0

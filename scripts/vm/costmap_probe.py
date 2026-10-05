@@ -13,8 +13,8 @@ Sequence:
 
 1. Wait for the park: robot_1 has moved >= `MOVED_M` from the odometry
    origin (IsaacComputeOdometry is spawn-relative, identity at t=0, so this
-   holds even when the probe starts after the drive) and then stayed still (|vx| and |wz| below `STILL_EPS`) for
-   `STILL_SEC` sim seconds.
+   holds even when the probe starts after the drive) and then stayed still
+   (|vx| and |wz| below `STILL_EPS`) for `STILL_SEC` sim seconds.
 2. For each phase, in order: call the global costmap's
    `clear_entirely_global_costmap` (so every phase starts from the static map
    only), publish a `phase_start` marker, run the phase, publish `phase_end`.
