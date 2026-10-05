@@ -18,7 +18,9 @@ VM-only helper for the follow_waypoints validation
    `map -> <robot>/odom` transform the camera localizer publishes (change
    only), DWB's `/<robot>/evaluation` summary (valid-trajectory count and
    the chosen twist) at full rate, and the follow_waypoints action's
-   feedback/status. Every row carries sim time (`use_sim_time`).
+   feedback/status, and a crop of the global costmap over the second aisle
+   (full grids and incremental updates) with a per-column passability
+   summary. Every row carries sim time (`use_sim_time`).
 
 Usage: waypoint_probe.py OUT_JSONL DURATION_WALL_SEC TRIGGER_X [ROBOT_ID]
 """
@@ -29,10 +31,12 @@ import time
 import rclpy
 from action_msgs.msg import GoalStatusArray
 from geometry_msgs.msg import Twist
+from map_msgs.msg import OccupancyGridUpdate
 from nav2_msgs.action import FollowWaypoints
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import OccupancyGrid, Odometry
 from rclpy.node import Node
 from rclpy.parameter import Parameter
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 from tf2_msgs.msg import TFMessage
 
@@ -44,6 +48,13 @@ except ImportError:  # recorded as absent rather than failing the probe
 from swarm_interfaces.srv import TriggerCongestionAnalysis
 
 ODOM_PERIOD_SEC = 0.1
+# Global-costmap crop around the loop map's second aisle (x0, x1, y0, y1) and
+# the aisle proper (isaac/config/scenarios/loop_map_preemption_probe_baseline
+# .yaml: centre y 1.2, width 0.55, x in [0.6, 2.2]); the aisle columns stop
+# short of the connector (x 1.525-2.075) whose open floor would mask a closure.
+CROP_BOX = (0.4, 2.1, 0.6, 1.5)
+AISLE_Y = (0.925, 1.475)
+AISLE_X = (0.65, 1.5)
 
 
 class WaypointProbe(Node):
@@ -78,6 +89,13 @@ class WaypointProbe(Node):
         )
         if LocalPlanEvaluation is not None:
             self.create_subscription(LocalPlanEvaluation, f"{ns}/evaluation", self._on_eval, 50)
+        self._grid = None
+        latched = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                             durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.create_subscription(OccupancyGrid, f"{ns}/global_costmap/costmap", self._on_grid, latched)
+        self.create_subscription(
+            OccupancyGridUpdate, f"{ns}/global_costmap/costmap_updates", self._on_grid_update, 10
+        )
         self._write("probe_start", trigger_x=trigger_x, robot=robot_id,
                     evaluation_available=LocalPlanEvaluation is not None)
 
@@ -157,6 +175,41 @@ class WaypointProbe(Node):
             row.update(best_vx=round(best.traj.velocity.x, 4), best_wz=round(best.traj.velocity.theta, 4),
                        best_total=round(best.total, 3))
         self._write("evaluation", **row)
+
+    def _on_grid(self, msg: OccupancyGrid) -> None:
+        info = msg.info
+        self._grid = {"w": info.width, "h": info.height, "res": info.resolution,
+                      "ox": info.origin.position.x, "oy": info.origin.position.y,
+                      "data": list(msg.data)}
+        self._write_crop("full")
+
+    def _on_grid_update(self, msg) -> None:
+        grid = self._grid
+        if grid is None:
+            return
+        for row in range(msg.height):
+            start = (msg.y + row) * grid["w"] + msg.x
+            grid["data"][start:start + msg.width] = msg.data[row * msg.width:(row + 1) * msg.width]
+        self._write_crop("update")
+
+    def _write_crop(self, source: str) -> None:
+        """Record the second-aisle crop and its passability summary."""
+        grid = self._grid
+        x0, x1, y0, y1 = CROP_BOX
+        cols = [c for c in range(grid["w"]) if x0 <= grid["ox"] + (c + 0.5) * grid["res"] <= x1]
+        rows = [r for r in range(grid["h"]) if y0 <= grid["oy"] + (r + 0.5) * grid["res"] <= y1]
+        crop = [[grid["data"][r * grid["w"] + c] for c in cols] for r in rows]
+        aisle_rows = [i for i, r in enumerate(rows)
+                      if AISLE_Y[0] <= grid["oy"] + (r + 0.5) * grid["res"] <= AISLE_Y[1]]
+        aisle_cols = [j for j, c in enumerate(cols)
+                      if AISLE_X[0] <= grid["ox"] + (c + 0.5) * grid["res"] <= AISLE_X[1]]
+        # Per aisle column, the cheapest cell across the aisle's width: >= 99
+        # (inscribed, OccupancyGrid-scaled) in any column closes the aisle.
+        col_min = [min(crop[i][j] for i in aisle_rows) for j in aisle_cols]
+        self._write("costmap_crop", source=source, x0=grid["ox"] + (cols[0] + 0.5) * grid["res"],
+                    y0=grid["oy"] + (rows[0] + 0.5) * grid["res"], res=grid["res"],
+                    aisle_bottleneck=max(col_min) if col_min else None,
+                    aisle_closed_cols=sum(1 for v in col_min if v >= 99), crop=crop)
 
     def _on_wp_feedback(self, msg) -> None:
         self._write("wp_feedback", current_waypoint=int(msg.feedback.current_waypoint))
