@@ -87,30 +87,32 @@ _CONDITIONS: dict[str, dict[str, object]] = {
     },
 }
 
-# name -> (length, SHA-256) of the v3.2 user prompt under one condition.
+# name -> (length, SHA-256) of the v3.3 user prompt under one condition.
 # Pinned 2026-10-04 with the apparatus build, before any live data under any
 # condition. Pre-freeze, same exception as the v3 pins: a revision re-pins in
 # place; after the prereg-v2 freeze a change here is a new prompt version.
+# Re-pinned for v3.3 (2026-10-06): +104 chars per condition, the same static
+# grammar/gloss delta as the six v3 pins.
 _APPARATUS_PINS: dict[str, tuple[int, str]] = {
     "metric_grid": (
-        6287,
-        "5e454e849ff85241f1357e63d22d0fdc77a6d2f37c4a0263dabc62f65d466ec5",
+        6391,
+        "ebba754d40a052a8167151122d3e1a8d82917101a70c7cf34b08a39e3a4d452e",
     ),
     "motion_trails": (
-        6199,
-        "e8448cd34241c30dab4facb2bdd50b50dc7566e5aefd2c17647be5bbf5eba01b",
+        6303,
+        "b1a41f50c12d719d2d57d53b41550ef5bee49ec619d46496e28f64ce1db66402",
     ),
     "zoom_tile": (
-        6248,
-        "edadb4292b42f19cd1d898938c02e609330ce520496659d2fd0748ef8762f54d",
+        6352,
+        "b4509c5e0a7a9d22f04d0db0f11e46237a680c2798e434fd20baf65440d31821",
     ),
     "candidate_options": (
-        6233,
-        "bb8c8674f2b1df2a194b74a7640edd11b797acdb9f2d55fbfc952afcf53e9f8b",
+        6337,
+        "f15580a2374258851f8a0e2a547df336a33e5f575b67d1890104e0a0ad80436d",
     ),
     "all_on": (
-        6878,
-        "fec35f089741f326767641973137fc7addd787b821973cd0ba52e0b3e23c5f23",
+        6982,
+        "d5171de1fb31a5b11e533f71c38be4411a8143f29a8422c8b9258aa9fa8f0011",
     ),
 }
 
@@ -124,9 +126,9 @@ def test_apparatus_condition_matches_its_pin(name: str):
 
 
 def test_all_off_renders_the_baseline_v3_pin():
-    # The `baseline` pin of test_prompt_builder_v3 (v3.2).
+    # The `baseline` pin of test_prompt_builder_v3 (v3.3).
     prompt = _prompt()
-    assert _sha256(prompt) == "c3fb9fcf4031f3c11961bfe7015887a38901d01049810f289b0c45324c36f873"
+    assert _sha256(prompt) == "769802f0a9a173b626561581890cd574d67568a302478aa67dc5b704846bf729"
     assert not any(sentence in prompt for sentence in _ALL_SENTENCES)
 
 

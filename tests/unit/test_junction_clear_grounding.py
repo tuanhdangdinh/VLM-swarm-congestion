@@ -356,6 +356,50 @@ class TestPhaseOrderingAudit:
         order = [leg.robot_id for leg in verified.legs if leg.action != "continue"]
         assert order == ["robot_4", "robot_3", "robot_1", "robot_2"]
 
+    def test_a_plan_omitting_the_yield_is_repaired_by_a_cross_to_yield_substitution(self):
+        # Verbatim-pilot ruling B: the v3.3 gloss names the inside yielder,
+        # but the verifier's substitution path stays for models that still
+        # omit it.
+        decision = _decision(
+            proposed_plan=[
+                ProposedPlanLeg(robot_id="robot_4", action="reverse"),
+                ProposedPlanLeg(robot_id="robot_3", action="reverse"),
+                ProposedPlanLeg(robot_id="robot_1", action="cross"),
+                ProposedPlanLeg(robot_id="robot_2", action="cross"),
+            ]
+        )
+        verified = _verify(decision, _geometry())
+        assert verified.provenance == "repaired"
+        assert [(edit.op, edit.robot_ids) for edit in verified.edits] == [
+            ("substitute", ("robot_1",))
+        ]
+        by_robot = {leg.robot_id: leg.action for leg in verified.legs}
+        assert by_robot == {
+            "robot_4": "reverse", "robot_3": "reverse", "robot_1": "yield", "robot_2": "cross"
+        }
+
+    def test_pilot_episode_8_shape_still_repairs_with_reorder_then_substitute(self):
+        # ER-2 IB10 s42's trigger plan (pilot 2026-10-06), on the fixture
+        # standoff: the same two edits the live run logged.
+        decision = _decision(
+            proposed_plan=[
+                ProposedPlanLeg(robot_id="robot_1", action="cross"),
+                ProposedPlanLeg(robot_id="robot_2", action="wait"),
+                ProposedPlanLeg(robot_id="robot_3", action="reverse"),
+                ProposedPlanLeg(robot_id="robot_4", action="reverse"),
+            ]
+        )
+        verified = _verify(decision, _geometry())
+        assert verified.provenance == "repaired"
+        assert [(edit.op, edit.robot_ids) for edit in verified.edits] == [
+            ("reorder", ("robot_1", "robot_4")),
+            ("substitute", ("robot_1",)),
+        ]
+        assert [(leg.robot_id, leg.action) for leg in verified.legs] == [
+            ("robot_4", "reverse"), ("robot_2", "wait"), ("robot_3", "reverse"),
+            ("robot_1", "yield"),
+        ]
+
     def test_a_correctly_ordered_plan_is_accepted_verbatim(self):
         decision = _decision(
             proposed_plan=[

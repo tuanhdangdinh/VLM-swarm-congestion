@@ -49,8 +49,11 @@ SYSTEM_PROMPT = "You are a helpful assistant."
 # `prompt_version=3`. Revision v3.1 (2026-10-03) adds `_PLAN_GRAMMAR` and a
 # one-line gloss for every strategy token; v3.2 (same day, coordinator
 # ruling) states the decision-field agreement rule and narrows the convoy
-# gloss. Artifacts are told apart by `user_sha256` (baseline pins: v3.0
-# 22baf2df..., v3.1 42463ce2...).
+# gloss. v3.3 (2026-10-06, verbatim-pilot rulings A/B) adds the
+# `_PLAN_GRAMMAR` list-order line and names the composite's inside yielder in
+# the junction_clear gloss. Artifacts are told apart by `user_sha256`
+# (baseline pins: v3.0 22baf2df..., v3.1 42463ce2..., v3.2 c3fb9fcf...) or,
+# per-scene, by the v3.3 list-order line's presence in the rendered prompt.
 _USER_TEMPLATE = """You are a warehouse swarm robotics traffic controller. Analyze the \
 overhead camera view together with the robot states below and detect congestion \
 patterns such as deadlocks, bottlenecks, crowding, or anomalies.
@@ -104,7 +107,7 @@ while an opposing robot gives way
   - "temporary_wait": the involved robots hold in place until the way clears
   - "reverse": the involved robots back straight out along their own lanes
   - "junction_clear": multi-robot junction recovery: some robots first back out, \
-then an ordered crossing
+one inside robot yields, then an ordered crossing
 - "justification": one or two sentences
 - "yield_robot": the robot that should yield, or null when the strategy is not \
 "yield"
@@ -237,7 +240,12 @@ _PLAN_INVITATION = (
 # "inconsistent" path (`_plan_disagrees_with_decision_fields`: a yield leg or
 # cross order that contradicts the same answer's yield_robot/crossing_order),
 # stated on the "yield" line because that check runs for strategy "yield"
-# only (v3.2 re-pin, 2026-10-03 ruling).
+# only (v3.2 re-pin, 2026-10-03 ruling). The list-order line (v3.3, verbatim
+# pilot ruling A) states the convention `_plan_problems`' reorder audit
+# already enforces: the pilot's reorder-only repairs listed a releasing leg
+# after the cross it releases.
+# Its em dash is the spec wording verbatim (the template already carries
+# non-ASCII), so the pin covers it byte for byte.
 _PLAN_GRAMMAR = """Plan actions, for "proposed_plan":
 - "yield": back up, step aside, and hold until the passing robots have cleared
 - "reverse": back straight out along its own lane
@@ -245,6 +253,7 @@ _PLAN_GRAMMAR = """Plan actions, for "proposed_plan":
 - "wait": hold in place
 - "reroute": take an alternative path
 - "continue": proceed unchanged; not part of the resolution
+The list order is the execution order — the robot that acts first comes first.
 A proposed plan must refine the chosen strategy; a plan that does not is \
 ignored and the system derives the resolution instead:
 - strategy "yield": exactly one "yield" leg, and the plan must agree with your own \

@@ -276,6 +276,29 @@ def test_v3_convoy_gloss_names_the_opposing_robot():
     ) in _prompt()
 
 
+_LIST_ORDER_LINE = "The list order is the execution order — the robot that acts first comes first."
+
+
+def test_v3_plan_grammar_states_the_list_order_convention_once_after_the_actions():
+    # v3.3 ruling A: one line, between the action glosses and the
+    # consistency rules, worded as the spec rules it.
+    lines = _PLAN_GRAMMAR.splitlines()
+    assert lines.count(_LIST_ORDER_LINE) == 1
+    position = lines.index(_LIST_ORDER_LINE)
+    assert lines[position - 1] == '- "continue": proceed unchanged; not part of the resolution'
+    assert lines[position + 1].startswith("A proposed plan must refine the chosen strategy")
+    assert _prompt().count(_LIST_ORDER_LINE) == 1
+
+
+def test_v3_junction_clear_gloss_names_the_inside_yielder():
+    # v3.3 ruling B: the gloss states the composite's yield leg, still with
+    # no robot names or scene words.
+    assert (
+        '  - "junction_clear": multi-robot junction recovery: some robots first back out, '
+        "one inside robot yields, then an ordered crossing\n"
+    ) in _prompt()
+
+
 def test_v3_plan_grammar_junction_clear_rule_matches_is_consistent():
     assert '- strategy "junction_clear": at least one "reverse" or "yield" leg' in _PLAN_GRAMMAR
     for action in ("reverse", "yield"):
@@ -399,29 +422,35 @@ _V3_PINS: dict[str, tuple[int, str]] = {
     # The v3.1 baseline digest was
     # 42463ce2c2610273d649dd5eca9dc61ff8bf3272023730a2feba3703130b9a4c (the
     # 2026-10-03 live ER-2 calibration episode ran on v3.1).
+    # Re-pinned for v3.3 (2026-10-06, verbatim-pilot rulings A/B): the
+    # `_PLAN_GRAMMAR` list-order line (+79 chars) and "one inside robot
+    # yields, " in the junction_clear gloss (+25), +104 chars everywhere.
+    # The v3.2 baseline digest was
+    # c3fb9fcf4031f3c11961bfe7015887a38901d01049810f289b0c45324c36f873 (the
+    # 2026-10-06 verbatim pilot ran on v3.2).
     "baseline": (
-        6029,
-        "c3fb9fcf4031f3c11961bfe7015887a38901d01049810f289b0c45324c36f873",
+        6133,
+        "769802f0a9a173b626561581890cd574d67568a302478aa67dc5b704846bf729",
     ),
     "id_desc": (
-        6029,
-        "b5aa9b3540547a80db96c7a4d76b738edeb5eb0cb5216cf2d17a7d7e19d143d6",
+        6133,
+        "9ac9cd3e6d9909380daecec0f33f408cb0bd595045b220958871dea6dc7456cb",
     ),
     "no_geometry": (
-        5843,
-        "43eb4d90350bdbd5e08fd9aee3a3212b9b51401ac870aedc68886ce12ccc5f11",
+        5947,
+        "1c4aee60075c3dd03f64569ed9f024a5babfcc5687ce9e341fabebc8a15accb4",
     ),
     "goals_obstacles": (
-        6432,
-        "0e117f10d978030346e5cf04c23417c79997facfbd58605539f0b95203bda860",
+        6536,
+        "ee162ec116952f8d700e65cb3292d53954737402a9aec7eb91c9048dab82744c",
     ),
     "plan_state": (
-        6311,
-        "080c12e4ae1c893f190aba29f063d978481432f119d1ff09b9521dcd6f950454",
+        6415,
+        "825382a634f506f0dc2ce7ee538a78d653bb2981bc01440da8d088aa3f4ec432",
     ),
     "failure_context": (
-        6388,
-        "495e565168db91d48621613496d498cc4f91ea7ccd8b4b64572b9ce4e34b9ea1",
+        6492,
+        "9e030d76859fd16b772a96891ef20227ffaf50ea7a41e46fa68e2d41daba5b95",
     ),
 }
 
