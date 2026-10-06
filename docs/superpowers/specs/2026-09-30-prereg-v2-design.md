@@ -331,6 +331,22 @@ no-intervention ARM is registered into collection; if any cell
 self-resolves, that is a design finding for the oracle (the cell may
 not need Layer 2) and goes to the owner before collection.
 
+**Prompt-style invariance ruling (2026-10-06, USER DIRECTION
+"ensure using right prompt style for each model"):** the split is
+SEMANTIC INVARIANCE / TRANSPORT CONFORMANCE. Semantic content —
+scene text, grammar, glosses, state and plan blocks — is ONE
+template (v3.4) for every arm, never forked per model (ruling 3
+stands; forks would destroy cross-backend comparability).
+Transport/format conventions are PER-ADAPTER, following each
+provider's documented prompting guidance at the payload level:
+image-vs-text ordering, system-vs-user placement, JSON-guidance
+flags, sampling omissions, thinking/reasoning_effort switches, and
+documented anti-patterns (the `<think>` leak was the one semantic
+violation; v3.4 removed it). Every arm's format conventions are
+recorded in the artifact's effective-config block, and a per-arm
+format table lives in the re-pin report. Audited against provider
+docs fetched at implementation time, not memory.
+
 **Roster-validation RESULTS + RULINGS (2026-10-06,
 `docs/reports/2026-10-06-roster-validation.md`; six-backend table
 is the model-selection annex for the v2 freeze):**
