@@ -192,7 +192,13 @@ class AnthropicBackend:
             "cache_creation_input_tokens",
             "cache_read_input_tokens",
         )
-        return {k: usage[k] for k in keys if isinstance(usage.get(k), int)} or None
+        extracted = {k: usage[k] for k in keys if isinstance(usage.get(k), int)}
+        # Thinking is billed inside output_tokens; the breakdown is the only
+        # per-call evidence that `between_tools` kept thinking off.
+        details = usage.get("output_tokens_details")
+        if isinstance(details, dict) and isinstance(details.get("thinking_tokens"), int):
+            extracted["thinking_tokens"] = details["thinking_tokens"]
+        return extracted or None
 
     @staticmethod
     def _extract_served_model(data: dict) -> str | None:

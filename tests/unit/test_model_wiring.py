@@ -460,6 +460,16 @@ def test_anthropic_usage_is_extracted_with_cache_counters(monkeypatch, tmp_path)
     }
 
 
+def test_anthropic_usage_records_thinking_tokens_when_reported(monkeypatch, tmp_path):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    reply = _anthropic_ok()
+    reply._payload["usage"]["output_tokens_details"] = {"thinking_tokens": 0}
+    _capture(monkeypatch, "anthropic_backend", reply)
+    backend, config = _build_arm("anthropic")
+    response = backend.analyze(_fixed_payload(tmp_path), config)
+    assert response.token_usage["thinking_tokens"] == 0
+
+
 def test_anthropic_skips_thinking_blocks_when_reading_text(monkeypatch, tmp_path):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
     _capture(monkeypatch, "anthropic_backend", _anthropic_ok('{"a": 1}'))
