@@ -31,7 +31,11 @@ class LlamaServerBackend:
     which requires the server to have been started with the matching --mmproj flag.
     Also serves Qwen3-VL-8B-Instruct (`scripts/vm/qwen_serve.sh`); with
     `multi_image` the prompt-apparatus extra images (zoom tile) follow the
-    frame as further `image_url` parts, otherwise they are refused.
+    frame as further `image_url` parts, otherwise they are refused. Any other
+    OpenAI-compatible Chat Completions server works the same way, e.g. vLLM
+    serving Molmo2-ER (`scripts/vm/molmo_serve.sh`); `system_placement`
+    "user_prefix" folds the preamble into the user turn for a served chat
+    template that rejects a system role.
     """
 
     def __init__(
@@ -40,11 +44,15 @@ class LlamaServerBackend:
         model_id: str = "cosmos-reason2-8b",
         mmproj_path: str | None = None,
         multi_image: bool = False,
+        system_placement: str = "system_message",
     ) -> None:
+        if system_placement not in ("system_message", "user_prefix"):
+            raise ValueError(f"unknown system_placement {system_placement!r}")
         self.base_url = base_url.rstrip("/")
         self.model_id = model_id
         self.mmproj_path = mmproj_path
         self.multi_image = multi_image
+        self.system_placement = system_placement
 
     # ------------------------------------------------------------------
     # Public API
@@ -117,6 +125,10 @@ class LlamaServerBackend:
                 "llama_server backend does not support extra images "
                 f"({len(payload.extra_image_paths)} given); disable prompt_zoom_tile"
             )
+        user_text = payload.user_prompt
+        prefix_system = self.system_placement == "user_prefix"
+        if prefix_system:
+            user_text = f"{payload.system_prompt}\n\n{payload.user_prompt}"
         system = {"role": "system", "content": payload.system_prompt}
 
         if self.mmproj_path is not None:
@@ -128,11 +140,13 @@ class LlamaServerBackend:
                 {"type": "image_url", "image_url": {"url": self._encode_image(path)}}
                 for path in [payload.image_path, *payload.extra_image_paths]
             ]
-            user_content.append({"type": "text", "text": payload.user_prompt})
+            user_content.append({"type": "text", "text": user_text})
             user = {"role": "user", "content": user_content}
         else:
-            user = {"role": "user", "content": payload.user_prompt}
+            user = {"role": "user", "content": user_text}
 
+        if prefix_system:
+            return [user]
         return [system, user]
 
     @staticmethod

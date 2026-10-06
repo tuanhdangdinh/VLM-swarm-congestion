@@ -147,5 +147,58 @@ vlm:
       max_attempts: 4
       image_fallback_after_attempts: 2
 
+  # ---- Hypothesis arms (WIRE-NEXT ruling 2026-10-06, prereg-v2 design spec,
+  # v3.4 block). Additive; every section above is an untouched pin.
+  # Validation evidence: docs/reports/2026-10-07-hypothesis-arms.md.
+
+  # H1 (lab-controlled specialization): Google's own generalist against ER-2,
+  # so the lab is held and robotics tuning varies. Same Interactions-API
+  # adapter as ER-2, so the packing is identical (text before image,
+  # `system_instruction`). `gemini-3.8-flash` is the stable id in the live
+  # GET /v1beta/models listing (2026-10-06). thinking_level `low` MATCHES the
+  # ER-2 pin: the 3.x default is now `medium`, and an unmatched dose would
+  # confound thinking with specialization (3.8 Flash supports low/medium/high;
+  # `minimal` errors). No sampling is sent: the latest-model guide says
+  # "Strip temperature, top_p, and top_k from generation configs" for 3.8
+  # Flash, and the Interactions generation_config has no such fields, so the
+  # configured values are recorded per call in `unsupported_sampling` (the
+  # ER-2 precedent). NOT the frozen ER-2 pin, so the hosted-arm parity
+  # applies: 4 attempts + grey-image fallback after 2 (the ER-2 exception
+  # covers only ER-2's frozen section).
+  gemini_flash:
+    adapter: gemini
+    model_id: gemini-3.8-flash
+    api_key_env: GEMINI_API_KEY   # export GEMINI_API_KEY=... in your shell/.env
+    thinking_level: low
+    force_schema: false
+    reasoner:
+      temperature: 0.0
+      max_attempts: 4
+      image_fallback_after_attempts: 2
+
+  # H2 (cross-lab specialist replication): Ai2's 4.85B embodied-reasoning
+  # specialist (Apache-2.0; Molmo2-4B = Qwen3-4B + SigLIP2), served by vLLM's
+  # OpenAI-compatible server via scripts/vm/molmo_serve.sh (pinned HF revision
+  # + per-file sha256, vLLM image pinned by digest, --served-model-name =
+  # model_id below). It rides the llama_server adapter (OpenAI-compatible Chat
+  # Completions). The vision tower is inside the checkpoint, so there is no
+  # separate mmproj: `mmproj_path` names the served checkpoint directory only
+  # because the adapter uses that field to switch to vision mode. Transport
+  # per the model's own chat template (`chat_template.jinja` at the pinned
+  # revision): it raises on any leading non-user role, so the preamble is
+  # folded into the user turn (`system_placement: user_prefix`), and it emits
+  # every image before the text whatever the content order, so images go
+  # first (`before_text`). Greedy: the model card's inference example decodes
+  # greedily (no sampling in generation_config.json), which is also the
+  # project's classification rule.
+  llama_server_molmo2er:
+    adapter: llama_server
+    base_url: "http://127.0.0.1:8090/v1"
+    model_id: molmo2-er
+    mmproj_path: "$HOME/models/molmo2er"
+    system_placement: user_prefix
+    reasoner:
+      temperature: 0.0
+
 embeddings:
   model_name: sentence-transformers/all-MiniLM-L6-v2
