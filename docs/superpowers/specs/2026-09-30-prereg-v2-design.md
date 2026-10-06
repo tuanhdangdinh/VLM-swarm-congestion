@@ -331,6 +331,45 @@ no-intervention ARM is registered into collection; if any cell
 self-resolves, that is a design finding for the oracle (the cell may
 not need Layer 2) and goes to the owner before collection.
 
+**Roster-validation RESULTS + RULINGS (2026-10-06,
+`docs/reports/2026-10-06-roster-validation.md`; six-backend table
+is the model-selection annex for the v2 freeze):**
+HEADLINES — Sonnet 5.5 refuses 91/96 stage-1 attempts, trigger
+ISOLATED to the prompt's Cosmos-style `<think>` block (3/3 refused
+with it, 3/3 valid without; probes without the block: 0/119;
+grey image does NOT help — the opposite of gpt-4o's frame-triggered
+refusals); DeepSeek-flash posts **19/20 on conflict_prediction** —
+the best any backend has scored on the only discriminating probe
+type — at ~$0.02/round, though its head-on trigger reproduced the
+id_asc robot_1/first-slot prior (swap gate repaired); Qwen's 15/20
+conflict score comes from under-calling ("yes" 5/20) — the
+dangerous-miss profile for a coordinator; Sonnet's s43 trigger was
+answered on the GREY image with a verbatim correct plan (a decision
+made without the scene — recorded as such).
+RULINGS:
+(1) **Prompt v3.4 — the `<think>` block is REMOVED globally.**
+Rationale: it is redundant with v3's bounded reasoning-first field;
+it contradicts the registered spatial-CoT prohibition (free-text
+CoT degrades spatial accuracy — round-2 evidence) and survived into
+v3 as v1-lineage legacy; its original audience (Cosmos Reason2) is
+v3-deferred; and it bricks an entire model family whose provider
+documents the pattern as a refusal trigger. One re-pin, before the
+freeze, with a cross-arm sanity replay (3 decisions each on ER-2 +
+one other arm) required before v3.4 becomes the collection prompt.
+Sonnet's measured-refusal data is RETAINED as a finding
+(model-family prompt-format sensitivity) regardless of the re-pin.
+(2) DeepSeek gains refusal-mitigation PARITY (4 attempts + grey
+fallback) — ruling 1's comparability principle applies to every
+hosted arm.
+(3) Refused attempts must record token usage where the API returns
+it (Sonnet's ~$0.76 estimated cost is the evidence gap).
+(4) The agent's key copy to the VM (/ws/.env, mode 600, values
+never printed) is RATIFIED — the keys were supplied for exactly
+that use.
+(5) OpenAI credits EXHAUSTED mid-run (gpt-5.1 dynamics stopped at
+28/59; the frozen gpt-4o pin is blocked too) — OWNER ACTION: top
+up before collection; ~$0.05 completes gpt-5.1's dynamics.
+
 **Model-wiring RESULTS + RULINGS (2026-10-06,
 `docs/reports/2026-10-06-model-wiring.md`):** Qwen3-VL-8B VALIDATED
 to the full standard (probes 57/60 — CI-overlapping the frontier
