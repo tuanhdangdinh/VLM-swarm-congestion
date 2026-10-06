@@ -37,6 +37,7 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-07** — **v1 transport hotfix branch created; conformance fix program complete.** v1 confirmatory collection now runs from branch `prereg-v1-hotfix` = tag `569d95c` + `efe085d` (F01, no transport escape) + `a475fe0` (F02, backoff/Retry-After); zero suite delta vs the tag, frozen surfaces (prompts/config/oracles) diff-empty; protocol note = amendments doc Rev 26. The full F01–F27 fix program is merged on `feat/prereg-v2-composite` (`c1e3c43`..`0444621`), report at `docs/reports/2026-10-07-conformance-fixes.md`; completion record + Group-D F12/F04 amendments in the v2 design spec.
 - **2026-09-30** — **`prereg-v1` tag: live-VLM demo verification + freeze.** Two live-VLM
   demo episodes recorded (footage in `data/logs/vm_runs/live_demo/`, gitignored): ER-2 run
   `20260930_152222` (clean yield of `robot_2`, 2/2 arrivals) and gpt-4o run `20260930_154216`

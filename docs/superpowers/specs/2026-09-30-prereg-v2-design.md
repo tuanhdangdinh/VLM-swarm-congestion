@@ -369,6 +369,44 @@ the regex IS tuned to gpt-4o) on a `prereg-v1-hotfix` branch,
 documented as a protocol note in the amendments doc — the 429-burn
 evidence makes running collection without backoff indefensible.
 
+**Conformance fix program COMPLETE (2026-10-07,
+`docs/reports/2026-10-07-conformance-fixes.md`):** every FIX NOW
+ruling implemented and merged to `feat/prereg-v2-composite`
+(fast-forward, commits `c1e3c43` F01, `e713c14` F02, `d8570b2`
+F03–F27, `0444621` docs). Verification: v2 failing set moved
+66 → 65 ids, the only change being the F27 test turning green;
+147 new conformance/retry/no-escape tests pass; a nine-arm
+request-body pin confirms NO wire byte moved except the two ruled
+flash fields (`max_output_tokens: 16384`, `store: false`) — ER-2's
+frozen body pinned byte-for-byte. Against the pre-fix code, 70/86
+conformance tests and 7/19 no-escape tests fail (the tests bite).
+The v1 transport hotfix is on `prereg-v1-hotfix` (tag + `efe085d`
++ `a475fe0`; zero suite delta vs the tag; protocol note written as
+amendments Rev 26). CARRIED CAVEATS, accepted: (a) stage-2
+worst-case wall clock 16 s → 76 s if a 60 s Retry-After lands
+between its attempts (stage 1: 480 → 570 s) — uniform policy by
+ruling, no stage-2 clamp; M5's worker has no outer bound, watch
+collection latencies; (b) quota-exhaustion 429s retry like
+rate-limit 429s — bounded waits, provider error code in the new
+per-attempt diagnostics record enables a later carve-out;
+(c) `error_type` strings unchanged ("ConnectionError" preserved
+for `scripts/probe_presentation_order.py`'s classifier) — richer
+status/code/wait data lives in the per-attempt records;
+(d) `scripts/probe_refusals.py` counts refusals by text regex and
+will UNDERCOUNT provider-flagged textless refusals on post-fix
+artifacts — do not use it on new data without patching.
+GROUP-D CAVEAT AMENDED per the F12/F04 rulings (supersedes the
+served-model wording in the roster-closure block below):
+(i) `gpt-5.1` was deprecated 2026-10-01 with API shutdown
+2027-04-01 — its confirmatory collection must complete well before
+the cutoff, and the deprecation date is part of its arm record;
+(ii) the served-model mitigation is RESTATED as
+fingerprint-where-available (DeepSeek `system_fingerprint` now
+captured; others lack an equivalent) PLUS dated collection windows
+recorded per arm — the served-model string alone is uninformative
+on undated pins, so analyses condition on fingerprint + window,
+not on the echoed model name.
+
 **Hypothesis arms RESULTS + RULINGS (2026-10-07,
 `docs/reports/2026-10-07-hypothesis-arms.md`; nine-arm table is
 the freeze's model annex; reading rule committed pre-call at
