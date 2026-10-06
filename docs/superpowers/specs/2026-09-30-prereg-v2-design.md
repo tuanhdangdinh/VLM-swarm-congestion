@@ -318,6 +318,19 @@ frames provide.
   edge gate; yes-exclusion window asymmetry; reachability filter
   for "no" items) — all documented with candidate-level counts.
 
+**Layer-2-off pilot (registered 2026-10-06, PILOT — excluded from
+confirmatory counts):** small-sample no-intervention arm — the
+decision layer answers no-congestion throughout (mock, zero
+dispatches verified), Nav2 + M4 safety only — on head-on s42, B1
+s42, B3 s42, IB10 s42. Measures outcome_class, arrivals, and
+delay_vs_free_flow against the same cells' intervened episodes: the
+on-our-geometry quantification of "the reactive layer alone does not
+resolve congestion" (Marcolino-2017 / Garg low-level-only
+precedents). If results match expectation (latch/clog), the full
+no-intervention ARM is registered into collection; if any cell
+self-resolves, that is a design finding for the oracle (the cell may
+not need Layer 2) and goes to the owner before collection.
+
 **Verbatim pilot (registered 2026-10-06, PILOT — excluded from every
 confirmatory count, per the standing pilot rule):** a plan-complexity
 ladder probing when live plans execute verbatim, on the v2 branch
