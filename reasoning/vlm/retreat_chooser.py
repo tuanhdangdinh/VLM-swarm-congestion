@@ -1,7 +1,7 @@
 """Stage-2 retreat-choice call: prompt -> backend -> parse, bounded like stage 1."""
 
 from reasoning.vlm.backend_base import VLMBackend
-from reasoning.vlm.errors import BackendTimeoutError, RetreatLabelError
+from reasoning.vlm.errors import BackendTimeoutError, RetreatLabelError, recorded_error_type
 from reasoning.vlm.models import (
     ReasonerConfig,
     RetreatChoiceDecision,
@@ -11,6 +11,7 @@ from reasoning.vlm.models import (
 )
 from reasoning.vlm.output_parser import parse_retreat_choice_text
 from reasoning.vlm.reasoner import build_reask_prompt, invoke_backend, is_refusal
+from reasoning.vlm.retry_policy import DEFAULT_RETRY_POLICY, RetryPolicy, classify_failure
 from reasoning.vlm.stage2_prompt import build_stage2_prompt_payload
 
 
@@ -27,15 +28,23 @@ class RetreatChooser:
     the measurement plan's `invalid_label` outcome, not a transport fault.
     """
 
-    def __init__(self, backend: VLMBackend, config: ReasonerConfig) -> None:
+    def __init__(
+        self,
+        backend: VLMBackend,
+        config: ReasonerConfig,
+        retry_policy: RetryPolicy = DEFAULT_RETRY_POLICY,
+    ) -> None:
         """Wire a backend to the config its calls run under.
 
         Args:
             backend: Any object satisfying the `VLMBackend` Protocol.
             config: Timeout, attempt budget, sampling and re-ask policy.
+            retry_policy: Backoff between failed attempts, the same policy
+                stage 1 runs under (transport hotfix, F02).
         """
         self._backend = backend
         self._config = config
+        self._retry_policy = retry_policy
 
     @property
     def config(self) -> ReasonerConfig:
@@ -64,16 +73,20 @@ class RetreatChooser:
         error_type: str | None = None
         error_message: str | None = None
         refusals = 0
+        waited_sec = 0.0
 
         while attempts < self._config.max_attempts:
             attempts += 1
             try:
                 response = invoke_backend(self._backend, payload, self._config)
-            except BackendTimeoutError as exc:
-                cause, error_type, error_message = "timeout", type(exc).__name__, str(exc)
-                continue
             except Exception as exc:  # e.g. an HTTP 429 on an exhausted key
-                cause, error_type, error_message = "backend_error", type(exc).__name__, str(exc)
+                cause = "timeout" if isinstance(exc, BackendTimeoutError) else "backend_error"
+                error_type, error_message = recorded_error_type(exc), str(exc)
+                # The stage-1 retry policy (transport hotfix, F02), unchanged.
+                if classify_failure(exc) == "stop":
+                    break
+                if attempts < self._config.max_attempts:
+                    waited_sec += self._retry_policy.wait_before_retry(exc, attempts, waited_sec)
                 continue
             raw_text = response.text
             backend_id = response.backend_id

@@ -7,6 +7,7 @@ from pathlib import Path
 import requests
 
 from reasoning.vlm.models import BackendResponse, PromptPayload, ReasonerConfig
+from reasoning.vlm.transport import http_error
 
 
 class OpenAIBackend:
@@ -66,10 +67,10 @@ class OpenAIBackend:
             raise ConnectionError(f"OpenAI request failed: {type(exc).__name__}") from exc
 
         if resp.status_code >= 400:
-            # Truncate and never echo request headers/body — avoids leaking the key.
-            raise ConnectionError(
-                f"OpenAI returned HTTP {resp.status_code}: {resp.text[:400]}"
-            )
+            # Classified for the shared retry policy (429/5xx retried with
+            # backoff, other 4xx final); the message is truncated and never
+            # echoes request headers or body, so the key cannot leak.
+            raise http_error("OpenAI", resp)
 
         try:
             data = resp.json()

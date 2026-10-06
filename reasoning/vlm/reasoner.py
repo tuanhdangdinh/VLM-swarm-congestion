@@ -11,6 +11,7 @@ from PIL import Image
 from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.errors import (
     BackendTimeoutError,
+    recorded_error_type,
 )
 from reasoning.vlm.models import (
     BackendResponse,
@@ -26,6 +27,7 @@ from reasoning.vlm.output_parser import (
     validate_involved_robots,
 )
 from reasoning.vlm.prompt_builder import build_prompt_payload
+from reasoning.vlm.retry_policy import DEFAULT_RETRY_POLICY, RetryPolicy, classify_failure
 
 # Formatted via _REASK_SUFFIX.format(error_message=...) in build_reask_prompt.
 _REASK_SUFFIX = (
@@ -252,6 +254,7 @@ class Reasoner:
         backend: VLMBackend,
         config: ReasonerConfig,
         effective_sampling: EffectiveSamplingConfig | None = None,
+        retry_policy: RetryPolicy = DEFAULT_RETRY_POLICY,
     ) -> None:
         """Wire a backend to its runtime config.
 
@@ -262,10 +265,13 @@ class Reasoner:
                 result, built by `describe_effective_sampling`. Optional so a
                 test harness or a script may construct a `Reasoner` without the
                 backend's own config; then nothing is recorded.
+            retry_policy: Backoff between failed attempts (transport hotfix,
+                F02); the shared default for every arm.
         """
         self._backend = backend
         self._config = config
         self._effective_sampling = effective_sampling
+        self._retry_policy = retry_policy
 
     def run(self, request: ReasonerRequest) -> ReasonerResult:
         """Execute one complete reasoning pass with bounded retry/re-ask.
@@ -303,6 +309,7 @@ class Reasoner:
         had_parse_failure = False
         refusal_attempts = 0
         image_fallback_attempt: int | None = None
+        waited_sec = 0.0
         # Created only when the mitigation actually fires, so the common path
         # touches the filesystem exactly as it did before.
         scratch: tempfile.TemporaryDirectory | None = None
@@ -318,7 +325,16 @@ class Reasoner:
                     # validation error) are each one recorded attempt, never
                     # an escape from `run`: the M2 contract is decision=None
                     # after bounded retries (transport hotfix, F01).
-                    last_error_type, last_error_msg = type(exc).__name__, str(exc)
+                    last_error_type, last_error_msg = recorded_error_type(exc), str(exc)
+                    if classify_failure(exc) == "stop":
+                        # A deterministic 4xx: repeating the same request
+                        # cannot succeed, so the budget is not spent on it
+                        # (transport hotfix, F02).
+                        break
+                    if attempts < self._config.max_attempts:
+                        waited_sec += self._retry_policy.wait_before_retry(
+                            exc, attempts, waited_sec
+                        )
                     continue
                 try:
                     last_raw = response.text

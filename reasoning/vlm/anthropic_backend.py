@@ -7,6 +7,7 @@ from pathlib import Path
 import requests
 
 from reasoning.vlm.models import BackendResponse, PromptPayload, ReasonerConfig
+from reasoning.vlm.transport import http_error
 
 
 class AnthropicBackend:
@@ -70,10 +71,10 @@ class AnthropicBackend:
             raise ConnectionError(f"Anthropic request failed: {type(exc).__name__}") from exc
 
         if resp.status_code >= 400:
-            # Truncate and never echo request headers/body — avoids leaking the key.
-            raise ConnectionError(
-                f"Anthropic returned HTTP {resp.status_code}: {resp.text[:400]}"
-            )
+            # Classified for the shared retry policy (429/5xx retried with
+            # backoff, other 4xx final); the message is truncated and never
+            # echoes request headers or body, so the key cannot leak.
+            raise http_error("Anthropic", resp)
 
         try:
             data = resp.json()
