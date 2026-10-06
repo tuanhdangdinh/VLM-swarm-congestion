@@ -331,6 +331,39 @@ no-intervention ARM is registered into collection; if any cell
 self-resolves, that is a design finding for the oracle (the cell may
 not need Layer 2) and goes to the owner before collection.
 
+**Hypothesis arms RESULTS + RULINGS (2026-10-07,
+`docs/reports/2026-10-07-hypothesis-arms.md`; nine-arm table is
+the freeze's model annex; reading rule committed pre-call at
+59cc784):**
+- **H1 NOT SUPPORTED**: gemini-3.8-flash scored 20/20 on
+  conflict_prediction (perfect on both GT classes, no answer
+  bias) — ER-2's lead does not survive its own lab's generalist
+  (caveat: newer base generation than the ER-2 preview).
+- **H2 NOT REPLICATED**: Molmo2-ER 9/20, DEGENERATE (yes on
+  19/20; 0/10 on no-conflict) — bias, not dynamics reasoning
+  (caveats: 4.85B, local bf16).
+- **Joint**: no battery-level evidence that embodied tuning helps;
+  the two best dynamics scores are generalists (flash 20, DeepSeek
+  19). Bonus lineage finding: plan emission splits by BACKBONE —
+  Qwen-backbone arms (Molmo2, Qwen3-VL) never emit plans; Google
+  arms emit verbatim plans.
+- glm-5.3-flash validated: probes 58/60, conflict 15/20 (gpt-5.1's
+  exact profile), verbatim + swap-repaired head-ons, ~$0.04.
+RULINGS on the STOPs:
+(1) GLM's forced thinking is ADMITTED with a recorded per-arm
+exception to the frozen dose rule: the rule's INTENT (latency
+bound + cap safety) is verified — minimum effort, 103–146 thinking
+tokens, max_tokens 16,384 cap-proofed — the disable itself is
+impossible (HTTP 400, provider-documented). Group-D caveat stands.
+(2) flash's stage-2 timeout (only arm over the 8 s bound; ~1,960
+thought tokens at its floor): ACCEPT the m3-default letter — no
+per-arm timeout fork, no global apparatus change post-validation;
+recorded as a measured property (thinking models pay a latency
+tax in fast loops — itself a finding).
+(3) Molmo2-ER multi_image stays OFF (failed gates as registered);
+zoom-tile conditions exclude that arm unless the gate re-passes
+under v3.4.
+
 **Roster closure + confirmatory-tier ruling (2026-10-07, USER
 DECISION "add all"):** the roster GROUPS are formalized — A the
 v1-frozen pair (ER-2, gpt-4o; prereg-bound); B the specialization
