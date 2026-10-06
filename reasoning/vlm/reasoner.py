@@ -199,6 +199,7 @@ def build_failed_result(
     image_fallback_attempt: int | None = None,
     served_model: str | None = None,
     refusal_category: str | None = None,
+    attempt_token_usage: list[dict[str, int] | None] | None = None,
 ) -> ReasonerResult:
     """Construct a safe failure result with decision=None after exhausted retries.
 
@@ -222,10 +223,14 @@ def build_failed_result(
             response it returned, if any (a refusal still names its model).
         refusal_category: The provider's category for the last structured
             refusal, if any (`BackendResponse.refusal_category`).
+        attempt_token_usage: Per-attempt usage in call order (None entries
+            for attempts that returned no usage). The last entry becomes
+            `token_usage`, so a terminal refusal still records what it billed.
 
     Returns:
         A `ReasonerResult` with `decision=None` and `parse_status='failed'`.
     """
+    usage = list(attempt_token_usage or [])
     return ReasonerResult(
         request_id=request.request_id,
         decision=None,
@@ -234,6 +239,8 @@ def build_failed_result(
             request_id=request.request_id,
             backend_id=backend_id,
             attempts=attempts,
+            token_usage=usage[-1] if usage else None,
+            attempt_token_usage=usage,
             parse_status="failed",
             error_type=error_type,
             error_message=error_message,
@@ -308,6 +315,8 @@ class Reasoner:
         refusal_attempts = 0
         refusal_category: str | None = None
         image_fallback_attempt: int | None = None
+        # One entry per attempt, refused ones included: a refusal is billed.
+        attempt_usage: list[dict[str, int] | None] = []
         # Created only when the mitigation actually fires, so the common path
         # touches the filesystem exactly as it did before.
         scratch: tempfile.TemporaryDirectory | None = None
@@ -318,6 +327,7 @@ class Reasoner:
                 structured_refusal = False
                 try:
                     response = invoke_backend(self._backend, payload, self._config)
+                    attempt_usage.append(response.token_usage)
                     last_raw = response.text
                     last_unsupported_sampling = _extract_unsupported_sampling(response.raw)
                     last_served_model = response.served_model
@@ -343,6 +353,7 @@ class Reasoner:
                             attempts=attempts,
                             latency_ms=response.latency_ms,
                             token_usage=response.token_usage,
+                            attempt_token_usage=attempt_usage,
                             # "invalid" = a parse/validation failure occurred earlier but a
                             # retry/re-ask then succeeded
                             parse_status="invalid" if had_parse_failure else "valid",  # noqa: E501
@@ -363,6 +374,7 @@ class Reasoner:
                         ),
                     )
                 except (BackendTimeoutError, ConnectionError) as exc:
+                    attempt_usage.append(None)
                     last_error_type, last_error_msg = type(exc).__name__, str(exc)
                     continue
                 except (VLMOutputParseError, DecisionValidationError) as exc:
@@ -399,6 +411,7 @@ class Reasoner:
                 image_fallback_attempt=image_fallback_attempt,
                 served_model=last_served_model,
                 refusal_category=refusal_category,
+                attempt_token_usage=attempt_usage,
             )
         finally:
             if scratch is not None:
@@ -490,6 +503,7 @@ def write_reasoner_log(
         record["refusal_attempts"] = diagnostics.refusal_attempts
         record["image_fallback_used"] = diagnostics.image_fallback_used
         record["image_fallback_attempt"] = diagnostics.image_fallback_attempt
+        record["attempt_token_usage"] = diagnostics.attempt_token_usage
     if diagnostics.refusal_category is not None:
         record["refusal_category"] = diagnostics.refusal_category
     effective = result.diagnostics.reasoner_config_effective

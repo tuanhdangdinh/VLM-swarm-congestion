@@ -35,7 +35,7 @@ from reasoning.vlm.models import (
     RetreatChoiceRequest,
     RobotStateInput,
 )
-from reasoning.vlm.reasoner import Reasoner
+from reasoning.vlm.reasoner import Reasoner, write_reasoner_log
 from reasoning.vlm.retreat_chooser import RetreatChooser
 
 # The gpt-4o pin's request body as the pre-wiring adapter sent it (generated
@@ -204,6 +204,22 @@ def test_anthropic_arm_has_hosted_arm_parity_attempts_and_image_fallback():
         gpt4o.image_fallback_after_attempts,
     )
     assert sonnet.backend_id == "anthropic"
+
+
+def test_deepseek_arm_has_hosted_arm_parity_attempts_and_image_fallback():
+    vlm = _shipped_vlm()
+    deepseek = resolve_reasoner_config(vlm, "deepseek")
+    gpt4o = resolve_reasoner_config(vlm, "openai")
+    assert (
+        deepseek.temperature,
+        deepseek.max_attempts,
+        deepseek.image_fallback_after_attempts,
+    ) == (0.0, 4, 2)
+    assert (deepseek.max_attempts, deepseek.image_fallback_after_attempts) == (
+        gpt4o.max_attempts,
+        gpt4o.image_fallback_after_attempts,
+    )
+    assert deepseek.backend_id == "deepseek"
 
 
 def test_deepseek_arm_is_not_pinned_to_the_retired_exp_id():
@@ -611,3 +627,117 @@ def test_retreat_chooser_counts_a_structured_refusal(tmp_path):
     result = RetreatChooser(_Scripted(_refused()), config).choose(request)
     assert result.failure_cause == "refusal"
     assert result.refusal_attempts == 2
+
+
+# --- refused-attempt usage (roster-validation ruling 3) ---------------------
+
+
+def _sequenced_post(monkeypatch, module: str, *responses: _FakeResponse) -> list:
+    sent: list = []
+
+    def fake_post(url, json, headers=None, timeout=None):
+        sent.append(json)
+        return responses[min(len(sent) - 1, len(responses) - 1)]
+
+    monkeypatch.setattr(f"reasoning.vlm.{module}.requests.post", fake_post)
+    return sent
+
+
+def _anthropic_billed_refusal(input_tokens: int) -> _FakeResponse:
+    reply = _anthropic_refusal("reasoning_extraction")
+    reply._payload["usage"] = {"input_tokens": input_tokens, "output_tokens": 0}
+    return reply
+
+
+def _sonnet_reasoner() -> Reasoner:
+    backend, config = _build_arm("anthropic")
+    return Reasoner(backend, config)
+
+
+def test_terminal_refusal_records_every_refused_attempts_usage(monkeypatch, tmp_path):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    refusals = [_anthropic_billed_refusal(4001 + index) for index in range(4)]
+    _sequenced_post(monkeypatch, "anthropic_backend", *refusals)
+    result = _sonnet_reasoner().run(_request(tmp_path))
+    assert result.decision is None
+    assert result.diagnostics.refusal_attempts == 4
+    assert result.diagnostics.attempt_token_usage == [
+        {"input_tokens": 4001 + index, "output_tokens": 0} for index in range(4)
+    ]
+
+
+def test_terminal_refusal_records_the_final_attempts_usage_as_token_usage(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    refusals = [_anthropic_billed_refusal(4001 + index) for index in range(4)]
+    _sequenced_post(monkeypatch, "anthropic_backend", *refusals)
+    result = _sonnet_reasoner().run(_request(tmp_path))
+    assert result.diagnostics.token_usage == {"input_tokens": 4004, "output_tokens": 0}
+
+
+def test_answer_after_refusals_keeps_the_refused_attempts_usage(monkeypatch, tmp_path):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    _sequenced_post(
+        monkeypatch,
+        "anthropic_backend",
+        _anthropic_billed_refusal(4101),
+        _anthropic_billed_refusal(4102),
+        _anthropic_ok(_GOOD_DECISION),
+    )
+    result = _sonnet_reasoner().run(_request(tmp_path))
+    assert result.decision is not None
+    assert result.diagnostics.image_fallback_attempt == 3
+    assert [entry["input_tokens"] for entry in result.diagnostics.attempt_token_usage] == [
+        4101,
+        4102,
+        1500,
+    ]
+    assert result.diagnostics.token_usage["input_tokens"] == 1500
+
+
+class _DropsThenAnswers:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def analyze(self, payload, config):
+        self.calls += 1
+        if self.calls == 1:
+            raise ConnectionError("connection closed")
+        return BackendResponse(
+            text=_GOOD_DECISION, backend_id="d", token_usage={"prompt_tokens": 7}
+        )
+
+
+def test_transport_error_attempt_records_no_usage(tmp_path):
+    config = ReasonerConfig(backend_id="deepseek", max_attempts=4)
+    result = Reasoner(_DropsThenAnswers(), config).run(_request(tmp_path))
+    assert result.diagnostics.attempt_token_usage == [None, {"prompt_tokens": 7}]
+
+
+def test_reasoner_log_records_attempt_usage_when_an_attempt_was_refused(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    _sequenced_post(
+        monkeypatch,
+        "anthropic_backend",
+        _anthropic_billed_refusal(4201),
+        _anthropic_ok(_GOOD_DECISION),
+    )
+    request = _request(tmp_path)
+    result = _sonnet_reasoner().run(request)
+    log = tmp_path / "trace.jsonl"
+    write_reasoner_log(log, request, result)
+    record = json.loads(log.read_text())
+    assert record["attempt_token_usage"][0] == {"input_tokens": 4201, "output_tokens": 0}
+
+
+def test_reasoner_log_omits_attempt_usage_without_a_refusal(monkeypatch, tmp_path):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    _sequenced_post(monkeypatch, "anthropic_backend", _anthropic_ok(_GOOD_DECISION))
+    request = _request(tmp_path)
+    result = _sonnet_reasoner().run(request)
+    log = tmp_path / "trace.jsonl"
+    write_reasoner_log(log, request, result)
+    assert "attempt_token_usage" not in json.loads(log.read_text())

@@ -668,7 +668,16 @@ class ReasonerDiagnostics(BaseModel):
     backend_id: str
     attempts: int = Field(ge=1)
     latency_ms: int | None = Field(default=None, ge=0)
+    # Usage of the final attempt: the answering call on success, the last
+    # attempt (a refused one included; None after a transport error) on
+    # failure.
     token_usage: dict[str, int] | None = None
+    # Usage of every attempt in call order, None where the attempt returned no
+    # response (transport error) or the provider reported none. Refused
+    # attempts are billed (Anthropic `reasoning_extraction`), so the call
+    # cost is the sum of this list -- never add `token_usage` to it, the final
+    # attempt is already here (roster-validation ruling 3, 2026-10-06).
+    attempt_token_usage: list[dict[str, int] | None] = Field(default_factory=list)
     parse_status: Literal["valid", "invalid", "failed"]
     error_type: str | None = None
     error_message: str | None = None

@@ -132,7 +132,10 @@ vlm:
   # 1024 tokens per image; the launch note's 384-token cap described the
   # retired -exp model and is obsolete. The served model is recorded per call.
   # Thinking defaults ON there and temperature has no effect while it is on,
-  # so it is disabled for a greedy classifier.
+  # so it is disabled for a greedy classifier. Attempts and the grey-image
+  # fallback are at PARITY with the other hosted arms (roster-validation
+  # ruling 2, 2026-10-06): the Sonnet parity principle applies to every
+  # hosted arm, so a refusal profile is measured under identical mitigation.
   deepseek:
     adapter: openai
     model_id: deepseek-flash
@@ -141,6 +144,8 @@ vlm:
     thinking_type: disabled
     reasoner:
       temperature: 0.0
+      max_attempts: 4
+      image_fallback_after_attempts: 2
 
 embeddings:
   model_name: sentence-transformers/all-MiniLM-L6-v2
