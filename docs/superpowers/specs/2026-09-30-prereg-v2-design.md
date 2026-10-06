@@ -331,6 +331,23 @@ no-intervention ARM is registered into collection; if any cell
 self-resolves, that is a design finding for the oracle (the cell may
 not need Layer 2) and goes to the owner before collection.
 
+**Layer-2-off pilot RESULT + ARM REGISTERED (2026-10-06,
+`docs/reports/2026-10-06-layer2off-pilot.md`):** expectation HELD —
+4/4 cells clogged, 0/13 robots arrived, robots latch 0.27–0.39 m
+apart within a second of conflict onset and never separate; 230
+analyses fired, zero dispatches (silencing proven). Delay contrast
+(censored lower bounds): head-on ≥531 vs 150 s intervened; B3 ≥799
+vs 238; IB10 ≥1026 vs 457–503. No self-resolving cell → no oracle
+finding. REGISTERED into collection: the NO-INTERVENTION ARM, 35
+episodes paired on (scenario, seed) keys against the intervened
+arms — 10 each head-on/B3/IB10, 5 for B1 (both arms clog there
+until the stage-2 defect is fixed; B1 stays decision-scored);
+one layer-2-off episode per key pairs against both backend arms;
+McNemar ≈ 0.002/cell at 10/10. Registered caveats: the proximate
+cause (M4's 0.45 m stop) is the natural reading but untested (no
+run disabled M4); the B3 intervened reference is a scripted
+oracle, not a live model. ~13 VM-h, $0.
+
 **Verbatim pilot (registered 2026-10-06, PILOT — excluded from every
 confirmatory count, per the standing pilot rule):** a plan-complexity
 ladder probing when live plans execute verbatim, on the v2 branch
