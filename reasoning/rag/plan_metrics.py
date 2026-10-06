@@ -15,14 +15,24 @@ evidence-driven/unforced revision cause need M5's per-leg execution-status
 tracking, which is the next build-order step; this module only provides their
 pure building blocks (`compute_plan_churn`, `classify_revision_cause`),
 callable once that state exists.
+
+The verbatim-pilot rulings (2026-10-06, A/C/D) add derived, metrics-only
+surfaces: the `repaired_order_only` sub-class, `verbatim_dispatch_matched`,
+`strategy_correct` with its stratified table, held-robot exclusion from the
+oracle order, and `score_decision_artifact` for re-scoring stored artifacts.
 """
 
-from collections.abc import Sequence
-from typing import Literal
+from collections.abc import Collection, Iterable, Mapping, Sequence
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from reasoning.rag.command_grounder import PlanProvenance, PlanRejectionStage, VerifiedPlan
+from reasoning.rag.command_grounder import (
+    PlanEdit,
+    PlanProvenance,
+    PlanRejectionStage,
+    VerifiedPlan,
+)
 from reasoning.vlm.models import CongestionDecision, PlanLegStatus, ProposedPlanLeg
 
 # Whether a replan followed at least one leg execution failure since the last
@@ -73,6 +83,20 @@ class PlanDecisionMetrics(BaseModel):
     # to score. Still gated on consistency after the 2026-10-03 split, so its
     # population is unchanged by it.
     oracle_order_agreement: bool | None
+    # Metrics-only sub-class of `repaired` (verbatim-pilot ruling A,
+    # 2026-10-06): True when every repair edit is a `reorder`, i.e. the plan
+    # was verbatim up to list order. `provenance` itself stays `repaired`.
+    # None unless `provenance == "repaired"`.
+    repaired_order_only: bool | None = None
+    # Ruling C: "executed verbatim" -- `vlm_verbatim` AND M5 dispatched those
+    # same legs (`PlanDispatchInfo.dispatch_matches_plan`). None when the
+    # plan is not `vlm_verbatim` or the dispatch match is unknown.
+    verbatim_dispatch_matched: bool | None = None
+    # Ruling C: the decided strategy is one of the cell oracle's
+    # `accepted_strategies`; the stratum for "provenance conditioned on
+    # strategy-vs-oracle correctness". None when the cell registers no
+    # accepted strategies.
+    strategy_correct: bool | None = None
 
 
 def score_plan_decision(
@@ -80,6 +104,9 @@ def score_plan_decision(
     verified: VerifiedPlan,
     *,
     oracle_order: Sequence[str] | None = None,
+    held_robot_ids: Collection[str] = (),
+    dispatch_matches_plan: bool | None = None,
+    accepted_strategies: Collection[str] | None = None,
 ) -> PlanDecisionMetrics:
     """Score one decision's plan against the registered per-decision metrics.
 
@@ -90,12 +117,21 @@ def score_plan_decision(
             `correct_order`, B2's priority-first, B3's convoy order, IB10's
             inside-first), restricted to the robots it names; None where the
             cell registers no oracle.
+        held_robot_ids: Robots that can only receive `continue` at decision
+            time (e.g. B1's robot_3 before its `start_delay_sec` release).
+            Excluded from the oracle order before scoring (verbatim-pilot
+            ruling D); the caller derives them from the cell's goal table.
+        dispatch_matches_plan: The stored `PlanDispatchInfo.
+            dispatch_matches_plan` for this decision, or None when unknown.
+        accepted_strategies: The cell oracle's `accepted_strategies`, or
+            None where the cell registers none.
 
     Every field is recomputed from `decision` and `verified`, never read from
     a stored metrics record, so a decision artifact written before a field
     existed (e.g. `consistent`) still scores: re-run
     `verify_and_repair_plan` on its stored decision and snapshot, then call
-    this.
+    this, or rebuild it from the stored plan block via
+    `score_decision_artifact`.
 
     Returns:
         The per-decision metrics.
@@ -120,16 +156,70 @@ def score_plan_decision(
         edit_distance=edit_distance,
         provenance=verified.provenance,
         rejection_stage=verified.rejection_stage,
-        oracle_order_agreement=_score_oracle_order(decision, consistent is True, oracle_order),
+        oracle_order_agreement=_score_oracle_order(
+            decision, consistent is True, oracle_order, held_robot_ids
+        ),
+        repaired_order_only=(
+            is_order_only_repair(verified.edits) if verified.provenance == "repaired" else None
+        ),
+        verbatim_dispatch_matched=(
+            dispatch_matches_plan if verified.provenance == "vlm_verbatim" else None
+        ),
+        strategy_correct=strategy_matches_oracle(decision.strategy, accepted_strategies),
     )
 
 
+def is_order_only_repair(edits: Sequence[PlanEdit]) -> bool:
+    """Whether a repair changed only the list order (ruling A's sub-class).
+
+    A `swap` re-assigns roles between positions and a `substitute` changes an
+    action, so either one disqualifies; an empty edit list is not a repair.
+
+    Args:
+        edits: The repaired plan's `VerifiedPlan.edits`.
+
+    Returns:
+        True when there is at least one edit and every edit is a `reorder`.
+    """
+    return bool(edits) and all(edit.op == "reorder" for edit in edits)
+
+
+def strategy_matches_oracle(
+    strategy: str, accepted_strategies: Collection[str] | None
+) -> bool | None:
+    """Whether a decided strategy is one the cell's oracle accepts.
+
+    Args:
+        strategy: The decision's `strategy`.
+        accepted_strategies: The cell oracle's `accepted_strategies` (IB10,
+            convoy, loop-detour cells), or None where none is registered.
+
+    Returns:
+        None when no accepted set is registered, else membership.
+    """
+    if accepted_strategies is None:
+        return None
+    return strategy in accepted_strategies
+
+
 def _score_oracle_order(
-    decision: CongestionDecision, scorable: bool, oracle_order: Sequence[str] | None
+    decision: CongestionDecision,
+    scorable: bool,
+    oracle_order: Sequence[str] | None,
+    held_robot_ids: Collection[str],
 ) -> bool | None:
     if oracle_order is None or not scorable or decision.proposed_plan is None:
         return None
-    oracle_robots = list(oracle_order)
+    # Ruling D: a held robot can only be given `continue`, which the proposed
+    # order drops, so keeping it in the oracle made agreement False by
+    # construction (pilot B1 triggers). With one robot left the comparison
+    # only checks that robot is named with an active role.
+    oracle_robots = [robot_id for robot_id in oracle_order if robot_id not in held_robot_ids]
+    if not oracle_robots and len(oracle_robots) != len(oracle_order):
+        # Every oracle robot is held: nothing left to order. Only the held
+        # exclusion returns None here; an empty registered oracle keeps its
+        # pre-ruling result.
+        return None
     # A "continue" leg carries no sequencing information, so it is not part
     # of the proposed order even when the robot is named with that action.
     proposed_order = [
@@ -143,6 +233,142 @@ def _score_oracle_order(
         # None -- a plan WAS emitted, it just cannot be compared cleanly.
         return False
     return proposed_order == oracle_robots
+
+
+# `verify_and_repair_plan`'s `rejection_reason` prefixes. `rejection_stage`
+# is not persisted in the decision artifact's plan block, so an offline
+# re-score recovers it from these (round-trip pinned in test_plan_metrics).
+_UNPARSEABLE_PREFIX = "plan unparseable"
+_BOUND_EXCEEDED_PREFIX = "repair distance exceeds bound"
+
+
+def _rejection_stage_from_block(
+    decision: CongestionDecision, plan_block: Mapping[str, Any]
+) -> PlanRejectionStage | None:
+    if plan_block.get("provenance") != "m3_default":
+        return None
+    if decision.proposed_plan is None:
+        return "absent"
+    reason = plan_block.get("rejection_reason") or ""
+    if reason.startswith(_UNPARSEABLE_PREFIX):
+        return "unknown_robot"
+    if reason.startswith(_BOUND_EXCEEDED_PREFIX):
+        return "repair_bound_exceeded"
+    return "inconsistent"
+
+
+def score_decision_artifact(
+    artifact: Mapping[str, Any],
+    *,
+    oracle_order: Sequence[str] | None = None,
+    held_robot_ids: Collection[str] = (),
+    accepted_strategies: Collection[str] | None = None,
+) -> PlanDecisionMetrics | None:
+    """Score one stored M5 decision artifact from its `decision` and `plan` blocks.
+
+    The offline join for the registered analysis "provenance conditioned on
+    strategy-vs-oracle correctness" (verbatim-pilot ruling C): everything it
+    needs is already stored -- `decision.strategy`, and the plan block's
+    `provenance`, `edits`, `rejection_reason` and `dispatch_matches_plan` --
+    so no new artifact field is required. The cell-level inputs come from
+    the run's scenario oracle and goal table: no artifact records which
+    robots were still held at decision time, so the caller derives
+    `held_robot_ids` from the goal table's `start_delay_sec`. A `plan_held`
+    decision is scored like any other, so a per-accepted-plan count must
+    filter holds out first (see `compute_episode_plan_stability`).
+
+    Args:
+        artifact: One parsed `decisions/<request_id>.json`.
+        oracle_order: Forwarded to `score_plan_decision`.
+        held_robot_ids: Forwarded to `score_plan_decision`.
+        accepted_strategies: Forwarded to `score_plan_decision`.
+
+    Returns:
+        The metrics, or None when the artifact carries no decision or no plan
+        block (plan channel off, or nothing was dispatched).
+    """
+    decision_block = artifact.get("decision")
+    plan_block = artifact.get("plan")
+    if not decision_block or not plan_block:
+        return None
+    decision = CongestionDecision.model_validate(decision_block)
+    verified = VerifiedPlan(
+        legs=[
+            ProposedPlanLeg(robot_id=leg["robot_id"], action=leg["action"])
+            for leg in plan_block.get("legs") or []
+        ],
+        provenance=plan_block["provenance"],
+        edits=[PlanEdit.model_validate(edit) for edit in plan_block.get("edits") or []],
+        rejection_reason=plan_block.get("rejection_reason"),
+        rejection_stage=_rejection_stage_from_block(decision, plan_block),
+    )
+    return score_plan_decision(
+        decision,
+        verified,
+        oracle_order=oracle_order,
+        held_robot_ids=held_robot_ids,
+        dispatch_matches_plan=plan_block.get("dispatch_matches_plan"),
+        accepted_strategies=accepted_strategies,
+    )
+
+
+StrategyStratum = Literal["strategy_correct", "strategy_incorrect", "strategy_unscored"]
+
+
+class ProvenanceStratum(BaseModel):
+    """Provenance counts within one strategy-correctness stratum."""
+
+    model_config = ConfigDict(frozen=True)
+
+    plans: int = Field(default=0, ge=0)
+    vlm_verbatim: int = Field(default=0, ge=0)
+    repaired: int = Field(default=0, ge=0)
+    # Subset of `repaired`.
+    repaired_order_only: int = Field(default=0, ge=0)
+    m3_default: int = Field(default=0, ge=0)
+    # Subsets of `vlm_verbatim`; verbatim plans with an unknown dispatch match
+    # are in neither.
+    verbatim_dispatch_matched: int = Field(default=0, ge=0)
+    verbatim_dispatch_mismatched: int = Field(default=0, ge=0)
+
+
+def tabulate_provenance_by_strategy_correctness(
+    metrics: Iterable[PlanDecisionMetrics],
+) -> dict[StrategyStratum, ProvenanceStratum]:
+    """Provenance conditioned on strategy-vs-oracle correctness (ruling C).
+
+    Verbatim under a wrong or unconstrained strategy (the pilot's gpt-4o
+    IB10 `reverse` plans) lands in `strategy_incorrect`, so it cannot
+    inflate the correct-strategy verbatim rate.
+
+    Args:
+        metrics: Per-decision metrics, e.g. from `score_decision_artifact`.
+
+    Returns:
+        One stratum per correctness value; every key is always present.
+    """
+    counts: dict[StrategyStratum, dict[str, int]] = {
+        key: dict.fromkeys(ProvenanceStratum.model_fields, 0)
+        for key in ("strategy_correct", "strategy_incorrect", "strategy_unscored")
+    }
+    for item in metrics:
+        stratum: StrategyStratum = (
+            "strategy_unscored"
+            if item.strategy_correct is None
+            else "strategy_correct"
+            if item.strategy_correct
+            else "strategy_incorrect"
+        )
+        row = counts[stratum]
+        row["plans"] += 1
+        row[item.provenance] += 1
+        if item.repaired_order_only:
+            row["repaired_order_only"] += 1
+        if item.verbatim_dispatch_matched is True:
+            row["verbatim_dispatch_matched"] += 1
+        elif item.verbatim_dispatch_matched is False:
+            row["verbatim_dispatch_mismatched"] += 1
+    return {key: ProvenanceStratum(**row) for key, row in counts.items()}
 
 
 class PlanChurn(BaseModel):

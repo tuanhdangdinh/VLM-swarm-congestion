@@ -1,12 +1,18 @@
 """Tests for the pure plan-quality scorer in `reasoning.rag.plan_metrics`."""
 
-from reasoning.rag.command_grounder import verify_and_repair_plan
+import pytest
+
+from reasoning.rag.command_grounder import PlanRepairParams, verify_and_repair_plan
 from reasoning.rag.plan_metrics import (
     any_leg_exhausted,
     classify_revision_cause,
     compute_episode_plan_stability,
     compute_plan_churn,
+    is_order_only_repair,
+    score_decision_artifact,
     score_plan_decision,
+    strategy_matches_oracle,
+    tabulate_provenance_by_strategy_correctness,
 )
 from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
 from reasoning.vlm.models import (
@@ -164,8 +170,6 @@ class TestScorePlanDecisionProvenancePaths:
                 ProposedPlanLeg(robot_id="robot_2", action="cross"),
             ]
         )
-        from reasoning.rag.command_grounder import PlanRepairParams
-
         verified = verify_and_repair_plan(
             decision,
             _DEADLOCK,
@@ -386,3 +390,344 @@ class TestAnyLegExhausted:
 
     def test_false_for_an_empty_plan(self):
         assert any_leg_exhausted([]) is False
+
+
+# ---- verbatim-pilot rulings A, C, D (2026-10-06) ----
+#
+# Plan blocks below are the pilot's stored `PlanDispatchInfo` shapes
+# (docs/reports/2026-10-06-verbatim-pilot.md, "Every dispatched plan"),
+# copied field for field from the decision artifacts.
+
+_REORDER_R1_R2 = {
+    "op": "reorder",
+    "robot_ids": ["robot_1", "robot_2"],
+    "reason": (
+        "reordered: cross leg has no preceding yield leg to release it; robot_1 and "
+        "robot_2 exchanged position"
+    ),
+}
+_B1_ORACLE = ["robot_1", "robot_3"]
+_IB10_ACCEPTED = ("junction_clear",)
+
+
+def _legs(*pairs: tuple[str, str]) -> list[dict[str, str]]:
+    return [{"robot_id": rid, "action": action} for rid, action in pairs]
+
+
+def _artifact(
+    decision: dict, provenance: str, legs: list[dict], *, edits: list[dict] | None = None,
+    dispatch_matches_plan: bool = True, rejection_reason: str | None = None,
+) -> dict:
+    base = {
+        "congestion_detected": True,
+        "type": "deadlock",
+        "root_cause": "r",
+        "justification": "j",
+    }
+    return {
+        "decision": {**base, **decision},
+        "plan": {
+            "plan_id": 1,
+            "provenance": provenance,
+            "legs": [{**leg, "status": "pending"} for leg in legs],
+            "edits": edits or [],
+            "rejection_reason": rejection_reason,
+            "dispatch_matches_plan": dispatch_matches_plan,
+            "order_equivalent": False,
+            "plan_held": False,
+        },
+    }
+
+
+def _episode_2() -> dict:
+    # ER-2 head-on s43 trigger: correct yielder, listed cross-first.
+    proposed = _legs(("robot_1", "cross"), ("robot_2", "yield"))
+    return _artifact(
+        {"involved_robots": ["robot_1", "robot_2"], "strategy": "yield",
+         "yield_robot": "robot_2", "proposed_plan": proposed},
+        "repaired", _legs(("robot_2", "yield"), ("robot_1", "cross")), edits=[_REORDER_R1_R2],
+    )
+
+
+def _episode_6() -> dict:
+    # ER-2 B1 s42 trigger: verbatim, robot_3 still held (start_delay_sec 80).
+    proposed = _legs(("robot_2", "yield"), ("robot_1", "cross"), ("robot_3", "continue"))
+    return _artifact(
+        {"type": "bottleneck", "involved_robots": ["robot_1", "robot_2"],
+         "strategy": "yield", "yield_robot": "robot_2", "proposed_plan": proposed},
+        "vlm_verbatim", proposed,
+    )
+
+
+def _episode_7() -> dict:
+    # ER-2 B1 s43 trigger: same yielder as episode 6, listed cross-first.
+    proposed = _legs(("robot_1", "cross"), ("robot_2", "yield"), ("robot_3", "continue"))
+    return _artifact(
+        {"type": "bottleneck", "involved_robots": ["robot_1", "robot_2"],
+         "strategy": "yield", "yield_robot": "robot_2", "proposed_plan": proposed},
+        "repaired",
+        _legs(("robot_2", "yield"), ("robot_1", "cross"), ("robot_3", "continue")),
+        edits=[_REORDER_R1_R2],
+    )
+
+
+def _ib10_gpt4o_yield_mismatch() -> dict:
+    # gpt-4o IB10 s42 at sim 153.5: verbatim multi-passer yield, dispatched
+    # differently, strategy outside the cell's accepted set.
+    proposed = _legs(
+        ("robot_1", "yield"), ("robot_2", "cross"), ("robot_3", "continue"),
+        ("robot_4", "continue"),
+    )
+    return _artifact(
+        {"involved_robots": ["robot_1", "robot_2"],
+         "strategy": "yield", "yield_robot": "robot_1",
+         "crossing_order": ["robot_2", "robot_1"], "proposed_plan": proposed},
+        "vlm_verbatim", proposed, dispatch_matches_plan=False,
+    )
+
+
+def _ib10_gpt4o_reverse_match() -> dict:
+    # gpt-4o IB10 s42 at sim 67.1: verbatim `reverse` (no leg rule) that
+    # dispatched as proposed -- the verbatim-inflation case.
+    proposed = _legs(
+        ("robot_1", "reverse"), ("robot_2", "reverse"), ("robot_4", "reverse"),
+        ("robot_3", "continue"),
+    )
+    return _artifact(
+        {"involved_robots": ["robot_1", "robot_2", "robot_4"],
+         "strategy": "reverse", "proposed_plan": proposed},
+        "vlm_verbatim", proposed,
+    )
+
+
+class TestRepairedOrderOnlySubclass:
+    def test_order_only_true_for_pilot_episode_2_edit_shape(self):
+        metrics = score_decision_artifact(_episode_2())
+        assert metrics.provenance == "repaired"
+        assert metrics.repaired_order_only is True
+
+    def test_order_only_true_for_pilot_episode_7_edit_shape(self):
+        metrics = score_decision_artifact(_episode_7())
+        assert metrics.provenance == "repaired"
+        assert metrics.repaired_order_only is True
+
+    def test_order_only_true_when_the_verifier_reproduces_episode_2_live(self):
+        decision = _decision(
+            yield_robot="robot_2",
+            proposed_plan=[
+                ProposedPlanLeg(robot_id="robot_1", action="cross"),
+                ProposedPlanLeg(robot_id="robot_2", action="yield"),
+            ],
+        )
+        verified = verify_and_repair_plan(decision, _DEADLOCK, geometry=_geometry())
+        assert [(edit.op, edit.robot_ids) for edit in verified.edits] == [
+            ("reorder", ("robot_1", "robot_2"))
+        ]
+        assert score_plan_decision(decision, verified).repaired_order_only is True
+
+    def test_order_only_false_for_a_swap_repair(self):
+        # Pilot episode 1's shape: the swap gate re-grounds the yielder.
+        decision = _decision(
+            proposed_plan=[
+                ProposedPlanLeg(robot_id="robot_1", action="yield"),
+                ProposedPlanLeg(robot_id="robot_2", action="cross"),
+            ]
+        )
+        verified = verify_and_repair_plan(
+            decision, _DEADLOCK, geometry=_geometry(), static_obstacles=(_WEST_BLOCKER,),
+            yield_feasibility_mode="swap",
+        )
+        assert [edit.op for edit in verified.edits] == ["swap"]
+        assert score_plan_decision(decision, verified).repaired_order_only is False
+
+    def test_order_only_false_for_reorder_plus_substitute(self):
+        # Pilot episode 8's edit shape.
+        edits = [
+            {"op": "reorder", "robot_ids": ["robot_1", "robot_4"], "reason": "r"},
+            {"op": "substitute", "robot_ids": ["robot_1"], "reason": "s"},
+        ]
+        proposed = _legs(
+            ("robot_1", "cross"), ("robot_2", "wait"), ("robot_3", "reverse"),
+            ("robot_4", "reverse"),
+        )
+        artifact = _artifact(
+            {"involved_robots": ["robot_1", "robot_2", "robot_3", "robot_4"],
+             "strategy": "junction_clear", "proposed_plan": proposed},
+            "repaired",
+            _legs(("robot_4", "reverse"), ("robot_2", "wait"), ("robot_3", "reverse"),
+                  ("robot_1", "yield")),
+            edits=edits, dispatch_matches_plan=False,
+        )
+        assert score_decision_artifact(artifact).repaired_order_only is False
+
+    def test_order_only_none_when_not_repaired(self):
+        assert score_decision_artifact(_episode_6()).repaired_order_only is None
+
+    def test_empty_edit_list_is_not_an_order_only_repair(self):
+        assert is_order_only_repair([]) is False
+
+
+class TestVerbatimDispatchMatched:
+    def test_ib10_gpt4o_verbatim_mismatch_is_false(self):
+        metrics = score_decision_artifact(
+            _ib10_gpt4o_yield_mismatch(), accepted_strategies=_IB10_ACCEPTED
+        )
+        assert metrics.provenance == "vlm_verbatim"
+        assert metrics.verbatim_dispatch_matched is False
+        assert metrics.strategy_correct is False
+
+    def test_ib10_gpt4o_verbatim_reverse_matches_but_is_strategy_incorrect(self):
+        metrics = score_decision_artifact(
+            _ib10_gpt4o_reverse_match(), accepted_strategies=_IB10_ACCEPTED
+        )
+        assert metrics.agreement is True
+        assert metrics.verbatim_dispatch_matched is True
+        assert metrics.strategy_correct is False
+
+    def test_none_when_the_dispatch_match_is_unknown(self):
+        decision = _decision(
+            proposed_plan=[
+                ProposedPlanLeg(robot_id="robot_1", action="yield"),
+                ProposedPlanLeg(robot_id="robot_2", action="cross"),
+            ]
+        )
+        verified = verify_and_repair_plan(decision, _DEADLOCK, geometry=_geometry())
+        assert verified.provenance == "vlm_verbatim"
+        assert score_plan_decision(decision, verified).verbatim_dispatch_matched is None
+
+    def test_none_when_the_plan_is_not_verbatim(self):
+        metrics = score_decision_artifact(_episode_2())
+        assert metrics.provenance == "repaired"
+        assert metrics.verbatim_dispatch_matched is None
+
+
+class TestProvenanceConditionedOnStrategyCorrectness:
+    def test_strategy_unscored_without_an_accepted_set(self):
+        assert strategy_matches_oracle("yield", None) is None
+
+    def test_strategy_membership_in_the_accepted_set(self):
+        assert strategy_matches_oracle("junction_clear", _IB10_ACCEPTED) is True
+        assert strategy_matches_oracle("reverse", _IB10_ACCEPTED) is False
+
+    def test_ib10_gpt4o_verbatim_plans_are_conditioned_out_of_the_correct_stratum(self):
+        metrics = [
+            score_decision_artifact(artifact, accepted_strategies=_IB10_ACCEPTED)
+            for artifact in (_ib10_gpt4o_yield_mismatch(), _ib10_gpt4o_reverse_match())
+        ]
+        table = tabulate_provenance_by_strategy_correctness(metrics)
+        assert table["strategy_correct"].plans == 0
+        incorrect = table["strategy_incorrect"]
+        assert incorrect.plans == 2
+        assert incorrect.vlm_verbatim == 2
+        assert incorrect.verbatim_dispatch_matched == 1
+        assert incorrect.verbatim_dispatch_mismatched == 1
+        assert table["strategy_unscored"].plans == 0
+
+    def test_cells_without_accepted_strategies_land_in_the_unscored_stratum(self):
+        metrics = [score_decision_artifact(_episode_2()), score_decision_artifact(_episode_7())]
+        table = tabulate_provenance_by_strategy_correctness(metrics)
+        unscored = table["strategy_unscored"]
+        assert unscored.plans == 2
+        assert unscored.repaired == 2
+        assert unscored.repaired_order_only == 2
+
+    def test_every_stratum_is_present_on_an_empty_input(self):
+        table = tabulate_provenance_by_strategy_correctness([])
+        assert set(table) == {"strategy_correct", "strategy_incorrect", "strategy_unscored"}
+        assert all(stratum.plans == 0 for stratum in table.values())
+
+
+class TestScoreDecisionArtifact:
+    def test_none_without_a_plan_block(self):
+        artifact = _episode_6()
+        artifact["plan"] = None
+        assert score_decision_artifact(artifact) is None
+
+    def test_none_without_a_decision(self):
+        artifact = _episode_6()
+        artifact["decision"] = None
+        assert score_decision_artifact(artifact) is None
+
+    @pytest.mark.parametrize(
+        ("proposed", "obstacles", "bound"),
+        [
+            (None, (), 4),
+            ([("robot_1", "yield"), ("robot_7", "cross")], (), 4),
+            ([("robot_1", "yield"), ("robot_2", "yield")], (), 4),
+            ([("robot_1", "yield"), ("robot_2", "cross")], ("west", "east"), 2),
+        ],
+        ids=["absent", "unknown_robot", "inconsistent", "repair_bound_exceeded"],
+    )
+    def test_rejection_stage_round_trips_through_the_stored_plan_block(
+        self, proposed, obstacles, bound
+    ):
+        blockers = {
+            "west": _WEST_BLOCKER,
+            "east": StaticObstacleInput(obstacle_id="o2", x=1.85, y=0.0, size_x_m=0.3,
+                                        size_y_m=0.3),
+        }
+        decision = _decision(
+            proposed_plan=None if proposed is None else [
+                ProposedPlanLeg(robot_id=rid, action=action) for rid, action in proposed
+            ]
+        )
+        verified = verify_and_repair_plan(
+            decision, _DEADLOCK, geometry=_geometry(),
+            static_obstacles=tuple(blockers[name] for name in obstacles),
+            yield_feasibility_mode="swap",
+            repair_params=PlanRepairParams(max_repair_edits=bound),
+        )
+        artifact = {
+            "decision": decision.model_dump(mode="json"),
+            "plan": {
+                "provenance": verified.provenance,
+                "legs": [leg.model_dump(mode="json") for leg in verified.legs],
+                "edits": [edit.model_dump(mode="json") for edit in verified.edits],
+                "rejection_reason": verified.rejection_reason,
+                "dispatch_matches_plan": True,
+            },
+        }
+        assert score_decision_artifact(artifact) == score_plan_decision(
+            decision, verified, dispatch_matches_plan=True
+        )
+
+
+class TestOracleOrderExcludesHeldRobots:
+    def test_pilot_episode_6_agrees_once_the_held_robot_is_excluded(self):
+        metrics = score_decision_artifact(
+            _episode_6(), oracle_order=_B1_ORACLE, held_robot_ids={"robot_3"}
+        )
+        assert metrics.oracle_order_agreement is True
+
+    def test_pilot_episode_6_was_false_by_construction_without_the_exclusion(self):
+        metrics = score_decision_artifact(_episode_6(), oracle_order=_B1_ORACLE)
+        assert metrics.oracle_order_agreement is False
+
+    def test_pilot_episode_7_pre_repair_order_agrees_once_the_held_robot_is_excluded(self):
+        metrics = score_decision_artifact(
+            _episode_7(), oracle_order=_B1_ORACLE, held_robot_ids={"robot_3"}
+        )
+        assert metrics.oracle_order_agreement is True
+
+    def test_released_robot_named_continue_still_disagrees(self):
+        # The exclusion is for held robots only: a released oracle robot
+        # given `continue` still cannot agree.
+        artifact = _episode_6()
+        artifact["decision"]["proposed_plan"] = _legs(
+            ("robot_2", "yield"), ("robot_1", "continue"), ("robot_3", "cross")
+        )
+        artifact["plan"]["legs"] = artifact["decision"]["proposed_plan"]
+        metrics = score_decision_artifact(
+            artifact, oracle_order=_B1_ORACLE, held_robot_ids={"robot_3"}
+        )
+        assert metrics.oracle_order_agreement is False
+
+    def test_empty_oracle_without_held_robots_keeps_the_pre_ruling_result(self):
+        metrics = score_decision_artifact(_episode_6(), oracle_order=[])
+        assert metrics.oracle_order_agreement is True
+
+    def test_none_when_every_oracle_robot_is_held(self):
+        metrics = score_decision_artifact(
+            _episode_6(), oracle_order=_B1_ORACLE, held_robot_ids={"robot_1", "robot_3"}
+        )
+        assert metrics.oracle_order_agreement is None
