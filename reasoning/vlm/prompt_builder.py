@@ -51,9 +51,17 @@ SYSTEM_PROMPT = "You are a helpful assistant."
 # ruling) states the decision-field agreement rule and narrows the convoy
 # gloss. v3.3 (2026-10-06, verbatim-pilot rulings A/B) adds the
 # `_PLAN_GRAMMAR` list-order line and names the composite's inside yielder in
-# the junction_clear gloss. Artifacts are told apart by `user_sha256`
-# (baseline pins: v3.0 22baf2df..., v3.1 42463ce2..., v3.2 c3fb9fcf...) or,
-# per-scene, by the v3.3 list-order line's presence in the rendered prompt.
+# the junction_clear gloss. v3.4 (2026-10-06, roster-validation ruling 1)
+# removes the Cosmos-style `<think>...</think>` answer-format block: the
+# bounded `reasoning` field above is the sanctioned reasoning channel, the
+# block contradicted the registered spatial-CoT prohibition, its audience
+# (Cosmos Reason 2) is deferred to v3, and Anthropic's documented
+# `reasoning_extraction` trigger made Sonnet 5.5 refuse 91/96 attempts. The
+# closing line is the JSON-only sentence the refusal diagnostic answered 3/3.
+# Artifacts are told apart by `user_sha256` (baseline pins: v3.0
+# 22baf2df... -> v3.1 42463ce2... -> v3.2 c3fb9fcf... -> v3.3 769802f0...
+# -> v3.4 6d08540f...) or, per scene: v3.0-v3.2 lack the list-order line,
+# v3.3 has it and the `<think>` block, v3.4 has it and no `<think>` block.
 _USER_TEMPLATE = """You are a warehouse swarm robotics traffic controller. Analyze the \
 overhead camera view together with the robot states below and detect congestion \
 patterns such as deadlocks, bottlenecks, crowding, or anomalies.
@@ -129,14 +137,7 @@ Rules:
 - When congestion_detected is true: type and strategy must not be "none", and \
 involved_robots must be non-empty.
 
-Answer using the following format:
-<think>
-{think_geometry_step}, check the robot statuses, identify any conflicts, \
-decide the congestion type and strategy, and if the strategy is "yield", state \
-which robot should yield and why.
-</think>
-Immediately after the </think> tag, write ONLY the final JSON object, with no \
-surrounding text or markdown."""
+Write ONLY the final JSON object, with no surrounding text or markdown."""
 
 # Wording for the two modality conditions of the derived-geometry ablation axis.
 # `crosscheck_default_clause` is only consumed by _VISUAL_CROSSCHECK_TEMPLATE; it
@@ -147,9 +148,6 @@ _GEOMETRY_ON = {
         "the coordinates."
     ),
     "facing_source": "(pairwise geometry)",
-    "think_geometry_step": (
-        "Read the pairwise geometry (distance and whether each robot faces the other)"
-    ),
     "crosscheck_default_clause": (
         "The pairwise geometry above stays the default source for distance and "
         "facing: when the image and the states agree, use it and do not re-derive "
@@ -159,10 +157,6 @@ _GEOMETRY_ON = {
 _GEOMETRY_OFF = {
     "geometry_use_clause": "Compute distances and facing from the coordinates.",
     "facing_source": "(heading points toward the other robot)",
-    "think_geometry_step": (
-        "Compute the pairwise distance and whether each robot faces the other from "
-        "the coordinates"
-    ),
     "crosscheck_default_clause": (
         "The coordinates above stay the default source for distance and facing: "
         "when the image and the states agree, decide from them."

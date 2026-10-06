@@ -143,6 +143,33 @@ def test_v2_has_no_reasoning_field():
     assert "reasoning" not in _prompt(prompt_version=2)
 
 
+# ---- v3.4: no <think> answer-format block (roster-validation ruling 1) ----
+
+
+@pytest.mark.parametrize("geometry", [True, False])
+def test_v3_has_no_think_block(geometry: bool):
+    prompt = _prompt(include_pairwise_geometry=geometry)
+    assert "<think>" not in prompt
+    assert "</think>" not in prompt
+    assert "Answer using the following format:" not in prompt
+
+
+def test_v3_ends_with_the_json_only_instruction():
+    # The exact sentence Sonnet 5.5 answered 3/3 in the refusal diagnostic
+    # (docs/reports/2026-10-06-roster-validation.md, condition B).
+    assert _prompt().endswith(
+        "involved_robots must be non-empty.\n\n"
+        "Write ONLY the final JSON object, with no surrounding text or markdown."
+    )
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_frozen_templates_keep_their_think_block(version: int):
+    prompt = _prompt(prompt_version=version)
+    assert "<think>" in prompt
+    assert "</think>" in prompt
+
+
 # ---- proposed_plan invitation and output field (rev 3/4) ----
 
 
@@ -428,29 +455,37 @@ _V3_PINS: dict[str, tuple[int, str]] = {
     # The v3.2 baseline digest was
     # c3fb9fcf4031f3c11961bfe7015887a38901d01049810f289b0c45324c36f873 (the
     # 2026-10-06 verbatim pilot ran on v3.2).
+    # Re-pinned for v3.4 (2026-10-06, roster-validation ruling 1): the
+    # Cosmos-style `<think>` answer-format block is removed and replaced by
+    # the one JSON-only sentence Sonnet 5.5 answered in the refusal
+    # diagnostic; the bounded `reasoning` field stays. -329 chars on every
+    # geometry-on cell, -342 on no_geometry (its think step was 13 chars
+    # longer). The v3.3 baseline digest was
+    # 769802f0a9a173b626561581890cd574d67568a302478aa67dc5b704846bf729 (the
+    # 2026-10-06 model-wiring and roster-validation episodes ran on v3.3).
     "baseline": (
-        6133,
-        "769802f0a9a173b626561581890cd574d67568a302478aa67dc5b704846bf729",
+        5804,
+        "6d08540f66f3bf13b9d82ff34715925eceb0b51c1b45319023f9dc79d4d94699",
     ),
     "id_desc": (
-        6133,
-        "9ac9cd3e6d9909380daecec0f33f408cb0bd595045b220958871dea6dc7456cb",
+        5804,
+        "e6442c5b07612104a72f0c5f87045c176328620558ac42dafa96708e812e5d66",
     ),
     "no_geometry": (
-        5947,
-        "1c4aee60075c3dd03f64569ed9f024a5babfcc5687ce9e341fabebc8a15accb4",
+        5605,
+        "e6ccce9efaae28062f5d011c23321e460d3b4dc99d1e6067341920ac52cc1af0",
     ),
     "goals_obstacles": (
-        6536,
-        "ee162ec116952f8d700e65cb3292d53954737402a9aec7eb91c9048dab82744c",
+        6207,
+        "0fd4a9a007fc8a1be50b58065a3c64986bb3da01c851477806b800b3e08aea46",
     ),
     "plan_state": (
-        6415,
-        "825382a634f506f0dc2ce7ee538a78d653bb2981bc01440da8d088aa3f4ec432",
+        6086,
+        "adb48ed2d62c724b43a8c74beecdcbcf4076bd05c02e8264f701e65c20a0379d",
     ),
     "failure_context": (
-        6492,
-        "9e030d76859fd16b772a96891ef20227ffaf50ea7a41e46fa68e2d41daba5b95",
+        6163,
+        "af92083b4c647af8ba531722acc3b8ee9795a96174d746d506143ff046503d49",
     ),
 }
 
