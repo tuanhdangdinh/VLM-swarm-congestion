@@ -799,6 +799,11 @@ class OpenAIBackendConfig(BaseModel):
     # DeepSeek's `thinking: {"type": ...}` extension; temperature has no effect
     # while thinking is enabled (its default). None omits the field.
     thinking_type: Literal["enabled", "disabled"] | None = None
+    # gpt-5.1 returns HTTP 400 on temperature/top_p at any reasoning_effort
+    # other than "none", so a higher-effort arm must omit them. True drops both
+    # from the request and records them per call in raw["unsupported_sampling"]
+    # (the Anthropic/Gemini precedent). False keeps every existing pin's body.
+    omit_sampling: bool = False
 
 
 class AnthropicBackendConfig(BaseModel):
@@ -829,7 +834,9 @@ class GeminiBackendConfig(BaseModel):
     model_id: str = "gemini-robotics-er-2-preview"
     base_url: str = "https://generativelanguage.googleapis.com/v1beta"
     api_key_env: str = "GEMINI_API_KEY"  # env var NAME holding the key; never the key itself
-    thinking_level: Literal["low", "high"] = "low"
+    # The levels the thinking guide lists for gemini-robotics-er-2-preview
+    # (fetched 2026-10-06); "low" stays the pinned default.
+    thinking_level: Literal["minimal", "low", "medium", "high"] = "low"
     # False: the live probe (2026-09-18) proved ER-2 satisfies vlm_decision.schema.json
     # without response_format, and the house precedent (llama_server_backend.py:38-41)
     # deliberately omits response_format so a reasoning trace is not suppressed. True

@@ -46,6 +46,7 @@ class OpenAIBackend:
         reasoning_effort: str | None = None,
         max_tokens_param: str = "max_tokens",
         thinking_type: str | None = None,
+        omit_sampling: bool = False,
     ) -> None:
         self.model_id = model_id
         self.base_url = base_url.rstrip("/")
@@ -57,6 +58,7 @@ class OpenAIBackend:
         self.reasoning_effort = reasoning_effort
         self.max_tokens_param = max_tokens_param
         self.thinking_type = thinking_type
+        self.omit_sampling = omit_sampling
 
     def analyze(self, payload: PromptPayload, config: ReasonerConfig) -> BackendResponse:
         # top_k / presence_penalty in ReasonerConfig are llama/Cosmos-specific; OpenAI
@@ -69,6 +71,14 @@ class OpenAIBackend:
             self.max_tokens_param: config.max_tokens,
             "stream": False,
         }
+        unsupported_sampling: dict[str, float] | None = None
+        if self.omit_sampling:
+            # gpt-5.1 above reasoning_effort "none" rejects these with HTTP 400;
+            # the configured values are kept in the response record instead.
+            unsupported_sampling = {
+                "temperature": body.pop("temperature"),
+                "top_p": body.pop("top_p"),
+            }
         # Optional fields are appended only when configured, so a config that
         # sets none of them (the gpt-4o pin) sends the exact pre-existing body.
         if self.reasoning_effort is not None:
@@ -113,11 +123,15 @@ class OpenAIBackend:
         text = message.get("content")
         if text is None:
             text = message.get("refusal") or ""
+        raw = data
+        if unsupported_sampling is not None:
+            raw = dict(data)
+            raw["unsupported_sampling"] = unsupported_sampling
         return BackendResponse(
             text=text,
             backend_id=self.model_id,
             token_usage=self._extract_usage(data),
-            raw=data,
+            raw=raw,
             served_model=self._extract_served_model(data),
         )
 
@@ -153,7 +167,14 @@ class OpenAIBackend:
         if not usage:
             return None
         keys = ("prompt_tokens", "completion_tokens", "total_tokens")
-        return {k: usage[k] for k in keys if k in usage} or None
+        extracted = {k: usage[k] for k in keys if k in usage}
+        # Reasoning tokens are billed inside completion_tokens (gpt-5.1 above
+        # effort "none", DeepSeek with thinking on); the breakdown is the only
+        # per-call evidence of how much the model reasoned.
+        details = usage.get("completion_tokens_details")
+        if isinstance(details, dict) and isinstance(details.get("reasoning_tokens"), int):
+            extracted["reasoning_tokens"] = details["reasoning_tokens"]
+        return extracted or None
 
     @staticmethod
     def _extract_served_model(data: dict) -> str | None:

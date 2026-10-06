@@ -300,6 +300,7 @@ def build_backend(
             reasoning_effort=backend_config.reasoning_effort,
             max_tokens_param=backend_config.max_tokens_param,
             thinking_type=backend_config.thinking_type,
+            omit_sampling=backend_config.omit_sampling,
         )
     if backend_id == "anthropic":
         if backend_config is None:
