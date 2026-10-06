@@ -345,13 +345,12 @@ def test_factory_builds_gemini_backend(monkeypatch):
     assert isinstance(backend, GeminiBackend)
 
 
-def test_factory_builds_gemini_backend_with_default_config(monkeypatch):
-    # Mirrors the openai branch: a None backend_config falls back to the
-    # backend's own default config rather than raising.
+def test_factory_requires_config_for_gemini(monkeypatch):
+    # Conformance fix F27 (2026-10-07): like the openai branch, a None
+    # backend_config raises instead of silently building a default config.
     monkeypatch.setenv("GEMINI_API_KEY", "AQ.test-key-123")
-    backend = build_backend("gemini", None)
-    assert isinstance(backend, GeminiBackend)
-    assert backend.model_id == "gemini-robotics-er-2-preview"
+    with pytest.raises(ValueError, match="gemini backend requires"):
+        build_backend("gemini", None)
 
 
 def test_served_model_read_from_response_when_present(monkeypatch, tmp_path):

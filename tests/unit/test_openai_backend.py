@@ -109,8 +109,11 @@ def test_http_error_maps_to_connection_error(monkeypatch, tmp_path):
         OpenAIBackend(model_id="gpt-4o").analyze(_payload(tmp_path), _cfg())
 
 
-def test_timeout_maps_to_connection_error(monkeypatch, tmp_path):
+def test_timeout_maps_to_backend_timeout_error(monkeypatch, tmp_path):
+    # Conformance fix F11 (2026-10-07): one timeout label on every adapter.
     import requests
+
+    from reasoning.vlm.errors import BackendTimeoutError
 
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-123")
 
@@ -118,7 +121,7 @@ def test_timeout_maps_to_connection_error(monkeypatch, tmp_path):
         raise requests.exceptions.Timeout("slow")
 
     monkeypatch.setattr("reasoning.vlm.openai_backend.requests.post", fake_post)
-    with pytest.raises(ConnectionError):
+    with pytest.raises(BackendTimeoutError):
         OpenAIBackend(model_id="gpt-4o").analyze(_payload(tmp_path), _cfg())
 
 

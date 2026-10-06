@@ -189,11 +189,15 @@ start() {
   verify_files
   gate
   log "starting $MOLMO_CONTAINER from $VLLM_IMAGE (served name $MOLMO_SERVED_NAME, util $MOLMO_GPU_UTIL, max-model-len $MOLMO_MAX_MODEL_LEN, port $MOLMO_PORT)"
+  # --generation-config vllm: vLLM otherwise applies the repo's
+  # generation_config.json defaults to every request (vLLM v0.31.0
+  # openai_compatible_server.md); requests carry all four sampling fields, so
+  # this only removes a silent default layer (conformance F21, 2026-10-07).
   docker run -d --name "$MOLMO_CONTAINER" --gpus all --network host --ipc host \
     -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 \
     -v "$MOLMO_MODEL_DIR:/models/molmo2er:ro" "$VLLM_IMAGE" \
     --model /models/molmo2er --served-model-name "$MOLMO_SERVED_NAME" \
-    --trust-remote-code --dtype bfloat16 \
+    --trust-remote-code --dtype bfloat16 --generation-config vllm \
     --max-model-len "$MOLMO_MAX_MODEL_LEN" --max-num-seqs 1 \
     --gpu-memory-utilization "$MOLMO_GPU_UTIL" \
     --limit-mm-per-prompt '{"image": 2, "video": 0}' \

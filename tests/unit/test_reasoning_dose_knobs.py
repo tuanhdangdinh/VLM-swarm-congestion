@@ -85,7 +85,14 @@ def test_omit_sampling_records_the_dropped_values_per_call(monkeypatch, tmp_path
     response = backend.analyze(
         _payload(tmp_path), ReasonerConfig(backend_id="openai_gpt51", temperature=0.0)
     )
-    assert response.raw["unsupported_sampling"] == {"temperature": 0.0, "top_p": 0.95}
+    # top_k / presence_penalty are never sent by the OpenAI adapter and are
+    # recorded as unsent on every call (conformance fix F08).
+    assert response.raw["unsupported_sampling"] == {
+        "temperature": 0.0,
+        "top_p": 0.95,
+        "top_k": 20,
+        "presence_penalty": 0.0,
+    }
 
 
 def test_omit_sampling_defaults_off_and_keeps_sampling_fields(monkeypatch, tmp_path):
@@ -97,7 +104,8 @@ def test_omit_sampling_defaults_off_and_keeps_sampling_fields(monkeypatch, tmp_p
     )
     assert captured["json"]["temperature"] == 0.0
     assert captured["json"]["top_p"] == 0.95
-    assert "unsupported_sampling" not in response.raw
+    # Only the two fields Chat Completions never carries (conformance F08).
+    assert response.raw["unsupported_sampling"] == {"top_k": 20, "presence_penalty": 0.0}
 
 
 def test_openai_usage_records_reasoning_tokens_when_reported(monkeypatch, tmp_path):

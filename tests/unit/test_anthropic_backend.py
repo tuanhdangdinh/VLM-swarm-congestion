@@ -125,15 +125,19 @@ def test_refusal_with_empty_content_is_a_refusal_response(monkeypatch, tmp_path)
     assert resp.text == ""
 
 
-def test_non_refusal_without_text_maps_to_connection_error(monkeypatch, tmp_path):
+def test_non_refusal_without_text_is_an_empty_billed_response(monkeypatch, tmp_path):
+    # Conformance fix F07 (2026-10-07): a valid 200 with no text block is a
+    # parse failure with its usage recorded on every adapter, no longer a
+    # transport error with the billed usage lost.
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-123")
     empty = {"content": [], "stop_reason": "max_tokens", "usage": {"input_tokens": 5}}
     monkeypatch.setattr(
         "reasoning.vlm.anthropic_backend.requests.post",
         lambda url, json, headers, timeout: _FakeResponse(200, empty),
     )
-    with pytest.raises(ConnectionError, match="max_tokens"):
-        AnthropicBackend(model_id="claude-opus-4-8").analyze(_payload(tmp_path), _cfg())
+    resp = AnthropicBackend(model_id="claude-opus-4-8").analyze(_payload(tmp_path), _cfg())
+    assert (resp.text, resp.finish_reason, resp.refusal) == ("", "max_tokens", False)
+    assert resp.token_usage == {"input_tokens": 5}
 
 
 def test_http_error_maps_to_connection_error(monkeypatch, tmp_path):
@@ -146,8 +150,11 @@ def test_http_error_maps_to_connection_error(monkeypatch, tmp_path):
         AnthropicBackend(model_id="claude-opus-4-8").analyze(_payload(tmp_path), _cfg())
 
 
-def test_timeout_maps_to_connection_error(monkeypatch, tmp_path):
+def test_timeout_maps_to_backend_timeout_error(monkeypatch, tmp_path):
+    # Conformance fix F11 (2026-10-07): one timeout label on every adapter.
     import requests
+
+    from reasoning.vlm.errors import BackendTimeoutError
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-123")
 
@@ -155,7 +162,7 @@ def test_timeout_maps_to_connection_error(monkeypatch, tmp_path):
         raise requests.exceptions.Timeout("slow")
 
     monkeypatch.setattr("reasoning.vlm.anthropic_backend.requests.post", fake_post)
-    with pytest.raises(ConnectionError):
+    with pytest.raises(BackendTimeoutError):
         AnthropicBackend(model_id="claude-opus-4-8").analyze(_payload(tmp_path), _cfg())
 
 

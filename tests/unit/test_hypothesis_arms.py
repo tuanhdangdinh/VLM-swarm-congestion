@@ -151,14 +151,23 @@ def test_er2_pin_keeps_its_frozen_two_attempt_no_fallback_config():
 def test_gemini_flash_request_sends_no_sampling_and_thinking_low(monkeypatch, tmp_path):
     body = _sent(monkeypatch, tmp_path, "gemini_flash", _GEMINI_REPLY)["json"]
     assert body["model"] == "gemini-3.8-flash"
-    assert body["generation_config"] == {"thinking_level": "low", "max_output_tokens": 2048}
+    # Cap-proofed to 16,384 (conformance ruling F05, the GLM treatment).
+    assert body["generation_config"] == {"thinking_level": "low", "max_output_tokens": 16384}
     for key in ("temperature", "top_p", "top_k"):
         assert key not in json.dumps(body)
 
 
 def test_gemini_flash_request_is_packed_exactly_like_the_er2_pin(monkeypatch, tmp_path):
+    # Identical packing; the only ruled differences (conformance rulings
+    # 2026-10-07) are flash's cap (F05) and `store: false` (F10), which the
+    # frozen ER-2 pin does not send.
     flash = _sent(monkeypatch, tmp_path, "gemini_flash", _GEMINI_REPLY)["json"]
     er2 = _sent(monkeypatch, tmp_path, "gemini", _GEMINI_REPLY)["json"]
+    assert (flash.pop("store"), "store" in er2) == (False, False)
+    assert (
+        flash["generation_config"].pop("max_output_tokens"),
+        er2["generation_config"].pop("max_output_tokens"),
+    ) == (16384, 2048)
     assert {**flash, "model": "x"} == {**er2, "model": "x"}
 
 

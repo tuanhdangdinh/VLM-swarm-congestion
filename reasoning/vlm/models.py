@@ -310,13 +310,81 @@ class BackendResponse(BaseModel):
     # answers the alias `gpt-4o` with a dated snapshot), or None when the
     # provider response carries none. Parsed by each backend, never guessed.
     served_model: str | None = None
-    # A structured provider refusal (Anthropic: HTTP 200 with
-    # `stop_reason: "refusal"`). Callers treat it exactly like a text refusal
-    # matched by `reasoner.is_refusal`, so the standard refusal accounting and
-    # mitigation see it even when the refusal carries no text at all.
+    # A provider-signalled refusal on the provider's DOCUMENTED channel
+    # (conformance ruling F03): Anthropic `stop_reason: "refusal"`; OpenAI
+    # `message.refusal`; OpenAI/DeepSeek `finish_reason: "content_filter"`;
+    # Zhipu `finish_reason: "sensitive"` or business error 1301; a Gemini
+    # generation-blocked error code. Callers treat it exactly like a text
+    # refusal matched by `reasoner.is_refusal` (the fallback channel), so the
+    # standard refusal accounting and mitigation see it even when the refusal
+    # carries no text at all.
     refusal: bool = False
-    # The provider's refusal category (`stop_details.category`), when given.
+    # The provider's own refusal code: Anthropic `stop_details.category`, the
+    # finish reason ("content_filter", "sensitive"), Zhipu "1301", or the
+    # Gemini blocked code ("safety", ...); None when the channel has none
+    # (OpenAI `message.refusal`).
     refusal_category: str | None = None
+    # The provider's stop/finish/status reason, verbatim (F06): OpenAI-
+    # compatible `choices[0].finish_reason`, Anthropic `stop_reason`, Gemini
+    # interaction `status`; None when the response carries none.
+    finish_reason: str | None = None
+    # The provider's id for this call (F18): the `x-request-id` (OpenAI) or
+    # `request-id` (Anthropic) header when present, else the body's
+    # `request_id` (Zhipu) or `id` (completion / interaction id).
+    provider_request_id: str | None = None
+    # The backend-configuration fingerprint (F04): DeepSeek documents
+    # `system_fingerprint` as required; OpenAI as deprecated-but-sent. None
+    # where the provider sends none.
+    system_fingerprint: str | None = None
+
+
+# How one backend attempt ended (conformance fixes F01/F02/F03, 2026-10-07).
+# "answered": usable output (stage 1 decision / stage 2 letter);
+# "invalid_label": stage 2 named an unrendered letter; "parse_failure":
+# billed text that did not parse or validate; "refusal": a refusal on the
+# provider's documented channel or, as fallback, the text pattern;
+# "timeout": `BackendTimeoutError`; "http_error": an HTTP status >= 400;
+# "transport_error": any other connection-level failure (reset, body closed
+# mid-stream, malformed body); "unexpected_error": any other exception an
+# adapter raised.
+AttemptOutcome = Literal[
+    "answered",
+    "invalid_label",
+    "parse_failure",
+    "refusal",
+    "timeout",
+    "http_error",
+    "transport_error",
+    "unexpected_error",
+]
+
+
+class AttemptRecord(BaseModel):
+    """One backend attempt of an M2 call, in call order (additive artifact).
+
+    Sits next to `attempt_token_usage` (same index = same attempt), so an
+    artifact alone shows why every attempt ended, what the provider said
+    about it, and how long the retry policy waited after it.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    outcome: AttemptOutcome
+    error_type: str | None = None
+    http_status: int | None = None
+    # The provider's error code from an HTTP error body (e.g. Zhipu "1302",
+    # Gemini "rate_limit_exceeded", OpenAI "insufficient_quota").
+    provider_error_code: str | None = None
+    finish_reason: str | None = None
+    provider_request_id: str | None = None
+    system_fingerprint: str | None = None
+    # Which channel flagged a refusal: the provider's structured signal or
+    # the English text-pattern fallback (`reasoner.is_refusal`).
+    refusal_source: Literal["provider", "text_pattern"] | None = None
+    retry_after_sec: float | None = Field(default=None, ge=0)
+    # Seconds the shared retry policy slept after this attempt (0.0 when it
+    # did not wait); None on the final attempt.
+    backoff_sec: float | None = Field(default=None, ge=0)
 
 
 class ProposedPlanLeg(BaseModel):
@@ -595,6 +663,9 @@ class RetreatChoiceResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     request_id: str
+    # The ARM id (`ReasonerConfig.backend_id`) on every path (F09); records
+    # written before 2026-10-07 switch to the provider model id once a
+    # response arrived.
     backend_id: str
     # The parsed answer. With `failure_cause == "invalid_label"` it names a
     # letter that was not rendered, and is kept so the grounder can tag it.
@@ -617,6 +688,8 @@ class RetreatChoiceResult(BaseModel):
     # artifact shows the stage-2 bound apart from stage 1's.
     max_attempts: int | None = Field(default=None, ge=1)
     timeout_sec: float | None = Field(default=None, gt=0)
+    # Why each attempt ended, in call order (`AttemptRecord`); additive.
+    attempt_records: list[AttemptRecord] = Field(default_factory=list)
 
 
 class PayloadFormat(BaseModel):
@@ -674,9 +747,11 @@ class EffectiveSamplingConfig(BaseModel):
     max_attempts: int = Field(ge=1)
     max_tokens: int = Field(ge=1)
     # The refusal-mitigation threshold as configured; None means the mitigation
-    # was off (every backend but openai in the shipped config). Defaults to None
-    # so blocks recorded before this field existed still parse, although those
-    # runs cannot be told apart from mitigation-off runs by this field alone.
+    # was off (in the shipped config only the frozen ER-2 pin `gemini` and the
+    # Cosmos `llama_server` section; every other arm runs it after 2 attempts).
+    # Defaults to None so blocks recorded before this field existed still
+    # parse, although those runs cannot be told apart from mitigation-off runs
+    # by this field alone.
     image_fallback_after_attempts: int | None = Field(default=None, ge=1)
     # Gemini-only: the Interactions API exposes no temperature/top_p/top_k, so
     # these two are the only decoding controls it honours. None elsewhere.
@@ -701,12 +776,22 @@ class EffectiveSamplingConfig(BaseModel):
     # Mirrors `ReasonerDiagnostics.served_model`, so the configured `model_id`
     # (possibly an alias) and the snapshot that answered read off one block.
     served_model: str | None = None
+    # Mirrors `ReasonerDiagnostics.system_fingerprint` (F04): on an undated
+    # pin (Group D) the served-model string is uninformative, so the
+    # fingerprint, where the provider sends one (DeepSeek), is the per-call
+    # evidence of a backend change.
+    system_fingerprint: str | None = None
 
 
 class ReasonerDiagnostics(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     request_id: str
+    # The ARM id (`ReasonerConfig.backend_id`, e.g. "openai_gpt51") on every
+    # path, success and failure alike (conformance fix F09, 2026-10-07).
+    # Records written before that fix carry the provider model id on a
+    # success and the arm id on a failure; group those by
+    # `reasoner_config_effective.backend_id` instead.
     backend_id: str
     attempts: int = Field(ge=1)
     latency_ms: int | None = Field(default=None, ge=0)
@@ -723,16 +808,22 @@ class ReasonerDiagnostics(BaseModel):
     parse_status: Literal["valid", "invalid", "failed"]
     error_type: str | None = None
     error_message: str | None = None
-    # None means the backend honoured every ReasonerConfig sampling field it was
-    # given (or did not report otherwise) -- distinct from an empty dict, which
-    # would mean "the backend reported and dropped nothing." See
-    # `reasoning.vlm.gemini_backend.GeminiBackend` for a backend that populates
-    # this from `BackendResponse.raw["unsupported_sampling"]`.
+    # The configured ReasonerConfig sampling fields the request did NOT carry,
+    # with their configured values: every hosted adapter reports it (the
+    # OpenAI-compatible one lists `top_k` / `presence_penalty`, which Chat
+    # Completions has no field for -- conformance fix F08). None means the
+    # backend sent every field (llama_server) or did not report; an empty
+    # dict would mean "reported, and dropped nothing".
     unsupported_sampling: dict[str, float] | None = None
     # `BackendResponse.served_model` of the last response the backend returned
     # (a refused or unparseable one included), or None when no response came
     # back or the backend reports no model string.
     served_model: str | None = None
+    # `BackendResponse.system_fingerprint` of the last response returned (F04).
+    system_fingerprint: str | None = None
+    # `BackendResponse.finish_reason` of the last response returned (F06);
+    # every attempt's is in `attempt_records`.
+    finish_reason: str | None = None
     # None when the caller did not describe the effective config (e.g. a test
     # harness or a script that constructs a Reasoner without one); additive, so
     # artifacts written before this field existed stay readable.
@@ -756,6 +847,9 @@ class ReasonerDiagnostics(BaseModel):
     # invalid (tag vocabulary: `output_parser.DECISION_DEGRADATION_TAGS`). The
     # decision itself stayed valid; an absent field is not listed here.
     decision_degradations: list[str] = Field(default_factory=list)
+    # Why each attempt ended, in call order, index-aligned with
+    # `attempt_token_usage` (`AttemptRecord`; additive, F01/F02/F06/F18).
+    attempt_records: list[AttemptRecord] = Field(default_factory=list)
 
 
 class ReasonerResult(BaseModel):
@@ -797,6 +891,8 @@ class OpenAIBackendConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    # A floating alias, kept only as the model default: `build_backend`
+    # requires an explicit config (F27) and every shipped arm pins its id.
     model_id: str = "gpt-4o"
     base_url: str = "https://api.openai.com/v1"
     api_key_env: str = "OPENAI_API_KEY"  # env var NAME holding the key; never the key itself
@@ -822,6 +918,7 @@ class AnthropicBackendConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    # Model default only; the shipped `anthropic` arm pins claude-sonnet-5-5.
     model_id: str = "claude-opus-4-8"
     base_url: str = "https://api.anthropic.com/v1"
     api_key_env: str = "ANTHROPIC_API_KEY"  # env var NAME holding the key; never the key itself
@@ -857,6 +954,12 @@ class GeminiBackendConfig(BaseModel):
     # temperature/top_p/top_k fields at all. Sent as generation_config.seed only
     # when set; None omits the field rather than sending a null.
     seed: int | None = None
+    # Interactions API `store` ("Input only. Whether to store the response
+    # and request for later retrieval"; stored by default, retained 55 days
+    # on the paid tier). None omits the field: the frozen ER-2 pin keeps its
+    # wire shape (conformance ruling F10, deviation recorded with a privacy
+    # note); every other Gemini-adapter arm sends False.
+    store: bool | None = None
 
 
 class ReasonerConfig(BaseModel):
@@ -881,7 +984,8 @@ class ReasonerConfig(BaseModel):
     # prompt text (docs/reports/2026-09-25-frame-replay.md rev 2-3). When this is
     # set and attempt `k >= image_fallback_after_attempts` was refused, the next
     # attempt re-sends the unchanged prompt with a neutral image in place of the
-    # frame. None disables the mitigation, which is the default so that backends
-    # that never refuse (gemini, llama_server) keep the image channel on every
-    # attempt.
+    # frame. None disables the mitigation; it is the model default so a config
+    # that does not opt in (the frozen ER-2 pin, the Cosmos section) keeps the
+    # image channel on every attempt. Every other shipped arm opts in at 2
+    # (parity rulings; local arms since conformance ruling F13).
     image_fallback_after_attempts: int | None = Field(default=None, ge=1)

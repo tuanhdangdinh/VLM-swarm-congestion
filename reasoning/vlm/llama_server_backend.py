@@ -5,8 +5,9 @@ from pathlib import Path
 
 import requests
 
+from reasoning.vlm.errors import BackendTimeoutError
 from reasoning.vlm.models import BackendResponse, PayloadFormat, PromptPayload, ReasonerConfig
-from reasoning.vlm.transport import http_error
+from reasoning.vlm.transport import http_error, provider_request_id
 
 # Transport conventions (format audit 2026-10-06): the Qwen3-VL-8B-Instruct
 # model card's only example puts the image part before the text, as does the
@@ -83,7 +84,8 @@ class LlamaServerBackend:
                 timeout=config.timeout_sec,
             )
         except requests.exceptions.Timeout as exc:
-            raise ConnectionError(f"llama-server request timed out: {exc}") from exc
+            # One timeout label on every adapter (F11).
+            raise BackendTimeoutError(f"llama-server request timed out: {exc}") from exc
         except requests.exceptions.ConnectionError as exc:
             raise ConnectionError(f"llama-server connection failed: {exc}") from exc
         except requests.exceptions.RequestException as exc:
@@ -91,25 +93,29 @@ class LlamaServerBackend:
 
         if resp.status_code >= 400:
             # Classified for the shared retry policy (429/5xx retried with
-            # backoff, other 4xx final); the message is truncated and never
-            # echoes request headers or body, so the key cannot leak.
+            # backoff, other 4xx final); the message is truncated.
             raise http_error("llama-server", resp)
 
         try:
             data = resp.json()
-            text = data["choices"][0]["message"]["content"]
+            choice = data["choices"][0]
+            content = choice["message"]["content"]
         except (ValueError, KeyError, IndexError, TypeError) as exc:
             raise ConnectionError(
                 f"llama-server response body malformed: {type(exc).__name__}"
             ) from exc
-        token_usage = self._extract_usage(data)
+        finish_reason = choice.get("finish_reason") if isinstance(choice, dict) else None
 
         return BackendResponse(
-            text=text,
+            # A null content on a valid 200 is "" -- a parse failure with its
+            # usage recorded, the same on every adapter (F07).
+            text=content if isinstance(content, str) else "",
             backend_id=self.model_id,
-            token_usage=token_usage,
+            token_usage=self._extract_usage(data),
             raw=data,
             served_model=self._extract_served_model(data),
+            finish_reason=finish_reason if isinstance(finish_reason, str) else None,
+            provider_request_id=provider_request_id(resp, data),
         )
 
     def is_ready(self) -> bool:

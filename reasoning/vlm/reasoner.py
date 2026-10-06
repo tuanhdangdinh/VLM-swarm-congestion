@@ -5,16 +5,20 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from pathlib import Path
+from typing import Literal
 
 from PIL import Image
 
 from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.errors import (
+    BackendHTTPError,
     BackendTimeoutError,
     VLMOutputParseError,
     recorded_error_type,
 )
 from reasoning.vlm.models import (
+    AttemptOutcome,
+    AttemptRecord,
     BackendResponse,
     EffectiveSamplingConfig,
     PromptPayload,
@@ -166,6 +170,7 @@ def attach_unsupported_sampling(
     effective: EffectiveSamplingConfig | None,
     unsupported_sampling: dict[str, float] | None,
     served_model: str | None = None,
+    system_fingerprint: str | None = None,
 ) -> EffectiveSamplingConfig | None:
     """Fold a call's per-call backend reports into the effective config block.
 
@@ -174,15 +179,85 @@ def attach_unsupported_sampling(
             described none.
         unsupported_sampling: Sampling fields the backend reported dropping.
         served_model: The model string the provider reported serving the call.
+        system_fingerprint: The provider's backend fingerprint, if sent (F04).
 
     Returns:
-        A copy carrying `unsupported_sampling` and `served_model`, or None when
-        `effective` is None.
+        A copy carrying the per-call reports, or None when `effective` is None.
     """
     if effective is None:
         return None
     return effective.model_copy(
-        update={"unsupported_sampling": unsupported_sampling, "served_model": served_model}
+        update={
+            "unsupported_sampling": unsupported_sampling,
+            "served_model": served_model,
+            "system_fingerprint": system_fingerprint,
+        }
+    )
+
+
+def exception_attempt_record(exc: BaseException, backoff_sec: float | None) -> AttemptRecord:
+    """Describe an attempt whose backend call raised.
+
+    Args:
+        exc: The exception the attempt ended with.
+        backoff_sec: Seconds the retry policy then slept, or None when this
+            was the final attempt.
+
+    Returns:
+        The attempt's `AttemptRecord`.
+    """
+    outcome: AttemptOutcome
+    if isinstance(exc, BackendHTTPError):
+        outcome = "http_error"
+    elif isinstance(exc, BackendTimeoutError):
+        outcome = "timeout"
+    elif isinstance(exc, ConnectionError):
+        outcome = "transport_error"
+    else:
+        outcome = "unexpected_error"
+    http = exc if isinstance(exc, BackendHTTPError) else None
+    return AttemptRecord(
+        outcome=outcome,
+        error_type=recorded_error_type(exc),
+        http_status=None if http is None else http.status_code,
+        provider_error_code=None if http is None else http.provider_code,
+        provider_request_id=None if http is None else http.request_id,
+        retry_after_sec=None if http is None else http.retry_after_sec,
+        backoff_sec=backoff_sec,
+    )
+
+
+def response_attempt_record(
+    response: BackendResponse,
+    outcome: AttemptOutcome,
+    *,
+    error_type: str | None = None,
+    refusal_source: Literal["provider", "text_pattern"] | None = None,
+    backoff_sec: float | None = None,
+) -> AttemptRecord:
+    """Describe an attempt that returned a response.
+
+    Args:
+        response: What the backend returned.
+        outcome: How the attempt ended.
+        error_type: The parse/validation error class, if any.
+        refusal_source: Which channel flagged a refusal, if one did.
+        backoff_sec: 0.0 when another attempt follows, None on the final one.
+
+    Returns:
+        The attempt's `AttemptRecord`.
+    """
+    http_status = response.raw.get("http_status")
+    return AttemptRecord(
+        outcome=outcome,
+        error_type=error_type,
+        http_status=http_status if isinstance(http_status, int) else None,
+        provider_error_code=response.refusal_category if http_status is not None else None,
+        finish_reason=response.finish_reason,
+        provider_request_id=response.provider_request_id,
+        system_fingerprint=response.system_fingerprint,
+        refusal_source=refusal_source,
+        backoff_sec=backoff_sec,
     )
 
 
@@ -201,6 +276,9 @@ def build_failed_result(
     served_model: str | None = None,
     refusal_category: str | None = None,
     attempt_token_usage: list[dict[str, int] | None] | None = None,
+    system_fingerprint: str | None = None,
+    finish_reason: str | None = None,
+    attempt_records: list[AttemptRecord] | None = None,
 ) -> ReasonerResult:
     """Construct a safe failure result with decision=None after exhausted retries.
 
@@ -227,6 +305,9 @@ def build_failed_result(
         attempt_token_usage: Per-attempt usage in call order (None entries
             for attempts that returned no usage). The last entry becomes
             `token_usage`, so a terminal refusal still records what it billed.
+        system_fingerprint: The provider's fingerprint on the last response.
+        finish_reason: The provider's finish reason on the last response.
+        attempt_records: Why each attempt ended, in call order.
 
     Returns:
         A `ReasonerResult` with `decision=None` and `parse_status='failed'`.
@@ -247,13 +328,16 @@ def build_failed_result(
             error_message=error_message,
             unsupported_sampling=unsupported_sampling,
             served_model=served_model,
+            system_fingerprint=system_fingerprint,
+            finish_reason=finish_reason,
             reasoner_config_effective=attach_unsupported_sampling(
-                effective_sampling, unsupported_sampling, served_model
+                effective_sampling, unsupported_sampling, served_model, system_fingerprint
             ),
             refusal_attempts=refusal_attempts,
             refusal_category=refusal_category,
             image_fallback_used=image_fallback_used,
             image_fallback_attempt=image_fallback_attempt,
+            attempt_records=list(attempt_records or []),
         ),
     )
 
@@ -314,13 +398,21 @@ class Reasoner:
             if not Path(extra).is_file():
                 raise FileNotFoundError(f"extra image does not exist: {extra}")
         payload = base_payload
+        # What a re-ask is built from: the original payload, or the
+        # neutral-image one once the fallback fired -- never an already
+        # re-asked payload, so the corrective suffix appears once whatever
+        # the attempt number, as in stage 2 (conformance fix F14).
+        reask_base = base_payload
         known_ids = set(robot_ids)
+        max_attempts = self._config.max_attempts
         attempts = 0
         last_raw: str | None = None
         last_error_type: str | None = None
         last_error_msg: str | None = None
         last_unsupported_sampling: dict[str, float] | None = None
         last_served_model: str | None = None
+        last_fingerprint: str | None = None
+        last_finish_reason: str | None = None
         had_parse_failure = False
         refusal_attempts = 0
         refusal_category: str | None = None
@@ -328,14 +420,35 @@ class Reasoner:
         waited_sec = 0.0
         # One entry per attempt, refused ones included: a refusal is billed.
         attempt_usage: list[dict[str, int] | None] = []
+        records: list[AttemptRecord] = []
         # Created only when the mitigation actually fires, so the common path
         # touches the filesystem exactly as it did before.
         scratch: tempfile.TemporaryDirectory | None = None
 
+        def failed(error_type: str | None, error_message: str | None) -> ReasonerResult:
+            return build_failed_result(
+                request=request,
+                backend_id=self._config.backend_id,
+                attempts=max(attempts, 1),
+                error_type=error_type,
+                error_message=error_message,
+                raw_text=last_raw,
+                unsupported_sampling=last_unsupported_sampling,
+                effective_sampling=self._effective_sampling,
+                refusal_attempts=refusal_attempts,
+                image_fallback_used=image_fallback_attempt is not None,
+                image_fallback_attempt=image_fallback_attempt,
+                served_model=last_served_model,
+                refusal_category=refusal_category,
+                attempt_token_usage=attempt_usage,
+                system_fingerprint=last_fingerprint,
+                finish_reason=last_finish_reason,
+                attempt_records=records,
+            )
+
         try:
-            while attempts < self._config.max_attempts:
+            while attempts < max_attempts:
                 attempts += 1
-                structured_refusal = False
                 try:
                     response = invoke_backend(self._backend, payload, self._config)
                 except Exception as exc:
@@ -346,25 +459,30 @@ class Reasoner:
                     # decision=None after bounded retries.
                     attempt_usage.append(None)
                     last_error_type, last_error_msg = recorded_error_type(exc), str(exc)
-                    if classify_failure(exc) == "stop":
-                        # A deterministic 4xx: repeating the same request
-                        # cannot succeed, so the budget is not spent on it.
+                    # A deterministic 4xx ends the call: repeating the same
+                    # request cannot succeed, so the budget is not spent on it.
+                    stop = classify_failure(exc) == "stop"
+                    backoff: float | None = None
+                    if not stop and attempts < max_attempts:
+                        backoff = self._retry_policy.wait_before_retry(exc, attempts, waited_sec)
+                        waited_sec += backoff
+                    records.append(exception_attempt_record(exc, backoff))
+                    if stop:
                         break
-                    if attempts < self._config.max_attempts:
-                        waited_sec += self._retry_policy.wait_before_retry(
-                            exc, attempts, waited_sec
-                        )
                     continue
                 attempt_usage.append(response.token_usage)
+                last_raw = response.text
+                last_unsupported_sampling = _extract_unsupported_sampling(response.raw)
+                last_served_model = response.served_model
+                last_fingerprint = response.system_fingerprint
+                last_finish_reason = response.finish_reason
+                final_attempt = attempts >= max_attempts
                 try:
-                    last_raw = response.text
-                    last_unsupported_sampling = _extract_unsupported_sampling(response.raw)
-                    last_served_model = response.served_model
                     if response.refusal:
-                        # A provider-flagged refusal (e.g. Anthropic stop_reason
-                        # "refusal") is a refusal whatever its text says, so it
-                        # takes the same path as a text refusal below.
-                        structured_refusal = True
+                        # A refusal on the provider's documented channel
+                        # (BackendResponse.refusal) is a refusal whatever its
+                        # text says, so it takes the same path as a text
+                        # refusal below.
                         refusal_category = response.refusal_category or refusal_category
                         raise VLMOutputParseError(
                             "provider refusal (category="
@@ -372,36 +490,6 @@ class Reasoner:
                         )
                     decision, degradations = parse_decision_with_degradations(response.text)
                     validate_involved_robots(decision, known_ids)
-                    return ReasonerResult(
-                        request_id=request.request_id,
-                        decision=decision,
-                        raw_text=last_raw,
-                        diagnostics=ReasonerDiagnostics(
-                            request_id=request.request_id,
-                            backend_id=response.backend_id,
-                            attempts=attempts,
-                            latency_ms=response.latency_ms,
-                            token_usage=response.token_usage,
-                            attempt_token_usage=attempt_usage,
-                            # "invalid" = a parse/validation failure occurred earlier but a
-                            # retry/re-ask then succeeded
-                            parse_status="invalid" if had_parse_failure else "valid",  # noqa: E501
-                            error_type=last_error_type,
-                            error_message=last_error_msg,
-                            unsupported_sampling=last_unsupported_sampling,
-                            served_model=last_served_model,
-                            reasoner_config_effective=attach_unsupported_sampling(
-                                self._effective_sampling,
-                                last_unsupported_sampling,
-                                last_served_model,
-                            ),
-                            refusal_attempts=refusal_attempts,
-                            refusal_category=refusal_category,
-                            image_fallback_used=image_fallback_attempt is not None,
-                            image_fallback_attempt=image_fallback_attempt,
-                            decision_degradations=degradations,
-                        ),
-                    )
                 except Exception as exc:
                     # A response came back (and is billed, so its usage is
                     # already recorded), so any failure reading it -- the
@@ -409,59 +497,83 @@ class Reasoner:
                     # failure of this attempt.
                     had_parse_failure = True
                     last_error_type, last_error_msg = type(exc).__name__, str(exc)
-                    refused = structured_refusal or is_refusal(last_raw or "")
-                    if refused:
+                    # The provider's structured signal first; the English
+                    # text pattern only as the fallback channel (F03).
+                    refusal_source: Literal["provider", "text_pattern"] | None = None
+                    if response.refusal:
+                        refusal_source = "provider"
+                    elif is_refusal(last_raw or ""):
+                        refusal_source = "text_pattern"
+                    if refusal_source is not None:
                         refusal_attempts += 1
-                    if attempts >= self._config.max_attempts:
+                    records.append(
+                        response_attempt_record(
+                            response,
+                            "refusal" if refusal_source is not None else "parse_failure",
+                            error_type=last_error_type,
+                            refusal_source=refusal_source,
+                            backoff_sec=None if final_attempt else 0.0,
+                        )
+                    )
+                    if final_attempt:
                         continue
-                    if refused and self._should_fall_back(attempts, image_fallback_attempt):
+                    if refusal_source is not None and self._should_fall_back(
+                        attempts, image_fallback_attempt
+                    ):
                         scratch = scratch or tempfile.TemporaryDirectory(
                             prefix="m2-neutral-image-"
                         )
                         neutral = self._neutral_payload(base_payload, scratch.name)
                         if neutral is not None:
-                            payload = neutral
+                            payload = reask_base = neutral
                             image_fallback_attempt = attempts + 1
                             continue
                     if self._config.allow_reask:
-                        payload = build_reask_prompt(payload, str(exc))
+                        payload = build_reask_prompt(reask_base, str(exc))
+                    continue
+                records.append(response_attempt_record(response, "answered"))
+                return ReasonerResult(
+                    request_id=request.request_id,
+                    decision=decision,
+                    raw_text=last_raw,
+                    diagnostics=ReasonerDiagnostics(
+                        request_id=request.request_id,
+                        # The arm id on every path (F09), never the model id.
+                        backend_id=self._config.backend_id,
+                        attempts=attempts,
+                        latency_ms=response.latency_ms,
+                        token_usage=response.token_usage,
+                        attempt_token_usage=attempt_usage,
+                        # "invalid" = a parse/validation failure occurred earlier
+                        # but a retry/re-ask then succeeded
+                        parse_status="invalid" if had_parse_failure else "valid",
+                        error_type=last_error_type,
+                        error_message=last_error_msg,
+                        unsupported_sampling=last_unsupported_sampling,
+                        served_model=last_served_model,
+                        system_fingerprint=last_fingerprint,
+                        finish_reason=last_finish_reason,
+                        reasoner_config_effective=attach_unsupported_sampling(
+                            self._effective_sampling,
+                            last_unsupported_sampling,
+                            last_served_model,
+                            last_fingerprint,
+                        ),
+                        refusal_attempts=refusal_attempts,
+                        refusal_category=refusal_category,
+                        image_fallback_used=image_fallback_attempt is not None,
+                        image_fallback_attempt=image_fallback_attempt,
+                        decision_degradations=degradations,
+                        attempt_records=records,
+                    ),
+                )
 
-            return build_failed_result(
-                request=request,
-                backend_id=self._config.backend_id,
-                attempts=attempts,
-                error_type=last_error_type,
-                error_message=last_error_msg,
-                raw_text=last_raw,
-                unsupported_sampling=last_unsupported_sampling,
-                effective_sampling=self._effective_sampling,
-                refusal_attempts=refusal_attempts,
-                image_fallback_used=image_fallback_attempt is not None,
-                image_fallback_attempt=image_fallback_attempt,
-                served_model=last_served_model,
-                refusal_category=refusal_category,
-                attempt_token_usage=attempt_usage,
-            )
+            return failed(last_error_type, last_error_msg)
         except Exception as exc:
             # Last-resort net (e.g. the fallback scratch directory cannot be
             # created): the call still ends as a recorded failure with every
             # attempt's usage so far, never as an exception out of `run`.
-            return build_failed_result(
-                request=request,
-                backend_id=self._config.backend_id,
-                attempts=max(attempts, 1),
-                error_type=type(exc).__name__,
-                error_message=str(exc),
-                raw_text=last_raw,
-                unsupported_sampling=last_unsupported_sampling,
-                effective_sampling=self._effective_sampling,
-                refusal_attempts=refusal_attempts,
-                image_fallback_used=image_fallback_attempt is not None,
-                image_fallback_attempt=image_fallback_attempt,
-                served_model=last_served_model,
-                refusal_category=refusal_category,
-                attempt_token_usage=attempt_usage,
-            )
+            return failed(type(exc).__name__, str(exc))
         finally:
             if scratch is not None:
                 scratch.cleanup()
@@ -555,6 +667,16 @@ def write_reasoner_log(
         record["attempt_token_usage"] = diagnostics.attempt_token_usage
     if diagnostics.refusal_category is not None:
         record["refusal_category"] = diagnostics.refusal_category
+    if diagnostics.finish_reason is not None:
+        record["finish_reason"] = diagnostics.finish_reason
+    if diagnostics.system_fingerprint is not None:
+        record["system_fingerprint"] = diagnostics.system_fingerprint
+    # Every attempt's outcome, finish reason, provider request id and backoff
+    # (conformance fixes F06/F18/F02), whatever the call's result.
+    if diagnostics.attempt_records:
+        record["attempt_records"] = [
+            entry.model_dump(mode="json") for entry in diagnostics.attempt_records
+        ]
     effective = result.diagnostics.reasoner_config_effective
     if effective is not None:
         record["reasoner_config_effective"] = effective.model_dump(mode="json")

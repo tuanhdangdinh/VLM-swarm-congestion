@@ -68,7 +68,9 @@ class TestChoose:
         assert result.choice.retreat_choice == "B"
         assert result.failure_cause is None
         assert result.attempts == 1
-        assert result.backend_id == "scripted"
+        # The arm id from the config on every path (conformance fix F09),
+        # not the backend's model id.
+        assert result.backend_id == _config().backend_id
 
     def test_payload_carries_the_frame_and_stage2_prompt(self):
         backend = _ScriptedBackend(_choice("A"))

@@ -7,8 +7,9 @@ from pathlib import Path
 
 import requests
 
+from reasoning.vlm.errors import BackendTimeoutError
 from reasoning.vlm.models import BackendResponse, PayloadFormat, PromptPayload, ReasonerConfig
-from reasoning.vlm.transport import http_error
+from reasoning.vlm.transport import http_error, provider_request_id, safe_error_text
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,9 @@ _UNSUPPORTED_SAMPLING_FIELDS = ("temperature", "top_p", "top_k", "presence_penal
 # prompt text, so it is not applied -- the v3.4 zoom-tile sentence already
 # names the second image. No structured-output flag is sent. Unchanged since
 # wiring.
+# A-err: "Every API response includes a unique `request-id` header".
+_REQUEST_ID_HEADER = "request-id"
+
 PAYLOAD_FORMAT = PayloadFormat(
     version="v1",
     image_position="before_text",
@@ -113,33 +117,43 @@ class AnthropicBackend:
                 timeout=config.timeout_sec,
             )
         except requests.exceptions.Timeout as exc:
-            raise ConnectionError(f"Anthropic request timed out: {exc}") from exc
+            # One timeout label on every adapter (F11).
+            raise BackendTimeoutError(
+                f"Anthropic request timed out: {safe_error_text(str(exc), self._api_key)}"
+            ) from exc
         except requests.exceptions.ConnectionError as exc:
-            raise ConnectionError(f"Anthropic connection failed: {exc}") from exc
+            raise ConnectionError(
+                f"Anthropic connection failed: {safe_error_text(str(exc), self._api_key)}"
+            ) from exc
         except requests.exceptions.RequestException as exc:
             raise ConnectionError(f"Anthropic request failed: {type(exc).__name__}") from exc
 
         if resp.status_code >= 400:
             # Classified for the shared retry policy (429/5xx retried with
-            # backoff, other 4xx final); the message is truncated and never
-            # echoes request headers or body, so the key cannot leak.
-            raise http_error("Anthropic", resp)
+            # backoff, other 4xx final); the body is redacted and truncated
+            # and request headers are never echoed, so the key cannot leak.
+            raise http_error("Anthropic", resp, self._api_key, _REQUEST_ID_HEADER)
 
         try:
             data = resp.json()
-        except ValueError as exc:
+            if not isinstance(data, dict):
+                raise TypeError("body is not an object")
+        except (ValueError, TypeError) as exc:
             raise ConnectionError("Anthropic response body malformed") from exc
         raw = dict(data)
         raw["unsupported_sampling"] = unsupported_sampling
-        refusal = data.get("stop_reason") == "refusal"
+        stop_reason = data.get("stop_reason")
+        refusal = stop_reason == "refusal"
         return BackendResponse(
-            text=self._extract_text(data, refusal),
+            text=self._extract_text(data),
             backend_id=self.model_id,
             token_usage=self._extract_usage(data),
             raw=raw,
             served_model=self._extract_served_model(data),
             refusal=refusal,
             refusal_category=self._extract_refusal_category(data) if refusal else None,
+            finish_reason=stop_reason if isinstance(stop_reason, str) else None,
+            provider_request_id=provider_request_id(resp, data, _REQUEST_ID_HEADER),
         )
 
     def _build_messages(self, payload: PromptPayload) -> list[dict]:
@@ -171,23 +185,20 @@ class AnthropicBackend:
         return media_type, data
 
     @staticmethod
-    def _extract_text(data: dict, refusal: bool) -> str:
+    def _extract_text(data: dict) -> str:
         # Thinking blocks (empty text by default on 5.5-generation models) are
-        # skipped; the answer is the text blocks, joined in order.
+        # skipped; the answer is the text blocks, joined in order. A 200 with
+        # no text block (a refusal, or a `max_tokens` cut inside thinking) is
+        # "" -- a billed parse failure with its usage recorded, the same on
+        # every adapter (F07; A-stop: such responses are normal 200s).
         texts = [
             block["text"]
             for block in data.get("content", []) or []
-            if block.get("type") == "text" and isinstance(block.get("text"), str)
+            if isinstance(block, dict)
+            and block.get("type") == "text"
+            and isinstance(block.get("text"), str)
         ]
-        if texts:
-            return "\n".join(texts)
-        if refusal:
-            # A refusal may carry no content at all; `refusal=True` is the signal.
-            return ""
-        raise ConnectionError(
-            f"Anthropic returned no text content (stop_reason="
-            f"{data.get('stop_reason')!r})"
-        )
+        return "\n".join(texts)
 
     @staticmethod
     def _extract_refusal_category(data: dict) -> str | None:

@@ -23,6 +23,8 @@ from reasoning.vlm.llama_server_backend import LlamaServerBackend
 from reasoning.vlm.mock_backend import MockBackend
 from reasoning.vlm.models import (
     AnthropicBackendConfig,
+    AttemptOutcome,
+    AttemptRecord,
     BackendResponse,
     BlockerKind,
     CongestionDecision,
@@ -72,11 +74,14 @@ from reasoning.vlm.reasoner import (
     write_reasoner_log,
 )
 from reasoning.vlm.retreat_chooser import RetreatChooser
+from reasoning.vlm.retry_policy import RetryPolicy
 from reasoning.vlm.stage2_prompt import build_stage2_prompt_payload
 
 __all__ = [
     "AnthropicBackend",
     "AnthropicBackendConfig",
+    "AttemptOutcome",
+    "AttemptRecord",
     "BackendResponse",
     "BackendTimeoutError",
     "BlockerKind",
@@ -106,6 +111,7 @@ __all__ = [
     "RetreatChoiceRequest",
     "RetreatChoiceResult",
     "RetreatChooser",
+    "RetryPolicy",
     "RetreatLabelError",
     "RobotStateInput",
     "SnapshotFrame",

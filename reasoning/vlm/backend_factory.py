@@ -266,7 +266,9 @@ def build_backend(
             arm (e.g. "openai_gpt51") is built by passing its adapter
             (`backend_adapter`) with its config (`load_backend_config`).
         backend_config: Backend-specific connection config. Optional because
-            "mock" needs none; backends that require it raise on absence.
+            "mock" needs none; every other adapter raises on absence, so a
+            caller that forgets it fails at startup instead of running an
+            unpinned default model.
 
     Returns:
         A backend instance satisfying the `VLMBackend` Protocol.
@@ -294,8 +296,10 @@ def build_backend(
             system_placement=backend_config.system_placement,
         )
     if backend_id == "openai":
+        # No silent default: OpenAIBackendConfig's default model is the
+        # floating `gpt-4o` alias, not a pin (conformance fix F27).
         if backend_config is None:
-            backend_config = OpenAIBackendConfig()
+            raise ValueError("openai backend requires an OpenAIBackendConfig")
         return OpenAIBackend(
             model_id=backend_config.model_id,
             base_url=backend_config.base_url,
@@ -318,7 +322,7 @@ def build_backend(
         )
     if backend_id == "gemini":
         if backend_config is None:
-            backend_config = GeminiBackendConfig()
+            raise ValueError("gemini backend requires a GeminiBackendConfig")
         return GeminiBackend(
             model_id=backend_config.model_id,
             base_url=backend_config.base_url,
@@ -326,5 +330,6 @@ def build_backend(
             thinking_level=backend_config.thinking_level,
             force_schema=backend_config.force_schema,
             seed=backend_config.seed,
+            store=backend_config.store,
         )
     raise ValueError(f"Unknown backend_id: {backend_id!r}")

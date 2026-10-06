@@ -121,8 +121,13 @@ vlm:
     # Frame + zoom tile verified 2026-10-06 (llama.cpp b11434): colours named in
     # send order for both orders, and a recorded tile-on v2 prompt parsed.
     multi_image: true
+    # Local arms at FULL hosted-arm parity (conformance ruling F13,
+    # 2026-10-07): uniformity beats micro-optimization, grey is harmless
+    # locally.
     reasoner:
       temperature: 0.0
+      max_attempts: 4
+      image_fallback_after_attempts: 2
 
   # EXPLORATORY ARM (coordinator scope extension 2026-10-06): DeepSeek
   # vision over its OpenAI-compatible endpoint. RE-PINNED to the live
@@ -165,16 +170,25 @@ vlm:
   # ER-2 precedent). NOT the frozen ER-2 pin, so the hosted-arm parity
   # applies: 4 attempts + grey-image fallback after 2 (the ER-2 exception
   # covers only ER-2's frozen section).
+  # Conformance rulings 2026-10-07: CAP-PROOFED like GLM (F05) --
+  # max_output_tokens "includes thought tokens" and is "a hard cutoff"
+  # (thinking guide), and flash spent ~1,960 thought tokens at `low` against
+  # the shared 2,048; `status: incomplete` is recorded per attempt. `store:
+  # false` (F10): the Interactions API stores every interaction by default
+  # (55 days, paid tier) and nothing here reads one back. The frozen ER-2 pin
+  # above keeps its wire shape (no `store`), a recorded deviation.
   gemini_flash:
     adapter: gemini
     model_id: gemini-3.8-flash
     api_key_env: GEMINI_API_KEY   # export GEMINI_API_KEY=... in your shell/.env
     thinking_level: low
     force_schema: false
+    store: false
     reasoner:
       temperature: 0.0
       max_attempts: 4
       image_fallback_after_attempts: 2
+      max_tokens: 16384
 
   # H2 (cross-lab specialist replication): Ai2's 4.85B embodied-reasoning
   # specialist (Apache-2.0; Molmo2-4B = Qwen3-4B + SigLIP2), served by vLLM's
@@ -197,8 +211,11 @@ vlm:
     model_id: molmo2-er
     mmproj_path: "$HOME/models/molmo2er"
     system_placement: user_prefix
+    # Full hosted-arm parity (conformance ruling F13), as Qwen3-VL above.
     reasoner:
       temperature: 0.0
+      max_attempts: 4
+      image_fallback_after_attempts: 2
 
   # EXPLORATORY ARM, seventh lab (roster-closure ruling 2026-10-07, Group D:
   # ROLLING PIN -- `glm-5.3-flash` is undated, so the served model is recorded
