@@ -45,9 +45,11 @@ Rules for maintaining it:
   - **Trigger-plan provenance:** 3 vb / 7 repaired / 1 m3, falling with
     complexity: 1-robot 1/1 vb, head-on 1/5, B1 1/2, IB10 0/3. Emission
     11/11 and consistency 11/11.
-  - **Main repair driver is list order.** ER-2 lists legs in slot order,
-    and 4/7 of its multi-robot trigger plans needed a `reorder`; 2 were
-    reorder-only.
+  - **ER-2's main repair driver is list order.** ER-2 lists legs
+    yielder-first or in robot-id order, never in prompt-slot order. 4/7 of
+    its multi-robot trigger plans needed a `reorder`; 2 were reorder-only.
+    gpt-4o never listed a cross before its releasing yield leg (0
+    reorders in 16 plans).
   - **junction_clear shape.** Every ER-2 junction_clear plan (3/3 with the
     calibration) needed the inside-pair yielder substituted: the v3.2 gloss
     never names that leg.
@@ -80,7 +82,14 @@ Rules for maintaining it:
     decision-scored. A phantom `robot_17` (M1 misdetection at robot_1's
     spawn) recurred in B1 s42.
   - **v2 reroute:** the declared reroute COMPLETED on the v2 tree (n = 1),
-    after a latch before dispatch.
+    after a latch before dispatch. The decision came after robot_1 had
+    self-detoured and stalled about 0.7 m from waypoint 0, not from the
+    primary aisle, so this is NOT comparable to the pre-fix
+    waypoint-validation failure.
+  - **B1 cannot ground `junction_clear`.** ER-2 chose it in a replan of
+    both B1 episodes, and both grounded `shipped_unsolved` /
+    `fallback:no_candidates`, because the B1 row has no junction fields
+    (report item G).
   - **VM:** restored. The source manifest is identical to pre-pilot, and
     the installed tree is identical except for `.pyc` headers (bodies equal).
     Configs `1f656533…` / `e18c723c…`, GPU idle, left RUNNING.

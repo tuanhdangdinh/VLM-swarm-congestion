@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: the 11 registered live episodes (ER-2 ×8, gpt-4o ×3) on the v2 tree `a8fc1bc`, with plan metrics, outcomes, refusal accounting and a pre-freeze recommendation.
+- Rev 2: review corrections. ER-2's list order is id order or yielder-first, not slot order. The list-order finding is ER-2-only. The strategy-constraint wording is fixed. The "Exec" column is now "Verified legs". The reroute decision context is caveated. B1 junction_clear grounding is added (item G). The complexity trend is stated descriptively. The suite wording is fixed.
 
 ---
 
@@ -14,14 +15,14 @@ This is the registered verbatim pilot. Its contract is the "Verbatim pilot (regi
 
 - **Matrix:** all 11 episodes ran exactly as registered. The VM ran the v2 branch tip `a8fc1bc`, not the parked v3 costmap fix. `RECORD=0` throughout. No apparatus re-run was needed. One driver-argument mistake launched nothing and cost nothing (see Apparatus).
 - **Emission and consistency:** trigger plans were emitted 11/11 and consistent 11/11. Over all 28 dispatched plans, 26/28 were emitted and 26/26 of those were consistent.
-- **Provenance falls with plan complexity.** Of the 11 trigger plans, 3 were `vlm_verbatim`, 7 `repaired` and 1 `m3_default`:
+- **Provenance by cell (descriptive; the trend is not monotonic at this n).** Of the 11 trigger plans, 3 were `vlm_verbatim`, 7 `repaired` and 1 `m3_default`:
   - 1-robot reroute: 1/1 verbatim.
   - 2-robot head-on: 1/5 verbatim.
   - 3-robot B1: 1/2 verbatim.
   - 4-robot IB10: 0/3 verbatim.
 
-  Repaired edit distances were 1, 1, 1, 1, 1, 2 and 4. The 4-edit IB10 plan sits exactly at the frozen bound of 4.
-- **The main repair driver is list order, not choice.** Four of the 7 ER-2 multi-robot trigger plans needed a `reorder` edit, because ER-2 lists legs in robot-id order and puts the yield or reverse legs after the crosses. Two of them (head-on s43, B1 s43) were reorder-only: they named the correct yielder and would have been verbatim.
+  Repaired edit distances were 1, 1, 1, 1, 1, 2 and 4. The 4-edit IB10 plan sits exactly at the frozen bound of 4. Three of the four head-on repairs are the designed swap-gate re-grounding (the infeasible robot_1 was named), not a plan-shape defect.
+- **ER-2's main repair driver is list order, not choice.** Four of the 7 ER-2 multi-robot trigger plans needed a `reorder` edit. ER-2 lists legs either yielder-first (head-on s44, B1 s42: both verbatim) or in robot-id order, never in prompt-slot order. With id order, the yield or reverse legs can land after the crosses. Two of the four (head-on s43, B1 s43) were reorder-only: they named the correct yielder and would otherwise have been verbatim. gpt-4o never listed a cross before its releasing yield leg (0 reorders in 16 plans).
 - **The junction_clear shape mismatch is systematic.** Every ER-2 `junction_clear` plan (2/2 here, 3/3 counting the 2026-10-03 calibration) needed a `substitute` to turn an inside-pair robot into the `yield` leg. The v3.2 gloss describes "back out, then an ordered crossing" and never mentions that leg.
 - **Recede axis is not stable.** ER-2's three IB10 recede sets were all different:
   - calibration (v3.1): E-W pair;
@@ -29,7 +30,7 @@ This is the registered verbatim pilot. Its contract is the "Verbatim pilot (regi
   - s43: all four robots.
 
   gpt-4o never chose `junction_clear` (0/13 IB10 decisions). The mirror-axis question is confounded by the `id_asc` presentation order on this cell.
-- **Verbatim is not quality.** gpt-4o's IB10 episode produced 11 `vlm_verbatim` plans, most under strategies the grammar does not constrain (`reverse`, `temporary_wait`, and `yield` in a 4-robot scene), and still ended `clogged` 0/4 after 13 dispatches. 6 of the 16 verbatim plans in the pilot did not dispatch as proposed (`dispatch_matches_plan=false`).
+- **Verbatim is not quality.** gpt-4o's IB10 episode produced 11 `vlm_verbatim` plans: 5 under the unconstrained `reverse` and 6 under weakly constrained `temporary_wait` / `yield` rules. It still ended `clogged` 0/4 after 13 dispatches. 6 of the 16 verbatim plans in the pilot did not dispatch as proposed (`dispatch_matches_plan=false`).
 - **Refusals:** gpt-4o had 1 refused attempt in 21 stage-1 attempts, recovered on retry. There were 0 terminal refusals, 0 grey-image fallbacks and 0 stage-2 refusals. ER-2 had 0 refusals.
 - **Spend:** ≈ $0.33, about $0.23 gpt-4o and an estimated $0.10 ER-2 (rate assumed). The hard stop was $10.
 - **VM time:** 02:56–06:39 UTC, 3 h 43 min.
@@ -111,16 +112,16 @@ Further notes on the table:
 - **Outcome scorers:** `coverage_scene_scores.py flow` for head-on and reroute, `b1` for B1, `ib10` for IB10. Head-on: delay sums 147–153 s and conflict dissolution 66–69 s in every episode.
 - **Episode 4:** its second dispatch is the "intermittent" class, a gpt-4o `reroute` of robot_2 at sim 97.3 (verbatim, but `dispatch_matches_plan=false`).
 - **IB10 ER-2 episodes:** both are inside-first and yielder-last.
-- **Episode 11:** the first trigger (robot held at spawn, sim 17.5) answered `congestion_detected=false`; the demo's first trigger had produced the reroute. robot_1 then self-detoured toward the loop and stalled at (0.46, 0.49) for about 20 s. The follow-up trigger's reroute COMPLETED (waypoint 0 reached at 0.036 m, waypoint 1 at 0.101 m), and robot_1 arrived 0.07 m from goal at sim 135.6. On the v2 tree the latch occurred, but the declared reroute still completed (n = 1).
-- **`order_equivalent`** was never true (0/28 plans). In IB10 s42 the repair's position swap happened to put the recede legs in χ order ([r4, r3]), so dispatch matched.
+- **Episode 11:** the first trigger (robot held at spawn, sim 17.5) answered `congestion_detected=false`; the demo's first trigger had produced the reroute. robot_1 then self-detoured toward the loop and stalled at (0.46, 0.49) for about 20 s. The follow-up trigger's reroute COMPLETED (waypoint 0 reached at 0.036 m, waypoint 1 at 0.101 m), and robot_1 arrived 0.07 m from goal at sim 135.6. On the v2 tree the latch occurred, but the declared reroute still completed (n = 1). **Decision-context caveat:** the plan was made after robot_1 had already detoured toward the loop on its own and stalled about 0.7 m from waypoint 0. It was not held in the primary aisle as in the demo, or as in the pre-fix waypoint validation that failed. This completion is therefore NOT comparable to that failure and must not be cited against the costmap finding.
+- **`order_equivalent`** was never true (0/28 plans). In IB10 s42 the repair's position swap happened to put the recede legs in χ order ([r4, r3]), so the recede ORDER matched dispatch and the flag could not fire. The plan as a whole still has `dispatch_matches_plan=false`, because robot_2's verified `wait` was dispatched as `cross`.
 - **B1 outcomes are a known apparatus defect, not a plan effect.** In both trigger yields, ER-2's stage-2 letter "A" mapped to the rank-0 2× lateral candidate (−0.72 m). The yield ran about 250 s and FAILED, which is the Rev 20 (a) / Rev 22 defect. Under the registered Rev 22 rule, both B1 episodes are **decision-scored and excluded from flow metrics**.
 - **Phantom `robot_17`.** A known M1 misdetection near robot_1's spawn caused about 10 s of early safety stops in B1 s42 (3 scene rows; seen in earlier runs too).
 
 ### Every dispatched plan, verbatim (decision fields as emitted)
 
-Abbreviations: the `strategy` / `yield_robot` / `crossing_order` cell shows the proposed values; "exec" is the executed legs; "dm" is `dispatch_matches_plan`.
+Abbreviations: the `strategy` / `yield_robot` / `crossing_order` cell shows the proposed values. "Verified legs" are the plan block's accepted legs, NOT the dispatched commands; where "dm" (`dispatch_matches_plan`) is ✗, M5 dispatched something else. For example, in episode 8 robot_2 was dispatched `cross`, not the verified `wait`.
 
-| Episode | Sim (s) | Proposed `strategy` / `yield_robot` / `crossing_order` | Proposed plan | Provenance (edits) | Exec | dm |
+| Episode | Sim (s) | Proposed `strategy` / `yield_robot` / `crossing_order` | Proposed plan | Provenance (edits) | Verified legs (plan block) | dm |
 |---|---|---|---|---|---|---|
 | 1 | 27.2 | yield / r1 / — | [r1:yield, r2:cross] | rep: swap r1↔r2 ("robot_1 has 0.70 m retreat room < 1.08 m required") | [r2:yield, r1:cross] | ✓ |
 | 2 | 27.3 | yield / r2 / — | [r1:cross, r2:yield] | rep: reorder ("cross leg has no preceding yield leg to release it") | [r2:yield, r1:cross] | ✓ |
@@ -218,7 +219,7 @@ Other plan facts:
 
 - **ER-2:** three junction plans gave three different recede sets. The mirror axis did not recur as such; s43 includes it within an all-reverse plan.
 - **gpt-4o:** never proposed the composite. Its later `reverse` strategy plans alternated between the E-W pair (with or without robot_4) and the N-S pair.
-- **Confound:** IB10 runs `id_asc` (the calibration config is binding), so robot_1/robot_2 always sit in the first prompt slots, and ER-2 writes legs in slot order. A first-slot prior cannot be separated from axis choice on this cell.
+- **Confound:** IB10 runs `id_asc` (the calibration config is binding), so robot_1/robot_2 always sit in the first prompt slots. ER-2's leg list order is id order or yielder-first, not slot-driven (head-on and B1 show it). But its recede-SET choice cannot be separated from a first-slot prior on this cell.
 
 ---
 
@@ -278,11 +279,11 @@ n is 11 episodes and 28 plans. These are the recommendations the pilot's purpose
 
 ### A. List-order semantics: adjust before the freeze (strongest evidence)
 
-**Evidence.**
+**Evidence (ER-2-specific; gpt-4o never listed a cross before its releasing yield leg in any of its 16 plans and needed 0 reorders, so a grammar line would likely leave gpt-4o unaffected).**
 
-- 4 of the 9 repaired plans include a `reorder` (5 reorder edits in all).
+- 4 of the 9 repaired plans include a `reorder` (5 reorder edits in all, all ER-2).
 - 4/7 ER-2 multi-robot trigger plans needed one, and 2 of those were reorder-only. The yielder was correct, so they would otherwise have been `vlm_verbatim`.
-- ER-2 lists legs in robot-id (slot) order.
+- ER-2 lists legs yielder-first or in robot-id order, never in prompt-slot order. With id order, releasing legs can follow the crosses.
 - v3.2 states list order only inside the `cross` gloss ("in its assigned turn (the plan's list order)"). It never says that a releasing `yield`/`reverse` leg must come before the crosses it releases.
 - As it stands, the agreement rate partly measures list-writing convention.
 
@@ -319,7 +320,7 @@ Option 1 changes the prompt pins. Option 2 changes the repair-bound sweep and pr
 
 1. Report agreement conditional on strategy correctness (the cell's `accepted_strategies`).
 2. Report "executed-verbatim" = `vlm_verbatim` ∧ `dispatch_matches_plan`.
-3. Add leg rules for the unconstrained strategies (`reverse`: ≥ 1 reverse leg). That would need a grammar line and a pin change.
+3. Add a leg rule for the one unconstrained strategy, `reverse` (≥ 1 reverse leg, covering 5 of the 11 gpt-4o IB10 verbatim plans). That would need a grammar line and a pin change. `temporary_wait` and `yield` are already constrained; they are weak here because a 4-robot `yield` with passive legs passes them.
 
 ### D. B1 oracle-order population: metric clarification
 
@@ -335,16 +336,24 @@ Recede-axis results on IB10 are confounded with `id_asc`. Options:
 1. Collect IB10 under the collection config's random permutation.
 2. Register the confound as a caveat beside the mirrored-axis caveat.
 
+### G. B1 cannot ground `junction_clear`: config or scope decision
+
+ER-2 picked `junction_clear` in a replan of BOTH B1 episodes: s42 at sim 196.5 (no plan) and s43 at sim 126.7. Both grounded with `junction_geometry=shipped_unsolved:missing=junction_recede_offset_m,junction_backup_clearance_m` and `junction_clear=fallback:no_candidates`, because the B1 goal-table row carries no junction fields. The universal strategy gloss offers a strategy this cell's overlay cannot ground. Options:
+
+1. Add solved junction fields to the B1 row, if the geometry admits them.
+2. Register `junction_clear` on B1 as out-of-scope, and score it as a strategy error rather than a grounding failure.
+3. Leave it, and report it as an apparatus-limited replan class.
+
 ### F. Not grammar: flagged only
 
 - B1 stage 2 chose the rank-0 2× lateral candidate 2/2 and both yields failed. That is the known Rev 20 (a) / Rev 22 defect, so v2 B1 outcomes will be dominated by the Rev 22 exclusion rule. The registered "prefer lesser excursion" tie-break revision is the lever for v2.
-- The v2-tree reroute completed (n = 1) despite the latch before dispatch.
+- The v2-tree reroute completed (n = 1) despite the latch before dispatch, from a non-demo decision context (see the episode 11 caveat).
 
 **Bottom line.**
 
-- A and B are cheap, evidence-backed grammar points worth settling before the freeze. A's metrics-only option 3 avoids a re-pin.
+- A (ER-2-specific) and B are cheap, evidence-backed grammar points worth settling before the freeze. A's metrics-only option 3 avoids a re-pin.
 - C and D are metric definitions and need no prompt change.
-- E is a configuration decision.
+- E and G are configuration decisions.
 - Every choice is the owner's.
 
 ---
@@ -360,4 +369,4 @@ Bundles live in the main checkout, which is gitignored: `data/logs/vm_runs/verba
 
 A secret scan of the bundle (API-key patterns) was clean.
 
-Suite (docs-only change): 63 failed / 5117 passed / 153 skipped / 3 errors at `a8fc1bc`, and the same after this commit. The failing set is the pre-existing one.
+Suite (docs-only change): 63 failed / 5117 passed / 153 skipped / 3 errors at `a8fc1bc`, and the same after this commit. The counts are identical, and the diff touches no code or tests.
