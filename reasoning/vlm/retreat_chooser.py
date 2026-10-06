@@ -64,17 +64,22 @@ class RetreatChooser:
         error_type: str | None = None
         error_message: str | None = None
         refusals = 0
+        # One entry per attempt, refused ones included: a refusal is billed.
+        usage: list[dict[str, int] | None] = []
 
         while attempts < self._config.max_attempts:
             attempts += 1
             try:
                 response = invoke_backend(self._backend, payload, self._config)
             except BackendTimeoutError as exc:
+                usage.append(None)
                 cause, error_type, error_message = "timeout", type(exc).__name__, str(exc)
                 continue
             except Exception as exc:  # e.g. an HTTP 429 on an exhausted key
+                usage.append(None)
                 cause, error_type, error_message = "backend_error", type(exc).__name__, str(exc)
                 continue
+            usage.append(response.token_usage)
             raw_text = response.text
             backend_id = response.backend_id
             latency_ms = response.latency_ms
@@ -88,7 +93,7 @@ class RetreatChooser:
                 invalid = exc.choice if isinstance(exc.choice, RetreatChoiceDecision) else None
                 return self._result(
                     request, backend_id, invalid, raw_text, attempts, latency_ms,
-                    "invalid_label", type(exc).__name__, str(exc), refusals,
+                    "invalid_label", type(exc).__name__, str(exc), refusals, usage,
                 )
             except VLMOutputParseError as exc:
                 refused = response.refusal or is_refusal(response.text)
@@ -100,11 +105,11 @@ class RetreatChooser:
                 continue
             return self._result(
                 request, backend_id, choice, raw_text, attempts, latency_ms,
-                None, error_type, error_message, refusals,
+                None, error_type, error_message, refusals, usage,
             )
         return self._result(
             request, backend_id, None, raw_text, attempts, latency_ms,
-            cause, error_type, error_message, refusals,
+            cause, error_type, error_message, refusals, usage,
         )
 
     def _result(
@@ -119,6 +124,7 @@ class RetreatChooser:
         error_type: str | None,
         error_message: str | None,
         refusals: int,
+        usage: list[dict[str, int] | None],
     ) -> RetreatChoiceResult:
         return RetreatChoiceResult(
             request_id=request.request_id,
@@ -131,6 +137,8 @@ class RetreatChooser:
             error_type=error_type,
             error_message=error_message,
             refusal_attempts=refusals,
+            token_usage=usage[-1] if usage else None,
+            attempt_token_usage=usage,
             max_attempts=self._config.max_attempts,
             timeout_sec=self._config.timeout_sec,
         )

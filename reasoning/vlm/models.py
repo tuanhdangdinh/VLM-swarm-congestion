@@ -606,6 +606,13 @@ class RetreatChoiceResult(BaseModel):
     error_type: str | None = None
     error_message: str | None = None
     refusal_attempts: int = Field(default=0, ge=0)
+    # Final attempt's usage (None after a transport error or when unreported)
+    # and every attempt's usage in call order, refused ones included, the
+    # stage-1 `ReasonerDiagnostics` convention: cost = sum of the list
+    # (roster-validation ruling 3, 2026-10-06). Defaulted so stage-2 records
+    # written before these fields existed still parse.
+    token_usage: dict[str, int] | None = None
+    attempt_token_usage: list[dict[str, int] | None] = Field(default_factory=list)
     # The budget the call ran under (`RetreatChooser`'s config), so an
     # artifact shows the stage-2 bound apart from stage 1's.
     max_attempts: int | None = Field(default=None, ge=1)

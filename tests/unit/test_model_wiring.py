@@ -843,3 +843,56 @@ def test_gemini_force_schema_records_response_schema_guidance():
 
 def test_mock_backend_records_no_payload_format():
     assert describe_payload_format(None) is None
+
+
+def _stage2_request(tmp_path: Path) -> RetreatChoiceRequest:
+    return RetreatChoiceRequest(
+        request_id="req-2",
+        image_path=str(tmp_path / "frame.png"),
+        yielder_id="robot_1",
+        crossing_order=["robot_2"],
+        robot_states=[
+            RobotStateInput(robot_id="robot_1", x=-0.3, y=0.0, theta=0.0),
+            RobotStateInput(robot_id="robot_2", x=0.3, y=0.0, theta=3.14),
+        ],
+        candidates=[
+            RetreatCandidateOption(label="A", x=-1.79, y=0.36, backup_m=1.49, lateral_m=0.36),
+            RetreatCandidateOption(label="B", x=-1.79, y=-0.36, backup_m=1.49, lateral_m=-0.36),
+        ],
+        listing_order=["B", "A"],
+    )
+
+
+def _billed_stage2_refusal(input_tokens: int) -> BackendResponse:
+    return BackendResponse(
+        text="",
+        backend_id="claude",
+        refusal=True,
+        refusal_category="reasoning_extraction",
+        token_usage={"input_tokens": input_tokens, "output_tokens": 0},
+    )
+
+
+def test_retreat_chooser_records_every_refused_attempts_usage(tmp_path):
+    backend = _Scripted(_billed_stage2_refusal(901), _billed_stage2_refusal(902))
+    config = ReasonerConfig(backend_id="anthropic", max_attempts=2, timeout_sec=5.0)
+    result = RetreatChooser(backend, config).choose(_stage2_request(tmp_path))
+    assert result.failure_cause == "refusal"
+    assert result.attempt_token_usage == [
+        {"input_tokens": 901, "output_tokens": 0},
+        {"input_tokens": 902, "output_tokens": 0},
+    ]
+    assert result.token_usage == {"input_tokens": 902, "output_tokens": 0}
+
+
+def test_retreat_chooser_keeps_a_refusals_usage_before_the_answer(tmp_path):
+    answer = BackendResponse(
+        text='{"retreat_choice": "A", "justification": "j"}',
+        backend_id="claude",
+        token_usage={"input_tokens": 950},
+    )
+    backend = _Scripted(_billed_stage2_refusal(903), answer)
+    config = ReasonerConfig(backend_id="anthropic", max_attempts=2, timeout_sec=5.0)
+    result = RetreatChooser(backend, config).choose(_stage2_request(tmp_path))
+    assert result.choice is not None
+    assert [entry["input_tokens"] for entry in result.attempt_token_usage] == [903, 950]
