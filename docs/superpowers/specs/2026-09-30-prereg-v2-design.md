@@ -1131,6 +1131,16 @@ Multi-conflict scenes (two simultaneous congestion events in one
 coordinator plan) carry a recommendation to defer to v3 — see "The VLM
 Coordinator"; the v2 freeze makes the explicit call.
 
+**v3 DESIGN DOC exists (2026-10-06):**
+`docs/superpowers/specs/2026-10-06-prereg-v3-design.md` (rev 1,
+merged from `feat/v3-design` @ 7c69f56) consolidates every v3
+registration below plus one addition: the detour family's
+stall-vs-plan window must be RE-DERIVED on the fixed stack before
+any new stall mechanism is designed (the 0.22/0.30 m NavFn flip
+points were measured under phantom-mark inflation and may be
+invalid). That doc is the v3 planning surface from here; the blocks
+below remain the decision record.
+
 **v3 candidate registered 2026-10-06 — the MAPD mini-cell (Ghofrani
 scenario analog):** a continuous-space analog of the GECCO '25
 MAPD setup (Asadi, Nowé, Ghofrani, 10.1145/3712256.3726339: 15×15
