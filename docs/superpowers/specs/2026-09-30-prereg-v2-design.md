@@ -331,6 +331,28 @@ no-intervention ARM is registered into collection; if any cell
 self-resolves, that is a design finding for the oracle (the cell may
 not need Layer 2) and goes to the owner before collection.
 
+**Model-wiring ruling (2026-10-06, from the landscape round —
+`research_notes/VLM model landscape 2026/`):** WIRE NOW
+`claude-sonnet-5-5` (existing Anthropic adapter; MUST omit
+temperature — 400s on current gen, recorded `unsupported_sampling`
+per the ER-2 precedent — and classify HTTP-200
+`stop_reason:"refusal"` as a refusal outcome) and **Qwen3-VL-8B**
+Q4_K_M via the existing llama_server adapter (official GGUF +
+mmproj; smoke gates: multi-image under llama-server, and L4 VRAM
+co-residency with Isaac verified by nvidia-smi headroom before any
+joint run). PILOT ARM: `gpt-5.1-2025-11-13` with
+`reasoning_effort:"none"` (legal temp-0, no reasoning billing) —
+does the 4o refusal/chance profile persist? DEFERRED to v3: Cosmos
+Reason2 (8B exceeds the L4; hosted trial-only; vendor-only
+evidence). LIFECYCLE FACTS recorded: the `gpt-4o-2024-08-06` pin is
+NOT deprecated (safe for v1 collection; the 4o line is winding
+down — do not assume into 2027); `gemini-robotics-er-2-preview`
+price DOUBLES after 2026-12-31 and preview deprecations get 2-week
+notice — both argue for prompt collection. Validation standard for
+every new backend: preflight, probe battery v1 (60 items), and two
+head-on episodes (seeds 42/43) scored with the standard plan
+metrics — directly comparable to the existing baselines.
+
 **Layer-2-off pilot RESULT + ARM REGISTERED (2026-10-06,
 `docs/reports/2026-10-06-layer2off-pilot.md`):** expectation HELD —
 4/4 cells clogged, 0/13 robots arrived, robots latch 0.27–0.39 m
