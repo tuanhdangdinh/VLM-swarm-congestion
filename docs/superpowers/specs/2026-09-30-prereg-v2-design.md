@@ -331,6 +331,44 @@ no-intervention ARM is registered into collection; if any cell
 self-resolves, that is a design finding for the oracle (the cell may
 not need Layer 2) and goes to the owner before collection.
 
+**Conformance-review RULINGS (2026-10-07,
+`docs/reports/2026-10-07-conformance-review.md`; 0 CRITICAL, 5
+HIGH, keys/payloads/supply-chain clean):**
+FIX NOW (one agent, pre-collection): F01 (apply the ready
+transport-escape diff — no attempt may die unrecorded); F02 —
+RULED uniform retry policy: 429/5xx retry with exponential backoff
+honoring Retry-After, other 4xx non-retryable, attempt budgets
+unchanged; F03 — map every provider's DOCUMENTED refusal channel
+(Gemini block codes, Zhipu 1301, OpenAI message.refusal,
+content_filter/sensitive finish reasons) to the refusal class,
+regex demoted to fallback — cross-arm refusal rates are a
+confirmatory metric and must compare like for like; F04 — capture
+DeepSeek `system_fingerprint`; F05 — RULED: flash gets the GLM
+treatment (max_output_tokens 16,384 + read status:incomplete; the
+2,048 cap with ~1,960 thought tokens was one bad frame from the
+DeepSeek trap); F06/F07/F08(+extended wire pin)/F09/F11/F14-stage
+alignment/F15 redaction/F16 additive usage/F18 request ids/F27
+factory-raise (turns the red test green)/F21 one-liner/F22
+comments — all mechanical, all in the same pass. F10 — RULED:
+`store:false` on flash and every v2 Gemini-adapter use; ER-2's
+frozen pin keeps its wire shape, deviation recorded with a privacy
+note. F13 — RULED: local arms go to FULL parity (4 attempts + grey
+fallback; uniformity beats micro-optimization, grey is harmless
+locally). F12 — SPEC AMENDMENT: gpt-5.1 was deprecated 2026-10-01
+(shutdown 2027-04-01) — recorded on the Group-D caveat; its
+collection must complete well before the cutoff. F04-GLM/ER-2 —
+SPEC AMENDMENT: the Group-D served-model mitigation is RESTATED as
+fingerprint-where-available + dated collection windows (the
+served-model string is uninformative on undated pins). F17/F19/
+F23/F24/F25 ACCEPTED as reported; F20 (adapter dedup refactor)
+DEFERRED to v3 with the note that it is the root of F01/F07/F11.
+V1-COLLECTION BRIDGE RULED: v1 collection runs from the tag PLUS a
+cherry-picked TRANSPORT HOTFIX (F01+F02 only — decision-semantics
+neutral; F03 not needed for the v1 pair: ER-2 never refuses and
+the regex IS tuned to gpt-4o) on a `prereg-v1-hotfix` branch,
+documented as a protocol note in the amendments doc — the 429-burn
+evidence makes running collection without backoff indefensible.
+
 **Hypothesis arms RESULTS + RULINGS (2026-10-07,
 `docs/reports/2026-10-07-hypothesis-arms.md`; nine-arm table is
 the freeze's model annex; reading rule committed pre-call at
