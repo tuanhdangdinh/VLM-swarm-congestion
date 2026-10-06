@@ -77,13 +77,18 @@ vlm:
   # precedent) -- the "documented absence" case. `between_tools` turns
   # thinking off (omitting it runs adaptive thinking, billed as output); with
   # gpt-5.1 at reasoning_effort none and ER-2 at thinking_level low, every new
-  # hosted arm answers as a no/low-thinking classifier.
+  # hosted arm answers as a no/low-thinking classifier. Attempts and the
+  # grey-image fallback are at PARITY with the gpt-4o and gpt-5.1 pins
+  # (model-wiring ruling 1, 2026-10-06): comparability over conservatism, so
+  # refusal profiles are measured under identical mitigation.
   anthropic:
     model_id: claude-sonnet-5-5
     api_key_env: ANTHROPIC_API_KEY   # export ANTHROPIC_API_KEY=... in your shell/.env
     thinking_type: between_tools
     reasoner:
       temperature: 0.0
+      max_attempts: 4
+      image_fallback_after_attempts: 2
 
   # PILOT ARM: gpt-5.1 at reasoning_effort "none" (temperature 0 is legal only
   # at "none"; no reasoning tokens are billed). Same refusal-mitigation block
@@ -119,17 +124,18 @@ vlm:
     reasoner:
       temperature: 0.0
 
-  # EXPLORATORY ARM (coordinator scope extension 2026-10-06): DeepSeek's
-  # first vision model over its OpenAI-compatible endpoint. The `-exp` id
-  # carries preview-churn risk: DeepSeek's pricing page (fetched 2026-10-06)
-  # lists `deepseek-v4-flash-vision-exp` as a retired legacy name served by
-  # DeepSeek-V4.1-Flash (`deepseek-flash`), so the served model is recorded
-  # per call and the id is unverified against the live listing (no key yet).
+  # EXPLORATORY ARM (coordinator scope extension 2026-10-06): DeepSeek
+  # vision over its OpenAI-compatible endpoint. RE-PINNED to the live
+  # successor `deepseek-flash` (DeepSeek-V4.1-Flash; model-wiring ruling 2):
+  # the `deepseek-v4-flash-vision-exp` id is retired and only aliased to
+  # V4.1-Flash. Images are resized to about 1300x1300 px total, so at most
+  # 1024 tokens per image; the launch note's 384-token cap described the
+  # retired -exp model and is obsolete. The served model is recorded per call.
   # Thinking defaults ON there and temperature has no effect while it is on,
   # so it is disabled for a greedy classifier.
   deepseek:
     adapter: openai
-    model_id: deepseek-v4-flash-vision-exp
+    model_id: deepseek-flash
     base_url: "https://api.deepseek.com"
     api_key_env: DEEPSEEK_API_KEY   # export DEEPSEEK_API_KEY=... in your shell/.env
     thinking_type: disabled

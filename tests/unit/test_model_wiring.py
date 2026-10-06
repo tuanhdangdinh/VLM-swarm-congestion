@@ -190,6 +190,27 @@ def test_gpt51_arm_mirrors_the_gpt4o_reasoner_block():
     assert config.backend_id == "openai_gpt51"
 
 
+def test_anthropic_arm_has_hosted_arm_parity_attempts_and_image_fallback():
+    vlm = _shipped_vlm()
+    sonnet = resolve_reasoner_config(vlm, "anthropic")
+    gpt4o = resolve_reasoner_config(vlm, "openai")
+    assert (sonnet.temperature, sonnet.max_attempts, sonnet.image_fallback_after_attempts) == (
+        0.0,
+        4,
+        2,
+    )
+    assert (sonnet.max_attempts, sonnet.image_fallback_after_attempts) == (
+        gpt4o.max_attempts,
+        gpt4o.image_fallback_after_attempts,
+    )
+    assert sonnet.backend_id == "anthropic"
+
+
+def test_deepseek_arm_is_not_pinned_to_the_retired_exp_id():
+    config = load_backend_config(_shipped_vlm(), "deepseek")
+    assert "exp" not in config.model_id
+
+
 def test_qwen_arm_resolves_to_llama_server_with_vision_and_greedy_sampling():
     vlm = _shipped_vlm()
     config = load_backend_config(vlm, "llama_server_qwen3vl")
@@ -205,7 +226,7 @@ def test_deepseek_arm_rides_the_openai_adapter_with_thinking_disabled():
     vlm = _shipped_vlm()
     config = load_backend_config(vlm, "deepseek")
     assert backend_adapter(vlm, "deepseek") == "openai"
-    assert config.model_id == "deepseek-v4-flash-vision-exp"
+    assert config.model_id == "deepseek-flash"
     assert config.base_url == "https://api.deepseek.com"
     assert config.api_key_env == "DEEPSEEK_API_KEY"
     assert config.thinking_type == "disabled"
