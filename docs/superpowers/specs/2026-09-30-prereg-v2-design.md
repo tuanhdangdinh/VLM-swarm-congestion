@@ -1129,7 +1129,27 @@ machinery with them.
 
 Multi-conflict scenes (two simultaneous congestion events in one
 coordinator plan) carry a recommendation to defer to v3 — see "The VLM
-Coordinator"; the v2 freeze makes the explicit call. The robot-blocker
+Coordinator"; the v2 freeze makes the explicit call.
+
+**v3 candidate registered 2026-10-06 — the MAPD mini-cell (Ghofrani
+scenario analog):** a continuous-space analog of the GECCO '25
+MAPD setup (Asadi, Nowé, Ghofrani, 10.1145/3712256.3726339: 15×15
+grid, ~10% obstacles, 5 task nodes, agents each running a SEQUENCE
+of pickup→delivery tasks; congestion emergent from task streams,
+handled there by DNN congestion-prediction-and-avoidance, avg
+throughput doubling reported). Applying our method at THEIR N=5
+sits exactly at our scope bound; their N=10/25 are the scale-probe
+rungs. Build cost: M5 task-sequence queues (multi-goal registry,
+pop-on-arrival), task-node props, an emergent-congestion scenario
+family; our flow metrics already map to their measures (makespan ↔
+time-to-full-resolution, throughput ↔ aperture_throughput,
+completeness ↔ outcome classes, + delay_vs_free_flow which they
+lack). The experiment it enables: prediction-avoidance vs
+detection-resolution on the same task streams — the bridge between
+the flow-shaping tradition and our event-resolution claim, with
+the Layer-2-off arm as the shared control. Natural home: v3,
+possibly fused with the multi-conflict item (emergent task-stream
+congestion produces simultaneous conflicts for free). The robot-blocker
 anomaly, the token-scale crowding scene, and the
 three-active-robot B2 junction variant remain unregistered candidates.
 The last is structurally impossible under v1 primitives (unified scene
