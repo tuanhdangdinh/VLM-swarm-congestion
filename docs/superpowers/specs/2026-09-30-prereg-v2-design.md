@@ -331,6 +331,24 @@ no-intervention ARM is registered into collection; if any cell
 self-resolves, that is a design finding for the oracle (the cell may
 not need Layer 2) and goes to the owner before collection.
 
+**Reasoning-dose pilot (registered 2026-10-06, PILOT — runs AFTER
+the v3.4/format-audit re-pin lands so doses are measured on the
+final prompt and payloads):** provider-side reasoning modes are a
+distinct mechanism from the prohibited in-prompt CoT and target the
+measured deficit (temporal/predictive integration), so they get a
+measured answer, not a default flip. Per arm with a knob — gpt-5.1
+effort none↔low; Sonnet thinking off↔small budget; ER-2 thinking
+low↔one step up (NOTE: ER-2 already runs `low` — the roster has
+never been uniformly "off"); DeepSeek disabled↔enabled; Qwen n/a —
+run the 20 conflict_prediction items per dose (+ optionally one
+head-on at a winning dose). DECISION RULE FIXED PRE-CALL: adopt a
+dose only if conflict_prediction improves by a registered margin
+AND stage-1 latency stays under a registered bound (latency couples
+into time-to-resolution on the slow loop; Garg's GPT-5-low≈medium
+at 4× less time is the prior against higher doses). Per-arm
+settings then freeze with the data attached; artifacts already
+record thinking/effort in effective-config.
+
 **Prompt-style invariance ruling (2026-10-06, USER DIRECTION
 "ensure using right prompt style for each model"):** the split is
 SEMANTIC INVARIANCE / TRANSPORT CONFORMANCE. Semantic content —
