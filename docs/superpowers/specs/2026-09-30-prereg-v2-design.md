@@ -1140,6 +1140,16 @@ any new stall mechanism is designed (the 0.22/0.30 m NavFn flip
 points were measured under phantom-mark inflation and may be
 invalid). That doc is the v3 planning surface from here; the blocks
 below remain the decision record.
+CORRECTION (2026-10-06, from the rev-2 advisor review; doc updated
+to rev 2 @ 64fb148): the 0.22/0.30 m NavFn flip points are from a
+STANDALONE BAKED-MAP sweep (no live costmap, no localizer, no mark
+persistence — loop-family report §Mechanism) and are therefore
+FIX-INVARIANT; the sentence above overstated the fix's reach, and
+the detour family does NOT revive for free — NO-GO remains the
+expected branch, pending an offline sweep refinement and one live
+probe of the still-unexplained sim-54.8 live-vs-standalone
+discrepancy (phantom marks were only a candidate there and act in
+the wrong direction for it).
 
 **v3 candidate registered 2026-10-06 — the MAPD mini-cell (Ghofrani
 scenario analog):** a continuous-space analog of the GECCO '25
