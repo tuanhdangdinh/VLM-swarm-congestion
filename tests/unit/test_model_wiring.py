@@ -197,6 +197,7 @@ def test_qwen_arm_resolves_to_llama_server_with_vision_and_greedy_sampling():
     assert isinstance(config, LlamaServerBackendConfig)
     assert config.model_id == "qwen3-vl-8b-instruct-q4_k_m"
     assert config.mmproj_path is not None
+    assert config.multi_image is True
     assert resolve_reasoner_config(vlm, "llama_server_qwen3vl").temperature == 0.0
 
 
