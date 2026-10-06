@@ -8,12 +8,13 @@
 
 - Rev 0 (pre-registration, committed before any API call, `28d453c`): dose matrix, item set, scoring, low-dose reuse test, and the decision rule with exact numbers.
 - Rev 1: results. Reuse verification, the dose table, McNemar results, the frozen settings, changed answers, spend. The rule text above "Results" is unchanged from Rev 0.
+- Rev 2: suite verification; the pin-side `reasoning_tokens` effect stated correctly; per-call cost rows; Sonnet open item raised to an owner item.
 
 ---
 
 ## Summary
 
-- **The rule adopts no higher dose. Every arm keeps its pin.** gpt-5.1 stays at `reasoning_effort: none`, Sonnet 5.5 at `between_tools`, ER-2 at `thinking_level: low` and DeepSeek at thinking `disabled`. ER-2 does not pass the rule, so there is **no owner flag**.
+- **The rule adopts no higher dose. Every arm keeps its pin.** gpt-5.1 stays at `reasoning_effort: none`, Sonnet 5.5 at `between_tools`, ER-2 at `thinking_level: low` and DeepSeek at thinking `disabled`. ER-2 does not pass the rule, so there is no ER-2 owner flag. One owner item remains: Sonnet's thinking contrast went unmeasured (see Open Items 2).
 - **Net change on conflict_prediction, H minus primary L:**
 
   | Arm | Net | Exact McNemar p |
@@ -202,10 +203,23 @@ Here b counts the items only H got right, and c the items only L got right.
 | DeepSeek (`deepseek`) | `thinking: {type: disabled}`, temperature 0.0, `max_tokens` 2048 | Enabled + `low`: net −13, with 14/20 truncated at 2048. The margin fails, and could not pass by construction. |
 
 - `config/models.yaml` is unchanged, because every frozen setting is the existing pin.
-- The knobs added in `b46540d` exist but no pin uses them:
-  - `OpenAIBackendConfig.omit_sampling`;
-  - `reasoning_tokens` in OpenAI-compatible `token_usage`;
-  - the ER-2 `minimal` / `medium` levels.
+- Two knobs added in `b46540d` exist but no pin uses them: `OpenAIBackendConfig.omit_sampling` (default off) and the ER-2 `minimal` / `medium` levels.
+- **One change in `b46540d` does affect the pins.** `reasoning_tokens` extraction is unconditional, so every OpenAI-compatible pin records it whenever the provider returns `completion_tokens_details`:
+  - gpt-5.1 at `none` records `reasoning_tokens: 0`, verified on the L retest;
+  - gpt-4o should record it too wherever OpenAI returns the details block, though gpt-4o was not called here;
+  - DeepSeek with thinking disabled returns no details block, so it gains no key.
+- The request is unchanged, and so is every pin's request body, captured before and after the commit. Only the recorded `token_usage` gains the key.
+- **Nothing double-counts the new key.** `reasoning_tokens` is a subset of `completion_tokens`, just as Anthropic's `thinking_tokens` is a subset of `output_tokens`. A grep found no consumer that totals `token_usage` values. The two cost aggregators, `scripts/probe_refusals.py` and `scripts/replay_live_decisions.py`, read `prompt_tokens` and `completion_tokens` by name.
+
+## Verification
+
+- **Full local suite:** 63 failed / 5,226 passed / 153 skipped / 3 errors, against 63 / 5,216 / 153 / 3 at `b092f87`.
+  - Same flags as the earlier reports: `--continue-on-collection-errors`.
+  - The 3 collection errors are the `pxr`-dependent USD tests.
+  - The sorted failed/error node IDs are identical (`diff` empty).
+  - The +10 passes are the new `tests/unit/test_reasoning_dose_knobs.py`.
+- **Ruff:** clean on every changed file.
+- **Per-call records:** `analysis.json` holds per-item latency, tokens and cost for every run (`per_call`).
 
 ---
 
@@ -270,6 +284,6 @@ Rates are the Rev-0 list prices, with thinking and reasoning tokens billed as ou
 ## Open Items
 
 1. **The DeepSeek thinking trap.** If thinking is ever enabled on the DeepSeek arm, `max_tokens` must rise well above 2048, because effort `low` still reasons for about 2k tokens. Its probe latency would then exceed the 10.4 s censored median. This is a constraint on future configs, not a pilot finding to act on now.
-2. **No Sonnet thinking contrast was measured.** The minimum documented thinking-on dose (adaptive + `low`) chose not to think on 20/20 calls, so the pilot measured no thinking contrast for Sonnet. A real contrast would need effort `medium` or higher. That dose is not registered; registering it would be the owner's call. Under the Garg prior and the 4.1–4.8 s base latency, a gain at a higher effort would have to be large to pay for itself.
+2. **OWNER ITEM: no Sonnet thinking contrast was measured.** The minimum documented thinking-on dose (adaptive + `low`) chose not to think on 20/20 calls, so the pilot measured no thinking contrast for Sonnet. A real contrast would need effort `medium` or higher. That dose is not registered; registering it would be the owner's call. Under the Garg prior and the 4.1–4.8 s base latency, a gain at a higher effort would have to be large to pay for itself.
 3. **The latency proxy.** These latencies come from single-image probe calls with short prompts. Stage-1 episode calls carry the v3.4 prompt and longer outputs. ER-2's H p90 of 11.3 s and max of 14.2 s sit close to the 15 s bound even on probes.
 4. **Merge note.** `b46540d` edits `reasoning/vlm/openai_backend.py`, `models.py` and `backend_factory.py` additively. A concurrent branch is wiring the new arms, so expect textual conflicts there and in `docs/implementation_notes.md`.
