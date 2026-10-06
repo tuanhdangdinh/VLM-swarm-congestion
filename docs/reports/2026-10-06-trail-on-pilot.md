@@ -136,7 +136,11 @@ byte-identical to the frozen trails-off stimulus.
 
 Code: `scripts/pilot_trail_probe.py` (`render`, `validate`, `run`). It
 imports and calls M1's `TrailHistory`, `draw_motion_trails`,
-`render_annotated_frame` and `_footprint_mask` unchanged.
+`render_annotated_frame` and `_footprint_mask`. One change is made at
+runtime: `swarm_perception.annotation.world_to_pixel` is monkeypatched so
+that exact half-pixel ties round the way the frozen frame shows (see
+Fidelity). The override also applies to trail vertices and footprint
+centres; untied points project unchanged.
 
 ### History quality per item
 
@@ -208,6 +212,12 @@ Runs used one call per item, no re-ask and 3 s pacing. Keys came from the
 environment, via `set -a; source .env` in the calling shell. One grey-frame
 preflight per backend answered correctly and served the pinned model ids.
 `manifest_v2.json` is untouched.
+
+The driver passes `known_robot_ids=[]`, where the frozen runner passes the
+item's `reference_robot_id`. This cannot change the request. The probe
+template never renders the field, and neither the OpenAI nor the Gemini
+backend reads it (grep: 0 uses). The rendered text is therefore the same as
+the 10-04 run's.
 
 ---
 
