@@ -16,7 +16,7 @@ The contract is the main checkout's `docs/superpowers/specs/2026-09-30-prereg-v2
 
 - **Sonnet 5.5 refuses the deployed stage-1 prompt.**
   - 91/96 live attempts (94.8%) and 21/26 decisions (80.8%, terminal after 4 attempts) were refused.
-  - Every refusal is HTTP 200 `stop_reason: "refusal"`, category `reasoning_extraction`.
+  - Refusals arrive as HTTP 200 `stop_reason: "refusal"`. Every decision with a refusal recorded category `reasoning_extraction`, and so did all 3 diagnostic replays of the recorded prompt. Artifacts keep one category per decision, not per attempt.
   - The same model answered 119/119 probe calls with 0 refusals.
   - The grey-image fallback does not help: 42/45 grey-image attempts were also refused. The refusal is locked to the prompt text, not the frame, which is the opposite of gpt-4o's frame-locked profile.
   - A diagnostic replay, n = 3, labelled diagnostic and outside every table, isolates the trigger: the v3.3 prompt's Cosmos-style `<think> … </think>` answer-format block. The recorded prompt was refused 3/3; the same prompt without that block answered 3/3.
@@ -244,7 +244,7 @@ Per-arm reading (descriptive; n is 1–2 per arm):
 
 | Arm | Stage-1 decisions / attempts | Refused attempts | Terminal refusals | Grey fallback fired | Answers on the grey attempt | Stage-2 answered / refused | Probe refusals (v1 + v2) |
 |---|---|---|---|---|---|---|---|
-| **Sonnet 5.5** (`rv01` + `rv02`) | 26 / 96 | **91 (94.8%)**, all `reasoning_extraction` | **21/26 (80.8%)** | 24 decisions | 3 | 2 / 0 | 0/119 |
+| **Sonnet 5.5** (`rv01` + `rv02`) | 26 / 96 | **91 (94.8%)**; every refusing decision recorded `reasoning_extraction` (one category per decision) | **21/26 (80.8%)** | 24 decisions | 3 | 2 / 0 | 0/119 |
 | DeepSeek Flash (`rv03`) | 5 / 5 | 0 | 0 | — (not configured) | — | 1 / 0 | 0/119 |
 | gpt-5.1 (`mw03`) | 5 / 5 | 0 | 0 | 0 | 0 | 1 / 0 | 0/60 + 0/28 |
 | Qwen3-VL-8B (`mw01–02`) | 17 / 17 | 0 | 0 | — | — | 2 / 0 | 0/60 + 0/59 |
@@ -311,6 +311,8 @@ Per-arm reading (descriptive; n is 1–2 per arm):
 | Probe refusals (v1 + v2) | 0/199 | 6/199 | 0/119 | 0/88 | 0/119 | 0/119 |
 | Prompt for episodes | v3.2 | v3.2 | v3.3 | v3.3 | v3.3 | v3.3 |
 | Cost actuals (this report's work) | — | — | $0 | $0.029 | about $1.49 | about $0.022 |
+
+Sonnet footnote: the s43 trigger (verbatim plan, correct yielder) was answered on the **grey-image** attempt, so the frame played no part in it. That row's "verbatim 0" and its share of "1/2" correct yielder cannot be credited to scene perception; this is the same crediting question as ruling 4.
 
 ---
 
