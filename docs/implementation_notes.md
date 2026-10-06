@@ -37,6 +37,57 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-06** — **Layer-2-off pilot RUN: 4/4 cells clog, 0/13
+  arrivals; the registered branch is "register the no-intervention
+  arm".** Report: `docs/reports/2026-10-06-layer2off-pilot.md`. The
+  contract is the spec block "Layer-2-off pilot (registered
+  2026-10-06)". Episodes: head-on `_bshort`, B1, B3 slip and IB10, all
+  seed 42, on the v2 tip `b5cafe4`. This is a PILOT, excluded from
+  confirmatory counts.
+  - **Silencing recipe (reusable).** Run `BACKEND_ID=mock` with NO
+    decision file. `MockBackend()`'s built-in default answers
+    `congestion_detected=false` forever, so no new mock file is
+    needed. This never livelocks, because trap 3 needs repeated
+    *congestion* verdicts.
+  - **Silence gate.** Each run is checked for all of:
+    - the 150 s installed sidecar shows `mock`;
+    - analyses started = no-dispatch lines = artifacts;
+    - 0 M5 `dispatch request=` and 0 M4 `command received` lines;
+    - 0 artifacts with `congestion_detected` true.
+
+    All four runs passed, with 230 analyses in total.
+  - **Horizon gate.** GT `completed` must be true and the last
+    `sim_time_sec` must equal `duration_sec`.
+  - **Mechanism.** In every cell, GT puts a pair inside M4's 0.45 m
+    stop 0.4–0.9 s before the GT conflict onset, at 0.27–0.39 m.
+    These times are a GT-distance proxy; M4's
+    `min_distance_violation` lines corroborate them. The pair never
+    separates, and late releases (B1 r3, B3 r3/r4) latch onto the
+    queue too. The stop is the proximate cause, but that is untested
+    without M4.
+    Arm B's shadow named head-on's `correct_yielder` robot_2 in 50/50
+    analyses, but it is logged only.
+  - **Contrast.** Intervened 3/4 resolve: head-on and IB10 under
+    live ER-2, B3 only under a scripted oracle mock (no live B3
+    episode exists). Censored delay lower bounds
+    are ≥ 531 vs 150 s (head-on), ≥ 799 vs 238 s (B3) and ≥ 1026 vs
+    457–503 s (IB10).
+  - **B1 caveat.** B1 has no resolving intervened reference: the v2
+    pilot eps 6/7 clog through the stage-2 defect, at ≥ 456 s, the
+    same as layer-2-off.
+  - **Recommendation.** Register 35 no-intervention episodes, paired
+    by (scenario, seed): 10 each for head-on, B3 and IB10, and 5 for
+    B1.
+  - **Gotchas.**
+    - The VM moved from `a8fc1bc` to `b5cafe4`. Only six files differ
+      (two live-mounted `reasoning/` files and four tests); no
+      `ros2_ws/` change, so no rebuild was needed.
+    - The ship needs `sudo tar` because the repo files are root-owned.
+      A non-sudo extract silently changed nothing.
+    - Per-run GT clock offsets fitted 0.45–0.60 s (trap 18 holds).
+  - **Logs.** `data/logs/vm_runs/layer2off_pilot/` in the main
+    checkout (gitignored).
+
 - **2026-10-06** — **Verbatim-pilot rulings A–D implemented; prompt v3.2 →
   v3.3, PRE-FREEZE re-pin.** The contract is the main checkout's spec block
   "Verbatim-pilot RESULTS + RULINGS (2026-10-06)" in
