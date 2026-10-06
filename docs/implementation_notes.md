@@ -37,6 +37,18 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-07** — **Conformance-review rulings implemented** (branch `feat/v2-conformance-fixes`: F01 `c1e3c43`, F02 `e713c14`, F03–F27 `d8570b2`; report `docs/reports/2026-10-07-conformance-fixes.md`; rulings in the main-checkout spec's "Conformance-review RULINGS (2026-10-07)" block).
+  - **No exception escapes `Reasoner.run` or stage 2.** Every failure is a recorded attempt; per-attempt `AttemptRecord`s (outcome, HTTP status, provider code, finish reason, request id, fingerprint, refusal source, backoff) sit index-aligned with `attempt_token_usage`.
+  - **One retry policy for every arm and both stages** (`reasoning/vlm/retry_policy.py`): 429/5xx back off (equal jitter, base 2 s, cap 30 s; `Retry-After` honoured up to 60 s; ≤ 90 s of waits per call); any other 4xx ends the call after one attempt; timeouts retry with no wait. HTTP errors are recorded as `error_type` "ConnectionError", so the vocabulary is unchanged.
+  - **Documented refusal channels map to the refusal class** (OpenAI `message.refusal`, `content_filter`/`sensitive`, Zhipu 1301, Gemini blocked codes); the English regex is fallback-only.
+  - **Config:** flash `max_tokens` 16,384 and `store: false`; Qwen3-VL and Molmo2-ER at 4 attempts + grey fallback. Request bytes are pinned against `d746768` for all nine arms; only flash's two ruled fields moved.
+  - **Suite:** failing set 66 → 65 ids; the only change is `test_factory_requires_config_for_openai` going green.
+- **2026-10-07** — **v1 transport hotfix branch `prereg-v1-hotfix`** (from tag `prereg-v1`; F01 `efe085d`, F02 `a475fe0`; not pushed). Collection runs from it per the V1-COLLECTION BRIDGE ruling. Prompts, parser semantics and config are untouched. Suite zero delta against a clean tag export (66 failing ids). At the tag, 6 of the review's 8 socket-probe cases escaped `run`. The amendments-doc protocol note is still to be written by the coordinator.
+- **2026-10-07** — **Gotchas (conformance fixes).**
+  1. **Stage 2 can now exceed its 2 × 8 s bound.** A `Retry-After` wait of up to 60 s lands between its two attempts, and M5's worker has no outer wall-clock bound.
+  2. **Quota 429s are retried as ruled.** These are OpenAI `credit_balance_exhausted`, Gemini spend-cap and Zhipu 1113/13xx errors. `AttemptRecord.provider_error_code` identifies them; a carve-out is an open owner item.
+  3. **Unit tests run the backoff with a no-op sleep.** `tests/unit/conftest.py` has an autouse fixture that does this, so any test asserting real waits must inject `RetryPolicy(sleep=…)`.
+
 - **2026-10-07** — **Reasoning-dose pilot RUN: the rule adopts no higher dose, so every arm keeps its pin** (branch `feat/v2-dose-pilot`; rule pre-registered in `28d453c` before any call; knobs `b46540d`; report `docs/reports/2026-10-07-reasoning-dose-pilot.md`; PILOT, excluded from confirmatory counts).
   - **Rule:** adopt H only if conflict_prediction net is at least +3 of 20 AND H median probe latency is at most 15 s.
   - **Results** (net, H median latency):

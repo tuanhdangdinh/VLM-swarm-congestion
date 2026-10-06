@@ -372,13 +372,13 @@ class Reasoner:
     def run(self, request: ReasonerRequest) -> ReasonerResult:
         """Execute one complete reasoning pass with bounded retry/re-ask.
 
-        Args:
-            request: Validated reasoning request.
-
         Only invalid caller input raises, before any backend call; once the
         first attempt starts, every failure -- whatever exception class an
         adapter or the parser raises -- is a recorded attempt and the call
         ends in a `ReasonerResult`.
+
+        Args:
+            request: Validated reasoning request.
 
         Returns:
             A `ReasonerResult` with a decision, or `decision=None` on failure.
