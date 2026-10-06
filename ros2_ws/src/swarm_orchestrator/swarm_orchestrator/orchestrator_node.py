@@ -23,19 +23,17 @@ from swarm_interfaces.srv import TriggerCongestionAnalysis
 from reasoning.rag.command_grounder import filter_command_robot_ids, ground_reasoner_result
 from reasoning.vlm import (
     RetreatChooser,
-    backend_section,
+    backend_adapter,
     build_backend,
     build_retreat_choice_backend,
     describe_effective_sampling,
+    load_backend_config,
     resolve_reasoner_config,
 )
 from reasoning.vlm.models import (
     CURRENT_PROMPT_VERSION,
-    AnthropicBackendConfig,
     FailureContext,
-    GeminiBackendConfig,
     LlamaServerBackendConfig,
-    OpenAIBackendConfig,
     ReasonerConfig,
     ReasonerRequest,
     RobotOrder,
@@ -156,7 +154,7 @@ def _build_default_pipeline(
     plan_tracker: PlanTracker | None = None,
 ) -> ReasoningPipeline:
     reasoner_config, backend_config = _load_vlm_config(config.reasoning_backend_id)
-    backend = build_backend(config.reasoning_backend_id, backend_config)
+    backend = build_backend(_load_vlm_adapter(config.reasoning_backend_id), backend_config)
     # Described from the configs, not the backend, so every decision artifact
     # states the sampling parameters the call ran under (FR5.3.11).
     reasoner = Reasoner(
@@ -253,26 +251,33 @@ def _registry_qos() -> QoSProfile:
     )
 
 
-def _load_vlm_config(backend_id: str) -> tuple[ReasonerConfig, object | None]:
+def _load_vlm_section() -> dict:
     path = Path("config/models.yaml")
     raw = yaml.safe_load(path.read_text()) if path.is_file() else {}
-    vlm = (raw or {}).get("vlm", {})
-    reasoner_config = resolve_reasoner_config(vlm, backend_id)
+    return (raw or {}).get("vlm", {})
 
-    backend_raw = backend_section(vlm, backend_id)
-    if backend_id == "openai":
-        backend_config = OpenAIBackendConfig(**backend_raw)
-    elif backend_id == "llama_server":
-        backend_config = LlamaServerBackendConfig(**backend_raw)
-    elif backend_id == "anthropic":
-        backend_config = AnthropicBackendConfig(**backend_raw)
-    elif backend_id == "gemini":
-        backend_config = GeminiBackendConfig(**backend_raw)
-    elif backend_id == "mock":
-        backend_config = None
-    else:
-        backend_config = backend_raw or None
-    return reasoner_config, backend_config
+
+def _load_vlm_adapter(backend_id: str) -> str:
+    """The adapter a configured backend id runs on (a named arm's `adapter:`)."""
+    return backend_adapter(_load_vlm_section(), backend_id)
+
+
+def _load_vlm_config(backend_id: str) -> tuple[ReasonerConfig, object | None]:
+    vlm = _load_vlm_section()
+    return resolve_reasoner_config(vlm, backend_id), load_backend_config(vlm, backend_id)
+
+
+def _refuses_extra_images(backend_id: str) -> bool:
+    """Whether the configured backend would reject every zoom-tile request."""
+    try:
+        backend_config = _load_vlm_config(backend_id)[1]
+    except ValueError:
+        # An unknown backend id fails when the pipeline is built; here only a
+        # known llama_server arm can be judged.
+        return backend_id == "llama_server"
+    return isinstance(backend_config, LlamaServerBackendConfig) and not (
+        backend_config.multi_image and backend_config.mmproj_path
+    )
 
 
 class OrchestratorNode(Node):
@@ -286,10 +291,15 @@ class OrchestratorNode(Node):
         super().__init__("orchestrator_node")
         self.declare_parameter("config_file", "")
         self._config = config or self._load_config_from_param()
-        if self._config.prompt_zoom_tile and self._config.reasoning_backend_id == "llama_server":
-            # Fail fast: that backend refuses extra images (unverified
-            # multi-image support), so every tile-on analysis would fail.
-            raise ValueError("prompt_zoom_tile is not supported by the llama_server backend")
+        if self._config.prompt_zoom_tile and _refuses_extra_images(
+            self._config.reasoning_backend_id
+        ):
+            # Fail fast: a llama_server arm without verified multi-image
+            # support refuses extra images, so every tile-on analysis would fail.
+            raise ValueError(
+                "prompt_zoom_tile is not supported by the llama_server backend "
+                f"{self._config.reasoning_backend_id!r} (multi_image off)"
+            )
         # Fail fast: a missing file, an invalid `grounding:` section or an
         # inverted per-scenario band stops M5 here, since these parameters
         # shape every command it dispatches.

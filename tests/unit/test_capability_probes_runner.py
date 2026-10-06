@@ -14,6 +14,7 @@ from reasoning.vlm.capability_probes.manifest_io import save_manifest, sha256_fi
 from reasoning.vlm.capability_probes.models import ProbeItem, ProbeManifest
 from reasoning.vlm.mock_backend import MockBackend
 from reasoning.vlm.models import (
+    BackendResponse,
     GeminiBackendConfig,
     OpenAIBackendConfig,
     ReasonerConfig,
@@ -132,6 +133,23 @@ class TestRunItemWithAScriptedCorrectAnswer:
         config = ReasonerConfig(backend_id="mock", temperature=0.0)
         record = run_item(item, choices, payload, backend, config)
         assert record.correct is False
+        assert record.failure_cause == "refusal"
+        assert record.parsed_letter is None
+
+    def test_a_structured_refusal_is_tagged_as_a_refusal(self, logs_root):
+        root, frame_path = logs_root
+        item = _robot_count_item(sha256_file(frame_path))
+        choices, payload = prepare_item(item, root, root)
+
+        class _RefusingBackend:
+            def analyze(self, payload, config):
+                return BackendResponse(
+                    text='{"choice": "A"}', backend_id="claude", refusal=True,
+                    refusal_category="general_harms",
+                )
+
+        config = ReasonerConfig(backend_id="anthropic", temperature=0.0)
+        record = run_item(item, choices, payload, _RefusingBackend(), config)
         assert record.failure_cause == "refusal"
         assert record.parsed_letter is None
 
@@ -293,7 +311,7 @@ class TestLoadBackendSettingsFromShippedConfig:
 
     def test_an_unsupported_backend_is_rejected(self):
         with pytest.raises(ValueError, match="does not support"):
-            load_backend_settings("llama_server")
+            load_backend_settings("no_such_backend")
 
 
 class TestRunBatteryModelPinWiring:

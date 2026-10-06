@@ -79,6 +79,10 @@ class RetreatChooser:
             backend_id = response.backend_id
             latency_ms = response.latency_ms
             try:
+                if response.refusal:
+                    # Provider-flagged refusal: counted as a refusal below
+                    # whatever text (often none) it carries.
+                    raise VLMOutputParseError("provider refusal")
                 choice = parse_retreat_choice_text(response.text, valid_labels)
             except RetreatLabelError as exc:
                 invalid = exc.choice if isinstance(exc.choice, RetreatChoiceDecision) else None
@@ -87,7 +91,7 @@ class RetreatChooser:
                     "invalid_label", type(exc).__name__, str(exc), refusals,
                 )
             except VLMOutputParseError as exc:
-                refused = is_refusal(response.text)
+                refused = response.refusal or is_refusal(response.text)
                 refusals += int(refused)
                 cause = "refusal" if refused else "parse_failure"
                 error_type, error_message = type(exc).__name__, str(exc)

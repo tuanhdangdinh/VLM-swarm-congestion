@@ -13,7 +13,10 @@ class OpenAIBackend:
     """HTTP adapter for the OpenAI Chat Completions API (GPT vision models).
 
     Mirrors `LlamaServerBackend` (both speak the OpenAI-compatible
-    `chat/completions` schema) but targets the hosted endpoint with bearer auth.
+    `chat/completions` schema) but targets a hosted endpoint with bearer auth:
+    OpenAI itself, or another OpenAI-compatible provider via `base_url`
+    (DeepSeek). Provider-specific request fields (`reasoning_effort`, the
+    `max_completion_tokens` name, DeepSeek's `thinking`) are opt-in by config.
     The API key is read from the environment at construction, never accepted via
     config and never logged. Like the other backends, this returns the raw
     assistant text in `BackendResponse`; JSON extraction and decision validation
@@ -26,6 +29,9 @@ class OpenAIBackend:
         base_url: str = "https://api.openai.com/v1",
         api_key_env: str = "OPENAI_API_KEY",
         organization: str | None = None,
+        reasoning_effort: str | None = None,
+        max_tokens_param: str = "max_tokens",
+        thinking_type: str | None = None,
     ) -> None:
         self.model_id = model_id
         self.base_url = base_url.rstrip("/")
@@ -34,6 +40,9 @@ class OpenAIBackend:
         if not self._api_key:
             raise ValueError(f"{api_key_env} is not set in the environment")
         self._organization = organization
+        self.reasoning_effort = reasoning_effort
+        self.max_tokens_param = max_tokens_param
+        self.thinking_type = thinking_type
 
     def analyze(self, payload: PromptPayload, config: ReasonerConfig) -> BackendResponse:
         # top_k / presence_penalty in ReasonerConfig are llama/Cosmos-specific; OpenAI
@@ -43,9 +52,15 @@ class OpenAIBackend:
             "messages": self._build_messages(payload),
             "temperature": config.temperature,
             "top_p": config.top_p,
-            "max_tokens": config.max_tokens,
+            self.max_tokens_param: config.max_tokens,
             "stream": False,
         }
+        # Optional fields are appended only when configured, so a config that
+        # sets none of them (the gpt-4o pin) sends the exact pre-existing body.
+        if self.reasoning_effort is not None:
+            body["reasoning_effort"] = self.reasoning_effort
+        if self.thinking_type is not None:
+            body["thinking"] = {"type": self.thinking_type}
 
         headers = {"Authorization": f"Bearer {self._api_key}"}
         if self._organization:
@@ -71,8 +86,16 @@ class OpenAIBackend:
                 f"OpenAI returned HTTP {resp.status_code}: {resp.text[:400]}"
             )
 
-        data = resp.json()
-        message = data["choices"][0]["message"]
+        try:
+            data = resp.json()
+            message = data["choices"][0]["message"]
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
+            # A connection the provider closes mid-body (seen on DeepSeek) can
+            # arrive as a truncated HTTP 200; that is a transport failure for
+            # the standing retry policy, never a refusal or a parse failure.
+            raise ConnectionError(
+                f"OpenAI-compatible response body malformed: {type(exc).__name__}"
+            ) from exc
         text = message.get("content")
         if text is None:
             text = message.get("refusal") or ""

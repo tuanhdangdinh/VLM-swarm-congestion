@@ -198,6 +198,7 @@ def build_failed_result(
     image_fallback_used: bool = False,
     image_fallback_attempt: int | None = None,
     served_model: str | None = None,
+    refusal_category: str | None = None,
 ) -> ReasonerResult:
     """Construct a safe failure result with decision=None after exhausted retries.
 
@@ -219,6 +220,8 @@ def build_failed_result(
         image_fallback_attempt: 1-based index of the neutral-image attempt.
         served_model: The model string the provider reported on the last
             response it returned, if any (a refusal still names its model).
+        refusal_category: The provider's category for the last structured
+            refusal, if any (`BackendResponse.refusal_category`).
 
     Returns:
         A `ReasonerResult` with `decision=None` and `parse_status='failed'`.
@@ -240,6 +243,7 @@ def build_failed_result(
                 effective_sampling, unsupported_sampling, served_model
             ),
             refusal_attempts=refusal_attempts,
+            refusal_category=refusal_category,
             image_fallback_used=image_fallback_used,
             image_fallback_attempt=image_fallback_attempt,
         ),
@@ -302,6 +306,7 @@ class Reasoner:
         last_served_model: str | None = None
         had_parse_failure = False
         refusal_attempts = 0
+        refusal_category: str | None = None
         image_fallback_attempt: int | None = None
         # Created only when the mitigation actually fires, so the common path
         # touches the filesystem exactly as it did before.
@@ -310,11 +315,22 @@ class Reasoner:
         try:
             while attempts < self._config.max_attempts:
                 attempts += 1
+                structured_refusal = False
                 try:
                     response = invoke_backend(self._backend, payload, self._config)
                     last_raw = response.text
                     last_unsupported_sampling = _extract_unsupported_sampling(response.raw)
                     last_served_model = response.served_model
+                    if response.refusal:
+                        # A provider-flagged refusal (e.g. Anthropic stop_reason
+                        # "refusal") is a refusal whatever its text says, so it
+                        # takes the same path as a text refusal below.
+                        structured_refusal = True
+                        refusal_category = response.refusal_category or refusal_category
+                        raise VLMOutputParseError(
+                            "provider refusal (category="
+                            f"{response.refusal_category or 'unspecified'})"
+                        )
                     decision, degradations = parse_decision_with_degradations(response.text)
                     validate_involved_robots(decision, known_ids)
                     return ReasonerResult(
@@ -340,6 +356,7 @@ class Reasoner:
                                 last_served_model,
                             ),
                             refusal_attempts=refusal_attempts,
+                            refusal_category=refusal_category,
                             image_fallback_used=image_fallback_attempt is not None,
                             image_fallback_attempt=image_fallback_attempt,
                             decision_degradations=degradations,
@@ -351,7 +368,7 @@ class Reasoner:
                 except (VLMOutputParseError, DecisionValidationError) as exc:
                     had_parse_failure = True
                     last_error_type, last_error_msg = type(exc).__name__, str(exc)
-                    refused = is_refusal(last_raw or "")
+                    refused = structured_refusal or is_refusal(last_raw or "")
                     if refused:
                         refusal_attempts += 1
                     if attempts >= self._config.max_attempts:
@@ -381,6 +398,7 @@ class Reasoner:
                 image_fallback_used=image_fallback_attempt is not None,
                 image_fallback_attempt=image_fallback_attempt,
                 served_model=last_served_model,
+                refusal_category=refusal_category,
             )
         finally:
             if scratch is not None:
@@ -472,6 +490,8 @@ def write_reasoner_log(
         record["refusal_attempts"] = diagnostics.refusal_attempts
         record["image_fallback_used"] = diagnostics.image_fallback_used
         record["image_fallback_attempt"] = diagnostics.image_fallback_attempt
+    if diagnostics.refusal_category is not None:
+        record["refusal_category"] = diagnostics.refusal_category
     effective = result.diagnostics.reasoner_config_effective
     if effective is not None:
         record["reasoner_config_effective"] = effective.model_dump(mode="json")

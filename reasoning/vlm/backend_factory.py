@@ -2,6 +2,8 @@ import json
 import os
 from pathlib import Path
 
+from pydantic import BaseModel
+
 from reasoning.vlm.anthropic_backend import AnthropicBackend
 from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.gemini_backend import GeminiBackend
@@ -20,6 +22,63 @@ from reasoning.vlm.openai_backend import OpenAIBackend
 BackendConfig = (
     LlamaServerBackendConfig | OpenAIBackendConfig | AnthropicBackendConfig | GeminiBackendConfig
 )
+
+# The adapter (transport) each config type drives. A `models.yaml` backend
+# section is named by its backend id; the section's own `adapter:` key picks
+# the transport, defaulting to the section name, so one adapter can serve
+# several pinned arms (e.g. `openai` = gpt-4o, `openai_gpt51` = gpt-5.1).
+# `None` means the adapter takes no config ("mock").
+BACKEND_CONFIG_TYPES: dict[str, type[BaseModel] | None] = {
+    "mock": None,
+    "llama_server": LlamaServerBackendConfig,
+    "openai": OpenAIBackendConfig,
+    "anthropic": AnthropicBackendConfig,
+    "gemini": GeminiBackendConfig,
+}
+
+
+def backend_adapter(raw_vlm: dict, backend_id: str) -> str:
+    """Return the adapter (transport) a configured backend id runs on.
+
+    Args:
+        raw_vlm: The parsed `vlm:` mapping of `config/models.yaml`.
+        backend_id: A backend section name, e.g. "openai" or "openai_gpt51".
+
+    Returns:
+        One of the keys of `BACKEND_CONFIG_TYPES`.
+
+    Raises:
+        ValueError: The section names an unknown adapter, or the id has no
+            section and is not itself an adapter name.
+    """
+    section = raw_vlm.get(backend_id) or {}
+    adapter = section.get("adapter", backend_id)
+    if adapter not in BACKEND_CONFIG_TYPES:
+        raise ValueError(
+            f"backend {backend_id!r} names unknown adapter {adapter!r}; "
+            f"known: {sorted(BACKEND_CONFIG_TYPES)}"
+        )
+    return adapter
+
+
+def load_backend_config(raw_vlm: dict, backend_id: str) -> BackendConfig | None:
+    """Build the typed backend config for one configured backend id.
+
+    Args:
+        raw_vlm: The parsed `vlm:` mapping of `config/models.yaml`.
+        backend_id: A backend section name.
+
+    Returns:
+        The adapter's config model, or None for an adapter that takes none.
+
+    Raises:
+        ValueError: Unknown adapter (see `backend_adapter`).
+        pydantic.ValidationError: The section does not fit its adapter's model.
+    """
+    config_type = BACKEND_CONFIG_TYPES[backend_adapter(raw_vlm, backend_id)]
+    if config_type is None:
+        return None
+    return config_type(**backend_section(raw_vlm, backend_id))
 
 
 def resolve_reasoner_config(raw_vlm: dict, backend_id: str) -> ReasonerConfig:
@@ -66,6 +125,15 @@ def describe_effective_sampling(
         fills in from the response.
     """
     is_gemini = isinstance(backend_config, GeminiBackendConfig)
+    reasoning_effort = (
+        backend_config.reasoning_effort if isinstance(backend_config, OpenAIBackendConfig) else None
+    )
+    thinking_mode = (
+        backend_config.thinking_type
+        if isinstance(backend_config, OpenAIBackendConfig | AnthropicBackendConfig)
+        else None
+    )
+    effort = backend_config.effort if isinstance(backend_config, AnthropicBackendConfig) else None
     return EffectiveSamplingConfig(
         backend_id=reasoner_config.backend_id,
         model_id=getattr(backend_config, "model_id", None),
@@ -78,13 +146,17 @@ def describe_effective_sampling(
         image_fallback_after_attempts=reasoner_config.image_fallback_after_attempts,
         seed=backend_config.seed if is_gemini else None,
         thinking_level=backend_config.thinking_level if is_gemini else None,
+        reasoning_effort=reasoning_effort,
+        thinking_mode=thinking_mode,
+        effort=effort,
     )
 
 
 def backend_section(raw_vlm: dict, backend_id: str) -> dict:
-    """Return a backend's own config mapping without its nested reasoner override."""
+    """Return a backend's own config mapping without its reasoner override or adapter key."""
     section = dict(raw_vlm.get(backend_id) or {})
     section.pop("reasoner", None)
+    section.pop("adapter", None)
     return section
 
 
@@ -153,7 +225,9 @@ def build_backend(
     behaviour.
 
     Args:
-        backend_id: Selector, e.g. "mock" or "llama_server".
+        backend_id: Adapter selector, e.g. "mock" or "llama_server". A named
+            arm (e.g. "openai_gpt51") is built by passing its adapter
+            (`backend_adapter`) with its config (`load_backend_config`).
         backend_config: Backend-specific connection config. Optional because
             "mock" needs none; backends that require it raise on absence.
 
@@ -179,6 +253,7 @@ def build_backend(
             base_url=backend_config.base_url,
             model_id=backend_config.model_id,
             mmproj_path=backend_config.mmproj_path,
+            multi_image=backend_config.multi_image,
         )
     if backend_id == "openai":
         if backend_config is None:
@@ -188,6 +263,9 @@ def build_backend(
             base_url=backend_config.base_url,
             api_key_env=backend_config.api_key_env,
             organization=backend_config.organization,
+            reasoning_effort=backend_config.reasoning_effort,
+            max_tokens_param=backend_config.max_tokens_param,
+            thinking_type=backend_config.thinking_type,
         )
     if backend_id == "anthropic":
         if backend_config is None:
@@ -196,6 +274,8 @@ def build_backend(
             model_id=backend_config.model_id,
             base_url=backend_config.base_url,
             api_key_env=backend_config.api_key_env,
+            thinking_type=backend_config.thinking_type,
+            effort=backend_config.effort,
         )
     if backend_id == "gemini":
         if backend_config is None:

@@ -3,10 +3,13 @@
 from reasoning.vlm.anthropic_backend import AnthropicBackend
 from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.backend_factory import (
+    BACKEND_CONFIG_TYPES,
+    backend_adapter,
     backend_section,
     build_backend,
     build_retreat_choice_backend,
     describe_effective_sampling,
+    load_backend_config,
     resolve_reasoner_config,
 )
 from reasoning.vlm.errors import (
@@ -108,7 +111,9 @@ __all__ = [
     "SnapshotFrame",
     "VLMBackend",
     "VLMOutputParseError",
+    "BACKEND_CONFIG_TYPES",
     "attach_unsupported_sampling",
+    "backend_adapter",
     "backend_section",
     "build_backend",
     "build_failed_result",
@@ -122,6 +127,7 @@ __all__ = [
     "format_robot_state_lines",
     "invoke_backend",
     "is_refusal",
+    "load_backend_config",
     "make_neutral_image",
     "parse_decision_text",
     "parse_retreat_choice_text",

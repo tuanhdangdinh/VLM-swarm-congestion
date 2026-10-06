@@ -12,12 +12,13 @@ and freezing the manifest (`scripts/build_capability_probe_manifest.py`) is
 pure log scanning and never touches a backend; this script never re-derives
 ground truth, only asks and scores.
 
-Hosted backends (`openai`, `gemini`) are configured exactly as M5 is, from
-`config/models.yaml` via `resolve_reasoner_config`/`backend_section` (the
-`scripts/probe_presentation_order.py` precedent), so the run sends the PINNED
-snapshot ids (`gpt-4o-2024-08-06`, `gemini-robotics-er-2-preview`), never a
-backend default alias. Temperature is forced to 0.0 (Gemini's Interactions
-API drops it; the drop is recorded per call). Each item gets exactly one
+Every backend section of `config/models.yaml` (`openai`, `gemini`, and the
+2026-10-06 arms `anthropic`, `openai_gpt51`, `llama_server_qwen3vl`,
+`deepseek`) is configured exactly as M5 is, via `resolve_reasoner_config` /
+`load_backend_config` (the `scripts/probe_presentation_order.py` precedent),
+so the run sends the PINNED model ids, never a backend default alias.
+Temperature is forced to 0.0 (APIs without the field drop it; the drop is
+recorded per call). Each item gets exactly one
 `analyze` call: the reasoner's re-ask and grey-image refusal fallback are
 deliberately not applied, so a refusal is scored as a refusal. Every record
 carries the configured and the provider-reported served model.
@@ -62,9 +63,10 @@ import yaml  # noqa: E402
 
 from reasoning.vlm.backend_factory import (  # noqa: E402
     BackendConfig,
-    backend_section,
+    backend_adapter,
     build_backend,
     describe_effective_sampling,
+    load_backend_config,
     resolve_reasoner_config,
 )
 from reasoning.vlm.capability_probes.answer_parser import parse_probe_answer  # noqa: E402
@@ -83,15 +85,12 @@ from reasoning.vlm.capability_probes.prompt import (  # noqa: E402
 from reasoning.vlm.capability_probes.scorer import score_records  # noqa: E402
 from reasoning.vlm.models import (  # noqa: E402
     BackendResponse,
-    GeminiBackendConfig,
-    OpenAIBackendConfig,
     PromptPayload,
     ReasonerConfig,
 )
 from reasoning.vlm.reasoner import is_refusal  # noqa: E402
 
 MODELS_YAML = REPO_ROOT / "config" / "models.yaml"
-_BACKEND_CONFIG_TYPES = {"openai": OpenAIBackendConfig, "gemini": GeminiBackendConfig}
 # The battery's standing policy: one `analyze` call per item, no re-ask.
 RUNNER_MAX_ATTEMPTS = 1
 # Errors that mean every remaining call would fail the same way (bad key,
@@ -116,7 +115,10 @@ def load_backend_settings(
     """Resolve one backend's reasoner and backend config as M5 does, at temperature 0.
 
     Args:
-        backend_id: `"mock"`, `"openai"` or `"gemini"`.
+        backend_id: `"mock"` or any backend section of `config/models.yaml`
+            (e.g. `"openai"`, `"gemini"`, `"anthropic"`, `"openai_gpt51"`,
+            `"llama_server_qwen3vl"`); named arms resolve through their
+            `adapter:` key exactly as M5 resolves them.
         models_yaml: Path to `config/models.yaml` (unused for `"mock"`).
 
     Returns:
@@ -124,18 +126,26 @@ def load_backend_settings(
         mock, which needs none.
 
     Raises:
-        ValueError: `backend_id` is not one the battery supports.
+        ValueError: `backend_id` has no section in `models.yaml`, or its
+            section names an unknown adapter.
     """
     if backend_id == "mock":
         return ReasonerConfig(backend_id="mock", temperature=0.0), None
-    if backend_id not in _BACKEND_CONFIG_TYPES:
-        raise ValueError(f"capability-probe battery does not support backend {backend_id!r}")
     raw_vlm = yaml.safe_load(models_yaml.read_text(encoding="utf-8"))["vlm"]
+    if backend_id not in raw_vlm or backend_id == "reasoner":
+        raise ValueError(f"capability-probe battery does not support backend {backend_id!r}")
     reasoner_config = resolve_reasoner_config(raw_vlm, backend_id).model_copy(
         update={"temperature": 0.0}
     )
-    backend_config = _BACKEND_CONFIG_TYPES[backend_id](**backend_section(raw_vlm, backend_id))
-    return reasoner_config, backend_config
+    return reasoner_config, load_backend_config(raw_vlm, backend_id)
+
+
+def backend_adapter_for(backend_id: str, models_yaml: Path = MODELS_YAML) -> str:
+    """The adapter `build_backend` takes for one configured backend id."""
+    if backend_id == "mock":
+        return "mock"
+    raw_vlm = yaml.safe_load(models_yaml.read_text(encoding="utf-8"))["vlm"]
+    return backend_adapter(raw_vlm, backend_id)
 
 
 def _image_for_item(
@@ -242,7 +252,7 @@ def run_item(
             **lettering,
         )
 
-    if response.text is not None and is_refusal(response.text):
+    if response.refusal or (response.text is not None and is_refusal(response.text)):
         # Tagged ahead of the generic parser: a refusal and an unparseable
         # answer are different capability findings (see answer_parser's
         # AnswerFailureCause docstring), and gpt-4o's annotated-frame refusal
@@ -345,7 +355,7 @@ def run_battery(
     prepared = [prepare_item(item, logs_root, out_dir) for item in items]
 
     config, backend_config = load_backend_settings(backend_id, models_yaml)
-    backend = build_backend(backend_id, backend_config)
+    backend = build_backend(backend_adapter_for(backend_id, models_yaml), backend_config)
     configured_model_id = getattr(backend_config, "model_id", None)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
@@ -404,7 +414,9 @@ def run_battery(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--backend", required=True, help="e.g. mock, openai, gemini")
+    parser.add_argument(
+        "--backend", required=True, help="mock or a config/models.yaml backend section"
+    )
     parser.add_argument(
         "--manifest",
         type=Path,

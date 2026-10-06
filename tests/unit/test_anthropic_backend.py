@@ -110,15 +110,29 @@ def test_token_usage_parsed_from_response(monkeypatch, tmp_path):
     assert resp.token_usage == {"input_tokens": 11, "output_tokens": 7}
 
 
-def test_refusal_with_empty_content_maps_to_connection_error(monkeypatch, tmp_path):
+def test_refusal_with_empty_content_is_a_refusal_response(monkeypatch, tmp_path):
+    # Rewritten 2026-10-06 (model-wiring ruling): a refusal used to raise
+    # ConnectionError, which the Reasoner treated as a transport failure, so it
+    # was never counted as a refusal. It is now a flagged response instead.
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-123")
     refusal = {"content": [], "stop_reason": "refusal", "usage": {"input_tokens": 5}}
     monkeypatch.setattr(
         "reasoning.vlm.anthropic_backend.requests.post",
         lambda url, json, headers, timeout: _FakeResponse(200, refusal),
     )
-    # HTTP 200 but no text block — must not IndexError; Reasoner catches ConnectionError.
-    with pytest.raises(ConnectionError, match="refusal"):
+    resp = AnthropicBackend(model_id="claude-opus-4-8").analyze(_payload(tmp_path), _cfg())
+    assert resp.refusal is True
+    assert resp.text == ""
+
+
+def test_non_refusal_without_text_maps_to_connection_error(monkeypatch, tmp_path):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-123")
+    empty = {"content": [], "stop_reason": "max_tokens", "usage": {"input_tokens": 5}}
+    monkeypatch.setattr(
+        "reasoning.vlm.anthropic_backend.requests.post",
+        lambda url, json, headers, timeout: _FakeResponse(200, empty),
+    )
+    with pytest.raises(ConnectionError, match="max_tokens"):
         AnthropicBackend(model_id="claude-opus-4-8").analyze(_payload(tmp_path), _cfg())
 
 

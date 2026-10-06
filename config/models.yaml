@@ -65,5 +65,74 @@ vlm:
     thinking_level: low
     force_schema: false
 
+  # ---- Model-wiring ruling 2026-10-06 (prereg-v2 design spec, "Model-wiring
+  # ruling"). Additive arms; the sections above are untouched pins. A section
+  # whose name is not an adapter name selects its transport with `adapter:`.
+  # Validation evidence: docs/reports/2026-10-06-model-wiring.md.
+
+  # Claude Sonnet 5.5. The undated id IS the pin (current-generation Claude
+  # ids take no date suffix). No temperature/top_p/top_k are ever sent: Sonnet
+  # 5.5 rejects non-default sampling values with HTTP 400, so the configured
+  # values are recorded per call in `unsupported_sampling` (the ER-2
+  # precedent) -- the "documented absence" case. `between_tools` turns
+  # thinking off (omitting it runs adaptive thinking, billed as output); with
+  # gpt-5.1 at reasoning_effort none and ER-2 at thinking_level low, every new
+  # hosted arm answers as a no/low-thinking classifier.
+  anthropic:
+    model_id: claude-sonnet-5-5
+    api_key_env: ANTHROPIC_API_KEY   # export ANTHROPIC_API_KEY=... in your shell/.env
+    thinking_type: between_tools
+    reasoner:
+      temperature: 0.0
+
+  # PILOT ARM: gpt-5.1 at reasoning_effort "none" (temperature 0 is legal only
+  # at "none"; no reasoning tokens are billed). Same refusal-mitigation block
+  # as the gpt-4o pin, so the pilot asks whether the 4o refusal/chance profile
+  # persists under identical apparatus. Reasoning-family chat completions take
+  # `max_completion_tokens`, not `max_tokens`.
+  openai_gpt51:
+    adapter: openai
+    model_id: gpt-5.1-2025-11-13
+    api_key_env: OPENAI_API_KEY
+    reasoning_effort: none
+    max_tokens_param: max_completion_tokens
+    reasoner:
+      temperature: 0.0
+      max_attempts: 4
+      image_fallback_after_attempts: 2
+
+  # Qwen3-VL-8B-Instruct Q4_K_M + F16 mmproj, official Qwen GGUF, served by
+  # scripts/vm/qwen_serve.sh (pinned files + sha256, llama.cpp server-cuda
+  # image pinned by digest, --alias = model_id below). Greedy: an Instruct
+  # (non-thinking) model used as a classifier, so the shared Cosmos 0.6 preset
+  # must not leak in. The paths are where qwen_serve.sh caches the files on
+  # the VM; the adapter only uses mmproj_path to switch to vision mode.
+  llama_server_qwen3vl:
+    adapter: llama_server
+    base_url: "http://127.0.0.1:8080/v1"
+    model_id: qwen3-vl-8b-instruct-q4_k_m
+    model_path: "$HOME/models/qwen3vl/Qwen3VL-8B-Instruct-Q4_K_M.gguf"
+    mmproj_path: "$HOME/models/qwen3vl/mmproj-Qwen3VL-8B-Instruct-F16.gguf"
+    multi_image: false
+    reasoner:
+      temperature: 0.0
+
+  # EXPLORATORY ARM (coordinator scope extension 2026-10-06): DeepSeek's
+  # first vision model over its OpenAI-compatible endpoint. The `-exp` id
+  # carries preview-churn risk: DeepSeek's pricing page (fetched 2026-10-06)
+  # lists `deepseek-v4-flash-vision-exp` as a retired legacy name served by
+  # DeepSeek-V4.1-Flash (`deepseek-flash`), so the served model is recorded
+  # per call and the id is unverified against the live listing (no key yet).
+  # Thinking defaults ON there and temperature has no effect while it is on,
+  # so it is disabled for a greedy classifier.
+  deepseek:
+    adapter: openai
+    model_id: deepseek-v4-flash-vision-exp
+    base_url: "https://api.deepseek.com"
+    api_key_env: DEEPSEEK_API_KEY   # export DEEPSEEK_API_KEY=... in your shell/.env
+    thinking_type: disabled
+    reasoner:
+      temperature: 0.0
+
 embeddings:
   model_name: sentence-transformers/all-MiniLM-L6-v2

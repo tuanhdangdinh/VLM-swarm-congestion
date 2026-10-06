@@ -17,6 +17,9 @@ class LlamaServerBackend:
     Operates in text-only mode when mmproj_path is None (server started without
     --mmproj). Switches to vision mode automatically when mmproj_path is set,
     which requires the server to have been started with the matching --mmproj flag.
+    Also serves Qwen3-VL-8B-Instruct (`scripts/vm/qwen_serve.sh`); with
+    `multi_image` the prompt-apparatus extra images (zoom tile) follow the
+    frame as further `image_url` parts, otherwise they are refused.
     """
 
     def __init__(
@@ -24,10 +27,12 @@ class LlamaServerBackend:
         base_url: str = "http://127.0.0.1:8080/v1",
         model_id: str = "cosmos-reason2-8b",
         mmproj_path: str | None = None,
+        multi_image: bool = False,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model_id = model_id
         self.mmproj_path = mmproj_path
+        self.multi_image = multi_image
 
     # ------------------------------------------------------------------
     # Public API
@@ -92,10 +97,10 @@ class LlamaServerBackend:
     # ------------------------------------------------------------------
 
     def _build_messages(self, payload: PromptPayload) -> list[dict]:
-        if payload.extra_image_paths:
-            # Multi-image input through llama-server's mtmd path is unverified
-            # for the served models; refuse rather than silently drop the
-            # prompt-apparatus zoom tile the prompt text announces.
+        if payload.extra_image_paths and not (self.multi_image and self.mmproj_path):
+            # Multi-image input through llama-server's mtmd path must be
+            # smoke-verified per served model (config `multi_image`); refuse
+            # rather than silently drop the zoom tile the prompt text announces.
             raise ValueError(
                 "llama_server backend does not support extra images "
                 f"({len(payload.extra_image_paths)} given); disable prompt_zoom_tile"
@@ -103,13 +108,15 @@ class LlamaServerBackend:
         system = {"role": "system", "content": payload.system_prompt}
 
         if self.mmproj_path is not None:
-            data_url = self._encode_image(payload.image_path)
             # Media-first ordering: Cosmos Reason 2 / Qwen3-VL are trained with the
             # image preceding the user text; reversing it degrades spatial grounding.
-            user_content = [
-                {"type": "image_url", "image_url": {"url": data_url}},
-                {"type": "text", "text": payload.user_prompt},
+            # The overhead frame stays first and any zoom tile follows it, matching
+            # the prompt's "a second image follows the overhead view".
+            user_content: list[dict] = [
+                {"type": "image_url", "image_url": {"url": self._encode_image(path)}}
+                for path in [payload.image_path, *payload.extra_image_paths]
             ]
+            user_content.append({"type": "text", "text": payload.user_prompt})
             user = {"role": "user", "content": user_content}
         else:
             user = {"role": "user", "content": payload.user_prompt}

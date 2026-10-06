@@ -310,6 +310,13 @@ class BackendResponse(BaseModel):
     # answers the alias `gpt-4o` with a dated snapshot), or None when the
     # provider response carries none. Parsed by each backend, never guessed.
     served_model: str | None = None
+    # A structured provider refusal (Anthropic: HTTP 200 with
+    # `stop_reason: "refusal"`). Callers treat it exactly like a text refusal
+    # matched by `reasoner.is_refusal`, so the standard refusal accounting and
+    # mitigation see it even when the refusal carries no text at all.
+    refusal: bool = False
+    # The provider's refusal category (`stop_details.category`), when given.
+    refusal_category: str | None = None
 
 
 class ProposedPlanLeg(BaseModel):
@@ -637,6 +644,15 @@ class EffectiveSamplingConfig(BaseModel):
     # these two are the only decoding controls it honours. None elsewhere.
     seed: int | None = None
     thinking_level: str | None = None
+    # OpenAI-compatible reasoning control (gpt-5.1 pilot: "none"); None when
+    # the request carries no `reasoning_effort` field.
+    reasoning_effort: str | None = None
+    # Provider thinking mode as configured: Anthropic `thinking.type`
+    # ("adaptive" / "between_tools") or the DeepSeek `thinking.type`
+    # ("enabled" / "disabled"); None when the request carries no thinking field.
+    thinking_mode: str | None = None
+    # Anthropic `output_config.effort`; None when not sent.
+    effort: str | None = None
     # Mirrors `ReasonerDiagnostics.unsupported_sampling`, so the configured
     # values and the subset the backend could not honour read off one block.
     unsupported_sampling: dict[str, float] | None = None
@@ -674,6 +690,9 @@ class ReasonerDiagnostics(BaseModel):
     # Distinct from `attempts`: a refusal is one kind of parse failure, and the
     # mitigation below keys off refusals alone.
     refusal_attempts: int = Field(default=0, ge=0)
+    # The provider's category for the most recent structured refusal
+    # (`BackendResponse.refusal_category`), or None when no attempt carried one.
+    refusal_category: str | None = None
     # True when the refusal mitigation fired: a later attempt re-sent the same
     # prompt text with the camera frame replaced by a neutral image. The decision
     # for that call was made without the image channel, so an audit must be able
@@ -704,23 +723,51 @@ class LlamaServerBackendConfig(BaseModel):
     model_id: str = Field(min_length=1)
     model_path: str | None = None  # server-startup concern; not used per-request
     mmproj_path: str | None = None  # path to mmproj GGUF for vision; None = text-only
+    # Send `PromptPayload.extra_image_paths` (the zoom tile) as further
+    # `image_url` parts. False refuses them, as before this field existed:
+    # multi-image through llama-server's mtmd path must be smoke-verified per
+    # served model before a config turns it on.
+    multi_image: bool = False
 
 
 class OpenAIBackendConfig(BaseModel):
+    """Config for any OpenAI-compatible Chat Completions provider.
+
+    Every optional request field defaults to absent, so the gpt-4o pin's
+    request body is byte-identical to the one sent before these fields existed.
+    """
+
     model_config = ConfigDict(frozen=True)
 
     model_id: str = "gpt-4o"
     base_url: str = "https://api.openai.com/v1"
     api_key_env: str = "OPENAI_API_KEY"  # env var NAME holding the key; never the key itself
     organization: str | None = None
+    # OpenAI reasoning models (gpt-5.1): "none" keeps temperature/top_p legal
+    # and bills no reasoning tokens. None omits the field.
+    reasoning_effort: Literal["none", "minimal", "low", "medium", "high"] | None = None
+    # Reasoning-family models reject `max_tokens` in favour of
+    # `max_completion_tokens`; the name is config so the pin decides it.
+    max_tokens_param: Literal["max_tokens", "max_completion_tokens"] = "max_tokens"
+    # DeepSeek's `thinking: {"type": ...}` extension; temperature has no effect
+    # while thinking is enabled (its default). None omits the field.
+    thinking_type: Literal["enabled", "disabled"] | None = None
 
 
 class AnthropicBackendConfig(BaseModel):
+    """Config for the Anthropic Messages API backend."""
+
     model_config = ConfigDict(frozen=True)
 
     model_id: str = "claude-opus-4-8"
     base_url: str = "https://api.anthropic.com/v1"
     api_key_env: str = "ANTHROPIC_API_KEY"  # env var NAME holding the key; never the key itself
+    # Sent as `thinking: {"type": ...}`. On Sonnet 5.5 an omitted field runs
+    # adaptive thinking (billed as output); "between_tools" turns it off and is
+    # accepted only at effort high or below. None omits the field.
+    thinking_type: Literal["adaptive", "between_tools"] | None = None
+    # Sent as `output_config.effort`; None omits it (provider default).
+    effort: Literal["low", "medium", "high", "xhigh", "max"] | None = None
 
 
 class GeminiBackendConfig(BaseModel):
