@@ -37,6 +37,24 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-07** — **Reasoning-dose pilot RUN: the rule adopts no higher dose, so every arm keeps its pin** (branch `feat/v2-dose-pilot`; rule pre-registered in `28d453c` before any call; knobs `b46540d`; report `docs/reports/2026-10-07-reasoning-dose-pilot.md`; PILOT, excluded from confirmatory counts).
+  - **Rule:** adopt H only if conflict_prediction net is at least +3 of 20 AND H median probe latency is at most 15 s.
+  - **Results** (net, H median latency):
+    - gpt-5.1, `none` → `low`: net 0, 2.4 s.
+    - Sonnet, `between_tools` → adaptive + `low`: net 0, 4.1 s.
+    - ER-2, `low` → `medium`: net +1, 7.5 s. No owner flag.
+    - DeepSeek, `disabled` → enabled + `low`: net −13.
+  - **Frozen settings:** the pins are unchanged and `config/models.yaml` is untouched.
+  - **Stored L reuse was verified byte-wise.** All 20 request bodies at each stored run's commit (`66e4f44`, `a0db9f6`, `23e36c5`) equal the HEAD bodies and the live retest bodies. The probe path imports only the frozen v1 probe prompt, so v3.x never reaches a probe call.
+  - Spend: $0.50.
+- **2026-10-07** — **Gotchas (dose pilot).**
+  1. **gpt-5.1 rejects sampling fields above effort `none`.** It returns HTTP 400 on `temperature`/`top_p` at any `reasoning_effort` other than `none`. A higher-effort arm needs `OpenAIBackendConfig.omit_sampling: true`, which drops both and records them in `raw["unsupported_sampling"]`.
+  2. **DeepSeek thinking still runs about 2k tokens at effort `low`.** At the pinned `max_tokens: 2048`, 14/20 probe calls truncated (`finish_reason: length`, 12 of them empty), so enabling thinking requires a larger cap.
+  3. **Sonnet 5.5 has no thinking budget to set.** `budget_tokens` returns 400, and adaptive thinking at effort `low` chose not to think on 20/20 short probe calls.
+  4. **OpenAI-compatible `token_usage` now carries `reasoning_tokens`** (from `completion_tokens_details`) whenever the provider reports it.
+  5. **ER-2 accepts the documented levels** `minimal`, `low`, `medium` and `high`.
+  6. **Probe records have no latency.** Stored probe records carry `latency_ms: null`, and probe latency comes only from the pilot driver's wall-clock timing.
+
 - **2026-10-06** — **Prompt v3.4 is the v3 collection prompt (branch `feat/v2-v34-repin`, `c09d605`/`1c756a9`/`a0db9f6`; report `docs/reports/2026-10-06-v34-repin.md`).** Roster-validation rulings 1–3: the Cosmos-style `<think>` answer-format block is removed from the v3 template (replaced by the diagnostic's JSON-only sentence; the bounded `reasoning` field stays); baseline `user_sha256` v3.3 `769802f0…` → v3.4 `6d08540f…` (−329 chars, −342 geometry-off); artifacts: v3.4 = list-order line present AND no `<think>` in `prompt.user_prompt`. DeepSeek at hosted-arm parity (4 attempts + grey fallback after 2). `ReasonerDiagnostics.attempt_token_usage` records every attempt's usage (refusals are billed; cost = sum of the list) and the failed path now sets `token_usage`; stage-2 `RetreatChoiceResult` gains the same pair (`80f81f9`). Payload-format audit against provider docs fetched 2026-10-06 found no recommended deviation; every arm records `reasoner_config_effective.payload_format` `v1` (no payload changed). Sanity replay (3 stored rv01 decisions × ER-2, Sonnet, DeepSeek, gpt-4o, gpt-5.1): 15/15 valid, 0 refused attempts; gpt-4o names robot_1 under `id_desc` (swap-gate case). gpt-5.1 battery-v2 main completed across the credit gap: conflict_prediction 15/20 (GT-no 5/10).
 - **2026-10-06** — **Retained finding (not superseded by v3.4): Sonnet 5.5 refused the v3.3 stage-1 prompt 91/96 attempts** (`reasoning_extraction`, prompt-locked; roster report). It is recorded as model-family prompt-format sensitivity; the same three stimuli answered 3/3 under v3.4. Open: ER-2 still at 2 attempts / no grey fallback (frozen pin; owner decision on parity); Anthropic also documents a JSON `reasoning` field as a trigger (0/3 at v3.4, collection-scale rate unmeasured).
 
