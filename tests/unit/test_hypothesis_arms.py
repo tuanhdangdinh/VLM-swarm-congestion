@@ -299,3 +299,88 @@ def test_preflight_lists_a_local_server_without_a_key(monkeypatch):
     assert preflight_backend.list_served_models(
         "llama_server", "http://127.0.0.1:8090/v1", None
     ) == ["molmo2-er"]
+
+
+# --- Exploratory: glm-5.3-flash (Zhipu, Group D rolling pin) ----------------
+
+
+def _glm_sent(monkeypatch, tmp_path) -> dict:
+    captured: dict = {}
+
+    def fake_post(url, json, headers=None, timeout=None):
+        captured["url"] = url
+        captured["json"] = json
+        return _FakeResponse(
+            200,
+            {
+                "model": "glm-5.3-flash",
+                "choices": [{"message": {"content": "{}", "reasoning_content": "r"}}],
+                "usage": {
+                    "prompt_tokens": 1670,
+                    "completion_tokens": 40,
+                    "total_tokens": 1710,
+                    "completion_tokens_details": {"reasoning_tokens": 27},
+                },
+            },
+        )
+
+    monkeypatch.setattr("reasoning.vlm.openai_backend.requests.post", fake_post)
+    monkeypatch.setenv("ZHIPUAI_API_KEY", "test-key")
+    vlm = _shipped_vlm()
+    backend = build_backend(
+        backend_adapter(vlm, "zhipu_glm"), load_backend_config(vlm, "zhipu_glm")
+    )
+    captured["response"] = backend.analyze(
+        _payload(tmp_path), resolve_reasoner_config(vlm, "zhipu_glm")
+    )
+    return captured
+
+
+def test_glm_arm_rides_the_openai_adapter_against_the_zai_endpoint():
+    vlm = _shipped_vlm()
+    config = load_backend_config(vlm, "zhipu_glm")
+    assert backend_adapter(vlm, "zhipu_glm") == "openai"
+    assert config.model_id == "glm-5.3-flash"
+    assert config.base_url == "https://api.z.ai/api/paas/v4"
+    assert config.api_key_env == "ZHIPUAI_API_KEY"
+
+
+def test_glm_runs_forced_thinking_at_the_lowest_documented_effort():
+    # thinking.type "disabled" is HTTP 400 code 1210 on glm-5.3-flash; "low"
+    # is the lowest of the documented low/high/max.
+    config = load_backend_config(_shipped_vlm(), "zhipu_glm")
+    assert (config.thinking_type, config.reasoning_effort) == ("enabled", "low")
+
+
+def test_glm_output_cap_is_cap_proofed_above_the_shared_2048():
+    vlm = _shipped_vlm()
+    glm = resolve_reasoner_config(vlm, "zhipu_glm")
+    shared = resolve_reasoner_config(vlm, "openai")
+    assert glm.max_tokens == 16384 > shared.max_tokens == 2048
+
+
+def test_glm_has_hosted_arm_parity_attempts_and_image_fallback():
+    glm = resolve_reasoner_config(_shipped_vlm(), "zhipu_glm")
+    assert (glm.temperature, glm.max_attempts, glm.image_fallback_after_attempts) == (0.0, 4, 2)
+
+
+def test_glm_request_carries_thinking_enabled_effort_low_and_the_raised_cap(
+    monkeypatch, tmp_path
+):
+    captured = _glm_sent(monkeypatch, tmp_path)
+    body = captured["json"]
+    assert captured["url"] == "https://api.z.ai/api/paas/v4/chat/completions"
+    assert body["thinking"] == {"type": "enabled"}
+    assert body["reasoning_effort"] == "low"
+    assert body["max_tokens"] == 16384
+    assert body["temperature"] == 0.0
+
+
+def test_openai_adapter_records_reasoning_tokens_when_reported(monkeypatch, tmp_path):
+    usage = _glm_sent(monkeypatch, tmp_path)["response"].token_usage
+    assert usage == {
+        "prompt_tokens": 1670,
+        "completion_tokens": 40,
+        "total_tokens": 1710,
+        "reasoning_tokens": 27,
+    }

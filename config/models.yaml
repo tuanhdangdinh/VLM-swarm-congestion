@@ -200,5 +200,35 @@ vlm:
     reasoner:
       temperature: 0.0
 
+  # EXPLORATORY ARM, seventh lab (roster-closure ruling 2026-10-07, Group D:
+  # ROLLING PIN -- `glm-5.3-flash` is undated, so the served model is recorded
+  # per call and analyses condition on it). Zhipu's native-multimodal
+  # 320B-A18B Flash over its OpenAI-compatible endpoint (api.z.ai, listed in
+  # the live GET /models 2026-10-07; $0.15/$0.50 per MTok). DEVIATION FROM THE
+  # RULED "thinking DISABLED": GLM-5.3-Flash has forced thinking --
+  # `thinking.type: disabled` (and reasoning_effort "none") return HTTP 400
+  # code 1210 "This model always engages in thinking and cannot be disabled;
+  # please use low, high, or max" (live, 2026-10-07; docs.z.ai Deep Thinking:
+  # "GLM-5.3 and GLM-5.3-FLASH no longer support disabling thinking"). The
+  # arm therefore runs the LOWEST dose, `reasoning_effort: low`, with thinking
+  # `enabled` (the provider's own migration instruction), and its output cap
+  # is CAP-PROOFED: reasoning tokens count against max_tokens (the DeepSeek
+  # thinking-cap trap, dose pilot 2026-10-07), so max_tokens is 16384 instead
+  # of the shared 2048; reasoning tokens are recorded per call. Temperature
+  # 0.0 is inside the documented range [0, 1]. Hosted-arm parity: 4 attempts
+  # + grey-image fallback after 2.
+  zhipu_glm:
+    adapter: openai
+    model_id: glm-5.3-flash
+    base_url: "https://api.z.ai/api/paas/v4"
+    api_key_env: ZHIPUAI_API_KEY   # export ZHIPUAI_API_KEY=... in your shell/.env
+    thinking_type: enabled
+    reasoning_effort: low
+    reasoner:
+      temperature: 0.0
+      max_attempts: 4
+      image_fallback_after_attempts: 2
+      max_tokens: 16384
+
 embeddings:
   model_name: sentence-transformers/all-MiniLM-L6-v2

@@ -756,6 +756,7 @@ _ARM_ENV = {
     "gemini_flash": ("gemini_backend", "GEMINI_API_KEY"),
     "llama_server_qwen3vl": ("llama_server_backend", None),
     "llama_server_molmo2er": ("llama_server_backend", None),
+    "zhipu_glm": ("openai_backend", "ZHIPUAI_API_KEY"),
 }
 
 
@@ -823,6 +824,7 @@ def test_recorded_payload_format_matches_the_request_actually_sent(
         ("gemini_flash", "after_text", "system_instruction"),
         ("llama_server_qwen3vl", "before_text", "system_message"),
         ("llama_server_molmo2er", "before_text", "user_prefix"),
+        ("zhipu_glm", "after_text", "system_message"),
     ],
 )
 def test_every_wired_arm_records_payload_format_v1(backend_id, image_position, system_placement):

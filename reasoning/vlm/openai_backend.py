@@ -15,6 +15,12 @@ from reasoning.vlm.models import BackendResponse, PayloadFormat, PromptPayload, 
 # behaves the same) and is "original" on DeepSeek (also its `auto`). JSON is
 # asked for in the prompt only: JSON mode / Structured Outputs are documented
 # but not sent (constrained-decoding prohibition). Unchanged since wiring.
+# Zhipu GLM-5.3-Flash (docs.z.ai chat-completion reference, fetched
+# 2026-10-07) rides the same packing: its only image example puts images
+# first but states no preference (examples alone do not move the packing,
+# audit rule), and its image_url schema lists `url` only -- `detail` is
+# accepted live (HTTP 200, identical prompt_tokens with and without it) and
+# stays sent so the packing is one constant per adapter.
 PAYLOAD_FORMAT = PayloadFormat(
     version="v1",
     image_position="after_text",
@@ -153,7 +159,15 @@ class OpenAIBackend:
         if not usage:
             return None
         keys = ("prompt_tokens", "completion_tokens", "total_tokens")
-        return {k: usage[k] for k in keys if k in usage} or None
+        result = {k: usage[k] for k in keys if k in usage}
+        # Forced-thinking providers (Zhipu GLM-5.3-Flash) bill reasoning inside
+        # completion_tokens and count it against max_tokens; recording the
+        # split is the only per-call evidence of how close a call came to the
+        # output cap (the DeepSeek thinking-cap trap, dose pilot 2026-10-07).
+        details = usage.get("completion_tokens_details")
+        if isinstance(details, dict) and isinstance(details.get("reasoning_tokens"), int):
+            result["reasoning_tokens"] = details["reasoning_tokens"]
+        return result or None
 
     @staticmethod
     def _extract_served_model(data: dict) -> str | None:
