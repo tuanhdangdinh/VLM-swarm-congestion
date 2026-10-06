@@ -72,6 +72,7 @@ Branch `feat/v2-hypothesis-arms`, cut from `feat/prereg-v2-composite` at `b092f8
    - Whether a forced-thinking arm is admissible under the frozen dose rule is the owner's call.
 2. **Flash stage-2 latency exceeds the registered 8 s stage-2 timeout,** 2/2 episodes, both attempts.
    - Stage 2 then defaults to M3's rank-0 letter, so the arm's stage-2 decisions are never its own.
+   - Every earlier arm answered within the same bound in-episode; ER-2's in-episode range was 3.9–5.2 s. Flash is the only arm on record to exceed it.
    - The fix options are owner decisions, recorded as facts only: the timeout, flash's thinking level, or accepting the defaults.
    - Flash's stage-2 thought use, about 1,960 tokens, also sits close to the adapter's 2,048 `max_output_tokens`. That is a cap-proximity watch item for flash.
 3. **Molmo2-ER multi-image smoke: FAIL as registered**, so `multi_image` stays off.
