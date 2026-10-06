@@ -37,6 +37,70 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-06** — **Verbatim-pilot rulings A–D implemented; prompt v3.2 →
+  v3.3, PRE-FREEZE re-pin.** The contract is the main checkout's spec block
+  "Verbatim-pilot RESULTS + RULINGS (2026-10-06)" in
+  `docs/superpowers/specs/2026-09-30-prereg-v2-design.md`. The evidence is
+  `docs/reports/2026-10-06-verbatim-pilot.md`. Branch
+  `feat/v2-pilot-rulings`: prompt `66a4f4f`, metrics `923c3b0`.
+  - **(A) Prompt.** `_PLAN_GRAMMAR` gains one line, placed after the six
+    action glosses and before the consistency rules: "The list order is
+    the execution order — the robot that acts first comes first."
+  - **(A) Scorer.** `plan_metrics` gains `repaired_order_only`. It is True
+    when every repair edit is a `reorder`, and None unless the plan is
+    `repaired`. `provenance` is unchanged.
+  - **(B) Prompt.** The junction_clear gloss now reads "some robots first
+    back out, one inside robot yields, then an ordered crossing".
+  - **(B) Verifier.** The cross→yield `substitute` path is unchanged. It is
+    pinned by a plan that omits the yield, and by episode 8's exact
+    reorder + substitute shape (`test_junction_clear_grounding.py`).
+  - **Digest transition.** The change adds +104 chars to every v3 prompt.
+    It re-pins the six `_V3_PINS`, the five `_APPARATUS_PINS` and the
+    all-off baseline literal.
+    - Baseline `user_sha256` moves from v3.2 `c3fb9fcf…` to v3.3
+      `769802f0…` (6029 → 6133 chars).
+    - Live artifacts carry a per-scene `user_sha256`, so a v3.3 decision is
+      identified by the presence of the list-order line in
+      `prompt.user_prompt`. This follows the pilot's v3.2 marker
+      convention.
+    - The pilot ran v3.2. v1/v2 pins and the `CAPABILITY_PROBE` prompts are
+      untouched.
+  - **(C) Two new derived fields.**
+    - `verbatim_dispatch_matched` is `vlm_verbatim` combined with
+      `dispatch_matches_plan`. It is None when the plan is not verbatim or
+      the match is unknown.
+    - `strategy_correct` is membership in the cell oracle's
+      `accepted_strategies`, and None where no accepted set is registered.
+  - **(C) Analysis split.** `tabulate_provenance_by_strategy_correctness`
+    computes the registered split "provenance conditioned on
+    strategy-vs-oracle correctness".
+  - **(C) Offline join.** `score_decision_artifact` re-scores a stored
+    decision artifact. No new stored field is needed: `rejection_stage` is
+    recovered from the `rejection_reason` prefixes, pinned by a round trip.
+  - **(D) Held robots.** `score_plan_decision(held_robot_ids=…)` drops
+    robots that can only receive `continue` from the oracle order. If
+    the exclusion leaves no oracle robot, the result is None. No artifact
+    records which robots were held, so the caller derives the set from the
+    goal table's `start_delay_sec`.
+  - **Pilot re-derivation** (over all 28 dispatched plans, replans
+    included; scratch script, not committed):
+    - Held set: robot_3 counted as held while the sim stamp was below its
+      `start_delay_sec` of 80. This is approximate, because M5 counts the
+      delay from its own start. The B1 triggers at 29–30 s are well inside
+      it.
+    - Episodes 2 and 7 are `repaired_order_only`.
+    - B1 trigger oracle-order agreement goes from ✗ to ✓ in episodes 6 and
+      7. With robot_3 held, the oracle reduces to [robot_1], so this checks
+      robot_1's active role, not an ordering. Episode 6's 110.2 s replan
+      stays ✗, because robot_3 had been released by then.
+    - gpt-4o IB10: of 11 verbatim plans, `verbatim_dispatch_matched` is 6
+      True and 5 False, and all 13 plans are `strategy_incorrect`. The
+      conditioning, not the derived flag, removes the verbatim inflation.
+    - Head-on and B1 oracles register no `accepted_strategies`, so those
+      decisions fall in `strategy_unscored`. Whether to register one is the
+      owner's call.
+  - **(E) and (G)** were spec-only rulings, with no code change here.
+
 - **2026-10-06** — **Verbatim pilot run, 11/11 registered episodes on the
   v2 tree `a8fc1bc`, PILOT data** (`docs/reports/2026-10-06-verbatim-pilot.md`;
   bundles in `data/logs/vm_runs/verbatim_pilot/`, gitignored). Run as
