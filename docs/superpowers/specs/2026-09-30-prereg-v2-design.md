@@ -333,7 +333,43 @@ oracle-order agreement PRE-repair, recede-set choice stability
 metrics' live distributions and decide whether the grammar or
 invitation needs a final pre-freeze adjustment.
 
-**Rejected with reason (2026-10-04):** feeding a computed
+**Verbatim-pilot RESULTS + RULINGS (2026-10-06,
+`docs/reports/2026-10-06-verbatim-pilot.md`, 11 episodes, ~$0.33):**
+HEADLINES — grammar works: trigger-plan emission AND consistency
+11/11 (pre-grammar: 0/3); provenance (triggers) 3 verbatim / 7
+repaired / 1 m3_default with NO monotonic complexity trend; ER-2's
+repairs are mostly FORMAT (reorders — it lists legs by role
+salience, not execution order; 2 plans were reorder-only from
+verbatim) and all 3 of its composites needed the same cross→yield
+substitution (the gloss never names the yielder); gpt-4o needed 0
+reorders but NEVER chose junction_clear (0/13) and clogged IB10
+with 11 trivially-verbatim reverse/wait plans — the
+verbatim-inflation artifact of unconstrained strategies; ER-2's
+recede set is UNSTABLE across episodes (E-W / N-S / all-four);
+refusals: ER-2 0/32, gpt-4o 1 recovered /21. RULINGS:
+(A) grammar v3.3 re-pin adds ONE line stating the list-order
+convention ("the list order is the execution order — the robot
+that acts first comes first"), plus a metrics-only
+`repaired_order_only` sub-class;
+(B) same re-pin extends the junction_clear gloss in-register
+("…some robots first back out, one inside robot yields, then an
+ordered crossing") — telling the contract, not the answer; the
+substitution path stays for models that still omit it;
+(C) provenance stays pure; add derived `verbatim_dispatch_matched`
+and the registered analysis "provenance conditioned on
+strategy-vs-oracle correctness" — the deliberate no-rule for
+`reverse` etc. stands, with the inflation artifact documented;
+(D) order-agreement scoring excludes robots that can only receive
+`continue` (held robots) — definition fix, scorer-side;
+(E) IB10 collection uses `prompt_robot_order: random` like every
+other cell (the id_asc binding was a calibration artifact; the
+recede-set/first-slot confound dies with it);
+(G) junction_clear outside IB10 grounds the shipped row and is
+TAGGED (the loudness guard worked as designed at B1); whether B1
+gets derived junction fields is a v2-freeze decision — until then
+the tag is the registered behavior. (F) B1's stage-2 rank-0 2×
+defect recurred — already covered by the Rev 20/22 registered
+exclusion; both B1 pilot episodes decision-scored only.
 congestion metric (the Arul & Manocha Voronoi-style scalar,
 arXiv:2202.11334) into the stage-1 prompt — it IS the congestion
 answer and would contaminate RQ1 classification. Permitted only
