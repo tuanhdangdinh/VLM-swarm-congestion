@@ -331,6 +331,25 @@ no-intervention ARM is registered into collection; if any cell
 self-resolves, that is a design finding for the oracle (the cell may
 not need Layer 2) and goes to the owner before collection.
 
+**Battery manifest audit CAVEAT + second trails null (2026-10-06,
+fork-session pilot; report `docs/reports/2026-10-06-trail-on-pilot.md`,
+adopted file-only — the fork's branch carries the whole v2 lineage
+from an old base and is NOT merged into this docs branch):**
+(1) APPEND-ONLY CAVEAT on the battery manifests' audit claim: for
+the 8 decision frames with full-rate M1 history, the M1 state that
+DREW the annotated frame lies 0.20 s before to 0.23 s after the
+decision record's scene stamp (M5 pairs frame and scene within a
+skew bound) — so manifest_v1/v2's "exact M1 state" pairing and the
+0.1 s GT gate were applied at the wrong stamp for those items. The
+manifest audit claim must carry this caveat in any confirmatory
+citation; fold the stamp fix into the registered battery-v2.1
+rebuild. (2) TRAILS: second probe-level null (trails-on vs off on
+the 59 frozen v2 items, every backend × type |net| ≤ 1, rule fixed
+pre-call) — the fork rules NO v3 trail arm at the current 3 s
+window; the deployed-prompt three-way frame A/B stays registered
+but is DOWNGRADED to run only if collection's own data motivates
+it (two nulls now stand against it, both probe-level).
+
 **Model-wiring ruling (2026-10-06, from the landscape round —
 `research_notes/VLM model landscape 2026/`):** WIRE NOW
 `claude-sonnet-5-5` (existing Anthropic adapter; MUST omit
