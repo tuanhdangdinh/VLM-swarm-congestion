@@ -331,6 +331,31 @@ no-intervention ARM is registered into collection; if any cell
 self-resolves, that is a design finding for the oracle (the cell may
 not need Layer 2) and goes to the owner before collection.
 
+**Roster closure + confirmatory-tier ruling (2026-10-07, USER
+DECISION "add all"):** the roster GROUPS are formalized — A the
+v1-frozen pair (ER-2, gpt-4o; prereg-bound); B the specialization
+2×2 (ER-2 / gemini-3.8-flash × Molmo2-ER / Qwen3-VL, with the
+Molmo-backbone-is-Qwen quasi-family control noted); C the
+generation pair (gpt-4o → gpt-5.1); D the churn-risk pilots
+(undated/rolling pins: gpt-5.1, deepseek-flash, and glm-5.3-flash
+below). PER THE USER: ALL validated arms join v2's confirmatory
+collection tier — the coordinator's two-arm narrowing is
+OVERRIDDEN. Consequences recorded, not relitigated: per-arm
+collection cost/wall-time multiplies by the arm count, and
+Group-D arms carry a ROLLING-PIN CAVEAT in every confirmatory
+report (served model recorded per call; the pin may drift
+mid-study and analyses must condition on the served-model string).
+GLM CONSIDERED (user): GLM-5.3 flagship is TEXT-ONLY; the vision
+arm is **glm-5.3-flash** (natively multimodal, 320B-A18B,
+$0.15/$0.50 per MTok — cheapest hosted vision arm; live since
+2026-09). RULED: wire it exploratory-tier as the SEVENTH lab via
+the OpenAI-compatible path; thinking DISABLED per the frozen dose
+rule (native deep-thinking + the DeepSeek output-cap trap applies);
+BLOCKED on the user adding ZHIPUAI_API_KEY to both .env files;
+validation to the full standard when the key lands. Roster then
+CLOSES at nine models / seven labs — further additions require a
+new hypothesis, not availability.
+
 **Reasoning-dose pilot RESULT — settings FROZEN (2026-10-07,
 `docs/reports/2026-10-07-reasoning-dose-pilot.md`; rule committed
 pre-call at 28d453c, applied mechanically):** NO arm adopts a
