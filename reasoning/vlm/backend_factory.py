@@ -4,6 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from reasoning.vlm import anthropic_backend, gemini_backend, llama_server_backend, openai_backend
 from reasoning.vlm.anthropic_backend import AnthropicBackend
 from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.gemini_backend import GeminiBackend
@@ -15,6 +16,7 @@ from reasoning.vlm.models import (
     GeminiBackendConfig,
     LlamaServerBackendConfig,
     OpenAIBackendConfig,
+    PayloadFormat,
     ReasonerConfig,
 )
 from reasoning.vlm.openai_backend import OpenAIBackend
@@ -101,6 +103,37 @@ def resolve_reasoner_config(raw_vlm: dict, backend_id: str) -> ReasonerConfig:
     return ReasonerConfig(**merged)
 
 
+def describe_payload_format(backend_config: BackendConfig | None) -> PayloadFormat | None:
+    """Return the transport conventions the configured adapter packs requests with.
+
+    Args:
+        backend_config: The backend's own config, or None ("mock").
+
+    Returns:
+        The adapter module's `PAYLOAD_FORMAT`, with `image_position` None for a
+        llama_server without an mmproj (text-only requests) and
+        `json_guidance` "response_schema" for Gemini's opt-in `force_schema`;
+        None for "mock".
+    """
+    if isinstance(backend_config, OpenAIBackendConfig):
+        return openai_backend.PAYLOAD_FORMAT
+    if isinstance(backend_config, AnthropicBackendConfig):
+        return anthropic_backend.PAYLOAD_FORMAT
+    if isinstance(backend_config, GeminiBackendConfig):
+        if backend_config.force_schema:
+            return gemini_backend.PAYLOAD_FORMAT.model_copy(
+                update={"json_guidance": "response_schema"}
+            )
+        return gemini_backend.PAYLOAD_FORMAT
+    if isinstance(backend_config, LlamaServerBackendConfig):
+        if backend_config.mmproj_path is None:
+            return llama_server_backend.PAYLOAD_FORMAT.model_copy(
+                update={"image_position": None}
+            )
+        return llama_server_backend.PAYLOAD_FORMAT
+    return None
+
+
 def describe_effective_sampling(
     reasoner_config: ReasonerConfig,
     backend_config: BackendConfig | None = None,
@@ -149,6 +182,7 @@ def describe_effective_sampling(
         reasoning_effort=reasoning_effort,
         thinking_mode=thinking_mode,
         effort=effort,
+        payload_format=describe_payload_format(backend_config),
     )
 
 

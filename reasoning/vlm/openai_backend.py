@@ -6,7 +6,21 @@ from pathlib import Path
 
 import requests
 
-from reasoning.vlm.models import BackendResponse, PromptPayload, ReasonerConfig
+from reasoning.vlm.models import BackendResponse, PayloadFormat, PromptPayload, ReasonerConfig
+
+# Transport conventions (format audit 2026-10-06, docs fetched that day):
+# OpenAI's images-vision guide and DeepSeek's vision guide state no
+# image/text order preference and both put the text part first in every
+# example; `detail: "high"` is the tile-based mode for gpt-4o/gpt-5.1 (`auto`
+# behaves the same) and is "original" on DeepSeek (also its `auto`). JSON is
+# asked for in the prompt only: JSON mode / Structured Outputs are documented
+# but not sent (constrained-decoding prohibition). Unchanged since wiring.
+PAYLOAD_FORMAT = PayloadFormat(
+    version="v1",
+    image_position="after_text",
+    system_placement="system_message",
+    image_detail="high",
+)
 
 
 class OpenAIBackend:

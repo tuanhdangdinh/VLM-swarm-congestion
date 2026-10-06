@@ -7,7 +7,7 @@ from pathlib import Path
 
 import requests
 
-from reasoning.vlm.models import BackendResponse, PromptPayload, ReasonerConfig
+from reasoning.vlm.models import BackendResponse, PayloadFormat, PromptPayload, ReasonerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +16,19 @@ logger = logging.getLogger(__name__)
 # carries them. Their configured values are recorded per call instead, the
 # Gemini ER-2 precedent (`gemini_backend._UNSUPPORTED_SAMPLING_FIELDS`).
 _UNSUPPORTED_SAMPLING_FIELDS = ("temperature", "top_p", "top_k", "presence_penalty")
+
+# Transport conventions (format audit 2026-10-06): the vision guide says
+# "Claude works best when images come before text ... prefer an
+# image-then-text structure"; the preamble is the top-level `system` field.
+# The guide's multi-image tip (text labels "Image 1:", "Image 2:") would add
+# prompt text, so it is not applied -- the v3.4 zoom-tile sentence already
+# names the second image. No structured-output flag is sent. Unchanged since
+# wiring.
+PAYLOAD_FORMAT = PayloadFormat(
+    version="v1",
+    image_position="before_text",
+    system_placement="top_level_system",
+)
 
 
 class AnthropicBackend:

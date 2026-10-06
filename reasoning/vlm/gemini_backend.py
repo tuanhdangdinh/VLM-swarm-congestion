@@ -9,7 +9,7 @@ import requests
 
 from reasoning.schemas import load_schema
 from reasoning.vlm.errors import BackendTimeoutError
-from reasoning.vlm.models import BackendResponse, PromptPayload, ReasonerConfig
+from reasoning.vlm.models import BackendResponse, PayloadFormat, PromptPayload, ReasonerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,19 @@ logger = logging.getLogger(__name__)
 # of them (not merely unsupported values -- they are absent from the schema), so
 # GeminiBackend never sends them and instead records them per call (see analyze).
 _UNSUPPORTED_SAMPLING_FIELDS = ("temperature", "top_p", "top_k", "presence_penalty")
+
+# Transport conventions (format audit 2026-10-06): the image-understanding
+# guide (updated 2026-09-23) says "When using a single image with text, place
+# the text prompt before the image in the input array"; the Robotics-ER page's
+# examples put the image first but state no preference, so the explicit tip
+# wins. The preamble rides `system_instruction`. `media_resolution` is left at
+# the provider default and `response_format` is sent only with the opt-in
+# `force_schema` (off on the pinned arm). Unchanged since wiring.
+PAYLOAD_FORMAT = PayloadFormat(
+    version="v1",
+    image_position="after_text",
+    system_placement="system_instruction",
+)
 
 
 class GeminiBackend:

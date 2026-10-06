@@ -612,6 +612,33 @@ class RetreatChoiceResult(BaseModel):
     timeout_sec: float | None = Field(default=None, gt=0)
 
 
+class PayloadFormat(BaseModel):
+    """One adapter's transport-level prompt conventions (prompt-style invariance ruling).
+
+    The semantic prompt (v3.4) is one template for every arm; how an adapter
+    packs it into a request -- image-vs-text order, where the static preamble
+    goes, image detail, JSON guidance -- follows the provider's documented
+    guidance and is recorded per call so artifacts show which packing they
+    were collected under. `version` moves whenever any of these changes for
+    that adapter, the same convention as the prompt digests.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    version: str = Field(min_length=1)
+    # Order of the image parts relative to the user text in the user turn;
+    # None when the request carries no image (text-only llama_server).
+    image_position: Literal["before_text", "after_text"] | None
+    # Where the static preamble (`PromptPayload.system_prompt`) is placed.
+    system_placement: Literal["system_message", "top_level_system", "system_instruction"]
+    # The per-image detail flag sent, or None when the API has none / it is unsent.
+    image_detail: str | None = None
+    # "prompt_only": JSON is requested in the prompt text, no `response_format`
+    # / schema flag is sent (the constrained-decoding prohibition);
+    # "response_schema" only for Gemini's opt-in `force_schema` (off on the pin).
+    json_guidance: Literal["prompt_only", "response_schema"] = "prompt_only"
+
+
 class EffectiveSamplingConfig(BaseModel):
     """The sampling settings actually in force for one reasoning call.
 
@@ -653,6 +680,10 @@ class EffectiveSamplingConfig(BaseModel):
     thinking_mode: str | None = None
     # Anthropic `output_config.effort`; None when not sent.
     effort: str | None = None
+    # The adapter's transport conventions (`PayloadFormat`); None for a backend
+    # with no config ("mock") and on every block recorded before the
+    # 2026-10-06 format audit (those requests were packed as version v1).
+    payload_format: PayloadFormat | None = None
     # Mirrors `ReasonerDiagnostics.unsupported_sampling`, so the configured
     # values and the subset the backend could not honour read off one block.
     unsupported_sampling: dict[str, float] | None = None

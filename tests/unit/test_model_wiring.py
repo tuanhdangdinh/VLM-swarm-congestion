@@ -19,6 +19,7 @@ from reasoning.vlm.backend_factory import (
     backend_adapter,
     build_backend,
     describe_effective_sampling,
+    describe_payload_format,
     load_backend_config,
     resolve_reasoner_config,
 )
@@ -26,6 +27,7 @@ from reasoning.vlm.llama_server_backend import LlamaServerBackend
 from reasoning.vlm.models import (
     AnthropicBackendConfig,
     BackendResponse,
+    GeminiBackendConfig,
     LlamaServerBackendConfig,
     OpenAIBackendConfig,
     PromptPayload,
@@ -741,3 +743,103 @@ def test_reasoner_log_omits_attempt_usage_without_a_refusal(monkeypatch, tmp_pat
     log = tmp_path / "trace.jsonl"
     write_reasoner_log(log, request, result)
     assert "attempt_token_usage" not in json.loads(log.read_text())
+
+
+# --- per-adapter payload format (prompt-style invariance ruling) ------------
+
+_ARM_ENV = {
+    "openai": ("openai_backend", "OPENAI_API_KEY"),
+    "openai_gpt51": ("openai_backend", "OPENAI_API_KEY"),
+    "deepseek": ("openai_backend", "DEEPSEEK_API_KEY"),
+    "anthropic": ("anthropic_backend", "ANTHROPIC_API_KEY"),
+    "gemini": ("gemini_backend", "GEMINI_API_KEY"),
+    "llama_server_qwen3vl": ("llama_server_backend", None),
+}
+
+
+def _gemini_ok() -> _FakeResponse:
+    return _FakeResponse(200, {"steps": [{"content": [{"type": "text", "text": "{}"}]}]})
+
+
+def _sent_body(monkeypatch, tmp_path, backend_id: str) -> dict:
+    module, env = _ARM_ENV[backend_id]
+    if env is not None:
+        monkeypatch.setenv(env, "test-key")
+    reply = {"anthropic_backend": _anthropic_ok(), "gemini_backend": _gemini_ok()}.get(
+        module, _openai_ok()
+    )
+    captured = _capture(monkeypatch, module, reply)
+    backend, config = _build_arm(backend_id)
+    backend.analyze(_fixed_payload(tmp_path), config)
+    return captured["json"]
+
+
+def _observed_format(body: dict) -> dict:
+    if "system_instruction" in body:
+        placement, parts = "system_instruction", body["input"]
+    elif "system" in body:
+        placement, parts = "top_level_system", body["messages"][0]["content"]
+    else:
+        assert body["messages"][0]["role"] == "system"
+        placement, parts = "system_message", body["messages"][1]["content"]
+    kinds = [part["type"] for part in parts]
+    image_index = next(i for i, kind in enumerate(kinds) if kind in ("image", "image_url"))
+    details = {part["image_url"].get("detail") for part in parts if part["type"] == "image_url"}
+    return {
+        "image_position": "before_text" if image_index < kinds.index("text") else "after_text",
+        "system_placement": placement,
+        "image_detail": details.pop() if details else None,
+        "json_guidance": "response_schema" if "response_format" in body else "prompt_only",
+    }
+
+
+@pytest.mark.parametrize("backend_id", list(_ARM_ENV))
+def test_recorded_payload_format_matches_the_request_actually_sent(
+    monkeypatch, tmp_path, backend_id
+):
+    vlm = _shipped_vlm()
+    recorded = describe_effective_sampling(
+        resolve_reasoner_config(vlm, backend_id), load_backend_config(vlm, backend_id)
+    ).payload_format
+    observed = _observed_format(_sent_body(monkeypatch, tmp_path, backend_id))
+    assert recorded.model_dump(exclude={"version"}) == observed
+
+
+@pytest.mark.parametrize(
+    ("backend_id", "image_position", "system_placement"),
+    [
+        ("openai", "after_text", "system_message"),
+        ("openai_gpt51", "after_text", "system_message"),
+        ("deepseek", "after_text", "system_message"),
+        ("anthropic", "before_text", "top_level_system"),
+        ("gemini", "after_text", "system_instruction"),
+        ("llama_server_qwen3vl", "before_text", "system_message"),
+    ],
+)
+def test_every_wired_arm_records_payload_format_v1(backend_id, image_position, system_placement):
+    # 2026-10-06 audit against each provider's current docs found no
+    # recommended deviation, so every adapter stays at its wiring-time packing.
+    vlm = _shipped_vlm()
+    payload_format = describe_effective_sampling(
+        resolve_reasoner_config(vlm, backend_id), load_backend_config(vlm, backend_id)
+    ).payload_format
+    assert (
+        payload_format.version,
+        payload_format.image_position,
+        payload_format.system_placement,
+        payload_format.json_guidance,
+    ) == ("v1", image_position, system_placement, "prompt_only")
+
+
+def test_text_only_llama_server_records_no_image_position():
+    payload_format = describe_payload_format(LlamaServerBackendConfig(model_id="cosmos"))
+    assert payload_format.image_position is None
+
+
+def test_gemini_force_schema_records_response_schema_guidance():
+    payload_format = describe_payload_format(GeminiBackendConfig(force_schema=True))
+    assert payload_format.json_guidance == "response_schema"
+
+
+def test_mock_backend_records_no_payload_format():
+    assert describe_payload_format(None) is None

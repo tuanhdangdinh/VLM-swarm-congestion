@@ -5,7 +5,19 @@ from pathlib import Path
 
 import requests
 
-from reasoning.vlm.models import BackendResponse, PromptPayload, ReasonerConfig
+from reasoning.vlm.models import BackendResponse, PayloadFormat, PromptPayload, ReasonerConfig
+
+# Transport conventions (format audit 2026-10-06): the Qwen3-VL-8B-Instruct
+# model card's only example puts the image part before the text, as does the
+# Cosmos Reason 2 guide; llama-server's README documents `image_url` parts
+# without an order. No detail flag exists. `response_format` stays unsent
+# (constrained-decoding prohibition). Unchanged since wiring. A server with no
+# mmproj sends text only (`image_position` None in the effective config).
+PAYLOAD_FORMAT = PayloadFormat(
+    version="v1",
+    image_position="before_text",
+    system_placement="system_message",
+)
 
 
 class LlamaServerBackend:
