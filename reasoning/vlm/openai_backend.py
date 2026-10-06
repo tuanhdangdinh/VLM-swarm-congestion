@@ -71,8 +71,16 @@ class OpenAIBackend:
                 f"OpenAI returned HTTP {resp.status_code}: {resp.text[:400]}"
             )
 
-        data = resp.json()
-        message = data["choices"][0]["message"]
+        try:
+            data = resp.json()
+            message = data["choices"][0]["message"]
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
+            # A body the provider closes mid-stream or a non-JSON 200 is a
+            # transport failure for the standing retry policy, never an
+            # exception out of `Reasoner.run` (transport hotfix, F01).
+            raise ConnectionError(
+                f"OpenAI-compatible response body malformed: {type(exc).__name__}"
+            ) from exc
         text = message.get("content")
         if text is None:
             text = message.get("refusal") or ""

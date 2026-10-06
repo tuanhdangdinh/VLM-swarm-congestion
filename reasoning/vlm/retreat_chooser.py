@@ -1,7 +1,7 @@
 """Stage-2 retreat-choice call: prompt -> backend -> parse, bounded like stage 1."""
 
 from reasoning.vlm.backend_base import VLMBackend
-from reasoning.vlm.errors import BackendTimeoutError, RetreatLabelError, VLMOutputParseError
+from reasoning.vlm.errors import BackendTimeoutError, RetreatLabelError
 from reasoning.vlm.models import (
     ReasonerConfig,
     RetreatChoiceDecision,
@@ -86,7 +86,9 @@ class RetreatChooser:
                     request, backend_id, invalid, raw_text, attempts, latency_ms,
                     "invalid_label", type(exc).__name__, str(exc), refusals,
                 )
-            except VLMOutputParseError as exc:
+            except Exception as exc:
+                # The parser's own errors and any unexpected one alike: the
+                # attempt returned text that yielded no letter (hotfix F01).
                 refused = is_refusal(response.text)
                 refusals += int(refused)
                 cause = "refusal" if refused else "parse_failure"

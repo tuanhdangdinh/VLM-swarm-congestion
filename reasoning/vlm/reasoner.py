@@ -11,8 +11,6 @@ from PIL import Image
 from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.errors import (
     BackendTimeoutError,
-    DecisionValidationError,
-    VLMOutputParseError,
 )
 from reasoning.vlm.models import (
     BackendResponse,
@@ -272,6 +270,11 @@ class Reasoner:
     def run(self, request: ReasonerRequest) -> ReasonerResult:
         """Execute one complete reasoning pass with bounded retry/re-ask.
 
+        Only invalid caller input raises, before any backend call; once the
+        first attempt starts, every failure -- whatever exception class an
+        adapter or the parser raises -- is a recorded attempt and the call
+        ends in a `ReasonerResult`.
+
         Args:
             request: Validated reasoning request.
 
@@ -309,6 +312,15 @@ class Reasoner:
                 attempts += 1
                 try:
                     response = invoke_backend(self._backend, payload, self._config)
+                except Exception as exc:
+                    # Timeouts, transport errors and anything else an adapter
+                    # raises (a malformed provider body, a response-model
+                    # validation error) are each one recorded attempt, never
+                    # an escape from `run`: the M2 contract is decision=None
+                    # after bounded retries (transport hotfix, F01).
+                    last_error_type, last_error_msg = type(exc).__name__, str(exc)
+                    continue
+                try:
                     last_raw = response.text
                     last_unsupported_sampling = _extract_unsupported_sampling(response.raw)
                     last_served_model = response.served_model
@@ -342,10 +354,10 @@ class Reasoner:
                             decision_degradations=degradations,
                         ),
                     )
-                except (BackendTimeoutError, ConnectionError) as exc:
-                    last_error_type, last_error_msg = type(exc).__name__, str(exc)
-                    continue
-                except (VLMOutputParseError, DecisionValidationError) as exc:
+                except Exception as exc:
+                    # A response came back, so any failure reading it -- the
+                    # parser's own errors or an unexpected one -- is a parse
+                    # failure of this attempt (transport hotfix, F01).
                     had_parse_failure = True
                     last_error_type, last_error_msg = type(exc).__name__, str(exc)
                     refused = is_refusal(last_raw or "")
@@ -371,6 +383,24 @@ class Reasoner:
                 attempts=attempts,
                 error_type=last_error_type,
                 error_message=last_error_msg,
+                raw_text=last_raw,
+                unsupported_sampling=last_unsupported_sampling,
+                effective_sampling=self._effective_sampling,
+                refusal_attempts=refusal_attempts,
+                image_fallback_used=image_fallback_attempt is not None,
+                image_fallback_attempt=image_fallback_attempt,
+                served_model=last_served_model,
+            )
+        except Exception as exc:
+            # Last-resort net (e.g. the fallback scratch directory cannot be
+            # created): the call still ends as a recorded failure, never as an
+            # exception out of `run` (transport hotfix, F01).
+            return build_failed_result(
+                request=request,
+                backend_id=self._config.backend_id,
+                attempts=max(attempts, 1),
+                error_type=type(exc).__name__,
+                error_message=str(exc),
                 raw_text=last_raw,
                 unsupported_sampling=last_unsupported_sampling,
                 effective_sampling=self._effective_sampling,

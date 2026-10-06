@@ -66,6 +66,8 @@ class AnthropicBackend:
             raise ConnectionError(f"Anthropic request timed out: {exc}") from exc
         except requests.exceptions.ConnectionError as exc:
             raise ConnectionError(f"Anthropic connection failed: {exc}") from exc
+        except requests.exceptions.RequestException as exc:
+            raise ConnectionError(f"Anthropic request failed: {type(exc).__name__}") from exc
 
         if resp.status_code >= 400:
             # Truncate and never echo request headers/body — avoids leaking the key.
@@ -73,7 +75,10 @@ class AnthropicBackend:
                 f"Anthropic returned HTTP {resp.status_code}: {resp.text[:400]}"
             )
 
-        data = resp.json()
+        try:
+            data = resp.json()
+        except ValueError as exc:
+            raise ConnectionError("Anthropic response body malformed") from exc
         return BackendResponse(
             text=self._extract_text(data),
             backend_id=self.model_id,
