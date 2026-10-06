@@ -331,6 +331,34 @@ no-intervention ARM is registered into collection; if any cell
 self-resolves, that is a design finding for the oracle (the cell may
 not need Layer 2) and goes to the owner before collection.
 
+**v3.4 re-pin LANDED + rulings (2026-10-06,
+`docs/reports/2026-10-06-v34-repin.md`):** ACCEPTANCE PASSED —
+Sonnet 3/3 unrefused on the exact stimuli it refused 3/3 under
+v3.3; 15/15 five-arm replay decisions valid; v3.4 baseline digest
+`6d08540f…` (full lineage in the builder); format audit found ZERO
+payload deviations from provider docs — conventions now pinned to
+the wire via `payload_format` in effective-config. gpt-5.1
+dynamics COMPLETE: conflict_prediction 15/20, the false-alarm
+shape (GT-no 5/10). RULINGS on the open items:
+(1) ER-2 KEEPS its frozen 2-attempt/no-fallback pin — a principled
+parity exception: its config is v1-frozen and refusal mitigation
+is demonstrably moot for it (0 refusals in every recorded call);
+revisit only if ER-2 ever refuses;
+(2) gpt-5.1's Responses-API migration DEFERRED (comparability cost
+on a pilot arm; decide at the v2 freeze if promoted);
+(3) the agent's payload_format versioning reading is RATIFIED
+(version bumps only when packing changes — v1 everywhere, since
+nothing changed);
+(4) Sonnet's collection-scale refusal rate under v3.4 is a WATCH
+ITEM measured by its first scored runs (Anthropic also names the
+JSON `reasoning` field as a trigger; 0/3 here, n small); the v3.3
+91/96 refusal result stays a retained finding.
+WIRE-NEXT (user 2026-10-06): Molmo2-ER (4B open embodied
+specialist, Apache 2.0, vLLM — the cross-lab specialist-replication
+arm, fits beside Isaac) and gemini-3.8-flash (same-lab generalist —
+the lab-controlled specialization contrast for ER-2's dynamics
+lead). Qwen-32B/3.8-27B offline battery pass stays optional.
+
 **Reasoning-dose pilot (registered 2026-10-06, PILOT — runs AFTER
 the v3.4/format-audit re-pin lands so doses are measured on the
 final prompt and payloads):** provider-side reasoning modes are a
