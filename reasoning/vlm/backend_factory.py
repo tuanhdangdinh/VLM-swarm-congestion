@@ -126,10 +126,13 @@ def describe_payload_format(backend_config: BackendConfig | None) -> PayloadForm
             )
         return gemini_backend.PAYLOAD_FORMAT
     if isinstance(backend_config, LlamaServerBackendConfig):
+        update: dict[str, str | None] = {}
         if backend_config.mmproj_path is None:
-            return llama_server_backend.PAYLOAD_FORMAT.model_copy(
-                update={"image_position": None}
-            )
+            update["image_position"] = None
+        if backend_config.system_placement != "system_message":
+            update["system_placement"] = backend_config.system_placement
+        if update:
+            return llama_server_backend.PAYLOAD_FORMAT.model_copy(update=update)
         return llama_server_backend.PAYLOAD_FORMAT
     return None
 
@@ -288,6 +291,7 @@ def build_backend(
             model_id=backend_config.model_id,
             mmproj_path=backend_config.mmproj_path,
             multi_image=backend_config.multi_image,
+            system_placement=backend_config.system_placement,
         )
     if backend_id == "openai":
         if backend_config is None:

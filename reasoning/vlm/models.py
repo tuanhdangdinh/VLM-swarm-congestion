@@ -637,7 +637,11 @@ class PayloadFormat(BaseModel):
     # None when the request carries no image (text-only llama_server).
     image_position: Literal["before_text", "after_text"] | None
     # Where the static preamble (`PromptPayload.system_prompt`) is placed.
-    system_placement: Literal["system_message", "top_level_system", "system_instruction"]
+    # "user_prefix": prepended to the user text in the only (user) turn, for a
+    # served model whose chat template rejects a system role (Molmo2-ER).
+    system_placement: Literal[
+        "system_message", "top_level_system", "system_instruction", "user_prefix"
+    ]
     # The per-image detail flag sent, or None when the API has none / it is unsent.
     image_detail: str | None = None
     # "prompt_only": JSON is requested in the prompt text, no `response_format`
@@ -775,6 +779,13 @@ class LlamaServerBackendConfig(BaseModel):
     # multi-image through llama-server's mtmd path must be smoke-verified per
     # served model before a config turns it on.
     multi_image: bool = False
+    # Transport placement of the static preamble. "system_message" (default,
+    # every existing arm) sends it as a system turn; "user_prefix" prepends it
+    # to the user text with a blank line, for a served model whose chat
+    # template accepts only alternating user/assistant turns (Molmo2-ER's
+    # `chat_template.jinja` raises on a leading system role). The text is
+    # unchanged either way; only its turn moves.
+    system_placement: Literal["system_message", "user_prefix"] = "system_message"
 
 
 class OpenAIBackendConfig(BaseModel):

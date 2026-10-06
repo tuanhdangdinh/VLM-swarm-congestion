@@ -753,7 +753,10 @@ _ARM_ENV = {
     "deepseek": ("openai_backend", "DEEPSEEK_API_KEY"),
     "anthropic": ("anthropic_backend", "ANTHROPIC_API_KEY"),
     "gemini": ("gemini_backend", "GEMINI_API_KEY"),
+    "gemini_flash": ("gemini_backend", "GEMINI_API_KEY"),
     "llama_server_qwen3vl": ("llama_server_backend", None),
+    "llama_server_molmo2er": ("llama_server_backend", None),
+    "zhipu_glm": ("openai_backend", "ZHIPUAI_API_KEY"),
 }
 
 
@@ -779,6 +782,11 @@ def _observed_format(body: dict) -> dict:
         placement, parts = "system_instruction", body["input"]
     elif "system" in body:
         placement, parts = "top_level_system", body["messages"][0]["content"]
+    elif body["messages"][0]["role"] == "user":
+        assert len(body["messages"]) == 1
+        parts = body["messages"][0]["content"]
+        assert next(p["text"] for p in parts if p["type"] == "text").startswith("sys\n\n")
+        placement = "user_prefix"
     else:
         assert body["messages"][0]["role"] == "system"
         placement, parts = "system_message", body["messages"][1]["content"]
@@ -813,7 +821,10 @@ def test_recorded_payload_format_matches_the_request_actually_sent(
         ("deepseek", "after_text", "system_message"),
         ("anthropic", "before_text", "top_level_system"),
         ("gemini", "after_text", "system_instruction"),
+        ("gemini_flash", "after_text", "system_instruction"),
         ("llama_server_qwen3vl", "before_text", "system_message"),
+        ("llama_server_molmo2er", "before_text", "user_prefix"),
+        ("zhipu_glm", "after_text", "system_message"),
     ],
 )
 def test_every_wired_arm_records_payload_format_v1(backend_id, image_position, system_placement):

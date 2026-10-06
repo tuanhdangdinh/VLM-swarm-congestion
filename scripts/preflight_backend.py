@@ -47,32 +47,38 @@ from reasoning.vlm.models import PromptPayload  # noqa: E402
 _LIST_TIMEOUT_SEC = 30
 
 
-def list_served_models(adapter: str, base_url: str, api_key_env: str) -> list[str]:
-    """Return the model ids a hosted provider's `GET /models` lists.
+def list_served_models(adapter: str, base_url: str, api_key_env: str | None) -> list[str]:
+    """Return the model ids a provider's or local server's model listing names.
 
     Args:
-        adapter: "openai" (any OpenAI-compatible provider) or "anthropic".
+        adapter: "openai" (any OpenAI-compatible provider), "anthropic",
+            "gemini" (`GET /models`, ids without the `models/` prefix) or
+            "llama_server" (a local OpenAI-compatible server, no key).
         base_url: The arm's configured base URL.
-        api_key_env: Name of the env var holding the key.
+        api_key_env: Name of the env var holding the key; None for a local server.
 
     Returns:
-        Every listed model id (all pages for Anthropic).
+        Every listed model id (all pages for Anthropic and Gemini).
 
     Raises:
         ValueError: The key is not set, or the adapter has no listing here.
         ConnectionError: The listing request failed.
     """
-    key = os.environ.get(api_key_env, "").strip()
-    if not key:
-        raise ValueError(f"{api_key_env} is not set in the environment")
-    if adapter == "openai":
-        headers = {"Authorization": f"Bearer {key}"}
-    elif adapter == "anthropic":
-        headers = {"x-api-key": key, "anthropic-version": "2023-06-01"}
-    else:
-        raise ValueError(f"no model listing for adapter {adapter!r}")
+    headers: dict[str, str] = {}
+    if adapter != "llama_server":
+        key = os.environ.get(api_key_env or "", "").strip()
+        if not key:
+            raise ValueError(f"{api_key_env} is not set in the environment")
+        if adapter == "openai":
+            headers = {"Authorization": f"Bearer {key}"}
+        elif adapter == "anthropic":
+            headers = {"x-api-key": key, "anthropic-version": "2023-06-01"}
+        elif adapter == "gemini":
+            headers = {"x-goog-api-key": key}
+        else:
+            raise ValueError(f"no model listing for adapter {adapter!r}")
     ids: list[str] = []
-    params: dict[str, str] = {}
+    params: dict[str, str] = {"pageSize": "1000"} if adapter == "gemini" else {}
     while True:
         resp = requests.get(
             f"{base_url.rstrip('/')}/models",
@@ -83,6 +89,16 @@ def list_served_models(adapter: str, base_url: str, api_key_env: str) -> list[st
         if resp.status_code >= 400:
             raise ConnectionError(f"model listing HTTP {resp.status_code}: {resp.text[:200]}")
         data = resp.json()
+        if adapter == "gemini":
+            ids.extend(
+                entry["name"].removeprefix("models/")
+                for entry in data.get("models", [])
+                if "name" in entry
+            )
+            if data.get("nextPageToken"):
+                params = {"pageSize": "1000", "pageToken": data["nextPageToken"]}
+                continue
+            return ids
         ids.extend(entry["id"] for entry in data.get("data", []) if "id" in entry)
         if adapter == "anthropic" and data.get("has_more") and data.get("last_id"):
             params = {"after_id": data["last_id"]}
@@ -120,7 +136,9 @@ def main() -> int:
     print("effective", json.dumps(effective.model_dump(mode="json"), sort_keys=True))
 
     if args.list_models:
-        ids = list_served_models(adapter, backend_config.base_url, backend_config.api_key_env)
+        ids = list_served_models(
+            adapter, backend_config.base_url, getattr(backend_config, "api_key_env", None)
+        )
         listed = backend_config.model_id in ids
         print("listing_count", len(ids), "model_id_listed", listed)
         if not listed:
