@@ -12,6 +12,7 @@ from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.errors import (
     BackendTimeoutError,
     VLMOutputParseError,
+    recorded_error_type,
 )
 from reasoning.vlm.models import (
     BackendResponse,
@@ -27,6 +28,7 @@ from reasoning.vlm.output_parser import (
     validate_involved_robots,
 )
 from reasoning.vlm.prompt_builder import build_prompt_payload
+from reasoning.vlm.retry_policy import DEFAULT_RETRY_POLICY, RetryPolicy, classify_failure
 
 # Formatted via _REASK_SUFFIX.format(error_message=...) in build_reask_prompt.
 _REASK_SUFFIX = (
@@ -264,6 +266,7 @@ class Reasoner:
         backend: VLMBackend,
         config: ReasonerConfig,
         effective_sampling: EffectiveSamplingConfig | None = None,
+        retry_policy: RetryPolicy = DEFAULT_RETRY_POLICY,
     ) -> None:
         """Wire a backend to its runtime config.
 
@@ -274,10 +277,13 @@ class Reasoner:
                 result, built by `describe_effective_sampling`. Optional so a
                 test harness or a script may construct a `Reasoner` without the
                 backend's own config; then nothing is recorded.
+            retry_policy: Backoff between failed attempts (conformance
+                ruling F02); the shared default for every arm.
         """
         self._backend = backend
         self._config = config
         self._effective_sampling = effective_sampling
+        self._retry_policy = retry_policy
 
     def run(self, request: ReasonerRequest) -> ReasonerResult:
         """Execute one complete reasoning pass with bounded retry/re-ask.
@@ -319,6 +325,7 @@ class Reasoner:
         refusal_attempts = 0
         refusal_category: str | None = None
         image_fallback_attempt: int | None = None
+        waited_sec = 0.0
         # One entry per attempt, refused ones included: a refusal is billed.
         attempt_usage: list[dict[str, int] | None] = []
         # Created only when the mitigation actually fires, so the common path
@@ -331,17 +338,22 @@ class Reasoner:
                 structured_refusal = False
                 try:
                     response = invoke_backend(self._backend, payload, self._config)
-                except (BackendTimeoutError, ConnectionError) as exc:
-                    attempt_usage.append(None)
-                    last_error_type, last_error_msg = type(exc).__name__, str(exc)
-                    continue
                 except Exception as exc:
-                    # Anything else an adapter raises (a malformed provider
-                    # body, a response-model validation error) is still one
-                    # recorded attempt, never an escape from `run`: the M2
-                    # contract is decision=None after bounded retries.
+                    # Timeouts, transport and HTTP errors, and anything else an
+                    # adapter raises (a malformed provider body, a
+                    # response-model validation error) are each one recorded
+                    # attempt, never an escape from `run`: the M2 contract is
+                    # decision=None after bounded retries.
                     attempt_usage.append(None)
-                    last_error_type, last_error_msg = type(exc).__name__, str(exc)
+                    last_error_type, last_error_msg = recorded_error_type(exc), str(exc)
+                    if classify_failure(exc) == "stop":
+                        # A deterministic 4xx: repeating the same request
+                        # cannot succeed, so the budget is not spent on it.
+                        break
+                    if attempts < self._config.max_attempts:
+                        waited_sec += self._retry_policy.wait_before_retry(
+                            exc, attempts, waited_sec
+                        )
                     continue
                 attempt_usage.append(response.token_usage)
                 try:

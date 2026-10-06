@@ -6,6 +6,7 @@ from pathlib import Path
 import requests
 
 from reasoning.vlm.models import BackendResponse, PayloadFormat, PromptPayload, ReasonerConfig
+from reasoning.vlm.transport import http_error
 
 # Transport conventions (format audit 2026-10-06): the Qwen3-VL-8B-Instruct
 # model card's only example puts the image part before the text, as does the
@@ -89,9 +90,10 @@ class LlamaServerBackend:
             raise ConnectionError(f"llama-server request failed: {type(exc).__name__}") from exc
 
         if resp.status_code >= 400:
-            raise ConnectionError(
-                f"llama-server returned HTTP {resp.status_code}: {resp.text[:400]}"
-            )
+            # Classified for the shared retry policy (429/5xx retried with
+            # backoff, other 4xx final); the message is truncated and never
+            # echoes request headers or body, so the key cannot leak.
+            raise http_error("llama-server", resp)
 
         try:
             data = resp.json()

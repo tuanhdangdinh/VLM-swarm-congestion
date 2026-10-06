@@ -121,3 +121,14 @@ def synthetic_logs_root(tmp_path):
             scenario="scene_c",
         )
     return tmp_path
+
+
+@pytest.fixture(autouse=True)
+def _no_real_retry_backoff(monkeypatch):
+    """Make the shared M2 retry policy's default sleep a no-op in unit tests.
+
+    The policy (conformance ruling F02) waits seconds between retryable
+    attempts; tests that exercise retries would otherwise sleep for real.
+    Tests that assert on the waits inject their own `RetryPolicy(sleep=...)`.
+    """
+    monkeypatch.setattr("reasoning.vlm.retry_policy._sleep_impl", lambda seconds: None)
