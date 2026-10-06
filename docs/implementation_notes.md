@@ -5223,6 +5223,18 @@ Rules for maintaining it:
 
 ## M2 VLM / M5 Orchestrator Pipeline
 
+- **2026-10-07** — **Provider-conformance review of the nine-arm backend layer: no CRITICAL findings, 5 HIGH, request construction clean** (branch `feat/v2-conformance-review` off `060abe0`; report `docs/reports/2026-10-07-conformance-review.md`; REVIEW ONLY, no code changed, $0 spend).
+  - Docs were fetched on 2026-10-07 and cited per finding.
+  - HIGH findings:
+    - F01: Anthropic and llama_server let `ChunkedEncodingError` escape `Reasoner.run`, and llama_server and Gemini let a non-JSON 200 escape. Reproduced with a local socket probe. M5 records "reasoner raised" with attempts 1 and no diagnostics.
+    - F02: no status taxonomy, backoff or `Retry-After` on any arm.
+    - F03: only Anthropic's structured refusal is recognised; Gemini blocked codes and Zhipu 1301 land in transport, and `content_filter`/`sensitive` in parse.
+    - F04: `served_model` equals the request id on all nine arms, so the Group-D rolling-pin condition has no signal. DeepSeek documents `system_fingerprint`.
+    - F05: gemini_flash's 2,048 `max_output_tokens` includes thought tokens (measured 1,963), and `status: incomplete` is never read. **UNRULED.**
+  - New lifecycle fact: gpt-5.1 was deprecated on 2026-10-01, with shutdown on 2027-04-01 (OpenAI deprecations page).
+  - Gotcha: the pre-existing red `test_factory_requires_config_for_openai` is real drift. The factory silently defaults openai to the floating `gpt-4o` (F27).
+  - Suite: zero delta (63 failed / 5,256 passed / 153 skipped / 3 errors, before and after).
+
 - **2026-09-26** — **Rev 7 consolidates the night: two live batches and two
   safety-metric corrections** (`docs/reports/2026-09-25-overnight-findings.md`
   §X–§AC). Detail is in the per-topic entries — the two 2026-09-26 entries below
