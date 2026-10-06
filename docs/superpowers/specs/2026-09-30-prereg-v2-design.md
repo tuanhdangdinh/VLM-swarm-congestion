@@ -331,6 +331,37 @@ no-intervention ARM is registered into collection; if any cell
 self-resolves, that is a design finding for the oracle (the cell may
 not need Layer 2) and goes to the owner before collection.
 
+**Model-wiring RESULTS + RULINGS (2026-10-06,
+`docs/reports/2026-10-06-model-wiring.md`):** Qwen3-VL-8B VALIDATED
+to the full standard (probes 57/60 — CI-overlapping the frontier
+baselines; co-resides with Isaac at 10.1/24.6 GB peak; multi-image
+passes; $0 API) and gpt-5.1 to the pilot standard (probes 54/60
+with a robot_count weakness + an all-"A" miss pattern; head-on:
+VLM_VERBATIM yield plan, resolved, best-yet delay 143.8 s; ZERO
+refusals — the 4o refusal profile did NOT carry over on static
+frames, dynamics untested). Sonnet 5.5 and DeepSeek are WIRED +
+unit-tested, live-blocked on missing keys (user supplies
+ANTHROPIC_API_KEY / DEEPSEEK_API_KEY). RULINGS:
+(1) the Sonnet arm's attempt/fallback config is set to PARITY with
+the other hosted arms (4 attempts + grey-image fallback) —
+comparability over conservatism;
+(2) DeepSeek RE-PINNED to the live successor (`deepseek-flash`,
+V4.1-Flash — the requested -exp ID is retired and served by
+V4.1; image budget is now ≤1024 tokens/image, so the 384-token
+compression question is OBSOLETE — update the exploratory-arm
+notes; verify the serving name against the live listing at run);
+(3) Qwen's plan-emission rate of 0/17 is a MEASURED MODEL PROPERTY,
+not a defect: NO per-model prompt forks (the scenario-agnostic
+single prompt is the design); the arm legitimately exercises the
+m3_default path, and emission rate is exactly what metric (i-a)
+measures;
+(4) comparison caveat recorded: pilot rows ran v3.2, new rows
+v3.3 — gpt-5.1's verbatim cannot be credited model-only; v3.3 is
+the single prompt for everything from here. OPTIONAL follow-up
+noted, not ordered: battery v2 (dynamics) on qwen + gpt-5.1
+(~$0.35) — conflict_prediction is the type that separates
+backends, and neither new arm has been tested on it.
+
 **Battery manifest audit CAVEAT + second trails null (2026-10-06,
 fork-session pilot; report `docs/reports/2026-10-06-trail-on-pilot.md`,
 adopted file-only — the fork's branch carries the whole v2 lineage
