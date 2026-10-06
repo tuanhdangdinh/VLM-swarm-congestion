@@ -37,6 +37,54 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-06** — **Verbatim pilot run, 11/11 registered episodes on the
+  v2 tree `a8fc1bc`, PILOT data** (`docs/reports/2026-10-06-verbatim-pilot.md`;
+  bundles in `data/logs/vm_runs/verbatim_pilot/`, gitignored). Run as
+  ER-2 ×8 and gpt-4o ×3, `RECORD=0`, prompt v3.2, with no apparatus
+  re-runs.
+  - **Trigger-plan provenance:** 3 vb / 7 repaired / 1 m3, falling with
+    complexity: 1-robot 1/1 vb, head-on 1/5, B1 1/2, IB10 0/3. Emission
+    11/11 and consistency 11/11.
+  - **Main repair driver is list order.** ER-2 lists legs in slot order,
+    and 4/7 of its multi-robot trigger plans needed a `reorder`; 2 were
+    reorder-only.
+  - **junction_clear shape.** Every ER-2 junction_clear plan (3/3 with the
+    calibration) needed the inside-pair yielder substituted: the v3.2 gloss
+    never names that leg.
+  - **IB10 recede set is unstable.** ER-2 gave E-W, N-S and all-four
+    across three runs. gpt-4o chose junction_clear 0/13 times and its 11
+    verbatim plans still ended `clogged`.
+  - **Refusals:** gpt-4o 1 refused attempt in 21, 0 terminal, 0 grey
+    fallback.
+  - **Spend:** ≈ $0.33.
+  - **Grammar and metric options** for the freeze are in the report's
+    pre-freeze section; nothing was edited.
+  - **Gotcha — single-robot scenes DO trip M5's stall detector.** It is a
+    per-robot 12 s progress check, so a lone robot that stops is enough.
+    The 2026-10-06 live reroute demo and this pilot's reroute replicate
+    suppress it with the overlay's `stall_threshold_sec: 600` (plus
+    `failure_context_window_sec` and `shadow_classical_window_sec` 700). They
+    hold robot_1 with `start_delay_sec` 75 and trigger through the manual
+    `/orchestrator/trigger_analysis` probe. State which mode a single-robot
+    run used: suppression forfeits natural re-analysis data.
+  - **Gotcha — manual-trigger analyses log no `starting analysis` line.**
+    Order them by the artifact's `scene.stamp`; trap 10's M5-log rule finds
+    none.
+  - **Gotcha — zsh `$VAR:h…` is a path modifier.** `$HO:ho_orchestrator.yaml`
+    in a local double-quoted ssh string became `.o_orchestrator.yaml`. It
+    cost one no-launch attempt with zero spend. Pass colon-joined run specs
+    from a file, never through a zsh-expanded string.
+  - **Gotcha — B1 stage 2 chose the rank-0 2× lateral candidate 2/2.**
+    Both yields then failed after about 250 s, the Rev 20 (a) / Rev 22
+    defect, so both B1 episodes are excluded from flow metrics and
+    decision-scored. A phantom `robot_17` (M1 misdetection at robot_1's
+    spawn) recurred in B1 s42.
+  - **v2 reroute:** the declared reroute COMPLETED on the v2 tree (n = 1),
+    after a latch before dispatch.
+  - **VM:** restored. The source manifest is identical to pre-pilot, and
+    the installed tree is identical except for `.pyc` headers (bodies equal).
+    Configs `1f656533…` / `e18c723c…`, GPU idle, left RUNNING.
+
 - **2026-10-05** — **`free_flow_v1` FROZEN, solo-in-space, 22/22 runs
   valid** (`docs/reports/2026-10-05-free-flow-table.md`; branch
   `feat/v2-freeflow-harvest`, code `b3a4c99`, table `fc8c704`). This
