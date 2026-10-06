@@ -24,6 +24,36 @@
 **Status:** DESIGN — nothing here is built for v3. The v3 freeze
 happens only after v2 collection and analysis complete.
 
+**SCENE DESIGN ATTACHED (2026-10-06):**
+`docs/superpowers/specs/2026-10-06-v3-scene-design.md` (S1–S6,
+code-derived geometry, migration table, 9-item build list) is the
+detail layer under Steps 1–5. Coordinator rulings on its
+escalations:
+- **S1 density framing (material):** the literal Ghofrani analog is
+  INFEASIBLE — our tracked band is ~51% racks, giving 5.4 free
+  0.55 m cells/agent at N=5 vs their 40.5, i.e. OUR N=5 floor sits
+  at their N≈37 density, beyond their N=25 regime where 76–91% of
+  runs failed. S1 is therefore registered as "their structure, our
+  (much harsher) density regime" — a documented deviation and an
+  expectation-setter (low completion is a finding, not a failure),
+  never presented as matched density.
+- **MAPD-10 rung STRUCK from Step 5** (density worsens with N); the
+  scale rungs are S5's convergence geometry at N=8 AND N=10 (the
+  derived layout admits both), classification/triage-only.
+- **S3/S2 ε for axis sets:** adopt the per-episode equivalence rule
+  (judged at the dispatched snapshot, out-of-ε stratum reported);
+  ε_set sizing deferred to Step 0's fixed-stack jam corpus — note
+  the trade-off recorded in the scene doc (ε_set≈0.28 cleans S3 but
+  un-guarantees S2's floor at its weakest jams).
+- **New build items absorbed into the Step-6 gate list:** the
+  dispatch-off probe flag (t0_probe_mode does NOT suppress
+  dispatch — scene-doc correction), the parked-robot exclusion in
+  mirrored grounding, dynamic per-snapshot `arms` + node-handoff
+  grounding (S1's largest prerequisite), and marker 5–10 rendering
+  verification (never rendered to date).
+- S1 remains the first item to slip under schedule pressure, per
+  both documents.
+
 **Reference pinning:** the cited reports live on specific branches,
 not the spec lineage: `docs/reports/2026-10-05-costmap-fix-validation.md`
 at `feat/v3-costmap-fix@0b2e755`; the source-probe, verbatim-pilot,
