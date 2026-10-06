@@ -331,6 +331,28 @@ no-intervention ARM is registered into collection; if any cell
 self-resolves, that is a design finding for the oracle (the cell may
 not need Layer 2) and goes to the owner before collection.
 
+**Reasoning-dose pilot RESULT — settings FROZEN (2026-10-07,
+`docs/reports/2026-10-07-reasoning-dose-pilot.md`; rule committed
+pre-call at 28d453c, applied mechanically):** NO arm adopts a
+higher dose. Frozen for collection: gpt-5.1 `reasoning_effort:
+none`; Sonnet `thinking: between_tools`; ER-2 `thinking_level:
+low`; DeepSeek thinking `disabled`. Evidence: gpt-5.1 net 0
+(p=1.0); Sonnet net 0 (its "small budget" question is UNANSWERABLE
+— the API rejects budget_tokens, and adaptive-low chose not to
+think on 20/20 calls); ER-2 medium +1, short of margin, p90
+latency already brushing the 15 s bound; **DeepSeek
+thinking-enabled CRATERS: 19→6 (p=0.0002)** — ~2k thinking tokens
+blow the 2048 output cap, 12/20 answers came back empty (TRAP
+recorded: any future DeepSeek thinking use needs max_tokens well
+above 2048; the 6 completed calls were all correct).
+RULING on the Sonnet residual: NO higher-dose extension run —
+from its 17/20 baseline the registered +3 margin requires 20/20,
+i.e. the adoption criterion SATURATES; a medium-effort run could
+never change the frozen setting under the standing rule, so it
+would be curiosity spend, not a decision input. Margin saturation
+noted as a general property: arms at ≥17/20 cannot adopt by this
+rule.
+
 **v3.4 re-pin LANDED + rulings (2026-10-06,
 `docs/reports/2026-10-06-v34-repin.md`):** ACCEPTANCE PASSED —
 Sonnet 3/3 unrefused on the exact stimuli it refused 3/3 under
