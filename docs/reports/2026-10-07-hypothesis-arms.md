@@ -6,6 +6,7 @@
 
 - Initial draft: H1/H2 reading rule registered before any battery call (results pending).
 - Rev 2: results for the two ruled arms and the scope-extension GLM arm; nine-arm table; H1/H2 verdicts.
+- Rev 3: ER-2 and other arms' stage-2 answers verified from artifacts; all six verbatim trigger decisions; clock-source note; Group-B wording softened.
 
 ---
 
@@ -267,7 +268,7 @@ Wilson 95% CIs. McNemar is exact two-sided on the 20 conflict_prediction items, 
 | Correct yielder pre-repair | 2/3 | 0/2 | 2/2 | 1/1 | 1/2 | 0/1 | **2/2** | **2/2** | **1/2** |
 | Outcome | resolved ×3 | intermittent, resolved | clogged, intermittent | resolved | resolved ×2 | resolved | **resolved ×2** | **resolved ×2** | **resolved ×2** |
 | Delay sum (s) | 149.8 / 148.9 / 147.4 | 153.3 / 147.9 | ≥ 320.6 / 183.6 | 143.8 | 366.6 / 222.3 | 146.5 | **157.0 / 157.0** | **147.0 / 150.3** | **150.8 / 152.5** |
-| Stage-2 (answered / degraded) | answered | answered | answered | answered | answered | answered | **0 / 2 (timeout)** | **2 / 0** | **2 / 0** |
+| Stage-2 in head-on (answered / degraded; in-episode latency) | 3 / 0 (3.9–5.2 s) | 2 / 0 (2.0 s) | 2 / 0 (3.9–4.0 s) | 1 / 0 (2.2 s) | 2 / 0 (2.7–6.7 s) | 1 / 0 (2.3 s) | **0 / 2 (timeout at 8 s, ×2 attempts each)** | **2 / 0** | **2 / 0** |
 | Stage-1 refused attempts | 0 | 1/21 | 0/17 | 0/5 | 91/96 (v3.3) | 0/5 | **0/9** | **0/10** | **0/9** |
 | Cost actuals (this report's work) | — | — | $0 | — | — | — | **≈ $0.32** | **$0** | **≈ $0.04** |
 
@@ -283,8 +284,10 @@ Earlier rows are carried from `docs/reports/2026-10-06-roster-validation.md` and
   | Google | ER-2: CP 16, yes 14/20 | gemini-3.8-flash: CP **20**, yes 10/20 |
   | Qwen backbone | Molmo2-ER: CP **9**, yes **19/20** | Qwen3-VL-8B: CP 15, yes 5/20 |
 
-  - On conflict_prediction, **the generalist is at or above the specialist in both rows**: Google 20 vs 16, Qwen backbone 15 vs 9.
-  - Embodied tuning does not buy dynamics accuracy on this battery in either family, and in the Qwen row the specialist shifts the response bias from never-yes to always-yes.
+  - On conflict_prediction, the generalist's point estimate is at or above the specialist's in both rows: Google 20 vs 16, Qwen backbone 15 vs 9.
+  - **This is no evidence, on this battery, that embodied tuning helps. It is not a positive finding that tuning hurts.**
+    - The Google contrast is not significant (p = 0.125).
+    - The Qwen-row specialist's 9/20 is a degenerate always-yes profile, which the registered rule says not to read as dynamics. Read descriptively, the specialist shifts the response bias from never-yes (Qwen) to always-yes (Molmo2-ER).
   - Plan emission splits by **backbone**, not by tuning: both Google arms emit verbatim plans; both Qwen-backbone arms never do (Molmo 0/2, Qwen 0/15).
   - Caveats: the quasi-family control is approximate. Molmo2 is Qwen3-4B with SigLIP2, not Qwen3-VL, and the scales differ: 4.85B bf16 against 8B Q4_K_M.
 - **C, the generation pair (gpt-4o → gpt-5.1).** Unchanged.
@@ -316,7 +319,7 @@ Earlier rows are carried from `docs/reports/2026-10-06-roster-validation.md` and
 
 **Joint reading.** The two verdicts point the same way:
 
-- On this battery, "embodied specialist" is not the variable that predicts dynamics reasoning.
+- On this battery there is no evidence that "embodied specialist" is the variable that predicts dynamics reasoning.
 - The two highest conflict_prediction scores are generalists: flash 20/20 and DeepSeek 19/20.
 - The specialists split: ER-2 16/20, Molmo2-ER 9/20, degenerate.
 
@@ -365,9 +368,14 @@ Every post-resolution re-check answered `congestion_detected=false`, with no dis
 
 **Verbatim trigger reasoning:**
 
-- **flash s42:** "Robots robot_1 and robot_2 are facing each other head-on within 0.22 m in a narrow corridor, resulting in a deadlock. One robot needs to yield or reverse to allow the other to pass through. robot_2 can yield backwards to the east where there is clear space, allowing robot_1 to proceed."
+- **flash s42:** "Robots robot_1 and robot_2 are facing each other head-on within 0.22 m in a narrow corridor, resulting in a deadlock. One robot needs to yield or reverse to allow the other to pass through. robot_2 can yield backwards to the east where there is clear space, allowing robot_1 to proceed." Plan `[{"action": "yield", "robot_id": "robot_2"}, {"action": "cross", "robot_id": "robot_1"}]`.
+- **flash s43:** "Robots robot_1 and robot_2 are stopped head-on inside a narrow aisle at a distance of 0.24 m, both facing each other and attempting to cross in opposite directions. This constitutes a classic two-robot head-on deadlock. robot_2 can yield or reverse to allow robot_1 to pass through, or vice-versa." / "Because the aisle cannot fit both robots side by side, one robot must back out and yield to let the other clear the corridor." Plan `[{"action": "yield", "robot_id": "robot_2"}, {"action": "cross", "robot_id": "robot_1"}]`.
 - **Molmo2-ER s42:** "Two robots are head-on and within ~0.5 m of each other, both stopped and facing each other in the same narrow aisle. This constitutes a deadlock situation." / "To resolve the deadlock, one robot should yield and back up while the other proceeds through the aisle."
-- **Molmo2-ER s43** justification: "The robot named in yield_robot should back up and step aside while the others pass". This is close to the prompt's own strategy gloss.
+- **Molmo2-ER s43** justification: "The robot named in yield_robot should back up and step aside while the others pass". This is close to the prompt's own strategy gloss. Both Molmo triggers: `"proposed_plan": null`, `yield_robot: "robot_2"`.
+- **GLM s42** (`id_asc`, so robot_1 is listed first; GLM still named robot_2): "robot_1 and robot_2 are stopped 0.38 m apart in a narrow aisle, head-on, each facing the other while trying to cross in opposite directions — a classic head-on standoff deadlock. robot_1 (goal +2.60, heading east) has its path forward partially constrained by the aisle; robot_2 (goal -1.50, heading west) is closer to its own side. robot_2 should back up to let robot_1 pass." / "Head-on standoff within 0.5 m in a narrow aisle qualifies as a deadlock; the robot with the shorter retreat should give way while the other crosses." Plan `[{"action": "yield", "robot_id": "robot_2"}, {"action": "cross", "robot_id": "robot_1"}]`.
+- **GLM s43** (`id_desc`; the wrong yielder, swap-repaired): "Two robots are stopped head-to-head 0.19 m apart in the narrow aisle, each facing the other while crossing in opposite directions — a classic head-on standoff deadlock in the constriction. One robot must back up and step aside so the other can pass; robot_1 (goal +x, exiting east) is better positioned to pass while robot_2 yields, but backing robot_1 out of the aisle entrance is simpler, so robot_1 yields." / "They are within 0.5 m, mutually facing, both STOPPED, in a single-lane aisle — a two-robot deadlock resolved by one robot backing out." Plan `[{"action": "yield", "robot_id": "robot_1"}, {"action": "cross", "robot_id": "robot_2"}]`.
+  - The reasoning names the correct yielder (robot_2) and then reverses itself on a "simpler" back-out. That is the self-correction pattern Sonnet showed under v3.4, here in the wrong direction.
+  - robot_1 has 0.70 m of retreat room against the 1.08 m required, so the registered swap gate re-grounded it to robot_2.
 
 **Flash stage-2 timeouts.** `stage2_timeout_sec` is 8.0 in the overlay, and stage-1 latencies were 3.8–9.6 s.
 
@@ -379,6 +387,22 @@ The diagnostic replay (`stage2_latency_diag/`; DIAGNOSTIC, outside every table) 
 | ER-2 | 9.6 s / 8.9 s | 621 / 453 |
 
 Flash's stage-2 thinking is about 4× ER-2's at the same `low` level, and it sits close to the 2,048 `max_output_tokens` (STOP item 2). The timeouts explain most of flash's +7–10 s delay over the other resolved arms.
+
+- **The replay ran from the Mac, not the VM.** Its wall times include the local network path and are not comparable with the in-episode 8 s bound; the thought-token counts are.
+- **ER-2's in-episode stage 2 is verified answered, not assumed.** In the verbatim pilot (same overlay md5, same 8 s bound), every arm answered stage 2 on attempt 1:
+  - ER-2: `vp01`–`vp03`, 3.9–5.2 s;
+  - gpt-4o: 2.0 s;
+  - Qwen: 3.9–4.0 s;
+  - gpt-5.1: 2.2 s;
+  - Sonnet: 2.7–6.7 s;
+  - DeepSeek: 2.3 s.
+- **Flash is the only arm on record to exceed the bound.** The separating quantity is thought-token volume (about 1,960 against ER-2's 450–620), not lab or adapter.
+
+**Clock sources (GT per-run offset trap).**
+
+- The trigger time column is the ROS-stamped M5 scene stamp.
+- Arrivals, delay sums and dissolution come from `ground_truth.jsonl` alone, through the same `coverage_scene_scores.py flow` scorer as every earlier row.
+- No column joins ROS-stamped data to GT, so the per-run GT clock offset does not enter any comparison here.
 
 **Comparability.** Every earlier arm's episodes ran v3.2 or v3.3; these ran v3.4. Provenance and edit counts are not like-for-like across that boundary, while the outcome metrics are comparable (same overlay, cell, goals, gate and scorer). Every episode is a validation/pilot episode, excluded from confirmatory counts.
 
