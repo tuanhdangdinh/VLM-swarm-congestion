@@ -109,7 +109,10 @@ class GeminiBackend:
                 f"Gemini returned HTTP {resp.status_code}: {resp.text[:400]}"
             )
 
-        data = resp.json()
+        try:
+            data = resp.json()
+        except ValueError as exc:
+            raise ConnectionError("Gemini response body malformed") from exc
         raw = dict(data)
         raw["unsupported_sampling"] = unsupported_sampling
         return BackendResponse(

@@ -85,14 +85,21 @@ class LlamaServerBackend:
             raise ConnectionError(f"llama-server request timed out: {exc}") from exc
         except requests.exceptions.ConnectionError as exc:
             raise ConnectionError(f"llama-server connection failed: {exc}") from exc
+        except requests.exceptions.RequestException as exc:
+            raise ConnectionError(f"llama-server request failed: {type(exc).__name__}") from exc
 
         if resp.status_code >= 400:
             raise ConnectionError(
                 f"llama-server returned HTTP {resp.status_code}: {resp.text[:400]}"
             )
 
-        data = resp.json()
-        text = data["choices"][0]["message"]["content"]
+        try:
+            data = resp.json()
+            text = data["choices"][0]["message"]["content"]
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
+            raise ConnectionError(
+                f"llama-server response body malformed: {type(exc).__name__}"
+            ) from exc
         token_usage = self._extract_usage(data)
 
         return BackendResponse(

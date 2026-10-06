@@ -3,6 +3,7 @@
 from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.errors import BackendTimeoutError, RetreatLabelError, VLMOutputParseError
 from reasoning.vlm.models import (
+    PromptPayload,
     ReasonerConfig,
     RetreatChoiceDecision,
     RetreatChoiceRequest,
@@ -54,8 +55,29 @@ class RetreatChooser:
             (unrendered) choice.
         """
         base_payload = build_stage2_prompt_payload(request)
-        payload = base_payload
         valid_labels = {candidate.label for candidate in request.candidates}
+        backend_id = self._config.backend_id
+        # One entry per attempt, refused ones included: a refusal is billed.
+        usage: list[dict[str, int] | None] = []
+
+        try:
+            return self._attempt_loop(request, base_payload, valid_labels, usage)
+        except Exception as exc:
+            # Last-resort net: stage 2 ends as a recorded failure, never an
+            # exception into M5 (the stage-1 `Reasoner.run` contract).
+            return self._result(
+                request, backend_id, None, None, max(len(usage), 1), None,
+                "backend_error", type(exc).__name__, str(exc), 0, usage,
+            )
+
+    def _attempt_loop(
+        self,
+        request: RetreatChoiceRequest,
+        base_payload: PromptPayload,
+        valid_labels: set[str],
+        usage: list[dict[str, int] | None],
+    ) -> RetreatChoiceResult:
+        payload = base_payload
         backend_id = self._config.backend_id
         attempts = 0
         raw_text: str | None = None
@@ -64,8 +86,6 @@ class RetreatChooser:
         error_type: str | None = None
         error_message: str | None = None
         refusals = 0
-        # One entry per attempt, refused ones included: a refusal is billed.
-        usage: list[dict[str, int] | None] = []
 
         while attempts < self._config.max_attempts:
             attempts += 1
@@ -95,7 +115,9 @@ class RetreatChooser:
                     request, backend_id, invalid, raw_text, attempts, latency_ms,
                     "invalid_label", type(exc).__name__, str(exc), refusals, usage,
                 )
-            except VLMOutputParseError as exc:
+            except Exception as exc:
+                # The parser's own errors and any unexpected one alike: the
+                # attempt returned (billed) text that yielded no letter.
                 refused = response.refusal or is_refusal(response.text)
                 refusals += int(refused)
                 cause = "refusal" if refused else "parse_failure"

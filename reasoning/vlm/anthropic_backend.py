@@ -115,6 +115,8 @@ class AnthropicBackend:
             raise ConnectionError(f"Anthropic request timed out: {exc}") from exc
         except requests.exceptions.ConnectionError as exc:
             raise ConnectionError(f"Anthropic connection failed: {exc}") from exc
+        except requests.exceptions.RequestException as exc:
+            raise ConnectionError(f"Anthropic request failed: {type(exc).__name__}") from exc
 
         if resp.status_code >= 400:
             # Truncate and never echo request headers/body — avoids leaking the key.
