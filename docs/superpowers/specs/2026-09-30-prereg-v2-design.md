@@ -370,6 +370,24 @@ gets derived junction fields is a v2-freeze decision — until then
 the tag is the registered behavior. (F) B1's stage-2 rank-0 2×
 defect recurred — already covered by the Rev 20/22 registered
 exclusion; both B1 pilot episodes decision-scored only.
+RULINGS A–D LANDED (2026-10-06, prompt v3.3, digests recorded in
+the builder's version history and
+`docs/reports/2026-10-06-verbatim-pilot.md`; +104 chars per pin,
+v3.3 baseline `769802f0…`): list-order line + extended
+junction_clear gloss; `repaired_order_only`,
+`verbatim_dispatch_matched`, `strategy_correct` + the
+provenance-by-strategy-correctness tabulation; held robots
+excluded from order agreement. Re-derivation over all 28 pilot
+plans confirms the intended effects (episodes 2/7 order-only; 6's
+agreement no longer false-by-construction; gpt-4o's 11 verbatim
+IB10 plans all conditioned out as strategy_incorrect).
+RULING (follow-up to C): `accepted_strategies` is registered for
+every cell by MECHANICAL DERIVATION from its existing oracle block
+(the strategy the oracle's own rationale/fields name — e.g.
+head-on family and B1 ⇒ {yield} from `correct_yielder`), never
+fresh judgment; the derivation lands with pins at the next scorer
+touch and MUST be in place before the v2 freeze so no cell sits in
+`strategy_unscored` by omission.
 congestion metric (the Arul & Manocha Voronoi-style scalar,
 arXiv:2202.11334) into the stage-1 prompt — it IS the congestion
 answer and would contaminate RQ1 classification. Permitted only
