@@ -161,8 +161,8 @@ imports and calls M1's `TrailHistory`, `draw_motion_trails`,
        of `int(round(...))` then depends on the last ulp of `inv(H) @ p`,
        which differs between the VM's and this Mac's numpy. Each tied
        point's rounding was chosen against the frozen frame.
-     - **Label glyphs.** These differ between OpenCV builds (VM vs Mac
-       cv2 5.0.0). Labels are therefore compared and protected as whole
+     - **Label glyphs.** These differ between OpenCV builds (the VM's
+       build vs this Mac's cv2 5.0.0). Labels are therefore compared and protected as whole
        rectangles.
    - **Decision frames.** For all 8 exact decision frames, the state that
      drew the frame is a neighbouring M1 message, −0.200 s to +0.233 s from
