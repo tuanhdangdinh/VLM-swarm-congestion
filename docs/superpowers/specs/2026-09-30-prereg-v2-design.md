@@ -318,6 +318,21 @@ frames provide.
   edge gate; yes-exclusion window asymmetry; reachability filter
   for "no" items) — all documented with candidate-level counts.
 
+**Verbatim pilot (registered 2026-10-06, PILOT — excluded from every
+confirmatory count, per the standing pilot rule):** a plan-complexity
+ladder probing when live plans execute verbatim, on the v2 branch
+(NOT the parked v3 fix — pilots must match collection behavior):
+ER-2 3× two-robot head-on (2-leg plan shape), 2× B1 bottleneck
+(3-robot), 2× IB10 (4-robot junction_clear, replicating the
+calibration's repaired-3-edits), 1× single-robot reroute replicate;
+gpt-4o 2× head-on + 1× IB10 (first live plans under the stated
+grammar for that backend; refusals are data). Measured per episode:
+emission, consistency, provenance, edit distance + which legs,
+oracle-order agreement PRE-repair, recede-set choice stability
+(mirror axis again?), outcome class. Purpose: preview the plan
+metrics' live distributions and decide whether the grammar or
+invitation needs a final pre-freeze adjustment.
+
 **Rejected with reason (2026-10-04):** feeding a computed
 congestion metric (the Arul & Manocha Voronoi-style scalar,
 arXiv:2202.11334) into the stage-1 prompt — it IS the congestion
