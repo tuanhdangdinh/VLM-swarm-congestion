@@ -34,6 +34,26 @@ naive "mark issued on send" model gets wrong:
 - **Status republish.** The command bus republishes each status ~3× (its
   re-publish timers). `on_status` acts only on the suppressed→resumed transition,
   so a republished COMPLETED does not thrash a fresh resume goal.
+
+Hand-off race guard (`handoff_guard`, default on; docs/reports/
+2026-10-08-ib10-remedy-validation.md run m4). The client learns of a command
+only when it processes `/coordination/commands`, which can lag the command
+bus's own dispatch by a few hundred ms. Two leaks let a base goal reach Nav2
+inside that window, and the guard closes both:
+
+- **Cross-robot resume fan-out.** A terminal for robot A used to return every
+  unaccepted robot's goal, so robot B's goal was re-sent on A's terminal even
+  though B's own successor command was already ACTIVE on the bus. With the
+  guard, a terminal resumes only its own robot; any other robot that still
+  needs a goal is re-issued by its own terminal or by `retry()`.
+- **Late acceptance.** A base goal sent before the hand-off can be accepted by
+  Nav2 after it. `on_goal_accepted` then reports it as not owned (returns
+  False) and does not record it, so the caller cancels it and the owner's
+  terminal still re-issues the base goal.
+
+The guard suppresses rather than defers: nothing is queued while a command
+owns the robot, and the existing terminal-driven resume stays the single,
+immediate re-issue point that reads the current registry goal.
 """
 from __future__ import annotations
 
@@ -45,7 +65,16 @@ _Goal = tuple[float, float]
 class BaseMissionDriver:
     """Decide which `navigate_to_pose` goals to (re)issue from registry/status."""
 
-    def __init__(self) -> None:
+    def __init__(self, handoff_guard: bool = True) -> None:
+        """Create a driver with no goals and no suppressed robots.
+
+        Args:
+            handoff_guard: Enable the hand-off race guard (module docstring).
+                False restores the pre-guard behaviour exactly: a terminal
+                resumes every unaccepted robot, and a late-accepted goal is
+                recorded as accepted.
+        """
+        self._handoff_guard = handoff_guard
         self._goals: dict[str, _Goal] = {}
         self._accepted: dict[str, _Goal] = {}
         # robot_id -> command_id that owns the suppression (see on_command).
@@ -83,6 +112,39 @@ class BaseMissionDriver:
             and robot_id not in self._held
             and self._accepted.get(robot_id) != goal
         ]
+
+    def _resume(self, robot_id: str, command_id: str) -> list[tuple[str, _Goal]]:
+        """Goals a terminal for `robot_id` re-issues (own robot only under the guard)."""
+        desired = self._desired()
+        if not self._handoff_guard:
+            return desired
+        others = sorted(rid for rid, _ in desired if rid != robot_id)
+        if others:
+            self._events.append(
+                "handoff guard: cross-robot resume suppressed "
+                f"trigger_robot={robot_id} trigger_command={command_id} "
+                f"suppressed={','.join(others)}"
+            )
+        return [(rid, goal) for rid, goal in desired if rid == robot_id]
+
+    def command_owner(self, robot_id: str) -> str | None:
+        """Return the command id that currently owns `robot_id`, or None."""
+        return self._suppressed_by.get(robot_id)
+
+    def holds_command(self, robot_id: str, command_id: str) -> bool:
+        """True while `command_id` owns `robot_id` and no successor has been seen.
+
+        Args:
+            robot_id: Robot to check.
+            command_id: Command expected to own the robot.
+
+        Returns:
+            True when `command_id` is the suppression owner and no different
+            command is queued behind it (`_pending_next`).
+        """
+        if self._suppressed_by.get(robot_id) != command_id:
+            return False
+        return self._pending_next.get(robot_id, command_id) == command_id
 
     def on_holds(self, held: set[str]) -> None:
         """Record the safety monitor's currently-latched robot set.
@@ -189,7 +251,8 @@ class BaseMissionDriver:
                 (`COMPLETED`/`FAILED`) is acted on.
 
         Returns:
-            Navigate goals to (re)issue, or `[]` when nothing resumes.
+            Navigate goals to (re)issue, or `[]` when nothing resumes. With
+            the hand-off guard on, only `robot_id`'s own goal is returned.
         """
         if status not in _TERMINAL_STATUSES:
             return []
@@ -207,7 +270,7 @@ class BaseMissionDriver:
                 return []
             del self._suppressed_by[robot_id]
             self._pending_next.pop(robot_id, None)
-            return self._desired()
+            return self._resume(robot_id, command_id)
         if command_id == pending:
             self._pending_next.pop(robot_id, None)
             if status == "COMPLETED":
@@ -216,7 +279,7 @@ class BaseMissionDriver:
                     f"terminal robot={robot_id} command={command_id} owner_was={owner}"
                 )
                 self._suppressed_by.pop(robot_id, None)
-                return self._desired()
+                return self._resume(robot_id, command_id)
             # This command_id never took ownership; a redelivery of its own
             # on_command (DDS retry) must not re-queue it as pending either,
             # since this was its one-and-only terminal.
@@ -245,9 +308,30 @@ class BaseMissionDriver:
         events, self._events = self._events, []
         return events
 
-    def on_goal_accepted(self, robot_id: str, goal: _Goal) -> None:
-        """Record that Nav2 accepted a navigate goal, so it is not re-issued."""
+    def on_goal_accepted(self, robot_id: str, goal: _Goal) -> bool:
+        """Record that Nav2 accepted a navigate goal, so it is not re-issued.
+
+        Args:
+            robot_id: Robot whose base goal Nav2 accepted.
+            goal: The accepted goal.
+
+        Returns:
+            True when the acceptance was recorded. False (guard on only) when
+            a coordination command already owns the robot: the goal was sent
+            before the hand-off and accepted after it, so it is not recorded
+            and the caller must cancel it; the owner's terminal re-issues the
+            base goal as usual.
+        """
+        owner = self._suppressed_by.get(robot_id)
+        if self._handoff_guard and owner is not None:
+            self._events.append(
+                "handoff guard: late base goal accepted under command "
+                f"robot={robot_id} owner={owner} "
+                f"goal=({float(goal[0]):.2f}, {float(goal[1]):.2f})"
+            )
+            return False
         self._accepted[robot_id] = (float(goal[0]), float(goal[1]))
+        return True
 
     def on_goal_rejected(self, robot_id: str) -> None:
         """Forget a rejected/failed goal so the next retry re-sends it."""

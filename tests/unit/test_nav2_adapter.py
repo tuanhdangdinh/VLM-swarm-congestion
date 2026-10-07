@@ -947,3 +947,78 @@ def test_backup_steers_back_toward_lane_center_while_reversing(backup_adapter) -
     odom_sub.callback(_odom_at(-1.0, 0.0, yaw=0.0))
     timer.tick()
     assert pub.messages[-1].angular.z == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Tests: hand-off race guard primitives (IB10 remedy validation run m4)
+# ---------------------------------------------------------------------------
+
+_FOLLOW_PATH_CANCEL_SRV = "/robot_1/follow_path/_action/cancel_goal"
+
+
+def test_stop_controller_sends_cancel_all_to_follow_path(adapter: Nav2Adapter) -> None:
+    """stop_controller clears the controller_server's FollowPath goals."""
+    adapter.stop_controller("robot_1")
+
+    client = adapter._node.clients[_FOLLOW_PATH_CANCEL_SRV]
+    assert len(client.requests) == 1
+    goal_info = client.requests[0].goal_info
+    assert all(byte == 0 for byte in goal_info.goal_id.uuid)
+    assert (goal_info.stamp.sec, goal_info.stamp.nanosec) == (0, 0)
+
+
+def test_stop_controller_leaves_navigate_and_waypoint_servers_alone(
+    adapter: Nav2Adapter,
+) -> None:
+    """Only follow_path is cancelled: the bus's navigate goal is not touched."""
+    adapter.stop_controller("robot_1")
+
+    assert _NAV_CANCEL_SRV not in adapter._node.clients
+    assert _WP_CANCEL_SRV not in adapter._node.clients
+
+
+def test_cancel_after_accept_then_stop_controller_cancels_follow_path(
+    adapter: Nav2Adapter,
+) -> None:
+    """m4: a navigate goal cancelled just after acceptance also stops the controller."""
+    adapter.send_goal("robot_1", x=1.75, y=0.0, yaw=0.0)
+    handle = adapter._active_goals["robot_1"]
+    handle._cancel.reset_mock()
+
+    adapter.cancel("robot_1")
+    adapter.stop_controller("robot_1")
+
+    handle._cancel.assert_called_once()
+    assert adapter._node.clients[_NAV_CANCEL_SRV].requests
+    assert len(adapter._node.clients[_FOLLOW_PATH_CANCEL_SRV].requests) == 1
+
+
+def test_stop_controller_logs_goals_canceling(adapter: Nav2Adapter) -> None:
+    """A caught orphan is visible as goals_canceling=1 on action=follow_path."""
+    adapter.stop_controller("robot_1")
+    future = adapter._node.clients[_FOLLOW_PATH_CANCEL_SRV].futures[0]
+    future._result = SimpleNamespace(return_code=0, goals_canceling=[object()])
+
+    future.trigger()
+
+    assert any(
+        "cancel-all robot=robot_1 action=follow_path" in msg and "goals_canceling=1" in msg
+        for msg in adapter._node.logger.infos
+    )
+
+
+def test_cancel_own_goal_cancels_handle_without_cancel_all(adapter: Nav2Adapter) -> None:
+    """cancel_own_goal cancels this adapter's handle only, never a cancel-all."""
+    adapter.send_goal("robot_1", x=1.0, y=2.0, yaw=0.0)
+    handle = adapter._active_goals["robot_1"]
+    handle._cancel.reset_mock()
+    requests_before = len(adapter._node.clients[_NAV_CANCEL_SRV].requests)
+
+    assert adapter.cancel_own_goal("robot_1") is True
+
+    handle._cancel.assert_called_once()
+    assert len(adapter._node.clients[_NAV_CANCEL_SRV].requests) == requests_before
+
+
+def test_cancel_own_goal_without_handle_returns_false(adapter: Nav2Adapter) -> None:
+    assert adapter.cancel_own_goal("robot_1") is False
