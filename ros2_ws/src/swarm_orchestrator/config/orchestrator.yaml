@@ -328,6 +328,20 @@ t0_probe_max_snapshot_age_sec: 3.0
 # never grounds or dispatches, so there is nothing to track).
 plan_channel_enabled: false
 
+# prereg-v3 R3.3 arm (dispatch-model-order-when-verified): where a
+# junction_clear resolution's RECEDE dispatch order comes from.
+#   chi                 - always the chi ranking (default; the inherited
+#                         behaviour, byte-identical dispatch)
+#   model_when_verified - the model's own proposed_plan recede order when
+#                         that plan verified vlm_verbatim (order within the
+#                         chi-epsilon rule); repaired / m3_default plans and
+#                         every non-junction strategy stay on chi
+# Recede set, pockets (chi-rank), cross and release are unchanged either way.
+# Recorded in every decision artifact (plan_dispatch_order_source, plus the
+# per-decision dispatch_order_source). model_when_verified needs the plan
+# channel above switched on; M5 refuses to start otherwise.
+plan_dispatch_order_source: "chi"
+
 # Fixed obstacles rendered into the VLM prompt when prompt_static_obstacles is
 # true. Like scenario_geometry above, these mirror the scenario file by hand
 # (here the head-on asymmetric family blocker) and must be set per scenario —

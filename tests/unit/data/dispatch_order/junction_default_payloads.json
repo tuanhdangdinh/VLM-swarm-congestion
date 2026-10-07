@@ -1,0 +1,1404 @@
+{
+  "plan_absent": {
+    "decision": {
+      "blocker_kind": null,
+      "congestion_detected": true,
+      "crossing_order": null,
+      "involved_robots": [
+        "robot_1",
+        "robot_2",
+        "robot_3",
+        "robot_4"
+      ],
+      "justification": "jam",
+      "proposed_plan": null,
+      "root_cause": "four-way standoff",
+      "strategy": "junction_clear",
+      "type": "deadlock",
+      "yield_robot": null
+    },
+    "diagnostics": {
+      "attempt_records": [],
+      "attempt_token_usage": [],
+      "attempts": 1,
+      "backend_id": "mock",
+      "decision_degradations": [],
+      "error_message": null,
+      "error_type": null,
+      "finish_reason": null,
+      "image_fallback_attempt": null,
+      "image_fallback_used": false,
+      "latency_ms": null,
+      "parse_status": "valid",
+      "reasoner_config_effective": null,
+      "refusal_attempts": 0,
+      "refusal_category": null,
+      "request_id": "r1",
+      "served_model": null,
+      "system_fingerprint": null,
+      "token_usage": null,
+      "unsupported_sampling": null
+    },
+    "dispatch_dropped_robot_ids": [],
+    "dispatched_command": {
+      "actions": [
+        {
+          "action": "reverse",
+          "parameters": {
+            "backup_distance_m": 0.923,
+            "plan_id": 1,
+            "reason": "four-way standoff"
+          },
+          "robot_id": "robot_4"
+        },
+        {
+          "action": "temporary_wait",
+          "parameters": {
+            "duration_sec": 120.0,
+            "plan_id": 1
+          },
+          "robot_id": "robot_1"
+        },
+        {
+          "action": "temporary_wait",
+          "parameters": {
+            "duration_sec": 120.0,
+            "plan_id": 1
+          },
+          "robot_id": "robot_2"
+        },
+        {
+          "action": "temporary_wait",
+          "parameters": {
+            "duration_sec": 120.0,
+            "plan_id": 1
+          },
+          "robot_id": "robot_3"
+        }
+      ],
+      "command_id": "r1-junction-recede-robot_4",
+      "degradations": [
+        "junction_clear=recede"
+      ],
+      "expected_resolution_time_sec": 120.0,
+      "fallback": "stop"
+    },
+    "dispatched_robot_ids": [
+      "robot_4",
+      "robot_1",
+      "robot_2",
+      "robot_3"
+    ],
+    "distance_to_goal_m": {},
+    "episode_index": null,
+    "failure_context": null,
+    "failure_reason": null,
+    "grounded_command_present": true,
+    "grounding_degradations": [
+      "junction_clear=recede"
+    ],
+    "grounding_mode": null,
+    "grounding_params_source": null,
+    "grounding_yield_feasibility": "off",
+    "junction_phases": {
+      "fallback_command": {
+        "actions": [
+          {
+            "action": "yield",
+            "parameters": {
+              "backup_distance_m": 0.799,
+              "crossing_order": [
+                "robot_2"
+              ],
+              "hold_sec": 45.0,
+              "passer_clear_m": 1.998,
+              "passer_escort_distance_m": 1.998,
+              "passer_robot_id": "robot_2",
+              "pull_off_lateral_m": 0.36,
+              "reason": "four-way standoff",
+              "retreat_choice": "A",
+              "retreat_x_m": -1.018,
+              "retreat_y_m": 0.359
+            },
+            "robot_id": "robot_1"
+          },
+          {
+            "action": "temporary_wait",
+            "parameters": {
+              "duration_sec": 120.0,
+              "linked_position": 0
+            },
+            "robot_id": "robot_2"
+          },
+          {
+            "action": "temporary_wait",
+            "parameters": {
+              "duration_sec": 120.0
+            },
+            "robot_id": "robot_4"
+          },
+          {
+            "action": "temporary_wait",
+            "parameters": {
+              "duration_sec": 120.0
+            },
+            "robot_id": "robot_3"
+          }
+        ],
+        "command_id": "r1-yield",
+        "degradations": [
+          "roles=legacy-convention",
+          "order=implicit",
+          "order=junction_same_axis",
+          "retreat=default:no_choice"
+        ],
+        "expected_resolution_time_sec": 150.0,
+        "fallback": "stop"
+      },
+      "fallback_held_robot_ids": [
+        "robot_4",
+        "robot_3"
+      ],
+      "phases": [
+        {
+          "command": {
+            "actions": [
+              {
+                "action": "reverse",
+                "parameters": {
+                  "backup_distance_m": 0.923,
+                  "reason": "four-way standoff"
+                },
+                "robot_id": "robot_4"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_1"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_2"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_3"
+              }
+            ],
+            "command_id": "r1-junction-recede-robot_4",
+            "degradations": [
+              "junction_clear=recede"
+            ],
+            "expected_resolution_time_sec": 120.0,
+            "fallback": "stop"
+          },
+          "held_robot_ids": [
+            "robot_1",
+            "robot_2",
+            "robot_3"
+          ],
+          "label": "recede",
+          "robot_id": "robot_4"
+        },
+        {
+          "command": {
+            "actions": [
+              {
+                "action": "reverse",
+                "parameters": {
+                  "backup_distance_m": 0.942,
+                  "reason": "four-way standoff"
+                },
+                "robot_id": "robot_3"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_1"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_2"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_4"
+              }
+            ],
+            "command_id": "r1-junction-recede-robot_3",
+            "degradations": [
+              "junction_clear=recede"
+            ],
+            "expected_resolution_time_sec": 120.0,
+            "fallback": "stop"
+          },
+          "held_robot_ids": [
+            "robot_1",
+            "robot_2",
+            "robot_4"
+          ],
+          "label": "recede",
+          "robot_id": "robot_3"
+        },
+        {
+          "command": {
+            "actions": [
+              {
+                "action": "yield",
+                "parameters": {
+                  "backup_distance_m": 0.799,
+                  "crossing_order": [
+                    "robot_2"
+                  ],
+                  "hold_sec": 45.0,
+                  "passer_clear_m": 1.998,
+                  "passer_escort_distance_m": 1.998,
+                  "passer_robot_id": "robot_2",
+                  "pull_off_lateral_m": 0.36,
+                  "reason": "four-way standoff",
+                  "retreat_choice": "A",
+                  "retreat_x_m": -1.018,
+                  "retreat_y_m": 0.359
+                },
+                "robot_id": "robot_1"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0,
+                  "linked_position": 0
+                },
+                "robot_id": "robot_2"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_4"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_3"
+              }
+            ],
+            "command_id": "r1-junction-cross",
+            "degradations": [
+              "roles=legacy-convention",
+              "retreat=default:no_choice",
+              "junction_clear=cross"
+            ],
+            "expected_resolution_time_sec": 150.0,
+            "fallback": "stop"
+          },
+          "held_robot_ids": [
+            "robot_4",
+            "robot_3"
+          ],
+          "label": "cross",
+          "robot_id": null
+        },
+        {
+          "command": {
+            "actions": [
+              {
+                "action": "yield",
+                "parameters": {
+                  "backup_distance_m": 0.0,
+                  "hold_sec": 120.0,
+                  "passer_clear_m": 2.85,
+                  "passer_robot_id": "robot_4"
+                },
+                "robot_id": "robot_3"
+              },
+              {
+                "action": "yield",
+                "parameters": {
+                  "backup_distance_m": 0.0,
+                  "crossing_clear_m": [
+                    2.85,
+                    2.25
+                  ],
+                  "crossing_order": [
+                    "robot_4",
+                    "robot_3"
+                  ],
+                  "hold_sec": 240.0,
+                  "passer_clear_m": 2.85,
+                  "passer_robot_id": "robot_4"
+                },
+                "robot_id": "robot_1"
+              }
+            ],
+            "command_id": "r1-junction-release",
+            "degradations": [
+              "junction_clear=release"
+            ],
+            "expected_resolution_time_sec": 240.0,
+            "fallback": "stop"
+          },
+          "held_robot_ids": [
+            "robot_3",
+            "robot_1"
+          ],
+          "label": "release",
+          "robot_id": null
+        }
+      ]
+    },
+    "junction_phases_dispatched_robot_ids": {
+      "fallback": [
+        "robot_1",
+        "robot_2",
+        "robot_4",
+        "robot_3"
+      ],
+      "phases": [
+        [
+          "robot_4",
+          "robot_1",
+          "robot_2",
+          "robot_3"
+        ],
+        [
+          "robot_3",
+          "robot_1",
+          "robot_2",
+          "robot_4"
+        ],
+        [
+          "robot_1",
+          "robot_2",
+          "robot_4",
+          "robot_3"
+        ],
+        [
+          "robot_3",
+          "robot_1"
+        ]
+      ]
+    },
+    "last_failed_context": null,
+    "plan": {
+      "cancel_order": [],
+      "dispatch_matches_plan": true,
+      "edits": [],
+      "legs": [
+        {
+          "action": "reverse",
+          "robot_id": "robot_4",
+          "status": "pending"
+        },
+        {
+          "action": "reverse",
+          "robot_id": "robot_3",
+          "status": "pending"
+        },
+        {
+          "action": "yield",
+          "robot_id": "robot_1",
+          "status": "pending"
+        },
+        {
+          "action": "cross",
+          "robot_id": "robot_2",
+          "status": "pending"
+        }
+      ],
+      "order_equivalent": false,
+      "plan_held": false,
+      "plan_id": 1,
+      "provenance": "m3_default",
+      "rejection_reason": "plan absent",
+      "superseded_plan_id": null
+    },
+    "prompt": {
+      "system_prompt": "You are a helpful assistant.",
+      "system_sha256": "75357d685f238b6afd7738be9786fdafde641eb6ca9a3be7471939715a68a4de",
+      "user_prompt": "You are a warehouse swarm robotics traffic controller. Analyze the overhead camera view together with the robot states below and detect congestion patterns such as deadlocks, bottlenecks, crowding, or anomalies.\n\nRobot states:\n- robot_id=robot_1, x=-0.22, y=-0.00, theta=0.00, status=STOPPED, linear_velocity=0.00\n- robot_id=robot_2, x=0.33, y=0.02, theta=0.00, status=STOPPED, linear_velocity=0.00\n- robot_id=robot_3, x=-0.02, y=-0.26, theta=0.00, status=STOPPED, linear_velocity=0.00\n- robot_id=robot_4, x=0.00, y=0.28, theta=0.00, status=STOPPED, linear_velocity=0.00\n\nPairwise geometry (faces = heading within 60\u00b0 of the direction to the other robot):\n- robot_1 <-> robot_2: distance 0.55 m; robot_1 faces robot_2: yes; robot_2 faces robot_1: no\n- robot_1 <-> robot_3: distance 0.32 m; robot_1 faces robot_3: yes; robot_3 faces robot_1: no\n- robot_1 <-> robot_4: distance 0.36 m; robot_1 faces robot_4: yes; robot_4 faces robot_1: no\n- robot_2 <-> robot_3: distance 0.45 m; robot_2 faces robot_3: no; robot_3 faces robot_2: yes\n- robot_2 <-> robot_4: distance 0.42 m; robot_2 faces robot_4: no; robot_4 faces robot_2: yes\n- robot_3 <-> robot_4: distance 0.54 m; robot_3 faces robot_4: no; robot_4 faces robot_3: no\n\nKnown robot IDs: [\"robot_1\", \"robot_2\", \"robot_3\", \"robot_4\"]\n\nGuidance:\n- Robots are roughly 0.3 m wide; treat any two robots within ~0.5 m of each other as physically conflicting. Use the pairwise geometry above; do not re-derive distances or facing from the coordinates.\n- theta is heading in radians: 0=east(+x), \u03c0/2=north(+y), \u03c0 or -\u03c0=west(-x), -\u03c0/2=south(-y). Opposite headings alone do NOT mean head-on: two robots are head-on only when each faces the other (pairwise geometry) AND they are within ~0.5 m. Robots heading away from each other are diverging, not conflicting.\n- deadlock: two or more robots each blocked by the other. The most common case is a head-on standoff \u2014 two robots within ~0.5 m, each facing the other, in the same narrow aisle, both STOPPED or STALE, unable to pass. This IS a deadlock even with only two robots. Two robots that are stopped but farther apart than ~0.5 m, or not facing each other, are NOT deadlocked \u2014 answer congestion_detected=false unless another pattern applies. bottleneck: several robots queued waiting behind one slow robot or blocked passage (one-way congestion, not opposing). crowding: many robots packed into a small area. anomaly: unexpected or unsafe configuration.\n- For head-on deadlock (two stopped/stale robots within ~0.5 m, each facing the other): classify as type=\"deadlock\" and strategy=\"yield\" (the robot named in yield_robot backs up) or strategy=\"reverse\" (both back up to clear).\n- For a simple bottleneck (robots queued in the same direction): classify as type=\"bottleneck\" and strategy=\"temporary_wait\" or \"yield\".\n- Decide from the robot states (including their stated goals and tasks) and the image; do not assume intentions beyond what is stated.\n\nProduce a JSON object with exactly these fields:\n- \"congestion_detected\": true or false\n- \"type\": \"none\" | \"deadlock\" | \"bottleneck\" | \"crowding\" | \"anomaly\"\n- \"involved_robots\": list of robot_id strings, from the known IDs only\n- \"root_cause\": one sentence\n- \"strategy\": \"none\" | \"yield\" | \"reroute\" | \"convoy\" | \"priority_override\" | \"temporary_wait\" | \"reverse\"\n- \"justification\": one or two sentences\n- \"yield_robot\": the robot that should yield, or null when the strategy is not \"yield\"\n- \"blocker_kind\": what is blocking the involved robots: \"robot\" when it is one of the robots listed above, \"object\" when it is a fixed obstacle, \"transient\" when it is a temporary obstruction expected to clear on its own; null when congestion_detected is false\n- \"crossing_order\": when three or more robots must be ordered, every involved robot ID in the order they should pass, first to pass first (a robot that yields passes after the robots it yields to); otherwise null\n\nRules:\n- Only use robot IDs from the known list above.\n- When congestion_detected is false: set type=\"none\", strategy=\"none\", involved_robots=[].\n- When congestion_detected is true: type and strategy must not be \"none\", and involved_robots must be non-empty.\n\nAnswer using the following format:\n<think>\nRead the pairwise geometry (distance and whether each robot faces the other), check the robot statuses, identify any conflicts, decide the congestion type and strategy, and if the strategy is \"yield\", state which robot should yield and why.\n</think>\nImmediately after the </think> tag, write ONLY the final JSON object, with no surrounding text or markdown.",
+      "user_sha256": "dd36d1083eb27e4cc6d74378f2f43bea14d48988e69392097049a44003500a1f"
+    },
+    "prompt_conditions": null,
+    "prompt_robot_order_mode": null,
+    "prompt_robot_order_seed": null,
+    "prompt_version": 2,
+    "raw_text": "{}",
+    "reasoner_config_effective": null,
+    "request_id": "r1",
+    "robot_presentation_order": "id_asc",
+    "run_id": null,
+    "scene": null,
+    "session_id": null,
+    "shadow_classical": null,
+    "stage2": null,
+    "terminal_stage": "ok",
+    "yield_refusal_reason": null,
+    "yield_regrounded_reason": null,
+    "yield_robot_grounded_from": null
+  },
+  "plan_within_epsilon_swapped": {
+    "decision": {
+      "blocker_kind": null,
+      "congestion_detected": true,
+      "crossing_order": null,
+      "involved_robots": [
+        "robot_1",
+        "robot_2",
+        "robot_3",
+        "robot_4"
+      ],
+      "justification": "jam",
+      "proposed_plan": [
+        {
+          "action": "reverse",
+          "robot_id": "robot_3"
+        },
+        {
+          "action": "reverse",
+          "robot_id": "robot_4"
+        },
+        {
+          "action": "yield",
+          "robot_id": "robot_1"
+        },
+        {
+          "action": "cross",
+          "robot_id": "robot_2"
+        }
+      ],
+      "root_cause": "four-way standoff",
+      "strategy": "junction_clear",
+      "type": "deadlock",
+      "yield_robot": null
+    },
+    "diagnostics": {
+      "attempt_records": [],
+      "attempt_token_usage": [],
+      "attempts": 1,
+      "backend_id": "mock",
+      "decision_degradations": [],
+      "error_message": null,
+      "error_type": null,
+      "finish_reason": null,
+      "image_fallback_attempt": null,
+      "image_fallback_used": false,
+      "latency_ms": null,
+      "parse_status": "valid",
+      "reasoner_config_effective": null,
+      "refusal_attempts": 0,
+      "refusal_category": null,
+      "request_id": "r1",
+      "served_model": null,
+      "system_fingerprint": null,
+      "token_usage": null,
+      "unsupported_sampling": null
+    },
+    "dispatch_dropped_robot_ids": [],
+    "dispatched_command": {
+      "actions": [
+        {
+          "action": "reverse",
+          "parameters": {
+            "backup_distance_m": 0.923,
+            "plan_id": 1,
+            "reason": "four-way standoff"
+          },
+          "robot_id": "robot_4"
+        },
+        {
+          "action": "temporary_wait",
+          "parameters": {
+            "duration_sec": 120.0,
+            "plan_id": 1
+          },
+          "robot_id": "robot_1"
+        },
+        {
+          "action": "temporary_wait",
+          "parameters": {
+            "duration_sec": 120.0,
+            "plan_id": 1
+          },
+          "robot_id": "robot_2"
+        },
+        {
+          "action": "temporary_wait",
+          "parameters": {
+            "duration_sec": 120.0,
+            "plan_id": 1
+          },
+          "robot_id": "robot_3"
+        }
+      ],
+      "command_id": "r1-junction-recede-robot_4",
+      "degradations": [
+        "junction_clear=recede"
+      ],
+      "expected_resolution_time_sec": 120.0,
+      "fallback": "stop"
+    },
+    "dispatched_robot_ids": [
+      "robot_4",
+      "robot_1",
+      "robot_2",
+      "robot_3"
+    ],
+    "distance_to_goal_m": {},
+    "episode_index": null,
+    "failure_context": null,
+    "failure_reason": null,
+    "grounded_command_present": true,
+    "grounding_degradations": [
+      "junction_clear=recede"
+    ],
+    "grounding_mode": null,
+    "grounding_params_source": null,
+    "grounding_yield_feasibility": "off",
+    "junction_phases": {
+      "fallback_command": {
+        "actions": [
+          {
+            "action": "yield",
+            "parameters": {
+              "backup_distance_m": 0.799,
+              "crossing_order": [
+                "robot_2"
+              ],
+              "hold_sec": 45.0,
+              "passer_clear_m": 1.998,
+              "passer_escort_distance_m": 1.998,
+              "passer_robot_id": "robot_2",
+              "pull_off_lateral_m": 0.36,
+              "reason": "four-way standoff",
+              "retreat_choice": "A",
+              "retreat_x_m": -1.018,
+              "retreat_y_m": 0.359
+            },
+            "robot_id": "robot_1"
+          },
+          {
+            "action": "temporary_wait",
+            "parameters": {
+              "duration_sec": 120.0,
+              "linked_position": 0
+            },
+            "robot_id": "robot_2"
+          },
+          {
+            "action": "temporary_wait",
+            "parameters": {
+              "duration_sec": 120.0
+            },
+            "robot_id": "robot_4"
+          },
+          {
+            "action": "temporary_wait",
+            "parameters": {
+              "duration_sec": 120.0
+            },
+            "robot_id": "robot_3"
+          }
+        ],
+        "command_id": "r1-yield",
+        "degradations": [
+          "roles=legacy-convention",
+          "order=implicit",
+          "order=junction_same_axis",
+          "retreat=default:no_choice"
+        ],
+        "expected_resolution_time_sec": 150.0,
+        "fallback": "stop"
+      },
+      "fallback_held_robot_ids": [
+        "robot_4",
+        "robot_3"
+      ],
+      "phases": [
+        {
+          "command": {
+            "actions": [
+              {
+                "action": "reverse",
+                "parameters": {
+                  "backup_distance_m": 0.923,
+                  "reason": "four-way standoff"
+                },
+                "robot_id": "robot_4"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_1"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_2"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_3"
+              }
+            ],
+            "command_id": "r1-junction-recede-robot_4",
+            "degradations": [
+              "junction_clear=recede"
+            ],
+            "expected_resolution_time_sec": 120.0,
+            "fallback": "stop"
+          },
+          "held_robot_ids": [
+            "robot_1",
+            "robot_2",
+            "robot_3"
+          ],
+          "label": "recede",
+          "robot_id": "robot_4"
+        },
+        {
+          "command": {
+            "actions": [
+              {
+                "action": "reverse",
+                "parameters": {
+                  "backup_distance_m": 0.942,
+                  "reason": "four-way standoff"
+                },
+                "robot_id": "robot_3"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_1"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_2"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_4"
+              }
+            ],
+            "command_id": "r1-junction-recede-robot_3",
+            "degradations": [
+              "junction_clear=recede"
+            ],
+            "expected_resolution_time_sec": 120.0,
+            "fallback": "stop"
+          },
+          "held_robot_ids": [
+            "robot_1",
+            "robot_2",
+            "robot_4"
+          ],
+          "label": "recede",
+          "robot_id": "robot_3"
+        },
+        {
+          "command": {
+            "actions": [
+              {
+                "action": "yield",
+                "parameters": {
+                  "backup_distance_m": 0.799,
+                  "crossing_order": [
+                    "robot_2"
+                  ],
+                  "hold_sec": 45.0,
+                  "passer_clear_m": 1.998,
+                  "passer_escort_distance_m": 1.998,
+                  "passer_robot_id": "robot_2",
+                  "pull_off_lateral_m": 0.36,
+                  "reason": "four-way standoff",
+                  "retreat_choice": "A",
+                  "retreat_x_m": -1.018,
+                  "retreat_y_m": 0.359
+                },
+                "robot_id": "robot_1"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0,
+                  "linked_position": 0
+                },
+                "robot_id": "robot_2"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_4"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_3"
+              }
+            ],
+            "command_id": "r1-junction-cross",
+            "degradations": [
+              "roles=legacy-convention",
+              "retreat=default:no_choice",
+              "junction_clear=cross"
+            ],
+            "expected_resolution_time_sec": 150.0,
+            "fallback": "stop"
+          },
+          "held_robot_ids": [
+            "robot_4",
+            "robot_3"
+          ],
+          "label": "cross",
+          "robot_id": null
+        },
+        {
+          "command": {
+            "actions": [
+              {
+                "action": "yield",
+                "parameters": {
+                  "backup_distance_m": 0.0,
+                  "hold_sec": 120.0,
+                  "passer_clear_m": 2.85,
+                  "passer_robot_id": "robot_4"
+                },
+                "robot_id": "robot_3"
+              },
+              {
+                "action": "yield",
+                "parameters": {
+                  "backup_distance_m": 0.0,
+                  "crossing_clear_m": [
+                    2.85,
+                    2.25
+                  ],
+                  "crossing_order": [
+                    "robot_4",
+                    "robot_3"
+                  ],
+                  "hold_sec": 240.0,
+                  "passer_clear_m": 2.85,
+                  "passer_robot_id": "robot_4"
+                },
+                "robot_id": "robot_1"
+              }
+            ],
+            "command_id": "r1-junction-release",
+            "degradations": [
+              "junction_clear=release"
+            ],
+            "expected_resolution_time_sec": 240.0,
+            "fallback": "stop"
+          },
+          "held_robot_ids": [
+            "robot_3",
+            "robot_1"
+          ],
+          "label": "release",
+          "robot_id": null
+        }
+      ]
+    },
+    "junction_phases_dispatched_robot_ids": {
+      "fallback": [
+        "robot_1",
+        "robot_2",
+        "robot_4",
+        "robot_3"
+      ],
+      "phases": [
+        [
+          "robot_4",
+          "robot_1",
+          "robot_2",
+          "robot_3"
+        ],
+        [
+          "robot_3",
+          "robot_1",
+          "robot_2",
+          "robot_4"
+        ],
+        [
+          "robot_1",
+          "robot_2",
+          "robot_4",
+          "robot_3"
+        ],
+        [
+          "robot_3",
+          "robot_1"
+        ]
+      ]
+    },
+    "last_failed_context": null,
+    "plan": {
+      "cancel_order": [],
+      "dispatch_matches_plan": true,
+      "edits": [],
+      "legs": [
+        {
+          "action": "reverse",
+          "robot_id": "robot_3",
+          "status": "pending"
+        },
+        {
+          "action": "reverse",
+          "robot_id": "robot_4",
+          "status": "pending"
+        },
+        {
+          "action": "yield",
+          "robot_id": "robot_1",
+          "status": "pending"
+        },
+        {
+          "action": "cross",
+          "robot_id": "robot_2",
+          "status": "pending"
+        }
+      ],
+      "order_equivalent": true,
+      "plan_held": false,
+      "plan_id": 1,
+      "provenance": "vlm_verbatim",
+      "rejection_reason": null,
+      "superseded_plan_id": null
+    },
+    "prompt": {
+      "system_prompt": "You are a helpful assistant.",
+      "system_sha256": "75357d685f238b6afd7738be9786fdafde641eb6ca9a3be7471939715a68a4de",
+      "user_prompt": "You are a warehouse swarm robotics traffic controller. Analyze the overhead camera view together with the robot states below and detect congestion patterns such as deadlocks, bottlenecks, crowding, or anomalies.\n\nRobot states:\n- robot_id=robot_1, x=-0.22, y=-0.00, theta=0.00, status=STOPPED, linear_velocity=0.00\n- robot_id=robot_2, x=0.33, y=0.02, theta=0.00, status=STOPPED, linear_velocity=0.00\n- robot_id=robot_3, x=-0.02, y=-0.26, theta=0.00, status=STOPPED, linear_velocity=0.00\n- robot_id=robot_4, x=0.00, y=0.28, theta=0.00, status=STOPPED, linear_velocity=0.00\n\nPairwise geometry (faces = heading within 60\u00b0 of the direction to the other robot):\n- robot_1 <-> robot_2: distance 0.55 m; robot_1 faces robot_2: yes; robot_2 faces robot_1: no\n- robot_1 <-> robot_3: distance 0.32 m; robot_1 faces robot_3: yes; robot_3 faces robot_1: no\n- robot_1 <-> robot_4: distance 0.36 m; robot_1 faces robot_4: yes; robot_4 faces robot_1: no\n- robot_2 <-> robot_3: distance 0.45 m; robot_2 faces robot_3: no; robot_3 faces robot_2: yes\n- robot_2 <-> robot_4: distance 0.42 m; robot_2 faces robot_4: no; robot_4 faces robot_2: yes\n- robot_3 <-> robot_4: distance 0.54 m; robot_3 faces robot_4: no; robot_4 faces robot_3: no\n\nKnown robot IDs: [\"robot_1\", \"robot_2\", \"robot_3\", \"robot_4\"]\n\nGuidance:\n- Robots are roughly 0.3 m wide; treat any two robots within ~0.5 m of each other as physically conflicting. Use the pairwise geometry above; do not re-derive distances or facing from the coordinates.\n- theta is heading in radians: 0=east(+x), \u03c0/2=north(+y), \u03c0 or -\u03c0=west(-x), -\u03c0/2=south(-y). Opposite headings alone do NOT mean head-on: two robots are head-on only when each faces the other (pairwise geometry) AND they are within ~0.5 m. Robots heading away from each other are diverging, not conflicting.\n- deadlock: two or more robots each blocked by the other. The most common case is a head-on standoff \u2014 two robots within ~0.5 m, each facing the other, in the same narrow aisle, both STOPPED or STALE, unable to pass. This IS a deadlock even with only two robots. Two robots that are stopped but farther apart than ~0.5 m, or not facing each other, are NOT deadlocked \u2014 answer congestion_detected=false unless another pattern applies. bottleneck: several robots queued waiting behind one slow robot or blocked passage (one-way congestion, not opposing). crowding: many robots packed into a small area. anomaly: unexpected or unsafe configuration.\n- For head-on deadlock (two stopped/stale robots within ~0.5 m, each facing the other): classify as type=\"deadlock\" and strategy=\"yield\" (the robot named in yield_robot backs up) or strategy=\"reverse\" (both back up to clear).\n- For a simple bottleneck (robots queued in the same direction): classify as type=\"bottleneck\" and strategy=\"temporary_wait\" or \"yield\".\n- Decide from the robot states (including their stated goals and tasks) and the image; do not assume intentions beyond what is stated.\n\nProduce a JSON object with exactly these fields:\n- \"congestion_detected\": true or false\n- \"type\": \"none\" | \"deadlock\" | \"bottleneck\" | \"crowding\" | \"anomaly\"\n- \"involved_robots\": list of robot_id strings, from the known IDs only\n- \"root_cause\": one sentence\n- \"strategy\": \"none\" | \"yield\" | \"reroute\" | \"convoy\" | \"priority_override\" | \"temporary_wait\" | \"reverse\"\n- \"justification\": one or two sentences\n- \"yield_robot\": the robot that should yield, or null when the strategy is not \"yield\"\n- \"blocker_kind\": what is blocking the involved robots: \"robot\" when it is one of the robots listed above, \"object\" when it is a fixed obstacle, \"transient\" when it is a temporary obstruction expected to clear on its own; null when congestion_detected is false\n- \"crossing_order\": when three or more robots must be ordered, every involved robot ID in the order they should pass, first to pass first (a robot that yields passes after the robots it yields to); otherwise null\n\nRules:\n- Only use robot IDs from the known list above.\n- When congestion_detected is false: set type=\"none\", strategy=\"none\", involved_robots=[].\n- When congestion_detected is true: type and strategy must not be \"none\", and involved_robots must be non-empty.\n\nAnswer using the following format:\n<think>\nRead the pairwise geometry (distance and whether each robot faces the other), check the robot statuses, identify any conflicts, decide the congestion type and strategy, and if the strategy is \"yield\", state which robot should yield and why.\n</think>\nImmediately after the </think> tag, write ONLY the final JSON object, with no surrounding text or markdown.",
+      "user_sha256": "dd36d1083eb27e4cc6d74378f2f43bea14d48988e69392097049a44003500a1f"
+    },
+    "prompt_conditions": null,
+    "prompt_robot_order_mode": null,
+    "prompt_robot_order_seed": null,
+    "prompt_version": 2,
+    "raw_text": "{}",
+    "reasoner_config_effective": null,
+    "request_id": "r1",
+    "robot_presentation_order": "id_asc",
+    "run_id": null,
+    "scene": null,
+    "session_id": null,
+    "shadow_classical": null,
+    "stage2": null,
+    "terminal_stage": "ok",
+    "yield_refusal_reason": null,
+    "yield_regrounded_reason": null,
+    "yield_robot_grounded_from": null
+  },
+  "plan_within_epsilon_swapped_staggered": {
+    "decision": {
+      "blocker_kind": null,
+      "congestion_detected": true,
+      "crossing_order": null,
+      "involved_robots": [
+        "robot_1",
+        "robot_2",
+        "robot_3",
+        "robot_4"
+      ],
+      "justification": "jam",
+      "proposed_plan": [
+        {
+          "action": "reverse",
+          "robot_id": "robot_3"
+        },
+        {
+          "action": "reverse",
+          "robot_id": "robot_4"
+        },
+        {
+          "action": "yield",
+          "robot_id": "robot_1"
+        },
+        {
+          "action": "cross",
+          "robot_id": "robot_2"
+        }
+      ],
+      "root_cause": "four-way standoff",
+      "strategy": "junction_clear",
+      "type": "deadlock",
+      "yield_robot": null
+    },
+    "diagnostics": {
+      "attempt_records": [],
+      "attempt_token_usage": [],
+      "attempts": 1,
+      "backend_id": "mock",
+      "decision_degradations": [],
+      "error_message": null,
+      "error_type": null,
+      "finish_reason": null,
+      "image_fallback_attempt": null,
+      "image_fallback_used": false,
+      "latency_ms": null,
+      "parse_status": "valid",
+      "reasoner_config_effective": null,
+      "refusal_attempts": 0,
+      "refusal_category": null,
+      "request_id": "r1",
+      "served_model": null,
+      "system_fingerprint": null,
+      "token_usage": null,
+      "unsupported_sampling": null
+    },
+    "dispatch_dropped_robot_ids": [],
+    "dispatched_command": {
+      "actions": [
+        {
+          "action": "reverse",
+          "parameters": {
+            "backup_distance_m": 0.923,
+            "plan_id": 1,
+            "reason": "four-way standoff"
+          },
+          "robot_id": "robot_4"
+        },
+        {
+          "action": "temporary_wait",
+          "parameters": {
+            "duration_sec": 120.0,
+            "plan_id": 1
+          },
+          "robot_id": "robot_1"
+        },
+        {
+          "action": "temporary_wait",
+          "parameters": {
+            "duration_sec": 120.0,
+            "plan_id": 1
+          },
+          "robot_id": "robot_2"
+        },
+        {
+          "action": "temporary_wait",
+          "parameters": {
+            "duration_sec": 120.0,
+            "plan_id": 1
+          },
+          "robot_id": "robot_3"
+        }
+      ],
+      "command_id": "r1-junction-recede-robot_4",
+      "degradations": [
+        "junction_clear=recede"
+      ],
+      "expected_resolution_time_sec": 120.0,
+      "fallback": "stop"
+    },
+    "dispatched_robot_ids": [
+      "robot_4",
+      "robot_1",
+      "robot_2",
+      "robot_3"
+    ],
+    "distance_to_goal_m": {},
+    "episode_index": null,
+    "failure_context": null,
+    "failure_reason": null,
+    "grounded_command_present": true,
+    "grounding_degradations": [
+      "junction_clear=recede"
+    ],
+    "grounding_mode": null,
+    "grounding_params_source": null,
+    "grounding_yield_feasibility": "off",
+    "junction_phases": {
+      "fallback_command": {
+        "actions": [
+          {
+            "action": "yield",
+            "parameters": {
+              "backup_distance_m": 0.799,
+              "crossing_order": [
+                "robot_2"
+              ],
+              "hold_sec": 45.0,
+              "passer_clear_m": 1.998,
+              "passer_escort_distance_m": 1.998,
+              "passer_robot_id": "robot_2",
+              "pull_off_lateral_m": 0.36,
+              "reason": "four-way standoff",
+              "retreat_choice": "A",
+              "retreat_x_m": -1.018,
+              "retreat_y_m": 0.359
+            },
+            "robot_id": "robot_1"
+          },
+          {
+            "action": "temporary_wait",
+            "parameters": {
+              "duration_sec": 120.0,
+              "linked_position": 0
+            },
+            "robot_id": "robot_2"
+          },
+          {
+            "action": "temporary_wait",
+            "parameters": {
+              "duration_sec": 120.0
+            },
+            "robot_id": "robot_4"
+          },
+          {
+            "action": "temporary_wait",
+            "parameters": {
+              "duration_sec": 120.0
+            },
+            "robot_id": "robot_3"
+          }
+        ],
+        "command_id": "r1-yield",
+        "degradations": [
+          "roles=legacy-convention",
+          "order=implicit",
+          "order=junction_same_axis",
+          "retreat=default:no_choice"
+        ],
+        "expected_resolution_time_sec": 150.0,
+        "fallback": "stop"
+      },
+      "fallback_held_robot_ids": [
+        "robot_4",
+        "robot_3"
+      ],
+      "phases": [
+        {
+          "command": {
+            "actions": [
+              {
+                "action": "reverse",
+                "parameters": {
+                  "backup_distance_m": 0.923,
+                  "reason": "four-way standoff"
+                },
+                "robot_id": "robot_4"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_1"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_2"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_3"
+              }
+            ],
+            "command_id": "r1-junction-recede-robot_4",
+            "degradations": [
+              "junction_clear=recede"
+            ],
+            "expected_resolution_time_sec": 120.0,
+            "fallback": "stop"
+          },
+          "held_robot_ids": [
+            "robot_1",
+            "robot_2",
+            "robot_3"
+          ],
+          "label": "recede",
+          "robot_id": "robot_4"
+        },
+        {
+          "command": {
+            "actions": [
+              {
+                "action": "reverse",
+                "parameters": {
+                  "backup_distance_m": 0.842,
+                  "reason": "four-way standoff"
+                },
+                "robot_id": "robot_3"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_1"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_2"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_4"
+              }
+            ],
+            "command_id": "r1-junction-recede-robot_3",
+            "degradations": [
+              "junction_clear=recede"
+            ],
+            "expected_resolution_time_sec": 120.0,
+            "fallback": "stop"
+          },
+          "held_robot_ids": [
+            "robot_1",
+            "robot_2",
+            "robot_4"
+          ],
+          "label": "recede",
+          "robot_id": "robot_3"
+        },
+        {
+          "command": {
+            "actions": [
+              {
+                "action": "yield",
+                "parameters": {
+                  "backup_distance_m": 0.799,
+                  "crossing_order": [
+                    "robot_2"
+                  ],
+                  "hold_sec": 45.0,
+                  "passer_clear_m": 1.998,
+                  "passer_escort_distance_m": 1.998,
+                  "passer_robot_id": "robot_2",
+                  "pull_off_lateral_m": 0.36,
+                  "reason": "four-way standoff",
+                  "retreat_choice": "A",
+                  "retreat_x_m": -1.018,
+                  "retreat_y_m": 0.359
+                },
+                "robot_id": "robot_1"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0,
+                  "linked_position": 0
+                },
+                "robot_id": "robot_2"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_4"
+              },
+              {
+                "action": "temporary_wait",
+                "parameters": {
+                  "duration_sec": 120.0
+                },
+                "robot_id": "robot_3"
+              }
+            ],
+            "command_id": "r1-junction-cross",
+            "degradations": [
+              "roles=legacy-convention",
+              "retreat=default:no_choice",
+              "junction_clear=cross"
+            ],
+            "expected_resolution_time_sec": 150.0,
+            "fallback": "stop"
+          },
+          "held_robot_ids": [
+            "robot_4",
+            "robot_3"
+          ],
+          "label": "cross",
+          "robot_id": null
+        },
+        {
+          "command": {
+            "actions": [
+              {
+                "action": "yield",
+                "parameters": {
+                  "backup_distance_m": 0.0,
+                  "hold_sec": 120.0,
+                  "passer_clear_m": 2.75,
+                  "passer_robot_id": "robot_4"
+                },
+                "robot_id": "robot_3"
+              },
+              {
+                "action": "yield",
+                "parameters": {
+                  "backup_distance_m": 0.0,
+                  "crossing_clear_m": [
+                    2.75,
+                    2.15
+                  ],
+                  "crossing_order": [
+                    "robot_4",
+                    "robot_3"
+                  ],
+                  "hold_sec": 240.0,
+                  "passer_clear_m": 2.75,
+                  "passer_robot_id": "robot_4"
+                },
+                "robot_id": "robot_1"
+              }
+            ],
+            "command_id": "r1-junction-release",
+            "degradations": [
+              "junction_clear=release"
+            ],
+            "expected_resolution_time_sec": 240.0,
+            "fallback": "stop"
+          },
+          "held_robot_ids": [
+            "robot_3",
+            "robot_1"
+          ],
+          "label": "release",
+          "robot_id": null
+        }
+      ]
+    },
+    "junction_phases_dispatched_robot_ids": {
+      "fallback": [
+        "robot_1",
+        "robot_2",
+        "robot_4",
+        "robot_3"
+      ],
+      "phases": [
+        [
+          "robot_4",
+          "robot_1",
+          "robot_2",
+          "robot_3"
+        ],
+        [
+          "robot_3",
+          "robot_1",
+          "robot_2",
+          "robot_4"
+        ],
+        [
+          "robot_1",
+          "robot_2",
+          "robot_4",
+          "robot_3"
+        ],
+        [
+          "robot_3",
+          "robot_1"
+        ]
+      ]
+    },
+    "last_failed_context": null,
+    "plan": {
+      "cancel_order": [],
+      "dispatch_matches_plan": true,
+      "edits": [],
+      "legs": [
+        {
+          "action": "reverse",
+          "robot_id": "robot_3",
+          "status": "pending"
+        },
+        {
+          "action": "reverse",
+          "robot_id": "robot_4",
+          "status": "pending"
+        },
+        {
+          "action": "yield",
+          "robot_id": "robot_1",
+          "status": "pending"
+        },
+        {
+          "action": "cross",
+          "robot_id": "robot_2",
+          "status": "pending"
+        }
+      ],
+      "order_equivalent": true,
+      "plan_held": false,
+      "plan_id": 1,
+      "provenance": "vlm_verbatim",
+      "rejection_reason": null,
+      "superseded_plan_id": null
+    },
+    "prompt": {
+      "system_prompt": "You are a helpful assistant.",
+      "system_sha256": "75357d685f238b6afd7738be9786fdafde641eb6ca9a3be7471939715a68a4de",
+      "user_prompt": "You are a warehouse swarm robotics traffic controller. Analyze the overhead camera view together with the robot states below and detect congestion patterns such as deadlocks, bottlenecks, crowding, or anomalies.\n\nRobot states:\n- robot_id=robot_1, x=-0.22, y=-0.00, theta=0.00, status=STOPPED, linear_velocity=0.00\n- robot_id=robot_2, x=0.33, y=0.02, theta=0.00, status=STOPPED, linear_velocity=0.00\n- robot_id=robot_3, x=-0.02, y=-0.26, theta=0.00, status=STOPPED, linear_velocity=0.00\n- robot_id=robot_4, x=0.00, y=0.28, theta=0.00, status=STOPPED, linear_velocity=0.00\n\nPairwise geometry (faces = heading within 60\u00b0 of the direction to the other robot):\n- robot_1 <-> robot_2: distance 0.55 m; robot_1 faces robot_2: yes; robot_2 faces robot_1: no\n- robot_1 <-> robot_3: distance 0.32 m; robot_1 faces robot_3: yes; robot_3 faces robot_1: no\n- robot_1 <-> robot_4: distance 0.36 m; robot_1 faces robot_4: yes; robot_4 faces robot_1: no\n- robot_2 <-> robot_3: distance 0.45 m; robot_2 faces robot_3: no; robot_3 faces robot_2: yes\n- robot_2 <-> robot_4: distance 0.42 m; robot_2 faces robot_4: no; robot_4 faces robot_2: yes\n- robot_3 <-> robot_4: distance 0.54 m; robot_3 faces robot_4: no; robot_4 faces robot_3: no\n\nKnown robot IDs: [\"robot_1\", \"robot_2\", \"robot_3\", \"robot_4\"]\n\nGuidance:\n- Robots are roughly 0.3 m wide; treat any two robots within ~0.5 m of each other as physically conflicting. Use the pairwise geometry above; do not re-derive distances or facing from the coordinates.\n- theta is heading in radians: 0=east(+x), \u03c0/2=north(+y), \u03c0 or -\u03c0=west(-x), -\u03c0/2=south(-y). Opposite headings alone do NOT mean head-on: two robots are head-on only when each faces the other (pairwise geometry) AND they are within ~0.5 m. Robots heading away from each other are diverging, not conflicting.\n- deadlock: two or more robots each blocked by the other. The most common case is a head-on standoff \u2014 two robots within ~0.5 m, each facing the other, in the same narrow aisle, both STOPPED or STALE, unable to pass. This IS a deadlock even with only two robots. Two robots that are stopped but farther apart than ~0.5 m, or not facing each other, are NOT deadlocked \u2014 answer congestion_detected=false unless another pattern applies. bottleneck: several robots queued waiting behind one slow robot or blocked passage (one-way congestion, not opposing). crowding: many robots packed into a small area. anomaly: unexpected or unsafe configuration.\n- For head-on deadlock (two stopped/stale robots within ~0.5 m, each facing the other): classify as type=\"deadlock\" and strategy=\"yield\" (the robot named in yield_robot backs up) or strategy=\"reverse\" (both back up to clear).\n- For a simple bottleneck (robots queued in the same direction): classify as type=\"bottleneck\" and strategy=\"temporary_wait\" or \"yield\".\n- Decide from the robot states (including their stated goals and tasks) and the image; do not assume intentions beyond what is stated.\n\nProduce a JSON object with exactly these fields:\n- \"congestion_detected\": true or false\n- \"type\": \"none\" | \"deadlock\" | \"bottleneck\" | \"crowding\" | \"anomaly\"\n- \"involved_robots\": list of robot_id strings, from the known IDs only\n- \"root_cause\": one sentence\n- \"strategy\": \"none\" | \"yield\" | \"reroute\" | \"convoy\" | \"priority_override\" | \"temporary_wait\" | \"reverse\"\n- \"justification\": one or two sentences\n- \"yield_robot\": the robot that should yield, or null when the strategy is not \"yield\"\n- \"blocker_kind\": what is blocking the involved robots: \"robot\" when it is one of the robots listed above, \"object\" when it is a fixed obstacle, \"transient\" when it is a temporary obstruction expected to clear on its own; null when congestion_detected is false\n- \"crossing_order\": when three or more robots must be ordered, every involved robot ID in the order they should pass, first to pass first (a robot that yields passes after the robots it yields to); otherwise null\n\nRules:\n- Only use robot IDs from the known list above.\n- When congestion_detected is false: set type=\"none\", strategy=\"none\", involved_robots=[].\n- When congestion_detected is true: type and strategy must not be \"none\", and involved_robots must be non-empty.\n\nAnswer using the following format:\n<think>\nRead the pairwise geometry (distance and whether each robot faces the other), check the robot statuses, identify any conflicts, decide the congestion type and strategy, and if the strategy is \"yield\", state which robot should yield and why.\n</think>\nImmediately after the </think> tag, write ONLY the final JSON object, with no surrounding text or markdown.",
+      "user_sha256": "dd36d1083eb27e4cc6d74378f2f43bea14d48988e69392097049a44003500a1f"
+    },
+    "prompt_conditions": null,
+    "prompt_robot_order_mode": null,
+    "prompt_robot_order_seed": null,
+    "prompt_version": 2,
+    "raw_text": "{}",
+    "reasoner_config_effective": null,
+    "request_id": "r1",
+    "robot_presentation_order": "id_asc",
+    "run_id": null,
+    "scene": null,
+    "session_id": null,
+    "shadow_classical": null,
+    "stage2": null,
+    "terminal_stage": "ok",
+    "yield_refusal_reason": null,
+    "yield_regrounded_reason": null,
+    "yield_robot_grounded_from": null
+  }
+}

@@ -194,6 +194,7 @@ def _build_default_pipeline(
         plan_tracker=plan_tracker,
         permutation_votes=config.prompt_permutation_votes,
         registry_order=tuple(config.initial_tasks),
+        dispatch_order_source=config.plan_dispatch_order_source,
     )
 
 
@@ -964,6 +965,7 @@ class OrchestratorNode(Node):
                 grounding_source=self._grounding,
                 prompt_conditions=prompt_conditions,
                 dispatch=dispatch,
+                plan_dispatch_order_source=self._config.plan_dispatch_order_source,
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
         except OSError as exc:
@@ -1480,6 +1482,7 @@ class OrchestratorNode(Node):
                 probe_index=probe.probe_index,
                 grounding_source=self._grounding,
                 prompt_conditions=probe.prompt_conditions,
+                plan_dispatch_order_source=self._config.plan_dispatch_order_source,
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
         except OSError as exc:

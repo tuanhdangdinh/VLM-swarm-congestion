@@ -5,7 +5,7 @@ import hashlib
 import json
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, NamedTuple, Protocol
+from typing import Any, NamedTuple, Protocol, get_args
 
 import cv2
 import numpy as np
@@ -20,6 +20,8 @@ from pydantic import (
 
 from reasoning.rag.command_grounder import (
     CommandGroundingError,
+    DispatchOrderSource,
+    DispatchOrderSourceMode,
     JunctionClearPhasePlan,
     PlanRepairParams,
     YieldFeasibilityMode,
@@ -28,6 +30,7 @@ from reasoning.rag.command_grounder import (
     ground_junction_clear_phases,
     junction_clear_dispatch_match,
     plan_matches_dispatch,
+    plan_recede_order,
     resolve_strategy_alias,
     validate_coordination_command,
     verify_and_repair_plan,
@@ -816,6 +819,7 @@ def write_decision_artifact(
     grounding_source: GroundingParamsSource | None = None,
     prompt_conditions: PromptConditions | None = None,
     dispatch: RegistryDispatch | None = None,
+    plan_dispatch_order_source: DispatchOrderSourceMode | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
@@ -890,6 +894,16 @@ def write_decision_artifact(
     plus `dispatch_filter_error` when the filter refused the command and
     `junction_phases_dispatched_robot_ids` (`phases`, `fallback`) under
     `junction_phases`. All absent when `dispatch` is None.
+
+    `plan_dispatch_order_source` (prereg-v3 R3.3, the configured mode) and
+    `dispatch_order_source` (`outcome.dispatch_order_source`: "model" when
+    the recede phases were dispatched in the model's verified order, "chi"
+    otherwise, null when no command was grounded) are always written, like
+    `grounding_yield_feasibility`: a deliberate artifact-contract addition,
+    so an artifact without them predates the arm. The order actually
+    dispatched is the `"recede"` phases' order in `junction_phases`; the chi
+    order stays readable from the release phase (lead first, then its
+    yielder action's `crossing_order`).
 
     `prompt_conditions` (prereg-v2 rev 6 apparatus) is always written, null
     only when the caller passed none; M5 passes it on every analysis, all-off
@@ -975,6 +989,10 @@ def write_decision_artifact(
             else outcome.grounded_command.get("degradations")
         ),
         "stage2": None if outcome.stage2 is None else outcome.stage2.model_dump(mode="json"),
+        "plan_dispatch_order_source": plan_dispatch_order_source,
+        "dispatch_order_source": (
+            None if outcome.grounded_command is None else outcome.dispatch_order_source
+        ),
     }
     if probe_index is not None:
         payload["probe"] = True
@@ -1095,8 +1113,19 @@ class InProcessPipeline:
         plan_repair_params: PlanRepairParams | None = None,
         permutation_votes: int = 1,
         registry_order: Sequence[str] = (),
+        dispatch_order_source: DispatchOrderSourceMode = "chi",
     ) -> None:
         self._reasoner = reasoner
+        # prereg-v3 R3.3 (`plan_dispatch_order_source`): "chi" (default)
+        # keeps every dispatch byte-identical; "model_when_verified" re-seats
+        # a `junction_clear` resolution's recede phases on the model's own
+        # order when its plan verified `vlm_verbatim` (plan channel only).
+        if dispatch_order_source not in get_args(DispatchOrderSourceMode):
+            raise ValueError(
+                f"dispatch_order_source must be one of {get_args(DispatchOrderSourceMode)}, "
+                f"got {dispatch_order_source!r}"
+            )
+        self._dispatch_order_source = dispatch_order_source
         # Prompt-apparatus permutation voting (prereg-v2 rev 6): 1 (default)
         # is the single call every run made before it existed; N > 1 votes
         # over N presentation-order shifts BEFORE stage 2, grounding and the
@@ -1233,6 +1262,7 @@ class InProcessPipeline:
         plan_info: PlanDispatchInfo | None = None
         plan_error: str | None = None
         junction_phases: JunctionClearPhasePlan | None = None
+        dispatch_order_source: DispatchOrderSource = "chi"
         if self._plan_tracker is not None:
             # A plan-channel failure must never cost an otherwise-successful
             # dispatch (the adapter's own "never raised past this adapter"
@@ -1300,6 +1330,50 @@ class InProcessPipeline:
                     )
                     dispatch_matches_plan = junction_match.matches
                     order_equivalent = junction_match.order_equivalent
+                    if (
+                        self._dispatch_order_source == "model_when_verified"
+                        and verified.provenance == "vlm_verbatim"
+                    ):
+                        # R3.3 condition B: dispatch the verified plan's own
+                        # recede order. Only `vlm_verbatim` qualifies -- a
+                        # `repaired` plan's order is whatever M3's repair
+                        # search accepted, not the model's. The verdict is
+                        # THIS decision's own verification even on a plan
+                        # hold (the phases are grounded from this decision).
+                        # `order_equivalent` stays the chi comparison above:
+                        # it is the A/B stratifier, true exactly where B
+                        # dispatches differently from A.
+                        model_phases = ground_junction_clear_phases(
+                            result,
+                            snapshot=frame,
+                            params=params,
+                            geometry=self._scene_geometry,
+                            static_obstacles=self._static_obstacles,
+                            yield_feasibility_mode=self._yield_feasibility_mode,
+                            retreat_choice=retreat_choice,
+                            recede_order=plan_recede_order(verified.legs),
+                        )
+                        model_match = junction_clear_dispatch_match(
+                            verified.legs,
+                            model_phases,
+                            known_robot_ids,
+                            snapshot=frame,
+                            geometry=self._scene_geometry,
+                            params=params,
+                        )
+                        # `grounded` is what M5 actually dispatches (the
+                        # phase queue's own phase 0 is discarded), so it is
+                        # re-seated on the model-ordered phase 0 through the
+                        # SAME filter/validation it was built with.
+                        model_grounded = self._validate_fn(
+                            filter_command_robot_ids(
+                                model_phases.phases[0].command, allowed_robot_ids
+                            )
+                        )
+                        junction_phases = model_phases
+                        dispatch_matches_plan = model_match.matches
+                        grounded = model_grounded
+                        dispatch_order_source = "model"
                 else:
                     dispatch_matches_plan = plan_matches_dispatch(
                         verified.legs, grounded, known_robot_ids
@@ -1337,6 +1411,7 @@ class InProcessPipeline:
             plan=plan_info,
             plan_error=plan_error,
             junction_phases=junction_phases,
+            dispatch_order_source=dispatch_order_source,
         )
 
     def analyze(self, request: ReasonerRequest) -> PipelineOutcome:

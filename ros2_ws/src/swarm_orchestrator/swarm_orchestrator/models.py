@@ -9,6 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from reasoning.baselines import ConflictZone
 from reasoning.rag.command_grounder import (
+    DispatchOrderSource,
+    DispatchOrderSourceMode,
     JunctionClearPhasePlan,
     PlanEdit,
     PlanProvenance,
@@ -245,6 +247,15 @@ class OrchestratorConfig(BaseModel):
     # Default False: this is the regression gate (prereg-v2 design.md build
     # order step 4's two-robot head-on equivalence smoke runs with it off).
     plan_channel_enabled: bool = False
+    # prereg-v3 R3.3 arm (dispatch-model-order-when-verified): the RECEDE
+    # dispatch order of a `junction_clear` resolution. "chi" (default) is the
+    # inherited behaviour, byte-identical dispatch. "model_when_verified"
+    # dispatches the model's own `proposed_plan` recede order when that plan
+    # verified `vlm_verbatim`; repaired / m3_default plans stay chi. Recede
+    # set, pockets, cross and release are unchanged in both modes. Recorded
+    # in every decision artifact (`plan_dispatch_order_source`, beside the
+    # per-decision `dispatch_order_source`). Needs `plan_channel_enabled`.
+    plan_dispatch_order_source: DispatchOrderSourceMode = "chi"
     # Prompt apparatus (prereg-v2 rev 6 + round-3 deltas, 2026-10-04): five
     # registered A/B conditions, ALL default off, each recorded in every
     # decision artifact's `prompt_conditions` block whatever its value
@@ -324,6 +335,18 @@ class OrchestratorConfig(BaseModel):
             raise ValueError(
                 f"{', '.join(requested)} require plan_channel_enabled (prompt v3); "
                 "the frozen v1/v2 templates render none of them"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _model_dispatch_order_needs_plan_channel(self) -> OrchestratorConfig:
+        # Only the plan channel verifies a `proposed_plan` and seeds the
+        # junction phase queue; without it condition B would silently run
+        # condition A's dispatch.
+        if self.plan_dispatch_order_source != "chi" and not self.plan_channel_enabled:
+            raise ValueError(
+                f"plan_dispatch_order_source={self.plan_dispatch_order_source!r} requires "
+                "plan_channel_enabled (plans are only verified on the plan channel)"
             )
         return self
 
@@ -494,11 +517,14 @@ class PlanDispatchInfo(BaseModel):
     # measured, not silently assumed away.
     dispatch_matches_plan: bool
     # χ-epsilon verbatim rule (prereg-v2 (a0), RULED 2026-10-03): True when a
-    # `junction_clear` plan's recede order differs from the dispatched (χ)
-    # order but within `GroundingParams.junction_recede_order_epsilon`
+    # `junction_clear` plan's recede order differs from the χ order but
+    # within `GroundingParams.junction_recede_order_epsilon`
     # (`command_grounder.JunctionDispatchMatch`). `dispatch_matches_plan` is
     # then still True; this flag is what keeps the divergence visible. False
-    # for every other decision.
+    # for every other decision. Always measured against χ, also when
+    # `PipelineOutcome.dispatch_order_source == "model"` (R3.3), where the
+    # dispatched order IS the plan's: it is the A/B stratifier, true exactly
+    # where condition B dispatches differently from condition A.
     order_equivalent: bool = False
     # Hold semantics (ruling 2026-10-02): True when `plan_tracker.PlanTracker
     # .accept_plan` re-affirmed the already-active plan (`plan_id` above is
@@ -543,6 +569,14 @@ class PipelineOutcome(BaseModel):
     # `grounded_command` already is (`ground_reasoner_result`'s own
     # single-command contract: "the NEXT unresolved step").
     junction_phases: JunctionClearPhasePlan | None = None
+    # prereg-v3 R3.3: "model" exactly when `junction_phases`' recede phases
+    # (and so `grounded_command`, their phase 0) follow the model's verified
+    # `proposed_plan` order (`plan_dispatch_order_source:
+    # model_when_verified` AND provenance `vlm_verbatim`); "chi" for every
+    # other outcome -- the inherited order rule (vacuously so for a
+    # decision with no recede sequence). The artifact records null instead
+    # when no command was grounded.
+    dispatch_order_source: DispatchOrderSource = "chi"
     # Permutation-voting record (`prompt_permutation_votes` > 1): every call's
     # order, prompt hashes, raw response and vote, plus the winner. None for a
     # single-call run, whose outcome is then unchanged.
