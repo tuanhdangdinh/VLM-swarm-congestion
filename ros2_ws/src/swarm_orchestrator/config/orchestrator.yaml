@@ -367,6 +367,26 @@ contradiction_trigger:
 # rejections; never model text) to each failure-context block's detail.
 # false (default) keeps every prompt byte-identical.
 failure_explanation_enabled: false
+# v3 dispatch-off probe flag (S4/S5/S6 log-only scoring): false runs every
+# triggered analysis through M2 and M3 and writes the full artifact, plus
+# dispatch_enabled: false / dispatch_suppressed, but publishes nothing to M4,
+# starts no junction phase queue and records no attempt; a cooldown_sec
+# cooldown starts instead. Not t0_probe_mode, which only runs off-trigger
+# stage-1 probes.
+dispatch_enabled: true
+# v3 S1 (MAPD-5) task stream; default off (the registry holds initial_tasks).
+# Enabled, each initial_tasks robot works a seeded FIFO queue of
+# tasks_per_robot nodes; its registry goal stays the node through the accepted
+# arrival and dwell_sim_sec (sim-s, M1 stamps) and pops to the next node at
+# dwell end. Robot k (natural id order) is held k x release_stagger_wall_sec
+# (wall-s: 4 sim-s / RTF_pilot). Events + manifest go to
+# <decision_log_dir>/tasks_<session_id>.jsonl. S1 values, for reference:
+#   nodes: { Wp: [-2.3, 0.35], Wm: [-2.3, -0.35], N: [0.0, 1.55],
+#            S: [0.0, -1.55], E: [2.3, 0.0] }
+#   forbidden_legs: [[Wp, Wm]]   tasks_per_robot: 5   dwell_sim_sec: 5.0
+#   horizon_sim_sec: 600.0       seed: <from the registered 100-seed list>
+task_stream:
+  enabled: false
 
 # Fixed obstacles rendered into the VLM prompt when prompt_static_obstacles is
 # true. Like scenario_geometry above, these mirror the scenario file by hand

@@ -104,6 +104,85 @@ class ContradictionTriggerConfig(BaseModel):
     per_event_replan_budget: int = Field(default=1, ge=0)
 
 
+class TaskStreamConfig(BaseModel):
+    """The v3 S1 (MAPD-5) task-stream mode's settings (`task_stream:`).
+
+    Disabled (the default), the registry holds the one static `initial_tasks`
+    assignment per robot and nothing here is read, so every run is
+    byte-identical to before the block existed. Enabled, each robot works
+    through a seeded FIFO queue of `tasks_per_robot` destination nodes
+    (`swarm_orchestrator.task_stream`): its registry goal is its current task
+    node, kept there through an accepted arrival and the dwell that follows
+    (pop-on-dwell-end, so the detector's arrival excusal covers the dwell),
+    and replaced by the next node only once the dwell ends.
+
+    Clocks are part of the field names: the dwell and the horizon are in
+    sim-s (M1 scene stamps), the release stagger is wall-s (M5's monotonic
+    clock, the existing `start_delay_sec` path; scene doc Open Question S1-10).
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    enabled: bool = False
+    # Node id -> world-frame (x, y) in metres. The registry carries no heading.
+    nodes: dict[str, tuple[float, float]] = Field(default_factory=dict)
+    tasks_per_robot: int = Field(default=5, ge=1)
+    # Required when enabled: the registered seed of this episode (the S1
+    # 100-seed list). Never derived, so a run cannot draw an unregistered
+    # sequence.
+    seed: int | None = None
+    # Robot id -> the node it spawns on. None draws a distinct node per robot
+    # from `seed` (`task_stream.draw_start_nodes`); either way the drawn
+    # schedule is the first record of the run's tasks JSONL so a mismatch
+    # with the actual spawn is detectable.
+    start_nodes: dict[str, str] | None = None
+    # Unordered node pairs never drawn as consecutive legs (S1: Wp-Wm).
+    forbidden_legs: tuple[tuple[str, str], ...] = ()
+    # Registry task labels, cycled per robot from its first task (GECCO's
+    # pickup/delivery alternation; wording is scene doc Open Question S1-5).
+    task_labels: tuple[str, ...] = Field(default=("pickup", "delivery"), min_length=1)
+    # Robot k (0-based, natural robot-id order) is held `start_pending` for
+    # k x this many wall-s after M5 starts. The registered value is 4 sim-s,
+    # so the yaml carries 4 / RTF_pilot.
+    release_stagger_wall_sec: float = Field(default=4.0, ge=0.0)
+    dwell_sim_sec: float = Field(default=5.0, ge=0.0)
+    # Recorded in the manifest only; M5 never stops an episode.
+    horizon_sim_sec: float | None = Field(default=None, gt=0.0)
+    # What a robot does once its queue is empty. Only "park" (stay on its
+    # last node, scene doc variant C) is built: the wandering analog (variant
+    # D) waits on the ruling of scene doc Open Question S1-1.
+    finished_mode: Literal["park"] = "park"
+
+    @model_validator(mode="after")
+    def _enabled_stream_is_drawable(self) -> TaskStreamConfig:
+        if not self.enabled:
+            return self
+        if self.seed is None:
+            raise ValueError("task_stream.seed is required when task_stream.enabled")
+        if len(self.nodes) < 2:
+            raise ValueError("task_stream.nodes needs at least two nodes")
+        for leg in self.forbidden_legs:
+            if leg[0] == leg[1] or not set(leg) <= set(self.nodes):
+                raise ValueError(
+                    f"task_stream.forbidden_legs entry {list(leg)} must name two distinct "
+                    "known nodes"
+                )
+        forbidden = {frozenset(leg) for leg in self.forbidden_legs}
+        for node in self.nodes:
+            if not any(
+                other != node and frozenset((node, other)) not in forbidden
+                for other in self.nodes
+            ):
+                raise ValueError(f"task_stream node {node!r} has no legal next node")
+        if self.start_nodes is not None:
+            unknown = sorted(set(self.start_nodes.values()) - set(self.nodes))
+            if unknown:
+                raise ValueError(f"task_stream.start_nodes names unknown nodes {unknown}")
+            if len(set(self.start_nodes.values())) != len(self.start_nodes):
+                raise ValueError("task_stream.start_nodes must give each robot its own node")
+        return self
+
+
 class OrchestratorConfig(BaseModel):
     """Runtime configuration for the orchestrator, loaded from YAML at startup."""
 
@@ -314,6 +393,15 @@ class OrchestratorConfig(BaseModel):
     # (`reasoning_pipeline.explain_attempt`). Default off, so every prompt is
     # byte-identical to the v1/v2-era failure context.
     failure_explanation_enabled: bool = False
+    # v3 S1 task-stream mode (MAPD-5); default off.
+    task_stream: TaskStreamConfig = Field(default_factory=TaskStreamConfig)
+    # Dispatch-off probe flag (v3 build item, scene doc item 9): False runs
+    # the full triggered pipeline -- trigger, M2, M3, artifact with every
+    # provenance block -- but never publishes the command to M4, and the
+    # artifact gains `dispatch_enabled: false` / `dispatch_suppressed`. Unlike
+    # `t0_probe_mode` (off-trigger, stage-1 only probes), it acts on real
+    # triggered analyses. For log-only scoring (S4/S5/S6).
+    dispatch_enabled: bool = True
 
     @field_validator("initial_tasks")
     @classmethod
@@ -380,6 +468,34 @@ class OrchestratorConfig(BaseModel):
                 f"plan_dispatch_order_source={self.plan_dispatch_order_source!r} requires "
                 "plan_channel_enabled (plans are only verified on the plan channel)"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _task_stream_matches_roster(self) -> OrchestratorConfig:
+        stream = self.task_stream
+        if not stream.enabled:
+            return self
+        robots = set(self.initial_tasks)
+        if stream.start_nodes is not None and set(stream.start_nodes) != robots:
+            raise ValueError(
+                f"task_stream.start_nodes robots {sorted(stream.start_nodes)} must equal the "
+                f"initial_tasks robots {sorted(robots)}"
+            )
+        if stream.start_nodes is None and len(stream.nodes) < len(robots):
+            raise ValueError(
+                f"task_stream draws a distinct start node per robot: {len(robots)} robots "
+                f"need at least {len(robots)} nodes, got {len(stream.nodes)}"
+            )
+        delayed = sorted(rid for rid, task in self.initial_tasks.items() if task.start_delay_sec)
+        if delayed:
+            raise ValueError(
+                f"initial_tasks start_delay_sec must be 0 under task_stream (robots {delayed}): "
+                "the stream's release_stagger_wall_sec owns every release"
+            )
+        if not self.arrival_position_check:
+            # Unverified, a stale Nav2 success landing just after the next task
+            # is issued would be accepted against it and skip that task.
+            raise ValueError("task_stream requires arrival_position_check: true")
         return self
 
     @model_validator(mode="after")

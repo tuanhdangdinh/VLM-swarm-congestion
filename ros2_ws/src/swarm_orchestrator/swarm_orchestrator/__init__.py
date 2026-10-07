@@ -23,6 +23,7 @@ from swarm_orchestrator.models import (
     PipelineOutcome,
     SceneSnapshot,
     TaskAssignment,
+    TaskStreamConfig,
     TerminalStage,
     load_config,
     parse_scene_snapshot,
@@ -43,6 +44,14 @@ from swarm_orchestrator.state_machine import (
     OrchestratorStateMachine,
 )
 from swarm_orchestrator.task_registry import TaskRegistry
+from swarm_orchestrator.task_stream import (
+    TaskStreamEvent,
+    TaskStreamPlan,
+    TaskStreamTracker,
+    build_task_stream_plan,
+    draw_start_nodes,
+    draw_task_sequences,
+)
 
 __all__ = [
     "ArrivalCheck",
@@ -68,11 +77,18 @@ __all__ = [
     "SceneSnapshot",
     "TaskAssignment",
     "TaskRegistry",
+    "TaskStreamConfig",
+    "TaskStreamEvent",
+    "TaskStreamPlan",
+    "TaskStreamTracker",
     "TerminalStage",
     "attach_registry_assignments",
     "build_failed_outcome",
     "classify_arrival",
     "build_reasoner_request",
+    "build_task_stream_plan",
+    "draw_start_nodes",
+    "draw_task_sequences",
     "dump_frame_png",
     "fan_out_command",
     "load_config",

@@ -969,6 +969,7 @@ def write_decision_artifact(
     plan_dispatch_order_source: DispatchOrderSourceMode | None = None,
     trigger_source: str | None = None,
     trigger_contradiction: dict[str, Any] | None = None,
+    dispatch_suppressed: bool | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
@@ -1060,6 +1061,14 @@ def write_decision_artifact(
     (the armed `Contradiction`, for a contradiction-triggered analysis) a
     key of that name; both absent when None, so a trigger-off artifact is
     byte-identical to one written before the trigger existed.
+
+    `dispatch_suppressed` (v3 dispatch-off probe flag, set by M5 only while
+    `dispatch_enabled` is false) adds `dispatch_enabled: false` and
+    `dispatch_suppressed` -- true when this outcome would have been
+    dispatched (OK, grounded, and the registry filter left a command), so
+    `dispatched_command` is what M4 WOULD have received; false otherwise.
+    Both absent when None, so a dispatch-on artifact is byte-identical to one
+    written before the flag existed.
 
     `prompt_conditions` (prereg-v2 rev 6 apparatus) is always written, null
     only when the caller passed none; M5 passes it on every analysis, all-off
@@ -1198,6 +1207,9 @@ def write_decision_artifact(
         payload["trigger_source"] = trigger_source
     if trigger_contradiction is not None:
         payload["trigger_contradiction"] = trigger_contradiction
+    if dispatch_suppressed is not None:
+        payload["dispatch_enabled"] = False
+        payload["dispatch_suppressed"] = dispatch_suppressed
     payload["prompt_conditions"] = (
         None if prompt_conditions is None else prompt_conditions.model_dump(mode="json")
     )
