@@ -1,0 +1,291 @@
+{
+  "arrival_rule": "gt_within_0.35_stay_0.5",
+  "origin_rule": "own_departure",
+  "provenance": {
+    "frozen": "2026-10-08, prereg-v3 addendum A7a (Step 0 closure)",
+    "harness": "free_flow_run.sh solo_in_space legs, Option B M5 tail active, mock backend, 0 dispatches per leg",
+    "identical_cells": "priority_urgent_r1, priority_urgent_r2 and priority_visual_r2 carry the priority_visual_r1 measurements (registered identical cells, as in free_flow_v1)",
+    "measured": "2026-10-07, fc_launch stamps 20261007_085026..20261007_104531",
+    "measured_legs": "22",
+    "source": "docs/reports/2026-10-08-v3-step0-rebaseline.md Stage 2",
+    "tree": "feat/v3-integration@071f9c1 (orchestrator.yaml VM-pinned 1f656533)"
+  },
+  "scenes": {
+    "bottleneck_merge": {
+      "robot_1": {
+        "arrival_sec": 32.4,
+        "departure_sec": 11.7,
+        "gt_hash": "ccfcb0048de74e0dbc29fc28b863b9e452ab7a9c98472d757417f7db5e123d60",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "bottleneck_merge_ff_robot_1:20261007_091757",
+        "time_sec": 20.7
+      },
+      "robot_2": {
+        "arrival_sec": 30.0,
+        "departure_sec": 12.6,
+        "gt_hash": "5ce5cb00f586e3315ed6c9b45a8999c66f3c27f5eb4709a467982b2dc8092968",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "bottleneck_merge_ff_robot_2:20261007_092325",
+        "time_sec": 17.4
+      },
+      "robot_3": {
+        "arrival_sec": 43.0,
+        "departure_sec": 12.6,
+        "gt_hash": "c3d3cb637f0d0e767d27eb60ca7b7161c22cec8713c187cb57ecabb64068c475",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "bottleneck_merge_ff_robot_3:20261007_092857",
+        "time_sec": 30.4
+      }
+    },
+    "convoy_counterflow_slip": {
+      "robot_1": {
+        "arrival_sec": 33.9,
+        "departure_sec": 11.7,
+        "gt_hash": "be29b8a7f416e30791bc81f3d8d4b4cd5de4d2fae5faa25709345e80ebee3f10",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "convoy_counterflow_slip_ff_robot_1:20261007_094522",
+        "time_sec": 22.2
+      },
+      "robot_2": {
+        "arrival_sec": 30.6,
+        "departure_sec": 11.7,
+        "gt_hash": "c6299c7c71fbaeccafc5ba2200fc63d4c361aa2be078640b4c10f2d7e249add2",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "convoy_counterflow_slip_ff_robot_2:20261007_095055",
+        "time_sec": 18.9
+      },
+      "robot_3": {
+        "arrival_sec": 39.5,
+        "departure_sec": 12.7,
+        "gt_hash": "bfd1784737589d92ccce67f872ee37f3b419e4f81378dd9d634dae3773550c47",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "convoy_counterflow_slip_ff_robot_3:20261007_095623",
+        "time_sec": 26.8
+      },
+      "robot_4": {
+        "arrival_sec": 38.5,
+        "departure_sec": 12.1,
+        "gt_hash": "b89787d49a9ed1e58c318b24655a80f5d13a3bcdd37e97a3f7cb2e61fb4fa0d6",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "convoy_counterflow_slip_ff_robot_4:20261007_100151",
+        "time_sec": 26.4
+      }
+    },
+    "dynamic_anomaly_v2": {
+      "robot_1": {
+        "arrival_sec": 43.1,
+        "departure_sec": 12.2,
+        "gt_hash": "8d4fb89e9dcffd29ae2f14cc1e58690e517cfa686770fb428cffad8177c3eb18",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "dynamic_anomaly_v2_ff_robot_1:20261007_104003",
+        "time_sec": 30.9
+      },
+      "robot_2": {
+        "arrival_sec": 43.2,
+        "departure_sec": 12.3,
+        "gt_hash": "398ce69080db0f09b77466af6642777471e28fc9c6010e0eaa304cb229def850",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "dynamic_anomaly_v2_ff_robot_2:20261007_104531",
+        "time_sec": 30.9
+      }
+    },
+    "head_on_asymmetric_w0p2_eopen_bshort_o0": {
+      "robot_1": {
+        "arrival_sec": 36.2,
+        "departure_sec": 11.2,
+        "gt_hash": "21bcd98ddb83f783c5e56af68e978a8ddfb8b7d37ae511576fbf30549c21d6ca",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "head_on_asymmetric_w0p2_eopen_bshort_o0_ff_robot_1:20261007_085026",
+        "time_sec": 25.0
+      },
+      "robot_2": {
+        "arrival_sec": 30.1,
+        "departure_sec": 12.5,
+        "gt_hash": "2deb79360a4f39619a8268c1c504e8aaffed90e44354d23cb7ffc6847afd3992",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "head_on_asymmetric_w0p2_eopen_bshort_o0_ff_robot_2:20261007_085554",
+        "time_sec": 17.6
+      }
+    },
+    "intersection_bottleneck": {
+      "robot_1": {
+        "arrival_sec": 32.7,
+        "departure_sec": 11.8,
+        "gt_hash": "a8b6ed0b89f47b64610e2704e97a45de5cc190c6f04a54d47a84f6d3a66efa92",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "intersection_bottleneck_ff_robot_1:20261007_100719",
+        "time_sec": 20.9
+      },
+      "robot_2": {
+        "arrival_sec": 34.2,
+        "departure_sec": 13.2,
+        "gt_hash": "bade07971b63f58d99a49685ee436f7ac1bfd35ee0fba5d0d1d2cd8c1a9fb42a",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "intersection_bottleneck_ff_robot_2:20261007_101246",
+        "time_sec": 21.0
+      },
+      "robot_3": {
+        "arrival_sec": 32.2,
+        "departure_sec": 11.5,
+        "gt_hash": "5051b8306174e760bed39e1aae225887c66d3b57789969ab0eb85ba581a80007",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "intersection_bottleneck_ff_robot_3:20261007_101813",
+        "time_sec": 20.7
+      },
+      "robot_4": {
+        "arrival_sec": 32.1,
+        "departure_sec": 11.2,
+        "gt_hash": "8661e57954d7b6dc45d3e0f31b3a2108610d579c4660e409c2147d51a52a321a",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "intersection_bottleneck_ff_robot_4:20261007_102342",
+        "time_sec": 20.9
+      }
+    },
+    "obstacle_in_candidate": {
+      "robot_1": {
+        "arrival_sec": 26.0,
+        "departure_sec": 11.8,
+        "gt_hash": "34e2ca131c46f8b63c414235faf45ae4db984787e55f9620fc8269b38d92a02c",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "obstacle_in_candidate_ff_robot_1:20261007_102906",
+        "time_sec": 14.2
+      },
+      "robot_2": {
+        "arrival_sec": 42.0,
+        "departure_sec": 11.1,
+        "gt_hash": "b68f7008b27c2548652f45d383525eb39e2027551fdf3df45580ed9217a5b836",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "obstacle_in_candidate_ff_robot_2:20261007_103432",
+        "time_sec": 30.9
+      }
+    },
+    "priority_urgent_r1": {
+      "robot_1": {
+        "arrival_sec": 35.2,
+        "departure_sec": 11.0,
+        "gt_hash": "c86047eaa4df6b98ca81b7361c8983e65f7ac10607fdef78ee63b8b5891ae8d8",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "priority_visual_r1_ff_robot_1:20261007_093427",
+        "time_sec": 24.2
+      },
+      "robot_2": {
+        "arrival_sec": 36.1,
+        "departure_sec": 11.9,
+        "gt_hash": "665177cf0d24a7f4cc8b12a2a371713d735b5d2d9bb4177f91f36073f214fb83",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "priority_visual_r1_ff_robot_2:20261007_093953",
+        "time_sec": 24.2
+      }
+    },
+    "priority_urgent_r2": {
+      "robot_1": {
+        "arrival_sec": 35.2,
+        "departure_sec": 11.0,
+        "gt_hash": "c86047eaa4df6b98ca81b7361c8983e65f7ac10607fdef78ee63b8b5891ae8d8",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "priority_visual_r1_ff_robot_1:20261007_093427",
+        "time_sec": 24.2
+      },
+      "robot_2": {
+        "arrival_sec": 36.1,
+        "departure_sec": 11.9,
+        "gt_hash": "665177cf0d24a7f4cc8b12a2a371713d735b5d2d9bb4177f91f36073f214fb83",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "priority_visual_r1_ff_robot_2:20261007_093953",
+        "time_sec": 24.2
+      }
+    },
+    "priority_visual_r1": {
+      "robot_1": {
+        "arrival_sec": 35.2,
+        "departure_sec": 11.0,
+        "gt_hash": "c86047eaa4df6b98ca81b7361c8983e65f7ac10607fdef78ee63b8b5891ae8d8",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "priority_visual_r1_ff_robot_1:20261007_093427",
+        "time_sec": 24.2
+      },
+      "robot_2": {
+        "arrival_sec": 36.1,
+        "departure_sec": 11.9,
+        "gt_hash": "665177cf0d24a7f4cc8b12a2a371713d735b5d2d9bb4177f91f36073f214fb83",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "priority_visual_r1_ff_robot_2:20261007_093953",
+        "time_sec": 24.2
+      }
+    },
+    "priority_visual_r2": {
+      "robot_1": {
+        "arrival_sec": 35.2,
+        "departure_sec": 11.0,
+        "gt_hash": "c86047eaa4df6b98ca81b7361c8983e65f7ac10607fdef78ee63b8b5891ae8d8",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "priority_visual_r1_ff_robot_1:20261007_093427",
+        "time_sec": 24.2
+      },
+      "robot_2": {
+        "arrival_sec": 36.1,
+        "departure_sec": 11.9,
+        "gt_hash": "665177cf0d24a7f4cc8b12a2a371713d735b5d2d9bb4177f91f36073f214fb83",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "priority_visual_r1_ff_robot_2:20261007_093953",
+        "time_sec": 24.2
+      }
+    },
+    "t2b_flow_ordering": {
+      "robot_1": {
+        "arrival_sec": 34.9,
+        "departure_sec": 10.6,
+        "gt_hash": "0566a19013b1a13b4e958c10df9fbc75b2b93244816319d6aa68f46132a82afe",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "t2b_flow_ordering_ff_robot_1:20261007_090125",
+        "time_sec": 24.3
+      },
+      "robot_2": {
+        "arrival_sec": 30.8,
+        "departure_sec": 10.0,
+        "gt_hash": "96c219b4cfa9b126314f1bf00f003d23857aed8c72d25faec9bc5da4fb9edd5e",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "t2b_flow_ordering_ff_robot_2:20261007_090653",
+        "time_sec": 20.8
+      },
+      "robot_3": {
+        "arrival_sec": 37.8,
+        "departure_sec": 11.5,
+        "gt_hash": "18b42eb43afff4bf87d15e1b668310d4a3e0341444208073d07a8407a45d9668",
+        "mechanism": "solo_in_space",
+        "min_clearance_m": null,
+        "run_id": "t2b_flow_ordering_ff_robot_3:20261007_091225",
+        "time_sec": 26.3
+      }
+    }
+  },
+  "schema_version": 1,
+  "table_id": "free_flow_v2"
+}

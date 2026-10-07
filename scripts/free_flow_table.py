@@ -57,7 +57,15 @@ import sys
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -125,6 +133,17 @@ class FreeFlowTable(BaseModel):
     origin_rule: Literal["own_departure"]
     arrival_rule: Literal["gt_within_0.35_stay_0.5"]
     scenes: dict[str, dict[str, FreeFlowEntry]]
+    # Free-text provenance labels (tree, measurement dates, harness state).
+    # Optional: `free_flow_v1` predates it, and an unset value stays out of
+    # the dump so a table built without it is byte-identical to before.
+    provenance: dict[str, str] | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_provenance(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data = handler(self)
+        if data.get("provenance") is None:
+            data.pop("provenance", None)
+        return data
 
     @field_validator("scenes")
     @classmethod
@@ -330,19 +349,24 @@ def count_dispatches(decisions_dir: Path) -> int:
     return count
 
 
-def build_table(table_id: str, scenes: dict[str, dict[str, dict[str, Any]]]) -> dict[str, Any]:
+def build_table(
+    table_id: str,
+    scenes: dict[str, dict[str, dict[str, Any]]],
+    provenance: dict[str, str] | None = None,
+) -> dict[str, Any]:
     """Assemble and validate a table from per-scene derived entries.
 
     Args:
         table_id: The table's identifier (e.g. `free_flow_v1`).
         scenes: Scene -> robot -> entry fields.
+        provenance: Optional provenance labels; omitted from the output when None.
 
     Returns:
         The validated table as JSON-safe data.
     """
     table = FreeFlowTable(
         schema_version=1, table_id=table_id, origin_rule=ORIGIN_RULE,
-        arrival_rule=ARRIVAL_RULE, scenes=scenes,
+        arrival_rule=ARRIVAL_RULE, scenes=scenes, provenance=provenance,
     )
     return table.model_dump(mode="json")
 
