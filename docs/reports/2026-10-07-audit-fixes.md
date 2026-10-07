@@ -5,12 +5,13 @@
 **Revision history:**
 
 - Initial draft: the five FIX NOW items of the "Forcing/hardcode audit RESULT + RULINGS (2026-10-07)" block, on `feat/v2-audit-fixes`.
+- Rev 2 (2026-10-07): follow-up ruling A7 (the `no_candidates` fallback merges degradations); the two remaining residual gaps ruled ACCEPTED.
 
 ---
 
 ## Summary
 
-This report implements items A1–A5 of the forcing-audit rulings. The rulings sit in the prereg-v2 design spec (`docs/superpowers/specs/2026-09-30-prereg-v2-design.md`, block "Forcing/hardcode audit RESULT + RULINGS (2026-10-07…)"). That block exists only in the main checkout (`fix/deadlock-collision-resolution` at `708a590`), not on the composite tip this branch starts from. The audit's own full report (`docs/reports/2026-10-07-forcing-audit.md`) is likewise only on that branch (`c967752`). Item A6 was ruled a wording correction with no code change, so it is not touched here.
+This report implements items A1–A5 of the forcing-audit rulings. The rulings sit in the prereg-v2 design spec (`docs/superpowers/specs/2026-09-30-prereg-v2-design.md`, block "Forcing/hardcode audit RESULT + RULINGS (2026-10-07…)"). That block exists only in the main checkout (`fix/deadlock-collision-resolution` at `708a590`), not on the composite tip this branch starts from. The audit's own full report (`docs/reports/2026-10-07-forcing-audit.md`) is likewise only on that branch (`c967752`). Item A6 was ruled a wording correction with no code change, so it is not touched here. Follow-up ruling A7 (block on `fix/deadlock-collision-resolution` at `53bc294`) is implemented below.
 
 - **Branch `feat/v2-audit-fixes`**, a worktree from `feat/prereg-v2-composite` at `941c1c3`:
   - `cf410be`: A1, the `junction_clear` phase record is serialized into decision artifacts.
@@ -19,10 +20,11 @@ This report implements items A1–A5 of the forcing-audit rulings. The rulings s
   - `8cce46c`: A4, a discarded yield-axis crossing order gets its own tag.
   - `8094cb7`: A3, `resolved` requires a dispatch; adds `self_resolved` and the `n_dispatches` column.
   - `6b8c95c`: A2, scorers report `backend_id` and refuse mock bundles unless `--allow-mock` is passed.
+  - `6ef47c6`: A7 (follow-up ruling), the `junction_clear` `no_candidates` fallback merges the plain yield's degradations instead of replacing them.
   - A docs commit carries this report and the implementation-notes entry.
 - **No VM run, no live API call, no merge, no push.** Prompts, `config/models.yaml`, oracles and the retry/transport layer are untouched.
 - **Additive only.** No existing artifact key or scorer field changes shape or meaning. One vocabulary addition is the exception: `outcome_class` gains a fourth value, `self_resolved` (A3).
-- **Local suite: zero delta.** The same 65 ids fail before and after (62 failed + 3 collection errors). Passes went from 5,413 to 5,446, all from new tests.
+- **Local suite: zero delta.** The same 65 ids fail before and after (62 failed + 3 collection errors). Passes went from 5,413 to 5,447, all from new tests.
 
 ---
 
@@ -77,7 +79,7 @@ This report implements items A1–A5 of the forcing-audit rulings. The rulings s
   - **4-robot plain-yield fallback command** in `ground_junction_clear_phases`. Here `order=implicit` ("none given") fired even though the model had given an order. This is the mis-tag the audit describes.
   - **IB10 cross phase** (two yield-axis robots, one passer). `order=implicit` never fires here, so the discard was untagged entirely.
   - **`no_candidates` fallback.** The branch replaces the yield's tags with its own list, so no order tag survived there.
-- **Fix.** New helper `_tag_discarded_order` handles the first two sites. It replaces `order=implicit` with `order=discarded_yield_axis`, or appends that tag when `implicit` did not fire. The `no_candidates` branch appends the tag to its own list directly. Two limits apply:
+- **Fix.** New helper `_tag_discarded_order` handles the first two sites. It replaces `order=implicit` with `order=discarded_yield_axis`, or appends that tag when `implicit` did not fire. The `no_candidates` branch uses the same helper; since A7 that branch keeps the yield's tags, so the tag replaces `order=implicit` there too. Two limits apply:
   - **Explicit override:** no tag is added when a caller supplies its own `crossing_order` override, because that override is then the operative order.
   - **Behavior:** grounding output does not change. The tag is the only addition; the discarded order is not newly honoured.
 
@@ -147,11 +149,18 @@ This report implements items A1–A5 of the forcing-audit rulings. The rulings s
 
 ---
 
-## Residual Gaps (Not Ruled, Left Unchanged)
+### A7 (follow-up ruling): the `no_candidates` fallback keeps the yield's provenance
+
+- **Defect.** `_ground_derived`'s `junction_clear` branch, when no recede candidate survives, grounds a plain yield and then set the command's `degradations` to its own list (`junction_clear=fallback:no_candidates`, plus `junction_geometry=shipped_unsolved:*` when a field is missing). That threw away the yield's own tags, such as `retreat=default:*`, `yield=infeasible:*` and `order=junction_same_axis`, on the path the `fallback_exhausted` analysis scores. It was flagged here first as a residual gap; the coordinator ruled it FIX NOW.
+- **Fix.** The branch merges: the yield's tags come first, in their original order, then the fallback's own. The A4 discarded-order marker goes through `_tag_discarded_order` as at the other two sites. This is the same merge discipline as the A5a wrapper fix.
+- **Proof.** `TestNoCandidatesFallbackKeepsYieldProvenance` in `tests/unit/test_junction_clear_grounding.py` grounds the same scene as a plain `yield` and as a `junction_clear` with no declared pocket. The fallback's tag list starts with the plain yield's full list (`roles=legacy-convention`, `order=implicit`, `order=junction_same_axis`, `retreat=default:no_choice`), followed by `junction_clear=fallback:no_candidates` and the `shipped_unsolved` tag. Before the fix it held only the last two. The existing `no_candidates` and loudness-guard tests assert membership and pass unchanged.
+
+---
+
+## Residual Gaps (Ruled ACCEPTED)
 
 - **Runtime phase status** (which phase was reached, completion and timestamps) remains in the M5 log only; see A1.
-- **Publish-time parameter injection.** `_publish_fanned_out` still adds a reroute's `goal` and a reverse leg's `plan_continue_partners` to `parameters_json` after the artifact write. These are parameter-level additions, not robot-set changes, so `dispatched_command` does not show them.
-- **The `no_candidates` fallback drops the plain yield's own degradations.** This is pre-existing. Examples are `retreat=default:*`, `yield=infeasible:*` and `order=junction_same_axis`. The A4 tag is appended to that branch's list, but the replacement itself is unchanged.
+- **Publish-time parameter injection.** `_publish_fanned_out` still adds a reroute's `goal` and a reverse leg's `plan_continue_partners` to `parameters_json` after the artifact write. These are parameter-level additions, not robot-set changes, so `dispatched_command` does not show them. This is recorded as the known, bounded exception to recorded == dispatched.
 
 ---
 
@@ -161,5 +170,6 @@ This report implements items A1–A5 of the forcing-audit rulings. The rulings s
 |---|---|
 | Baseline at `941c1c3` (`pytest --continue-on-collection-errors`) | 62 failed, 5,413 passed, 153 skipped, 3 errors |
 | After `6b8c95c` | 62 failed, 5,446 passed, 153 skipped, 3 errors |
+| After `6ef47c6` (A7) | 62 failed, 5,447 passed, 153 skipped, 3 errors |
 | Failing-id set diff (65 ids, `FAILED` + `ERROR`) | identical |
 | `ruff check` on every touched file | clean |
