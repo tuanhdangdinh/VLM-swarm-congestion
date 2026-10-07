@@ -37,6 +37,21 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-07** — **gpt-5.6-sol replaces gpt-5.1 in the Group-C generation pair** (owner ruling; branch `feat/v2-gpt56-sol`: `cache_write_tokens` in usage `5c45667`, arm wiring `8da7479`; report `docs/reports/2026-10-07-gpt56-sol-swap.md`).
+  - **Arm `openai_gpt56sol`.** `gpt-5.6-sol` with `reasoning_effort: none`, `max_completion_tokens`, temperature 0.0, 4 attempts + grey fallback after 2. Its body is the gpt-5.1 pin's with only the model id changed; the other nine arms' pinned bodies are unchanged. `openai_gpt51` is kept and marked retired from the confirmatory tier.
+  - **Validation** (live, frozen inputs, no VM):
+    - v1 probes 60/60.
+    - v2 conflict_prediction 13/20 (GT-no 3/10, yes 17/20: a false-alarm profile).
+    - Stage-1 smokes 3/3 valid. Both standoffs went to robot_2 with a `vlm_verbatim` plan (offline provenance harness reproduces 9/9 recorded plans).
+    - 0 refusals, 0 reasoning tokens. Spend $0.587.
+  - **Suite:** zero delta (65 failing ids before and after; +9 new passes).
+- **2026-10-07** — **Gotchas (gpt-5.6-sol).**
+  1. **No dated snapshot exists**, and `system_fingerprint` is null, so this is a rolling pin with no per-call drift signal.
+  2. **OpenAI's recommended successor to gpt-5.1 is gpt-6-sol** (deprecations page), not 5.6-sol.
+  3. **$4/$20 is promotional pricing**, valid "at least through November 21, 2026".
+  4. **`detail: "high"` is patch-based on 5.6** (2048², 2,500 patches, 1.2×). A 1280×960 frame is 1,440 tokens, against about 765 tiled on gpt-5.1, so each probe costs about 6× as much.
+  5. **5.6 usage carries `prompt_tokens_details.cache_write_tokens`**, billed at 1.25× input. It is now recorded in `token_usage`.
+
 - **2026-10-07** — **Conformance-review rulings implemented** (branch `feat/v2-conformance-fixes`: F01 `c1e3c43`, F02 `e713c14`, F03–F27 `d8570b2`; report `docs/reports/2026-10-07-conformance-fixes.md`; rulings in the main-checkout spec's "Conformance-review RULINGS (2026-10-07)" block).
   - **No exception escapes `Reasoner.run` or stage 2.** Every failure is a recorded attempt; per-attempt `AttemptRecord`s (outcome, HTTP status, provider code, finish reason, request id, fingerprint, refusal source, backoff) sit index-aligned with `attempt_token_usage`.
   - **One retry policy for every arm and both stages** (`reasoning/vlm/retry_policy.py`): 429/5xx back off (equal jitter, base 2 s, cap 30 s; `Retry-After` honoured up to 60 s; ≤ 90 s of waits per call); any other 4xx ends the call after one attempt; timeouts retry with no wait. HTTP errors are recorded as `error_type` "ConnectionError", so the vocabulary is unchanged.
