@@ -1,0 +1,161 @@
+schema_version: 1
+name: s6_dual_conflict
+family: head_on
+seed: 42
+duration_sec: 150.0
+
+# v3 S6, explicit dual conflict: a DECISION-SCORED cell. Two disjoint head-on
+# pairs jam at the same time in two parallel C55 (0.55 m) single-lane aisles;
+# only the first triggered decision is scored, never the executed outcome.
+# Spec: docs/superpowers/specs/2026-10-06-v3-scene-design.md, "S6 -- Explicit
+# Dual Conflict" (feat/v3-design). Status: AUTHORED, NOT RUN -- no VM run has
+# rendered this scene; every number below is design arithmetic.
+#
+# Floor = the shipped loop map + the T1 barrier (spec "S6 layout"), no new
+# geometry primitive; both keys are verbatim copies of shipped scenes:
+#   - loop_map: loop_detour_permanent.yaml's block. Second aisle y = 1.2,
+#     0.55 m wide (y in [0.925, 1.475]), x in [0.6, 2.2], open to the N-S
+#     strip (|x| <= 0.6) at its west end; one connector at x = 1.8 (x in
+#     [1.525, 2.075], y in [0.6, 0.925]) down to the primary aisle; the
+#     connector-flanking remnants are 0.3 m tall, the rest of NE stays 0.9 m.
+#   - aisle_barrier: head_on_deadlock.yaml's block (T1, C55 0.55 x 2.0 at
+#     x = 0). Its two 0.9 m blocks span x in [-1, 1], |y| in [0.275, 0.6]: a
+#     0.55 m corridor (|y| <= 0.275) in the primary aisle, and the north block
+#     seals the N-S strip from the primary aisle.
+#   So the map has NO cycle: the strip + second aisle reach the primary aisle
+#   only through the connector, east of the barrier. Each robot has exactly
+#   one route to its goal, and blocking a jam's aisle cross-section
+#   disconnects that pair's spawns from their goals (no NavFn self-detour,
+#   the loop family's failure mode). isaac/scripts/check_s6_feasibility.py
+#   checks this on the generated occupancy grid.
+#
+# Conflicts (poses verbatim from the spec table):
+#   A  T1 head-on in the barrier corridor: robot_1 (-1.5, 0) -> (2.5, 0),
+#      robot_2 (1.5, 0, pi) -> (-2.5, 0). Spawn gap 3.0 m, jam midpoint (0, 0).
+#   B  second-aisle head-on: robot_3 (0.2, 1.2) -> (2.05, 1.2), robot_4
+#      (2.10, 1.2, pi) -> (0.0, 1.2). Spawn gap 1.9 m, jam midpoint
+#      ((0.2 + 2.10) / 2, 1.2) = (1.15, 1.2).
+#   Midpoints sqrt(1.15^2 + 1.2^2) = 1.662 m apart, beyond Arm B's
+#   r_conflict_m 1.5 (config/rag.yaml): the oracle's separate_event_radius_m.
+#
+# Formation timing (design arithmetic; re-derive from the pilot, spec S6 open
+# question 2). Transit 0.15 m/s per robot (unified scene design, p50 0.152),
+# so a pair closes at 0.30 m/s and stops at standoff gap g (0.45 m pair
+# latch, safety.yaml; >= 0.32 m, the follower latch):
+#   A: (3.0 - g) / 0.30 = 8.50 sim-s (g 0.45) .. 8.93 sim-s (g 0.32)
+#   B: (1.9 - g) / 0.30 = 4.83 sim-s (g 0.45) .. 5.27 sim-s (g 0.32)
+#   B must depart later by (3.0 - 1.9) / 0.30 = 3.67 sim-s, whatever g is.
+# start_delay_sec is WALL time from M5's start (task_registry.TaskRegistry);
+# with four stacks M5 starts at ~20 sim-s and the unheld pair departs then
+# (convoy_counterflow.yaml timing), so B's release lands at
+# 20 + RTF * D sim-s and D = 3.67 / RTF: 17.5 wall-s at RTF 0.21, 15.3 at
+# 0.24. PROPOSED D = 16 wall-s on robot_3 and robot_4: B's standoff then
+# trails A's by 16 * RTF - 3.67 = -0.31 .. +0.17 sim-s at RTF 0.21-0.24
+# (-0.63 .. +0.49 at 0.19-0.26). The first trigger (stall or close/slow,
+# both 12 wall-s = 2.5-2.9 sim-s after a standoff) then sees BOTH jams
+# formed whenever |16 * RTF - 3.67| < 12 * RTF, i.e. RTF in (0.13, 0.92).
+#
+# M5 settings, set by hand in swarm_orchestrator/config/orchestrator.yaml
+# before a run. HAND-SYNC TRAP: M5 takes goals from orchestrator.yaml
+# initial_tasks, NOT from this file (fc_launch.sh parses only spawn poses
+# here); running with the shipped +-2.5 two-robot block leaves robot_3 and
+# robot_4 with no mission, so pair B never forms. Overlay snippet (kept in
+# lockstep with `robots:` below by tests/unit/test_s6_dual_conflict_scenario.py):
+#   initial_tasks:
+#     robot_1: { task: cross_narrow_aisle, goal: [2.5, 0.0] }
+#     robot_2: { task: cross_narrow_aisle, goal: [-2.5, 0.0] }
+#     robot_3: { task: cross_narrow_aisle, goal: [2.05, 1.2], start_delay_sec: 16.0 }
+#     robot_4: { task: cross_narrow_aisle, goal: [0.0, 1.2], start_delay_sec: 16.0 }
+#   scenario_geometry as shipped (it mirrors this T1 barrier); no
+#   reroute_waypoints; shadow_classical_zones []; static_obstacles absent,
+#   prompt_static_obstacles false; t0_probe_mode false. The B conflict's
+#   dispatch is ungroundable (spec: its escort ends in a rack), so execution
+#   runs unscored (spec option (a)) unless a dispatch-off flag is built (spec
+#   build item 9).
+#
+# Known open items (spec S6 and the feasibility report, not resolved here):
+#   - Arm B crowding: at the standoff robot_2 (~(g/2, 0)) and robot_3
+#     (~(1.15 - g/2, 1.2)) are 1.39-1.46 m apart, inside r_conflict_m 1.5, so
+#     the classical head_on rule (classical_reasoner._head_on_pair) rejects
+#     BOTH pairs as crowded. The midpoint argument holds; the member
+#     distance does not.
+#   - robot_4's spawn: the URDF chassis box reaches 0.102 m behind base_link,
+#     so at x = 2.10 facing pi it overlaps the aisle's east end (x = 2.2) by
+#     0.002 m at t = 0.
+#   - Marker x pose: markers 3 and 4 are verified at (0, +-1.2) only; every
+#     S6 pose of markers 3 and 4 is unverified (spec S6 checks).
+#   - acceptance_logging's conflict_active needs exactly two involved robots,
+#     so with four listed below it logs false throughout; per-conflict GT
+#     activity is the multi-event scorer's job (spec build item 7).
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -1.5, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 2.5, y: 0.0}
+    initial_task: cross_narrow_aisle
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 1.5, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: -2.5, y: 0.0}
+    initial_task: cross_narrow_aisle
+  - robot_id: robot_3
+    marker_id: 3
+    spawn: {x: 0.2, y: 1.2, yaw_rad: 0.0}
+    goal: {x: 2.05, y: 1.2}
+    initial_task: cross_narrow_aisle
+  - robot_id: robot_4
+    marker_id: 4
+    spawn: {x: 2.10, y: 1.2, yaw_rad: 3.141592653589793}
+    goal: {x: 0.0, y: 1.2}
+    initial_task: cross_narrow_aisle
+
+loop_map:
+  second_aisle_center_y_m: 1.2
+  second_aisle_width_m: 0.55
+  second_aisle_x_min_m: 0.6
+  second_aisle_x_max_m: 2.2
+  connector_center_x_m: 1.8
+  connector_width_m: 0.55
+  connector_remnant_height_m: 0.3
+
+aisle_barrier:
+  effective_width_m: 0.55
+  center_x_m: 0.0
+  length_m: 2.0
+
+timed_obstacles: []
+static_obstacles: []
+
+expected_conflict:
+  type: deadlock
+  # The union of both pairs (the oracle names each pair separately).
+  involved_robots: [robot_1, robot_2, robot_3, robot_4]
+  # Four-stack M5 start ~20 sim-s; both standoffs ~28-29 sim-s.
+  onset_window_sec: [15.0, 50.0]
+  min_duration_sec: 2.0
+
+oracle:
+  criterion_status: proposed
+  conflicts:
+    - conflict_id: A
+      involved_robots: [robot_1, robot_2]
+      correct_type: deadlock
+      jam_midpoint_xy: [0.0, 0.0]
+    - conflict_id: B
+      involved_robots: [robot_3, robot_4]
+      correct_type: deadlock
+      jam_midpoint_xy: [1.15, 1.2]
+  addressing_actions: [yield, reverse, cross, wait, reroute]
+  separate_event_radius_m: 1.5
+  rationale: >-
+    two disjoint head-on pairs jam in overlapping windows in two parallel
+    single-lane aisles whose jam midpoints sit 1.66 m apart; the first
+    triggered decision is scored on naming both pairs, typing each as a
+    deadlock, and carrying a proposed_plan leg with a non-continue action for
+    at least one member of each pair (PROPOSED for the v3 Step 6 freeze);
+    the executed outcome is not scored because the second-aisle head-on has
+    no in-band axis-aligned escort
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

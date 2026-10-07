@@ -1,4 +1,5 @@
 import re
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -751,6 +752,131 @@ class JunctionOracleConfig(BaseModel):
         return self
 
 
+# Mirrors reasoning.vlm.models.PlanLegAction (the `proposed_plan` leg
+# vocabulary), kept local for the same reason as the literals above;
+# tests/unit/test_s6_dual_conflict_scenario.py pins the parity.
+OraclePlanLegAction = Literal["yield", "reverse", "cross", "wait", "reroute", "continue"]
+DUAL_CONFLICT_ADDRESSING_ACTIONS: tuple[OraclePlanLegAction, ...] = (
+    "yield", "reverse", "cross", "wait", "reroute",
+)
+
+
+class DualConflictPairConfig(BaseModel):
+    """One of the two simultaneous head-on conflicts of the S6 dual-conflict cell."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    conflict_id: str = Field(min_length=1)
+    involved_robots: tuple[str, str]
+    correct_type: Literal["deadlock"] = "deadlock"
+    # The jam midpoint the scene is authored for (world frame, metres): where
+    # the pair's standoff forms when both members depart together at equal
+    # speed. Scorers use it to attribute a decision to a conflict; it is not a
+    # measured value.
+    jam_midpoint_xy: tuple[float, float]
+
+    @model_validator(mode="after")
+    def _pair_has_two_distinct_robots(self) -> "DualConflictPairConfig":
+        if self.involved_robots[0] == self.involved_robots[1]:
+            raise ValueError(
+                f"conflict {self.conflict_id!r} needs two distinct robots; "
+                f"got {list(self.involved_robots)}"
+            )
+        return self
+
+
+class DualConflictOracleConfig(BaseModel):
+    """The decision-level oracle for the S6 dual-conflict cell (v3 scene design, S6).
+
+    Two disjoint head-on pairs jam at the same time in two parallel C55
+    aisles. Only the first triggered decision is scored; the executed outcome
+    is not (the second aisle's head-on is ungroundable with axis-aligned
+    escorts). `criterion_status` stays `proposed` until the v3 Step 6 freeze
+    rules the criterion below.
+
+    Criterion: a conflict is NAMED when both members of its pair are in the
+    decision's `involved_robots`, and ADDRESSED when the decision's
+    `proposed_plan` has a leg for at least one member whose action is in
+    `addressing_actions` (every leg action but `continue`, the lenient default
+    for an omitted robot). The plan addresses both conflicts when each is
+    addressed.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    objective: Literal["address_both_conflicts"] = "address_both_conflicts"
+    criterion_status: Literal["proposed", "frozen"]
+    scored_decision: Literal["first_triggered"] = "first_triggered"
+    execution_scored: Literal[False] = False
+    conflicts: tuple[DualConflictPairConfig, DualConflictPairConfig]
+    addressing_actions: tuple[OraclePlanLegAction, ...] = DUAL_CONFLICT_ADDRESSING_ACTIONS
+    # Two conflicts count as separate events only when their jam midpoints are
+    # farther apart than this (Arm B's r_conflict_m, config/rag.yaml).
+    separate_event_radius_m: float = Field(gt=0.0)
+    rationale: str
+
+    @model_validator(mode="after")
+    def _conflicts_are_disjoint_and_separate(self) -> "DualConflictOracleConfig":
+        first, second = self.conflicts
+        if first.conflict_id == second.conflict_id:
+            raise ValueError(f"conflict_id values must differ; got {first.conflict_id!r} twice")
+        shared = set(first.involved_robots) & set(second.involved_robots)
+        if shared:
+            raise ValueError(f"the two conflicts must be disjoint; both list {sorted(shared)}")
+        gap = (
+            (first.jam_midpoint_xy[0] - second.jam_midpoint_xy[0]) ** 2
+            + (first.jam_midpoint_xy[1] - second.jam_midpoint_xy[1]) ** 2
+        ) ** 0.5
+        if gap <= self.separate_event_radius_m:
+            raise ValueError(
+                f"jam midpoints {gap:.3f} m apart are not separate events at "
+                f"separate_event_radius_m {self.separate_event_radius_m}"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _addressing_actions_exclude_continue(self) -> "DualConflictOracleConfig":
+        if not self.addressing_actions:
+            raise ValueError("addressing_actions must be non-empty")
+        if len(set(self.addressing_actions)) != len(self.addressing_actions):
+            raise ValueError(f"addressing_actions has duplicates: {self.addressing_actions}")
+        if "continue" in self.addressing_actions:
+            raise ValueError("continue is the omitted-robot default and cannot address a conflict")
+        return self
+
+    @property
+    def involved_robots(self) -> frozenset[str]:
+        """Every robot of both conflicts."""
+        return frozenset(r for c in self.conflicts for r in c.involved_robots)
+
+    def conflicts_named(self, involved_robots: Sequence[str]) -> dict[str, bool]:
+        """Return, per conflict id, whether a decision's involved set names the pair.
+
+        Args:
+            involved_robots: The decision's `involved_robots`.
+
+        Returns:
+            `{conflict_id: named}` for both conflicts.
+        """
+        listed = set(involved_robots)
+        return {c.conflict_id: set(c.involved_robots) <= listed for c in self.conflicts}
+
+    def conflicts_addressed(self, plan_legs: Sequence[tuple[str, str]]) -> dict[str, bool]:
+        """Return, per conflict id, whether a proposed plan addresses the pair.
+
+        Args:
+            plan_legs: The decision's `proposed_plan` as `(robot_id, action)`
+                pairs; an empty sequence for a decision with no plan.
+
+        Returns:
+            `{conflict_id: addressed}` for both conflicts.
+        """
+        acting = {robot for robot, action in plan_legs if action in self.addressing_actions}
+        return {c.conflict_id: bool(acting & set(c.involved_robots)) for c in self.conflicts}
+
+    def addresses_both(self, plan_legs: Sequence[tuple[str, str]]) -> bool:
+        """Return whether a proposed plan addresses both conflicts."""
+        return all(self.conflicts_addressed(plan_legs).values())
+
+
 FAMILY_BY_LEGACY_NAME: dict[str, str] = {
     "head_on_deadlock": "head_on",
     "intersection_bottleneck": "intersection",
@@ -794,6 +920,7 @@ class ScenarioConfig(BaseModel):
         | PriorityOracleConfig
         | JunctionOracleConfig
         | LoopDetourOracleConfig
+        | DualConflictOracleConfig
         | None
     ) = None
     # Required but nullable: every scenario must state its conflict, and null
@@ -968,6 +1095,20 @@ class ScenarioConfig(BaseModel):
                 raise ValueError(
                     f"jam_robots_in_radius {self.oracle.jam_robots_in_radius} exceeds "
                     f"the {len(self.robots)} configured robots"
+                )
+        if isinstance(self.oracle, DualConflictOracleConfig):
+            for rid in sorted(self.oracle.involved_robots):
+                if rid not in robot_id_set:
+                    raise ValueError(
+                        f"oracle robot {rid!r} not in configured robots {robot_id_set}"
+                    )
+            if self.expected_conflict is not None and (
+                set(self.expected_conflict.involved_robots) != self.oracle.involved_robots
+            ):
+                raise ValueError(
+                    "expected_conflict.involved_robots must be the union of the dual "
+                    f"conflict pairs {sorted(self.oracle.involved_robots)}; got "
+                    f"{list(self.expected_conflict.involved_robots)}"
                 )
 
         return self
