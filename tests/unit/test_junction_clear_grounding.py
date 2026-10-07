@@ -680,6 +680,28 @@ class TestSingleCommandContract:
         assert "robot_3" not in actions and "robot_4" not in actions
 
 
+# ---- forcing-audit A7: the no_candidates fallback merges, never replaces ----
+
+
+class TestNoCandidatesFallbackKeepsYieldProvenance:
+    def _ground(self, strategy: str):
+        return ground_reasoner_result(
+            _result(_decision(strategy=strategy)), geometry=_geometry(offset_m=None),
+            snapshot=_frame(), params=GroundingParams(mode="derived"),
+        )
+
+    def test_fallback_carries_its_own_and_the_underlying_yields_tags(self):
+        underlying = self._ground("yield")["degradations"]
+        fallback = self._ground("junction_clear")["degradations"]
+        # The underlying plain yield's provenance survives (J1 drops the
+        # cross-axis robots here), in its original order, ahead of the
+        # fallback's own tags.
+        assert "order=junction_same_axis" in underlying
+        assert fallback[: len(underlying)] == underlying
+        assert "junction_clear=fallback:no_candidates" in fallback
+        assert any(t.startswith("junction_geometry=shipped_unsolved") for t in fallback)
+
+
 # ---- loudness guard (step-6 coordinator ruling): neither field declared,
 # one missing, or both declared ----
 

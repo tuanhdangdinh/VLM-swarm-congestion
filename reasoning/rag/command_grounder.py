@@ -1636,12 +1636,15 @@ def _ground_derived(
                 static_obstacles=static_obstacles,
                 yield_feasibility_mode=yield_feasibility_mode,
             )
-            tags = ["junction_clear=fallback:no_candidates"]
-            if crossing_order is None and decision.crossing_order is not None:
-                # Forcing-audit A4: this list replaces the yield's own tags,
-                # so the discarded model order is marked here directly. An
-                # explicit caller override is the operative order instead.
-                tags.append("order=discarded_yield_axis")
+            if crossing_order is None:
+                # Forcing-audit A4: an explicit caller override is the
+                # operative order; only the decision's own order is discarded.
+                command = _tag_discarded_order(command, decision)
+            # Forcing-audit A7: MERGE onto the plain yield's own tags (e.g.
+            # `retreat=default:*`, `yield=infeasible:*`,
+            # `order=junction_same_axis`), never replace them -- this is the
+            # path the fallback_exhausted analysis scores.
+            tags = [*command.get("degradations", []), "junction_clear=fallback:no_candidates"]
             # Loudness guard (step-6 coordinator ruling): `no_candidates` also
             # fires for an unrelated, legitimate reason (no cross-axis arms
             # under a fully-declared geometry), so it is not on its own a
