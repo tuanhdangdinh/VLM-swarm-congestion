@@ -3906,6 +3906,11 @@ Rules for maintaining it:
 
 ## M6 Simulation / Isaac Sim
 
+- **2026-10-07** — **Harness Option B + Isaac stop flag re-applied to the tag-era driver (driver-only; decision semantics, prompts, configs untouched)** (`c1bf820` runner stop flag, `fca3870` `fc_launch` Option B + abort flag; ruling = main-checkout spec block "Shutdown-timing probe RESULTS + RULINGS (2026-10-07…)"; implementation + VM smoke evidence in `docs/reports/2026-10-07-harness-optionb.md` on `feat/v2-harness-optionb` `db2e134`).
+  - `fc_launch.sh` ends the M5 tail 10 s after the Isaac `sudo` wrapper PID exits (`REC_SEC − 10` stays the cap); on an abort (exit before stage 9 finished, never on the cap) cleanup touches `/tmp/fc_<STAMP>_isaac.stop`, which the runner polls so it exits normally — GT closed, manifest `completed=false` + `aborted=true`. SIGINT not used; `pkill` and the `pgrep` relaunch gate kept.
+  - Same bytes as the composite for `runner.py`, `run_simulation.py`, `scripts/vm/isaac_lifecycle.sh` and both new test files; `fc_launch.sh` differs from the composite's only in the pre-existing free-flow lines; the dry-run test's `_CLEARED_ENV` hunk was adapted (no `MAP_SCENARIO` here). DRY_RUN goldens unchanged (two new lines filtered + pinned). Suite zero delta (66 failing ids identical, +23 passes).
+  - VM smoke ran from the composite build (identical runner/helper bytes): Option B cycle 838 s vs 1082 s, abort stopped Isaac in ≤ 3 s. This tree was not smoked separately.
+
 - **2026-09-28** — **`fc_launch.sh` launches one Nav2 stack per scenario
   robot, and the three-robot `t2b_flow_ordering` scenario and map exist; its
   USD build and first smoke are pending the next VM batch** (`ea02da7`,
