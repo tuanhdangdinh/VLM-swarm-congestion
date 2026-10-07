@@ -34,6 +34,18 @@
 #     VM. Scenario-yaml parsing still actually runs in DRY_RUN, using the
 #     host python3 directly instead of going through docker_ros (which
 #     needs a live container), so the printed commands carry real values.
+#   - Isaac stop flag (2026-10-07 shutdown-timing ruling): Kit catches and
+#     swallows SIGTERM, so cleanup's pkill never stopped an aborted run's
+#     Isaac — it re-parented to PID 1 and simulated its full horizon (trap
+#     16). Isaac now gets a per-run flag path (VGU_ISAAC_STOP_FLAG); the
+#     runner polls it in its loops and, once it exists, exits normally (GT
+#     closed, manifest written with completed=false + aborted=true, ~1 s
+#     close()). Cleanup touches it ONLY on an abort (exit before stage 9
+#     finished); a normal exit — including the REC_SEC cap firing while a
+#     4-robot Isaac still runs — leaves Isaac to finish its horizon exactly
+#     as before. SIGINT is deliberately not used: SimulationApp's handler
+#     skips the manifest write. The pkill stays as defense in depth, and so
+#     must every caller's `pgrep -f run_simulation` EMPTY relaunch gate.
 #   - MODALITY guard (final whole-branch review, Finding 2): unlike
 #     reasoning_backend_id above, this script never sets prompt_static_obstacles
 #     itself — an operator flips it by hand in orchestrator.yaml before an ON
@@ -101,8 +113,22 @@
 #                          (annotated_frame -> REC_OUT) exactly as in the
 #                          ported script; 0 skips it entirely.
 #   REC_SEC / SIM_SEC       Recording / Isaac duration seconds (default
-#                          1000 / 1200). REC_SEC also bounds how long stage 8
-#                          tails the M5 log, independent of RECORD.
+#                          1000 / 1200). REC_SEC also CAPS how long stage 9
+#                          tails the M5 log, independent of RECORD: the tail
+#                          ends ISAAC_EXIT_GRACE_SEC after the Isaac process
+#                          exits, or at REC_SEC - 10 s, whichever is first
+#                          (Option B, 2026-10-07 shutdown-timing ruling; the
+#                          fixed tail used to idle ~238 s after a head-on
+#                          Isaac had exited). SIM_SEC is inert: the runner
+#                          never reads --duration-sec; the scenario yaml's
+#                          duration_sec sets Isaac's lifetime.
+#   ISAAC_EXIT_GRACE_SEC   Seconds the M5 tail keeps running after Isaac
+#                          exits (default 10), so M5 writes in flight at that
+#                          moment can land before cleanup restarts the
+#                          container.
+#   ISAAC_STOP_WAIT_SEC    Abort path only: how long cleanup waits for Isaac
+#                          to honor its stop flag before the (defense-in-
+#                          depth) pkill (default 60).
 #   SEED                   Isaac --seed (default 42, the value every run so far
 #                          used). Also names the ground-truth directory
 #                          (data/logs/simulation/<scenario>-seed<SEED>-rep000).
@@ -149,7 +175,15 @@ RECORD="${RECORD:-0}"
 REC_SEC="${REC_SEC:-1000}"
 SIM_SEC="${SIM_SEC:-1200}"
 SEED="${SEED:-42}"
+ISAAC_EXIT_GRACE_SEC="${ISAAC_EXIT_GRACE_SEC:-10}"
+ISAAC_STOP_WAIT_SEC="${ISAAC_STOP_WAIT_SEC:-60}"
+ISAAC_POLL_SEC=2
 STAMP=$(date -u +%Y%m%d_%H%M%S)
+
+# Sourced from this script's own directory, not $REPO: tests point REPO at a
+# scratch tree that has no scripts/.
+# shellcheck source=scripts/vm/isaac_lifecycle.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/isaac_lifecycle.sh"
 
 # MOCK_DECISION_FILE only takes effect via the "mock" backend, so setting it
 # selects that backend regardless of BACKEND_ID's default/inherited value.
@@ -263,6 +297,17 @@ fi
 log "obstacle modality: prompt_static_obstacles=${OBSTACLE_MODALITY} (MODALITY=${MODALITY:-<unset>})"
 
 ISAAC_LOG=/tmp/fc_${STAMP}_isaac.log
+# Host path (Isaac runs on the host, not in the container). Touched by
+# cleanup on an abort only; see the stop-flag note in the header.
+ISAAC_STOP_FLAG=/tmp/fc_${STAMP}_isaac.stop
+# The `sudo` wrapper's PID ($! of the launch): python.sh runs Kit's python as
+# a child (no exec), so the wrapper lives exactly as long as Isaac does.
+ISAAC_PID=""
+# 1 once stage 9 (the M5 tail) has finished; cleanup reads an exit before
+# that as an abort. Not the exit status: every normal cycle exits 141 (the
+# stage-11 `ls | head` SIGPIPE under pipefail).
+TAIL_STAGE_DONE=0
+ISAAC_STOP_REQUESTED=0
 M1_LOG=/tmp/fc_${STAMP}_m1.log
 # One Nav2 log per robot, named by robot number (robot_3 -> nav2_r3); filled
 # in once the scenario's robots are parsed (stage 2).
@@ -401,6 +446,14 @@ cleanup() {
     return
   fi
   set +e
+  # First thing on an abort, so Isaac starts winding down (GT close, manifest,
+  # close()) while the restore below runs. Never on a normal exit: a 4-robot
+  # Isaac still running at the REC_SEC cap must finish its horizon.
+  if [ "$TAIL_STAGE_DONE" != "1" ] && [ -n "$ISAAC_PID" ]; then
+    touch "$ISAAC_STOP_FLAG" 2>/dev/null || sudo touch "$ISAAC_STOP_FLAG"
+    ISAAC_STOP_REQUESTED=1
+    log "abort before the M5 tail finished: touched Isaac stop flag ${ISAAC_STOP_FLAG} (Isaac PID ${ISAAC_PID})"
+  fi
   if [ -n "${PREV_BACKEND_ID:-}" ] && [ "${PREV_BACKEND_ID}" != "${BACKEND_ID}" ]; then
     log "restoring reasoning_backend_id: ${BACKEND_ID} -> ${PREV_BACKEND_ID}"
     sed -i "s/^reasoning_backend_id: .*/reasoning_backend_id: ${PREV_BACKEND_ID}/" "$ORCH_CONFIG"
@@ -415,6 +468,13 @@ cleanup() {
 
   log "cleanup: restarting container + killing Isaac"
   sudo docker restart "$CONTAINER" >/dev/null 2>&1 || true
+  if [ "$ISAAC_STOP_REQUESTED" = "1" ]; then
+    if isaac_wait_pid_exit "$ISAAC_PID" "$ISAAC_STOP_WAIT_SEC" 1; then
+      log "Isaac honored the stop flag: PID ${ISAAC_PID} gone at $(date -u +%H:%M:%S) (waited ${ISAAC_WAIT_ELAPSED_SEC}s after the container restart)"
+    else
+      log "WARNING: Isaac PID ${ISAAC_PID} still running ${ISAAC_STOP_WAIT_SEC}s after the stop flag; pkill below cannot stop Kit (SIGTERM is swallowed) — keep the pgrep relaunch gate"
+    fi
+  fi
   # Bracketed so the pattern doesn't match pkill's own argv/invoking command
   # line (an unbracketed "isaac.scripts.run_simulation" would match itself).
   sudo pkill -f "[i]saac.scripts.run_simulation" 2>/dev/null || true
@@ -538,18 +598,22 @@ log "starting Isaac Sim ${SCENARIO} (headless, seed ${SEED}, ${SIM_SEC}s) -> ${I
 if [ "$DRY_RUN" = "1" ]; then
   log "[DRY_RUN] nohup sudo -H -u ubuntu env ... /home/ubuntu/IsaacSim/python.sh -m isaac.scripts.run_simulation --scenario ${SCENARIO_YAML_HOST} --headless --seed ${SEED} --duration-sec ${SIM_SEC} --topic-timeout-sec 180 > ${ISAAC_LOG} 2>&1 &"
 else
+  rm -f "$ISAAC_STOP_FLAG" 2>/dev/null || sudo rm -f "$ISAAC_STOP_FLAG"
   nohup sudo -H -u ubuntu env \
     ROS_DISTRO=jazzy \
     RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
     LD_LIBRARY_PATH=/home/ubuntu/IsaacSim/exts/isaacsim.ros2.core/jazzy/lib \
     FASTRTPS_DEFAULT_PROFILES_FILE="$REPO/config/dds/fastdds.xml" \
     PYTHONPATH="$REPO" \
+    VGU_ISAAC_STOP_FLAG="$ISAAC_STOP_FLAG" \
     /home/ubuntu/IsaacSim/python.sh -m isaac.scripts.run_simulation \
       --scenario "$SCENARIO_YAML_HOST" \
       --headless --seed "$SEED" --duration-sec "$SIM_SEC" --topic-timeout-sec 180 \
     >"$ISAAC_LOG" 2>&1 &
-  log "Isaac PID $!"
+  ISAAC_PID=$!
+  log "Isaac PID ${ISAAC_PID}"
 fi
+log "Isaac stop flag: ${ISAAC_STOP_FLAG} (touched by cleanup on abort only)"
 
 wait_topic /camera/image_raw 300
 docker_ros "timeout 60s ros2 topic echo --qos-reliability best_effort --once /camera/image_raw >/dev/null"
@@ -631,19 +695,42 @@ docker_exec_bg "$M5_LOG" "$M5_INNER"
 xrun sleep 5
 log "all components started"
 
-# ── 9. Monitor M5 decisions live for REC_SEC (independent of RECORD) ────────
+# ── 9. Monitor M5 decisions live until Isaac exits, capped at REC_SEC
+#      (independent of RECORD) ─────────────────────────────────────────────
+# Option B (2026-10-07 shutdown-timing ruling): once Isaac has exited, GT and
+# the manifest are final and M5 has no camera input, so the rest of a fixed
+# REC_SEC window only idles. The tail runs in the background and this shell
+# polls Isaac's wrapper PID (a 2 s poll also lets an INT/TERM reach the
+# cleanup trap promptly, where a foreground tail deferred it up to REC_SEC).
 log "--- M5 decisions will appear in ${REPO}/data/logs/m5_decisions/ ---"
 log "--- tailing M5 log for live feedback ---"
+TAIL_CAP_SEC=$((REC_SEC - 10))
 if [ "$DRY_RUN" = "1" ]; then
-  log "[DRY_RUN] sudo timeout $((REC_SEC - 10))s docker exec -w /ws ${CONTAINER} bash -lc \"tail -f ${M5_LOG}\""
+  log "[DRY_RUN] sudo timeout ${TAIL_CAP_SEC}s docker exec -w /ws ${CONTAINER} bash -lc \"tail -f ${M5_LOG}\""
+  log "[DRY_RUN] poll Isaac PID every ${ISAAC_POLL_SEC}s: end the M5 tail ${ISAAC_EXIT_GRACE_SEC}s after Isaac exits, cap ${TAIL_CAP_SEC}s (sudo pkill -TERM -f [t]ail -f ${M5_LOG})"
 else
   # `sudo timeout`, not `timeout sudo`: an unprivileged timeout cannot signal
   # the root-owned sudo child (EPERM), so the tail never dies and the script
   # hangs here forever — the recording is never finalized and cleanup never
-  # runs.
-  sudo timeout $((REC_SEC - 10))s \
-    docker exec -w /ws "$CONTAINER" bash -lc "tail -f ${M5_LOG}" 2>/dev/null || true
+  # runs. The timeout stays as the tail's own hard cap.
+  sudo timeout ${TAIL_CAP_SEC}s \
+    docker exec -w /ws "$CONTAINER" bash -lc "tail -f ${M5_LOG}" 2>/dev/null &
+  TAIL_PID=$!
+  TAIL_RC=0
+  isaac_wait_exit_or_cap "$ISAAC_PID" "$TAIL_PID" "$TAIL_CAP_SEC" "$ISAAC_POLL_SEC" \
+    "$ISAAC_EXIT_GRACE_SEC" || TAIL_RC=$?
+  case "$TAIL_RC" in
+    0) log "Isaac exited (PID ${ISAAC_PID} gone at ${ISAAC_EXITED_AT}); ending the M5 tail after ${ISAAC_EXIT_GRACE_SEC}s grace (${ISAAC_WAIT_ELAPSED_SEC}s into the tail)" ;;
+    1) log "REC_SEC cap reached (${TAIL_CAP_SEC}s) with Isaac still running; ending the M5 tail, Isaac left to finish its horizon" ;;
+    *) log "M5 tail ended by itself after ${ISAAC_WAIT_ELAPSED_SEC}s (its own ${TAIL_CAP_SEC}s timeout, or an error; Isaac running: $(isaac_pid_alive "$ISAAC_PID" && echo yes || echo no))" ;;
+  esac
+  # The in-container tail, not just the docker-exec client: killing the client
+  # alone leaves `tail -f` running inside the container. Bracketed so the
+  # pattern cannot match pkill's own command line.
+  sudo pkill -TERM -f "[t]ail -f ${M5_LOG}" 2>/dev/null || true
+  wait "$TAIL_PID" 2>/dev/null || true
 fi
+TAIL_STAGE_DONE=1
 
 # ── 10. Recorder finalization (RECORD=1 only; recording is already on the
 #      host bind mount, no docker cp needed) ─────────────────────────────────

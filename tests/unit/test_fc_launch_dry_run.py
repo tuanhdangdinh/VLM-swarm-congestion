@@ -10,6 +10,12 @@ the Nav2 lifecycle gate after the action-server waits and the M5 log
 pre-create before M5 starts. They print only the lines `GATE_LINE_PREFIXES`
 matches, so the goldens stay byte-identical once those lines are removed, and
 the new lines are pinned on their own below.
+
+Option B and the Isaac stop flag (2026-10-07 shutdown-timing ruling) added two
+more DRY_RUN lines the same way (`OPTION_B_LINE_PREFIXES`): the stop-flag path
+after the Isaac launch and the Isaac-exit poll after the M5 tail line. The flag
+path reaches Isaac through the `env ...` list the Isaac line already elides, so
+no golden line changed.
 """
 import os
 import re
@@ -41,6 +47,7 @@ TWO_ROBOT_CASES: dict[str, tuple[str, dict[str, str]]] = {
 _CLEARED_ENV = (
     "BACKEND_ID", "MOCK_DECISION_FILE", "MOCK_RETREAT_CHOICE_FILE", "MODALITY",
     "RECORD", "REC_SEC", "SIM_SEC", "SEED", "CONTAINER", "REPO", "NAV2_ACTIVE_TIMEOUT_SEC",
+    "ISAAC_EXIT_GRACE_SEC", "ISAAC_STOP_WAIT_SEC",
 )
 
 
@@ -71,11 +78,17 @@ GATE_LINE_PREFIXES = (
 )
 
 
+OPTION_B_LINE_PREFIXES = (
+    "[fc-launch] Isaac stop flag: ",
+    "[fc-launch] [DRY_RUN] poll Isaac PID ",
+)
+
+
 def without_gate_lines(output: str) -> str:
     """Drop the lines of the stages added after the goldens were recorded."""
     return "".join(
         line for line in output.splitlines(keepends=True)
-        if not line.startswith(GATE_LINE_PREFIXES)
+        if not line.startswith(GATE_LINE_PREFIXES + OPTION_B_LINE_PREFIXES)
     )
 
 
@@ -98,6 +111,33 @@ def test_two_robot_dry_run_adds_exactly_the_three_gate_lines(case):
         "abort on /Aborting bringup/",
         "[fc-launch] [DRY_RUN] sudo docker exec vgu_ros touch /tmp/fc_<STAMP>_m5.log",
     ]
+
+
+@pytest.mark.parametrize("case", sorted(TWO_ROBOT_CASES))
+def test_two_robot_dry_run_adds_exactly_the_two_option_b_lines(case):
+    scenario, extra_env = TWO_ROBOT_CASES[case]
+    output = dry_run(scenario, extra_env)
+    added = [line for line in output.splitlines() if line.startswith(OPTION_B_LINE_PREFIXES)]
+    assert added == [
+        "[fc-launch] Isaac stop flag: /tmp/fc_<STAMP>_isaac.stop "
+        "(touched by cleanup on abort only)",
+        "[fc-launch] [DRY_RUN] poll Isaac PID every 2s: end the M5 tail 10s after Isaac exits, "
+        "cap 990s (sudo pkill -TERM -f [t]ail -f /tmp/fc_<STAMP>_m5.log)",
+    ]
+
+
+def test_option_b_lines_follow_the_isaac_launch_and_the_m5_tail():
+    lines = dry_run("head_on_deadlock", {}).splitlines()
+    flag = next(i for i, line in enumerate(lines) if line.startswith(OPTION_B_LINE_PREFIXES[0]))
+    poll = next(i for i, line in enumerate(lines) if line.startswith(OPTION_B_LINE_PREFIXES[1]))
+    assert "-m isaac.scripts.run_simulation" in lines[flag - 1]
+    assert "tail -f /tmp/fc_<STAMP>_m5.log" in lines[poll - 1]
+
+
+def test_rec_sec_sets_the_tail_cap_and_grace_env_overrides_the_default():
+    output = dry_run("head_on_deadlock", {"REC_SEC": "400", "ISAAC_EXIT_GRACE_SEC": "5"})
+    assert "[DRY_RUN] sudo timeout 390s docker exec" in output
+    assert "end the M5 tail 5s after Isaac exits, cap 390s" in output
 
 
 def test_lifecycle_gate_runs_after_the_action_waits_and_before_m4():
