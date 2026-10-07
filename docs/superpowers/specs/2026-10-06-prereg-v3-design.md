@@ -449,6 +449,42 @@ build + Nav2 map via the existing generators, hotspot Monte Carlo
 re-run, ~18-leg free-flow harvest, one M1 coverage verification
 session. Runs only if S1a lands and budget (R3.7) permits.
 
+### R3.6a S1b amendments after advisor review (2026-10-07, supersedes
+R3.6 where they conflict)
+
+Four corrections from the advisor pass on R3.6's sketch:
+1. **Latch-aware corridor width.** "≥2 robot widths" (0.712 m) is NOT
+   passable under the 0.45 m M4 latch: two passing robots need
+   center separation ≥0.45 m, so genuinely two-lane corridors around
+   the rack islands must be **≥0.85–0.90 m** (Nav2 inflation checked
+   on the real costmap). Acceptance includes a LIVE two-robot pass
+   check in the M1-verification session, not a geometric claim.
+2. **Regime axis, not density axis.** S1a→S1b changes both density
+   and congestion class (deterministic single-lane → stochastic
+   clogging), so the pair is registered as a **regime axis**;
+   completion trend vs the GECCO agent-count table is cited as
+   qualitative direction only. The phrase "two-point density axis"
+   in R3.6 is retired.
+3. **Inflation-adjusted density.** Free-cells-per-agent figures are
+   recomputed on the **post-inflation Nav2 costmap** of each map
+   (count free cells, divide by N); the geometric 5.4/10.5 numbers
+   survive only with an explicit "nominal, pre-inflation" label.
+   Rack coverage percentages are counted on the tracked band.
+4. **MC gate derived, hypothesis de-directionalized.** The S1b
+   Monte Carlo gate thresholds are derived from S1a's own MC
+   (median first conflict 15 s; 309/400 junction share) plus the
+   statistical requirement of ≥1 congestion event per episode, with
+   the SAME conflict definition as S1a's MC; the specific numbers
+   are frozen at Step 6, not invented per-map. The Arm A−Arm B
+   comparison across regimes is registered as **CI estimation of
+   the delta per regime**, with the Goldilocks expectation (delta
+   maximal at intermediate difficulty) recorded as interpretation,
+   not as a directional hypothesis.
+Minor carried items: island/node placement stays inside verified M1
+extents and away from the marker-edge STALE zone; the release
+stagger Δ and its feasibility bound are recomputed for the new
+layout (S1a's Δ=4 < 4.42 is geometry-specific).
+
 ### R3.7 Episode budget correction (timing probe 2026-10-07)
 
 Measured harness cycle is **1082 s median for a 2-robot cell** (probe
