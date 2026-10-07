@@ -16,12 +16,25 @@ from isaac.vgu_sim.event_scheduler import EventScheduler, prim_activation_callba
 from isaac.vgu_sim.paths import run_output_dir
 
 
-def run_simulation(config: ResolvedRunConfig) -> tuple[RunResult, ...]:
+def run_simulation(
+    config: ResolvedRunConfig, stop_flag: Path | None = None
+) -> tuple[RunResult, ...]:
+    """Run every repetition of a scenario, then close the app.
+
+    Args:
+        config: The resolved run configuration.
+        stop_flag: Optional file path; once it exists, the current repetition
+            stops at its next loop iteration, still closing GT and writing its
+            manifest (see `stop_requested`), and no further repetition runs.
+
+    Returns:
+        One `RunResult` per repetition that ran.
+    """
     app = _get_app(config.headless)
     results: list[RunResult] = []
     try:
         for rep in range(config.repetitions):
-            result = run_repetition(app, config, rep)
+            result = run_repetition(app, config, rep, stop_flag=stop_flag)
             results.append(result)
             if not result.completed:
                 break
@@ -30,7 +43,50 @@ def run_simulation(config: ResolvedRunConfig) -> tuple[RunResult, ...]:
     return tuple(results)
 
 
-def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult:
+def stop_requested(stop_flag: Path | None) -> bool:
+    """Return whether the harness has asked the simulation loop to stop early.
+
+    Kit catches and swallows SIGTERM, so `pkill` cannot stop an aborted run,
+    and SIGINT's SimulationApp handler exits without the manifest write. A
+    flag file polled inside the loop lets the loop exit normally instead.
+
+    Args:
+        stop_flag: The flag path, or None when no flag was configured.
+
+    Returns:
+        True when a flag path is configured and the file exists.
+    """
+    return stop_flag is not None and stop_flag.exists()
+
+
+def abort_manifest_fields(
+    stop_flag: Path, phase: str, sim_time_sec: float | None
+) -> dict[str, Any]:
+    """Build the manifest keys that mark a stop-flag abort.
+
+    Only aborted runs carry these keys, so a normal run's manifest keeps its
+    pre-flag key set byte for byte.
+
+    Args:
+        stop_flag: The flag path that was found.
+        phase: `"topic_wait"` (before the GT loop) or `"sim_loop"`.
+        sim_time_sec: Loop sim time when the flag was seen; None before the loop.
+
+    Returns:
+        The keys to merge into the manifest.
+    """
+    return {
+        "aborted": True,
+        "abort_reason": "stop_flag",
+        "abort_phase": phase,
+        "aborted_at_sim_time_sec": sim_time_sec,
+        "stop_flag_path": str(stop_flag),
+    }
+
+
+def run_repetition(
+    app, config: ResolvedRunConfig, repetition: int, stop_flag: Path | None = None
+) -> RunResult:
     import carb
     import omni.timeline
 
@@ -47,6 +103,7 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
     failure: str | None = None
     elapsed: float = 0.0
     completed = False
+    abort_fields: dict[str, Any] | None = None
     watchdog_executor = None
 
     scheduler = build_obstacle_scheduler(config.scenario.timed_obstacles, _current_stage)
@@ -90,7 +147,9 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
         debug_annot = _attach_debug_rgb_annotator(config.scenario.robots)
         sim_ctx.play()
 
-        _wait_for_ros_topics(sim_ctx, config.scenario.robots, config.topic_timeout_sec)
+        _wait_for_ros_topics(
+            sim_ctx, config.scenario.robots, config.topic_timeout_sec, stop_flag
+        )
 
         # Start the Branch B cmd_vel watchdog (FR6.4.8). The drive graphs listen on
         # /<id>/cmd_vel_safe, so without this relay no robot moves on a real run —
@@ -135,6 +194,9 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
         with open(gt_path, "w", encoding="utf-8") as gt_file:
             logger = AcceptanceLogger(gt_file, config.scenario, log_hz=10.0)
             while sim_time < duration and app.is_running():
+                if stop_requested(stop_flag):
+                    abort_fields = abort_manifest_fields(stop_flag, "sim_loop", sim_time)
+                    break
                 app.update()
                 # One app.update() is not one physics step: rendering (and
                 # thus app.update()) runs at rendering_hz (30) while physics
@@ -156,8 +218,18 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
                 logger.maybe_write(sim_time, states)
 
         elapsed = sim_time
-        completed = True
+        # An aborted run's GT stops short of the horizon, so it must not read
+        # as a completed episode to anything that trusts `completed`.
+        if abort_fields is None:
+            completed = True
+        else:
+            failure = f"aborted: stop flag {stop_flag} at sim_time_sec={sim_time:.2f}"
+            print(f"stop flag seen: {failure}", flush=True)
 
+    except _StopRequestedError as exc:
+        failure = str(exc)
+        abort_fields = abort_manifest_fields(stop_flag, "topic_wait", None)
+        print(f"stop flag seen: {failure}", flush=True)
     except _TopicTimeoutError as exc:
         failure = str(exc)
         carb.log_error(failure)
@@ -181,7 +253,7 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
         except Exception as exc:
             carb.log_warn(f"timed obstacle reset failed: {type(exc).__name__}: {exc}")
 
-    _write_manifest(manifest_path, {
+    manifest: dict[str, Any] = {
         "run_id": run_id,
         "scenario": config.scenario.name,
         "scenario_schema_version": config.scenario.schema_version,
@@ -195,7 +267,10 @@ def run_repetition(app, config: ResolvedRunConfig, repetition: int) -> RunResult
         "started_at_utc": started_at,
         "completed": completed,
         "failure": failure,
-    })
+    }
+    if abort_fields is not None:
+        manifest.update(abort_fields)
+    _write_manifest(manifest_path, manifest)
 
     return RunResult(
         run_id=run_id,
@@ -231,6 +306,10 @@ def _current_stage():
 
 
 class _TopicTimeoutError(RuntimeError):
+    pass
+
+
+class _StopRequestedError(RuntimeError):
     pass
 
 
@@ -413,7 +492,9 @@ def _start_cmd_vel_watchdog(robots):
     return executor
 
 
-def _wait_for_ros_topics(sim_ctx, robots, timeout_sec: float) -> None:
+def _wait_for_ros_topics(
+    sim_ctx, robots, timeout_sec: float, stop_flag: Path | None = None
+) -> None:
     import time
 
     import rclpy
@@ -478,6 +559,10 @@ def _wait_for_ros_topics(sim_ctx, robots, timeout_sec: float) -> None:
     tick = 0
     try:
         while time.monotonic() < deadline:
+            if stop_requested(stop_flag):
+                raise _StopRequestedError(
+                    f"aborted: stop flag {stop_flag} during the ROS topic wait"
+                )
             # Pump a full Kit app.update() while the timeline plays: this advances
             # simulation time (IsaacReadSimulationTime), which OnPlaybackTick, the
             # camera render product, and the camera's IsaacSimulationGate all

@@ -9,8 +9,13 @@ Usage (Windows):
         --scenario head_on_deadlock --headless --seed 42 --repetitions 3
 """
 import argparse
+import os
 import sys
 from pathlib import Path
+
+# fc_launch.sh passes the stop-flag path through `sudo ... env`, which keeps
+# its DRY_RUN command line (and the goldens pinning it) unchanged.
+STOP_FLAG_ENV = "VGU_ISAAC_STOP_FLAG"
 
 
 def main() -> None:
@@ -25,6 +30,11 @@ def main() -> None:
                         default=Path("data/logs/simulation"))
     parser.add_argument("--ros-domain-id", type=int, default=None)
     parser.add_argument("--topic-timeout-sec", type=float, default=15.0)
+    parser.add_argument("--stop-flag", type=Path,
+                        default=os.environ.get(STOP_FLAG_ENV) or None,
+                        help="File whose appearance stops the run early (GT "
+                             "closed, manifest written with an aborted "
+                             f"marker); defaults to ${STOP_FLAG_ENV}")
     args = parser.parse_args()
 
     if args.repetitions < 1:
@@ -34,7 +44,6 @@ def main() -> None:
     if args.seed is not None and args.seed < 0:
         sys.exit("--seed must be >= 0")
     if args.ros_domain_id is not None:
-        import os
         os.environ["ROS_DOMAIN_ID"] = str(args.ros_domain_id)
 
     import yaml
@@ -66,7 +75,7 @@ def main() -> None:
     )
 
     from isaac.vgu_sim.runner import run_simulation
-    results = run_simulation(run_config)
+    results = run_simulation(run_config, stop_flag=args.stop_flag)
 
     failed = [r for r in results if not r.completed]
     if failed:
