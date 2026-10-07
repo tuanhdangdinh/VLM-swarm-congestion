@@ -43,12 +43,20 @@ class TaskRegistry:
             now: Monotonic time of M5's start, from which each
                 `start_delay_sec` is counted.
         """
-        self.entries = {
-            rid: _Entry(base=assignment) for rid, assignment in config.initial_tasks.items()
-        }
+        self.load_assignments(config.initial_tasks, now)
+
+    def load_assignments(self, tasks: dict[str, TaskAssignment], now: float = 0.0) -> None:
+        """Populate base assignments from an explicit mapping (startup only).
+
+        Args:
+            tasks: Robot id -> base assignment; the task stream passes each
+                robot's first task here instead of `initial_tasks`.
+            now: Monotonic time from which each `start_delay_sec` is counted.
+        """
+        self.entries = {rid: _Entry(base=assignment) for rid, assignment in tasks.items()}
         self.release_at = {
             rid: now + assignment.start_delay_sec
-            for rid, assignment in config.initial_tasks.items()
+            for rid, assignment in tasks.items()
             if assignment.start_delay_sec > 0.0
         }
 
@@ -73,6 +81,19 @@ class TaskRegistry:
     def assign(self, robot_id: str, task: str, goal: tuple[float, float]) -> None:
         """Set or replace a robot's base mission assignment."""
         self.entries[robot_id] = _Entry(base=TaskAssignment(task=task, goal=goal))
+
+    def set_base(self, robot_id: str, task: str, goal: tuple[float, float]) -> None:
+        """Replace a robot's base mission, keeping any active override.
+
+        Unlike `assign`, an in-flight coordination command keeps its override,
+        so a task-stream advance mid-command does not drop it; the effective
+        goal falls through to the new base once the override clears. A
+        no-op for an unknown robot.
+        """
+        entry = self.entries.get(robot_id)
+        if entry is None:
+            return
+        entry.base = entry.base.model_copy(update={"task": task, "goal": goal})
 
     def set_override(
         self, robot_id: str, action: str, goal: tuple[float, float], command_id: str

@@ -62,6 +62,7 @@ from swarm_orchestrator.models import (
     OrchestratorConfig,
     PipelineOutcome,
     RegistryDispatch,
+    TerminalStage,
     load_config,
     parse_annotation_overlays,
     parse_scene_snapshot,
@@ -120,6 +121,14 @@ from swarm_orchestrator.state_machine import (
     OrchestratorStateMachine,
 )
 from swarm_orchestrator.task_registry import TaskRegistry
+from swarm_orchestrator.task_stream import (
+    TaskStreamEvent,
+    TaskStreamTracker,
+    build_task_stream_plan,
+    start_position_offsets,
+    stream_initial_tasks,
+    stream_start_record,
+)
 from swarm_orchestrator.zoom_tile import ZoomTileRecord, write_zoom_tile, zoom_tile_path
 
 # (a0) plan channel: M4's CoordinationStatus vocabulary (command_bus_node.py's
@@ -411,7 +420,30 @@ class OrchestratorNode(Node):
             else None
         )
         self._registry = TaskRegistry()
-        self._registry.load_initial(self._config, time.monotonic())
+        started_at = time.monotonic()
+        # v3 S1 task stream: None unless `task_stream.enabled`, so a
+        # stream-off node loads `initial_tasks` exactly as before.
+        self._task_stream: TaskStreamTracker | None = None
+        self._tasks_log_path: Path | None = None
+        self._stream_start_checked = False
+        self._stream_complete_logged = False
+        self._stream_clock_reset_active = False
+        stream = self._config.task_stream
+        if stream.enabled:
+            plan = build_task_stream_plan(stream, self._config.initial_tasks)
+            self._task_stream = TaskStreamTracker(
+                plan, stream.dwell_sim_sec, stream.horizon_sim_sec
+            )
+            # First tasks enter the registry as base goals; each robot's
+            # stagger rides the existing start_delay_sec hold-back.
+            self._registry.load_assignments(
+                stream_initial_tasks(plan, self._config.initial_tasks), started_at
+            )
+            self._tasks_log_path = (
+                Path(self._config.decision_log_dir) / f"tasks_{self._session_id}.jsonl"
+            )
+        else:
+            self._registry.load_initial(self._config, started_at)
 
         self._bridge = CvBridge()
         # rclpy.spin is single-threaded: _attempts and the _pending_* contexts are
@@ -548,6 +580,13 @@ class OrchestratorNode(Node):
                 self.get_logger().warning(
                     f"classical shadow degraded: {self._shadow.params_error}"
                 )
+        if not self._config.dispatch_enabled:
+            self.get_logger().info(
+                "dispatch disabled (log-only): triggered analyses run M2 and M3 and write "
+                "their artifacts, but no command reaches M4"
+            )
+        if self._task_stream is not None:
+            self._start_task_stream(started_at)
         self._publish_registry()
 
     # ---- config ----
@@ -627,6 +666,11 @@ class OrchestratorNode(Node):
         # evidence from this same scene rather than the next one.
         for decision in self._arrival.on_scene(snapshot, self._progress_goal):
             self._apply_arrival(decision)
+        # After the arrival gate, so a dwell started by a late acceptance on
+        # this scene is timed from this stamp; before the detector, so a
+        # next task issued here is the goal this scene's progress is judged on.
+        if self._task_stream is not None and not snapshot.dropped_frame:
+            self._tick_task_stream(snapshot, now)
         if self._contradictions is not None:
             self._observe_contradictions(snapshot)
         event = self._detector.update(snapshot, self._progress_goal, now)
@@ -782,6 +826,25 @@ class OrchestratorNode(Node):
         if released:
             self.get_logger().info(f"start delay elapsed, base mission released robots={released}")
             self._publish_registry()
+            if self._task_stream is not None:
+                sim_t = self._latest_sim_t()
+                if sim_t is None:
+                    # The stagger counts from M5's start; with no scene yet the
+                    # sim may not be playing, and releases collapsing toward
+                    # Δ = 0 is the degenerate junction pile-up (scene doc S1).
+                    self.get_logger().warning(
+                        f"task_stream release before any scene robots={released}"
+                    )
+                    self._append_tasks_log(
+                        {"event": "release_before_scene", "wall_t": now, "robots": released}
+                    )
+                self._record_stream_events(
+                    [
+                        event
+                        for robot_id in released
+                        for event in self._task_stream.on_release(robot_id, now, sim_t)
+                    ]
+                )
         for command_id in self._tracker.check_timeouts(now):
             self.get_logger().warning(f"command {command_id} timed out")
             # A timeout never goes through `_on_status`/`_apply_plan_leg_status`
@@ -983,6 +1046,20 @@ class OrchestratorNode(Node):
         # Filtered once, here, so the artifact records exactly the command
         # `_dispatch` fans out (forcing-audit A5b).
         dispatch = registry_dispatch(outcome, set(self._config.initial_tasks))
+        # Dispatch-off: whether THIS outcome is one `_dispatch` would have
+        # fanned out (the state machine's DISPATCH condition, plus a command
+        # the registry filter left); None while dispatch is on, so the
+        # artifact gains no key.
+        dispatch_suppressed = (
+            None
+            if self._config.dispatch_enabled
+            else (
+                outcome.terminal_stage is TerminalStage.OK
+                and outcome.grounded_command is not None
+                and dispatch is not None
+                and dispatch.command is not None
+            )
+        )
         try:
             artifact_path = write_decision_artifact(
                 self._config.decision_log_dir,
@@ -1003,6 +1080,7 @@ class OrchestratorNode(Node):
                 prompt_conditions=prompt_conditions,
                 dispatch=dispatch,
                 plan_dispatch_order_source=self._config.plan_dispatch_order_source,
+                dispatch_suppressed=dispatch_suppressed,
                 **self._trigger_artifact_fields(trigger_source, contradiction),
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
@@ -1032,7 +1110,10 @@ class OrchestratorNode(Node):
 
         directive = self._machine.on_outcome(outcome, now)
         if directive.kind is DirectiveKind.DISPATCH and outcome.grounded_command is not None:
-            self._dispatch(outcome, dispatch, episode_index=episode_index)
+            if self._config.dispatch_enabled:
+                self._dispatch(outcome, dispatch, episode_index=episode_index)
+            else:
+                self._suppress_dispatch(outcome, dispatch, directive.robots, now)
         elif directive.kind is DirectiveKind.COOLDOWN:
             self._cooldown.start(directive.robots, now)
             self.get_logger().info(
@@ -1096,6 +1177,13 @@ class OrchestratorNode(Node):
             self.get_logger().error(
                 f"refusing dispatch request={outcome.request_id}: "
                 "t0 probe outcomes are log-only"
+            )
+            return
+        # Second dispatch-off layer: `_handle_outcome` routes to
+        # `_suppress_dispatch` instead; nothing else may reach here with it off.
+        if not self._config.dispatch_enabled:
+            self.get_logger().error(
+                f"refusing dispatch request={outcome.request_id}: dispatch_enabled is false"
             )
             return
         if dispatch is None:
@@ -1194,6 +1282,12 @@ class OrchestratorNode(Node):
                 `<previous_command_id>-phase` label for a phase advance.
             messages: `fan_out_command`'s per-robot tuples.
         """
+        # Last dispatch-off layer, at the one place a command is published.
+        if not self._config.dispatch_enabled:
+            self.get_logger().error(
+                f"refusing publish request={request_id}: dispatch_enabled is false"
+            )
+            return
         for command_id, robot_id, action, params_json, _timeout in messages:
             msg = CoordinationCommand()
             msg.command_id = command_id
@@ -1752,6 +1846,183 @@ class OrchestratorNode(Node):
             ),
         }
 
+    # ---- dispatch-off (log-only) ----
+
+    def _suppress_dispatch(
+        self,
+        outcome: PipelineOutcome,
+        dispatch: RegistryDispatch | None,
+        event_robots: list[str],
+        now: float,
+    ) -> None:
+        """Stand in for `_dispatch` while `dispatch_enabled` is false.
+
+        The artifact already holds the full decision, grounding and the
+        command M4 would have received (`dispatch_suppressed`). Nothing is
+        published, overridden or tracked, no attempt enters AttemptMemory
+        (a suppressed command was never executed, so it is no attempt and
+        never becomes failure context), no junction phase queue starts and no
+        contradiction watch arms. Only a cooldown starts, on the event's
+        robots and the would-be commanded robots -- as if the command had
+        resolved at once -- so a persisting stall re-triggers one cooldown
+        later instead of on the very next scene.
+        """
+        would_be = [] if dispatch is None else dispatch.robot_ids
+        robots = sorted(set(event_robots) | set(would_be))
+        self._cooldown.start(robots, now)
+        command_id = (
+            None if dispatch is None or dispatch.command is None
+            else dispatch.command["command_id"]
+        )
+        detail = (
+            f"command={command_id} would_dispatch={would_be}"
+            if command_id is not None
+            else f"command=none filter_error={None if dispatch is None else dispatch.error}"
+        )
+        self.get_logger().info(
+            f"dispatch suppressed request={outcome.request_id} {detail} "
+            f"cooldown_robots={robots} cooldown_sec={self._config.cooldown_sec} "
+            "(dispatch_enabled=false, log-only)"
+        )
+
+    # ---- v3 S1 task stream ----
+
+    def _start_task_stream(self, started_at: float) -> None:
+        """Write the drawn schedule and issue every unheld robot's first task."""
+        stream = self._task_stream
+        config = self._config.task_stream
+        plan = stream.plan
+        self._append_tasks_log(stream_start_record(plan, config) | {"wall_t": started_at})
+        sequences = {rid: [task.node for task in queue] for rid, queue in plan.tasks.items()}
+        self.get_logger().info(
+            f"task_stream start seed={plan.seed} start_nodes={plan.start_nodes} "
+            f"drawn={plan.start_nodes_drawn} sequences={sequences} "
+            f"release_offsets_wall_sec={plan.release_offsets_wall_sec} "
+            f"dwell_sim_sec={config.dwell_sim_sec} tasks_total={plan.tasks_total} "
+            f"log={self._tasks_log_path}"
+        )
+        released = [rid for rid in self._config.initial_tasks if not self._registry.is_pending(rid)]
+        self._record_stream_events(stream.start(started_at, released))
+
+    def _tick_task_stream(self, snapshot, now: float) -> None:
+        """Advance dwells on one scene; issue each next task as the new registry goal."""
+        if not self._stream_start_checked:
+            self._stream_start_checked = True
+            self._check_stream_start_positions(snapshot, now)
+        last = self._task_stream.last_sim_t
+        if last is not None and snapshot.stamp < last:
+            # Dropped frames never get here, so this is a sim clock reset:
+            # every dwell freezes until the clock passes `last` again, which
+            # invalidates the episode's timing -- say so once per reset.
+            if not self._stream_clock_reset_active:
+                self._stream_clock_reset_active = True
+                self.get_logger().warning(
+                    f"task_stream clock reset sim_t={snapshot.stamp} prev_sim_t={last}: "
+                    "dwells frozen until the clock passes prev_sim_t"
+                )
+                self._append_tasks_log(
+                    {"event": "clock_reset", "wall_t": now, "sim_t": snapshot.stamp,
+                     "prev_sim_t": last}
+                )
+            return
+        self._stream_clock_reset_active = False
+        self._apply_stream_events(self._task_stream.on_scene(snapshot.stamp, now))
+
+    def _check_stream_start_positions(self, snapshot, now: float) -> None:
+        """Record how far M1's first view puts each robot from its start node.
+
+        A seed/spawn mismatch otherwise shows only as a wrong first leg; it is
+        recorded (and warned about) here, never acted on.
+        """
+        positions = {
+            view.robot_id: (view.x, view.y) for view in snapshot.robots if view.status != "STALE"
+        }
+        offsets = start_position_offsets(
+            self._task_stream.plan, self._config.task_stream.nodes, positions
+        )
+        self._append_tasks_log(
+            {"event": "start_check", "wall_t": now, "sim_t": snapshot.stamp, "offsets_m": offsets}
+        )
+        tolerance = self._config.arrival_position_tolerance_m
+        far = {rid: d for rid, d in offsets.items() if d is not None and d > tolerance}
+        if far:
+            self.get_logger().warning(
+                f"task_stream start node mismatch offsets_m={far} tolerance_m={tolerance} "
+                f"start_nodes={self._task_stream.plan.start_nodes}"
+            )
+
+    def _stream_arrival(self, decision: ArrivalDecision) -> None:
+        """Start the dwell when an accepted arrival is at the robot's current task node."""
+        if self._task_stream is None:
+            return
+        event = self._task_stream.on_arrival(
+            decision.robot_id, decision.goal, time.monotonic(), self._latest_sim_t()
+        )
+        if event is not None:
+            self._record_stream_events([event])
+
+    def _apply_stream_events(self, events: list[TaskStreamEvent]) -> None:
+        issued = [event for event in events if event.event == "issued"]
+        for event in issued:
+            # Base only: an in-flight command keeps its override, and the
+            # robot's goal falls through to this task when it resolves.
+            self._registry.set_base(event.robot_id, event.label, event.goal)
+        if issued:
+            self._publish_registry()
+        self._record_stream_events(events)
+
+    def _record_stream_events(self, events: list[TaskStreamEvent]) -> None:
+        """Log and append each event, then the up-to-date episode manifest."""
+        if not events:
+            return
+        stream = self._task_stream
+        total = stream.plan.tasks_total
+        for event in events:
+            completed = stream.completed_count()
+            self.get_logger().info(
+                f"task_stream event={event.event} robot={event.robot_id} "
+                f"task_index={event.task_index} node={event.node} label={event.label} "
+                f"goal={event.goal} sim_t={event.sim_t} completed={completed}/{total}"
+            )
+            self._append_tasks_log(
+                event.model_dump(mode="json")
+                | {
+                    "tasks_completed": completed,
+                    "tasks_total": total,
+                    "robot_tasks_completed": stream.completed_count(event.robot_id),
+                }
+            )
+        manifest = stream.manifest()
+        # Re-emitted after every batch: M5 is killed, not shut down, so the
+        # last line on disk must already be the episode's current state.
+        self._append_tasks_log(
+            {"event": "manifest", "wall_t": events[-1].wall_t, "sim_t": events[-1].sim_t}
+            | manifest
+        )
+        if stream.all_done and not self._stream_complete_logged:
+            self._stream_complete_logged = True
+            self.get_logger().info(
+                f"task_stream episode complete tasks={manifest['tasks_completed']}/{total} "
+                f"makespan_sim_sec={manifest['makespan_sim_sec']} "
+                f"makespan_wall_sec={manifest['makespan_wall_sec']}"
+            )
+
+    def _append_tasks_log(self, record: dict[str, Any]) -> None:
+        envelope = {
+            "run_id": self._run_id,
+            "session_id": self._session_id,
+            "seed": self._task_stream.plan.seed,
+        }
+        try:
+            with open(self._tasks_log_path, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(envelope | record, sort_keys=True) + "\n")
+        except OSError as exc:
+            self.get_logger().error(f"tasks log write failed: {exc}")
+
+    def _latest_sim_t(self) -> float | None:
+        """Stamp of M1's latest scene (sim-s under Isaac), or None before any."""
+        return None if self._latest_snapshot is None else self._latest_snapshot.stamp
+
     # ---- helpers ----
 
     def _effective_goal(self, robot_id: str):
@@ -1788,6 +2059,7 @@ class OrchestratorNode(Node):
             self.get_logger().info(
                 f"robot {decision.robot_id} arrived at base goal {decision.goal}"
             )
+            self._stream_arrival(decision)
             return
         distance = "none" if check.distance_m is None else f"{check.distance_m:.2f}"
         # M5 publishes no diagnostics topic, so the running tallies ride on the
@@ -1808,11 +2080,13 @@ class OrchestratorNode(Node):
                 f"arrival accepted late robot={decision.robot_id} "
                 f"distance_m={distance} counts={counts}"
             )
+            self._stream_arrival(decision)
             return
         self.get_logger().info(
             f"robot {decision.robot_id} arrived at base goal {decision.goal} "
             f"distance_m={distance} check={check.reason}"
         )
+        self._stream_arrival(decision)
 
     def _busy_robots(self) -> set[str]:
         busy: set[str] = set()
