@@ -475,6 +475,55 @@ VM head-on episodes (seeds 42/43) of the model-wiring standard
 are PENDING — the arm is not recorded as meeting the full
 standard until they pass; dispatched 2026-10-07.
 
+**Forcing/hardcode audit RESULT + RULINGS (2026-10-07, fork
+session, three layers M2 / M3+M5 / M4+scorers, read-only on
+`feat/prereg-v2-composite`; full report to be committed as
+`docs/reports/2026-10-07-forcing-audit.md`):** HEADLINE — NO
+unregistered forcing anywhere: all overrides are the registered
+provenance-tagged set, swap gate OFF by default, no
+resample-until-accepted loop, prompts leak no answers, sampling
+pinned per arm. Six findings RULED, items 1–5 FIX NOW
+pre-collection on the composite (none touch the v1 tag lineage):
+(A1) decision artifacts never serialize
+`PipelineOutcome.junction_phases` — phase-1+ cross/release/
+fallback commands and their degradation tags (incl.
+`junction_geometry=shipped_unsolved`) survive only in ROS logs,
+breaking the provenance chain for EXACTLY the composite the
+prereg scores (`reasoning_pipeline.py:853-936` vs
+`models.py:545`) — serialize the full phase record into the
+artifact; HIGHEST priority. (A2) no scorer reads
+`diagnostics.backend_id`, so a mock bundle scores identically to
+live — scorers must surface a backend column AND refuse mock
+backends in confirmatory scoring. (A3) `classify_outcome` can
+award `resolved` with zero dispatched decisions — require ≥1
+dispatch for `resolved` and co-report `n_dispatches` always.
+(A4) `_as_yield_decision` clears a model-provided yield-axis
+`crossing_order` then tags `order=implicit` ("none given" when
+one WAS given, `command_grounder.py:2916-2925`) — introduce a
+distinct tag (e.g. `order=discarded_yield_axis`) so repaired-
+order metrics don't miscount. (A5) two untagged post-provenance
+mutations: the reverse tracked-band clamp
+(`command_grounder.py:226-262`) and the second
+`filter_command_robot_ids` in `_dispatch` AFTER the artifact
+write (`orchestrator_node.py:1046-1049`) — dispatched can differ
+from recorded in T3a-intruder scenes; tag the clamp and move (or
+mirror) the second filter before/into the artifact so recorded ==
+dispatched. (A6) `plan_tracker._cancel_order` includes ACTIVE
+legs while the registered wording says pending-only
+(`plan_tracker.py:219-230`) — field currently inert; RULED an
+append-only WORDING CORRECTION: supersession cancel covers
+pending AND active legs of the superseded plan; the original
+"pending-only" text is marked superseded, no code change.
+ANALYSIS RULES FROZEN into the measurement plan: (R1) headline
+accuracy must be splittable by `refusal_attempts` /
+`image_fallback_used` — the grey-image subpopulation is reported
+alongside, never silently pooled; (R2) any credit to `repaired`
+plans must condition on logged edit count/ops — a bound-4
+rewrite can land leg-identical to `m3_default` yet score
+`repaired` (`command_grounder.py:3309-3342`); plan-provenance
+analyses report the edit-distance distribution, not the label
+alone.
+
 **Hypothesis arms RESULTS + RULINGS (2026-10-07,
 `docs/reports/2026-10-07-hypothesis-arms.md`; nine-arm table is
 the freeze's model annex; reading rule committed pre-call at
