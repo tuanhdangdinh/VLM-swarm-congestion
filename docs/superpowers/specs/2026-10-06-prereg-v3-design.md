@@ -522,3 +522,86 @@ tier-0 probe battery (all models, offline, ~$0.25/model) then tier-2
 small pilot cells for the top 2–3 — the nine-arm full matrix is
 explicitly NOT a v3 deliverable (cost ≈ 480–600 VM-h under the
 measured harness).
+
+---
+
+## Rev 3 addenda (2026-10-08) — build-campaign rulings (append-only)
+
+Rulings accumulated while building Steps 0/3/4 and S1/S6 on
+`feat/v3-integration` (tip `11fa31a` at writing). Evidence lives in
+the branch's commit messages, test files, and the build agents'
+reports; nothing above this line is rewritten.
+
+**A1. S6 pair-B poses amended.** robot_3 spawn → (0.25, 1.2, 0),
+robot_4 spawn → (2.05, 1.2, π); goals unchanged. Reason: the spec-table
+pose left robot_4's chassis overlapping the aisle end by 2 mm at t=0
+(guaranteed depenetration artifact). After the move: rear clearance
+0.048 m, midpoint separation 1.662 m preserved, pair-B spawn gap
+1.80 m, lag 4.0 sim-s. The overlay's D=16 wall-s is PROVISIONAL (sits
+just under the 16.7–19.0 ideal at RTF 0.21–0.24; both jams still form
+by the first trigger) — D is re-derived in the S6 VM timing pilot.
+
+**A2. S6 Arm-B degeneracy REGISTERED pre-collection.** The classical
+`_head_on_pair` crowding rule rejects BOTH S6 pairs (inter-pair robot
+distance at standoff 1.389–1.459 m < r_conflict 1.5 m — the spec's
+1.66 m holds for jam midpoints, not robots), so Arm B is expected to
+classify S6 as `unknown`. This is registered as expected comparator
+degeneracy — evidence that the classical rule cannot decompose a
+multi-conflict scene — and S6's confirmatory scoring is
+decision-scored on the model plan (oracle `addresses_both`,
+criterion_status: proposed), not Arm-B-compared.
+
+**A3. Dispatch-off semantics (deviation from scene-doc build item 9).**
+The shipped flag runs the FULL pipeline including M3 grounding and
+artifact write, suppressing only the publish to M4 (scene doc said
+"never grounded or dispatched"). Deliberate: log-only cells need
+grounding provenance to be scorable. Artifact keys `dispatch_enabled`
+/ `dispatch_suppressed` (absent when dispatch is on). Scorer rule for
+log-only cells: skip any record with `dispatch_enabled: false` when
+counting dispatches (the landed `dispatch_suppressed` guard alone
+does not guarantee strict zero on non-OK/filter-emptied outcomes) —
+implementation queued with the `free_flow_run.sh` glob fix. Known
+wrinkle for Step 6: with the plan channel enabled under dispatch-off,
+accepted plans' legs stay `pending` forever and appear so in the next
+prompt's plan-state block.
+
+**A4. S1 finished_mode: `park` shipped (scene-doc variant C);
+wandering (variant D) NOT built.** Decision deferred to after the
+first S1 pilot: either build wandering or register a park deviation
+with evidence that parked finishers do not seed node blockage.
+Harness notes: tasks_*.jsonl collection glob fixed in v2_final_run.sh;
+same fix owed to free_flow_run.sh.
+
+**A5. R3.3 freeze notes (from the build).** (i) The arm infers
+"verified" from `vlm_verbatim` provenance — the verifier exposes no
+standalone within-ε verdict; (ii) verifier-χ and dispatch-χ are
+computed separately and agree only via the id tie-break + membership
+checks (grounder permutation guard is the backstop); (iii) ε is
+measured on unstaggered χ while dispatch drives staggered pockets;
+(iv) `order_equivalent` now means plan-vs-χ in BOTH conditions;
+(v) SAFETY INVARIANT to freeze: model-order dispatch is safe for
+same-arm stacks only while the family's ε < the follower weight
+(0.5) — any scene whose re-measured ε reaches 0.5 must not enable
+condition B; (vi) `repaired` plans are excluded from model-order
+dispatch even when no edit touched a recede leg — a finer
+`PlanEdit.robot_ids` rule is an owner decision at freeze.
+
+**A6. R3.4 freeze notes.** Divergence bound 0.5 m is a placeholder;
+no persistence requirement on the divergence predicate (an M1 jump on
+a non-STALE frame can arm a false contradiction — consider a 2-frame
+persistence rule at freeze); the re-analysis detail text "congestion
+re-detected for the same robots" is inaccurate on the contradiction
+path (left unchanged for byte-discipline; reword behind the flag at
+freeze); the failure-explanation phrases name no strategy values —
+register-reviewed, final judgment at freeze.
+
+**A7. Step 0 status note.** The merged tree's rotation-probe
+signature PASSED (0/142 closed columns vs 12–13 pre-fix). The stage-1
+smoke failure was on an OFF-DESIGN route (goals routing around the
+blocker — no scored cell does); the acceptance smoke was re-defined
+to the cell's REGISTERED goals and the off-design "north-grind"
+behavior (box-face hugging at 0.038 m under clearing:true) is
+tracked as a named finding relevant to Step 1's detour family.
+Re-baseline stages 2–5 run on tip `071f9c1`-lineage with
+orchestrator.yaml held at the VM-pinned md5 (new keys are default-off
+Pydantic fields).
