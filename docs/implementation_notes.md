@@ -43,14 +43,15 @@ Rules for maintaining it:
     - v1 probes 60/60.
     - v2 conflict_prediction 13/20 (GT-no 3/10, yes 17/20: a false-alarm profile).
     - Stage-1 smokes 3/3 valid. Both standoffs went to robot_2 with a `vlm_verbatim` plan (offline provenance harness reproduces 9/9 recorded plans).
-    - 0 refusals, 0 reasoning tokens. Spend $0.587.
+    - 0 refusals, 0 reasoning tokens. Spend about $0.587, from raw usage at list price.
+    - Offline-equivalent only: the two head-on VM episodes of the registered standard were not run.
   - **Suite:** zero delta (65 failing ids before and after; +9 new passes).
 - **2026-10-07** — **Gotchas (gpt-5.6-sol).**
   1. **No dated snapshot exists**, and `system_fingerprint` is null, so this is a rolling pin with no per-call drift signal.
   2. **OpenAI's recommended successor to gpt-5.1 is gpt-6-sol** (deprecations page), not 5.6-sol.
   3. **$4/$20 is promotional pricing**, valid "at least through November 21, 2026".
-  4. **`detail: "high"` is patch-based on 5.6** (2048², 2,500 patches, 1.2×). A 1280×960 frame is 1,440 tokens, against about 765 tiled on gpt-5.1, so each probe costs about 6× as much.
-  5. **5.6 usage carries `prompt_tokens_details.cache_write_tokens`**, billed at 1.25× input. It is now recorded in `token_usage`.
+  4. **`detail: "high"` is patch-based on 5.6** (2048², 2,500 patches, 1.2×). A 1280×960 frame is 1,440 image tokens; total prompt per probe is about 1,590, against about 765 on gpt-5.1. Each probe costs about 6× as much.
+  5. **5.6 usage carries `prompt_tokens_details.cache_write_tokens`**, billed at 1.25× input. It is now recorded in `token_usage` on every OpenAI-adapter arm where the provider sends it.
 
 - **2026-10-07** — **Conformance-review rulings implemented** (branch `feat/v2-conformance-fixes`: F01 `c1e3c43`, F02 `e713c14`, F03–F27 `d8570b2`; report `docs/reports/2026-10-07-conformance-fixes.md`; rulings in the main-checkout spec's "Conformance-review RULINGS (2026-10-07)" block).
   - **No exception escapes `Reasoner.run` or stage 2.** Every failure is a recorded attempt; per-attempt `AttemptRecord`s (outcome, HTTP status, provider code, finish reason, request id, fingerprint, refusal source, backoff) sit index-aligned with `attempt_token_usage`.
