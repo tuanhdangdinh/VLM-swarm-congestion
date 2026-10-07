@@ -7003,6 +7003,16 @@ Rules for maintaining it:
 
 ## M6 Simulation / Isaac Sim
 
+- **2026-10-07** — **Harness Option B + Isaac stop flag landed and VM-smoked (PASS)** (branch `feat/v2-harness-optionb`: runner `7ddebe4`, `fc_launch` `6564f15`; ruling = main-checkout spec block "Shutdown-timing probe RESULTS + RULINGS (2026-10-07…)"; report `docs/reports/2026-10-07-harness-optionb.md`; same change re-applied to `prereg-v1-hotfix` `c1bf820`/`fca3870`).
+  - **Option B.** `fc_launch.sh` stage 9 ends the M5 tail 10 s (`ISAAC_EXIT_GRACE_SEC`) after the Isaac `sudo` wrapper PID exits; `REC_SEC − 10` stays the cap. Smoke (bshort head-on, mock, s42): tail ended 11 s after Isaac's exit, cycle **838 s vs the 1082 s baseline**; GT 3001 lines, manifest `completed=true` (unchanged 13-key shape), `dispatched_*` keys on the grounded artifact.
+  - **Stop flag.** `VGU_ISAAC_STOP_FLAG` (`/tmp/fc_<STAMP>_isaac.stop`) is polled in the runner's sim loop and ROS-topic wait; cleanup touches it only on an abort (exit before stage 9 finished; never on the `REC_SEC` cap, so 4-robot cells still finish their horizon). Aborted manifests: `completed=false` + `aborted`/`abort_reason`/`abort_phase`/`aborted_at_sim_time_sec`/`stop_flag_path`. Abort test (SIGTERM to `fc_launch`, s43): Isaac gone ≤ 3 s later, GT closed (370 lines), `pgrep` empty at `fc_launch` exit. Keep the `pgrep` relaunch gate anyway.
+  - **DRY_RUN goldens unchanged**: the two new lines are filtered (`OPTION_B_LINE_PREFIXES`) and pinned on their own, as the lifecycle-gate fold did. Suite zero delta on both branches (65 / 66 failing ids identical; +23 passes each).
+- **2026-10-07** — **Gotchas (Option B / stop flag).**
+  1. **Read Isaac liveness with `ps -o stat=`, never `kill -0`.** The tracked PID is a root-owned `sudo`; an unprivileged `kill -0` gets EPERM and would read as "exited" (`scripts/vm/isaac_lifecycle.sh`).
+  2. **Abort ≠ non-zero exit.** Every normal `fc_launch` exits 141 (stage-11 SIGPIPE), so cleanup keys the abort on `TAIL_STAGE_DONE`, not `$?`.
+  3. **Kit's fast shutdown kills the process inside `app.close()`**: `run_simulation.py` never prints `FAIL rep=` or exits 1 — the manifest is the only abort record.
+  4. **Restoring `__pycache__` byte-exactly needs the original interpreter AND the absolute `dfile`** (`co_filename` is embedded): container python with `/ws/…` for `reasoning/`, Isaac's kit python with `/home/ubuntu/vgu-vlm-swarm/…` for `isaac/`, with sources restored at their original mtimes.
+
 - **2026-10-02** — **Loop-map Nav2 pre-emption control smoke: PASS on both
   runs, after finding and fixing a previously-invisible `generate_warehouse_
   map.write_map()` bug** (`docs/reports/2026-10-02-loop-preemption-smoke.md`
