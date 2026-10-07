@@ -328,6 +328,32 @@ t0_probe_max_snapshot_age_sec: 3.0
 # never grounds or dispatches, so there is nothing to track).
 plan_channel_enabled: false
 
+# prereg-v3 R3.4 contradiction trigger (closed-loop item). false (default):
+# nothing is armed or fired and no artifact gains a key -- byte-identical to
+# every run before this block existed. true: while a dispatched command is in
+# flight, a leg M4 reports FAILED, or a robot measurably departing from what
+# its leg implies (yield: distance to the grounded park/retreat target rises
+# more than divergence_bound_m above its running minimum; reverse: travel
+# exceeds backup_distance_m + divergence_bound_m; a temporary_wait in a
+# command with no yield/reverse leg: travel exceeds divergence_bound_m; each
+# measured from the robot's first M1 position after the leg turned ACTIVE),
+# arms an early re-analysis. It fires once, when that command resolves,
+# skipping the remaining cooldown and the stall timer -- never mid-maneuver
+# (M4 rejects a second command for a busy robot) and never for the
+# exhausted-robots set. At most per_event_replan_budget early re-analyses per
+# congestion episode. reroute legs and every junction_clear phase command are
+# never watched. Every triggered artifact records trigger_source
+# (stall | contradiction | manual).
+contradiction_trigger:
+  enabled: false
+  divergence_bound_m: 0.5
+  per_event_replan_budget: 1
+# prereg-v3 R3.4 failure-explanation line: append one classically derived
+# "Cause: ..." sentence (leg statuses, M3 refusals/degradations, arrival
+# rejections; never model text) to each failure-context block's detail.
+# false (default) keeps every prompt byte-identical.
+failure_explanation_enabled: false
+
 # Fixed obstacles rendered into the VLM prompt when prompt_static_obstacles is
 # true. Like scenario_geometry above, these mirror the scenario file by hand
 # (here the head-on asymmetric family blocker) and must be set per scenario —
