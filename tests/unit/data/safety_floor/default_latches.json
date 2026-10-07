@@ -1,0 +1,206 @@
+{
+ "clear_exempt|prev=-|mem=False": {
+  "latched": [],
+  "memory": {
+   "robot_3+robot_4": 1.0
+  },
+  "reasons": {}
+ },
+ "clear_exempt|prev=-|mem=True": {
+  "latched": [],
+  "memory": {
+   "robot_3+robot_4": 1.0
+  },
+  "reasons": {}
+ },
+ "clear_exempt|prev=robot_3+robot_4|mem=False": {
+  "latched": [],
+  "memory": {
+   "robot_3+robot_4": 1.0
+  },
+  "reasons": {}
+ },
+ "clear_exempt|prev=robot_3+robot_4|mem=True": {
+  "latched": [],
+  "memory": {
+   "robot_3+robot_4": 1.0
+  },
+  "reasons": {}
+ },
+ "contact_exempt|prev=-|mem=False": {
+  "latched": [],
+  "memory": {
+   "robot_1+robot_3": 1.716041957529011,
+   "robot_1+robot_4": 1.7672622895314662,
+   "robot_3+robot_4": 0.084
+  },
+  "reasons": {}
+ },
+ "contact_exempt|prev=-|mem=True": {
+  "latched": [],
+  "memory": {
+   "robot_1+robot_3": 1.716041957529011,
+   "robot_1+robot_4": 1.7672622895314662,
+   "robot_3+robot_4": 0.084
+  },
+  "reasons": {}
+ },
+ "contact_exempt|prev=robot_3+robot_4|mem=False": {
+  "latched": [],
+  "memory": {
+   "robot_1+robot_3": 1.716041957529011,
+   "robot_1+robot_4": 1.7672622895314662,
+   "robot_3+robot_4": 0.084
+  },
+  "reasons": {}
+ },
+ "contact_exempt|prev=robot_3+robot_4|mem=True": {
+  "latched": [],
+  "memory": {
+   "robot_1+robot_3": 1.716041957529011,
+   "robot_1+robot_4": 1.7672622895314662,
+   "robot_3+robot_4": 0.084
+  },
+  "reasons": {}
+ },
+ "contact_not_exempt|prev=-|mem=False": {
+  "latched": [
+   "robot_3",
+   "robot_4"
+  ],
+  "memory": {
+   "robot_3+robot_4": 0.084
+  },
+  "reasons": {
+   "robot_3": "min_distance_violation",
+   "robot_4": "min_distance_violation"
+  }
+ },
+ "contact_not_exempt|prev=-|mem=True": {
+  "latched": [
+   "robot_3",
+   "robot_4"
+  ],
+  "memory": {
+   "robot_3+robot_4": 0.084
+  },
+  "reasons": {
+   "robot_3": "min_distance_violation",
+   "robot_4": "min_distance_violation"
+  }
+ },
+ "contact_not_exempt|prev=robot_3+robot_4|mem=False": {
+  "latched": [
+   "robot_3",
+   "robot_4"
+  ],
+  "memory": {
+   "robot_3+robot_4": 0.084
+  },
+  "reasons": {
+   "robot_3": "min_distance_violation",
+   "robot_4": "min_distance_violation"
+  }
+ },
+ "contact_not_exempt|prev=robot_3+robot_4|mem=True": {
+  "latched": [
+   "robot_3",
+   "robot_4"
+  ],
+  "memory": {
+   "robot_3+robot_4": 0.084
+  },
+  "reasons": {
+   "robot_3": "min_distance_violation",
+   "robot_4": "min_distance_violation"
+  }
+ },
+ "pull_off_pass_exempt|prev=-|mem=False": {
+  "latched": [],
+  "memory": {
+   "robot_3+robot_4": 0.21000000000000002
+  },
+  "reasons": {}
+ },
+ "pull_off_pass_exempt|prev=-|mem=True": {
+  "latched": [],
+  "memory": {
+   "robot_3+robot_4": 0.21000000000000002
+  },
+  "reasons": {}
+ },
+ "pull_off_pass_exempt|prev=robot_3+robot_4|mem=False": {
+  "latched": [],
+  "memory": {
+   "robot_3+robot_4": 0.21000000000000002
+  },
+  "reasons": {}
+ },
+ "pull_off_pass_exempt|prev=robot_3+robot_4|mem=True": {
+  "latched": [],
+  "memory": {
+   "robot_3+robot_4": 0.21000000000000002
+  },
+  "reasons": {}
+ },
+ "robot_scope_exempt|prev=-|mem=False": {
+  "latched": [],
+  "memory": {
+   "robot_3+robot_4": 0.05
+  },
+  "reasons": {}
+ },
+ "robot_scope_exempt|prev=-|mem=True": {
+  "latched": [],
+  "memory": {
+   "robot_3+robot_4": 0.05
+  },
+  "reasons": {}
+ },
+ "robot_scope_exempt|prev=robot_3+robot_4|mem=False": {
+  "latched": [],
+  "memory": {
+   "robot_3+robot_4": 0.05
+  },
+  "reasons": {}
+ },
+ "robot_scope_exempt|prev=robot_3+robot_4|mem=True": {
+  "latched": [],
+  "memory": {
+   "robot_3+robot_4": 0.05
+  },
+  "reasons": {}
+ },
+ "stale_in_band_exempt|prev=-|mem=False": {
+  "latched": [],
+  "memory": {},
+  "reasons": {}
+ },
+ "stale_in_band_exempt|prev=-|mem=True": {
+  "latched": [],
+  "memory": {
+   "robot_3+robot_4": 0.12
+  },
+  "reasons": {}
+ },
+ "stale_in_band_exempt|prev=robot_3+robot_4|mem=False": {
+  "latched": [
+   "robot_4"
+  ],
+  "memory": {},
+  "reasons": {
+   "robot_4": "stale_pose_unsafe"
+  }
+ },
+ "stale_in_band_exempt|prev=robot_3+robot_4|mem=True": {
+  "latched": [
+   "robot_4"
+  ],
+  "memory": {
+   "robot_3+robot_4": 0.12
+  },
+  "reasons": {
+   "robot_4": "stale_pose_unsafe"
+  }
+ }
+}

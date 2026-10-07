@@ -17,3 +17,10 @@ safety:
   # 3 wall-s ~= 1.14 sim-s before camera frames were sim-stamped) to declare
   # STALE.
   stale_unsafe_distance_m: 0.6
+  # prereg-v3 addendum A8 (ii): centre distance below which the min-distance
+  # stop applies EVEN to a pair a clearing maneuver exempts (the IB10 release
+  # exemption let a lead push its held partner for 28 s at 0.084 m). 0.0 = off.
+  # PROPOSED 0.20 for v3 cells (footprint contact 0.18 + ~2x M1's 0.011 m
+  # median static error), and only together with the A8 (i) release pull-off:
+  # two contact-free releases without it passed at 0.191 / 0.196 m.
+  hard_contact_floor_m: 0.0

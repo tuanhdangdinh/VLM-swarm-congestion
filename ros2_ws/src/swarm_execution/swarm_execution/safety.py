@@ -19,6 +19,7 @@ from swarm_execution.yield_phase import YIELD_BACKUP_PHASE_DETAILS
 REASON_MIN_DISTANCE = "min_distance_violation"
 REASON_SPEED_LIMIT = "speed_limit_violation"
 REASON_STALE_POSE = "stale_pose_unsafe"
+REASON_HARD_CONTACT_FLOOR = "hard_contact_floor"
 
 # Margin added to `min_distance_m` for the STALE fail-safe band: a marker can
 # vanish while the pair is still closing, and M1 needs stale_after_sec (1.15
@@ -203,8 +204,19 @@ class SafetyLimits:
     max_linear_velocity_mps: float
     stale_pose_is_unsafe: bool = True
     stale_unsafe_distance_m: float | None = None
+    # prereg-v3 addendum A8 (ii): centre distance below which a pair latches
+    # even while a clearing maneuver's exemption covers it. 0.0 (default)
+    # disables it; see `evaluate_latches`.
+    hard_contact_floor_m: float = 0.0
 
     def __post_init__(self) -> None:
+        if self.hard_contact_floor_m < 0.0:
+            raise ValueError(f"hard_contact_floor_m must be >= 0, got {self.hard_contact_floor_m}")
+        if self.hard_contact_floor_m > 0.0 and self.hard_contact_floor_m >= self.min_distance_m:
+            raise ValueError(
+                f"hard_contact_floor_m {self.hard_contact_floor_m} must be below "
+                f"min_distance_m {self.min_distance_m}"
+            )
         # Derived rather than a literal default so the band tracks
         # `min_distance_m` when that is retuned (it went 0.3 -> 0.45 once).
         if self.stale_unsafe_distance_m is None:
@@ -229,6 +241,9 @@ class LatchEvaluation:
     latched: frozenset[str] = frozenset()
     reasons: dict[str, str] = field(default_factory=dict)
     last_fresh_distances: dict[tuple[str, str], float] = field(default_factory=dict)
+    # Exempt pairs latched by the hard-contact floor, with their distance;
+    # always empty while `SafetyLimits.hard_contact_floor_m` is 0.0.
+    floor_breaches: dict[tuple[str, str], float] = field(default_factory=dict)
 
 
 def is_clearing_action(action: str | None) -> bool:
@@ -519,9 +534,16 @@ def evaluate_latches(
 ) -> LatchEvaluation:
     """Compute the latched-robot set for one scene snapshot.
 
-    Two rules, unioned:
+    Two rules, unioned (three with the hard-contact floor on):
 
     1. **Proximity** — `detect_proximity_violations` on the snapshot as given.
+       With `hard_contact_floor_m` > 0, an EXEMPT pair closer than the floor
+       latches too (prereg-v3 addendum A8 (ii): the IB10 release exemption
+       let a lead push its held partner for 28 s at 0.084 m centre
+       distance). Same snapshot positions as the proximity rule, a STALE
+       robot's carried pose included; the floor sits below the footprint
+       contact separation plus M1's error, far below `min_distance_m`, so a
+       clearing maneuver working inside `min_distance_m` is still exempt.
     2. **STALE fail-safe** (`stale_pose_is_unsafe`) — a robot M1 reports as
        `STALE` has an unknown pose, which is *unsafe*, not absent. Such a robot
        keeps any latch it already had, and is latched afresh if the last
@@ -579,6 +601,20 @@ def evaluate_latches(
         latched.add(robot_id)
         reasons[robot_id] = REASON_MIN_DISTANCE
 
+    floor_breaches: dict[tuple[str, str], float] = {}
+    if limits.hard_contact_floor_m > 0.0:
+        for a, b in combinations(robots, 2):
+            # An unexempted pair already latched at min_distance_m above.
+            if not exemption.covers_pair(a["robot_id"], b["robot_id"]):
+                continue
+            distance = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
+            if distance >= limits.hard_contact_floor_m:
+                continue
+            floor_breaches[_pair_key(a["robot_id"], b["robot_id"])] = distance
+            for robot_id in (a["robot_id"], b["robot_id"]):
+                latched.add(robot_id)
+                reasons.setdefault(robot_id, REASON_HARD_CONTACT_FLOOR)
+
     stale = {r["robot_id"] for r in robots if r.get("status") == "STALE"}
 
     # Only a both-fresh pair refreshes the memory; a distance measured against
@@ -590,7 +626,7 @@ def evaluate_latches(
         memory[_pair_key(a["robot_id"], b["robot_id"])] = distance
 
     if not limits.stale_pose_is_unsafe:
-        return LatchEvaluation(frozenset(latched), reasons, memory)
+        return LatchEvaluation(frozenset(latched), reasons, memory, floor_breaches)
 
     robot_ids = [r["robot_id"] for r in robots]
     for a_id, b_id in combinations(robot_ids, 2):
@@ -611,4 +647,4 @@ def evaluate_latches(
         latched.add(robot_id)
         reasons.setdefault(robot_id, REASON_STALE_POSE)
 
-    return LatchEvaluation(frozenset(latched), reasons, memory)
+    return LatchEvaluation(frozenset(latched), reasons, memory, floor_breaches)
