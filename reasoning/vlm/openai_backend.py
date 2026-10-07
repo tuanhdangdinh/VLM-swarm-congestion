@@ -29,6 +29,10 @@ from reasoning.vlm.transport import (
 # audit rule), and its image_url schema lists `url` only -- `detail` is
 # accepted live (HTTP 200, identical prompt_tokens with and without it) and
 # stays sent so the packing is one constant per adapter.
+# GPT-5.6 (images-vision guide, fetched 2026-10-07) sizes `high` by 32 px
+# patches -- fit within 2048x2048 and 2,500 patches, 1.2x token multiplier --
+# not by gpt-4o/gpt-5.1 tiles, and its `auto` equals `original`, not `high`;
+# `high` stays sent for the same one-constant reason.
 # OpenAI documents `x-request-id` on every response (API reference
 # overview, fetched 2026-10-07); DeepSeek and Zhipu fall back to the body id.
 _REQUEST_ID_HEADER = "x-request-id"
@@ -264,10 +268,13 @@ class OpenAIBackend:
         # overprice cache hits: OpenAI and Zhipu
         # `prompt_tokens_details.cached_tokens`, OpenAI `image_tokens`,
         # DeepSeek's top-level `prompt_cache_hit_tokens` /
-        # `prompt_cache_miss_tokens` (their sum is prompt_tokens).
+        # `prompt_cache_miss_tokens` (their sum is prompt_tokens). OpenAI
+        # `cache_write_tokens` ("The unadjusted number of prompt tokens written
+        # to cache", O-chat, fetched 2026-10-07): GPT-5.6 bills cache writes at
+        # 1.25x the uncached input rate, so they must not price as plain input.
         prompt_details = usage.get("prompt_tokens_details")
         if isinstance(prompt_details, dict):
-            for key in ("cached_tokens", "image_tokens"):
+            for key in ("cached_tokens", "image_tokens", "cache_write_tokens"):
                 if _is_count(prompt_details.get(key)):
                     extracted[key] = prompt_details[key]
         for key in ("prompt_cache_hit_tokens", "prompt_cache_miss_tokens"):
