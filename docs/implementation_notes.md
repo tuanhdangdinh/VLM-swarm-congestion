@@ -37,6 +37,7 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-10-07** — **gpt-5.6-sol meets the full model-wiring standard (live head-on s42/s43 on the VM, tree `941c1c3`).** Both episodes resolved 2/2 (delay sums 147.1 / 146.5 s). Both trigger plans were `vlm_verbatim` naming robot_2, but both drew `id_desc`, so robot_2 was also the first-listed robot. Stage 2 answered in 2.2 / 3.3 s; there were 0/8 refused attempts, 0 reasoning tokens, 0 contacts (min GT separation 0.25 m), and every call carries `answered` attempt records. Spend ≈ $0.16. VM restored to `b5cafe4` and left RUNNING. See the "Live VM Episodes" section of `docs/reports/2026-10-07-gpt56-sol-swap.md`; bundles are in the main checkout under `data/logs/vm_runs/gpt56_sol_swap/live/`.
 - **2026-10-07** — **gpt-5.6-sol replaces gpt-5.1 in the Group-C generation pair** (owner ruling; branch `feat/v2-gpt56-sol`: `cache_write_tokens` in usage `5c45667`, arm wiring `8da7479`; report `docs/reports/2026-10-07-gpt56-sol-swap.md`).
   - **Arm `openai_gpt56sol`.** `gpt-5.6-sol` with `reasoning_effort: none`, `max_completion_tokens`, temperature 0.0, 4 attempts + grey fallback after 2. Its body is the gpt-5.1 pin's with only the model id changed; the other nine arms' pinned bodies are unchanged. `openai_gpt51` is kept and marked retired from the confirmatory tier.
   - **Validation** (live, frozen inputs, no VM):
@@ -44,7 +45,7 @@ Rules for maintaining it:
     - v2 conflict_prediction 13/20 (GT-no 3/10, yes 17/20: a false-alarm profile).
     - Stage-1 smokes 3/3 valid. Both standoffs went to robot_2 with a `vlm_verbatim` plan (offline provenance harness reproduces 9/9 recorded plans).
     - 0 refusals, 0 reasoning tokens. Spend about $0.587, from raw usage at list price.
-    - Offline-equivalent only: the two head-on VM episodes of the registered standard were not run.
+    - Offline-equivalent only: the two head-on VM episodes of the registered standard were not run. (Superseded by the 2026-10-07 live-episodes entry above.)
   - **Suite:** zero delta (65 failing ids before and after; +9 new passes).
 - **2026-10-07** — **Gotchas (gpt-5.6-sol).**
   1. **No dated snapshot exists**, and `system_fingerprint` is null, so this is a rolling pin with no per-call drift signal.
