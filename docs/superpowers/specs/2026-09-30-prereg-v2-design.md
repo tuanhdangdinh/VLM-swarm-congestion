@@ -524,6 +524,61 @@ rewrite can land leg-identical to `m3_default` yet score
 analyses report the edit-distance distribution, not the label
 alone.
 
+**Audit fixes A1–A5 IMPLEMENTED (2026-10-07, branch
+`feat/v2-audit-fixes` `cf410be..19a3657`,
+`docs/reports/2026-10-07-audit-fixes.md`; merge to composite
+pending the VM-validation agent's handback — same worktree):**
+failing-test set identical before/after (65 ids), 33 new tests.
+REGISTRATIONS and judgment calls adopted: (1) **`self_resolved`
+joins the outcome_class enum** (append-only registration:
+`resolved | intermittent | clogged | self_resolved`, where
+`self_resolved` = all robots arrived with ZERO dispatched
+decisions and `resolved` now REQUIRES ≥1 dispatch;
+`n_dispatches` becomes a top-level column on every flow row).
+Chosen over None/dropping so the Layer-2-off arm — where zero
+dispatches is the expected case — keeps its denominator. (2)
+A5b recorded-vs-dispatched is closed by RECORDING the
+registry-filtered command in the artifact
+(`dispatched_command`, `dispatched_robot_ids`,
+`dispatch_dropped_robot_ids`, `dispatch_filter_error`) computed
+once BEFORE the write and then dispatched as-recorded — the
+filter was NOT moved (moving it would change
+`dispatch_matches_plan`, `yield_*` and state-machine inputs);
+keys are unconditional on grounded artifacts and mean "what M5
+sends if it dispatches". (3) A1 serializes the full
+`JunctionClearPhasePlan` (per-phase commands + degradations +
+held robots + fallback) into `junction_phases`; per-phase
+RUNTIME status/timestamps remain log-only (phases advance after
+the write; the scorer already parses M5 logs for ordinals) —
+accepted. (4) New tags: `reverse=clamped_tracked_band:<robot>:
+<from>-><to>` (only when the clamp bites; unclamped output
+byte-identical) and `order=discarded_yield_axis` (replacing the
+mislabeling `order=implicit` on discarded model orders; the
+audit's claim that `implicit` fired on the IB10 cross phase was
+WRONG — that discard was fully untagged, worse than reported).
+(5) A2 ships as `scripts/artifact_backend.py`: every
+decision-reading scorer subcommand emits `backend_id` and exits
+2 on mock bundles unless `--allow-mock`; mock-by-design
+harnesses (strategy_regret score/plan, t2b_forced_order,
+free_flow_table) and rescore_arrivals are exempt. ANCHOR
+CORRECTIONS recorded: A4's real site spans
+`_as_yield_decision` 2893–2930 and the `no_candidates` path
+also dropped ALL of the yield's tags; A5a's mutation site is
+the `_ground_legacy` call site (the 226–262 range is the
+definition) and derived mode dropped tags too (fixed, including
+a degradations-REPLACING wrapper bug). RESIDUAL GAPS RULED:
+(i) runtime phase status log-only — ACCEPTED (above); (ii) M5
+publish-time parameter enrichment (reroute `goal` from registry,
+reverse `plan_continue_partners`) — ACCEPTED as deterministic
+config-derived plumbing, recorded here as the known bounded
+exception to recorded==dispatched; (iii) the junction_clear
+`no_candidates` fallback REPLACES the plain yield's own
+degradations (losing `retreat=default:*`, `yield=infeasible:*`,
+`order=junction_same_axis`) — NOT accepted: ruled follow-up
+**A7, FIX NOW** (merge degradations, never replace) since
+fallback provenance is scored by the fallback_exhausted
+analysis.
+
 **Hypothesis arms RESULTS + RULINGS (2026-10-07,
 `docs/reports/2026-10-07-hypothesis-arms.md`; nine-arm table is
 the freeze's model annex; reading rule committed pre-call at
