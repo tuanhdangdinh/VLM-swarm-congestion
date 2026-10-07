@@ -38,6 +38,21 @@ Rules for maintaining it:
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
 - **2026-10-07** — **gpt-5.6-sol meets the full model-wiring standard (live head-on s42/s43 on the VM, tree `941c1c3`).** Both episodes resolved 2/2 (delay sums 147.1 / 146.5 s). Both trigger plans were `vlm_verbatim` naming robot_2, but both drew `id_desc`, so robot_2 was also the first-listed robot. Stage 2 answered in 2.2 / 3.3 s; there were 0/8 refused attempts, 0 reasoning tokens, 0 contacts (min GT separation 0.25 m), and every call carries `answered` attempt records. Spend ≈ $0.16. VM restored to `b5cafe4` and left RUNNING. See the "Live VM Episodes" section of `docs/reports/2026-10-07-gpt56-sol-swap.md`; bundles are in the main checkout under `data/logs/vm_runs/gpt56_sol_swap/live/`.
+- **2026-10-07** — **Forcing-audit A7: the `junction_clear` `no_candidates` fallback now merges degradations** (`6ef47c6` on `feat/v2-audit-fixes`; ruling on `fix/deadlock-collision-resolution` `53bc294`; report `docs/reports/2026-10-07-audit-fixes.md`, A7). The plain yield's own tags (`retreat=default:*`, `yield=infeasible:*`, `order=junction_same_axis`, …) come first, then `junction_clear=fallback:no_candidates` and any `shipped_unsolved` tag. The other two residual gaps were ruled ACCEPTED: runtime phase status stays log-only, and publish-time `goal`/`plan_continue_partners` enrichment is the known bounded exception to recorded == dispatched. Suite zero delta (+1 pass).
+
+- **2026-10-07** — **Forcing-audit fixes A1–A5 landed** (branch `feat/v2-audit-fixes` from `941c1c3`: A1 `cf410be`, A5b `6f370d6`, A5a `7ca6473`, A4 `8cce46c`, A3 `8094cb7`, A2 `6b8c95c`; report `docs/reports/2026-10-07-audit-fixes.md`; rulings in the main-checkout spec block "Forcing/hardcode audit RESULT + RULINGS (2026-10-07…)").
+  - **A1.** Decision artifacts now carry `junction_phases`: the full precomputed phase record, with every command, its degradations and held robots, plus the fallback. Runtime phase status stays in the M5 log.
+  - **A5b.** M5 computes the task-registry filter once, before the artifact write (`registry_dispatch`). The artifact records `dispatched_command`, `dispatched_robot_ids` and `dispatch_dropped_robot_ids`, plus per-phase ids for `junction_clear`, and `_dispatch` fans out that same command.
+  - **A5a.** `reverse=clamped_tracked_band:<robot>:<from>-><to>` marks a clamped reverse leg.
+  - **A4.** `order=discarded_yield_axis` replaces `order=implicit` when `_as_yield_decision` dropped a model order.
+  - **A3.** New `outcome_class` value `self_resolved` (zero dispatches); `resolved` now needs exactly one dispatch, and `n_dispatches` is a top-level column. The spec still registers three classes, so the coordinator must add `self_resolved` to the registered vocabulary.
+  - **A2.** Scorers emit `backend_id` and exit 2 on any mock-answered bundle unless `--allow-mock` is passed (`scripts/artifact_backend.py`; `coverage_scene_scores` decision subcommands and `strategy_regret regret`).
+  - **Suite:** zero delta (65 failing ids before and after; +33 new passes).
+- **2026-10-07** — **Gotchas (forcing-audit fixes).**
+  1. **The two robot filters check different sets.** The pipeline keeps snapshot robots; `_dispatch` keeps `initial_tasks` robots. An M1-tracked robot with no registry task is grounded but never dispatched.
+  2. **Derived-mode `reverse` grounds through `_ground_legacy`.** Its wrapper used to replace `degradations`; it now merges them.
+  3. **The `junction_clear` `no_candidates` fallback still replaces the plain yield's own degradations.** This is pre-existing and unruled. (Superseded by the 2026-10-07 A7 entry.)
+
 - **2026-10-07** — **gpt-5.6-sol replaces gpt-5.1 in the Group-C generation pair** (owner ruling; branch `feat/v2-gpt56-sol`: `cache_write_tokens` in usage `5c45667`, arm wiring `8da7479`; report `docs/reports/2026-10-07-gpt56-sol-swap.md`).
   - **Arm `openai_gpt56sol`.** `gpt-5.6-sol` with `reasoning_effort: none`, `max_completion_tokens`, temperature 0.0, 4 attempts + grey fallback after 2. Its body is the gpt-5.1 pin's with only the model id changed; the other nine arms' pinned bodies are unchanged. `openai_gpt51` is kept and marked retired from the confirmatory tier.
   - **Validation** (live, frozen inputs, no VM):

@@ -50,6 +50,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.artifact_backend import (  # noqa: E402
+    MockBackendError,
+    record_backend_id,
+    record_is_mock,
+)
 from scripts.t2b_forced_order import RunScore, score_ground_truth  # noqa: E402
 
 ORCHESTRATOR_RELPATH = Path("ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml")
@@ -692,19 +697,35 @@ def roles_from_record(scene: SceneSpec, record: dict[str, Any]) -> tuple[Roles |
     return roles, "artifact_decision"
 
 
-def score_regret(table: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+def score_regret(
+    table: dict[str, Any], record: dict[str, Any], *, allow_mock: bool = False
+) -> dict[str, Any]:
     """Score one recorded decision's time regret against the scene's best arm.
 
     Args:
         table: `cost_table` output.
         record: An M5 decision artifact, a record carrying the grounded
             command, or a bare decision (`roles_from_record`).
+        allow_mock: Score an artifact answered by the mock backend (the
+            sweeps' own forced arms, unit tests); refused otherwise
+            (forcing-audit A2).
 
     Returns:
         The matched arm (None when the decision executes as no swept arm),
         its regret and whether that regret is a lower bound, the roles it
-        was matched by, and the label with its acceptance.
+        was matched by, the label with its acceptance, and `backend_id`
+        (None for a record that names none, e.g. a bare decision).
+
+    Raises:
+        MockBackendError: If the artifact names the mock backend and
+            `allow_mock` is False.
     """
+    if record_is_mock(record) and not allow_mock:
+        raise MockBackendError(
+            "decision artifact was answered by the mock backend; its regret is not "
+            "confirmatory evidence. Pass --allow-mock (allow_mock=True) only for "
+            "smoke or unit-test artifacts."
+        )
     scene = _scene(table["scene"])
     decision = record.get("decision", record) or {}
     roles, source = roles_from_record(scene, record)
@@ -731,6 +752,7 @@ def score_regret(table: dict[str, Any], record: dict[str, Any]) -> dict[str, Any
         "best_arm": table["best_arm"],
         "regret_sec": None,
         "regret_is_lower_bound": None,
+        "backend_id": record_backend_id(record),
     }
     if arm is not None and not table["best_censored"]:
         entry = table["arms"][arm]
@@ -796,7 +818,7 @@ def _cmd_regret(args: argparse.Namespace) -> int:
     record = json.loads(Path(args.decision).read_text(encoding="utf-8"))
     if isinstance(record, list):
         record = record[0]
-    print(json.dumps(score_regret(table, record)))
+    print(json.dumps(score_regret(table, record, allow_mock=args.allow_mock)))
     return 0
 
 
@@ -826,9 +848,17 @@ def main(argv: list[str] | None = None) -> int:
     regret = sub.add_parser("regret", help="score a recorded decision's regret")
     regret.add_argument("--table", required=True)
     regret.add_argument("--decision", required=True)
+    regret.add_argument(
+        "--allow-mock", action="store_true",
+        help="score a decision answered by the mock backend (smoke/unit only)",
+    )
     regret.set_defaults(func=_cmd_regret)
     args = parser.parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except MockBackendError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

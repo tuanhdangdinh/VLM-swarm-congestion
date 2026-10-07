@@ -33,6 +33,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     fan_out_command,
     raw_frame_dump_path,
     raw_frame_skew_sec,
+    registry_dispatch,
     summarize_yield_grounding,
     write_decision_artifact,
 )
@@ -571,6 +572,118 @@ def test_junction_clear_absent_without_a_declared_pocket_still_matches():
     assert outcome.junction_phases is None
     assert outcome.plan is not None
     assert outcome.plan.dispatch_matches_plan is True
+
+
+def test_write_decision_artifact_round_trips_every_junction_phase_field(tmp_path):
+    # Forcing-audit A1: the phase-1+ commands and their degradation tags must
+    # survive into the artifact, not only the ROS log. J2 left undeclared so
+    # every phase and the fallback carry `junction_geometry=shipped_unsolved`.
+    from reasoning.rag.command_grounder import JunctionClearPhasePlan
+
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_junction_clear_result()),
+        ground_fn=ground_reasoner_result,
+        grounding_params=GroundingParams(mode="derived"),
+        scene_geometry=_junction_clear_geometry().model_copy(
+            update={"junction_backup_clearance_m": None}
+        ),
+        plan_tracker=PlanTracker(),
+    )
+    outcome = pipe.run(_junction_clear_request())
+    assert outcome.junction_phases is not None
+
+    payload = json.loads(write_decision_artifact(tmp_path, outcome).read_text())
+
+    recorded = payload["junction_phases"]
+    assert JunctionClearPhasePlan.model_validate(recorded) == outcome.junction_phases
+    assert [phase["label"] for phase in recorded["phases"]] == [
+        "recede", "recede", "cross", "release",
+    ]
+    for phase, original in zip(recorded["phases"], outcome.junction_phases.phases, strict=True):
+        assert set(phase) == {"label", "robot_id", "command", "held_robot_ids"}
+        assert phase["command"] == original.command
+        assert phase["held_robot_ids"] == list(original.held_robot_ids)
+    shipped = "junction_geometry=shipped_unsolved:missing=junction_backup_clearance_m"
+    for phase in recorded["phases"][:3]:
+        assert shipped in phase["command"]["degradations"]
+    assert shipped in recorded["fallback_command"]["degradations"]
+    assert recorded["fallback_held_robot_ids"] == list(
+        outcome.junction_phases.fallback_held_robot_ids
+    )
+
+
+def test_write_decision_artifact_omits_junction_phases_key_when_absent(tmp_path):
+    payload = json.loads(write_decision_artifact(tmp_path, _ok_outcome()).read_text())
+    assert "junction_phases" not in payload
+
+
+def _junction_clear_outcome():
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_junction_clear_result()),
+        ground_fn=ground_reasoner_result,
+        grounding_params=GroundingParams(mode="derived"),
+        scene_geometry=_junction_clear_geometry(),
+        plan_tracker=PlanTracker(),
+    )
+    return pipe.run(_junction_clear_request())
+
+
+def test_registry_dispatch_drops_robots_without_a_registry_task():
+    outcome = _junction_clear_outcome()
+    registry = {"robot_1", "robot_2", "robot_3"}
+
+    dispatch = registry_dispatch(outcome, registry)
+
+    grounded_ids = [a["robot_id"] for a in outcome.grounded_command["actions"]]
+    assert "robot_4" in grounded_ids
+    assert "robot_4" not in dispatch.robot_ids
+    assert dispatch.dropped_robot_ids == ("robot_4",)
+    assert dispatch.error is None
+    for ids in dispatch.junction_phase_robot_ids:
+        assert "robot_4" not in ids
+    assert len(dispatch.junction_phase_robot_ids) == len(outcome.junction_phases.phases)
+    assert "robot_4" not in dispatch.junction_fallback_robot_ids
+
+
+def test_registry_dispatch_is_none_without_a_grounded_command():
+    outcome = _ok_outcome().model_copy(update={"grounded_command": None})
+    assert registry_dispatch(outcome, {"robot_1"}) is None
+
+
+def test_write_decision_artifact_records_a_registry_filter_refusal(tmp_path):
+    outcome = _ok_outcome().model_copy(
+        update={
+            "grounded_command": {
+                "command_id": "c1",
+                "actions": [
+                    {"robot_id": "robot_9", "action": "temporary_wait", "parameters": {}},
+                ],
+            }
+        }
+    )
+    dispatch = registry_dispatch(outcome, {"robot_1", "robot_2"})
+
+    payload = json.loads(
+        write_decision_artifact(tmp_path, outcome, dispatch=dispatch).read_text()
+    )
+
+    assert payload["dispatched_command"] is None
+    assert payload["dispatched_robot_ids"] == []
+    assert payload["dispatch_dropped_robot_ids"] == ["robot_9"]
+    assert "no actions for known robots" in payload["dispatch_filter_error"]
+
+
+def test_write_decision_artifact_records_junction_phase_dispatch_robot_ids(tmp_path):
+    outcome = _junction_clear_outcome()
+    dispatch = registry_dispatch(outcome, {"robot_1", "robot_2", "robot_3"})
+
+    payload = json.loads(
+        write_decision_artifact(tmp_path, outcome, dispatch=dispatch).read_text()
+    )
+
+    recorded = payload["junction_phases_dispatched_robot_ids"]
+    assert recorded["phases"] == [list(ids) for ids in dispatch.junction_phase_robot_ids]
+    assert recorded["fallback"] == list(dispatch.junction_fallback_robot_ids)
 
 
 def test_plan_tracker_omitted_leaves_the_outcome_and_command_untouched():
@@ -2001,6 +2114,11 @@ _TRIGGERED_ARTIFACT_KEYS = _PRE_PROBE_ARTIFACT_KEYS | {
     # to the conditional-add byte-identity pattern.
     "prompt_conditions",
 }
+# Forcing-audit A5b (2026-10-07): added by M5 whenever the outcome carries a
+# grounded command (`registry_dispatch`), so M4's robot set is recorded.
+_DISPATCH_ARTIFACT_KEYS = frozenset(
+    {"dispatched_command", "dispatched_robot_ids", "dispatch_dropped_robot_ids"}
+)
 
 
 def test_write_decision_artifact_omits_probe_keys_for_triggered_analysis(tmp_path):

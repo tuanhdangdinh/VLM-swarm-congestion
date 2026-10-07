@@ -16,11 +16,13 @@ from scripts import free_flow_table as fft
 from scripts.coverage_scene_scores import (
     DISSOLUTION_SEPARATION_M,
     RECLOG_MIN_SEC,
+    MockBackendError,
     OutcomeClass,
     aperture_region,
     aperture_throughput,
     classify_outcome,
     conflict_dissolution,
+    decision_backend,
     delay_vs_free_flow,
     load_ground_truth,
     load_scenario,
@@ -484,8 +486,11 @@ def test_an_oracle_declared_aperture_counts_westbound_passages(tmp_path):
                          fallback_exhausted=False), OutcomeClass.INTERMITTENT),
         ("exhausted", dict(all_arrived=True, n_dispatches=1, fallback=True,
                            fallback_exhausted=True), OutcomeClass.CLOGGED),
+        # Forcing-audit A3: no dispatch, nothing to credit -- a distinct class.
         ("no_dispatch_all_arrived", dict(all_arrived=True, n_dispatches=0, fallback=None,
-                                         fallback_exhausted=None), OutcomeClass.RESOLVED),
+                                         fallback_exhausted=None), OutcomeClass.SELF_RESOLVED),
+        ("no_dispatch_censored", dict(all_arrived=False, n_dispatches=0, fallback=None,
+                                      fallback_exhausted=None), OutcomeClass.CLOGGED),
         ("unknown_dispatches", dict(all_arrived=True, n_dispatches=None, fallback=None,
                                     fallback_exhausted=None), None),
         ("unknown_but_censored", dict(all_arrived=False, n_dispatches=None, fallback=None,
@@ -518,7 +523,26 @@ def test_an_invalid_run_has_no_outcome_class():
 
 
 def test_outcome_class_values_are_the_registered_strings():
-    assert [c.value for c in OutcomeClass] == ["resolved", "intermittent", "clogged"]
+    # `self_resolved` added by forcing-audit A3 (2026-10-07).
+    assert [c.value for c in OutcomeClass] == [
+        "resolved", "intermittent", "clogged", "self_resolved",
+    ]
+
+
+def test_resolved_is_never_awarded_without_a_dispatch():
+    for composite in (False, True):
+        assert classify_outcome(valid=True, all_arrived=True, n_dispatches=0, fallback=None,
+                                fallback_exhausted=None, composite=composite) is (
+            OutcomeClass.SELF_RESOLVED
+        )
+
+
+def test_zero_dispatch_episode_reports_self_resolved_with_its_count(tmp_path):
+    result = score_ib10(_ib10_gt(tmp_path, IB10_DESIGNED),
+                        decisions_dir=_decisions(tmp_path, 0, no_congestion=3),
+                        m5_log=RESOLVED_M5_LOG)
+    assert result["outcome_class"] == "self_resolved"
+    assert result["n_dispatches"] == 0
 
 
 RESOLVED_M5_LOG = (
@@ -549,6 +573,7 @@ def test_ib10_designed_episode_classes_resolved_despite_re_analyses(tmp_path):
                         m5_log=RESOLVED_M5_LOG)
     assert result["outcome_class"] == "resolved"
     assert result["outcome_evidence"]["n_dispatches"] == 1
+    assert result["n_dispatches"] == 1
 
 
 def test_ib10_censored_episode_classes_clogged(tmp_path):
@@ -579,7 +604,7 @@ def test_ib10_invalid_jam_has_no_class(tmp_path):
 B1_EXISTING_KEYS = {"scene", "t0_sec", "end_sec", "arrivals_after_t0_sec", "n_arrived",
                     "censored", "makespan_sec", "gate", "stop_time_sec", "merge", "conflict"}
 FLOW_KEYS = {"delay_vs_free_flow", "conflict_dissolution", "aperture_throughput",
-             "outcome_class", "outcome_evidence"}
+             "outcome_class", "n_dispatches", "backend_id", "outcome_evidence"}
 
 
 def test_b1_keeps_every_existing_field_and_adds_only_flow_fields(tmp_path):
@@ -637,3 +662,68 @@ def test_dissolution_rejects_pairs_closer_than_the_separation(tmp_path):
     result = conflict_dissolution(load_ground_truth(gt), ["robot_1", "robot_2"], 0.0,
                                   {"robot_1": None, "robot_2": None})
     assert result["dissolved_at_sec"] is None
+
+
+# ---- forcing-audit A2: backend column and mock refusal ----
+
+
+def _backend_decisions(tmp_path: Path, effective: str | None, diagnostic: str | None) -> Path:
+    path = tmp_path / "decisions"
+    path.mkdir()
+    record = _ib10_record(None, ["robot_4", "robot_3"])
+    if diagnostic is not None:
+        record["diagnostics"] = {"backend_id": diagnostic, "attempts": 1}
+    if effective is not None:
+        record["reasoner_config_effective"] = {"backend_id": effective}
+    (path / "d0.json").write_text(json.dumps(record))
+    return path
+
+
+def test_backend_id_prefers_the_effective_arm_id(tmp_path):
+    # Pre-F09 successes carry the provider model id in diagnostics.
+    decisions = _backend_decisions(tmp_path, "openai_gpt56_sol", "gpt-5.6-sol")
+    assert decision_backend(decisions) == "openai_gpt56_sol"
+
+
+def test_backend_id_falls_back_to_diagnostics(tmp_path):
+    assert decision_backend(_backend_decisions(tmp_path, None, "gemini")) == "gemini"
+
+
+def test_backend_id_is_none_when_no_artifact_records_one(tmp_path):
+    assert decision_backend(_decisions(tmp_path, 1)) is None
+
+
+def test_mock_bundle_is_refused_for_scoring(tmp_path):
+    decisions = _backend_decisions(tmp_path, "mock", "mock")
+    with pytest.raises(MockBackendError, match="mock backend"):
+        score_flow(_ib10_gt(tmp_path, IB10_DESIGNED), load_scenario("intersection_bottleneck"),
+                   decisions_dir=decisions)
+
+
+def test_mock_named_only_in_diagnostics_is_still_refused(tmp_path):
+    with pytest.raises(MockBackendError):
+        decision_backend(_backend_decisions(tmp_path, None, "mock"))
+
+
+def test_allow_mock_scores_the_bundle_and_reports_the_backend(tmp_path):
+    decisions = _backend_decisions(tmp_path, "mock", "mock")
+    result = score_ib10(_ib10_gt(tmp_path, IB10_DESIGNED), decisions_dir=decisions,
+                        allow_mock=True)
+    assert result["backend_id"] == "mock"
+
+
+def test_live_bundle_row_carries_its_backend_id(tmp_path):
+    decisions = _backend_decisions(tmp_path, "gemini", "gemini")
+    result = score_ib10(_ib10_gt(tmp_path, IB10_DESIGNED), decisions_dir=decisions)
+    assert result["backend_id"] == "gemini"
+
+
+def test_flow_cli_refuses_a_mock_bundle_without_the_flag(tmp_path, capsys):
+    gt = _ib10_gt(tmp_path, IB10_DESIGNED)
+    decisions = _backend_decisions(tmp_path, "mock", "mock")
+    argv = ["flow", "--scenario", "intersection_bottleneck", "--gt", str(gt),
+            "--no-free-flow", "--decisions", str(decisions)]
+    assert main(argv) == 2
+    assert "--allow-mock" in capsys.readouterr().err
+    assert main([*argv, "--allow-mock"]) == 0
+    assert json.loads(capsys.readouterr().out)["backend_id"] == "mock"

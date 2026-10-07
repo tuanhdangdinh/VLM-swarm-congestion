@@ -718,6 +718,9 @@ def _ground_legacy(
             )
         )
     command_id = f"{result.request_id}-{decision.strategy}"
+    # Set only by a tracked-band clamp that actually shortened a reverse;
+    # empty keeps every other legacy command byte-identical (no key).
+    clamp_tags: list[str] = []
     duration_sec = 8.0
     # Fallback distance the yielding robot reverses, used when the caller
     # supplies no positions (and by `reverse`, which has no park target). Sized
@@ -990,21 +993,28 @@ def _ground_legacy(
                 for robot_id in robot_ids
             ]
         else:
-            actions = [
-                {
-                    "robot_id": robot_id,
-                    "action": "reverse",
-                    "parameters": {
-                        "backup_distance_m": _clamp_reverse_distance_to_tracked_band(
-                            robot_id,
-                            backup_distance_m,
-                            robot_positions.get(robot_id) if robot_positions else None,
-                            geometry,
-                        ),
-                    },
-                }
-                for robot_id in robot_ids
-            ]
+            actions = []
+            for robot_id in robot_ids:
+                clamped_m = _clamp_reverse_distance_to_tracked_band(
+                    robot_id,
+                    backup_distance_m,
+                    robot_positions.get(robot_id) if robot_positions else None,
+                    geometry,
+                )
+                if clamped_m != backup_distance_m:
+                    # Forcing-audit A5a: the clamp rewrites the leg after the
+                    # decision; tag it so the artifact shows the change.
+                    clamp_tags.append(
+                        f"reverse=clamped_tracked_band:{robot_id}:"
+                        f"{backup_distance_m:g}->{clamped_m:g}"
+                    )
+                actions.append(
+                    {
+                        "robot_id": robot_id,
+                        "action": "reverse",
+                        "parameters": {"backup_distance_m": clamped_m},
+                    }
+                )
     elif decision.strategy == "temporary_wait":
         actions = [
             {
@@ -1056,14 +1066,15 @@ def _ground_legacy(
     resolution_sec = (
         yield_total_sec if decision.strategy == "yield" and not yield_refused else duration_sec
     )
-    return validate_coordination_command(
-        {
-            "command_id": command_id,
-            "actions": actions,
-            "expected_resolution_time_sec": resolution_sec,
-            "fallback": "stop",
-        }
-    )
+    command: dict[str, Any] = {
+        "command_id": command_id,
+        "actions": actions,
+        "expected_resolution_time_sec": resolution_sec,
+        "fallback": "stop",
+    }
+    if clamp_tags:
+        command["degradations"] = clamp_tags
+    return validate_coordination_command(command)
 
 
 # Derived-mode degradation tags and the measurement-plan cause each one counts
@@ -1078,6 +1089,11 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     "yield=infeasible": "infeasible_geometry",
     # The legacy reverse template's corridor same-side refusal.
     "reverse=infeasible": "infeasible_geometry",
+    # Forcing-audit A5a: the tracked-band clamp (`_clamp_reverse_distance_to_
+    # tracked_band`) shortened a reverse leg below the computed backup;
+    # suffix `:<robot_id>:<from>-><to>` in metres. Provenance, not a cause:
+    # the clamp is M3 safety machinery, never a model output.
+    "reverse=clamped_tracked_band": None,
     # convoy / priority_override with no unique mapping onto the ordered
     # yield (`resolve_strategy_alias`): the legacy templates run a bounded
     # wait. Not a measurement-plan cause.
@@ -1098,6 +1114,12 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # Three or more robots with no explicit crossing order: involved-robots
     # order was used. Convention markers, not measurement-plan causes.
     "order=implicit": None,
+    # Forcing-audit A4: the decision DID give a `crossing_order`, but a
+    # `junction_clear` yield-axis / plain-yield-fallback rebuild
+    # (`_as_yield_decision`) discarded it, so the implicit order ran. Kept
+    # apart from `order=implicit` ("none given") so repaired-order metrics
+    # do not count a discarded model order as an absent one.
+    "order=discarded_yield_axis": None,
     # J1 same-axis filter (v2-branch divergence from the v1-frozen Arm B,
     # design study 2026-09-29): a robot held opposite a same-axis partner
     # also in the order was dropped from it instead of leading it (see
@@ -1614,7 +1636,15 @@ def _ground_derived(
                 static_obstacles=static_obstacles,
                 yield_feasibility_mode=yield_feasibility_mode,
             )
-            tags = ["junction_clear=fallback:no_candidates"]
+            if crossing_order is None:
+                # Forcing-audit A4: an explicit caller override is the
+                # operative order; only the decision's own order is discarded.
+                command = _tag_discarded_order(command, decision)
+            # Forcing-audit A7: MERGE onto the plain yield's own tags (e.g.
+            # `retreat=default:*`, `yield=infeasible:*`,
+            # `order=junction_same_axis`), never replace them -- this is the
+            # path the fallback_exhausted analysis scores.
+            tags = [*command.get("degradations", []), "junction_clear=fallback:no_candidates"]
             # Loudness guard (step-6 coordinator ruling): `no_candidates` also
             # fires for an unrelated, legitimate reason (no cross-axis arms
             # under a fully-declared geometry), so it is not on its own a
@@ -1648,7 +1678,10 @@ def _ground_derived(
         legacy = _ground_legacy(
             result, positions, geometry, static_obstacles, yield_feasibility_mode
         )
-        return _with_degradations(legacy, _legacy_template_degradations(decision, legacy))
+        return _with_degradations(
+            legacy,
+            [*legacy.get("degradations", []), *_legacy_template_degradations(decision, legacy)],
+        )
 
     roles = resolve_yield_roles(
         decision,
@@ -1943,15 +1976,18 @@ def ground_junction_clear_phases(
     missing_j2 = bool(missing)
 
     fallback_result = result.model_copy(update={"decision": _as_yield_decision(decision)})
-    fallback_command = _ground_derived(
-        fallback_result,
-        snapshot=snapshot,
-        params=params,
-        retreat_choice=None,
-        crossing_order=None,
-        geometry=geometry,
-        static_obstacles=static_obstacles,
-        yield_feasibility_mode=yield_feasibility_mode,
+    fallback_command = _tag_discarded_order(
+        _ground_derived(
+            fallback_result,
+            snapshot=snapshot,
+            params=params,
+            retreat_choice=None,
+            crossing_order=None,
+            geometry=geometry,
+            static_obstacles=static_obstacles,
+            yield_feasibility_mode=yield_feasibility_mode,
+        ),
+        decision,
     )
     # Hold every recede candidate the fallback's own plain-yield grounding
     # does not already address (J1 drops them from its order on purpose):
@@ -2031,15 +2067,18 @@ def ground_junction_clear_phases(
     yield_result = result.model_copy(
         update={"decision": _as_yield_decision(decision, yield_robots)}
     )
-    yield_command = _ground_derived(
-        yield_result,
-        snapshot=snapshot,
-        params=params,
-        retreat_choice=retreat_choice,
-        crossing_order=None,
-        geometry=geometry,
-        static_obstacles=static_obstacles,
-        yield_feasibility_mode=yield_feasibility_mode,
+    yield_command = _tag_discarded_order(
+        _ground_derived(
+            yield_result,
+            snapshot=snapshot,
+            params=params,
+            retreat_choice=retreat_choice,
+            crossing_order=None,
+            geometry=geometry,
+            static_obstacles=static_obstacles,
+            yield_feasibility_mode=yield_feasibility_mode,
+        ),
+        decision,
     )
     acting_robot_ids = {action["robot_id"] for action in yield_command["actions"]}
     extra_holds = [
@@ -2911,7 +2950,9 @@ def _as_yield_decision(
         `crossing_order` cleared (the restricted robot set may not be a
         permutation of the original order; `resolve_yield_roles` falls back
         to its own implicit order either way, so clearing avoids a spurious
-        `order=default:non_permutation` degradation tag).
+        `order=default:non_permutation` degradation tag). A grounding caller
+        marks a cleared model order with `_tag_discarded_order`
+        (`order=discarded_yield_axis`), never `order=implicit`.
     """
     robots = list(working.involved_robots) if involved_robots is None else list(involved_robots)
     yield_robot = working.yield_robot if working.yield_robot in robots else None
@@ -2923,6 +2964,25 @@ def _as_yield_decision(
             "crossing_order": None,
         }
     )
+
+
+def _tag_discarded_order(command: dict[str, Any], original: CongestionDecision) -> dict[str, Any]:
+    """Mark a command grounded from `_as_yield_decision(original)` whose order was discarded.
+
+    Replaces `order=implicit` (which there would claim no order was given)
+    with `order=discarded_yield_axis`, or appends that tag when the yield
+    axis had too few passers for `order=implicit` to fire. No-op when
+    `original` gave no `crossing_order`.
+    """
+    if original.crossing_order is None:
+        return command
+    tags = list(command.get("degradations", []))
+    marker = "order=discarded_yield_axis"
+    if "order=implicit" in tags:
+        tags = [marker if tag == "order=implicit" else tag for tag in tags]
+    else:
+        tags.append(marker)
+    return _with_degradations(command, tags)
 
 
 def _junction_clear_default_actions(

@@ -30,7 +30,10 @@ from swarm_orchestrator.presentation_order import PresentationOrderPolicy
 from swarm_orchestrator.state_machine import OrchestratorState
 
 from reasoning.vlm.models import CongestionDecision, ReasonerDiagnostics, ReasonerResult
-from tests.unit.test_m5_reasoning_pipeline import _TRIGGERED_ARTIFACT_KEYS
+from tests.unit.test_m5_reasoning_pipeline import (
+    _DISPATCH_ARTIFACT_KEYS,
+    _TRIGGERED_ARTIFACT_KEYS,
+)
 
 WAIT_SEC = 5.0
 
@@ -613,7 +616,9 @@ def test_probe_mode_off_triggered_analysis_unchanged(node_env, tmp_path):
     node._on_timer()
 
     request_id = pipeline.run_calls[0]
-    assert set(_artifact(node, request_id)) == _TRIGGERED_ARTIFACT_KEYS
+    assert set(_artifact(node, request_id)) == (
+        _TRIGGERED_ARTIFACT_KEYS | _DISPATCH_ARTIFACT_KEYS
+    )
     [line] = node.get_logger().matching("starting analysis")
     assert line == (
         f"starting analysis request={request_id} robots=['robot_1', 'robot_2'] "

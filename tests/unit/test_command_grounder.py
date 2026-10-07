@@ -4,6 +4,7 @@ from swarm_execution.safety import CoordinationTracker
 
 from reasoning.rag.command_grounder import (
     CommandGroundingError,
+    degradation_cause,
     filter_command_robot_ids,
     ground_reasoner_result,
     resolve_robot_order,
@@ -540,6 +541,47 @@ def test_reverse_not_clamped_for_a_robot_with_no_declared_arm():
     )
 
     assert command["actions"][0]["parameters"]["backup_distance_m"] == 1.3
+
+
+def test_reverse_clamp_is_tagged_when_it_shortens_the_leg():
+    # Forcing-audit A5a: the clamp rewrites the leg after the decision, so the
+    # command must say so (the artifact lifts `degradations`).
+    command = ground_reasoner_result(
+        _result("reverse", ["robot_3"]),
+        robot_positions={"robot_3": (0.0, -1.13)},
+        geometry=_tracked_band_geometry(tracked_extent_m=1.75),
+    )
+
+    assert command["degradations"] == ["reverse=clamped_tracked_band:robot_3:1.3->0.62"]
+    assert degradation_cause(command["degradations"][0]) is None
+
+
+def test_unclamped_reverse_carries_no_degradations_key():
+    command = ground_reasoner_result(
+        _result("reverse", ["robot_3"]),
+        robot_positions={"robot_3": (0.0, -0.26)},
+        geometry=_tracked_band_geometry(tracked_extent_m=1.75),
+    )
+
+    assert "degradations" not in command
+
+
+def test_reverse_clamp_tag_survives_derived_mode_grounding():
+    from reasoning.rag.maneuver_geometry import GroundingParams
+    from reasoning.vlm.models import RobotStateInput, SnapshotFrame
+
+    command = ground_reasoner_result(
+        _result("reverse", ["robot_3"]),
+        geometry=_tracked_band_geometry(tracked_extent_m=1.75),
+        snapshot=SnapshotFrame(
+            stamp=1.0,
+            robots=[RobotStateInput(robot_id="robot_3", x=0.0, y=-1.13, theta=0.0)],
+        ),
+        params=GroundingParams(mode="derived"),
+    )
+
+    assert command["actions"][0]["parameters"]["backup_distance_m"] == 0.62
+    assert "reverse=clamped_tracked_band:robot_3:1.3->0.62" in command["degradations"]
 
 
 def test_filter_command_robot_ids_drops_hallucinated_robot_actions():

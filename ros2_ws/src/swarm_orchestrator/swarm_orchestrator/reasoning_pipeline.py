@@ -56,6 +56,7 @@ from swarm_orchestrator.models import (
     AnnotationOverlayReport,
     PipelineOutcome,
     PlanDispatchInfo,
+    RegistryDispatch,
     RetreatStage2Record,
     SceneSnapshot,
     TerminalStage,
@@ -744,6 +745,58 @@ def summarize_yield_grounding(command: dict[str, Any] | None) -> YieldGroundingP
     )
 
 
+def _registry_robot_ids(command: dict[str, Any], registry_robot_ids: set[str]) -> tuple[str, ...]:
+    try:
+        filtered = filter_command_robot_ids(command, registry_robot_ids)
+    except CommandGroundingError:
+        return ()
+    return tuple(action["robot_id"] for action in filtered.get("actions", []))
+
+
+def registry_dispatch(
+    outcome: PipelineOutcome, registry_robot_ids: set[str]
+) -> RegistryDispatch | None:
+    """Apply M5's task-registry robot filter to an outcome's grounded command, once.
+
+    Args:
+        outcome: The pipeline outcome about to be recorded and dispatched.
+        registry_robot_ids: The robots with a registry task (`initial_tasks`).
+
+    Returns:
+        None when the outcome carries no grounded command; otherwise the
+        filtered command (or the filter's refusal) with the robots it
+        dropped, plus each later `junction_clear` phase's filtered robot ids.
+    """
+    grounded = outcome.grounded_command
+    if grounded is None:
+        return None
+    grounded_ids = [action["robot_id"] for action in grounded.get("actions", [])]
+    try:
+        command: dict[str, Any] | None = filter_command_robot_ids(grounded, registry_robot_ids)
+        error = None
+    except CommandGroundingError as exc:
+        command, error = None, str(exc)
+    kept = set() if command is None else {action["robot_id"] for action in command["actions"]}
+    phases = outcome.junction_phases
+    return RegistryDispatch(
+        command=command,
+        dropped_robot_ids=tuple(rid for rid in grounded_ids if rid not in kept),
+        error=error,
+        junction_phase_robot_ids=(
+            None
+            if phases is None
+            else tuple(
+                _registry_robot_ids(phase.command, registry_robot_ids) for phase in phases.phases
+            )
+        ),
+        junction_fallback_robot_ids=(
+            None
+            if phases is None
+            else _registry_robot_ids(phases.fallback_command, registry_robot_ids)
+        ),
+    )
+
+
 def write_decision_artifact(
     output_dir: str | Path,
     outcome: PipelineOutcome,
@@ -762,6 +815,7 @@ def write_decision_artifact(
     probe_index: int | None = None,
     grounding_source: GroundingParamsSource | None = None,
     prompt_conditions: PromptConditions | None = None,
+    dispatch: RegistryDispatch | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
@@ -822,6 +876,20 @@ def write_decision_artifact(
     conditional, records why the channel itself raised (`plan` is then None
     but the command still dispatched -- a plan-channel failure never costs an
     otherwise-successful decision).
+
+    `outcome.junction_phases` (set only under the same flag, for a
+    `junction_clear` decision with a groundable recede set) adds a
+    `junction_phases` key: every precomputed phase (`label`, `robot_id`,
+    `command` with its `degradations`, `held_robot_ids`), the
+    `fallback_command` and `fallback_held_robot_ids`; absent otherwise.
+
+    `dispatch` (`registry_dispatch`, which M5 computes before this write and
+    then fans out unchanged) adds `dispatched_command`, `dispatched_robot_ids`
+    and `dispatch_dropped_robot_ids` -- what the dispatch path sends if the
+    state machine dispatches this outcome, after the task-registry filter --
+    plus `dispatch_filter_error` when the filter refused the command and
+    `junction_phases_dispatched_robot_ids` (`phases`, `fallback`) under
+    `junction_phases`. All absent when `dispatch` is None.
 
     `prompt_conditions` (prereg-v2 rev 6 apparatus) is always written, null
     only when the caller passed none; M5 passes it on every analysis, all-off
@@ -919,6 +987,29 @@ def write_decision_artifact(
         payload["plan"] = outcome.plan.model_dump(mode="json")
     if outcome.plan_error is not None:
         payload["plan_error"] = outcome.plan_error
+    # Forcing-audit A1 (2026-10-07): the full precomputed `junction_clear`
+    # phase record -- every phase's command (cross/release included), its
+    # held robots and its `degradations` (e.g. `junction_geometry=
+    # shipped_unsolved`), plus the fallback command -- is otherwise only in
+    # the ROS log once phase 0 is dispatched. Same conditional-add pattern as
+    # `plan`. Runtime phase advancement happens after this write and stays in
+    # the M5 log (`junction_clear phase advance` lines).
+    if outcome.junction_phases is not None:
+        payload["junction_phases"] = outcome.junction_phases.model_dump(mode="json")
+    # Forcing-audit A5b (2026-10-07): the task-registry filter runs after the
+    # pipeline's snapshot filter, so it can drop robots (a T3a intruder) the
+    # grounded command still addresses; record what is actually fanned out.
+    if dispatch is not None:
+        payload["dispatched_command"] = dispatch.command
+        payload["dispatched_robot_ids"] = dispatch.robot_ids
+        payload["dispatch_dropped_robot_ids"] = list(dispatch.dropped_robot_ids)
+        if dispatch.error is not None:
+            payload["dispatch_filter_error"] = dispatch.error
+        if dispatch.junction_phase_robot_ids is not None:
+            payload["junction_phases_dispatched_robot_ids"] = {
+                "phases": [list(ids) for ids in dispatch.junction_phase_robot_ids],
+                "fallback": list(dispatch.junction_fallback_robot_ids or ()),
+            }
     # v3's plan-state block (unlike failure_context/last_failed_context,
     # which predate flag-gating and are always-present-but-nullable keys)
     # is added only when set, so a flag-off/pre-v3 artifact's bytes are
