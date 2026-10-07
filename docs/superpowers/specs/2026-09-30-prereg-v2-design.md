@@ -432,6 +432,49 @@ collection starts (a smaller N is legitimate there; it is not a
 registered power target). Collection still starts only on the
 owner's word.
 
+**Group-C swap EXECUTED: gpt-5.1 → gpt-5.6-sol (2026-10-07, USER
+DECISION "try 5.6 sol";
+`docs/reports/2026-10-07-gpt56-sol-swap.md`, merged
+`5c45667..941c1c3`):** wired on the hardened openai adapter,
+request body = the gpt-5.1 pin with only the model id changed;
+`reasoning_effort: none` (0 reasoning tokens on all 83 validation
+calls — NO dose exception needed); ten-arm body pin green with the
+nine prior arms byte-identical; suite failing set unchanged.
+Offline validation: probes 60/60 (ties ER-2 for best),
+conflict_prediction 13/20 with a FALSE-ALARM profile (yes on
+17/20, one under the registered degenerate threshold of 18;
+GT-no 3/10 — same direction as gpt-5.1, stronger; recorded, not
+disqualifying), stage-1 smokes 3/3 valid first-attempt with both
+standoff plans `vlm_verbatim` 0-edit, 0 refusals anywhere; $0.59.
+RULINGS: (1) WHY NOT `gpt-6-sol` (OpenAI's named gpt-5.1
+successor): owner chose 5.6-sol with both candidates presented —
+the single-generation step keeps the C pair interpretable and the
+flagship's cost profile is unneeded; recorded as a choice, not an
+oversight. (2) gpt-5.6-sol has NO dated snapshot and a null
+system_fingerprint → it is a ROLLING PIN: it takes gpt-5.1's
+Group-D slot (gpt-5.1 leaves D entirely, retired; its pilot data
+stays citable) and carries the Group-D caveat — dated collection
+window is the only drift control, so its collection windows must
+be recorded tightly. Group C is now dated-pin (gpt-4o) × rolling
+pin; condition on window in any C analysis. (3) CONFOUND
+RECORDED: gpt-4o tokenizes images as tiles, 5.6-sol as 32-px
+patches at full frame resolution (~1,440 image tokens/probe, ~6×
+gpt-5.1's prompt cost) — the C "generation" contrast includes
+the vision front-end, not just the reasoning stack; any C claim
+must say "model generation incl. its vision pipeline". (4)
+Pricing is promotional through at least 2026-11-21 ($4/$20 per
+MTok; GPT-5.5 list was $5/$30) — budget projections use list
+risk. (5) GPT-5.6 safety classifiers may pause generation
+seconds mid-stream (provider-documented; not observed in 83
+calls) — a stage-2 timeout from this classifies as the measured
+latency tax, same as flash. (6) Adapter now records
+`cache_write_tokens` (additive; all zero here) — cost scripts
+reading only prompt/completion tokens underprice cache writes.
+(7) VALIDATION STATUS: offline-equivalent COMPLETE; the two live
+VM head-on episodes (seeds 42/43) of the model-wiring standard
+are PENDING — the arm is not recorded as meeting the full
+standard until they pass; dispatched 2026-10-07.
+
 **Hypothesis arms RESULTS + RULINGS (2026-10-07,
 `docs/reports/2026-10-07-hypothesis-arms.md`; nine-arm table is
 the freeze's model annex; reading rule committed pre-call at
