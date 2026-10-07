@@ -210,6 +210,38 @@ class CommandBusNode(Node):
             # the hold described above. See crossing_chain.py.
             passers = plan_crossing(params) if action == "yield" else ()
             chain = CrossingChain(passers) if passers else None
+            # passer_reference_at_dispatch (yield only, optional; prereg-v3
+            # addendum A8): take the first passer's odometry reference now
+            # instead of at its admission. Set by M3 only for a junction
+            # release receder that pulls off before holding while its passer
+            # (the release lead) is already free to drive; see
+            # CrossingChain.seed_reference. Absent, nothing below runs.
+            seed_subs: list = []
+
+            def _drop_seed() -> None:
+                while seed_subs:
+                    self.destroy_subscription(seed_subs.pop())
+
+            if chain is not None and params.get("passer_reference_at_dispatch") is True:
+                seed_passer = chain.current.robot_id
+
+                def _on_seed_odom(odom_msg, command=msg) -> None:
+                    if not seed_subs:
+                        return
+                    p = odom_msg.pose.pose.position
+                    if chain.seed_reference(seed_passer, p.x, p.y):
+                        self.get_logger().info(
+                            "crossing_chain reference_seeded "
+                            f"command={command.command_id} yielder={command.robot_id} "
+                            f"passer={seed_passer} sim_t={self._sim_now():.3f}"
+                        )
+                    _drop_seed()
+
+                seed_subs.append(
+                    self.create_subscription(
+                        Odometry, f"/{seed_passer}/odom", _on_seed_odom, 10
+                    )
+                )
 
             def _start_hold(command, _hold_sec: float) -> None:
                 self._publish_status(command, "ACTIVE", HOLD_STARTED_DETAIL)
@@ -232,6 +264,7 @@ class CommandBusNode(Node):
                         f"reason={reason} sim_t={self._sim_now():.3f}"
                     )
                     self._publish_status(command, "COMPLETED", detail)
+                    _drop_seed()
                     t = timer_ref.get("timer")
                     if t is not None:
                         t.cancel()
@@ -328,6 +361,7 @@ class CommandBusNode(Node):
                     # already published by _on_backup_result.
                     return
                 if status != "COMPLETED" or _hold_sec <= 0.0:
+                    _drop_seed()
                     self._publish_status(command, status, detail)
                     return
                 _start_hold(command, _hold_sec)
@@ -339,6 +373,8 @@ class CommandBusNode(Node):
                 _hold_sec: float = hold_sec,
             ) -> None:
                 if status != "COMPLETED":
+                    if status != "ACTIVE":
+                        _drop_seed()
                     self._publish_status(command, status, detail)
                     return
                 if has_pull_off:
@@ -350,6 +386,7 @@ class CommandBusNode(Node):
                     )
                     return
                 if _hold_sec <= 0.0:
+                    _drop_seed()
                     self._publish_status(command, status, detail)
                     return
                 _start_hold(command, _hold_sec)

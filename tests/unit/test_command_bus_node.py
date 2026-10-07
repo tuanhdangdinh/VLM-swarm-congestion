@@ -1436,3 +1436,121 @@ def test_safety_tracker_reads_the_yield_phase_from_the_bus_status_stream():
     assert pairs_after_feeding() == {("robot_1", "robot_2"), ("robot_2", "robot_3")}
     rig.adapter.sidestep_on_result("COMPLETED", "side step complete: moved 0.350 m")
     assert pairs_after_feeding() == {("robot_1", "robot_2")}
+
+
+# ---------------------------------------------------------------------------
+# prereg-v3 addendum A8 (i): a junction-release receder pulls off before its
+# hold while its passer (the release lead) is already driving, so M3 asks for
+# the passer's odometry reference at dispatch (`passer_reference_at_dispatch`).
+# ---------------------------------------------------------------------------
+
+# The IB10 release receder's yield with the pull-off on (robot_4 leads from
+# its 1.2 m pocket; robot_3 is held at its 1.0 m pocket).
+_RELEASE_RECEDER_YIELD = {
+    "backup_distance_m": 0.0,
+    "hold_sec": 120.0,
+    "passer_robot_id": "robot_4",
+    "passer_clear_m": 2.65,
+    "pull_off_lateral_m": 0.33,
+    "passer_reference_at_dispatch": True,
+}
+
+
+def _release_rig():
+    rig = _YieldRig()
+    sidesteps: list[tuple[str, float]] = []
+
+    def sidestep(robot_id, lateral_m, on_result=None):
+        sidesteps.append((robot_id, lateral_m))
+        rig.adapter.sidestep_on_result = on_result
+
+    rig.adapter.sidestep = sidestep
+    return rig, sidesteps
+
+
+def _run_release_pull_off(rig, parameters):
+    # Dispatch, the lead's first sample at its pocket, then 1.4 m of lead
+    # travel during the receder's pull-off, then the hold.
+    rig.command("robot_3", "yield", parameters, command_id="r1-junction-release")
+    if "/robot_4/odom" in rig.odom:  # subscribed at dispatch only when seeded
+        rig.odom_at("robot_4", 0.0, 1.2)
+    rig.adapter.backup_on_result["robot_3"]("COMPLETED", "backup done")
+    rig.adapter.sidestep_on_result("COMPLETED", "side step complete: moved 0.330 m")
+
+
+def test_release_receder_pulls_off_by_the_grounded_lateral():
+    rig, sidesteps = _release_rig()
+    _run_release_pull_off(rig, _RELEASE_RECEDER_YIELD)
+    assert sidesteps == [("robot_3", 0.33)]
+
+
+def test_release_receder_gate_measures_the_lead_from_its_dispatch_position():
+    rig, _ = _release_rig()
+    _run_release_pull_off(rig, _RELEASE_RECEDER_YIELD)
+    rig.odom_at("robot_4", 0.0, -0.2)  # 1.4 m from the pocket: not clear
+    assert not any(s[1] == "robot_3" and s[2] == "COMPLETED" for s in rig.published)
+    rig.odom_at("robot_4", 0.0, -1.45)  # 2.65 m from the pocket: clear
+
+    assert rig.published[-1] == (
+        "r1-junction-release",
+        "robot_3",
+        "COMPLETED",
+        "yield complete: passer cleared",
+    )
+    assert len(rig.node.get_logger().matching("crossing_chain reference_seeded")) == 1
+    assert rig.node.get_logger().matching("gate_cleared")[0].count("moved_m=2.650") == 1
+
+
+def test_release_receder_without_dispatch_reference_never_clears_on_the_same_track():
+    # The defect the seam fixes: referenced at admission (lead already 1.4 m
+    # out), 1.25 m of remaining travel never reaches 2.65 m.
+    rig, _ = _release_rig()
+    parameters = {
+        k: v for k, v in _RELEASE_RECEDER_YIELD.items() if k != "passer_reference_at_dispatch"
+    }
+    _run_release_pull_off(rig, parameters)
+    rig.odom_at("robot_4", 0.0, -0.2)
+    rig.odom_at("robot_4", 0.0, -1.45)
+
+    assert not any(s[1] == "robot_3" and s[2] == "COMPLETED" for s in rig.published)
+    assert rig.node.get_logger().matching("reference_seeded") == []
+
+
+def test_release_receder_dispatch_reference_subscription_dropped_after_first_sample():
+    rig, _ = _release_rig()
+    rig.command("robot_3", "yield", _RELEASE_RECEDER_YIELD, command_id="r1-junction-release")
+    assert rig.unsubscribed == []
+    rig.odom_at("robot_4", 0.0, 1.2)
+    assert rig.unsubscribed == ["/robot_4/odom"]
+
+
+def test_release_receder_dispatch_reference_dropped_when_backup_fails():
+    rig, sidesteps = _release_rig()
+    rig.command("robot_3", "yield", _RELEASE_RECEDER_YIELD, command_id="r1-junction-release")
+    rig.adapter.backup_on_result["robot_3"]("ACTIVE", "backup started")
+    assert rig.unsubscribed == []
+    rig.adapter.backup_on_result["robot_3"]("FAILED", "backup timed out")
+
+    assert rig.unsubscribed == ["/robot_4/odom"]
+    assert sidesteps == []
+
+
+def test_release_receder_dispatch_reference_dropped_when_pull_off_fails():
+    rig, _ = _release_rig()
+    rig.command("robot_3", "yield", _RELEASE_RECEDER_YIELD, command_id="r1-junction-release")
+    rig.adapter.backup_on_result["robot_3"]("COMPLETED", "backup done")
+    rig.adapter.sidestep_on_result("FAILED", "side step timed out in phase drive")
+
+    assert rig.unsubscribed == ["/robot_4/odom"]
+    assert rig.published[-1][2] == "FAILED"
+
+
+def test_dispatch_reference_ignored_unless_exactly_true():
+    rig, _ = _release_rig()
+    rig.command(
+        "robot_3",
+        "yield",
+        {**_RELEASE_RECEDER_YIELD, "passer_reference_at_dispatch": "yes"},
+        command_id="r1-junction-release",
+    )
+    assert rig.odom == {}

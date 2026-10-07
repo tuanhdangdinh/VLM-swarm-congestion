@@ -32,6 +32,7 @@ from reasoning.rag.scene_geometry import (
     passer_clearance_m,
     passer_travel_m,
     pull_off_lateral_m,
+    release_pull_off_lateral_m,
     required_room_m,
     yield_feasible,
     yield_retreat_room_m,
@@ -2226,6 +2227,28 @@ def ground_junction_clear_phases(
                 "passer_clear_m": passer_clear_m,
             }
 
+        # prereg-v3 addendum A8 (i), off unless the scene declares
+        # `junction_release_pull_off_m`: every held receder on the lead's
+        # lane sidesteps off it (M4's raw-cmd_vel `sidestep`) before its hold
+        # starts. That delays the hold, and with it the moment M4's
+        # CrossingChain takes the lead's odometry reference; the lead,
+        # addressed by no action here, is already driving by then and would
+        # never cover `passer_clear_m` from that late reference (2.95 m of
+        # total travel, ~1.4 m of it during a ~10 s sidestep). So the
+        # receder's yield also asks M4 to take that reference at dispatch,
+        # keeping `passer_clear_m` measured from the lead's pocket.
+        pull_offs = {
+            robot_id: release_pull_off_lateral_m(geometry, robot_id, lead_id)
+            for robot_id in ranked[1:]
+        }
+
+        def _receder_hold(robot_id: str) -> dict[str, Any]:
+            hold = _passive_hold(params.junction_recede_hold_sec)
+            pull_off = pull_offs[robot_id]
+            if pull_off is None:
+                return hold
+            return {**hold, "pull_off_lateral_m": pull_off, "passer_reference_at_dispatch": True}
+
         # Every non-lead receder: a passive hold gated on the lead alone, as
         # in step 7a. Its own `yield` naming the lead is also what exempts
         # the receder/lead pair while the lead squeezes past it in the aisle
@@ -2234,7 +2257,7 @@ def ground_junction_clear_phases(
             {
                 "robot_id": robot_id,
                 "action": "yield",
-                "parameters": _passive_hold(params.junction_recede_hold_sec),
+                "parameters": _receder_hold(robot_id),
             }
             for robot_id in ranked[1:]
         ]
@@ -2263,6 +2286,16 @@ def ground_junction_clear_phases(
                 if pocket is not None
             ]
             assert len(receder_clears) == len(ranked) - 1
+            # A pulled-off receder starts its crossing `pull_off` off the
+            # axis and may steer back onto it, so its straight-line odometry
+            # displacement can reach the along-axis clearance early by up to
+            # that lateral leg: size the gate as the hypotenuse so the
+            # along-axis progress is never less than before.
+            receder_clears = [
+                clear if pull_offs[robot_id] is None
+                else round(math.hypot(clear, pull_offs[robot_id]), 3)
+                for robot_id, clear in zip(ranked[1:], receder_clears, strict=True)
+            ]
             expected_resolution_sec = 2.0 * params.junction_recede_hold_sec
             release_actions.append(
                 {

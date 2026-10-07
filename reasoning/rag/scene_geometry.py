@@ -132,6 +132,40 @@ class SceneGeometry(BaseModel):
     # to name. None (default) keeps every existing scene byte-identical: a
     # reroute there still grounds `waypoints: []` (a goal re-send).
     reroute_waypoints: tuple[tuple[float, float], ...] | None = None
+    # prereg-v3 addendum A8 (i), the IB10 release-lane remedy: both recede
+    # pockets sit on the shared N-S centreline, so the release lead's lane
+    # runs straight through the held receder's pocket. With fix-H's clearing
+    # costmap the lead skimmed it at 0.084-0.191 m centre distance (contact
+    # twice; docs/reports/2026-10-08-ib10-lead-flip-diagnosis.md section 4).
+    # When > 0, every held recede candidate on the lead's arm axis sidesteps
+    # this far off that lane inside its release `yield`
+    # (`command_grounder.ground_junction_clear_phases`). 0.0 (default) keeps
+    # every scene byte-identical. PROPOSED 0.33 for IB10, frozen at Step 6.
+    junction_release_pull_off_m: float = Field(default=0.0, ge=0.0)
+    # World-frame side of that sidestep, as a sign along the axis
+    # perpendicular to the held robot's arm (for an arm along y, -1 is -x).
+    # Declared, not derived: the junction arm is mirror-symmetric, so its
+    # geometry fixes the perpendicular axis but not a side. Required when the
+    # pull-off is on. PROPOSED -1 for IB10: the lead passed the held robot on
+    # +x in 10 of 11 recorded releases, under either lead.
+    junction_release_pull_off_side: Literal[-1, 1] | None = None
+
+    @model_validator(mode="after")
+    def _release_pull_off_is_declared(self) -> SceneGeometry:
+        if self.junction_release_pull_off_m == 0.0:
+            return self
+        if self.junction_recede_offset_m is None:
+            raise ValueError("junction_release_pull_off_m needs junction_recede_offset_m")
+        if self.junction_release_pull_off_side is None:
+            raise ValueError("junction_release_pull_off_m needs junction_release_pull_off_side")
+        wall_safe = pull_off_lateral_m(self)
+        if self.junction_release_pull_off_m > wall_safe:
+            raise ValueError(
+                f"junction_release_pull_off_m {self.junction_release_pull_off_m} exceeds the "
+                f"wall-safe lateral step {wall_safe:.3f} (aisle_half_width_m - robot "
+                "half_width_m - wall_margin_m)"
+            )
+        return self
 
     @model_validator(mode="after")
     def _reroute_waypoints_not_empty(self) -> SceneGeometry:
@@ -289,6 +323,48 @@ def pull_off_lateral_m(geometry: SceneGeometry) -> float:
         - geometry.wall_margin_m
     )
     return max(0.0, lateral)
+
+
+def release_pull_off_lateral_m(
+    geometry: SceneGeometry, held_id: str, lead_id: str
+) -> float | None:
+    """Robot-frame pull-off a held recede candidate takes off the release lead's lane.
+
+    The lead's lane is its own arm's axis through the junction: inward along
+    its own arm, out along the opposite one. A held robot whose declared arm
+    runs along that same axis is parked on the lane (its pocket shares the
+    centreline); a robot on the crossing axis is not. The step size is
+    `junction_release_pull_off_m`; its world side is
+    `junction_release_pull_off_side` along the axis perpendicular to the arm,
+    converted to M4's robot-frame convention (positive = left) with the held
+    robot facing the junction (heading = -side along its arm, the same
+    convention as `maneuver_geometry.retreat_axes`): a straight reverse into
+    its pocket keeps that heading.
+
+    Args:
+        geometry: Declared scene geometry.
+        held_id: The held robot.
+        lead_id: The release lead.
+
+    Returns:
+        The signed `pull_off_lateral_m` for `held_id`, rounded to the
+        millimetre, or None when the pull-off is off, either robot has no
+        declared arm, or the held robot's arm is not on the lead's axis.
+    """
+    if geometry.junction_release_pull_off_m == 0.0 or held_id == lead_id:
+        return None
+    arms = geometry.arms or {}
+    held_arm = arms.get(held_id)
+    lead_arm = arms.get(lead_id)
+    if held_arm is None or lead_arm is None or held_arm.axis != lead_arm.axis:
+        return None
+    side = geometry.junction_release_pull_off_side
+    assert side is not None  # enforced by SceneGeometry's validator
+    # Facing the junction: heading = -arm.side along the arm axis. Its left is
+    # the heading rotated +90 degrees; for an arm along y that is
+    # (arm.side, 0), for an arm along x it is (0, -arm.side).
+    left_on_lateral_axis = held_arm.side if held_arm.axis == "y" else -held_arm.side
+    return round(side * left_on_lateral_axis * geometry.junction_release_pull_off_m, 3)
 
 
 def passer_clearance_m(geometry: SceneGeometry) -> float:

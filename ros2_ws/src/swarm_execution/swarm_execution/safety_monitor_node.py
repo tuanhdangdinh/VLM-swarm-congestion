@@ -59,6 +59,7 @@ except ImportError:
 from swarm_execution.nav2_adapter import Nav2Adapter
 from swarm_execution.safety import (
     CLEARING_ACTIONS,
+    REASON_HARD_CONTACT_FLOOR,
     REASON_SPEED_LIMIT,
     CoordinationTracker,
     SafetyLimits,
@@ -80,6 +81,36 @@ def holds_payload(held: set[str]) -> str:
         JSON string `{"held": [...]}` with ids sorted for deterministic output.
     """
     return json.dumps({"held": sorted(held)})
+
+
+def hard_contact_floor_detail(
+    robot_id: str,
+    reasons: dict[str, str],
+    floor_breaches: dict[tuple[str, str], float],
+    limits: SafetyLimits,
+) -> str:
+    """Suffix for a safety-stop log line naming the hard-contact floor.
+
+    Empty unless `robot_id` latched for `REASON_HARD_CONTACT_FLOOR`, so every
+    other safety-stop line is unchanged.
+
+    Args:
+        robot_id: The newly latched robot.
+        reasons: Latch reason per robot id (`LatchEvaluation.reasons`).
+        floor_breaches: `LatchEvaluation.floor_breaches`.
+        limits: The monitor's limits, for the floor value.
+
+    Returns:
+        `" hard_contact_floor_m=<floor> pairs=<a>+<b>@<distance>,..."`, or "".
+    """
+    if reasons.get(robot_id) != REASON_HARD_CONTACT_FLOOR:
+        return ""
+    pairs = ",".join(
+        f"{a}+{b}@{distance:.3f}"
+        for (a, b), distance in sorted(floor_breaches.items())
+        if robot_id in (a, b)
+    )
+    return f" hard_contact_floor_m={limits.hard_contact_floor_m} pairs={pairs or '-'}"
 
 
 class SafetyMonitorNode(Node):
@@ -122,6 +153,7 @@ class SafetyMonitorNode(Node):
             f"max_linear_velocity_mps={self._limits.max_linear_velocity_mps} "
             f"stale_pose_is_unsafe={self._limits.stale_pose_is_unsafe} "
             f"stale_unsafe_distance_m={self._limits.stale_unsafe_distance_m} "
+            f"hard_contact_floor_m={self._limits.hard_contact_floor_m} "
             f"exempt_actions={','.join(sorted(CLEARING_ACTIONS))}"
         )
 
@@ -231,6 +263,9 @@ class SafetyMonitorNode(Node):
             # 40 Hz hold rate and must not carry a per-latch diagnostic.
             self.get_logger().warning(
                 f"safety stop robot={robot_id} reason={reasons.get(robot_id)}"
+                + hard_contact_floor_detail(
+                    robot_id, reasons, evaluation.floor_breaches, self._limits
+                )
             )
 
         previous = self._latched_stops
@@ -301,6 +336,7 @@ def _load_safety_limits(node: Node) -> SafetyLimits:
             max_linear_velocity_mps=float(data["max_linear_velocity_mps"]),
             stale_pose_is_unsafe=bool(data.get("stale_pose_is_unsafe", True)),
             stale_unsafe_distance_m=None if band is None else float(band),
+            hard_contact_floor_m=float(data.get("hard_contact_floor_m", 0.0)),
         )
     except Exception as exc:  # noqa: BLE001 - degrade to documented defaults
         node.get_logger().warning(

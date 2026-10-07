@@ -141,6 +141,68 @@ def test_committed_default_table_is_schema_valid_when_present():
         load_scenario(scene)
 
 
+# ---- free_flow_v2 (prereg-v3 addendum A7a): frozen re-baseline on 071f9c1 ----
+
+_FREE_FLOW_V2 = REPO_ROOT / "config" / "free_flow" / "free_flow_v2.json"
+# sha256 of the frozen file; any edit must be a new table id, not a rewrite.
+_FREE_FLOW_V2_SHA256 = "60560112f04eff693d76d52204745347b81779320a2e6ca165942a1ac0eed222"
+
+
+def test_free_flow_v2_digest_is_pinned():
+    assert fft.file_sha256(_FREE_FLOW_V2) == _FREE_FLOW_V2_SHA256
+
+
+def test_free_flow_v2_is_schema_valid_with_loadable_scenes():
+    table = load_free_flow_table(_FREE_FLOW_V2)
+    assert table.table_id == "free_flow_v2"
+    for scene in table.scenes:
+        load_scenario(scene)
+
+
+def test_free_flow_v2_has_v1_shape_and_22_measured_legs():
+    v1 = load_free_flow_table(fft.DEFAULT_TABLE_PATH)
+    v2 = load_free_flow_table(_FREE_FLOW_V2)
+    assert {s: set(r) for s, r in v2.scenes.items()} == {s: set(r) for s, r in v1.scenes.items()}
+    entries = [e for robots in v2.scenes.values() for e in robots.values()]
+    assert len(entries) == 28
+    assert len({e.run_id for e in entries}) == 22
+    assert all(e.mechanism == "solo_in_space" for e in entries)
+    assert all(e.run_id.split(":")[1].startswith("20261007_") for e in entries)
+    for alias in ("priority_urgent_r1", "priority_urgent_r2", "priority_visual_r2"):
+        assert v2.scenes[alias] == v2.scenes["priority_visual_r1"]
+
+
+def test_free_flow_v2_legs_sit_within_the_registered_tolerance_of_v1():
+    v1 = load_free_flow_table(fft.DEFAULT_TABLE_PATH)
+    v2 = load_free_flow_table(_FREE_FLOW_V2)
+    deltas = [
+        v2.scenes[s][r].time_sec - v1.scenes[s][r].time_sec
+        for s, robots in v2.scenes.items()
+        for r in robots
+    ]
+    assert max(abs(d) for d in deltas) <= 1.5
+    assert min(deltas) == pytest.approx(-0.8)
+    assert max(deltas) == pytest.approx(0.2)
+
+
+def test_free_flow_v2_labels_its_provenance():
+    provenance = load_free_flow_table(_FREE_FLOW_V2).provenance
+    assert provenance is not None
+    assert "071f9c1" in provenance["tree"]
+    assert "Option B" in provenance["harness"]
+    assert provenance["measured_legs"] == "22"
+
+
+def test_free_flow_default_table_stays_v1():
+    assert fft.DEFAULT_TABLE_PATH.name == "free_flow_v1.json"
+
+
+def test_build_table_without_provenance_rebuilds_v1_byte_for_byte():
+    raw = json.loads(fft.DEFAULT_TABLE_PATH.read_text(encoding="utf-8"))
+    rebuilt = json.dumps(build_table(raw["table_id"], raw["scenes"]), indent=2, sort_keys=True)
+    assert rebuilt + "\n" == fft.DEFAULT_TABLE_PATH.read_text(encoding="utf-8")
+
+
 # ---- free-flow harvest derivation ----
 
 
@@ -232,6 +294,20 @@ def test_count_dispatches_counts_only_the_unsuppressed_artifact(tmp_path):
     (tmp_path / "a.json").write_text(_dispatching_artifact(
         dispatch_enabled=False, dispatch_suppressed=True))
     (tmp_path / "b.json").write_text(_dispatching_artifact())
+    assert fft.count_dispatches(tmp_path) == 1
+
+
+def test_count_dispatches_excludes_a_dispatch_disabled_artifact_without_suppressed_flag(
+    tmp_path,
+):
+    # Addendum A3: a log-only cell is strict zero even when the artifact
+    # carries a grounded command but no `dispatch_suppressed` key.
+    (tmp_path / "a.json").write_text(_dispatching_artifact(dispatch_enabled=False))
+    assert fft.count_dispatches(tmp_path) == 0
+
+
+def test_count_dispatches_counts_an_explicitly_dispatch_enabled_artifact(tmp_path):
+    (tmp_path / "a.json").write_text(_dispatching_artifact(dispatch_enabled=True))
     assert fft.count_dispatches(tmp_path) == 1
 
 
