@@ -1,0 +1,233 @@
+# =====================================================================
+# VALIDATION-ONLY PROBE: DO NOT COLLECT. Excluded from every confirmatory
+# count, cell table and free-flow table, and never scored as an IB10 episode.
+# =====================================================================
+# Purpose: exercise ROBOT_3-LED junction releases for the prereg-v3 A8
+# release-lane remedy's -x falsification check
+# (docs/reports/2026-10-08-ib10-remedy-validation.md, section 6 and
+# section 9 ruling 1). IB10's release lead is chi rank 0 and cannot be
+# forced, and robot_3 led only 1 / 8 runs on 56a6658. That left the
+# risky lead direction (robot_3 passing a robot_4 pulled off to world -x)
+# untested.
+#
+# The ONLY change from intersection_bottleneck.yaml is `name`, this header,
+# and robot_3's spawn moved 0.15 m outward on its own (south, -y) arm:
+# y = -1.75 -> -1.90. Everything else is byte-identical, including the
+# oracle block, so the IB10 analysis tools still apply.
+# (tests/unit/test_intersection_bottleneck_r3lead_probe_scenario.py pins
+# this.)
+#
+# Nudge derivation (docs/reports/2026-10-08-ib10-lead-flip-diagnosis.md,
+# section 2). The lead is the cross-axis robot that stopped farther out on
+# its arm when the jam formed. With N_f = 0, robot_3 leads iff
+# d = off(robot_3) - off(robot_4) >= 0 (an exact tie goes to robot_3 on
+# robot_id).
+#   - 11 diagnosis bundles: d = -0.008 -0.032 -0.047 0.000 +0.044 +0.032
+#     +0.004 +0.014 +0.133 -0.013 -0.062. Mean +0.006, sd 0.053. The five
+#     robot_4 leads are the negative values; the largest is 0.062.
+#   - The 8 remedy-validation runs on 56a6658 (off = 1.2 - chi) are more
+#     robot_4-biased: d = -0.008 -0.006 -0.128 +0.001 -0.056 -0.068 -0.015
+#     -0.032. Mean -0.039, sd 0.044.
+#   - Pooled n = 19: mean -0.013, sd 0.053, worst robot_4 margin -0.128
+#     (b3).
+#   - Mechanism: a robot that is late into the jam stops farther out. In
+#     the diagnosis, all 6 runs with >= 0.3 s departure stagger were led by
+#     the later departer, at about 0.11-0.21 m of offset per second of
+#     stagger. A spawn moved Delta farther out at the same 0.15 m/s cruise
+#     is Delta / 0.15 s later at every instant, so d shifts by about +Delta
+#     (transfer k ~= 1, bracketed 0.73-1.4 by those two slopes).
+#   - Delta = |worst d| + 2 x M1 median static error
+#     = 0.128 + 2 x 0.011 = 0.150 m. That flips all 19 observed margins
+#     (the worst becomes +0.022). The 11 bundles alone need only
+#     0.062 + 0.022 = 0.084, but the current tree's own runs set the bar.
+#   - Predicted P(robot_3 leads) = Phi((Delta*k + mean) / sd):
+#     0.995 for pooled n = 19 at k = 1; 0.995 for the 56a6658 runs only;
+#     0.95-0.97 at the pessimistic k = 0.73.
+#   - Departure stagger stays random (the sd above), so the lead is still
+#     observed per run, never assumed. The driver logs chi r3 / r4 and the
+#     lead from the artifact.
+#
+# Side effects of the nudge (checked, not assumed):
+#   - M1: y = -1.90 is inside the verified tracked band |y| <= 2.0
+#     (docs/reports/2026-10-01-m1-y-extent-verification.md Rev 2: y = 1.8
+#     and 2.0 both 100% fresh stationary; test_loop_map_preemption_probe_
+#     scenario.py TRACKED_Y). Gate per run: robot_3 must be non-STALE in
+#     m5_scene before departure.
+#   - Map: free floor on the N-S aisle to the south wall. The occupancy
+#     grid does not depend on spawns, so the parent's map is reused (see
+#     the run line below; no map file exists under this name).
+#   - The jam still forms with robot_3 about 0.15 m farther out than usual
+#     (offset ~0.27 -> ~0.42 m from the centre), inside the oracle's 1.0 m
+#     jam radius.
+#   - chi margin vs the 0.15 epsilon: with robot_3 now usually the clear
+#     chi lead, margins >= 0.15 (P ~ 0.2-0.4) push the mock's [robot_4,
+#     robot_3] recede proposal out of the order_equivalent class into
+#     plan repair. Dispatch stays chi either way: lead = ranked[0], pockets
+#     by chi rank. So the release under test is unchanged, and only the
+#     provenance tag differs. Record it per run.
+#
+# Run (mock backend, zero API). Same apparatus as the remedy arm (overlay
+# 0d0cfbfa + safety.yaml hard_contact_floor_m 0.20):
+#   SCENARIO=intersection_bottleneck_r3lead_probe \
+#   MAP_SCENARIO=intersection_bottleneck \
+#   MOCK_DECISION_FILE=config/mock_decisions/intersection_junction_clear_vlm_verbatim_once.json \
+#   ./scripts/vm/fc_launch.sh
+# USD: scenario yaml edits are inert until build_scenario regenerates the
+# scenario USD on the VM. Build this scenario's USD before the first run;
+# the parent's USD has robot_3 at -1.75.
+#
+# Overlay snippet (orchestrator.yaml). Identical to the IB10 remedy overlay
+# 0d0cfbfa: goals are unchanged, because only the spawn moved.
+#   initial_tasks:
+#     robot_1: { task: cross_intersection, goal: [1.75, 0.0] }
+#     robot_2: { task: cross_intersection, goal: [-1.75, 0.0] }
+#     robot_3: { task: cross_intersection, goal: [0.0, 1.75] }
+#     robot_4: { task: cross_intersection, goal: [0.0, -1.75] }
+#   scenario_geometry: (as overlay 0d0cfbfa; arms robot_3 {axis: y, side: -1},
+#     robot_4 {axis: y, side: 1}; junction_recede_offset_m 1.2,
+#     junction_recede_stagger_m 0.2, tracked_extent_m 1.75)
+#     junction_release_pull_off_m: 0.33
+#     junction_release_pull_off_side: -1
+#   shadow_classical_zones:
+#     - { zone_id: crossing_1, x: 0.0, y: 0.0, radius_m: 1.5 }
+# =====================================================================
+schema_version: 1
+name: intersection_bottleneck_r3lead_probe
+family: intersection
+seed: 42
+# The four-way approach takes ~10 sim-s after departure (1.4 m at 0.15 m/s);
+# four robots run the VM at RTF ~0.28-0.31, so 300 sim-s is ~1000 wall-s, room
+# for the trigger, a yield maneuver with three passers (~80 sim-s of 0.1 m/s
+# escorts) and the robots' final Nav2 legs. Isaac stops on THIS value
+# (run_simulation's --duration-sec is never applied).
+duration_sec: 300.0
+
+# T1 geometry-sufficient tier, second scenario (research design rev 8.6,
+# "Scenario battery"): four robots, one on each arm of the central cross aisle,
+# each driving to the opposite arm through the intersection. Re-audited
+# 2026-09-29 against the modern apparatus (the June yaml predated M1's tracked
+# band, the sim-time camera, the per-scenario map and Arm B's mapped zones);
+# the same kind of light fixes as normal_flow and dynamic_anomaly_v2:
+#   - Spawns and goals sit 1.75 m from the origin on every arm, inside M1's
+#     tracked area on both axes. The M1 homography sees the marker plane to
+#     |x| <= 2.789 and |y| <= 2.092 (swarm_perception config/calibration.yaml);
+#     the verified tracked band is |x| <= 2.5 (0.29 m inside the x edge;
+#     |x| = 3.0 gave 0/146 detections), and the same inset on y is 1.80. A
+#     robot parked at GT (0, 1.75) was tracked for 366/366 scene rows with no
+#     STALE (T3a smoke, 2026-09-27). The June spawns at (+-3.0, 0) were out of
+#     frame and (0, +-2.0) sat 0.09 m inside the y edge.
+#   - All four approach radii are equal, so the robots reach the centre
+#     together. With the June radii (3.0 vs 2.0) the north-south pair would
+#     stall ~7 sim-s before the east-west pair arrived, and M5 and Arm B would
+#     see a two-robot head_on, not an intersection.
+#   - Every lane is the aisle centreline (|y| < 0.6 east-west, |x| < 0.6
+#     north-south are the only free floor; rack blocks fill the four
+#     quadrants). No aisle_barrier: the barrier narrows the east-west aisle
+#     only, and at the intersection centre its blocks would wall off the
+#     north-south aisle. No obstacles, so warehouse_map_intersection_bottleneck
+#     equals the default map.
+#
+# Arm B classifies `intersection` only against a mapped conflict zone; set
+# orchestrator.yaml shadow_classical_zones to the zone in the goal table there
+# (crossing_1 at the origin, radius_m 1.5) for this scenario only. 1.5 is both
+# the membership radius the rule uses (classical r_conflict_m) and the FCFS
+# arrival zone: every classified robot is inside it, and each spawn is 0.25 m
+# outside it, beyond M1's ~0.1 m bias, so no arrival stamp is censored.
+#
+# STATUS 2026-09-29: NOT tag-ready, re-authoring needed. The four-way mock
+# smoke (IB10 20260929_085349) formed the standoff and Arm B classified it
+# `intersection`, but no single-yield command can clear two opposing pairs:
+# the robots stop 0.33-0.45 m from the cross pair, M4 exempts only the
+# yielder's pair with its admitted passer, so the yielder's own backup was
+# latched and the yield failed (docs/implementation_notes.md, same date).
+#
+# Oracle block (step-7b Part 3, 2026-10-03): the v2 `junction_clear`
+# resolution oracle, additive only (the v1 T1 cell keeps no oracle; Arm B's
+# own answer stays its reference). Scored by
+# `scripts/coverage_scene_scores.py ib10`; criteria frozen in
+# docs/reports/2026-10-03-step7b-oracle-freeze.md ("IB10 scoring frozen").
+#
+# M5 takes goals from swarm_orchestrator/config/orchestrator.yaml
+# initial_tasks, NOT from here: set all four goals below (robot_3 and robot_4
+# added) before a run, or M5 dispatches the head-on +-2.5 centreline goals to
+# robot_1 and robot_2 and none to the others.
+#
+# M3 junction geometry (goal-table row of orchestrator.yaml, 2026-09-29): the
+# corridor is the junction box (half_length_m 0.6 = the aisle half-width, no
+# barrier so occluder_height_m 0.0) and `arms` gives each robot the arm it
+# approached on, so every robot yields back along its own arm (park offset
+# 1.018 m; the 1.7 m backup clearance binds, parking a north-south yielder at
+# |y| ~ 1.70-1.72, inside the verified tracked 1.75, and every retreat path
+# stays on free floor). Pinned by TestJunctionGeometry in
+# tests/unit/test_intersection_bottleneck_scenario.py.
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -1.75, y: 0.0, yaw_rad: 0.0}
+    goal: {x: 1.75, y: 0.0}
+    initial_task: cross_intersection
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: 1.75, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: -1.75, y: 0.0}
+    initial_task: cross_intersection
+  - robot_id: robot_3
+    marker_id: 3
+    spawn: {x: 0.0, y: -1.90, yaw_rad: 1.5707963267948966}
+    goal: {x: 0.0, y: 1.75}
+    initial_task: cross_intersection
+  - robot_id: robot_4
+    marker_id: 4
+    spawn: {x: 0.0, y: 1.75, yaw_rad: -1.5707963267948966}
+    goal: {x: 0.0, y: -1.75}
+    initial_task: cross_intersection
+
+timed_obstacles: []
+
+expected_conflict:
+  type: bottleneck
+  involved_robots: [robot_1, robot_2, robot_3, robot_4]
+  # Departure ~10.6 sim-s after Isaac start (the M5 bring-up), plus ~10 sim-s
+  # of approach: the same schedule as the head-on family's +-1.5 spawns, whose
+  # standoff formed at 19-22 sim-s (T2b header); the window allows for four
+  # Nav2 stacks departing apart.
+  onset_window_sec: [8.0, 40.0]
+  min_duration_sec: 2.0
+
+oracle:
+  correct_strategy: junction_clear
+  accepted_strategies: [junction_clear]
+  objective: min_total_time_to_goal
+  # Formed-jam validity gate: `isaac.vgu_sim.oracle.intersection_conflict_active`
+  # over GT, onset inside expected_conflict.onset_window_sec, longest active
+  # interval >= min_duration_sec, and this many robots within its 1.0 m
+  # radius at onset. A run failing the gate is INVALID (not scored), not a
+  # failed resolution.
+  jam_robots_in_radius: 4
+  # chi-pair: the recede set is the cross-axis pair (M3's
+  # `_junction_recede_candidates`); its order is chi-ranked per episode from
+  # the dispatched decision's own trigger snapshot, so no fixed order is
+  # registered. Scored on the proposed plan (pre-repair) and on the executed
+  # plan.
+  recede_pair: [robot_3, robot_4]
+  # Inside-first: every inside_pair robot except the grounded yielder makes
+  # its final junction-centre crossing before either recede_pair robot's.
+  inside_pair: [robot_1, robot_2]
+  # Phase-reached ordinal (M5 `junction_clear phase advance` log lines):
+  # none 0 < recede 1 < cross 2 < release 3 < resolved 4; `fallback` and
+  # `fallback_exhausted` are reported as flags beside the ordinal.
+  phase_ordinal: [recede, cross, release, resolved]
+  rationale: >-
+    four-way formed jam: no single yielder clears two opposing pairs (v1
+    T1-X), so the cross-axis pair recedes along its own arms in chi order,
+    the yield-axis pair runs one yield, and the receded robots re-enter
+    after it, the chi lead first. Episode success is all four robots
+    position-verified at their goals.
+  # margin: pending the forced-arm harness (`strategy_regret.py`,
+  # junction_clear vs best_single_yield). best_single_yield is censored by
+  # construction (v1 T1-X), so the margin is a censored lower bound as in
+  # T2b.
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30
