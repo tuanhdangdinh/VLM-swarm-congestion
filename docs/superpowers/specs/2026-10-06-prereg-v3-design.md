@@ -595,6 +595,48 @@ path (left unchanged for byte-discipline; reword behind the flag at
 freeze); the failure-explanation phrases name no strategy values —
 register-reviewed, final judgment at freeze.
 
+**A8. IB10 release-lane defect: diagnosis ruled, remedy registered
+(2026-10-08).** The merged-tree IB10 1/4 regression (two replicates)
+is NOT a code regression: re-grounding the key snapshots under
+0b2e755 and 071f9c1 exports is byte-identical; the release lead is χ
+rank 0 by registered rule, and the robot_3/robot_4 χ margin is
+0.000–0.133 across all 11 historical bundles (< ε) — the lead is
+jam-formation noise and MUST remain unordered. The defect is a
+latent step-7b release-design weakness: the held receder's pocket
+sits on the lead's exit lane, and pre-fix passes survived on stale
+costmap marks forcing wide avoidance (8/8 clean, +16..+166 mm after
+11–38 s pauses); fix-H clearing removed that accidental cushion
+(post-fix: +11 mm, contact, contact). REGISTERED REMEDY (build item,
+config-gated, default-off, enabled only in v3 cells): (i) the held
+receder's release yield gains a lateral pull-off (`pull_off_lateral_m`
+— M4 already supports the parameter and its own comment names this
+case) or equivalently a lateral pocket offset for χ rank ≥1;
+magnitude derived from junction geometry, PROPOSED at build, frozen
+at Step 6 after the validation arm; (ii) optional un-exempted
+hard-contact floor in M4 (the release exemption allowed a 28 s push
+with no stop). Explicitly REJECTED: registering a fixed lead
+("robot_3 first" in the fix-branch run was a draw) and raising Nav2
+inflation (touches every scene). VALIDATION ARM (VM, ~3–4 replicates
+until both leads appear + remedy on under both leads): bag both
+robots' costmaps/plans/scan through the release window; measure lead,
+min distance, lateral offset at 0.6/0.4/0.2 m gaps. INSTRUMENTATION
+CAVEAT escalated to the v2 lineage: GT `robot_robot_contacts` MISSED
+a 0.084 m-centre contact with a 0.55 m push — the step-7b "zero GT
+contacts" claim is unsupported by that field; v3 scorers must not
+rely on it and the contact metric needs a distance-based recompute.
+
+**A7a. Step 0 closure status (supersedes nothing; records the gate).**
+Step 0 closes for: smoke (registered goals, PASS), free_flow_v2
+(22/22 legs, per-leg delta −0.8..+0.2 s vs v1, mean −0.07 — FROZEN as
+config/free_flow/free_flow_v2.json, build item queued), T3c (13.1–14.2
+s vs 32.0 pre-fix, 3 replicates), blocked_path_transient (clean).
+Step 0 stays OPEN for: IB10 (pending the A8 remedy + validation arm)
+and the loop-map corner wedge (controller-side local minimum at the
+second-aisle mouth, fix-invariant, now reproduced on ldt + perm_wait
++ diag_costmap — Step 1's NO-GO stands on direct evidence; no
+controller tuning, per the carried exclusions; S4's immunity to the
+wedge is checked in its own VM wave).
+
 **A7. Step 0 status note.** The merged tree's rotation-probe
 signature PASSED (0/142 closed columns vs 12–13 pre-fix). The stage-1
 smoke failure was on an OFF-DESIGN route (goals routing around the
