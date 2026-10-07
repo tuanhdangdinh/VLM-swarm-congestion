@@ -2,7 +2,8 @@
 
 Pins the authored design of docs/superpowers/specs/2026-10-06-v3-scene-design.md
 "S6" (feat/v3-design): the floor is the shipped loop map plus the T1 barrier,
-the four poses are the spec's, the committed Nav2 map regenerates byte for
+the four poses are the spec's (pair B's spawns as amended by the 2026-10-07
+pose ruling), the committed Nav2 map regenerates byte for
 byte, the PROPOSED decision-level oracle loads and scores mechanically, and
 the M5 overlay snippet in the yaml header agrees with the robots' goals (the
 hand-sync trap). The offline feasibility script's structural verdicts are
@@ -76,8 +77,8 @@ class TestScenarioYaml:
         assert poses == {
             "robot_1": (-1.5, 0.0, 0.0, 2.5, 0.0),
             "robot_2": (1.5, 0.0, pi, -2.5, 0.0),
-            "robot_3": (0.2, 1.2, 0.0, 2.05, 1.2),
-            "robot_4": (2.10, 1.2, pi, 0.0, 1.2),
+            "robot_3": (0.25, 1.2, 0.0, 2.05, 1.2),
+            "robot_4": (2.05, 1.2, pi, 0.0, 1.2),
         }
 
     def test_floor_is_the_shipped_loop_map_plus_the_t1_barrier(self):
@@ -300,13 +301,13 @@ class TestFeasibility:
         assert not check.passed
         assert all(k.endswith("robot_2-robot_3") for k in check.detail["within_r_conflict"])
 
-    def test_robot_4_spawn_overlap_is_reported_not_hidden(self, feasibility):
-        # Open finding: the chassis box reaches x = 2.202 against the aisle's
-        # east end at 2.2. Flip this pin if robot_4's spawn moves.
+    def test_robot_4_spawn_clears_the_aisle_end(self, feasibility):
+        # Resolved by the pose ruling: at x = 2.05 facing pi the chassis box
+        # reaches x = 2.152, 0.048 m short of the aisle's east end at 2.2
+        # (it overlapped by 0.002 m at the spec's x = 2.10).
         check = feasibility["spawn_chassis_clears_occupied_cells"]
-        assert not check.passed
-        clearance = check.detail["clearance_m"]
-        assert [rid for rid, gap in clearance.items() if gap <= 0.0] == ["robot_4"]
+        assert check.passed, check.detail
+        assert check.detail["clearance_m"]["robot_4"] == pytest.approx(0.048)
 
 
 def test_scenario_name_matches_its_file():

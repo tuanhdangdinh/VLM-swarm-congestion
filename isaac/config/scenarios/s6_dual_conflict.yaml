@@ -29,12 +29,14 @@ duration_sec: 150.0
 #   the loop family's failure mode). isaac/scripts/check_s6_feasibility.py
 #   checks this on the generated occupancy grid.
 #
-# Conflicts (poses verbatim from the spec table):
+# Conflicts (the spec table's poses, except pair B's spawns: moved inward by
+# the 2026-10-07 S6 pose ruling so robot_4's chassis clears the aisle's east
+# end; jam midpoint B and the 1.662 m separation are unchanged):
 #   A  T1 head-on in the barrier corridor: robot_1 (-1.5, 0) -> (2.5, 0),
 #      robot_2 (1.5, 0, pi) -> (-2.5, 0). Spawn gap 3.0 m, jam midpoint (0, 0).
-#   B  second-aisle head-on: robot_3 (0.2, 1.2) -> (2.05, 1.2), robot_4
-#      (2.10, 1.2, pi) -> (0.0, 1.2). Spawn gap 1.9 m, jam midpoint
-#      ((0.2 + 2.10) / 2, 1.2) = (1.15, 1.2).
+#   B  second-aisle head-on: robot_3 (0.25, 1.2) -> (2.05, 1.2), robot_4
+#      (2.05, 1.2, pi) -> (0.0, 1.2). Spawn gap 1.80 m, jam midpoint
+#      ((0.25 + 2.05) / 2, 1.2) = (1.15, 1.2).
 #   Midpoints sqrt(1.15^2 + 1.2^2) = 1.662 m apart, beyond Arm B's
 #   r_conflict_m 1.5 (config/rag.yaml): the oracle's separate_event_radius_m.
 #
@@ -43,17 +45,18 @@ duration_sec: 150.0
 # so a pair closes at 0.30 m/s and stops at standoff gap g (0.45 m pair
 # latch, safety.yaml; >= 0.32 m, the follower latch):
 #   A: (3.0 - g) / 0.30 = 8.50 sim-s (g 0.45) .. 8.93 sim-s (g 0.32)
-#   B: (1.9 - g) / 0.30 = 4.83 sim-s (g 0.45) .. 5.27 sim-s (g 0.32)
-#   B must depart later by (3.0 - 1.9) / 0.30 = 3.67 sim-s, whatever g is.
+#   B: (1.8 - g) / 0.30 = 4.50 sim-s (g 0.45) .. 4.93 sim-s (g 0.32)
+#   B must depart later by (3.0 - 1.8) / 0.30 = 4.0 sim-s, whatever g is.
 # start_delay_sec is WALL time from M5's start (task_registry.TaskRegistry);
 # with four stacks M5 starts at ~20 sim-s and the unheld pair departs then
 # (convoy_counterflow.yaml timing), so B's release lands at
-# 20 + RTF * D sim-s and D = 3.67 / RTF: 17.5 wall-s at RTF 0.21, 15.3 at
-# 0.24. PROPOSED D = 16 wall-s on robot_3 and robot_4: B's standoff then
-# trails A's by 16 * RTF - 3.67 = -0.31 .. +0.17 sim-s at RTF 0.21-0.24
-# (-0.63 .. +0.49 at 0.19-0.26). The first trigger (stall or close/slow,
+# 20 + RTF * D sim-s and D = 4.0 / RTF: 19.0 wall-s at RTF 0.21, 16.7 at
+# 0.24. PROPOSED D = 16 wall-s on robot_3 and robot_4 (unchanged by the pose
+# ruling, so B's jam now forms slightly first): B's standoff then
+# trails A's by 16 * RTF - 4.0 = -0.64 .. -0.16 sim-s at RTF 0.21-0.24
+# (-0.96 .. +0.16 at 0.19-0.26). The first trigger (stall or close/slow,
 # both 12 wall-s = 2.5-2.9 sim-s after a standoff) then sees BOTH jams
-# formed whenever |16 * RTF - 3.67| < 12 * RTF, i.e. RTF in (0.13, 0.92).
+# formed whenever |16 * RTF - 4.0| < 12 * RTF, i.e. RTF in (0.14, 1.00).
 #
 # M5 settings, set by hand in swarm_orchestrator/config/orchestrator.yaml
 # before a run. HAND-SYNC TRAP: M5 takes goals from orchestrator.yaml
@@ -79,9 +82,10 @@ duration_sec: 150.0
 #     the classical head_on rule (classical_reasoner._head_on_pair) rejects
 #     BOTH pairs as crowded. The midpoint argument holds; the member
 #     distance does not.
-#   - robot_4's spawn: the URDF chassis box reaches 0.102 m behind base_link,
-#     so at x = 2.10 facing pi it overlaps the aisle's east end (x = 2.2) by
-#     0.002 m at t = 0.
+#   - robot_4's spawn (RESOLVED by the pose ruling): the URDF chassis box
+#     reaches 0.102 m behind base_link, so at x = 2.10 facing pi it overlapped
+#     the aisle's east end (x = 2.2) by 0.002 m; at x = 2.05 it clears it by
+#     0.048 m.
 #   - Marker x pose: markers 3 and 4 are verified at (0, +-1.2) only; every
 #     S6 pose of markers 3 and 4 is unverified (spec S6 checks).
 #   - acceptance_logging's conflict_active needs exactly two involved robots,
@@ -100,12 +104,12 @@ robots:
     initial_task: cross_narrow_aisle
   - robot_id: robot_3
     marker_id: 3
-    spawn: {x: 0.2, y: 1.2, yaw_rad: 0.0}
+    spawn: {x: 0.25, y: 1.2, yaw_rad: 0.0}
     goal: {x: 2.05, y: 1.2}
     initial_task: cross_narrow_aisle
   - robot_id: robot_4
     marker_id: 4
-    spawn: {x: 2.10, y: 1.2, yaw_rad: 3.141592653589793}
+    spawn: {x: 2.05, y: 1.2, yaw_rad: 3.141592653589793}
     goal: {x: 0.0, y: 1.2}
     initial_task: cross_narrow_aisle
 

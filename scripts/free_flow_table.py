@@ -302,7 +302,10 @@ def count_dispatches(decisions_dir: Path) -> int:
 
     Shared by the free-flow harvest's zero-dispatch check and the outcome
     class's re-trigger count (`coverage_scene_scores.classify_outcome`); a
-    re-analysis answering no congestion is not counted.
+    re-analysis answering no congestion is not counted. Neither is an
+    artifact the v3 dispatch-off probe suppressed (`dispatch_suppressed`):
+    its command never reached M4, so a log-only episode's would-be
+    dispatches count 0.
 
     Args:
         decisions_dir: The run's copied M5 decision artifacts.
@@ -313,8 +316,10 @@ def count_dispatches(decisions_dir: Path) -> int:
     count = 0
     for path in sorted(decisions_dir.glob("*.json")):
         record = json.loads(path.read_text(encoding="utf-8"))
-        if (record.get("decision") or {}).get("congestion_detected") and record.get(
-            "grounded_command_present"
+        if (
+            (record.get("decision") or {}).get("congestion_detected")
+            and record.get("grounded_command_present")
+            and not record.get("dispatch_suppressed")
         ):
             count += 1
     return count

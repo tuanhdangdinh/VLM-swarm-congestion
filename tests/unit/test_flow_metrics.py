@@ -217,6 +217,33 @@ def test_derive_cli_refuses_a_run_that_dispatched(tmp_path, capsys):
     assert "dispatched" in capsys.readouterr().err
 
 
+def _dispatching_artifact(**extra: object) -> str:
+    return json.dumps({"decision": {"congestion_detected": True},
+                       "grounded_command_present": True, **extra})
+
+
+def test_count_dispatches_excludes_a_suppressed_artifact(tmp_path):
+    (tmp_path / "a.json").write_text(_dispatching_artifact(
+        dispatch_enabled=False, dispatch_suppressed=True))
+    assert fft.count_dispatches(tmp_path) == 0
+
+
+def test_count_dispatches_counts_only_the_unsuppressed_artifact(tmp_path):
+    (tmp_path / "a.json").write_text(_dispatching_artifact(
+        dispatch_enabled=False, dispatch_suppressed=True))
+    (tmp_path / "b.json").write_text(_dispatching_artifact())
+    assert fft.count_dispatches(tmp_path) == 1
+
+
+def test_count_dispatches_ignores_a_task_stream_jsonl_beside_the_artifacts(tmp_path):
+    # v2_final_run.sh copies tasks_<session>.jsonl into the decisions dir;
+    # its multi-line body must neither be parsed nor counted.
+    (tmp_path / "a.json").write_text(_dispatching_artifact())
+    (tmp_path / "tasks_abc.jsonl").write_text(
+        '{"event": "stream_start"}\n{"event": "task_done"}\n')
+    assert fft.count_dispatches(tmp_path) == 1
+
+
 # ---- delay_vs_free_flow ----
 
 
