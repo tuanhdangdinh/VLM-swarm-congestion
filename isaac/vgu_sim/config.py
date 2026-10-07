@@ -798,13 +798,17 @@ class DualConflictOracleConfig(BaseModel):
     `proposed_plan` has a leg for at least one member whose action is in
     `addressing_actions` (every leg action but `continue`, the lenient default
     for an omitted robot). The plan addresses both conflicts when each is
-    addressed.
+    addressed. `plan_source` fixes which plan is scored: the model's own
+    `proposed_plan` as parsed, never M3's verified plan. A plan the parser
+    nulled, or an `m3_default` plan M3 derived in its place, scores as no
+    plan, so M3's repairs cannot address a conflict the model did not.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
     objective: Literal["address_both_conflicts"] = "address_both_conflicts"
     criterion_status: Literal["proposed", "frozen"]
     scored_decision: Literal["first_triggered"] = "first_triggered"
+    plan_source: Literal["model_raw"] = "model_raw"
     execution_scored: Literal[False] = False
     conflicts: tuple[DualConflictPairConfig, DualConflictPairConfig]
     addressing_actions: tuple[OraclePlanLegAction, ...] = DUAL_CONFLICT_ADDRESSING_ACTIONS

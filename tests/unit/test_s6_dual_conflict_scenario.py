@@ -104,6 +104,7 @@ class TestOracle:
         oracle = _oracle()
         assert oracle.criterion_status == "proposed"
         assert oracle.scored_decision == "first_triggered"
+        assert oracle.plan_source == "model_raw"
         assert oracle.execution_scored is False
         assert [c.involved_robots for c in oracle.conflicts] == [
             ("robot_1", "robot_2"), ("robot_3", "robot_4")]
