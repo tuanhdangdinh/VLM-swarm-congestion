@@ -14,7 +14,8 @@ time `rec` (ns, wall) for ordering:
 - `tf_static` : every `/tf_static` edge, once.
 - `odom`      : `/<robot>/odom` pose and twist.
 - `scene`     : robot's row of `/perception/scene_state` (M1), with the
-                scene stamp.
+                scene stamp, the robot's own (last-detection) `robot_stamp`
+                and the frame's `markers_detected`.
 - `cmd_vel`   : `/<robot>/cmd_vel` (no header; `rec` only).
 - `phase`     : `/costmap_probe/phase` markers, under `marker` (sim time
                 inside).
@@ -112,7 +113,9 @@ def main() -> int:
             row = next((r for r in scene.get("robots", []) if r.get("robot_id") == robot), None)
             if row is not None:
                 write("scene", rec, stamp=scene.get("stamp"), x=row["x"], y=row["y"],
-                      theta=row["theta"], status=row.get("status"))
+                      theta=row["theta"], status=row.get("status"),
+                      robot_stamp=row.get("stamp"),
+                      markers_detected=(scene.get("diagnostics") or {}).get("markers_detected"))
         elif topic == f"/{robot}/cmd_vel":
             write("cmd_vel", rec, vx=msg.linear.x, wz=msg.angular.z)
         elif topic == "/costmap_probe/phase":

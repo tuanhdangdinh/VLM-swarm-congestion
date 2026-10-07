@@ -196,3 +196,28 @@ def _launch_argument_description(name: str) -> str:
                 return ast.literal_eval(keyword.value)
         raise AssertionError(f"DeclareLaunchArgument({name!r}) has no description")
     raise AssertionError(f"DeclareLaunchArgument({name!r}) not found")
+
+
+def _obstacle_scan_source(costmap: str) -> dict:
+    params = yaml.safe_load(PARAMS_PATH.read_text())
+    layer = params[costmap][costmap]["ros__parameters"]["obstacle_layer"]
+    return layer["scan"]
+
+
+def test_global_costmap_scan_clearing_enabled():
+    # v3 costmap fix H: Jazzy defaults `clearing` to false, which kept every
+    # mis-registered mark lethal until a recovery clear.
+    assert _obstacle_scan_source("global_costmap")["clearing"] is True
+
+
+def test_local_costmap_scan_clearing_enabled():
+    assert _obstacle_scan_source("local_costmap")["clearing"] is True
+
+
+def test_costmap_raytrace_range_covers_obstacle_range():
+    # The shipped raytrace default (3.0 m) < obstacle_max_range (3.5 m) would
+    # leave marks 3.0-3.5 m out uncleared even with clearing on.
+    for costmap in ("global_costmap", "local_costmap"):
+        scan = _obstacle_scan_source(costmap)
+        assert scan["raytrace_max_range"] >= scan["obstacle_max_range"]
+        assert scan["marking"] is True

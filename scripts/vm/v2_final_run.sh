@@ -28,6 +28,14 @@
 #              annotated and raw frames, into $OUT/snapshots) (default 0)
 #   SNAP_INTERVAL / SNAP_TOPICS  frame_snapshots.py's interval (sim-s,
 #              default 4.0) and topic list (default annotated,raw)
+#   OVERLAY_FILE  a prebuilt orchestrator.yaml copied over the pristine one
+#              (fresh mtime), exclusive with OVERLAY (default empty). Used by
+#              the v3 costmap-fix re-validation for IB10 / T3c, whose M5 rows
+#              v2_overlay.py does not carry.
+#   BAG_TOPICS space-separated topics to `ros2 bag record` (mcap) once Nav2 is
+#              live, for BAG_SEC wall-s (default 400), stopped by SIGINT
+#              before fc_launch's container restart and copied to $OUT/bag
+#              (default empty = no bag).
 #   RECORD     passed to fc_launch (default 0)
 #   REC_SEC / SIM_SEC / SEED   passed to fc_launch (defaults 900 / 1000 / 42)
 #   CONTAINER  default vgu_ros
@@ -49,6 +57,9 @@ RECORD="${RECORD:-0}"
 REC_SEC="${REC_SEC:-900}"
 SIM_SEC="${SIM_SEC:-1000}"
 SEED="${SEED:-42}"
+OVERLAY_FILE="${OVERLAY_FILE:-}"
+BAG_TOPICS="${BAG_TOPICS:-}"
+BAG_SEC="${BAG_SEC:-400}"
 OUT="$OUT_ROOT/$LABEL"
 ORCH="$REPO/ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml"
 RAG="$REPO/config/rag.yaml"
@@ -112,6 +123,14 @@ trap restore EXIT
 if [ "$OVERLAY" != "none" ]; then
   python3 "$HERE/v2_overlay.py" --orchestrator "$ORCH" --rag "$RAG" "$OVERLAY" || exit 1
 fi
+if [ -n "$OVERLAY_FILE" ]; then
+  if [ "$OVERLAY" != "none" ]; then
+    log "ERROR: OVERLAY and OVERLAY_FILE are exclusive"
+    exit 1
+  fi
+  cp "$OVERLAY_FILE" "$ORCH" && touch "$ORCH" || exit 1
+  log "overlay file copied from $OVERLAY_FILE (md5 $(md5_of "$ORCH"))"
+fi
 cp "$ORCH" "$OUT/orchestrator.overlaid.yaml"
 cp "$RAG" "$OUT/rag.overlaid.yaml"
 
@@ -159,8 +178,30 @@ if [ "$SAMPLER" = "1" ]; then
   fi
 fi
 
+if [ -n "$BAG_TOPICS" ]; then
+  (
+    for _ in $(seq 1 240); do
+      grep -q "Nav2 action servers live" "$OUT/launcher.log" 2>/dev/null && break
+      sleep 3
+    done
+    BAG="/tmp/v2_bag_${LABEL}"
+    ROS_ENV="source /opt/ros/jazzy/setup.bash && source /ws/ros2_ws/install/setup.bash && export FASTRTPS_DEFAULT_PROFILES_FILE=/ws/config/dds/fastdds.xml"
+    docker exec "$CONTAINER" rm -rf "$BAG"
+    docker exec -w /ws "$CONTAINER" bash -lc "$ROS_ENV && exec ros2 bag record -s mcap -o $BAG $BAG_TOPICS" \
+      >"$OUT/bag_record.log" 2>&1 &
+    REC_PID=$!
+    log "bag recorder started (${BAG_SEC}s): ${BAG_TOPICS}"
+    sleep "$BAG_SEC"
+    docker exec "$CONTAINER" pkill -INT -f "[r]os2 bag record"
+    for _ in $(seq 1 30); do kill -0 "$REC_PID" 2>/dev/null || break; sleep 1; done
+    docker cp "$CONTAINER":"$BAG" "$OUT/bag" 2>/dev/null && log "bag copied" || log "WARNING: no bag"
+  ) &
+  BAGGER_PID=$!
+fi
+
 wait "$FC_PID"
 log "fc_launch exited rc=$?"
+if [ -n "${BAGGER_PID:-}" ]; then wait "$BAGGER_PID" 2>/dev/null; fi
 if [ -n "${SAMPLER_PID:-}" ]; then
   wait "$SAMPLER_PID" 2>/dev/null
   docker cp "$CONTAINER":/tmp/loop_family_sampler_${LABEL}.jsonl "$OUT/sampler.jsonl" 2>/dev/null \

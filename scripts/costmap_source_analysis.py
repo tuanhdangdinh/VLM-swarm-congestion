@@ -49,9 +49,16 @@ import argparse
 import bisect
 import json
 import math
+import sys
 from pathlib import Path
 
 import numpy as np
+
+_PERCEPTION_SRC = Path(__file__).resolve().parents[1] / "ros2_ws" / "src" / "swarm_perception"
+if str(_PERCEPTION_SRC) not in sys.path:
+    sys.path.insert(0, str(_PERCEPTION_SRC))
+
+from swarm_perception.camera_localizer import odom_lookup_stamp  # noqa: E402
 
 RES = 0.05
 ORIGIN = (-6.0, -4.0)
@@ -643,13 +650,15 @@ class Replay:
             ok = (r >= s["rmin"]) & (r < s["rmax"])
             yield ox, oy, r[ok], a[ok]
 
-    def localizer_corrections(self, mode: str) -> list[tuple[float, tuple]]:
+    def localizer_corrections(self, mode: str, latency: float = 0.0) -> list[tuple[float, tuple]]:
         """Re-derive the localizer's map->odom corrections from the recorded M1 scenes.
 
         Each scene (stamp s) arrives at sim time a (its bag receive time mapped
         through the odometry rows' receive->stamp relation). `asis` pairs it
         with odometry at a, as `_lookup_odom_pose`'s `Time()` lookup does;
-        `stamp` pairs it with odometry at s (option A). Returns
+        `stamp` pairs it with odometry at s (option A); `aprime` pairs it at
+        the node's own `odom_lookup_stamp` (the robot entry's detection stamp
+        minus `latency`; needs an export with `robot_stamp`). Returns
         `(active_from, correction)` with active_from = a + 0.3 s: the node
         future-stamps by transform_tolerance, so a scan at t uses the newest
         correction published at or before t - 0.3.
@@ -661,20 +670,27 @@ class Replay:
             if r.get("status") == "STALE":
                 continue
             a = float(np.interp(r["rec"], recs, sts))
-            o = _interp_series(self.odom_tf, a if mode == "asis" else r["stamp"])
+            if mode == "aprime":
+                entry = {"robot_id": "robot_1", "x": r["x"], "y": r["y"],
+                         "theta": r["theta"], "stamp": r.get("robot_stamp")}
+                t_pair = odom_lookup_stamp({"stamp": r["stamp"], "robots": [entry]},
+                                           "robot_1", latency)
+            else:
+                t_pair = a if mode == "asis" else r["stamp"]
+            o = None if t_pair is None else _interp_series(self.odom_tf, t_pair)
             if o is None:
                 continue
             out.append((a + 0.3, compose((r["x"], r["y"], r["theta"]), inverse(o))))
         out.sort(key=lambda c: c[0])
         return out
 
-    def phase_scans_localizer(self, index: int, mode: str):
+    def phase_scans_localizer(self, index: int, mode: str, latency: float = 0.0):
         """Like `phase_scans`, registered through re-derived localizer corrections.
 
         `mode`: `asis` / `stamp` (see `localizer_corrections`) or `odom`
         (map->odom fixed at the spawn pose: a perfect localizer).
         """
-        corr = self.localizer_corrections(mode) if mode != "odom" else []
+        corr = self.localizer_corrections(mode, latency) if mode != "odom" else []
         times = [c[0] for c in corr]
         start = next(m for m in self.markers if m["event"] == "phase_start" and m["index"] == index)
         end = next(m for m in self.markers if m["event"] == "phase_end" and m["index"] == index)
@@ -822,6 +838,11 @@ COUNTERFACTUALS = (
 )
 
 
+# A-prime latency sweep: none, the node's measured default, and the probe
+# report's (carry-forward-inflated) upper estimate.
+APRIME_LATENCIES = (0.0, 0.01, 0.15)
+
+
 def main_counterfactual(run_dir: Path) -> int:
     """Closed aisle columns per phase under obstacle-layer parameter variants."""
     rp = Replay(run_dir)
@@ -842,6 +863,13 @@ def main_counterfactual(run_dir: Path) -> int:
                 ("bound + H (raytrace 3.5)", "odom", True, 3.5)):
             marks = accumulate(rp.phase_scans_localizer(i, mode), clearing, 3.5, rmax)
             print(f"  {name:42s} closed {closed_cols_from_marks(marks, static):2d}")
+        if any("robot_stamp" in r for r in rp.scene_rows):
+            for latency in APRIME_LATENCIES:
+                for clearing, rmax, suffix in ((False, 3.0, ""), (True, 3.5, " + H (3.5)")):
+                    marks = accumulate(rp.phase_scans_localizer(i, "aprime", latency),
+                                       clearing, 3.5, rmax)
+                    name = f"A' (robot stamp - {latency:.2f} s){suffix}"
+                    print(f"  {name:42s} closed {closed_cols_from_marks(marks, static):2d}")
     return 0
 
 

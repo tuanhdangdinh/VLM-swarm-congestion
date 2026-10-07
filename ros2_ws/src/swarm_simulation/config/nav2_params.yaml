@@ -232,6 +232,15 @@ local_costmap:
           topic: "/<robot_namespace>/scan"
           max_obstacle_height: 2.0
           obstacle_max_range: 3.5
+          # v3 costmap fix H (docs/reports/2026-10-05-costmap-fix-validation.md):
+          # Jazzy's ObstacleLayer defaults `clearing` to false, so every mark
+          # (including every mis-registered return during a rotation) stayed
+          # lethal until a ClearEntireCostmap. Raytrace clearing on, with
+          # raytrace_max_range >= obstacle_max_range: at the shipped 3.0 m
+          # default, marks made 3.0-3.5 m out could never be cleared.
+          marking: true
+          clearing: true
+          raytrace_max_range: 3.5
       # inflation_layer.plugin not in the brief's pinned snippet; required --
       # verified on host: costmap configure fails ("Can not get 'plugin'
       # param value for inflation_layer") without it, since `plugins:` only
@@ -287,6 +296,10 @@ global_costmap:
           topic: "/<robot_namespace>/scan"
           max_obstacle_height: 2.0
           obstacle_max_range: 3.5
+          # v3 costmap fix H: see the local_costmap obstacle layer above.
+          marking: true
+          clearing: true
+          raytrace_max_range: 3.5
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         inflation_radius: 0.10
