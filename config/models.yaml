@@ -90,6 +90,10 @@ vlm:
       max_attempts: 4
       image_fallback_after_attempts: 2
 
+  # RETIRED from the confirmatory tier 2026-10-07 (OpenAI deprecation of
+  # gpt-5.1, shutdown 2027-04-01): superseded in the Group-C generation pair
+  # by `openai_gpt56sol` below. Kept as a pinned section so pilot data
+  # collected under it remains citable and reproducible.
   # PILOT ARM: gpt-5.1 at reasoning_effort "none" (temperature 0 is legal only
   # at "none"; no reasoning tokens are billed). Same refusal-mitigation block
   # as the gpt-4o pin, so the pilot asks whether the 4o refusal/chance profile
@@ -246,6 +250,34 @@ vlm:
       max_attempts: 4
       image_fallback_after_attempts: 2
       max_tokens: 16384
+
+  # ---- gpt-5.1 successor (owner ruling 2026-10-07): the Group-C generation
+  # pair becomes gpt-4o -> gpt-5.6-sol. Validation evidence:
+  # docs/reports/2026-10-07-gpt56-sol-swap.md.
+  #
+  # ROLLING PIN: the model page's Snapshots list has only `gpt-5.6-sol` (no
+  # dated snapshot; developers.openai.com/api/docs/models/gpt-5.6-sol,
+  # fetched 2026-10-07), the response echoes the undated id and
+  # system_fingerprint is null, so the served model is recorded per call and
+  # analyses condition on it (the Group-D caveat). Minimum reasoning dose:
+  # `reasoning_effort: none` is supported ("none, low, medium (default),
+  # high, xhigh, and max"), bills 0 reasoning tokens and accepts temperature
+  # 0.0 / top_p live, so the body is the gpt-5.1 pin's with only the model id
+  # changed: no omit_sampling, no cap-proofing (shared 2048 cap). `detail:
+  # "high"` is patch-based on GPT-5.6 (fits 2048x2048 and 2,500 patches, 1.2x
+  # token multiplier; images-vision guide), not gpt-5.1's tile mode; a
+  # 1280x960 frame is 1,440 image tokens. Hosted-arm parity: 4 attempts +
+  # grey-image fallback after 2.
+  openai_gpt56sol:
+    adapter: openai
+    model_id: gpt-5.6-sol
+    api_key_env: OPENAI_API_KEY
+    reasoning_effort: none
+    max_tokens_param: max_completion_tokens
+    reasoner:
+      temperature: 0.0
+      max_attempts: 4
+      image_fallback_after_attempts: 2
 
 embeddings:
   model_name: sentence-transformers/all-MiniLM-L6-v2

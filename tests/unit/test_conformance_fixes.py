@@ -60,6 +60,7 @@ _MODULE = {
     "openai_gpt51": "openai_backend",
     "deepseek": "openai_backend",
     "zhipu_glm": "openai_backend",
+    "openai_gpt56sol": "openai_backend",
     "anthropic": "anthropic_backend",
     "gemini": "gemini_backend",
     "gemini_flash": "gemini_backend",
@@ -87,6 +88,13 @@ _PRE_FIX_BODIES = {
     "llama_server_qwen3vl": '{"model": "qwen3-vl-8b-instruct-q4_k_m", "messages": [{"role": "system", "content": "sys"}, {"role": "user", "content": [{"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgpmYWtl"}}, {"type": "text", "text": "usr"}]}], "temperature": 0.0, "top_p": 0.95, "top_k": 20, "presence_penalty": 0.0, "max_tokens": 2048, "stream": false}',  # noqa: E501
     "llama_server_molmo2er": '{"model": "molmo2-er", "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgpmYWtl"}}, {"type": "text", "text": "sys\\n\\nusr"}]}], "temperature": 0.0, "top_p": 0.95, "top_k": 20, "presence_penalty": 0.0, "max_tokens": 2048, "stream": false}',  # noqa: E501
     "zhipu_glm": '{"model": "glm-5.3-flash", "messages": [{"role": "system", "content": "sys"}, {"role": "user", "content": [{"type": "text", "text": "usr"}, {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgpmYWtl", "detail": "high"}}]}], "temperature": 0.0, "top_p": 0.95, "max_tokens": 16384, "stream": false, "reasoning_effort": "low", "thinking": {"type": "enabled"}}',  # noqa: E501
+}
+
+# Arms wired after the conformance program, pinned from their first commit
+# (NOT pre-fix bodies). gpt-5.6-sol (2026-10-07, gpt-5.1 successor): the
+# gpt-5.1 body with only the model id changed.
+_ADDED_BODIES = {
+    "openai_gpt56sol": '{"model": "gpt-5.6-sol", "messages": [{"role": "system", "content": "sys"}, {"role": "user", "content": [{"type": "text", "text": "usr"}, {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgpmYWtl", "detail": "high"}}]}], "temperature": 0.0, "top_p": 0.95, "max_completion_tokens": 2048, "stream": false, "reasoning_effort": "none"}',  # noqa: E501
 }
 
 
@@ -233,7 +241,7 @@ def test_request_bytes_match_the_pre_fix_body_except_ruled_flash_fields(
     calls = _script(monkeypatch, _MODULE[arm_id], _ok_for(_MODULE[arm_id]))
     backend, config, _ = _arm(arm_id)
     backend.analyze(_fixed_payload(tmp_path), config)
-    expected = json.loads(_PRE_FIX_BODIES[arm_id])
+    expected = json.loads(_PRE_FIX_BODIES.get(arm_id) or _ADDED_BODIES[arm_id])
     if arm_id == "gemini_flash":
         expected["generation_config"]["max_output_tokens"] = 16384  # F05
         expected["store"] = False  # F10
@@ -273,7 +281,7 @@ def test_openai_message_refusal_is_a_provider_refusal(monkeypatch, tmp_path):
     assert response.text == "I'm unable to help with that."
 
 
-@pytest.mark.parametrize("arm_id", ["openai", "openai_gpt51", "deepseek"])
+@pytest.mark.parametrize("arm_id", ["openai", "openai_gpt51", "deepseek", "openai_gpt56sol"])
 def test_content_filter_finish_reason_is_a_provider_refusal(monkeypatch, tmp_path, arm_id):
     """O-chat: finish_reason "content_filter if content was omitted due to a
     flag from our content filters"; D-chat lists the same value."""
@@ -735,6 +743,30 @@ def test_openai_usage_adds_cached_and_image_tokens(monkeypatch, tmp_path):
         1024,
         765,
     )
+
+
+def test_openai_usage_adds_cache_write_tokens_for_gpt56sol(monkeypatch, tmp_path):
+    """O-chat usage.prompt_tokens_details: `cache_write_tokens` "The unadjusted
+    number of prompt tokens written to cache" (GPT-5.6 bills cache writes at
+    1.25x the uncached input rate; latest-model guide, fetched 2026-10-07)."""
+    usage = {
+        "prompt_tokens": 1464,
+        "completion_tokens": 4,
+        "total_tokens": 1468,
+        "prompt_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 1280},
+        "completion_tokens_details": {"reasoning_tokens": 0},
+    }
+    _script(monkeypatch, "openai_backend", _chat_ok(usage=usage))
+    backend, config, _ = _arm("openai_gpt56sol")
+    response = backend.analyze(_fixed_payload(tmp_path), config)
+    assert response.token_usage == {
+        "prompt_tokens": 1464,
+        "completion_tokens": 4,
+        "total_tokens": 1468,
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "cache_write_tokens": 1280,
+    }
 
 
 def test_deepseek_usage_adds_cache_hit_and_miss(monkeypatch, tmp_path):

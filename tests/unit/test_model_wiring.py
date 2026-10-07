@@ -192,6 +192,25 @@ def test_gpt51_arm_mirrors_the_gpt4o_reasoner_block():
     assert config.backend_id == "openai_gpt51"
 
 
+def test_gpt56sol_arm_resolves_to_the_openai_adapter_with_reasoning_effort_none():
+    vlm = _shipped_vlm()
+    config = load_backend_config(vlm, "openai_gpt56sol")
+    assert backend_adapter(vlm, "openai_gpt56sol") == "openai"
+    assert isinstance(config, OpenAIBackendConfig)
+    assert config.model_id == "gpt-5.6-sol"
+    assert config.reasoning_effort == "none"
+    assert config.max_tokens_param == "max_completion_tokens"
+    assert (config.thinking_type, config.omit_sampling) == (None, False)
+
+
+def test_gpt56sol_arm_mirrors_the_gpt51_reasoner_block():
+    vlm = _shipped_vlm()
+    sol = resolve_reasoner_config(vlm, "openai_gpt56sol")
+    gpt51 = resolve_reasoner_config(vlm, "openai_gpt51")
+    assert sol.model_dump(exclude={"backend_id"}) == gpt51.model_dump(exclude={"backend_id"})
+    assert sol.backend_id == "openai_gpt56sol"
+
+
 def test_anthropic_arm_has_hosted_arm_parity_attempts_and_image_fallback():
     vlm = _shipped_vlm()
     sonnet = resolve_reasoner_config(vlm, "anthropic")
@@ -307,6 +326,23 @@ def test_gpt51_request_carries_reasoning_effort_none_at_temperature_zero(monkeyp
     assert body["model"] == "gpt-5.1-2025-11-13"
     assert body["reasoning_effort"] == "none"
     assert body["temperature"] == 0.0
+    assert body["max_completion_tokens"] == 2048
+    assert "max_tokens" not in body
+    assert "thinking" not in body
+
+
+def test_gpt56sol_request_carries_reasoning_effort_none_at_temperature_zero(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    captured = _capture(monkeypatch, "openai_backend", _openai_ok())
+    backend, config = _build_arm("openai_gpt56sol")
+    backend.analyze(_fixed_payload(tmp_path), config)
+    body = captured["json"]
+    assert captured["url"] == "https://api.openai.com/v1/chat/completions"
+    assert body["model"] == "gpt-5.6-sol"
+    assert body["reasoning_effort"] == "none"
+    assert (body["temperature"], body["top_p"]) == (0.0, 0.95)
     assert body["max_completion_tokens"] == 2048
     assert "max_tokens" not in body
     assert "thinking" not in body
@@ -757,6 +793,7 @@ _ARM_ENV = {
     "llama_server_qwen3vl": ("llama_server_backend", None),
     "llama_server_molmo2er": ("llama_server_backend", None),
     "zhipu_glm": ("openai_backend", "ZHIPUAI_API_KEY"),
+    "openai_gpt56sol": ("openai_backend", "OPENAI_API_KEY"),
 }
 
 
@@ -825,6 +862,7 @@ def test_recorded_payload_format_matches_the_request_actually_sent(
         ("llama_server_qwen3vl", "before_text", "system_message"),
         ("llama_server_molmo2er", "before_text", "user_prefix"),
         ("zhipu_glm", "after_text", "system_message"),
+        ("openai_gpt56sol", "after_text", "system_message"),
     ],
 )
 def test_every_wired_arm_records_payload_format_v1(backend_id, image_position, system_placement):
