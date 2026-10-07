@@ -16,11 +16,13 @@ from scripts import free_flow_table as fft
 from scripts.coverage_scene_scores import (
     DISSOLUTION_SEPARATION_M,
     RECLOG_MIN_SEC,
+    MockBackendError,
     OutcomeClass,
     aperture_region,
     aperture_throughput,
     classify_outcome,
     conflict_dissolution,
+    decision_backend,
     delay_vs_free_flow,
     load_ground_truth,
     load_scenario,
@@ -602,7 +604,7 @@ def test_ib10_invalid_jam_has_no_class(tmp_path):
 B1_EXISTING_KEYS = {"scene", "t0_sec", "end_sec", "arrivals_after_t0_sec", "n_arrived",
                     "censored", "makespan_sec", "gate", "stop_time_sec", "merge", "conflict"}
 FLOW_KEYS = {"delay_vs_free_flow", "conflict_dissolution", "aperture_throughput",
-             "outcome_class", "n_dispatches", "outcome_evidence"}
+             "outcome_class", "n_dispatches", "backend_id", "outcome_evidence"}
 
 
 def test_b1_keeps_every_existing_field_and_adds_only_flow_fields(tmp_path):
@@ -660,3 +662,68 @@ def test_dissolution_rejects_pairs_closer_than_the_separation(tmp_path):
     result = conflict_dissolution(load_ground_truth(gt), ["robot_1", "robot_2"], 0.0,
                                   {"robot_1": None, "robot_2": None})
     assert result["dissolved_at_sec"] is None
+
+
+# ---- forcing-audit A2: backend column and mock refusal ----
+
+
+def _backend_decisions(tmp_path: Path, effective: str | None, diagnostic: str | None) -> Path:
+    path = tmp_path / "decisions"
+    path.mkdir()
+    record = _ib10_record(None, ["robot_4", "robot_3"])
+    if diagnostic is not None:
+        record["diagnostics"] = {"backend_id": diagnostic, "attempts": 1}
+    if effective is not None:
+        record["reasoner_config_effective"] = {"backend_id": effective}
+    (path / "d0.json").write_text(json.dumps(record))
+    return path
+
+
+def test_backend_id_prefers_the_effective_arm_id(tmp_path):
+    # Pre-F09 successes carry the provider model id in diagnostics.
+    decisions = _backend_decisions(tmp_path, "openai_gpt56_sol", "gpt-5.6-sol")
+    assert decision_backend(decisions) == "openai_gpt56_sol"
+
+
+def test_backend_id_falls_back_to_diagnostics(tmp_path):
+    assert decision_backend(_backend_decisions(tmp_path, None, "gemini")) == "gemini"
+
+
+def test_backend_id_is_none_when_no_artifact_records_one(tmp_path):
+    assert decision_backend(_decisions(tmp_path, 1)) is None
+
+
+def test_mock_bundle_is_refused_for_scoring(tmp_path):
+    decisions = _backend_decisions(tmp_path, "mock", "mock")
+    with pytest.raises(MockBackendError, match="mock backend"):
+        score_flow(_ib10_gt(tmp_path, IB10_DESIGNED), load_scenario("intersection_bottleneck"),
+                   decisions_dir=decisions)
+
+
+def test_mock_named_only_in_diagnostics_is_still_refused(tmp_path):
+    with pytest.raises(MockBackendError):
+        decision_backend(_backend_decisions(tmp_path, None, "mock"))
+
+
+def test_allow_mock_scores_the_bundle_and_reports_the_backend(tmp_path):
+    decisions = _backend_decisions(tmp_path, "mock", "mock")
+    result = score_ib10(_ib10_gt(tmp_path, IB10_DESIGNED), decisions_dir=decisions,
+                        allow_mock=True)
+    assert result["backend_id"] == "mock"
+
+
+def test_live_bundle_row_carries_its_backend_id(tmp_path):
+    decisions = _backend_decisions(tmp_path, "gemini", "gemini")
+    result = score_ib10(_ib10_gt(tmp_path, IB10_DESIGNED), decisions_dir=decisions)
+    assert result["backend_id"] == "gemini"
+
+
+def test_flow_cli_refuses_a_mock_bundle_without_the_flag(tmp_path, capsys):
+    gt = _ib10_gt(tmp_path, IB10_DESIGNED)
+    decisions = _backend_decisions(tmp_path, "mock", "mock")
+    argv = ["flow", "--scenario", "intersection_bottleneck", "--gt", str(gt),
+            "--no-free-flow", "--decisions", str(decisions)]
+    assert main(argv) == 2
+    assert "--allow-mock" in capsys.readouterr().err
+    assert main([*argv, "--allow-mock"]) == 0
+    assert json.loads(capsys.readouterr().out)["backend_id"] == "mock"

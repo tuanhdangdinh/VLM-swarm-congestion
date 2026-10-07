@@ -13,6 +13,7 @@ import pytest
 import yaml
 
 from reasoning.vlm.output_parser import parse_decision_text
+from scripts.artifact_backend import MockBackendError
 from scripts.strategy_regret import (
     SCENES,
     cost_table,
@@ -432,3 +433,36 @@ class TestIntersectionBottleneck:
         assert result["arm"] == "junction_clear"
         assert result["regret_sec"] == 0.0
         assert result["regret_is_lower_bound"] is False
+
+
+class TestMockRefusal:
+    """Forcing-audit A2: a mock-answered artifact is not scored unless allowed."""
+
+    def _artifact(self, backend_id: str) -> dict:
+        return {
+            "decision": _first_decision(
+                "config/mock_decisions/convoy_counterflow_oracle_order_once.json"),
+            "diagnostics": {"backend_id": backend_id},
+            "reasoner_config_effective": {"backend_id": backend_id},
+        }
+
+    def test_mock_artifact_is_refused(self):
+        with pytest.raises(MockBackendError, match="mock backend"):
+            score_regret(_table(), self._artifact("mock"))
+
+    def test_allow_mock_scores_it_and_reports_the_backend(self):
+        result = score_regret(_table(), self._artifact("mock"), allow_mock=True)
+        assert result["backend_id"] == "mock"
+
+    def test_live_artifact_reports_its_backend(self):
+        assert score_regret(_table(), self._artifact("gemini"))["backend_id"] == "gemini"
+
+    def test_cli_refuses_a_mock_artifact_without_the_flag(self, tmp_path, capsys):
+        table = tmp_path / "table.json"
+        table.write_text(json.dumps(_table()))
+        decision = tmp_path / "decision.json"
+        decision.write_text(json.dumps(self._artifact("mock")))
+        argv = ["regret", "--table", str(table), "--decision", str(decision)]
+        assert main(argv) == 2
+        assert "--allow-mock" in capsys.readouterr().err
+        assert main([*argv, "--allow-mock"]) == 0

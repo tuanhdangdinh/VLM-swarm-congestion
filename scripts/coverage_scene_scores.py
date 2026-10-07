@@ -63,6 +63,13 @@ delay against the committed free-flow table, `scripts/free_flow_table.py`;
 `outcome_class` (`OutcomeClass`, Zuriguel et al., Sci Rep 2014). No
 existing field changes.
 
+Forcing audit (2026-10-07): every subcommand that reads `--decisions` (and
+`b2`'s `:DECISIONS`) reports the answering backend as `backend_id`
+(`decision_backend`) and REFUSES a bundle answered by the mock backend
+(exit 2) unless `--allow-mock` is given (smoke and unit bundles only);
+`outcome_class` gains `self_resolved` (zero dispatches) and `n_dispatches`
+is reported beside it.
+
 Definitions fixed before any smoke run (2026-09-29; B3 first-to-slip added
 2026-10-02; IB10 frozen 2026-10-03, step-7b Part 3; flow fields 2026-10-05);
 see each function.
@@ -109,6 +116,11 @@ from reasoning.rag.maneuver_geometry import (  # noqa: E402
 )
 from reasoning.rag.scene_geometry import SceneGeometry  # noqa: E402
 from reasoning.vlm.models import RobotStateInput, SnapshotFrame  # noqa: E402
+from scripts.artifact_backend import (  # noqa: E402
+    MockBackendError,
+    record_backend_id,
+    record_is_mock,
+)
 from scripts.free_flow_table import (  # noqa: E402
     FreeFlowTable,
     count_dispatches,
@@ -469,6 +481,7 @@ def score_b1(
     *,
     free_flow: FreeFlowTable | None = None,
     decisions_dir: Path | None = None,
+    allow_mock: bool = False,
     m5_log: str | None = None,
 ) -> dict[str, Any]:
     """All B1 metrics for one run.
@@ -478,6 +491,9 @@ def score_b1(
         scenario: The scenario dict (default: `bottleneck_merge.yaml`).
         free_flow: The free-flow table (`delay_vs_free_flow`), or None.
         decisions_dir: The run's decision artifacts (outcome re-triggers).
+        allow_mock: Score a bundle whose decisions came from the mock
+            backend (smoke/unit use only); without it such a bundle
+            raises `MockBackendError` (forcing-audit A2).
         m5_log: The run's M5 log text (outcome fallback flags).
 
     Returns:
@@ -526,7 +542,7 @@ def score_b1(
         "merge": b1_merge(series, conflict["onset_sec"], run.t0_sec, span, half),
         "conflict": conflict,
         **flow_fields(scenario, series, run, table=free_flow, decisions_dir=decisions_dir,
-                      m5_log=m5_log),
+                      m5_log=m5_log, allow_mock=allow_mock),
     }
 
 
@@ -619,7 +635,7 @@ def decision_route(decisions_dir: Path, urgent: str) -> dict[str, Any]:
 
 
 def score_b2_episode(
-    member: str, gt_dir: Path, decisions_dir: Path | None = None
+    member: str, gt_dir: Path, decisions_dir: Path | None = None, *, allow_mock: bool = False
 ) -> dict[str, Any]:
     """%CP for one B2 episode.
 
@@ -627,6 +643,7 @@ def score_b2_episode(
         member: `r1` or `r2` (scenario `priority_urgent_<member>`).
         gt_dir: The run's ground-truth directory.
         decisions_dir: Optional decision artifacts for the decision-level route.
+        allow_mock: Score mock-answered decisions (`decision_backend`).
 
     Returns:
         The urgent robot, the GT first passer at x = 0 and at the far mouths,
@@ -646,9 +663,10 @@ def score_b2_episode(
         "far_mouth_first_passer": _far_mouth_first(series, half_length),
     }
     if decisions_dir is not None:
+        backend_id = decision_backend(decisions_dir, allow_mock=allow_mock)
         route = decision_route(decisions_dir, urgent)
         result["decision"] = {**route, "cp": None if route["first_passer"] is None
-                              else route["first_passer"] == urgent}
+                              else route["first_passer"] == urgent, "backend_id": backend_id}
     return result
 
 
@@ -810,6 +828,7 @@ def score_b3(
     *,
     free_flow: FreeFlowTable | None = None,
     decisions_dir: Path | None = None,
+    allow_mock: bool = False,
     m5_log: str | None = None,
 ) -> dict[str, Any]:
     """B3 first-to-slip identity and latency, plus the conflict timeline.
@@ -822,6 +841,9 @@ def score_b3(
             `convoy_counterflow` run against this question).
         free_flow: The free-flow table (`delay_vs_free_flow`), or None.
         decisions_dir: The run's decision artifacts (outcome re-triggers).
+        allow_mock: Score a bundle whose decisions came from the mock
+            backend (smoke/unit use only); without it such a bundle
+            raises `MockBackendError` (forcing-audit A2).
         m5_log: The run's M5 log text (outcome fallback flags).
 
     Returns:
@@ -853,7 +875,7 @@ def score_b3(
         "arrivals_after_t0_sec": {rid: (None if at is None else round(at - run.t0_sec, 2))
                                   for rid, at in run.arrivals_sec.items()},
         **flow_fields(scenario, series, run, table=free_flow, decisions_dir=decisions_dir,
-                      m5_log=m5_log),
+                      m5_log=m5_log, allow_mock=allow_mock),
     }
 
 
@@ -1309,6 +1331,7 @@ def score_ib10(
     gt_dir: Path,
     *,
     decisions_dir: Path | None = None,
+    allow_mock: bool = False,
     m5_log: str | None = None,
     m4_log: str | None = None,
     scene_log: Path | None = None,
@@ -1327,6 +1350,9 @@ def score_ib10(
     Args:
         gt_dir: The run's ground-truth directory.
         decisions_dir: The run's M5 decision artifacts (chi-pair, re-triggers).
+        allow_mock: Score a bundle whose decisions came from the mock
+            backend (smoke/unit use only); without it such a bundle
+            raises `MockBackendError` (forcing-audit A2).
         m5_log: The run's M5 log text (phase reached, fallback flags).
         m4_log: The run's M4 log text (release attribution).
         scene_log: The run's M5 scene log (STALE streaks).
@@ -1373,7 +1399,8 @@ def score_ib10(
             jam["valid"], phase["phase_ordinal"], n_arrived, all_arrived
         ),
         **flow_fields(scenario, series, run, table=free_flow, decisions_dir=decisions_dir,
-                      m5_log=m5_log, valid=jam["valid"], invalid_reason=invalid_reason),
+                      m5_log=m5_log, valid=jam["valid"], invalid_reason=invalid_reason,
+                      allow_mock=allow_mock),
     }
 
 
@@ -1438,6 +1465,7 @@ def score_loop(
     scenario: dict[str, Any],
     *,
     decisions_dir: Path | None = None,
+    allow_mock: bool = False,
     scene_log: Path | None = None,
     sampler_log: Path | None = None,
     robot_id: str = "robot_1",
@@ -1456,6 +1484,9 @@ def score_loop(
         gt_dir: The run's ground-truth directory.
         scenario: The scenario dict (its `oracle` scores the decision).
         decisions_dir: The run's M5 decision artifacts.
+        allow_mock: Score a bundle whose decisions came from the mock
+            backend (smoke/unit use only); without it such a bundle
+            raises `MockBackendError` (forcing-audit A2).
         scene_log: The run's M5 scene log (STALE streaks).
         sampler_log: The run's `loop_family_sampler.py` JSONL.
         robot_id: The decision robot.
@@ -1529,7 +1560,8 @@ def score_loop(
             ),
         },
         "stale_streaks": None if scene_log is None else stale_streaks(scene_log),
-        **flow_fields(scenario, series, run, table=free_flow, decisions_dir=decisions_dir),
+        **flow_fields(scenario, series, run, table=free_flow, decisions_dir=decisions_dir,
+                      allow_mock=allow_mock),
     }
 
 
@@ -1679,6 +1711,45 @@ def retrigger_evidence(
         "fallback_exhausted": None if phase is None else phase["fallback_exhausted"],
     }
 
+
+
+def decision_backend(decisions_dir: Path, *, allow_mock: bool = False) -> str | None:
+    """The backend a run's decision artifacts were answered by (forcing-audit A2).
+
+    Before this check no scorer read `diagnostics.backend_id`, so a bundle
+    produced by the mock backend scored exactly like a live one.
+
+    Args:
+        decisions_dir: The run's copied M5 decision artifacts.
+        allow_mock: Accept mock-answered artifacts (unit tests and smoke
+            flows only, never a confirmatory bundle).
+
+    Returns:
+        The backend id (`reasoner_config_effective.backend_id`, else
+        `diagnostics.backend_id`); several distinct ids joined by `+` in
+        sorted order; None when no artifact records one.
+
+    Raises:
+        MockBackendError: If any artifact names the mock backend and
+            `allow_mock` is False.
+    """
+    backend_ids: set[str] = set()
+    mock_artifacts: list[str] = []
+    for path in sorted(decisions_dir.glob("*.json")):
+        record = json.loads(path.read_text(encoding="utf-8"))
+        if record_is_mock(record):
+            mock_artifacts.append(path.name)
+        backend_id = record_backend_id(record)
+        if backend_id is not None:
+            backend_ids.add(backend_id)
+    if mock_artifacts and not allow_mock:
+        raise MockBackendError(
+            f"{decisions_dir}: {len(mock_artifacts)} decision artifact(s) were answered by "
+            f"the mock backend (first: {mock_artifacts[0]}); a mock bundle is not "
+            "scoreable as confirmatory evidence. Pass --allow-mock (allow_mock=True) "
+            "only for smoke or unit-test bundles."
+        )
+    return "+".join(sorted(backend_ids)) or None
 
 def own_departure_sec(samples: list[Sample]) -> float | None:
     """A robot's own departure: its first sample faster than `DEPARTURE_SPEED_MPS`.
@@ -2009,6 +2080,7 @@ def flow_fields(
     *,
     table: FreeFlowTable | None = None,
     decisions_dir: Path | None = None,
+    allow_mock: bool = False,
     m5_log: str | None = None,
     valid: bool = True,
     invalid_reason: str | None = None,
@@ -2020,7 +2092,8 @@ def flow_fields(
     (dos Passos et al., arXiv:2201.09335; None without a registered aperture)
     and `outcome_class` (Zuriguel et al., Sci Rep 2014: resolved /
     intermittent / clogged / self_resolved), with the re-trigger evidence
-    behind the class and `n_dispatches` beside it.
+    behind the class and `n_dispatches` beside it, plus `backend_id`
+    (`decision_backend`; None without decisions).
 
     Args:
         scenario: The scenario dict.
@@ -2028,6 +2101,9 @@ def flow_fields(
         run: `score_ground_truth`'s arrivals and episode end.
         table: The free-flow table, or None (delays then null, `no_table`).
         decisions_dir: The run's decision artifacts (dispatch count).
+        allow_mock: Score a bundle whose decisions came from the mock
+            backend (smoke/unit use only); without it such a bundle
+            raises `MockBackendError` (forcing-audit A2).
         m5_log: The run's M5 log text (fallback flags).
         valid: False for a run that is not an episode (the outcome is None).
         invalid_reason: Why the run is not an episode (e.g. a dead stack),
@@ -2038,6 +2114,9 @@ def flow_fields(
     """
     involved = list((scenario.get("expected_conflict") or {}).get("involved_robots")
                     or sorted(series))
+    backend_id = (
+        None if decisions_dir is None else decision_backend(decisions_dir, allow_mock=allow_mock)
+    )
     evidence = retrigger_evidence(decisions_dir, m5_log)
     all_arrived = all(v is not None for v in run.arrivals_sec.values())
     is_valid = valid and invalid_reason is None
@@ -2058,6 +2137,8 @@ def flow_fields(
         # Co-reported with the class on every row (forcing-audit A3): the
         # class alone hides how many interventions an episode received.
         "n_dispatches": evidence["n_dispatches"],
+        # Forcing-audit A2: which backend answered the scored decisions.
+        "backend_id": backend_id,
         "outcome_evidence": {
             **evidence, "all_arrived": all_arrived, "valid": is_valid,
             "invalid_reason": invalid_reason,
@@ -2071,6 +2152,7 @@ def score_flow(
     *,
     table: FreeFlowTable | None = None,
     decisions_dir: Path | None = None,
+    allow_mock: bool = False,
     m5_log: str | None = None,
     invalid_reason: str | None = None,
 ) -> dict[str, Any]:
@@ -2081,6 +2163,9 @@ def score_flow(
         scenario: The scenario dict.
         table: The free-flow table, or None.
         decisions_dir: The run's decision artifacts.
+        allow_mock: Score a bundle whose decisions came from the mock
+            backend (smoke/unit use only); without it such a bundle
+            raises `MockBackendError` (forcing-audit A2).
         m5_log: The run's M5 log text.
         invalid_reason: Marks a harness-invalid run (outcome None).
 
@@ -2100,7 +2185,8 @@ def score_flow(
         "arrivals_after_t0_sec": {rid: (None if at is None else round(at - run.t0_sec, 2))
                                   for rid, at in run.arrivals_sec.items()},
         **flow_fields(scenario, series, run, table=table, decisions_dir=decisions_dir,
-                      m5_log=m5_log, valid=valid, invalid_reason=invalid_reason),
+                      m5_log=m5_log, valid=valid, invalid_reason=invalid_reason,
+                      allow_mock=allow_mock),
     }
 
 
@@ -2136,7 +2222,7 @@ def _cmd_conflict(args: argparse.Namespace) -> int:
 
 def _cmd_b1(args: argparse.Namespace) -> int:
     _dump(score_b1(Path(args.gt), free_flow=_table(args), decisions_dir=_path(args.decisions),
-                   m5_log=_text(args.m5_log)), args.out)
+                   m5_log=_text(args.m5_log), allow_mock=args.allow_mock), args.out)
     return 0
 
 
@@ -2147,7 +2233,8 @@ def _cmd_b2(args: argparse.Namespace) -> int:
         if len(parts) not in (3, 4) or parts[0] not in ("r1", "r2"):
             raise SystemExit(f"--run must be r1|r2:<seed>:<gt dir>[:<decisions dir>]; got {item!r}")
         decisions = Path(parts[3]) if len(parts) == 4 else None
-        episode = score_b2_episode(parts[0], Path(parts[2]), decisions)
+        episode = score_b2_episode(parts[0], Path(parts[2]), decisions,
+                                   allow_mock=args.allow_mock)
         episode["seed"] = int(parts[1])
         episodes.append((parts[0], int(parts[1]), episode))
     _dump({"episodes": [e for _m, _s, e in episodes], **score_b2(episodes)}, args.out)
@@ -2156,7 +2243,7 @@ def _cmd_b2(args: argparse.Namespace) -> int:
 
 def _cmd_b3(args: argparse.Namespace) -> int:
     _dump(score_b3(Path(args.gt), free_flow=_table(args), decisions_dir=_path(args.decisions),
-                   m5_log=_text(args.m5_log)), args.out)
+                   m5_log=_text(args.m5_log), allow_mock=args.allow_mock), args.out)
     return 0
 
 
@@ -2170,6 +2257,7 @@ def _cmd_ib10(args: argparse.Namespace) -> int:
             scene_log=_path(args.scene),
             free_flow=_table(args),
             invalid_reason=args.invalid_reason,
+            allow_mock=args.allow_mock,
         ),
         args.out,
     )
@@ -2185,6 +2273,7 @@ def _cmd_loop(args: argparse.Namespace) -> int:
             scene_log=_path(args.scene),
             sampler_log=_path(args.sampler),
             free_flow=_table(args),
+            allow_mock=args.allow_mock,
         ),
         args.out,
     )
@@ -2206,10 +2295,18 @@ def _cmd_flow(args: argparse.Namespace) -> int:
             decisions_dir=_path(args.decisions),
             m5_log=_text(args.m5_log),
             invalid_reason=args.invalid_reason,
+            allow_mock=args.allow_mock,
         ),
         args.out,
     )
     return 0
+
+
+def _allow_mock_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--allow-mock", action="store_true",
+        help="score decisions answered by the mock backend (smoke/unit bundles only)",
+    )
 
 
 def _flow_args(parser: argparse.ArgumentParser, *, logs: bool = True) -> None:
@@ -2219,6 +2316,8 @@ def _flow_args(parser: argparse.ArgumentParser, *, logs: bool = True) -> None:
     if logs:
         parser.add_argument("--decisions")
         parser.add_argument("--m5-log")
+    # Every `_flow_args` subcommand reads decision artifacts (forcing-audit A2).
+    _allow_mock_arg(parser)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -2238,6 +2337,7 @@ def main(argv: list[str] | None = None) -> int:
     b2 = sub.add_parser("b2", help="B2 %%CP per episode and per seed-matched pair")
     b2.add_argument("--run", action="append", required=True)
     b2.add_argument("--out")
+    _allow_mock_arg(b2)
     b2.set_defaults(func=_cmd_b2)
     b3 = sub.add_parser("b3", help="B3 first-to-slip identity and latency")
     b3.add_argument("--gt", required=True)
@@ -2275,7 +2375,11 @@ def main(argv: list[str] | None = None) -> int:
     _flow_args(flow)
     flow.set_defaults(func=_cmd_flow)
     args = parser.parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except MockBackendError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
