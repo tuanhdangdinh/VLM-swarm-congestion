@@ -17,6 +17,7 @@ from reasoning.rag.command_grounder import (
     CommandGroundingError,
     PlanRepairParams,
     _derive_default_plan,
+    degradation_cause,
     ground_junction_clear_phases,
     ground_reasoner_result,
     junction_clear_dispatch_match,
@@ -593,6 +594,60 @@ class TestStaggeredNeverSimultaneous:
                 _result(_decision()), snapshot=_frame(), params=GroundingParams(mode="derived"),
                 geometry=_geometry(offset_m=None),
             )
+
+
+# ---- forcing-audit A4: a discarded model crossing order is tagged as such ----
+
+_MODEL_ORDER = ["robot_2", "robot_4", "robot_3", "robot_1"]
+
+
+class TestDiscardedYieldAxisOrder:
+    def _plan(self, **overrides):
+        return ground_junction_clear_phases(
+            _result(_decision(**overrides)), snapshot=_frame(),
+            params=GroundingParams(mode="derived"), geometry=_geometry(),
+        )
+
+    def test_fallback_marks_a_discarded_order_instead_of_implicit(self):
+        tags = self._plan(crossing_order=_MODEL_ORDER).fallback_command["degradations"]
+        assert "order=discarded_yield_axis" in tags
+        assert "order=implicit" not in tags
+
+    def test_fallback_without_a_model_order_stays_implicit(self):
+        tags = self._plan().fallback_command["degradations"]
+        assert "order=implicit" in tags
+        assert "order=discarded_yield_axis" not in tags
+
+    def test_single_passer_cross_phase_still_marks_the_discarded_order(self):
+        # Two yield-axis robots leave one passer, where `order=implicit`
+        # never fires: the discarded order would otherwise be invisible.
+        cross = next(p for p in self._plan(crossing_order=_MODEL_ORDER).phases
+                     if p.label == "cross")
+        assert "order=discarded_yield_axis" in cross.command["degradations"]
+        assert "order=implicit" not in cross.command["degradations"]
+
+    def test_cross_phase_without_a_model_order_has_no_order_marker(self):
+        cross = next(p for p in self._plan().phases if p.label == "cross")
+        assert "order=discarded_yield_axis" not in cross.command["degradations"]
+
+    def test_no_candidates_fallback_marks_the_discarded_order(self):
+        command = ground_reasoner_result(
+            _result(_decision(crossing_order=_MODEL_ORDER)), geometry=_geometry(offset_m=None),
+            snapshot=_frame(), params=GroundingParams(mode="derived"),
+        )
+        assert "junction_clear=fallback:no_candidates" in command["degradations"]
+        assert "order=discarded_yield_axis" in command["degradations"]
+
+    def test_explicit_order_override_is_not_marked_discarded(self):
+        command = ground_reasoner_result(
+            _result(_decision(crossing_order=_MODEL_ORDER)), geometry=_geometry(offset_m=None),
+            snapshot=_frame(), params=GroundingParams(mode="derived"),
+            crossing_order=["robot_2", "robot_3", "robot_4"],
+        )
+        assert "order=discarded_yield_axis" not in command["degradations"]
+
+    def test_tag_is_a_provenance_marker_not_a_cause(self):
+        assert degradation_cause("order=discarded_yield_axis") is None
 
 
 # ---- end-to-end ground_reasoner_result: the single-command contract ----

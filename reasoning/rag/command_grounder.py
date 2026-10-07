@@ -1114,6 +1114,12 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # Three or more robots with no explicit crossing order: involved-robots
     # order was used. Convention markers, not measurement-plan causes.
     "order=implicit": None,
+    # Forcing-audit A4: the decision DID give a `crossing_order`, but a
+    # `junction_clear` yield-axis / plain-yield-fallback rebuild
+    # (`_as_yield_decision`) discarded it, so the implicit order ran. Kept
+    # apart from `order=implicit` ("none given") so repaired-order metrics
+    # do not count a discarded model order as an absent one.
+    "order=discarded_yield_axis": None,
     # J1 same-axis filter (v2-branch divergence from the v1-frozen Arm B,
     # design study 2026-09-29): a robot held opposite a same-axis partner
     # also in the order was dropped from it instead of leading it (see
@@ -1631,6 +1637,11 @@ def _ground_derived(
                 yield_feasibility_mode=yield_feasibility_mode,
             )
             tags = ["junction_clear=fallback:no_candidates"]
+            if crossing_order is None and decision.crossing_order is not None:
+                # Forcing-audit A4: this list replaces the yield's own tags,
+                # so the discarded model order is marked here directly. An
+                # explicit caller override is the operative order instead.
+                tags.append("order=discarded_yield_axis")
             # Loudness guard (step-6 coordinator ruling): `no_candidates` also
             # fires for an unrelated, legitimate reason (no cross-axis arms
             # under a fully-declared geometry), so it is not on its own a
@@ -1962,15 +1973,18 @@ def ground_junction_clear_phases(
     missing_j2 = bool(missing)
 
     fallback_result = result.model_copy(update={"decision": _as_yield_decision(decision)})
-    fallback_command = _ground_derived(
-        fallback_result,
-        snapshot=snapshot,
-        params=params,
-        retreat_choice=None,
-        crossing_order=None,
-        geometry=geometry,
-        static_obstacles=static_obstacles,
-        yield_feasibility_mode=yield_feasibility_mode,
+    fallback_command = _tag_discarded_order(
+        _ground_derived(
+            fallback_result,
+            snapshot=snapshot,
+            params=params,
+            retreat_choice=None,
+            crossing_order=None,
+            geometry=geometry,
+            static_obstacles=static_obstacles,
+            yield_feasibility_mode=yield_feasibility_mode,
+        ),
+        decision,
     )
     # Hold every recede candidate the fallback's own plain-yield grounding
     # does not already address (J1 drops them from its order on purpose):
@@ -2050,15 +2064,18 @@ def ground_junction_clear_phases(
     yield_result = result.model_copy(
         update={"decision": _as_yield_decision(decision, yield_robots)}
     )
-    yield_command = _ground_derived(
-        yield_result,
-        snapshot=snapshot,
-        params=params,
-        retreat_choice=retreat_choice,
-        crossing_order=None,
-        geometry=geometry,
-        static_obstacles=static_obstacles,
-        yield_feasibility_mode=yield_feasibility_mode,
+    yield_command = _tag_discarded_order(
+        _ground_derived(
+            yield_result,
+            snapshot=snapshot,
+            params=params,
+            retreat_choice=retreat_choice,
+            crossing_order=None,
+            geometry=geometry,
+            static_obstacles=static_obstacles,
+            yield_feasibility_mode=yield_feasibility_mode,
+        ),
+        decision,
     )
     acting_robot_ids = {action["robot_id"] for action in yield_command["actions"]}
     extra_holds = [
@@ -2930,7 +2947,9 @@ def _as_yield_decision(
         `crossing_order` cleared (the restricted robot set may not be a
         permutation of the original order; `resolve_yield_roles` falls back
         to its own implicit order either way, so clearing avoids a spurious
-        `order=default:non_permutation` degradation tag).
+        `order=default:non_permutation` degradation tag). A grounding caller
+        marks a cleared model order with `_tag_discarded_order`
+        (`order=discarded_yield_axis`), never `order=implicit`.
     """
     robots = list(working.involved_robots) if involved_robots is None else list(involved_robots)
     yield_robot = working.yield_robot if working.yield_robot in robots else None
@@ -2942,6 +2961,25 @@ def _as_yield_decision(
             "crossing_order": None,
         }
     )
+
+
+def _tag_discarded_order(command: dict[str, Any], original: CongestionDecision) -> dict[str, Any]:
+    """Mark a command grounded from `_as_yield_decision(original)` whose order was discarded.
+
+    Replaces `order=implicit` (which there would claim no order was given)
+    with `order=discarded_yield_axis`, or appends that tag when the yield
+    axis had too few passers for `order=implicit` to fire. No-op when
+    `original` gave no `crossing_order`.
+    """
+    if original.crossing_order is None:
+        return command
+    tags = list(command.get("degradations", []))
+    marker = "order=discarded_yield_axis"
+    if "order=implicit" in tags:
+        tags = [marker if tag == "order=implicit" else tag for tag in tags]
+    else:
+        tags.append(marker)
+    return _with_degradations(command, tags)
 
 
 def _junction_clear_default_actions(
