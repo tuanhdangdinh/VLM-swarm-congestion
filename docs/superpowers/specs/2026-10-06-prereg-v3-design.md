@@ -24,6 +24,36 @@
 **Status:** DESIGN — nothing here is built for v3. The v3 freeze
 happens only after v2 collection and analysis complete.
 
+**SCENE DESIGN ATTACHED (2026-10-06):**
+`docs/superpowers/specs/2026-10-06-v3-scene-design.md` (S1–S6,
+code-derived geometry, migration table, 9-item build list) is the
+detail layer under Steps 1–5. Coordinator rulings on its
+escalations:
+- **S1 density framing (material):** the literal Ghofrani analog is
+  INFEASIBLE — our tracked band is ~51% racks, giving 5.4 free
+  0.55 m cells/agent at N=5 vs their 40.5, i.e. OUR N=5 floor sits
+  at their N≈37 density, beyond their N=25 regime where 76–91% of
+  runs failed. S1 is therefore registered as "their structure, our
+  (much harsher) density regime" — a documented deviation and an
+  expectation-setter (low completion is a finding, not a failure),
+  never presented as matched density.
+- **MAPD-10 rung STRUCK from Step 5** (density worsens with N); the
+  scale rungs are S5's convergence geometry at N=8 AND N=10 (the
+  derived layout admits both), classification/triage-only.
+- **S3/S2 ε for axis sets:** adopt the per-episode equivalence rule
+  (judged at the dispatched snapshot, out-of-ε stratum reported);
+  ε_set sizing deferred to Step 0's fixed-stack jam corpus — note
+  the trade-off recorded in the scene doc (ε_set≈0.28 cleans S3 but
+  un-guarantees S2's floor at its weakest jams).
+- **New build items absorbed into the Step-6 gate list:** the
+  dispatch-off probe flag (t0_probe_mode does NOT suppress
+  dispatch — scene-doc correction), the parked-robot exclusion in
+  mirrored grounding, dynamic per-snapshot `arms` + node-handoff
+  grounding (S1's largest prerequisite), and marker 5–10 rendering
+  verification (never rendered to date).
+- S1 remains the first item to slip under schedule pressure, per
+  both documents.
+
 **Reference pinning:** the cited reports live on specific branches,
 not the spec lineage: `docs/reports/2026-10-05-costmap-fix-validation.md`
 at `feat/v3-costmap-fix@0b2e755`; the source-probe, verbatim-pilot,
@@ -294,3 +324,201 @@ prereg-v2 tag once cut; meanwhile `fix/deadlock-collision-resolution`);
 pinned report locations as listed under "Reference pinning"; the six
 untracked literature reports under `reports/`; the prereg-v1
 amendments lineage.
+
+---
+
+## Rev 3 (2026-10-07) — inputs folded after rev 2 (append-only)
+
+Seven input streams landed between rev 2 (@64fb148 + scene rulings
+@0f65304) and this revision. Each item below carries a ruling; nothing
+above this line is rewritten.
+
+### R3.1 Scenario formalism adopted (design-wide)
+
+Every v3 scene is restated, at freeze time, as the tuple
+**S = (M, R, X₀, G, C, τ, Σ)** — map, robots, initial configuration,
+tasks, congestion class, trigger condition, metric set — with two
+operational definitions carried design-wide: congestion measured as
+**excess delay vs the same-robot free-flow baseline**, and the
+**unresolved-after-timeout outcome kept as its own class** (justified
+by the clogging literature's divergence criterion rather than an
+ad-hoc threshold). Source: the 2026-10-07 literature round "Định
+nghĩa congestion scenarios trong swarm" (untracked report under
+`reports/`), which found only four explicit operational congestion
+definitions in the field and no sham-congestion specificity control —
+T0 (and S4's box-vs-robot pair) are hereby ALSO framed as that
+missing specificity control in any v3 claims text. ADOPTED.
+
+### R3.2 Audit inheritance (forcing audit 2026-10-07)
+
+v3 runs on the post-audit artifact contract: `junction_phases`
+serialized into decision artifacts (A1), recorded==dispatched via the
+pre-write registry record (A5b), `self_resolved` outcome class —
+`resolved` requires ≥1 dispatched decision, `n_dispatches` top-level
+(A3), `order=discarded_yield_axis` tag (A4), and the two frozen
+analysis rules: headline accuracy splittable by
+`refusal_attempts`/`image_fallback_used`, and `repaired`-plan credit
+conditioned on logged edit count/ops. v3 scorers (S1–S6) MUST consume
+`self_resolved` and the backend_id filter from the start — they are
+written post-audit and get no grandfather clause. The thesis-claim
+ceiling established by the audit ("the VLM selects among
+pre-engineered resolutions; the deterministic stack executes") is the
+Methods-chapter framing; R3.3 is the registered route for raising the
+model's causal content. ADOPTED.
+
+### R3.3 New arm: dispatch-model-order-when-verified
+
+Motivation (claim-strength review 2026-10-07): under the inherited
+contract the junction dispatch order is always χ, with the model's
+order honored only as a verification-time equivalence flag — so the
+model's causal content excludes ordering by construction. REGISTER a
+two-condition arm on S2/S3 (and S6 if its build lands): when the
+model's `proposed_plan` passes verification (strategy consistent,
+roles legal, order within the scene's registered ε-set), condition B
+dispatches THE MODEL'S order; condition A dispatches χ as inherited.
+Unverified plans fall back to the inherited path in both conditions
+(the verifier is untouched — this changes the dispatch ORDER SOURCE
+for verified plans only). Metrics: outcome-class and
+delay_vs_free_flow deltas A vs B, stratified by `order_equivalent`;
+plan-stability unchanged. One M3 flag + an A/B condition in the
+runner; build cost small. This arm is the registered answer to "the
+claim is too weak" — it either shows model ordering is as good as χ
+(strengthening verbatim-dispatch claims) or shows χ repairs are
+load-bearing (strengthening the verify-repair contribution). Either
+result is publishable; neither is assumed.
+
+### R3.4 Prompt/input upgrades from the capability round (2026-10-06)
+
+From "Nâng cao năng lực điều phối VLM" (five-researcher round):
+- **SoM-ID verbatim match** — verify the annotated frame's robot
+  label text is byte-identical to the token the prompt/JSON uses
+  (`robot_1`, not `1`); if any mismatch exists, fixing it is a Step 0
+  apparatus item with a before/after pin; if none, record that check.
+  ADOPTED (check first, A/B only if a mismatch is found).
+- **Homography metric grid** — the wave-1 `grid` flag (built,
+  default-off, byte-identity pinned) gets a registered per-backend
+  A/B in Step 4; literature shows large spatial gains for some
+  backends and regressions for others, so NO backend inherits
+  another's grid verdict. ADOPTED as Step 4 condition.
+- **Permutation voting** — already built (distinct-order ballots,
+  earliest-tied-ballot tie-break); REGISTERED as a Step 4 condition
+  on the two most order-sensitive families (S2, S3), single-draw
+  elsewhere. Literature positions it as the direct countermeasure to
+  the measured first-slot/robot_1 prior.
+- **Contradiction trigger + per-event replan budget** — M5 build
+  item: re-query early when a commanded robot measurably diverges
+  from its issued leg (definition to be frozen at Step 6: leg status
+  FAILED or position divergence beyond a registered bound), with a
+  per-event replan cap. Event-triggered-vs-periodic evidence: ~20×
+  fewer replans at equal reward. ADOPTED into Step 4.
+- **Failure-explanation line** — the failure context gains a
+  classically-derived one-line cause (from leg statuses/refusal
+  reasons already in artifacts), not a model-generated one; the
+  literature's largest closed-loop gains attach to the explanation,
+  and a classical source keeps the channel deterministic. ADOPTED
+  into Step 4.
+- **Cross-provider vote pilot** — gpt-4o + ER-2 vote on the strategy
+  enum (and disagreement-triggered escalation variant): no published
+  robotics result exists; measured error modes are decorrelated.
+  REGISTERED as a Step 5 pilot.
+- **RAG over past congestion episodes** (M3 episodic memory):
+  unclaimed in 2024–2026 literature but a build of its own. DEFERRED
+  (future-work section of the thesis; not a v3 cell).
+
+### R3.5 Trail arm: RULED OUT at current settings
+
+The 2026-10-06 offline pilot (feat/trail-probe-pilot@cb1c171, adopted
+file-only at 88b3bb4): every backend×probe delta ≤1 vs a same-day
+re-ask across the 59 frozen battery items; the 3 s trail renders a
+median 222 px in a 1.23 Mpx frame. No v3 trail arm. A re-pilot
+(~$0.30, same offline harness) is CONDITIONAL on all three of:
+6–10 s window, bolder stroke, and the trail gloss added to the probe
+prompt — and is only motivated if a v3 scene shows temporal-confusion
+failures in collection.
+
+### R3.6 S1 family: S1b sparse-warehouse variant REGISTERED (pending owner approval)
+
+Companion to the S1 density ruling (@0f65304): a second S1 family
+member on the SAME tracked-band footprint with minimal racks —
+density moves from ~5.4 free cells/agent toward the ~11–12 ceiling
+the camera footprint allows (their 40.5 stays unreachable; the
+deviation note stands). S1a+S1b form a two-point density axis whose
+completion trend is comparable-in-direction to the GECCO paper's
+agent-count table. Build cost (precedented by the loop-map wave): USD
+build + Nav2 map via the existing generators, hotspot Monte Carlo
+re-run, ~18-leg free-flow harvest, one M1 coverage verification
+session. Runs only if S1a lands and budget (R3.7) permits.
+
+### R3.6a S1b amendments after advisor review (2026-10-07, supersedes
+R3.6 where they conflict)
+
+Four corrections from the advisor pass on R3.6's sketch:
+1. **Latch-aware corridor width.** "≥2 robot widths" (0.712 m) is NOT
+   passable under the 0.45 m M4 latch: two passing robots need
+   center separation ≥0.45 m, so genuinely two-lane corridors around
+   the rack islands must be **≥0.85–0.90 m** (Nav2 inflation checked
+   on the real costmap). Acceptance includes a LIVE two-robot pass
+   check in the M1-verification session, not a geometric claim.
+2. **Regime axis, not density axis.** S1a→S1b changes both density
+   and congestion class (deterministic single-lane → stochastic
+   clogging), so the pair is registered as a **regime axis**;
+   completion trend vs the GECCO agent-count table is cited as
+   qualitative direction only. The phrase "two-point density axis"
+   in R3.6 is retired.
+3. **Inflation-adjusted density.** Free-cells-per-agent figures are
+   recomputed on the **post-inflation Nav2 costmap** of each map
+   (count free cells, divide by N); the geometric 5.4/10.5 numbers
+   survive only with an explicit "nominal, pre-inflation" label.
+   Rack coverage percentages are counted on the tracked band.
+4. **MC gate derived, hypothesis de-directionalized.** The S1b
+   Monte Carlo gate thresholds are derived from S1a's own MC
+   (median first conflict 15 s; 309/400 junction share) plus the
+   statistical requirement of ≥1 congestion event per episode, with
+   the SAME conflict definition as S1a's MC; the specific numbers
+   are frozen at Step 6, not invented per-map. The Arm A−Arm B
+   comparison across regimes is registered as **CI estimation of
+   the delta per regime**, with the Goldilocks expectation (delta
+   maximal at intermediate difficulty) recorded as interpretation,
+   not as a directional hypothesis.
+Minor carried items: island/node placement stays inside verified M1
+extents and away from the marker-edge STALE zone; the release
+stagger Δ and its feasibility bound are recomputed for the new
+layout (S1a's Δ=4 < 4.42 is geometry-specific).
+
+### R3.7 Episode budget correction (timing probe 2026-10-07)
+
+Measured harness cycle is **1082 s median for a 2-robot cell** (probe
+report `docs/reports/2026-10-07-shutdown-timing-probe.md`,
+probe/shutdown-timing@8da4964) — not the ~12–13 min earlier sections
+assumed. Facts folded: `fast_shutdown` is already the Isaac 6.0.1
+default (shutdown ≈ 14 s; no patch); Kit swallows SIGTERM (the real
+mechanism behind the Isaac-survives-cleanup trap); ~238 s/cycle is
+fc_launch tailing after Isaac exits; 56% of a head-on cycle runs
+after all arrivals. Two harness options sit with the coordinator:
+**Option B** (stop tailing on Isaac exit; no outcome change;
+−241 s/2-robot cycle) — v3 ASSUMES Option B lands before any v3
+collection; **Option C** (in-loop stop flag on all-arrivals;
+truncates post-arrival GT on resolved episodes) — if ruled in, v3
+free-flow and flow-metric definitions are unaffected (all are
+pre-arrival quantities), but the ruling must be append-only and
+precede free_flow_v2. S1's own budget (R=20/arm ≈ 40–48 h) already
+assumed ~1 h/episode and is NOT reduced by Option C (task-stream
+episodes end on task completion, not arrivals). Every v3 cell-count
+decision at Step 6 uses 18 min/episode (2-robot), ~23 min (3-robot),
+and the scene doc's own figures for S1/S5, under the current harness,
+minus Option B's saving once confirmed.
+
+### R3.8 Roster, prompt lineage, and tiering
+
+v2's roster grew (qwen3-vl, sonnet, deepseek-flash, gpt-5.6-sol
+validated 2026-10-07; gpt-5.1 deprecated) and prompt moved to v3.4
+(think block removed, family re-pinned). Consequences: (a) Step 6
+re-pins the FINAL prompt digest at the v2 freeze tag — the v3.3
+digest cited earlier in this doc is superseded by whatever the tag
+carries, and per-backend calibration episodes post-v3.4 are a Step 0
+item; (b) model scope is tiered: confirmatory v3 arms stay on the two
+frozen backends; the wider roster enters ONLY through Step 5 as
+tier-0 probe battery (all models, offline, ~$0.25/model) then tier-2
+small pilot cells for the top 2–3 — the nine-arm full matrix is
+explicitly NOT a v3 deliverable (cost ≈ 480–600 VM-h under the
+measured harness).
