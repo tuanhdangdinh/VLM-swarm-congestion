@@ -195,6 +195,9 @@ The driver sent SIGTERM to the `fc_launch` bash 60 s after "all components start
 2. **The hotfix tree was not smoked separately.** Its runner, CLI and lifecycle helper are byte-identical to the smoked composite files. Its `fc_launch.sh` differs from the smoked one only in the pre-existing free-flow lines. Running one more $0 smoke from the hotfix tree is the coordinator's call.
 3. **An interactive Ctrl-C was not exercised and may still reach Kit directly.** Kit sits in `fc_launch`'s process group, and SimulationApp installs its own SIGINT handler, which skips the manifest. Collection drivers run detached (`setsid nohup`), which is the path tested here.
 4. **4-robot cells are unchanged by design.** Isaac outlives the `REC_SEC` cap, the flag is not touched on the cap path, and Isaac finishes its horizon after `fc_launch` exits. The `pgrep` gate before relaunch is still required there.
-5. **`free_flow_run.sh` now races `fc_launch` to end the tail.** Its own external tail-killer is redundant but harmless. If it fires first, `fc_launch` logs "tail ended by itself" and skips the grace.
+5. **`free_flow_run.sh`'s external tail-killer is now redundant but harmless.**
+   - It kills the tail only once `pgrep '[r]un_simulation'` is empty. The `sudo` wrapper's command line contains `run_simulation`, so an empty `pgrep` means `ISAAC_PID` is already gone.
+   - `isaac_wait_exit_or_cap` checks Isaac before it checks the tail, so `fc_launch` still takes the Isaac-exited branch and logs it.
+   - The external kill can only end the tail early, inside the 10 s grace window.
 6. **Collection wrappers.** `v2_final_run.sh`'s optional sampler and snapshot sidecars (`REC_SEC − 30`) are `docker exec` clients, and `fc_launch`'s container restart ends them, so its `wait` does not reimpose the fixed window.
 7. **Pre-existing behavior, unchanged.** `fc_launch` still exits rc 141 on normal runs, and `SIM_SEC`/`--duration-sec` is still dead.
