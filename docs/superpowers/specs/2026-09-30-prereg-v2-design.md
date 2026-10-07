@@ -407,6 +407,31 @@ recorded per arm — the served-model string alone is uninformative
 on undated pins, so analyses condition on fingerprint + window,
 not on the echoed model name.
 
+**Nine-arm v1-scenario tier RULED (2026-10-07, USER DECISION "9
+models on v1 too"):** the full roster also runs the v1 scenario
+battery. Tier structure, binding: (1) the REGISTERED v1
+confirmatory collection is UNCHANGED — gpt-4o + ER-2 only, from
+`prereg-v1-hotfix`, frozen prompts/configs, episode counts per the
+v1 design; this is the only tier that may be reported as
+pre-registered, because the other seven arms postdate the tag.
+(2) A **v1-scenario EXPLORATORY tier** is added: the remaining
+arms (and the v1 pair's v2-condition replicates, if sampled) run
+the SAME v1 scenario families from the `feat/prereg-v2-composite`
+code (the seven adapters do not exist at the tag; back-porting
+them would create an unaudited third lineage), with the v2
+apparatus flags at defaults and provenance fields distinguishing
+the tier in every artifact. Reports must label the two tiers and
+never pool them into one confirmatory claim. (3) Scale
+consequence, recorded: v1 design volume is ~470–590 episodes for
+TWO arms (~235–295/arm); seven more arms at parity adds roughly
+1,600–2,000 episodes ≈ 330–410 VM-hours (~$300–370 VM at $0.9/h,
+plus API spend, GLM/DeepSeek cheap, Sonnet/5.6-sol dominant) and
+two-plus weeks of wall time at one sim seat — the owner may set a
+reduced per-arm episode budget for the exploratory tier before
+collection starts (a smaller N is legitimate there; it is not a
+registered power target). Collection still starts only on the
+owner's word.
+
 **Hypothesis arms RESULTS + RULINGS (2026-10-07,
 `docs/reports/2026-10-07-hypothesis-arms.md`; nine-arm table is
 the freeze's model annex; reading rule committed pre-call at
