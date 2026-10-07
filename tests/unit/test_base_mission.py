@@ -771,3 +771,32 @@ def test_guard_off_client_resends_and_never_stops_controller():
     resume_1_result("ACTIVE", "goal accepted")
     assert node._adapter.controller_stops == []
     assert node._adapter.own_cancels == []
+
+
+def test_registry_republish_does_not_resend_unchanged_unaccepted_goal():
+    """m4's unlogged send: M5 republishes the registry at the phase hand-off."""
+    driver = _driver_in_cross_phase()
+    driver.on_status("robot_1", "cross", "COMPLETED")
+    driver.drain_events()
+
+    assert driver.on_registry(_IB10_REGISTRY) == []
+    assert any(
+        "handoff guard: registry re-send suppressed" in e and "robot_1" in e
+        for e in driver.drain_events()
+    )
+
+
+def test_registry_goal_change_is_still_issued_under_guard():
+    driver = _driver_in_cross_phase()
+    driver.on_status("robot_1", "cross", "COMPLETED")
+
+    moved = dict(_IB10_REGISTRY, robot_1={"task": "cross_intersection", "goal": [1.5, 0.0]})
+
+    assert driver.on_registry(moved) == [("robot_1", (1.5, 0.0))]
+
+
+def test_guard_off_registry_republish_resends_unaccepted_goal():
+    driver = _driver_in_cross_phase(handoff_guard=False)
+    driver.on_status("robot_1", "cross", "COMPLETED")
+
+    assert driver.on_registry(_IB10_REGISTRY) == [("robot_1", (1.75, 0.0))]

@@ -117,6 +117,7 @@ class CoordinationClientNode(Node):
             return
         for robot_id, goal in self._driver.on_registry(registry):
             self._issue_navigate(robot_id, goal)
+        self._log_driver_events()
 
     def _on_command(self, msg: CoordinationCommand) -> None:
         action = str(getattr(msg, "action", "") or "")

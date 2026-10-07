@@ -38,14 +38,18 @@ naive "mark issued on send" model gets wrong:
 Hand-off race guard (`handoff_guard`, default on; docs/reports/
 2026-10-08-ib10-remedy-validation.md run m4). The client learns of a command
 only when it processes `/coordination/commands`, which can lag the command
-bus's own dispatch by a few hundred ms. Two leaks let a base goal reach Nav2
-inside that window, and the guard closes both:
+bus's own dispatch by a few hundred ms. Three leaks let a base goal reach
+Nav2 inside that window, and the guard closes all three:
 
 - **Cross-robot resume fan-out.** A terminal for robot A used to return every
   unaccepted robot's goal, so robot B's goal was re-sent on A's terminal even
   though B's own successor command was already ACTIVE on the bus. With the
   guard, a terminal resumes only its own robot; any other robot that still
   needs a goal is re-issued by its own terminal or by `retry()`.
+- **Registry re-send fan-out.** M5 republishes `/coordination/tasks` on every
+  dispatch and resolve, i.e. at every phase hand-off, and `on_registry` used
+  to return every unaccepted robot as well. With the guard it issues only
+  robots whose goal is new or changed.
 - **Late acceptance.** A base goal sent before the hand-off can be accepted by
   Nav2 after it. `on_goal_accepted` then reports it as not owned (returns
   False) and does not record it, so the caller cancels it and the owner's
@@ -164,13 +168,32 @@ class BaseMissionDriver:
 
         An entry flagged `start_pending` (M5's per-robot `start_delay_sec` has
         not elapsed) records no goal, so the robot is not driven until a later
-        registry carries it without the flag.
+        registry carries it without the flag. With the hand-off guard on, only
+        robots whose goal is new or changed in this registry are returned; an
+        unchanged, unaccepted goal is left to `retry()`.
         """
+        changed: set[str] = set()
         for robot_id, entry in registry.items():
             if entry.get("start_pending"):
                 continue
-            self._goals[robot_id] = (float(entry["goal"][0]), float(entry["goal"][1]))
-        return self._desired()
+            goal = (float(entry["goal"][0]), float(entry["goal"][1]))
+            if self._goals.get(robot_id) != goal:
+                changed.add(robot_id)
+            self._goals[robot_id] = goal
+        desired = self._desired()
+        if not self._handoff_guard:
+            return desired
+        # M5 republishes the registry on every dispatch and resolve, i.e. at
+        # exactly the phase hand-offs where this client lags the command bus
+        # (run m4's unlogged third send). Only a new or changed goal is issued
+        # here; an unchanged unaccepted goal is left to retry().
+        unchanged = sorted(rid for rid, _ in desired if rid not in changed)
+        if unchanged:
+            self._events.append(
+                "handoff guard: registry re-send suppressed "
+                f"suppressed={','.join(unchanged)}"
+            )
+        return [(rid, goal) for rid, goal in desired if rid in changed]
 
     def on_command(self, robot_id: str, command_id: str) -> bool:
         """Hand robot ownership to the command bus under `command_id`.
