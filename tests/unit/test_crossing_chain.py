@@ -161,3 +161,37 @@ def test_finished_chain_ignores_further_odometry():
 def test_chain_rejects_empty_plan():
     with pytest.raises(ValueError):
         CrossingChain(())
+
+
+# prereg-v3 addendum A8 (i): `seed_reference` fixes the first passer's
+# reference at the yield's dispatch, before its (pull-off-delayed) admission.
+
+
+def test_seed_reference_measures_first_passer_from_the_seed():
+    chain = CrossingChain([PasserPlan("robot_4", 2.65, None)])
+    assert chain.seed_reference("robot_4", 0.0, 1.2) is True
+    assert chain.on_odometry("robot_4", 0.0, -0.2) is None
+    step = chain.on_odometry("robot_4", 0.0, -1.45)
+    assert step is not None and step.next is None
+    assert step.moved_m == pytest.approx(2.65)
+
+
+def test_seed_reference_ignored_once_a_reference_exists():
+    chain = CrossingChain([PasserPlan("robot_4", 1.0, None)])
+    chain.on_odometry("robot_4", 0.0, 0.0)
+    assert chain.seed_reference("robot_4", 0.0, 5.0) is False
+    step = chain.on_odometry("robot_4", 0.0, -1.0)
+    assert step is not None and step.moved_m == pytest.approx(1.0)
+
+
+def test_seed_reference_ignored_for_another_robot():
+    chain = CrossingChain([PasserPlan("robot_4", 1.0, None)])
+    assert chain.seed_reference("robot_3", 0.0, 0.0) is False
+    assert chain.on_odometry("robot_4", 0.0, 0.0) is None
+
+
+def test_seed_reference_ignored_after_the_first_passer():
+    chain = CrossingChain([PasserPlan("robot_4", 1.0, None), PasserPlan("robot_3", 1.0, None)])
+    chain.on_odometry("robot_4", 0.0, 0.0)
+    chain.on_odometry("robot_4", 0.0, 1.0)
+    assert chain.seed_reference("robot_3", 0.0, 0.0) is False

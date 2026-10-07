@@ -152,6 +152,33 @@ class CrossingChain:
         """True once the last passer has cleared."""
         return self._finished
 
+    def seed_reference(self, robot_id: str, x: float, y: float) -> bool:
+        """Fix the FIRST passer's reference before its admission.
+
+        For a yield that pulls off before its hold (prereg-v3 addendum A8):
+        the hold, and so the admission, starts only after the sidestep, while
+        a passer free to drive is already moving; measured from its first
+        sample after admission it would have less travel left than its
+        `clear_m`. A sample taken at dispatch keeps `clear_m` measured from
+        where the passer started. A no-op once a reference exists or the
+        chain has moved past its first passer, so a seed arriving after the
+        admission's own first sample changes nothing.
+
+        Args:
+            robot_id: Robot the odometry belongs to.
+            x: Odometry-frame x in metres.
+            y: Odometry-frame y in metres.
+
+        Returns:
+            True if the reference was set by this call.
+        """
+        if self._finished or self._index != 0 or self._reference is not None:
+            return False
+        if robot_id != self.current.robot_id:
+            return False
+        self._reference = (x, y)
+        return True
+
     def on_odometry(self, robot_id: str, x: float, y: float) -> ChainStep | None:
         """Feed one odometry position of a passer.
 

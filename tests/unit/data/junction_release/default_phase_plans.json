@@ -1,0 +1,1066 @@
+{
+ "r3_lead_stagger": {
+  "fallback_command": {
+   "actions": [
+    {
+     "action": "yield",
+     "parameters": {
+      "backup_distance_m": 0.799,
+      "crossing_order": [
+       "robot_2"
+      ],
+      "hold_sec": 45.0,
+      "passer_clear_m": 1.998,
+      "passer_escort_distance_m": 1.998,
+      "passer_robot_id": "robot_2",
+      "pull_off_lateral_m": 0.36,
+      "reason": "four-way standoff",
+      "retreat_choice": "A",
+      "retreat_x_m": -1.018,
+      "retreat_y_m": 0.359
+     },
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "linked_position": 0
+     },
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0
+     },
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0
+     },
+     "robot_id": "robot_4"
+    }
+   ],
+   "command_id": "r1-yield",
+   "degradations": [
+    "roles=legacy-convention",
+    "order=implicit",
+    "order=junction_same_axis",
+    "retreat=default:no_choice"
+   ],
+   "expected_resolution_time_sec": 150.0,
+   "fallback": "stop"
+  },
+  "fallback_held_robot_ids": [
+   "robot_3",
+   "robot_4"
+  ],
+  "phases": [
+   {
+    "command": {
+     "actions": [
+      {
+       "action": "reverse",
+       "parameters": {
+        "backup_distance_m": 0.923,
+        "reason": "four-way standoff"
+       },
+       "robot_id": "robot_3"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_1"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_2"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_4"
+      }
+     ],
+     "command_id": "r1-junction-recede-robot_3",
+     "degradations": [
+      "junction_clear=recede"
+     ],
+     "expected_resolution_time_sec": 120.0,
+     "fallback": "stop"
+    },
+    "held_robot_ids": [
+     "robot_1",
+     "robot_2",
+     "robot_4"
+    ],
+    "label": "recede",
+    "robot_id": "robot_3"
+   },
+   {
+    "command": {
+     "actions": [
+      {
+       "action": "reverse",
+       "parameters": {
+        "backup_distance_m": 0.742,
+        "reason": "four-way standoff"
+       },
+       "robot_id": "robot_4"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_1"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_2"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_3"
+      }
+     ],
+     "command_id": "r1-junction-recede-robot_4",
+     "degradations": [
+      "junction_clear=recede"
+     ],
+     "expected_resolution_time_sec": 120.0,
+     "fallback": "stop"
+    },
+    "held_robot_ids": [
+     "robot_1",
+     "robot_2",
+     "robot_3"
+    ],
+    "label": "recede",
+    "robot_id": "robot_4"
+   },
+   {
+    "command": {
+     "actions": [
+      {
+       "action": "yield",
+       "parameters": {
+        "backup_distance_m": 0.799,
+        "crossing_order": [
+         "robot_2"
+        ],
+        "hold_sec": 45.0,
+        "passer_clear_m": 1.998,
+        "passer_escort_distance_m": 1.998,
+        "passer_robot_id": "robot_2",
+        "pull_off_lateral_m": 0.36,
+        "reason": "four-way standoff",
+        "retreat_choice": "A",
+        "retreat_x_m": -1.018,
+        "retreat_y_m": 0.359
+       },
+       "robot_id": "robot_1"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0,
+        "linked_position": 0
+       },
+       "robot_id": "robot_2"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_3"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_4"
+      }
+     ],
+     "command_id": "r1-junction-cross",
+     "degradations": [
+      "roles=legacy-convention",
+      "retreat=default:no_choice",
+      "junction_clear=cross"
+     ],
+     "expected_resolution_time_sec": 150.0,
+     "fallback": "stop"
+    },
+    "held_robot_ids": [
+     "robot_3",
+     "robot_4"
+    ],
+    "label": "cross",
+    "robot_id": null
+   },
+   {
+    "command": {
+     "actions": [
+      {
+       "action": "yield",
+       "parameters": {
+        "backup_distance_m": 0.0,
+        "hold_sec": 120.0,
+        "passer_clear_m": 2.65,
+        "passer_robot_id": "robot_3"
+       },
+       "robot_id": "robot_4"
+      },
+      {
+       "action": "yield",
+       "parameters": {
+        "backup_distance_m": 0.0,
+        "crossing_clear_m": [
+         2.65,
+         2.05
+        ],
+        "crossing_order": [
+         "robot_3",
+         "robot_4"
+        ],
+        "hold_sec": 240.0,
+        "passer_clear_m": 2.65,
+        "passer_robot_id": "robot_3"
+       },
+       "robot_id": "robot_1"
+      }
+     ],
+     "command_id": "r1-junction-release",
+     "degradations": [
+      "junction_clear=release"
+     ],
+     "expected_resolution_time_sec": 240.0,
+     "fallback": "stop"
+    },
+    "held_robot_ids": [
+     "robot_4",
+     "robot_1"
+    ],
+    "label": "release",
+    "robot_id": null
+   }
+  ]
+ },
+ "r4_lead_missing_j2": {
+  "fallback_command": {
+   "actions": [
+    {
+     "action": "yield",
+     "parameters": {
+      "backup_distance_m": 1.151,
+      "crossing_order": [
+       "robot_2"
+      ],
+      "hold_sec": 45.0,
+      "passer_clear_m": 2.35,
+      "passer_escort_distance_m": 2.35,
+      "passer_robot_id": "robot_2",
+      "pull_off_lateral_m": 0.36,
+      "reason": "four-way standoff",
+      "retreat_choice": "A",
+      "retreat_x_m": -1.37,
+      "retreat_y_m": 0.359
+     },
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "linked_position": 0
+     },
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0
+     },
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0
+     },
+     "robot_id": "robot_3"
+    }
+   ],
+   "command_id": "r1-yield",
+   "degradations": [
+    "roles=legacy-convention",
+    "order=implicit",
+    "order=junction_same_axis",
+    "retreat=default:no_choice",
+    "junction_geometry=shipped_unsolved:missing=junction_backup_clearance_m"
+   ],
+   "expected_resolution_time_sec": 150.0,
+   "fallback": "stop"
+  },
+  "fallback_held_robot_ids": [
+   "robot_4",
+   "robot_3"
+  ],
+  "phases": [
+   {
+    "command": {
+     "actions": [
+      {
+       "action": "reverse",
+       "parameters": {
+        "backup_distance_m": 0.923,
+        "reason": "four-way standoff"
+       },
+       "robot_id": "robot_4"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_1"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_2"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_3"
+      }
+     ],
+     "command_id": "r1-junction-recede-robot_4",
+     "degradations": [
+      "junction_clear=recede",
+      "junction_geometry=shipped_unsolved:missing=junction_backup_clearance_m"
+     ],
+     "expected_resolution_time_sec": 120.0,
+     "fallback": "stop"
+    },
+    "held_robot_ids": [
+     "robot_1",
+     "robot_2",
+     "robot_3"
+    ],
+    "label": "recede",
+    "robot_id": "robot_4"
+   },
+   {
+    "command": {
+     "actions": [
+      {
+       "action": "reverse",
+       "parameters": {
+        "backup_distance_m": 0.742,
+        "reason": "four-way standoff"
+       },
+       "robot_id": "robot_3"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_1"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_2"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_4"
+      }
+     ],
+     "command_id": "r1-junction-recede-robot_3",
+     "degradations": [
+      "junction_clear=recede",
+      "junction_geometry=shipped_unsolved:missing=junction_backup_clearance_m"
+     ],
+     "expected_resolution_time_sec": 120.0,
+     "fallback": "stop"
+    },
+    "held_robot_ids": [
+     "robot_1",
+     "robot_2",
+     "robot_4"
+    ],
+    "label": "recede",
+    "robot_id": "robot_3"
+   },
+   {
+    "command": {
+     "actions": [
+      {
+       "action": "yield",
+       "parameters": {
+        "backup_distance_m": 1.151,
+        "crossing_order": [
+         "robot_2"
+        ],
+        "hold_sec": 45.0,
+        "passer_clear_m": 2.35,
+        "passer_escort_distance_m": 2.35,
+        "passer_robot_id": "robot_2",
+        "pull_off_lateral_m": 0.36,
+        "reason": "four-way standoff",
+        "retreat_choice": "A",
+        "retreat_x_m": -1.37,
+        "retreat_y_m": 0.359
+       },
+       "robot_id": "robot_1"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0,
+        "linked_position": 0
+       },
+       "robot_id": "robot_2"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_4"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_3"
+      }
+     ],
+     "command_id": "r1-junction-cross",
+     "degradations": [
+      "roles=legacy-convention",
+      "retreat=default:no_choice",
+      "junction_clear=cross",
+      "junction_geometry=shipped_unsolved:missing=junction_backup_clearance_m"
+     ],
+     "expected_resolution_time_sec": 150.0,
+     "fallback": "stop"
+    },
+    "held_robot_ids": [
+     "robot_4",
+     "robot_3"
+    ],
+    "label": "cross",
+    "robot_id": null
+   },
+   {
+    "command": {
+     "actions": [
+      {
+       "action": "yield",
+       "parameters": {
+        "backup_distance_m": 0.0,
+        "hold_sec": 120.0,
+        "passer_clear_m": 2.65,
+        "passer_robot_id": "robot_4"
+       },
+       "robot_id": "robot_3"
+      },
+      {
+       "action": "yield",
+       "parameters": {
+        "backup_distance_m": 0.0,
+        "crossing_clear_m": [
+         2.65,
+         2.05
+        ],
+        "crossing_order": [
+         "robot_4",
+         "robot_3"
+        ],
+        "hold_sec": 240.0,
+        "passer_clear_m": 2.65,
+        "passer_robot_id": "robot_4"
+       },
+       "robot_id": "robot_1"
+      }
+     ],
+     "command_id": "r1-junction-release",
+     "degradations": [
+      "junction_clear=release"
+     ],
+     "expected_resolution_time_sec": 240.0,
+     "fallback": "stop"
+    },
+    "held_robot_ids": [
+     "robot_3",
+     "robot_1"
+    ],
+    "label": "release",
+    "robot_id": null
+   }
+  ]
+ },
+ "r4_lead_no_stagger": {
+  "fallback_command": {
+   "actions": [
+    {
+     "action": "yield",
+     "parameters": {
+      "backup_distance_m": 0.799,
+      "crossing_order": [
+       "robot_2"
+      ],
+      "hold_sec": 45.0,
+      "passer_clear_m": 1.998,
+      "passer_escort_distance_m": 1.998,
+      "passer_robot_id": "robot_2",
+      "pull_off_lateral_m": 0.36,
+      "reason": "four-way standoff",
+      "retreat_choice": "A",
+      "retreat_x_m": -1.018,
+      "retreat_y_m": 0.359
+     },
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "linked_position": 0
+     },
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0
+     },
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0
+     },
+     "robot_id": "robot_3"
+    }
+   ],
+   "command_id": "r1-yield",
+   "degradations": [
+    "roles=legacy-convention",
+    "order=implicit",
+    "order=junction_same_axis",
+    "retreat=default:no_choice"
+   ],
+   "expected_resolution_time_sec": 150.0,
+   "fallback": "stop"
+  },
+  "fallback_held_robot_ids": [
+   "robot_4",
+   "robot_3"
+  ],
+  "phases": [
+   {
+    "command": {
+     "actions": [
+      {
+       "action": "reverse",
+       "parameters": {
+        "backup_distance_m": 0.923,
+        "reason": "four-way standoff"
+       },
+       "robot_id": "robot_4"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_1"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_2"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_3"
+      }
+     ],
+     "command_id": "r1-junction-recede-robot_4",
+     "degradations": [
+      "junction_clear=recede"
+     ],
+     "expected_resolution_time_sec": 120.0,
+     "fallback": "stop"
+    },
+    "held_robot_ids": [
+     "robot_1",
+     "robot_2",
+     "robot_3"
+    ],
+    "label": "recede",
+    "robot_id": "robot_4"
+   },
+   {
+    "command": {
+     "actions": [
+      {
+       "action": "reverse",
+       "parameters": {
+        "backup_distance_m": 0.942,
+        "reason": "four-way standoff"
+       },
+       "robot_id": "robot_3"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_1"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_2"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_4"
+      }
+     ],
+     "command_id": "r1-junction-recede-robot_3",
+     "degradations": [
+      "junction_clear=recede"
+     ],
+     "expected_resolution_time_sec": 120.0,
+     "fallback": "stop"
+    },
+    "held_robot_ids": [
+     "robot_1",
+     "robot_2",
+     "robot_4"
+    ],
+    "label": "recede",
+    "robot_id": "robot_3"
+   },
+   {
+    "command": {
+     "actions": [
+      {
+       "action": "yield",
+       "parameters": {
+        "backup_distance_m": 0.799,
+        "crossing_order": [
+         "robot_2"
+        ],
+        "hold_sec": 45.0,
+        "passer_clear_m": 1.998,
+        "passer_escort_distance_m": 1.998,
+        "passer_robot_id": "robot_2",
+        "pull_off_lateral_m": 0.36,
+        "reason": "four-way standoff",
+        "retreat_choice": "A",
+        "retreat_x_m": -1.018,
+        "retreat_y_m": 0.359
+       },
+       "robot_id": "robot_1"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0,
+        "linked_position": 0
+       },
+       "robot_id": "robot_2"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_4"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_3"
+      }
+     ],
+     "command_id": "r1-junction-cross",
+     "degradations": [
+      "roles=legacy-convention",
+      "retreat=default:no_choice",
+      "junction_clear=cross"
+     ],
+     "expected_resolution_time_sec": 150.0,
+     "fallback": "stop"
+    },
+    "held_robot_ids": [
+     "robot_4",
+     "robot_3"
+    ],
+    "label": "cross",
+    "robot_id": null
+   },
+   {
+    "command": {
+     "actions": [
+      {
+       "action": "yield",
+       "parameters": {
+        "backup_distance_m": 0.0,
+        "hold_sec": 120.0,
+        "passer_clear_m": 2.85,
+        "passer_robot_id": "robot_4"
+       },
+       "robot_id": "robot_3"
+      },
+      {
+       "action": "yield",
+       "parameters": {
+        "backup_distance_m": 0.0,
+        "crossing_clear_m": [
+         2.85,
+         2.25
+        ],
+        "crossing_order": [
+         "robot_4",
+         "robot_3"
+        ],
+        "hold_sec": 240.0,
+        "passer_clear_m": 2.85,
+        "passer_robot_id": "robot_4"
+       },
+       "robot_id": "robot_1"
+      }
+     ],
+     "command_id": "r1-junction-release",
+     "degradations": [
+      "junction_clear=release"
+     ],
+     "expected_resolution_time_sec": 240.0,
+     "fallback": "stop"
+    },
+    "held_robot_ids": [
+     "robot_3",
+     "robot_1"
+    ],
+    "label": "release",
+    "robot_id": null
+   }
+  ]
+ },
+ "r4_lead_stagger": {
+  "fallback_command": {
+   "actions": [
+    {
+     "action": "yield",
+     "parameters": {
+      "backup_distance_m": 0.799,
+      "crossing_order": [
+       "robot_2"
+      ],
+      "hold_sec": 45.0,
+      "passer_clear_m": 1.998,
+      "passer_escort_distance_m": 1.998,
+      "passer_robot_id": "robot_2",
+      "pull_off_lateral_m": 0.36,
+      "reason": "four-way standoff",
+      "retreat_choice": "A",
+      "retreat_x_m": -1.018,
+      "retreat_y_m": 0.359
+     },
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "linked_position": 0
+     },
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0
+     },
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0
+     },
+     "robot_id": "robot_3"
+    }
+   ],
+   "command_id": "r1-yield",
+   "degradations": [
+    "roles=legacy-convention",
+    "order=implicit",
+    "order=junction_same_axis",
+    "retreat=default:no_choice"
+   ],
+   "expected_resolution_time_sec": 150.0,
+   "fallback": "stop"
+  },
+  "fallback_held_robot_ids": [
+   "robot_4",
+   "robot_3"
+  ],
+  "phases": [
+   {
+    "command": {
+     "actions": [
+      {
+       "action": "reverse",
+       "parameters": {
+        "backup_distance_m": 0.923,
+        "reason": "four-way standoff"
+       },
+       "robot_id": "robot_4"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_1"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_2"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_3"
+      }
+     ],
+     "command_id": "r1-junction-recede-robot_4",
+     "degradations": [
+      "junction_clear=recede"
+     ],
+     "expected_resolution_time_sec": 120.0,
+     "fallback": "stop"
+    },
+    "held_robot_ids": [
+     "robot_1",
+     "robot_2",
+     "robot_3"
+    ],
+    "label": "recede",
+    "robot_id": "robot_4"
+   },
+   {
+    "command": {
+     "actions": [
+      {
+       "action": "reverse",
+       "parameters": {
+        "backup_distance_m": 0.742,
+        "reason": "four-way standoff"
+       },
+       "robot_id": "robot_3"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_1"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_2"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_4"
+      }
+     ],
+     "command_id": "r1-junction-recede-robot_3",
+     "degradations": [
+      "junction_clear=recede"
+     ],
+     "expected_resolution_time_sec": 120.0,
+     "fallback": "stop"
+    },
+    "held_robot_ids": [
+     "robot_1",
+     "robot_2",
+     "robot_4"
+    ],
+    "label": "recede",
+    "robot_id": "robot_3"
+   },
+   {
+    "command": {
+     "actions": [
+      {
+       "action": "yield",
+       "parameters": {
+        "backup_distance_m": 0.799,
+        "crossing_order": [
+         "robot_2"
+        ],
+        "hold_sec": 45.0,
+        "passer_clear_m": 1.998,
+        "passer_escort_distance_m": 1.998,
+        "passer_robot_id": "robot_2",
+        "pull_off_lateral_m": 0.36,
+        "reason": "four-way standoff",
+        "retreat_choice": "A",
+        "retreat_x_m": -1.018,
+        "retreat_y_m": 0.359
+       },
+       "robot_id": "robot_1"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0,
+        "linked_position": 0
+       },
+       "robot_id": "robot_2"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_4"
+      },
+      {
+       "action": "temporary_wait",
+       "parameters": {
+        "duration_sec": 120.0
+       },
+       "robot_id": "robot_3"
+      }
+     ],
+     "command_id": "r1-junction-cross",
+     "degradations": [
+      "roles=legacy-convention",
+      "retreat=default:no_choice",
+      "junction_clear=cross"
+     ],
+     "expected_resolution_time_sec": 150.0,
+     "fallback": "stop"
+    },
+    "held_robot_ids": [
+     "robot_4",
+     "robot_3"
+    ],
+    "label": "cross",
+    "robot_id": null
+   },
+   {
+    "command": {
+     "actions": [
+      {
+       "action": "yield",
+       "parameters": {
+        "backup_distance_m": 0.0,
+        "hold_sec": 120.0,
+        "passer_clear_m": 2.65,
+        "passer_robot_id": "robot_4"
+       },
+       "robot_id": "robot_3"
+      },
+      {
+       "action": "yield",
+       "parameters": {
+        "backup_distance_m": 0.0,
+        "crossing_clear_m": [
+         2.65,
+         2.05
+        ],
+        "crossing_order": [
+         "robot_4",
+         "robot_3"
+        ],
+        "hold_sec": 240.0,
+        "passer_clear_m": 2.65,
+        "passer_robot_id": "robot_4"
+       },
+       "robot_id": "robot_1"
+      }
+     ],
+     "command_id": "r1-junction-release",
+     "degradations": [
+      "junction_clear=release"
+     ],
+     "expected_resolution_time_sec": 240.0,
+     "fallback": "stop"
+    },
+    "held_robot_ids": [
+     "robot_3",
+     "robot_1"
+    ],
+    "label": "release",
+    "robot_id": null
+   }
+  ]
+ }
+}
