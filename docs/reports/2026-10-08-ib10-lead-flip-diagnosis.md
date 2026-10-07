@@ -161,7 +161,7 @@ M4's own `command_bus_node.py` yield comment names this exact problem: "a straig
    - It then pushed robot_3 about 0.55 m south-west inside the exemption until the gate counted its 2.65 m of odometry (sim 148.0 / 149.4).
    - The latch followed when the exemption dropped.
    - A robot_4 lead with different timing would only have worked had Nav2 swung wider. Nothing in the timing changes that.
-3. **The post-fix passes are tight in both directions.**
+3. **The only post-fix robot_3 pass was also tight.** A post-fix direction effect is not excluded at n = 1 (robot_3 lead) vs n = 2 (robot_4 lead).
    - fix_s42's robot_3 lead passed at 0.191 m. That is 11 mm from footprint contact, the tightest contact-free pass of all 11 runs.
    - Its 4 / 4 was a near miss, not evidence that a robot_3 lead is safe.
    - The pre-fix passes were wider (16–166 mm) and came after an 11–38 s pause with FTMP and costmap clears. The post-fix leads never pause, show 0–1 Nav2 events and transit up to 3× faster.
@@ -170,6 +170,10 @@ M4's own `command_bus_node.py` yield comment names this exact problem: "a straig
    - With inflation 0.07 (local) / 0.10 (global) and an inscribed radius of 0.08 (Nav2's own startup ERROR flags inflation < inscribed), the planner keeps the lead's centre roughly LDS radius + inscribed ≈ 0.115 m from the held robot's LDS. That matches the 0.11–0.12 m v3 offset. The physical bodies need about 0.18 m.
    - Pre-fix, with `clearing` defaulted off, the held robot's LDS returns from many viewpoints, including mis-registered ones, persisted and grew a wider lethal blob. That widened the pass and also caused the pre-fix pause.
    - H (`e87dc89`, `clearing: true`, `raytrace_max_range: 3.5`) removes the stale part, so the planner sees only the 7 cm head.
+   - **What the hypothesis does not explain.** It predicts every clean-costmap pass skims at about 0.115 m, but fix_s42 reached 0.191 m with a late swing (−0.121 → −0.190 m between the 0.6 m and 0.2 m gaps).
+     - All 9 contact-free runs widen their lateral offset between those gaps. vp08 and vp09 swing late, from 0.05–0.07 to 0.13–0.16 m.
+     - Both contacts stay flat (0.096 → 0.118 and 0.076 → 0.113 m).
+     - The observable is therefore "no close-range reaction to the held robot". The bag arm (5d) must explain that late swing versus the flat approach, so its `/scan` capture must cover the closest-approach window.
    - **Gap:** no IB10 release has a costmap or plan bag. fix_s42's bag holds only odom and `scene_state`, and the v3 IB10 runs were not bagged.
 5. **Two caveats on evidence used elsewhere.**
    - GT `robot_robot_contacts` is **blind** to this contact. It is empty in every v3 row despite a 0.084 m centre distance and a 0.55 m push. "GT recorded zero robot contacts" (step-7b report) is therefore no evidence of a clean pass.
@@ -223,7 +227,7 @@ M4's own `command_bus_node.py` yield comment names this exact problem: "a straig
   - main checkout `data/logs/vm_runs/v2_demo/{ep1_scripted,ep2_live_er2}`
   - `plan_grammar_cal/cal_ep1_rerun`
   - `verbatim_pilot/{vp08_er2_ib10_s42,vp09_er2_ib10_s43}`
-  - step-7a / 7b reruns `ib10_7b_20261003_022532` and `ib10_7b_vi_20261003_030944` (session-scratchpad copies named in `docs/reports/2026-10-03-step7b-oracle-freeze.md`)
+  - step-7a / 7b reruns `ib10_7b_20261003_022532` and `ib10_7b_vi_20261003_030944`. The only local copies are at `/private/tmp/claude-501/-Users-tuanhdangdinh-Documents-vgu-vlm-swarm/2099aa03-979b-42be-962f-e1aab91f6b17/scratchpad/step7b/` (temporary storage; VM originals under `/home/ubuntu/step7b_runs/`). They carry the only pre-fix robot_4-led 4 / 4 evidence.
 - **Scripts (gitignored):** `data/logs/vm_runs/v3_step0/_analysis/ib10_lead_flip.py` and `ib10_regound_cf.py`.
 - **Code:**
   - `reasoning/rag/command_grounder.py` (`ground_junction_clear_phases`, lead at line 2194)
