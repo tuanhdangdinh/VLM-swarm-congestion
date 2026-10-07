@@ -1575,8 +1575,14 @@ def loop_cost_record(table: dict[str, Any]) -> dict[str, Any]:
 class OutcomeClass(str, Enum):
     """The episode outcome class shared by every cell scorer (foundations round).
 
-    - `resolved`: every robot arrived with at most one dispatched decision and
-      no fallback -- the conflict was dissolved by its first intervention.
+    - `resolved`: every robot arrived with exactly one dispatched decision
+      and no fallback -- the conflict was dissolved by its first
+      intervention.
+    - `self_resolved`: every robot arrived with ZERO dispatched decisions --
+      the episode dissolved with no intervention to credit (forcing-audit
+      A3, 2026-10-07: `resolved` requires >= 1 dispatch; before, a
+      zero-dispatch episode was labelled `resolved`). Never pooled with
+      `resolved` when crediting the decision layer.
     - `intermittent`: every robot arrived, but only after at least one
       re-trigger (a second dispatched decision) or a retry (a composite
       `fallback` phase) -- Zuriguel et al.'s intermittent regime (Sci Rep
@@ -1593,6 +1599,7 @@ class OutcomeClass(str, Enum):
     RESOLVED = "resolved"
     INTERMITTENT = "intermittent"
     CLOGGED = "clogged"
+    SELF_RESOLVED = "self_resolved"
 
 
 def classify_outcome(
@@ -1610,7 +1617,8 @@ def classify_outcome(
     2026-10-05-flow-metrics.md`): `clogged` when `fallback_exhausted` or any
     robot is censored (step-6 IB10 episode 2, 1/4 at the 300 s cap; step-7b
     rerun 1, 2/4); otherwise, with every robot arrived, `intermittent` when
-    there were >= 2 dispatched decisions or a fallback phase, else `resolved`
+    there were >= 2 dispatched decisions or a fallback phase, `self_resolved`
+    with zero dispatched decisions (forcing-audit A3), else `resolved`
     (step-7b rerun 2, 4/4 on one dispatch; the v2 demo's live episode 2).
     Re-analyses that dispatch nothing (`congestion_detected: false`) are not
     re-triggers.
@@ -1642,6 +1650,10 @@ def classify_outcome(
         return OutcomeClass.CLOGGED
     if (n_dispatches is not None and n_dispatches >= 2) or fallback:
         return OutcomeClass.INTERMITTENT
+    if n_dispatches == 0:
+        # No dispatch means no composite phase ran either, so M5's log is not
+        # needed to rule out a fallback here.
+        return OutcomeClass.SELF_RESOLVED
     if n_dispatches is None or (composite and fallback is None):
         return None
     return OutcomeClass.RESOLVED
@@ -2007,7 +2019,8 @@ def flow_fields(
     `conflict_dissolution` (Aguilar et al., Science 2018), `aperture_throughput`
     (dos Passos et al., arXiv:2201.09335; None without a registered aperture)
     and `outcome_class` (Zuriguel et al., Sci Rep 2014: resolved /
-    intermittent / clogged), with the re-trigger evidence behind the class.
+    intermittent / clogged / self_resolved), with the re-trigger evidence
+    behind the class and `n_dispatches` beside it.
 
     Args:
         scenario: The scenario dict.
@@ -2042,6 +2055,9 @@ def flow_fields(
         ),
         "aperture_throughput": aperture_throughput(scenario, series, run.end_sec),
         "outcome_class": None if outcome is None else outcome.value,
+        # Co-reported with the class on every row (forcing-audit A3): the
+        # class alone hides how many interventions an episode received.
+        "n_dispatches": evidence["n_dispatches"],
         "outcome_evidence": {
             **evidence, "all_arrived": all_arrived, "valid": is_valid,
             "invalid_reason": invalid_reason,

@@ -484,8 +484,11 @@ def test_an_oracle_declared_aperture_counts_westbound_passages(tmp_path):
                          fallback_exhausted=False), OutcomeClass.INTERMITTENT),
         ("exhausted", dict(all_arrived=True, n_dispatches=1, fallback=True,
                            fallback_exhausted=True), OutcomeClass.CLOGGED),
+        # Forcing-audit A3: no dispatch, nothing to credit -- a distinct class.
         ("no_dispatch_all_arrived", dict(all_arrived=True, n_dispatches=0, fallback=None,
-                                         fallback_exhausted=None), OutcomeClass.RESOLVED),
+                                         fallback_exhausted=None), OutcomeClass.SELF_RESOLVED),
+        ("no_dispatch_censored", dict(all_arrived=False, n_dispatches=0, fallback=None,
+                                      fallback_exhausted=None), OutcomeClass.CLOGGED),
         ("unknown_dispatches", dict(all_arrived=True, n_dispatches=None, fallback=None,
                                     fallback_exhausted=None), None),
         ("unknown_but_censored", dict(all_arrived=False, n_dispatches=None, fallback=None,
@@ -518,7 +521,26 @@ def test_an_invalid_run_has_no_outcome_class():
 
 
 def test_outcome_class_values_are_the_registered_strings():
-    assert [c.value for c in OutcomeClass] == ["resolved", "intermittent", "clogged"]
+    # `self_resolved` added by forcing-audit A3 (2026-10-07).
+    assert [c.value for c in OutcomeClass] == [
+        "resolved", "intermittent", "clogged", "self_resolved",
+    ]
+
+
+def test_resolved_is_never_awarded_without_a_dispatch():
+    for composite in (False, True):
+        assert classify_outcome(valid=True, all_arrived=True, n_dispatches=0, fallback=None,
+                                fallback_exhausted=None, composite=composite) is (
+            OutcomeClass.SELF_RESOLVED
+        )
+
+
+def test_zero_dispatch_episode_reports_self_resolved_with_its_count(tmp_path):
+    result = score_ib10(_ib10_gt(tmp_path, IB10_DESIGNED),
+                        decisions_dir=_decisions(tmp_path, 0, no_congestion=3),
+                        m5_log=RESOLVED_M5_LOG)
+    assert result["outcome_class"] == "self_resolved"
+    assert result["n_dispatches"] == 0
 
 
 RESOLVED_M5_LOG = (
@@ -549,6 +571,7 @@ def test_ib10_designed_episode_classes_resolved_despite_re_analyses(tmp_path):
                         m5_log=RESOLVED_M5_LOG)
     assert result["outcome_class"] == "resolved"
     assert result["outcome_evidence"]["n_dispatches"] == 1
+    assert result["n_dispatches"] == 1
 
 
 def test_ib10_censored_episode_classes_clogged(tmp_path):
@@ -579,7 +602,7 @@ def test_ib10_invalid_jam_has_no_class(tmp_path):
 B1_EXISTING_KEYS = {"scene", "t0_sec", "end_sec", "arrivals_after_t0_sec", "n_arrived",
                     "censored", "makespan_sec", "gate", "stop_time_sec", "merge", "conflict"}
 FLOW_KEYS = {"delay_vs_free_flow", "conflict_dissolution", "aperture_throughput",
-             "outcome_class", "outcome_evidence"}
+             "outcome_class", "n_dispatches", "outcome_evidence"}
 
 
 def test_b1_keeps_every_existing_field_and_adds_only_flow_fields(tmp_path):
