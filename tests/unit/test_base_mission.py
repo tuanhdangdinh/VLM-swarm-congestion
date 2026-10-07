@@ -359,6 +359,7 @@ def test_non_suppressed_robot_keeps_navigating_during_other_robots_override():
 
 
 import json as _json
+from types import SimpleNamespace
 
 from swarm_execution.coordination_client_node import CoordinationClientNode
 
@@ -369,9 +370,10 @@ class _StringMsg:
 
 
 class _CmdMsg:
-    def __init__(self, robot_id: str, command_id: str = "cmd-1") -> None:
+    def __init__(self, robot_id: str, command_id: str = "cmd-1", action: str = "") -> None:
         self.robot_id = robot_id
         self.command_id = command_id
+        self.action = action
 
 
 class _StatusMsg:
@@ -394,20 +396,55 @@ class _FakeAdapter:
     def cancel(self, robot_id):
         self.cancels.append(robot_id)
 
+    def cancel_own_goal(self, robot_id):
+        self.own_cancels.append(robot_id)
+        return True
 
-def _make_client():
+    def stop_controller(self, robot_id):
+        self.controller_stops.append(robot_id)
+
+
+class _FakeTimer:
+    def __init__(self, period, callback) -> None:
+        self.period = period
+        self.callback = callback
+        self.cancelled = False
+
+    def cancel(self) -> None:
+        self.cancelled = True
+
+
+def _make_client(handoff_guard: bool = True):
     node = CoordinationClientNode.__new__(CoordinationClientNode)
     node._adapter = _FakeAdapter()
-    node._driver = BaseMissionDriver()
+    node._adapter.own_cancels = []
+    node._adapter.controller_stops = []
+    node._handoff_guard = handoff_guard
+    node._command_actions = {}
+    node._driver = BaseMissionDriver(handoff_guard=handoff_guard)
+    node.infos = []
+    node.timers = []
 
     class _Logger:
-        def info(self, _msg):
-            pass
+        def info(self, msg):
+            node.infos.append(str(msg))
 
         def warning(self, _msg):
             pass
 
+    class _Clock:
+        def now(self):
+            return SimpleNamespace(nanoseconds=104.267e9)
+
+    def _create_timer(period, callback):
+        timer = _FakeTimer(period, callback)
+        node.timers.append(timer)
+        return timer
+
     node.get_logger = lambda: _Logger()
+    node.get_clock = lambda: _Clock()
+    node.create_timer = _create_timer
+    node.destroy_timer = lambda _timer: None
     return node
 
 
@@ -513,3 +550,253 @@ def test_released_robot_under_a_command_resumes_only_on_the_command_terminal():
 
     assert driver.on_registry({"robot_3": {"task": "cross", "goal": [1.85, 0.0]}}) == []
     assert driver.on_status("robot_3", "c1", "COMPLETED") == [("robot_3", (1.85, 0.0))]
+
+
+# ---------------------------------------------------------------------------
+# Hand-off race guard (IB10 remedy validation run m4,
+# docs/reports/2026-10-08-ib10-remedy-validation.md section 5). The cross phase
+# completes for every robot within ~10 ms; the client, lagging the command bus,
+# processes robot_2's cross terminal AFTER the bus already dispatched robot_1's
+# release yield but BEFORE the client itself has seen that command.
+# ---------------------------------------------------------------------------
+
+_IB10_REGISTRY = {
+    "robot_1": {"task": "cross_intersection", "goal": [1.75, 0.0]},
+    "robot_2": {"task": "cross_intersection", "goal": [-1.75, 0.0]},
+    "robot_3": {"task": "cross_intersection", "goal": [0.0, 1.75]},
+    "robot_4": {"task": "cross_intersection", "goal": [0.0, -1.75]},
+}
+
+
+def _driver_in_cross_phase(handoff_guard: bool = True) -> BaseMissionDriver:
+    driver = BaseMissionDriver(handoff_guard=handoff_guard)
+    driver.on_registry(_IB10_REGISTRY)
+    for robot_id, goal in _IB10_REGISTRY.items():
+        driver.on_goal_accepted(robot_id, tuple(goal["goal"]))
+    for robot_id in _IB10_REGISTRY:
+        driver.on_command(robot_id, "cross")
+    return driver
+
+
+def test_other_robot_terminal_does_not_resend_unaccepted_robot():
+    driver = _driver_in_cross_phase()
+    assert driver.on_status("robot_1", "cross", "COMPLETED") == [("robot_1", (1.75, 0.0))]
+    driver.drain_events()
+
+    # robot_1's resume goal is not accepted yet and its release yield is
+    # already ACTIVE on the bus: robot_2's terminal must not re-send it.
+    assert driver.on_status("robot_2", "cross", "COMPLETED") == [("robot_2", (-1.75, 0.0))]
+
+    events = driver.drain_events()
+    assert any(
+        "handoff guard: cross-robot resume suppressed" in e
+        and "trigger_robot=robot_2" in e
+        and "suppressed=robot_1" in e
+        for e in events
+    )
+
+
+def test_guard_off_restores_cross_robot_resume_fan_out():
+    driver = _driver_in_cross_phase(handoff_guard=False)
+    driver.on_status("robot_1", "cross", "COMPLETED")
+
+    assert driver.on_status("robot_2", "cross", "COMPLETED") == [
+        ("robot_1", (1.75, 0.0)),
+        ("robot_2", (-1.75, 0.0)),
+    ]
+    assert driver.drain_events() == []
+
+
+def test_suppressed_robot_is_still_resumed_by_retry_after_its_terminal():
+    driver = _driver_in_cross_phase()
+    driver.on_status("robot_1", "cross", "COMPLETED")
+    driver.on_status("robot_2", "cross", "COMPLETED")
+
+    # robot_1 is not lost: an unaccepted, unowned goal is still retried.
+    assert ("robot_1", (1.75, 0.0)) in driver.retry()
+
+
+def test_late_accept_under_command_is_not_recorded():
+    driver = BaseMissionDriver()
+    driver.on_registry({"robot_1": {"task": "cross", "goal": [1.75, 0.0]}})
+    # The base goal is in flight when the release command takes the robot.
+    driver.on_command("robot_1", "release")
+
+    assert driver.on_goal_accepted("robot_1", (1.75, 0.0)) is False
+    assert any(
+        "handoff guard: late base goal accepted under command" in e
+        and "robot=robot_1" in e
+        and "owner=release" in e
+        for e in driver.drain_events()
+    )
+    # The owner's terminal still re-issues the base goal immediately.
+    assert driver.on_status("robot_1", "release", "COMPLETED") == [("robot_1", (1.75, 0.0))]
+
+
+def test_guard_off_late_accept_is_recorded_as_before():
+    driver = BaseMissionDriver(handoff_guard=False)
+    driver.on_registry({"robot_1": {"task": "cross", "goal": [1.75, 0.0]}})
+    driver.on_command("robot_1", "release")
+
+    assert driver.on_goal_accepted("robot_1", (1.75, 0.0)) is True
+    # Pre-guard behaviour: the recorded acceptance masks the terminal resume.
+    assert driver.on_status("robot_1", "release", "COMPLETED") == []
+
+
+def test_accept_without_command_is_recorded():
+    driver = BaseMissionDriver()
+    driver.on_registry({"robot_1": {"task": "cross", "goal": [1.75, 0.0]}})
+
+    assert driver.on_goal_accepted("robot_1", (1.75, 0.0)) is True
+    assert driver.retry() == []
+
+
+def test_holds_command_tracks_owner_and_successor():
+    driver = BaseMissionDriver()
+    driver.on_registry({"robot_1": {"task": "cross", "goal": [1.75, 0.0]}})
+    driver.on_command("robot_1", "cross")
+    assert driver.holds_command("robot_1", "cross") is True
+
+    driver.on_command("robot_1", "release")
+    assert driver.holds_command("robot_1", "cross") is False
+
+    driver.on_status("robot_1", "cross", "COMPLETED")
+    assert driver.holds_command("robot_1", "release") is True
+
+    driver.on_status("robot_1", "release", "COMPLETED")
+    assert driver.holds_command("robot_1", "release") is False
+    assert driver.command_owner("robot_1") is None
+
+
+def test_7b_race_guard_unchanged_under_handoff_guard():
+    """The step-7b successor-before-terminal guard still promotes, never resumes."""
+    driver = BaseMissionDriver(handoff_guard=True)
+    driver.on_registry({"robot_1": {"task": "cross", "goal": [1.75, 0.0]}})
+    driver.on_command("robot_1", "cross")
+    driver.on_command("robot_1", "release")
+
+    assert driver.on_status("robot_1", "cross", "COMPLETED") == []
+    assert driver.command_owner("robot_1") == "release"
+    assert driver.on_status("robot_1", "release", "COMPLETED") == [("robot_1", (1.75, 0.0))]
+
+
+def _client_in_cross_phase(handoff_guard: bool = True):
+    node = _make_client(handoff_guard=handoff_guard)
+    node._on_registry(_StringMsg(_json.dumps(_IB10_REGISTRY)))
+    for robot_id in _IB10_REGISTRY:
+        node._adapter.on_results[robot_id]("ACTIVE", "goal accepted")
+    node._on_command(_CmdMsg("robot_1", "cross", "yield"))
+    for robot_id in ("robot_2", "robot_3", "robot_4"):
+        node._on_command(_CmdMsg(robot_id, "cross", "temporary_wait"))
+    node._adapter.goals.clear()
+    node._adapter.cancels.clear()
+    node._adapter.controller_stops.clear()
+    node.timers.clear()
+    node.infos.clear()
+    return node
+
+
+def test_m4_sequence_release_command_blocks_resend_and_stops_controller():
+    node = _client_in_cross_phase()
+
+    # sim 104.17: robot_1's cross yield completes -> resume #1 (legitimate).
+    node._on_status(_StatusMsg("robot_1", "COMPLETED", "cross"))
+    assert node._adapter.goals == [("robot_1", 1.75, 0.0, 0.0)]
+    resume_1_result = node._adapter.on_results["robot_1"]
+
+    # +0.36 s: robot_2's cross terminal; robot_1's release is already ACTIVE
+    # on the bus but unseen here. Pre-guard this re-sent robot_1 (resume #2).
+    node._on_status(_StatusMsg("robot_2", "COMPLETED", "cross"))
+    assert node._adapter.goals == [("robot_1", 1.75, 0.0, 0.0), ("robot_2", -1.75, 0.0, 0.0)]
+
+    # The release yield reaches the client: cancel the base goal and stop the
+    # controller so an orphaned FollowPath cannot drive robot_1.
+    node._on_command(_CmdMsg("robot_1", "release", "yield"))
+    assert node._adapter.cancels == ["robot_1"]
+    assert node._adapter.controller_stops == ["robot_1"]
+    assert sorted(t.period for t in node.timers) == [0.5, 1.5]
+    assert any(
+        "handoff guard: controller stop robot=robot_1 command=release action=yield "
+        "reason=handover" in line
+        for line in node.infos
+    )
+
+    # Resume #1's goal is accepted only now: cancel it, stop the controller.
+    resume_1_result("ACTIVE", "goal accepted")
+    assert node._adapter.own_cancels == ["robot_1"]
+    assert node._adapter.controller_stops == ["robot_1", "robot_1"]
+    assert any("late base goal accepted under command robot=robot_1" in l for l in node.infos)
+    assert any("reason=late_accept" in line for line in node.infos)
+
+    # No base goal reaches robot_1 while the release yield owns it.
+    node._on_retry()
+    assert node._adapter.goals.count(("robot_1", 1.75, 0.0, 0.0)) == 1
+
+
+def test_controller_followups_fire_only_while_command_owns_robot():
+    node = _client_in_cross_phase()
+    node._on_status(_StatusMsg("robot_1", "COMPLETED", "cross"))
+    node._on_command(_CmdMsg("robot_1", "release", "yield"))
+    first, second = sorted(node.timers, key=lambda t: t.period)
+
+    first.callback()
+    assert node._adapter.controller_stops == ["robot_1", "robot_1"]
+    assert first.cancelled
+
+    node._on_status(_StatusMsg("robot_1", "COMPLETED", "release"))
+    second.callback()
+    assert node._adapter.controller_stops == ["robot_1", "robot_1"]
+
+
+def test_nav2_driven_command_does_not_stop_controller():
+    node = _client_in_cross_phase()
+    node._on_status(_StatusMsg("robot_1", "COMPLETED", "cross"))
+
+    node._on_command(_CmdMsg("robot_1", "reroute-1", "reroute"))
+
+    assert node._adapter.cancels == ["robot_1"]
+    assert node._adapter.controller_stops == []
+    assert node.timers == []
+
+
+def test_guard_off_client_resends_and_never_stops_controller():
+    node = _client_in_cross_phase(handoff_guard=False)
+    node._on_status(_StatusMsg("robot_1", "COMPLETED", "cross"))
+    resume_1_result = node._adapter.on_results["robot_1"]
+
+    node._on_status(_StatusMsg("robot_2", "COMPLETED", "cross"))
+    assert node._adapter.goals.count(("robot_1", 1.75, 0.0, 0.0)) == 2
+
+    node._on_command(_CmdMsg("robot_1", "release", "yield"))
+    resume_1_result("ACTIVE", "goal accepted")
+    assert node._adapter.controller_stops == []
+    assert node._adapter.own_cancels == []
+
+
+def test_registry_republish_does_not_resend_unchanged_unaccepted_goal():
+    """m4's unlogged send: M5 republishes the registry at the phase hand-off."""
+    driver = _driver_in_cross_phase()
+    driver.on_status("robot_1", "cross", "COMPLETED")
+    driver.drain_events()
+
+    assert driver.on_registry(_IB10_REGISTRY) == []
+    assert any(
+        "handoff guard: registry re-send suppressed" in e and "robot_1" in e
+        for e in driver.drain_events()
+    )
+
+
+def test_registry_goal_change_is_still_issued_under_guard():
+    driver = _driver_in_cross_phase()
+    driver.on_status("robot_1", "cross", "COMPLETED")
+
+    moved = dict(_IB10_REGISTRY, robot_1={"task": "cross_intersection", "goal": [1.5, 0.0]})
+
+    assert driver.on_registry(moved) == [("robot_1", (1.5, 0.0))]
+
+
+def test_guard_off_registry_republish_resends_unaccepted_goal():
+    driver = _driver_in_cross_phase(handoff_guard=False)
+    driver.on_status("robot_1", "cross", "COMPLETED")
+
+    assert driver.on_registry(_IB10_REGISTRY) == [("robot_1", (1.75, 0.0))]

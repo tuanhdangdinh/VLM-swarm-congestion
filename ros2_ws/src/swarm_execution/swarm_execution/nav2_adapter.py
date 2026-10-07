@@ -651,6 +651,46 @@ class Nav2Adapter(Node):
         self._cancel_all(robot_id, "navigate_to_pose")
         self._cancel_all(robot_id, "follow_waypoints")
 
+    def cancel_own_goal(self, robot_id: str) -> bool:
+        """Cancel only this adapter's most recent accepted goal handle for robot_id.
+
+        Unlike `cancel`, this sends no server-side cancel-all, so a goal the
+        command bus's own adapter sent to the same action server is untouched.
+
+        Args:
+            robot_id: Robot whose own goal handle should be cancelled.
+
+        Returns:
+            True if a handle was found and its cancel requested.
+        """
+        handle = self._active_goals.get(robot_id)
+        if handle is None:
+            return False
+        handle.cancel_goal_async()
+        return True
+
+    def stop_controller(self, robot_id: str) -> None:
+        """Cancel every goal on robot_id's controller_server `follow_path` action.
+
+        Cancelling a `navigate_to_pose` goal does not always stop the robot.
+        In Nav2 Jazzy (1.3.x) `BtActionNode::halt()` cancels its `FollowPath`
+        goal only when `should_cancel_goal()` holds, which returns false while
+        `goal_handle_` is still null, i.e. while the FollowPath goal request
+        is in flight and its response has not been spun yet. A
+        `navigate_to_pose` cancel that lands in that window leaves the
+        controller following the path with no owner (IB10 remedy run m4).
+        The controller's own `follow_path` server accepts cancel requests for
+        active goals, and `computeControl` handles one by calling
+        `terminate_all()` and `publishZeroVelocity()` (zero twist on
+        `cmd_vel_nav`, then the collision monitor forwards it), so this
+        cancel stops the robot through Nav2's own path and needs no separate
+        raw zero twist.
+
+        Args:
+            robot_id: Robot whose controller should stop.
+        """
+        self._cancel_all(robot_id, "follow_path")
+
     def _cancel_all(self, robot_id: str, action_name: str) -> None:
         """Cancel every goal on one of robot_id's action servers.
 

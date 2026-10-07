@@ -14,6 +14,17 @@ Also subscribes to the safety monitor's `/safety/holds` so this driver's own
 2 s retry loop does not immediately re-issue a goal the safety monitor just
 cancelled — without that, the two nodes fight over the robot's Nav2 goal
 indefinitely (see docs/specs/module4/safety-monitor.md §4).
+
+Hand-off race guard (ROS parameter `handoff_race_guard`, default True; IB10
+remedy validation run m4, docs/reports/2026-10-08-ib10-remedy-validation.md).
+On top of the driver-side guard (`BaseMissionDriver`), this node cancels a
+base goal that Nav2 accepted after the hand-off, cancelling only its own goal
+handle. When the new command keeps the robot off Nav2 (`_NON_NAV2_ACTIONS`),
+it also cancels the robot's controller `follow_path` goals, once at hand-off
+and again at `CONTROLLER_STOP_FOLLOWUP_SEC` while the command still owns the
+robot. This stops a FollowPath orphaned by a `navigate_to_pose` cancel (see
+`Nav2Adapter.stop_controller`). Every guard action logs a line starting
+`handoff guard:`.
 """
 from __future__ import annotations
 
@@ -48,17 +59,38 @@ from swarm_execution.base_mission import BaseMissionDriver
 from swarm_execution.nav2_adapter import Nav2Adapter
 
 
+# Actions under which the command bus never drives the robot through Nav2 (a
+# raw-cmd_vel maneuver or a stationary hold). Under these, any FollowPath still
+# running on the robot's controller is an orphan of a cancelled base goal and is
+# stopped. Nav2-driven actions (navigate, reroute, ...) are excluded: the bus's
+# own goal preempts the controller, and a follow_path cancel-all could kill it.
+_NON_NAV2_ACTIONS = frozenset({"yield", "reverse", "wait", "temporary_wait", "stop"})
+
+
 class CoordinationClientNode(Node):
     # Re-issue any base goal Nav2 has not yet accepted. Recovers the startup race
     # where the registry arrives before Nav2's action servers are lifecycle-ACTIVE
     # (the registry is static after startup, so without this the rejected initial
     # goal would never be retried and robots would never move).
     RETRY_PERIOD_SEC = 2.0
+    # Repeat the hand-off controller stop at these node-clock delays while the
+    # same command still owns the robot. A FollowPath request still in flight
+    # when the first cancel-all arrives is accepted after it and would survive
+    # that cancel.
+    CONTROLLER_STOP_FOLLOWUP_SEC = (0.5, 1.5)
+    # Class-level default so nodes built without __init__ (unit tests) keep the
+    # shipped behaviour; __init__ overrides it from the ROS parameter.
+    _handoff_guard = True
 
     def __init__(self) -> None:
         super().__init__("coordination_client_node")
+        # Kill switch for the hand-off race guard (BaseMissionDriver docstring
+        # and _on_command). False restores the pre-guard client exactly.
+        self.declare_parameter("handoff_race_guard", True)
+        self._handoff_guard = bool(self.get_parameter("handoff_race_guard").value)
+        self._command_actions: dict[tuple[str, str], str] = {}
         self._adapter = Nav2Adapter(self)
-        self._driver = BaseMissionDriver()
+        self._driver = BaseMissionDriver(handoff_guard=self._handoff_guard)
         self.create_subscription(
             String, "/coordination/tasks", self._on_registry, _registry_qos()
         )
@@ -73,7 +105,9 @@ class CoordinationClientNode(Node):
         # bus's own statuses keep their command ids, so the two never collide.
         self._status_pub = self.create_publisher(CoordinationStatus, "/coordination/status", 10)
         self.create_timer(self.RETRY_PERIOD_SEC, self._on_retry)
-        self.get_logger().info("Coordination client started.")
+        self.get_logger().info(
+            f"Coordination client started. handoff_race_guard={self._handoff_guard}"
+        )
 
     def _on_registry(self, msg: String) -> None:
         try:
@@ -83,12 +117,20 @@ class CoordinationClientNode(Node):
             return
         for robot_id, goal in self._driver.on_registry(registry):
             self._issue_navigate(robot_id, goal)
+        self._log_driver_events()
 
     def _on_command(self, msg: CoordinationCommand) -> None:
+        action = str(getattr(msg, "action", "") or "")
+        if self._handoff_guard:
+            self._command_actions[(msg.robot_id, msg.command_id)] = action
         if self._driver.on_command(msg.robot_id, msg.command_id):
             # The command bus uses a separate Nav2Adapter, so cancel our own
             # navigate goal here to avoid two action goals fighting on this robot.
             self._adapter.cancel(msg.robot_id)
+            if self._handoff_guard and action in _NON_NAV2_ACTIONS:
+                # The navigate cancel above (or the bus's own, a few hundred
+                # ms earlier) can orphan a FollowPath on the controller; stop it.
+                self._stop_controller(msg.robot_id, msg.command_id, action, "handover")
         self._log_driver_events()
 
     def _on_status(self, msg: CoordinationStatus) -> None:
@@ -97,7 +139,52 @@ class CoordinationClientNode(Node):
         ):
             self.get_logger().info(f"resume base mission robot={robot_id} goal={goal}")
             self._issue_navigate(robot_id, goal)
+        if msg.status in ("COMPLETED", "FAILED"):
+            self._command_actions.pop((msg.robot_id, msg.command_id), None)
         self._log_driver_events()
+
+    def _sim_now(self) -> float:
+        return self.get_clock().now().nanoseconds / 1e9
+
+    def _stop_controller(
+        self, robot_id: str, command_id: str, action: str, reason: str
+    ) -> None:
+        """Cancel robot_id's controller FollowPath and schedule follow-up cancels.
+
+        Args:
+            robot_id: Robot handed to a non-Nav2 coordination command.
+            command_id: The command that owns the robot.
+            action: That command's action (for the log line).
+            reason: `handover` (on_command), `late_accept` (a base goal
+                accepted after the hand-off) or `followup` (a delayed repeat).
+        """
+        self._adapter.stop_controller(robot_id)
+        self.get_logger().info(
+            "handoff guard: controller stop "
+            f"robot={robot_id} command={command_id} action={action} "
+            f"reason={reason} sim_t={self._sim_now():.3f}"
+        )
+        if reason == "followup":
+            return
+        for delay_sec in self.CONTROLLER_STOP_FOLLOWUP_SEC:
+            self._schedule_controller_followup(robot_id, command_id, action, delay_sec)
+
+    def _schedule_controller_followup(
+        self, robot_id: str, command_id: str, action: str, delay_sec: float
+    ) -> None:
+        timer_ref: dict = {}
+
+        def _fire() -> None:
+            timer = timer_ref["timer"]
+            timer.cancel()
+            self.destroy_timer(timer)
+            # Only while the same command still owns the robot: after its
+            # terminal the client itself may have resumed a base goal, whose
+            # FollowPath a cancel-all here would kill.
+            if self._driver.holds_command(robot_id, command_id):
+                self._stop_controller(robot_id, command_id, action, "followup")
+
+        timer_ref["timer"] = self.create_timer(delay_sec, _fire)
 
     def _log_driver_events(self) -> None:
         # Step-7b race guard: `BaseMissionDriver` queues log-worthy ownership
@@ -139,7 +226,16 @@ class CoordinationClientNode(Node):
         # so forget it and let the retry timer re-send. A later "COMPLETED" (goal
         # reached) leaves the accepted goal in place — nothing to re-issue.
         if status == "ACTIVE":
-            self._driver.on_goal_accepted(robot_id, goal)
+            if not self._driver.on_goal_accepted(robot_id, goal):
+                # Hand-off guard: this base goal was sent before a coordination
+                # command took the robot and accepted after it. Cancel only our
+                # own handle (a cancel-all could hit the bus's goal).
+                self._adapter.cancel_own_goal(robot_id)
+                owner = self._driver.command_owner(robot_id)
+                action = self._command_actions.get((robot_id, owner or ""), "")
+                if owner is not None and action in _NON_NAV2_ACTIONS:
+                    self._stop_controller(robot_id, owner, action, "late_accept")
+            self._log_driver_events()
         elif status == "FAILED":
             self._driver.on_goal_rejected(robot_id)
         elif status == "COMPLETED":
