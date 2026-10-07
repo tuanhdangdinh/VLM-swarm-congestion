@@ -47,12 +47,14 @@ from swarm_orchestrator.arrival import ArrivalDecision, ArrivalGate
 from swarm_orchestrator.command_lifecycle import (
     AttemptMemory,
     CommandRecord,
+    CommandState,
     CommandTracker,
     CooldownTracker,
     summarize_executed_strategy,
     summarize_outcome,
 )
 from swarm_orchestrator.congestion_detector import CongestionDetector
+from swarm_orchestrator.contradiction_trigger import Contradiction, ContradictionMonitor
 from swarm_orchestrator.junction_phase_queue import JunctionPhaseAdvance, JunctionPhaseQueue
 from swarm_orchestrator.models import (
     AnnotationOverlayReport,
@@ -399,6 +401,15 @@ class OrchestratorNode(Node):
         # forever.
         self._exhausted_robots: set[str] = set()
         self._attempts = AttemptMemory(self._config.failure_context_window_sec)
+        # prereg-v3 R3.4 contradiction trigger: None unless
+        # `contradiction_trigger.enabled`, so a trigger-off node never arms,
+        # fires or records anything for it.
+        trigger = self._config.contradiction_trigger
+        self._contradictions = (
+            ContradictionMonitor(trigger.divergence_bound_m, trigger.per_event_replan_budget)
+            if trigger.enabled
+            else None
+        )
         self._registry = TaskRegistry()
         self._registry.load_initial(self._config, time.monotonic())
 
@@ -424,6 +435,11 @@ class OrchestratorNode(Node):
         # into a blanket same-scene exemption for every `reverse`.
         self._pending_trigger_robots: frozenset[str] = frozenset()
         self._last_trigger_robot_ids: frozenset[str] = frozenset()
+        # What started the in-flight analysis (`stall`, `contradiction`,
+        # `manual`) and, for a contradiction, the armed record; written to
+        # the artifact only while the contradiction trigger is enabled.
+        self._pending_trigger_source = "stall"
+        self._pending_contradiction: Contradiction | None = None
         # Step-7b ruling (v): `_last_trigger_robot_ids` is cleared right after
         # the triggering dispatch (below) so a later, UNRELATED dispatch can
         # never read a stale leftover trigger set. A `junction_clear`
@@ -611,6 +627,8 @@ class OrchestratorNode(Node):
         # evidence from this same scene rather than the next one.
         for decision in self._arrival.on_scene(snapshot, self._progress_goal):
             self._apply_arrival(decision)
+        if self._contradictions is not None:
+            self._observe_contradictions(snapshot)
         event = self._detector.update(snapshot, self._progress_goal, now)
         if event is None:
             return
@@ -664,6 +682,10 @@ class OrchestratorNode(Node):
             return
         self._tracker.apply_status(msg.command_id, msg.robot_id, msg.status)
         self._apply_plan_leg_status(msg.command_id, msg.robot_id, msg.status)
+        if self._contradictions is not None and msg.status.upper() == "FAILED":
+            armed = self._contradictions.on_leg_failed(msg.command_id, msg.robot_id)
+            if armed is not None:
+                self.get_logger().warning(f"contradiction armed {armed.log_fields()}")
         if self._tracker.is_resolved(msg.command_id):
             self._resolve_command(msg.command_id)
 
@@ -743,6 +765,7 @@ class OrchestratorNode(Node):
                 # no-narrowing (v1) exemption scope rather than exempting the
                 # whole scene (step-7a FOURTH CORRECTION).
                 trigger_robots=frozenset(),
+                trigger_source="manual",
             )
             response.accepted = True
             response.analysis_id = directive.request_id
@@ -794,6 +817,8 @@ class OrchestratorNode(Node):
         robots: list[str],
         distance_to_goal_m: dict[str, float],
         trigger_robots: frozenset[str] | None = None,
+        trigger_source: str = "stall",
+        contradiction: Contradiction | None = None,
     ) -> RobotOrder:
         """Build the request for one analysis and hand it to the worker thread.
 
@@ -810,6 +835,10 @@ class OrchestratorNode(Node):
                 closed to no-narrowing (v1) behavior instead of exempting the
                 whole scene. `None` (the detector-driven path) keeps the
                 existing `frozenset(robots)` derivation.
+            trigger_source: What started this analysis (`stall`,
+                `contradiction`, `manual`); recorded in the artifact only
+                while the contradiction trigger is enabled.
+            contradiction: The armed contradiction that fired this analysis.
 
         Returns:
             The presentation order this episode renders robots in, for the
@@ -820,7 +849,9 @@ class OrchestratorNode(Node):
         image_path = str(Path(self._config.frame_dump_dir) / f"{request_id}.png")
         now = time.monotonic()
         contexts = self._attempts.contexts_for(robots, now)
-        failure_context, last_failed_context = build_failure_contexts(contexts, now)
+        failure_context, last_failed_context = build_failure_contexts(
+            contexts, now, explain=self._config.failure_explanation_enabled
+        )
         attempt, failed = contexts.latest, contexts.last_failed
         if attempt is not None:
             self.get_logger().info(
@@ -884,6 +915,8 @@ class OrchestratorNode(Node):
             trigger_robots if trigger_robots is not None else frozenset(robots)
         )
         self._pending_episode_index = episode_index
+        self._pending_trigger_source = trigger_source
+        self._pending_contradiction = contradiction
         # Snapshotted here, not read inside the worker: a newer camera message
         # may land before the worker runs, and the dump must be the frame whose
         # skew was logged.
@@ -929,6 +962,10 @@ class OrchestratorNode(Node):
         episode_index = self._pending_episode_index
         prompt_conditions = self._pending_prompt_conditions
         self._pending_prompt_conditions = None
+        trigger_source = self._pending_trigger_source
+        contradiction = self._pending_contradiction
+        self._pending_trigger_source = "stall"
+        self._pending_contradiction = None
         # Step-7a fix 3: carried past the clear below (as `_last_trigger_
         # robot_ids`, not re-cleared here) so `_dispatch` -> `_publish_
         # fanned_out` -> `_with_plan_continue_partners`, later in this SAME
@@ -966,6 +1003,7 @@ class OrchestratorNode(Node):
                 prompt_conditions=prompt_conditions,
                 dispatch=dispatch,
                 plan_dispatch_order_source=self._config.plan_dispatch_order_source,
+                **self._trigger_artifact_fields(trigger_source, contradiction),
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
         except OSError as exc:
@@ -994,7 +1032,7 @@ class OrchestratorNode(Node):
 
         directive = self._machine.on_outcome(outcome, now)
         if directive.kind is DirectiveKind.DISPATCH and outcome.grounded_command is not None:
-            self._dispatch(outcome, dispatch)
+            self._dispatch(outcome, dispatch, episode_index=episode_index)
         elif directive.kind is DirectiveKind.COOLDOWN:
             self._cooldown.start(directive.robots, now)
             self.get_logger().info(
@@ -1047,7 +1085,10 @@ class OrchestratorNode(Node):
             return {"request_id": outcome.request_id, "shadow_error": error}
 
     def _dispatch(
-        self, outcome: PipelineOutcome, dispatch: RegistryDispatch | None = None
+        self,
+        outcome: PipelineOutcome,
+        dispatch: RegistryDispatch | None = None,
+        episode_index: int | None = None,
     ) -> None:
         # Second no-dispatch layer: the probe path never reaches here, but a
         # probe outcome that somehow did is refused before anything is sent.
@@ -1089,6 +1130,7 @@ class OrchestratorNode(Node):
                 timeout_sec=timeout,
                 fallback=grounded.get("fallback", ""),
                 request_id=outcome.request_id,
+                actions={m[1]: m[2] for m in messages},
             )
         )
         strategy = outcome.reasoner_result.decision.strategy
@@ -1100,7 +1142,21 @@ class OrchestratorNode(Node):
             yield_robot,
             time.monotonic(),
             executed_strategy=summarize_executed_strategy([m[2] for m in messages], strategy),
+            # The artifact's own `yield_refusal_reason` / `grounding_degradations`
+            # sources, for the failure-explanation line.
+            refusal_reason=summarize_yield_grounding(outcome.grounded_command).refusal_reason,
+            degradations=list((outcome.grounded_command or {}).get("degradations") or []),
         )
+        if self._contradictions is not None and outcome.junction_phases is None:
+            # A junction_clear sequence is never watched: a failed phase
+            # already advances to the composite's fallback on the same
+            # callback, and an early re-analysis would race it.
+            self._contradictions.watch(
+                grounded["command_id"],
+                [(m[1], m[2], json.loads(m[3] or "{}")) for m in messages],
+                episode_index,
+                self._last_trigger_robot_ids,
+            )
         self._publish_fanned_out(outcome.request_id, messages)
         if outcome.plan is not None and outcome.junction_phases is not None:
             # `junction_clear`'s M5 phase queue (prereg-v2 (a) M5,
@@ -1338,6 +1394,7 @@ class OrchestratorNode(Node):
                 timeout_sec=timeout,
                 fallback=grounded.get("fallback", ""),
                 request_id=f"{previous_command_id}-phase",
+                actions={m[1]: m[2] for m in messages},
             )
         )
         self._publish_fanned_out(f"{previous_command_id}-phase", messages)
@@ -1528,7 +1585,13 @@ class OrchestratorNode(Node):
         # phase 0 itself (nothing was ever recorded under a DIFFERENT id).
         original_id = self._junction_original_command_id.pop(command_id, command_id)
         if advance is None or advance.done:
-            self._attempts.resolve(original_id, outcome_status, now)
+            actions = self._tracker.actions_of(command_id)
+            self._attempts.resolve(
+                original_id,
+                outcome_status,
+                now,
+                leg_outcomes={rid: (actions.get(rid), s.value) for rid, s in states.items()},
+            )
         elif advance.command is not None:
             self._junction_original_command_id[advance.command["command_id"]] = original_id
         # Freeze-blocking finding 5 (step-7a fix): `advance.phase_reached ==
@@ -1549,6 +1612,10 @@ class OrchestratorNode(Node):
         self._machine.on_command_resolved(robots, outcome_status == "completed")
         self._cooldown.start(robots, now)
         self._publish_registry()
+        if self._contradictions is not None:
+            # After the attempt is resolved, so the early analysis carries it
+            # as failure context.
+            self._fire_contradiction(command_id, now)
 
     def _mark_fallback_exhausted(self, command_id: str, robots: list[str]) -> None:
         """Terminal handling for a `junction_clear` fallback that ALSO failed.
@@ -1590,6 +1657,100 @@ class OrchestratorNode(Node):
                 self.get_logger().warning(
                     f"plan leg exhaustion update failed plan={plan_id} robot={robot_id}: {exc}"
                 )
+
+    # ---- contradiction trigger (prereg-v3 R3.4) ----
+
+    def _observe_contradictions(self, snapshot) -> None:
+        """Evaluate every ACTIVE watched leg's divergence predicate on one scene."""
+        positions = {
+            view.robot_id: (view.x, view.y) for view in snapshot.robots if view.status != "STALE"
+        }
+        for armed in self._contradictions.observe(
+            positions,
+            lambda command_id, robot_id: (
+                self._tracker.state_of(command_id, robot_id) is CommandState.ACTIVE
+            ),
+        ):
+            self.get_logger().warning(f"contradiction armed {armed.log_fields()}")
+
+    def _fire_contradiction(self, command_id: str, now: float) -> None:
+        """Start the early re-analysis a resolved command armed, if it may run.
+
+        Fires at most once per command (`take_for_resolution` drops the
+        watch). Never bypasses the exhausted-robots set, single-in-flight or
+        busy gating, or frame freshness -- only the remaining cooldown and
+        the stall timer. The budget is charged only when the analysis starts.
+        """
+        armed = self._contradictions.take_for_resolution(command_id)
+        if armed is None:
+            return
+        budget = self._contradictions.budget
+        used = self._contradictions.budget_used(armed.episode_index)
+        reason: str | None = None
+        snapshot = self._latest_snapshot
+        if set(armed.robot_ids) & self._exhausted_robots:
+            reason = "exhausted_robots"
+        elif not self._contradictions.budget_remaining(armed.episode_index):
+            reason = "budget_exhausted"
+        elif self._junction_phase_queues:
+            reason = "junction_sequence_active"
+        elif snapshot is None or not snapshot.robots:
+            reason = "no_scene"
+        if reason is None:
+            event = CongestionEvent(
+                involved_robots=list(armed.robot_ids),
+                stall_durations_sec={rid: 0.0 for rid in armed.robot_ids},
+                detected_at=now,
+                reason=f"contradiction: {armed.cause}",
+            )
+            directive = self._machine.on_event(
+                event,
+                # Cooldown bypassed; the permanent exhausted-robots
+                # suppression is not.
+                cooldown_robots=set(self._exhausted_robots),
+                busy_robots=self._busy_robots(),
+                now=now,
+                frame_ready=self._frame_is_fresh(snapshot.stamp),
+            )
+            if directive.kind is DirectiveKind.START_ANALYSIS:
+                used = self._contradictions.charge(armed.episode_index)
+                order = self._submit_pipeline(
+                    directive.request_id,
+                    snapshot,
+                    event.involved_robots,
+                    {},
+                    trigger_robots=frozenset(armed.trigger_robot_ids),
+                    trigger_source="contradiction",
+                    contradiction=armed,
+                )
+                self.get_logger().info(
+                    f"contradiction trigger fired request={directive.request_id} "
+                    f"{armed.log_fields()} budget_used={used}/{budget}"
+                )
+                self.get_logger().info(
+                    f"starting analysis request={directive.request_id} "
+                    f"robots={event.involved_robots} reason={event.reason} order={order} "
+                    "trigger_source=contradiction"
+                )
+                return
+            reason = directive.kind.value
+        self.get_logger().info(
+            f"contradiction trigger suppressed reason={reason} {armed.log_fields()} "
+            f"budget_used={used}/{budget}"
+        )
+
+    def _trigger_artifact_fields(
+        self, trigger_source: str, contradiction: Contradiction | None
+    ) -> dict[str, Any]:
+        """The artifact's trigger-source keys; none while the trigger is disabled."""
+        if self._contradictions is None:
+            return {}
+        return {
+            "trigger_source": trigger_source,
+            "trigger_contradiction": (
+                None if contradiction is None else contradiction.model_dump(mode="json")
+            ),
+        }
 
     # ---- helpers ----
 
@@ -1634,6 +1795,7 @@ class OrchestratorNode(Node):
         # a run's log carries the run totals.
         counts = self._arrival.counts
         if not check.accepted:
+            self._attempts.note_arrival_rejection(decision.robot_id, check.distance_m)
             self.get_logger().warning(
                 f"arrival rejected robot={decision.robot_id} distance_m={distance} "
                 f"tolerance_m={self._config.arrival_position_tolerance_m} "

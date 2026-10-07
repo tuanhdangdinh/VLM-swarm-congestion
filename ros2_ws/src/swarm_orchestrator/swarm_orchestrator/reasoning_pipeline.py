@@ -512,12 +512,147 @@ def attach_registry_assignments(
     return snapshot.model_copy(update={"robots": robots})
 
 
-def build_failure_context(record: AttemptRecord, now: float) -> FailureContext:
+# prereg-v3 R3.4 failure-explanation line. Every sentence states what
+# HAPPENED to the previous attempt, never what to do next: like
+# prompt_v1's `_LAST_FAILED_CONTEXT_ADVICE`, naming an alternative maneuver
+# would hand the model the answer the experiment measures. M3's refusal and
+# degradation strings are therefore never echoed (one reads "a reverse would
+# traverse it", naming a strategy-enum value); they are mapped by class onto
+# the fixed phrases below. The only action names rendered are the previous
+# attempt's own dispatched legs, which the block already reports.
+FAILURE_EXPLANATION_MAX_CHARS = 200
+_EXPLANATION_MAX_ROBOTS = 2
+_REFUSAL_PHRASES: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("no feasible yielder", "retreat room"), "no involved robot had enough room to retreat"),
+    (
+        ("crossing order unverifiable", "first passer"),
+        "the crossing order did not match the tracked robot positions",
+    ),
+    (
+        ("outside the corridor on the same side",),
+        "both robots were outside the corridor on the same side",
+    ),
+    (
+        ("no other involved robot to pass", "same-axis partner"),
+        "no involved robot was positioned to pass",
+    ),
+)
+_REFUSAL_FALLBACK_PHRASE = "a feasibility check on the robots' positions failed"
+_DEGRADATION_PHRASES: tuple[tuple[str, str], ...] = (
+    ("yield=infeasible:", "no retreat fit the scene geometry at the robots' positions"),
+    ("retreat=no-valid-candidate", "no retreat fit the scene geometry at the robots' positions"),
+    ("reverse=infeasible:", "there was not enough room behind the robots"),
+    ("strategy=unsupported:", "the decided strategy could not be turned into robot commands"),
+)
+
+
+def _robot_list(robot_ids: Sequence[str]) -> str:
+    shown = list(robot_ids[:_EXPLANATION_MAX_ROBOTS])
+    rest = len(robot_ids) - len(shown)
+    if rest > 0:
+        return f"{', '.join(shown)} and {rest} more"
+    return " and ".join(shown)
+
+
+def _legs_text(record: AttemptRecord, robot_ids: Sequence[str]) -> str:
+    if len(robot_ids) == 1:
+        action = record.leg_outcomes[robot_ids[0]][0]
+        return f"{robot_ids[0]}'s {action or 'assigned'} leg"
+    shown = [
+        f"{robot_id} ({record.leg_outcomes[robot_id][0] or 'assigned'})"
+        for robot_id in robot_ids
+    ]
+    return f"the legs of {_robot_list(shown)}"
+
+
+def _refusal_phrase(reason: str) -> str:
+    for needles, phrase in _REFUSAL_PHRASES:
+        if any(needle in reason for needle in needles):
+            return phrase
+    return _REFUSAL_FALLBACK_PHRASE
+
+
+def _degradation_phrase(degradations: Sequence[str]) -> str | None:
+    for prefix, phrase in _DEGRADATION_PHRASES:
+        if any(tag.startswith(prefix) for tag in degradations):
+            return phrase
+    return None
+
+
+def _bounded(text: str) -> str:
+    if len(text) <= FAILURE_EXPLANATION_MAX_CHARS:
+        return text
+    return text[: FAILURE_EXPLANATION_MAX_CHARS - 3].rstrip() + "..."
+
+
+def explain_attempt(record: AttemptRecord) -> str | None:
+    """Derive one deterministic sentence stating why a previous attempt did not hold.
+
+    Sources, in this fixed precedence (the first that applies wins): M3
+    refused the planned maneuver before dispatch (`refusal_reason`, the
+    artifact's `yield_refusal_reason`); M3 replaced it with another
+    maneuver (`degradations`, the artifact's `grounding_degradations`); a
+    leg M4 reported FAILED; a leg M5 timed out; a Nav2 arrival M5 rejected;
+    otherwise every leg completed. Refusal leads because a refused yield
+    resolves `completed` (its substitute waits complete), so the leg
+    statuses alone would hide it.
+
+    Args:
+        record: A resolved attempt.
+
+    Returns:
+        The sentence (at most `FAILURE_EXPLANATION_MAX_CHARS` characters),
+        or None when the record carries none of the sources (no leg outcome
+        was ever recorded).
+    """
+    if record.refusal_reason is not None:
+        phrase = _refusal_phrase(record.refusal_reason)
+        return _bounded(
+            f"Cause: the planned maneuver was refused before dispatch because {phrase}."
+        )
+    degraded = _degradation_phrase(record.degradations)
+    if degraded is not None:
+        return _bounded(
+            f"Cause: the planned maneuver was replaced before dispatch because {degraded}."
+        )
+    states = record.leg_outcomes
+    failed = sorted(rid for rid, (_action, state) in states.items() if state == "failed")
+    if failed:
+        return _bounded(f"Cause: {_legs_text(record, failed)} failed during execution.")
+    timed_out = sorted(rid for rid, (_action, state) in states.items() if state == "timed_out")
+    if timed_out:
+        return _bounded(
+            f"Cause: {_legs_text(record, timed_out)} never started before the command deadline."
+        )
+    if record.arrival_rejections:
+        robot_id = sorted(record.arrival_rejections)[0]
+        distance = record.arrival_rejections[robot_id]
+        where = (
+            "the camera did not confirm it there"
+            if distance is None
+            else f"the camera placed it {distance:.2f} m from the goal"
+        )
+        others = len(record.arrival_rejections) - 1
+        suffix = f" ({others} more robots likewise)" if others else ""
+        return _bounded(
+            f"Cause: {robot_id} was reported at its goal by its navigator, but {where}{suffix}."
+        )
+    if not states:
+        return None
+    return _bounded("Cause: no leg failed; every commanded robot reported completion.")
+
+
+def build_failure_context(
+    record: AttemptRecord, now: float, explain: bool = False
+) -> FailureContext:
     """Project M5's last resolved attempt into the M2 previous-attempt block (rev-8 A.1).
 
     Args:
         record: A resolved `AttemptRecord` from `AttemptMemory.context_for`.
         now: Monotonic time of the new analysis, for the elapsed-seconds wording.
+        explain: Append `explain_attempt`'s sentence to `failure_detail`
+            (`failure_explanation_enabled`). False (the default) leaves the
+            detail byte-identical to every failure context built before it.
 
     Returns:
         A `FailureContext` whose `failure_detail` follows the spec wording.
@@ -533,6 +668,13 @@ def build_failure_context(record: AttemptRecord, now: float) -> FailureContext:
     if record.executed_strategy is not None and record.executed_strategy != record.strategy:
         attempt += f" (executed as {record.executed_strategy})"
     detail = f"{attempt}; congestion re-detected for the same robots"
+    if explain:
+        # Inside `failure_detail`, the one free-text field every frozen
+        # template renders verbatim: no template changes, and replay rebuilds
+        # it from the stored string.
+        explanation = explain_attempt(record)
+        if explanation is not None:
+            detail = f"{detail}. {explanation}"
     return FailureContext(
         strategy=record.strategy,
         yield_robot=record.yield_robot,
@@ -542,23 +684,28 @@ def build_failure_context(record: AttemptRecord, now: float) -> FailureContext:
 
 
 def build_failure_contexts(
-    contexts: AttemptContexts, now: float
+    contexts: AttemptContexts, now: float, explain: bool = False
 ) -> tuple[FailureContext | None, FailureContext | None]:
     """Project M5's remembered attempts into the two M2 failure-context blocks.
 
     Args:
         contexts: The latest and last-failed attempts from `AttemptMemory.contexts_for`.
         now: Monotonic time of the new analysis, for the elapsed-seconds wording.
+        explain: Forwarded to `build_failure_context` for both blocks.
 
     Returns:
         `(failure_context, last_failed_context)`, each None when the matching
         attempt is absent.
     """
-    latest = None if contexts.latest is None else build_failure_context(contexts.latest, now)
+    latest = (
+        None
+        if contexts.latest is None
+        else build_failure_context(contexts.latest, now, explain=explain)
+    )
     last_failed = (
         None
         if contexts.last_failed is None
-        else build_failure_context(contexts.last_failed, now)
+        else build_failure_context(contexts.last_failed, now, explain=explain)
     )
     return latest, last_failed
 
@@ -820,6 +967,8 @@ def write_decision_artifact(
     prompt_conditions: PromptConditions | None = None,
     dispatch: RegistryDispatch | None = None,
     plan_dispatch_order_source: DispatchOrderSourceMode | None = None,
+    trigger_source: str | None = None,
+    trigger_contradiction: dict[str, Any] | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
@@ -904,6 +1053,13 @@ def write_decision_artifact(
     dispatched is the `"recede"` phases' order in `junction_phases`; the chi
     order stays readable from the release phase (lead first, then its
     yielder action's `crossing_order`).
+
+    `trigger_source` (prereg-v3 R3.4, set by M5 only while
+    `contradiction_trigger.enabled`) adds a `trigger_source` key --
+    `"stall"`, `"contradiction"` or `"manual"` -- and `trigger_contradiction`
+    (the armed `Contradiction`, for a contradiction-triggered analysis) a
+    key of that name; both absent when None, so a trigger-off artifact is
+    byte-identical to one written before the trigger existed.
 
     `prompt_conditions` (prereg-v2 rev 6 apparatus) is always written, null
     only when the caller passed none; M5 passes it on every analysis, all-off
@@ -1038,6 +1194,10 @@ def write_decision_artifact(
     # rebuilt without this.
     if request is not None and request.plan_state is not None:
         payload["plan_state"] = request.plan_state.model_dump(mode="json")
+    if trigger_source is not None:
+        payload["trigger_source"] = trigger_source
+    if trigger_contradiction is not None:
+        payload["trigger_contradiction"] = trigger_contradiction
     payload["prompt_conditions"] = (
         None if prompt_conditions is None else prompt_conditions.model_dump(mode="json")
     )

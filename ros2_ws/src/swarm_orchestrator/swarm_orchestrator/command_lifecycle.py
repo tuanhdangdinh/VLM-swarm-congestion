@@ -32,6 +32,9 @@ class CommandRecord:
     fallback: str
     request_id: str
     robot_states: dict[str, CommandState] = field(default_factory=dict)
+    # Per-robot dispatched action name, read back when the command resolves
+    # (the failure-explanation line names the leg that failed).
+    actions: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.robot_states:
@@ -70,6 +73,11 @@ class CommandTracker:
     def robots_of(self, command_id: str) -> list[str]:
         record = self._records.get(command_id)
         return [] if record is None else list(record.robot_ids)
+
+    def actions_of(self, command_id: str) -> dict[str, str]:
+        """Return the per-robot dispatched action names of a command (empty if unknown)."""
+        record = self._records.get(command_id)
+        return {} if record is None else dict(record.actions)
 
     def fallback_of(self, command_id: str) -> str | None:
         record = self._records.get(command_id)
@@ -177,6 +185,18 @@ class AttemptRecord:
     resolved_at: float | None = None
     outcome_status: str | None = None
     executed_strategy: str | None = None
+    # Failure-explanation sources (prereg-v3 R3.4), all already in M5's
+    # lifecycle or the decision artifact; read only behind
+    # `failure_explanation_enabled`. Per robot of the command that resolved
+    # the attempt (the last phase, for a junction_clear sequence):
+    # `(action, terminal CommandState value)`.
+    leg_outcomes: dict[str, tuple[str | None, str]] = field(default_factory=dict)
+    # The artifact's `yield_refusal_reason` and `grounding_degradations`.
+    refusal_reason: str | None = None
+    degradations: list[str] = field(default_factory=list)
+    # Robots whose Nav2 arrival M5 rejected after this attempt was dispatched,
+    # with M1's distance from the goal (None when M1 had no estimate).
+    arrival_rejections: dict[str, float | None] = field(default_factory=dict)
 
 
 class AttemptContexts(NamedTuple):
@@ -240,11 +260,15 @@ class AttemptMemory:
         yield_robot: str | None,
         now: float,
         executed_strategy: str | None = None,
+        refusal_reason: str | None = None,
+        degradations: list[str] | None = None,
     ) -> None:
         """Remember a freshly dispatched attempt, superseding any earlier one.
 
         A superseded attempt that resolved as a failure becomes the remembered
-        last failed attempt, replacing any older failure.
+        last failed attempt, replacing any older failure. `refusal_reason` and
+        `degradations` are M3's yield refusal and degradation tags for the
+        grounded command, kept for the failure-explanation line.
         """
         if self._record is not None and _is_failure(self._record):
             self._last_failed = self._record
@@ -255,21 +279,41 @@ class AttemptMemory:
             yield_robot=yield_robot,
             dispatched_at=now,
             executed_strategy=executed_strategy,
+            refusal_reason=refusal_reason,
+            degradations=list(degradations or []),
         )
 
-    def resolve(self, command_id: str, outcome_status: str, now: float) -> None:
+    def resolve(
+        self,
+        command_id: str,
+        outcome_status: str,
+        now: float,
+        leg_outcomes: dict[str, tuple[str | None, str]] | None = None,
+    ) -> None:
         """Finalize the remembered attempt; a superseded command id is ignored.
 
         Re-entrant: the node resolves a command once per status message after it
         turns terminal, so only the first call stamps `resolved_at` (the window and
         the elapsed-seconds wording are measured from the first resolution) while
-        `outcome_status` keeps the latest value.
+        `outcome_status` (and `leg_outcomes`, when given) keep the latest value.
         """
         if self._record is None or self._record.command_id != command_id:
             return
         if self._record.resolved_at is None:
             self._record.resolved_at = now
         self._record.outcome_status = outcome_status
+        if leg_outcomes is not None:
+            self._record.leg_outcomes = dict(leg_outcomes)
+
+    def note_arrival_rejection(self, robot_id: str, distance_m: float | None) -> None:
+        """Record that M5 rejected a Nav2 arrival for a robot of the remembered attempt.
+
+        Args:
+            robot_id: The robot whose arrival was rejected.
+            distance_m: M1's distance from the goal, or None without an estimate.
+        """
+        if self._record is not None and robot_id in self._record.robot_ids:
+            self._record.arrival_rejections[robot_id] = distance_m
 
     def context_for(self, robot_ids: list[str], now: float) -> AttemptRecord | None:
         """Return the resolved attempt relevant to a new analysis, or None."""

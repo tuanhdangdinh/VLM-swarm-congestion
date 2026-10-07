@@ -81,6 +81,29 @@ def registry_priorities(tasks: dict[str, TaskAssignment]) -> dict[str, int]:
     return {rid: task.priority for rid, task in sorted(tasks.items()) if task.priority != 0}
 
 
+class ContradictionTriggerConfig(BaseModel):
+    """The prereg-v3 R3.4 contradiction trigger's settings (`contradiction_trigger:`).
+
+    Disabled (the default), M5 arms nothing, fires nothing and writes no
+    trigger-source key, so every run is byte-identical to before the block
+    existed. Enabled, a dispatched command whose leg reports FAILED, or whose
+    robot measurably departs from what its leg implies
+    (`swarm_orchestrator.contradiction_trigger`), re-triggers analysis as soon
+    as that command resolves, skipping the remaining cooldown, at most
+    `per_event_replan_budget` times per congestion episode.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    enabled: bool = False
+    # Must clear M1's frame-to-frame jitter on a parked robot with margin:
+    # every predicate is measured relative to the robot's own first ACTIVE
+    # position, so M1's constant ~0.1-0.3 m edge bias cancels, but a
+    # marker-loss jump does not.
+    divergence_bound_m: float = Field(default=0.5, gt=0.0)
+    per_event_replan_budget: int = Field(default=1, ge=0)
+
+
 class OrchestratorConfig(BaseModel):
     """Runtime configuration for the orchestrator, loaded from YAML at startup."""
 
@@ -282,6 +305,15 @@ class OrchestratorConfig(BaseModel):
     # M3's own audit accepts in the current scene. CONSTRUCT CHANGE: plan
     # metrics under this flag measure constrained selection, not free planning.
     prompt_candidate_options: bool = False
+    # prereg-v3 R3.4 contradiction trigger (closed-loop item); default off.
+    contradiction_trigger: ContradictionTriggerConfig = Field(
+        default_factory=ContradictionTriggerConfig
+    )
+    # prereg-v3 R3.4 failure-explanation line: append one classically derived
+    # cause sentence to each failure-context block's `failure_detail`
+    # (`reasoning_pipeline.explain_attempt`). Default off, so every prompt is
+    # byte-identical to the v1/v2-era failure context.
+    failure_explanation_enabled: bool = False
 
     @field_validator("initial_tasks")
     @classmethod
