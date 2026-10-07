@@ -1878,6 +1878,23 @@ makes an explicit include/exclude call.
    order and M3-only scope as ruled. IB10 scoring FROZEN at 11
    criteria (incl. `outcome_rank`, `yielder_last` no longer
    contingent) — the v2 freeze references the report's pin table.
+   **APPEND-ONLY CAVEAT (2026-10-08, from the v3 IB10 diagnosis —
+   `docs/reports/2026-10-08-ib10-lead-flip-diagnosis.md` on
+   `feat/v3-integration@19a1859`): the GT `robot_robot_contacts`
+   field UNDER-DETECTS — two v3 runs logged ZERO in that field
+   through a measured 0.084 m-centre contact with a 0.55 m push.
+   Any "zero contacts" criterion satisfied by reading that field —
+   including this step-7b record's — is unsupported AS EVIDENCED;
+   the claim is not asserted false, but for confirmatory use the
+   contact criterion MUST be re-derived distance-based (minimum
+   centre-to-centre separation from GT positions vs the 0.076 m
+   nose-to-nose contact threshold; the 2026-10-07 gpt-5.6-sol live
+   validation already used exactly this method and is unaffected).
+   RULED: all v1/v2 confirmatory scoring computes contacts by
+   distance recompute; the `robot_robot_contacts` field is
+   diagnostic-only until its detector is fixed (v3 scope); the
+   step-7b bundle's archived GT permits retroactive recompute and
+   SHOULD be recomputed before the 4/4 is cited in the thesis.**
 8. Loop map: USD + Nav2 + reroute grounding; the pre-emption control
    smoke before any scenario authoring.
 9. B2-visual pair + B3 first-to-slip scenarios + oracles.
