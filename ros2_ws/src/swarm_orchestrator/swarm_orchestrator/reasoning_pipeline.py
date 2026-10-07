@@ -823,6 +823,12 @@ def write_decision_artifact(
     but the command still dispatched -- a plan-channel failure never costs an
     otherwise-successful decision).
 
+    `outcome.junction_phases` (set only under the same flag, for a
+    `junction_clear` decision with a groundable recede set) adds a
+    `junction_phases` key: every precomputed phase (`label`, `robot_id`,
+    `command` with its `degradations`, `held_robot_ids`), the
+    `fallback_command` and `fallback_held_robot_ids`; absent otherwise.
+
     `prompt_conditions` (prereg-v2 rev 6 apparatus) is always written, null
     only when the caller passed none; M5 passes it on every analysis, all-off
     included. With permutation voting (`outcome.permutation_votes`), the
@@ -919,6 +925,15 @@ def write_decision_artifact(
         payload["plan"] = outcome.plan.model_dump(mode="json")
     if outcome.plan_error is not None:
         payload["plan_error"] = outcome.plan_error
+    # Forcing-audit A1 (2026-10-07): the full precomputed `junction_clear`
+    # phase record -- every phase's command (cross/release included), its
+    # held robots and its `degradations` (e.g. `junction_geometry=
+    # shipped_unsolved`), plus the fallback command -- is otherwise only in
+    # the ROS log once phase 0 is dispatched. Same conditional-add pattern as
+    # `plan`. Runtime phase advancement happens after this write and stays in
+    # the M5 log (`junction_clear phase advance` lines).
+    if outcome.junction_phases is not None:
+        payload["junction_phases"] = outcome.junction_phases.model_dump(mode="json")
     # v3's plan-state block (unlike failure_context/last_failed_context,
     # which predate flag-gating and are always-present-but-nullable keys)
     # is added only when set, so a flag-off/pre-v3 artifact's bytes are

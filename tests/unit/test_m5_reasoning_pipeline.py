@@ -573,6 +573,49 @@ def test_junction_clear_absent_without_a_declared_pocket_still_matches():
     assert outcome.plan.dispatch_matches_plan is True
 
 
+def test_write_decision_artifact_round_trips_every_junction_phase_field(tmp_path):
+    # Forcing-audit A1: the phase-1+ commands and their degradation tags must
+    # survive into the artifact, not only the ROS log. J2 left undeclared so
+    # every phase and the fallback carry `junction_geometry=shipped_unsolved`.
+    from reasoning.rag.command_grounder import JunctionClearPhasePlan
+
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_junction_clear_result()),
+        ground_fn=ground_reasoner_result,
+        grounding_params=GroundingParams(mode="derived"),
+        scene_geometry=_junction_clear_geometry().model_copy(
+            update={"junction_backup_clearance_m": None}
+        ),
+        plan_tracker=PlanTracker(),
+    )
+    outcome = pipe.run(_junction_clear_request())
+    assert outcome.junction_phases is not None
+
+    payload = json.loads(write_decision_artifact(tmp_path, outcome).read_text())
+
+    recorded = payload["junction_phases"]
+    assert JunctionClearPhasePlan.model_validate(recorded) == outcome.junction_phases
+    assert [phase["label"] for phase in recorded["phases"]] == [
+        "recede", "recede", "cross", "release",
+    ]
+    for phase, original in zip(recorded["phases"], outcome.junction_phases.phases, strict=True):
+        assert set(phase) == {"label", "robot_id", "command", "held_robot_ids"}
+        assert phase["command"] == original.command
+        assert phase["held_robot_ids"] == list(original.held_robot_ids)
+    shipped = "junction_geometry=shipped_unsolved:missing=junction_backup_clearance_m"
+    for phase in recorded["phases"][:3]:
+        assert shipped in phase["command"]["degradations"]
+    assert shipped in recorded["fallback_command"]["degradations"]
+    assert recorded["fallback_held_robot_ids"] == list(
+        outcome.junction_phases.fallback_held_robot_ids
+    )
+
+
+def test_write_decision_artifact_omits_junction_phases_key_when_absent(tmp_path):
+    payload = json.loads(write_decision_artifact(tmp_path, _ok_outcome()).read_text())
+    assert "junction_phases" not in payload
+
+
 def test_plan_tracker_omitted_leaves_the_outcome_and_command_untouched():
     # Flag off (no plan_tracker passed, the default): `run()` must never call
     # verify_and_repair_plan or touch the grounded command, so the dispatch
