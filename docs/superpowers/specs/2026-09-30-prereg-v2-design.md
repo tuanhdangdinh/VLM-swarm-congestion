@@ -526,7 +526,19 @@ Option B; v1 head-on-scoped 5.9–7.4 days → 4.6–5.7 with B.
 (6) Side findings recorded: fc_launch exits rc=141 every cycle
 (ls|head broken pipe under pipefail, predates probe, cosmetic —
 trap-14 family); SIM_SEC/--duration-sec confirmed dead; shader
-cache healthy (0 compile lines in 31 boots).
+cache healthy (0 compile lines in 31 boots). → OPTION B +
+STOP-FLAG LANDED AND SMOKED 2026-10-07
+(`docs/reports/2026-10-07-harness-optionb.md`; composite
+`7ddebe4..5a3bc0f`, hotfix `c1bf820..72d2a04` = Rev 27): smoke
+cycle 838 s vs 1082 baseline (−22.6%), tail ended 11 s after
+Isaac exit, GT/manifest/dispatched_* keys all intact; deliberate
+abort killed Isaac in 3 s (vs minutes) with GT closed valid and
+an aborted manifest — trap 16's mechanism is fixed at source,
+pgrep gate retained for 4-robot cells. Abort evidence lives ONLY
+in the manifest (no FAIL exit line possible under fast
+shutdown) — scorers and drivers must read `aborted`, not exit
+codes. NOTE: the VM was restored to the OLD driver — deploy the
+collection branch before any run.
 
 **Forcing/hardcode audit RESULT + RULINGS (2026-10-07, fork
 session, three layers M2 / M3+M5 / M4+scorers, read-only on

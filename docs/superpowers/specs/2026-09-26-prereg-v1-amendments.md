@@ -34,6 +34,36 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 27 (2026-10-07): **POST-TAG PROTOCOL NOTE — the v1 driver
+  timing amendment (Option B + abort stop-flag).** Following the
+  shutdown-timing probe
+  (`docs/reports/2026-10-07-shutdown-timing-probe.md`; ruling in the
+  v2 design spec's probe block), `prereg-v1-hotfix` gains two
+  harness-only commits, `c1bf820` (runner stop flag) and `fca3870`
+  (fc_launch Option B + abort flag): the M5 recording tail now ends
+  ~10 s after the Isaac process exits with `REC_SEC` kept as the cap
+  (measured −244 s/episode, −22.6%, on the 2-robot smoke), and
+  aborted runs exit the sim loop via a stop-flag file so GT is
+  closed and the manifest written (`completed=false, aborted=true` +
+  reason/phase keys appearing ONLY on aborted manifests; normal
+  manifests keep their exact 13-key shape). Scope audit: the diff
+  touches only `scripts/vm/`, the Isaac runner, and `tests/unit/`;
+  nothing under `reasoning/` or `config/`; decision semantics,
+  prompts, GT content and episode horizons unchanged (the REC_SEC
+  cap path is untouched — an Isaac outliving the cap still runs its
+  full 300 sim-s horizon, so no GT truncation is introduced).
+  Validation: composite-build VM smoke PASSED (cycle 838 s vs
+  1082 s baseline; GT 3001 lines, valid last line; manifest
+  completed=true, key set unchanged; 2/2 arrivals) and a deliberate
+  abort PASSED (Isaac gone 3 s after signal vs minutes before; GT
+  closed valid at 370 lines; aborted manifest written); the hotfix
+  tree's own runner/helper files are byte-identical to the smoked
+  ones and its fc_launch differs only in pre-existing free-flow
+  lines. Known limits recorded: an abort is visible ONLY in the
+  manifest (Kit's fast shutdown precludes a FAIL exit line);
+  4-robot cells still outlive fc_launch, so the pgrep relaunch gate
+  remains mandatory. Suite: failing set identical (66 ids), +23
+  tests.
 - Rev 26 (2026-10-07): **POST-TAG PROTOCOL NOTE — the v1 transport
   hotfix.** The 2026-10-07 provider-conformance review
   (`docs/reports/2026-10-07-conformance-review.md`, rulings in the v2
