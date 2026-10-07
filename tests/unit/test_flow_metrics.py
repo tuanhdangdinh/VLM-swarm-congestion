@@ -235,6 +235,20 @@ def test_count_dispatches_counts_only_the_unsuppressed_artifact(tmp_path):
     assert fft.count_dispatches(tmp_path) == 1
 
 
+def test_count_dispatches_excludes_a_dispatch_disabled_artifact_without_suppressed_flag(
+    tmp_path,
+):
+    # Addendum A3: a log-only cell is strict zero even when the artifact
+    # carries a grounded command but no `dispatch_suppressed` key.
+    (tmp_path / "a.json").write_text(_dispatching_artifact(dispatch_enabled=False))
+    assert fft.count_dispatches(tmp_path) == 0
+
+
+def test_count_dispatches_counts_an_explicitly_dispatch_enabled_artifact(tmp_path):
+    (tmp_path / "a.json").write_text(_dispatching_artifact(dispatch_enabled=True))
+    assert fft.count_dispatches(tmp_path) == 1
+
+
 def test_count_dispatches_ignores_a_task_stream_jsonl_beside_the_artifacts(tmp_path):
     # v2_final_run.sh copies tasks_<session>.jsonl into the decisions dir;
     # its multi-line body must neither be parsed nor counted.

@@ -305,7 +305,11 @@ def count_dispatches(decisions_dir: Path) -> int:
     re-analysis answering no congestion is not counted. Neither is an
     artifact the v3 dispatch-off probe suppressed (`dispatch_suppressed`):
     its command never reached M4, so a log-only episode's would-be
-    dispatches count 0.
+    dispatches count 0. Any artifact recorded with `dispatch_enabled: false`
+    is skipped too (prereg-v3 addendum A3's strict-zero rule for log-only
+    cells): `dispatch_suppressed` alone is not set on every dispatch-off
+    outcome (a non-OK or filter-emptied grounding), so a log-only cell
+    counts 0 whatever its artifacts carry.
 
     Args:
         decisions_dir: The run's copied M5 decision artifacts.
@@ -320,6 +324,7 @@ def count_dispatches(decisions_dir: Path) -> int:
             (record.get("decision") or {}).get("congestion_detected")
             and record.get("grounded_command_present")
             and not record.get("dispatch_suppressed")
+            and record.get("dispatch_enabled") is not False
         ):
             count += 1
     return count

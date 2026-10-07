@@ -184,7 +184,8 @@ if [ -n "$STAMP" ]; then
   done
   cp "/tmp/fc_${STAMP}_isaac.log" "$OUT/isaac.log" 2>/dev/null || true
   mkdir -p "$OUT/decisions"
-  grep -l "\"run_id\": \"${STAMP}\"" "$REPO"/data/logs/m5_decisions/*.json 2>/dev/null \
+  grep -l "\"run_id\": \"${STAMP}\"" "$REPO"/data/logs/m5_decisions/*.json \
+    "$REPO"/data/logs/m5_decisions/tasks_*.jsonl 2>/dev/null \
     | xargs -I{} cp {} "$OUT/decisions/" 2>/dev/null || true
   SESSION_ID="$(grep -aoE "session_id=[0-9a-f]+ run_id=${STAMP}" "$OUT/m5.log" 2>/dev/null | head -1 | sed -E 's/session_id=([0-9a-f]+).*/\1/')"
   if [ -n "$SESSION_ID" ] && [ -f "$REPO/data/logs/m5_scene/${SESSION_ID}.jsonl" ]; then
