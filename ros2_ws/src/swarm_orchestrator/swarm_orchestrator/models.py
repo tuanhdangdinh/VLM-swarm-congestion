@@ -549,6 +549,43 @@ class PipelineOutcome(BaseModel):
     permutation_votes: PermutationVoteRecord | None = None
 
 
+class RegistryDispatch(BaseModel):
+    """What M5's task-registry robot filter leaves of one outcome's grounded command.
+
+    The pipeline filters a grounded command to the robots in the request's
+    snapshot; `_dispatch` then filters it again to the robots in
+    `initial_tasks`. The two sets differ whenever M1 tracks a robot with no
+    registry task (a T3a intruder), so the command M4 receives can address
+    fewer robots than the grounded one. Computed once, before the decision
+    artifact is written, and the SAME `command` is what `_dispatch` fans out
+    (forcing-audit A5b, 2026-10-07), so the recorded and dispatched robot
+    sets are equal by construction.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    # The registry-filtered command, exactly as `_dispatch` fans it out; None
+    # when the filter refused it (no action left for a registry robot).
+    command: dict[str, Any] | None
+    # Robots the grounded command addressed that the filter removed.
+    dropped_robot_ids: tuple[str, ...] = ()
+    # Why the filter refused the command; None whenever `command` is set.
+    error: str | None = None
+    # `junction_clear` only (`PipelineOutcome.junction_phases` set): the
+    # robot ids each later phase's command, and the fallback command, address
+    # after the same filter, which `_dispatch_junction_phase` applies to them
+    # at dispatch time. An empty tuple marks a phase the filter would refuse.
+    junction_phase_robot_ids: tuple[tuple[str, ...], ...] | None = None
+    junction_fallback_robot_ids: tuple[str, ...] | None = None
+
+    @property
+    def robot_ids(self) -> list[str]:
+        """The robots the filtered command addresses, in action order."""
+        if self.command is None:
+            return []
+        return [action["robot_id"] for action in self.command.get("actions", [])]
+
+
 class AnnotationOverlayReport(BaseModel):
     """Which prompt-apparatus overlays M1 says it drew on its annotated frame."""
 

@@ -20,7 +20,11 @@ from std_msgs.msg import String
 from swarm_interfaces.msg import CoordinationCommand, CoordinationStatus
 from swarm_interfaces.srv import TriggerCongestionAnalysis
 
-from reasoning.rag.command_grounder import filter_command_robot_ids, ground_reasoner_result
+from reasoning.rag.command_grounder import (
+    CommandGroundingError,
+    filter_command_robot_ids,
+    ground_reasoner_result,
+)
 from reasoning.vlm import (
     RetreatChooser,
     backend_adapter,
@@ -55,6 +59,7 @@ from swarm_orchestrator.models import (
     CongestionEvent,
     OrchestratorConfig,
     PipelineOutcome,
+    RegistryDispatch,
     load_config,
     parse_annotation_overlays,
     parse_scene_snapshot,
@@ -94,6 +99,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     load_grounding_source,
     raw_frame_dump_path,
     raw_frame_skew_sec,
+    registry_dispatch,
     summarize_yield_grounding,
     write_decision_artifact,
 )
@@ -936,6 +942,9 @@ class OrchestratorNode(Node):
         self._pending_trigger_robots = frozenset()
         self._pending_episode_index = None
         shadow_block = self._finalize_shadow(outcome)
+        # Filtered once, here, so the artifact records exactly the command
+        # `_dispatch` fans out (forcing-audit A5b).
+        dispatch = registry_dispatch(outcome, set(self._config.initial_tasks))
         try:
             artifact_path = write_decision_artifact(
                 self._config.decision_log_dir,
@@ -954,6 +963,7 @@ class OrchestratorNode(Node):
                 shadow_classical=shadow_block,
                 grounding_source=self._grounding,
                 prompt_conditions=prompt_conditions,
+                dispatch=dispatch,
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
         except OSError as exc:
@@ -982,7 +992,7 @@ class OrchestratorNode(Node):
 
         directive = self._machine.on_outcome(outcome, now)
         if directive.kind is DirectiveKind.DISPATCH and outcome.grounded_command is not None:
-            self._dispatch(outcome)
+            self._dispatch(outcome, dispatch)
         elif directive.kind is DirectiveKind.COOLDOWN:
             self._cooldown.start(directive.robots, now)
             self.get_logger().info(
@@ -1034,7 +1044,9 @@ class OrchestratorNode(Node):
             )
             return {"request_id": outcome.request_id, "shadow_error": error}
 
-    def _dispatch(self, outcome: PipelineOutcome) -> None:
+    def _dispatch(
+        self, outcome: PipelineOutcome, dispatch: RegistryDispatch | None = None
+    ) -> None:
         # Second no-dispatch layer: the probe path never reaches here, but a
         # probe outcome that somehow did is refused before anything is sent.
         if self._probe_ledger.is_probe(outcome.request_id):
@@ -1043,10 +1055,17 @@ class OrchestratorNode(Node):
                 "t0 probe outcomes are log-only"
             )
             return
-        grounded = filter_command_robot_ids(
-            outcome.grounded_command,
-            set(self._config.initial_tasks),
-        )
+        if dispatch is None:
+            dispatch = registry_dispatch(outcome, set(self._config.initial_tasks))
+        if dispatch is None or dispatch.command is None:
+            # Same failure as the inline filter this replaced raised; the
+            # artifact already recorded it as `dispatch_filter_error`.
+            raise CommandGroundingError(
+                "no grounded command to dispatch"
+                if dispatch is None
+                else str(dispatch.error)
+            )
+        grounded = dispatch.command
         if outcome.plan is not None:
             self._plan_id_by_command_id[grounded["command_id"]] = outcome.plan.plan_id
             # Step-7b ruling (v): bind this resolution's trigger-robot set to
