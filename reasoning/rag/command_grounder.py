@@ -718,6 +718,9 @@ def _ground_legacy(
             )
         )
     command_id = f"{result.request_id}-{decision.strategy}"
+    # Set only by a tracked-band clamp that actually shortened a reverse;
+    # empty keeps every other legacy command byte-identical (no key).
+    clamp_tags: list[str] = []
     duration_sec = 8.0
     # Fallback distance the yielding robot reverses, used when the caller
     # supplies no positions (and by `reverse`, which has no park target). Sized
@@ -990,21 +993,28 @@ def _ground_legacy(
                 for robot_id in robot_ids
             ]
         else:
-            actions = [
-                {
-                    "robot_id": robot_id,
-                    "action": "reverse",
-                    "parameters": {
-                        "backup_distance_m": _clamp_reverse_distance_to_tracked_band(
-                            robot_id,
-                            backup_distance_m,
-                            robot_positions.get(robot_id) if robot_positions else None,
-                            geometry,
-                        ),
-                    },
-                }
-                for robot_id in robot_ids
-            ]
+            actions = []
+            for robot_id in robot_ids:
+                clamped_m = _clamp_reverse_distance_to_tracked_band(
+                    robot_id,
+                    backup_distance_m,
+                    robot_positions.get(robot_id) if robot_positions else None,
+                    geometry,
+                )
+                if clamped_m != backup_distance_m:
+                    # Forcing-audit A5a: the clamp rewrites the leg after the
+                    # decision; tag it so the artifact shows the change.
+                    clamp_tags.append(
+                        f"reverse=clamped_tracked_band:{robot_id}:"
+                        f"{backup_distance_m:g}->{clamped_m:g}"
+                    )
+                actions.append(
+                    {
+                        "robot_id": robot_id,
+                        "action": "reverse",
+                        "parameters": {"backup_distance_m": clamped_m},
+                    }
+                )
     elif decision.strategy == "temporary_wait":
         actions = [
             {
@@ -1056,14 +1066,15 @@ def _ground_legacy(
     resolution_sec = (
         yield_total_sec if decision.strategy == "yield" and not yield_refused else duration_sec
     )
-    return validate_coordination_command(
-        {
-            "command_id": command_id,
-            "actions": actions,
-            "expected_resolution_time_sec": resolution_sec,
-            "fallback": "stop",
-        }
-    )
+    command: dict[str, Any] = {
+        "command_id": command_id,
+        "actions": actions,
+        "expected_resolution_time_sec": resolution_sec,
+        "fallback": "stop",
+    }
+    if clamp_tags:
+        command["degradations"] = clamp_tags
+    return validate_coordination_command(command)
 
 
 # Derived-mode degradation tags and the measurement-plan cause each one counts
@@ -1078,6 +1089,11 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     "yield=infeasible": "infeasible_geometry",
     # The legacy reverse template's corridor same-side refusal.
     "reverse=infeasible": "infeasible_geometry",
+    # Forcing-audit A5a: the tracked-band clamp (`_clamp_reverse_distance_to_
+    # tracked_band`) shortened a reverse leg below the computed backup;
+    # suffix `:<robot_id>:<from>-><to>` in metres. Provenance, not a cause:
+    # the clamp is M3 safety machinery, never a model output.
+    "reverse=clamped_tracked_band": None,
     # convoy / priority_override with no unique mapping onto the ordered
     # yield (`resolve_strategy_alias`): the legacy templates run a bounded
     # wait. Not a measurement-plan cause.
@@ -1648,7 +1664,10 @@ def _ground_derived(
         legacy = _ground_legacy(
             result, positions, geometry, static_obstacles, yield_feasibility_mode
         )
-        return _with_degradations(legacy, _legacy_template_degradations(decision, legacy))
+        return _with_degradations(
+            legacy,
+            [*legacy.get("degradations", []), *_legacy_template_degradations(decision, legacy)],
+        )
 
     roles = resolve_yield_roles(
         decision,
