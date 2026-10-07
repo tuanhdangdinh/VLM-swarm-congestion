@@ -489,6 +489,45 @@ separation only; episodes ran on the conformance-fixed tree
 FULL model-wiring standard; the ten-arm roster is
 collection-ready.**
 
+**Shutdown-timing probe RESULTS + RULINGS (2026-10-07, fork
+probe, mock-only, $0 API,
+`docs/reports/2026-10-07-shutdown-timing-probe.md`):** (1)
+`fast_shutdown` is ALREADY Isaac 6.0.1's default — the planned
+patch is a no-op, not applied; shutdown+cleanup is ~14 s and the
+231–356 s Kit tail on normal runs is gone as a concern. (2) The
+real waste: `fc_launch`'s fixed `REC_SEC=1000` tail keeps
+recording ~238 s after Isaac exits. **Option B ADOPTED (RULED
+fix-now, harness-only, no outcome effect):** end the M5 tail when
+the Isaac PID exits, `REC_SEC` kept as the cap; saves ~241 s/ep
+on 2-robot (~22%), ~350 s on 3-robot, 0 on 4-robot (Isaac-bound).
+Lands on the composite AND re-applied to `prereg-v1-hotfix`'s
+driver as a Rev-27 protocol amendment (driver-only, decision
+semantics untouched); requires the DRY_RUN golden update and ONE
+mock VM smoke verifying tail-exit + artifact completeness (GT
+line count, manifest completed, junction_phases/dispatched_*
+keys) before any collection run uses it. (3) **Teardown stop-flag
+ADOPTED in the same pass** (report rec 3): aborted runs currently
+leave Isaac alive because pkill's SIGTERM is swallowed by Kit —
+the root mechanism of trap 16; adopt the in-loop stop-flag (file
+checked in the runner's while loop → normal exit, GT closed,
+manifest written, ~1 s close()); SIGINT explicitly REJECTED
+(skips _write_manifest, loses GT tail). The pgrep gate stays
+regardless. (4) **Option C (early-stop at resolution +30 s)
+DEFERRED TO OWNER** with the collection-start decision: it would
+take resolved head-on cycles to ~515 s (52%) but truncates GT on
+resolved episodes and removes the post-resolution re-check
+window (a measured behavior — today's gpt-5.6-sol episodes
+logged 6 post-resolution `none` re-checks); clogged/censored
+episodes run the full window by construction either way. (5)
+PROJECTIONS CORRECTED (supersedes the 12.3 min/ep implicit in
+the exploratory-tier estimate above): measured cycle is 18.0
+min/ep → exploratory tier ~480–600 VM-h as-is, ~375–470 with
+Option B; v1 head-on-scoped 5.9–7.4 days → 4.6–5.7 with B.
+(6) Side findings recorded: fc_launch exits rc=141 every cycle
+(ls|head broken pipe under pipefail, predates probe, cosmetic —
+trap-14 family); SIM_SEC/--duration-sec confirmed dead; shader
+cache healthy (0 compile lines in 31 boots).
+
 **Forcing/hardcode audit RESULT + RULINGS (2026-10-07, fork
 session, three layers M2 / M3+M5 / M4+scorers, read-only on
 `feat/prereg-v2-composite`; full report to be committed as
