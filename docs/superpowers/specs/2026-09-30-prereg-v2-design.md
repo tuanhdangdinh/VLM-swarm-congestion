@@ -473,7 +473,21 @@ reading only prompt/completion tokens underprice cache writes.
 (7) VALIDATION STATUS: offline-equivalent COMPLETE; the two live
 VM head-on episodes (seeds 42/43) of the model-wiring standard
 are PENDING — the arm is not recorded as meeting the full
-standard until they pass; dispatched 2026-10-07.
+standard until they pass; dispatched 2026-10-07. → CLOSED
+2026-10-07: both live episodes PASSED (s42/s43, tree `941c1c3`,
+report Rev 2 "Live VM Episodes" section, composite `e879b21`):
+resolved 2/2 both, correct yielder robot_2 both, `vlm_verbatim`
+0-edit plans with dispatch matching, 0 refusals in 10 calls, all
+attempt_records `answered`, stage 2 within bound (2.2/3.3 s),
+delay sums 147.1/146.5 s inside the resolved-arm band, min GT
+separation 0.253/0.258 m, ~$0.16. Group-C note: gpt-4o needed the
+swap repair in both its pilot episodes; 5.6-sol needed none.
+Caveats recorded in the report: both seeds drew id_desc (no
+order-robustness claim at n=2); contact check is robot-to-robot
+separation only; episodes ran on the conformance-fixed tree
+(prompt bytes identical, no retry fired). **The arm MEETS THE
+FULL model-wiring standard; the ten-arm roster is
+collection-ready.**
 
 **Forcing/hardcode audit RESULT + RULINGS (2026-10-07, fork
 session, three layers M2 / M3+M5 / M4+scorers, read-only on
