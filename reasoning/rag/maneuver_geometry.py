@@ -95,7 +95,9 @@ class GroundingParams(BaseModel):
     # orders whose differently-ordered pairs all sit within this χ margin are
     # one equivalence class at VERIFICATION only -- a plan listing them in
     # the non-χ order is not a reorder problem, while dispatch stays in χ
-    # order and the divergence is recorded (`command_grounder.
+    # order (unless prereg-v3 R3.3's `plan_dispatch_order_source:
+    # model_when_verified` dispatches a verbatim plan's own order) and the
+    # divergence is recorded (`command_grounder.
     # JunctionDispatchMatch.order_equivalent`). Measured on every IB10 run
     # with geometry on disk: within-run χ spread <= 5 mm, between-run
     # jam-formation margins up to 0.142 m in the nominally symmetric scene;
@@ -727,8 +729,10 @@ def recede_orders_equivalent(
     orders of the SAME recede set are equivalent when every pair of robots
     they order differently has a χ margin strictly below
     `params.junction_recede_order_epsilon`. Identical orders are trivially
-    equivalent. Used at verification only; dispatch always follows
-    `rank_recede_candidates`.
+    equivalent. Used at verification only; dispatch follows
+    `rank_recede_candidates` unless prereg-v3 R3.3's
+    `plan_dispatch_order_source: model_when_verified` dispatches a
+    `vlm_verbatim` plan's own (thereby equivalent) order.
 
     Args:
         frame: Current scene snapshot (the one χ is ranked on).

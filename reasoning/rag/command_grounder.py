@@ -55,6 +55,15 @@ from reasoning.vlm.output_parser import DECISION_DEGRADATION_TAGS
 # feasible involved robot, "refuse" only ever degrades to a temporary wait.
 YieldFeasibilityMode = Literal["off", "swap", "refuse"]
 
+# prereg-v3 R3.3 arm `dispatch-model-order-when-verified`: where a
+# `junction_clear` resolution's RECEDE dispatch order comes from. "chi" (the
+# inherited default) always dispatches `rank_recede_candidates`' order;
+# "model_when_verified" dispatches the model's own `proposed_plan` recede
+# order when that plan verified `vlm_verbatim`, and chi otherwise.
+DispatchOrderSourceMode = Literal["chi", "model_when_verified"]
+# Which order a decision's recede phases were actually dispatched in.
+DispatchOrderSource = Literal["chi", "model"]
+
 
 class CommandGroundingError(ValueError):
     """Raised when a grounded command is incomplete or invalid."""
@@ -1843,7 +1852,9 @@ class JunctionClearPhasePlan(BaseModel):
     unordered encounter on the SAME N-S line the composite just cleared
     (both recede pockets sit on one axis coordinate, so there is no lateral
     room to pass). The `"release"` phase holds every recede candidate but
-    the chi-cheapest one (`ranked[0]`, already the first to recede) PLUS the
+    the chi-cheapest one (`ranked[0]`, the first to recede under the default
+    `plan_dispatch_order_source: chi`; under R3.3's `model_when_verified` it
+    is still the release lead, whatever the recede order was) PLUS the
     grounded yielder (`"the yielder re-enters last"`, (a) Sequencing) via a
     plain `yield` action whose `passer_robot_id` is `ranked[0]` -- reusing
     M4's existing odometry-gated `CrossingChain` (`swarm_execution.
@@ -1884,6 +1895,7 @@ def ground_junction_clear_phases(
     static_obstacles: Sequence[StaticObstacleInput] = (),
     yield_feasibility_mode: YieldFeasibilityMode = "off",
     retreat_choice: RetreatChoiceDecision | None = None,
+    recede_order: Sequence[str] | None = None,
 ) -> JunctionClearPhasePlan:
     """Ground a `junction_clear` decision's full recede-then-yield dispatch sequence.
 
@@ -1896,6 +1908,30 @@ def ground_junction_clear_phases(
     `yield` command for the yield-axis robots (`_ground_derived`'s own yield
     branch, reused verbatim via `_as_yield_decision`, never a second
     implementation).
+
+    `recede_order` (prereg-v3 R3.3, `plan_dispatch_order_source:
+    model_when_verified`) replaces ONLY the order the recede phases are
+    emitted in -- the caller passes the model's own verified recede order.
+    Everything else stays keyed to chi rank, deliberately: each candidate's
+    pocket is still `recede_pocket_offset_m(geometry, <its chi rank>)`, and
+    the cross phase's holds, the release phase (lead = chi rank 0, its
+    `crossing_order`/`crossing_clear_m`) and the fallback's holds are
+    unchanged. Pockets follow chi rank, not dispatch order, because the
+    release geometry is built on them: the release lead must sit at the
+    rank-0 (deepest) pocket and `passer_clear_m`/`receder_clears` are sized
+    from the rank-indexed pockets, so moving pockets with dispatch order
+    would park a non-lead at the deep pocket while its clearance is sized
+    from the shallow one. With chi-rank pockets the post-recede configuration
+    is identical to the chi-ordered dispatch; only the temporal order of the
+    recede legs differs (each recede is a straight reverse along the
+    robot's own arm to a scene-constant pocket, measured on the decision's
+    one snapshot with every other robot held, so its distance does not
+    depend on which recede ran first). The one ordering that IS physical --
+    two candidates stacked on the SAME arm, where the outer one must recede
+    first -- is excluded upstream, not here: chi charges
+    `junction_recede_cost_follower_weight` (0.5) per follower, above
+    `junction_recede_order_epsilon` (0.15), so such an inversion never
+    verifies `vlm_verbatim` and never reaches this argument.
 
     Every phase's command addresses EVERY involved robot: the active one
     with its real maneuver, every other one with `temporary_wait`. This is
@@ -1928,6 +1964,9 @@ def ground_junction_clear_phases(
         retreat_choice: Derived-mode stage-2 answer for the final phase, if
             any; never meaningful for a recede phase (no stage 2 exists for
             a straight-line recede to a declared pocket).
+        recede_order: The order to emit the recede phases in, or None (the
+            default) for chi order -- byte-identical to before this argument
+            existed. Must be a permutation of the chi-ranked candidates.
 
     Returns:
         The full phase sequence plus the plain-`yield` fallback command.
@@ -1946,6 +1985,8 @@ def ground_junction_clear_phases(
             `congestion_detected`, not `junction_clear`, or no recede
             candidate survives chi ranking under `geometry` (the caller's
             job to check first).
+        ValueError: If `recede_order` is not a permutation of the
+            chi-ranked recede candidates.
     """
     decision = result.decision
     if decision is None or not decision.congestion_detected:
@@ -2014,13 +2055,28 @@ def ground_junction_clear_phases(
             [*fallback_command.get("degradations", []), _shipped_unsolved_tag(missing)],
         )
 
+    chi_rank = {robot_id: rank for rank, robot_id in enumerate(ranked)}
+    if recede_order is None:
+        dispatch_order = ranked
+    else:
+        dispatch_order = list(recede_order)
+        if sorted(dispatch_order) != sorted(ranked) or len(set(dispatch_order)) != len(ranked):
+            raise ValueError(
+                f"recede_order {dispatch_order!r} is not a permutation of the chi-ranked "
+                f"recede candidates {ranked!r}"
+            )
     phases: list[JunctionClearPhase] = []
-    for rank, robot_id in enumerate(ranked):
+    for robot_id in dispatch_order:
         # Step-7b ruling (iv): the pocket is assigned by chi rank AFTER
         # ranking (chi itself measures the unstaggered offset), so a declared
-        # stagger moves only the non-lead candidates' pockets inward.
+        # stagger moves only the non-lead candidates' pockets inward. Chi
+        # rank, never dispatch position, even under `recede_order` (R3.3):
+        # the release phase below is sized from these rank-indexed pockets.
         distance = recede_distance_m(
-            snapshot, robot_id, geometry, offset_m=recede_pocket_offset_m(geometry, rank)
+            snapshot,
+            robot_id,
+            geometry,
+            offset_m=recede_pocket_offset_m(geometry, chi_rank[robot_id]),
         )
         assert distance is not None  # guaranteed by `rank_recede_candidates`
         actions: list[dict[str, Any]] = [
@@ -2120,8 +2176,9 @@ def ground_junction_clear_phases(
         # Freeze-blocking finding 2 (step-7a fix): stagger the post-composite
         # release instead of letting every recede candidate's hold lapse
         # together the moment the cross phase resolves (`JunctionClearPhasePlan`'s
-        # docstring has the full mechanism). `ranked[0]` (chi-cheapest,
-        # already first to recede) is addressed by NO action here, so it is
+        # docstring has the full mechanism). `ranked[0]` (chi-cheapest; the
+        # first to recede unless R3.3 dispatched the model's order, the release
+        # lead either way) is addressed by NO action here, so it is
         # free to resume the instant this phase is reached; every other
         # recede candidate, PLUS the grounded yielder ("the yielder re-enters
         # last", (a) Sequencing), is held via a plain `yield` action naming
@@ -2797,10 +2854,11 @@ def _plan_problems(
                     # χ-epsilon verbatim rule (RULED 2026-10-03): an order
                     # within `junction_recede_order_epsilon` of chi's is the
                     # same equivalence class, so it is not a problem here.
-                    # Verification only -- dispatch stays in chi order, and
-                    # `junction_clear_dispatch_match` records the divergence
-                    # as `order_equivalent`. The recede SET audit above
-                    # stays strict.
+                    # Verification only -- dispatch stays in chi order (unless
+                    # R3.3's `model_when_verified` dispatches this verbatim
+                    # plan's own order), and `junction_clear_dispatch_match`
+                    # records the divergence as `order_equivalent`. The
+                    # recede SET audit above stays strict.
                     if not recede_orders_equivalent(
                         snapshot, actual_order, chi_order, geometry, chi_params
                     ):
@@ -3723,6 +3781,25 @@ class JunctionDispatchMatch(BaseModel):
     order_equivalent: bool = False
 
 
+def plan_recede_order(plan_legs: Sequence[ProposedPlanLeg]) -> list[str]:
+    """A plan's recede order: its `reverse` legs' robots, in leg-list order.
+
+    The same reading `junction_clear_dispatch_match` compares against the
+    dispatched recede phases, exposed for the R3.3 dispatch path
+    (`plan_dispatch_order_source: model_when_verified`), which hands it to
+    `ground_junction_clear_phases(recede_order=...)` for a `vlm_verbatim`
+    plan -- whose `reverse` legs are then exactly the structural recede set
+    (`_plan_problems` flags any other membership).
+
+    Args:
+        plan_legs: A verified plan's legs.
+
+    Returns:
+        The robots holding a `reverse` leg, in list order.
+    """
+    return [leg.robot_id for leg in plan_legs if leg.action == "reverse"]
+
+
 def _dispatched_recede_order(plan: JunctionClearPhasePlan) -> list[str]:
     order: list[str] = []
     for phase in plan.phases:
@@ -3756,10 +3833,13 @@ def junction_clear_dispatch_match(
 
     Order-aware since the χ-epsilon verbatim rule (RULED 2026-10-03): the
     plan's `reverse` legs, in list order, are also compared with the order
-    the recede phases dispatch them in. Dispatch always follows χ, so a
-    verified plan whose recede order differs within epsilon is still a
-    match, flagged `order_equivalent`; a difference beyond epsilon is not a
-    match (freeze-blocker 1 stays closed).
+    the recede phases dispatch them in. With `plan`'s phases in χ order (the
+    inherited dispatch), a verified plan whose recede order differs within
+    epsilon is still a match, flagged `order_equivalent`; a difference
+    beyond epsilon is not a match (freeze-blocker 1 stays closed). Passed
+    model-ordered phases (R3.3, `plan_dispatch_order_source:
+    model_when_verified`), the comparison is against that order instead;
+    the caller then takes `order_equivalent` from the χ-ordered comparison.
 
     Args:
         plan_legs: The accepted plan's legs.
@@ -3789,7 +3869,7 @@ def junction_clear_dispatch_match(
                 dispatched[robot_id] = action
     plan_by_robot = {leg.robot_id: leg.action for leg in plan_legs}
     actions_match = dispatched == plan_by_robot
-    plan_order = [leg.robot_id for leg in plan_legs if leg.action == "reverse"]
+    plan_order = plan_recede_order(plan_legs)
     dispatched_order = _dispatched_recede_order(plan)
     if plan_order == dispatched_order:
         return JunctionDispatchMatch(matches=actions_match)

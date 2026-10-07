@@ -2113,6 +2113,11 @@ _TRIGGERED_ARTIFACT_KEYS = _PRE_PROBE_ARTIFACT_KEYS | {
     # included, in every decision artifact) -- the one deliberate exception
     # to the conditional-add byte-identity pattern.
     "prompt_conditions",
+    # prereg-v3 R3.3 dispatch-order arm (2026-10-07): the configured mode and
+    # the per-decision recede order source, written on EVERY artifact by
+    # design (absent = pre-arm artifact, never ambiguous), same exception.
+    "plan_dispatch_order_source",
+    "dispatch_order_source",
 }
 # Forcing-audit A5b (2026-10-07): added by M5 whenever the outcome carries a
 # grounded command (`registry_dispatch`), so M4's robot set is recorded.
