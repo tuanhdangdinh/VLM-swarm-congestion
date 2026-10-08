@@ -18,6 +18,10 @@ so every grounding consumer (the command, stage 2, the plan verifier and the
    stays on the declared geometry: its recede pockets and release lanes are
    declared junction constants (S2/S3 work, gated separately).
 
+A third pass under the same switch, `apply_escort_headings`, runs on the
+grounded command instead (prereg-v3 A11(iii)): every escorted passer is
+driven toward its current goal, not along its spawn heading.
+
 The view is resolved once per decision, at each public grounding entry point
 (`ground_reasoner_result`, `ground_junction_clear_phases`,
 `verify_and_repair_plan`, and M5's stage-2 call); internal calls ground the
@@ -517,3 +521,187 @@ def resolve_grounding_view(
     return GroundingView(
         decision=dynamic, geometry=dynamic_geometry, tags=(*tags, *dynamic_tags)
     )
+
+
+class EscortHeading(BaseModel):
+    """One escorted passer's world-frame drive heading, or why it has none."""
+
+    model_config = ConfigDict(frozen=True)
+
+    # World-frame heading in radians (0, pi/2, pi or -pi/2: the escort axis
+    # toward the goal), None when not derivable.
+    heading_rad: float | None = None
+    # The passer's world-frame heading in the decision snapshot. M4 drives in
+    # the robot's own odom frame, whose yaw 0 is the SPAWN heading; turning
+    # by `heading_rad - reference_yaw_rad` from its odom yaw at admission
+    # needs no map-frame knowledge in M4.
+    reference_yaw_rad: float | None = None
+    reason: str | None = None
+
+
+# A goal component along the escort axis below this is no direction: the goal
+# sits straight across the lane (a robot about to turn into another arm).
+_ESCORT_AXIS_MIN_M = 0.05
+
+
+def derive_escort_heading(
+    passer_id: str,
+    yielder_id: str,
+    snapshot: SnapshotFrame | None,
+    geometry: SceneGeometry | None,
+    params: GroundingParams,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
+) -> EscortHeading:
+    """Derive the direction M4 escorts a passer in, from its current goal.
+
+    prereg-v3 A11(iii): M4's escort assumed every robot spawned facing its
+    goal (odom yaw 0); in S1 task streams the passer's goal is a different
+    node every leg. The escort axis is the one its distance was measured on
+    (`scene_geometry.passer_travel_m`): the passer's own arm axis when it is
+    on a crossing arm, else the yielder's axis. The goal's component along
+    that axis picks the sign. It must agree with the direction the distance
+    assumed (past the parked yielder, or ahead out of the box for a crossing
+    passer), or the escort leg would be the wrong length.
+
+    Args:
+        passer_id: The escorted robot.
+        yielder_id: The yield's yielder.
+        snapshot: The decision snapshot.
+        geometry: The geometry the command was grounded on (the dynamic view
+            when it fired).
+        params: Grounding parameters; `dynamic_handoff_radius_m` is the
+            radius inside which the passer counts as at its goal.
+        goal_references: Robot id -> current task node (M5's registry), or
+            None to use the snapshot's goals.
+
+    Returns:
+        The heading and the passer's snapshot heading, or a `reason`:
+        `untracked` (passer or yielder not in the snapshot, or no geometry),
+        `no_goal`, `goal_reached` (within `dynamic_handoff_radius_m`: a
+        dwelling occupant), `goal_off_axis` (no along-axis component), or
+        `goal_behind` (the goal lies opposite the direction the escort
+        distance was measured in).
+    """
+    passer = None if snapshot is None else snapshot.find_robot(passer_id)
+    yielder = None if snapshot is None else snapshot.find_robot(yielder_id)
+    if passer is None or yielder is None or geometry is None or snapshot is None:
+        return EscortHeading(reason="untracked")
+    goal = _goal_reference(passer_id, snapshot, goal_references)
+    if goal is None:
+        return EscortHeading(reason="no_goal")
+    if math.hypot(goal[0] - passer.x, goal[1] - passer.y) <= params.dynamic_handoff_radius_m:
+        return EscortHeading(reason="goal_reached")
+    yielder_arm = (geometry.arms or {}).get(yielder_id)
+    yielder_axis: Axis = geometry.corridor.axis if yielder_arm is None else yielder_arm.axis
+    passer_arm = (geometry.arms or {}).get(passer_id)
+    if passer_arm is None or passer_arm.axis == yielder_axis:
+        axis = yielder_axis
+        expected = 1.0 if _coord(yielder, axis) > _coord(passer, axis) else -1.0
+    else:
+        axis = passer_arm.axis
+        expected = -float(passer_arm.side)
+    along = (goal[0] - passer.x) if axis == "x" else (goal[1] - passer.y)
+    if abs(along) < _ESCORT_AXIS_MIN_M:
+        return EscortHeading(reason="goal_off_axis")
+    if along * expected < 0.0:
+        return EscortHeading(reason="goal_behind")
+    if axis == "x":
+        heading = 0.0 if along > 0.0 else math.pi
+    else:
+        heading = math.pi / 2 if along > 0.0 else -math.pi / 2
+    return EscortHeading(
+        heading_rad=round(heading, 6), reference_yaw_rad=round(passer.theta, 6)
+    )
+
+
+def _escorted_passers(parameters: Mapping[str, Any]) -> list[str]:
+    # M4's `crossing_chain.plan_crossing`, restated (M3 must not import M4):
+    # the first passer is escorted when the escort distance is present, and
+    # every later one of a valid `crossing_order` with it.
+    first = parameters.get("passer_robot_id")
+    if not first or parameters.get("passer_escort_distance_m") is None:
+        return []
+    order = parameters.get("crossing_order")
+    if (
+        isinstance(order, list)
+        and len(order) >= 2
+        and all(isinstance(robot_id, str) and robot_id for robot_id in order)
+        and len(set(order)) == len(order)
+        and order[0] == first
+    ):
+        return list(order)
+    return [str(first)]
+
+
+def apply_escort_headings(
+    command: dict[str, Any],
+    snapshot: SnapshotFrame | None,
+    geometry: SceneGeometry | None,
+    params: GroundingParams | None,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
+) -> dict[str, Any]:
+    """Give every escorted passer of a grounded command its goal-bearing heading.
+
+    Runs only with `params.dynamic_scene_arms` (prereg-v3 A11(iii)); with the
+    switch off the command comes back as the same object, so every flags-off
+    artifact keeps its bytes and M4 keeps driving odom yaw 0. With it on,
+    each `yield` that grounds an escort gains `passer_escort_heading_rad` and
+    `passer_escort_reference_yaw_rad` (plus `crossing_escort_heading_rad` /
+    `crossing_escort_reference_yaw_rad`, aligned with `crossing_order`, for
+    two or more passers). When any escorted passer's heading cannot be
+    derived (`derive_escort_heading`), that yield's escort is dropped
+    (`passer_escort_distance_m` and `crossing_escort_m` removed): M4 then
+    releases each passer to Nav2 at its admission, the path a yield with no
+    escort already takes, and the clearance gate is unchanged. Tagged
+    `grounding=escort_off:<passer>:<reason>`.
+
+    Args:
+        command: A grounded coordination command.
+        snapshot: The decision snapshot.
+        geometry: The geometry the command was grounded on.
+        params: Grounding parameters (the switch).
+        goal_references: Robot id -> current task node, or None.
+
+    Returns:
+        The command, with headings or with its escorts dropped.
+    """
+    if params is None or not params.dynamic_scene_arms:
+        return command
+    tags: list[str] = []
+    actions: list[dict[str, Any]] = []
+    for action in command.get("actions", []):
+        parameters = action.get("parameters") or {}
+        passers = _escorted_passers(parameters) if action.get("action") == "yield" else []
+        if not passers:
+            actions.append(action)
+            continue
+        headings = [
+            derive_escort_heading(
+                passer_id, action["robot_id"], snapshot, geometry, params, goal_references
+            )
+            for passer_id in passers
+        ]
+        failed = [(p, h.reason) for p, h in zip(passers, headings, strict=True) if h.reason]
+        if failed:
+            parameters = {
+                key: value
+                for key, value in parameters.items()
+                if key not in ("passer_escort_distance_m", "crossing_escort_m")
+            }
+            tags.extend(f"grounding=escort_off:{p}:{reason}" for p, reason in failed)
+        else:
+            parameters = {
+                **parameters,
+                "passer_escort_heading_rad": headings[0].heading_rad,
+                "passer_escort_reference_yaw_rad": headings[0].reference_yaw_rad,
+            }
+            if len(passers) > 1:
+                parameters["crossing_escort_heading_rad"] = [h.heading_rad for h in headings]
+                parameters["crossing_escort_reference_yaw_rad"] = [
+                    h.reference_yaw_rad for h in headings
+                ]
+        actions.append({**action, "parameters": parameters})
+    updated = {**command, "actions": actions}
+    if tags:
+        updated["degradations"] = [*command.get("degradations", []), *tags]
+    return updated

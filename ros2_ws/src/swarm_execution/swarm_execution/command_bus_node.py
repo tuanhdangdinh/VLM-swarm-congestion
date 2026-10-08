@@ -306,16 +306,32 @@ class CommandBusNode(Node):
                         f"escort_m={passer.escort_m} sim_t={self._sim_now():.3f}"
                     )
                     if passer.escort_m is not None:
-                        # Odom yaw 0 faces each robot's base goal (every robot
-                        # spawns facing its goal), so no map-frame knowledge.
-                        self._adapter.drive_heading(
-                            passer.robot_id,
-                            target_yaw_rad=0.0,
-                            distance_m=float(passer.escort_m),
-                            on_result=lambda status, detail, rid=passer.robot_id: (
-                                self.get_logger().info(f"escort {rid}: {status} {detail}")
-                            ),
-                        )
+                        def on_escort(status: str, detail: str, rid=passer.robot_id) -> None:
+                            self.get_logger().info(f"escort {rid}: {status} {detail}")
+
+                        turn_rad = passer.escort_turn_rad
+                        if turn_rad is None:
+                            # Odom yaw 0 faces each robot's base goal (every
+                            # robot spawns facing its goal), so no map-frame
+                            # knowledge.
+                            self._adapter.drive_heading(
+                                passer.robot_id,
+                                target_yaw_rad=0.0,
+                                distance_m=float(passer.escort_m),
+                                on_result=on_escort,
+                            )
+                        else:
+                            # prereg-v3 A11(iii): in S1 task streams the goal is
+                            # not the spawn heading. M3 grounded the turn from
+                            # the passer's current goal bearing; it is applied
+                            # from the passer's odom yaw at admission.
+                            self._adapter.drive_heading(
+                                passer.robot_id,
+                                target_yaw_rad=turn_rad,
+                                distance_m=float(passer.escort_m),
+                                on_result=on_escort,
+                                relative_to_start=True,
+                            )
                     elif chain.is_multi_passer:
                         self._release_wait(command.command_id, passer.robot_id, release_detail)
                     else:

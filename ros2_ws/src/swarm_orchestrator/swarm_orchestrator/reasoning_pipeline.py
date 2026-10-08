@@ -1523,6 +1523,11 @@ class InProcessPipeline:
                             static_obstacles=self._static_obstacles,
                             yield_feasibility_mode=self._yield_feasibility_mode,
                             retreat_choice=retreat_choice,
+                            **(
+                                {"goal_references": goal_references}
+                                if goal_references is not None
+                                else {}
+                            ),
                         )
                     except CommandGroundingError:
                         # No recede candidate survives chi ranking: `grounded`
@@ -1571,6 +1576,11 @@ class InProcessPipeline:
                             yield_feasibility_mode=self._yield_feasibility_mode,
                             retreat_choice=retreat_choice,
                             recede_order=plan_recede_order(verified.legs),
+                            **(
+                                {"goal_references": goal_references}
+                                if goal_references is not None
+                                else {}
+                            ),
                         )
                         model_match = junction_clear_dispatch_match(
                             verified.legs,

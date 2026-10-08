@@ -1,6 +1,7 @@
 import json
 from types import SimpleNamespace
 
+import pytest
 from swarm_execution import command_bus_node as _command_bus_node_mod
 from swarm_execution.command_bus_node import CommandBusNode
 
@@ -1554,3 +1555,119 @@ def test_dispatch_reference_ignored_unless_exactly_true():
         command_id="r1-junction-release",
     )
     assert rig.odom == {}
+
+
+# ---------------------------------------------------------------------------
+# prereg-v3 A11(iii): goal-bearing escort heading. Without the new parameters
+# the escort is the odom-yaw-0 call pinned above (strict-signature doubles);
+# with them it turns from the passer's odom yaw at admission.
+# ---------------------------------------------------------------------------
+
+
+class _HeadingRig(_YieldRig):
+    """`_YieldRig` whose escort double also records keyword arguments."""
+
+    def __init__(self):
+        super().__init__()
+        self.escort_kwargs: list[dict] = []
+
+        def drive_heading(robot_id, target_yaw_rad, distance_m, on_result=None, **kwargs):
+            self.escorts.append((robot_id, target_yaw_rad, distance_m))
+            self.escort_kwargs.append(kwargs)
+
+        self.adapter.drive_heading = drive_heading
+
+
+def test_escort_heading_parameter_turns_relative_to_admission_yaw():
+    rig = _HeadingRig()
+    # The passer faces west (pi) and its goal is west: no turn, drive on.
+    _start_two_robot_yield(
+        rig,
+        {
+            **_TWO_ROBOT_YIELD,
+            "passer_clear_m": 2.4,
+            "passer_escort_distance_m": 2.4,
+            "passer_escort_heading_rad": 3.141593,
+            "passer_escort_reference_yaw_rad": 3.141593,
+        },
+    )
+
+    assert rig.escorts == [("robot_2", 0.0, 2.4)]
+    assert rig.escort_kwargs == [{"relative_to_start": True}]
+
+
+def test_escort_heading_parameter_passes_the_goal_turn():
+    rig = _HeadingRig()
+    # A dweller facing north (pi/2) whose next goal is south (-pi/2).
+    _start_two_robot_yield(
+        rig,
+        {
+            **_TWO_ROBOT_YIELD,
+            "passer_clear_m": 2.35,
+            "passer_escort_distance_m": 2.35,
+            "passer_escort_heading_rad": -1.570796,
+            "passer_escort_reference_yaw_rad": 1.570796,
+        },
+    )
+
+    ((robot_id, turn, distance),) = rig.escorts
+    assert (robot_id, distance) == ("robot_2", 2.35)
+    assert abs(turn) == pytest.approx(3.141592, abs=1e-6)
+    assert rig.escort_kwargs == [{"relative_to_start": True}]
+
+
+def test_escort_without_heading_parameter_drives_odom_yaw_zero():
+    rig = _HeadingRig()
+    _start_two_robot_yield(
+        rig,
+        {**_TWO_ROBOT_YIELD, "passer_clear_m": 2.4, "passer_escort_distance_m": 2.4},
+    )
+
+    assert rig.escorts == [("robot_2", 0.0, 2.4)]
+    assert rig.escort_kwargs == [{}]
+
+
+def test_escort_heading_status_stream_matches_the_pinned_escort_stream():
+    rig = _HeadingRig()
+    _start_two_robot_yield(
+        rig,
+        {
+            **_TWO_ROBOT_YIELD,
+            "passer_clear_m": 2.4,
+            "passer_escort_distance_m": 2.4,
+            "passer_escort_heading_rad": 1.570796,
+            "passer_escort_reference_yaw_rad": 0.0,
+        },
+    )
+    rig.odom_at("robot_2", 0.3, 0.0)
+    rig.odom_at("robot_2", 0.3, 2.8)
+
+    assert rig.published == [
+        ("cmd-Y", "robot_2", "ACTIVE", "waiting"),
+        ("cmd-Y", "robot_1", "ACTIVE", "pulling off aisle centerline"),
+        ("cmd-Y", "robot_1", "ACTIVE", "holding for passing robot"),
+        ("cmd-Y", "robot_1", "COMPLETED", "yield complete: passer cleared"),
+        ("cmd-Y", "robot_2", "COMPLETED", "released: yield complete"),
+    ]
+
+
+def test_two_passer_escort_headings_reach_each_admission():
+    rig = _HeadingRig()
+    _start_two_passer_yield(
+        rig,
+        {
+            **_TWO_PASSER_YIELD,
+            "passer_escort_heading_rad": 0.0,
+            "passer_escort_reference_yaw_rad": 0.0,
+            "crossing_escort_heading_rad": [0.0, 1.570796],
+            "crossing_escort_reference_yaw_rad": [0.0, 0.0],
+        },
+    )
+    rig.odom_at("robot_1", -0.3, 0.0)
+    rig.odom_at("robot_1", 2.4, 0.0)
+
+    assert [(r, round(t, 6), d) for r, t, d in rig.escorts] == [
+        ("robot_1", 0.0, 2.6),
+        ("robot_3", 1.570796, 4.9),
+    ]
+    assert rig.escort_kwargs == [{"relative_to_start": True}, {"relative_to_start": True}]

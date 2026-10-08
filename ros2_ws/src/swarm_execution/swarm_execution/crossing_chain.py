@@ -10,6 +10,7 @@ the chain is exactly the pre-2026-09-28 single-passer hold.
 """
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -29,11 +30,32 @@ class PasserPlan:
             clear of the parked yielder.
         escort_m: Raw-cmd_vel escort distance, or None when the passer
             traverses under Nav2 after its wait is released.
+        escort_heading_rad: World-frame escort heading M3 derived from the
+            passer's current goal (prereg-v3 A11(iii), dynamic mode only),
+            or None: the escort then drives odom yaw 0, the spawn heading.
+        escort_reference_yaw_rad: The passer's world-frame heading in the
+            decision snapshot, paired with `escort_heading_rad`.
     """
 
     robot_id: str
     clear_m: float
     escort_m: float | None
+    escort_heading_rad: float | None = None
+    escort_reference_yaw_rad: float | None = None
+
+    @property
+    def escort_turn_rad(self) -> float | None:
+        """The escort's turn from the passer's current heading, or None.
+
+        M4 drives in the robot's own odom frame, whose yaw 0 is its spawn
+        heading, not the map's; the world-frame heading minus the passer's
+        world-frame heading at the decision is the same turn in any frame.
+        None unless both world-frame values were grounded.
+        """
+        if self.escort_heading_rad is None or self.escort_reference_yaw_rad is None:
+            return None
+        turn = self.escort_heading_rad - self.escort_reference_yaw_rad
+        return math.atan2(math.sin(turn), math.cos(turn))
 
 
 @dataclass(frozen=True)
@@ -66,6 +88,13 @@ def _valid_order(order: Any, first: str) -> list[str] | None:
     return order
 
 
+def _optional_float(value: Any) -> float | None:
+    try:
+        return None if value is None else float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _aligned(values: Any, length: int) -> list[float] | None:
     if not isinstance(values, list) or len(values) != length:
         return None
@@ -83,7 +112,12 @@ def plan_crossing(parameters: Mapping[str, Any]) -> tuple[PasserPlan, ...]:
     two-robot yield plans exactly as before. Later passers come from
     `crossing_order` with `crossing_clear_m` / `crossing_escort_m` aligned to
     it; a missing or misaligned list falls back to the first passer's value.
-    A later passer is escorted only when the first one is.
+    A later passer is escorted only when the first one is. Escort headings
+    (`passer_escort_heading_rad` / `passer_escort_reference_yaw_rad`, and
+    the aligned `crossing_escort_heading_rad` /
+    `crossing_escort_reference_yaw_rad`) are read the same way, except that
+    a later passer never inherits the first one's: without its own pair it
+    has none, and its escort drives odom yaw 0 exactly as before.
 
     Args:
         parameters: The decoded yield `parameters_json`.
@@ -99,19 +133,37 @@ def plan_crossing(parameters: Mapping[str, Any]) -> tuple[PasserPlan, ...]:
     clear_m = float(parameters.get("passer_clear_m", DEFAULT_PASSER_CLEAR_M))
     raw_escort = parameters.get("passer_escort_distance_m")
     escort_m = None if raw_escort is None else float(raw_escort)
-    plans = [PasserPlan(str(first), clear_m, escort_m)]
+    plans = [
+        PasserPlan(
+            str(first),
+            clear_m,
+            escort_m,
+            _optional_float(parameters.get("passer_escort_heading_rad")),
+            _optional_float(parameters.get("passer_escort_reference_yaw_rad")),
+        )
+    ]
     order = _valid_order(parameters.get("crossing_order"), str(first))
     if order is None:
         return tuple(plans)
     clears = _aligned(parameters.get("crossing_clear_m"), len(order))
     escorts = _aligned(parameters.get("crossing_escort_m"), len(order))
+    headings = _aligned(parameters.get("crossing_escort_heading_rad"), len(order))
+    references = _aligned(parameters.get("crossing_escort_reference_yaw_rad"), len(order))
     for position in range(1, len(order)):
         passer_clear = clears[position] if clears is not None else clear_m
         if escort_m is None:
             passer_escort = None
         else:
             passer_escort = escorts[position] if escorts is not None else passer_clear
-        plans.append(PasserPlan(order[position], passer_clear, passer_escort))
+        plans.append(
+            PasserPlan(
+                order[position],
+                passer_clear,
+                passer_escort,
+                headings[position] if headings is not None else None,
+                references[position] if references is not None else None,
+            )
+        )
     return tuple(plans)
 
 

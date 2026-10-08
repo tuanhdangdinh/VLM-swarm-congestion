@@ -1022,3 +1022,114 @@ def test_cancel_own_goal_cancels_handle_without_cancel_all(adapter: Nav2Adapter)
 
 def test_cancel_own_goal_without_handle_returns_false(adapter: Nav2Adapter) -> None:
     assert adapter.cancel_own_goal("robot_1") is False
+
+
+# ---------------------------------------------------------------------------
+# drive_heading: legacy odom-yaw-0 escort vs prereg-v3 A11(iii) relative mode
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("heading", "position", "expected_sign"),
+    [
+        # Left of travel (cross-track > 0) steers right (yaw below heading),
+        # right of travel steers left, for every axis direction.
+        (0.0, (1.0, 0.1), -1),
+        (0.0, (1.0, -0.1), 1),
+        (math.pi, (-1.0, 0.1), 1),
+        (math.pi, (-1.0, -0.1), -1),
+        (math.pi / 2, (-0.1, 1.0), -1),
+        (math.pi / 2, (0.1, 1.0), 1),
+        (-math.pi / 2, (0.1, -1.0), -1),
+        (-math.pi / 2, (-0.1, -1.0), 1),
+    ],
+)
+def test_line_hold_yaw_steers_back_onto_the_line(heading, position, expected_sign) -> None:
+    desired = nav2_adapter.line_hold_yaw(heading, (0.0, 0.0), position)
+    correction = math.atan2(math.sin(desired - heading), math.cos(desired - heading))
+
+    assert correction == pytest.approx(expected_sign * 0.1)
+
+
+def test_line_hold_yaw_is_measured_from_the_start_point() -> None:
+    # On the line through (-2.3, 0.35) heading west: no correction, even
+    # though odom y is far from 0.
+    assert nav2_adapter.line_hold_yaw(math.pi, (-2.3, 0.35), (-3.0, 0.35)) == pytest.approx(
+        math.pi
+    )
+
+
+def test_line_hold_yaw_correction_is_clamped() -> None:
+    desired = nav2_adapter.line_hold_yaw(0.0, (0.0, 0.0), (1.0, 5.0))
+
+    assert desired == pytest.approx(-0.3)
+
+
+def _start_escort(node, adapter, **kwargs):
+    statuses: list[tuple[str, str]] = []
+    adapter.drive_heading(
+        "robot_1", distance_m=1.0, on_result=lambda s, d: statuses.append((s, d)), **kwargs
+    )
+    return statuses, node.subscriptions[-1], node.timers[-1], node.publishers["/robot_1/cmd_vel"]
+
+
+def test_drive_heading_legacy_turns_to_absolute_odom_yaw(backup_adapter) -> None:
+    adapter, node = backup_adapter
+    _, odom_sub, timer, pub = _start_escort(node, adapter, target_yaw_rad=0.0)
+
+    # Already at odom yaw 0: no turn, straight into the drive phase.
+    odom_sub.callback(_odom_at(0.0, 0.0, yaw=0.0))
+    timer.tick()
+
+    assert pub.messages[-1].linear.x > 0.0
+
+
+def test_drive_heading_relative_turns_from_first_odom_yaw(backup_adapter) -> None:
+    adapter, node = backup_adapter
+    _, odom_sub, timer, pub = _start_escort(
+        node, adapter, target_yaw_rad=0.0, relative_to_start=True
+    )
+
+    # The robot has turned off its spawn heading (odom yaw pi/2): a zero turn
+    # drives on along the current heading instead of swinging to odom yaw 0.
+    odom_sub.callback(_odom_at(0.0, 0.0, yaw=math.pi / 2))
+    timer.tick()
+
+    assert pub.messages[-1].linear.x > 0.0
+    assert pub.messages[-1].angular.z == pytest.approx(0.0)
+
+
+def test_drive_heading_relative_half_turn_rotates_before_driving(backup_adapter) -> None:
+    adapter, node = backup_adapter
+    statuses, odom_sub, timer, pub = _start_escort(
+        node, adapter, target_yaw_rad=math.pi, relative_to_start=True
+    )
+    odom_sub.callback(_odom_at(0.0, 0.0, yaw=math.pi / 2))
+    timer.tick()
+
+    assert pub.messages[-1].linear.x == 0.0
+    assert pub.messages[-1].angular.z != 0.0
+
+    # The target is fixed at the first sample (-pi/2), not re-read per tick.
+    odom_sub.callback(_odom_at(0.0, 0.0, yaw=-math.pi / 2))
+    timer.tick()
+    assert pub.messages[-1].linear.x > 0.0
+
+    odom_sub.callback(_odom_at(0.0, -1.0, yaw=-math.pi / 2))
+    timer.tick()
+    assert statuses[-1][0] == "COMPLETED"
+
+
+def test_drive_heading_relative_holds_the_drive_start_line(backup_adapter) -> None:
+    adapter, node = backup_adapter
+    _, odom_sub, timer, pub = _start_escort(
+        node, adapter, target_yaw_rad=0.0, relative_to_start=True
+    )
+    # Heading west in odom from (2.0, 1.0): the legacy servo would steer
+    # toward odom y=0; the relative one holds y=1.0.
+    odom_sub.callback(_odom_at(2.0, 1.0, yaw=math.pi))
+    timer.tick()
+    odom_sub.callback(_odom_at(1.5, 1.0, yaw=math.pi))
+    timer.tick()
+
+    assert pub.messages[-1].angular.z == pytest.approx(0.0)
