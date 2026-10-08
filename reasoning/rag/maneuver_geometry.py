@@ -22,6 +22,7 @@ from pydantic import (
 )
 
 from reasoning.rag.scene_geometry import (
+    FEASIBILITY_MARGIN_M,
     ArmGeometry,
     SceneGeometry,
     arm_geometry,
@@ -297,6 +298,16 @@ def derive_backup_distance(
     minus one open interval `(s - c, s + c)` per robot, so its minimum is the
     band's lower bound or some `s + c`.
 
+    Under a dynamic-arms view (`geometry.rear_room_band == "footprint"`) only
+    robots that bear on the retreat are projected: `other_ids[0]` (it fixes
+    the retreat side), the lane pair (`geometry.lane_robots`), and any robot
+    within the swept corridor, `2 * robot.half_width_m + FEASIBILITY_MARGIN_M`
+    either side of the retreat line. A robot farther aside (S1's N-arm queue
+    beside an E-W lane) is not in the backup path, and the candidate sweep
+    (`retreat_candidates.generate_retreat_candidates`: every robot at
+    `min_distance_m`, plus static boxes) still vetoes any retreat that would
+    pass too close to it. Declared geometry keeps projecting every robot.
+
     Args:
         frame: Current scene snapshot.
         yielder_id: Robot that retreats.
@@ -326,7 +337,7 @@ def derive_backup_distance(
         )
     offsets = [
         (state.x - yielder.x) * axes.retreat[0] + (state.y - yielder.y) * axes.retreat[1]
-        for state in others
+        for state in _clearance_robots(yielder, others, axes, geometry)
     ]
 
     low, high = params.backup_band_m
@@ -500,6 +511,29 @@ def _retreat_side(yielder: RobotStateInput, passer: RobotStateInput, axis_index:
     yielder_coord = (yielder.x, yielder.y)[axis_index]
     passer_coord = (passer.x, passer.y)[axis_index]
     return -1.0 if yielder_coord < passer_coord else 1.0
+
+
+def _clearance_robots(
+    yielder: RobotStateInput,
+    others: list[RobotStateInput],
+    axes: RetreatAxes,
+    geometry: SceneGeometry | None,
+) -> list[RobotStateInput]:
+    # The robots `derive_backup_distance` holds the clearance against. Only
+    # the footprint band filters; declared scenes keep the frozen v2 rule
+    # (every crossing robot). The corridor is the room fix's footprint logic
+    # applied to a robot: the two bodies overlap laterally within both
+    # half-widths, plus the drift margin the room gate also adds.
+    if geometry is None or geometry.rear_room_band != "footprint":
+        return others
+    corridor_m = 2.0 * geometry.robot.half_width_m + FEASIBILITY_MARGIN_M
+    lane = geometry.lane_robots or ()
+    kept = []
+    for index, state in enumerate(others):
+        lateral = (state.x - yielder.x) * axes.left[0] + (state.y - yielder.y) * axes.left[1]
+        if index == 0 or state.robot_id in lane or abs(lateral) <= corridor_m + _EPS:
+            kept.append(state)
+    return kept
 
 
 def _park_backup_floor_m(

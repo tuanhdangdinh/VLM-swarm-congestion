@@ -175,6 +175,8 @@ class SceneGeometry(BaseModel):
     # rack straddles the mouth and reads as 0 m of room (S1 pilot ep1: every
     # robot, 216/216 echo replays). Under "footprint" the aisle walls bound
     # the sidestep through `GroundingParams.aisle_{x,y}_band_m` instead.
+    # "footprint" also limits the backup clearance to robots inside the swept
+    # corridor (`maneuver_geometry.derive_backup_distance`).
     rear_room_band: Literal["aisle", "footprint"] = "aisle"
     # The `(yielder, partner)` pair a dynamic lane corridor was derived from.
     # The yield gate scores only these two: the lane says nothing about where

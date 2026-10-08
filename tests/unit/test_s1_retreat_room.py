@@ -24,7 +24,7 @@ from swarm_orchestrator.reasoning_pipeline import load_grounding_source
 
 from reasoning.rag.command_grounder import ground_reasoner_result, verify_and_repair_plan
 from reasoning.rag.grounding_view import resolve_grounding_view
-from reasoning.rag.maneuver_geometry import GroundingParams
+from reasoning.rag.maneuver_geometry import GroundingParams, derive_backup_distance
 from reasoning.rag.retreat_candidates import generate_retreat_candidates
 from reasoning.rag.scene_geometry import SceneGeometry, required_room_m, yield_retreat_room_m
 from reasoning.vlm.models import (
@@ -440,3 +440,133 @@ def test_ep1_five_robot_echo_yield_clears_the_room_gate():
         obstacles=obstacles,
     )
     assert not any("no feasible yielder" in t for t in _gate_tags(command))
+
+
+# ---- backup clearance under the footprint band (the sibling defect) ----
+#
+# Past the room gate the echo replay still refused all 216 ep1 yields with "no
+# backup distance in band [0.5, 2.0] m satisfies clearance 1.7 m":
+# `derive_backup_distance` projected every crossing-order robot onto the
+# retreat axis, and the N-arm queue (robots 2-4, 0.67-1.42 m beside robot_1's
+# lane) projects 1.98-2.25 m behind it, inside 1.7 m of every in-band backup.
+# Under the footprint band only the side-fixing pair and robots inside the
+# swept corridor (2 * half_width_m + FEASIBILITY_MARGIN_M = 0.38 m either side
+# of the retreat line) count.
+
+_EP1_ORDER = ["robot_5", "robot_2", "robot_3", "robot_4"]
+
+
+def _ep1_view_geometry(poses: dict[str, Pose] | None = None) -> SceneGeometry:
+    geometry, _, params = _shipped()
+    view = resolve_grounding_view(
+        _decision(_FIVE, "robot_1"), _frame(poses or _EP1_SCENE, _EP1_GOALS), geometry, params
+    )
+    assert view.geometry is not None
+    assert view.geometry.rear_room_band == "footprint"
+    assert view.geometry.lane_robots == ("robot_1", "robot_5")
+    return view.geometry
+
+
+def test_ep1_off_lane_queue_does_not_veto_the_lane_backup():
+    _, _, params = _shipped()
+    backup = derive_backup_distance(
+        _frame(_EP1_SCENE, _EP1_GOALS),
+        "robot_1",
+        _EP1_ORDER,
+        params,
+        geometry=_ep1_view_geometry(),
+    )
+    # Hand-computed: robot_5 sits 0.369 m east of robot_1 (2.3066 - 1.9373),
+    # so the 1.7 m clearance needs 1.7 - 0.369 = 1.331 m west. Robots 2-4 are
+    # 1.419, 0.673 and 1.026 m beside the lane, outside the 0.38 m corridor.
+    assert backup.feasible
+    assert backup.value_m == pytest.approx(1.331)
+
+
+def test_aisle_band_still_counts_the_off_lane_queue():
+    # Same scene, same lane corridor, declared semantics: every crossing robot
+    # is projected (the frozen v2 rule), so the queue still vetoes the backup.
+    _, _, params = _shipped()
+    aisle = _ep1_view_geometry().model_copy(update={"rear_room_band": "aisle"})
+    backup = derive_backup_distance(
+        _frame(_EP1_SCENE, _EP1_GOALS), "robot_1", _EP1_ORDER, params, geometry=aisle
+    )
+    assert not backup.feasible
+    assert backup.reason == "no backup distance in band [0.5, 2.0] m satisfies clearance 1.7 m"
+
+
+def test_ep1_five_robot_echo_yield_grounds_an_executable_backup():
+    geometry, obstacles, params = _shipped()
+    command = _ground(
+        _decision(_FIVE, "robot_1"),
+        _frame(_EP1_SCENE, _EP1_GOALS),
+        geometry=geometry,
+        params=params,
+        obstacles=obstacles,
+    )
+    assert not any(t.startswith("yield=infeasible") for t in command["degradations"])
+    action = command["actions"][0]
+    assert (action["robot_id"], action["action"]) == ("robot_1", "yield")
+    assert action["parameters"]["backup_distance_m"] == pytest.approx(1.331)
+    assert action["parameters"]["retreat_x_m"] == pytest.approx(0.606, abs=1e-3)
+
+
+@pytest.mark.parametrize(
+    "blocker",
+    [
+        (0.3, 0.05, 0.0),  # on the lane, 1.637 m behind robot_1
+        (0.3, 0.38, 0.0),  # 0.332 m beside the lane: inside the 0.38 m corridor
+    ],
+)
+def test_a_robot_in_the_backup_corridor_still_blocks_it(blocker: Pose):
+    # robot_3 moved into robot_1's swept corridor, 1.637 m back: every
+    # backup in [1.331, 2.0] m ends within 1.7 m of it (it would need
+    # d >= 3.337 m), so the backup is refused before the candidate sweep.
+    geometry, obstacles, params = _shipped()
+    poses = {**_EP1_SCENE, "robot_3": blocker}
+    frame = _frame(poses, _EP1_GOALS)
+    backup = derive_backup_distance(
+        frame, "robot_1", _EP1_ORDER, params, geometry=_ep1_view_geometry(poses)
+    )
+    assert not backup.feasible
+    command = _ground(
+        _decision(_FIVE, "robot_1"), frame, geometry=geometry, params=params, obstacles=obstacles
+    )
+    assert (
+        "yield=infeasible:no backup distance in band [0.5, 2.0] m satisfies clearance 1.7 m"
+        in command["degradations"]
+    )
+    assert command["actions"][0]["action"] == "reroute"
+
+
+def test_a_robot_just_outside_the_corridor_does_not_block():
+    # The same 1.637 m back, 0.4 m beside the lane: outside the corridor.
+    _, _, params = _shipped()
+    poses = {**_EP1_SCENE, "robot_3": (0.3, 0.448, 0.0)}
+    backup = derive_backup_distance(
+        _frame(poses, _EP1_GOALS),
+        "robot_1",
+        _EP1_ORDER,
+        params,
+        geometry=_ep1_view_geometry(poses),
+    )
+    assert backup.feasible
+    assert backup.value_m == pytest.approx(1.331)
+
+
+def test_crossing_passer_off_the_retreat_line_still_sets_the_backup():
+    # Crossing view: robot_1 retreats west along its W arm, the S-arm passer
+    # robot_2 is 0.8 m beside that line but fixes the retreat side, so it is
+    # always counted: 0.5 m behind robot_1's retreat (s = -0.5) -> 1.2 m.
+    poses = {"robot_1": (-0.45, 0.35, 0.0), "robot_2": (0.05, -0.45, math.pi / 2)}
+    frame = _frame(poses, {"robot_2": (0.0, 1.55)})
+    view = resolve_grounding_view(
+        _decision(["robot_1", "robot_2"], "robot_1"), frame, _S1, _DYNAMIC
+    )
+    assert view.geometry is not None
+    assert view.geometry.rear_room_band == "footprint"
+    assert view.geometry.lane_robots is None
+    backup = derive_backup_distance(frame, "robot_1", ["robot_2"], _DYNAMIC, geometry=view.geometry)
+    aisle = view.geometry.model_copy(update={"rear_room_band": "aisle"})
+    assert backup == derive_backup_distance(frame, "robot_1", ["robot_2"], _DYNAMIC, geometry=aisle)
+    assert backup.value_m == pytest.approx(1.2)
