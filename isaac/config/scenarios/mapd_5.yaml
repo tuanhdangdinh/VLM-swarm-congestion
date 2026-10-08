@@ -1,0 +1,254 @@
+schema_version: 1
+name: mapd_5
+family: bottleneck
+# Isaac seed of THIS authored episode = the first registered S1 seed
+# (config/s1_seeds.yaml seed 1). fc_launch SEED must carry the same value.
+seed: 978442588
+# H = 600 sim-s, the registered S1 horizon (scene design S1 "Runs": 3.4x the
+# predicted free-flow median of 177 sim-s at Delta = 4). Isaac stops on THIS
+# value; fc_launch SIM_SEC is inert (the runner never reads --duration-sec).
+duration_sec: 600.0
+
+# ============================================================================
+# PILOT-ONLY -- DO NOT COLLECT. S1 (MAPD-5) is NOT registered as scored: the
+# three registration prerequisites (scene design S1 "Registration
+# prerequisites") are not all met, the schema has no `mapd` family and no
+# emergent-conflict declaration (family `bottleneck` and the
+# expected_conflict block below are SCHEMA PLACEHOLDERS), and the 5-stack
+# RTF has never been measured. This file exists for the S1 pilot
+# (bring-up, RTF, A11/A11(iii) measurements) only. RECORD=0 cells only;
+# nothing from a run of this file enters any scored dataset.
+# ============================================================================
+#
+# v3 S1, MAPD-5 emergent-congestion family: the Ghofrani GECCO '25 analog
+# (10.1145/3712256.3726339) on the B1 floor. Spec: docs/superpowers/specs/
+# 2026-10-06-v3-scene-design.md "S1" (feat/v3-design); rulings: prereg-v3
+# A11 + A11(iii) addendum (2026-10-06-prereg-v3-design.md, rev 3 addenda).
+# N_A = 5 robots, N_G = 5 task nodes, N_T = 5 tasks per robot, release
+# stagger Delta = 4 sim-s, dwell 5 sim-s (pop-on-dwell-end), H = 600 sim-s.
+#
+# Floor = B1's warehouse_map_bottleneck_merge REUSED BYTE FOR BYTE (the A55-E
+# gate, C55 0.55 x 1.0 centred at x = 1.2, x in [0.7, 1.7]); the aisle_barrier
+# block below is a verbatim copy of bottleneck_merge.yaml's, and
+# tests/unit/test_mapd_5_scenario.py pins the generated grids equal. Nav2
+# therefore runs on the PARENT map: pass MAP_SCENARIO=bottleneck_merge (the
+# free-flow-variant mechanism); no mapd_5 map is installed. The USD is this
+# scenario's own: regenerate it with build_scenario after ANY edit here (a
+# yaml edit is inert until the USD is rebuilt).
+#
+# Task nodes (scene design S1 "Layout"; yaw = the node's spawn heading):
+#   | Node | x      | y      | yaw     | placement                          |
+#   | Wp   | -2.30  | +0.35  | 0       | west tip, +0.35 lane, 0.20 in band |
+#   | Wm   | -2.30  | -0.35  | 0       | mirror lane (0.70 m from Wp)       |
+#   | N    |  0.00  | +1.55  | -pi/2   | north tip, 0.25 inside y band      |
+#   | S    |  0.00  | -1.55  | +pi/2   | south tip                          |
+#   | E    | +2.30  |  0.00  | pi      | east bay beyond the gate mouth     |
+# Routes: node -> arm mouth -> (0,0) -> arm mouth -> node; leg lengths
+# 3.10 (N-S), 3.85 (N/S-E), 3.94 (W*-N/S), 4.69 (W*-E); Wp<->Wm legs are
+# FORBIDDEN by the generator (instant static encounter at 0.25 m of travel).
+#
+# Spawns/goals below are SEED-DERIVED, not free design: spawns =
+# task_stream.draw_start_nodes(978442588, robots, nodes) and each goal is the
+# robot's FIRST drawn task of draw_task_sequences(...) (full sequences:
+#   robot_1: E  N  Wm S  N      robot_2: N  Wp N  S  N
+#   robot_3: Wp N  Wp S  Wm     robot_4: N  Wm E  Wm S
+#   robot_5: S  Wp S  Wp S                                  ).
+# A DIFFERENT SEED MOVES THE SPAWNS: regenerate this yaml (spawns, goals) for
+# the episode's seed from config/s1_seeds.yaml and REBUILD THE USD.
+# tests/unit/test_mapd_5_scenario.py re-derives both draws and fails on any
+# mismatch.
+#
+# ---------------------------------------------------------------------------
+# M5 overlay (set by hand in swarm_orchestrator/config/orchestrator.yaml
+# before a run; restore the pristine file after -- the v2_final_run.sh
+# backup/restore pattern). Kept in lockstep with `robots:` below by
+# tests/unit/test_mapd_5_scenario.py. Everything between the markers is
+# literal orchestrator.yaml YAML at "#   " indent:
+#   --- M5 overlay begin ---
+#   initial_tasks:
+#     robot_1: { task: pickup, goal: [2.3, 0.0] }
+#     robot_2: { task: pickup, goal: [0.0, 1.55] }
+#     robot_3: { task: pickup, goal: [-2.3, 0.35] }
+#     robot_4: { task: pickup, goal: [0.0, 1.55] }
+#     robot_5: { task: pickup, goal: [0.0, -1.55] }
+#   task_stream:
+#     enabled: true
+#     seed: 978442588
+#     nodes: { Wp: [-2.3, 0.35], Wm: [-2.3, -0.35], N: [0.0, 1.55], S: [0.0, -1.55], E: [2.3, 0.0] }
+#     tasks_per_robot: 5
+#     forbidden_legs: [[Wp, Wm]]
+#     task_labels: [pickup, delivery]
+#     release_stagger_wall_sec: 24.0
+#     dwell_sim_sec: 5.0
+#     horizon_sim_sec: 600.0
+#     finished_mode: park
+#     start_nodes: { robot_1: N, robot_2: Wp, robot_3: S, robot_4: Wm, robot_5: E }
+#   scenario_geometry:
+#     corridor: { axis: x, center_m: 0.0, half_length_m: 0.6, aisle_half_width_m: 0.6, occluder_height_m: 0.9 }
+#     camera: { height_m: 3.0, marker_height_m: 0.21 }
+#     robot: { half_width_m: 0.09, marker_half_size_m: 0.06, safety_radius_m: 0.45 }
+#     park_margin_m: 0.4
+#     wall_margin_m: 0.15
+#     passer_margin_m: 0.2
+#   grounding_params_path: "config/grounding/s1_dynamic.yaml"
+#   grounding_aisle_y_band_m: null
+#   grounding_aisle_x_band_m: null
+#   grounding_yield_feasibility: "swap"
+#   static_obstacles:
+#     - { obstacle_id: obstacle_1, x: -1.55, y: 1.2, size_x_m: 1.9, size_y_m: 1.2 }
+#     - { obstacle_id: obstacle_2, x: 1.55, y: 1.2, size_x_m: 1.9, size_y_m: 1.2 }
+#     - { obstacle_id: obstacle_3, x: -1.55, y: -1.2, size_x_m: 1.9, size_y_m: 1.2 }
+#     - { obstacle_id: obstacle_4, x: 1.55, y: -1.2, size_x_m: 1.9, size_y_m: 1.2 }
+#     - { obstacle_id: obstacle_5, x: 1.2, y: 0.4375, size_x_m: 1.0, size_y_m: 0.325 }
+#     - { obstacle_id: obstacle_6, x: 1.2, y: -0.4375, size_x_m: 1.0, size_y_m: 0.325 }
+#   prompt_static_obstacles: false
+#   plan_channel_enabled: true
+#   dispatch_enabled: true
+#   --- M5 overlay end ---
+# Overlay notes:
+#   - task_stream.seed is a PER-EPISODE PLACEHOLDER: set it (and this file's
+#     spawns/goals + USD, see above) from config/s1_seeds.yaml.
+#   - start_nodes PINNING (S1-core start_check): start_nodes is pinned to the
+#     spawn assignment rather than left to the seed draw, so the plan's first
+#     tasks-JSONL record carries start_nodes_drawn=false and the pinned map;
+#     any mismatch between it, this file's spawns and M1's first scene is
+#     detectable after the fact. The pinned map MUST equal
+#     draw_start_nodes(seed, ...) -- the test re-derives it.
+#   - release_stagger_wall_sec 24.0 is PROVISIONAL: the registered stagger is
+#     Delta = 4 sim-s inside the derived window (0, 4.42); the wall value is
+#     4 / RTF_pilot = 21.1-26.7 wall-s at the EXTRAPOLATED 5-stack RTF
+#     0.15-0.19 (never measured; 24.0 = 4 / 0.167). Re-derive after the RTF
+#     pilot (the C9 pattern) and record each robot's release sim-time (the
+#     arrival-process artifact check, scene design S1 risk table).
+#   - scenario_geometry declares the junction box with NO arms: under
+#     dynamic_scene_arms (config/grounding/s1_dynamic.yaml) M3 derives each
+#     yielder's arm per snapshot (A11(i)); the declared corridor is the
+#     junction_clear / fallback geometry only (A11(ii) RECOMMENDS excluding
+#     junction_clear from S1's accepted set; Step 6 call).
+#   - static_obstacles declare the racks/band edges + A55-E gate blocks so the
+#     swap-mode feasibility gate bounds rear room (A11(iii): "else rear room
+#     is unbounded"): obstacle_1..4 = the four rack quadrants of the tracked
+#     band (|x| in [0.6, 2.5] x |y| in [0.6, 1.8]); obstacle_5/6 = the gate
+#     blocks (x in [0.7, 1.7], |y| in [0.275, 0.6]). Ids are neutral by the
+#     standing rule; prompt_static_obstacles STAYS false, so none of this
+#     reaches the prompt.
+#   - grounding_aisle_{y,x}_band_m stay null here: the S1 bands are declared
+#     IN config/grounding/s1_dynamic.yaml (A11(iii) "declare
+#     aisle_{x,y}_band_m"), [-0.46, 0.46] both axes (0.6 wall - 0.14 chassis
+#     margin, the B1 NS_BAND precedent).
+#   - shadow_classical_zones: [] and shadow_classical_params_path stays
+#     "config/rag.yaml" (Arm B thresholds untouched; the md5-pinned rag.yaml
+#     is NEVER edited -- grounding_params_path points at the S1-only file).
+#
+# ---------------------------------------------------------------------------
+# A11 S1-overlay prerequisites checklist (prereg-v3 A11(iii) + scene design
+# S1 "Registration prerequisites"); status at authoring (tip 4d88bc1):
+#   [x] M5 MAPD registry contract: task_stream mode merged (task queues,
+#       pop-on-dwell-end, release stagger, start_check); wandering-analog
+#       dispatch NOT built (finished_mode park only -- Open Question S1-1),
+#       so pilot evidence on wandering-vs-park (below) decides it.
+#   [x] M3 dynamic arms + node-handoff grounding: merged flag-off
+#       (dynamic_scene_arms; A11(i) rear-swap/reverse-exemption accepted;
+#       189 flags-off goldens byte-identical).
+#   [x] Escort-heading spawn-frame blocker FIXED (e903544) and backup()
+#       servo sibling defect FIXED (f0cc17b), merged @4d88bc1: escort turn
+#       from the passer's current registry goal; backup_line_hold under
+#       dynamic mode only.
+#   [x] aisle_{x,y}_band_m declared (config/grounding/s1_dynamic.yaml).
+#   [x] racks/band edges declared as static_obstacles + gate in swap mode
+#       (overlay above).
+#   [x] S1-only grounding_params_path (never the md5-pinned rag.yaml).
+#   [ ] 45 s hold backstop vs dwell + departure at MEASURED RTF -- PASS/FAIL
+#       GATE, not advisory (A11(iii): under the escort-off rule a dwelling
+#       occupant leaves via Nav2, so a backstop regression breaks S1
+#       SEMANTICS -- premature release). Arithmetic: dwell 5 sim-s = 26.3
+#       (RTF 0.19) to 33.3 (RTF 0.15) wall-s, + measured departure latency
+#       (goal accept -> first motion, ~2-5 wall-s on 4 stacks) = 28-38
+#       wall-s against hold_backstop_sec 45: PASS iff
+#       5 / RTF_measured + departure < 45, i.e. RTF_measured > ~0.125.
+#   [ ] 5-stack bring-up + RTF measured (prerequisite 3; 2/3/4-stack trend
+#       0.39 / ~0.34 / 0.21-0.24 extrapolates to 0.15-0.19 -- extrapolated,
+#       not measured).
+#
+# Run line (pilot; caps computed for S1):
+#   SCENARIO=mapd_5 MAP_SCENARIO=bottleneck_merge SEED=978442588 \
+#     BACKEND_ID=<backend> RECORD=0 REC_SEC=4800 \
+#     NAV2_ACTIVE_TIMEOUT_SEC=360 ./scripts/vm/fc_launch.sh
+#   - REC_SEC=4800: H = 600 sim-s at extrapolated 5-stack RTF 0.15-0.19 is
+#     600/0.19 = 3158 to 600/0.15 = 4000 wall-s of Isaac lifetime (the scene
+#     doc's 53-67 wall-min), + ~500 wall-s bring-up/overhead + margin; the
+#     REC_SEC tail cap (REC_SEC - 10 = 4790) must outlive Isaac or stage 9
+#     truncates the episode. Option B ends the tail ~10 s after Isaac exits,
+#     so an over-generous cap costs nothing on a normal run. If the measured
+#     RTF comes in below ~0.13, re-set REC_SEC ~ 600 / RTF_measured + 800.
+#   - SIM_SEC is NOT set: it is inert (duration_sec above rules Isaac).
+#   - NAV2_ACTIVE_TIMEOUT_SEC=360: the 240 s default was sized on <= 4
+#     stacks (1-in-3 bring-up failures pre-gate; robot_4 active > 90 s after
+#     launch); a fifth stack extrapolates ~+90-120 s.
+#   - NAV2_LAUNCH_STAGGER_SEC stays at its default 3 (env-overridable).
+#
+# Pilot evidence to record (A11 + A11(iii) registered measurements):
+#   - 5-stack bring-up outcome + measured RTF (prerequisite 3).
+#   - Each robot's release sim-time (Delta window (0, 4.42) artifact check).
+#   - The 45 s hold-backstop GATE above: measured dwell + departure wall time.
+#   - M1 theta error on stopped robots + escort lateral deviation (A11(iii):
+#     3 deg ~ 12 cm over a 2.35 m escort vs a few-cm lane-to-rack margin).
+#   - Wandering-vs-park evidence (Open Question S1-1): arrivals onto occupied
+#     nodes under finished_mode park (free-flow census predicts 3.2/episode;
+#     variant C left 6.62 vs D's 4.44 at Delta = 20) -- the datum that decides
+#     whether the wandering analog must be built before registration.
+#   - M1 cleanliness: the 5-run Latin-square (marker, node) probe is SEPARATE
+#     (all five nodes unverified for every marker; Wp-Wm fresh rates together).
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: 0.0, y: 1.55, yaw_rad: -1.5707963267948966}
+    goal: {x: 2.3, y: 0.0}
+    initial_task: pickup
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: -2.3, y: 0.35, yaw_rad: 0.0}
+    goal: {x: 0.0, y: 1.55}
+    initial_task: pickup
+  - robot_id: robot_3
+    marker_id: 3
+    spawn: {x: 0.0, y: -1.55, yaw_rad: 1.5707963267948966}
+    goal: {x: -2.3, y: 0.35}
+    initial_task: pickup
+  - robot_id: robot_4
+    marker_id: 4
+    spawn: {x: -2.3, y: -0.35, yaw_rad: 0.0}
+    goal: {x: 0.0, y: 1.55}
+    initial_task: pickup
+  - robot_id: robot_5
+    marker_id: 5
+    spawn: {x: 2.3, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: 0.0, y: -1.55}
+    initial_task: pickup
+
+# A55-E: verbatim copy of bottleneck_merge.yaml's block (B1 floor, byte for
+# byte; the parent map is reused via MAP_SCENARIO=bottleneck_merge).
+aisle_barrier:
+  effective_width_m: 0.55
+  center_x_m: 1.2
+  length_m: 1.0
+
+timed_obstacles: []
+static_obstacles: []
+
+# SCHEMA PLACEHOLDER (scene design S1 "The schema has no MAPD shape"): S1
+# needs a `mapd` family and an EMERGENT conflict declaration -- no
+# pre-declared involved set, episodes found by a GT detector. Until that schema
+# item lands, this block satisfies the current schema only: all five robots,
+# type deadlock (the junction crossing/head-on standoffs, 309/400 first
+# encounters in the MC), window from the proxy (first encounter median 15.0
+# sim-s, p90 17.3, after staggered releases) widened for RTF/start jitter.
+expected_conflict:
+  type: deadlock
+  involved_robots: [robot_1, robot_2, robot_3, robot_4, robot_5]
+  onset_window_sec: [8.0, 120.0]
+  min_duration_sec: 2.0
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30

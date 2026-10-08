@@ -133,6 +133,15 @@
 #   ISAAC_STOP_WAIT_SEC    Abort path only: how long cleanup waits for Isaac
 #                          to honor its stop flag before the (defense-in-
 #                          depth) pkill (default 60).
+#   NAV2_ACTIVE_TIMEOUT_SEC
+#                          Nav2 lifecycle-gate budget in seconds (default
+#                          240, sized on <= 4 stacks). Raise for 5-stack
+#                          scenarios (S1 run line: 360).
+#   NAV2_LAUNCH_STAGGER_SEC
+#                          Settle sleep before each Nav2 stack after the
+#                          first (default 3, the pre-loop fixed value; the
+#                          two-robot goldens pin it). Env-overridable for
+#                          long 5-stack bring-ups.
 #   REC_STOP_WAIT_SEC      RECORD=1 only: how long stage 10 waits for the
 #                          recorder to exit after its SIGTERM stop request,
 #                          i.e. for the mp4 trailer to be written, before
@@ -453,6 +462,9 @@ wait_action() {
 NAV2_ACTIVE_RE='lifecycle_manager_navigation\]: .*Managed nodes are active'
 NAV2_ABORT_RE='Aborting bringup'
 NAV2_ACTIVE_TIMEOUT_SEC="${NAV2_ACTIVE_TIMEOUT_SEC:-240}"
+# Per-stack settle before every Nav2 launch after the first; 3 is the value
+# the fixed two-robot stages always used (goldens pin `sleep 3`).
+NAV2_LAUNCH_STAGGER_SEC="${NAV2_LAUNCH_STAGGER_SEC:-3}"
 
 # Prints the Nav2 logs (one per line) matching the extended regex $1.
 nav2_logs_matching() {
@@ -697,7 +709,7 @@ MAP_SERVER=true
 for i in "${!ROBOT_IDS[@]}"; do
   robot="${ROBOT_IDS[$i]}"
   if [ "$MAP_SERVER" = "false" ]; then
-    xrun sleep 3
+    xrun sleep "$NAV2_LAUNCH_STAGGER_SEC"
   fi
   nav2_log="$(nav2_log_of "$robot")"
   log "starting Nav2 ${robot} -> ${nav2_log}"

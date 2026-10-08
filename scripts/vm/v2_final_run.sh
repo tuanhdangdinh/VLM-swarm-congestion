@@ -227,8 +227,16 @@ STAMP="$(grep -aoE 'STAMP=[0-9]{8}_[0-9]{6}' "$OUT/launcher.log" | head -1 | sed
 log "fc_launch stamp: ${STAMP:-UNKNOWN}"
 if [ -d "$GT_DIR" ]; then mv "$GT_DIR" "$OUT/gt"; log "ground truth -> $OUT/gt"; else log "WARNING: no ground truth"; fi
 cp "$REPO/isaac/config/scenarios/${SCENARIO}.yaml" "$OUT/scenario.yaml"
+# One nav2_r<N> log per scenario robot, derived from the scenario yaml (the
+# same robots fc_launch's ROBOT_IDS loop launched), so a 5-robot cell
+# collects nav2_r5 too. 2-4 robot cells collect exactly the files they
+# always did: the old fixed r1..r4 list's misses were deleted by `|| rm -f`.
+NAV2_LOG_NAMES="$(grep -Eo 'robot_id: *robot_[0-9]+' "$OUT/scenario.yaml" \
+  | grep -Eo '[0-9]+$' | sort -nu | sed 's/^/nav2_r/' | tr '\n' ' ')"
+[ -n "$NAV2_LOG_NAMES" ] || NAV2_LOG_NAMES="nav2_r1 nav2_r2 nav2_r3 nav2_r4"
 if [ -n "$STAMP" ]; then
-  for f in m1 m4 m5 nav2_r1 nav2_r2 nav2_r3 nav2_r4; do
+  # shellcheck disable=SC2086 # NAV2_LOG_NAMES is a space-separated list.
+  for f in m1 m4 m5 $NAV2_LOG_NAMES; do
     docker exec "$CONTAINER" bash -lc "cat /tmp/fc_${STAMP}_${f}.log" </dev/null >"$OUT/${f}.log" 2>/dev/null || rm -f "$OUT/${f}.log"
   done
   cp "/tmp/fc_${STAMP}_isaac.log" "$OUT/isaac.log" 2>/dev/null || true

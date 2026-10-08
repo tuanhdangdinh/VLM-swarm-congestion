@@ -1,0 +1,135 @@
+# S1 (mapd_5) registered episode-seed list -- v3 scene design, S1 "Runs":
+# "A 100-seed registered list. The family axis is the seeded task order and
+# start assignment. Confirmatory n is R = 20 per arm, registered, from the
+# FIRST 20 seeds; seeds 21-100 are an extension only."
+# (docs/superpowers/specs/2026-10-06-v3-scene-design.md, S1 parameter table.)
+#
+# Generation procedure (deterministic; tests/unit/test_mapd_5_scenario.py
+# regenerates the list and pins sha256_digest):
+#   import hashlib, random
+#   rng = random.Random(int.from_bytes(
+#       hashlib.sha256(b"vgu-s1-seed-list:v1").digest()[:8], "big"))
+#   seeds = rng.sample(range(1, 2**31), 100)
+# The salt string follows swarm_orchestrator.task_stream._rng (sha256, never
+# hash(), so PYTHONHASHSEED cannot change the draw); rng.sample gives 100
+# DISTINCT seeds. sha256_digest is over the canonical comma-joined decimal
+# list ",".join(str(s) for s in seeds).
+#
+# Use per episode: seed k feeds BOTH
+#   - orchestrator.yaml task_stream.seed (the task-order draw), and
+#   - the episode's spawn assignment: the scenario yaml's spawns must equal
+#     swarm_orchestrator.task_stream.draw_start_nodes(seed, robots, nodes),
+#     and task_stream.start_nodes is pinned to the same map (the start_check:
+#     the plan's first tasks-JSONL record then carries start_nodes_drawn=false
+#     and any spawn mismatch is detectable against it). A new seed therefore
+#     needs the scenario yaml REGENERATED and its USD REBUILT (a yaml edit is
+#     inert until build_scenario regenerates the USD).
+# fc_launch.sh SEED should carry the same value (names the GT directory).
+#
+# APPEND-ONLY: never reorder, remove or regenerate; the first 20 are the
+# confirmatory candidates and are frozen with this file.
+version: 1
+salt: "vgu-s1-seed-list:v1"
+sha256_digest: "4ba56669821da4703b0eb15b0f3cb224b98f0af59cb78c363e9e5ceba6e3bf4a"
+confirmatory_count: 20
+seeds:
+  - 978442588
+  - 1181837745
+  - 537191633
+  - 90907664
+  - 1912308941
+  - 645184162
+  - 625495160
+  - 267370882
+  - 568275074
+  - 790328501
+  - 1380451483
+  - 1404977387
+  - 9984182
+  - 1198395108
+  - 1730051314
+  - 1094022857
+  - 1554234675
+  - 1648691287
+  - 1509617270
+  - 447088698
+  - 2107305794
+  - 1949376341
+  - 1256773113
+  - 1151798991
+  - 1556492460
+  - 387918679
+  - 978392064
+  - 1478778832
+  - 1150955802
+  - 652164516
+  - 1234298611
+  - 793212023
+  - 2103021811
+  - 122161237
+  - 2105358710
+  - 49508312
+  - 1592372655
+  - 1132416345
+  - 888718726
+  - 2011951750
+  - 1085952371
+  - 1013531145
+  - 1554421631
+  - 695437699
+  - 362813489
+  - 1123639280
+  - 1400049656
+  - 1794758665
+  - 1037933795
+  - 1855473432
+  - 40147784
+  - 2052685660
+  - 1814342668
+  - 189243793
+  - 1765252141
+  - 1106322704
+  - 277976648
+  - 269243733
+  - 1323664290
+  - 1583229393
+  - 1101139716
+  - 1415757899
+  - 357465333
+  - 1026601693
+  - 513267340
+  - 397808200
+  - 1249848868
+  - 929537799
+  - 885057881
+  - 771698988
+  - 1660405617
+  - 1238842351
+  - 483507923
+  - 299230927
+  - 1241097629
+  - 793863601
+  - 321937263
+  - 1500831327
+  - 1703880321
+  - 293759266
+  - 503555150
+  - 1663484838
+  - 1913603073
+  - 1122781201
+  - 1200819005
+  - 419592083
+  - 250263928
+  - 713336231
+  - 2122402919
+  - 1406244861
+  - 1874425617
+  - 490548546
+  - 282295821
+  - 1443767077
+  - 1776475265
+  - 1339644865
+  - 870800973
+  - 1443540484
+  - 203167163
+  - 1275226465

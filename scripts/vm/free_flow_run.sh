@@ -177,8 +177,15 @@ cat "$OUT/GATE.txt"
 
 if [ -d "$GT_DIR" ]; then mv "$GT_DIR" "$OUT/gt"; log "ground truth -> $OUT/gt"; else log "WARNING: no ground truth"; fi
 cp "$VARIANT_YAML" "$OUT/scenario.yaml"
+# One nav2_r<N> log per variant robot, derived from the variant yaml (the
+# v2_final_run.sh count-driven rule): a solo variant collects exactly its
+# one robot's log, and a 5-robot cell collects nav2_r5 without an edit.
+NAV2_LOG_NAMES="$(grep -Eo 'robot_id: *robot_[0-9]+' "$OUT/scenario.yaml" \
+  | grep -Eo '[0-9]+$' | sort -nu | sed 's/^/nav2_r/' | tr '\n' ' ')"
+[ -n "$NAV2_LOG_NAMES" ] || NAV2_LOG_NAMES="nav2_r1 nav2_r2 nav2_r3 nav2_r4"
 if [ -n "$STAMP" ]; then
-  for f in m1 m4 m5 nav2_r1 nav2_r2 nav2_r3 nav2_r4; do
+  # shellcheck disable=SC2086 # NAV2_LOG_NAMES is a space-separated list.
+  for f in m1 m4 m5 $NAV2_LOG_NAMES; do
     docker exec "$CONTAINER" bash -lc "cat /tmp/fc_${STAMP}_${f}.log" </dev/null >"$OUT/${f}.log" 2>/dev/null || rm -f "$OUT/${f}.log"
     [ -s "$OUT/${f}.log" ] || rm -f "$OUT/${f}.log"
   done
