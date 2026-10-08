@@ -7,7 +7,12 @@ from typing import Any, Literal, NamedTuple
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, ConfigDict, Field
 
-from reasoning.rag.grounding_view import GroundingView, resolve_grounding_view
+from reasoning.rag.grounding_view import (
+    GroundingView,
+    apply_backup_line_hold,
+    apply_escort_headings,
+    resolve_grounding_view,
+)
 from reasoning.rag.maneuver_geometry import (
     Derivation,
     GroundingParams,
@@ -159,8 +164,9 @@ def filter_command_robot_ids(
     """Drop grounded actions for robots absent from the current scene snapshot.
 
     A yield's `crossing_order` (with its aligned `crossing_clear_m` /
-    `crossing_escort_m`) is pruned of the dropped robots too, and the
-    remaining waits' `linked_position` renumbered to match: M4's ordered
+    `crossing_escort_m` and, in dynamic mode, the escort headings) is pruned
+    of the dropped robots too, and the remaining waits' `linked_position`
+    renumbered to match: M4's ordered
     release would otherwise admit, and hold the yielder for, a robot that
     received no command. A command that drops nothing is returned unchanged.
     """
@@ -194,7 +200,12 @@ def _prune_crossing_order(
             keep = [i for i, robot_id in enumerate(order) if robot_id in allowed_robot_ids]
             pruned_order = [order[i] for i in keep]
             parameters = {**parameters, "crossing_order": pruned_order}
-            for key in ("crossing_clear_m", "crossing_escort_m"):
+            for key in (
+                "crossing_clear_m",
+                "crossing_escort_m",
+                "crossing_escort_heading_rad",
+                "crossing_escort_reference_yaw_rad",
+            ):
                 values = parameters.get(key)
                 if isinstance(values, list) and len(values) == len(order):
                     parameters[key] = [values[i] for i in keep]
@@ -603,7 +614,12 @@ def ground_reasoner_result(
     with `params.dynamic_scene_arms` a `yield`/`reverse` is grounded on
     geometry derived from `snapshot`. Both are off by default, and then the
     command is byte-identical; when either fires, its `grounding=...` tags
-    are appended to the command's `degradations`.
+    are appended to the command's `degradations`. Under the same switch each
+    escorted passer is given its goal-bearing escort heading, or its escort
+    is dropped (`grounding_view.apply_escort_headings`), and each
+    yield/reverse backup is marked `backup_line_hold` so M4 holds the
+    backup's own start line, not the odom y=0 spawn line
+    (`grounding_view.apply_backup_line_hold`).
 
     Returns:
         Schema-validated coordination command dict.
@@ -652,6 +668,8 @@ def ground_reasoner_result(
         )
     if view is not None and view.tags:
         command = _with_degradations(command, [*command.get("degradations", []), *view.tags])
+    command = apply_escort_headings(command, snapshot, geometry, params, goal_references)
+    command = apply_backup_line_hold(command, params)
     return command if alias is None else _tag_alias(command, alias)
 
 
@@ -1209,6 +1227,11 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # robot facing away from its partner out of the reversing set: `<id>`.
     "grounding=rear_regrounded": None,
     "grounding=rear_exempt": None,
+    # prereg-v3 A11(iii): an escorted passer whose goal-bearing heading
+    # could not be derived (`grounding_view.derive_escort_heading`): the
+    # yield's escort was dropped and its passers go under Nav2. Suffix
+    # `:<passer>:<reason>`.
+    "grounding=escort_off": None,
     # Stage-1 parser tags for the prompt-v2 optional decision fields, recorded
     # on `ReasonerDiagnostics.decision_degradations`; merged here so one
     # `degradation_cause` covers the whole breakdown.
@@ -1943,6 +1966,7 @@ def ground_junction_clear_phases(
     yield_feasibility_mode: YieldFeasibilityMode = "off",
     retreat_choice: RetreatChoiceDecision | None = None,
     recede_order: Sequence[str] | None = None,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
 ) -> JunctionClearPhasePlan:
     """Ground a `junction_clear` decision's full recede-then-yield dispatch sequence.
 
@@ -2022,6 +2046,13 @@ def ground_junction_clear_phases(
         recede_order: The order to emit the recede phases in, or None (the
             default) for chi order -- byte-identical to before this argument
             existed. Must be a permutation of the chi-ranked candidates.
+        goal_references: Robot id -> current task node (M5's registry), read
+            only under `params.dynamic_scene_arms` to give each escorted
+            passer (cross phase, fallback) its goal-bearing heading
+            (`grounding_view.apply_escort_headings`); None uses the
+            snapshot's goals. Under the same switch every phase's
+            yield/reverse backup — each recede into its pocket included — is
+            marked `backup_line_hold` (`grounding_view.apply_backup_line_hold`).
 
     Returns:
         The full phase sequence plus the plain-`yield` fallback command.
@@ -2057,9 +2088,31 @@ def ground_junction_clear_phases(
         retreat_choice=retreat_choice,
         recede_order=recede_order,
     )
-    if view is None or not view.tags:
+    if view is not None and view.tags:
+        plan = _tag_phase_plan(plan, view.tags)
+    return _escort_phase_plan(plan, snapshot, geometry, params, goal_references)
+
+
+def _escort_phase_plan(
+    plan: JunctionClearPhasePlan,
+    snapshot: SnapshotFrame,
+    geometry: SceneGeometry,
+    params: GroundingParams,
+    goal_references: Mapping[str, tuple[float, float]] | None,
+) -> JunctionClearPhasePlan:
+    if not params.dynamic_scene_arms:
         return plan
-    return _tag_phase_plan(plan, view.tags)
+
+    def escorted(command: dict[str, Any]) -> dict[str, Any]:
+        command = apply_escort_headings(command, snapshot, geometry, params, goal_references)
+        return apply_backup_line_hold(command, params)
+
+    phases = [
+        phase.model_copy(update={"command": escorted(phase.command)}) for phase in plan.phases
+    ]
+    return plan.model_copy(
+        update={"phases": phases, "fallback_command": escorted(plan.fallback_command)}
+    )
 
 
 def _tag_phase_plan(plan: JunctionClearPhasePlan, tags: Sequence[str]) -> JunctionClearPhasePlan:

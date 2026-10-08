@@ -195,3 +195,66 @@ def test_seed_reference_ignored_after_the_first_passer():
     chain.on_odometry("robot_4", 0.0, 0.0)
     chain.on_odometry("robot_4", 0.0, 1.0)
     assert chain.seed_reference("robot_3", 0.0, 0.0) is False
+
+
+# prereg-v3 A11(iii): goal-bearing escort headings (dynamic mode only).
+
+
+def test_plan_without_escort_heading_keeps_no_turn():
+    plan = plan_crossing(_two_passer_parameters())
+
+    assert [p.escort_heading_rad for p in plan] == [None, None]
+    assert [p.escort_turn_rad for p in plan] == [None, None]
+
+
+def test_plan_reads_first_passer_escort_heading():
+    plan = plan_crossing(
+        {
+            "passer_robot_id": "robot_2",
+            "passer_clear_m": 2.4,
+            "passer_escort_distance_m": 2.4,
+            "passer_escort_heading_rad": 3.141593,
+            "passer_escort_reference_yaw_rad": 3.141593,
+        }
+    )
+
+    assert plan[0].escort_heading_rad == 3.141593
+    assert plan[0].escort_turn_rad == pytest.approx(0.0)
+
+
+def test_plan_reads_aligned_crossing_escort_headings():
+    plan = plan_crossing(
+        _two_passer_parameters(
+            passer_escort_heading_rad=0.0,
+            passer_escort_reference_yaw_rad=0.0,
+            crossing_escort_heading_rad=[0.0, -1.570796],
+            crossing_escort_reference_yaw_rad=[0.0, 1.570796],
+        )
+    )
+
+    assert plan[1].escort_heading_rad == -1.570796
+    assert abs(plan[1].escort_turn_rad) == pytest.approx(3.141592, abs=1e-6)
+
+
+def test_later_passer_does_not_inherit_first_passer_heading():
+    plan = plan_crossing(
+        _two_passer_parameters(
+            passer_escort_heading_rad=3.141593, passer_escort_reference_yaw_rad=0.0
+        )
+    )
+
+    assert abs(plan[0].escort_turn_rad) == pytest.approx(3.141593, abs=1e-6)
+    assert plan[1].escort_heading_rad is None
+    assert plan[1].escort_turn_rad is None
+
+
+def test_escort_turn_wraps_into_half_open_circle():
+    plan = PasserPlan("robot_1", 2.0, 2.0, escort_heading_rad=3.0, escort_reference_yaw_rad=-3.0)
+
+    # 6.0 rad the long way round is -0.283 rad the short way.
+    assert plan.escort_turn_rad == pytest.approx(6.0 - 2 * 3.141592653589793)
+
+
+def test_escort_turn_needs_both_world_headings():
+    assert PasserPlan("robot_1", 2.0, 2.0, escort_heading_rad=0.0).escort_turn_rad is None
+    assert PasserPlan("robot_1", 2.0, 2.0, escort_reference_yaw_rad=0.0).escort_turn_rad is None

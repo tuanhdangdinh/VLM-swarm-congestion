@@ -25,13 +25,17 @@ from swarm_orchestrator.task_registry import TaskRegistry
 from reasoning.rag.command_grounder import (
     CommandGroundingError,
     degradation_cause,
+    filter_command_robot_ids,
     ground_junction_clear_phases,
     ground_reasoner_result,
     resolve_yield_roles,
     verify_and_repair_plan,
 )
 from reasoning.rag.grounding_view import (
+    apply_backup_line_hold,
+    apply_escort_headings,
     derive_dynamic_arms,
+    derive_escort_heading,
     exclude_parked_robots,
     find_node_handoff,
     resolve_grounding_view,
@@ -247,12 +251,25 @@ def test_flags_explicitly_off_match_pre_change_goldens():
     assert _golden_outputs({"dynamic_scene_arms": False}) == golden
 
 
+def _without_backup_line_hold(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            k: _without_backup_line_hold(v) for k, v in value.items() if k != "backup_line_hold"
+        }
+    if isinstance(value, list):
+        return [_without_backup_line_hold(v) for v in value]
+    return value
+
+
 def test_dynamic_switch_leaves_junction_clear_on_declared_geometry():
     golden = json.loads(_GOLDEN.read_text(encoding="utf-8"))
     on = _golden_outputs({"dynamic_scene_arms": True})
     keys = [k for k in golden if "ib10_junction_clear" in k and "|derived|" in k]
     assert keys
-    assert {k: on[k] for k in keys} == {k: golden[k] for k in keys}
+    # `backup_line_hold` is M4 motion-frame semantics (hold your own backup
+    # start line), not geometry: stripped here, every declared-geometry
+    # number of the composite must still match the goldens under the switch.
+    assert {k: _without_backup_line_hold(on[k]) for k in keys} == {k: golden[k] for k in keys}
 
 
 def test_dynamic_fields_stay_out_of_the_params_dump_when_off():
@@ -278,6 +295,7 @@ def test_new_tags_have_a_registered_cause():
         "grounding=node_handoff_regrounded:robot_1->robot_2",
         "grounding=rear_regrounded:robot_1->robot_2",
         "grounding=rear_exempt:robot_1",
+        "grounding=escort_off:robot_1:goal_reached",
     ):
         assert degradation_cause(tag) is None
 
@@ -310,7 +328,10 @@ def test_mid_route_lane_jam_derives_corridor_from_the_pair():
 
 def test_mid_route_lane_yield_retreats_away_from_partner_with_head_on_backup():
     command = _ground(
-        _decision("yield", _TWO, yield_robot="robot_1"), _frame(_S1_LANE), _S1, _DYNAMIC
+        _decision("yield", _TWO, yield_robot="robot_1"),
+        _frame(_S1_LANE, {"robot_2": _NODE_WP}),
+        _S1,
+        _DYNAMIC,
     )
     yield_action = command["actions"][0]
     params = yield_action["parameters"]
@@ -320,6 +341,9 @@ def test_mid_route_lane_yield_retreats_away_from_partner_with_head_on_backup():
     assert params["retreat_x_m"] == pytest.approx(-2.9)
     # Passer travel past the parked yielder (|-1.2 - -2.9| = 1.7) + 0.65.
     assert params["passer_escort_distance_m"] == pytest.approx(2.35)
+    # Escorted west, toward its goal Wp (A11(iii)), from its west heading.
+    assert params["passer_escort_heading_rad"] == pytest.approx(math.pi, abs=1e-6)
+    assert params["passer_escort_reference_yaw_rad"] == pytest.approx(math.pi, abs=1e-6)
     assert command["degradations"][-1] == "grounding=dynamic_arms:lane:x"
 
 
@@ -360,7 +384,10 @@ def test_crossing_conflict_derives_arms_from_headings_on_the_declared_box():
 def test_crossing_yield_backs_out_along_own_arm_and_passer_leaves_the_box():
     poses = {"robot_1": (-0.45, 0.35, 0.0), "robot_2": (0.05, -0.45, math.pi / 2)}
     command = _ground(
-        _decision("yield", _TWO, yield_robot="robot_1"), _frame(poses), _S1, _DYNAMIC
+        _decision("yield", _TWO, yield_robot="robot_1"),
+        _frame(poses, {"robot_2": _NODE_N}),
+        _S1,
+        _DYNAMIC,
     )
     params = command["actions"][0]["parameters"]
     # Passer 0.5 m ahead along -x: clearance 1.7 -> 1.2 m backup, west.
@@ -368,6 +395,8 @@ def test_crossing_yield_backs_out_along_own_arm_and_passer_leaves_the_box():
     assert params["retreat_x_m"] == pytest.approx(-1.65)
     # robot_2 drives north to the far mouth (+0.6): 1.05 m + 0.65 clearance.
     assert params["passer_escort_distance_m"] == pytest.approx(1.7)
+    # Along its own arm toward its goal N.
+    assert params["passer_escort_heading_rad"] == pytest.approx(math.pi / 2, abs=1e-6)
 
 
 def test_heading_between_axes_keeps_declared_geometry():
@@ -495,10 +524,14 @@ def test_handoff_regrounds_the_yield_to_the_arriver():
     # Inward: from y=1.12, clearance 1.7 from the occupant 0.43 m ahead.
     assert params["backup_distance_m"] == pytest.approx(1.27)
     assert params["retreat_y_m"] == pytest.approx(-0.15)
-    assert command["degradations"][-3:] == [
+    # The occupant's goal is still the node it sits on (its dwell has not
+    # ended): no goal bearing, so it is not escorted (A11(iii)).
+    assert "passer_escort_distance_m" not in params
+    assert command["degradations"][-4:] == [
         "grounding=node_handoff:robot_2->robot_1",
         "grounding=node_handoff_regrounded:robot_1->robot_2",
         "grounding=dynamic_arms:lane:y",
+        "grounding=escort_off:robot_1:goal_reached",
     ]
 
 
@@ -866,3 +899,298 @@ def test_plan_giving_the_parked_robot_a_role_is_repaired_not_rejected():
 def test_empty_parked_list_is_rejected():
     with pytest.raises(ValidationError):
         SceneGeometry.model_validate({**_S1_GEOMETRY_ARGS, "parked_robots": {}})
+
+
+# ---- escort heading from the passer's current goal (prereg-v3 A11(iii)) ----
+
+_NODE_E = (2.3, 0.0)
+
+
+def _lane_view(yielder: str, poses=_S1_LANE):
+    _, geometry, _ = _derive(poses, _decision("yield", _TWO, yield_robot=yielder))
+    return geometry
+
+
+def test_escort_heading_toward_an_east_goal_is_zero():
+    # The backward-compatible value: an eastbound passer's escort is the
+    # odom-yaw-0 escort every pre-v3 robot (spawned facing east) ran.
+    frame = _frame(_S1_LANE, {"robot_1": _NODE_E})
+    heading = derive_escort_heading(
+        "robot_1", "robot_2", frame, _lane_view("robot_2"), _DYNAMIC
+    )
+    assert (heading.heading_rad, heading.reference_yaw_rad, heading.reason) == (0.0, 0.0, None)
+
+
+def test_escort_heading_toward_a_west_goal_is_pi():
+    frame = _frame(_S1_LANE, {"robot_2": _NODE_WP})
+    heading = derive_escort_heading(
+        "robot_2", "robot_1", frame, _lane_view("robot_1"), _DYNAMIC
+    )
+    assert heading.heading_rad == pytest.approx(math.pi, abs=1e-6)
+    assert heading.reason is None
+
+
+def test_escort_heading_snaps_a_cornering_goal_to_the_lane_axis():
+    # robot_1 on the W lane bound for N: the raw bearing (~40 deg) would
+    # drive the escort into the NW rack; it runs east along the lane.
+    frame = _frame(_S1_LANE, {"robot_1": _NODE_N})
+    heading = derive_escort_heading(
+        "robot_1", "robot_2", frame, _lane_view("robot_2"), _DYNAMIC
+    )
+    assert heading.heading_rad == 0.0
+
+
+def test_escort_heading_uses_the_registry_goal_not_the_snapshot_goal():
+    # The snapshot carries a stale override goal (west); the registry's
+    # current task node is east, past the yielder.
+    frame = _frame(_S1_LANE, {"robot_1": _NODE_WP})
+    heading = derive_escort_heading(
+        "robot_1",
+        "robot_2",
+        frame,
+        _lane_view("robot_2"),
+        _DYNAMIC,
+        goal_references={"robot_1": _NODE_E},
+    )
+    assert heading.heading_rad == 0.0
+
+
+def test_handoff_dweller_with_a_new_goal_is_escorted_toward_it():
+    # The occupant's dwell on N just ended and its next node (S) was issued
+    # while it still sits on N facing north: it is escorted south, a half
+    # turn from its heading, past the arriver backing inward.
+    references = {"robot_1": _NODE_S, "robot_2": _NODE_N}
+    command = _ground(
+        _decision("yield", _TWO, yield_robot="robot_2"),
+        _frame(_S1_HANDOFF),
+        _S1,
+        _DYNAMIC,
+        goal_references=references,
+    )
+    yield_action = command["actions"][0]
+    params = yield_action["parameters"]
+    assert (yield_action["robot_id"], params["passer_robot_id"]) == ("robot_2", "robot_1")
+    assert params["passer_escort_heading_rad"] == pytest.approx(-math.pi / 2, abs=1e-6)
+    assert params["passer_escort_reference_yaw_rad"] == pytest.approx(math.pi / 2, abs=1e-6)
+    assert params["passer_escort_distance_m"] > 0
+    assert not any(tag.startswith("grounding=escort_off") for tag in command["degradations"])
+
+
+def test_escort_heading_reason_goal_reached_for_a_dwelling_occupant():
+    frame = _frame(_S1_HANDOFF)
+    view = derive_dynamic_arms(
+        _decision("yield", _TWO, yield_robot="robot_2"),
+        frame,
+        _S1,
+        _DYNAMIC,
+        {"robot_1": _NODE_N, "robot_2": _NODE_N},
+    )[1]
+    heading = derive_escort_heading(
+        "robot_1", "robot_2", frame, view, _DYNAMIC, {"robot_1": _NODE_N}
+    )
+    assert heading.reason == "goal_reached"
+
+
+def test_escort_heading_reason_no_goal():
+    heading = derive_escort_heading(
+        "robot_2", "robot_1", _frame(_S1_LANE), _lane_view("robot_1"), _DYNAMIC
+    )
+    assert heading.reason == "no_goal"
+
+
+def test_escort_heading_reason_goal_behind_the_passer():
+    # robot_2's escort was sized to pass the parked robot_1 (west); its goal
+    # is east, behind it.
+    frame = _frame(_S1_LANE, {"robot_2": _NODE_E})
+    heading = derive_escort_heading(
+        "robot_2", "robot_1", frame, _lane_view("robot_1"), _DYNAMIC
+    )
+    assert heading.reason == "goal_behind"
+
+
+def test_escort_heading_reason_goal_straight_across_the_axis():
+    poses = {"robot_1": (-0.45, 0.35, 0.0), "robot_2": (0.05, -0.45, math.pi / 2)}
+    _, view, _ = _derive(poses, _decision("yield", _TWO, yield_robot="robot_1"))
+    frame = _frame(poses, {"robot_2": (2.3, -0.45)})
+    heading = derive_escort_heading("robot_2", "robot_1", frame, view, _DYNAMIC)
+    assert heading.reason == "goal_off_axis"
+
+
+def test_escort_heading_reason_untracked_passer():
+    frame = _frame({"robot_1": _S1_LANE["robot_1"]})
+    heading = derive_escort_heading("robot_2", "robot_1", frame, _S1, _DYNAMIC)
+    assert heading.reason == "untracked"
+
+
+def test_underivable_heading_drops_the_escort_and_tags_it():
+    command = _ground(
+        _decision("yield", _TWO, yield_robot="robot_1"),
+        _frame(_S1_LANE, {"robot_2": _NODE_E}),
+        _S1,
+        _DYNAMIC,
+    )
+    params = command["actions"][0]["parameters"]
+    assert "passer_escort_distance_m" not in params
+    assert "passer_escort_heading_rad" not in params
+    # The clearance gate is unchanged: M4 still ends the hold on it.
+    assert params["passer_clear_m"] == pytest.approx(2.35)
+    assert command["degradations"][-1] == "grounding=escort_off:robot_2:goal_behind"
+
+
+_ESCORT_YIELD = {
+    "command_id": "r1-yield",
+    "actions": [
+        {
+            "robot_id": "robot_1",
+            "action": "yield",
+            "parameters": {
+                "backup_distance_m": 1.3,
+                "passer_robot_id": "robot_2",
+                "passer_clear_m": 2.35,
+                "passer_escort_distance_m": 2.35,
+                "crossing_order": ["robot_2", "robot_3"],
+                "crossing_clear_m": [2.35, 2.75],
+                "crossing_escort_m": [2.35, 2.75],
+            },
+        },
+        {"robot_id": "robot_2", "action": "temporary_wait", "parameters": {"linked_position": 0}},
+        {"robot_id": "robot_3", "action": "temporary_wait", "parameters": {"linked_position": 1}},
+    ],
+    "expected_resolution_time_sec": 150.0,
+    "fallback": "stop",
+}
+_LANE_THREE: dict[str, Pose] = {**_S1_LANE, "robot_3": (-0.8, 0.35, math.pi)}
+
+
+def test_escort_headings_are_aligned_with_the_crossing_order():
+    frame = _frame(_LANE_THREE, {"robot_2": _NODE_WP, "robot_3": _NODE_WP})
+    command = apply_escort_headings(_ESCORT_YIELD, frame, _lane_view("robot_1"), _DYNAMIC)
+    params = command["actions"][0]["parameters"]
+    assert params["passer_escort_heading_rad"] == pytest.approx(math.pi, abs=1e-6)
+    assert params["crossing_escort_heading_rad"] == [pytest.approx(math.pi, abs=1e-6)] * 2
+    assert params["crossing_escort_reference_yaw_rad"] == [pytest.approx(math.pi, abs=1e-6)] * 2
+    assert "degradations" not in command
+
+
+def test_one_underivable_passer_drops_the_whole_chain_escort():
+    frame = _frame(_LANE_THREE, {"robot_2": _NODE_WP})
+    command = apply_escort_headings(_ESCORT_YIELD, frame, _lane_view("robot_1"), _DYNAMIC)
+    params = command["actions"][0]["parameters"]
+    assert "passer_escort_distance_m" not in params and "crossing_escort_m" not in params
+    assert params["crossing_clear_m"] == [2.35, 2.75]
+    assert command["degradations"] == ["grounding=escort_off:robot_3:no_goal"]
+
+
+def test_pruned_passer_drops_its_escort_heading_too():
+    frame = _frame(_LANE_THREE, {"robot_2": _NODE_WP, "robot_3": _NODE_WP})
+    command = apply_escort_headings(_ESCORT_YIELD, frame, _lane_view("robot_1"), _DYNAMIC)
+    pruned = filter_command_robot_ids(command, {"robot_1", "robot_2"})
+    params = pruned["actions"][0]["parameters"]
+    assert params["crossing_order"] == ["robot_2"]
+    assert len(params["crossing_escort_heading_rad"]) == 1
+    assert len(params["crossing_escort_reference_yaw_rad"]) == 1
+
+
+def test_switch_off_leaves_the_command_object_untouched():
+    frame = _frame(_LANE_THREE, {"robot_2": _NODE_WP, "robot_3": _NODE_WP})
+    off = GroundingParams(mode="derived")
+    assert apply_escort_headings(_ESCORT_YIELD, frame, _S1, off) is _ESCORT_YIELD
+    assert apply_escort_headings(_ESCORT_YIELD, frame, _S1, None) is _ESCORT_YIELD
+
+
+def test_flags_off_escorts_carry_no_heading_parameter():
+    # Byte-compatibility of the M4 contract: no flags-off golden command
+    # names the new keys, so M4 runs its odom-yaw-0 escort for all of them.
+    golden = _GOLDEN.read_text(encoding="utf-8")
+    assert "passer_escort_distance_m" in golden
+    assert "escort_heading" not in golden and "escort_reference_yaw" not in golden
+
+
+def test_junction_clear_escorts_get_headings_under_the_switch():
+    goals = {"robot_1": (1.75, 0.0), "robot_2": (-1.75, 0.0)}
+    goals |= {"robot_3": (0.0, 1.75), "robot_4": (0.0, -1.75)}
+    four = ["robot_1", "robot_2", "robot_3", "robot_4"]
+    plan = ground_junction_clear_phases(
+        _result(_decision("junction_clear", four)),
+        snapshot=_frame(_IB10),
+        params=_DYNAMIC,
+        geometry=SceneGeometry.model_validate(_IB10_GEOMETRY_ARGS),
+        goal_references=goals,
+    )
+    escorted = [
+        action["parameters"]
+        for command in [*(p.command for p in plan.phases), plan.fallback_command]
+        for action in command["actions"]
+        if action["action"] == "yield" and "passer_escort_distance_m" in action["parameters"]
+    ]
+    assert escorted
+    for params in escorted:
+        # Every IB10 robot spawned facing its goal: the turn is ~0.
+        turn = params["passer_escort_heading_rad"] - params["passer_escort_reference_yaw_rad"]
+        assert math.atan2(math.sin(turn), math.cos(turn)) == pytest.approx(0.0, abs=0.05)
+
+
+# ---- backup line hold (prereg-v3 A11(iii) sibling: spawn-frame backups) ----
+
+
+def test_dynamic_yield_backup_holds_the_start_line():
+    command = _ground(
+        _decision("yield", _TWO, yield_robot="robot_1"),
+        _frame(_S1_LANE, {"robot_2": _NODE_WP}),
+        _S1,
+        _DYNAMIC,
+    )
+    yield_action = command["actions"][0]
+    assert yield_action["action"] == "yield"
+    assert yield_action["parameters"]["backup_line_hold"] is True
+
+
+def test_dynamic_reverse_marks_every_reversing_robot():
+    command = _ground(_decision("reverse", _TWO), _frame(_S1_LANE), _S1, _DYNAMIC)
+    reverses = [a for a in command["actions"] if a["action"] == "reverse"]
+    assert len(reverses) == 2
+    assert all(a["parameters"]["backup_line_hold"] is True for a in reverses)
+
+
+def test_switch_off_backup_line_hold_leaves_the_command_object_untouched():
+    off = GroundingParams(mode="derived")
+    assert apply_backup_line_hold(_ESCORT_YIELD, off) is _ESCORT_YIELD
+    assert apply_backup_line_hold(_ESCORT_YIELD, None) is _ESCORT_YIELD
+
+
+def test_flags_off_backups_carry_no_line_hold_parameter():
+    # Byte-compatibility of the M4 contract: no flags-off golden command
+    # names the key, so M4 keeps the odom y=0 spawn-line servo for all of
+    # them.
+    golden = _GOLDEN.read_text(encoding="utf-8")
+    assert "backup_distance_m" in golden
+    assert "backup_line_hold" not in golden
+
+
+def test_junction_recede_backups_get_line_hold_with_their_pockets():
+    four = ["robot_1", "robot_2", "robot_3", "robot_4"]
+    plan = ground_junction_clear_phases(
+        _result(_decision("junction_clear", four)),
+        snapshot=_frame(_IB10),
+        params=_DYNAMIC,
+        geometry=SceneGeometry.model_validate(_IB10_GEOMETRY_ARGS),
+    )
+    recedes = [
+        action["parameters"]
+        for phase in plan.phases
+        for action in phase.command["actions"]
+        if action["action"] == "reverse"
+    ]
+    assert recedes
+    for params in recedes:
+        # The key rides on the same action whose pocket distance it backs.
+        assert params["backup_distance_m"] > 0
+        assert params["backup_line_hold"] is True
+    holds = [
+        action["parameters"]
+        for command in [*(p.command for p in plan.phases), plan.fallback_command]
+        for action in command["actions"]
+        if action["action"] == "yield"
+    ]
+    assert holds
+    assert all(params["backup_line_hold"] is True for params in holds)

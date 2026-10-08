@@ -306,16 +306,32 @@ class CommandBusNode(Node):
                         f"escort_m={passer.escort_m} sim_t={self._sim_now():.3f}"
                     )
                     if passer.escort_m is not None:
-                        # Odom yaw 0 faces each robot's base goal (every robot
-                        # spawns facing its goal), so no map-frame knowledge.
-                        self._adapter.drive_heading(
-                            passer.robot_id,
-                            target_yaw_rad=0.0,
-                            distance_m=float(passer.escort_m),
-                            on_result=lambda status, detail, rid=passer.robot_id: (
-                                self.get_logger().info(f"escort {rid}: {status} {detail}")
-                            ),
-                        )
+                        def on_escort(status: str, detail: str, rid=passer.robot_id) -> None:
+                            self.get_logger().info(f"escort {rid}: {status} {detail}")
+
+                        turn_rad = passer.escort_turn_rad
+                        if turn_rad is None:
+                            # Odom yaw 0 faces each robot's base goal (every
+                            # robot spawns facing its goal), so no map-frame
+                            # knowledge.
+                            self._adapter.drive_heading(
+                                passer.robot_id,
+                                target_yaw_rad=0.0,
+                                distance_m=float(passer.escort_m),
+                                on_result=on_escort,
+                            )
+                        else:
+                            # prereg-v3 A11(iii): in S1 task streams the goal is
+                            # not the spawn heading. M3 grounded the turn from
+                            # the passer's current goal bearing; it is applied
+                            # from the passer's odom yaw at admission.
+                            self._adapter.drive_heading(
+                                passer.robot_id,
+                                target_yaw_rad=turn_rad,
+                                distance_m=float(passer.escort_m),
+                                on_result=on_escort,
+                                relative_to_start=True,
+                            )
                     elif chain.is_multi_passer:
                         self._release_wait(command.command_id, passer.robot_id, release_detail)
                     else:
@@ -391,7 +407,18 @@ class CommandBusNode(Node):
                     return
                 _start_hold(command, _hold_sec)
 
-            self._adapter.backup(robot_id, distance_m, on_result=_on_backup_result)
+            if params.get("backup_line_hold") is True:
+                # prereg-v3 A11(iii) sibling: in S1 task streams the backing
+                # robot may be off its spawn heading, and the default servo
+                # steers it toward the odom y=0 spawn line (an ~0.2 m-radius
+                # arc instead of a straight backup). M3 set the key under
+                # dynamic grounding; the backup then holds the line through
+                # its own start pose along its start heading.
+                self._adapter.backup(
+                    robot_id, distance_m, on_result=_on_backup_result, hold_start_line=True
+                )
+            else:
+                self._adapter.backup(robot_id, distance_m, on_result=_on_backup_result)
             return True
         if action in {"wait", "temporary_wait", "stop"}:
             self._adapter.cancel(robot_id)

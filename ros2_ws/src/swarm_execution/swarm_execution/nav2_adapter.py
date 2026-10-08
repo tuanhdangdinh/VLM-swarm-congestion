@@ -122,6 +122,49 @@ except ImportError:
 
 from swarm_execution.yield_phase import BACKUP_STARTED_DETAIL
 
+# Line-hold servo gains, the escort's centerline-servo values: heading
+# correction per metre of cross-track error, and its clamp in radians.
+_LINE_HOLD_GAIN = 1.0
+_LINE_HOLD_MAX_RAD = 0.3
+
+
+def line_hold_yaw(
+    heading_rad: float,
+    start: tuple[float, float],
+    position: tuple[float, float],
+    reversing: bool = False,
+) -> float:
+    """Heading that steers a robot back onto a line while it drives along it.
+
+    The line runs through `start` along `heading_rad`, all in one frame (the
+    robot's odom frame). The correction is the escort's centerline servo,
+    generalized from the odom y=0 line to any line: cross-track error
+    (positive left of travel) times `_LINE_HOLD_GAIN`, clamped to
+    `_LINE_HOLD_MAX_RAD`, steering back toward the line.
+
+    `reversing=True` mirrors the correction for a robot backing along the
+    line: moving backward, lateral velocity flips with the drive direction
+    (it is `-|v| * sin(heading error)`), so returning to the line needs the
+    heading offset on the other side — the sign flip `backup`'s odom y=0
+    servo already applies, generalized to any line.
+
+    Args:
+        heading_rad: The robot's facing along the line (travel direction when
+            driving forward, its opposite when reversing).
+        start: A point on the line, `(x, y)` in metres.
+        position: The robot's current `(x, y)` in metres.
+        reversing: True when the robot backs along the line.
+
+    Returns:
+        The desired heading in radians, wrapped to `(-pi, pi]`.
+    """
+    dx = position[0] - start[0]
+    dy = position[1] - start[1]
+    cross = -dx * math.sin(heading_rad) + dy * math.cos(heading_rad)
+    gain = _LINE_HOLD_GAIN if reversing else -_LINE_HOLD_GAIN
+    correction = max(-_LINE_HOLD_MAX_RAD, min(_LINE_HOLD_MAX_RAD, gain * cross))
+    return math.atan2(math.sin(heading_rad + correction), math.cos(heading_rad + correction))
+
 
 class Nav2Adapter(Node):
     """Per-robot Nav2 action-client wrapper: send_goal, send_waypoints, cancel."""
@@ -241,6 +284,7 @@ class Nav2Adapter(Node):
         distance_m: float,
         speed_mps: float = 0.1,
         on_result: Callable[[str, str], None] | None = None,
+        hold_start_line: bool = False,
     ):
         """Reverse the robot by `distance_m` by publishing directly to cmd_vel.
 
@@ -265,6 +309,15 @@ class Nav2Adapter(Node):
         (`time.monotonic()`), immune to `use_sim_time`: the node clock follows
         `/clock`, which is sourced from the sim and freezes when the sim
         hangs — the exact failure this bound guards against.
+
+        `hold_start_line=True` (prereg-v3 A11(iii) sibling, S1 task streams,
+        where a backing robot may be off its spawn heading) replaces the odom
+        y=0 lane servo with the line through the robot's own pose at its
+        first odometry sample, along its heading there, with the reversing
+        correction sign (`line_hold_yaw`). The default servo assumes heading
+        ~0 (it steers toward odom y=0, the spawn line), so an off-heading
+        yielder backed along an arc instead of a straight line; the default
+        path is unchanged.
         """
         self.cancel(robot_id)
 
@@ -273,7 +326,12 @@ class Nav2Adapter(Node):
             pub = self._node.create_publisher(Twist, f"/{robot_id}/cmd_vel", 10)
             self._backup_pubs[robot_id] = pub
 
-        odom_state: dict[str, object] = {"start": None, "last": None, "yaw": None}
+        odom_state: dict[str, object] = {
+            "start": None,
+            "start_yaw": None,
+            "last": None,
+            "yaw": None,
+        }
 
         def _on_odom(msg, _state=odom_state) -> None:
             p = msg.pose.pose.position
@@ -282,6 +340,7 @@ class Nav2Adapter(Node):
             _state["yaw"] = 2.0 * math.atan2(q.z, q.w)
             if _state["start"] is None:
                 _state["start"] = (p.x, p.y)
+                _state["start_yaw"] = _state["yaw"]
 
         odom_sub = self._node.create_subscription(
             Odometry, f"/{robot_id}/odom", _on_odom, 10
@@ -345,7 +404,15 @@ class Nav2Adapter(Node):
             # bound fired (H3 run 12).
             yaw = odom_state["yaw"]
             if last is not None and yaw is not None:
-                desired_yaw = max(-0.3, min(0.3, 1.0 * last[1]))
+                if hold_start_line and start is not None:
+                    # Hold the line through the backup's own start pose along
+                    # the start heading — never the odom y=0 spawn line, which
+                    # only matches for a robot still on its spawn heading.
+                    desired_yaw = line_hold_yaw(
+                        odom_state["start_yaw"], start, last, reversing=True
+                    )
+                else:
+                    desired_yaw = max(-0.3, min(0.3, 1.0 * last[1]))
                 heading_error = desired_yaw - yaw
                 while heading_error > math.pi:
                     heading_error -= 2.0 * math.pi
@@ -500,6 +567,7 @@ class Nav2Adapter(Node):
         speed_mps: float = 0.1,
         turn_rate_rps: float = 0.5,
         on_result: Callable[[str, str], None] | None = None,
+        relative_to_start: bool = False,
     ):
         """Rotate to an absolute odom-frame heading, then drive straight.
 
@@ -511,6 +579,13 @@ class Nav2Adapter(Node):
         robots spawn facing their base goal, so odom yaw 0 always points
         toward the goal regardless of map orientation — the caller needs no
         frame knowledge. Same OS-monotonic safety bound as the siblings.
+
+        `relative_to_start=True` (prereg-v3 A11(iii), S1 task streams, where
+        a robot's goal is no longer its spawn heading) instead turns by
+        `target_yaw_rad` from the robot's odom yaw at its first odometry
+        sample, and the drive holds the line through the drive-start pose
+        along that heading (`line_hold_yaw`), not the spawn line odom y=0.
+        The default path is unchanged.
         """
         self.cancel(robot_id)
 
@@ -520,7 +595,7 @@ class Nav2Adapter(Node):
             self._backup_pubs[robot_id] = pub
 
         odom_state: dict[str, object] = {"pos": None, "yaw": None}
-        phase_state: dict[str, object] = {"phase": "turn", "drive_start": None}
+        phase_state: dict[str, object] = {"phase": "turn", "drive_start": None, "target": None}
         yaw_tolerance_rad = 0.05
 
         def _on_odom(msg, _state=odom_state) -> None:
@@ -573,9 +648,13 @@ class Nav2Adapter(Node):
             if yaw is None or pos is None:
                 return
 
+            if relative_to_start and phase_state["target"] is None:
+                phase_state["target"] = _wrap(yaw + target_yaw_rad)
+            target = phase_state["target"] if relative_to_start else target_yaw_rad
+
             twist = Twist()
             if phase_state["phase"] == "turn":
-                error = _wrap(target_yaw_rad - yaw)
+                error = _wrap(target - yaw)
                 if abs(error) < yaw_tolerance_rad:
                     phase_state["phase"] = "drive"
                     phase_state["drive_start"] = pos
@@ -593,6 +672,13 @@ class Nav2Adapter(Node):
                     )
                     return
                 twist.linear.x = abs(speed_mps)
+                if relative_to_start:
+                    heading_error = _wrap(line_hold_yaw(target, start, pos) - yaw)
+                    twist.angular.z = max(
+                        -turn_rate_rps, min(turn_rate_rps, 2.0 * heading_error)
+                    )
+                    pub.publish(twist)
+                    return
                 # Centerline servo, not open-loop straight: both robots spawn
                 # ON the lane centerline (odom y=0 for the target_yaw_rad=0
                 # escort), and heading-tolerance drift over meters of tunnel
