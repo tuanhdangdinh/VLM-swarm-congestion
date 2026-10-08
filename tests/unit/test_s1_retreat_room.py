@@ -22,7 +22,7 @@ import yaml
 from swarm_orchestrator.models import load_config
 from swarm_orchestrator.reasoning_pipeline import load_grounding_source
 
-from reasoning.rag.command_grounder import ground_reasoner_result
+from reasoning.rag.command_grounder import ground_reasoner_result, verify_and_repair_plan
 from reasoning.rag.grounding_view import resolve_grounding_view
 from reasoning.rag.maneuver_geometry import GroundingParams
 from reasoning.rag.retreat_candidates import generate_retreat_candidates
@@ -270,6 +270,41 @@ def test_lane_gate_refusal_names_only_the_lane_pair():
     (tag,) = _gate_tags(command)
     assert "robot_1 0.25 m, robot_2 0.20 m retreat room" in tag
     assert "robot_3" not in tag
+
+
+def test_plan_repair_never_hands_the_lane_yield_to_an_off_lane_robot():
+    # Both lane robots are boxed 0.3 m behind; robot_3 waits in the
+    # junction box with an empty strip. The plan channel's swap repair must
+    # not move the yield onto robot_3: the plan falls back like the gate.
+    poses = {
+        "robot_1": (-1.6, 0.35, 0.0),
+        "robot_2": (-1.2, 0.35, math.pi),
+        "robot_3": (0.3, -0.3, 0.0),
+    }
+    blocks = [
+        StaticObstacleInput(obstacle_id="b1", x=-2.0, y=0.35, size_x_m=0.2, size_y_m=1.2),
+        StaticObstacleInput(obstacle_id="b2", x=-0.8, y=0.35, size_x_m=0.2, size_y_m=0.4),
+    ]
+    decision = CongestionDecision.model_validate(
+        {
+            **_decision(["robot_1", "robot_3", "robot_2"], "robot_1").model_dump(),
+            "proposed_plan": [
+                {"robot_id": "robot_1", "action": "yield"},
+                {"robot_id": "robot_3", "action": "cross"},
+                {"robot_id": "robot_2", "action": "cross"},
+            ],
+        }
+    )
+    plan = verify_and_repair_plan(
+        decision,
+        _frame(poses),
+        geometry=_S1,
+        static_obstacles=[*_SIX_BOXES, *blocks],
+        yield_feasibility_mode="swap",
+        grounding_params=_DYNAMIC,
+    )
+    assert ("robot_3", "yield") not in [(leg.robot_id, leg.action) for leg in plan.legs]
+    assert plan.provenance == "m3_default"
 
 
 # ---- the executed maneuver against the boxes (footprint band only) ----

@@ -2874,6 +2874,15 @@ def _plan_problems(
         partner_position = positions.get(partner_id) if partner_id else None
         if geometry is None or position is None or partner_position is None:
             return None
+        lane = geometry.lane_robots
+        if lane is not None:
+            # As in `_apply_yield_feasibility`: a dynamic lane defines a
+            # retreat for its own pair only, measured against each other.
+            if robot_id not in lane:
+                return f"{robot_id} is off the dynamic lane {lane[0]}/{lane[1]}"
+            partner_position = positions.get(lane[1] if robot_id == lane[0] else lane[0])
+            if partner_position is None:
+                return None
         robot_geometry, arm_side = arm_geometry(geometry, robot_id)
         axis_index = 0 if robot_geometry.corridor.axis == "x" else 1
         side = (
