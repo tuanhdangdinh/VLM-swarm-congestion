@@ -1,0 +1,43 @@
+# S1-ONLY M3 grounding parameters: dynamic scene arms for the mapd_5 pilot.
+#
+# prereg-v3 A11(iii): "enable the mode via an S1-only grounding_params_path
+# (never edit the md5-pinned rag.yaml)". M5 loads this file when
+# orchestrator.yaml's `grounding_params_path` names it (the S1 overlay,
+# isaac/config/scenarios/mapd_5.yaml header); `load_grounding_source`
+# (swarm_orchestrator.reasoning_pipeline) reads only the `grounding:`
+# section, and `shadow_classical_params_path` STAYS at config/rag.yaml, so
+# Arm B's `classical:` thresholds are untouched. config/rag.yaml itself is
+# never edited (md5 e18c723c..., pinned by the VM drivers).
+#
+# Every key below except the dynamic-arms block is a verbatim copy of
+# config/rag.yaml's `grounding:` section (derived mode, the shipped tuning).
+# tests/unit/test_mapd_5_scenario.py pins that copy key-by-key, so a rag.yaml
+# tuning change fails loudly here instead of silently diverging.
+#
+# S1 additions (scene design S1 prerequisite 2; A11(i)/(iii)):
+#   dynamic_scene_arms: true   - yield/reverse corridor axis, retreat side
+#       and park target derived per snapshot (reasoning/rag/grounding_view);
+#       junction_clear still uses declared geometry only (A11(ii) RECOMMENDS
+#       excluding it from S1's accepted set; final call at Step 6).
+#   dynamic_handoff_radius_m: 0.5 - node-handoff occupancy radius (M5's
+#       arrived_radius_m), stated explicitly rather than defaulted.
+#   aisle_y_band_m / aisle_x_band_m: A11(iii) "declare aisle_{x,y}_band_m".
+#       [-0.46, 0.46] = the 0.6 m half-aisle wall minus the 0.14 m chassis
+#       margin, the B1 bottleneck_merge NS_BAND precedent
+#       (orchestrator.yaml grounding_aisle_x_band_m note). y band bounds an
+#       x-axis yielder's swept retreat inside the E-W aisle; x band bounds a
+#       y-axis yielder inside the N-S strip. PILOT-PROVISIONAL, re-derived at
+#       Step 6 if the pilot's GT shows parks clipping the band.
+grounding:
+  mode: derived
+  min_distance_m: 0.45
+  backup_clearance_m: 1.7
+  escort_clearance_m: 0.5
+  backup_band_m: [0.5, 2.0]
+  escort_band_m: [1.0, 3.5]
+  lateral_m: 0.35
+  sweep_step_m: 0.1
+  aisle_y_band_m: [-0.46, 0.46]
+  aisle_x_band_m: [-0.46, 0.46]
+  dynamic_scene_arms: true
+  dynamic_handoff_radius_m: 0.5
