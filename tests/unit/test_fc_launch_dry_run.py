@@ -47,7 +47,7 @@ TWO_ROBOT_CASES: dict[str, tuple[str, dict[str, str]]] = {
 _CLEARED_ENV = (
     "BACKEND_ID", "MOCK_DECISION_FILE", "MOCK_RETREAT_CHOICE_FILE", "MODALITY",
     "RECORD", "REC_SEC", "SIM_SEC", "SEED", "CONTAINER", "REPO", "NAV2_ACTIVE_TIMEOUT_SEC",
-    "MAP_SCENARIO", "ISAAC_EXIT_GRACE_SEC", "ISAAC_STOP_WAIT_SEC",
+    "MAP_SCENARIO", "ISAAC_EXIT_GRACE_SEC", "ISAAC_STOP_WAIT_SEC", "NAV2_LAUNCH_STAGGER_SEC",
 )
 
 
@@ -183,6 +183,43 @@ def test_four_robot_scenario_launches_one_nav2_stack_per_robot():
         assert f"grep -qx /robot_{n}/scan" in output
         assert f"grep -qx /robot_{n}/navigate_to_pose" in output
         assert f"/tmp/fc_<STAMP>_nav2_r{n}.log 2>&1" in output
+
+
+def test_five_robot_scenario_launches_one_nav2_stack_per_robot():
+    # S1 (mapd_5) runs on B1's map byte for byte, so the run line passes
+    # MAP_SCENARIO=bottleneck_merge (the free-flow-variant mechanism).
+    output = dry_run("mapd_5", {"MAP_SCENARIO": "bottleneck_merge"})
+    launches = _nav2_lines(output)
+    assert [re.search(r"robot_id:=(robot_\d+)", line).group(1) for line in launches] == [
+        "robot_1", "robot_2", "robot_3", "robot_4", "robot_5",
+    ]
+    assert ["start_map_server:=true" in line for line in launches] == [
+        True, False, False, False, False,
+    ]
+    for line in launches:
+        assert "map_yaml:=/ws/ros2_ws/install/share/swarm_simulation/maps/" \
+            "warehouse_map_bottleneck_merge.yaml" in line
+    for n in (1, 2, 3, 4, 5):
+        assert f"grep -qx /robot_{n}/odom" in output
+        assert f"grep -qx /robot_{n}/scan" in output
+        assert f"grep -qx /robot_{n}/navigate_to_pose" in output
+        assert f"/tmp/fc_<STAMP>_nav2_r{n}.log 2>&1" in output
+    assert "waiting for Nav2 lifecycle: 5 stack(s) active" in output
+    # The seed-1 spawn assignment (draw_start_nodes, pinned in
+    # tests/unit/test_mapd_5_scenario.py) reaches Nav2 as the initial poses.
+    assert "robot_id:=robot_1 x:=0.0 y:=1.55" in output
+    assert "robot_id:=robot_5 x:=2.3 y:=0.0" in output
+
+
+def test_nav2_launch_stagger_env_overrides_the_default():
+    output = dry_run("mapd_5", {
+        "MAP_SCENARIO": "bottleneck_merge", "NAV2_LAUNCH_STAGGER_SEC": "7",
+    })
+    lines = output.splitlines()
+    starts = [i for i, line in enumerate(lines) if line.startswith("[fc-launch] starting Nav2")]
+    assert [lines[i - 1].endswith("sleep 7") for i in starts] == [
+        False, True, True, True, True,
+    ]
 
 
 def _scratch_repo(tmp_path: Path, robots_yaml: str) -> Path:
