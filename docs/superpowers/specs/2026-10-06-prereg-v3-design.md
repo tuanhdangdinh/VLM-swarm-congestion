@@ -867,6 +867,17 @@ footprint-band measurement in S1 cells (measurement parity, not
 strategy help — RECOMMENDED, it preserves the only system-level A/B
 contrast S1 has); (b) register Arm B as degenerate on S1 (the
 S6/S4 precedent). Until ruled, no S1 A/B claim is valid.
+COORDINATED POSITION (both sessions, 2026-10-08, final call at
+Step 6): measurement parity, under one HARD CONDITION — the
+shadow's footprint band comes from the SAME code path and inputs
+as M3's dynamic view (a shared function, never a parallel
+reimplementation), flag-scoped to S1 cells with declared-geometry
+goldens pinned everywhere else. Rationale: Arm B means "classical
+reasoning over the same perceived world"; in v1/v2 both arms read
+declared geometry so the contrast was reasoning-only — if S1's
+grounder moves to the footprint view while the shadow stays
+declared, the cell measures input asymmetry, not reasoning. One
+definition, two geometry sources, each arm-pair always sharing one.
 (iv) **Registered residuals → resume checklist:** separate the
 clearance set from the crossing order (an in-reach goal_behind
 robot can still strip escorts — did not occur in ep1); M4's
