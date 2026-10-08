@@ -70,7 +70,9 @@ def generate_retreat_candidates(
 
     Under a dynamic-arms view (`geometry.rear_room_band == "footprint"`)
     every sample must also stay out of each static obstacle grown by the
-    robot's `half_width_m`. There the yield gate checks rear room across the
+    robot's `half_width_m` plus `params.retreat_box_margin_m` (a box the
+    yielder already sits inside that grown box may not be entered deeper,
+    but is no veto). There the yield gate checks rear room across the
     footprint only up to the park point, while the executed backup is sized
     by the passer clearance and can run past it, and the sidestep can land in
     a box inside the aisle (the A55-E gate jaws). Declared scenes skip this
@@ -113,7 +115,9 @@ def generate_retreat_candidates(
     boxes = [
         (box, max(0.0, _depth(start, box)))
         for box in (
-            _grown_boxes(static_obstacles, geometry.robot.half_width_m)
+            _grown_boxes(
+                static_obstacles, geometry.robot.half_width_m + params.retreat_box_margin_m
+            )
             if geometry is not None and geometry.rear_room_band == "footprint"
             else []
         )

@@ -28,6 +28,18 @@
 #       x-axis yielder's swept retreat inside the E-W aisle; x band bounds a
 #       y-axis yielder inside the N-S strip. PILOT-PROVISIONAL, re-derived at
 #       Step 6 if the pilot's GT shows parks clipping the band.
+#   retreat_box_margin_m: 0.05 - PROPOSED (final call at Step 6). Body-to-box
+#       clearance the dynamic-view retreat-candidate sweep demands of every
+#       static obstacle (zero margin parked ep1's yielder 3-4 mm off the
+#       A55-E gate jaw on all 216 echo scenes). 0.05 = the aisle bands' own
+#       margin: 0.14 chassis margin - 0.09 robot half-width, so a sample the
+#       band admits (body edge 0.05 m off the 0.6 m rack face) is exactly at
+#       the margin, and a larger value would veto samples the band allows.
+#       It does not cover the ~0.1 m drift/overshoot budget that
+#       FEASIBILITY_MARGIN_M (0.2 m = 2x that) sizes the room gate with; the
+#       sweep buys the depth back instead, deepening the backup in 0.01 m
+#       steps when the margin fails at the clearance minimum (ep1: 1.331 ->
+#       1.381 m against 4.44 m of room behind robot_1, band [0.5, 2.0]).
 grounding:
   mode: derived
   min_distance_m: 0.45
@@ -41,3 +53,4 @@ grounding:
   aisle_x_band_m: [-0.46, 0.46]
   dynamic_scene_arms: true
   dynamic_handoff_radius_m: 0.5
+  retreat_box_margin_m: 0.05

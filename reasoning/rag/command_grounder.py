@@ -5,7 +5,13 @@ from itertools import combinations
 from typing import Any, Literal, NamedTuple
 
 from jsonschema import Draft202012Validator
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+)
 
 from reasoning.rag.grounding_view import (
     GroundingView,
@@ -19,6 +25,7 @@ from reasoning.rag.maneuver_geometry import (
     derive_backup_distance,
     derive_escort_distance,
     derive_queued_passer_clearance,
+    lane_conflict_robot_ids,
     rank_recede_candidates,
     recede_axis_offset_m,
     recede_distance_m,
@@ -1170,6 +1177,11 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # No stage-2 answer reached grounding: the caller records why (timeout,
     # parse failure, a text-only condition, or Arm B, whose answer this IS).
     "retreat=default:no_choice": None,
+    # Under a dynamic-arms view no candidate survived the box sweep at the
+    # clearance-minimum backup, and a deeper in-band backup did
+    # (`prepare_retreat_selection`). Suffix `:<from>-><to>` in metres.
+    # Provenance: the grounded backup is still a validated candidate.
+    "retreat=deepened": None,
     # A supplied crossing order that is not a permutation of the non-yielders.
     "order=default:non_permutation": "non_permutation_order",
     # Three or more robots with no explicit crossing order: involved-robots
@@ -1187,6 +1199,12 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # `_junction_same_axis_order`). Provenance, not a measurement-plan cause
     # -- the order was never a model output.
     "order=junction_same_axis": None,
+    # v3 S1 dynamic lane view: robots outside the lane conflict (neither the
+    # lane partner nor inside the yielder's swept corridor,
+    # `maneuver_geometry.lane_conflict_robot_ids`) were dropped from the
+    # crossing order and hold on an unlinked wait instead. Suffix: the
+    # dropped ids, comma-joined. Provenance, not a measurement-plan cause.
+    "order=lane_scoped": None,
     "roles=legacy-convention": None,
     # Provenance: the feasibility gate grounded a different yielder than M2
     # named (scored pre-gate, prereg amendments).
@@ -1305,6 +1323,11 @@ def _shipped_unsolved_tag(missing_fields: Sequence[str]) -> str:
 
 
 _SPATIAL_STRATEGIES = frozenset({"yield", "reverse", "junction_clear"})
+# Step a dynamic-view backup deepens by when no retreat candidate survives the
+# box sweep (`prepare_retreat_selection`): one centimetre, finer than the box
+# margin it serves, so the deepened backup overshoots the depth it needs by
+# under 1 cm. The band's 1.5 m span bounds it at 150 sweeps.
+_DEEPEN_STEP_M = 0.01
 # Matches the legacy grounder's non-spatial wait; kept separate so the legacy
 # body stays verbatim.
 _NONSPATIAL_WAIT_SEC = 8.0
@@ -1323,6 +1346,19 @@ class YieldRoles(BaseModel):
     # Set when no executable yield exists; the command is a wait fan-out.
     refusal_reason: str | None = None
     degradations: list[str]
+    # Involved robots a dynamic lane view left out of `crossing_order`
+    # (`order=lane_scoped`): not passers, so not in the escort chain, but
+    # still held by the command like any involved robot.
+    off_lane: list[str] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_off_lane(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        # Roles are dumped into the flags-off goldens; without a lane view
+        # the dump is byte-identical to one written before the field existed.
+        data = handler(self)
+        if not data.get("off_lane"):
+            data.pop("off_lane", None)
+        return data
 
     @property
     def yielder_id(self) -> str:
@@ -1341,6 +1377,9 @@ class RetreatSelection(BaseModel):
     # Best first: `candidates[0]` is the stage-2 default, the stage-2
     # fallback, and Arm B's stage-2 answer.
     candidates: list[RetreatCandidate]
+    # The clearance-minimum backup when `backup` was deepened past it
+    # because no candidate survived the box sweep there; None otherwise.
+    deepened_from_m: float | None = None
 
 
 def _junction_same_axis_order(
@@ -1465,6 +1504,7 @@ def resolve_yield_roles(
     static_obstacles: Sequence[StaticObstacleInput] = (),
     yield_feasibility_mode: YieldFeasibilityMode = "off",
     crossing_order: Sequence[str] | None = None,
+    params: GroundingParams | None = None,
 ) -> YieldRoles:
     """Resolve the yielder and crossing order of a yield decision.
 
@@ -1473,8 +1513,11 @@ def resolve_yield_roles(
     the first involved robot, tagged `roles=legacy-convention`), then the
     yield feasibility gate on the snapshot positions, then the crossing
     order, then the junction same-axis filter (v2-branch divergence from the
-    v1-frozen Arm B; a no-op when `geometry.arms` is unset), then the
-    corridor same-side refusal.
+    v1-frozen Arm B; a no-op when `geometry.arms` is unset), then the lane
+    scope (a dynamic lane view only: robots outside the lane conflict,
+    `maneuver_geometry.lane_conflict_robot_ids`, move from the order to
+    `off_lane`, the lane partner first, tagged `order=lane_scoped:<ids>`),
+    then the corridor same-side refusal.
 
     Args:
         decision: A congestion decision with `strategy == "yield"`.
@@ -1486,6 +1529,10 @@ def resolve_yield_roles(
         crossing_order: Explicit passing order for the non-yielders, or None to
             use `decision.crossing_order` minus the grounded yielder (when the
             decision carries one).
+        params: Grounding parameters; under a lane view they bound the lane
+            conflict behind the yielder (`lane_conflict_robot_ids`). Every
+            caller grounding the same decision must pass the same value, or
+            stage 2, the plan and the command see different orders.
 
     Returns:
         The roles, with `refusal_reason` set when no yield is executable.
@@ -1551,6 +1598,23 @@ def resolve_yield_roles(
             degradations.append("order=junction_same_axis")
             order = filtered_order
 
+    off_lane: list[str] = []
+    in_lane = lane_conflict_robot_ids(snapshot, robot_ids[0], order, geometry, params)
+    if in_lane is not None and in_lane != order:
+        # v3 S1: a dynamic lane says nothing about a robot outside its
+        # conflict. As a passer it would join the escort chain (one heading
+        # it cannot derive drops the lane passer's escort too,
+        # `grounding_view.apply_escort_headings`) and hold the yielder for a
+        # crossing it never makes. The lane partner leads: the lane, the
+        # retreat side and the escort are all derived from that pair.
+        off_lane = [rid for rid in order if rid not in in_lane]
+        lane = geometry.lane_robots if geometry is not None else None
+        partner = next((rid for rid in in_lane if lane is not None and rid in lane), None)
+        order = (
+            in_lane if partner is None else [partner, *(r for r in in_lane if r != partner)]
+        )
+        degradations.append(f"order=lane_scoped:{','.join(off_lane)}")
+
     if not order:
         degradations.append("yield=no-passer")
         return YieldRoles(
@@ -1587,6 +1651,7 @@ def resolve_yield_roles(
                 regrounded_reason=regrounded_reason,
                 refusal_reason=refusal,
                 degradations=degradations,
+                off_lane=off_lane,
             )
 
     return YieldRoles(
@@ -1595,6 +1660,7 @@ def resolve_yield_roles(
         grounded_from=grounded_from,
         regrounded_reason=regrounded_reason,
         degradations=degradations,
+        off_lane=off_lane,
     )
 
 
@@ -1623,9 +1689,20 @@ def prepare_retreat_selection(
             checked against under a dynamic-arms view
             (`generate_retreat_candidates`).
 
+    Under a dynamic-arms view (`geometry.rear_room_band == "footprint"`),
+    when no candidate survives at the clearance-minimum backup, the backup
+    deepens in `_DEEPEN_STEP_M` steps through the same feasible set
+    (`derive_backup_distance(at_least_m=...)`, so every deeper value still
+    clears every crossing robot and stays in `params.backup_band_m`) until
+    one does; `deepened_from_m` then records the minimum. A box beside the
+    retreat (S1's A55-E gate jaws) is cleared by backing past it rather than
+    refusing the yield: the room behind is bounded by the yield gate, not by
+    this depth. Declared geometry never deepens (its sweep checks no box).
+
     Returns:
         Selection with `candidates` ranked best-first; empty candidates when
-        the backup is infeasible or nothing survives the sweep.
+        the backup is infeasible or nothing survives the sweep at any
+        in-band depth tried.
     """
     order = list(crossing_ids)
     backup = derive_backup_distance(frame, yielder_id, order, params, geometry=geometry)
@@ -1643,6 +1720,34 @@ def prepare_retreat_selection(
         passer_id=passer_id,
         static_obstacles=static_obstacles,
     )
+    deepened_from_m: float | None = None
+    if not candidates and geometry is not None and geometry.rear_room_band == "footprint":
+        depth = backup.value_m
+        while True:
+            deeper = derive_backup_distance(
+                frame,
+                yielder_id,
+                order,
+                params,
+                geometry=geometry,
+                at_least_m=depth + _DEEPEN_STEP_M,
+            )
+            if not deeper.feasible or deeper.value_m is None:
+                break
+            depth = deeper.value_m
+            candidates = generate_retreat_candidates(
+                frame,
+                yielder_id,
+                depth,
+                params,
+                geometry=geometry,
+                passer_id=passer_id,
+                static_obstacles=static_obstacles,
+            )
+            if candidates:
+                deepened_from_m = backup.value_m
+                backup = deeper
+                break
     yielder = frame.find_robot(yielder_id)
     axes = retreat_axes(frame, yielder_id, passer_id, geometry)
     if yielder is None or axes is None:
@@ -1653,7 +1758,11 @@ def prepare_retreat_selection(
         candidates, math.atan2(axes.retreat[1], axes.retreat[0]), (yielder.x, yielder.y)
     )
     return RetreatSelection(
-        yielder_id=yielder_id, crossing_order=order, backup=backup, candidates=ranked
+        yielder_id=yielder_id,
+        crossing_order=order,
+        backup=backup,
+        candidates=ranked,
+        deepened_from_m=deepened_from_m,
     )
 
 
@@ -1790,6 +1899,7 @@ def _ground_derived(
         static_obstacles=static_obstacles,
         yield_feasibility_mode=yield_feasibility_mode,
         crossing_order=crossing_order,
+        params=params,
     )
     degradations = list(roles.degradations)
     if roles.refusal_reason is not None:
@@ -1809,6 +1919,10 @@ def _ground_derived(
     if not selection.candidates:
         degradations.append("retreat=no-valid-candidate")
         return _reroute_yielder(result, decision, roles, degradations)
+    if selection.deepened_from_m is not None:
+        degradations.append(
+            f"retreat=deepened:{selection.deepened_from_m:g}->{selection.backup.value_m:g}"
+        )
 
     chosen = selection.candidates[0]
     if retreat_choice is None:
@@ -1892,6 +2006,23 @@ def _ground_derived(
                 },
             }
         )
+    # Off-lane involved robots hold like the passers, unlinked: M4 releases
+    # every wait under the command when the yield terminates. The
+    # `requested_strategy` marks a wait substituted for the decided strategy
+    # (as the refusal fan-outs do), so `project_dispatched_legs` reads it as
+    # a `wait`, not a `cross`.
+    actions.extend(
+        {
+            "robot_id": robot_id,
+            "action": "temporary_wait",
+            "parameters": {
+                "duration_sec": wait_sec,
+                "requested_strategy": "yield",
+                "reason": "outside the yield's lane conflict",
+            },
+        }
+        for robot_id in roles.off_lane
+    )
     return validate_coordination_command(
         {
             "command_id": f"{result.request_id}-yield",
@@ -2583,7 +2714,7 @@ def _reroute_yielder(
     reroute = decision.model_copy(
         update={
             "strategy": "reroute",
-            "involved_robots": [roles.yielder_id, *roles.crossing_order],
+            "involved_robots": [roles.yielder_id, *roles.crossing_order, *roles.off_lane],
         }
     )
     legacy = _ground_legacy(result.model_copy(update={"decision": reroute}), None, None, (), "off")
@@ -3184,6 +3315,7 @@ def _yield_default_actions(
         geometry=geometry,
         static_obstacles=static_obstacles,
         yield_feasibility_mode=yield_feasibility_mode,
+        params=grounding_params,
     )
     actions: dict[str, PlanLegAction] = {}
     # `resolve_yield_roles` does not itself apply the legacy multi-passer
@@ -3208,15 +3340,18 @@ def _yield_default_actions(
         )
     ):
         # Mirrors `_reroute_yielder`'s dispatch shape exactly: the yielder
-        # reroutes, every crossing-order robot waits.
+        # reroutes, every crossing-order (and off-lane) robot waits.
         actions[roles.yielder_id] = "reroute"
-        for robot_id in roles.crossing_order:
+        for robot_id in [*roles.crossing_order, *roles.off_lane]:
             actions[robot_id] = "wait"
-        return actions, [roles.yielder_id, *roles.crossing_order]
+        return actions, [roles.yielder_id, *roles.crossing_order, *roles.off_lane]
     actions[roles.yielder_id] = "yield"
     for robot_id in roles.crossing_order:
         actions[robot_id] = "cross"
-    return actions, [roles.yielder_id, *roles.crossing_order]
+    # A lane-scoped yield holds its off-lane robots on a plain wait.
+    for robot_id in roles.off_lane:
+        actions[robot_id] = "wait"
+    return actions, [roles.yielder_id, *roles.crossing_order, *roles.off_lane]
 
 
 def _as_yield_decision(
@@ -3976,8 +4111,11 @@ def project_dispatched_legs(
     A `temporary_wait` action is a `cross` leg exactly when the command also
     contains a `yield` (M4's ordered-release convention for a suppressed
     passer; both `_ground_legacy` and `_ground_derived` use it); otherwise it
-    is a genuine `wait`. A robot the command names no action for gets
-    `continue` (the plan's own scene-wide completion convention).
+    is a genuine `wait`. The one exception is a wait substituted for the
+    decided strategy (`requested_strategy` set): a lane-scoped yield's
+    off-lane hold (`YieldRoles.off_lane`) is a `wait` beside the yield. A
+    robot the command names no action for gets `continue` (the plan's own
+    scene-wide completion convention).
 
     Args:
         command: A grounded, schema-valid coordination command.
@@ -3988,12 +4126,18 @@ def project_dispatched_legs(
         entry per `known_robot_ids`.
     """
     acted = {action["robot_id"]: action["action"] for action in command.get("actions", [])}
+    substituted = {
+        action["robot_id"]
+        for action in command.get("actions", [])
+        if (action.get("parameters") or {}).get("requested_strategy") is not None
+    }
     has_yield = any(action == "yield" for action in acted.values())
     projected: dict[str, str] = {}
     for robot_id in known_robot_ids:
         action = acted.get(robot_id, "continue")
         if action == "temporary_wait":
-            projected[robot_id] = "cross" if has_yield else "wait"
+            cross = has_yield and robot_id not in substituted
+            projected[robot_id] = "cross" if cross else "wait"
         else:
             projected[robot_id] = action
     return projected

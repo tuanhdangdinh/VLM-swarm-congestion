@@ -125,6 +125,13 @@ class GroundingParams(BaseModel):
     # involved robot's current task node occupies it (M5's
     # `arrived_radius_m`, the radius its arrival excusal already uses).
     dynamic_handoff_radius_m: float = Field(default=0.5, gt=0)
+    # Body-to-box clearance the retreat-candidate sweep demands under a
+    # dynamic-arms view (`retreat_candidates.generate_retreat_candidates`):
+    # each static obstacle is grown by `robot.half_width_m` plus this. 0.0
+    # (default) is the bare footprint, the sweep as it shipped. Read only
+    # under the footprint band, and stays out of the artifact dump unless
+    # the switch is on and the margin is set.
+    retreat_box_margin_m: float = Field(default=0.0, ge=0.0)
 
     @model_validator(mode="after")
     def _check_bands(self) -> "GroundingParams":
@@ -153,6 +160,9 @@ class GroundingParams(BaseModel):
         if not data.get("dynamic_scene_arms"):
             data.pop("dynamic_scene_arms", None)
             data.pop("dynamic_handoff_radius_m", None)
+            data.pop("retreat_box_margin_m", None)
+        elif not data.get("retreat_box_margin_m"):
+            data.pop("retreat_box_margin_m", None)
         return data
 
 
@@ -281,6 +291,7 @@ def derive_backup_distance(
     params: GroundingParams,
     *,
     geometry: SceneGeometry | None = None,
+    at_least_m: float | None = None,
 ) -> Derivation:
     """Minimum in-band retreat distance clearing every crossing robot.
 
@@ -315,6 +326,10 @@ def derive_backup_distance(
             geometry the first one fixes the retreat side.
         params: Geometry parameters.
         geometry: Declared scene geometry, or None for the heading-based frame.
+        at_least_m: Lower bound on `d` besides the band and the park point:
+            the smallest feasible `d` at or above it is returned. None (the
+            default) is no extra bound. `prepare_retreat_selection` deepens a
+            backup through it when no candidate survives the box sweep.
 
     Returns:
         Feasible derivation with `value_m` (millimetre-rounded), or infeasible
@@ -351,17 +366,8 @@ def derive_backup_distance(
                     f"park point needs a {floor:.3f} m backup, outside band [{low}, {high}] m"
                 ),
             )
-    start = max(low, floor)
-    clearance = params.backup_clearance_m
-    if (
-        geometry is not None
-        and geometry.junction_backup_clearance_m is not None
-        and (geometry.arms or {}).get(yielder_id) is not None
-    ):
-        # J2: a yielder retreating along a declared junction arm clears to the
-        # scene's junction-scoped value instead of the shipped head-on
-        # tuning (design study 2026-09-29 S1, section 3).
-        clearance = geometry.junction_backup_clearance_m
+    start = max(low, floor) if at_least_m is None else max(low, floor, at_least_m)
+    clearance = _backup_clearance_m(yielder_id, params, geometry)
     candidates = sorted({start} | {s + clearance for s in offsets if s + clearance > start})
     for d in candidates:
         if d > high + _EPS:
@@ -513,6 +519,21 @@ def _retreat_side(yielder: RobotStateInput, passer: RobotStateInput, axis_index:
     return -1.0 if yielder_coord < passer_coord else 1.0
 
 
+def _backup_clearance_m(
+    yielder_id: str, params: GroundingParams, geometry: SceneGeometry | None
+) -> float:
+    # J2: a yielder retreating along a declared junction arm clears to the
+    # scene's junction-scoped value instead of the shipped head-on tuning
+    # (design study 2026-09-29 S1, section 3).
+    if (
+        geometry is not None
+        and geometry.junction_backup_clearance_m is not None
+        and (geometry.arms or {}).get(yielder_id) is not None
+    ):
+        return geometry.junction_backup_clearance_m
+    return params.backup_clearance_m
+
+
 def _clearance_robots(
     yielder: RobotStateInput,
     others: list[RobotStateInput],
@@ -521,18 +542,99 @@ def _clearance_robots(
 ) -> list[RobotStateInput]:
     # The robots `derive_backup_distance` holds the clearance against. Only
     # the footprint band filters; declared scenes keep the frozen v2 rule
-    # (every crossing robot). The corridor is the room fix's footprint logic
-    # applied to a robot: the two bodies overlap laterally within both
-    # half-widths, plus the drift margin the room gate also adds.
+    # (every crossing robot).
     if geometry is None or geometry.rear_room_band != "footprint":
         return others
-    corridor_m = 2.0 * geometry.robot.half_width_m + FEASIBILITY_MARGIN_M
     lane = geometry.lane_robots or ()
+    return [
+        state
+        for index, state in enumerate(others)
+        if index == 0
+        or state.robot_id in lane
+        or _in_swept_corridor(yielder, state, axes, geometry)
+    ]
+
+
+def _in_swept_corridor(
+    yielder: RobotStateInput, state: RobotStateInput, axes: RetreatAxes, geometry: SceneGeometry
+) -> bool:
+    # The corridor is the room fix's footprint logic applied to a robot: the
+    # two bodies overlap laterally within both half-widths, plus the drift
+    # margin the room gate also adds (0.38 m either side for S1).
+    corridor_m = 2.0 * geometry.robot.half_width_m + FEASIBILITY_MARGIN_M
+    lateral = (state.x - yielder.x) * axes.left[0] + (state.y - yielder.y) * axes.left[1]
+    return abs(lateral) <= corridor_m + _EPS
+
+
+def lane_conflict_robot_ids(
+    frame: SnapshotFrame,
+    yielder_id: str,
+    robot_ids: Sequence[str],
+    geometry: SceneGeometry | None,
+    params: GroundingParams | None = None,
+) -> list[str] | None:
+    """The robots of a dynamic lane yield's conflict, among `robot_ids`.
+
+    A lane view (`geometry.lane_robots`, footprint band) is derived from one
+    pair; the conflict it describes is that pair plus any robot inside the
+    yielder's swept corridor, the rule `derive_backup_distance` holds its
+    clearance to: `2 * robot.half_width_m + FEASIBILITY_MARGIN_M` either side
+    of the retreat line through the yielder. A robot farther aside (S1's
+    N-arm queue beside an E-W lane) is not in the conflict.
+
+    With `params` the corridor is also bounded behind the yielder by the
+    clearance's reach: a robot at least `backup_band_m[1]` plus the backup
+    clearance back along the retreat axis can never bind an in-band backup
+    (its clearance interval misses the band), so it is not in the conflict
+    either (S1 ep1: a robot dwelling at the W node 4.2 m behind the E-bay
+    yielder). This drops nothing `derive_backup_distance` could hold its
+    clearance to. Corridor robots ahead of the yielder (the partner's side,
+    the passer queue) are never bounded.
+
+    Args:
+        frame: Current scene snapshot.
+        yielder_id: The yield's (post-gate) yielder.
+        robot_ids: Candidate robots, e.g. the crossing order.
+        geometry: The geometry the yield is grounded on.
+        params: Grounding parameters bounding the corridor behind the
+            yielder; None leaves it unbounded.
+
+    Returns:
+        The robots of `robot_ids` in the conflict, in their given order: the
+        yielder's lane partner, any robot inside the corridor, and any robot
+        missing from `frame` (it cannot be placed, so it is not dropped).
+        None when this is not a lane view the yielder belongs to (declared
+        or crossing geometry, the yielder not in the lane pair) or the
+        yielder or its partner is not in `frame`: nothing is scoped then.
+    """
+    if (
+        geometry is None
+        or geometry.rear_room_band != "footprint"
+        or geometry.lane_robots is None
+        or yielder_id not in geometry.lane_robots
+    ):
+        return None
+    partner_id = next(rid for rid in geometry.lane_robots if rid != yielder_id)
+    yielder = frame.find_robot(yielder_id)
+    axes = retreat_axes(frame, yielder_id, partner_id, geometry)
+    if yielder is None or axes is None:
+        return None
+    reach_m = (
+        None
+        if params is None
+        else params.backup_band_m[1] + _backup_clearance_m(yielder_id, params, geometry)
+    )
     kept = []
-    for index, state in enumerate(others):
-        lateral = (state.x - yielder.x) * axes.left[0] + (state.y - yielder.y) * axes.left[1]
-        if index == 0 or state.robot_id in lane or abs(lateral) <= corridor_m + _EPS:
-            kept.append(state)
+    for robot_id in robot_ids:
+        state = frame.find_robot(robot_id)
+        if robot_id == partner_id or state is None:
+            kept.append(robot_id)
+            continue
+        if not _in_swept_corridor(yielder, state, axes, geometry):
+            continue
+        behind_m = (state.x - yielder.x) * axes.retreat[0] + (state.y - yielder.y) * axes.retreat[1]
+        if reach_m is None or behind_m < reach_m - _EPS:
+            kept.append(robot_id)
     return kept
 
 
