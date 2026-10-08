@@ -133,6 +133,10 @@
 #   ISAAC_STOP_WAIT_SEC    Abort path only: how long cleanup waits for Isaac
 #                          to honor its stop flag before the (defense-in-
 #                          depth) pkill (default 60).
+#   REC_STOP_WAIT_SEC      RECORD=1 only: how long stage 10 waits for the
+#                          recorder to exit after its SIGTERM stop request,
+#                          i.e. for the mp4 trailer to be written, before
+#                          cleanup's container restart (default 30).
 #   SEED                   Isaac --seed (default 42, the value every run so far
 #                          used). Also names the ground-truth directory
 #                          (data/logs/simulation/<scenario>-seed<SEED>-rep000).
@@ -181,6 +185,7 @@ SIM_SEC="${SIM_SEC:-1200}"
 SEED="${SEED:-42}"
 ISAAC_EXIT_GRACE_SEC="${ISAAC_EXIT_GRACE_SEC:-10}"
 ISAAC_STOP_WAIT_SEC="${ISAAC_STOP_WAIT_SEC:-60}"
+REC_STOP_WAIT_SEC="${REC_STOP_WAIT_SEC:-30}"
 ISAAC_POLL_SEC=2
 STAMP=$(date -u +%Y%m%d_%H%M%S)
 
@@ -373,6 +378,36 @@ docker_exec_bg() {
     return 0
   fi
   sudo docker exec -d -w /ws "$CONTAINER" bash -lc "$ROS_SETUP && ${inner}"
+}
+
+# The recorder's python process only: anchored, so the `bash -lc` wrapper
+# whose -c string also names the script is never signalled (the recorder must
+# finish its own release(), not lose its parent mid-write). Matched from the
+# host, where the container's processes are visible, as cleanup's pkill is.
+REC_PROC_RE='^python3 /ws/scripts/[r]ecord_topic_video\.py'
+
+# Asks the recorder to stop and waits, bounded, for it to exit. SIGTERM is
+# its own stop request (record_topic_video.py main(): the loop ends and
+# finish() writes the mp4 trailer, the same path its duration cap takes), as
+# the S6 first-light driver's sidecar sent it (2026-10-08: "stop requested
+# signal=15", then WROTE). Never fails the launch: a recorder that does not
+# exit in time is left to cleanup's container restart, with a warning.
+stop_recorder_cleanly() {
+  local waited=0
+  if ! sudo pkill -TERM -f "$REC_PROC_RE" 2>/dev/null; then
+    log "recorder already exited; nothing to stop"
+    return 0
+  fi
+  log "recorder stop requested (SIGTERM); waiting <= ${REC_STOP_WAIT_SEC}s for ${REC_OUT} to finalize"
+  while sudo pgrep -f "$REC_PROC_RE" >/dev/null 2>&1; do
+    if [ "$waited" -ge "$REC_STOP_WAIT_SEC" ]; then
+      log "WARNING: recorder still running ${REC_STOP_WAIT_SEC}s after SIGTERM; cleanup's container restart will kill it and its open segment may be lost"
+      return 0
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  log "recorder exited ${waited}s after SIGTERM (mp4 finalized)"
 }
 
 parse_spawn_poses() {
@@ -752,6 +787,13 @@ if [ "$RECORD" = "1" ]; then
   if [ "$DRY_RUN" = "1" ]; then
     log "[DRY_RUN] docker exec -w /ws ${CONTAINER} bash -lc \"cat ${REC_LOG}\""
   else
+    # Option B ends stage 9 ISAAC_EXIT_GRACE_SEC after Isaac exits, long
+    # before the recorder's REC_SEC window, and cleanup's `docker restart`
+    # then SIGKILLs it before release(): at ~0.5 fps the 2000-frame segment
+    # never rolls, so the whole video was lost (S6 first light, 2026-10-08).
+    # Stop it cleanly first. On the REC_SEC-cap path the sleep above has
+    # already let it reach its own duration, so this finds nothing to stop.
+    stop_recorder_cleanly
     sudo docker exec -w /ws "$CONTAINER" bash -lc "cat ${REC_LOG} 2>/dev/null || true"
   fi
   xrun_soft sudo chown -R ubuntu:ubuntu "$REC_DIR_HOST"
