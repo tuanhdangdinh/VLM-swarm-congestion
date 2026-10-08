@@ -688,6 +688,51 @@ kills the video recorder — fc_launch fix owed); overlay for scoring
 needs `plan_channel_enabled: true` (used in the pilot, noted as a
 scoring-prereq for S6 cells).
 
+**A11. Dynamic-grounding wave rulings (2026-10-08, integration tip
+6d33508).** The dynamic arms / node-handoff / parked-exclusion wave
+(flags default-off, 189 flags-off goldens byte-identical) surfaced
+five rulings:
+(i) **Rear-swap and reverse-exemption ACCEPTED** as part of the
+`dynamic_scene_arms` mode contract: within the mode (S1 cells only)
+a yielder facing away from its partner is swapped with one facing
+it, and such a robot is dropped from a reversing set — physical
+consistency with M4's backup semantics; every reassignment is
+tagged (`grounding=rear_regrounded/rear_exempt/
+node_handoff_regrounded`), and none of it operates with the flag
+off. The node-handoff re-ground (arriver yields to the node
+occupant regardless of M2's naming) follows the scene doc.
+(ii) **junction_clear in S1: RECOMMENDED exclusion** from S1's
+accepted-strategy set (S1 jams are corridor/node class; the
+composite's grounding and its plain-yield fallback use declared
+geometry, which reproduces the mid-route defect). Final call at
+Step 6; the alternative (routing the fallback through the dynamic
+view) is recorded but not built.
+(iii) **New S1-pilot BLOCKER (M4): escorts run
+drive_heading(target_yaw=0.0)** — assumes spawn-facing-goal; under
+task streams the passer (incl. a robot dwelling on a node) is
+escorted along its spawn heading. Fix queued: derive escort heading
+from the robot's current goal bearing (or an M3 escort-off rule for
+dynamic mode). S1 overlay prerequisites recorded: declare
+aisle_{x,y}_band_m; declare racks/band edges as static_obstacles
+and run the gate in swap mode (else rear room is unbounded);
+enable the mode via an S1-only grounding_params_path (never edit
+the md5-pinned rag.yaml); check the 45 s hold backstop against
+dwell+departure at measured RTF.
+(iv) **Plan-channel refinement** (commit 5d5b867): plan consistency
+is audited against the MODEL'S OWN decision while defaults/repair
+use the dynamic view — an S2 plan giving the parked robot a role now
+scores `repaired` (one substitute edit) instead of `m3_default`;
+scoring reads provenance+edits as per the frozen analysis rules.
+(v) **Parked-robot mechanism = declared list**
+(`scenario_geometry.parked_robots` + 0.35 m tolerance), not a
+goal-arrived rule (which would strip S1 dwellers and IB10 leads);
+the parked follower STILL counts in N_f — the S2 axis contrast
+depends on that term; displacement beyond tolerance grounds
+normally and tags `parked_displaced`.
+Cross-lineage note: the fc_launch recorder clean-stop is commit
+28a4c9c (single-patch rule: composite+hotfix take it by cherry-pick
+from that hash only).
+
 **A7. Step 0 status note.** The merged tree's rotation-probe
 signature PASSED (0/142 closed columns vs 12–13 pre-fix). The stage-1
 smoke failure was on an OFF-DESIGN route (goals routing around the
