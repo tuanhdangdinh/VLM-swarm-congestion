@@ -783,6 +783,49 @@ as a PASS/FAIL gate — under the escort-off rule a dwelling occupant
 leaves via Nav2, so a silent backstop regression now breaks S1
 SEMANTICS (premature release), not just timing.
 
+**A12. S1 pilot episode 1 rulings (2026-10-08, report
+2026-10-08-s1-pilot.md @188ad55; VM stopped after).** One full
+600 sim-s episode (seed 1, mock), stopped by the rack-wedge rule.
+(i) **Default mock cannot exercise S1's grounding** — it answers
+no-congestion and the pipeline stops before M3, so the episode was
+effectively Layer-2-off; scripted fixed-id mocks cannot match
+emergent stalls. REGISTERED APPARATUS: an **echo-mock** mode that
+names the triggered robots in its decision (deterministic strategy
+per config), existing solely to exercise grounding_view end-to-end
+without API; apparatus-only, never a scored arm.
+(ii) **Release stagger moves to sim-time** (closes open question
+S1-10): wall-clock stagger × fluctuating RTF put 2/3 measured Δ
+outside the (0, 4.42) sim-s window (4.633/4.533/4.367 at
+release-RTF 0.188); the Δ-artifact jam at the E gate (arriver meets
+a not-yet-released occupant) is the same defect's scene-level face.
+(iii) **Re-trigger cadence**: 216 analyses/episode at ~16.5 wall-s
+intervals, 195 naming all five robots — a live episode would spend
+~216 calls and spam the registry. REGISTERED build item: a
+scene-unchanged suppression policy for task-stream cells (skip
+re-analysis while the stalled set and robot poses are unchanged
+within a bound since the last no-action analysis; exact predicate
+frozen at Step 6). The existing cooldown/exhausted semantics are
+not sufficient for persistent multi-robot stalls.
+(iv) **Corner wedge now has a PHYSICAL-CONTACT variant on S1 legs**:
+robot_3 pinned at the SW rack corner 277 sim-s (cmd_vel actively
+pushing; GT pose static within 1.6 cm; freed by a spin recovery).
+Every S↔W*/N↔W* leg turns such a corner — S1 registration must
+either accept-and-measure (wedge episodes as an outcome class) or
+gate on a mitigation; decision at Step 6 with the Step-1 wedge
+file. GT `robot_static_contacts` logged 0 rows during a physical
+pin — audit-A8's distance-recompute rule extends to STATIC contacts.
+(v) Gate outcomes recorded: 5-stack bring-up met (1/2 attempts; bond
+timeout once — infra fix candidate), RTF 0.164 (predicted
+0.15–0.19), hold-backstop PASS 40.3<45 (thin: fails below RTF
+~0.129), M1 θ median 0.44°/p95 1.40° and position 6 mm median —
+the M1-precision pilot question resolves FAVORABLY (5.7 cm p95
+escort drift vs 12 cm budget). Arm B named only the E-gate pair in
+216/216 — classical non-decomposition on task streams, consistent
+with A2's register. (vi) **Wandering-vs-park stays OPEN** — no
+finisher existed in a Layer-2-off episode; the datum requires live
+(or echo-mock) dispatch. 3 occupied-node arrivals observed (1 of
+them the Δ artifact).
+
 **A7. Step 0 status note.** The merged tree's rotation-probe
 signature PASSED (0/142 closed columns vs 12–13 pre-fix). The stage-1
 smoke failure was on an OFF-DESIGN route (goals routing around the
