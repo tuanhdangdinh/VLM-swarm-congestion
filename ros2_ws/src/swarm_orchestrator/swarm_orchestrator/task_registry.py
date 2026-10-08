@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import math
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from swarm_orchestrator.models import OrchestratorConfig, TaskAssignment
@@ -45,13 +47,21 @@ class TaskRegistry:
         """
         self.load_assignments(config.initial_tasks, now)
 
-    def load_assignments(self, tasks: dict[str, TaskAssignment], now: float = 0.0) -> None:
+    def load_assignments(
+        self,
+        tasks: dict[str, TaskAssignment],
+        now: float = 0.0,
+        held: Iterable[str] = (),
+    ) -> None:
         """Populate base assignments from an explicit mapping (startup only).
 
         Args:
             tasks: Robot id -> base assignment; the task stream passes each
                 robot's first task here instead of `initial_tasks`.
             now: Monotonic time from which each `start_delay_sec` is counted.
+            held: Robots held pending with no wall deadline: `release_due`
+                never frees them, only an explicit `release` (the task
+                stream's sim-time stagger).
         """
         self.entries = {rid: _Entry(base=assignment) for rid, assignment in tasks.items()}
         self.release_at = {
@@ -59,6 +69,9 @@ class TaskRegistry:
             for rid, assignment in tasks.items()
             if assignment.start_delay_sec > 0.0
         }
+        for rid in held:
+            if rid in self.entries:
+                self.release_at[rid] = math.inf
 
     def is_pending(self, robot_id: str) -> bool:
         """Return whether a robot's base mission is still held back."""
@@ -77,6 +90,20 @@ class TaskRegistry:
         for rid in due:
             del self.release_at[rid]
         return due
+
+    def release(self, robot_ids: Iterable[str]) -> list[str]:
+        """Release the named pending robots now, whatever their deadline.
+
+        Args:
+            robot_ids: Robots to release.
+
+        Returns:
+            The robots this call released, sorted; robots not pending are skipped.
+        """
+        released = sorted(rid for rid in set(robot_ids) if rid in self.release_at)
+        for rid in released:
+            del self.release_at[rid]
+        return released
 
     def assign(self, robot_id: str, task: str, goal: tuple[float, float]) -> None:
         """Set or replace a robot's base mission assignment."""

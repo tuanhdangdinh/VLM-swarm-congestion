@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import uuid
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -25,6 +26,9 @@ class DirectiveKind(str, Enum):
     # A queued follower's solo stall while another robot pair's command is in
     # flight: joins that episode instead of opening an analysis mid-maneuver.
     FOLDED = "folded"
+    # The scene-unchanged suppression (A12(iii)) skipped an analysis the
+    # gates above would have started; nothing changes state.
+    SCENE_UNCHANGED = "scene_unchanged"
 
 
 def is_queued_follower(robots: list[str], busy_robots: set[str]) -> bool:
@@ -75,8 +79,23 @@ class OrchestratorStateMachine:
         busy_robots: set[str],
         now: float,
         frame_ready: bool = True,
+        scene_unchanged: Callable[[list[str]], bool] | None = None,
     ) -> Directive:
-        """Handle a congestion event; only MONITORING starts a new cycle."""
+        """Handle a congestion event; only MONITORING starts a new cycle.
+
+        Args:
+            event: The congestion event.
+            cooldown_robots: Robots whose re-trigger is suppressed.
+            busy_robots: Robots of every unresolved dispatched command.
+            now: Monotonic time.
+            frame_ready: Whether a fresh frame exists for the request.
+            scene_unchanged: Consulted last, only when every other gate would
+                start an analysis; True skips it (`SCENE_UNCHANGED`). None
+                (the default) never skips.
+
+        Returns:
+            The directive for the node.
+        """
         if self.state is not OrchestratorState.MONITORING:
             return Directive(kind=DirectiveKind.IGNORED)
         if not frame_ready:
@@ -86,6 +105,8 @@ class OrchestratorStateMachine:
             return Directive(kind=DirectiveKind.SUPPRESSED, robots=event.involved_robots)
         if is_queued_follower(event.involved_robots, busy_robots):
             return Directive(kind=DirectiveKind.FOLDED, robots=event.involved_robots)
+        if scene_unchanged is not None and scene_unchanged(event.involved_robots):
+            return Directive(kind=DirectiveKind.SCENE_UNCHANGED, robots=event.involved_robots)
         request_id = uuid.uuid4().hex
         self.state = OrchestratorState.ANALYZING
         self._active_request_id = request_id

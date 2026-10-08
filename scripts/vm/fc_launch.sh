@@ -104,6 +104,16 @@
 #                          build_backend() reads for backend_id == "mock"
 #                          (see that function's docstring: unset/empty keeps
 #                          MockBackend's default no-congestion answer).
+#   MOCK_ECHO              1 selects the echo mock (prereg-v3 A12(i),
+#                          APPARATUS ONLY, never a scored arm): each
+#                          decision names the prompt's stalled robots so M3
+#                          grounding runs without an API. Forces BACKEND_ID
+#                          to "mock" like MOCK_DECISION_FILE, and refuses to
+#                          start with it set too. Exported as VGU_MOCK_ECHO;
+#                          MOCK_ECHO_TYPE / MOCK_ECHO_STRATEGY (default
+#                          deadlock / yield) as VGU_MOCK_ECHO_TYPE /
+#                          VGU_MOCK_ECHO_STRATEGY. Artifacts carry
+#                          diagnostics.mock_mode = "echo".
 #   MOCK_RETREAT_CHOICE_FILE
 #                          Optional stage-2 mock script, e.g.
 #                          config/mock_decisions/retreat_choice_b.json,
@@ -187,6 +197,9 @@ SCENARIO="${SCENARIO:-head_on_deadlock}"
 BACKEND_ID="${BACKEND_ID:-openai}"
 MOCK_DECISION_FILE="${MOCK_DECISION_FILE:-}"
 MOCK_RETREAT_CHOICE_FILE="${MOCK_RETREAT_CHOICE_FILE:-}"
+MOCK_ECHO="${MOCK_ECHO:-}"
+MOCK_ECHO_TYPE="${MOCK_ECHO_TYPE:-}"
+MOCK_ECHO_STRATEGY="${MOCK_ECHO_STRATEGY:-}"
 MODALITY="${MODALITY:-}"
 RECORD="${RECORD:-0}"
 REC_SEC="${REC_SEC:-1000}"
@@ -206,6 +219,15 @@ STAMP=$(date -u +%Y%m%d_%H%M%S)
 # MOCK_DECISION_FILE only takes effect via the "mock" backend, so setting it
 # selects that backend regardless of BACKEND_ID's default/inherited value.
 if [ -n "$MOCK_DECISION_FILE" ]; then
+  BACKEND_ID=mock
+fi
+# Same for the echo mock; the backend factory refuses both at once, so fail
+# here before any GPU bring-up instead of when M5 starts.
+if [ -n "$MOCK_ECHO" ] && [ "$MOCK_ECHO" != "0" ]; then
+  if [ -n "$MOCK_DECISION_FILE" ]; then
+    echo "MOCK_ECHO and MOCK_DECISION_FILE are mutually exclusive" >&2
+    exit 2
+  fi
   BACKEND_ID=mock
 fi
 
@@ -741,6 +763,16 @@ fi
 if [ -n "$MOCK_RETREAT_CHOICE_FILE_CONTAINER" ]; then
   log "MOCK_RETREAT_CHOICE_FILE set -> VGU_MOCK_RETREAT_CHOICE_FILE=${MOCK_RETREAT_CHOICE_FILE_CONTAINER}"
   M5_INNER="${M5_INNER} && export VGU_MOCK_RETREAT_CHOICE_FILE=${MOCK_RETREAT_CHOICE_FILE_CONTAINER}"
+fi
+if [ -n "$MOCK_ECHO" ] && [ "$MOCK_ECHO" != "0" ]; then
+  log "MOCK_ECHO set -> VGU_MOCK_ECHO=1 type=${MOCK_ECHO_TYPE:-deadlock} strategy=${MOCK_ECHO_STRATEGY:-yield} (apparatus only)"
+  M5_INNER="${M5_INNER} && export VGU_MOCK_ECHO=1"
+  if [ -n "$MOCK_ECHO_TYPE" ]; then
+    M5_INNER="${M5_INNER} && export VGU_MOCK_ECHO_TYPE=${MOCK_ECHO_TYPE}"
+  fi
+  if [ -n "$MOCK_ECHO_STRATEGY" ]; then
+    M5_INNER="${M5_INNER} && export VGU_MOCK_ECHO_STRATEGY=${MOCK_ECHO_STRATEGY}"
+  fi
 fi
 M5_INNER="${M5_INNER} && ros2 launch swarm_orchestrator orchestrator.launch.py >${M5_LOG} 2>&1"
 # Stage 9 tails this log 5 s after the backgrounded launch below. Under four

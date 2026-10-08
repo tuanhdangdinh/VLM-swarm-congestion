@@ -183,12 +183,12 @@ class TestOverlaySnippet:
         spawns = {r.robot_id: (r.spawn.x, r.spawn.y) for r in _scenario().robots}
         assert {rid: NODES_XY[node] for rid, node in stream["start_nodes"].items()} == spawns
 
-    def test_release_stagger_wall_value_covers_the_registered_delta(self):
-        # Registered Delta = 4 sim-s; wall value 4 / RTF_pilot with the
-        # EXTRAPOLATED 5-stack RTF 0.15-0.19 -> 21.1-26.7 wall-s (provisional
-        # until the RTF pilot re-derives it; the C9 pattern).
-        stagger = _overlay()["task_stream"]["release_stagger_wall_sec"]
-        assert 4.0 / 0.19 <= stagger <= 4.0 / 0.15
+    def test_release_stagger_is_the_registered_sim_delta(self):
+        # prereg-v3 A12(ii): the stagger counts in sim-s, so the overlay
+        # carries the registered Delta = 4 sim-s itself, never a wall value.
+        stream = _overlay()["task_stream"]
+        assert stream["release_stagger_sim_sec"] == 4.0
+        assert "release_stagger_wall_sec" not in stream
 
     def test_snippet_loads_into_the_m5_config_and_replans_the_draw(self):
         raw = yaml.safe_load(ORCH.read_text())
@@ -209,9 +209,22 @@ class TestOverlaySnippet:
         assert {rid: tuple(t.node for t in q) for rid, q in plan.tasks.items()} == sequences
         assert [t.label for t in plan.tasks["robot_1"]] == [
             "pickup", "delivery", "pickup", "delivery", "pickup"]
-        stagger = config.task_stream.release_stagger_wall_sec
-        assert plan.release_offsets_wall_sec == {
-            rid: i * stagger for i, rid in enumerate(ROBOTS)}
+        assert config.task_stream.release_clock == "sim"
+        assert plan.release_offsets_wall_sec is None
+        assert plan.release_offsets_sim_sec == {
+            rid: i * 4.0 for i, rid in enumerate(ROBOTS)}
+
+    def test_echo_pilot_suppression_block_loads_with_the_snippet(self):
+        # The header's ECHO-MOCK note: the A12(iii) block appended to the
+        # snippet must load and engage (task stream on, applies_to default).
+        raw = yaml.safe_load(ORCH.read_text())
+        raw.update(_overlay())
+        raw["reanalysis_suppression"] = {"enabled": True, "pose_epsilon_m": 0.05}
+        config = load_config(raw)
+        assert config.reanalysis_suppression.enabled is True
+        assert config.reanalysis_suppression.applies_to == "task_stream_only"
+        assert config.task_stream.enabled is True
+        assert "reanalysis_suppression" not in _overlay()
 
     def test_static_obstacles_declare_the_racks_and_gate_blocks(self):
         boxes = _overlay()["static_obstacles"]

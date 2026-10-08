@@ -3,7 +3,8 @@
 Scene doc `2026-10-06-v3-scene-design.md` S1: five destination nodes per robot,
 each different from the node the robot leaves, never a forbidden pair, drawn
 uniformly from the episode seed; labels alternate starting with `pickup`;
-releases are staggered in robot-id order; a robot dwells at each node and its
+releases are staggered in robot-id order, on M5's wall clock or (prereg-v3
+A12(ii)) on the M1 scene clock; a robot dwells at each node and its
 registry goal stays that node until the dwell ends (pop-on-dwell-end, the
 registered dwell-versus-stall rule). Everything here is pure: the node feeds
 it arrivals, releases and scene stamps and applies the returned events to the
@@ -142,7 +143,10 @@ class TaskStreamPlan(BaseModel):
     # True when `start_nodes` came from the seed, False when the config pinned it.
     start_nodes_drawn: bool
     tasks: dict[str, tuple[StreamTask, ...]]
-    release_offsets_wall_sec: dict[str, float]
+    # Exactly one of the two is set: wall offsets ride `start_delay_sec`;
+    # sim offsets count from the first scene stamp the stream sees.
+    release_offsets_wall_sec: dict[str, float] | None
+    release_offsets_sim_sec: dict[str, float] | None = None
 
     @property
     def tasks_total(self) -> int:
@@ -158,7 +162,8 @@ def build_task_stream_plan(config: TaskStreamConfig, robot_ids: Iterable[str]) -
         robot_ids: The registry's robots (`initial_tasks`).
 
     Returns:
-        The plan: start nodes, every robot's labelled tasks, release offsets.
+        The plan: start nodes, every robot's labelled tasks, and the release
+        offsets on the configured clock (the other clock's offsets are None).
 
     Raises:
         ValueError: If the config is disabled or carries no seed.
@@ -188,14 +193,22 @@ def build_task_stream_plan(config: TaskStreamConfig, robot_ids: Iterable[str]) -
         )
         for rid in robots
     }
+    sim_stagger = config.release_stagger_sim_sec
     return TaskStreamPlan(
         seed=config.seed,
         start_nodes=start_nodes,
         start_nodes_drawn=drawn,
         tasks=tasks,
-        release_offsets_wall_sec={
-            rid: index * config.release_stagger_wall_sec for index, rid in enumerate(robots)
-        },
+        release_offsets_wall_sec=(
+            {rid: index * config.release_stagger_wall_sec for index, rid in enumerate(robots)}
+            if sim_stagger is None
+            else None
+        ),
+        release_offsets_sim_sec=(
+            None
+            if sim_stagger is None
+            else {rid: index * sim_stagger for index, rid in enumerate(robots)}
+        ),
     )
 
 
@@ -204,6 +217,10 @@ def stream_initial_tasks(
 ) -> dict[str, TaskAssignment]:
     """Registry assignments at startup: each robot's first task, held by its offset.
 
+    Under the sim-time stagger no assignment carries a wall delay: the caller
+    holds every robot in the registry instead (`TaskRegistry.load_assignments`
+    `held`), and scene callbacks release them.
+
     Args:
         plan: The drawn schedule.
         initial_tasks: The configured roster; only `priority` is carried over.
@@ -211,11 +228,12 @@ def stream_initial_tasks(
     Returns:
         Robot id -> its first task's assignment, in `initial_tasks` order.
     """
+    wall = plan.release_offsets_wall_sec
     return {
         rid: TaskAssignment(
             task=plan.tasks[rid][0].label,
             goal=plan.tasks[rid][0].goal,
-            start_delay_sec=plan.release_offsets_wall_sec[rid],
+            start_delay_sec=0.0 if wall is None else wall[rid],
             priority=assignment.priority,
         )
         for rid, assignment in initial_tasks.items()
@@ -359,14 +377,17 @@ class TaskStreamTracker:
         return self._event("arrived", robot_id, task, wall_t, sim_t)
 
     def on_scene(self, sim_t: float, wall_t: float) -> list[TaskStreamEvent]:
-        """Advance dwell timers on one scene stamp (sim-s).
+        """Advance sim-time releases and dwell timers on one scene stamp (sim-s).
 
         A stamp older than the last one seen (M1 clock reset, late frame) is
-        ignored: a dwell must never complete on a clock running backwards.
+        ignored: a dwell must never complete, and a sim-time release never
+        fire, on a clock running backwards.
 
         Returns:
+            Under the sim-time stagger, first the `released`/`issued` pairs of
+            every held robot whose offset this stamp reaches; then
             `dwell_complete` events, each followed by the next task's `issued`
-            or the robot's `robot_done`, in natural robot-id order.
+            or the robot's `robot_done`; each group in natural robot-id order.
         """
         if self._last_sim is not None and sim_t < self._last_sim:
             return []
@@ -374,6 +395,8 @@ class TaskStreamTracker:
         if self._start_sim is None:
             self._start_sim = sim_t
         events: list[TaskStreamEvent] = []
+        for robot_id in self.sim_releases_due(sim_t):
+            events.extend(self.on_release(robot_id, wall_t, sim_t))
         for robot_id in sorted(self._robots, key=robot_sort_key):
             state = self._robots[robot_id]
             if state.phase != "dwelling":
@@ -400,6 +423,30 @@ class TaskStreamTracker:
                                     sim_t=sim_t)
                 )
         return events
+
+    def sim_releases_due(self, sim_t: float) -> list[str]:
+        """Held robots whose sim-time release offset `sim_t` reaches.
+
+        Offsets count from `episode_start_sim`, never from the absolute M1
+        clock, so a stream whose first scene is already tens of sim-s in
+        still spaces its releases by the stagger instead of releasing every
+        robot at once.
+
+        Args:
+            sim_t: A scene stamp (sim-s).
+
+        Returns:
+            Robot ids in natural order; empty on the wall-clock path or
+            before the first scene.
+        """
+        offsets = self._plan.release_offsets_sim_sec
+        if offsets is None or self._start_sim is None:
+            return []
+        elapsed = sim_t - self._start_sim
+        return [
+            robot_id for robot_id in sorted(self._robots, key=robot_sort_key)
+            if self._robots[robot_id].phase == "held" and offsets[robot_id] <= elapsed
+        ]
 
     def current_task(self, robot_id: str) -> StreamTask | None:
         """The task whose node is the robot's registry goal, or None if unknown."""
@@ -528,7 +575,7 @@ def stream_start_record(plan: TaskStreamPlan, config: TaskStreamConfig) -> dict[
     Returns:
         A JSON-ready record (without the run/session/clock envelope).
     """
-    return {
+    record = {
         "event": "stream_start",
         "seed": plan.seed,
         "nodes": {node: list(pose) for node, pose in sorted(config.nodes.items())},
@@ -536,7 +583,11 @@ def stream_start_record(plan: TaskStreamPlan, config: TaskStreamConfig) -> dict[
         "start_nodes_drawn": plan.start_nodes_drawn,
         "sequences": {rid: [task.node for task in queue] for rid, queue in plan.tasks.items()},
         "labels": {rid: [task.label for task in queue] for rid, queue in plan.tasks.items()},
-        "release_offsets_wall_sec": dict(plan.release_offsets_wall_sec),
+        "release_offsets_wall_sec": (
+            None
+            if plan.release_offsets_wall_sec is None
+            else dict(plan.release_offsets_wall_sec)
+        ),
         "tasks_per_robot": config.tasks_per_robot,
         "tasks_total": plan.tasks_total,
         "forbidden_legs": [list(leg) for leg in config.forbidden_legs],
@@ -545,6 +596,16 @@ def stream_start_record(plan: TaskStreamPlan, config: TaskStreamConfig) -> dict[
         "horizon_sim_sec": config.horizon_sim_sec,
         "finished_mode": config.finished_mode,
     }
+    if plan.release_offsets_sim_sec is not None:
+        # Sim-time path only, so a wall-clock record keeps its exact key set.
+        record |= {
+            "release_clock": "sim",
+            "release_offsets_wall_sec": None,
+            "release_stagger_wall_sec": None,
+            "release_offsets_sim_sec": dict(plan.release_offsets_sim_sec),
+            "release_stagger_sim_sec": config.release_stagger_sim_sec,
+        }
+    return record
 
 
 def start_position_offsets(

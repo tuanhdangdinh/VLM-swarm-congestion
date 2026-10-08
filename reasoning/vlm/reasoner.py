@@ -166,6 +166,12 @@ def _extract_unsupported_sampling(raw: dict[str, object]) -> dict[str, float] | 
     return {key: float(val) for key, val in value.items()}
 
 
+def _extract_mock_mode(raw: dict[str, object]) -> str | None:
+    """Return `raw["mock_mode"]` when it is a non-empty string, else None."""
+    value = raw.get("mock_mode")
+    return value if isinstance(value, str) and value else None
+
+
 def attach_unsupported_sampling(
     effective: EffectiveSamplingConfig | None,
     unsupported_sampling: dict[str, float] | None,
@@ -565,6 +571,7 @@ class Reasoner:
                         image_fallback_attempt=image_fallback_attempt,
                         decision_degradations=degradations,
                         attempt_records=records,
+                        mock_mode=_extract_mock_mode(response.raw),
                     ),
                 )
 
@@ -671,6 +678,8 @@ def write_reasoner_log(
         record["finish_reason"] = diagnostics.finish_reason
     if diagnostics.system_fingerprint is not None:
         record["system_fingerprint"] = diagnostics.system_fingerprint
+    if diagnostics.mock_mode is not None:
+        record["mock_mode"] = diagnostics.mock_mode
     # Every attempt's outcome, finish reason, provider request id and backoff
     # (conformance fixes F06/F18/F02), whatever the call's result.
     if diagnostics.attempt_records:

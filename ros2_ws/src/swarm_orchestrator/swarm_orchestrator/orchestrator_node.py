@@ -82,6 +82,10 @@ from swarm_orchestrator.probe import (
     ProbeScheduler,
     probe_block_reason,
 )
+from swarm_orchestrator.reanalysis_suppression import (
+    ReanalysisSuppressor,
+    SuppressionVerdict,
+)
 from swarm_orchestrator.reasoning_pipeline import (
     GroundingParamsSource,
     InProcessPipeline,
@@ -427,6 +431,16 @@ class OrchestratorNode(Node):
             if trigger.enabled
             else None
         )
+        # prereg-v3 A12(iii) scene-unchanged suppression: None unless enabled
+        # (and, under `applies_to: task_stream_only`, the task stream is on),
+        # so an off node never consults, logs or records it.
+        suppression = self._config.reanalysis_suppression
+        self._suppression = (
+            ReanalysisSuppressor(suppression.pose_epsilon_m, self._config.cooldown_sec)
+            if suppression.enabled
+            and (suppression.applies_to == "all" or self._config.task_stream.enabled)
+            else None
+        )
         self._registry = TaskRegistry()
         started_at = time.monotonic()
         # v3 S1 task stream: None unless `task_stream.enabled`, so a
@@ -442,10 +456,13 @@ class OrchestratorNode(Node):
             self._task_stream = TaskStreamTracker(
                 plan, stream.dwell_sim_sec, stream.horizon_sim_sec
             )
-            # First tasks enter the registry as base goals; each robot's
-            # stagger rides the existing start_delay_sec hold-back.
+            # First tasks enter the registry as base goals. A wall stagger
+            # rides the existing start_delay_sec hold-back; a sim stagger
+            # holds every robot until a scene callback releases it.
             self._registry.load_assignments(
-                stream_initial_tasks(plan, self._config.initial_tasks), started_at
+                stream_initial_tasks(plan, self._config.initial_tasks),
+                started_at,
+                held=self._config.initial_tasks if stream.release_clock == "sim" else (),
             )
             self._tasks_log_path = (
                 Path(self._config.decision_log_dir) / f"tasks_{self._session_id}.jsonl"
@@ -685,6 +702,15 @@ class OrchestratorNode(Node):
         if event is None:
             return
         frame_ready = self._frame_is_fresh(snapshot.stamp)
+        verdicts: list[SuppressionVerdict] = []
+        scene_unchanged = None
+        if self._suppression is not None:
+            positions = {view.robot_id: (view.x, view.y) for view in snapshot.robots}
+
+            def scene_unchanged(robots: list[str]) -> bool:
+                verdicts.append(self._suppression.check(robots, positions, now))
+                return verdicts[-1].suppress
+
         directive = self._machine.on_event(
             event,
             # `_exhausted_robots` folded in (step-7a fix, finding 5): a
@@ -695,7 +721,10 @@ class OrchestratorNode(Node):
             busy_robots=self._busy_robots(),
             now=now,
             frame_ready=frame_ready,
+            scene_unchanged=scene_unchanged,
         )
+        if verdicts:
+            self._log_suppression_verdict(verdicts[0], event.involved_robots)
         if directive.kind is DirectiveKind.START_ANALYSIS:
             distances = {rid: round(d, 2) for rid, d in event.distance_to_goal_m.items()}
             # Logged after the submit because the episode's presentation order is
@@ -719,6 +748,90 @@ class OrchestratorNode(Node):
                     f"trigger folded into the in-flight episode robots={event.involved_robots} "
                     f"busy={sorted(self._busy_robots())} episode={self._episodes.episode_index}"
                 )
+
+    def _log_suppression_verdict(self, verdict: SuppressionVerdict, robots: list[str]) -> None:
+        """Log a skipped analysis (once per avoided analysis) or a cleared reference."""
+        reference = verdict.reference
+        if reference is None:
+            return
+        if verdict.suppress:
+            # Throttled to one line per cooldown_sec: the stall re-fires on
+            # every scene, and each counted line stands for one avoided call.
+            if verdict.counted:
+                self.get_logger().info(
+                    f"reanalysis suppressed reason=scene_unchanged robots={sorted(robots)} "
+                    f"reference_request={reference.request_id} "
+                    f"reference_outcome={reference.outcome} "
+                    f"max_displacement_m={verdict.max_displacement_m:.3f} "
+                    f"epsilon_m={self._config.reanalysis_suppression.pose_epsilon_m} "
+                    f"avoided_analyses_total={self._suppression.avoided_analyses_total} "
+                    f"suppressed_triggers_total={self._suppression.suppressed_triggers_total}"
+                )
+            return
+        displacement = (
+            ""
+            if verdict.max_displacement_m is None
+            else f" max_displacement_m={verdict.max_displacement_m:.3f}"
+        )
+        self.get_logger().info(
+            f"reanalysis suppression reset reason={verdict.reason} robots={sorted(robots)} "
+            f"reference_request={reference.request_id}{displacement}"
+        )
+
+    def _reset_suppression(self, reason: str) -> None:
+        """Clear the suppression reference (dispatch, contradiction, manual, new task)."""
+        if self._suppression is None:
+            return
+        cleared = self._suppression.reset()
+        if cleared is not None:
+            self.get_logger().info(
+                f"reanalysis suppression reset reason={reason} "
+                f"robots={sorted(cleared.robot_ids)} reference_request={cleared.request_id}"
+            )
+
+    def _update_suppression(
+        self,
+        outcome: PipelineOutcome,
+        dispatched: bool,
+        dispatch_suppressed: bool,
+        trigger_source: str,
+        trigger_robots: frozenset[str],
+        snapshot,
+        now: float,
+    ) -> None:
+        """Arm the reference after an executed stall analysis that dispatched nothing.
+
+        A dispatch already reset it (`_publish_fanned_out`). A non-stall
+        analysis or a backend failure (no decision) leaves no reference: the
+        former is not a stall re-trigger, and in the latter the model never
+        answered this scene.
+        """
+        if self._suppression is None or dispatched:
+            return
+        decision = outcome.reasoner_result.decision
+        if trigger_source != "stall" or snapshot is None or decision is None:
+            self._reset_suppression(
+                f"{trigger_source}_analysis" if trigger_source != "stall" else "no_decision"
+            )
+            return
+        if dispatch_suppressed:
+            reason = "dispatch_suppressed"
+        elif not decision.congestion_detected:
+            reason = "no_congestion"
+        else:
+            reason = "no_command"
+        reference = self._suppression.arm(
+            outcome.request_id,
+            trigger_robots,
+            {view.robot_id: (view.x, view.y) for view in snapshot.robots},
+            now,
+            reason,
+        )
+        self.get_logger().info(
+            f"reanalysis suppression armed request={outcome.request_id} "
+            f"robots={sorted(reference.robot_ids)} outcome={reason} "
+            f"epsilon_m={self._config.reanalysis_suppression.pose_epsilon_m}"
+        )
 
     def _on_status(self, msg: CoordinationStatus) -> None:
         if msg.command_id == "base_mission":
@@ -807,6 +920,7 @@ class OrchestratorNode(Node):
             frame_ready=self._frame_is_fresh(snapshot.stamp),
         )
         if directive.kind is DirectiveKind.START_ANALYSIS:
+            self._reset_suppression("manual")
             self._submit_pipeline(
                 directive.request_id,
                 snapshot,
@@ -1089,6 +1203,10 @@ class OrchestratorNode(Node):
                 dispatch=dispatch,
                 plan_dispatch_order_source=self._config.plan_dispatch_order_source,
                 dispatch_suppressed=dispatch_suppressed,
+                reanalysis_suppression=(
+                    None if self._suppression is None
+                    else self._suppression.take_artifact_block()
+                ),
                 **self._trigger_artifact_fields(trigger_source, contradiction),
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
@@ -1117,7 +1235,19 @@ class OrchestratorNode(Node):
             self.get_logger().info(format_stage2_log(outcome.request_id, outcome.stage2))
 
         directive = self._machine.on_outcome(outcome, now)
-        if directive.kind is DirectiveKind.DISPATCH and outcome.grounded_command is not None:
+        would_dispatch = (
+            directive.kind is DirectiveKind.DISPATCH and outcome.grounded_command is not None
+        )
+        self._update_suppression(
+            outcome,
+            dispatched=would_dispatch and self._config.dispatch_enabled,
+            dispatch_suppressed=would_dispatch and not self._config.dispatch_enabled,
+            trigger_source=trigger_source,
+            trigger_robots=self._last_trigger_robot_ids,
+            snapshot=snapshot,
+            now=now,
+        )
+        if would_dispatch:
             if self._config.dispatch_enabled:
                 self._dispatch(outcome, dispatch, episode_index=episode_index)
             else:
@@ -1296,6 +1426,9 @@ class OrchestratorNode(Node):
                 f"refusing publish request={request_id}: dispatch_enabled is false"
             )
             return
+        # Any published command changes the scene a skipped analysis would
+        # be given, so it ends the scene-unchanged suppression.
+        self._reset_suppression("dispatch")
         for command_id, robot_id, action, params_json, _timeout in messages:
             msg = CoordinationCommand()
             msg.command_id = command_id
@@ -1815,6 +1948,7 @@ class OrchestratorNode(Node):
                 frame_ready=self._frame_is_fresh(snapshot.stamp),
             )
             if directive.kind is DirectiveKind.START_ANALYSIS:
+                self._reset_suppression("contradiction")
                 used = self._contradictions.charge(armed.episode_index)
                 order = self._submit_pipeline(
                     directive.request_id,
@@ -1902,10 +2036,15 @@ class OrchestratorNode(Node):
         plan = stream.plan
         self._append_tasks_log(stream_start_record(plan, config) | {"wall_t": started_at})
         sequences = {rid: [task.node for task in queue] for rid, queue in plan.tasks.items()}
+        offsets = (
+            f"release_offsets_wall_sec={plan.release_offsets_wall_sec} "
+            if plan.release_offsets_sim_sec is None
+            else f"release_offsets_sim_sec={plan.release_offsets_sim_sec} "
+        )
         self.get_logger().info(
             f"task_stream start seed={plan.seed} start_nodes={plan.start_nodes} "
             f"drawn={plan.start_nodes_drawn} sequences={sequences} "
-            f"release_offsets_wall_sec={plan.release_offsets_wall_sec} "
+            f"{offsets}"
             f"dwell_sim_sec={config.dwell_sim_sec} tasks_total={plan.tasks_total} "
             f"log={self._tasks_log_path}"
         )
@@ -1970,12 +2109,26 @@ class OrchestratorNode(Node):
             self._record_stream_events([event])
 
     def _apply_stream_events(self, events: list[TaskStreamEvent]) -> None:
+        # Sim-time stagger only: the wall path releases from `_on_timer`, and
+        # `on_scene` emits no `released` event there.
+        released = self._registry.release(
+            event.robot_id for event in events if event.event == "released"
+        )
+        if released:
+            self.get_logger().info(
+                f"sim release stagger elapsed, base mission released robots={released} "
+                f"sim_t={events[0].sim_t}"
+            )
         issued = [event for event in events if event.event == "issued"]
+        reference = None if self._suppression is None else self._suppression.reference
+        if reference is not None and any(e.robot_id in reference.robot_ids for e in issued):
+            # A new task node is a new registry goal, which the prompt renders.
+            self._reset_suppression("task_issued")
         for event in issued:
             # Base only: an in-flight command keeps its override, and the
             # robot's goal falls through to this task when it resolves.
             self._registry.set_base(event.robot_id, event.label, event.goal)
-        if issued:
+        if issued or released:
             self._publish_registry()
         self._record_stream_events(events)
 
