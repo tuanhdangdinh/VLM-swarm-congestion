@@ -294,10 +294,18 @@ def test_ep1_gate_pair_yield_is_feasible_with_a_hand_computed_room():
     )
     assert view.geometry is not None
     # Hand-computed: robot_1's strip y in [-0.042, 0.138] westward from
-    # x=1.937 meets no declared box (gate jaws at |y| >= 0.275, racks at
-    # |y| >= 0.6) -- before the fix the flanking rack obstacle_2 (x in
-    # [0.6, 2.5], 0.552 m beside it) read as 0.00 m.
-    assert yield_retreat_room_m((1.9373, 0.0479), -1.0, obstacles, view.geometry) is None
+    # x=1.937 passes the gate jaws (|y| >= 0.275) and the racks (|y| >= 0.6)
+    # and first meets the W tracked-band cap at x=-2.5: 1.937 + 2.5. Before
+    # the fix the flanking rack obstacle_2 (x in [0.6, 2.5], 0.552 m beside
+    # it) read as 0.00 m.
+    room = yield_retreat_room_m((1.9373, 0.0479), -1.0, obstacles, view.geometry)
+    assert room == pytest.approx(4.437, abs=1e-3)
+    assert room >= required_room_m(view.geometry)
+    # robot_5 holds E, 0.193 m inside the E cap: honestly infeasible, so the
+    # swap gate can never back it out of tracking.
+    assert yield_retreat_room_m((2.3066, 0.0011), 1.0, obstacles, view.geometry) == (
+        pytest.approx(0.193, abs=1e-3)
+    )
     command = _ground(decision, frame, geometry=geometry, params=params, obstacles=obstacles)
     assert _gate_tags(command) == []
     action = command["actions"][0]

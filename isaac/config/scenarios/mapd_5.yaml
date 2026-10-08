@@ -101,6 +101,10 @@ duration_sec: 600.0
 #     - { obstacle_id: obstacle_4, x: 1.55, y: -1.2, size_x_m: 1.9, size_y_m: 1.2 }
 #     - { obstacle_id: obstacle_5, x: 1.2, y: 0.4375, size_x_m: 1.0, size_y_m: 0.325 }
 #     - { obstacle_id: obstacle_6, x: 1.2, y: -0.4375, size_x_m: 1.0, size_y_m: 0.325 }
+#     - { obstacle_id: obstacle_7, x: -2.75, y: 0.0, size_x_m: 0.5, size_y_m: 1.2 }
+#     - { obstacle_id: obstacle_8, x: 2.75, y: 0.0, size_x_m: 0.5, size_y_m: 1.2 }
+#     - { obstacle_id: obstacle_9, x: 0.0, y: 2.05, size_x_m: 1.2, size_y_m: 0.5 }
+#     - { obstacle_id: obstacle_10, x: 0.0, y: -2.05, size_x_m: 1.2, size_y_m: 0.5 }
 #   prompt_static_obstacles: false
 #   plan_channel_enabled: true
 #   dispatch_enabled: true
@@ -147,9 +151,17 @@ duration_sec: 600.0
 #     swap-mode feasibility gate bounds rear room (A11(iii): "else rear room
 #     is unbounded"): obstacle_1..4 = the four rack quadrants of the tracked
 #     band (|x| in [0.6, 2.5] x |y| in [0.6, 1.8]); obstacle_5/6 = the gate
-#     blocks (x in [0.7, 1.7], |y| in [0.275, 0.6]). Ids are neutral by the
-#     standing rule; prompt_static_obstacles STAYS false, so none of this
-#     reaches the prompt.
+#     blocks (x in [0.7, 1.7], |y| in [0.275, 0.6]); obstacle_7..10 = the
+#     tracked-band END caps across each aisle (|x| in [2.5, 3.0] across the
+#     E-W aisle, |y| in [1.8, 2.3] across the N-S strip). The floor goes on
+#     past the band, but M1 does not: without the caps a robot at a node tip
+#     (E and Wp/Wm 0.2 m inside |x| = 2.5, N/S 0.25 m inside |y| = 1.8) had
+#     unbounded rear room, and the swap gate could back it out of tracking.
+#     Under dynamic_scene_arms rear room is checked across the robot's own
+#     footprint (SceneGeometry.rear_room_band), so the racks flanking an
+#     aisle never bound it; only a box across its strip does. Ids are
+#     neutral by the standing rule; prompt_static_obstacles STAYS false, so
+#     none of this reaches the prompt.
 #   - grounding_aisle_{y,x}_band_m stay null here: the S1 bands are declared
 #     IN config/grounding/s1_dynamic.yaml (A11(iii) "declare
 #     aisle_{x,y}_band_m"), [-0.46, 0.46] both axes (0.6 wall - 0.14 chassis
