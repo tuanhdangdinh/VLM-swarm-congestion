@@ -454,8 +454,19 @@ def _apply_yield_feasibility(
         strings the grounded command should carry.
     """
     axis_index = 0 if geometry.corridor.axis == "x" else 1
+    # A dynamic lane is derived from one pair; any other involved robot's
+    # retreat along it is undefined, so it is neither scored nor a swap
+    # candidate (`SceneGeometry.lane_robots`). The view puts the lane's
+    # anchor first, so the decided yielder is normally in the pair; when it
+    # is not, every robot is scored as on a declared corridor.
+    scored = list(robot_ids)
+    lane = geometry.lane_robots
+    if lane is not None and robot_ids[0] in lane:
+        in_lane = [robot_id for robot_id in robot_ids if robot_id in lane]
+        if len(in_lane) > 1:
+            scored = in_lane
     positions = {
-        robot_id: robot_positions.get(robot_id) for robot_id in robot_ids
+        robot_id: robot_positions.get(robot_id) for robot_id in scored
     }
     if any(position is None for position in positions.values()):
         # Without every position the retreat side is undefined; leave the
@@ -473,7 +484,7 @@ def _apply_yield_feasibility(
             # The retreat side is taken against the first other involved
             # robot, which is exact for the two-robot head-on scenes this gate
             # targets; a junction declares each robot's arm instead.
-            other = next(positions[o] for o in robot_ids if o != robot_id)
+            other = next(positions[o] for o in scored if o != robot_id)
             assert other is not None
             side = -1.0 if position[axis_index] < other[axis_index] else 1.0
         rooms[robot_id] = yield_retreat_room_m(position, side, static_obstacles, robot_geometry)
@@ -491,7 +502,7 @@ def _apply_yield_feasibility(
     if mode == "swap":
         # Ties break on involved_robots order; the two-robot head-on scenes
         # this gate was written for never offer more than one candidate.
-        candidates = [robot_id for robot_id in robot_ids[1:] if feasible[robot_id]]
+        candidates = [robot_id for robot_id in scored[1:] if feasible[robot_id]]
         if candidates:
             chosen = candidates[0]
             reordered = [chosen] + [
@@ -500,7 +511,7 @@ def _apply_yield_feasibility(
             reason = f"yield re-grounded: {shortfall}; {chosen} feasible"
             return _YieldFeasibility(reordered, decided, reason, None)
         rooms_text = ", ".join(
-            f"{robot_id} {_room_text(rooms[robot_id])}" for robot_id in robot_ids
+            f"{robot_id} {_room_text(rooms[robot_id])}" for robot_id in scored
         )
         return _YieldFeasibility(
             robot_ids,
