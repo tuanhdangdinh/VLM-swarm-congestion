@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from reasoning.rag.grounding_view import (
     GroundingView,
+    apply_backup_line_hold,
     apply_escort_headings,
     resolve_grounding_view,
 )
@@ -615,7 +616,10 @@ def ground_reasoner_result(
     command is byte-identical; when either fires, its `grounding=...` tags
     are appended to the command's `degradations`. Under the same switch each
     escorted passer is given its goal-bearing escort heading, or its escort
-    is dropped (`grounding_view.apply_escort_headings`).
+    is dropped (`grounding_view.apply_escort_headings`), and each
+    yield/reverse backup is marked `backup_line_hold` so M4 holds the
+    backup's own start line, not the odom y=0 spawn line
+    (`grounding_view.apply_backup_line_hold`).
 
     Returns:
         Schema-validated coordination command dict.
@@ -665,6 +669,7 @@ def ground_reasoner_result(
     if view is not None and view.tags:
         command = _with_degradations(command, [*command.get("degradations", []), *view.tags])
     command = apply_escort_headings(command, snapshot, geometry, params, goal_references)
+    command = apply_backup_line_hold(command, params)
     return command if alias is None else _tag_alias(command, alias)
 
 
@@ -2045,7 +2050,9 @@ def ground_junction_clear_phases(
             only under `params.dynamic_scene_arms` to give each escorted
             passer (cross phase, fallback) its goal-bearing heading
             (`grounding_view.apply_escort_headings`); None uses the
-            snapshot's goals.
+            snapshot's goals. Under the same switch every phase's
+            yield/reverse backup — each recede into its pocket included — is
+            marked `backup_line_hold` (`grounding_view.apply_backup_line_hold`).
 
     Returns:
         The full phase sequence plus the plain-`yield` fallback command.
@@ -2097,7 +2104,8 @@ def _escort_phase_plan(
         return plan
 
     def escorted(command: dict[str, Any]) -> dict[str, Any]:
-        return apply_escort_headings(command, snapshot, geometry, params, goal_references)
+        command = apply_escort_headings(command, snapshot, geometry, params, goal_references)
+        return apply_backup_line_hold(command, params)
 
     phases = [
         phase.model_copy(update={"command": escorted(phase.command)}) for phase in plan.phases

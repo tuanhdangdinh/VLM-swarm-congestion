@@ -20,7 +20,10 @@ so every grounding consumer (the command, stage 2, the plan verifier and the
 
 A third pass under the same switch, `apply_escort_headings`, runs on the
 grounded command instead (prereg-v3 A11(iii)): every escorted passer is
-driven toward its current goal, not along its spawn heading.
+driven toward its current goal, not along its spawn heading. Its sibling,
+`apply_backup_line_hold`, marks every yield/reverse backup of the grounded
+command so M4 holds the line through the backup's own start pose instead of
+servoing toward the odom y=0 spawn line.
 
 The view is resolved once per decision, at each public grounding entry point
 (`ground_reasoner_result`, `ground_junction_clear_phases`,
@@ -705,3 +708,40 @@ def apply_escort_headings(
     if tags:
         updated["degradations"] = [*command.get("degradations", []), *tags]
     return updated
+
+
+def apply_backup_line_hold(
+    command: dict[str, Any],
+    params: GroundingParams | None,
+) -> dict[str, Any]:
+    """Mark every yield/reverse backup of a grounded command for line hold.
+
+    The spawn-frame sibling of `apply_escort_headings` (prereg-v3 A11(iii)):
+    M4's `backup` servos the reversing robot toward the odom y=0 spawn line,
+    which assumes it still faces its spawn heading. In S1 task streams a
+    yielder off that heading backs along an ~0.2 m-radius arc instead of a
+    straight line. Under `params.dynamic_scene_arms` every `yield` and
+    `reverse` action gains `backup_line_hold: true`; M4 then holds the line
+    through the robot's own backup start pose along its start heading, in
+    the robot's odom frame — no world yaw crosses the M3/M4 boundary. With
+    the switch off the command comes back as the same object, so every
+    flags-off artifact keeps its bytes and M4 keeps the spawn-line servo.
+
+    Args:
+        command: A grounded coordination command.
+        params: Grounding parameters (the switch).
+
+    Returns:
+        The command, with its backup actions marked.
+    """
+    if params is None or not params.dynamic_scene_arms:
+        return command
+    actions = [
+        {**action, "parameters": {**(action.get("parameters") or {}), "backup_line_hold": True}}
+        if action.get("action") in ("yield", "reverse")
+        else action
+        for action in command.get("actions", [])
+    ]
+    if actions == list(command.get("actions", [])):
+        return command
+    return {**command, "actions": actions}

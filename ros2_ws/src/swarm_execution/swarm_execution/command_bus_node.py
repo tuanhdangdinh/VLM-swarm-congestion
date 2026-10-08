@@ -407,7 +407,18 @@ class CommandBusNode(Node):
                     return
                 _start_hold(command, _hold_sec)
 
-            self._adapter.backup(robot_id, distance_m, on_result=_on_backup_result)
+            if params.get("backup_line_hold") is True:
+                # prereg-v3 A11(iii) sibling: in S1 task streams the backing
+                # robot may be off its spawn heading, and the default servo
+                # steers it toward the odom y=0 spawn line (an ~0.2 m-radius
+                # arc instead of a straight backup). M3 set the key under
+                # dynamic grounding; the backup then holds the line through
+                # its own start pose along its start heading.
+                self._adapter.backup(
+                    robot_id, distance_m, on_result=_on_backup_result, hold_start_line=True
+                )
+            else:
+                self._adapter.backup(robot_id, distance_m, on_result=_on_backup_result)
             return True
         if action in {"wait", "temporary_wait", "stop"}:
             self._adapter.cancel(robot_id)

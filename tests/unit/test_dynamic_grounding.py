@@ -32,6 +32,7 @@ from reasoning.rag.command_grounder import (
     verify_and_repair_plan,
 )
 from reasoning.rag.grounding_view import (
+    apply_backup_line_hold,
     apply_escort_headings,
     derive_dynamic_arms,
     derive_escort_heading,
@@ -250,12 +251,25 @@ def test_flags_explicitly_off_match_pre_change_goldens():
     assert _golden_outputs({"dynamic_scene_arms": False}) == golden
 
 
+def _without_backup_line_hold(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            k: _without_backup_line_hold(v) for k, v in value.items() if k != "backup_line_hold"
+        }
+    if isinstance(value, list):
+        return [_without_backup_line_hold(v) for v in value]
+    return value
+
+
 def test_dynamic_switch_leaves_junction_clear_on_declared_geometry():
     golden = json.loads(_GOLDEN.read_text(encoding="utf-8"))
     on = _golden_outputs({"dynamic_scene_arms": True})
     keys = [k for k in golden if "ib10_junction_clear" in k and "|derived|" in k]
     assert keys
-    assert {k: on[k] for k in keys} == {k: golden[k] for k in keys}
+    # `backup_line_hold` is M4 motion-frame semantics (hold your own backup
+    # start line), not geometry: stripped here, every declared-geometry
+    # number of the composite must still match the goldens under the switch.
+    assert {k: _without_backup_line_hold(on[k]) for k in keys} == {k: golden[k] for k in keys}
 
 
 def test_dynamic_fields_stay_out_of_the_params_dump_when_off():
@@ -1114,3 +1128,69 @@ def test_junction_clear_escorts_get_headings_under_the_switch():
         # Every IB10 robot spawned facing its goal: the turn is ~0.
         turn = params["passer_escort_heading_rad"] - params["passer_escort_reference_yaw_rad"]
         assert math.atan2(math.sin(turn), math.cos(turn)) == pytest.approx(0.0, abs=0.05)
+
+
+# ---- backup line hold (prereg-v3 A11(iii) sibling: spawn-frame backups) ----
+
+
+def test_dynamic_yield_backup_holds_the_start_line():
+    command = _ground(
+        _decision("yield", _TWO, yield_robot="robot_1"),
+        _frame(_S1_LANE, {"robot_2": _NODE_WP}),
+        _S1,
+        _DYNAMIC,
+    )
+    yield_action = command["actions"][0]
+    assert yield_action["action"] == "yield"
+    assert yield_action["parameters"]["backup_line_hold"] is True
+
+
+def test_dynamic_reverse_marks_every_reversing_robot():
+    command = _ground(_decision("reverse", _TWO), _frame(_S1_LANE), _S1, _DYNAMIC)
+    reverses = [a for a in command["actions"] if a["action"] == "reverse"]
+    assert len(reverses) == 2
+    assert all(a["parameters"]["backup_line_hold"] is True for a in reverses)
+
+
+def test_switch_off_backup_line_hold_leaves_the_command_object_untouched():
+    off = GroundingParams(mode="derived")
+    assert apply_backup_line_hold(_ESCORT_YIELD, off) is _ESCORT_YIELD
+    assert apply_backup_line_hold(_ESCORT_YIELD, None) is _ESCORT_YIELD
+
+
+def test_flags_off_backups_carry_no_line_hold_parameter():
+    # Byte-compatibility of the M4 contract: no flags-off golden command
+    # names the key, so M4 keeps the odom y=0 spawn-line servo for all of
+    # them.
+    golden = _GOLDEN.read_text(encoding="utf-8")
+    assert "backup_distance_m" in golden
+    assert "backup_line_hold" not in golden
+
+
+def test_junction_recede_backups_get_line_hold_with_their_pockets():
+    four = ["robot_1", "robot_2", "robot_3", "robot_4"]
+    plan = ground_junction_clear_phases(
+        _result(_decision("junction_clear", four)),
+        snapshot=_frame(_IB10),
+        params=_DYNAMIC,
+        geometry=SceneGeometry.model_validate(_IB10_GEOMETRY_ARGS),
+    )
+    recedes = [
+        action["parameters"]
+        for phase in plan.phases
+        for action in phase.command["actions"]
+        if action["action"] == "reverse"
+    ]
+    assert recedes
+    for params in recedes:
+        # The key rides on the same action whose pocket distance it backs.
+        assert params["backup_distance_m"] > 0
+        assert params["backup_line_hold"] is True
+    holds = [
+        action["parameters"]
+        for command in [*(p.command for p in plan.phases), plan.fallback_command]
+        for action in command["actions"]
+        if action["action"] == "yield"
+    ]
+    assert holds
+    assert all(params["backup_line_hold"] is True for params in holds)

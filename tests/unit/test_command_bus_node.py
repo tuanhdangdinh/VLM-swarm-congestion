@@ -1671,3 +1671,76 @@ def test_two_passer_escort_headings_reach_each_admission():
         ("robot_3", 1.570796, 4.9),
     ]
     assert rig.escort_kwargs == [{"relative_to_start": True}, {"relative_to_start": True}]
+
+
+# ---------------------------------------------------------------------------
+# prereg-v3 A11(iii) sibling: backup_line_hold. Without the key the backup is
+# the two-argument call pinned above (strict-signature doubles); with it the
+# adapter holds the line through its own backup start pose.
+# ---------------------------------------------------------------------------
+
+
+class _BackupKwargsRig(_YieldRig):
+    """`_YieldRig` whose backup double also records keyword arguments."""
+
+    def __init__(self):
+        super().__init__()
+        self.backups: list[tuple[str, float]] = []
+        self.backup_kwargs: list[dict] = []
+
+        def backup(robot_id, distance_m, on_result=None, **kwargs):
+            self.backups.append((robot_id, distance_m))
+            self.backup_kwargs.append(kwargs)
+            self.adapter.backup_on_result[robot_id] = on_result
+
+        self.adapter.backup = backup
+
+
+def test_backup_line_hold_parameter_reaches_the_yield_backup():
+    rig = _BackupKwargsRig()
+    rig.command("robot_1", "yield", {"backup_distance_m": 1.3, "backup_line_hold": True})
+
+    assert rig.backups == [("robot_1", 1.3)]
+    assert rig.backup_kwargs == [{"hold_start_line": True}]
+
+
+def test_backup_line_hold_parameter_reaches_the_reverse_backup():
+    rig = _BackupKwargsRig()
+    rig.command("robot_2", "reverse", {"backup_distance_m": 0.9, "backup_line_hold": True})
+
+    assert rig.backups == [("robot_2", 0.9)]
+    assert rig.backup_kwargs == [{"hold_start_line": True}]
+
+
+def test_backup_without_line_hold_keeps_the_legacy_call():
+    rig = _BackupKwargsRig()
+    rig.command("robot_1", "yield", {"backup_distance_m": 1.3})
+
+    assert rig.backups == [("robot_1", 1.3)]
+    assert rig.backup_kwargs == [{}]
+
+
+def test_backup_line_hold_ignored_unless_exactly_true():
+    # Mirrors the passer_reference_at_dispatch contract: a JSON "true"
+    # string or 1 is a malformed command, not a mode switch.
+    rig = _BackupKwargsRig()
+    rig.command("robot_1", "yield", {"backup_distance_m": 1.3, "backup_line_hold": "true"})
+    rig.command("robot_2", "reverse", {"backup_distance_m": 0.9, "backup_line_hold": 1})
+
+    assert rig.backup_kwargs == [{}, {}]
+
+
+def test_backup_line_hold_yield_status_stream_matches_the_pinned_stream():
+    rig = _BackupKwargsRig()
+    _start_two_robot_yield(rig, {**_TWO_ROBOT_YIELD, "backup_line_hold": True})
+    assert rig.backup_kwargs == [{"hold_start_line": True}]
+    rig.odom_at("robot_2", 0.3, 0.0)
+    rig.odom_at("robot_2", -1.3, 0.0)
+
+    assert rig.published == [
+        ("cmd-Y", "robot_2", "ACTIVE", "waiting"),
+        ("cmd-Y", "robot_1", "ACTIVE", "pulling off aisle centerline"),
+        ("cmd-Y", "robot_1", "ACTIVE", "holding for passing robot"),
+        ("cmd-Y", "robot_2", "COMPLETED", "released: yield holding"),
+        ("cmd-Y", "robot_1", "COMPLETED", "yield complete: passer cleared"),
+    ]
