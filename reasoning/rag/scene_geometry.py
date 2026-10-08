@@ -149,6 +149,26 @@ class SceneGeometry(BaseModel):
     # pull-off is on. PROPOSED -1 for IB10: the lead passed the held robot on
     # +x in 10 of 11 recorded releases, under either lead.
     junction_release_pull_off_side: Literal[-1, 1] | None = None
+    # v3 scene design S2: robots parked on purpose at a declared pose, e.g.
+    # the parked E-W follower `robot_5` (goal = spawn). Robot id -> world
+    # `(x, y)`. A listed robot that M2 names as involved is dropped from the
+    # decision before grounding (`reasoning.rag.grounding_view`) while it sits
+    # within `parked_pose_tolerance_m` of its pose: it gets no recede, yield
+    # or crossing role and no clearance, but it stays in the frame, so it is
+    # still drawn and still counts as a follower in chi's N_f (the S2
+    # mechanism). Its arm, if it needs one for N_f, is declared in `arms` as
+    # usual. None (default) keeps every scene byte-identical.
+    parked_robots: dict[str, tuple[float, float]] | None = None
+    # How far a parked robot may sit from its declared pose and still count
+    # as parked: M5's `arrival_position_tolerance_m`. Farther out it has been
+    # displaced into the scene and is grounded like any involved robot.
+    parked_pose_tolerance_m: float = Field(default=0.35, gt=0.0)
+
+    @model_validator(mode="after")
+    def _parked_robots_not_empty(self) -> SceneGeometry:
+        if self.parked_robots is not None and not self.parked_robots:
+            raise ValueError("parked_robots must list at least one robot, or be None")
+        return self
 
     @model_validator(mode="after")
     def _release_pull_off_is_declared(self) -> SceneGeometry:

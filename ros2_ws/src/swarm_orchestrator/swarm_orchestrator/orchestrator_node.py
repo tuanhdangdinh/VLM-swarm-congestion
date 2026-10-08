@@ -5,6 +5,7 @@ import json
 import os
 import time
 import uuid
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -169,6 +170,7 @@ def _build_default_pipeline(
     marker: CandidateMarker | None = None,
     letter_seed: int = 0,
     plan_tracker: PlanTracker | None = None,
+    goal_reference_of: Callable[[str], tuple[float, float] | None] | None = None,
 ) -> ReasoningPipeline:
     reasoner_config, backend_config = _load_vlm_config(config.reasoning_backend_id)
     backend = build_backend(_load_vlm_adapter(config.reasoning_backend_id), backend_config)
@@ -206,6 +208,7 @@ def _build_default_pipeline(
         permutation_votes=config.prompt_permutation_votes,
         registry_order=tuple(config.initial_tasks),
         dispatch_order_source=config.plan_dispatch_order_source,
+        goal_reference_of=goal_reference_of,
     )
 
 
@@ -353,7 +356,12 @@ class OrchestratorNode(Node):
         # a supersession (see that method's docstring).
         self._last_shown_plan_id: int | None = None
         self._pipeline = pipeline or _build_default_pipeline(
-            self._config, self._grounding, self._marker, self._order_seed, self._plan_tracker
+            self._config,
+            self._grounding,
+            self._marker,
+            self._order_seed,
+            self._plan_tracker,
+            goal_reference_of=self._mission_goal,
         )
         # Prompt apparatus (prereg-v2 rev 6). The zoom tile is placed with M1's
         # calibration, shared with the stage-2 marker when there is one.
@@ -2028,6 +2036,13 @@ class OrchestratorNode(Node):
     def _effective_goal(self, robot_id: str):
         eff = self._registry.effective(robot_id)
         return None if eff is None else eff[1]
+
+    def _mission_goal(self, robot_id: str) -> tuple[float, float] | None:
+        # M3's node-handoff goal reference (the robot's current task node).
+        # Called from the pipeline's worker thread, after the registry exists:
+        # `set_base` swaps an entry's frozen base in one assignment, so a read
+        # sees the node before or after a task-stream advance, never a mix.
+        return self._registry.mission_goal(robot_id)
 
     def _progress_goal(self, robot_id: str):
         # A held-back robot is not driven yet, so standing still is not a

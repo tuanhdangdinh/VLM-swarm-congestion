@@ -7,6 +7,7 @@ from typing import Any, Literal, NamedTuple
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, ConfigDict, Field
 
+from reasoning.rag.grounding_view import GroundingView, resolve_grounding_view
 from reasoning.rag.maneuver_geometry import (
     Derivation,
     GroundingParams,
@@ -512,6 +513,7 @@ def ground_reasoner_result(
     retreat_choice: RetreatChoiceDecision | None = None,
     crossing_order: Sequence[str] | None = None,
     priorities: Mapping[str, int] | None = None,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
 ) -> dict[str, Any]:
     """Convert a validated VLM decision into an executable coordination command.
 
@@ -591,6 +593,17 @@ def ground_reasoner_result(
             means 0), which the prompt never sees. Read only to resolve a
             `priority_override` decision's beneficiary; None or empty leaves
             every command as it was before the field existed.
+        goal_references: Robot id -> its CURRENT task node (M5's base-mission
+            registry goal), read only by the node-handoff rule of
+            `params.dynamic_scene_arms`; None uses the snapshot's goals.
+
+    Before grounding, the decision passes through the per-decision grounding
+    view (`reasoning.rag.grounding_view.resolve_grounding_view`): declared
+    parked robots (`geometry.parked_robots`) are dropped from its roles, and
+    with `params.dynamic_scene_arms` a `yield`/`reverse` is grounded on
+    geometry derived from `snapshot`. Both are off by default, and then the
+    command is byte-identical; when either fires, its `grounding=...` tags
+    are appended to the command's `degradations`.
 
     Returns:
         Schema-validated coordination command dict.
@@ -610,6 +623,13 @@ def ground_reasoner_result(
     if alias is not None:
         # Executed exactly as the equivalent yield; only the tag differs.
         result = result.model_copy(update={"decision": alias.decision})
+    view: GroundingView | None = None
+    if result.decision is not None and result.decision.congestion_detected:
+        view = resolve_grounding_view(
+            result.decision, snapshot, geometry, params, goal_references
+        )
+        result = result.model_copy(update={"decision": view.decision})
+        geometry = view.geometry
     if params is not None and params.mode == "derived":
         command = _ground_derived(
             result,
@@ -630,6 +650,8 @@ def ground_reasoner_result(
             yield_feasibility_mode,
             crossing_order=crossing_order,
         )
+    if view is not None and view.tags:
+        command = _with_degradations(command, [*command.get("degradations", []), *view.tags])
     return command if alias is None else _tag_alias(command, alias)
 
 
@@ -1163,6 +1185,30 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # `:missing=junction_backup_clearance_m`, or both comma-joined.
     # Provenance only: the tag never changes which numbers are grounded.
     "junction_geometry=shipped_unsolved": None,
+    # Provenance of the per-decision grounding view (`reasoning.rag.
+    # grounding_view`), never a measurement-plan cause. v3 S2: a declared
+    # parked robot M2 named was dropped from the roles (suffix `:<id>`, plus
+    # `:untracked` when it was not in the snapshot), was kept because it sat
+    # off its declared pose (`parked_displaced:<id>`), or every involved robot
+    # was parked so nothing was dropped (`parked_only:<ids>`).
+    "grounding=parked_excluded": None,
+    "grounding=parked_displaced": None,
+    "grounding=parked_only": None,
+    # v3 S1 dynamic arms (`GroundingParams.dynamic_scene_arms`): which
+    # snapshot geometry the decision was grounded on (`:lane:<axis>`,
+    # `:crossing`), or why the declared one was kept (`:ambiguous`,
+    # `:unavailable`), or that the yielder faces away from its partner
+    # (`:rear_inconsistent:<id>`).
+    "grounding=dynamic_arms": None,
+    # Node handoff: `<arriver>-><occupant>`; `_regrounded:<named>-><arriver>`
+    # when M2 had named another yielder.
+    "grounding=node_handoff": None,
+    "grounding=node_handoff_regrounded": None,
+    # A lane-conflict yielder facing away from its partner swapped with the
+    # partner that faces it: `<named>-><grounded>`; a lane `reverse` left a
+    # robot facing away from its partner out of the reversing set: `<id>`.
+    "grounding=rear_regrounded": None,
+    "grounding=rear_exempt": None,
     # Stage-1 parser tags for the prompt-v2 optional decision fields, recorded
     # on `ReasonerDiagnostics.decision_degradations`; merged here so one
     # `degradation_cause` covers the whole breakdown.
@@ -1665,7 +1711,7 @@ def _ground_derived(
             if missing:
                 tags.append(_shipped_unsolved_tag(missing))
             return _with_degradations(command, tags)
-        plan = ground_junction_clear_phases(
+        plan = _ground_junction_clear_phases(
             result,
             snapshot=snapshot,
             params=params,
@@ -1946,6 +1992,14 @@ def ground_junction_clear_phases(
     receded robot's base mission could resume toward its original goal, back
     through the junction, while the yield-axis pair is still crossing.
 
+    The decision first passes through the grounding view
+    (`reasoning.rag.grounding_view.resolve_grounding_view`): a declared
+    parked robot (`geometry.parked_robots`) M2 named is dropped from the
+    recede set, the yield-axis set, every crossing order and every hold,
+    and each returned command (every phase and the fallback) carries its
+    `grounding=parked_excluded:<id>` tag. Dynamic arms never apply here
+    (`junction_clear` is declared-geometry only).
+
     Args:
         result: Validated M2 reasoner output, strategy `junction_clear`.
         snapshot: The scene frame every phase is grounded from (see
@@ -1988,6 +2042,54 @@ def ground_junction_clear_phases(
             job to check first).
         ValueError: If `recede_order` is not a permutation of the
             chi-ranked recede candidates.
+    """
+    view: GroundingView | None = None
+    if result.decision is not None and result.decision.congestion_detected:
+        view = resolve_grounding_view(result.decision, snapshot, geometry, params)
+        result = result.model_copy(update={"decision": view.decision})
+    plan = _ground_junction_clear_phases(
+        result,
+        snapshot=snapshot,
+        params=params,
+        geometry=geometry,
+        static_obstacles=static_obstacles,
+        yield_feasibility_mode=yield_feasibility_mode,
+        retreat_choice=retreat_choice,
+        recede_order=recede_order,
+    )
+    if view is None or not view.tags:
+        return plan
+    return _tag_phase_plan(plan, view.tags)
+
+
+def _tag_phase_plan(plan: JunctionClearPhasePlan, tags: Sequence[str]) -> JunctionClearPhasePlan:
+    # Every dispatched command of the sequence carries the view's provenance,
+    # so whichever phase (or the fallback) runs, its artifact shows it.
+    def tagged(command: dict[str, Any]) -> dict[str, Any]:
+        return _with_degradations(command, [*command.get("degradations", []), *tags])
+
+    phases = [phase.model_copy(update={"command": tagged(phase.command)}) for phase in plan.phases]
+    return plan.model_copy(
+        update={"phases": phases, "fallback_command": tagged(plan.fallback_command)}
+    )
+
+
+def _ground_junction_clear_phases(
+    result: ReasonerResult,
+    *,
+    snapshot: SnapshotFrame,
+    params: GroundingParams,
+    geometry: SceneGeometry,
+    static_obstacles: Sequence[StaticObstacleInput] = (),
+    yield_feasibility_mode: YieldFeasibilityMode = "off",
+    retreat_choice: RetreatChoiceDecision | None = None,
+    recede_order: Sequence[str] | None = None,
+) -> JunctionClearPhasePlan:
+    """`ground_junction_clear_phases` on an already-resolved grounding view.
+
+    The internal entry point: `_ground_derived`'s `junction_clear` branch
+    calls it with the decision `ground_reasoner_result` already passed
+    through `resolve_grounding_view`, so the view is never resolved twice.
     """
     decision = result.decision
     if decision is None or not decision.congestion_detected:
@@ -3533,6 +3635,7 @@ def verify_and_repair_plan(
     repair_params: PlanRepairParams | None = None,
     priorities: Mapping[str, int] | None = None,
     grounding_params: GroundingParams | None = None,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
 ) -> VerifiedPlan:
     """Audit, and if needed minimally repair, a decision's `proposed_plan`.
 
@@ -3632,6 +3735,19 @@ def verify_and_repair_plan(
             decision's default plan.
         grounding_params: M3's derived-mode grounding parameters (ruling 3);
             None keeps the default plan LEGACY-only, as before this ruling.
+        goal_references: Robot id -> current task node, for the node-handoff
+            rule of `grounding_params.dynamic_scene_arms`.
+
+    The decision is audited through the same grounding view
+    `ground_reasoner_result` grounds it through
+    (`reasoning.rag.grounding_view.resolve_grounding_view`), so the default
+    plan and every feasibility check see the same roles and geometry as the
+    dispatched command. A view that changed the roles (a parked robot
+    dropped, a node-handoff re-grounding) can make a plan that still names
+    the original roles disagree with the decision fields (`m3_default`).
+    The view is resolved on the decision as given: a `convoy` or
+    `priority_override` decision is aliased later, inside the default-plan
+    derivation, so its aliased yield is audited on the declared geometry.
 
     Returns:
         The verified (or repaired, or defaulted) plan.
@@ -3641,6 +3757,9 @@ def verify_and_repair_plan(
     """
     if not decision.congestion_detected:
         raise CommandGroundingError("cannot verify a plan for a non-congestion decision")
+    view = resolve_grounding_view(decision, snapshot, geometry, grounding_params, goal_references)
+    decision = view.decision
+    geometry = view.geometry
     repair_params = repair_params or PlanRepairParams()
     known_robot_ids = [state.robot_id for state in snapshot.robots]
     default_legs = _derive_default_plan(

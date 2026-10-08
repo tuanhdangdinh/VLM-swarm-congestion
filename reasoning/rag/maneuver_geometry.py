@@ -112,6 +112,18 @@ class GroundingParams(BaseModel):
     # Placeholder, same convention as `max_repair_edits`: sized from the
     # build-order step 6 mock sweep, not yet from live data.
     junction_recede_hold_sec: float = Field(default=120.0, gt=0)
+    # v3 S1 prerequisite 2 (scene design S1, "M3 dynamic arms plus a
+    # node-handoff grounding"): derive a `yield`/`reverse` decision's corridor
+    # axis, retreat sides and park target from the decision snapshot instead
+    # of the declared `scenario_geometry` (`reasoning.rag.grounding_view`).
+    # `junction_clear` never uses it (declared geometry only). False (default)
+    # keeps every grounding byte-identical, and both fields stay out of the
+    # artifact dump.
+    dynamic_scene_arms: bool = False
+    # Node handoff: an involved robot within this distance of another
+    # involved robot's current task node occupies it (M5's
+    # `arrived_radius_m`, the radius its arrival excusal already uses).
+    dynamic_handoff_radius_m: float = Field(default=0.5, gt=0)
 
     @model_validator(mode="after")
     def _check_bands(self) -> "GroundingParams":
@@ -135,6 +147,11 @@ class GroundingParams(BaseModel):
         data = handler(self)
         if data.get("aisle_x_band_m") is None:
             data.pop("aisle_x_band_m", None)
+        # Same rule for the dynamic-arms switch: an artifact grounded with it
+        # off is byte-identical to one written before it existed.
+        if not data.get("dynamic_scene_arms"):
+            data.pop("dynamic_scene_arms", None)
+            data.pop("dynamic_handoff_radius_m", None)
         return data
 
 

@@ -129,6 +129,17 @@ class TaskRegistry:
         entry = self.entries.get(robot_id)
         return None if entry is None else entry.base.task
 
+    def mission_goal(self, robot_id: str) -> tuple[float, float] | None:
+        """Return a robot's base mission goal, ignoring any override.
+
+        Under the task stream this is the robot's CURRENT task node:
+        `set_base` advances it even while a coordination override is
+        active, whereas `effective` keeps returning the goal the override
+        captured at dispatch. M3's node-handoff rule reads this one.
+        """
+        entry = self.entries.get(robot_id)
+        return None if entry is None else entry.base.goal
+
     def to_json(self) -> str:
         """Serialize the effective registry as deterministic JSON sorted by robot id."""
         payload = {}

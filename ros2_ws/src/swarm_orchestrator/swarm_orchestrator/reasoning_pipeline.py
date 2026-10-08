@@ -35,6 +35,7 @@ from reasoning.rag.command_grounder import (
     validate_coordination_command,
     verify_and_repair_plan,
 )
+from reasoning.rag.grounding_view import GroundingView, resolve_grounding_view
 from reasoning.rag.maneuver_geometry import GroundingParams
 from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import (
@@ -84,8 +85,9 @@ class GroundFn(Protocol):
     Mirrors `ground_reasoner_result`. The keyword-only arguments drive derived
     mode and are ignored in legacy mode; `crossing_order` is not passed, so
     the grounder reads it off the decision. `priorities` is passed only when
-    the scene declares a non-zero registry priority, so every other call is
-    the call made before the field existed.
+    the scene declares a non-zero registry priority, and `goal_references`
+    only when `params.dynamic_scene_arms` is on, so every other call is the
+    call made before those fields existed.
     """
 
     def __call__(
@@ -100,6 +102,7 @@ class GroundFn(Protocol):
         params: GroundingParams | None = None,
         retreat_choice: RetreatChoiceDecision | None = None,
         priorities: Mapping[str, int] | None = None,
+        goal_references: Mapping[str, tuple[float, float]] | None = None,
     ) -> dict[str, Any]: ...
 
 
@@ -1286,8 +1289,15 @@ class InProcessPipeline:
         permutation_votes: int = 1,
         registry_order: Sequence[str] = (),
         dispatch_order_source: DispatchOrderSourceMode = "chi",
+        goal_reference_of: Callable[[str], tuple[float, float] | None] | None = None,
     ) -> None:
         self._reasoner = reasoner
+        # v3 S1 node handoff: a robot's CURRENT task node (M5's base-mission
+        # registry goal, `TaskRegistry.mission_goal`), read only when the
+        # grounding params turn `dynamic_scene_arms` on. The request's own
+        # goals stay what the prompt rendered (the effective goal, which an
+        # active override pins to the node it was dispatched toward).
+        self._goal_reference_of = goal_reference_of
         # prereg-v3 R3.3 (`plan_dispatch_order_source`): "chi" (default)
         # keeps every dispatch byte-identical; "model_when_verified" re-seats
         # a `junction_clear` resolution's recede phases on the model's own
@@ -1346,6 +1356,23 @@ class InProcessPipeline:
         self._plan_tracker = plan_tracker
         self._plan_repair_params = plan_repair_params
 
+    def _goal_references(
+        self, request: ReasonerRequest, params: GroundingParams | None
+    ) -> dict[str, tuple[float, float]] | None:
+        """Each request robot's current task node, or None when unused.
+
+        None unless `params.dynamic_scene_arms` is on and M5 supplied a
+        lookup, so every other call grounds exactly as before.
+        """
+        if params is None or not params.dynamic_scene_arms or self._goal_reference_of is None:
+            return None
+        references: dict[str, tuple[float, float]] = {}
+        for robot in request.robot_states:
+            goal = self._goal_reference_of(robot.robot_id)
+            if goal is not None:
+                references[robot.robot_id] = (float(goal[0]), float(goal[1]))
+        return references
+
     def run(self, request: ReasonerRequest) -> PipelineOutcome:
         votes = None
         try:
@@ -1381,15 +1408,28 @@ class InProcessPipeline:
             decision, frame, geometry=self._scene_geometry, priorities=self._priorities
         )
         staged = decision if alias is None else alias.decision
-        if params is not None and params.mode == "derived" and staged.strategy == "yield":
+        goal_references = self._goal_references(request, params)
+        # The grounder resolves this same view from the same inputs, so the
+        # stage-2 letters are drawn for the roles and geometry it grounds.
+        try:
+            staged_view = resolve_grounding_view(
+                staged, frame, self._scene_geometry, params, goal_references
+            )
+        except Exception:  # bounded: the grounder re-raises it below as GROUNDING
+            staged_view = GroundingView(decision=staged, geometry=self._scene_geometry)
+        if (
+            params is not None
+            and params.mode == "derived"
+            and staged_view.decision.strategy == "yield"
+        ):
             retreat_choice, stage2 = run_retreat_stage2(
                 request,
-                staged,
+                staged_view.decision,
                 frame,
                 params,
                 self._retreat_chooser,
                 enabled=self._stage2_enabled,
-                geometry=self._scene_geometry,
+                geometry=staged_view.geometry,
                 static_obstacles=self._static_obstacles,
                 yield_feasibility_mode=self._yield_feasibility_mode,
                 marker=self._candidate_marker,
@@ -1407,6 +1447,8 @@ class InProcessPipeline:
             priority_kwargs: dict[str, Any] = (
                 {"priorities": dict(self._priorities)} if self._priorities else {}
             )
+            if goal_references is not None:
+                priority_kwargs["goal_references"] = goal_references
             grounded = filter_command_robot_ids(
                 self._ground_fn(
                     result,
@@ -1451,6 +1493,11 @@ class InProcessPipeline:
                     repair_params=self._plan_repair_params,
                     priorities=dict(self._priorities) if self._priorities else None,
                     grounding_params=params,
+                    **(
+                        {"goal_references": goal_references}
+                        if goal_references is not None
+                        else {}
+                    ),
                 )
                 acceptance = self._plan_tracker.accept_plan(verified)
                 known_robot_ids = [robot.robot_id for robot in request.robot_states]
