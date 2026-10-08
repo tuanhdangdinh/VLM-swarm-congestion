@@ -1605,6 +1605,7 @@ def prepare_retreat_selection(
     params: GroundingParams,
     *,
     geometry: SceneGeometry | None = None,
+    static_obstacles: Sequence[StaticObstacleInput] = (),
 ) -> RetreatSelection:
     """Derive the backup distance and the ranked retreat candidates.
 
@@ -1618,6 +1619,9 @@ def prepare_retreat_selection(
         crossing_ids: Robots that will cross, in passing order.
         params: Geometry parameters.
         geometry: Declared scene geometry, or None.
+        static_obstacles: Fixed obstacles the candidates' swept paths are
+            checked against under a dynamic-arms view
+            (`generate_retreat_candidates`).
 
     Returns:
         Selection with `candidates` ranked best-first; empty candidates when
@@ -1631,7 +1635,13 @@ def prepare_retreat_selection(
         )
     passer_id = order[0] if order else None
     candidates = generate_retreat_candidates(
-        frame, yielder_id, backup.value_m, params, geometry=geometry, passer_id=passer_id
+        frame,
+        yielder_id,
+        backup.value_m,
+        params,
+        geometry=geometry,
+        passer_id=passer_id,
+        static_obstacles=static_obstacles,
     )
     yielder = frame.find_robot(yielder_id)
     axes = retreat_axes(frame, yielder_id, passer_id, geometry)
@@ -1786,7 +1796,12 @@ def _ground_derived(
         return _wait_fan_out(result, roles.robot_ids, roles.refusal_reason, degradations)
 
     selection = prepare_retreat_selection(
-        snapshot, roles.yielder_id, roles.crossing_order, params, geometry=geometry
+        snapshot,
+        roles.yielder_id,
+        roles.crossing_order,
+        params,
+        geometry=geometry,
+        static_obstacles=static_obstacles,
     )
     if not selection.backup.feasible:
         degradations.append(f"yield=infeasible:{selection.backup.reason}")
@@ -3077,6 +3092,7 @@ def _derived_yield_degrades_to_reroute(
     roles: YieldRoles,
     grounding_params: GroundingParams,
     geometry: SceneGeometry,
+    static_obstacles: Sequence[StaticObstacleInput] = (),
 ) -> bool:
     """Whether DERIVED-mode grounding would reroute this yield instead (ruling 3).
 
@@ -3092,6 +3108,7 @@ def _derived_yield_degrades_to_reroute(
             output).
         grounding_params: M3's derived-mode grounding parameters.
         geometry: Declared scene geometry.
+        static_obstacles: Fixed obstacles, as `_ground_derived` passes them.
 
     Returns:
         True when the backup is infeasible, no candidate survives, or the
@@ -3099,7 +3116,12 @@ def _derived_yield_degrades_to_reroute(
         `_ground_derived` checks before calling `_reroute_yielder`.
     """
     selection = prepare_retreat_selection(
-        snapshot, roles.yielder_id, roles.crossing_order, grounding_params, geometry=geometry
+        snapshot,
+        roles.yielder_id,
+        roles.crossing_order,
+        grounding_params,
+        geometry=geometry,
+        static_obstacles=static_obstacles,
     )
     if not selection.backup.feasible or not selection.candidates:
         return True
@@ -3172,7 +3194,9 @@ def _yield_default_actions(
         grounding_params is not None
         and grounding_params.mode == "derived"
         and geometry is not None
-        and _derived_yield_degrades_to_reroute(snapshot, roles, grounding_params, geometry)
+        and _derived_yield_degrades_to_reroute(
+            snapshot, roles, grounding_params, geometry, static_obstacles
+        )
     ):
         # Mirrors `_reroute_yielder`'s dispatch shape exactly: the yielder
         # reroutes, every crossing-order robot waits.

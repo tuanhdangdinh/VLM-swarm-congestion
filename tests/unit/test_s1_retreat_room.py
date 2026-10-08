@@ -25,6 +25,7 @@ from swarm_orchestrator.reasoning_pipeline import load_grounding_source
 from reasoning.rag.command_grounder import ground_reasoner_result
 from reasoning.rag.grounding_view import resolve_grounding_view
 from reasoning.rag.maneuver_geometry import GroundingParams
+from reasoning.rag.retreat_candidates import generate_retreat_candidates
 from reasoning.rag.scene_geometry import SceneGeometry, required_room_m, yield_retreat_room_m
 from reasoning.vlm.models import (
     CongestionDecision,
@@ -269,6 +270,81 @@ def test_lane_gate_refusal_names_only_the_lane_pair():
     (tag,) = _gate_tags(command)
     assert "robot_1 0.25 m, robot_2 0.20 m retreat room" in tag
     assert "robot_3" not in tag
+
+
+# ---- the executed maneuver against the boxes (footprint band only) ----
+
+
+def test_lane_sidestep_into_a_gate_jaw_is_not_a_candidate():
+    # 0.45 m latch standoff in the E bay: the gate passes robot_1 (nothing in
+    # its strip), but the 1.7 m clearance backs it 1.25 m to x=0.67, where
+    # either 0.36 m sidestep puts its body 6 cm into a gate jaw (x >= 0.7).
+    poses = {"robot_1": (1.92, 0.05, 0.0), "robot_2": (2.37, 0.0, math.pi)}
+    command = _ground(_decision(["robot_1", "robot_2"], "robot_1"), _frame(poses))
+    assert _gate_tags(command) == []
+    assert (command["actions"][0]["robot_id"], command["actions"][0]["action"]) == (
+        "robot_1",
+        "reroute",
+    )
+    assert "retreat=no-valid-candidate" in command["degradations"]
+
+
+def test_lane_backup_past_the_park_point_into_a_box_is_not_a_candidate():
+    # A block across robot_1's strip 1.0 m behind it: enough for the gate's
+    # park-point room (~0.75 m), not for the executed 1.3 m backup.
+    block = StaticObstacleInput(obstacle_id="b", x=-2.7, y=0.35, size_x_m=0.2, size_y_m=1.2)
+    command = _ground(
+        _decision(["robot_1", "robot_2"], "robot_1"),
+        _frame(_W_LANE),
+        obstacles=[*_SIX_BOXES, block],
+    )
+    assert _gate_tags(command) == []
+    assert command["actions"][0]["action"] == "reroute"
+    assert "retreat=no-valid-candidate" in command["degradations"]
+
+
+def test_declared_geometry_candidates_ignore_static_obstacles():
+    # The aisle band keeps the pre-fix candidate set: no box sweep at all.
+    frame = _frame(_W_LANE)
+    block = StaticObstacleInput(obstacle_id="b", x=-2.7, y=0.35, size_x_m=0.2, size_y_m=1.2)
+    without = generate_retreat_candidates(
+        frame, "robot_1", 1.3, _DYNAMIC, geometry=_S1, passer_id="robot_2"
+    )
+    with_boxes = generate_retreat_candidates(
+        frame,
+        "robot_1",
+        1.3,
+        _DYNAMIC,
+        geometry=_S1,
+        passer_id="robot_2",
+        static_obstacles=[*_SIX_BOXES, block],
+    )
+    assert with_boxes == without
+
+
+def test_a_box_the_yielder_already_touches_does_not_veto_its_retreat():
+    # robot_1 rides 0.08 m off rack obstacle_1's face (y >= 0.6): its body
+    # already overlaps the rack, and so does every sample of a 0.8 m backup
+    # (it ends at x=-2.4, still alongside the rack). The backup may keep that
+    # contact; only the sidestep away from the rack may follow it.
+    poses = {"robot_1": (-1.6, 0.52, 0.0), "robot_2": (-1.2, 0.52, math.pi)}
+    view = resolve_grounding_view(
+        _decision(["robot_1", "robot_2"], "robot_1"),
+        _frame(poses),
+        _S1,
+        GroundingParams(mode="derived", dynamic_scene_arms=True),
+    )
+    candidates = generate_retreat_candidates(
+        _frame(poses),
+        "robot_1",
+        0.8,
+        GroundingParams(mode="derived", dynamic_scene_arms=True),
+        geometry=view.geometry,
+        passer_id="robot_2",
+        static_obstacles=_SIX_BOXES,
+    )
+    assert candidates
+    assert all(c.y < 0.52 for c in candidates)
 
 
 # ---- regression: one real S1 pilot ep1 scene through the shipped config ----

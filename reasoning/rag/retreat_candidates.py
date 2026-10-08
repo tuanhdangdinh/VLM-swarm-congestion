@@ -6,12 +6,13 @@ from the same validated set.
 """
 
 import math
+from collections.abc import Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from reasoning.rag.maneuver_geometry import GroundingParams, maneuver_limits, retreat_axes
 from reasoning.rag.scene_geometry import SceneGeometry, arm_geometry
-from reasoning.vlm.models import RobotStateInput, SnapshotFrame
+from reasoning.vlm.models import RobotStateInput, SnapshotFrame, StaticObstacleInput
 
 _LABELS = ("A", "B", "C", "D")
 _EPS = 1e-9
@@ -43,6 +44,7 @@ def generate_retreat_candidates(
     *,
     geometry: SceneGeometry | None = None,
     passer_id: str | None = None,
+    static_obstacles: Sequence[StaticObstacleInput] = (),
 ) -> list[RetreatCandidate]:
     """Generate swept-path-validated retreat candidates for the yielder.
 
@@ -66,6 +68,14 @@ def generate_retreat_candidates(
     yielders retreating along x; a yielder whose own arm runs along y takes
     `params.aisle_x_band_m` (a world x band) instead when one is set.
 
+    Under a dynamic-arms view (`geometry.rear_room_band == "footprint"`)
+    every sample must also stay out of each static obstacle grown by the
+    robot's `half_width_m`. There the yield gate checks rear room across the
+    footprint only up to the park point, while the executed backup is sized
+    by the passer clearance and can run past it, and the sidestep can land in
+    a box inside the aisle (the A55-E gate jaws). Declared scenes skip this
+    check, so their candidates are unchanged.
+
     Args:
         frame: Current scene snapshot.
         yielder_id: Robot that retreats.
@@ -74,6 +84,8 @@ def generate_retreat_candidates(
         geometry: Declared scene geometry, or None.
         passer_id: First robot to cross; required with a geometry, since it
             fixes the retreat side.
+        static_obstacles: Fixed obstacles of the running scenario, checked
+            only under a footprint-band geometry.
 
     Returns:
         Surviving candidates labeled A.. in generation order; empty when the
@@ -95,6 +107,17 @@ def generate_retreat_candidates(
     others = [state for state in frame.robots if state.robot_id != yielder_id]
     band = _aisle_band(yielder, params, geometry, limits.lateral_m)
     start = (yielder.x, yielder.y)
+    # Each box's floor is how deep the yielder already sits in it (0 when
+    # clear), like the robot-clearance floor below: a robot pinned on a rack
+    # corner may retreat along or away from the contact, never deeper.
+    boxes = [
+        (box, max(0.0, _depth(start, box)))
+        for box in (
+            _grown_boxes(static_obstacles, geometry.robot.half_width_m)
+            if geometry is not None and geometry.rear_room_band == "footprint"
+            else []
+        )
+    ]
     parked = (start[0] + backup_m * axes.retreat[0], start[1] + backup_m * axes.retreat[1])
     backup_samples = _sample_segment(start, parked, params.sweep_step_m)
 
@@ -108,6 +131,10 @@ def generate_retreat_candidates(
             index, low, high = band
             if any(not (low - _EPS <= sample[index] <= high + _EPS) for sample in samples):
                 continue
+        if any(
+            _depth(sample, box) > floor + _EPS for sample in samples for box, floor in boxes
+        ):
+            continue
         if not _sweep_clears(samples, others, limits.min_distance_m):
             continue
         survivors.append(
@@ -185,6 +212,32 @@ def _aisle_band(
     perp_index = 1 if corridor.axis == "x" else 0
     centre = (yielder.x, yielder.y)[perp_index]
     return (perp_index, centre - lateral_m, centre + lateral_m)
+
+
+def _grown_boxes(
+    obstacles: Sequence[StaticObstacleInput], margin_m: float
+) -> list[tuple[float, float, float, float]]:
+    # (x_min, x_max, y_min, y_max) of each box grown by the robot's half-width,
+    # so a sample (the robot centre) inside one means the body overlaps it.
+    # Samples are `sweep_step_m` apart; every declared box is far thicker
+    # than a step once grown, so none can fall between two samples.
+    return [
+        (
+            o.x - o.size_x_m / 2.0 - margin_m,
+            o.x + o.size_x_m / 2.0 + margin_m,
+            o.y - o.size_y_m / 2.0 - margin_m,
+            o.y + o.size_y_m / 2.0 + margin_m,
+        )
+        for o in obstacles
+    ]
+
+
+def _depth(sample: tuple[float, float], box: tuple[float, float, float, float]) -> float:
+    # How far the sample is inside the box: the shortest move out of it.
+    # Zero or negative when outside, so a body exactly touching a face is
+    # not an overlap.
+    x_min, x_max, y_min, y_max = box
+    return min(sample[0] - x_min, x_max - sample[0], sample[1] - y_min, y_max - sample[1])
 
 
 def _sample_segment(

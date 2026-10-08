@@ -270,7 +270,12 @@ def _run(
             crossing_order=list(roles.crossing_order),
         )
     selection = prepare_retreat_selection(
-        frame, roles.yielder_id, roles.crossing_order, params, geometry=geometry
+        frame,
+        roles.yielder_id,
+        roles.crossing_order,
+        params,
+        geometry=geometry,
+        static_obstacles=static_obstacles,
     )
     candidates = selection.candidates
     base = {
