@@ -130,6 +130,14 @@ duration_sec: 600.0
 #     episode_start_sim, minus 4k, is the lateness g_k; Delta_k = 4 + g_k -
 #     g_(k-1). Never also set release_stagger_wall_sec: the two keys are
 #     mutually exclusive (load_config raises).
+#   - ECHO-MOCK episodes (prereg-v3 A12(i), APPARATUS ONLY, never scored):
+#     launch with MOCK_ECHO=1 (forces BACKEND_ID=mock; default deadlock +
+#     yield, the yielder = the first stalled robot in prompt order) and
+#     ALSO append the A12(iii) suppression block to this overlay:
+#       reanalysis_suppression: { enabled: true, pose_epsilon_m: 0.05 }
+#     (default off; applies_to defaults to task_stream_only). Without it
+#     the echo re-answers an unchanged stall every cooldown. Gate the run on
+#     the first decision artifact carrying diagnostics.mock_mode == "echo".
 #   - scenario_geometry declares the junction box with NO arms: under
 #     dynamic_scene_arms (config/grounding/s1_dynamic.yaml) M3 derives each
 #     yielder's arm per snapshot (A11(i)); the declared corridor is the

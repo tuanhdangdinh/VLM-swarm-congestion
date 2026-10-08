@@ -9,9 +9,10 @@ from reasoning.vlm.anthropic_backend import AnthropicBackend
 from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.gemini_backend import GeminiBackend
 from reasoning.vlm.llama_server_backend import LlamaServerBackend
-from reasoning.vlm.mock_backend import MockBackend
+from reasoning.vlm.mock_backend import EchoMockBackend, MockBackend
 from reasoning.vlm.models import (
     AnthropicBackendConfig,
+    CongestionDecision,
     EffectiveSamplingConfig,
     GeminiBackendConfig,
     LlamaServerBackendConfig,
@@ -210,6 +211,43 @@ def _load_mock_script(path: Path, env_var: str) -> MockBackend:
     return MockBackend(response_text=text)
 
 
+_ECHO_ON = frozenset({"1", "true", "yes", "on"})
+_ECHO_OFF = frozenset({"", "0", "false", "no", "off"})
+
+
+def _echo_mock_from_env() -> EchoMockBackend | None:
+    """Build the echo mock when `VGU_MOCK_ECHO` asks for it (A12(i) apparatus).
+
+    `VGU_MOCK_ECHO_TYPE` / `VGU_MOCK_ECHO_STRATEGY` pick the decision's type
+    and strategy (defaults deadlock / yield), validated against the decision
+    contract here so a typo fails at startup, not on the first trigger.
+
+    Returns:
+        The echo backend, or None when `VGU_MOCK_ECHO` is unset or off.
+
+    Raises:
+        ValueError: An unrecognised `VGU_MOCK_ECHO` value, a type or strategy
+            the decision contract rejects, or "none" for either.
+    """
+    value = os.environ.get("VGU_MOCK_ECHO", "").strip().lower()
+    if value in _ECHO_OFF:
+        return None
+    if value not in _ECHO_ON:
+        raise ValueError(f"VGU_MOCK_ECHO must be one of {sorted(_ECHO_ON | _ECHO_OFF)}")
+    decision_type = os.environ.get("VGU_MOCK_ECHO_TYPE", "").strip() or "deadlock"
+    strategy = os.environ.get("VGU_MOCK_ECHO_STRATEGY", "").strip() or "yield"
+    try:
+        checked = CongestionDecision(
+            congestion_detected=True, type=decision_type, involved_robots=[],
+            root_cause="config check", strategy=strategy, justification="config check",
+        )
+    except ValueError as exc:
+        raise ValueError(f"VGU_MOCK_ECHO_TYPE/STRATEGY rejected: {exc}") from exc
+    if checked.type == "none" or checked.strategy == "none":
+        raise ValueError("the echo mock names a congestion: type and strategy cannot be none")
+    return EchoMockBackend(decision_type=checked.type, strategy=checked.strategy)
+
+
 def build_retreat_choice_backend(
     backend_id: str, stage1_backend: VLMBackend
 ) -> VLMBackend | None:
@@ -259,7 +297,11 @@ def build_backend(
     `config/mock_decisions/head_on_yield.json`) or a short scripted scene
     (e.g. `config/mock_decisions/head_on_yield_once.json`) instead of the
     default no-congestion answer. Unset or empty keeps the default
-    behaviour.
+    behaviour. `VGU_MOCK_ECHO=1` instead builds the echo mock (prereg-v3
+    A12(i), apparatus only): each decision names the prompt's stalled robots
+    (`mock_backend.echo_involved_robots`) with the type and strategy of
+    `VGU_MOCK_ECHO_TYPE` / `VGU_MOCK_ECHO_STRATEGY`. Every mock variable is
+    read only on this branch, so no live backend can reach a mock.
 
     Args:
         backend_id: Adapter selector, e.g. "mock" or "llama_server". A named
@@ -275,13 +317,21 @@ def build_backend(
 
     Raises:
         ValueError: If `backend_id` is not recognized, required config is
-            missing for a backend that needs it, or `VGU_MOCK_DECISION_FILE`
-            names a file containing an empty JSON array.
+            missing for a backend that needs it, `VGU_MOCK_DECISION_FILE`
+            names a file containing an empty JSON array, both it and
+            `VGU_MOCK_ECHO` are set, or the echo configuration is invalid.
         FileNotFoundError: If `VGU_MOCK_DECISION_FILE` names a path that does
             not exist. Config errors fail fast at startup by convention.
     """
     if backend_id == "mock":
         decision_file = os.environ.get("VGU_MOCK_DECISION_FILE", "")
+        echo = _echo_mock_from_env()
+        if echo is not None:
+            if decision_file:
+                raise ValueError(
+                    "VGU_MOCK_ECHO and VGU_MOCK_DECISION_FILE are mutually exclusive"
+                )
+            return echo
         if not decision_file:
             return MockBackend()
         return _load_mock_script(Path(decision_file), "VGU_MOCK_DECISION_FILE")

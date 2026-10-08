@@ -214,6 +214,18 @@ class TestOverlaySnippet:
         assert plan.release_offsets_sim_sec == {
             rid: i * 4.0 for i, rid in enumerate(ROBOTS)}
 
+    def test_echo_pilot_suppression_block_loads_with_the_snippet(self):
+        # The header's ECHO-MOCK note: the A12(iii) block appended to the
+        # snippet must load and engage (task stream on, applies_to default).
+        raw = yaml.safe_load(ORCH.read_text())
+        raw.update(_overlay())
+        raw["reanalysis_suppression"] = {"enabled": True, "pose_epsilon_m": 0.05}
+        config = load_config(raw)
+        assert config.reanalysis_suppression.enabled is True
+        assert config.reanalysis_suppression.applies_to == "task_stream_only"
+        assert config.task_stream.enabled is True
+        assert "reanalysis_suppression" not in _overlay()
+
     def test_static_obstacles_declare_the_racks_and_gate_blocks(self):
         boxes = _overlay()["static_obstacles"]
         assert len(boxes) == 6

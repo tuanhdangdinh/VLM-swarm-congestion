@@ -46,6 +46,7 @@ TWO_ROBOT_CASES: dict[str, tuple[str, dict[str, str]]] = {
 
 _CLEARED_ENV = (
     "BACKEND_ID", "MOCK_DECISION_FILE", "MOCK_RETREAT_CHOICE_FILE", "MODALITY",
+    "MOCK_ECHO", "MOCK_ECHO_TYPE", "MOCK_ECHO_STRATEGY",
     "RECORD", "REC_SEC", "SIM_SEC", "SEED", "CONTAINER", "REPO", "NAV2_ACTIVE_TIMEOUT_SEC",
     "MAP_SCENARIO", "ISAAC_EXIT_GRACE_SEC", "ISAAC_STOP_WAIT_SEC", "NAV2_LAUNCH_STAGGER_SEC",
 )
@@ -288,3 +289,28 @@ def test_free_flow_variant_resolves_from_its_dir_and_reuses_the_parent_map():
 def test_map_defaults_to_the_scenario_name():
     output = dry_run("t2b_flow_ordering_ff_robot_3", {})
     assert "warehouse_map_t2b_flow_ordering_ff_robot_3.yaml" in _nav2_lines(output)[0]
+
+
+def test_mock_echo_forces_the_mock_backend_and_exports_the_flag():
+    output = dry_run("head_on_deadlock", {"MOCK_ECHO": "1", "MOCK_ECHO_STRATEGY": "reverse"})
+    assert "MOCK_ECHO set -> VGU_MOCK_ECHO=1 type=deadlock strategy=reverse" in output
+    assert "export VGU_MOCK_ECHO=1 && export VGU_MOCK_ECHO_STRATEGY=reverse" in output
+    assert "starting M5 orchestrator (mock backend" in output
+    assert "VGU_MOCK_DECISION_FILE" not in output
+
+
+def test_mock_echo_with_a_decision_file_is_refused():
+    env = {k: v for k, v in os.environ.items() if k not in _CLEARED_ENV}
+    env["PATH"] = f"{Path(sys.executable).parent}:{env.get('PATH', '')}"
+    env.update({"DRY_RUN": "1", "SCENARIO": "head_on_deadlock", "MOCK_ECHO": "1",
+                "MOCK_DECISION_FILE": "config/mock_decisions/head_on_yield.json"})
+    completed = subprocess.run(
+        ["bash", str(SCRIPT)], env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode == 2
+    assert "mutually exclusive" in completed.stderr
+
+
+def test_mock_echo_zero_is_off():
+    output = dry_run("head_on_deadlock", {"MOCK_ECHO": "0"})
+    assert "VGU_MOCK_ECHO" not in output

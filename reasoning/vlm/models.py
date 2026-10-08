@@ -850,6 +850,18 @@ class ReasonerDiagnostics(BaseModel):
     # Why each attempt ended, in call order, index-aligned with
     # `attempt_token_usage` (`AttemptRecord`; additive, F01/F02/F06/F18).
     attempt_records: list[AttemptRecord] = Field(default_factory=list)
+    # Apparatus marker for a non-default mock (prereg-v3 A12(i): "echo"),
+    # copied from `BackendResponse.raw["mock_mode"]`. None for every real
+    # backend and the default mock, and then dropped from the dump below, so
+    # no artifact written without an apparatus mock gains the key.
+    mock_mode: str | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_mock_mode(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data = handler(self)
+        if data.get("mock_mode") is None:
+            data.pop("mock_mode", None)
+        return data
 
 
 class ReasonerResult(BaseModel):
