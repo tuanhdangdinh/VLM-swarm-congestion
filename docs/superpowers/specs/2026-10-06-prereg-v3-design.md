@@ -826,6 +826,57 @@ finisher existed in a Layer-2-off episode; the datum requires live
 (or echo-mock) dispatch. 3 occupied-node arrivals observed (1 of
 them the Δ artifact).
 
+**A13. S1 fix chain complete (2026-10-08, integration @4bfcd43).**
+The A12 fixes landed and surfaced, then closed, a three-link
+lane-scoping defect chain in dynamic-mode grounding:
+(i) **Shipped per A12:** sim-time stagger (anchored at the stream's
+FIRST SCENE, not the absolute M1 clock — Δ in-window by construction
+at any RTF; S1-10 closed); echo-mock apparatus (robot set parsed
+from the prompt's structured status lines — the trigger set never
+reaches the request; `diagnostics.mock_mode="echo"`;
+apparatus-only); scene-unchanged suppression (set-equal + poses
+within ε=0.05 + no-dispatch reference; measured 216→6
+analyses/episode on the ep1 replay; the dispatched-loop residual —
+clause (c) never arms after a dispatch — is a Step 6 call).
+BUDGET LINE: live-dispatch cadence projects 95–216 analyses/episode
+(ER-2 ≈ $0.70–1.59, ×2 from 2027-01-01); S1's MAX_ANALYSES is sized
+from that row, not from the no-dispatch row.
+(ii) **Lane-scoping chain (all three links the same defect class —
+dynamic lanes measured against whole-aisle machinery):** rear room
+counted flanking racks via the 0.6 aisle band and lane mouths at the
+yielder's own pose → 0.00 m for every robot (fixed: footprint-band
+measurement + tracked-band end caps obstacle_7..10 + candidate-vs-box
+sweep + repair held to the lane pair); backup clearance projected
+EVERY crossing-order robot onto the retreat axis (fixed: swept
+corridor |lateral| ≤ 0.38 m, plus a 3.7 m reach bound behind the
+yielder); crossing order/escort included off-lane robots so one
+failed escort heading stripped the on-lane passer's escort (fixed:
+lane-scoped order with `order=lane_scoped:<ids>` tag; off-lane
+robots get unlinked waits carrying requested_strategy). Box-sweep
+margin 0.05 m PROPOSED (= the aisle band's own chassis margin;
+deeper-backup-over-refusal via `retreat=deepened` — PROVENANCE ONLY
+for analysis). End state: ep1 replay grounds an executable yield
+216/216 (backup 1.380–1.381 m, park gap 0.053–0.054 m, escort
+2.40 m heading π), byte-identical to the two-robot reference.
+Caveat recorded: ep1 is ONE jam grounded 216 times, not 216
+conflicts.
+(iii) **RULING NEEDED at Step 6 — Arm B on S1 is blind:** the
+classical shadow uses declared aisle-band geometry and refuses
+216/216 with 0.00 m room. Options: (a) give the shadow the SAME
+footprint-band measurement in S1 cells (measurement parity, not
+strategy help — RECOMMENDED, it preserves the only system-level A/B
+contrast S1 has); (b) register Arm B as degenerate on S1 (the
+S6/S4 precedent). Until ruled, no S1 A/B claim is valid.
+(iv) **Registered residuals → resume checklist:** separate the
+clearance set from the crossing order (an in-reach goal_behind
+robot can still strip escorts — did not occur in ep1); M4's
+no-escort single-passer path releases ALL waits at hold start
+(early release of the off-lane trio if an escort drops live);
+120 s off-lane waits are tight vs backup+hold+escort; live escort
+headings use registry mission goals (replay used snapshot goals);
+stage 2 live selection unexercised; the whole chain is
+closed-loop-unverified on the VM (static replay only).
+
 **A7. Step 0 status note.** The merged tree's rotation-probe
 signature PASSED (0/142 closed columns vs 12–13 pre-fix). The stage-1
 smoke failure was on an OFF-DESIGN route (goals routing around the
