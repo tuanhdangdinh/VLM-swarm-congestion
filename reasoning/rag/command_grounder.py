@@ -3465,6 +3465,7 @@ def _repair_plan(
     default_by_robot: Mapping[str, PlanLegAction],
     max_edits: int,
     grounding_params: GroundingParams | None = None,
+    extra_touchable: Sequence[str] = (),
 ) -> tuple[list[ProposedPlanLeg] | None, list[PlanEdit]]:
     """Breadth-first minimal repair toward `default_by_robot`.
 
@@ -3503,6 +3504,10 @@ def _repair_plan(
             weights); forwarded to `_plan_problems` so the `junction_clear`
             recede-order audit searches toward the SAME chi order
             `ground_junction_clear_phases` will dispatch, not a default one.
+        extra_touchable: Robots outside `decision.involved_robots` whose legs
+            the repair may still edit: those the model named but the
+            grounding view dropped (a declared parked robot), so a plan
+            giving one a role is repaired to its default `continue`.
 
     Returns:
         `(repaired_legs, edits)` for the minimal repair found, or
@@ -3511,7 +3516,8 @@ def _repair_plan(
     preferred_yielder = _preferred_yielder(
         decision, snapshot, geometry, static_obstacles, yield_feasibility_mode
     )
-    touchable = [i for i, leg in enumerate(legs) if leg.robot_id in set(decision.involved_robots)]
+    editable = {*decision.involved_robots, *extra_touchable}
+    touchable = [i for i, leg in enumerate(legs) if leg.robot_id in editable]
 
     def _problems(state: Sequence[ProposedPlanLeg]) -> dict[int, str]:
         return dict(
@@ -3738,16 +3744,19 @@ def verify_and_repair_plan(
         goal_references: Robot id -> current task node, for the node-handoff
             rule of `grounding_params.dynamic_scene_arms`.
 
-    The decision is audited through the same grounding view
-    `ground_reasoner_result` grounds it through
-    (`reasoning.rag.grounding_view.resolve_grounding_view`), so the default
-    plan and every feasibility check see the same roles and geometry as the
-    dispatched command. A view that changed the roles (a parked robot
-    dropped, a node-handoff re-grounding) can make a plan that still names
-    the original roles disagree with the decision fields (`m3_default`).
-    The view is resolved on the decision as given: a `convoy` or
-    `priority_override` decision is aliased later, inside the default-plan
-    derivation, so its aliased yield is audited on the declared geometry.
+    The default plan, every feasibility check and the repair run through the
+    same grounding view `ground_reasoner_result` grounds the decision
+    through (`reasoning.rag.grounding_view.resolve_grounding_view`), so they
+    see the roles and geometry the dispatched command is built from. The
+    two consistency checks (`_is_consistent`,
+    `_plan_disagrees_with_decision_fields`) still compare the plan with the
+    model's OWN decision: a role M3 changed afterwards (a parked robot
+    dropped, a node-handoff or rear re-grounding) is M3's doing, not a
+    self-contradiction, so it shows up as a repair edit or as
+    `dispatch_matches_plan=False`, never as `inconsistent`. The view is
+    resolved on the decision as given: a `convoy` or `priority_override`
+    decision is aliased later, inside the default-plan derivation, so its
+    aliased yield is audited on the declared geometry.
 
     Returns:
         The verified (or repaired, or defaulted) plan.
@@ -3757,6 +3766,7 @@ def verify_and_repair_plan(
     """
     if not decision.congestion_detected:
         raise CommandGroundingError("cannot verify a plan for a non-congestion decision")
+    model_decision = decision
     view = resolve_grounding_view(decision, snapshot, geometry, grounding_params, goal_references)
     decision = view.decision
     geometry = view.geometry
@@ -3796,11 +3806,11 @@ def verify_and_repair_plan(
         *(ProposedPlanLeg(robot_id=rid, action="continue") for rid in completed),
     ]
 
-    field_disagreement = _plan_disagrees_with_decision_fields(decision, legs)
-    if not _is_consistent(decision.strategy, legs) or field_disagreement is not None:
+    field_disagreement = _plan_disagrees_with_decision_fields(model_decision, legs)
+    if not _is_consistent(model_decision.strategy, legs) or field_disagreement is not None:
         reason = field_disagreement or (
-            f"plan inconsistent: strategy {decision.strategy!r} is not refined by "
-            f"actions {[leg.action for leg in decision.proposed_plan]!r}"
+            f"plan inconsistent: strategy {model_decision.strategy!r} is not refined by "
+            f"actions {[leg.action for leg in model_decision.proposed_plan or []]!r}"
         )
         return VerifiedPlan(
             legs=default_legs,
@@ -3832,6 +3842,9 @@ def verify_and_repair_plan(
         default_by_robot,
         repair_params.max_repair_edits,
         grounding_params,
+        extra_touchable=[
+            rid for rid in model_decision.involved_robots if rid not in decision.involved_robots
+        ],
     )
     if repaired is None:
         return VerifiedPlan(

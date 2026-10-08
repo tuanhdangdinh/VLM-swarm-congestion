@@ -18,6 +18,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 from swarm_orchestrator.models import RobotView, SceneSnapshot, TaskAssignment
+from swarm_orchestrator.plan_tracker import PlanTracker
 from swarm_orchestrator.reasoning_pipeline import InProcessPipeline, build_reasoner_request
 from swarm_orchestrator.task_registry import TaskRegistry
 
@@ -39,6 +40,7 @@ from reasoning.rag.maneuver_geometry import GroundingParams, rank_recede_candida
 from reasoning.rag.scene_geometry import ArmGeometry, SceneGeometry, park_offset_m
 from reasoning.vlm.models import (
     CongestionDecision,
+    ProposedPlanLeg,
     ReasonerDiagnostics,
     ReasonerResult,
     RobotStateInput,
@@ -547,6 +549,31 @@ def test_plan_verifier_audits_the_handoff_roles():
     ]
 
 
+def test_plan_naming_the_occupant_is_not_called_inconsistent():
+    # M3, not the model, re-grounded the yield: the model's self-consistent
+    # plan is audited against its own decision and stays verbatim; the
+    # override shows as a dispatch mismatch instead (next test).
+    references = {"robot_1": _NODE_N, "robot_2": _NODE_N}
+    decision = _decision(
+        "yield",
+        _TWO,
+        yield_robot="robot_1",
+        proposed_plan=[
+            ProposedPlanLeg(robot_id="robot_1", action="yield"),
+            ProposedPlanLeg(robot_id="robot_2", action="cross"),
+        ],
+    )
+    plan = verify_and_repair_plan(
+        decision,
+        _frame(_S1_HANDOFF),
+        geometry=_S1,
+        grounding_params=_DYNAMIC,
+        goal_references=references,
+    )
+    assert plan.provenance == "vlm_verbatim"
+    assert plan.rejection_stage is None
+
+
 def _handoff_request(registry: TaskRegistry):
     robots = [
         RobotView(
@@ -590,6 +617,32 @@ def test_pipeline_feeds_the_registry_task_node_to_grounding():
     assert request.robot_states[1].goal == _NODE_WP
     assert outcome.grounded_command["actions"][0]["robot_id"] == "robot_2"
     assert outcome.stage2.yielder_id == "robot_2"
+
+
+def test_pipeline_reports_the_handoff_override_as_a_dispatch_mismatch():
+    registry = _stream_registry()
+    decision = _decision(
+        "yield",
+        _TWO,
+        yield_robot="robot_1",
+        proposed_plan=[
+            ProposedPlanLeg(robot_id="robot_1", action="yield"),
+            ProposedPlanLeg(robot_id="robot_2", action="cross"),
+        ],
+    )
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(_result(decision)),
+        ground_fn=ground_reasoner_result,
+        scene_geometry=_S1,
+        grounding_params=_DYNAMIC,
+        stage2_enabled=False,
+        plan_tracker=PlanTracker(),
+        goal_reference_of=registry.mission_goal,
+    )
+    outcome = pipe.run(_handoff_request(registry))
+    assert outcome.grounded_command["actions"][0]["robot_id"] == "robot_2"
+    assert outcome.plan.provenance == "vlm_verbatim"
+    assert outcome.plan.dispatch_matches_plan is False
 
 
 def test_pipeline_passes_no_goal_references_with_the_switch_off():
@@ -784,6 +837,30 @@ def test_plan_verifier_gives_the_parked_robot_no_role():
         "robot_1",
         "robot_2",
     ]
+
+
+def test_plan_giving_the_parked_robot_a_role_is_repaired_not_rejected():
+    decision = _decision(
+        "junction_clear",
+        _FIVE,
+        crossing_order=list(_FIVE),
+        proposed_plan=[
+            ProposedPlanLeg(robot_id="robot_5", action="reverse"),
+            ProposedPlanLeg(robot_id="robot_1", action="reverse"),
+            ProposedPlanLeg(robot_id="robot_2", action="reverse"),
+            ProposedPlanLeg(robot_id="robot_3", action="yield"),
+            ProposedPlanLeg(robot_id="robot_4", action="cross"),
+        ],
+    )
+    plan = verify_and_repair_plan(
+        decision,
+        _frame(_S2_FE),
+        geometry=_s2_geometry("y", parked=True),
+        grounding_params=GroundingParams(mode="derived"),
+    )
+    assert plan.provenance == "repaired"
+    assert [(edit.op, edit.robot_ids) for edit in plan.edits] == [("substitute", ("robot_5",))]
+    assert {leg.robot_id: leg.action for leg in plan.legs}["robot_5"] == "continue"
 
 
 def test_empty_parked_list_is_rejected():
