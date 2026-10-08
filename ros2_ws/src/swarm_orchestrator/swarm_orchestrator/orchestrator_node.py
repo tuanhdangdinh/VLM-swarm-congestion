@@ -442,10 +442,13 @@ class OrchestratorNode(Node):
             self._task_stream = TaskStreamTracker(
                 plan, stream.dwell_sim_sec, stream.horizon_sim_sec
             )
-            # First tasks enter the registry as base goals; each robot's
-            # stagger rides the existing start_delay_sec hold-back.
+            # First tasks enter the registry as base goals. A wall stagger
+            # rides the existing start_delay_sec hold-back; a sim stagger
+            # holds every robot until a scene callback releases it.
             self._registry.load_assignments(
-                stream_initial_tasks(plan, self._config.initial_tasks), started_at
+                stream_initial_tasks(plan, self._config.initial_tasks),
+                started_at,
+                held=self._config.initial_tasks if stream.release_clock == "sim" else (),
             )
             self._tasks_log_path = (
                 Path(self._config.decision_log_dir) / f"tasks_{self._session_id}.jsonl"
@@ -1902,10 +1905,15 @@ class OrchestratorNode(Node):
         plan = stream.plan
         self._append_tasks_log(stream_start_record(plan, config) | {"wall_t": started_at})
         sequences = {rid: [task.node for task in queue] for rid, queue in plan.tasks.items()}
+        offsets = (
+            f"release_offsets_wall_sec={plan.release_offsets_wall_sec} "
+            if plan.release_offsets_sim_sec is None
+            else f"release_offsets_sim_sec={plan.release_offsets_sim_sec} "
+        )
         self.get_logger().info(
             f"task_stream start seed={plan.seed} start_nodes={plan.start_nodes} "
             f"drawn={plan.start_nodes_drawn} sequences={sequences} "
-            f"release_offsets_wall_sec={plan.release_offsets_wall_sec} "
+            f"{offsets}"
             f"dwell_sim_sec={config.dwell_sim_sec} tasks_total={plan.tasks_total} "
             f"log={self._tasks_log_path}"
         )
@@ -1970,12 +1978,22 @@ class OrchestratorNode(Node):
             self._record_stream_events([event])
 
     def _apply_stream_events(self, events: list[TaskStreamEvent]) -> None:
+        # Sim-time stagger only: the wall path releases from `_on_timer`, and
+        # `on_scene` emits no `released` event there.
+        released = self._registry.release(
+            event.robot_id for event in events if event.event == "released"
+        )
+        if released:
+            self.get_logger().info(
+                f"sim release stagger elapsed, base mission released robots={released} "
+                f"sim_t={events[0].sim_t}"
+            )
         issued = [event for event in events if event.event == "issued"]
         for event in issued:
             # Base only: an in-flight command keeps its override, and the
             # robot's goal falls through to this task when it resolves.
             self._registry.set_base(event.robot_id, event.label, event.goal)
-        if issued:
+        if issued or released:
             self._publish_registry()
         self._record_stream_events(events)
 

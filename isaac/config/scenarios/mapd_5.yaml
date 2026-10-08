@@ -78,7 +78,7 @@ duration_sec: 600.0
 #     tasks_per_robot: 5
 #     forbidden_legs: [[Wp, Wm]]
 #     task_labels: [pickup, delivery]
-#     release_stagger_wall_sec: 24.0
+#     release_stagger_sim_sec: 4.0
 #     dwell_sim_sec: 5.0
 #     horizon_sim_sec: 600.0
 #     finished_mode: park
@@ -114,12 +114,22 @@ duration_sec: 600.0
 #     any mismatch between it, this file's spawns and M1's first scene is
 #     detectable after the fact. The pinned map MUST equal
 #     draw_start_nodes(seed, ...) -- the test re-derives it.
-#   - release_stagger_wall_sec 24.0 is PROVISIONAL: the registered stagger is
-#     Delta = 4 sim-s inside the derived window (0, 4.42); the wall value is
-#     4 / RTF_pilot = 21.1-26.7 wall-s at the EXTRAPOLATED 5-stack RTF
-#     0.15-0.19 (never measured; 24.0 = 4 / 0.167). Re-derive after the RTF
-#     pilot (the C9 pattern) and record each robot's release sim-time (the
-#     arrival-process artifact check, scene design S1 risk table).
+#   - release_stagger_sim_sec 4.0 IS the registered Delta = 4 sim-s
+#     (prereg-v3 A12(ii), closes S1-10; replaces the wall-clock 24.0 whose
+#     Delta drifted with RTF: 4.633/4.533/4.367 sim-s at release-RTF 0.188
+#     in pilot episode 1, 2/3 outside the window). Robot k (natural id order)
+#     is released on the first accepted M1 scene whose stamp reaches
+#     episode_start_sim + 4k, episode_start_sim = the first non-dropped scene
+#     M5 sees (NOT the absolute M1 clock, ~30 sim-s at M5's first scene).
+#     robot_1 (k = 0) is released ON that first scene, so every release has a
+#     sim_t (no more release_before_scene). Window arithmetic, RTF-free:
+#     Delta in [4 - g, 4 + g), g = the largest gap between accepted scene
+#     stamps around the release, so Delta stays inside (0, 4.42) iff
+#     g < 0.42 sim-s (an M1 outage of 0.42 sim-s is ~2.6 wall-s at RTF
+#     0.164). Check: each robot's release sim_t from the tasks JSONL, minus
+#     episode_start_sim, minus 4k, is the lateness g_k; Delta_k = 4 + g_k -
+#     g_(k-1). Never also set release_stagger_wall_sec: the two keys are
+#     mutually exclusive (load_config raises).
 #   - scenario_geometry declares the junction box with NO arms: under
 #     dynamic_scene_arms (config/grounding/s1_dynamic.yaml) M3 derives each
 #     yielder's arm per snapshot (A11(i)); the declared corridor is the
@@ -144,7 +154,8 @@ duration_sec: 600.0
 # A11 S1-overlay prerequisites checklist (prereg-v3 A11(iii) + scene design
 # S1 "Registration prerequisites"); status at authoring (tip 4d88bc1):
 #   [x] M5 MAPD registry contract: task_stream mode merged (task queues,
-#       pop-on-dwell-end, release stagger, start_check); wandering-analog
+#       pop-on-dwell-end, release stagger -- sim-time since A12(ii) --,
+#       start_check); wandering-analog
 #       dispatch NOT built (finished_mode park only -- Open Question S1-1),
 #       so pilot evidence on wandering-vs-park (below) decides it.
 #   [x] M3 dynamic arms + node-handoff grounding: merged flag-off
@@ -189,7 +200,9 @@ duration_sec: 600.0
 #
 # Pilot evidence to record (A11 + A11(iii) registered measurements):
 #   - 5-stack bring-up outcome + measured RTF (prerequisite 3).
-#   - Each robot's release sim-time (Delta window (0, 4.42) artifact check).
+#   - Each robot's release sim-time (Delta window (0, 4.42) artifact check;
+#     under the sim-time stagger a miss means an M1 scene gap >= 0.42 sim-s
+#     at a release, never an RTF drift).
 #   - The 45 s hold-backstop GATE above: measured dwell + departure wall time.
 #   - M1 theta error on stopped robots + escort lateral deviation (A11(iii):
 #     3 deg ~ 12 cm over a 2.35 m escort vs a few-cm lane-to-rack margin).

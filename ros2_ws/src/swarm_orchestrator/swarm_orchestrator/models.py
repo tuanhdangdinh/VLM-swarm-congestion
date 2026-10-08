@@ -117,8 +117,13 @@ class TaskStreamConfig(BaseModel):
     and replaced by the next node only once the dwell ends.
 
     Clocks are part of the field names: the dwell and the horizon are in
-    sim-s (M1 scene stamps), the release stagger is wall-s (M5's monotonic
-    clock, the existing `start_delay_sec` path; scene doc Open Question S1-10).
+    sim-s (M1 scene stamps). The release stagger is either wall-s
+    (`release_stagger_wall_sec`, M5's monotonic clock through the existing
+    `start_delay_sec` path) or sim-s (`release_stagger_sim_sec`, prereg-v3
+    A12(ii), closing scene doc Open Question S1-10): robot k is released on
+    the first accepted scene whose stamp reaches the stream's first scene
+    stamp + k x the stagger, so the release spacing no longer scales with the
+    real-time factor. The two keys are mutually exclusive.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -145,6 +150,15 @@ class TaskStreamConfig(BaseModel):
     # k x this many wall-s after M5 starts. The registered value is 4 sim-s,
     # so the yaml carries 4 / RTF_pilot.
     release_stagger_wall_sec: float = Field(default=4.0, ge=0.0)
+    # Sim-time stagger (A12(ii)): robot k is held until a scene stamp reaches
+    # episode_start_sim + k x this many sim-s, where episode_start_sim is the
+    # first non-dropped scene the stream sees (never the absolute M1 clock,
+    # which already reads ~30 sim-s at M5's first scene). Every robot,
+    # robot k = 0 included, is released on a scene callback, so each release
+    # carries its sim_t. Consecutive releases land in [stagger - g, stagger + g)
+    # sim-s, g = the largest gap between accepted scene stamps around them.
+    # None (the default) keeps the wall-clock path.
+    release_stagger_sim_sec: float | None = Field(default=None, gt=0.0)
     dwell_sim_sec: float = Field(default=5.0, ge=0.0)
     # Recorded in the manifest only; M5 never stops an episode.
     horizon_sim_sec: float | None = Field(default=None, gt=0.0)
@@ -152,6 +166,25 @@ class TaskStreamConfig(BaseModel):
     # last node, scene doc variant C) is built: the wandering analog (variant
     # D) waits on the ruling of scene doc Open Question S1-1.
     finished_mode: Literal["park"] = "park"
+
+    @property
+    def release_clock(self) -> Literal["wall", "sim"]:
+        """Which clock the release stagger counts on."""
+        return "wall" if self.release_stagger_sim_sec is None else "sim"
+
+    @model_validator(mode="after")
+    def _one_release_clock(self) -> TaskStreamConfig:
+        # `model_fields_set`, not a value check: the wall key has a default,
+        # so only an explicitly written wall key conflicts with the sim key.
+        if (
+            self.release_stagger_sim_sec is not None
+            and "release_stagger_wall_sec" in self.model_fields_set
+        ):
+            raise ValueError(
+                "task_stream.release_stagger_sim_sec and release_stagger_wall_sec are "
+                "mutually exclusive: set exactly one release clock"
+            )
+        return self
 
     @model_validator(mode="after")
     def _enabled_stream_is_drawable(self) -> TaskStreamConfig:
@@ -490,7 +523,7 @@ class OrchestratorConfig(BaseModel):
         if delayed:
             raise ValueError(
                 f"initial_tasks start_delay_sec must be 0 under task_stream (robots {delayed}): "
-                "the stream's release_stagger_wall_sec owns every release"
+                "the stream's release stagger owns every release"
             )
         if not self.arrival_position_check:
             # Unverified, a stale Nav2 success landing just after the next task
