@@ -104,6 +104,29 @@ class ContradictionTriggerConfig(BaseModel):
     per_event_replan_budget: int = Field(default=1, ge=0)
 
 
+class ReanalysisSuppressionConfig(BaseModel):
+    """Scene-unchanged re-trigger suppression (`reanalysis_suppression:`, A12(iii)).
+
+    Disabled (the default), every stall trigger the state machine admits
+    starts an analysis exactly as before, and no log line or artifact key is
+    added. Enabled, a stall-triggered analysis is skipped while its robot set
+    and those robots' M1 positions match the last executed stall analysis
+    that dispatched nothing (`swarm_orchestrator.reanalysis_suppression`
+    holds the full predicate, the shipped default to be frozen at Step 6).
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    enabled: bool = False
+    # Must clear M1's position jitter on a stopped robot (pilot episode 1:
+    # median 6 mm, p95 8 mm) with margin, and stay below any displacement
+    # that changes what the model is shown (a backup is >= 0.2 m).
+    pose_epsilon_m: float = Field(default=0.05, gt=0.0)
+    # "task_stream_only" engages it only while `task_stream.enabled` (the S1
+    # cells it was registered for); "all" in every scene.
+    applies_to: Literal["task_stream_only", "all"] = "task_stream_only"
+
+
 class TaskStreamConfig(BaseModel):
     """The v3 S1 (MAPD-5) task-stream mode's settings (`task_stream:`).
 
@@ -428,6 +451,10 @@ class OrchestratorConfig(BaseModel):
     failure_explanation_enabled: bool = False
     # v3 S1 task-stream mode (MAPD-5); default off.
     task_stream: TaskStreamConfig = Field(default_factory=TaskStreamConfig)
+    # prereg-v3 A12(iii) scene-unchanged re-trigger suppression; default off.
+    reanalysis_suppression: ReanalysisSuppressionConfig = Field(
+        default_factory=ReanalysisSuppressionConfig
+    )
     # Dispatch-off probe flag (v3 build item, scene doc item 9): False runs
     # the full triggered pipeline -- trigger, M2, M3, artifact with every
     # provenance block -- but never publishes the command to M4, and the

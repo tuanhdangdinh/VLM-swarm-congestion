@@ -973,6 +973,7 @@ def write_decision_artifact(
     trigger_source: str | None = None,
     trigger_contradiction: dict[str, Any] | None = None,
     dispatch_suppressed: bool | None = None,
+    reanalysis_suppression: dict[str, Any] | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
@@ -1072,6 +1073,12 @@ def write_decision_artifact(
     `dispatched_command` is what M4 WOULD have received; false otherwise.
     Both absent when None, so a dispatch-on artifact is byte-identical to one
     written before the flag existed.
+
+    `reanalysis_suppression` (prereg-v3 A12(iii), set by M5 only while the
+    scene-unchanged suppression is engaged) adds a block of that name with
+    the triggers and analyses it skipped since the previous executed
+    analysis and in total; absent when None, so a suppression-off artifact
+    is byte-identical to one written before the policy existed.
 
     `prompt_conditions` (prereg-v2 rev 6 apparatus) is always written, null
     only when the caller passed none; M5 passes it on every analysis, all-off
@@ -1213,6 +1220,8 @@ def write_decision_artifact(
     if dispatch_suppressed is not None:
         payload["dispatch_enabled"] = False
         payload["dispatch_suppressed"] = dispatch_suppressed
+    if reanalysis_suppression is not None:
+        payload["reanalysis_suppression"] = reanalysis_suppression
     payload["prompt_conditions"] = (
         None if prompt_conditions is None else prompt_conditions.model_dump(mode="json")
     )
