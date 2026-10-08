@@ -749,6 +749,29 @@ Cross-lineage note: the fc_launch recorder clean-stop is commit
 28a4c9c (single-patch rule: composite+hotfix take it by cherry-pick
 from that hash only).
 
+**A11(iii) addendum — BOTH spawn-frame blockers fixed (commits
+e903544 + f0cc17b, merged @4d88bc1).** The escort fix landed as
+ruled (M3 computes the escort turn from the passer's current
+registry goal, snapped to the measured axis, passed as a
+relative-to-start turn — a world yaw never crosses the M3/M4
+boundary because each robot's odom yaw 0 is its spawn heading; an
+escort-off rule tags `grounding=escort_off:<id>:<reason>` when the
+passer has no usable goal, which makes a dwelling node-occupant
+wait out its dwell under Nav2 — the 45 s hold backstop check is
+therefore load-bearing for S1). The SIBLING defect found during
+that fix: M4's `backup()` servoed every reversing robot toward the
+odom y=0 spawn line (heading ≈ 0 assumed), so an off-spawn-heading
+yielder backed along an ~0.2 m-radius arc. Fixed with the same
+pattern: under `dynamic_scene_arms` only, M3 marks every grounded
+yield/reverse backup (junction recedes and release holds included)
+with boolean `backup_line_hold: true`, and M4 holds the line
+through the backup's own start pose along its start heading with
+the reversing correction sign. Absent the keys, dispatch and servo
+are byte-for-byte pre-fix; the 189 flags-off goldens are
+byte-identical. PILOT MEASUREMENT registered: M1 θ error on
+stopped robots and escort lateral deviation (3° ≈ 12 cm over a
+2.35 m escort vs a few-cm lane-to-rack margin).
+
 **A7. Step 0 status note.** The merged tree's rotation-probe
 signature PASSED (0/142 closed columns vs 12–13 pre-fix). The stage-1
 smoke failure was on an OFF-DESIGN route (goals routing around the
