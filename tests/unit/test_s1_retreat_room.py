@@ -19,10 +19,18 @@ from typing import Any
 
 import pytest
 import yaml
+from swarm_execution.crossing_chain import plan_crossing
+from swarm_execution.safety import crossing_order_from_parameters
 from swarm_orchestrator.models import load_config
 from swarm_orchestrator.reasoning_pipeline import load_grounding_source
 
-from reasoning.rag.command_grounder import ground_reasoner_result, verify_and_repair_plan
+from reasoning.rag.command_grounder import (
+    filter_command_robot_ids,
+    ground_reasoner_result,
+    plan_matches_dispatch,
+    resolve_yield_roles,
+    verify_and_repair_plan,
+)
 from reasoning.rag.grounding_view import resolve_grounding_view
 from reasoning.rag.maneuver_geometry import GroundingParams, derive_backup_distance
 from reasoning.rag.retreat_candidates import generate_retreat_candidates
@@ -310,18 +318,21 @@ def test_plan_repair_never_hands_the_lane_yield_to_an_off_lane_robot():
 # ---- the executed maneuver against the boxes (footprint band only) ----
 
 
-def test_lane_sidestep_into_a_gate_jaw_is_not_a_candidate():
+def test_lane_sidestep_into_a_gate_jaw_deepens_the_backup():
     # 0.45 m latch standoff in the E bay: the gate passes robot_1 (nothing in
     # its strip), but the 1.7 m clearance backs it 1.25 m to x=0.67, where
     # either 0.36 m sidestep puts its body 6 cm into a gate jaw (x >= 0.7).
+    # The backup deepens in 0.01 m steps until the body clears the jaw
+    # (zero box margin under `_DYNAMIC`): x <= 0.7 - 0.09 = 0.61, a 1.31 m
+    # backup, instead of rerouting the yielder.
     poses = {"robot_1": (1.92, 0.05, 0.0), "robot_2": (2.37, 0.0, math.pi)}
     command = _ground(_decision(["robot_1", "robot_2"], "robot_1"), _frame(poses))
     assert _gate_tags(command) == []
-    assert (command["actions"][0]["robot_id"], command["actions"][0]["action"]) == (
-        "robot_1",
-        "reroute",
-    )
-    assert "retreat=no-valid-candidate" in command["degradations"]
+    action = command["actions"][0]
+    assert (action["robot_id"], action["action"]) == ("robot_1", "yield")
+    assert action["parameters"]["backup_distance_m"] == pytest.approx(1.31)
+    assert action["parameters"]["retreat_x_m"] == pytest.approx(0.61, abs=1e-3)
+    assert "retreat=deepened:1.25->1.31" in command["degradations"]
 
 
 def test_lane_backup_past_the_park_point_into_a_box_is_not_a_candidate():
@@ -422,9 +433,11 @@ def test_ep1_gate_pair_yield_is_feasible_with_a_hand_computed_room():
     action = command["actions"][0]
     assert (action["robot_id"], action["action"]) == ("robot_1", "yield")
     # Clearance 1.7 from robot_5 0.369 m ahead: a 1.331 m backup west, out
-    # of the gate (x in [0.7, 1.7]) to x=0.606 before the sidestep.
-    assert action["parameters"]["backup_distance_m"] == pytest.approx(1.331)
-    assert action["parameters"]["retreat_x_m"] == pytest.approx(0.606, abs=1e-3)
+    # of the gate (x in [0.7, 1.7]) to x=0.606 -- 4 mm short of the 0.05 m
+    # box margin (x <= 0.7 - 0.09 - 0.05 = 0.56). It deepens in 0.01 m steps
+    # to 1.381 m, x=0.556, before the sidestep.
+    assert action["parameters"]["backup_distance_m"] == pytest.approx(1.381)
+    assert action["parameters"]["retreat_x_m"] == pytest.approx(0.556, abs=1e-3)
 
 
 def test_ep1_five_robot_echo_yield_clears_the_room_gate():
@@ -507,8 +520,9 @@ def test_ep1_five_robot_echo_yield_grounds_an_executable_backup():
     assert not any(t.startswith("yield=infeasible") for t in command["degradations"])
     action = command["actions"][0]
     assert (action["robot_id"], action["action"]) == ("robot_1", "yield")
-    assert action["parameters"]["backup_distance_m"] == pytest.approx(1.331)
-    assert action["parameters"]["retreat_x_m"] == pytest.approx(0.606, abs=1e-3)
+    # The clearance minimum (1.331 m) deepened past the box margin.
+    assert action["parameters"]["backup_distance_m"] == pytest.approx(1.381)
+    assert action["parameters"]["retreat_x_m"] == pytest.approx(0.556, abs=1e-3)
 
 
 @pytest.mark.parametrize(
@@ -537,6 +551,12 @@ def test_a_robot_in_the_backup_corridor_still_blocks_it(blocker: Pose):
         in command["degradations"]
     )
     assert command["actions"][0]["action"] == "reroute"
+    # robot_3 is in the lane conflict now and stays in the order; the
+    # off-lane robots 2 and 4 are dropped from it but still hold on the
+    # reroute fallback, like every other involved robot.
+    assert "order=lane_scoped:robot_2,robot_4" in command["degradations"]
+    waits = {a["robot_id"] for a in command["actions"] if a["action"] == "temporary_wait"}
+    assert waits == {"robot_2", "robot_3", "robot_4", "robot_5"}
 
 
 def test_a_robot_just_outside_the_corridor_does_not_block():
@@ -570,3 +590,315 @@ def test_crossing_passer_off_the_retreat_line_still_sets_the_backup():
     aisle = view.geometry.model_copy(update={"rear_room_band": "aisle"})
     assert backup == derive_backup_distance(frame, "robot_1", ["robot_2"], _DYNAMIC, geometry=aisle)
     assert backup.value_m == pytest.approx(1.2)
+
+
+# ---- lane-scoped crossing order and escort (the last link of the chain) ----
+#
+# Past the clearance fix the echo replay grounded 216/216 yields but dropped
+# every escort: the crossing order still held the off-lane N-arm queue
+# (robots 2-4), whose escort headings cannot be derived (`goal_behind` /
+# `goal_reached`), and `apply_escort_headings` strips the whole yield's
+# escort when any passer's heading fails -- robot_5's included. Under a lane
+# view the order now holds only the lane conflict: the lane partner plus any
+# robot inside the swept corridor (0.38 m either side of the retreat line).
+
+
+def _ep1_five() -> dict[str, Any]:
+    geometry, obstacles, params = _shipped()
+    return _ground(
+        _decision(_FIVE, "robot_1"),
+        _frame(_EP1_SCENE, _EP1_GOALS),
+        geometry=geometry,
+        params=params,
+        obstacles=obstacles,
+    )
+
+
+def test_ep1_echo_order_holds_only_the_lane_conflict():
+    command = _ep1_five()
+    yield_parameters = command["actions"][0]["parameters"]
+    assert yield_parameters["crossing_order"] == ["robot_5"]
+    # One passer: no per-passer lists for an off-lane robot to sit in.
+    assert "crossing_clear_m" not in yield_parameters
+    assert "crossing_escort_m" not in yield_parameters
+    assert "order=lane_scoped:robot_2,robot_3,robot_4" in command["degradations"]
+
+
+def test_ep1_off_lane_robots_still_hold_unlinked():
+    command = _ep1_five()
+    waits = {
+        a["robot_id"]: a["parameters"]
+        for a in command["actions"]
+        if a["action"] == "temporary_wait"
+    }
+    assert set(waits) == {"robot_2", "robot_3", "robot_4", "robot_5"}
+    assert waits["robot_5"]["linked_position"] == 0
+    for robot_id in ("robot_2", "robot_3", "robot_4"):
+        assert "linked_position" not in waits[robot_id]
+        assert waits[robot_id]["requested_strategy"] == "yield"
+        assert waits[robot_id]["duration_sec"] == waits["robot_5"]["duration_sec"]
+
+
+def test_ep1_echo_keeps_the_lane_passer_escort():
+    command = _ep1_five()
+    assert not any(t.startswith("grounding=escort_off") for t in command["degradations"])
+    parameters = command["actions"][0]["parameters"]
+    # robot_5 at x=2.3066 to the park at x=0.556 plus the 0.65 m passer
+    # clearance; its goal (0, -1.55) lies west, the direction the escort
+    # distance was measured in, so it drives at pi.
+    assert parameters["passer_robot_id"] == "robot_5"
+    assert parameters["passer_escort_distance_m"] == pytest.approx(2.4, abs=1e-3)
+    assert parameters["passer_escort_heading_rad"] == pytest.approx(math.pi)
+    assert parameters["passer_escort_reference_yaw_rad"] == pytest.approx(3.1172)
+
+
+def test_ep1_echo_yield_equals_the_lane_pair_grounding():
+    # The two-robot grounding (escort kept on all 216 replay scenes) is the
+    # reference: the three off-lane robots change nothing about the yield.
+    geometry, obstacles, params = _shipped()
+    pair = _ground(
+        _decision(["robot_1", "robot_5"], "robot_1"),
+        _frame(_EP1_SCENE, _EP1_GOALS),
+        geometry=geometry,
+        params=params,
+        obstacles=obstacles,
+    )
+    assert _ep1_five()["actions"][0] == pair["actions"][0]
+
+
+def test_ep1_dispatched_chain_references_only_lane_robots():
+    command = _ep1_five()
+    (yield_action,) = [a for a in command["actions"] if a["action"] == "yield"]
+    parameters = yield_action["parameters"]
+    lane = {"robot_1", "robot_5"}
+    # M4 reads the chain through `plan_crossing`; the safety monitor pairs
+    # the yielder with exactly those passers.
+    assert [p.robot_id for p in plan_crossing(parameters)] == ["robot_5"]
+    assert crossing_order_from_parameters("yield", parameters) == ("robot_5",)
+    linked = {
+        a["robot_id"]: a["parameters"]["linked_position"]
+        for a in command["actions"]
+        if "linked_position" in (a.get("parameters") or {})
+    }
+    assert linked == {"robot_5": 0}
+    assert set(parameters["crossing_order"]) <= lane
+    # M5's absent-robot filter keeps the chain as it is when an off-lane
+    # robot drops out of the snapshot.
+    filtered = filter_command_robot_ids(command, {"robot_1", "robot_2", "robot_4", "robot_5"})
+    (filtered_yield,) = [a for a in filtered["actions"] if a["action"] == "yield"]
+    assert filtered_yield == yield_action
+    assert "robot_3" not in {a["robot_id"] for a in filtered["actions"]}
+
+
+def test_ep1_default_plan_waits_the_off_lane_robots_and_matches_dispatch():
+    geometry, obstacles, params = _shipped()
+    decision = _decision(_FIVE, "robot_1")
+    frame = _frame(_EP1_SCENE, _EP1_GOALS)
+    view = resolve_grounding_view(decision, frame, geometry, params)
+    plan = verify_and_repair_plan(
+        view.decision,
+        frame,
+        geometry=view.geometry,
+        static_obstacles=obstacles,
+        yield_feasibility_mode="swap",
+        grounding_params=params,
+    )
+    assert {leg.robot_id: leg.action for leg in plan.legs} == {
+        "robot_1": "yield",
+        "robot_5": "cross",
+        "robot_2": "wait",
+        "robot_3": "wait",
+        "robot_4": "wait",
+    }
+    assert plan_matches_dispatch(plan.legs, _ep1_five(), _FIVE)
+
+
+@pytest.mark.parametrize(
+    ("pose", "kept"),
+    [
+        ((2.8, 0.0, math.pi), True),  # on the lane, behind the partner
+        ((0.3, 0.38, 0.0), True),  # 0.332 m beside the lane: inside the corridor
+        ((0.3, 0.448, 0.0), False),  # 0.4 m beside it: outside
+    ],
+)
+def test_lane_scope_keeps_robots_inside_the_swept_corridor(pose: Pose, kept: bool):
+    geometry, obstacles, params = _shipped()
+    poses = {**_EP1_SCENE, "robot_3": pose}
+    frame = _frame(poses, _EP1_GOALS)
+    view = resolve_grounding_view(_decision(_FIVE, "robot_1"), frame, geometry, params)
+    roles = resolve_yield_roles(
+        view.decision,
+        frame,
+        geometry=view.geometry,
+        static_obstacles=obstacles,
+        yield_feasibility_mode="swap",
+        params=params,
+    )
+    assert roles.crossing_order[0] == "robot_5"
+    assert ("robot_3" in roles.crossing_order) is kept
+    assert ("robot_3" in roles.off_lane) is not kept
+    assert set(roles.crossing_order) | set(roles.off_lane) == set(_FIVE) - {"robot_1"}
+
+
+# ep1 request f0989c8a219241d78f8a9fb4688fd716 (and two more): robot_3 dwells
+# at the W node, on robot_1's lane axis (0.25 m beside it) but 4.17 m behind
+# it. The clearance's reach is backup_band_m[1] + 1.7 = 3.7 m.
+_W_NODE_DWELL: Pose = (-2.234, 0.299, 0.245)
+
+
+def test_lane_scope_drops_a_corridor_robot_beyond_the_clearance_reach():
+    geometry, obstacles, params = _shipped()
+    poses = {**_EP1_SCENE, "robot_3": _W_NODE_DWELL}
+    goals = {**_EP1_GOALS, "robot_3": (-2.3, 0.35)}
+    command = _ground(
+        _decision(_FIVE, "robot_1"),
+        _frame(poses, goals),
+        geometry=geometry,
+        params=params,
+        obstacles=obstacles,
+    )
+    assert "order=lane_scoped:robot_2,robot_3,robot_4" in command["degradations"]
+    assert not any(t.startswith("grounding=escort_off") for t in command["degradations"])
+    pair = _ground(
+        _decision(["robot_1", "robot_5"], "robot_1"),
+        _frame(poses, goals),
+        geometry=geometry,
+        params=params,
+        obstacles=obstacles,
+    )
+    assert command["actions"][0] == pair["actions"][0]
+
+
+def test_lane_scope_bound_is_off_without_params():
+    # The lateral rule alone keeps the dwelling robot (no reach to bound by).
+    geometry, obstacles, params = _shipped()
+    poses = {**_EP1_SCENE, "robot_3": _W_NODE_DWELL}
+    frame = _frame(poses, {**_EP1_GOALS, "robot_3": (-2.3, 0.35)})
+    view = resolve_grounding_view(_decision(_FIVE, "robot_1"), frame, geometry, params)
+    roles = resolve_yield_roles(view.decision, frame, geometry=view.geometry)
+    assert roles.crossing_order == ["robot_5", "robot_3"]
+
+
+def test_a_corridor_robot_within_the_clearance_reach_stays_and_binds():
+    # 3.0 m behind robot_1 on its lane: its clearance interval (1.3, 4.7)
+    # covers every backup robot_5 allows (>= 1.331 m), so it is in the
+    # conflict, stays in the order, and the backup is refused.
+    geometry, obstacles, params = _shipped()
+    poses = {**_EP1_SCENE, "robot_3": (1.9373 - 3.0, 0.05, 0.0)}
+    command = _ground(
+        _decision(_FIVE, "robot_1"),
+        _frame(poses, _EP1_GOALS),
+        geometry=geometry,
+        params=params,
+        obstacles=obstacles,
+    )
+    assert "order=lane_scoped:robot_2,robot_4" in command["degradations"]
+    assert (
+        "yield=infeasible:no backup distance in band [0.5, 2.0] m satisfies clearance 1.7 m"
+        in command["degradations"]
+    )
+
+
+def test_crossing_view_order_is_not_lane_scoped():
+    # A crossing view has no lane pair: its perpendicular passers are real
+    # passers, however far they sit from the retreat line.
+    poses = {
+        "robot_1": (-0.45, 0.35, 0.0),
+        "robot_2": (0.05, -0.45, math.pi / 2),
+        "robot_3": (0.05, -1.2, math.pi / 2),
+    }
+    frame = _frame(poses, {"robot_2": (0.0, 1.55), "robot_3": (0.0, 1.55)})
+    view = resolve_grounding_view(
+        _decision(["robot_1", "robot_2", "robot_3"], "robot_1"), frame, _S1, _DYNAMIC
+    )
+    assert view.geometry is not None and view.geometry.lane_robots is None
+    roles = resolve_yield_roles(view.decision, frame, geometry=view.geometry)
+    assert roles.crossing_order == ["robot_2", "robot_3"]
+    assert roles.off_lane == []
+    assert not any(t.startswith("order=lane_scoped") for t in roles.degradations)
+
+
+def test_empty_off_lane_stays_out_of_the_roles_dump():
+    roles = resolve_yield_roles(_decision(["robot_1", "robot_2"], "robot_1"), _frame(_W_LANE))
+    assert "off_lane" not in roles.model_dump(mode="json")
+
+
+# ---- the PROPOSED box margin of the candidate sweep ----
+
+
+def test_s1_file_declares_the_proposed_box_margin():
+    _, _, params = _shipped()
+    assert params.retreat_box_margin_m == pytest.approx(0.05)
+
+
+def test_zero_margin_reproduces_the_unmargined_park():
+    # The a8e9a51 sweep (no margin): the clearance minimum survives as is.
+    geometry, obstacles, params = _shipped()
+    command = _ground(
+        _decision(["robot_1", "robot_5"], "robot_1"),
+        _frame(_EP1_SCENE, _EP1_GOALS),
+        geometry=geometry,
+        params=params.model_copy(update={"retreat_box_margin_m": 0.0}),
+        obstacles=obstacles,
+    )
+    parameters = command["actions"][0]["parameters"]
+    assert parameters["backup_distance_m"] == pytest.approx(1.331)
+    assert parameters["retreat_x_m"] == pytest.approx(0.606, abs=1e-3)
+    assert not any(t.startswith("retreat=deepened") for t in command["degradations"])
+
+
+def test_margin_deepens_the_ep1_backup_and_tags_it():
+    command = _ep1_five()
+    assert "retreat=deepened:1.331->1.381" in command["degradations"]
+
+
+def test_a_margin_met_at_the_clearance_minimum_does_not_deepen():
+    # W lane: nothing within reach of the 1.3 m backup or either sidestep.
+    command = _ground(
+        _decision(["robot_1", "robot_2"], "robot_1"),
+        _frame(_W_LANE),
+        params=_DYNAMIC.model_copy(update={"retreat_box_margin_m": 0.05}),
+    )
+    assert command["actions"][0]["parameters"]["backup_distance_m"] == pytest.approx(1.3)
+    assert not any(t.startswith("retreat=deepened") for t in command["degradations"])
+
+
+def test_margin_vetoes_a_body_within_it_of_a_box():
+    # The unmargined clearance-minimum park (x=0.606) sits 4 mm from the gate
+    # jaw's west face: inside a 0.05 m margin, so no candidate survives at
+    # that depth.
+    geometry, obstacles, params = _shipped()
+    frame = _frame(_EP1_SCENE, _EP1_GOALS)
+    view = resolve_grounding_view(
+        _decision(["robot_1", "robot_5"], "robot_1"), frame, geometry, params
+    )
+    shallow = generate_retreat_candidates(
+        frame,
+        "robot_1",
+        1.331,
+        params,
+        geometry=view.geometry,
+        passer_id="robot_5",
+        static_obstacles=obstacles,
+    )
+    assert shallow == []
+    deep = generate_retreat_candidates(
+        frame,
+        "robot_1",
+        1.381,
+        params,
+        geometry=view.geometry,
+        passer_id="robot_5",
+        static_obstacles=obstacles,
+    )
+    assert deep
+
+
+def test_margin_stays_out_of_the_params_dump_unless_set_under_dynamic_arms():
+    assert "retreat_box_margin_m" not in GroundingParams(mode="derived").model_dump()
+    assert "retreat_box_margin_m" not in _DYNAMIC.model_dump()
+    off = GroundingParams(mode="derived", retreat_box_margin_m=0.05)
+    assert "retreat_box_margin_m" not in off.model_dump()
+    on = _DYNAMIC.model_copy(update={"retreat_box_margin_m": 0.05})
+    assert on.model_dump()["retreat_box_margin_m"] == 0.05
+    assert GroundingParams(**on.model_dump()) == on

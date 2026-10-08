@@ -308,6 +308,7 @@ def classical_retreat_answer(
         geometry=context.geometry,
         static_obstacles=context.static_obstacles,
         yield_feasibility_mode=context.yield_feasibility_mode,
+        params=context.params,
     )
     base: dict[str, Any] = {
         "yielder_id": roles.yielder_id,

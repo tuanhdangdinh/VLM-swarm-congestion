@@ -261,6 +261,7 @@ def _run(
         geometry=geometry,
         static_obstacles=static_obstacles,
         yield_feasibility_mode=yield_feasibility_mode,
+        params=params,
     )
     if roles.refusal_reason is not None:
         return None, RetreatStage2Record(
