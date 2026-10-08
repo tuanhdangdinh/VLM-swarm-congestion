@@ -771,6 +771,17 @@ are byte-for-byte pre-fix; the 189 flags-off goldens are
 byte-identical. PILOT MEASUREMENT registered: M1 θ error on
 stopped robots and escort lateral deviation (3° ≈ 12 cm over a
 2.35 m escort vs a few-cm lane-to-rack margin).
+CONTAINMENT (citable): the backup() servo defect does NOT taint any
+v1/v2 number — every v1/v2 scored geometry spawns its yielders
+aligned with their spawn heading, so the legacy odom-y=0 assumption
+HELD wherever it was exercised, and the fix is flag-gated off
+outside `dynamic_scene_arms` (byte-identical goldens). The defect
+only ever expresses in task-stream geometries that no collected run
+has used. GATE (not advisory): the S1 pilot treats the 45 s hold
+backstop check (dwell + departure at measured RTF vs backstop)
+as a PASS/FAIL gate — under the escort-off rule a dwelling occupant
+leaves via Nav2, so a silent backstop regression now breaks S1
+SEMANTICS (premature release), not just timing.
 
 **A7. Step 0 status note.** The merged tree's rotation-probe
 signature PASSED (0/142 closed columns vs 12–13 pre-fix). The stage-1
