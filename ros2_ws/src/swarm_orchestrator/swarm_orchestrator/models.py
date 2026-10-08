@@ -5,7 +5,15 @@ import json
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from reasoning.baselines import ConflictZone
 from reasoning.rag.command_grounder import (
@@ -208,6 +216,18 @@ class TaskStreamConfig(BaseModel):
                 "mutually exclusive: set exactly one release clock"
             )
         return self
+
+    @model_serializer(mode="wrap")
+    def _omit_unused_wall_stagger(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        # The wall key's default would otherwise be dumped beside the sim
+        # key, and reloading that dump would trip the exclusion above; a
+        # wall-clock config dumps exactly as before the sim key existed.
+        data = handler(self)
+        if self.release_stagger_sim_sec is None:
+            data.pop("release_stagger_sim_sec", None)
+        else:
+            data.pop("release_stagger_wall_sec", None)
+        return data
 
     @model_validator(mode="after")
     def _enabled_stream_is_drawable(self) -> TaskStreamConfig:

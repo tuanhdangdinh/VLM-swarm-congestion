@@ -73,9 +73,21 @@ class TestConfig:
 
     def test_both_keys_rejected_through_yaml_loading(self):
         raw = _orchestrator(_sim_stream()).model_dump(mode="json")
+        assert "release_stagger_wall_sec" not in raw["task_stream"]
         raw["task_stream"]["release_stagger_wall_sec"] = 24.0
         with pytest.raises(ValidationError, match="mutually exclusive"):
             load_config(raw)
+
+    def test_sim_config_round_trips_through_its_dump(self):
+        config = _orchestrator(_sim_stream())
+        reloaded = load_config(config.model_dump(mode="json"))
+        assert reloaded.task_stream == config.task_stream
+        assert reloaded.task_stream.release_clock == "sim"
+
+    def test_wall_config_dump_is_unchanged(self):
+        dumped = TaskStreamConfig(release_stagger_wall_sec=24.0).model_dump(mode="json")
+        assert dumped["release_stagger_wall_sec"] == 24.0
+        assert "release_stagger_sim_sec" not in dumped
 
     def test_sim_key_alone_selects_the_sim_clock(self):
         assert _sim_stream().release_clock == "sim"
