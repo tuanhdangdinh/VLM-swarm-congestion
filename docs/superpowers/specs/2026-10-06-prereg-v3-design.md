@@ -704,9 +704,16 @@ occupant regardless of M2's naming) follows the scene doc.
 (ii) **junction_clear in S1: RECOMMENDED exclusion** from S1's
 accepted-strategy set (S1 jams are corridor/node class; the
 composite's grounding and its plain-yield fallback use declared
-geometry, which reproduces the mid-route defect). Final call at
-Step 6; the alternative (routing the fallback through the dynamic
-view) is recorded but not built.
+geometry, which reproduces the mid-route defect). Evidence basis:
+the wave's hand-computed W-lane mid-route head-on (robots at −1.6 /
+−1.2 on the +0.35 lane) is REFUSED outright by declared-geometry
+grounding and grounds cleanly under the dynamic view (corridor
+centre −1.4, park offset 0.646, backup 1.3 m — pinned in
+test_dynamic_grounding.py); junction_clear's fallback is a plain
+yield on that same declared path, so in an S1 mid-route jam the
+composite's failure mode is exactly the refused case above. Final
+call at Step 6; the alternative (routing the fallback through the
+dynamic view) is recorded but not built.
 (iii) **New S1-pilot BLOCKER (M4): escorts run
 drive_heading(target_yaw=0.0)** — assumes spawn-facing-goal; under
 task streams the passer (incl. a robot dwelling on a node) is
@@ -723,6 +730,15 @@ is audited against the MODEL'S OWN decision while defaults/repair
 use the dynamic view — an S2 plan giving the parked robot a role now
 scores `repaired` (one substitute edit) instead of `m3_default`;
 scoring reads provenance+edits as per the frozen analysis rules.
+R2-comparability clause: a parked-robot substitute DOES consume the
+repair bound and appears in the edit log as
+(op=substitute, robot_id ∈ parked_robots), and the command carries
+`grounding=parked_excluded:<id>` — so it is mechanically separable.
+The v3 freeze defines a `repaired_parked_only` subclass (precedent:
+`repaired_order_only`): plans whose ONLY edits are parked-robot
+substitutes are reported as their own stratum, keeping R2's
+edit-conditioned credit and the provenance distribution comparable
+between dynamic-mode and static-mode arms.
 (v) **Parked-robot mechanism = declared list**
 (`scenario_geometry.parked_robots` + 0.35 m tolerance), not a
 goal-arrived rule (which would strip S1 dwellers and IB10 leads);
