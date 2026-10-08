@@ -637,6 +637,57 @@ second-aisle mouth, fix-invariant, now reproduced on ldt + perm_wait
 controller tuning, per the carried exclusions; S4's immunity to the
 wedge is checked in its own VM wave).
 
+**A9. IB10 CLOSED under the A7a/A8 gate (2026-10-08).** The validation
+arm ran until both leads appeared; the remedy held under both
+(robot_3-led passes 0.438–0.499 m, robot_4-led 0.402–0.436 m; floor
+silent in 8/8 clean passes; release on clearance; 4/4 arrivals in all
+5 final-wave runs). FROZEN: pull-off 0.33 m (held-x −0.340..−0.354 vs
+wall bound −0.36 — do not raise), side −x (held pulled −x 8/8, lead
+passed +x 8/8 incl. 3/3 robot_3 leads), floor 0.20 m RULED a
+push-limiter backstop, not a contact preventer (its one true positive
+fired at/after contact; a speed-aware value is a Step 6 option, not a
+default). The cross→release hand-off race is FIXED (M4 guard,
+default-on with kill switch: suppress re-sends while a command owns
+the robot, cancel-own-goal not cancel-all, repeated controller stop
+for orphaned FollowPath — Nav2 1.3.12 bt_action_node halt() cannot
+cancel a goal whose handle has not spun); precursor 9/10 pre-fix →
+0/5 post-fix. SCORING RULING: frozen chi-pair criterion 2
+(`order_correct`) must read the EXECUTED recede order from
+`junction_phases`, not from `plan.legs` (which preserves the model's
+raw order) — otherwise every robot_3-led episode mis-scores; applies
+before any v3 IB10 cell is scored. The r3lead probe's Δ=0.15 nudge
+did NOT shift the offset distribution as predicted — do not reuse it
+to force leads. OPEN: the 0.32–0.35 m scan blind band (held robot
+drops out of the lead's scan; cause unknown; clean remedy passes stay
+above it).
+
+**A10. S6 first light (2026-10-08): scene validated; perceptibility
+gate REGISTERED before any S6 collection.** Mechanics all PASS (USD +
+validators, amended poses confirmed, dual jams formed 2/2 in
+overlapping windows, M1 100% FRESH on markers 3/4 incl. the 16 s
+hold, spawns clean, no self-detour). D moves 16 → ~20 wall-s
+PROVISIONAL (per-run ideal 17.4 and 24.7; M5 starts the delay clock
+~3–5 wall-s before pair A's goals reach Nav2; a recording-off ≥3-run
+timing pilot fixes it, or the delay is counted from pair A's dispatch
+— code change, owner's pick at Step 6). CORE RULING: the live ER-2
+pilot's FIRST decision named/addressed only pair B — but at that
+snapshot pair A still read MOVING in M1 (GT standoff only ~0.3 s
+earlier; M1 needs 0.6–1.3 s to report STOPPED). Scoring that snapshot
+measures trigger racing, not scene-wide attention. REGISTERED:
+S6's scored decision is the first triggered decision at which BOTH
+pairs are M1-perceptible as stopped; episodes where that never
+happens are invalid-formation, not model failures. A2's Arm-B
+`unknown` expectation is conditioned the same way (mock: 35/35
+`unknown` once both pairs stopped; the early live snapshot correctly
+returned `head_on` on the only perceptible pair). The pilot's later
+decisions all named both pairs — recorded as the first (n=1,
+non-confirmatory) sign that scene-wide naming works once the scene is
+perceptible. Harness: two new traps recorded (root-owned
+isaac/scenarios defeats build_scenario silently; Option B cleanup
+kills the video recorder — fc_launch fix owed); overlay for scoring
+needs `plan_channel_enabled: true` (used in the pilot, noted as a
+scoring-prereq for S6 cells).
+
 **A7. Step 0 status note.** The merged tree's rotation-probe
 signature PASSED (0/142 closed columns vs 12–13 pre-fix). The stage-1
 smoke failure was on an OFF-DESIGN route (goals routing around the
