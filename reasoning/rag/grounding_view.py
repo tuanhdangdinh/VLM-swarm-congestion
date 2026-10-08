@@ -311,8 +311,12 @@ def _lane_geometry(
     # from its partner. Every centre-relative junction field (J2, recede
     # pockets, release pull-off, tracked extent) is measured from the
     # declared junction centre, not from this conflict's midpoint, so none is
-    # carried over.
+    # carried over. Rear room is checked across the footprint and the yield
+    # gate scores only this pair (`SceneGeometry.rear_room_band`,
+    # `SceneGeometry.lane_robots`).
     return SceneGeometry(
+        rear_room_band="footprint",
+        lane_robots=(anchor.robot_id, partner.robot_id),
         corridor=corridor,
         camera=declared.camera,
         robot=declared.robot,
@@ -344,6 +348,10 @@ def _crossing_geometry(
     data = declared.model_dump()
     data["arms"] = arms
     data["corridor"] = {**data["corridor"], "axis": bearing_axis}
+    # The racks flanking each arm start at the box edge, which is every arm's
+    # mouth: rear room is checked across the footprint, not the aisle
+    # (`SceneGeometry.rear_room_band`).
+    data["rear_room_band"] = "footprint"
     return SceneGeometry.model_validate(data)
 
 
@@ -413,16 +421,19 @@ def derive_dynamic_arms(
        aisle width, no occluder and no arms. The existing passer-relative
        side rule then retreats the yielder away from its partner, its park
        target is `park_offset_m` from that midpoint, and the declared
-       static obstacles bound its rear room (`yield_retreat_room_m`) as
-       before. M4 backs a yielder up along its own -heading, so a yielder
-       facing away from its partner (it would back into the partner) is
-       swapped with the partner when the partner faces it; a `reverse`
-       leaves such a robot out of the reversing set
+       static obstacles bound its rear room (`yield_retreat_room_m`)
+       across its own swept footprint, not the aisle width, with only the
+       pair scored by the yield gate (`SceneGeometry.rear_room_band`,
+       `SceneGeometry.lane_robots`). M4 backs a yielder up along its own
+       -heading, so a yielder facing away from its partner (it would back
+       into the partner) is swapped with the partner when the partner faces
+       it; a `reverse` leaves such a robot out of the reversing set
        (`grounding=rear_exempt:<id>`).
     4. Crossing conflict (the two lanes differ, e.g. W lane against S arm):
        the declared corridor centre and box, with an arm per involved robot
        from its own heading (outward side = behind it, the declared-arm
-       convention) and the corridor axis set to the bearing axis.
+       convention) and the corridor axis set to the bearing axis. Rear
+       room is checked across the footprint here too.
     5. Anything else (a robot missing from the snapshot, a heading between
        axes, matching lanes across the bearing) keeps the declared
        geometry, tagged.

@@ -228,9 +228,13 @@ class TestOverlaySnippet:
 
     def test_static_obstacles_declare_the_racks_and_gate_blocks(self):
         boxes = _overlay()["static_obstacles"]
-        assert len(boxes) == 6
+        assert len(boxes) == 10
         centers = {(b["x"], b["y"]) for b in boxes}
         assert {(-1.55, 1.2), (1.55, 1.2), (-1.55, -1.2), (1.55, -1.2)} <= centers
+        # Tracked-band end caps (|x| <= 2.5, |y| <= 1.8) across each aisle.
+        caps = {(b["x"], b["y"]): (b["size_x_m"], b["size_y_m"]) for b in boxes}
+        assert caps[(-2.75, 0.0)] == caps[(2.75, 0.0)] == (0.5, 1.2)
+        assert caps[(0.0, 2.05)] == caps[(0.0, -2.05)] == (1.2, 0.5)
         gate = [b for b in boxes if b["x"] == 1.2]
         assert {b["y"] for b in gate} == {0.4375, -0.4375}
         # Gate blocks reproduce the A55-E barrier: x in [0.7, 1.7],

@@ -317,7 +317,12 @@ def classical_retreat_answer(
     if roles.refusal_reason is not None:
         return ClassicalRetreat(status="unavailable", reason=roles.refusal_reason, **base)
     selection = prepare_retreat_selection(
-        frame, roles.yielder_id, roles.crossing_order, context.params, geometry=context.geometry
+        frame,
+        roles.yielder_id,
+        roles.crossing_order,
+        context.params,
+        geometry=context.geometry,
+        static_obstacles=context.static_obstacles,
     )
     if not selection.backup.feasible:
         return ClassicalRetreat(

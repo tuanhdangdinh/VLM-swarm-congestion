@@ -163,6 +163,29 @@ class SceneGeometry(BaseModel):
     # as parked: M5's `arrival_position_tolerance_m`. Farther out it has been
     # displaced into the scene and is grounded like any involved robot.
     parked_pose_tolerance_m: float = Field(default=0.35, gt=0.0)
+    # The two fields below are set only by the dynamic-arms view
+    # (`reasoning.rag.grounding_view`), never declared; their defaults keep
+    # every declared scene byte-identical.
+    # Lateral band `yield_retreat_room_m` checks static obstacles across:
+    # "aisle" is `aisle_half_width_m` either side of the yielder, "footprint"
+    # its own swept width (`robot.half_width_m` either side). S1 declares the
+    # racks that flank every aisle as static obstacles, and a dynamic lane's
+    # mouth is the yielder's own position (a crossing's is the junction box
+    # edge, where the racks start), so across the aisle width each flanking
+    # rack straddles the mouth and reads as 0 m of room (S1 pilot ep1: every
+    # robot, 216/216 echo replays). Under "footprint" the aisle walls bound
+    # the sidestep through `GroundingParams.aisle_{x,y}_band_m` instead.
+    rear_room_band: Literal["aisle", "footprint"] = "aisle"
+    # The `(yielder, partner)` pair a dynamic lane corridor was derived from.
+    # The yield gate scores only these two: the lane says nothing about where
+    # any other involved robot would retreat.
+    lane_robots: tuple[str, str] | None = None
+
+    @model_validator(mode="after")
+    def _lane_robots_are_a_pair(self) -> SceneGeometry:
+        if self.lane_robots is not None and self.lane_robots[0] == self.lane_robots[1]:
+            raise ValueError("lane_robots must name two different robots")
+        return self
 
     @model_validator(mode="after")
     def _parked_robots_not_empty(self) -> SceneGeometry:
@@ -457,7 +480,10 @@ def yield_retreat_room_m(
     beyond that mouth and whose lateral extent overlaps the corridor's lateral
     band. The band is `aisle_half_width_m` either side of the yielder's own
     perpendicular coordinate: an obstacle parked in a neighbouring aisle is not
-    in this robot's way.
+    in this robot's way. With `geometry.rear_room_band == "footprint"` (the
+    dynamic-arms views) the band is the robot's own swept width instead,
+    `robot.half_width_m` either side, so the racks flanking its aisle do not
+    count.
 
     Args:
         yielder_position: The yielder's world-frame `(x, y)` in metres.
@@ -474,7 +500,11 @@ def yield_retreat_room_m(
     perp_index = 1 - axis_index
     mouth_coord = geometry.corridor.center_m + side * geometry.corridor.half_length_m
     band_center = yielder_position[perp_index]
-    band_half_width = geometry.corridor.aisle_half_width_m
+    band_half_width = (
+        geometry.corridor.aisle_half_width_m
+        if geometry.rear_room_band == "aisle"
+        else geometry.robot.half_width_m
+    )
 
     rooms: list[float] = []
     for obstacle in static_obstacles:
