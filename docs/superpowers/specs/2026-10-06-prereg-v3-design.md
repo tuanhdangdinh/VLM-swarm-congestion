@@ -946,6 +946,14 @@ self-free (277 sim-s). S1's direction (engineer cluster-clearing vs
 accept the clogged regime and prioritize the registered S1b) is an
 OWNER decision pending.
 
+**A14 corrigendum (2026-10-09).** A14(iv)'s "GT
+robot_static_contacts logged 0 rows during a physical pin" implied
+an under-detecting detector. The truth is stronger:
+acceptance_logging.py:99 HARD-CODES the field to [] on every
+lineage — it never could log any static contact. The docs-lineage
+caveat (fc73151) states it that way; v3 scorers must treat the
+field as a stub, not a measurement, until a real detector ships.
+
 **A7. Step 0 status note.** The merged tree's rotation-probe
 signature PASSED (0/142 closed columns vs 12–13 pre-fix). The stage-1
 smoke failure was on an OFF-DESIGN route (goals routing around the
