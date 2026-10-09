@@ -90,6 +90,7 @@ duration_sec: 600.0
 #     park_margin_m: 0.4
 #     wall_margin_m: 0.15
 #     passer_margin_m: 0.2
+#     junction_declared: true
 #   grounding_params_path: "config/grounding/s1_dynamic.yaml"
 #   grounding_aisle_y_band_m: null
 #   grounding_aisle_x_band_m: null

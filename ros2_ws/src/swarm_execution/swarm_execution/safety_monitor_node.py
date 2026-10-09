@@ -20,6 +20,12 @@ backup and pull-off (read from the ACTIVE status `detail`) that is every robot
 the command addressed; from the hold on, the passers admitted so far. Any robot
 outside that command (a bystander) keeps full protection against the clearing
 robot.
+Latch-aware scope (prereg-v3 A19): the clearing robot is also released,
+one-sidedly, from latches it already had with OTHER robots when its command
+started (`CoordinationTracker.capture_latch_partners`) -- otherwise a yielder
+latched to a third robot cannot back up at all (S1a anchor A2). Those robots
+stay held, a latch formed during the window fires as before, and each waiver
+ends once its pair separates. Logged as `latch waiver armed/released`.
 Nav2-goal legs (`reroute`, `convoy`, `navigate`, ...) and waits do not exempt
 anything. The action, the command's robots and a yield's passer order are read
 from `/coordination/commands`, because the command id carries the decision's
@@ -123,6 +129,11 @@ class SafetyMonitorNode(Node):
     # tuned to out-race DWB on cmd_vel; holds only needs to cover a late-joining
     # subscriber before the next scene-driven change, so 1 Hz is plenty).
     HOLDS_REFRESH_PERIOD_SEC = 1.0
+
+    # Class-level, immutable: the previous evaluation's latched pairs (read
+    # at command start) and the last logged A19 waiver set.
+    _latched_pairs: frozenset[tuple[str, str]] = frozenset()
+    _waivers: frozenset[tuple[str, str]] = frozenset()
 
     def __init__(self) -> None:
         super().__init__("safety_monitor_node")
@@ -231,7 +242,18 @@ class SafetyMonitorNode(Node):
             ):
                 speeders.add(robot_id)
 
+        for robot_id, command_id, partners in self._coordination.capture_latch_partners(
+            self._latched_pairs
+        ):
+            self.get_logger().info(
+                f"latch waiver armed robot={robot_id} command={command_id} "
+                f"partners={','.join(partners)}"
+            )
         exemption = self._coordination.exemption()
+        if exemption.waivers != self._waivers:
+            self._waivers = exemption.waivers
+            waivers = ",".join(f"{a}>{b}" for a, b in sorted(exemption.waivers))
+            self.get_logger().info(f"latch waivers changed waivers={waivers or '-'}")
         if exemption.pairs != self._exempt_pairs:
             self._exempt_pairs = exemption.pairs
             pairs = ",".join(f"{a}+{b}" for a, b in sorted(exemption.pairs or ()))
@@ -244,6 +266,14 @@ class SafetyMonitorNode(Node):
             exemption,
         )
         self._last_fresh_distances = evaluation.last_fresh_distances
+        self._latched_pairs = evaluation.latched_pairs
+        for robot_id, command_id, partner in self._coordination.release_separated_waivers(
+            evaluation.latched_pairs
+        ):
+            self.get_logger().info(
+                f"latch waiver released robot={robot_id} command={command_id} "
+                f"partner={partner} reason=separated"
+            )
         # Pair rules are already scoped inside evaluate_latches, so a clearing
         # robot latched against a bystander stays latched; only the per-robot
         # speed rule still exempts clearing robots outright.

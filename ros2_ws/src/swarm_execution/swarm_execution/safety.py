@@ -59,16 +59,29 @@ class ClearingExemption:
             pre-2026-09-28 robot scope, where every pair containing a clearing
             robot is skipped; it remains for callers that pass a bare robot
             set.
+        waivers: ONE-SIDED latch waivers, as ordered
+            `(clearing_robot, partner)` (prereg-v3 A19): the pair rules do
+            not hold `clearing_robot` for this pair, but still hold
+            `partner`, and the hard-contact floor still applies. Only robots
+            the clearing robot was already latched with when its command
+            started (`CoordinationTracker.capture_latch_partners`); empty
+            unless such a latch existed, which keeps every other case
+            byte-identical.
     """
 
     clearing_robots: frozenset[str] = frozenset()
     pairs: frozenset[tuple[str, str]] | None = None
+    waivers: frozenset[tuple[str, str]] = frozenset()
 
     def covers_pair(self, a_id: str, b_id: str) -> bool:
         """Return True if the pair `(a_id, b_id)` is exempt from the pair rules."""
         if self.pairs is None:
             return a_id in self.clearing_robots or b_id in self.clearing_robots
         return _pair_key(a_id, b_id) in self.pairs
+
+    def waives(self, robot_id: str, other_id: str) -> bool:
+        """Return True if `robot_id` is not held by its pair with `other_id`."""
+        return (robot_id, other_id) in self.waivers
 
 
 ExemptInput = set[str] | frozenset[str] | ClearingExemption
@@ -244,6 +257,11 @@ class LatchEvaluation:
     # Exempt pairs latched by the hard-contact floor, with their distance;
     # always empty while `SafetyLimits.hard_contact_floor_m` is 0.0.
     floor_breaches: dict[tuple[str, str], float] = field(default_factory=dict)
+    # Sorted pairs engaged by the min-distance or the STALE remembered-
+    # distance rule, a waived pair included (its partner is still held):
+    # what `CoordinationTracker.capture_latch_partners` reads at command
+    # start and `release_separated_waivers` reads afterwards.
+    latched_pairs: frozenset[tuple[str, str]] = frozenset()
 
 
 def is_clearing_action(action: str | None) -> bool:
@@ -329,6 +347,11 @@ class CoordinationTracker:
         # `continue` partners (freeze-blocking finding 3, step-7a fix); empty
         # for every pre-step-7a command and absent entirely once evicted.
         self._plan_partners_by_key: dict[tuple[str, str], frozenset[str]] = {}
+        # (command_id, robot_id) -> the robots a clearing robot was already
+        # latched with when its command started (prereg-v3 A19), minus those
+        # it has since separated from. Present (possibly empty) once captured,
+        # so a latch formed later in the window is never added.
+        self._waiver_by_key: dict[tuple[str, str], set[str]] = {}
 
     def record_command(
         self,
@@ -408,6 +431,7 @@ class CoordinationTracker:
             self._completed_by_command.setdefault(command_id, set()).add(robot_id)
         self._action_by_key.pop((command_id, robot_id), None)
         self._backing_up_by_key.pop((command_id, robot_id), None)
+        self._waiver_by_key.pop((command_id, robot_id), None)
         if self._active_by_robot.get(robot_id) == command_id:
             del self._active_by_robot[robot_id]
             return True
@@ -470,7 +494,87 @@ class CoordinationTracker:
                 plan_partners=self._plan_partners_by_key.get(key, frozenset()),
             )
             pairs.update(_pair_key(robot_id, partner) for partner in partners)
-        return ClearingExemption(clearing_robots=clearing, pairs=frozenset(pairs))
+        waivers = frozenset(
+            (robot_id, partner)
+            for robot_id in clearing
+            for partner in self._waiver_by_key.get(
+                (self._active_by_robot[robot_id], robot_id), ()
+            )
+        )
+        return ClearingExemption(
+            clearing_robots=clearing, pairs=frozenset(pairs), waivers=waivers
+        )
+
+    def capture_latch_partners(
+        self, latched_pairs: frozenset[tuple[str, str]] | set[tuple[str, str]]
+    ) -> list[tuple[str, str, tuple[str, ...]]]:
+        """Freeze, once per clearing command, the robots it starts out latched with.
+
+        prereg-v3 A19 (S1a anchor A2): a yield dispatched to a robot already
+        latched to a THIRD robot cannot move, because its exemption covers
+        only its own command's robots. The first call after a robot's clearing
+        command becomes known (ACTIVE status and command both seen) records
+        the partners of its pairs in `latched_pairs` -- the previous
+        evaluation's, i.e. the latches standing at command start -- excluding
+        the command's own robots and same-plan partners, whose pairs the
+        existing admission rules govern unchanged. Later calls never add to
+        it: a latch formed during the window still fires. Not a radius:
+        only pairs the latch rules actually engaged.
+
+        Args:
+            latched_pairs: `LatchEvaluation.latched_pairs` of the latest
+                evaluation.
+
+        Returns:
+            `(robot_id, command_id, partners)` for each command armed by this
+            call with at least one partner, for logging.
+        """
+        armed: list[tuple[str, str, tuple[str, ...]]] = []
+        for robot_id in sorted(self.exempt_robots()):
+            command_id = self._active_by_robot[robot_id]
+            key = (command_id, robot_id)
+            if key in self._waiver_by_key:
+                continue
+            own = set(self._members_by_command.get(command_id, ()))
+            own |= set(self._order_by_command.get(command_id, ()))
+            own |= self._plan_partners_by_key.get(key, frozenset())
+            partners = {
+                b if a == robot_id else a
+                for a, b in latched_pairs
+                if robot_id in (a, b)
+            } - own - {robot_id}
+            self._waiver_by_key[key] = partners
+            while len(self._waiver_by_key) > self.MAX_TRACKED_COMMANDS:
+                self._waiver_by_key.pop(next(iter(self._waiver_by_key)))
+            if partners:
+                armed.append((robot_id, command_id, tuple(sorted(partners))))
+        return armed
+
+    def release_separated_waivers(
+        self, latched_pairs: frozenset[tuple[str, str]] | set[tuple[str, str]]
+    ) -> list[tuple[str, str, str]]:
+        """End each waiver whose pair is no longer latched.
+
+        A waiver lets the commanded robot leave a latch that stood at command
+        start; once the pair is no longer engaged (a fresh reading at or
+        beyond `min_distance_m`, or past the STALE band) the latch it covered
+        is gone, and the pair is protected normally again for the rest of the
+        window.
+
+        Args:
+            latched_pairs: `LatchEvaluation.latched_pairs` of the latest
+                evaluation.
+
+        Returns:
+            `(robot_id, command_id, partner)` for each waiver ended.
+        """
+        released: list[tuple[str, str, str]] = []
+        for (command_id, robot_id), partners in self._waiver_by_key.items():
+            for partner in sorted(partners):
+                if _pair_key(robot_id, partner) not in latched_pairs:
+                    partners.discard(partner)
+                    released.append((robot_id, command_id, partner))
+        return released
 
 
 def detect_proximity_violations(
@@ -493,7 +597,8 @@ def detect_proximity_violations(
     unlatches the yielder but still latches its partner. The monitor passes
     `CoordinationTracker.exemption()`, which exempts only the clearing robot
     paired with its own command's partners, so a bystander still latches
-    against a backing yielder.
+    against a backing yielder. A waived pair (`ClearingExemption.waivers`,
+    prereg-v3 A19) still violates, but flags only its non-waived side.
 
     Args:
         robots: Robot state dicts, each with `robot_id`, `x`, and `y`.
@@ -504,15 +609,27 @@ def detect_proximity_violations(
     Returns:
         The set of `robot_id`s involved in at least one violating pair.
     """
-    exemption = _as_exemption(exempt)
+    flagged, _pairs = _proximity_violations(robots, min_distance_m, _as_exemption(exempt))
+    return flagged
+
+
+def _proximity_violations(
+    robots: list[dict], min_distance_m: float, exemption: ClearingExemption
+) -> tuple[set[str], set[tuple[str, str]]]:
     flagged: set[str] = set()
+    pairs: set[tuple[str, str]] = set()
     for a, b in combinations(robots, 2):
-        if exemption.covers_pair(a["robot_id"], b["robot_id"]):
+        a_id, b_id = a["robot_id"], b["robot_id"]
+        if exemption.covers_pair(a_id, b_id):
             continue
         distance = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
         if distance < min_distance_m:
-            flagged.add(a["robot_id"])
-            flagged.add(b["robot_id"])
+            pairs.add(_pair_key(a_id, b_id))
+            if not exemption.waives(a_id, b_id):
+                flagged.add(a_id)
+            if not exemption.waives(b_id, a_id):
+                flagged.add(b_id)
+    return flagged, pairs
     return flagged
 
 
@@ -567,6 +684,12 @@ def evaluate_latches(
     lifts only once a non-STALE reading shows the pair at or beyond
     `min_distance_m`.
 
+    prereg-v3 A19 waivers (`ClearingExemption.waivers`) are one-sided in
+    every rule: a waived pair still engages (it is in `latched_pairs` and its
+    partner is held) but does not hold its clearing robot, except under the
+    hard-contact floor, which latches both robots of a waived pair as it does
+    an exempt one.
+
     Exempt pairs skip rule 2's remembered-distance latch exactly as they skip
     rule 1: a commanded backup is the designed way out of a close standoff and
     the fail-safe must not stall it. The keep-the-existing-latch half is per
@@ -595,17 +718,22 @@ def evaluate_latches(
     latched: set[str] = set()
     reasons: dict[str, str] = {}
 
-    for robot_id in detect_proximity_violations(
-        robots, limits.min_distance_m, exemption
-    ):
+    flagged, latched_pairs = _proximity_violations(robots, limits.min_distance_m, exemption)
+    for robot_id in flagged:
         latched.add(robot_id)
         reasons[robot_id] = REASON_MIN_DISTANCE
 
     floor_breaches: dict[tuple[str, str], float] = {}
     if limits.hard_contact_floor_m > 0.0:
         for a, b in combinations(robots, 2):
-            # An unexempted pair already latched at min_distance_m above.
-            if not exemption.covers_pair(a["robot_id"], b["robot_id"]):
+            a_id, b_id = a["robot_id"], b["robot_id"]
+            # An unexempted, unwaived pair already latched at min_distance_m
+            # above (both robots).
+            if not (
+                exemption.covers_pair(a_id, b_id)
+                or exemption.waives(a_id, b_id)
+                or exemption.waives(b_id, a_id)
+            ):
                 continue
             distance = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
             if distance >= limits.hard_contact_floor_m:
@@ -626,7 +754,9 @@ def evaluate_latches(
         memory[_pair_key(a["robot_id"], b["robot_id"])] = distance
 
     if not limits.stale_pose_is_unsafe:
-        return LatchEvaluation(frozenset(latched), reasons, memory, floor_breaches)
+        return LatchEvaluation(
+            frozenset(latched), reasons, memory, floor_breaches, frozenset(latched_pairs)
+        )
 
     robot_ids = [r["robot_id"] for r in robots]
     for a_id, b_id in combinations(robot_ids, 2):
@@ -637,7 +767,10 @@ def evaluate_latches(
         last_distance = memory.get(_pair_key(a_id, b_id))
         if last_distance is None or last_distance >= limits.stale_unsafe_distance_m:
             continue
-        for robot_id in (a_id, b_id):
+        latched_pairs.add(_pair_key(a_id, b_id))
+        for robot_id, other_id in ((a_id, b_id), (b_id, a_id)):
+            if exemption.waives(robot_id, other_id):
+                continue
             latched.add(robot_id)
             reasons.setdefault(robot_id, REASON_STALE_POSE)
 
@@ -647,4 +780,6 @@ def evaluate_latches(
         latched.add(robot_id)
         reasons.setdefault(robot_id, REASON_STALE_POSE)
 
-    return LatchEvaluation(frozenset(latched), reasons, memory, floor_breaches)
+    return LatchEvaluation(
+        frozenset(latched), reasons, memory, floor_breaches, frozenset(latched_pairs)
+    )

@@ -97,6 +97,8 @@ _S1_GEOMETRY_ARGS: dict[str, Any] = {
         "aisle_half_width_m": 0.6,
         "occluder_height_m": 0.0,
     },
+    # S1a's junction box is a real junction (prereg-v3 A16(iii)).
+    "junction_declared": True,
 }
 
 _HEAD_ON: dict[str, Pose] = {"robot_1": (-0.2, 0.0, 0.0), "robot_2": (0.2, 0.0, math.pi)}

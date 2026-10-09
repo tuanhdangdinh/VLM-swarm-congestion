@@ -78,6 +78,8 @@ _S1 = SceneGeometry.model_validate(
             "aisle_half_width_m": 0.6,
             "occluder_height_m": 0.9,
         },
+        # S1a's junction box is a real junction (prereg-v3 A16(iii)).
+        "junction_declared": True,
     }
 )
 _DYNAMIC = GroundingParams(
