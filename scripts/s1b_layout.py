@@ -75,6 +75,18 @@ def s1b_nodes(scenario) -> dict[str, tuple[float, float]]:
     )
 
 
+def s1b_overlay(scenario) -> dict:
+    """The scenario header's M5 overlay snippet as a dict."""
+    import yaml
+
+    lines = Path(scenario).read_text().splitlines()
+    begin = lines.index("#   --- M5 overlay begin ---")
+    end = lines.index("#   --- M5 overlay end ---")
+    return yaml.safe_load(
+        "\n".join(line[4:] if line != "#" else "" for line in lines[begin + 1 : end])
+    )
+
+
 def s1b_regions(islands) -> list[tuple[str, tuple[float, float, float, float]]]:
     """Named regions: the inter-island corridor first, then the island gaps."""
     (_, ax0, ax1, ay0, ay1), (_, bx0, bx1, by0, by1) = sorted(islands, key=lambda i: i[1])

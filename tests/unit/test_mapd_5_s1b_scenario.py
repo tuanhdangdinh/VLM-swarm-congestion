@@ -59,10 +59,10 @@ S1A_GROUNDING = REPO_ROOT / "config/grounding/s1_dynamic.yaml"
 RES = 0.05
 
 NODE_POSES = {
-    "Wp": (-2.3, 1.2, 0.0),
-    "Wm": (-2.3, -1.2, 0.0),
-    "N": (0.05, 1.55, -math.pi / 2),
-    "S": (0.05, -1.55, math.pi / 2),
+    "Wp": (-2.3, 1.35, 0.0),
+    "Wm": (-2.3, -1.35, 0.0),
+    "N": (-0.25, 1.35, -math.pi / 2),
+    "S": (-0.25, -1.35, math.pi / 2),
     "E": (2.3, 0.0, math.pi),
 }
 NODES_XY = {node: (x, y) for node, (x, y, _) in NODE_POSES.items()}
@@ -191,6 +191,16 @@ class TestScenarioYaml:
         assert min(gaps) == pytest.approx(0.90)
         assert all(g >= 0.88 - 1e-9 for g in gaps)
 
+    def test_lane_nodes_sit_on_the_gap_and_corridor_centrelines(self):
+        # Wp-N runs along the island_w north gap's centreline and Wm-S, its
+        # mirror, 0.10 m south of the (1.10 m) south gap's; N-S runs down the
+        # inter-island corridor's centreline (the grounding-driven alignment).
+        (ax0, ax1, ay0, ay1), (bx0, _, _, _) = ISLANDS
+        assert NODES_XY["Wp"][1] == NODES_XY["N"][1] == pytest.approx((ay1 + BAND[3]) / 2)
+        assert NODES_XY["Wm"][1] == NODES_XY["S"][1] == pytest.approx(-NODES_XY["Wp"][1])
+        assert BAND[2] < NODES_XY["S"][1] < ay0
+        assert NODES_XY["N"][0] == NODES_XY["S"][0] == pytest.approx((ax1 + bx0) / 2)
+
     def test_nodes_sit_inside_the_s1a_envelope_off_the_islands(self):
         for x, y in NODES_XY.values():
             assert abs(x) <= 2.3 and abs(y) <= 1.55
@@ -203,7 +213,7 @@ class TestScenarioYaml:
     def test_no_node_sits_in_another_nodes_handoff_radius(self):
         pts = list(NODES_XY.values())
         dmin = min(math.dist(a, b) for i, a in enumerate(pts) for b in pts[i + 1 :])
-        assert dmin == pytest.approx(2.376, abs=1e-3)
+        assert dmin == pytest.approx(2.05, abs=1e-3)
         assert dmin > 4 * 0.5
 
     def test_labels_and_forbidden_pair_are_s1as(self):
@@ -299,11 +309,11 @@ class TestOverlaySnippet:
 
     def test_release_stagger_is_the_recomputed_sim_delta(self):
         # R3.6a: Delta is recomputed for the S1b legs:
-        # 4 Delta < (L_min - 0.45) / v with L_min = 2.376 (Wp-N / Wm-S).
+        # 4 Delta < (L_min - 0.45) / v with L_min = 2.05 (Wp-N / Wm-S).
         stream = _overlay()["task_stream"]
-        assert stream["release_stagger_sim_sec"] == 3.0
+        assert stream["release_stagger_sim_sec"] == 2.5
         assert "release_stagger_wall_sec" not in stream
-        bound = (2.376 - 0.45) / 0.15 / 4.0
+        bound = (2.05 - 0.45) / 0.15 / 4.0
         assert stream["release_stagger_sim_sec"] < bound
 
     def test_snippet_loads_into_the_m5_config_and_replans_the_draw(self):
@@ -325,7 +335,7 @@ class TestOverlaySnippet:
         sequences = draw_task_sequences(plan.seed, plan.start_nodes, NODES_XY, 5, FORBIDDEN)
         assert {rid: tuple(t.node for t in q) for rid, q in plan.tasks.items()} == sequences
         assert config.task_stream.release_clock == "sim"
-        assert plan.release_offsets_sim_sec == {rid: i * 3.0 for i, rid in enumerate(ROBOTS)}
+        assert plan.release_offsets_sim_sec == {rid: i * 2.5 for i, rid in enumerate(ROBOTS)}
 
     def test_declared_corridor_is_s1as_box(self):
         # aisle_half_width_m sets the dynamic-lane sidestep (0.6 - 0.24 = 0.36).

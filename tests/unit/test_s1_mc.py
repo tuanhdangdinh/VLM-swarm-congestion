@@ -67,8 +67,9 @@ def test_s1a_reproduction_shape_on_sixty_draws(s1a):
 def test_s1b_has_no_delta_artifact_at_its_stagger():
     floor = L.s1b_floor()
     routes = M.build_routes(floor, "grid")
+    delta = L.s1b_overlay(L.S1B_SCENARIO)["task_stream"]["release_stagger_sim_sec"]
     eps = [
-        M.run_episode(floor, routes, s, delta=3.0, finished="park", freeze=True)
+        M.run_episode(floor, routes, s, delta=delta, finished="park", freeze=True)
         for s in range(1, 41)
     ]
     assert M.summarise(eps)["first_delta_artifact"] == 0

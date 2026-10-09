@@ -325,6 +325,34 @@ class Robot:
     moving: bool = False
 
 
+# Spawn heading per node label (scene design S1 / mapd_5 header; S1b keeps
+# the labels' yaws).
+NODE_YAW = {"Wp": 0.0, "Wm": 0.0, "N": -math.pi / 2, "S": math.pi / 2, "E": math.pi}
+
+
+def _snapshot_row(r: Robot, floor: Floor) -> dict:
+    """One robot as a Layer-2 snapshot sees it: pose, M1-like status, registry goal."""
+    if r.phase in ("travel",):
+        goal = floor.nodes[r.target]
+    elif r.phase == "held":
+        goal = floor.nodes[r.tasks[0]]
+    elif r.phase == "dwell":
+        goal = floor.nodes[r.node]
+    elif r.phase == "frozen":
+        goal = floor.nodes[r.target] if r.target else floor.nodes[r.node]
+    else:  # done (parked)
+        goal = floor.nodes[r.node]
+    return {
+        "robot_id": r.rid,
+        "x": r.x,
+        "y": r.y,
+        "theta": r.heading,
+        "status": "MOVING" if r.phase == "travel" else "STOPPED",
+        "goal": goal,
+        "phase": r.phase,
+    }
+
+
 def kind_of(a: Robot, b: Robot) -> str:
     if not (a.moving and b.moving):
         return "static"
@@ -463,8 +491,13 @@ def run_episode(
     freeze: bool,
     horizon: float = 600.0,
     reroute: bool = False,
+    snapshot_delay: float | None = None,
 ) -> dict:
     """Simulate one seeded episode; return its encounter / flow record.
+
+    `snapshot_delay` (freeze mode): also record every robot's state
+    `snapshot_delay` sim-s after the first encounter (`first_snapshot`), the
+    scene a stall-triggered Layer-2 analysis would see.
 
     `reroute` (freeze mode only, the latch-cluster-risk variant): after each
     new freeze, every travelling robot whose remaining route passes within
@@ -479,7 +512,9 @@ def run_episode(
     for k, rid in enumerate(ROBOTS):
         r = Robot(rid, starts[rid], list(seqs[rid]), k * delta)
         r.x, r.y = floor.nodes[r.node]
+        r.heading = NODE_YAW.get(r.node, 0.0)
         robots.append(r)
+    first_snapshot: list[dict] | None = None
 
     def start_leg(r: Robot, dest: str, t: float) -> None:
         r.path = Path_(routes[(r.node, dest)])
@@ -633,7 +668,16 @@ def run_episode(
                     r.s = 0.0
                     reroutes += 1
                 new_freeze = False
-            if all(r.phase in ("frozen", "done") for r in robots):
+            if (
+                snapshot_delay is not None
+                and first_snapshot is None
+                and encounters
+                and t >= encounters[0]["t"] + snapshot_delay - 1e-9
+            ):
+                first_snapshot = [_snapshot_row(r, floor) for r in robots]
+            if all(r.phase in ("frozen", "done") for r in robots) and (
+                snapshot_delay is None or first_snapshot is not None
+            ):
                 break
     # final clusters over frozen pairs
     parent = {r.rid: r.rid for r in robots}
@@ -657,6 +701,7 @@ def run_episode(
         "wander_legs": wander_legs,
         "biggest_cluster": biggest,
         "t_end": t,
+        "first_snapshot": first_snapshot,
         "reroutes": reroutes,
         "t_cluster3": t_cluster3,
         "contacts": contacts + [dict(v, open=True) for v in open_contacts.values()],

@@ -43,7 +43,6 @@ S1A_MC_FIRST_MEDIAN_S = 15.0  # S1a registered MC row (scene design S1, row D)
 S1A_MC_JUNCTION_SHARE = 309 / 400
 S1A_LIVE_FIRST_S = {"E1": 17.94, "E2": 18.74}
 DELTA_S1A = 4.0
-DELTA_S1B = 3.0
 
 
 def thresholds() -> dict:
@@ -62,9 +61,12 @@ def thresholds() -> dict:
     # are a release-schedule defect, not congestion; S1a's MC had 0/400. The
     # tolerance is G1's: <= 1/(2R) of first conflicts.
     artifact_max = 1.0 / (2 * R_PER_ARM)
-    # G5a: the pilot must be able to show a resolution: P(first conflict
-    # resolvable by one yield) = q with 1 - (1 - q)^2 >= 0.95 over the
-    # 2-episode pilot -> q >= 1 - sqrt(0.05).
+    # G5a-geo: the FLOOR must let the pilot show a resolution: P(some member
+    # of the first-conflict pair has 1.7 - gap m of clear rear room) = q with
+    # 1 - (1 - q)^2 >= 0.95 over the 2-episode pilot -> q >= 1 - sqrt(0.05).
+    # A footprint property only: whether M3 + the echo mock then GROUND an
+    # executable yield is measured by scripts/s1_grounding_replay.py and
+    # reported, not gated (an M3 capability, not the floor's).
     q_min = 1.0 - math.sqrt(0.05)
     return {
         "G1_p_event_min": p_event,
@@ -72,7 +74,7 @@ def thresholds() -> dict:
         "G2_p90_first_max_s": p90_max,
         "G3_window_share_max": "S1a's own share under the same router (computed)",
         "G4_artifact_max": artifact_max,
-        "G5a_first_resolvable_min": q_min,
+        "G5a_geo_first_resolvable_min": q_min,
         "G5b_multi_contact_max": "S1a's own rate under the same router (computed)",
     }
 
@@ -95,10 +97,13 @@ def main() -> None:
     """Entry point."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=400)
+    ap.add_argument("--scenario", type=Path, default=L.S1B_SCENARIO)
     args = ap.parse_args()
     th = thresholds()
     s1a = M.s1a_floor()
-    s1b = L.s1b_floor()
+    s1b = L.s1b_floor(args.scenario)
+    # S1b's own stagger, read from its overlay (recomputed per R3.6a).
+    delta_b = L.s1b_overlay(args.scenario)["task_stream"]["release_stagger_sim_sec"]
     ra_grid = M.build_routes(s1a, "grid")
     ra_nom = M.build_routes(s1a, "nominal")
     rb = M.build_routes(s1b, "grid")
@@ -108,13 +113,13 @@ def main() -> None:
         ),
         "s1a_grid_park_d4": mc_row(s1a, ra_grid, DELTA_S1A, "park", args.n),
         "s1a_grid_park_d4_reroute": mc_row(s1a, ra_grid, DELTA_S1A, "park", args.n, reroute=True),
-        "s1b_grid_park_d3": mc_row(s1b, rb, DELTA_S1B, "park", args.n),
-        "s1b_grid_park_d3_reroute": mc_row(s1b, rb, DELTA_S1B, "park", args.n, reroute=True),
-        "s1b_grid_wander_d3": mc_row(s1b, rb, DELTA_S1B, "wander", args.n),
+        "s1b_grid_park": mc_row(s1b, rb, delta_b, "park", args.n),
+        "s1b_grid_park_reroute": mc_row(s1b, rb, delta_b, "park", args.n, reroute=True),
+        "s1b_grid_wander": mc_row(s1b, rb, delta_b, "wander", args.n),
         "s1b_grid_park_d4 (S1a's Delta on S1b)": mc_row(s1b, rb, DELTA_S1A, "park", args.n),
     }
     a = rows["s1a_grid_park_d4"]
-    b = rows["s1b_grid_park_d3"]
+    b = rows["s1b_grid_park"]
     fa, fb = a["freeze"], b["freeze"]
     n = fb["episodes"]
     gates = {
@@ -130,10 +135,10 @@ def main() -> None:
             "<=",
             th["G4_artifact_max"],
         ),
-        "G5a first conflict resolvable by one yield": (
+        "G5a-geo first conflict geometrically resolvable by one yield": (
             fb["first_resolvable"] / fb["with_encounter"],
             ">=",
-            th["G5a_first_resolvable_min"],
+            th["G5a_geo_first_resolvable_min"],
         ),
         "G5b >=3-robot contact onsets / episode (pass-through)": (
             b["free_flow"]["multi_contact_events_per_episode"],
@@ -153,6 +158,8 @@ def main() -> None:
         json.dumps(
             {
                 "n": args.n,
+                "scenario": str(args.scenario),
+                "delta_s1b": delta_b,
                 "thresholds": th,
                 "rows": rows,
                 "gates": verdict,
