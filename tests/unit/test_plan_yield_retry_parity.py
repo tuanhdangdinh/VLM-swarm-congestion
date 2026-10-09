@@ -25,6 +25,7 @@ from reasoning.rag.command_grounder import (
     verify_and_repair_plan,
 )
 from reasoning.rag.grounding_view import resolve_grounding_view
+from reasoning.rag.plan_metrics import score_decision_artifact, score_plan_decision
 from reasoning.vlm.models import (
     CongestionDecision,
     ProposedPlanLeg,
@@ -149,6 +150,32 @@ def test_both_retreats_failing_defaults_the_plan_to_the_refusal(name: str):
     )
     assert {leg.action for leg in verified.legs if leg.robot_id in case["involved"]} == {"wait"}
     assert plan_matches_dispatch(verified.legs, command, [r.robot_id for r in frame.robots])
+
+
+@pytest.mark.parametrize(
+    ("name", "yielder"),
+    [("s1b_both_fail_sweep", "robot_2"), ("s1b_ambiguous_refused", "robot_2"),
+     ("s1b_sweep_regrounded_exec", "robot_2")],
+)
+def test_rejection_stage_round_trips_through_the_stored_plan_block(name: str, yielder: str):
+    # `plan unrepairable: ...` (retry or view refusal) re-scores offline as
+    # the stage the verifier recorded live, not as `inconsistent`.
+    case, config, params, frame = _scene(name)
+    decision = _plan(case["involved"], yielder)
+    verified = _verify(decision, frame, config, params)
+    artifact = {
+        "decision": decision.model_dump(mode="json"),
+        "plan": {
+            "provenance": verified.provenance,
+            "legs": [leg.model_dump(mode="json") for leg in verified.legs],
+            "edits": [edit.model_dump(mode="json") for edit in verified.edits],
+            "rejection_reason": verified.rejection_reason,
+            "dispatch_matches_plan": True,
+        },
+    }
+    assert score_decision_artifact(artifact) == score_plan_decision(
+        decision, verified, dispatch_matches_plan=True
+    )
 
 
 def test_partner_facing_away_is_never_repaired_onto():
