@@ -888,6 +888,64 @@ headings use registry mission goals (replay used snapshot goals);
 stage 2 live selection unexercised; the whole chain is
 closed-loop-unverified on the VM (static replay only).
 
+**A14. S1 episode dynamics: findings, fixes, environment exonerated
+(2026-10-09; reports s1-pilot-resume, s1-e2-e3, env-audit; integration
+@face0f1 lineage).**
+(i) **Closed-loop verdicts for the A13 chain (E1, one executed
+yield):** backup line-hold 1.2 mm lateral over 1.37 m; sidestep
+1.3 cm; escort tracking 3.5 cm vs the 12 cm budget; M4 clearance
+release correct. The mechanical chain is live-verified.
+(ii) **Fixes shipped (flag-gated, dynamic/task-stream only):**
+`refusal_no_action` (refusal wait fan-outs withheld, artifact gets a
+dispatch_withheld block, suppression arms — E1's 46 analyses → E2's
+4–5 with ~200 avoided; ACCOUNTING RULE: artifacts with
+dispatch_withheld count as NOT dispatched even though
+dispatched_command is populated); `escort_turn_cap` (escort+clearance
+capped at the passer's distance-to-turn; E1 measured the uncapped
+2.35 m carrying the passer 0.4 m past its turn into a latch). UNITS
+RULING: hold backstop and wait timers run in SIM seconds
+(use_sim_time); the A11(iii) wall-second gate arithmetic is
+superseded — in sim units the backstop passes at any RTF.
+(iii) **The 0.00 m ambiguous-path defect:** a robot heading >30° off
+an axis falls to the declared-geometry fallback whose corridor
+mouths sit on the rack faces → fake 1.1e-16 room for everyone.
+Step 6 item: the ambiguous path must refuse with its true reason,
+never a fabricated 0.00. The outcome in S1 is unchanged by the
+defect (hand-checks: the refused robots were genuinely pinned or
+latch-bound).
+(iv) **CENTRAL FINDING — latch-cluster gridlock:** at S1a density the
+0.45 m safety latch forms permanent multi-robot clusters (2 pairs in
+E1; 5/5 robots from ~47 sim-s in E2 before Layer 2 acted; the OLD
+VM's seed-1 pilot froze identically at +19.2 s vs E2's +18.7). The
+only latch release is an exempt clearing maneuver, and the dynamic
+view refuses exactly these sandwiched/ambiguous configurations
+(verified genuine geometry, not a bug, for the latch-bound cases).
+E1 additionally measured Layer-2 wait-spam cancelling Nav2 goals
+before recoveries could fire (0 recoveries; the old pilot's
+self-free spin never ran) — mitigated by refusal_no_action but not
+yet re-verified closed-loop on a wedge.
+(v) **ENVIRONMENT EXONERATED (pre-registered A/B):** Nav2-1.3.12
+container reproduces E2 (first latch Δ0.4 s, same pairs, 5/5 frozen,
+paths ≤1.8 cm); package delta reduces to pydantic+GPU-driver, covered
+by cross-VM seed-1 kinematics (≤1.2 cm, ≤0.14 s); DDS profile live
+on all nodes; seed draws byte-equal (Mac/container/runtime, 3
+seeds); both boxes are 6.0.1 SOURCE builds with identical Kit
+stamps. CORRECTIONS: A9's "Nav2 1.3.12" is the upstream SOURCE
+version read during that work, not the installed version — both VMs
+run 1.3.13 (inferred for the old box); bt_action_node.hpp is
+unchanged 1.3.12→1.3.13 so A9's mechanism stands, label amended.
+The s1-pilot-resume caveat "old box = automator release build" is
+wrong (both source builds).
+(vi) **Open:** seed 2 is a 1-in-144 harsh draw (4 robots to S);
+robot_2's SW-corner graze is deterministic but asymmetric vs its
+mirror (0.040 vs 0.11 m, unexplained); empty-reroute fallback (no
+waypoints) is dispatchable and M4's handling is unverified;
+wandering-vs-park remains undecided (0 finishers in pilot/E1/E2);
+the stop-rule window (150 sim-s) is shorter than the one measured
+self-free (277 sim-s). S1's direction (engineer cluster-clearing vs
+accept the clogged regime and prioritize the registered S1b) is an
+OWNER decision pending.
+
 **A7. Step 0 status note.** The merged tree's rotation-probe
 signature PASSED (0/142 closed columns vs 12–13 pre-fix). The stage-1
 smoke failure was on an OFF-DESIGN route (goals routing around the
