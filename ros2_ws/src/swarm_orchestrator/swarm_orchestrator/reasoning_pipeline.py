@@ -898,6 +898,31 @@ def summarize_yield_grounding(command: dict[str, Any] | None) -> YieldGroundingP
     )
 
 
+def yield_refusal_fan_out(command: dict[str, Any] | None) -> str | None:
+    """Return the refusal reason when a command is nothing but a refused yield's waits.
+
+    M3's feasibility gate (and the single-robot "no other involved robot"
+    refusal) replaces a yield it cannot ground with a `temporary_wait` to
+    every involved robot whose `reason` opens with `"yield refused:"`. A
+    lane-scoped yield that DID ground also carries waits with
+    `requested_strategy="yield"` (its off-lane holds), so the test is "no
+    `yield` action, every action a wait, and a refusal reason", never
+    `requested_strategy` alone.
+
+    Args:
+        command: A grounded (or registry-filtered) coordination command.
+
+    Returns:
+        The refusal reason, or None when the command is anything else.
+    """
+    if command is None:
+        return None
+    actions = command.get("actions") or []
+    if not actions or any(action.get("action") != "temporary_wait" for action in actions):
+        return None
+    return summarize_yield_grounding(command).refusal_reason
+
+
 def _registry_robot_ids(command: dict[str, Any], registry_robot_ids: set[str]) -> tuple[str, ...]:
     try:
         filtered = filter_command_robot_ids(command, registry_robot_ids)
@@ -974,6 +999,7 @@ def write_decision_artifact(
     trigger_contradiction: dict[str, Any] | None = None,
     dispatch_suppressed: bool | None = None,
     reanalysis_suppression: dict[str, Any] | None = None,
+    dispatch_withheld: dict[str, Any] | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
@@ -1079,6 +1105,14 @@ def write_decision_artifact(
     the triggers and analyses it skipped since the previous executed
     analysis and in total; absent when None, so a suppression-off artifact
     is byte-identical to one written before the policy existed.
+
+    `dispatch_withheld` (S1 `refusal_no_action`, set by M5 only for a
+    refused yield it withheld) adds a block of that name: `reason`
+    (`"refusal_no_action"`), the `refusal_reason` and the robots the
+    fan-out would have reached. `dispatched_command` then holds the waits
+    M4 WOULD have received, as under `dispatch_suppressed`. Absent when
+    None, so every other artifact is byte-identical to one written before
+    the key existed.
 
     `prompt_conditions` (prereg-v2 rev 6 apparatus) is always written, null
     only when the caller passed none; M5 passes it on every analysis, all-off
@@ -1222,6 +1256,8 @@ def write_decision_artifact(
         payload["dispatch_suppressed"] = dispatch_suppressed
     if reanalysis_suppression is not None:
         payload["reanalysis_suppression"] = reanalysis_suppression
+    if dispatch_withheld is not None:
+        payload["dispatch_withheld"] = dispatch_withheld
     payload["prompt_conditions"] = (
         None if prompt_conditions is None else prompt_conditions.model_dump(mode="json")
     )

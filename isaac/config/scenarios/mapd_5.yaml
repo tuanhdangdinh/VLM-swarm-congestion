@@ -142,6 +142,14 @@ duration_sec: 600.0
 #     (default off; applies_to defaults to task_stream_only). Without it
 #     the echo re-answers an unchanged stall every cooldown. Gate the run on
 #     the first decision artifact carrying diagnostics.mock_mode == "echo".
+#   - REFUSAL = NO-ACTION (2026-10-09, E1 finding; echo AND live episodes):
+#     also append `refusal_no_action: true` (default off; read only while
+#     task_stream.enabled). A refused yield is then withheld instead of
+#     fanning out waits (artifact key `dispatch_withheld`), so Nav2's own
+#     recoveries can run and the suppression above arms (E1: 44 refusal
+#     fan-outs, 0 suppressed, 0 Nav2 recoveries). The escort turn cap
+#     (`escort_turn_cap`) needs no overlay key: it ships ON in
+#     config/grounding/s1_dynamic.yaml.
 #   - scenario_geometry declares the junction box with NO arms: under
 #     dynamic_scene_arms (config/grounding/s1_dynamic.yaml) M3 derives each
 #     yielder's arm per snapshot (A11(i)); the declared corridor is the
@@ -197,6 +205,24 @@ duration_sec: 600.0
 #       (goal accept -> first motion, ~2-5 wall-s on 4 stacks) = 28-38
 #       wall-s against hold_backstop_sec 45: PASS iff
 #       5 / RTF_measured + departure < 45, i.e. RTF_measured > ~0.125.
+#       UNITS CORRECTION (2026-10-09, docs only, no behavior change): the
+#       arithmetic above treats the backstop as WALL seconds; it is not.
+#       command_bus_node arms the yield hold backstop with
+#       create_timer(_hold_sec) and every temporary_wait with
+#       create_timer(duration_sec), and execution.launch.py launches it (and
+#       coordination_client_node) with use_sim_time: true, so the 45 s
+#       backstop, the 120 s off-lane waits and the 8 s refusal waits all
+#       run on the ROS clock = SIM seconds (E1 confirmed it live: the cb78
+#       yielder hold ran 26.1 sim-s = 134 wall-s and the backstop did not
+#       fire, where a 45 wall-s timer would have at ~85 sim-s). Re-expressed
+#       in sim units the gate is dwell 5 sim-s + departure (goal accept ->
+#       first motion, ~0.5-1 sim-s; E1 2.9-4.5 wall-s at RTF 0.18 = 0.5-0.8
+#       sim-s) ~= 5.5-6 sim-s against 45 sim-s: it passes at ANY RTF, so it
+#       is effectively not a gate. The 2026-10-08 "PASS 40.3 < 45" verdict is
+#       right for the wrong reason, and A12(v)'s "fails below RTF ~0.129" is
+#       void. Step 6 wording: state the backstop in sim-s, and gate (if at
+#       all) on a dwell + departure that exceeds 45 SIM-s, i.e. a stuck
+#       departure, not on RTF.
 #   [ ] 5-stack bring-up + RTF measured (prerequisite 3; 2/3/4-stack trend
 #       0.39 / ~0.34 / 0.21-0.24 extrapolates to 0.15-0.19 -- extrapolated,
 #       not measured).

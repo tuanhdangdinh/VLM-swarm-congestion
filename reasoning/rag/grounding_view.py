@@ -550,6 +550,12 @@ class EscortHeading(BaseModel):
     # by `heading_rad - reference_yaw_rad` from its odom yaw at admission
     # needs no map-frame knowledge in M4.
     reference_yaw_rad: float | None = None
+    # The passer's distance to its turn: the along-axis distance from its
+    # snapshot position to its goal's coordinate on the escort axis. Routes
+    # run node -> arm mouth -> junction centre -> arm mouth -> node, so a goal
+    # off this axis is reached by leaving it at the goal's own coordinate on
+    # it (0 for N/S/E, the junction centre). None with the heading.
+    distance_to_turn_m: float | None = None
     reason: str | None = None
 
 
@@ -624,7 +630,9 @@ def derive_escort_heading(
     else:
         heading = math.pi / 2 if along > 0.0 else -math.pi / 2
     return EscortHeading(
-        heading_rad=round(heading, 6), reference_yaw_rad=round(passer.theta, 6)
+        heading_rad=round(heading, 6),
+        reference_yaw_rad=round(passer.theta, 6),
+        distance_to_turn_m=round(abs(along), 3),
     )
 
 
@@ -647,6 +655,48 @@ def _escorted_passers(parameters: Mapping[str, Any]) -> list[str]:
     return [str(first)]
 
 
+def _capped(value: Any, cap: float | None) -> Any:
+    if cap is None or not isinstance(value, int | float) or value <= cap:
+        return value
+    return cap
+
+
+def _cap_escorts_at_turn(
+    parameters: dict[str, Any], passers: list[str], headings: list[EscortHeading]
+) -> tuple[dict[str, Any], list[str]]:
+    # Escort and clearance are capped together: M4 holds an escorted passer
+    # under its linked wait until it has moved `clear_m`, so an escort that
+    # stopped short of an uncapped clearance would leave it parked until the
+    # hold backstop (`crossing_chain.CrossingChain`).
+    capped = dict(parameters)
+    tags: list[str] = []
+    first_cap = headings[0].distance_to_turn_m
+    for key in ("passer_escort_distance_m", "passer_clear_m"):
+        if key in capped:
+            capped[key] = _capped(capped[key], first_cap)
+    for key in ("crossing_escort_m", "crossing_clear_m"):
+        values = capped.get(key)
+        if isinstance(values, list) and len(values) == len(headings):
+            capped[key] = [
+                _capped(value, heading.distance_to_turn_m)
+                for value, heading in zip(values, headings, strict=True)
+            ]
+    for position, passer_id in enumerate(passers):
+        before = (
+            parameters.get("passer_escort_distance_m")
+            if position == 0
+            else (parameters.get("crossing_escort_m") or [None] * len(passers))[position]
+        )
+        after = (
+            capped.get("passer_escort_distance_m")
+            if position == 0
+            else (capped.get("crossing_escort_m") or [None] * len(passers))[position]
+        )
+        if before is not None and after != before:
+            tags.append(f"grounding=escort_turn_cap:{passer_id}:{before}->{after}")
+    return capped, tags
+
+
 def apply_escort_headings(
     command: dict[str, Any],
     snapshot: SnapshotFrame | None,
@@ -667,7 +717,10 @@ def apply_escort_headings(
     (`passer_escort_distance_m` and `crossing_escort_m` removed): M4 then
     releases each passer to Nav2 at its admission, the path a yield with no
     escort already takes, and the clearance gate is unchanged. Tagged
-    `grounding=escort_off:<passer>:<reason>`.
+    `grounding=escort_off:<passer>:<reason>`. With `params.escort_turn_cap`
+    also on, each passer's escort and clearance distances are capped at its
+    `EscortHeading.distance_to_turn_m`, tagged
+    `grounding=escort_turn_cap:<passer>:<before>-><after>` when the cap bites.
 
     Args:
         command: A grounded coordination command.
@@ -714,6 +767,9 @@ def apply_escort_headings(
                 parameters["crossing_escort_reference_yaw_rad"] = [
                     h.reference_yaw_rad for h in headings
                 ]
+            if params.escort_turn_cap:
+                parameters, cap_tags = _cap_escorts_at_turn(parameters, passers, headings)
+                tags.extend(cap_tags)
         actions.append({**action, "parameters": parameters})
     updated = {**command, "actions": actions}
     if tags:
