@@ -946,6 +946,59 @@ self-free (277 sim-s). S1's direction (engineer cluster-clearing vs
 accept the clogged regime and prioritize the registered S1b) is an
 OWNER decision pending.
 
+**A15. S1b first light: pass-check falsified the passing premise;
+S1b re-registered on a RESOLVABILITY axis (2026-10-10; report
+2026-10-09-s1b-first-light.md; integration @d470470 lineage).**
+(i) **Built and gated:** the S1b sparse floor (two staggered 0.30 m
+C55 islands, 9.78% tracked-band coverage, all gaps ≥0.90 m vs the
+0.88 m latch-aware bound; regime-axis density per agent: S1a
+5.44 nominal/5.02 inflated vs S1b 10.74/10.02). The S1a Monte Carlo
+was rebuilt (scripts/s1_mc.py, reproduces the published S1a row)
+and the MC gate was DERIVED from real S1a bundles (live-vs-MC lag
+1.25×): all six thresholds PASS (G1 1.000, G2 p90 20.1 sim-s,
+G3 0.275, G4 0, G5a-geo 0.818, G5b 2.55). Δ RULED 2.5 sim-s for
+this layout (R3.6a recompute; 4.0 produces 41/400 release
+artifacts). Node set and forbidden Wp-Wm leg kept so each seed
+draws the identical task stream on both floors.
+(ii) **LIVE PASS CHECK FAILED — premise falsified:** two opposing
+robots on the 0.90 m gap latched at 0.423 m M1 gap, offset only
+~0.15 m despite a 0.70 m zero-cost band (one run, narrowest gap;
+DWB-offset cause is inferred). Prior S1a bundles corroborate: 0/4
+opposing approaches ever cleared 0.45 m, even in a 1.2 m strip.
+CONCLUSION: autonomous passing does not exist on this stack at any
+tested width — corridor geometry was never the binding constraint;
+the latch is.
+(iii) **RULING — latch-on-pass is REGISTERED as S1b's conflict
+class, and the S1a/S1b axis is re-registered as a RESOLVABILITY
+axis** (supersedes the R3.6a "regime axis" wording): S1b = low-rate,
+predominantly pairwise conflicts, 81.8% geometrically resolvable by
+a single yield (G5a); S1a = early multi-robot latch clusters that
+grounding correctly refuses (A14). The architecture's passing
+mechanism IS Layer 2, by design. Alternatives RECORDED and ranked
+behind: one-way gaps (engineers the flow — adjacent to the carried
+swarm-flow-shaping exclusion), keep-right costmap bias (inside the
+Nav2-tuning exclusion unless map-scoped, registration burden),
+opposing-pair latch relaxation with the 0.20 m floor as backstop
+(amends the safety invariant — heaviest burden).
+(iv) **M3 resolution cap measured:** executable-yield rate on MC
+first conflicts is 0.405 (S1b) / 0.345 (S1a); causes: the
+ambiguous-branch refusal (A14(iii) item, now PRIORITIZED) and the
+swap gate retaining a yielder whose sweep finds no room → empty
+reroute no-op (NEW Step-6-priority item: swap to the partner when
+the sweep fails; also `refusal_no_action` does not withhold empty
+reroutes — close that hole with it).
+(v) **Latch-cluster exposure on S1b is NOT transient without
+Layer 2** (346/400 ≥3-robot clusters by 60 s vs S1a's 360/400,
+forming later: median 19.2 vs 11.3 s) — S1b's claim rests on
+Layer-2 intervention BEFORE cluster closure, which its later onset
+and pairwise-first structure make feasible where S1a's 7 s window
+did not. The S1b pilot (staged) is the test of exactly that.
+(vi) Program stopped at the pass check per the pre-registered rule;
+staged and not run: S1b pilot episodes, M1 coverage session,
+free-flow legs, S1a anchor (anchor since authorized and running
+separately). Merge state: feat/v3-s1b → integration @a0e2f44 +
+docs @d470470, suite zero-delta.
+
 **A14 corrigendum (2026-10-09).** A14(iv)'s "GT
 robot_static_contacts logged 0 rows during a physical pin" implied
 an under-detecting detector. The truth is stronger:
