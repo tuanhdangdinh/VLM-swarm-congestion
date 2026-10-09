@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: S1b Phase 1 (floor, nodes, map, Monte Carlo gate derived from S1a data, scene and tests) and Phase 2 on the new VM. The Phase 2 live pass check latched, so by the pre-registered rule the program stopped before the M1 coverage session, the free-flow legs, the S1b pilot and the S1a mini-program.
+- Rev 1: the merge hash and the merged-tip suite added (§9).
 
 ---
 
@@ -42,7 +43,7 @@ Phase 1 also raised three findings that change how the result should be read.
 | Resolution events (the planned headline) | **None measured**: the pilot was not run. Offline expectation: 0.405 executable per first conflict |
 | Wandering vs park (S1-1) | **Still undecided.** No episode ran |
 | S1a anchor (mini-program) | **Not run.** Seeds 3–5 are staged (USD and overlays) on the VM |
-| Branch / merge | `feat/v3-s1b`, merged into `feat/v3-integration` (see [Commits and Merge](#9-commits-merge-and-suite)) |
+| Branch / merge | `feat/v3-s1b`, merged into `feat/v3-integration` as `a0e2f44`; suite delta zero (62 / 6240 / 153 / 3) |
 | API spend | **$0** |
 | VM | RUNNING, idle, clean (see [VM End State](#8-vm-end-state)) |
 
@@ -405,7 +406,9 @@ The commits are on `feat/v3-s1b`, branched from `feat/v3-integration@face0f1`. S
 | Baseline `face0f1` | 62 | 6182 | 153 | 3 |
 | Branch | 62 | 6240 | 153 | 3 |
 
-The failing ids are identical in both: environment-only failures, plus 3 `pxr` collection errors. The merge hash and the merged-tip suite are recorded in the implementation note.
+The failing ids are identical in both: environment-only failures, plus 3 `pxr` collection errors.
+
+**Merge.** `feat/v3-s1b` was merged into `feat/v3-integration` as **`a0e2f44`** (`--no-ff`), and this record follows as a second merge. The merged tip's suite is 62 / 6240 / 153 / 3, with failing ids identical to the `face0f1` baseline: **delta zero**. Nothing was pushed.
 
 ---
 
