@@ -240,6 +240,9 @@ def _score_oracle_order(
 # re-score recovers it from these (round-trip pinned in test_plan_metrics).
 _UNPARSEABLE_PREFIX = "plan unparseable"
 _BOUND_EXCEEDED_PREFIX = "repair distance exceeds bound"
+# A grounding-view or partner-retry refusal (prereg-v3 A16, A16(v)): the
+# verifier records stage `repair_bound_exceeded` with the refusal's reason.
+_UNREPAIRABLE_PREFIX = "plan unrepairable"
 
 
 def _rejection_stage_from_block(
@@ -252,7 +255,7 @@ def _rejection_stage_from_block(
     reason = plan_block.get("rejection_reason") or ""
     if reason.startswith(_UNPARSEABLE_PREFIX):
         return "unknown_robot"
-    if reason.startswith(_BOUND_EXCEEDED_PREFIX):
+    if reason.startswith((_BOUND_EXCEEDED_PREFIX, _UNREPAIRABLE_PREFIX)):
         return "repair_bound_exceeded"
     return "inconsistent"
 
