@@ -637,6 +637,315 @@ second-aisle mouth, fix-invariant, now reproduced on ldt + perm_wait
 controller tuning, per the carried exclusions; S4's immunity to the
 wedge is checked in its own VM wave).
 
+**A9. IB10 CLOSED under the A7a/A8 gate (2026-10-08).** The validation
+arm ran until both leads appeared; the remedy held under both
+(robot_3-led passes 0.438–0.499 m, robot_4-led 0.402–0.436 m; floor
+silent in 8/8 clean passes; release on clearance; 4/4 arrivals in all
+5 final-wave runs). FROZEN: pull-off 0.33 m (held-x −0.340..−0.354 vs
+wall bound −0.36 — do not raise), side −x (held pulled −x 8/8, lead
+passed +x 8/8 incl. 3/3 robot_3 leads), floor 0.20 m RULED a
+push-limiter backstop, not a contact preventer (its one true positive
+fired at/after contact; a speed-aware value is a Step 6 option, not a
+default). The cross→release hand-off race is FIXED (M4 guard,
+default-on with kill switch: suppress re-sends while a command owns
+the robot, cancel-own-goal not cancel-all, repeated controller stop
+for orphaned FollowPath — Nav2 1.3.12 bt_action_node halt() cannot
+cancel a goal whose handle has not spun); precursor 9/10 pre-fix →
+0/5 post-fix. SCORING RULING: frozen chi-pair criterion 2
+(`order_correct`) must read the EXECUTED recede order from
+`junction_phases`, not from `plan.legs` (which preserves the model's
+raw order) — otherwise every robot_3-led episode mis-scores; applies
+before any v3 IB10 cell is scored. The r3lead probe's Δ=0.15 nudge
+did NOT shift the offset distribution as predicted — do not reuse it
+to force leads. OPEN: the 0.32–0.35 m scan blind band (held robot
+drops out of the lead's scan; cause unknown; clean remedy passes stay
+above it).
+
+**A10. S6 first light (2026-10-08): scene validated; perceptibility
+gate REGISTERED before any S6 collection.** Mechanics all PASS (USD +
+validators, amended poses confirmed, dual jams formed 2/2 in
+overlapping windows, M1 100% FRESH on markers 3/4 incl. the 16 s
+hold, spawns clean, no self-detour). D moves 16 → ~20 wall-s
+PROVISIONAL (per-run ideal 17.4 and 24.7; M5 starts the delay clock
+~3–5 wall-s before pair A's goals reach Nav2; a recording-off ≥3-run
+timing pilot fixes it, or the delay is counted from pair A's dispatch
+— code change, owner's pick at Step 6). CORE RULING: the live ER-2
+pilot's FIRST decision named/addressed only pair B — but at that
+snapshot pair A still read MOVING in M1 (GT standoff only ~0.3 s
+earlier; M1 needs 0.6–1.3 s to report STOPPED). Scoring that snapshot
+measures trigger racing, not scene-wide attention. REGISTERED:
+S6's scored decision is the first triggered decision at which BOTH
+pairs are M1-perceptible as stopped; episodes where that never
+happens are invalid-formation, not model failures. A2's Arm-B
+`unknown` expectation is conditioned the same way (mock: 35/35
+`unknown` once both pairs stopped; the early live snapshot correctly
+returned `head_on` on the only perceptible pair). The pilot's later
+decisions all named both pairs — recorded as the first (n=1,
+non-confirmatory) sign that scene-wide naming works once the scene is
+perceptible. Harness: two new traps recorded (root-owned
+isaac/scenarios defeats build_scenario silently; Option B cleanup
+kills the video recorder — fc_launch fix owed); overlay for scoring
+needs `plan_channel_enabled: true` (used in the pilot, noted as a
+scoring-prereq for S6 cells).
+
+**A11. Dynamic-grounding wave rulings (2026-10-08, integration tip
+6d33508).** The dynamic arms / node-handoff / parked-exclusion wave
+(flags default-off, 189 flags-off goldens byte-identical) surfaced
+five rulings:
+(i) **Rear-swap and reverse-exemption ACCEPTED** as part of the
+`dynamic_scene_arms` mode contract: within the mode (S1 cells only)
+a yielder facing away from its partner is swapped with one facing
+it, and such a robot is dropped from a reversing set — physical
+consistency with M4's backup semantics; every reassignment is
+tagged (`grounding=rear_regrounded/rear_exempt/
+node_handoff_regrounded`), and none of it operates with the flag
+off. The node-handoff re-ground (arriver yields to the node
+occupant regardless of M2's naming) follows the scene doc.
+(ii) **junction_clear in S1: RECOMMENDED exclusion** from S1's
+accepted-strategy set (S1 jams are corridor/node class; the
+composite's grounding and its plain-yield fallback use declared
+geometry, which reproduces the mid-route defect). Evidence basis:
+the wave's hand-computed W-lane mid-route head-on (robots at −1.6 /
+−1.2 on the +0.35 lane) is REFUSED outright by declared-geometry
+grounding and grounds cleanly under the dynamic view (corridor
+centre −1.4, park offset 0.646, backup 1.3 m — pinned in
+test_dynamic_grounding.py); junction_clear's fallback is a plain
+yield on that same declared path, so in an S1 mid-route jam the
+composite's failure mode is exactly the refused case above. Final
+call at Step 6; the alternative (routing the fallback through the
+dynamic view) is recorded but not built.
+(iii) **New S1-pilot BLOCKER (M4): escorts run
+drive_heading(target_yaw=0.0)** — assumes spawn-facing-goal; under
+task streams the passer (incl. a robot dwelling on a node) is
+escorted along its spawn heading. Fix queued: derive escort heading
+from the robot's current goal bearing (or an M3 escort-off rule for
+dynamic mode). S1 overlay prerequisites recorded: declare
+aisle_{x,y}_band_m; declare racks/band edges as static_obstacles
+and run the gate in swap mode (else rear room is unbounded);
+enable the mode via an S1-only grounding_params_path (never edit
+the md5-pinned rag.yaml); check the 45 s hold backstop against
+dwell+departure at measured RTF.
+(iv) **Plan-channel refinement** (commit 5d5b867): plan consistency
+is audited against the MODEL'S OWN decision while defaults/repair
+use the dynamic view — an S2 plan giving the parked robot a role now
+scores `repaired` (one substitute edit) instead of `m3_default`;
+scoring reads provenance+edits as per the frozen analysis rules.
+R2-comparability clause: a parked-robot substitute DOES consume the
+repair bound and appears in the edit log as
+(op=substitute, robot_id ∈ parked_robots), and the command carries
+`grounding=parked_excluded:<id>` — so it is mechanically separable.
+The v3 freeze defines a `repaired_parked_only` subclass (precedent:
+`repaired_order_only`): plans whose ONLY edits are parked-robot
+substitutes are reported as their own stratum, keeping R2's
+edit-conditioned credit and the provenance distribution comparable
+between dynamic-mode and static-mode arms.
+(v) **Parked-robot mechanism = declared list**
+(`scenario_geometry.parked_robots` + 0.35 m tolerance), not a
+goal-arrived rule (which would strip S1 dwellers and IB10 leads);
+the parked follower STILL counts in N_f — the S2 axis contrast
+depends on that term; displacement beyond tolerance grounds
+normally and tags `parked_displaced`.
+Cross-lineage note: the fc_launch recorder clean-stop is commit
+28a4c9c (single-patch rule: composite+hotfix take it by cherry-pick
+from that hash only).
+
+**A11(iii) addendum — BOTH spawn-frame blockers fixed (commits
+e903544 + f0cc17b, merged @4d88bc1).** The escort fix landed as
+ruled (M3 computes the escort turn from the passer's current
+registry goal, snapped to the measured axis, passed as a
+relative-to-start turn — a world yaw never crosses the M3/M4
+boundary because each robot's odom yaw 0 is its spawn heading; an
+escort-off rule tags `grounding=escort_off:<id>:<reason>` when the
+passer has no usable goal, which makes a dwelling node-occupant
+wait out its dwell under Nav2 — the 45 s hold backstop check is
+therefore load-bearing for S1). The SIBLING defect found during
+that fix: M4's `backup()` servoed every reversing robot toward the
+odom y=0 spawn line (heading ≈ 0 assumed), so an off-spawn-heading
+yielder backed along an ~0.2 m-radius arc. Fixed with the same
+pattern: under `dynamic_scene_arms` only, M3 marks every grounded
+yield/reverse backup (junction recedes and release holds included)
+with boolean `backup_line_hold: true`, and M4 holds the line
+through the backup's own start pose along its start heading with
+the reversing correction sign. Absent the keys, dispatch and servo
+are byte-for-byte pre-fix; the 189 flags-off goldens are
+byte-identical. PILOT MEASUREMENT registered: M1 θ error on
+stopped robots and escort lateral deviation (3° ≈ 12 cm over a
+2.35 m escort vs a few-cm lane-to-rack margin).
+CONTAINMENT (citable): the backup() servo defect does NOT taint any
+v1/v2 number — every v1/v2 scored geometry spawns its yielders
+aligned with their spawn heading, so the legacy odom-y=0 assumption
+HELD wherever it was exercised, and the fix is flag-gated off
+outside `dynamic_scene_arms` (byte-identical goldens). The defect
+only ever expresses in task-stream geometries that no collected run
+has used. GATE (not advisory): the S1 pilot treats the 45 s hold
+backstop check (dwell + departure at measured RTF vs backstop)
+as a PASS/FAIL gate — under the escort-off rule a dwelling occupant
+leaves via Nav2, so a silent backstop regression now breaks S1
+SEMANTICS (premature release), not just timing.
+
+**A12. S1 pilot episode 1 rulings (2026-10-08, report
+2026-10-08-s1-pilot.md @188ad55; VM stopped after).** One full
+600 sim-s episode (seed 1, mock), stopped by the rack-wedge rule.
+(i) **Default mock cannot exercise S1's grounding** — it answers
+no-congestion and the pipeline stops before M3, so the episode was
+effectively Layer-2-off; scripted fixed-id mocks cannot match
+emergent stalls. REGISTERED APPARATUS: an **echo-mock** mode that
+names the triggered robots in its decision (deterministic strategy
+per config), existing solely to exercise grounding_view end-to-end
+without API; apparatus-only, never a scored arm.
+(ii) **Release stagger moves to sim-time** (closes open question
+S1-10): wall-clock stagger × fluctuating RTF put 2/3 measured Δ
+outside the (0, 4.42) sim-s window (4.633/4.533/4.367 at
+release-RTF 0.188); the Δ-artifact jam at the E gate (arriver meets
+a not-yet-released occupant) is the same defect's scene-level face.
+(iii) **Re-trigger cadence**: 216 analyses/episode at ~16.5 wall-s
+intervals, 195 naming all five robots — a live episode would spend
+~216 calls and spam the registry. REGISTERED build item: a
+scene-unchanged suppression policy for task-stream cells (skip
+re-analysis while the stalled set and robot poses are unchanged
+within a bound since the last no-action analysis; exact predicate
+frozen at Step 6). The existing cooldown/exhausted semantics are
+not sufficient for persistent multi-robot stalls.
+(iv) **Corner wedge now has a PHYSICAL-CONTACT variant on S1 legs**:
+robot_3 pinned at the SW rack corner 277 sim-s (cmd_vel actively
+pushing; GT pose static within 1.6 cm; freed by a spin recovery).
+Every S↔W*/N↔W* leg turns such a corner — S1 registration must
+either accept-and-measure (wedge episodes as an outcome class) or
+gate on a mitigation; decision at Step 6 with the Step-1 wedge
+file. GT `robot_static_contacts` logged 0 rows during a physical
+pin — audit-A8's distance-recompute rule extends to STATIC contacts.
+(v) Gate outcomes recorded: 5-stack bring-up met (1/2 attempts; bond
+timeout once — infra fix candidate), RTF 0.164 (predicted
+0.15–0.19), hold-backstop PASS 40.3<45 (thin: fails below RTF
+~0.129), M1 θ median 0.44°/p95 1.40° and position 6 mm median —
+the M1-precision pilot question resolves FAVORABLY (5.7 cm p95
+escort drift vs 12 cm budget). Arm B named only the E-gate pair in
+216/216 — classical non-decomposition on task streams, consistent
+with A2's register. (vi) **Wandering-vs-park stays OPEN** — no
+finisher existed in a Layer-2-off episode; the datum requires live
+(or echo-mock) dispatch. 3 occupied-node arrivals observed (1 of
+them the Δ artifact).
+
+**A13. S1 fix chain complete (2026-10-08, integration @4bfcd43).**
+The A12 fixes landed and surfaced, then closed, a three-link
+lane-scoping defect chain in dynamic-mode grounding:
+(i) **Shipped per A12:** sim-time stagger (anchored at the stream's
+FIRST SCENE, not the absolute M1 clock — Δ in-window by construction
+at any RTF; S1-10 closed); echo-mock apparatus (robot set parsed
+from the prompt's structured status lines — the trigger set never
+reaches the request; `diagnostics.mock_mode="echo"`;
+apparatus-only); scene-unchanged suppression (set-equal + poses
+within ε=0.05 + no-dispatch reference; measured 216→6
+analyses/episode on the ep1 replay; the dispatched-loop residual —
+clause (c) never arms after a dispatch — is a Step 6 call).
+BUDGET LINE: live-dispatch cadence projects 95–216 analyses/episode
+(ER-2 ≈ $0.70–1.59, ×2 from 2027-01-01); S1's MAX_ANALYSES is sized
+from that row, not from the no-dispatch row.
+(ii) **Lane-scoping chain (all three links the same defect class —
+dynamic lanes measured against whole-aisle machinery):** rear room
+counted flanking racks via the 0.6 aisle band and lane mouths at the
+yielder's own pose → 0.00 m for every robot (fixed: footprint-band
+measurement + tracked-band end caps obstacle_7..10 + candidate-vs-box
+sweep + repair held to the lane pair); backup clearance projected
+EVERY crossing-order robot onto the retreat axis (fixed: swept
+corridor |lateral| ≤ 0.38 m, plus a 3.7 m reach bound behind the
+yielder); crossing order/escort included off-lane robots so one
+failed escort heading stripped the on-lane passer's escort (fixed:
+lane-scoped order with `order=lane_scoped:<ids>` tag; off-lane
+robots get unlinked waits carrying requested_strategy). Box-sweep
+margin 0.05 m PROPOSED (= the aisle band's own chassis margin;
+deeper-backup-over-refusal via `retreat=deepened` — PROVENANCE ONLY
+for analysis). End state: ep1 replay grounds an executable yield
+216/216 (backup 1.380–1.381 m, park gap 0.053–0.054 m, escort
+2.40 m heading π), byte-identical to the two-robot reference.
+Caveat recorded: ep1 is ONE jam grounded 216 times, not 216
+conflicts.
+(iii) **RULING NEEDED at Step 6 — Arm B on S1 is blind:** the
+classical shadow uses declared aisle-band geometry and refuses
+216/216 with 0.00 m room. Options: (a) give the shadow the SAME
+footprint-band measurement in S1 cells (measurement parity, not
+strategy help — RECOMMENDED, it preserves the only system-level A/B
+contrast S1 has); (b) register Arm B as degenerate on S1 (the
+S6/S4 precedent). Until ruled, no S1 A/B claim is valid.
+COORDINATED POSITION (both sessions, 2026-10-08, final call at
+Step 6): measurement parity, under one HARD CONDITION — the
+shadow's footprint band comes from the SAME code path and inputs
+as M3's dynamic view (a shared function, never a parallel
+reimplementation), flag-scoped to S1 cells with declared-geometry
+goldens pinned everywhere else. Rationale: Arm B means "classical
+reasoning over the same perceived world"; in v1/v2 both arms read
+declared geometry so the contrast was reasoning-only — if S1's
+grounder moves to the footprint view while the shadow stays
+declared, the cell measures input asymmetry, not reasoning. One
+definition, two geometry sources, each arm-pair always sharing one.
+(iv) **Registered residuals → resume checklist:** separate the
+clearance set from the crossing order (an in-reach goal_behind
+robot can still strip escorts — did not occur in ep1); M4's
+no-escort single-passer path releases ALL waits at hold start
+(early release of the off-lane trio if an escort drops live);
+120 s off-lane waits are tight vs backup+hold+escort; live escort
+headings use registry mission goals (replay used snapshot goals);
+stage 2 live selection unexercised; the whole chain is
+closed-loop-unverified on the VM (static replay only).
+
+**A14. S1 episode dynamics: findings, fixes, environment exonerated
+(2026-10-09; reports s1-pilot-resume, s1-e2-e3, env-audit; integration
+@face0f1 lineage).**
+(i) **Closed-loop verdicts for the A13 chain (E1, one executed
+yield):** backup line-hold 1.2 mm lateral over 1.37 m; sidestep
+1.3 cm; escort tracking 3.5 cm vs the 12 cm budget; M4 clearance
+release correct. The mechanical chain is live-verified.
+(ii) **Fixes shipped (flag-gated, dynamic/task-stream only):**
+`refusal_no_action` (refusal wait fan-outs withheld, artifact gets a
+dispatch_withheld block, suppression arms — E1's 46 analyses → E2's
+4–5 with ~200 avoided; ACCOUNTING RULE: artifacts with
+dispatch_withheld count as NOT dispatched even though
+dispatched_command is populated); `escort_turn_cap` (escort+clearance
+capped at the passer's distance-to-turn; E1 measured the uncapped
+2.35 m carrying the passer 0.4 m past its turn into a latch). UNITS
+RULING: hold backstop and wait timers run in SIM seconds
+(use_sim_time); the A11(iii) wall-second gate arithmetic is
+superseded — in sim units the backstop passes at any RTF.
+(iii) **The 0.00 m ambiguous-path defect:** a robot heading >30° off
+an axis falls to the declared-geometry fallback whose corridor
+mouths sit on the rack faces → fake 1.1e-16 room for everyone.
+Step 6 item: the ambiguous path must refuse with its true reason,
+never a fabricated 0.00. The outcome in S1 is unchanged by the
+defect (hand-checks: the refused robots were genuinely pinned or
+latch-bound).
+(iv) **CENTRAL FINDING — latch-cluster gridlock:** at S1a density the
+0.45 m safety latch forms permanent multi-robot clusters (2 pairs in
+E1; 5/5 robots from ~47 sim-s in E2 before Layer 2 acted; the OLD
+VM's seed-1 pilot froze identically at +19.2 s vs E2's +18.7). The
+only latch release is an exempt clearing maneuver, and the dynamic
+view refuses exactly these sandwiched/ambiguous configurations
+(verified genuine geometry, not a bug, for the latch-bound cases).
+E1 additionally measured Layer-2 wait-spam cancelling Nav2 goals
+before recoveries could fire (0 recoveries; the old pilot's
+self-free spin never ran) — mitigated by refusal_no_action but not
+yet re-verified closed-loop on a wedge.
+(v) **ENVIRONMENT EXONERATED (pre-registered A/B):** Nav2-1.3.12
+container reproduces E2 (first latch Δ0.4 s, same pairs, 5/5 frozen,
+paths ≤1.8 cm); package delta reduces to pydantic+GPU-driver, covered
+by cross-VM seed-1 kinematics (≤1.2 cm, ≤0.14 s); DDS profile live
+on all nodes; seed draws byte-equal (Mac/container/runtime, 3
+seeds); both boxes are 6.0.1 SOURCE builds with identical Kit
+stamps. CORRECTIONS: A9's "Nav2 1.3.12" is the upstream SOURCE
+version read during that work, not the installed version — both VMs
+run 1.3.13 (inferred for the old box); bt_action_node.hpp is
+unchanged 1.3.12→1.3.13 so A9's mechanism stands, label amended.
+The s1-pilot-resume caveat "old box = automator release build" is
+wrong (both source builds).
+(vi) **Open:** seed 2 is a 1-in-144 harsh draw (4 robots to S);
+robot_2's SW-corner graze is deterministic but asymmetric vs its
+mirror (0.040 vs 0.11 m, unexplained); empty-reroute fallback (no
+waypoints) is dispatchable and M4's handling is unverified;
+wandering-vs-park remains undecided (0 finishers in pilot/E1/E2);
+the stop-rule window (150 sim-s) is shorter than the one measured
+self-free (277 sim-s). S1's direction (engineer cluster-clearing vs
+accept the clogged regime and prioritize the registered S1b) is an
+OWNER decision pending.
+
 **A7. Step 0 status note.** The merged tree's rotation-probe
 signature PASSED (0/142 closed columns vs 12–13 pre-fix). The stage-1
 smoke failure was on an OFF-DESIGN route (goals routing around the
