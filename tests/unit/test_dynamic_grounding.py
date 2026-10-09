@@ -291,6 +291,11 @@ def test_new_tags_have_a_registered_cause():
         "grounding=dynamic_arms:ambiguous",
         "grounding=dynamic_arms:unavailable",
         "grounding=dynamic_arms:rear_inconsistent:robot_1",
+        "grounding=dynamic_arms:bearing_lane:robot_1:45",
+        "grounding=dynamic_arms:ambiguous_refused:robot_1:45",
+        "grounding=dynamic_arms:parallel_refused:robot_1,robot_2:82",
+        "grounding=heading_regrounded:robot_1->robot_2",
+        "yield_robot=sweep_regrounded:robot_1->robot_2",
         "grounding=node_handoff:robot_2->robot_1",
         "grounding=node_handoff_regrounded:robot_1->robot_2",
         "grounding=rear_regrounded:robot_1->robot_2",
@@ -308,6 +313,11 @@ _TWO = ["robot_1", "robot_2"]
 
 
 def _derive(poses, decision, goals=None, geometry=_S1, references=None):
+    # (decision, geometry, tags); `_derive_refusal` reads the refusal too.
+    return derive_dynamic_arms(decision, _frame(poses, goals), geometry, _DYNAMIC, references)[:3]
+
+
+def _derive_refusal(poses, decision, goals=None, geometry=_S1, references=None):
     return derive_dynamic_arms(decision, _frame(poses, goals), geometry, _DYNAMIC, references)
 
 
@@ -399,20 +409,44 @@ def test_crossing_yield_backs_out_along_own_arm_and_passer_leaves_the_box():
     assert params["passer_escort_heading_rad"] == pytest.approx(math.pi / 2, abs=1e-6)
 
 
-def test_heading_between_axes_keeps_declared_geometry():
+def test_heading_between_axes_hands_the_yield_to_the_facing_lane_partner():
+    # robot_1 heads 45 deg (no lane); robot_2 runs along the pair's x bearing
+    # facing it. Since A14(iii)/A15(iv) robot_2 yields on the x lane and the
+    # ambiguous robot_1 only passes (M4 would back it up diagonally).
     poses = {"robot_1": (-0.3, 0.3, math.pi / 4), "robot_2": (0.2, -0.2, math.pi)}
     decision = _decision("yield", _TWO, yield_robot="robot_1")
-    out_decision, geometry, tags = _derive(poses, decision)
-    assert geometry is _S1 and out_decision is decision
+    out_decision, geometry, tags, refusal = _derive_refusal(poses, decision)
+    assert refusal is None
+    assert out_decision.yield_robot == "robot_2"
+    assert geometry.lane_robots == ("robot_2", "robot_1")
+    assert tags == [
+        "grounding=dynamic_arms:bearing_lane:robot_1:45",
+        "grounding=heading_regrounded:robot_1->robot_2",
+        "grounding=dynamic_arms:lane:x",
+    ]
+
+
+def test_heading_between_axes_keeps_declared_geometry_for_a_reverse():
+    poses = {"robot_1": (-0.3, 0.3, math.pi / 4), "robot_2": (0.2, -0.2, math.pi)}
+    decision = _decision("reverse", _TWO)
+    out_decision, geometry, tags, refusal = _derive_refusal(poses, decision)
+    assert geometry is _S1 and out_decision is decision and refusal is None
     assert tags == ["grounding=dynamic_arms:ambiguous"]
 
 
-def test_parallel_lanes_side_by_side_keep_declared_geometry():
-    # Both on x lanes but displaced across the aisle: no lane conflict.
+def test_parallel_lanes_side_by_side_refuse_the_yield_without_a_room():
+    # Both on x lanes but displaced across the aisle: no shared lane, so no
+    # yield is grounded and no room is read off the declared fallback.
     poses = {"robot_1": (-1.5, 0.35, 0.0), "robot_2": (-1.4, -0.35, 0.0)}
-    _, geometry, tags = _derive(poses, _decision("yield", _TWO, yield_robot="robot_1"))
+    _, geometry, tags, refusal = _derive_refusal(
+        poses, _decision("yield", _TWO, yield_robot="robot_1")
+    )
     assert geometry is _S1
-    assert tags == ["grounding=dynamic_arms:ambiguous"]
+    assert tags == ["grounding=dynamic_arms:parallel_refused:robot_1,robot_2:82"]
+    assert refusal == (
+        "yield refused: no shared lane: robot_1 and robot_2 both run along x but sit 82 deg "
+        "across it (side by side); no retreat room was measured"
+    )
 
 
 def test_partner_missing_from_snapshot_keeps_declared_geometry():
@@ -542,7 +576,7 @@ def test_handoff_holds_after_the_occupant_goal_advances():
     decision = _decision("yield", _TWO, yield_robot="robot_2")
     frame = _frame(_S1_HANDOFF)
     assert find_node_handoff(decision, frame, 0.5, references) == ("robot_2", "robot_1")
-    _, _, tags = derive_dynamic_arms(decision, frame, _S1, _DYNAMIC, references)
+    tags = derive_dynamic_arms(decision, frame, _S1, _DYNAMIC, references).tags
     assert tags == ["grounding=node_handoff:robot_2->robot_1", "grounding=dynamic_arms:lane:y"]
 
 

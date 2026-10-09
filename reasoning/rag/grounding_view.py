@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 from pydantic import BaseModel, ConfigDict
 
@@ -67,6 +67,20 @@ class GroundingView(BaseModel):
     # Provenance tags (`grounding=...`), appended to the grounded command's
     # `degradations`; empty when neither transform changed anything.
     tags: tuple[str, ...] = ()
+    # Set (opening with "yield refused:") when the dynamic view found no lane
+    # it can ground a yield on (`derive_dynamic_arms`): every consumer then
+    # refuses the yield instead of grounding it on `geometry`, the declared
+    # fallback, whose corridor mouths say nothing about this conflict.
+    refusal_reason: str | None = None
+
+
+class DynamicArms(NamedTuple):
+    """`derive_dynamic_arms`' result: roles, geometry, tags, and any refusal."""
+
+    decision: CongestionDecision
+    geometry: SceneGeometry | None
+    tags: list[str]
+    refusal_reason: str | None = None
 
 
 def _rebuilt(decision: CongestionDecision, **update: Any) -> CongestionDecision:
@@ -160,6 +174,32 @@ def _heading_axis(theta: float) -> Axis | None:
     if abs(math.sin(theta)) >= _AXIS_SNAP_COS:
         return "y"
     return None
+
+
+def _axis_offset_deg(theta: float) -> int:
+    # Degrees off the nearest world axis, 0..45.
+    folded = math.degrees(math.atan2(abs(math.sin(theta)), abs(math.cos(theta))))
+    return round(min(folded, 90.0 - folded))
+
+
+def backup_follows_retreat(state: RobotStateInput, retreat: tuple[float, float]) -> bool:
+    """Whether M4's backup of a robot runs along a retreat direction.
+
+    M4 backs a yielder up along its own -heading (`backup_line_hold`), while
+    M3 sweeps its retreat along an axis. The two describe the same motion
+    only when the robot faces away from `retreat` within the 30 degree axis
+    snap the dynamic view classifies lanes with: the lane rule's facing
+    requirement (`_rear_consistent`) and its snap in one test.
+
+    Args:
+        state: The robot that would back up.
+        retreat: Unit retreat direction `(x, y)` in the world frame.
+
+    Returns:
+        True when the robot's -heading is within 30 degrees of `retreat`.
+    """
+    backing = (-math.cos(state.theta), -math.sin(state.theta))
+    return backing[0] * retreat[0] + backing[1] * retreat[1] >= _AXIS_SNAP_COS
 
 
 def _coord(state: RobotStateInput, axis: Axis) -> float:
@@ -401,7 +441,7 @@ def derive_dynamic_arms(
     geometry: SceneGeometry | None,
     params: GroundingParams | None,
     goal_references: Mapping[str, tuple[float, float]] | None = None,
-) -> tuple[CongestionDecision, SceneGeometry | None, list[str]]:
+) -> DynamicArms:
     """Derive a yield/reverse decision's conflict geometry from its snapshot.
 
     Rules, in order (v3 scene design S1 prerequisite 2):
@@ -434,9 +474,29 @@ def derive_dynamic_arms(
        from its own heading (outward side = behind it, the declared-arm
        convention) and the corridor axis set to the bearing axis. Rear
        room is checked across the footprint here too.
-    5. Anything else (a robot missing from the snapshot, a heading between
-       axes, matching lanes across the bearing) keeps the declared
-       geometry, tagged.
+    5. Bearing-axis fallback (`yield` only, prereg-v3 A14(iii)/A15(iv)): a
+       robot whose heading is more than 30 degrees off both axes takes the
+       pair's bearing axis as its lane when its partner's lane IS the
+       bearing axis, but only as the passer, since M4 would back it up
+       along its diagonal heading, not the swept axis. An ambiguous
+       partner is tagged `grounding=dynamic_arms:bearing_lane:<id>:<deg>`
+       and rule 3 runs. An ambiguous yielder also hands the yield to its
+       partner when the partner faces it and rule 1 did not fix the yielder
+       (`grounding=heading_regrounded:<from>-><to>`).
+    6. Honest refusal (`yield` only): anything rule 5 cannot place (both
+       headings ambiguous, the snapped lane across the bearing, an
+       ambiguous handoff arriver, a partner facing away) and matching lanes
+       across the bearing (two robots side by side on parallel lanes) have
+       no lane to ground a yield on. The declared fallback's corridor
+       mouths sit on rack faces and would report a fabricated ~0.00 m room,
+       so the yield is refused with its true reason instead
+       (`refusal_reason`, tagged
+       `grounding=dynamic_arms:ambiguous_refused:<id>:<deg>` per ambiguous
+       robot or `grounding=dynamic_arms:parallel_refused:<a>,<b>:<deg>`),
+       and no room is measured. A `reverse` keeps the declared geometry,
+       tagged `grounding=dynamic_arms:ambiguous`, as before.
+    7. A robot missing from the snapshot keeps the declared geometry,
+       tagged `grounding=dynamic_arms:unavailable`.
 
     Args:
         decision: A validated decision.
@@ -447,10 +507,11 @@ def derive_dynamic_arms(
         goal_references: Robot id -> current task node, from M5's registry.
 
     Returns:
-        The (possibly re-roled) decision, the geometry to ground with, and
-        the `grounding=...` tags. Unchanged with no tags when the switch is
-        off, the strategy is not `yield`/`reverse`, or `geometry` or
-        `snapshot` is None.
+        The (possibly re-roled) decision, the geometry to ground with, the
+        `grounding=...` tags and, under rule 6, the refusal reason (the
+        geometry is then the declared one and must not be grounded on).
+        Unchanged with no tags when the switch is off, the strategy is not
+        `yield`/`reverse`, or `geometry` or `snapshot` is None.
     """
     if (
         params is None
@@ -459,7 +520,7 @@ def derive_dynamic_arms(
         or geometry is None
         or snapshot is None
     ):
-        return decision, geometry, []
+        return DynamicArms(decision, geometry, [])
     tags: list[str] = []
     handoff = find_node_handoff(
         decision, snapshot, params.dynamic_handoff_radius_m, goal_references
@@ -480,32 +541,159 @@ def derive_dynamic_arms(
         if handoff is not None and decision.strategy == "reverse" and anchor is not None:
             # A handoff reverse left only the arriver: it backs away along its
             # own heading, which needs no corridor.
-            return decision, geometry, tags
-        return decision, geometry, [*tags, "grounding=dynamic_arms:unavailable"]
+            return DynamicArms(decision, geometry, tags)
+        return DynamicArms(decision, geometry, [*tags, "grounding=dynamic_arms:unavailable"])
     dx = partner.x - anchor.x
     dy = partner.y - anchor.y
     bearing_axis: Axis = "x" if abs(dx) >= abs(dy) else "y"
     anchor_axis = _heading_axis(anchor.theta)
     partner_axis = _heading_axis(partner.theta)
+    # Set when rule 5 lent the partner the bearing axis: it may pass, never
+    # yield, so rule 3's rear swap must not hand it the yield.
+    partner_lent = False
+    if decision.strategy == "yield" and (anchor_axis is None) != (partner_axis is None):
+        ambiguous = anchor if anchor_axis is None else partner
+        if partner_axis is None and anchor_axis == bearing_axis:
+            tags.append(
+                f"grounding=dynamic_arms:bearing_lane:{partner.robot_id}:"
+                f"{_axis_offset_deg(partner.theta)}"
+            )
+            partner_axis = bearing_axis
+            partner_lent = True
+        elif (
+            anchor_axis is None
+            and partner_axis == bearing_axis
+            and handoff is None
+            and _rear_consistent(partner, anchor, bearing_axis)
+        ):
+            decision = _with_yielder(decision, partner.robot_id, anchor.robot_id)
+            tags.append(
+                f"grounding=dynamic_arms:bearing_lane:{anchor.robot_id}:"
+                f"{_axis_offset_deg(anchor.theta)}"
+            )
+            tags.append(f"grounding=heading_regrounded:{anchor.robot_id}->{partner.robot_id}")
+            anchor, partner = partner, anchor
+            anchor_axis = bearing_axis
+        else:
+            snapped = partner if ambiguous is anchor else anchor
+            return _ambiguous_refusal(
+                decision,
+                geometry,
+                tags,
+                [ambiguous],
+                _fallback_blocker(anchor, partner, snapped, ambiguous, bearing_axis, handoff),
+            )
     if anchor_axis is None or partner_axis is None:
-        return decision, geometry, [*tags, "grounding=dynamic_arms:ambiguous"]
+        if decision.strategy == "yield":
+            return _ambiguous_refusal(decision, geometry, tags, [anchor, partner], None)
+        return DynamicArms(decision, geometry, [*tags, "grounding=dynamic_arms:ambiguous"])
     if anchor_axis != partner_axis:
         crossing = _crossing_geometry(geometry, bearing_axis, snapshot, order)
-        return decision, crossing, [*tags, "grounding=dynamic_arms:crossing"]
+        return DynamicArms(
+            decision,
+            _with_handoff_occupant(crossing, decision, handoff),
+            [*tags, "grounding=dynamic_arms:crossing"],
+        )
     if anchor_axis != bearing_axis:
-        return decision, geometry, [*tags, "grounding=dynamic_arms:ambiguous"]
+        if decision.strategy == "yield":
+            return _parallel_refusal(decision, geometry, tags, anchor, partner, anchor_axis)
+        return DynamicArms(decision, geometry, [*tags, "grounding=dynamic_arms:ambiguous"])
     if decision.strategy == "reverse":
         decision, rear_tags = _exempt_rear_blocked_reversers(decision, snapshot, bearing_axis)
         tags.extend(rear_tags)
     elif not _rear_consistent(anchor, partner, bearing_axis):
-        if handoff is None and _rear_consistent(partner, anchor, bearing_axis):
-            decision = _with_yielder(decision, partner_id, anchor_id)
-            tags.append(f"grounding=rear_regrounded:{anchor_id}->{partner_id}")
+        if (
+            handoff is None
+            and not partner_lent
+            and _rear_consistent(partner, anchor, bearing_axis)
+        ):
+            decision = _with_yielder(decision, partner.robot_id, anchor.robot_id)
+            tags.append(f"grounding=rear_regrounded:{anchor.robot_id}->{partner.robot_id}")
             anchor, partner = partner, anchor
         else:
-            tags.append(f"grounding=dynamic_arms:rear_inconsistent:{anchor_id}")
+            tags.append(f"grounding=dynamic_arms:rear_inconsistent:{anchor.robot_id}")
     lane = _lane_geometry(geometry, bearing_axis, anchor, partner)
-    return decision, lane, [*tags, f"grounding=dynamic_arms:lane:{bearing_axis}"]
+    return DynamicArms(
+        decision,
+        _with_handoff_occupant(lane, decision, handoff),
+        [*tags, f"grounding=dynamic_arms:lane:{bearing_axis}"],
+    )
+
+
+def _with_handoff_occupant(
+    geometry: SceneGeometry, decision: CongestionDecision, handoff: tuple[str, str] | None
+) -> SceneGeometry:
+    # Rule 1's exempt passer, carried so the A15(iv) partner retry never
+    # hands it the yield.
+    if handoff is None or decision.strategy != "yield":
+        return geometry
+    return geometry.model_copy(update={"handoff_occupant": handoff[1]})
+
+
+def _fallback_blocker(
+    anchor: RobotStateInput,
+    partner: RobotStateInput,
+    snapped: RobotStateInput,
+    ambiguous: RobotStateInput,
+    bearing_axis: Axis,
+    handoff: tuple[str, str] | None,
+) -> str:
+    # Why rule 5 could not lend the ambiguous robot the bearing axis.
+    snapped_axis = _heading_axis(snapped.theta)
+    if snapped_axis != bearing_axis:
+        return (
+            f"{snapped.robot_id}'s {snapped_axis} lane crosses the pair's "
+            f"{bearing_axis} bearing"
+        )
+    if ambiguous is anchor and handoff is not None:
+        return f"{anchor.robot_id} is the node-handoff arriver, so it must yield"
+    return f"{partner.robot_id} faces away from {anchor.robot_id}"
+
+
+def _ambiguous_refusal(
+    decision: CongestionDecision,
+    geometry: SceneGeometry,
+    tags: list[str],
+    ambiguous: list[RobotStateInput],
+    blocker: str | None,
+) -> DynamicArms:
+    offsets = [(state.robot_id, _axis_offset_deg(state.theta)) for state in ambiguous]
+    headings = " and ".join(f"{robot_id} heads {deg} deg" for robot_id, deg in offsets)
+    clause = "" if blocker is None else f", and {blocker}"
+    reason = (
+        f"yield refused: ambiguous lane: {headings} off both axes (beyond the 30 deg "
+        f"snap){clause}; no retreat room was measured"
+    )
+    refused = [
+        f"grounding=dynamic_arms:ambiguous_refused:{robot_id}:{deg}" for robot_id, deg in offsets
+    ]
+    return DynamicArms(decision, geometry, [*tags, *refused], reason)
+
+
+def _parallel_refusal(
+    decision: CongestionDecision,
+    geometry: SceneGeometry,
+    tags: list[str],
+    anchor: RobotStateInput,
+    partner: RobotStateInput,
+    lane_axis: Axis,
+) -> DynamicArms:
+    cross_axis: Axis = "y" if lane_axis == "x" else "x"
+    along = abs(_coord(partner, lane_axis) - _coord(anchor, lane_axis))
+    across = abs(_coord(partner, cross_axis) - _coord(anchor, cross_axis))
+    bearing_deg = round(math.degrees(math.atan2(across, along)))
+    pair = f"{anchor.robot_id},{partner.robot_id}"
+    reason = (
+        f"yield refused: no shared lane: {anchor.robot_id} and {partner.robot_id} both run "
+        f"along {lane_axis} but sit {bearing_deg} deg across it (side by side); no retreat "
+        "room was measured"
+    )
+    return DynamicArms(
+        decision,
+        geometry,
+        [*tags, f"grounding=dynamic_arms:parallel_refused:{pair}:{bearing_deg}"],
+        reason,
+    )
 
 
 def resolve_grounding_view(
@@ -526,14 +714,16 @@ def resolve_grounding_view(
 
     Returns:
         The view; `decision` and `geometry` are the inputs themselves, with
-        no tags, when neither transform applies.
+        no tags, when neither transform applies. `refusal_reason` is set when
+        the dynamic view refused a yield (`derive_dynamic_arms` rule 6).
     """
     excluded, tags = exclude_parked_robots(decision, snapshot, geometry)
-    dynamic, dynamic_geometry, dynamic_tags = derive_dynamic_arms(
-        excluded, snapshot, geometry, params, goal_references
-    )
+    dynamic = derive_dynamic_arms(excluded, snapshot, geometry, params, goal_references)
     return GroundingView(
-        decision=dynamic, geometry=dynamic_geometry, tags=(*tags, *dynamic_tags)
+        decision=dynamic.decision,
+        geometry=dynamic.geometry,
+        tags=(*tags, *dynamic.tags),
+        refusal_reason=dynamic.refusal_reason,
     )
 
 

@@ -87,9 +87,16 @@ _REFUSED_GOALS = {
     "robot_4": (0.0, 1.55),
     "robot_5": (0.0, -1.55),
 }
+# What the live E1 artifact recorded: the declared fallback's fabricated
+# 0.00 m rooms (A14(iii)). Kept as the record the honest refusal replaces.
 _E1_REFUSAL = (
     "yield refused: no feasible yielder (robot_4 0.00 m, robot_2 0.00 m, robot_1 0.00 m, "
     "robot_3 0.00 m, robot_5 0.00 m retreat room < 0.95 m required)"
+)
+# The same scene since A14(iii)'s honest refusal: no room is measured.
+_E1_HONEST_REFUSAL = (
+    "yield refused: ambiguous lane: robot_4 heads 33 deg off both axes (beyond the 30 deg "
+    "snap), and robot_2's x lane crosses the pair's y bearing; no retreat room was measured"
 )
 _FIVE = ["robot_1", "robot_2", "robot_3", "robot_4", "robot_5"]
 
@@ -142,15 +149,17 @@ def _ground(
 # ---- Phase 1 diagnosis, pinned ----
 
 
-def test_e1_refusal_reproduces_through_the_ambiguous_declared_fallback():
-    # robot_4 (the N-node arriver) heads 57 deg, outside the 30 deg axis snap,
-    # so the view keeps the declared x-axis junction box with the aisle band:
-    # each flanking rack's face sits on the declared mouth (x = +-0.6) and
-    # every robot reads 0.00 m, byte-identical to the live artifact.
+def test_e1_refusal_now_refuses_honestly_without_a_room_measurement():
+    # robot_4 (the N-node arriver) heads 57 deg, outside the 30 deg axis snap.
+    # Live E1 kept the declared x-axis junction box, whose rack faces sit on
+    # the declared mouths (x = +-0.6): every robot read a fabricated 0.00 m
+    # (`_E1_REFUSAL`). Since A14(iii) the view refuses with the true reason;
+    # the arriver must yield, so robot_2 cannot take it over.
     command = _ground(_REFUSED, _REFUSED_GOALS, _FIVE, _shipped_params())
-    assert "grounding=dynamic_arms:ambiguous" in command["degradations"]
+    assert "grounding=dynamic_arms:ambiguous_refused:robot_4:33" in command["degradations"]
     assert "grounding=node_handoff:robot_4->robot_2" in command["degradations"]
-    assert yield_refusal_fan_out(command) == _E1_REFUSAL
+    assert yield_refusal_fan_out(command) == _E1_HONEST_REFUSAL
+    assert " 0.00 m" not in _E1_HONEST_REFUSAL
 
 
 # ---- Fix 1: refusal fan-out detection ----
@@ -159,7 +168,7 @@ def test_e1_refusal_reproduces_through_the_ambiguous_declared_fallback():
 def test_refusal_fan_out_detects_the_e1_refusal_waits():
     command = _ground(_REFUSED, _REFUSED_GOALS, _FIVE, _shipped_params())
     assert {a["action"] for a in command["actions"]} == {"temporary_wait"}
-    assert yield_refusal_fan_out(command) == _E1_REFUSAL
+    assert yield_refusal_fan_out(command) == _E1_HONEST_REFUSAL
 
 
 def test_refusal_fan_out_ignores_a_lane_scoped_yield_with_off_lane_waits():

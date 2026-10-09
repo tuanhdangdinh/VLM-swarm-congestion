@@ -163,7 +163,7 @@ class SceneGeometry(BaseModel):
     # as parked: M5's `arrival_position_tolerance_m`. Farther out it has been
     # displaced into the scene and is grounded like any involved robot.
     parked_pose_tolerance_m: float = Field(default=0.35, gt=0.0)
-    # The two fields below are set only by the dynamic-arms view
+    # The three fields below are set only by the dynamic-arms view
     # (`reasoning.rag.grounding_view`), never declared; their defaults keep
     # every declared scene byte-identical.
     # Lateral band `yield_retreat_room_m` checks static obstacles across:
@@ -182,6 +182,10 @@ class SceneGeometry(BaseModel):
     # The yield gate scores only these two: the lane says nothing about where
     # any other involved robot would retreat.
     lane_robots: tuple[str, str] | None = None
+    # The node-handoff occupant of a dynamic view's yield (`grounding_view.
+    # find_node_handoff`): the exempt passer, which no later re-grounding may
+    # hand the yield to (`command_grounder.resolve_yield_roles`).
+    handoff_occupant: str | None = None
 
     @model_validator(mode="after")
     def _lane_robots_are_a_pair(self) -> SceneGeometry:

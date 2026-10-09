@@ -10,7 +10,8 @@ gate passes, and only then sweeps retreat candidates. This replays each MC
 first-conflict scene (state `--delay` sim-s after the first encounter, the
 scene a stall-triggered analysis sees) through the real
 `ground_reasoner_result` with the floor's overlay, static obstacles and
-grounding file in swap mode, and counts EXECUTABLE yields.
+grounding file in swap mode, and counts EXECUTABLE yields, plus each refusal's
+reason class and how many refusals report a 0.00 m room.
 
 Usage (repo root; ROS packages on the path as in the unit tests):
     PYTHONPATH=.:ros2_ws/src/swarm_orchestrator:ros2_ws/src/swarm_execution \\
@@ -144,6 +145,17 @@ def classify(command: dict | None) -> str:
     return "other"
 
 
+def refusal_kind(command: dict) -> str | None:
+    """The refusal's reason class (its text up to the first `(`, `:` or `;`), or None."""
+    for action in command.get("actions", []):
+        reason = str(action.get("parameters", {}).get("reason", ""))
+        if reason.startswith("yield refused: "):
+            body = reason.removeprefix("yield refused: ")
+            cuts = [i for i in (body.find("("), body.find(":"), body.find(";")) if i >= 0]
+            return body[: min(cuts, default=len(body))].strip()
+    return None
+
+
 def main() -> None:
     """Entry point."""
     ap = argparse.ArgumentParser()
@@ -164,6 +176,8 @@ def main() -> None:
     ground = _grounder(scenario)
     outcomes: Counter = Counter()
     yielders: Counter = Counter()
+    refusals: Counter = Counter()
+    zero_room = 0
     for seed in M.mc_seeds(args.n):
         ep = M.run_episode(
             floor,
@@ -183,6 +197,12 @@ def main() -> None:
         command = ground(rows)
         label = classify(command)
         outcomes[label] += 1
+        if label == "refused":
+            refusals[refusal_kind(command) or "other"] += 1
+            zero_room += any(
+                " 0.00 m" in str(a.get("parameters", {}).get("reason", ""))
+                for a in command["actions"]
+            )
         if label == "executable_yield":
             y = next(a["robot_id"] for a in command["actions"] if a["action"] == "yield")
             yielders["in_first_pair" if y in ep["encounters"][0]["pair"] else "other"] += 1
@@ -197,6 +217,8 @@ def main() -> None:
                 "outcomes": dict(outcomes),
                 "executable_rate": outcomes["executable_yield"] / n,
                 "executable_yielder": dict(yielders),
+                "refusal_reasons": dict(refusals.most_common()),
+                "refusals_reporting_0.00_m": zero_room,
             },
             indent=1,
         )
