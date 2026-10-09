@@ -265,6 +265,7 @@ class TestGroundingParamsFile:
         assert extras == {
             "dynamic_scene_arms", "dynamic_handoff_radius_m",
             "aisle_y_band_m", "aisle_x_band_m", "retreat_box_margin_m",
+            "escort_turn_cap",
         }
         assert {k: s1[k] for k in rag} == rag
 

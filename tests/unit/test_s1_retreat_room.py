@@ -644,10 +644,14 @@ def test_ep1_echo_keeps_the_lane_passer_escort():
     assert not any(t.startswith("grounding=escort_off") for t in command["degradations"])
     parameters = command["actions"][0]["parameters"]
     # robot_5 at x=2.3066 to the park at x=0.556 plus the 0.65 m passer
-    # clearance; its goal (0, -1.55) lies west, the direction the escort
-    # distance was measured in, so it drives at pi.
+    # clearance is 2.40 m; its goal (0, -1.55) lies west, the direction the
+    # escort distance was measured in, so it drives at pi. The shipped S1
+    # file caps the escort at robot_5's turn (escort_turn_cap, 2026-10-09):
+    # its route leaves the x axis at the goal's x = 0, 2.307 m away.
     assert parameters["passer_robot_id"] == "robot_5"
-    assert parameters["passer_escort_distance_m"] == pytest.approx(2.4, abs=1e-3)
+    assert parameters["passer_escort_distance_m"] == pytest.approx(2.307, abs=1e-3)
+    assert parameters["passer_clear_m"] == pytest.approx(2.307, abs=1e-3)
+    assert "grounding=escort_turn_cap:robot_5:2.4->2.307" in command["degradations"]
     assert parameters["passer_escort_heading_rad"] == pytest.approx(math.pi)
     assert parameters["passer_escort_reference_yaw_rad"] == pytest.approx(3.1172)
 

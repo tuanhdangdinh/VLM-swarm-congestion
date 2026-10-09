@@ -482,6 +482,17 @@ class OrchestratorConfig(BaseModel):
     # `t0_probe_mode` (off-trigger, stage-1 only probes), it acts on real
     # triggered analyses. For log-only scoring (S4/S5/S6).
     dispatch_enabled: bool = True
+    # S1 episode loop (2026-10-09, E1 finding): a refused yield grounds to an
+    # all-robot `temporary_wait` fan-out (`yield refused: ...`). Re-sent every
+    # cooldown, those waits cancelled Nav2 goals before any progress-checker
+    # recovery could fire (E1: 0 spins all episode, a box-pinned robot held in
+    # place by Layer 2) and kept the scene-unchanged suppression from ever
+    # arming. True, and ONLY while `task_stream.enabled`, such a refusal is
+    # withheld instead: nothing reaches M4, the artifact records
+    # `dispatch_withheld`, a cooldown starts and the suppression reference
+    # arms (outcome `refusal_no_action`). False (the default), or with the
+    # task stream off, the refusal fan-out dispatches byte-for-byte as before.
+    refusal_no_action: bool = False
 
     @field_validator("initial_tasks")
     @classmethod

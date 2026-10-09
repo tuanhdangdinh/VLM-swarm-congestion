@@ -132,6 +132,14 @@ class GroundingParams(BaseModel):
     # under the footprint band, and stays out of the artifact dump unless
     # the switch is on and the margin is set.
     retreat_box_margin_m: float = Field(default=0.0, ge=0.0)
+    # S1 episode loop (2026-10-09, E1): cap each escorted passer's escort AND
+    # clearance distance at its distance-to-turn -- the along-axis distance
+    # from the passer to its current registry goal's coordinate on the escort
+    # axis, where its box-centred route leaves that axis
+    # (`grounding_view.apply_escort_headings`). E1's fixed 2.35 m carried
+    # robot_5 0.4 m past its S turn. Read only with `dynamic_scene_arms`;
+    # False (default) keeps every command and artifact dump byte-identical.
+    escort_turn_cap: bool = False
 
     @model_validator(mode="after")
     def _check_bands(self) -> "GroundingParams":
@@ -161,8 +169,12 @@ class GroundingParams(BaseModel):
             data.pop("dynamic_scene_arms", None)
             data.pop("dynamic_handoff_radius_m", None)
             data.pop("retreat_box_margin_m", None)
-        elif not data.get("retreat_box_margin_m"):
-            data.pop("retreat_box_margin_m", None)
+            data.pop("escort_turn_cap", None)
+        else:
+            if not data.get("retreat_box_margin_m"):
+                data.pop("retreat_box_margin_m", None)
+            if not data.get("escort_turn_cap"):
+                data.pop("escort_turn_cap", None)
         return data
 
 

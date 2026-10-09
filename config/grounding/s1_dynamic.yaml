@@ -40,6 +40,13 @@
 #       sweep buys the depth back instead, deepening the backup in 0.01 m
 #       steps when the margin fails at the clearance minimum (ep1: 1.331 ->
 #       1.381 m against 4.44 m of room behind robot_1, band [0.5, 2.0]).
+#   escort_turn_cap: true - S1 episode loop (2026-10-09, E1): cap each
+#       escorted passer's escort and clearance distance at its
+#       distance-to-turn (along-axis distance to its registry goal's
+#       coordinate on the escort axis, where its box-centred route leaves
+#       the axis). E1's fixed 2.35 m carried robot_5 0.4 m past its S turn
+#       into a min-distance latch beside pinned robot_3; capped, that escort
+#       is 1.994 m (robot_5 at x 1.994, goal S on x = 0).
 grounding:
   mode: derived
   min_distance_m: 0.45
@@ -54,3 +61,4 @@ grounding:
   dynamic_scene_arms: true
   dynamic_handoff_radius_m: 0.5
   retreat_box_margin_m: 0.05
+  escort_turn_cap: true

@@ -110,6 +110,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     registry_dispatch,
     summarize_yield_grounding,
     write_decision_artifact,
+    yield_refusal_fan_out,
 )
 from swarm_orchestrator.retreat_stage2 import format_stage2_log
 from swarm_orchestrator.shadow_classical import (
@@ -441,6 +442,16 @@ class OrchestratorNode(Node):
             and (suppression.applies_to == "all" or self._config.task_stream.enabled)
             else None
         )
+        # S1 refusal-as-no-action: engaged only with the task stream on, so a
+        # declared/v2 scene keeps dispatching its refusal waits byte-for-byte.
+        self._refusal_no_action = (
+            self._config.refusal_no_action and self._config.task_stream.enabled
+        )
+        if self._config.refusal_no_action and not self._refusal_no_action:
+            self.get_logger().warning(
+                "refusal_no_action is set but task_stream is disabled; refusal waits "
+                "dispatch as before"
+            )
         self._registry = TaskRegistry()
         started_at = time.monotonic()
         # v3 S1 task stream: None unless `task_stream.enabled`, so a
@@ -798,13 +809,16 @@ class OrchestratorNode(Node):
         trigger_robots: frozenset[str],
         snapshot,
         now: float,
+        refusal_withheld: bool = False,
     ) -> None:
         """Arm the reference after an executed stall analysis that dispatched nothing.
 
         A dispatch already reset it (`_publish_fanned_out`). A non-stall
         analysis or a backend failure (no decision) leaves no reference: the
         former is not a stall re-trigger, and in the latter the model never
-        answered this scene.
+        answered this scene. A refused yield withheld under
+        `refusal_no_action` dispatched nothing, so it arms like
+        `dispatch_suppressed` does (outcome `refusal_no_action`).
         """
         if self._suppression is None or dispatched:
             return
@@ -814,7 +828,9 @@ class OrchestratorNode(Node):
                 f"{trigger_source}_analysis" if trigger_source != "stall" else "no_decision"
             )
             return
-        if dispatch_suppressed:
+        if refusal_withheld:
+            reason = "refusal_no_action"
+        elif dispatch_suppressed:
             reason = "dispatch_suppressed"
         elif not decision.congestion_detected:
             reason = "no_congestion"
@@ -1182,6 +1198,28 @@ class OrchestratorNode(Node):
                 and dispatch.command is not None
             )
         )
+        # S1 refusal-as-no-action: a refused yield's wait fan-out is withheld
+        # (the same DISPATCH condition, dispatch on, and a pure refusal
+        # command); None otherwise, so the artifact gains no key.
+        withheld_refusal = (
+            yield_refusal_fan_out(dispatch.command)
+            if self._refusal_no_action
+            and self._config.dispatch_enabled
+            and outcome.terminal_stage is TerminalStage.OK
+            and outcome.grounded_command is not None
+            and dispatch is not None
+            and dispatch.command is not None
+            else None
+        )
+        dispatch_withheld = (
+            None
+            if withheld_refusal is None or dispatch is None
+            else {
+                "reason": "refusal_no_action",
+                "refusal_reason": withheld_refusal,
+                "would_dispatch_robot_ids": list(dispatch.robot_ids),
+            }
+        )
         try:
             artifact_path = write_decision_artifact(
                 self._config.decision_log_dir,
@@ -1207,6 +1245,7 @@ class OrchestratorNode(Node):
                     None if self._suppression is None
                     else self._suppression.take_artifact_block()
                 ),
+                dispatch_withheld=dispatch_withheld,
                 **self._trigger_artifact_fields(trigger_source, contradiction),
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
@@ -1238,17 +1277,21 @@ class OrchestratorNode(Node):
         would_dispatch = (
             directive.kind is DirectiveKind.DISPATCH and outcome.grounded_command is not None
         )
+        withhold = would_dispatch and dispatch_withheld is not None
         self._update_suppression(
             outcome,
-            dispatched=would_dispatch and self._config.dispatch_enabled,
+            dispatched=would_dispatch and self._config.dispatch_enabled and not withhold,
             dispatch_suppressed=would_dispatch and not self._config.dispatch_enabled,
             trigger_source=trigger_source,
             trigger_robots=self._last_trigger_robot_ids,
             snapshot=snapshot,
             now=now,
+            refusal_withheld=withhold,
         )
         if would_dispatch:
-            if self._config.dispatch_enabled:
+            if withhold:
+                self._withhold_refusal(outcome, dispatch, directive.robots, now)
+            elif self._config.dispatch_enabled:
                 self._dispatch(outcome, dispatch, episode_index=episode_index)
             else:
                 self._suppress_dispatch(outcome, dispatch, directive.robots, now)
@@ -1987,6 +2030,39 @@ class OrchestratorNode(Node):
                 None if contradiction is None else contradiction.model_dump(mode="json")
             ),
         }
+
+    # ---- S1 refusal-as-no-action ----
+
+    def _withhold_refusal(
+        self,
+        outcome: PipelineOutcome,
+        dispatch: RegistryDispatch | None,
+        event_robots: list[str],
+        now: float,
+    ) -> None:
+        """Stand in for `_dispatch` for a refused yield under `refusal_no_action`.
+
+        The `_suppress_dispatch` template: the artifact holds the waits M4
+        would have received (`dispatch_withheld`); nothing is published,
+        overridden or tracked, and no attempt enters AttemptMemory. Leaving
+        the robots' Nav2 goals alone is the point: the re-sent waits cancelled
+        them before Nav2's own progress-checker recoveries could fire (S1 E1).
+        A cooldown starts on the event's and the would-be waited robots, so a
+        persisting stall re-triggers one cooldown later, where the
+        scene-unchanged suppression (armed by this outcome) can skip it.
+        """
+        would_be = [] if dispatch is None else list(dispatch.robot_ids)
+        robots = sorted(set(event_robots) | set(would_be))
+        self._cooldown.start(robots, now)
+        command_id = (
+            None if dispatch is None or dispatch.command is None
+            else dispatch.command["command_id"]
+        )
+        self.get_logger().info(
+            f"refusal withheld request={outcome.request_id} command={command_id} "
+            f"would_dispatch={would_be} cooldown_robots={robots} "
+            f"cooldown_sec={self._config.cooldown_sec} (refusal_no_action)"
+        )
 
     # ---- dispatch-off (log-only) ----
 
