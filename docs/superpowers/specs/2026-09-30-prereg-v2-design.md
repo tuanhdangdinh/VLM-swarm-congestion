@@ -1895,6 +1895,21 @@ makes an explicit include/exclude call.
    diagnostic-only until its detector is fixed (v3 scope); the
    step-7b bundle's archived GT permits retroactive recompute and
    SHOULD be recomputed before the 4/4 is cited in the thesis.**
+   **APPEND-ONLY CAVEAT EXTENSION (2026-10-09, from v3 A12(iv) on
+   `feat/v3-design@f545dd5`): the ruling above extends to STATIC
+   contacts. S1 pilot ep1 pinned robot_3 at the SW rack corner for
+   277 sim-s (GT pose static within 1.6 cm, cmd_vel pushing) while
+   GT `robot_static_contacts` logged 0 rows. The field is not a
+   detector at all: `isaac/vgu_sim/acceptance_logging.py:99`
+   hard-codes `"robot_static_contacts": []` on every lineage (v1
+   hotfix, v2 composite, v3 integration), so any "no robot-obstacle
+   contact" criterion read from it — including the 2026-09-25
+   overnight-findings PASS rows — is vacuous, not merely
+   unsupported. RULED: v1/v2 confirmatory contact scoring covers
+   robot-robot AND robot-obstacle by distance recompute (GT robot
+   positions vs declared obstacle/rack footprints);
+   `robot_static_contacts` is not citable as evidence until v3
+   implements it.**
 8. Loop map: USD + Nav2 + reroute grounding; the pre-emption control
    smoke before any scenario authoring.
 9. B2-visual pair + B3 first-to-slip scenarios + oracles.
