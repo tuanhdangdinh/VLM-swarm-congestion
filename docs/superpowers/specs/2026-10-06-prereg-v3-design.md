@@ -1146,6 +1146,38 @@ yield-axis sub-plans remain outside the verdict (registered);
 a plan naming the handed-over partner directly stays
 `inconsistent` (under-credit, registered).
 
+**A19. S1a anchor complete; first task-stream resolution; exemption
+scope ruled (2026-10-10; report 2026-10-10-s1a-anchor.md; integration
+@56836a4 lineage).** 3/3 anchor episodes (seeds 3-5, H=300, echo,
+pre-A16 deployed tree). COMBINED ANCHOR ROW (n=6): time-to-gridlock
+median 60.8 rel-s (24.6–338.2; E2-condition n=4 median 31.6), first
+encounter median 17.64 (14.44–19.17), outcomes 3 partial/3 gridlock,
+every episode ends in permanent latch clusters; no spontaneous latch
+self-free anywhere — the one transient latch was cleared BY a yield.
+MILESTONE: A1 holds the FIRST closed-loop resolution event in
+task-stream traffic (executed yield 32ce6702: gate_admit 55.6 →
+release 100.6 on the 45 sim-s backstop → 2 tasks, gridlock delayed
+to 147.1). Seed variance is order-of-magnitude — single-episode
+gridlock comparisons are UNINFORMATIVE (cell design note).
+NEW RULING — latch-aware exemption scope: a dispatched clearing
+command is futile when the yielder is latched to a THIRD robot (A2:
+pair-scoped exemption r1+r5 while r1 was latched to r2 → zero
+motion, FAILED ~15 s). During a clearing command's window the
+yielder must be exempted against ALL its latch partners (the 0.20 m
+hard-contact floor remains the backstop); fix rides the S1b pilot
+deploy. LIVE CONFIRMATIONS: the dispatched-fallback loop at full
+cadence (A3: 12 near-identical reroute+wait dispatches to horizon,
+each cancelling held Nav2 goals — the already-merged
+empty_reroute_fallback withhold @31c8ce0 targets exactly this; A3
+is its named regression scenario); escort_turn_cap live-exercised
+(2.485→1.558 m). BOOKKEEPING: censoring caveat (ep1's 338.2
+gridlock and ~282 wedge self-free would be right-censored at
+H=300); the s1b report's ep1 first-encounter 20.5 is corrected to
+19.17 by the committed stats script (append-only note); anchor ran
+on the pre-A16 M3 per the A16(iv) caveat. OPS: the new VM's clock
+lags ~1 day — STAMP dates on it read 2026-10-09; join runs by run
+id, never by STAMP date.
+
 **A14 corrigendum (2026-10-09).** A14(iv)'s "GT
 robot_static_contacts logged 0 rows during a physical pin" implied
 an under-detecting detector. The truth is stronger:
