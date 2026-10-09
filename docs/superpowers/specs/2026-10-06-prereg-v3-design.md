@@ -1103,6 +1103,49 @@ repaired_yield_retry_only): any mechanically-separable repair cause
 gets its own stratum — defined once as a rule rather than
 enumerated ad hoc.
 
+**A18. Verdict identity rule shipped; residual map final
+(2026-10-10; integration @72151a6).** The A17 heading-handover fix
+landed as an IDENTITY rule — the verdict fires whenever the full
+derived pipeline's final yielder differs from the robot a consistent
+plan must name (shared `_resolve_yield_outcome`, extracted verbatim
+from the default-plan builder; any future re-grounding layer is
+covered automatically). SCOPE EXPANSION ACCEPTED: node-handoff and
+rear re-groundings are corrected by the same rule (S1b +1 vb→rep,
++6 repaired-yielder corrections; S1a +1). CORRECTION to A17's
+figures: the true heading over-credit was 6/400 S1b and 0/400 S1a
+(the 8+7 counted tags, including handover-then-retry-refusals
+A16(v) already scored correctly). Final MC split: S1b 126/101/173,
+S1a 106/55/239; zero moves away from dispatch-match. Composed
+handover+retry-success is structurally impossible (the retry's only
+partner is the handed-from robot, which fails backup_follows_retreat
+— 0/800 carry both tags). STRATUM RULED: rename to
+`repaired_regrounding_only` with per-layer sub-counts (view: heading
+/rear/node-handoff; retry: sweep) — one stratum, the A17-bis family
+rule applied; the room gate's `yield_robot=regrounded:` stays
+outside (different tag grammar, different mechanism).
+RESIDUAL MAP (post-fix, ranked), with the defusing note that the
+A17-bis headline invariant (vb∧dispatch_matched, never raw vb)
+already prevents these from inflating CLAIMS — they matter for
+repair attribution and the dispatch-order arm:
+(1) OFF-LANE CROSS HOLD — plan gives `cross` to a lane_scoped robot
+dispatch holds; never checked (S1a 36/106 vb mismatch; size is
+script-dependent). RULED: fix before any plan-channel LIVE episode,
+as a repair (substitute cross→wait, one edit, separable) — same
+gate as the A16(v)/A17 chain, lower urgency than they were because
+the invariant defangs claim inflation.
+(2) Non-retry refusals stay verdict-free BY DESIGN (dispatch
+waits-all, plan keeps its yield → mismatched vb/repaired; J1
+no-passer + same-side classes, ~13-25/floor) — carried, invariant
+covers claims.
+(3) The verdict's one hole: it reads the default-plan derivation,
+which disagrees with dispatch in 6-7/400 per floor (predates this
+change; mostly node-handoff + multi-passer nearest-first) —
+"verdict = dispatch" is exact except there; carried with sizes.
+(4) Declared-geometry/refuse-mode plan legs and junction_clear
+yield-axis sub-plans remain outside the verdict (registered);
+a plan naming the handed-over partner directly stays
+`inconsistent` (under-credit, registered).
+
 **A14 corrigendum (2026-10-09).** A14(iv)'s "GT
 robot_static_contacts logged 0 rows during a physical pin" implied
 an under-detecting detector. The truth is stronger:
