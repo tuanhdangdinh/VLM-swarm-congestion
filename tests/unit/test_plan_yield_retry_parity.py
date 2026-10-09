@@ -9,6 +9,12 @@ yielded the partner (`dispatch_matches_plan=False`), or refused the yield
 outright. The verifier now reads the retry's verdict from the same function:
 the plan is repaired by one `swap` onto the retried partner, or, when the
 retry refuses, defaults to the refusal's waits with its true reason.
+
+A17 extends the verdict to the full derived pipeline's final yielder: a
+grounding-view handover (`heading_regrounded`, and likewise
+`rear_regrounded` / `node_handoff_regrounded`) moves the yield before the
+retry runs, and a plan naming the model's yielder is repaired onto the robot
+dispatch yields.
 """
 from __future__ import annotations
 
@@ -267,17 +273,197 @@ def test_provenance_shift_runs_only_toward_dispatch(monkeypatch: pytest.MonkeyPa
     post = {name: _outcome(name) for name in names}
     monkeypatch.setattr(command_grounder, "_plan_yield_verdict", lambda *a, **k: None)
     pre = {name: _outcome(name) for name in names}
-    retried = {name for name, *_ in RETRIED}
+    # A17: the A16 heading handover (`heading_regrounded`, a grounding-view
+    # re-grounding) now moves like the retry, because the verdict is the
+    # full pipeline's final yielder. Until then it verified vb against a
+    # dispatch that yields the facing partner.
+    repaired = {name for name, *_ in RETRIED} | {HANDOVER[0]}
     moved = {name for name in names if pre[name] != post[name]}
-    assert moved == retried | set(BOTH_FAIL)
+    assert moved == repaired | set(BOTH_FAIL)
     for name in moved:
         assert pre[name] == ("vlm_verbatim", False)
-        assert post[name] == ("repaired" if name in retried else "m3_default", True)
+        assert post[name] == ("repaired" if name in repaired else "m3_default", True)
     assert Counter(p for p, _ in pre.values()) == Counter({"vlm_verbatim": 6, "m3_default": 4})
     assert Counter(p for p, _ in post.values()) == Counter(
-        {"m3_default": 6, "vlm_verbatim": 2, "repaired": 2}
+        {"m3_default": 6, "vlm_verbatim": 1, "repaired": 3}
     )
-    # Untouched here: the A16 heading handover (`heading_regrounded`) is a
-    # grounding-view re-grounding, not the retry, and still verifies vb
-    # against a dispatch that yields the facing partner.
-    assert post["s1b_heading_regrounded_exec"] == ("vlm_verbatim", False)
+
+
+# The A16 heading handover (prereg-v3 A17): robot_3 heads 34 deg off both
+# axes, so the grounding view hands the yield to robot_5, which faces it on
+# the x lane (`grounding=heading_regrounded:robot_3->robot_5`), BEFORE
+# `resolve_yield_roles` runs. The room check alone accepts robot_3's leg.
+HANDOVER = ("s1b_heading_regrounded_exec", "robot_3", "robot_5")
+
+# S1a MC seed 6's first conflict: the view hands robot_2's yield to robot_4
+# (heading handover), then the partner retry finds no surviving retreat for
+# robot_4 and its partner is robot_2 again, which would back up along its
+# diagonal heading: the retry refuses. Composed handover-then-retry-SUCCESS
+# is not constructible, because the retry's partner after a handover is
+# always the robot handed over from, the one the view found ambiguous
+# (0 of 800 MC first conflicts carry both tags).
+_S1A_SEED6_ROWS = [
+    {"robot_id": "robot_1", "x": 0.10837736411265103, "y": -1.319109093846961,
+     "theta": -2.0096556257584033, "status": "MOVING", "goal": [0.0, -1.55]},
+    {"robot_id": "robot_2", "x": -0.5770229710551237, "y": 0.5229770289448766,
+     "theta": 0.7853981633974454, "status": "STOPPED", "goal": [0.0, 1.55]},
+    {"robot_id": "robot_3", "x": -1.035899295539018, "y": -0.27261676488376696,
+     "theta": 2.6839329969729007, "status": "MOVING", "goal": [-2.3, 0.35]},
+    {"robot_id": "robot_4", "x": -0.3357514434695814, "y": 0.8961682416644989,
+     "theta": -2.0451962095868037, "status": "STOPPED", "goal": [-2.3, 0.35]},
+    {"robot_id": "robot_5", "x": -1.8424845928333025, "y": 0.12465659049998495,
+     "theta": -0.45765965661689273, "status": "MOVING", "goal": [0.0, -1.55]},
+]
+
+
+def _regrounding_pairs(command: dict[str, Any]) -> list[tuple[str, str]]:
+    # Every `<layer>_regrounded:<from>-><to>` tag of the dispatched command,
+    # from the grounding view (heading, rear, node handoff) or the retry.
+    pairs = []
+    for tag in command.get("degradations", []):
+        head, sep, ids = tag.rpartition(":")
+        if sep and head.endswith("_regrounded") and "->" in ids:
+            source, _, target = ids.partition("->")
+            pairs.append(tuple(sorted((source, target))))
+    return pairs
+
+
+def test_room_check_alone_accepts_the_handed_over_yielder():
+    # The pre-A17 audit: the verdict fired only on the retry's own tag, so
+    # nothing flagged the leg of the robot the view handed the yield away
+    # from, hence `vlm_verbatim` while dispatch yielded the facing partner.
+    name, named, _ = HANDOVER
+    case, config, params, frame = _scene(name)
+    view = resolve_grounding_view(
+        _echo_decision(case["involved"]), frame, config.scenario_geometry, params
+    )
+    legs = [*_plan(case["involved"], named).proposed_plan]
+    legs += [
+        ProposedPlanLeg(robot_id=r.robot_id, action="continue")
+        for r in frame.robots
+        if r.robot_id not in case["involved"]
+    ]
+    problems = _plan_problems(
+        legs, view.decision, frame, view.geometry, config.static_obstacles, "swap", params
+    )
+    assert problems == []
+
+
+def test_plan_naming_the_handed_over_yielder_is_repaired_by_one_swap():
+    name, named, partner = HANDOVER
+    case, config, params, frame = _scene(name)
+    verified = _verify(_plan(case["involved"], named), frame, config, params)
+    assert verified.provenance == "repaired"
+    assert [(e.op, e.robot_ids) for e in verified.edits] == [
+        ("swap", tuple(sorted((named, partner))))
+    ]
+    assert verified.edits[0].reason == (
+        f"yield re-grounded: dispatch yields {partner}, not {named} "
+        f"(grounding=heading_regrounded:{named}->{partner}); swapped roles {named} "
+        f"(yield) <-> {partner} (cross)"
+    )
+    assert _yielder(verified.legs) == partner
+
+
+def test_handed_over_plan_matches_the_derived_dispatch():
+    name, named, partner = HANDOVER
+    case, config, params, frame = _scene(name)
+    verified = _verify(_plan(case["involved"], named), frame, config, params)
+    command = _dispatch(_echo_decision(case["involved"]), frame, config, params)
+    assert f"grounding=heading_regrounded:{named}->{partner}" in command["degradations"]
+    assert plan_matches_dispatch(verified.legs, command, [r.robot_id for r in frame.robots])
+
+
+@pytest.mark.parametrize(
+    "name", [HANDOVER[0], *(name for name, *_ in RETRIED)]
+)
+def test_repair_swap_ids_equal_the_command_regrounding_pair(name: str):
+    # Stratum separability: the plan's single edit is a swap whose ids are
+    # exactly one `*_regrounded:<from>-><to>` pair of the dispatched command,
+    # whichever layer (grounding view or partner retry) re-grounded it.
+    case, config, params, frame = _scene(name)
+    verified = _verify(_plan(case["involved"], case["involved"][0]), frame, config, params)
+    command = _dispatch(_echo_decision(case["involved"]), frame, config, params)
+    assert [edit.op for edit in verified.edits] == ["swap"]
+    assert _regrounding_pairs(command) == [verified.edits[0].robot_ids]
+
+
+def test_handover_then_retry_refusal_defaults_the_plan_to_the_refusal():
+    config, params = _floor("s1a")
+    frame = _frame(_S1A_SEED6_ROWS)
+    involved = ["robot_2", "robot_4"]
+    command = _dispatch(_echo_decision(involved), frame, config, params)
+    assert "grounding=heading_regrounded:robot_2->robot_4" in command["degradations"]
+    verified = _verify(_plan(involved, "robot_2"), frame, config, params)
+    assert verified.provenance == "m3_default"
+    assert verified.rejection_stage == "repair_bound_exceeded"
+    assert verified.rejection_reason == (
+        "plan unrepairable: yield refused: no executable retreat (robot_4 has no retreat "
+        "candidate surviving the sweep; robot_2 would back up off its retreat axis)"
+    )
+    assert {leg.action for leg in verified.legs if leg.robot_id in involved} == {"wait"}
+    assert plan_matches_dispatch(verified.legs, command, [r.robot_id for r in frame.robots])
+
+
+@pytest.mark.parametrize("name", sorted(FIXTURES))
+def test_verified_yielder_is_the_plan_absent_default_yielder(name: str):
+    # The verdict is read from the call chain the default plan is derived
+    # by, so on these fixtures a plan that survives verification yields the
+    # robot the plan-absent default (M3's own derived plan) yields. Not an
+    # MC-wide invariant: non-retry refusals stay verdict-free, and the
+    # default plan's multi-passer refusal can disagree with derived dispatch
+    # (6/400 S1b, 7/400 S1a first conflicts, pre-existing).
+    case, config, params, frame = _scene(name)
+    verified = _verify(_plan(case["involved"], case["involved"][0]), frame, config, params)
+    default = _verify(_echo_decision(case["involved"]), frame, config, params)
+    assert _yielder(verified.legs) == _yielder(default.legs)
+
+
+# The verdict is an identity test on the final yielder, so every grounding
+# view re-grounding is covered, not only the heading handover. S1a MC seed
+# 211: robot_2 faces away from robot_3 on the x lane (`rear_regrounded`).
+# S1b MC seed 316: robot_5 arrives at node N, which robot_2 occupies, so the
+# arriver yields (`node_handoff_regrounded`). Both verified vb against a
+# dispatch yielding the other robot before A17.
+_VIEW_REGROUNDINGS = {
+    "rear_regrounded": ("s1a", ["robot_2", "robot_3", "robot_4"], "robot_2", "robot_3", [
+        {"robot_id": "robot_1", "x": -0.08182010817817348, "y": -1.3906661051267148,
+         "theta": -1.0963964440029896, "status": "MOVING", "goal": [0.0, -1.55]},
+        {"robot_id": "robot_2", "x": 1.137095111518571, "y": 0.12921165427571424,
+         "theta": -0.11065722117389558, "status": "STOPPED", "goal": [2.3, 0.0]},
+        {"robot_id": "robot_3", "x": 0.809113479076279, "y": -0.16565405788041335,
+         "theta": 0.11065722117389558, "status": "STOPPED", "goal": [2.3, 0.0]},
+        {"robot_id": "robot_4", "x": 1.5247706869545765, "y": -0.08613659033838032,
+         "theta": -3.0309354324158977, "status": "STOPPED", "goal": [0.0, -1.55]},
+        {"robot_id": "robot_5", "x": -1.7465995680707873, "y": -0.30789344539669034,
+         "theta": 0.07594063626589467, "status": "MOVING", "goal": [2.3, 0.0]},
+    ]),
+    "node_handoff_regrounded": ("s1b", ["robot_2", "robot_5"], "robot_2", "robot_5", [
+        {"robot_id": "robot_1", "x": -0.86553504844774, "y": 1.1064116120005596,
+         "theta": -0.16820677185708616, "status": "MOVING", "goal": [2.3, 0.0]},
+        {"robot_id": "robot_2", "x": -0.1830510568382873, "y": 1.316194098007452,
+         "theta": -0.46760015758755624, "status": "STOPPED", "goal": [2.3, 0.0]},
+        {"robot_id": "robot_3", "x": -0.30315263929117253, "y": -1.3227754774362288,
+         "theta": -0.4733560418349155, "status": "MOVING", "goal": [-0.25, -1.35]},
+        {"robot_id": "robot_4", "x": 0.8183587736462421, "y": -1.02741116134694,
+         "theta": 0.10308160852270035, "status": "MOVING", "goal": [2.3, 0.0]},
+        {"robot_id": "robot_5", "x": 0.19545190186115036, "y": 1.1218417088028256,
+         "theta": 2.6682366117548786, "status": "STOPPED", "goal": [-0.25, 1.35]},
+    ]),
+}
+
+
+@pytest.mark.parametrize("layer", sorted(_VIEW_REGROUNDINGS))
+def test_any_view_regrounding_is_repaired_onto_the_dispatched_yielder(layer: str):
+    floor, involved, named, final, rows = _VIEW_REGROUNDINGS[layer]
+    config, params = _floor(floor)
+    frame = _frame(rows)
+    command = _dispatch(_echo_decision(involved), frame, config, params)
+    assert f"grounding={layer}:{named}->{final}" in command["degradations"]
+    verified = _verify(_plan(involved, named), frame, config, params)
+    assert verified.provenance == "repaired"
+    assert [(e.op, e.robot_ids) for e in verified.edits] == [
+        ("swap", tuple(sorted((named, final))))
+    ]
+    assert _regrounding_pairs(command) == [verified.edits[0].robot_ids]
+    assert plan_matches_dispatch(verified.legs, command, [r.robot_id for r in frame.robots])

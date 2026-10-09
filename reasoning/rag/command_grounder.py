@@ -1616,6 +1616,10 @@ def resolve_yield_roles(
 # and `_plan_yield_verdict` reads them back (prereg-v3 A16(v)).
 _SWEEP_REGROUNDED_TAG = "yield_robot=sweep_regrounded"
 _NO_EXECUTABLE_RETREAT = "yield refused: no executable retreat"
+# Every layer that hands the yield to another robot tags it
+# `<layer>_regrounded:<from>-><to>` (prereg-v3 A17); only the plan verdict's
+# reason text reads this, never its yielder.
+_REGROUNDED_MARK = "_regrounded:"
 
 
 def _partner_retry_applies(
@@ -3118,61 +3122,87 @@ class _PlanYieldVerdict(NamedTuple):
 
 
 def _plan_yield_verdict(
-    decision: CongestionDecision,
+    view: GroundingView,
+    model_decision: CongestionDecision,
     snapshot: SnapshotFrame,
     *,
-    geometry: SceneGeometry | None,
     static_obstacles: Sequence[StaticObstacleInput],
     yield_feasibility_mode: YieldFeasibilityMode,
     priorities: Mapping[str, int] | None,
     grounding_params: GroundingParams | None,
 ) -> _PlanYieldVerdict | None:
-    """The partner retry's verdict on a plan's yield leg (prereg-v3 A16(v)).
+    """The derived pipeline's final yielder, as a verdict on a plan's yield leg.
 
-    `_plan_problems`' room check alone accepts a gate-kept yielder whose
-    derived retreat then fails (backup, sweep or escort), while dispatch
-    (`resolve_yield_roles`' partner retry) yields its partner instead or
-    refuses the yield. The verdict is read from that same function, called
-    exactly as `_yield_default_actions` calls it, so a plan leg and the
-    derived path face one feasibility check, partner eligibility included.
+    prereg-v3 A16(v) and A17: dispatch re-grounds a yield in two layers
+    the room check does not model. The grounding view may hand the yield
+    to another robot (`heading_regrounded`, `rear_regrounded`,
+    `node_handoff_regrounded`), and `resolve_yield_roles`' partner retry
+    may then yield the partner of a kept yielder with no executable
+    retreat (`sweep_regrounded`) or refuse the yield. The verdict is read
+    from `view` and `_resolve_yield_outcome`, the call chain
+    `_yield_default_actions` derives the default plan from, so a plan leg
+    faces the same final yielder dispatch executes, whichever layer chose
+    it. The test is identity, not a tag list, so a new re-grounding layer
+    in that chain is covered without touching this function.
 
     Args:
-        decision: The grounding view's decision.
+        view: The grounding view the decision is grounded through.
+        model_decision: The model's own decision, whose yielder
+            (`resolve_robot_order(...)[0]`) a consistent plan names
+            (`_plan_disagrees_with_decision_fields`).
         snapshot: Scene frame supplying every robot's position.
-        geometry: The grounding view's geometry.
         static_obstacles: Fixed obstacles of the running scenario.
         yield_feasibility_mode: The yield feasibility gate mode.
         priorities: M5's registry priorities, for the strategy alias.
         grounding_params: M3's derived-mode grounding parameters.
 
     Returns:
-        None when the retry does not fire (outside its domain, not a yield,
-        or the kept yielder's retreat is executable): the room check stands
-        alone, as before. Otherwise the retried yielder, or None as
-        `yielder_id` when the retry refused the yield.
+        None outside the retry's domain, for a non-yield, for any
+        dispatched outcome that is not a yield except the retry's refusal
+        (other refusals and reroutes keep the checks that model them), and
+        when the final yielder is the model's own. Otherwise the final
+        yielder, or None as `yielder_id` when the retry refused the yield.
     """
+    geometry = view.geometry
     if not _partner_retry_applies(yield_feasibility_mode, grounding_params, geometry):
         return None
-    alias = resolve_strategy_alias(decision, snapshot, geometry=geometry, priorities=priorities)
-    working = alias.decision if alias is not None else decision
+    alias = resolve_strategy_alias(
+        view.decision, snapshot, geometry=geometry, priorities=priorities
+    )
+    working = alias.decision if alias is not None else view.decision
     if working.strategy != "yield":
         return None
-    roles = resolve_yield_roles(
+    positions = {state.robot_id: (state.x, state.y) for state in snapshot.robots}
+    outcome = _resolve_yield_outcome(
         working,
         snapshot,
-        geometry=geometry,
-        static_obstacles=static_obstacles,
-        yield_feasibility_mode=yield_feasibility_mode,
-        params=grounding_params,
+        positions,
+        geometry,
+        static_obstacles,
+        yield_feasibility_mode,
+        grounding_params,
     )
-    if roles.refusal_reason is not None:
-        if roles.refusal_reason.startswith(_NO_EXECUTABLE_RETREAT):
-            return _PlanYieldVerdict(yielder_id=None, reason=roles.refusal_reason)
+    roles = outcome.roles
+    if outcome.refusal_reason is not None:
+        if outcome.refusal_reason.startswith(_NO_EXECUTABLE_RETREAT):
+            return _PlanYieldVerdict(yielder_id=None, reason=outcome.refusal_reason)
         return None
-    if any(tag.startswith(f"{_SWEEP_REGROUNDED_TAG}:") for tag in roles.degradations):
-        reason = (roles.regrounded_reason or "").removeprefix("yield re-grounded: ")
-        return _PlanYieldVerdict(yielder_id=roles.yielder_id, reason=reason)
-    return None
+    if outcome.reroutes:
+        return None
+    named = resolve_robot_order(model_decision if model_decision.strategy == "yield" else working)
+    if roles.yielder_id == named[0]:
+        return None
+    view_regroundings = [tag for tag in view.tags if _REGROUNDED_MARK in tag]
+    parts = []
+    if view_regroundings:
+        parts.append(
+            f"dispatch yields {roles.yielder_id}, not {named[0]} "
+            f"({', '.join(view_regroundings)})"
+        )
+    if roles.regrounded_reason is not None:
+        parts.append(roles.regrounded_reason.removeprefix("yield re-grounded: "))
+    reason = "; ".join(parts) or f"dispatch yields {roles.yielder_id}, not {named[0]}"
+    return _PlanYieldVerdict(yielder_id=roles.yielder_id, reason=reason)
 
 
 def _plan_problems(
@@ -3228,9 +3258,10 @@ def _plan_problems(
             weights); None uses the placeholder default. Only consulted by
             the `junction_clear` recede-set audit below, to recompute the
             SAME chi order `ground_junction_clear_phases` will dispatch.
-        plan_yield_verdict: The partner retry's verdict
+        plan_yield_verdict: The derived pipeline's final yielder
             (`_plan_yield_verdict`); a `yield` leg on any robot but its
-            `yielder_id` fails with its reason. None adds no check.
+            `yielder_id` fails with its reason unless an earlier check
+            already failed it. None adds no check.
 
     Returns:
         `(index, reason)` pairs into `legs` for every leg that fails a check;
@@ -3313,10 +3344,13 @@ def _plan_problems(
                 problems.append((i, reason))
 
     if plan_yield_verdict is not None:
-        # A16(v): the yielder the room check keeps may have no executable
-        # retreat; dispatch then yields the retried partner, or nobody.
+        # A16(v), A17: the yielder the room check keeps may not be the one
+        # dispatch yields (a view handover or the partner retry moved the
+        # yield), or dispatch yields nobody. A leg the room check already
+        # failed keeps that reason: the room gate's own swap stays as logged.
+        flagged = {i for i, _ in problems}
         for i in yield_idx:
-            if legs[i].robot_id != plan_yield_verdict.yielder_id:
+            if i not in flagged and legs[i].robot_id != plan_yield_verdict.yielder_id:
                 problems.append((i, plan_yield_verdict.reason))
 
     if geometry is not None and yield_idx and involved:
@@ -3561,6 +3595,57 @@ def _derived_reroute_reason(
     return None
 
 
+class _YieldOutcome(NamedTuple):
+    # What dispatch does with a yield: the final roles, the refusal (wait
+    # fan-out) if any, else whether the yielder degrades to a reroute.
+    roles: YieldRoles
+    refusal_reason: str | None
+    reroutes: bool
+
+
+def _resolve_yield_outcome(
+    working: CongestionDecision,
+    snapshot: SnapshotFrame,
+    positions: Mapping[str, tuple[float, float]],
+    geometry: SceneGeometry | None,
+    static_obstacles: Sequence[StaticObstacleInput],
+    yield_feasibility_mode: YieldFeasibilityMode,
+    grounding_params: GroundingParams | None,
+) -> _YieldOutcome:
+    # The one derivation of a yield's dispatched outcome, shared by the
+    # default plan (`_yield_default_actions`) and the plan verdict
+    # (`_plan_yield_verdict`, prereg-v3 A17).
+    roles = resolve_yield_roles(
+        working,
+        snapshot,
+        geometry=geometry,
+        static_obstacles=static_obstacles,
+        yield_feasibility_mode=yield_feasibility_mode,
+        params=grounding_params,
+    )
+    # `resolve_yield_roles` does not itself apply the legacy multi-passer
+    # nearest-first refusal (`_ground_legacy`'s own check, not duplicated
+    # there either): apply it here so a 3+-robot default plan refuses
+    # exactly where `_ground_legacy` would.
+    multi_passer_refusal = (
+        _first_passer_refusal(roles.yielder_id, roles.crossing_order, positions)
+        if roles.refusal_reason is None and len(roles.crossing_order) > 1
+        else None
+    )
+    refusal = roles.refusal_reason if roles.refusal_reason is not None else multi_passer_refusal
+    if refusal is not None:
+        return _YieldOutcome(roles, refusal, False)
+    reroutes = (
+        grounding_params is not None
+        and grounding_params.mode == "derived"
+        and geometry is not None
+        and _derived_yield_degrades_to_reroute(
+            snapshot, roles, grounding_params, geometry, static_obstacles
+        )
+    )
+    return _YieldOutcome(roles, None, reroutes)
+
+
 def _yield_default_actions(
     working: CongestionDecision,
     snapshot: SnapshotFrame,
@@ -3593,36 +3678,22 @@ def _yield_default_actions(
         `(actions, ordered)`: per-robot action overrides for every robot this
         branch assigns a leg to, and those robots in execution order.
     """
-    roles = resolve_yield_roles(
+    outcome = _resolve_yield_outcome(
         working,
         snapshot,
-        geometry=geometry,
-        static_obstacles=static_obstacles,
-        yield_feasibility_mode=yield_feasibility_mode,
-        params=grounding_params,
+        positions,
+        geometry,
+        static_obstacles,
+        yield_feasibility_mode,
+        grounding_params,
     )
+    roles = outcome.roles
     actions: dict[str, PlanLegAction] = {}
-    # `resolve_yield_roles` does not itself apply the legacy multi-passer
-    # nearest-first refusal (`_ground_legacy`'s own check, not duplicated
-    # there either): apply it here so a 3+-robot default plan refuses
-    # exactly where `_ground_legacy` would.
-    multi_passer_refusal = (
-        _first_passer_refusal(roles.yielder_id, roles.crossing_order, positions)
-        if roles.refusal_reason is None and len(roles.crossing_order) > 1
-        else None
-    )
-    if roles.refusal_reason is not None or multi_passer_refusal is not None:
+    if outcome.refusal_reason is not None:
         for robot_id in roles.robot_ids:
             actions[robot_id] = "wait"
         return actions, list(roles.robot_ids)
-    if (
-        grounding_params is not None
-        and grounding_params.mode == "derived"
-        and geometry is not None
-        and _derived_yield_degrades_to_reroute(
-            snapshot, roles, grounding_params, geometry, static_obstacles
-        )
-    ):
+    if outcome.reroutes:
         # Mirrors `_reroute_yielder`'s dispatch shape exactly: the yielder
         # reroutes, every crossing-order (and off-lane) robot waits.
         actions[roles.yielder_id] = "reroute"
@@ -4213,14 +4284,17 @@ def verify_and_repair_plan(
     - Repair distance exceeds `repair_params.max_repair_edits` -> M3's own
       derived plan, `m3_default`, reason logged.
 
-    Partner-retry parity (prereg-v3 A16(v)): in `resolve_yield_roles`'
+    Final-yielder parity (prereg-v3 A16(v), A17): in `resolve_yield_roles`'
     retry domain (footprint view, `"swap"`, derived params) a yield leg is
-    also audited against that function's own verdict (`_plan_yield_verdict`).
-    A plan naming a kept yielder with no executable retreat is repaired by
-    one `swap` onto the partner dispatch retries to, never onto a robot the
-    retry would not pick; when the retry refuses the yield, the plan is
-    `m3_default` with `plan unrepairable: <refusal>`. Outside that domain the
-    derived backup/sweep/escort check is still not modelled for a plan leg.
+    also audited against the derived pipeline's final yielder
+    (`_plan_yield_verdict`): after the grounding view's handover (heading,
+    rear or node-handoff re-grounding) AND the partner retry. A plan naming
+    the model's yielder when dispatch yields another robot is repaired by
+    one `swap` onto that robot, never onto a robot dispatch would not pick;
+    when the retry refuses the yield, the plan is `m3_default` with
+    `plan unrepairable: <refusal>`. Outside that domain the derived
+    backup/sweep/escort check and the view handover are still not modelled
+    for a plan leg.
 
     In a two-robot head-on this reduces to the existing swap gate as a
     one-leg repair: the VLM's one `yield` leg on the infeasible robot and one
@@ -4370,9 +4444,9 @@ def verify_and_repair_plan(
         )
 
     plan_yield_verdict = _plan_yield_verdict(
-        decision,
+        view,
+        model_decision,
         snapshot,
-        geometry=geometry,
         static_obstacles=static_obstacles,
         yield_feasibility_mode=yield_feasibility_mode,
         priorities=priorities,
