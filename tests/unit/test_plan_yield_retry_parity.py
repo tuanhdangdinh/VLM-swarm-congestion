@@ -408,8 +408,11 @@ def test_handover_then_retry_refusal_defaults_the_plan_to_the_refusal():
 @pytest.mark.parametrize("name", sorted(FIXTURES))
 def test_verified_yielder_is_the_plan_absent_default_yielder(name: str):
     # The verdict is read from the call chain the default plan is derived
-    # by, so a plan that survives verification yields the robot the
-    # plan-absent default (M3's own derived plan) yields.
+    # by, so on these fixtures a plan that survives verification yields the
+    # robot the plan-absent default (M3's own derived plan) yields. Not an
+    # MC-wide invariant: non-retry refusals stay verdict-free, and the
+    # default plan's multi-passer refusal can disagree with derived dispatch
+    # (6/400 S1b, 7/400 S1a first conflicts, pre-existing).
     case, config, params, frame = _scene(name)
     verified = _verify(_plan(case["involved"], case["involved"][0]), frame, config, params)
     default = _verify(_echo_decision(case["involved"]), frame, config, params)
