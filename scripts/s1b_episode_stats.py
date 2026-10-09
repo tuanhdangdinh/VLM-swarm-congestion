@@ -265,9 +265,84 @@ def analyse(bundle: Path) -> dict:
         "executed_resolution_events": sum(1 for r in resolution if r["release"] is not None),
         "waivers": waivers,
         "waiver_lines": sum("latch waiver" in ln for ln in m4),
-        "tasks_completed": len(arrivals),
+        "tasks_arrived": len(arrivals),
+        "tasks_completed": sum(1 for e in task_events if e.get("event") == "dwell_complete"),
         "robot_done": done,
+        "wander_park": _wander_park(task_events, gt, gt_t, off),
         "gt_offset_s": off,
+    }
+
+
+_NODE_NEAR_M = 1.0
+_NODE_OCCUPIED_M = 0.45
+_TAIL_S = 120.0
+
+
+def _wander_park(task_events: list[dict], gt: list[dict], gt_t: list[float], off: float) -> dict:
+    """The S1-1 wandering-vs-park measures (S1b first-light NOTES rule 4).
+
+    Occupied-node arrival: a robot comes within 1.0 m of its current task
+    node while another robot is within 0.45 m of that node (GT), counted once
+    per task; attributed to a finisher when the occupant had ``robot_done``
+    by then. Tail gridlock: no task progress (arrival or dwell) for the last
+    >= 120 sim-s with >= 2 robots unfinished.
+    """
+    start = next((e for e in task_events if e.get("event") == "stream_start"), None)
+    if start is None or not gt:
+        return {}
+    nodes = {k: tuple(v) for k, v in start["nodes"].items()}
+    done_at = {
+        e["robot_id"]: e["sim_t"] for e in task_events if e.get("event") == "robot_done"
+    }
+    issued = [e for e in task_events if e.get("event") == "issued"]
+    arrived = {
+        (e["robot_id"], e["task_index"]): e["sim_t"]
+        for e in task_events if e.get("event") == "arrived"
+    }
+    end_sim = gt_t[-1] + off
+    occupied = 0
+    by_finisher = 0
+    events = []
+    for e in issued:
+        rid, node = e["robot_id"], e["node"]
+        nx, ny = nodes[node]
+        t0 = e["sim_t"]
+        t1 = arrived.get((rid, e["task_index"]), end_sim)
+        for row in gt:
+            ts = row["sim_time_sec"] + off
+            if ts < t0 or ts > t1:
+                continue
+            p = row["robots"][rid]
+            if math.hypot(p["x"] - nx, p["y"] - ny) > _NODE_NEAR_M:
+                continue
+            occ = [
+                o for o, q in row["robots"].items()
+                if o != rid and math.hypot(q["x"] - nx, q["y"] - ny) < _NODE_OCCUPIED_M
+            ]
+            if occ:
+                fin = [o for o in occ if o in done_at and done_at[o] <= ts]
+                occupied += 1
+                by_finisher += bool(fin)
+                events.append({"robot": rid, "node": node, "sim_t": round(ts, 1),
+                               "occupants": occ, "finisher_occupants": fin})
+                break
+    progress = [
+        e["sim_t"] for e in task_events if e.get("event") in ("arrived", "dwell_complete")
+    ]
+    last_progress = max(progress, default=None)
+    robots = {e["robot_id"] for e in issued}
+    unfinished = len(robots - set(done_at))
+    since = end_sim - (last_progress if last_progress is not None else 0.0)
+    return {
+        "finishers": sorted(done_at),
+        "finisher_done_sim_t": {k: round(v, 1) for k, v in sorted(done_at.items())},
+        "occupied_node_arrivals": occupied,
+        "occupied_by_finisher": by_finisher,
+        "occupied_events": events,
+        "last_progress_sim_t": last_progress,
+        "end_sim_t": round(end_sim, 1),
+        "tail_gridlock": unfinished >= 2 and since >= _TAIL_S,
+        "unfinished_robots": unfinished,
     }
 
 
