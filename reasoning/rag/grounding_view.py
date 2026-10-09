@@ -473,7 +473,12 @@ def derive_dynamic_arms(
        the declared corridor centre and box, with an arm per involved robot
        from its own heading (outward side = behind it, the declared-arm
        convention) and the corridor axis set to the bearing axis. Rear
-       room is checked across the footprint here too.
+       room is checked across the footprint here too. Only where the scene
+       declares that box a junction (`SceneGeometry.junction_declared`,
+       prereg-v3 A16(iii)); otherwise a yield is refused honestly
+       (`grounding=dynamic_arms:crossing_refused:<a>,<b>`, no room
+       measured) and a `reverse` keeps the declared geometry, tagged
+       `grounding=dynamic_arms:crossing_undeclared`.
     5. Bearing-axis fallback (`yield` only, prereg-v3 A14(iii)/A15(iv)): a
        robot whose heading is more than 30 degrees off both axes takes the
        pair's bearing axis as its lane when its partner's lane IS the
@@ -588,6 +593,12 @@ def derive_dynamic_arms(
             return _ambiguous_refusal(decision, geometry, tags, [anchor, partner], None)
         return DynamicArms(decision, geometry, [*tags, "grounding=dynamic_arms:ambiguous"])
     if anchor_axis != partner_axis:
+        if not geometry.junction_declared:
+            if decision.strategy == "yield":
+                return _crossing_refusal(decision, geometry, tags, anchor, partner)
+            return DynamicArms(
+                decision, geometry, [*tags, "grounding=dynamic_arms:crossing_undeclared"]
+            )
         crossing = _crossing_geometry(geometry, bearing_axis, snapshot, order)
         return DynamicArms(
             decision,
@@ -668,6 +679,26 @@ def _ambiguous_refusal(
         f"grounding=dynamic_arms:ambiguous_refused:{robot_id}:{deg}" for robot_id, deg in offsets
     ]
     return DynamicArms(decision, geometry, [*tags, *refused], reason)
+
+
+def _crossing_refusal(
+    decision: CongestionDecision,
+    geometry: SceneGeometry,
+    tags: list[str],
+    anchor: RobotStateInput,
+    partner: RobotStateInput,
+) -> DynamicArms:
+    anchor_axis = _heading_axis(anchor.theta)
+    partner_axis = _heading_axis(partner.theta)
+    pair = f"{anchor.robot_id},{partner.robot_id}"
+    reason = (
+        f"yield refused: no declared junction: {anchor.robot_id} runs along {anchor_axis} "
+        f"and {partner.robot_id} along {partner_axis} (a crossing), but the scene declares "
+        "no junction to anchor the arms to; no retreat room was measured"
+    )
+    return DynamicArms(
+        decision, geometry, [*tags, f"grounding=dynamic_arms:crossing_refused:{pair}"], reason
+    )
 
 
 def _parallel_refusal(

@@ -163,6 +163,14 @@ class SceneGeometry(BaseModel):
     # as parked: M5's `arrival_position_tolerance_m`. Farther out it has been
     # displaced into the scene and is grounded like any involved robot.
     parked_pose_tolerance_m: float = Field(default=0.35, gt=0.0)
+    # prereg-v3 A16(iii): the declared corridor box is a real junction (rack
+    # faces start at its edges), so the dynamic-arms view's crossing branch
+    # (`grounding_view.derive_dynamic_arms` rule 4) may anchor its arms to
+    # it. False (default): a crossing conflict under the dynamic view has no
+    # junction to measure from -- on the open S1b floor it anchored to S1a's
+    # junction box and read phantom geometry for 57/400 MC first conflicts
+    # -- so a yield there is refused honestly. Read only by that view.
+    junction_declared: bool = False
     # The three fields below are set only by the dynamic-arms view
     # (`reasoning.rag.grounding_view`), never declared; their defaults keep
     # every declared scene byte-identical.

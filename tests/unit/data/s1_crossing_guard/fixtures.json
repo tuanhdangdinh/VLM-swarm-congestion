@@ -1,0 +1,161 @@
+{
+ "source": "scripts/s1_mc.py S1b MC first conflicts (grid router, park finishers, delta 2.5, snapshot 2.5 sim-s after the first encounter), echo decision; baseline = what feat/v3-integration@56836a4 grounded (crossing view anchored to S1a's junction box on the open S1b floor, prereg-v3 A16(iii))",
+ "cases": {
+  "s1b_seed15": {
+   "floor": "s1b",
+   "seed": 15,
+   "involved": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": 2.3,
+     "y": 0.0,
+     "theta": -1.2490457723982615,
+     "status": "STOPPED",
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "phase": "dwell"
+    },
+    {
+     "robot_id": "robot_2",
+     "x": -0.25,
+     "y": 1.35,
+     "theta": 1.5707963267948966,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "phase": "dwell"
+    },
+    {
+     "robot_id": "robot_3",
+     "x": 0.1857395386328381,
+     "y": -1.087279560957505,
+     "theta": -3.036292524025745,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "phase": "frozen"
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -0.2559083636864421,
+     "y": -1.138542244519287,
+     "theta": 0.10308160852270035,
+     "status": "STOPPED",
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "phase": "frozen"
+    },
+    {
+     "robot_id": "robot_5",
+     "x": -1.4848778948125207,
+     "y": -0.53642544343388,
+     "theta": -1.1629283588209864,
+     "status": "MOVING",
+     "goal": [
+      -0.25,
+      -1.35
+     ],
+     "phase": "travel"
+    }
+   ],
+   "baseline_label": "executable_yield",
+   "baseline_degradations": [
+    "order=implicit",
+    "order=junction_same_axis",
+    "retreat=default:no_choice",
+    "grounding=node_handoff:robot_4->robot_1",
+    "grounding=node_handoff_regrounded:robot_1->robot_4",
+    "grounding=dynamic_arms:crossing"
+   ]
+  },
+  "s1b_seed22": {
+   "floor": "s1b",
+   "seed": 22,
+   "involved": [
+    "robot_1",
+    "robot_4"
+   ],
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": -1.4610787092596014,
+     "y": -0.5915035585706361,
+     "theta": -1.1629283588209864,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      -1.35
+     ],
+     "phase": "frozen"
+    },
+    {
+     "robot_id": "robot_2",
+     "x": 0.42241295990011196,
+     "y": 1.005593362002382,
+     "theta": 2.6682366117548786,
+     "status": "MOVING",
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "phase": "travel"
+    },
+    {
+     "robot_id": "robot_3",
+     "x": -0.25,
+     "y": -0.4049999999999958,
+     "theta": -1.5707963267948966,
+     "status": "MOVING",
+     "goal": [
+      -0.25,
+      -1.35
+     ],
+     "phase": "travel"
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -1.144493581682959,
+     "y": -0.8918447508453133,
+     "theta": 2.6682366117548777,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "phase": "frozen"
+    },
+    {
+     "robot_id": "robot_5",
+     "x": -1.294999999999999,
+     "y": -1.35,
+     "theta": 0.0,
+     "status": "MOVING",
+     "goal": [
+      -0.25,
+      -1.35
+     ],
+     "phase": "travel"
+    }
+   ],
+   "baseline_label": "refused",
+   "baseline_degradations": [
+    "yield=infeasible:yield refused: no executable retreat (robot_1 has no in-band escort (required escort 0.650 m outside band [1.0, 3.5] m); robot_4 has 0.00 m retreat room < 0.77 m required)",
+    "grounding=dynamic_arms:crossing"
+   ]
+  }
+ }
+}
