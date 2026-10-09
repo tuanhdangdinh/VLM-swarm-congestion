@@ -1092,6 +1092,17 @@ don't consult the verdict; a plan naming the partner directly stays
 behavior); 12+2 MC repaired cases mismatch only on the pre-existing
 lane-scoped off-lane cross hold.
 
+**A17-bis (coordinated, 2026-10-10).** Two cross-lineage notes:
+(1) the "only post-A17 vb is load-bearing" rule has a REGISTERED
+v1/v2 mirror — `verbatim_dispatch_matched` (added 2026-10-06 against
+gpt-4o's trivially-verbatim plans) — so BOTH lineages headline
+vb∧dispatch_matched, never raw vb; the thesis states the invariant
+once. (2) FREEZE-TIME FAMILY RULE proposed for the repair strata
+(now three: repaired_order_only, repaired_parked_only,
+repaired_yield_retry_only): any mechanically-separable repair cause
+gets its own stratum — defined once as a rule rather than
+enumerated ad hoc.
+
 **A14 corrigendum (2026-10-09).** A14(iv)'s "GT
 robot_static_contacts logged 0 rows during a physical pin" implied
 an under-detecting detector. The truth is stronger:
