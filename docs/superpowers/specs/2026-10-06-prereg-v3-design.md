@@ -1013,6 +1013,40 @@ free-flow legs, S1a anchor (anchor since authorized and running
 separately). Merge state: feat/v3-s1b → integration @a0e2f44 +
 docs @d470470, suite zero-delta.
 
+**A16. M3 resolvability fixes + rulings (2026-10-10; integration
+@31c8ce0).** Shipped (footprint/dynamic mode only, goldens
+byte-identical, suite zero-delta): bearing-axis fallback for
+ambiguous passers (tag `dynamic_arms:bearing_lane`), yield handover
+to a lane-aligned facing partner for ambiguous yielders
+(`heading_regrounded`), partner retry when the kept yielder has no
+executable retreat — infeasible backup OR failed sweep OR infeasible
+escort (`yield_robot=sweep_regrounded`, 37/8 occurrences
+S1b/S1a), honest refusals with true reasons everywhere
+(`ambiguous_refused`, `parallel_refused`; zero fabricated 0.00 m on
+the ambiguous branch), and `refusal_no_action` extended to withhold
+the empty-waypoint reroute fallback (`dispatch_withheld:
+empty_reroute`; M2-chosen or declared-detour reroutes still
+dispatch). Replay rates: S1b 0.405→0.515, S1a 0.345→0.365; empty
+reroutes 124/166→0/0. RULINGS: (i) shared-heading-axis lanes for
+side-by-side pairs (+19/+29 yields) REJECTED — raises executed-path
+robot conflicts; (ii) node-handoff occupants stay EXCLUDED from the
+retry (would be 0.55) — the arriver-yields/occupant-passes semantic
+is registered and not traded for rate; (iii) NEW GUARD RULED: the
+crossing view requires a DECLARED junction in scenario_geometry —
+on S1b (none declared) it anchored to S1a's junction and grounded
+phantom geometry for 57/400 first conflicts; absent a declaration it
+must refuse honestly (fix rides the S1b pilot deploy); (iv) the S1a
+anchor runs on pre-A16 M3 — any S1a/S1b floor comparison must use
+same-M3 data (re-run the 3 anchor seeds on A16 M3 if the comparison
+is ever confirmatory). Residuals carried (pre-existing, found not
+caused): sweep follows the lane axis while M4 backs along heading
+(18–27° off → up to 0.7 m drift); room-gate swap checks no heading;
+lane yields with an away-facing yielder still ground; model-proposed
+plan yield legs are room-checked without the partner retry (echo
+emits no plan — live plans WILL hit this). All A16 behavior is
+offline-replay-verified only; closed-loop verification belongs to
+the S1b pilot.
+
 **A14 corrigendum (2026-10-09).** A14(iv)'s "GT
 robot_static_contacts logged 0 rows during a physical pin" implied
 an under-detecting detector. The truth is stronger:
