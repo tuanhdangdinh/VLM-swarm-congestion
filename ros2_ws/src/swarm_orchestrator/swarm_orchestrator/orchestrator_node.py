@@ -103,6 +103,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     build_prompt_conditions,
     build_reasoner_request,
     dump_frame_png,
+    empty_reroute_fallback,
     fan_out_command,
     load_grounding_source,
     raw_frame_dump_path,
@@ -810,6 +811,7 @@ class OrchestratorNode(Node):
         snapshot,
         now: float,
         refusal_withheld: bool = False,
+        withheld_outcome: str = "refusal_no_action",
     ) -> None:
         """Arm the reference after an executed stall analysis that dispatched nothing.
 
@@ -818,7 +820,9 @@ class OrchestratorNode(Node):
         former is not a stall re-trigger, and in the latter the model never
         answered this scene. A refused yield withheld under
         `refusal_no_action` dispatched nothing, so it arms like
-        `dispatch_suppressed` does (outcome `refusal_no_action`).
+        `dispatch_suppressed` does (outcome `refusal_no_action`); so does a
+        withheld empty-reroute fallback (outcome `empty_reroute`, passed as
+        `withheld_outcome`).
         """
         if self._suppression is None or dispatched:
             return
@@ -829,7 +833,7 @@ class OrchestratorNode(Node):
             )
             return
         if refusal_withheld:
-            reason = "refusal_no_action"
+            reason = withheld_outcome
         elif dispatch_suppressed:
             reason = "dispatch_suppressed"
         elif not decision.congestion_detected:
@@ -1200,26 +1204,36 @@ class OrchestratorNode(Node):
         )
         # S1 refusal-as-no-action: a refused yield's wait fan-out is withheld
         # (the same DISPATCH condition, dispatch on, and a pure refusal
-        # command); None otherwise, so the artifact gains no key.
-        withheld_refusal = (
-            yield_refusal_fan_out(dispatch.command)
-            if self._refusal_no_action
+        # command), and so is a yield's empty-waypoint reroute fallback, a
+        # no-op in M4 whose waits would still cancel Nav2 goals (prereg-v3
+        # A15(iv)); None otherwise, so the artifact gains no key.
+        withholdable = (
+            self._refusal_no_action
             and self._config.dispatch_enabled
             and outcome.terminal_stage is TerminalStage.OK
             and outcome.grounded_command is not None
             and dispatch is not None
             and dispatch.command is not None
+        )
+        withheld_refusal = yield_refusal_fan_out(dispatch.command) if withholdable else None
+        withheld_reroute = (
+            empty_reroute_fallback(dispatch.command)
+            if withholdable and withheld_refusal is None
             else None
         )
-        dispatch_withheld = (
-            None
-            if withheld_refusal is None or dispatch is None
-            else {
+        dispatch_withheld: dict[str, Any] | None = None
+        if dispatch is not None and withheld_refusal is not None:
+            dispatch_withheld = {
                 "reason": "refusal_no_action",
                 "refusal_reason": withheld_refusal,
                 "would_dispatch_robot_ids": list(dispatch.robot_ids),
             }
-        )
+        elif dispatch is not None and withheld_reroute is not None:
+            dispatch_withheld = {
+                "reason": "empty_reroute",
+                "fallback_reason": withheld_reroute,
+                "would_dispatch_robot_ids": list(dispatch.robot_ids),
+            }
         try:
             artifact_path = write_decision_artifact(
                 self._config.decision_log_dir,
@@ -1287,10 +1301,16 @@ class OrchestratorNode(Node):
             snapshot=snapshot,
             now=now,
             refusal_withheld=withhold,
+            withheld_outcome=(
+                "refusal_no_action" if dispatch_withheld is None else dispatch_withheld["reason"]
+            ),
         )
         if would_dispatch:
             if withhold:
-                self._withhold_refusal(outcome, dispatch, directive.robots, now)
+                assert dispatch_withheld is not None
+                self._withhold_refusal(
+                    outcome, dispatch, directive.robots, now, dispatch_withheld["reason"]
+                )
             elif self._config.dispatch_enabled:
                 self._dispatch(outcome, dispatch, episode_index=episode_index)
             else:
@@ -2039,8 +2059,15 @@ class OrchestratorNode(Node):
         dispatch: RegistryDispatch | None,
         event_robots: list[str],
         now: float,
+        reason: str = "refusal_no_action",
     ) -> None:
         """Stand in for `_dispatch` for a refused yield under `refusal_no_action`.
+
+        `reason` is the artifact's `dispatch_withheld.reason`: a refused
+        yield's waits (`refusal_no_action`) or a yield's empty-waypoint
+        reroute fallback (`empty_reroute`, prereg-v3 A15(iv)), which M4 would
+        run as a no-op beside waits that cancel Nav2 goals. Each logs its own
+        line.
 
         The `_suppress_dispatch` template: the artifact holds the waits M4
         would have received (`dispatch_withheld`); nothing is published,
@@ -2058,8 +2085,9 @@ class OrchestratorNode(Node):
             None if dispatch is None or dispatch.command is None
             else dispatch.command["command_id"]
         )
+        what = "empty reroute withheld" if reason == "empty_reroute" else "refusal withheld"
         self.get_logger().info(
-            f"refusal withheld request={outcome.request_id} command={command_id} "
+            f"{what} request={outcome.request_id} command={command_id} "
             f"would_dispatch={would_be} cooldown_robots={robots} "
             f"cooldown_sec={self._config.cooldown_sec} (refusal_no_action)"
         )

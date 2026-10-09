@@ -17,6 +17,7 @@ from reasoning.rag.grounding_view import (
     GroundingView,
     apply_backup_line_hold,
     apply_escort_headings,
+    backup_follows_retreat,
     resolve_grounding_view,
 )
 from reasoning.rag.maneuver_geometry import (
@@ -664,7 +665,17 @@ def ground_reasoner_result(
         )
         result = result.model_copy(update={"decision": view.decision})
         geometry = view.geometry
-    if params is not None and params.mode == "derived":
+    if view is not None and view.refusal_reason is not None:
+        # The dynamic view found no lane to ground the yield on (A14(iii)):
+        # refused like a gate refusal, so M5's `refusal_no_action` withholds
+        # it, and no room is read off the declared fallback geometry.
+        command = _nonspatial_wait(
+            result,
+            view.decision,
+            view.refusal_reason,
+            [f"yield=infeasible:{view.refusal_reason}"],
+        )
+    elif params is not None and params.mode == "derived":
         command = _ground_derived(
             result,
             snapshot=snapshot,
@@ -1209,6 +1220,12 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # Provenance: the feasibility gate grounded a different yielder than M2
     # named (scored pre-gate, prereg amendments).
     "yield_robot=regrounded": None,
+    # Provenance (prereg-v3 A15(iv), footprint view + swap gate): the
+    # gate-kept yielder had no executable retreat (backup, sweep or escort
+    # infeasible) and its partner did, so the partner yields. Suffix
+    # `:<from>-><to>`. When neither has one the yield is refused instead
+    # (`yield=infeasible:yield refused: no executable retreat ...`).
+    "yield_robot=sweep_regrounded": None,
     "yield=no-passer": None,
     # `junction_clear` phase markers (`ground_junction_clear_phases`):
     # provenance of which phase a dispatched command represents, not a
@@ -1243,9 +1260,14 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     "grounding=parked_only": None,
     # v3 S1 dynamic arms (`GroundingParams.dynamic_scene_arms`): which
     # snapshot geometry the decision was grounded on (`:lane:<axis>`,
-    # `:crossing`), or why the declared one was kept (`:ambiguous`,
-    # `:unavailable`), or that the yielder faces away from its partner
-    # (`:rear_inconsistent:<id>`).
+    # `:crossing`), or why the declared one was kept (`:ambiguous`, a
+    # `reverse` only since A14(iii); `:unavailable`), or that the yielder
+    # faces away from its partner (`:rear_inconsistent:<id>`). A14(iii)/
+    # A15(iv), yield only: an ambiguous-heading passer lent the pair's
+    # bearing axis (`:bearing_lane:<id>:<deg off axis>`), or a yield refused
+    # with no room measured (`:ambiguous_refused:<id>:<deg off axis>` per
+    # ambiguous robot, `:parallel_refused:<a>,<b>:<deg across the lane>`);
+    # the refusal itself carries the `yield=infeasible` cause.
     "grounding=dynamic_arms": None,
     # Node handoff: `<arriver>-><occupant>`; `_regrounded:<named>-><arriver>`
     # when M2 had named another yielder.
@@ -1256,6 +1278,10 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # robot facing away from its partner out of the reversing set: `<id>`.
     "grounding=rear_regrounded": None,
     "grounding=rear_exempt": None,
+    # A15(iv) bearing-axis fallback: a yielder with an ambiguous heading
+    # handed the yield to its lane-aligned partner that faces it:
+    # `<named>-><grounded>`.
+    "grounding=heading_regrounded": None,
     # prereg-v3 A11(iii): an escorted passer whose goal-bearing heading
     # could not be derived (`grounding_view.derive_escort_heading`): the
     # yield's escort was dropped and its passers go under Nav2. Suffix
@@ -1519,6 +1545,21 @@ def resolve_yield_roles(
     `off_lane`, the lane partner first, tagged `order=lane_scoped:<ids>`),
     then the corridor same-side refusal.
 
+    Under a dynamic view (`geometry.rear_room_band == "footprint"`) in
+    `"swap"` mode with derived-mode `params`, one more step runs (prereg-v3
+    A15(iv)): the room gate scores only the room behind the park point, so
+    it can keep a yielder whose derived yield then degrades to an empty
+    `reroute` (backup, retreat sweep or escort infeasible,
+    `_derived_reroute_reason`). The first passer is then tried as the
+    yielder: its heading must back it up along its own retreat axis
+    (`grounding_view.backup_follows_retreat`, M4 backs along -heading), and
+    the gate (in `"refuse"` mode, so it never swaps back) and the same three
+    checks must pass for it. It yields if they do (tagged
+    `yield_robot=sweep_regrounded:<from>-><to>`); otherwise the yield is
+    refused with both reasons. Every caller resolving roles through here
+    (stage 2, Arm B's shadow, the default plan, the command) sees the same
+    yielder.
+
     Args:
         decision: A congestion decision with `strategy == "yield"`.
         snapshot: Scene frame supplying the robot positions.
@@ -1540,6 +1581,131 @@ def resolve_yield_roles(
     Raises:
         ValueError: If the decision's strategy is not `yield`.
     """
+    roles = _resolve_gated_roles(
+        decision,
+        snapshot,
+        geometry=geometry,
+        static_obstacles=static_obstacles,
+        yield_feasibility_mode=yield_feasibility_mode,
+        crossing_order=crossing_order,
+        params=params,
+    )
+    if (
+        roles.refusal_reason is not None
+        or yield_feasibility_mode != "swap"
+        or params is None
+        or params.mode != "derived"
+        or geometry is None
+        or geometry.rear_room_band != "footprint"
+    ):
+        return roles
+    failure = _derived_reroute_reason(snapshot, roles, params, geometry, static_obstacles)
+    if failure is None:
+        return roles
+    return _sweep_regrounded_roles(
+        decision,
+        snapshot,
+        roles,
+        failure,
+        geometry=geometry,
+        static_obstacles=static_obstacles,
+        crossing_order=crossing_order,
+        params=params,
+    )
+
+
+def _sweep_regrounded_roles(
+    decision: CongestionDecision,
+    snapshot: SnapshotFrame,
+    roles: YieldRoles,
+    failure: str,
+    *,
+    geometry: SceneGeometry,
+    static_obstacles: Sequence[StaticObstacleInput],
+    crossing_order: Sequence[str] | None,
+    params: GroundingParams,
+) -> YieldRoles:
+    # `resolve_yield_roles`' A15(iv) step: the gate-kept yielder has no
+    # executable retreat (`failure`); try its first passer instead.
+    kept = roles.yielder_id
+    partner = roles.crossing_order[0]
+    partner_failure: str | None = None
+    partner_state = snapshot.find_robot(partner)
+    axes = retreat_axes(snapshot, partner, kept, geometry)
+    if partner_state is None or axes is None:
+        partner_failure = f"{partner} is not in the snapshot"
+    elif not backup_follows_retreat(partner_state, axes.retreat):
+        partner_failure = f"{partner} would back up off its retreat axis"
+    else:
+        swapped = CongestionDecision.model_validate(
+            {
+                **decision.model_dump(),
+                "involved_robots": [partner, *(r for r in roles.robot_ids if r != partner)],
+                "yield_robot": partner,
+            }
+        )
+        swapped_order = (
+            None
+            if crossing_order is None
+            else [kept if robot_id == partner else robot_id for robot_id in crossing_order]
+        )
+        second = _resolve_gated_roles(
+            swapped,
+            snapshot,
+            geometry=geometry,
+            static_obstacles=static_obstacles,
+            yield_feasibility_mode="refuse",
+            crossing_order=swapped_order,
+            params=params,
+        )
+        if second.refusal_reason is not None:
+            partner_failure = second.refusal_reason.removeprefix("yield refused: ")
+        else:
+            second_failure = _derived_reroute_reason(
+                snapshot, second, params, geometry, static_obstacles
+            )
+            if second_failure is not None:
+                partner_failure = f"{partner} {second_failure}"
+            else:
+                legacy = [d for d in roles.degradations if d == "roles=legacy-convention"]
+                return YieldRoles(
+                    robot_ids=second.robot_ids,
+                    crossing_order=second.crossing_order,
+                    grounded_from=roles.grounded_from or kept,
+                    regrounded_reason=(
+                        f"yield re-grounded: {kept} {failure}; {partner} has an "
+                        "executable retreat"
+                    ),
+                    degradations=[
+                        *legacy,
+                        *second.degradations,
+                        f"yield_robot=sweep_regrounded:{kept}->{partner}",
+                    ],
+                    off_lane=second.off_lane,
+                )
+    refusal = f"yield refused: no executable retreat ({kept} {failure}; {partner_failure})"
+    return YieldRoles(
+        robot_ids=roles.robot_ids,
+        crossing_order=roles.crossing_order,
+        grounded_from=roles.grounded_from,
+        regrounded_reason=roles.regrounded_reason,
+        refusal_reason=refusal,
+        degradations=[*roles.degradations, f"yield=infeasible:{refusal}"],
+        off_lane=roles.off_lane,
+    )
+
+
+def _resolve_gated_roles(
+    decision: CongestionDecision,
+    snapshot: SnapshotFrame,
+    *,
+    geometry: SceneGeometry | None,
+    static_obstacles: Sequence[StaticObstacleInput],
+    yield_feasibility_mode: YieldFeasibilityMode,
+    crossing_order: Sequence[str] | None,
+    params: GroundingParams | None,
+) -> YieldRoles:
+    # `resolve_yield_roles` up to and including the same-side refusal.
     if decision.strategy != "yield":
         raise ValueError(f"yield roles need a yield decision, got {decision.strategy!r}")
     degradations: list[str] = []
@@ -3255,6 +3421,22 @@ def _derived_yield_degrades_to_reroute(
         best candidate's escort is infeasible -- the same three conditions
         `_ground_derived` checks before calling `_reroute_yielder`.
     """
+    return (
+        _derived_reroute_reason(snapshot, roles, grounding_params, geometry, static_obstacles)
+        is not None
+    )
+
+
+def _derived_reroute_reason(
+    snapshot: SnapshotFrame,
+    roles: YieldRoles,
+    grounding_params: GroundingParams,
+    geometry: SceneGeometry,
+    static_obstacles: Sequence[StaticObstacleInput],
+) -> str | None:
+    # Why `_ground_derived` would reroute this yield (best-ranked candidate,
+    # no stage-2 choice), phrased after the yielder's id; None when it would
+    # ground the yield.
     selection = prepare_retreat_selection(
         snapshot,
         roles.yielder_id,
@@ -3263,8 +3445,10 @@ def _derived_yield_degrades_to_reroute(
         geometry=geometry,
         static_obstacles=static_obstacles,
     )
-    if not selection.backup.feasible or not selection.candidates:
-        return True
+    if not selection.backup.feasible:
+        return f"has no in-band backup ({selection.backup.reason})"
+    if not selection.candidates:
+        return "has no retreat candidate surviving the sweep"
     chosen = selection.candidates[0]
     escort = derive_escort_distance(
         snapshot,
@@ -3274,7 +3458,9 @@ def _derived_yield_degrades_to_reroute(
         geometry=geometry,
         yielder_id=roles.yielder_id,
     )
-    return not escort.feasible
+    if not escort.feasible:
+        return f"has no in-band escort ({escort.reason})"
+    return None
 
 
 def _yield_default_actions(
@@ -4004,15 +4190,25 @@ def verify_and_repair_plan(
     geometry = view.geometry
     repair_params = repair_params or PlanRepairParams()
     known_robot_ids = [state.robot_id for state in snapshot.robots]
-    default_legs = _derive_default_plan(
-        decision,
-        snapshot,
-        geometry=geometry,
-        static_obstacles=static_obstacles,
-        yield_feasibility_mode=yield_feasibility_mode,
-        priorities=priorities,
-        grounding_params=grounding_params,
-    )
+    if view.refusal_reason is not None:
+        # The view refused the yield (A14(iii)): the command is the refusal's
+        # wait fan-out, and no yield leg can be audited on the declared
+        # fallback geometry, so a plan naming one is unrepairable.
+        waiting = resolve_robot_order(decision)
+        default_legs = [
+            ProposedPlanLeg(robot_id=rid, action="wait" if rid in waiting else "continue")
+            for rid in [*waiting, *(r for r in known_robot_ids if r not in waiting)]
+        ]
+    else:
+        default_legs = _derive_default_plan(
+            decision,
+            snapshot,
+            geometry=geometry,
+            static_obstacles=static_obstacles,
+            yield_feasibility_mode=yield_feasibility_mode,
+            priorities=priorities,
+            grounding_params=grounding_params,
+        )
 
     if decision.proposed_plan is None:
         return VerifiedPlan(
@@ -4050,6 +4246,15 @@ def verify_and_repair_plan(
             plan_completed_legs=completed,
             rejection_reason=reason,
             rejection_stage="inconsistent",
+        )
+
+    if view.refusal_reason is not None:
+        return VerifiedPlan(
+            legs=default_legs,
+            provenance="m3_default",
+            plan_completed_legs=completed,
+            rejection_reason=f"plan unrepairable: {view.refusal_reason}",
+            rejection_stage="repair_bound_exceeded",
         )
 
     if not _plan_problems(

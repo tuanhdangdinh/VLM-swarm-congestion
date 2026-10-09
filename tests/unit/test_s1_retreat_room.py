@@ -154,6 +154,12 @@ def _ground(
     )
 
 
+def _refusal_tag(command: dict[str, Any]) -> str:
+    return next(
+        tag for tag in command["degradations"] if tag.startswith("yield=infeasible:yield refused:")
+    )
+
+
 def _overlay() -> dict[str, Any]:
     lines = MAPD.read_text().splitlines()
     begin = lines.index("#   --- M5 overlay begin ---")
@@ -345,8 +351,14 @@ def test_lane_backup_past_the_park_point_into_a_box_is_not_a_candidate():
         obstacles=[*_SIX_BOXES, block],
     )
     assert _gate_tags(command) == []
-    assert command["actions"][0]["action"] == "reroute"
-    assert "retreat=no-valid-candidate" in command["degradations"]
+    # No robot_1 candidate survives the box; since A15(iv) its partner, which
+    # faces it with open floor behind, yields instead of an empty reroute.
+    action = command["actions"][0]
+    assert (action["robot_id"], action["action"]) == ("robot_2", "yield")
+    assert "yield_robot=sweep_regrounded:robot_1->robot_2" in command["degradations"]
+    assert action["parameters"]["yield_regrounded_reason"].startswith(
+        "yield re-grounded: robot_1 has no retreat candidate surviving the sweep"
+    )
 
 
 def test_declared_geometry_candidates_ignore_static_obstacles():
@@ -546,17 +558,19 @@ def test_a_robot_in_the_backup_corridor_still_blocks_it(blocker: Pose):
     command = _ground(
         _decision(_FIVE, "robot_1"), frame, geometry=geometry, params=params, obstacles=obstacles
     )
-    assert (
-        "yield=infeasible:no backup distance in band [0.5, 2.0] m satisfies clearance 1.7 m"
-        in command["degradations"]
-    )
-    assert command["actions"][0]["action"] == "reroute"
+    # Since A15(iv) the backup failure is tried on the partner (robot_5, the
+    # node occupant), whose room is short too: refused with both reasons.
+    refusal = _refusal_tag(command)
+    assert "robot_1 has no in-band backup (no backup distance in band [0.5, 2.0] m " \
+        "satisfies clearance 1.7 m)" in refusal
+    assert "robot_5 has" in refusal
     # robot_3 is in the lane conflict now and stays in the order; the
-    # off-lane robots 2 and 4 are dropped from it but still hold on the
-    # reroute fallback, like every other involved robot.
+    # off-lane robots 2 and 4 are dropped from it, and every involved robot
+    # holds on the refusal's waits.
     assert "order=lane_scoped:robot_2,robot_4" in command["degradations"]
-    waits = {a["robot_id"] for a in command["actions"] if a["action"] == "temporary_wait"}
-    assert waits == {"robot_2", "robot_3", "robot_4", "robot_5"}
+    assert {a["action"] for a in command["actions"]} == {"temporary_wait"}
+    waits = {a["robot_id"] for a in command["actions"]}
+    assert waits == {"robot_1", "robot_2", "robot_3", "robot_4", "robot_5"}
 
 
 def test_a_robot_just_outside_the_corridor_does_not_block():
@@ -798,8 +812,8 @@ def test_a_corridor_robot_within_the_clearance_reach_stays_and_binds():
     )
     assert "order=lane_scoped:robot_2,robot_4" in command["degradations"]
     assert (
-        "yield=infeasible:no backup distance in band [0.5, 2.0] m satisfies clearance 1.7 m"
-        in command["degradations"]
+        "robot_1 has no in-band backup (no backup distance in band [0.5, 2.0] m "
+        "satisfies clearance 1.7 m)" in _refusal_tag(command)
     )
 
 

@@ -1,0 +1,668 @@
+{
+ "_source": "scripts/s1_grounding_replay.py first-conflict scenes (grid router, park finishers, delay 2.5 sim-s), MC seed per entry; `baseline` is what feat/v3-integration@d470470 grounded for the same rows.",
+ "cases": {
+  "s1b_bearing_lane_exec": {
+   "floor": "s1b",
+   "seed": 113,
+   "involved": [
+    "robot_1",
+    "robot_3"
+   ],
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": -1.532476265918359,
+     "y": -0.4262692131603685,
+     "theta": -1.1629283588209864,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": 1.4906725222045254,
+     "y": 0.4710465481937548,
+     "theta": -0.46760015758755624,
+     "status": "MOVING",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": -1.3092032636787398,
+     "y": -0.7907967363212595,
+     "theta": 2.356194490192347,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -1.1063698474081387,
+     "y": -1.2265210186973936,
+     "theta": 0.10308160852270035,
+     "status": "MOVING",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": 1.6152902791049404,
+     "y": -0.46021473043766303,
+     "theta": -2.54981648304829,
+     "status": "MOVING",
+     "goal": [
+      -2.3,
+      -1.35
+     ]
+    }
+   ],
+   "baseline": "yield refused: no feasible yielder (robot_1 0.15 m, robot_3 0.00 m retreat room < 0.77 m required)"
+  },
+  "s1b_heading_regrounded_exec": {
+   "floor": "s1b",
+   "seed": 34,
+   "involved": [
+    "robot_3",
+    "robot_5"
+   ],
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": 0.3766820229995824,
+     "y": 0.8954690904340332,
+     "theta": -0.16820677185708616,
+     "status": "MOVING",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": 1.8521968152777766,
+     "y": 0.28849467743399426,
+     "theta": -0.46760015758755624,
+     "status": "MOVING",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": 0.9679283611677969,
+     "y": -0.8953268392150875,
+     "theta": -2.54981648304829,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -1.712608736816888,
+     "y": 0.14365206923705554,
+     "theta": 1.1961151265121204,
+     "status": "MOVING",
+     "goal": [
+      -0.25,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": 0.5633863236434005,
+     "y": -1.086508655721152,
+     "theta": 0.3132761809936716,
+     "status": "STOPPED",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    }
+   ],
+   "baseline": "yield refused: no feasible yielder (robot_3 0.00 m, robot_5 0.15 m retreat room < 0.77 m required)"
+  },
+  "s1b_ambiguous_refused": {
+   "floor": "s1b",
+   "seed": 1,
+   "involved": [
+    "robot_2",
+    "robot_4"
+   ],
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": -0.25,
+     "y": -1.0199999999999974,
+     "theta": -1.5707963267948966,
+     "status": "MOVING",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": 1.3054229697742177,
+     "y": -0.8461305872562395,
+     "theta": 0.3132761809936716,
+     "status": "STOPPED",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": -1.7016294608695404,
+     "y": 0.17157079950316856,
+     "theta": 1.1961151265121204,
+     "status": "MOVING",
+     "goal": [
+      -0.25,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": 1.5654932084943907,
+     "y": -0.49368489265131127,
+     "theta": -2.54981648304829,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": -1.4274903902929532,
+     "y": 1.2018379908044639,
+     "theta": -0.16820677185708616,
+     "status": "MOVING",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    }
+   ],
+   "baseline": "yield refused: no feasible yielder (robot_2 0.15 m, robot_4 0.00 m retreat room < 0.77 m required)"
+  },
+  "s1b_parallel_refused": {
+   "floor": "s1b",
+   "seed": 6,
+   "involved": [
+    "robot_2",
+    "robot_5"
+   ],
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": 0.009991884263894302,
+     "y": -1.267563548891936,
+     "theta": -2.8345469215710026,
+     "status": "MOVING",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": -1.6028159773434099,
+     "y": 0.4228393718981862,
+     "theta": 1.1961151265121204,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": -1.639683998218534,
+     "y": -0.17815988983710634,
+     "theta": 1.9786642947688067,
+     "status": "MOVING",
+     "goal": [
+      -2.3,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -1.7799999999999974,
+     "y": 1.35,
+     "theta": 3.141592653589793,
+     "status": "MOVING",
+     "goal": [
+      -2.3,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": -1.9906105878120506,
+     "y": 0.6339845032221746,
+     "theta": -1.1629283588209864,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    }
+   ],
+   "baseline": "yield refused: no feasible yielder (robot_2 0.00 m, robot_5 0.15 m retreat room < 0.77 m required)"
+  },
+  "s1b_sweep_regrounded_exec": {
+   "floor": "s1b",
+   "seed": 3,
+   "involved": [
+    "robot_2",
+    "robot_4"
+   ],
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": -1.5265264695301295,
+     "y": -0.4400387419445573,
+     "theta": -1.1629283588209864,
+     "status": "MOVING",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": -1.0914494705007407,
+     "y": -1.224977531431111,
+     "theta": 0.10308160852270035,
+     "status": "STOPPED",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": 1.291609320136368,
+     "y": -0.6777707848263756,
+     "theta": -2.54981648304829,
+     "status": "MOVING",
+     "goal": [
+      -2.3,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -0.6638701646592795,
+     "y": -1.138017720540369,
+     "theta": 2.6682366117548777,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": 0.16508344760261906,
+     "y": 1.1404034076462024,
+     "theta": -0.46760015758755624,
+     "status": "MOVING",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    }
+   ],
+   "baseline": "empty reroute (retreat=no-valid-candidate)"
+  },
+  "s1b_both_fail_sweep": {
+   "floor": "s1b",
+   "seed": 25,
+   "involved": [
+    "robot_2",
+    "robot_4"
+   ],
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": 0.5767231481327889,
+     "y": 0.8588521454407436,
+     "theta": 2.9724914275884164,
+     "status": "MOVING",
+     "goal": [
+      -2.3,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": -1.1169361224311245,
+     "y": 1.1491023604128325,
+     "theta": -0.16820677185708616,
+     "status": "STOPPED",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": -1.1063698474081387,
+     "y": -1.2265210186973936,
+     "theta": 0.10308160852270035,
+     "status": "MOVING",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -0.6789537869646934,
+     "y": 1.2139902626697314,
+     "theta": -2.8345469215710026,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": -0.6505195141863995,
+     "y": -1.1448558585874538,
+     "theta": 2.6682366117548777,
+     "status": "MOVING",
+     "goal": [
+      -2.3,
+      1.35
+     ]
+    }
+   ],
+   "baseline": "empty reroute (retreat=no-valid-candidate)"
+  },
+  "s1a_ambiguous_refused": {
+   "floor": "s1a",
+   "seed": 83,
+   "involved": [
+    "robot_1",
+    "robot_2"
+   ],
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": -0.2875209384798292,
+     "y": -0.1968765931452044,
+     "theta": -3.0656520173238984,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      -0.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": -0.5239899624661327,
+     "y": -0.5760100375338669,
+     "theta": -0.7853981633974483,
+     "status": "STOPPED",
+     "goal": [
+      0.0,
+      -1.55
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": -1.1031809730635322,
+     "y": 0.23947802819258893,
+     "theta": -2.6839329969729,
+     "status": "MOVING",
+     "goal": [
+      -2.3,
+      -0.35
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -1.1182860137574127,
+     "y": -0.4381876109136257,
+     "theta": -0.07448879021388154,
+     "status": "MOVING",
+     "goal": [
+      0.0,
+      -1.55
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": -0.26723074072068725,
+     "y": -1.0296032943860296,
+     "theta": 2.0451962095868037,
+     "status": "MOVING",
+     "goal": [
+      -2.3,
+      -0.35
+     ]
+    }
+   ],
+   "baseline": "yield refused: no feasible yielder (robot_1 0.00 m, robot_2 0.00 m retreat room < 0.95 m required)"
+  },
+  "s1a_parallel_refused": {
+   "floor": "s1a",
+   "seed": 9,
+   "involved": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": 0.4370886227850228,
+     "y": 0.14174325696200912,
+     "theta": -0.07594063626589467,
+     "status": "STOPPED",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": -1.2377443281125595,
+     "y": -0.1732005548102316,
+     "theta": 2.6839329969729007,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      0.35
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": 0.7495413739091572,
+     "y": -0.1722731806767602,
+     "theta": -3.0309354324158977,
+     "status": "STOPPED",
+     "goal": [
+      0.0,
+      -1.55
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -1.6406395602597597,
+     "y": -0.025240380426448605,
+     "theta": 0.4576596566168932,
+     "status": "STOPPED",
+     "goal": [
+      0.0,
+      1.55
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": 0.21670263987707422,
+     "y": 1.0883291585227552,
+     "theta": -1.13193702783139,
+     "status": "MOVING",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    }
+   ],
+   "baseline": "yield refused: no feasible yielder (robot_1 0.00 m, robot_2 0.00 m, robot_3 0.00 m, robot_4 0.00 m retreat room < 0.95 m required)"
+  },
+  "s1a_sweep_regrounded_exec": {
+   "floor": "s1a",
+   "seed": 85,
+   "involved": [
+    "robot_1",
+    "robot_3"
+   ],
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": -0.3772615490629452,
+     "y": -0.20370468308087628,
+     "theta": -3.0656520173238984,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      -0.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": 1.6290675601820164,
+     "y": 0.0745480488686648,
+     "theta": -0.11065722117389558,
+     "status": "MOVING",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": -0.8043231569480773,
+     "y": -0.2361985010721363,
+     "theta": 0.07594063626589467,
+     "status": "STOPPED",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -1.028535584422533,
+     "y": 0.44488540414757255,
+     "theta": 0.07448879021388206,
+     "status": "MOVING",
+     "goal": [
+      0.0,
+      1.55
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": -0.30834316237002374,
+     "y": -0.9495422627531113,
+     "theta": 2.0451962095868037,
+     "status": "MOVING",
+     "goal": [
+      -2.3,
+      0.35
+     ]
+    }
+   ],
+   "baseline": "empty reroute (retreat=no-valid-candidate)"
+  },
+  "s1a_both_fail_sweep": {
+   "floor": "s1a",
+   "seed": 15,
+   "involved": [
+    "robot_1",
+    "robot_3",
+    "robot_5"
+   ],
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": 1.1221868554984669,
+     "y": 0.13086812716683693,
+     "theta": -0.11065722117389558,
+     "status": "STOPPED",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": 0.0,
+     "y": 0.20499999999999607,
+     "theta": 1.5707963267948966,
+     "status": "MOVING",
+     "goal": [
+      0.0,
+      1.55
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": 1.5222480416129982,
+     "y": -0.059176779442489245,
+     "theta": -3.0656520173238984,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      -0.35
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -1.7465995680707873,
+     "y": -0.30789344539669034,
+     "theta": 0.07594063626589467,
+     "status": "MOVING",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": -2.3,
+     "y": 0.35,
+     "theta": 0.0,
+     "status": "STOPPED",
+     "goal": [
+      0.0,
+      -1.55
+     ]
+    }
+   ],
+   "baseline": "empty reroute (retreat=no-valid-candidate)"
+  }
+ }
+}

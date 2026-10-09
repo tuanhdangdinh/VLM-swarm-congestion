@@ -448,4 +448,10 @@ class TestGroundingOnTheS1bFloor:
         # every retreat sample inside S1a's aisle, i.e. off this floor's gap.
         command = _ground(_SOUTH_GAP, _SOUTH_GOALS, "robot_1", S1A_GROUNDING)
         assert command["actions"][0]["action"] != "yield"
-        assert "retreat=no-valid-candidate" in command["degradations"]
+        # Neither robot has a candidate inside S1a's band (A15(iv): the
+        # partner is tried before the yield is refused).
+        assert (
+            "yield=infeasible:yield refused: no executable retreat (robot_1 has no retreat "
+            "candidate surviving the sweep; robot_2 has no retreat candidate surviving the "
+            "sweep)" in command["degradations"]
+        )

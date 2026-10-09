@@ -31,6 +31,7 @@ from reasoning.rag.command_grounder import (
     junction_clear_dispatch_match,
     plan_matches_dispatch,
     plan_recede_order,
+    resolve_robot_order,
     resolve_strategy_alias,
     validate_coordination_command,
     verify_and_repair_plan,
@@ -923,6 +924,52 @@ def yield_refusal_fan_out(command: dict[str, Any] | None) -> str | None:
     return summarize_yield_grounding(command).refusal_reason
 
 
+# Derived-mode tags `_ground_derived` records before degrading a yield to its
+# reroute fallback (`command_grounder._reroute_yielder`); a reroute M2 chose
+# itself never carries them.
+_YIELD_REROUTE_TAG_PREFIXES = ("retreat=no-valid-candidate", "yield=infeasible:")
+
+
+def empty_reroute_fallback(command: dict[str, Any] | None) -> str | None:
+    """Return why a command is a yield's empty-waypoint reroute fallback.
+
+    When a derived yield has no executable retreat, M3 reroutes the yielder
+    with no waypoints and waits the rest (`_reroute_yielder`). With no
+    declared detour M4 has nothing to drive: it re-sends a task goal the
+    command does not carry, so the reroute completes as a no-op
+    (`command_bus_node` returns False), while the waits still cancel the
+    robots' Nav2 goals. prereg-v3 A15(iv): `refusal_no_action` withholds it
+    like a refusal. The test is "a reroute with no waypoints, every other
+    action a wait, and a yield-degradation tag", so a reroute M2 decided
+    itself, or one along a declared detour, is never matched.
+
+    Args:
+        command: A grounded (or registry-filtered) coordination command.
+
+    Returns:
+        The first yield-degradation tag (e.g. `retreat=no-valid-candidate`),
+        or None when the command is anything else.
+    """
+    if command is None:
+        return None
+    actions = command.get("actions") or []
+    reroutes = [action for action in actions if action.get("action") == "reroute"]
+    if not reroutes or any(
+        action.get("action") not in ("reroute", "temporary_wait") for action in actions
+    ):
+        return None
+    if any((action.get("parameters") or {}).get("waypoints") for action in reroutes):
+        return None
+    return next(
+        (
+            tag
+            for tag in command.get("degradations") or []
+            if isinstance(tag, str) and tag.startswith(_YIELD_REROUTE_TAG_PREFIXES)
+        ),
+        None,
+    )
+
+
 def _registry_robot_ids(command: dict[str, Any], registry_robot_ids: set[str]) -> tuple[str, ...]:
     try:
         filtered = filter_command_robot_ids(command, registry_robot_ids)
@@ -1109,7 +1156,10 @@ def write_decision_artifact(
     `dispatch_withheld` (S1 `refusal_no_action`, set by M5 only for a
     refused yield it withheld) adds a block of that name: `reason`
     (`"refusal_no_action"`), the `refusal_reason` and the robots the
-    fan-out would have reached. `dispatched_command` then holds the waits
+    fan-out would have reached. A withheld empty-waypoint reroute fallback
+    (prereg-v3 A15(iv), `empty_reroute_fallback`) records `reason`
+    `"empty_reroute"` and its `fallback_reason` tag instead.
+    `dispatched_command` then holds the command
     M4 WOULD have received, as under `dispatch_suppressed`. Absent when
     None, so every other artifact is byte-identical to one written before
     the key existed.
@@ -1463,6 +1513,23 @@ class InProcessPipeline:
         except Exception:  # bounded: the grounder re-raises it below as GROUNDING
             staged_view = GroundingView(decision=staged, geometry=self._scene_geometry)
         if (
+            params is not None
+            and params.mode == "derived"
+            and staged_view.decision.strategy == "yield"
+            and staged_view.refusal_reason is not None
+        ):
+            # The dynamic view refused the yield (A14(iii)); the grounder
+            # refuses it the same way, so there is no retreat to letter. The
+            # draw index advances as for every other refused yield.
+            refused_order = resolve_robot_order(staged_view.decision)
+            stage2 = RetreatStage2Record(
+                status="skipped",
+                skip_reason="yield_refused",
+                yielder_id=refused_order[0],
+                crossing_order=refused_order[1:],
+            )
+            self._stage2_draws += 1
+        elif (
             params is not None
             and params.mode == "derived"
             and staged_view.decision.strategy == "yield"
