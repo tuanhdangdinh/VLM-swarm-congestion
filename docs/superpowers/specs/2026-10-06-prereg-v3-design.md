@@ -1046,6 +1046,21 @@ plan yield legs are room-checked without the partner retry (echo
 emits no plan — live plans WILL hit this). All A16 behavior is
 offline-replay-verified only; closed-loop verification belongs to
 the S1b pilot.
+**A16(v) COORDINATED RULING (both sessions, 2026-10-10): the
+plan-leg/derived-path retry asymmetry is a provenance-fairness
+defect (audit-R2 class) and MUST be fixed before any live S1b
+episode with the plan channel on.** Model-proposed plan yield legs
+failing room checks that the derived path retries around would
+differentially convert would-be vlm_verbatim outcomes into
+repaired/m3_default — biasing the distribution the
+dispatch-model-order arm exists to measure. Fix shape per the
+A13(iii) shared-function principle: plan-leg feasibility calls the
+SAME retry logic as the derived path (one function, both provenance
+classes, identical treatment); pinned offline by a scripted-plan
+fixture whose named yielder fails the sweep while the partner
+passes. Cross-reference: A16's honest-refusal package (zero
+fabricated 0.00 m) discharges the measurement half of A14(iii); the
+remaining A14(iii) residue is only the Step-6 wording.
 
 **A14 corrigendum (2026-10-09).** A14(iv)'s "GT
 robot_static_contacts logged 0 rows during a physical pin" implied
