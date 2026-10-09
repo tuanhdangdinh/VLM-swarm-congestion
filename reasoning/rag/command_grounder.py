@@ -1552,13 +1552,15 @@ def resolve_yield_roles(
     `reroute` (backup, retreat sweep or escort infeasible,
     `_derived_reroute_reason`). The first passer is then tried as the
     yielder: its heading must back it up along its own retreat axis
-    (`grounding_view.backup_follows_retreat`, M4 backs along -heading), and
-    the gate (in `"refuse"` mode, so it never swaps back) and the same three
-    checks must pass for it. It yields if they do (tagged
-    `yield_robot=sweep_regrounded:<from>-><to>`); otherwise the yield is
-    refused with both reasons. Every caller resolving roles through here
-    (stage 2, Arm B's shadow, the default plan, the command) sees the same
-    yielder.
+    (`grounding_view.backup_follows_retreat`, M4 backs along -heading), it
+    must not be the view's node-handoff occupant (rule 1's exempt passer,
+    `SceneGeometry.handoff_occupant`), and the gate (in `"refuse"` mode, so
+    it never swaps back) and the same three checks must pass for it. It
+    yields if they do (tagged `yield_robot=sweep_regrounded:<from>-><to>`);
+    otherwise the yield is refused with both reasons. Stage 2, the default
+    plan and the command resolve roles through here on the same view, so
+    they see the same yielder (Arm B's shadow grounds on the declared
+    geometry, where this step never runs).
 
     Args:
         decision: A congestion decision with `strategy == "yield"`.
@@ -1632,7 +1634,9 @@ def _sweep_regrounded_roles(
     partner_failure: str | None = None
     partner_state = snapshot.find_robot(partner)
     axes = retreat_axes(snapshot, partner, kept, geometry)
-    if partner_state is None or axes is None:
+    if partner == geometry.handoff_occupant:
+        partner_failure = f"{partner} is the node-handoff occupant, which never yields"
+    elif partner_state is None or axes is None:
         partner_failure = f"{partner} is not in the snapshot"
     elif not backup_follows_retreat(partner_state, axes.retreat):
         partner_failure = f"{partner} would back up off its retreat axis"

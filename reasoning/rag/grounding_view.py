@@ -589,7 +589,11 @@ def derive_dynamic_arms(
         return DynamicArms(decision, geometry, [*tags, "grounding=dynamic_arms:ambiguous"])
     if anchor_axis != partner_axis:
         crossing = _crossing_geometry(geometry, bearing_axis, snapshot, order)
-        return DynamicArms(decision, crossing, [*tags, "grounding=dynamic_arms:crossing"])
+        return DynamicArms(
+            decision,
+            _with_handoff_occupant(crossing, decision, handoff),
+            [*tags, "grounding=dynamic_arms:crossing"],
+        )
     if anchor_axis != bearing_axis:
         if decision.strategy == "yield":
             return _parallel_refusal(decision, geometry, tags, anchor, partner, anchor_axis)
@@ -609,7 +613,21 @@ def derive_dynamic_arms(
         else:
             tags.append(f"grounding=dynamic_arms:rear_inconsistent:{anchor.robot_id}")
     lane = _lane_geometry(geometry, bearing_axis, anchor, partner)
-    return DynamicArms(decision, lane, [*tags, f"grounding=dynamic_arms:lane:{bearing_axis}"])
+    return DynamicArms(
+        decision,
+        _with_handoff_occupant(lane, decision, handoff),
+        [*tags, f"grounding=dynamic_arms:lane:{bearing_axis}"],
+    )
+
+
+def _with_handoff_occupant(
+    geometry: SceneGeometry, decision: CongestionDecision, handoff: tuple[str, str] | None
+) -> SceneGeometry:
+    # Rule 1's exempt passer, carried so the A15(iv) partner retry never
+    # hands it the yield.
+    if handoff is None or decision.strategy != "yield":
+        return geometry
+    return geometry.model_copy(update={"handoff_occupant": handoff[1]})
 
 
 def _fallback_blocker(

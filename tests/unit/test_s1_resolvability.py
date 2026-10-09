@@ -401,8 +401,8 @@ def test_both_sweeps_failing_refuses_instead_of_an_empty_reroute(
 
 
 def test_roles_and_command_agree_on_the_sweep_regrounded_yielder():
-    # Stage 2, Arm B's shadow and the default plan all resolve roles through
-    # `resolve_yield_roles`, so they letter the same yielder the command runs.
+    # Stage 2 and the default plan resolve roles through `resolve_yield_roles`
+    # on the same view, so they see the same yielder the command runs.
     case = FIXTURES["s1b_sweep_regrounded_exec"]
     config, params = _floor("s1b")
     frame = _frame(case["rows"])
@@ -428,6 +428,24 @@ def test_roles_and_command_agree_on_the_sweep_regrounded_yielder():
         grounding_params=params,
     )
     assert {leg.robot_id: leg.action for leg in plan.legs}["robot_4"] == "yield"
+
+
+def test_view_marks_the_node_handoff_occupant_as_exempt():
+    # robot_1 dwells on N, robot_2 arrives behind it: robot_2 yields, and the
+    # partner retry may never hand the yield to robot_1.
+    poses = {"robot_1": (0.0, 1.55, math.pi / 2), "robot_2": (0.0, 1.12, math.pi / 2)}
+    frame = SnapshotFrame(
+        stamp=1.0,
+        robots=[RobotStateInput(robot_id=r, x=x, y=y, theta=t) for r, (x, y, t) in poses.items()],
+    )
+    config, params = _floor("s1a")
+    goals = {"robot_1": (0.0, 1.55), "robot_2": (0.0, 1.55)}
+    view = resolve_grounding_view(
+        _echo_decision(["robot_1", "robot_2"]), frame, config.scenario_geometry, params, goals
+    )
+    assert view.decision.yield_robot == "robot_2"
+    assert view.geometry.handoff_occupant == "robot_1"
+    assert config.scenario_geometry.handoff_occupant is None
 
 
 def test_refuse_mode_never_sweep_regrounds():

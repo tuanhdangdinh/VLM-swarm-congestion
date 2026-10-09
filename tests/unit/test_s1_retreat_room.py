@@ -558,12 +558,14 @@ def test_a_robot_in_the_backup_corridor_still_blocks_it(blocker: Pose):
     command = _ground(
         _decision(_FIVE, "robot_1"), frame, geometry=geometry, params=params, obstacles=obstacles
     )
-    # Since A15(iv) the backup failure is tried on the partner (robot_5, the
-    # node occupant), whose room is short too: refused with both reasons.
-    refusal = _refusal_tag(command)
-    assert "robot_1 has no in-band backup (no backup distance in band [0.5, 2.0] m " \
-        "satisfies clearance 1.7 m)" in refusal
-    assert "robot_5 has" in refusal
+    # Since A15(iv) a failed retreat is tried on the partner, but robot_5 is
+    # the node-handoff occupant (rule 1's exempt passer), so it never takes
+    # the yield: refused with both reasons.
+    assert _refusal_tag(command) == (
+        "yield=infeasible:yield refused: no executable retreat (robot_1 has no in-band backup "
+        "(no backup distance in band [0.5, 2.0] m satisfies clearance 1.7 m); robot_5 is the "
+        "node-handoff occupant, which never yields)"
+    )
     # robot_3 is in the lane conflict now and stays in the order; the
     # off-lane robots 2 and 4 are dropped from it, and every involved robot
     # holds on the refusal's waits.
