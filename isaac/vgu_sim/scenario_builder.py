@@ -14,12 +14,14 @@ from isaac.vgu_sim.config import (
     ScenarioConfig,
     TimedObstacleConfig,
     WarehouseConfig,
+    rack_clearance_remnants,
 )
 from isaac.vgu_sim.load_prop_asset import author_load_prop
 from isaac.vgu_sim.marker_asset import author_aruco_marker
 from isaac.vgu_sim.paths import aruco_dict_name, marker_png_path
 from isaac.vgu_sim.validation import (
     validate_loop_connectors,
+    validate_rack_clearance,
     validate_robot_load_prop,
     validate_scenario_obstacles,
 )
@@ -80,6 +82,8 @@ def build_scenario_stage(
         _author_aisle_barrier(stage, config.aisle_barrier)
     if config.loop_map is not None:
         _author_loop_connectors(stage, config.loop_map)
+    if config.rack_clearance is not None:
+        _author_rack_clearance(stage, config.rack_clearance)
 
     meta = stage.DefinePrim("/World/Scenario/Metadata")
     meta.SetMetadata("customData", {
@@ -93,6 +97,7 @@ def build_scenario_stage(
     _validate_references(stage, output_path)
     validate_scenario_obstacles(stage, config)
     validate_loop_connectors(stage, config)
+    validate_rack_clearance(stage, config)
     for robot_cfg in config.robots:
         validate_robot_load_prop(
             stage, f"/World/Robots/{robot_cfg.robot_id}", robot_cfg.loaded
@@ -422,6 +427,50 @@ def _author_loop_connectors(stage, loop_cfg) -> None:
             f"/World/Scenario/LoopRackBlocks/{name}",
             Gf.Vec3f(center_x, center_y, height / 2.0),
             Gf.Vec3f(half_x, half_y, height / 2.0),
+        )
+
+
+def _author_rack_clearance(stage, clearance_cfg) -> None:
+    """Cut all four shared rack quadrants back to outside a clearance rectangle.
+
+    The loop-map pattern (`_author_loop_connectors`) applied to every
+    quadrant: each shared `/World/Environment/RackBlocks/<Q>` cube is
+    deactivated via an `over` in this scenario's own root layer (the
+    warehouse `.usd` on disk is never touched), and the remnants from
+    `config.rack_clearance_remnants` are authored at the shared 0.9 m rack
+    height under `/World/Scenario/ClearedRackBlocks`.
+    `generate_warehouse_map.rasterize_rack_clearance` frees the identical
+    cells, so AMCL and the planner agree with the colliders.
+    """
+    from pxr import Gf, UsdGeom
+
+    warehouse = WarehouseConfig()
+    rack_h = 0.9
+    for quadrant in ("NE", "NW", "SE", "SW"):
+        prim = stage.GetPrimAtPath(f"/World/Environment/RackBlocks/{quadrant}")
+        if not prim.IsValid():
+            raise ScenarioBuildError(
+                f"Expected /World/Environment/RackBlocks/{quadrant} from the sublayered "
+                "warehouse asset before authoring a rack-clearance override"
+            )
+        prim.SetActive(False)
+
+    root = UsdGeom.Xform.Define(stage, "/World/Scenario/ClearedRackBlocks")
+    root.GetPrim().SetMetadata(
+        "customData",
+        {
+            "x_min_m": clearance_cfg.x_min_m,
+            "x_max_m": clearance_cfg.x_max_m,
+            "y_min_m": clearance_cfg.y_min_m,
+            "y_max_m": clearance_cfg.y_max_m,
+        },
+    )
+    for name, x0, x1, y0, y1 in rack_clearance_remnants(warehouse, clearance_cfg):
+        _author_rack_remnant_cube(
+            stage,
+            f"/World/Scenario/ClearedRackBlocks/{name}",
+            Gf.Vec3f((x0 + x1) / 2.0, (y0 + y1) / 2.0, rack_h / 2.0),
+            Gf.Vec3f((x1 - x0) / 2.0, (y1 - y0) / 2.0, rack_h / 2.0),
         )
 
 

@@ -34,9 +34,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from isaac.vgu_sim.config import (
     AisleBarrierConfig,
     LoopMapConfig,
+    RackClearanceConfig,
     ScenarioConfig,
     StaticObstacleConfig,
     WarehouseConfig,
+    rack_quadrant_rects,
 )
 
 FREE: int = 255
@@ -50,6 +52,7 @@ def build_occupancy_grid(
     aisle_barrier: AisleBarrierConfig | None = None,
     static_obstacles: Sequence[StaticObstacleConfig] = (),
     loop_map: LoopMapConfig | None = None,
+    rack_clearance: RackClearanceConfig | None = None,
 ) -> tuple[np.ndarray, float]:
     """Build a uint8 occupancy grid from warehouse dimensions and obstacle list.
 
@@ -80,6 +83,12 @@ def build_occupancy_grid(
             does not carve a second aisle. When given, the second aisle and
             its one new N-S connector are cleared (FREE) out of the NE rack
             block, mirroring ``scenario_builder._author_loop_connectors``.
+        rack_clearance: Scenario rack-clearance rectangle, or None for every
+            scenario that keeps the full rack quadrants. When given, every
+            rack quadrant's overlap with the rectangle is cleared (FREE)
+            right after the rack pass, mirroring
+            ``scenario_builder._author_rack_clearance``; scenario obstacles,
+            barriers and static obstacles are still marked on top.
 
     Returns:
         Tuple of ``(grid, resolution_m)`` where ``grid`` is a uint8 numpy
@@ -102,6 +111,9 @@ def build_occupancy_grid(
     # four occupied quadrants leave a cross-shaped aisle centered at world (0, 0).
     for rack in _rack_block_obstacles(config):
         _mark_obstacle(grid, config, rack, resolution_m)
+
+    if rack_clearance is not None:
+        rasterize_rack_clearance(grid, rack_clearance, config, resolution_m)
 
     # Mark scenario/dynamic obstacle footprints.
     for obstacle in obstacles:
@@ -162,6 +174,42 @@ def rasterize_loop_map(
         ),
     ):
         _mark_free(grid, config, (center_x, center_y, width, depth), resolution_m)
+
+
+def rasterize_rack_clearance(
+    grid: np.ndarray,
+    clearance: RackClearanceConfig,
+    config: WarehouseConfig,
+    resolution_m: float,
+) -> None:
+    """Clear (FREE) each rack quadrant's overlap with a clearance rectangle.
+
+    Run right after the default rack pass, so it carves the racks only: the
+    cells it frees are exactly the quadrant cells that
+    ``isaac.vgu_sim.config.rack_clearance_remnants`` leaves out of the
+    re-authored USD remnants. Perimeter walls are never touched (the
+    rectangle sits strictly inside them). Mutates ``grid`` in place.
+
+    Args:
+        grid: uint8 occupancy grid to mutate, shape ``(height_px, width_px)``.
+        clearance: Scenario rack-clearance rectangle.
+        config: Warehouse geometry supplying the quadrants and the grid's
+            world-to-cell mapping.
+        resolution_m: Meters per pixel of ``grid``.
+    """
+    for _, x0, x1, y0, y1 in rack_quadrant_rects(config):
+        cx0 = max(x0, clearance.x_min_m)
+        cx1 = min(x1, clearance.x_max_m)
+        cy0 = max(y0, clearance.y_min_m)
+        cy1 = min(y1, clearance.y_max_m)
+        if cx0 >= cx1 or cy0 >= cy1:
+            continue
+        _mark_free(
+            grid,
+            config,
+            ((cx0 + cx1) / 2.0, (cy0 + cy1) / 2.0, cx1 - cx0, cy1 - cy0),
+            resolution_m,
+        )
 
 
 def rasterize_aisle_barrier(
@@ -469,6 +517,7 @@ def main() -> None:
     barrier = scenario.aisle_barrier if scenario is not None else None
     static_obstacles = scenario.static_obstacles if scenario is not None else ()
     loop_map = scenario.loop_map if scenario is not None else None
+    rack_clearance = scenario.rack_clearance if scenario is not None else None
     default_stem = "warehouse_map" if scenario is None else f"warehouse_map_{scenario.name}"
     stem = args.output or default_stem
 
@@ -480,6 +529,7 @@ def main() -> None:
         aisle_barrier=barrier,
         static_obstacles=static_obstacles,
         loop_map=loop_map,
+        rack_clearance=rack_clearance,
     )
     write_map(grid, resolution_m, config, args.out_dir, stem=stem)
     print(f"Map written to: {args.out_dir / f'{stem}.pgm'} and {args.out_dir / f'{stem}.yaml'}")

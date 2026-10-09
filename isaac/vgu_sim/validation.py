@@ -3,7 +3,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from isaac.vgu_sim.config import CameraConfig, ScenarioConfig
+from isaac.vgu_sim.config import (
+    CameraConfig,
+    ScenarioConfig,
+    WarehouseConfig,
+    rack_clearance_remnants,
+)
 
 
 class ValidationError(Exception):
@@ -201,6 +206,36 @@ def validate_loop_connectors(stage, config: ScenarioConfig) -> None:
         path = f"/World/Scenario/LoopRackBlocks/{name}"
         if not stage.GetPrimAtPath(path).IsValid():
             raise ValidationError(f"Configured loop-map remnant prim missing: {path}")
+
+
+def validate_rack_clearance(stage, config: ScenarioConfig) -> None:
+    """Assert a `rack_clearance` scenario deactivated every quadrant and authored its remnants.
+
+    The `validate_loop_connectors` check for the S1b rack clearance
+    (`scenario_builder._author_rack_clearance`).
+
+    Args:
+        stage: USD stage being validated.
+        config: Scenario config whose `rack_clearance`, if set, must be authored.
+
+    Raises:
+        ValidationError: If `rack_clearance` is set but a quadrant was left
+            active, or any expected remnant cube is missing.
+    """
+    if config.rack_clearance is None:
+        return
+
+    for quadrant in ("NE", "NW", "SE", "SW"):
+        prim = stage.GetPrimAtPath(f"/World/Environment/RackBlocks/{quadrant}")
+        if prim.IsValid() and prim.IsActive():
+            raise ValidationError(
+                f"rack_clearance is set but /World/Environment/RackBlocks/{quadrant} is "
+                "still active; _author_rack_clearance must deactivate it"
+            )
+    for name, *_ in rack_clearance_remnants(WarehouseConfig(), config.rack_clearance):
+        path = f"/World/Scenario/ClearedRackBlocks/{name}"
+        if not stage.GetPrimAtPath(path).IsValid():
+            raise ValidationError(f"Configured rack-clearance remnant prim missing: {path}")
 
 
 def validate_no_unresolved_references(stage) -> None:
