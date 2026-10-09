@@ -228,6 +228,113 @@ class LoopMapConfig(BaseModel):
         return self
 
 
+class RackClearanceConfig(BaseModel):
+    """An axis-aligned rectangle cleared of the four shared rack quadrants.
+
+    v3 S1b (sparse-warehouse regime variant, prereg-v3 R3.6/R3.6a) keeps the
+    S1 tracked-band footprint but removes its racks: every rack quadrant is
+    cut back to its part OUTSIDE this rectangle, so the band becomes open
+    floor bounded by the rack remnants at its edges. The scene's own rack
+    islands are ordinary `static_obstacles`. Like the loop map, the shared
+    warehouse asset is never edited: the scenario deactivates the four
+    `/World/Environment/RackBlocks/*` cubes with an `over` and re-authors the
+    remnants (`rack_clearance_remnants`), and the Nav2 map generator clears
+    the identical cells.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    x_min_m: float
+    x_max_m: float
+    y_min_m: float
+    y_max_m: float
+
+    @model_validator(mode="after")
+    def _extent_increasing_and_inside_the_walls(self) -> "RackClearanceConfig":
+        if self.x_min_m >= self.x_max_m or self.y_min_m >= self.y_max_m:
+            raise ValueError(
+                "rack_clearance extents must increase; got "
+                f"x [{self.x_min_m}, {self.x_max_m}], y [{self.y_min_m}, {self.y_max_m}]"
+            )
+        warehouse = WarehouseConfig()
+        half_w = warehouse.width_m / 2.0
+        half_d = warehouse.depth_m / 2.0
+        if not (
+            -half_w < self.x_min_m and self.x_max_m < half_w
+            and -half_d < self.y_min_m and self.y_max_m < half_d
+        ):
+            raise ValueError(
+                "rack_clearance must sit strictly inside the warehouse walls "
+                f"(|x| < {half_w}, |y| < {half_d})"
+            )
+        return self
+
+
+RackRect = tuple[str, float, float, float, float]
+
+
+def rack_quadrant_rects(warehouse: "WarehouseConfig") -> list[RackRect]:
+    """Return the four shared rack quadrants as `(name, x0, x1, y0, y1)`.
+
+    Same geometry as `warehouse_builder._build_rack_blocks` and
+    `generate_warehouse_map._rack_block_obstacles`: four blocks leave a cross
+    aisle of `nominal_aisle_width_m` centred on the world origin.
+
+    Args:
+        warehouse: Warehouse geometry.
+
+    Returns:
+        One entry per quadrant, in NE, NW, SE, SW order.
+    """
+    aw = warehouse.nominal_aisle_width_m / 2.0
+    hw = warehouse.width_m / 2.0
+    hd = warehouse.depth_m / 2.0
+    return [
+        ("NE", aw, hw, aw, hd),
+        ("NW", -hw, -aw, aw, hd),
+        ("SE", aw, hw, -hd, -aw),
+        ("SW", -hw, -aw, -hd, -aw),
+    ]
+
+
+def rack_clearance_remnants(
+    warehouse: "WarehouseConfig", clearance: RackClearanceConfig
+) -> list[RackRect]:
+    """Cut each rack quadrant back to its part outside `clearance`.
+
+    Each quadrant minus the clearance rectangle splits into at most four
+    axis-aligned pieces (west, east, south, north of the cut; the south and
+    north pieces span only the cut's x overlap). Empty pieces are dropped.
+    The USD builder authors exactly these boxes and the map generator leaves
+    exactly these cells occupied.
+
+    Args:
+        warehouse: Warehouse geometry.
+        clearance: The rectangle to clear.
+
+    Returns:
+        Remnant boxes as `(name, x0, x1, y0, y1)`, named `<quadrant>_<side>`.
+    """
+    out: list[RackRect] = []
+    for name, x0, x1, y0, y1 in rack_quadrant_rects(warehouse):
+        cx0 = max(x0, clearance.x_min_m)
+        cx1 = min(x1, clearance.x_max_m)
+        cy0 = max(y0, clearance.y_min_m)
+        cy1 = min(y1, clearance.y_max_m)
+        if cx0 >= cx1 or cy0 >= cy1:
+            out.append((f"{name}_whole", x0, x1, y0, y1))
+            continue
+        pieces = [
+            ("west", x0, cx0, y0, y1),
+            ("east", cx1, x1, y0, y1),
+            ("south", cx0, cx1, y0, cy0),
+            ("north", cx0, cx1, cy1, y1),
+        ]
+        for side, px0, px1, py0, py1 in pieces:
+            if px1 - px0 > 1e-9 and py1 - py0 > 1e-9:
+                out.append((f"{name}_{side}", px0, px1, py0, py1))
+    return out
+
+
 class ExpectedConflictConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     type: Literal["deadlock", "bottleneck", "anomaly"]
@@ -916,6 +1023,7 @@ class ScenarioConfig(BaseModel):
     static_obstacles: tuple[StaticObstacleConfig, ...] = ()
     aisle_barrier: AisleBarrierConfig | None = None
     loop_map: LoopMapConfig | None = None
+    rack_clearance: RackClearanceConfig | None = None
     parameters: HeadOnAsymmetricParams | None = None
     oracle: (
         OracleConfig
@@ -931,6 +1039,16 @@ class ScenarioConfig(BaseModel):
     # is the explicit "none expected" of a conflict-free family.
     expected_conflict: ExpectedConflictConfig | None
     runtime: ScenarioRuntimeOverrides = Field(default_factory=ScenarioRuntimeOverrides)
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_rack_clearance(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        # Generated scenario YAMLs (the head-on family) are compared byte for
+        # byte against a fresh dump; the S1b-only key stays out of every dump
+        # that does not use it.
+        data = handler(self)
+        if data.get("rack_clearance") is None:
+            data.pop("rack_clearance", None)
+        return data
 
     @model_validator(mode="before")
     @classmethod
@@ -1019,6 +1137,10 @@ class ScenarioConfig(BaseModel):
                 raise ValueError(
                     f"onset_window_sec end {w_end} > duration_sec {self.duration_sec}"
                 )
+
+        if self.rack_clearance is not None and self.loop_map is not None:
+            # Both re-author the NE rack quadrant; composing them is undefined.
+            raise ValueError("rack_clearance and loop_map are mutually exclusive")
 
         obstacle_ids = [o.obstacle_id for o in self.static_obstacles] + [
             o.obstacle_id for o in self.timed_obstacles

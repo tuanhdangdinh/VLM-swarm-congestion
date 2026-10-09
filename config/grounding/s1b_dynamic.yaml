@@ -1,0 +1,42 @@
+# S1b-ONLY M3 grounding parameters: dynamic scene arms for the mapd_5_s1b
+# (sparse-warehouse regime variant) pilot. prereg-v3 R3.6/R3.6a.
+#
+# A copy of config/grounding/s1_dynamic.yaml (the S1a file) with ONE change:
+# the two aisle bands. Everything else -- the shipped derived-mode tuning
+# copied key-by-key from config/rag.yaml, dynamic_scene_arms,
+# dynamic_handoff_radius_m 0.5, retreat_box_margin_m 0.05 (PROPOSED),
+# escort_turn_cap -- is byte-identical in value, and
+# tests/unit/test_mapd_5_s1b_scenario.py pins that. config/rag.yaml (md5
+# e18c723c...) is never edited; shadow_classical_params_path stays on it.
+#
+# Why S1b cannot reuse the S1a file: S1a's bands [-0.46, 0.46] are its
+# 1.2 m aisles (0.6 wall - 0.14 chassis margin, the B1 NS_BAND precedent).
+# `retreat_candidates._aisle_band` holds EVERY swept retreat/sidestep sample
+# inside the band, so on the S1b open floor a yielder anywhere outside
+# |y| <= 0.46 (four of the five nodes, both island gaps) would get no
+# candidate at all -- a band artifact, not geometry. S1b's walls are the
+# tracked band itself (rack remnants at |x| = 2.5 / |y| = 1.8, plus the
+# M3-declared fences over the two aisle stubs), so its bands are the band
+# minus the same 0.14 m chassis margin:
+#   aisle_y_band_m: 1.8 - 0.14 = 1.66   -> [-1.66, 1.66]
+#   aisle_x_band_m: 2.5 - 0.14 = 2.36   -> [-2.36, 2.36]
+# The rack islands are not in the bands; they bound retreats through the
+# static-obstacle box sweep (the overlay declares them, mapd_5_s1b.yaml).
+# PILOT-PROVISIONAL, re-derived at Step 6 like S1a's.
+#
+# The S1a file's notes on the other keys apply verbatim (see it).
+grounding:
+  mode: derived
+  min_distance_m: 0.45
+  backup_clearance_m: 1.7
+  escort_clearance_m: 0.5
+  backup_band_m: [0.5, 2.0]
+  escort_band_m: [1.0, 3.5]
+  lateral_m: 0.35
+  sweep_step_m: 0.1
+  aisle_y_band_m: [-1.66, 1.66]
+  aisle_x_band_m: [-2.36, 2.36]
+  dynamic_scene_arms: true
+  dynamic_handoff_radius_m: 0.5
+  retreat_box_margin_m: 0.05
+  escort_turn_cap: true

@@ -1,0 +1,387 @@
+schema_version: 1
+name: mapd_5_s1b
+family: bottleneck
+# Isaac seed of THIS authored episode = the first registered S1 seed
+# (config/s1_seeds.yaml seed 1, REUSED: S1b draws from the S1a list, see
+# "Seed list" below). fc_launch SEED must carry the same value.
+seed: 978442588
+# H = 600 sim-s, S1a's registered horizon, unchanged for the regime axis.
+duration_sec: 600.0
+
+# ============================================================================
+# PILOT-ONLY -- DO NOT COLLECT. S1b (the sparse-warehouse regime variant,
+# prereg-v3 R3.6 + R3.6a) is NOT registered as scored: it inherits every
+# open S1 registration item (mapd_5.yaml header: schema has no `mapd`
+# family or emergent-conflict declaration, so `family: bottleneck` and the
+# expected_conflict block below are SCHEMA PLACEHOLDERS), and its own gates
+# (the Monte Carlo gate below, the M1 coverage session and the live
+# two-robot pass check of R3.6a item 1) are pilot evidence, frozen only at
+# Step 6. RECORD=0 cells only; nothing from a run of this file enters any
+# scored dataset.
+# ============================================================================
+#
+# v3 S1b: the SAME tracked-band footprint as S1a (mapd_5.yaml; |x| <= 2.5,
+# |y| <= 1.8, one overhead camera) with the racks REMOVED from the band and
+# two short C55 (0.55 m deep) rack islands placed off-centre. S1a + S1b are a
+# REGIME axis (R3.6a item 2: deterministic single-lane -> stochastic
+# clogging), not a density axis. Everything else is S1a's: N_A = 5 robots,
+# N_G = 5 task nodes with S1a's labels and forbidden pair, N_T = 5 tasks per
+# robot, dwell 5 sim-s (pop-on-dwell-end), H = 600 sim-s, park finishers.
+# Report: docs/reports/2026-10-09-s1b-first-light.md.
+#
+# Floor (NEW map; Nav2 runs on THIS scenario's own map):
+#   - rack_clearance below cuts all four shared rack quadrants back to
+#     outside the band (isaac.vgu_sim.config.rack_clearance_remnants; the
+#     warehouse USD is never edited). The band edge becomes the rack
+#     remnants' faces, except the two aisle stubs (|y| < 0.6 past |x| = 2.5,
+#     |x| < 0.6 past |y| = 1.8), dead ends exactly as in S1a.
+#   - static_obstacles = the two rack islands, 0.55 x 1.60 x 0.30 m:
+#       island_w x [-1.30, -0.75], y [-0.70, +0.90]  (north-shifted)
+#       island_e x [+0.25, +0.80], y [-0.90, +0.70]  (south-shifted)
+#     staggered (chicane) and shifted 0.25 m west of the band centre.
+#     Height 0.30 m, the loop-map connector-remnant precedent
+#     (LoopMapConfig.connector_remnant_height_m): above the 0.182 m lidar
+#     plane, so Nav2 sees them, but the camera shadow beyond an island's
+#     outer face is (0.30 - 0.21) / (3.0 - 0.30) * r = 0.033 r <= 0.05 m
+#     (r <= 1.6 m from the nadir), against 0.33 r = 0.43-0.53 m for a 0.9 m
+#     rack. 0.9 m islands would occlude markers along their outboard faces.
+#   - Map: ros2_ws/src/swarm_simulation/maps/warehouse_map_mapd_5_s1b.{pgm,yaml}
+#     = generate_warehouse_map.py --scenario <this file>; the regen test pins
+#     it byte for byte. Run with MAP_SCENARIO=mapd_5_s1b (the default,
+#     SCENARIO's own name) after colcon-building swarm_simulation.
+#
+# Rack coverage (R3.6a item 3, counted on the tracked band, 18.0 m2):
+#   2 x 0.55 x 1.60 = 1.76 m2 -> 1.76 / 18.0 = 9.78 % (S1a: 9.77 m2, 54.3 %).
+#
+# Corridors (R3.6a item 1, latch-aware): two passing robots need centre
+# separation >= 0.45 m (the M4 latch), and each centre must keep its whole
+# 0.18 m-wide chassis outside the 0.10 m global inflation of its wall
+# (centre >= 0.09 + 0.10 = 0.19 m off the face), plus one 0.05 m costmap
+# cell of quantisation:  W_min = 0.45 + 2 * 0.19 + 0.05 = 0.88 m, inside
+# R3.6a's 0.85-0.90 m. Measured on this map's costmap (cells across the
+# gap at mid-span; scripts/s1b_layout.py):
+#   | gap                          | W (m) | cost<253 (m) | cost=0 (m) |
+#   | west wall  <-> island_w      | 1.20  | 1.15         | 1.10       |
+#   | island_w   <-> island_e      | 1.00  | 0.90         | 0.80       |
+#   | island_e   <-> east wall     | 1.70  | 1.65         | 1.60       |
+#   | island_w   <-> north wall    | 0.90  | 0.80         | 0.70       |
+#   | island_w   <-> south wall    | 1.10  | 1.00         | 0.90       |
+#   | island_e   <-> north wall    | 1.10  | 1.05         | 1.00       |
+#   | island_e   <-> south wall    | 0.90  | 0.85         | 0.80       |
+#   Every gap >= 0.90 m >= W_min; every zero-cost band >= 0.70 m >= 0.45 m
+#   (two centres 0.45 apart both on zero-cost cells). The GEOMETRIC claim
+#   is necessary, not sufficient: R3.6a acceptance is a LIVE two-robot
+#   opposing pass in a >= 0.85 m corridor without tripping the 0.45 m latch
+#   (S1a prior: 0 of 4 opposing approaches in three S1a bundles cleared
+#   0.45 m; minimum gaps 0.303-0.394 m, E2's in a 1.2 m strip).
+#
+# Task nodes (labels and forbidden pair are S1a's, so a seed draws the
+# IDENTICAL start assignment and 25-task stream on both floors; positions
+# are new; yaw = spawn heading, S1a's per-label yaws):
+#   | Node | x      | y      | yaw   | placement                               |
+#   | Wp   | -2.30  | +1.35  | 0     | west wall, on the island_w north-gap lane |
+#   | Wm   | -2.30  | -1.35  | 0     | west wall, on the island_w south-gap lane |
+#   | N    | -0.25  | +1.35  | -pi/2 | north-gap lane, over the inter-island corridor |
+#   | S    | -0.25  | -1.35  | +pi/2 | south-gap lane, under the inter-island corridor |
+#   | E    | +2.30  |  0.00  | pi    | east, in front of the E aisle stub        |
+#   LANE-ALIGNED: Wp-N and Wm-S run straight along the two island_w gaps
+#   (y = +1.35, the north gap's centreline; y = -1.35, its mirror, 0.10 m
+#   south of the 1.10 m south gap's) and N-S straight down the
+#   inter-island corridor (x = -0.25, its centreline), so the busiest
+#   conflicts are axis-aligned. This is the grounding-driven iteration
+#   (MC gate block below): M3's dynamic view snaps headings within 30 deg of
+#   an axis and REFUSES the rest (dynamic_arms:ambiguous), and the first
+#   S1b layout (Wp/Wm at y +-1.2, N/S at (0.05, +-1.55), diagonal routes)
+#   lost 46 % of first conflicts to that branch.
+#   All inside the S1a node envelope (|x| <= 2.3, |y| <= 1.55), off the
+#   band corners, >= 0.20 m inside every band edge (Wp/Wm against the west
+#   wall, as S1a's E sits 0.2 m inside |x| = 2.5) and >= 0.60 m from both
+#   islands; none at marker 1's STALE pose (-1.75, 0). Every pairwise node
+#   distance >= 2.05 m (4.6x the 0.45 m latch, 4.1x M5's 0.5 m arrival /
+#   M3's handoff radius), so no node sits in another's handoff radius.
+# Grid-router legs (m; NavFn-like Dijkstra on the inflated costmap):
+#   Wp-N 2.05  Wm-S 2.05  N-S 2.70  Wp-Wm 2.70 (forbidden)  E-N 2.89-2.91
+#   E-S 2.91-2.96  S-Wp 3.57  N-Wm 3.68  E-Wp 4.85-4.95  E-Wm 4.93-5.02
+#   (direction-dependent by <= 0.10 m: string-pulled grid paths)
+# Shared corridors (>= 3 node-pair routes traverse the gap end to end, no
+#   endpoint inside it; scripts/s1b_layout.py routes_through_gaps):
+#     island_w <-> north wall (0.90 m): N-Wp, N-Wm, E-Wp
+#     island_w <-> south wall (1.10 m): S-Wp, S-Wm, E-Wm
+#     west wall <-> island_w  (1.20 m): N-Wm, S-Wp (+ the forbidden Wp-Wm)
+#     island_e <-> north / south wall: E-Wp, E-N / E-Wm, E-S
+#     island_w <-> island_e   (1.00 m): N-S
+# Forbidden leg Wp<->Wm KEPT, for ONE reason only: keeping S1a's labels AND
+#   forbidden list makes every seed draw the identical start assignment and
+#   25-task stream on both floors, so the regime axis is paired by seed. It
+#   is NOT a geometric necessity here (S1a's reason, a 0.70 m leg crossing
+#   the occupant's latch radius after 0.25 m, does not arise: the S1b leg
+#   is 2.70 m and clears the Delta floor below). Cost: one of the ten node
+#   pairs (two west-wall nodes) is never drawn. Dropping it is a one-line
+#   change (forbidden_legs: []) that breaks the pairing and regenerates
+#   every seed's draw.
+#
+# Release stagger Delta = 2.5 sim-s (R3.6a "the release stagger Delta and
+# its feasibility bound are recomputed for the new layout"; S1a's 4.0 is
+# geometry-specific). With N_A = N_G every node is occupied at t = 0; the
+# first-released robot must not reach a node whose occupant is still held:
+#   4 Delta < (L_min - 0.45) / v = (2.05 - 0.45) / 0.15 = 10.67 sim-s
+#   -> Delta < 2.67 sim-s (L_min over the allowed legs: Wp-N / Wm-S).
+#   Delta = 2.5 = 0.94 of the bound (S1a: 4.0 = 0.90 of 4.42). Measured,
+#   not just bounded (scripts/s1_mc.py, 400 draws): first conflicts that
+#   are an arriver meeting a not-yet-released occupant (the Delta artifact)
+#   = 0/400 at Delta = 2.5. On the S1b islands S1a's Delta = 4.0 gave 41/400
+#   (10.3 %, first layout), so 4.0 is NOT usable on this floor: the brief's
+#   "sim stagger 4.0" is superseded by R3.6a's recompute rule, and the
+#   regime axis therefore differs in Delta too (S1a 4.0 / S1b 2.5).
+#
+# Density (R3.6a item 3; free area inside the band / N_A = 5; "nominal" =
+# geometric, pre-inflation; "post-infl" counts the band cells of the Nav2
+# global costmap with cost < 253 (centre-feasible) and with cost = 0):
+#   | floor | nominal m2 | /agent 0.55 | /agent 0.45 | post-infl <253 m2 | /agent 0.55 | =0 m2 | /agent 0.55 |
+#   | S1a   | 8.23       | 5.44        | 8.13        | 7.59              | 5.02        | 6.94  | 4.59        |
+#   | S1b   | 16.24      | 10.74       | 16.04       | 15.16             | 10.02       | 14.14 | 9.35        |
+#   (the inflation model is checked against the live S1a global-costmap
+#   dump: cells <= 0.0707 m from an occupied cell read INSCRIBED, 0.10 m
+#   reads 80/100, beyond reads 0; scripts/s1_mc.py.)
+#
+# ---------------------------------------------------------------------------
+# MONTE CARLO GATE (R3.6a item 4) -- PROPOSED-for-Step-6. Derivation and
+# result: see "MC gate" block at the end of this header.
+# ---------------------------------------------------------------------------
+#
+# Spawns/goals below are SEED-DERIVED (S1a rule): spawns =
+# task_stream.draw_start_nodes(978442588, robots, nodes), each goal = the
+# robot's FIRST drawn task; full sequences (identical to S1a seed 1):
+#   robot_1: E  N  Wm S  N      robot_2: N  Wp N  S  N
+#   robot_3: Wp N  Wp S  Wm     robot_4: N  Wm E  Wm S
+#   robot_5: S  Wp S  Wp S
+# A DIFFERENT SEED MOVES THE SPAWNS: regenerate this yaml (spawns, goals) for
+# the episode's seed and REBUILD THE USD (a yaml edit is inert until
+# build_scenario regenerates it). tests/unit/test_mapd_5_s1b_scenario.py
+# re-derives both draws.
+#
+# Seed list: config/s1_seeds.yaml REUSED unchanged (its digest is pinned by
+# test_mapd_5_scenario.py); S1b seed k = S1a seed k, the same abstract task
+# stream on the other floor.
+#
+# ---------------------------------------------------------------------------
+# M5 overlay (set by hand in swarm_orchestrator/config/orchestrator.yaml
+# before a run; restore the pristine file after). Kept in lockstep with
+# `robots:` below by tests/unit/test_mapd_5_s1b_scenario.py. Everything
+# between the markers is literal orchestrator.yaml YAML at "#   " indent:
+#   --- M5 overlay begin ---
+#   initial_tasks:
+#     robot_1: { task: pickup, goal: [2.3, 0.0] }
+#     robot_2: { task: pickup, goal: [-0.25, 1.35] }
+#     robot_3: { task: pickup, goal: [-2.3, 1.35] }
+#     robot_4: { task: pickup, goal: [-0.25, 1.35] }
+#     robot_5: { task: pickup, goal: [-0.25, -1.35] }
+#   task_stream:
+#     enabled: true
+#     seed: 978442588
+#     nodes: { Wp: [-2.3, 1.35], Wm: [-2.3, -1.35], N: [-0.25, 1.35], S: [-0.25, -1.35], E: [2.3, 0.0] }
+#     tasks_per_robot: 5
+#     forbidden_legs: [[Wp, Wm]]
+#     task_labels: [pickup, delivery]
+#     release_stagger_sim_sec: 2.5
+#     dwell_sim_sec: 5.0
+#     horizon_sim_sec: 600.0
+#     finished_mode: park
+#     start_nodes: { robot_1: N, robot_2: Wp, robot_3: S, robot_4: Wm, robot_5: E }
+#   scenario_geometry:
+#     corridor: { axis: x, center_m: 0.0, half_length_m: 0.6, aisle_half_width_m: 0.6, occluder_height_m: 0.3 }
+#     camera: { height_m: 3.0, marker_height_m: 0.21 }
+#     robot: { half_width_m: 0.09, marker_half_size_m: 0.06, safety_radius_m: 0.45 }
+#     park_margin_m: 0.4
+#     wall_margin_m: 0.15
+#     passer_margin_m: 0.2
+#   grounding_params_path: "config/grounding/s1b_dynamic.yaml"
+#   grounding_aisle_y_band_m: null
+#   grounding_aisle_x_band_m: null
+#   grounding_yield_feasibility: "swap"
+#   static_obstacles:
+#     - { obstacle_id: obstacle_1, x: -1.025, y: 0.1, size_x_m: 0.55, size_y_m: 1.6 }
+#     - { obstacle_id: obstacle_2, x: 0.525, y: -0.1, size_x_m: 0.55, size_y_m: 1.6 }
+#     - { obstacle_id: obstacle_3, x: -2.75, y: 0.0, size_x_m: 0.5, size_y_m: 4.6 }
+#     - { obstacle_id: obstacle_4, x: 2.75, y: 0.0, size_x_m: 0.5, size_y_m: 4.6 }
+#     - { obstacle_id: obstacle_5, x: 0.0, y: 2.05, size_x_m: 5.0, size_y_m: 0.5 }
+#     - { obstacle_id: obstacle_6, x: 0.0, y: -2.05, size_x_m: 5.0, size_y_m: 0.5 }
+#   prompt_static_obstacles: false
+#   plan_channel_enabled: true
+#   dispatch_enabled: true
+#   reanalysis_suppression: { enabled: true, pose_epsilon_m: 0.05 }
+#   refusal_no_action: true
+#   --- M5 overlay end ---
+# Overlay notes:
+#   - task_stream.seed is a PER-EPISODE PLACEHOLDER (S1a rule): set it, and
+#     this file's spawns/goals + USD, from config/s1_seeds.yaml.
+#   - start_nodes is PINNED to the spawn assignment (S1-core start_check),
+#     equal to draw_start_nodes(seed, ...); the test re-derives it.
+#   - release_stagger_sim_sec 2.5 is S1b's recomputed Delta (above), on the
+#     A12(ii) sim-time clock (anchored at the stream's first scene); never
+#     also set release_stagger_wall_sec.
+#   - reanalysis_suppression + refusal_no_action are IN the snippet (S1a
+#     appended them by hand for echo episodes): the S1b pilot is echo-mock
+#     (MOCK_ECHO=1) with A12(iii) suppression and the E1 refusal-as-no-
+#     action fix on from the start. escort_turn_cap needs no overlay key: it
+#     ships ON in config/grounding/s1b_dynamic.yaml. Gate the run on the
+#     first decision artifact carrying diagnostics.mock_mode == "echo".
+#   - grounding_params_path names the S1b-only file (S1a's aisle bands
+#     [-0.46, 0.46] would veto every S1b retreat outside |y| <= 0.46; see
+#     that file). shadow_classical_params_path stays config/rag.yaml; the
+#     md5-pinned rag.yaml is never edited.
+#   - scenario_geometry declares NO arms and S1a's own corridor box (axis
+#     x, centre 0, half-length 0.6, aisle half-width 0.6): under
+#     dynamic_scene_arms M3 derives each yielder's arm per snapshot and the
+#     declared box is only the fallback / junction_clear geometry -- BUT its
+#     aisle_half_width_m also sets the dynamic-lane sidestep
+#     (pull_off_lateral_m = 0.6 - 0.24 = 0.36 m, E1-executed 0.373 m). The
+#     whole-band box (half-width 1.8) was tried and grounds a 1.56 m
+#     sidestep across the floor; S1b's gaps (0.9-1.2 m) are S1a's 1.2 m
+#     aisle class, so S1a's half-width is the right lane scale. The
+#     A14(iii) ambiguous fallback behaves as in S1a (Step-6 item).
+#     occluder_height_m 0.3 = the islands.
+#   - static_obstacles: obstacle_1/2 = the two islands (also physical, in
+#     the scenario's static_obstacles below); obstacle_3..6 = M3-only
+#     FENCES on the four band edges (|x| in [2.5, 3.0] full height of the
+#     band +- 0.5; |y| in [1.8, 2.3] full width). They generalise S1a's
+#     tracked-band end caps (obstacle_7..10, which covered only the aisle
+#     mouths, because S1a's racks bounded the rest): on S1b the racks are
+#     gone from the band, so the box sweep needs the whole band edge, and
+#     the fences also cover the two aisle stubs a robot could otherwise be
+#     backed into out of M1 tracking. Ids are neutral by the standing rule;
+#     prompt_static_obstacles STAYS false.
+#
+# Run line (pilot; S1a caps, Nav2 on this scenario's own map):
+#   SCENARIO=mapd_5_s1b SEED=978442588 MOCK_ECHO=1 BACKEND_ID=mock \
+#     RECORD=0 REC_SEC=4800 NAV2_ACTIVE_TIMEOUT_SEC=360 ./scripts/vm/fc_launch.sh
+#   (MAP_SCENARIO defaults to SCENARIO -> warehouse_map_mapd_5_s1b.yaml;
+#   colcon-build swarm_simulation after deploying the map.)
+#
+# Pilot evidence to record (R3.6a + the S1a list):
+#   - R3.6a acceptance: the live two-robot opposing pass (>= 0.85 m
+#     corridor, no 0.45 m latch) -- make-or-break, BEFORE any episode.
+#   - M1 coverage: every marker readable at every node and along the
+#     shared corridors.
+#   - Conflicts formed and RESOLVED (executable yields acting), tasks and
+#     makespan, latch events (transient vs permanent), analyses/episode.
+#   - Wandering-vs-park (Open Question S1-1): finishers, occupied-node
+#     arrival counts, tail behaviour.
+#
+# ---------------------------------------------------------------------------
+# MC gate (R3.6a item 4) -- PROPOSED for Step 6; machinery
+# scripts/s1_mc.py (the S1a Monte Carlo rebuilt and committed; it
+# reproduces S1a's published row: first-conflict median 13.6-14.9 vs 15.0,
+# p90 17.3-17.4 vs 17.3, junction 303-315/400 vs 309/400, free-flow
+# makespan 176.8 vs 177, occupied arrivals 3.3 vs 3.2). SAME conflict
+# definition as S1a: an encounter is a centre gap < 0.45 m, both robots
+# then freeze (Layer-2-off proxy). Draws: seeds 1..400 through the shipped
+# task_stream draws; routes from the grid router; finished = park (what M5
+# runs). Thresholds, each derived (no free numbers):
+#   Live S1a inputs (scripts/s1_live_conflict_stats.py, same encounter
+#   definition on GT, times from robot_1's release): first encounter E1
+#   17.94, E2 18.74 sim-s (pilot ep1 20.5, wall-clock stagger, not used);
+#   3/3 episodes had >= 1 encounter; E2's first conflict was sandwiched
+#   (no single-yield room), E1's was resolved by the one executed yield.
+#   | gate | quantity (S1b MC, 400 draws, park, Delta 2.5) | derivation | threshold | S1b | pass |
+#   | G1 | P(>= 1 encounter in H) | >= 1 event per episode: E[event-free episodes] <= 0.5 in an R = 20 cell -> 1 - 1/(2R) | >= 0.975 | 1.000 | yes |
+#   | G2 | first-encounter p90 (sim-s) | live/MC lag k = max(17.94, 18.74) / 15.0 = 1.249; a first conflict must leave the full 300 sim-s pin-stop window before H: k * p90 <= 600 - 300 | <= 240.1 | 20.1 | yes |
+#   | G3 | max share of first conflicts in any 1.2 x 1.2 m window (S1a's junction box) | regime distinctness: below S1a's own share under the same router (grid: 0.445; registered nominal-route MC: 309/400 = 0.773) | < 0.445 | 0.275 | yes |
+#   | G4 | Delta-artifact share of first conflicts | S1a MC 0/400; tolerance = G1's 1/(2R) | <= 0.025 | 0.000 | yes |
+#   | G5a-geo | first conflict GEOMETRICALLY resolvable by one yield (some member has >= 1.7 - gap m of clear rear room: band, boxes + 0.14 m, other robots' 0.45 m radii) | the floor must let a 2-episode pilot show a resolvable first conflict with P >= 0.95: 1 - (1 - q)^2 >= 0.95 -> q >= 1 - sqrt(0.05) | >= 0.776 | 0.818 | yes |
+#   | G5b | >= 3-robot < 0.45 m contact onsets per episode, pass-through run (E2's cluster pattern) | below S1a's own rate under the same router | < 3.31 | 2.55 | yes |
+#   GATE: PASS (6/6). Other first-conflict figures: median 12.0 sim-s
+#   (p10 8.0); kinds head-on 334, crossing 35, same-direction 19, static 12
+#   (S1a: 295/84/17/4); top 0.5 m hotspots (-1.5,-1.5) 43, (-1.5,+1.0) 40,
+#   (-2.0,-0.5) 31, (-1.0,+1.0) 31 -- the two island_w gaps and the west
+#   passage. Encounters/episode 3.14 (S1a 3.26).
+#   GROUNDED EXECUTABILITY (reported, NOT gated -- an M3 capability, not a
+#   floor property; scripts/s1_grounding_replay.py): each MC first-conflict
+#   scene 2.5 sim-s after the encounter, replayed through the real
+#   ground_reasoner_result as the echo mock would ask (stalled robots in
+#   id_asc order, the first one the yielder), with this overlay, its 6
+#   boxes and s1b_dynamic.yaml in swap mode. EXECUTABLE yield: S1b 162/400
+#   = 0.405 (0.405 with the pair pulled in to 0.35 m); S1a (mapd_5 overlay,
+#   s1_dynamic) 138/400 = 0.345 (0.325). The rest: an EMPTY reroute (a
+#   no-op in M4) + a 15 s wait, 124/400 (S1a 166) -- M3's 0.95 m room gate
+#   keeps a yielder whose retreat sweep then needs 1.7 - gap ~ 1.3 m and
+#   finds none, never swapping to the partner that has it; and REFUSALS,
+#   114/400 (S1a 96), 80 of them dynamic_arms:ambiguous (headings > 30 deg
+#   off both axes; the first, diagonal-route layout lost 185/400 = 46 % here
+#   and grounded only 0.247, which is why the nodes are lane-aligned).
+#   Pilot expectation: P(>= 1 executable first-conflict yield in 2
+#   episodes) = 1 - 0.595^2 = 0.65.
+#   Iterations: layout chosen by an offline search; gate run 1 (Wp/Wm at
+#   y +-0.90) passed on M3's 0.95 m room gate; re-scored on the 1.7 - gap
+#   backup requirement -> run 2 (Wp/Wm y +-1.20): G5a-geo 0.885, but
+#   grounded 0.247; run 3 (this file, lane-aligned nodes, Delta 2.5):
+#   G5a-geo 0.818, grounded 0.405. Islands unchanged throughout.
+#   Latch-cluster risk (reported; the freeze proxy makes every encounter
+#   permanent by construction): a >= 3-robot frozen cluster within 60 sim-s
+#   of the first encounter in 346/400 S1b draws vs 360/400 S1a (with
+#   Nav2-like rerouting around frozen robots: 314 vs 336); median lag first
+#   encounter -> 3-cluster 19.2 vs 11.3 sim-s (30.3 vs 23.6 rerouting);
+#   geometrically single-yield-resolvable encounters 0.76 vs 0.58 of all.
+#   Pass-through contacts/episode 17.0 vs 20.2 (head-on 8.0 vs 11.1; node
+#   handoffs 6.2 vs 4.9: the node structure is S1a's and parks finishers).
+#   So WITHOUT Layer 2 clusters still form in most draws, a little later;
+#   exposure is transient only if Layer 2 grounds a clearing yield within
+#   ~19 sim-s (grounded executability ~0.4 per first conflict) AND Nav2
+#   passes at >= 0.45 m (the live check).
+# ---------------------------------------------------------------------------
+robots:
+  - robot_id: robot_1
+    marker_id: 1
+    spawn: {x: -0.25, y: 1.35, yaw_rad: -1.5707963267948966}
+    goal: {x: 2.3, y: 0.0}
+    initial_task: pickup
+  - robot_id: robot_2
+    marker_id: 2
+    spawn: {x: -2.3, y: 1.35, yaw_rad: 0.0}
+    goal: {x: -0.25, y: 1.35}
+    initial_task: pickup
+  - robot_id: robot_3
+    marker_id: 3
+    spawn: {x: -0.25, y: -1.35, yaw_rad: 1.5707963267948966}
+    goal: {x: -2.3, y: 1.35}
+    initial_task: pickup
+  - robot_id: robot_4
+    marker_id: 4
+    spawn: {x: -2.3, y: -1.35, yaw_rad: 0.0}
+    goal: {x: -0.25, y: 1.35}
+    initial_task: pickup
+  - robot_id: robot_5
+    marker_id: 5
+    spawn: {x: 2.3, y: 0.0, yaw_rad: 3.141592653589793}
+    goal: {x: -0.25, y: -1.35}
+    initial_task: pickup
+
+# The tracked band, cleared of the four shared rack quadrants.
+rack_clearance:
+  x_min_m: -2.5
+  x_max_m: 2.5
+  y_min_m: -1.8
+  y_max_m: 1.8
+
+timed_obstacles: []
+# The two rack islands (physical: USD collision boxes + baked into the map).
+static_obstacles:
+  - obstacle_id: obstacle_1
+    pose: {x: -1.025, y: 0.1, yaw_rad: 0.0}
+    size: {x_m: 0.55, y_m: 1.6, z_m: 0.3}
+  - obstacle_id: obstacle_2
+    pose: {x: 0.525, y: -0.1, yaw_rad: 0.0}
+    size: {x_m: 0.55, y_m: 1.6, z_m: 0.3}
+
+# SCHEMA PLACEHOLDER (S1a's; see mapd_5.yaml): all five robots, type
+# deadlock, window widened for RTF/start jitter around the MC first-conflict
+# distribution (median 12.0, p90 20.1 sim-s after the first release).
+expected_conflict:
+  type: deadlock
+  involved_robots: [robot_1, robot_2, robot_3, robot_4, robot_5]
+  onset_window_sec: [8.0, 120.0]
+  min_duration_sec: 2.0
+
+runtime:
+  physics_hz: 60
+  rendering_hz: 30
