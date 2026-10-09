@@ -993,6 +993,20 @@ forming later: median 19.2 vs 11.3 s) — S1b's claim rests on
 Layer-2 intervention BEFORE cluster closure, which its later onset
 and pairwise-first structure make feasible where S1a's 7 s window
 did not. The S1b pilot (staged) is the test of exactly that.
+(v-bis) **Citation pair for the thesis (coordinated note):** the
+forcing audit's Section 3 F3 observed this mechanism from code
+alone — "inside a 1.2 m aisle the 0.45 m latch makes NON-commanded
+resolution nearly impossible — the safety layer is simultaneously
+the reason 'VLM plan resolved it' is credible and the reason almost
+any spatial strategy token resolves." A15(ii) upgrades that
+read-only observation to a MEASURED architectural property (0/4
+clears at 1.2 m; 0.423 m latch at 0.90 m) — cited together, the
+resolvability-axis re-registration is the audit's prediction
+confirmed, not a retreat. The same pair cuts both ways before a
+committee: Layer 2 is NECESSARY (the strength) AND resolution
+credit partially belongs to the exemption machinery (the audit's
+honest-claim boundary) — the provenance metrics carry that load.
+
 (vi) Program stopped at the pass check per the pre-registered rule;
 staged and not run: S1b pilot episodes, M1 coverage session,
 free-flow legs, S1a anchor (anchor since authorized and running
