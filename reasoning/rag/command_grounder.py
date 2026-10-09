@@ -1592,15 +1592,11 @@ def resolve_yield_roles(
         crossing_order=crossing_order,
         params=params,
     )
-    if (
-        roles.refusal_reason is not None
-        or yield_feasibility_mode != "swap"
-        or params is None
-        or params.mode != "derived"
-        or geometry is None
-        or geometry.rear_room_band != "footprint"
+    if roles.refusal_reason is not None or not _partner_retry_applies(
+        yield_feasibility_mode, params, geometry
     ):
         return roles
+    assert params is not None and geometry is not None  # narrowed by the domain check
     failure = _derived_reroute_reason(snapshot, roles, params, geometry, static_obstacles)
     if failure is None:
         return roles
@@ -1613,6 +1609,28 @@ def resolve_yield_roles(
         static_obstacles=static_obstacles,
         crossing_order=crossing_order,
         params=params,
+    )
+
+
+# The partner retry's two outcomes, as `_sweep_regrounded_roles` writes them
+# and `_plan_yield_verdict` reads them back (prereg-v3 A16(v)).
+_SWEEP_REGROUNDED_TAG = "yield_robot=sweep_regrounded"
+_NO_EXECUTABLE_RETREAT = "yield refused: no executable retreat"
+
+
+def _partner_retry_applies(
+    yield_feasibility_mode: YieldFeasibilityMode,
+    params: GroundingParams | None,
+    geometry: SceneGeometry | None,
+) -> bool:
+    # `resolve_yield_roles`' A15(iv) domain: a dynamic footprint view, the
+    # `swap` gate and derived-mode params.
+    return (
+        yield_feasibility_mode == "swap"
+        and params is not None
+        and params.mode == "derived"
+        and geometry is not None
+        and geometry.rear_room_band == "footprint"
     )
 
 
@@ -1683,11 +1701,11 @@ def _sweep_regrounded_roles(
                     degradations=[
                         *legacy,
                         *second.degradations,
-                        f"yield_robot=sweep_regrounded:{kept}->{partner}",
+                        f"{_SWEEP_REGROUNDED_TAG}:{kept}->{partner}",
                     ],
                     off_lane=second.off_lane,
                 )
-    refusal = f"yield refused: no executable retreat ({kept} {failure}; {partner_failure})"
+    refusal = f"{_NO_EXECUTABLE_RETREAT} ({kept} {failure}; {partner_failure})"
     return YieldRoles(
         robot_ids=roles.robot_ids,
         crossing_order=roles.crossing_order,
@@ -3092,6 +3110,71 @@ def _is_consistent(strategy: str, legs: Sequence[ProposedPlanLeg]) -> bool:
     return True
 
 
+class _PlanYieldVerdict(NamedTuple):
+    # The one robot whose `yield` leg dispatch executes (None: dispatch
+    # refuses the yield), and the reason any other yield leg is infeasible.
+    yielder_id: str | None
+    reason: str
+
+
+def _plan_yield_verdict(
+    decision: CongestionDecision,
+    snapshot: SnapshotFrame,
+    *,
+    geometry: SceneGeometry | None,
+    static_obstacles: Sequence[StaticObstacleInput],
+    yield_feasibility_mode: YieldFeasibilityMode,
+    priorities: Mapping[str, int] | None,
+    grounding_params: GroundingParams | None,
+) -> _PlanYieldVerdict | None:
+    """The partner retry's verdict on a plan's yield leg (prereg-v3 A16(v)).
+
+    `_plan_problems`' room check alone accepts a gate-kept yielder whose
+    derived retreat then fails (backup, sweep or escort), while dispatch
+    (`resolve_yield_roles`' partner retry) yields its partner instead or
+    refuses the yield. The verdict is read from that same function, called
+    exactly as `_yield_default_actions` calls it, so a plan leg and the
+    derived path face one feasibility check, partner eligibility included.
+
+    Args:
+        decision: The grounding view's decision.
+        snapshot: Scene frame supplying every robot's position.
+        geometry: The grounding view's geometry.
+        static_obstacles: Fixed obstacles of the running scenario.
+        yield_feasibility_mode: The yield feasibility gate mode.
+        priorities: M5's registry priorities, for the strategy alias.
+        grounding_params: M3's derived-mode grounding parameters.
+
+    Returns:
+        None when the retry does not fire (outside its domain, not a yield,
+        or the kept yielder's retreat is executable): the room check stands
+        alone, as before. Otherwise the retried yielder, or None as
+        `yielder_id` when the retry refused the yield.
+    """
+    if not _partner_retry_applies(yield_feasibility_mode, grounding_params, geometry):
+        return None
+    alias = resolve_strategy_alias(decision, snapshot, geometry=geometry, priorities=priorities)
+    working = alias.decision if alias is not None else decision
+    if working.strategy != "yield":
+        return None
+    roles = resolve_yield_roles(
+        working,
+        snapshot,
+        geometry=geometry,
+        static_obstacles=static_obstacles,
+        yield_feasibility_mode=yield_feasibility_mode,
+        params=grounding_params,
+    )
+    if roles.refusal_reason is not None:
+        if roles.refusal_reason.startswith(_NO_EXECUTABLE_RETREAT):
+            return _PlanYieldVerdict(yielder_id=None, reason=roles.refusal_reason)
+        return None
+    if any(tag.startswith(f"{_SWEEP_REGROUNDED_TAG}:") for tag in roles.degradations):
+        reason = (roles.regrounded_reason or "").removeprefix("yield re-grounded: ")
+        return _PlanYieldVerdict(yielder_id=roles.yielder_id, reason=reason)
+    return None
+
+
 def _plan_problems(
     legs: Sequence[ProposedPlanLeg],
     decision: CongestionDecision,
@@ -3100,6 +3183,7 @@ def _plan_problems(
     static_obstacles: Sequence[StaticObstacleInput],
     yield_feasibility_mode: YieldFeasibilityMode,
     grounding_params: GroundingParams | None = None,
+    plan_yield_verdict: _PlanYieldVerdict | None = None,
 ) -> list[tuple[int, str]]:
     """Leg-by-leg feasibility audit, reusing M3's existing grounding checks.
 
@@ -3144,6 +3228,9 @@ def _plan_problems(
             weights); None uses the placeholder default. Only consulted by
             the `junction_clear` recede-set audit below, to recompute the
             SAME chi order `ground_junction_clear_phases` will dispatch.
+        plan_yield_verdict: The partner retry's verdict
+            (`_plan_yield_verdict`); a `yield` leg on any robot but its
+            `yielder_id` fails with its reason. None adds no check.
 
     Returns:
         `(index, reason)` pairs into `legs` for every leg that fails a check;
@@ -3224,6 +3311,13 @@ def _plan_problems(
             reason = _room_shortfall(robot_id, _other_in_order(robot_id))
             if reason is not None:
                 problems.append((i, reason))
+
+    if plan_yield_verdict is not None:
+        # A16(v): the yielder the room check keeps may have no executable
+        # retreat; dispatch then yields the retried partner, or nobody.
+        for i in yield_idx:
+            if legs[i].robot_id != plan_yield_verdict.yielder_id:
+                problems.append((i, plan_yield_verdict.reason))
 
     if geometry is not None and yield_idx and involved:
         # Partner is the first OTHER involved robot regardless of its
@@ -3888,6 +3982,7 @@ def _repair_plan(
     max_edits: int,
     grounding_params: GroundingParams | None = None,
     extra_touchable: Sequence[str] = (),
+    plan_yield_verdict: _PlanYieldVerdict | None = None,
 ) -> tuple[list[ProposedPlanLeg] | None, list[PlanEdit]]:
     """Breadth-first minimal repair toward `default_by_robot`.
 
@@ -3930,6 +4025,9 @@ def _repair_plan(
             the repair may still edit: those the model named but the
             grounding view dropped (a declared parked robot), so a plan
             giving one a role is repaired to its default `continue`.
+        plan_yield_verdict: The partner retry's verdict, forwarded to
+            `_plan_problems`, so a `swap` onto the retried partner is the
+            only yield re-assignment it accepts (A16(v)).
 
     Returns:
         `(repaired_legs, edits)` for the minimal repair found, or
@@ -3951,6 +4049,7 @@ def _repair_plan(
                 static_obstacles,
                 yield_feasibility_mode,
                 grounding_params,
+                plan_yield_verdict,
             )
         )
 
@@ -4114,6 +4213,15 @@ def verify_and_repair_plan(
     - Repair distance exceeds `repair_params.max_repair_edits` -> M3's own
       derived plan, `m3_default`, reason logged.
 
+    Partner-retry parity (prereg-v3 A16(v)): in `resolve_yield_roles`'
+    retry domain (footprint view, `"swap"`, derived params) a yield leg is
+    also audited against that function's own verdict (`_plan_yield_verdict`).
+    A plan naming a kept yielder with no executable retreat is repaired by
+    one `swap` onto the partner dispatch retries to, never onto a robot the
+    retry would not pick; when the retry refuses the yield, the plan is
+    `m3_default` with `plan unrepairable: <refusal>`. Outside that domain the
+    derived backup/sweep/escort check is still not modelled for a plan leg.
+
     In a two-robot head-on this reduces to the existing swap gate as a
     one-leg repair: the VLM's one `yield` leg on the infeasible robot and one
     `cross` leg on the feasible one are fixed by exactly one `swap` edit, and
@@ -4261,6 +4369,15 @@ def verify_and_repair_plan(
             rejection_stage="repair_bound_exceeded",
         )
 
+    plan_yield_verdict = _plan_yield_verdict(
+        decision,
+        snapshot,
+        geometry=geometry,
+        static_obstacles=static_obstacles,
+        yield_feasibility_mode=yield_feasibility_mode,
+        priorities=priorities,
+        grounding_params=grounding_params,
+    )
     if not _plan_problems(
         legs,
         decision,
@@ -4269,6 +4386,7 @@ def verify_and_repair_plan(
         static_obstacles,
         yield_feasibility_mode,
         grounding_params,
+        plan_yield_verdict,
     ):
         return VerifiedPlan(legs=legs, provenance="vlm_verbatim", plan_completed_legs=completed)
 
@@ -4286,13 +4404,20 @@ def verify_and_repair_plan(
         extra_touchable=[
             rid for rid in model_decision.involved_robots if rid not in decision.involved_robots
         ],
+        plan_yield_verdict=plan_yield_verdict,
     )
     if repaired is None:
+        # As the view refusal above: a retry refusal reports its true reason.
+        reason = (
+            f"plan unrepairable: {plan_yield_verdict.reason}"
+            if plan_yield_verdict is not None and plan_yield_verdict.yielder_id is None
+            else f"repair distance exceeds bound {repair_params.max_repair_edits}"
+        )
         return VerifiedPlan(
             legs=default_legs,
             provenance="m3_default",
             plan_completed_legs=completed,
-            rejection_reason=f"repair distance exceeds bound {repair_params.max_repair_edits}",
+            rejection_reason=reason,
             rejection_stage="repair_bound_exceeded",
         )
     return VerifiedPlan(
@@ -4309,7 +4434,8 @@ def project_dispatched_legs(
     output is verified to match `ground_reasoner_result`'s real dispatch
     exactly, but for a 3+-robot plan-PRESENT scene (repair-semantics ruling 1)
     and for a plan-present yield under DERIVED mode's backup-band sweep (which
-    `_plan_problems` does not model), the executed command CAN legitimately
+    `_plan_problems` models only inside the A16(v) partner-retry domain,
+    `_plan_yield_verdict`), the executed command CAN legitimately
     differ from `VerifiedPlan.legs` -- the engine measures what the VLM
     proposed, it does not drive what M4 receives. This function makes that
     comparison possible rather than silently assumed away: it projects the
