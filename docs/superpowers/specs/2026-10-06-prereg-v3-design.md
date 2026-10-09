@@ -1062,6 +1062,36 @@ passes. Cross-reference: A16's honest-refusal package (zero
 fabricated 0.00 m) discharges the measurement half of A14(iii); the
 remaining A14(iii) residue is only the Step-6 wording.
 
+**A17. Plan-leg parity shipped; bias direction corrected; heading
+handover ruled (2026-10-10; integration @aca00de).** A16(v)'s fix
+landed with one factual correction: the asymmetry OVER-credited the
+plan channel, not under- (pre-fix, a plan naming a sweep-failing
+yielder verified `vlm_verbatim` with dispatch_matches_plan=False
+while dispatch retried to the partner). Shipped semantics — the
+verifier's verdict equals what dispatch does, via the shared
+`resolve_yield_roles` call (`_plan_yield_verdict`): retry-success →
+`repaired` with exactly one logged swap matching
+`yield_robot=sweep_regrounded`; retry-refusal → `m3_default` with
+the dispatched waits. MC provenance shift (400 first conflicts):
+S1b vb/rep/m3 222/98/80 → 132/95/173; S1a 216/116/68 → 107/54/239;
+zero cases move away from dispatch. The model's leg is never
+silently rewritten — every change is a logged edit. Scorer fix: the
+`plan unrepairable` prefix now maps to `repair_bound_exceeded` in
+plan_metrics (round-trip pinned). ADOPTED for the freeze:
+`repaired_yield_retry_only` stratum (edits = exactly one swap whose
+ids equal the sweep_regrounded pair; precedent repaired_order_only/
+parked_only). NEW RULING (same R2 principle): the A16 heading
+handover (`heading_regrounded`) produces the identical over-credit
+(8+7/400) — the plan verdict must reflect the FULL derived
+pipeline's final yielder (view handover included), fixed BEFORE any
+plan-channel live episode; echo pilots unaffected. Residuals
+carried: refuse-mode/declared-geometry plan legs still get no
+backup/sweep/escort check; junction_clear yield-axis sub-plans
+don't consult the verdict; a plan naming the partner directly stays
+`inconsistent` (contradicts its own yield_robot — registered
+behavior); 12+2 MC repaired cases mismatch only on the pre-existing
+lane-scoped off-lane cross hold.
+
 **A14 corrigendum (2026-10-09).** A14(iv)'s "GT
 robot_static_contacts logged 0 rows during a physical pin" implied
 an under-detecting detector. The truth is stronger:
