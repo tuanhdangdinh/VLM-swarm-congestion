@@ -135,6 +135,44 @@ class ReanalysisSuppressionConfig(BaseModel):
     applies_to: Literal["task_stream_only", "all"] = "task_stream_only"
 
 
+class ChurnBoundConfig(BaseModel):
+    """Per-cluster clearing-dispatch bound (`churn_bound:`, prereg-v3 A21(b)).
+
+    Built DEFAULT-OFF with its values deliberately unset: A21 rules "measure
+    first, bound later", so `budget_k`, `window_sim_sec` and
+    `alternation_max` are frozen only from churn data (target: p95 of
+    productive-resolution counts) and enabled per registered cell. Disabled
+    (the default), M5 constructs no ledger and every dispatch, log line and
+    artifact is byte-identical to before this block existed. Enabled, a
+    clearing dispatch (`swarm_orchestrator.churn.dispatch_identity`) is
+    withheld like a refusal (`dispatch_withheld` reason `churn_budget` or
+    `churn_alternation`) when its latch cluster already used `budget_k`
+    clearing dispatches inside `window_sim_sec`, or when it would push the
+    cluster's A-B-A alternations in the window past `alternation_max`.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    enabled: bool = False
+    budget_k: int | None = Field(default=None, ge=1)
+    window_sim_sec: float | None = Field(default=None, gt=0.0)
+    alternation_max: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def _enabled_needs_values(self) -> ChurnBoundConfig:
+        missing = [
+            name
+            for name in ("budget_k", "window_sim_sec", "alternation_max")
+            if getattr(self, name) is None
+        ]
+        if self.enabled and missing:
+            raise ValueError(
+                f"churn_bound.enabled needs {', '.join(missing)}: the bound's values are "
+                "frozen from churn data (prereg-v3 A21(b)), never defaulted"
+            )
+        return self
+
+
 class TaskStreamConfig(BaseModel):
     """The v3 S1 (MAPD-5) task-stream mode's settings (`task_stream:`).
 
@@ -493,6 +531,8 @@ class OrchestratorConfig(BaseModel):
     # arms (outcome `refusal_no_action`). False (the default), or with the
     # task stream off, the refusal fan-out dispatches byte-for-byte as before.
     refusal_no_action: bool = False
+    # prereg-v3 A21(b) per-cluster clearing-dispatch bound; default off, values unset.
+    churn_bound: ChurnBoundConfig = Field(default_factory=ChurnBoundConfig)
 
     @field_validator("initial_tasks")
     @classmethod

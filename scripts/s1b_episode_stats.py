@@ -307,6 +307,9 @@ def _wander_park(task_events: list[dict], gt: list[dict], gt_t: list[float], off
         rid, node = e["robot_id"], e["node"]
         nx, ny = nodes[node]
         t0 = e["sim_t"]
+        if t0 is None:
+            # Pilot ep1 (wall-clock stagger) issued tasks without a sim stamp.
+            continue
         t1 = arrived.get((rid, e["task_index"]), end_sim)
         for row in gt:
             ts = row["sim_time_sec"] + off

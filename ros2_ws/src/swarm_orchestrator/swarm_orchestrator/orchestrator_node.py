@@ -45,6 +45,7 @@ from reasoning.vlm.models import (
 )
 from reasoning.vlm.reasoner import Reasoner
 from swarm_orchestrator.arrival import ArrivalDecision, ArrivalGate
+from swarm_orchestrator.churn import ChurnLedger, dispatch_identity, latch_cluster
 from swarm_orchestrator.command_lifecycle import (
     AttemptMemory,
     CommandRecord,
@@ -63,6 +64,7 @@ from swarm_orchestrator.models import (
     OrchestratorConfig,
     PipelineOutcome,
     RegistryDispatch,
+    SceneSnapshot,
     TerminalStage,
     load_config,
     parse_annotation_overlays,
@@ -442,6 +444,11 @@ class OrchestratorNode(Node):
             if suppression.enabled
             and (suppression.applies_to == "all" or self._config.task_stream.enabled)
             else None
+        )
+        # prereg-v3 A21(b) per-cluster clearing-dispatch bound: None unless
+        # enabled, so an off node never consults, logs or records it.
+        self._churn: ChurnLedger | None = (
+            ChurnLedger() if self._config.churn_bound.enabled else None
         )
         # S1 refusal-as-no-action: engaged only with the task stream on, so a
         # declared/v2 scene keeps dispatching its refusal waits byte-for-byte.
@@ -1234,6 +1241,11 @@ class OrchestratorNode(Node):
                 "fallback_reason": withheld_reroute,
                 "would_dispatch_robot_ids": list(dispatch.robot_ids),
             }
+        churn_entry = None
+        if self._churn is not None and dispatch_withheld is None:
+            churn_entry = self._churn_check(outcome, dispatch, snapshot)
+            if churn_entry is not None and churn_entry[0] is not None:
+                dispatch_withheld = churn_entry[0]
         try:
             artifact_path = write_decision_artifact(
                 self._config.decision_log_dir,
@@ -1313,6 +1325,9 @@ class OrchestratorNode(Node):
                 )
             elif self._config.dispatch_enabled:
                 self._dispatch(outcome, dispatch, episode_index=episode_index)
+                if self._churn is not None and churn_entry is not None:
+                    _, stamp, identity, cluster = churn_entry
+                    self._churn.record(stamp, identity, cluster, outcome.request_id)
             else:
                 self._suppress_dispatch(outcome, dispatch, directive.robots, now)
         elif directive.kind is DirectiveKind.COOLDOWN:
@@ -2085,12 +2100,71 @@ class OrchestratorNode(Node):
             None if dispatch is None or dispatch.command is None
             else dispatch.command["command_id"]
         )
-        what = "empty reroute withheld" if reason == "empty_reroute" else "refusal withheld"
+        what = {
+            "empty_reroute": "empty reroute withheld",
+            "churn_budget": "churn bound withheld",
+            "churn_alternation": "churn bound withheld",
+        }.get(reason, "refusal withheld")
         self.get_logger().info(
             f"{what} request={outcome.request_id} command={command_id} "
             f"would_dispatch={would_be} cooldown_robots={robots} "
             f"cooldown_sec={self._config.cooldown_sec} (refusal_no_action)"
         )
+
+    def _churn_check(
+        self,
+        outcome: PipelineOutcome,
+        dispatch: RegistryDispatch | None,
+        snapshot: SceneSnapshot | None,
+    ) -> tuple[dict[str, Any] | None, float, tuple[str, ...], frozenset[str]] | None:
+        """The A21(b) bound for one outcome (only called with the bound enabled).
+
+        Returns None when the outcome is not a clearing dispatch M5 could
+        send (no command, not OK, dispatch off, no scene); otherwise the
+        `dispatch_withheld` block (None when the bound allows it) and the
+        stamp, identity and cluster to record once it is dispatched.
+        """
+        bound = self._config.churn_bound
+        if (
+            not self._config.dispatch_enabled
+            or outcome.terminal_stage is not TerminalStage.OK
+            or dispatch is None
+            or dispatch.command is None
+            or snapshot is None
+        ):
+            return None
+        identity = dispatch_identity(dispatch.command)
+        if identity is None:
+            return None
+        positions = {robot.robot_id: (robot.x, robot.y) for robot in snapshot.robots}
+        cluster = latch_cluster(identity, positions)
+        assert bound.budget_k is not None and bound.window_sim_sec is not None
+        assert bound.alternation_max is not None
+        verdict = self._churn.check(
+            snapshot.stamp,
+            identity,
+            cluster,
+            budget_k=bound.budget_k,
+            window_sec=bound.window_sim_sec,
+            alternation_max=bound.alternation_max,
+        )
+        self.get_logger().info(
+            f"churn bound request={outcome.request_id} identity={'/'.join(identity)} "
+            f"cluster={sorted(cluster)} in_window={verdict.cluster_dispatches_in_window} "
+            f"alternations={verdict.cluster_alternations_in_window} "
+            f"withhold={verdict.reason or 'no'}"
+        )
+        withheld = None
+        if verdict.withhold:
+            withheld = {
+                "reason": f"churn_{verdict.reason}",
+                "identity": list(identity),
+                "cluster": sorted(cluster),
+                "cluster_dispatches_in_window": verdict.cluster_dispatches_in_window,
+                "cluster_alternations_in_window": verdict.cluster_alternations_in_window,
+                "would_dispatch_robot_ids": list(dispatch.robot_ids),
+            }
+        return withheld, snapshot.stamp, identity, cluster
 
     # ---- dispatch-off (log-only) ----
 
