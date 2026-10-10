@@ -1247,6 +1247,44 @@ the first live S1b episode WITH the plan channel on. Minor
 apparatus fixes ride along: echo names ONE cluster (the closest),
 refusal text names the 45° cap when the cap is what refused.
 
+**A22. First live S1b episode; S6-in-S1 answered; batch ruled
+(2026-10-10; report 2026-10-10-churn-and-first-live.md; integration
+@d7dae79).** E6 (ER-2, plan channel ON — all pre-live gates closed):
+5 analyses, 0 refusals, churn_class RESOLVED (alternation 0), two
+productive resolutions incl. S1b's FIRST clearance-released yield
+(model named r4, M3 swapped to r2 — repaired∧matched — executed
+end-to-end), 4/25 tasks, gridlock 173.2 rel-s, ~$0.034. ANSWERS:
+(i) S6-in-S1 = NO — the model named ONE cluster in all 5 analyses
+and no plan addressed both (S6's reason-to-exist now has live
+evidence); (ii) churn attribution INDETERMINATE by the
+pre-registered opportunity rule (max 2 clearing dispatches into one
+cluster vs required ≥3) — provisional direction: no livelock under
+a real model, and the corrected echo did not reproduce E3 either;
+(iii) first field vb∧dispatch_matched: 1/5 analyses, 1/3 dispatched
+(vb 1/rep 2/m3 2; the one mismatch is the known A18 residual-2, not
+a parity failure). PARITY COMPLETE at MC level: after the off-lane
+hold fix (cross/continue on lane_scoped held robots → substitute
+wait, stratum repaired_lane_scope_only), vb-mismatched = 0/400 on
+BOTH floors; final vb∧matched S1a 0.3775, S1b 0.455. NEW APPARATUS
+FINDING (E5): the one-cluster echo STARVES — it re-names the same
+unresolvable pair while suppression holds the scene, and the second
+cluster is never analysed; RULED: the echo rotates to the next
+engaged pair after a refusal on the current one (apparatus-only).
+RULINGS/DEFERRALS: junction_clear on S1b = OUT OF SCOPE (extends
+A11(ii); its junction geometry is unsolved there — the model's one
+junction_clear fell to a 0.00-m legacy refusal, withheld); composed
+repairs (regrounding swap + lane-scope substitutes, sitting at the
+bound of 4) get a `repair_bound_pressure` flag and an A17-bis
+family-rule extension (strata compose as a multiset of separable
+causes) — final wording at Step 6 with data; MC is REGISTERED as an
+upper bound for live yield probability (0/5 live first-conflict
+yields vs 4/5 predicted across pilots); churn-bound values still
+unfreezable (productive counts: A1=1, E6=2). OWNER-APPROVED NEXT:
+echo-rotation fix + a 3–5 episode LIVE batch (~$0.10–0.17) to power
+the attribution rule, accumulate productive-resolution counts for
+the A21 bound, and replace MC with empirical event rates. Bring-up
+remains the infra sore spot (2/4 aborts at stagger 6).
+
 **A14 corrigendum (2026-10-09).** A14(iv)'s "GT
 robot_static_contacts logged 0 rows during a physical pin" implied
 an under-detecting detector. The truth is stronger:
