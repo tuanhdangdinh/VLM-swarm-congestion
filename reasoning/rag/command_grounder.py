@@ -3143,35 +3143,37 @@ class _PlanYieldVerdict(NamedTuple):
     reason: str
 
 
-def _plan_yield_verdict(
+class _PlanDispatchOutcome(NamedTuple):
+    # The alias-resolved yield decision dispatch grounds, and what dispatch
+    # does with it (`_resolve_yield_outcome`): the one derivation the plan
+    # verdicts read (prereg-v3 A16(v), A17, A18, A21).
+    working: CongestionDecision
+    outcome: "_YieldOutcome"
+
+
+# Edit-reason prefix of a plan leg substituted to `wait` because dispatch
+# holds its robot outside the yield's lane conflict (prereg-v3 A21, A18
+# residual (1)); `plan_metrics` separates these repairs by it.
+LANE_SCOPED_HOLD_PREFIX = "lane_scoped hold:"
+
+
+def _plan_dispatch_outcome(
     view: GroundingView,
-    model_decision: CongestionDecision,
     snapshot: SnapshotFrame,
     *,
     static_obstacles: Sequence[StaticObstacleInput],
     yield_feasibility_mode: YieldFeasibilityMode,
     priorities: Mapping[str, int] | None,
     grounding_params: GroundingParams | None,
-) -> _PlanYieldVerdict | None:
-    """The derived pipeline's final yielder, as a verdict on a plan's yield leg.
+) -> _PlanDispatchOutcome | None:
+    """The derived pipeline's yield outcome, for the plan verdicts to read.
 
-    prereg-v3 A16(v) and A17: dispatch re-grounds a yield in two layers
-    the room check does not model. The grounding view may hand the yield
-    to another robot (`heading_regrounded`, `rear_regrounded`,
-    `node_handoff_regrounded`), and `resolve_yield_roles`' partner retry
-    may then yield the partner of a kept yielder with no executable
-    retreat (`sweep_regrounded`) or refuse the yield. The verdict is read
-    from `view` and `_resolve_yield_outcome`, the call chain
-    `_yield_default_actions` derives the default plan from, so a plan leg
-    faces the same final yielder dispatch executes, whichever layer chose
-    it. The test is identity, not a tag list, so a new re-grounding layer
-    in that chain is covered without touching this function.
+    Resolved through `view` and `_resolve_yield_outcome`, the call chain
+    `_yield_default_actions` derives the default plan from, inside
+    `resolve_yield_roles`' partner-retry domain (`_partner_retry_applies`).
 
     Args:
         view: The grounding view the decision is grounded through.
-        model_decision: The model's own decision, whose yielder
-            (`resolve_robot_order(...)[0]`) a consistent plan names
-            (`_plan_disagrees_with_decision_fields`).
         snapshot: Scene frame supplying every robot's position.
         static_obstacles: Fixed obstacles of the running scenario.
         yield_feasibility_mode: The yield feasibility gate mode.
@@ -3179,11 +3181,9 @@ def _plan_yield_verdict(
         grounding_params: M3's derived-mode grounding parameters.
 
     Returns:
-        None outside the retry's domain, for a non-yield, for any
-        dispatched outcome that is not a yield except the retry's refusal
-        (other refusals and reroutes keep the checks that model them), and
-        when the final yielder is the model's own. Otherwise the final
-        yielder, or None as `yielder_id` when the retry refused the yield.
+        None outside the retry's domain or when the (alias-resolved)
+        decision is not a yield; otherwise the yield decision and its
+        dispatched outcome.
     """
     geometry = view.geometry
     if not _partner_retry_applies(yield_feasibility_mode, grounding_params, geometry):
@@ -3204,6 +3204,74 @@ def _plan_yield_verdict(
         yield_feasibility_mode,
         grounding_params,
     )
+    return _PlanDispatchOutcome(working, outcome)
+
+
+def _plan_off_lane_holds(dispatched: _PlanDispatchOutcome | None) -> tuple[str, ...]:
+    """The robots dispatch holds on a `wait` outside the yield's lane conflict.
+
+    prereg-v3 A21 (A18 residual (1)): under a dynamic lane view
+    `resolve_yield_roles` moves every robot outside the lane conflict from
+    the crossing order to `YieldRoles.off_lane` (`order=lane_scoped:<ids>`),
+    and an executed yield holds them on a plain `wait` beside it
+    (`_ground_derived`, `_yield_default_actions`). The set is read from the
+    same outcome as the yielder verdict (A18's identity rule), never
+    re-derived and never parsed from the degradation tag.
+
+    Args:
+        dispatched: `_plan_dispatch_outcome`'s result.
+
+    Returns:
+        The final roles' `off_lane` robots when dispatch executes the yield;
+        empty outside the retry's domain, for a non-yield, and when dispatch
+        refuses the yield or reroutes the yielder (every robot then waits,
+        and the yield leg is the mismatch, not the hold).
+    """
+    if dispatched is None:
+        return ()
+    outcome = dispatched.outcome
+    if outcome.refusal_reason is not None or outcome.reroutes:
+        return ()
+    return tuple(outcome.roles.off_lane)
+
+
+def _plan_yield_verdict(
+    view: GroundingView,
+    model_decision: CongestionDecision,
+    dispatched: _PlanDispatchOutcome | None,
+) -> _PlanYieldVerdict | None:
+    """The derived pipeline's final yielder, as a verdict on a plan's yield leg.
+
+    prereg-v3 A16(v) and A17: dispatch re-grounds a yield in two layers
+    the room check does not model. The grounding view may hand the yield
+    to another robot (`heading_regrounded`, `rear_regrounded`,
+    `node_handoff_regrounded`), and `resolve_yield_roles`' partner retry
+    may then yield the partner of a kept yielder with no executable
+    retreat (`sweep_regrounded`) or refuse the yield. The verdict is read
+    from `view` and `_resolve_yield_outcome` (`_plan_dispatch_outcome`),
+    the call chain `_yield_default_actions` derives the default plan from,
+    so a plan leg faces the same final yielder dispatch executes,
+    whichever layer chose it. The test is identity, not a tag list, so a
+    new re-grounding layer in that chain is covered without touching this
+    function.
+
+    Args:
+        view: The grounding view the decision is grounded through.
+        model_decision: The model's own decision, whose yielder
+            (`resolve_robot_order(...)[0]`) a consistent plan names
+            (`_plan_disagrees_with_decision_fields`).
+        dispatched: `_plan_dispatch_outcome`'s result for `view`.
+
+    Returns:
+        None outside the retry's domain, for a non-yield, for any
+        dispatched outcome that is not a yield except the retry's refusal
+        (other refusals and reroutes keep the checks that model them), and
+        when the final yielder is the model's own. Otherwise the final
+        yielder, or None as `yielder_id` when the retry refused the yield.
+    """
+    if dispatched is None:
+        return None
+    working, outcome = dispatched
     roles = outcome.roles
     if outcome.refusal_reason is not None:
         if outcome.refusal_reason.startswith(_NO_EXECUTABLE_RETREAT):
@@ -3236,6 +3304,7 @@ def _plan_problems(
     yield_feasibility_mode: YieldFeasibilityMode,
     grounding_params: GroundingParams | None = None,
     plan_yield_verdict: _PlanYieldVerdict | None = None,
+    off_lane_holds: Sequence[str] = (),
 ) -> list[tuple[int, str]]:
     """Leg-by-leg feasibility audit, reusing M3's existing grounding checks.
 
@@ -3284,6 +3353,10 @@ def _plan_problems(
             (`_plan_yield_verdict`); a `yield` leg on any robot but its
             `yielder_id` fails with its reason unless an earlier check
             already failed it. None adds no check.
+        off_lane_holds: Robots dispatch holds on a `wait` outside the
+            yield's lane conflict (`_plan_off_lane_holds`); a `cross` or
+            `continue` leg on one fails with a `LANE_SCOPED_HOLD_PREFIX`
+            reason. Empty adds no check.
 
     Returns:
         `(index, reason)` pairs into `legs` for every leg that fails a check;
@@ -3300,12 +3373,31 @@ def _plan_problems(
         # `continue` -- an omitted robot is lenient completion (never
         # reaches here with `continue`+involved together by construction
         # except as a VLM-authored leg), but an explicit `continue` for an
-        # involved robot under-specifies the resolution.
+        # involved robot under-specifies the resolution. A robot dispatch
+        # holds off the lane is reported once, by the hold check below.
         for i, leg in enumerate(legs):
-            if leg.action == "continue" and leg.robot_id in involved:
+            if (
+                leg.action == "continue"
+                and leg.robot_id in involved
+                and leg.robot_id not in off_lane_holds
+            ):
                 problems.append(
                     (i, f"{leg.robot_id} is involved in the yield but marked continue")
                 )
+
+    for i, leg in enumerate(legs):
+        # prereg-v3 A21: dispatch holds a lane-scoped off-lane robot on a
+        # `wait` beside the yield, so a plan crossing it (or leaving it to
+        # `continue`, which `active_idx` would otherwise skip) names an
+        # action nobody commands. A yield leg here is the yielder verdict's.
+        if leg.robot_id in off_lane_holds and leg.action in ("cross", "continue"):
+            problems.append(
+                (
+                    i,
+                    f"{LANE_SCOPED_HOLD_PREFIX} dispatch holds {leg.robot_id} outside "
+                    "the yield's lane conflict",
+                )
+            )
 
     yield_idx = [i for i in active_idx if legs[i].action == "yield"]
     cross_idx = [i for i in active_idx if legs[i].action == "cross"]
@@ -4045,9 +4137,18 @@ def _edit_reason(
     before: Sequence[ProposedPlanLeg],
     problems_by_index: Mapping[int, str],
     extra: str,
+    off_lane_holds: Sequence[str] = (),
 ) -> str:
     if op == "substitute":
         (i,) = idx
+        robot_id, action = before[i].robot_id, before[i].action
+        if extra == "wait" and robot_id in off_lane_holds and action in ("cross", "continue"):
+            # Keyed on the hold itself, not on which problem text the index
+            # kept, so `plan_metrics` can separate these edits by prefix.
+            return (
+                f"{LANE_SCOPED_HOLD_PREFIX} {robot_id}: {action} substituted to wait; "
+                f"dispatch holds {robot_id} outside the yield's lane conflict"
+            )
         cause = problems_by_index.get(i)
         detail = f": {cause}" if cause else ""
         return (
@@ -4080,6 +4181,7 @@ def _repair_plan(
     grounding_params: GroundingParams | None = None,
     extra_touchable: Sequence[str] = (),
     plan_yield_verdict: _PlanYieldVerdict | None = None,
+    off_lane_holds: Sequence[str] = (),
 ) -> tuple[list[ProposedPlanLeg] | None, list[PlanEdit]]:
     """Breadth-first minimal repair toward `default_by_robot`.
 
@@ -4125,6 +4227,10 @@ def _repair_plan(
         plan_yield_verdict: The partner retry's verdict, forwarded to
             `_plan_problems`, so a `swap` onto the retried partner is the
             only yield re-assignment it accepts (A16(v)).
+        off_lane_holds: Robots dispatch holds outside the yield's lane
+            conflict (A21), forwarded to `_plan_problems`; a substitute of
+            one's `cross`/`continue` leg to `wait` carries the
+            `LANE_SCOPED_HOLD_PREFIX` reason.
 
     Returns:
         `(repaired_legs, edits)` for the minimal repair found, or
@@ -4147,6 +4253,7 @@ def _repair_plan(
                 yield_feasibility_mode,
                 grounding_params,
                 plan_yield_verdict,
+                off_lane_holds,
             )
         )
 
@@ -4227,7 +4334,7 @@ def _repair_plan(
                 if key in visited:
                     continue
                 visited.add(key)
-                reason = _edit_reason(op, idx, state, problems_by_index, extra)
+                reason = _edit_reason(op, idx, state, problems_by_index, extra, off_lane_holds)
                 robot_ids = tuple(sorted({state[i].robot_id for i in idx}))
                 new_edits = [*edits, PlanEdit(op=op, robot_ids=robot_ids, reason=reason)]
                 if _accepted(candidate):
@@ -4321,6 +4428,14 @@ def verify_and_repair_plan(
     `plan unrepairable: <refusal>`. Outside that domain the derived
     backup/sweep/escort check and the view handover are still not modelled
     for a plan leg.
+
+    Off-lane hold parity (prereg-v3 A21, A18 residual (1)): in the same
+    domain, when dispatch executes a lane-scoped yield, the robots it holds
+    outside the lane conflict (`YieldRoles.off_lane` of the same outcome
+    the yielder verdict reads, `_plan_off_lane_holds`) must hold a `wait`
+    leg. A `cross` or `continue` leg on one is repaired by one `substitute`
+    to `wait` per robot, each edit reason starting `LANE_SCOPED_HOLD_PREFIX`;
+    it composes with the yielder `swap` inside the one repair bound.
 
     In a two-robot head-on this reduces to the existing swap gate as a
     one-leg repair: the VLM's one `yield` leg on the infeasible robot and one
@@ -4469,15 +4584,16 @@ def verify_and_repair_plan(
             rejection_stage="repair_bound_exceeded",
         )
 
-    plan_yield_verdict = _plan_yield_verdict(
+    dispatched = _plan_dispatch_outcome(
         view,
-        model_decision,
         snapshot,
         static_obstacles=static_obstacles,
         yield_feasibility_mode=yield_feasibility_mode,
         priorities=priorities,
         grounding_params=grounding_params,
     )
+    plan_yield_verdict = _plan_yield_verdict(view, model_decision, dispatched)
+    off_lane_holds = _plan_off_lane_holds(dispatched)
     if not _plan_problems(
         legs,
         decision,
@@ -4487,6 +4603,7 @@ def verify_and_repair_plan(
         yield_feasibility_mode,
         grounding_params,
         plan_yield_verdict,
+        off_lane_holds,
     ):
         return VerifiedPlan(legs=legs, provenance="vlm_verbatim", plan_completed_legs=completed)
 
@@ -4505,6 +4622,7 @@ def verify_and_repair_plan(
             rid for rid in model_decision.involved_robots if rid not in decision.involved_robots
         ],
         plan_yield_verdict=plan_yield_verdict,
+        off_lane_holds=off_lane_holds,
     )
     if repaired is None:
         # As the view refusal above: a retry refusal reports its true reason.

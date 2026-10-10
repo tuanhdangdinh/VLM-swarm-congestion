@@ -1,0 +1,589 @@
+{
+ "source": "scripts/plan_parity_mc_replay.py scenes (s1_mc first conflicts, snapshot_delay 2.5, grid routes, park); involved = the named echo convention; base_* measured on feat/v3-integration@0b659d2 with the scripted plan (decided yielder yields, every other involved robot crosses)",
+ "cases": {
+  "s1a_seed8_vb_one_hold": {
+   "floor": "s1a",
+   "echo": "legacy",
+   "seed": 8,
+   "involved": [
+    "robot_1",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "off_lane": [
+    "robot_5"
+   ],
+   "base_command_sha256": "2bf6ff26629268bf9aab6c0bda747bda13a703ba8dc1ea2c69a2579f028c644e",
+   "base_plan": {
+    "provenance": "vlm_verbatim",
+    "dispatch_matches": false,
+    "edits": []
+   },
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": -1.2377443281125595,
+     "y": -0.1732005548102316,
+     "theta": 2.6839329969729007,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      0.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": 0.6257875440039569,
+     "y": 0.2742124559960435,
+     "theta": 2.356194490192345,
+     "status": "MOVING",
+     "goal": [
+      0.0,
+      1.55
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": -1.6271832247548565,
+     "y": 0.01861263308821315,
+     "theta": -0.45765965661689273,
+     "status": "STOPPED",
+     "goal": [
+      0.0,
+      -1.55
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -1.9111240208064992,
+     "y": -0.32041161027875537,
+     "theta": 0.07594063626589467,
+     "status": "STOPPED",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": 0.0,
+     "y": 1.55,
+     "theta": -1.5707963267948966,
+     "status": "STOPPED",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    }
+   ]
+  },
+  "s1b_seed11_vb_one_hold": {
+   "floor": "s1b",
+   "echo": "legacy",
+   "seed": 11,
+   "involved": [
+    "robot_1",
+    "robot_2",
+    "robot_5"
+   ],
+   "off_lane": [
+    "robot_5"
+   ],
+   "base_command_sha256": "425c571ff8c7f35ed920463f82fe35ce6355475484c6b8a2315038a0dbd92a03",
+   "base_plan": {
+    "provenance": "vlm_verbatim",
+    "dispatch_matches": false,
+    "edits": []
+   },
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": -1.2400000000000007,
+     "y": -1.35,
+     "theta": 3.141592653589793,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": -1.6699999999999993,
+     "y": -1.35,
+     "theta": 0.0,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": -1.6788914642763395,
+     "y": 1.244528739216737,
+     "theta": -0.16820677185708616,
+     "status": "MOVING",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -0.5050000000000001,
+     "y": 1.35,
+     "theta": 3.141592653589793,
+     "status": "MOVING",
+     "goal": [
+      -2.3,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": 2.3,
+     "y": 0.0,
+     "theta": 3.141592653589793,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      -1.35
+     ]
+    }
+   ]
+  },
+  "s1b_seed391_vb_three_holds": {
+   "floor": "s1b",
+   "echo": "legacy",
+   "seed": 391,
+   "involved": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "off_lane": [
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "base_command_sha256": "213cee6d3c07fcbf1fcc5a3f0f32979193ac1168aa6c73944f50b0d61f47bf5e",
+   "base_plan": {
+    "provenance": "vlm_verbatim",
+    "dispatch_matches": false,
+    "edits": []
+   },
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": -0.25,
+     "y": -1.35,
+     "theta": 0.0,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": 1.3054229697742177,
+     "y": -0.8461305872562395,
+     "theta": 0.3132761809936716,
+     "status": "STOPPED",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": -1.1169361224311245,
+     "y": 1.1491023604128325,
+     "theta": -0.16820677185708616,
+     "status": "STOPPED",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": 1.5654932084943907,
+     "y": -0.49368489265131127,
+     "theta": -2.54981648304829,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": -0.6789537869646934,
+     "y": 1.2139902626697314,
+     "theta": -2.8345469215710026,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      -1.35
+     ]
+    }
+   ]
+  },
+  "s1a_seed33_reorder_to_holds": {
+   "floor": "s1a",
+   "echo": "a20",
+   "seed": 33,
+   "involved": [
+    "robot_1",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "off_lane": [
+    "robot_3",
+    "robot_4"
+   ],
+   "base_command_sha256": "c2dcb54ddb6a497414514f69f25119840cac7ff93f0b6063f678c8085d564b07",
+   "base_plan": {
+    "provenance": "repaired",
+    "dispatch_matches": false,
+    "edits": [
+     [
+      "reorder",
+      [
+       "robot_3",
+       "robot_5"
+      ]
+     ]
+    ]
+   },
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": -1.814727950155899,
+     "y": 0.3862143320779181,
+     "theta": -3.067103863375911,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      0.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": 0.0714415038526357,
+     "y": -0.16956423340251683,
+     "theta": -3.0656520173238984,
+     "status": "MOVING",
+     "goal": [
+      -2.3,
+      -0.35
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": -0.7742427013070412,
+     "y": -0.46386248497708615,
+     "theta": -0.07448879021388154,
+     "status": "STOPPED",
+     "goal": [
+      0.0,
+      -1.55
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -0.4248283570431438,
+     "y": -0.7227026731265087,
+     "theta": 2.0451962095868037,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      0.35
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": -2.240166380443413,
+     "y": 0.3544651954892975,
+     "theta": 0.07448879021388206,
+     "status": "STOPPED",
+     "goal": [
+      0.0,
+      1.55
+     ]
+    }
+   ]
+  },
+  "s1a_seed153_sweep_retry_and_hold": {
+   "floor": "s1a",
+   "echo": "legacy",
+   "seed": 153,
+   "involved": [
+    "robot_1",
+    "robot_2",
+    "robot_4"
+   ],
+   "off_lane": [
+    "robot_4"
+   ],
+   "base_command_sha256": "5b47f179e597dcff5f251b46605d883f266c7fec5d1223acc1024dae4f3f3505",
+   "base_plan": {
+    "provenance": "repaired",
+    "dispatch_matches": false,
+    "edits": [
+     [
+      "swap",
+      [
+       "robot_1",
+       "robot_2"
+      ]
+     ]
+    ]
+   },
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": -0.07812618045255793,
+     "y": -0.18094438329530332,
+     "theta": -3.0656520173238984,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      -0.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": -0.5051877883376945,
+     "y": -0.21343820128656368,
+     "theta": 0.07594063626589467,
+     "status": "STOPPED",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": -0.7293674866396014,
+     "y": 0.4672113815940601,
+     "theta": 0.07448879021388206,
+     "status": "MOVING",
+     "goal": [
+      0.0,
+      1.55
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": 0.0,
+     "y": -0.6199999999999993,
+     "theta": 1.5707963267948966,
+     "status": "STOPPED",
+     "goal": [
+      0.0,
+      1.55
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": -0.1713017568722354,
+     "y": 1.216412368196173,
+     "theta": -2.0451962095868037,
+     "status": "MOVING",
+     "goal": [
+      -2.3,
+      -0.35
+     ]
+    }
+   ]
+  },
+  "s1b_seed142_heading_handover_and_hold": {
+   "floor": "s1b",
+   "echo": "legacy",
+   "seed": 142,
+   "involved": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "off_lane": [
+    "robot_3",
+    "robot_4"
+   ],
+   "base_command_sha256": "f31f2358aa891d5b09f8e51f3e7f30db478f5fa4536f48fe829b99b53cacfbac",
+   "base_plan": {
+    "provenance": "repaired",
+    "dispatch_matches": false,
+    "edits": [
+     [
+      "swap",
+      [
+       "robot_1",
+       "robot_2"
+      ]
+     ]
+    ]
+   },
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": 1.117319572999445,
+     "y": -0.7949163525741436,
+     "theta": -2.54981648304829,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": 0.7631654206786214,
+     "y": -1.0217914834421369,
+     "theta": 0.3132761809936716,
+     "status": "STOPPED",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": -1.2508921695842845,
+     "y": 1.0326439462293733,
+     "theta": -2.8345469215710026,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -1.6345265688675066,
+     "y": 1.2369950777322183,
+     "theta": -0.16820677185708616,
+     "status": "STOPPED",
+     "goal": [
+      2.3,
+      0.0
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": -2.1847176025528467,
+     "y": -1.056853332205811,
+     "theta": 1.1961151265121204,
+     "status": "MOVING",
+     "goal": [
+      -0.25,
+      1.35
+     ]
+    }
+   ]
+  },
+  "s1b_seed148_room_swap_and_three_holds": {
+   "floor": "s1b",
+   "echo": "legacy",
+   "seed": 148,
+   "involved": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "off_lane": [
+    "robot_1",
+    "robot_3",
+    "robot_4"
+   ],
+   "base_command_sha256": "ecba0f562a9079f877066abd844f023c5c0d4bee72aa53659720ad8b4a07bb9d",
+   "base_plan": {
+    "provenance": "repaired",
+    "dispatch_matches": false,
+    "edits": [
+     [
+      "reorder",
+      [
+       "robot_2",
+       "robot_5"
+      ]
+     ],
+     [
+      "swap",
+      [
+       "robot_1",
+       "robot_2"
+      ]
+     ]
+    ]
+   },
+   "rows": [
+    {
+     "robot_id": "robot_1",
+     "x": -0.25,
+     "y": 1.35,
+     "theta": 2.6682366117548786,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": -0.863879959152136,
+     "y": -1.0355736794586616,
+     "theta": -0.4733560418349155,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": -0.25,
+     "y": 0.9149999999999965,
+     "theta": 1.5707963267948966,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -2.3,
+     "y": 1.35,
+     "theta": 3.141592653589793,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": -0.5450000000000039,
+     "y": -1.35,
+     "theta": 0.0,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    }
+   ]
+  }
+ }
+}
