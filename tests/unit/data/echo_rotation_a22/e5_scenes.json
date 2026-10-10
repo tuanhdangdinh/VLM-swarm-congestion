@@ -1,0 +1,248 @@
+{
+ "source": "S1b E5 (s1b_E5_seed5_echo_a1, STAMP 20261010_113728, tree 347fe99): the three analyses in M5 `starting analysis` order; prompt state block, artifact scene rows, the live echo decision and its refusal",
+ "analyses": [
+  {
+   "request": "f4057cac",
+   "scene_stamp": 38.766666666,
+   "state_lines": [
+    "- robot_id=robot_1, x=-1.85, y=1.29, theta=2.82, status=STALE, goal_x=-2.30, goal_y=1.35, task=pickup, linear_velocity=0.04",
+    "- robot_id=robot_2, x=0.71, y=0.83, theta=2.99, status=MOVING, goal_x=-2.30, goal_y=1.35, task=pickup, linear_velocity=0.15",
+    "- robot_id=robot_3, x=-1.25, y=-1.25, theta=-3.09, status=STOPPED, goal_x=-2.30, goal_y=-1.35, task=pickup, linear_velocity=0.00",
+    "- robot_id=robot_4, x=-1.62, y=-1.28, theta=0.40, status=STOPPED, goal_x=-0.25, goal_y=-1.35, task=pickup, linear_velocity=0.00",
+    "- robot_id=robot_5, x=-2.17, y=1.12, theta=-1.52, status=STOPPED, goal_x=-0.25, goal_y=-1.35, task=pickup, linear_velocity=0.00"
+   ],
+   "known_robot_ids": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "rows": [
+    {
+     "robot_id": "robot_3",
+     "x": -1.2530213334178193,
+     "y": -1.25082226860687,
+     "theta": -3.091635051239578,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": -2.1726300337696793,
+     "y": 1.1244325620229005,
+     "theta": -1.5232124677386014,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_4",
+     "x": -1.6191214795294604,
+     "y": -1.283509261688931,
+     "theta": 0.398516756524361,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": 0.7125877843958731,
+     "y": 0.8346078900286258,
+     "theta": 2.992705039541385,
+     "status": "MOVING",
+     "goal": [
+      -2.3,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_1",
+     "x": -1.8468444870810465,
+     "y": 1.2933153596135494,
+     "theta": 2.8198468713314973,
+     "status": "STALE",
+     "goal": [
+      -2.3,
+      1.35
+     ]
+    }
+   ],
+   "live_involved": [
+    "robot_1",
+    "robot_5"
+   ],
+   "live_yield_robot": "robot_1",
+   "live_refusal": "yield refused: no executable retreat (robot_1 has no in-band escort (required escort 0.874 m outside band [1.0, 3.5] m); robot_5 is the node-handoff occupant, which never yields)"
+  },
+  {
+   "request": "65b4bfcd",
+   "scene_stamp": 41.566666666,
+   "state_lines": [
+    "- robot_id=robot_1, x=-1.85, y=1.29, theta=2.81, status=STOPPED, goal_x=-2.30, goal_y=1.35, task=pickup, linear_velocity=0.00",
+    "- robot_id=robot_2, x=0.28, y=0.88, theta=2.94, status=MOVING, goal_x=-2.30, goal_y=1.35, task=pickup, linear_velocity=0.16",
+    "- robot_id=robot_3, x=-1.25, y=-1.25, theta=-3.09, status=STOPPED, goal_x=-2.30, goal_y=-1.35, task=pickup, linear_velocity=0.00",
+    "- robot_id=robot_4, x=-1.62, y=-1.28, theta=0.40, status=STOPPED, goal_x=-0.25, goal_y=-1.35, task=pickup, linear_velocity=0.00",
+    "- robot_id=robot_5, x=-2.17, y=1.12, theta=-1.52, status=STOPPED, goal_x=-0.25, goal_y=-1.35, task=pickup, linear_velocity=0.00"
+   ],
+   "known_robot_ids": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "rows": [
+    {
+     "robot_id": "robot_4",
+     "x": -1.6191214795294604,
+     "y": -1.283509261688931,
+     "theta": 0.398516756524361,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": -2.1726300337696793,
+     "y": 1.1244325620229005,
+     "theta": -1.5232124677386014,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_1",
+     "x": -1.8457549033128573,
+     "y": 1.291136226741412,
+     "theta": 2.8119731179122276,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": 0.27893344465648884,
+     "y": 0.884727946087786,
+     "theta": 2.9442001527999606,
+     "status": "MOVING",
+     "goal": [
+      -2.3,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": -1.2530213334178193,
+     "y": -1.25082226860687,
+     "theta": -3.091635051239578,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      -1.35
+     ]
+    }
+   ],
+   "live_involved": [
+    "robot_1",
+    "robot_5"
+   ],
+   "live_yield_robot": "robot_1",
+   "live_refusal": "yield refused: no executable retreat (robot_1 has no in-band escort (required escort 0.874 m outside band [1.0, 3.5] m); robot_5 is the node-handoff occupant, which never yields)"
+  },
+  {
+   "request": "c37ae913",
+   "scene_stamp": 55.366666666,
+   "state_lines": [
+    "- robot_id=robot_1, x=-1.85, y=1.29, theta=2.81, status=STOPPED, goal_x=-2.30, goal_y=1.35, task=pickup, linear_velocity=0.00",
+    "- robot_id=robot_2, x=-1.47, y=1.30, theta=2.74, status=STOPPED, goal_x=-2.30, goal_y=1.35, task=pickup, linear_velocity=0.00",
+    "- robot_id=robot_3, x=-1.25, y=-1.25, theta=-3.09, status=STOPPED, goal_x=-2.30, goal_y=-1.35, task=pickup, linear_velocity=0.00",
+    "- robot_id=robot_4, x=-1.62, y=-1.28, theta=0.40, status=STOPPED, goal_x=-0.25, goal_y=-1.35, task=pickup, linear_velocity=0.00",
+    "- robot_id=robot_5, x=-2.17, y=1.12, theta=-1.52, status=STOPPED, goal_x=-0.25, goal_y=-1.35, task=pickup, linear_velocity=0.00"
+   ],
+   "known_robot_ids": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "rows": [
+    {
+     "robot_id": "robot_4",
+     "x": -1.6191214795294604,
+     "y": -1.283509261688931,
+     "theta": 0.398516756524361,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_5",
+     "x": -2.1726300337696793,
+     "y": 1.1244325620229005,
+     "theta": -1.5232124677386014,
+     "status": "STOPPED",
+     "goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    {
+     "robot_id": "robot_1",
+     "x": -1.8457549033128573,
+     "y": 1.291136226741412,
+     "theta": 2.8119731179122276,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_2",
+     "x": -1.470938087055701,
+     "y": 1.3009423246660303,
+     "theta": 2.74307589706543,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      1.35
+     ]
+    },
+    {
+     "robot_id": "robot_3",
+     "x": -1.2530213334178193,
+     "y": -1.25082226860687,
+     "theta": -3.091635051239578,
+     "status": "STOPPED",
+     "goal": [
+      -2.3,
+      -1.35
+     ]
+    }
+   ],
+   "live_involved": [
+    "robot_1",
+    "robot_5"
+   ],
+   "live_yield_robot": "robot_1",
+   "live_refusal": "yield refused: no executable retreat (robot_1 has no retreat candidate surviving the sweep; robot_5 is the node-handoff occupant, which never yields)"
+  }
+ ]
+}

@@ -1385,8 +1385,14 @@ class InProcessPipeline:
         registry_order: Sequence[str] = (),
         dispatch_order_source: DispatchOrderSourceMode = "chi",
         goal_reference_of: Callable[[str], tuple[float, float] | None] | None = None,
+        dispatch_outcome_observer: Callable[[bool, bool], None] | None = None,
     ) -> None:
         self._reasoner = reasoner
+        # prereg-v3 A22, apparatus only: the echo mock's rotation hook
+        # (`EchoMockBackend.note_dispatch_outcome`). None for every live
+        # backend, which has no such hook, so `note_dispatch_outcome` is a
+        # no-op on every scored arm.
+        self._dispatch_outcome_observer = dispatch_outcome_observer
         # v3 S1 node handoff: a robot's CURRENT task node (M5's base-mission
         # registry goal, `TaskRegistry.mission_goal`), read only when the
         # grounding params turn `dynamic_scene_arms` on. The request's own
@@ -1754,6 +1760,16 @@ class InProcessPipeline:
             junction_phases=junction_phases,
             dispatch_order_source=dispatch_order_source,
         )
+
+    def note_dispatch_outcome(self, refused: bool, dispatched: bool) -> None:
+        """Tell the stage-1 backend what M5 did with the last outcome (A22 echo only).
+
+        Args:
+            refused: M5 withheld the outcome's dispatch (`dispatch_withheld`).
+            dispatched: M5 published the outcome's command.
+        """
+        if self._dispatch_outcome_observer is not None:
+            self._dispatch_outcome_observer(refused, dispatched)
 
     def analyze(self, request: ReasonerRequest) -> PipelineOutcome:
         """Run the M2 stage only, for a T0 log-only probe; M3 is never called.

@@ -217,6 +217,8 @@ def _build_default_pipeline(
         registry_order=tuple(config.initial_tasks),
         dispatch_order_source=config.plan_dispatch_order_source,
         goal_reference_of=goal_reference_of,
+        # prereg-v3 A22: only the echo mock has this hook (None otherwise).
+        dispatch_outcome_observer=getattr(backend, "note_dispatch_outcome", None),
     )
 
 
@@ -1304,9 +1306,15 @@ class OrchestratorNode(Node):
             directive.kind is DirectiveKind.DISPATCH and outcome.grounded_command is not None
         )
         withhold = would_dispatch and dispatch_withheld is not None
+        dispatched = would_dispatch and self._config.dispatch_enabled and not withhold
+        # prereg-v3 A22: the echo mock rotates its named pair on a refusal
+        # (an injected test pipeline may lack the hook).
+        note_outcome = getattr(self._pipeline, "note_dispatch_outcome", None)
+        if note_outcome is not None and outcome.reasoner_result.decision is not None:
+            note_outcome(withhold, dispatched)
         self._update_suppression(
             outcome,
-            dispatched=would_dispatch and self._config.dispatch_enabled and not withhold,
+            dispatched=dispatched,
             dispatch_suppressed=would_dispatch and not self._config.dispatch_enabled,
             trigger_source=trigger_source,
             trigger_robots=self._last_trigger_robot_ids,
