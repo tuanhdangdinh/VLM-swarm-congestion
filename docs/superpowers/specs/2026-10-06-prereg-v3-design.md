@@ -1214,6 +1214,33 @@ prediction for the two live seeds was 1 event/2 episodes; seed 2
 lost it to a 0.5 s arrival-order flip — single-pilot event counts
 carry seed noise (cell-design note, echoing A19's variance warning).
 
+**A21. Churn ruling (owner choice iii, 2026-10-10): measure first,
+bound later from data.** E3's phenomenon is CLASSIFIED: family S1
+(emergent), configuration = S6-class dual-conflict (two simultaneous
+latch clusters, self-formed in traffic), dynamics =
+coordination-level LIVELOCK (the Layer-2 analogue of the reciprocal
+dance: the coordinator alternates interventions between conflict
+groups — state changes, no progress), outcome class = the registered
+`intermittent` (first live specimen). E3 is thereby empirical
+motivation for S6's addresses-both oracle: serial pairwise
+intervention on a multi-conflict scene can oscillate indefinitely;
+a scene-wide plan has nothing to alternate between.
+RULED (iii): (a) MEASURE NOW — intermittent classification for S1
+episodes + churn metrics (dispatches per latch-break, alternation
+count, resolution-time share), zero behavior change; (b) BOUND
+LATER — per-cluster dispatch budget + alternation-aware loop
+detector built DEFAULT-OFF, parameter values frozen only after
+churn data exists (target: p95 of productive-resolution counts),
+enabled per registered cell; (c) the attribution test is a LIVE
+episode — E3's oscillation arose under the echo's naive yielder
+choice, so architecture-churn vs apparatus-churn separates only
+with a real model. Consequence: the LAST pre-plan-live gate (A18's
+off-lane cross hold: plan cross leg on a lane_scoped held robot →
+substitute cross→wait, one edit) is built in this wave, clearing
+the first live S1b episode WITH the plan channel on. Minor
+apparatus fixes ride along: echo names ONE cluster (the closest),
+refusal text names the 45° cap when the cap is what refused.
+
 **A14 corrigendum (2026-10-09).** A14(iv)'s "GT
 robot_static_contacts logged 0 rows during a physical pin" implied
 an under-detecting detector. The truth is stronger:
