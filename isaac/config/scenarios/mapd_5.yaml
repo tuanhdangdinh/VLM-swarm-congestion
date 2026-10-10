@@ -231,7 +231,8 @@ duration_sec: 600.0
 # Run line (pilot; caps computed for S1):
 #   SCENARIO=mapd_5 MAP_SCENARIO=bottleneck_merge SEED=978442588 \
 #     BACKEND_ID=<backend> RECORD=0 REC_SEC=4800 \
-#     NAV2_ACTIVE_TIMEOUT_SEC=360 ./scripts/vm/fc_launch.sh
+#     NAV2_ACTIVE_TIMEOUT_SEC=360 NAV2_LAUNCH_STAGGER_SEC=6 ./scripts/vm/fc_launch.sh
+#   (NAV2_LAUNCH_STAGGER_SEC=6: prereg-v3 A20 bring-up note, env only.)
 #   - REC_SEC=4800: H = 600 sim-s at extrapolated 5-stack RTF 0.15-0.19 is
 #     600/0.19 = 3158 to 600/0.15 = 4000 wall-s of Isaac lifetime (the scene
 #     doc's 53-67 wall-min), + ~500 wall-s bring-up/overhead + margin; the

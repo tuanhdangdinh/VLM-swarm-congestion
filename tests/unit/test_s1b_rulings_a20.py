@@ -167,8 +167,10 @@ def test_far_apart_crossing_pair_outside_every_box_still_refuses():
 # ---- (2) heading lane ----
 
 
-def test_e2_live_refusal_reproduces_on_the_shipped_tree_text():
-    # Pre-A20 the live command refused with "ambiguous lane" (no room measured).
+def test_e2_live_command_carried_the_ambiguous_refusal():
+    # The stored live command (pilot 1, pre-A20 tree) refused with "ambiguous
+    # lane" (no room measured). Its byte reproduction through the production
+    # pipeline on 47fde2d is scripts/s1b_live_replay.py's job, not this pin.
     case = SCENES["s1b_e2_live"]
     assert "grounding=dynamic_arms:ambiguous_refused:robot_1:33" in case["live_degradations"]
 
