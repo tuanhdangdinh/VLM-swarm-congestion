@@ -1225,6 +1225,12 @@ groups — state changes, no progress), outcome class = the registered
 motivation for S6's addresses-both oracle: serial pairwise
 intervention on a multi-conflict scene can oscillate indefinitely;
 a scene-wide plan has nothing to alternate between.
+CROSS-CITATION (coordinated): A19's "no spontaneous latch self-free
+anywhere" across the n=6 anchor is the strongest corroboration of
+A15(ii)'s passing-does-not-exist conclusion — the two entries cite
+each other; and A19's all-partners exemption scope is structurally
+sound on safety-invariant grounds precisely because the A9-era
+0.20 m hard-contact floor remains the un-exempted limit beneath it.
 RULED (iii): (a) MEASURE NOW — intermittent classification for S1
 episodes + churn metrics (dispatches per latch-break, alternation
 count, resolution-time share), zero behavior change; (b) BOUND
