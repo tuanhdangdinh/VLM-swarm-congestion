@@ -229,9 +229,9 @@ Definitions are those of section 1.1. "Gate" counts the pre-registered rule-4 ev
 | repaired | 2 | one is a room-gate swap, matched; one is the junction_clear substitutes, mismatched |
 | m3_default | 2 | both matched |
 
-- **vb∧dispatch_matched = 1/5**, the first real-world value on S1b.
+- **vb∧dispatch_matched = 1/5 over analyses, 1/3 over dispatched decisions**, the first real-world value on S1b.
 - The one mismatch is A18 residual (2): a non-retry refusal (the junction_clear fallback) where the plan keeps an active `reverse` leg against all-wait dispatch, and that dispatch was then withheld.
-- The off-lane hold was not exercised: 0 lane-scoped commands.
+- The off-lane hold was not exercised live (0 lane-scoped commands); the gate is validated offline only (section 1.3).
 
 **Resolution and churn:**
 
@@ -249,7 +249,7 @@ Definitions are those of section 1.1. "Gate" counts the pre-registered rule-4 ev
 
 **Cost:**
 
-- 5 billed calls, an estimated **$0.0335** in total. Each call was about 3.1-3.5k prompt tokens (including 1064 image tokens), 0.3k completion and 0.2k thought.
+- 5 billed calls, an estimated **≥ $0.0335** in total (per call 0.0059, 0.0066, 0.0068, 0.0067, 0.0076); a lower bound, given the timed-out stage-2 call below. Each call was about 3.1-3.5k prompt tokens (including 1064 image tokens), 0.3k completion and 0.2k thought.
 - The estimate uses the published ER-2 rate (input $1/1M, output + thought $5/1M); this billing basis is not confirmed for this model.
 - One stage-2 retreat call timed out (`degraded`) and recorded no usage.
 
