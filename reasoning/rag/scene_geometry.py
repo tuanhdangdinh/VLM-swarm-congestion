@@ -1,6 +1,7 @@
 """Declared scene geometry M3 derives yield maneuver distances from (no ROS2)."""
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from typing import Literal
 
@@ -36,6 +37,48 @@ class ArmGeometry(BaseModel):
     # Sign of the arm's outward direction from the junction centre along
     # `axis`: the side the robot came from, so the side it retreats to.
     side: Literal[-1, 1]
+
+
+class JunctionBox(BaseModel):
+    """One declared crossing box: where an x-lane and a y-lane intersect.
+
+    prereg-v3 A20(1): a floor with several crossings (S1b's island corners)
+    declares each box by its world-frame extent, measured from the faces
+    that bound it (rack/island faces and the band edge). Unlike the single
+    declared `corridor` box, whose centre is `center_m` on both axes with one
+    half-length, a box here has its own centre and half-length per axis.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str = Field(min_length=1)
+    x_min_m: float
+    x_max_m: float
+    y_min_m: float
+    y_max_m: float
+
+    @model_validator(mode="after")
+    def _extent_is_positive(self) -> JunctionBox:
+        if self.x_max_m <= self.x_min_m or self.y_max_m <= self.y_min_m:
+            raise ValueError(f"junction box {self.name} has a non-positive extent")
+        return self
+
+    def center_m(self, axis: Literal["x", "y"]) -> float:
+        """Centre coordinate on `axis`."""
+        low, high = (self.x_min_m, self.x_max_m) if axis == "x" else (self.y_min_m, self.y_max_m)
+        return round((low + high) / 2.0, 6)
+
+    def half_length_m(self, axis: Literal["x", "y"]) -> float:
+        """Half-extent on `axis`: the distance from the centre to the box's mouth."""
+        low, high = (self.x_min_m, self.x_max_m) if axis == "x" else (self.y_min_m, self.y_max_m)
+        return round((high - low) / 2.0, 6)
+
+    def contains(self, point: tuple[float, float], margin_m: float = 0.0) -> bool:
+        """Whether `point` lies inside the box grown by `margin_m` on every side."""
+        return (
+            self.x_min_m - margin_m <= point[0] <= self.x_max_m + margin_m
+            and self.y_min_m - margin_m <= point[1] <= self.y_max_m + margin_m
+        )
 
 
 class CameraGeometry(BaseModel):
@@ -171,9 +214,29 @@ class SceneGeometry(BaseModel):
     # junction box and read phantom geometry for 57/400 MC first conflicts
     # -- so a yield there is refused honestly. Read only by that view.
     junction_declared: bool = False
-    # The three fields below are set only by the dynamic-arms view
+    # prereg-v3 A20(1): the floor's REAL crossing boxes, for a floor whose
+    # crossings are not the declared `corridor` box (S1b: the island-corner
+    # T-junctions, scripts/s1b_layout.py `crossing_boxes`). With boxes
+    # declared, the dynamic view's crossing branch anchors a conflict's arms
+    # to the box both robots' footprints overlap (`junction_box_for`) and
+    # refuses honestly when there is none; the `corridor` box is then never
+    # a crossing anchor. Needs `junction_declared`. None (default) keeps the
+    # `corridor` box as the only junction, byte-identical (S1a).
+    junction_boxes: tuple[JunctionBox, ...] | None = None
+    # The fields below are set only by the dynamic-arms view
     # (`reasoning.rag.grounding_view`), never declared; their defaults keep
     # every declared scene byte-identical.
+    # The declared `junction_boxes` entry a crossing view anchored to: every
+    # arm then measures from that box's own centre and half-length on the
+    # arm's axis (`arm_geometry`, `passer_travel_m`).
+    junction_box: JunctionBox | None = None
+    # prereg-v3 A20(2): a heading lane. The corridor runs along this world
+    # heading (radians) instead of `corridor.axis`: `center_m` and
+    # `half_length_m` are measured along it (`along_m`), and the yielder
+    # backs along it, as M4 does (its own -heading). `corridor.axis` stays
+    # the heading's nearest world axis, for the consumers that need an axis
+    # (escort headings). None (default) keeps every axis-aligned view.
+    lane_heading_rad: float | None = None
     # Lateral band `yield_retreat_room_m` checks static obstacles across:
     # "aisle" is `aisle_half_width_m` either side of the yielder, "footprint"
     # its own swept width (`robot.half_width_m` either side). S1 declares the
@@ -225,6 +288,19 @@ class SceneGeometry(BaseModel):
         return self
 
     @model_validator(mode="after")
+    def _junction_boxes_are_declared(self) -> SceneGeometry:
+        if self.junction_boxes is None:
+            return self
+        if not self.junction_boxes:
+            raise ValueError("junction_boxes must list at least one box, or be None")
+        if not self.junction_declared:
+            raise ValueError("junction_boxes needs junction_declared: true")
+        names = [box.name for box in self.junction_boxes]
+        if len(set(names)) != len(names):
+            raise ValueError("junction_boxes names must be unique")
+        return self
+
+    @model_validator(mode="after")
     def _reroute_waypoints_not_empty(self) -> SceneGeometry:
         if self.reroute_waypoints is not None and not self.reroute_waypoints:
             raise ValueError("reroute_waypoints must list at least one waypoint, or be None")
@@ -260,6 +336,18 @@ def arm_geometry(geometry: SceneGeometry, robot_id: str) -> tuple[SceneGeometry,
     arm = (geometry.arms or {}).get(robot_id)
     if arm is None:
         return geometry, None
+    box = geometry.junction_box
+    if box is not None:
+        # A declared crossing box (A20(1)): the arm's mouth is that box's own
+        # face on the arm's axis, not a square box at (center_m, center_m).
+        corridor = geometry.corridor.model_copy(
+            update={
+                "axis": arm.axis,
+                "center_m": box.center_m(arm.axis),
+                "half_length_m": box.half_length_m(arm.axis),
+            }
+        )
+        return geometry.model_copy(update={"corridor": corridor}), float(arm.side)
     if arm.axis != geometry.corridor.axis:
         corridor = geometry.corridor.model_copy(update={"axis": arm.axis})
         geometry = geometry.model_copy(update={"corridor": corridor})
@@ -298,11 +386,88 @@ def passer_travel_m(
     axis_index = 0 if yielder_geometry.corridor.axis == "x" else 1
     passer_arm = (geometry.arms or {}).get(passer_id)
     if passer_arm is None or passer_arm.axis == yielder_geometry.corridor.axis:
+        if yielder_geometry.lane_heading_rad is not None:
+            return abs(
+                along_m(yielder_geometry, passer_xy) - along_m(yielder_geometry, yielder_parked_xy)
+            )
         return abs(passer_xy[axis_index] - yielder_parked_xy[axis_index])
     own_index = 0 if passer_arm.axis == "x" else 1
     forward = -float(passer_arm.side)
-    far_mouth = geometry.corridor.center_m + forward * geometry.corridor.half_length_m
+    own_corridor = arm_geometry(geometry, passer_id)[0].corridor
+    far_mouth = own_corridor.center_m + forward * own_corridor.half_length_m
     return max(0.0, (far_mouth - passer_xy[own_index]) * forward)
+
+
+def along_m(geometry: SceneGeometry, point: tuple[float, float]) -> float:
+    """A point's coordinate along the corridor (the one `center_m` is measured on).
+
+    Args:
+        geometry: Scene geometry.
+        point: World-frame `(x, y)` in metres.
+
+    Returns:
+        `x` or `y` for an axis-aligned corridor (exactly, no projection); the
+        projection onto the heading for a heading lane (`lane_heading_rad`).
+    """
+    heading = geometry.lane_heading_rad
+    if heading is None:
+        return point[0] if geometry.corridor.axis == "x" else point[1]
+    return point[0] * math.cos(heading) + point[1] * math.sin(heading)
+
+
+def across_m(geometry: SceneGeometry, point: tuple[float, float]) -> float:
+    """A point's coordinate across the corridor (perpendicular to `along_m`).
+
+    Args:
+        geometry: Scene geometry.
+        point: World-frame `(x, y)` in metres.
+
+    Returns:
+        `y` or `x` for an axis-aligned corridor; the left-normal projection
+        for a heading lane.
+    """
+    heading = geometry.lane_heading_rad
+    if heading is None:
+        return point[1] if geometry.corridor.axis == "x" else point[0]
+    return -point[0] * math.sin(heading) + point[1] * math.cos(heading)
+
+
+def corridor_direction(geometry: SceneGeometry) -> tuple[float, float]:
+    """World-frame unit vector of increasing `along_m`.
+
+    Args:
+        geometry: Scene geometry.
+
+    Returns:
+        `(1, 0)` / `(0, 1)` for an axis-aligned corridor, the heading's unit
+        vector for a heading lane.
+    """
+    heading = geometry.lane_heading_rad
+    if heading is None:
+        return (1.0, 0.0) if geometry.corridor.axis == "x" else (0.0, 1.0)
+    return (math.cos(heading), math.sin(heading))
+
+
+def junction_box_for(
+    geometry: SceneGeometry, points: Sequence[tuple[float, float]]
+) -> JunctionBox | None:
+    """The declared crossing box every point's footprint overlaps, if any.
+
+    A robot is in a box when its centre lies within `robot.half_width_m` of
+    it (its body overlaps the box). First match in declaration order; the
+    S1b boxes are far apart, so at most one can match a latched pair.
+
+    Args:
+        geometry: Scene geometry with `junction_boxes` declared.
+        points: World-frame `(x, y)` of every robot that must be inside.
+
+    Returns:
+        The box, or None when no box holds them all or none is declared.
+    """
+    for box in geometry.junction_boxes or ():
+        if all(box.contains(point, geometry.robot.half_width_m) for point in points):
+            return box
+    return None
 
 
 def visibility_boundary_m(geometry: SceneGeometry) -> float:
@@ -519,6 +684,10 @@ def yield_retreat_room_m(
         if geometry.rear_room_band == "aisle"
         else geometry.robot.half_width_m
     )
+    if geometry.lane_heading_rad is not None:
+        return _heading_lane_room_m(
+            yielder_position, side, static_obstacles, geometry, mouth_coord, band_half_width
+        )
 
     rooms: list[float] = []
     for obstacle in static_obstacles:
@@ -536,6 +705,68 @@ def yield_retreat_room_m(
         rooms.append(max(0.0, (near_face - mouth_coord) * side))
 
     return min(rooms) if rooms else None
+
+
+def _heading_lane_room_m(
+    yielder_position: tuple[float, float],
+    side: float,
+    static_obstacles: Sequence[StaticObstacleInput],
+    geometry: SceneGeometry,
+    mouth_coord: float,
+    band_half_width: float,
+) -> float | None:
+    # `yield_retreat_room_m` along a heading lane (A20(2)): the same rule in
+    # the lane's own frame. Each box is clipped to the swept band (the strip
+    # `band_half_width` either side of the retreat line through the yielder);
+    # what is left bounds the retreat when it reaches past the mouth on
+    # `side`, and the room is the distance to its nearest point along the lane.
+    band_center = across_m(geometry, yielder_position)
+    rooms: list[float] = []
+    for obstacle in static_obstacles:
+        hx, hy = obstacle.size_x_m / 2.0, obstacle.size_y_m / 2.0
+        corners = [
+            (obstacle.x - hx, obstacle.y - hy),
+            (obstacle.x + hx, obstacle.y - hy),
+            (obstacle.x + hx, obstacle.y + hy),
+            (obstacle.x - hx, obstacle.y + hy),
+        ]
+        polygon = [(along_m(geometry, c), across_m(geometry, c)) for c in corners]
+        polygon = _clip_across(polygon, band_center - band_half_width, keep_above=True)
+        polygon = _clip_across(polygon, band_center + band_half_width, keep_above=False)
+        if not polygon:
+            continue
+        outward = [(u - mouth_coord) * side for u, _ in polygon]
+        if max(outward) <= 0.0:
+            continue
+        rooms.append(max(0.0, min(outward)))
+    return min(rooms) if rooms else None
+
+
+def _clip_across(
+    polygon: list[tuple[float, float]], bound: float, keep_above: bool
+) -> list[tuple[float, float]]:
+    # One Sutherland-Hodgman pass of a convex (along, across) polygon against
+    # the line across == bound.
+    def inside(point: tuple[float, float]) -> bool:
+        return point[1] >= bound if keep_above else point[1] <= bound
+
+    out: list[tuple[float, float]] = []
+    for index, current in enumerate(polygon):
+        previous = polygon[index - 1]
+        if inside(current):
+            if not inside(previous):
+                out.append(_cut(previous, current, bound))
+            out.append(current)
+        elif inside(previous):
+            out.append(_cut(previous, current, bound))
+    return out
+
+
+def _cut(
+    a: tuple[float, float], b: tuple[float, float], bound: float
+) -> tuple[float, float]:
+    t = (bound - a[1]) / (b[1] - a[1])
+    return (a[0] + t * (b[0] - a[0]), bound)
 
 
 def yield_feasible(

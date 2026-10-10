@@ -195,6 +195,12 @@ duration_sec: 600.0
 #     park_margin_m: 0.4
 #     wall_margin_m: 0.15
 #     passer_margin_m: 0.2
+#     junction_declared: true
+#     junction_boxes:
+#       - { name: NW, x_min_m: -2.5, x_max_m: -1.3, y_min_m: 0.9, y_max_m: 1.8 }
+#       - { name: SW, x_min_m: -2.5, x_max_m: -1.3, y_min_m: -1.8, y_max_m: -0.7 }
+#       - { name: N, x_min_m: -0.75, x_max_m: 0.25, y_min_m: 0.7, y_max_m: 1.8 }
+#       - { name: S, x_min_m: -0.75, x_max_m: 0.25, y_min_m: -1.8, y_max_m: -0.7 }
 #   grounding_params_path: "config/grounding/s1b_dynamic.yaml"
 #   grounding_aisle_y_band_m: null
 #   grounding_aisle_x_band_m: null
@@ -241,6 +247,39 @@ duration_sec: 600.0
 #     aisle class, so S1a's half-width is the right lane scale. The
 #     A14(iii) ambiguous fallback behaves as in S1a (Step-6 item).
 #     occluder_height_m 0.3 = the islands.
+#   - junction_declared + junction_boxes (prereg-v3 A20(1)): S1b's REAL
+#     crossings, so the A16(iii) crossing guard passes on S1b's own geometry
+#     instead of refusing every crossing (pilot 1, E1: 8/8). Each box is a
+#     lane intersection at an island end, from the island faces
+#     (island_w x [-1.30, -0.75] y [-0.70, +0.90]; island_e x [+0.25, +0.80]
+#     y [-0.90, +0.70]) and the band edge (|x| = 2.5, |y| = 1.8):
+#       NW = west passage x [-2.5, -1.30] (wall .. island_w W face)
+#            x north gap  y [+0.90, +1.8] (island_w top .. wall)
+#            centre (-1.90, +1.35), half-extents (0.60, 0.45)
+#       SW = west passage x [-2.5, -1.30] x south gap y [-1.8, -0.70]
+#            centre (-1.90, -1.25), half-extents (0.60, 0.55)
+#       N  = inter-island corridor x [-0.75, +0.25] (island_w E face ..
+#            island_e W face) x y [+0.70, +1.8]: the corridor is walled on
+#            BOTH sides only while both islands flank it, |y| <= 0.70
+#            (island_e's top, island_w's bottom), so its boxes start there.
+#            centre (-0.25, +1.25), half-extents (0.50, 0.55)
+#       S  = x [-0.75, +0.25] x y [-1.8, -0.70]; centre (-0.25, -1.25),
+#            half-extents (0.50, 0.55)
+#     Kept only where routes genuinely cross (scripts/s1b_layout.py
+#     crossing_boxes + box_ports, grid router): a box whose routes use >= 3
+#     ports (faces or a node inside) is a crossing; two ports is a bend.
+#       NW: E {E-Wp, N-Wm, N-Wp}, S {N-Wm, S-Wp}, node Wp -> crossing
+#       SW: E {E-Wm, S-Wm, S-Wp}, N {N-Wm, S-Wp}, node Wm -> crossing
+#       N : W {E-Wp, N-Wm, N-Wp}, E {E-N, E-Wp}, S {N-S}, node N -> crossing
+#       S : W {E-Wm, S-Wm, S-Wp}, E {E-S, E-Wm}, N {N-S}, node S -> crossing
+#       NE (x [0.80, 2.5] y [0.70, 1.8]): S + W only {E-N, E-Wp} -> BEND
+#       SE (x [0.80, 2.5] y [-1.8, -0.90]): N + W only {E-S, E-Wm} -> BEND
+#     (the forbidden Wp-Wm leg also runs through NW/SW; it never changes a
+#     verdict.) A crossing conflict anchors to the box BOTH robots'
+#     footprints overlap (centre within robot.half_width_m = 0.09 m of it);
+#     anywhere else, and at the NE/SE bends, the crossing yield is refused
+#     honestly, as before. The `corridor` box above is never a crossing
+#     anchor once boxes are declared.
 #   - static_obstacles: obstacle_1/2 = the two islands (also physical, in
 #     the scenario's static_obstacles below); obstacle_3..6 = M3-only
 #     FENCES on the four band edges (|x| in [2.5, 3.0] full height of the
@@ -254,7 +293,11 @@ duration_sec: 600.0
 #
 # Run line (pilot; S1a caps, Nav2 on this scenario's own map):
 #   SCENARIO=mapd_5_s1b SEED=978442588 MOCK_ECHO=1 BACKEND_ID=mock \
-#     RECORD=0 REC_SEC=4800 NAV2_ACTIVE_TIMEOUT_SEC=360 ./scripts/vm/fc_launch.sh
+#     RECORD=0 REC_SEC=4800 NAV2_ACTIVE_TIMEOUT_SEC=360 NAV2_LAUNCH_STAGGER_SEC=6 \
+#     ./scripts/vm/fc_launch.sh
+#   (NAV2_LAUNCH_STAGGER_SEC=6, prereg-v3 A20 bring-up note: the default 3 s
+#   stagger aborted 3/11 five-stack bring-ups in pilot 1 on lifecycle
+#   change_state timeouts; env only, fc_launch.sh unchanged.)
 #   (MAP_SCENARIO defaults to SCENARIO -> warehouse_map_mapd_5_s1b.yaml;
 #   colcon-build swarm_simulation after deploying the map.)
 #

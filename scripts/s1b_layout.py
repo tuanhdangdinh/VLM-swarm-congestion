@@ -214,6 +214,85 @@ def routes_through_gaps(floor: M.Floor, routes: dict, islands) -> dict[str, list
     return out
 
 
+def crossing_boxes(islands) -> dict[str, tuple[float, float, float, float]]:
+    """Every lane intersection at an island end, as an (x0, x1, y0, y1) box.
+
+    prereg-v3 A20(1). A y-lane (a passage between an island and a side wall,
+    or the inter-island corridor) meets an x-lane (the gap between an island
+    and the north/south wall) where the lane stops being walled on both
+    sides: an island's top or bottom face. Each box spans the y-lane's width
+    (island/wall faces) by the x-lane's width (island face to the band edge).
+    The inter-island corridor is walled on both sides only where BOTH islands
+    flank it, so its boxes start at the nearer island end (island_e's top,
+    island_w's bottom). Whether a box is a crossing is decided by the routes
+    through it (`box_ports`), not here.
+    """
+    (_, ax0, ax1, ay0, ay1), (_, bx0, bx1, by0, by1) = sorted(islands, key=lambda i: i[1])
+    return {
+        "NW": (-2.5, ax0, ay1, 1.8),
+        "SW": (-2.5, ax0, -1.8, ay0),
+        "N": (ax1, bx0, min(ay1, by1), 1.8),
+        "S": (ax1, bx0, -1.8, max(ay0, by0)),
+        "NE": (bx1, 2.5, by1, 1.8),
+        "SE": (bx1, 2.5, -1.8, by0),
+    }
+
+
+def _port(box, outside: tuple[float, float]) -> str:
+    # The face of `box` a route crosses to reach `outside`: the largest
+    # violation wins (a string-pulled corner cut leaves diagonally).
+    x0, x1, y0, y1 = box
+    faces = {"W": x0 - outside[0], "E": outside[0] - x1, "S": y0 - outside[1], "N": outside[1] - y1}
+    return max(faces, key=faces.get)
+
+
+def box_ports(floor: M.Floor, routes: dict, boxes: dict, step: float = 0.02) -> dict[str, dict]:
+    """Which ports (faces, or a task node inside) each box's routes use.
+
+    A route's run inside a box enters and leaves through a face (W/E/S/N), or
+    starts/ends at a node inside it (`node:<label>`). A box whose routes use
+    only TWO ports is a bend: every robot through it is on the same path
+    (the two directions of it), so two of them meet head-on around a corner,
+    not across each other. Three or more ports means different paths cross
+    there: a real crossing (prereg-v3 A20(1)).
+
+    Returns:
+        Box name -> {"ports": {port: [node pairs]}, "crossing": bool}.
+    """
+
+    def inside(p, r) -> bool:
+        return r[0] <= p[0] <= r[1] and r[2] <= p[1] <= r[3]
+
+    out: dict[str, dict] = {}
+    for name, box in boxes.items():
+        ports: dict[str, set[str]] = {}
+        for (a, b), pts in routes.items():
+            if a > b:
+                continue
+            path = M.Path_(pts)
+            samples = [path.at(s)[:2] for s in np.arange(0.0, path.length + step, step)]
+            flags = [inside(p, box) for p in samples]
+            for i, flag in enumerate(flags):
+                if not flag:
+                    continue
+                if i == 0:
+                    ports.setdefault(f"node:{a}", set()).add(f"{a}-{b}")
+                elif not flags[i - 1]:
+                    ports.setdefault(_port(box, samples[i - 1]), set()).add(f"{a}-{b}")
+                if i == len(flags) - 1:
+                    ports.setdefault(f"node:{b}", set()).add(f"{a}-{b}")
+                elif not flags[i + 1]:
+                    ports.setdefault(_port(box, samples[i + 1]), set()).add(f"{a}-{b}")
+        out[name] = {
+            "box": [round(v, 3) for v in box],
+            "center": [round((box[0] + box[1]) / 2, 3), round((box[2] + box[3]) / 2, 3)],
+            "half": [round((box[1] - box[0]) / 2, 3), round((box[3] - box[2]) / 2, 3)],
+            "ports": {k: sorted(v) for k, v in sorted(ports.items())},
+            "crossing": len(ports) >= 3,
+        }
+    return out
+
+
 def report(scenario_path: Path | None = None) -> dict:
     """Full S1b geometry report (JSON-serialisable)."""
     from isaac.scripts.generate_warehouse_map import load_scenario
@@ -253,6 +332,7 @@ def report(scenario_path: Path | None = None) -> dict:
         "lmin_allowed_m": round(lmin, 3),
         "delta_bound_sim_s": round((lmin - 0.45) / M.V_MPS / 4.0, 3),
         "routes_through_gaps": routes_through_gaps(floor, routes, isl),
+        "crossing_boxes": box_ports(floor, routes, crossing_boxes(isl)),
         "node_min_clearance_m": {
             n: round(float(floor.dist_m[floor.cell(*xy)]), 3) for n, xy in nodes.items()
         },

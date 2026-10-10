@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from pydantic import BaseModel, ConfigDict, Field
 
 from reasoning.rag.maneuver_geometry import GroundingParams, maneuver_limits, retreat_axes
-from reasoning.rag.scene_geometry import SceneGeometry, arm_geometry
+from reasoning.rag.scene_geometry import SceneGeometry, across_m, arm_geometry
 from reasoning.vlm.models import RobotStateInput, SnapshotFrame, StaticObstacleInput
 
 _LABELS = ("A", "B", "C", "D")
@@ -108,6 +108,7 @@ def generate_retreat_candidates(
         return []
     others = [state for state in frame.robots if state.robot_id != yielder_id]
     band = _aisle_band(yielder, params, geometry, limits.lateral_m)
+    lane_bands = _heading_lane_bands(yielder, params, geometry, limits.lateral_m)
     start = (yielder.x, yielder.y)
     # Each box's floor is how deep the yielder already sits in it (0 when
     # clear), like the robot-clearance floor below: a robot pinned on a rack
@@ -131,7 +132,14 @@ def generate_retreat_candidates(
         end = (parked[0] + offset * axes.left[0], parked[1] + offset * axes.left[1])
         lateral_samples = _sample_segment(parked, end, params.sweep_step_m)
         samples = backup_samples + lateral_samples
-        if band is not None:
+        if lane_bands is not None:
+            if any(
+                not (low - _EPS <= sample[0] * unit[0] + sample[1] * unit[1] <= high + _EPS)
+                for unit, low, high in lane_bands
+                for sample in samples
+            ):
+                continue
+        elif band is not None:
             index, low, high = band
             if any(not (low - _EPS <= sample[index] <= high + _EPS) for sample in samples):
                 continue
@@ -216,6 +224,32 @@ def _aisle_band(
     perp_index = 1 if corridor.axis == "x" else 0
     centre = (yielder.x, yielder.y)[perp_index]
     return (perp_index, centre - lateral_m, centre + lateral_m)
+
+
+def _heading_lane_bands(
+    yielder: RobotStateInput,
+    params: GroundingParams,
+    geometry: SceneGeometry | None,
+    lateral_m: float,
+) -> list[tuple[tuple[float, float], float, float]] | None:
+    # The `_aisle_band` rule for a heading lane (A20(2)), as (unit, low, high)
+    # bands on `sample . unit`. A diagonal backup moves on both world axes, so
+    # every declared world band applies; with none declared, the band is the
+    # lane widened by `lateral_m` either side, across the lane's own heading.
+    # None when the geometry is not a heading lane.
+    if geometry is None or geometry.lane_heading_rad is None:
+        return None
+    bands: list[tuple[tuple[float, float], float, float]] = []
+    if params.aisle_x_band_m is not None:
+        bands.append(((1.0, 0.0), *params.aisle_x_band_m))
+    if params.aisle_y_band_m is not None:
+        bands.append(((0.0, 1.0), *params.aisle_y_band_m))
+    if bands:
+        return bands
+    heading = geometry.lane_heading_rad
+    left = (-math.sin(heading), math.cos(heading))
+    centre = across_m(geometry, (yielder.x, yielder.y))
+    return [(left, centre - lateral_m, centre + lateral_m)]
 
 
 def _grown_boxes(

@@ -81,7 +81,11 @@ def _ground(name: str, *, junction_declared: bool | None = None) -> dict:
     config, params = _floor(case["floor"])
     geometry = config.scenario_geometry
     if junction_declared is not None:
-        geometry = geometry.model_copy(update={"junction_declared": junction_declared})
+        # The pre-guard view: S1a's declared corridor box as the only
+        # junction, so S1b's A20(1) boxes are cleared with the flag.
+        geometry = geometry.model_copy(
+            update={"junction_declared": junction_declared, "junction_boxes": None}
+        )
     frame = _frame(case["rows"])
     diag = ReasonerDiagnostics(request_id="r", backend_id="mock", attempts=1, parse_status="valid")
     result = ReasonerResult(
@@ -98,9 +102,13 @@ def _ground(name: str, *, junction_declared: bool | None = None) -> dict:
     )
 
 
-def test_s1a_declares_its_junction_and_s1b_does_not():
+def test_s1a_declares_its_junction_and_s1b_declares_its_crossing_boxes():
+    # prereg-v3 A20(1): S1b now declares its real crossings (test_s1b_rulings_a20).
     assert _floor("s1a")[0].scenario_geometry.junction_declared is True
-    assert _floor("s1b")[0].scenario_geometry.junction_declared is False
+    assert _floor("s1a")[0].scenario_geometry.junction_boxes is None
+    s1b = _floor("s1b")[0].scenario_geometry
+    assert s1b.junction_declared is True
+    assert [box.name for box in s1b.junction_boxes] == ["NW", "SW", "N", "S"]
 
 
 def test_fabricated_crossing_room_now_refuses_with_its_true_reason():
@@ -109,10 +117,12 @@ def test_fabricated_crossing_room_now_refuses_with_its_true_reason():
 
     command = _ground("s1b_seed22")
 
+    # A20(1): seed 22's pair sits at island_w's SW corner, outside every
+    # declared S1b crossing box, so it still refuses, naming the boxes.
     reason = (
         "yield refused: no declared junction: robot_1 runs along y and robot_4 along x "
-        "(a crossing), but the scene declares no junction to anchor the arms to; no retreat "
-        "room was measured"
+        "(a crossing), but no declared junction box (NW, SW, N, S) holds both robots; no "
+        "retreat room was measured"
     )
     assert yield_refusal_fan_out(command) == reason
     assert "grounding=dynamic_arms:crossing_refused:robot_1,robot_4" in command["degradations"]
