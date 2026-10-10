@@ -231,6 +231,7 @@ def analyse_churn(bundle: Path) -> dict[str, Any]:
                 "progress": [f"{rid}@{t:.1f}" for t, rid in credited],
             }
         )
+    groups = _cluster_groups(clearing)
     productive = sum(e["productive"] for e in events)
     unproductive = len(events) - productive
     identities = [c["identity"] for c in clearing]
@@ -265,9 +266,48 @@ def analyse_churn(bundle: Path) -> dict[str, Any]:
                 f"{c['sim_t']:.0f}:{'/'.join(c['identity'])}" for c in clearing
             ],
             "events": events,
+            # A22 batch (additive, read-only): clearing dispatches grouped by
+            # intersecting latch clusters, for the A21(c) opportunity rule
+            # (>= 3 clearing dispatches into one cluster) and alternations
+            # inside one cluster.
+            "clearing": [
+                {"request": c["request"], "sim_t": round(c["sim_t"], 1),
+                 "identity": "/".join(c["identity"]), "cluster": sorted(c["cluster"])}
+                for c in clearing
+            ],
+            "cluster_groups": groups,
+            "max_clearing_dispatches_one_cluster": max(
+                (g["clearing_dispatches"] for g in groups), default=0
+            ),
+            "max_alternations_one_cluster": max(
+                (g["alternations"] for g in groups), default=0
+            ),
         }
     )
     return out
+
+
+def _cluster_groups(clearing: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Clearing dispatches grouped by transitively intersecting latch clusters."""
+    groups: list[dict[str, Any]] = []
+    for c in clearing:
+        hits = [g for g in groups if g["robots"] & c["cluster"]]
+        merged = {"robots": set(c["cluster"]), "members": [c]}
+        for g in hits:
+            merged["robots"] |= g["robots"]
+            merged["members"] = g["members"] + merged["members"]
+            groups.remove(g)
+        merged["members"].sort(key=lambda m: m["sim_t"])
+        groups.append(merged)
+    return [
+        {
+            "robots": sorted(g["robots"]),
+            "clearing_dispatches": len(g["members"]),
+            "alternations": alternation_count([m["identity"] for m in g["members"]]),
+            "requests": [m["request"] for m in g["members"]],
+        }
+        for g in sorted(groups, key=lambda g: g["members"][0]["sim_t"])
+    ]
 
 
 def main() -> None:
