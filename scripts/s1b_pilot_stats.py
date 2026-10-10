@@ -111,6 +111,8 @@ def ff(bundle: Path) -> dict:
     scene = [r for r in slcs._jl(bundle / "m5_scene.jsonl") if r["scene"].get("stamp") is not None]
     goals = _goals(bundle)
     (rid, (gx, gy)), = goals.items()
+    if not gt:
+        return {"bundle": bundle.name, "robot": rid, "error": "no ground truth"}
     off = slcs._gt_offset(gt, scene) if scene else 0.0
     x0, y0 = gt[0]["robots"][rid]["x"], gt[0]["robots"][rid]["y"]
     depart = next(
