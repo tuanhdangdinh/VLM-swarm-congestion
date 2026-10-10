@@ -1,0 +1,85 @@
+{
+ "s1b_e4_cap_live": {
+  "source": "S1b pilot 2 E4 (s1b_E4_seed4_echo_a1, STAMP 20261010_024124), analysis 0b1a0d8d, artifact scene + stored echo decision",
+  "decision": {
+   "blocker_kind": null,
+   "congestion_detected": true,
+   "crossing_order": null,
+   "involved_robots": [
+    "robot_3",
+    "robot_1",
+    "robot_4",
+    "robot_5"
+   ],
+   "justification": "echo-mock apparatus (A12(i)); not a model decision.",
+   "proposed_plan": null,
+   "root_cause": "echo-mock apparatus: stalled robots named from the state block.",
+   "strategy": "yield",
+   "type": "deadlock",
+   "yield_robot": "robot_3"
+  },
+  "rows": [
+   {
+    "robot_id": "robot_3",
+    "x": 1.0176712394889074,
+    "y": -0.9653558623568701,
+    "theta": -2.1854667731359245,
+    "status": "STOPPED",
+    "goal": [
+     -0.25,
+     -1.35
+    ]
+   },
+   {
+    "robot_id": "robot_1",
+    "x": 2.014640387382216,
+    "y": 0.39551261629293893,
+    "theta": -0.7165337957909792,
+    "status": "STOPPED",
+    "goal": [
+     2.3,
+     0.0
+    ]
+   },
+   {
+    "robot_id": "robot_4",
+    "x": 0.8248149125193822,
+    "y": -1.170194352337786,
+    "theta": 0.09725166097094959,
+    "status": "STOPPED",
+    "goal": [
+     2.3,
+     0.0
+    ]
+   },
+   {
+    "robot_id": "robot_2",
+    "x": -0.3083522063976023,
+    "y": 1.2780614295085875,
+    "theta": 0.07303940756715872,
+    "status": "SLOW",
+    "goal": [
+     -0.25,
+     -1.35
+    ]
+   },
+   {
+    "robot_id": "robot_5",
+    "x": 2.22710922217915,
+    "y": 0.03268699308206102,
+    "theta": -0.24497492027570886,
+    "status": "STOPPED",
+    "goal": [
+     2.3,
+     0.0
+    ]
+   }
+  ],
+  "live_degradations": [
+   "yield=infeasible:yield refused: ambiguous lane: robot_1 heads 41 deg off both axes (beyond the 30 deg snap), and robot_5's x lane crosses the pair's y bearing; no retreat room was measured",
+   "grounding=node_handoff:robot_1->robot_5",
+   "grounding=node_handoff_regrounded:robot_3->robot_1",
+   "grounding=dynamic_arms:ambiguous_refused:robot_1:41"
+  ]
+ }
+}

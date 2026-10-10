@@ -94,10 +94,10 @@ def echo_select(robots: Sequence[EchoRobot]) -> list[str]:
     structured state block does show:
 
     1. An ENGAGED LATCH PAIR is two stalled robots whose centres are closer
-       than `ECHO_LATCH_RADIUS_M`. When there is one, the echo names only
-       latch-pair members (every stalled robot in some engaged pair, in
-       presentation order), and the yielder is the presentation-first member
-       of the CLOSEST pair (ties: presentation order of the pair).
+       than `ECHO_LATCH_RADIUS_M`. When there is one, the echo names the
+       CLOSEST pair's two members only (prereg-v3 A21: one cluster, not every
+       latched robot), the presentation-first member as the yielder (ties:
+       presentation order of the pair).
     2. Otherwise the pre-A20 rule: every stalled robot in presentation order,
        the first one the yielder; every listed robot when none is stalled.
 
@@ -119,10 +119,11 @@ def echo_select(robots: Sequence[EchoRobot]) -> list[str]:
                 pairs.append((distance, i, j))
     if not pairs:
         return [robot.robot_id for robot in stalled] or [robot.robot_id for robot in robots]
-    _, i, _ = min(pairs)
-    members = {index for _, a, b in pairs for index in (a, b)}
-    rest = [stalled[k].robot_id for k in sorted(members) if k != i]
-    return [stalled[i].robot_id, *rest]
+    # A21: ONE cluster, the closest pair's two members only. Naming every
+    # latched robot (A20(3)) let the view's node-handoff search move the
+    # yield into a second cluster (S1b pilot 2, E3: all 9 dispatches).
+    _, i, j = min(pairs)
+    return [stalled[i].robot_id, stalled[j].robot_id]
 
 
 def echo_involved_robots(payload: PromptPayload) -> list[str]:

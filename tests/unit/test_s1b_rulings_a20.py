@@ -385,14 +385,16 @@ def test_echo_prefers_the_engaged_latch_pair_over_a_dwelling_robot():
     assert names == ["robot_3", "robot_4"]
 
 
-def test_echo_yielder_is_the_first_member_of_the_closest_pair():
+def test_echo_names_only_the_closest_pair_first_member_yielding():
+    # prereg-v3 A21 (supersedes A20(3)'s "every latch-pair member"): ONE
+    # cluster, the closest pair's two members; the second pair is dropped.
     names = _echo(
         ("robot_1", 0.0, 0.0, True),
         ("robot_2", 0.40, 0.0, True),
         ("robot_3", 2.0, 0.0, True),
         ("robot_4", 2.0, 0.30, True),
     )
-    assert names == ["robot_3", "robot_1", "robot_2", "robot_4"]
+    assert names == ["robot_3", "robot_4"]
 
 
 def test_echo_falls_back_to_every_stalled_robot_without_a_latch_pair():
