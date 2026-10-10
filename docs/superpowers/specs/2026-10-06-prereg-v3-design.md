@@ -1178,6 +1178,42 @@ on the pre-A16 M3 per the A16(iv) caveat. OPS: the new VM's clock
 lags ~1 day — STAMP dates on it read 2026-10-09; join runs by run
 id, never by STAMP date.
 
+**A20. S1b pilot 1: zero events, three ruling artifacts identified
+(2026-10-10; report 2026-10-10-s1b-pilot.md; integration @47fde2d).**
+Both echo episodes refused everything (13/13 withheld, 0 dispatches,
+0 events). Diagnosis — all three causes are apparatus/ruling
+artifacts, not floor physics: (1) E1's 8/8 = the A16(iii) crossing
+guard, correctly blocking S1a-phantom geometry but exposing that
+S1b DECLARES NO real crossings; counterfactual: ungated, E1's one
+"executable" yield would have grounded on the phantom box — the
+guard did its job. RULED: S1b's overlay declares its REAL crossing
+boxes, measured from its own island-corner geometry (build item).
+(2) E2's 5/5 = ambiguous handoff arriver at 33° (3° past the snap).
+RULED: an ambiguous ARRIVER yields along ITS OWN HEADING (retreat
+axis = heading; the footprint sweep runs along that axis — M4
+natively backs along heading, so this is the physically consistent
+conversion the A16 snap-widening rejection does not forbid), capped
+at 45° with the sweep as guard. (3) Echo names the lowest-id
+stalled robot — often latch-free and dwelling (82/400 MC). RULED
+(apparatus): echo prefers members of an engaged latch pair for
+involved/yielder. POSITIVES: A3 regression PASS on the new tree
+(13/12 hammer → 3/1, suppression armed, gridlock 24.6→62.9 — and
+the empty-reroute withhold now has NO live regression scene, noted);
+A19 exemption fixture flipped (one-sided waiver, frozen partner
+set); free-flow 18/18 (median 0.176 m/s — MC's 0.15 assumption is
+conservative, legs ~0.85×); M1 coverage 24/25 (marker 2 @Wp 0.874,
+one 8.3 s static STALE burst — recheck next pass). CARRIED NEW:
+backup-into-moving-traffic (A3-rerun: grounded yield backed into a
+parallel-track robot 0.34 m off the line — the latch caught it;
+sweep-vs-moving-traffic is a Step 6 design question, not patched
+ad hoc); five-stack bring-up aborts 3/11 (raise
+NAV2_LAUNCH_STAGGER_SEC next wave). CORRECTION to A19's ops note:
+the "VM clock lags ~1 day" is a timezone artifact (VM on UTC, Mac
+UTC+7) — join by run id stands, the lag claim is withdrawn. MC
+prediction for the two live seeds was 1 event/2 episodes; seed 2
+lost it to a 0.5 s arrival-order flip — single-pilot event counts
+carry seed noise (cell-design note, echoing A19's variance warning).
+
 **A14 corrigendum (2026-10-09).** A14(iv)'s "GT
 robot_static_contacts logged 0 rows during a physical pin" implied
 an under-detecting detector. The truth is stronger:
