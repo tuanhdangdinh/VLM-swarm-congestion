@@ -414,13 +414,28 @@ def _crossing_geometry(
 _HEADING_LANE_CAP_COS = math.cos(math.radians(45.0))
 
 
+def _heading_lane_within_cap(arriver: RobotStateInput, bearing_axis: Axis) -> bool:
+    return abs(_heading_component(arriver, bearing_axis)) >= _HEADING_LANE_CAP_COS - 1e-12
+
+
 def _heading_lane_applies(
     arriver: RobotStateInput, occupant: RobotStateInput, bearing_axis: Axis
 ) -> bool:
     # The cap above, and the lane rule's facing requirement: the arriver
     # faces the occupant, so -heading points away from it.
-    return abs(_heading_component(arriver, bearing_axis)) >= _HEADING_LANE_CAP_COS - 1e-12 and (
+    return _heading_lane_within_cap(arriver, bearing_axis) and (
         _rear_consistent(arriver, occupant, bearing_axis)
+    )
+
+
+def _heading_lane_cap_blocker(arriver: RobotStateInput, bearing_axis: Axis) -> str:
+    # A21: name the cap when it is what refused (pilot 2, E4: the text named
+    # rule 5's blocker while the 45 deg cap held the refusal).
+    component = min(1.0, abs(_heading_component(arriver, bearing_axis)))
+    off = round(math.degrees(math.acos(component)))
+    return (
+        f"{arriver.robot_id} is the node-handoff arriver, but it heads {off} deg off the "
+        f"pair's {bearing_axis} bearing (beyond the 45 deg heading-lane cap)"
     )
 
 
@@ -667,12 +682,20 @@ def derive_dynamic_arms(
             )
         else:
             snapped = partner if ambiguous is anchor else anchor
+            cap_refused = (
+                ambiguous is anchor
+                and handoff is not None
+                and params.mode == "derived"
+                and not _heading_lane_within_cap(anchor, bearing_axis)
+            )
             return _ambiguous_refusal(
                 decision,
                 geometry,
                 tags,
                 [ambiguous],
-                _fallback_blocker(anchor, partner, snapped, ambiguous, bearing_axis, handoff),
+                _heading_lane_cap_blocker(anchor, bearing_axis)
+                if cap_refused
+                else _fallback_blocker(anchor, partner, snapped, ambiguous, bearing_axis, handoff),
             )
     if anchor_axis is None or partner_axis is None:
         if decision.strategy == "yield":
