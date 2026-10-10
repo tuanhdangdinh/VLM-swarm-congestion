@@ -1,5 +1,8 @@
 import json
+import math
 import re
+from collections.abc import Sequence
+from typing import NamedTuple
 
 from reasoning.vlm.models import BackendResponse, PromptPayload, ReasonerConfig
 
@@ -61,36 +64,104 @@ _NOT_MOVING = frozenset({"STOPPED", "SLOW", "STALE"})
 ECHO_MOCK_MODE = "echo"
 
 
+_COORD_FIELD = re.compile(r"\b(?P<axis>[xy])=(?P<value>-?[0-9.]+)")
+# prereg-v3 A20(3): M4's min-distance latch radius (swarm_execution
+# config/safety.yaml `min_distance_m`, = M3's `robot.safety_radius_m`). Two
+# robots closer than this are held by an engaged latch. The prompt carries no
+# latch state, so the echo reads it off the state block's coordinates
+# (rounded to 0.01 m there, an error far below the 0.29-0.44 m live latch gaps).
+ECHO_LATCH_RADIUS_M = 0.45
+
+
+class EchoRobot(NamedTuple):
+    """One robot as the echo reads it off the prompt's state block."""
+
+    robot_id: str
+    x: float | None
+    y: float | None
+    stalled: bool
+
+
+def echo_select(robots: Sequence[EchoRobot]) -> list[str]:
+    """The robots an echo decision names, yielder first.
+
+    prereg-v3 A20(3), apparatus only. Before A20 the echo named every stalled
+    robot in presentation order and made the first one the yielder, so a
+    robot merely dwelling on its task node (latch-free, often far from the
+    conflict) was the yielder in 82/400 S1b Monte Carlo first conflicts.
+    The trigger's robot set never reaches the prompt, and neither does the
+    latch state; the echo stands in for it with a heuristic on what the
+    structured state block does show:
+
+    1. An ENGAGED LATCH PAIR is two stalled robots whose centres are closer
+       than `ECHO_LATCH_RADIUS_M`. When there is one, the echo names only
+       latch-pair members (every stalled robot in some engaged pair, in
+       presentation order), and the yielder is the presentation-first member
+       of the CLOSEST pair (ties: presentation order of the pair).
+    2. Otherwise the pre-A20 rule: every stalled robot in presentation order,
+       the first one the yielder; every listed robot when none is stalled.
+
+    Args:
+        robots: The state block's robots in presentation order.
+
+    Returns:
+        Robot ids, yielder first.
+    """
+    stalled = [robot for robot in robots if robot.stalled]
+    pairs: list[tuple[float, int, int]] = []
+    for i, first in enumerate(stalled):
+        for j in range(i + 1, len(stalled)):
+            second = stalled[j]
+            if None in (first.x, first.y, second.x, second.y):
+                continue
+            distance = math.hypot(first.x - second.x, first.y - second.y)
+            if distance < ECHO_LATCH_RADIUS_M:
+                pairs.append((distance, i, j))
+    if not pairs:
+        return [robot.robot_id for robot in stalled] or [robot.robot_id for robot in robots]
+    _, i, _ = min(pairs)
+    members = {index for _, a, b in pairs for index in (a, b)}
+    rest = [stalled[k].robot_id for k in sorted(members) if k != i]
+    return [stalled[i].robot_id, *rest]
+
+
 def echo_involved_robots(payload: PromptPayload) -> list[str]:
     """The robots an echo decision names, read off the prompt's state block.
 
     The trigger's robot set never reaches the request or the prompt text (M5
     uses it only to crop the zoom tile), so the echo stands in for it with
     the robots the structured state block reports as not moving: status
-    STOPPED, SLOW or STALE. Order is the block's, which is the request's
-    presentation order (`known_robot_ids`), never the registry's.
+    STOPPED, SLOW or STALE (a robot without a status counts as not moving),
+    preferring the members of an engaged latch pair (`echo_select`). Order is
+    the block's, which is the request's presentation order
+    (`known_robot_ids`), never the registry's, except that the yielder comes
+    first.
 
     Args:
         payload: The rendered prompt.
 
     Returns:
-        The non-moving robots in presentation order; every listed robot when
-        none is reported not moving (a robot without a status counts as
-        not moving).
+        The robots `echo_select` names, yielder first.
     """
     known = set(payload.known_robot_ids)
-    listed: list[str] = []
-    stalled: list[str] = []
+    robots: list[EchoRobot] = []
     for line in payload.user_prompt.splitlines():
         match = _STATE_LINE.match(line)
-        if match is None or match["robot_id"] not in known or match["robot_id"] in listed:
+        if match is None or match["robot_id"] not in known:
             continue
-        robot_id = match["robot_id"]
-        listed.append(robot_id)
+        if any(robot.robot_id == match["robot_id"] for robot in robots):
+            continue
         status = _STATUS_FIELD.search(match["rest"])
-        if status is None or status["status"].upper() in _NOT_MOVING:
-            stalled.append(robot_id)
-    return stalled or listed
+        coords = {m["axis"]: float(m["value"]) for m in _COORD_FIELD.finditer(match["rest"])}
+        robots.append(
+            EchoRobot(
+                robot_id=match["robot_id"],
+                x=coords.get("x"),
+                y=coords.get("y"),
+                stalled=status is None or status["status"].upper() in _NOT_MOVING,
+            )
+        )
+    return echo_select(robots)
 
 
 class EchoMockBackend:

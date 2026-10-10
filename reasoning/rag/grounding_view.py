@@ -41,7 +41,13 @@ from typing import Any, Literal, NamedTuple
 from pydantic import BaseModel, ConfigDict
 
 from reasoning.rag.maneuver_geometry import GroundingParams
-from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
+from reasoning.rag.scene_geometry import (
+    CorridorGeometry,
+    JunctionBox,
+    SceneGeometry,
+    along_m,
+    junction_box_for,
+)
 from reasoning.vlm.models import CongestionDecision, RobotStateInput, SnapshotFrame
 
 _SPATIAL_STRATEGIES = frozenset({"yield", "reverse", "junction_clear"})
@@ -374,6 +380,7 @@ def _crossing_geometry(
     bearing_axis: Axis,
     snapshot: SnapshotFrame,
     robot_ids: list[str],
+    box: JunctionBox | None = None,
 ) -> SceneGeometry:
     arms: dict[str, dict[str, Any]] = {}
     for robot_id in robot_ids:
@@ -388,11 +395,56 @@ def _crossing_geometry(
     data = declared.model_dump()
     data["arms"] = arms
     data["corridor"] = {**data["corridor"], "axis": bearing_axis}
+    if box is not None:
+        # A20(1): the declared box this conflict sits in, measured per axis.
+        data["corridor"]["center_m"] = box.center_m(bearing_axis)
+        data["corridor"]["half_length_m"] = box.half_length_m(bearing_axis)
+        data["junction_box"] = box.model_dump()
     # The racks flanking each arm start at the box edge, which is every arm's
     # mouth: rear room is checked across the footprint, not the aisle
     # (`SceneGeometry.rear_room_band`).
     data["rear_room_band"] = "footprint"
     return SceneGeometry.model_validate(data)
+
+
+# A20(2): an ambiguous handoff arriver's heading must stay within 45 degrees
+# of the conflict's bearing axis (that axis is its nearest one) for a backup
+# along the heading to open the pair along the bearing; beyond that it backs
+# mostly sideways and the yield is refused.
+_HEADING_LANE_CAP_COS = math.cos(math.radians(45.0))
+
+
+def _heading_lane_applies(
+    arriver: RobotStateInput, occupant: RobotStateInput, bearing_axis: Axis
+) -> bool:
+    # The cap above, and the lane rule's facing requirement: the arriver
+    # faces the occupant, so -heading points away from it.
+    return abs(_heading_component(arriver, bearing_axis)) >= _HEADING_LANE_CAP_COS - 1e-12 and (
+        _rear_consistent(arriver, occupant, bearing_axis)
+    )
+
+
+def _heading_lane_geometry(
+    declared: SceneGeometry, bearing_axis: Axis, arriver: RobotStateInput, occupant: RobotStateInput
+) -> SceneGeometry:
+    # Rule 3's lane, laid along the arriver's own heading instead of the
+    # bearing axis (A20(2)): `center_m` / `half_length_m` are measured along
+    # the heading (`scene_geometry.along_m`), so the passer-relative side
+    # rule, the room gate, the park floor and the retreat sweep all run along
+    # the line M4 backs the arriver on. `corridor.axis` keeps the bearing
+    # axis (the heading's nearest) for the axis-only consumers.
+    heading = round(arriver.theta, 6)
+    base = _lane_geometry(declared, bearing_axis, arriver, occupant)
+    lane = base.model_copy(update={"lane_heading_rad": heading})
+    a = along_m(lane, (arriver.x, arriver.y))
+    p = along_m(lane, (occupant.x, occupant.y))
+    corridor = base.corridor.model_copy(
+        update={
+            "center_m": round((a + p) / 2.0, 3),
+            "half_length_m": max(round(abs(a - p) / 2.0, 3), _MIN_HALF_LENGTH_M),
+        }
+    )
+    return lane.model_copy(update={"corridor": corridor})
 
 
 def _rear_consistent(yielder: RobotStateInput, partner: RobotStateInput, axis: Axis) -> bool:
@@ -475,7 +527,11 @@ def derive_dynamic_arms(
        convention) and the corridor axis set to the bearing axis. Rear
        room is checked across the footprint here too. Only where the scene
        declares that box a junction (`SceneGeometry.junction_declared`,
-       prereg-v3 A16(iii)); otherwise a yield is refused honestly
+       prereg-v3 A16(iii)). A floor that declares its own crossing boxes
+       (`SceneGeometry.junction_boxes`, A20(1)) anchors to the box both
+       robots' footprints overlap instead, measured per axis
+       (`grounding=dynamic_arms:junction_box:<name>`), and to no other box.
+       Otherwise a yield is refused honestly
        (`grounding=dynamic_arms:crossing_refused:<a>,<b>`, no room
        measured) and a `reverse` keeps the declared geometry, tagged
        `grounding=dynamic_arms:crossing_undeclared`.
@@ -488,6 +544,18 @@ def derive_dynamic_arms(
        and rule 3 runs. An ambiguous yielder also hands the yield to its
        partner when the partner faces it and rule 1 did not fix the yielder
        (`grounding=heading_regrounded:<from>-><to>`).
+    5b. Heading lane (`yield` only, derived mode, prereg-v3 A20(2)): an
+       ambiguous node-handoff ARRIVER (rule 1 fixed it as the yielder, so
+       rule 5 cannot hand the yield over) yields along its own heading, the
+       line M4 backs it on. The lane is rule 3's, laid along the heading
+       (`SceneGeometry.lane_heading_rad`); the room gate, park floor,
+       footprint sweep with its box margins and the aisle bands all run
+       along it. Capped: the heading must lie within 45 degrees of the
+       pair's bearing axis and the arriver must face the occupant, else the
+       rule-6 refusal stands. Tagged
+       `grounding=dynamic_arms:heading_lane:<id>:<deg>` (degrees off the
+       nearest axis). The occupant's snapped lane does not matter (it
+       passes); both robots ambiguous stays a rule-6 refusal.
     6. Honest refusal (`yield` only): anything rule 5 cannot place (both
        headings ambiguous, the snapped lane across the bearing, an
        ambiguous handoff arriver, a partner facing away) and matching lanes
@@ -579,6 +647,24 @@ def derive_dynamic_arms(
             tags.append(f"grounding=heading_regrounded:{anchor.robot_id}->{partner.robot_id}")
             anchor, partner = partner, anchor
             anchor_axis = bearing_axis
+        elif (
+            ambiguous is anchor
+            and handoff is not None
+            and params.mode == "derived"
+            and _heading_lane_applies(anchor, partner, bearing_axis)
+        ):
+            # Rule 5b (A20(2)): the ambiguous node-handoff arriver yields
+            # along its own heading.
+            lane = _heading_lane_geometry(geometry, bearing_axis, anchor, partner)
+            return DynamicArms(
+                decision,
+                _with_handoff_occupant(lane, decision, handoff),
+                [
+                    *tags,
+                    f"grounding=dynamic_arms:heading_lane:{anchor.robot_id}:"
+                    f"{_axis_offset_deg(anchor.theta)}",
+                ],
+            )
         else:
             snapped = partner if ambiguous is anchor else anchor
             return _ambiguous_refusal(
@@ -593,17 +679,23 @@ def derive_dynamic_arms(
             return _ambiguous_refusal(decision, geometry, tags, [anchor, partner], None)
         return DynamicArms(decision, geometry, [*tags, "grounding=dynamic_arms:ambiguous"])
     if anchor_axis != partner_axis:
-        if not geometry.junction_declared:
+        box = (
+            None
+            if geometry.junction_boxes is None
+            else junction_box_for(geometry, [(anchor.x, anchor.y), (partner.x, partner.y)])
+        )
+        if not geometry.junction_declared or (geometry.junction_boxes is not None and box is None):
             if decision.strategy == "yield":
                 return _crossing_refusal(decision, geometry, tags, anchor, partner)
             return DynamicArms(
                 decision, geometry, [*tags, "grounding=dynamic_arms:crossing_undeclared"]
             )
-        crossing = _crossing_geometry(geometry, bearing_axis, snapshot, order)
+        crossing = _crossing_geometry(geometry, bearing_axis, snapshot, order, box)
+        box_tags = [] if box is None else [f"grounding=dynamic_arms:junction_box:{box.name}"]
         return DynamicArms(
             decision,
             _with_handoff_occupant(crossing, decision, handoff),
-            [*tags, "grounding=dynamic_arms:crossing"],
+            [*tags, "grounding=dynamic_arms:crossing", *box_tags],
         )
     if anchor_axis != bearing_axis:
         if decision.strategy == "yield":
@@ -691,10 +783,17 @@ def _crossing_refusal(
     anchor_axis = _heading_axis(anchor.theta)
     partner_axis = _heading_axis(partner.theta)
     pair = f"{anchor.robot_id},{partner.robot_id}"
+    where = (
+        "the scene declares no junction to anchor the arms to"
+        if geometry.junction_boxes is None
+        else "no declared junction box ("
+        + ", ".join(box.name for box in geometry.junction_boxes)
+        + ") holds both robots"
+    )
     reason = (
         f"yield refused: no declared junction: {anchor.robot_id} runs along {anchor_axis} "
-        f"and {partner.robot_id} along {partner_axis} (a crossing), but the scene declares "
-        "no junction to anchor the arms to; no retreat room was measured"
+        f"and {partner.robot_id} along {partner_axis} (a crossing), but {where}; no retreat "
+        "room was measured"
     )
     return DynamicArms(
         decision, geometry, [*tags, f"grounding=dynamic_arms:crossing_refused:{pair}"], reason

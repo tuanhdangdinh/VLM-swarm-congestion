@@ -25,7 +25,9 @@ from reasoning.rag.scene_geometry import (
     FEASIBILITY_MARGIN_M,
     ArmGeometry,
     SceneGeometry,
+    along_m,
     arm_geometry,
+    corridor_direction,
     park_offset_m,
     passer_clearance_m,
     passer_travel_m,
@@ -271,8 +273,13 @@ def retreat_axes(
         passer = frame.find_robot(passer_id) if passer_id is not None else None
         if passer is None:
             return None
-        axis_index, side, _ = _yield_side(yielder, passer, geometry)
-        unit = (1.0, 0.0) if axis_index == 0 else (0.0, 1.0)
+        axis_index, side, resolved = _yield_side(yielder, passer, geometry)
+        if resolved.lane_heading_rad is not None:
+            # A heading lane (A20(2)): the corridor runs along the yielder's
+            # own heading, so it backs along -heading, exactly as M4 does.
+            unit = corridor_direction(resolved)
+        else:
+            unit = (1.0, 0.0) if axis_index == 0 else (0.0, 1.0)
         heading = (-side * unit[0], -side * unit[1])
     return RetreatAxes(retreat=(-heading[0], -heading[1]), left=(-heading[1], heading[0]))
 
@@ -521,6 +528,10 @@ def _yield_side(
     axis_index = _axis_index(resolved)
     if arm_side is not None:
         return axis_index, arm_side, resolved
+    if resolved.lane_heading_rad is not None:
+        own = along_m(resolved, (yielder.x, yielder.y))
+        other = along_m(resolved, (passer.x, passer.y))
+        return axis_index, -1.0 if own < other else 1.0, resolved
     return axis_index, _retreat_side(yielder, passer, axis_index), resolved
 
 
@@ -657,7 +668,11 @@ def _park_backup_floor_m(
     # millimetre; a yielder already past its park point needs no floor.
     axis_index, side, resolved = _yield_side(yielder, passer, geometry)
     park_coord = round(resolved.corridor.center_m + side * park_offset_m(resolved), 3)
-    yielder_coord = (yielder.x, yielder.y)[axis_index]
+    yielder_coord = (
+        (yielder.x, yielder.y)[axis_index]
+        if resolved.lane_heading_rad is None
+        else along_m(resolved, (yielder.x, yielder.y))
+    )
     return max(0.0, (park_coord - yielder_coord) * side)
 
 

@@ -41,6 +41,7 @@ from reasoning.rag.retreat_candidates import (
 )
 from reasoning.rag.scene_geometry import (
     SceneGeometry,
+    along_m,
     arm_geometry,
     park_offset_m,
     passer_clearance_m,
@@ -245,9 +246,8 @@ def _beyond_corridor_same_side(
     instead of opening it (run C 2026-09-16 for yield; run 3 2026-09-17 for
     reverse, which drove a robot parked at its goal back into the aisle).
     """
-    axis_index = 0 if geometry.corridor.axis == "x" else 1
-    d_first = first[axis_index] - geometry.corridor.center_m
-    d_second = second[axis_index] - geometry.corridor.center_m
+    d_first = along_m(geometry, first) - geometry.corridor.center_m
+    d_second = along_m(geometry, second) - geometry.corridor.center_m
     half_length = geometry.corridor.half_length_m
     both_beyond = abs(d_first) > half_length and abs(d_second) > half_length
     return both_beyond and d_first * d_second > 0
@@ -431,6 +431,19 @@ class _YieldFeasibility(NamedTuple):
     refusal_reason: str | None
 
 
+def _passer_relative_side(
+    geometry: SceneGeometry,
+    position: tuple[float, float],
+    other: tuple[float, float],
+    axis_index: int,
+) -> float:
+    # Retreat side away from `other` along the corridor: on the axis
+    # coordinate, or along a heading lane's own heading (A20(2)).
+    if geometry.lane_heading_rad is not None:
+        return -1.0 if along_m(geometry, position) < along_m(geometry, other) else 1.0
+    return -1.0 if position[axis_index] < other[axis_index] else 1.0
+
+
 def _room_text(room_m: float | None) -> str:
     return "unbounded" if room_m is None else f"{room_m:.2f} m"
 
@@ -473,6 +486,13 @@ def _apply_yield_feasibility(
         in_lane = [robot_id for robot_id in robot_ids if robot_id in lane]
         if len(in_lane) > 1:
             scored = in_lane
+    if geometry.lane_heading_rad is not None and lane is not None and robot_ids[0] == lane[0]:
+        # A heading lane (A20(2)) runs along its arriver's own heading: only
+        # the arriver backs along it, and its partner is the node-handoff
+        # occupant, which never yields. Scoring the partner along the
+        # arriver's heading would swap the yield onto a robot M4 would back
+        # along a different line.
+        scored = [lane[0], lane[1]]
     positions = {
         robot_id: robot_positions.get(robot_id) for robot_id in scored
     }
@@ -494,13 +514,15 @@ def _apply_yield_feasibility(
             # targets; a junction declares each robot's arm instead.
             other = next(positions[o] for o in scored if o != robot_id)
             assert other is not None
-            side = -1.0 if position[axis_index] < other[axis_index] else 1.0
+            side = _passer_relative_side(robot_geometry, position, other, axis_index)
         rooms[robot_id] = yield_retreat_room_m(position, side, static_obstacles, robot_geometry)
         feasible[robot_id] = yield_feasible(position, side, static_obstacles, robot_geometry)
 
     decided = robot_ids[0]
     if feasible[decided]:
         return _YieldFeasibility(robot_ids, None, None, None)
+    if geometry.lane_heading_rad is not None and decided in scored:
+        scored = [decided]
 
     required = required_room_m(geometry)
     shortfall = (
@@ -886,7 +908,7 @@ def _ground_legacy(
                     yielder_geometry, arm_side = arm_geometry(geometry, robot_ids[0])
                     park_axis = yielder_geometry.corridor.axis
                     axis_index = 0 if park_axis == "x" else 1
-                    corridor_center = geometry.corridor.center_m
+                    corridor_center = yielder_geometry.corridor.center_m
                     park_offset = park_offset_m(geometry)
                     passer_clearance = passer_clearance_m(geometry)
                     pull_off_lateral = round(pull_off_lateral_m(geometry), 3)
@@ -3302,12 +3324,16 @@ def _plan_problems(
             partner_position = positions.get(lane[1] if robot_id == lane[0] else lane[0])
             if partner_position is None:
                 return None
+            if geometry.lane_heading_rad is not None and robot_id != lane[0]:
+                # As the gate scores a heading lane: only its arriver backs
+                # along it (A20(2)).
+                return f"{robot_id} is the node-handoff occupant of {lane[0]}'s heading lane"
         robot_geometry, arm_side = arm_geometry(geometry, robot_id)
         axis_index = 0 if robot_geometry.corridor.axis == "x" else 1
         side = (
             arm_side
             if arm_side is not None
-            else (-1.0 if position[axis_index] < partner_position[axis_index] else 1.0)
+            else _passer_relative_side(robot_geometry, position, partner_position, axis_index)
         )
         if yield_feasible(position, side, static_obstacles, robot_geometry):
             return None

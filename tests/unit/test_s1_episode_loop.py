@@ -94,9 +94,14 @@ _E1_REFUSAL = (
     "robot_3 0.00 m, robot_5 0.00 m retreat room < 0.95 m required)"
 )
 # The same scene since A14(iii)'s honest refusal: no room is measured.
+# prereg-v3 A20(2): the ambiguous arriver now yields along its own heading
+# (`grounding=dynamic_arms:heading_lane`); the sweep along that heading finds
+# no candidate, so the refusal carries that measured reason instead of
+# A14(iii)'s "ambiguous lane" (pre-A20: "...robot_2's x lane crosses the
+# pair's y bearing; no retreat room was measured").
 _E1_HONEST_REFUSAL = (
-    "yield refused: ambiguous lane: robot_4 heads 33 deg off both axes (beyond the 30 deg "
-    "snap), and robot_2's x lane crosses the pair's y bearing; no retreat room was measured"
+    "yield refused: no executable retreat (robot_4 has no retreat candidate surviving the "
+    "sweep; robot_2 is the node-handoff occupant, which never yields)"
 )
 _FIVE = ["robot_1", "robot_2", "robot_3", "robot_4", "robot_5"]
 
@@ -156,7 +161,7 @@ def test_e1_refusal_now_refuses_honestly_without_a_room_measurement():
     # (`_E1_REFUSAL`). Since A14(iii) the view refuses with the true reason;
     # the arriver must yield, so robot_2 cannot take it over.
     command = _ground(_REFUSED, _REFUSED_GOALS, _FIVE, _shipped_params())
-    assert "grounding=dynamic_arms:ambiguous_refused:robot_4:33" in command["degradations"]
+    assert "grounding=dynamic_arms:heading_lane:robot_4:33" in command["degradations"]
     assert "grounding=node_handoff:robot_4->robot_2" in command["degradations"]
     assert yield_refusal_fan_out(command) == _E1_HONEST_REFUSAL
     assert " 0.00 m" not in _E1_HONEST_REFUSAL

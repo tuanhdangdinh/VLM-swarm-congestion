@@ -4,7 +4,8 @@ Gate G5a ("first conflict resolvable by one yield") counted a conflict as
 resolvable when EITHER robot had the rear room. M3 does not search for that
 robot: the echo mock (A12(i), `reasoning.vlm.mock_backend`) names the
 robots the prompt reports STOPPED/SLOW/STALE, in presentation order
-(`prompt_robot_order: id_asc`), and makes the first one the yielder; M3 then
+(`prompt_robot_order: id_asc`), preferring the members of an engaged latch
+pair (A20(3), `echo_names`), and makes the first one the yielder; M3 then
 re-roles node handoffs, keeps the named yielder whenever its 0.95 m room
 gate passes, and only then sweeps retreat candidates. This replays each MC
 first-conflict scene (state `--delay` sim-s after the first encounter, the
@@ -72,8 +73,7 @@ def _grounder(scenario: Path):
     params = load_grounding_source(REPO / overlay["grounding_params_path"]).params
 
     def ground(rows: list[dict]) -> dict | None:
-        stalled = [r["robot_id"] for r in rows if r["status"] != "MOVING"]
-        involved = stalled or [r["robot_id"] for r in rows]
+        involved = echo_names(rows)
         if len(involved) < 2:
             return None
         frame = SnapshotFrame(
@@ -114,6 +114,29 @@ def _grounder(scenario: Path):
         )
 
     return ground
+
+
+def echo_names(rows: list[dict]) -> list[str]:
+    """The echo mock's involved robots for one scene, yielder first.
+
+    The SAME selection the live echo runs (`mock_backend.echo_select`, the
+    A20(3) latch-pair preference), on the rows in id order (the
+    `prompt_robot_order: id_asc` presentation) with coordinates rounded to
+    the prompt's 0.01 m.
+    """
+    from reasoning.vlm.mock_backend import EchoRobot, echo_select
+
+    return echo_select(
+        [
+            EchoRobot(
+                robot_id=r["robot_id"],
+                x=round(r["x"], 2),
+                y=round(r["y"], 2),
+                stalled=r["status"] != "MOVING",
+            )
+            for r in sorted(rows, key=lambda r: r["robot_id"])
+        ]
+    )
 
 
 def _pull(rows: list[dict], pair: list[str], gap: float) -> list[dict]:

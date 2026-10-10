@@ -104,9 +104,20 @@ class TestStateBlockParsing:
         assert echo_involved_robots(build_prompt_payload(request)) == ["robot_2", "robot_1"]
 
     def test_slow_and_stale_count_as_not_moving(self):
+        # No two stalled robots within the 0.45 m latch radius, so the
+        # pre-A20(3) rule names every stalled robot (A20(3) prefers an
+        # engaged latch pair when there is one: test_s1b_rulings_a20).
         snapshot = _s1_lane_snapshot(
-            r4=_robot("robot_4", 1.9, 0.0, math.pi, status="SLOW"),
+            r4=_robot("robot_4", 1.5, 0.0, math.pi, status="SLOW"),
             r5=_robot("robot_5", 2.3, 0.0, math.pi, status="STALE"),
+        )
+        snapshot = snapshot.model_copy(
+            update={
+                "robots": [
+                    r.model_copy(update={"x": -0.9}) if r.robot_id == "robot_2" else r
+                    for r in snapshot.robots
+                ]
+            }
         )
         names = echo_involved_robots(build_prompt_payload(_request(snapshot)))
         assert names == ["robot_1", "robot_2", "robot_4", "robot_5"]

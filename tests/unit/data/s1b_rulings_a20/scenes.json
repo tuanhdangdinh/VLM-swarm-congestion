@@ -1,0 +1,292 @@
+{
+ "s1b_mc_seed36": {
+  "source": "scripts/s1_mc.py S1b MC first conflict, seed index 36, snapshot 2.5 sim-s after the first encounter",
+  "first_pair": [
+   "robot_2",
+   "robot_3"
+  ],
+  "rows": [
+   {
+    "robot_id": "robot_1",
+    "x": -0.5704156113491196,
+    "y": -1.185884686869963,
+    "theta": 2.6682366117548777,
+    "status": "MOVING",
+    "goal": [
+     -2.3,
+     1.35
+    ],
+    "phase": "travel"
+   },
+   {
+    "robot_id": "robot_2",
+    "x": 0.10356966388779043,
+    "y": 0.939634447628914,
+    "theta": 2.9724914275884164,
+    "status": "STOPPED",
+    "goal": [
+     -2.3,
+     1.35
+    ],
+    "phase": "frozen"
+   },
+   {
+    "robot_id": "robot_3",
+    "x": -0.25,
+    "y": 0.6899999999999946,
+    "theta": 1.5707963267948966,
+    "status": "STOPPED",
+    "goal": [
+     -0.25,
+     1.35
+    ],
+    "phase": "frozen"
+   },
+   {
+    "robot_id": "robot_4",
+    "x": -2.2899999999999947,
+    "y": 1.35,
+    "theta": 3.141592653589793,
+    "status": "MOVING",
+    "goal": [
+     -2.3,
+     1.35
+    ],
+    "phase": "travel"
+   },
+   {
+    "robot_id": "robot_5",
+    "x": -1.6395726009064946,
+    "y": -0.17841769504496918,
+    "theta": -1.1629283588209864,
+    "status": "MOVING",
+    "goal": [
+     -0.25,
+     -1.35
+    ],
+    "phase": "travel"
+   }
+  ]
+ },
+ "s1b_mc_seed10": {
+  "source": "scripts/s1_mc.py S1b MC first conflict, seed index 10, snapshot 2.5 sim-s after the first encounter",
+  "first_pair": [
+   "robot_1",
+   "robot_3"
+  ],
+  "rows": [
+   {
+    "robot_id": "robot_1",
+    "x": -1.091090979791439,
+    "y": -0.9191973030336528,
+    "theta": 2.6682366117548777,
+    "status": "STOPPED",
+    "goal": [
+     -2.3,
+     1.35
+    ],
+    "phase": "frozen"
+   },
+   {
+    "robot_id": "robot_2",
+    "x": 2.003219291028614,
+    "y": 0.32052316568909667,
+    "theta": -0.8238407534186368,
+    "status": "STOPPED",
+    "goal": [
+     2.3,
+     0.0
+    ],
+    "phase": "frozen"
+   },
+   {
+    "robot_id": "robot_3",
+    "x": -1.2199999999999995,
+    "y": -1.35,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": [
+     -0.25,
+     -1.35
+    ],
+    "phase": "frozen"
+   },
+   {
+    "robot_id": "robot_4",
+    "x": -0.25,
+    "y": 1.35,
+    "theta": 0.30704573201879065,
+    "status": "STOPPED",
+    "goal": [
+     -0.25,
+     1.35
+    ],
+    "phase": "dwell"
+   },
+   {
+    "robot_id": "robot_5",
+    "x": 2.3,
+    "y": 0.0,
+    "theta": -1.2490457723982615,
+    "status": "STOPPED",
+    "goal": [
+     2.3,
+     0.0
+    ],
+    "phase": "frozen"
+   }
+  ]
+ },
+ "s1b_mc_seed15": {
+  "source": "scripts/s1_mc.py S1b MC first conflict, seed index 15, snapshot 2.5 sim-s after the first encounter",
+  "first_pair": [
+   "robot_3",
+   "robot_4"
+  ],
+  "rows": [
+   {
+    "robot_id": "robot_1",
+    "x": 2.3,
+    "y": 0.0,
+    "theta": -1.2490457723982615,
+    "status": "STOPPED",
+    "goal": [
+     2.3,
+     0.0
+    ],
+    "phase": "dwell"
+   },
+   {
+    "robot_id": "robot_2",
+    "x": -0.25,
+    "y": 1.35,
+    "theta": 1.5707963267948966,
+    "status": "STOPPED",
+    "goal": [
+     -0.25,
+     1.35
+    ],
+    "phase": "dwell"
+   },
+   {
+    "robot_id": "robot_3",
+    "x": 0.1857395386328381,
+    "y": -1.087279560957505,
+    "theta": -3.036292524025745,
+    "status": "STOPPED",
+    "goal": [
+     -2.3,
+     -1.35
+    ],
+    "phase": "frozen"
+   },
+   {
+    "robot_id": "robot_4",
+    "x": -0.2559083636864421,
+    "y": -1.138542244519287,
+    "theta": 0.10308160852270035,
+    "status": "STOPPED",
+    "goal": [
+     2.3,
+     0.0
+    ],
+    "phase": "frozen"
+   },
+   {
+    "robot_id": "robot_5",
+    "x": -1.4848778948125207,
+    "y": -0.53642544343388,
+    "theta": -1.1629283588209864,
+    "status": "MOVING",
+    "goal": [
+     -0.25,
+     -1.35
+    ],
+    "phase": "travel"
+   }
+  ]
+ },
+ "s1b_e2_live": {
+  "source": "S1b pilot 1 E2 (s1b_E2_seed2_echo_a3, STAMP 20261009_221552), first analysis 2c604d40, artifact scene + stored echo decision",
+  "decision": {
+   "blocker_kind": null,
+   "congestion_detected": true,
+   "crossing_order": null,
+   "involved_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "justification": "echo-mock apparatus (A12(i)); not a model decision.",
+   "proposed_plan": null,
+   "root_cause": "echo-mock apparatus: stalled robots named from the state block.",
+   "strategy": "yield",
+   "type": "deadlock",
+   "yield_robot": "robot_1"
+  },
+  "rows": [
+   {
+    "robot_id": "robot_5",
+    "x": 0.36065222727069424,
+    "y": -1.2094187440362594,
+    "theta": -0.09725166097095204,
+    "status": "STOPPED",
+    "goal": [
+     2.3,
+     0.0
+    ]
+   },
+   {
+    "robot_id": "robot_1",
+    "x": 0.6493919258408875,
+    "y": -1.137507359255725,
+    "theta": -2.567295078639812,
+    "status": "STOPPED",
+    "goal": [
+     -0.25,
+     -1.35
+    ]
+   },
+   {
+    "robot_id": "robot_3",
+    "x": -0.29963553625208705,
+    "y": -0.9239523377862593,
+    "theta": -1.4994877315377302,
+    "status": "STOPPED",
+    "goal": [
+     -0.25,
+     -1.35
+    ]
+   },
+   {
+    "robot_id": "robot_2",
+    "x": -0.34648763828423146,
+    "y": -1.342345849236641,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": [
+     -0.25,
+     1.35
+    ]
+   },
+   {
+    "robot_id": "robot_4",
+    "x": -0.7016919467139787,
+    "y": -1.0263715827767175,
+    "theta": -0.29145241637050584,
+    "status": "STOPPED",
+    "goal": [
+     -0.25,
+     -1.35
+    ]
+   }
+  ],
+  "live_degradations": [
+   "yield=infeasible:yield refused: ambiguous lane: robot_1 heads 33 deg off both axes (beyond the 30 deg snap), and robot_1 is the node-handoff arriver, so it must yield; no retreat room was measured",
+   "grounding=node_handoff:robot_1->robot_2",
+   "grounding=dynamic_arms:ambiguous_refused:robot_1:33"
+  ]
+ }
+}
