@@ -20,6 +20,9 @@ The verbatim-pilot rulings (2026-10-06, A/C/D) add derived, metrics-only
 surfaces: the `repaired_order_only` sub-class, `verbatim_dispatch_matched`,
 `strategy_correct` with its stratified table, held-robot exclusion from the
 oracle order, and `score_decision_artifact` for re-scoring stored artifacts.
+prereg-v3 A21 adds the `repaired_lane_scope_only` sub-class under the
+A17-bis family rule (a mechanically separable repair cause is its own
+stratum).
 """
 
 from collections.abc import Collection, Iterable, Mapping, Sequence
@@ -28,6 +31,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from reasoning.rag.command_grounder import (
+    LANE_SCOPED_HOLD_PREFIX,
     PlanEdit,
     PlanProvenance,
     PlanRejectionStage,
@@ -88,6 +92,11 @@ class PlanDecisionMetrics(BaseModel):
     # was verbatim up to list order. `provenance` itself stays `repaired`.
     # None unless `provenance == "repaired"`.
     repaired_order_only: bool | None = None
+    # prereg-v3 A21 sub-class of `repaired`: True when every repair edit is
+    # a lane-scoped off-lane hold (`is_lane_scope_only_repair`), i.e. the
+    # plan was verbatim except for crossing robots dispatch holds outside
+    # the yield's lane conflict. None unless `provenance == "repaired"`.
+    repaired_lane_scope_only: bool | None = None
     # Ruling C: "executed verbatim" -- `vlm_verbatim` AND M5 dispatched those
     # same legs (`PlanDispatchInfo.dispatch_matches_plan`). None when the
     # plan is not `vlm_verbatim` or the dispatch match is unknown.
@@ -162,6 +171,11 @@ def score_plan_decision(
         repaired_order_only=(
             is_order_only_repair(verified.edits) if verified.provenance == "repaired" else None
         ),
+        repaired_lane_scope_only=(
+            is_lane_scope_only_repair(verified.edits)
+            if verified.provenance == "repaired"
+            else None
+        ),
         verbatim_dispatch_matched=(
             dispatch_matches_plan if verified.provenance == "vlm_verbatim" else None
         ),
@@ -182,6 +196,28 @@ def is_order_only_repair(edits: Sequence[PlanEdit]) -> bool:
         True when there is at least one edit and every edit is a `reorder`.
     """
     return bool(edits) and all(edit.op == "reorder" for edit in edits)
+
+
+def is_lane_scope_only_repair(edits: Sequence[PlanEdit]) -> bool:
+    """Whether a repair only released dispatch's lane-scoped off-lane holds.
+
+    prereg-v3 A21: `verify_and_repair_plan` substitutes a `cross` or
+    `continue` leg on a robot dispatch holds outside the yield's lane
+    conflict (`order=lane_scoped:<ids>`) to `wait`, with an edit reason
+    starting `command_grounder.LANE_SCOPED_HOLD_PREFIX`. Composed with any
+    other edit (e.g. the yielder `swap`) the repair is not in this class.
+
+    Args:
+        edits: The repaired plan's `VerifiedPlan.edits`.
+
+    Returns:
+        True when there is at least one edit and every edit is such a
+        substitute.
+    """
+    return bool(edits) and all(
+        edit.op == "substitute" and edit.reason.startswith(LANE_SCOPED_HOLD_PREFIX)
+        for edit in edits
+    )
 
 
 def strategy_matches_oracle(
@@ -328,6 +364,8 @@ class ProvenanceStratum(BaseModel):
     repaired: int = Field(default=0, ge=0)
     # Subset of `repaired`.
     repaired_order_only: int = Field(default=0, ge=0)
+    # Subset of `repaired` (prereg-v3 A21).
+    repaired_lane_scope_only: int = Field(default=0, ge=0)
     m3_default: int = Field(default=0, ge=0)
     # Subsets of `vlm_verbatim`; verbatim plans with an unknown dispatch match
     # are in neither.
@@ -367,6 +405,8 @@ def tabulate_provenance_by_strategy_correctness(
         row[item.provenance] += 1
         if item.repaired_order_only:
             row["repaired_order_only"] += 1
+        if item.repaired_lane_scope_only:
+            row["repaired_lane_scope_only"] += 1
         if item.verbatim_dispatch_matched is True:
             row["verbatim_dispatch_matched"] += 1
         elif item.verbatim_dispatch_matched is False:
