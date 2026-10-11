@@ -177,7 +177,7 @@ Ruff is clean on the changed files. `nav2_adapter.py` carries its two pre-existi
 - Is holding robots the model did not name (B1) admissible as M3 grounding? If so, may M3 read M5's next-task intent so it covers dwelling bystanders?
 - Is B3 wanted as a stop-gap?
 
-The advisor-reviewed recommendation is B1, with next-task intent, gated to the dynamic footprint view like Fix A.
+Conclusion from the table: B1 is worth building only together with M5's next-task intent. Without that intent it covers just 2 of the 4 blockers and over-holds in 3 episodes. It would then be gated to the dynamic footprint view, like Fix A.
 
 ---
 
@@ -199,6 +199,7 @@ These are offline projections on the 9 live scenes, not a measured rate.
 
 - **Deploy before any live use** (VM harness traps apply).
   - Runtime files that change: `reasoning/rag/command_grounder.py` and `reasoning/rag/maneuver_geometry.py` (read through the `/ws` mount), plus `swarm_execution/nav2_adapter.py` and `swarm_execution/command_bus_node.py` (colcon-installed: rebuild `swarm_execution`, then md5-verify source and installed).
+  - The new keys reach M4 by passthrough: M5 encodes each action's `parameters` verbatim (`swarm_orchestrator/reasoning_pipeline.py:841`, `json.dumps(action.get("parameters", {}), sort_keys=True)`), the same path that carried the live escort-heading keys. There is no whitelist in between.
   - The A23 pins in VM NOTES (`orchestrator_node.py`, `reanalysis_suppression.py`, `fc_launch.sh`, the configs) do not move. The new runtime md5s must be recorded as a new pin line.
 - **Reverses still back along their own heading.** The dynamic-mode `reverse` path is unchanged. If a reverse ever shows the same island pinning, it is the same contract gap.
 - **A sidestep turn-back frozen by a bystander latch** (E14, E17b) has already achieved its lateral offset, and only the heading restore remains. This was deliberately not short-circuited into the hold. Doing so would flip the yields to admitted+COMPLETED through the hold timer without proving anything about resolution.
@@ -218,3 +219,10 @@ These are offline projections on the 9 live scenes, not a measured rate.
   - `ros2_ws/src/swarm_execution/swarm_execution/safety_monitor_node.py` and `safety.py` (latch semantics, unchanged).
 - **Tests:** `tests/unit/test_a25_backup_axis.py`, `tests/unit/data/a25_no_admit/yields.json`.
 - **Bundles** (gitignored): `data/logs/vm_runs/{churn_wave,live_batch,resume,batch2}/`.
+- **Analysis kit** (gitignored): `data/logs/vm_runs/a25_no_admit/`.
+  - `trace.py` / `trace.jsonl`: per-case phases, deadlines and GT displacement. Its E17b row has a known sim-window bug (no M4 `sim_t` after 251.3); §2 uses the GT-derived E17b timeline instead.
+  - `deep.py`: per-case time series.
+  - `counterfactual.py`: the §5 latch replay.
+  - `extract_fixture.py`: builds the test fixture.
+  - `reground.py`: the fidelity check.
+  - `base.txt` / `new.txt` / `*_ids.txt`: suite evidence.
