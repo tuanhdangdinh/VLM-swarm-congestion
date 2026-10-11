@@ -1322,6 +1322,49 @@ gemini-robotics-er-2-preview returned HTTP 200 (serviceTier
 standard) — credits are WORKING again (cycle refresh or untracked
 top-up); the billing blocker is lifted and live work is unblocked.
 
+**A24. Bring-up solved; E11 ruled; V-JEPA pilot closed
+(2026-10-11; reports bringup-and-resume, s1b-live-batch Rev 3,
+vjepa-probe-pilot; integration @4be1d84).**
+(i) BRING-UP: all five-stack aborts share a launch-overlap signature
+(bond timeouts at the moment another stack launches; get_state during
+concurrent configure; GUI autorun exonerated; timeout bumps ruled out
+— the Jazzy bond wait is a hard 2 s and get_state has no parameter).
+FIX: NAV2_BRINGUP_MODE=sequential (harness-only; stack k+1 waits for
+k active + health check). Validation 0/8 vs parallel 9/20 (Fisher
+p≈0.024); cost +21 s/attempt, M5 starts ~6 sim-s later. RULED:
+sequential is the DEFAULT for all S1 run lines.
+(ii) backend_failed suppression shipped (E10's 402 loop replays
+38→2); trade-off recorded: a transient backend failure on a frozen
+scene silences re-analysis until the scene moves.
+(iii) E11 RULED: NOT citable as architecture-churn — the opportunity
+precondition is unmet (annotation degenerates to "1 of 0"), zero
+alternations, and both "unproductive" labels are window-attribution
+artifacts (r4 reached S immediately after r5's clearing reverse;
+credited to neither event). PREDICATE FIX registered: progress by
+any robot of the dispatched cluster within the window — including
+arrivals enabled by the cleared path — counts productive; and the
+architecture-churn verdict henceforth requires BOTH the ≥3-dispatch
+opportunity bar AND ≥1 alternation. Pooled verdict stands:
+no livelock evidence under a real model (0 alternations across 6
+live episodes).
+(iv) AGGREGATES (E6-E11): first-conflict yield 0/6 (CI 0-0.46) vs
+MC 3/6; productive p95=2 (budget_k still unfreezable); both-clusters
+2/31 analyses, scene-wide plan dispatched once (E7); cost median
+$0.031/ep, all-live total $0.227. E12 skipped on the $0.04 budget
+floor.
+(v) V-JEPA PILOT CLOSED (side branch feat/v3-vjepa-probe, unmerged):
+verdict "a paragraph, not a table" — the frozen V-JEPA 2 probe's
+13/13 + 12/12 on mapped battery items is matched by a single-frame
+control on conflict and does not transfer (held-out 0.53 vs a
+classical closest-approach rule's 0.83). SHARPENED INSIGHT for the
+thesis: gpt-4o's temporal failure is NOT missing pixel information
+(status colour alone scores 11/12) — it is a REASONING/inversion
+failure. H-JEPA assessment verdict (a) is now empirically confirmed
+on our own data (with state available, video adds no forecasting
+value at this scale). Future-protocol note: a meaningful
+encoder-vs-VLM test needs raw unannotated recordings (recorder
+change) + an arrow/colour-free condition.
+
 **A14 corrigendum (2026-10-09).** A14(iv)'s "GT
 robot_static_contacts logged 0 rows during a physical pin" implied
 an under-detecting detector. The truth is stronger:
