@@ -16,7 +16,9 @@ one JSON object per bundle with the E6 capture schema:
   (published ER-2 rate: input $1/1M, output + thought $5/1M, every reasoner
   attempt plus any stage-2 call; a lower bound: a timed-out call records no
   usage);
-* per episode: provenance counts and vb AND dispatch_matched; the first
+* per episode: provenance counts and vb AND dispatch_matched, raw and READ
+  with retreat-shielded robots excluded (prereg-v3 A27(iv), the registered
+  reading: `plan_metrics.shield_excluded_dispatch_match`); the first
   analysis's outcome and whether it is a FIRST-CONFLICT YIELD (A22 rule 11
   (c): the first analysis dispatches a yield that reaches gate_admit); cost
   total; plus `s1_churn_stats`, `s1_gridlock_stats` and `s1b_episode_stats`
@@ -40,10 +42,13 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "ros2_ws/src/swarm_orchestrator"))
+sys.path.insert(0, str(_REPO))
 
 import s1_churn_stats as churn  # noqa: E402
 import s1_gridlock_stats as grid  # noqa: E402
 import s1b_episode_stats as eps  # noqa: E402
+
+from reasoning.rag.plan_metrics import shield_excluded_dispatch_match  # noqa: E402
 
 LATCH_M = 0.45
 _START = re.compile(r"starting analysis request=([0-9a-f]+) robots=(\[[^\]]*\])")
@@ -127,6 +132,7 @@ def analyse_batch_episode(bundle: Path) -> dict[str, Any]:
         withheld = art.get("dispatch_withheld")
         command = art.get("dispatched_command")
         usd, calls = artifact_cost(art)
+        shield_match = shield_excluded_dispatch_match(art)
         rows.append(
             {
                 "request": rid,
@@ -152,6 +158,9 @@ def analyse_batch_episode(bundle: Path) -> dict[str, Any]:
                 "provenance": plan.get("provenance"),
                 "plan_edits": len(plan.get("edits") or []),
                 "dispatch_matches_plan": plan.get("dispatch_matches_plan"),
+                "dispatch_matches_plan_shield_excluded": shield_match.excluded,
+                "shielded": list(shield_match.shielded),
+                "shielded_legs_continue": shield_match.shielded_legs_continue,
                 "outcome": (
                     f"withheld:{withheld.get('reason')}" if withheld
                     else ("dispatched" if command else "none")
@@ -173,6 +182,10 @@ def analyse_batch_episode(bundle: Path) -> dict[str, Any]:
     vb_matched = sum(
         1 for r in rows if r["provenance"] == "vlm_verbatim" and r["dispatch_matches_plan"]
     )
+    vb_matched_excl = sum(
+        1 for r in rows
+        if r["provenance"] == "vlm_verbatim" and r["dispatch_matches_plan_shield_excluded"]
+    )
     first = rows[0] if rows else None
     first_yield = bool(
         first and first["outcome"] == "dispatched"
@@ -184,6 +197,7 @@ def analyse_batch_episode(bundle: Path) -> dict[str, Any]:
         "n_analyses": len(rows),
         "provenance_counts": prov,
         "vb_and_dispatch_matched": vb_matched,
+        "vb_and_dispatch_matched_shield_excluded": vb_matched_excl,
         "dispatched_analyses": sum(1 for r in rows if r["outcome"] == "dispatched"),
         "any_plan_addresses_both": any(r["plan_addresses_both"] for r in rows),
         "first_conflict_yield": first_yield,

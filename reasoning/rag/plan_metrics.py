@@ -22,7 +22,9 @@ surfaces: the `repaired_order_only` sub-class, `verbatim_dispatch_matched`,
 oracle order, and `score_decision_artifact` for re-scoring stored artifacts.
 prereg-v3 A21 adds the `repaired_lane_scope_only` sub-class under the
 A17-bis family rule (a mechanically separable repair cause is its own
-stratum).
+stratum). prereg-v3 A27(iv) registers the dispatch match READ with
+retreat-shielded robots excluded (`shield_excluded_dispatch_match`), the raw
+match co-reported.
 """
 
 from collections.abc import Collection, Iterable, Mapping, Sequence
@@ -36,7 +38,9 @@ from reasoning.rag.command_grounder import (
     PlanProvenance,
     PlanRejectionStage,
     VerifiedPlan,
+    project_dispatched_legs,
 )
+from reasoning.rag.retreat_shield import SHIELD_TAG
 from reasoning.vlm.models import CongestionDecision, PlanLegStatus, ProposedPlanLeg
 
 # Whether a replan followed at least one leg execution failure since the last
@@ -101,6 +105,12 @@ class PlanDecisionMetrics(BaseModel):
     # same legs (`PlanDispatchInfo.dispatch_matches_plan`). None when the
     # plan is not `vlm_verbatim` or the dispatch match is unknown.
     verbatim_dispatch_matched: bool | None = None
+    # prereg-v3 A27(iv), the registered reading: `verbatim_dispatch_matched`
+    # with retreat-shielded robots left out of the dispatch comparison
+    # (`shield_excluded_dispatch_match`). Set only by
+    # `score_decision_artifact`, which sees the dispatched command; None
+    # otherwise, and when the plan is not `vlm_verbatim`.
+    verbatim_dispatch_matched_shield_excluded: bool | None = None
     # Ruling C: the decided strategy is one of the cell oracle's
     # `accepted_strategies`; the stratum for "provenance conditioned on
     # strategy-vs-oracle correctness". None when the cell registers no
@@ -341,13 +351,124 @@ def score_decision_artifact(
         rejection_reason=plan_block.get("rejection_reason"),
         rejection_stage=_rejection_stage_from_block(decision, plan_block),
     )
-    return score_plan_decision(
+    metrics = score_plan_decision(
         decision,
         verified,
         oracle_order=oracle_order,
         held_robot_ids=held_robot_ids,
         dispatch_matches_plan=plan_block.get("dispatch_matches_plan"),
         accepted_strategies=accepted_strategies,
+    )
+    if verified.provenance != "vlm_verbatim":
+        return metrics
+    return metrics.model_copy(
+        update={
+            "verbatim_dispatch_matched_shield_excluded": (
+                shield_excluded_dispatch_match(artifact).excluded
+            )
+        }
+    )
+
+
+def shielded_robot_ids(command: Mapping[str, Any] | None) -> frozenset[str]:
+    """Robots a dispatched command holds as retreat-shield bystanders.
+
+    Args:
+        command: A dispatched grounded command, or None.
+
+    Returns:
+        The ids named by its `grounding=retreat_shield:<id>` degradation tags;
+        empty for None or an unshielded command.
+    """
+    prefix = f"{SHIELD_TAG}:"
+    return frozenset(
+        tag[len(prefix):]
+        for tag in (command or {}).get("degradations") or []
+        if isinstance(tag, str) and tag.startswith(prefix)
+    )
+
+
+def dispatch_matches_plan_excluding(
+    plan_legs: Sequence[Mapping[str, Any]],
+    command: Mapping[str, Any],
+    known_robot_ids: Sequence[str],
+    excluded: Collection[str] = (),
+) -> bool:
+    """`command_grounder.plan_matches_dispatch` with some robots left out of both sides.
+
+    Args:
+        plan_legs: The plan block's legs (`robot_id`, `action`).
+        command: The dispatched command.
+        known_robot_ids: Every robot of the decision's scene.
+        excluded: Robots dropped from the plan and the projected dispatch.
+
+    Returns:
+        True when every remaining robot's projected dispatched action equals
+        its plan leg's action. With nothing excluded this is exactly the live
+        `plan_matches_dispatch`.
+    """
+    dispatched = project_dispatched_legs(dict(command), known_robot_ids)
+    plan_by_robot = {leg["robot_id"]: leg["action"] for leg in plan_legs}
+    skip = set(excluded)
+    return {r: a for r, a in dispatched.items() if r not in skip} == {
+        r: a for r, a in plan_by_robot.items() if r not in skip
+    }
+
+
+class ShieldExcludedMatch(BaseModel):
+    """One decision's dispatch match, raw and with shielded robots excluded (A27(iv))."""
+
+    model_config = ConfigDict(frozen=True)
+
+    # The stored live `PlanDispatchInfo.dispatch_matches_plan`.
+    raw: bool | None
+    # The registered reading: shielded robots left out of the comparison (the
+    # A21 lane-scope precedent: a shield wait projects as `wait` where the
+    # model's plan says `continue`). Equal to `raw` when nothing is shielded.
+    excluded: bool | None
+    shielded: tuple[str, ...] = ()
+    # Whether every shielded robot's plan leg is `continue` (the expected
+    # case: the shield never holds a robot the model gave an active leg).
+    shielded_legs_continue: bool | None = None
+
+
+def shield_excluded_dispatch_match(artifact: Mapping[str, Any]) -> ShieldExcludedMatch:
+    """Re-read one stored decision artifact's dispatch match with shielded robots excluded.
+
+    Only a decision whose dispatched command carries retreat-shield tags is
+    recomputed; every other one returns its stored value for both readings.
+    A recomputed raw match that disagrees with the stored value means the
+    artifact's plan or command was not the one the live match saw.
+
+    Args:
+        artifact: One parsed `decisions/<request_id>.json`.
+
+    Returns:
+        The raw and shield-excluded readings.
+
+    Raises:
+        ValueError: The recomputed raw match differs from the stored one.
+    """
+    plan = artifact.get("plan") or {}
+    raw = plan.get("dispatch_matches_plan")
+    command = artifact.get("dispatched_command")
+    shielded = shielded_robot_ids(command)
+    if not shielded or raw is None or not command:
+        return ShieldExcludedMatch(raw=raw, excluded=raw)
+    legs = plan.get("legs") or []
+    known = [r["robot_id"] for r in (artifact.get("scene") or {}).get("robots", [])]
+    recomputed = dispatch_matches_plan_excluding(legs, command, known)
+    if recomputed != raw:
+        raise ValueError(
+            f"artifact {artifact.get('request_id')}: recomputed dispatch match "
+            f"{recomputed} != stored {raw}"
+        )
+    plan_by_robot = {leg["robot_id"]: leg["action"] for leg in legs}
+    return ShieldExcludedMatch(
+        raw=raw,
+        excluded=dispatch_matches_plan_excluding(legs, command, known, shielded),
+        shielded=tuple(sorted(shielded)),
+        shielded_legs_continue=all(plan_by_robot.get(r) == "continue" for r in shielded),
     )
 
 
@@ -371,6 +492,9 @@ class ProvenanceStratum(BaseModel):
     # are in neither.
     verbatim_dispatch_matched: int = Field(default=0, ge=0)
     verbatim_dispatch_mismatched: int = Field(default=0, ge=0)
+    # prereg-v3 A27(iv): the registered reading, shielded robots excluded;
+    # `verbatim_dispatch_matched` above stays the co-reported raw count.
+    verbatim_dispatch_matched_shield_excluded: int = Field(default=0, ge=0)
 
 
 def tabulate_provenance_by_strategy_correctness(
@@ -411,6 +535,8 @@ def tabulate_provenance_by_strategy_correctness(
             row["verbatim_dispatch_matched"] += 1
         elif item.verbatim_dispatch_matched is False:
             row["verbatim_dispatch_mismatched"] += 1
+        if item.verbatim_dispatch_matched_shield_excluded is True:
+            row["verbatim_dispatch_matched_shield_excluded"] += 1
     return {key: ProvenanceStratum(**row) for key, row in counts.items()}
 
 
