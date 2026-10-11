@@ -23,7 +23,15 @@ in `s1_live_conflict_stats.py`):
 * RESOLUTION EVENT: a clearing dispatch with >= 1 attributed latch break. It
   is PRODUCTIVE when a robot of its cluster makes task progress (a tasks-JSONL
   `arrived` or `dwell_complete`) after its first attributed break, before the
-  cluster's next clearing dispatch and within `PRODUCTIVE_WINDOW_S`.
+  cluster's next clearing dispatch and within `PRODUCTIVE_WINDOW_S`. A24(iii):
+  a robot the dispatch released (a member of one of its attributed break
+  pairs) is credited too, from that break: the arrival enabled by the cleared
+  path (E11: r4 reached S 0.4 s after r5's clearing reverse broke r4+r5).
+  Progress covered by two events counts once (`score_resolution_events`).
+* ATTRIBUTION VERDICT (`attribution_verdict`, A21(c) + A24(iii)):
+  ARCHITECTURE-CHURN needs the opportunity bar (>= 3 clearing dispatches into
+  one cluster) AND >= 1 alternation AND the registered rule (`intermittent`
+  or >= 2 alternations).
 
 The mechanical predicate (derived from E3 vs A1; A1 resolved then progressed,
 E3 resolved without progress):
@@ -134,6 +142,145 @@ def classify_churn(productive: int, unproductive: int) -> str:
     return "clogged"
 
 
+ARCH = "ARCHITECTURE-CHURN"
+APPARATUS = "APPARATUS (no livelock under the real model)"
+INDETERMINATE = "INDETERMINATE (no opportunity)"
+# A21(c) opportunity bar: clearing dispatches into one (transitively
+# intersecting) latch cluster.
+OPPORTUNITY_MIN_DISPATCHES = 3
+
+
+def attribution_verdict(churn: dict[str, Any]) -> str:
+    """The A21(c) per-episode attribution verdict, with the A24(iii) conjunction.
+
+    The registered rule (`intermittent` OR >= 2 alternations) now also needs
+    BOTH the opportunity bar AND >= 1 alternation (A24(iii)), so an
+    architecture-churn episode is always an opportunity episode.
+
+    Args:
+        churn: An `analyse_churn` result (or any mapping with `churn_class`,
+            `max_clearing_dispatches_one_cluster`, `max_alternations_one_cluster`).
+
+    Returns:
+        `ARCH`, `APPARATUS` (opportunity, no architecture churn) or
+        `INDETERMINATE` (no opportunity).
+    """
+    alternations = churn.get("max_alternations_one_cluster") or 0
+    opportunity = (churn.get("max_clearing_dispatches_one_cluster") or 0) >= (
+        OPPORTUNITY_MIN_DISPATCHES
+    )
+    registered = churn.get("churn_class") == "intermittent" or alternations >= 2
+    if opportunity and alternations >= 1 and registered:
+        return ARCH
+    if opportunity:
+        return APPARATUS
+    return INDETERMINATE
+
+
+def pooled_attribution(churns: list[dict[str, Any]]) -> dict[str, Any]:
+    """The pooled A21(c) verdict over live episodes.
+
+    Args:
+        churns: One `analyse_churn` result per live episode.
+
+    Returns:
+        `verdict`, counts of `architecture_churn`, `opportunity` and
+        `episodes`, and a one-line `text`.
+    """
+    verdicts = [attribution_verdict(c) for c in churns]
+    arch = sum(v == ARCH for v in verdicts)
+    opportunity = sum(v in (ARCH, APPARATUS) for v in verdicts)
+    if arch:
+        verdict = "LIVELOCK UNDER A REAL MODEL"
+        text = f"{verdict} ({arch} of {opportunity} opportunity episodes)"
+    elif opportunity:
+        verdict = "NO LIVELOCK UNDER THE REAL MODEL"
+        text = f"{verdict} ({opportunity} opportunity episode(s), 0 architecture-churn)"
+    else:
+        verdict = "INDETERMINATE"
+        text = (
+            f"{verdict} (0/{len(churns)} live episodes had >= "
+            f"{OPPORTUNITY_MIN_DISPATCHES} clearing dispatches into one cluster)"
+        )
+    return {
+        "verdict": verdict,
+        "architecture_churn": arch,
+        "opportunity": opportunity,
+        "episodes": len(churns),
+        "text": text,
+    }
+
+
+def score_resolution_events(
+    clearing: list[dict[str, Any]],
+    breaks: list[dict[str, Any]],
+    progress: list[tuple[float, str]],
+    end_sim: float,
+) -> list[dict[str, Any]]:
+    """Score each clearing dispatch that owns a latch break as productive or not.
+
+    Args:
+        clearing: Clearing dispatches in dispatch order, each with `request`,
+            `sim_t`, `identity` and `cluster` (a frozenset of robot ids).
+        breaks: Latch breaks, each with `pair` ("robot_a+robot_b"),
+            `break_sim_t` and `dispatch` (the owning request, or None).
+        progress: Task progress as sorted `(sim_t, robot_id)` tuples.
+        end_sim: Episode end on the M1 scene clock.
+
+    Returns:
+        One resolution event per clearing dispatch with >= 1 attributed break.
+
+    A24(iii) credit rule: an event is credited with progress by a robot of its
+    latch cluster (from its first attributed break) AND by a robot the
+    dispatch released, i.e. a member of one of its own attributed break pairs
+    (from that pair's break): the arrival enabled by the cleared path. The
+    window is unchanged (to the cluster's next clearing dispatch, capped at
+    `PRODUCTIVE_WINDOW_S`). A progress event covered by two events is credited
+    once, to the event whose release of that robot is most recent.
+    """
+    events = []
+    # (event index, robot) -> sim time from which the event may credit it.
+    starts: dict[tuple[int, str], float] = {}
+    horizons: list[float] = []
+    for i, c in enumerate(clearing):
+        mine = [b for b in breaks if b["dispatch"] == c["request"]]
+        if not mine:
+            continue
+        first = min(b["break_sim_t"] for b in mine)
+        nxt = next(
+            (n["sim_t"] for n in clearing[i + 1 :] if n["cluster"] & c["cluster"]), end_sim
+        )
+        k = len(events)
+        horizons.append(min(nxt, first + PRODUCTIVE_WINDOW_S))
+        for rid in c["cluster"]:
+            starts[(k, rid)] = first
+        for b in sorted(mine, key=lambda b: b["break_sim_t"]):
+            for rid in b["pair"].split("+"):
+                starts.setdefault((k, rid), b["break_sim_t"])
+        events.append(
+            {
+                "request": c["request"],
+                "identity": "/".join(c["identity"]),
+                "cluster": sorted(c["cluster"]),
+                "credited_robots": sorted(rid for (j, rid) in starts if j == k),
+                "breaks": len(mine),
+                "first_break_sim_t": first,
+                "progress": [],
+            }
+        )
+    for t, rid in progress:
+        covering = [
+            (start, -k) for (k, r), start in starts.items()
+            if r == rid and start <= t <= horizons[k]
+        ]
+        if covering:
+            k = -max(covering)[1]
+            events[k]["progress"].append(f"{rid}@{t:.1f}")
+    for e in events:
+        e["productive"] = bool(e["progress"])
+    return events
+
+
 def analyse_churn(bundle: Path) -> dict[str, Any]:
     """Return the churn classification and metrics of one S1 bundle."""
     out: dict[str, Any] = {"bundle": bundle.name}
@@ -207,30 +354,7 @@ def analyse_churn(bundle: Path) -> dict[str, Any]:
         if e.get("event") in ("arrived", "dwell_complete") and e.get("sim_t") is not None
     )
 
-    events = []
-    for i, c in enumerate(clearing):
-        mine = [b for b in breaks if b["dispatch"] == c["request"]]
-        if not mine:
-            continue
-        first = min(b["break_sim_t"] for b in mine)
-        nxt = next(
-            (n["sim_t"] for n in clearing[i + 1 :] if n["cluster"] & c["cluster"]), end_sim
-        )
-        horizon = min(nxt, first + PRODUCTIVE_WINDOW_S)
-        credited = [
-            (t, rid) for t, rid in progress if first <= t <= horizon and rid in c["cluster"]
-        ]
-        events.append(
-            {
-                "request": c["request"],
-                "identity": "/".join(c["identity"]),
-                "cluster": sorted(c["cluster"]),
-                "breaks": len(mine),
-                "first_break_sim_t": first,
-                "productive": bool(credited),
-                "progress": [f"{rid}@{t:.1f}" for t, rid in credited],
-            }
-        )
+    events = score_resolution_events(clearing, breaks, progress, end_sim)
     groups = _cluster_groups(clearing)
     productive = sum(e["productive"] for e in events)
     unproductive = len(events) - productive
