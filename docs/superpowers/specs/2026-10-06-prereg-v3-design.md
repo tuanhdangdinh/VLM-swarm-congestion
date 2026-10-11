@@ -1317,6 +1317,10 @@ BLOCKER: Gemini prepaid credits DEPLETED 20:13Z 2026-10-10 (HTTP 402)
 (exhausted 09-25, possibly topped up before the 10-06 pilot). All
 live-dependent items (attribution n, budget_k freeze, yield-rate CI,
 wandering) are PAUSED on billing, not on engineering.
+A23 CORRIGENDUM (2026-10-11): a direct 1-token probe of
+gemini-robotics-er-2-preview returned HTTP 200 (serviceTier
+standard) — credits are WORKING again (cycle refresh or untracked
+top-up); the billing blocker is lifted and live work is unblocked.
 
 **A14 corrigendum (2026-10-09).** A14(iv)'s "GT
 robot_static_contacts logged 0 rows during a physical pin" implied
