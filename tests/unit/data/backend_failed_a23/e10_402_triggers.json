@@ -1,0 +1,1295 @@
+{
+ "source": "live_batch s1b_E10_seed10_er2_a1 (STAMP 20261010_200211): the 38 decision=None analyses (Gemini HTTP 402) in M5 start order; trigger_robots from the M5 'starting analysis' line, positions from each artifact's scene (M1, rounded 1e-4 m)",
+ "triggers": [
+  {
+   "request_id": "3a70abe261d64bccb7fed17613de20c4",
+   "stamp": 123.466666666,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.4456,
+     -1.3391
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "bbf6c51d73784d9c84b4013f5c7eecc1",
+   "stamp": 126.133333333,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2911
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "947ddb112b594c0d94f29a482ab3e1ae",
+   "stamp": 129.066666666,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "772bdb6feafc47bfacdb6ef1dd39664d",
+   "stamp": 131.966666666,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "4c056f53069c4797a88851b75a24d641",
+   "stamp": 134.9,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "affb04b24c664e0ca9f6280ef674a402",
+   "stamp": 137.766666666,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2293,
+     1.277
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "c2696af6f45b4bf49e5efe61fabed9cb",
+   "stamp": 140.633333333,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "c56a595b56b149f485079c25c267fe0f",
+   "stamp": 143.633333333,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "e34cdc3271b74208b4964a12b5cd645e",
+   "stamp": 146.633333333,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "606ce9d35b6941a094085cfac4d982e7",
+   "stamp": 149.533333333,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "6dd737b0828a4afba54bb2a1a32579e4",
+   "stamp": 152.8,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "6e08e9e5c74845df9a344bd96e0f19e2",
+   "stamp": 155.733333333,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "45059268f4a84d0ba93bfb3ea1c2c437",
+   "stamp": 158.633333333,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "bbe5a21cb64e49ab853486e89ba143b0",
+   "stamp": 161.833333333,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2282,
+     1.2759
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "5d0d2b5aa7cd4addae02db3c8a3decf3",
+   "stamp": 164.8,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "628540fccfe544f6ac2cf586b47d6ca0",
+   "stamp": 167.966666666,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "c4d1a2fe4d7840529969fec5895dc0b9",
+   "stamp": 170.8,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "7e63295eaac04eaba71671d0fab80d45",
+   "stamp": 173.733333333,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2911
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "e5ca9f213d7b4e4397f00ce4d67cf316",
+   "stamp": 176.6,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "6b4ef7d7054b41faa721918e0f6df841",
+   "stamp": 179.433333333,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "d234e0954960456e8ebc7dda5484d16e",
+   "stamp": 182.3,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "db80646c286c44dcb9b6261694b52065",
+   "stamp": 185.133333333,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "8ae5d739dbd949a684758b0a2df959f2",
+   "stamp": 188.0,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2293,
+     1.277
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2911
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "2ceeb0718454479b8d6707d518e3a384",
+   "stamp": 190.766666666,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2911
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "b7e96ad3167d4023864ace9ac6f47e55",
+   "stamp": 193.6,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "bb3c2090177742658b89c35d79705da2",
+   "stamp": 196.433333333,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "e9a14b362ec248f6adc16fe3c7bcda96",
+   "stamp": 199.133333333,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "a281052ab33f455884fc67e6a38adc24",
+   "stamp": 202.133333333,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2911
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "408ee8a2b0ac401eb80949d4dc2f0972",
+   "stamp": 205.4,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2911
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "6897dc8f987544358998b4b9cfececa3",
+   "stamp": 208.166666666,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "0ebfeae82b3c49fdac3019a752e65fae",
+   "stamp": 211.133333333,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2911
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "7e1a2be063784114ab720a6305a0c736",
+   "stamp": 214.3,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2911
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "dc226a66cfc446fb8b9b5416d18e78b5",
+   "stamp": 217.366666666,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2911
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "d539b7a4a6f54cefa275e688b6238da5",
+   "stamp": 220.5,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "1d77133378a04d5d83c859019d56297b",
+   "stamp": 223.4,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2922
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "51711e952137461990dab19bce2d18bd",
+   "stamp": 226.333333333,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2911
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "be869cad9d4c40a7a45f087c0a526008",
+   "stamp": 229.2,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2911
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  },
+  {
+   "request_id": "c746b92ca4584235a2d7defef68db80d",
+   "stamp": 232.166666666,
+   "trigger_robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "positions": {
+    "robot_3": [
+     -2.2304,
+     1.2781
+    ],
+    "robot_5": [
+     -0.2506,
+     -1.2911
+    ],
+    "robot_4": [
+     0.1722,
+     -1.338
+    ],
+    "robot_1": [
+     -1.7935,
+     1.2802
+    ],
+    "robot_2": [
+     0.4598,
+     -0.9959
+    ]
+   },
+   "http_status": 402
+  }
+ ]
+}

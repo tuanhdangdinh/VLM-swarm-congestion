@@ -352,11 +352,32 @@ class TestNodeSuppression:
         assert len(pipeline.run_calls) == 1
         assert node.get_logger().matching("outcome=no_command")
 
-    def test_backend_failure_does_not_arm(self, node_env, tmp_path):  # noqa: F811
+    def test_backend_failure_arms_backend_failed(self, node_env, tmp_path):  # noqa: F811
+        # prereg-v3 A23 ruling (reverses the pre-A23 "never arms" pin).
         node, clock, pipeline = _node(node_env, tmp_path, "failed")
         _cycle(node, clock)
         _cycle(node, clock)
+        assert len(pipeline.run_calls) == 1
+        assert node._suppression.reference.outcome == "backend_failed"
+        assert node.get_logger().matching("outcome=backend_failed")
+        [line] = node.get_logger().matching("reanalysis suppressed reason=scene_unchanged")
+        assert "reference_outcome=backend_failed" in line
+
+    def test_backend_failure_reference_releases_on_a_changed_scene(self, node_env, tmp_path):  # noqa: F811
+        node, clock, pipeline = _node(node_env, tmp_path, "failed")
+        _cycle(node, clock)
+        moved = {"robot_1": (0.06, -0.15), "robot_2": BASE["robot_2"]}
+        _cycle(node, clock, positions=moved)
         assert len(pipeline.run_calls) == 2
+        assert node.get_logger().matching("reanalysis suppression reset reason=pose_moved")
+
+    def test_backend_failure_on_a_contradiction_analysis_does_not_arm(self, node_env, tmp_path):  # noqa: F811
+        node, _clock, _pipeline = _node(node_env, tmp_path, "failed")
+        node._update_suppression(
+            _failed("req-c"), dispatched=False, dispatch_suppressed=False,
+            trigger_source="contradiction", trigger_robots=frozenset(BASE),
+            snapshot=SimpleNamespace(robots=[]), now=0.0,
+        )
         assert node._suppression.reference is None
 
     def test_dispatch_never_arms(self, node_env, tmp_path):  # noqa: F811
@@ -506,3 +527,54 @@ class TestNodeContradiction:
         assert len(pipeline.run_calls) == 3
         _cycle(node, clock)
         assert len(pipeline.run_calls) == 3
+
+
+E10_402 = Path(__file__).parent / "data" / "backend_failed_a23" / "e10_402_triggers.json"
+
+
+def _replay_e10(node) -> list[str]:
+    """Replay E10's 38 HTTP-402 stall triggers through the node's own gate + arming."""
+    executed = []
+    for i, trig in enumerate(json.loads(E10_402.read_text())["triggers"]):
+        robots = frozenset(trig["trigger_robots"])
+        positions = {rid: tuple(xy) for rid, xy in trig["positions"].items()}
+        now = float(trig["stamp"])
+        if node._suppression.check(robots, positions, now).suppress:
+            continue
+        executed.append(trig["request_id"])
+        snapshot = SceneSnapshot(
+            stamp=now, frame_id="overhead_camera",
+            robots=[RobotView(robot_id=rid, x=x, y=y, theta=0.0, linear_velocity=0.0,
+                              status="STOPPED", stamp=now)
+                    for rid, (x, y) in positions.items()],
+        )
+        node._update_suppression(
+            _failed(f"replay-{i}"), dispatched=False, dispatch_suppressed=False,
+            trigger_source="stall", trigger_robots=robots, snapshot=snapshot, now=now,
+        )
+    return executed
+
+
+class TestE10BackendFailedReplay:
+    """prereg-v3 A23: E10's dead-backend loop (38 x HTTP 402) must collapse."""
+
+    def test_fixture_is_the_38_failed_e10_analyses(self):
+        triggers = json.loads(E10_402.read_text())["triggers"]
+        assert len(triggers) == 38
+        assert {t["http_status"] for t in triggers} == {402}
+
+    def test_loop_collapses_to_one_analysis_per_scene_change(self, node_env, tmp_path):  # noqa: F811
+        node, _clock, _pipeline = _node(node_env, tmp_path, "failed")
+        executed = _replay_e10(node)
+        triggers = json.loads(E10_402.read_text())["triggers"]
+        # The trigger set changes once in the window ({r1..r4} x2, then all
+        # five), and no recorded scene moves a reference robot past epsilon.
+        set_changes = sum(
+            1 for a, b in zip(triggers, triggers[1:], strict=False)
+            if set(a["trigger_robots"]) != set(b["trigger_robots"])
+        )
+        assert set_changes == 1
+        assert len(executed) == 1 + set_changes == 2
+        assert executed == [triggers[0]["request_id"], triggers[2]["request_id"]]
+        assert node._suppression.reference.outcome == "backend_failed"
+        assert node._suppression.suppressed_triggers_total == 36

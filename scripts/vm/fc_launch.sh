@@ -151,7 +151,38 @@
 #                          Settle sleep before each Nav2 stack after the
 #                          first (default 3, the pre-loop fixed value; the
 #                          two-robot goldens pin it). Env-overridable for
-#                          long 5-stack bring-ups.
+#                          long 5-stack bring-ups. Parallel mode only.
+#   NAV2_BRINGUP_MODE      parallel|sequential (default parallel, the
+#                          behavior every run before 2026-10-11 used).
+#                          sequential (prereg-v3 A23 infra wave, a HARNESS
+#                          change: no Nav2 or lifecycle parameter changes)
+#                          launches stack k+1 only once stack k's
+#                          lifecycle_manager_navigation reports "Managed
+#                          nodes are active" in its OWN log. Parallel
+#                          bring-up aborted 9/16 five-stack launches at
+#                          stagger 6: every abort hit a stack whose
+#                          activation/configure overlapped another stack's
+#                          startup (bond window = bond_timeout/2 = 2 s,
+#                          get_state's hard-coded 2 s timeout), and a stack
+#                          brought up alone takes ~6-11 s, so sequential
+#                          costs about what parallel does. After the loop a
+#                          health gate also requires every stack's LAST
+#                          active line to follow any "CRITICAL FAILURE"
+#                          (bond heartbeat loss) line, waiting up to
+#                          NAV2_HEALTH_GRACE_SEC for a respawn re-activation.
+#   NAV2_STACK_ACTIVE_TIMEOUT_SEC
+#                          Sequential mode: per-stack budget from its launch
+#                          to active (default 120).
+#   NAV2_HEALTH_GRACE_SEC  Sequential mode: how long the post-loop health
+#                          gate waits for a stack that went down after
+#                          activation to come back (default 45).
+#   BRINGUP_ONLY           1 = bring-up validation: skip the backend rewrite
+#                          (orchestrator.yaml is never touched), run Isaac,
+#                          M1 and every Nav2 stack through the lifecycle
+#                          gates, hold BRINGUP_HOLD_SEC (default 0), re-run
+#                          the health check, log "BRINGUP_ONLY PASS" and
+#                          exit 0 through the abort cleanup (Isaac stop
+#                          flag). M4/M5 never start, so no API is called.
 #   REC_STOP_WAIT_SEC      RECORD=1 only: how long stage 10 waits for the
 #                          recorder to exit after its SIGTERM stop request,
 #                          i.e. for the mp4 trailer to be written, before
@@ -209,6 +240,12 @@ ISAAC_EXIT_GRACE_SEC="${ISAAC_EXIT_GRACE_SEC:-10}"
 ISAAC_STOP_WAIT_SEC="${ISAAC_STOP_WAIT_SEC:-60}"
 REC_STOP_WAIT_SEC="${REC_STOP_WAIT_SEC:-30}"
 ISAAC_POLL_SEC=2
+BRINGUP_ONLY="${BRINGUP_ONLY:-0}"
+BRINGUP_HOLD_SEC="${BRINGUP_HOLD_SEC:-0}"
+case "${NAV2_BRINGUP_MODE:-parallel}" in
+  parallel|sequential) ;;
+  *) echo "ERROR: NAV2_BRINGUP_MODE='${NAV2_BRINGUP_MODE}' is not parallel|sequential" >&2; exit 2 ;;
+esac
 STAMP=$(date -u +%Y%m%d_%H%M%S)
 
 # Sourced from this script's own directory, not $REPO: tests point REPO at a
@@ -487,6 +524,88 @@ NAV2_ACTIVE_TIMEOUT_SEC="${NAV2_ACTIVE_TIMEOUT_SEC:-240}"
 # Per-stack settle before every Nav2 launch after the first; 3 is the value
 # the fixed two-robot stages always used (goldens pin `sleep 3`).
 NAV2_LAUNCH_STAGGER_SEC="${NAV2_LAUNCH_STAGGER_SEC:-3}"
+NAV2_BRINGUP_MODE="${NAV2_BRINGUP_MODE:-parallel}"
+NAV2_STACK_ACTIVE_TIMEOUT_SEC="${NAV2_STACK_ACTIVE_TIMEOUT_SEC:-120}"
+NAV2_HEALTH_GRACE_SEC="${NAV2_HEALTH_GRACE_SEC:-45}"
+# One stack's lifecycle state from its own log: aborted (any "Aborting
+# bringup"), active (last active line after the last bond-heartbeat CRITICAL
+# FAILURE), down (went active, then lost a server and has not re-activated),
+# pending (not active yet, or no log yet).
+NAV2_STATE_AWK='/Aborting bringup/ {ab = 1}
+/lifecycle_manager_navigation\]: .*Managed nodes are active/ {a = NR}
+/CRITICAL FAILURE/ {c = NR}
+END {
+  if (ab) print "aborted"
+  else if (a && a > c) print "active"
+  else if (a) print "down"
+  else print "pending"
+}'
+
+nav2_stack_state() {
+  local state
+  state="$(sudo docker exec "$CONTAINER" awk "$NAV2_STATE_AWK" "$1" 2>/dev/null || true)"
+  printf '%s\n' "${state:-pending}"
+}
+
+# Sequential mode: blocks until one stack (robot $1, log $2) is active in its
+# own log, failing the launch on an abort or after NAV2_STACK_ACTIVE_TIMEOUT_SEC.
+wait_stack_active() {
+  local robot="$1" log_path="$2" waited=0 state
+  if [ "$DRY_RUN" = "1" ]; then
+    log "[DRY_RUN] poll ${log_path} every 1s until ${robot} is active (<= ${NAV2_STACK_ACTIVE_TIMEOUT_SEC}s), abort on /${NAV2_ABORT_RE}/"
+    return 0
+  fi
+  while :; do
+    state="$(nav2_stack_state "$log_path")"
+    case "$state" in
+      active)
+        log "Nav2 ${robot} active ${waited}s after its launch (sequential)"
+        return 0 ;;
+      aborted)
+        log "NAV2_BRINGUP_FAILED: Aborting bringup in ${log_path} (sequential, ${robot}, ${waited}s after its launch)"
+        exit 1 ;;
+    esac
+    if [ "$waited" -ge "$NAV2_STACK_ACTIVE_TIMEOUT_SEC" ]; then
+      log "NAV2_BRINGUP_FAILED: ${robot} not active ${waited}s after its launch (sequential, state ${state})"
+      exit 1
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+}
+
+# Every stack currently active (no un-recovered heartbeat loss), waiting up to
+# NAV2_HEALTH_GRACE_SEC for a respawn re-activation. $1 labels the check.
+wait_nav2_healthy() {
+  local label="$1" waited=0 robot state bad crit
+  if [ "$DRY_RUN" = "1" ]; then
+    log "[DRY_RUN] ${label}: every stack's last active line after its last CRITICAL FAILURE (<= ${NAV2_HEALTH_GRACE_SEC}s)"
+    return 0
+  fi
+  while :; do
+    bad=""
+    for robot in "${ROBOT_IDS[@]}"; do
+      state="$(nav2_stack_state "$(nav2_log_of "$robot")")"
+      [ "$state" = "active" ] || bad="${bad}${robot}=${state} "
+    done
+    if [ -z "$bad" ]; then
+      crit="$(nav2_logs_matching 'CRITICAL FAILURE' | tr '\n' ' ')"
+      log "${label}: all ${#ROBOT_IDS[@]} stacks active (heartbeat losses recovered in: ${crit:-none})"
+      return 0
+    fi
+    case "$bad" in
+      *aborted*)
+        log "NAV2_BRINGUP_FAILED: ${label}: ${bad}"
+        exit 1 ;;
+    esac
+    if [ "$waited" -ge "$NAV2_HEALTH_GRACE_SEC" ]; then
+      log "NAV2_BRINGUP_FAILED: ${label}: not active after ${waited}s grace: ${bad}"
+      exit 1
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+}
 
 # Prints the Nav2 logs (one per line) matching the extended regex $1.
 nav2_logs_matching() {
@@ -599,33 +718,39 @@ if [ "$RECORD" = "1" ]; then
 fi
 
 # ── 1. Point M5 at BACKEND_ID (restored on exit) ────────────────────────────
-# `|| true` is inside the substitution: under `pipefail`, a `grep` that
-# matches nothing makes the whole pipeline (and this assignment) exit
-# non-zero, which trips `set -e` before the explicit -z check below ever
-# runs — this keeps the failure reaching that check instead.
-PREV_BACKEND_ID=$(grep -m1 '^reasoning_backend_id:' "$ORCH_CONFIG" | awk '{print $2}' || true)
-if [ -z "$PREV_BACKEND_ID" ]; then
-  echo "ERROR: could not read reasoning_backend_id from ${ORCH_CONFIG}" >&2
-  exit 1
-fi
-log "reasoning_backend_id: ${PREV_BACKEND_ID} -> ${BACKEND_ID} (restored on exit)"
-if [ "$DRY_RUN" = "1" ]; then
-  log "[DRY_RUN] sed -i s/^reasoning_backend_id: .*/reasoning_backend_id: ${BACKEND_ID}/ ${ORCH_CONFIG}"
+# BRINGUP_ONLY never starts M5, so it leaves orchestrator.yaml (a pinned
+# config) untouched: no rewrite, no rebuild, nothing for cleanup to restore.
+if [ "$BRINGUP_ONLY" = "1" ]; then
+  log "BRINGUP_ONLY=1: skipping the backend rewrite + rebuild (M4/M5 never start)"
 else
-  sed -i "s/^reasoning_backend_id: .*/reasoning_backend_id: ${BACKEND_ID}/" "$ORCH_CONFIG"
-fi
+  # `|| true` is inside the substitution: under `pipefail`, a `grep` that
+  # matches nothing makes the whole pipeline (and this assignment) exit
+  # non-zero, which trips `set -e` before the explicit -z check below ever
+  # runs — this keeps the failure reaching that check instead.
+  PREV_BACKEND_ID=$(grep -m1 '^reasoning_backend_id:' "$ORCH_CONFIG" | awk '{print $2}' || true)
+  if [ -z "$PREV_BACKEND_ID" ]; then
+    echo "ERROR: could not read reasoning_backend_id from ${ORCH_CONFIG}" >&2
+    exit 1
+  fi
+  log "reasoning_backend_id: ${PREV_BACKEND_ID} -> ${BACKEND_ID} (restored on exit)"
+  if [ "$DRY_RUN" = "1" ]; then
+    log "[DRY_RUN] sed -i s/^reasoning_backend_id: .*/reasoning_backend_id: ${BACKEND_ID}/ ${ORCH_CONFIG}"
+  else
+    sed -i "s/^reasoning_backend_id: .*/reasoning_backend_id: ${BACKEND_ID}/" "$ORCH_CONFIG"
+  fi
 
-# orchestrator.launch.py loads the INSTALLED copy of orchestrator.yaml via
-# get_package_share_directory, so the source edit above is inert until this
-# package is rebuilt (plain `colcon build`, without --merge-install, errors
-# in this workspace layout).
-log "building swarm_orchestrator (merge-install) -> ${BUILD_LOG}"
-if [ "$DRY_RUN" = "1" ]; then
-  log "[DRY_RUN] docker exec -w /ws ${CONTAINER} bash -lc \"colcon build --merge-install --packages-select swarm_orchestrator\" > ${BUILD_LOG}"
-else
-  sudo docker exec -w /ws "$CONTAINER" bash -lc \
-    "source /opt/ros/jazzy/setup.bash && cd ros2_ws && colcon build --merge-install --packages-select swarm_orchestrator" \
-    >"$BUILD_LOG" 2>&1
+  # orchestrator.launch.py loads the INSTALLED copy of orchestrator.yaml via
+  # get_package_share_directory, so the source edit above is inert until this
+  # package is rebuilt (plain `colcon build`, without --merge-install, errors
+  # in this workspace layout).
+  log "building swarm_orchestrator (merge-install) -> ${BUILD_LOG}"
+  if [ "$DRY_RUN" = "1" ]; then
+    log "[DRY_RUN] docker exec -w /ws ${CONTAINER} bash -lc \"colcon build --merge-install --packages-select swarm_orchestrator\" > ${BUILD_LOG}"
+  else
+    sudo docker exec -w /ws "$CONTAINER" bash -lc \
+      "source /opt/ros/jazzy/setup.bash && cd ros2_ws && colcon build --merge-install --packages-select swarm_orchestrator" \
+      >"$BUILD_LOG" 2>&1
+  fi
 fi
 
 # ── 2. Validate SCENARIO before anything expensive: map exists inside the
@@ -727,22 +852,46 @@ fi
 #      validated in stage 2, above) ──────────────────────────────────────────
 # The first robot's stack starts the one shared map server; the rest reuse
 # it (start_map_server:=false, nav2_robot.launch.py).
+# Sequential mode (NAV2_BRINGUP_MODE, A23 infra wave) gates each launch on the
+# previous stack's lifecycle instead of a fixed stagger sleep.
+if [ "$NAV2_BRINGUP_MODE" = "sequential" ]; then
+  log "Nav2 bring-up mode: sequential (stack k+1 launches once stack k is active)"
+fi
+NAV2_T0=$SECONDS
 MAP_SERVER=true
 for i in "${!ROBOT_IDS[@]}"; do
   robot="${ROBOT_IDS[$i]}"
-  if [ "$MAP_SERVER" = "false" ]; then
+  if [ "$MAP_SERVER" = "false" ] && [ "$NAV2_BRINGUP_MODE" = "parallel" ]; then
     xrun sleep "$NAV2_LAUNCH_STAGGER_SEC"
   fi
   nav2_log="$(nav2_log_of "$robot")"
   log "starting Nav2 ${robot} -> ${nav2_log}"
   docker_exec_bg "$nav2_log" "ros2 launch swarm_simulation nav2_robot.launch.py robot_id:=${robot} x:=${SPAWN_X[$i]} y:=${SPAWN_Y[$i]} yaw:=${SPAWN_YAW[$i]} start_map_server:=${MAP_SERVER} localization:=camera map_yaml:=${MAP} >${nav2_log} 2>&1"
   MAP_SERVER=false
+  if [ "$NAV2_BRINGUP_MODE" = "sequential" ]; then
+    wait_stack_active "$robot" "$nav2_log"
+  fi
 done
 for robot in "${ROBOT_IDS[@]}"; do
   wait_action "/${robot}/navigate_to_pose" 150
 done
 log "Nav2 action servers live"
 wait_nav2_active
+if [ "$NAV2_BRINGUP_MODE" = "sequential" ]; then
+  wait_nav2_healthy "Nav2 health gate"
+fi
+log "Nav2 bring-up (${NAV2_BRINGUP_MODE}): first stack launch -> gate passed in $((SECONDS - NAV2_T0))s"
+
+if [ "$BRINGUP_ONLY" = "1" ]; then
+  if [ "$BRINGUP_HOLD_SEC" -gt 0 ]; then
+    log "BRINGUP_ONLY: holding ${BRINGUP_HOLD_SEC}s past the gate before a post-hold health check"
+    xrun sleep "$BRINGUP_HOLD_SEC"
+  fi
+  wait_nav2_healthy "BRINGUP_ONLY post-hold health check"
+  SIM_CLOCK="$(docker_ros "timeout 10s ros2 topic echo --once /clock --field clock.sec 2>/dev/null | head -1" || true)"
+  log "BRINGUP_ONLY PASS: ${#ROBOT_IDS[@]}/${#ROBOT_IDS[@]} stacks active, mode ${NAV2_BRINGUP_MODE}, sim clock at check ${SIM_CLOCK:-unknown} s"
+  exit 0
+fi
 
 # ── 7. M4 Execution ──────────────────────────────────────────────────────────
 log "starting M4 execution -> ${M4_LOG}"

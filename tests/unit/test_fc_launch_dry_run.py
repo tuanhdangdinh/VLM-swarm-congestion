@@ -16,6 +16,10 @@ more DRY_RUN lines the same way (`OPTION_B_LINE_PREFIXES`): the stop-flag path
 after the Isaac launch and the Isaac-exit poll after the M5 tail line. The flag
 path reaches Isaac through the `env ...` list the Isaac line already elides, so
 no golden line changed.
+
+The A23 bring-up wave (2026-10-11) added one timing line to the default
+(parallel) path (`BRINGUP_LINE_PREFIXES`), filtered the same way; the
+sequential mode and BRINGUP_ONLY are default-off and pinned below.
 """
 import os
 import re
@@ -49,6 +53,8 @@ _CLEARED_ENV = (
     "MOCK_ECHO", "MOCK_ECHO_TYPE", "MOCK_ECHO_STRATEGY",
     "RECORD", "REC_SEC", "SIM_SEC", "SEED", "CONTAINER", "REPO", "NAV2_ACTIVE_TIMEOUT_SEC",
     "MAP_SCENARIO", "ISAAC_EXIT_GRACE_SEC", "ISAAC_STOP_WAIT_SEC", "NAV2_LAUNCH_STAGGER_SEC",
+    "NAV2_BRINGUP_MODE", "NAV2_STACK_ACTIVE_TIMEOUT_SEC", "NAV2_HEALTH_GRACE_SEC",
+    "BRINGUP_ONLY", "BRINGUP_HOLD_SEC",
 )
 
 
@@ -85,11 +91,16 @@ OPTION_B_LINE_PREFIXES = (
 )
 
 
+BRINGUP_LINE_PREFIXES = (
+    "[fc-launch] Nav2 bring-up (",
+)
+
+
 def without_gate_lines(output: str) -> str:
     """Drop the lines of the stages added after the goldens were recorded."""
     return "".join(
         line for line in output.splitlines(keepends=True)
-        if not line.startswith(GATE_LINE_PREFIXES + OPTION_B_LINE_PREFIXES)
+        if not line.startswith(GATE_LINE_PREFIXES + OPTION_B_LINE_PREFIXES + BRINGUP_LINE_PREFIXES)
     )
 
 
@@ -314,3 +325,89 @@ def test_mock_echo_with_a_decision_file_is_refused():
 def test_mock_echo_zero_is_off():
     output = dry_run("head_on_deadlock", {"MOCK_ECHO": "0"})
     assert "VGU_MOCK_ECHO" not in output
+
+
+@pytest.mark.parametrize("case", sorted(TWO_ROBOT_CASES))
+def test_two_robot_dry_run_adds_exactly_the_one_bringup_timing_line(case):
+    scenario, extra_env = TWO_ROBOT_CASES[case]
+    output = dry_run(scenario, extra_env)
+    added = [line for line in output.splitlines() if line.startswith(BRINGUP_LINE_PREFIXES)]
+    assert len(added) == 1
+    assert added[0].startswith("[fc-launch] Nav2 bring-up (parallel): first stack launch -> gate")
+
+
+def _s1b_seq(extra: dict[str, str] | None = None) -> list[str]:
+    env = {"MAP_SCENARIO": "bottleneck_merge", "NAV2_BRINGUP_MODE": "sequential",
+           "NAV2_LAUNCH_STAGGER_SEC": "6", **(extra or {})}
+    return dry_run("mapd_5", env).splitlines()
+
+
+def test_sequential_mode_waits_for_each_stack_before_launching_the_next():
+    lines = _s1b_seq()
+    order = [
+        ("launch", re.search(r"robot_id:=(robot_\d+)", line).group(1))
+        if "nav2_robot.launch.py" in line
+        else ("wait", re.search(r"until (robot_\d+) is active", line).group(1))
+        for line in lines
+        if "nav2_robot.launch.py" in line or "until robot_" in line
+    ]
+    expected = []
+    for n in range(1, 6):
+        expected += [("launch", f"robot_{n}"), ("wait", f"robot_{n}")]
+    assert order == expected
+
+
+def test_sequential_mode_polls_each_stack_own_log_with_the_per_stack_budget():
+    lines = _s1b_seq({"NAV2_STACK_ACTIVE_TIMEOUT_SEC": "75"})
+    waits = [line for line in lines if "until robot_" in line]
+    assert waits == [
+        f"[fc-launch] [DRY_RUN] poll /tmp/fc_<STAMP>_nav2_r{n}.log every 1s until robot_{n} "
+        "is active (<= 75s), abort on /Aborting bringup/"
+        for n in range(1, 6)
+    ]
+
+
+def test_sequential_mode_ignores_the_stagger_sleep():
+    lines = _s1b_seq()
+    starts = [i for i, line in enumerate(lines) if line.startswith("[fc-launch] starting Nav2")]
+    assert not any(lines[i - 1].endswith("sleep 6") for i in starts)
+    assert not any(line.endswith("sleep 6") for line in lines)
+
+
+def test_sequential_mode_runs_the_health_gate_after_the_lifecycle_gate_and_before_m4():
+    lines = _s1b_seq()
+    gate = lines.index("[fc-launch] waiting for Nav2 lifecycle: 5 stack(s) active (<= 240s)")
+    health = next(i for i, line in enumerate(lines) if "Nav2 health gate:" in line)
+    m4 = next(i for i, line in enumerate(lines) if line.startswith("[fc-launch] starting M4"))
+    assert gate < health < m4
+
+
+def test_parallel_default_has_no_sequential_or_health_lines():
+    output = dry_run("mapd_5", {"MAP_SCENARIO": "bottleneck_merge"})
+    assert "until robot_" not in output
+    assert "health gate" not in output
+    assert "bring-up mode: sequential" not in output
+
+
+def test_unknown_bringup_mode_is_refused():
+    env = {k: v for k, v in os.environ.items() if k not in _CLEARED_ENV}
+    env["PATH"] = f"{Path(sys.executable).parent}:{env.get('PATH', '')}"
+    env.update({"DRY_RUN": "1", "SCENARIO": "head_on_deadlock", "NAV2_BRINGUP_MODE": "serial"})
+    completed = subprocess.run(
+        ["bash", str(SCRIPT)], env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode == 2
+    assert "is not parallel|sequential" in completed.stderr
+
+
+def test_bringup_only_skips_the_backend_rewrite_and_never_starts_m4_or_m5():
+    output = "\n".join(_s1b_seq({"BRINGUP_ONLY": "1", "BRINGUP_HOLD_SEC": "30"}))
+    assert "reasoning_backend_id: " not in output
+    assert "sed -i" not in output
+    assert "colcon build" not in output
+    assert "BRINGUP_ONLY=1: skipping the backend rewrite" in output
+    assert "[DRY_RUN] sleep 30" in output
+    assert "BRINGUP_ONLY post-hold health check" in output
+    assert "BRINGUP_ONLY PASS: 5/5 stacks active, mode sequential" in output
+    assert "starting M4" not in output
+    assert "orchestrator.launch.py" not in output
