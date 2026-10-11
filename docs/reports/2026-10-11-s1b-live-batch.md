@@ -17,7 +17,7 @@
 | Question | Rev 3 answer (live E6, E7, E8, E10, E9, E11) |
 |---|---|
 | E9 / E11 | E9: 7 valid analyses, yields refused `no executable retreat` (= MC), `clogged`, $0.0495. E11: 9 valid analyses, 2 unproductive latch-breaking dispatches → `intermittent`, $0.0707 |
-| (a) Attribution | **E11 = ARCHITECTURE-CHURN by the registered rule** (`intermittent`, 0 alternations). 0/6 opportunity episodes. By the letter the pooled verdict reads "LIVELOCK UNDER A REAL MODEL (1 of 0 opportunity episodes)", which is malformed. It is an edge case and needs an owner ruling (A23 report §7) |
+| (a) Attribution | **E11 = ARCHITECTURE-CHURN by the registered rule** (`intermittent`, 0 alternations). 0/6 opportunity episodes. The pooled verdict is MET by the letter: **LIVELOCK UNDER A REAL MODEL**. Only the "k of the opportunity episodes" annotation does not fit (1 ARCH, 0 opportunity). It is an edge case and needs an owner ruling before citing (A23 report §7) |
 | (b) Productive resolutions | Live 2, 0, 0, 1*, 0, 0. All classified n = 18, p95 = 2. budget_k still unfreezable |
 | (c) First-conflict yields | **Live 0/6** (CI 0-0.46) against an MC upper bound of 3/6 |
 | (d) Wandering vs park | 1 finisher ever; 0/24 occupied-node arrivals with a finisher occupant. Undecided |
@@ -420,9 +420,9 @@ The condition is otherwise rule 11's (rule 13 in VM NOTES). Aggregation used `da
 | E9 | 0 (0) | 0 | clogged | INDETERMINATE |
 | **E11** | 2 (2) | 0 | **intermittent** | **ARCHITECTURE-CHURN** |
 
-**Pooled, by the letter:** "LIVELOCK UNDER A REAL MODEL (1 of 0 opportunity episodes)". The registered report form ("k of the opportunity episodes") does not cover an ARCHITECTURE-CHURN episode that had no opportunity.
+**Pooled, by the letter: LIVELOCK UNDER A REAL MODEL. The verdict is met** (≥ 1 live ARCHITECTURE-CHURN episode). The registered annotation ("k of the opportunity episodes") does not cover an ARCH episode with no opportunity; the script prints "1 of 0".
 
-E11's `intermittent` rests on two unproductive resolution events. The first is a vb yield r4 on {r4, r5}; the second is a vb reverse that M3 dispatched as r1 + r5 on {r1, r5}. The progress they arguably produced together (r4 reaching S at 112.9 sim-s after r5 reversed out of it) is credited to neither event by `s1_churn_stats`'s cluster-intersection window. **An owner ruling is needed before this verdict is cited.**
+E11's `intermittent` rests on two unproductive resolution events. The first is a vb yield r4 on {r4, r5}; the second is a vb reverse that M3 dispatched as r1 + r5 on {r1, r5}. The progress they arguably produced together (r4 reaching S at 112.9 sim-s after r5 reversed out of it) is credited to neither event by `s1_churn_stats`'s cluster-intersection window. The second event was also vb but MISmatched: the model planned r1 reverse with r5 waiting, and M3 dispatched r1 and r5 reverse. Its dispatched form therefore came from the grounder. **An owner ruling is needed before this verdict is cited.**
 
 ### 14.2 (b)-(e) and Both Clusters
 
