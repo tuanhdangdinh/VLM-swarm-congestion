@@ -55,7 +55,7 @@ PILOT-ONLY, RECORD = 0.
 
 - `createBondConnection` waits **`bond_timeout / 2` = 2.0 s** for the bond to form, although its error text says "after 4.00s".
 - `changeStateForNode` calls `get_state()` with the client's **hard-coded 2 s default**. No lifecycle parameter changes it.
-- Under contention both windows are exceeded. In the successful stagger-6 launches, `bt_navigator` configure takes 10-19 s, r4 and r5 take about 36-39 s from launch to active, and the lifecycle manager logs "connected with bond" up to 5 s after the server logged "Creating bond". That last figure is a lag in the manager's own processing and a starvation proxy; it is not the formation window.
+- Under contention both windows are exceeded. In the successful stagger-6 launches, the slowest lifecycle transition (mostly `bt_navigator` configure) takes 10-19 s, r4 and r5 take about 36-39 s from launch to active, and the lifecycle manager logs "connected with bond" up to 5 s after the server logged "Creating bond". That last figure is a lag in the manager's own processing and a starvation proxy; it is not the formation window.
 
 **Hypotheses.**
 
