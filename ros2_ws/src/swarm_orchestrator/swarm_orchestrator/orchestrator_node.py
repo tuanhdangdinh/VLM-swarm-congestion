@@ -825,9 +825,13 @@ class OrchestratorNode(Node):
         """Arm the reference after an executed stall analysis that dispatched nothing.
 
         A dispatch already reset it (`_publish_fanned_out`). A non-stall
-        analysis or a backend failure (no decision) leaves no reference: the
-        former is not a stall re-trigger, and in the latter the model never
-        answered this scene. A refused yield withheld under
+        analysis leaves no reference: it is not a stall re-trigger. A
+        backend failure (no decision, after the reasoner's bounded retries)
+        arms with outcome `backend_failed` (prereg-v3 A23): in E10 a dead
+        backend (HTTP 402) left no reference, so the unchanged stall
+        re-triggered every ~3 sim-s and spent 38 of MAX_ANALYSES = 40 on
+        failures. A changed scene (robot set or a move past epsilon) still
+        releases the next analysis. A refused yield withheld under
         `refusal_no_action` dispatched nothing, so it arms like
         `dispatch_suppressed` does (outcome `refusal_no_action`); so does a
         withheld empty-reroute fallback (outcome `empty_reroute`, passed as
@@ -836,12 +840,14 @@ class OrchestratorNode(Node):
         if self._suppression is None or dispatched:
             return
         decision = outcome.reasoner_result.decision
-        if trigger_source != "stall" or snapshot is None or decision is None:
+        if trigger_source != "stall" or snapshot is None:
             self._reset_suppression(
                 f"{trigger_source}_analysis" if trigger_source != "stall" else "no_decision"
             )
             return
-        if refusal_withheld:
+        if decision is None:
+            reason = "backend_failed"
+        elif refusal_withheld:
             reason = withheld_outcome
         elif dispatch_suppressed:
             reason = "dispatch_suppressed"

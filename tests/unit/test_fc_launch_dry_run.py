@@ -345,7 +345,8 @@ def _s1b_seq(extra: dict[str, str] | None = None) -> list[str]:
 def test_sequential_mode_waits_for_each_stack_before_launching_the_next():
     lines = _s1b_seq()
     order = [
-        ("launch", re.search(r"robot_id:=(robot_\d+)", line).group(1)) if "nav2_robot.launch.py" in line
+        ("launch", re.search(r"robot_id:=(robot_\d+)", line).group(1))
+        if "nav2_robot.launch.py" in line
         else ("wait", re.search(r"until (robot_\d+) is active", line).group(1))
         for line in lines
         if "nav2_robot.launch.py" in line or "until robot_" in line

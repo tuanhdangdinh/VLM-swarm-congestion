@@ -16,10 +16,13 @@ stall-triggered analysis,
     trigger, so slow creep accumulates until it crosses epsilon), and
 (c) that analysis dispatched nothing: the model answered (a valid decision)
     but the answer was no-congestion, grounded to no command, or was
-    dispatch-suppressed (`dispatch_enabled: false`).
+    dispatch-suppressed (`dispatch_enabled: false`), or the backend failed
+    (no decision after the reasoner's bounded retries).
 
-A backend failure (no decision) never arms the reference: the model has not
-answered this scene yet. Anything that breaks (a)-(b) clears the reference,
+A backend failure arms the reference with outcome `backend_failed`
+(prereg-v3 A23; before it, a failure never armed and E10's dead backend
+re-analysed the unchanged scene every ~3 sim-s until MAX_ANALYSES). Anything
+that breaks (a)-(b) clears the reference,
 as does a dispatch, a contradiction-triggered or manual analysis, or a new
 task issued to a reference robot (its registry goal, which the prompt
 renders, changed). The node consults this only where the state machine would
@@ -47,7 +50,8 @@ class SuppressionReference:
     robot_ids: frozenset[str]
     positions: dict[str, tuple[float, float]]
     armed_at: float
-    # Why nothing was dispatched: no_congestion, no_command, dispatch_suppressed.
+    # Why nothing was dispatched: no_congestion, no_command, dispatch_suppressed,
+    # refusal_no_action, empty_reroute, backend_failed.
     outcome: str
 
 
