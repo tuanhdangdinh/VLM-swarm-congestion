@@ -1434,6 +1434,36 @@ of A alone: admits 3/9→5/9; B is the bigger lever (covers both
 MC-matched failed yields). Deploy note: A touches live-mounted M3
 files AND colcon-built M4 files — rebuild + md5 both.
 
+**A27. Batch 3: admits 5/5; shield safety ruled; budget_k one
+short (2026-10-12; report shield-and-batch3 + Rev 5; integration
+@c08904a).** The A26 stack's first live outing: admitted/dispatched
+5/5 (vs 3/9 pre-A26), TWO clearance releases (only E6 ever before),
+E20 8/25 tasks, first-conflict yield 3/15 (CI 0.043-0.481) vs MC
+10/15. The shield met all five required fixtures with NO E16
+special case (the discriminator is the PIN RULE: a robot mutually
+pinned with a non-command robot is never shielded) and needed a
+SECOND intent leg (next task node + remaining dwell via
+TaskStreamTracker.departure — no A25 blocker was actually dwelling
+at decision time). RULINGS: (i) E18's near-pass (shielded robot
+drifted 0.70 m during the M2 call; yielder passed at 0.23 m centres)
+— shield-only robots are REMOVED from the clearing exemption
+(option b): they are not clearing agents; a too-close hold now
+latches and B3 fast-fails — honest refusal-by-physics; PLUS the
+0.20 m hard-contact floor is ENABLED in S1 shield cells (its A9
+backstop role); option (a) predictive re-check recorded as optional
+refinement. The shield stays OFF until this lands. (ii) E21 +
+seeds 22-23 form the next PRE-REGISTERED mini-batch (the agent's
+floor-discipline stop is endorsed; n_more=3 puts the ≥8 budget_k
+bar in reach — the triple is derived in that batch if met).
+(iii) B3 gains a structured log line before any measured citation
+(one live firing so far, inferred from timing). (iv) vb∧matched is
+READ with shielded robots excluded (lane-scope precedent; raw
+count co-reported) — batch 3: 3 raw / 5 excluded. Over-holds
+(5/10 fixtures, ~6/7 live) accepted as recorded cost. Rev 5:
+livelock still ZERO under the real model (5 opportunity episodes,
+0 alternations/15); both-clusters 14/89; wandering undecided
+(1 finisher, 0/41); cost median $0.0335/ep, all-live $0.6477.
+
 **A14 corrigendum (2026-10-09).** A14(iv)'s "GT
 robot_static_contacts logged 0 rows during a physical pin" implied
 an under-detecting detector. The truth is stronger:
