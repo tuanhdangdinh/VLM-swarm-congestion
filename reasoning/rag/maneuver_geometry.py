@@ -142,6 +142,18 @@ class GroundingParams(BaseModel):
     # robot_5 0.4 m past its S turn. Read only with `dynamic_scene_arms`;
     # False (default) keeps every command and artifact dump byte-identical.
     escort_turn_cap: bool = False
+    # prereg-v3 A26(i) retreat shield (`reasoning.rag.retreat_shield`): hold,
+    # on an unlinked wait, every bystander whose task-intent path crosses a
+    # derived yield's retreat corridor. Read only with `dynamic_scene_arms`
+    # on a footprint view; the margin is added to the latch distance.
+    # False (default) keeps every command and artifact dump byte-identical.
+    retreat_shield: bool = False
+    retreat_shield_margin_m: float = Field(default=0.05, ge=0.0)
+    # prereg-v3 A26(ii) B3 stop-gap: mark each dynamic yield/reverse
+    # `fresh_latch_fast_fail` so M4 fails its backup/pull-off at once when
+    # the clearing robot is newly latched after the command started, instead
+    # of running to the motion deadline. False (default): no key emitted.
+    retreat_fast_fail: bool = False
 
     @model_validator(mode="after")
     def _check_bands(self) -> "GroundingParams":
@@ -177,6 +189,13 @@ class GroundingParams(BaseModel):
                 data.pop("retreat_box_margin_m", None)
             if not data.get("escort_turn_cap"):
                 data.pop("escort_turn_cap", None)
+        # A26: the shield and fast-fail switches stay out of every dump they
+        # are off in, so pre-A26 artifacts are unchanged.
+        if not data.get("dynamic_scene_arms") or not data.get("retreat_shield"):
+            data.pop("retreat_shield", None)
+            data.pop("retreat_shield_margin_m", None)
+        if not data.get("dynamic_scene_arms") or not data.get("retreat_fast_fail"):
+            data.pop("retreat_fast_fail", None)
         return data
 
 

@@ -323,6 +323,7 @@ class Nav2Adapter(Node):
         on_result: Callable[[str, str], None] | None = None,
         hold_start_line: bool = False,
         line_turn_rad: float = 0.0,
+        abort_check: Callable[[], str | None] | None = None,
     ):
         """Reverse the robot by `distance_m` by publishing directly to cmd_vel.
 
@@ -362,6 +363,10 @@ class Nav2Adapter(Node):
         through the start pose, now along `start_yaw + line_turn_rad`, so a
         yielder off its swept lane axis backs along the axis M3 validated
         (`backup_line_turn`). 0.0 is exactly the start-heading line.
+
+        `abort_check` (prereg-v3 A26(ii), B3) is polled on every tick before
+        the deadline: a non-None detail ends the backup FAILED with that
+        detail (`fresh_latch.FreshLatchWatch`). None (default) never polls.
         """
         self.cancel(robot_id)
 
@@ -431,6 +436,14 @@ class Nav2Adapter(Node):
             if traveled >= abs(distance_m):
                 _finish("COMPLETED", f"backup complete: moved {traveled:.3f} m")
                 return
+            if abort_check is not None:
+                abort_detail = abort_check()
+                if abort_detail is not None:
+                    _finish(
+                        "FAILED",
+                        f"{abort_detail} moved={traveled:.3f}m of {abs(distance_m):.3f}m",
+                    )
+                    return
             if time.monotonic() >= safety_deadline:
                 _finish(
                     "FAILED",
@@ -477,6 +490,7 @@ class Nav2Adapter(Node):
         speed_mps: float = 0.1,
         turn_rate_rps: float = 0.5,
         on_result: Callable[[str, str], None] | None = None,
+        abort_check: Callable[[], str | None] | None = None,
     ):
         """Step the robot sideways by `lateral_m` via turn-drive-turn on cmd_vel.
 
@@ -490,7 +504,8 @@ class Nav2Adapter(Node):
         odometry (heading from the odom quaternion for the turns, planar
         displacement for the drive), so it terminates deterministically at
         any realtime factor. The same OS-monotonic safety bound as backup()
-        guards the genuinely-blocked case.
+        guards the genuinely-blocked case, and the same `abort_check`
+        (A26(ii)) ends it FAILED early.
         """
         if lateral_m == 0.0:
             if on_result is not None:
@@ -554,6 +569,11 @@ class Nav2Adapter(Node):
             return angle
 
         def _tick() -> None:
+            if abort_check is not None:
+                abort_detail = abort_check()
+                if abort_detail is not None:
+                    _finish("FAILED", f"{abort_detail} phase={phase_state['phase']}")
+                    return
             if time.monotonic() >= safety_deadline:
                 _finish(
                     "FAILED",

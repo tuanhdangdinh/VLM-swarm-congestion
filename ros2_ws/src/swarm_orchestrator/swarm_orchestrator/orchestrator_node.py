@@ -26,6 +26,7 @@ from reasoning.rag.command_grounder import (
     filter_command_robot_ids,
     ground_reasoner_result,
 )
+from reasoning.rag.retreat_shield import RobotTaskIntent
 from reasoning.vlm import (
     RetreatChooser,
     backend_adapter,
@@ -179,6 +180,7 @@ def _build_default_pipeline(
     letter_seed: int = 0,
     plan_tracker: PlanTracker | None = None,
     goal_reference_of: Callable[[str], tuple[float, float] | None] | None = None,
+    task_intent_of: Callable[[str], RobotTaskIntent | None] | None = None,
 ) -> ReasoningPipeline:
     reasoner_config, backend_config = _load_vlm_config(config.reasoning_backend_id)
     backend = build_backend(_load_vlm_adapter(config.reasoning_backend_id), backend_config)
@@ -219,6 +221,7 @@ def _build_default_pipeline(
         goal_reference_of=goal_reference_of,
         # prereg-v3 A22: only the echo mock has this hook (None otherwise).
         dispatch_outcome_observer=getattr(backend, "note_dispatch_outcome", None),
+        task_intent_of=task_intent_of,
     )
 
 
@@ -372,6 +375,7 @@ class OrchestratorNode(Node):
             self._order_seed,
             self._plan_tracker,
             goal_reference_of=self._mission_goal,
+            task_intent_of=self._task_intent,
         )
         # Prompt apparatus (prereg-v2 rev 6). The zoom tile is placed with M1's
         # calibration, shared with the stage-2 marker when there is one.
@@ -2388,6 +2392,27 @@ class OrchestratorNode(Node):
         # `set_base` swaps an entry's frozen base in one assignment, so a read
         # sees the node before or after a task-stream advance, never a mix.
         return self._registry.mission_goal(robot_id)
+
+    def _task_intent(self, robot_id: str) -> RobotTaskIntent | None:
+        # prereg-v3 A26(i) retreat shield: the node-handoff channel's current
+        # task node plus the task stream's next node and remaining dwell.
+        # Same worker-thread read as `_mission_goal`; a stream advance racing
+        # it yields the intent before or after the advance, either valid.
+        goal = self._registry.mission_goal(robot_id)
+        if goal is None:
+            return None
+        stream = getattr(self, "_task_stream", None)
+        departure = (
+            None if stream is None else stream.departure(robot_id, self._latest_sim_t())
+        )
+        if departure is None:
+            return RobotTaskIntent(goal=(float(goal[0]), float(goal[1])))
+        next_goal, dwell_sec = departure
+        return RobotTaskIntent(
+            goal=(float(goal[0]), float(goal[1])),
+            next_goal=None if next_goal is None else (float(next_goal[0]), float(next_goal[1])),
+            dwell_sec=dwell_sec,
+        )
 
     def _progress_goal(self, robot_id: str):
         # A held-back robot is not driven yet, so standing still is not a

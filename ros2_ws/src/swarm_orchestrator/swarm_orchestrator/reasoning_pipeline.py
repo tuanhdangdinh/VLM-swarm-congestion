@@ -38,6 +38,7 @@ from reasoning.rag.command_grounder import (
 )
 from reasoning.rag.grounding_view import GroundingView, resolve_grounding_view
 from reasoning.rag.maneuver_geometry import GroundingParams
+from reasoning.rag.retreat_shield import RobotTaskIntent
 from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import (
     CURRENT_PROMPT_VERSION,
@@ -1386,6 +1387,7 @@ class InProcessPipeline:
         dispatch_order_source: DispatchOrderSourceMode = "chi",
         goal_reference_of: Callable[[str], tuple[float, float] | None] | None = None,
         dispatch_outcome_observer: Callable[[bool, bool], None] | None = None,
+        task_intent_of: Callable[[str], RobotTaskIntent | None] | None = None,
     ) -> None:
         self._reasoner = reasoner
         # prereg-v3 A22, apparatus only: the echo mock's rotation hook
@@ -1399,6 +1401,11 @@ class InProcessPipeline:
         # goals stay what the prompt rendered (the effective goal, which an
         # active override pins to the node it was dispatched toward).
         self._goal_reference_of = goal_reference_of
+        # prereg-v3 A26(i) retreat shield: a robot's task intent (its current
+        # task node from the same registry channel, plus the task after it
+        # and the dwell left, from M5's task stream), read only when the
+        # grounding params turn `retreat_shield` on.
+        self._task_intent_of = task_intent_of
         # prereg-v3 R3.3 (`plan_dispatch_order_source`): "chi" (default)
         # keeps every dispatch byte-identical; "model_when_verified" re-seats
         # a `junction_clear` resolution's recede phases on the model's own
@@ -1473,6 +1480,29 @@ class InProcessPipeline:
             if goal is not None:
                 references[robot.robot_id] = (float(goal[0]), float(goal[1]))
         return references
+
+    def _task_intents(
+        self, request: ReasonerRequest, params: GroundingParams | None
+    ) -> dict[str, RobotTaskIntent] | None:
+        """Each request robot's task intent for the A26 shield, or None when unused.
+
+        None unless `params.retreat_shield` and `params.dynamic_scene_arms`
+        are on and M5 supplied a lookup, so every other call grounds exactly
+        as before.
+        """
+        if (
+            params is None
+            or not params.retreat_shield
+            or not params.dynamic_scene_arms
+            or self._task_intent_of is None
+        ):
+            return None
+        intents: dict[str, RobotTaskIntent] = {}
+        for robot in request.robot_states:
+            intent = self._task_intent_of(robot.robot_id)
+            if intent is not None:
+                intents[robot.robot_id] = intent
+        return intents
 
     def run(self, request: ReasonerRequest) -> PipelineOutcome:
         votes = None
@@ -1567,6 +1597,9 @@ class InProcessPipeline:
             )
             if goal_references is not None:
                 priority_kwargs["goal_references"] = goal_references
+            task_intents = self._task_intents(request, params)
+            if task_intents is not None:
+                priority_kwargs["task_intents"] = task_intents
             grounded = filter_command_robot_ids(
                 self._ground_fn(
                     result,
