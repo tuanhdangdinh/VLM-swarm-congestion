@@ -8,8 +8,21 @@
 - Rev 2 (2026-10-11, FINAL): SSH restored; E10 and E11 retrieved. E10 ran but is censored at 123.5 sim-s (Gemini prepaid credits depleted, HTTP 402 on 38/40 analyses); E11 not run (3 bring-up aborts). Final aggregates over the four live episodes (E6, E7, E8, E10), the both-clusters count, and the VM end state are in §9-§13. Rev 1 numbers that changed are marked superseded in place.
 - Rev 3 (2026-10-11): aggregate update after the A23 resume ran E9 and E11 live (`docs/reports/2026-10-11-bringup-and-resume.md`). §14 has the aggregates over six live episodes (E6, E7, E8, E10, E9, E11). Rev 2 numbers that changed are marked superseded in place.
 - Rev 4 (2026-10-12): aggregate update after the A24(iii) predicate fix and live batch 2 (E12-E17, `docs/reports/2026-10-11-live-batch2.md`). §15 has the aggregates over twelve live episodes with the fixed predicate. Rev 3 numbers that changed are marked superseded in place.
+- Rev 5 (2026-10-12): aggregate update after the A26 stack (A25 swept-axis backup, retreat shield, B3 fast-fail) and live batch 3 (E18-E20; E21 not run on the budget floor; `docs/reports/2026-10-12-shield-and-batch3.md`). §16 has the aggregates over fifteen live episodes. Rev 4 numbers that changed are superseded by §16.
 
 ---
+
+## Summary (Rev 5)
+
+**The A26 stack shipped and batch 3 ran E18-E20 live** (E21 not run: $0.0363 left, below the $0.04 start floor). Every batch-3 yield that was dispatched was admitted: **5/5, against 3/9** for E6-E17. Details: `docs/reports/2026-10-12-shield-and-batch3.md`. Every Rev 4 aggregate is superseded by §16.
+
+| Question | Rev 5 answer (live E6-E20, fixed predicate) |
+|---|---|
+| (a) Attribution | Opportunity episodes are now E13, E16, E17, E18 and E20: all `intermittent`, 0 alternations, APPARATUS (the A25(iii) ESCALATION class). **Pooled: NO LIVELOCK UNDER THE REAL MODEL (5 opportunity, 0 ARCH)** |
+| (b) Productive resolutions | All classified n = 27, **7 nonzero** (+E18, +E20), p95 = 1; live 6/15. Bar (≥ 8) **NOT met, by one**; **n_more = 3** live episodes |
+| (c) First-conflict yields | **Live 3/15** (E15, E18, E20), CI 0.043-0.481, against MC 10/15 |
+| (d) Wandering vs park | 1 finisher ever; 0/41. Undecided |
+| (e) Cost | Median $0.0335; batch 3 $0.1637; all-live total $0.6477 |
 
 ## Summary (Rev 4)
 
@@ -478,6 +491,23 @@ Re-run over every bundle, it changes only E11. §14.1's "E11 = ARCHITECTURE-CHUR
 | (e) Cost | median $0.0310, total $0.2272 | median $0.0301, total **$0.4840** |
 | Both clusters named | 2/31 | **14/67** (batch 2 12/36) |
 
+## 16. Rev 5 Aggregate Update: the A26 Stack and Batch 3 (E18-E20)
+
+> Supersedes §15. The full account is in `docs/reports/2026-10-12-shield-and-batch3.md` §5-§7.
+
+**Batch 3 ran on a different runtime.** The A25 swept-axis backup, the A26 retreat shield and the B3 fresh-latch fast-fail were all on, through `config/grounding/s1b_dynamic_shield.yaml`. The scorer is the same: the fixed predicate at `9746f3b`. `aggregate_b3.py` is `aggregate_b2.py` plus MC entries for seeds 18-21, and it reproduces `agg_b2.json` exactly on the twelve prior live bundles.
+
+| Aggregate | §15 (twelve live) | **Rev 5 (fifteen live)** |
+|---|---|---|
+| (a) Pooled verdict | NO LIVELOCK (3 opportunity) | **NO LIVELOCK UNDER THE REAL MODEL** (E13, E16, E17, **E18, E20**; 0 alternations in all 15) |
+| (b) Nonzero / n / p95, all classified | 5 / 24 / 1 (live 4/12) | **7 / 27 / 1** (live 6/15, p95 2); per-event dispatches [1, 1, 2, 1, 2, 3, 2, 1], p95 3; dispatch → progress p95 79.3 s |
+| (b) budget_k | bar unmet, 9 more needed | **bar unmet by one (7 of 8): n_more = ceil(1 / (6/15)) = 3** |
+| (c) First-conflict yield | 1/12 vs MC 7/12 | **3/15** vs MC 10/15 (batch 3: 2/3 vs 3/3) |
+| (d) Wandering vs park | 1 finisher, 0/33 | 1 finisher, 0/41 |
+| (e) Cost | median $0.0301, total $0.4840 | median $0.0335, total **$0.6477** (batch 3 $0.1637) |
+| Both clusters named | 14/67 | 14/89 (batch 3 0/22) |
+| Dispatched yields admitted | 3/9 | **8/14** (batch 3 5/5; two clearance releases in E20) |
+
 ## References
 
 - Spec: prereg-v3 A21-A22 (`feat/v3-design`, `docs/superpowers/specs/2026-10-06-prereg-v3-design.md`).
@@ -490,6 +520,7 @@ Re-run over every bundle, it changes only E11. §14.1's "E11 = ARCHITECTURE-CHUR
   - `scripts/s1b_live_batch_stats.py` (new; the per-analysis E6 schema);
   - `scripts/s1_churn_stats.py` (additive `cluster_groups`, `max_clearing_dispatches_one_cluster`, `max_alternations_one_cluster`).
 - VM kit and bundles: `data/logs/vm_runs/live_batch/` (gitignored): `chain_p4.sh`, `pin_watch.py`, `aggregate.py`, `mc_seeds*.py`, `notes_prereg_p4.md`, `agg_partial.json`.
+- Rev 5: `docs/reports/2026-10-12-shield-and-batch3.md`; `data/logs/vm_runs/batch3/` (E18-E20 bundles, `agg_b3.json`, `aggregate_b3.py`, `extras_b3.json`, `b3_extras.py`).
 - Rev 4: `docs/reports/2026-10-11-live-batch2.md`; `data/logs/vm_runs/batch2/` (E12-E17 bundles, `agg_b2.json`, `aggregate_b2.py`).
 - Rev 3: `docs/reports/2026-10-11-bringup-and-resume.md`; `data/logs/vm_runs/resume/` (E9 b1, E11 b1 bundles), `data/logs/vm_runs/bringup/agg_a23.json`, `aggregate_a23.py`.
 - Rev 2 additions (same directory, gitignored): `s1b_E10_seed10_er2_a1/`, `s1b_E11_seed11_er2_a{1,2,3}/` with their side logs, `p4_vm/` (the VM `p4/` kit incl. `attempts.tsv` and `chain_p4.log`), `agg_final.json` (final aggregates), `NOTES_vm_final.md` (VM NOTES after the end-state entry, md5 `21f288e9`).
