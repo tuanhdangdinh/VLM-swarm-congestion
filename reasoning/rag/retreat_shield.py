@@ -30,10 +30,13 @@ within `min_distance_m + retreat_shield_margin_m` of the retreat corridor
   robot cannot move during the maneuver (E16 r3: latched with r2 at
   0.413 m from 105 to 200 sim-s, through the whole completed yield).
 
-A shielded robot is a member of the yield's command, so M4's safety
-monitor exempts its pair with the backing yielder
-(`safety.admitted_partners`): it is held where the decision snapshot saw
-it (plus the M2-call drift), a position the retreat sweep already checked.
+A shielded robot is a member of the yield's command but NOT a clearing
+partner (prereg-v3 A27(i)): each hold carries `SHIELD_HOLD_KEY`, and M4's
+safety monitor never exempts its pair with the yielder
+(`safety.admitted_partners`). The robot is halted at dispatch, after the
+M2-call drift the snapshot sweep never saw (E18: 0.70 m, then a 0.23 m
+centre-distance pass while the pair was exempt); a too-close approach now
+latches at `min_distance_m` and the B3 fast-fail ends the yield.
 """
 
 from __future__ import annotations
@@ -50,6 +53,10 @@ from reasoning.vlm.models import SnapshotFrame
 
 SHIELD_TAG = "grounding=retreat_shield"
 SHIELD_REASON_PREFIX = "retreat shield:"
+# The M4 marker of a shield hold (prereg-v3 A27(i)); the same literal as
+# `swarm_execution.safety.SHIELD_HOLD_KEY`, which M4 reads verbatim through
+# M5's parameters passthrough to keep the pair out of the clearing exemption.
+SHIELD_HOLD_KEY = "retreat_shield_hold"
 # The M4 command key (A26(ii), B3); M4 reads it verbatim through M5's
 # parameters passthrough, like `backup_facing_rad`.
 FAST_FAIL_KEY = "fresh_latch_fast_fail"
@@ -323,8 +330,9 @@ def apply_retreat_shield(
     Returns:
         The command with one unlinked `temporary_wait` per shielded robot
         (the yield's own wait budget: its passers' `duration_sec`, else
-        `params.wait_backstop_sec`) and one `grounding=retreat_shield:<id>`
-        tag each; unchanged when nobody is shielded.
+        `params.wait_backstop_sec`, marked `SHIELD_HOLD_KEY`) and one
+        `grounding=retreat_shield:<id>` tag each; unchanged when nobody is
+        shielded.
     """
     if (
         params is None
@@ -372,6 +380,7 @@ def apply_retreat_shield(
                 # `cross` beside the yield (the lane-scoped hold rule).
                 "requested_strategy": "yield",
                 "reason": f"{SHIELD_REASON_PREFIX} intent crosses {yielder_id}'s retreat",
+                SHIELD_HOLD_KEY: True,
             },
         }
         for robot_id in shielded

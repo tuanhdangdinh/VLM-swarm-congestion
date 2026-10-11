@@ -42,6 +42,16 @@ STALE_UNSAFE_MARGIN_M = 0.15
 # docs/reports/2026-09-26-close-approach-analysis.md.
 CLEARING_ACTIONS: frozenset[str] = frozenset({"yield", "reverse"})
 
+# prereg-v3 A27(i): M3's retreat shield (`reasoning.rag.retreat_shield`)
+# marks each bystander hold it adds with this key (the same literal as M3's
+# `SHIELD_HOLD_KEY`; M4 does not import M3). Such a robot is a command member
+# only as a shield target, not a clearing agent, so it is never an exempt
+# partner: E18 (2026-10-11) showed a shielded robot that drifted 0.70 m
+# during the M2 call being passed at 0.23 m centre distance by its exempt
+# yielder. Without the exemption the pair latches at `min_distance_m` and
+# the B3 fast-fail ends the yield instead.
+SHIELD_HOLD_KEY = "retreat_shield_hold"
+
 TERMINAL_STATUSES: frozenset[str] = frozenset({"COMPLETED", "FAILED", "CANCELLED"})
 
 
@@ -152,6 +162,27 @@ def plan_continue_partners_from_parameters(
     return frozenset(partners)
 
 
+def is_shield_hold(action: str, parameters: Mapping[str, Any] | None) -> bool:
+    """Return True if a command action is a retreat-shield bystander hold.
+
+    prereg-v3 A27(i): M3 marks the unlinked `temporary_wait` it adds for a
+    shielded bystander with `SHIELD_HOLD_KEY: true`.
+
+    Args:
+        action: The per-robot `CoordinationCommand.action`.
+        parameters: The decoded `parameters_json`, or None.
+
+    Returns:
+        True only for a `temporary_wait` whose parameters carry the key set
+        to exactly True.
+    """
+    return (
+        action == "temporary_wait"
+        and parameters is not None
+        and parameters.get(SHIELD_HOLD_KEY) is True
+    )
+
+
 def admitted_partners(
     robot_id: str,
     action: str | None,
@@ -160,6 +191,7 @@ def admitted_partners(
     completed: set[str] | frozenset[str],
     backing_up: bool = False,
     plan_partners: frozenset[str] = frozenset(),
+    shield_holds: frozenset[str] = frozenset(),
 ) -> frozenset[str]:
     """Return the robots a clearing robot is exempt against.
 
@@ -177,7 +209,9 @@ def admitted_partners(
     explicitly on the command's own parameters
     (`plan_continue_partners_from_parameters`) since it receives no command
     of its own to be a `member` of. Additive only, never a substitute for
-    the own-command scope above.
+    the own-command scope above. A member the command addresses only as a
+    retreat-shield hold (`shield_holds`, prereg-v3 A27(i)) is never a
+    partner in any phase: it is a bystander M3 held, not a clearing agent.
 
     Args:
         robot_id: The clearing robot.
@@ -190,6 +224,8 @@ def admitted_partners(
         plan_partners: `plan_continue_partners_from_parameters`'s output for
             this SAME command/robot; empty for every pre-step-7a caller and
             for any action other than a plain `reverse` with a tracked plan.
+        shield_holds: Members whose own action in this command is a
+            retreat-shield hold (`is_shield_hold`); excluded from the result.
 
     Returns:
         Partner robot ids, never including `robot_id`.
@@ -198,15 +234,17 @@ def admitted_partners(
         return frozenset()
     extra = frozenset(r for r in plan_partners if r != robot_id)
     if action != "yield" or order is None:
-        return frozenset(r for r in members if r != robot_id) | extra
+        return (frozenset(r for r in members if r != robot_id) | extra) - shield_holds
     if backing_up:
-        return frozenset(r for r in (*members, *order) if r != robot_id) | extra
+        return (
+            frozenset(r for r in (*members, *order) if r != robot_id) | extra
+        ) - shield_holds
     admitted: list[str] = []
     for position, passer in enumerate(order):
         if position > 0 and order[position - 1] not in completed:
             break
         admitted.append(passer)
-    return frozenset(r for r in admitted if r != robot_id) | extra
+    return (frozenset(r for r in admitted if r != robot_id) | extra) - shield_holds
 
 
 @dataclass(frozen=True)
@@ -352,6 +390,9 @@ class CoordinationTracker:
         # it has since separated from. Present (possibly empty) once captured,
         # so a latch formed later in the window is never added.
         self._waiver_by_key: dict[tuple[str, str], set[str]] = {}
+        # command_id -> members addressed only as retreat-shield holds
+        # (prereg-v3 A27(i)); evicted with the command's membership.
+        self._shield_by_command: dict[str, set[str]] = {}
 
     def record_command(
         self,
@@ -392,11 +433,17 @@ class CoordinationTracker:
         order = crossing_order_from_parameters(action, parameters)
         if order is not None:
             self._order_by_command[command_id] = order
+        shield = self._shield_by_command.get(command_id)
+        if is_shield_hold(action, parameters):
+            self._shield_by_command.setdefault(command_id, set()).add(robot_id)
+        elif shield is not None:
+            shield.discard(robot_id)
         while len(self._members_by_command) > self.MAX_TRACKED_COMMANDS:
             evicted = next(iter(self._members_by_command))
             del self._members_by_command[evicted]
             self._order_by_command.pop(evicted, None)
             self._completed_by_command.pop(evicted, None)
+            self._shield_by_command.pop(evicted, None)
 
     def record_status(
         self, command_id: str, robot_id: str, status: str, detail: str | None = None
@@ -474,7 +521,9 @@ class CoordinationTracker:
         ACTIVE command, in the phase its latest status signalled. A robot
         that command never addressed stays fully protected against it,
         EXCEPT a `continue` robot of the SAME tracked plan the reverse leg's
-        own `parameters_json` names explicitly (step-7a fix, finding 3).
+        own `parameters_json` names explicitly (step-7a fix, finding 3). A
+        robot the command addresses only as a retreat-shield hold is
+        protected the same way (prereg-v3 A27(i)).
 
         Returns:
             The clearing robots and their exempt pairs.
@@ -492,6 +541,7 @@ class CoordinationTracker:
                 self._completed_by_command.get(command_id, frozenset()),
                 backing_up=self._backing_up_by_key.get(key, False),
                 plan_partners=self._plan_partners_by_key.get(key, frozenset()),
+                shield_holds=frozenset(self._shield_by_command.get(command_id, ())),
             )
             pairs.update(_pair_key(robot_id, partner) for partner in partners)
         waivers = frozenset(
@@ -517,7 +567,8 @@ class CoordinationTracker:
         the partners of its pairs in `latched_pairs` -- the previous
         evaluation's, i.e. the latches standing at command start -- excluding
         the command's own robots and same-plan partners, whose pairs the
-        existing admission rules govern unchanged. Later calls never add to
+        existing admission rules govern unchanged (a retreat-shield hold is
+        not excluded: A27(i) makes it a bystander). Later calls never add to
         it: a latch formed during the window still fires. Not a radius:
         only pairs the latch rules actually engaged.
 
@@ -538,6 +589,9 @@ class CoordinationTracker:
             own = set(self._members_by_command.get(command_id, ()))
             own |= set(self._order_by_command.get(command_id, ()))
             own |= self._plan_partners_by_key.get(key, frozenset())
+            # A shield-only member is a bystander (A27(i)): a latch it already
+            # stands in with the clearing robot is waived like any other.
+            own -= self._shield_by_command.get(command_id, set())
             partners = {
                 b if a == robot_id else a
                 for a, b in latched_pairs
