@@ -157,6 +157,22 @@ def pool(tokens: torch.Tensor, patches: list) -> dict[str, np.ndarray]:
     return {k: v.float().cpu().numpy().astype(np.float16) for k, v in out.items()}
 
 
+VARIANTS = ("dyn", "static")
+
+
+def pool_patches(variant: str, patches: list) -> list:
+    """Robot pooling positions per tubelet for a variant.
+
+    The static clip shows only the last frame, so it pools every tubelet at
+    the robot's last-frame position. Pooling it at the GT trajectory (the
+    Rev 1 bug, fixed 2026-10-11) leaked motion into the "static" control via
+    where the pool was taken.
+    """
+    if variant == "static":
+        return [[per_tub[-1]] * len(per_tub) for per_tub in patches]
+    return patches
+
+
 def main() -> None:
     from transformers import AutoModel
 
@@ -170,7 +186,7 @@ def main() -> None:
     by_run = defaultdict(list)
     for s in samples:
         by_run[s["run_id"]].append(s)
-    store = {v: defaultdict(dict) for v in ("dyn", "static")}
+    store = {v: defaultdict(dict) for v in VARIANTS}
     t0 = time.time()
     done = 0
     for run_id, items in sorted(by_run.items()):
@@ -189,11 +205,13 @@ def main() -> None:
             frames.evict_before(batch[0]["t_end"] - 10.0)
             built = [build_clip(s, frames, track) for s in batch]
             for vi, variant in enumerate(("dyn", "static")):
+                if variant not in VARIANTS:
+                    continue
                 x = torch.from_numpy(np.stack([b[vi] for b in built])).to(device)
                 with torch.no_grad():
                     tok = model.get_vision_features(x)
                 for s, b, tk in zip(batch, built, tok):
-                    for k, v in pool(tk, b[2]).items():
+                    for k, v in pool(tk, pool_patches(variant, b[2])).items():
                         store[variant][k][s["uid"]] = v
             done += len(batch)
             if done % 100 < BATCH:
@@ -210,9 +228,14 @@ def main() -> None:
                 arrays[k] = np.stack([d[k][u] for u in uids])
         np.savez_compressed(feat_dir / f"{variant}.npz", **arrays)
     meta = [{k: v for k, v in s.items() if k != "frames"} | {"frame_times": [ds["frame_indexes"][s["run_id"]]["times"][j] for j in s["frames"]]} for s in samples]
+    if set(VARIANTS) != {"dyn", "static"}:
+        print("partial run; index.json left untouched", VARIANTS)
+        return
     (feat_dir / "index.json").write_text(json.dumps({"hf_id": HF_ID, "device": device, "samples": meta, "seconds": time.time() - t0}, default=float))
     print("done", len(samples), f"{time.time() - t0:.0f}s")
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        VARIANTS = tuple(sys.argv[1].split(","))
     main()
