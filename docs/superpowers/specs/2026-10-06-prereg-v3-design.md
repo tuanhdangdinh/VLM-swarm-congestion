@@ -1365,6 +1365,41 @@ value at this scale). Future-protocol note: a meaningful
 encoder-vs-VLM test needs raw unannotated recordings (recorder
 change) + an arrow/colour-free condition.
 
+**A25. Batch 2: escalation class ruled; no-admit yield defect is
+the registered mystery (2026-10-12; reports live-batch2 + Rev 4;
+integration @cd35ae1).**
+(i) DISCLOSURE: batch spent $0.2568 vs the $0.25 cap (one call over;
+cost_watch checks post-billing). FIX RULED: caps reserve one
+estimated call. All-live spend $0.4840.
+(ii) Predicate fix landed exactly as designed: ONE label flipped
+(E11 c417cbff → productive via released-robot credit; E11 class →
+resolved, verdict → INDETERMINATE); E3 remains the only ARCH episode
+(echo). 27 tests, zero-delta.
+(iii) NEW CLASS RULED — ESCALATION: intermittent + opportunity bar
+met + 0 alternations (E13/E16/E17). It is neither ARCH-livelock
+(no oscillation) nor an apparatus artifact (real model, real
+grounding): the coordinator persistently retries different
+strategies on the SAME blocking cluster. The livelock question is
+now answered more strongly: 0 alternations across 23 live clearing
+dispatches — oscillation was the echo's disease (cites A21/A24).
+(iv) THE REGISTERED MYSTERY: 6/9 dispatched live yields ran ACTIVE
+191-294 s then FAILED with NO gate_admit, while all 3 admitted
+yields COMPLETED. This single defect plausibly suppresses the yield
+rate (1/12 live vs MC 7/12), starves the productive distribution
+(budget_k bar unmet: 5/24 nonzero vs the pre-registered ≥8), and
+manufactures ESCALATION episodes. RULED: diagnose the six no-admit
+bundles OFFLINE before buying more live episodes — the cheapest
+path to budget_k runs through this fix, not through 9-18 more
+episodes. Reference-only triple (3, 130 s, 0) recorded, explicitly
+undefendable at n=6 events.
+(v) Updates: both-clusters naming 12/36 in batch 2 (14/67 pooled,
+E17 alone 7 — scene-wide attention is commoner than the E6-era
+read); E17 best live episode (9/25 tasks, censored by the cap);
+sequential bring-up 6/6 first-attempt, pooled 0/14 vs parallel 9/20
+— the A24 fix holds at batch scale; backend_failed suppression still
+unexercised live; wandering-vs-park still undecided (1 finisher,
+0/33).
+
 **A14 corrigendum (2026-10-09).** A14(iv)'s "GT
 robot_static_contacts logged 0 rows during a physical pin" implied
 an under-detecting detector. The truth is stronger:
