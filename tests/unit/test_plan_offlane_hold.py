@@ -117,12 +117,35 @@ def _hold_reason(robot_id: str, action: str = "cross") -> str:
     )
 
 
+# prereg-v3 A25 adds exactly these keys to a dynamic-lane yield (the swept
+# backup line, `maneuver_geometry.backup_line_facing`); the baselines predate it.
+_A25_KEYS = ("backup_facing_rad", "backup_reference_yaw_rad")
+
+
+def _without_a25_keys(command: dict[str, Any]) -> dict[str, Any]:
+    return {
+        **command,
+        "actions": [
+            {
+                **action,
+                "parameters": {
+                    k: v for k, v in (action.get("parameters") or {}).items() if k not in _A25_KEYS
+                },
+            }
+            if action.get("action") == "yield"
+            else action
+            for action in command["actions"]
+        ],
+    }
+
+
 @pytest.mark.parametrize("name", sorted(CASES))
 def test_dispatched_command_is_byte_identical_to_the_baseline(name: str):
     # The fix is verifier-only: the derived path grounds exactly what
-    # 0b659d2 grounded (sha over the sorted-key JSON of the command).
+    # 0b659d2 grounded (sha over the sorted-key JSON of the command), apart
+    # from the A25 backup-line keys.
     case, config, params, frame = _scene(name)
-    command = _dispatch(case["involved"], frame, config, params)
+    command = _without_a25_keys(_dispatch(case["involved"], frame, config, params))
     digest = hashlib.sha256(json.dumps(command, sort_keys=True).encode()).hexdigest()
     assert digest == case["base_command_sha256"]
 

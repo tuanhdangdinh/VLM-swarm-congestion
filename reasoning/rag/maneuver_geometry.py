@@ -284,6 +284,58 @@ def retreat_axes(
     return RetreatAxes(retreat=(-heading[0], -heading[1]), left=(-heading[1], heading[0]))
 
 
+# A snapped dynamic lane is within 30 degrees of the yielder's heading
+# (`grounding_view.derive_dynamic_arms` rule 2) and a heading lane is the
+# heading itself, so a larger turn means the yielder faces away from its own
+# retreat (`grounding=dynamic_arms:rear_inconsistent`): rotating that far
+# while reversing is not a line to hold.
+_BACKUP_FACING_MAX_TURN_RAD = math.pi / 4
+
+
+def backup_line_facing(
+    frame: SnapshotFrame,
+    yielder_id: str,
+    passer_id: str | None,
+    geometry: SceneGeometry | None,
+) -> tuple[float, float] | None:
+    """World-frame line facing for the yielder's backup, and its decision yaw.
+
+    prereg-v3 A25: under a dynamic-arms view the retreat candidates are
+    swept along the snapped lane axis (`retreat_axes`), but M4's
+    `backup_line_hold` backed the yielder along its own start heading, up
+    to 30 degrees off that axis. Live (E11, E17a) the executed retreat
+    missed the validated one by 0.43-0.57 m and the yielder pinned itself
+    on a rack island. Stating the swept line as a world-frame facing (the
+    opposite of the retreat direction: the robot faces along the line while
+    it backs) plus the yielder's world yaw in the same snapshot lets M4
+    turn its own start line by the difference, the escort-heading pattern
+    (A11(iii)): no map frame crosses the M3/M4 boundary.
+
+    Args:
+        frame: The decision snapshot.
+        yielder_id: Robot that retreats.
+        passer_id: First robot to cross (fixes the retreat side).
+        geometry: The geometry the yield was grounded on.
+
+    Returns:
+        `(facing_rad, reference_yaw_rad)`, or None outside a dynamic-arms
+        view (`rear_room_band == "footprint"`; declared geometry keeps the
+        start-heading line), when the axes cannot be derived, or when the
+        line would turn the yielder more than 45 degrees.
+    """
+    if geometry is None or geometry.rear_room_band != "footprint":
+        return None
+    yielder = frame.find_robot(yielder_id)
+    axes = retreat_axes(frame, yielder_id, passer_id, geometry)
+    if yielder is None or axes is None:
+        return None
+    facing = math.atan2(-axes.retreat[1], -axes.retreat[0])
+    turn = math.atan2(math.sin(facing - yielder.theta), math.cos(facing - yielder.theta))
+    if abs(turn) > _BACKUP_FACING_MAX_TURN_RAD + _EPS:
+        return None
+    return facing, yielder.theta
+
+
 def project_progress(
     start: tuple[float, float], current: tuple[float, float], axis_theta: float
 ) -> float:

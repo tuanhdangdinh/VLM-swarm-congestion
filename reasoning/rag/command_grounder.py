@@ -23,6 +23,7 @@ from reasoning.rag.grounding_view import (
 from reasoning.rag.maneuver_geometry import (
     Derivation,
     GroundingParams,
+    backup_line_facing,
     derive_backup_distance,
     derive_escort_distance,
     derive_queued_passer_clearance,
@@ -660,7 +661,10 @@ def ground_reasoner_result(
     is dropped (`grounding_view.apply_escort_headings`), and each
     yield/reverse backup is marked `backup_line_hold` so M4 holds the
     backup's own start line, not the odom y=0 spawn line
-    (`grounding_view.apply_backup_line_hold`).
+    (`grounding_view.apply_backup_line_hold`); a derived yield on a dynamic
+    view also states the line its retreat was swept along
+    (`backup_facing_rad`, `backup_reference_yaw_rad`; prereg-v3 A25,
+    `maneuver_geometry.backup_line_facing`), which M4 then holds instead.
 
     Returns:
         Schema-validated coordination command dict.
@@ -2203,6 +2207,16 @@ def _ground_derived(
     if crossing_clear is not None:
         yield_parameters["crossing_clear_m"] = list(crossing_clear)
         yield_parameters["crossing_escort_m"] = list(crossing_clear)
+    # prereg-v3 A25: under the dynamic switch M4 holds the backup line; hand
+    # it the line the candidates were swept along, not the yielder's heading.
+    facing = (
+        backup_line_facing(snapshot, roles.yielder_id, passer_id, geometry)
+        if params.dynamic_scene_arms
+        else None
+    )
+    if facing is not None:
+        yield_parameters["backup_facing_rad"] = round(facing[0], 6)
+        yield_parameters["backup_reference_yaw_rad"] = round(facing[1], 6)
     if roles.grounded_from is not None:
         yield_parameters["yield_robot_grounded_from"] = roles.grounded_from
         yield_parameters["yield_regrounded_reason"] = roles.regrounded_reason

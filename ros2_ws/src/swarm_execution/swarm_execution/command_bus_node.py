@@ -17,7 +17,7 @@ except ImportError:
     CoordinationStatus = object
 
 from swarm_execution.crossing_chain import CrossingChain, plan_crossing
-from swarm_execution.nav2_adapter import Nav2Adapter
+from swarm_execution.nav2_adapter import Nav2Adapter, backup_line_turn
 from swarm_execution.yield_phase import HOLD_STARTED_DETAIL, PULL_OFF_DETAIL
 
 
@@ -413,9 +413,17 @@ class CommandBusNode(Node):
                 # steers it toward the odom y=0 spawn line (an ~0.2 m-radius
                 # arc instead of a straight backup). M3 set the key under
                 # dynamic grounding; the backup then holds the line through
-                # its own start pose along its start heading.
+                # its own start pose along its start heading -- or, for a
+                # yield M3 swept along a lane axis off that heading (A25),
+                # along the axis (`backup_line_turn`).
+                line_turn = backup_line_turn(params) if action == "yield" else None
+                line_kwargs = {} if line_turn is None else {"line_turn_rad": line_turn}
                 self._adapter.backup(
-                    robot_id, distance_m, on_result=_on_backup_result, hold_start_line=True
+                    robot_id,
+                    distance_m,
+                    on_result=_on_backup_result,
+                    hold_start_line=True,
+                    **line_kwargs,
                 )
             else:
                 self._adapter.backup(robot_id, distance_m, on_result=_on_backup_result)
