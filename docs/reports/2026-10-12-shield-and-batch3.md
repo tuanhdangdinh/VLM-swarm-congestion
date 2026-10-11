@@ -25,6 +25,7 @@
 | Rev 5 aggregates | (a) **NO LIVELOCK UNDER THE REAL MODEL**: 5 opportunity episodes (E13, E16, E17, E18, E20), 0 ARCH, 0 alternations in 15 live episodes. (b) **budget_k bar NOT met, 7 of 8** nonzero productive (E18 and E20 are new; live 6/15), so **n_more = 3** (was 9). (c) First-conflict yield **3/15** live (CI 0.043-0.481) against MC 10/15; batch 3 alone 2/3. (d) Both clusters named 14/89 (0/22 in batch 3). (e) Still one S1b finisher; 0/41 occupied-node arrivals had a finisher occupant. (f) Median $0.0335 per episode |
 | Cost | Batch 3 **$0.1637** of $0.20 (the A25 reserve-one-call rule never had to fire). All-live total $0.6477 over 15 episodes. Offline build $0 |
 | VM | Clean and **RUNNING**. A new A26 pin line is in NOTES; the pinned configs are unchanged |
+| Owner rulings | **The shield must not be re-enabled as built** before ruling on the E18 near-pass. E21 was skipped by an agent-chosen $0.04 floor that the brief did not state; seed 21 is staged. B3 detail logging. Over-hold cost (§8) |
 
 PILOT-ONLY, RECORD = 0.
 
@@ -273,17 +274,33 @@ The script is `data/logs/vm_runs/batch3/aggregate_b3.py`: `aggregate_b2.py` verb
 | (e) Wandering vs park | One S1b finisher ever (echo E4); 0/41 occupied-node arrivals had a finisher occupant. Undecided |
 | (f) Cost | Per episode: E18 $0.0646, E19 $0.0405, E20 $0.0586. All-live median $0.0335 (range 0.0174-0.0954). Batch 3 $0.1637; all-live total $0.6477 |
 
-**budget_k.** The bar is unmet by one episode, so no triple is derived. The Rev 4 reference-only triple (3, 130 s, 0) stays reference-only. For the record, today's inputs would read:
-
-- budget_k p95 = 3;
-- window = max(p95 latency 79.3, the longest inter-dispatch gap in a productive group), rounded up;
-- alternation_max = 0.
-
-These are not frozen. The next 3 live episodes at the pooled rate are expected to clear the bar.
+**budget_k.** The bar is unmet by one episode, so no triple is derived (rule 14: the triple is derived only once the bar is met). The Rev 4 reference-only triple (3, 130 s, 0) stays reference-only. **n_more = 3** live episodes at the pooled live rate of 6/15.
 
 ---
 
-## 8. VM End State and Pins
+## 8. Owner Rulings Needed
+
+1. **The shield must not be re-enabled as built until this is ruled (E18 near-pass, §6.2).** The pieces line up badly:
+   - the shield exempts the yielder–shielded pair;
+   - `hard_contact_floor_m` is 0;
+   - the halt point, after the M2-call drift, is never re-swept.
+
+   Together these produced a 0.23 m centre-to-centre pass. Options:
+   - (a) score and re-sweep against a projected halt point (snapshot + v × an M2-latency bound);
+   - (b) take shield-only members out of the exempt-partner set, so a too-close hold latches and B3 fails the step.
+
+   Until then, `s1b_dynamic_shield.yaml` should not be selected by any new run line.
+2. **E21 was not run because of an agent-chosen floor.**
+   - The brief asked for 4 episodes, with the A25 rule as its only stop: stop once less than one call (about $0.008) remains.
+   - The $0.04 start floor was carried over from rule 14 into rule 15. It was pre-registered, but the brief did not state it. It stopped E21 with $0.0363 left, enough for about 4 analyses.
+   - E21 was deliberately NOT run after the fact, because running it after seeing "budget_k short by one" would break the pre-registration.
+   - Seed 21 is built and staged on the VM: `isaac/scenarios/mapd_5_s1b_seed21.usd` 8a21596e and overlay `~/v3_s1b/overlays/s1b_shield_orch_seed21.yaml` 7e4d1a9f. It can run as its own pre-registered wave once ruling 1 is settled (or with the shield off).
+3. **B3 detail logging.** M4 publishes the FAILED detail but no node logs it, so live B3 firings are inferred from timing. Log the detail in the command bus before B3 is cited as measured.
+4. **Over-hold cost.** The shield over-holds: 5 of 10 holds on the fixtures, and probably 6 of 7 live. Accept that as the price of a conservative predicate, or rule a timing term in. The constant-speed space-time check tried offline was itself fragile (§2.4).
+
+---
+
+## 9. VM End State and Pins
 
 - **Processes:** no Isaac, Kit, fc_launch, chain or watch process. `vgu_ros` is up and idle; GPU 0 %, 136 MiB; `data/logs/simulation` is empty.
 - **Ownership:** `chown -R ubuntu` done, including an old root-owned `data/logs/fc_run_20261010_180028`; 0 non-ubuntu files remain.
