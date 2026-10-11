@@ -7,46 +7,48 @@
 **Revision history:**
 
 - Rev 0 (`66ac9eb`, committed before any held-out or battery item was scored): the frozen probe configuration and the decision rule.
-- Rev 1: summary, dataset card, method, results from the single scoring pass, caveats, runtime and recommendation. The decision-rule and frozen-configuration sections are unchanged from Rev 0, except that two table cells were escaped. Rev 0's opening sentence says "leave-one-episode-out"; the frozen configuration it committed already used leave-one-scenario-family-out (see "Split change before scoring").
+- Rev 1 (`14fe64b`): summary, dataset card, method, results from the single scoring pass, caveats, runtime and recommendation. The decision-rule and frozen-configuration sections are unchanged from Rev 0, except that two table cells were escaped. Rev 0's opening sentence says "leave-one-episode-out"; the frozen configuration it committed already used leave-one-scenario-family-out (see "Split change before scoring").
+- Rev 2: a review found that the `static` control pooled robot tokens at GT trajectory positions, which leaked motion. Fixed in `0eb4b13`. The static variant was re-extracted, refitted and frozen (`b90edcf`) before re-scoring. The Summary, held-out table and decision table now use the corrected static numbers; the Rev 1 static numbers are marked superseded. `dyn` numbers and the verdict are unchanged.
 
 ---
 
 ## Summary
 
 **Verdict by the pre-committed rule: this earns a paragraph, not a thesis table.**
-T3 passes; T1 and T2 fail.
+T3 passes; T1 and T2 fail. Every number below uses the corrected `static`
+control (Rev 2). The Rev 1 static was not motion-free (see "Rev 2" below);
+its numbers are superseded.
 
 Three-way comparison on the battery-v2 `main` items that could be mapped to a
 dense preceding clip (encoder-capability comparison, NOT protocol-identical;
 see Caveats):
 
-| Task (mapped n / full n) | Chance | gpt-4o (same items) | ER-2 (same items) | V-JEPA probe, `dyn` | `static` control | Non-learned baselines |
+| Task (mapped n / full n) | Chance | gpt-4o (same items) | ER-2 (same items) | V-JEPA probe, `dyn` | `static` control (Rev 2) | Non-learned baselines |
 |---|---|---|---|---|---|---|
 | conflict_prediction (13 / 20) | 0.50 (always-yes 7/13) | 5/13 [0.18, 0.64] | 12/13 [0.67, 0.99] | **13/13** [0.77, 1.00] | **13/13** | constant-velocity CPA from GT state 12/13 |
-| temporal_order (12 / 19) | 0.50 | 0/12 [0.00, 0.24] | 6/12 [0.25, 0.75] | **12/12** [0.76, 1.00] | **12/12** | lower-id 9/12; drawn-STOPPED colour rule 11/12 |
+| temporal_order (12 / 19) | 0.50 | 0/12 [0.00, 0.24] | 6/12 [0.25, 0.75] | **12/12** [0.76, 1.00] | 9/12 [0.47, 0.91] | lower-id 9/12; drawn-STOPPED colour rule 11/12 |
 | Full-battery reference | | conflict 9/20, temporal 1/19 | conflict 16/20, temporal 12/19 | | | |
 
 Brackets are Wilson 95% intervals. Exact McNemar on the same items:
 
-- conflict: probe vs gpt-4o 8/0, p = 0.008; probe vs ER-2 1/0, p = 1.0.
-- temporal: probe vs gpt-4o 12/0, p = 0.0005; probe vs ER-2 6/0, p = 0.031.
-- `dyn` vs `static`: 0 discordant items on either task.
+| Comparison | conflict (discordant, p) | temporal (discordant, p) |
+|---|---|---|
+| probe vs gpt-4o | 8/0, p = 0.008 | 12/0, p = 0.0005 |
+| probe vs ER-2 | 1/0, p = 1.0 | 6/0, p = 0.031 |
+| `dyn` vs `static` | 0/0 | 3/0, p = 0.25 |
 
-**The battery numbers do not show motion understanding.** Three readings:
+**The battery numbers mostly do not show motion understanding.** Three
+readings:
 
-1. **The static control ties everywhere.** `static` sees the last annotated
-   frame repeated 8 times, so it has no motion. It scores 13/13 and 12/12, the
-   same as `dyn`, on the same items. By the pre-committed readout, both battery
-   scores are attributed to static cues.
-   - On temporal_order the cue is M1's lagging status colour. The
-     drawn-STOPPED rule alone scores 11/12.
-   - On conflict_prediction it is the scene and status layout. The 13 mapped
-     items split cleanly by scene and episode phase: head-on approach and
-     early-convoy frames are "yes"; late head-on, late-convoy and IBB4 frames
-     are "no". The probe's training
-     set also contains `intersection_bottleneck` (IBA1, `v2_demo/ep2`), the
-     same scenario as the IBB4 battery episode. Those runs passed the 8 s
-     trajectory near-duplicate rule, but share the layout.
+1. **Conflict: the true single-frame control ties.**
+   - `static` scores 13/13, the same as `dyn`, on the same items. By the
+     pre-committed readout this score is attributed to static cues.
+   - The 13 mapped items split cleanly by scene and episode phase:
+     head-on-approach and early-convoy frames are "yes"; late head-on,
+     late-convoy and IBB4 frames are "no".
+   - The training set also contains `intersection_bottleneck` (IBA1,
+     `v2_demo/ep2`), the same scenario as the IBB4 battery episode. Those runs
+     passed the 8 s trajectory near-duplicate rule, but share the layout.
 2. **On unseen scenario families the conflict probe is at chance.**
    - Held-out command-free clips: balanced accuracy **0.53** for `dyn` and
      0.45 for `static`. That is 106 clips, 29 of them "yes", from 3 episodes
@@ -54,24 +56,34 @@ Brackets are Wilson 95% intervals. Exact McNemar on the same items:
    - It missed all 24 bottleneck_merge "yes" clips.
    - A constant-velocity closest-approach rule on GT state reaches 0.83 on
      the same clips.
-   - T1 (>= 0.70) fails, and T2 (`dyn` - `static` = 0.076 < 0.10) fails.
-   - Within the training families, leave-one-family-out CV did separate `dyn`
-     (0.73) from `static` (0.58). The motion signal exists in-family, but it
-     does not transfer across families at this data scale.
-3. **Temporal order is solved by the static cue, as predicted before
-   scoring.**
-   - Held-out broad pairs: `dyn` 0.95, `static` 0.96 (145 pairs).
-   - Where the later robot stopped 3-8 s before the frame (mostly before the
-     clip starts): `dyn` 21/28, `static` 22/28.
+   - T1 (>= 0.70) fails, and T2 (`dyn` - `static` = +0.076 < 0.10) fails.
+   - Within the training families, leave-one-family-out CV separates `dyn`
+     (0.73) from the corrected `static` (0.52). The motion signal exists
+     in-family, but it does not transfer across families at this data scale.
+3. **Temporal: mostly a static cue, plus a small within-clip motion
+   increment.**
+   - Held-out broad pairs (145): `dyn` 0.952, `static` 0.938. The +0.014 is
+     far below T2's 0.10.
+   - On the battery, `dyn` 12/12 against `static` 9/12 (3/0, p = 0.25).
+     - The three discordant items are 003, 013 and 015.
+     - Two of them (003, 015) have BOTH robots drawn STOPPED, where the
+       status colour cannot decide. `dyn` gets all four both-STOPPED items
+       right; `static` gets 2/4.
+     - This is consistent with `dyn` using the later robot's last approach
+       inside the clip. It is n = 3 and not significant.
    - The earlier event (32-183 s back) is invisible to any clip.
 
-**What the pilot does support.** A frozen, motion-pretrained encoder with a
-linear head trained on about 1.7k in-domain labels reads the information the
-battery asks for off our annotated frames. gpt-4o's 0/12 temporal inversion
-is therefore not a perception gap in the pixels: the cue (status colour) is
-there and linearly decodable. This sharpens the H-JEPA assessment's (b) verdict
-toward "VLM reasoning/inversion failure", not "missing motion features". It is
-not evidence that V-JEPA's motion features fix it.
+**What the pilot does support.**
+
+- **gpt-4o's 0/12 temporal inversion is not missing information in the
+  pixels.** The drawn-STOPPED colour rule alone, which uses no probe, scores
+  11/12 on the same items. This sharpens the H-JEPA assessment's (b) verdict
+  toward "VLM reasoning/inversion over cues that are present", not "missing
+  motion features".
+- **A small sign of within-clip motion use.** The frozen motion-pretrained
+  encoder adds a small, non-significant motion increment over a single frame
+  on temporal_order (battery +3 items, held-out +0.014). That is a hint, not
+  evidence, that V-JEPA features would help where the colour cue runs out.
 
 **What it confirms from the assessment's (a) verdict.** The non-learned
 state baseline (CPA on GT positions and velocities, which M1 already
@@ -85,7 +97,8 @@ recording). The dataset therefore comes from the pre-v3 bundles that carry an
 in-bundle `annotated_*.mp4` recording or harvest snapshots.
 
 Cost: $0 API. Mac only (M1 Pro, MPS). The VM was not touched. Wall time
-about 32 min for feature extraction and under 1 min for probes.
+about 32 min for the first feature extraction, 15 min for the static
+re-extraction, and under 1 min per probe stage.
 
 ---
 
@@ -279,8 +292,14 @@ The output is `data/logs/vjepa_pilot_20261011/dataset.json` (gitignored; SHA-256
   - The temporal regressor sees only the robot's own pool. Its crop shows
     neighbours, but the global token is not used.
 - **Static control.** Each clip is also encoded as its last frame repeated 8
-  times and given an identical, independently tuned probe. This control sees
-  what a single-image VLM sees, without the text.
+  times and given an identical, independently tuned probe.
+  - From Rev 2, its robot pools are taken at the last-frame position in every
+    tubelet.
+  - This control sees what a single-image VLM sees, without the text.
+- **Oracle tracking.** Every robot pool sits at the GT-projected position:
+  the crop centre, plus `dyn`'s per-tubelet positions. This is roughly what
+  M1 tracking provides. Even `dyn` is therefore not a pure video-only probe:
+  it is told where the robots are.
 - **Baselines.**
   - conflict: always-yes, and constant-velocity closest approach from GT
     position and 0.5 s velocity (yes if <= 0.5 m within 10 s).
@@ -294,28 +313,36 @@ The output is `data/logs/vjepa_pilot_20261011/dataset.json` (gitignored; SHA-256
 
 ---
 
-## Results (Single Scoring Pass)
+## Results (Scoring Pass; `static` Re-Scored Once in Rev 2)
 
 ### Held-out scenario families
 
 | Set | n | `dyn` | `static` | Baselines |
 |---|---|---|---|---|
-| conflict, command-free | 106 (29 yes) | acc 0.689 [0.60, 0.77], **balanced 0.528**, said yes 14 | acc 0.594, balanced 0.452 | CPA balanced **0.831**; always-yes 0.274 acc |
-| conflict, all kinematic | 162 (37 yes) | acc 0.599, balanced 0.474 | acc 0.556, balanced 0.436 | CPA balanced 0.896 |
-| temporal, broad pairs | 145 | 0.952 [0.90, 0.98] | 0.959 [0.91, 0.98] | lower-id 0.531 |
-| temporal, battery-rule pairs | 7 | 7/7 | 7/7 | lower-id 7/7 |
+| conflict, command-free | 106 (29 yes) | acc 0.689 [0.60, 0.77], **balanced 0.528**, said yes 14 | acc 0.594, balanced 0.452, said yes 22 | CPA balanced **0.831**; always-yes 0.274 acc |
+| conflict, all kinematic | 162 (37 yes) | acc 0.599, balanced 0.474 | acc 0.660, balanced 0.504 | CPA balanced 0.896 |
+| temporal, broad pairs | 145 | 0.952 [0.90, 0.98] | 0.938 [0.89, 0.97] | lower-id 0.531 |
+| temporal, battery-rule pairs | 7 | 7/7 | 6/7 | lower-id 7/7 |
 
-- **Conflict by episode (`dyn`).**
-  - B1DEMO2: yes 0/15, no 16/16.
-  - B1DEMO: yes 0/9, no 52/61.
-  - s6 live: yes 5/5.
+Superseded leaky Rev 1 `static` values: command-free balanced 0.452,
+all-kinematic 0.436, broad pairs 0.959, battery-rule pairs 7/7. The
+command-free row has the same totals in Rev 2, but 4 of the 106 predictions
+differ.
+
+- **Conflict by episode:**
+
+  | Episode | `dyn` yes | `dyn` no | `static` yes | `static` no |
+  |---|---|---|---|---|
+  | B1DEMO2 | 0/15 | 16/16 | 0/15 | 16/16 |
+  | B1DEMO | 0/9 | 52/61 | 0/9 | 43/61 |
+  | s6 live | 5/5 | — | 4/5 | — |
 - **Temporal by the age of the later stop (`dyn` / `static`):**
 
   | Age of the later stop | `dyn` | `static` |
   |---|---|---|
   | still moving (< 0.5 s) | 100/100 | 100/100 |
-  | 0.5-3 s | 17/17 | 17/17 |
-  | 3-8 s | 21/28 | 22/28 |
+  | 0.5-3 s | 17/17 | 15/17 |
+  | 3-8 s | 21/28 | 21/28 |
 
 - The episode-cluster bootstrap is reported in `results.json`. With 2-3 test
   episodes it is not informative and is not quoted.
@@ -327,16 +354,22 @@ The output is `data/logs/vjepa_pilot_20261011/dataset.json` (gitignored; SHA-256
 The table is in the Summary. Per-item probe scores, VLM answers and M1
 statuses are in `data/logs/vjepa_pilot_20261011/probe/results.json`.
 
-- The probe's conflict probabilities are 0.85-0.94 on "yes" items and
-  0.17-0.30 on "no" items for `dyn`, and 0.96-0.98 / 0.04-0.37 for `static`.
-  `static` is more confident.
+- The probe's conflict probabilities on "yes" / "no" items:
+  - `dyn`: 0.85-0.94 / 0.17-0.30.
+  - Rev 2 `static`: 0.98-1.00 / 0.0002-0.07.
+  - The single-frame probe separates the battery conflict items more
+    confidently than the clip probe. This is the clearest sign that a scene
+    or phase cue, not motion, decides them.
+- The temporal discordances (`dyn` right, `static` wrong) are items 003, 013
+  and 015. Of the four items with both robots drawn STOPPED, `dyn` gets 4 and
+  `static` 2.
 
 ### Decision rule outcome
 
 | Criterion | Value | Result |
 |---|---|---|
 | T1: held-out conflict balanced >= 0.70 and Wilson lower bound > 0.5 | 0.528 (Wilson LB 0.60 on plain accuracy) | **fail** |
-| T2: `dyn` - `static` >= 0.10 on held-out conflict balanced or temporal pairs | +0.076 / -0.007 | **fail** |
+| T2: `dyn` - `static` >= 0.10 on held-out conflict balanced or temporal pairs | +0.076 / +0.014 (Rev 1 leaky: +0.076 / -0.007) | **fail** |
 | T3: battery conflict `dyn` >= gpt-4o + 3 | 13 against 5 | pass |
 
 **Earns a paragraph.**
@@ -355,12 +388,14 @@ statuses are in `data/logs/vjepa_pilot_20261011/probe/results.json`.
      frames". It is not "V-JEPA beats gpt-4o".
 2. **Mapped subset only.** 13/20 and 12/19 items. The VLMs' mapped-subset
    scores (5/13, 12/13, 0/12, 6/12) are the comparison, not 9/20 and 16/20.
-3. **Static cues dominate the battery.** The `static` control ties `dyn` on
-   every battery item. Battery-v2 conflict and temporal items on annotated
-   frames are answerable from one frame by a supervised linear probe. This
-   reinforces the battery-v2 report's own temporal_order confound list
-   (status-colour cue, long gaps) and adds a scene/phase cue for
-   conflict_prediction.
+3. **Static cues dominate the battery.**
+   - The single-frame `static` control ties `dyn` on all 13 conflict items.
+   - On temporal_order it reaches 9/12, and the probe-free drawn-STOPPED rule
+     11/12.
+   - Battery-v2 conflict and temporal items on annotated frames are largely
+     answerable from one frame. This reinforces the battery-v2 report's own
+     temporal_order confound list (status-colour cue, long gaps) and adds a
+     scene/phase cue for conflict_prediction.
 4. **Family overlap with the battery.** `intersection_bottleneck` (IBA1,
    v2 ep2) is in training, and IBB4 hosts 2 mapped conflict and 3 mapped
    temporal items. The trajectory near-duplicate rule removed the true
@@ -368,7 +403,10 @@ statuses are in `data/logs/vjepa_pilot_20261011/probe/results.json`.
    honest generalisation number.
 5. **Small held-out set.** 2 families with conflict labels, 3 episodes,
    autocorrelated clips.
-6. **Annotated frames only.** No raw frames exist for the recordings, so the
+6. **Grid-edge selection.** The `dyn` conflict C (1e-4) was selected at the
+   low edge of its grid. The CV curve is flat (0.72-0.73 across the grid), so
+   a wider grid is unlikely to change T1.
+7. **Annotated frames only.** No raw frames exist for the recordings, so the
    encoder always sees M1's boxes, labels, arrows and status colours.
    - This matches what the VLMs saw.
    - It also means a "motion encoder" is never tested on unannotated motion.
@@ -383,6 +421,7 @@ statuses are in `data/logs/vjepa_pilot_20261011/probe/results.json`.
 | Inventory + clock OCR of 22 recordings | about 75 s |
 | Dataset build | about 20 s |
 | Feature extraction (3,128 clips × 2 variants, ViT-L, MPS fp32) | 1,910 s |
+| Rev 2 static-only re-extraction | 917 s |
 | Probe CV + fit / score | < 1 min each |
 
 - Disk: pooled fp16 features are 117 MB, against about 13 GiB free.
@@ -398,14 +437,19 @@ statuses are in `data/logs/vjepa_pilot_20261011/probe/results.json`.
 - **Thesis use: a paragraph** in Discussion/Future Work, beside the H-JEPA
   assessment's (a)/(b) verdicts. Suggested content:
   - A frozen V-JEPA 2 ViT-L with a linear probe reads the battery's answers
-    off our annotated frames, but a single-frame control does equally well.
+    off our annotated frames.
+  - A single-frame control does equally well on conflict (13/13) and nearly
+    as well on temporal order (9/12 against 12/12, n.s.).
   - On unseen scenario families its conflict prediction is at chance (0.53
     balanced), while a constant-velocity rule on M1-style state reaches 0.83.
   - Video-pretrained motion features do not add usable foresight over the
     state M1 already provides. gpt-4o's temporal failure is a reasoning
     failure over cues that are present, not missing motion features.
 - **Do not** put the 13/13 and 12/12 in a results table beside gpt-4o and
-  ER-2. The static control explains them.
+  ER-2.
+  - The static control explains the conflict score.
+  - The temporal increment over static (+3 items, p = 0.25) is too small to
+    carry a table row.
 - **If revisited**, the test that would mean something needs:
   - unannotated (raw) recordings, which need a recorder change on the VM;
   - an arrow- and colour-free condition, as in battery-v2 open item 2;
@@ -480,3 +524,15 @@ only). The selection data is not a result:
 
 This configuration is committed before the corrected static probe scores
 any held-out or battery item. Decision rule unchanged.
+
+**Re-score outcome.** The corrected numbers are in the Summary and Results
+tables.
+
+- `dyn` is unchanged.
+- Corrected `static`:
+  - battery conflict 13/13 (unchanged);
+  - battery temporal 9/12 (was 12/12);
+  - held-out broad pairs 0.938 (was 0.959);
+  - held-out command-free conflict balanced 0.452 (the same total).
+- T2 is +0.076 / +0.014, which still fails. The verdict is unchanged: a
+  paragraph.
