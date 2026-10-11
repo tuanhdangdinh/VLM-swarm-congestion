@@ -574,3 +574,16 @@ def test_plan_parity_scorer_carries_the_shield_excluded_reading():
     for art, m in zip(BATCH3, metrics, strict=True):
         if art["plan"]["provenance"] != "vlm_verbatim":
             assert m.verbatim_dispatch_matched_shield_excluded is None
+
+
+def test_shield_hold_key_survives_the_m5_pipeline_validation():
+    # The key must reach M4 through M5's validated, verbatim-parameters dispatch.
+    from tests.unit.test_a26_retreat_shield import _pipeline, _request
+    from tests.unit.test_s1_resolvability import _floor
+
+    _config, params = _floor("s1b")
+    outcome = _pipeline("E14", params.model_copy(update=_SHIELD_KEYS), {}).run(_request("E14"))
+    command = outcome.grounded_command
+    holds = [a for a in command["actions"] if a["robot_id"] in _shielded(command)]
+    assert holds
+    assert all(a["parameters"][SHIELD_HOLD_KEY] is True for a in holds)
