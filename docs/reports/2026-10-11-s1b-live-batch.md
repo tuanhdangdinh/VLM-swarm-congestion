@@ -5,10 +5,37 @@
 **Revision history:**
 
 - Rev 1 (2026-10-11, PARTIAL): A22 echo-rotation fix (build, tests, merge, deploy); live batch episodes E7 and E8, E9 not run (3 Nav2 bring-up aborts); E10/E11 ran unattended on the VM but their bundles were NOT retrieved, because SSH to the VM was lost mid-batch (the Mac's public IP changed and the VM firewall admits only the old IP). All aggregates are PROVISIONAL over E6-E8.
+- Rev 2 (2026-10-11, FINAL): SSH restored; E10 and E11 retrieved. E10 ran but is censored at 123.5 sim-s (Gemini prepaid credits depleted, HTTP 402 on 38/40 analyses); E11 not run (3 bring-up aborts). Final aggregates over the four live episodes (E6, E7, E8, E10), the both-clusters count, and the VM end state are in §9-§13. Rev 1 numbers that changed are marked superseded in place.
 
 ---
 
-## Summary
+## Summary (Rev 2, FINAL)
+
+**Status: batch closed.** Four live ER-2 episodes ran in total: E6 from the A21 wave, plus E7, E8 and E10 from this batch. E9 and E11 never ran: each had three Nav2 bring-up aborts. **There are four live episodes, not six.** Every "E6-E11" aggregate below is computed over E6, E7, E8 and E10.
+
+**Headline 1: Gemini prepaid credits ran out mid-E10.** From analysis 3 (123.5 sim-s, 20:13:35Z) every call returned HTTP 402 `RESOURCE_EXHAUSTED` ("prepayment credits are depleted"), so 38 of E10's 40 analyses failed with no decision. A failed analysis is not suppressed, so M5 re-triggered about every 3 sim-s. Those failures used up the MAX_ANALYSES = 40 hard stop at 232.2 sim-s. The stop was set off by the dead backend, not by model churn. E10 is therefore **censored at 123.5 sim-s**. No further live ER-2 work is possible until the owner tops up AI Studio billing. If E11 had brought up, it would have hit the same 402.
+
+**Headline 2: the E7 overturn stands, and it happened only once.** Over the 15 valid live analyses, a model named both clusters 2 times (2 of the 8 analyses whose scene had two latch clusters), and a scene-wide plan was dispatched once (E7 analysis 1). Both cases are in E7, so 1 of 4 live episodes. E10's two-cluster scene (analysis 2) named only {r2, r4}.
+
+| Question | Final answer (live E6, E7, E8, E10) |
+|---|---|
+| Episodes | E7 ran (4 analyses, $0.0284). E8 ran (4, $0.0277). E9 NOT RUN (3/3 aborts). **E10 ran, censored at 123.5 sim-s** (2 valid analyses + 38 HTTP 402; $0.0174). **E11 NOT RUN** (3/3 aborts) |
+| (a) Attribution | **INDETERMINATE: 0 of 4 live episodes had ≥ 3 clearing dispatches into one cluster** (max 2, 1, 1, 1). Alternations 0 everywhere. E10's value is a censored lower bound |
+| (b) Productive resolutions | Live: E6 2, E7 0, E8 0, E10 1 (censored). All 16 classified S1/S1b episodes: nearest-rank p95 = 2 (n = 16). Per productive event, dispatches into its cluster: [1, 2, 1], p95 = 2 |
+| (c) First-conflict yields | **Live 0/4** (95% CI 0-0.60) against a per-seed MC upper bound of **2/4** (E6, E10). E10's first analysis DISPATCHED the MC-predicted yield (r1) but it was never admitted (`gate_admit` absent; r1 FAILED after about 212 s). Echo pilots 0/5 against 4/5 MC |
+| (d) Wandering vs park | Unchanged: one S1b finisher to date (E4 r2). 0 occupied-node arrivals with a finisher as occupant (21 arrivals over S1b E1-E8 + E10), 0 parked-finisher occupancy events, tail gridlock in every episode |
+| (e) Cost | $0.0335 / $0.0284 / $0.0277 / $0.0174 (E10 truncated by the 402; a floor). Median $0.0281 (the script's upper-median: $0.0284). **Batch total $0.0735** (E7 + E8 + E10, lower bound), $0.1070 with E6 |
+| Both clusters named | 2/15 valid live analyses (2/8 two-cluster scenes); dispatched scene-wide 1/15 (1/8); episodes 1/4 (E7) |
+| Bring-up | This batch 6 aborts in 9 launches. Stagger-6 era **9 in 16 (0.56)**. The batch abort rule did not fire (consecutive counter 1) |
+| VM | Idle, pins verified, ownership fixed, NOTES updated (§13) |
+
+PILOT-ONLY, RECORD = 0.
+
+---
+
+## Summary (Rev 1)
+
+> Superseded by the Rev 2 summary above wherever the numbers differ: episode statuses, every aggregate, cost and bring-up counts. Rev 1 text is kept unchanged below.
 
 **Status: PARTIAL.** The rotation fix shipped. Of the five live episodes, two ran and were analysed (E7, E8). E9 was not run: three Nav2 bring-up aborts. E10 started at 20:03Z, brought up cleanly and was running when SSH was lost at about 20:15Z. The chain continues unattended on the VM (E10, then E11) with every pre-registered stop rule enforced on the VM side. Its bundles have not been retrieved, so every aggregate below covers E6-E8 only and is provisional.
 
@@ -94,6 +121,8 @@ The second cluster now gets analysed, and at its first analysis it grounds an ex
 | E9 a3 | 20261010_195930 | ABORT: robot_3 `controller_server` bond timeout. **E9 not run** (consecutive-x3 counter = 1) |
 | E10 a1 | 20261010_200211 | brought up; 2 analyses and $0.0174 by 20:12Z; then out of reach |
 
+> Rev 2: superseded. E10 a1 ran (§9). E11 a1-a3 aborted (§10). Final counts: this batch 6 / 9, stagger-6 era 9 / 16 (0.56).
+
 There were 3 aborts in 6 batch launches. Over the stagger-6 era: pilot 2 1/3, A21 wave 2/4, this batch 3/6, so **6 aborts in 13 launches (0.46)**. Every abort is one of the two known classes (bond timeout, get_state), always on one robot, with 4/5 stacks active. A host check during E10's bring-up showed no lingering process (only Kit at 185 % CPU, load average 15-22 on 8 vCPU). The abort rule (2 consecutive episodes x3) had not fired at the last read.
 
 ---
@@ -140,12 +169,16 @@ There were 3 aborts in 6 batch launches. Over the stagger-6 era: pilot 2 1/3, A2
 
 ## 6. E9-E11
 
+> Rev 2: superseded for E10 and E11. See §9 (E10) and §10 (E11).
+
 - **E9.** Not run (section 3).
 - **E10 and E11.** Running or queued unattended on the VM (section 8). Not analysed.
 
 ---
 
 ## 7. Aggregates (PROVISIONAL, E6-E8 Live; Definitions per Rule 11)
+
+> Rev 2: every number in this section is superseded by §11 (final, over E6, E7, E8, E10). The verdicts of (a), (c) and (d) do not change; (b) gains E10's 1, and (e) gains E10's $0.0174.
 
 ### 7.1 (a) Attribution
 
@@ -184,9 +217,13 @@ Across S1b E1-E8 there is 1 finisher in total (E4 robot_2, parked at N, no occup
 
 Per live episode: $0.0335, $0.0284, $0.0277. Every call is about 3.1-3.3k prompt tokens (1064 image) plus 0.3-0.4k completion plus 0.3-0.5k thought, at about $0.007/call. No stage-2 call occurred in E7 or E8.
 
+> Rev 2: E10's first analysis made one stage-2 call (retreat choice), so E10 has 3 billed calls for 2 analyses (§9).
+
 ---
 
 ## 8. VM State at Loss of Access, and the Resume Checklist
+
+> Rev 2: superseded. The checklist was executed on 2026-10-11 after SSH was restored. The chain had already ended normally at 20:33:14Z. See §13.
 
 **State at loss of access (about 20:15Z).**
 
@@ -209,6 +246,136 @@ Per live episode: $0.0335, $0.0284, $0.0277. Every call is about 3.1-3.3k prompt
 
 ---
 
+## 9. E10 (Seed 10): MC-predicted Yield Dispatched but Not Admitted; Credits Depleted at 123.5 sim-s (Rev 2)
+
+**Run.** `s1b_E10_seed10_er2_a1`, STAMP 20261010_200211. GATE OK, RESTORE OK. `backend_id` gemini 40/40. Only analyses 1-2 are valid. Analyses 3-40 failed on a single attempt each with HTTP 402 `RESOURCE_EXHAUSTED` ("Your prepayment credits are depleted"): no decision, no dispatch, unbilled. **Hard stop fired: MAX_ANALYSES = 40** (sidecar at 20:23:34Z, then the Isaac stop flag), set off by the 402 loop. The $0.10 cost stop and the pin rule did not fire.
+
+| # | sim-s | Model decision | Scene clusters | Plan (provenance) | M3 / M5 outcome |
+|---|---|---|---|---|---|
+| 1 | 38.0 | yield r5 → r1 | {r1,r5} | 5 yield, 1 cross → **swap** to 1 yield, 5 cross (repaired, 1 edit; matched) | dispatched yield r1 (retreat B, stage-2 call) + r5 `temporary_wait`. **No `gate_admit`**: r1 FAILED after about 212 s, r5 COMPLETED. r5 later progressed (106.4, 111.4 sim-s) → productive |
+| 2 | 84.3 | reverse r2+r4 | {r1,r3}, {r2,r4} | 4/2 reverse (**vb, MISmatched**: only r2 reverse dispatched, `node_handoff:robot_2->robot_4`) | dispatched; r2 FAILED after about 195 s; 2 latch breaks, unproductive |
+| 3-40 | 123.5-232.2 | none (HTTP 402) | {r1,r3}, {r2,r4} then {r1,r3}, {r2,r4,r5} | none | `decision=None`, no dispatch. Requests `3a70abe2` … `c746b92c`, re-triggered about every 3 sim-s with no suppression |
+
+- **Outcome.** `partial`: 1/25 tasks, last progress 111.4 sim-s. Gridlock onset 100.4 rel-s, which is about 124.7 sim-s (t0 = 24.27 M1 sim-s). That is 1.2 s after the first 402 analysis, so whether the model would have broken the gridlock is unobservable. Final clusters {r2, r4, r5} + {r1, r3}. 2 occupied-node arrivals (r1 at N with occupant r5, r2 at S with occupant r4), no finisher, tail gridlock.
+- **Churn.** `resolved` (censored): 2 clearing dispatches (1 per cluster), 1 productive and 1 unproductive event, 3/3 latch breaks attributed, alternation 0, resolution-time share 0.31.
+- **Provenance.** repaired 1, vb 1. vb ∧ matched 0/2. The vb mismatch is a single-robot reverse grounding of a two-robot reverse plan.
+- **MC.** The first encounter held (MC r1+r5 10.3 s; live r1+r5 11.7 rel-s). MC predicted an executable echo yield of r1. The model named r5 as yielder. The grounder's swap gate re-grounded it to r1, the MC choice, and dispatched it, but the yield never reached `gate_admit`. During the yield window M4 logged about 7 000 `min_distance_violation` safety stops on r1, and r1 and r3 latched from 28.3 rel-s to the end. Under rule 11 (c) this counts as **not** a first-conflict yield: dispatched, not admitted.
+- **Echo counterfactual (stateless).** Both valid analyses were on the same cluster as the model and executable (yield in [r1, r5]; yield in [r2, r4]). The 38 402-scenes also ground executable echo yields ([r4, r5] 37, [r1, r3] 1), but no live decision exists to compare them with, so they are not counted.
+- **Cost.** $0.0174 over 3 billed calls (analysis 1 reasoner + stage 2: $0.0104; analysis 2: $0.0070). This is a floor truncated by the dead backend, not a typical episode cost.
+- **Apparatus observation (not fixed here).** A backend failure (`decision=None`) does not arm the scene-unchanged suppression, so a dead backend re-analyses about every 3 sim-s until MAX_ANALYSES.
+
+---
+
+## 10. E11 (Seed 11): Not Run, Three Bring-up Aborts (Rev 2)
+
+| Attempt | STAMP | Outcome |
+|---|---|---|
+| E11 a1 | 20261010_202512 | ABORT: robot_3 **`planner_server`** bond timeout (4.00 s) |
+| E11 a2 | 20261010_202755 | ABORT: robot_4 `bt_navigator` get_state `async_send_request failed` |
+| E11 a3 | 20261010_203031 | ABORT: robot_4 `bt_navigator` get_state `async_send_request failed`. **E11 not run** |
+
+The counter of consecutive episodes with three aborts stood at 1, because E10 ran between E9 and E11. The batch abort rule (2 consecutive) therefore did not fire. The chain ended normally (`CHAIN_P4 DONE` 20:33:14Z) because E11 was the last episode.
+
+**Bring-up totals.** This batch had 6 aborts in 9 launches. Over the stagger-6 era (pilot 2 1/3, A21 wave 2/4, this batch 6/9) the total is **9 in 16 (0.56)**. The bond-timeout class now includes `planner_server` as well as `controller_server`. Every abort hit one robot (r3 or r4) with 4/5 stacks active.
+
+E11 was an MC-positive seed (echo [r2, r3] → executable yield r2). If it had brought up, it would have run against the depleted credits (§9).
+
+---
+
+## 11. Final Aggregates (Rule 11 Definitions; Live E6, E7, E8, E10) (Rev 2)
+
+Computed with `aggregate.py` over `churn_wave/s1b_E6_seed6_er2_a3` and the batch bundles E7, E8 and E10. Output: `data/logs/vm_runs/live_batch/agg_final.json`. E9 and E11 have no live data. **E10's 38 failed analyses are excluded from every per-analysis denominator**, and its episode-level values are censored at 123.5 sim-s.
+
+### 11.1 (a) Attribution
+
+| Episode | Clearing dispatches (max into one cluster) | Alternations (max in one cluster) | churn_class | Verdict |
+|---|---|---|---|---|
+| E6 | 3 (2) | 0 | resolved | INDETERMINATE |
+| E7 | 1 (1) | 0 | clogged | INDETERMINATE |
+| E8 | 1 (1) | 0 | clogged | INDETERMINATE |
+| E10 | 2 (1) | 0 | resolved (censored) | INDETERMINATE (censored lower bound) |
+
+**Pooled: INDETERMINATE (0/4 opportunity episodes).** No live episode gave the model three clearing dispatches into one cluster. E10 might have, but its backend died after two analyses, so its "no opportunity" result is a censoring artefact rather than the natural outcome.
+
+### 11.2 (b) Productive-resolution Counts
+
+| Set | n | Values | p95 (nearest rank) |
+|---|---|---|---|
+| All classified S1/S1b episodes (A21 table + E6, E7, E8, E10) | 16 | 13 × 0, A1 1, E10 1, E6 2 | 2 |
+| Live only | 4 | 2, 0, 0, 1 (censored) | 2 |
+| Per productive event: clearing dispatches into its cluster up to and including it (live) | 3 | 1, 2, 1 | 2 |
+
+This is still too thin to freeze `budget_k`.
+
+### 11.3 (c) First-conflict Yield
+
+| Set | Live yield | MC (upper bound) |
+|---|---|---|
+| Live ER-2 (E6, E7, E8, E10) | **0/4** (Clopper-Pearson 95% CI 0-0.60) | 2/4 (E6, E10) |
+| Echo pilots (S1b E1-E5) | 0/5 | 4/5 |
+
+The live first analyses were reverse (E6, E7), a refused yield (E8), and a dispatched but never-admitted yield (E10). E10 is the first live episode whose first analysis dispatched a yield at all. Across all VM S1b episodes so far the count is 0/9.
+
+### 11.4 (d) Wandering vs Park
+
+| Episode | Finishers | Occupied-node arrivals | With finisher occupant | Parked-finisher occupancy | Tail gridlock |
+|---|---|---|---|---|---|
+| S1b E1 (echo) | 0 | 1 | 0 | 0 | yes |
+| S1b E2 (echo) | 0 | 4 | 0 | 0 | yes |
+| S1b E3 (echo) | 0 | 2 | 0 | 0 | yes |
+| S1b E4 (echo) | 1 (r2, 171.3 sim-s) | 1 | 0 | 0 | yes |
+| S1b E5 (echo) | 0 | 2 | 0 | 0 | yes |
+| E6 (live) | 0 | 3 | 0 | 0 | yes |
+| E7 (live) | 0 | 3 | 0 | 0 | yes |
+| E8 (live) | 0 | 3 | 0 | 0 | yes |
+| E10 (live, censored) | 0 | 2 | 0 | 0 | yes |
+
+The total is 1 finisher and 21 occupied-node arrivals, 0 of them with a finisher as occupant. **Wandering-vs-park stays undecided because there are almost no finishers to observe.**
+
+### 11.5 (e) Cost
+
+| Episode | Valid analyses | Billed calls | Est. USD (published ER-2 rate, lower bound) |
+|---|---|---|---|
+| E6 | 5 | 5 | 0.0335 |
+| E7 | 4 | 4 | 0.0284 |
+| E8 | 4 | 4 | 0.0277 |
+| E10 | 2 (+38 × 402) | 3 | 0.0174 (truncated floor) |
+
+The median is $0.0281 (the mean of the middle two values). `aggregate.py` reports the upper median, $0.0284. The range is $0.0174-0.0335. **The batch total is $0.0735** (E7 + E8 + E10), under the $0.40 gate, and $0.1070 including E6. These are estimates against an account balance that is now exhausted, so the owner should check actual billing in AI Studio. A stage-2 call happened once in the batch (E10 analysis 1).
+
+---
+
+## 12. Both Clusters Named: How Often the E7 Overturn Occurs (Rev 2)
+
+| Episode | Valid analyses | Two-cluster scenes | Named both clusters | Scene-wide plan dispatched |
+|---|---|---|---|---|
+| E6 | 5 | 3 | 0 | 0 |
+| E7 | 4 | 4 | **2** (`c7aeaac1` reverse r1-r4; `ca36d298` junction_clear r1-r5) | **1** (`c7aeaac1`, vb ∧ matched) |
+| E8 | 4 | 0 (one cluster of up to five) | 0 | 0 |
+| E10 | 2 | 1 (`d5541ff0`, named {r2, r4} only) | 0 | 0 |
+| **Total** | **15** | **8** | **2/15 (2/8)** | **1/15 (1/8)** |
+
+A two-cluster scene has at least two latch clusters (< 0.45 m components of the artifact's own M1 scene) with two or more robots each. **The overturn of A22's "S6-in-S1 = NO" rests on one dispatched plan in one episode out of four.** It is real (verbatim and dispatch-matched), but it is rare. In the other 6 two-cluster scenes (E6 3, E7 2, E10 1) the model named one cluster. The E7 dispatch made no progress (§4).
+
+---
+
+## 13. VM End State (Rev 2, 2026-10-11 about 04:15Z)
+
+| Check | Result |
+|---|---|
+| Chain | `CHAIN_P4 DONE` 20:33:14Z (normal end). `p4/attempts.tsv` has 9 rows: E7 a1 ran, E8 a1 ran, E9 a1-a3 abort, E10 a1 ran, E11 a1-a3 abort |
+| Processes | No run_simulation / Kit / fc_launch / chain / sidecar process on the host. `vgu_ros` up and idle. GPU 0 %, 136 MiB |
+| Pins | `orchestrator.yaml` `1f656533` in source AND installed (`install/share`). `rag.yaml` `e18c723c`, `s1_dynamic.yaml` `66900e13`, `s1b_dynamic.yaml` `535f5281` in source. These three have no installed copy: the container reads them through the `/ws` bind mount, which is the source file |
+| Leftover GT | `data/logs/simulation/` empty |
+| Ownership | `chown -R ubuntu:ubuntu ~/v3_s1b data/logs/m5_decisions data/logs/m5_scene` changed 54 files from root to ubuntu. Re-check: 0 non-ubuntu files |
+| NOTES | "A22 BATCH END STATE" appended to `~/v3_s1b/NOTES.md` (167 lines, md5 `21f288e9`). Local copy: `data/logs/vm_runs/live_batch/NOTES_vm_final.md` |
+| Retrieval | `runs/s1b_E10_*`, `runs/s1b_E11_*` (3 attempts), the `_backup_*` dirs and `p4/` pulled into `data/logs/vm_runs/live_batch/` (`p4/` as `p4_vm/`). Tarball md5 matched both ends, and the VM tarball was removed |
+| API | $0 spent in this close-out (retrieval and offline aggregation only) |
+
+**VM: IDLE.** The next live ER-2 work is blocked on the Gemini prepaid balance.
+
+---
+
 ## References
 
 - Spec: prereg-v3 A21-A22 (`feat/v3-design`, `docs/superpowers/specs/2026-10-06-prereg-v3-design.md`).
@@ -221,4 +388,5 @@ Per live episode: $0.0335, $0.0284, $0.0277. Every call is about 3.1-3.3k prompt
   - `scripts/s1b_live_batch_stats.py` (new; the per-analysis E6 schema);
   - `scripts/s1_churn_stats.py` (additive `cluster_groups`, `max_clearing_dispatches_one_cluster`, `max_alternations_one_cluster`).
 - VM kit and bundles: `data/logs/vm_runs/live_batch/` (gitignored): `chain_p4.sh`, `pin_watch.py`, `aggregate.py`, `mc_seeds*.py`, `notes_prereg_p4.md`, `agg_partial.json`.
+- Rev 2 additions (same directory, gitignored): `s1b_E10_seed10_er2_a1/`, `s1b_E11_seed11_er2_a{1,2,3}/` with their side logs, `p4_vm/` (the VM `p4/` kit incl. `attempts.tsv` and `chain_p4.log`), `agg_final.json` (final aggregates), `NOTES_vm_final.md` (VM NOTES after the end-state entry, md5 `21f288e9`).
 
