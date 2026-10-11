@@ -444,3 +444,39 @@ Data (gitignored), under `data/logs/vjepa_pilot_20261011/` in the worktree:
 | `probe/results.json` | scoring output |
 | `stats.json` | dataset-card statistics |
 | `extract.log` | extraction log |
+
+---
+
+## Rev 2: Static-Control Bug Fix (Frozen Before Re-Scoring)
+
+**Bug (found in review after the Rev 1 scoring pass).** The `static` clip
+showed only the last frame. Its robot pools, however, were taken at each
+tubelet's GT trajectory position, the same positions as `dyn`.
+
+- For a robot that moved, the early tubelets pooled background where it used
+  to be.
+- So `ra[-1] - ra[0]` and `dA`/`dB` in the "static" features encoded the GT
+  trajectory.
+- Check on held-out temporal robot clips, mean `||ra[-1] - ra[0]||`:
+  - leaky static: 51.5 for moving robots against 38.0 for robots still >= 30 s;
+  - fixed static: 37.7 against 38.0.
+
+**Fix.** `0eb4b13`. Static pools every tubelet at the last-frame position
+(`extract_features.pool_patches`).
+
+- Only the static variant was re-extracted, in 917 s.
+- `dyn` features, the `dyn` probes and the split are byte-identical to Rev 1
+  (`frozen.json` diff).
+- Rev 1 artifacts are kept as `features/static_rev1_leaky.npz` and
+  `probe_rev1/`.
+
+**Refit with the same procedure** (leave-one-family-out on train families
+only). The selection data is not a result:
+
+| Probe | Selected | Leaky Rev 1 static (superseded) |
+|---|---|---|
+| static conflict | C = **0.03**; CV balanced 0.501-0.519 across the grid | C 0.001, CV 0.582 |
+| static temporal | alpha = **1000**; CV pair accuracy 0.924 | 0.940 |
+
+This configuration is committed before the corrected static probe scores
+any held-out or battery item. Decision rule unchanged.
