@@ -171,6 +171,42 @@ def line_hold_yaw(
 # while reversing; M3 itself caps the turn at 45 degrees.
 _LINE_TURN_MAX_RAD = math.pi / 2
 
+# Raw-cmd_vel primitive safety deadline: a generous multiple of the naive
+# wall-clock estimate, or a floor (see `Nav2Adapter.backup`).
+_DEADLINE_FACTOR = 15.0
+_DEADLINE_FLOOR_SEC = 30.0
+
+
+def backup_deadline_sec(distance_m: float, speed_mps: float = 0.1) -> float:
+    """Wall-clock safety deadline of `Nav2Adapter.backup`, seconds after its start.
+
+    Args:
+        distance_m: Backup distance.
+        speed_mps: Backup speed (the primitive's default).
+
+    Returns:
+        `max(|distance| / speed * 15, 30)`.
+    """
+    naive_sec = abs(distance_m) / speed_mps if speed_mps else 0.0
+    return max(naive_sec * _DEADLINE_FACTOR, _DEADLINE_FLOOR_SEC)
+
+
+def sidestep_deadline_sec(
+    lateral_m: float, speed_mps: float = 0.1, turn_rate_rps: float = 0.5
+) -> float:
+    """Wall-clock safety deadline of `Nav2Adapter.sidestep`, seconds after its start.
+
+    Args:
+        lateral_m: Sidestep lateral distance.
+        speed_mps: Drive speed (the primitive's default).
+        turn_rate_rps: Turn rate (the primitive's default).
+
+    Returns:
+        `max((pi / turn_rate + |lateral| / speed) * 15, 30)`.
+    """
+    naive_sec = math.pi / turn_rate_rps + abs(lateral_m) / speed_mps
+    return max(naive_sec * _DEADLINE_FACTOR, _DEADLINE_FLOOR_SEC)
+
 
 def backup_line_turn(parameters: Mapping[str, Any]) -> float | None:
     """Turn from the backup's start heading onto the line M3 swept, or None.
@@ -406,8 +442,7 @@ class Nav2Adapter(Node):
         # OS-monotonic on purpose: with use_sim_time the node clock tracks
         # /clock from the sim, which freezes if the sim hangs — defeating a
         # deadline whose whole job is to catch a hung/blocked scenario.
-        naive_sec = abs(distance_m) / speed_mps if speed_mps else 0.0
-        safety_deadline = time.monotonic() + max(naive_sec * 15.0, 30.0)
+        safety_deadline = time.monotonic() + backup_deadline_sec(distance_m, speed_mps)
 
         def _finish(status: str, detail: str) -> None:
             timer = self._backup_timers.pop(robot_id, None)
@@ -541,8 +576,9 @@ class Nav2Adapter(Node):
         )
         self._backup_odom_subs[robot_id] = odom_sub
 
-        naive_sec = math.pi / turn_rate_rps + abs(lateral_m) / speed_mps
-        safety_deadline = time.monotonic() + max(naive_sec * 15.0, 30.0)
+        safety_deadline = time.monotonic() + sidestep_deadline_sec(
+            lateral_m, speed_mps, turn_rate_rps
+        )
 
         def _finish(status: str, detail: str) -> None:
             timer = self._backup_timers.pop(robot_id, None)

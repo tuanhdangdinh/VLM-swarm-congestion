@@ -19,9 +19,44 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 
 FRESH_LATCH_DETAIL_PREFIX = "fresh latch fast-fail"
+# prereg-v3 A27(iii): the command bus's one structured log line per firing,
+# so a live B3 is measured, not inferred from the step's timing.
+FAST_FAIL_LOG_EVENT = "b3_fast_fail"
 # How long the clearing robot must stay held before the step fails: long
 # enough to ride out a one-scene flicker, far below the 148-211 s deadline.
 DEFAULT_DEBOUNCE_SEC = 2.0
+
+
+def fast_fail_log_line(
+    command_id: str,
+    robot_id: str,
+    phase: str,
+    elapsed_s: float,
+    deadline_s: float,
+    sim_t: float,
+    detail: str,
+) -> str:
+    """The structured key-value log line for one B3 firing (A27(iii)).
+
+    Args:
+        command_id: The clearing command.
+        robot_id: The clearing robot.
+        phase: `backup` or `pull_off`.
+        elapsed_s: Wall seconds from the step's start to the firing.
+        deadline_s: The step's own motion deadline, wall seconds after its
+            start (`nav2_adapter.backup_deadline_sec` / `sidestep_deadline_sec`).
+        sim_t: Sim time of the firing.
+        detail: `FreshLatchWatch.check`'s FAILED detail.
+
+    Returns:
+        `b3_fast_fail command=... robot=... phase=... elapsed_s=...
+        deadline_s=... saved_s=... sim_t=... detail="..."`.
+    """
+    return (
+        f"{FAST_FAIL_LOG_EVENT} command={command_id} robot={robot_id} phase={phase} "
+        f"elapsed_s={elapsed_s:.1f} deadline_s={deadline_s:.1f} "
+        f"saved_s={deadline_s - elapsed_s:.1f} sim_t={sim_t:.3f} detail=\"{detail}\""
+    )
 
 
 class FreshLatchWatch:

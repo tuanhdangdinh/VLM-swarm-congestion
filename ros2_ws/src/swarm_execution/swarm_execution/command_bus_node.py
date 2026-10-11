@@ -19,8 +19,13 @@ except ImportError:
     CoordinationStatus = object
 
 from swarm_execution.crossing_chain import CrossingChain, plan_crossing
-from swarm_execution.fresh_latch import FreshLatchWatch
-from swarm_execution.nav2_adapter import Nav2Adapter, backup_line_turn
+from swarm_execution.fresh_latch import FreshLatchWatch, fast_fail_log_line
+from swarm_execution.nav2_adapter import (
+    Nav2Adapter,
+    backup_deadline_sec,
+    backup_line_turn,
+    sidestep_deadline_sec,
+)
 from swarm_execution.yield_phase import HOLD_STARTED_DETAIL, PULL_OFF_DETAIL
 
 
@@ -242,10 +247,38 @@ class CommandBusNode(Node):
             if watch is not None:
                 watch.arm(robot_id, msg.command_id, time.monotonic())
 
-            def _abort_kwargs(phase: str) -> dict:
+            def _abort_kwargs(phase: str, command_id: str = msg.command_id) -> dict:
                 if watch is None:
                     return {}
-                return {"abort_check": watch.checker(robot_id, phase, time.monotonic)}
+                check = watch.checker(robot_id, phase, time.monotonic)
+                # The primitive starts its own deadline clock right after this
+                # call, with the same formula (A27(iii) log line).
+                started = time.monotonic()
+                deadline_s = (
+                    backup_deadline_sec(distance_m)
+                    if phase == "backup"
+                    else sidestep_deadline_sec(float(pull_off_lateral or 0.0))
+                )
+
+                def _logged_check() -> str | None:
+                    detail = check()
+                    if detail is not None:
+                        # The primitive fails the step on the first non-None
+                        # detail, so this logs once per firing.
+                        self.get_logger().info(
+                            fast_fail_log_line(
+                                command_id,
+                                robot_id,
+                                phase,
+                                time.monotonic() - started,
+                                deadline_s,
+                                self._sim_now(),
+                                detail,
+                            )
+                        )
+                    return detail
+
+                return {"abort_check": _logged_check}
 
             def _disarm(command_id: str = msg.command_id) -> None:
                 if watch is not None:
