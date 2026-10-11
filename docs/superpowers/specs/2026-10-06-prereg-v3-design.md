@@ -1400,6 +1400,40 @@ sequential bring-up 6/6 first-attempt, pooled 0/14 vs parallel 9/20
 unexercised live; wandering-vs-park still undecided (1 finisher,
 0/33).
 
+**A26. No-admit mystery resolved: two mechanisms; shield ruled
+(2026-10-12; report no-admit-diagnosis; integration @0f9d423).**
+The 6 no-admit yield failures split cleanly: MECHANISM A (2 cases,
+FIXED) — M3 checked retreats along the snapped lane axis while M4
+backed along the robot's own heading (18-23° off → 0.42-0.62 m path
+miss → island contact); fix mirrors the escort pattern
+(backup_facing/reference keys, dynamic-footprint-only, ≤45° turns,
+declared-mode byte-identical) — controller replay on all 9 real
+yields lands ≤0.031 m from M3's target and island contact
+disappears. The passer_reference hypothesis was RULED OUT (unset on
+all 9 incl. the completers; gate_admit fires at hold start
+regardless of the passer). The step time limits that fired are M4's
+own motion formulas (backup max(d/0.1·15,30); sidestep
+(π/0.5+|L|/0.1)·15). MECHANISM B (4 cases): a semantics gap — M3
+checks retreats only against decision-time positions; a moving
+bystander enters the retreat mid-maneuver, forming a NEW latch that
+A19's command-start waiver does not cover; both robots freeze to
+the limit. RULINGS: (i) B1 ADOPTED WITH INTENT — a retreat shield:
+grounding holds (unlinked, tagged grounding=retreat_shield:<id>)
+any bystander whose current-goal path crosses the active retreat,
+with M3 reading M5's task intent through the SAME registry channel
+the node-handoff rule already uses; precedent for holding unnamed
+robots = the lane-scope waits; config-gated, default-off, S1 cells
+only; the intent read is what covers dwelling-robot blockers (E14/
+E17b). (ii) B3 ADOPTED as stop-gap: M4 fails fast when the clearing
+robot and its blocker share a fresh latch (saves ~150-200 s/event,
+earlier failure context). (iii) B2 REJECTED (banning node-adjacent
+retreats would refuse most yields by construction). "Admitted ⇒
+completed" is recorded as uninformative (the hold timer guarantees
+completion; only E6 released on real clearance). Projected effect
+of A alone: admits 3/9→5/9; B is the bigger lever (covers both
+MC-matched failed yields). Deploy note: A touches live-mounted M3
+files AND colcon-built M4 files — rebuild + md5 both.
+
 **A14 corrigendum (2026-10-09).** A14(iv)'s "GT
 robot_static_contacts logged 0 rows during a physical pin" implied
 an under-detecting detector. The truth is stronger:
