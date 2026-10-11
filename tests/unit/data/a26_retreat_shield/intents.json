@@ -1,0 +1,752 @@
+{
+ "cases": {
+  "E10": {
+   "bundle": "live_batch/s1b_E10_seed10_er2_a1",
+   "dwell_sim_sec": 5.0,
+   "robots": {
+    "robot_1": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ],
+     "next_node": "E",
+     "node": "N",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_2": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_node": "Wm",
+     "node": "S",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_3": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ],
+     "next_node": "E",
+     "node": "Wp",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_4": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_node": "S",
+     "node": "E",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_5": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ],
+     "next_node": "E",
+     "node": "Wm",
+     "phase": "traveling",
+     "task_index": 0
+    }
+   },
+   "stamp": 37.966666666,
+   "tasks_log": "tasks_2bc89ec54d1842e5b9c491b6bc641c70.jsonl"
+  },
+  "E11": {
+   "bundle": "resume/s1b_E11_seed11_er2_b1",
+   "dwell_sim_sec": 5.0,
+   "robots": {
+    "robot_1": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_node": "S",
+     "node": "Wm",
+     "phase": "traveling",
+     "task_index": 1
+    },
+    "robot_2": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ],
+     "next_node": "E",
+     "node": "Wm",
+     "phase": "traveling",
+     "task_index": 1
+    },
+    "robot_3": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_node": "Wm",
+     "node": "E",
+     "phase": "traveling",
+     "task_index": 1
+    },
+    "robot_4": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ],
+     "next_node": "N",
+     "node": "S",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_5": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_node": "S",
+     "node": "E",
+     "phase": "traveling",
+     "task_index": 1
+    }
+   },
+   "stamp": 59.466666666,
+   "tasks_log": "tasks_b0b30a9fa5ce489e9aabb8afd057b8f2.jsonl"
+  },
+  "E13": {
+   "bundle": "batch2/s1b_E13_seed13_er2_c1",
+   "dwell_sim_sec": 5.0,
+   "robots": {
+    "robot_1": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "next_goal": [
+      -2.3,
+      1.35
+     ],
+     "next_node": "Wp",
+     "node": "N",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_2": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "next_goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_node": "S",
+     "node": "Wp",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_3": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ],
+     "next_node": "N",
+     "node": "Wm",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_4": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ],
+     "next_node": "N",
+     "node": "Wp",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_5": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ],
+     "next_node": "E",
+     "node": "N",
+     "phase": "traveling",
+     "task_index": 0
+    }
+   },
+   "stamp": 42.233333333,
+   "tasks_log": "tasks_f51c88e698e443bf951a70bf886d56bb.jsonl"
+  },
+  "E14": {
+   "bundle": "batch2/s1b_E14_seed14_er2_c1",
+   "dwell_sim_sec": 5.0,
+   "robots": {
+    "robot_1": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "next_goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_node": "Wm",
+     "node": "N",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_2": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ],
+     "next_node": "E",
+     "node": "Wm",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_3": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_node": "Wm",
+     "node": "E",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_4": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ],
+     "next_node": "N",
+     "node": "E",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_5": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "next_goal": [
+      -2.3,
+      1.35
+     ],
+     "next_node": "Wp",
+     "node": "N",
+     "phase": "traveling",
+     "task_index": 0
+    }
+   },
+   "stamp": 42.6,
+   "tasks_log": "tasks_e1bb695416804535a1c5c4879898feb0.jsonl"
+  },
+  "E15": {
+   "bundle": "batch2/s1b_E15_seed15_er2_c1",
+   "dwell_sim_sec": 5.0,
+   "robots": {
+    "robot_1": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_node": "S",
+     "node": "E",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_2": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_node": "S",
+     "node": "E",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_3": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_node": "Wm",
+     "node": "S",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_4": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_node": "S",
+     "node": "E",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_5": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ],
+     "next_node": "E",
+     "node": "Wp",
+     "phase": "traveling",
+     "task_index": 0
+    }
+   },
+   "stamp": 43.366666666,
+   "tasks_log": "tasks_ceea6bf44af74212b186d3158707213d.jsonl"
+  },
+  "E16": {
+   "bundle": "batch2/s1b_E16_seed16_er2_c1",
+   "dwell_sim_sec": 5.0,
+   "robots": {
+    "robot_1": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ],
+     "next_node": "N",
+     "node": "Wp",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_2": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "next_goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_node": "S",
+     "node": "Wp",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_3": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_node": "S",
+     "node": "E",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_4": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ],
+     "next_node": "N",
+     "node": "Wm",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_5": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ],
+     "next_node": "E",
+     "node": "Wm",
+     "phase": "traveling",
+     "task_index": 1
+    }
+   },
+   "stamp": 107.3,
+   "tasks_log": "tasks_896aa308fe20451cb6f292048a5b3d63.jsonl"
+  },
+  "E17a": {
+   "bundle": "batch2/s1b_E17_seed17_er2_c1",
+   "dwell_sim_sec": 5.0,
+   "robots": {
+    "robot_1": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "next_goal": [
+      -2.3,
+      1.35
+     ],
+     "next_node": "Wp",
+     "node": "N",
+     "phase": "traveling",
+     "task_index": 1
+    },
+    "robot_2": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -2.3,
+      1.35
+     ],
+     "next_node": "Wp",
+     "node": "E",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_3": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ],
+     "next_node": "E",
+     "node": "Wp",
+     "phase": "traveling",
+     "task_index": 1
+    },
+    "robot_4": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ],
+     "next_node": "N",
+     "node": "S",
+     "phase": "traveling",
+     "task_index": 2
+    },
+    "robot_5": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ],
+     "next_node": "N",
+     "node": "Wm",
+     "phase": "traveling",
+     "task_index": 0
+    }
+   },
+   "stamp": 138.933333333,
+   "tasks_log": "tasks_c01d9ba64a27444b8b8f0f95f1a939ad.jsonl"
+  },
+  "E17b": {
+   "bundle": "batch2/s1b_E17_seed17_er2_c1",
+   "dwell_sim_sec": 5.0,
+   "robots": {
+    "robot_1": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ],
+     "next_node": "E",
+     "node": "Wp",
+     "phase": "traveling",
+     "task_index": 2
+    },
+    "robot_2": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -2.3,
+      1.35
+     ],
+     "next_node": "Wp",
+     "node": "E",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_3": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_node": "Wm",
+     "node": "E",
+     "phase": "traveling",
+     "task_index": 2
+    },
+    "robot_4": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ],
+     "next_node": "N",
+     "node": "S",
+     "phase": "traveling",
+     "task_index": 2
+    },
+    "robot_5": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ],
+     "next_node": "N",
+     "node": "Wm",
+     "phase": "traveling",
+     "task_index": 0
+    }
+   },
+   "stamp": 248.3,
+   "tasks_log": "tasks_c01d9ba64a27444b8b8f0f95f1a939ad.jsonl"
+  },
+  "E6": {
+   "bundle": "churn_wave/s1b_E6_seed6_er2_a3",
+   "dwell_sim_sec": 5.0,
+   "robots": {
+    "robot_1": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ],
+     "next_node": "E",
+     "node": "Wm",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_2": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ],
+     "next_node": "N",
+     "node": "Wp",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_3": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ],
+     "next_node": "N",
+     "node": "S",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_4": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ],
+     "next_node": "N",
+     "node": "E",
+     "phase": "traveling",
+     "task_index": 0
+    },
+    "robot_5": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_node": "S",
+     "node": "Wm",
+     "phase": "traveling",
+     "task_index": 0
+    }
+   },
+   "stamp": 75.7,
+   "tasks_log": "tasks_93f18b8ba64c405eb6600837336fd0c2.jsonl"
+  }
+ },
+ "source": "A26: M5 task intent at the 9 A25 yield decisions (tasks_*.jsonl)"
+}
