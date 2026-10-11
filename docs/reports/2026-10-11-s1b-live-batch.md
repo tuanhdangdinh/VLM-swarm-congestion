@@ -6,10 +6,30 @@
 
 - Rev 1 (2026-10-11, PARTIAL): A22 echo-rotation fix (build, tests, merge, deploy); live batch episodes E7 and E8, E9 not run (3 Nav2 bring-up aborts); E10/E11 ran unattended on the VM but their bundles were NOT retrieved, because SSH to the VM was lost mid-batch (the Mac's public IP changed and the VM firewall admits only the old IP). All aggregates are PROVISIONAL over E6-E8.
 - Rev 2 (2026-10-11, FINAL): SSH restored; E10 and E11 retrieved. E10 ran but is censored at 123.5 sim-s (Gemini prepaid credits depleted, HTTP 402 on 38/40 analyses); E11 not run (3 bring-up aborts). Final aggregates over the four live episodes (E6, E7, E8, E10), the both-clusters count, and the VM end state are in §9-§13. Rev 1 numbers that changed are marked superseded in place.
+- Rev 3 (2026-10-11): aggregate update after the A23 resume ran E9 and E11 live (`docs/reports/2026-10-11-bringup-and-resume.md`). §14 has the aggregates over six live episodes (E6, E7, E8, E10, E9, E11). Rev 2 numbers that changed are marked superseded in place.
+
+---
+
+## Summary (Rev 3)
+
+**The A23 resume ran E9 and E11 live**, with sequential Nav2 bring-up; both brought up on the first attempt and completed cleanly. Details are in `docs/reports/2026-10-11-bringup-and-resume.md`. **There are now six live episodes.** The Rev 2 summary below stands for the four-episode state; every aggregate it quotes is superseded by §14.
+
+| Question | Rev 3 answer (live E6, E7, E8, E10, E9, E11) |
+|---|---|
+| E9 / E11 | E9: 7 valid analyses, yields refused `no executable retreat` (= MC), `clogged`, $0.0495. E11: 9 valid analyses, 2 unproductive latch-breaking dispatches → `intermittent`, $0.0707 |
+| (a) Attribution | **E11 = ARCHITECTURE-CHURN by the registered rule** (`intermittent`, 0 alternations). 0/6 opportunity episodes. By the letter the pooled verdict reads "LIVELOCK UNDER A REAL MODEL (1 of 0 opportunity episodes)", which is malformed. It is an edge case and needs an owner ruling (A23 report §7) |
+| (b) Productive resolutions | Live 2, 0, 0, 1*, 0, 0. All classified n = 18, p95 = 2. budget_k still unfreezable |
+| (c) First-conflict yields | **Live 0/6** (CI 0-0.46) against an MC upper bound of 3/6 |
+| (d) Wandering vs park | 1 finisher ever; 0/24 occupied-node arrivals with a finisher occupant. Undecided |
+| (e) Cost | Median $0.0310 (mean of the middle two); range $0.0174-0.0707; all-live total $0.2272 |
+| Both clusters named | 2/31 valid analyses (2/20 two-cluster scenes); dispatched 1/31; episodes 1/6 (E7) |
+| Bring-up | Stagger-6 parallel pooled 9/20 (incl. 4 same-day controls). Sequential 0/8 |
 
 ---
 
 ## Summary (Rev 2, FINAL)
+
+> Rev 3: superseded for every aggregate by §14 and the Rev 3 summary above. The episode statuses for E6-E10 stand. E9 and E11 later ran in the A23 resume (§14).
 
 **Status: batch closed.** Four live ER-2 episodes ran in total: E6 from the A21 wave, plus E7, E8 and E10 from this batch. E9 and E11 never ran: each had three Nav2 bring-up aborts. **There are four live episodes, not six.** Every "E6-E11" aggregate below is computed over E6, E7, E8 and E10.
 
@@ -284,6 +304,8 @@ E11 was an MC-positive seed (echo [r2, r3] → executable yield r2). If it had b
 
 ## 11. Final Aggregates (Rule 11 Definitions; Live E6, E7, E8, E10) (Rev 2)
 
+> Rev 3: superseded by §14, which recomputes every block with E9 and E11 added.
+
 Computed with `aggregate.py` over `churn_wave/s1b_E6_seed6_er2_a3` and the batch bundles E7, E8 and E10. Output: `data/logs/vm_runs/live_batch/agg_final.json`. E9 and E11 have no live data. **E10's 38 failed analyses are excluded from every per-analysis denominator**, and its episode-level values are censored at 123.5 sim-s.
 
 ### 11.1 (a) Attribution
@@ -347,6 +369,8 @@ The median is $0.0281 (the mean of the middle two values). `aggregate.py` report
 
 ## 12. Both Clusters Named: How Often the E7 Overturn Occurs (Rev 2)
 
+> Rev 3: superseded by §14. With E9 (6 two-cluster scenes) and E11 (6) the totals are 2/31 valid analyses and 2/20 two-cluster scenes; the scene-wide dispatch count is still 1 (E7).
+
 | Episode | Valid analyses | Two-cluster scenes | Named both clusters | Scene-wide plan dispatched |
 |---|---|---|---|---|
 | E6 | 5 | 3 | 0 | 0 |
@@ -376,6 +400,42 @@ A two-cluster scene has at least two latch clusters (< 0.45 m components of the 
 
 ---
 
+## 14. Rev 3 Aggregate Update: E9 and E11 from the A23 Resume
+
+E9 and E11 ran on the A23 tree (`9e18639`). The only behavioural differences from E6-E10 are:
+
+- sequential Nav2 bring-up (harness only), which moves t0 about 6 sim-s later;
+- `backend_failed` suppression, which never fired because neither episode had a decision=None.
+
+The condition is otherwise rule 11's (rule 13 in VM NOTES). Aggregation used `data/logs/vm_runs/bringup/aggregate_a23.py` (A22's script plus an MC entry for seed 12; it reproduces `agg_final.json` byte-equal) and wrote `data/logs/vm_runs/bringup/agg_a23.json`.
+
+### 14.1 (a) Attribution
+
+| Episode | Clearing dispatches (max into one cluster) | Alternations | churn_class | Verdict |
+|---|---|---|---|---|
+| E6 | 3 (2) | 0 | resolved | INDETERMINATE |
+| E7 | 1 (1) | 0 | clogged | INDETERMINATE |
+| E8 | 1 (1) | 0 | clogged | INDETERMINATE |
+| E10 | 2 (1) | 0 | resolved (censored) | INDETERMINATE |
+| E9 | 0 (0) | 0 | clogged | INDETERMINATE |
+| **E11** | 2 (2) | 0 | **intermittent** | **ARCHITECTURE-CHURN** |
+
+**Pooled, by the letter:** "LIVELOCK UNDER A REAL MODEL (1 of 0 opportunity episodes)". The registered report form ("k of the opportunity episodes") does not cover an ARCHITECTURE-CHURN episode that had no opportunity.
+
+E11's `intermittent` rests on two unproductive resolution events. The first is a vb yield r4 on {r4, r5}; the second is a vb reverse that M3 dispatched as r1 + r5 on {r1, r5}. The progress they arguably produced together (r4 reaching S at 112.9 sim-s after r5 reversed out of it) is credited to neither event by `s1_churn_stats`'s cluster-intersection window. **An owner ruling is needed before this verdict is cited.**
+
+### 14.2 (b)-(e) and Both Clusters
+
+| Aggregate | Value |
+|---|---|
+| (b) productive, live | 2, 0, 0, 1*, 0, 0. All classified episodes n = 18, nearest-rank p95 = 2. Per productive event [1, 2, 1], p95 2 |
+| (c) first-conflict yield | Live 0/6 (Clopper-Pearson 0-0.46). MC upper bound 3/6 (E6, E10, E11). E9's first conflict refused exactly as MC predicted. E11's first analysis was a single-robot no-congestion call |
+| (d) wandering vs park | 1 finisher (S1b E4 r2); 0/24 occupied-node arrivals with a finisher occupant; 0 parked-finisher events; tail gridlock in all 11 S1b VM episodes |
+| (e) cost | $0.0335 / 0.0284 / 0.0277 / 0.0174 / 0.0495 / 0.0707. Median $0.0310 (`aggregate.py` upper median $0.0335). All-live total $0.2272; A23 resume $0.1202 |
+| Both clusters named | 2/31 valid live analyses (2/20 two-cluster scenes); scene-wide plan dispatched 1/31 (E7). E9 and E11 named one cluster in all 12 of their two-cluster scenes |
+
+---
+
 ## References
 
 - Spec: prereg-v3 A21-A22 (`feat/v3-design`, `docs/superpowers/specs/2026-10-06-prereg-v3-design.md`).
@@ -388,5 +448,6 @@ A two-cluster scene has at least two latch clusters (< 0.45 m components of the 
   - `scripts/s1b_live_batch_stats.py` (new; the per-analysis E6 schema);
   - `scripts/s1_churn_stats.py` (additive `cluster_groups`, `max_clearing_dispatches_one_cluster`, `max_alternations_one_cluster`).
 - VM kit and bundles: `data/logs/vm_runs/live_batch/` (gitignored): `chain_p4.sh`, `pin_watch.py`, `aggregate.py`, `mc_seeds*.py`, `notes_prereg_p4.md`, `agg_partial.json`.
+- Rev 3: `docs/reports/2026-10-11-bringup-and-resume.md`; `data/logs/vm_runs/resume/` (E9 b1, E11 b1 bundles), `data/logs/vm_runs/bringup/agg_a23.json`, `aggregate_a23.py`.
 - Rev 2 additions (same directory, gitignored): `s1b_E10_seed10_er2_a1/`, `s1b_E11_seed11_er2_a{1,2,3}/` with their side logs, `p4_vm/` (the VM `p4/` kit incl. `attempts.tsv` and `chain_p4.log`), `agg_final.json` (final aggregates), `NOTES_vm_final.md` (VM NOTES after the end-state entry, md5 `21f288e9`).
 
