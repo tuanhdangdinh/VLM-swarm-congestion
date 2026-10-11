@@ -455,6 +455,35 @@ class TaskStreamTracker:
             return None
         return self._plan.tasks[robot_id][state.index]
 
+    def departure(
+        self, robot_id: str, sim_t: float | None
+    ) -> tuple[tuple[float, float] | None, float] | None:
+        """Where a robot goes after its current task node, and how long it dwells first.
+
+        prereg-v3 A26(i): M3's retreat shield reads this beside the
+        registry's current task node, so a robot that arrives, dwells and
+        departs mid-maneuver is scored on the leg it will drive then.
+
+        Args:
+            robot_id: A stream robot.
+            sim_t: The latest scene stamp (sim-s), or None before any.
+
+        Returns:
+            `(next_goal, dwell_sec)`: the next task's node (None after the
+            last task) and the sim-s still to dwell at the current node (the
+            full dwell while traveling, the remainder while dwelling). None
+            for a held, finished or unknown robot.
+        """
+        state = self._robots.get(robot_id)
+        if state is None or state.phase not in ("traveling", "dwelling"):
+            return None
+        queue = self._plan.tasks[robot_id]
+        next_goal = queue[state.index + 1].goal if state.index + 1 < len(queue) else None
+        dwell = self._dwell
+        if state.phase == "dwelling" and state.dwell_from_sim is not None and sim_t is not None:
+            dwell = max(0.0, self._dwell - (sim_t - state.dwell_from_sim))
+        return next_goal, dwell
+
     def phase(self, robot_id: str) -> Phase | None:
         """The robot's queue phase, or None for a robot outside the stream."""
         state = self._robots.get(robot_id)

@@ -40,6 +40,11 @@ from reasoning.rag.retreat_candidates import (
     generate_retreat_candidates,
     rank_candidates,
 )
+from reasoning.rag.retreat_shield import (
+    RobotTaskIntent,
+    apply_fresh_latch_fast_fail,
+    apply_retreat_shield,
+)
 from reasoning.rag.scene_geometry import (
     SceneGeometry,
     along_m,
@@ -567,6 +572,7 @@ def ground_reasoner_result(
     crossing_order: Sequence[str] | None = None,
     priorities: Mapping[str, int] | None = None,
     goal_references: Mapping[str, tuple[float, float]] | None = None,
+    task_intents: Mapping[str, RobotTaskIntent] | None = None,
 ) -> dict[str, Any]:
     """Convert a validated VLM decision into an executable coordination command.
 
@@ -649,6 +655,10 @@ def ground_reasoner_result(
         goal_references: Robot id -> its CURRENT task node (M5's base-mission
             registry goal), read only by the node-handoff rule of
             `params.dynamic_scene_arms`; None uses the snapshot's goals.
+        task_intents: Robot id -> M5 task intent (current task node, the
+            next one, the dwell left), read only by the A26 retreat shield
+            (`params.retreat_shield`); None scores bystanders on their
+            snapshot goals alone.
 
     Before grounding, the decision passes through the per-decision grounding
     view (`reasoning.rag.grounding_view.resolve_grounding_view`): declared
@@ -725,6 +735,9 @@ def ground_reasoner_result(
         command = _with_degradations(command, [*command.get("degradations", []), *view.tags])
     command = apply_escort_headings(command, snapshot, geometry, params, goal_references)
     command = apply_backup_line_hold(command, params)
+    # prereg-v3 A26: both off by default (same object back).
+    command = apply_retreat_shield(command, snapshot, geometry, params, task_intents)
+    command = apply_fresh_latch_fast_fail(command, params)
     return command if alias is None else _tag_alias(command, alias)
 
 
@@ -1313,6 +1326,11 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # yield's escort was dropped and its passers go under Nav2. Suffix
     # `:<passer>:<reason>`.
     "grounding=escort_off": None,
+    # prereg-v3 A26(i) retreat shield (`retreat_shield.apply_retreat_shield`):
+    # a bystander outside the command whose task-intent path crosses the
+    # derived yield's retreat corridor holds on an unlinked wait. Suffix
+    # `:<id>`, one tag per shielded robot. Provenance, not a cause.
+    "grounding=retreat_shield": None,
     # Stage-1 parser tags for the prompt-v2 optional decision fields, recorded
     # on `ReasonerDiagnostics.decision_degradations`; merged here so one
     # `degradation_cause` covers the whole breakdown.

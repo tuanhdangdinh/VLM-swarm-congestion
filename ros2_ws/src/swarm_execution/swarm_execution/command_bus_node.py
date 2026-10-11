@@ -8,15 +8,18 @@ try:
     import rclpy
     from nav_msgs.msg import Odometry
     from rclpy.node import Node
+    from std_msgs.msg import String
     from swarm_interfaces.msg import CoordinationCommand, CoordinationStatus
 except ImportError:
     rclpy = None
     Node = object
     Odometry = object
+    String = object
     CoordinationCommand = object
     CoordinationStatus = object
 
 from swarm_execution.crossing_chain import CrossingChain, plan_crossing
+from swarm_execution.fresh_latch import FreshLatchWatch
 from swarm_execution.nav2_adapter import Nav2Adapter, backup_line_turn
 from swarm_execution.yield_phase import HOLD_STARTED_DETAIL, PULL_OFF_DETAIL
 
@@ -62,6 +65,10 @@ class CommandBusNode(Node):
         # is time.monotonic() on purpose: the node runs on sim time, so a
         # node-clock deadline would freeze with /clock (see _sweep docstring).
         self._nav_watchdogs: dict[tuple[str, str], tuple[float, CoordinationCommand]] = {}
+        # prereg-v3 A26(ii), B3: created on the first clearing command that
+        # carries `fresh_latch_fast_fail`, so a node that never sees the key
+        # never subscribes to /safety/holds.
+        self._fresh_latch: FreshLatchWatch | None = None
         self._status_pub = self.create_publisher(CoordinationStatus, "/coordination/status", 10)
         self.create_subscription(
             CoordinationCommand,
@@ -71,6 +78,23 @@ class CommandBusNode(Node):
         )
         self.create_timer(self.NAV_WATCHDOG_SWEEP_PERIOD_SEC, self._sweep_nav_watchdogs)
         self.get_logger().info("Command bus started.")
+
+    def _fresh_latch_watch(self) -> FreshLatchWatch:
+        """The B3 holds tracker, subscribing to /safety/holds on first use."""
+        if getattr(self, "_fresh_latch", None) is None:
+            self._fresh_latch = FreshLatchWatch()
+            self.create_subscription(String, "/safety/holds", self._on_safety_holds, 10)
+        return self._fresh_latch
+
+    def _on_safety_holds(self, msg) -> None:
+        try:
+            held = json.loads(msg.data).get("held", [])
+        except (ValueError, TypeError, AttributeError) as exc:
+            self.get_logger().warning(f"safety/holds parse failed: {exc}")
+            return
+        watch = getattr(self, "_fresh_latch", None)
+        if watch is not None:
+            watch.on_holds(held, time.monotonic())
 
     def _sim_now(self) -> float:
         """Sim-stamped seconds from the node clock (`use_sim_time`).
@@ -210,6 +234,22 @@ class CommandBusNode(Node):
             # the hold described above. See crossing_chain.py.
             passers = plan_crossing(params) if action == "yield" else ()
             chain = CrossingChain(passers) if passers else None
+            # prereg-v3 A26(ii), B3: with M3's key, a latch the clearing robot
+            # forms after this command started fails the backup/pull-off at
+            # once (`FreshLatchWatch`) instead of at the motion deadline.
+            fast_fail = params.get("fresh_latch_fast_fail") is True
+            watch = self._fresh_latch_watch() if fast_fail else None
+            if watch is not None:
+                watch.arm(robot_id, msg.command_id, time.monotonic())
+
+            def _abort_kwargs(phase: str) -> dict:
+                if watch is None:
+                    return {}
+                return {"abort_check": watch.checker(robot_id, phase, time.monotonic)}
+
+            def _disarm(command_id: str = msg.command_id) -> None:
+                if watch is not None:
+                    watch.disarm(robot_id, command_id)
             # passer_reference_at_dispatch (yield only, optional; prereg-v3
             # addendum A8): take the first passer's odometry reference now
             # instead of at its admission. Set by M3 only for a junction
@@ -244,6 +284,7 @@ class CommandBusNode(Node):
                 )
 
             def _start_hold(command, _hold_sec: float) -> None:
+                _disarm()
                 self._publish_status(command, "ACTIVE", HOLD_STARTED_DETAIL)
                 timer_ref: dict = {}
                 odom_subs: list = []
@@ -378,6 +419,7 @@ class CommandBusNode(Node):
                     return
                 if status != "COMPLETED" or _hold_sec <= 0.0:
                     _drop_seed()
+                    _disarm()
                     self._publish_status(command, status, detail)
                     return
                 _start_hold(command, _hold_sec)
@@ -391,6 +433,7 @@ class CommandBusNode(Node):
                 if status != "COMPLETED":
                     if status != "ACTIVE":
                         _drop_seed()
+                        _disarm()
                     self._publish_status(command, status, detail)
                     return
                 if has_pull_off:
@@ -399,10 +442,12 @@ class CommandBusNode(Node):
                         robot_id,
                         float(pull_off_lateral),
                         on_result=_on_pull_off_result,
+                        **_abort_kwargs("pull_off"),
                     )
                     return
                 if _hold_sec <= 0.0:
                     _drop_seed()
+                    _disarm()
                     self._publish_status(command, status, detail)
                     return
                 _start_hold(command, _hold_sec)
@@ -424,9 +469,12 @@ class CommandBusNode(Node):
                     on_result=_on_backup_result,
                     hold_start_line=True,
                     **line_kwargs,
+                    **_abort_kwargs("backup"),
                 )
             else:
-                self._adapter.backup(robot_id, distance_m, on_result=_on_backup_result)
+                self._adapter.backup(
+                    robot_id, distance_m, on_result=_on_backup_result, **_abort_kwargs("backup")
+                )
             return True
         if action in {"wait", "temporary_wait", "stop"}:
             self._adapter.cancel(robot_id)
