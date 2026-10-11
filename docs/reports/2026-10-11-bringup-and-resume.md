@@ -20,7 +20,7 @@
 | A23 suppression ruling | `decision=None` on a stall analysis arms `backend_failed`. The E10 402 replay collapses **38 → 2** analyses. Suite zero delta (62/6459/153/3 → 62/6475/153/3) |
 | E9 (seed 9) | Clean. 7 valid analyses, all naming {r4, r5}. 6 yields refused `no executable retreat` (exactly the MC prediction) and withheld, plus 1 reverse grounded to waits. `clogged`, 4/25 tasks. $0.0495 |
 | E11 (seed 11) | Clean. A vb yield r4 and a vb reverse r1+r5 were dispatched, both breaking latches and both unproductive → **`intermittent` → ARCHITECTURE-CHURN by the registered rule** (first live specimen; 0 alternations, opportunity not met). It is an edge case and needs an owner ruling (§7). 6/25 tasks. $0.0707 |
-| Updated aggregates (E6-E11, 6 live) | (a) 0/6 opportunity, 1 ARCH (E11), pooled verdict malformed by the letter; (b) p95 = 2 (n = 18), budget_k still unfreezable; (c) first-conflict yield **0/6** (CI 0-0.46) vs MC 3/6; (d) wandering vs park undecided (1 finisher, 0/24); (e) median $0.031, total $0.227. Both clusters named 2/31, dispatched 1/31 |
+| Updated aggregates (E6-E11, 6 live) | (a) 0/6 opportunity, 1 ARCH (E11) → the pooled verdict is MET by the letter: **LIVELOCK UNDER A REAL MODEL**. Only the "k of the opportunity episodes" annotation does not fit (1 ARCH, 0 opportunity). A ruling is needed before citing; (b) p95 = 2 (n = 18), budget_k still unfreezable; (c) first-conflict yield **0/6** (CI 0-0.46) vs MC 3/6; (d) wandering vs park undecided (1 finisher, 0/24); (e) median $0.031, total $0.227. Both clusters named 2/31, dispatched 1/31 |
 | Cost / VM | **$0.1202** this wave (cap $0.15). VM RUNNING idle, pins verified, NOTES updated |
 
 PILOT-ONLY, RECORD = 0.
@@ -226,6 +226,7 @@ Validation alone gives Fisher one-sided p ≈ 0.054: suggestive, not established
     - event 1's productive window closes at the next clearing dispatch that intersects its cluster (the r1+r5 reverse at 107.3, 5.6 s earlier);
     - r4 is not in event 2's cluster {r1, r5}.
   - Under a group-level productive credit the episode would be `resolved`.
+  - **The second unproductive event's dispatched form came from the grounder, not the model.** Analysis 3 was vb but MISmatched: the model planned r1 reverse with r5 waiting, and M3 dispatched r1 **and** r5 reverse. E10 analysis 2 was the mirror case: a two-robot reverse plan grounded as one robot. This bears on architecture-vs-apparatus attribution.
   - The `intermittent` threshold (≥ 2 unproductive) is met at its minimum.
 - **Provenance.** vb 2, m3_default 3, repaired 1, none 3 (no-congestion). vb ∧ matched 1/9 (analysis 2).
 - **MC.** The first encounter held exactly (MC r4+r5 at 28.2 s; live r4+r5 at 28.1 rel-s). MC's echo named [r2, r3] → executable yield r2. The live first analysis was a single-robot no-congestion call. First-conflict yield: **no**. The model's first yield (analysis 2, on {r4, r5}) was dispatched but never reached `gate_admit`.
@@ -244,7 +245,7 @@ Computed with `data/logs/vm_runs/bringup/aggregate_a23.py`. It is A22's `aggrega
 | (a) Attribution per episode | INDETERMINATE ×4 | INDETERMINATE ×5, **ARCHITECTURE-CHURN ×1 (E11, `intermittent`)** |
 | (a) Opportunity episodes (≥ 3 clearing into one cluster) | 0/4 | **0/6** (max 2, 1, 1, 1, 0, 2) |
 | (a) Alternations (max in one cluster) | 0 everywhere | 0 everywhere |
-| (a) Pooled verdict, by the letter | INDETERMINATE | **"LIVELOCK UNDER A REAL MODEL (1 of 0 opportunity episodes)"**: the rule's report form is malformed with 0 opportunity episodes. See §7 for the edge case. **Owner ruling needed** |
+| (a) Pooled verdict, by the letter | INDETERMINATE | **LIVELOCK UNDER A REAL MODEL: the verdict is met** (≥ 1 live ARCHITECTURE-CHURN episode). The registered annotation "k of the opportunity episodes" does not cover an ARCH episode with no opportunity (the script prints "1 of 0"). See §7 for the edge case. **Owner ruling needed before citing** |
 | (b) Productive resolutions, live | 2, 0, 0, 1* | 2, 0, 0, 1*, **0, 0** |
 | (b) All classified episodes, nearest-rank p95 | 2 (n = 16) | **2 (n = 18)** |
 | (b) Dispatches per productive event | [1, 2, 1], p95 2 | unchanged ([1, 2, 1], p95 2): still too thin to freeze `budget_k` |
@@ -257,7 +258,7 @@ Computed with `data/logs/vm_runs/bringup/aggregate_a23.py`. It is A22's `aggrega
 
 - The live model keeps naming one cluster.
 - It still never produced a first-conflict yield that reached `gate_admit`: 0/6 against an MC upper bound of 3/6.
-- Under the registered definitions, the first ARCHITECTURE-CHURN episode is E11. That rests on two unproductive resolutions (the minimum) whose progress credit is split by the cluster-intersection rule, with 0 alternations. The attribution question the batch was meant to power is therefore **no longer INDETERMINATE by the letter, but its positive verdict hangs on a definitional edge** that needs a ruling before it is cited.
+- Under the registered definitions, the first ARCHITECTURE-CHURN episode is E11. That rests on two unproductive resolutions (the minimum) whose progress credit is split by the cluster-intersection rule, with 0 alternations. The attribution question the batch was meant to power is therefore **answered positively by the letter (LIVELOCK UNDER A REAL MODEL)**. That verdict rests on a definitional edge (§7) that needs a ruling before it is cited.
 - The new episodes were costlier: 7 and 9 valid analyses, against 2-5 before.
 
 ---
