@@ -1285,6 +1285,39 @@ the attribution rule, accumulate productive-resolution counts for
 the A21 bound, and replace MC with empirical event rates. Bring-up
 remains the infra sore spot (2/4 aborts at stagger 6).
 
+**A23. Live batch closed (2026-10-11; report s1b-live-batch Rev 2;
+integration @dfe4e49).** Four live episodes ran (E6-E8, E10 censored
+at 123.5 sim-s by credit exhaustion); E9/E11 never ran (3 bring-up
+aborts each). FINAL AGGREGATES: (a) churn attribution INDETERMINATE
+by the opportunity rule (0/4 episodes reached ≥3 clearing dispatches
+into one cluster) — but 0 alternations anywhere; the provisional
+direction (no livelock under a real model) stands unrefuted;
+(b) productive resolutions [2,0,0,1*]; all-episode p95 = 2;
+dispatches-per-productive-event p95 = 2 — STILL TOO THIN to freeze
+budget_k; (c) live first-conflict yield 0/4 (CI 0-0.60) vs MC 2/4 —
+the MC-is-upper-bound registration is reconfirmed; (d) wandering vs
+park UNDECIDED (one finisher ever; 0/21 occupied-node arrivals
+involved a finisher); (e) cost median $0.0281/episode, batch total
+$0.107 incl. E6. E7-OVERTURN QUANTIFIED: both clusters named in
+2/15 valid live analyses (2/8 two-cluster scenes); a scene-wide plan
+dispatched verbatim∧matched ONCE (E7) — real but rare; the S6
+rationale stands WITH the nuance that the capability exists
+unprompted at low frequency. NEW RULING (apparatus/pipeline): a
+backend failure (decision=None) must arm the scene-unchanged
+suppression (outcome backend_failed) — E10's dead-backend 402 loop
+re-analysed every ~3 sim-s until MAX_ANALYSES(40); fix rides the
+next wave. INFRA ESCALATION: five-stack bring-up aborts 9/16 (0.56)
+across the stagger-6 era, abort class now includes planner_server
+bond timeouts — stagger tuning is NOT the fix; a dedicated bring-up
+investigation (sequential lifecycle bring-up or per-stack
+retry-with-backoff) is REGISTERED as the next infra wave; until
+fixed it is the dominant wall-clock cost of every S1 wave.
+BLOCKER: Gemini prepaid credits DEPLETED 20:13Z 2026-10-10 (HTTP 402)
+— no live ER-2 until the owner tops up; OpenAI credit state unknown
+(exhausted 09-25, possibly topped up before the 10-06 pilot). All
+live-dependent items (attribution n, budget_k freeze, yield-rate CI,
+wandering) are PAUSED on billing, not on engineering.
+
 **A14 corrigendum (2026-10-09).** A14(iv)'s "GT
 robot_static_contacts logged 0 rows during a physical pin" implied
 an under-detecting detector. The truth is stronger:
