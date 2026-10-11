@@ -7,10 +7,31 @@
 - Rev 1 (2026-10-11, PARTIAL): A22 echo-rotation fix (build, tests, merge, deploy); live batch episodes E7 and E8, E9 not run (3 Nav2 bring-up aborts); E10/E11 ran unattended on the VM but their bundles were NOT retrieved, because SSH to the VM was lost mid-batch (the Mac's public IP changed and the VM firewall admits only the old IP). All aggregates are PROVISIONAL over E6-E8.
 - Rev 2 (2026-10-11, FINAL): SSH restored; E10 and E11 retrieved. E10 ran but is censored at 123.5 sim-s (Gemini prepaid credits depleted, HTTP 402 on 38/40 analyses); E11 not run (3 bring-up aborts). Final aggregates over the four live episodes (E6, E7, E8, E10), the both-clusters count, and the VM end state are in §9-§13. Rev 1 numbers that changed are marked superseded in place.
 - Rev 3 (2026-10-11): aggregate update after the A23 resume ran E9 and E11 live (`docs/reports/2026-10-11-bringup-and-resume.md`). §14 has the aggregates over six live episodes (E6, E7, E8, E10, E9, E11). Rev 2 numbers that changed are marked superseded in place.
+- Rev 4 (2026-10-12): aggregate update after the A24(iii) predicate fix and live batch 2 (E12-E17, `docs/reports/2026-10-11-live-batch2.md`). §15 has the aggregates over twelve live episodes with the fixed predicate. Rev 3 numbers that changed are marked superseded in place.
+
+---
+
+## Summary (Rev 4)
+
+**The A24(iii) predicate fix shipped and batch 2 ran E12-E17 live.** All six had a first-attempt sequential bring-up; E17 is censored by its cost cap at about 298 sim-s. Details: `docs/reports/2026-10-11-live-batch2.md`. Every Rev 3 aggregate is superseded by §15.
+
+| Question | Rev 4 answer (live E6-E17, fixed predicate) |
+|---|---|
+| Predicate fix | One classification changed in 18 bundles. E11 `c417cbff` becomes productive, so E11 goes `intermittent` → `resolved` and its verdict ARCH → INDETERMINATE |
+| (a) Attribution | First opportunity episodes: E13, E16 and E17, all `intermittent` with 0 alternations, so APPARATUS under the A24 conjunction. **Pooled: NO LIVELOCK UNDER THE REAL MODEL (3 opportunity, 0 ARCH).** Under the pre-A24 rule it would read LIVELOCK, 3 of 3 |
+| (b) Productive resolutions | All classified n = 24, 5 nonzero, p95 = 1. Live 4/12 nonzero. Bar (≥ 8 nonzero) NOT met; **9 more live episodes needed** at the pooled live rate |
+| (c) First-conflict yields | **Live 1/12 (E15, the first)**, CI 0.002-0.385, against MC 7/12. 6 of 9 dispatched live yields FAILED in execution without admit |
+| (d) Wandering vs park | 1 finisher ever; 0/33. Undecided |
+| (e) Cost | Median $0.0301; batch 2 $0.2568 (cap overshoot $0.0068, one call); all-live total $0.4840 |
+| Both clusters named | 14/67 valid analyses (14/43 two-cluster scenes), 6/12 episodes; batch 2 alone 12/36. Clearing legs in both clusters dispatched 3/67; verbatim ∧ matched still 1 (E7) |
+| Bring-up | Sequential pooled 0/14 |
 
 ---
 
 ## Summary (Rev 3)
+
+> Rev 4: superseded by the Rev 4 summary above and §15. In particular, E11 is no longer ARCHITECTURE-CHURN under the A24(iii) predicate fix.
+
 
 **The A23 resume ran E9 and E11 live**, with sequential Nav2 bring-up; both brought up on the first attempt and completed cleanly. Details are in `docs/reports/2026-10-11-bringup-and-resume.md`. **There are now six live episodes.** The Rev 2 summary below stands for the four-episode state; every aggregate it quotes is superseded by §14.
 
@@ -436,6 +457,27 @@ E11's `intermittent` rests on two unproductive resolution events. The first is a
 
 ---
 
+## 15. Rev 4 Aggregate Update: the A24(iii) Predicate Fix and Batch 2 (E12-E17)
+
+> Supersedes §14. The full account is in `docs/reports/2026-10-11-live-batch2.md` §5.
+
+**The predicate fix (`9746f3b`).**
+
+- **(a) Credit.** Progress is now credited to robots RELEASED by a dispatch's own attributed latch breaks, as well as to its cluster.
+- **(b) Verdict.** ARCH = opportunity ∧ ≥ 1 alternation ∧ (`intermittent` ∨ ≥ 2 alternations).
+
+Re-run over every bundle, it changes only E11. §14.1's "E11 = ARCHITECTURE-CHURN" and its pooled "LIVELOCK (1 of 0)" are **withdrawn**: E11 is `resolved` and INDETERMINATE.
+
+| Aggregate | §14 (six live) | **Rev 4 (twelve live, fixed predicate)** |
+|---|---|---|
+| (a) Pooled verdict | LIVELOCK by the letter ("1 of 0") | **NO LIVELOCK UNDER THE REAL MODEL** (E13, E16, E17 opportunity; 0 alternations; APPARATUS) |
+| (b) Nonzero / n / p95, all classified | 3 / 18 / 2 | **5 / 24 / 1** (live 4/12, p95 2); per-event dispatches [1, 1, 2, 1, 2, 3], p95 3 |
+| (b) budget_k | unfreezable | **unfreezable**: bar 8, 9 more live episodes needed |
+| (c) First-conflict yield | 0/6 vs MC 3/6 | **1/12** vs MC 7/12 |
+| (d) Wandering vs park | 1 finisher, 0/24 | 1 finisher, 0/33 |
+| (e) Cost | median $0.0310, total $0.2272 | median $0.0301, total **$0.4840** |
+| Both clusters named | 2/31 | **14/67** (batch 2 12/36) |
+
 ## References
 
 - Spec: prereg-v3 A21-A22 (`feat/v3-design`, `docs/superpowers/specs/2026-10-06-prereg-v3-design.md`).
@@ -448,6 +490,7 @@ E11's `intermittent` rests on two unproductive resolution events. The first is a
   - `scripts/s1b_live_batch_stats.py` (new; the per-analysis E6 schema);
   - `scripts/s1_churn_stats.py` (additive `cluster_groups`, `max_clearing_dispatches_one_cluster`, `max_alternations_one_cluster`).
 - VM kit and bundles: `data/logs/vm_runs/live_batch/` (gitignored): `chain_p4.sh`, `pin_watch.py`, `aggregate.py`, `mc_seeds*.py`, `notes_prereg_p4.md`, `agg_partial.json`.
+- Rev 4: `docs/reports/2026-10-11-live-batch2.md`; `data/logs/vm_runs/batch2/` (E12-E17 bundles, `agg_b2.json`, `aggregate_b2.py`).
 - Rev 3: `docs/reports/2026-10-11-bringup-and-resume.md`; `data/logs/vm_runs/resume/` (E9 b1, E11 b1 bundles), `data/logs/vm_runs/bringup/agg_a23.json`, `aggregate_a23.py`.
 - Rev 2 additions (same directory, gitignored): `s1b_E10_seed10_er2_a1/`, `s1b_E11_seed11_er2_a{1,2,3}/` with their side logs, `p4_vm/` (the VM `p4/` kit incl. `attempts.tsv` and `chain_p4.log`), `agg_final.json` (final aggregates), `NOTES_vm_final.md` (VM NOTES after the end-state entry, md5 `21f288e9`).
 
