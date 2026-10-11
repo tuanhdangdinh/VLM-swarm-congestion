@@ -362,10 +362,19 @@ _CB78_LIVE_YIELD = {
 _CB78_INVOLVED = ["robot_1", "robot_2", "robot_3", "robot_5"]
 
 
+# prereg-v3 A25 adds exactly these keys to a dynamic-lane yield (the swept
+# backup line); the E1 live yield predates them.
+_A25_KEYS = ("backup_facing_rad", "backup_reference_yaw_rad")
+
+
+def _without_a25_keys(parameters: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in parameters.items() if k not in _A25_KEYS}
+
+
 def test_cap_off_keeps_the_e1_escort_byte_identical():
     params = _shipped_params().model_copy(update={"escort_turn_cap": False})
     command = _ground(_CB78, _CB78_GOALS, _CB78_INVOLVED, params)
-    assert command["actions"][0]["parameters"] == _CB78_LIVE_YIELD
+    assert _without_a25_keys(command["actions"][0]["parameters"]) == _CB78_LIVE_YIELD
     assert not any(t.startswith("grounding=escort_turn_cap") for t in command["degradations"])
 
 
@@ -380,7 +389,7 @@ def test_cap_stops_the_e1_escort_at_robot_5s_turn():
     assert "grounding=escort_turn_cap:robot_5:2.35->2.0" in command["degradations"]
     # Only the escort and clearance move; every other yield parameter is the live one.
     unchanged = {
-        k: v for k, v in parameters.items()
+        k: v for k, v in _without_a25_keys(parameters).items()
         if k not in ("passer_escort_distance_m", "passer_clear_m")
     }
     expected = {

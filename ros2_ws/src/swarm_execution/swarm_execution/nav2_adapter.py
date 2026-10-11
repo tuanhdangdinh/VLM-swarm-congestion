@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import math
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from typing import Any
 
 try:
     from action_msgs.msg import GoalStatus
@@ -166,6 +167,42 @@ def line_hold_yaw(
     return math.atan2(math.sin(heading_rad + correction), math.cos(heading_rad + correction))
 
 
+# A line turned further than this from the start heading is not one to hold
+# while reversing; M3 itself caps the turn at 45 degrees.
+_LINE_TURN_MAX_RAD = math.pi / 2
+
+
+def backup_line_turn(parameters: Mapping[str, Any]) -> float | None:
+    """Turn from the backup's start heading onto the line M3 swept, or None.
+
+    prereg-v3 A25: a dynamic-lane yield carries `backup_facing_rad` (the
+    world-frame facing of the swept retreat line) and
+    `backup_reference_yaw_rad` (the yielder's world yaw in the same decision
+    snapshot). Their wrapped difference is the same turn in any frame, so it
+    is applied to the robot's own odom start yaw (the escort-heading
+    pattern of `PasserPlan.escort_turn_rad`).
+
+    Args:
+        parameters: The decoded yield `parameters_json`.
+
+    Returns:
+        The turn in radians, wrapped to `(-pi, pi]`; None when either key is
+        absent or not a finite number, or the turn exceeds 90 degrees.
+    """
+    values = []
+    for key in ("backup_facing_rad", "backup_reference_yaw_rad"):
+        value = parameters.get(key)
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            return None
+        if not math.isfinite(value):
+            return None
+        values.append(float(value))
+    turn = math.atan2(math.sin(values[0] - values[1]), math.cos(values[0] - values[1]))
+    if abs(turn) > _LINE_TURN_MAX_RAD:
+        return None
+    return turn
+
+
 class Nav2Adapter(Node):
     """Per-robot Nav2 action-client wrapper: send_goal, send_waypoints, cancel."""
 
@@ -285,6 +322,7 @@ class Nav2Adapter(Node):
         speed_mps: float = 0.1,
         on_result: Callable[[str, str], None] | None = None,
         hold_start_line: bool = False,
+        line_turn_rad: float = 0.0,
     ):
         """Reverse the robot by `distance_m` by publishing directly to cmd_vel.
 
@@ -318,6 +356,12 @@ class Nav2Adapter(Node):
         ~0 (it steers toward odom y=0, the spawn line), so an off-heading
         yielder backed along an arc instead of a straight line; the default
         path is unchanged.
+
+        `line_turn_rad` (prereg-v3 A25, with `hold_start_line` only) turns
+        that line from the start heading by this much: the line still runs
+        through the start pose, now along `start_yaw + line_turn_rad`, so a
+        yielder off its swept lane axis backs along the axis M3 validated
+        (`backup_line_turn`). 0.0 is exactly the start-heading line.
         """
         self.cancel(robot_id)
 
@@ -409,7 +453,7 @@ class Nav2Adapter(Node):
                     # the start heading — never the odom y=0 spawn line, which
                     # only matches for a robot still on its spawn heading.
                     desired_yaw = line_hold_yaw(
-                        odom_state["start_yaw"], start, last, reversing=True
+                        odom_state["start_yaw"] + line_turn_rad, start, last, reversing=True
                     )
                 else:
                     desired_yaw = max(-0.3, min(0.3, 1.0 * last[1]))
