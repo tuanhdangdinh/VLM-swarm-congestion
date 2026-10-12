@@ -5,6 +5,29 @@
 **Revision history:**
 
 - Initial draft: A27(i)-(iv) built and merged (shield-only holds out of the clearing exemption, the S1 shield-cell 0.20 m floor, the B3 log line, the shield-excluded vb∧matched reading); deployed; mini-batch E21-E23 PRE-REGISTERED before any live call (§1). Results follow in later sections.
+- Rev 2: Summary added above the frozen §1; §2-§8 add the build detail, the batch results, the predictions scored, the Rev 6 aggregates with the derived budget_k triple, the E20 contact correction, the VM end state and the owner rulings needed.
+
+---
+
+## Summary
+
+**Status: all four A27 rulings built, merged and deployed; the pre-registered mini-batch ran all three seeds inside budget. The budget_k bar is met (8 of 30), and the derived triple is (budget_k 3, window_sim_sec 130, alternation_max 0). It passes the ChurnLedger acceptance replay. The de-exemption and B3 were armed live but never exercised: no shielded robot came within 0.75 m of its yielder.**
+
+| Question | Answer |
+|---|---|
+| (i) De-exemption | M3 marks each shield hold `retreat_shield_hold: true`. M4's `admitted_partners` drops such members in every phase, and A19's command-start waiver treats them as bystanders. Passers keep the exemption, and so do the A21 lane-scoped off-lane holds. Live: all 4 dispatched shield holds (E21, E22) carried the key |
+| (i) E18-class fixture | Replay of E18's live M1 scenes through the tracker and latch rules. The pre-A27 command never latched the yielder (0.231 m pass). The fixed command latches r2+r1 at the first scene inside 0.45 m (60.47 sim-s, 0.444 m), and `FreshLatchWatch` then fires B3. A 0.20 floor alone would not have caught it (0.231 > 0.20) |
+| (i) Floor | `config/safety/safety_floor020.yaml` (= IB10's c41913f0) installed for the batch. Every episode's safety monitor started with `hard_contact_floor_m=0.2`. Restored to pristine 59839662 afterwards |
+| (iii) B3 log | One structured line per firing: `b3_fast_fail command=… robot=… phase=… elapsed_s=… deadline_s=… saved_s=… sim_t=… detail="…"`, with the deadline from new pure helpers shared with `Nav2Adapter`. Live: 0 firings |
+| (iv) Scorer | `plan_metrics.shield_excluded_dispatch_match` + `score_decision_artifact` + `s1b_live_batch_stats.py`. Batch-3 regression **3 raw / 5 excluded reproduced**. Pooled E6-E23: 13 raw / 16 excluded |
+| Suite | 62 / 6646 / 153 / 3 → **62 / 6708 / 153 / 3**, identical failing ids (65); +62 tests |
+| Batch | E21, E22 (second attempt after one sequential bring-up abort) and E23 ran. **Spend $0.1069 of $0.15**; E23 was cut by its $0.05 episode cap at 200.5 sim-s |
+| Predictions | **P1 PASS** (admitted 3/3). **P2 PASS** (0 GT contacts, 0 floor firings). **P3 NOT EXERCISED** (0 B3 firings, no qualifying approach). **P4 PASS** (bar 8/30) |
+| Rev 6 | Admitted/dispatched pooled 11/17 (A26+A27 runtime 8/8). Clearance releases 2 in this batch. First-conflict yield 5/18 live (CI 0.097-0.535) against MC 12/18. **0 alternations in 18 live episodes; NO LIVELOCK** (5 opportunity episodes, 0 ARCH). Both clusters named 14/103 |
+| Correction | **Batch 3's E20 `6cf402ed` "clearance release" was a contact**: the escorted passer r3 drove into the parked yielder r1 (GT < 0.18 m from 251.8 sim-s, min 0.109 m, then frozen to the end). It was found by the pre-arm floor check (§1.6). It was not a productive event, so budget_k is unaffected |
+| Owner rulings | (1) escort-into-retreat geometry (E20 contact); (2) freeze or not the triple (3, 130, 0) on n = 9 events; (3) how the floor is selected for future shield cells; (4) P3 is untested live (§8) |
+
+PILOT-ONLY, RECORD = 0.
 
 ---
 
@@ -74,3 +97,190 @@ only add to it, never edit it.
 - **The floor would not have caught E18.** In the E18 replay fixture the near pass is 0.231 m (M1), above 0.20. The de-exemption is the operative fix: under the new rule the yielder–r1 pair latches at the first scene inside 0.45 m (60.47 sim-s, 0.444 m). The replay is open loop and uses the scene's sim stamps as the watch clock, so its B3 firing 2.2 s later is in sim time; live, the debounce is 2.0 s WALL (about 0.8 sim-s at RTF 0.38), so B3 would fire about 2 wall-s after the latch, and the live yielder would already have stopped at the latch.
 - **Floor pre-check over every live clearing command (63 exempt pairs, 15 episodes, `a27/kit/floor_check.py`).** Only one exempt pair ever went below 0.20 m: **E20 `6cf402ed`, yielder r1 ↔ escorted passer r3, M1 0.121 m / GT 0.109 m.** No pair started a clearing window below 0.20 m.
 - **That pair is an unreported batch-3 contact.** All-pairs GT scan (`a27/kit/gt_contacts.py`): r3, escorted 1.843 m east along y ≈ −1.27, drove into r1 parked at its retreat point (2.16, −1.43), 0.14 m off the escort line. GT < 0.18 m from 251.8 sim-s, pushing r1 at about 0.02 m/s to 0.109 m, then both stopped there to the end of the episode. The release logged as `clearance` (escort odometry reached `passer_clear_m`). No other pair in the 15 live episodes ever came below 0.18 m. This is the floor's designed backstop case. With the floor armed, the same geometry should latch the pair at M1 0.20 m; the closing speed is far below IB10's 0.3 m/s. Owner ruling needed on the escort/retreat geometry (§ later).
+
+---
+
+## 2. What Was Built
+
+### 2.1 A27(i): shield-only holds out of the clearing exemption
+
+- **M3** (`reasoning/rag/retreat_shield.py`): each shield hold's parameters carry `SHIELD_HOLD_KEY = "retreat_shield_hold": true`. The predicate itself (corridor, intent legs, PIN RULE, margin) is untouched. All 9 A25 fixtures keep their registered outcomes, including the 5 required ones: E10 r3, E13 r2, E14 r2 and E17b r2 shielded, and E16 nobody.
+- **M4** (`swarm_execution/safety.py`): `is_shield_hold(action, parameters)` reads the same literal (M4 does not import M3). `CoordinationTracker` records shield-only members per command and evicts them with the command.
+  - `admitted_partners(..., shield_holds=)` subtracts them in every branch: the reverse / no-order branch, the backing-up branch and the hold branch.
+  - `capture_latch_partners` no longer counts them as "own". A shielded robot already latched with the yielder at command start is therefore a bystander under A19: the yielder may leave, and the shielded robot is held. This is a deliberate choice, tested (`test_shield_hold_standing_in_a_latch_at_start_is_waived_one_sided`).
+  - Without that, a pre-existing latch would hold the yielder from the start, and B3 (which ignores holds that stand at arm time) would never fire, so the yield would run to its deadline.
+- **What did not change:** passers (incl. multi-passer chains) and A21 lane-scoped off-lane holds (a `requested_strategy` wait without the key) stay exempt. The floor still applies to every exempt or waived pair.
+- **Fixtures** (`tests/unit/test_a27_shield_fix.py`):
+  - the 10 shield holds of the 9 A25 fixtures: every shielded pair is NOT exempt while the yielder backs up; every passer pair is; a shielded robot 0.30 m from the yielder latches both;
+  - the pre-A27 command shape (no key) WAS exempt;
+  - **E18 near-pass** (`tests/unit/data/a27_shield_fix/e18_near_pass.json`, 154 live M1 scenes of command `56b599af` from backup start to hold start). The old runtime never holds the yielder, and the floor alone never fires (0.231 m). The new runtime latches r2+r1 at the first scene inside 0.45 m, 60.47 sim-s, before the pull-off. Fed to `FreshLatchWatch`, B3 fires after the debounce with `co_held` naming r1 (open-loop replay on sim stamps, §1.6).
+
+### 2.2 A27(i): the S1 shield-cell floor
+
+See §1.1 for how "shield cell" was operationalised: an install-wide swap for the batch, then a restore. `test_floor_file_is_safety_yaml_with_only_the_floor_enabled` pins the variant as `safety.yaml` with exactly one line changed. `test_floor_still_latches_an_exempt_passer_pair_in_contact` checks the backstop on a pair that stays exempt.
+
+### 2.3 A27(iii): the B3 log line
+
+- `nav2_adapter.backup_deadline_sec` / `sidestep_deadline_sec` are the primitives' own deadline formulas, factored out. The primitives now call them, so the arithmetic is unchanged: 195.0 s for a 1.3 m backup, 148.2 s for a 0.36 m sidestep.
+- `fresh_latch.fast_fail_log_line` formats the line. `CommandBusNode._dispatch` wraps each B3 abort check: the first non-None detail (the primitive fails the step on it) logs once, at INFO, with the step's wall elapsed time against its deadline and the sim time.
+- Tests: one firing → exactly one line, with `elapsed_s` / `deadline_s` for both the backup and the pull-off; no key → no line.
+- The batch scorer (`batch4/b4_extras.py`) counts the line. The batch-3 timing inference stays alongside it as a cross-check, and it reproduces E19's inferred firing from the safety-stop runs (hold run 6.0 wall-s into the step, held 2.0 s).
+
+### 2.4 A27(iv): the shield-excluded vb∧matched reading
+
+- `plan_metrics.shield_excluded_dispatch_match(artifact)` recomputes the dispatch match only for commands carrying `grounding=retreat_shield:` tags, first asserting that the recomputed raw match equals the stored one. It returns raw, excluded, the shielded ids and whether their plan legs were all `continue`.
+- `score_decision_artifact` sets `verbatim_dispatch_matched_shield_excluded`. `tabulate_provenance_by_strategy_correctness` counts it beside the raw count.
+- `scripts/s1b_live_batch_stats.py` adds per-row `dispatch_matches_plan_shield_excluded` / `shielded` / `shielded_legs_continue` and the per-episode `vb_and_dispatch_matched_shield_excluded`. The new fields are additive only.
+- **Regression:** on batch 3, raw 1/0/1 and excluded 1/0/3 for E18/E19/E20, i.e. **3 raw / 5 excluded**. All three shielded artifacts flip only through their shield legs, all of which are `continue` in the plan. A committed fixture pins this (`batch3_plan_artifacts.json`).
+- `batch4/aggregate_b4.py` reproduces `agg_b3.json` block-for-block on the 15 prior bundles once the new fields are stripped.
+
+### 2.5 Suite and commits
+
+- `236f0f1` fix, `36598ac` feat (B3 log), `93dd89f` feat (scorer), `fb6ef47` test, `8ba6715` prereg (+1 test); merged as `f2553f1` and `ce7a8a6`.
+- Full suite: **62 failed / 6646 passed / 153 skipped / 3 errors → 62 / 6708 / 153 / 3**, identical 65 failing ids (baseline also re-run on a fresh `c08904a` worktree: 62 / 6646 / 153 / 3).
+- Ruff is clean on every changed file except `nav2_adapter.py`'s two pre-existing findings (I001, E501), which were left in place.
+
+---
+
+## 3. Live Mini-batch E21-E23
+
+| Episode | Stamp | Analyses | est $ | Yields → admitted (release) | Shield holds (closest approach to yielder) | B3 | Floor | GT closest pair | Tasks | Churn | Productive |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| E21 (seed 21) | 20261011_223557 | 4 | 0.0324 | 1 → **1** (clearance, 98.2) | r5 (2.12 m), r3 (2.95 m) | 0 | 0 | r2–r3 0.305 m | 1/25 | clogged | 0 |
+| E22 (seed 22) | 20261011_233545 (attempt 2) | 4 | 0.0320 | 1 → **1** (hold timer, 123.6) | r3 (1.49 m), r1 (0.75 m) | 0 | 0 | r2–r5 0.328 m | 3/25 | clogged | 0 |
+| E23 (seed 23) | 20261012_003217 | 6 | 0.0425 (cap) | 1 → **1** (clearance, 123.0) | none | 0 | 0 | r2–r3 0.409 m | 6/25 (censored 200.5 sim-s) | resolved | **1** |
+
+- **E21:**
+  - The first analysis (42.2 sim-s) named the MC pair: a verbatim yield r1 for r4. M3 grounded it as a node handoff on lane x and shielded r5 and r3 (both carrying the key).
+  - It was admitted at 79.3 and released by **clearance** at 98.2. The escort reached its distance, but neither r1 nor r4 made credited progress in the window, so the event is unproductive.
+  - Three later yields on {r2, r3} were refused ("no executable retreat": r2 has no candidate surviving the sweep, r3 would back off its axis) and withheld. Suppression held the scene (177 suppressed re-analyses).
+- **E22:**
+  - Attempt 1 aborted in sequential bring-up (robot_1 not active 120 s after launch, $0). This is the first sequential abort since A24: pooled sequential now 1 in 21 attempts.
+  - In attempt 2, the first analysis named the MC pair as yield r5 for r2. M3 regrounded it to r2 (`node_handoff_regrounded`), so the plan is `repaired` with one swap. r3 and r1 were shielded.
+  - It was admitted at 78.6 and released by the hold timer at 123.6, again unproductive.
+  - Then came a no-congestion analysis, a 5-robot `temporary_wait` dispatch and a `junction_clear` refused ("no feasible yielder").
+- **E23:**
+  - The first analysis was a `temporary_wait` on r2+r4 (repaired). MC had predicted a refusal here, so this is not a first-conflict yield.
+  - The second (59.8) was a verbatim yield r5 for r1 with no shield. It was admitted at 96.2 and released by **clearance** at 123.0, and r1 then arrived (133.8). **Productive.**
+  - Four `junction_clear` analyses on {r2, r3, r4} were refused and withheld.
+  - The $0.05 cap's stop flag fired at est $0.0425, and the episode ended at 200.5 sim-s with 6/25 tasks.
+- **Bring-up:** 3 episodes, 4 attempts, 1 abort. GATE OK and RESTORE OK on every attempt. The floor gate was OK on every episode that ran.
+
+---
+
+## 4. Predictions Scored
+
+| Prediction | Result | Evidence |
+|---|---|---|
+| P1 admits ≥ 0.6 | **PASS, 3/3** | `gate_admit` on 04457772, 07da775d, 9803bd34; no yield failed |
+| P2 zero contacts, floor counted | **PASS** | All-pairs GT minimum 0.305 / 0.328 / 0.409 m; no pair below 0.18 m; 0 `reason=hard_contact_floor` lines |
+| P3 B3 honest | **NOT EXERCISED** | 0 `b3_fast_fail` lines, matching 0 inferred. No shielded robot came within 0.45 m of its yielder: the closest was E22 r1 at 0.75 m, at dispatch. No clearing robot was safety-stopped inside its backup or pull-off, except the A19 command-start flicker (0.1-0.7 wall-s at step start, before the command is known to the monitor). The prediction is not falsified, but it carries no live evidence. The E18 replay fixture remains the only evidence that the de-exemption converts a near pass into latch → B3 |
+| P4 budget_k bar | **PASS, 8 of 30** | E23 is the 8th nonzero classified episode (live 7/18). The triple is derived in §5.2 |
+
+---
+
+## 5. Rev 6 Aggregates (All Live Episodes E6-E23)
+
+Output: `batch4/agg_b4.json` (`aggregate_b4.py` over `batch4/live18.txt`); extras in `batch4/extras_E2{1,2,3}.json`.
+
+### 5.1 The rule-14 blocks
+
+| Aggregate | Rev 6 |
+|---|---|
+| Admitted / dispatched live yields | **11/17 pooled**: E6-E17 3/9 (pre-A25/A26), batch 3 5/5, batch 4 3/3. On the A26+A27 runtime 8/8 |
+| Clearance releases | Batch 4: 2 (E21 `04457772`, E23 `9803bd34`). Pooled: E6, E20 `f269ab37`, E20 `6cf402ed` (**a contact push, §6**), E21, E23 |
+| (a) Attribution | **NO LIVELOCK UNDER THE REAL MODEL**: 5 opportunity episodes (E13, E16, E17, E18, E20; unchanged), 0 ARCH, **0 alternations in all 18 live episodes**. Batch 4 never reached the opportunity bar (max 1 clearing dispatch into one cluster) |
+| (b) Productive | All classified n = 30, **8 nonzero** (S1a A1, E6, E10, E11, E17, E18, E20, **E23**), p95 1. Live 7/18 nonzero, p95 2. **Bar (≥ 8) MET** |
+| (c) First-conflict yield | **5/18 live** (E15, E18, E20, E21, E22), Clopper-Pearson 0.097-0.535, against MC 12/18. Batch 4 alone 2/3 against MC 2/3: s21 and s22 executable and taken; s23 MC-refused and live a `temporary_wait` |
+| (d) Both clusters | Named 14/103 valid analyses (0/14 in batch 4); a both-cluster plan dispatched 7/103 |
+| (e) Wandering vs park | No finisher in batch 4; still one S1b finisher ever. Undecided |
+| (f) Cost | Batch 4 $0.1069 (E21 0.0324, E22 0.0320 + $0 abort, E23 0.0425). All-live median $0.0335, range 0.0174-0.0954, **all-live total $0.7546** over 18 episodes |
+| vb∧matched (A27(iv) registered reading) | **16 shield-excluded / 13 raw** over E6-E23 (batch 3: 5 / 3; batch 4: 2 / 1, E21's shielded verbatim yield flipping) |
+
+### 5.2 budget_k: the derived triple
+
+The procedure is the one pre-stated in rule 14 (§1.4 P4): `batch4/derive_triple.py` → `triple_derivation.json`, with the acceptance replay `batch2/triple_check.py` → `triple_3_130_0.json`.
+
+| Input | Values (n = 9 productive events, 30 classified episodes) | Result |
+|---|---|---|
+| Dispatches into the group up to and including each productive event | sorted 1, 1, 1, 1, 1, 2, 2, 2, 3 | nearest-rank p95 (rank 9) = **budget_k 3** |
+| Dispatch → first credited progress (s) | 5.6, 18.7, 31.2, 35.4, 62.5, 65.4, 69.9, 70.4, 79.3 | p95 = 79.3 s |
+| Longest inter-dispatch gap in a productive group | S1a A1 88.5, E6 **122.6**, E11 44.2, E17 66.9, E18 83.6, E20 80.0 (single-dispatch groups 0) | 122.6 s |
+| window_sim_sec | max(79.3, 122.6) = 122.6, rounded up to 10 s | **130** |
+| Alternations inside productive groups | all 0 | **alternation_max 0** |
+
+- **Acceptance replay: PASS.** The ChurnLedger replay over all 30 classified bundles withholds no productive event. It withholds S1b E3 twice (alternation, the required condition) and 6 of S1a A3's 12 identical reroutes (budget). No live episode has a withhold.
+- **Frozen triple: {budget_k 3, window_sim_sec 130, alternation_max 0}.** It equals the Rev 4 reference-only triple. E23's new event (1 dispatch, 69.9 s) moved no input across a rank boundary.
+- **Caveats for the freeze ruling:**
+  - It rests on n = 9 events. budget_k 3 is set by one event (E17 `9cf93ebe`, the 3rd of 4 dispatches), and the window by one gap (E6, 122.6 s).
+  - alternation_max 0 means any A-B-A in a window is withheld, so the bound turns on at the first alternation; none has occurred live.
+
+---
+
+## 6. Correction to Batch 3: the E20 Contact
+
+- **What happened.** In batch 3's E20, command `6cf402ed` (yield r1 for r3, admitted 234.4) parked r1 at its retreat point (2.156, −1.428). The escort then drove r3 1.843 m east along y ≈ −1.27. That line passes 0.14 m from the parked yielder, and the yielder–passer pair is exempt.
+  - GT: below 0.45 m at 248.1, **below 0.18 m at 251.8**, then r3 pushed r1 at about 0.02 m/s down to 0.109 m by 263.
+  - The escort's odometry reached `passer_clear_m` and the hold released as `clearance` (263.4). Both robots then stood at 0.11 m (a mutual min-distance latch) to the end of the episode.
+  - The GT contacts field logged nothing (trap 20).
+- **What it changes.** Batch 3's headline "two clearance releases" holds only for `f269ab37`. `6cf402ed` was a contact push, not a clearance. It was not a credited productive event (`f269ab37` was), so budget_k, the bar and the Rev 5/6 productive blocks are unaffected. No other pair in E6-E23 ever came below 0.18 m.
+- **The floor's role.** This is the case the 0.20 m floor backstops: at M1 0.20 m the pair would latch before contact at this closing speed (the floor pre-check, `a27/kit/floor_check.py`). It was armed for all of batch 4 and never fired.
+- **Root cause (not fixed here):** the escort distance and line do not check the parked yielder's footprint. That is an M3 grounding defect (escort/retreat geometry) and needs a ruling (§8).
+
+---
+
+## 7. VM End State and Pins
+
+- **Processes:** no Isaac, Kit, fc_launch, chain or watcher process. `vgu_ros` is up and idle; GPU 0 %, 136 MiB; `data/logs/simulation` is empty. 58 stray root-owned files under the repo (src `__pycache__` from the root USD build) were chowned to ubuntu, and 0 non-ubuntu files remain outside the colcon trees.
+- **safety.yaml restored to pristine** (`p8/restore_safety_p8.sh`: plain cp + touch, `build/` and install purged, rebuild, `RESTORE PRISTINE OK`). Future shield cells must re-swap the floor (`deploy_p8.sh`'s floor step) until a ruling says otherwise.
+- **Pin line (A27), verified at close:**
+
+| File | md5 (deployed, at close) |
+|---|---|
+| `reasoning/rag/retreat_shield.py` (/ws) | db0b6415 |
+| `reasoning/rag/plan_metrics.py` (/ws) | 9d3c1487 |
+| `swarm_execution/safety.py` (installed = src) | c6c9cbae |
+| `swarm_execution/fresh_latch.py` | 08d996a8 |
+| `swarm_execution/nav2_adapter.py` | f139305c |
+| `swarm_execution/command_bus_node.py` | caad9edc |
+| `config/safety/safety_floor020.yaml` (on disk, not installed) | c41913f0 |
+| `swarm_execution` `safety.yaml`, src + installed | **59839662** at close (c41913f0 during the batch) |
+| Unchanged | `orchestrator.yaml` 1f656533 src + installed, `orchestrator_node` f149ecff, `command_grounder` 3436f10c, `s1b_dynamic_shield.yaml` ee5fe68f, `rag.yaml` e18c723c, `fc_launch.sh` 5a5ee4ac |
+| Staged scenarios | seed 22 USD 7b87e464 / yaml ccb674e8, seed 23 USD 7cf07059 / yaml ea69ed93; overlays d79d04a0 / e6f4ddbd |
+
+- **NOTES:** rule 16 (the pre-registration) was appended before the first live call, and the end state after the batch (`~/v3_s1b/NOTES.md`; copy at `batch4/NOTES_vm_b4.md`).
+- **Bundles** are under `data/logs/vm_runs/batch4/` (gitignored), including the aborted `s1b_E22_seed22_er2_e1`.
+- **The VM is RUNNING.**
+
+---
+
+## 8. Owner Rulings Needed
+
+1. **Escort-into-retreat geometry (§6).**
+   - Batch 3's E20 `6cf402ed` was a real contact: an escorted passer pushed its parked yielder for about 11 sim-s.
+   - The floor now backstops it, but the grounding should not produce an escort line 0.14 m off the yielder's park point.
+   - Ruling: fix the escort or retreat geometry (an M3 sweep of the escort leg against the parked yielder's footprint), or accept the floor as the only guard.
+2. **Freeze the triple (3, 130, 0)?** The bar is met and the acceptance replay passes. But n = 9 events, and both budget_k and the window are each set by a single observation (§5.2). Rule on freezing it and on which registered cells enable the churn bound.
+3. **Floor selection for shield cells.** This batch used an install-wide swap, restored afterwards. Options:
+   - (a) keep the swap as part of every shield-cell run line;
+   - (b) make 0.20 the shipped default for all v3 S1 cells;
+   - (c) build a per-run M4 config selector (needs a launch/fc_launch change, which touches pinned files).
+4. **P3 has no live evidence.** The de-exemption and B3 were armed in every episode, but no shielded robot came near its yielder (closest 0.75 m). Should the shield's safety claim rest on the E18 replay fixture, or wait for a live exercise?
+5. **Admitted is not productive.** E21 and E22 each had an admitted yield (one clearance, one hold timer) that the predicate scored unproductive: no robot of the cluster made credited progress in the window. This is recorded, not ruled; it bears on reading admit rates as resolution.
+6. **Budget rule.** The agent-chosen $0.05 episode cap cut E23 at 200.5 sim-s. Its productive event came first, so the bar is unaffected. The batch spent $0.1069 of the $0.15 cap.
+
+---
+
+## References
+
+- **Rulings:** prereg-v3 A27 (`feat/v3-design`, `docs/superpowers/specs/2026-10-06-prereg-v3-design.md`).
+- **Previous wave:** `docs/reports/2026-10-12-shield-and-batch3.md`.
+- **Code:**
+  - `reasoning/rag/retreat_shield.py`, `reasoning/rag/plan_metrics.py`;
+  - `ros2_ws/src/swarm_execution/swarm_execution/{safety,fresh_latch,nav2_adapter,command_bus_node}.py`;
+  - `config/safety/safety_floor020.yaml`;
+  - `scripts/s1b_live_batch_stats.py`.
+- **Tests:** `tests/unit/test_a27_shield_fix.py`, `tests/unit/data/a27_shield_fix/`.
+- **Kits** (gitignored):
+  - `data/logs/vm_runs/a27/` (suite evidence, `kit/extract_e18.py`, `kit/extract_b3_parity.py`, `kit/floor_check.py`, `kit/gt_contacts.py`, `floor_check.json`, `gt_contacts_live15.json`);
+  - `data/logs/vm_runs/batch4/` (`p8/` deploy, gen, build, overlay, chain, cost watch and restore scripts; `mc_seeds_21_23.*`, `aggregate_b4.py`, `b4_extras.py`, `derive_triple.py`, `agg_b4.json`, `triple_derivation.json`, `triple_3_130_0.json`, the bundles).
