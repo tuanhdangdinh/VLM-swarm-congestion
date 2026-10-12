@@ -37,6 +37,7 @@ from reasoning.rag.escort_clearance import (
 )
 from reasoning.rag.maneuver_geometry import GroundingParams
 from reasoning.rag.retreat_shield import RobotTaskIntent
+from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
 from reasoning.vlm.models import (
     CongestionDecision,
     RetreatChoiceDecision,
@@ -392,3 +393,53 @@ def test_escort_hits_park_tag_is_an_infeasible_geometry_cause():
     assert degradation_cause("yield=infeasible:escort_hits_park:robot_3:0.131") == (
         "infeasible_geometry"
     )
+
+
+# ---- declared geometry (no dynamic view, no escort heading) ----
+
+
+def _corridor() -> SceneGeometry:
+    return SceneGeometry(
+        corridor=CorridorGeometry(
+            axis="x", center_m=0.0, half_length_m=1.0, aisle_half_width_m=0.6, occluder_height_m=0.9
+        )
+    )
+
+
+_HEAD_ON = _snapshot(_state("robot_1", -0.3, 0.0), _state("robot_2", 0.3, 0.0, math.pi))
+
+
+def _declared_head_on(params: GroundingParams) -> dict[str, Any]:
+    # The shipped head-on deadlock (`test_command_grounder_derived`): robot_1
+    # yields west to (-1.789, +-0.36), robot_2 is escorted 2.739 m west
+    # along the corridor centreline.
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type="deadlock",
+        involved_robots=["robot_1", "robot_2"],
+        root_cause="head-on standoff",
+        strategy="yield",
+        justification="j",
+        yield_robot="robot_1",
+    )
+    return ground_reasoner_result(
+        _reasoner_result(decision), snapshot=_HEAD_ON, params=params, geometry=_corridor()
+    )
+
+
+def test_declared_head_on_escort_runs_toward_the_yielder_along_the_corridor():
+    parameters = _yield(_declared_head_on(GroundingParams(mode="derived")))["parameters"]
+    assert "passer_escort_heading_rad" not in parameters
+    (leg,) = escort_legs("robot_1", parameters, _HEAD_ON, _corridor())
+    assert leg.heading_rad == pytest.approx(math.pi)
+    assert leg.end_xy == pytest.approx((0.3 - 2.739, 0.0))
+    # The passer passes the parked yielder at its pull-off lateral.
+    assert leg.park_clearance_m == pytest.approx(abs(parameters["pull_off_lateral_m"]))
+
+
+def test_declared_head_on_yield_is_vetoed_when_park_clearance_on():
+    # The 0.36 m pull-off lateral is under the 0.45 m latch: the ruling as
+    # stated vetoes the canonical head-on yield too (A28 owner question).
+    command = _declared_head_on(GroundingParams(mode="derived", escort_park_clearance=True))
+    assert _yield(command) is None
+    assert command["degradations"][-1] == "yield=infeasible:escort_hits_park:robot_2:0.360"
