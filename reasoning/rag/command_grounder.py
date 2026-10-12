@@ -13,6 +13,7 @@ from pydantic import (
     model_serializer,
 )
 
+from reasoning.rag.escort_clearance import escort_hits_park_reason, escort_park_violations
 from reasoning.rag.grounding_view import (
     GroundingView,
     apply_backup_line_hold,
@@ -721,6 +722,7 @@ def ground_reasoner_result(
             geometry=geometry,
             static_obstacles=static_obstacles,
             yield_feasibility_mode=yield_feasibility_mode,
+            goal_references=goal_references,
         )
     else:
         command = _ground_legacy(
@@ -2002,6 +2004,32 @@ def prepare_retreat_selection(
     )
 
 
+def _escort_park_hits(
+    yielder_id: str,
+    yield_parameters: dict[str, Any],
+    snapshot: SnapshotFrame,
+    geometry: SceneGeometry | None,
+    params: GroundingParams,
+    goal_references: Mapping[str, tuple[float, float]] | None,
+) -> list[str]:
+    # prereg-v3 A28(ii). The headings, the turn cap and any dropped escort
+    # come from the same `apply_escort_headings` pass `ground_reasoner_result`
+    # runs on the finished command, so the swept leg is the dispatched one.
+    final = apply_escort_headings(
+        {"actions": [{"robot_id": yielder_id, "action": "yield", "parameters": yield_parameters}]},
+        snapshot,
+        geometry,
+        params,
+        goal_references,
+    )["actions"][0]["parameters"]
+    return [
+        escort_hits_park_reason(leg)
+        for leg in escort_park_violations(
+            yielder_id, final, snapshot, geometry, params.min_distance_m
+        )
+    ]
+
+
 def _ground_derived(
     result: ReasonerResult,
     *,
@@ -2012,6 +2040,7 @@ def _ground_derived(
     geometry: SceneGeometry | None,
     static_obstacles: Sequence[StaticObstacleInput],
     yield_feasibility_mode: YieldFeasibilityMode,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
 ) -> dict[str, Any]:
     """Rev-8 Appendix A grounding: verified-or-degrade, never blind constants.
 
@@ -2022,6 +2051,11 @@ def _ground_derived(
     or no surviving candidate, grounds a `reroute` of the yielder instead of a
     yield (rev-8 A.2/A.3); a gate or same-side refusal keeps the gate's wait
     fan-out. Every departure from the decision is tagged in `degradations`.
+    With `params.escort_park_clearance`, an escort leg that passes within
+    `min_distance_m` of the park point is infeasible too (prereg-v3
+    A28(ii)): the leg is swept with the heading and distance M4 will drive,
+    i.e. after `grounding_view.apply_escort_headings` (hence
+    `goal_references`, read only there).
     """
     decision = result.decision
     if decision is None or not decision.congestion_detected:
@@ -2080,6 +2114,7 @@ def _ground_derived(
                 geometry=geometry,
                 static_obstacles=static_obstacles,
                 yield_feasibility_mode=yield_feasibility_mode,
+                goal_references=goal_references,
             )
             if crossing_order is None:
                 # Forcing-audit A4: an explicit caller override is the
@@ -2238,6 +2273,13 @@ def _ground_derived(
     if roles.grounded_from is not None:
         yield_parameters["yield_robot_grounded_from"] = roles.grounded_from
         yield_parameters["yield_regrounded_reason"] = roles.regrounded_reason
+    if params.escort_park_clearance:
+        hits = _escort_park_hits(
+            roles.yielder_id, yield_parameters, snapshot, geometry, params, goal_references
+        )
+        if hits:
+            degradations.extend(f"yield=infeasible:{hit}" for hit in hits)
+            return _reroute_yielder(result, decision, roles, degradations)
     actions: list[dict[str, Any]] = [
         {"robot_id": roles.yielder_id, "action": "yield", "parameters": yield_parameters}
     ]

@@ -154,6 +154,13 @@ class GroundingParams(BaseModel):
     # the clearing robot is newly latched after the command started, instead
     # of running to the motion deadline. False (default): no key emitted.
     retreat_fast_fail: bool = False
+    # prereg-v3 A28(ii) (`reasoning.rag.escort_clearance`): a derived yield
+    # whose escort leg, as M4 drives it, passes within `min_distance_m` of
+    # the yielder's park point is infeasible (`yield=infeasible:
+    # escort_hits_park:<passer>:<m>`) and degrades like any infeasible
+    # escort. Derived mode only, with or without `dynamic_scene_arms`.
+    # False (default): never checked, and kept out of every dump.
+    escort_park_clearance: bool = False
 
     @model_validator(mode="after")
     def _check_bands(self) -> "GroundingParams":
@@ -196,6 +203,8 @@ class GroundingParams(BaseModel):
             data.pop("retreat_shield_margin_m", None)
         if not data.get("dynamic_scene_arms") or not data.get("retreat_fast_fail"):
             data.pop("retreat_fast_fail", None)
+        if not data.get("escort_park_clearance"):
+            data.pop("escort_park_clearance", None)
         return data
 
 
