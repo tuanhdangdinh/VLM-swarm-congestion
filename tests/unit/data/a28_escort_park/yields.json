@@ -1,0 +1,884 @@
+{
+ "cases": [
+  {
+   "bundle": "batch3/s1b_E20_seed20_er2_d1",
+   "case": "E20_6cf402ed",
+   "command_id": "6cf402ed34bb48d58e0c46aff3384ef4-yield",
+   "decision": {
+    "blocker_kind": "robot",
+    "congestion_detected": true,
+    "crossing_order": [
+     "robot_3",
+     "robot_1"
+    ],
+    "involved_robots": [
+     "robot_1",
+     "robot_3"
+    ],
+    "justification": "Having robot_1 yield will allow robot_3 to proceed first and clear the narrow passage.",
+    "proposed_plan": [
+     {
+      "action": "yield",
+      "robot_id": "robot_1"
+     },
+     {
+      "action": "cross",
+      "robot_id": "robot_3"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_2"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_4"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_5"
+     }
+    ],
+    "reasoning": "robot_1 and robot_3 are stopped within 0.40 m of each other, each facing the other in a head-on conflict. This represents a deadlock in the narrow lower passage that must be resolved by having one robot yield.",
+    "root_cause": "robot_1 and robot_3 are in a head-on conflict within 0.40 m and both are stopped.",
+    "strategy": "yield",
+    "type": "deadlock",
+    "yield_robot": "robot_1"
+   },
+   "dispatched_command": {
+    "actions": [
+     {
+      "action": "yield",
+      "parameters": {
+       "backup_distance_m": 1.373,
+       "backup_facing_rad": -3.141593,
+       "backup_line_hold": true,
+       "backup_reference_yaw_rad": -2.939274,
+       "crossing_order": [
+        "robot_3"
+       ],
+       "fresh_latch_fast_fail": true,
+       "hold_sec": 45.0,
+       "passer_clear_m": 1.843,
+       "passer_escort_distance_m": 1.843,
+       "passer_escort_heading_rad": 0.0,
+       "passer_escort_reference_yaw_rad": -0.048741,
+       "passer_robot_id": "robot_3",
+       "plan_id": 4,
+       "pull_off_lateral_m": 0.36,
+       "reason": "robot_1 and robot_3 are in a head-on conflict within 0.40 m and both are stopped.",
+       "retreat_choice": "A",
+       "retreat_x_m": 2.156,
+       "retreat_y_m": -1.428
+      },
+      "robot_id": "robot_1"
+     },
+     {
+      "action": "temporary_wait",
+      "parameters": {
+       "duration_sec": 120.0,
+       "linked_position": 0,
+       "plan_id": 4
+      },
+      "robot_id": "robot_3"
+     }
+    ],
+    "command_id": "6cf402ed34bb48d58e0c46aff3384ef4-yield",
+    "degradations": [
+     "grounding=dynamic_arms:lane:x",
+     "grounding=escort_turn_cap:robot_3:2.35->1.843"
+    ],
+    "expected_resolution_time_sec": 150.0,
+    "fallback": "stop"
+   },
+   "intents": {
+    "robot_1": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ]
+    },
+    "robot_2": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -2.3,
+      -1.35
+     ]
+    },
+    "robot_3": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ]
+    },
+    "robot_4": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    "robot_5": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -2.3,
+      -1.35
+     ]
+    }
+   },
+   "retreat_choice": "A",
+   "rows": [
+    {
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "robot_id": "robot_4",
+     "stamp": 201.433333333,
+     "status": "MOVING",
+     "theta": -0.12135008910723664,
+     "x": -1.8359486493991528,
+     "y": 1.3412562828005723
+    },
+    {
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "robot_id": "robot_2",
+     "stamp": 201.433333333,
+     "status": "MOVING",
+     "theta": -1.302426048934531,
+     "x": 1.6899444244617723,
+     "y": 1.213777009780534
+    },
+    {
+     "goal": [
+      -0.25,
+      -1.35
+     ],
+     "robot_id": "robot_1",
+     "stamp": 201.433333333,
+     "status": "STOPPED",
+     "theta": -2.9392741564538696,
+     "x": 0.7834107293281848,
+     "y": -1.067775107347328
+    },
+    {
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "robot_id": "robot_3",
+     "stamp": 201.433333333,
+     "status": "STOPPED",
+     "theta": -0.04874107719571535,
+     "x": 0.4565355988713622,
+     "y": -1.2965840589217554
+    },
+    {
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "robot_id": "robot_5",
+     "stamp": 201.366666666,
+     "status": "MOVING",
+     "theta": -0.3058743036156765,
+     "x": 0.06973336116412232,
+     "y": 1.2377474713740455
+    }
+   ]
+  },
+  {
+   "bundle": "batch3/s1b_E20_seed20_er2_d1",
+   "case": "E20_f269ab37",
+   "command_id": "f269ab37466c4bdaa3e035c376400bd5-yield",
+   "decision": {
+    "blocker_kind": "robot",
+    "congestion_detected": true,
+    "crossing_order": [
+     "robot_2",
+     "robot_4"
+    ],
+    "involved_robots": [
+     "robot_2",
+     "robot_4"
+    ],
+    "justification": "Since Robot 2 and Robot 4 are in a head-on standoff within 0.28 meters, Robot 4 (which is already stopped) should yield and back up or step aside, allowing Robot 2 to proceed.",
+    "proposed_plan": [
+     {
+      "action": "yield",
+      "robot_id": "robot_4"
+     },
+     {
+      "action": "cross",
+      "robot_id": "robot_2"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_1"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_3"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_5"
+     }
+    ],
+    "reasoning": "Robot 2 and Robot 4 are within 0.28 meters of each other and are facing each other directly, resulting in a head-on deadlock in the upper-left corridor. Robot 4 is currently stopped while Robot 2 has slowed down. Robot 4 should yield by backing up to let Robot 2 proceed first.",
+    "root_cause": "Robot 2 and Robot 4 are in a head-on conflict in a narrow passage.",
+    "strategy": "yield",
+    "type": "deadlock",
+    "yield_robot": "robot_4"
+   },
+   "dispatched_command": {
+    "actions": [
+     {
+      "action": "yield",
+      "parameters": {
+       "backup_distance_m": 1.437,
+       "backup_facing_rad": -3.141593,
+       "backup_line_hold": true,
+       "backup_reference_yaw_rad": 2.890594,
+       "crossing_order": [
+        "robot_2"
+       ],
+       "fresh_latch_fast_fail": true,
+       "hold_sec": 45.0,
+       "passer_clear_m": 2.35,
+       "passer_escort_distance_m": 2.35,
+       "passer_escort_heading_rad": 0.0,
+       "passer_escort_reference_yaw_rad": -0.25732,
+       "passer_robot_id": "robot_2",
+       "plan_id": 1,
+       "pull_off_lateral_m": -0.36,
+       "reason": "Robot 2 and Robot 4 are in a head-on conflict in a narrow passage.",
+       "retreat_choice": "B",
+       "retreat_x_m": 0.715,
+       "retreat_y_m": 1.648
+      },
+      "robot_id": "robot_4"
+     },
+     {
+      "action": "temporary_wait",
+      "parameters": {
+       "duration_sec": 120.0,
+       "linked_position": 0,
+       "plan_id": 1
+      },
+      "robot_id": "robot_2"
+     },
+     {
+      "action": "temporary_wait",
+      "parameters": {
+       "duration_sec": 120.0,
+       "plan_id": 1,
+       "reason": "retreat shield: intent crosses robot_4's retreat",
+       "requested_strategy": "yield"
+      },
+      "robot_id": "robot_5"
+     }
+    ],
+    "command_id": "f269ab37466c4bdaa3e035c376400bd5-yield",
+    "degradations": [
+     "grounding=dynamic_arms:lane:x",
+     "grounding=retreat_shield:robot_5"
+    ],
+    "expected_resolution_time_sec": 150.0,
+    "fallback": "stop"
+   },
+   "intents": {
+    "robot_1": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ]
+    },
+    "robot_2": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -2.3,
+      -1.35
+     ]
+    },
+    "robot_3": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "next_goal": [
+      -0.25,
+      -1.35
+     ]
+    },
+    "robot_4": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ]
+    },
+    "robot_5": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ]
+    }
+   },
+   "retreat_choice": "B",
+   "rows": [
+    {
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "robot_id": "robot_4",
+     "stamp": 42.666666666,
+     "status": "STOPPED",
+     "theta": 2.890593794075735,
+     "x": -0.7223940383095775,
+     "y": 1.2878675274332059
+    },
+    {
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "robot_id": "robot_3",
+     "stamp": 42.666666666,
+     "status": "MOVING",
+     "theta": 2.4783973781418807,
+     "x": -1.316217191972805,
+     "y": -0.8988923097566793
+    },
+    {
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "robot_id": "robot_5",
+     "stamp": 42.666666666,
+     "status": "MOVING",
+     "theta": 1.3931973934566888,
+     "x": -2.158465444783218,
+     "y": -1.0557898765505724
+    },
+    {
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "robot_id": "robot_1",
+     "stamp": 42.666666666,
+     "status": "MOVING",
+     "theta": -2.8966177333140837,
+     "x": 0.6602877635227816,
+     "y": -1.08302903745229
+    },
+    {
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "robot_id": "robot_2",
+     "stamp": 42.0,
+     "status": "SLOW",
+     "theta": -0.2573198000065904,
+     "x": -0.9849837264432248,
+     "y": 1.2007022125477098
+    }
+   ]
+  },
+  {
+   "bundle": "batch4/s1b_E21_seed21_er2_e1",
+   "case": "E21_04457772",
+   "command_id": "04457772745340d0bf06220974097d38-yield",
+   "decision": {
+    "blocker_kind": "robot",
+    "congestion_detected": true,
+    "crossing_order": [
+     "robot_4",
+     "robot_1"
+    ],
+    "involved_robots": [
+     "robot_1",
+     "robot_4"
+    ],
+    "justification": "robot_1 should yield and back up to allow robot_4 to pass, resolving the head-on deadlock.",
+    "proposed_plan": [
+     {
+      "action": "yield",
+      "robot_id": "robot_1"
+     },
+     {
+      "action": "cross",
+      "robot_id": "robot_4"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_2"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_3"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_5"
+     }
+    ],
+    "reasoning": "robot_1 and robot_4 are 0.32 m apart and directly face each other; robot_1 is STOPPED and robot_4 is SLOW, creating a head-on deadlock in the lower aisle.",
+    "root_cause": "robot_1 and robot_4 are facing each other in a narrow aisle at a distance of 0.32 m.",
+    "strategy": "yield",
+    "type": "deadlock",
+    "yield_robot": "robot_1"
+   },
+   "dispatched_command": {
+    "actions": [
+     {
+      "action": "yield",
+      "parameters": {
+       "backup_distance_m": 1.425,
+       "backup_facing_rad": 0.0,
+       "backup_line_hold": true,
+       "backup_reference_yaw_rad": -0.074859,
+       "crossing_order": [
+        "robot_4"
+       ],
+       "fresh_latch_fast_fail": true,
+       "hold_sec": 45.0,
+       "passer_clear_m": 1.692,
+       "passer_escort_distance_m": 1.692,
+       "passer_escort_heading_rad": 3.141593,
+       "passer_escort_reference_yaw_rad": 3.091635,
+       "passer_robot_id": "robot_4",
+       "plan_id": 1,
+       "pull_off_lateral_m": 0.72,
+       "reason": "robot_1 and robot_4 are facing each other in a narrow aisle at a distance of 0.32 m.",
+       "retreat_choice": "B",
+       "retreat_x_m": -2.308,
+       "retreat_y_m": -0.586
+      },
+      "robot_id": "robot_1"
+     },
+     {
+      "action": "temporary_wait",
+      "parameters": {
+       "duration_sec": 120.0,
+       "linked_position": 0,
+       "plan_id": 1
+      },
+      "robot_id": "robot_4"
+     },
+     {
+      "action": "temporary_wait",
+      "parameters": {
+       "duration_sec": 120.0,
+       "plan_id": 1,
+       "reason": "retreat shield: intent crosses robot_1's retreat",
+       "requested_strategy": "yield",
+       "retreat_shield_hold": true
+      },
+      "robot_id": "robot_5"
+     },
+     {
+      "action": "temporary_wait",
+      "parameters": {
+       "duration_sec": 120.0,
+       "plan_id": 1,
+       "reason": "retreat shield: intent crosses robot_1's retreat",
+       "requested_strategy": "yield",
+       "retreat_shield_hold": true
+      },
+      "robot_id": "robot_3"
+     }
+    ],
+    "command_id": "04457772745340d0bf06220974097d38-yield",
+    "degradations": [
+     "grounding=node_handoff:robot_1->robot_4",
+     "grounding=dynamic_arms:lane:x",
+     "grounding=escort_turn_cap:robot_4:2.35->1.692",
+     "grounding=retreat_shield:robot_5",
+     "grounding=retreat_shield:robot_3"
+    ],
+    "expected_resolution_time_sec": 150.0,
+    "fallback": "stop"
+   },
+   "intents": {
+    "robot_1": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      -1.35
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ]
+    },
+    "robot_2": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ]
+    },
+    "robot_3": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "next_goal": [
+      -2.3,
+      -1.35
+     ]
+    },
+    "robot_4": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ]
+    },
+    "robot_5": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "next_goal": [
+      -2.3,
+      -1.35
+     ]
+    }
+   },
+   "retreat_choice": "B",
+   "rows": [
+    {
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "robot_id": "robot_4",
+     "stamp": 42.166666666,
+     "status": "SLOW",
+     "theta": 3.0916350512395776,
+     "x": -0.6079877426496896,
+     "y": -1.1440447578721373
+    },
+    {
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "robot_id": "robot_5",
+     "stamp": 42.166666666,
+     "status": "MOVING",
+     "theta": 0.14888761404841144,
+     "x": -2.068029992023497,
+     "y": 1.3924659052958013
+    },
+    {
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "robot_id": "robot_3",
+     "stamp": 42.166666666,
+     "status": "MOVING",
+     "theta": 2.338660378857147,
+     "x": 1.3968463908188216,
+     "y": 0.5654849803196564
+    },
+    {
+     "goal": [
+      -0.25,
+      -1.35
+     ],
+     "robot_id": "robot_1",
+     "stamp": 42.166666666,
+     "status": "STOPPED",
+     "theta": -0.07485866135124541,
+     "x": -0.8825628522334203,
+     "y": -1.306390156846374
+    },
+    {
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "robot_id": "robot_2",
+     "stamp": 42.1,
+     "status": "MOVING",
+     "theta": -0.2683621440070474,
+     "x": 1.0220295745616652,
+     "y": 0.8313391907204197
+    }
+   ]
+  },
+  {
+   "bundle": "batch4/s1b_E23_seed23_er2_e1",
+   "case": "E23_9803bd34",
+   "command_id": "9803bd34c5e249ad9e2d097a82c4ef37-yield",
+   "decision": {
+    "blocker_kind": "robot",
+    "congestion_detected": true,
+    "crossing_order": [
+     "robot_1",
+     "robot_5"
+    ],
+    "involved_robots": [
+     "robot_1",
+     "robot_5"
+    ],
+    "justification": "Having robot_5 yield allows robot_1 to continue and clears the deadlock at the bottom corridor.",
+    "proposed_plan": [
+     {
+      "action": "yield",
+      "robot_id": "robot_5"
+     },
+     {
+      "action": "cross",
+      "robot_id": "robot_1"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_2"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_3"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_4"
+     }
+    ],
+    "reasoning": "robot_1 and robot_5 are stopped very close to each other (0.41 m) and facing each other directly, resulting in a head-on deadlock. robot_2 and robot_4 are also very close, but the immediate blockage at the bottom requires robot_5 to yield or reverse to clear the corridor for robot_1.",
+    "root_cause": "robot_1 and robot_5 are in a head-on deadlock, facing each other in close proximity.",
+    "strategy": "yield",
+    "type": "deadlock",
+    "yield_robot": "robot_5"
+   },
+   "dispatched_command": {
+    "actions": [
+     {
+      "action": "yield",
+      "parameters": {
+       "backup_distance_m": 1.325,
+       "backup_facing_rad": -3.141593,
+       "backup_line_hold": true,
+       "backup_reference_yaw_rad": 3.091635,
+       "crossing_order": [
+        "robot_1"
+       ],
+       "fresh_latch_fast_fail": true,
+       "hold_sec": 45.0,
+       "passer_clear_m": 2.35,
+       "passer_escort_distance_m": 2.35,
+       "passer_escort_heading_rad": 0.0,
+       "passer_escort_reference_yaw_rad": -0.244975,
+       "passer_robot_id": "robot_1",
+       "plan_id": 2,
+       "pull_off_lateral_m": -0.72,
+       "reason": "robot_1 and robot_5 are in a head-on deadlock, facing each other in close proximity.",
+       "retreat_choice": "C",
+       "retreat_x_m": 1.445,
+       "retreat_y_m": -0.361
+      },
+      "robot_id": "robot_5"
+     },
+     {
+      "action": "temporary_wait",
+      "parameters": {
+       "duration_sec": 120.0,
+       "linked_position": 0,
+       "plan_id": 2
+      },
+      "robot_id": "robot_1"
+     }
+    ],
+    "command_id": "9803bd34c5e249ad9e2d097a82c4ef37-yield",
+    "degradations": [
+     "retreat=default:no_choice",
+     "grounding=dynamic_arms:lane:x"
+    ],
+    "expected_resolution_time_sec": 150.0,
+    "fallback": "stop"
+   },
+   "intents": {
+    "robot_1": {
+     "dwell_sec": 5.0,
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "next_goal": [
+      -2.3,
+      1.35
+     ]
+    },
+    "robot_2": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ]
+    },
+    "robot_3": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_goal": [
+      -0.25,
+      1.35
+     ]
+    },
+    "robot_4": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "next_goal": [
+      -2.3,
+      1.35
+     ]
+    },
+    "robot_5": {
+     "dwell_sec": 5.0,
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "next_goal": [
+      2.3,
+      0.0
+     ]
+    }
+   },
+   "retreat_choice": null,
+   "rows": [
+    {
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "robot_id": "robot_2",
+     "stamp": 59.833333333,
+     "status": "STOPPED",
+     "theta": 1.7921141758313341,
+     "x": -1.5766277125700736,
+     "y": -0.12203144083969453
+    },
+    {
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "robot_id": "robot_4",
+     "stamp": 59.833333333,
+     "status": "STOPPED",
+     "theta": 1.2722929239581713,
+     "x": -1.9808632905683439,
+     "y": -0.2560481124761449
+    },
+    {
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "robot_id": "robot_3",
+     "stamp": 59.833333333,
+     "status": "MOVING",
+     "theta": -3.068553246022637,
+     "x": -1.0318358284753693,
+     "y": 1.145134324308206
+    },
+    {
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "robot_id": "robot_1",
+     "stamp": 59.833333333,
+     "status": "STOPPED",
+     "theta": -0.24497492027571185,
+     "x": -0.25496260175632124,
+     "y": -1.257359667223282
+    },
+    {
+     "goal": [
+      -2.3,
+      -1.35
+     ],
+     "robot_id": "robot_5",
+     "stamp": 59.833333333,
+     "status": "STOPPED",
+     "theta": 3.091635051239583,
+     "x": 0.11985421450083511,
+     "y": -1.0808499045801525
+    }
+   ]
+  }
+ ],
+ "source": "A28(ii): live S1b yields (decisions/<id>*.json + tasks_*.jsonl), extracted by the A28 kit extract_a28.py"
+}
