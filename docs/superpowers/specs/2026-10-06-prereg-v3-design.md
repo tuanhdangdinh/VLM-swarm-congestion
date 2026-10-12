@@ -1434,6 +1434,62 @@ of A alone: admits 3/9→5/9; B is the bigger lever (covers both
 MC-matched failed yields). Deploy note: A touches live-mounted M3
 files AND colcon-built M4 files — rebuild + md5 both.
 
+**A28. Mini-batch E21-E23: triple derived (3/130/0); E20
+clearance-release corrigendum (2026-10-12; report
+shield-fix-and-minibatch; integration @f6598e6).** All four A27
+rulings landed: de-exemption (M3 tags `retreat_shield_hold`; M4
+drops those robots from `admitted_partners` in every phase; A19's
+command-start waiver treats a shielded robot as a bystander so a
+standing latch cannot freeze the yielder before B3 can fire), the
+0.20 m floor as a per-run install swap (`safety_floor020.yaml`,
+byte-identical to IB10's c41913f0) with pre/post arm gates, the B3
+structured log line, and the shielded-excluded vb∧matched reading
+(reproduces batch 3's 3 raw / 5 excluded). Suite 62/6708/153/3,
+same 65 failing ids. E18 replay fixture: under the new command the
+yielder latches at the first scene inside 0.45 m and B3 fires; the
+floor ALONE would not have caught E18 (0.231 m > 0.20) — the
+de-exemption is load-bearing. Mini-batch: 3/3 dispatched yields
+admitted, 2 clearance releases (E21, E23), zero contacts, zero
+floor/B3 firings, one productive event (E23, the 8th nonzero
+episode), spend $0.1069 of $0.15. P1/P2/P4 pass; P3 partially
+untested — no live B3 opportunity arose, so latch→B3 evidence
+remains replay-only (recorded, not citable as live). TRIPLE
+DERIVED at the ≥8 bar: budget_k=3 (p95 of [1,1,1,1,1,2,2,2,3]),
+window_sim_sec=130 (max of 79.3 s latency p95 and the 122.6 s E6
+gap, rounded up), alternation_max=0; ChurnLedger replay over all
+30 classified episodes withholds no productive event and withholds
+in E3 (2) and A3 (6) as designed; equals the reference-only
+triple. RULING: the triple is REGISTERED as the frozen bound
+values but the bound stays DEFAULT-OFF per A21(iii); per-cell
+enablement is a future owner call; fragility disclosed (budget_k's
+single 3 and the window's single 122.6 s gap each rest on one
+observation in 9).
+
+CORRIGENDUM to A26/A27 and the batch-3 report: E20 release
+`6cf402ed` was a CONTACT, not a clearance release. The escorted
+passer r3 drove into the parked yielder r1 on an escort line 0.14 m
+off its park point; GT distance fell below 0.18 m from 251.8 sim-s
+(minimum 0.109 m) and both robots stayed frozen to episode end.
+Batch-3 clearance releases read 2→1; A27's "TWO released by real
+passer clearance" reads ONE. It was not a productive event, so
+budget_k and the triple are unaffected (checked). This is the
+first live contact on the A26 runtime and was caught by the
+distance-recompute policy (fc73151 lineage) at the pre-arm gate.
+RULINGS: (i) the E20 class (clearing pair: escort into parked
+yielder) is NOT covered by A27 de-exemption — clearing pairs keep
+their exemption by design — but IS backstopped by the 0.20 floor
+(0.109 < 0.20): the floor swap + mandatory pre/post arm gates are
+therefore required in EVERY future S1b live cell, shield or not;
+the pinned install default stays 59839662 and no config selector
+is built for now. (ii) Escort grounding must clear a parked
+partner's park point by at least the 0.45 m latch radius; queued
+as the next integration fix with its own fixture set — the escort
+leg of the shield config stays OFF until it lands. (iii) Admitted
+≠ productive recorded as a metric distinction (E21 and E22 each
+had an admitted, unproductive yield). VM state: pristine
+safety.yaml restored; the box is NOT shield-ready without
+re-applying the swap; rule-16 pre-registration lives in VM NOTES.
+
 **A27. Batch 3: admits 5/5; shield safety ruled; budget_k one
 short (2026-10-12; report shield-and-batch3 + Rev 5; integration
 @c08904a).** The A26 stack's first live outing: admitted/dispatched
