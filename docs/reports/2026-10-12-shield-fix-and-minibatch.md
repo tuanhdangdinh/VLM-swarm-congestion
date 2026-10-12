@@ -22,10 +22,10 @@
 | (iv) Scorer | `plan_metrics.shield_excluded_dispatch_match` + `score_decision_artifact` + `s1b_live_batch_stats.py`. Batch-3 regression **3 raw / 5 excluded reproduced**. Pooled E6-E23: 13 raw / 16 excluded |
 | Suite | 62 / 6646 / 153 / 3 → **62 / 6708 / 153 / 3**, identical failing ids (65); +62 tests |
 | Batch | E21, E22 (second attempt after one sequential bring-up abort) and E23 ran. **Spend $0.1069 of $0.15**; E23 was cut by its $0.05 episode cap at 200.5 sim-s |
-| Predictions | **P1 PASS** (admitted 3/3). **P2 PASS** (0 GT contacts, 0 floor firings). **P3 NOT EXERCISED** (0 B3 firings, no qualifying approach). **P4 PASS** (bar 8/30) |
+| Predictions | **P1 PASS** (admitted 3/3). **P2 PASS** (0 GT contacts, 0 floor firings). **P3: two clauses vacuous, one held** (0 B3 firings and no shielded robot within 0.45 m; but no clearing robot was held in its step without a B3 line, tested on 3 yields). **P4 PASS** (bar 8/30) |
 | Rev 6 | Admitted/dispatched pooled 11/17 (A26+A27 runtime 8/8). Clearance releases 2 in this batch. First-conflict yield 5/18 live (CI 0.097-0.535) against MC 12/18. **0 alternations in 18 live episodes; NO LIVELOCK** (5 opportunity episodes, 0 ARCH). Both clusters named 14/103 |
 | Correction | **Batch 3's E20 `6cf402ed` "clearance release" was a contact**: the escorted passer r3 drove into the parked yielder r1 (GT < 0.18 m from 251.8 sim-s, min 0.109 m, then frozen to the end). It was found by the pre-arm floor check (§1.6). It was not a productive event, so budget_k is unaffected |
-| Owner rulings | (1) escort-into-retreat geometry (E20 contact); (2) freeze or not the triple (3, 130, 0) on n = 9 events; (3) how the floor is selected for future shield cells; (4) P3 is untested live (§8) |
+| Owner rulings | (1) escort-into-retreat geometry (E20 contact); (2) which registered cells enable the churn bound with the frozen triple, and whether to accept it with budget_k and the window each set by one observation; (3) how the floor is selected for future shield cells (the VM is back on pristine `safety.yaml`); (4) the shield's latch → B3 path has no live exercise yet (§8) |
 
 PILOT-ONLY, RECORD = 0.
 
@@ -164,7 +164,7 @@ See §1.1 for how "shield cell" was operationalised: an install-wide swap for th
   - The second (59.8) was a verbatim yield r5 for r1 with no shield. It was admitted at 96.2 and released by **clearance** at 123.0, and r1 then arrived (133.8). **Productive.**
   - Four `junction_clear` analyses on {r2, r3, r4} were refused and withheld.
   - The $0.05 cap's stop flag fired at est $0.0425, and the episode ended at 200.5 sim-s with 6/25 tasks.
-- **Bring-up:** 3 episodes, 4 attempts, 1 abort. GATE OK and RESTORE OK on every attempt. The floor gate was OK on every episode that ran.
+- **Bring-up:** 3 episodes, 4 attempts, 1 abort. GATE OK and RESTORE OK on every attempt. The floor gate was OK on every episode that ran. The attempt after the abort is clean of trap-16a contamination: the abort's Isaac had exited ("Isaac gone ... 0 alive"), there was no leftover ground-truth directory, and there are 0 "jump back in time" lines in its `m4.log` and `isaac.log`.
 
 ---
 
@@ -174,7 +174,7 @@ See §1.1 for how "shield cell" was operationalised: an install-wide swap for th
 |---|---|---|
 | P1 admits ≥ 0.6 | **PASS, 3/3** | `gate_admit` on 04457772, 07da775d, 9803bd34; no yield failed |
 | P2 zero contacts, floor counted | **PASS** | All-pairs GT minimum 0.305 / 0.328 / 0.409 m; no pair below 0.18 m; 0 `reason=hard_contact_floor` lines |
-| P3 B3 honest | **NOT EXERCISED** | 0 `b3_fast_fail` lines, matching 0 inferred. No shielded robot came within 0.45 m of its yielder: the closest was E22 r1 at 0.75 m, at dispatch. No clearing robot was safety-stopped inside its backup or pull-off, except the A19 command-start flicker (0.1-0.7 wall-s at step start, before the command is known to the monitor). The prediction is not falsified, but it carries no live evidence. The E18 replay fixture remains the only evidence that the de-exemption converts a near pass into latch → B3 |
+| P3 B3 honest | **Per clause: 2 vacuous, 1 held** | (a) "every B3 follows a fresh latch": vacuous, 0 `b3_fast_fail` lines (matching 0 inferred). (b) "a shielded robot within 0.45 m of its yielder ends in B3": vacuous, the closest shielded approach was E22 r1 at 0.75 m, at dispatch. (c) "no clearing robot held more than ~3 s in its step without a B3 line": **held** on all 3 live yields, whose only in-step holds were the A19 command-start flicker (0.1-0.7 wall-s at step start, before the monitor knows the command). The E18 replay fixture remains the only evidence that the de-exemption converts a near pass into latch → B3 |
 | P4 budget_k bar | **PASS, 8 of 30** | E23 is the 8th nonzero classified episode (live 7/18). The triple is derived in §5.2 |
 
 ---
@@ -210,7 +210,7 @@ The procedure is the one pre-stated in rule 14 (§1.4 P4): `batch4/derive_triple
 | Alternations inside productive groups | all 0 | **alternation_max 0** |
 
 - **Acceptance replay: PASS.** The ChurnLedger replay over all 30 classified bundles withholds no productive event. It withholds S1b E3 twice (alternation, the required condition) and 6 of S1a A3's 12 identical reroutes (budget). No live episode has a withhold.
-- **Frozen triple: {budget_k 3, window_sim_sec 130, alternation_max 0}.** It equals the Rev 4 reference-only triple. E23's new event (1 dispatch, 69.9 s) moved no input across a rank boundary.
+- **Frozen triple (by rule 14: bar met, replay passed): {budget_k 3, window_sim_sec 130, alternation_max 0}.** It equals the Rev 4 reference-only triple. Enabling it per cell is the owner's (§8). E23's new event (1 dispatch, 69.9 s) moved no input across a rank boundary.
 - **Caveats for the freeze ruling:**
   - It rests on n = 9 events. budget_k 3 is set by one event (E17 `9cf93ebe`, the 3rd of 4 dispatches), and the window by one gap (E6, 122.6 s).
   - alternation_max 0 means any A-B-A in a window is withheld, so the bound turns on at the first alternation; none has occurred live.
@@ -260,7 +260,7 @@ The procedure is the one pre-stated in rule 14 (§1.4 P4): `batch4/derive_triple
    - Batch 3's E20 `6cf402ed` was a real contact: an escorted passer pushed its parked yielder for about 11 sim-s.
    - The floor now backstops it, but the grounding should not produce an escort line 0.14 m off the yielder's park point.
    - Ruling: fix the escort or retreat geometry (an M3 sweep of the escort leg against the parked yielder's footprint), or accept the floor as the only guard.
-2. **Freeze the triple (3, 130, 0)?** The bar is met and the acceptance replay passes. But n = 9 events, and both budget_k and the window are each set by a single observation (§5.2). Rule on freezing it and on which registered cells enable the churn bound.
+2. **Enabling the frozen triple (3, 130, 0).** By rule 14 the triple is frozen once the bar is met and the replay passes, and both hold. What remains open for the owner: (a) which registered cells enable the churn bound (A21(b): "enabled per registered cell"); (b) whether to accept a triple whose budget_k (E17's one 3-dispatch event) and window (E6's one 122.6 s gap) each rest on a single observation of n = 9 (§5.2).
 3. **Floor selection for shield cells.** This batch used an install-wide swap, restored afterwards. Options:
    - (a) keep the swap as part of every shield-cell run line;
    - (b) make 0.20 the shipped default for all v3 S1 cells;
