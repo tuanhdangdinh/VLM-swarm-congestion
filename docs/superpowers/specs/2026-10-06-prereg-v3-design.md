@@ -1434,6 +1434,85 @@ of A alone: admits 3/9→5/9; B is the bigger lever (covers both
 MC-matched failed yields). Deploy note: A touches live-mounted M3
 files AND colcon-built M4 files — rebuild + md5 both.
 
+**A29. A28(ii) escort/park fix landed as CANDIDATE FILTERING;
+churn-bound option sweep; lineage pushed (2026-10-16; integration
+@6ce2b92 = merge of `feat/v3-escort-park`; churn sweep
+`data/logs/vm_runs/batch4/churn_options/REPORT.md`).** The rule
+"escort leg clears the parked partner's park point by >= 0.45 m"
+was first built as a post-selection veto of the chosen yield
+(`reasoning/rag/escort_clearance.py`: point-to-segment distance from
+(retreat_x_m, retreat_y_m) to each passer's escort leg, mirroring
+M4's heading incl. turn cap and the odometry release distance).
+Offline re-grounding showed the blanket veto rejects yields that
+were SAFE live, because the default pull-off lateral is 0.36 m:
+E20 `f269ab37` 0.447 m, E6 0.438 m, E17a/b 0.235/0.208 m, the
+canonical declared head-on 0.360 m; only the E20 contact `6cf402ed`
+(0.131 m) was the target, and in that scene candidates B/C cleared
+by 0.589/0.949 m — only the model's pick A hit the park point.
+RULING (owner, 2026-10-16): the rule moves to candidate filtering
+BEFORE stage 2 (`command_grounder.filter_escort_park_candidates`,
+also applied in `retreat_stage2._run`, which now receives the
+grounder's `goal_references` so both sides letter identically);
+violating candidates are dropped and survivors re-letter A.. in
+rank order (the existing sweep-veto precedent,
+`retreat_candidates.reletter_candidates`); the yield is infeasible
+(`yield=infeasible:escort_hits_park:<passer>:<m>` → reroute
+fallback) only when NO candidate survives; the post-selection check
+stays as a backstop. Provenance: `retreat=escort_park_filtered:
+<label>:<passer>:<m>` per dropped candidate (cause None) plus
+`RetreatSelection.escort_park_filtered`. Everything sits behind
+`GroundingParams.escort_park_clearance` (default OFF, absent from
+params dumps when off); pinned grounding files unchanged
+(rag e18c723c, s1b_dynamic 535f5281, s1b_dynamic_shield ee5fe68f).
+Fixture outcomes with the switch ON: E20 `6cf402ed` A dropped,
+B/C survive, grounds; E21 `04457772` and E23 `9803bd34` keep their
+live pose; E6/E10/E13/E14/E15 each lose a sub-0.45 candidate and
+keep a 0.53–0.92 m one; E20 `f269ab37`, E17a, E17b and the
+declared head-on are STILL VETOED (no candidate clears 0.45 m) —
+accepted as the rule applied as stated, recorded as a known cost.
+Suite 62/6772/153/3, same 65 failing ids (+34 new tests, −7
+superseded veto tests). OPEN before any live cell enables the
+switch: (i) `shadow_classical`, the plan verifier
+(`_derived_yield_degrades_to_reroute`) and the A15(iv) swap read
+the UNFILTERED selection, so certification/shadow can disagree
+with dispatch when the switch is on — must be reconciled first;
+(ii) stage-2 records do not list dropped candidates (provenance
+only in degradations); (iii) a replayed live letter now denotes a
+different pose (E20 live "A" grounds old B) — replay kits must
+map through `escort_park_filtered`. Escort leg of the shield
+config stays OFF until (i) lands (A28(ii) carried forward).
+
+CHURN-BOUND SWEEP (offline replay, same 30 classified episodes as
+A28, first-order withholds). Baseline 3/130/0 reproduced (0
+productive withheld; E3 2 by alternation; A3 6 by budget). Grid
+budget_k {2,3,4,5} × window {90,130,200,300,∞}: only k=2 with
+window >= 130 withholds a productive event (E17 `9cf93ebe`); k=3
+with window >= 200 withholds one unproductive live dispatch; every
+grid point still catches E3; A3 is lost at k >= 4 with window 90.
+The two halves catch different failures: alternation_max=0 is
+load-bearing for E3 (dispatches 38–77 s apart never trip the
+budget), budget alone catches A3 (12 dispatches, no alternation);
+raising alternation_max to 1 loses E3. Leave-one-out: budget_k ∈
+{2,3} (set by the single E17 event; the triple derived without E17
+is (2,130,0) and withholds E17 itself), window ∈ {90,130} (set by
+the single E6 gap; 90 never withholds a productive event, only
+weakens the catch). Per-cell enablement at 3/130/0: S1a-only
+withholds A3 6; S1b (incl. shield) withholds E3 2; shield-only 0;
+all 30 → 8; NO option withholds a productive event and NO option
+changes any of the 18 live episodes (0 real-model alternations
+ever). RULING: triple (3,130,0) stays REGISTERED and DEFAULT-OFF
+in every cell; no k=4 ruling is opened (it adds margin but is not
+what the registered procedure yields); re-derive budget_k when
+~20 productive events exist, when the nearest-rank p95 stops
+being the maximum.
+
+LINEAGE: `feat/v3-integration` f6598e6 and `feat/v3-design`
+d54e19b pushed to origin 2026-10-16 (first remote copies);
+`feat/prereg-v2-composite` dd5f93c and `prereg-v1-hotfix` 3988524
+fast-forwarded on origin. VM `vgu-vgu-thu-base-isaac-workstation-vm`
+found TERMINATED 2026-10-16; next start must re-apply the 0.20 m
+floor swap before any S1b live cell (A28(i)).
+
 **A28. Mini-batch E21-E23: triple derived (3/130/0); E20
 clearance-release corrigendum (2026-10-12; report
 shield-fix-and-minibatch; integration @f6598e6).** All four A27
