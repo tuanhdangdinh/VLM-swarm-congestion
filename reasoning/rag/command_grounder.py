@@ -13,7 +13,12 @@ from pydantic import (
     model_serializer,
 )
 
-from reasoning.rag.escort_clearance import escort_hits_park_reason, escort_park_violations
+from reasoning.rag.escort_clearance import (
+    EscortLeg,
+    escort_hits_park_reason,
+    escort_park_violations,
+    park_clearance_suffix,
+)
 from reasoning.rag.grounding_view import (
     GroundingView,
     apply_backup_line_hold,
@@ -40,6 +45,7 @@ from reasoning.rag.retreat_candidates import (
     RetreatCandidate,
     generate_retreat_candidates,
     rank_candidates,
+    reletter_candidates,
 )
 from reasoning.rag.retreat_shield import (
     RobotTaskIntent,
@@ -1234,6 +1240,15 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # (`prepare_retreat_selection`). Suffix `:<from>-><to>` in metres.
     # Provenance: the grounded backup is still a validated candidate.
     "retreat=deepened": None,
+    # prereg-v3 A28(ii), owner ruling 2026-10-16: with
+    # `GroundingParams.escort_park_clearance`, a candidate whose escort leg
+    # would pass within `min_distance_m` of its park point was dropped before
+    # stage 2 (`filter_escort_park_candidates`). Suffix `:<label>:<passer>:
+    # <clearance m>`, the label being the candidate's generation label before
+    # the survivors were re-lettered. Provenance: the grounded yield is a
+    # surviving candidate; when none survives the cause is the
+    # `yield=infeasible:escort_hits_park:...` tag that follows.
+    "retreat=escort_park_filtered": None,
     # A supplied crossing order that is not a permutation of the non-yielders.
     "order=default:non_permutation": "non_permutation_order",
     # Three or more robots with no explicit crossing order: involved-robots
@@ -1452,6 +1467,14 @@ class RetreatSelection(BaseModel):
     # The clearance-minimum backup when `backup` was deepened past it
     # because no candidate survived the box sweep there; None otherwise.
     deepened_from_m: float | None = None
+    # `filter_escort_park_candidates`' drops, best-ranked first, as
+    # `<label>:<passer>:<clearance m>` per violating escort leg (labels from
+    # before the re-lettering); empty when nothing was dropped.
+    escort_park_filtered: list[str] = Field(default_factory=list)
+    # The best-ranked dropped candidate's `escort_hits_park:<passer>:<m>`
+    # reasons: the yield's infeasibility cause when nothing survived, as the
+    # backstop would have named them for the default candidate.
+    escort_park_infeasible: list[str] = Field(default_factory=list)
 
 
 def _junction_same_axis_order(
@@ -1661,6 +1684,7 @@ def resolve_yield_roles(
 # The partner retry's two outcomes, as `_sweep_regrounded_roles` writes them
 # and `_plan_yield_verdict` reads them back (prereg-v3 A16(v)).
 _SWEEP_REGROUNDED_TAG = "yield_robot=sweep_regrounded"
+_ESCORT_PARK_FILTERED_TAG = "retreat=escort_park_filtered"
 _NO_EXECUTABLE_RETREAT = "yield refused: no executable retreat"
 # Every layer that hands the yield to another robot tags it
 # `<layer>_regrounded:<from>-><to>` (prereg-v3 A17); only the plan verdict's
@@ -2004,17 +2028,60 @@ def prepare_retreat_selection(
     )
 
 
-def _escort_park_hits(
+def _park_point(candidate: RetreatCandidate) -> tuple[float, float]:
+    # The park point exactly as the yield parameters carry it.
+    return (round(candidate.x, 3), round(candidate.y, 3))
+
+
+def _candidate_escort(
+    snapshot: SnapshotFrame,
+    yielder_id: str,
+    crossing_order: Sequence[str],
+    candidate: RetreatCandidate,
+    params: GroundingParams,
+    geometry: SceneGeometry | None,
+) -> tuple[Derivation, list[float] | None]:
+    # The first passer's escort and, for two or more passers, every passer's
+    # clearance (escort) for this candidate's park point; `crossing_clear` is
+    # None for one passer or an infeasible escort. M4 reuses the first
+    # passer's clearance for every later one otherwise, so each queued passer
+    # gets its own, as the legacy multi-passer yield does.
+    escort = derive_escort_distance(
+        snapshot,
+        crossing_order[0],
+        (candidate.x, candidate.y),
+        params,
+        geometry=geometry,
+        yielder_id=yielder_id,
+    )
+    if not escort.feasible or len(crossing_order) < 2:
+        return escort, None
+    crossing_clear = [escort.value_m]
+    for robot_id in crossing_order[1:]:
+        queued = derive_queued_passer_clearance(
+            snapshot,
+            robot_id,
+            (candidate.x, candidate.y),
+            params,
+            geometry=geometry,
+            yielder_id=yielder_id,
+        )
+        crossing_clear.append(queued.value_m if queued.value_m is not None else escort.value_m)
+    return escort, crossing_clear
+
+
+def _escort_park_legs(
     yielder_id: str,
     yield_parameters: dict[str, Any],
     snapshot: SnapshotFrame,
     geometry: SceneGeometry | None,
     params: GroundingParams,
     goal_references: Mapping[str, tuple[float, float]] | None,
-) -> list[str]:
-    # prereg-v3 A28(ii). The headings, the turn cap and any dropped escort
-    # come from the same `apply_escort_headings` pass `ground_reasoner_result`
-    # runs on the finished command, so the swept leg is the dispatched one.
+) -> list[EscortLeg]:
+    # prereg-v3 A28(ii), shared by the candidate filter and the post-selection
+    # backstop. The headings, the turn cap and any dropped escort come from
+    # the same `apply_escort_headings` pass `ground_reasoner_result` runs on
+    # the finished command, so the swept leg is the dispatched one.
     final = apply_escort_headings(
         {"actions": [{"robot_id": yielder_id, "action": "yield", "parameters": yield_parameters}]},
         snapshot,
@@ -2022,12 +2089,91 @@ def _escort_park_hits(
         params,
         goal_references,
     )["actions"][0]["parameters"]
-    return [
-        escort_hits_park_reason(leg)
-        for leg in escort_park_violations(
-            yielder_id, final, snapshot, geometry, params.min_distance_m
+    return escort_park_violations(yielder_id, final, snapshot, geometry, params.min_distance_m)
+
+
+def filter_escort_park_candidates(
+    selection: RetreatSelection,
+    snapshot: SnapshotFrame,
+    params: GroundingParams,
+    *,
+    geometry: SceneGeometry | None = None,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
+) -> RetreatSelection:
+    """Drop the retreat candidates whose escort leg would pass their park point.
+
+    prereg-v3 A28(ii), owner ruling 2026-10-16: with
+    `params.escort_park_clearance`, each candidate's escort legs are built as
+    `_ground_derived` would dispatch them for that candidate (its escort and
+    queued clearances, then `grounding_view.apply_escort_headings`' headings
+    and turn cap) and swept against its park point
+    (`escort_clearance.escort_park_violations`). A candidate with any leg
+    inside `params.min_distance_m` is dropped; one with no escort leg (an
+    infeasible or dropped escort) is kept for the existing checks. The
+    survivors keep their rank and are re-lettered A.. in generation order,
+    as `generate_retreat_candidates` letters the survivors of its own sweep,
+    so stage 2 and grounding resolve one positional letter set. Stage 2
+    (`run_retreat_stage2`) and `_ground_derived` must both call this with
+    the same inputs; the A15(iv) swap (`_sweep_regrounded_roles`) and the
+    shadow classical retreat read the unfiltered selection.
+
+    Args:
+        selection: `prepare_retreat_selection`'s output.
+        snapshot: The frame the selection was prepared from.
+        params: Grounding parameters (the switch, `min_distance_m`).
+        geometry: The geometry the selection was prepared on, or None.
+        goal_references: Robot id -> current task node, as handed to the
+            grounder (read only by `apply_escort_headings`).
+
+    Returns:
+        `selection` itself when the switch is off, it has no candidates or
+        nothing is dropped; otherwise a copy with the survivors and
+        `escort_park_filtered` recording each drop.
+    """
+    if not params.escort_park_clearance or not selection.candidates:
+        return selection
+    order = selection.crossing_order
+    survivors: list[RetreatCandidate] = []
+    dropped: list[tuple[str, EscortLeg]] = []
+    for candidate in selection.candidates:
+        escort, crossing_clear = _candidate_escort(
+            snapshot, selection.yielder_id, order, candidate, params, geometry
         )
-    ]
+        if not escort.feasible:
+            survivors.append(candidate)
+            continue
+        park_x, park_y = _park_point(candidate)
+        parameters: dict[str, Any] = {
+            "retreat_x_m": park_x,
+            "retreat_y_m": park_y,
+            "passer_robot_id": order[0],
+            "passer_clear_m": escort.value_m,
+            "passer_escort_distance_m": escort.value_m,
+            "crossing_order": list(order),
+        }
+        if crossing_clear is not None:
+            parameters["crossing_clear_m"] = list(crossing_clear)
+            parameters["crossing_escort_m"] = list(crossing_clear)
+        legs = _escort_park_legs(
+            selection.yielder_id, parameters, snapshot, geometry, params, goal_references
+        )
+        if legs:
+            dropped.extend((candidate.label, leg) for leg in legs)
+        else:
+            survivors.append(candidate)
+    if not dropped:
+        return selection
+    return selection.model_copy(
+        update={
+            "candidates": reletter_candidates(survivors),
+            "escort_park_filtered": [
+                f"{label}:{park_clearance_suffix(leg)}" for label, leg in dropped
+            ],
+            "escort_park_infeasible": [
+                escort_hits_park_reason(leg) for label, leg in dropped if label == dropped[0][0]
+            ],
+        }
+    )
 
 
 def _ground_derived(
@@ -2194,6 +2340,17 @@ def _ground_derived(
         degradations.append(
             f"retreat=deepened:{selection.deepened_from_m:g}->{selection.backup.value_m:g}"
         )
+    selection = filter_escort_park_candidates(
+        selection, snapshot, params, geometry=geometry, goal_references=goal_references
+    )
+    degradations.extend(
+        f"{_ESCORT_PARK_FILTERED_TAG}:{entry}" for entry in selection.escort_park_filtered
+    )
+    if not selection.candidates:
+        degradations.extend(
+            f"yield=infeasible:{reason}" for reason in selection.escort_park_infeasible
+        )
+        return _reroute_yielder(result, decision, roles, degradations)
 
     chosen = selection.candidates[0]
     if retreat_choice is None:
@@ -2209,13 +2366,8 @@ def _ground_derived(
             chosen = match
 
     passer_id = roles.crossing_order[0]
-    escort = derive_escort_distance(
-        snapshot,
-        passer_id,
-        (chosen.x, chosen.y),
-        params,
-        geometry=geometry,
-        yielder_id=roles.yielder_id,
+    escort, crossing_clear = _candidate_escort(
+        snapshot, roles.yielder_id, roles.crossing_order, chosen, params, geometry
     )
     if not escort.feasible:
         degradations.append(f"yield=infeasible:{escort.reason}")
@@ -2224,22 +2376,9 @@ def _ground_derived(
     hold_sec = params.hold_backstop_sec
     wait_sec = params.wait_backstop_sec
     resolution_sec = params.resolution_backstop_sec
-    crossing_clear: list[float] | None = None
-    if len(roles.crossing_order) > 1:
-        # One clearance per passer, each from its own position (M4 reuses the
-        # first passer's for every later one otherwise), and backstops scaled
-        # by the passers' budget, both as the legacy multi-passer yield does.
-        crossing_clear = [escort.value_m]
-        for robot_id in roles.crossing_order[1:]:
-            queued = derive_queued_passer_clearance(
-                snapshot,
-                robot_id,
-                (chosen.x, chosen.y),
-                params,
-                geometry=geometry,
-                yielder_id=roles.yielder_id,
-            )
-            crossing_clear.append(queued.value_m if queued.value_m is not None else escort.value_m)
+    if crossing_clear is not None:
+        # Backstops scaled by the passers' budget, as the legacy multi-passer
+        # yield does.
         budget = _passer_budget(crossing_clear)
         hold_sec = round(hold_sec * budget, 1)
         wait_sec = round(wait_sec * budget, 1)
@@ -2249,8 +2388,8 @@ def _ground_derived(
         "hold_sec": hold_sec,
         "pull_off_lateral_m": chosen.lateral_m,
         "retreat_choice": chosen.label,
-        "retreat_x_m": round(chosen.x, 3),
-        "retreat_y_m": round(chosen.y, 3),
+        "retreat_x_m": _park_point(chosen)[0],
+        "retreat_y_m": _park_point(chosen)[1],
         "reason": decision.root_cause,
         "passer_robot_id": passer_id,
         "passer_clear_m": escort.value_m,
@@ -2274,11 +2413,12 @@ def _ground_derived(
         yield_parameters["yield_robot_grounded_from"] = roles.grounded_from
         yield_parameters["yield_regrounded_reason"] = roles.regrounded_reason
     if params.escort_park_clearance:
-        hits = _escort_park_hits(
+        # Backstop: the chosen candidate survived the filter on the same leg.
+        hits = _escort_park_legs(
             roles.yielder_id, yield_parameters, snapshot, geometry, params, goal_references
         )
         if hits:
-            degradations.extend(f"yield=infeasible:{hit}" for hit in hits)
+            degradations.extend(f"yield=infeasible:{escort_hits_park_reason(leg)}" for leg in hits)
             return _reroute_yielder(result, decision, roles, degradations)
     actions: list[dict[str, Any]] = [
         {"robot_id": roles.yielder_id, "action": "yield", "parameters": yield_parameters}

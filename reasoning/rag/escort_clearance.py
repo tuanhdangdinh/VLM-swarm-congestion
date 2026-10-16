@@ -241,6 +241,18 @@ def escort_park_violations(
     ]
 
 
+def park_clearance_suffix(leg: EscortLeg) -> str:
+    """One leg's tag suffix, shared by the infeasible and the filtered tags.
+
+    Args:
+        leg: A leg from `escort_park_violations`.
+
+    Returns:
+        `<passer>:<clearance m, 3 dp>`.
+    """
+    return f"{leg.passer_id}:{leg.park_clearance_m:.3f}"
+
+
 def escort_hits_park_reason(leg: EscortLeg) -> str:
     """The `yield=infeasible:` reason for one violating leg.
 
@@ -250,4 +262,4 @@ def escort_hits_park_reason(leg: EscortLeg) -> str:
     Returns:
         `escort_hits_park:<passer>:<clearance m, 3 dp>`.
     """
-    return f"{ESCORT_HITS_PARK_REASON}:{leg.passer_id}:{leg.park_clearance_m:.3f}"
+    return f"{ESCORT_HITS_PARK_REASON}:{park_clearance_suffix(leg)}"

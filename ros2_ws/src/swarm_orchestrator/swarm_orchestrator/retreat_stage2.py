@@ -24,11 +24,12 @@ from __future__ import annotations
 
 import hashlib
 import random
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Protocol
 
 from reasoning.rag.command_grounder import (
     YieldFeasibilityMode,
+    filter_escort_park_candidates,
     prepare_retreat_selection,
     resolve_yield_roles,
 )
@@ -200,6 +201,7 @@ def run_retreat_stage2(
     marker: CandidateMarker | None = None,
     letter_seed_base: int = 0,
     letter_draw_index: int = 0,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
 ) -> tuple[RetreatChoiceDecision | None, RetreatStage2Record]:
     """Run stage 2 for one yield decision; never raises.
 
@@ -224,6 +226,9 @@ def run_retreat_stage2(
             false, with the reason in `marks`).
         letter_seed_base: The run seed the letter draw derives from.
         letter_draw_index: This draw's index within the M5 process.
+        goal_references: Robot id -> current task node, as handed to the
+            grounder; read only by the A28(ii) escort/park candidate filter
+            (`filter_escort_park_candidates`), so the letters match.
 
     Returns:
         The choice to ground, in M3's labels (None grounds the default), and
@@ -233,7 +238,7 @@ def run_retreat_stage2(
         return _run(
             request, decision, frame, params, caller, enabled,
             geometry, static_obstacles, yield_feasibility_mode, marker,
-            letter_seed_base, letter_draw_index,
+            letter_seed_base, letter_draw_index, goal_references,
         )
     except Exception as exc:  # stage 2 must never stall or fail the cycle
         return None, RetreatStage2Record(
@@ -254,6 +259,7 @@ def _run(
     marker: CandidateMarker | None,
     letter_seed_base: int,
     letter_draw_index: int,
+    goal_references: Mapping[str, tuple[float, float]] | None,
 ) -> tuple[RetreatChoiceDecision | None, RetreatStage2Record]:
     roles = resolve_yield_roles(
         decision,
@@ -277,6 +283,9 @@ def _run(
         params,
         geometry=geometry,
         static_obstacles=static_obstacles,
+    )
+    selection = filter_escort_park_candidates(
+        selection, frame, params, geometry=geometry, goal_references=goal_references
     )
     candidates = selection.candidates
     base = {
