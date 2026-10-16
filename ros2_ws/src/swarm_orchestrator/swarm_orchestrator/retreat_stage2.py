@@ -29,8 +29,7 @@ from typing import Protocol
 
 from reasoning.rag.command_grounder import (
     YieldFeasibilityMode,
-    filter_escort_park_candidates,
-    prepare_retreat_selection,
+    prepare_filtered_retreat_selection,
     resolve_yield_roles,
 )
 from reasoning.rag.maneuver_geometry import GroundingParams
@@ -228,7 +227,7 @@ def run_retreat_stage2(
         letter_draw_index: This draw's index within the M5 process.
         goal_references: Robot id -> current task node, as handed to the
             grounder; read only by the A28(ii) escort/park candidate filter
-            (`filter_escort_park_candidates`), so the letters match.
+            (`prepare_filtered_retreat_selection`), so the letters match.
 
     Returns:
         The choice to ground, in M3's labels (None grounds the default), and
@@ -268,6 +267,7 @@ def _run(
         static_obstacles=static_obstacles,
         yield_feasibility_mode=yield_feasibility_mode,
         params=params,
+        goal_references=goal_references,
     )
     if roles.refusal_reason is not None:
         return None, RetreatStage2Record(
@@ -276,16 +276,14 @@ def _run(
             yielder_id=roles.yielder_id,
             crossing_order=list(roles.crossing_order),
         )
-    selection = prepare_retreat_selection(
+    selection = prepare_filtered_retreat_selection(
         frame,
         roles.yielder_id,
         roles.crossing_order,
         params,
         geometry=geometry,
         static_obstacles=static_obstacles,
-    )
-    selection = filter_escort_park_candidates(
-        selection, frame, params, geometry=geometry, goal_references=goal_references
+        goal_references=goal_references,
     )
     candidates = selection.candidates
     base = {

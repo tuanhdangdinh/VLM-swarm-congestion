@@ -11,7 +11,7 @@ failures into a recorded `shadow_error` instead of raising.
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -30,7 +30,7 @@ from reasoning.baselines import (
 )
 from reasoning.rag.command_grounder import (
     YieldFeasibilityMode,
-    prepare_retreat_selection,
+    prepare_filtered_retreat_selection,
     resolve_yield_roles,
 )
 from reasoning.rag.maneuver_geometry import GroundingParams
@@ -241,16 +241,19 @@ class ClassicalRetreatContext(BaseModel):
 class ClassicalRetreat(BaseModel):
     """Arm B's stage-2 answer: the geometry-max candidate for its own yielder.
 
-    `ranked[0]` of `prepare_retreat_selection` is by construction the
-    stage-2 default, the stage-2 fallback and Arm B's stage-2 answer
-    (rev-8 A.3); this records it for the classical decision's yielder.
+    `ranked[0]` of `prepare_filtered_retreat_selection` is by construction
+    the stage-2 default, the stage-2 fallback and Arm B's stage-2 answer
+    (rev-8 A.3); this records it for the classical decision's yielder. With
+    `escort_park_clearance` it is the post-filter rank 0 (prereg-v3 A29
+    item (i)), in the re-lettered label dispatch would use.
     """
 
     model_config = ConfigDict(frozen=True)
 
     # computed: a candidate exists; not_applicable: no classical yield, or
     # grounding is not derived (no stage 2); unavailable: the yield is not
-    # executable (gate refusal, infeasible backup, no candidate); error: the
+    # executable (gate refusal, infeasible backup, no candidate, no candidate
+    # clearing its park point); error: the
     # computation raised (also in the record's `shadow_error`).
     status: Literal["computed", "not_applicable", "unavailable", "error"]
     reason: str | None = None
@@ -277,7 +280,10 @@ class ClassicalRetreat(BaseModel):
 
 
 def classical_retreat_answer(
-    decision: CongestionDecision, frame: SnapshotFrame, context: ClassicalRetreatContext | None
+    decision: CongestionDecision,
+    frame: SnapshotFrame,
+    context: ClassicalRetreatContext | None,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
 ) -> ClassicalRetreat:
     """Compute Arm B's stage-2 answer for one classical decision.
 
@@ -286,6 +292,8 @@ def classical_retreat_answer(
         frame: The scene it was classified on (the analysed snapshot).
         context: The grounder's derived-mode inputs; None when M5 did not
             wire them.
+        goal_references: Robot id -> current task node, read only by the
+            escort/park filter; None uses the frame's goals.
 
     Returns:
         The geometry-max candidate for the classical yielder, or a
@@ -309,6 +317,7 @@ def classical_retreat_answer(
         static_obstacles=context.static_obstacles,
         yield_feasibility_mode=context.yield_feasibility_mode,
         params=context.params,
+        goal_references=goal_references,
     )
     base: dict[str, Any] = {
         "yielder_id": roles.yielder_id,
@@ -317,17 +326,23 @@ def classical_retreat_answer(
     }
     if roles.refusal_reason is not None:
         return ClassicalRetreat(status="unavailable", reason=roles.refusal_reason, **base)
-    selection = prepare_retreat_selection(
+    selection = prepare_filtered_retreat_selection(
         frame,
         roles.yielder_id,
         roles.crossing_order,
         context.params,
         geometry=context.geometry,
         static_obstacles=context.static_obstacles,
+        goal_references=goal_references,
     )
     if not selection.backup.feasible:
         return ClassicalRetreat(
             status="unavailable", reason=f"backup infeasible: {selection.backup.reason}", **base
+        )
+    if not selection.candidates and selection.escort_park_infeasible:
+        reasons = ", ".join(selection.escort_park_infeasible)
+        return ClassicalRetreat(
+            status="unavailable", reason=f"no candidate clears its park point: {reasons}", **base
         )
     if not selection.candidates:
         return ClassicalRetreat(status="unavailable", reason="no valid candidate", **base)

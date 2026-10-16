@@ -1600,6 +1600,7 @@ def resolve_yield_roles(
     yield_feasibility_mode: YieldFeasibilityMode = "off",
     crossing_order: Sequence[str] | None = None,
     params: GroundingParams | None = None,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
 ) -> YieldRoles:
     """Resolve the yielder and crossing order of a yield decision.
 
@@ -1631,6 +1632,14 @@ def resolve_yield_roles(
     they see the same yielder (Arm B's shadow grounds on the declared
     geometry, where this step never runs).
 
+    The A28(ii) escort/park filter (`params.escort_park_clearance`,
+    prereg-v3 A29 item (i)) enters only the partner's check: a partner none
+    of whose candidates clears its park point has no executable retreat,
+    exactly like a partner with no sweep survivor. The kept yielder's own
+    trigger reads the unfiltered selection, so a kept yielder whose
+    candidates are all filtered still grounds the escort_hits_park reroute
+    (A29's recorded outcome), never a partner retry.
+
     Args:
         decision: A congestion decision with `strategy == "yield"`.
         snapshot: Scene frame supplying the robot positions.
@@ -1645,6 +1654,8 @@ def resolve_yield_roles(
             conflict behind the yielder (`lane_conflict_robot_ids`). Every
             caller grounding the same decision must pass the same value, or
             stage 2, the plan and the command see different orders.
+        goal_references: Robot id -> current task node, as handed to the
+            grounder; read only by the partner's escort/park filter.
 
     Returns:
         The roles, with `refusal_reason` set when no yield is executable.
@@ -1666,7 +1677,9 @@ def resolve_yield_roles(
     ):
         return roles
     assert params is not None and geometry is not None  # narrowed by the domain check
-    failure = _derived_reroute_reason(snapshot, roles, params, geometry, static_obstacles)
+    failure = _derived_reroute_reason(
+        snapshot, roles, params, geometry, static_obstacles, escort_park=False
+    )
     if failure is None:
         return roles
     return _sweep_regrounded_roles(
@@ -1678,6 +1691,7 @@ def resolve_yield_roles(
         static_obstacles=static_obstacles,
         crossing_order=crossing_order,
         params=params,
+        goal_references=goal_references,
     )
 
 
@@ -1718,9 +1732,11 @@ def _sweep_regrounded_roles(
     static_obstacles: Sequence[StaticObstacleInput],
     crossing_order: Sequence[str] | None,
     params: GroundingParams,
+    goal_references: Mapping[str, tuple[float, float]] | None,
 ) -> YieldRoles:
     # `resolve_yield_roles`' A15(iv) step: the gate-kept yielder has no
-    # executable retreat (`failure`); try its first passer instead.
+    # executable retreat (`failure`); try its first passer instead. The
+    # partner's retreat is the filtered one dispatch would ground (A29 (i)).
     kept = roles.yielder_id
     partner = roles.crossing_order[0]
     partner_failure: str | None = None
@@ -1758,7 +1774,13 @@ def _sweep_regrounded_roles(
             partner_failure = second.refusal_reason.removeprefix("yield refused: ")
         else:
             second_failure = _derived_reroute_reason(
-                snapshot, second, params, geometry, static_obstacles
+                snapshot,
+                second,
+                params,
+                geometry,
+                static_obstacles,
+                escort_park=True,
+                goal_references=goal_references,
             )
             if second_failure is not None:
                 partner_failure = f"{partner} {second_failure}"
@@ -2112,10 +2134,9 @@ def filter_escort_park_candidates(
     infeasible or dropped escort) is kept for the existing checks. The
     survivors keep their rank and are re-lettered A.. in generation order,
     as `generate_retreat_candidates` letters the survivors of its own sweep,
-    so stage 2 and grounding resolve one positional letter set. Stage 2
-    (`run_retreat_stage2`) and `_ground_derived` must both call this with
-    the same inputs; the A15(iv) swap (`_sweep_regrounded_roles`) and the
-    shadow classical retreat read the unfiltered selection.
+    so stage 2 and grounding resolve one positional letter set. Every reader
+    of the selection gets it through `prepare_filtered_retreat_selection`
+    (prereg-v3 A29 item (i)), never by calling this on its own.
 
     Args:
         selection: `prepare_retreat_selection`'s output.
@@ -2173,6 +2194,55 @@ def filter_escort_park_candidates(
                 escort_hits_park_reason(leg) for label, leg in dropped if label == dropped[0][0]
             ],
         }
+    )
+
+
+def prepare_filtered_retreat_selection(
+    frame: SnapshotFrame,
+    yielder_id: str,
+    crossing_ids: Sequence[str],
+    params: GroundingParams,
+    *,
+    geometry: SceneGeometry | None = None,
+    static_obstacles: Sequence[StaticObstacleInput] = (),
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
+) -> RetreatSelection:
+    """The retreat selection every consumer reads: prepared, then escort/park filtered.
+
+    prereg-v3 A29 item (i): dispatch (`_ground_derived`), stage 2
+    (`run_retreat_stage2`), Arm B's shadow retreat, the plan verifier's
+    yield->reroute model (`_derived_reroute_reason`) and the A15(iv)
+    partner swap all read this one selection, so with
+    `params.escort_park_clearance` none of them can name a candidate
+    dispatch dropped. The unfiltered candidates survive only as provenance
+    (`RetreatSelection.escort_park_filtered`). With the switch off this is
+    `prepare_retreat_selection` exactly.
+
+    Args:
+        frame: Current scene snapshot.
+        yielder_id: Robot that retreats (after `resolve_yield_roles`).
+        crossing_ids: Robots that will cross, in passing order.
+        params: Grounding parameters.
+        geometry: Declared scene geometry or the grounding view's, or None.
+        static_obstacles: Fixed obstacles the candidates are swept against.
+        goal_references: Robot id -> current task node, as handed to the
+            grounder (read only by the filter's escort headings).
+
+    Returns:
+        The selection with the survivors re-lettered A.. in rank order;
+        empty candidates and a non-empty `escort_park_infeasible` when the
+        filter dropped every candidate.
+    """
+    selection = prepare_retreat_selection(
+        frame,
+        yielder_id,
+        crossing_ids,
+        params,
+        geometry=geometry,
+        static_obstacles=static_obstacles,
+    )
+    return filter_escort_park_candidates(
+        selection, frame, params, geometry=geometry, goal_references=goal_references
     )
 
 
@@ -2292,6 +2362,7 @@ def _ground_derived(
             static_obstacles=static_obstacles,
             yield_feasibility_mode=yield_feasibility_mode,
             retreat_choice=retreat_choice,
+            goal_references=goal_references,
         )
         # The standalone, single-command contract every other strategy keeps
         # (`ground_reasoner_result` always returns one dict): the NEXT
@@ -2320,32 +2391,31 @@ def _ground_derived(
         yield_feasibility_mode=yield_feasibility_mode,
         crossing_order=crossing_order,
         params=params,
+        goal_references=goal_references,
     )
     degradations = list(roles.degradations)
     if roles.refusal_reason is not None:
         return _wait_fan_out(result, roles.robot_ids, roles.refusal_reason, degradations)
 
-    selection = prepare_retreat_selection(
+    selection = prepare_filtered_retreat_selection(
         snapshot,
         roles.yielder_id,
         roles.crossing_order,
         params,
         geometry=geometry,
         static_obstacles=static_obstacles,
+        goal_references=goal_references,
     )
     if not selection.backup.feasible:
         degradations.append(f"yield=infeasible:{selection.backup.reason}")
         return _reroute_yielder(result, decision, roles, degradations)
-    if not selection.candidates:
+    if not selection.candidates and not selection.escort_park_filtered:
         degradations.append("retreat=no-valid-candidate")
         return _reroute_yielder(result, decision, roles, degradations)
     if selection.deepened_from_m is not None:
         degradations.append(
             f"retreat=deepened:{selection.deepened_from_m:g}->{selection.backup.value_m:g}"
         )
-    selection = filter_escort_park_candidates(
-        selection, snapshot, params, geometry=geometry, goal_references=goal_references
-    )
     degradations.extend(
         f"{_ESCORT_PARK_FILTERED_TAG}:{entry}" for entry in selection.escort_park_filtered
     )
@@ -2675,6 +2745,7 @@ def ground_junction_clear_phases(
         yield_feasibility_mode=yield_feasibility_mode,
         retreat_choice=retreat_choice,
         recede_order=recede_order,
+        goal_references=goal_references,
     )
     if view is not None and view.tags:
         plan = _tag_phase_plan(plan, view.tags)
@@ -2725,12 +2796,15 @@ def _ground_junction_clear_phases(
     yield_feasibility_mode: YieldFeasibilityMode = "off",
     retreat_choice: RetreatChoiceDecision | None = None,
     recede_order: Sequence[str] | None = None,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
 ) -> JunctionClearPhasePlan:
     """`ground_junction_clear_phases` on an already-resolved grounding view.
 
     The internal entry point: `_ground_derived`'s `junction_clear` branch
     calls it with the decision `ground_reasoner_result` already passed
     through `resolve_grounding_view`, so the view is never resolved twice.
+    `goal_references` reaches the yield phases' escort/park filter (A29
+    item (i)), so they filter with the goals the default plan does.
     """
     decision = result.decision
     if decision is None or not decision.congestion_detected:
@@ -2771,6 +2845,7 @@ def _ground_junction_clear_phases(
             geometry=geometry,
             static_obstacles=static_obstacles,
             yield_feasibility_mode=yield_feasibility_mode,
+            goal_references=goal_references,
         ),
         decision,
     )
@@ -2877,6 +2952,7 @@ def _ground_junction_clear_phases(
             geometry=geometry,
             static_obstacles=static_obstacles,
             yield_feasibility_mode=yield_feasibility_mode,
+            goal_references=goal_references,
         ),
         decision,
     )
@@ -3382,6 +3458,7 @@ def _plan_dispatch_outcome(
     yield_feasibility_mode: YieldFeasibilityMode,
     priorities: Mapping[str, int] | None,
     grounding_params: GroundingParams | None,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
 ) -> _PlanDispatchOutcome | None:
     """The derived pipeline's yield outcome, for the plan verdicts to read.
 
@@ -3396,6 +3473,8 @@ def _plan_dispatch_outcome(
         yield_feasibility_mode: The yield feasibility gate mode.
         priorities: M5's registry priorities, for the strategy alias.
         grounding_params: M3's derived-mode grounding parameters.
+        goal_references: Robot id -> current task node, as handed to the
+            grounder (read only by the escort/park filter).
 
     Returns:
         None outside the retry's domain or when the (alias-resolved)
@@ -3420,6 +3499,7 @@ def _plan_dispatch_outcome(
         static_obstacles,
         yield_feasibility_mode,
         grounding_params,
+        goal_references,
     )
     return _PlanDispatchOutcome(working, outcome)
 
@@ -3479,12 +3559,18 @@ def _plan_yield_verdict(
             (`_plan_disagrees_with_decision_fields`).
         dispatched: `_plan_dispatch_outcome`'s result for `view`.
 
+    Inside the retry's domain a yield reroutes only when the escort/park
+    filter left no candidate (prereg-v3 A29 item (i)): every other reroute
+    cause already triggered the retry. Dispatch then executes no yield, so
+    the verdict is the reroute's, as for the retry's refusal.
+
     Returns:
         None outside the retry's domain, for a non-yield, for any
         dispatched outcome that is not a yield except the retry's refusal
-        (other refusals and reroutes keep the checks that model them), and
-        when the final yielder is the model's own. Otherwise the final
-        yielder, or None as `yielder_id` when the retry refused the yield.
+        and the yielder's reroute (other refusals keep the checks that
+        model them), and when the final yielder is the model's own.
+        Otherwise the final yielder, or None as `yielder_id` when dispatch
+        refuses or reroutes the yield.
     """
     if dispatched is None:
         return None
@@ -3495,7 +3581,10 @@ def _plan_yield_verdict(
             return _PlanYieldVerdict(yielder_id=None, reason=outcome.refusal_reason)
         return None
     if outcome.reroutes:
-        return None
+        return _PlanYieldVerdict(
+            yielder_id=None,
+            reason=f"yield degrades to reroute: {roles.yielder_id} {outcome.reroute_reason}",
+        )
     named = resolve_robot_order(model_decision if model_decision.strategy == "yield" else working)
     if roles.yielder_id == named[0]:
         return None
@@ -3866,14 +3955,20 @@ def _derived_yield_degrades_to_reroute(
     grounding_params: GroundingParams,
     geometry: SceneGeometry,
     static_obstacles: Sequence[StaticObstacleInput] = (),
-) -> bool:
-    """Whether DERIVED-mode grounding would reroute this yield instead (ruling 3).
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
+) -> str | None:
+    """Why DERIVED-mode grounding would reroute this yield instead (ruling 3).
 
-    Reuses `prepare_retreat_selection` and `derive_escort_distance`, exactly
-    as `_ground_derived` does, so this can never drift from the shipped
-    degradation logic. Checked against the best-ranked candidate
+    Reuses `prepare_filtered_retreat_selection` and `derive_escort_distance`,
+    exactly as `_ground_derived` does, so this can never drift from the
+    shipped degradation logic. Checked against the best-ranked candidate
     (`selection.candidates[0]`), matching `_ground_derived` with no stage-2
-    `retreat_choice` -- this engine accepts none.
+    `retreat_choice` -- this engine accepts none. With
+    `escort_park_clearance` the selection is the filtered one dispatch
+    grounds (prereg-v3 A29 item (i)), so a yield none of whose candidates
+    clears its park point is the escort_hits_park reroute dispatch takes.
+    The post-selection backstop is not modelled: it re-sweeps the filtered
+    survivor's leg, which the filter already cleared.
 
     Args:
         snapshot: Scene frame supplying every robot's position.
@@ -3882,15 +3977,24 @@ def _derived_yield_degrades_to_reroute(
         grounding_params: M3's derived-mode grounding parameters.
         geometry: Declared scene geometry.
         static_obstacles: Fixed obstacles, as `_ground_derived` passes them.
+        goal_references: Robot id -> current task node, as handed to the
+            grounder (read only by the escort/park filter).
 
     Returns:
-        True when the backup is infeasible, no candidate survives, or the
-        best candidate's escort is infeasible -- the same three conditions
-        `_ground_derived` checks before calling `_reroute_yielder`.
+        The reason, phrased after the yielder's id, when the backup is
+        infeasible, no candidate survives the sweep or the escort/park
+        filter, or the best candidate's escort is infeasible -- the
+        conditions `_ground_derived` checks before calling
+        `_reroute_yielder`; None when the yield grounds.
     """
-    return (
-        _derived_reroute_reason(snapshot, roles, grounding_params, geometry, static_obstacles)
-        is not None
+    return _derived_reroute_reason(
+        snapshot,
+        roles,
+        grounding_params,
+        geometry,
+        static_obstacles,
+        escort_park=True,
+        goal_references=goal_references,
     )
 
 
@@ -3900,20 +4004,41 @@ def _derived_reroute_reason(
     grounding_params: GroundingParams,
     geometry: SceneGeometry,
     static_obstacles: Sequence[StaticObstacleInput],
+    *,
+    escort_park: bool,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
 ) -> str | None:
     # Why `_ground_derived` would reroute this yield (best-ranked candidate,
     # no stage-2 choice), phrased after the yielder's id; None when it would
-    # ground the yield.
-    selection = prepare_retreat_selection(
-        snapshot,
-        roles.yielder_id,
-        roles.crossing_order,
-        grounding_params,
-        geometry=geometry,
-        static_obstacles=static_obstacles,
+    # ground the yield. `escort_park` False reads the unfiltered selection:
+    # the A15(iv) trigger for the gate-kept yielder (`resolve_yield_roles`).
+    selection = (
+        prepare_filtered_retreat_selection(
+            snapshot,
+            roles.yielder_id,
+            roles.crossing_order,
+            grounding_params,
+            geometry=geometry,
+            static_obstacles=static_obstacles,
+            goal_references=goal_references,
+        )
+        if escort_park
+        else prepare_retreat_selection(
+            snapshot,
+            roles.yielder_id,
+            roles.crossing_order,
+            grounding_params,
+            geometry=geometry,
+            static_obstacles=static_obstacles,
+        )
     )
     if not selection.backup.feasible:
         return f"has no in-band backup ({selection.backup.reason})"
+    if not selection.candidates and selection.escort_park_infeasible:
+        return (
+            "has no retreat candidate clearing its park point "
+            f"({', '.join(selection.escort_park_infeasible)})"
+        )
     if not selection.candidates:
         return "has no retreat candidate surviving the sweep"
     chosen = selection.candidates[0]
@@ -3936,6 +4061,9 @@ class _YieldOutcome(NamedTuple):
     roles: YieldRoles
     refusal_reason: str | None
     reroutes: bool
+    # Why the yielder reroutes (`_derived_yield_degrades_to_reroute`), set
+    # exactly when `reroutes`.
+    reroute_reason: str | None = None
 
 
 def _resolve_yield_outcome(
@@ -3946,6 +4074,7 @@ def _resolve_yield_outcome(
     static_obstacles: Sequence[StaticObstacleInput],
     yield_feasibility_mode: YieldFeasibilityMode,
     grounding_params: GroundingParams | None,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
 ) -> _YieldOutcome:
     # The one derivation of a yield's dispatched outcome, shared by the
     # default plan (`_yield_default_actions`) and the plan verdict
@@ -3957,6 +4086,7 @@ def _resolve_yield_outcome(
         static_obstacles=static_obstacles,
         yield_feasibility_mode=yield_feasibility_mode,
         params=grounding_params,
+        goal_references=goal_references,
     )
     # `resolve_yield_roles` does not itself apply the legacy multi-passer
     # nearest-first refusal (`_ground_legacy`'s own check, not duplicated
@@ -3970,15 +4100,16 @@ def _resolve_yield_outcome(
     refusal = roles.refusal_reason if roles.refusal_reason is not None else multi_passer_refusal
     if refusal is not None:
         return _YieldOutcome(roles, refusal, False)
-    reroutes = (
-        grounding_params is not None
+    reroute_reason = (
+        _derived_yield_degrades_to_reroute(
+            snapshot, roles, grounding_params, geometry, static_obstacles, goal_references
+        )
+        if grounding_params is not None
         and grounding_params.mode == "derived"
         and geometry is not None
-        and _derived_yield_degrades_to_reroute(
-            snapshot, roles, grounding_params, geometry, static_obstacles
-        )
+        else None
     )
-    return _YieldOutcome(roles, None, reroutes)
+    return _YieldOutcome(roles, None, reroute_reason is not None, reroute_reason)
 
 
 def _yield_default_actions(
@@ -3989,6 +4120,7 @@ def _yield_default_actions(
     static_obstacles: Sequence[StaticObstacleInput],
     yield_feasibility_mode: YieldFeasibilityMode,
     grounding_params: GroundingParams | None,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
 ) -> tuple[dict[str, PlanLegAction], list[str]]:
     """The `yield` branch of `_derive_default_plan`'s default-plan derivation.
 
@@ -4008,6 +4140,8 @@ def _yield_default_actions(
         static_obstacles: Fixed obstacles of the running scenario.
         yield_feasibility_mode: The yield feasibility gate mode.
         grounding_params: M3's derived-mode grounding parameters, or None.
+        goal_references: Robot id -> current task node, as handed to the
+            grounder (read only by the escort/park filter).
 
     Returns:
         `(actions, ordered)`: per-robot action overrides for every robot this
@@ -4021,6 +4155,7 @@ def _yield_default_actions(
         static_obstacles,
         yield_feasibility_mode,
         grounding_params,
+        goal_references,
     )
     roles = outcome.roles
     actions: dict[str, PlanLegAction] = {}
@@ -4108,6 +4243,7 @@ def _junction_clear_default_actions(
     static_obstacles: Sequence[StaticObstacleInput],
     yield_feasibility_mode: YieldFeasibilityMode,
     grounding_params: GroundingParams | None,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
 ) -> tuple[dict[str, PlanLegAction], list[str]]:
     """`junction_clear`'s default plan: the recede set in chi order, then the yield.
 
@@ -4137,6 +4273,8 @@ def _junction_clear_default_actions(
         static_obstacles: Fixed obstacles of the running scenario.
         yield_feasibility_mode: The yield feasibility gate mode.
         grounding_params: M3's derived-mode grounding parameters, or None.
+        goal_references: Robot id -> current task node, as handed to the
+            grounder (read only by the escort/park filter).
 
     Returns:
         `(actions, ordered)` covering every involved robot.
@@ -4150,6 +4288,7 @@ def _junction_clear_default_actions(
             static_obstacles,
             yield_feasibility_mode,
             grounding_params,
+            goal_references,
         )
     candidates = _junction_recede_candidates(working, geometry)
     recede_params = grounding_params if grounding_params is not None else GroundingParams()
@@ -4163,6 +4302,7 @@ def _junction_clear_default_actions(
             static_obstacles,
             yield_feasibility_mode,
             grounding_params,
+            goal_references,
         )
     actions: dict[str, PlanLegAction] = {robot_id: "reverse" for robot_id in ranked}
     yield_robots = _junction_yield_axis_robots(working, geometry)
@@ -4174,6 +4314,7 @@ def _junction_clear_default_actions(
         static_obstacles,
         yield_feasibility_mode,
         grounding_params,
+        goal_references,
     )
     actions.update(yield_actions)
     return actions, [*ranked, *yield_ordered]
@@ -4188,6 +4329,7 @@ def _derive_default_plan(
     yield_feasibility_mode: YieldFeasibilityMode,
     priorities: Mapping[str, int] | None,
     grounding_params: GroundingParams | None = None,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
 ) -> list[ProposedPlanLeg]:
     """M3's own scene-wide plan for `decision`: the repair target and fallback.
 
@@ -4219,6 +4361,8 @@ def _derive_default_plan(
         priorities: M5's registry priorities, for `priority_override`.
         grounding_params: M3's derived-mode grounding parameters, or None for
             the legacy-only behaviour predating ruling 3.
+        goal_references: Robot id -> current task node, as handed to the
+            grounder (read only by the escort/park filter).
 
     Returns:
         A complete plan: every `snapshot` robot gets exactly one leg.
@@ -4239,6 +4383,7 @@ def _derive_default_plan(
             static_obstacles,
             yield_feasibility_mode,
             grounding_params,
+            goal_references,
         )
         actions.update(yield_actions)
         ordered = yield_ordered
@@ -4251,6 +4396,7 @@ def _derive_default_plan(
             static_obstacles,
             yield_feasibility_mode,
             grounding_params,
+            goal_references,
         )
         actions.update(junction_actions)
         ordered = junction_ordered
@@ -4752,6 +4898,7 @@ def verify_and_repair_plan(
             yield_feasibility_mode=yield_feasibility_mode,
             priorities=priorities,
             grounding_params=grounding_params,
+            goal_references=goal_references,
         )
 
     if decision.proposed_plan is None:
@@ -4808,6 +4955,7 @@ def verify_and_repair_plan(
         yield_feasibility_mode=yield_feasibility_mode,
         priorities=priorities,
         grounding_params=grounding_params,
+        goal_references=goal_references,
     )
     plan_yield_verdict = _plan_yield_verdict(view, model_decision, dispatched)
     off_lane_holds = _plan_off_lane_holds(dispatched)
@@ -4842,7 +4990,8 @@ def verify_and_repair_plan(
         off_lane_holds=off_lane_holds,
     )
     if repaired is None:
-        # As the view refusal above: a retry refusal reports its true reason.
+        # As the view refusal above: a retry refusal or a reroute reports its
+        # true reason.
         reason = (
             f"plan unrepairable: {plan_yield_verdict.reason}"
             if plan_yield_verdict is not None and plan_yield_verdict.yielder_id is None
