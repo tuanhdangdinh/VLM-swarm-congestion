@@ -706,9 +706,10 @@ class RetreatStage2Record(BaseModel):
     stage2_prompt_version: int | None = None
     yielder_id: str | None = None
     crossing_order: list[str] = Field(default_factory=list)
-    # Ranked best-first, as `prepare_retreat_selection` returned them, with
-    # their sweep clearances; `default_label` is the first one's M3 label
-    # (generation order). When a call is made each also carries `letter`, the
+    # Ranked best-first, as `prepare_filtered_retreat_selection` returned
+    # them (escort/park survivors only, re-lettered), with their sweep
+    # clearances; `default_label` is the first one's M3 label (generation
+    # order). When a call is made each also carries `letter`, the
     # letter the VLM was shown for it.
     candidates: list[dict[str, Any]] = Field(default_factory=list)
     default_label: str | None = None
