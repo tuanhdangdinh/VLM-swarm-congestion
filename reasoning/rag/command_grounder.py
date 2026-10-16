@@ -2197,11 +2197,14 @@ def _ground_derived(
     or no surviving candidate, grounds a `reroute` of the yielder instead of a
     yield (rev-8 A.2/A.3); a gate or same-side refusal keeps the gate's wait
     fan-out. Every departure from the decision is tagged in `degradations`.
-    With `params.escort_park_clearance`, an escort leg that passes within
-    `min_distance_m` of the park point is infeasible too (prereg-v3
-    A28(ii)): the leg is swept with the heading and distance M4 will drive,
-    i.e. after `grounding_view.apply_escort_headings` (hence
-    `goal_references`, read only there).
+    With `params.escort_park_clearance` (prereg-v3 A28(ii)), candidates
+    whose escort leg would pass within `min_distance_m` of their park point
+    are dropped before the stage-2 choice is resolved
+    (`filter_escort_park_candidates`), and the yield is infeasible only when
+    none survives; the chosen yield's leg is checked again as a backstop.
+    Legs are swept with the heading and distance M4 will drive, i.e. after
+    `grounding_view.apply_escort_headings` (hence `goal_references`, read
+    only there).
     """
     decision = result.decision
     if decision is None or not decision.congestion_detected:
