@@ -2362,6 +2362,7 @@ def _ground_derived(
             static_obstacles=static_obstacles,
             yield_feasibility_mode=yield_feasibility_mode,
             retreat_choice=retreat_choice,
+            goal_references=goal_references,
         )
         # The standalone, single-command contract every other strategy keeps
         # (`ground_reasoner_result` always returns one dict): the NEXT
@@ -2744,6 +2745,7 @@ def ground_junction_clear_phases(
         yield_feasibility_mode=yield_feasibility_mode,
         retreat_choice=retreat_choice,
         recede_order=recede_order,
+        goal_references=goal_references,
     )
     if view is not None and view.tags:
         plan = _tag_phase_plan(plan, view.tags)
@@ -2794,12 +2796,15 @@ def _ground_junction_clear_phases(
     yield_feasibility_mode: YieldFeasibilityMode = "off",
     retreat_choice: RetreatChoiceDecision | None = None,
     recede_order: Sequence[str] | None = None,
+    goal_references: Mapping[str, tuple[float, float]] | None = None,
 ) -> JunctionClearPhasePlan:
     """`ground_junction_clear_phases` on an already-resolved grounding view.
 
     The internal entry point: `_ground_derived`'s `junction_clear` branch
     calls it with the decision `ground_reasoner_result` already passed
     through `resolve_grounding_view`, so the view is never resolved twice.
+    `goal_references` reaches the yield phases' escort/park filter (A29
+    item (i)), so they filter with the goals the default plan does.
     """
     decision = result.decision
     if decision is None or not decision.congestion_detected:
@@ -2840,6 +2845,7 @@ def _ground_junction_clear_phases(
             geometry=geometry,
             static_obstacles=static_obstacles,
             yield_feasibility_mode=yield_feasibility_mode,
+            goal_references=goal_references,
         ),
         decision,
     )
@@ -2946,6 +2952,7 @@ def _ground_junction_clear_phases(
             geometry=geometry,
             static_obstacles=static_obstacles,
             yield_feasibility_mode=yield_feasibility_mode,
+            goal_references=goal_references,
         ),
         decision,
     )
