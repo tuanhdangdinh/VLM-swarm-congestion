@@ -163,6 +163,30 @@ def generate_retreat_candidates(
     return survivors
 
 
+def reletter_candidates(candidates: list[RetreatCandidate]) -> list[RetreatCandidate]:
+    """Re-letter a subset of validated candidates A.. as their sweep would.
+
+    `generate_retreat_candidates` letters only its survivors, in generation
+    order; a later veto of some candidates re-letters the rest the same way,
+    so the letters stay contiguous and positional.
+
+    Args:
+        candidates: Candidates from one `generate_retreat_candidates` call,
+            in any order (e.g. ranked).
+
+    Returns:
+        New list in the same order, lettered by generation (old label) order.
+    """
+    letters = {
+        candidate.label: _LABELS[index]
+        for index, candidate in enumerate(sorted(candidates, key=lambda c: c.label))
+    }
+    return [
+        candidate.model_copy(update={"label": letters[candidate.label]})
+        for candidate in candidates
+    ]
+
+
 def rank_candidates(
     candidates: list[RetreatCandidate],
     transit_axis_theta: float,

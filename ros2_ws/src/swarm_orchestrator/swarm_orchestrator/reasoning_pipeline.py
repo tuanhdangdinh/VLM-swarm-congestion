@@ -1583,6 +1583,7 @@ class InProcessPipeline:
                 marker=self._candidate_marker,
                 letter_seed_base=self._stage2_letter_seed,
                 letter_draw_index=self._stage2_draws,
+                goal_references=goal_references,
             )
             self._stage2_draws += 1
         try:

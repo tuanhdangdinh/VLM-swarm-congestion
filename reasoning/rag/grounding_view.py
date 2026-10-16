@@ -907,6 +907,34 @@ class EscortHeading(BaseModel):
 _ESCORT_AXIS_MIN_M = 0.05
 
 
+def escort_axis(
+    passer: RobotStateInput, yielder: RobotStateInput, geometry: SceneGeometry
+) -> tuple[Axis, float]:
+    """The axis an escort runs on and the direction its distance was measured in.
+
+    The axis `scene_geometry.passer_travel_m` measures the escort distance
+    on: the passer's own arm axis when it is on a crossing arm, else the
+    yielder's axis. The sign is the direction along it the distance assumed:
+    toward the yielder's side for a same-axis passer (past the parked
+    yielder), out of the box (away from its arm's side) for a crossing one.
+
+    Args:
+        passer: The escorted robot's snapshot state.
+        yielder: The yielder's snapshot state.
+        geometry: The geometry the command was grounded on.
+
+    Returns:
+        `(axis, sign)`: `"x"` or `"y"`, and +1.0 or -1.0 along it.
+    """
+    yielder_arm = (geometry.arms or {}).get(yielder.robot_id)
+    yielder_axis: Axis = geometry.corridor.axis if yielder_arm is None else yielder_arm.axis
+    passer_arm = (geometry.arms or {}).get(passer.robot_id)
+    if passer_arm is None or passer_arm.axis == yielder_axis:
+        toward_yielder = _coord(yielder, yielder_axis) > _coord(passer, yielder_axis)
+        return yielder_axis, 1.0 if toward_yielder else -1.0
+    return passer_arm.axis, -float(passer_arm.side)
+
+
 def derive_escort_heading(
     passer_id: str,
     yielder_id: str,
@@ -954,15 +982,7 @@ def derive_escort_heading(
         return EscortHeading(reason="no_goal")
     if math.hypot(goal[0] - passer.x, goal[1] - passer.y) <= params.dynamic_handoff_radius_m:
         return EscortHeading(reason="goal_reached")
-    yielder_arm = (geometry.arms or {}).get(yielder_id)
-    yielder_axis: Axis = geometry.corridor.axis if yielder_arm is None else yielder_arm.axis
-    passer_arm = (geometry.arms or {}).get(passer_id)
-    if passer_arm is None or passer_arm.axis == yielder_axis:
-        axis = yielder_axis
-        expected = 1.0 if _coord(yielder, axis) > _coord(passer, axis) else -1.0
-    else:
-        axis = passer_arm.axis
-        expected = -float(passer_arm.side)
+    axis, expected = escort_axis(passer, yielder, geometry)
     along = (goal[0] - passer.x) if axis == "x" else (goal[1] - passer.y)
     if abs(along) < _ESCORT_AXIS_MIN_M:
         return EscortHeading(reason="goal_off_axis")
