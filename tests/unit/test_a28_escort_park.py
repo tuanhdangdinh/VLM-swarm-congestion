@@ -4,9 +4,12 @@ Live E20 command `6cf402ed` (docs/reports/2026-10-12-shield-fix-and-minibatch.md
 §6) parked robot_1 at (2.156, -1.428), then escorted robot_3 1.843 m east
 from its snapshot pose: the escort line passes ~0.13 m from the park point
 and robot_3 pushed the exempt yielder (GT minimum 0.109 m). Under
-`GroundingParams.escort_park_clearance` a yield whose escort leg passes
-within `min_distance_m` (0.45 m) of the park point is infeasible and
-degrades to the reroute fallback (`reasoning.rag.escort_clearance`).
+`GroundingParams.escort_park_clearance` every retreat candidate whose escort
+leg would pass within `min_distance_m` (0.45 m) of its park point is dropped
+before stage 2 (owner ruling 2026-10-16); only when none survives is the
+yield infeasible, degrading to the reroute fallback. The post-selection
+check on the chosen yield stays as a backstop
+(`reasoning.rag.escort_clearance`).
 
 Fixtures (`data/a28_escort_park/yields.json`): four live S1b yields
 dispatched on `config/grounding/s1b_dynamic_shield.yaml` (E20 `6cf402ed`
@@ -24,11 +27,14 @@ from typing import Any
 
 import pytest
 from swarm_orchestrator.reasoning_pipeline import empty_reroute_fallback, load_grounding_source
+from swarm_orchestrator.retreat_stage2 import run_retreat_stage2
 
 from reasoning.rag.command_grounder import (
     DEGRADATION_TAGS,
     degradation_cause,
+    filter_escort_park_candidates,
     ground_reasoner_result,
+    prepare_retreat_selection,
 )
 from reasoning.rag.escort_clearance import (
     escort_legs,
@@ -40,7 +46,9 @@ from reasoning.rag.retreat_shield import RobotTaskIntent
 from reasoning.rag.scene_geometry import CorridorGeometry, SceneGeometry
 from reasoning.vlm.models import (
     CongestionDecision,
+    ReasonerRequest,
     RetreatChoiceDecision,
+    RetreatChoiceResult,
     RobotStateInput,
     SnapshotFrame,
 )
@@ -67,7 +75,13 @@ def _params(path: Path = SHIELD_FILE, **updates: Any) -> GroundingParams:
     return params.model_copy(update=updates) if updates else params
 
 
-def _ground(case: dict[str, Any], params: GroundingParams) -> dict[str, Any]:
+_LIVE = object()
+
+
+def _ground(
+    case: dict[str, Any], params: GroundingParams, *, choice: Any = _LIVE
+) -> dict[str, Any]:
+    # `choice` overrides the live stage-2 label (None grounds the default).
     config, _ = _floor("s1b")
     frame = _frame(case["rows"])
     intents = {
@@ -78,10 +92,11 @@ def _ground(case: dict[str, Any], params: GroundingParams) -> dict[str, Any]:
         )
         for rid, v in case["intents"].items()
     }
+    label = case["retreat_choice"] if choice is _LIVE else choice
     choice = (
         None
-        if case["retreat_choice"] is None
-        else RetreatChoiceDecision(retreat_choice=case["retreat_choice"], justification="live")
+        if label is None
+        else RetreatChoiceDecision(retreat_choice=label, justification="live")
     )
     return ground_reasoner_result(
         _reasoner_result(CongestionDecision.model_validate(case["decision"])),
@@ -189,47 +204,52 @@ def test_e20_check_sees_the_dispatched_escort_heading_and_distance():
     assert legs == _live_legs(case)
 
 
-def test_e20_yield_is_vetoed_when_park_clearance_on():
+# Superseded 2026-10-16 (owner ruling): the A28(ii) rule filters retreat
+# CANDIDATES before stage 2 instead of vetoing the chosen yield. E20's chosen
+# candidate A hit the park point, its B and C did not, so the yield now
+# grounds on a surviving candidate (see the candidate-filter section below).
+
+
+def test_e20_yield_still_grounds_when_park_clearance_on():
     command = _ground(CASES[VETOED], _params(escort_park_clearance=True))
-    assert _yield(command) is None
-    assert "yield=infeasible:escort_hits_park:robot_3:0.131" in command["degradations"]
+    assert _yield(command) is not None
+    assert not any(tag.startswith("yield=infeasible") for tag in command["degradations"])
 
 
-def test_e20_veto_degrades_to_the_yielder_reroute_fallback():
-    command = _ground(CASES[VETOED], _params(escort_park_clearance=True))
-    assert [(a["robot_id"], a["action"]) for a in command["actions"]] == [
-        ("robot_1", "reroute"),
-        ("robot_3", "temporary_wait"),
-    ]
-    assert empty_reroute_fallback(command) == "yield=infeasible:escort_hits_park:robot_3:0.131"
-
-
-def test_e20_veto_carries_the_cause_then_the_view_tag_only():
-    # The internal heading pass's cap tag belongs to the vetoed yield and is
-    # not carried; the view's provenance is appended as for any command.
+def test_e20_filter_tags_candidate_a_then_carries_the_grounded_tags():
+    # The live choice "A" is replayed literally: after the filter it names
+    # the first surviving candidate (old B), as any positional veto does.
     command = _ground(CASES[VETOED], _params(escort_park_clearance=True))
     assert command["degradations"] == [
-        "yield=infeasible:escort_hits_park:robot_3:0.131",
+        "retreat=escort_park_filtered:A:robot_3:0.131",
         "grounding=dynamic_arms:lane:x",
+        "grounding=escort_turn_cap:robot_3:2.35->1.843",
     ]
 
 
-def test_e20_is_vetoed_on_the_unshielded_s1b_file_too():
+def test_e20_is_filtered_on_the_unshielded_s1b_file_too():
     command = _ground(CASES[VETOED], _params(S1B_FILE, escort_park_clearance=True))
-    assert _yield(command) is None
+    assert "retreat=escort_park_filtered:A:robot_3:0.131" in command["degradations"]
+    assert _yield(command) is not None
 
 
-# ---- positive controls: real clearances ground unchanged ----
+# ---- positive controls: real clearances keep their pose ----
 
 
 @pytest.mark.parametrize("name", CLEAR_CONTROLS)
-def test_clear_escort_grounds_byte_identical_when_park_clearance_on(name):
+def test_clear_escort_keeps_its_live_pose_when_park_clearance_on(name):
+    # Both live yields chose a pose that clears the latch; the filter drops
+    # only their candidate A, so the surviving set still holds the live pose.
     case = CASES[name]
-    on = _ground(case, _params(escort_park_clearance=True))
-    off = _ground(case, _params())
-    assert json.dumps(_yield(on)["parameters"]) == json.dumps(_yield(off)["parameters"])
-    assert _yield(on)["parameters"] == _live_yield_parameters(case)
-    assert on == off
+    live = _live_yield_parameters(case)
+    choice = _surviving_label(case, (live["retreat_x_m"], live["retreat_y_m"]))
+    on = _yield(_ground(case, _params(escort_park_clearance=True), choice=choice))
+    assert (on["parameters"]["retreat_x_m"], on["parameters"]["retreat_y_m"]) == (
+        live["retreat_x_m"],
+        live["retreat_y_m"],
+    )
+    differs = {k for k in live if on["parameters"].get(k) != live[k]}
+    assert differs <= {"retreat_choice"}
 
 
 @pytest.mark.parametrize(("name", "clearance"), [("E21_04457772", 0.558), ("E23_9803bd34", 0.896)])
@@ -238,9 +258,9 @@ def test_clear_escort_leg_measures_beyond_the_latch(name, clearance):
     assert leg.park_clearance_m == pytest.approx(clearance, abs=1e-3)
 
 
-def test_f269ab37_leg_sits_just_inside_the_latch_and_is_vetoed():
-    # Admitted live with no contact, but 0.447 m < 0.45 m: the ruling as
-    # stated vetoes it (open question for the owner, A28 report).
+def test_f269ab37_leg_sits_just_inside_the_latch_and_is_filtered():
+    # Admitted live with no contact, but 0.447 m < 0.45 m: the rule is the
+    # rule, and its only other candidate (0.273 m) violates too.
     case = CASES["E20_f269ab37"]
     (leg,) = _live_legs(case)
     assert leg.park_clearance_m == pytest.approx(0.447, abs=1e-3)
@@ -443,3 +463,266 @@ def test_declared_head_on_yield_is_vetoed_when_park_clearance_on():
     command = _declared_head_on(GroundingParams(mode="derived", escort_park_clearance=True))
     assert _yield(command) is None
     assert command["degradations"][-1] == "yield=infeasible:escort_hits_park:robot_2:0.360"
+
+
+# ---- candidate filter before stage 2 (owner ruling 2026-10-16) ----
+#
+# Pre-filter poses and park clearances of every fixture's candidates, in
+# generation order (switch off), measured on the dispatched escort leg:
+#   E20 6cf402ed  A (2.156, -1.428) 0.131 | B (2.156, -0.708) 0.589 | C (2.156, -0.348) 0.949
+#   E20 f269ab37  A (0.715,  0.928) 0.273 | B (0.715,  1.648) 0.447
+#   E21 04457772  A (-2.308, -0.946) 0.198 | B (-2.308, -0.586) 0.558
+#   E23 9803bd34  A (1.445, -1.441) 0.184 | B (1.445, -0.721) 0.536 | C (1.445, -0.361) 0.896
+
+_E20_OLD_B = (2.156, -0.708)
+_E20_OLD_C = (2.156, -0.348)
+
+
+class _FixedChooser:
+    def __init__(self, letter: str) -> None:
+        self._letter = letter
+
+    def choose(self, request):
+        return RetreatChoiceResult(
+            request_id=request.request_id,
+            backend_id="fixed",
+            choice=RetreatChoiceDecision(retreat_choice=self._letter, justification="j"),
+            raw_text="{}",
+            attempts=1,
+        )
+
+
+def _goals(case: dict[str, Any]) -> dict[str, tuple[float, float]]:
+    return {rid: tuple(v["goal"]) for rid, v in case["intents"].items()}
+
+
+def _stage2(case: dict[str, Any], params: GroundingParams, letter: str = "A"):
+    # Stage 2 as M5 runs it (`InProcessPipeline._run_from_result`): on the
+    # grounding view's decision and geometry, with the same goal references.
+    from reasoning.rag.grounding_view import resolve_grounding_view
+
+    config, _ = _floor("s1b")
+    frame = _frame(case["rows"])
+    view = resolve_grounding_view(
+        CongestionDecision.model_validate(case["decision"]),
+        frame,
+        config.scenario_geometry,
+        params,
+        _goals(case),
+    )
+    request = ReasonerRequest(
+        request_id="r", image_path="/tmp/a28.png", frame_id="f", stamp=1.0,
+        robot_states=list(frame.robots),
+    )
+    return run_retreat_stage2(
+        request,
+        view.decision,
+        frame,
+        params,
+        _FixedChooser(letter),
+        geometry=view.geometry,
+        static_obstacles=config.static_obstacles,
+        yield_feasibility_mode=config.grounding_yield_feasibility,
+        goal_references=_goals(case),
+    )
+
+
+def _poses(record) -> dict[str, tuple[float, float]]:
+    return {c["label"]: (round(c["x"], 3), round(c["y"], 3)) for c in record.candidates}
+
+
+def _surviving_label(case: dict[str, Any], pose: tuple[float, float]) -> str:
+    _, record = _stage2(case, _params(escort_park_clearance=True))
+    return next(label for label, xy in _poses(record).items() if xy == pose)
+
+
+def _park(command: dict[str, Any]) -> tuple[float, float]:
+    parameters = _yield(command)["parameters"]
+    return (parameters["retreat_x_m"], parameters["retreat_y_m"])
+
+
+def _clearance(case: dict[str, Any], command: dict[str, Any]) -> float:
+    grounded = _yield(command)
+    (leg,) = escort_legs(
+        grounded["robot_id"], grounded["parameters"], _frame(case["rows"]), _geometry(case)
+    )
+    return leg.park_clearance_m
+
+
+def test_e20_stage2_offers_three_candidates_when_park_clearance_off():
+    _, record = _stage2(CASES[VETOED], _params())
+    assert _poses(record) == {
+        "A": (2.156, -1.428),
+        "B": _E20_OLD_B,
+        "C": _E20_OLD_C,
+    }
+
+
+def test_e20_stage2_offers_only_the_candidates_clearing_the_park_point():
+    # Candidate A is dropped; B and C re-letter A and B in generation order,
+    # as a box-sweep or min-distance veto re-letters the survivors.
+    _, record = _stage2(CASES[VETOED], _params(escort_park_clearance=True))
+    assert record.status == "answered"
+    assert _poses(record) == {"A": _E20_OLD_B, "B": _E20_OLD_C}
+    shown = {
+        letter: (round(entry["x"], 3), round(entry["y"], 3))
+        for letter, entry in record.letter_assignment.items()
+    }
+    assert set(shown) == {"A", "B"}
+    assert set(shown.values()) == {_E20_OLD_B, _E20_OLD_C}
+
+
+@pytest.mark.parametrize("letter", ["A", "B"])
+def test_e20_each_shown_letter_grounds_the_pose_it_was_shown_at(letter):
+    case = CASES[VETOED]
+    params = _params(escort_park_clearance=True)
+    choice, record = _stage2(case, params, letter)
+    entry = record.letter_assignment[letter]
+    command = _ground(case, params, choice=choice.retreat_choice)
+    assert _park(command) == (round(entry["x"], 3), round(entry["y"], 3))
+    assert not any(tag.startswith("yield=infeasible") for tag in command["degradations"])
+
+
+@pytest.mark.parametrize(("pose", "clearance"), [(_E20_OLD_B, 0.589), (_E20_OLD_C, 0.949)])
+def test_e20_surviving_candidates_clear_the_park_point(pose, clearance):
+    case = CASES[VETOED]
+    params = _params(escort_park_clearance=True)
+    command = _ground(case, params, choice=_surviving_label(case, pose))
+    assert _park(command) == pose
+    assert _clearance(case, command) == pytest.approx(clearance, abs=1e-3)
+
+
+def test_e20_default_grounds_a_surviving_candidate():
+    command = _ground(CASES[VETOED], _params(escort_park_clearance=True), choice=None)
+    assert _park(command) in (_E20_OLD_B, _E20_OLD_C)
+    assert "retreat=escort_park_filtered:A:robot_3:0.131" in command["degradations"]
+
+
+def test_e20_filtered_candidates_are_recorded_on_the_selection():
+    from reasoning.rag.grounding_view import resolve_grounding_view
+
+    case = CASES[VETOED]
+    params = _params(escort_park_clearance=True)
+    config, _ = _floor("s1b")
+    frame = _frame(case["rows"])
+    view = resolve_grounding_view(
+        CongestionDecision.model_validate(case["decision"]), frame,
+        config.scenario_geometry, params, _goals(case),
+    )
+    selection = prepare_retreat_selection(
+        frame, "robot_1", ["robot_3"], params,
+        geometry=view.geometry, static_obstacles=config.static_obstacles,
+    )
+    filtered = filter_escort_park_candidates(
+        selection, frame, params, geometry=view.geometry, goal_references=_goals(case)
+    )
+    assert filtered.escort_park_filtered == ["A:robot_3:0.131"]
+    assert sorted(c.label for c in filtered.candidates) == ["A", "B"]
+    assert selection.escort_park_filtered == []
+
+
+def test_filter_returns_the_selection_unchanged_when_park_clearance_off():
+    case = CASES[VETOED]
+    params = _params()
+    frame = _frame(case["rows"])
+    selection = prepare_retreat_selection(
+        frame, "robot_1", ["robot_3"], params, geometry=_geometry(case)
+    )
+    assert filter_escort_park_candidates(selection, frame, params, geometry=_geometry(case)) is (
+        selection
+    )
+
+
+@pytest.mark.parametrize("name", sorted(CASES))
+def test_stage2_record_is_unchanged_when_park_clearance_off(name):
+    case = CASES[name]
+    params = _params()
+    with_refs = _stage2(case, params)
+    assert with_refs[1].candidates == _stage2_without_refs(case, params)[1].candidates
+
+
+def _stage2_without_refs(case: dict[str, Any], params: GroundingParams):
+    from reasoning.rag.grounding_view import resolve_grounding_view
+
+    config, _ = _floor("s1b")
+    frame = _frame(case["rows"])
+    view = resolve_grounding_view(
+        CongestionDecision.model_validate(case["decision"]),
+        frame,
+        config.scenario_geometry,
+        params,
+        _goals(case),
+    )
+    request = ReasonerRequest(
+        request_id="r", image_path="/tmp/a28.png", frame_id="f", stamp=1.0,
+        robot_states=list(frame.robots),
+    )
+    return run_retreat_stage2(
+        request, view.decision, frame, params, _FixedChooser("A"),
+        geometry=view.geometry, static_obstacles=config.static_obstacles,
+        yield_feasibility_mode=config.grounding_yield_feasibility,
+    )
+
+
+def test_f269ab37_every_candidate_violates_so_no_candidate_survives():
+    case = CASES["E20_f269ab37"]
+    _, record = _stage2(case, _params(escort_park_clearance=True))
+    assert record.status == "skipped"
+    assert record.skip_reason == "no_candidates"
+    assert record.candidates == []
+
+
+def test_f269ab37_degrades_to_the_infeasible_reroute_with_both_filters_tagged():
+    case = CASES["E20_f269ab37"]
+    command = _ground(case, _params(escort_park_clearance=True))
+    tags = command["degradations"]
+    assert "retreat=escort_park_filtered:A:robot_2:0.273" in tags
+    assert "retreat=escort_park_filtered:B:robot_2:0.447" in tags
+    assert empty_reroute_fallback(command) is not None
+    assert empty_reroute_fallback(command).startswith("yield=infeasible:escort_hits_park:robot_2:")
+    assert [a["action"] for a in command["actions"]][0] == "reroute"
+
+
+def test_e21_single_surviving_candidate_skips_stage2_and_grounds_the_live_pose():
+    case = CASES["E21_04457772"]
+    params = _params(escort_park_clearance=True)
+    _, record = _stage2(case, params)
+    assert record.skip_reason == "single_candidate"
+    assert _poses(record) == {"A": (-2.308, -0.586)}
+    command = _ground(case, params, choice=None)
+    assert _park(command) == (-2.308, -0.586)
+    assert _clearance(case, command) == pytest.approx(0.558, abs=1e-3)
+    assert "retreat=escort_park_filtered:A:robot_4:0.198" in command["degradations"]
+
+
+def test_e23_filter_keeps_b_and_c():
+    case = CASES["E23_9803bd34"]
+    _, record = _stage2(case, _params(escort_park_clearance=True))
+    assert _poses(record) == {"A": (1.445, -0.721), "B": (1.445, -0.361)}
+
+
+@pytest.mark.parametrize("name", sorted(CASES))
+@pytest.mark.parametrize("letter", ["A", "B"])
+def test_backstop_never_fires_on_a_filtered_survivor(name, letter):
+    # The pre-filter and the post-selection check sweep the same leg.
+    case = CASES[name]
+    command = _ground(case, _params(escort_park_clearance=True), choice=letter)
+    if _yield(command) is None:
+        assert name == "E20_f269ab37"
+        return
+    assert not any(t.startswith("yield=infeasible") for t in command["degradations"])
+
+
+def test_escort_park_filtered_tag_is_provenance():
+    assert "retreat=escort_park_filtered" in DEGRADATION_TAGS
+    assert degradation_cause("retreat=escort_park_filtered:A:robot_3:0.131") is None
+
+
+def test_declared_head_on_filters_both_candidates_before_the_veto():
+    command = _declared_head_on(GroundingParams(mode="derived", escort_park_clearance=True))
+    assert command["degradations"] == [
+        "retreat=escort_park_filtered:A:robot_2:0.360",
+        "retreat=escort_park_filtered:B:robot_2:0.360",
+        "yield=infeasible:escort_hits_park:robot_2:0.360",
+    ]
+    assert empty_reroute_fallback(command) == "yield=infeasible:escort_hits_park:robot_2:0.360"
