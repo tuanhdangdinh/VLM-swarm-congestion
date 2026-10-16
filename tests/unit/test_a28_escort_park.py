@@ -726,3 +726,31 @@ def test_declared_head_on_filters_both_candidates_before_the_veto():
         "yield=infeasible:escort_hits_park:robot_2:0.360",
     ]
     assert empty_reroute_fallback(command) == "yield=infeasible:escort_hits_park:robot_2:0.360"
+
+
+def test_pipeline_hands_stage2_the_grounder_goal_references(monkeypatch):
+    # The filter reads goal references through `apply_escort_headings`; stage
+    # 2 must letter with the ones the grounder gets, or the letters drift.
+    from swarm_orchestrator import reasoning_pipeline
+    from swarm_orchestrator.models import RetreatStage2Record
+
+    from tests.unit.test_m5_retreat_stage2 import _decision, _FakeReasoner, _geometry, _request
+
+    seen: dict[str, Any] = {}
+
+    def fake_stage2(*args, **kwargs):
+        seen.update(kwargs)
+        return None, RetreatStage2Record(status="skipped", skip_reason="disabled")
+
+    monkeypatch.setattr(reasoning_pipeline, "run_retreat_stage2", fake_stage2)
+    pipeline = reasoning_pipeline.InProcessPipeline(
+        reasoner=_FakeReasoner(_decision()),
+        ground_fn=ground_reasoner_result,
+        scene_geometry=_geometry(),
+        grounding_params=GroundingParams(
+            mode="derived", dynamic_scene_arms=True, escort_park_clearance=True
+        ),
+        goal_reference_of=lambda rid: (2.5, 0.0) if rid == "robot_1" else (-2.5, 0.0),
+    )
+    pipeline.run(_request())
+    assert seen["goal_references"] == {"robot_1": (2.5, 0.0), "robot_2": (-2.5, 0.0)}
