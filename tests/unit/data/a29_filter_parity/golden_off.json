@@ -1,0 +1,1719 @@
+{
+ "E20_6cf402ed": {
+  "dispatch_default": {
+   "actions": [
+    {
+     "action": "yield",
+     "parameters": {
+      "backup_distance_m": 1.373,
+      "backup_facing_rad": -3.141593,
+      "backup_line_hold": true,
+      "backup_reference_yaw_rad": -2.939274,
+      "crossing_order": [
+       "robot_3"
+      ],
+      "fresh_latch_fast_fail": true,
+      "hold_sec": 45.0,
+      "passer_clear_m": 1.843,
+      "passer_escort_distance_m": 1.843,
+      "passer_escort_heading_rad": 0.0,
+      "passer_escort_reference_yaw_rad": -0.048741,
+      "passer_robot_id": "robot_3",
+      "pull_off_lateral_m": -0.36,
+      "reason": "robot_1 and robot_3 are in a head-on conflict within 0.40 m and both are stopped.",
+      "retreat_choice": "B",
+      "retreat_x_m": 2.156,
+      "retreat_y_m": -0.708
+     },
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "linked_position": 0
+     },
+     "robot_id": "robot_3"
+    }
+   ],
+   "command_id": "r-yield",
+   "degradations": [
+    "retreat=default:no_choice",
+    "grounding=dynamic_arms:lane:x",
+    "grounding=escort_turn_cap:robot_3:2.35->1.843"
+   ],
+   "expected_resolution_time_sec": 150.0,
+   "fallback": "stop"
+  },
+  "dispatch_live": {
+   "actions": [
+    {
+     "action": "yield",
+     "parameters": {
+      "backup_distance_m": 1.373,
+      "backup_facing_rad": -3.141593,
+      "backup_line_hold": true,
+      "backup_reference_yaw_rad": -2.939274,
+      "crossing_order": [
+       "robot_3"
+      ],
+      "fresh_latch_fast_fail": true,
+      "hold_sec": 45.0,
+      "passer_clear_m": 1.843,
+      "passer_escort_distance_m": 1.843,
+      "passer_escort_heading_rad": 0.0,
+      "passer_escort_reference_yaw_rad": -0.048741,
+      "passer_robot_id": "robot_3",
+      "pull_off_lateral_m": 0.36,
+      "reason": "robot_1 and robot_3 are in a head-on conflict within 0.40 m and both are stopped.",
+      "retreat_choice": "A",
+      "retreat_x_m": 2.156,
+      "retreat_y_m": -1.428
+     },
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "linked_position": 0
+     },
+     "robot_id": "robot_3"
+    }
+   ],
+   "command_id": "r-yield",
+   "degradations": [
+    "grounding=dynamic_arms:lane:x",
+    "grounding=escort_turn_cap:robot_3:2.35->1.843"
+   ],
+   "expected_resolution_time_sec": 150.0,
+   "fallback": "stop"
+  },
+  "matches_absent": true,
+  "matches_plan": true,
+  "shadow_declared": {
+   "backup_m": null,
+   "candidate_count": 0,
+   "candidate_label": null,
+   "comparable": null,
+   "comparison_reason": null,
+   "crossing_order": [
+    "robot_3"
+   ],
+   "equals_executed": null,
+   "executed": null,
+   "lateral_m": null,
+   "reason": "yield refused: no feasible yielder (robot_1 0.00 m, robot_3 0.00 m retreat room < 0.77 m required)",
+   "regrounded_from": null,
+   "same_yielder": null,
+   "status": "unavailable",
+   "x": null,
+   "y": null,
+   "yielder_id": "robot_1"
+  },
+  "shadow_view": {
+   "backup_m": 1.373,
+   "candidate_count": 3,
+   "candidate_label": "B",
+   "comparable": null,
+   "comparison_reason": null,
+   "crossing_order": [
+    "robot_3"
+   ],
+   "equals_executed": null,
+   "executed": null,
+   "lateral_m": -0.36,
+   "reason": null,
+   "regrounded_from": null,
+   "same_yielder": null,
+   "status": "computed",
+   "x": 2.1564107293281847,
+   "y": -0.7077751073473281,
+   "yielder_id": "robot_1"
+  },
+  "stage2": {
+   "candidates": [
+    {
+     "backup_m": 1.373,
+     "label": "B",
+     "lateral_clearance_m": 1.715,
+     "lateral_m": -0.36,
+     "letter": "B",
+     "min_sweep_clearance_m": 0.399,
+     "x": 2.1564107293281847,
+     "y": -0.7077751073473281
+    },
+    {
+     "backup_m": 1.373,
+     "label": "A",
+     "lateral_clearance_m": 1.7,
+     "lateral_m": 0.36,
+     "letter": "C",
+     "min_sweep_clearance_m": 0.399,
+     "x": 2.1564107293281847,
+     "y": -1.427775107347328
+    },
+    {
+     "backup_m": 1.373,
+     "label": "C",
+     "lateral_clearance_m": 1.63,
+     "lateral_m": -0.72,
+     "letter": "A",
+     "min_sweep_clearance_m": 0.399,
+     "x": 2.1564107293281847,
+     "y": -0.3477751073473281
+    }
+   ],
+   "choice": {
+    "justification": "j",
+    "retreat_choice": "A"
+   },
+   "crossing_order": [
+    "robot_3"
+   ],
+   "default_label": "B",
+   "default_letter": "B",
+   "error": null,
+   "failure_cause": null,
+   "grounded_label": "C",
+   "letter_assignment": {
+    "A": {
+     "candidate_label": "C",
+     "rank": 2,
+     "x": 2.1564107293281847,
+     "y": -0.3477751073473281
+    },
+    "B": {
+     "candidate_label": "B",
+     "rank": 0,
+     "x": 2.1564107293281847,
+     "y": -0.7077751073473281
+    },
+    "C": {
+     "candidate_label": "A",
+     "rank": 1,
+     "x": 2.1564107293281847,
+     "y": -1.427775107347328
+    }
+   },
+   "letter_draw_index": 0,
+   "letter_seed": 15941739160948204163,
+   "letter_seed_base": 0,
+   "listing_order": [
+    "C",
+    "A",
+    "B"
+   ],
+   "listing_seed": 14313433936350680392,
+   "marks": {
+    "calibration_path": null,
+    "image_path": "/tmp/a28.png",
+    "marks": [],
+    "marks_drawn": false,
+    "reason": "marker_unavailable: no calibration wired",
+    "scale": null,
+    "source_image_path": "/tmp/a28.png"
+   },
+   "marks_drawn": false,
+   "prompt": {
+    "image_path": "/tmp/a28.png",
+    "system_prompt": "You are a helpful assistant.",
+    "system_sha256": "75357d685f238b6afd7738be9786fdafde641eb6ca9a3be7471939715a68a4de",
+    "user_prompt": "You are a warehouse swarm robotics traffic controller. robot_1 will yield so that robot_3 can pass: it backs up, then steps aside to one of the lettered retreat positions below. Every position has already been checked to keep a safe distance from the listed robots along the whole path.\n\nRobots (world frame, metres):\n- robot_1: x=0.78, y=-1.07 (yielding)\n- robot_2: x=1.69, y=1.21\n- robot_3: x=0.46, y=-1.30 (passing)\n- robot_4: x=-1.84, y=1.34\n- robot_5: x=0.07, y=1.24\n\nRetreat positions for robot_1 (world frame, metres):\n- C: x=2.16, y=-1.43 (back up 1.37 m, then step 0.36 m aside)\n- A: x=2.16, y=-0.35 (back up 1.37 m, then step 0.72 m aside)\n- B: x=2.16, y=-0.71 (back up 1.37 m, then step 0.36 m aside)\n\nThe letters are not drawn on the image; locate each position from its coordinates. The image shows the scene as it is now, including anything not listed above.\n\nChoose the retreat position that best clears the conflict while preserving the passage space the other robots need and avoiding visible obstacles or traffic.\n\nRespond with ONLY a JSON object, no other text:\n{\"retreat_choice\": \"<one of C, A, B>\", \"justification\": \"<one clause>\"}",
+    "user_sha256": "10010a756900a12fbdc506e7a8b0404c69f990bb52393a024cd98b7fa926320c"
+   },
+   "response": {
+    "attempt_records": [],
+    "attempt_token_usage": [],
+    "attempts": 1,
+    "backend_id": "fixed",
+    "choice": {
+     "justification": "j",
+     "retreat_choice": "A"
+    },
+    "error_message": null,
+    "error_type": null,
+    "failure_cause": null,
+    "latency_ms": null,
+    "max_attempts": null,
+    "raw_text": "{}",
+    "refusal_attempts": 0,
+    "request_id": "r",
+    "timeout_sec": null,
+    "token_usage": null
+   },
+   "skip_reason": null,
+   "stage2_prompt_version": 3,
+   "status": "answered",
+   "yielder_id": "robot_1"
+  },
+  "stage2_choice": {
+   "justification": "j",
+   "retreat_choice": "C"
+  },
+  "verify_absent": {
+   "edits": [],
+   "legs": [
+    {
+     "action": "yield",
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "cross",
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_5"
+    }
+   ],
+   "plan_completed_legs": [],
+   "provenance": "m3_default",
+   "rejection_reason": "plan absent",
+   "rejection_stage": "absent"
+  },
+  "verify_plan": {
+   "edits": [],
+   "legs": [
+    {
+     "action": "yield",
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "cross",
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_5"
+    }
+   ],
+   "plan_completed_legs": [],
+   "provenance": "vlm_verbatim",
+   "rejection_reason": null,
+   "rejection_stage": null
+  }
+ },
+ "E20_f269ab37": {
+  "dispatch_default": {
+   "actions": [
+    {
+     "action": "yield",
+     "parameters": {
+      "backup_distance_m": 1.437,
+      "backup_facing_rad": -3.141593,
+      "backup_line_hold": true,
+      "backup_reference_yaw_rad": 2.890594,
+      "crossing_order": [
+       "robot_2"
+      ],
+      "fresh_latch_fast_fail": true,
+      "hold_sec": 45.0,
+      "passer_clear_m": 2.35,
+      "passer_escort_distance_m": 2.35,
+      "passer_escort_heading_rad": 0.0,
+      "passer_escort_reference_yaw_rad": -0.25732,
+      "passer_robot_id": "robot_2",
+      "pull_off_lateral_m": -0.36,
+      "reason": "Robot 2 and Robot 4 are in a head-on conflict in a narrow passage.",
+      "retreat_choice": "B",
+      "retreat_x_m": 0.715,
+      "retreat_y_m": 1.648
+     },
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "linked_position": 0
+     },
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "reason": "retreat shield: intent crosses robot_4's retreat",
+      "requested_strategy": "yield",
+      "retreat_shield_hold": true
+     },
+     "robot_id": "robot_5"
+    }
+   ],
+   "command_id": "r-yield",
+   "degradations": [
+    "retreat=default:no_choice",
+    "grounding=dynamic_arms:lane:x",
+    "grounding=retreat_shield:robot_5"
+   ],
+   "expected_resolution_time_sec": 150.0,
+   "fallback": "stop"
+  },
+  "dispatch_live": {
+   "actions": [
+    {
+     "action": "yield",
+     "parameters": {
+      "backup_distance_m": 1.437,
+      "backup_facing_rad": -3.141593,
+      "backup_line_hold": true,
+      "backup_reference_yaw_rad": 2.890594,
+      "crossing_order": [
+       "robot_2"
+      ],
+      "fresh_latch_fast_fail": true,
+      "hold_sec": 45.0,
+      "passer_clear_m": 2.35,
+      "passer_escort_distance_m": 2.35,
+      "passer_escort_heading_rad": 0.0,
+      "passer_escort_reference_yaw_rad": -0.25732,
+      "passer_robot_id": "robot_2",
+      "pull_off_lateral_m": -0.36,
+      "reason": "Robot 2 and Robot 4 are in a head-on conflict in a narrow passage.",
+      "retreat_choice": "B",
+      "retreat_x_m": 0.715,
+      "retreat_y_m": 1.648
+     },
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "linked_position": 0
+     },
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "reason": "retreat shield: intent crosses robot_4's retreat",
+      "requested_strategy": "yield",
+      "retreat_shield_hold": true
+     },
+     "robot_id": "robot_5"
+    }
+   ],
+   "command_id": "r-yield",
+   "degradations": [
+    "grounding=dynamic_arms:lane:x",
+    "grounding=retreat_shield:robot_5"
+   ],
+   "expected_resolution_time_sec": 150.0,
+   "fallback": "stop"
+  },
+  "matches_absent": false,
+  "matches_plan": false,
+  "shadow_declared": {
+   "backup_m": null,
+   "candidate_count": 0,
+   "candidate_label": null,
+   "comparable": null,
+   "comparison_reason": null,
+   "crossing_order": [
+    "robot_2"
+   ],
+   "equals_executed": null,
+   "executed": null,
+   "lateral_m": null,
+   "reason": "yield refused: no feasible yielder (robot_4 0.00 m, robot_2 0.00 m retreat room < 0.77 m required)",
+   "regrounded_from": null,
+   "same_yielder": null,
+   "status": "unavailable",
+   "x": null,
+   "y": null,
+   "yielder_id": "robot_4"
+  },
+  "shadow_view": {
+   "backup_m": 1.437,
+   "candidate_count": 2,
+   "candidate_label": "B",
+   "comparable": null,
+   "comparison_reason": null,
+   "crossing_order": [
+    "robot_2"
+   ],
+   "equals_executed": null,
+   "executed": null,
+   "lateral_m": -0.36,
+   "reason": null,
+   "regrounded_from": null,
+   "same_yielder": null,
+   "status": "computed",
+   "x": 0.7146059616904226,
+   "y": 1.6478675274332057,
+   "yielder_id": "robot_4"
+  },
+  "stage2": {
+   "candidates": [
+    {
+     "backup_m": 1.437,
+     "label": "B",
+     "lateral_clearance_m": 1.702,
+     "lateral_m": -0.36,
+     "letter": "A",
+     "min_sweep_clearance_m": 0.277,
+     "x": 0.7146059616904226,
+     "y": 1.6478675274332057
+    },
+    {
+     "backup_m": 1.437,
+     "label": "A",
+     "lateral_clearance_m": 1.7,
+     "lateral_m": 0.36,
+     "letter": "B",
+     "min_sweep_clearance_m": 0.277,
+     "x": 0.7146059616904226,
+     "y": 0.9278675274332059
+    }
+   ],
+   "choice": {
+    "justification": "j",
+    "retreat_choice": "A"
+   },
+   "crossing_order": [
+    "robot_2"
+   ],
+   "default_label": "B",
+   "default_letter": "A",
+   "error": null,
+   "failure_cause": null,
+   "grounded_label": "B",
+   "letter_assignment": {
+    "A": {
+     "candidate_label": "B",
+     "rank": 0,
+     "x": 0.7146059616904226,
+     "y": 1.6478675274332057
+    },
+    "B": {
+     "candidate_label": "A",
+     "rank": 1,
+     "x": 0.7146059616904226,
+     "y": 0.9278675274332059
+    }
+   },
+   "letter_draw_index": 0,
+   "letter_seed": 15941739160948204163,
+   "letter_seed_base": 0,
+   "listing_order": [
+    "A",
+    "B"
+   ],
+   "listing_seed": 14313433936350680392,
+   "marks": {
+    "calibration_path": null,
+    "image_path": "/tmp/a28.png",
+    "marks": [],
+    "marks_drawn": false,
+    "reason": "marker_unavailable: no calibration wired",
+    "scale": null,
+    "source_image_path": "/tmp/a28.png"
+   },
+   "marks_drawn": false,
+   "prompt": {
+    "image_path": "/tmp/a28.png",
+    "system_prompt": "You are a helpful assistant.",
+    "system_sha256": "75357d685f238b6afd7738be9786fdafde641eb6ca9a3be7471939715a68a4de",
+    "user_prompt": "You are a warehouse swarm robotics traffic controller. robot_4 will yield so that robot_2 can pass: it backs up, then steps aside to one of the lettered retreat positions below. Every position has already been checked to keep a safe distance from the listed robots along the whole path.\n\nRobots (world frame, metres):\n- robot_1: x=0.66, y=-1.08\n- robot_2: x=-0.98, y=1.20 (passing)\n- robot_3: x=-1.32, y=-0.90\n- robot_4: x=-0.72, y=1.29 (yielding)\n- robot_5: x=-2.16, y=-1.06\n\nRetreat positions for robot_4 (world frame, metres):\n- A: x=0.71, y=1.65 (back up 1.44 m, then step 0.36 m aside)\n- B: x=0.71, y=0.93 (back up 1.44 m, then step 0.36 m aside)\n\nThe letters are not drawn on the image; locate each position from its coordinates. The image shows the scene as it is now, including anything not listed above.\n\nChoose the retreat position that best clears the conflict while preserving the passage space the other robots need and avoiding visible obstacles or traffic.\n\nRespond with ONLY a JSON object, no other text:\n{\"retreat_choice\": \"<one of A, B>\", \"justification\": \"<one clause>\"}",
+    "user_sha256": "a9cf685cdfe39527c6f36fefd1c6bdcb885310fdeefe0a0034a4be06a8a6d949"
+   },
+   "response": {
+    "attempt_records": [],
+    "attempt_token_usage": [],
+    "attempts": 1,
+    "backend_id": "fixed",
+    "choice": {
+     "justification": "j",
+     "retreat_choice": "A"
+    },
+    "error_message": null,
+    "error_type": null,
+    "failure_cause": null,
+    "latency_ms": null,
+    "max_attempts": null,
+    "raw_text": "{}",
+    "refusal_attempts": 0,
+    "request_id": "r",
+    "timeout_sec": null,
+    "token_usage": null
+   },
+   "skip_reason": null,
+   "stage2_prompt_version": 3,
+   "status": "answered",
+   "yielder_id": "robot_4"
+  },
+  "stage2_choice": {
+   "justification": "j",
+   "retreat_choice": "B"
+  },
+  "verify_absent": {
+   "edits": [],
+   "legs": [
+    {
+     "action": "yield",
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "cross",
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_5"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_1"
+    }
+   ],
+   "plan_completed_legs": [],
+   "provenance": "m3_default",
+   "rejection_reason": "plan absent",
+   "rejection_stage": "absent"
+  },
+  "verify_plan": {
+   "edits": [],
+   "legs": [
+    {
+     "action": "yield",
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "cross",
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_5"
+    }
+   ],
+   "plan_completed_legs": [],
+   "provenance": "vlm_verbatim",
+   "rejection_reason": null,
+   "rejection_stage": null
+  }
+ },
+ "E21_04457772": {
+  "dispatch_default": {
+   "actions": [
+    {
+     "action": "yield",
+     "parameters": {
+      "backup_distance_m": 1.425,
+      "backup_facing_rad": 0.0,
+      "backup_line_hold": true,
+      "backup_reference_yaw_rad": -0.074859,
+      "crossing_order": [
+       "robot_4"
+      ],
+      "fresh_latch_fast_fail": true,
+      "hold_sec": 45.0,
+      "passer_clear_m": 1.692,
+      "passer_escort_distance_m": 1.692,
+      "passer_escort_heading_rad": 3.141593,
+      "passer_escort_reference_yaw_rad": 3.091635,
+      "passer_robot_id": "robot_4",
+      "pull_off_lateral_m": 0.72,
+      "reason": "robot_1 and robot_4 are facing each other in a narrow aisle at a distance of 0.32 m.",
+      "retreat_choice": "B",
+      "retreat_x_m": -2.308,
+      "retreat_y_m": -0.586
+     },
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "linked_position": 0
+     },
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "reason": "retreat shield: intent crosses robot_1's retreat",
+      "requested_strategy": "yield",
+      "retreat_shield_hold": true
+     },
+     "robot_id": "robot_5"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "reason": "retreat shield: intent crosses robot_1's retreat",
+      "requested_strategy": "yield",
+      "retreat_shield_hold": true
+     },
+     "robot_id": "robot_3"
+    }
+   ],
+   "command_id": "r-yield",
+   "degradations": [
+    "retreat=default:no_choice",
+    "grounding=node_handoff:robot_1->robot_4",
+    "grounding=dynamic_arms:lane:x",
+    "grounding=escort_turn_cap:robot_4:2.35->1.692",
+    "grounding=retreat_shield:robot_5",
+    "grounding=retreat_shield:robot_3"
+   ],
+   "expected_resolution_time_sec": 150.0,
+   "fallback": "stop"
+  },
+  "dispatch_live": {
+   "actions": [
+    {
+     "action": "yield",
+     "parameters": {
+      "backup_distance_m": 1.425,
+      "backup_facing_rad": 0.0,
+      "backup_line_hold": true,
+      "backup_reference_yaw_rad": -0.074859,
+      "crossing_order": [
+       "robot_4"
+      ],
+      "fresh_latch_fast_fail": true,
+      "hold_sec": 45.0,
+      "passer_clear_m": 1.692,
+      "passer_escort_distance_m": 1.692,
+      "passer_escort_heading_rad": 3.141593,
+      "passer_escort_reference_yaw_rad": 3.091635,
+      "passer_robot_id": "robot_4",
+      "pull_off_lateral_m": 0.72,
+      "reason": "robot_1 and robot_4 are facing each other in a narrow aisle at a distance of 0.32 m.",
+      "retreat_choice": "B",
+      "retreat_x_m": -2.308,
+      "retreat_y_m": -0.586
+     },
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "linked_position": 0
+     },
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "reason": "retreat shield: intent crosses robot_1's retreat",
+      "requested_strategy": "yield",
+      "retreat_shield_hold": true
+     },
+     "robot_id": "robot_5"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "reason": "retreat shield: intent crosses robot_1's retreat",
+      "requested_strategy": "yield",
+      "retreat_shield_hold": true
+     },
+     "robot_id": "robot_3"
+    }
+   ],
+   "command_id": "r-yield",
+   "degradations": [
+    "grounding=node_handoff:robot_1->robot_4",
+    "grounding=dynamic_arms:lane:x",
+    "grounding=escort_turn_cap:robot_4:2.35->1.692",
+    "grounding=retreat_shield:robot_5",
+    "grounding=retreat_shield:robot_3"
+   ],
+   "expected_resolution_time_sec": 150.0,
+   "fallback": "stop"
+  },
+  "matches_absent": false,
+  "matches_plan": false,
+  "shadow_declared": {
+   "backup_m": null,
+   "candidate_count": 0,
+   "candidate_label": null,
+   "comparable": null,
+   "comparison_reason": null,
+   "crossing_order": [
+    "robot_4"
+   ],
+   "equals_executed": null,
+   "executed": null,
+   "lateral_m": null,
+   "reason": "yield refused: no feasible yielder (robot_1 0.00 m, robot_4 0.00 m retreat room < 0.77 m required)",
+   "regrounded_from": null,
+   "same_yielder": null,
+   "status": "unavailable",
+   "x": null,
+   "y": null,
+   "yielder_id": "robot_1"
+  },
+  "shadow_view": {
+   "backup_m": 1.425,
+   "candidate_count": 2,
+   "candidate_label": "B",
+   "comparable": null,
+   "comparison_reason": null,
+   "crossing_order": [
+    "robot_4"
+   ],
+   "equals_executed": null,
+   "executed": null,
+   "lateral_m": 0.72,
+   "reason": null,
+   "regrounded_from": null,
+   "same_yielder": null,
+   "status": "computed",
+   "x": -2.3075628522334206,
+   "y": -0.5863901568463741,
+   "yielder_id": "robot_1"
+  },
+  "stage2": {
+   "candidates": [
+    {
+     "backup_m": 1.425,
+     "label": "B",
+     "lateral_clearance_m": 1.7,
+     "lateral_m": 0.72,
+     "letter": "A",
+     "min_sweep_clearance_m": 0.319,
+     "x": -2.3075628522334206,
+     "y": -0.5863901568463741
+    },
+    {
+     "backup_m": 1.425,
+     "label": "A",
+     "lateral_clearance_m": 1.7,
+     "lateral_m": 0.36,
+     "letter": "B",
+     "min_sweep_clearance_m": 0.319,
+     "x": -2.3075628522334206,
+     "y": -0.9463901568463741
+    }
+   ],
+   "choice": {
+    "justification": "j",
+    "retreat_choice": "A"
+   },
+   "crossing_order": [
+    "robot_4"
+   ],
+   "default_label": "B",
+   "default_letter": "A",
+   "error": null,
+   "failure_cause": null,
+   "grounded_label": "B",
+   "letter_assignment": {
+    "A": {
+     "candidate_label": "B",
+     "rank": 0,
+     "x": -2.3075628522334206,
+     "y": -0.5863901568463741
+    },
+    "B": {
+     "candidate_label": "A",
+     "rank": 1,
+     "x": -2.3075628522334206,
+     "y": -0.9463901568463741
+    }
+   },
+   "letter_draw_index": 0,
+   "letter_seed": 15941739160948204163,
+   "letter_seed_base": 0,
+   "listing_order": [
+    "A",
+    "B"
+   ],
+   "listing_seed": 14313433936350680392,
+   "marks": {
+    "calibration_path": null,
+    "image_path": "/tmp/a28.png",
+    "marks": [],
+    "marks_drawn": false,
+    "reason": "marker_unavailable: no calibration wired",
+    "scale": null,
+    "source_image_path": "/tmp/a28.png"
+   },
+   "marks_drawn": false,
+   "prompt": {
+    "image_path": "/tmp/a28.png",
+    "system_prompt": "You are a helpful assistant.",
+    "system_sha256": "75357d685f238b6afd7738be9786fdafde641eb6ca9a3be7471939715a68a4de",
+    "user_prompt": "You are a warehouse swarm robotics traffic controller. robot_1 will yield so that robot_4 can pass: it backs up, then steps aside to one of the lettered retreat positions below. Every position has already been checked to keep a safe distance from the listed robots along the whole path.\n\nRobots (world frame, metres):\n- robot_1: x=-0.88, y=-1.31 (yielding)\n- robot_2: x=1.02, y=0.83\n- robot_3: x=1.40, y=0.57\n- robot_4: x=-0.61, y=-1.14 (passing)\n- robot_5: x=-2.07, y=1.39\n\nRetreat positions for robot_1 (world frame, metres):\n- A: x=-2.31, y=-0.59 (back up 1.43 m, then step 0.72 m aside)\n- B: x=-2.31, y=-0.95 (back up 1.43 m, then step 0.36 m aside)\n\nThe letters are not drawn on the image; locate each position from its coordinates. The image shows the scene as it is now, including anything not listed above.\n\nChoose the retreat position that best clears the conflict while preserving the passage space the other robots need and avoiding visible obstacles or traffic.\n\nRespond with ONLY a JSON object, no other text:\n{\"retreat_choice\": \"<one of A, B>\", \"justification\": \"<one clause>\"}",
+    "user_sha256": "c00e5d9487674ae3ca3e91fab0992f63150b050bd0d95641daee58c7d5232c81"
+   },
+   "response": {
+    "attempt_records": [],
+    "attempt_token_usage": [],
+    "attempts": 1,
+    "backend_id": "fixed",
+    "choice": {
+     "justification": "j",
+     "retreat_choice": "A"
+    },
+    "error_message": null,
+    "error_type": null,
+    "failure_cause": null,
+    "latency_ms": null,
+    "max_attempts": null,
+    "raw_text": "{}",
+    "refusal_attempts": 0,
+    "request_id": "r",
+    "timeout_sec": null,
+    "token_usage": null
+   },
+   "skip_reason": null,
+   "stage2_prompt_version": 3,
+   "status": "answered",
+   "yielder_id": "robot_1"
+  },
+  "stage2_choice": {
+   "justification": "j",
+   "retreat_choice": "B"
+  },
+  "verify_absent": {
+   "edits": [],
+   "legs": [
+    {
+     "action": "yield",
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "cross",
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_5"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_2"
+    }
+   ],
+   "plan_completed_legs": [],
+   "provenance": "m3_default",
+   "rejection_reason": "plan absent",
+   "rejection_stage": "absent"
+  },
+  "verify_plan": {
+   "edits": [],
+   "legs": [
+    {
+     "action": "yield",
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "cross",
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_5"
+    }
+   ],
+   "plan_completed_legs": [],
+   "provenance": "vlm_verbatim",
+   "rejection_reason": null,
+   "rejection_stage": null
+  }
+ },
+ "E23_9803bd34": {
+  "dispatch_default": {
+   "actions": [
+    {
+     "action": "yield",
+     "parameters": {
+      "backup_distance_m": 1.325,
+      "backup_facing_rad": -3.141593,
+      "backup_line_hold": true,
+      "backup_reference_yaw_rad": 3.091635,
+      "crossing_order": [
+       "robot_1"
+      ],
+      "fresh_latch_fast_fail": true,
+      "hold_sec": 45.0,
+      "passer_clear_m": 2.35,
+      "passer_escort_distance_m": 2.35,
+      "passer_escort_heading_rad": 0.0,
+      "passer_escort_reference_yaw_rad": -0.244975,
+      "passer_robot_id": "robot_1",
+      "pull_off_lateral_m": -0.72,
+      "reason": "robot_1 and robot_5 are in a head-on deadlock, facing each other in close proximity.",
+      "retreat_choice": "C",
+      "retreat_x_m": 1.445,
+      "retreat_y_m": -0.361
+     },
+     "robot_id": "robot_5"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "linked_position": 0
+     },
+     "robot_id": "robot_1"
+    }
+   ],
+   "command_id": "r-yield",
+   "degradations": [
+    "retreat=default:no_choice",
+    "grounding=dynamic_arms:lane:x"
+   ],
+   "expected_resolution_time_sec": 150.0,
+   "fallback": "stop"
+  },
+  "dispatch_live": {
+   "actions": [
+    {
+     "action": "yield",
+     "parameters": {
+      "backup_distance_m": 1.325,
+      "backup_facing_rad": -3.141593,
+      "backup_line_hold": true,
+      "backup_reference_yaw_rad": 3.091635,
+      "crossing_order": [
+       "robot_1"
+      ],
+      "fresh_latch_fast_fail": true,
+      "hold_sec": 45.0,
+      "passer_clear_m": 2.35,
+      "passer_escort_distance_m": 2.35,
+      "passer_escort_heading_rad": 0.0,
+      "passer_escort_reference_yaw_rad": -0.244975,
+      "passer_robot_id": "robot_1",
+      "pull_off_lateral_m": -0.72,
+      "reason": "robot_1 and robot_5 are in a head-on deadlock, facing each other in close proximity.",
+      "retreat_choice": "C",
+      "retreat_x_m": 1.445,
+      "retreat_y_m": -0.361
+     },
+     "robot_id": "robot_5"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "linked_position": 0
+     },
+     "robot_id": "robot_1"
+    }
+   ],
+   "command_id": "r-yield",
+   "degradations": [
+    "retreat=default:no_choice",
+    "grounding=dynamic_arms:lane:x"
+   ],
+   "expected_resolution_time_sec": 150.0,
+   "fallback": "stop"
+  },
+  "matches_absent": true,
+  "matches_plan": true,
+  "shadow_declared": {
+   "backup_m": null,
+   "candidate_count": 0,
+   "candidate_label": null,
+   "comparable": null,
+   "comparison_reason": null,
+   "crossing_order": [
+    "robot_1"
+   ],
+   "equals_executed": null,
+   "executed": null,
+   "lateral_m": null,
+   "reason": "yield refused: no feasible yielder (robot_5 0.00 m, robot_1 0.00 m retreat room < 0.77 m required)",
+   "regrounded_from": null,
+   "same_yielder": null,
+   "status": "unavailable",
+   "x": null,
+   "y": null,
+   "yielder_id": "robot_5"
+  },
+  "shadow_view": {
+   "backup_m": 1.325,
+   "candidate_count": 3,
+   "candidate_label": "C",
+   "comparable": null,
+   "comparison_reason": null,
+   "crossing_order": [
+    "robot_1"
+   ],
+   "equals_executed": null,
+   "executed": null,
+   "lateral_m": -0.72,
+   "reason": null,
+   "regrounded_from": null,
+   "same_yielder": null,
+   "status": "computed",
+   "x": 1.4448542145008352,
+   "y": -0.36084990458015254,
+   "yielder_id": "robot_5"
+  },
+  "stage2": {
+   "candidates": [
+    {
+     "backup_m": 1.325,
+     "label": "C",
+     "lateral_clearance_m": 1.709,
+     "lateral_m": -0.72,
+     "letter": "B",
+     "min_sweep_clearance_m": 0.414,
+     "x": 1.4448542145008352,
+     "y": -0.36084990458015254
+    },
+    {
+     "backup_m": 1.325,
+     "label": "B",
+     "lateral_clearance_m": 1.709,
+     "lateral_m": -0.36,
+     "letter": "C",
+     "min_sweep_clearance_m": 0.414,
+     "x": 1.4448542145008352,
+     "y": -0.7208499045801525
+    },
+    {
+     "backup_m": 1.325,
+     "label": "A",
+     "lateral_clearance_m": 1.7,
+     "lateral_m": 0.36,
+     "letter": "A",
+     "min_sweep_clearance_m": 0.414,
+     "x": 1.4448542145008352,
+     "y": -1.4408499045801526
+    }
+   ],
+   "choice": {
+    "justification": "j",
+    "retreat_choice": "A"
+   },
+   "crossing_order": [
+    "robot_1"
+   ],
+   "default_label": "C",
+   "default_letter": "B",
+   "error": null,
+   "failure_cause": null,
+   "grounded_label": "A",
+   "letter_assignment": {
+    "A": {
+     "candidate_label": "A",
+     "rank": 2,
+     "x": 1.4448542145008352,
+     "y": -1.4408499045801526
+    },
+    "B": {
+     "candidate_label": "C",
+     "rank": 0,
+     "x": 1.4448542145008352,
+     "y": -0.36084990458015254
+    },
+    "C": {
+     "candidate_label": "B",
+     "rank": 1,
+     "x": 1.4448542145008352,
+     "y": -0.7208499045801525
+    }
+   },
+   "letter_draw_index": 0,
+   "letter_seed": 15941739160948204163,
+   "letter_seed_base": 0,
+   "listing_order": [
+    "C",
+    "A",
+    "B"
+   ],
+   "listing_seed": 14313433936350680392,
+   "marks": {
+    "calibration_path": null,
+    "image_path": "/tmp/a28.png",
+    "marks": [],
+    "marks_drawn": false,
+    "reason": "marker_unavailable: no calibration wired",
+    "scale": null,
+    "source_image_path": "/tmp/a28.png"
+   },
+   "marks_drawn": false,
+   "prompt": {
+    "image_path": "/tmp/a28.png",
+    "system_prompt": "You are a helpful assistant.",
+    "system_sha256": "75357d685f238b6afd7738be9786fdafde641eb6ca9a3be7471939715a68a4de",
+    "user_prompt": "You are a warehouse swarm robotics traffic controller. robot_5 will yield so that robot_1 can pass: it backs up, then steps aside to one of the lettered retreat positions below. Every position has already been checked to keep a safe distance from the listed robots along the whole path.\n\nRobots (world frame, metres):\n- robot_1: x=-0.25, y=-1.26 (passing)\n- robot_2: x=-1.58, y=-0.12\n- robot_3: x=-1.03, y=1.15\n- robot_4: x=-1.98, y=-0.26\n- robot_5: x=0.12, y=-1.08 (yielding)\n\nRetreat positions for robot_5 (world frame, metres):\n- C: x=1.44, y=-0.72 (back up 1.32 m, then step 0.36 m aside)\n- A: x=1.44, y=-1.44 (back up 1.32 m, then step 0.36 m aside)\n- B: x=1.44, y=-0.36 (back up 1.32 m, then step 0.72 m aside)\n\nThe letters are not drawn on the image; locate each position from its coordinates. The image shows the scene as it is now, including anything not listed above.\n\nChoose the retreat position that best clears the conflict while preserving the passage space the other robots need and avoiding visible obstacles or traffic.\n\nRespond with ONLY a JSON object, no other text:\n{\"retreat_choice\": \"<one of C, A, B>\", \"justification\": \"<one clause>\"}",
+    "user_sha256": "3a60b924321406fa70826aa428c5c26e794eede6a3fcd99d8960316699843237"
+   },
+   "response": {
+    "attempt_records": [],
+    "attempt_token_usage": [],
+    "attempts": 1,
+    "backend_id": "fixed",
+    "choice": {
+     "justification": "j",
+     "retreat_choice": "A"
+    },
+    "error_message": null,
+    "error_type": null,
+    "failure_cause": null,
+    "latency_ms": null,
+    "max_attempts": null,
+    "raw_text": "{}",
+    "refusal_attempts": 0,
+    "request_id": "r",
+    "timeout_sec": null,
+    "token_usage": null
+   },
+   "skip_reason": null,
+   "stage2_prompt_version": 3,
+   "status": "answered",
+   "yielder_id": "robot_5"
+  },
+  "stage2_choice": {
+   "justification": "j",
+   "retreat_choice": "A"
+  },
+  "verify_absent": {
+   "edits": [],
+   "legs": [
+    {
+     "action": "yield",
+     "robot_id": "robot_5"
+    },
+    {
+     "action": "cross",
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_3"
+    }
+   ],
+   "plan_completed_legs": [],
+   "provenance": "m3_default",
+   "rejection_reason": "plan absent",
+   "rejection_stage": "absent"
+  },
+  "verify_plan": {
+   "edits": [],
+   "legs": [
+    {
+     "action": "yield",
+     "robot_id": "robot_5"
+    },
+    {
+     "action": "cross",
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_4"
+    }
+   ],
+   "plan_completed_legs": [],
+   "provenance": "vlm_verbatim",
+   "rejection_reason": null,
+   "rejection_stage": null
+  }
+ },
+ "s1a_both_fail_sweep": {
+  "dispatch": {
+   "actions": [
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 8.0,
+      "reason": "yield refused: no executable retreat (robot_1 has no retreat candidate surviving the sweep; robot_3 has no retreat candidate surviving the sweep)",
+      "requested_strategy": "yield"
+     },
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 8.0,
+      "reason": "yield refused: no executable retreat (robot_1 has no retreat candidate surviving the sweep; robot_3 has no retreat candidate surviving the sweep)",
+      "requested_strategy": "yield"
+     },
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 8.0,
+      "reason": "yield refused: no executable retreat (robot_1 has no retreat candidate surviving the sweep; robot_3 has no retreat candidate surviving the sweep)",
+      "requested_strategy": "yield"
+     },
+     "robot_id": "robot_5"
+    }
+   ],
+   "command_id": "r-yield",
+   "degradations": [
+    "order=implicit",
+    "yield=infeasible:yield refused: no executable retreat (robot_1 has no retreat candidate surviving the sweep; robot_3 has no retreat candidate surviving the sweep)",
+    "grounding=dynamic_arms:lane:x"
+   ],
+   "expected_resolution_time_sec": 8.0,
+   "fallback": "stop"
+  },
+  "matches_absent": true,
+  "matches_plan": true,
+  "verify_absent": {
+   "edits": [],
+   "legs": [
+    {
+     "action": "wait",
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "wait",
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "wait",
+     "robot_id": "robot_5"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_4"
+    }
+   ],
+   "plan_completed_legs": [],
+   "provenance": "m3_default",
+   "rejection_reason": "plan absent",
+   "rejection_stage": "absent"
+  },
+  "verify_plan": {
+   "edits": [],
+   "legs": [
+    {
+     "action": "wait",
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "wait",
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "wait",
+     "robot_id": "robot_5"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_4"
+    }
+   ],
+   "plan_completed_legs": [
+    "robot_2",
+    "robot_4"
+   ],
+   "provenance": "m3_default",
+   "rejection_reason": "plan unrepairable: yield refused: no executable retreat (robot_1 has no retreat candidate surviving the sweep; robot_3 has no retreat candidate surviving the sweep)",
+   "rejection_stage": "repair_bound_exceeded"
+  }
+ },
+ "s1a_sweep_regrounded_exec": {
+  "dispatch": {
+   "actions": [
+    {
+     "action": "yield",
+     "parameters": {
+      "backup_distance_m": 1.273,
+      "backup_facing_rad": 0.0,
+      "backup_line_hold": true,
+      "backup_reference_yaw_rad": 0.075941,
+      "crossing_order": [
+       "robot_1"
+      ],
+      "hold_sec": 45.0,
+      "passer_clear_m": 1.923,
+      "passer_escort_distance_m": 1.923,
+      "passer_escort_heading_rad": 3.141593,
+      "passer_escort_reference_yaw_rad": -3.065652,
+      "passer_robot_id": "robot_1",
+      "pull_off_lateral_m": 0.36,
+      "reason": "echo",
+      "retreat_choice": "A",
+      "retreat_x_m": -2.077,
+      "retreat_y_m": 0.124,
+      "yield_regrounded_reason": "yield re-grounded: robot_1 has no retreat candidate surviving the sweep; robot_3 has an executable retreat",
+      "yield_robot_grounded_from": "robot_1"
+     },
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "linked_position": 0
+     },
+     "robot_id": "robot_1"
+    }
+   ],
+   "command_id": "r-yield",
+   "degradations": [
+    "yield_robot=sweep_regrounded:robot_1->robot_3",
+    "retreat=default:no_choice",
+    "grounding=dynamic_arms:lane:x",
+    "grounding=escort_turn_cap:robot_1:2.35->1.923"
+   ],
+   "expected_resolution_time_sec": 150.0,
+   "fallback": "stop"
+  },
+  "matches_absent": true,
+  "matches_plan": true,
+  "verify_absent": {
+   "edits": [],
+   "legs": [
+    {
+     "action": "yield",
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "cross",
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_5"
+    }
+   ],
+   "plan_completed_legs": [],
+   "provenance": "m3_default",
+   "rejection_reason": "plan absent",
+   "rejection_stage": "absent"
+  },
+  "verify_plan": {
+   "edits": [
+    {
+     "op": "swap",
+     "reason": "yield re-grounded: robot_1 has no retreat candidate surviving the sweep; robot_3 has an executable retreat; swapped roles robot_1 (yield) <-> robot_3 (cross)",
+     "robot_ids": [
+      "robot_1",
+      "robot_3"
+     ]
+    }
+   ],
+   "legs": [
+    {
+     "action": "yield",
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "cross",
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_5"
+    }
+   ],
+   "plan_completed_legs": [
+    "robot_2",
+    "robot_4",
+    "robot_5"
+   ],
+   "provenance": "repaired",
+   "rejection_reason": null,
+   "rejection_stage": null
+  }
+ },
+ "s1b_both_fail_sweep": {
+  "dispatch": {
+   "actions": [
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 8.0,
+      "reason": "yield refused: no executable retreat (robot_2 has no retreat candidate surviving the sweep; robot_4 has no retreat candidate surviving the sweep)",
+      "requested_strategy": "yield"
+     },
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 8.0,
+      "reason": "yield refused: no executable retreat (robot_2 has no retreat candidate surviving the sweep; robot_4 has no retreat candidate surviving the sweep)",
+      "requested_strategy": "yield"
+     },
+     "robot_id": "robot_4"
+    }
+   ],
+   "command_id": "r-yield",
+   "degradations": [
+    "yield=infeasible:yield refused: no executable retreat (robot_2 has no retreat candidate surviving the sweep; robot_4 has no retreat candidate surviving the sweep)",
+    "grounding=dynamic_arms:lane:x"
+   ],
+   "expected_resolution_time_sec": 8.0,
+   "fallback": "stop"
+  },
+  "matches_absent": true,
+  "matches_plan": true,
+  "verify_absent": {
+   "edits": [],
+   "legs": [
+    {
+     "action": "wait",
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "wait",
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_5"
+    }
+   ],
+   "plan_completed_legs": [],
+   "provenance": "m3_default",
+   "rejection_reason": "plan absent",
+   "rejection_stage": "absent"
+  },
+  "verify_plan": {
+   "edits": [],
+   "legs": [
+    {
+     "action": "wait",
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "wait",
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_5"
+    }
+   ],
+   "plan_completed_legs": [
+    "robot_1",
+    "robot_3",
+    "robot_5"
+   ],
+   "provenance": "m3_default",
+   "rejection_reason": "plan unrepairable: yield refused: no executable retreat (robot_2 has no retreat candidate surviving the sweep; robot_4 has no retreat candidate surviving the sweep)",
+   "rejection_stage": "repair_bound_exceeded"
+  }
+ },
+ "s1b_sweep_regrounded_exec": {
+  "dispatch": {
+   "actions": [
+    {
+     "action": "yield",
+     "parameters": {
+      "backup_distance_m": 1.272,
+      "backup_facing_rad": -3.141593,
+      "backup_line_hold": true,
+      "backup_reference_yaw_rad": 2.668237,
+      "crossing_order": [
+       "robot_2"
+      ],
+      "hold_sec": 45.0,
+      "passer_clear_m": 2.35,
+      "passer_escort_distance_m": 2.35,
+      "passer_escort_heading_rad": 0.0,
+      "passer_escort_reference_yaw_rad": 0.103082,
+      "passer_robot_id": "robot_2",
+      "pull_off_lateral_m": 0.36,
+      "reason": "echo",
+      "retreat_choice": "A",
+      "retreat_x_m": 0.608,
+      "retreat_y_m": -1.498,
+      "yield_regrounded_reason": "yield re-grounded: robot_2 has no retreat candidate surviving the sweep; robot_4 has an executable retreat",
+      "yield_robot_grounded_from": "robot_2"
+     },
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "temporary_wait",
+     "parameters": {
+      "duration_sec": 120.0,
+      "linked_position": 0
+     },
+     "robot_id": "robot_2"
+    }
+   ],
+   "command_id": "r-yield",
+   "degradations": [
+    "yield_robot=sweep_regrounded:robot_2->robot_4",
+    "retreat=default:no_choice",
+    "grounding=dynamic_arms:lane:x"
+   ],
+   "expected_resolution_time_sec": 150.0,
+   "fallback": "stop"
+  },
+  "matches_absent": true,
+  "matches_plan": true,
+  "verify_absent": {
+   "edits": [],
+   "legs": [
+    {
+     "action": "yield",
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "cross",
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_5"
+    }
+   ],
+   "plan_completed_legs": [],
+   "provenance": "m3_default",
+   "rejection_reason": "plan absent",
+   "rejection_stage": "absent"
+  },
+  "verify_plan": {
+   "edits": [
+    {
+     "op": "swap",
+     "reason": "yield re-grounded: robot_2 has no retreat candidate surviving the sweep; robot_4 has an executable retreat; swapped roles robot_2 (yield) <-> robot_4 (cross)",
+     "robot_ids": [
+      "robot_2",
+      "robot_4"
+     ]
+    }
+   ],
+   "legs": [
+    {
+     "action": "yield",
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "cross",
+     "robot_id": "robot_2"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_5"
+    }
+   ],
+   "plan_completed_legs": [
+    "robot_1",
+    "robot_3",
+    "robot_5"
+   ],
+   "provenance": "repaired",
+   "rejection_reason": null,
+   "rejection_stage": null
+  }
+ }
+}
