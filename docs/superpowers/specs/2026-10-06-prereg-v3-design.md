@@ -1434,6 +1434,48 @@ of A alone: admits 3/9→5/9; B is the bigger lever (covers both
 MC-matched failed yields). Deploy note: A touches live-mounted M3
 files AND colcon-built M4 files — rebuild + md5 both.
 
+**A30. A29(i) closed: one filtered retreat selection for every
+reader; kept-yielder swap trigger stays unfiltered; next = switch-on
+overlay + mini-batch E24-E26 (2026-10-17; integration @5fbec0f =
+merge of `feat/v3-filter-parity`).** The escort/park filter now runs
+ONCE in `command_grounder.prepare_filtered_retreat_selection`; the
+two per-call-site applications are removed. Dispatch, stage 2
+(`retreat_stage2._run`), `shadow_classical.classical_retreat_answer`,
+the plan verifier (`_derived_reroute_reason(escort_park=True)` →
+`_plan_yield_verdict` reroute branch) and the junction yield phases
+all read that selection with the grounder's `goal_references`;
+dropped candidates persist only in `escort_park_filtered`. The
+verifier certifies a no-survivor yield as a legitimate
+yield→reroute degradation (E20 `f269ab37`: `m3_default`,
+`dispatch_matches_plan` True; was `vlm_verbatim` + mismatch). A15(iv)
+swap: the PARTNER side treats zero survivors as no executable
+retreat (same as a sweep-empty partner) — with the switch ON this
+turns the S1 `s1a/s1b_sweep_regrounded_exec` cases from
+partner-reroute into a certified wait fan-out; the KEPT-YIELDER
+trigger stays UNFILTERED (RULING, owner 2026-10-17: filtering it
+would turn `f269ab37` from A29's recorded reroute into a wait
+fan-out; not adopted before the mini-batch). Switch OFF is
+byte-identical to 6ce2b92 on all eight fixtures (golden
+`tests/unit/data/a29_filter_parity/golden_off.json`, written before
+the code change). Suite 62/6812/153/3, same 65 failing ids. Still
+open, non-blocking: A29(ii) stage-2 record omits dropped
+candidates; A29(iii) replay kits must map letters through
+`escort_park_filtered`; production shadow still grounds on declared
+geometry without goal refs (Arm B parity question, unchanged).
+RULING (owner 2026-10-17): proceed to a PRE-REGISTERED mini-batch
+E24-E26 on the A28/A29 runtime with a NEW overlay grounding file
+that sets `escort_park_clearance: true` and re-enables the shield
+config's escort leg (A28(ii) carry-forward lifted by A29/A30);
+pinned grounding files unchanged; 0.20 m floor swap + pre/post arm
+gates mandatory (A28(i)); budget cap $0.15, start floor $0.04,
+per-episode cap $0.05; predictions to be frozen in the report's §1
+before any live call, including: P1 every dispatched yield's
+escort leg clears its park point by >= 0.45 m (sweep on the
+dispatched command); P2 zero GT contacts and zero floor firings;
+P3 at least one `retreat=escort_park_filtered` tag fires live;
+P4 admitted/dispatched stays >= batch-4 rate. VM must be started
+for this batch and STOPPED after it.
+
 **A29. A28(ii) escort/park fix landed as CANDIDATE FILTERING;
 churn-bound option sweep; lineage pushed (2026-10-16; integration
 @6ce2b92 = merge of `feat/v3-escort-park`; churn sweep
