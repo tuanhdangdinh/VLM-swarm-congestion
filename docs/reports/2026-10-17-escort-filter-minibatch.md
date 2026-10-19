@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: the A30 switch-on overlay built offline (grounding file, seeds 24-26, overlays, VM kit p9); mini-batch E24-E26 PRE-REGISTERED before any live call (§1). Results follow in later sections.
+- Rev 2 (2026-10-19): §2-§9 added after the live run on the zone-moved VM clone: summary, deploy/build evidence (the §1 "to be filled" md5s), the E24-E26 episodes, P1-P4 scored (all PASS), Rev 7 aggregates, deviations, VM end state and owner rulings. §1 unchanged.
 
 ---
 
@@ -167,6 +168,185 @@ this block.
 - **A15(iv) asymmetry (A30 ruling):** the PARTNER side of a swap reads the filtered selection, but the KEPT-YIELDER trigger stays unfiltered. With the switch on, an S1 `sweep_regrounded_exec` case becomes a certified wait fan-out instead of a partner reroute.
 - **Open, non-blocking (A29):** (ii) stage-2 records do not list dropped candidates (provenance is only in the degradations); (iii) replayed live letters denote post-filter poses; production shadow still grounds on declared geometry without goal references (the Arm B parity question).
 - **MC caveat:** MC grounds the echo pair with snapshot goals as goal references and no task intents. The live shield and stage 2 can change the pick, so MC's leg clearances are not live predictions.
+
+---
+
+## 2. Summary of Results
+
+**Status: the batch ran in full (E24, E25, E26) inside budget, on the zone-moved VM clone. All four pre-registered predictions PASS. The filter fired live once, on E24's dispatched yield. Every dispatched yield was admitted and released by clearance. There were no GT contacts, no floor firings and no B3 firings. All three episodes were cut by the $0.05 episode cap, between 133 and 174 sim-s of the 600 sim-s horizon.**
+
+| Question | Answer |
+|---|---|
+| Host | `vgu-thu-base-isaac-vm-asia-northeast1-a` (asia-northeast1-a), the zone-moved snapshot clone of the batch-4 end-state disk. It runs the same image on a different physical host and zone. The cross-VM equivalence caveat is unchanged (§3.1) |
+| Deploy | `PINS_PRE OK` with no drift. Every deploy, floor and overlay sentinel printed. Installed md5 = source md5 for all 10 manifest files plus the floor (§3.2) |
+| Batch | 5 attempts: 2 sequential bring-up aborts at $0, then 3 episodes run. **Spend est. $0.1395 of $0.15** (E24 0.0488, E25 0.0470, E26 0.0437). Each episode was stopped by its cost-cap stop flag |
+| P1 escort clears park ≥ 0.45 m | **PASS, 3/3 non-vacuous**: 0.575 / 1.730 / 1.036 m |
+| P2 no contact, floor quiet | **PASS**: all-pairs GT minimum 0.404 / 0.338 / 0.323 m, no pair below 0.18 m, 0 floor firings |
+| P3 filter fires live | **PASS**: 1 tag, `retreat=escort_park_filtered:A:robot_4:0.215` on E24 `dfb33b91`, which was dispatched. It fired on a cluster MC did not model. Neither MC-predicted tag (s25, s26) fired |
+| P4 admitted == dispatched | **PASS, 3/3** |
+| Rev 7 | Admitted/dispatched pooled **14/20**, and **11/11** on the A26+ runtime. First-conflict yield **6/21** live (CI 0.113-0.522) against MC 15/21. **0 alternations in 21 live episodes, NO LIVELOCK.** Productive nonzero 10/33 all-classified (live 9/21) |
+
+PILOT-ONLY, RECORD = 0.
+
+---
+
+## 3. Deploy and Build Evidence (the §1 "to be filled" cells)
+
+### 3.1 Host
+
+- **The batch ran on the zone-moved clone, not the VM named in §1.3 step 1.**
+  - §1.3 names `vgu-vgu-thu-base-isaac-workstation-vm` (asia-southeast1-b). That VM stayed TERMINATED and was not touched. An L4 stockout of about 57 h in asia-southeast1-b forced the move.
+  - The batch ran on `vgu-thu-base-isaac-vm-asia-northeast1-a` (zone asia-northeast1-a, same project and account). That VM is built from snapshot `thu-base-snap-20261019` of the batch-4 end-state disk: L4, driver 595.91.07, g2-standard-8, ephemeral IP 34.104.242.245.
+  - The owner authorized it (2026-10-17 run order; 2026-10-19 zone move). The VM was already RUNNING when the batch started. No cloud resource was created.
+  - **Cross-VM equivalence caveat (unchanged):** this host has the same disk image as the batch-4 host, but different physical hardware and a different zone. The md5 pins in §3.2 establish software identity, not hardware identity.
+- **No Mac-side helper in `p9/` hardcoded the old IP (35.198.230.72) or zone.** A grep over `p9/` and `batch5/*.py` matched only the prose runbook step 1 (line 41) in `NOTES_vm_b5.md`. No copies were made, and every VM-side script uses local paths only.
+- The kit was copied with `rsync -a`, without `--delete`. The 24 files of `p9/` arrived with `delta_p9.tar` 0d1ad655 and `chain_p9.sh` cd58a53a, equal on the Mac and the VM.
+
+### 3.2 Pins, scenarios, deploy and floor
+
+- **Pins check (`pins_pre_p9.sh`): `PINS_PRE OK`, no drift.** All 26 pinned md5s and the 7 kit files matched. No NEW file was present, there were no leftover `_er2_f` run files, and the GPU was at 0 %.
+- **Scenarios (`gen_s24_26.sh`):** seeds 24-26 NONCOMMENT_EQUAL, and `VM == MAC (scen + ovsrc, seeds 24-26)`. The yamls are 03b7ac06 / b72efe45 / 167ce05d and the headers 380ce501 / d0345a52 / 019218b1, as in §1.2.
+- **Build (`build_s24_26.sh`, as root, one SimulationApp):** build rc 0. Every USD is newer than its yaml. `usd_check` spawns equal the draws for all three seeds, and validate seed 24 returned rc 0.
+
+| Episode | Scenario yaml | USD md5 (newer than yaml) | Spawns (usd_check) |
+|---|---|---|---|
+| E24 | 03b7ac06 | **9f8a01d9** (`9f8a01d9d1987ad9674bcd6367f9ed1b`) | r1 (-2.30,-1.35) Wm, r2 (-0.25,1.35) N, r3 (-0.25,-1.35) S, r4 (2.30,0.00) E, r5 (-2.30,1.35) Wp |
+| E25 | b72efe45 | **c4c97576** (`c4c975769443d32f083e5d7ff193d098`) | r1 Wp, r2 Wm, r3 S, r4 E, r5 N |
+| E26 | 167ce05d | **8d6ff817** (`8d6ff8172df3de3a61ea3b47c5087cfe`) | r1 E, r2 Wp, r3 Wm, r4 S, r5 N |
+
+- **Deploy (`deploy_p9.sh`):** `PRE-IMAGE MD5 OK`, `SOURCE MD5 OK`, `LIVE MOUNT MD5 OK`, colcon rc 0, `INSTALLED MD5 OK`, `PACKAGE SRC==INSTALLED OK`, `ORCH PIN OK` (1f656533 src and installed).
+  - SMOKE line: `escort_file shield True 0.05 ff True escort_park True dyn True | shield_file escort_park False | s1b_dynamic escort_park False | same-but-switch True`.
+- **Floor (`floor_p9.sh`):** `PRISTINE BACKUP OK`, `FLOOR INSTALLED OK`, and `hard_contact_floor_m: 0.20` installed.
+  - A27 M4 pins: c6c9cbae / 08d996a8 / f139305c / caad9edc.
+  - SMOKE line: `key True floor 0.2 passer_exempt True shield_exempt False`.
+- **Overlays (`ov_s24_26.sh`):** `PROCEDURE REPRODUCES s1b_orch_seed6.yaml`, "(want 2): 2" for each of the three, and `VM == MAC (overlays, seeds 24-26)`.
+  - Overlays: c6599fb1 / ccf6bbac / 86a925bc.
+  - Three parse lines ending `shield True 0.05 ff True dyn True escort_park True H 600.0`.
+
+| File | Source md5 (9a018ca) | **Installed md5 (measured)** |
+|---|---|---|
+| `reasoning/rag/command_grounder.py` (/ws) | a4e8b5a8 | a4e8b5a8 |
+| `reasoning/rag/escort_clearance.py` (/ws, NEW) | 50766aeb | 50766aeb |
+| `reasoning/rag/grounding_view.py` (/ws) | e152fc74 | e152fc74 |
+| `reasoning/rag/maneuver_geometry.py` (/ws) | 8923c35c | 8923c35c |
+| `reasoning/rag/retreat_candidates.py` (/ws) | 76f6b8d8 | 76f6b8d8 |
+| `config/grounding/s1b_dynamic_shield_escort.yaml` (/ws, NEW) | 40968886 | 40968886 |
+| `swarm_orchestrator/models.py` | a76e3c00 | a76e3c00 |
+| `swarm_orchestrator/reasoning_pipeline.py` | 39a51bfc | 39a51bfc |
+| `swarm_orchestrator/retreat_stage2.py` | 0bd96495 | 0bd96495 |
+| `swarm_orchestrator/shadow_classical.py` | 1de9588a | 1de9588a |
+| `swarm_execution` `safety.yaml` (src + installed) | c41913f0 | c41913f0 during the batch; restored to 59839662 (§8) |
+
+- **The chain's pin gate passed before every attempt.** Both the A30 line and the A27 line were checked, the latter with installed `safety.yaml` c41913f0. The floor gate (`hard_contact_floor_m=0.2` safety-monitor startup line) and the condition gate (`switch_on = shield_on = artifacts = 6`, `ungrounded=0`) passed after every episode that ran.
+
+---
+
+## 4. Live Mini-batch E24-E26
+
+| Episode | Attempts (stamp of run) | Sim-s reached (GT end) | Analyses: dispatched / withheld | Dispatched yield (VLM named → M3 dispatched) | Escort leg vs park (P1) | Admit → release (sim-s) | Filter tags | GT closest pair | Passer–parked-yielder GT min after admit | Floor / B3 | Tasks | Churn / productive | est $ |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| E24 (seed 24) | f1 abort (robot_1 not active 120 s); **f2** 20261019_163801 | 137.3 (cost-cap stop) | 6: 2 / 2 refusal + 2 no-congestion | `dfb33b91`: VLM yield r4 → **yield r3 for passer r4** (`heading_regrounded`), post-filter `retreat_choice` B | r4 **0.575 m** | 106.4 → 128.2 **clearance** | **`A:robot_4:0.215`** (dispatched) | r3–r4 0.404 m (69.4) | 0.587 m | 0 / 0 | 6/25 | resolved / **1** | 0.0488 |
+| E25 (seed 25) | f1 abort (robot_3 not active 120 s); **f2** 20261019_165623 | 173.8 (cost-cap stop) | 6: 3 / 3 refusal | `c1fd8b36`: VLM yield r5 → **yield r1 for passer r5** (`yield_robot=regrounded`, junction box N), `retreat_choice` A | r5 **1.730 m** | 74.2 → 88.8 **clearance** | none | r1–r5 0.338 m (45.0) | 1.736 m | 0 / 0 | 4/25 | resolved / **1** | 0.0470 |
+| E26 (seed 26) | **f1** 20261019_171356 | 132.9 (cost-cap stop) | 6: 3 / 3 refusal | `cf77ca65`: VLM yield r1 → **yield r5 for passer r1** (`heading_regrounded`), single candidate (`retreat=default:no_choice`) | r1 **1.036 m** | 98.1 → 109.2 **clearance** | none | r2–r3 0.323 m (43.4) | 0.433 m (re-latch at end) | 0 / 0 | 1/25 | clogged / 0 | 0.0437 |
+
+- **E24:**
+  - The first analysis (45.9 sim-s) named r1+r5 and dispatched a `temporary_wait` on both. The live first latch was r1+r5 at 14.8 rel-s. MC's first conflict was r1+r3 at 21.5 s with an echo yield r1, so this is not a first-conflict yield.
+  - Two follow-up yields on {r1, r5} were refused ("no shared lane … 88 deg across") and withheld.
+  - The 4th analysis (71.2) named the second cluster {r3, r4} as yield r4. M3 regrounded the yielder to r3 (`heading_regrounded:robot_4->robot_3`) and capped r4's escort at 1.825 m (`escort_turn_cap:robot_4:2.35->1.825`).
+  - **The filter dropped pre-filter candidate A, whose escort leg passed 0.215 m from its park point.** Stage 2's default was the post-filter B, the model chose B, and B was dispatched with a leg clearing the park point by 0.575 m.
+  - What the dispatched pose would have been with the switch off is not measured here. That needs an offline regrounding of `dfb33b91` with the switch forced off. The post-filter letter B does not denote the same pose as the pre-filter label in the tag (A29(iii)).
+  - The yield was admitted at 106.4, the escort completed (moved 1.826 m), and it was released by clearance at 128.2. The robots then made credited progress, so the event is **productive**. Two no-congestion analyses followed.
+- **E25:**
+  - The first analysis (43.2) named MC's pair, r1+r5. The VLM said yield r5; M3 regrounded it to **yield r1 for r5**, which is MC's echo yield.
+  - Stage 2 chose letter B, which is label A (the default was label C). The leg cleared the park point by 1.730 m, against MC's 0.954 m. **The filter tag MC predicted (`A:robot_5:0.126`) did not fire live**, even though live had MC's pair and yielder at about the same episode time. The live decision was about 13.7 rel-s (43.2 absolute, minus E25's GT offset of about 29.5 s), against MC's 10.6 s encounter plus 2.5 s.
+  - Observed differences: the live grounding ran through the dynamic crossing view (`dynamic_arms:crossing`, `junction_box:N`) with a 1.169 m escort, against MC's 1.95 m escort leg. MC records no grounding-view tags, so the cause is **not isolated** (the §1.6 MC caveat).
+  - The yield was admitted at 74.2, the escort completed (1.177 m), and it was released by clearance at 88.8. **Productive.** This is the batch's only first-conflict yield.
+  - The {r2, r3, r4} cluster (later with r1) drew three `junction_clear` analyses, each refused ("no feasible yielder", retreat room < 0) and withheld. It also drew two `reverse` analyses, dispatched as `temporary_wait` fan-outs. Suppression held the scene for 25 suppressed re-analyses.
+- **E26:**
+  - The first analysis (45.5) named r2+r3, which is MC's pair, as `reverse`. It was dispatched as `temporary_wait` on both, not a yield. MC predicted an executable yield r2 here, with the filter dropping the default pick B (0.179 m).
+  - `f36969f3` (58.4) was a `junction_clear` naming both clusters. It was refused and withheld.
+  - `cf77ca65` (67.8) named yield r1 for r5. M3 regrounded it to **yield r5 for passer r1** and capped r1's escort at 0.817 m. There was one candidate, so stage 2 was skipped. The leg cleared by 1.036 m.
+  - The yield was admitted at 98.1, the escort completed (0.819 m), and it was released by clearance at 109.2.
+  - **r1 and r5 then re-latched about 3 sim-s after the release**, at 0.433 m GT, and stayed latched to the end (no contact). The predicate scores the event unproductive. **That reading is censored by budget:** the cost cap ended the episode 23.7 sim-s after the release.
+- **Shield:** armed on every artifact (`retreat_shield` and `retreat_fast_fail` True), but it placed **no hold**. There are 0 `retreat_shield_hold` keys in any dispatched command and 0 shield lines in `m4.log`. No A19 latch waiver was armed.
+- **Bring-up:** 5 attempts, 2 sequential aborts. E24 f1 had robot_1 not active 120 s after launch; E25 f1 had robot_3. Both cost $0, ended `GATE OK` / `RESTORE OK`, and had their Isaac exit before the retry (idle gate 0 s). No run attempt shows a "jump back in time" line. Pooled sequential aborts go from 1/21 to **3/26**.
+- **Budget:** the $0.04 start floor was met before every episode (spent $0 / $0.0488 / $0.0958). Each episode's `cost_watch` touched the stop flag once est. + $0.008 reached the $0.05 cap, at est. 0.0488 / 0.0470 / 0.0437. **Batch est. $0.1395 of $0.15.** The estimate is a lower bound, because a timed-out stage-2 call records no usage.
+
+---
+
+## 5. Predictions Scored (against §1.4)
+
+| Prediction | Bar (§1.4) | Result | Evidence |
+|---|---|---|---|
+| P1 escort clears park | every dispatched yield's legs ≥ 0.45 m; a yield with no leg is vacuous | **PASS, 3/3 non-vacuous** (0.575, 1.730, 1.036 m) | `batch5/score_p9_results.jsonl` (`score_p9.py`, the scorer validated in §1.4) |
+| P2 no contact, floor quiet | 0 GT pairs < 0.18 m (all pairs) AND 0 floor firings | **PASS** | `batch5/gt_contacts_b5.json`: minima 0.404 / 0.338 / 0.323 m, `contacts_below_018` empty. 0 `reason=hard_contact_floor` lines. Passer–yielder minima after admit 0.587 / 1.736 / 0.433 m |
+| P3 filter fires live | ≥ 1 `retreat=escort_park_filtered:` tag in any artifact | **PASS, 1 tag (1 dispatched)**: E24 `dfb33b91` `A:robot_4:0.215` | 0 `yield=infeasible:escort_hits_park`. MC predicted tags on s25/s26; neither fired. s25 had the same pair and yielder at about the same time, with the cause not isolated (§4). On s26 the first analysis on MC's pair was a `reverse` dispatched as waits. The tag fired on the s24 second cluster, which MC did not model |
+| P4 admits | admitted == dispatched | **PASS, 3/3** | `gate_admit` on `dfb33b91`, `c1fd8b36`, `cf77ca65`; 0 B3 firings, no yield failed |
+
+The condition held on every artifact: COND `switch_on = shield_on = 6` in each episode, `ungrounded=0`.
+
+---
+
+## 6. Rev 7 Aggregates (All Live Episodes E6-E26)
+
+Output: `batch5/agg_b5.json` (`aggregate_b5.py` over `batch5/live21.txt`), plus per-episode `batch5/stats_E2{4,5,6}.json` (`s1b_live_batch_stats.py`).
+
+- **Reproduction gate:** `aggregate_b5.py` on batch 4's 18 bundles (`agg_b5_prior18.json`) equals `batch4/agg_b4.json` **block for block**. All 7 top-level blocks are EQUAL.
+
+| Aggregate | Rev 6 (E6-E23) | **Rev 7 (E6-E26)** |
+|---|---|---|
+| Admitted / dispatched live yields | 11/17 pooled; A26+A27 runtime 8/8 | **14/20 pooled**: E6-E17 3/9, batch 3 5/5, batch 4 3/3, batch 5 3/3. **A26+ runtime 11/11** |
+| Clearance releases | E6, E20 `f269ab37`, E21, E23 (+ E20 `6cf402ed`, a contact push) | **+3 in batch 5** (E24 `dfb33b91`, E25 `c1fd8b36`, E26 `cf77ca65`): 7 clearance releases + the one contact push |
+| (a) Attribution | NO LIVELOCK, 5 opportunity / 0 ARCH, 0 alternations in 18 | **NO LIVELOCK**, 5 opportunity / 0 ARCH, **0 alternations in 21**. Batch 5 never reached the opportunity bar (max 1 clearing dispatch into one cluster) |
+| Churn class (batch) | E21 clogged, E22 clogged, E23 resolved | E24 **resolved**, E25 **resolved**, E26 clogged |
+| (b) Productive | all classified n = 30, 8 nonzero, p95 1; live 7/18, p95 2 | **n = 33, 10 nonzero, p95 1; live 9/21, p95 1** (nearest-rank moves from rank 18 of 18 to rank 20 of 21, so the single 2-event episode leaves the p95 rank; not a substantive drop). Events n = 11 (+E24, +E25); dispatches into the group sorted 1×7, 2×3, 3 → p95 **3**; dispatch → progress adds 56.9 / 63.1 s, p95 79.3 s |
+| (c) First-conflict yield | 5/18 live, CI 0.097-0.535, vs MC 12/18 | **6/21 live (+E25), Clopper-Pearson 0.113-0.522, vs MC 15/21.** Batch 5 alone 1/3 against MC 3/3: s24 first analysis a wait on another pair; s26 first analysis `reverse` on MC's pair, dispatched as waits |
+| (d) Both clusters | named 14/103; dispatched 7/103 | **named 15/121** (+E26 `f36969f3`, withheld); both-cluster plan dispatched 7/121 |
+| (e) Wandering vs park | no finisher in batch 4 | no finisher in batch 5; still undecided |
+| vb∧matched (A27(iv)) | 16 shield-excluded / 13 raw | **17 / 14** (E24 1 / 1; E25, E26 0 / 0) |
+| (f) Cost | batch 4 $0.1069; all-live $0.7546 over 18 | **batch 5 $0.1395**; all-live **$0.8941 over 21**, median $0.0405, range 0.0174-0.0954. `agg_b5.json`'s `total_excl_E6` is $0.8606 |
+
+- **budget_k triple:** not re-derived (A29: registered, default-off). For the record, the two new productive events (one dispatch each) cross no rank boundary. Dispatches-into-group p95 stays 3, latency p95 stays 79.3 s, and neither group is multi-dispatch, so no new inter-dispatch gap enters the window.
+
+---
+
+## 7. Deviations and Notes
+
+- **Host (§1.3 step 1):** the batch ran on the zone-moved clone, not the named VM (§3.1). It was owner-authorized, and nothing else in the procedure changed.
+- **Close-out pins check:** re-running `pins_pre_p9.sh` after the batch printed `PINS_PRE FAILED` **by design**, as `NOTES_vm_b5.md` says. It reported:
+  - the 8 deployed M3/M5 files at their A30 md5s;
+  - `s1b_dynamic_shield_escort.yaml` and `escort_clearance.py` present;
+  - the batch's `_er2_f` run files present.
+
+  Every other pin was ok (orchestrator.yaml 1f656533 src and installed, rag e18c723c, safety.yaml 59839662 after the restore). Recorded in `p9_vm/pins_post_p9.log`; it does not gate anything.
+- **Runbook NOTES:** the VM log was appended twice, pre-chain and close-out, under `## Log`. The Mac kit copy `batch5/p9/NOTES_vm_b5.md` is the original. The VM copy is `batch5/p9_vm/NOTES_vm_b5.md`, also copied to `batch5/NOTES_vm_b5.md`.
+- **Scorer path:** `score_p9.py` matches admits on the full command id against `m4.log`. All three dispatched yields matched.
+- No corrections to earlier batches.
+
+---
+
+## 8. VM End State and Pins
+
+- **Processes at close:** no `run_simulation`, Kit, `fc_launch`, `ep_run`, chain or watcher process. `vgu_ros` was up (restarted by the last `fc_launch` cleanup) and idle, running `sleep infinity` only. GPU 0 %, 155 MiB. `data/logs/simulation` was empty.
+- **Ownership:** 5 root-owned `reasoning/rag/__pycache__/*.pyc` files (the deploy smoke) were chowned to ubuntu. `~/v3_s1b`, `m5_decisions` and `m5_scene` were chowned too.
+- **`safety.yaml` restored:** `restore_safety_p9.sh` → `RESTORE PRISTINE OK`, src and installed **59839662**. The A28/A29 M3/M5 runtime stays deployed. It is inert without the escort overlay, because the switch defaults to off.
+- **Pin line at close (A30):** command_grounder a4e8b5a8, escort_clearance 50766aeb, grounding_view e152fc74, maneuver_geometry 8923c35c, retreat_candidates 76f6b8d8, models a76e3c00, reasoning_pipeline 39a51bfc, retreat_stage2 0bd96495, shadow_classical 1de9588a.
+  - Unchanged: orchestrator.yaml 1f656533 (src and installed), rag e18c723c, s1b_dynamic 535f5281, s1b_dynamic_shield ee5fe68f, fc_launch 5a5ee4ac, A27 M4 c6c9cbae / 08d996a8 / f139305c / caad9edc.
+  - Staged: seed 24/25/26 yamls 03b7ac06 / b72efe45 / 167ce05d, USDs 9f8a01d9 / c4c97576 / 8d6ff817, overlays c6599fb1 / ccf6bbac / 86a925bc.
+- **Bundles** are pulled to `data/logs/vm_runs/batch5/` (gitignored; 246 files, equal counts on the VM and the Mac):
+  - 5 attempt directories `s1b_E2{4,5,6}_seed*_er2_f*`, including the two aborts, each with `.cost` / `.outer` / `.pin` / `.watch` logs;
+  - the VM's `p9/` in `batch5/p9_vm/` (the Mac kit `batch5/p9/` is untouched): `chain_p9.log`, `attempts.tsv`, the deploy, floor, overlay, build and restore logs, `pins_pre_p9.log`, `pins_post_p9.log`.
+- **The VM is STOPPED:** `gcloud compute instances stop` on `vgu-thu-base-isaac-vm-asia-northeast1-a`, then STATUS `TERMINATED`. The old asia-southeast1-b VM was untouched and is TERMINATED.
+
+---
+
+## 9. Owner Rulings Needed
+
+1. **Episode cap.** All three episodes were cut by the $0.05 cap, at 137 / 174 / 133 sim-s of H 600, with 6 analyses each. E26's yield was released 23.7 sim-s before the cut, so its "unproductive" score is censored by budget. Options: raise the episode cap for the next live cells, or accept cap-censored productive scoring.
+2. **Admitted is still not productive (E26).** The escorted passer and its parked yielder re-latched at 0.433 m (no contact) about 3 sim-s after a clearance release and stayed latched to the end. This is the second admitted, unproductive pattern after batch 4's E21 and E22. Recorded, not ruled.
+3. **What the filter changed is unmeasured.** P3 passed on a tag that dropped a 0.215 m candidate, but whether the dispatched pose differs from a switch-off grounding needs one offline regrounding of `dfb33b91`. MC's two predicted firings (s25, s26) did not occur live. E25 had the same pair and yielder at about the same time but grounded a different escort (1.169 m vs 1.95 m; cause not isolated). E26's first conflict got a `reverse`. Should `escort_park_clearance` become the default in shield cells (n = 1 live firing)?
+4. **Sequential bring-up aborts on the new host:** 2 of 5 attempts (robot_1, then robot_3, not active 120 s after launch), against 1 of 21 before. Pooled 3/26. Both retries succeeded. Whether to watch this as a host effect, or lengthen the per-robot active timeout, is the owner's call.
+5. **Shield and B3 are still unexercised live.** The shield was armed in all 18 artifacts but placed no hold, and B3 never fired. Batch 4's §8 item 4 stands.
 
 ---
 
