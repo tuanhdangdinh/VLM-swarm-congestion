@@ -6,6 +6,7 @@
 
 - Initial draft: the A30 switch-on overlay built offline (grounding file, seeds 24-26, overlays, VM kit p9); mini-batch E24-E26 PRE-REGISTERED before any live call (§1). Results follow in later sections.
 - Rev 2 (2026-10-19): §2-§9 added after the live run on the zone-moved VM clone: summary, deploy/build evidence (the §1 "to be filled" md5s), the E24-E26 episodes, P1-P4 scored (all PASS), Rev 7 aggregates, deviations, VM end state and owner rulings. §1 unchanged.
+- Rev 3 (2026-10-20): §9.1 added, the offline switch-off re-ground of E24 `dfb33b91`, which answers the §9 item 3 measurement question; §1 unchanged.
 
 ---
 
@@ -254,7 +255,7 @@ PILOT-ONLY, RECORD = 0.
   - Two follow-up yields on {r1, r5} were refused ("no shared lane … 88 deg across") and withheld.
   - The 4th analysis (71.2) named the second cluster {r3, r4} as yield r4. M3 regrounded the yielder to r3 (`heading_regrounded:robot_4->robot_3`) and capped r4's escort at 1.825 m (`escort_turn_cap:robot_4:2.35->1.825`).
   - **The filter dropped pre-filter candidate A, whose escort leg passed 0.215 m from its park point.** Stage 2's default was the post-filter B, the model chose B, and B was dispatched with a leg clearing the park point by 0.575 m.
-  - What the dispatched pose would have been with the switch off is not measured here. That needs an offline regrounding of `dfb33b91` with the switch forced off. The post-filter letter B does not denote the same pose as the pre-filter label in the tag (A29(iii)).
+  - What the dispatched pose would have been with the switch off was measured afterwards by an offline re-ground (§9.1). The post-filter letter B does not denote the same pose as the pre-filter label in the tag (A29(iii)).
   - The yield was admitted at 106.4, the escort completed (moved 1.826 m), and it was released by clearance at 128.2. The robots then made credited progress, so the event is **productive**. Two no-congestion analyses followed.
 - **E25:**
   - The first analysis (43.2) named MC's pair, r1+r5. The VLM said yield r5; M3 regrounded it to **yield r1 for r5**, which is MC's echo yield.
@@ -344,9 +345,39 @@ Output: `batch5/agg_b5.json` (`aggregate_b5.py` over `batch5/live21.txt`), plus 
 
 1. **Episode cap.** All three episodes were cut by the $0.05 cap, at 137 / 174 / 133 sim-s of H 600, with 6 analyses each. E26's yield was released 23.7 sim-s before the cut, so its "unproductive" score is censored by budget. Options: raise the episode cap for the next live cells, or accept cap-censored productive scoring.
 2. **Admitted is still not productive (E26).** The escorted passer and its parked yielder re-latched at 0.433 m (no contact) about 3 sim-s after a clearance release and stayed latched to the end. This is the second admitted, unproductive pattern after batch 4's E21 and E22. Recorded, not ruled.
-3. **What the filter changed is unmeasured.** P3 passed on a tag that dropped a 0.215 m candidate, but whether the dispatched pose differs from a switch-off grounding needs one offline regrounding of `dfb33b91`. MC's two predicted firings (s25, s26) did not occur live. E25 had the same pair and yielder at about the same time but grounded a different escort (1.169 m vs 1.95 m; cause not isolated). E26's first conflict got a `reverse`. Should `escort_park_clearance` become the default in shield cells (n = 1 live firing)?
+3. **What the filter changed (measured 2026-10-20, §9.1).** The filter dropped a non-default candidate, pre-filter A at 0.215 m (geometry rank 1). The switch-off default is the dispatched pose, so the filter did not change the default pick. It did change what stage 2 offered (4 → 3 marks, re-lettered). Whether the model would have picked the 0.215 m pose with the switch off cannot be replayed offline. MC's two predicted firings (s25, s26) did not occur live. E25 had the same pair and yielder at about the same time but grounded a different escort (1.169 m vs 1.95 m; cause not isolated). E26's first conflict got a `reverse`. Should `escort_park_clearance` become the default in shield cells (n = 1 live firing)?
 4. **Sequential bring-up aborts on the new host:** 2 of 5 attempts (robot_1, then robot_3, not active 120 s after launch), against 1 of 21 before. Pooled 3/26. Both retries succeeded. Whether to watch this as a host effect, or lengthen the per-robot active timeout, is the owner's call.
 5. **Shield and B3 are still unexercised live.** The shield was armed in all 18 artifacts but placed no hold, and B3 never fired. Batch 4's §8 item 4 stands.
+
+### 9.1 E24 `dfb33b91` Re-grounded With the Switch Off (2026-10-20)
+
+**Method.** The recorded grounding inputs of `dfb33b91` were replayed through the deployed runtime (`9a018ca`), once with the artifact's params and once with only `escort_park_clearance` set False:
+
+- the inputs are the decision, the scene snapshot, `grounding_params_source.params`, the bundle's `orchestrator.overlaid.yaml` (geometry, obstacles, gate mode `swap`, registry priorities), and the stage-2 `letter_seed_base` and `letter_draw_index` 2;
+- goal references and task intents come from the bundle's `tasks_*.jsonl` (the A26 extraction rule);
+- the replay follows the A29 parity test: `run_retreat_stage2` with a fixed chooser, then `ground_reasoner_result`;
+- leg clearances use `escort_legs` with the `score_p9.py` convention.
+
+**Reproduction gate (switch on, recorded letter B): exact.** The replay matches the live artifact on the stage-2 candidates, the letter assignment, the listing order (A C B), the grounded label, every yield parameter and the degradation list. The leg clears by 0.575 m, as in P1.
+
+**Upstream identity.** No earlier E24 artifact carries an `escort_park_filtered` tag. Its two earlier yields were refused before stage 2 (draws 0 and 1), so a switch-off run is identical up to 71.2 s, and draw index 2 holds.
+
+| Pre-filter label (switch off) | Pose (x, y) | Lateral | Escort leg clearance r4 | Geometry rank | Letter shown, switch off | Switch on (live) |
+|---|---|---|---|---|---|---|
+| A | (0.022, 1.225) | +0.36 | **0.215 m** | 1 | C | **dropped** (the tag) |
+| B | (-0.698, 1.225) | -0.36 | 0.505 m | 2 | A | label A, letter A |
+| C | (0.382, 1.225) | +0.72 | 0.575 m | **0 (default)** | D | label B, letter B, **chosen and dispatched** |
+| D | (-1.058, 1.225) | -0.72 | 0.865 m | 3 | B | label C, letter C |
+
+The switch-off listing order is A B C D, and the yielder is robot_3 for passer robot_4 in both conditions. There is no `retreat=escort_park_filtered` tag with the switch off, and the default grounds with `retreat=default:no_choice`.
+
+**Answer, in three separate claims:**
+
+- **Deterministic.** With the switch off, stage 2 would have offered 4 candidates. Only pre-filter A violates the 0.45 m latch, and it is geometry rank 1, not the default. The geometry-max default is the same pose in both conditions: (0.382, 1.225), 0.575 m, which is the dispatched pose. So a defaulted or failed stage 2 would have dispatched the identical yield.
+- **Not deterministic.** The stage-2 model answer, a sampled VLM call. With the switch off, the model would have seen 4 marks, lettered differently (the dispatched pose under D, the 0.215 m pose under C). The recorded answer is to the 3-mark prompt, so whether the model would have picked the 0.215 m pose cannot be determined offline.
+- **Letter replay (A29(iii)).** The recorded letter B, read literally under the switch-off lettering, grounds pre-filter D at (-1.058, 1.225), 0.865 m. That is a different pose from the dispatched one, but not candidate A. Matched by pose, the live pick is pre-filter C (switch-off letter D). Under neither convention does the recorded answer map to candidate A.
+
+**Verdict.** The filter removed a violating option the model could have chosen. It did not change the default pick, and it did not change the pose the model actually picked (rank 0). Whether it changed the dispatched pose of this yield is undeterminable, because it depends on a model answer that was never given. The n = 1 live firing is therefore no evidence that the filter averted a contact.
 
 ---
 
