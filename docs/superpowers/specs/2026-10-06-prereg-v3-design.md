@@ -4,6 +4,7 @@
 
 **Revision history:**
 
+- Addendum A31 (2026-10-20): E24-E26 escort-filter mini-batch outcome, inserted after A26 and above A30, as A27-A30 were.
 - Rev 2 (2026-10-06): full revision after independent advisor review
   (2 blockers, 6 majors, 17 minors — all addressed). Material
   corrections: Step 1's premise was WRONG (the 0.22/0.30 m NavFn
@@ -1433,6 +1434,94 @@ completion; only E6 released on real clearance). Projected effect
 of A alone: admits 3/9→5/9; B is the bigger lever (covers both
 MC-matched failed yields). Deploy note: A touches live-mounted M3
 files AND colcon-built M4 files — rebuild + md5 both.
+
+**A31. E24-E26 escort-filter mini-batch outcome: P1-P4 all PASS;
+the one live filter firing dropped a non-default candidate; all
+three episodes budget-censored (2026-10-20; report
+escort-filter-minibatch Rev 3; integration @d80ee49 = merge of
+`feat/v3-escort-live`).** The A30 batch ran as pre-registered on
+the A28/A29 runtime with the switch-on overlay
+`s1b_dynamic_shield_escort.yaml` (40968886), the 0.20 m floor swap
+and every pre/post gate; deploy md5s matched source on all 10
+manifest files plus the floor; COND `switch_on = shield_on = 6`
+in every episode. HOST CHANGE: an L4 stockout (~57 h) in
+asia-southeast1-b moved the batch to the zone-moved snapshot clone
+`vgu-thu-base-isaac-vm-asia-northeast1-a` (same disk image,
+different physical host and zone; owner-authorized 2026-10-19);
+the md5 pins establish software identity only, so the cross-VM
+caveat stands. Spend est $0.1395 of $0.15; VM STOPPED after;
+pristine `safety.yaml` restored (59839662). The A28/A29 M3/M5
+runtime REMAINS DEPLOYED with `escort_park_clearance` default-off,
+inert without the overlay. PREDICTIONS: P1 escort clears park
+>= 0.45 m — PASS 3/3 non-vacuous (0.575 / 1.730 / 1.036 m); P2 no
+GT pair < 0.18 m and zero floor firings — PASS (all-pairs minima
+0.404 / 0.338 / 0.323 m, 0 floor, 0 B3); P3 filter fires live —
+PASS, one tag `retreat=escort_park_filtered:A:robot_4:0.215` on
+E24 `dfb33b91`, dispatched, on a cluster MC never modelled; P4
+admitted == dispatched — PASS 3/3, all released by clearance.
+
+| Ep | Dispatched yield (VLM → M3) | Leg clearance | Filter tag | GT closest pair | Productive | est $ |
+|---|---|---|---|---|---|---|
+| E24 | `dfb33b91` yield r4 → r3 yields for r4, post-filter B | 0.575 m | `A:robot_4:0.215` | r3–r4 0.404 m | 1 | 0.0488 |
+| E25 | `c1fd8b36` yield r5 → r1 yields for r5, letter B = label A | 1.730 m | none | r1–r5 0.338 m | 1 | 0.0470 |
+| E26 | `cf77ca65` yield r1 → r5 yields for r1, single candidate | 1.036 m | none | r2–r3 0.323 m | 0 (censored) | 0.0437 |
+
+REV 7 vs REV 6 (E6-E26 vs E6-E23; `aggregate_b5.py` reproduces
+`agg_b4.json` block-for-block on the prior 18): admitted/dispatched
+pooled 11/17 → 14/20, A26+ runtime 8/8 → 11/11; clearance releases
+4 → 7 (+ the one E20 contact push); first-conflict yield 5/18 (CI
+0.097-0.535) vs MC 12/18 → 6/21 (CI 0.113-0.522) vs MC 15/21;
+alternations 0 in 18 → 0 in 21, NO LIVELOCK; productive nonzero
+8/30 → 10/33 all-classified (live 7/18 → 9/21); vb∧matched 16 / 13
+→ 17 / 14 (shield-excluded / raw); all-live cost $0.7546 over 18 →
+$0.8941 over 21. The churn triple stays registered and default-off
+(A29), not re-derived.
+
+E24 OFFLINE RE-GROUND (report §9.1; the §9 item 3 measurement).
+The recorded inputs of `dfb33b91` replayed on `9a018ca` with the
+switch on reproduce the live stage-2 record and dispatched yield
+exactly (candidates, letters, listing, parameters, degradations);
+no earlier E24 artifact carries a filter tag, so draw index 2
+holds. With the switch OFF stage 2 offers 4 candidates: pre-A
+(0.022, 1.225) 0.215 m rank 1 (the dropped one), pre-B 0.505 m,
+pre-C (0.382, 1.225) 0.575 m rank 0, pre-D 0.865 m. DETERMINISTIC:
+the dropped candidate is NOT the default; the switch-off default is
+pre-C, the dispatched pose, so a defaulted or failed stage 2 would
+have dispatched the identical yield; the live model picked rank 0.
+NOT DETERMINISTIC: the stage-2 model's answer to the switch-off
+4-mark prompt (letters A→pre-B, B→pre-D, C→pre-A, D→pre-C), so
+whether it would have picked the 0.215 m pose is undeterminable
+offline. LETTER REPLAY (A29(iii)): the recorded letter B read under
+the switch-off lettering grounds pre-D (0.865 m), not A; matched by
+pose the live pick is pre-C. The n = 1 firing is no evidence that
+the filter averted a contact.
+
+FINDINGS (not predicted). (i) BUDGET CENSORING: all three episodes
+were stopped by the $0.05 episode cap at 137 / 174 / 133 of 600
+sim-s with 6 analyses each, so the productive scores are weak;
+E26's yield released 23.7 sim-s before the cut. OWNER DECISION
+NEEDED: raise the episode cap for the next live cells, or accept
+cap-censored productive scoring. (ii) MC-PREDICTED TAGS DID NOT
+FIRE: neither the s25 (`A:robot_5:0.126`) nor the s26
+(`B:robot_3:0.179`) tag fired. E25 had MC's pair and yielder at
+about MC's time but grounded through the dynamic crossing view
+with a 1.169 m escort against MC's 1.95 m leg; MC records no
+grounding-view tags, so the cause is NOT ISOLATED (the §1.6 MC
+caveat). E26's first conflict on MC's pair was a `reverse`
+dispatched as waits. Recorded; no ruling. (iii) E26 RE-LATCH: the
+escorted passer r1 and its parked yielder r5 re-latched at 0.433 m
+GT about 3 sim-s after the clearance release and stayed latched to
+the cut (no contact) — another admitted, unproductive yield after
+E21 and E22 (A28(iii)), and budget-censored. Recorded, not ruled. (iv)
+BRING-UP ABORTS ON THE NEW HOST: 2 of 5 attempts (E24 f1 robot_1,
+E25 f1 robot_3 not active 120 s after launch), both $0, both
+retries succeeded; pooled sequential aborts 1/21 → 3/26. OWNER
+DECISION NEEDED: watch as a host effect, or lengthen the
+per-robot active timeout. Still open from the report: whether
+`escort_park_clearance` becomes the default in shield cells
+(n = 1 live firing, which by the re-ground changed no default);
+shield and B3 still unexercised live (shield armed on all 18
+artifacts, no hold placed).
 
 **A30. A29(i) closed: one filtered retreat selection for every
 reader; kept-yielder swap trigger stays unfiltered; next = switch-on
