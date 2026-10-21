@@ -1,0 +1,6 @@
+{
+ "completed": false,
+ "aborted": true,
+ "abort_reason": "stop_flag",
+ "aborted_at_sim_time_sec": 8.0
+}

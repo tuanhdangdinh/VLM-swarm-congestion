@@ -1,0 +1,59 @@
+{
+ "_source": "batch5/s1b_E24_seed24_er2_f2 (pilot, not confirmatory); offset, t_end_rel and encounter onsets cross-checked against scripts/s1_live_conflict_stats.py at 97d68e0",
+ "seed": 1151798991,
+ "gt_offset_s": 0.64,
+ "t_end_rel": 108.807,
+ "censor_reason": "stop_flag",
+ "tasks_completed": 6,
+ "completeness_status": "censored",
+ "makespan_censored": true,
+ "completion_times_s": [
+  27.367,
+  30.367,
+  34.4,
+  68.767,
+  106.667,
+  107.467
+ ],
+ "n_segments": 11,
+ "conflicts": [
+  {
+   "onset_s": 14.507,
+   "end_s": 108.807,
+   "involved": [
+    "robot_1",
+    "robot_5"
+   ],
+   "detected": true,
+   "latency_s": 2.227,
+   "type_label": "crowding",
+   "involved_f1": 1.0
+  },
+  {
+   "onset_s": 40.707,
+   "end_s": 45.607,
+   "involved": [
+    "robot_3",
+    "robot_4"
+   ],
+   "detected": true,
+   "latency_s": 1.393,
+   "type_label": "deadlock",
+   "involved_f1": 1.0
+  }
+ ],
+ "analysis_classes": [
+  "positive",
+  "positive",
+  "positive",
+  "positive",
+  "negative",
+  "negative"
+ ],
+ "n_false_positive": 0,
+ "run_provenance_counts": {
+  "vlm_verbatim": 1,
+  "m3_default": 2,
+  "repaired": 1
+ }
+}

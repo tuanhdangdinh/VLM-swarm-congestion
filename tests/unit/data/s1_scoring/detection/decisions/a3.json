@@ -1,0 +1,73 @@
+{
+ "request_id": "a3",
+ "scene": {
+  "stamp": 40.0,
+  "robots": [
+   {
+    "robot_id": "robot_1",
+    "x": 0.0,
+    "y": 0.0,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": null
+   },
+   {
+    "robot_id": "robot_2",
+    "x": 0.0,
+    "y": 0.0,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": null
+   },
+   {
+    "robot_id": "robot_3",
+    "x": 0.0,
+    "y": 0.0,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": null
+   },
+   {
+    "robot_id": "robot_4",
+    "x": 0.0,
+    "y": 0.0,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": null
+   }
+  ]
+ },
+ "decision": {
+  "blocker_kind": "robot",
+  "congestion_detected": true,
+  "crossing_order": [
+   "robot_4",
+   "robot_3"
+  ],
+  "involved_robots": [
+   "robot_3",
+   "robot_4"
+  ],
+  "justification": "synthetic",
+  "proposed_plan": [
+   {
+    "action": "yield",
+    "robot_id": "robot_3"
+   },
+   {
+    "action": "cross",
+    "robot_id": "robot_4"
+   }
+  ],
+  "reasoning": "synthetic",
+  "root_cause": "synthetic",
+  "strategy": "yield",
+  "type": "deadlock",
+  "yield_robot": "robot_3"
+ },
+ "plan": null,
+ "plan_state": null,
+ "diagnostics": {
+  "error_type": null
+ }
+}
