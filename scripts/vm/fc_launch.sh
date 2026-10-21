@@ -172,7 +172,9 @@
 #                          NAV2_HEALTH_GRACE_SEC for a respawn re-activation.
 #   NAV2_STACK_ACTIVE_TIMEOUT_SEC
 #                          Sequential mode: per-stack budget from its launch
-#                          to active (default 120).
+#                          to active (default 180; 120 until prereg-v3 A32,
+#                          owner ruling R3 2026-10-21, after E24/E25 aborted
+#                          at 120 s on the asia-northeast1-a host).
 #   NAV2_HEALTH_GRACE_SEC  Sequential mode: how long the post-loop health
 #                          gate waits for a stack that went down after
 #                          activation to come back (default 45).
@@ -525,7 +527,7 @@ NAV2_ACTIVE_TIMEOUT_SEC="${NAV2_ACTIVE_TIMEOUT_SEC:-240}"
 # the fixed two-robot stages always used (goldens pin `sleep 3`).
 NAV2_LAUNCH_STAGGER_SEC="${NAV2_LAUNCH_STAGGER_SEC:-3}"
 NAV2_BRINGUP_MODE="${NAV2_BRINGUP_MODE:-parallel}"
-NAV2_STACK_ACTIVE_TIMEOUT_SEC="${NAV2_STACK_ACTIVE_TIMEOUT_SEC:-120}"
+NAV2_STACK_ACTIVE_TIMEOUT_SEC="${NAV2_STACK_ACTIVE_TIMEOUT_SEC:-180}"
 NAV2_HEALTH_GRACE_SEC="${NAV2_HEALTH_GRACE_SEC:-45}"
 # One stack's lifecycle state from its own log: aborted (any "Aborting
 # bringup"), active (last active line after the last bond-heartbeat CRITICAL
