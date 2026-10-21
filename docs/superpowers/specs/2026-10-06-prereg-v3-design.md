@@ -4,6 +4,7 @@
 
 **Revision history:**
 
+- Addendum A32 (2026-10-21): S1b configuration freeze for confirmatory collection (owner rulings R1-R5), inserted after A26 and above A31, as A27-A31 were.
 - Addendum A31 (2026-10-20): E24-E26 escort-filter mini-batch outcome, inserted after A26 and above A30, as A27-A30 were.
 - Rev 2 (2026-10-06): full revision after independent advisor review
   (2 blockers, 6 majors, 17 minors — all addressed). Material
@@ -1434,6 +1435,89 @@ completion; only E6 released on real clearance). Projected effect
 of A alone: admits 3/9→5/9; B is the bigger lever (covers both
 MC-matched failed yields). Deploy note: A touches live-mounted M3
 files AND colcon-built M4 files — rebuild + md5 both.
+
+**A32. S1b configuration freeze for confirmatory collection
+(2026-10-21; owner rulings R1-R5 approved 2026-10-21; code on
+`feat/v3-s1b-freeze` cut from integration @d80ee49).** Five rulings
+close A31's open owner decisions and A29's item (ii). Each names the
+addendum it rests on and the exact artifact.
+
+- **R1. Escort/park filter ON in shield cells, OFF elsewhere.**
+  Evidence: A31 (P1-P4 PASS; the one live firing dropped a
+  non-default candidate; E24 re-ground), A30 (one filtered selection
+  for every reader; switch off byte-identical), A29. Artifact:
+  `config/grounding/s1b_dynamic_shield_escort.yaml`, md5
+  409688866d25289309e081dcb9433037, is PROMOTED to the registered
+  shield config for confirmatory S1b cells, unedited. Its
+  non-comment content is the pinned `s1b_dynamic_shield.yaml`
+  (ee5fe68f) plus exactly the line `  escort_park_clearance: true`
+  (the headers differ only in comments); pinned by
+  `tests/unit/test_a30_escort_overlay.py` (md5 of both files and the
+  content diff), commit `b2555b9`. Every other cell keeps its current
+  grounding file, where `escort_park_clearance` is absent and
+  therefore off. Pinned files unchanged: rag e18c723c, s1b_dynamic
+  535f5281, s1b_dynamic_shield ee5fe68f, install `safety.yaml`
+  59839662.
+- **R2. Episode cost cap $0.05 → $0.10 for confirmatory runs.**
+  Evidence: A31 finding (i) (all three episodes cut by the $0.05 cap
+  at 137 / 174 / 133 of 600 sim-s). Artifact: KIT/RUNBOOK ONLY, no
+  code. The batch cap and the start floor are per cell and are set
+  in the kit, not in code. The kit is not built by this addendum.
+- **R3. Per-robot bring-up "not active" timeout 120 s → 180 s.**
+  Evidence: A31 finding (iv) (E24 f1 robot_1 and E25 f1 robot_3 not
+  active 120 s after launch; pooled sequential aborts 3/26). The 120 s
+  was the default of `NAV2_STACK_ACTIVE_TIMEOUT_SEC` in the tracked
+  launcher `scripts/vm/fc_launch.sh` (sequential mode, per-stack
+  budget), not a kit value. Artifact: default changed to 180,
+  commit `d975f13`, with a dry-run test
+  (`test_sequential_mode_per_stack_budget_defaults_to_180s_when_unset`).
+  The overall lifecycle gate `NAV2_ACTIVE_TIMEOUT_SEC` (240; S1b run
+  lines 360) and the health grace (45 s) are unchanged. Kit
+  constraint: keep `NAV2_BRINGUP_MODE=sequential` (the 180 s applies
+  only there; the batch-5 p9 chain sets it and does not set the
+  per-stack variable) and leave the variable unset or set it to 180.
+- **R4. Churn bound 3/130/0 stays registered and DEFAULT-OFF.**
+  Evidence: A29 churn sweep, A21(iii), A31 (not re-derived). No code
+  or config change.
+- **R5. A29 item (ii) closed: the stage-2 record carries the
+  dropped candidates.** Evidence: A29 (ii), A30 ("still open,
+  non-blocking"), A31 E24 re-ground (needed a full replay to recover
+  what the record could have shown). Artifact: commit `6abea45`.
+  `RetreatStage2Record.dropped_candidates`, one entry per violating
+  escort leg, with the pre-filter label, the park pose (x, y), the
+  passer id, the clearance in metres and the reason
+  `escort_hits_park`, filled from `filter_escort_park_candidates`.
+  The key is omitted from the dump when empty, so a switch-off
+  record is byte-identical: the A29 golden
+  `tests/unit/data/a29_filter_parity/golden_off.json` passes
+  unchanged. A29 item (iii) (replay-kit letter mapping) stays
+  DEFERRED.
+
+PILOTS EXCLUDED. Episodes E6-E26 were pilots, run before this
+freeze, and stay excluded from every confirmatory count, as
+Discipline item 2 requires ("pilots are excluded from confirmatory
+counts", this document, Discipline item 2, lines 75-76 when A32 was
+written).
+
+FIRST CONFIRMATORY CELL NEEDS: shield config = the escort overlay
+(md5 40968886); episode cap $0.10; bring-up per-stack timeout 180 s;
+RECORD=1; churn bound off; plus the standing A28(i) requirement that
+the 0.20 m floor swap and the pre/post arm gates run "in EVERY
+future S1b live cell, shield or not" (A28(i), line 1776 when A32
+was written); and the VM deploy of this branch: `command_grounder.py`
+(live-mounted M3), `models.py` and `retreat_stage2.py` (colcon-built
+`swarm_orchestrator`: rebuild, then md5 source vs install) and
+`scripts/vm/fc_launch.sh`, since A31 left the A28/A29 runtime
+deployed and R3/R5 exist only on `feat/v3-s1b-freeze`. This addendum does not set N
+or name cells. The registered figures are the existing ones: "S1's
+own budget (R=20/arm ≈ 40–48 h)" (this document, R3.7, line 506 when A32 was written) and
+"Confirmatory n is **R = 20 per arm, registered**, from the first
+20 seeds; seeds 21–100 are an extension only"
+(`docs/superpowers/specs/2026-10-06-v3-scene-design.md` line 155,
+S1 runs row). S1b inherits the S1 budget through R3.6: "Runs only
+if S1a lands and budget (R3.7) permits" (line 452 when A32 was written). No
+S1b-specific N appears in A15-A31; any departure from R = 20 per arm
+needs its own ruling.
 
 **A31. E24-E26 escort-filter mini-batch outcome: P1-P4 all PASS;
 the one live filter firing dropped a non-default candidate; all
