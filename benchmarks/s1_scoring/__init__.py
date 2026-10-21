@@ -29,10 +29,13 @@ from benchmarks.s1_scoring.conflicts import (
     summarize_conflicts,
 )
 from benchmarks.s1_scoring.delay import (
+    DEFAULT_TABLE,
+    S1B_FREE_FLOW_TABLE,
     DelayResult,
     DelaySummary,
     SegmentDelay,
     SegmentTable,
+    default_segment_table,
     load_segment_table,
     score_delay,
     summarize_delay,
@@ -57,6 +60,8 @@ from benchmarks.s1_scoring.throughput import (
 )
 
 __all__ = [
+    "DEFAULT_TABLE",
+    "S1B_FREE_FLOW_TABLE",
     "ArmDeltaResult",
     "BundleRecords",
     "CompletenessResult",
@@ -80,6 +85,7 @@ __all__ = [
     "conflict_episodes",
     "gt_offset",
     "kaplan_meier",
+    "default_segment_table",
     "load_segment_table",
     "pair_by_seed",
     "pair_intervals",

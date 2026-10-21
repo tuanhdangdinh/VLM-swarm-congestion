@@ -37,7 +37,7 @@ def test_arm_delta_uses_common_window_when_one_arm_censored():
 
 def test_arm_delta_delay_vacuous_without_table():
     records = read_bundle(DATA / "complete")
-    assert _by_name(arm_delta([records], [records], reps=10))[
+    assert _by_name(arm_delta([records], [records], table=None, reps=10))[
         "delay_lower_bound_mean_s"
     ].status == "vacuous"
 

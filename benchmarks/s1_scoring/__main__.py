@@ -2,7 +2,7 @@
 
 Usage:
     python -m benchmarks.s1_scoring BUNDLE... --out results.jsonl
-        [--free-flow TABLE.json] [--scene-key mapd_5_s1b] [--grid-s 1.0]
+        [--free-flow TABLE.json | --no-free-flow] [--scene-key mapd_5_s1b] [--grid-s 1.0]
         [--merge-gap-s 2.0] [--min-duration-s 0.0] [--pre-s 0.0] [--post-s 5.0]
         [--min-overlap 1] [--accepted-type deadlock ...]
         [--incremental-fraction-bound 0.5]
@@ -11,7 +11,9 @@ Usage:
 One line per positional bundle (`kind: episode`, or `kind: not_an_episode`
 with the reason for a bundle A33(0) refuses), then one `kind: arm_delta`
 line when both arms are given (arm bundles must all be episodes). Every
-PROPOSAL flag defaults to its A33 value.
+PROPOSAL flag defaults to its A33 value. Without --free-flow, a `mapd_5*`
+scene key scores delay against the frozen S1b table (A34 R8);
+--no-free-flow scores it as `no_table`.
 Arms are labelled by the caller, never inferred from the backend.
 """
 
@@ -25,7 +27,7 @@ from pathlib import Path
 from benchmarks.s1_scoring.arm_delta import DEFAULT_BOOT_SEED, DEFAULT_REPS, arm_delta
 from benchmarks.s1_scoring.bundle_io import NotAnEpisodeError, read_bundle
 from benchmarks.s1_scoring.conflicts import ConflictParams
-from benchmarks.s1_scoring.delay import DEFAULT_SCENE_KEY, load_segment_table
+from benchmarks.s1_scoring.delay import DEFAULT_SCENE_KEY, DEFAULT_TABLE, load_segment_table
 from benchmarks.s1_scoring.episode import score_records
 from benchmarks.s1_scoring.throughput import DEFAULT_GRID_S
 
@@ -41,7 +43,9 @@ def build_parser() -> argparse.ArgumentParser:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("bundles", nargs="*", type=Path)
     p.add_argument("--out", type=Path, required=True)
-    p.add_argument("--free-flow", type=Path, default=None)
+    ff = p.add_mutually_exclusive_group()
+    ff.add_argument("--free-flow", type=Path, default=None)
+    ff.add_argument("--no-free-flow", action="store_true")
     p.add_argument("--scene-key", default=DEFAULT_SCENE_KEY)
     p.add_argument("--grid-s", type=float, default=DEFAULT_GRID_S)
     p.add_argument("--merge-gap-s", type=float, default=defaults.merge_gap_s)
@@ -81,7 +85,12 @@ def main(argv: list[str] | None = None) -> int:
         accepted_types=tuple(args.accepted_type) if args.accepted_type else ("deadlock",),
         incremental_fraction_bound=args.incremental_fraction_bound,
     )
-    table = load_segment_table(args.free_flow) if args.free_flow else None
+    if args.no_free_flow:
+        table = None
+    elif args.free_flow:
+        table = load_segment_table(args.free_flow)
+    else:
+        table = DEFAULT_TABLE
     lines = []
     for bundle in args.bundles:
         try:

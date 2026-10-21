@@ -14,8 +14,9 @@ from benchmarks.s1_scoring.bundle_io import BundleRecords, CensorReason, read_bu
 from benchmarks.s1_scoring.conflicts import ConflictParams, ConflictsResult, score_conflicts
 from benchmarks.s1_scoring.delay import (
     DEFAULT_SCENE_KEY,
+    DEFAULT_TABLE,
     DelayResult,
-    SegmentTable,
+    TableArg,
     score_delay,
 )
 from benchmarks.s1_scoring.makespan import (
@@ -51,7 +52,7 @@ class EpisodeScores(BaseModel):
 def score_records(
     records: BundleRecords,
     *,
-    table: SegmentTable | None = None,
+    table: TableArg = DEFAULT_TABLE,
     scene_key: str = DEFAULT_SCENE_KEY,
     grid_s: float = DEFAULT_GRID_S,
     params: ConflictParams | None = None,
@@ -60,7 +61,8 @@ def score_records(
 
     Args:
         records: The bundle records (possibly truncated, A33(7)).
-        table: The segment-keyed free-flow table, or None (delay vacuous).
+        table: The segment-keyed free-flow table, None (delay vacuous), or
+            `DEFAULT_TABLE` (the scene key's frozen table, A34 R8).
         scene_key: The free-flow scene key.
         grid_s: The throughput grid step.
         params: The per-conflict PROPOSAL parameters.
@@ -86,7 +88,7 @@ def score_records(
 def score_bundle(
     bundle: Path,
     *,
-    table: SegmentTable | None = None,
+    table: TableArg = DEFAULT_TABLE,
     scene_key: str = DEFAULT_SCENE_KEY,
     grid_s: float = DEFAULT_GRID_S,
     params: ConflictParams | None = None,
@@ -95,7 +97,8 @@ def score_bundle(
 
     Args:
         bundle: The bundle directory.
-        table: The segment-keyed free-flow table, or None (delay vacuous).
+        table: The segment-keyed free-flow table, None (delay vacuous), or
+            `DEFAULT_TABLE` (the scene key's frozen table, A34 R8).
         scene_key: The free-flow scene key.
         grid_s: The throughput grid step.
         params: The per-conflict PROPOSAL parameters.

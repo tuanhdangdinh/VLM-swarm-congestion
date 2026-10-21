@@ -4,8 +4,10 @@ Implements prereg-v3 A33(4). A segment is one task leg A->B of one robot;
 departure and arrival follow the two timing rules frozen in every free-flow
 table (`own_departure`, `gt_within_0.35_stay_0.5`), applied per segment, and
 the baseline comes from a table keyed by (scene, "A->B"). Without a table or
-a key the delay is null (`no_table` / `no_baseline`), never fabricated: A33(4)
-records that no frozen S1b table exists yet (owner decision D3).
+a key the delay is null (`no_table` / `no_baseline`), never fabricated. A34 R8
+(owner ruling on A33(10) D3) froze the 2026-10-10 S1b harvest as
+`data/free_flow_s1b_2026-10-10.json`; it is the default table for every
+`mapd_5*` scene key, and an explicit `table=None` still means `no_table`.
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ import json
 import math
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -24,8 +26,12 @@ from benchmarks.s1_scoring.bundle_io import BundleRecords
 DEPARTURE_SPEED_MPS = 0.03
 ARRIVAL_TOLERANCE_M = 0.35
 ARRIVAL_STAY_M = 0.5
-# A33(4) PROPOSAL default scene key.
+# A33(4) PROPOSAL default scene key (ruled A34 R11).
 DEFAULT_SCENE_KEY = "mapd_5_s1b"
+# A34 R8: the frozen S1b free-flow table, default for `mapd_5*` scene keys.
+S1B_FREE_FLOW_TABLE: Final = Path(__file__).parent / "data" / "free_flow_s1b_2026-10-10.json"
+S1B_FREE_FLOW_MD5: Final = "b4002d7697f4d8f27c31792a9b269162"
+DEFAULT_TABLE_SCENE_PREFIX: Final = "mapd_5"
 
 SegmentReason = Literal["scored", "censored", "never_departed", "no_table", "no_baseline"]
 
@@ -70,6 +76,46 @@ def load_segment_table(path: Path) -> SegmentTable:
                 raise ValueError(f"{path}: {scene}/{segment} has no time_sec")
             scenes[scene][segment] = float(entry["time_sec"])
     return SegmentTable(table_id=raw["table_id"], scenes=scenes)
+
+
+class _DefaultTable:
+    """Sentinel type: resolve the table from the scene key (A34 R8)."""
+
+    def __repr__(self) -> str:
+        return "DEFAULT_TABLE"
+
+
+DEFAULT_TABLE: Final = _DefaultTable()
+TableArg = SegmentTable | None | _DefaultTable
+
+
+def default_segment_table(scene_key: str) -> SegmentTable | None:
+    """Return the frozen free-flow table registered for `scene_key`, if any.
+
+    Args:
+        scene_key: The free-flow scene key.
+
+    Returns:
+        The frozen S1b table (A34 R8) for a `mapd_5*` key, else None.
+    """
+    if not scene_key.startswith(DEFAULT_TABLE_SCENE_PREFIX):
+        return None
+    return load_segment_table(S1B_FREE_FLOW_TABLE)
+
+
+def resolve_table(table: TableArg, scene_key: str) -> SegmentTable | None:
+    """Resolve a table argument: `DEFAULT_TABLE` means the scene key's frozen table.
+
+    Args:
+        table: A table, None (no table), or `DEFAULT_TABLE`.
+        scene_key: The free-flow scene key.
+
+    Returns:
+        The table to score with, or None.
+    """
+    if isinstance(table, _DefaultTable):
+        return default_segment_table(scene_key)
+    return table
 
 
 class SegmentDelay(BaseModel):
@@ -133,20 +179,22 @@ def _segment_events(records: BundleRecords) -> dict[tuple[str, int], dict[str, A
 
 def score_delay(
     records: BundleRecords,
-    table: SegmentTable | None,
+    table: TableArg = DEFAULT_TABLE,
     scene_key: str = DEFAULT_SCENE_KEY,
 ) -> DelayResult:
     """Score A33(4) for every issued segment of one episode.
 
     Args:
         records: The bundle records.
-        table: The segment-keyed free-flow table, or None (then every segment
-            is `no_table` and the result is vacuous).
-        scene_key: The table's scene key (A33(4) PROPOSAL default `mapd_5_s1b`).
+        table: The segment-keyed free-flow table; None (then every segment is
+            `no_table` and the result is vacuous); or `DEFAULT_TABLE` (the
+            default), which loads the frozen table of a `mapd_5*` scene key.
+        scene_key: The table's scene key (A33(4) default `mapd_5_s1b`).
 
     Returns:
         The per-segment records and the episode summary.
     """
+    table = resolve_table(table, scene_key)
     events = _segment_events(records)
     end_gt = records.abs_gt_end
     segments: list[SegmentDelay] = []

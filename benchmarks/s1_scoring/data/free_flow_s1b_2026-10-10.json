@@ -1,0 +1,201 @@
+{
+ "table_id": "free_flow_s1b_2026-10-10",
+ "schema_version": 1,
+ "keyed_by": "segment",
+ "origin_rule": "own_departure",
+ "arrival_rule": "gt_within_0.35_stay_0.5",
+ "provenance": {
+  "frozen": "2026-10-21, prereg-v3 A34 R8 (owner ruling: freeze the 2026-10-10 harvest)",
+  "source": "docs/reports/2026-10-10-s1b-pilot.md section 8 (pilot harvest, rule 3); raw bundles data/logs/vm_runs/s1b_pilot/s1b_ff_<a>_<b> (Mac pull, untracked)",
+  "harness": "solo_run.sh (from scripts/vm/free_flow_run.sh) solo_in_space legs on map mapd_5_s1b, default mock backend, 0 dispatches per leg, seed 42",
+  "tree": "VM runtime feat/v3-integration@3d307f8 delta (s1b_pilot NOTES, deploy a19)",
+  "measured": "fc_launch stamps 20261009_231102..20261010_005723 (VM clock)",
+  "measured_legs": "18",
+  "derivation": "scripts/free_flow_table.py derive_entries(mechanism=solo_in_space) on each bundle's gt/, unchanged rules; departure = first GT speed_mps > 0.03 (the rule benchmarks/s1_scoring/delay.py applies). Report section 8 timed departure from the first GT displacement > 0.03 m, so its leg times are 0.2-0.4 s shorter; arrivals are identical.",
+  "caveat": "pilot harvest on the s1b-pilot VM (report section 8: new VM); registered cross-VM equivalence caveat recorded as a limitation (A34 R8)"
+ },
+ "scenes": {
+  "mapd_5_s1b": {
+   "E->N": {
+    "robot_id": "robot_2",
+    "time_sec": 16.1,
+    "run_id": "s1b_ff_e_n:20261009_234828",
+    "gt_hash": "663fe6227f518753f2e64480fe0a1c368ecd9732c4f197c892c73fcd623a226f",
+    "mechanism": "solo_in_space",
+    "departure_sec": 11.7,
+    "arrival_sec": 27.8,
+    "min_clearance_m": null
+   },
+   "E->S": {
+    "robot_id": "robot_3",
+    "time_sec": 16.4,
+    "run_id": "s1b_ff_e_s:20261010_000058",
+    "gt_hash": "1bd8d6962f568e09097a847bf6f73c10376972a033dce5b1f5eb12a93e8604d6",
+    "mechanism": "solo_in_space",
+    "departure_sec": 11.4,
+    "arrival_sec": 27.8,
+    "min_clearance_m": null
+   },
+   "E->Wm": {
+    "robot_id": "robot_1",
+    "time_sec": 29.9,
+    "run_id": "s1b_ff_e_wm:20261010_005723",
+    "gt_hash": "78f23c9e657b665bbe1932699950de52b8a248bc81b385beee8e18be32ae5816",
+    "mechanism": "solo_in_space",
+    "departure_sec": 12.4,
+    "arrival_sec": 42.3,
+    "min_clearance_m": null
+   },
+   "E->Wp": {
+    "robot_id": "robot_5",
+    "time_sec": 29.2,
+    "run_id": "s1b_ff_e_wp:20261010_004451",
+    "gt_hash": "62f156fe4a59518dacc1db97579b9f4341d9783e5aa357820d511908e7c11b04",
+    "mechanism": "solo_in_space",
+    "departure_sec": 12.2,
+    "arrival_sec": 41.4,
+    "min_clearance_m": null
+   },
+   "N->E": {
+    "robot_id": "robot_5",
+    "time_sec": 16.4,
+    "run_id": "s1b_ff_n_e:20261009_235446",
+    "gt_hash": "9cbfe5bc3175238e6da5f43b2f526b06d8328e09d0a2773789b838674bca2e58",
+    "mechanism": "solo_in_space",
+    "departure_sec": 11.7,
+    "arrival_sec": 28.1,
+    "min_clearance_m": null
+   },
+   "N->S": {
+    "robot_id": "robot_4",
+    "time_sec": 15.6,
+    "run_id": "s1b_ff_n_s:20261009_233605",
+    "gt_hash": "1f7a19beade532f10a9123ea30655d00c6b4a4f6c3365c7db2b2f7cdcbad9abc",
+    "mechanism": "solo_in_space",
+    "departure_sec": 11.9,
+    "arrival_sec": 27.5,
+    "min_clearance_m": null
+   },
+   "N->Wm": {
+    "robot_id": "robot_3",
+    "time_sec": 22.2,
+    "run_id": "s1b_ff_n_wm:20261010_003215",
+    "gt_hash": "b9a3de8ab1b4e8e6b34db927833ccbe8f2bb439c69511ebabc78a81132e1a6b8",
+    "mechanism": "solo_in_space",
+    "departure_sec": 13.3,
+    "arrival_sec": 35.5,
+    "min_clearance_m": null
+   },
+   "N->Wp": {
+    "robot_id": "robot_2",
+    "time_sec": 11.8,
+    "run_id": "s1b_ff_n_wp:20261009_231717",
+    "gt_hash": "32f3cad6ca113beb2bced752cdef5d019f1ac1d4e6f5d4e501c1a3851422a2d8",
+    "mechanism": "solo_in_space",
+    "departure_sec": 12.2,
+    "arrival_sec": 24.0,
+    "min_clearance_m": null
+   },
+   "S->E": {
+    "robot_id": "robot_4",
+    "time_sec": 16.8,
+    "run_id": "s1b_ff_s_e:20261010_000711",
+    "gt_hash": "5c3b7d3a4e4cff2a3060bd1b2440685b0a15215da7ae3971d513ace07ce2407a",
+    "mechanism": "solo_in_space",
+    "departure_sec": 11.5,
+    "arrival_sec": 28.3,
+    "min_clearance_m": null
+   },
+   "S->N": {
+    "robot_id": "robot_3",
+    "time_sec": 15.5,
+    "run_id": "s1b_ff_s_n:20261009_234214",
+    "gt_hash": "35d72cc84c75ac060838e724ec786855e713dd07d129bd1feba4cdb7a5efc836",
+    "mechanism": "solo_in_space",
+    "departure_sec": 12.0,
+    "arrival_sec": 27.5,
+    "min_clearance_m": null
+   },
+   "S->Wm": {
+    "robot_id": "robot_2",
+    "time_sec": 11.6,
+    "run_id": "s1b_ff_s_wm:20261009_232947",
+    "gt_hash": "85a22cdff4194e3ce7442498a205f6bd19cc3d03e59971c64c816ef5291c7c72",
+    "mechanism": "solo_in_space",
+    "departure_sec": 12.1,
+    "arrival_sec": 23.7,
+    "min_clearance_m": null
+   },
+   "S->Wp": {
+    "robot_id": "robot_1",
+    "time_sec": 21.5,
+    "run_id": "s1b_ff_s_wp:20261010_001938",
+    "gt_hash": "9258414b7f1ba87cfcc4589039358aae254650417ea3cdcc92151fe1440a135a",
+    "mechanism": "solo_in_space",
+    "departure_sec": 11.1,
+    "arrival_sec": 32.6,
+    "min_clearance_m": null
+   },
+   "Wm->E": {
+    "robot_id": "robot_1",
+    "time_sec": 30.1,
+    "run_id": "s1b_ff_wm_e:20261010_005106",
+    "gt_hash": "12164377ad42f5a6d35250f7e6b6c3e4c2e13ae2117ea153d0288079c2fc2948",
+    "mechanism": "solo_in_space",
+    "departure_sec": 11.5,
+    "arrival_sec": 41.6,
+    "min_clearance_m": null
+   },
+   "Wm->N": {
+    "robot_id": "robot_4",
+    "time_sec": 21.9,
+    "run_id": "s1b_ff_wm_n:20261010_002553",
+    "gt_hash": "cf2b7661069bef40a4f8f4f2ca47b8e84a23ccbb9f6b4ed8120a98f5ef6e75eb",
+    "mechanism": "solo_in_space",
+    "departure_sec": 10.9,
+    "arrival_sec": 32.8,
+    "min_clearance_m": null
+   },
+   "Wm->S": {
+    "robot_id": "robot_5",
+    "time_sec": 11.3,
+    "run_id": "s1b_ff_wm_s:20261009_232332",
+    "gt_hash": "fc1445684463de6a64277be2ae60c98ca1026a233f936de1fb7a9ce20314de21",
+    "mechanism": "solo_in_space",
+    "departure_sec": 11.4,
+    "arrival_sec": 22.7,
+    "min_clearance_m": null
+   },
+   "Wp->E": {
+    "robot_id": "robot_3",
+    "time_sec": 29.4,
+    "run_id": "s1b_ff_wp_e:20261010_003832",
+    "gt_hash": "f29fb73a48e44670306470478390bda503d354a5eeb8ee64c575b25baa987b64",
+    "mechanism": "solo_in_space",
+    "departure_sec": 11.0,
+    "arrival_sec": 40.4,
+    "min_clearance_m": null
+   },
+   "Wp->N": {
+    "robot_id": "robot_1",
+    "time_sec": 11.3,
+    "run_id": "s1b_ff_wp_n:20261009_231102",
+    "gt_hash": "ec91357667ae3ab211e79070e942ebf6cd27f52479843f36bec8ed7d40aa99a7",
+    "mechanism": "solo_in_space",
+    "departure_sec": 11.3,
+    "arrival_sec": 22.6,
+    "min_clearance_m": null
+   },
+   "Wp->S": {
+    "robot_id": "robot_2",
+    "time_sec": 21.3,
+    "run_id": "s1b_ff_wp_s:20261010_001324",
+    "gt_hash": "c33c07bcc5b70f2ee48e26d946d29f9a8fc0387c65f226e7bad2678046678ea3",
+    "mechanism": "solo_in_space",
+    "departure_sec": 11.3,
+    "arrival_sec": 32.6,
+    "min_clearance_m": null
+   }
+  }
+ }
+}
