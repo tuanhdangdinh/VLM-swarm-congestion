@@ -534,6 +534,14 @@ class OrchestratorConfig(BaseModel):
     refusal_no_action: bool = False
     # prereg-v3 A21(b) per-cluster clearing-dispatch bound; default off, values unset.
     churn_bound: ChurnBoundConfig = Field(default_factory=ChurnBoundConfig)
+    # prereg-v3 A34 R9 Arm B ("Layer-2-off classical"). False skips Layer 2
+    # entirely: no congestion detection, no M2/M3 call (the backend is never
+    # even constructed), no decision artifact, no shadow_classical, no T0
+    # probe, no contradiction trigger and no dispatch, while the registry,
+    # task stream, arrival gate, tasks log and scene log run unchanged. Unlike
+    # `dispatch_enabled: false` (M2/M3 still run and bill), nothing reaches a
+    # backend. True (the default) is the unchanged node.
+    reasoning_enabled: bool = True
 
     @field_validator("initial_tasks")
     @classmethod
@@ -999,6 +1007,81 @@ def parse_scene_snapshot(raw: str) -> SceneSnapshot:
         robots=robots,
         dropped_frame=bool(diagnostics.get("dropped_frame", False)),
     )
+
+
+REASONING_OFF_STATUS_LINE = (
+    "reasoning_enabled=false layer2=off detection=off m2=off m3=off "
+    "shadow_classical=off t0_probe=off contradiction_trigger=off dispatch=off"
+)
+"""M5's one startup line when `reasoning_enabled` is false (the Arm B condition gate greps it)."""
+
+
+class Layer2Gate(BaseModel):
+    """Which Layer-2 paths M5 runs, resolved once from the config at startup.
+
+    Every field is False when `reasoning_enabled` is false, whatever the
+    individual flags say; otherwise each is that flag's own value.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    reasoning_enabled: bool
+    shadow_classical: bool
+    t0_probe_mode: bool
+    contradiction_trigger: bool
+    overridden: tuple[str, ...] = ()
+
+
+def resolve_layer2_gate(config: OrchestratorConfig) -> Layer2Gate:
+    """Resolve the Layer-2 paths M5 may run under `config`.
+
+    Args:
+        config: The loaded orchestrator config.
+
+    Returns:
+        The gate; `overridden` names each flag that was set on but is forced
+        off because `reasoning_enabled` is false, so M5 can warn about it.
+    """
+    requested = {
+        "shadow_classical": config.shadow_classical,
+        "t0_probe_mode": config.t0_probe_mode,
+        "contradiction_trigger": config.contradiction_trigger.enabled,
+    }
+    if config.reasoning_enabled:
+        return Layer2Gate(reasoning_enabled=True, **requested)
+    return Layer2Gate(
+        reasoning_enabled=False,
+        shadow_classical=False,
+        t0_probe_mode=False,
+        contradiction_trigger=False,
+        overridden=tuple(name for name, on in requested.items() if on),
+    )
+
+
+def should_submit_pipeline(config: OrchestratorConfig) -> bool:
+    """Return whether M5 may run congestion detection and submit an M2/M3 analysis.
+
+    Args:
+        config: The loaded orchestrator config.
+
+    Returns:
+        False under Arm B (`reasoning_enabled: false`): no stall, manual or
+        contradiction trigger may start an analysis.
+    """
+    return config.reasoning_enabled
+
+
+def reasoning_status_line(config: OrchestratorConfig) -> str | None:
+    """Return M5's Layer-2-off startup line, or None when reasoning is enabled.
+
+    Args:
+        config: The loaded orchestrator config.
+
+    Returns:
+        `REASONING_OFF_STATUS_LINE` under `reasoning_enabled: false`, else None
+        (a reasoning-on node logs nothing new).
+    """
+    return None if config.reasoning_enabled else REASONING_OFF_STATUS_LINE
 
 
 def load_config(raw: dict[str, Any]) -> OrchestratorConfig:

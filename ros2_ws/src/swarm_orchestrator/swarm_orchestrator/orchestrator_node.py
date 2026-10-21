@@ -70,7 +70,10 @@ from swarm_orchestrator.models import (
     load_config,
     parse_annotation_overlays,
     parse_scene_snapshot,
+    reasoning_status_line,
     registry_priorities,
+    resolve_layer2_gate,
+    should_submit_pipeline,
 )
 from swarm_orchestrator.permutation_votes import permutation_votes_log
 from swarm_orchestrator.plan_tracker import PlanTracker
@@ -234,7 +237,8 @@ def _build_shadow(
     file or section is carried into every shadow record instead. `grounding`
     gives Arm B's stage-2 answer the pipeline's own derived-mode inputs.
     """
-    if not config.shadow_classical:
+    # Arm B (`reasoning_enabled: false`) forces the shadow off with the rest of Layer 2.
+    if not resolve_layer2_gate(config).shadow_classical:
         return None
     retreat_context = (
         None
@@ -325,6 +329,7 @@ class OrchestratorNode(Node):
         super().__init__("orchestrator_node")
         self.declare_parameter("config_file", "")
         self._config = config or self._load_config_from_param()
+        self._layer2 = resolve_layer2_gate(self._config)
         if self._config.prompt_zoom_tile and _refuses_extra_images(
             self._config.reasoning_backend_id
         ):
@@ -355,8 +360,12 @@ class OrchestratorNode(Node):
             else derive_order_seed(self._run_id, self._session_id)
         )
         # Only the default pipeline draws stage-2 letters; an injected one
-        # brings its own marker (or none).
-        self._marker = None if pipeline is not None else _build_candidate_marker(self._config)
+        # brings its own marker (or none), and Arm B runs no stage 2 at all.
+        self._marker = (
+            None
+            if pipeline is not None or not self._layer2.reasoning_enabled
+            else _build_candidate_marker(self._config)
+        )
         # (a0) plan channel (prereg-v2 rev 4, build-order step 4): None unless
         # `plan_channel_enabled`, so a flag-off pipeline never calls
         # `verify_and_repair_plan` and the dispatch path stays byte-identical
@@ -368,14 +377,20 @@ class OrchestratorNode(Node):
         # `changed_robot_ids` on every invocation except the one right after
         # a supersession (see that method's docstring).
         self._last_shown_plan_id: int | None = None
-        self._pipeline = pipeline or _build_default_pipeline(
-            self._config,
-            self._grounding,
-            self._marker,
-            self._order_seed,
-            self._plan_tracker,
-            goal_reference_of=self._mission_goal,
-            task_intent_of=self._task_intent,
+        # Arm B never builds the default pipeline, so no VLM backend or
+        # client is constructed and no M2/M3 call is possible.
+        self._pipeline: ReasoningPipeline | None = pipeline or (
+            _build_default_pipeline(
+                self._config,
+                self._grounding,
+                self._marker,
+                self._order_seed,
+                self._plan_tracker,
+                goal_reference_of=self._mission_goal,
+                task_intent_of=self._task_intent,
+            )
+            if self._layer2.reasoning_enabled
+            else None
         )
         # Prompt apparatus (prereg-v2 rev 6). The zoom tile is placed with M1's
         # calibration, shared with the stage-2 marker when there is one.
@@ -438,7 +453,7 @@ class OrchestratorNode(Node):
         trigger = self._config.contradiction_trigger
         self._contradictions = (
             ContradictionMonitor(trigger.divergence_bound_m, trigger.per_event_replan_budget)
-            if trigger.enabled
+            if self._layer2.contradiction_trigger
             else None
         )
         # prereg-v3 A12(iii) scene-unchanged suppression: None unless enabled
@@ -549,7 +564,7 @@ class OrchestratorNode(Node):
         self._probe_scheduler: ProbeScheduler | None = None
         self._probe_executor: ThreadPoolExecutor | None = None
         self._probe_order: PresentationOrderPolicy | None = None
-        if self._config.t0_probe_mode:
+        if self._layer2.t0_probe_mode:
             self._init_probe_mode()
         self._last_scene_log_at = float("-inf")
         self._frame_rgb = None
@@ -635,6 +650,11 @@ class OrchestratorNode(Node):
                 "dispatch disabled (log-only): triggered analyses run M2 and M3 and write "
                 "their artifacts, but no command reaches M4"
             )
+        status_line = reasoning_status_line(self._config)
+        if status_line is not None:
+            self.get_logger().info(status_line)
+            for name in self._layer2.overridden:
+                self.get_logger().warning(f"{name} is set but forced off: reasoning_enabled=false")
         if self._task_stream is not None:
             self._start_task_stream(started_at)
         self._publish_registry()
@@ -723,6 +743,10 @@ class OrchestratorNode(Node):
             self._tick_task_stream(snapshot, now)
         if self._contradictions is not None:
             self._observe_contradictions(snapshot)
+        # Arm B: everything above (scene log, arrival gate, task stream) runs;
+        # stall detection and the analysis it would start do not.
+        if not should_submit_pipeline(self._config):
+            return
         event = self._detector.update(snapshot, self._progress_goal, now)
         if event is None:
             return
@@ -937,6 +961,11 @@ class OrchestratorNode(Node):
         but still respects single-in-flight and active-command gating in the state
         machine, and the frame-freshness check.
         """
+        if not should_submit_pipeline(self._config):
+            response.accepted = False
+            response.analysis_id = ""
+            response.message = "reasoning disabled (reasoning_enabled=false)"
+            return response
         snapshot = self._latest_snapshot
         if snapshot is None or not snapshot.robots:
             response.accepted = False
@@ -1067,7 +1096,13 @@ class OrchestratorNode(Node):
         Returns:
             The presentation order this episode renders robots in, for the
             caller's log line.
+
+        Raises:
+            RuntimeError: If reasoning is disabled; every caller is gated
+                first, so this only stops a future ungated path from billing.
         """
+        if not should_submit_pipeline(self._config) or self._pipeline is None:
+            raise RuntimeError(f"request={request_id}: reasoning_enabled=false, no analysis")
         frame = self._frame_rgb
         downscale = self._config.frame_downscale_width
         image_path = str(Path(self._config.frame_dump_dir) / f"{request_id}.png")
@@ -1782,7 +1817,13 @@ class OrchestratorNode(Node):
 
         Returns:
             The presentation order the probe renders robots in.
+
+        Raises:
+            RuntimeError: If reasoning is disabled (probe mode is never
+                initialised then; this guards a future ungated path).
         """
+        if not should_submit_pipeline(self._config) or self._pipeline is None:
+            raise RuntimeError(f"probe request={request_id}: reasoning_enabled=false, no analysis")
         image_path = str(Path(self._config.frame_dump_dir) / f"{request_id}.png")
         order = self._probe_order.order_for_episode(
             probe_index, [view.robot_id for view in snapshot.robots]
