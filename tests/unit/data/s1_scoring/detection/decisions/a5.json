@@ -1,0 +1,46 @@
+{
+ "request_id": "a5",
+ "scene": {
+  "stamp": 50.0,
+  "robots": [
+   {
+    "robot_id": "robot_1",
+    "x": 0.0,
+    "y": 0.0,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": null
+   },
+   {
+    "robot_id": "robot_2",
+    "x": 0.0,
+    "y": 0.0,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": null
+   },
+   {
+    "robot_id": "robot_3",
+    "x": 0.0,
+    "y": 0.0,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": null
+   },
+   {
+    "robot_id": "robot_4",
+    "x": 0.0,
+    "y": 0.0,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": null
+   }
+  ]
+ },
+ "decision": null,
+ "plan": null,
+ "plan_state": null,
+ "diagnostics": {
+  "error_type": "ConnectionError"
+ }
+}

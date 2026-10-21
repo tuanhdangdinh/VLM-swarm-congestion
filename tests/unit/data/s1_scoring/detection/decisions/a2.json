@@ -1,0 +1,97 @@
+{
+ "request_id": "a2",
+ "scene": {
+  "stamp": 14.0,
+  "robots": [
+   {
+    "robot_id": "robot_1",
+    "x": 0.0,
+    "y": 0.0,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": null
+   },
+   {
+    "robot_id": "robot_2",
+    "x": 0.0,
+    "y": 0.0,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": null
+   },
+   {
+    "robot_id": "robot_3",
+    "x": 0.0,
+    "y": 0.0,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": null
+   },
+   {
+    "robot_id": "robot_4",
+    "x": 0.0,
+    "y": 0.0,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": null
+   }
+  ]
+ },
+ "decision": {
+  "blocker_kind": "robot",
+  "congestion_detected": true,
+  "crossing_order": [
+   "robot_1",
+   "robot_2",
+   "robot_3"
+  ],
+  "involved_robots": [
+   "robot_1",
+   "robot_2",
+   "robot_3"
+  ],
+  "justification": "synthetic",
+  "proposed_plan": [
+   {
+    "action": "yield",
+    "robot_id": "robot_2"
+   },
+   {
+    "action": "cross",
+    "robot_id": "robot_1"
+   }
+  ],
+  "reasoning": "synthetic",
+  "root_cause": "synthetic",
+  "strategy": "yield",
+  "type": "crowding",
+  "yield_robot": "robot_2"
+ },
+ "plan": {
+  "cancel_order": [],
+  "dispatch_matches_plan": true,
+  "edits": [],
+  "legs": [
+   {
+    "action": "yield",
+    "robot_id": "robot_2",
+    "status": "pending"
+   },
+   {
+    "action": "cross",
+    "robot_id": "robot_1",
+    "status": "pending"
+   }
+  ],
+  "order_equivalent": false,
+  "plan_held": true,
+  "plan_id": 1,
+  "provenance": "vlm_verbatim",
+  "rejection_reason": null,
+  "superseded_plan_id": null
+ },
+ "plan_state": null,
+ "diagnostics": {
+  "error_type": null
+ }
+}

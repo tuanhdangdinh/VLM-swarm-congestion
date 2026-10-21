@@ -1,0 +1,58 @@
+{
+ "request_id": "a4",
+ "scene": {
+  "stamp": 45.0,
+  "robots": [
+   {
+    "robot_id": "robot_1",
+    "x": 0.0,
+    "y": 0.0,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": null
+   },
+   {
+    "robot_id": "robot_2",
+    "x": 0.0,
+    "y": 0.0,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": null
+   },
+   {
+    "robot_id": "robot_3",
+    "x": 0.0,
+    "y": 0.0,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": null
+   },
+   {
+    "robot_id": "robot_4",
+    "x": 0.0,
+    "y": 0.0,
+    "theta": 0.0,
+    "status": "STOPPED",
+    "goal": null
+   }
+  ]
+ },
+ "decision": {
+  "blocker_kind": "robot",
+  "congestion_detected": false,
+  "crossing_order": [],
+  "involved_robots": [],
+  "justification": "synthetic",
+  "proposed_plan": null,
+  "reasoning": "synthetic",
+  "root_cause": "synthetic",
+  "strategy": "none",
+  "type": "none",
+  "yield_robot": null
+ },
+ "plan": null,
+ "plan_state": null,
+ "diagnostics": {
+  "error_type": null
+ }
+}
