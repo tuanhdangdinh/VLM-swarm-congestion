@@ -1,0 +1,6 @@
+{"event": "stream_start", "seed": 202, "tasks_total": 4, "nodes": {"A": [0.0, 0.0], "B": [2.0, 0.0], "C": [0.0, 2.0], "D": [2.0, 2.0], "E": [5.0, 0.0], "F": [6.0, 0.0]}, "start_nodes": {"robot_1": "A", "robot_2": "C", "robot_3": "E", "robot_4": "F"}, "sequences": {"robot_1": ["B"], "robot_2": ["D"], "robot_3": ["F"], "robot_4": ["E"]}, "horizon_sim_sec": 600.0}
+{"event": "released", "robot_id": "robot_1", "sim_t": 0.0, "task_index": null, "node": null}
+{"event": "released", "robot_id": "robot_2", "sim_t": 0.0, "task_index": null, "node": null}
+{"event": "released", "robot_id": "robot_3", "sim_t": 0.0, "task_index": null, "node": null}
+{"event": "released", "robot_id": "robot_4", "sim_t": 0.0, "task_index": null, "node": null}
+{"event": "manifest", "sim_t": 0.0, "tasks_completed": 0, "makespan_sim_sec": null}

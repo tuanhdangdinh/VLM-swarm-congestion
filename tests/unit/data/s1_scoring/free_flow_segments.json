@@ -1,0 +1,13 @@
+{
+ "table_id": "synthetic_segments",
+ "scenes": {
+  "synthetic": {
+   "A->B": {
+    "time_sec": 4.0
+   },
+   "C->D": {
+    "time_sec": 4.0
+   }
+  }
+ }
+}
