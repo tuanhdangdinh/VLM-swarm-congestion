@@ -4,6 +4,7 @@
 
 **Revision history:**
 
+- Addendum A33 (2026-10-21): S1 scorer definitions frozen before confirmatory collection (every registered S1 outcome measure defined operationally; seed-policy and interleaving rulings; open owner decisions), inserted after A26 and above A32, as A27-A32 were.
 - Addendum A32 (2026-10-21): S1b configuration freeze for confirmatory collection (owner rulings R1-R5), inserted after A26 and above A31, as A27-A31 were.
 - Addendum A31 (2026-10-20): E24-E26 escort-filter mini-batch outcome, inserted after A26 and above A30, as A27-A30 were.
 - Rev 2 (2026-10-06): full revision after independent advisor review
@@ -1435,6 +1436,412 @@ completion; only E6 released on real clearance). Projected effect
 of A alone: admits 3/9→5/9; B is the bigger lever (covers both
 MC-matched failed yields). Deploy note: A touches live-mounted M3
 files AND colcon-built M4 files — rebuild + md5 both.
+
+**A33. S1 scorer definitions frozen before confirmatory collection
+(2026-10-21; owner-approved task 2026-10-21; code
+`benchmarks/s1_scoring/` on `feat/v3-s1-scorers`, cut from
+integration @97d68e0).** The tranche-1 pre-registration
+(`docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` §1.5 and
+§1.8(f), branch `feat/v3-confirm-t1`) lists registered S1 outcome
+measures that no scorer computes. Confirmatory data must not be
+scored by code written after seeing it, so this addendum fixes every
+one of them before any confirmatory episode runs. The scorer
+implements A33 verbatim, and each of its functions cites the
+paragraph it implements. Every line cite below is "at 24fa2bc"
+(this document before A33 was inserted; scene doc =
+`docs/superpowers/specs/2026-10-06-v3-scene-design.md`; v2 doc =
+`docs/superpowers/specs/2026-09-30-prereg-v2-design.md`). The labels
+are:
+
+- **REGISTERED**: the quoted text fixes the choice.
+- **PROPOSAL**: A33 makes the choice because no registered text does.
+  The scorer exposes it as a named parameter with this default. The
+  owner may overrule it before the first confirmatory number is
+  computed, never after.
+- **OWNER DECISION NEEDED**: A33 cannot pin the choice down; see
+  A33(10).
+
+A33(0) COMMON INPUTS, CLOCK AND CENSORING.
+
+- **Bundle records read.**
+  - `decisions/tasks_*.jsonl` (exactly one per bundle). It provides
+    the `stream_start` keys `seed`, `tasks_total`, `nodes`,
+    `start_nodes`, `sequences` and `horizon_sim_sec`; `released`,
+    `issued`, `arrived` and `dwell_complete` events with
+    `robot_id`, `task_index`, `node` and `sim_t`; and the last
+    `manifest` line's `makespan_sim_sec` and `tasks_completed`.
+  - `gt/ground_truth.jsonl`: `sim_time_sec` and
+    `robots.<id>.{x, y, speed_mps}`.
+  - `gt/run_manifest.json`: `completed`, `aborted`, `abort_reason`
+    and `aborted_at_sim_time_sec`.
+  - `m5_scene.jsonl` (`scene.stamp`, `scene.robots[].{robot_id,
+    status, x, y}`), used only for the offset fit.
+  - `decisions/<uuid>.json`: `scene.stamp`, `decision`, `plan`,
+    `plan_state`, `request_id` and `diagnostics.error_type`. These
+    are sorted by `scene.stamp`, never by file name, because the
+    names are UUIDs.
+- **Never read.**
+  - GT `conflict_type`, `involved_robots` and
+    `robot_robot_contacts`. They are scenario-declared values or
+    stubs (A14 corrigendum, line 1817).
+  - Any `m5.log` stamp. They are wall-clock.
+  - `run_manifest.completed` as a task outcome. It means only that
+    Isaac reached its run length.
+- **Clock (REGISTERED).** "the per-run GT-offset fit as the only
+  sanctioned GT↔ROS join" (lines 288-289).
+  - Operationally this is `scripts/s1_live_conflict_stats.py`
+    `_gt_offset` at 97d68e0: offsets 0.00-1.00 s in 0.01 s steps, the
+    median position error of MOVING M1 rows subsampled to at most
+    3000, smallest median wins.
+  - t0 is robot_1's `released` `sim_t` (M1 clock) mapped to GT:
+    t0_gt = t0 − offset.
+  - Every reported time is rel-s = GT sim-s − t0_gt. M1-clock times
+    (tasks `sim_t`, artifact `scene.stamp`) are mapped by subtracting
+    the offset.
+- **Observation end.** T_end = last GT sample − t0_gt. This is the
+  tracked `gt_end_rel_s` of `scripts/s1_gridlock_stats.py`.
+- **Horizon (finding plus PROPOSAL).**
+  - The registered text is "**H = 600 sim-s.**" (scene doc line 156).
+  - Isaac stops at absolute GT 600 sim-s, while robot_1 is released
+    24-31 sim-s in (pilots E6-E26). An uncut episode therefore
+    observes about 570 rel-s, and "600 sim-s after release" is never
+    observed.
+  - PROPOSAL: "by H" means "by T_end of an uncut run". The scorer
+    reports T_end and the absolute GT end side by side.
+- **Censoring (one rule for every time-to-event quantity).** Every
+  episode is right-censored at T_end, with a reason label taken from
+  `run_manifest`:
+  - `horizon`: `completed: true`;
+  - `stop_flag`: `aborted`, `abort_reason: stop_flag`. This covers the
+    cost cap or an operator stop, which `run_manifest` does not
+    distinguish; A12 shows the flag is not cap-only;
+  - `aborted_other`: any other abort.
+
+  A censored quantity is reported as {value null, censored true,
+  censor_time T_end, reason}, never as missing, and no episode is
+  dropped for being censored.
+- **What counts as an episode.** A bundle is an episode only if its
+  tasks JSONL has a `stream_start` and a `released` event for
+  robot_1. Anything else is refused as `not_an_episode` and is never
+  scored. That includes a bring-up abort's attempt directory: E24 f1
+  and E25 f1 in batch 5 have a GT log and a stop-flag
+  `run_manifest`, but no task stream. There is no fallback t0.
+- **Exclusions.** The scorer excludes no episode.
+  - Pilots E6-E26 are excluded by Discipline item 2 and A32 at
+    aggregation time (`batch6/aggregate_b6.py` filters on the
+    `CONDITION.txt` tag), not by these functions.
+
+A33(1) COMPLETENESS.
+
+- **Registering text.** "completeness via outcome classes" (scene doc
+  line 157); "Scoring per run: completeness (all 25 tasks done by H)"
+  (scene doc line 368).
+- **Definition.**
+  - completed = the number of `dwell_complete` events with rel-s ≤
+    T_end.
+  - total = `stream_start.tasks_total` (25).
+  - The status is one of:
+    - `complete`: completed == total;
+    - `failed`: not complete, reason `horizon` (GECCO's "failed
+      run");
+    - `censored`: not complete, reason `stop_flag` or
+      `aborted_other` (completeness unknown).
+- **Outcome classes.** The registered "outcome classes" reading is
+  the tracked `outcome_class` of `scripts/s1_gridlock_stats.py` at
+  97d68e0, already frozen by the tranche-1 §1.8(f). A33 does not
+  re-implement it.
+- **Across episodes (PROPOSAL).** The proportion `complete` among
+  the non-`censored` episodes, with a Wilson 95% CI, plus the number
+  of `censored` episodes.
+
+A33(2) MAKESPAN ≡ TIME-TO-FULL-RESOLUTION.
+
+- **Registering text.** "Makespan and time-to-full-resolution" (scene
+  doc line 157). The v2 doc maps the two to one quantity: "makespan ↔
+  time-to-full-resolution" (v2 doc lines 1144-1145). A33 therefore
+  defines ONE measure, not two.
+- **Definition.**
+  - When `complete`: makespan = the latest `dwell_complete` rel-s.
+    The offset cancels, so this equals M5's manifest
+    `makespan_sim_sec`; the scorer cross-checks the two and reports a
+    mismatch above 0.05 s.
+  - Otherwise: right-censored at T_end per A33(0).
+- **Across episodes (PROPOSAL).** Kaplan-Meier over episodes, and the
+  restricted mean (RMST) up to τ. τ is set in A33(7) for the delta;
+  per arm alone, τ = that arm's smallest T_end. A naive mean over
+  censored runs is never reported (v2 doc lines 643-647).
+
+A33(3) THROUGHPUT CURVE.
+
+- **Registering text.** "throughput as completed tasks / 25 over sim
+  time" (scene doc line 157); "throughput curve" (scene doc line 369).
+- **Definition.**
+  - Θ_e(t) = (number of `dwell_complete` with rel-s ≤ t) / 25.
+  - It is a right-continuous step function, defined on [0, T_end]
+    only. It is undefined after T_end and never carried flat past
+    censoring.
+  - Output: the completion event times, and Θ on a grid of
+    `grid_s` = 1.0 s (PROPOSAL).
+- **Across episodes (PROPOSAL).** For each t, the mean of Θ_e(t) over
+  the episodes with T_end ≥ t, reported with n_at_risk(t).
+
+A33(4) DELAY_VS_FREE_FLOW PER SEGMENT.
+
+- **Registering text.**
+  - "plus `delay_vs_free_flow` per segment" (scene doc line 157);
+    "per-segment `delay_vs_free_flow`" (scene doc line 369).
+  - "delay_vs_free_flow needs PER-TASK-SEGMENT baselines; the
+    solo-in-space method extends per segment (same single-method
+    rule), a `free_flow` table keyed by (scene, segment)" (lines
+    239-242).
+  - "excess delay vs the same-robot free-flow baseline" (R3.1, line
+    344).
+  - "keys each entry by (`mapd_5`, `A→B`)" (scene doc line 393).
+- **Segment.**
+  - Segment k of robot r runs from node A to node B. A is
+    `start_nodes[r]` for k = 0, else `sequences[r][k−1]`;
+    B = `sequences[r][k]`. The key is "A->B" under scene key
+    `scene_key` (default `mapd_5_s1b`).
+  - The table is keyed by segment, not by robot, as scene doc line
+    393 registers. R3.1's "same-robot" is read as "same leg, solo".
+- **Timing rules.** These are the two frozen in every free-flow
+  table, `origin_rule` `own_departure` and `arrival_rule`
+  `gt_within_0.35_stay_0.5` (`config/free_flow/free_flow_v2.json`;
+  `scripts/free_flow_table.py`), applied per segment:
+  - departure = the first GT sample at or after the segment's
+    `issued` time with `speed_mps` > 0.03;
+  - arrival = the first sample after departure within 0.35 m of node
+    B (`stream_start.nodes`), such that every later sample up to the
+    segment window end is within 0.5 m.
+  - The window end is the segment's `dwell_complete` (mapped), else
+    T_end. This window bound is a PROPOSAL.
+- **Delay.**
+  - delay = (arrival − departure) − ff(scene_key, "A->B").
+  - A segment that departed but did not arrive by T_end is
+    `censored`, with `delay_lower_bound` = T_end − departure − ff.
+  - A segment with no departure is null (`never_departed`).
+  - With no table or no key, the result is null (`no_table` /
+    `no_baseline`), never fabricated.
+- **Per episode.** n_scored, the mean delay over arrived segments,
+  and the mean over departed segments of (delay, or the lower bound
+  if censored), flagged as a lower bound.
+- **Across episodes (PROPOSAL).** Segments are pooled. Report the
+  mean delay over all arrived segments, the mean of (delay, or the
+  lower bound) over all departed segments (flagged as a lower bound),
+  and the counts of scored and censored segments.
+- **BLOCKER.** No frozen S1b baseline exists, so until A33(10) D3 is
+  ruled this measure is VACUOUS (`no_table`):
+  - `free_flow_v2.json` holds no `mapd_5*` scene;
+  - the S1b 18-leg harvest (`docs/reports/2026-10-10-s1b-pilot.md`
+    §8) is "not a frozen free-flow baseline" (cross-VM caveat);
+  - the scene doc's leg table (lines 378-386) gives S1a distances in
+    metres, not S1b times.
+
+A33(5) GT CONFLICT EPISODES.
+
+- **Registering text.**
+  - "S1 needs a family `mapd` and an "emergent" conflict declaration:
+    no pre-declared involved set; the conflict episodes are found by
+    a GT detector" (scene doc lines 357-359).
+  - "the SAME conflict definition as S1a's MC" (R3.6a item 4, line
+    479).
+  - "latch-on-pass is REGISTERED as S1b's conflict class" (A15(iii),
+    line 973).
+- **Pair encounter (REGISTERED by the MC definition).** A maximal run
+  of consecutive GT samples in which a pair's centre distance is
+  < 0.45 m (`ENCOUNTER_M` of `scripts/s1_live_conflict_stats.py`).
+- **Merging into conflict episodes (PROPOSAL).**
+  - Pair intervals are graph nodes. Two of them are joined when they
+    share a robot and their spans overlap or are separated by at
+    most `merge_gap_s` = 2.0 s; the same pair's re-encounters merge
+    under the same rule.
+  - A conflict episode is a connected component, with onset = the
+    minimum onset, end = the maximum end, involved set I = the union
+    of the robots, and a `to_end` flag.
+  - There is no minimum duration (`min_duration_s` = 0.0), because
+    the M4 latch fires at 0.45 m.
+- **Not excluded.**
+  - Dwelling robots. "A dweller with a latched arriver beside it *is*
+    a node-handoff conflict. That is the conflict, not a false
+    positive." (scene doc lines 350-352).
+  - Finished or parked robots (PROPOSAL, for the same reason).
+
+A33(6) PER-CONFLICT SCORING.
+
+- **Registering text.** "Scoring per conflict episode: detection (GT
+  encounter → trigger latency), type label, involved-set F1, and
+  plan-quality metrics (i-a)–(vi) as in v2." (scene doc lines
+  366-367).
+- **Analyses.** Each decision artifact is one analysis at
+  t_a = rel-s of `scene.stamp`. Its class is:
+  - `backend_failed`: `decision` is null. It is counted but is
+    neither a detection nor a false positive. E10 has 38/40.
+  - `negative`: `congestion_detected` is false.
+  - `positive`: `congestion_detected` is true, with D =
+    `decision.involved_robots`.
+  - No artifact carries the trigger instant on the sim clock, so the
+    analysis snapshot stamp is the operational trigger time.
+- **Matching (PROPOSAL).**
+  - A positive analysis matches conflict c iff
+    onset_c − `pre_s` ≤ t_a ≤ end_c + `post_s` (`pre_s` = 0.0,
+    `post_s` = 5.0) and |D ∩ I_c| ≥ `min_overlap` = 1.
+  - Ties go to the largest |D ∩ I_c|, then the latest onset ≤ t_a,
+    then the earliest onset.
+  - An analysis matches at most one conflict. A conflict may be
+    matched by many analyses.
+  - A positive analysis that matches nothing is a false positive.
+- **Detection and latency.**
+  - c is detected iff at least one analysis matches it.
+  - latency = t_first_match − onset_c.
+  - For an undetected c, latency is right-censored at
+    min(end_c + `post_s`, T_end) − onset_c (PROPOSAL).
+- **Type label.**
+  - The label is `decision.type` of the first matched analysis.
+  - No accepted label is registered: latch-on-pass maps to no
+    `decision.type` value, and "**No `accepted_strategies` per
+    episode.** Rule it explicitly at the freeze" (scene doc lines
+    364-365) was not ruled by A32.
+  - PROPOSAL: `accepted_types` = {"deadlock"}. The label distribution
+    is always reported. OWNER DECISION D5.
+- **Involved-set F1.**
+  - F1 = 2|D ∩ I| / (|D| + |I|), using the first matched analysis.
+  - It is reported conditional on detection. The unconditional form
+    with an undetected conflict scored 0 is co-reported (PROPOSAL).
+- **Plan quality (i-a)-(vi).**
+  - Registering text: v2 doc lines 829-846, "(i-a) *plan emission
+    rate* … (vi) *plan stability* … replan count per episode, churn
+    …, revision cause …, and revision type".
+  - Every matched analysis is scored with the tracked
+    `reasoning.rag.plan_metrics.score_decision_artifact` at 97d68e0,
+    with `oracle_order=None` and `accepted_strategies=None`.
+  - Per conflict:
+    - (i-a) emitted / scored;
+    - (i-b) consistent / emitted;
+    - (ii) agreement / scored;
+    - (iii) the mean finite edit distance;
+    - (iv) provenance counts;
+    - (v) NOT APPLICABLE, null: no S1 order oracle is registered;
+    - (vi) the replan count is the number of distinct non-held
+      `plan.plan_id` values minus 1, with
+      `compute_episode_plan_stability` churn at
+      `incremental_fraction_bound` = 0.5 (the module's own
+      placeholder, PROPOSAL). The revision cause of each replan is
+      `classify_revision_cause` over the robots whose `plan_state`
+      leg is `failed` or `exhausted` in the replanning artifact.
+  - The v2 text says "per episode", so (vi) is also reported per run.
+- **Per run.** n_conflicts, n_detected, recall (null when there are
+  0 conflicts), n_positive, n_false_positive, precision (null when
+  there are 0 positives), and n_backend_failed.
+- **Across episodes (PROPOSAL).** Pooled exactly as in A33(7):
+  - recall = Σ detected / Σ conflicts;
+  - precision = Σ matched positives / Σ positives;
+  - type accuracy = Σ correct / Σ detected;
+  - (i-a) = Σ emitted / Σ scored, and (ii) = Σ agreement / Σ scored;
+  - latency and F1: means over detected conflicts, with the count of
+    censored latencies reported;
+  - backend_failed: summed.
+
+A33(7) ARM A − ARM B ESTIMAND.
+
+- **Registering text (REGISTERED).** "The Arm A−Arm B comparison
+  across regimes is registered as **CI estimation of the delta per
+  regime**, with the Goldilocks expectation (delta maximal at
+  intermediate difficulty) recorded as interpretation, not as a
+  directional hypothesis." (R3.6a item 4, lines 480-484).
+- **CI method: NOT REGISTERED for v3.** The nearest registered
+  method is the v2 rev-6 block: "Paired two-arm design keyed on
+  (scenario, seed); McNemar exact tests on paired binary outcomes;
+  Wilson CIs on proportions; scenario-clustered or bootstrap SEs"
+  and "Kaplan–Meier time-to-resolution curves + RMST-difference at
+  the horizon with bootstrap CI" (v2 doc lines 638-645). The
+  following is PROPOSAL, built on that precedent:
+  - **Pairing.** Pairs are formed by `stream_start.seed`. Unpaired
+    episodes are reported and left out of the delta.
+  - **Common window per pair.** τ_i = min(T_end,A,i, T_end,B,i).
+    The dollar cap stops only the arm that spends: Layer-2-off
+    spends $0 and runs to about 570 rel-s, while Arm A at $0.10
+    stops near 270-350. An end-of-episode comparison would therefore
+    measure window length, not arms.
+  - **Paired differences on the common window.**
+    - Throughput: δ_i = Θ_A,i(τ_i) − Θ_B,i(τ_i).
+    - Makespan: δ_i = min(M_A,i, τ_i) − min(M_B,i, τ_i). This is
+      exactly observable, because both episodes are observed to
+      τ_i.
+    - Delay: δ_i = the difference of the per-episode
+      lower-bound-charged mean over segments departed before τ_i,
+      with segments censored at τ_i.
+    - Per-conflict measures: computed on conflicts with onset ≤ τ_i,
+      and pooled as recall, mean latency of detected conflicts,
+      type-accuracy proportion, mean F1, and (i-a)/(ii) rates.
+  - **Estimand and CI.** The mean of δ_i (pooled-ratio difference
+    for proportions), with a paired percentile bootstrap over pairs:
+    B = 10000, seed 20261021, 95%. Identical arms give δ = 0 and a
+    CI of [0, 0].
+  - **Degeneracy.** When Arm B has zero positive analyses, the
+    per-conflict deltas are reported as `degenerate_arm_b`. This is
+    the A2/S6 precedent, and it is the case if Arm B is the v2
+    no-intervention mock; see D4.
+  - **Regime.** "Per regime" means one invocation per regime. S1b is
+    one regime.
+
+A33(8) SEED POLICY RULING (owner, 2026-10-21).
+
+- The registered confirmatory seeds are KEPT: positions 1-20 of
+  `config/s1_seeds.yaml` (scene doc line 155, "from the first 20
+  seeds").
+- All 20 already ran as pilots: E1-E5 echo, E6-E20 live. The
+  confirmatory seeds are therefore not unseen. Pilot-informed
+  expectations, and MC per seed, exist for them.
+- This is recorded as a LIMITATION in any claims text. Pilots stay
+  excluded from every count (A32).
+
+A33(9) ARM INTERLEAVING RULING (owner, 2026-10-21).
+
+- Tranche 1 = 5 seeds × 2 arms, interleaved:
+  - Arm A = Layer-2-on, ER-2 with the shield escort overlay
+    (40968886, A32 R1);
+  - Arm B = "Layer-2-off classical" (owner's words; see D4).
+- The order is a PROPOSAL. Counterbalanced by seed position: p1 A→B,
+  p2 B→A, p3 A→B, p4 B→A, p5 A→B.
+- A bring-up abort retries the same (seed, arm) before the chain
+  moves on.
+
+A33(10) OWNER DECISION NEEDED (none blocks freezing the code; each
+blocks the measure it names).
+
+- **D1 RECORD semantics.** Is it the video recorder
+  (`fc_launch.sh`, a harness difference from every pilot) or the
+  dataset flag only? (tranche-1 §1.8(c))
+- **D2 Dollar cap vs sim-s cap.**
+  - At $0.10, Arm A is cut near 270-350 rel-s while Arm B runs about
+    570.
+  - A33(7)'s common window keeps the delta valid but shrinks every
+    pair to Arm A's window.
+  - Completeness and makespan of Arm A are then censored in
+    practice.
+  - A sim-s cap equal in both arms would remove the asymmetry.
+- **D3 Free-flow baseline for S1b.** Either freeze the 2026-10-10
+  harvest under a new table id, or re-harvest the 18 legs on the
+  confirmatory host. Until then A33(4) is vacuous.
+- **D4 Arm B identity and parity.**
+  - The scene doc says "**Arms:** Layer 2 on, against Layer-2-off"
+    (lines 370-371).
+  - The v2 Layer-2-off is "the decision layer answers no-congestion
+    throughout (mock, zero dispatches verified)" (v2 doc lines
+    321-324).
+  - A13(iii) says "Arm B on S1 is blind … Until ruled, no S1 A/B
+    claim is valid" (lines 865-871), and the "Arm B parity question"
+    is still "unchanged" (line 1637).
+  - The owner said "Layer-2-off classical". Which of these is Arm B,
+    and is A13's parity condition met? Every A33(7) delta is
+    CONDITIONAL on this ruling.
+- **D5 MAPD accepted strategies and accepted type labels** (scene doc
+  lines 364-365). A33(6)'s {"deadlock"} stands only as a PROPOSAL.
+- **D6 Bulk approval of the PROPOSAL parameters:** `merge_gap_s` 2.0,
+  `min_duration_s` 0.0, `pre_s` 0.0, `post_s` 5.0, `min_overlap` 1,
+  `grid_s` 1.0, `incremental_fraction_bound` 0.5, `scene_key`
+  `mapd_5_s1b`, the H reading, and the A33(7) pairing, window,
+  bootstrap and degeneracy rules.
 
 **A32. S1b configuration freeze for confirmatory collection
 (2026-10-21; owner rulings R1-R5 approved 2026-10-21; code on
