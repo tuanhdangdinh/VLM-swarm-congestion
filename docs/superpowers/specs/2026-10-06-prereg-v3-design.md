@@ -4,6 +4,7 @@
 
 **Revision history:**
 
+- Addendum A35 (2026-10-21): Arm B Layer-2-off mode registered (M5 `reasoning_enabled: false`, its overlays, gates, md5s and smoke; operationally closes A34 R9 / A13(iii), so tranche 1 is runnable), inserted after A26 and above A34, as A27-A34 were.
 - Addendum A34 (2026-10-21): confirmatory tranche 1 rulings R6-R11 (RECORD as a dataset tag, sim-s cap with a dollar guard, S1b free-flow table frozen, Arm B ruled Layer-2-off classical with its launch mode BLOCKED, accepted types, every A33 PROPOSAL ruled) and the 10-episode tranche-1 run spec, inserted after A26 and above A33, as A27-A33 were.
 - Addendum A33 (2026-10-21): S1 scorer definitions frozen before confirmatory collection (every registered S1 outcome measure defined operationally; seed-policy and interleaving rulings; open owner decisions), inserted after A26 and above A32, as A27-A32 were.
 - Addendum A32 (2026-10-21): S1b configuration freeze for confirmatory collection (owner rulings R1-R5), inserted after A26 and above A31, as A27-A31 were.
@@ -1437,6 +1438,135 @@ completion; only E6 released on real clearance). Projected effect
 of A alone: admits 3/9→5/9; B is the bigger lever (covers both
 MC-matched failed yields). Deploy note: A touches live-mounted M3
 files AND colcon-built M4 files — rebuild + md5 both.
+
+**A35. Arm B Layer-2-off mode registered (2026-10-21; owner approved
+building it 2026-10-21; code `feat/v3-arm-b-mode` @1624db1 cut from
+integration @afc5e4d; kit `data/logs/vm_runs/batch6/p10/`, untracked,
+pre-A35 copy `p10_pre_a35/`).** This builds A34 R9's "Needed" item. It
+closes R9 and A13(iii) operationally, so the tranche-1 run spec is
+RUNNABLE. Nothing in A34's rulings changes.
+
+- **The key.** `OrchestratorConfig.reasoning_enabled: bool = True`
+  (`swarm_orchestrator/models.py`). It is read from the overlaid yaml
+  like its neighbours (`dispatch_enabled`, `t0_probe_mode`). The pinned
+  `orchestrator.yaml` (1f656533) is not edited and parses True.
+  `rag.yaml`, the S1b grounding files and `safety.yaml` are untouched.
+- **Semantics when False.** These pure functions in `models.py` are
+  unit-tested without ROS2: `resolve_layer2_gate`,
+  `should_submit_pipeline` and `reasoning_status_line`.
+  - Detection. `_on_scene_state` returns just before
+    `CongestionDetector.update` (`orchestrator_node.py:748` at 1624db1).
+    No stall event, analysis, decision artifact or dispatch can follow.
+  - M2/M3. `_build_default_pipeline` is never called, so
+    `build_backend`, `Reasoner` and the stage-2 marker are never
+    constructed. No ER-2 call or bill is possible.
+  - Forced off, with a warning for each one that was set:
+    `shadow_classical`, `t0_probe_mode` and the contradiction trigger.
+  - The manual trigger service is refused.
+  - `_submit_pipeline` and `_submit_probe` raise `RuntimeError` as a
+    last guard.
+  - Every `Reasoner` / `build_backend` / `pipeline.run` /
+    `pipeline.analyze` / `note_dispatch_outcome` site in the node was
+    checked. Each is unreachable when the key is False.
+- **What still runs, unchanged.** The scene log (`m5_scene.jsonl`), the
+  arrival gate, the task registry and its publication, and the task
+  stream (releases, issues, dwell, `tasks_*.jsonl`, manifest). These are
+  A33(0)'s Arm B inputs. True is the unchanged node and logs no new line.
+- **Status line.** At startup M5 logs exactly one line,
+  `reasoning_enabled=false layer2=off detection=off m2=off m3=off
+  shadow_classical=off t0_probe=off contradiction_trigger=off
+  dispatch=off` (`REASONING_OFF_STATUS_LINE`, matched verbatim by
+  `cond_p10.py`).
+- **Overlays.** `s1b_l2off_orch_seed{k}.yaml` is the md5-gated
+  `base_s1b_orch_seed{k}.yaml` (Arm A's starting point, before its escort
+  sed) plus one appended line, `reasoning_enabled: false`. That is 1 diff
+  line against base and 3 against the Arm A overlay. The escort grounding
+  line is absent because M3 never runs. md5s:
+  - seed1 0bb7c9e1e89588af3dbdb351ce5067a9
+  - seed2 cec7590c7743e2926ef73aab04b06f9a
+  - seed3 7097f3a73cf85e5843dac246a4ee7486
+  - seed4 397e0399867ec322912c741f0bc6d3d2
+  - seed5 77bc12f2b872844802c095f8abb7479d
+  `mac_gen_ov_armb_p10.sh` makes them and parses them with the 1624db1
+  loader, giving `reasoning_enabled False`. `ov_p10.sh` remakes them on
+  the VM and byte-compares them with the Mac copies.
+- **Gates.**
+  - GOTCHA: `OrchestratorConfig` ignores unknown keys. On a stale
+    `models.py`, or with a misspelt key, the Arm B overlay would run a
+    full, billed Arm A.
+  - `ep_run_p10.sh` therefore parses the overlaid yaml with the DEPLOYED
+    loader before launch. It refuses unless the result is False for
+    ARM=B and True for ARM=A.
+  - `chain_p10.sh` (`ARM_B_MODE=reasoning_enabled_false`, preflight
+    refusal kept for an empty mode) checks both arms' overlays and the
+    key's absence/presence per seed before either arm runs.
+  - `cond_p10.py` Arm B requires all of: 0 artifacts, 0 `starting
+    analysis` lines, exactly 1 status line, exactly 1
+    `decisions/tasks_*.jsonl` and a non-empty `m5_scene.jsonl`. The
+    silence gate alone also passes on an M5 that crashed at startup.
+    Arm A requires 0 status lines.
+  - BACKEND stays gemini in both arms. Under Arm B the backend is never
+    constructed, so this is not R9's excluded congestion mock.
+- **Runtime and deploy.** 1624db1 = 3efcd78 + `models.py` +
+  `orchestrator_node.py` over reasoning/ros2_ws/scripts/config/isaac
+  (checked by `mac_build_delta_p10.sh`). Manifest rows against the
+  deployed 9a018ca:
+  - `models.py` a76e3c00 → 273bbf7f
+  - `orchestrator_node.py` f149ecff → e1b3b289 (new row)
+  - the other four rows unchanged
+  `manifest_p10.txt` is 50376db3b76b99a14f71942d175768f8 and
+  `delta_p10.tar` (6 files) is 6e8b40fab5ab68aebe4b3e4f827b7536.
+  `deploy_p10.sh`'s single swarm_orchestrator rebuild installs both M5
+  files and prints an A35 smoke line. The chain pin gate expects
+  273bbf7f / e1b3b289.
+- **Kit md5s** (supersede A34's for these files):
+  - `chain_p10.sh` 487372e049ad859b070bdd25ece17cdb
+  - `ep_run_p10.sh` 14759ed21336f362c4add703f72ca2f7
+  - `cond_p10.py` 4ec27c317067d36382bc3f44e44fc958
+  - `pins_pre_p10.sh` a7ff5f84cd62c549ba6422018e621579
+  - `deploy_p10.sh` eca49cf5fb83fdb8bbccd93571209ba2
+  - `ov_p10.sh` 0264402f7e6050a42972771480e47c49
+  - `parse_ov_p10.py` 6fa7c0cb880894f583fa12a1af28af7d
+  - `mac_gen_ov_armb_p10.sh` 40d2e7fc26d270e35704767d3ee99e64
+  - `mac_build_delta_p10.sh` d5a19ee61b73f702ceb2fe7289528cf2
+  - `cost_watch.py` 0defa143 (unchanged)
+  - `kit_md5.txt` lists all of them.
+- **Tests.** Commits `3bafa7d` (feat), `eb08fb2` (26 tests,
+  `tests/unit/test_m5_node_reasoning_off.py`) and `1624db1`
+  (implementation notes). The tests cover:
+  - the default is True;
+  - the pinned yaml parses True and an overlay parses False;
+  - no submission, analysis line, artifact or command on stall scenes;
+  - the builders are never called with `pipeline=None`;
+  - shadow, probes and contradiction forced off;
+  - the manual trigger is refused and the guards raise;
+  - one status line when off, none when on;
+  - the scene log, task-stream release, arrival, dwell and next-task
+    issue still run.
+  Suite 57 failed / 3 errors, the same 60 ids as
+  `a27/final_ids.txt` minus tests/simulation (before: 57 / 6877 passed
+  / 3; after: 57 / 6903 / 3). ruff is clean on the touched files.
+- **Smoke** (`p10/smoke_armb/mac_armb_smoke.log`; the real node with
+  ROS2 stubbed and no pipeline injected).
+  - The seed-1 Arm B overlay, 240 stopped-robot scenes: 0 builder
+    calls, 0 `starting analysis`, 0 artifacts and 0 commands. Shadow,
+    probes and contradiction are None. There is exactly one status line,
+    one tasks log (stream_start, start_check, released, issued,
+    manifest) and 240 scene-log lines.
+  - The same scenes on the Arm A overlay with a fake pipeline start 3
+    analyses.
+  - `cond_p10.py` gives rc 0 for that Arm B bundle under the B gate.
+    It gives rc 1 under the A gate, rc 1 with an empty `m5.log`, and
+    rc 1 for a reasoning-on bundle under the B gate.
+  - `DRY_RUN=1 bash chain_p10.sh` prints 10 rows with the Arm B rows
+    resolved to `s1b_l2off_orch_seed{k}.yaml`.
+  - `bash -n` and `py_compile` pass on every kit script.
+- **Closes.** A34 R9 is BLOCKED → BUILT, and A13(iii) is closed
+  operationally. The tranche-1 run spec's "Arm B: … BLOCKED" now reads
+  as this mode. Its runtime commit is 1624db1 (the deploy delta above
+  supersedes 3efcd78's d19466a7). Limitation: the smoke is Mac-side
+  only. The first live Arm B episode is the mode's first VM run, and
+  the chain's gates stop the tranche if it does not behave.
 
 **A34. Confirmatory tranche 1 rulings R6-R11 (2026-10-21; owner
 rulings approved 2026-10-21; code `feat/v3-freeflow-freeze` cut from
