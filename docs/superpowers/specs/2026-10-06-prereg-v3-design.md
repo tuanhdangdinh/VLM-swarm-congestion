@@ -4,6 +4,7 @@
 
 **Revision history:**
 
+- Addendum A34 (2026-10-21): confirmatory tranche 1 rulings R6-R11 (RECORD as a dataset tag, sim-s cap with a dollar guard, S1b free-flow table frozen, Arm B ruled Layer-2-off classical with its launch mode BLOCKED, accepted types, every A33 PROPOSAL ruled) and the 10-episode tranche-1 run spec, inserted after A26 and above A33, as A27-A33 were.
 - Addendum A33 (2026-10-21): S1 scorer definitions frozen before confirmatory collection (every registered S1 outcome measure defined operationally; seed-policy and interleaving rulings; open owner decisions), inserted after A26 and above A32, as A27-A32 were.
 - Addendum A32 (2026-10-21): S1b configuration freeze for confirmatory collection (owner rulings R1-R5), inserted after A26 and above A31, as A27-A31 were.
 - Addendum A31 (2026-10-20): E24-E26 escort-filter mini-batch outcome, inserted after A26 and above A30, as A27-A30 were.
@@ -1436,6 +1437,206 @@ completion; only E6 released on real clearance). Projected effect
 of A alone: admits 3/9→5/9; B is the bigger lever (covers both
 MC-matched failed yields). Deploy note: A touches live-mounted M3
 files AND colcon-built M4 files — rebuild + md5 both.
+
+**A34. Confirmatory tranche 1 rulings R6-R11 (2026-10-21; owner
+rulings approved 2026-10-21; code `feat/v3-freeflow-freeze` cut from
+integration @3efcd78; kit `data/logs/vm_runs/batch6/p10/`, untracked).**
+Six owner rulings close A33(10) D1-D6 before the first confirmatory S1b
+episode. Each gives the ruling, its evidence and its artifact. Line
+cites are "at f7a8d62" (this document before A34 was inserted). One
+ruling, R9, is decided but cannot yet be executed, so the tranche is
+NOT RUNNABLE until R9's launch mode exists (see R9 and the run spec).
+
+- **R6. RECORD is a dataset tag only (closes A33(10) D1).**
+  - Ruling: the harness stays identical to the pilots. fc_launch gets
+    `RECORD=0`, as `ep_run.sh` hard-coded for every pilot E6-E26, so no
+    recorder runs. A32's "RECORD=1" (FIRST CONFIRMATORY CELL NEEDS) is
+    read as the dataset flag, now spelled `confirmatory=1`. Every
+    bundle's `CONDITION.txt` carries `tag=confirmatory_t1 record=0
+    confirmatory=1 arm=<A|B>`.
+  - Evidence: tranche-1 prereg §1.8(c) and kit NOTES item (c): RECORD=1
+    switched on the video recorder, a harness difference from every
+    pilot (CPU/RTF, bring-up).
+  - Artifact: `ep_run_p10.sh` refuses `RECORD`≠0 and requires
+    `CONFIRMATORY=1` and `ARM`; `cond_p10.py` gates the four fields;
+    `score_p10_gates.py` and `aggregate_b6.py` read them. md5s are in the
+    run spec below.
+- **R7. Cap by sim-s; dollars are a safety ceiling only (closes D2).**
+  - Ruling: every episode runs to the Isaac 600 sim-s horizon.
+    `CAP_EP` $0.25 is a guard only: `cost_watch.py` touches the Isaac
+    stop flag when est + one call (A25 rule, reserve $0.008) reaches
+    min(`CAP_EP`, `CAP_TOTAL` − spent). `CAP_TOTAL` $1.30 counts the Arm A
+    cost logs of this tranche; `MIN_REMAINING` $0.25 is the start floor
+    checked before each Arm A episode. Arm B spends $0 (no VLM) and is
+    exempt from the budget gate. For this tranche this supersedes A32
+    R2's $0.10.
+  - Censoring: an episode cut by the guard is right-censored at T_end
+    with reason `stop_flag` (A33(0); `run_manifest` does not tell a cap
+    from an operator stop). A33(7)'s common window τ_i = min(T_end,A,
+    T_end,B) still applies, so a guard-cut Arm A episode shrinks its
+    pair's window and is never dropped.
+  - Analysis-count stop OFF (`MAX_ANALYSES=0`). The pre-A34 kit also
+    stopped at 40 analyses (ep_run sidecar and `cost_watch.py`). That is
+    a stop that is neither sim-s nor dollars, and it fires first on a
+    backend-failure-heavy episode (E10: 38/40 `backend_failed` at about
+    $0). `cost_watch.py` now treats `max_analyses` ≤ 0 as off; before
+    A34 a 0 fired on the first poll. The sidecar already skipped at 0.
+  - Still standing: the pre-registered pin stop rule (`pin_watch.py`,
+    rule 4/11: a physical pin not self-freed within 300 sim-s). It is
+    not a dollar cap and applies to both arms; a pin-stopped episode is
+    also `stop_flag`-censored.
+  - Budget check: an Arm A episode can reach about $0.242 before the
+    guard fires. Five of them total about $1.21 < $1.30, and before the
+    fifth at least $0.33 remains, so the start floor never leaves a seed
+    unpaired.
+  - Evidence: A31 finding (i) (all three $0.05 episodes cut at 133-174
+    of 600 sim-s); A33(7) and A33(10) D2 (at $0.10 Arm A stops near
+    270-350 rel-s while Arm B runs about 570).
+  - Artifact: the `chain_p10.sh` OWNER HEADER and `cost_watch.py`.
+- **R8. S1b free-flow table frozen from the 2026-10-10 harvest (closes
+  D3).**
+  - Harvest: the 18 solo-in-space legs of the S1b pilot
+    (`docs/reports/2026-10-10-s1b-pilot.md` §8). Raw bundles are
+    `data/logs/vm_runs/s1b_pilot/s1b_ff_<a>_<b>` (Mac pull), fc_launch
+    stamps 20261009_231102..20261010_005723 (VM clock), default mock,
+    0 dispatches, 18/18 GT arrivals, VM runtime = integration 3d307f8
+    delta.
+  - Frozen file: `benchmarks/s1_scoring/data/free_flow_s1b_2026-10-10.json`,
+    table_id `free_flow_s1b_2026-10-10`, md5
+    b4002d7697f4d8f27c31792a9b269162. It is keyed (`mapd_5_s1b`,
+    "A->B"), and each leg carries robot_id, run_id, gt_hash (sha256 of
+    `ground_truth.jsonl`), departure and arrival. It sits beside the
+    scorer, not under `config/`, so the VM runtime diff is unchanged.
+  - Values: `scripts/free_flow_table.py` `derive_entries`
+    (`solo_in_space`) on each bundle's GT with unchanged rules:
+    `own_departure` = the first GT speed > 0.03 m/s, and
+    `gt_within_0.35_stay_0.5`. These are exactly the rules `delay.py`
+    applies per segment.
+  - DISCREPANCY with §8: §8 timed departure from the first GT
+    displacement > 0.03 m from spawn, so its leg times are 0.2-0.4 s
+    shorter (11.1-29.9 s against 11.3-30.1 s); arrivals are identical.
+    Freezing §8's numbers would have biased every delay by that amount,
+    so the derived values are frozen and §8's table is not.
+  - Scorer: `delay.py` loads the table by default for every `mapd_5*`
+    scene key (the parameter is kept). An explicit `table=None` or CLI
+    `--no-free-flow` still scores `no_table`; `--free-flow` overrides.
+    Commits `f008616` (code + table), `9ae402a` (tests: md5 pin, the
+    18-leg key set, a synthetic 18-robot S1b bundle that scores all 18
+    segments), `3c71503` (implementation notes). Suite 57 failed / 3
+    errors, the 3efcd78 baseline; ruff clean on the touched files.
+  - Pilot smoke re-run (`batch6/s1_scoring_pilots.jsonl`, previous copy
+    `_pre_r8`): 21/21 episodes non-vacuous, 75 scored / 95 censored /
+    4 never_departed segments, 0 `no_baseline`. Every non-delay field is
+    byte-identical to the pre-R8 smoke.
+  - LIMITATION: a pilot harvest on the s1b-pilot VM, not re-harvested on
+    the confirmatory host. §8's cross-VM caveat stands as a limitation,
+    not a blocker.
+- **R9. Arm B = Layer-2-off classical: RULED; implementation BLOCKED
+  (D4; A13(iii)).**
+  - Ruling: Nav2 stack only, no congestion mock, M2/M3/M5 reasoning
+    disabled. Same scenario yaml, USD and seed as Arm A, same 0.20 m
+    floor swap (install `safety.yaml` c41913f0), same GT scan.
+  - Finding: no existing flag or config produces it at 3efcd78.
+    - M5 cannot be dropped. S1's task stream (releases, issues, arrival
+      gate, dwell, `tasks_*.jsonl`) and `m5_scene.jsonl` belong to M5,
+      and A33(0) refuses a bundle without them. fc_launch
+      `BRINGUP_ONLY=1` never starts M4 or M5.
+    - The v2 Layer-2-off (`BACKEND_ID=mock` with no decision file;
+      `docs/reports/2026-10-06-layer2off-pilot.md`) is a no-congestion
+      mock, which the ruling excludes.
+    - `dispatch_enabled: false` still runs M2 and M3 (bills ER-2).
+    - `t0_probe_mode` adds off-trigger probes; it removes nothing.
+    - The scene callback reaches `CongestionDetector.update` →
+      `_submit_pipeline` with no config gate (`orchestrator_node.py`
+      ~726-757 at 3efcd78), and the detector has no off value.
+  - Needed (not built; for the owner to commission): one M5 config key,
+    default off, that skips detector → analysis (no M2/M3 call, no
+    decision artifact, `shadow_classical` off) while the task stream,
+    arrival gate, registry and scene log run unchanged; an Arm B overlay
+    that differs from the Arm A seed overlay only in that key and what
+    it implies; unit tests, a dry-run smoke and md5 pins. The Arm B
+    silence gate is already in `cond_p10.py` (0 `starting analysis`
+    lines, 0 artifacts).
+  - A13(iii): under this definition the parity question is moot. Arm B
+    reads no geometry, so there is no geometry-source asymmetry, and the
+    per-conflict deltas are `degenerate_arm_b` by construction (A33(7)).
+    A13(iii) is closed as a ruling but NOT operationally: no S1 A/B
+    claim until the flag exists and its smoke passes.
+  - Kit: `chain_p10.sh` carries the interleaved Arm B rows but REFUSES
+    at preflight while `ARM_B_MODE` is empty, and `ep_run_p10.sh`
+    refuses `ARM=B`. No Arm A episode can run before Arm B can, so no
+    unpaired confirmatory episode is created.
+- **R10. MAPD accepted types = {"deadlock"}: RULED (D5, types half).**
+  A33(6)'s proposal stands; the label distribution is always reported.
+  Accepted strategies were not ruled here: the scorer keeps A33(6)'s
+  `accepted_strategies=None` for plan quality.
+- **R11. Every A33 PROPOSAL is RULED at its default (D6).** These are
+  the `ConflictParams` and CLI defaults at 3efcd78, unchanged by R8:
+  - A33(0) "by H" = by T_end of an uncut run: Isaac stops at absolute
+    GT 600 sim-s, so about 570 rel-s is observed after robot_1's
+    release. The scorer reports T_end and the absolute GT end side by
+    side.
+  - A33(1) across episodes: the proportion `complete` among the
+    non-`censored` episodes with a Wilson 95% CI, plus the count of
+    `censored` episodes.
+  - A33(2) across episodes: Kaplan-Meier and RMST to τ; per arm alone,
+    τ = that arm's smallest T_end; for the delta, τ per A33(7). No naive
+    mean over censored runs.
+  - A33(3): `grid_s` 1.0; across episodes, the mean of Θ_e(t) over
+    episodes with T_end ≥ t, reported with n_at_risk(t).
+  - A33(4): window end = the segment's `dwell_complete`, else T_end;
+    segments pooled across episodes; `scene_key` `mapd_5_s1b`.
+  - A33(5): `merge_gap_s` 2.0, `min_duration_s` 0.0; finished and
+    parked robots are not excluded.
+  - A33(6): `pre_s` 0.0, `post_s` 5.0, `min_overlap` 1; tie-break by
+    largest |D ∩ I|, then latest onset ≤ t_a, then earliest onset; an
+    undetected latency is censored at min(end_c + `post_s`, T_end) −
+    onset_c; F1 conditional on detection with the unconditional form
+    (undetected = 0) co-reported; `incremental_fraction_bound` 0.5; the
+    across-episode pooling as written.
+  - A33(7): pairs by `stream_start.seed`; common window τ_i; paired
+    differences as written; the mean of δ_i with a paired percentile
+    bootstrap, B = 10000, seed 20261021, 95%; `degenerate_arm_b`; one
+    invocation per regime.
+  - A33(9): order p1 A→B, p2 B→A, p3 A→B, p4 B→A, p5 A→B; a bring-up
+    abort retries the same (seed, arm).
+
+TRANCHE-1 RUN SPEC (supersedes the 5-episode kit of the tranche-1
+prereg before A34).
+- Episodes: 5 seeds × 2 arms = 10. Seeds = `config/s1_seeds.yaml`
+  positions 1-5 (978442588, 1181837745, 537191633, 90907664,
+  1912308941; labels E27-E31), interleaved per R11. Bundles are named
+  `s1b_E<E>_seed<k>_armA_er2_confT1_a<n>` and
+  `s1b_E<E>_seed<k>_armB_l2off_confT1_a<n>`; arms are read from
+  `CONDITION.txt`, never from names.
+- Arm A: Layer 2 on, `gemini-robotics-er-2-preview`, per-seed overlays
+  pointing at `config/grounding/s1b_dynamic_shield_escort.yaml` (md5
+  409688866d25289309e081dcb9433037, A32 R1), A32 condition (churn bound
+  off, sequential bring-up with the 180 s default, 0.20 m floor).
+- Arm B: Layer-2-off classical per R9. BLOCKED.
+- Budget: R7 (`CAP_EP` 0.25 guard, `CAP_TOTAL` 1.30, `MIN_REMAINING`
+  0.25, `MAX_ANALYSES` 0).
+- Abort rule: `ON_SEED_FAIL=stop`, 3 bring-up attempts per (seed, arm).
+- Host: `vgu-thu-base-isaac-vm-asia-northeast1-a`.
+- Runtime commit 3efcd78. It is identical to 97d68e0 over `reasoning`,
+  `ros2_ws`, `scripts`, `config` and `isaac`. The deploy delta against
+  the deployed 9a018ca is the same 4 files plus the escort overlay
+  (`manifest_p10.txt` 7e59322ca8029c3d430adbd15d8eeb3f, unchanged;
+  `delta_p10.tar` d19466a764b785dbc2abde6af722ea5b, rebuilt @3efcd78).
+- Scoring: Mac-side only, at `feat/v3-freeflow-freeze` 3c71503;
+  `benchmarks/s1_scoring` is not shipped to the VM.
+- Kit md5s (`data/logs/vm_runs/batch6/`): `p10/chain_p10.sh`
+  2b3a850778a89da9a2ed841dd3479b5f, `p10/ep_run_p10.sh`
+  c087dfb9f1bce17b29a9bdef6aa30d29, `p10/cond_p10.py`
+  5ebb820626fb0610c0ce4405f6bece82, `p10/cost_watch.py`
+  0defa14304c4b78f651af91f0a2789bb, `p10/pins_pre_p10.sh`
+  5b60ad471a24f2488c13d766853b062f, `p10/deploy_p10.sh`
+  fa3134bfbb5a52cd0e1f85fd832d0c0a, `score_p10.py` (the A34 wrapper)
+  7378ba251342a3f06be4f760706d45fa, `score_p10_gates.py`
+  49e4592f0905ff54d711a1bc83c83f5b, `aggregate_b6.py`
+  e2f0c5549652e9148767c4d7e648a6fa.
+- Pilots E6-E26 stay excluded (A32). The confirmatory seeds are not
+  unseen (A33(8) limitation).
 
 **A33. S1 scorer definitions frozen before confirmatory collection
 (2026-10-21; owner-approved task 2026-10-21; code
