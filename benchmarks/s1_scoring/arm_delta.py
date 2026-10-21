@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict
 
 from benchmarks.s1_scoring.bundle_io import BundleRecords, truncate
 from benchmarks.s1_scoring.conflicts import ConflictParams
-from benchmarks.s1_scoring.delay import DEFAULT_SCENE_KEY, SegmentTable
+from benchmarks.s1_scoring.delay import DEFAULT_SCENE_KEY, DEFAULT_TABLE, TableArg, resolve_table
 from benchmarks.s1_scoring.episode import A33_REF, EpisodeScores, score_records
 from benchmarks.s1_scoring.makespan import restricted_makespan
 
@@ -207,7 +207,7 @@ def arm_delta(
     arm_a: Sequence[BundleRecords],
     arm_b: Sequence[BundleRecords],
     *,
-    table: SegmentTable | None = None,
+    table: TableArg = DEFAULT_TABLE,
     scene_key: str = DEFAULT_SCENE_KEY,
     params: ConflictParams | None = None,
     reps: int = DEFAULT_REPS,
@@ -219,7 +219,8 @@ def arm_delta(
     Args:
         arm_a: Arm A (Layer-2-on) bundle records.
         arm_b: Arm B bundle records.
-        table: The segment-keyed free-flow table, or None (delay vacuous).
+        table: The segment-keyed free-flow table, None (delay vacuous), or
+            `DEFAULT_TABLE` (the scene key's frozen table, A34 R8).
         scene_key: The free-flow scene key.
         params: The per-conflict PROPOSAL parameters.
         reps: Bootstrap replicates.
@@ -229,6 +230,7 @@ def arm_delta(
     Returns:
         One delta per measure, each with its paired percentile bootstrap CI.
     """
+    table = resolve_table(table, scene_key)
     pairs, un_a, un_b = pair_by_seed(arm_a, arm_b)
     windows: list[PairWindow] = []
     scored: list[tuple[EpisodeScores, EpisodeScores, float]] = []
