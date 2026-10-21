@@ -4,12 +4,13 @@
 
 **Revision history:**
 
+- Rev 3 (2026-10-21, before any live call): Arm B's launch mode exists and is registered as prereg-v3 A35 (`feat/v3-design` `9a5eb8f`). M5 `reasoning_enabled: false` is delivered by the overlays `s1b_l2off_orch_seed{k}.yaml`, and the tranche is RUNNABLE. The new runtime commit is `feat/v3-arm-b-mode` `1624db1`, which is `3efcd78` plus `models.py` and `orchestrator_node.py`. The deploy delta is rebuilt (`delta_p10.tar` 6e8b40fab5ab68aebe4b3e4f827b7536, 6 files; `manifest_p10.txt` 50376db3b76b99a14f71942d175768f8). The Arm B gates are tightened (§1.2, §1.6). Nothing else changes, and nothing exploratory is added.
 - Rev 2 (2026-10-21, before any live call): §1 updated for the owner rulings R6-R11 recorded in prereg-v3 A34 (`feat/v3-design` `0891cd8`), which close §1.8. The tranche is now 10 episodes (5 seeds × Arm A / Arm B, interleaved). RECORD is a dataset tag only (RECORD=0 to fc_launch). Episodes are capped by sim-s, with dollars as a guard. Every registered S1 measure is scored by `benchmarks/s1_scoring` at `feat/v3-freeflow-freeze` `3c71503`, with the frozen S1b free-flow table (md5 b4002d7697f4d8f27c31792a9b269162). Arm B (Layer-2-off classical) is ruled but has no launch mode, so the tranche is NOT RUNNABLE until it exists. Runtime commit `3efcd78`. Nothing exploratory is added.
 - Initial draft: §1 pre-registration of the first confirmatory S1b tranche under prereg-v3 A32 (cell, arm, seeds, configs and md5s, the registered outcome measures quoted with line cites, safety gates, budget, abort rules) and the open items in §1.8 that the owner must rule before any live call. The VM kit is `data/logs/vm_runs/batch6/p10/` (gitignored), built offline. No VM was started. Results follow in later sections.
 
 ---
 
-CONFIRMATORY (`confirmatory=1`), RECORD = 0 (A34 R6). NOT RUNNABLE until A34 R9's Arm B launch mode exists.
+CONFIRMATORY (`confirmatory=1`), RECORD = 0 (A34 R6). RUNNABLE: A34 R9's Arm B launch mode exists (A35, Rev 3).
 
 ---
 
@@ -17,7 +18,7 @@ CONFIRMATORY (`confirmatory=1`), RECORD = 0 (A34 R6). NOT RUNNABLE until A34 R9'
 
 CONFIRMATORY, RECORD = 0 (a dataset tag only, A34 R6). This block is frozen at commit time, subject only to the owner rulings in §1.8, which are recorded as a new revision entry BEFORE the first live call (Rev 2 records R6-R11). After the first live call, later sections may only add to this block, never edit it. Values marked "to be filled at deploy" are measurements of the VM, not choices. They go in §3 and do not edit this block.
 
-All design citations are to `feat/v3-design` @ `24fa2bc`, except A33 and A34, which are cited at `0891cd8`:
+All design citations are to `feat/v3-design` @ `24fa2bc`, except A33 and A34, which are cited at `0891cd8`, and A35, cited at `9a5eb8f`:
 
 - **design doc** = `docs/superpowers/specs/2026-10-06-prereg-v3-design.md`;
 - **scene doc** = `docs/superpowers/specs/2026-10-06-v3-scene-design.md`.
@@ -42,7 +43,9 @@ All design citations are to `feat/v3-design` @ `24fa2bc`, except A33 and A34, wh
   - Overlay grounding file `config/grounding/s1b_dynamic_shield_escort.yaml`, md5 **409688866d25289309e081dcb9433037**. A32 R1: it is "PROMOTED to the registered shield config for confirmatory S1b cells, unedited" (lines 1449-1452).
 - **Arms:** the registered pair "**Arms:** Layer 2 on, against Layer-2-off" (scene doc lines 370-371), on the same seeds.
   - **Arm A:** Layer 2 ON, live `gemini-robotics-er-2-preview` (ER-2). The in-episode classical shadow (`shadow_classical`) is recorded in every artifact, as in every pilot. It is not a separately run arm.
-  - **Arm B:** Layer-2-off classical (A34 R9): the Nav2 stack only, no congestion mock, and M2/M3/M5 reasoning disabled. It uses the same scenario yaml, USD and seed as Arm A, the same 0.20 m floor swap and the same GT scan. **BLOCKED:** no existing flag or config yields this mode at `3efcd78` (A34 R9 lists what would be needed). The kit refuses to start the tranche until it exists, so no Arm A episode can run unpaired.
+  - **Arm B:** Layer-2-off classical (A34 R9): the Nav2 stack only, no congestion mock, and M2/M3/M5 reasoning disabled. It uses the same scenario yaml, USD and seed as Arm A, the same 0.20 m floor swap and the same GT scan.
+    - **Mechanism (A35):** the M5 config key `reasoning_enabled: false`. M5 then skips stall detection and never constructs a VLM backend, so there is no M2/M3 call, no decision artifact and no dispatch. `shadow_classical`, T0 probes and the contradiction trigger are forced off. The registry, task stream, arrival gate, `tasks_*.jsonl` and `m5_scene.jsonl` run unchanged. At startup M5 logs one line: `reasoning_enabled=false layer2=off detection=off m2=off m3=off shadow_classical=off t0_probe=off contradiction_trigger=off dispatch=off`.
+    - **Overlays:** `s1b_l2off_orch_seed{k}.yaml` = `base_s1b_orch_seed{k}.yaml` + that one line. There is no escort grounding line, because M3 never runs. md5s: seed1 0bb7c9e1e89588af3dbdb351ce5067a9, seed2 cec7590c7743e2926ef73aab04b06f9a, seed3 7097f3a73cf85e5843dac246a4ee7486, seed4 397e0399867ec322912c741f0bc6d3d2, seed5 77bc12f2b872844802c095f8abb7479d. BACKEND stays gemini but is never constructed.
 - **Why this cell:** A32 names no cells. This is the only S1b cell with a frozen configuration, the one A32 R1 configures, and the one A30/A31 ran. Non-shield S1b cells would keep `s1b_dynamic.yaml` (535f5281; A32 R1, "Every other cell keeps its current grounding file"), but no such cell has been run or kitted.
 - **Condition (Arm A):** rule 16 + A32 + A34. That is:
   - backend: ER-2, plan channel on;
@@ -53,7 +56,7 @@ All design citations are to `feat/v3-design` @ `24fa2bc`, except A33 and A34, wh
   - the 0.20 m floor installed (A28(i));
   - RECORD=0 (A34 R6);
   - `tag=confirmatory_t1 record=0 confirmatory=1 arm=<A|B>` in every bundle's `CONDITION.txt`.
-- **Condition (Arm B):** A34 R9. Its gate is 0 decision artifacts and 0 `starting analysis` lines (`cond_p10.py`).
+- **Condition (Arm B):** A34 R9 as built by A35. Before launch, `ep_run_p10.sh` parses the overlaid yaml with the deployed loader and refuses unless `reasoning_enabled` is False (True for Arm A). The reason: `OrchestratorConfig` ignores unknown keys, so a stale runtime would otherwise run a billed Arm A. After the episode, the gate requires 0 decision artifacts, 0 `starting analysis` lines, exactly one status line, one `tasks_*.jsonl` and a non-empty `m5_scene.jsonl` (`cond_p10.py`).
 
 ### 1.3 Seeds, order and labels (A33(8), A34 R11)
 
@@ -86,7 +89,8 @@ The tranche is the first 5 of the registered first-20 confirmatory seeds: `confi
 
 ### 1.4 Tree, deploy and pins
 
-- **Tree:** runtime commit `feat/v3-integration` @ `3efcd78` (A34), the merge of `feat/v3-s1-scorers`. It is identical to `97d68e0` (the merge of `feat/v3-s1b-freeze`: R5 `6abea45`, R1 pin test `b2555b9`, R3 `d975f13`) over `reasoning`, `ros2_ws`, `scripts`, `config` and `isaac`. The VM carries the A28/A29 runtime `9a018ca` (A31).
+- **Tree (Rev 3, A35):** runtime commit `feat/v3-arm-b-mode` @ `1624db1`. It equals `3efcd78` plus the `reasoning_enabled` switch in `models.py` and `orchestrator_node.py` (`mac_build_delta_p10.sh` checks exactly that). The delta is `git diff --name-only 9a018ca 1624db1` = the 4 files below + `orchestrator_node.py`. `delta_p10.tar` md5 **6e8b40fab5ab68aebe4b3e4f827b7536** (6 files, `git archive 1624db1`) and `manifest_p10.txt` 50376db3b76b99a14f71942d175768f8 supersede the A34 values in the next two bullets. In the table, `models.py`'s source is now **273bbf7f**, and `orchestrator_node.py` f149ecff → **e1b3b289** joins the colcon-built rows. The same single `swarm_orchestrator` rebuild installs both.
+- **Tree (Rev 2, superseded by Rev 3):** runtime commit `feat/v3-integration` @ `3efcd78` (A34), the merge of `feat/v3-s1-scorers`. It is identical to `97d68e0` (the merge of `feat/v3-s1b-freeze`: R5 `6abea45`, R1 pin test `b2555b9`, R3 `d975f13`) over `reasoning`, `ros2_ws`, `scripts`, `config` and `isaac`. The VM carries the A28/A29 runtime `9a018ca` (A31).
 - **Delta:** `git diff --name-only 9a018ca 3efcd78 -- reasoning ros2_ws scripts config isaac` gives exactly 4 files. The escort overlay rides along at pre == new.
   - `delta_p10.tar` md5 **d19466a764b785dbc2abde6af722ea5b** (`git archive 3efcd78`; `p10/mac_build_delta_p10.sh`). `manifest_p10.txt` is unchanged (7e59322ca8029c3d430adbd15d8eeb3f). The pre-A34 tar 81d8c629 held the same 5 files; only the archive commit id differs.
   - `benchmarks/s1_scoring` is not shipped. Scoring stays on the Mac.
@@ -94,7 +98,8 @@ The tranche is the first 5 of the registered first-20 confirmatory seeds: `confi
 | File | Layer / installed path | Pre (9a018ca) | Source (3efcd78 = 97d68e0) | Installed md5 |
 |---|---|---|---|---|
 | `reasoning/rag/command_grounder.py` | M3, live mount `/ws/...` | a4e8b5a8 | **cfbd1fb8** | to be filled at deploy |
-| `swarm_orchestrator/models.py` | M5, colcon → `site-packages/swarm_orchestrator/models.py` | a76e3c00 | **b9b4d6d9** | to be filled at deploy |
+| `swarm_orchestrator/models.py` | M5, colcon → `site-packages/swarm_orchestrator/models.py` | a76e3c00 | **273bbf7f** (Rev 3; b9b4d6d9 at 3efcd78) | to be filled at deploy |
+| `swarm_orchestrator/orchestrator_node.py` (Rev 3) | M5, colcon → `site-packages/swarm_orchestrator/orchestrator_node.py` | f149ecff | **e1b3b289** | to be filled at deploy |
 | `swarm_orchestrator/retreat_stage2.py` | M5, colcon → `site-packages/swarm_orchestrator/retreat_stage2.py` | 0bd96495 | **cf0dad3e** | to be filled at deploy |
 | `scripts/vm/fc_launch.sh` | host launcher (run by `ep_run_p10.sh`) | 5a5ee4ac | **055db01e** | to be filled at deploy |
 | `config/grounding/s1b_dynamic_shield_escort.yaml` | M3 config, live mount | 40968886 | 40968886 | to be filled at deploy |
@@ -102,7 +107,7 @@ The tranche is the first 5 of the registered first-20 confirmatory seeds: `confi
 
 - **Unchanged and gated before every episode:**
   - configs: `orchestrator.yaml` 1f656533 (src and installed), rag e18c723c, s1b_dynamic 535f5281, s1b_dynamic_shield ee5fe68f;
-  - A30 runtime: `escort_clearance` 50766aeb, `grounding_view` e152fc74, `maneuver_geometry` 8923c35c, `retreat_candidates` 76f6b8d8, `reasoning_pipeline` 39a51bfc, `shadow_classical` 1de9588a, `orchestrator_node` f149ecff;
+  - A30 runtime: `escort_clearance` 50766aeb, `grounding_view` e152fc74, `maneuver_geometry` 8923c35c, `retreat_candidates` 76f6b8d8, `reasoning_pipeline` 39a51bfc, `shadow_classical` 1de9588a (`orchestrator_node` moved to the deploy table, Rev 3);
   - A27 files: `retreat_shield` db0b6415, `plan_metrics` 9d3c1487;
   - A27 M4 files: `safety.py` c6c9cbae, `fresh_latch` 08d996a8, `nav2_adapter` f139305c, `command_bus_node` caad9edc;
   - recorder `scripts/record_topic_video.py` 90aa8971 (a tree pin only; it never starts at RECORD=0);
@@ -110,8 +115,10 @@ The tranche is the first 5 of the registered first-20 confirmatory seeds: `confi
 - **Deploy gates** (`deploy_p10.sh`, in order): PRE-IMAGE, SOURCE, LIVE MOUNT, HOST LAUNCHER (md5 plus the `:-180` default), colcon rebuild of `swarm_orchestrator` inside `vgu_ros` after a build/install purge, INSTALLED, PACKAGE SRC==INSTALLED, ORCH PIN, and a smoke test.
   - The smoke checks R1's flags on the three grounding files.
   - It also checks the R5 field `RetreatStage2Record.dropped_candidates`, `RetreatSelection.escort_park_dropped`, and `DroppedCandidate.reason == escort_hits_park`.
+  - Rev 3: it also prints the A35 smoke `reasoning_enabled` default True and the status-line token.
 - **Suite (at `97d68e0`, full testpaths, `--continue-on-collection-errors`, run 2026-10-21 for this kit):** 62 failed / 6833 passed / 153 skipped / 3 errors. That is p9's 62/6815/153/3 plus 18 passing tests from the freeze branch. The 65 failing ids are identical to the A27 reference list (`data/logs/vm_runs/a27/final_ids.txt`). Evidence: `data/logs/vm_runs/batch6/suite/`.
 - **Suite (scorer commit `3c71503`, `pytest tests/unit -q --continue-on-collection-errors`):** 57 failed / 6877 passed / 151 skipped / 3 errors. That equals the `3efcd78` baseline of 57 failed / 3 errors for this invocation.
+- **Suite (Rev 3, runtime `1624db1`, same invocation):** 57 failed / 6903 passed / 151 skipped / 3 errors. The extra 26 passing tests are `tests/unit/test_m5_node_reasoning_off.py`. The 60 failing/erroring ids equal `a27/final_ids.txt` minus `tests/simulation`. A Mac smoke (`p10/smoke_armb/mac_armb_smoke.log`) ran the seed-1 Arm B overlay through the real node with no pipeline injected: 240 stall scenes, 0 backend builds, 0 analyses, 0 artifacts, one status line, and the tasks and scene logs written.
 
 ### 1.5 Outcome measures, exactly as registered (no new predictions)
 
@@ -153,7 +160,8 @@ This tranche is confirmatory. It adds NO hypothesis and NO threshold. It collect
 - **Condition gate** (`cond_p10.py`, after every episode). The chain stops on any failure. The gate requires:
   - `CONDITION.txt` carries `tag=confirmatory_t1 record=0 confirmatory=1 arm=<the arm run>`;
   - Arm A: every grounded artifact carries `escort_park_clearance`, `retreat_shield` and `retreat_fast_fail` True;
-  - Arm B: 0 decision artifacts and 0 `starting analysis` lines in `m5.log`.
+  - Arm B: 0 decision artifacts and 0 `starting analysis` lines in `m5.log`. Rev 3 (A35) adds exactly one M5 status line, exactly one `decisions/tasks_*.jsonl` and a non-empty `m5_scene.jsonl`, so that an M5 crash cannot pass as silence;
+  - Arm A (Rev 3): 0 status lines.
 
   The same line also reports:
   - the `retreat=escort_park_filtered` tag counts;
@@ -175,14 +183,14 @@ This tranche is confirmatory. It adds NO hypothesis and NO threshold. It collect
 - **No top-up:** an episode that would breach the floor is not run and is reported. No episode is added after seeing data.
 - **Bring-up:** up to 3 attempts per (seed, arm).
   - `ON_SEED_FAIL=stop`: a (seed, arm) whose 3 attempts all abort stops the tranche for an owner ruling. It is never skipped or substituted. See §1.8 (e).
-- **Chain stops** on any pin, floor or condition gate failure, `STOP_CHAIN`, or the budget gate. It refuses at preflight, before any episode, while the Arm B launch mode is absent (A34 R9).
+- **Chain stops** on any pin, floor or condition gate failure, `STOP_CHAIN`, or the budget gate. It refuses at preflight, before any episode, while the Arm B launch mode is absent (A34 R9). Since Rev 3, `ARM_B_MODE=reasoning_enabled_false`. Before either arm of a seed runs, the chain checks that both arms' overlays exist, that the key is absent from Arm A's and that the last line of Arm B's is `reasoning_enabled: false`.
 - **VM:** started for this tranche and STOPPED after it. The kit steps are in `batch6/NOTES_vm_b6.md`: pins → gen → build → deploy (orchestrator rebuild) → floor → overlays → chain → `restore_safety_p10.sh` → close-out → stop.
 
 ### 1.8 Owner rulings (ruled 2026-10-21: A33(8)-(9), A34 R6-R11)
 
 Each item below was open in the initial draft. It is now ruled, and its kit default is replaced where the ruling differs.
 
-- **(a) Cell and arms: RULED** (A34 run spec, R9). The cell is the shield cell, with both arms on the same seeds: Arm A Layer-2-on (ER-2) and Arm B Layer-2-off classical. No non-shield S1b cell is in this tranche. Arm B's launch mode is BLOCKED, and the tranche does not start until it exists.
+- **(a) Cell and arms: RULED** (A34 run spec, R9). The cell is the shield cell, with both arms on the same seeds: Arm A Layer-2-on (ER-2) and Arm B Layer-2-off classical. No non-shield S1b cell is in this tranche. Arm B's launch mode was BLOCKED at A34 and is built by A35 (Rev 3): M5 `reasoning_enabled: false`.
 - **(b) Seeds: RULED** (A33(8)). Positions 1-5 are kept. Every position 1-20 already ran as a pilot (E1-E5 echo, E6-E20 live). The pilots stay excluded (A32), and the fact that the confirmatory seeds are not unseen is a recorded LIMITATION.
 - **(c) RECORD: RULED** (A34 R6). RECORD is a dataset tag only. fc_launch gets RECORD=0, as in every pilot, so no recorder runs. The confirmatory status is `confirmatory=1` in `CONDITION.txt`.
 - **(d) Censoring: RULED** (A34 R7). Episodes are capped by sim-s, with a $0.25 guard (§1.7). A guard-cut episode is censored `stop_flag`. Each run's T_end and absolute GT end are reported; "by H" means by T_end of an uncut run (A34 R11).
