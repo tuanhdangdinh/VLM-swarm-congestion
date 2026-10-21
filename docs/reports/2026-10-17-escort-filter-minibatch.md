@@ -7,6 +7,7 @@
 - Initial draft: the A30 switch-on overlay built offline (grounding file, seeds 24-26, overlays, VM kit p9); mini-batch E24-E26 PRE-REGISTERED before any live call (§1). Results follow in later sections.
 - Rev 2 (2026-10-19): §2-§9 added after the live run on the zone-moved VM clone: summary, deploy/build evidence (the §1 "to be filled" md5s), the E24-E26 episodes, P1-P4 scored (all PASS), Rev 7 aggregates, deviations, VM end state and owner rulings. §1 unchanged.
 - Rev 3 (2026-10-20): §9.1 added, the offline switch-off re-ground of E24 `dfb33b91`, which answers the §9 item 3 measurement question; §1 unchanged.
+- Rev 4 (2026-10-21): §9 owner rulings recorded (items 1, 3, 4 RULED as A32 R2, R1, R3) and the kit follow-ups for the next kit; §1 unchanged.
 
 ---
 
@@ -343,10 +344,19 @@ Output: `batch5/agg_b5.json` (`aggregate_b5.py` over `batch5/live21.txt`), plus 
 
 ## 9. Owner Rulings Needed
 
-1. **Episode cap.** All three episodes were cut by the $0.05 cap, at 137 / 174 / 133 sim-s of H 600, with 6 analyses each. E26's yield was released 23.7 sim-s before the cut, so its "unproductive" score is censored by budget. Options: raise the episode cap for the next live cells, or accept cap-censored productive scoring.
+**Rulings (owner, 2026-10-21; prereg-v3 A32).** Item 1 RULED (R2): episode cap $0.05 → $0.10 for confirmatory runs; batch cap and start floor set per cell in the kit. Item 3 RULED (R1): `escort_park_clearance` ON in shield cells via `config/grounding/s1b_dynamic_shield_escort.yaml` (40968886) as the registered shield config, OFF elsewhere. Item 4 RULED (R3): per-robot active timeout 120 → 180 s, landed in `scripts/vm/fc_launch.sh` (`NAV2_STACK_ACTIVE_TIMEOUT_SEC` default, `d975f13`). The A29(ii) stage-2 record gap is closed (R5, `6abea45`). Items 2 and 5 stay recorded, not ruled.
+
+**Kit changes for the next kit (follow-ups).**
+
+- R2: set the episode cap to $0.10 (was $0.05) and set the batch cap and start floor per cell.
+- R3: keep `NAV2_BRINGUP_MODE=sequential` (the 180 s applies only there) and leave `NAV2_STACK_ACTIVE_TIMEOUT_SEC` unset so the new default applies, or set it to 180. The p9 chain sets the mode and not the variable, so it needs no edit for this.
+- R1: point the shield cells' grounding source at `s1b_dynamic_shield_escort.yaml` and check its md5 is 40968886 in the pre-flight pins.
+- Deploy `feat/v3-s1b-freeze` before the first confirmatory cell: `reasoning/rag/command_grounder.py` (live-mounted M3), `swarm_orchestrator/models.py` and `retreat_stage2.py` (colcon-built: rebuild `swarm_orchestrator`, then md5 source against install) and `scripts/vm/fc_launch.sh`. The VM still carries the A28/A29 runtime, which has neither R3 nor R5.
+
+1. **Episode cap.** All three episodes were cut by the $0.05 cap, at 137 / 174 / 133 sim-s of H 600, with 6 analyses each. E26's yield was released 23.7 sim-s before the cut, so its "unproductive" score is censored by budget. Options: raise the episode cap for the next live cells, or accept cap-censored productive scoring. **RULED 2026-10-21 (R2): cap raised to $0.10 (kit change).**
 2. **Admitted is still not productive (E26).** The escorted passer and its parked yielder re-latched at 0.433 m (no contact) about 3 sim-s after a clearance release and stayed latched to the end. This is the second admitted, unproductive pattern after batch 4's E21 and E22. Recorded, not ruled.
-3. **What the filter changed (measured 2026-10-20, §9.1).** The filter dropped a non-default candidate, pre-filter A at 0.215 m (geometry rank 1). The switch-off default is the dispatched pose, so the filter did not change the default pick. It did change what stage 2 offered (4 → 3 marks, re-lettered). Whether the model would have picked the 0.215 m pose with the switch off cannot be replayed offline. MC's two predicted firings (s25, s26) did not occur live. E25 had the same pair and yielder at about the same time but grounded a different escort (1.169 m vs 1.95 m; cause not isolated). E26's first conflict got a `reverse`. Should `escort_park_clearance` become the default in shield cells (n = 1 live firing)?
-4. **Sequential bring-up aborts on the new host:** 2 of 5 attempts (robot_1, then robot_3, not active 120 s after launch), against 1 of 21 before. Pooled 3/26. Both retries succeeded. Whether to watch this as a host effect, or lengthen the per-robot active timeout, is the owner's call.
+3. **What the filter changed (measured 2026-10-20, §9.1).** The filter dropped a non-default candidate, pre-filter A at 0.215 m (geometry rank 1). The switch-off default is the dispatched pose, so the filter did not change the default pick. It did change what stage 2 offered (4 → 3 marks, re-lettered). Whether the model would have picked the 0.215 m pose with the switch off cannot be replayed offline. MC's two predicted firings (s25, s26) did not occur live. E25 had the same pair and yielder at about the same time but grounded a different escort (1.169 m vs 1.95 m; cause not isolated). E26's first conflict got a `reverse`. Should `escort_park_clearance` become the default in shield cells (n = 1 live firing)? **RULED 2026-10-21 (R1): yes, ON in shield cells only, via the escort overlay.**
+4. **Sequential bring-up aborts on the new host:** 2 of 5 attempts (robot_1, then robot_3, not active 120 s after launch), against 1 of 21 before. Pooled 3/26. Both retries succeeded. Whether to watch this as a host effect, or lengthen the per-robot active timeout, is the owner's call. **RULED 2026-10-21 (R3): timeout lengthened to 180 s (`d975f13`).**
 5. **Shield and B3 are still unexercised live.** The shield was armed in all 18 artifacts but placed no hold, and B3 never fired. Batch 4's §8 item 4 stands.
 
 ### 9.1 E24 `dfb33b91` Re-grounded With the Switch Off (2026-10-20)
