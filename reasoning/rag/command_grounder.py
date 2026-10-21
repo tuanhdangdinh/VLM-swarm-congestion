@@ -14,6 +14,7 @@ from pydantic import (
 )
 
 from reasoning.rag.escort_clearance import (
+    ESCORT_HITS_PARK_REASON,
     EscortLeg,
     escort_hits_park_reason,
     escort_park_violations,
@@ -1453,6 +1454,29 @@ class YieldRoles(BaseModel):
         return self.robot_ids[0]
 
 
+class DroppedCandidate(BaseModel):
+    """One retreat candidate the escort/park filter dropped, per violating escort leg.
+
+    prereg-v3 A29 item (ii): the provenance `escort_park_filtered` carries
+    as a tag string, structured so the stage-2 record can show what stage 2
+    was not offered. A candidate with two violating legs yields two entries.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    # The candidate's label before the survivors were re-lettered.
+    label: str = Field(min_length=1)
+    # The park point the clearance was measured from (world frame, metres,
+    # rounded to 3 dp as the yield parameters carry it).
+    x: float
+    y: float
+    passer_id: str = Field(min_length=1)
+    # Point-to-segment distance from the park point to the passer's escort
+    # leg, in metres; below `min_distance_m` by construction.
+    clearance_m: float
+    reason: Literal["escort_hits_park"] = ESCORT_HITS_PARK_REASON
+
+
 class RetreatSelection(BaseModel):
     """Stage-2 inputs: the derived backup and the ranked candidate set."""
 
@@ -1475,6 +1499,8 @@ class RetreatSelection(BaseModel):
     # reasons: the yield's infeasibility cause when nothing survived, as the
     # backstop would have named them for the default candidate.
     escort_park_infeasible: list[str] = Field(default_factory=list)
+    # The same drops as `escort_park_filtered`, structured (A29 item (ii)).
+    escort_park_dropped: list[DroppedCandidate] = Field(default_factory=list)
 
 
 def _junction_same_axis_order(
@@ -2148,14 +2174,16 @@ def filter_escort_park_candidates(
 
     Returns:
         `selection` itself when the switch is off, it has no candidates or
-        nothing is dropped; otherwise a copy with the survivors and
-        `escort_park_filtered` recording each drop.
+        nothing is dropped; otherwise a copy with the survivors,
+        `escort_park_filtered` recording each drop as a tag and
+        `escort_park_dropped` recording it structured.
     """
     if not params.escort_park_clearance or not selection.candidates:
         return selection
     order = selection.crossing_order
     survivors: list[RetreatCandidate] = []
     dropped: list[tuple[str, EscortLeg]] = []
+    dropped_poses: list[tuple[float, float]] = []
     for candidate in selection.candidates:
         escort, crossing_clear = _candidate_escort(
             snapshot, selection.yielder_id, order, candidate, params, geometry
@@ -2180,6 +2208,7 @@ def filter_escort_park_candidates(
         )
         if legs:
             dropped.extend((candidate.label, leg) for leg in legs)
+            dropped_poses.extend((park_x, park_y) for _ in legs)
         else:
             survivors.append(candidate)
     if not dropped:
@@ -2192,6 +2221,16 @@ def filter_escort_park_candidates(
             ],
             "escort_park_infeasible": [
                 escort_hits_park_reason(leg) for label, leg in dropped if label == dropped[0][0]
+            ],
+            "escort_park_dropped": [
+                DroppedCandidate(
+                    label=label,
+                    x=x,
+                    y=y,
+                    passer_id=leg.passer_id,
+                    clearance_m=round(leg.park_clearance_m, 3),
+                )
+                for (label, leg), (x, y) in zip(dropped, dropped_poses, strict=True)
             ],
         }
     )

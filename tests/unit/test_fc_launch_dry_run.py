@@ -367,6 +367,13 @@ def test_sequential_mode_polls_each_stack_own_log_with_the_per_stack_budget():
     ]
 
 
+def test_sequential_mode_per_stack_budget_defaults_to_180s_when_unset():
+    # prereg-v3 A32 (owner ruling R3, 2026-10-21): 120 -> 180 s.
+    waits = [line for line in _s1b_seq() if "until robot_" in line]
+    assert len(waits) == 5
+    assert all("is active (<= 180s)" in line for line in waits)
+
+
 def test_sequential_mode_ignores_the_stagger_sleep():
     lines = _s1b_seq()
     starts = [i for i, line in enumerate(lines) if line.startswith("[fc-launch] starting Nav2")]

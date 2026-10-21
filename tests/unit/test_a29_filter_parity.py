@@ -446,3 +446,60 @@ def test_every_reader_hands_the_filter_the_grounder_goal_references(monkeypatch)
         read()
         assert seen, name
         assert all(refs == goals for refs in seen), name
+
+
+# prereg-v3 A29 item (ii) (owner ruling R5, 2026-10-21): the stage-2 record
+# carries the candidates the escort/park filter dropped.
+
+
+def test_stage2_record_lists_dropped_candidates_when_park_clearance_on():
+    _, record = _stage2(CASES["E20_6cf402ed"], _params(escort_park_clearance=True))
+    assert [c.model_dump(mode="json") for c in record.dropped_candidates] == [
+        {
+            "label": "A",
+            "x": 2.156,
+            "y": -1.428,
+            "passer_id": "robot_3",
+            "clearance_m": 0.131,
+            "reason": "escort_hits_park",
+        }
+    ]
+
+
+@pytest.mark.parametrize("name", sorted(CASES))
+def test_stage2_dropped_candidates_match_the_filtered_tags_when_park_clearance_on(name):
+    case = CASES[name]
+    params = _params(escort_park_clearance=True)
+    _, selection = _filtered_selection(case, params)
+    _, record = _stage2(case, params)
+    assert [
+        f"{c.label}:{c.passer_id}:{c.clearance_m:.3f}" for c in record.dropped_candidates
+    ] == selection.escort_park_filtered
+
+
+@pytest.mark.parametrize("name", sorted(CASES))
+def test_stage2_dropped_candidates_empty_and_omitted_when_park_clearance_off(name):
+    _, record = _stage2(CASES[name], _params(escort_park_clearance=False))
+    assert record.dropped_candidates == ()
+    assert "dropped_candidates" not in record.model_dump(mode="json")
+
+
+def test_stage2_dropped_candidates_empty_when_no_candidate_violates():
+    # E23's only violating leg clears its park point by 0.184 m; a 0.10 m
+    # latch radius leaves every candidate clear with the switch on.
+    params = _params(escort_park_clearance=True, min_distance_m=0.10)
+    _, record = _stage2(CASES["E23_9803bd34"], params)
+    assert record.candidates
+    assert record.dropped_candidates == ()
+    assert "dropped_candidates" not in record.model_dump(mode="json")
+
+
+@pytest.mark.parametrize("name", sorted(CASES))
+def test_stage2_record_round_trips_through_json_with_dropped_candidates(name):
+    from swarm_orchestrator.models import RetreatStage2Record
+
+    _, record = _stage2(CASES[name], _params(escort_park_clearance=True))
+    assert record.dropped_candidates
+    dumped = json.dumps(record.model_dump(mode="json"))
+    assert RetreatStage2Record.model_validate(json.loads(dumped)) == record
+    assert RetreatStage2Record.model_validate_json(record.model_dump_json()) == record

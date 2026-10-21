@@ -19,6 +19,7 @@ from reasoning.baselines import ConflictZone
 from reasoning.rag.command_grounder import (
     DispatchOrderSource,
     DispatchOrderSourceMode,
+    DroppedCandidate,
     JunctionClearPhasePlan,
     PlanEdit,
     PlanProvenance,
@@ -755,6 +756,22 @@ class RetreatStage2Record(BaseModel):
     failure_cause: str | None = None
     # An unexpected exception inside stage 2, recorded instead of raised.
     error: str | None = None
+    # prereg-v3 A29 item (ii): the candidates the escort/park filter dropped
+    # before stage 2 (pre-filter label, park pose, passer, clearance), one
+    # per violating escort leg; empty when the switch is off or nothing was
+    # dropped, and then omitted from the dump.
+    dropped_candidates: tuple[DroppedCandidate, ...] = ()
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_dropped_candidates(
+        self, handler: SerializerFunctionWrapHandler
+    ) -> dict[str, Any]:
+        # A switch-off record dumps byte-identically to before the field
+        # existed (the A29 switch-off parity golden).
+        data = handler(self)
+        if not self.dropped_candidates:
+            data.pop("dropped_candidates", None)
+        return data
 
 
 class PlanDispatchInfo(BaseModel):

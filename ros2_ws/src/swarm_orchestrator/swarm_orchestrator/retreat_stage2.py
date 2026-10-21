@@ -291,6 +291,7 @@ def _run(
         "crossing_order": list(selection.crossing_order),
         "candidates": [candidate.model_dump(mode="json") for candidate in candidates],
         "default_label": candidates[0].label if candidates else None,
+        "dropped_candidates": tuple(selection.escort_park_dropped),
     }
     if not candidates:
         return None, RetreatStage2Record(status="skipped", skip_reason="no_candidates", **base)
