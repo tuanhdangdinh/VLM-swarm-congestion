@@ -47,3 +47,6 @@ docs/note/
 # macOS AppleDouble files
 ._*
 **/._*
+
+# v4 VLM bench items, runs and response cache (local; reports go to docs/reports)
+data/bench/
