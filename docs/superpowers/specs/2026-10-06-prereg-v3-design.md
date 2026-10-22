@@ -4,6 +4,7 @@
 
 **Revision history:**
 
+- Addendum A36 (2026-10-22): S1b confirmatory tranche 1 outcome (provenance, per-episode table, A33 measures as scored, findings incl. vacuous completeness/makespan at H = 600 in both arms, GPU wall-clock DEVIATION with a proposed cap rule, and the tranche-2 design OWNER DECISION NEEDED), inserted after A26 and above A35, as A27-A35 were.
 - Addendum A35 (2026-10-21): Arm B Layer-2-off mode registered (M5 `reasoning_enabled: false`, its overlays, gates, md5s and smoke; operationally closes A34 R9 / A13(iii), so tranche 1 is runnable), inserted after A26 and above A34, as A27-A34 were.
 - Addendum A34 (2026-10-21): confirmatory tranche 1 rulings R6-R11 (RECORD as a dataset tag, sim-s cap with a dollar guard, S1b free-flow table frozen, Arm B ruled Layer-2-off classical with its launch mode BLOCKED, accepted types, every A33 PROPOSAL ruled) and the 10-episode tranche-1 run spec, inserted after A26 and above A33, as A27-A33 were.
 - Addendum A33 (2026-10-21): S1 scorer definitions frozen before confirmatory collection (every registered S1 outcome measure defined operationally; seed-policy and interleaving rulings; open owner decisions), inserted after A26 and above A32, as A27-A32 were.
@@ -1438,6 +1439,301 @@ completion; only E6 released on real clearance). Projected effect
 of A alone: admits 3/9→5/9; B is the bigger lever (covers both
 MC-matched failed yields). Deploy note: A touches live-mounted M3
 files AND colcon-built M4 files — rebuild + md5 both.
+
+**A36. S1b confirmatory tranche 1 outcome (2026-10-22; report
+`docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` Rev 4, branch
+`feat/v3-confirm-t1`, merged into `feat/v3-integration` @68e67b5;
+scores `data/logs/vm_runs/batch6/scores_t1/` and `batch6/agg_b6.json`,
+untracked; VM log appended to `batch6/p10/NOTES_vm_b6.md`).** The
+first confirmatory S1b tranche ran in full under A32-A35. This addendum
+records its provenance and its A33 measures as the scorer emitted them.
+It also records one deviation, the GPU wall-clock, and one open owner
+decision, the design of tranche 2. Nothing below changes a registered
+measure, parameter or ruling. Line cites are "at 9a5eb8f" (this
+document before A36 was inserted). The labels are A33's: **PROPOSAL**
+and **OWNER DECISION NEEDED**.
+
+- **A36(1) Provenance.**
+  - Host: `vgu-thu-base-isaac-vm-asia-northeast1-a` (asia-northeast1-a,
+    L4). This is the batch-5 host. It started at the first attempt
+    (ephemeral IP 34.84.196.224), and `md5sum -c kit_md5.txt` passed on
+    the VM (delta 6e8b40fab5ab68aebe4b3e4f827b7536).
+  - Runtime: `feat/v3-arm-b-mode` 1624db1 (A35). Installed md5s
+    (measured, report §3.2):
+    - `command_grounder.py` (/ws live mount) cfbd1fb882e5cf9d3b9f45c6e8f67aec;
+    - `models.py` 273bbf7f7d01755226506fd892a380fa;
+    - `orchestrator_node.py` e1b3b289ec05e3c21921fa0253829542;
+    - `retreat_stage2.py` cf0dad3ebf6b96c09f32ec8d5fbe1301;
+    - `fc_launch.sh` (host, `:-180`) 055db01eff423c72d74de6ed30cbc3b6;
+    - escort grounding yaml 409688866d25289309e081dcb9433037;
+    - `safety.yaml` c41913f02cf4e988162c30a44a5dda04 (src + installed,
+      floor 0.20) during the tranche, restored to 59839662 afterwards
+      (`RESTORE PRISTINE OK`).
+    The pinned `orchestrator.yaml` 1f656533 is unchanged in src and
+    installed.
+  - Scenario USD md5s (measured): E27 2c16f8d2285df079c1a853c5e26af228,
+    E28 b0ce58126f0ce6f3782ea6d1c44992ed, E29
+    1364fd432a2440fb4a3d8a910651daee, E30
+    29331415f1574424ef9971651cd514ae, E31
+    e170acf03ccea2181091defc140f2766. The seed 2-5 USDs are byte-identical
+    to their pilot-era USDs, because their yamls differ in comments only.
+  - Scorers (Mac, `vgu-vlm-swarm-v3` @e794952, which contains 3c71503,
+    with an empty `benchmarks/s1_scoring` diff against it): `score_p10.py`
+    7378ba251342a3f06be4f760706d45fa, `score_p10_gates.py`
+    49e4592f0905ff54d711a1bc83c83f5b, `aggregate_b6.py`
+    e2f0c5549652e9148767c4d7e648a6fa. These are the A34-registered md5s,
+    re-measured on the files that ran. The free-flow table is
+    b4002d7697f4d8f27c31792a9b269162 (A34 R8).
+  - Deploy and pin gates: `PINS_PRE OK`; gen `VM == MAC`; build rc 0;
+    every deploy sentinel printed, including `SMOKE A35 reasoning_enabled
+    default True status_line reasoning_enabled=false`; `FLOOR INSTALLED
+    OK`; `ov_p10.sh` `VM == MAC (... Arm A + Arm B)`. The chain pin gate
+    passed before all 11 attempts. The `ep_run_p10.sh` arm check matched
+    on every attempt. The post-run `pins_pre_p10.sh` FAILS BY DESIGN on
+    exactly the 5 deployed files plus the `_confT1_` run files
+    (`p10_vm/pins_post.log`).
+  - Arm B silence gate: PASS 5/5. Each run had 0 artifacts, 0 `starting
+    analysis` lines, exactly 1 status line, 1 `tasks_*.jsonl`, and
+    2465 / 2484 / 2441 / 2430 / 2487 scene lines. This is the first live
+    run of the A35 mode, and it behaved as the Mac smoke did.
+  - Safety gates (A33/A34 §1.6 forms, `gates_p10.jsonl`):
+    - all-pairs GT minimum ≥ 0.18 m in 10/10 runs. The lowest is
+      **0.225 m** (E28 B, r1–r5, 44.8 sim-s), and the highest is 0.424 m;
+    - 0 `hard_contact_floor` stops and 0 B3 fast-fails in all 10;
+    - escort/park legs **0.490 / 0.538 / 0.458 m** (E28 `3c234140`, E29
+      `14aefebe`, E31 `60afd0c1`) against the 0.45 m clearance. E29
+      `5622ed9c` has no leg. There are 0 SAFETY FLAGs, and
+      `tags_vs_dropped_mismatch` is empty everywhere.
+  - Budget (A34 R7): no guard, pin or analysis stop fired, and every run
+    reached GT 600.0 sim-s (censor reason `horizon`). Arm A est
+    $0.0859 / 0.0340 / 0.0373 / 0.0317 / 0.0238, totalling $0.2127 of
+    $1.30 by the cost logs. `agg_b6.json` reads E30 as 0.0318 (rounding),
+    giving $0.2128. R7's worst case of about $0.242 per episode was
+    never approached (max $0.0859).
+  - The D4 condition is MET. The scorer's arm-delta record still carries
+    `conditional_on: owner decision D4 (Arm B identity and parity,
+    A13(iii))`, a string written before R9. A34 R9 ruled D4, A35 built the
+    mode, and the live silence gate above passed 5/5, so the delta below
+    is not conditional on any open decision.
+
+- **A36(2) Per-episode table** (run order per A33(9); tasks = A33(1)
+  `dwell_complete` count by T_end; min pair = GT all-pairs minimum;
+  analyses = decision artifacts).
+
+  | Seed / ep | Arm | Analyses | Yields dispatched | Tasks / 25 | Min pair (m) | est $ |
+  |---|---|---|---|---|---|---|
+  | 1 / E27 | A | 11 (2 `congestion_detected=false`) | 0 (4 refused) | 8 | 0.424 | 0.0859 |
+  | 1 / E27 | B | 0 | n/a | 5 | 0.395 | 0 |
+  | 2 / E28 | B | 0 | n/a | 1 | 0.225 | 0 |
+  | 2 / E28 | A | 4 | 1 (`3c234140`, r1 for r5) | 2 | 0.333 | 0.0340 |
+  | 3 / E29 | A | 5 | 2 (`14aefebe` r1 for r4; `5622ed9c` r3, no leg) | 0 | 0.261 | 0.0373 |
+  | 3 / E29 | B | 0 | n/a | 0 | 0.301 | 0 |
+  | 4 / E30 | B | 0 | n/a | 6 | 0.297 | 0 |
+  | 4 / E30 | A | 5 | 0 (4 refused) | 5 | 0.349 | 0.0317 |
+  | 5 / E31 | A | 3 | 1 (`60afd0c1`, r3 for r4, regrounded) | 1 | 0.341 | 0.0238 |
+  | 5 / E31 | B | 0 | n/a | 0 | 0.388 | 0 |
+
+  - Bring-up: 11 attempts. E27 B a1 was a sequential bring-up abort
+    (robot_2 not active within the 180 s per-stack default, $0, `GATE OK`
+    / `RESTORE OK`). Per A33(9) the same (seed, arm) was retried, and a2
+    passed the idle gate at 0 s. The a1 directory is `not_an_episode`
+    under A33(0) and is not scored.
+
+- **A36(3) A33 measures, exactly as `benchmarks/s1_scoring` reported
+  them** (`scores_t1/s1_scoring.jsonl`; no measure recomputed here).
+  - **Completeness (A33(1)): 0/10 `complete`.** All 10 runs are
+    `failed` (reason `horizon`), not `censored`. Tasks completed are Arm A
+    16/125 and Arm B 12/125. The scorer emits no across-episode Wilson
+    interval, and none is added here.
+  - **Makespan (A33(2)): censored in 10/10** at T_end (568.8-572.0
+    rel-s, reason `horizon`). No KM step occurs in either arm.
+  - **Delay (A33(4)), pooled segments, scored / censored / never
+    departed:** Arm A 18 / 20 / 1; Arm B 14 / 19 / 3. Mean scored delays
+    are small, from −0.20 to +0.23 s, except E28 A at 25.45 s and E31 A
+    at 40.60 s. E31 B has no scored segment.
+  - **Per-conflict, Arm A (A33(5)-(6)):**
+    - 11 GT conflicts, 9 detected: recall 9/11 (0.818);
+    - 26 positive analyses, 0 false positives (precision 1.0),
+      0 `backend_failed`;
+    - type accuracy 7/9 = 0.778 against accepted {"deadlock"} (R10).
+      The label distribution over all 26 positives, which R10 requires,
+      is deadlock 17, crowding 5, bottleneck 4. The first-matched labels
+      that missed are E27 `bottleneck` and E31 #1 `crowding`;
+    - involved-set F1, conditional on detection, 0.915. The unconditional
+      per-conflict values score the 2 undetected conflicts (E29 #3,
+      E30 #2) as 0. The scorer emits no pooled unconditional F1, and none
+      is computed here;
+    - mean detection latency 17.6 s over the 9 detected conflicts, with
+      2 censored latencies (E29 #3 at 497.4 s, E30 #2 at 540.0 s);
+    - plan quality: (i-a) emission 0.923 and (ii) agreement 0.077.
+  - **Arm B:** 10 GT conflicts, 0 detected, 0 positives. Every
+    per-conflict delta is `degenerate_arm_b` by construction (A33(7),
+    A34 R9).
+  - **Arm A − Arm B (A33(7);** 5 seed pairs, τ_i 570.7 / 568.8 / 570.1 /
+    570.7 / 569.2 s, 0 unpaired; paired percentile bootstrap, B = 10000,
+    seed 20261021, 95%):
+
+    | Measure | Arm A | Arm B | Delta A − B | 95% CI | Scorer status |
+    |---|---|---|---|---|---|
+    | throughput at τ | 0.128 | 0.096 | +0.032 | [−0.008, +0.080] | ok |
+    | restricted makespan (s) | 569.88 | 569.88 | 0.0 | [0.0, 0.0] | ok |
+    | mean delay lower bound (s) | 323.4 | 354.9 | −31.5 | [−71.6, −0.6] | ok |
+    | detection recall | 0.818 | 0.0 | 0.818 | [0.636, 1.0] | degenerate_arm_b |
+
+    - The restricted makespan is **uninformative**. Both arms are
+      censored at τ_i in all 5 pairs, so min(M, τ_i) = τ_i in every pair
+      and δ_i = 0 by construction. The scorer status `ok` is correct, but
+      the row carries no arm information.
+    - The delay row is the **mean delay lower bound**, A33(7)'s
+      lower-bound-charged mean. Censored segments dominate it: 39 of 71
+      departed segments are censored, and each is charged
+      T_end − departure − ff. It therefore mostly measures how early
+      robots stopped completing legs inside τ_i. It is not a mean of
+      observed excess travel times.
+  - **Reading (conservative; R3.6a item 4 registers CI estimation, not
+    a test):**
+    - the throughput CI includes 0;
+    - the delay-lower-bound CI excludes 0 by 0.6 s, with Arm A lower;
+    - with n = 5 pairs a percentile bootstrap has few distinct
+      resamples, and one pair can move an endpoint across 0;
+    - these are interval estimates for the S1b regime at tranche 1 only.
+      No directional claim is registered, and none is made here. The
+      registered estimate is the one computed over the full 20 seeds.
+  - **Secondary reading (A22 MC upper bound, `agg_b6.json`):**
+    first-conflict yield 2/5 (E28, E31), Clopper-Pearson [0.053, 0.853],
+    against the MC upper bound 3/5 (s2, s4, s5).
+
+- **A36(4) Findings.**
+  - **(i) Completeness and makespan are vacuous at the registered
+    horizon in BOTH arms.** 0/10 runs completed all 25 tasks, and the
+    best was E27 A with 8/25. Makespan is censored in 10/10, and its
+    paired delta is 0 by construction. A34 R7 removed the dollar cut, so
+    this is not a censoring artifact. At about 570 observed rel-s the
+    S1b task stream cannot be drained with or without Layer 2. This is a
+    SCENARIO-DESIGN LIMITATION of the registered H = 600 sim-s with
+    25 tasks (scene doc line 156; scenario yaml `duration_sec: 600.0`).
+    It is not a Layer-2 result, and it does not read as "both arms
+    fail". Two of the four registered per-run measures carry no arm
+    information on this design. Throughput and delay still do.
+  - **(ii) An MC-predicted escort filter tag fired live for the first
+    time.** E28 A `3c234140` carried `escort_park_filtered:A:robot_5:0.230`
+    against MC's `A:robot_5:0.231` (tranche-1 prereg §1.9), with MC's
+    pair (r1+r5) and yielder (r1). A31(ii) had recorded that the
+    MC-predicted tags did NOT fire in E24-E26. Tranche 1 also had
+    unpredicted filter firings: E28 `A:robot_2:0.316` ×2, and E29
+    `B:robot_4:0.263` / `A:robot_4:0.262`, where MC predicted
+    EMPTY_REROUTE and live dispatched the surviving candidate at
+    0.538 m. One match in 5 seeds confirms that MC can predict a firing.
+    It does not show that MC predicts firings reliably.
+  - **(iii) Arm A grounding refusals.** These are M3 refusals of
+    VLM-requested yields, not VLM refusals. Each refused yield degrades
+    to `temporary_wait` and is still dispatched.
+    - E30 A: 4 yields refused as "ambiguous lane: robot_3 heads 39 deg off
+      both axes (beyond the 30 deg snap)". MC had predicted an executable
+      yield r4.
+    - E27 A: 4 yields refused, as "no shared lane" ×2 (r3 and r4 both run
+      along y) and "no feasible yielder" ×2. MC predicted this refusal
+      ("no shared lane").
+    Neither episode dispatched a yield, and both are `clogged` (A21(iii)
+    churn class). E30 is the only seed where MC predicted an executable
+    first-conflict yield and live did not (2/5 against 3/5).
+  - **(iv) One bring-up abort at the new 180 s default** (E27 B a1,
+    robot_2). It cost $0 and was retried under A33(9), and the retry came
+    up at once. It is recorded here so that tranche 2 can track the
+    abort rate (1 in 11 attempts at tranche 1).
+
+- **A36(5) DEVIATION: GPU wall-clock.**
+  - Measured: the chain ran 14:07:06Z → 23:25:33Z, **9 h 18 min**. VM
+    uptime was at least 9 h 31 min: the earliest VM kit log is 13:54:28Z
+    and `p10_vm/pins_post.log` was written at 23:25:53Z, with boot and
+    stop extra. Neither the report nor the VM log records the
+    VM-up-to-stop time. The ~9.7 h figure used in the brief is an
+    estimate consistent with these bounds and is not a measurement.
+  - Planned: about 3 h (operator brief).
+  - Cause: A34 R7 runs every episode to the full 600 sim-s horizon. At
+    a real-time factor of about 0.18, each episode takes about 55 min of
+    wall time, as the full-horizon pilots E7/E8 did (about 56 min). The
+    3 h figure was carried over from batch 5, whose $0.05 cap cut
+    episodes at about 140 sim-s. The pace was detected 20 wall-min into
+    E27 A (`NOTES_vm_b6.md` log 14:30Z, projecting about 9.5 h). The
+    chain was left running because no cap applied.
+  - Status: this is NOT a protocol violation. Neither the tranche-1
+    prereg §1, A34 nor the runbook sets a wall-clock or GPU-hour cap, and
+    every registered stop rule (budget guard, pin stop, gates) behaved
+    as registered. It IS a PLANNING ERROR. The R7 sim-s ruling changed
+    the per-episode wall time by about 4×, and the plan did not rescale.
+  - **RULING PROPOSED (OWNER DECISION NEEDED):** every future runbook
+    header carries an explicit wall-clock / GPU-hour cap, derived as
+    55 min × episodes × 1.15 (overhead for bring-up retries, setup and
+    close-out). The pre-registration of that tranche states the same
+    cap. A cap breach is a stop-and-report event under the same
+    `ON_SEED_FAIL=stop` discipline. An episode cut by it is censored
+    `stop_flag` and kept, never dropped. For tranche 2 (30 episodes) the
+    formula gives 30 × 55 min × 1.15 ≈ **31.6 h**.
+
+- **A36(6) OWNER DECISION NEEDED: tranche 2 design** (seeds at
+  positions 6-20 of `config/s1_seeds.yaml`, 15 × 2 arms = 30 episodes,
+  A33(8)). The options are presented neutrally. Costs scale with the
+  measured 55 min per full-horizon episode. The raw figure is
+  30 × 55 min = 27.5 h ≈ 28 h of GPU time, or ≈ 31.6 h under the
+  A36(5) cap formula. The dollar figure, ≈ $25 of L4 time "at current
+  rate", is the planner's estimate. No L4 hourly rate is recorded in
+  this document or the tranche-1 report. Arm A ER-2 spend is extra and
+  small (tranche 1: $0.2127 for 5 episodes).
+  - **Option A: keep the registered H = 600 sim-s and 25 tasks.**
+    - For: there is no change to a registered parameter after seeing
+      data, so tranche 1 and tranche 2 pool directly under A33(7). The
+      registered estimate stays the one registered.
+    - Against: about 28-32 GPU-h. Completeness and makespan are almost
+      certainly vacuous again (0/10 at tranche 1), so the 20-seed
+      estimate rests on throughput and the delay lower bound.
+  - **Option B: register a horizon or task-count change by addendum.**
+    - This changes a registered design parameter (H, scene doc line 156;
+      or `tasks_total` 25) AFTER seeing tranche-1 data. It MUST be
+      stated as a POST-HOC AMENDMENT with its justification. Tranche 1 is
+      then reported under both the registered and the amended
+      definitions.
+    - Re-scoring tranche 1 under both works only for a SHORTER horizon
+      or a SMALLER task count, for example completeness of the first k
+      tasks by T_end. No data exists past GT 600 sim-s. A LONGER horizon
+      therefore leaves tranche 1 as a separate stratum at H = 600, or
+      forces its re-run.
+    - A longer horizon also scales GPU time linearly. For example
+      H = 1200 is about 2 × 28 h, before any tranche-1 re-run.
+    - H lives in two places: the scenario yaml `duration_sec` (Isaac run
+      length, which takes effect only through a USD rebuild and therefore
+      needs new USD md5s and pins) and the M5 overlay `horizon_sim_sec`.
+      Both, plus the A33(0) T_end / "by H" reading, would be re-frozen
+      before any tranche-2 episode.
+    - For: completeness and makespan could become informative. Against:
+      a post-hoc change to the design, a rebuild, and a larger budget.
+  - **Option C: keep H; demote completeness and makespan; promote the
+    throughput and delay deltas to primary.**
+    - This is also POST-HOC, because it changes which registered measures
+      are primary after seeing that two of them are vacuous. It must be
+      stated as such.
+    - The GPU cost is as in A. There is no rebuild and no re-freeze, and
+      tranche 1 pools directly.
+    - Against: the primary set is chosen with knowledge of tranche-1
+      outcomes. The delay lower bound is dominated by censored segments
+      (A36(3)), so promoting it promotes a lower-bound quantity.
+  - **PROPOSAL (recommendation, not a ruling):** Option A, for protocol
+    integrity, unless the budget forbids about 28-32 GPU-h. Under A,
+    Option C's emphasis is reported as a clearly labelled SECONDARY
+    ANALYSIS: the throughput and delay-lower-bound deltas reported first,
+    with completeness and makespan reported as registered and their
+    vacuity stated. The registered primaries are not demoted. A
+    reduced-task completeness from Option B may be added as an
+    exploratory reading only. If the budget forbids A, the choice
+    between B and C is the owner's, and either must be labelled post-hoc.
+    In every option the A36(5) cap goes into the tranche-2 runbook
+    header and its prereg before the VM starts.
+
+- **Closes / leaves open.** Tranche 1 is CLOSED as collected and scored
+  under A32-A35 with no protocol violation. A36(5)'s cap rule and A36(6)'s
+  tranche-2 design are OWNER DECISIONS NEEDED, and no tranche-2 episode
+  runs before both are ruled. Pilots E6-E26 stay excluded (A32). The
+  A33(8) limitation, that the confirmatory seeds are not unseen, stands.
 
 **A35. Arm B Layer-2-off mode registered (2026-10-21; owner approved
 building it 2026-10-21; code `feat/v3-arm-b-mode` @1624db1 cut from
