@@ -1,0 +1,12 @@
+{"dwell_sim_sec": 5.0, "event": "stream_start", "finished_mode": "park", "forbidden_legs": [["Wp", "Wm"]], "horizon_sim_sec": 600.0, "labels": {"robot_1": ["pickup", "delivery", "pickup", "delivery", "pickup"], "robot_2": ["pickup", "delivery", "pickup", "delivery", "pickup"], "robot_3": ["pickup", "delivery", "pickup", "delivery", "pickup"], "robot_4": ["pickup", "delivery", "pickup", "delivery", "pickup"], "robot_5": ["pickup", "delivery", "pickup", "delivery", "pickup"]}, "nodes": {"E": [2.3, 0.0], "N": [-0.25, 1.35], "S": [-0.25, -1.35], "Wm": [-2.3, -1.35], "Wp": [-2.3, 1.35]}, "release_clock": "sim", "release_offsets_sim_sec": {"robot_1": 0.0, "robot_2": 2.5, "robot_3": 5.0, "robot_4": 7.5, "robot_5": 10.0}, "release_offsets_wall_sec": null, "release_stagger_sim_sec": 2.5, "release_stagger_wall_sec": null, "run_id": "synth", "seed": 90, "sequences": {"robot_1": ["E", "N"], "robot_2": ["Wp", "N"], "robot_3": ["S", "N"], "robot_4": ["E", "N"], "robot_5": ["E", "N"]}, "session_id": "synth", "start_nodes": {"robot_1": "Wp", "robot_2": "Wm", "robot_3": "E", "robot_4": "S", "robot_5": "N"}, "start_nodes_drawn": false, "tasks_per_robot": 5, "tasks_total": 10, "wall_t": 24465.654100861}
+{"event": "released", "robot_id": "robot_1", "sim_t": 10.0, "task_index": null, "node": null, "goal": null}
+{"event": "issued", "robot_id": "robot_1", "sim_t": 10.0, "task_index": 0, "node": "E", "goal": [2.3, 0.0]}
+{"event": "released", "robot_id": "robot_2", "sim_t": 10.0, "task_index": null, "node": null, "goal": null}
+{"event": "issued", "robot_id": "robot_2", "sim_t": 10.0, "task_index": 0, "node": "Wp", "goal": [-2.3, 1.35]}
+{"event": "released", "robot_id": "robot_3", "sim_t": 10.0, "task_index": null, "node": null, "goal": null}
+{"event": "issued", "robot_id": "robot_3", "sim_t": 10.0, "task_index": 0, "node": "S", "goal": [-0.25, -1.35]}
+{"event": "released", "robot_id": "robot_4", "sim_t": 10.0, "task_index": null, "node": null, "goal": null}
+{"event": "issued", "robot_id": "robot_4", "sim_t": 10.0, "task_index": 0, "node": "E", "goal": [2.3, 0.0]}
+{"event": "released", "robot_id": "robot_5", "sim_t": 10.0, "task_index": null, "node": null, "goal": null}
+{"event": "issued", "robot_id": "robot_5", "sim_t": 10.0, "task_index": 0, "node": "E", "goal": [2.3, 0.0]}
+{"event": "manifest", "makespan_sim_sec": null, "tasks_completed": 0}

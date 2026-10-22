@@ -1,0 +1,1 @@
+tag=synthetic arm=A map=mapd_5_s1b label=s1b_E90_seed90_synth_a1 seed=90
