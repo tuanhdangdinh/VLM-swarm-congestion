@@ -56,6 +56,7 @@ def candidate_row(item: BenchItem) -> dict[str, Any]:
     key = recorded_key(item) if positive else None
     lenient = ground_decision(item, decision) if positive else None
     resolving = [o for o in candidates.options if o.resolving]
+    clusters = [set(c.involved) for c in item.gt.clusters]
     return {
         "item_id": item.item_id,
         "batch": item.batch,
@@ -72,6 +73,14 @@ def candidate_row(item: BenchItem) -> dict[str, Any]:
         "in_set_resolving": key is not None and key in candidates.resolving_keys,
         "any_all": bool(candidates.options),
         "any_resolving": bool(resolving),
+        # The option's probed robots all inside one active GT cluster (strict),
+        # or sharing at least one robot with one (coverage `min_overlap` = 1).
+        "any_resolving_in_cluster": any(
+            set(o.robots) <= c for o in resolving for c in clusters
+        ),
+        "any_resolving_touching_cluster": any(
+            set(o.robots) & c for o in resolving for c in clusters
+        ),
         "generator_version": GENERATOR_VERSION,
     }
 
@@ -112,6 +121,10 @@ def render_candidate_summary(rows: Sequence[dict[str, Any]]) -> str:
         f"| {_count(pos, 'in_set_resolving')} | {_count(pos, 'any_resolving')} |",
         f"| incl. temporary_wait | {_sizes([r['n_options'] for r in pos])} "
         f"| {_count(pos, 'in_set_all')} | {_count(pos, 'any_all')} |",
+        "",
+        "Resolving option on an active GT cluster (recorded positives): all probed robots "
+        f"in one cluster {_count(pos, 'any_resolving_in_cluster')}; at least one robot in a "
+        f"cluster {_count(pos, 'any_resolving_touching_cluster')}.",
         "",
         "| Option set (all items) | set size mean (median, range) | ≥ 1 option |",
         "|---|---|---|",
