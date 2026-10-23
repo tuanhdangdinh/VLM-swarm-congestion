@@ -17,6 +17,7 @@ from benchmarks.vlm_bench.variants.grounding_first import (
     generate_candidates,
     parse_option_answer,
     render_candidate_section,
+    shuffle_candidates,
 )
 
 VARIANTS: dict[str, PromptVariant] = {
@@ -68,4 +69,5 @@ __all__ = [
     "list_variants",
     "parse_option_answer",
     "render_candidate_section",
+    "shuffle_candidates",
 ]

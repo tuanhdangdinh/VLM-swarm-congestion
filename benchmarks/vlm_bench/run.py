@@ -18,7 +18,12 @@ from benchmarks.vlm_bench.grounder_offline import executable_yielders, ground_de
 from benchmarks.vlm_bench.items import REPO_ROOT, file_md5, read_items
 from benchmarks.vlm_bench.models import BenchItem, ItemScore
 from benchmarks.vlm_bench.scoring import Summary, score_item, summarize
-from benchmarks.vlm_bench.variants import VARIANTS, ReplayContext, get_variant
+from benchmarks.vlm_bench.variants import (
+    VARIANTS,
+    GroundingFirstVariant,
+    ReplayContext,
+    get_variant,
+)
 from reasoning.vlm.models import (
     FailureContext,
     PlanStateContext,
@@ -172,6 +177,7 @@ def replay_items(
     cache_dir: Path = DEFAULT_CACHE_DIR,
     models_yaml: Path = REPO_ROOT / "config/models.yaml",
     backend_factory: Callable[[str, dict[str, Any]], Any] | None = None,
+    shuffle_seed: int | None = None,
 ) -> tuple[list[ItemScore], dict[str, Any]]:
     """Re-ask a backend on every item under a prompt variant, through the response cache.
 
@@ -183,6 +189,8 @@ def replay_items(
         models_yaml: The models config.
         backend_factory: Test seam returning a backend for `(id, raw_vlm)`;
             None uses the production `build_backend`.
+        shuffle_seed: `grounding_first` only: present each item's options in
+            a seeded random order (per-item seed recorded in `per_item`).
 
     Returns:
         The scores and a run-info dict: cache hits/misses, skipped items,
@@ -190,7 +198,8 @@ def replay_items(
         count and the SHA-256 of the composed user prompt.
 
     Raises:
-        ValueError: For an unknown variant.
+        ValueError: For an unknown variant, or a shuffle seed on a variant
+            without an option list.
     """
     from reasoning.vlm.backend_factory import (
         backend_adapter,
@@ -202,6 +211,10 @@ def replay_items(
     from reasoning.vlm.reasoner import Reasoner
 
     plugin = get_variant(variant)
+    if shuffle_seed is not None:
+        if variant != "grounding_first":
+            raise ValueError(f"option shuffling needs grounding_first, not {variant!r}")
+        plugin = GroundingFirstVariant(shuffle_seed=shuffle_seed)
     raw_vlm = yaml.safe_load(Path(models_yaml).read_text())["vlm"]
     backend_config = load_backend_config(raw_vlm, backend_id)
     reasoner_config = resolve_reasoner_config(raw_vlm, backend_id)
@@ -252,12 +265,17 @@ def replay_items(
             "prompt_sha256": answer.prompt_sha256,
             "attempts": answer.attempts,
             "parse_status": answer.parse_status,
+            "option_number": answer.option_number,
+            "original_option": answer.original_option,
+            "option_order": answer.option_order,
+            "shuffle_item_seed": answer.shuffle_item_seed,
         }
     info = {
         "backend_id": backend_id,
         "model_id": model_id,
         "variant": variant,
         "candidate_generator_version": plugin.generator_version,
+        "shuffle_seed": shuffle_seed,
         "cache_hits": cached.hits,
         "cache_misses": cached.misses,
         "skipped_prompt_mismatch": skipped,

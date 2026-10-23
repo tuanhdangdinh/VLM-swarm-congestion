@@ -37,6 +37,13 @@ class VariantAnswer(BaseModel):
     token_usage: dict[str, int] | None = None
     latency_ms: int | None = None
     note: str | None = None
+    # Option-list variants: the presented number chosen, the same option's
+    # number in the unshuffled list, the presented order (unshuffled numbers,
+    # slot 1 first) and the per-item shuffle seed (None when not shuffled).
+    option_number: int | None = None
+    original_option: int | None = None
+    option_order: tuple[int, ...] | None = None
+    shuffle_item_seed: int | None = None
 
 
 class PromptVariant(Protocol):

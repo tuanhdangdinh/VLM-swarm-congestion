@@ -31,6 +31,7 @@ import hashlib
 import itertools
 import json
 import math
+import random
 import re
 from typing import Any, Literal
 
@@ -365,6 +366,43 @@ def compose_payload(base: PromptPayload, candidates: CandidateSet) -> PromptPayl
     return base.model_copy(update={"user_prompt": user})
 
 
+def item_shuffle_seed(seed: int, item_id: str) -> int:
+    """The per-item shuffle seed: a process-stable hash of the run seed and the item id.
+
+    Args:
+        seed: The run seed.
+        item_id: The item id.
+
+    Returns:
+        A 64-bit integer seed.
+    """
+    return int(hashlib.sha256(f"{seed}:{item_id}".encode()).hexdigest()[:16], 16)
+
+
+def shuffle_candidates(
+    candidates: CandidateSet, seed: int
+) -> tuple[CandidateSet, tuple[int, ...], int]:
+    """Permute an item's options with a seeded, per-item order.
+
+    "none of the above" is not an option entry, so it stays last (N+1).
+
+    Args:
+        candidates: The item's options in generator order.
+        seed: The run seed.
+
+    Returns:
+        The permuted set, the presented order as unshuffled 1-based numbers
+        (slot 1 first), and the per-item seed.
+    """
+    item_seed = item_shuffle_seed(seed, candidates.item_id)
+    order = list(range(len(candidates.options)))
+    random.Random(item_seed).shuffle(order)
+    permuted = candidates.model_copy(
+        update={"options": tuple(candidates.options[i] for i in order)}
+    )
+    return permuted, tuple(i + 1 for i in order), item_seed
+
+
 def extract_json_object(text: str) -> dict[str, Any]:
     """The one JSON object in a reply (think blocks and fences tolerated).
 
@@ -469,13 +507,16 @@ class GroundingFirstVariant:
     name = "grounding_first"
     generator_version: str | None = GENERATOR_VERSION
 
-    def __init__(self, include_wait: bool = True) -> None:
+    def __init__(self, include_wait: bool = True, shuffle_seed: int | None = None) -> None:
         """Configure the variant.
 
         Args:
             include_wait: List `temporary_wait` options too.
+            shuffle_seed: When set, present each item's options in a seeded
+                random order (`shuffle_candidates`) instead of generator order.
         """
         self.include_wait = include_wait
+        self.shuffle_seed = shuffle_seed
 
     def answer(
         self, item: BenchItem, request: ReasonerRequest, context: ReplayContext
@@ -495,6 +536,10 @@ class GroundingFirstVariant:
             after `max_attempts` unreadable replies or backend errors.
         """
         candidates = generate_candidates(item, include_wait=self.include_wait)
+        order: tuple[int, ...] | None = None
+        item_seed: int | None = None
+        if self.shuffle_seed is not None:
+            candidates, order, item_seed = shuffle_candidates(candidates, self.shuffle_seed)
         first = compose_payload(build_prompt_payload(request), candidates)
         sha = hashlib.sha256(first.user_prompt.encode()).hexdigest()
         config = context.reasoner_config
@@ -517,6 +562,11 @@ class GroundingFirstVariant:
                 continue
             parsed = parse_option_answer(last.text, candidates)
             if parsed.status != "parse_failure":
+                original = parsed.option_number
+                if original is not None and original <= len(candidates.options):
+                    original = order[original - 1] if order is not None else original
+                else:
+                    original = None
                 return VariantAnswer(
                     decision=parsed.decision,
                     prompt_sha256=sha,
@@ -528,8 +578,13 @@ class GroundingFirstVariant:
                     latency_ms=last.latency_ms,
                     note=(
                         f"option={parsed.option_number or 'none'}/{len(candidates.options)}; "
+                        f"original_option={original or 'none'}; "
                         f"model_involved={','.join(parsed.model_involved)}"
                     ),
+                    option_number=parsed.option_number,
+                    original_option=original,
+                    option_order=order,
+                    shuffle_item_seed=item_seed,
                 )
             failed_once = True
             error = parsed.error
@@ -545,6 +600,8 @@ class GroundingFirstVariant:
             token_usage=None if last is None else last.token_usage,
             latency_ms=None if last is None else last.latency_ms,
             note=f"parse_failure: {error}",
+            option_order=order,
+            shuffle_item_seed=item_seed,
         )
 
 

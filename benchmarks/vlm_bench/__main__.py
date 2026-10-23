@@ -41,6 +41,12 @@ def _parser() -> argparse.ArgumentParser:
              "number; its responses are cached under <cache-dir>/fixed-option-<n>, never "
              "beside a real backend's",
     )
+    replay.add_argument(
+        "--shuffle-options", action="store_true",
+        help="grounding_first only: present options in a seeded per-item random order",
+    )
+    replay.add_argument("--seed", type=int, default=20261023,
+                        help="run seed for --shuffle-options")
     cands = sub.add_parser("candidates", help="grounding-first executable option sets (no API)")
     cands.add_argument("--items", type=Path, required=True)
     cands.add_argument("--out", type=Path, required=True)
@@ -96,7 +102,8 @@ def main(argv: list[str] | None = None) -> int:
             factory = lambda _id, _raw: FixedOptionBackend(option)  # noqa: E731
             cache_dir = cache_dir / f"fixed-option-{args.fixed_option}"
         scores, info = replay_items(
-            items, args.backend, args.prompt_variant, cache_dir, backend_factory=factory
+            items, args.backend, args.prompt_variant, cache_dir, backend_factory=factory,
+            shuffle_seed=args.seed if args.shuffle_options else None,
         )
         if args.fixed_option is not None:
             info["fixed_option"] = args.fixed_option

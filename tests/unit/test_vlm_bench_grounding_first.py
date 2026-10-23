@@ -9,6 +9,8 @@ from benchmarks.vlm_bench.grounder_offline import ground_command, ground_decisio
 from benchmarks.vlm_bench.models import BenchItem
 from benchmarks.vlm_bench.run import rebuild_request, replay_items
 from benchmarks.vlm_bench.variants import (
+    CandidateSet,
+    ExecutableOption,
     FixedOptionBackend,
     compose_payload,
     executed_key,
@@ -16,6 +18,8 @@ from benchmarks.vlm_bench.variants import (
     get_variant,
     list_variants,
     parse_option_answer,
+    render_candidate_section,
+    shuffle_candidates,
 )
 from benchmarks.vlm_bench.variants.candidate_report import candidate_row, render_candidate_summary
 from reasoning.vlm.prompt_builder import build_prompt_payload
@@ -226,3 +230,60 @@ def test_candidate_row_cluster_flag_false_without_gt_clusters():
     item = item.model_copy(update={"gt": item.gt.model_copy(update={"clusters": ()})})
     row = candidate_row(item)
     assert row["any_resolving"] and not row["any_resolving_in_cluster"]
+
+
+def _dummy_set(item_id: str, n: int = 8) -> CandidateSet:
+    options = tuple(
+        ExecutableOption(
+            strategy="temporary_wait", robots=(f"robot_{i}", "robot_x"),
+            key=("temporary_wait", f"robot_{i}"), separation_m=float(i), text=f"wait {i}",
+        )
+        for i in range(n)
+    )
+    return CandidateSet(item_id=item_id, options=options)
+
+
+def test_shuffle_candidates_same_seed_and_item_gives_same_order():
+    _, first, seed_a = shuffle_candidates(_dummy_set("bundle:a"), 20261023)
+    _, second, seed_b = shuffle_candidates(_dummy_set("bundle:a"), 20261023)
+    assert first == second and seed_a == seed_b
+    assert sorted(first) == list(range(1, 9))
+
+
+def test_shuffle_candidates_different_items_get_different_orders():
+    orders = {shuffle_candidates(_dummy_set(f"bundle:{i}"), 20261023)[1] for i in range(5)}
+    assert len(orders) > 1
+
+
+def test_shuffle_candidates_keeps_none_last():
+    permuted, order, _ = shuffle_candidates(_dummy_set("bundle:a"), 7)
+    section = render_candidate_section(permuted)
+    assert "9) none of the above" in section
+    assert permuted.options[0].text == f"wait {order[0] - 1}"
+
+
+def test_replay_shuffled_fixed_option_one_maps_to_presented_slot(tmp_path):
+    item = _with_live_hash(_item(), tmp_path)
+    scores, info = replay_items(
+        [item], "gemini", "grounding_first", cache_dir=tmp_path,
+        backend_factory=lambda _id, _raw: FixedOptionBackend(1), shuffle_seed=20261023,
+    )
+    row = info["per_item"][item.item_id]
+    original = generate_candidates(item).options[row["option_order"][0] - 1]
+    assert row["option_number"] == 1 and row["original_option"] == row["option_order"][0]
+    assert scores[0].decision["involved_robots"] == list(original.robots)
+    assert scores[0].decision["yield_robot"] == original.yield_robot
+    assert info["shuffle_seed"] == 20261023 and row["shuffle_item_seed"] is not None
+
+
+def test_replay_shuffle_seed_rejected_for_baseline(tmp_path):
+    item = _with_live_hash(_item(), tmp_path)
+    try:
+        replay_items(
+            [item], "gemini", "baseline", cache_dir=tmp_path,
+            backend_factory=lambda _id, _raw: FixedOptionBackend(1), shuffle_seed=1,
+        )
+    except ValueError as exc:
+        assert "grounding_first" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
