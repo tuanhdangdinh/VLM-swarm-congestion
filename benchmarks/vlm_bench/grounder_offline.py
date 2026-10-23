@@ -97,20 +97,20 @@ def item_frame(item: BenchItem) -> SnapshotFrame:
     return SnapshotFrame(stamp=item.stamp, robots=robots)
 
 
-def ground_decision(item: BenchItem, decision: dict[str, Any] | None) -> GroundingOutcome | None:
-    """Ground one decision on the item's scene with the episode's M3 inputs.
+def ground_command(item: BenchItem, decision: dict[str, Any]) -> dict[str, Any]:
+    """The grounded M3 command of one positive decision on the item's scene.
 
     Args:
         item: The bench item.
-        decision: A decision dict (`CongestionDecision` fields).
+        decision: A positive decision dict (`CongestionDecision` fields).
 
     Returns:
-        None for a missing or negative decision; else the outcome. Grounding
-        exceptions are recorded as infeasible with `error` set, as the live
-        pipeline records a `GROUNDING` terminal stage.
+        The command `ground_reasoner_result` returns, stage 2 not run.
+
+    Raises:
+        Exception: Whatever the grounder raises; callers record it like the
+            live `GROUNDING` terminal stage.
     """
-    if not decision or not decision.get("congestion_detected"):
-        return None
     config = item_config(item)
     params = (
         GroundingParams(**item.grounding.params) if item.grounding.params is not None else None
@@ -135,19 +135,28 @@ def ground_decision(item: BenchItem, decision: dict[str, Any] | None) -> Groundi
                 rid: RobotTaskIntent(**intent.model_dump())
                 for rid, intent in item.grounding.task_intents.items()
             }
-    try:
-        command = ground_reasoner_result(
-            result,
-            robot_positions={r.robot_id: (r.x, r.y) for r in frame.robots},
-            geometry=config.scenario_geometry,
-            static_obstacles=config.static_obstacles,
-            yield_feasibility_mode=config.grounding_yield_feasibility,
-            snapshot=frame,
-            params=params,
-            **kwargs,
-        )
-    except Exception as exc:  # recorded like the live GROUNDING terminal stage
-        return GroundingOutcome(feasible=False, error=f"{type(exc).__name__}: {exc}")
+    return ground_reasoner_result(
+        result,
+        robot_positions={r.robot_id: (r.x, r.y) for r in frame.robots},
+        geometry=config.scenario_geometry,
+        static_obstacles=config.static_obstacles,
+        yield_feasibility_mode=config.grounding_yield_feasibility,
+        snapshot=frame,
+        params=params,
+        **kwargs,
+    )
+
+
+def outcome_of(command: dict[str, Any]) -> GroundingOutcome:
+    """The bench's feasibility reading of one grounded command.
+
+    Args:
+        command: A grounded command.
+
+    Returns:
+        Infeasible when the yield gate refused or the yield degraded to an
+        empty-waypoint reroute; feasible otherwise.
+    """
     provenance = summarize_yield_grounding(command)
     reason = provenance.refusal_reason or empty_reroute_fallback(command)
     return GroundingOutcome(
@@ -157,6 +166,27 @@ def ground_decision(item: BenchItem, decision: dict[str, Any] | None) -> Groundi
         grounded_yielder=provenance.grounded_to,
         action_kinds=tuple(a.get("action") for a in command.get("actions") or []),
     )
+
+
+def ground_decision(item: BenchItem, decision: dict[str, Any] | None) -> GroundingOutcome | None:
+    """Ground one decision on the item's scene with the episode's M3 inputs.
+
+    Args:
+        item: The bench item.
+        decision: A decision dict (`CongestionDecision` fields).
+
+    Returns:
+        None for a missing or negative decision; else the outcome. Grounding
+        exceptions are recorded as infeasible with `error` set, as the live
+        pipeline records a `GROUNDING` terminal stage.
+    """
+    if not decision or not decision.get("congestion_detected"):
+        return None
+    try:
+        command = ground_command(item, decision)
+    except Exception as exc:  # recorded like the live GROUNDING terminal stage
+        return GroundingOutcome(feasible=False, error=f"{type(exc).__name__}: {exc}")
+    return outcome_of(command)
 
 
 def executable_yielders(item: BenchItem, decision: dict[str, Any]) -> tuple[str, ...]:

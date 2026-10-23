@@ -18,6 +18,7 @@ from benchmarks.vlm_bench.grounder_offline import executable_yielders, ground_de
 from benchmarks.vlm_bench.items import REPO_ROOT, file_md5, read_items
 from benchmarks.vlm_bench.models import BenchItem, ItemScore
 from benchmarks.vlm_bench.scoring import Summary, score_item, summarize
+from benchmarks.vlm_bench.variants import VARIANTS, ReplayContext, get_variant
 from reasoning.vlm.models import (
     FailureContext,
     PlanStateContext,
@@ -28,8 +29,7 @@ from reasoning.vlm.models import (
 
 BENCH_DIR = Path(__file__).resolve().parent
 NEUTRAL_RGB = (128, 128, 128)
-PromptVariant = Callable[[ReasonerRequest], ReasonerRequest]
-PROMPT_VARIANTS: dict[str, PromptVariant] = {"baseline": lambda request: request}
+PROMPT_VARIANTS = VARIANTS
 
 
 def score_items(items: Sequence[BenchItem], mode: str, oracle: bool = True) -> list[ItemScore]:
@@ -178,14 +178,16 @@ def replay_items(
     Args:
         items: The items.
         backend_id: A `config/models.yaml` backend id.
-        variant: A `PROMPT_VARIANTS` key.
+        variant: A registered variant name (`variants.list_variants()`).
         cache_dir: Response cache directory.
         models_yaml: The models config.
         backend_factory: Test seam returning a backend for `(id, raw_vlm)`;
             None uses the production `build_backend`.
 
     Returns:
-        The scores and a run-info dict (cache hits/misses, skipped items).
+        The scores and a run-info dict: cache hits/misses, skipped items,
+        the variant and its generator version, and per item the candidate
+        count and the SHA-256 of the composed user prompt.
 
     Raises:
         ValueError: For an unknown variant.
@@ -199,8 +201,7 @@ def replay_items(
     )
     from reasoning.vlm.reasoner import Reasoner
 
-    if variant not in PROMPT_VARIANTS:
-        raise ValueError(f"unknown prompt variant {variant!r}; known: {sorted(PROMPT_VARIANTS)}")
+    plugin = get_variant(variant)
     raw_vlm = yaml.safe_load(Path(models_yaml).read_text())["vlm"]
     backend_config = load_backend_config(raw_vlm, backend_id)
     reasoner_config = resolve_reasoner_config(raw_vlm, backend_id)
@@ -214,42 +215,53 @@ def replay_items(
     reasoner = Reasoner(
         cached, reasoner_config, describe_effective_sampling(reasoner_config, backend_config)
     )
+    from reasoning.vlm.prompt_builder import build_prompt_payload
+
+    context = ReplayContext(backend=cached, reasoner_config=reasoner_config, reasoner=reasoner)
     grey = neutral_image(Path(cache_dir))
     scores: list[ItemScore] = []
     skipped: list[str] = []
+    per_item: dict[str, dict[str, Any]] = {}
     for item in items:
         image = item.frame_path or str(grey)
         request = rebuild_request(item, image)
-        if variant == "baseline":
-            from reasoning.vlm.prompt_builder import build_prompt_payload
-
-            rendered = build_prompt_payload(request).user_prompt
-            if hashlib.sha256(rendered.encode()).hexdigest() != item.prompt.user_sha256:
-                skipped.append(item.item_id)
-                continue
-        result = reasoner.run(PROMPT_VARIANTS[variant](request))
-        decision = None if result.decision is None else result.decision.model_dump(mode="json")
+        # Every variant builds on the live prompt, so it must reproduce first.
+        rendered = build_prompt_payload(request).user_prompt
+        if hashlib.sha256(rendered.encode()).hexdigest() != item.prompt.user_sha256:
+            skipped.append(item.item_id)
+            continue
+        answer = plugin.answer(item, request, context)
         score = score_item(
-            item, decision, f"replay:{variant}", ground_decision, executable_yielders,
+            item, answer.decision, f"replay:{variant}", ground_decision, executable_yielders,
             with_cost=False,
         )
-        diag = result.diagnostics
+        note = f"image={'frame' if item.frame_path else 'neutral'}"
+        if answer.note is not None:
+            note += f"; {answer.note}"
         scores.append(
             score.model_copy(
                 update={
-                    "token_usage": diag.token_usage,
-                    "latency_ms": diag.latency_ms,
-                    "note": f"image={'frame' if item.frame_path else 'neutral'}",
+                    "token_usage": answer.token_usage,
+                    "latency_ms": answer.latency_ms,
+                    "note": note,
                 }
             )
         )
+        per_item[item.item_id] = {
+            "n_candidates": answer.n_candidates,
+            "prompt_sha256": answer.prompt_sha256,
+            "attempts": answer.attempts,
+            "parse_status": answer.parse_status,
+        }
     info = {
         "backend_id": backend_id,
         "model_id": model_id,
         "variant": variant,
+        "candidate_generator_version": plugin.generator_version,
         "cache_hits": cached.hits,
         "cache_misses": cached.misses,
         "skipped_prompt_mismatch": skipped,
+        "per_item": per_item,
     }
     return scores, info
 
@@ -279,6 +291,8 @@ def run_config(
         The config dict.
     """
     params_files = sorted({i.grounding.params_path for i in items if i.grounding.params_path})
+    variant = (extra or {}).get("variant")
+    text = "live_builder" if variant in (None, "baseline") else f"live_builder+{variant}"
     return {
         "mode": mode,
         "items_path": str(items_path),
@@ -286,7 +300,7 @@ def run_config(
         "n_items": len(items),
         "git_head": _git_head(),
         "bench_code_md5": {
-            p.name: file_md5(p) for p in sorted(BENCH_DIR.glob("*.py"))
+            str(p.relative_to(BENCH_DIR)): file_md5(p) for p in sorted(BENCH_DIR.rglob("*.py"))
         },
         "grounding_files_md5": {p: file_md5(REPO_ROOT / p) for p in params_files},
         "rag_yaml_md5": file_md5(REPO_ROOT / "config/rag.yaml"),
@@ -296,7 +310,7 @@ def run_config(
             for p in params_files
         },
         "frames_present": sum(1 for i in items if i.frame_path),
-        "representation": {"image": "frame_if_present_else_neutral", "text": "live_builder"},
+        "representation": {"image": "frame_if_present_else_neutral", "text": text},
         **(extra or {}),
     }
 
