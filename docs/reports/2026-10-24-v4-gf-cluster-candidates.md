@@ -49,9 +49,12 @@ attribute access and gets identical output.
 
 STALE robots seed groups for the reason the `CongestionDetector` close/slow
 pair rule includes them: two robots close enough to occlude each other's
-marker go STALE together. The threshold is a system parameter, not a fit; a
-sensitivity table over other rules is in the Ceiling section, computed on the
-same items after the default was set.
+marker go STALE together. Only the threshold is a fixed system parameter.
+The seed rule (STALE included) and the MOVING-attach rule were set after an
+exploratory GT-agreement sweep on these same 187 items, so they are not
+independent of the GT. The sweep is reproduced as the sensitivity table in
+the Ceiling section. Attach is the choice that moves the numbers; adding STALE
+barely does.
 
 ### Options
 
@@ -207,7 +210,8 @@ All 185 items with at least one active cluster (289 clusters), default rule:
   observed groups both come from scene geometry, so part of this agreement is
   definitional. It is not a leak: the generator reads no GT field (tested).
 
-**Grouping-rule sensitivity**, observed after the default was set:
+**Grouping-rule sensitivity.** These are the same rules as the exploratory
+sweep that preceded the default's seed and attach choices:
 
 | Rule | Clusters equal | Contained | Items, every cluster contained | Items, one group touches all |
 |---|---|---|---|---|
@@ -247,13 +251,16 @@ items, a reverse on 52 and a wait on 6, naming 2.98 robots on average (v1:
 |---|---|---|---|---|---|
 | M3 feasibility | 0.496 (68/137) | 1.000 | 1.000 | 1.000 | 1.000 |
 | yield feasibility | 0.444 (24/54) | 1.000 (122/122) | 1.000 (88/88) | 1.000 (66/66) | 1.000 (62/62) |
+| yielder vs M3 oracle | 0.458 (11/24) | 1.000 (122/122) | 1.000 (88/88) | n/a | n/a |
 | cluster coverage | 0.686 (94/137) | 0.526 (72/137) | **0.672 (92/137)** | 0.715 (98/137) | 0.766 (105/137) |
 | mean per-cluster recall | 0.710 | 0.423 | **0.618** | 0.704 | 0.704 |
 | involved F1, matched (n) | 0.911 (136) | 0.733 (124) | **0.802 (136)** | 0.905 (137) | 0.899 (137) |
 | involved F1, unconditional | 0.904 | 0.663 | 0.796 | 0.905 | 0.899 |
 | yielder vs MC first conflict | 0.467 (7/15) | 0.759 (22/29) | 0.793 (23/29) | 0.800 (20/25) | 0.900 (18/20) |
 
-Over all 187 items, v2 option 1 gives feasibility 187/187, coverage 99/185
+The oracle columns were scored without the geometry oracle, hence n/a; every
+listed yielder is executable by construction. Over all 187 items, v2 option 1
+gives feasibility 187/187, coverage 99/185
 (v1: 75/185), recall 0.584 (v1: 0.398) and matched F1 0.835 (v1: 0.750).
 
 ---
@@ -308,10 +315,10 @@ These are formula estimates in the 2026-10-23 report's method, not invoices.
 
 ## Interpretation (Conservative)
 
-1. Feasibility 1.0 holds by construction for v2 too. Every listed option re-grounds to its own executed key (tested); this shows the mapping is lossless, not that a model chooses well.
-2. Hypothesis (a) does not hold for coverage as the bench defines it. Under `min_overlap = 1`, a pair that takes one robot from each cluster covers a two-cluster item, so v1 pairs already reach oracle coverage 137/137. Pair-only lists cap recall and matched F1 (v1 oracle 0.55 / 0.67), not coverage. The real-replay coverage loss (0.38-0.58) is a choice problem.
+1. Feasibility 1.0 holds by construction for v2 too. All 3,963 options listed under keep/keep across the 187 items (78 of them multi-passer yields) re-ground to their own `executed_key_v2`. This shows the mapping is lossless, not that a model chooses well.
+2. Hypothesis (a) does not hold for coverage as the bench defines it. Under `min_overlap = 1`, a pair that takes one robot from each cluster covers a two-cluster item, so v1 pairs already reach oracle coverage 137/137. v1 reaches coverage 1.0 (at F1 0.67) or matched F1 0.87 (at coverage 0.62), but not both. The real-replay coverage loss (0.38-0.58) is a choice problem, not a listing limit.
 3. On 2-cluster items, coverage and matched F1 pull in opposite directions. The v2 default (group options) raises the F1 ceiling to 0.90-0.96 but caps coverage at 0.72-0.77, only a little above the recorded ER-2 0.686; keeping span pairs restores the coverage ceiling to 1.0 and lowers the F1 ceiling to 0.78-0.86.
-4. Mean per-cluster recall is the metric v2 actually moves: a fixed option-1 chooser goes from 0.42 (v1) to 0.62 (v2), with coverage 0.53 → 0.67 and matched F1 0.73 → 0.80, against recorded ER-2 0.71 / 0.69 / 0.91.
+4. v2 lifts the F1 ceiling (0.87 → 0.96) and what a naive chooser gets: a fixed option-1 chooser goes from recall 0.42 to 0.62, coverage 0.53 → 0.67 and matched F1 0.73 → 0.80, against recorded ER-2 0.71 / 0.69 / 0.91.
 5. Observed groups match the active GT clusters well (246/289 contained, 199 equal). The binding limit is that 44/61 two-cluster positives have their clusters in different observed groups. This agreement is partly definitional, since both come from geometry.
 6. Hypothesis (b) is weaker than assumed: v1's closest-pair option 1 is inside one active cluster on 103/137 positives. Whether a real model's choices improve under v2 needs the replays above.
 7. One fixed chooser and three GT oracles on one item set; no model was asked. Nothing here estimates model behaviour or variance.
@@ -344,10 +351,12 @@ These are formula estimates in the 2026-10-23 report's method, not invoices.
 
 - **Status labels.** The grouping uses M1 status labels (STOPPED, SLOW,
   STALE), not a velocity threshold. MOVING robots attach without bridging.
-- **Threshold.** The threshold is the recorded classical `r_conflict_m`, which
-  is 1.5 m on every item, so the threshold was never varied in practice. The
-  sensitivity table was computed on the same 187 items after the default was
-  set.
+- **Threshold and rules.** The threshold is the recorded classical
+  `r_conflict_m`, which is 1.5 m on every item, so it was never varied in
+  practice. The seed and MOVING-attach rules were chosen after a GT-agreement
+  sweep on the same 187 items. Attach raises containment from 219 to 246
+  clusters (items with every cluster contained: 118 → 142); a held-out item
+  set would be needed to check it.
 - **Holds count as executed.** Options with lane-scoped or shield holds
   count as executing as asked, because the yielder is unchanged and the holds
   are named in the text and the key. v1's `executed_key` (unchanged) ignores
