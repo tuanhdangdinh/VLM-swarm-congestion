@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: candidate-set ceiling and fixed-option sanity replay, with zero API calls.
+- Rev 2 (2026-10-23): added the cluster-conditioned ceiling row; tightened the interpretation.
 
 ---
 
@@ -67,7 +68,7 @@ The variant then builds the prompt and maps the answer back:
 ## Candidate-Set Ceiling (Zero Cost)
 
 The run is `python -m benchmarks.vlm_bench candidates`. Its output is
-`data/bench/v4/candidates_gf_v1.{jsonl,md}`; the jsonl md5 is d347ffa2.
+`data/bench/v4/candidates_gf_v1.{jsonl,md}`; the jsonl md5 is ee3943f0.
 
 "Inside" means that what M3 executes for the **recorded** ER-2 decision equals
 one listed option's executed key. Membership is matched on what M3 executes,
@@ -77,6 +78,12 @@ not on the strategy label.
 |---|---|---|---|
 | Resolving (yield / reverse / reroute) | 9.3 (9, 0-16) | **33/137** | **136/137** |
 | Including temporary_wait | 19.3 (19, 10-26) | 36/137 | 137/137 (trivial) |
+| Resolving, both probed robots in one active GT cluster | n/a | n/a | **120/137** |
+| Resolving, at least one robot in an active GT cluster | n/a | n/a | 136/137 |
+
+The 136/137 row counts options on any pair of the five robots, including pairs
+outside the conflict. The cluster-conditioned 120/137 is the tighter bound on
+what the lever can fix.
 
 The recorded answers execute the way they were asked less often than the
 baseline feasibility suggests:
@@ -128,20 +135,11 @@ matched F1 0.750 (170 matched).
 
 ## Interpretation (Conservative)
 
-1. Feasibility 1.0 is true by construction and is not a result. It shows that
-   the list → number → decision → M3 path is lossless; it does not show that
-   any model would choose well.
-2. The lever's reach is broad: 136/137 positives have at least one resolving
-   option, and ER-2 already picks a listed option on 33.
-3. The binding question is choice quality. The closest-pair option 1 loses
-   coverage (0.53 vs 0.69) and F1 (0.73 vs 0.91), because every option is a
-   pair and ER-2 names 3-5 robots.
-4. Reverse options are permissive: M3 checks only the same-side refusal, so
-   about 8 per item survive. "Executable" here is M3's own definition, not a
-   physical guarantee.
-5. Every option sits in fixed closest-first order, so a real model's
-   first-slot prior is a confound to check before reading any replay.
-6. The real ER-2 replay is pending an API key.
+1. Feasibility 1.0 is true by construction: it shows the list-to-decision path is lossless, not that a model chooses well.
+2. On 120/137 positives a resolving option lies inside an active GT conflict; ER-2 already picks a listed option on 33.
+3. The set also holds off-conflict pairs, so choice quality binds: option 1 drops coverage (0.53 vs 0.69) and F1 (0.73 vs 0.91).
+4. Reverse is permissive (M3 checks only the same-side refusal), so "executable" means M3's definition, not a physical guarantee.
+5. Fixed closest-first order invites a first-slot prior; check it before reading the real ER-2 replay, which awaits an API key.
 
 ---
 
