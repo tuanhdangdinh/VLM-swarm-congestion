@@ -20,6 +20,7 @@ from benchmarks.vlm_bench.models import BenchItem, ItemScore
 from benchmarks.vlm_bench.scoring import Summary, score_item, summarize
 from benchmarks.vlm_bench.variants import (
     VARIANTS,
+    GroundingFirstClusterVariant,
     GroundingFirstVariant,
     ReplayContext,
     get_variant,
@@ -178,6 +179,9 @@ def replay_items(
     models_yaml: Path = REPO_ROOT / "config/models.yaml",
     backend_factory: Callable[[str, dict[str, Any]], Any] | None = None,
     shuffle_seed: int | None = None,
+    generator: str = "v1",
+    offgroup: str = "drop",
+    cross_group: str = "drop",
 ) -> tuple[list[ItemScore], dict[str, Any]]:
     """Re-ask a backend on every item under a prompt variant, through the response cache.
 
@@ -190,7 +194,12 @@ def replay_items(
         backend_factory: Test seam returning a backend for `(id, raw_vlm)`;
             None uses the production `build_backend`.
         shuffle_seed: `grounding_first` only: present each item's options in
-            a seeded random order (per-item seed recorded in `per_item`).
+            a seeded random order (per-item seed recorded in `per_item`;
+            within each section under `generator="v2"`).
+        generator: `grounding_first` only: "v1" (pair options) or "v2"
+            (options per observed group, `variants.gf_cluster`).
+        offgroup: v2 only: "keep" or "drop" the outside-any-group section.
+        cross_group: v2 only: "keep" or "drop" the spans-two-groups section.
 
     Returns:
         The scores and a run-info dict: cache hits/misses, skipped items,
@@ -198,8 +207,8 @@ def replay_items(
         count and the SHA-256 of the composed user prompt.
 
     Raises:
-        ValueError: For an unknown variant, or a shuffle seed on a variant
-            without an option list.
+        ValueError: For an unknown variant or generator, or a shuffle seed
+            or generator on a variant without an option list.
     """
     from reasoning.vlm.backend_factory import (
         backend_adapter,
@@ -211,9 +220,17 @@ def replay_items(
     from reasoning.vlm.reasoner import Reasoner
 
     plugin = get_variant(variant)
-    if shuffle_seed is not None:
+    if generator not in ("v1", "v2"):
+        raise ValueError(f"unknown candidate generator {generator!r}; known: v1, v2")
+    if shuffle_seed is not None and variant != "grounding_first":
+        raise ValueError(f"option shuffling needs grounding_first, not {variant!r}")
+    if generator == "v2":
         if variant != "grounding_first":
-            raise ValueError(f"option shuffling needs grounding_first, not {variant!r}")
+            raise ValueError(f"candidate generator v2 needs grounding_first, not {variant!r}")
+        plugin = GroundingFirstClusterVariant(
+            shuffle_seed=shuffle_seed, offgroup=offgroup, cross_group=cross_group
+        )
+    elif shuffle_seed is not None:
         plugin = GroundingFirstVariant(shuffle_seed=shuffle_seed)
     raw_vlm = yaml.safe_load(Path(models_yaml).read_text())["vlm"]
     backend_config = load_backend_config(raw_vlm, backend_id)
@@ -269,6 +286,7 @@ def replay_items(
             "original_option": answer.original_option,
             "option_order": answer.option_order,
             "shuffle_item_seed": answer.shuffle_item_seed,
+            **(answer.extra or {}),
         }
     info = {
         "backend_id": backend_id,
@@ -276,6 +294,11 @@ def replay_items(
         "variant": variant,
         "candidate_generator_version": plugin.generator_version,
         "shuffle_seed": shuffle_seed,
+        **(
+            {"candidate_generator": plugin.run_info()}
+            if isinstance(plugin, GroundingFirstClusterVariant)
+            else {}
+        ),
         "cache_hits": cached.hits,
         "cache_misses": cached.misses,
         "skipped_prompt_mismatch": skipped,

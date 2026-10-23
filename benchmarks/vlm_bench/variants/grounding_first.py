@@ -518,6 +518,46 @@ class GroundingFirstVariant:
         self.include_wait = include_wait
         self.shuffle_seed = shuffle_seed
 
+    def candidate_set(
+        self, item: BenchItem
+    ) -> tuple[CandidateSet, tuple[int, ...] | None, int | None]:
+        """The item's options as presented, with the shuffle order and per-item seed.
+
+        Args:
+            item: The bench item.
+
+        Returns:
+            The presented set, the presented order as unshuffled 1-based
+            numbers (None when not shuffled) and the per-item seed (or None).
+        """
+        candidates = generate_candidates(item, include_wait=self.include_wait)
+        if self.shuffle_seed is None:
+            return candidates, None, None
+        return shuffle_candidates(candidates, self.shuffle_seed)
+
+    def compose(self, base: PromptPayload, candidates: CandidateSet) -> PromptPayload:
+        """The live payload with this generator's option section appended.
+
+        Args:
+            base: The live builder's payload.
+            candidates: The presented options.
+
+        Returns:
+            The composed payload.
+        """
+        return compose_payload(base, candidates)
+
+    def answer_extra(self, candidates: CandidateSet) -> dict[str, Any] | None:
+        """Generator-specific per-item run-config fields (none for v1).
+
+        Args:
+            candidates: The presented options.
+
+        Returns:
+            A JSON-safe dict, or None.
+        """
+        return None
+
     def answer(
         self, item: BenchItem, request: ReasonerRequest, context: ReplayContext
     ) -> VariantAnswer:
@@ -535,12 +575,8 @@ class GroundingFirstVariant:
             The mapped decision; `decision=None` with `parse_status="failed"`
             after `max_attempts` unreadable replies or backend errors.
         """
-        candidates = generate_candidates(item, include_wait=self.include_wait)
-        order: tuple[int, ...] | None = None
-        item_seed: int | None = None
-        if self.shuffle_seed is not None:
-            candidates, order, item_seed = shuffle_candidates(candidates, self.shuffle_seed)
-        first = compose_payload(build_prompt_payload(request), candidates)
+        candidates, order, item_seed = self.candidate_set(item)
+        first = self.compose(build_prompt_payload(request), candidates)
         sha = hashlib.sha256(first.user_prompt.encode()).hexdigest()
         config = context.reasoner_config
         payload = first
@@ -585,6 +621,7 @@ class GroundingFirstVariant:
                     original_option=original,
                     option_order=order,
                     shuffle_item_seed=item_seed,
+                    extra=self.answer_extra(candidates),
                 )
             failed_once = True
             error = parsed.error
@@ -602,6 +639,7 @@ class GroundingFirstVariant:
             note=f"parse_failure: {error}",
             option_order=order,
             shuffle_item_seed=item_seed,
+            extra=self.answer_extra(candidates),
         )
 
 

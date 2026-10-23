@@ -44,6 +44,8 @@ class VariantAnswer(BaseModel):
     original_option: int | None = None
     option_order: tuple[int, ...] | None = None
     shuffle_item_seed: int | None = None
+    # Generator-specific per-item fields for the run config (e.g. observed groups).
+    extra: dict[str, Any] | None = None
 
 
 class PromptVariant(Protocol):
