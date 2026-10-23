@@ -219,3 +219,10 @@ def test_candidate_summary_counts_recorded_positives():
     text = render_candidate_summary(rows)
     assert "recorded positives: 3" in text
     assert "| incl. temporary_wait |" in text
+
+
+def test_candidate_row_cluster_flag_false_without_gt_clusters():
+    item = _item()
+    item = item.model_copy(update={"gt": item.gt.model_copy(update={"clusters": ()})})
+    row = candidate_row(item)
+    assert row["any_resolving"] and not row["any_resolving_in_cluster"]
