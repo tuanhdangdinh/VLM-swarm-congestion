@@ -12,6 +12,11 @@ from benchmarks.vlm_bench.items import build_bundle_items, load_mc_references, w
 from benchmarks.vlm_bench.run import load, replay_items, run_config, score_items, write_run
 from benchmarks.vlm_bench.variants import FixedOptionBackend, list_variants
 from benchmarks.vlm_bench.variants.candidate_report import candidate_row, render_candidate_summary
+from benchmarks.vlm_bench.variants.cluster_report import (
+    CONFIGS,
+    cluster_candidate_row,
+    render_cluster_summary,
+)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -47,11 +52,25 @@ def _parser() -> argparse.ArgumentParser:
     )
     replay.add_argument("--seed", type=int, default=20261023,
                         help="run seed for --shuffle-options")
+    _generator_args(replay)
     cands = sub.add_parser("candidates", help="grounding-first executable option sets (no API)")
     cands.add_argument("--items", type=Path, required=True)
     cands.add_argument("--out", type=Path, required=True)
     cands.add_argument("--summary", type=Path, default=None)
+    _generator_args(cands)
     return parser
+
+
+def _generator_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--generator", choices=("v1", "v2"), default="v1",
+        help="grounding_first option generator: v1 pairs (gf-candidates-v1) or v2 options "
+             "per observed group (gf-candidates-v2)",
+    )
+    parser.add_argument("--gf-offgroup", choices=("keep", "drop"), default="drop",
+                        help="v2: keep or drop options outside every observed group")
+    parser.add_argument("--gf-cross-group", choices=("keep", "drop"), default="drop",
+                        help="v2: keep or drop pair options spanning two observed groups")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -83,6 +102,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"wrote {len(items)} items -> {args.out}")
         return 0
     items = load(args.items)
+    if args.cmd == "candidates" and args.generator == "v2":
+        flags = (args.gf_offgroup, args.gf_cross_group)
+        configs = [c for c in CONFIGS if (c[1], c[2]) == flags]
+        configs += [c for c in CONFIGS if (c[1], c[2]) != flags]
+        by_config = {
+            label: [cluster_candidate_row(item, off, cross) for item in items]
+            for label, off, cross in configs
+        }
+        rows = by_config[configs[0][0]]
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in rows))
+        if args.summary is not None:
+            args.summary.write_text(render_cluster_summary(by_config, items))
+        print(f"wrote {len(rows)} v2 candidate rows -> {args.out}")
+        return 0
     if args.cmd == "candidates":
         rows = [candidate_row(item) for item in items]
         args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -104,6 +138,7 @@ def main(argv: list[str] | None = None) -> int:
         scores, info = replay_items(
             items, args.backend, args.prompt_variant, cache_dir, backend_factory=factory,
             shuffle_seed=args.seed if args.shuffle_options else None,
+            generator=args.generator, offgroup=args.gf_offgroup, cross_group=args.gf_cross_group,
         )
         if args.fixed_option is not None:
             info["fixed_option"] = args.fixed_option
