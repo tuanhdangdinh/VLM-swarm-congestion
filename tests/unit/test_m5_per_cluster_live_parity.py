@@ -145,3 +145,11 @@ def test_live_inputs_read_the_registry_through_the_pipeline_lookups():
     inputs, source = pipeline.per_cluster_probe_inputs(request, "bench")
     assert source == "recomputed"
     assert inputs.snapshot.robots == list(request.robot_states)
+
+
+@pytest.mark.skipif(not ITEMS.is_file(), reason="recorded bench items are gitignored")
+def test_node_grouping_radius_equals_every_recorded_item():
+    from swarm_orchestrator.shadow_classical import load_shadow_params
+
+    live = load_shadow_params(Path("config/rag.yaml")).params.r_conflict_m
+    assert {gf_cluster.grouping_params(item).threshold_m for item in load(ITEMS)} == {live}

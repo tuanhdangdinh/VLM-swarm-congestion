@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import shutil
 import threading
 import uuid
 from pathlib import Path
@@ -78,6 +79,7 @@ def _scene(stamp: float) -> SceneSnapshot:
 
 def _node(node_env, tmp_path, monkeypatch, shadow: bool, backend=None, **settings):  # noqa: F811
     node_module, clock = node_env
+    clock.t = 1000.0
     monkeypatch.setenv("VGU_MOCK_DECISION_FILE", MOCK_FILE)
     counter = itertools.count(1)
     monkeypatch.setattr(uuid, "uuid4", lambda: uuid.UUID(int=next(counter)))
@@ -168,6 +170,9 @@ def test_shadow_on_dispatches_and_directs_exactly_as_shadow_off(
 ):
     off, off_clock, off_directives = _node(node_env, tmp_path / "off", monkeypatch, False)
     _drive(off, off_clock)
+    off_state = _state(off, off_clock)
+    off._on_timer()
+    off_after = _state(off, off_clock)
     gate = threading.Event()
     backend = _ShadowBackend(gate=gate)
     on, on_clock, on_directives = _node(node_env, tmp_path / "on", monkeypatch, True, backend)
@@ -177,11 +182,11 @@ def test_shadow_on_dispatches_and_directs_exactly_as_shadow_off(
     assert backend.entered.is_set() and not gate.is_set()
     assert on_directives == off_directives
     assert [d for d, _ in on_directives].count("start_analysis") == 2
-    assert _state(on, on_clock) == _state(off, off_clock)
+    assert _state(on, on_clock) == off_state
     assert len(_published(on)) >= 4
     gate.set()
     _finish_shadows(on)
-    assert _state(on, on_clock) == _state(off, off_clock)
+    assert _state(on, on_clock) == off_after
 
 
 def test_shadow_off_artifacts_have_no_shadow_key_and_no_trace(
@@ -368,3 +373,148 @@ def test_trigger_trace_records_directives_with_in_flight_commands(
 def test_shadow_config_rejects_bad_values(bad):
     with pytest.raises(ValueError):
         PerClusterShadowConfig(**bad)
+
+
+S1B_OVERLAY = Path("tests/unit/data/vlm_bench/s1b_E90_seed90_synth_a1/orchestrator.overlaid.yaml")
+S1B_POSES = {
+    "robot_1": (-1.8, 0.3, 0.0),
+    "robot_2": (-1.8, -0.3, 3.14),
+    "robot_3": (1.6, 0.25, 3.14),
+    "robot_4": (1.6, -0.25, 0.0),
+    "robot_5": (-0.25, 1.35, -1.57),
+}
+
+
+def _s1b_node(
+    node_env, tmp_path, monkeypatch, shadow: bool, backend=None, mock_file: str = MOCK_FILE  # noqa: F811
+):
+    """The tranche-1 Arm A config (seed-4 overlay, md5 e0ec8543), shadow on or off."""
+    import yaml
+    from swarm_orchestrator.models import load_config
+
+    node_module, clock = node_env
+    clock.t = 1000.0
+    monkeypatch.setenv("VGU_MOCK_DECISION_FILE", mock_file)
+    counter = itertools.count(1)
+    monkeypatch.setattr(uuid, "uuid4", lambda: uuid.UUID(int=next(counter)))
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    raw = yaml.safe_load(S1B_OVERLAY.read_text())
+    raw.update(
+        reasoning_backend_id="mock",
+        frame_dump_dir=str(tmp_path / "frames"),
+        decision_log_dir=str(tmp_path / "decisions"),
+        scene_log_dir=None,
+        per_cluster_shadow={"enabled": shadow, "max_backlog": 2},
+    )
+    node = node_module.OrchestratorNode(config=load_config(raw), pipeline=None,
+                                        per_cluster_backend=backend)
+    node._frame_rgb = np.zeros((48, 64, 3), dtype=np.uint8)
+    directives: list[tuple[str, tuple[str, ...]]] = []
+    on_event = node._machine.on_event
+
+    def recording(event, **kwargs):
+        directive = on_event(event, **kwargs)
+        directives.append((directive.kind.value, tuple(sorted(event.involved_robots))))
+        return directive
+
+    node._machine.on_event = recording
+    return node, clock, directives
+
+
+def _s1b_scene(stamp: float) -> SceneSnapshot:
+    return SceneSnapshot(stamp=stamp, frame_id="overhead_camera", robots=[
+        RobotView(robot_id=rid, x=x, y=y, theta=theta, linear_velocity=0.0,
+                  status="STOPPED", stamp=stamp)
+        for rid, (x, y, theta) in S1B_POSES.items()
+    ])
+
+
+def _s1b_drive(node, clock) -> None:
+    stamp = 100.0
+    for step in range(60):
+        clock.t += 1.0
+        stamp += 1.0
+        node._frame_stamp = stamp
+        node._on_scene_state(_scene_msg(_s1b_scene(stamp)))
+        if node._future is not None:
+            node._future.result(timeout=WAIT_SEC)
+        node._on_timer()
+        if step % 7 == 6:
+            _complete_all(node)
+
+
+def _without_shadow(artifacts: dict[str, dict]) -> dict[str, dict]:
+    return {rid: {k: v for k, v in a.items() if k != "per_cluster_shadow"}
+            for rid, a in artifacts.items()}
+
+
+def _strip_paths(value: Any, root: str) -> Any:
+    return json.loads(json.dumps(value).replace(root, "<tmp>"))
+
+
+# The mock yield is refused on this scene and withheld (refusal_no_action), so
+# the run re-analyses under scene-unchanged suppression; the reverse is
+# dispatched under the plan channel and then held busy.
+S1B_DECISIONS = {
+    "withheld_yield": (None, 2, False),
+    "dispatched_reverse": ({"involved_robots": ["robot_1", "robot_2"], "strategy": "reverse"},
+                           1, True),
+}
+
+
+@pytest.mark.parametrize("case", sorted(S1B_DECISIONS))
+def test_s1b_config_shadow_on_matches_shadow_off(
+    case, node_env, tmp_path, monkeypatch  # noqa: F811
+):
+    decision, n_analyses, dispatches = S1B_DECISIONS[case]
+    mock_file = MOCK_FILE
+    if decision is not None:
+        path = tmp_path / "decision.json"
+        path.write_text(json.dumps({"congestion_detected": True, "type": "deadlock",
+                                    "root_cause": "t", "justification": "t", **decision}))
+        mock_file = str(path)
+    off, off_clock, off_directives = _s1b_node(
+        node_env, tmp_path / "x", monkeypatch, False, mock_file=mock_file
+    )
+    _s1b_drive(off, off_clock)
+    off_state = _state(off, off_clock)
+    off._on_timer()
+    off_after = _state(off, off_clock)
+    off_artifacts = _strip_paths(_without_shadow(_artifacts(off)), str(tmp_path / "x"))
+    shutil.rmtree(tmp_path / "x")
+    gate = threading.Event()
+    backend = _ShadowBackend(gate=gate)
+    on, on_clock, on_directives = _s1b_node(
+        node_env, tmp_path / "x", monkeypatch, True, backend, mock_file=mock_file
+    )
+    _s1b_drive(on, on_clock)
+    assert [d for d, _ in on_directives].count("start_analysis") == n_analyses
+    assert bool(on._cmd_pub.published) is dispatches
+    assert on_directives == off_directives
+    assert _state(on, on_clock) == off_state
+    on_artifacts = _strip_paths(_without_shadow(_artifacts(on)), str(tmp_path / "x"))
+    assert on_artifacts == off_artifacts
+    tracker = on._plan_tracker
+    assert (tracker.active_plan is None) == (off._plan_tracker.active_plan is None)
+    gate.set()
+    _finish_shadows(on)
+    blocks = [a["per_cluster_shadow"] for a in _artifacts(on).values()]
+    assert {b["status"] for b in blocks} <= {"ok", "skipped"}
+    assert any(b.get("n_slots") == 2 for b in blocks)
+    assert _state(on, on_clock) == off_after
+
+
+def test_close_records_unfinished_shadows_and_closes_the_trace(
+    node_env, tmp_path, monkeypatch  # noqa: F811
+):
+    gate = threading.Event()
+    node, clock, _ = _node(node_env, tmp_path, monkeypatch, True, _ShadowBackend(gate=gate))
+    for stamp in (51.0, 52.0, 53.0):
+        _step(node, clock, stamp)
+    node.close_per_cluster_shadow()
+    (block,) = [a["per_cluster_shadow"] for a in _artifacts(node).values()]
+    assert block["status"] == "error"
+    assert block["error"] == "node stopped before the shadow finished"
+    (path,) = Path(node._config.decision_log_dir).glob("trigger_trace_*.jsonl")
+    assert json.loads(path.read_text().splitlines()[-1])["event"] == "event_run_end"
+    gate.set()
