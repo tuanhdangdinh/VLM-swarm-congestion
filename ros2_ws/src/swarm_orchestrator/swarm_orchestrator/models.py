@@ -174,6 +174,40 @@ class ChurnBoundConfig(BaseModel):
         return self
 
 
+class PerClusterShadowConfig(BaseModel):
+    """v4 per-cluster choice, Stage 1 live shadow (`per_cluster_shadow:`).
+
+    Disabled (the default), M5 builds no shadow worker, backend or trace, and
+    every dispatch, log line and artifact is byte-identical to before this
+    block existed. Enabled (exploratory cells only: it is a second billed M2
+    call per analysis), each triggered analysis is followed, after its
+    ordinary outcome has been handed to the state machine and dispatched, by
+    the per-group M2 call of `grounding_first_per_cluster` on the same request,
+    frame and snapshot, with each chosen option grounded alone and the joint
+    check run; the record is added to that analysis's decision artifact as
+    `per_cluster_shadow`. It never dispatches and never touches M5 state.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    enabled: bool = False
+    # Attempt budget and per-call timeout of the shadow M2 call; None inherits
+    # the ordinary reasoner's (the bench R7 replays ran on the backend's own).
+    max_attempts: int | None = Field(default=None, ge=1)
+    call_timeout_sec: float | None = Field(default=None, gt=0.0)
+    # Wall-clock bound on one whole shadow (enumeration, call, grounding),
+    # measured from its submit; past it the artifact records a timeout.
+    timeout_sec: float = Field(default=300.0, gt=0.0)
+    # Shadows still running or queued when a new one is due; past it the new
+    # one is skipped and recorded, never queued without bound.
+    max_backlog: int = Field(default=1, ge=1)
+    include_wait: bool = True
+    option_ids: Literal["numbered", "opaque"] = "numbered"
+    # JSONL trace of every congestion event's directive with the in-flight
+    # commands (`<decision_log_dir>/trigger_trace_<session_id>.jsonl`).
+    event_trace: bool = True
+
+
 class TaskStreamConfig(BaseModel):
     """The v3 S1 (MAPD-5) task-stream mode's settings (`task_stream:`).
 
@@ -534,6 +568,8 @@ class OrchestratorConfig(BaseModel):
     refusal_no_action: bool = False
     # prereg-v3 A21(b) per-cluster clearing-dispatch bound; default off, values unset.
     churn_bound: ChurnBoundConfig = Field(default_factory=ChurnBoundConfig)
+    # v4 Stage 1 per-cluster live shadow; default off (see the class).
+    per_cluster_shadow: PerClusterShadowConfig = Field(default_factory=PerClusterShadowConfig)
     # prereg-v3 A34 R9 Arm B ("Layer-2-off classical"). False skips Layer 2
     # entirely: no congestion detection, no M2/M3 call (the backend is never
     # even constructed), no decision artifact, no shadow_classical, no T0
@@ -1029,6 +1065,7 @@ class Layer2Gate(BaseModel):
     shadow_classical: bool
     t0_probe_mode: bool
     contradiction_trigger: bool
+    per_cluster_shadow: bool = False
     overridden: tuple[str, ...] = ()
 
 
@@ -1046,6 +1083,7 @@ def resolve_layer2_gate(config: OrchestratorConfig) -> Layer2Gate:
         "shadow_classical": config.shadow_classical,
         "t0_probe_mode": config.t0_probe_mode,
         "contradiction_trigger": config.contradiction_trigger.enabled,
+        "per_cluster_shadow": config.per_cluster_shadow.enabled,
     }
     if config.reasoning_enabled:
         return Layer2Gate(reasoning_enabled=True, **requested)
@@ -1054,6 +1092,7 @@ def resolve_layer2_gate(config: OrchestratorConfig) -> Layer2Gate:
         shadow_classical=False,
         t0_probe_mode=False,
         contradiction_trigger=False,
+        per_cluster_shadow=False,
         overridden=tuple(name for name, on in requested.items() if on),
     )
 

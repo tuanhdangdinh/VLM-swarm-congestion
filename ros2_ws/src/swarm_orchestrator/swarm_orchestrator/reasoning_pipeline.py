@@ -18,6 +18,7 @@ from pydantic import (
     model_serializer,
 )
 
+from reasoning.rag.cluster_options import ProbeInputs
 from reasoning.rag.command_grounder import (
     CommandGroundingError,
     DispatchOrderSource,
@@ -73,6 +74,11 @@ from swarm_orchestrator.models import (
     RetreatStage2Record,
     SceneSnapshot,
     TerminalStage,
+)
+from swarm_orchestrator.per_cluster_shadow import (
+    GroundingLookups,
+    LookupsSource,
+    live_probe_inputs,
 )
 from swarm_orchestrator.permutation_votes import run_permutation_votes, shifted_request
 from swarm_orchestrator.plan_tracker import PlanTracker
@@ -959,6 +965,7 @@ def write_decision_artifact(
     dispatch_suppressed: bool | None = None,
     reanalysis_suppression: dict[str, Any] | None = None,
     dispatch_withheld: dict[str, Any] | None = None,
+    per_cluster_shadow: dict[str, Any] | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
@@ -1006,6 +1013,11 @@ def write_decision_artifact(
             it was grounded under. The grounded command's own `degradations`
             list (derived mode only) is lifted to `grounding_degradations`,
             and a derived yield's stage-2 record to `stage2`.
+        per_cluster_shadow: The v4 per-cluster shadow's placeholder block
+            (`status: pending`), or None when the shadow is off; added only
+            when set, so a shadow-off artifact is byte-identical. The shadow
+            runs after dispatch and replaces this block in place
+            (`per_cluster_shadow.attach_shadow_block`).
 
     `outcome.plan` (the (a0) plan channel, behind `plan_channel_enabled`) adds
     a `plan` key with `plan_id`, `provenance`, `legs`, `edits`,
@@ -1225,6 +1237,8 @@ def write_decision_artifact(
     )
     if votes is not None:
         payload["permutation_votes"] = votes.model_dump(mode="json")
+    if per_cluster_shadow is not None:
+        payload["per_cluster_shadow"] = per_cluster_shadow
     artifact_path = output_path / f"{outcome.request_id}.json"
     artifact_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return artifact_path
@@ -1374,6 +1388,69 @@ class InProcessPipeline:
         # path is byte-identical to before this channel existed.
         self._plan_tracker = plan_tracker
         self._plan_repair_params = plan_repair_params
+        # The registry-derived M3 inputs of the last grounding call, kept only
+        # for the per-cluster shadow (`grounding_lookups`); never serialized,
+        # so no outcome or artifact changes. One analysis is in flight at a
+        # time and the node reads this after the worker's future completes.
+        self._last_lookups: GroundingLookups | None = None
+
+    @property
+    def reasoner(self) -> Any:
+        """The stage-1 reasoner this pipeline calls."""
+        return self._reasoner
+
+    def grounding_lookups(self, request_id: str) -> GroundingLookups | None:
+        """The goal references and task intents the last grounding call passed.
+
+        Args:
+            request_id: The analysis asked about.
+
+        Returns:
+            The lookups when the last grounding call was this analysis's,
+            else None (its decision never reached grounding).
+        """
+        last = self._last_lookups
+        return last if last is not None and last.request_id == request_id else None
+
+    def per_cluster_probe_inputs(
+        self,
+        request: ReasonerRequest,
+        backend_id: str,
+        lookups: GroundingLookups | None = None,
+    ) -> tuple[ProbeInputs, LookupsSource]:
+        """The shadow's probe inputs: this pipeline's own M3 inputs on `request`'s frame.
+
+        Args:
+            request: The ordinary analysis's request.
+            backend_id: Recorded in probe diagnostics only.
+            lookups: What the ordinary grounding passed; None reads the
+                registry again through the same lookups (the ordinary
+                decision never reached grounding).
+
+        Returns:
+            The inputs and where the goal references and intents came from.
+        """
+        params = self._grounding_params
+        source: LookupsSource = "ordinary_grounding"
+        if lookups is None:
+            source = "recomputed"
+            lookups = GroundingLookups(
+                request_id=request.request_id,
+                goal_references=self._goal_references(request, params),
+                task_intents=self._task_intents(request, params),
+            )
+        inputs = live_probe_inputs(
+            request,
+            backend_id=backend_id,
+            geometry=self._scene_geometry,
+            static_obstacles=self._static_obstacles,
+            yield_feasibility_mode=self._yield_feasibility_mode,
+            params=params,
+            priorities=self._priorities,
+            goal_references=lookups.goal_references,
+            task_intents=lookups.task_intents,
+        )
+        return inputs, source
 
     def _goal_references(
         self, request: ReasonerRequest, params: GroundingParams | None
@@ -1512,6 +1589,11 @@ class InProcessPipeline:
             task_intents = self._task_intents(request, params)
             if task_intents is not None:
                 priority_kwargs["task_intents"] = task_intents
+            self._last_lookups = GroundingLookups(
+                request_id=request.request_id,
+                goal_references=goal_references,
+                task_intents=task_intents,
+            )
             grounded = filter_command_robot_ids(
                 self._ground_fn(
                     result,

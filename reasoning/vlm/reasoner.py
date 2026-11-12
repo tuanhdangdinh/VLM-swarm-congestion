@@ -375,6 +375,16 @@ class Reasoner:
         self._effective_sampling = effective_sampling
         self._retry_policy = retry_policy
 
+    @property
+    def backend(self) -> VLMBackend:
+        """The backend every call of this reasoner goes to."""
+        return self._backend
+
+    @property
+    def config(self) -> ReasonerConfig:
+        """The config every call of this reasoner runs under."""
+        return self._config
+
     def run(self, request: ReasonerRequest) -> ReasonerResult:
         """Execute one complete reasoning pass with bounded retry/re-ask.
 
