@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: `grounding_first_per_cluster` variant, zero-cost ceiling, fixed first-option-per-group chooser, joint-feasibility and single-dispatch finding, replay commands not run.
+- Rev 2 (2026-11-12): the two real-model replays (R7a ER-2, R7b Sonnet 5.5) were run by the owner side and scored here; added the Real-Model Replay Results section, evidence under Owner Rulings and Rev 2 limits. The Rev 1 sections are kept unchanged.
 
 ---
 
@@ -19,7 +20,10 @@ fall in different observed groups, and ER-2 answered "none" on 21-22 of 137.
 
 - **Hypothesis.** Forcing one decision per observed group, with the group
   labels as the answer's required keys, removes that under-selection.
-- **Zero API calls.** No key was loaded and no network backend ran. The
+- **Zero API calls (Rev 1 sections).** No key was loaded and no network
+  backend ran for the design, ceiling and naive-chooser sections. **Rev 2:**
+  R7a and R7b did call the Gemini and Anthropic APIs; this author scored their
+  output files only and made no call. The
   chooser runs use the zero-network `FixedGroupChoiceBackend`, with caches in a
   scratch directory, never under `data/bench/cache`.
 - **Exploratory v4 only.** Nothing here pools with or replaces any prereg-v3
@@ -410,18 +414,158 @@ positives; read the 137-item rows from the analysis script.
 
 ---
 
+## Real-Model Replay Results (Rev 2, 2026-11-12)
+
+Two runs at git a54df59 on `items_live31.jsonl` (md5 f1dc2ccb), with the
+replay commands above (numbered ids, unshuffled). Files:
+`data/bench/v4/run_{r7a_er2_pc,r7b_sonnet55_pc}.{jsonl,md,config.json}` and
+caches `data/bench/cache/r7{a,b}` in the worktree `vgu-vlm-swarm-v6c`
+(untracked). Scoring script:
+`data/bench/v4/analysis_20261112_pc/analyze_r7.py` (untracked; reads `item.gt`,
+analysis only).
+
+**Integrity check before scoring.** The disk filled around the time the runs
+finished, so the files were checked first. Both run files hold 187 rows with
+187 distinct item ids. Both configs parse, with 187 `per_item` entries,
+0 prompt-hash skips and 22 cache hits each. The caches hold 166 (R7a) and 165
+(R7b) response files, all valid JSON. R7a's extra file is one re-ask (E23
+`a81e5925`, answered validly on attempt 2). No row records a parse failure or
+an API error.
+
+### Headline Table (137 Recorded Positives)
+
+The bench's own `summarize`, restricted to the 137 recorded positives, as in
+the v2 report's Rev 2 tables. R5a, R6a and the naive chooser were recomputed by
+the same script and equal the published figures.
+
+| Metric | R5a ER-2 GF v2 | R7a ER-2 per-cluster | R6a Sonnet GF v2 | R7b Sonnet per-cluster | First in every group | Oracle `coverage` |
+|---|---|---|---|---|---|---|
+| valid / positive | 137 / 116 | 137 / 129 | 137 / 137 | 137 / 137 | 137 / 137 | 137 / 137 |
+| M3 feasibility (every chosen option) | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
+| cluster coverage | 0.496 (68) | 0.832 (114) | 0.620 (85) | 0.934 (128) | 0.949 (130) | 1.000 (137) |
+| mean per-cluster recall | 0.500 | 0.746 | 0.621 | 0.815 | 0.827 | 0.891 |
+| involved F1, matched (n) | 0.850 (116) | 0.799 (129) | 0.861 (137) | 0.791 (137) | 0.771 (136) | 0.856 (137) |
+| involved F1, unconditional | 0.720 | 0.752 | 0.861 | 0.791 | 0.765 | 0.856 |
+| per-cluster best-option F1 | n/a | 0.761 | n/a | 0.819 | 0.791 | 0.889 |
+| yielder vs MC first conflict | 21/24 | 23/26 | 21/24 | 21/25 | 24/29 | 18/19 |
+| coverage 1 cl (76) / 2 cl (61) | 60 / 8 | 69 / 45 | 76 / 9 | 76 / 52 | 75 / 55 | 76 / 61 |
+| touch (17) / split (44) | 6 / 2 | 12 / 33 | 7 / 2 | 14 / 38 | 16 / 39 | 17 / 44 |
+
+- Strict feasibility (each chosen option re-grounds to what it asked): 168/168
+  options (R7a) and 181/181 (R7b).
+- Over all 187 items: coverage R7a 0.859 (159/185), R7b 0.941 (174/185);
+  matched F1 0.769 and 0.783. Both models answered every slot `none_feasible`
+  on the 2 items with no active GT cluster (FP 0/2); the naive chooser is
+  positive on both.
+- Token cost from the caches, in the v2 report's method: R7a $1.323 (696,579
+  in / 55,423 out + 69,889 thought, 166 calls), R7b $2.632 (888,220 in /
+  85,572 out, 165 calls), together about $3.96 against the forecast ~$3.97.
+  Estimates, not invoices.
+
+### Within-Slot Choice Quality
+
+All 182 slots of the 137 positives touch at least one active GT cluster, so on
+these items `none_feasible` is never the GT-preferred answer for a slot. "Slot
+F1" is the F1 of the chosen option's robots against the union of the active
+clusters the slot's group touches (0 for `none_feasible`). "Oracle-best" is the
+option in the slot with the highest slot F1.
+
+| Chooser | `none_feasible` / slots | Spurious | Mean slot F1 | Slots covering their clusters | Chosen = slot's first option | Chosen = oracle-best | Exact joint conflict / multi-command items | Any joint flag |
+|---|---|---|---|---|---|---|---|---|
+| R7a ER-2 | 14 / 182 | 0 | 0.790 | 160 / 182 | 95 / 168 | 116 / 168 | 2 / 39 | 5 |
+| R7b Sonnet | 1 / 182 | 0 | 0.846 | 176 / 182 | 105 / 181 | 124 / 181 | 2 / 44 | 7 |
+| First in every group | 0 / 182 | 0 | 0.827 | 180 / 182 | 182 / 182 | 126 / 182 | 6 / 45 | 11 |
+| Oracle `coverage` | 4 / 182 | 0 | 0.886 | 178 / 182 | 117 / 178 | 161 / 178 | 3 / 41 | 7 |
+
+Paired, slot by slot (182 slots), against the naive chooser:
+
+| Pair | Model slot F1 higher | Lower | Equal |
+|---|---|---|---|
+| R7a vs first | 24 | 42 | 116 |
+| R7b vs first | 23 | 24 | 135 |
+
+Against the oracle-`coverage` choice, R7a is lower on 60 slots and higher on
+15; R7b lower on 50 and higher on 14 (the oracle optimises item coverage, not
+slot F1, so it can be beaten on a slot).
+
+### Against v2 and Re-Ask Noise
+
+| Pair (137 positives) | Covered only by the first | Covered only by the second |
+|---|---|---|
+| R5a (v2) vs R7a | 1 | 47 |
+| R6a (v2) vs R7b | 0 | 43 |
+| R7a vs R7b | 3 | 17 |
+| first vs R7a | 18 | 2 |
+| first vs R7b | 3 | 1 |
+
+- **Noise guide.** No same-prompt repeat was run for R7. The v2 report's guide
+  (separate caches, identical prompts, 92 items) found the decision changed on
+  15% (ER-2) and 21% (Sonnet) of items, and the covered flag on 10 (ER-2) and
+  3 (Sonnet) of 92.
+- **One-slot items (92), where the prompt differs from v2 only in the "none"
+  line and the answer instruction:** R7a chose the same v2 option as R5a on
+  74/92; ER-2's "none" fell from 16 to 7 of them. R7b chose the same option as
+  R6a on 66/92 (no "none" in either).
+- **Two-slot items (45):** R7a answered both slots on 39, one on 5, none on 1;
+  R7b both on 44, one on 1.
+
+### Interpretation (Conservative)
+
+1. The format removes the under-selection. Coverage rises from 0.496 to 0.832
+   (ER-2) and from 0.620 to 0.934 (Sonnet); split two-cluster items go from 2
+   to 33 and from 2 to 38 of 44. The paired flips (47 vs 1, 43 vs 0) are far
+   above the re-ask guide (up to 10 of 92 covered flags), so this is not noise.
+   Recall rises from 0.50 to 0.75 and from 0.62 to 0.82.
+2. The gain is the format's, not the models' choosing. The naive
+   first-option-in-every-group chooser does as well or better: coverage 0.949,
+   recall 0.827, slot F1 0.827. Sonnet is level with it (slot F1 0.846 vs
+   0.827; 23 slots better, 24 worse, within re-ask noise), with a small edge on
+   per-cluster best-option F1 (0.819 vs 0.791) and matched F1 (0.791 vs
+   0.771). ER-2 is below it (42 slots worse, 24 better), mostly from 14
+   `none_feasible` slots, every one on a slot that touches a GT cluster.
+3. Neither model approaches the oracle within a slot: the oracle-best option is
+   chosen on 69% (ER-2) and 69% (Sonnet) of answered slots, the same as the
+   naive first option (126/182, 69%); mean slot F1 0.79 and 0.85 against
+   0.886. Both models pick the slot's first option on 57-58% of answered slots.
+   The runs were not shuffled, so position and quality are not separated.
+4. Matched F1 falls (ER-2 0.850 to 0.799, Sonnet 0.861 to 0.791) because the
+   union of two groups is compared with one matched conflict (Design). The
+   per-cluster best-option F1 is the fairer view, and there Sonnet (0.819) sits
+   between the naive chooser and the oracle (0.889).
+5. ER-2 still says "none" more than Sonnet: 8 of 137 items fully negative and
+   14 of 182 slots, against 0 and 1. Down from 21 items under v2.
+6. Joint conflicts remain: exact conflicts on 2 of 39 (ER-2) and 2 of 44
+   (Sonnet) multi-command answers, fewer than the naive chooser's 6 of 45; any
+   flag on 5 and 7. None of these would execute live as one decision (Joint
+   Feasibility section).
+7. MC yielder agreement stays in the GF range (23/26, 21/25), with
+   denominators of 25-29 where one item moves the rate by about 0.04.
+
+---
+
 ## Owner Rulings Needed
 
 - **Run R7a/R7b?** About $4 for both numbered-id runs.
+  - *Rev 2:* run; about $3.96 estimated from the caches.
 - **Option ids.** Numbered (one change vs R5/R6, default) or opaque (also
   against position priors, about 13% more billed calls)? Or both, as a
   separate arm?
+  - *Rev 2 evidence:* both models chose the slot's first option on 57-58% of
+    answered slots in unshuffled numbered runs. A shuffled or opaque arm is the
+    only way to separate position from quality; it would bill 187 calls per
+    run.
 - **Primary metric under this variant.** Coverage is near-saturated by a naive
   chooser (0.949). Should recall and per-cluster best-option F1 be primary for
   R7, with coverage reported only for comparability?
+  - *Rev 2 evidence:* by coverage, recall and slot F1 neither model beats the
+    naive chooser; only per-cluster best-option F1 and matched F1 show a small
+    Sonnet edge. A per-slot quality metric (slot F1, or oracle-best rate) is
+    what separates choosers here.
 - **Joint conflicts.** Keep unfiltered (current), reject choices with an exact
   conflict at validation and re-ask, or remove partial-pair options from the
   slots? Any filter makes the answer contract depend on other slots.
+  - *Rev 2 evidence:* exact conflicts on 2 answers per model (any flag 5 and
+    7), against 6 for the naive chooser.
 - **Live path.** A per-group answer is not executable in live M5 as one
   decision. Is the lever bench-only (a diagnostic of under-selection), or should
   a design note scope it live? The plan channel already carries a scene-wide
@@ -458,3 +602,13 @@ positives; read the 137-item rows from the analysis script.
   the worktree `vgu-vlm-swarm-v6c` (`data/bench/v4/candidates_gf_pc.*`,
   `run_pc_fixed_first*.*`, `analysis_20261112_pc/analyze_pc.py`), with copies
   of the items and R1-R6 run files taken from `vgu-vlm-swarm-v6a`.
+
+### Rev 2 Limits
+
+- **One run per model.** No same-prompt repeat of R7 exists; the noise guide
+  is the v2 report's (R5a/R5b, R6a/R6b), on a different prompt.
+- **Unshuffled, numbered ids.** Position effects are not separated from choice
+  quality; the first-option share (57-58%) is a position-or-quality mix.
+- **Slot F1 is a bench construct.** It scores a slot against the GT clusters
+  its observed group touches; groups and clusters agree partly by definition.
+- **Text-only, untuned on held-out data, exploratory v4 only,** as in Rev 1.
