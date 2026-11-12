@@ -109,10 +109,11 @@ class ProbeInputs(BaseModel):
     These are the inputs the live `InProcessPipeline` passes to
     `ground_reasoner_result`, minus the stage-2 retreat choice (probes do not
     run stage 2: a refusal is decided before it, so feasibility does not
-    depend on it).
+    depend on it). Unknown fields are refused, so a caller cannot hand it
+    ground truth by accident.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     request_id: str
     # Recorded in the probe result's diagnostics only.
