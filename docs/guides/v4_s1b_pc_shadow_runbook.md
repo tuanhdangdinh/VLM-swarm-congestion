@@ -32,8 +32,8 @@
 
 | Item | Value |
 |---|---|
-| Overlay, seed position 1 | `config/overlays/v4_s1b_pc_shadow/orch_seed1.yaml` |
-| Overlay delta (other seeds) | `config/overlays/v4_s1b_pc_shadow/pc_shadow_delta.yaml` |
+| Overlay, seed position 1 | `config/overlays/v4_s1b_pc_shadow/orch_seed1.yaml` md5 38fb03d0370dfa8fbded43350a07fd88 |
+| Overlay delta (other seeds) | `config/overlays/v4_s1b_pc_shadow/pc_shadow_delta.yaml` md5 c78d20203ecb1a2b2aae54181239cf0e |
 | Base it was made from | p10 `overlays/s1b_shield_escort_orch_seed1.yaml` md5 d55cf3373d2712e6e3e33d2be2fa19e5 |
 | Grounding (unchanged) | `config/grounding/s1b_dynamic_shield_escort.yaml` md5 409688866d25289309e081dcb9433037 |
 | Classical params (grouping radius) | `config/rag.yaml` md5 e18c723cff9cada3f320d564c2ecee5a, `r_conflict_m` 1.5 |
@@ -105,8 +105,13 @@ reasoning ros2_ws`). The kit builder records their md5s at its commit.
   - `per_cluster_shadow.py` (new)
   - `reasoning_pipeline.py`
   - `trigger_trace.py` (new)
-  - `config/orchestrator.yaml`: default-off block only. The episode overlay
-    replaces it whole, so this file never decides the cell.
+- **Not deployed:** `config/orchestrator.yaml`.
+  - `ep_run_p10.sh` refuses unless the VM's source copy is the pinned
+    1f656533. That pin is the file at `4c06800` (2026-09-30), and the git copy
+    had already diverged from it before this build (677a4cd0 at `68e67b5` and
+    `fe44eca`).
+  - The episode overlay replaces the installed copy whole anyway, and the
+    model defaults keep the shadow off.
 
 ---
 
@@ -174,8 +179,16 @@ ABORT stops the run, and then the stop step (step 9) runs.
    - **Artifacts complete:** every `decisions/<request_id>.json` has a
      `per_cluster_shadow` block whose status is not `pending`. Count each of
      `ok`, `parse_failed`, `timeout`, `error` and `skipped`.
+     - The one exception is the last analysis, whose shadow may still be in
+       its M2 call when the episode ends. On a graceful stop
+       (`close_per_cluster_shadow` in `main`) it reads `error: node stopped
+       before the shadow finished`. If the container restart kills M5 first,
+       it can stay `pending`.
+     - Anything else left `pending` fails the smoke.
    - **Trace:** `trigger_trace_*.jsonl` is present, with one
-     `start_analysis` line per artifact.
+     `start_analysis` line per artifact. It covers stall, manual and
+     contradiction triggers. A run cut by a kill may lack its last
+     `event_run_end` line.
    - **Added latency:** from each block, `timings.total_ms` and
      `m2.latency_ms`. Offline on the 187 items, enumeration plus grounding
      took p50 20 ms, p95 69 ms and max 141 ms on the Mac. The M2 call
@@ -190,6 +203,13 @@ ABORT stops the run, and then the stop step (step 9) runs.
      39). Reaching the Stage 1 exit of about 10 multi-group analyses takes
      about 8-9 episodes at the tranche-1 rate, against the design note's
      estimate of 4-6. The owner sets N, or a stop rule on the observed count.
+   - **Backlog:** the overlay sets `max_backlog: 2`, so one shadow can queue
+     behind a running one. In the 26 recorded bundles the gap between
+     consecutive analysis outcomes was at least 16.0 s (p50 60 s). The
+     ordinary analysis took p50 8.8 s and max 27 s, so a shadow only ends
+     after the next outcome if it runs about 2-3 times the ordinary call:
+     1 of 161 gaps at 2x, 24 of 161 at 3x. Skips are recorded as `skipped`
+     with the backlog reason.
    - **Gates** are the same as tranche 1: the pin gate before each episode,
      the floor and condition gates after. The budget gate includes shadow
      spend (kit change 4).

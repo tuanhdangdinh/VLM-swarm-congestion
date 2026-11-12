@@ -47,12 +47,16 @@ Rules for maintaining it:
   - Unit suite: 57 failed / 7196 passed / 151 skipped / 3 errors. Baseline fe44eca was 57 / 7148 / 151 / 3, with an identical failing+error id set; +48 new passing tests.
   - Live-vs-bench parity: `scripts/per_cluster_shadow_offline.py` on all 187 items gives 0 mismatches in probe inputs, candidates and joint check (187 with goal references, 82 with task intents).
   - Enumeration plus grounding plus joint check on the Mac: p50 20 ms, p95 69 ms, max 141 ms. The M2 call dominates the added latency.
+  - Invariance: shadow on vs off gives identical directives, dispatches, tracker, cooldown and registry. This holds on the unit config, and on the tranche-1 Arm A config (seed-4 overlay fixture e0ec8543: derived grounding, plan channel, stage 2, suppression, task stream, classical shadow) for both a withheld-yield and a dispatched-reverse path, with the shadow blocked inside its M2 call. Artifacts minus the block are identical.
+  - Graceful stop: `close_per_cluster_shadow` (called from `main`) records unfinished shadows as errors and closes the trace.
+  - Backlog: in the 26 recorded bundles, the shortest gap between consecutive outcomes was 16.0 s, and the ordinary call took p50 8.8 s. The cell overlay uses `max_backlog: 2`.
   (iii) **Deviations.**
   - The record is written into the existing `<request_id>.json`, not a sidecar. The p10 collector copies only `*.json`/`tasks_*.jsonl` carrying the run id, and `cond_p10.py` counts every `decisions/*.json`.
   - The trace is not collected by the p10 kit (kit change listed in the runbook).
   - The runner keeps the bench's no-neutral-image-fallback behaviour.
   - Probes skip `filter_command_robot_ids`/`validate_fn`, as offline.
   - The runbook is tracked at `docs/guides/v4_s1b_pc_shadow_runbook.md`, because kit notes are untracked.
+  - `orchestrator.yaml` is not in the deploy list: the VM pin 1f656533 is the file at 4c06800, and git had diverged before this build.
   (iv) **Gotchas.**
   - `cost_watch.py` does not see shadow spend.
   - `OrchestratorConfig` ignores unknown keys, so a stale runtime silently runs the overlay as plain Arm A; the arm check must assert the flag.

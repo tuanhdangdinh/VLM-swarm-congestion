@@ -330,7 +330,7 @@ per_cluster_shadow:
   max_attempts: null
   call_timeout_sec: null
   timeout_sec: 300.0
-  max_backlog: 1
+  max_backlog: 2
   include_wait: true
   option_ids: numbered
   event_trace: true
