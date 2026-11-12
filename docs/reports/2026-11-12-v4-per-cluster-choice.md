@@ -6,6 +6,7 @@
 
 - Initial draft: `grounding_first_per_cluster` variant, zero-cost ceiling, fixed first-option-per-group chooser, joint-feasibility and single-dispatch finding, replay commands not run.
 - Rev 2 (2026-11-12): the two real-model replays (R7a ER-2, R7b Sonnet 5.5) were run by the owner side and scored here; added the Real-Model Replay Results section, evidence under Owner Rulings and Rev 2 limits. The Rev 1 sections are kept unchanged.
+- Rev 3 (2026-11-12): framing correction (the "naive" first-option chooser is the v2 generator's default-ordered first option, not a blind baseline; superseded wording marked in place), text-only and joint-check limits stated beside the R7 headline, and a conditional within-slot choice analysis.
 
 ---
 
@@ -237,6 +238,10 @@ best-option F1 (0.889) shows the options themselves still fit their clusters.
 
 ## Naive Chooser (Zero-Network, First Option in Every Group)
 
+*Rev 3: "naive" is superseded wording throughout this report. The chooser
+takes the v2 generator's default-ordered first option in each slot, a
+geometric heuristic, not a blind baseline; see Rev 3 Correction.*
+
 The command was `replay --prompt-variant grounding_first_per_cluster
 --fixed-group-choice first --backend gemini` with a scratch `--cache-dir`, at
 git 89df9fc. Every base prompt reproduced its stored hash (0 skipped), with
@@ -266,7 +271,9 @@ equal the v2 report's Rev 2 table.
 - **Coverage becomes cheap.** With `min_overlap = 1`, any answer in every slot
   names every group, and the observed groups agree well with the GT clusters
   (partly by definition, as the v2 report notes). A chooser with no
-  intelligence covers 130/137 and 39/44 split items. Under this variant
+  intelligence covers 130/137 and 39/44 split items. *(Rev 3: superseded
+  wording; it is the default-ordered first option, not a chooser without
+  intelligence.)* Under this variant
   coverage measures little; recall, per-cluster best-option F1, the
   `none_feasible` rate and spurious commands are the informative metrics.
 - **Uncovered by the naive chooser:** 7 items. Six have a single slot (5 split,
@@ -516,7 +523,8 @@ slot F1, so it can be beaten on a slot).
    to 33 and from 2 to 38 of 44. The paired flips (47 vs 1, 43 vs 0) are far
    above the re-ask guide (up to 10 of 92 covered flags), so this is not noise.
    Recall rises from 0.50 to 0.75 and from 0.62 to 0.82.
-2. The gain is the format's, not the models' choosing. The naive
+2. *(Rev 3: restated in Rev 3 Correction; "naive" is superseded wording.)*
+   The gain is the format's, not the models' choosing. The naive
    first-option-in-every-group chooser does as well or better: coverage 0.949,
    recall 0.827, slot F1 0.827. Sonnet is level with it (slot F1 0.846 vs
    0.827; 23 slots better, 24 worse, within re-ask noise), with a small edge on
@@ -543,6 +551,83 @@ slot F1, so it can be beaten on a slot).
 
 ---
 
+## Rev 3: Correction and Conditional Choice Analysis (2026-11-12)
+
+### Correction: What the First Option Is
+
+The Rev 1 and Rev 2 text calls the first-option-in-every-group chooser
+"naive" and, once, a chooser "with no intelligence". That is wrong. Each
+slot's first option is the first entry in the v2 generator's listing order
+(`gf_cluster.generate_cluster_candidates`): group yields sorted by the
+yielder's distance to its nearest passer, then the group reverse, in-group
+pairs by separation, reroutes, partial pairs, and the group wait last. Every
+listed option is M3-executable, but the ordering itself is the bench
+generator's geometric heuristic; M3 only probes each option. On the 182 slots
+of the 137 positives the first option is:
+
+| First option of the slot | Slots |
+|---|---|
+| group yield (nearest yielder-passer distance) | 83 |
+| group reverse | 33 |
+| group `temporary_wait` (nothing else listed for the group) | 18 |
+| in-group pair reverse | 12 |
+| in-group pair yield | 7 |
+| partial pair (one robot in no group): reverse 16, yield 13 | 29 |
+
+So read every "naive chooser" above as **the default-ordered first option**.
+The R7 headline becomes:
+
+- **On involvement F1 (slot F1 and per-cluster best-option F1), the models
+  match, and do not beat, the generator's default ordering.** This is not "the
+  models add nothing over chance": the default ordering is itself a strong
+  geometric heuristic.
+- **Text only.** All replays (R1-R7) sent the neutral grey image, so this is
+  shown only without vision. An image arm could change it.
+- **Joint conflicts are a lower bound.** The joint counts above include only
+  exact clashes (a robot addressed by two commands, retreat points within
+  0.45 m) and a straight-line, timing-free proximity heuristic. Timing, order,
+  Nav2 paths after the escort and swept footprints are not checked, so "2 of
+  39" and "2 of 44" do not show that the other multi-command answers are
+  jointly safe.
+
+### Conditional Choice Analysis
+
+Script: `data/bench/v4/analysis_20261112_pc/cond.py` (untracked; written on the
+coordinator side and re-run here with identical output). Its definitions match
+`analyze_r7.py`: a slot's target is the union of the active GT clusters that
+share a robot with the slot's group; an option's score is its involvement F1
+against that target; "best" is the maximum over the slot's options, ties
+counting as best. All 182 slots touch a target.
+
+| Slot condition | Model | Picks first | Picks another best | Picks a worse option | `none_feasible` |
+|---|---|---|---|---|---|
+| First option is best (126) | R7a ER-2 | 83 | 12 | 25 | 6 |
+| First option is best (126) | R7b Sonnet | 85 | 19 | 22 | 0 |
+| First option is not best (56) | R7a ER-2 | 12 (stays on first) | 21 (picks the best) | 15 | 8 |
+| First option is not best (56) | R7b Sonnet | 20 (stays on first) | 20 (picks the best) | 15 | 1 |
+
+Strategies over answered slots: ER-2 chose yield 84, `temporary_wait` 47,
+reverse 37; Sonnet yield 92, `temporary_wait` 52, reverse 37. The slots'
+first options are yield 103, reverse 61, `temporary_wait` 18. The models
+choose `temporary_wait` far more often than it is listed first (47-52 vs 18);
+this report does not interpret that further.
+
+**Conservative reading.**
+
+- The models are not simply taking the first-listed option: where the first
+  option is not best, they move to a best option on 20-21 of 56 slots.
+- They also leave a best first option for a worse one on 22-25 of 126 slots.
+  The two roughly cancel, which is why slot F1 lands at the default ordering's
+  level.
+- Headroom is small. The oracle's mean slot F1 (0.886) is only 0.06 above the
+  default ordering (0.827). Same-prompt re-asks in R5/R6 changed the decision on
+  14 and 19 of 92 items. One run per configuration cannot resolve within-slot
+  choice quality at that scale.
+- Involvement F1 is not an outcome measure. It scores which robots are named,
+  not whether the commands would resolve the conflict.
+
+---
+
 ## Owner Rulings Needed
 
 - **Run R7a/R7b?** About $4 for both numbered-id runs.
@@ -554,6 +639,13 @@ slot F1, so it can be beaten on a slot).
     answered slots in unshuffled numbered runs. A shuffled or opaque arm is the
     only way to separate position from quality; it would bill 187 calls per
     run.
+  - *Rev 3 evidence:* the conditional analysis shows the models do leave the
+    first option (to a best one on 20-21 of 56 slots, to a worse one on 22-25
+    of 126). R2 vs R3 found no first-slot bias under shuffling, so a shuffled
+    per-cluster arm is unlikely to change the conclusion. That null was shown
+    for ER-2 on v1 lists only; Sonnet was never shuffled. Repeats (variance),
+    an outcome-based metric, or an image arm are the more informative next
+    measurements. Evidence only, not a decision.
 - **Primary metric under this variant.** Coverage is near-saturated by a naive
   chooser (0.949). Should recall and per-cluster best-option F1 be primary for
   R7, with coverage reported only for comparability?
@@ -561,6 +653,10 @@ slot F1, so it can be beaten on a slot).
     naive chooser; only per-cluster best-option F1 and matched F1 show a small
     Sonnet edge. A per-slot quality metric (slot F1, or oracle-best rate) is
     what separates choosers here.
+  - *Rev 3 evidence:* involvement F1 (slot or per-cluster) is not an outcome
+    measure, and its headroom to the oracle (0.827 to 0.886) is within the
+    scale of re-ask noise; an outcome-based metric would be needed to rank
+    choosers.
 - **Joint conflicts.** Keep unfiltered (current), reject choices with an exact
   conflict at validation and re-ask, or remove partial-pair options from the
   slots? Any filter makes the answer contract depend on other slots.
@@ -586,6 +682,8 @@ slot F1, so it can be beaten on a slot).
   ceiling and the naive chooser are not held-out.
 - **No model was asked.** The ceiling uses GT to choose and bounds the slots,
   not a model. The naive chooser shows what the format alone yields.
+  *(Rev 3: superseded; it shows what the format plus the generator's default
+  ordering yields.)*
 - **The kill test is weak by construction.** Per-group choice contains v2's
   single choice, so its oracle cannot fall below v2.
 - **Coverage is cheap here.** `min_overlap = 1` coverage rewards answering
@@ -612,3 +710,11 @@ slot F1, so it can be beaten on a slot).
 - **Slot F1 is a bench construct.** It scores a slot against the GT clusters
   its observed group touches; groups and clusters agree partly by definition.
 - **Text-only, untuned on held-out data, exploratory v4 only,** as in Rev 1.
+
+### Rev 3 Limits
+
+- **The comparison chooser is a heuristic.** The default-ordered first option
+  embeds the v2 generator's geometric ordering; "match the default ordering"
+  is the finding, not "no better than chance".
+- **The conditional table uses GT** and one run per model; its cells of 12-25
+  slots are within the re-ask noise scale.
