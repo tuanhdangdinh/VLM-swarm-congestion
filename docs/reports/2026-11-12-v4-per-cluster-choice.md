@@ -147,7 +147,7 @@ rows comparable with R1/R2/R4a/R4b/R5/R6 on the 137 basis:
 
 - `candidates` v1 output md5 ee3943f0 and v2 default md5 a84e4444, both
   regenerated in this tree and equal to the published values.
-- The whole bench suite passes (143 tests; 108 before, 35 new). One existing
+- The whole bench suite passes (144 tests; 108 before, 36 new). One existing
   assertion changed: the registry list test now includes the new variant name.
 - `replay` rejects `--option-ids opaque` on other variants and section flags
   other than `drop` on this one.
