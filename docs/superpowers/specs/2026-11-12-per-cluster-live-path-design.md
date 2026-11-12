@@ -33,7 +33,7 @@
   `ground(decision)` callable. Evidence and deviations:
   `docs/implementation_notes.md`, 2026-11-12 Stage 0 entry.
 - **Stage 1 status (2026-11-13): built, not run** on the same branch
-  (9d4160c runner move, e22e53c shadow, 55c61b8 tests; not pushed, no VM
+  (9d4160c runner move, e22e53c + b15d1d9 shadow, 55c61b8 + f4e88f7 tests; not pushed, no VM
   time). The shadow is default-off (`per_cluster_shadow:` in
   `orchestrator.yaml`), runs after dispatch on its own worker, and writes into
   the decision artifact. Live-vs-bench parity holds on all 187 items. Section

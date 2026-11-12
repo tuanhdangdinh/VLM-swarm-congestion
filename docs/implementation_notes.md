@@ -37,7 +37,7 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
-- **2026-11-13** — **Stage 1 of the per-cluster live path (live shadow) built and verified offline; default off, zero API, zero VM, not run, not pushed** (branch `feat/v4-per-cluster-parity`: 9d4160c runner move, e22e53c shadow, 55c61b8 tests; design note `docs/superpowers/specs/2026-11-12-per-cluster-live-path-design.md` §5).
+- **2026-11-13** — **Stage 1 of the per-cluster live path (live shadow) built and verified offline; default off, zero API, zero VM, not run, not pushed** (branch `feat/v4-per-cluster-parity`: 9d4160c runner move, e22e53c + b15d1d9 shadow, 55c61b8 + f4e88f7 tests, d5bd0b7 + 3fbbe5a docs; design note `docs/superpowers/specs/2026-11-12-per-cluster-live-path-design.md` §5).
   (i) **Built.**
   - The ask/validate/re-ask loop moved to `reasoning/vlm/per_cluster_runner.py`, as `run_per_cluster_choice` -> frozen `PerClusterRunResult`. `FixedGroupChoiceBackend` moved with it, and the bench variant now wraps both.
   - The pure shadow is `swarm_orchestrator/per_cluster_shadow.py` (`compute_per_cluster_shadow`, never raises). The live constructor is `InProcessPipeline.per_cluster_probe_inputs` -> `live_probe_inputs`. It grounds on the goal references and task intents the ordinary grounding actually passed (`grounding_lookups`), and reads them again only when the decision never reached grounding (`lookups_source`).
