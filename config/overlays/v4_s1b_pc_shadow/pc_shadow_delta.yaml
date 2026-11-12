@@ -1,0 +1,16 @@
+# v4 Stage 1 per-cluster live shadow: the lines an S1b shadow-cell overlay
+# appends to the tranche-1 Arm A overlay of the same seed (EXPLORATORY ONLY;
+# a second billed M2 call per analysis; never pools with A32-A36).
+# Base: data/logs/vm_runs/batch6/p10/overlays/s1b_shield_escort_orch_seed{k}.yaml
+# (vgu-vlm-swarm-v3 checkout; seed1 d55cf3373d2712e6e3e33d2be2fa19e5). The only
+# other change to the base is `keep_debug_frames: false` -> `true` (line 63).
+# Procedure and checks: docs/guides/v4_s1b_pc_shadow_runbook.md.
+per_cluster_shadow:
+  enabled: true
+  max_attempts: null
+  call_timeout_sec: null
+  timeout_sec: 300.0
+  max_backlog: 1
+  include_wait: true
+  option_ids: numbered
+  event_trace: true

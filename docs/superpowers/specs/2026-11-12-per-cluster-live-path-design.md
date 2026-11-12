@@ -6,6 +6,7 @@
 
 - Initial draft: live behaviour read from code, four options compared, recommendation (one call, per-group grounding, joint gate, serialize on conflict) with a staged rollout, measurement plan and owner rulings.
 - Rev 2 (2026-11-12): Stage 0 status recorded in Scope and Status (landed on `feat/v4-per-cluster-parity`); no other text changed.
+- Rev 3 (2026-11-13): Stage 1 build status recorded in Scope and Status; no other text changed.
 
 ---
 
@@ -30,8 +31,18 @@
   `reasoning/vlm/{executable_options,per_cluster_choice}.py`. The ask/re-ask
   runner stays in the bench, and probing is passed in as a
   `ground(decision)` callable. Evidence and deviations:
-  `docs/implementation_notes.md`, 2026-11-12 Stage 0 entry. Stages 1-2 are
-  not started.
+  `docs/implementation_notes.md`, 2026-11-12 Stage 0 entry.
+- **Stage 1 status (2026-11-13): built, not run** on the same branch
+  (9d4160c runner move, e22e53c shadow, 55c61b8 tests; not pushed, no VM
+  time). The shadow is default-off (`per_cluster_shadow:` in
+  `orchestrator.yaml`), runs after dispatch on its own worker, and writes into
+  the decision artifact. Live-vs-bench parity holds on all 187 items. Section
+  7's "unknown" is resolved: the tranche-1 Arm A overlays set
+  `keep_debug_frames: false`. The collector does copy frames. Cell overlay:
+  `config/overlays/v4_s1b_pc_shadow/`. Runbook:
+  `docs/guides/v4_s1b_pc_shadow_runbook.md`. Evidence and deviations:
+  `docs/implementation_notes.md`, 2026-11-13 Stage 1 entry. Stage 2 is not
+  started.
 
 ---
 
