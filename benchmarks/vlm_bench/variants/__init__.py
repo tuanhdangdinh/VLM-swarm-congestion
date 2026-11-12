@@ -2,7 +2,9 @@
 
 `baseline` is the live builder and `Reasoner` as is; `grounding_first` appends
 the M3-executable option list (v4 lever 1; `gf_cluster` is its v2 generator,
-options per observed group, v4 lever 2).
+options per observed group, v4 lever 2); `grounding_first_per_cluster` asks
+for one choice per observed group over the v2 options (`per_cluster`, v4
+lever 3).
 """
 
 from benchmarks.vlm_bench.variants.base import PromptVariant, ReplayContext, VariantAnswer
@@ -33,9 +35,22 @@ from benchmarks.vlm_bench.variants.grounding_first import (
     render_candidate_section,
     shuffle_candidates,
 )
+from benchmarks.vlm_bench.variants.per_cluster import (
+    GENERATOR_VERSION_PER_CLUSTER,
+    NONE_FEASIBLE,
+    PER_CLUSTER_VARIANT,
+    FixedGroupChoiceBackend,
+    GroundingFirstPerClusterVariant,
+    PerClusterCandidateSet,
+    compose_per_cluster_payload,
+    parse_per_cluster_answer,
+    per_cluster_candidates,
+    render_per_cluster_section,
+)
 
 VARIANTS: dict[str, PromptVariant] = {
-    variant.name: variant for variant in (BaselineVariant(), GroundingFirstVariant())
+    variant.name: variant
+    for variant in (BaselineVariant(), GroundingFirstVariant(), GroundingFirstPerClusterVariant())
 }
 
 
@@ -67,6 +82,7 @@ def get_variant(name: str) -> PromptVariant:
 
 __all__ = [
     "GENERATOR_VERSION",
+    "GENERATOR_VERSION_PER_CLUSTER",
     "GENERATOR_VERSION_V2",
     "VARIANTS",
     "BaselineVariant",
@@ -74,15 +90,21 @@ __all__ = [
     "ClusterCandidateSet",
     "ClusterOption",
     "ExecutableOption",
+    "FixedGroupChoiceBackend",
     "FixedOptionBackend",
     "GroundingFirstClusterVariant",
+    "GroundingFirstPerClusterVariant",
     "GroundingFirstVariant",
+    "NONE_FEASIBLE",
     "ObservedGroup",
+    "PER_CLUSTER_VARIANT",
+    "PerClusterCandidateSet",
     "PromptVariant",
     "ReplayContext",
     "VariantAnswer",
     "compose_cluster_payload",
     "compose_payload",
+    "compose_per_cluster_payload",
     "executed_key",
     "executed_key_v2",
     "generate_candidates",
@@ -91,8 +113,11 @@ __all__ = [
     "list_variants",
     "observed_groups",
     "parse_option_answer",
+    "parse_per_cluster_answer",
+    "per_cluster_candidates",
     "render_candidate_section",
     "render_cluster_section",
+    "render_per_cluster_section",
     "shuffle_candidates",
     "shuffle_cluster_candidates",
 ]

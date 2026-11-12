@@ -46,6 +46,10 @@ class VariantAnswer(BaseModel):
     shuffle_item_seed: int | None = None
     # Generator-specific per-item fields for the run config (e.g. observed groups).
     extra: dict[str, Any] | None = None
+    # Per-group variants: group label -> that group's decision (None for a
+    # group answered `none_feasible`). When set, the item is scored with
+    # `scoring.score_group_decisions` and `decision` is None.
+    group_decisions: dict[str, dict[str, Any] | None] | None = None
 
 
 class PromptVariant(Protocol):

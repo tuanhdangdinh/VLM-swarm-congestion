@@ -10,12 +10,20 @@ from pathlib import Path
 from benchmarks.s1_scoring.bundle_io import NotAnEpisodeError
 from benchmarks.vlm_bench.items import build_bundle_items, load_mc_references, write_items
 from benchmarks.vlm_bench.run import load, replay_items, run_config, score_items, write_run
-from benchmarks.vlm_bench.variants import FixedOptionBackend, list_variants
+from benchmarks.vlm_bench.variants import (
+    FixedGroupChoiceBackend,
+    FixedOptionBackend,
+    list_variants,
+)
 from benchmarks.vlm_bench.variants.candidate_report import candidate_row, render_candidate_summary
 from benchmarks.vlm_bench.variants.cluster_report import (
     CONFIGS,
     cluster_candidate_row,
     render_cluster_summary,
+)
+from benchmarks.vlm_bench.variants.per_cluster_report import (
+    per_cluster_row,
+    render_per_cluster_summary,
 )
 
 
@@ -52,6 +60,16 @@ def _parser() -> argparse.ArgumentParser:
     )
     replay.add_argument("--seed", type=int, default=20261023,
                         help="run seed for --shuffle-options")
+    replay.add_argument(
+        "--fixed-group-choice", choices=("first", "none_feasible"), default=None,
+        help="grounding_first_per_cluster sanity chooser: a zero-network backend that "
+             "answers this rule in every group; cached under "
+             "<cache-dir>/fixed-group-choice-<rule>",
+    )
+    replay.add_argument(
+        "--option-ids", choices=("numbered", "opaque"), default="numbered",
+        help="grounding_first_per_cluster only: v2 option numbers or opaque per-item ids",
+    )
     _generator_args(replay)
     cands = sub.add_parser("candidates", help="grounding-first executable option sets (no API)")
     cands.add_argument("--items", type=Path, required=True)
@@ -63,9 +81,10 @@ def _parser() -> argparse.ArgumentParser:
 
 def _generator_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
-        "--generator", choices=("v1", "v2"), default="v1",
+        "--generator", choices=("v1", "v2", "per-cluster"), default="v1",
         help="grounding_first option generator: v1 pairs (gf-candidates-v1) or v2 options "
-             "per observed group (gf-candidates-v2)",
+             "per observed group (gf-candidates-v2); `candidates` also takes per-cluster "
+             "(the grounding_first_per_cluster slots, gf-per-cluster-v1)",
     )
     parser.add_argument("--gf-offgroup", choices=("keep", "drop"), default="drop",
                         help="v2: keep or drop options outside every observed group")
@@ -102,6 +121,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"wrote {len(items)} items -> {args.out}")
         return 0
     items = load(args.items)
+    if args.cmd == "candidates" and args.generator == "per-cluster":
+        rows = [per_cluster_row(item) for item in items]
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in rows))
+        if args.summary is not None:
+            args.summary.write_text(render_per_cluster_summary(rows))
+        print(f"wrote {len(rows)} per-cluster rows -> {args.out}")
+        return 0
+    if args.cmd == "replay" and args.generator == "per-cluster":
+        raise SystemExit("--generator per-cluster is for `candidates`; replay uses "
+                         "--prompt-variant grounding_first_per_cluster")
     if args.cmd == "candidates" and args.generator == "v2":
         flags = (args.gf_offgroup, args.gf_cross_group)
         configs = [c for c in CONFIGS if (c[1], c[2]) == flags]
@@ -135,13 +165,22 @@ def main(argv: list[str] | None = None) -> int:
             option = int(args.fixed_option) if args.fixed_option.isdigit() else args.fixed_option
             factory = lambda _id, _raw: FixedOptionBackend(option)  # noqa: E731
             cache_dir = cache_dir / f"fixed-option-{args.fixed_option}"
+        if args.fixed_group_choice is not None:
+            if args.fixed_option is not None:
+                raise SystemExit("--fixed-option and --fixed-group-choice are exclusive")
+            rule = args.fixed_group_choice
+            factory = lambda _id, _raw: FixedGroupChoiceBackend(rule)  # noqa: E731
+            cache_dir = cache_dir / f"fixed-group-choice-{rule}"
         scores, info = replay_items(
             items, args.backend, args.prompt_variant, cache_dir, backend_factory=factory,
             shuffle_seed=args.seed if args.shuffle_options else None,
             generator=args.generator, offgroup=args.gf_offgroup, cross_group=args.gf_cross_group,
+            option_ids=args.option_ids,
         )
         if args.fixed_option is not None:
             info["fixed_option"] = args.fixed_option
+        if args.fixed_group_choice is not None:
+            info["fixed_group_choice"] = args.fixed_group_choice
         config = run_config(f"replay:{args.prompt_variant}", args.items, items, info)
     write_run(scores, args.out, args.summary, config, items)
     print(f"scored {len(scores)} items -> {args.out}")

@@ -17,10 +17,17 @@ from benchmarks.vlm_bench.classical_ref import classical_decision, reproduces_re
 from benchmarks.vlm_bench.grounder_offline import executable_yielders, ground_decision
 from benchmarks.vlm_bench.items import REPO_ROOT, file_md5, read_items
 from benchmarks.vlm_bench.models import BenchItem, ItemScore
-from benchmarks.vlm_bench.scoring import Summary, score_item, summarize
+from benchmarks.vlm_bench.scoring import (
+    Summary,
+    score_group_decisions,
+    score_item,
+    summarize,
+)
 from benchmarks.vlm_bench.variants import (
+    PER_CLUSTER_VARIANT,
     VARIANTS,
     GroundingFirstClusterVariant,
+    GroundingFirstPerClusterVariant,
     GroundingFirstVariant,
     ReplayContext,
     get_variant,
@@ -182,6 +189,7 @@ def replay_items(
     generator: str = "v1",
     offgroup: str = "drop",
     cross_group: str = "drop",
+    option_ids: str = "numbered",
 ) -> tuple[list[ItemScore], dict[str, Any]]:
     """Re-ask a backend on every item under a prompt variant, through the response cache.
 
@@ -200,6 +208,9 @@ def replay_items(
             (options per observed group, `variants.gf_cluster`).
         offgroup: v2 only: "keep" or "drop" the outside-any-group section.
         cross_group: v2 only: "keep" or "drop" the spans-two-groups section.
+        option_ids: `grounding_first_per_cluster` only: "numbered" (v2
+            numbers) or "opaque" per-item ids. That variant always uses the
+            v2 groups with both extra sections dropped.
 
     Returns:
         The scores and a run-info dict: cache hits/misses, skipped items,
@@ -208,7 +219,8 @@ def replay_items(
 
     Raises:
         ValueError: For an unknown variant or generator, or a shuffle seed
-            or generator on a variant without an option list.
+            or generator on a variant without an option list, or section
+            flags / opaque ids on a variant that does not take them.
     """
     from reasoning.vlm.backend_factory import (
         backend_adapter,
@@ -222,7 +234,8 @@ def replay_items(
     plugin = get_variant(variant)
     if generator not in ("v1", "v2"):
         raise ValueError(f"unknown candidate generator {generator!r}; known: v1, v2")
-    if shuffle_seed is not None and variant != "grounding_first":
+    option_variants = ("grounding_first", PER_CLUSTER_VARIANT)
+    if shuffle_seed is not None and variant not in option_variants:
         raise ValueError(f"option shuffling needs grounding_first, not {variant!r}")
     if generator == "v2":
         if variant != "grounding_first":
@@ -230,8 +243,18 @@ def replay_items(
         plugin = GroundingFirstClusterVariant(
             shuffle_seed=shuffle_seed, offgroup=offgroup, cross_group=cross_group
         )
+    elif variant == PER_CLUSTER_VARIANT:
+        if (offgroup, cross_group) != ("drop", "drop"):
+            raise ValueError(f"{variant} drops the outside and span sections; flags not taken")
+        if option_ids not in ("numbered", "opaque"):
+            raise ValueError(f"unknown option ids {option_ids!r}; known: numbered, opaque")
+        plugin = GroundingFirstPerClusterVariant(
+            shuffle_seed=shuffle_seed, option_ids=option_ids  # type: ignore[arg-type]
+        )
     elif shuffle_seed is not None:
         plugin = GroundingFirstVariant(shuffle_seed=shuffle_seed)
+    if option_ids != "numbered" and variant != PER_CLUSTER_VARIANT:
+        raise ValueError(f"option ids {option_ids!r} need {PER_CLUSTER_VARIANT}, not {variant!r}")
     raw_vlm = yaml.safe_load(Path(models_yaml).read_text())["vlm"]
     backend_config = load_backend_config(raw_vlm, backend_id)
     reasoner_config = resolve_reasoner_config(raw_vlm, backend_id)
@@ -261,10 +284,16 @@ def replay_items(
             skipped.append(item.item_id)
             continue
         answer = plugin.answer(item, request, context)
-        score = score_item(
-            item, answer.decision, f"replay:{variant}", ground_decision, executable_yielders,
-            with_cost=False,
-        )
+        if answer.group_decisions is not None:
+            score = score_group_decisions(
+                item, answer.group_decisions, f"replay:{variant}", ground_decision,
+                executable_yielders,
+            )
+        else:
+            score = score_item(
+                item, answer.decision, f"replay:{variant}", ground_decision,
+                executable_yielders, with_cost=False,
+            )
         note = f"image={'frame' if item.frame_path else 'neutral'}"
         if answer.note is not None:
             note += f"; {answer.note}"
@@ -296,7 +325,7 @@ def replay_items(
         "shuffle_seed": shuffle_seed,
         **(
             {"candidate_generator": plugin.run_info()}
-            if isinstance(plugin, GroundingFirstClusterVariant)
+            if isinstance(plugin, GroundingFirstClusterVariant | GroundingFirstPerClusterVariant)
             else {}
         ),
         "cache_hits": cached.hits,
