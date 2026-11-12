@@ -265,7 +265,8 @@ Code: `benchmarks/vlm_bench/variants/per_cluster.py`; GT-scored report
   - strategy = the chosen strategies joined with `+`, in slot order;
   - yielder, and its M3-oracle, live-shadow and MC agreement: from the chosen
     yield that contains the MC first-conflict pair, else the one sharing most
-    robots with the matched conflict, else the first;
+    robots with the matched conflict (no yielder when none shares a robot
+    with it), else, with no matched conflict, the first;
   - all slots `none_feasible` = a negative answer.
   - The GT-side extras (per-slot `none_feasible` rate, spurious commands =
     chosen options naming no robot of an active GT cluster, per-cluster
@@ -278,8 +279,9 @@ Code: `benchmarks/vlm_bench/variants/per_cluster.py`; GT-scored report
   motion segments (yield backup and pull-off, passer escort lines, reverse
   backups, reroute polylines) within that radius of the other command's
   segments or addressed robots. It filters nothing. Live M5 dispatches one
-  grounded command per analysis, so a per-group answer is not executable live
-  as one decision.
+  grounded command per analysis (the plan channel tracks a scene-wide leg list
+  but dispatches only that command), so a per-group answer is not executable
+  live as one decision.
 - **CLI.** `replay --prompt-variant grounding_first_per_cluster
   [--option-ids numbered|opaque] [--shuffle-options --seed N]`;
   `--fixed-group-choice first|none_feasible` is the zero-network chooser

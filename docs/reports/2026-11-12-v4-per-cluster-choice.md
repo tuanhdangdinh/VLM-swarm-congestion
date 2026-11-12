@@ -29,8 +29,9 @@ fall in different observed groups, and ER-2 answered "none" on 21-22 of 137.
 - **Code.** `benchmarks/vlm_bench/variants/per_cluster.py` (variant, contract,
   joint check), `variants/per_cluster_report.py` (GT-scored report) and
   `scoring.score_group_decisions`, commit d4ae78d; tests
-  `tests/unit/test_vlm_bench_per_cluster.py`, commit 510faca. Existing variants
-  and generators are unchanged and stay the default.
+  `tests/unit/test_vlm_bench_per_cluster.py`, commit 510faca; yielder and
+  oracle tie-order fix with its tests, commit 89df9fc. Existing variants and
+  generators are unchanged and stay the default.
 
 ---
 
@@ -120,15 +121,23 @@ rows comparable with R1/R2/R4a/R4b/R5/R6 on the 137 basis:
 - **Strategy** = the chosen strategies joined with `+` in slot order.
 - **Yielder** (and its M3-oracle, live-shadow and MC agreement): the chosen
   yield containing the MC first-conflict pair, else the one sharing most robots
-  with the matched conflict, else the first. With one chosen option this
-  equals `score_item` (tested).
+  with the matched conflict. When no chosen yield shares a robot with the
+  matched conflict, the row has no yielder: that yield resolves another
+  cluster, and a single-decision run would name none there either. With no
+  matched conflict, the first chosen yield. With one chosen option this equals
+  `score_item` (tested). The no-overlap case occurs on 7 naive-chooser rows and
+  5 oracle-`coverage` rows of the 137; none of them has an MC reference, so the
+  MC column is unaffected.
 - **Extras** (GT side, report module only): `none_feasible` per slot; spurious
   commands, a chosen option naming no robot of any active GT cluster; and
   per-cluster best-option F1, the mean over active clusters of the best F1 of
   any one chosen option.
 - **Union F1 drops mechanically.** On a split item the union names two
-  clusters, but matched F1 compares it with one matched conflict. The
-  per-cluster best-option F1 is reported beside it for that reason.
+  clusters, but matched F1 compares it with one matched conflict.
+  `match_analysis` (A33(6)) picks, among the conflicts whose window contains
+  the item time, the one sharing most robots with the union, then one already
+  started (latest onset), else the earliest upcoming. The per-cluster
+  best-option F1 is reported beside it for that reason.
 - **Analysis gotcha.** `analysis_20261023/analyze.py`'s strict check re-grounds
   `ItemScore.decision`; for per-cluster rows that dict is the union record, not
   a decision. Use `data/bench/v4/analysis_20261112_pc/analyze_pc.py`
@@ -148,11 +157,12 @@ rows comparable with R1/R2/R4a/R4b/R5/R6 on the 137 basis:
 ## Ceiling on the 137 Recorded Positives (Zero Cost)
 
 The command was `python -m benchmarks.vlm_bench candidates --generator
-per-cluster` at git 510faca. Output:
+per-cluster` at git 89df9fc. Output:
 `data/bench/v4/candidates_gf_pc.{jsonl,md}` in the worktree
-`vgu-vlm-swarm-v6c` (jsonl md5 4aca9aa5, untracked). The oracle scores every
-combination of one option or `none_feasible` per slot (ties keep the earlier
-combination; `none_feasible` sorts first, so a tie keeps fewer commands).
+`vgu-vlm-swarm-v6c` (jsonl md5 f333fb8e, untracked). The oracle scores every
+combination of one option or `none_feasible` per slot. Ties keep the earlier
+combination: `none_feasible` comes first in each slot, so a tie keeps fewer
+commands, and single choices run in v2 option order, as v2's oracle does.
 
 ### Slots and Options
 
@@ -182,15 +192,16 @@ construction.
 | v1 | coverage | 1.000 | 0.548 | 0.672 | n/a | 0.778 (14/18) |
 | v2 default (drop span) | coverage | 0.766 | 0.704 | 0.899 | n/a | 0.900 (18/20) |
 | v2, keep span | coverage | 1.000 | 0.688 | 0.779 | n/a | 0.875 (14/16) |
-| per-cluster, `single` (self-check) | coverage | 0.766 | 0.704 | 0.899 | 0.762 | 0.875 (14/16) |
+| per-cluster, `single` (self-check) | coverage | 0.766 | 0.704 | 0.899 | 0.762 | 0.900 (18/20) |
 | per-cluster | coverage | **1.000** | **0.891** | 0.856 | 0.889 | 0.947 (18/19) |
 | per-cluster | match | 0.978 | 0.922 | 0.858 | 0.901 | 0.833 (20/24) |
-| per-cluster | f1 | 0.620 | 0.683 | **0.966** | 0.759 | 0.947 (18/19) |
+| per-cluster | f1 | 0.620 | 0.683 | **0.966** | 0.759 | 0.957 (22/23) |
 
-- **Self-check.** `single` reproduces the v2-default coverage-rule ceiling on
-  coverage, recall and matched F1 exactly. Its MC row differs (14/16 vs 18/20)
-  because ties are broken in a different order (combination order here, option
-  order in v2), so a different tied option, sometimes a non-yield, is picked.
+- **Self-check.** `single` reproduces the v2-default coverage-rule ceiling
+  exactly: coverage, recall, matched F1 and MC 18/20. A first version broke
+  ties in a different order and gave MC 14/16 with the other three equal;
+  enumerating single choices in v2 option order restored 18/20 (commit
+  89df9fc), which confirms the tie order was the only difference.
 - `none_feasible` slots chosen by the oracle: 4/182 (coverage), 0/182 (match),
   44/182 (f1). Spurious commands: 0 in every oracle row.
 
@@ -224,7 +235,7 @@ best-option F1 (0.889) shows the options themselves still fit their clusters.
 
 The command was `replay --prompt-variant grounding_first_per_cluster
 --fixed-group-choice first --backend gemini` with a scratch `--cache-dir`, at
-git 510faca. Every base prompt reproduced its stored hash (0 skipped), with
+git 89df9fc. Every base prompt reproduced its stored hash (0 skipped), with
 165 cache misses and 22 hits, as in R5/R6. The opaque-id run
 (`--option-ids opaque --backend anthropic`) chose the same options on 187/187
 items and scored identically; it had 187 misses and 0 hits, because opaque ids
@@ -291,11 +302,24 @@ Verified in the code:
   scene is therefore one analysis.
 - **Busy gate.** `on_event` suppresses an event when any involved robot is in
   an unresolved dispatched command or in cooldown (`state_machine.py`).
-- **Precedent.** `junction_clear` already dispatches later phases from M5
-  without a new M2 call (`_dispatch_junction_phase`, `JunctionPhaseQueue`). It
+- **Plan channel represents, but does not dispatch, a scene-wide plan.** With
+  `plan_channel_enabled` (true in all 187 item overlays; a live plan block on
+  137), `InProcessPipeline` runs `verify_and_repair_plan`, which returns a
+  complete scene-wide leg list (one `{robot_id, action}` per robot; actions
+  yield, reverse, cross, wait, reroute, continue), and `PlanTracker` tracks it.
+  The command dispatched is still the decision's one `grounded` command,
+  tagged with the `plan_id`; `dispatch_matches_plan` records whether it matches
+  the plan. No code path dispatches the other legs.
+- **Precedent for several commands from one decision.** `junction_clear`
+  dispatches later phases from M5 without a new M2 call
+  (`_dispatch_junction_phase`, `JunctionPhaseQueue`, behind the same flag). It
   is specific to `junction_clear`.
 
 Inferred, not verified:
+
+- Whether `verify_and_repair_plan` would keep a plan with yields in two groups:
+  it audits the plan against the decision's own fields, which name one
+  strategy; this was not tested.
 
 - A per-group answer would need either a live change to dispatch several
   commands from one outcome, or sequential cycles. With sequential cycles, once
@@ -400,8 +424,10 @@ positives; read the 137-item rows from the analysis script.
   slots? Any filter makes the answer contract depend on other slots.
 - **Live path.** A per-group answer is not executable in live M5 as one
   decision. Is the lever bench-only (a diagnostic of under-selection), or should
-  a design note scope sequential per-group dispatch (`junction_clear`'s phase
-  queue is the nearest precedent)? No live code was changed.
+  a design note scope it live? The plan channel already carries a scene-wide
+  leg list but dispatches only the decision's command; `junction_clear`'s phase
+  queue is the only path that dispatches several commands from one decision.
+  No live code was changed.
 - **No-group fallback.** The `outside` slot repeats v2's deviation on 4 items
   (2 positives). Accept?
 
