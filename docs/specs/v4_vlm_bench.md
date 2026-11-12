@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: purpose, data inventory, item model, metric definitions, modes, reporting.
+- Rev 2 (2026-11-12): listed the implemented variants; added the `grounding_first_per_cluster` variant (per-group answer contract, schema delivery, per-group scoring, joint check) and its CLI flags.
 
 ---
 
@@ -203,15 +204,88 @@ denominator.
   - The cache key is the SHA-256 of the backend id, model id, system prompt,
     user prompt, image bytes and sampling config. Entries are stored under
     `data/bench/cache/`.
-  - The only variant now is `baseline`, the live builder as is.
+  - Variants: `baseline` (the live builder as is); `grounding_first` (an
+    M3-executable option list appended, generator `--generator v1` pairs or
+    `v2` options per observed group; reports
+    `docs/reports/2026-10-23-v4-grounding-first-candidates.md` and
+    `docs/reports/2026-10-24-v4-gf-cluster-candidates.md`);
+    `grounding_first_per_cluster` (one choice per observed group, below).
 
 **Candidate levers (listed, not implemented):**
 
-- a grounding-first candidate list (M3-executable yielders in the prompt);
 - a geometry-in-text table;
-- a forced cluster-enumeration output schema;
 - randomized robot order;
 - a one-shot M3-feedback retry, which re-asks with the refusal reason.
+
+### `grounding_first_per_cluster`
+
+Code: `benchmarks/vlm_bench/variants/per_cluster.py`; GT-scored report
+`variants/per_cluster_report.py`; report
+`docs/reports/2026-11-12-v4-per-cluster-choice.md`.
+
+- **Slots.** One slot per `gf-candidates-v2` observed group (scene state only,
+  never `item.gt`). A slot holds exactly the options v2 lists in that group's
+  section, each probed with the offline M3 and kept only when it executes as
+  asked. The span section is not offered and robots in no group get no slot
+  (`--gf-offgroup drop`), except that a scene with no observed group gets the
+  single slot `outside` holding v2's outside section (v2's fallback).
+- **Option ids.** `--option-ids numbered` (default): v2's global 1-based
+  numbers, so the option text and numbers equal an R5/R6 prompt. `opaque`: a
+  per-item token, a letter plus 3+ base32 characters of
+  sha256(`item_id:executed_key_v2`), stable under shuffling. `--shuffle-options`
+  permutes within each slot.
+- **Prompt.** The live prompt verbatim, then a header per group, its options,
+  a per-group `none_feasible` line, the required keys, and one line
+  `Answer keys and allowed ids: {json}` (label -> ids, `none_feasible` last).
+- **Answer contract.** The reply's JSON object must carry `choices`, an object
+  whose keys are exactly the slot labels. It is validated against a per-item
+  model built with `pydantic.create_model`: frozen, `extra="forbid"`, one
+  required `Literal[ids..., "none_feasible"]` field per slot. Integer ids are
+  read as strings for numbered ids; nothing else is coerced. A failure is
+  re-asked with the production `build_reask_prompt`, up to `max_attempts`;
+  then `decision=None`, `parse_status="failed"`.
+- **Schema delivery.** `VLMBackend.analyze(payload, config)` carries no
+  response schema: `PromptPayload` has no schema field, `GeminiBackend`
+  loads one static schema (`vlm_decision`) at construction behind
+  `force_schema` (false in `config/models.yaml`), and `AnthropicBackend` sends
+  none. The keys are therefore stated in the prompt and enforced by the
+  validator above, the same for every backend.
+- **Answer record.** `VariantAnswer.group_decisions` maps each label to the
+  chosen option's decision (`ClusterOption.decision`, crossing order kept) or
+  None for `none_feasible`; `decision` is None. The run config's `per_item`
+  adds `slots`, `choices`, `chosen_v2_numbers` and `joint_check`.
+- **Scoring (`scoring.score_group_decisions`).** Each chosen decision is
+  grounded alone with `score_item`; no merged decision is ever grounded. The
+  row combines them:
+  - involved = the union of the chosen robots, in slot order; coverage,
+    per-cluster recall, the A33(6) matched conflict and F1 are computed on it
+    with the existing functions, so rows compare with single-decision runs on
+    the same denominators;
+  - M3 feasibility = every chosen decision feasible (first refusal kept);
+  - strategy = the chosen strategies joined with `+`, in slot order;
+  - yielder, and its M3-oracle, live-shadow and MC agreement: from the chosen
+    yield that contains the MC first-conflict pair, else the one sharing most
+    robots with the matched conflict, else the first;
+  - all slots `none_feasible` = a negative answer.
+  - The GT-side extras (per-slot `none_feasible` rate, spurious commands =
+    chosen options naming no robot of an active GT cluster, per-cluster
+    best-option F1) are computed in `per_cluster_report`, never in the
+    variant.
+- **Joint check (`joint_check`, scene only).** Exact, from the grounded
+  commands: robots addressed by two chosen commands (a hold in one and a move
+  in the other included) and yield retreat points closer than
+  `geometry.robot.safety_radius_m`. Heuristic, timing-free: straight-line
+  motion segments (yield backup and pull-off, passer escort lines, reverse
+  backups, reroute polylines) within that radius of the other command's
+  segments or addressed robots. It filters nothing. Live M5 dispatches one
+  grounded command per analysis, so a per-group answer is not executable live
+  as one decision.
+- **CLI.** `replay --prompt-variant grounding_first_per_cluster
+  [--option-ids numbered|opaque] [--shuffle-options --seed N]`;
+  `--fixed-group-choice first|none_feasible` is the zero-network chooser
+  (cached under `<cache-dir>/fixed-group-choice-<rule>`); `candidates
+  --generator per-cluster` writes the GT-scored ceiling rows and summary.
+  `--gf-offgroup` and `--gf-cross-group` other than `drop` are rejected.
 
 ---
 
@@ -232,4 +306,6 @@ CLI:
 python -m benchmarks.vlm_bench build-items <bundle>... --out items.jsonl
 python -m benchmarks.vlm_bench score --mode recorded|classical --items items.jsonl --out run.jsonl --summary run.md
 python -m benchmarks.vlm_bench replay --backend <id> --prompt-variant baseline --items items.jsonl --out run.jsonl --summary run.md
+python -m benchmarks.vlm_bench replay --backend <id> --prompt-variant grounding_first_per_cluster --items items.jsonl --out run.jsonl --summary run.md
+python -m benchmarks.vlm_bench candidates --generator per-cluster --items items.jsonl --out rows.jsonl --summary rows.md
 ```
