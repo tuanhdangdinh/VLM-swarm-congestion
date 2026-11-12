@@ -6,6 +6,7 @@
 
 - Initial draft: purpose, data inventory, item model, metric definitions, modes, reporting.
 - Rev 2 (2026-11-12): listed the implemented variants; added the `grounding_first_per_cluster` variant (per-group answer contract, schema delivery, per-group scoring, joint check) and its CLI flags.
+- Rev 3 (2026-11-12): code locations of the per-cluster path updated after the Stage 0 parity refactor (shared code moved under `reasoning/`); no behaviour change.
 
 ---
 
@@ -219,7 +220,14 @@ denominator.
 
 ### `grounding_first_per_cluster`
 
-Code: `benchmarks/vlm_bench/variants/per_cluster.py`; GT-scored report
+Code: the bench variant and item adapters in
+`benchmarks/vlm_bench/variants/per_cluster.py` and `gf_cluster.py`; the
+shared code they wrap, which takes plain inputs and no `BenchItem`: grouping,
+option enumeration and probing, and the executed keys in
+`reasoning/rag/cluster_options.py`; the joint check in
+`reasoning/rag/joint_check.py`; the option models in
+`reasoning/vlm/executable_options.py`; the slot split, answer contract, parser
+and prompt section in `reasoning/vlm/per_cluster_choice.py`. GT-scored report
 `variants/per_cluster_report.py`; report
 `docs/reports/2026-11-12-v4-per-cluster-choice.md`.
 

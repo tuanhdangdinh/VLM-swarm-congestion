@@ -343,7 +343,8 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   `docs/specs/module3_rag_grounding.md`): the configured mode under that key,
   plus `yield_robot_grounded_from`, `yield_regrounded_reason` and
   `yield_refusal_reason` read back off the grounded command by
-  `summarize_yield_grounding` (`reasoning_pipeline.py`). **Why:** with the gate
+  `summarize_yield_grounding` (`reasoning/rag/grounding_provenance.py`, re-exported
+  by `reasoning_pipeline.py`). **Why:** with the gate
   on, the robot that executes a yield need not be the robot M2 named, and
   `decision.yield_robot` alone would silently misattribute that. The mode is
   recorded even on cycles where the gate did not fire, so an artifact set stays

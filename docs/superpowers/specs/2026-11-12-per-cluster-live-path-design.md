@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: live behaviour read from code, four options compared, recommendation (one call, per-group grounding, joint gate, serialize on conflict) with a staged rollout, measurement plan and owner rulings.
+- Rev 2 (2026-11-12): Stage 0 status recorded in Scope and Status (landed on `feat/v4-per-cluster-parity`); no other text changed.
 
 ---
 
@@ -20,6 +21,17 @@
 - **Code base read.** Branch `feat/v4-per-cluster` at 76c6401. File:line
   references are to that tree. Statements marked *inferred* were not
   verified in code or by a run.
+- **Stage 0 status (2026-11-12): landed** on `feat/v4-per-cluster-parity`
+  (d568726, 17105d0, e1676d4, ce72984; not pushed). The exit criterion holds:
+  `candidates` v2 md5 a84e4444 and per-cluster md5 f333fb8e reproduce, the
+  144 bench tests pass, and the full unit suite's failing-id set is unchanged
+  (57 ids, flag-off goldens among the passing tests). The shared code is in
+  `reasoning/rag/{cluster_options,joint_check,grounding_provenance}.py` and
+  `reasoning/vlm/{executable_options,per_cluster_choice}.py`. The ask/re-ask
+  runner stays in the bench, and probing is passed in as a
+  `ground(decision)` callable. Evidence and deviations:
+  `docs/implementation_notes.md`, 2026-11-12 Stage 0 entry. Stages 1-2 are
+  not started.
 
 ---
 
