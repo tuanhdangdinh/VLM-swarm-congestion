@@ -186,9 +186,11 @@ def _primary(
                 return label, d
     if matched is not None:
         robots = set(next(c.involved for c in item.gt.episode_conflicts if c.index == matched))
-        return max(
-            yields, key=lambda e: len(robots & set(e[1].get("involved_robots") or ()))
-        )
+        best = max(yields, key=lambda e: len(robots & set(e[1].get("involved_robots") or ())))
+        # A yield in a group that shares no robot with the matched conflict
+        # resolves something else; scoring it against that conflict's
+        # references would credit or blame the wrong decision.
+        return best if robots & set(best[1].get("involved_robots") or ()) else None
     return yields[0]
 
 
@@ -213,7 +215,9 @@ def score_group_decisions(
     - strategy is the chosen strategies joined with `+` in group order;
     - the yielder (and its M3-oracle, shadow and MC agreement) comes from
       one chosen yield: the one containing the MC first-conflict pair, else
-      the one sharing most robots with the matched conflict, else the first;
+      the one sharing most robots with the matched conflict (none when no
+      chosen yield shares a robot with it), else, with no matched conflict,
+      the first;
     - every group `none_feasible` scores as a negative answer.
 
     Args:

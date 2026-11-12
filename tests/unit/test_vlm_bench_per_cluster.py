@@ -243,16 +243,38 @@ def test_score_group_decisions_infeasible_option_makes_row_infeasible():
     assert score.grounding.refusal_reason == "yield refused: test"
 
 
-def test_score_group_decisions_yielder_comes_from_option_with_mc_pair():
+def _hand(strategy: str, robots: list[str], yielder: str | None = None) -> dict[str, Any]:
+    return {
+        "congestion_detected": True, "type": "deadlock", "involved_robots": robots,
+        "root_cause": "t", "strategy": strategy, "justification": "t", "yield_robot": yielder,
+    }
+
+
+def _feasible(_item, _decision):
+    return GroundingOutcome(feasible=True)
+
+
+def test_score_group_decisions_two_yields_pick_the_one_with_mc_pair():
     item = _item()
-    candidates, _, _ = per_cluster_candidates(item)
-    a_yield = next(
-        i for i, o in zip(candidates.slots[0].option_ids, candidates.slots[0].options, strict=True)
-        if o.strategy == "yield"
-    )
-    decisions = group_decisions(candidates, {"A": a_yield, "B": "8"})
-    score = score_group_decisions(item, decisions, "test", ground_decision)
-    assert score.yielder == decisions["A"]["yield_robot"]
+    decisions = {
+        "B": _hand("yield", ["robot_1", "robot_5"], "robot_1"),
+        "A": _hand("yield", ["robot_4", "robot_3"], "robot_4"),
+    }
+    score = score_group_decisions(item, decisions, "test", _feasible)
+    assert item.mc is not None and set(item.mc.pair) == {"robot_3", "robot_4"}
+    assert score.yielder == "robot_4"
+
+
+def test_score_group_decisions_yield_off_matched_conflict_has_no_yielder():
+    item = _item()
+    decisions = {
+        "A": _hand("temporary_wait", ["robot_3", "robot_4"]),
+        "B": _hand("yield", ["robot_1", "robot_2"], "robot_1"),
+    }
+    score = score_group_decisions(item, decisions, "test", _feasible)
+    matched = next(c for c in item.gt.episode_conflicts if c.index == score.matched_conflict)
+    assert set(matched.involved) == {"robot_3", "robot_4"}
+    assert score.yielder is None and score.mc_agree is None
 
 
 def test_joint_check_flags_robot_addressed_by_two_commands():

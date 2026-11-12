@@ -88,8 +88,11 @@ def oracle_combos(
     """The per-group choice a GT-informed chooser would make under each rule.
 
     Every combination of one option or `none_feasible` per slot is scored;
-    ties keep the earlier combination (`none_feasible` sorts first, so a tie
-    keeps fewer commands). GT is used here only to score.
+    ties keep the earlier combination. Combinations run with the FIRST slot
+    varying fastest and `none_feasible` first in each slot, so a tie keeps
+    fewer commands and, among single choices, the lower v2 option number
+    (the order v2's `oracle_choices` breaks ties in). GT is used here only
+    to score.
 
     Args:
         item: The bench item.
@@ -109,7 +112,8 @@ def oracle_combos(
 
     lists = [[None, *slot.options] for slot in candidates.slots]
     best: dict[str, tuple[Combo, ItemScore, tuple[float, ...]]] = {}
-    for combo in itertools.product(*lists):
+    for reversed_combo in itertools.product(*reversed(lists)):
+        combo = tuple(reversed(reversed_combo))
         precomputed = {
             slot.label: option_score(slot.label, slot.options.index(option), option)
             for slot, option in zip(candidates.slots, combo, strict=True)
