@@ -13,8 +13,9 @@ parser) and the prompt section are shared with the live path in
 `reasoning.rag.joint_check`. Their docstrings state the rules. This module
 adapts a `BenchItem` to those plain inputs (`gf_cluster` for the v2 options,
 `grounder_offline.ground_command` as the probe, the overlay's geometry for
-the safety radius) and keeps the bench variant (the ask/re-ask loop) and the
-zero-network sanity chooser. Nothing here reads `item.gt`.
+the safety radius) and wraps the shared ask/re-ask loop and the
+zero-network sanity chooser (both now in `reasoning.vlm.per_cluster_runner`,
+re-exported here). Nothing here reads `item.gt`.
 
 `joint_check` reports what can be checked offline when the chosen commands
 would be issued together; the live M5 dispatches one grounded command per
@@ -23,10 +24,8 @@ analysis, so nothing here is executable live as one decision.
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Mapping
-from typing import Any, Literal
+from typing import Any
 
 from benchmarks.vlm_bench.grounder_offline import ground_command, item_config, item_frame
 from benchmarks.vlm_bench.models import BenchItem
@@ -38,12 +37,7 @@ from benchmarks.vlm_bench.variants.gf_cluster import (
 )
 from reasoning.rag import joint_check as shared_joint_check
 from reasoning.rag.joint_check import JointCheck
-from reasoning.vlm.models import (
-    BackendResponse,
-    PromptPayload,
-    ReasonerConfig,
-    ReasonerRequest,
-)
+from reasoning.vlm.models import ReasonerRequest
 from reasoning.vlm.per_cluster_choice import (
     ANSWER_KEYS_PREFIX,
     GENERATOR_VERSION_PER_CLUSTER,
@@ -63,9 +57,8 @@ from reasoning.vlm.per_cluster_choice import (
     read_answer_keys,
     render_per_cluster_section,
 )
+from reasoning.vlm.per_cluster_runner import FixedGroupChoiceBackend, run_per_cluster_choice
 from reasoning.vlm.prompt_builder import build_prompt_payload
-from reasoning.vlm.reasoner import build_reask_prompt, invoke_backend
-from reasoning.vlm.retry_policy import DEFAULT_RETRY_POLICY, classify_failure
 
 PER_CLUSTER_VARIANT = "grounding_first_per_cluster"
 
@@ -221,114 +214,48 @@ class GroundingFirstPerClusterVariant:
             `decision=None` with `parse_status="failed"` after `max_attempts`.
         """
         candidates, order, item_seed = self.candidate_set(item)
-        first = compose_per_cluster_payload(build_prompt_payload(request), candidates)
-        sha = hashlib.sha256(first.user_prompt.encode()).hexdigest()
-        config = context.reasoner_config
-        payload = first
-        attempts = 0
-        waited = 0.0
-        failed_once = False
-        last: BackendResponse | None = None
-        error: str | None = None
-        while attempts < config.max_attempts:
-            attempts += 1
-            try:
-                last = invoke_backend(context.backend, payload, config)
-            except Exception as exc:  # one recorded attempt, as in `Reasoner.run`
-                error = f"{type(exc).__name__}: {exc}"
-                if classify_failure(exc) == "stop":
-                    break
-                if attempts < config.max_attempts:
-                    waited += DEFAULT_RETRY_POLICY.wait_before_retry(exc, attempts, waited)
-                continue
-            parsed = parse_per_cluster_answer(last.text, candidates)
-            if parsed.status == "choices":
-                decisions = group_decisions(candidates, parsed.choices, parsed.model_answer)
-                n_none = sum(1 for d in decisions.values() if d is None)
-                return VariantAnswer(
-                    decision=None,
-                    group_decisions=decisions,
-                    prompt_sha256=sha,
-                    attempts=attempts,
-                    parse_status="invalid" if failed_once else "valid",
-                    raw_text=last.text,
-                    n_candidates=candidates.n_options,
-                    token_usage=last.token_usage,
-                    latency_ms=last.latency_ms,
-                    note=(
-                        "choices="
-                        + ",".join(f"{k}:{v}" for k, v in parsed.choices.items())
-                        + f"; none_feasible={n_none}/{len(decisions)}"
-                    ),
-                    option_order=order,
-                    shuffle_item_seed=item_seed,
-                    extra=self.answer_extra(item, candidates, parsed.choices),
-                )
-            failed_once = True
-            error = parsed.error
-            if config.allow_reask:
-                payload = build_reask_prompt(first, error or "invalid choices")
+        run = run_per_cluster_choice(
+            context.backend,
+            context.reasoner_config,
+            build_prompt_payload(request),
+            candidates,
+        )
+        if run.choices is not None:
+            decisions = group_decisions(candidates, run.choices, run.model_answer)
+            n_none = sum(1 for d in decisions.values() if d is None)
+            return VariantAnswer(
+                decision=None,
+                group_decisions=decisions,
+                prompt_sha256=run.prompt_sha256,
+                attempts=run.attempts,
+                parse_status=run.parse_status,
+                raw_text=run.raw_text,
+                n_candidates=candidates.n_options,
+                token_usage=run.token_usage,
+                latency_ms=run.latency_ms,
+                note=(
+                    "choices="
+                    + ",".join(f"{k}:{v}" for k, v in run.choices.items())
+                    + f"; none_feasible={n_none}/{len(decisions)}"
+                ),
+                option_order=order,
+                shuffle_item_seed=item_seed,
+                extra=self.answer_extra(item, candidates, run.choices),
+            )
         return VariantAnswer(
             decision=None,
-            prompt_sha256=sha,
-            attempts=attempts,
+            prompt_sha256=run.prompt_sha256,
+            attempts=run.attempts,
             parse_status="failed",
-            raw_text=None if last is None else last.text,
+            raw_text=run.raw_text,
             n_candidates=candidates.n_options,
-            token_usage=None if last is None else last.token_usage,
-            latency_ms=None if last is None else last.latency_ms,
-            note=f"parse_failure: {error}",
+            token_usage=run.token_usage,
+            latency_ms=run.latency_ms,
+            note=f"parse_failure: {run.error}",
             option_order=order,
             shuffle_item_seed=item_seed,
             extra=self.answer_extra(item, candidates, None),
         )
-
-
-class FixedGroupChoiceBackend:
-    """A zero-network backend that answers the same rule in every group (sanity chooser).
-
-    It reads the slot labels and allowed ids from the composed prompt's
-    stated answer keys, so it needs no item.
-    """
-
-    def __init__(self, policy: Literal["first", "none_feasible"] = "first") -> None:
-        """Fix the rule.
-
-        Args:
-            policy: "first" (the first listed option of every group) or
-                "none_feasible" (every group).
-        """
-        self.policy = policy
-        self.calls = 0
-
-    def analyze(self, payload: PromptPayload, config: ReasonerConfig) -> BackendResponse:
-        """Answer the rule's choice for every stated group.
-
-        Args:
-            payload: The composed payload.
-            config: Ignored.
-
-        Returns:
-            The reply in the decision JSON shape plus `choices`.
-        """
-        self.calls += 1
-        keys = read_answer_keys(payload.user_prompt)
-        choices = {
-            label: ids[0] if self.policy == "first" else NONE_FEASIBLE
-            for label, ids in keys.items()
-        }
-        text = json.dumps(
-            {
-                "congestion_detected": True,
-                "type": "deadlock",
-                "involved_robots": [],
-                "root_cause": "fixed-group-choice sanity backend",
-                "strategy": "yield",
-                "justification": "fixed-group-choice sanity backend",
-                "choices": choices,
-            }
-        )
-        return BackendResponse(text=text, backend_id="fixed-group-choice")
 
 
 __all__ = [

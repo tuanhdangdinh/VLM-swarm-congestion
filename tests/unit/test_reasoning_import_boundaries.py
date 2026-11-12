@@ -18,7 +18,7 @@ REASONING = Path(__file__).resolve().parents[2] / "reasoning"
 FORBIDDEN = frozenset({"benchmarks", "swarm_orchestrator"})
 # The M2 contract modules the shared per-cluster path added; they stay
 # importable without M3 so the M3 -> M2 direction is one-way.
-M2_CONTRACT_MODULES = ("executable_options.py", "per_cluster_choice.py")
+M2_CONTRACT_MODULES = ("executable_options.py", "per_cluster_choice.py", "per_cluster_runner.py")
 
 
 def _imported_modules(path: Path) -> list[str]:
