@@ -1625,6 +1625,35 @@ class OrchestratorNode(Node):
             keep.append(pending)
         self._pcs_pending = keep
 
+    def close_per_cluster_shadow(self) -> None:
+        """Record every unfinished shadow and close the trace at node shutdown; never raises.
+
+        Finished shadows are harvested; a shadow still running gets an
+        `error` record (its frame is kept for it), so no artifact is left
+        `pending` on a graceful stop. A killed process skips this, and its
+        last artifact may then keep the `pending` block.
+        """
+        if self._pcs_executor is None:
+            return
+        try:
+            self._harvest_per_cluster_shadows(time.monotonic())
+            for pending in self._pcs_pending:
+                if not pending.abandoned:
+                    pending.abandoned = True
+                    self._write_shadow_record(
+                        pending.artifact_path,
+                        PerClusterShadowRecord(
+                            request_id=pending.request_id,
+                            status="error",
+                            error="node stopped before the shadow finished",
+                        ),
+                    )
+            if self._trigger_trace is not None:
+                self._trigger_trace.close()
+            self._pcs_executor.shutdown(wait=False, cancel_futures=True)
+        except Exception as exc:  # shutdown must reach destroy_node
+            self.get_logger().error(f"per_cluster_shadow close failed: {exc}")
+
     def _finish_shadow(
         self, pending: _PendingPerClusterShadow, record: PerClusterShadowRecord
     ) -> None:
@@ -2370,6 +2399,10 @@ class OrchestratorNode(Node):
                 now=now,
                 frame_ready=self._frame_is_fresh(snapshot.stamp),
             )
+            self._trace_event(
+                event, directive.kind, directive.request_id, snapshot.stamp, now,
+                source="contradiction",
+            )
             if directive.kind is DirectiveKind.START_ANALYSIS:
                 self._reset_suppression("contradiction")
                 used = self._contradictions.charge(armed.episode_index)
@@ -2950,6 +2983,7 @@ def main(args: list[str] | None = None) -> None:
     try:
         rclpy.spin(node)
     finally:
+        node.close_per_cluster_shadow()
         node.destroy_node()
         rclpy.shutdown()
 
