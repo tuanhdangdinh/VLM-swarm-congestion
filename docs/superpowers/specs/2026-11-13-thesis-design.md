@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft (2026-11-13): scope, chapter plan, sources, guardrails.
+- Rev 4 (2026-11-14): IB10 run finished; report pending on feat/ib10-live-resolution.
 - Rev 3 (2026-11-13): Stage 1 run finished (report pending); IB10 run in progress; owner decisions skip tranche 2 / run IB10 confirmed.
 - Rev 2 (2026-11-13): newest-source rule (6.0); branch rebased onto fdf333d; source map points at latest reports.
 
@@ -77,7 +78,7 @@ Rules:
 - **Newest results only.** Superseded numbers (earlier pilots, E1–E26 batches, earlier report revisions) appear only as history in Methodology, never as results. Use the latest revision of each report (e.g. per-cluster choice Rev 3, gf-cluster Rev 2, replay-er2 Rev 2).
 - **Pending results** stay `#todo` until their report is committed:
   - v4 Stage 1 per-cluster shadow: run FINISHED 2026-11-13 15:47 UTC (7 episodes, seed positions 21–27; pooled script output exists in gitignored `v4_s1b_pc_shadow_analysis/stage1_summary_all.json`, no report yet). Shadow only, nothing dispatched; exploratory.
-  - IB10 live run: IN PROGRESS from 2026-11-13 evening (smoke + ~6 h), Arm A Layer 2 on vs Arm B off, 5 episodes each.
+  - IB10 live run: FINISHED 2026-11-13 (Arm A 4/5 resolved, Arm B 0/5; 0 floor stops, 0 GT contacts; 0/5 VLM plans executed verbatim — 4 repaired, 1 replaced by M3). Report being written to `docs/reports/2026-11-13-ib10-live-resolution-results.md` on `feat/ib10-live-resolution`; numbers enter the thesis only from that committed report, with the claim "VLM + grounding pipeline clears the jam" (M3-default-without-VLM ablation not run — state as limitation).
 - **Pre-submission refresh.** Before handing over the final draft, re-list branches by commit date (`git for-each-ref --sort=-committerdate refs/heads`) and check for commits newer than this table; update this table and any affected text.
 
 ### 6.1 Topic → source
