@@ -25,9 +25,13 @@
   minimum 0.2151 m).
 - **Owner ruling (2026-11-13):** fix and test before any additional live
   experiment. The fix for paths 1-3 is assigned to branch
-  `fix/safety-exemption-scope` (worktree `vgu-vlm-swarm-v7c`). When this report
-  was written, that worktree had no commits beyond its base 68e67b5 and no
-  uncommitted changes (`git status --short` and `git diff --stat` both empty).
+  `fix/safety-exemption-scope` (worktree `vgu-vlm-swarm-v7c`). It is in
+  progress and uncommitted. When this report was committed, the branch had no
+  commits beyond its base 68e67b5. The worktree had uncommitted edits to
+  `safety.py` and `safety_monitor_node.py`, plus new untracked files
+  `tests/unit/test_safety_exemption_scope.py` and
+  `config/safety/scoped_clearing_exemption.fragment.yaml`. They were not
+  reviewed here.
 
 ---
 
