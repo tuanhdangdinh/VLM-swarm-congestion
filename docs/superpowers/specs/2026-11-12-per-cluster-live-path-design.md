@@ -7,6 +7,7 @@
 - Initial draft: live behaviour read from code, four options compared, recommendation (one call, per-group grounding, joint gate, serialize on conflict) with a staged rollout, measurement plan and owner rulings.
 - Rev 2 (2026-11-12): Stage 0 status recorded in Scope and Status (landed on `feat/v4-per-cluster-parity`); no other text changed.
 - Rev 3 (2026-11-13): Stage 1 build status recorded in Scope and Status; no other text changed.
+- Rev 4 (2026-11-13): Stage 1 run status added in Scope and Status (pointer to `docs/reports/2026-11-13-v4-stage1-shadow-results.md`); no other text changed.
 
 ---
 
@@ -43,6 +44,11 @@
   `docs/guides/v4_s1b_pc_shadow_runbook.md`. Evidence and deviations:
   `docs/implementation_notes.md`, 2026-11-13 Stage 1 entry. Stage 2 is not
   started.
+- **Stage 1 run status (2026-11-13): ran**, 7 S1b episodes (seed positions
+  21-27) at fdf333d. Five exit criteria pass. The Section 2 branch is
+  INSUFFICIENT (4 Branch-1 cases, 1 indeterminate, 0 concurrent starts). The
+  thresholds remain owner proposals. Results:
+  `docs/reports/2026-11-13-v4-stage1-shadow-results.md`.
 
 ---
 

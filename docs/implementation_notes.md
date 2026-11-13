@@ -37,6 +37,27 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-11-13** — **Owner decisions of 2026-11-13** (recorded in `docs/reports/2026-11-13-thesis-evidence-register.md`):
+  - prereg-v3 tranche 2 will not be run, and tranche 1 (E27-E31) is reported as a PILOT;
+  - the focus moves to 4-robot scenes;
+  - the IB10 live resolution experiment is registered on `feat/ib10-live-resolution` 50704c2 (`docs/superpowers/specs/2026-11-13-ib10-live-resolution-experiment.md`). In progress at writing: 1 counted episode of 10 (E01 a2, resolved); E01 a1 excluded as `harness_fail:condition`. Evidence: `vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/`;
+  - the refusal-feedback remedies are built default-off (`feat/v4-refusal-feedback` 4f0d77d..66c323f);
+  - the safety exemption-scope fix gates any further live experiment (see the M4 section entry of this date);
+  - the branches stay unpushed until reviewed.
+- **2026-11-13** — **Why S1b does not resolve: M3 grounding withholds most decisions** (`docs/reports/2026-11-13-s1b-grounding-bottleneck.md`; evidence `data/logs/vm_runs/grounding_bottleneck_analysis/`, gitignored, every script re-run byte-identical at fdf333d).
+  - 12 Arm A episodes (Stage 1 pos21-27 + tranche-1 E27-E31), 78 analyses: 47 withheld, 26 dispatched (13 with a yield/reverse action), 5 no decision.
+  - Offline re-grounding parity is 78/78.
+  - 27/47 refusals are `junction_clear` falling back to a declared-geometry yield gate that no S1b pose passes (`jc_gate_grid.py`: 0/3430).
+  - The 47 withheld analyses are 15 distinct scenes. M2 gets no refusal feedback, and the prompt shows the withheld plan as active.
+  - GT: an involved robot had >= 0.5 m of free reverse travel in 47/47 (static, nothing simulated forward).
+  - No safety margin was relaxed. Remedies built default-off on `feat/v4-refusal-feedback`; their effect on the model is untested.
+- **2026-11-13** — **Stage 1 per-cluster live shadow RAN: 7 episodes (seed positions 21-27), runtime fdf333d, ER-2, exploratory** (`docs/reports/2026-11-13-v4-stage1-shadow-results.md`; bundles `data/logs/vm_runs/v4_s1b_pc_shadow/runs/v4pcs_pos{21..27}_armA_a1/`, analysis `data/logs/vm_runs/v4_s1b_pc_shadow_analysis/`, gitignored).
+  - 50 analyses; 50/50 shadow blocks complete and parse-valid at the first attempt; 12 multi-group analyses; joint flags 0/12.
+  - Latency: shadow median 8089 ms vs ordinary 8045 ms.
+  - Live: 14 real dispatches, 33 withheld, 3 no decision.
+  - Section 2 branch not settled (4 Branch-1, 1 indeterminate, 0 concurrent).
+  - Floor armed, 0 floor stops, GT min 0.2151 m. Spend est. $0.7727 (shadow $0.4061). VM TERMINATED.
+  - **Gotcha:** the tranche-1 report's 9/4/5/5/3 "dispatched" counts withheld artifacts. The real dispatches are 5/2/2/1/2, verified against M4 `command received` lines.
 - **2026-11-13** — **Stage 1 of the per-cluster live path (live shadow) built and verified offline; default off, zero API, zero VM, not run, not pushed** (branch `feat/v4-per-cluster-parity`: 9d4160c runner move, e22e53c + b15d1d9 shadow, 55c61b8 + f4e88f7 tests, d5bd0b7 + 3fbbe5a docs; design note `docs/superpowers/specs/2026-11-12-per-cluster-live-path-design.md` §5).
   (i) **Built.**
   - The ask/validate/re-ask loop moved to `reasoning/vlm/per_cluster_runner.py`, as `run_per_cluster_choice` -> frozen `PerClusterRunResult`. `FixedGroupChoiceBackend` moved with it, and the bench variant now wraps both.
@@ -6451,6 +6472,11 @@ Rules for maintaining it:
 
 ## M4 Execution & Nav2
 
+- **2026-11-13** — **The clearing exemption and A19 waivers reach further than intended (code trace only; nothing run live)** (`docs/reports/2026-11-13-safety-exemption-trace.md`, file:line at fdf333d).
+  - Bugs: (1) plan-continue partners come from a scene-wide trigger set, so they cross clusters; (2) partner lists go stale (hold overwrite of `_trigger_robots_by_plan`, frozen at publish, no timeout); (3) a busy-rejected robot stays a member; (4) two clearing robots can waive each other under A19.
+  - By design: (5) own-command scope.
+  - None of the widened cases has a test; some tests pin the wide behaviour.
+  - Owner ruling: fix and test before any further live experiment. Paths 1-3 are assigned to `fix/safety-exemption-scope` (worktree `vgu-vlm-swarm-v7c`; no changes there at writing).
 - **2026-10-12** — **B3 fresh-latch fast-fail (prereg-v3 A26(ii)): `Nav2Adapter.backup` / `sidestep` take `abort_check`, polled on their own 20 Hz tick before the motion deadline; the command bus arms `fresh_latch.FreshLatchWatch` only for a yield/reverse carrying M3's `fresh_latch_fast_fail` key and subscribes to `/safety/holds` lazily.** A clearing robot held >= 2 s by a hold that began after arm time (A19 waives the start-time latch, so this is a fresh latch) ends FAILED `fresh latch fast-fail: ...`. Gotcha: M4 does not log status DETAILS anywhere, so a live firing can only be inferred (FAILED well before the step deadline with the yielder safety-stopped); log the detail in a follow-up. Deploy note: `fresh_latch.py` is a NEW colcon file (`docs/reports/2026-10-12-shield-and-batch3.md` §3).
 - **2026-10-12** — **Gotcha: a raw-cmd_vel clearing primitive that runs into a bystander can never finish, because the latch is mutual and memoryless.** The safety monitor holds both robots of a fresh non-waived latch with a 40 Hz zero-Twist (beating the primitive's 20 Hz command), and the latch releases only at >= 0.45 m. Neither robot can move, so the primitive always runs out its OS-monotonic deadline: 148-211 s wall here, the A25 no-admit FAILs (E10, E13, E14, E17b). Also: a dynamic-lane yield now backs along the axis M3 swept (`backup_facing_rad` / `backup_reference_yaw_rad` -> `Nav2Adapter.backup(line_turn_rad=...)`), not its start heading (`docs/reports/2026-10-12-no-admit-diagnosis.md`, branch `feat/v3-admit-fix`). Deploying it changes `nav2_adapter.py` and `command_bus_node.py`: rebuild `swarm_execution` and md5-verify source against installed.
 - **2026-10-11** — **Gotcha (Nav2 Jazzy 1.3.13 lifecycle_manager): the bond-formation wait is `bond_timeout/2` (2.0 s at the 4.0 default), although the error says "unable to be reached after 4.00s", and `LifecycleServiceClient::get_state` has a hard-coded 2 s timeout with no parameter.** Under five parallel stacks on 8 vCPU both windows are routinely exceeded. Use `NAV2_BRINGUP_MODE=sequential` in `scripts/vm/fc_launch.sh` (A23). The `bond_timeout` is also the runtime heartbeat timeout, so bumping it changes episode behaviour (evidence: `nav2_lifecycle_manager/src/lifecycle_manager.cpp` jazzy branch; `docs/reports/2026-10-11-bringup-and-resume.md`).
