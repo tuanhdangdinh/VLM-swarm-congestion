@@ -1062,6 +1062,7 @@ def write_decision_artifact(
     dispatch_suppressed: bool | None = None,
     reanalysis_suppression: dict[str, Any] | None = None,
     dispatch_withheld: dict[str, Any] | None = None,
+    plan_state_hidden: dict[str, Any] | None = None,
     per_cluster_shadow: dict[str, Any] | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
@@ -1184,6 +1185,12 @@ def write_decision_artifact(
     M4 WOULD have received, as under `dispatch_suppressed`. Absent when
     None, so every other artifact is byte-identical to one written before
     the key existed.
+
+    `plan_state_hidden` (v4 refusal feedback, set by M5 only when the
+    prompt left out a plan with nothing in progress) adds a block of that
+    name: `reason` (`plan_tracker.hidden_plan_reason`) and the `plan_state`
+    block the prompt would have shown. The top-level `plan_state` key is
+    then absent, because the request carried none. Absent when None.
 
     `prompt_conditions` (prereg-v2 rev 6 apparatus) is always written, null
     only when the caller passed none; M5 passes it on every analysis, all-off
@@ -1331,6 +1338,11 @@ def write_decision_artifact(
         payload["refused_proposals"] = [
             proposal.model_dump(mode="json") for proposal in request.refused_proposals
         ]
+    # v4 refusal feedback: the plan the prompt left out because nothing of it
+    # was in progress (`reason`, and the block it would have shown, so the
+    # failed legs a revision answers stay on record); added only when set.
+    if plan_state_hidden is not None:
+        payload["plan_state_hidden"] = plan_state_hidden
     if trigger_source is not None:
         payload["trigger_source"] = trigger_source
     if trigger_contradiction is not None:

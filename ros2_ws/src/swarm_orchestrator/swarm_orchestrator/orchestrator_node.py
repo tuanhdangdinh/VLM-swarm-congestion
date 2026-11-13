@@ -91,7 +91,12 @@ from swarm_orchestrator.per_cluster_shadow import (
     skipped_record,
 )
 from swarm_orchestrator.permutation_votes import permutation_votes_log
-from swarm_orchestrator.plan_tracker import PlanTracker
+from swarm_orchestrator.plan_tracker import (
+    HiddenPlanReason,
+    PlanTracker,
+    TrackedPlan,
+    hidden_plan_reason,
+)
 from swarm_orchestrator.presentation_order import (
     EpisodeOrderTracker,
     PresentationOrderPolicy,
@@ -586,6 +591,9 @@ class OrchestratorNode(Node):
         # the artifact only while the contradiction trigger is enabled.
         self._pending_trigger_source = "stall"
         self._pending_contradiction: Contradiction | None = None
+        # v4 refusal feedback: the plan the in-flight analysis's prompt left
+        # out because nothing of it is still in progress, for its artifact.
+        self._pending_plan_state_hidden: dict[str, Any] | None = None
         # Step-7b ruling (v): `_last_trigger_robot_ids` is cleared right after
         # the triggering dispatch (below) so a later, UNRELATED dispatch can
         # never read a stale leftover trigger set. A `junction_clear`
@@ -1263,20 +1271,27 @@ class OrchestratorNode(Node):
         # never actually sent (an exception before dispatch) cannot desync it
         # from what the NEXT request shows.
         plan_state = None
-        shown = (
-            None
-            if self._plan_tracker is None
-            # v4 refusal feedback: never a plan M5 did not dispatch.
-            else self._plan_tracker.shown_plan()
-            if self._withheld is not None
-            else self._plan_tracker.active_plan
-        )
+        plan_state_hidden: dict[str, Any] | None = None
+        shown, hidden_reason = self._prompt_plan_block()
         if self._plan_tracker is not None and shown is not None:
             active_plan_id = shown.plan_id
             plan_state = self._plan_tracker.plan_state_context(
                 active_plan_id, since_plan_id=self._last_shown_plan_id
             )
-            self._last_shown_plan_id = active_plan_id
+            if hidden_reason is None:
+                self._last_shown_plan_id = active_plan_id
+            else:
+                # Not advanced: the next block's "Changed since the last
+                # invocation" stays relative to the plan M2 last saw.
+                plan_state_hidden = {
+                    "reason": hidden_reason,
+                    "plan_state": plan_state.model_dump(mode="json"),
+                }
+                plan_state = None
+                self.get_logger().info(
+                    f"request={request_id} plan_state hidden plan={active_plan_id} "
+                    f"reason={hidden_reason}"
+                )
         apparatus, zoom_record = self._apparatus_inputs(request_id, snapshot, robots, frame)
         # Built here, not in the worker, so the artifact can record the exact request.
         request = build_reasoner_request(
@@ -1309,6 +1324,7 @@ class OrchestratorNode(Node):
         self._pending_episode_index = episode_index
         self._pending_trigger_source = trigger_source
         self._pending_contradiction = contradiction
+        self._pending_plan_state_hidden = plan_state_hidden
         # Snapshotted here, not read inside the worker: a newer camera message
         # may land before the worker runs, and the dump must be the frame whose
         # skew was logged.
@@ -1358,6 +1374,8 @@ class OrchestratorNode(Node):
         contradiction = self._pending_contradiction
         self._pending_trigger_source = "stall"
         self._pending_contradiction = None
+        plan_state_hidden = self._pending_plan_state_hidden
+        self._pending_plan_state_hidden = None
         # Step-7a fix 3: carried past the clear below (as `_last_trigger_
         # robot_ids`, not re-cleared here) so `_dispatch` -> `_publish_
         # fanned_out` -> `_with_plan_continue_partners`, later in this SAME
@@ -1459,6 +1477,7 @@ class OrchestratorNode(Node):
                     else self._suppression.take_artifact_block()
                 ),
                 dispatch_withheld=dispatch_withheld,
+                plan_state_hidden=plan_state_hidden,
                 per_cluster_shadow=(
                     None if self._pcs_executor is None else pending_block(outcome.request_id)
                 ),
@@ -2508,6 +2527,38 @@ class OrchestratorNode(Node):
         }
 
     # ---- v4 refusal feedback ----
+
+    def _prompt_plan_block(self) -> tuple[TrackedPlan | None, HiddenPlanReason | None]:
+        """The plan the next prompt's plan-state block is about, and why it is left out.
+
+        Without `refusal_feedback`, the active plan, always shown (base
+        behaviour). With it, the latest dispatched plan (`shown_plan`), left
+        out when nothing of it is still in progress (`hidden_plan_reason`):
+        no command dispatched under it is open and no `junction_clear` phase
+        of it is queued. Reads M5's state only; changes nothing.
+
+        Returns:
+            `(plan, None)` to show the plan, `(plan, reason)` to leave it
+            out, `(None, None)` when there is no plan to show.
+        """
+        if self._plan_tracker is None:
+            return None, None
+        if self._withheld is None:
+            return self._plan_tracker.active_plan, None
+        shown = self._plan_tracker.shown_plan()
+        if shown is None:
+            return None, None
+        commands = [
+            command_id
+            for command_id, plan_id in self._plan_id_by_command_id.items()
+            if plan_id == shown.plan_id
+        ]
+        in_flight = any(self._tracker.is_open(command_id) for command_id in commands) or any(
+            not queue.done
+            for command_id, queue in self._junction_phase_queues.items()
+            if command_id in commands
+        )
+        return shown, hidden_plan_reason(shown, work_in_flight=in_flight)
 
     def _mark_undispatched_plan(self, outcome: PipelineOutcome) -> int | None:
         """Mark the plan the pipeline accepted for an outcome M5 does not dispatch.

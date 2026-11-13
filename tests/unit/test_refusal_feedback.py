@@ -15,8 +15,13 @@ from typing import Any
 
 import pytest
 from pydantic import ValidationError
-from swarm_orchestrator.command_lifecycle import WithheldMemory
-from swarm_orchestrator.plan_tracker import PlanTracker
+from swarm_orchestrator.command_lifecycle import CommandRecord, CommandTracker, WithheldMemory
+from swarm_orchestrator.plan_tracker import (
+    PlanTracker,
+    TrackedLeg,
+    TrackedPlan,
+    hidden_plan_reason,
+)
 from swarm_orchestrator.reasoning_pipeline import explain_attempt, refusal_feedback_reason
 
 from reasoning.rag.command_grounder import VerifiedPlan
@@ -325,3 +330,82 @@ class TestWithheldPlanMarking:
         tracker = PlanTracker()
         tracker.accept_plan(_verified(("robot_1", "wait")))
         assert tracker.shown_plan() == tracker.active_plan
+
+
+def _tracked(*legs: tuple[str, str, str]) -> TrackedPlan:
+    return TrackedPlan(
+        plan_id=1,
+        legs=tuple(TrackedLeg(robot_id=rid, action=action, status=status)
+                   for rid, action, status in legs),
+        provenance="m3_default",
+    )
+
+
+class TestHiddenPlanReason:
+    def test_hidden_reason_completed_when_resolution_legs_done(self):
+        plan = _tracked(("robot_1", "yield", "done"), ("robot_2", "cross", "done"))
+        assert hidden_plan_reason(plan, work_in_flight=False) == "completed"
+
+    def test_hidden_reason_failed_when_a_leg_failed(self):
+        plan = _tracked(("robot_1", "reverse", "done"), ("robot_2", "reverse", "failed"))
+        assert hidden_plan_reason(plan, work_in_flight=False) == "failed"
+
+    def test_hidden_reason_failed_when_a_leg_exhausted(self):
+        plan = _tracked(("robot_1", "reverse", "exhausted"), ("robot_2", "wait", "done"))
+        assert hidden_plan_reason(plan, work_in_flight=False) == "failed"
+
+    def test_hidden_reason_failed_when_failed_leg_beside_undispatched_leg(self):
+        plan = _tracked(("robot_1", "reverse", "failed"), ("robot_5", "reverse", "pending"))
+        assert hidden_plan_reason(plan, work_in_flight=False) == "failed"
+
+    def test_hidden_reason_not_dispatched_when_pending_leg_has_nothing_in_flight(self):
+        # pos22 plan 1: a two-robot reverse plan whose command addressed robot_2 only.
+        plan = _tracked(("robot_2", "reverse", "done"), ("robot_5", "reverse", "pending"))
+        assert hidden_plan_reason(plan, work_in_flight=False) == "not_dispatched"
+
+    def test_hidden_reason_none_when_pending_leg_in_flight(self):
+        plan = _tracked(("robot_1", "yield", "pending"), ("robot_2", "cross", "pending"))
+        assert hidden_plan_reason(plan, work_in_flight=True) is None
+
+    def test_hidden_reason_none_when_active_leg_in_flight(self):
+        plan = _tracked(("robot_1", "yield", "active"), ("robot_2", "cross", "done"))
+        assert hidden_plan_reason(plan, work_in_flight=True) is None
+
+    def test_hidden_reason_none_when_done_legs_redispatched_by_a_hold(self):
+        # A hold re-dispatches the plan; its legs stay `done` (terminal).
+        plan = _tracked(("robot_1", "wait", "done"), ("robot_2", "wait", "done"))
+        assert hidden_plan_reason(plan, work_in_flight=True) is None
+
+    def test_hidden_reason_completed_for_wait_only_plan_when_waits_done(self):
+        plan = _tracked(("robot_1", "wait", "done"), ("robot_2", "wait", "done"),
+                        ("robot_3", "continue", "pending"))
+        assert hidden_plan_reason(plan, work_in_flight=False) == "completed"
+
+    def test_hidden_reason_ignores_continue_leg_failure(self):
+        plan = _tracked(("robot_1", "yield", "done"), ("robot_3", "continue", "failed"))
+        assert hidden_plan_reason(plan, work_in_flight=False) == "completed"
+
+    def test_hidden_reason_no_resolution_legs_when_only_continue(self):
+        plan = _tracked(("robot_1", "continue", "pending"), ("robot_2", "continue", "pending"))
+        assert hidden_plan_reason(plan, work_in_flight=False) == "no_resolution_legs"
+
+
+class TestCommandTrackerIsOpen:
+    def test_is_open_false_for_unknown_command(self):
+        assert CommandTracker().is_open("c1") is False
+
+    def test_is_open_true_until_every_robot_terminal(self):
+        tracker = CommandTracker()
+        tracker.register(CommandRecord(command_id="c1", robot_ids=["robot_1", "robot_2"],
+                                       dispatched_at=0.0, timeout_sec=10.0, fallback="",
+                                       request_id="r1"))
+        tracker.apply_status("c1", "robot_1", "COMPLETED")
+        assert tracker.is_open("c1") is True
+
+    def test_is_open_false_once_resolved(self):
+        tracker = CommandTracker()
+        tracker.register(CommandRecord(command_id="c1", robot_ids=["robot_1"],
+                                       dispatched_at=0.0, timeout_sec=10.0, fallback="",
+                                       request_id="r1"))
+        tracker.apply_status("c1", "robot_1", "FAILED")
+        assert tracker.is_open("c1") is False

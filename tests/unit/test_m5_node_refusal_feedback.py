@@ -13,6 +13,8 @@ from typing import Any
 
 import pytest
 
+from reasoning.rag.command_grounder import VerifiedPlan
+from reasoning.vlm.models import ProposedPlanLeg
 from tests.unit.test_m5_node_offered_strategies import (
     BASE_PINS,
     _run,
@@ -169,3 +171,167 @@ def test_refusal_feedback_overlay_differs_from_shadow_overlay_only_in_the_keys()
     assert cell == {**base, **delta}
     config = load_config(cell)
     assert config.prompt_offer_groundable_strategies and config.refusal_feedback.enabled
+
+
+# Plan-block hiding (refusal_feedback on): the scripted runs below drive the
+# S1b scene, then complete commands ("c"), fire the operator trigger ("t"),
+# report one leg FAILED ("f") or keep driving ("d").
+SEQ_BASE = {"congestion_detected": True, "type": "deadlock", "root_cause": "t",
+            "justification": "t", "involved_robots": ["robot_1", "robot_2"]}
+CONTRADICTION = {"contradiction_trigger": {"enabled": True}}
+
+
+def _drive_steps(node, clock, state: dict[str, float], steps: int = 20) -> None:
+    from tests.unit.test_m5_node_per_cluster_shadow import WAIT_SEC, _s1b_scene, _scene_msg
+
+    for _ in range(steps):
+        clock.t += 1.0
+        state["stamp"] += 1.0
+        node._frame_stamp = state["stamp"]
+        node._on_scene_state(_scene_msg(_s1b_scene(state["stamp"])))
+        if node._future is not None:
+            node._future.result(timeout=WAIT_SEC)
+        node._on_timer()
+
+
+def _scripted(node_env, tmp_path, monkeypatch, strategies: list[str], script: str,  # noqa: F811
+              **keys: Any):
+    from types import SimpleNamespace
+
+    from tests.unit.test_m5_node_per_cluster_shadow import WAIT_SEC, _complete_all
+
+    path = tmp_path / "sequence.json"
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps([{**SEQ_BASE, "strategy": s} for s in strategies]))
+    node, clock, directives = s1b_node(node_env, tmp_path / "x", monkeypatch, str(path), **keys)
+    state = {"stamp": 100.0}
+    for op in script:
+        if op == "d":
+            _drive_steps(node, clock, state)
+        elif op == "c":
+            _complete_all(node)
+        elif op == "f":
+            published = list(node._cmd_pub.published)
+            for msg in published[-2:]:
+                node._on_status(SimpleNamespace(command_id=msg.command_id,
+                                                robot_id=msg.robot_id, status="ACTIVE"))
+            node._on_status(SimpleNamespace(command_id=published[-1].command_id,
+                                            robot_id=published[-1].robot_id, status="FAILED"))
+        else:
+            node._on_trigger_analysis(SimpleNamespace(reason="op"), SimpleNamespace())
+            if node._future is not None:
+                node._future.result(timeout=WAIT_SEC)
+            clock.t += 1.0
+            node._on_timer()
+    artifacts = _ordered(_strip_paths(_artifacts(node), str(tmp_path / "x")))
+    return node, artifacts, directives
+
+
+def test_feedback_off_shows_completed_plan_with_hold_advice(node_env, tmp_path, monkeypatch):  # noqa: F811
+    # The defect, pinned at the base behaviour: a finished wait plan is held.
+    _, arts, _ = _scripted(node_env, tmp_path, monkeypatch, ["reverse"] * 2, "dct")
+    assert [leg["status"] for leg in arts[1]["plan_state"]["legs"][:2]] == ["done", "done"]
+    assert "Hold this plan" in arts[1]["prompt"]["user_prompt"]
+
+
+def test_feedback_on_hides_completed_plan_block(node_env, tmp_path, monkeypatch):  # noqa: F811
+    _, arts, _ = _scripted(node_env, tmp_path, monkeypatch, ["reverse"] * 2, "dct", **FEEDBACK)
+    assert "plan_state" not in arts[1]
+    assert "Active plan" not in arts[1]["prompt"]["user_prompt"]
+    assert "Hold this plan" not in arts[1]["prompt"]["user_prompt"]
+
+
+def test_feedback_on_records_hidden_plan_reason_completed(node_env, tmp_path, monkeypatch):  # noqa: F811
+    _, arts, _ = _scripted(node_env, tmp_path, monkeypatch, ["reverse"] * 2, "dct", **FEEDBACK)
+    hidden = arts[1]["plan_state_hidden"]
+    assert hidden["reason"] == "completed"
+    assert hidden["plan_state"]["plan_id"] == arts[0]["plan"]["plan_id"]
+
+
+def test_feedback_on_records_hidden_plan_reason_failed(node_env, tmp_path, monkeypatch):  # noqa: F811
+    # The first trigger is refused while the command is busy; the command
+    # then times out, so its legs are failed and nothing is in flight.
+    _, arts, _ = _scripted(node_env, tmp_path, monkeypatch, ["reverse"] * 3, "dtdt", **FEEDBACK)
+    assert arts[1]["plan_state_hidden"]["reason"] == "failed"
+    assert "Hold this plan" not in arts[1]["prompt"]["user_prompt"]
+
+
+def test_feedback_on_contradiction_analysis_hides_failed_plan(node_env, tmp_path, monkeypatch):  # noqa: F811
+    _, arts, _ = _scripted(node_env, tmp_path, monkeypatch, ["reverse"] * 4, "dfdcdtcd",
+                           **FEEDBACK, **CONTRADICTION)
+    (contradiction,) = [a for a in arts if a.get("trigger_source") == "contradiction"]
+    assert contradiction["plan_state_hidden"]["reason"] == "failed"
+
+
+def test_feedback_on_shows_plan_while_command_in_flight(node_env, tmp_path, monkeypatch):  # noqa: F811
+    node, arts, _ = _scripted(node_env, tmp_path, monkeypatch, ["reverse"] * 2, "d", **FEEDBACK)
+    shown, reason = node._prompt_plan_block()
+    assert shown is not None and shown.plan_id == arts[0]["plan"]["plan_id"]
+    assert reason is None
+
+
+def test_feedback_on_shows_plan_with_queued_junction_phase(node_env, tmp_path, monkeypatch):  # noqa: F811
+    from types import SimpleNamespace
+
+    node, _, _ = _scripted(node_env, tmp_path, monkeypatch, ["reverse"], "", **FEEDBACK)
+    plan = node._plan_tracker.accept_plan(VerifiedPlan(
+        legs=[ProposedPlanLeg(robot_id="robot_1", action="reverse"),
+              ProposedPlanLeg(robot_id="robot_2", action="reverse")],
+        provenance="m3_default", edits=[],
+    )).plan
+    # No command record: only the queue says a later phase is still to come.
+    node._plan_id_by_command_id["phase-cmd"] = plan.plan_id
+    node._junction_phase_queues["phase-cmd"] = SimpleNamespace(done=False)
+    assert node._prompt_plan_block() == (plan, None)
+
+
+def test_feedback_on_hidden_plan_not_recorded_as_last_shown(node_env, tmp_path, monkeypatch):  # noqa: F811
+    # "Changed since the last invocation" stays relative to what M2 last saw.
+    node, _, _ = _scripted(node_env, tmp_path, monkeypatch, ["reverse"] * 2, "dct", **FEEDBACK)
+    assert node._last_shown_plan_id is None
+
+
+def test_feedback_on_hidden_plan_keeps_refusal_lines(node_env, tmp_path, monkeypatch):  # noqa: F811
+    from reasoning.vlm.models import RefusedProposal
+    from reasoning.vlm.prompt_builder import render_refused_proposals_block
+
+    _, arts, _ = _scripted(node_env, tmp_path, monkeypatch, ["reverse", "yield", "reverse"],
+                           "dctct", **FEEDBACK)
+    third = arts[2]
+    proposals = [RefusedProposal(**p) for p in third["refused_proposals"]]
+    assert third["plan_state_hidden"]["reason"] == "completed"
+    assert render_refused_proposals_block(proposals) in third["prompt"]["user_prompt"]
+
+
+def test_feedback_off_artifacts_carry_no_hidden_plan_key(node_env, tmp_path, monkeypatch):  # noqa: F811
+    _, arts, _ = _scripted(node_env, tmp_path, monkeypatch, ["reverse"] * 2, "dct")
+    assert all("plan_state_hidden" not in a for a in arts)
+
+
+def _dispatch_view(node, arts: list[dict], directives: list) -> tuple:
+    tracker = node._plan_tracker
+    return (
+        _published(node), directives,
+        [((a.get("plan") or {}).get("plan_id"), (a.get("plan") or {}).get("plan_held"),
+          a.get("dispatched_command"), a.get("dispatch_withheld", {}).get("reason"),
+          a.get("reanalysis_suppression"), a.get("trigger_source")) for a in arts],
+        {pid: plan.model_dump(mode="json") for pid, plan in tracker._plans.items()},
+        tracker.plan_holds,
+    )
+
+
+@pytest.mark.parametrize("strategies,script,keys", [
+    (["reverse"] * 4, "dctctct", {}),
+    (["reverse", "yield", "reverse", "yield"], "dctctct", {}),
+    (["temporary_wait"] * 4, "dtdtct", {}),
+    (["reverse"] * 4, "dfdcdtcd", CONTRADICTION),
+])
+def test_feedback_on_hiding_keeps_dispatch_tracker_and_triggers(
+    strategies, script, keys, node_env, tmp_path, monkeypatch  # noqa: F811
+):
+    views = {}
+    for name, extra in (("off", {}), ("on", FEEDBACK)):
+        node, arts, directives = _scripted(node_env, tmp_path / name, monkeypatch, strategies,
+                                           script, **keys, **extra)
+        views[name] = _dispatch_view(node, arts, directives)
+    assert views["on"] == views["off"]

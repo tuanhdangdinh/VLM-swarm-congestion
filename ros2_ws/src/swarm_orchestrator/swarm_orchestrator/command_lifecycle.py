@@ -73,6 +73,10 @@ class CommandTracker:
             return False
         return all(s.name in _TERMINAL for s in record.robot_states.values())
 
+    def is_open(self, command_id: str) -> bool:
+        """Whether `command_id` was registered and some robot of it is not yet terminal."""
+        return command_id in self._records and not self.is_resolved(command_id)
+
     def robots_of(self, command_id: str) -> list[str]:
         record = self._records.get(command_id)
         return [] if record is None else list(record.robot_ids)

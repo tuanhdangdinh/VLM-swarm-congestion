@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Sequence
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -214,6 +215,45 @@ def _is_hold(active: TrackedPlan, verified_legs: Sequence[ProposedPlanLeg]) -> b
         (leg.robot_id, leg.action) for leg in verified_legs if leg.robot_id not in done_ids
     ]
     return filtered == remaining
+
+
+HiddenPlanReason = Literal["completed", "failed", "not_dispatched", "no_resolution_legs"]
+
+
+def hidden_plan_reason(plan: TrackedPlan, *, work_in_flight: bool) -> HiddenPlanReason | None:
+    """Why the prompt's plan-state block should not show `plan`, or None to show it.
+
+    v4 refusal feedback (prompt only). A plan is in progress while M5 still
+    has work for it in flight: a command dispatched under it that has not
+    resolved, or a queued `junction_clear` phase (`work_in_flight`, which
+    the caller derives from its command tracker and phase queues). Leg
+    statuses cannot say this on their own: a leg the grounded command never
+    addressed stays `pending` for good (pos22: a two-robot `reverse` plan
+    whose command moved one robot), and a hold that re-dispatches a plan
+    leaves its legs `done`, because terminal statuses never change. With
+    nothing in flight, the legs that resolve the conflict (every leg but
+    `continue`, which no command needs to finish) say how the plan ended.
+
+    Args:
+        plan: The plan the block would show (`PlanTracker.shown_plan`).
+        work_in_flight: Whether M5 still has a command or phase in flight for it.
+
+    Returns:
+        None while work is in flight. Otherwise `failed` when a resolution leg
+        is `failed`/`exhausted`, `completed` when every resolution leg is
+        `done`, `not_dispatched` when some resolution leg never ran, and
+        `no_resolution_legs` for a plan of `continue` legs only.
+    """
+    if work_in_flight:
+        return None
+    statuses = [leg.status for leg in plan.legs if leg.action != "continue"]
+    if not statuses:
+        return "no_resolution_legs"
+    if any(status in ("failed", "exhausted") for status in statuses):
+        return "failed"
+    if all(status == "done" for status in statuses):
+        return "completed"
+    return "not_dispatched"
 
 
 def _cancel_order(old: TrackedPlan, new: TrackedPlan) -> list[str]:

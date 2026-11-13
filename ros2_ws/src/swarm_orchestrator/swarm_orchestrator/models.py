@@ -145,9 +145,12 @@ class RefusalFeedbackConfig(BaseModel):
     the next v3 prompt whose robot set overlaps it; and a plan accepted for
     an outcome M5 did not dispatch is marked (`PlanTracker.mark_withheld`),
     so the plan-state block shows the latest dispatched plan
-    (`PlanTracker.shown_plan`) instead of presenting it as accepted. The mark
-    is prompt-only: holds, plan ids and dispatch are as with the key off.
-    Requires `plan_channel_enabled` (prompt v3).
+    (`PlanTracker.shown_plan`) instead of presenting it as accepted. That
+    block is left out while nothing of the plan is in progress (no command
+    dispatched under it open, no `junction_clear` phase queued;
+    `plan_tracker.hidden_plan_reason`), and the artifact records why
+    (`plan_state_hidden`). Both are prompt-only: holds, plan ids and dispatch
+    are as with the key off. Requires `plan_channel_enabled` (prompt v3).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")

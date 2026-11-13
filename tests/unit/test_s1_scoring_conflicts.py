@@ -95,3 +95,28 @@ def test_summarize_conflicts_pools_sum_over_sum_across_episodes(detection):
     assert summary.mean_latency_s == pytest.approx(2.0)
     assert summary.n_latency_censored == 1
     assert summary.n_backend_failed == 1
+
+
+def _plan_artifacts(second_plan_state_key: str) -> list[dict]:
+    legs = [{"robot_id": "robot_1", "action": "reverse", "status": "failed"},
+            {"robot_id": "robot_2", "action": "reverse", "status": "done"}]
+    state = {"plan_id": 1, "legs": legs, "changed_robot_ids": []}
+    shown = {"plan_state": state}
+    hidden = {"plan_state_hidden": {"reason": "failed", "plan_state": state}}
+    return [
+        {"plan": {"plan_id": 1, "plan_held": False,
+                  "legs": [{"robot_id": "robot_1", "action": "reverse"},
+                           {"robot_id": "robot_2", "action": "reverse"}]}},
+        {"plan": {"plan_id": 2, "plan_held": False,
+                  "legs": [{"robot_id": "robot_1", "action": "wait"},
+                           {"robot_id": "robot_2", "action": "wait"}]},
+         **(shown if second_plan_state_key == "plan_state" else hidden)},
+    ]
+
+
+def test_plan_quality_reads_failed_legs_from_hidden_plan_block():
+    from benchmarks.s1_scoring.conflicts import plan_quality
+
+    shown = plan_quality(_plan_artifacts("plan_state"), 0.5).revision_causes
+    hidden = plan_quality(_plan_artifacts("plan_state_hidden"), 0.5).revision_causes
+    assert hidden == shown == ["evidence_driven"]
