@@ -1,0 +1,20 @@
+# Overlay FRAGMENT for the M4 safety monitor (2026-11-13 exemption-scope fix).
+# Not a complete safety.yaml: an experiment kit merges this one key into the
+# safety file it installs (the base ros2_ws/src/swarm_execution/config/
+# safety.yaml or config/safety/safety_floor020.yaml), leaving every other key
+# byte-identical. Neither pinned file is edited.
+#
+# scoped_clearing_exemption: true -- a clearing robot (yield/reverse) is exempt
+#   only against robots its own command addressed and that accepted their leg:
+#   a reverse's `plan_continue_partners` are not honoured (P1/P2) and a member
+#   whose leg FAILED before any ACTIVE, e.g. "robot busy", is not a partner
+#   (P3). Thresholds, the hard-contact floor, the A19 waivers, the A27 shield
+#   de-exemption and the command bus are unchanged. Absent or anything other
+#   than a YAML `true` = the 68e67b5 behaviour.
+#
+# Every future experiment kit must turn this on and assert it per episode from
+# the monitor's startup log line (`... scoped_clearing_exemption=True`), not
+# from the yaml: the loader silently falls back to defaults (key off) on any
+# read error. tests/unit/test_safety_exemption_scope.py pins this file.
+safety:
+  scoped_clearing_exemption: true

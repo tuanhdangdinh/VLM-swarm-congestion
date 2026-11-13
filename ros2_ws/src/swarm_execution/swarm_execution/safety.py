@@ -259,6 +259,10 @@ class SafetyLimits:
     # even while a clearing maneuver's exemption covers it. 0.0 (default)
     # disables it; see `evaluate_latches`.
     hard_contact_floor_m: float = 0.0
+    # 2026-11-13 exemption-scope fix: True makes `CoordinationTracker` honour
+    # only robots a clearing command itself addressed and accepted (see
+    # `CoordinationTracker.__init__`). False (default) is the 68e67b5 rule.
+    scoped_clearing_exemption: bool = False
 
     def __post_init__(self) -> None:
         if self.hard_contact_floor_m < 0.0:
@@ -372,7 +376,27 @@ class CoordinationTracker:
     # command dropped before dispatch). Far above any real in-flight count.
     MAX_TRACKED_COMMANDS = 256
 
-    def __init__(self) -> None:
+    def __init__(self, scoped_exemption: bool = False) -> None:
+        """Create an empty tracker.
+
+        Args:
+            scoped_exemption: `SafetyLimits.scoped_clearing_exemption`. True
+                restricts every clearing robot's partners to robots its own
+                command addressed and that accepted it: a reverse's
+                `plan_continue_partners` are not honoured (every reverse
+                grounding path already makes each robot the decision named a
+                member, so a named partner outside the command is a robot the
+                decision was never grounded against; the list is also frozen
+                at publish and outlives a superseding plan), and a member
+                whose leg was rejected (FAILED before any ACTIVE, e.g. the
+                bus's "robot busy") is not a partner. False is the 68e67b5
+                behaviour.
+        """
+        self._scoped = scoped_exemption
+        # command_id -> robots whose leg of it FAILED before it ever went
+        # ACTIVE; filled only while `_scoped`.
+        self._rejected_by_command: dict[str, set[str]] = {}
+        self._accepted_keys: dict[tuple[str, str], None] = {}
         self._action_by_key: dict[tuple[str, str], str] = {}
         self._active_by_robot: dict[str, str] = {}
         self._members_by_command: dict[str, list[str]] = {}
@@ -467,6 +491,8 @@ class CoordinationTracker:
         """
         if not robot_id:
             return False
+        if self._scoped:
+            self._record_acceptance(command_id, robot_id, status)
         if status == "ACTIVE":
             self._record_phase(command_id, robot_id, detail)
             changed = self._active_by_robot.get(robot_id) != command_id
@@ -483,6 +509,31 @@ class CoordinationTracker:
             del self._active_by_robot[robot_id]
             return True
         return False
+
+    def _record_acceptance(self, command_id: str, robot_id: str, status: str) -> None:
+        key = (command_id, robot_id)
+        if status == "ACTIVE":
+            self._accepted_keys[key] = None
+            while len(self._accepted_keys) > self.MAX_TRACKED_COMMANDS:
+                self._accepted_keys.pop(next(iter(self._accepted_keys)))
+        elif status == "FAILED" and key not in self._accepted_keys:
+            # Kept per command, independent of membership, so a command that
+            # arrives after its rejection cannot re-add the robot.
+            self._rejected_by_command.setdefault(command_id, set()).add(robot_id)
+            while len(self._rejected_by_command) > self.MAX_TRACKED_COMMANDS:
+                self._rejected_by_command.pop(next(iter(self._rejected_by_command)))
+
+    def rejected_members(self, command_id: str) -> frozenset[str]:
+        """Return the robots whose leg of `command_id` was rejected (scoped mode only).
+
+        Args:
+            command_id: `CoordinationCommand.command_id`.
+
+        Returns:
+            Robots whose status for this command was FAILED before any
+            ACTIVE; always empty while `scoped_exemption` is False.
+        """
+        return frozenset(self._rejected_by_command.get(command_id, ()))
 
     def _record_phase(self, command_id: str, robot_id: str, detail: str | None) -> None:
         key = (command_id, robot_id)
@@ -523,7 +574,9 @@ class CoordinationTracker:
         EXCEPT a `continue` robot of the SAME tracked plan the reverse leg's
         own `parameters_json` names explicitly (step-7a fix, finding 3). A
         robot the command addresses only as a retreat-shield hold is
-        protected the same way (prereg-v3 A27(i)).
+        protected the same way (prereg-v3 A27(i)). With `scoped_exemption`
+        the `continue` exception is dropped and a member whose leg was
+        rejected is protected too; the A19 waivers are computed as before.
 
         Returns:
             The clearing robots and their exempt pairs.
@@ -540,9 +593,15 @@ class CoordinationTracker:
                 self._order_by_command.get(command_id),
                 self._completed_by_command.get(command_id, frozenset()),
                 backing_up=self._backing_up_by_key.get(key, False),
-                plan_partners=self._plan_partners_by_key.get(key, frozenset()),
+                plan_partners=(
+                    frozenset()
+                    if self._scoped
+                    else self._plan_partners_by_key.get(key, frozenset())
+                ),
                 shield_holds=frozenset(self._shield_by_command.get(command_id, ())),
             )
+            if self._scoped:
+                partners -= self.rejected_members(command_id)
             pairs.update(_pair_key(robot_id, partner) for partner in partners)
         waivers = frozenset(
             (robot_id, partner)

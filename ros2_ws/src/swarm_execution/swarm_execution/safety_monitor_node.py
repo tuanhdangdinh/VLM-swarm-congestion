@@ -71,6 +71,7 @@ from swarm_execution.safety import (
     SafetyLimits,
     evaluate_latches,
     exceeds_speed_limit,
+    plan_continue_partners_from_parameters,
 )
 
 
@@ -141,7 +142,9 @@ class SafetyMonitorNode(Node):
         self._adapter = Nav2Adapter(self)
         self._stop_pubs: dict[str, object] = {}
         self._latched_stops: set[str] = set()
-        self._coordination = CoordinationTracker()
+        self._coordination = CoordinationTracker(
+            scoped_exemption=self._limits.scoped_clearing_exemption
+        )
         self._exempt_pairs: frozenset[tuple[str, str]] | None = frozenset()
         self._last_fresh_distances: dict[tuple[str, str], float] = {}
         self.create_subscription(
@@ -158,20 +161,18 @@ class SafetyMonitorNode(Node):
         self._holds_pub = self.create_publisher(String, "/safety/holds", 10)
         self.create_timer(self.HOLD_PERIOD_SEC, self._hold_stops)
         self.create_timer(self.HOLDS_REFRESH_PERIOD_SEC, self._refresh_holds)
-        self.get_logger().info(
-            "Safety monitor started "
-            f"min_distance_m={self._limits.min_distance_m} "
-            f"max_linear_velocity_mps={self._limits.max_linear_velocity_mps} "
-            f"stale_pose_is_unsafe={self._limits.stale_pose_is_unsafe} "
-            f"stale_unsafe_distance_m={self._limits.stale_unsafe_distance_m} "
-            f"hard_contact_floor_m={self._limits.hard_contact_floor_m} "
-            f"exempt_actions={','.join(sorted(CLEARING_ACTIONS))}"
-        )
+        self.get_logger().info(startup_log_line(self._limits))
 
     def _on_coord_command(self, msg) -> None:
-        self._coordination.record_command(
-            msg.command_id, msg.robot_id, msg.action, self._command_parameters(msg)
-        )
+        parameters = self._command_parameters(msg)
+        self._coordination.record_command(msg.command_id, msg.robot_id, msg.action, parameters)
+        if self._limits.scoped_clearing_exemption:
+            ignored = plan_continue_partners_from_parameters(msg.action, parameters)
+            if ignored:
+                self.get_logger().info(
+                    f"plan continue partners not honoured command={msg.command_id} "
+                    f"robot={msg.robot_id} partners={','.join(sorted(ignored))}"
+                )
 
     def _command_parameters(self, msg) -> dict | None:
         raw = getattr(msg, "parameters_json", "") or ""
@@ -191,6 +192,7 @@ class SafetyMonitorNode(Node):
 
     def _on_coord_status(self, msg) -> None:
         prior_action = self._coordination.active_action(msg.robot_id)
+        was_rejected = msg.robot_id in self._coordination.rejected_members(msg.command_id)
         if self._coordination.record_status(
             msg.command_id, msg.robot_id, msg.status, getattr(msg, "detail", None)
         ):
@@ -206,6 +208,13 @@ class SafetyMonitorNode(Node):
             self.get_logger().info(
                 f"coordination status robot={msg.robot_id} command={msg.command_id} "
                 f"status={msg.status} action={action} exempt={exempt}"
+            )
+        if not was_rejected and msg.robot_id in self._coordination.rejected_members(
+            msg.command_id
+        ):
+            self.get_logger().info(
+                f"rejected leg not a member robot={msg.robot_id} command={msg.command_id} "
+                f"detail={getattr(msg, 'detail', '')}"
             )
 
     def _hold_stops(self) -> None:
@@ -350,6 +359,61 @@ class SafetyMonitorNode(Node):
         pub.publish(Twist())
 
 
+def startup_log_line(limits: SafetyLimits) -> str:
+    """Return the monitor's one startup log line for `limits`.
+
+    The scoped-exemption key is appended only when on, so a key-off line is
+    the 68e67b5 line byte for byte. Experiment kits assert the key from this
+    line, not from the yaml: the loader falls back to defaults (key off) on
+    any read error.
+
+    Args:
+        limits: The loaded safety limits.
+
+    Returns:
+        The `Safety monitor started ...` line.
+    """
+    line = (
+        "Safety monitor started "
+        f"min_distance_m={limits.min_distance_m} "
+        f"max_linear_velocity_mps={limits.max_linear_velocity_mps} "
+        f"stale_pose_is_unsafe={limits.stale_pose_is_unsafe} "
+        f"stale_unsafe_distance_m={limits.stale_unsafe_distance_m} "
+        f"hard_contact_floor_m={limits.hard_contact_floor_m} "
+        f"exempt_actions={','.join(sorted(CLEARING_ACTIONS))}"
+    )
+    if limits.scoped_clearing_exemption:
+        line += " scoped_clearing_exemption=True"
+    return line
+
+
+def limits_from_config(data: dict) -> SafetyLimits:
+    """Build `SafetyLimits` from the `safety:` mapping of `config/safety.yaml`.
+
+    Args:
+        data: The `safety` mapping.
+
+    Returns:
+        The limits. `scoped_clearing_exemption` is on only for a literal
+        YAML `true`; anything else keeps the legacy exemption scope.
+
+    Raises:
+        KeyError: If `min_distance_m` or `max_linear_velocity_mps` is absent.
+    """
+    # The STALE keys are `.get()` so an already-installed safety.yaml
+    # predating them does not throw into the loader's catch-all and silently
+    # revert min_distance_m to its default too.
+    band = data.get("stale_unsafe_distance_m")
+    return SafetyLimits(
+        min_distance_m=float(data["min_distance_m"]),
+        max_linear_velocity_mps=float(data["max_linear_velocity_mps"]),
+        stale_pose_is_unsafe=bool(data.get("stale_pose_is_unsafe", True)),
+        stale_unsafe_distance_m=None if band is None else float(band),
+        hard_contact_floor_m=float(data.get("hard_contact_floor_m", 0.0)),
+        scoped_clearing_exemption=data.get("scoped_clearing_exemption", False) is True,
+    )
+
+
 def _load_safety_limits(node: Node) -> SafetyLimits:
     """Load `config/safety.yaml` from the package share, falling back to defaults."""
     defaults = SafetyLimits(min_distance_m=0.45, max_linear_velocity_mps=0.2)
@@ -357,17 +421,7 @@ def _load_safety_limits(node: Node) -> SafetyLimits:
         share = get_package_share_directory("swarm_execution")
         path = Path(share) / "config" / "safety.yaml"
         data = yaml.safe_load(path.read_text())["safety"]
-        # The STALE keys are `.get()` so an already-installed safety.yaml
-        # predating them does not throw into the catch-all below and silently
-        # revert min_distance_m to its default too.
-        band = data.get("stale_unsafe_distance_m")
-        return SafetyLimits(
-            min_distance_m=float(data["min_distance_m"]),
-            max_linear_velocity_mps=float(data["max_linear_velocity_mps"]),
-            stale_pose_is_unsafe=bool(data.get("stale_pose_is_unsafe", True)),
-            stale_unsafe_distance_m=None if band is None else float(band),
-            hard_contact_floor_m=float(data.get("hard_contact_floor_m", 0.0)),
-        )
+        return limits_from_config(data)
     except Exception as exc:  # noqa: BLE001 - degrade to documented defaults
         node.get_logger().warning(
             f"safety.yaml load failed ({exc}); using defaults "
