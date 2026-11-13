@@ -12,6 +12,12 @@ What is reconstructed rather than recorded: the plan-state block. The live
 tracker's leg statuses come from M4 status messages, which are not in the
 artifacts; a plan's statuses are taken from the latest recorded prompt that
 showed that same plan (else all `pending`), and `plan_state_source` says which.
+Whether the shown plan still had work in flight (`plan_tracker.
+hidden_plan_reason`, which hides a finished plan's block) is read from the
+M5 log's `dispatch ... plan_id=` and `command ... resolved` lines when the log
+has them (`in_flight_source="log"`); otherwise it is the artifact proxy: a
+resolution leg `active`, or `pending` for a robot the accepting analysis
+dispatched (`"artifact_proxy"`).
 The model's answers are the recorded ones throughout: the episode is NOT
 re-simulated, so every later scene is the scene that followed the live
 (feedback-off) answers.
@@ -28,7 +34,13 @@ from pathlib import Path
 from typing import Any, Literal
 
 from swarm_orchestrator.command_lifecycle import WithheldMemory
-from swarm_orchestrator.plan_tracker import PlanTracker
+from swarm_orchestrator.plan_tracker import (
+    HiddenPlanReason,
+    PlanTracker,
+    TrackedLeg,
+    TrackedPlan,
+    hidden_plan_reason,
+)
 from swarm_orchestrator.reasoning_pipeline import refusal_feedback_reason
 
 from benchmarks.vlm_bench.grounder_offline import item_config
@@ -47,7 +59,12 @@ from reasoning.vlm.models import (
 _LOG_TS = r"\[(\d+\.\d+)\]"
 _START_RE = re.compile(_LOG_TS + r".*starting analysis request=([0-9a-f]+) robots=(\[[^\]]*\])")
 _WRITTEN_RE = re.compile(_LOG_TS + r".*decision artifact written: .*?([0-9a-f]{32})\.json")
+_DISPATCH_RE = re.compile(
+    _LOG_TS + r".*\]: dispatch request=\S+ command=(\S+) robot=\S+ plan_id=(\d+)"
+)
+_RESOLVED_RE = re.compile(_LOG_TS + r".*\]: command (\S+) resolved status=")
 PlanStateSource = Literal["none", "recorded", "reconstructed", "acceptance"]
+InFlightSource = Literal["none", "log", "artifact_proxy"]
 
 
 @dataclass(frozen=True)
@@ -55,16 +72,25 @@ class FeedbackState:
     """What one analysis's prompt states under `refusal_feedback`."""
 
     refused_proposals: tuple[RefusedProposal, ...]
+    # The block the prompt shows: `candidate_plan_state` unless it was hidden.
     plan_state: PlanStateContext | None
     plan_state_source: PlanStateSource
     # The live prompt's plan was a plan M5 never dispatched (the Change 2 defect).
     live_plan_was_withheld: bool
+    # The latest dispatched plan's block before the finished-plan rule, and
+    # why that rule left it out (None: shown, or no plan).
+    candidate_plan_state: PlanStateContext | None = None
+    plan_hidden_reason: HiddenPlanReason | None = None
+    in_flight_source: InFlightSource = "none"
 
 
 @dataclass
 class _LogTimes:
     start: dict[str, tuple[float, list[str]]] = field(default_factory=dict)
     written: dict[str, float] = field(default_factory=dict)
+    # command id -> (first dispatch wall time, live plan id); first resolution.
+    dispatched: dict[str, tuple[float, int]] = field(default_factory=dict)
+    resolved: dict[str, float] = field(default_factory=dict)
 
 
 def read_m5_log(bundle: Path) -> _LogTimes:
@@ -75,7 +101,9 @@ def read_m5_log(bundle: Path) -> _LogTimes:
 
     Returns:
         Per request id: `(start wall time, trigger robots)` and the artifact
-        write wall time. Empty when the log is absent.
+        write wall time; per command id: its first dispatch wall time and
+        plan id, and its first resolution wall time. Empty when the log is
+        absent.
     """
     times = _LogTimes()
     path = Path(bundle) / "m5.log"
@@ -86,7 +114,35 @@ def read_m5_log(bundle: Path) -> _LogTimes:
             times.start[match.group(2)] = (float(match.group(1)), ast.literal_eval(match.group(3)))
         elif (match := _WRITTEN_RE.search(line)) is not None:
             times.written[match.group(2)] = float(match.group(1))
+        elif (match := _DISPATCH_RE.search(line)) is not None:
+            times.dispatched.setdefault(
+                match.group(2), (float(match.group(1)), int(match.group(3)))
+            )
+        elif (match := _RESOLVED_RE.search(line)) is not None:
+            times.resolved.setdefault(match.group(2), float(match.group(1)))
     return times
+
+
+def _in_flight(
+    times: _LogTimes,
+    live_id: int,
+    at: float,
+    context: PlanStateContext,
+    dispatched_robots: set[str],
+) -> tuple[bool, InFlightSource]:
+    if times.dispatched:
+        return any(
+            plan_id == live_id and sent < at and times.resolved.get(command, at + 1.0) > at
+            for command, (sent, plan_id) in times.dispatched.items()
+        ), "log"
+    return any(
+        leg.action != "continue"
+        and (
+            leg.status == "active"
+            or (leg.status == "pending" and leg.robot_id in dispatched_robots)
+        )
+        for leg in context.legs
+    ), "artifact_proxy"
 
 
 def _artifacts(bundle: Path) -> list[dict[str, Any]]:
@@ -133,8 +189,19 @@ def _plan_context(
     return context, ("reconstructed" if known is not None else "acceptance"), active.plan_id
 
 
+def _as_tracked(context: PlanStateContext) -> TrackedPlan:
+    return TrackedPlan(
+        plan_id=context.plan_id,
+        legs=tuple(
+            TrackedLeg(robot_id=leg.robot_id, action=leg.action, status=leg.status)
+            for leg in context.legs
+        ),
+        provenance="m3_default",
+    )
+
+
 def episode_feedback_states(
-    bundle: Path, window_sec: float = 300.0, max_entries: int = 3
+    bundle: Path, window_sec: float = 300.0, max_entries: int = 3, *, hide_finished: bool = True
 ) -> dict[str, FeedbackState]:
     """Replay one episode's outcomes through M5's refusal-feedback pieces, in order.
 
@@ -142,6 +209,9 @@ def episode_feedback_states(
         bundle: The episode bundle (decision artifacts plus `m5.log`).
         window_sec: `refusal_feedback.window_sec` (wall seconds, as live).
         max_entries: `refusal_feedback.max_entries`.
+        hide_finished: Apply the finished-plan rule (live behaviour). False
+            reproduces the prompts of the build before it (66c323f): every
+            candidate block shown, and recorded as last shown.
 
     Returns:
         Per request id, the proposals and plan state its prompt would carry.
@@ -154,6 +224,7 @@ def episode_feedback_states(
     live_of: dict[int, int] = {}
     statuses: dict[int, dict[str, str]] = {}
     withheld_live_ids: set[int] = set()
+    dispatched_robots: dict[int, set[str]] = {}
     last_shown: int | None = None
     out: dict[str, FeedbackState] = {}
     for art in artifacts:
@@ -166,16 +237,31 @@ def episode_feedback_states(
             statuses[recorded["plan_id"]] = {
                 leg["robot_id"]: leg["status"] for leg in recorded["legs"]
             }
+        previous_shown = last_shown
         context, source, last_shown = _plan_context(tracker, live_of, statuses, last_shown)
         if context is not None and recorded is not None and recorded["plan_id"] == context.plan_id:
             source = "recorded"
+        reason: HiddenPlanReason | None = None
+        flight_source: InFlightSource = "none"
+        if context is not None:
+            in_flight, flight_source = _in_flight(
+                times, context.plan_id, start, context,
+                dispatched_robots.get(context.plan_id, set()),
+            )
+            reason = hidden_plan_reason(_as_tracked(context), work_in_flight=in_flight)
+            if reason is not None and hide_finished:
+                # As live: a hidden plan is not "last shown".
+                last_shown = previous_shown
         out[rid] = FeedbackState(
             refused_proposals=tuple(memory.proposals_for(robots, start)),
-            plan_state=context,
+            plan_state=context if reason is None or not hide_finished else None,
             plan_state_source=source,
             live_plan_was_withheld=(
                 recorded is not None and recorded["plan_id"] in withheld_live_ids
             ),
+            candidate_plan_state=context,
+            plan_hidden_reason=reason,
+            in_flight_source=flight_source,
         )
         end = times.written.get(rid, start)
         plan = art.get("plan")
@@ -193,6 +279,12 @@ def episode_feedback_states(
                     tracker.mark_withheld(acceptance.plan.plan_id)
             if not _dispatched(art) and not plan.get("plan_held"):
                 withheld_live_ids.add(plan["plan_id"])
+            if _dispatched(art):
+                phases = art.get("junction_phases_dispatched_robot_ids") or {}
+                dispatched_robots.setdefault(plan["plan_id"], set()).update(
+                    art.get("dispatched_robot_ids") or [],
+                    *(phases.get("phases") or []), phases.get("fallback") or [],
+                )
         withheld = art.get("dispatch_withheld")
         decision = art.get("decision") or {}
         if withheld and decision.get("involved_robots"):
@@ -252,11 +344,11 @@ def feedback_request(
     return ReasonerRequest.model_validate({**request.model_dump(), **update})
 
 
-_STATE_CACHE: dict[tuple[str, float, int], dict[str, FeedbackState]] = {}
+_STATE_CACHE: dict[tuple[str, float, int, bool], dict[str, FeedbackState]] = {}
 
 
 def cached_episode_states(
-    bundle: str, window_sec: float = 300.0, max_entries: int = 3
+    bundle: str, window_sec: float = 300.0, max_entries: int = 3, *, hide_finished: bool = True
 ) -> dict[str, FeedbackState]:
     """`episode_feedback_states`, computed once per bundle and setting.
 
@@ -264,13 +356,16 @@ def cached_episode_states(
         bundle: The bundle path.
         window_sec: As `episode_feedback_states`.
         max_entries: As `episode_feedback_states`.
+        hide_finished: As `episode_feedback_states`.
 
     Returns:
         The states by request id.
     """
-    key = (bundle, window_sec, max_entries)
+    key = (bundle, window_sec, max_entries, hide_finished)
     if key not in _STATE_CACHE:
-        _STATE_CACHE[key] = episode_feedback_states(Path(bundle), window_sec, max_entries)
+        _STATE_CACHE[key] = episode_feedback_states(
+            Path(bundle), window_sec, max_entries, hide_finished=hide_finished
+        )
     return _STATE_CACHE[key]
 
 

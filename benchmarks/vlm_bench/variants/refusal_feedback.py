@@ -1,8 +1,9 @@
 """The `refusal_feedback` variant: the live prompt with both v4 refusal-feedback keys on.
 
 Change 1 offers only the strategies M3 can ground on the item's scene; Change 2
-states the episode's earlier withheld decisions and never shows a withheld
-plan as accepted (`refusal_feedback_replay`). The production `Reasoner` and
+states the episode's earlier withheld decisions, never shows a withheld
+plan as accepted, and leaves out the plan-state block of a plan with nothing
+in progress (`refusal_feedback_replay`). The production `Reasoner` and
 parser answer, as in `baseline`. The episode is not re-simulated: earlier
 outcomes are the recorded (feedback-off) ones.
 """

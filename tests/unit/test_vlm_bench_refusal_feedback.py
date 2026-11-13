@@ -99,9 +99,49 @@ def test_withheld_decision_stated_in_next_overlapping_prompt(tmp_path):
 def test_withheld_plan_replaced_by_last_dispatched_plan(tmp_path):
     state = episode_feedback_states(_bundle(tmp_path))["c" * 32]
     assert state.live_plan_was_withheld
-    assert state.plan_state is not None and state.plan_state.plan_id == 1
+    candidate = state.candidate_plan_state
+    assert candidate is not None and candidate.plan_id == 1
     assert state.plan_state_source == "reconstructed"
-    assert [leg.status for leg in state.plan_state.legs] == ["done", "done"]
+    assert [leg.status for leg in candidate.legs] == ["done", "done"]
+
+
+def test_finished_plan_hidden_without_dispatch_log(tmp_path):
+    # No dispatch lines: in-flight is the artifact proxy, and plan 1's legs are done.
+    state = episode_feedback_states(_bundle(tmp_path))["c" * 32]
+    assert state.plan_state is None
+    assert state.plan_hidden_reason == "completed"
+    assert state.in_flight_source == "artifact_proxy"
+
+
+def _with_command_log(bundle: Path, resolved_at: float) -> Path:
+    lines = [
+        LOG_PREFIX.format(t="108.500000")
+        + f"dispatch request={'a' * 32} command=c1 robot=robot_1 plan_id=1",
+        LOG_PREFIX.format(t=f"{resolved_at:.6f}") + "command c1 resolved status=completed",
+    ]
+    with (bundle / "m5.log").open("a") as log:
+        log.write("\n".join(lines) + "\n")
+    return bundle
+
+
+def test_read_m5_log_parses_dispatch_and_resolution(tmp_path):
+    times = read_m5_log(_with_command_log(_bundle(tmp_path), 150.0))
+    assert times.dispatched["c1"] == (108.5, 1)
+    assert times.resolved["c1"] == 150.0
+
+
+def test_finished_plan_hidden_after_logged_resolution(tmp_path):
+    states = episode_feedback_states(_with_command_log(_bundle(tmp_path), 150.0))
+    assert states["c" * 32].plan_hidden_reason == "completed"
+    assert states["c" * 32].in_flight_source == "log"
+
+
+def test_plan_shown_while_logged_command_unresolved(tmp_path):
+    # Resolved only after the analysis started: still in flight at its start.
+    states = episode_feedback_states(_with_command_log(_bundle(tmp_path), 170.0))
+    state = states["c" * 32]
+    assert state.plan_hidden_reason is None
+    assert state.plan_state is not None and state.plan_state.plan_id == 1
 
 
 def test_dispatch_forgets_withheld_proposal(tmp_path):
