@@ -4,7 +4,7 @@ Change 1 (`prompt_offer_groundable_strategies`) needs only the item's own
 geometry and params. Change 2 (`refusal_feedback`) is sequential: what a
 prompt states depends on the episode's earlier outcomes. This module replays
 them in order through the production pieces M5 uses live
-(`WithheldMemory`, `refusal_feedback_reason`, `PlanTracker.retract`), from the
+(`WithheldMemory`, `refusal_feedback_reason`, `PlanTracker.shown_plan`), from the
 bundle's decision artifacts and its M5 log (wall times and trigger robot sets
 of `starting analysis` / `decision artifact written` lines).
 
@@ -108,7 +108,7 @@ def _plan_context(
     statuses: dict[int, dict[str, str]],
     last_shown: int | None,
 ) -> tuple[PlanStateContext | None, PlanStateSource, int | None]:
-    active = tracker.active_plan
+    active = tracker.shown_plan()
     if active is None:
         return None, "none", last_shown
     live_id = live_of[active.plan_id]
@@ -190,7 +190,7 @@ def episode_feedback_states(
             if not acceptance.held:
                 live_of[acceptance.plan.plan_id] = plan["plan_id"]
                 if not _dispatched(art):
-                    tracker.retract(acceptance.plan.plan_id)
+                    tracker.mark_withheld(acceptance.plan.plan_id)
             if not _dispatched(art) and not plan.get("plan_held"):
                 withheld_live_ids.add(plan["plan_id"])
         withheld = art.get("dispatch_withheld")

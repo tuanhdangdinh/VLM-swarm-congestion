@@ -143,9 +143,11 @@ class RefusalFeedbackConfig(BaseModel):
     (`dispatch_withheld`: `refusal_no_action`, `empty_reroute`, a churn
     bound) is remembered (`command_lifecycle.WithheldMemory`) and stated in
     the next v3 prompt whose robot set overlaps it; and a plan accepted for
-    an outcome M5 did not dispatch is retracted from the plan tracker
-    (`PlanTracker.retract`), so the plan-state block never shows it as the
-    active plan. Requires `plan_channel_enabled` (prompt v3).
+    an outcome M5 did not dispatch is marked (`PlanTracker.mark_withheld`),
+    so the plan-state block shows the latest dispatched plan
+    (`PlanTracker.shown_plan`) instead of presenting it as accepted. The mark
+    is prompt-only: holds, plan ids and dispatch are as with the key off.
+    Requires `plan_channel_enabled` (prompt v3).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")

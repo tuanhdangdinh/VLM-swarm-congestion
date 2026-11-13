@@ -523,7 +523,7 @@ class OrchestratorNode(Node):
         )
         self._unoffered_strategy_decisions = 0
         # v4 refusal feedback Change 2: None unless `refusal_feedback.enabled`,
-        # so an off node records, retracts and renders nothing new.
+        # so an off node records, marks and renders nothing new.
         feedback = self._config.refusal_feedback
         self._withheld: WithheldMemory | None = (
             WithheldMemory(feedback.window_sec, feedback.max_entries)
@@ -1263,8 +1263,16 @@ class OrchestratorNode(Node):
         # never actually sent (an exception before dispatch) cannot desync it
         # from what the NEXT request shows.
         plan_state = None
-        if self._plan_tracker is not None and self._plan_tracker.active_plan is not None:
-            active_plan_id = self._plan_tracker.active_plan.plan_id
+        shown = (
+            None
+            if self._plan_tracker is None
+            # v4 refusal feedback: never a plan M5 did not dispatch.
+            else self._plan_tracker.shown_plan()
+            if self._withheld is not None
+            else self._plan_tracker.active_plan
+        )
+        if self._plan_tracker is not None and shown is not None:
+            active_plan_id = shown.plan_id
             plan_state = self._plan_tracker.plan_state_context(
                 active_plan_id, since_plan_id=self._last_shown_plan_id
             )
@@ -1418,13 +1426,13 @@ class OrchestratorNode(Node):
             churn_entry = self._churn_check(outcome, dispatch, snapshot)
             if churn_entry is not None and churn_entry[0] is not None:
                 dispatch_withheld = churn_entry[0]
-        retracted_plan_id: int | None = None
+        withheld_plan_id: int | None = None
         if self._withheld is not None and dispatch_withheld is not None:
-            # A withheld outcome is never dispatched, so its plan is retracted
+            # A withheld outcome is never dispatched, so its plan is marked
             # before the artifact is written and the artifact can say so.
-            retracted_plan_id = self._retract_undispatched_plan(outcome)
-            if retracted_plan_id is not None:
-                dispatch_withheld = {**dispatch_withheld, "plan_retracted": retracted_plan_id}
+            withheld_plan_id = self._mark_undispatched_plan(outcome)
+            if withheld_plan_id is not None:
+                dispatch_withheld = {**dispatch_withheld, "plan_withheld": withheld_plan_id}
         try:
             artifact_path = write_decision_artifact(
                 self._config.decision_log_dir,
@@ -1504,7 +1512,7 @@ class OrchestratorNode(Node):
         if self._withheld is not None:
             self._note_refusal_feedback(
                 outcome, dispatch, dispatch_withheld if withhold else None, dispatched,
-                retracted_plan_id, now,
+                withheld_plan_id, now,
             )
         # prereg-v3 A22: the echo mock rotates its named pair on a refusal
         # (an injected test pipeline may lack the hook).
@@ -2501,22 +2509,22 @@ class OrchestratorNode(Node):
 
     # ---- v4 refusal feedback ----
 
-    def _retract_undispatched_plan(self, outcome: PipelineOutcome) -> int | None:
-        """Retract the plan the pipeline accepted for an outcome M5 does not dispatch.
+    def _mark_undispatched_plan(self, outcome: PipelineOutcome) -> int | None:
+        """Mark the plan the pipeline accepted for an outcome M5 does not dispatch.
 
         Returns:
-            The retracted plan id, or None when nothing was retracted (no plan
+            The marked plan id, or None when nothing was marked (no plan
             channel, no plan, or a hold, which re-affirmed the active plan).
         """
         plan = outcome.plan
         if self._plan_tracker is None or plan is None or plan.plan_held:
             return None
-        if not self._plan_tracker.retract(plan.plan_id):
+        if not self._plan_tracker.mark_withheld(plan.plan_id):
             return None
-        active = self._plan_tracker.active_plan
+        shown = self._plan_tracker.shown_plan()
         self.get_logger().info(
-            f"plan retracted request={outcome.request_id} plan={plan.plan_id} "
-            f"restored={None if active is None else active.plan_id} (not dispatched)"
+            f"plan withheld request={outcome.request_id} plan={plan.plan_id} "
+            f"shown={None if shown is None else shown.plan_id} (not dispatched)"
         )
         return plan.plan_id
 
@@ -2526,19 +2534,19 @@ class OrchestratorNode(Node):
         dispatch: RegistryDispatch | None,
         withheld: dict[str, Any] | None,
         dispatched: bool,
-        retracted_plan_id: int | None,
+        withheld_plan_id: int | None,
         now: float,
     ) -> None:
         """Record a withheld decision, or forget refusals a dispatch acted on.
 
         Only called with `refusal_feedback.enabled`. Any outcome not
-        dispatched has its plan retracted (a withheld one already was, before
+        dispatched has its plan marked (a withheld one already was, before
         its artifact was written), so the plan-state block never shows a plan
         M5 did not send.
         """
         assert self._withheld is not None
-        if not dispatched and retracted_plan_id is None:
-            self._retract_undispatched_plan(outcome)
+        if not dispatched and withheld_plan_id is None:
+            self._mark_undispatched_plan(outcome)
         if dispatched and dispatch is not None:
             dropped = self._withheld.forget_overlapping(dispatch.robot_ids)
             if dropped:

@@ -248,11 +248,12 @@ class PlanTracker:
         # stability) is meant to count only genuinely different accepted
         # plans, which is exactly the plans that DO get a new `plan_id`.
         self._plan_holds = 0
-        # v4 refusal feedback (`retract`): which plan each accepted plan
-        # superseded (None for the session's first), and the plans retracted.
-        # Recorded on every accept; read only by `retract`/`is_retracted`.
+        # v4 refusal feedback (`shown_plan`): which plan each accepted plan
+        # superseded (None for the session's first), and the plans M5 never
+        # dispatched. Read only by `shown_plan`/`is_withheld`; no decision
+        # this tracker makes depends on them.
         self._predecessor: dict[int, int | None] = {}
-        self._retracted: set[int] = set()
+        self._withheld: set[int] = set()
         # Not reentrant: no method below calls another public method of this
         # class while holding it (module docstring explains why one is needed
         # at all).
@@ -330,37 +331,49 @@ class PlanTracker:
                 ),
             )
 
-    def retract(self, plan_id: int) -> bool:
-        """Undo the acceptance of a plan M5 never dispatched (v4 refusal feedback).
+    def mark_withheld(self, plan_id: int) -> bool:
+        """Record that M5 never dispatched the outcome this plan was accepted for.
 
-        `accept_plan` runs in the pipeline worker, before M5 decides whether
-        the outcome is dispatched; a withheld (or otherwise undispatched)
-        outcome's plan would otherwise stay active and be shown to M2 as the
-        accepted plan. Retracting it makes the plan it superseded active
-        again, with that plan's current leg statuses (None when it was the
-        first). The retracted plan keeps its `plan_id` (ids stay monotonic,
-        artifacts keep naming it) and stays in `plan()` lookups.
+        v4 refusal feedback. `accept_plan` runs in the pipeline worker, before
+        M5 decides whether the outcome is dispatched, so a withheld outcome's
+        plan becomes the active plan. The mark changes nothing the tracker
+        decides (`active_plan`, holds, supersession, leg statuses and plan ids
+        are exactly as without it, so dispatch is unaffected); it only steers
+        `shown_plan`, which the prompt's plan-state block reads.
 
         Args:
-            plan_id: The plan accepted for the undispatched outcome.
+            plan_id: The plan accepted (not held) for the undispatched outcome.
 
         Returns:
-            True when `plan_id` was the active plan and is now retracted;
-            False otherwise (a hold, or a plan already superseded), which
-            changes nothing.
+            True when the plan is known and was not marked before.
         """
         with self._lock:
-            if self._active is None or self._active.plan_id != plan_id:
+            if plan_id not in self._plans or plan_id in self._withheld:
                 return False
-            previous = self._predecessor.get(plan_id)
-            self._active = None if previous is None else self._plans[previous]
-            self._retracted.add(plan_id)
+            self._withheld.add(plan_id)
             return True
 
-    def is_retracted(self, plan_id: int) -> bool:
-        """Whether `retract` retracted this plan."""
+    def is_withheld(self, plan_id: int) -> bool:
+        """Whether `mark_withheld` marked this plan."""
         with self._lock:
-            return plan_id in self._retracted
+            return plan_id in self._withheld
+
+    def shown_plan(self) -> TrackedPlan | None:
+        """The plan the prompt may present as active: the latest one M5 dispatched.
+
+        Walks back from `active_plan` through the plans each superseded,
+        skipping every plan marked withheld, so a withheld plan is never
+        presented as accepted. Equals `active_plan` when nothing is marked.
+
+        Returns:
+            That plan with its current leg statuses, or None when every plan
+            in the chain was withheld (or none was accepted).
+        """
+        with self._lock:
+            plan_id = None if self._active is None else self._active.plan_id
+            while plan_id is not None and plan_id in self._withheld:
+                plan_id = self._predecessor.get(plan_id)
+            return None if plan_id is None else self._plans[plan_id]
 
     def set_leg_status(self, plan_id: int, robot_id: str, status: PlanLegStatus) -> TrackedLeg:
         """Update one leg's execution status, enforcing the state machine.

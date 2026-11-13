@@ -10,7 +10,8 @@ both changes (`benchmarks.vlm_bench.refusal_feedback_replay`). Writes to OUT_DIR
   followed by an overlapping analysis inside the feedback window, and the
   replay cost estimate from each bundle's `cost.log`;
 - `excerpts.txt`: before/after context blocks for the named episodes;
-- `items_withheld.jsonl`: the withheld analyses, for a paid replay.
+- `items_withheld.jsonl`: the withheld analyses, for a paid replay, with
+  `frame_path` set to the bundle's kept annotated frame where one exists.
 
 No model is called; the model's answers stay the recorded ones.
 
@@ -131,6 +132,11 @@ def main(argv: list[str]) -> int:
                 "next_overlapping_gap_wall_s": next_gap,
             })
             if withheld:
+                # The live annotated frame, when the bundle kept it: without
+                # one the replay sends a neutral grey image instead.
+                frame = Path(bundle) / "frames" / f"{item.request_id}.png"
+                if item.frame_path is None and frame.is_file():
+                    item = item.model_copy(update={"frame_path": str(frame)})
                 withheld_items.append(item)
             if any(tag in Path(bundle).name for tag in excerpt_episodes):
                 excerpts.append(
@@ -170,6 +176,7 @@ def main(argv: list[str]) -> int:
         "within_window": sum(g <= WINDOW_SEC for g in gaps),
         "next_overlapping_gap_wall_s": _stats(gaps),
         "replay_withheld_calls": len(withheld_items),
+        "replay_items_with_live_frame": sum(i.frame_path is not None for i in withheld_items),
         "replay_usd_estimate_from_cost_logs": round(replay_usd, 4),
         "window_sec": WINDOW_SEC, "max_entries": MAX_ENTRIES,
     }

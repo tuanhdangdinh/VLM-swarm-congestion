@@ -2,8 +2,8 @@
 
 The record M5 keeps of a withheld decision (`WithheldMemory`), the plain-words
 reason it states (`refusal_feedback_reason`), the prompt block that states it
-(`render_refused_proposals_block`), and the plan tracker's retraction of a plan
-M5 never dispatched (`PlanTracker.retract`).
+(`render_refused_proposals_block`), and the plan tracker's prompt-only marking
+of a plan M5 never dispatched (`PlanTracker.mark_withheld` / `shown_plan`).
 """
 
 from __future__ import annotations
@@ -271,51 +271,57 @@ class TestWithheldMemory:
         assert memory.proposals_for(["robot_2", "robot_5"], now=1.0) == [other]
 
 
-class TestPlanRetraction:
-    def test_retract_restores_superseded_plan(self):
+class TestWithheldPlanMarking:
+    def test_shown_plan_skips_withheld_plan(self):
         tracker = PlanTracker()
         tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
         new = tracker.accept_plan(_verified(("robot_3", "wait")))
-        assert tracker.retract(new.plan.plan_id) is True
-        assert tracker.active_plan is not None and tracker.active_plan.plan_id == 1
+        assert tracker.mark_withheld(new.plan.plan_id) is True
+        assert tracker.shown_plan().plan_id == 1
 
-    def test_retract_first_plan_leaves_no_active_plan(self):
+    def test_active_plan_unchanged_by_mark(self):
+        tracker = PlanTracker()
+        tracker.accept_plan(_verified(("robot_1", "wait")))
+        new = tracker.accept_plan(_verified(("robot_3", "wait")))
+        tracker.mark_withheld(new.plan.plan_id)
+        assert tracker.active_plan.plan_id == new.plan.plan_id
+
+    def test_hold_judged_against_unmarked_active_plan(self):
+        # Dispatch-relevant decisions (holds, plan ids) are those of the
+        # unmarked tracker, so the mark cannot change what M5 dispatches.
+        marked, plain = PlanTracker(), PlanTracker()
+        for tracker in (marked, plain):
+            tracker.accept_plan(_verified(("robot_1", "wait")))
+            tracker.accept_plan(_verified(("robot_3", "wait")))
+        marked.mark_withheld(2)
+        again = [t.accept_plan(_verified(("robot_3", "wait"))) for t in (marked, plain)]
+        assert again[0].held == again[1].held and again[0].plan.plan_id == again[1].plan.plan_id
+
+    def test_only_withheld_plans_shows_nothing(self):
         tracker = PlanTracker()
         first = tracker.accept_plan(_verified(("robot_1", "wait")))
-        assert tracker.retract(first.plan.plan_id) is True
-        assert tracker.active_plan is None
+        tracker.mark_withheld(first.plan.plan_id)
+        assert tracker.shown_plan() is None
 
-    def test_restored_plan_keeps_latest_leg_statuses(self):
+    def test_shown_plan_skips_a_chain_of_withheld_plans(self):
+        tracker = PlanTracker()
+        tracker.accept_plan(_verified(("robot_1", "wait")))
+        for action in ("yield", "reverse"):
+            tracker.mark_withheld(tracker.accept_plan(_verified(("robot_1", action))).plan.plan_id)
+        assert tracker.shown_plan().plan_id == 1
+
+    def test_shown_plan_keeps_latest_leg_statuses(self):
         tracker = PlanTracker()
         tracker.accept_plan(_verified(("robot_1", "yield"), ("robot_2", "cross")))
         new = tracker.accept_plan(_verified(("robot_3", "wait")))
         tracker.set_leg_status(1, "robot_1", "done")
-        tracker.retract(new.plan.plan_id)
-        assert [leg.status for leg in tracker.active_plan.legs] == ["done", "pending"]
+        tracker.mark_withheld(new.plan.plan_id)
+        assert [leg.status for leg in tracker.shown_plan().legs] == ["done", "pending"]
 
-    def test_retract_inactive_plan_changes_nothing(self):
-        tracker = PlanTracker()
-        first = tracker.accept_plan(_verified(("robot_1", "wait")))
-        tracker.accept_plan(_verified(("robot_1", "yield")))
-        assert tracker.retract(first.plan.plan_id) is False
-        assert tracker.active_plan.plan_id == 2
+    def test_unknown_plan_not_marked(self):
+        assert PlanTracker().mark_withheld(7) is False
 
-    def test_retracted_plan_stays_looked_up(self):
+    def test_shown_plan_equals_active_without_marks(self):
         tracker = PlanTracker()
-        first = tracker.accept_plan(_verified(("robot_1", "wait")))
-        tracker.retract(first.plan.plan_id)
-        assert tracker.plan(first.plan.plan_id) is not None
-        assert tracker.is_retracted(first.plan.plan_id)
-
-    def test_plan_ids_stay_monotonic_after_retraction(self):
-        tracker = PlanTracker()
-        first = tracker.accept_plan(_verified(("robot_1", "wait")))
-        tracker.retract(first.plan.plan_id)
-        assert tracker.accept_plan(_verified(("robot_1", "wait"))).plan.plan_id == 2
-
-    def test_retracted_plan_cannot_be_held(self):
-        tracker = PlanTracker()
-        first = tracker.accept_plan(_verified(("robot_1", "wait")))
-        tracker.retract(first.plan.plan_id)
-        again = tracker.accept_plan(_verified(("robot_1", "wait")))
-        assert not again.held and again.supersedes is None
+        tracker.accept_plan(_verified(("robot_1", "wait")))
+        assert tracker.shown_plan() == tracker.active_plan
