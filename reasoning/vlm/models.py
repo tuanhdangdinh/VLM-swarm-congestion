@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from pydantic import (
     BaseModel,
@@ -268,6 +268,28 @@ class ReasonerRequest(BaseModel):
     # accepts in this scene. CONSTRUCT CHANGE when set -- the plan channel
     # measures constrained selection, not free planning.
     candidate_options: list[RobotCandidateOptions] | None = None
+    # Strategies the v3 prompt offers besides "none" (v4 refusal-feedback
+    # Change 1, M5 `prompt_offer_groundable_strategies`): M3's
+    # `command_grounder.groundable_strategies` for the scene, so M2 is not
+    # offered a strategy M3 cannot ground as itself. None offers every
+    # strategy and renders byte-identically to every earlier request.
+    offered_strategies: tuple[str, ...] | None = None
+
+    @field_validator("offered_strategies")
+    @classmethod
+    def _validate_offered_strategies(
+        cls, value: tuple[str, ...] | None
+    ) -> tuple[str, ...] | None:
+        if value is None:
+            return value
+        # CongestionDecision is defined below; resolved at validation time.
+        strategy = CongestionDecision.model_fields["strategy"].annotation
+        known = [token for token in get_args(strategy) if token != "none"]
+        if not value or len(set(value)) != len(value) or any(t not in known for t in value):
+            raise ValueError(
+                f"offered_strategies must be distinct, non-empty and from {known}; got {value}"
+            )
+        return value
 
     @model_validator(mode="after")
     def _validate_last_failed_needs_latest(self) -> "ReasonerRequest":

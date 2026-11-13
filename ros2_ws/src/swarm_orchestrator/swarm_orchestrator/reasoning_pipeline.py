@@ -51,6 +51,7 @@ from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import (
     CURRENT_PROMPT_VERSION,
     CandidateOption,
+    CongestionDecision,
     FailureContext,
     PlanStateContext,
     PromptVersion,
@@ -280,6 +281,7 @@ def build_reasoner_request(
     motion_trails_drawn: bool = False,
     zoom_tile_path: str | None = None,
     candidate_options: list[RobotCandidateOptions] | None = None,
+    offered_strategies: tuple[str, ...] | None = None,
 ) -> ReasonerRequest:
     """Project a SceneSnapshot plus a dumped image path into a ReasonerRequest.
 
@@ -310,6 +312,8 @@ def build_reasoner_request(
         motion_trails_drawn: Whether to state the motion-trail convention.
         zoom_tile_path: The written zoom tile, attached as a second image.
         candidate_options: Verifier-candidate-options block contents.
+        offered_strategies: Strategies the v3 prompt offers besides "none"
+            (`prompt_offer_groundable_strategies`); None offers every one.
 
     The four apparatus arguments (prereg-v2 rev 6) default to off, which
     renders byte-identically to every request built before they existed.
@@ -348,7 +352,29 @@ def build_reasoner_request(
         motion_trails_drawn=motion_trails_drawn,
         zoom_tile_path=zoom_tile_path,
         candidate_options=candidate_options,
+        offered_strategies=offered_strategies,
     )
+
+
+def strategy_offered(
+    decision: CongestionDecision | None, request: ReasonerRequest
+) -> bool | None:
+    """Whether a decision's strategy was offered by the request's prompt.
+
+    Args:
+        decision: The validated decision, or None after a backend failure.
+        request: The request it answered.
+
+    Returns:
+        None without a decision; True for "none" or when the request offered
+        every strategy (`offered_strategies` None); else whether the decided
+        strategy is in `request.offered_strategies`.
+    """
+    if decision is None:
+        return None
+    if decision.strategy == "none" or request.offered_strategies is None:
+        return True
+    return decision.strategy in request.offered_strategies
 
 
 def build_candidate_options(
@@ -1221,6 +1247,13 @@ def write_decision_artifact(
     # rebuilt without this.
     if request is not None and request.plan_state is not None:
         payload["plan_state"] = request.plan_state.model_dump(mode="json")
+    # v4 refusal feedback Change 1: added only when the request restricted
+    # the offered strategies, so a flag-off artifact's bytes are unchanged.
+    if request is not None and request.offered_strategies is not None:
+        payload["offered_strategies"] = list(request.offered_strategies)
+        offered = strategy_offered(outcome.reasoner_result.decision, request)
+        if offered is not None:
+            payload["decision_strategy_offered"] = offered
     if trigger_source is not None:
         payload["trigger_source"] = trigger_source
     if trigger_contradiction is not None:

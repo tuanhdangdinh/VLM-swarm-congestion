@@ -533,6 +533,12 @@ class OrchestratorConfig(BaseModel):
     # M3's own audit accepts in the current scene. CONSTRUCT CHANGE: plan
     # metrics under this flag measure constrained selection, not free planning.
     prompt_candidate_options: bool = False
+    # v4 refusal feedback, Change 1: the v3 strategy list (and its plan-grammar
+    # rule lines) offers only the strategies M3 can ground as themselves on
+    # this scene (`command_grounder.groundable_strategies`: `junction_clear`
+    # needs derived mode plus declared recede geometry). Default off: every
+    # strategy is offered and the prompt is byte-identical to before.
+    prompt_offer_groundable_strategies: bool = False
     # prereg-v3 R3.4 contradiction trigger (closed-loop item); default off.
     contradiction_trigger: ContradictionTriggerConfig = Field(
         default_factory=ContradictionTriggerConfig
@@ -624,6 +630,7 @@ class OrchestratorConfig(BaseModel):
                 "prompt_motion_trails",
                 "prompt_zoom_tile",
                 "prompt_candidate_options",
+                "prompt_offer_groundable_strategies",
             )
             if getattr(self, name)
         ]

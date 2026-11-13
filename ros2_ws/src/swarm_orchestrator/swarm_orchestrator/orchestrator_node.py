@@ -27,6 +27,7 @@ from reasoning.rag.command_grounder import (
     CommandGroundingError,
     filter_command_robot_ids,
     ground_reasoner_result,
+    groundable_strategies,
 )
 from reasoning.rag.retreat_shield import RobotTaskIntent
 from reasoning.vlm import (
@@ -127,6 +128,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     raw_frame_dump_path,
     raw_frame_skew_sec,
     registry_dispatch,
+    strategy_offered,
     summarize_yield_grounding,
     write_decision_artifact,
     yield_refusal_fan_out,
@@ -508,6 +510,15 @@ class OrchestratorNode(Node):
                 "refusal_no_action is set but task_stream is disabled; refusal waits "
                 "dispatch as before"
             )
+        # v4 refusal feedback Change 1: the strategies the prompt offers, from
+        # the same declared geometry and params M3 grounds with; None (flag
+        # off) offers every strategy, byte-identically.
+        self._offered_strategies: tuple[str, ...] | None = (
+            groundable_strategies(self._config.scenario_geometry, self._grounding.params)
+            if self._config.prompt_offer_groundable_strategies
+            else None
+        )
+        self._unoffered_strategy_decisions = 0
         self._registry = TaskRegistry()
         started_at = time.monotonic()
         # v3 S1 task stream: None unless `task_stream.enabled`, so a
@@ -1255,6 +1266,7 @@ class OrchestratorNode(Node):
             robot_presentation_order=order,
             prompt_version=3 if self._config.plan_channel_enabled else CURRENT_PROMPT_VERSION,
             plan_state=plan_state,
+            offered_strategies=self._offered_strategies,
             **apparatus,
         )
         self._pending_prompt_conditions = self._prompt_conditions(
@@ -1426,6 +1438,19 @@ class OrchestratorNode(Node):
         if outcome.permutation_votes is not None:
             self.get_logger().info(
                 permutation_votes_log(outcome.request_id, outcome.permutation_votes)
+            )
+        if request is not None and strategy_offered(
+            outcome.reasoner_result.decision, request
+        ) is False:
+            # Grounded and dispatched/withheld exactly as without the flag;
+            # only counted (and marked `decision_strategy_offered` above).
+            self._unoffered_strategy_decisions += 1
+            decision = outcome.reasoner_result.decision
+            assert decision is not None
+            self.get_logger().info(
+                f"strategy not offered request={outcome.request_id} "
+                f"strategy={decision.strategy} offered={list(request.offered_strategies or ())} "
+                f"count={self._unoffered_strategy_decisions}"
             )
 
         # Surfaced in the live log too: the gate changes which robot executes,

@@ -2,7 +2,7 @@ import math
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from itertools import combinations
-from typing import Any, Literal, NamedTuple
+from typing import Any, Literal, NamedTuple, get_args
 
 from jsonschema import Draft202012Validator
 from pydantic import (
@@ -1398,6 +1398,58 @@ def _junction_geometry_missing_fields(geometry: SceneGeometry | None) -> list[st
     return missing
 
 
+def junction_clear_declared(geometry: SceneGeometry | None) -> bool:
+    """Whether `geometry` declares what `junction_clear`'s recede phase needs.
+
+    The scene-level precondition of `_ground_derived`'s `junction_clear`
+    branch: a declared recede pocket (`junction_recede_offset_m`) and at least
+    one declared arm off `corridor.axis` (`_junction_recede_candidates` can
+    return no robot otherwise). Without both, every `junction_clear` decision
+    falls back to a plain yield on the declared geometry
+    (`junction_clear=fallback:no_candidates`), whatever the robots' poses.
+
+    Args:
+        geometry: Declared scene geometry, or None.
+
+    Returns:
+        True when both are declared.
+    """
+    if geometry is None or geometry.junction_recede_offset_m is None:
+        return False
+    return any(arm.axis != geometry.corridor.axis for arm in (geometry.arms or {}).values())
+
+
+def groundable_strategies(
+    geometry: SceneGeometry | None, params: GroundingParams | None
+) -> tuple[str, ...]:
+    """The decision strategies M3 can ground as themselves on this scene, in enum order.
+
+    The one source of truth for the M2 prompt's offered strategy set
+    (`ReasonerRequest.offered_strategies`), shared with the grounder through
+    `junction_clear_declared`. Only `junction_clear` depends on the scene: its
+    composite is derived-mode only and needs declared recede geometry. Every
+    other strategy is kept, including those M3 grounds as a wait fan-out
+    (`convoy`, `priority_override`).
+
+    Args:
+        geometry: The declared scene geometry M3 grounds with.
+        params: M3's grounding params; None counts as legacy mode.
+
+    Returns:
+        Every non-`none` strategy token, minus `junction_clear` unless
+        `params.mode == "derived"` and `junction_clear_declared(geometry)`.
+    """
+    tokens = [
+        token
+        for token in get_args(CongestionDecision.model_fields["strategy"].annotation)
+        if token != "none"
+    ]
+    derived = params is not None and params.mode == "derived"
+    if not (derived and junction_clear_declared(geometry)):
+        tokens.remove("junction_clear")
+    return tuple(tokens)
+
+
 def _shipped_unsolved_tag(missing_fields: Sequence[str]) -> str:
     """The loudness guard's degradation tag, naming the missing field(s).
 
@@ -2349,9 +2401,12 @@ def _ground_derived(
         candidates = (
             _junction_recede_candidates(decision, geometry) if geometry is not None else []
         )
+        # The same predicate `groundable_strategies` offers M2 on. Without a
+        # cross-axis arm `candidates` is already empty, so this is the old
+        # `junction_recede_offset_m is not None` gate, verbatim in effect.
         ranked = (
             rank_recede_candidates(snapshot, candidates, geometry, params)
-            if geometry is not None and geometry.junction_recede_offset_m is not None
+            if geometry is not None and junction_clear_declared(geometry)
             else []
         )
         if not ranked:

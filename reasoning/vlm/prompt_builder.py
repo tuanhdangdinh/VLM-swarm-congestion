@@ -106,16 +106,7 @@ if any)
 - "involved_robots": list of robot_id strings, from the known IDs only
 - "root_cause": one sentence
 - "strategy": one of
-  - "none": no congestion to resolve
-  - "yield": one robot (yield_robot) backs up and steps aside while the others pass
-  - "reroute": a robot takes an alternative path around the blockage
-  - "convoy": robots heading the same way pass through in single file, in order, \
-while an opposing robot gives way
-  - "priority_override": the higher-priority robot passes first; the others give way
-  - "temporary_wait": the involved robots hold in place until the way clears
-  - "reverse": the involved robots back straight out along their own lanes
-  - "junction_clear": multi-robot junction recovery: some robots first back out, \
-one inside robot yields, then an ordered crossing
+{strategy_option_lines}
 - "justification": one or two sentences
 - "yield_robot": the robot that should yield, or null when the strategy is not \
 "yield"
@@ -240,7 +231,7 @@ _PLAN_INVITATION = (
 # after the cross it releases.
 # Its em dash is the spec wording verbatim (the template already carries
 # non-ASCII), so the pin covers it byte for byte.
-_PLAN_GRAMMAR = """Plan actions, for "proposed_plan":
+_PLAN_GRAMMAR_TEMPLATE = """Plan actions, for "proposed_plan":
 - "yield": back up, step aside, and hold until the passing robots have cleared
 - "reverse": back straight out along its own lane
 - "cross": proceed through in its assigned turn (the plan's list order)
@@ -250,12 +241,80 @@ _PLAN_GRAMMAR = """Plan actions, for "proposed_plan":
 The list order is the execution order — the robot that acts first comes first.
 A proposed plan must refine the chosen strategy; a plan that does not is \
 ignored and the system derives the resolution instead:
-- strategy "yield": exactly one "yield" leg, and the plan must agree with your own \
-yield_robot and crossing_order answers
-- strategy "temporary_wait": at least one "wait" leg
-- strategy "reroute": at least one "reroute" leg
-- strategy "junction_clear": at least one "reverse" or "yield" leg
+{plan_rule_lines}
 - any other strategy: no constraint on the legs"""
+
+# The v3 strategy list and plan-grammar rule lines, one per strategy token in
+# enum order, joined into `_USER_TEMPLATE` / `_PLAN_GRAMMAR` (v4 refusal
+# feedback Change 1). With every token offered they join to the v3.4 text
+# byte for byte; `ReasonerRequest.offered_strategies` drops the lines of a
+# token M3 cannot ground on the scene. "none" is always offered.
+_STRATEGY_OPTION_LINES: dict[str, str] = {
+    "none": '  - "none": no congestion to resolve',
+    "yield": '  - "yield": one robot (yield_robot) backs up and steps aside while the others pass',
+    "reroute": '  - "reroute": a robot takes an alternative path around the blockage',
+    "convoy": (
+        '  - "convoy": robots heading the same way pass through in single file, in order, '
+        "while an opposing robot gives way"
+    ),
+    "priority_override": (
+        '  - "priority_override": the higher-priority robot passes first; the others give way'
+    ),
+    "temporary_wait": (
+        '  - "temporary_wait": the involved robots hold in place until the way clears'
+    ),
+    "reverse": '  - "reverse": the involved robots back straight out along their own lanes',
+    "junction_clear": (
+        '  - "junction_clear": multi-robot junction recovery: some robots first back out, '
+        "one inside robot yields, then an ordered crossing"
+    ),
+}
+_PLAN_RULE_LINES: dict[str, str] = {
+    "yield": (
+        '- strategy "yield": exactly one "yield" leg, and the plan must agree with your own '
+        "yield_robot and crossing_order answers"
+    ),
+    "temporary_wait": '- strategy "temporary_wait": at least one "wait" leg',
+    "reroute": '- strategy "reroute": at least one "reroute" leg',
+    "junction_clear": '- strategy "junction_clear": at least one "reverse" or "yield" leg',
+}
+
+
+def _offered_tokens(offered: tuple[str, ...] | None) -> set[str]:
+    if offered is None:
+        return set(_STRATEGY_OPTION_LINES)
+    return {"none", *offered}
+
+
+def render_strategy_option_lines(offered: tuple[str, ...] | None) -> str:
+    """Render the v3 `"strategy": one of` list for the offered strategies.
+
+    Args:
+        offered: `ReasonerRequest.offered_strategies`; None offers every token.
+
+    Returns:
+        One line per offered token in enum order, "none" first; no trailing newline.
+    """
+    tokens = _offered_tokens(offered)
+    return "\n".join(line for token, line in _STRATEGY_OPTION_LINES.items() if token in tokens)
+
+
+def render_plan_grammar(offered: tuple[str, ...] | None) -> str:
+    """Render `_PLAN_GRAMMAR` with the consistency rules of the offered strategies only.
+
+    Args:
+        offered: `ReasonerRequest.offered_strategies`; None offers every token.
+
+    Returns:
+        The plan-grammar block; byte-identical to v3.4 when every token is offered.
+    """
+    tokens = _offered_tokens(offered)
+    rules = "\n".join(line for token, line in _PLAN_RULE_LINES.items() if token in tokens)
+    return _PLAN_GRAMMAR_TEMPLATE.format(plan_rule_lines=rules)
+
+
+# The v3.4 plan grammar with every strategy offered (the pinned text).
+_PLAN_GRAMMAR = render_plan_grammar(None)
 
 # Prompt-apparatus sentences (prereg-v2 rev 6 + round-3 deltas, 2026-10-04).
 # Each is an A/B condition, never a default, and renders only when the request
@@ -656,7 +715,8 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
         failure_context_block=failure_block,
         visual_crosscheck_block=crosscheck_block,
         plan_invitation=_PLAN_INVITATION,
-        plan_grammar=_PLAN_GRAMMAR,
+        plan_grammar=render_plan_grammar(request.offered_strategies),
+        strategy_option_lines=render_strategy_option_lines(request.offered_strategies),
         **(_GEOMETRY_ON if request.include_pairwise_geometry else _GEOMETRY_OFF),
         # Gated on the rendered lines, not on the flag: the ON clause asserts the
         # listed obstacles are the only ones present, which with an empty list
