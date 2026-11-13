@@ -127,7 +127,8 @@ and removed again by `restore_v4` (it is absent from the VM snapshot).
 ### Exit criteria
 
 The design note lists six criteria and says "The thresholds are proposals for
-the owner to set". `analyze_stage1.py` adds three proposals of its own.
+the owner to set". `analyze_stage1.py` adds two proposals of its own (marked
+"script proposal" below).
 
 | Criterion | Threshold | Observed | Status |
 |---|---|---|---|
@@ -143,9 +144,10 @@ the owner to set". `analyze_stage1.py` adds three proposals of its own.
 - The latency criterion measures the shadow's own duration. Its effect on the
   ordinary loop is not isolated: the shadow runs on a separate worker after
   dispatch. As a cross-check, no shadow overlapped the next analysis. Over the
-  43 consecutive analysis pairs, start plus ordinary latency plus shadow total
-  stayed at least 4.1 s before the next `start_analysis` (computed from the
-  trace `wall_t` and artifact timings for this report).
+  43 consecutive analysis pairs, the shadow's `per_cluster_shadow request=`
+  completion line in `m5.log` came at least 3.52 s before the next `starting
+  analysis` line (0 negative gaps; computed from the `m5.log` timestamps for
+  this report).
 
 ### Section 2: does a group-B-only event start an analysis?
 
@@ -223,9 +225,10 @@ read only). The request ids in `command_bus_node` `command received` lines
 are exactly the real-dispatch set (5/2/2/1/2), and none of the withheld ids
 appear.
 
-The tranche-1 confirmatory measures do not use this column, so this is a
-descriptive correction to that table only. The tranche-1 report itself is not
-edited here.
+This corrects that table's column and note. Whether any tranche-1 scored
+measure reads the same field (`dispatched_command` without checking
+`dispatch_withheld`) was not checked for this report. The tranche-1 report
+itself is not edited here.
 
 ### Numbers that differ from the session brief
 
@@ -243,7 +246,7 @@ edited here.
   resolve anything, or that the joint gate is sufficient. The 0/12 flags are
   on shadow choices that never moved a robot.
 - **Never exercised:** overlapping Gemini calls (no shadow overlapped the next
-  analysis), the backlog / `skipped` path (`max_backlog: 2`, 0 skips), shadow
+  analysis; minimum gap 3.52 s), the backlog / `skipped` path (`max_backlog: 2`, 0 skips), shadow
   timeouts, parse failures, and re-asks (all first attempts valid).
 - **Section 2** is open (above).
 - **Scene coverage:** 7 seeds of one 5-robot scene. 12 multi-group analyses

@@ -260,8 +260,10 @@ The full branch for remedies 1-2 is `feat/v4-refusal-feedback`, 4f0d77d..66c323f
 
 ## Limits
 
-- 12 episodes, one scene family, one model. 7 of the 12 episodes reuse pilot
-  seeds.
+- 12 episodes, one scene family, one model. 11 of the 12 episodes reuse seeds
+  that already ran as pilots: Stage 1 positions 21-26, and tranche-1
+  positions 1-5 (T1 line 195: "Every position 1-20 already ran as a pilot").
+  Only position 27 is new.
 - Decision-only and offline. Neither the counterfactuals nor the GT free-space
   model simulate the result of a manoeuvre.
 - `distinct_scenes.json` has no generating script in the directory. Its

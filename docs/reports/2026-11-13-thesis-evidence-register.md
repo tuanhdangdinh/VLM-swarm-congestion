@@ -41,13 +41,13 @@
 
 | Family | Best evidence | n | Model | Headline (source wording) | Grade | Caveats | Source |
 |---|---|---|---|---|---|---|---|
-| head_on_deadlock (symmetric) | live | 1 per model | gpt-4o (E0), ER-2 (G0) | one `yield`, COMPLETED, 2/2 arrivals | none stated | n = 1 per model; a single-robot stall can fire the gate | `ON` 138-150, 774, 1615-1630 |
+| head_on_deadlock (symmetric) | live | 1 per model | gpt-4o (E0), ER-2 (G0) | one `yield`, COMPLETED, 2/2 arrivals | none stated | n = 1 per model; a single-robot stall can fire the gate | `ON` 138-150, 774 |
 | head_on, asymmetric `_bshort` (prereg head-on scene) | live | gpt-4o N 6 + J 3; ER-2 K 6; plus VP 5 | gpt-4o, ER-2 | "Outcome 6/6 position-verified" (gpt-4o); "15/15 position-verified episodes across both models". VP: 4 resolved, 1 intermittent | pilot | The yield parks the pair at 0.23-0.28 m. Resolution depends on M3's `swap` gate re-grounding an infeasible yielder (5/6 gpt-4o). Presentation-order prior | `ON` 2161-2197, 2510-2530; `VP` 98-102 |
-| blocked_path (T3a) | live, decision-level probes | 1 per model per cell | ER-2, gpt-4o | ER-2 "answered anomaly/reroute/object: a full hit"; gpt-4o detected the blocker in 2 of 38 analyses | probe | The transient obstacle clears on despawn even with no command | `IN` 3709-3750; `R/2026-10-08-v3-step0-rebaseline.md` 22 |
-| obstacle_in_candidate (T3b) | live, decision-level | 2 kept trials | gpt-4o, ER-2 | both avoided the occupied candidate; the D2 yield "FAILED on the 242.8 s wall bound" | probe | The registered 15-trial collection was not found | `IN` 3753-3759, 3567 |
+| blocked_path (T3a) | live, decision-level probes | 1 per model per cell | ER-2, gpt-4o | ER-2 "answered anomaly/reroute/object: a full hit"; gpt-4o detected the blocker in 2 of 38 analyses | probe | The transient obstacle clears on despawn even with no command | `IN` 3730-3771; `R/2026-10-08-v3-step0-rebaseline.md` 22 |
+| obstacle_in_candidate (T3b) | live, decision-level | 2 kept trials | gpt-4o, ER-2 | both avoided the occupied candidate; the D2 yield "FAILED on the 242.8 s wall bound" | probe | The registered 15-trial collection was not found | `IN` 3774-3781 |
 | dynamic_anomaly_v2 (T3c) | live mechanical smoke + mock | 1 live, 3 mock | ER-2 (every call HTTP 429) | 2/2 arrivals, min pair 0.70 m, but "M2's answer on the anomaly scene was never observed" | smoke | Resolution follows the obstacle's removal, not a decision | `ON` 2800-2818 |
 | normal_flow (T0) | live | 1 run, 28 scenes | ER-2 | "False-positive tally: ER-2 0/28 distinct scenes"; zero dispatches | verification | Only 5 moving-phase scenes | `ON` 2697-2717 |
-| priority | mock only | 2 | scripted | "2/2 arrivals with zero contacts", loaded robot first | smoke | No live model episode. `priority_override` grounds as an aliased yield | `R/2026-10-03-loop-family-and-visual-pass.md` 247-251; `RM/2026-10-07-forcing-audit.md` 48 |
+| priority | mock only | 2 | scripted | "2/2 arrivals with zero contacts", loaded robot first | smoke | No live model episode. `priority_override` grounds as an aliased yield | `R/2026-10-03-loop-family-and-visual-pass.md` 247-251 (quote at 250); `RM/2026-10-07-forcing-audit.md` 48 |
 
 ---
 
@@ -55,8 +55,8 @@
 
 | Family | Best evidence | n | Model | Headline | Grade | Caveats | Source |
 |---|---|---|---|---|---|---|---|
-| bottleneck_merge (B1) | live | 2 | ER-2 | s42 and s43 both "clogged (0/3)" | pilot | **No resolved B1 episode anywhere**; the oracle mock also failed (0/3); yields FAILED after about 250 s | `VP` 103-104; `IN` 250-252, 369-373, 3305-3311 |
-| t2b_flow_ordering | mock, forced order | 6 runs | none (mock) | all three arrive; oracle order 319.1 / 311.1 s vs alternative 514.3 / 524.6 s, margin 0.6485 (lower bound) | smoke | No live model episode | `IN` 3666-3684 |
+| bottleneck_merge (B1) | live | 2 | ER-2 | s42 and s43 both "clogged (0/3)" | pilot | **No resolved B1 episode anywhere**; the oracle mock also failed (0/3); yields FAILED after about 250 s | `VP` 103-104; `IN` 267, 394, 3326 |
+| t2b_flow_ordering | mock, forced order | 6 runs | none (mock) | all three arrive; oracle order 319.1 / 311.1 s vs alternative 514.3 / 524.6 s, margin 0.6485 (lower bound) | smoke | No live model episode | `IN` 3663-3704 |
 
 ---
 
@@ -64,10 +64,10 @@
 
 | Family | Best evidence | n | Model | Headline | Grade | Caveats | Source |
 |---|---|---|---|---|---|---|---|
-| intersection_bottleneck (IB10) | (a) live; (b) mock, remedy + race fix | (a) VP: 2 ER-2 + 1 gpt-4o, and 1 ER-2 demo; (b) closure 5 runs | ER-2, gpt-4o; mock | (a) ER-2 s42 and s43 "resolved (4/4), rank (1, 4, 4)"; gpt-4o "clogged (0/4)", never chose `junction_clear` (0/13). (b) race fix "Yes, on 5 / 5 runs"; remedy "Yes, 5 / 5", 4/4 arrivals, no contact | (a) pilot; (b) mock | Every live ER-2 resolve was M3-repaired (2 and 4 edits) or `m3_default`. The remedy-off baseline contacted in 4/4. `id_asc` order confounds the axis question | `VP` 20-33, 105-107; `IN` 690-696; `R/2026-10-08-ib10-closure.md` 15-21; `R/2026-10-08-ib10-remedy-validation.md` 15-20 |
+| intersection_bottleneck (IB10) | (a) live; (b) mock, remedy + race fix | (a) VP: 2 ER-2 + 1 gpt-4o, and 1 ER-2 demo; (b) closure 5 runs | ER-2, gpt-4o; mock | (a) ER-2 s42 and s43 "resolved (4/4), rank (1, 4, 4)"; gpt-4o "clogged (0/4)", never chose `junction_clear` (0/13). (b) race fix "Yes, on 5 / 5 runs"; remedy "Yes, 5 / 5", 4/4 arrivals, no contact | (a) pilot; (b) mock | Every live ER-2 resolve was M3-repaired (2 and 4 edits) or `m3_default`. The remedy-off baseline contacted in 4/4. `id_asc` order confounds the axis question | `VP` 20-33, 105-107; `IN` 712; `R/2026-10-08-ib10-closure.md` 15-21; `R/2026-10-08-ib10-remedy-validation.md` 15-20 |
 | IB10 live resolution experiment (2026-11-13) | live, **in progress** | **1 counted episode of 10** (Arm A E01 a2); E01 a1 excluded | ER-2 | a2: resolved, 4/4 arrivals, rank (1, 4, 4), time to full resolution 116.5 s from onset, GT min pair 0.3109 m, 0 floor stops, one `junction_clear` dispatch, provenance `repaired` | exploratory (registered) | a1 excluded as `harness_fail:condition`, attributed by the operator to a kit condition-gate bug (not re-verified here). Its frozen outcome was also resolved, 116.9 s, `m3_default`. n = 1; Arm B not yet run | `vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/summary/` (`summary.json` md5 14444c0e3b39b4a7640dff223a16ca2e, `episodes.jsonl` md5 4ebacd3e9d6a490af248c9b428989a5d); registration `docs/superpowers/specs/2026-11-13-ib10-live-resolution-experiment.md` on `feat/ib10-live-resolution` 50704c2 |
 | IB10 live experiment, final | *placeholder: fill when the run ends* | *5 + 5 registered* | ER-2 | *to be filled* | exploratory | *to be filled* | *final report path* |
-| convoy_counterflow (B3) + `_slip` | mock (scripted oracle order) | demo 1 + harvest 2; L2-off 1 | scripted mock | Layer-2 off "`clogged`, 0/4" vs reference "`resolved`, 4/4" (harvest 4/4 ×2). "Scripted oracle decision only; no live B3 episode exists." `_slip`: GT scorer on a real log only | pilot (L2-off) / smoke | No model evidence | `L2` 153, 160; `R/2026-10-04-battery-v2-results.md` 328-329 |
+| convoy_counterflow (B3) + `_slip` | mock (scripted oracle order) | demo 1 + harvest 2; L2-off 1 | scripted mock | Layer-2 off "`clogged`, 0/4" vs reference "`resolved`, 4/4" (harvest 4/4 ×2). "Scripted oracle decision only; no live B3 episode exists." `_slip`: GT scorer on a real log only | pilot (L2-off) / smoke | No model evidence | `L2` 153, 160 |
 | s6_dual_conflict | live pilot + 1 mock | 1 live, 1 mock | ER-2 | both jams formed "in 2 of 2 runs". The live decision named only pair B; both-pairs check FAIL | "PILOT / demo episode", excluded from every confirmatory count | Execution unscored by design | `R/2026-10-08-s6-first-light.md` 17-25 |
 
 ---
@@ -116,11 +116,11 @@
 |---|---|---|
 | yield | Yes. 2-robot head-on (gpt-4o 6/6, ER-2 K batch). 5-robot S1b productive yields (T1 E28 `3c234140`, E31 `60afd0c1`; Stage 1 9/9 yields `completed`). Not in B1 (yields FAILED) | `ON` 2172-2181, 2519; `T1` 386; bottleneck report, Outcomes |
 | reverse | Only inside IB10 `junction_clear` phases. Alone it "cannot resolve a two-robot head-on" in Isaac. Hardware reverses completed, but without goals. S1b live: 2 of 4 reverses `failed` | `R/2026-09-18-head-on-family-validity.md` 994, 1135; `VP` 105-106; bottleneck report |
-| junction_clear | Yes, IB10 only (ER-2 4/4 ×2 plus demo; the 2026-11-13 live E01 a2). Every case repaired or `m3_default`. It never grounds on S1b (static gate, 0/3430 poses) | `VP` 26, 105-106; `IN` 690-696; bottleneck report |
+| junction_clear | Yes, IB10 only (ER-2 4/4 ×2 plus demo; the 2026-11-13 live E01 a2). Every case repaired or `m3_default`. It never grounds on S1b (static gate, 0/3430 poses) | `VP` 26, 105-106; `IN` 712; bottleneck report |
 | reroute | Single robot only ("ER-2 reroute s42 … resolved (1/1)") | `VP` 108 |
-| priority_override | **None.** It degrades to a wait or is aliased to a yield | `IN` 3749-3750; `RM/2026-10-07-forcing-audit.md` 48 |
+| priority_override | **None.** It degrades to a wait or is aliased to a yield | `IN` 3771; `RM/2026-10-07-forcing-audit.md` 48 |
 | convoy | **None live.** Scripted mock only | `L2` 153, 160 |
-| temporary_wait | No resolving evidence | `VP` B1 rows; `IN` 3750 |
+| temporary_wait | No resolving evidence | `VP` B1 rows; `IN` 3771 |
 
 ---
 
@@ -138,10 +138,13 @@
   - IB10 plans needed `substitute` or `reorder` edits, or `m3_default`
     (`VP` 20-26);
   - tranche-1 provenance was mostly `repaired` / `m3_default` (`T1` 390).
-- Layer 2 is safe within the measured envelope: no GT contact below 0.18 m and
-  0 floor stops in tranche 1, Stage 1 and IB10 E01. This holds with the 0.20 m
-  floor armed, and see the open exemption-scope findings
-  (`R/2026-11-13-safety-exemption-trace.md`).
+- In three cells, with the 0.20 m floor armed, no GT pair came below 0.18 m
+  and no floor stop fired: tranche 1 (10 episodes), Stage 1 (7) and IB10 live
+  E01 (2 attempts). This is not a general safety claim. Earlier cells recorded
+  GT contacts: the head-on K1 driven nose-to-nose contact (`ON` 17), and IB10
+  with the remedy off (contacts in 4/4 baseline runs,
+  `R/2026-10-08-ib10-remedy-validation.md` 15-20). The exemption-scope
+  findings are open (`R/2026-11-13-safety-exemption-trace.md`).
 - On S1b the bottleneck is M3 grounding, not detection. Detection recall was
   0.818 in tranche 1 (`T1` 231). 47/78 analyses were withheld by
   deterministic M3 refusals.
@@ -177,8 +180,9 @@
    0.904 (replay 152).
 5. **Tranche-1 cost:** $0.2127 (cost logs) vs $0.2128 (`aggregate_b6`),
    acknowledged as rounding (`T1` 314, 391).
-6. **ER-2 E1-E6 head-on:** 3/6 by Nav2 vs 2/6 position-verified (`ON` 1490,
-   1620).
+6. **ER-2 E1-E6 head-on:** 3/6 by log vs 2/6 position-verified (`ON` 1461,
+   1490, 1618). The document reconciles them itself; cite the
+   position-verified 2/6.
 7. **ER-2 opening reverse:** 3/3 (`ON` 823) vs 5/6 live (`ON` 991).
 8. **IB10 scripted composite:** 4/4 on the fix branch vs 1/4 on the merged
    tree (`R/2026-10-08-v3-step0-rebaseline.md` 23).
@@ -192,7 +196,9 @@
     fdf333d the function is at 1909-1980.
 
 Items 2-10 were collected by reading the cited lines. They were not
-re-derived from raw data.
+re-derived from raw data. `IN` line numbers refer to
+`docs/implementation_notes.md` as of this register's commit; later entries
+shift them, so cite notes entries by date and title.
 
 ---
 
