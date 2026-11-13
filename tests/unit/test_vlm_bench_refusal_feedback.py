@@ -188,3 +188,14 @@ def test_replay_sends_offered_strategies_without_junction_clear(tmp_path):
     assert backend.payloads and "junction_clear" not in backend.payloads[0].user_prompt
     sent = hashlib.sha256(backend.payloads[0].user_prompt.encode()).hexdigest()
     assert row["prompt_sha256"] == sent
+
+
+def test_plan_quality_input_keeps_hidden_plan_failed_legs():
+    # Bench plan quality (`run.plan_artifacts`) reads `live.plan_state`: a
+    # plan the prompt left out must still carry its failed legs there.
+    from benchmarks.vlm_bench.items import _live
+
+    state = {"plan_id": 1, "changed_robot_ids": [],
+             "legs": [{"robot_id": "robot_1", "action": "reverse", "status": "failed"}]}
+    live = _live({"plan_state_hidden": {"reason": "failed", "plan_state": state}})
+    assert live.plan_state == state

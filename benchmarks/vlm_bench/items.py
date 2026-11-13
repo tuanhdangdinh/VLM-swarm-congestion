@@ -258,7 +258,13 @@ def _live(artifact: dict[str, Any]) -> LiveOutcome:
         dispatched_kinds=tuple(a.get("action") for a in (command or {}).get("actions") or []),
         stage2_status=stage2.get("status"),
         plan=artifact.get("plan"),
-        plan_state=artifact.get("plan_state"),
+        # Read only by plan quality (`run.plan_artifacts`): a plan block the
+        # prompt left out (v4 refusal feedback) still holds the failed legs a
+        # revision answers. The prompt rebuild reads `PromptRecord.plan_state`.
+        plan_state=(
+            artifact.get("plan_state")
+            or (artifact.get("plan_state_hidden") or {}).get("plan_state")
+        ),
     )
 
 
