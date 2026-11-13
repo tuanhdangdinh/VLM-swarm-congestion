@@ -412,3 +412,109 @@ def test_key_on_cross_cluster_pair_latches_in_evaluate_latches():
     evaluation = evaluate_latches(robots, limits, exempt=tracker.exemption())
 
     assert evaluation.latched == {"robot_1", "robot_2"}
+
+
+# Manoeuvres that depend on own-command scope must keep it with the key on
+
+
+def _convoy_sequence(tracker: CoordinationTracker) -> list:
+    # convoy_counterflow_slip: robot_2 yields, robot_1/robot_3/robot_4 pass
+    # one by one; robot_3 and robot_4 are ~2 m away at dispatch.
+    snapshots = []
+    order = {"passer_robot_id": "robot_1", "crossing_order": ["robot_1", "robot_3", "robot_4"]}
+    tracker.record_command("c-convoy", "robot_2", "yield", order)
+    tracker.record_status("c-convoy", "robot_2", "ACTIVE", BACKUP_STARTED_DETAIL)
+    for position, passer in enumerate(("robot_1", "robot_3", "robot_4")):
+        _wait(tracker, "c-convoy", passer, {"linked_position": position})
+    snapshots.append(tracker.exemption().pairs)
+    tracker.record_status("c-convoy", "robot_2", "ACTIVE", "holding for passing robot")
+    snapshots.append(tracker.exemption().pairs)
+    for passer in ("robot_1", "robot_3", "robot_4"):
+        tracker.record_status("c-convoy", passer, "COMPLETED", "released: passer cleared")
+        snapshots.append(tracker.exemption().pairs)
+    return snapshots
+
+
+def test_convoy_passers_exempt_against_yielder_when_admitted_with_key_on():
+    on = _convoy_sequence(CoordinationTracker(scoped_exemption=True))
+
+    assert on[1] == {("robot_1", "robot_2")}
+    assert ("robot_2", "robot_3") in on[2]
+    assert ("robot_2", "robot_4") in on[3]
+
+
+def test_convoy_sequence_identical_with_key_on_and_off():
+    assert _convoy_sequence(CoordinationTracker(scoped_exemption=True)) == _convoy_sequence(
+        CoordinationTracker(scoped_exemption=False)
+    )
+
+
+def test_junction_crossing_yielder_exempt_against_all_three_with_key_on():
+    tracker = CoordinationTracker(scoped_exemption=True)
+    tracker.record_command(
+        "c-junction-cross",
+        "robot_1",
+        "yield",
+        {"passer_robot_id": "robot_2", "crossing_order": ["robot_2"]},
+    )
+    tracker.record_status("c-junction-cross", "robot_1", "ACTIVE", BACKUP_STARTED_DETAIL)
+    for robot_id in ("robot_2", "robot_4", "robot_3"):
+        _wait(tracker, "c-junction-cross", robot_id)
+
+    assert tracker.exemption().pairs == {
+        ("robot_1", "robot_2"),
+        ("robot_1", "robot_3"),
+        ("robot_1", "robot_4"),
+    }
+
+
+def test_s6_four_robot_reverse_keeps_own_command_scope_with_key_on():
+    # s6_dual_conflict: one reverse naming all four robots exempts pairs
+    # across both head-on conflicts (P5, deliberately unchanged).
+    tracker = CoordinationTracker(scoped_exemption=True)
+    for robot_id in ("robot_1", "robot_2", "robot_3", "robot_4"):
+        _reverse(tracker, "c-s6-reverse", robot_id)
+
+    assert len(tracker.exemption().pairs) == 6
+
+
+def _node_logs(key_on: bool) -> list[str]:
+    import json as _json
+    from types import SimpleNamespace
+
+    from swarm_execution.safety_monitor_node import SafetyMonitorNode
+
+    node = SafetyMonitorNode.__new__(SafetyMonitorNode)
+    node._limits = SafetyLimits(
+        min_distance_m=0.45, max_linear_velocity_mps=0.2, scoped_clearing_exemption=key_on
+    )
+    node._coordination = CoordinationTracker(scoped_exemption=key_on)
+    logs: list[str] = []
+    logger = SimpleNamespace(info=logs.append, warning=logs.append)
+    node.get_logger = lambda: logger
+    node._on_coord_command(
+        SimpleNamespace(
+            command_id="c-rev",
+            robot_id="robot_1",
+            action="reverse",
+            parameters_json=_json.dumps({"plan_continue_partners": ["robot_2"]}),
+        )
+    )
+    node._on_coord_status(SimpleNamespace(command_id="c-rev", robot_id="robot_1", status="ACTIVE"))
+    node._on_coord_status(
+        SimpleNamespace(
+            command_id="c-rev", robot_id="robot_3", status="FAILED", detail="robot busy: c-old"
+        )
+    )
+    return logs
+
+
+def test_node_key_off_emits_no_new_log_lines():
+    assert not any("not honoured" in m or "rejected leg" in m for m in _node_logs(False))
+
+
+def test_node_key_on_logs_unhonoured_partners_and_rejected_leg():
+    logs = _node_logs(True)
+
+    assert any("plan continue partners not honoured" in m and "robot_2" in m for m in logs)
+    assert any("rejected leg not a member robot=robot_3" in m for m in logs)
