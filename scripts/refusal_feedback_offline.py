@@ -145,6 +145,11 @@ def _hiding_summary(
             for r in hidden if r["plan_hidden_reason"] == "failed"
         ),
         "hidden_failed": sum(r["plan_hidden_reason"] == "failed" for r in hidden),
+        # Left with no plan, attempt or refusal block at all.
+        "hidden_with_no_context_block": sum(
+            not (r["previous_attempt_block"] or r["earlier_failed_block"] or r["n_refused"])
+            for r in hidden
+        ),
         "refusal_block_unchanged_all": all(r["refusal_block_unchanged"] for r in rows),
         "prompts_with_refusal_block": sum(r["n_refused"] > 0 for r in rows),
         "chars_delta_hiding": _stats([d for d, r in zip(d_hide, rows, strict=True) if d]),

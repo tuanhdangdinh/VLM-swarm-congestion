@@ -335,3 +335,29 @@ def test_feedback_on_hiding_keeps_dispatch_tracker_and_triggers(
                                            script, **keys, **extra)
         views[name] = _dispatch_view(node, arts, directives)
     assert views["on"] == views["off"]
+
+
+def _request_while_in_flight(node_env, tmp_path, monkeypatch):  # noqa: F811
+    # The operator trigger is refused while robots are busy, so the next
+    # request is built directly, with the dispatched command still open.
+    from tests.unit.test_m5_node_per_cluster_shadow import WAIT_SEC
+
+    node, arts, _ = _scripted(node_env, tmp_path, monkeypatch, ["reverse"] * 2, "d", **FEEDBACK)
+    node._submit_pipeline("probe", node._latest_snapshot, ["robot_1", "robot_2"], {})
+    node._future.result(timeout=WAIT_SEC)
+    return node, arts
+
+
+def test_feedback_on_request_in_flight_shows_plan_block(node_env, tmp_path, monkeypatch):  # noqa: F811
+    from reasoning.vlm.prompt_builder import build_prompt_payload
+
+    node, arts = _request_while_in_flight(node_env, tmp_path, monkeypatch)
+    request = node._pending_request
+    assert request.plan_state is not None
+    assert request.plan_state.plan_id == arts[0]["plan"]["plan_id"]
+    assert "Hold this plan" in build_prompt_payload(request).user_prompt
+
+
+def test_feedback_on_request_in_flight_records_nothing_hidden(node_env, tmp_path, monkeypatch):  # noqa: F811
+    node, _ = _request_while_in_flight(node_env, tmp_path, monkeypatch)
+    assert node._pending_plan_state_hidden is None
