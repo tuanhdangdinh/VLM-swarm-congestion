@@ -1428,8 +1428,9 @@ def groundable_strategies(
     (`ReasonerRequest.offered_strategies`), shared with the grounder through
     `junction_clear_declared`. Only `junction_clear` depends on the scene: its
     composite is derived-mode only and needs declared recede geometry. Every
-    other strategy is kept, including those M3 grounds as a wait fan-out
-    (`convoy`, `priority_override`).
+    other strategy is kept, including `convoy` and `priority_override`, which
+    ground as an aliased yield only when `resolve_strategy_alias` finds a
+    unique mapping in the scene, and as a bounded wait otherwise.
 
     Args:
         geometry: The declared scene geometry M3 grounds with.
