@@ -248,6 +248,11 @@ class PlanTracker:
         # stability) is meant to count only genuinely different accepted
         # plans, which is exactly the plans that DO get a new `plan_id`.
         self._plan_holds = 0
+        # v4 refusal feedback (`retract`): which plan each accepted plan
+        # superseded (None for the session's first), and the plans retracted.
+        # Recorded on every accept; read only by `retract`/`is_retracted`.
+        self._predecessor: dict[int, int | None] = {}
+        self._retracted: set[int] = set()
         # Not reentrant: no method below calls another public method of this
         # class while holding it (module docstring explains why one is needed
         # at all).
@@ -312,6 +317,7 @@ class PlanTracker:
             )
             self._plans[plan_id] = new_plan
             previous = self._active
+            self._predecessor[plan_id] = None if previous is None else previous.plan_id
             self._active = new_plan
             if previous is None:
                 return PlanAcceptance(plan=new_plan)
@@ -323,6 +329,38 @@ class PlanTracker:
                     cancel_order=tuple(_cancel_order(previous, new_plan)),
                 ),
             )
+
+    def retract(self, plan_id: int) -> bool:
+        """Undo the acceptance of a plan M5 never dispatched (v4 refusal feedback).
+
+        `accept_plan` runs in the pipeline worker, before M5 decides whether
+        the outcome is dispatched; a withheld (or otherwise undispatched)
+        outcome's plan would otherwise stay active and be shown to M2 as the
+        accepted plan. Retracting it makes the plan it superseded active
+        again, with that plan's current leg statuses (None when it was the
+        first). The retracted plan keeps its `plan_id` (ids stay monotonic,
+        artifacts keep naming it) and stays in `plan()` lookups.
+
+        Args:
+            plan_id: The plan accepted for the undispatched outcome.
+
+        Returns:
+            True when `plan_id` was the active plan and is now retracted;
+            False otherwise (a hold, or a plan already superseded), which
+            changes nothing.
+        """
+        with self._lock:
+            if self._active is None or self._active.plan_id != plan_id:
+                return False
+            previous = self._predecessor.get(plan_id)
+            self._active = None if previous is None else self._plans[previous]
+            self._retracted.add(plan_id)
+            return True
+
+    def is_retracted(self, plan_id: int) -> bool:
+        """Whether `retract` retracted this plan."""
+        with self._lock:
+            return plan_id in self._retracted
 
     def set_leg_status(self, plan_id: int, robot_id: str, status: PlanLegStatus) -> TrackedLeg:
         """Update one leg's execution status, enforcing the state machine.

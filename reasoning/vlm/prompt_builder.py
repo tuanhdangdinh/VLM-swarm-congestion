@@ -8,6 +8,7 @@ from reasoning.vlm.models import (
     PlanStateLeg,
     PromptPayload,
     ReasonerRequest,
+    RefusedProposal,
     RobotCandidateOptions,
     RobotOrder,
     RobotStateInput,
@@ -471,6 +472,47 @@ def render_failure_context_block(context: FailureContext) -> str:
     )
 
 
+# v4 refusal feedback (Change 2). Generic on purpose, like
+# `_LAST_FAILED_CONTEXT_ADVICE`: it says only that a withheld proposal did not
+# run, never which strategy or robot to pick instead.
+_REFUSED_PROPOSALS_HEADER = (
+    "Proposals the system withheld for these robots (not executed; no robot "
+    "was commanded):"
+)
+_REFUSED_PROPOSALS_ADVICE = (
+    "If the congestion persists, do not propose a withheld option again unless "
+    "the scene has changed."
+)
+
+
+def _render_refused_proposal(proposal: RefusedProposal) -> str:
+    repeats = "" if proposal.times == 1 else f" (proposed {proposal.times} times)"
+    return (
+        f"- strategy={proposal.strategy}, involved={', '.join(proposal.involved_robots)}, "
+        f"yield_robot={proposal.yield_robot or 'none'}: not executed{repeats} "
+        f"because {proposal.reason}"
+    )
+
+
+def render_refused_proposals_block(proposals: list[RefusedProposal]) -> str:
+    """Render the withheld-proposals block (v4 refusal feedback, prompt v3 only).
+
+    Args:
+        proposals: M5's remembered withheld decisions for an overlapping robot
+            set, oldest first.
+
+    Returns:
+        A multi-line block with no leading or trailing newline.
+    """
+    return "\n".join(
+        [
+            _REFUSED_PROPOSALS_HEADER,
+            *(_render_refused_proposal(proposal) for proposal in proposals),
+            _REFUSED_PROPOSALS_ADVICE,
+        ]
+    )
+
+
 def render_last_failed_context_block(context: FailureContext) -> str:
     """Render the earlier-failed-attempt block that follows the previous-attempt block.
 
@@ -692,6 +734,12 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
     # specific last.
     if request.plan_state is not None:
         failure_block += "\n" + render_plan_state_block(request.plan_state) + "\n"
+    # Withheld proposals (v4 refusal feedback) last: they postdate the plan
+    # and the attempts above, and say what did NOT run since then.
+    if request.refused_proposals:
+        failure_block += (
+            "\n" + render_refused_proposals_block(request.refused_proposals) + "\n"
+        )
     crosscheck_block = (
         "\n" + render_visual_crosscheck_block(request.include_pairwise_geometry) + "\n"
         if request.include_visual_crosscheck

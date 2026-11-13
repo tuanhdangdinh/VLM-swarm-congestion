@@ -47,6 +47,7 @@ from reasoning.vlm.models import (
     LlamaServerBackendConfig,
     ReasonerConfig,
     ReasonerRequest,
+    RefusedProposal,
     RobotOrder,
 )
 from reasoning.vlm.reasoner import Reasoner
@@ -58,6 +59,7 @@ from swarm_orchestrator.command_lifecycle import (
     CommandState,
     CommandTracker,
     CooldownTracker,
+    WithheldMemory,
     summarize_executed_strategy,
     summarize_outcome,
 )
@@ -127,6 +129,7 @@ from swarm_orchestrator.reasoning_pipeline import (
     load_grounding_source,
     raw_frame_dump_path,
     raw_frame_skew_sec,
+    refusal_feedback_reason,
     registry_dispatch,
     strategy_offered,
     summarize_yield_grounding,
@@ -519,6 +522,14 @@ class OrchestratorNode(Node):
             else None
         )
         self._unoffered_strategy_decisions = 0
+        # v4 refusal feedback Change 2: None unless `refusal_feedback.enabled`,
+        # so an off node records, retracts and renders nothing new.
+        feedback = self._config.refusal_feedback
+        self._withheld: WithheldMemory | None = (
+            WithheldMemory(feedback.window_sec, feedback.max_entries)
+            if feedback.enabled
+            else None
+        )
         self._registry = TaskRegistry()
         started_at = time.monotonic()
         # v3 S1 task stream: None unless `task_stream.enabled`, so a
@@ -1231,6 +1242,12 @@ class OrchestratorNode(Node):
                 f"yield_robot={failed.yield_robot} executed={failed.executed_strategy} "
                 f"outcome={failed.outcome_status}"
             )
+        refused = None if self._withheld is None else self._withheld.proposals_for(robots, now)
+        if refused:
+            self.get_logger().info(
+                f"request={request_id} refused_proposals attached count={len(refused)} "
+                f"strategies={[proposal.strategy for proposal in refused]}"
+            )
         episode_index, order = self._episodes.order_for(
             robots, [view.robot_id for view in snapshot.robots]
         )
@@ -1267,6 +1284,7 @@ class OrchestratorNode(Node):
             prompt_version=3 if self._config.plan_channel_enabled else CURRENT_PROMPT_VERSION,
             plan_state=plan_state,
             offered_strategies=self._offered_strategies,
+            refused_proposals=refused or None,
             **apparatus,
         )
         self._pending_prompt_conditions = self._prompt_conditions(
@@ -1400,6 +1418,13 @@ class OrchestratorNode(Node):
             churn_entry = self._churn_check(outcome, dispatch, snapshot)
             if churn_entry is not None and churn_entry[0] is not None:
                 dispatch_withheld = churn_entry[0]
+        retracted_plan_id: int | None = None
+        if self._withheld is not None and dispatch_withheld is not None:
+            # A withheld outcome is never dispatched, so its plan is retracted
+            # before the artifact is written and the artifact can say so.
+            retracted_plan_id = self._retract_undispatched_plan(outcome)
+            if retracted_plan_id is not None:
+                dispatch_withheld = {**dispatch_withheld, "plan_retracted": retracted_plan_id}
         try:
             artifact_path = write_decision_artifact(
                 self._config.decision_log_dir,
@@ -1476,6 +1501,11 @@ class OrchestratorNode(Node):
         )
         withhold = would_dispatch and dispatch_withheld is not None
         dispatched = would_dispatch and self._config.dispatch_enabled and not withhold
+        if self._withheld is not None:
+            self._note_refusal_feedback(
+                outcome, dispatch, dispatch_withheld if withhold else None, dispatched,
+                retracted_plan_id, now,
+            )
         # prereg-v3 A22: the echo mock rotates its named pair on a refusal
         # (an injected test pipeline may lack the hook).
         note_outcome = getattr(self._pipeline, "note_dispatch_outcome", None)
@@ -2468,6 +2498,72 @@ class OrchestratorNode(Node):
                 None if contradiction is None else contradiction.model_dump(mode="json")
             ),
         }
+
+    # ---- v4 refusal feedback ----
+
+    def _retract_undispatched_plan(self, outcome: PipelineOutcome) -> int | None:
+        """Retract the plan the pipeline accepted for an outcome M5 does not dispatch.
+
+        Returns:
+            The retracted plan id, or None when nothing was retracted (no plan
+            channel, no plan, or a hold, which re-affirmed the active plan).
+        """
+        plan = outcome.plan
+        if self._plan_tracker is None or plan is None or plan.plan_held:
+            return None
+        if not self._plan_tracker.retract(plan.plan_id):
+            return None
+        active = self._plan_tracker.active_plan
+        self.get_logger().info(
+            f"plan retracted request={outcome.request_id} plan={plan.plan_id} "
+            f"restored={None if active is None else active.plan_id} (not dispatched)"
+        )
+        return plan.plan_id
+
+    def _note_refusal_feedback(
+        self,
+        outcome: PipelineOutcome,
+        dispatch: RegistryDispatch | None,
+        withheld: dict[str, Any] | None,
+        dispatched: bool,
+        retracted_plan_id: int | None,
+        now: float,
+    ) -> None:
+        """Record a withheld decision, or forget refusals a dispatch acted on.
+
+        Only called with `refusal_feedback.enabled`. Any outcome not
+        dispatched has its plan retracted (a withheld one already was, before
+        its artifact was written), so the plan-state block never shows a plan
+        M5 did not send.
+        """
+        assert self._withheld is not None
+        if not dispatched and retracted_plan_id is None:
+            self._retract_undispatched_plan(outcome)
+        if dispatched and dispatch is not None:
+            dropped = self._withheld.forget_overlapping(dispatch.robot_ids)
+            if dropped:
+                self.get_logger().info(
+                    f"refused_proposals forgotten request={outcome.request_id} "
+                    f"count={dropped} dispatched={list(dispatch.robot_ids)}"
+                )
+            return
+        decision = outcome.reasoner_result.decision
+        if withheld is None or decision is None or not decision.involved_robots:
+            return
+        proposal = RefusedProposal(
+            strategy=decision.strategy,
+            involved_robots=tuple(decision.involved_robots),
+            yield_robot=decision.yield_robot,
+            reason=refusal_feedback_reason(
+                withheld, (outcome.grounded_command or {}).get("degradations", [])
+            ),
+        )
+        robots = set(decision.involved_robots) | set(withheld.get("would_dispatch_robot_ids", []))
+        self._withheld.record(proposal, robots, now)
+        self.get_logger().info(
+            f"refused_proposal recorded request={outcome.request_id} "
+            f"strategy={proposal.strategy} robots={sorted(robots)} reason={proposal.reason!r}"
+        )
 
     # ---- S1 refusal-as-no-action ----
 

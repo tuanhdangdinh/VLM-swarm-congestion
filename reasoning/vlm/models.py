@@ -204,6 +204,25 @@ class RobotCandidateOptions(BaseModel):
     options: list[CandidateOption]
 
 
+class RefusedProposal(BaseModel):
+    """One earlier decision M5 withheld, as the next v3 prompt states it.
+
+    v4 refusal feedback (M5 `refusal_feedback`): a decision M3 refused or M5
+    withheld never reaches `FailureContext`, which only describes dispatched
+    attempts. `reason` is M5's plain-words reading of the recorded refusal
+    reason (`reasoning_pipeline.refusal_feedback_reason`), never the raw M3
+    string, which can name a strategy. `times` counts identical proposals folded into this one.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    strategy: str = Field(min_length=1)
+    involved_robots: tuple[str, ...] = Field(min_length=1)
+    yield_robot: str | None = None
+    reason: str = Field(min_length=1)
+    times: int = Field(default=1, ge=1)
+
+
 class ReasonerRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -274,6 +293,10 @@ class ReasonerRequest(BaseModel):
     # offered a strategy M3 cannot ground as itself. None offers every
     # strategy and renders byte-identically to every earlier request.
     offered_strategies: tuple[str, ...] | None = None
+    # Decisions M5 withheld for an overlapping robot set (v4 refusal-feedback
+    # Change 2, M5 `refusal_feedback`), oldest first; rendered by the v3
+    # template only. None renders byte-identically to every earlier request.
+    refused_proposals: list[RefusedProposal] | None = None
 
     @field_validator("offered_strategies")
     @classmethod

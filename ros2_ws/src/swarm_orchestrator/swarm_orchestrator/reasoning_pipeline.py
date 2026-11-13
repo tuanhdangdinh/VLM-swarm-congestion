@@ -58,6 +58,7 @@ from reasoning.vlm.models import (
     ReasonerDiagnostics,
     ReasonerRequest,
     ReasonerResult,
+    RefusedProposal,
     RetreatChoiceDecision,
     RobotCandidateOptions,
     RobotOrder,
@@ -282,6 +283,7 @@ def build_reasoner_request(
     zoom_tile_path: str | None = None,
     candidate_options: list[RobotCandidateOptions] | None = None,
     offered_strategies: tuple[str, ...] | None = None,
+    refused_proposals: list[RefusedProposal] | None = None,
 ) -> ReasonerRequest:
     """Project a SceneSnapshot plus a dumped image path into a ReasonerRequest.
 
@@ -314,6 +316,8 @@ def build_reasoner_request(
         candidate_options: Verifier-candidate-options block contents.
         offered_strategies: Strategies the v3 prompt offers besides "none"
             (`prompt_offer_groundable_strategies`); None offers every one.
+        refused_proposals: Withheld decisions for an overlapping robot set
+            (`refusal_feedback`); None renders no block.
 
     The four apparatus arguments (prereg-v2 rev 6) default to off, which
     renders byte-identically to every request built before they existed.
@@ -353,6 +357,7 @@ def build_reasoner_request(
         zoom_tile_path=zoom_tile_path,
         candidate_options=candidate_options,
         offered_strategies=offered_strategies,
+        refused_proposals=refused_proposals,
     )
 
 
@@ -684,6 +689,72 @@ def explain_attempt(record: AttemptRecord) -> str | None:
     if not states:
         return None
     return _bounded("Cause: no leg failed; every commanded robot reported completion.")
+
+
+# v4 refusal feedback (Change 2): the refusal classes of the S1b grounding
+# bottleneck analysis that `_REFUSAL_PHRASES` does not name. Consulted BEFORE
+# `_REFUSAL_PHRASES`, and only by `refusal_feedback_reason` (`explain_attempt`
+# is unchanged): a no-shared-lane refusal ends "no retreat room was measured",
+# which `_REFUSAL_PHRASES`' "retreat room" needle would misread as a room
+# shortfall. Like `_REFUSAL_PHRASES`, never naming a maneuver.
+_FEEDBACK_REFUSAL_PHRASES: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("ambiguous lane",), "a robot's heading was not aligned with either aisle axis"),
+    (("no shared lane",), "the robots were not in one shared lane"),
+    (
+        ("no executable retreat",),
+        "no retreat position passed the clearance checks at the robots' positions",
+    ),
+    (("no declared junction",), "the robots' lanes cross where the scene declares no junction"),
+    (("escort_hits_park",), "the passing robot's route came too close to the retreat position"),
+)
+_JUNCTION_FALLBACK_TAG = "junction_clear=fallback:no_candidates"
+_JUNCTION_UNSOLVED_TAG = "junction_geometry=shipped_unsolved:"
+
+
+def _feedback_phrase(reason: str | None) -> str:
+    if reason is None:
+        return _REFUSAL_FALLBACK_PHRASE
+    for needles, phrase in (*_FEEDBACK_REFUSAL_PHRASES, *_REFUSAL_PHRASES):
+        if any(needle in reason for needle in needles):
+            return phrase
+    return _REFUSAL_FALLBACK_PHRASE
+
+
+def refusal_feedback_reason(withheld: Mapping[str, Any], degradations: Sequence[str]) -> str:
+    """State in plain words why M5 withheld a decision, from what it recorded.
+
+    Reads only the artifact's `dispatch_withheld` block and the grounded
+    command's degradation tags, mapped by class onto fixed phrases (the
+    failure-explanation table first, then `_FEEDBACK_REFUSAL_PHRASES`); M3's
+    raw strings are never echoed, since some name a strategy. A
+    `junction_clear` decision M3 grounded through its single-robot fallback
+    (`junction_clear=fallback:no_candidates`) says so, because its recorded
+    refusal is the fallback's, not the composite's.
+
+    Args:
+        withheld: The `dispatch_withheld` block (`reason` plus
+            `refusal_reason` or `fallback_reason`).
+        degradations: The grounded command's `degradations`.
+
+    Returns:
+        A clause that completes "not executed because ...".
+    """
+    kind = withheld.get("reason")
+    if isinstance(kind, str) and kind.startswith("churn_"):
+        return "the limit on repeated commands for these robots was reached"
+    detail = withheld.get("refusal_reason") or withheld.get("fallback_reason")
+    phrase = _feedback_phrase(detail if isinstance(detail, str) else None)
+    if _JUNCTION_FALLBACK_TAG in degradations:
+        if any(tag.startswith(_JUNCTION_UNSOLVED_TAG) for tag in degradations):
+            return (
+                "this scene declares no junction recovery geometry, and the fallback "
+                f"check found that {phrase}"
+            )
+        return (
+            "no involved robot could back out of the junction, and the fallback check "
+            f"found that {phrase}"
+        )
+    return phrase
 
 
 def build_failure_context(
@@ -1254,6 +1325,12 @@ def write_decision_artifact(
         offered = strategy_offered(outcome.reasoner_result.decision, request)
         if offered is not None:
             payload["decision_strategy_offered"] = offered
+    # v4 refusal feedback Change 2: added only when the prompt stated withheld
+    # proposals, so a flag-off artifact's bytes are unchanged; replay needs it.
+    if request is not None and request.refused_proposals is not None:
+        payload["refused_proposals"] = [
+            proposal.model_dump(mode="json") for proposal in request.refused_proposals
+        ]
     if trigger_source is not None:
         payload["trigger_source"] = trigger_source
     if trigger_contradiction is not None:

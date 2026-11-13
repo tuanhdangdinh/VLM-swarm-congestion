@@ -1,9 +1,12 @@
 """Command lifecycle and cooldown tracking for M5 (no rclpy)."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import NamedTuple
+
+from reasoning.vlm.models import RefusedProposal
 
 _TERMINAL = frozenset({"COMPLETED", "FAILED", "TIMED_OUT"})
 _STATUS_MAP = {
@@ -343,3 +346,95 @@ class AttemptMemory:
         if _is_failure(record) or failed is None or not set(robot_ids) & set(failed.robot_ids):
             return AttemptContexts(record, None)
         return AttemptContexts(record, failed)
+
+
+# Stored withheld proposals per shown entry: expiry bounds the memory in time,
+# this bounds it in size when many disjoint robot sets are refused at once.
+_WITHHELD_STORE_FACTOR = 4
+
+
+@dataclass
+class _WithheldEntry:
+    proposal: RefusedProposal
+    robot_ids: frozenset[str]
+    recorded_at: float
+
+
+class WithheldMemory:
+    """Decisions M5 withheld, for the next prompt about an overlapping robot set.
+
+    v4 refusal feedback (Change 2). `AttemptMemory` remembers only dispatched
+    attempts, so a withheld decision (`dispatch_withheld`) left no trace in
+    the next prompt. This keeps the most recent ones: identical proposals
+    (strategy, involved robots, yielder, reason) fold into one entry whose
+    `times` counts them and whose expiry restarts; an entry expires
+    `window_sec` after its latest repeat, or at once when M5 dispatches to an
+    overlapping robot set (the scene the refusal was about has been acted on).
+    A query for a disjoint set neither shows nor drops an entry.
+    """
+
+    def __init__(self, window_sec: float, max_entries: int) -> None:
+        self._window_sec = window_sec
+        self._max_entries = max_entries
+        self._entries: list[_WithheldEntry] = []
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    def record(self, proposal: RefusedProposal, robot_ids: Iterable[str], now: float) -> None:
+        """Remember one withheld decision, folding it into an identical earlier one.
+
+        Args:
+            proposal: The decision as the prompt will state it (`times` ignored).
+            robot_ids: The robots it concerns (involved plus would-be commanded).
+            now: Monotonic time of the outcome.
+        """
+        key = proposal.model_copy(update={"times": 1})
+        times = 1
+        kept: list[_WithheldEntry] = []
+        for entry in self._entries:
+            if entry.proposal.model_copy(update={"times": 1}) == key:
+                times += entry.proposal.times
+            else:
+                kept.append(entry)
+        kept.append(
+            _WithheldEntry(
+                proposal=key.model_copy(update={"times": times}),
+                robot_ids=frozenset(robot_ids) | frozenset(proposal.involved_robots),
+                recorded_at=now,
+            )
+        )
+        self._entries = kept[-self._max_entries * _WITHHELD_STORE_FACTOR :]
+
+    def forget_overlapping(self, robot_ids: Iterable[str]) -> int:
+        """Drop every entry sharing a robot with a dispatched command.
+
+        Args:
+            robot_ids: The robots M5 just dispatched to.
+
+        Returns:
+            How many entries were dropped.
+        """
+        robots = set(robot_ids)
+        kept = [entry for entry in self._entries if not entry.robot_ids & robots]
+        dropped = len(self._entries) - len(kept)
+        self._entries = kept
+        return dropped
+
+    def proposals_for(self, robot_ids: Iterable[str], now: float) -> list[RefusedProposal]:
+        """The withheld proposals to state for a new analysis, oldest first.
+
+        Args:
+            robot_ids: Robots the new analysis involves.
+            now: Monotonic time of the new analysis.
+
+        Returns:
+            At most `max_entries` unexpired proposals sharing a robot with
+            `robot_ids`, the most recent ones, in recording order.
+        """
+        self._entries = [
+            entry for entry in self._entries if now - entry.recorded_at <= self._window_sec
+        ]
+        robots = set(robot_ids)
+        shown = [entry.proposal for entry in self._entries if entry.robot_ids & robots]
+        return shown[-self._max_entries :]
