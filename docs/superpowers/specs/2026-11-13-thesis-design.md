@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft (2026-11-13): scope, chapter plan, sources, guardrails.
+- Rev 2 (2026-11-13): newest-source rule (6.0); branch rebased onto fdf333d; source map points at latest reports.
 
 ---
 
@@ -57,7 +58,28 @@ Target length guess (builder's call): roughly 45–70 pages once results are in.
 
 ## 6. Source map
 
-Main checkout `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm` (branch `fix/deadlock-collision-resolution`); other branches via their worktrees or `git show <branch>:<path>`. **Read-only**: never edit anything outside `thesis/` and this spec.
+### 6.0 Newest-source rule (owner requirement)
+
+The thesis describes the **newest** code and the **newest** scenario results. Branch lineage as of 2026-11-13:
+
+| Role | Branch @ commit | Notes |
+|---|---|---|
+| **Code baseline (thesis branch base)** | `feat/v4-per-cluster-parity` @ fdf333d | Contains `feat/v3-integration` (68e67b5, the pinned v3 runtime incl. tranche-1 report 75a499c), `feat/v4-vlm-bench` (7850f5a), `feat/v4-per-cluster` (48234f2), Stage 0 parity + Stage 1 shadow. `docs/thesis` is cut from here. |
+| Prereg v3 design + addenda A9–A36 | `feat/v3-design` @ ad67a18 | Not merged into the code baseline; read via `git show feat/v3-design:docs/superpowers/specs/2026-10-06-prereg-v3-design.md`. |
+| IB10 experiment registration | `feat/ib10-live-resolution` @ 50704c2 | Branched from 68e67b5; IB10 runs on the **v3 pin runtime**, not on v4 code. |
+| Older lineage — do not use as source | `fix/deadlock-collision-resolution` @ fc73151 | Main checkout; superseded by the branches above. |
+
+Rules:
+
+- **Describe the system as it ran.** Chapters 3–4 describe the v3 pinned runtime (68e67b5), because every live experiment (tranche 1, IB10) runs on it. v4 additions (grounding-first and per-cluster variants, Stage 1 shadow, default off) are described as exploratory extensions, clearly marked, never as the evaluated system.
+- **Verify against code, not only docs.** Module descriptions (topics, strategy enum, safety thresholds, config keys) are checked against source files at fdf333d; where a spec disagrees with code, code wins and the spec is not cited for that point.
+- **Newest results only.** Superseded numbers (earlier pilots, E1–E26 batches, earlier report revisions) appear only as history in Methodology, never as results. Use the latest revision of each report (e.g. per-cluster choice Rev 3, gf-cluster Rev 2, replay-er2 Rev 2).
+- **Pending results** (IB10 run; v4 Stage 1 shadow run in progress until ~17:30 UTC 2026-11-13, results to be relayed by session `vgu-vlm-swarm-68`) stay `#todo` until their report is committed.
+- **Pre-submission refresh.** Before handing over the final draft, re-list branches by commit date (`git for-each-ref --sort=-committerdate refs/heads`) and check for commits newer than this table; update this table and any affected text.
+
+### 6.1 Topic → source
+
+Paths are relative to the thesis worktree (code baseline) unless a branch is named. **Read-only**: never edit anything outside `thesis/` and this spec.
 
 | Topic | Sources |
 |---|---|
@@ -68,9 +90,10 @@ Main checkout `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm` (branch `fix/deadlo
 | Prereg v1–v3 | `docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md`, `2026-09-30-prereg-v2-design.md`, `feat/v3-design:docs/superpowers/specs/2026-10-06-prereg-v3-design.md` (A9–A36, A33 measures) |
 | Scenes | `docs/superpowers/specs/2026-09-27-scenario-battery-design.md`, `2026-09-29-intersection-resolvable-design.md`, `2026-09-29-unified-scene-design.md`, `2026-10-06-v3-scene-design.md` |
 | IB10 experiment | `../vgu-vlm-swarm-v7a/docs/superpowers/specs/2026-11-13-ib10-live-resolution-experiment.md` (branch `feat/ib10-live-resolution`) |
-| Tranche 1 pilot | branch `feat/v3-integration` commit 75a499c (S1b confirmatory tranche 1 results) |
+| Tranche 1 pilot | `docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` (commit 75a499c) |
 | Exploratory findings | `docs/reports/2026-09-25-presentation-order-probe.md`, `2026-09-25-gpt4o-refusals.md`, `2026-09-18-gemini-er2-image-grounding.md`, `2026-09-18-research-findings-register.md` |
-| v4 bench | `feat/v4-vlm-bench` (worktree `../vgu-vlm-swarm-v6a`): `docs/reports/2026-10-23-v4-replay-er2.md`, `2026-10-24-v4-gf-cluster-candidates.md`; `feat/v4-per-cluster` (`../vgu-vlm-swarm-v6c`): `docs/reports/2026-11-12-v4-per-cluster-choice.md` Rev 3 |
+| v4 bench | `docs/reports/2026-10-22-v4-bench-baseline.md`, `2026-10-23-v4-grounding-first-candidates.md`, `2026-10-23-v4-replay-er2.md`, `2026-10-24-v4-gf-cluster-candidates.md`, `2026-11-12-v4-per-cluster-choice.md` (all in the code baseline; latest revisions) |
+| v4 per-cluster live path | `docs/superpowers/specs/2026-11-12-per-cluster-live-path-design.md`, `docs/guides/v4_s1b_pc_shadow_runbook.md` |
 | Physical demo | `~/Downloads/verified_scenarios_12-11-2026/README.md` + images + `decision_artifacts/` |
 | Template | `/Users/tuanhdangdinh/Downloads/Project week 5/` (copy, do not modify) |
 
@@ -82,7 +105,7 @@ Implementation chapter section + Results placeholder. State what it shows (Turtl
 
 ## 8. Decided "how"
 
-- **Location:** `thesis/` in the worktree `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-thesis`, branch `docs/thesis` (cut from fc73151). Not pushed without owner OK. *(builder's call, stated to owner)*
+- **Location:** `thesis/` in the worktree `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-thesis`, branch `docs/thesis` (rebased onto fdf333d, the newest code tip; see 6.0). Not pushed without owner OK. *(builder's call, stated to owner)*
 - **Tooling:** Typst 0.15.1 locally (`typst compile thesis/main.typ`); owner previews with Tinymist in VS Code/Cursor or `typst watch`. Use the `typst-documents` skill.
 - **Diagrams:** Typst-native `fletcher` + `cetz`, pinned package versions. *(owner accepted)*
 - **Structure:** `thesis/main.typ` + `thesis/chapters/NN-name.typ` + `thesis/assets/` + `thesis/bibliography/`.
