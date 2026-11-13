@@ -126,3 +126,17 @@ def test_feedback_requires_plan_channel():
     with pytest.raises(ValueError, match="refusal_feedback"):
         load_config(raw)
 
+
+
+def test_refusal_feedback_overlay_differs_from_shadow_overlay_only_in_the_keys():
+    import yaml
+    from swarm_orchestrator.models import load_config
+
+    base = yaml.safe_load(open("config/overlays/v4_s1b_pc_shadow/orch_seed1.yaml"))
+    cell = yaml.safe_load(open("config/overlays/v4_s1b_refusal_feedback/orch_seed1.yaml"))
+    delta = yaml.safe_load(
+        open("config/overlays/v4_s1b_refusal_feedback/refusal_feedback_delta.yaml")
+    )
+    assert cell == {**base, **delta}
+    config = load_config(cell)
+    assert config.prompt_offer_groundable_strategies and config.refusal_feedback.enabled

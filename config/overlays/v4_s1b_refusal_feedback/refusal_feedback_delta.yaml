@@ -1,0 +1,12 @@
+# v4 refusal feedback: the lines an S1b refusal-feedback overlay appends to the
+# v4 per-cluster shadow overlay of the same seed
+# (config/overlays/v4_s1b_pc_shadow/orch_seed{k}.yaml; EXPLORATORY ONLY).
+# Change 1: offer M2 only strategies M3 can ground on the scene (on S1b this
+# drops junction_clear). Change 2: state withheld decisions in the next
+# overlapping prompt and never show a withheld plan as accepted.
+# Both need plan_channel_enabled: true (prompt v3), which the base sets.
+prompt_offer_groundable_strategies: true
+refusal_feedback:
+  enabled: true
+  max_entries: 3
+  window_sec: 300.0
