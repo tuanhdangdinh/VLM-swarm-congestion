@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: one register of the best evidence per scenario family, grouped by robot count, with grades, caveats, sources and cross-document conflicts; the IB10 live experiment recorded as in progress.
+- Rev 2 (2026-11-14): IB10 live experiment final row filled with the 2026-11-13 results.
 
 ---
 
@@ -65,8 +66,8 @@
 | Family | Best evidence | n | Model | Headline | Grade | Caveats | Source |
 |---|---|---|---|---|---|---|---|
 | intersection_bottleneck (IB10) | (a) live; (b) mock, remedy + race fix | (a) VP: 2 ER-2 + 1 gpt-4o, and 1 ER-2 demo; (b) closure 5 runs | ER-2, gpt-4o; mock | (a) ER-2 s42 and s43 "resolved (4/4), rank (1, 4, 4)"; gpt-4o "clogged (0/4)", never chose `junction_clear` (0/13). (b) race fix "Yes, on 5 / 5 runs"; remedy "Yes, 5 / 5", 4/4 arrivals, no contact | (a) pilot; (b) mock | Every live ER-2 resolve was M3-repaired (2 and 4 edits) or `m3_default`. The remedy-off baseline contacted in 4/4. `id_asc` order confounds the axis question | `VP` 20-33, 105-107; `IN` 712; `R/2026-10-08-ib10-closure.md` 15-21; `R/2026-10-08-ib10-remedy-validation.md` 15-20 |
-| IB10 live resolution experiment (2026-11-13) | live, **in progress** | **1 counted episode of 10** (Arm A E01 a2); E01 a1 excluded | ER-2 | a2: resolved, 4/4 arrivals, rank (1, 4, 4), time to full resolution 116.5 s from onset, GT min pair 0.3109 m, 0 floor stops, one `junction_clear` dispatch, provenance `repaired` | exploratory (registered) | a1 excluded as `harness_fail:condition`, attributed by the operator to a kit condition-gate bug (not re-verified here). Its frozen outcome was also resolved, 116.9 s, `m3_default`. n = 1; Arm B not yet run | `vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/summary/` (`summary.json` md5 14444c0e3b39b4a7640dff223a16ca2e, `episodes.jsonl` md5 4ebacd3e9d6a490af248c9b428989a5d); registration `docs/superpowers/specs/2026-11-13-ib10-live-resolution-experiment.md` on `feat/ib10-live-resolution` 50704c2 |
-| IB10 live experiment, final | *placeholder: fill when the run ends* | *5 + 5 registered* | ER-2 | *to be filled* | exploratory | *to be filled* | *final report path* |
+| IB10 live resolution experiment (2026-11-13) | live, interim (superseded by the final row below) | **1 counted episode of 10** (Arm A E01 a2); E01 a1 excluded | ER-2 | a2: resolved, 4/4 arrivals, rank (1, 4, 4), time to full resolution 116.5 s from onset, GT min pair 0.3109 m, 0 floor stops, one `junction_clear` dispatch, provenance `repaired` | exploratory (registered) | a1 excluded as `harness_fail:condition`, attributed by the operator to a kit condition-gate bug (not re-verified here). Its frozen outcome was also resolved, 116.9 s, `m3_default`. n = 1; Arm B not yet run | `vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/summary/` (`summary.json` md5 14444c0e3b39b4a7640dff223a16ca2e, `episodes.jsonl` md5 4ebacd3e9d6a490af248c9b428989a5d); registration `docs/superpowers/specs/2026-11-13-ib10-live-resolution-experiment.md` on `feat/ib10-live-resolution` 50704c2 |
+| IB10 live experiment, final (2026-11-13) | live, runtime `68e67b5`; Arm A Layer 2 on vs Arm B Layer 2 off | 5 + 5 counted (plus 1 excluded Arm A attempt) | ER-2 | Arm A resolved 4/5 (112.9, 115.5, 116.5, 116.6 s from onset; e09 censored), 16/20 arrivals; Arm B 0/5, 0/20 arrivals, robots frozen from jam formation to the 300 s horizon. 0 floor stops and 0 GT contacts in both arms; lowest GT pair A 0.2633 m (e09), B 0.2856 m. Attribution: 4 `repaired`, 1 `m3_default`, 0 `vlm_verbatim` | exploratory pilot, n=5/arm, simulation | Supports "the VLM + grounding pipeline clears the jam that Layer 1 alone never clears", not "the VLM's plan clears it"; the no-VLM (M3 default only) ablation was not run. One scene, near-deterministic: Arm B is five repeats of one state, Arm A about three trajectories, so not independent samples and no p-value. Arm B is a deterministic latch baseline. e09 failed after a degenerate 2-robot `junction_clear`; its closest approach was inside a still-exempt pair (exemption caveat open, fix branch `fix/safety-exemption-scope` not used). Excluded a1 (`harness_fail:condition`, kit gate bug) also resolved on `m3_default` | `docs/reports/2026-11-13-ib10-live-resolution-results.md` on branch `feat/ib10-live-resolution` (not on this branch); evidence `vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/` (gitignored; archive md5 `4d0b2c547bb3daa2d46136d4d5e9cc54`) |
 | convoy_counterflow (B3) + `_slip` | mock (scripted oracle order) | demo 1 + harvest 2; L2-off 1 | scripted mock | Layer-2 off "`clogged`, 0/4" vs reference "`resolved`, 4/4" (harvest 4/4 ×2). "Scripted oracle decision only; no live B3 episode exists." `_slip`: GT scorer on a real log only | pilot (L2-off) / smoke | No model evidence | `L2` 153, 160 |
 | s6_dual_conflict | live pilot + 1 mock | 1 live, 1 mock | ER-2 | both jams formed "in 2 of 2 runs". The live decision named only pair B; both-pairs check FAIL | "PILOT / demo episode", excluded from every confirmatory count | Execution unscored by design | `R/2026-10-08-s6-first-light.md` 17-25 |
 
@@ -116,7 +117,7 @@
 |---|---|---|
 | yield | Yes. 2-robot head-on (gpt-4o 6/6, ER-2 K batch). 5-robot S1b productive yields (T1 E28 `3c234140`, E31 `60afd0c1`; Stage 1 9/9 yields `completed`). Not in B1 (yields FAILED) | `ON` 2172-2181, 2519; `T1` 386; bottleneck report, Outcomes |
 | reverse | Only inside IB10 `junction_clear` phases. Alone it "cannot resolve a two-robot head-on" in Isaac. Hardware reverses completed, but without goals. S1b live: 2 of 4 reverses `failed` | `R/2026-09-18-head-on-family-validity.md` 994, 1135; `VP` 105-106; bottleneck report |
-| junction_clear | Yes, IB10 only (ER-2 4/4 ×2 plus demo; the 2026-11-13 live E01 a2). Every case repaired or `m3_default`. It never grounds on S1b (static gate, 0/3430 poses) | `VP` 26, 105-106; `IN` 712; bottleneck report |
+| junction_clear | Yes, IB10 only (ER-2 4/4 ×2 plus demo; the 2026-11-13 live experiment, Arm A 4/5). Every case repaired or `m3_default`. It never grounds on S1b (static gate, 0/3430 poses) | `VP` 26, 105-106; `IN` 712; bottleneck report |
 | reroute | Single robot only ("ER-2 reroute s42 … resolved (1/1)") | `VP` 108 |
 | priority_override | **None.** It degrades to a wait or is aliased to a yield | `IN` 3771; `RM/2026-10-07-forcing-audit.md` 48 |
 | convoy | **None live.** Scripted mock only | `L2` 153, 160 |
@@ -140,7 +141,7 @@
   - tranche-1 provenance was mostly `repaired` / `m3_default` (`T1` 390).
 - In three cells, with the 0.20 m floor armed, no GT pair came below 0.18 m
   and no floor stop fired: tranche 1 (10 episodes), Stage 1 (7) and IB10 live
-  E01 (2 attempts). This is not a general safety claim. Earlier cells recorded
+  (11 attempts, both arms; lowest GT pair 0.2633 m). This is not a general safety claim. Earlier cells recorded
   GT contacts: the head-on K1 driven nose-to-nose contact (`ON` 17), and IB10
   with the remedy off (contacts in 4/4 baseline runs,
   `R/2026-10-08-ib10-remedy-validation.md` 15-20). The exemption-scope
@@ -208,5 +209,5 @@ shift them, so cite notes entries by date and title.
   `priority_override` in multi-robot scenes, or for model-chosen convoy.
 - No hardware run with goals.
 - No confirmatory-grade evidence remains: tranche 1 is reported as a pilot.
-- The IB10 live experiment is in progress (1/10 counted). Fill the
-  placeholder row when it ends.
+- The IB10 live experiment is complete (n=5 per arm, exploratory); there is
+  still no M3-default-only (no-VLM) arm to separate the model's contribution.
