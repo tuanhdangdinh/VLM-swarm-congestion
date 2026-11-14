@@ -181,10 +181,10 @@ def test_transcript_collapses_repeated_safety_stops_with_count(tmp_path):
     root = make_bundle(tmp_path)
     b = load_bundle(root)
     t = build_transcript(b, build_time_map(b, load_gt(b)), 150.0)
-    stops = [it for it in t.items if "safety stop" in it.text]
+    stops = [it for it in t.items if it.kind == "log" and "safety stop" in it.text]
     markers = [it for it in t.items if it.kind == "marker"]
     assert len(stops) == 2  # first robot_2 and first robot_3 line, verbatim
-    assert [m.text for m in markers] == ["[… 3 similar lines]"]
+    assert [m.text for m in markers] == ["[… 3 similar 'safety stop' lines]"]
 
 
 def test_mask_stamp_makes_repeats_equal():
@@ -291,6 +291,39 @@ def test_camera_clip_scene_shows_frame_for_sim_time(tmp_path):
     img = scene.frame_at(107.5, (64, 48))
     assert abs(int(img[24, 32, 0]) - 7 * 12) <= 4
     assert scene.frame_at(150.0, (64, 48)).max() == 40  # outside the clip: blank
+
+
+def test_camera_clip_scene_continues_frame_index_across_segments(tmp_path):
+    paths = []
+    for k in range(2):
+        p = tmp_path / f"clip_{k:03d}.mp4"
+        w = cv2.VideoWriter(str(p), cv2.VideoWriter_fourcc(*"mp4v"), 10.0, (64, 48))
+        for i in range(10):
+            w.write(np.full((48, 64, 3), (k * 10 + i) * 12, dtype=np.uint8))
+        w.release()
+        paths.append(p)
+    scene = CameraClipScene(paths, ClipTimeMap([(0, 0.0), (19, 19.0)]))
+    assert scene.frame_count == 20
+    img = scene.frame_at(13.2, (64, 48))
+    assert abs(int(img[24, 32, 0]) - 13 * 12) <= 4
+
+
+def test_cost_poll_is_printed_after_the_artifact_it_counts(tmp_path):
+    root = make_bundle(tmp_path)
+    (root / "cost.log").write_text(
+        "06:40:18 analyses=1 artifacts=0 billed_calls=0 est_usd=0.0000\n"
+        "06:40:25 analyses=1 artifacts=1 billed_calls=1 est_usd=0.0074\n"
+    )
+    (root / "gt" / "run_manifest.json").write_text(
+        json.dumps({"started_at_utc": "2026-11-14T06:38:12.790889Z"})
+    )
+    b = load_bundle(root)
+    t = build_transcript(b, build_time_map(b, load_gt(b)), 150.0)
+    texts = [it.text for it in t.items]
+    artifact = next(i for i, x in enumerate(texts) if "decision artifact written" in x)
+    poll = texts.index("$ grep -m1 ' billed_calls=1 ' cost.log")
+    assert poll > artifact
+    assert texts[poll + 1] == "06:40:25 analyses=1 artifacts=1 billed_calls=1 est_usd=0.0074"
 
 
 def test_wrap_text_keeps_every_character():

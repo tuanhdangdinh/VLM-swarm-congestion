@@ -10,13 +10,17 @@ Examples:
         --bundle data/logs/vm_runs/ib10_safety/runs/ib10S_e03_armA_a1 \\
         --out data/demo/ib10S_e03_armA_a1_panel.mp4 --stills
 
-    # Same, with a real camera recording on the left:
+    # Same, with a real camera recording on the left (segments in order):
     python3 scripts/render_demo_panel.py render --bundle <bundle> \\
-        --camera <bundle>/rec/annotated.mp4 --camera-map <bundle>/rec/frame_map.json \\
+        --camera <bundle>/rec/annotated_000.mp4 <bundle>/rec/annotated_001.mp4 \\
+        --camera-map <bundle>/rec/<frame_map>.json \\
+        --camera-label "Camera: /perception/annotated_frame" \\
         --out data/demo/<label>_panel.mp4 --stills
 
-    # Two bundles one after the other (e.g. VLM on, then Layer 2 off):
+    # Two bundles one after the other (e.g. VLM on, then Layer 2 off); per-bundle
+    # footage with --camera-for <bundle index> <map.json> <segment> [<segment> ...]:
     python3 scripts/render_demo_panel.py sequence --bundle <on> --bundle <off> \\
+        --camera-for 0 <on>/rec/<map>.json <on>/rec/annotated_000.mp4 \\
         --card "..." --card "..." --out data/demo/ib10_vlm_on_vs_off.mp4 --stills
 """
 
@@ -69,11 +73,16 @@ def save_stills(comp: Compositor, p: Prepared, out: Path) -> list[Path]:
 
 
 def _prepare(
-    args: argparse.Namespace, bundle: Path, layout: Layout, fallback: float | None
+    args: argparse.Namespace,
+    bundle: Path,
+    layout: Layout,
+    fallback: float | None,
+    camera: list[Path] | None,
+    camera_map: Path | None,
 ) -> Prepared:
-    camera = getattr(args, "camera", None)
-    cmap = getattr(args, "camera_map", None)
-    return prepare(bundle, layout, camera, cmap, fallback, font=args.font)
+    return prepare(
+        bundle, layout, camera, camera_map, fallback, font=args.font, camera_label=args.camera_label
+    )
 
 
 def _write_transcript(p: Prepared, out: Path) -> Path:
@@ -90,8 +99,8 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("render", help="one bundle -> one MP4")
     r.add_argument("--bundle", type=Path, required=True)
-    r.add_argument("--camera", type=Path)
-    r.add_argument("--camera-map", type=Path)
+    r.add_argument("--camera", type=Path, nargs="+", help="camera clip segment(s), in order")
+    r.add_argument("--camera-map", type=Path, help="frame-to-sim JSON for --camera")
     s = sub.add_parser("sequence", help="several bundles, one after the other, with caption cards")
     s.add_argument("--bundle", type=Path, action="append", required=True)
     s.add_argument(
@@ -102,17 +111,26 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help="bundle with sim-stamped log lines used to measure the fallback anchor's error",
     )
+    s.add_argument(
+        "--camera-for",
+        nargs="+",
+        action="append",
+        default=[],
+        metavar="ARG",
+        help="INDEX MAP_JSON SEGMENT [SEGMENT ...]: camera footage for the INDEX-th --bundle",
+    )
     for p in (r, s):
         p.add_argument("--out", type=Path, required=True)
         p.add_argument("--stills", action="store_true")
         p.add_argument("--font", help="monospace font file name or path")
         p.add_argument("--crf", type=int, default=23)
+        p.add_argument("--camera-label", default="Camera recording", help="caption for footage")
     args = ap.parse_args(argv)
     layout = Layout()
     args.out.parent.mkdir(parents=True, exist_ok=True)
 
     if args.cmd == "render":
-        p = _prepare(args, args.bundle, layout, None)
+        p = _prepare(args, args.bundle, layout, None, args.camera, args.camera_map)
         comp = compositor(p, layout, args.font)
         dur = render([comp], args.out, FPS, layout, args.font, args.crf)
         print(f"wrote {args.out} ({dur:.1f} s); transcript {_write_transcript(p, args.out)}")
@@ -122,10 +140,16 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"still {path}")
         return 0
 
+    footage: dict[int, tuple[Path, list[Path]]] = {}
+    for spec in args.camera_for:
+        if len(spec) < 3:
+            ap.error("--camera-for needs INDEX MAP_JSON SEGMENT [SEGMENT ...]")
+        footage[int(spec[0])] = (Path(spec[1]), [Path(x) for x in spec[2:]])
     fallback = fallback_anchor_error(load_bundle(args.calibrate_on)) if args.calibrate_on else None
     clips: list = []
     for i, bundle in enumerate(args.bundle):
-        p = _prepare(args, bundle, layout, fallback)
+        cmap, segs = footage.get(i, (None, None))
+        p = _prepare(args, bundle, layout, fallback, segs, cmap)
         comp = compositor(p, layout, args.font)
         if i < len(args.card):
             clips.append(([ln for ln in args.card[i].split("\\n")], 5.0))

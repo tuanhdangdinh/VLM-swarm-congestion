@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -331,45 +332,63 @@ class GroundTruthScene:
 
 
 class CameraClipScene:
-    """Scene pane from a recorded camera MP4, synchronised on sim time.
+    """Scene pane from a recorded camera clip (one or more segments), synced on sim time.
 
-    Frames are decoded sequentially and cached by index, so playback that
-    moves forward in sim time decodes each frame at most once.
+    `scripts/record_topic_video.py --segment-frames N` writes `out_000.mp4`,
+    `out_001.mp4`, ...; the segments are treated as one clip whose frame index
+    runs on across them. Frames are decoded sequentially and cached, so
+    forward playback decodes each frame at most once.
     """
 
-    label = "Camera recording (/perception/annotated_frame)"
-
-    def __init__(self, video: Path, time_map: ClipTimeMap, detail: str = "") -> None:
+    def __init__(
+        self,
+        videos: Path | Sequence[Path],
+        time_map: ClipTimeMap,
+        detail: str = "",
+        label: str = "Camera recording",
+    ) -> None:
         """Open the clip.
 
         Args:
-            video: MP4 written by `scripts/record_topic_video.py` (one segment,
-                or segments concatenated losslessly first).
-            time_map: Frame-index to sim-time map for this clip.
-            detail: Second caption line (clip file, timing source).
+            videos: One MP4, or the recorder's segments in order.
+            time_map: Frame-index (across all segments) to sim-time map.
+            detail: Second caption line (clip files, timing source).
+            label: First caption line (e.g. which topic was recorded).
 
         Raises:
-            FileNotFoundError: The clip cannot be opened.
+            FileNotFoundError: A segment cannot be opened.
         """
+        self.label = label
         self.detail = detail
-        self._cap = cv2.VideoCapture(str(video))
-        if not self._cap.isOpened():
-            raise FileNotFoundError(video)
-        self.frame_count = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        paths = [videos] if isinstance(videos, Path) else list(videos)
+        self._caps = []
+        self._starts = [0]
+        for p in paths:
+            cap = cv2.VideoCapture(str(p))
+            if not cap.isOpened():
+                raise FileNotFoundError(p)
+            self._caps.append(cap)
+            self._starts.append(self._starts[-1] + int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
+        self.frame_count = self._starts[-1]
         self.time_map = time_map
-        self._next_index = 0
+        self._next = [0] * len(self._caps)
         self._last: tuple[int, np.ndarray] | None = None
 
     def _read(self, index: int) -> np.ndarray | None:
         if self._last is not None and self._last[0] == index:
             return self._last[1]
-        if index < self._next_index:
-            self._cap.set(cv2.CAP_PROP_POS_FRAMES, index)
-            self._next_index = index
+        seg = int(np.searchsorted(self._starts, index, side="right") - 1)
+        if seg < 0 or seg >= len(self._caps):
+            return None
+        local = index - self._starts[seg]
+        cap = self._caps[seg]
+        if local < self._next[seg]:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, local)
+            self._next[seg] = local
         frame = None
-        while self._next_index <= index:
-            ok, frame = self._cap.read()
-            self._next_index += 1
+        while self._next[seg] <= local:
+            ok, frame = cap.read()
+            self._next[seg] += 1
             if not ok:
                 return None
         if frame is None:

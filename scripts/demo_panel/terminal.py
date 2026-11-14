@@ -196,7 +196,7 @@ def build_transcript(b: Bundle, tc: TimeContext, sim_end: float) -> Transcript:
     blocks: list[tuple[float, int]] = []
     starts: dict[str, tuple[float, float]] = {}
     latch: _Latch | None = None
-    billed_seen = 0
+    polls = cost_polls(b)
 
     def flush_marker(sim: float, basis: str) -> None:
         nonlocal latch
@@ -204,7 +204,7 @@ def build_transcript(b: Bundle, tc: TimeContext, sim_end: float) -> Transcript:
             items.append(
                 TerminalItem(
                     kind="marker",
-                    text=f"[… {latch.pending} similar lines]",
+                    text=f"[… {latch.pending} similar 'safety stop' lines]",
                     sim_time=sim,
                     time_basis=basis,  # type: ignore[arg-type]
                     source="collapsed 'safety stop' repeats",
@@ -214,11 +214,21 @@ def build_transcript(b: Bundle, tc: TimeContext, sim_end: float) -> Transcript:
             latch.pending = 0
             latch.last_marker_sim = sim
 
+    def emit_polls(up_to_wall: float) -> None:
+        while polls and polls[0][0] <= up_to_wall:
+            wall, billed = polls.pop(0)
+            sim, _ = _place(tc, wall)
+            n_before = len(items)
+            items.extend(
+                _command_items(f"grep -m1 ' billed_calls={billed} ' cost.log", b.root, sim)
+            )
+            blocks.append((sim, len(items) - n_before))
+
     for raw in lines:
         parsed = lp.parse_ros_line(raw)
         if parsed is None:
             continue
-        billed_seen = _cost_items(b, tc, items, blocks, billed_seen, parsed.wall)
+        emit_polls(parsed.wall)
         sim, basis = _place(tc, parsed.wall)
         if latch is not None and parsed.wall - latch.last_wall > LATCH_GAP_WALL_SEC:
             last_sim, last_basis = _place(tc, latch.last_wall)
@@ -260,6 +270,7 @@ def build_transcript(b: Bundle, tc: TimeContext, sim_end: float) -> Transcript:
     if latch is not None:
         last_sim, last_basis = _place(tc, latch.last_wall)
         flush_marker(last_sim, last_basis)
+    emit_polls(float("inf"))
     return Transcript(
         bundle_name=b.name,
         bundle_dir=str(b.root),
@@ -297,36 +308,33 @@ def _command_items(command: str, cwd: Path, sim: float) -> list[TerminalItem]:
     return out
 
 
-def _cost_items(
-    b: Bundle,
-    tc: TimeContext,
-    items: list[TerminalItem],
-    blocks: list[tuple[float, int]],
-    billed_seen: int,
-    up_to_wall: float,
-) -> int:
-    """Print `cost.log` poll lines whose billed count rose, once their time is reached."""
+def cost_polls(b: Bundle) -> list[tuple[float, int]]:
+    """`(wall, billed_calls)` for each `cost.log` poll where `billed_calls` first rose.
+
+    The poll stamp is `HH:MM:SS` (UTC, the date of `gt/run_manifest.json`
+    `started_at_utc`), truncated to whole seconds, so each poll is placed at
+    the end of its second; it can then never precede the artifact it counts.
+
+    Args:
+        b: Loaded bundle.
+
+    Returns:
+        Polls in file order; empty without `cost.log` or a start date.
+    """
     if not b.cost or not b.manifest.get("started_at_utc"):
-        return billed_seen
+        return []
     day = dt.datetime.fromisoformat(b.manifest["started_at_utc"].replace("Z", "+00:00")).date()
+    out: list[tuple[float, int]] = []
+    seen = 0
     for raw in b.cost:
         c = lp.parse_cost_line(raw)
-        if c is None or int(c["billed"]) <= billed_seen:
+        if c is None or int(c["billed"]) <= seen:
             continue
+        seen = int(c["billed"])
         h, m, s = (int(x) for x in c["hms"].split(":"))
-        wall = dt.datetime(
-            day.year, day.month, day.day, h, m, s, tzinfo=dt.timezone.utc
-        ).timestamp()
-        if wall > up_to_wall:
-            break
-        billed_seen = int(c["billed"])
-        sim, _ = _place(tc, wall)
-        n_before = len(items)
-        items.extend(
-            _command_items(f"grep -m1 ' billed_calls={billed_seen} ' cost.log", b.root, sim)
-        )
-        blocks.append((sim, len(items) - n_before))
-    return billed_seen
+        start = dt.datetime(day.year, day.month, day.day, h, m, s, tzinfo=dt.timezone.utc)
+        out.append((start.timestamp() + 0.999, seen))
+    return out
 
 
 def _line_numbers(b: Bundle) -> dict[str, str]:

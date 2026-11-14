@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -161,23 +162,25 @@ def timeline_items(t: Transcript, pane: TerminalPane) -> list[TimelineItem]:
 def prepare(
     bundle_dir: Path,
     layout: Layout,
-    camera: Path | None = None,
+    camera: Sequence[Path] | None = None,
     camera_map: Path | None = None,
     fallback_error: float | None = None,
     params: TimelineParams | None = None,
     font: str | None = None,
+    camera_label: str = "Camera recording",
 ) -> Prepared:
     """Load a bundle and build its transcript, timeline and scene source.
 
     Args:
         bundle_dir: Run bundle.
         layout: Frame layout (sets the terminal width in characters).
-        camera: Optional camera MP4 for the left pane.
+        camera: Optional camera clip segments (in order) for the left pane.
         camera_map: JSON frame-to-sim mapping for `camera` (required with it).
         fallback_error: Calibrated fallback-anchor error for bundles without
             sim-stamped log lines.
         params: Timeline speeds and print rates.
         font: Monospace font override.
+        camera_label: Caption naming the recorded camera topic.
 
     Returns:
         The prepared bundle.
@@ -194,13 +197,15 @@ def prepare(
     pane = TerminalPane(transcript, (tb[2], tb[3]), load_mono_font(layout.font_px, font))
     calls = [CallSpan(a, s, w) for a, s, w in transcript.calls]
     tl = build_timeline(timeline_items(transcript, pane), calls, sim_end, params)
-    if camera is not None:
+    if camera:
         if camera_map is None:
             raise ValueError("--camera needs --camera-map")
+        names = ", ".join(c.name for c in camera)
         scene: SceneSource = CameraClipScene(
-            camera,
+            list(camera),
             load_clip_map(camera_map),
-            detail=f"{camera.name}; timing from {camera_map.name}",
+            detail=f"{names}; frame-to-sim timing from {camera_map.name}",
+            label=camera_label,
         )
     else:
         scene = gt_scene(b)
