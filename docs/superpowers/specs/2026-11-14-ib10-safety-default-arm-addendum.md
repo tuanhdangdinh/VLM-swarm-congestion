@@ -11,6 +11,7 @@
   - Inert not-honoured lines.
   - `mock_backend.py` moved from a hard pin to an Arm C precondition.
   - Precedents and changes from 2026-11-13 stated.
+- Amendment (2026-11-14): section 13 added after the results were seen. It registers a re-run of the invalid slot e02 (Arm C) before that re-run. Sections 1-12 are unchanged.
 
 ---
 
@@ -361,3 +362,102 @@ Only the VM can show:
 - **The deploy works.** The real colcon build, and the key-on startup line in a live M4 log.
 - **Behaviour on the live scene.** How the key-on monitor behaves on IB10, and how Arm C's skip-first script lines up with the live trigger timing.
 - **Timing and quota.** Per-episode wall time and the Gemini quota.
+
+---
+
+## 13. Amendment (2026-11-14): Re-run of Slot e02
+
+This section was written on 2026-11-14 **after** the results of sections 1-12 were known (`docs/reports/2026-11-14-ib10-safety-default-arm-results.md`). It was committed before the re-run started.
+
+### 13.1 What Is Re-run and Why
+
+The owner's instruction (2026-11-14), verbatim:
+
+> "re-run the invalid default-only episode"
+
+- **Slot.** e02, Arm C (grounder default only). The recorded bundle is `ib10S_e02_armC_a1`. `attempts.tsv` records it `ran`, and the scorer scores it `invalid_jam`.
+- **Why it is invalid.** robot_1's Nav2 stack hosts the shared `map_server`. Its lifecycle manager logged `Configuring map_server` and never `Activating map_server`. No costmap received a map, so the robots got no plan, did not move and no jam formed. The results report gives the evidence ("e02: facts, then inference").
+- **What runs.** One launch of the same slot, labelled `ib10S_e02_armC_a2`. The settings are those of every other Arm C episode: key on, 0.20 m floor, the same mock script (`6c670a6e`), the same overlay (`0196f1e8`), the same runtime and gates.
+- **This is post hoc.** The re-run was decided with knowledge of every other result of this run: Arm A 5/5 resolved and Arm C 4/4 valid resolved. It is reported as a re-run, never as a registered episode.
+
+### 13.2 Counting Rule
+
+This is the rule already registered in the 2026-11-13 spec, section 5, and inherited by section 1: an invalid jam (criterion 1 fails) is excluded from the primary denominator and reported.
+
+- `attempts.tsv` is never edited. Its a1 row stays `ran`, as recorded.
+- The scorer applies the rule keyed on the scored status. A `ran` attempt whose status is `invalid_jam` is listed as `EXCLUDED:invalid_jam`. The slot's counted attempt is its one `ran` attempt that is not `invalid_jam`.
+- **If a2 forms a valid jam**, a2 is the slot's counted episode and a1 is reported as excluded.
+- **If a2 is also invalid, or fails a harness gate**, both attempts are reported and slot e02 has no counted episode.
+
+### 13.3 No Third Attempt
+
+There is no third attempt, whatever a2's outcome.
+
+- The chain's rerun mode launches exactly once. It has no Nav2 bring-up retry, unlike the normal three-attempt loop.
+- The driver runs the rerun mode once only. It writes `RERUN_STARTED_<ts>` before the VM starts and refuses if any such file exists.
+- If the invocation fails for a harness reason, it is restored, stopped and reported, and it is not relaunched.
+
+### 13.4 Kit Change
+
+All guards are unchanged:
+
+- kit md5 check, git preflight, snapshot, deploy and verify;
+- arm check and condition gate;
+- the cumulative wall-clock ledger and the 5 h cap;
+- the $1.00 cap (Arm C makes no calls);
+- per-episode restore;
+- the EXIT trap: restore, pull (`rsync -a`, never `--delete`), stop, then verify `TERMINATED`;
+- the `RESTORE_FAILED_*` and `VM_NOT_STOPPED_*` markers;
+- on a stockout, only the same VM's start is retried.
+
+**Wall clock.** 12,324 s of the 18,000 s cap are used, so 5,676 s remain. That is above the 5,400 s minimum for starting the VM, so no threshold was changed.
+
+| File | Change |
+|---|---|
+| `chain_ibs.sh` | `MODE=rerun`, hard-wired to `RERUN_SLOT=02; RERUN_ARM=C; RERUN_ATTEMPT=2`. It is the only path that runs a slot already recorded `ran`. It refuses unless the a1 row is `ran`, the highest existing bundle of the slot is a1, and no a2 row exists. One launch, no bring-up retry. Slot resolution is factored into `resolve_slot`; smoke and follow behave as before (dry-tested). |
+| `run_ibs.sh` | `rerun` mode, with the same SMOKE gates as `follow`. Once-only marker; refuses if `runs/ib10S_e02_armC_a2` exists. **No existing evidence file is written:** the VM tree is pulled into `vm_rerun/`; `runs/` is pulled with `--ignore-existing`; the wall clock is booked in `wallclock_ledger_rerun.tsv`, and the cap sums both ledgers; the scorer writes `summary_rerun/`. After scoring, it prints the start-up report. |
+| `score_ibs.py` | The invalid-jam rule (13.2). `--attempts` is repeatable. |
+| `startup_check_ibs.py` (new, Mac) | Reports, without gating, whether the `map_server` host stack logged `Activating map_server` and the map lifecycle manager's `Managed nodes are active`. It also counts `no map received` and `Costmap timed out waiting for update` per stack, and prints the scorer's jam status. |
+| `test_dry_ibs.sh` | Covers the new path: rerun table; slot resolution on a fake VM tree, with four refusal cases and follow still skipping 9/9; the rerun driver path; the scorer rule; the start-up report on the real e02 a1 (PROBLEM) and e04 (OK) bundles. |
+| `mac_kit_md5_ibs.sh`, `README.md` | Lists the new file; documents the rerun. |
+
+Unchanged, byte-identical to the run of sections 1-12:
+
+- `ep_run_ibs.sh` `7a209793`
+- `cond_ibs.py` `50035500`
+- `ibs_env.sh` `f2825e23`
+- `start_ibs_chain.sh` `3e91bedb`
+- `deploy_ibs.sh` `34d68ba0`
+- `restore_ibs.sh` `85c3c1a1`
+- the overlay `0196f1e8`
+- every `src/` and `code/` file
+
+Kit md5s:
+
+| File | Before (sections 1-12 run) | After |
+|---|---|---|
+| `kit_md5_ibs.txt` (VM list, 28 files) | `72358e80fb040861fc8fdac27ca5a67b` | `c2d0274def56dc6f62d90f0f15ab5e83` |
+| `kit_md5_all_ibs.txt` (all files; 40 before, 41 after) | `0db47b478920d42da89ea1418c79964f` | `e6463a18b79d90d428129a06c72382c5` |
+| `chain_ibs.sh` | `c12d3dc6c14e2ea226032eb5713882e1` | `61c668b9c1ab48d1b63ca6fe18004990` |
+| `run_ibs.sh` | `2499ae200b4340708bd7f495291af0ca` | `5b94bd46d78d1d4e569cd28712b7f0b6` |
+| `score_ibs.py` | `01845ab99557b4dcefcede0157139738` | `34bc4ed1bb9a88e6b12878cedf78cae6` |
+| `test_dry_ibs.sh` | `59cceec158dfba5a8a451aad99fff39e` | `10f44f29fe4f2a2788fe8879fd69d7c9` |
+| `mac_kit_md5_ibs.sh` | `653082fecadd15a0a7d7bf8dff6288a9` | `8091306a0abe88eee40b87bead4d8840` |
+| `README.md` | `dd941f90551ab524fe7884865b5a097e` | `2c3f508322d870e2295a49e48c0582f2` |
+| `startup_check_ibs.py` | absent | `448f636cb7f675186d60602eb27e0fbb` |
+
+**Traceability.**
+
+- The full diff is `data/logs/vm_runs/ib10_safety/summary_rerun/kit_change_rerun_20261114.diff` (md5 `1add02a432024c983117783d1209c096`).
+- The previous md5 lists are kept beside it as `kit_md5_ibs.before_rerun.txt` and `kit_md5_all_ibs.before_rerun.txt`.
+- The frozen `MANIFEST.md5` and archive still record the kit as it was. Those 8 kit files are the only manifest entries that now differ.
+
+**Dry test.** `test_dry_ibs.sh` ended `TEST_DRY_IBS OK` on 2026-11-14 with the new kit (all sections, including 4b, 5b and 7f).
+
+### 13.5 Reporting
+
+- The re-run is reported in a dated section of the results report.
+- Pooled Arm C is shown both before and after the re-run, and the report states that the re-run was decided after the results were seen.
+- The new files are covered by a supplementary manifest and a supplementary archive. The original manifest and archive are not touched.
+- No p-values and no intervals.
+
