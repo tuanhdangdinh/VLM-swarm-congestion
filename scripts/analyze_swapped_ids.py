@@ -17,6 +17,7 @@ from typing import Any
 OUT_DIR = (
     Path(__file__).resolve().parents[1] / "data/experiments/2026-11-14-head-on-swapped-id-replay"
 )
+ALL_ARMS = ("A_real", "A_grey", "B_grey", "C_real_notext", "D_grey_notext")
 COMBOS = (
     ("label right", "slot right"),
     ("label right", "slot wrong"),
@@ -56,7 +57,7 @@ def model_tables(rows: list[dict[str, Any]], model: str, field: str) -> dict[str
     is_correct = lambda r: r[field] == "correct"  # noqa: E731
     print(f"\n### {model} [{field}]")
     print("\nOutcome census per arm:")
-    for arm in ("A_real", "A_grey", "B_grey"):
+    for arm in ALL_ARMS:
         sub = [r for r in rows if r["arm"] == arm]
         print(
             f"  {arm}: n={len(sub)} {dict(Counter(r[field] for r in sub))} "
@@ -64,12 +65,12 @@ def model_tables(rows: list[dict[str, Any]], model: str, field: str) -> dict[str
             f"att1_refused={sum(r['attempt1_refused'] for r in sub)}"
         )
     print("\nP(correct) by side x order x arm (calls; scenes with 2/2):")
-    print("| Side | Order | A_real | A_grey | B_grey |")
-    print("|---|---|---|---|---|")
+    print("| Side | Order | " + " | ".join(ALL_ARMS) + " |")
+    print("|---|---|" + "---|" * len(ALL_ARMS))
     for side in ("west", "east"):
         for order in ("id_asc", "id_desc"):
             cells = []
-            for arm in ("A_real", "A_grey", "B_grey"):
+            for arm in ALL_ARMS:
                 sub = [
                     r for r in rows if r["arm"] == arm and r["side"] == side and r["order"] == order
                 ]
@@ -102,6 +103,8 @@ def model_tables(rows: list[dict[str, Any]], model: str, field: str) -> dict[str
         ("A_grey", ("A_grey",)),
         ("B_grey", ("B_grey",)),
         ("A_real", ("A_real",)),
+        ("C_real_notext", ("C_real_notext",)),
+        ("D_grey_notext", ("D_grey_notext",)),
     ):
         sub = [r for r in rows if r["arm"] in arms and named(r)]
         print(
@@ -135,7 +138,7 @@ def apply_rules(model: str, rows: list[dict[str, Any]], v: dict[str, Any]) -> No
     chosen = v["chosen"]
     decided = {
         arm: sum(1 for r in rows if r["arm"] == arm and r["decision"] is not None)
-        for arm in ("A_real", "A_grey", "B_grey")
+        for arm in ALL_ARMS
     }
     print(f"\nVerdicts for {model} (decisions per arm {decided}):")
     if min(decided["A_grey"], decided["B_grey"]) < 20:
@@ -171,6 +174,39 @@ def apply_rules(model: str, rows: list[dict[str, Any]], v: dict[str, Any]) -> No
             f"  real-frame secondary (>=9/12 and >=4/6 scenes in all four; side confounded): "
             f"{'PASSES' if ok else 'FAILS'}"
         )
+    image_use(rows, v)
+
+
+def image_use(rows: list[dict[str, Any]], v: dict[str, Any]) -> None:
+    """Amendment 3 rule: Cell C per side x order >= 9/12 and >= 4/6 scenes, and C - D >= 0.25."""
+    field = "outcome" if v["chosen"] == "chosen_physical" else "attempt1_outcome"
+    c = [r for r in rows if r["arm"] == "C_real_notext"]
+    d = [r for r in rows if r["arm"] == "D_grey_notext"]
+    dec_c = sum(1 for r in c if r["decision"] is not None)
+    dec_d = sum(1 for r in d if r["decision"] is not None)
+    if len(c) < 48 or len(d) < 48 or dec_c < 20 or dec_d < 20:
+        print(
+            f"  image use: NOT ASSESSABLE (C runs {len(c)}, decisions {dec_c}; "
+            f"D runs {len(d)}, decisions {dec_d})"
+        )
+        return
+    cells_ok = True
+    for side in ("west", "east"):
+        for order in ("id_asc", "id_desc"):
+            sub = [r for r in c if r["side"] == side and r["order"] == order]
+            k = sum(1 for r in sub if r[field] == "correct")
+            by: dict[str, list[str]] = defaultdict(list)
+            for r in sub:
+                by[r["scene"]].append(r[field])
+            full = sum(1 for o in by.values() if all(x == "correct" for x in o))
+            cells_ok &= k >= 9 and full >= 4
+    pc = sum(1 for r in c if r[field] == "correct") / len(c)
+    pd = sum(1 for r in d if r[field] == "correct") / len(d)
+    ok = cells_ok and pc - pd >= 0.25
+    print(
+        f"  image use: cells_ok={cells_ok} P(C)={pc:.3f} P(D)={pd:.3f} -> "
+        f"{'SUPPORTED' if ok else 'NOT SUPPORTED'}"
+    )
 
 
 def per_scene(rows: list[dict[str, Any]], model: str) -> None:
@@ -178,16 +214,14 @@ def per_scene(rows: list[dict[str, Any]], model: str) -> None:
     print(f"\nScene level, {model} (W/E = chosen physical robot, - = none; correct marked *):")
     print(
         "| Scene | Side | "
-        + " | ".join(
-            f"{a} {o[3:]}" for a in ("A_real", "A_grey", "B_grey") for o in ("id_asc", "id_desc")
-        )
+        + " | ".join(f"{a} {o[3:]}" for a in ALL_ARMS for o in ("id_asc", "id_desc"))
         + " |"
     )
-    print("|---|---|" + "---|" * 6)
+    print("|---|---|" + "---|" * (2 * len(ALL_ARMS)))
     scenes = sorted({(r["side"], r["scene"]) for r in rows}, key=lambda t: (t[0] != "west", t[1]))
     for side, scene in scenes:
         cells = []
-        for arm in ("A_real", "A_grey", "B_grey"):
+        for arm in ALL_ARMS:
             for order in ("id_asc", "id_desc"):
                 sub = sorted(
                     (
