@@ -39,7 +39,9 @@ unused=$(comm -13 <(echo "$used" | sed '/^$/d') <(echo "$defd" | sed '/^$/d'))
 echo "used=$(echo "$used" | sed '/^$/d' | wc -l | tr -d ' ') defined=$(echo "$defd" | sed '/^$/d' | wc -l | tr -d ' ')"
 
 echo "== (e) citation keys"
-keys=$(grep -ohE '@[A-Za-z][A-Za-z0-9_:.-]*[A-Za-z0-9_]' $T/chapters/*.typ | sed 's/^@//' | grep -vE '^(fig|tab|sec|eq|app):' | sort -u)
+keys=$( { grep -ohE '@[A-Za-z][A-Za-z0-9_:.-]*[A-Za-z0-9_]' $T/chapters/*.typ | sed 's/^@//'; \
+          grep -ohE 'cite\(<[^>]+>' $T/chapters/*.typ | sed -E 's/^cite\(<//; s/>$//'; } \
+        | grep -vE '^(fig|tab|sec|eq|app):' | sort -u)
 bad=0
 for k in $keys; do
   grep -qE "^@[A-Za-z]+\{$k," $T/bibliography/refs.bib || { echo "FAIL: missing key $k"; bad=1; }

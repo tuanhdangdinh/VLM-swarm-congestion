@@ -1,7 +1,7 @@
 // Evidence rows for chapter 4: one evidence call per number, id = chapter.NN.
 #import "../lib.typ": *
 
-#evidence("4.01", [Tranche 1 ran on runtime `1624db1`, whose code equals the pin (`git diff 1624db1 68e67b5` over reasoning, ros2_ws, scripts, config, isaac and benchmarks is empty); Arm A backend ER-2 selected by the cell overlay, plan channel on, 0.20 m floor, escort grounding overlay; host a snapshot clone of the batch-4 disk with an L4 GPU. IB10 ran on `68e67b5` itself with ER-2.], [`68e67b5:docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` §1.2, §1.4, §3.1; `feat/ib10-live-resolution@2557d75:docs/reports/2026-11-13-ib10-live-resolution-results.md` lines 22, 160])
+#evidence("4.01", [Tranche 1 ran on runtime `1624db1`, whose code equals the pin (`git diff 1624db1 68e67b5` over reasoning, ros2_ws, scripts, config, isaac and benchmarks is empty); Arm A backend ER-2 selected by the cell overlay, plan channel on, 0.20 m floor, escort grounding overlay; host a snapshot clone of the batch-4 disk with an L4 GPU. IB10 ran on `68e67b5` itself with ER-2.], [`68e67b5:docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` §1.2, §1.4, §3.1; `2557d75:docs/reports/2026-11-13-ib10-live-resolution-results.md` lines 22, 160])
 
 #evidence("4.02", [Isaac Sim 6.0.1 source build; Nav2 family 1.3.13; fastrtps 2.14.6; Python 3.12.3; pydantic 2.14.0; cv2 4.6.0; L4 GPU; inventory of 2026-10-09 on the then experiment VM. cv2 4.6.0 lacks `ArucoDetector`; detection gates on it, and mixing the APIs segfaults.], [`68e67b5:docs/reports/2026-10-09-env-audit.md` version table, lines 40-52; `68e67b5:ros2_ws/src/swarm_perception/swarm_perception/detection.py` lines 53-66; `68e67b5:docs/implementation_notes.md` M6, 2026-09-16 container rebuild entry])
 
@@ -53,7 +53,7 @@
 
 #evidence("4.26", [Pin gate (md5 of source and installed files) before every episode; deploy gates incl. PACKAGE SRC==INSTALLED; condition gate (floor line `hard_contact_floor_m=0.2`; Arm B 0 decision artifacts); scorer `3c71503` and free-flow table md5 `b4002d7697f4d8f27c31792a9b269162` frozen before data; colcon exit-code trap.], [`68e67b5:docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` §1.4-§1.6, §3.2; `68e67b5:docs/implementation_notes.md` M1, 2026-09-27 entry on the colcon md5 trap])
 
-#evidence("4.27", [`per_cluster_shadow: enabled: false` (added after the pin); `scoped_clearing_exemption` overlay key, absent means the `68e67b5` behaviour; refusal feedback `enabled: bool = False` and `prompt_offer_groundable_strategies: bool = False`.], [`cbe3dcf:ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml` lines 391-412; `fix/safety-exemption-scope@8933863:config/safety/scoped_clearing_exemption.fragment.yaml`; `feat/v4-refusal-feedback@384e948:ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py` (RefusalFeedbackConfig)])
+#evidence("4.27", [`per_cluster_shadow: enabled: false` (added after the pin); `scoped_clearing_exemption` overlay key, absent means the `68e67b5` behaviour; refusal feedback `enabled: bool = False` and `prompt_offer_groundable_strategies: bool = False`.], [`cbe3dcf:ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml` lines 391-412; `8933863:config/safety/scoped_clearing_exemption.fragment.yaml`; `384e948:ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py` (RefusalFeedbackConfig)])
 
 #evidence("4.28", [Demonstration on 12 November 2026: overhead RealSense, ArUco, `gemini-3.1-flash-lite`, deterministic grounding, Zenoh, stamped velocity commands, `dry_run=False`, safety monitor.], [`~/Downloads/verified_scenarios_12-11-2026/README.md` lines 1-18 (md5 26718adbffa7a3135ebd509630afc3c2)])
 
@@ -63,12 +63,12 @@
 
 #evidence("4.31", [Two parse failures excluded (`b0bca63c...`, `b8abe7df...`); earlier `priority_override`, `reroute` and odometry-loss attempts not counted.], [`~/Downloads/verified_scenarios_12-11-2026/README.md` lines 190-197])
 
-#evidence("4.32", [Shipped `plan_channel_enabled: false` (prompt v2, no verify/repair); tranche 1 Arm A condition "backend: ER-2, plan channel on"; registered IB10 Arm A overlay carries `plan_channel_enabled: true`.], [`feat/ib10-live-resolution:docs/superpowers/specs/2026-11-13-ib10-live-resolution-experiment.md` line 28 (primary); `68e67b5:ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml` lines 317-329; `68e67b5:docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` §1.2 "Condition (Arm A)"])
+#evidence("4.32", [Shipped `plan_channel_enabled: false` (prompt v2, no verify/repair); tranche 1 Arm A condition "backend: ER-2, plan channel on"; registered IB10 Arm A overlay carries `plan_channel_enabled: true`.], [`2557d75:docs/superpowers/specs/2026-11-13-ib10-live-resolution-experiment.md` line 28 (primary); `68e67b5:ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml` lines 317-329; `68e67b5:docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` §1.2 "Condition (Arm A)"])
 
 #evidence("4.33", [Newton backend in the runtime that ran: GT reader comment "under the Newton backend the robot root Xform keeps its authored spawn transform"; notes "Fabric/USD sync for Newton articulations" and "Newton moves the articulation in Fabric"; reports "Isaac Sim 6.0 with Newton". No config key selects the backend.], [`68e67b5:isaac/vgu_sim/acceptance_logging.py` line 250; `68e67b5:docs/implementation_notes.md` M6, 2026-06-21 and 2026-09-16 entries; `68e67b5:docs/reports/2026-06-21-m6-fabric-sync-investigation.md`; `68e67b5:docs/reports/2026-06-21-m4-phase1-completion.md` line 58])
 
 #evidence("4.34", [Module spec requires PhysX ("FR6.1.2 Use PhysX"; "Solver: PhysX TGS"), not what ran.], [`68e67b5:docs/specs/module6_simulation.md` lines 117, 1218])
 
-#evidence("4.35", [IB10 artifacts record `reasoner_config_effective.temperature` 0.6, not verified to be honoured by the provider; Interactions API exposes no sampling fields.], [`feat/ib10-live-resolution@2557d75:docs/reports/2026-11-13-ib10-live-resolution-results.md` line 162; `68e67b5:config/models.yaml` lines 6, 44-60])
+#evidence("4.35", [IB10 artifacts record `reasoner_config_effective.temperature` 0.6, not verified to be honoured by the provider; Interactions API exposes no sampling fields.], [`2557d75:docs/reports/2026-11-13-ib10-live-resolution-results.md` line 162; `68e67b5:config/models.yaml` lines 6, 44-60])
 
 #evidence("4.36", [Other recorded real-time factors: 0.396 vs 0.397 (smoke vs old VM), 0.179 in S1 echo episode E1.], [`68e67b5:docs/implementation_notes.md` experiment section, 2026-10-09 "S1 resume on the NEW Isaac VM" entry, lines 90-91])
