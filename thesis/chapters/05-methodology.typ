@@ -25,7 +25,7 @@ The research design frozen with the first preregistration states five research q
 - *RQ2, strategy competence.* The strategies the VLM chooses resolve congestion, compared with a per-type policy table.
 - *RQ3, social reasoning.* The robot the VLM names to yield, and the crossing order it proposes, are effective, compared with a first-come-first-served rule with a commitment tiebreak.
 - *RQ4, semantic advantage.* The VLM uses information that no classical baseline has, such as what a blocker is.
-- *RQ5, closed-loop adaptation.* Feedback about a failed command changes the VLM's next decision, compared with re-analysis without that feedback.
+- *RQ5, closed-loop adaptation.* Feedback about a failed command changes the VLM's next decision, compared with re-analysis without that feedback. (Here "closed loop" means re-analysis that receives feedback about the failed command, not the pipeline cycle defined in @sec:intro-contributions.)
 
 These questions frame the thesis. The experiments that were finally run answer narrower questions, set out next.
 
@@ -56,7 +56,7 @@ The first version was frozen with a repository tag on 2026-09-30 #ev("5.05"). It
 
 === prereg-v2: recovery from a formed jam
 
-The second design was written on the day the first was tagged, and was revised six times #ev("5.07"). It changed because v1 could only *classify* a four-way jam; no single-yield command could clear one. v2 added the composite `junction_clear` command; a plan channel in which the VLM proposes a full ordered plan and M3 verifies and minimally repairs it; and a provenance label on each executed plan (`vlm_verbatim`, `repaired` or `m3_default`). It also added a statistics block: paired tests on binary outcomes, Wilson intervals, Kaplan-Meier curves with the restricted mean survival time for censored times, and bootstrap intervals #ev("5.07"). In v2 the Layer-2-off control was a mock decision layer that always answered "no congestion" #ev("5.46").
+The second design was written on the day the first was tagged, and was revised six times #ev("5.07"). It changed because v1 could only *classify* a four-way jam; no single-yield command could clear one. v2 added the composite `junction_clear` command; a plan channel in which the VLM proposes a full ordered plan and M3 verifies and minimally repairs it; and a provenance label on each audited plan (`vlm_verbatim`, `repaired` or `m3_default`). It also added a statistics block: paired tests on binary outcomes, Wilson intervals, Kaplan-Meier curves with the restricted mean survival time for censored times, and bootstrap intervals #ev("5.07"). In v2 the Layer-2-off control was a mock decision layer that always answered "no congestion" #ev("5.46").
 
 === prereg-v3: fixed stack, emergent congestion
 
@@ -170,7 +170,7 @@ All IB10 scoring uses the criteria frozen for the scene before either experiment
 
 *Secondary.* Time to full resolution is the last arrival minus the GT jam onset, censored at the horizon when the jam is not resolved. Also reported are the minimum pairwise GT distance, the floor-stop count, the number of arrivals out of four, and an outcome rank that orders episodes first by whether all robots arrived, then by the phase reached, then by arrivals #ev("5.26").
 
-*Attribution.* For every dispatched decision of Arm A the scorer reports the strategy and the plan provenance: `vlm_verbatim` (executed as the model proposed), `repaired` (edited by M3) or `m3_default` (replaced by M3's own plan). The episode's label is the provenance of its `junction_clear` dispatch, or of its last dispatch before the final arrival #ev("5.26"). The provenance labels bound the model's contribution and are reported beside every outcome. Arm C is `m3_default` by construction, and its condition gate enforces it #ev("5.20").
+*Attribution.* For every dispatched decision of Arm A the scorer reports the strategy and the plan provenance: `vlm_verbatim` (the model's proposed plan passed M3's audit unchanged), `repaired` (it passed after M3's edits) or `m3_default` (absent, rejected or not repairable, so M3's own default plan is the reference). In every case the dispatched command is the grounder's output; the label records how that plan relates to the model's proposal (@sec:design-grounding). The episode's label is the provenance of its `junction_clear` dispatch, or of its last dispatch before the final arrival #ev("5.26"). The provenance labels bound the model's contribution and are reported beside every outcome. Arm C is `m3_default` by construction, and its condition gate enforces it #ev("5.20").
 
 *Safety-fix signals.* The grounder-default run adds descriptive per-episode counts of the log lines that only the switched-on safety fix can write, and of commands that ended on a deadline rather than on completion #ev("5.33").
 
