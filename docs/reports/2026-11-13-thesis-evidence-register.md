@@ -7,6 +7,7 @@
 - Initial draft: one register of the best evidence per scenario family, grouped by robot count, with grades, caveats, sources and cross-document conflicts; the IB10 live experiment recorded as in progress.
 - Rev 2 (2026-11-14): IB10 live experiment final row filled with the 2026-11-13 results.
 - Rev 3 (2026-11-14): IB10 safety smoke and grounder-default arm row added (2026-11-14 run); the "no-VLM ablation not run" wording in the 2026-11-13 final row and in Gaps marked superseded.
+- Rev 4 (2026-11-14): head-on yielder-choice row added from the pre-registered swapped-ID offline replay (branch `exp/head-on-swapped-id-replay`), plus one "does not support" bullet.
 
 ---
 
@@ -45,6 +46,7 @@
 |---|---|---|---|---|---|---|---|
 | head_on_deadlock (symmetric) | live | 1 per model | gpt-4o (E0), ER-2 (G0) | one `yield`, COMPLETED, 2/2 arrivals | none stated | n = 1 per model; a single-robot stall can fire the gate | `ON` 138-150, 774 |
 | head_on, asymmetric `_bshort` (prereg head-on scene) | live | gpt-4o N 6 + J 3; ER-2 K 6; plus VP 5 | gpt-4o, ER-2 | "Outcome 6/6 position-verified" (gpt-4o); "15/15 position-verified episodes across both models". VP: 4 resolved, 1 intermittent | pilot | The yield parks the pair at 0.23-0.28 m. Resolution depends on M3's `swap` gate re-grounding an infeasible yielder (5/6 gpt-4o). Presentation-order prior | `ON` 2161-2197, 2510-2530; `VP` 98-102 |
+| head_on asymmetric, M2 yielder choice (base `o0`, 12 standoff scenes) | offline replay, pre-registered | 48 runs per arm x 5 arms (ER-2, gpt-4o); Sonnet 64 | ER-2, gpt-4o, Sonnet 5.5 | No model meets "scene use". gpt-4o follows the first-listed slot (85/96 grey-pair yields); with labels and slot both pointing to the wrong robot, 1/24 correct. Image only vs states only: 26/48 vs 24/48. ER-2 answers `reverse` 129/144 (A/B arms). Sonnet refuses 30/48 real-frame runs and is not assessable | designed offline, small | Seed 42, one family, two robots, first decision only, no execution. Model list and image-only cells amended mid-run by owner. ER-2 Cell C 10/11 correct named yielders is a lead below the rule | `docs/reports/2026-11-14-head-on-swapped-id-replay-results.md` on branch `exp/head-on-swapped-id-replay` (commit `28eb37a`) |
 | blocked_path (T3a) | live, decision-level probes | 1 per model per cell | ER-2, gpt-4o | ER-2 "answered anomaly/reroute/object: a full hit"; gpt-4o detected the blocker in 2 of 38 analyses | probe | The transient obstacle clears on despawn even with no command | `IN` 3730-3771; `R/2026-10-08-v3-step0-rebaseline.md` 22 |
 | obstacle_in_candidate (T3b) | live, decision-level | 2 kept trials | gpt-4o, ER-2 | both avoided the occupied candidate; the D2 yield "FAILED on the 242.8 s wall bound" | probe | The registered 15-trial collection was not found | `IN` 3774-3781 |
 | dynamic_anomaly_v2 (T3c) | live mechanical smoke + mock | 1 live, 3 mock | ER-2 (every call HTTP 429) | 2/2 arrivals, min pair 0.70 m, but "M2's answer on the anomaly scene was never observed" | smoke | Resolution follows the obstacle's removal, not a decision | `ON` 2800-2818 |
@@ -164,6 +166,7 @@
   bench (they match it).
 - Per-group dispatch improving S1b (Stage 1 is shadow only).
 - Hardware conflict resolution toward goals (the robots had no goals).
+- M2 choosing the head-on yielder from the scene: in the pre-registered swapped-ID replay, no tested model passes, and gpt-4o follows the listing order (`docs/reports/2026-11-14-head-on-swapped-id-replay-results.md`, branch `exp/head-on-swapped-id-replay`). The correct yielder comes from M3's swap gate.
 
 ---
 
