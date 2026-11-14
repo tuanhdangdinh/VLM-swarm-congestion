@@ -342,11 +342,11 @@ Every video carries the following on screen or in its caption:
 - "**Illustrative demo, not controlled experimental evidence.**"
 - "**Take N of M**", where M is the number of valid takes run for that scenario.
 - Exactly one outcome label:
-  - **VLM-driven**;
-  - **M3-default** (the dispatched commands were M3's default plan: `provenance=m3_default`, or for the intersection no counterfactual difference);
-  - **unresolved**.
+  - **VLM-driven execution**;
+  - **M3-default resolution**;
+  - **Unresolved failure**.
 
-  "VLM-driven" may be used only as section 10 defines it.
+  For the intersection the label is exactly `take_class_dmc.py`'s `TAKE_CLASS` (section 10.4). A repaired, re-grounded or yielder-swapped plan is M3-default, and so is a take where a fallback or stage-2 command ran. For the other scenarios, "VLM-driven" may not be used unless a rule is added to section 10.4 before their first take. The fallback reading is M3-default: `provenance=m3_default`, or no counterfactual difference.
 - For the convoy: "**Shown before the registered convoy experiment's VLM arm ran.**"
 - For five robots: "**Seed position 21 (exploratory extension seed); shows a current limitation.**"
 - Takes that were not chosen are listed in the report. Selecting the best take must be disclosed ("selected take").
@@ -380,6 +380,7 @@ Add `--episodes N` to run N takes in one invocation. This saves about 15 min of 
 2. The `[chain]` lines: `CLASSIFY`, `END`, `COND` and no `GATE FAILED`. For a bring-up abort, check the budget left.
 3. Each `VIDEO_VERIFY` line says OK. If a stream is FLAGGED, look at its segments before deciding on another take.
 4. The `GOAL_SUMMARY`, `COUNTERFACTUAL`, `YIELD` or `LIMITATION` lines against the scenario's demo goal (section 4).
+   For the intersection, also run `python3 take_class_dmc.py <bundle>` in the kit directory. Its `TAKE_CLASS` line is the video label. `DEFAULT_ORDER` goes in the caption only.
 5. `python3 ledger_dmc.py status`, run in the kit directory, for wall, spend and take counts.
 
 **Render.** Use the renderer guide (`feat/demo-panel-renderer`, `docs/guides/demo_panel_video.md`):
@@ -400,10 +401,10 @@ The bundle keeps the file names the renderer reads: `m5.log`, `m4.log`, `decisio
 
 | Kit | `kit_md5_dmc.txt` (VM files) | `kit_md5_all_dmc.txt` | Overlay | Dry test |
 |---|---|---|---|---|
-| `ib` | `98a57626afd3080f5d104ac64e40b47d` | `76c18a4db6001130a95bbabf21616976` | `0196f1e8` base, `614beed0` effective (B3) | `TEST_DRY_DMC ib OK` |
-| `cv` | `37e73d8750d736858f9c182914182a42` | `3d3d0d234534d49715c109b41bf4ae84` | `7e3ab552` | `TEST_DRY_DMC cv OK` |
-| `ho` | `69a4ed79e8ee6d5409ed1c48e13abb2d` | `0d8144978666d8042d02141abc8c4851` | `3929a087` | `TEST_DRY_DMC ho OK` |
-| `m5` | `89112a40fe2b11c7e604b6636f92f27b` | `e5f1927d96dec75e9913cc0b32472865` | `09bc16e6` | `TEST_DRY_DMC m5 OK` |
+| `ib` | `98a57626afd3080f5d104ac64e40b47d` | `c97d0f3fa29c253b79a0b7c99ef0b375` | `0196f1e8` base, `614beed0` effective (B3) | `TEST_DRY_DMC ib OK` |
+| `cv` | `37e73d8750d736858f9c182914182a42` | `056dd75d1d3215bb65566889e15bc5af` | `7e3ab552` | `TEST_DRY_DMC cv OK` |
+| `ho` | `69a4ed79e8ee6d5409ed1c48e13abb2d` | `8718682abad7cf3c7ed217d8876f79c6` | `3929a087` | `TEST_DRY_DMC ho OK` |
+| `m5` | `89112a40fe2b11c7e604b6636f92f27b` | `afb389654ac4802ea5384f40356afa85` | `09bc16e6` | `TEST_DRY_DMC m5 OK` |
 
 Re-recorded 2026-11-15 after the section 10 fill (dry tests run with `MIN_MAC_FREE_KB=3000000`: the Mac had 4.9 GB free, below the driver's 5 GiB floor). The shared files are the same in every kit: `run_dmc.sh` `e811bbd2`, `chain_dmc.sh` `b8a32893`, `ep_run_dmc.sh` `25203d1b`, `recmgr_dmc.sh` `0f7adf25`, `goal_check_dmc.py` `f03087a9`.
 
@@ -498,7 +499,7 @@ On all 20 stimuli the B3 prompt differs from the A3 prompt only by this block, a
 **What ER-2 chose under B3.**
 
 - Recede order: of the 14 verbatim plans, 10 list `3rev 4rev` and 4 list `4rev 3rev`. Counted over all 24 B3 plans that reverse both pair robots, 19 put robot_3 first (ascending id = the listing slot). The bias predates the block: under A3, with no block, 13 of 18 put robot_3 first.
-- The ascending-id choice does not follow the scene: chi prefers 4→3 on 17 of the 29 B3 snapshots, and on the same snapshot ER-2 changes its order between replicates (`ib10S_e01`).
+- The ascending-id choice does not follow the scene: chi prefers 4→3 in 17 of the 29 B3 calls (20 snapshots), and on the same snapshot ER-2 changes its order between replicates (`ib10S_e01`).
 - Of the 10 order changes, 8 are ascending-id plans on snapshots where chi prefers 4→3. Of the 7 demo events, 6 are ascending-id.
 - Because `id_asc` makes id order and listing slot the same, the two cannot be separated here.
 
@@ -558,12 +559,13 @@ The five runtime files come from `demo/vlm-order-channel` `9102ce9`, merged into
 
 ### 10.4 Take Classification Rule (Fixed Before Take 1)
 
-`take_class_dmc.py` (`67b2fe05`; tests `test_take_class_dmc.py` `3076f09b`, 11 synthetic cases) is in every kit. It reads only `m5.log`, `m4.log`, `decisions/<id>.json` and the bundle's `orchestrator.overlaid.yaml`, and prints exactly one class:
+`take_class_dmc.py` (`cb70f53e`; tests `test_take_class_dmc.py` `78447e2e`, 13 synthetic cases) is in every kit. It reads only `m5.log`, `m4.log`, `decisions/<id>.json` and the bundle's `orchestrator.overlaid.yaml`, and prints exactly one class:
 
 - **Unresolved failure:** not every robot logged `arrived at base goal` in `m5.log`.
 - **VLM-driven execution:** resolved, and EVERY dispatched decision (an m5 `dispatch request=<id> command=<id>-...` line) is a `junction_clear` with `plan.provenance == vlm_verbatim` whose dispatched legs, read from the logs, match the plan:
   - the recede order is the m5 dispatch order of `<id>-junction-recede-<robot>`, each with an m4 `action=reverse`, and it equals the plan's `reverse` legs in order;
   - the yielder is the m4 `command=<id>-junction-cross ... action=yield`, and it equals the plan's `yield` leg;
+  - under that decision m5 dispatched only the plan's phase commands (each recede, cross, release; no fallback or stage-2 command), and every recede and the cross resolved `completed`;
   - and the dispatched recede order differs from the grounder's default (chi) order for that snapshot.
 
   `plan.legs` alone is never trusted. A verbatim plan whose yielder was swapped at dispatch is not VLM-driven.
