@@ -359,17 +359,27 @@ def test_provider_stop_is_not_retryable():
     assert ProviderStop("x").retryable is False
 
 
-def test_sonnet_real_frame_arm_stops_on_any_fallback():
-    rows = [
-        {
-            "backend_id": "anthropic",
-            "arm": "A_real",
-            "pilot": True,
-            "decision": {"yield_robot": "robot_1"},
-            "image_fallback_used": i == 0,
-        }
-        for i in range(4)
-    ]
-    assert pilot_failed(rows, "anthropic", "A_real") is True
-    grey = [dict(r, arm="A_grey") for r in rows]
-    assert pilot_failed(grey, "anthropic", "A_grey") is False
+def test_notext_cells_drop_obstacle_text_and_pick_images(tmp_path):
+    artifact = _artifact(tmp_path)
+    grey = tmp_path / "grey.png"
+    Image.fromarray(np.full((8, 8, 3), 128, dtype=np.uint8)).save(grey)
+    cells = build_cells("openai", [artifact], grey, ("C_real_notext", "D_grey_notext"))
+    assert {c.image_path.name for c in cells if c.arm == "C_real_notext"} == {
+        artifact.image_path.name
+    }
+    assert {c.image_path.name for c in cells if c.arm == "D_grey_notext"} == {"grey.png"}
+    backend = _ScriptedBackend(
+        [BackendResponse(text=_decision_text("robot_1"), backend_id="mock")] * 1
+    )
+    row = run_cell(
+        cells[0],
+        LedgerProxy(backend, 0.0),
+        ReasonerConfig(backend_id="openai", max_attempts=1),
+        {},
+        "abc",
+    )
+    assert row["obstacle_text"] is False
+    request = reconstruct_request(artifact, "id_asc", None, False)
+    prompt = build_prompt_payload(request).user_prompt
+    assert "obstacle" not in prompt.lower() and "1.85" not in prompt
+    assert label_to_physical("robot_1", "C_real_notext") == "west"

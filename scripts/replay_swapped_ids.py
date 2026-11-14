@@ -85,8 +85,13 @@ STIMULUS_PREFIXES: tuple[str, ...] = (
 )
 PILOT_PREFIXES: tuple[str, ...] = ("53264de9", "61119197")
 
-ArmName = Literal["A_real", "A_grey", "B_grey"]
+ArmName = Literal["A_real", "A_grey", "B_grey", "C_real_notext", "D_grey_notext"]
 ARMS: tuple[ArmName, ...] = ("A_real", "A_grey", "B_grey")
+# Amendment 3 (2026-11-14): obstacle text off; C = real frame ("image only"),
+# D = grey image ("states only"). Run after A/B for every model, C before D.
+NOTEXT_PHASES: tuple[tuple[ArmName, ...], ...] = (("C_real_notext",), ("D_grey_notext",))
+REAL_FRAME_ARMS: frozenset[str] = frozenset({"A_real", "C_real_notext"})
+NOTEXT_ARMS: frozenset[str] = frozenset({"C_real_notext", "D_grey_notext"})
 ORDERS: tuple[RobotPresentationOrder, ...] = ("id_asc", "id_desc")
 REPLICATES: tuple[int, ...] = (1, 2)
 LABEL_SWAP: dict[str, str] = {"robot_1": "robot_2", "robot_2": "robot_1"}
@@ -240,7 +245,12 @@ class Cell:
         return swapped_artifact(self.artifact) if self.arm == "B_grey" else self.artifact
 
 
-def build_cells(backend_id: str, stimuli: list[Artifact], grey_image: Path) -> list[Cell]:
+def build_cells(
+    backend_id: str,
+    stimuli: list[Artifact],
+    grey_image: Path,
+    arms: tuple[ArmName, ...] = ARMS,
+) -> list[Cell]:
     """Build one model's cells in the pre-registered execution order.
 
     Pilot cells first (replicate 1 of the two pilot scenes, both orders, every
@@ -251,24 +261,25 @@ def build_cells(backend_id: str, stimuli: list[Artifact], grey_image: Path) -> l
         backend_id: The model's `config/models.yaml` section.
         stimuli: The 12 standoff artifacts.
         grey_image: The neutral image for the grey arms.
+        arms: The arms to build, in execution order.
 
     Returns:
-        144 cells.
+        48 cells per arm.
     """
 
     def make(
         arm: ArmName, artifact: Artifact, order: RobotPresentationOrder, rep: int, pilot: bool
     ) -> Cell:
-        image = artifact.image_path if arm == "A_real" else grey_image
+        image = artifact.image_path if arm in REAL_FRAME_ARMS else grey_image
         return Cell(backend_id, arm, artifact, order, rep, image, pilot)
 
     pilots = [a for p in PILOT_PREFIXES for a in stimuli if a.request_id.startswith(p)]
-    cells = [make(arm, a, order, 1, True) for arm in ARMS for a in pilots for order in ORDERS]
+    cells = [make(arm, a, order, 1, True) for arm in arms for a in pilots for order in ORDERS]
     pilot_keys = {c.key() for c in cells}
     for rep in REPLICATES:
         for artifact in stimuli:
             for order in ORDERS:
-                for arm in ARMS:
+                for arm in arms:
                     cell = make(arm, artifact, order, rep, False)
                     if cell.key() not in pilot_keys:
                         cells.append(cell)
@@ -481,7 +492,10 @@ def run_cell(
     cell: Cell, proxy: LedgerProxy, config: ReasonerConfig, effective: dict[str, Any], commit: str
 ) -> dict[str, Any]:
     """Execute one cell through the production `Reasoner` and return its row."""
-    request = reconstruct_request(cell.request_artifact(), cell.order, cell.image_path, True)
+    obstacle_text = cell.arm not in NOTEXT_ARMS
+    request = reconstruct_request(
+        cell.request_artifact(), cell.order, cell.image_path, obstacle_text
+    )
     user_prompt = build_prompt_payload(request).user_prompt
     payload_sha = sha256_text(user_prompt)
     proxy.reset()
@@ -517,7 +531,8 @@ def run_cell(
         "side": cell.artifact.obstacle_side,
         "order": cell.order,
         "replicate": cell.replicate,
-        "image_condition": "annotated_frame" if cell.arm == "A_real" else "grey",
+        "image_condition": "annotated_frame" if cell.arm in REAL_FRAME_ARMS else "grey",
+        "obstacle_text": obstacle_text,
         "image_name": cell.image_path.name,
         "ids": "swapped" if cell.arm == "B_grey" else "original",
         "prompt_user_sha256": payload_sha,
@@ -682,14 +697,8 @@ def pilot_failed(rows: list[dict[str, Any]], backend_id: str, arm: str) -> bool 
     pilots = [r for r in rows if r["backend_id"] == backend_id and r["arm"] == arm and r["pilot"]]
     if len(pilots) < len(PILOT_PREFIXES) * len(ORDERS):
         return None
-    # Amendment 2: Sonnet's real-frame arm stops on any fallback, because a
-    # fallback decision is a grey-image decision, not a real-frame one.
-    if (
-        backend_id == "anthropic"
-        and arm == "A_real"
-        and any(r["image_fallback_used"] for r in pilots)
-    ):
-        return True
+    # Amendment 2's Sonnet stop-on-any-fallback is withdrawn by amendment 3:
+    # the fallback answers model refusals, so the general rule governs.
     bad = sum(1 for r in pilots if r["decision"] is None or r["image_fallback_used"])
     return bad >= PILOT_STOP_FAILURES
 
@@ -701,15 +710,16 @@ def execute_model(
     out_dir: Path,
     pace_sec: float,
     commit: str,
+    arms: tuple[ArmName, ...] = ARMS,
 ) -> str:
-    """Run one model's cells under every stop rule; return why it ended."""
+    """Run one model's cells of the given arms under every stop rule; return why it ended."""
     calls_path, ledger_path = out_dir / "calls.jsonl", out_dir / "ledger.jsonl"
     config, backend_config, effective = load_model(backend_id)
     proxy = LedgerProxy(make_backend(backend_id, backend_config), pace_sec)
     rows = load_jsonl(calls_path)
     done = {r["key"] for r in rows}
     prompt_bound = DEFAULT_PROMPT_TOKENS_BOUND
-    for cell in build_cells(backend_id, stimuli, grey):
+    for cell in build_cells(backend_id, stimuli, grey, arms):
         if cell.key() in done:
             continue
         if not cell.pilot and pilot_failed(rows, backend_id, cell.arm):
@@ -796,16 +806,20 @@ def main() -> None:
     if args.probe_only:
         return
 
-    for backend_id in args.models:
-        if not provider_ok[PROVIDER_OF[backend_id]]:
-            print(f"{backend_id}: skipped, provider probe failed")
-            continue
-        reason = execute_model(backend_id, stimuli, grey, args.out_dir, args.pace_sec, commit)
-        print(f"{backend_id}: ended - {reason}", flush=True)
-        if reason.startswith("TOTAL cap"):
-            break
-        if reason.startswith("provider stop"):
-            provider_ok[PROVIDER_OF[backend_id]] = False
+    # Budget priority (amendment 3): A/B for every model, then C, then D.
+    for phase in (ARMS, *NOTEXT_PHASES):
+        for backend_id in args.models:
+            if not provider_ok[PROVIDER_OF[backend_id]]:
+                print(f"{backend_id} {phase}: skipped, provider stopped or probe failed")
+                continue
+            reason = execute_model(
+                backend_id, stimuli, grey, args.out_dir, args.pace_sec, commit, phase
+            )
+            print(f"{backend_id} {phase}: ended - {reason}", flush=True)
+            if reason.startswith("TOTAL cap"):
+                return
+            if reason.startswith("provider stop"):
+                provider_ok[PROVIDER_OF[backend_id]] = False
 
 
 if __name__ == "__main__":

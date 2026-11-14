@@ -6,6 +6,7 @@
 
 - Initial draft: design frozen before the first paid call. Implements the replay proposed in the final section of `docs/reports/2026-11-14-head-on-vlm-vs-rule-rescore.md`, with the differences listed under "Differences From the Re-Score Proposal".
 - Rev 2 (2026-11-14): amendments 1 and 2 (owner instructions mid-run): the model list is cut to one model per provider (ER-2, gpt-4o, Sonnet 5.5); a Sonnet real-frame stop on any image fallback.
+- Rev 3 (2026-11-14): amendment 3 (owner: "add the image-only cell, inspect the sonnet first"): Sonnet fallback cause recorded; Cell C (image only) and Cell D (states only) added with their decision rule; the amendment-2 Sonnet stop is withdrawn.
 
 ---
 
@@ -281,6 +282,76 @@ Final model list, replacing the "Models" table for the verdict:
   each under the general pilot rule. The report states which Sonnet cells exist.
 - Execution: gpt-4o's 24 remaining runs, then Sonnet. Caps, rates, scoring and
   decision rules are unchanged.
+
+### Amendment 3 (2026-11-14, owner: "add the image-only cell, inspect the sonnet first")
+
+Recorded before any Sonnet design run and before any Cell C or D call. At this point
+ER-2 had 144/144 runs, gpt-4o 133/144, Sonnet 0.
+
+**Sonnet inspection (done first).**
+
+- Recorded artifacts: the 26 Sonnet decisions of `roster_validation/runs/rv01_sonnet_ho_s42`
+  and `rv02_sonnet_ho_s43` (`w0p2_eopen_bshort`). All 26 carry
+  `refusal_category = reasoning_extraction`. 24 used the fallback: 21 ended
+  `failed` and 3 `invalid`. Of the other two, one was `invalid` without fallback and
+  one `valid`.
+- Code path: `Reasoner.run` (`reasoning/vlm/reasoner.py:487-496`) treats
+  `BackendResponse.refusal` as a parse failure. At lines 526-536 a refusal on attempt
+  >= `image_fallback_after_attempts` (2 for `anthropic`) swaps in the neutral image
+  (`_should_fall_back`, lines 588-599). The fallback fires **only** after a
+  refusal. `AnthropicBackend` sets `refusal = stop_reason == "refusal"`
+  (`reasoning/vlm/anthropic_backend.py:145-146`) and sends the frame as a base64
+  `image/png` block (lines 164-185).
+- Three diagnostic calls (`sonnet_diagnostic.jsonl`; outside every table) on
+  `53264de9`, `id_asc`, real frame, obstacle text on:
+  - image sent: PNG 1280 x 960, 681,362 bytes, base64 908,484 characters;
+  - 3/3 HTTP 200, `stop_reason: refusal`, category `reasoning_extraction`;
+  - 3,019 input tokens and 0 output tokens billed per call.
+- Cause: (a), a model refusal, not a harness or request artefact. The image is
+  delivered within limits and the provider answers with a documented refusal. The
+  trigger is the `<think>` answer-format block of the prompt
+  (`docs/reports/2026-10-06-roster-validation.md`: removing it lifted the refusal
+  3/3), not the image. The fallback is the shipped mitigation reacting to those
+  refusals.
+- Consequence: the amendment-2 Sonnet stop-on-any-fallback is **withdrawn**. Sonnet's
+  real-frame cells run, and fallbacks and refusals are counted per run as data.
+  Every Sonnet arm stays under the general pilot rule (stop after the 4 pilot runs if
+  3 or more end with no decision or used the fallback). Sonnet's grey arms run under
+  the same rule.
+
+**Cell C, "image only", and Cell D, "states only".**
+
+| Cell | IDs | Image | Obstacle text | Orders | Replicates | Runs per model |
+|---|---|---|---|---|---|---|
+| `C_real_notext` | original | annotated frame | off | both | 2 | 48 |
+| `D_grey_notext` | original | grey | off | both | 2 | 48 |
+
+- Text off uses the September switch: `include_static_obstacles=False` in
+  `reconstruct_request` (the replay's `obstacle_text` factor). Checked on all 12
+  stimuli: the rendered prompts contain no obstacle line, no `1.85`, and the word
+  "obstacle" nowhere. After masking every decimal number, the 12 prompts are
+  byte-identical within each order. So in Cell C the only thing that tells a
+  west-blocked scene from an east-blocked one is the image (plus pose decimals).
+- Frames: on a 12-frame contact sheet, the blocker (a light-grey box with its
+  shadow) is visible to a human in **12 of 12** frames, on the side the oracle
+  states: left in the 6 west-blocked frames, right in the 6 east-blocked ones. No
+  scene is excluded from the image-use test.
+- Same pilot cells, pilot rule, scoring (physical robot, all-runs denominator) and
+  caps as the other arms.
+- **Question:** can the correct yielder be read from the image alone?
+- **Decision rule, stated before the first Cell C call.** "Image use" is supported
+  for a model only if both hold:
+  - in Cell C, in each of the four side x order cells, it names the physically
+    correct robot in at least 9 of 12 runs, with both replicates correct in at least
+    4 of the 6 scenes;
+  - its Cell C overall P(correct) exceeds its own Cell D overall P(correct) by at
+    least 0.25 (absolute; both over 48 runs).
+
+  Otherwise image use is not supported. A model whose Cell C or D arm stopped at the
+  pilot, or which has fewer than 20 decisions in either, is "not assessable".
+  Counts only, call and scene level.
+- **Budget priority:** Arms A and B for all three models, then Cell C for all three,
+  then Cell D. The run stops cleanly at the cap; anything not run is reported.
 
 ---
 
