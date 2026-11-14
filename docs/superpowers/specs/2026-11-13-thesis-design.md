@@ -119,6 +119,8 @@ Implementation chapter section + Results placeholder. State what it shows (Turtl
   - `scientific-writing`: drafting guidance; `audit_claims.py` / `check_consistency.py` used as a pre-handover pass over the chapter text (export to Markdown if a tool needs it).
   - `peer-review`: one committee-style review of the full draft before handover; findings fixed or listed for the owner.
   - `scientific-visualization`: results plots (IB10 arm comparison, tranche-1 pilot, v4 bench) made with Matplotlib, exported as SVG/PDF with New Computer Modern-compatible fonts, scripts kept in `thesis/figures/src/` so plots regenerate from data.
+  - `statistical-analysis`: small-sample inference for the held results (e.g. exact test and exact/Wilson intervals for IB10 4/5 vs 0/5; bootstrap CIs as preregistered for tranche 1), reported with effect sizes, never as more than an exploratory pilot.
+  - `scientific-critical-thinking`: threats-to-validity section in Methodology and Discussion (confounds such as M3 repairing every plan, deterministic Arm B freeze, single scene, simulation-only).
   - Not installed: `literature-review` (needs OpenRouter key, PRISMA/biomedical focus), `scientific-schematics` (AI image generation; diagrams stay Typst-native).
 - **Placeholders:** a single `#todo[...]` macro (visible coloured box) for every held number or sentence, so a grep finds them all before submission.
 
