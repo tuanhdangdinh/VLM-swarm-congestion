@@ -512,15 +512,29 @@ class Reasoner:
                         refusal_source = "text_pattern"
                     if refusal_source is not None:
                         refusal_attempts += 1
+                    # Only the provider's structured channel carries a
+                    # category; a text-pattern refusal is never final here.
+                    final_refusal = (
+                        refusal_source == "provider"
+                        and response.refusal_category is not None
+                        and response.refusal_category in self._config.final_refusal_categories
+                    )
                     records.append(
                         response_attempt_record(
                             response,
                             "refusal" if refusal_source is not None else "parse_failure",
                             error_type=last_error_type,
                             refusal_source=refusal_source,
-                            backoff_sec=None if final_attempt else 0.0,
+                            backoff_sec=None if final_attempt or final_refusal else 0.0,
                         )
                     )
+                    if final_refusal:
+                        return failed(
+                            "FinalRefusal",
+                            f"provider refusal (category={response.refusal_category}) is "
+                            "final on first occurrence (final_refusal_categories); "
+                            "no re-ask, no image fallback",
+                        )
                     if final_attempt:
                         continue
                     if refusal_source is not None and self._should_fall_back(

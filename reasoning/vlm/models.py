@@ -1001,3 +1001,21 @@ class ReasonerConfig(BaseModel):
     # image channel on every attempt. Every other shipped arm opts in at 2
     # (parity rulings; local arms since conformance ruling F13).
     image_fallback_after_attempts: int | None = Field(default=None, ge=1)
+    # Provider refusal categories (`BackendResponse.refusal_category`) that end
+    # a call on their first occurrence: no re-ask, no neutral-image fallback.
+    # Anthropic's `reasoning_extraction` is deterministic for an unchanged
+    # prompt (132/132 retries refused, 2026-11-14 Sonnet inspection), so retries
+    # only add billed refusals. Empty by default: the October retry-parity
+    # ruling holds for every shipped config; opting in was owner-approved
+    # 2026-11-14 ("options 2 and 3") and is not lossless, since a refused
+    # call can still be recovered on a later attempt.
+    final_refusal_categories: tuple[str, ...] = ()
+
+    @field_validator("final_refusal_categories")
+    @classmethod
+    def _final_refusal_categories_valid(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if any(not entry.strip() for entry in value):
+            raise ValueError("final_refusal_categories entries must be non-empty")
+        if len(set(value)) != len(value):
+            raise ValueError("final_refusal_categories entries must be unique")
+        return value
