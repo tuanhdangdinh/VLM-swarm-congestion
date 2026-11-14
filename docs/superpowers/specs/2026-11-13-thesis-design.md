@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft (2026-11-13): scope, chapter plan, sources, guardrails.
+- Rev 7 (2026-11-14): pre-submission source refresh in 6.0: branch table re-listed by commit date; newer results-level branches added and held for Chapter 6 (no results enter chapters); IB10 pending bullet marked superseded.
 - Rev 6 (2026-11-14): base moved to cbe3dcf; new sources (Stage 1 report, S1b bottleneck, evidence register, IB10 results, Arm C addendum); results/discussion/conclusion/abstract stay held by owner decision until other sessions finish.
 - Rev 5 (2026-11-14): scientific skills workflow (Section 8).
 - Rev 4 (2026-11-14): IB10 run finished; report pending on feat/ib10-live-resolution.
@@ -64,14 +65,18 @@ Target length guess (builder's call): roughly 45–70 pages once results are in.
 
 ### 6.0 Newest-source rule (owner requirement)
 
-The thesis describes the **newest** code and the **newest** scenario results. Branch lineage as of 2026-11-13:
+The thesis describes the **newest** code and the **newest** scenario results. Branch lineage as of 2026-11-14 (refreshed with `git for-each-ref --sort=-committerdate refs/heads`, Rev 7):
 
 | Role | Branch @ commit | Notes |
 |---|---|---|
-| **Code baseline (thesis branch base)** | `feat/v4-per-cluster-parity` @ cbe3dcf (was fdf333d) | Contains `feat/v3-integration` (68e67b5, the pinned v3 runtime incl. tranche-1 report 75a499c), `feat/v4-vlm-bench` (7850f5a), `feat/v4-per-cluster` (48234f2), Stage 0 parity + Stage 1 shadow. `docs/thesis` is cut from here. |
+| **Code baseline (thesis branch base)** | `feat/v4-per-cluster-parity` @ cbe3dcf (was fdf333d); branch tip now 053fb5c (docs-only past cbe3dcf: evidence-register rows for the IB10 grounder-default e02 re-run and the head-on swapped-ID replay; HELD for Chapter 6; thesis base stays cbe3dcf) | Contains `feat/v3-integration` (68e67b5, the pinned v3 runtime incl. tranche-1 report 75a499c), `feat/v4-vlm-bench` (7850f5a), `feat/v4-per-cluster` (48234f2), Stage 0 parity + Stage 1 shadow. `docs/thesis` is cut from here. |
 | Prereg v3 design + addenda A9–A36 | `feat/v3-design` @ ad67a18 | Not merged into the code baseline; read via `git show feat/v3-design:docs/superpowers/specs/2026-10-06-prereg-v3-design.md`. |
 | IB10 experiment + results | `feat/ib10-live-resolution` @ 2557d75 | Registration 50704c2, results report 825d6d5/2557d75. Branched from 68e67b5; IB10 runs on the **v3 pin runtime**, not on v4 code. |
-| IB10 safety smoke + Arm C (grounder default, no VLM) | `feat/ib10-safety-default-arm` @ e6a904e | Addendum `docs/superpowers/specs/2026-11-14-ib10-safety-default-arm-addendum.md`; results 93fab84; e02 re-run registered, may still change. |
+| IB10 safety smoke + Arm C (grounder default, no VLM) | `feat/ib10-safety-default-arm` @ 9ca0932 (was e6a904e) | Addendum `docs/superpowers/specs/2026-11-14-ib10-safety-default-arm-addendum.md`; results 93fab84; e02 re-run result recorded at 9ca0932. Results-level, HELD for Chapter 6. `feat/convoy-live-resolution` currently points at the same commit 9ca0932. |
+| Head-on VLM yielder vs position rule | `docs/head-on-vlm-vs-rule` @ 1f77bf1 | Re-scores the head-on VLM yielder against a position rule. Results-level, exploratory, HELD for Chapter 6. |
+| Head-on swapped-ID replay | `exp/head-on-swapped-id-replay` @ bc26ae0 | Swapped-ID replay tables and caveats; registered in the evidence register at 053fb5c. Results-level, exploratory, HELD for Chapter 6. |
+| Safety exemption-scope fix | `fix/safety-exemption-scope` @ 8933863 | Default-off overlay key; key-off identity re-run recorded. Code facts already cited in Chapter 4 (ev 4.27); results-level parts HELD. |
+| Refusal-feedback remedies | `feat/v4-refusal-feedback` @ 384e948 | Built default-off; cited in Chapters 3–4 (ev 3.21, 4.27) as exploratory; effect on the model untested. |
 | Older lineage — do not use as source | `fix/deadlock-collision-resolution` @ fc73151 | Main checkout; superseded by the branches above. |
 
 Rules:
@@ -80,8 +85,8 @@ Rules:
 - **Verify against code, not only docs.** Module descriptions (topics, strategy enum, safety thresholds, config keys) are checked against the runtime that ran: `git show 68e67b5:<path>` (the code baseline may differ where v4 touched a file); where a spec disagrees with code, code wins and the spec is not cited for that point.
 - **Newest results only.** Superseded numbers (earlier pilots, E1–E26 batches, earlier report revisions) appear only as history in Methodology, never as results. Use the latest revision of each report (e.g. per-cluster choice Rev 3, gf-cluster Rev 2, replay-er2 Rev 2).
 - **Pending results** stay `#todo` until their report is committed:
-  - v4 Stage 1 per-cluster shadow: run FINISHED 2026-11-13 15:47 UTC (7 episodes, seed positions 21–27; pooled script output exists in gitignored `v4_s1b_pc_shadow_analysis/stage1_summary_all.json`, no report yet). Shadow only, nothing dispatched; exploratory.
-  - IB10 live run: FINISHED 2026-11-13 (Arm A 4/5 resolved, Arm B 0/5; 0 floor stops, 0 GT contacts; 0/5 VLM plans executed verbatim — 4 repaired, 1 replaced by M3). Report being written to `docs/reports/2026-11-13-ib10-live-resolution-results.md` on `feat/ib10-live-resolution`; numbers enter the thesis only from that committed report, with the claim "VLM + grounding pipeline clears the jam" (M3-default-without-VLM ablation not run — state as limitation).
+  - *(Superseded by Rev 6: the Stage 1 report is committed, `docs/reports/2026-11-13-v4-stage1-shadow-results.md`; see 6.1.)* v4 Stage 1 per-cluster shadow: run FINISHED 2026-11-13 15:47 UTC (7 episodes, seed positions 21–27; pooled script output exists in gitignored `v4_s1b_pc_shadow_analysis/stage1_summary_all.json`, no report yet). Shadow only, nothing dispatched; exploratory.
+  - *(Superseded by Rev 6/7: the IB10 results report is committed at `feat/ib10-live-resolution` 2557d75 and the grounder-default ablation (Arm C) ran on `feat/ib10-safety-default-arm`; results stay held for Chapter 6.)* IB10 live run: FINISHED 2026-11-13 (Arm A 4/5 resolved, Arm B 0/5; 0 floor stops, 0 GT contacts; 0/5 VLM plans executed verbatim — 4 repaired, 1 replaced by M3). Report being written to `docs/reports/2026-11-13-ib10-live-resolution-results.md` on `feat/ib10-live-resolution`; numbers enter the thesis only from that committed report, with the claim "VLM + grounding pipeline clears the jam" (M3-default-without-VLM ablation not run — state as limitation).
 - **Pre-submission refresh.** Before handing over the final draft, re-list branches by commit date (`git for-each-ref --sort=-committerdate refs/heads`) and check for commits newer than this table; update this table and any affected text.
 
 ### 6.1 Topic → source
