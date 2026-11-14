@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft (2026-11-13): scope, chapter plan, sources, guardrails.
+- Rev 5 (2026-11-14): scientific skills workflow (Section 8).
 - Rev 4 (2026-11-14): IB10 run finished; report pending on feat/ib10-live-resolution.
 - Rev 3 (2026-11-13): Stage 1 run finished (report pending); IB10 run in progress; owner decisions skip tranche 2 / run IB10 confirmed.
 - Rev 2 (2026-11-13): newest-source rule (6.0); branch rebased onto fdf333d; source map points at latest reports.
@@ -113,6 +114,12 @@ Implementation chapter section + Results placeholder. State what it shows (Turtl
 - **Tooling:** Typst 0.15.1 locally (`typst compile thesis/main.typ`); owner previews with Tinymist in VS Code/Cursor or `typst watch`. Use the `typst-documents` skill.
 - **Diagrams:** Typst-native `fletcher` + `cetz`, pinned package versions. *(owner accepted)*
 - **Structure:** `thesis/main.typ` + `thesis/chapters/NN-name.typ` + `thesis/assets/` + `thesis/bibliography/`.
+- **Scientific skills (owner request, installed 2026-11-14 from K-Dense-AI/scientific-agent-skills @ 2d2065f into `~/.claude/skills/`):**
+  - `paper-lookup` + `citation-management`: every bibliography entry is resolved by DOI/arXiv ID (Crossref, OpenAlex, arXiv) and generated as BibTeX from the API record; `validate_citations.py` run over `thesis/bibliography/*.bib` before handover. This implements the "never cite from memory" rule.
+  - `scientific-writing`: drafting guidance; `audit_claims.py` / `check_consistency.py` used as a pre-handover pass over the chapter text (export to Markdown if a tool needs it).
+  - `peer-review`: one committee-style review of the full draft before handover; findings fixed or listed for the owner.
+  - `scientific-visualization`: results plots (IB10 arm comparison, tranche-1 pilot, v4 bench) made with Matplotlib, exported as SVG/PDF with New Computer Modern-compatible fonts, scripts kept in `thesis/figures/src/` so plots regenerate from data.
+  - Not installed: `literature-review` (needs OpenRouter key, PRISMA/biomedical focus), `scientific-schematics` (AI image generation; diagrams stay Typst-native).
 - **Placeholders:** a single `#todo[...]` macro (visible coloured box) for every held number or sentence, so a grep finds them all before submission.
 
 ## 9. Left to the builder
