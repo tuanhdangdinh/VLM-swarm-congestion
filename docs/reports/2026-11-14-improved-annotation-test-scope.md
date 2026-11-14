@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: scope for an offline replay follow-up to the head-on swapped-ID replay. Covers frame measurements, provider image handling, Type L and Type K variants with rendered examples, cells, decision rules, cost and owner decisions. No model call was made.
+- Rev 2 (2026-11-14): corrected the label-overlap count (4 overlap, 2 touch), the obstacle distance in metres and the marker size range; text-off prompt check extended to all 24 scenes; `20260925_181526` exclusion recorded.
 
 ---
 
@@ -112,15 +113,16 @@ Measured by `render_variants.py`. Per-scene values are in `measurements.json`.
 |---|---|---|
 | Frame | 1280 x 960 RGB PNG, about 0.68 MB | sent unchanged to every provider |
 | Robot box | 40 x 40 px, 2 px red `(200, 0, 0)` (status STOPPED) | `annotation.py:72-75` |
-| Robot marker (white square) | 28-30 px a side | about 0.12 m at 229 px/m |
+| Robot marker (white square) | 28-33 px a side | about 0.12 m at 229 px/m |
+| Robot body | about 41 px wide [inferred] | 0.18 m (`scenario_geometry.robot.half_width_m` 0.09) at 229 px/m; the dark chassis is mostly hidden under the box and marker |
 | Robot centre separation | 38 / 58 / 91 px | the robots are about 0.25 m apart, in the frame centre |
 | Label strip height (with the `_` descender) | 12 / 14 / 15 px | font scale 0.5, 1 px stroke |
 | Label x-height | 5 / 8 / 8 px | 23 of 24 measurable |
-| Gap between the two labels | -17 / 3 / 36 px | **13 of 24 scenes have a gap of 3 px or less, and 5 overlap.** The frame reads `robot_1robot_2`, or, in `7b0fbf9e`, `robotrobot_2`, where `robot_2`'s label overwrites the end of `robot_1`'s. |
+| Gap between the two labels | -17 / 3 / 36 px | Computed from the robot centres and an assumed 55 px label width (`robot_1` at scale 0.5), not traced from pixels. **13 of 24 scenes have a gap of 3 px or less; 4 overlap and 2 touch.** The frame reads `robot_1robot_2`, or, in `7b0fbf9e`, `robotrobot_2`, where `robot_2`'s label overwrites the end of `robot_1`'s. |
 | Label contrast (red on corridor floor about `(56, 55, 48)`) | 1.94 / 1.97 / 2.03 : 1 (WCAG ratio) | low; WCAG asks 4.5:1 for small text |
 | Obstacle top face | 77 x 77 px, RGB about 147 | top face at u = 128-204 (west) or 1075-1151 (east), v = 442-518, **at the same pixels in every scene of a side** |
 | Obstacle contrast with the corridor floor | 3.28 / 3.32 / 3.33 : 1 | a light box on a dark floor, with a darker side face and shadow toward the frame centre |
-| Nearest robot centre to obstacle top-face edge | 396 / 406 / 419 px | about 1.75 m |
+| Nearest robot centre to obstacle top-face edge | 396 / 406 / 419 px | in pixels only; the top face images about 1.12x farther out than the ground, so in world terms the robot (|x| about 0.13 m) is about 1.57 m from the box's near face (|x| = 1.7 m) |
 
 Plain reading: the obstacle is large, well-lit and unambiguous: a 77 px light square.
 The robot labels are the weak element. They are 8 px high, low in contrast, and run
@@ -172,7 +174,7 @@ obstacle text on. `20260925_181526` has no standoff.
 | `20260925_193307` | `653be8f3` | east | yes | `id_desc` |
 | `20260925_194800` | `f94cb7ed` | east | yes | `id_desc` |
 
-`check_integrity` matched 169 of 169 artifacts of these 12 runs. With these, the scene
+`check_integrity` matched 169 of 169 artifacts of these 12 runs. One more run, `20260925_181526` (west), yields a geometric standoff under the selector (`afab62d2`, raw frame present), but its live decision failed to parse. It is excluded so that the set stays 12 west and 12 east; the owner may add it. With these, the scene
 set is **24 scenes (12 west, 12 east)**, and **12 of the 24 (6 per side) have a raw frame**.
 
 **These 24 scenes add count, not diversity.** They are the same two scenario cells at
@@ -196,7 +198,7 @@ is.
 | Variant | What it changes | Type | How produced | Scenes covered | Ship later in M1/M5 behind a default-off option? |
 |---|---|---|---|---|---|
 | **L1** crop + upscale | Fixed 1280 x 400 corridor-band crop, Lanczos upscale 1.6x to 2048 x 640. Both corridor ends and the obstacle stay in view. Labels are unchanged: still 8 px and still run together, now about 13 px high. | L | post-process the annotated PNG | all 24 | Yes, in M5, where the frame is written for M2. Next to `frame_downscale_width` (`models.py:354`, `orchestrator_node.py:1107`, `1848`), add `frame_crop_box_px: null` and `frame_upscale: 1.0`, set per scenario like `scenario_geometry`. |
-| **L2** legible labels + L1 | Removes the old 1 px red labels (Telea inpaint over the label pixels only). Redraws each label as a white-on-black panel (scale 0.7, stroke 2) with a red border and a short leader line. Each panel is pushed 45 px away from the pair's midpoint so the two never overlap. Boxes are redrawn at 3 px. Then the L1 crop+upscale. The label x-height in the sent image is about 16 px; the contrast is 21:1. Panel placement uses only the robot poses M1 already publishes. | L | post-process the annotated PNG (all 24). For the 12 raw scenes, the same overlay drawn on the raw frame (`L2raw`) agrees to within 80 and 23 px of 1.3 M in the two checked scenes | all 24 (raw-based: 12) | Yes, in M1. `render_annotated_frame` already has an unused `style` argument (`annotation.py:444`, `455`). Add `annotation.legible_labels: false` (and font scale) to `config/annotation.yaml`, read in `perception_node.py` like `annotation.metric_grid` (`:62`), passed through `pipeline.py:66`. With the flag off, the frame stays byte-identical (pinned by `tests/unit/test_annotation_apparatus.py`). |
+| **L2** legible labels + L1 | Removes the old 1 px red labels (Telea inpaint over the label pixels only). Redraws each label as a white-on-black panel (scale 0.7, stroke 2) with a red border and a short leader line. Each panel is pushed 45 px away from the pair's midpoint so the two never overlap. Boxes are redrawn at 3 px. Then the L1 crop+upscale. The label x-height in the sent image is about 16 px [inferred from the rendered rows]; the contrast is 21:1. Panel placement uses only the robot poses M1 already publishes. | L | post-process the annotated PNG (all 24). For the 12 raw scenes, the same overlay drawn on the raw frame (`L2raw`) differs from the post-processed L2 in 80 and 23 of 1.23 M px (summed RGB difference above 30) in the two checked scenes | all 24 (raw-based: 12) | Yes, in M1. `render_annotated_frame` already has an unused `style` argument (`annotation.py:444`, `455`). Add `annotation.legible_labels: false` (and font scale) to `config/annotation.yaml`, read in `perception_node.py` like `annotation.metric_grid` (`:62`), passed through `pipeline.py:66`. With the flag off, the frame stays byte-identical (pinned by `tests/unit/test_annotation_apparatus.py`). |
 | **K1** obstacle outlined + L2 | L2, plus a cyan outline of the declared obstacle's ground footprint and the label `obstacle_1` (the neutral ID the prompt uses). The footprint comes from `static_obstacles`, mapped with the camera height (`scenario_geometry.camera`). | **K** | post-process | all 24 | Only as an ablation, never as a default. M1 does not know the obstacle, so the overlay would have to be drawn in M5 (which holds `static_obstacles`) or fed to M1 as new config. With no height in `StaticObstacleInput`, it can mark only the footprint. |
 
 Considered and not recommended:
@@ -218,9 +220,9 @@ correctness on both sides, which no label prior can pass.
 |---|---|---|
 | `810c9104_L1.png` | west-blocked, raw exists | The corridor band, 2048 x 640. Light-grey box at the left end, beside a dark round fixture. The two robots touch at the centre, with tiny red labels running together above them. Barriers top and bottom. |
 | `810c9104_L2.png` | same | Same pixels. The two robots now carry separate black panels, `robot_1` (left) and `robot_2` (right), with thicker red boxes. The obstacle region is untouched. |
-| `810c9104_L2raw.png` | same | The L2 overlay drawn on the raw frame. Visually identical to `810c9104_L2.png`. |
+| `810c9104_L2raw.png` | same | The L2 overlay drawn on the raw frame. Visually identical to `810c9104_L2.png` (80 of 1.23 M px differ by more than 30 in summed RGB). |
 | `810c9104_K1.png` | same | L2 plus a cyan square and the text `obstacle_1` beside the left box. |
-| `189ae2a6_L1.png`, `_L2.png`, `_L2raw.png`, `_K1.png` | east-blocked, raw exists | Mirror case: the light-grey box sits at the right end, and the cyan K1 outline sits just inside it. |
+| `189ae2a6_L1.png`, `_L2.png`, `_L2raw.png`, `_K1.png` | east-blocked, raw exists | Mirror case: the light-grey box sits at the right end. In K1 the cyan outline sits on the box's shaded side face, on the centre side of its bright top face, with `obstacle_1` below it. |
 | `53264de9_L1.png`, `_L2.png`, `_K1.png` | west-blocked, batch 1 (no raw) | Shows L2 by post-processing alone. |
 
 **Check that Type L adds nothing** [verified, `type_l_checks.json`]. For all 24 scenes,
@@ -229,8 +231,8 @@ u ± 160 px and v from 110 px above the robots to just below their boxes. The ch
 area is about 10,200 px, with its bounding box inside u 481-770 and v 423-509. The
 obstacle region (u 128-204 or 1075-1151) is never changed. The panels stay below the
 barrier's lower face. 0-3 old red label pixels remain per scene. They are box
-corners: `7b0fbf9e` shows 40 where the two boxes abut. Visual checks on
-`810c9104`, `189ae2a6`, `53264de9` and `7b0fbf9e` agree.
+corners: `7b0fbf9e` shows 40 where the two boxes abut. The final renders of
+`810c9104` and `189ae2a6`, and before/after crops of `7b0fbf9e` (closest pair, 38 px), were inspected and agree.
 
 **K1 placement limit** [verified]. The calibration homography is for the marker plane
 (0.21 m), and the camera is 3.0 m above the origin. The box's top face (0.5 m high)
@@ -397,8 +399,9 @@ ER-2 $1.00 / $5.00, thought tokens as output). Base per-run costs come from its
   resampling is unknown beyond a fixed token budget of about 1,064-1,120. Its legibility
   figures are estimates. Raising Gemini `media_resolution` to `ultra_high` (2,240
   tokens) would be a request change; it is not proposed.
-- **The prompt gives no reason to look for obstacles when the text is off** [verified,
-  rendered for all 12 original scenes]. With text off, the only obstacle sentence is
+- **The prompt gives no reason to look for obstacles when the text is off** [verified:
+  all 24 scenes rendered in both orders contain no "obstacle" and no "1.85", and after
+  masking every decimal the 24 prompts are byte-identical within each order]. With text off, the only obstacle sentence is
   removed (`_OBSTACLES_OFF = {"obstacle_use_clause": ""}`, `prompt_v1.py:138-144`, selected at `:414`).
   What remains about the image and the yielder is:
   - "Analyze the overhead camera view together with the robot states below and detect

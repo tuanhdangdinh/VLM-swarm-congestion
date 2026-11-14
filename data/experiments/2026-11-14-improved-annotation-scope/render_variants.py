@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 from pathlib import Path
 
@@ -289,7 +288,6 @@ def main() -> None:
             d = np.abs(l2_raw.astype(int) - l2_full.astype(int)).sum(axis=2)
             checks[-1]["L2raw_vs_L2_mean_abs_diff"] = round(float(d.mean()), 3)
             checks[-1]["L2raw_vs_L2_px_diff_gt30"] = int((d > 30).sum())
-            ok2, n2, bbox2, _ = change_zone_ok(raw, l2_raw, px)
             checks[-1]["raw_vs_ann_px_diff_gt30"] = int(
                 (np.abs(raw.astype(int) - ann.astype(int)).sum(axis=2) > 30).sum())
     (OUT_DIR / "type_l_checks.json").write_text(json.dumps(checks, indent=1))
