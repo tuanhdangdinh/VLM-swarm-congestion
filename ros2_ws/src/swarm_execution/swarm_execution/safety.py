@@ -397,6 +397,9 @@ class CoordinationTracker:
         # ACTIVE; filled only while `_scoped`.
         self._rejected_by_command: dict[str, set[str]] = {}
         self._accepted_keys: dict[tuple[str, str], None] = {}
+        # (command_id, clearing robot) -> every robot it was latched with at
+        # capture time, own members included; filled only while `_scoped`.
+        self._start_latched_by_key: dict[tuple[str, str], frozenset[str]] = {}
         self._action_by_key: dict[tuple[str, str], str] = {}
         self._active_by_robot: dict[str, str] = {}
         self._members_by_command: dict[str, list[str]] = {}
@@ -520,6 +523,13 @@ class CoordinationTracker:
             # Kept per command, independent of membership, so a command that
             # arrives after its rejection cannot re-add the robot.
             self._rejected_by_command.setdefault(command_id, set()).add(robot_id)
+            # A waiver captured before this rejection arrived still covers a
+            # latch the robot stood in at command start (A19 stays frozen at
+            # command start; this only corrects the membership it read).
+            for (waiver_command, clearing_id), waived in self._waiver_by_key.items():
+                start = self._start_latched_by_key.get((waiver_command, clearing_id), ())
+                if waiver_command == command_id and robot_id in start:
+                    waived.add(robot_id)
             while len(self._rejected_by_command) > self.MAX_TRACKED_COMMANDS:
                 self._rejected_by_command.pop(next(iter(self._rejected_by_command)))
 
@@ -629,7 +639,14 @@ class CoordinationTracker:
         existing admission rules govern unchanged (a retreat-shield hold is
         not excluded: A27(i) makes it a bystander). Later calls never add to
         it: a latch formed during the window still fires. Not a radius:
-        only pairs the latch rules actually engaged.
+        only pairs the latch rules actually engaged. With `scoped_exemption`
+        (owner ruling 2026-11-14) the robots the exemption no longer honours
+        -- a reverse's `plan_continue_partners` and rejected legs -- are
+        third robots here, so the clearing robot is released from a latch it
+        started in with one of them and that robot stays held; a rejection
+        that arrives after capture is applied to the start-time latches.
+        A waiver has no direction check: it ends only when the pair
+        separates, with the hard-contact floor as the only backstop.
 
         Args:
             latched_pairs: `LatchEvaluation.latched_pairs` of the latest
@@ -647,15 +664,25 @@ class CoordinationTracker:
                 continue
             own = set(self._members_by_command.get(command_id, ()))
             own |= set(self._order_by_command.get(command_id, ()))
-            own |= self._plan_partners_by_key.get(key, frozenset())
+            if self._scoped:
+                # Owner ruling 2026-11-14: robots the exemption no longer
+                # honours (plan partners, rejected legs) are third robots.
+                own -= self._rejected_by_command.get(command_id, set())
+            else:
+                own |= self._plan_partners_by_key.get(key, frozenset())
             # A shield-only member is a bystander (A27(i)): a latch it already
             # stands in with the clearing robot is waived like any other.
             own -= self._shield_by_command.get(command_id, set())
-            partners = {
+            at_start = {
                 b if a == robot_id else a
                 for a, b in latched_pairs
                 if robot_id in (a, b)
-            } - own - {robot_id}
+            } - {robot_id}
+            partners = at_start - own
+            if self._scoped:
+                self._start_latched_by_key[key] = frozenset(at_start)
+                while len(self._start_latched_by_key) > self.MAX_TRACKED_COMMANDS:
+                    self._start_latched_by_key.pop(next(iter(self._start_latched_by_key)))
             self._waiver_by_key[key] = partners
             while len(self._waiver_by_key) > self.MAX_TRACKED_COMMANDS:
                 self._waiver_by_key.pop(next(iter(self._waiver_by_key)))
