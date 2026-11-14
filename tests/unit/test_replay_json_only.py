@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections import Counter
 from pathlib import Path
 
@@ -31,8 +32,9 @@ from scripts.replay_json_only import (
 from scripts.replay_live_decisions import reconstruct_request
 from scripts.replay_swapped_ids import Cell, swapped_artifact
 
-_RUNS_DIR = Path(__file__).resolve().parents[2] / "data/logs/vm_runs"
-_MAIN_RUNS_DIR = Path("/Users/tuanhdangdinh/Documents/vgu-vlm-swarm/data/logs/vm_runs")
+# The September run artifacts are untracked; point VGU_VM_RUNS_DIR at
+# <main checkout>/data/logs/vm_runs to run the 12-stimulus manifest check.
+_MAIN_RUNS_DIR = Path(os.environ.get("VGU_VM_RUNS_DIR", "/nonexistent"))
 
 
 def _v1(artifact, order="id_asc", text=True) -> str:
@@ -321,7 +323,7 @@ def test_tier_fits_respects_both_caps():
     assert tier_fits(10, 0.001, 0.01, 0.0, 4.999) is False
 
 
-@pytest.mark.skipif(not _MAIN_RUNS_DIR.is_dir(), reason="stored September run artifacts absent")
+@pytest.mark.skipif(not _MAIN_RUNS_DIR.is_dir(), reason="VGU_VM_RUNS_DIR not set or absent")
 def test_manifest_diff_is_block_only_for_all_12_stimuli(tmp_path):
     from scripts.replay_swapped_ids import grey_image_for, load_stimuli
 

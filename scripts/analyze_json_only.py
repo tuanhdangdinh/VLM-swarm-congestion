@@ -31,7 +31,10 @@ def load(path: Path) -> list[dict[str, Any]]:
 def identity_check(rows: list[dict[str, Any]], manifest: dict[str, Any]) -> None:
     """Attempt-1 sent hashes: equal across providers and equal to the manifest."""
     expected = {
-        (e["scene"], e["order"], e["ids"], e["obstacle_text"]): e["json_only_user_sha256"]
+        (e["scene"], e["order"], e["ids"], e["obstacle_text"]): (
+            e["json_only_user_sha256"],
+            e["system_sha256"],
+        )
         for e in manifest["entries"]
     }
     by_cell: dict[str, set[tuple[str, str, str]]] = defaultdict(set)
@@ -43,8 +46,18 @@ def identity_check(rows: list[dict[str, Any]], manifest: dict[str, Any]) -> None
         sent = (a1["sent_user_sha256"], a1["sent_system_sha256"], a1["sent_image_sha256"])
         cell = r["key"].split("|", 1)[1]
         by_cell[cell].add(sent)
-        want = expected[(r["scene"], r["order"], r["ids"], r["obstacle_text"])]
-        if a1["sent_user_sha256"] != want or r["prompt_user_sha256"] != want:
+        want_user, want_system = expected[(r["scene"], r["order"], r["ids"], r["obstacle_text"])]
+        want_image = (
+            manifest["frame_sha256"][r["scene"]]
+            if r["image_condition"] == "annotated_frame"
+            else manifest["grey_image_sha256"]
+        )
+        if (
+            a1["sent_user_sha256"] != want_user
+            or r["prompt_user_sha256"] != want_user
+            or a1["sent_system_sha256"] != want_system
+            or a1["sent_image_sha256"] != want_image
+        ):
             manifest_mismatch += 1
     providers: dict[str, set[str]] = defaultdict(set)
     for r in rows:
@@ -52,7 +65,9 @@ def identity_check(rows: list[dict[str, Any]], manifest: dict[str, Any]) -> None
     shared = [c for c, p in providers.items() if len(p) > 1]
     differing = [c for c in shared if len(by_cell[c]) != 1]
     print("## Prompt identity (attempt 1, user/system/image SHA-256)")
-    print(f"  rows {len(rows)}; manifest mismatches {manifest_mismatch}")
+    print(
+        f"  rows {len(rows)}; mismatches against manifest (user, system, image) {manifest_mismatch}"
+    )
     print(
         f"  cells run by more than one provider: {len(shared)}; "
         f"with differing sent hashes: {len(differing)}"

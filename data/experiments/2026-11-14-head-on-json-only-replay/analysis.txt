@@ -236,7 +236,7 @@ Scene level, anthropic (W/E = chosen physical robot, - = none; correct marked *)
 
 # JSON-only extras
 ## Prompt identity (attempt 1, user/system/image SHA-256)
-  rows 200; manifest mismatches 0
+  rows 200; mismatches against manifest (user, system, image) 0
   cells run by more than one provider: 54; with differing sent hashes: 0
   attempts carrying '<think>' block: 0 by construction; total attempts 200
 
