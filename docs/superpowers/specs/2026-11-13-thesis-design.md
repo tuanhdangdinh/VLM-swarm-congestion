@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft (2026-11-13): scope, chapter plan, sources, guardrails.
+- Rev 6 (2026-11-14): base moved to cbe3dcf; new sources (Stage 1 report, S1b bottleneck, evidence register, IB10 results, Arm C addendum); results/discussion/conclusion/abstract stay held by owner decision until other sessions finish.
 - Rev 5 (2026-11-14): scientific skills workflow (Section 8).
 - Rev 4 (2026-11-14): IB10 run finished; report pending on feat/ib10-live-resolution.
 - Rev 3 (2026-11-13): Stage 1 run finished (report pending); IB10 run in progress; owner decisions skip tranche 2 / run IB10 confirmed.
@@ -16,7 +17,7 @@
 
 Produce the full bachelor thesis for the VGU Department of Computer Science committee, due **Sunday 2026-11-15**. The thesis presents the VGU VLM Swarm project: a hybrid two-layer warehouse swarm coordinator where a VLM detects and classifies congestion and a grounding layer turns its decision into safe robot commands.
 
-The owner reviews and edits; the builder drafts every chapter. The **results are held**: the main experiment (4-robot `intersection_bottleneck`, IB10, VLM on vs off) has not run yet. Everything except results, discussion, conclusion, and abstract is written now; those four get skeletons with explicit placeholders.
+The owner reviews and edits; the builder drafts every chapter. The **results are held by owner decision (2026-11-14)** until the other sessions finish their runs and reports (IB10 Arm C follow-up, e02 re-run), even though IB10 and Stage 1 reports exist. Everything except results, discussion, conclusion, and abstract is written now; those four get skeletons with explicit placeholders.
 
 ## 2. Goals
 
@@ -67,15 +68,16 @@ The thesis describes the **newest** code and the **newest** scenario results. Br
 
 | Role | Branch @ commit | Notes |
 |---|---|---|
-| **Code baseline (thesis branch base)** | `feat/v4-per-cluster-parity` @ fdf333d | Contains `feat/v3-integration` (68e67b5, the pinned v3 runtime incl. tranche-1 report 75a499c), `feat/v4-vlm-bench` (7850f5a), `feat/v4-per-cluster` (48234f2), Stage 0 parity + Stage 1 shadow. `docs/thesis` is cut from here. |
+| **Code baseline (thesis branch base)** | `feat/v4-per-cluster-parity` @ cbe3dcf (was fdf333d) | Contains `feat/v3-integration` (68e67b5, the pinned v3 runtime incl. tranche-1 report 75a499c), `feat/v4-vlm-bench` (7850f5a), `feat/v4-per-cluster` (48234f2), Stage 0 parity + Stage 1 shadow. `docs/thesis` is cut from here. |
 | Prereg v3 design + addenda A9–A36 | `feat/v3-design` @ ad67a18 | Not merged into the code baseline; read via `git show feat/v3-design:docs/superpowers/specs/2026-10-06-prereg-v3-design.md`. |
-| IB10 experiment registration | `feat/ib10-live-resolution` @ 50704c2 | Branched from 68e67b5; IB10 runs on the **v3 pin runtime**, not on v4 code. |
+| IB10 experiment + results | `feat/ib10-live-resolution` @ 2557d75 | Registration 50704c2, results report 825d6d5/2557d75. Branched from 68e67b5; IB10 runs on the **v3 pin runtime**, not on v4 code. |
+| IB10 safety smoke + Arm C (grounder default, no VLM) | `feat/ib10-safety-default-arm` @ e6a904e | Addendum `docs/superpowers/specs/2026-11-14-ib10-safety-default-arm-addendum.md`; results 93fab84; e02 re-run registered, may still change. |
 | Older lineage — do not use as source | `fix/deadlock-collision-resolution` @ fc73151 | Main checkout; superseded by the branches above. |
 
 Rules:
 
 - **Describe the system as it ran.** Chapters 3–4 describe the v3 pinned runtime (68e67b5), because every live experiment (tranche 1, IB10) runs on it. v4 additions (grounding-first and per-cluster variants, Stage 1 shadow, default off) are described as exploratory extensions, clearly marked, never as the evaluated system.
-- **Verify against code, not only docs.** Module descriptions (topics, strategy enum, safety thresholds, config keys) are checked against source files at fdf333d; where a spec disagrees with code, code wins and the spec is not cited for that point.
+- **Verify against code, not only docs.** Module descriptions (topics, strategy enum, safety thresholds, config keys) are checked against the runtime that ran: `git show 68e67b5:<path>` (the code baseline may differ where v4 touched a file); where a spec disagrees with code, code wins and the spec is not cited for that point.
 - **Newest results only.** Superseded numbers (earlier pilots, E1–E26 batches, earlier report revisions) appear only as history in Methodology, never as results. Use the latest revision of each report (e.g. per-cluster choice Rev 3, gf-cluster Rev 2, replay-er2 Rev 2).
 - **Pending results** stay `#todo` until their report is committed:
   - v4 Stage 1 per-cluster shadow: run FINISHED 2026-11-13 15:47 UTC (7 episodes, seed positions 21–27; pooled script output exists in gitignored `v4_s1b_pc_shadow_analysis/stage1_summary_all.json`, no report yet). Shadow only, nothing dispatched; exploratory.
@@ -88,6 +90,9 @@ Paths are relative to the thesis worktree (code baseline) unless a branch is nam
 
 | Topic | Sources |
 |---|---|
+| **Thesis evidence register (start here)** | `docs/reports/2026-11-13-thesis-evidence-register.md` (claim → evidence map kept by session vgu-vlm-swarm-68) |
+| S1b bottleneck, exemption trace | `docs/reports/2026-11-13-s1b-grounding-bottleneck.md`, `2026-11-13-safety-exemption-trace.md` |
+| v4 Stage 1 shadow | `docs/reports/2026-11-13-v4-stage1-shadow-results.md` |
 | Motivation, RQ | `docs/project_proposal.md`, `docs/project_plan.md`, `docs/modules.md` |
 | Module design | `docs/specs/module1_perception.md` … `module6_simulation.md`, `docs/specs/module4/`, `docs/isaac_vlm_pipeline.md`, `docs/reports/module5_orchestrator_implementation.md` |
 | Weekly history / lessons | `docs/reports/2026-06-*`, `2026-07-*` progress reports, `docs/implementation_notes.md` |
@@ -102,7 +107,7 @@ Paths are relative to the thesis worktree (code baseline) unless a branch is nam
 | Physical demo | `~/Downloads/verified_scenarios_12-11-2026/README.md` + images + `decision_artifacts/` |
 | Template | `/Users/tuanhdangdinh/Downloads/Project week 5/` (copy, do not modify) |
 
-**Do-not-touch:** `vgu-vlm-swarm-v6d/data/logs/vm_runs/v4_s1b_pc_shadow/`, `vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/`, `data/bench/` in v6a/v6c, the Isaac VM (in use for IB10).
+**Do-not-touch:** every other branch and worktree (read only), `vgu-vlm-swarm-v6d/data/logs/vm_runs/v4_s1b_pc_shadow/`, `vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/`, `data/bench/` in v6a/v6c, the Isaac VM (in use for IB10).
 
 ## 7. Physical demonstration (owner decision: include)
 
@@ -140,6 +145,7 @@ Section wording and order within chapters; which existing images to reuse; abbre
 ## 10. Acceptance
 
 - `typst compile thesis/main.typ` succeeds with no errors.
+- Due Sunday 2026-11-15 (time not given; plan assumes chapters 1–5 drafted by end of Saturday 2026-11-14 so Sunday is owner review + results fill).
 - Chapters 1–5 complete prose; 6–8 and Abstract skeletons with `#todo` markers.
 - Every number has a traceable source; `[VERIFY]` count reported to owner.
 - Implementation-notes entry appended per CLAUDE.md.
