@@ -23,7 +23,9 @@ None meets the "image use" rule. The models fail in three different ways:
   obstacle text and showing only the frame changes nothing (26/48 correct against
   24/48 with neither text nor image).
 - **ER-2** mostly does not name a yielder: `reverse` in 129 of 144 Arm A/B runs. Its
-  few named yielders are always `robot_1` in the grey arms (8/8). In Cell C (frame
+  few named yielders in the grey arms are all `robot_1` (8/8), but 7 of those 8 came
+  under `id_asc`, where `robot_1` is also first-listed, so label and slot cannot be
+  told apart for ER-2. In Cell C (frame
   without obstacle text) it named a yielder in 11 of 48 runs, and 10 of those 11 were
   correct. That is the only scene-consistent signal in the data, but it rests on 11
   runs and fails the pre-registered rule.
@@ -120,7 +122,22 @@ here.
    The re-score had proposed each model's own live prompt version.
 8. **Sonnet diagnostics.** Three extra Sonnet calls were made by direct backend calls
    (`sonnet_diagnostic.jsonl`). They are outside every table, and their $0.018 is in
-   the ledger.
+   the ledger. The diagnostic script was a one-off scratch file and is not committed.
+   Its output rows record the image size, bytes, content blocks, stop reason, refusal
+   category and usage per call.
+9. **Analysis code timing.** `scripts/analyze_swapped_ids.py` was written, and later
+   extended for Cells C and D, after rows were visible. The rules it applies were
+   frozen in the spec first: Arms A/B in `a410257`, Cells C/D in `e975249`.
+10. **Image-use thresholds** were written after the Arm A/B results were visible, but
+    before any Cell C or D call.
+11. **Sonnet's grey, C and D arms** have only their 4 pilot runs each. The frozen
+    pilot rule stopped them (3/4, 4/4, 3/4, 4/4 failed). They were not extended, for
+    two reasons. At the refusal rate observed (about 88% in those pilots), the budget
+    left under the caps could not reach the 20 decisions per arm that the rules need.
+    The owner instruction also kept "all other rules unchanged". The run is
+    resumable if the owner overrules.
+12. **v7e worktree** was left on `main` by the other session. This experiment did not
+    touch it after moving out.
 
 ---
 
@@ -187,6 +204,24 @@ runs. Outcome census:
 | `C_real_notext` | **10** | **1** | 37 |
 | `D_grey_notext` | 2 | 5 | 41 |
 
+P(names the physically correct robot), runs [scenes 2/2 of 6]:
+
+| Blocker | Order | `A_real` | `A_grey` | `B_grey` | `C_real_notext` | `D_grey_notext` |
+|---|---|---|---|---|---|---|
+| west | `id_asc` | 1/12 [0] | 0/12 [0] | 2/12 [1] | 0/12 [0] | 1/12 [0] |
+| west | `id_desc` | 1/12 [0] | 0/12 [0] | 0/12 [0] | 3/12 [0] | 0/12 [0] |
+| east | `id_asc` | 3/12 [1] | 2/12 [1] | 0/12 [0] | 2/12 [0] | 0/12 [0] |
+| east | `id_desc` | 0/12 [0] | 0/12 [0] | 0/12 [0] | 5/12 [2] | 1/12 [0] |
+
+Grey-pair label x slot combinations (24 runs each): 4/24, 0/24, 0/24 and 0/24
+correct, in the order of the gpt-4o table; nearly all of the rest are `reverse`.
+
+Marginal effects (grey pair, the 8 runs naming a yielder):
+
+- label: 8/8 chose `robot_1`;
+- slot: 7/8 chose the first-listed robot;
+- scene: 4/8 chose the correct robot.
+
 - In the grey pair, every one of its 8 named yielders carries the label `robot_1`
   (4/4 in `A_grey`, 4/4 in `B_grey`), and 7 of the 8 came under `id_asc`.
 - In Cell C, its 11 named yielders were correct 10 times: west 3/3 and east 7/8,
@@ -197,7 +232,7 @@ runs. Outcome census:
 | Rule | Verdict |
 |---|---|
 | Scene use | **not supported** (grey-pair combinations 4/24, 0/24, 0/24, 0/24) |
-| Label bias | **supported toward `robot_1` under the letter of the rule** (P = 1.0 in both arms), but this rests on 4 + 4 named yielders out of 96 runs; read it as "when it names one, it is `robot_1`" |
+| Label bias | **the rule fires mechanically** (P(`robot_1`) = 1.0 in both arms), but it rests on 4 + 4 named yielders out of 96 runs, 7 of them under `id_asc` where `robot_1` is also first-listed. **Label and slot are not separable for ER-2**, so no label-bias claim is made |
 | Slot bias | not supported (`id_desc` has 1 named run) |
 | Real-frame secondary | fails |
 | Image use | **not supported**: Cell C 10/48 against Cell D 2/48, a difference of 0.17 below the 0.25 margin, and no side x order cell reaches 9/12 |
@@ -219,6 +254,9 @@ Which Sonnet cells exist:
   answers came on attempt 1. So no Sonnet decision was made on a fallback image.
 - `A_real`, answered runs only: correct 10/18 (west 4/10, east 6/8); `robot_1`
   12/18; first-listed 9/18.
+- `A_real` P(correct) over all 48 runs, refusals counted as not correct (12 runs
+  per cell): west `id_asc` 1/12, west `id_desc` 3/12, east `id_asc` 3/12, east
+  `id_desc` 3/12.
 - Refusals by cell in `A_real`: west `id_asc` 9/12, west `id_desc` 5/12, east
   `id_asc` 8/12, east `id_desc` 8/12.
 - **Verdicts:** scene use, label bias, slot bias, real-frame secondary and image use
@@ -232,8 +270,8 @@ The owner asked for an offline inspection first, plus at most 3 diagnostic calls
 
 - **Recorded artifacts.** The 26 Sonnet decisions of
   `data/logs/vm_runs/roster_validation/runs/rv01_sonnet_ho_s42` and `rv02_sonnet_ho_s43`
-  (main checkout) all carry `refusal_category = reasoning_extraction`. 24 used the
-  fallback.
+  (main checkout): 25 of 26 carry `refusal_category = reasoning_extraction`; the
+  one `valid` decision carries none. 24 used the fallback.
 - **Code path.**
   - `reasoning/vlm/anthropic_backend.py:145-146` sets
     `refusal = stop_reason == "refusal"`. Lines 164-185 send the frame as a base64
@@ -249,7 +287,8 @@ The owner asked for an offline inspection first, plus at most 3 diagnostic calls
   - each billed 3,019 input tokens and 0 output tokens.
 - **Cause:** (a), the model refuses; not a harness or request artefact. The trigger
   documented in `docs/reports/2026-10-06-roster-validation.md` is the prompt's
-  `<think>` answer-format block. Removing it lifted the refusal 3/3 there.
+  `<think>` answer-format block. Removing it lifted the refusal 3/3 there; that was
+  not re-tested here.
 - **Observed here:** the refusal is frequent but not certain. 30/48 real-frame runs
   were refused, and 14 of the 16 grey and text-off pilot runs. Refusal is therefore
   at least as common without the frame as with it. No runtime code was changed.
@@ -311,11 +350,17 @@ earlier stratum: gpt-4o names `robot_1` 12/12 here, 43/43 in batch 1 and 10/13 l
 
 One cell disagrees with September. With `robot_1` correct but `robot_2` listed
 first, batch 1 named `robot_1` 31/35 (real) and 16/18 (grey); this run names it
-4/12 and 2/12. Two differences between the strata are known; neither is tested:
+4/12 and 2/12. The stimuli match: the user and system prompt SHA-256 agree with
+the stored artifacts on 12/12. Three differences remain, none tested:
 
 - September ran the floating `gpt-4o` alias. The `gpt-4o-2024-08-06` pin dates from
   `569d95c` (2026-09-30), and the September rows record only `model_id: "openai"`.
-- September ran the shipped max_attempts of that date.
+- `reasoning/vlm/openai_backend.py` and `reasoning/vlm/reasoner.py` have 15 commits
+  since 2026-09-26, among them the 2026-10-06/07 conformance and retry-policy
+  changes. The request body may differ in fields other than the prompt.
+- The retry policy then was max_attempts 2 with no fallback; now it is 4 with the
+  fallback. This touches only refused runs; the attempt-1 tables give the same
+  cells.
 
 Either way, the September tie-break by the obstacle text does not appear here. That
 fits the re-score's finding that batch 2 did not replicate it either.
@@ -351,6 +396,19 @@ and 0/12 in `A_grey`.
 ---
 
 ## What the Thesis Can and Cannot Claim
+
+In plain words: on twelve head-on standoffs from one scenario, none of three current
+models (Gemini ER-2, gpt-4o, Claude Sonnet 5.5) chose the robot that should back off
+by looking at where the obstacle was. gpt-4o chose whichever robot the prompt listed
+first, and swapping the robots' names showed it was not using the scene. Taking the
+obstacle out of the text and leaving only the camera image did not help it. ER-2
+usually told both robots to back up instead of naming one. Sonnet refused most
+requests because of how the prompt asks for its reasoning. This is a small, designed
+offline test of the first decision only. It supports saying that, in this system, the
+right yielder comes from M3's feasibility check and not from the VLM. It does not
+show that VLMs cannot do this in general, with other prompts, scenes or models.
+
+In detail:
 
 The thesis can claim the following, as a small pre-registered offline experiment:
 

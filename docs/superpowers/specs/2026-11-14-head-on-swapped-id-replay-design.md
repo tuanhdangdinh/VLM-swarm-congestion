@@ -291,10 +291,11 @@ ER-2 had 144/144 runs, gpt-4o 133/144, Sonnet 0.
 **Sonnet inspection (done first).**
 
 - Recorded artifacts: the 26 Sonnet decisions of `roster_validation/runs/rv01_sonnet_ho_s42`
-  and `rv02_sonnet_ho_s43` (`w0p2_eopen_bshort`). All 26 carry
+  and `rv02_sonnet_ho_s43` (`w0p2_eopen_bshort`). 25 of 26 carry
   `refusal_category = reasoning_extraction`. 24 used the fallback: 21 ended
-  `failed` and 3 `invalid`. Of the other two, one was `invalid` without fallback and
-  one `valid`.
+  `failed` and 3 `invalid`. Of the other two, one was `invalid` without fallback, and
+  the one `valid` decision carries no refusal category. (Corrected after the run:
+  this line first said "All 26".)
 - Code path: `Reasoner.run` (`reasoning/vlm/reasoner.py:487-496`) treats
   `BackendResponse.refusal` as a parse failure. At lines 526-536 a refusal on attempt
   >= `image_fallback_after_attempts` (2 for `anthropic`) swaps in the neutral image
