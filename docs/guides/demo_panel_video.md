@@ -85,6 +85,35 @@ Output is H.264 (`libx264`, `yuv420p`, `+faststart`, 24 fps, 1920x1080), so it p
 
 Between anchors the frame-to-sim map is linear. Outside them the pane is blank. Several `--camera` segments are read as one clip, and the frame index runs on across them. The camera path was exercised end to end with a synthetic two-segment `mp4v` clip on `ib10S_e03_armA_a1`; no real footage was available yet.
 
+## Combining Per-Scenario Videos
+
+`combine` joins finished panel videos (or any MP4s) into one video. It reads a JSON manifest and never edits the source files.
+
+```bash
+python3 scripts/render_demo_panel.py combine --manifest <manifest.json> \
+    --out data/demo/<name>.mp4 [--title-card-sec 3] [--fps 24] [--size WxH] [--font F] [--crf 23]
+```
+
+Manifest (`path` is relative to the manifest's directory unless absolute; unknown keys are rejected):
+
+```json
+{"clips": [
+  {"path": "a.mp4", "title": "4-robot intersection",
+   "outcome": "VLM-driven execution", "take": "take 2 of 5",
+   "start": 12, "end": 95, "note": "optional one line"}
+]}
+```
+
+- `outcome` must be exactly one of `VLM-driven execution`, `M3-default resolution`, `Unresolved failure`.
+- `start` and `end` (seconds) are optional. Omitted bounds mean the clip's start or end.
+- Before each clip: a plain title card (`--title-card-sec`, default 3 s) with title, outcome, take, note, and the fixed line "Illustrative demonstration, not controlled experimental evidence."
+- During each clip: a 44 px caption bar above the clip area with title, outcome, take and the trim (`excerpt 12-95 s of 114.6 s`, or `full clip`). Only the title is shortened if the line is too long.
+- The content area is the largest source size (or `--size`), so same-size sources are not rescaled. Other sizes are letterboxed in black, never cropped; the output is that size plus the bar (1920x1124 for 1080p sources). Frame rate is resampled to `--fps` by nearest earlier source frame.
+- A missing file, an unreadable video, an unknown outcome label or a bad trim stops the run with an error before any encoding.
+- A sidecar `<out stem>_sources.json` lists each source path, md5, size, fps, duration, trim, labels and note.
+
+Tool test: `data/demo/combine_tool_test.mp4` (two existing videos, labels invented for the test) is not a demo video.
+
 ## Recording a Real Camera Video Later
 
 Recording is enabled by `RECORD=1` on `scripts/vm/fc_launch.sh`; the default is `RECORD=0`. With `RECORD=1`, stage 5 does the following:

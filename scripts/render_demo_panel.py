@@ -17,6 +17,10 @@ Examples:
         --camera-label "Camera: /perception/annotated_frame" \\
         --out data/demo/<label>_panel.mp4 --stills
 
+    # Combine finished per-scenario videos (JSON manifest, see docs/guides/demo_panel_video.md):
+    python3 scripts/render_demo_panel.py combine --manifest <manifest.json> \\
+        --out data/demo/<name>.mp4
+
     # Two bundles one after the other (e.g. VLM on, then Layer 2 off); per-bundle
     # footage with --camera-for <bundle index> <map.json> <segment> [<segment> ...]:
     python3 scripts/render_demo_panel.py sequence --bundle <on> --bundle <off> \\
@@ -36,6 +40,7 @@ if __package__ in (None, ""):
 from PIL import Image  # noqa: E402
 
 from scripts.demo_panel.bundle import fallback_anchor_error, load_bundle  # noqa: E402
+from scripts.demo_panel.combine import ManifestError, combine  # noqa: E402
 from scripts.demo_panel.pipeline import Prepared, compositor, prepare, render  # noqa: E402
 from scripts.demo_panel.render import Compositor, Layout  # noqa: E402
 
@@ -91,6 +96,25 @@ def _write_transcript(p: Prepared, out: Path) -> Path:
     return path
 
 
+def _combine(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
+    size = None
+    if args.size:
+        try:
+            w, h = (int(v) for v in args.size.lower().split("x"))
+        except ValueError:
+            ap.error("--size must look like 1920x1080")
+        size = (w, h)
+    try:
+        sidecar, dur = combine(
+            args.manifest, args.out, args.fps, args.title_card_sec, size, args.font, args.crf
+        )
+    except (ManifestError, RuntimeError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    print(f"wrote {args.out} ({dur:.1f} s); sidecar {sidecar}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point."""
     ap = argparse.ArgumentParser(
@@ -119,6 +143,14 @@ def main(argv: list[str] | None = None) -> int:
         metavar="ARG",
         help="INDEX MAP_JSON SEGMENT [SEGMENT ...]: camera footage for the INDEX-th --bundle",
     )
+    c = sub.add_parser("combine", help="per-scenario videos -> one combined video (JSON manifest)")
+    c.add_argument("--manifest", type=Path, required=True)
+    c.add_argument("--out", type=Path, required=True)
+    c.add_argument("--title-card-sec", type=float, default=3.0)
+    c.add_argument("--fps", type=float, default=FPS)
+    c.add_argument("--size", help="content area WxH (default: largest source)")
+    c.add_argument("--font", help="monospace font file name or path")
+    c.add_argument("--crf", type=int, default=23)
     for p in (r, s):
         p.add_argument("--out", type=Path, required=True)
         p.add_argument("--stills", action="store_true")
@@ -126,6 +158,8 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--crf", type=int, default=23)
         p.add_argument("--camera-label", default="Camera recording", help="caption for footage")
     args = ap.parse_args(argv)
+    if args.cmd == "combine":
+        return _combine(args, ap)
     layout = Layout()
     args.out.parent.mkdir(parents=True, exist_ok=True)
 
