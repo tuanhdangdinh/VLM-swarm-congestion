@@ -616,6 +616,7 @@ def probe_provider(backend_id: str, out_dir: Path) -> dict[str, Any]:
         system_prompt="You are a test endpoint.",
         user_prompt='Reply with exactly this JSON and nothing else: {"ok": true}',
         image_path=str(image),
+        known_robot_ids=[],
     )
     probe_config = config.model_copy(update={"max_tokens": min(config.max_tokens, 2048)})
     row: dict[str, Any] = {
