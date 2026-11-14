@@ -77,7 +77,7 @@ def _sequence(backend: _Scripted) -> list[tuple[bool, bool, tuple[int, int, int]
     first = backend.payloads[0].user_prompt
     return [
         ("previous response was invalid" in p.user_prompt, p.user_prompt == first, px)
-        for p, px in zip(backend.payloads, backend.pixels)
+        for p, px in zip(backend.payloads, backend.pixels, strict=True)
     ]
 
 
