@@ -504,6 +504,11 @@ class OrchestratorConfig(BaseModel):
     # after the yield leg that releases it"). Default off = the v3.4 prompt,
     # byte-identical; recorded as `prompt_conditions.plan_grammar_rules`.
     prompt_plan_grammar_rules: bool = False
+    # Release-rule sub-condition (prompt v3.6, 2026-11-15): one more grammar
+    # sentence ("a plan with any cross leg must also contain a yield leg listed
+    # before it"). Default off; requires `prompt_plan_grammar_rules`; recorded
+    # as `prompt_conditions.plan_grammar_release_rule`.
+    prompt_plan_grammar_release_rule: bool = False
     # prereg-v3 R3.4 contradiction trigger (closed-loop item); default off.
     contradiction_trigger: ContradictionTriggerConfig = Field(
         default_factory=ContradictionTriggerConfig
@@ -602,6 +607,14 @@ class OrchestratorConfig(BaseModel):
                 f"{', '.join(requested)} require plan_channel_enabled (prompt v3); "
                 "the frozen v1/v2 templates render none of them"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _release_rule_needs_grammar_rules(self) -> OrchestratorConfig:
+        # The sentence is appended to the v3.5 rules block; without that block
+        # it would render nowhere and the run would silently be the control.
+        if self.prompt_plan_grammar_release_rule and not self.prompt_plan_grammar_rules:
+            raise ValueError("prompt_plan_grammar_release_rule requires prompt_plan_grammar_rules")
         return self
 
     @model_validator(mode="after")
@@ -1109,11 +1122,15 @@ def plan_order_status_line(config: OrchestratorConfig) -> str | None:
         and not config.prompt_candidate_options
     ):
         return None
-    return (
+    line = (
         f"plan order condition plan_dispatch_order_source={config.plan_dispatch_order_source} "
         f"prompt_plan_grammar_rules={config.prompt_plan_grammar_rules} "
         f"prompt_candidate_options={config.prompt_candidate_options}"
     )
+    # Appended only when on, so every line logged before the key existed is unchanged.
+    if config.prompt_plan_grammar_release_rule:
+        line += " prompt_plan_grammar_release_rule=True"
+    return line
 
 
 def load_config(raw: dict[str, Any]) -> OrchestratorConfig:

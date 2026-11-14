@@ -2598,6 +2598,8 @@ class OrchestratorNode(Node):
             )
             if config.prompt_plan_grammar_rules:
                 fields["plan_grammar_rules"] = True
+            if config.prompt_plan_grammar_release_rule:
+                fields["plan_grammar_release_rule"] = True
         for name, requested, drawn in (
             ("metric_grid", config.prompt_metric_grid, overlays.metric_grid),
             ("motion_trails", config.prompt_motion_trails, overlays.motion_trails),

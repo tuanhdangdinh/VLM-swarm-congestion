@@ -480,6 +480,8 @@ def _apparatus_kwargs(artifact: Artifact, image_path: Path) -> dict[str, Any]:
         ]
     if conditions.get("plan_grammar_rules"):
         kwargs["plan_grammar_rules"] = True
+    if conditions.get("plan_grammar_release_rule"):
+        kwargs["plan_grammar_release_rule"] = True
     return kwargs
 
 

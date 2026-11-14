@@ -280,6 +280,24 @@ _PLAN_GRAMMAR_V35 = _PLAN_GRAMMAR.replace(
     1,
 )
 
+# Release-rule sub-condition (prompt v3.6, 2026-11-15; config
+# `prompt_plan_grammar_release_rule`, default off, requires the v3.5 rules).
+# One generic sentence appended after the two v3.5 sentences; `_PLAN_GRAMMAR`
+# and `_PLAN_GRAMMAR_V35` are untouched, so v3.4 and v3.5 prompts stay
+# reproducible byte for byte. It states what `_plan_problems` enforces for
+# every strategy: only a "yield" leg releases a cross leg. Evidence: in the
+# cycle-1 plan check 62 of 80 ER-2 answers wrote cross legs and no yield leg
+# (docs/reports/2026-11-15-vlm-order-channel-plan-check.md, section 10.1).
+_PLAN_GRAMMAR_RELEASE_RULE = (
+    'A plan with any "cross" leg must also contain a "yield" leg listed before it; '
+    'a "reverse" or "wait" leg does not release a crossing.'
+)
+_PLAN_GRAMMAR_V36 = _PLAN_GRAMMAR_V35.replace(
+    _PLAN_GRAMMAR_RULES,
+    _PLAN_GRAMMAR_RULES + "\n" + _PLAN_GRAMMAR_RELEASE_RULE,
+    1,
+)
+
 # Prompt-apparatus sentences (prereg-v2 rev 6 + round-3 deltas, 2026-10-04).
 # Each is an A/B condition, never a default, and renders only when the request
 # says the frame/attachment ACTUALLY carries the thing it names (M5 sets the
@@ -584,6 +602,14 @@ def format_static_obstacle_lines(obstacles: list[StaticObstacleInput]) -> list[s
     ]
 
 
+def _select_plan_grammar(request: ReasonerRequest) -> str:
+    if not request.plan_grammar_rules:
+        return _PLAN_GRAMMAR
+    if request.plan_grammar_release_rule:
+        return _PLAN_GRAMMAR_V36
+    return _PLAN_GRAMMAR_V35
+
+
 def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
     """Build a deterministic, fully-rendered prompt payload from a request.
 
@@ -679,7 +705,7 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
         failure_context_block=failure_block,
         visual_crosscheck_block=crosscheck_block,
         plan_invitation=_PLAN_INVITATION,
-        plan_grammar=_PLAN_GRAMMAR_V35 if request.plan_grammar_rules else _PLAN_GRAMMAR,
+        plan_grammar=_select_plan_grammar(request),
         **(_GEOMETRY_ON if request.include_pairwise_geometry else _GEOMETRY_OFF),
         # Gated on the rendered lines, not on the flag: the ON clause asserts the
         # listed obstacles are the only ones present, which with an empty list
