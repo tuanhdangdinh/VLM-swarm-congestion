@@ -163,7 +163,7 @@ GT positions standing in for M1, four times:
 **Validation.** The key-off exemption timelines match the logged
 `exempt pairs changed` lines 100% in tranche 1, Stage 1, IB10 closure and all
 11 IB10 live bundles. They are also identical to the 68e67b5 tracker's over 59
-bundles (`base_identity.txt`).
+bundles (`base_identity.txt`). Re-run at `da4072d`, after the direction check landed: the key-off exempt-pair timelines are identical to the 68e67b5 tracker's in 68/68 bundles, 673 changes compared (`base_identity_68.txt`). This compares exemption timelines only; key-off waiver revocation is a no-op by code and by `test_direction_check_is_a_no_op_with_key_off`.
 
 **Limits.** This is a what-if on recorded trajectories.
 
