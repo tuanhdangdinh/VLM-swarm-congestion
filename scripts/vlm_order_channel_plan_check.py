@@ -570,7 +570,17 @@ def raw_plan_verdict(raw_text: str | None) -> tuple[str, list[Any] | None]:
         return "null", None
     if not isinstance(plan, list):
         return "not_a_list", None
+    from reasoning.vlm.models import ProposedPlanLeg
+
     legs = [(x.get("robot_id"), x.get("action")) if isinstance(x, dict) else x for x in plan]
+    bad = []
+    for x in plan:
+        try:
+            ProposedPlanLeg(**x)
+        except Exception:
+            bad.append(x.get("action") if isinstance(x, dict) else repr(x))
+    if bad:
+        return f"invalid_leg: {sorted(set(map(str, bad)))}", legs
     ids = [x[0] for x in legs if isinstance(x, tuple)]
     if len(ids) != len(set(ids)):
         dup = sorted({i for i in ids if ids.count(i) > 1})
@@ -625,6 +635,13 @@ def analyze_one(s: Stimulus, result: ReasonerResult, condition: str) -> dict[str
     row["verify_edits"] = [(e.op, list(e.robot_ids), e.reason) for e in vp.edits]
     row["verified_legs"] = [(leg.robot_id, leg.action) for leg in vp.legs]
     row["plan_recede_order"] = plan_recede_order(vp.legs) if dec.proposed_plan else None
+    row["model_recede_order"] = (
+        plan_recede_order(dec.proposed_plan) if dec.proposed_plan else None
+    )
+    chi = row.get("chi_order") or []
+    pair = [r for r in (row["model_recede_order"] or []) if r in chi]
+    # The model's order over the structural pair, when it reverses both.
+    row["model_pair_order"] = pair if len(chi) == 2 and sorted(pair) == sorted(chi) else None
     outcomes = {}
     no_plan = result.model_copy(
         update={"decision": dec.model_copy(update={"proposed_plan": None})}
@@ -752,11 +769,133 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     return 0
 
 
+def _counter(items: list[Any]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for item in items:
+        out[str(item)] = out.get(str(item), 0) + 1
+    return dict(sorted(out.items(), key=lambda kv: -kv[1]))
+
+
+def _demo_event(r: dict[str, Any]) -> bool:
+    return (
+        r.get("chi_provenance") == "vlm_verbatim"
+        and bool(r.get("plan_recede_order"))
+        and r.get("plan_recede_order") != r.get("chi_order")
+        and r.get("mwv_dispatch_order_source") == "model"
+        and bool(r.get("mwv_differs_from_noplan"))
+    )
+
+
+def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Counts (1)-(7) for one group of analysed calls."""
+    billed = [r for r in rows if not r.get("stopped_call")]
+    valid = [r for r in billed if r.get("valid")]
+    present = [r for r in valid if r.get("plan_present")]
+    verbatim = [r for r in valid if r.get("chi_provenance") == "vlm_verbatim"]
+    v_rec = [r for r in verbatim if r.get("plan_recede_order")]
+    model_src = [r for r in valid if r.get("mwv_dispatch_order_source") == "model"]
+    first = [r for r in billed if r.get("first_trigger")]
+    events = [r for r in first if _demo_event(r)]
+    swapped = [
+        {
+            "episode": r["episode"],
+            "request_id": r["request_id"][:8],
+            "rep": r.get("rep"),
+            "plan": r.get("plan"),
+            "model_pair_order": r.get("model_pair_order"),
+            "chi_order": r.get("chi_order"),
+            "chi_margin": r.get("chi_margin"),
+            "provenance": r.get("chi_provenance"),
+            "edits": [e[2][:90] for e in r.get("verify_edits") or []],
+            "mwv_recede_order": r.get("mwv_recede_order"),
+            "dispatch_matches_plan": r.get("mwv_dispatch_matches_plan"),
+        }
+        for r in valid
+        if r.get("model_pair_order") and r.get("model_pair_order") != r.get("chi_order")
+    ]
+    pair_rows = [r for r in valid if r.get("model_pair_order")]
+    edit_reasons = [e[2] for r in valid for e in (r.get("verify_edits") or [])]
+    return {
+        "n_calls": len(rows),
+        "n_billed": len(billed),
+        "1_valid": len(valid),
+        "2_jc_all_four": sum(1 for r in valid if r.get("jc_all_four")),
+        "strategies": _counter([r.get("strategy") for r in valid]),
+        "3_plan_present": len(present),
+        "3_absent_or_nulled_reasons": _counter(
+            [r.get("raw_plan_verdict") for r in valid if not r.get("plan_present")]
+        ),
+        "4_provenance": _counter([r.get("chi_provenance") for r in valid]),
+        "4_terminal_not_ok": _counter(
+            [f"{r.get('chi_terminal')}: {r.get('chi_failure')}" for r in valid
+             if r.get("chi_terminal") != "TerminalStage.OK"]
+        ),
+        "4_repair_edit_reasons": _counter(edit_reasons),
+        "4_m3_default_reasons": _counter(
+            [r.get("verify_rejection") for r in valid if r.get("chi_provenance") == "m3_default"]
+        ),
+        "5_verbatim_with_recede": len(v_rec),
+        "5_order_equal_chi": sum(1 for r in v_rec if r["plan_recede_order"] == r.get("chi_order")),
+        "5_order_differs_chi": sum(1 for r in v_rec if r["plan_recede_order"] != r.get("chi_order")),
+        "5_verbatim_plans": [
+            (r["episode"][:18], r.get("rep"), r.get("plan"), r.get("chi_order")) for r in verbatim
+        ],
+        "6_dispatch_order_source_model": len(model_src),
+        "6_mwv_differs_from_noplan": sum(1 for r in valid if r.get("mwv_differs_from_noplan")),
+        "6_changed_phase_labels": _counter(
+            [tuple(r.get("mwv_changed_phase_labels") or ()) for r in valid
+             if r.get("mwv_differs_from_noplan")]
+        ),
+        "6_model_src_dispatch_matches_plan": _counter(
+            [r.get("mwv_dispatch_matches_plan") for r in model_src]
+        ),
+        "6_chi_differs_from_noplan": sum(1 for r in valid if r.get("chi_differs_from_noplan")),
+        "7_yield_refusals": _counter(
+            [r.get("chi_yield_refusal") for r in valid if r.get("chi_yield_refusal")]
+        ),
+        "7_grounding_failures": _counter(
+            [r.get("chi_failure") for r in valid if r.get("chi_terminal") == "TerminalStage.GROUNDING"]
+        ),
+        "plans_reversing_both_pair_robots": len(pair_rows),
+        "pair_order_equal_chi": sum(1 for r in pair_rows if r["model_pair_order"] == r.get("chi_order")),
+        "pair_order_ascending_id": sum(1 for r in pair_rows if r["model_pair_order"] == sorted(r["model_pair_order"])),
+        "swapped_order_plans": swapped,
+        "first_trigger_billed": len(first),
+        "demo_events_first_trigger": len(events),
+        "demo_events_first_trigger_and_match": sum(
+            1 for r in events if r.get("mwv_dispatch_matches_plan")
+        ),
+        "executed_yielder_mwv": _counter([r.get("mwv_executed_yielder") for r in valid]),
+        "refusal_attempts": sum(r.get("refusal_attempts", 0) for r in rows),
+        "usd_ledger": round(sum(r.get("usd") or 0.0 for r in rows), 4),
+    }
+
+
+def cmd_tables(args: argparse.Namespace) -> int:
+    """Group analysis.jsonl by arm x condition (and replicate) and write summary.json/tables.txt."""
+    out = Path(args.out)
+    rows = [json.loads(line) for line in (out / "analysis.jsonl").read_text().splitlines()]
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        groups.setdefault(f"{r['backend']}|{r['condition']}|all", []).append(r)
+        groups.setdefault(f"{r['backend']}|{r['condition']}|rep{r['rep']}", []).append(r)
+    summary = {k: summarize(v) for k, v in sorted(groups.items())}
+    (out / "summary.json").write_text(json.dumps(summary, indent=1, default=str) + "\n")
+    lines = []
+    for key, s in summary.items():
+        lines.append(f"== {key}")
+        for field, value in s.items():
+            lines.append(f"  {field}: {json.dumps(value, default=str)}")
+    (out / "tables.txt").write_text("\n".join(lines) + "\n")
+    print("\n".join(lines))
+    return 0
+
+
 def main() -> int:
     """CLI entry point."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("stimuli", "run", "analyze"):
+    for name in ("stimuli", "run", "analyze", "tables"):
         p = sub.add_parser(name)
         p.add_argument("--docs-root", required=True, help="directory holding the vgu-vlm-swarm* worktrees")
         p.add_argument("--out", default=str(DEFAULT_OUT))
@@ -771,7 +910,12 @@ def main() -> int:
         if name == "analyze":
             p.add_argument("--recorded", action="store_true")
     args = ap.parse_args()
-    return {"stimuli": cmd_stimuli, "run": cmd_run, "analyze": cmd_analyze}[args.cmd](args)
+    return {
+        "stimuli": cmd_stimuli,
+        "run": cmd_run,
+        "analyze": cmd_analyze,
+        "tables": cmd_tables,
+    }[args.cmd](args)
 
 
 if __name__ == "__main__":

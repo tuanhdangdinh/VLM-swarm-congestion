@@ -1,0 +1,11 @@
+{
+ "by": {
+  "anthropic": 0.516198,
+  "gemini": 0.648927,
+  "openai": 0.210157,
+  "probe_anthropic": 0.004395,
+  "probe_gemini": 0.001489,
+  "probe_openai": 0.002703
+ },
+ "spent_usd": 1.383864
+}

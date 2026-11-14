@@ -1,0 +1,116 @@
+{
+ "prepared": "2026-11-15",
+ "base": "68e67b5 + 2026-11-14 safety files",
+ "branch": "demo/vlm-order-channel",
+ "merged_safety_yaml_md5": "65fb84a396c3d61a4e4179cd2360897b",
+ "files": [
+  {
+   "path": "config/safety/scoped_clearing_exemption.fragment.yaml",
+   "md5_68e67b5": null,
+   "md5_demo": "08c06b51491e9273c77d4c2e96b4c1ba",
+   "origin": "2026-11-14 safety (unchanged)"
+  },
+  {
+   "path": "reasoning/vlm/models.py",
+   "md5_68e67b5": "0c0c844971278a92da844a9f38793e4e",
+   "md5_demo": "51f8446cfe82ab4d1f7a5599760dbb5e",
+   "origin": "demo/vlm-order-channel"
+  },
+  {
+   "path": "reasoning/vlm/prompt_builder.py",
+   "md5_68e67b5": "9007becb85773b9a14b16875a40dfcb2",
+   "md5_demo": "721f1a1292c09aa0293063c91f4dfcf4",
+   "origin": "demo/vlm-order-channel"
+  },
+  {
+   "path": "ros2_ws/src/swarm_execution/swarm_execution/safety.py",
+   "md5_68e67b5": "c6c9cbaeb9cb816dd2ba759c2464afb4",
+   "md5_demo": "3011d9a735e790f56f6c46d98c76f1d9",
+   "origin": "2026-11-14 safety (unchanged)"
+  },
+  {
+   "path": "ros2_ws/src/swarm_execution/swarm_execution/safety_monitor_node.py",
+   "md5_68e67b5": "7b45075fcb940e3e3b57154b3b727958",
+   "md5_demo": "c2cad302be27cf1b638fbeebf295ae7d",
+   "origin": "2026-11-14 safety (unchanged)"
+  },
+  {
+   "path": "ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py",
+   "md5_68e67b5": "273bbf7f7d01755226506fd892a380fa",
+   "md5_demo": "7ee292a318966256caba3e31c96d7f68",
+   "origin": "demo/vlm-order-channel"
+  },
+  {
+   "path": "ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py",
+   "md5_68e67b5": "e1b3b289ec05e3c21921fa0253829542",
+   "md5_demo": "2db3018b6f5807b37fde70a4f0507345",
+   "origin": "demo/vlm-order-channel"
+  },
+  {
+   "path": "ros2_ws/src/swarm_orchestrator/swarm_orchestrator/reasoning_pipeline.py",
+   "md5_68e67b5": "39a51bfc0de66a42b6f6ac4c78a60478",
+   "md5_demo": "21af8e8c360cf3de0a74fb05ad79ef27",
+   "origin": "demo/vlm-order-channel"
+  }
+ ],
+ "overlay_base": {
+  "file": "ib10s_l2on.yaml",
+  "md5": "0196f1e8db0ffb9553c166707441362d",
+  "keep": {
+   "plan_channel_enabled": true,
+   "grounding_yield_feasibility": "off"
+  }
+ },
+ "overlay_fragment": {
+  "A": {
+   "plan_dispatch_order_source": "model_when_verified",
+   "prompt_plan_grammar_rules": true
+  },
+  "B": {
+   "plan_dispatch_order_source": "model_when_verified",
+   "prompt_plan_grammar_rules": true,
+   "prompt_candidate_options": true
+  }
+ },
+ "backend": {
+  "arm": "gemini",
+  "model_id": "gemini-robotics-er-2-preview"
+ },
+ "m5_startup_line": {
+  "A": "plan order condition plan_dispatch_order_source=model_when_verified prompt_plan_grammar_rules=True prompt_candidate_options=False",
+  "B": "plan order condition plan_dispatch_order_source=model_when_verified prompt_plan_grammar_rules=True prompt_candidate_options=True"
+ },
+ "artifact_assertions": {
+  "prompt_version": 3,
+  "prompt_conditions.prompt_version": 3,
+  "prompt_conditions.plan_grammar_rules": true,
+  "prompt_conditions.candidate_options_requested": {
+   "A": false,
+   "B": true
+  },
+  "prompt_conditions.construct_constrained_selection": {
+   "A": false,
+   "B": true
+  },
+  "plan_dispatch_order_source": "model_when_verified",
+  "dispatch_order_source": "'model' iff junction_clear and plan.provenance=='vlm_verbatim'",
+  "prompt.user_prompt_contains": [
+   "Name each robot exactly once: its one leg is its whole role in the resolution.",
+   "A \"cross\" leg must come after the \"yield\" leg that releases it."
+  ],
+  "present": [
+   "plan.provenance",
+   "plan.dispatch_matches_plan",
+   "plan.order_equivalent",
+   "plan.legs",
+   "plan.edits"
+  ]
+ },
+ "demo_event": [
+  "plan.provenance=='vlm_verbatim'",
+  "dispatch_order_source=='model'",
+  "plan recede order (reverse legs in list order) != chi order (rank_recede_candidates on artifact scene + grounding_params_source)",
+  "junction-recede-<robot> commands in that order in m5.log dispatch lines and m4.log command received lines"
+ ],
+ "report_also": "plan.dispatch_matches_plan (yielder gap: a verbatim plan naming robot_2 as yielder dispatches robot_1)"
+}
