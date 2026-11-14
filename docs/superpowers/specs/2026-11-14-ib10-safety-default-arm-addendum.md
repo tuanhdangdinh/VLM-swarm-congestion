@@ -5,6 +5,12 @@
 **Revision history:**
 
 - Initial draft: registration of a key-on safety smoke plus a 9-episode interleaved Arm C / Arm A follow-up on IB10, written before any episode ran.
+- Rev 2: before any episode ran, after review:
+  - Arm A failed-call rule.
+  - Arm C re-trigger path verified in code.
+  - Inert not-honoured lines.
+  - `mock_backend.py` moved from a hard pin to an Arm C precondition.
+  - Precedents and changes from 2026-11-13 stated.
 
 ---
 
@@ -103,6 +109,10 @@ The key-on-only lines are:
 
 The test is conservative. A FAIL means "inspect", not "proven caused by the key".
 
+A `plan continue partners not honoured` line is **inert** when every named partner is itself a member of the same command, taken from that command's status lines. An inert line is counted separately and is never a hold signal, because the partner stays exempt as a member.
+
+In IB10's four-robot `junction_clear` phases every involved robot is a member, and the plan has no `continue` leg. So the line is expected only for degenerate plans, such as e09's two-robot one. The parser has been tested only on synthetic lines built from the node's own f-strings. No live key-on log exists yet.
+
 The attribution rests on the fix report (`docs/reports/2026-11-14-safety-exemption-fix.md`, "Behaviour"). The key changes nothing for a command that has no unhonoured partner and no rejected leg, and each of those cases logs one of the lines above.
 
 **Informational lines.** These are printed but are not criteria:
@@ -138,7 +148,17 @@ The mechanism is a chain of five steps:
    - `_load_mock_script` (lines 201-211) turns a JSON array into a `MockBackend` response sequence.
    - `build_retreat_choice_backend` (lines 276-281) gives the mock no stage-2 backend unless `VGU_MOCK_RETREAT_CHOICE_FILE` is set, and the kit never sets it.
 4. **Mock backend.** `reasoning/vlm/mock_backend.py:43-45` replays the entries in order and holds the last entry once the sequence is exhausted. It makes no network call.
-5. **M3 default plan.** M3 grounds the `junction_clear` decision with `ground_junction_clear_phases`, which derives the plan from chi ranking (`reasoning/rag/command_grounder.py:2656-2791`). With no `proposed_plan`, plan verification records `provenance: m3_default` and `rejection_reason: "plan absent"`. That is the attribution of the excluded 2026-11-13 bundle `ib10L_e01_armA_a1`.
+5. **M3 default plan.** M3 grounds the `junction_clear` decision with `ground_junction_clear_phases`, which derives the plan from chi ranking (`reasoning/rag/command_grounder.py:2656-2791`). With no `proposed_plan`, plan verification returns `provenance="m3_default"` and `rejection_reason="plan absent"` (`command_grounder.py:4943-4948`). That is the attribution of the excluded 2026-11-13 bundle `ib10L_e01_armA_a1`.
+
+**Re-trigger after the skipped first analysis.** Verified in code at this runtime.
+
+- The `none` answer takes M5's `COOLDOWN` branch (`orchestrator_node.py:1386-1390`, log `no dispatch stage=vlm`), which starts a `cooldown_sec` cooldown on the analysed robots. The overlay sets it to 15 s, measured on the monotonic wall clock.
+- The scene-unchanged re-analysis suppression is off on IB10. Its defaults are `enabled: False` and `applies_to: task_stream_only` (`models.py`), the overlay does not set it, and IB10 has no task stream. None of the 2026-11-13 `m5.log` files has a suppression line.
+- So a persisting jam is analysed again after one cooldown plus the stall detector's own timing. The second entry, `junction_clear`, is then dispatched.
+- At the 2026-11-13 real-time factor (about 0.19), 15 wall-s is about 3 sim-s. The re-trigger delay at this runtime is inferred from the code, not measured.
+- If the second analysis never came, `c_dispatched` would fail and stop the chain. Nothing is dispatched silently.
+
+**M5 still loads `/ws/.env` in Arm C.** fc_launch always sources `/ws/.env` (`M5_INNER`). The key is therefore present in M5's environment, but no Gemini backend is ever built, because `build_backend("mock")` returns before any provider branch. Zero tokens and zero `served_model` per artifact are gated (section 6).
 
 **The script** is tracked at `68e67b5`. Its three entries are:
 
@@ -146,7 +166,11 @@ The mechanism is a chain of five steps:
 2. `junction_clear`, type `bottleneck`, naming `robot_1` to `robot_4`, with no `proposed_plan`, no `crossing_order` and no `yield_robot`;
 3. `none`, which is then held for every later analysis.
 
-This exact file produced `m3_default` / "plan absent" on the 2026-10-02 composite smoke (run A, `docs/reports/2026-10-02-ib10-composite-smoke.md`). The closure-wave mock runs R and P used the same three-entry pattern with a plan. They resolved 5/5 under the release-lane remedy.
+Precedents, all on code older than 68e67b5:
+
+- **2026-10-02 composite smoke.** This exact file produced `m3_default` / "plan absent" on run A (`docs/reports/2026-10-02-ib10-composite-smoke.md`). That run did not resolve: before the release-lane remedy, the held `none` answered the post-composite secondary conflict.
+- **Closure wave, 2026-10-07.** The mock runs used the same three-entry pattern with a `vlm_verbatim` plan. R was 2 runs on `intersection_bottleneck`; P was 3 runs on `intersection_bottleneck_r3lead_probe`. All 5 resolved under the remedy, and in R1 the second analysis followed the skipped first one 3.1 sim-s later.
+- **Convoy B3 references.** These are a scripted oracle mock (`convoy_counterflow_oracle_order_once`) run through the same `MOCK_DECISION_FILE` path (`docs/reports/2026-10-06-layer2off-pilot.md`).
 
 **What `ib10L_e01_armA_a1` received.** Verified from its decision artifact:
 
@@ -161,13 +185,14 @@ This includes a2, e03, e05 and e07, whose model plans were labelled `repaired`. 
 
 | Alternative | What the existing backends can express | Consequence |
 |---|---|---|
-| **Chosen**: the tracked `[none, junction_clear ×4 no plan, none]` | Yes. A tracked file; no file is added to the VM unless it is absent. | The first trigger is answered `none`, so the first dispatch lands one re-trigger later: 3-12 sim-s in the closure wave. Every later trigger is answered `none`, so Arm C can never re-dispatch after a failed plan, unlike 2026-11-13 e09. In the resolved 2026-11-13 Arm A episodes ER-2 also answered `none` after the plan. |
+| **Chosen**: the tracked `[none, junction_clear ×4 no plan, none]` | Yes. A tracked file; no file is added to the VM unless it is absent. | The first trigger is answered `none`, so the first dispatch lands one cooldown later: about 3 sim-s, inferred above. Every later trigger is answered `none`, so Arm C can never re-dispatch after a failed plan, unlike 2026-11-13 e09. In 2026-11-13, only a2 and e03 had an analysis after the plan, and ER-2 answered `none` in both. |
 | `[junction_clear, none]` (2 entries, kit file) | Yes, as a `MockBackend` sequence. The file would have to live under the VM repo. | First dispatch at the first trigger, like Arm A. Needs a new untracked file on the VM, which must be installed and then removed. Not chosen. |
 | A single `junction_clear` object, answered every time | Yes (`response_text`). | Every later trigger dispatches a fresh four-robot plan. That includes the single-robot re-trigger after the release phase, seen at about 128-132 sim-s in 2026-11-13 a2 and e03, where ER-2 answered `none`. This would interrupt arrivals; Arm A never showed that behaviour. Not chosen. |
 | The a1 decision verbatim (`crossing_order`, type `deadlock`) | Yes, as a scripted object. | Phases are identical to the chosen script apart from the `order=discarded_yield_axis` tag. No gain. |
 | Echo mock with `MOCK_ECHO_STRATEGY=junction_clear` | Yes (`EchoMockBackend`). | It names the closest engaged latch pair (prereg-v3 A21), so it gives a two-robot `junction_clear`, like e09's degenerate plan, not all four robots. It is also apparatus-only by A12(i). Rejected. |
-| Default `MockBackend` (no file) | Yes. | It always answers no congestion, so nothing is dispatched. That is Arm B (Layer 2 off) in effect. Rejected. |
-| `layer2off_pilot`-style overlay (`reasoning_enabled: false`) | Yes. | No trigger and no M3 at all. That is the 2026-11-13 Arm B, not a grounder arm. Rejected. |
+| Default `MockBackend` (no file): the 2026-10-06 `layer2off_pilot` mechanism | Yes. | It always answers no congestion, so nothing is dispatched. That is Layer 2 off in effect. Rejected. |
+| `reasoning_enabled: false` overlay: the 2026-11-13 Arm B | Yes. | No trigger and no M3 at all. Not a grounder arm. Rejected. |
+| Echo mock with a `junction_clear` seed: the S1b pilot apparatus | Yes. | Same as the echo row above: the robot set comes from the echo's pair rule, not from a fixed script. Rejected. |
 
 ---
 
@@ -189,7 +214,8 @@ This includes a2, e03, e05 and e07, whose model plans were labelled `repaired`. 
 
 - `CONDITION.txt` says `backend=gemini`, with no mock file;
 - every artifact's `diagnostics.backend_id` and `reasoner_config_effective.backend_id` is `gemini`;
-- every artifact's `diagnostics.served_model` equals `gemini-robotics-er-2-preview`, read from `served_model`, never from `backend_id`;
+- every artifact that carries a decision or names any served model has `diagnostics.served_model` equal to `gemini-robotics-er-2-preview`, read from `served_model`, never from `backend_id`;
+- an artifact of a failed call (`decision` null, no served model) is allowed, because a transient provider error is data, not a harness failure. None of the 38 recorded Gemini artifacts (tranche 1 and 2026-11-13) is such a case, so this path is tested only on a synthetic fixture;
 - no artifact has a `mock_mode`;
 - the chain logged `probe before <label>: ... rc=0`.
 
@@ -207,7 +233,7 @@ This includes a2, e03, e05 and e07, whose model plans were labelled `repaired`. 
 - every dispatched artifact has `provenance: m3_default` with "plan absent";
 - every dispatched decision is `junction_clear` with the four robots and `proposed_plan: null`.
 
-**Offline gate test (`kit/test_gates_ibs.py`, 42 cases).** Verified offline against the 2026-11-13 bundles, which are read only:
+**Offline gate test (`kit/test_gates_ibs.py`, 47 cases).** Verified offline against the 2026-11-13 bundles, which are read only:
 
 | Fixture | Arm checked as | Failing checks |
 |---|---|---|
@@ -221,6 +247,9 @@ This includes a2, e03, e05 and e07, whose model plans were labelled `repaired`. 
 | Arm B e02, e04, e06, e08, e10 | C | `c_artifacts` and `c_dispatched`. |
 | The 2026-10-02 real mock `m3_default` artifact | C | All artifact checks pass. |
 | The closure R1 mock (`vlm_verbatim`) | C | `c_m3_default` and `c_scripted_decision`. |
+| Real 2026-11-13 probe line (relabelled) | A | None (passes). |
+| Synthetic failed-call artifact | A | None (allowed). |
+| Synthetic decision with no model id | A | `a_served_model`. |
 
 ---
 
@@ -267,6 +296,16 @@ These hold whatever the results are.
 | Spend | $1.00 est in total. | Arm A only: `cost_watch.py` per-episode guard $0.25. No Arm A episode starts with less than $0.25 left. Arm C makes no calls. Probes are one-token calls and are not in the estimate. |
 | Analyses | No count cap (`MAX_ANALYSES=0`). | As on 2026-11-13. |
 
+**Changes from 2026-11-13 enforcement:**
+
+- **Per-episode spend guard:** $0.50 → $0.25, to fit the $1.00 total.
+- **Episode admission budget:** 2700 s → 2400 s.
+- **Teardown reserve:** 2700 s → 1800 s.
+- **Driver wait after the chain deadline:** 1200 s → 600 s, so at least 20 min stay inside the cap for restore, pull and stop.
+- **Wall-clock cap:** now cumulative across invocations, not per invocation.
+
+If teardown still overruns the cap, the dead-man fires at the invocation cap + 20 min.
+
 **Estimated wall time.** On 2026-11-13, Arm A episodes took 18.5-21.5 min of wall time; the smoke took 26 min from VM start to TERMINATED.
 
 - **Smoke.** About 26-35 min. The colcon deploy and the restore of the code delta add a few minutes.
@@ -294,7 +333,8 @@ Between the two commands, check:
 1. The driver log ends with `VM TERMINATED (verified)`, and there is no `RESTORE_FAILED_*` or `VM_NOT_STOPPED_*` marker.
 2. `../SMOKE_CHECK.txt` says PASS. Read the four `CRITERION` lines and the `INFO` lines: third-robot waivers, revocations, resolved.
 3. The smoke bundle's `m4.log` startup line ends with the key tail, and its `decisions/` look like a normal Arm A episode.
-4. If the smoke did not resolve, or the check failed, stop and ask the owner.
+4. The `INFO arm_C_prerequisite` line says `match` (`reasoning/vlm/mock_backend.py` is `c27742a0`). Otherwise Arm C cannot run.
+5. If the smoke did not resolve, or the check failed, stop and ask the owner.
 
 ---
 
@@ -310,10 +350,14 @@ Verified offline on 2026-11-14 (`kit/test_dry_ibs.sh`):
 - Snapshot, deploy and restore on a fake VM tree. The tree was extracted from 68e67b5, with shimmed docker, colcon and md5sum. The cases were happy, double restore, half-deployed, install drift, mock absent, foreign mock, tampered backup and colcon failure.
 - The gate tests (section 6), the scorer regression and closure R1, and the Arm C re-grounding (section 5).
 - The test run also found and fixed one kit bug carried over from 2026-11-13: a refused snapshot overwrote the pre-run pin log that the restore compares against.
+- The real `fc_launch.sh` in DRY_RUN with Arm C's environment, run from outside the repo: it forces `reasoning_backend_id: mock` and exports `VGU_MOCK_DECISION_FILE`.
 
 Only the VM can show:
 
-- **The pins match.** The VM's sources match the pins. That includes `src safety.py`, which is pinned for the first time, the mock-backend modules, and whether the Arm C script is present. On 2026-11-13 the installed `safety.py` matched `c6c9cbae` and every installed swarm_execution `.py` equalled its source.
+- **`reasoning/vlm/mock_backend.py` is the 68e67b5 bytes (`c27742a0`).** This file was never recorded on this VM, so it is not a hard pin. The snapshot prints it as an `info` line and `smoke_check` echoes it; `ep_run_ibs.sh` refuses every Arm C episode on a mismatch, which stops the chain at e02.
+  - Recorded on this VM: `backend_factory.py` `82ee9b8f` and `reasoner.py` `d7bc7db1` were recorded by the v4 per-cluster snapshot and restore on 2026-11-13, so they are hard pins.
+  - Not recorded: `src safety.py` is a new hard pin. On 2026-11-13 the installed copy matched `c6c9cbae` and every installed swarm_execution `.py` equalled its source.
+  - Not known: whether the Arm C script is present on the VM. If it is absent, the kit installs it and removes it again.
 - **The deploy works.** The real colcon build, and the key-on startup line in a live M4 log.
 - **Behaviour on the live scene.** How the key-on monitor behaves on IB10, and how Arm C's skip-first script lines up with the live trigger timing.
 - **Timing and quota.** Per-episode wall time and the Gemini quota.
