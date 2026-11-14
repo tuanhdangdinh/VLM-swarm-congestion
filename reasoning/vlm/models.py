@@ -268,11 +268,25 @@ class ReasonerRequest(BaseModel):
     # accepts in this scene. CONSTRUCT CHANGE when set -- the plan channel
     # measures constrained selection, not free planning.
     candidate_options: list[RobotCandidateOptions] | None = None
+    # Plan-grammar rules condition (prompt v3.5, 2026-11-15): two generic
+    # sentences added to the v3 plan grammar. v3-only like the apparatus;
+    # False renders every prompt byte-identically to v3.4.
+    plan_grammar_rules: bool = False
+    # Release-rule sub-condition (prompt v3.6, 2026-11-15): one more generic
+    # grammar sentence on top of the v3.5 rules; requires them. False renders
+    # every prompt byte-identically to before it existed.
+    plan_grammar_release_rule: bool = False
 
     @model_validator(mode="after")
     def _validate_last_failed_needs_latest(self) -> "ReasonerRequest":
         if self.last_failed_context is not None and self.failure_context is None:
             raise ValueError("last_failed_context requires failure_context")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_release_rule_needs_rules(self) -> "ReasonerRequest":
+        if self.plan_grammar_release_rule and not self.plan_grammar_rules:
+            raise ValueError("plan_grammar_release_rule requires plan_grammar_rules")
         return self
 
     @field_validator("robot_presentation_order")

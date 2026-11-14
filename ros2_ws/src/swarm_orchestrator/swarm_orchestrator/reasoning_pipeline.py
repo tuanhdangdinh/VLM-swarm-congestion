@@ -267,6 +267,8 @@ def build_reasoner_request(
     motion_trails_drawn: bool = False,
     zoom_tile_path: str | None = None,
     candidate_options: list[RobotCandidateOptions] | None = None,
+    plan_grammar_rules: bool = False,
+    plan_grammar_release_rule: bool = False,
 ) -> ReasonerRequest:
     """Project a SceneSnapshot plus a dumped image path into a ReasonerRequest.
 
@@ -297,9 +299,13 @@ def build_reasoner_request(
         motion_trails_drawn: Whether to state the motion-trail convention.
         zoom_tile_path: The written zoom tile, attached as a second image.
         candidate_options: Verifier-candidate-options block contents.
+        plan_grammar_rules: Prompt v3.5 plan-grammar rules condition.
+        plan_grammar_release_rule: Prompt v3.6 release-rule sub-condition
+            (requires `plan_grammar_rules`).
 
-    The four apparatus arguments (prereg-v2 rev 6) default to off, which
-    renders byte-identically to every request built before they existed.
+    The four apparatus arguments (prereg-v2 rev 6) and `plan_grammar_rules`
+    default to off, which renders byte-identically to every request built
+    before they existed.
 
     Returns:
         The request M2 is called with.
@@ -335,6 +341,8 @@ def build_reasoner_request(
         motion_trails_drawn=motion_trails_drawn,
         zoom_tile_path=zoom_tile_path,
         candidate_options=candidate_options,
+        plan_grammar_rules=plan_grammar_rules,
+        plan_grammar_release_rule=plan_grammar_release_rule,
     )
 
 
@@ -417,6 +425,19 @@ class PromptConditions(BaseModel):
     # free planning.
     construct_constrained_selection: bool = False
     prompt_version: int | None = None
+    # Prompt v3.5 plan-grammar rules condition, as rendered. Omitted from the
+    # dump when False so every artifact without it is unchanged.
+    plan_grammar_rules: bool = False
+    # Prompt v3.6 release-rule sub-condition, as rendered; omitted when False.
+    plan_grammar_release_rule: bool = False
+
+    @model_serializer(mode="wrap")
+    def _omit_rules_off(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data = handler(self)
+        for key in ("plan_grammar_rules", "plan_grammar_release_rule"):
+            if not data.get(key):
+                data.pop(key, None)
+        return data
 
 
 def build_prompt_conditions(
@@ -463,6 +484,8 @@ def build_prompt_conditions(
         candidate_options=options,
         construct_constrained_selection=options is not None,
         prompt_version=None if request is None else request.prompt_version,
+        plan_grammar_rules=request is not None and request.plan_grammar_rules,
+        plan_grammar_release_rule=request is not None and request.plan_grammar_release_rule,
     )
 
 
