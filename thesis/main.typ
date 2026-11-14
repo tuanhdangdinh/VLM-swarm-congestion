@@ -5,9 +5,10 @@
 
 #set page(
   paper: "a4",
+  numbering: "i",
   margin: (left: 25mm, right: 25mm, top: 22mm, bottom: 25mm),
   header: context {
-    if counter(page).get().first() > 1 {
+    if here().page() > 1 {
       block(width: 100%)[
         #grid(
           columns: (auto, 1fr),
@@ -26,12 +27,12 @@
     }
   },
   footer: context {
-    if counter(page).get().first() > 1 {
+    if here().page() > 1 {
       block(width: 100%)[
         #set text(size: 8pt, font: "DejaVu Sans Mono")
         #line(length: 100%, stroke: 0.4pt)
         #v(2pt)
-        #h(1fr) Page #counter(page).display()
+        #h(1fr) Page #counter(page).display(here().page-numbering())
       ]
     }
   },
@@ -93,6 +94,8 @@
 #include "chapters/00-front.typ"
 
 #set heading(numbering: "1.1")
+#pagebreak()
+#set page(numbering: "1")
 #counter(page).update(1)
 
 #include "chapters/01-introduction.typ"

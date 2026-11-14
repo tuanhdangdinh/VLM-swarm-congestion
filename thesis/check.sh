@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Thesis checks: compile, TODO/VERIFY counts, path leaks, ev/evidence cross-check, citation keys.
 cd "$(dirname "$0")/.." || exit 1
-T=thesis
+T=${THESIS_DIR:-thesis}
 fail=0
 
 echo "== (a) compile"
@@ -23,8 +23,15 @@ if grep -nE 'docs/|data/|\.md\b|\.json\b|worktree|vgu-vlm-swarm-' $T/chapters/*.
 else echo "none"; fi
 
 echo "== (d) ev vs evidence ids"
-used=$(grep -ohE '#(ev|fig-source)\("[^"]+"' $T/chapters/*.typ | sed -E 's/.*\("//; s/"$//' | sort -u)
-defd=$(grep -ohE '#evidence\("[^"]+"' $T/evidence/*.typ | sed -E 's/.*\("//; s/"$//' | sort -u)
+# Multi-line safe: flatten each file to one line, then match calls with or without "#" and "id:".
+ids() {
+  local calls=$1; shift
+  for f in "$@"; do tr '\n' ' ' < "$f"; echo; done \
+    | grep -oE "(^|[^A-Za-z0-9_-])$calls\([[:space:]]*(id:[[:space:]]*)?\"[^\"]+\"" \
+    | sed -E 's/^[^"]*"//; s/"$//' | sort -u
+}
+used=$(ids '(ev|fig-source)' $T/chapters/*.typ)
+defd=$(ids 'evidence' $T/evidence/*.typ)
 missing=$(comm -23 <(echo "$used" | sed '/^$/d') <(echo "$defd" | sed '/^$/d'))
 unused=$(comm -13 <(echo "$used" | sed '/^$/d') <(echo "$defd" | sed '/^$/d'))
 [ -n "$missing" ] && { echo "FAIL: used but not defined:"; echo "$missing"; fail=1; }
