@@ -478,6 +478,8 @@ def _apparatus_kwargs(artifact: Artifact, image_path: Path) -> dict[str, Any]:
         kwargs["candidate_options"] = [
             RobotCandidateOptions(**entry) for entry in conditions["candidate_options"]
         ]
+    if conditions.get("plan_grammar_rules"):
+        kwargs["plan_grammar_rules"] = True
     return kwargs
 
 

@@ -268,6 +268,10 @@ class ReasonerRequest(BaseModel):
     # accepts in this scene. CONSTRUCT CHANGE when set -- the plan channel
     # measures constrained selection, not free planning.
     candidate_options: list[RobotCandidateOptions] | None = None
+    # Plan-grammar rules condition (prompt v3.5, 2026-11-15): two generic
+    # sentences added to the v3 plan grammar. v3-only like the apparatus;
+    # False renders every prompt byte-identically to v3.4.
+    plan_grammar_rules: bool = False
 
     @model_validator(mode="after")
     def _validate_last_failed_needs_latest(self) -> "ReasonerRequest":

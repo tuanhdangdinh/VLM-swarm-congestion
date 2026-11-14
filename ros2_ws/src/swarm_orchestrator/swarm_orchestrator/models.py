@@ -499,6 +499,11 @@ class OrchestratorConfig(BaseModel):
     # M3's own audit accepts in the current scene. CONSTRUCT CHANGE: plan
     # metrics under this flag measure constrained selection, not free planning.
     prompt_candidate_options: bool = False
+    # Plan-grammar rules condition (prompt v3.5, 2026-11-15): two generic
+    # sentences in the plan grammar ("each robot exactly once", "a cross leg
+    # after the yield leg that releases it"). Default off = the v3.4 prompt,
+    # byte-identical; recorded as `prompt_conditions.plan_grammar_rules`.
+    prompt_plan_grammar_rules: bool = False
     # prereg-v3 R3.4 contradiction trigger (closed-loop item); default off.
     contradiction_trigger: ContradictionTriggerConfig = Field(
         default_factory=ContradictionTriggerConfig
@@ -588,6 +593,7 @@ class OrchestratorConfig(BaseModel):
                 "prompt_motion_trails",
                 "prompt_zoom_tile",
                 "prompt_candidate_options",
+                "prompt_plan_grammar_rules",
             )
             if getattr(self, name)
         ]

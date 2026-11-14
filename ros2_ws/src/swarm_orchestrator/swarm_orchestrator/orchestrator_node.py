@@ -2592,6 +2592,8 @@ class OrchestratorNode(Node):
                     overlays=overlays,
                 )
             )
+            if config.prompt_plan_grammar_rules:
+                fields["plan_grammar_rules"] = True
         for name, requested, drawn in (
             ("metric_grid", config.prompt_metric_grid, overlays.metric_grid),
             ("motion_trails", config.prompt_motion_trails, overlays.motion_trails),
