@@ -43,9 +43,9 @@
 
 #evidence("5.22", [Tranche-1 Arm A: ER-2, plan channel on, shield-escort grounding, churn bound off, sequential bring-up 180 s per stack, floor 0.20 m, MAX_ANALYSES 0.], [`75a499c:docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` (section 1.2)])
 
-#evidence("5.23", [A33 measures: GT offset fit 0.00-1.00 s in 0.01 s steps; t0 = robot_1 release; H 600 sim-s gives about 570 rel-s; censoring reasons; completeness out of 25; makespan = time to full resolution; throughput grid 1.0 s; delay departure speed above 0.03 m/s, arrival within 0.35 m staying within 0.5 m.], [`ad67a18:docs/superpowers/specs/2026-10-06-prereg-v3-design.md` (A33(0)-(4); A34 R11)])
+#evidence("5.23", [A33 measures: GT offset fit 0.00-1.00 s in 0.01 s steps; t0 = robot_1 release; H 600 sim-s gives about 570 rel-s; censoring reasons; completeness out of 25; makespan = time to full resolution; throughput grid 1.0 s; delay departure speed above 0.03 m/s, arrival within 0.35 m staying within 0.5 m; arrival window ends at the segment dwell_complete, else T_end.], [`ad67a18:docs/superpowers/specs/2026-10-06-prereg-v3-design.md` (A33(0)-(4); A34 R11)])
 
-#evidence("5.24", [A33(5)/(6): encounter below 0.45 m; merge_gap_s 2.0; min_duration_s 0.0; pre_s 0.0; post_s 5.0; min_overlap 1; accepted types {deadlock}; F1 = 2|D n I|/(|D|+|I|); degenerate_arm_b.], [`68e67b5:benchmarks/s1_scoring/conflicts.py` (ENCOUNTER_M, ConflictParams); `ad67a18:docs/superpowers/specs/2026-10-06-prereg-v3-design.md` (A33(5)-(7), A34 R10-R11)])
+#evidence("5.24", [A33(5)/(6): encounter below 0.45 m; merge_gap_s 2.0; min_duration_s 0.0; pre_s 0.0; post_s 5.0; min_overlap 1; accepted types {deadlock}; F1 = 2|D n I|/(|D|+|I|); an analysis matches at most one conflict; tie-break largest overlap, latest onset not after t_a, earliest onset; unmatched positive = false positive; undetected latency censored at min(end + post_s, T_end) - onset; per-conflict delta on conflicts with onset at or before tau_i; degenerate_arm_b.], [`68e67b5:benchmarks/s1_scoring/conflicts.py` (ENCOUNTER_M, ConflictParams); `ad67a18:docs/superpowers/specs/2026-10-06-prereg-v3-design.md` (A33(5)-(7), A34 R10-R11)])
 
 #evidence("5.25", [S1b free-flow table frozen from the 18 solo legs of the 2026-10-10 harvest; cross-VM caveat kept as a limitation.], [`ad67a18:docs/superpowers/specs/2026-10-06-prereg-v3-design.md` (A34 R8); `68e67b5:benchmarks/s1_scoring/data/free_flow_s1b_2026-10-10.json`])
 
@@ -75,7 +75,7 @@
 
 #evidence("5.38", [Grounding-first v1: probe pairwise yield, reverse, reroute, temporary_wait with offline M3; keep executable options; numbered list plus none of the above.], [`1639470:docs/reports/2026-10-23-v4-grounding-first-candidates.md` (Design)])
 
-#evidence("5.39", [Replays with ER-2 and Claude Sonnet 5.5; baseline and grounding-first variants; shuffle seed 20261023; temperature 0.0 not honoured, recorded as unsupported_sampling.], [`fd567f3:docs/reports/2026-10-23-v4-replay-er2.md` (Runs, Rev 2)])
+#evidence("5.39", [Replays with ER-2 and Claude Sonnet 5.5; baseline and grounding-first variants; shuffle seed 20261023; temperature 0.0 could not be sent (ER-2 Interactions API has no temperature field; Sonnet 5.5 returns HTTP 400 on non-default sampling), recorded per call as unsupported_sampling.], [`fd567f3:docs/reports/2026-10-23-v4-replay-er2.md` (Runs, Rev 2)])
 
 #evidence("5.40", [Cluster candidates (gf-candidates-v2): grouping from scene state, threshold r_conflict_m = 1.5 m; seed and attach rules set after a GT-agreement sweep on the same 187 items.], [`7850f5a:docs/reports/2026-10-24-v4-gf-cluster-candidates.md` (Design, Observed Grouping)])
 
