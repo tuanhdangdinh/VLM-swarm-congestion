@@ -32,6 +32,7 @@ from scripts.replay_improved_annotation import (
     base_prompt,
     build_runs,
     cell_prompt,
+    completed_keys,
     image_path_for,
     insert_prompt_line,
     outcome,
@@ -391,3 +392,12 @@ def test_provider_stop_row_is_not_a_data_point():
     assert is_provider_stop_row({"decision": None, "provider_stop": "HTTP 429 (quota/credit)"})
     assert not is_provider_stop_row({"decision": None, "provider_stop": None})
     assert not is_provider_stop_row({"decision": {}, "provider_stop": "x"})
+
+
+def test_resume_reruns_provider_stop_rows_only():
+    rows = [
+        {"key": "a", "decision": {}, "provider_stop": None},
+        {"key": "b", "decision": None, "provider_stop": None},
+        {"key": "c", "decision": None, "provider_stop": "HTTP 429 (quota/credit)"},
+    ]
+    assert completed_keys(rows) == {"a", "b"}

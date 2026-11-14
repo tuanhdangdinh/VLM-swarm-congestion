@@ -28,13 +28,17 @@ its runs.
 
 **What the incomplete data show** (descriptive, not a verdict):
 
-- **ER-2 with the line and a legible frame (`L2+P`)** named the correct robot in
-  **55 of 67 runs**. All 55 of its named yielders were correct, on both sides and
-  under both orders (west side 30/30, east side 25/25).
-  - Without the line, `L2` was 11/64. The grey control with the line, `D_ref+P`, was
-    8/67, against `D_ref` 7/66.
-  - So **the line alone does not move ER-2 with the grey image, but it does with the
-    frame.** The shipped frame plus the line (`C_ref+P`) gave 43/66.
+- **The `D_ref+P` check first: the line alone does not move ER-2.** With the grey
+  image, ER-2 was correct in 7/66 runs without the line (`D_ref`) and 8/67 with it
+  (`D_ref+P`). It answered `reverse` with no yielder in 52 runs of each. Its few named
+  yielders were the west robot (`robot_1`) in 28 of 29. This control is itself
+  incomplete, so the check is descriptive.
+- **With the frame, the line moves ER-2 strongly.**
+  - With legible labels (`L2+P`), ER-2 named the correct robot in **55 of 67 runs**.
+    All 55 named yielders were correct, on both sides and under both orders (west side
+    30/30, east side 25/25).
+  - Without the line, `L2` was 11/64.
+  - The shipped frame plus the line (`C_ref+P`) gave 43/66, against `C_ref` 12/62.
   - On the one complete balanced subset (replicate 1, 48 runs per cell), `L2+P` was
     10, 7, 10 and 10 correct of 12 in the four side x order cells. The 7/12 cell misses
     the pre-stated 9/12 share, so even this subset does not meet the rule's shares.
@@ -152,7 +156,7 @@ Full design in the spec (pre-registration commit `21d1ddd`; amendment 1 `b9ef9dd
 Every non-correct, non-wrong run is `reverse` with no yielder. No other outcome
 occurred.
 
-### P(correct) by side x order (runs; [scenes mostly correct])
+### P(correct) by side x order (runs)
 
 All data, replicates 1-2. Cells hold unequal numbers of runs, because the stop cut
 replicate 2.
@@ -190,6 +194,10 @@ east side. With `L2+P` and `C_ref+P`, the named robot follows the blocked side.
 | east | `id_asc` | 3/12 | 2/12 | 3/12 | 8/12 | 1/12 | 10/12 | 7/12 |
 | east | `id_desc` | 3/12 | 3/12 | 3/12 | 7/12 | 4/12 | 10/12 | 7/12 |
 | all | all | 6/48 | 6/48 | 11/48 | 32/48 | 7/48 | **37/48** | 24/48 |
+
+In replicate 1 each run is one scene x order, so this table is already scene-level.
+Scenes correct under **both** orders, of 12 per side (west / east): `D_ref` 0 / 1,
+`D_ref+P` 0 / 0, `C_ref` 1 / 0, `C_ref+P` 7 / 5, `L2` 0 / 0, `L2+P` 6 / 8, `K1` 3 / 4.
 
 Rule 1's shares at r = 1 (at least 9/12 in every side x order cell, and at least 0.25
 above the grey control) are **met by no cell**:
@@ -331,11 +339,13 @@ neutral sentence ("a robot that backs up needs free floor behind it") changes th
 run was cut off by the providers' billing limits after about a third of the planned
 calls. Under the rules we fixed in advance, the test therefore gives **no verdict**.
 
-The partial data contain the first strong lead of its kind in this project. With the
-readable frame and the sentence together, Gemini ER-2 picked the robot with free space
-behind it in 55 of 67 runs and never picked the wrong one. With the same sentence and a
-blank grey image it did no better than before (8 of 67). With the readable frame but no
-sentence it also did no better (11 of 64).
+The partial data contain the strongest lead of its kind in this project so far. The
+check comes first. With a blank grey image, adding the sentence changed nothing:
+Gemini ER-2 was right in 7 of 66 runs without it and 8 of 67 with it, and mostly told
+both robots to back up. With the readable frame but no sentence it also did no better
+(11 of 64). With the readable frame and the sentence together, it picked the robot with
+free space behind it in 55 of 67 runs and never picked the wrong one. The shipped frame
+plus the sentence gave 43 of 66.
 
 That pattern suggests ER-2 can read the blocked side from the picture when told that
 backing up needs room. But it is incomplete. It misses the pre-set bar in one of four
@@ -346,11 +356,12 @@ The thesis **may** say:
 
 - the pre-registered improved-annotation test was run but stopped by provider billing
   limits, and gives no verdict;
+- in the incomplete data, the grey-image control did not move when the sentence was
+  added (7/66 vs 8/67), so the sentence did not appear to supply the answer by itself
+  there (a descriptive check; the control is incomplete);
 - in the incomplete data, ER-2 with legible labels plus the neutral back-up sentence
   named the correct yielder in 55/67 runs (55/55 named, both sides, both orders);
-  without the sentence, or with a grey image, it did not (11/64; 8/67);
-- the grey-image control with the sentence did not move, so the sentence did not
-  supply the answer by itself;
+  without the sentence it did not (11/64);
 - gpt-4o's choice still follows the listing order under every variant tested.
 
 The thesis **may not** say:
@@ -379,7 +390,7 @@ The thesis **may not** say:
 | Renderer | `scripts/render_annotation_variants.py` |
 | Runner | `scripts/replay_improved_annotation.py` (resumable; reuses `scripts/replay_swapped_ids.py`) |
 | Analysis | `scripts/analyze_improved_annotation.py`; output `analysis.txt` |
-| Tests | `tests/unit/test_render_annotation_variants.py`, `tests/unit/test_replay_improved_annotation.py` (151 pass, 0 skipped) |
+| Tests | `tests/unit/test_render_annotation_variants.py`, `tests/unit/test_replay_improved_annotation.py` (152 pass, 0 skipped) |
 | Data (`data/experiments/2026-11-14-improved-annotation-replay/`) | `manifest.json`, `contact_sheet.jpg`, `grey_1280x960.png`, `probes.jsonl`, `calls_{gemini,openai}.jsonl` (every attempt's text, tokens, served model, timestamps, seq; no images or keys), `ledger_*.jsonl`, `budget_*.json`, `analysis.txt` |
 | Stimulus PNGs | not tracked; regenerated byte-identically by `--write-manifest` |
 
