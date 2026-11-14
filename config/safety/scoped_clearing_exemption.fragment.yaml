@@ -16,5 +16,14 @@
 # the monitor's startup log line (`... scoped_clearing_exemption=True`), not
 # from the yaml: the loader silently falls back to defaults (key off) on any
 # read error. tests/unit/test_safety_exemption_scope.py pins this file.
+#
+# waiver_closing_tolerance_m / waiver_closing_readings (owner ruling
+#   2026-11-14, read only with the key on): the one-sided A19 release against
+#   such a third robot ends once the pair's fresh centre distance is more than
+#   the tolerance below the widest seen since command start on that many
+#   consecutive scene readings. Defaults shown; 0.05 m is ~10x the worst
+#   recorded stationary M1 pair noise (0.0045 m peak-to-peak).
 safety:
   scoped_clearing_exemption: true
+  waiver_closing_tolerance_m: 0.05
+  waiver_closing_readings: 3

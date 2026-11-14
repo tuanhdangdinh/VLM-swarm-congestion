@@ -263,8 +263,25 @@ class SafetyLimits:
     # only robots a clearing command itself addressed and accepted (see
     # `CoordinationTracker.__init__`). False (default) is the 68e67b5 rule.
     scoped_clearing_exemption: bool = False
+    # Owner ruling 2026-11-14, read only with `scoped_clearing_exemption`: a
+    # third-robot A19 waiver (unhonoured plan partner or rejected leg) ends
+    # once the pair's fresh centre distance has fallen more than
+    # `waiver_closing_tolerance_m` below the widest seen since capture on
+    # `waiver_closing_readings` consecutive evaluations. 0.05 m is ~10x the
+    # worst stationary M1 pair noise in the recorded scenes (0.0045 m
+    # peak-to-peak) and far below a reverse's travel (0.7-1.3 m).
+    waiver_closing_tolerance_m: float = 0.05
+    waiver_closing_readings: int = 3
 
     def __post_init__(self) -> None:
+        if self.waiver_closing_tolerance_m <= 0.0:
+            raise ValueError(
+                f"waiver_closing_tolerance_m must be > 0, got {self.waiver_closing_tolerance_m}"
+            )
+        if self.waiver_closing_readings < 1:
+            raise ValueError(
+                f"waiver_closing_readings must be >= 1, got {self.waiver_closing_readings}"
+            )
         if self.hard_contact_floor_m < 0.0:
             raise ValueError(f"hard_contact_floor_m must be >= 0, got {self.hard_contact_floor_m}")
         if self.hard_contact_floor_m > 0.0 and self.hard_contact_floor_m >= self.min_distance_m:
@@ -376,10 +393,17 @@ class CoordinationTracker:
     # command dropped before dispatch). Far above any real in-flight count.
     MAX_TRACKED_COMMANDS = 256
 
-    def __init__(self, scoped_exemption: bool = False) -> None:
+    def __init__(
+        self,
+        scoped_exemption: bool = False,
+        closing_tolerance_m: float = 0.05,
+        closing_readings: int = 3,
+    ) -> None:
         """Create an empty tracker.
 
         Args:
+            closing_tolerance_m: `SafetyLimits.waiver_closing_tolerance_m`.
+            closing_readings: `SafetyLimits.waiver_closing_readings`.
             scoped_exemption: `SafetyLimits.scoped_clearing_exemption`. True
                 restricts every clearing robot's partners to robots its own
                 command addressed and that accepted it: a reverse's
@@ -393,6 +417,15 @@ class CoordinationTracker:
                 behaviour.
         """
         self._scoped = scoped_exemption
+        self._closing_tolerance_m = closing_tolerance_m
+        self._closing_readings = closing_readings
+        # (command_id, clearing robot) -> waived partners that came from the
+        # scoped third-robot path (direction-checked), and per (command_id,
+        # clearing robot, partner) the widest fresh gap seen and the current
+        # run of closing readings. Filled only while `_scoped`.
+        self._third_robot_by_key: dict[tuple[str, str], set[str]] = {}
+        self._widest_gap: dict[tuple[str, str, str], float] = {}
+        self._closing_run: dict[tuple[str, str, str], int] = {}
         # command_id -> robots whose leg of it FAILED before it ever went
         # ACTIVE; filled only while `_scoped`.
         self._rejected_by_command: dict[str, set[str]] = {}
@@ -530,6 +563,9 @@ class CoordinationTracker:
                 start = self._start_latched_by_key.get((waiver_command, clearing_id), ())
                 if waiver_command == command_id and robot_id in start:
                     waived.add(robot_id)
+                    self._third_robot_by_key.setdefault(
+                        (waiver_command, clearing_id), set()
+                    ).add(robot_id)
             while len(self._rejected_by_command) > self.MAX_TRACKED_COMMANDS:
                 self._rejected_by_command.pop(next(iter(self._rejected_by_command)))
 
@@ -681,6 +717,12 @@ class CoordinationTracker:
             partners = at_start - own
             if self._scoped:
                 self._start_latched_by_key[key] = frozenset(at_start)
+                unhonoured = self._plan_partners_by_key.get(key, frozenset()) | set(
+                    self._rejected_by_command.get(command_id, ())
+                )
+                self._third_robot_by_key[key] = partners & unhonoured
+                while len(self._third_robot_by_key) > self.MAX_TRACKED_COMMANDS:
+                    self._third_robot_by_key.pop(next(iter(self._third_robot_by_key)))
                 while len(self._start_latched_by_key) > self.MAX_TRACKED_COMMANDS:
                     self._start_latched_by_key.pop(next(iter(self._start_latched_by_key)))
             self._waiver_by_key[key] = partners
@@ -689,6 +731,67 @@ class CoordinationTracker:
             if partners:
                 armed.append((robot_id, command_id, tuple(sorted(partners))))
         return armed
+
+    def revoke_closing_waivers(
+        self, robots: Sequence[Mapping[str, Any]]
+    ) -> list[tuple[str, str, str, float, float]]:
+        """End each third-robot waiver whose released robot is closing in.
+
+        Owner ruling 2026-11-14 (scoped mode only): the one-sided release
+        against an unhonoured plan partner or a rejected-leg robot holds only
+        while the gap is not shrinking. Measured as range from fresh M1
+        positions, not commanded velocity (the monitor sees no command
+        stream for raw cmd_vel primitives): the widest fresh centre distance
+        since capture is the reference, and the waiver ends once the
+        distance is more than `closing_tolerance_m` below it on
+        `closing_readings` consecutive fresh readings. A stationary pair and
+        a turn in place stay within the tolerance, so a robot that has not
+        started moving can start. A reading with either robot STALE (or
+        absent) carries no distance and changes nothing. Ending is permanent
+        for the window; the pair then falls under the ordinary rules.
+        Waivers from the prereg-v3 A19 path are not checked.
+
+        Args:
+            robots: The scene's robot dicts (`robot_id`, `x`, `y`, `status`).
+
+        Returns:
+            `(robot_id, command_id, partner, distance_m, widest_m)` for each
+            waiver ended by this call, for logging.
+        """
+        if not self._scoped:
+            return []
+        fresh = {
+            r["robot_id"]: (float(r["x"]), float(r["y"]))
+            for r in robots
+            if r.get("status") != "STALE"
+        }
+        revoked: list[tuple[str, str, str, float, float]] = []
+        for key, checked in self._third_robot_by_key.items():
+            command_id, robot_id = key
+            waived = self._waiver_by_key.get(key)
+            if not waived:
+                continue
+            for partner in sorted(checked & waived):
+                a, b = fresh.get(robot_id), fresh.get(partner)
+                if a is None or b is None:
+                    continue
+                gap_key = (command_id, robot_id, partner)
+                distance = math.hypot(a[0] - b[0], a[1] - b[1])
+                widest = max(self._widest_gap.get(gap_key, distance), distance)
+                self._widest_gap[gap_key] = widest
+                if widest - distance > self._closing_tolerance_m:
+                    self._closing_run[gap_key] = self._closing_run.get(gap_key, 0) + 1
+                else:
+                    self._closing_run[gap_key] = 0
+                if self._closing_run[gap_key] >= self._closing_readings:
+                    waived.discard(partner)
+                    checked.discard(partner)
+                    revoked.append((robot_id, command_id, partner, distance, widest))
+        while len(self._widest_gap) > self.MAX_TRACKED_COMMANDS:
+            self._widest_gap.pop(next(iter(self._widest_gap)))
+        while len(self._closing_run) > self.MAX_TRACKED_COMMANDS:
+            self._closing_run.pop(next(iter(self._closing_run)))
+        return revoked
 
     def release_separated_waivers(
         self, latched_pairs: frozenset[tuple[str, str]] | set[tuple[str, str]]

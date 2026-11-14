@@ -143,7 +143,9 @@ class SafetyMonitorNode(Node):
         self._stop_pubs: dict[str, object] = {}
         self._latched_stops: set[str] = set()
         self._coordination = CoordinationTracker(
-            scoped_exemption=self._limits.scoped_clearing_exemption
+            scoped_exemption=self._limits.scoped_clearing_exemption,
+            closing_tolerance_m=self._limits.waiver_closing_tolerance_m,
+            closing_readings=self._limits.waiver_closing_readings,
         )
         self._exempt_pairs: frozenset[tuple[str, str]] | None = frozenset()
         self._last_fresh_distances: dict[tuple[str, str], float] = {}
@@ -258,6 +260,14 @@ class SafetyMonitorNode(Node):
                 f"latch waiver armed robot={robot_id} command={command_id} "
                 f"partners={','.join(partners)}"
             )
+        if self._limits.scoped_clearing_exemption:
+            for robot_id, command_id, partner, gap, widest in (
+                self._coordination.revoke_closing_waivers(positions)
+            ):
+                self.get_logger().info(
+                    f"latch waiver revoked robot={robot_id} command={command_id} "
+                    f"partner={partner} reason=closing gap_m={gap:.3f} widest_m={widest:.3f}"
+                )
         exemption = self._coordination.exemption()
         if exemption.waivers != self._waivers:
             self._waivers = exemption.waivers
@@ -383,7 +393,11 @@ def startup_log_line(limits: SafetyLimits) -> str:
         f"exempt_actions={','.join(sorted(CLEARING_ACTIONS))}"
     )
     if limits.scoped_clearing_exemption:
-        line += " scoped_clearing_exemption=True"
+        line += (
+            " scoped_clearing_exemption=True"
+            f" waiver_closing_tolerance_m={limits.waiver_closing_tolerance_m}"
+            f" waiver_closing_readings={limits.waiver_closing_readings}"
+        )
     return line
 
 
@@ -411,6 +425,8 @@ def limits_from_config(data: dict) -> SafetyLimits:
         stale_unsafe_distance_m=None if band is None else float(band),
         hard_contact_floor_m=float(data.get("hard_contact_floor_m", 0.0)),
         scoped_clearing_exemption=data.get("scoped_clearing_exemption", False) is True,
+        waiver_closing_tolerance_m=float(data.get("waiver_closing_tolerance_m", 0.05)),
+        waiver_closing_readings=int(data.get("waiver_closing_readings", 3)),
     )
 
 
