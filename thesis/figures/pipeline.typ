@@ -30,7 +30,7 @@
 
     node((2, 1), name: <refuse>, inset: 4pt, corner-radius: 2pt, stroke: 0.7pt + acc, fill: acc.lighten(92%), width: 24mm, align(center, text(size: 7.5pt)[*M3 yield gate* \ #text(size: 7pt, fill: g1)[yielder cannot reach its park point]])),
     node((3, 1), name: <safety>, inset: 4pt, corner-radius: 2pt, stroke: 0.7pt + acc, fill: acc.lighten(92%), width: 24mm, align(center, text(size: 7.5pt)[*M4 safety monitor* \ #text(size: 7pt, fill: g1)[minimum-distance check]])),
-    node((2, 2), name: <none>, inset: 4pt, corner-radius: 2pt, stroke: 0.7pt + luma(60), fill: white, width: 24mm, align(center, text(size: 7.5pt)[*No action* \ #text(size: 7pt, fill: g1)[refusal, nothing dispatched]])),
+    node((2, 2), name: <none>, inset: 4pt, corner-radius: 2pt, stroke: 0.7pt + luma(60), fill: white, width: 24mm, align(center, text(size: 7.5pt)[*No action* \ #text(size: 7pt, fill: g1)[if configured: nothing dispatched]])),
     node((3, 2), name: <hold>, inset: 4pt, corner-radius: 2pt, stroke: 0.7pt + luma(60), fill: white, width: 24mm, align(center, text(size: 7.5pt)[*Hold* \ #text(size: 7pt, fill: g1)[zero velocity, goal cancelled]])),
 
     edge(<detect>, <decide>, "-|>"),
@@ -40,7 +40,7 @@
     edge(<ground>, <refuse>, "-|>", stroke: 0.7pt + acc),
     edge(<refuse>, <act>, "-|>", stroke: 0.7pt + acc, label: lab[swap yielder], label-pos: 0.45, label-side: right),
     edge(<refuse>, <none>, "-|>", stroke: 0.7pt + acc, label: lab[none feasible], label-side: left, label-pos: 0.5),
-    edge(<none>, (0, 2), <detect>, "-|>", stroke: (paint: g1, dash: "dashed", thickness: 0.7pt), label: lab[next analysis], label-side: left),
+    edge(<none>, (0, 2), <detect>, "-|>", stroke: (paint: g1, dash: "dashed", thickness: 0.7pt), label: lab[re-analysis on changed scene \ or cooldown expiry], label-side: right, label-pos: 0.78),
     edge(<act>, <safety>, "-|>", stroke: 0.7pt + acc),
     edge(<safety>, <hold>, "-|>", stroke: 0.7pt + acc, label: lab[violation], label-side: left),
   )
