@@ -59,8 +59,6 @@
 
 #evidence("3.28", [Fix for paths 1–3 behind safety.scoped\_clearing\_exemption, on only for literal true; absent or false behaves exactly as at 68e67b5; not part of the evaluated runtime.], [`8933863:docs/reports/2026-11-14-safety-exemption-fix.md` (Behaviour section; branch fix/safety-exemption-scope, based on 68e67b5); later exploratory IB10 run with the key on: `cbe3dcf:docs/reports/2026-11-13-thesis-evidence-register.md` (Rev 3, IB10 safety smoke row)])
 
-#evidence("3.29", [Retrieval modules are unimplemented stubs: VectorStore.search and EmbeddingModel raise NotImplementedError; index\_knowledge\_base exits "not implemented yet"; no runtime caller.], [`68e67b5:reasoning/rag/vector_store.py`; `68e67b5:reasoning/rag/embeddings.py`; `68e67b5:reasoning/rag/index_knowledge_base.py`; `68e67b5:reasoning/rag/retriever.py`])
-
 #evidence("3.30", [Stage-1 call latency "ER-2 3.2-3.8 s" (and gpt-4o 2.1-6.0 s) recorded in the configuration code. Derived bound: with cooldown\_sec 15.0 [3.12], the same robots are re-analysed at most once per 15 s plus latency, i.e. below 1/15 s = 0.067 Hz, against the 0.5 Hz lower target [3.01].], [`68e67b5:ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py` (comment above stage2\_max\_attempts, lines 412-418); arithmetic by the author])
 
 #evidence("3.31", [Tranche 1 ran at a real-time factor of about 0.18 (about 55 min per full-horizon episode); 12 s wall clock x 0.18 = 2.16, about 2.2 sim-s.], [`75a499c:docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` (section 8, "Wall-clock time"); arithmetic by the author])

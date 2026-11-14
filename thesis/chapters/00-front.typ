@@ -52,7 +52,6 @@
   [ORCA], [Optimal Reciprocal Collision Avoidance],
   [PDDL], [Planning Domain Definition Language],
   [PIBT], [Priority Inheritance with Backtracking],
-  [RAG], [Retrieval-Augmented Generation],
   [RGB], [Red, green, blue (colour image)],
   [RHCR], [Rolling-Horizon Collision Resolution],
   [ROS 2], [Robot Operating System 2],
