@@ -389,7 +389,7 @@ def test_startup_line_key_off_is_the_68e67b5_line():
 def test_startup_line_names_the_key_when_on():
     line = startup_log_line(limits_from_config({**_BASE, "scoped_clearing_exemption": True}))
 
-    assert line.endswith(" scoped_clearing_exemption=True")
+    assert " scoped_clearing_exemption=True" in line
 
 
 @pytest.mark.parametrize(
@@ -403,7 +403,11 @@ def test_overlay_fragment_adds_only_the_key(pinned):
     )["safety"]
     merged = {**base, **fragment}
 
-    assert fragment == {"scoped_clearing_exemption": True}
+    assert fragment == {
+        "scoped_clearing_exemption": True,
+        "waiver_closing_tolerance_m": 0.05,
+        "waiver_closing_readings": 3,
+    }
     assert limits_from_config(merged) == SafetyLimits(
         **{**limits_from_config(base).__dict__, "scoped_clearing_exemption": True}
     )
@@ -545,9 +549,11 @@ class _Monitor:
         self.latched: frozenset[str] = frozenset()
         self.pairs: frozenset[tuple[str, str]] = frozenset()
         self.memory: dict = {}
+        self.revoked: list = []
 
     def tick(self, robots: list[dict]) -> frozenset[str]:
         self.tracker.capture_latch_partners(self.pairs)
+        self.revoked += self.tracker.revoke_closing_waivers(robots)
         evaluation = evaluate_latches(
             robots, self.limits, self.latched, self.memory, self.tracker.exemption()
         )
@@ -637,30 +643,200 @@ def test_rejected_leg_without_start_latch_is_not_waived_with_key_on():
     }
 
 
-def _closing(limits: SafetyLimits, gap_m: float) -> frozenset[str]:
+def _third_robot_waiver(limits: SafetyLimits = _LIMITS, gap_m: float = 0.30) -> _Monitor:
+    """robot_1 reverses; robot_3 is an unhonoured plan partner latched at start."""
     tracker = CoordinationTracker(scoped_exemption=True)
     monitor = _Monitor(tracker, limits)
-    robots = [_fresh("robot_1", 0.0, 0.0), _fresh("robot_3", 0.40, 0.0)]
+    robots = [_fresh("robot_1", 0.0, 0.0), _fresh("robot_3", gap_m, 0.0)]
     monitor.tick(robots)
     _reverse(tracker, "c-rev", "robot_1", partners=["robot_3"])
     monitor.tick(robots)
-    # The reverser drives TOWARD the continuing robot instead of away.
-    return monitor.tick([_fresh("robot_1", 0.40 - gap_m, 0.0), _fresh("robot_3", 0.40, 0.0)])
+    return monitor
 
 
-def test_waived_reverser_closing_on_third_robot_is_not_held_above_floor():
-    # States what A19 does NOT require: a waiver has no direction check. It
-    # ends only when the pair separates past min_distance_m; while the
-    # reverser closes in it stays released and only the partner is held.
-    assert _closing(_LIMITS_FLOOR, 0.25) == {"robot_3"}
+def _gap(monitor: _Monitor, gaps: list[float], stale: bool = False) -> list[frozenset[str]]:
+    held = []
+    for gap in gaps:
+        robot_1 = _fresh("robot_1", 0.30 - gap, 0.0)
+        if stale:
+            robot_1["status"] = "STALE"
+        held.append(monitor.tick([robot_1, _fresh("robot_3", 0.30, 0.0)]))
+    return held
+
+
+def test_closing_reverser_is_reheld_after_debounce():
+    # Direction check (owner ruling 2026-11-14): shrinking by more than
+    # waiver_closing_tolerance_m (0.05) below the widest gap seen, on
+    # waiver_closing_readings (3) consecutive fresh readings, ends the waiver.
+    monitor = _third_robot_waiver()
+
+    held = _gap(monitor, [0.29, 0.24, 0.23, 0.22])
+
+    assert held == [{"robot_3"}, {"robot_3"}, {"robot_3"}, {"robot_1", "robot_3"}]
+
+
+def test_revoked_waiver_stays_revoked_when_the_gap_reopens():
+    monitor = _third_robot_waiver()
+    _gap(monitor, [0.24, 0.23, 0.22])
+
+    assert _gap(monitor, [0.40]) == [{"robot_1", "robot_3"}]
+    assert [(r, c, p) for r, c, p, _d, _m in monitor.revoked] == [("robot_1", "c-rev", "robot_3")]
+
+
+def test_opening_reverser_stays_released():
+    monitor = _third_robot_waiver()
+
+    assert _gap(monitor, [0.31, 0.34, 0.38, 0.42]) == [{"robot_3"}] * 4
+
+
+def test_stationary_pair_is_releasable():
+    # A reverser that has not started moving must be able to start.
+    monitor = _third_robot_waiver()
+
+    assert _gap(monitor, [0.30] * 10) == [{"robot_3"}] * 10
+
+
+def test_m1_jitter_does_not_flap_the_hold():
+    # Stationary M1 pair-distance noise peaks at 0.0045 m peak-to-peak in the
+    # recorded IB10/S1b scenes; even 10x that, alternating, never accumulates
+    # three consecutive readings past the tolerance.
+    monitor = _third_robot_waiver()
+
+    gaps = [0.30, 0.255, 0.30, 0.255, 0.30, 0.24, 0.30, 0.24, 0.30]
+
+    assert _gap(monitor, gaps) == [{"robot_3"}] * len(gaps)
+
+
+def test_rotate_in_place_stays_released():
+    # A diff-drive turn moves the marker centre only by its offset from the
+    # rotation axis; a 0.02 m circle stays inside the tolerance.
+    import math
+
+    monitor = _third_robot_waiver()
+    held = []
+    for step in range(12):
+        angle = step * math.pi / 6
+        robot_1 = _fresh("robot_1", 0.02 * math.cos(angle), 0.02 * math.sin(angle))
+        held.append(monitor.tick([robot_1, _fresh("robot_3", 0.30, 0.0)]))
+
+    assert held == [{"robot_3"}] * 12
+
+
+def test_stale_reading_freezes_the_direction_check():
+    # No fresh distance, no verdict: a STALE pair keeps its waiver state
+    # (A19's own STALE handling is unchanged).
+    monitor = _third_robot_waiver()
+
+    _gap(monitor, [0.24, 0.23, 0.22], stale=True)
+
+    assert monitor.revoked == []
+
+
+def test_legacy_a19_waiver_has_no_direction_check():
+    # Approved scope: only the 2026-11-14 third-robot path is checked. A
+    # bystander latched at start (an A19 waiver since prereg-v3) is not.
+    tracker = CoordinationTracker(scoped_exemption=True)
+    monitor = _Monitor(tracker)
+    robots = [_fresh("robot_1", 0.0, 0.0), _fresh("robot_3", 0.30, 0.0)]
+    monitor.tick(robots)
+    _reverse(tracker, "c-rev", "robot_1")
+    monitor.tick(robots)
+
+    assert _gap(monitor, [0.24, 0.23, 0.22, 0.21]) == [{"robot_3"}] * 4
 
 
 def test_waived_reverser_closing_below_hard_contact_floor_is_held():
-    # The only backstop on a closing waived pair: the A8(ii) floor latches
-    # both robots of a waived pair under hard_contact_floor_m.
-    assert _closing(_LIMITS_FLOOR, 0.15) == {"robot_1", "robot_3"}
+    # The floor still latches both robots of a waived pair at once.
+    monitor = _third_robot_waiver(_LIMITS_FLOOR)
+
+    assert _gap(monitor, [0.15]) == [{"robot_1", "robot_3"}]
 
 
-def test_waived_reverser_closing_without_floor_is_never_held():
-    # Base safety.yaml has hard_contact_floor_m 0.0: no backstop at all.
-    assert _closing(_LIMITS, 0.10) == {"robot_3"}
+def test_direction_check_is_a_no_op_with_key_off():
+    tracker = CoordinationTracker(scoped_exemption=False)
+    monitor = _Monitor(tracker)
+    robots = [_fresh("robot_1", 0.0, 0.0), _fresh("robot_3", 0.30, 0.0)]
+    monitor.tick(robots)
+    _reverse(tracker, "c-rev", "robot_1", partners=["robot_3"])
+    monitor.tick(robots)
+
+    assert _gap(monitor, [0.24, 0.23, 0.22, 0.21]) == [frozenset()] * 4
+    assert monitor.revoked == []
+
+
+def test_limits_direction_defaults():
+    limits = limits_from_config(_BASE)
+
+    assert (limits.waiver_closing_tolerance_m, limits.waiver_closing_readings) == (0.05, 3)
+
+
+def test_limits_direction_thresholds_from_config():
+    data = {**_BASE, "waiver_closing_tolerance_m": 0.08, "waiver_closing_readings": 5}
+    limits = limits_from_config(data)
+
+    assert (limits.waiver_closing_tolerance_m, limits.waiver_closing_readings) == (0.08, 5)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"), [("waiver_closing_tolerance_m", 0.0), ("waiver_closing_readings", 0)]
+)
+def test_limits_reject_nonpositive_direction_thresholds(field, value):
+    with pytest.raises(ValueError):
+        SafetyLimits(min_distance_m=0.45, max_linear_velocity_mps=0.2, **{field: value})
+
+
+def test_startup_line_names_direction_thresholds_when_on():
+    line = startup_log_line(limits_from_config({**_BASE, "scoped_clearing_exemption": True}))
+
+    assert line.endswith(
+        " scoped_clearing_exemption=True waiver_closing_tolerance_m=0.05 waiver_closing_readings=3"
+    )
+
+
+def test_closing_reverser_against_rejected_leg_is_reheld():
+    tracker = CoordinationTracker(scoped_exemption=True)
+    monitor = _Monitor(tracker)
+    robots = [_fresh("robot_1", 0.0, 0.0), _fresh("robot_3", 0.30, 0.0)]
+    _wait(tracker, "c-old", "robot_3")
+    monitor.tick(robots)
+    _busy_reject_setup_new_only(tracker)
+    monitor.tick(robots)
+
+    assert _gap(monitor, [0.24, 0.23, 0.22])[-1] == {"robot_1", "robot_3"}
+
+
+def test_node_scene_path_revokes_and_logs_a_closing_third_robot_waiver():
+    import json as _json
+    from types import SimpleNamespace
+
+    from swarm_execution.safety_monitor_node import SafetyMonitorNode
+
+    node = SafetyMonitorNode.__new__(SafetyMonitorNode)
+    node._limits = SafetyLimits(
+        min_distance_m=0.45, max_linear_velocity_mps=0.2, scoped_clearing_exemption=True
+    )
+    node._coordination = CoordinationTracker(scoped_exemption=True)
+    node._latched_stops = set()
+    node._exempt_pairs = frozenset()
+    node._last_fresh_distances = {}
+    node._cancel_nav2_goal = lambda _r: None
+    node._emergency_stop = lambda _r: None
+    node._publish_holds = lambda: None
+    logs: list[str] = []
+    logger = SimpleNamespace(info=logs.append, warning=logs.append)
+    node.get_logger = lambda: logger
+
+    def scene(gap):
+        robots = [
+            {"robot_id": "robot_1", "x": 0.30 - gap, "y": 0.0, "status": "MOVING"},
+            {"robot_id": "robot_3", "x": 0.30, "y": 0.0, "status": "MOVING"},
+        ]
+        node._on_scene_state(SimpleNamespace(data=_json.dumps({"robots": robots})))
+
+    scene(0.30)
+    _reverse(node._coordination, "c-rev", "robot_1", partners=["robot_3"])
+    for gap in (0.30, 0.24, 0.23, 0.22):
+        scene(gap)
+
+    assert node._latched_stops == {"robot_1", "robot_3"}
+    assert any("latch waiver revoked robot=robot_1" in m and "reason=closing" in m for m in logs)
