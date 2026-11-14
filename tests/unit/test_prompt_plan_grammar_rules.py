@@ -4,6 +4,7 @@ The condition adds exactly two lines to the v3.4 `_PLAN_GRAMMAR` block and
 nothing else. Off (the default) every prompt stays byte-identical to the
 pinned v3.4 prompts; v1/v2 are frozen and ignore it.
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -22,7 +23,7 @@ from reasoning.vlm.prompt_builder import (
     build_prompt_payload,
 )
 from scripts.replay_live_decisions import reconstruct_request
-from tests.unit.test_m5_node_apparatus import _RecordingPipeline, _node, _run_trigger
+from tests.unit.test_m5_node_apparatus import _node, _RecordingPipeline, _run_trigger
 from tests.unit.test_m5_node_probe import _artifact, _config, node_env  # noqa: F401
 from tests.unit.test_m5_reasoning_pipeline import _snapshot
 from tests.unit.test_prompt_apparatus_v3 import _CONDITIONS
@@ -33,9 +34,7 @@ _SENTENCES = (
     "Name each robot exactly once: its one leg is its whole role in the resolution.",
     'A "cross" leg must come after the "yield" leg that releases it.',
 )
-_LIST_ORDER_LINE = (
-    "The list order is the execution order — the robot that acts first comes first."
-)
+_LIST_ORDER_LINE = "The list order is the execution order — the robot that acts first comes first."
 
 
 def _fixtures() -> dict[str, ReasonerRequest]:
@@ -193,7 +192,10 @@ class TestNode:
     def test_flag_on_renders_and_records_the_rules(self, node_env, tmp_path):  # noqa: F811
         pipeline = _RecordingPipeline()
         node, _ = _node(
-            node_env, tmp_path, pipeline, plan_channel_enabled=True,
+            node_env,
+            tmp_path,
+            pipeline,
+            plan_channel_enabled=True,
             prompt_plan_grammar_rules=True,
         )
         request_id = _run_trigger(node)

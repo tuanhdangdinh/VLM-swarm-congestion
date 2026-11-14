@@ -33,6 +33,7 @@ Usage (keys are read by the adapters from env vars; load them the repo's way):
         --backend gemini --conditions A,B --rep 0 --subcap 0.45
     python scripts/vlm_order_channel_plan_check.py analyze --docs-root <dir>
 """
+
 from __future__ import annotations
 
 import argparse
@@ -111,26 +112,90 @@ DEFAULT_OUT = REPO_ROOT / "data" / "experiments" / EXPERIMENT
 # --docs-root, request_id prefix). `ceff5efa` is e09's THIRD trigger, not a
 # first trigger; it carries a plan-state block and is flagged in the tables.
 STIMULI: tuple[tuple[str, str, str], ...] = (
-    ("live_ib10L", "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e01_armA_a1", "0b9d2939"),
-    ("live_ib10L", "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e01_armA_a2", "d9374445"),
-    ("live_ib10L", "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e03_armA_a1", "6c5406d8"),
-    ("live_ib10L", "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e05_armA_a1", "a71c50a9"),
-    ("live_ib10L", "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e07_armA_a1", "d7da0457"),
-    ("live_ib10L", "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e09_armA_a1", "ceff5efa"),
-    ("live_ib10S", "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e01_armA_a1", "bfaef39f"),
-    ("live_ib10S", "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e03_armA_a1", "18c2a25e"),
-    ("live_ib10S", "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e05_armA_a1", "580328a5"),
-    ("live_ib10S", "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e07_armA_a1", "1d8cbac7"),
-    ("live_ib10S", "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e09_armA_a1", "3f26b4c8"),
+    (
+        "live_ib10L",
+        "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e01_armA_a1",
+        "0b9d2939",
+    ),
+    (
+        "live_ib10L",
+        "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e01_armA_a2",
+        "d9374445",
+    ),
+    (
+        "live_ib10L",
+        "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e03_armA_a1",
+        "6c5406d8",
+    ),
+    (
+        "live_ib10L",
+        "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e05_armA_a1",
+        "a71c50a9",
+    ),
+    (
+        "live_ib10L",
+        "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e07_armA_a1",
+        "d7da0457",
+    ),
+    (
+        "live_ib10L",
+        "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e09_armA_a1",
+        "ceff5efa",
+    ),
+    (
+        "live_ib10S",
+        "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e01_armA_a1",
+        "bfaef39f",
+    ),
+    (
+        "live_ib10S",
+        "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e03_armA_a1",
+        "18c2a25e",
+    ),
+    (
+        "live_ib10S",
+        "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e05_armA_a1",
+        "580328a5",
+    ),
+    (
+        "live_ib10S",
+        "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e07_armA_a1",
+        "1d8cbac7",
+    ),
+    (
+        "live_ib10S",
+        "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e09_armA_a1",
+        "3f26b4c8",
+    ),
     ("live_oct", "vgu-vlm-swarm/data/logs/vm_runs/verbatim_pilot/vp08_er2_ib10_s42", "8fad1c84"),
     ("live_oct", "vgu-vlm-swarm/data/logs/vm_runs/verbatim_pilot/vp09_er2_ib10_s43", "339b0880"),
     ("live_oct", "vgu-vlm-swarm/data/logs/vm_runs/v2_demo/ep2_live_er2", "5dfbeb07"),
     ("live_oct", "vgu-vlm-swarm/data/logs/vm_runs/plan_grammar_cal/cal_ep1_rerun", "aec068b5"),
-    ("ref_armC", "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e02_armC_a2", "4edbbfa0"),
-    ("ref_armC", "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e04_armC_a1", "162362ef"),
-    ("ref_armC", "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e06_armC_a1", "83b5f75b"),
-    ("ref_armC", "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e08_armC_a1", "a59d90da"),
-    ("ref_armC", "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e10_armC_a1", "5a46e51a"),
+    (
+        "ref_armC",
+        "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e02_armC_a2",
+        "4edbbfa0",
+    ),
+    (
+        "ref_armC",
+        "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e04_armC_a1",
+        "162362ef",
+    ),
+    (
+        "ref_armC",
+        "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e06_armC_a1",
+        "83b5f75b",
+    ),
+    (
+        "ref_armC",
+        "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e08_armC_a1",
+        "a59d90da",
+    ),
+    (
+        "ref_armC",
+        "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e10_armC_a1",
+        "5a46e51a",
+    ),
 )
 
 # USD per million tokens (input, output), and the source of each figure.
@@ -311,8 +376,10 @@ def usage_cost(adapter: str, usage: dict[str, int] | None) -> tuple[float, int, 
         return 0.0, 0, 0
     price_in, price_out, _ = PRICES[adapter]
     if adapter == "anthropic":
-        tin = usage.get("input_tokens", 0) + usage.get("cache_creation_input_tokens", 0) + usage.get(
-            "cache_read_input_tokens", 0
+        tin = (
+            usage.get("input_tokens", 0)
+            + usage.get("cache_creation_input_tokens", 0)
+            + usage.get("cache_read_input_tokens", 0)
         )
         tout = usage.get("output_tokens", 0)
     elif adapter == "gemini":
@@ -440,7 +507,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     )
     stimuli = load_stimuli(Path(args.docs_root))
     if args.only:
-        stimuli = [s for s in stimuli if any(s.request_id.startswith(x) for x in args.only.split(","))]
+        stimuli = [
+            s for s in stimuli if any(s.request_id.startswith(x) for x in args.only.split(","))
+        ]
     conditions = args.conditions.split(",")
     for s in stimuli:
         for condition in conditions:
@@ -635,17 +704,13 @@ def analyze_one(s: Stimulus, result: ReasonerResult, condition: str) -> dict[str
     row["verify_edits"] = [(e.op, list(e.robot_ids), e.reason) for e in vp.edits]
     row["verified_legs"] = [(leg.robot_id, leg.action) for leg in vp.legs]
     row["plan_recede_order"] = plan_recede_order(vp.legs) if dec.proposed_plan else None
-    row["model_recede_order"] = (
-        plan_recede_order(dec.proposed_plan) if dec.proposed_plan else None
-    )
+    row["model_recede_order"] = plan_recede_order(dec.proposed_plan) if dec.proposed_plan else None
     chi = row.get("chi_order") or []
     pair = [r for r in (row["model_recede_order"] or []) if r in chi]
     # The model's order over the structural pair, when it reverses both.
     row["model_pair_order"] = pair if len(chi) == 2 and sorted(pair) == sorted(chi) else None
     outcomes = {}
-    no_plan = result.model_copy(
-        update={"decision": dec.model_copy(update={"proposed_plan": None})}
-    )
+    no_plan = result.model_copy(update={"decision": dec.model_copy(update={"proposed_plan": None})})
     for name, mode, res in (
         ("chi", "chi", result),
         ("mwv", "model_when_verified", result),
@@ -668,11 +733,7 @@ def analyze_one(s: Stimulus, result: ReasonerResult, condition: str) -> dict[str
             cross = next((p for p in ph if p.label == "cross"), None)
             row[f"{name}_executed_yielder"] = (
                 next(
-                    (
-                        a["robot_id"]
-                        for a in cross.command["actions"]
-                        if a["action"] == "yield"
-                    ),
+                    (a["robot_id"] for a in cross.command["actions"] if a["action"] == "yield"),
                     None,
                 )
                 if cross is not None
@@ -684,11 +745,16 @@ def analyze_one(s: Stimulus, result: ReasonerResult, condition: str) -> dict[str
     sig_chi = outcome_sig(outcomes["chi"])
     row["mwv_differs_from_noplan"] = sig_mwv != sig_noplan
     row["chi_differs_from_noplan"] = sig_chi != sig_noplan
-    if sig_mwv != sig_noplan and outcomes["mwv"].junction_phases and outcomes["noplan"].junction_phases:
+    if (
+        sig_mwv != sig_noplan
+        and outcomes["mwv"].junction_phases
+        and outcomes["noplan"].junction_phases
+    ):
         a = phase_sig(outcomes["mwv"].junction_phases.model_dump(mode="json")["phases"])
         b = phase_sig(outcomes["noplan"].junction_phases.model_dump(mode="json")["phases"])
         row["mwv_changed_phase_labels"] = sorted(
-            {x[0] for x, y in zip(a, b, strict=False) if x != y} | ({"<length>"} if len(a) != len(b) else set())
+            {x[0] for x, y in zip(a, b, strict=False) if x != y}
+            | ({"<length>"} if len(a) != len(b) else set())
         )
     return row
 
@@ -753,8 +819,17 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             row.update(
                 {
                     k: rec[k]
-                    for k in ("key", "backend", "condition", "rep", "cls", "episode", "request_id",
-                              "first_trigger", "usd")
+                    for k in (
+                        "key",
+                        "backend",
+                        "condition",
+                        "rep",
+                        "cls",
+                        "episode",
+                        "request_id",
+                        "first_trigger",
+                        "usd",
+                    )
                 }
             )
             row["stopped_call"] = not any("usd" in a for a in rec["attempts"])
@@ -827,8 +902,11 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         ),
         "4_provenance": _counter([r.get("chi_provenance") for r in valid]),
         "4_terminal_not_ok": _counter(
-            [f"{r.get('chi_terminal')}: {r.get('chi_failure')}" for r in valid
-             if r.get("chi_terminal") != "TerminalStage.OK"]
+            [
+                f"{r.get('chi_terminal')}: {r.get('chi_failure')}"
+                for r in valid
+                if r.get("chi_terminal") != "TerminalStage.OK"
+            ]
         ),
         "4_repair_edit_reasons": _counter(edit_reasons),
         "4_m3_default_reasons": _counter(
@@ -836,15 +914,20 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         ),
         "5_verbatim_with_recede": len(v_rec),
         "5_order_equal_chi": sum(1 for r in v_rec if r["plan_recede_order"] == r.get("chi_order")),
-        "5_order_differs_chi": sum(1 for r in v_rec if r["plan_recede_order"] != r.get("chi_order")),
+        "5_order_differs_chi": sum(
+            1 for r in v_rec if r["plan_recede_order"] != r.get("chi_order")
+        ),
         "5_verbatim_plans": [
             (r["episode"][:18], r.get("rep"), r.get("plan"), r.get("chi_order")) for r in verbatim
         ],
         "6_dispatch_order_source_model": len(model_src),
         "6_mwv_differs_from_noplan": sum(1 for r in valid if r.get("mwv_differs_from_noplan")),
         "6_changed_phase_labels": _counter(
-            [tuple(r.get("mwv_changed_phase_labels") or ()) for r in valid
-             if r.get("mwv_differs_from_noplan")]
+            [
+                tuple(r.get("mwv_changed_phase_labels") or ())
+                for r in valid
+                if r.get("mwv_differs_from_noplan")
+            ]
         ),
         "6_model_src_dispatch_matches_plan": _counter(
             [r.get("mwv_dispatch_matches_plan") for r in model_src]
@@ -854,11 +937,19 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
             [r.get("chi_yield_refusal") for r in valid if r.get("chi_yield_refusal")]
         ),
         "7_grounding_failures": _counter(
-            [r.get("chi_failure") for r in valid if r.get("chi_terminal") == "TerminalStage.GROUNDING"]
+            [
+                r.get("chi_failure")
+                for r in valid
+                if r.get("chi_terminal") == "TerminalStage.GROUNDING"
+            ]
         ),
         "plans_reversing_both_pair_robots": len(pair_rows),
-        "pair_order_equal_chi": sum(1 for r in pair_rows if r["model_pair_order"] == r.get("chi_order")),
-        "pair_order_ascending_id": sum(1 for r in pair_rows if r["model_pair_order"] == sorted(r["model_pair_order"])),
+        "pair_order_equal_chi": sum(
+            1 for r in pair_rows if r["model_pair_order"] == r.get("chi_order")
+        ),
+        "pair_order_ascending_id": sum(
+            1 for r in pair_rows if r["model_pair_order"] == sorted(r["model_pair_order"])
+        ),
         "swapped_order_plans": swapped,
         "first_trigger_billed": len(first),
         "demo_events_first_trigger": len(events),
@@ -893,11 +984,15 @@ def cmd_tables(args: argparse.Namespace) -> int:
 
 def main() -> int:
     """CLI entry point."""
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("stimuli", "run", "analyze", "tables"):
         p = sub.add_parser(name)
-        p.add_argument("--docs-root", required=True, help="directory holding the vgu-vlm-swarm* worktrees")
+        p.add_argument(
+            "--docs-root", required=True, help="directory holding the vgu-vlm-swarm* worktrees"
+        )
         p.add_argument("--out", default=str(DEFAULT_OUT))
         if name == "run":
             p.add_argument("--backend", required=True, help="models.yaml arm id")
