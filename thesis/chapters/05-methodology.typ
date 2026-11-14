@@ -37,7 +37,7 @@ These questions frame the thesis. The experiments that were finally run answer n
 
 *IB10 live resolution.* The registered question is whether the full Layer 2 pipeline physically clears the four-way intersection jam, which stays frozen when Layer 2 is off. The pipeline is the M5 trigger, a live M2 call, M3 `junction_clear` grounding and phased M4 dispatch #ev("5.17"). The registration states in advance that a resolved episode shows the *pipeline* resolving the jam, not the model's own choice, because M3 can repair or replace the model's plan.
 
-*IB10 grounder-default arm.* The addendum asks two questions #ev("5.20"). First, a smoke question: does the IB10 Layer 2 path still run cleanly with a safety fix switched on and the hard-contact floor armed? Second, under the same runtime and safety settings, does the jam clear in the same way when no VLM is called and the plan is M3's default?
+*IB10 grounder-default arm.* The addendum asks two questions #ev("5.20"). First, a smoke question: does the IB10 Layer 2 path still run cleanly with a safety fix switched on and the hard-contact floor armed? Second, under the same runtime and safety settings, does the jam clear in the same way when no VLM is called and the plan is M3’s default?
 
 *v4 bench.* The bench ranks prompt and input variants for M2 on recorded scenes. Its own specification says that it ranks candidates and does not estimate effects #ev("5.37").
 
@@ -74,7 +74,7 @@ The IB10 experiment and its grounder-default addendum are registered separately 
 
 == Scenes <sec:ch5-scenes>
 
-Both scenes are scenario files of the v3 pinned runtime, built into Isaac Sim stages, with Nav2 running on a map generated from the same file. Robot poses for the decision layer come from M1's overhead ArUco tracking; ground truth (GT) positions come from the simulator.
+Both scenes are scenario files of the v3 pinned runtime, built into Isaac Sim stages, with Nav2 running on a map generated from the same file. Robot poses for the decision layer come from M1’s overhead ArUco tracking; ground truth (GT) positions come from the simulator.
 
 === S1b: five-robot task-stream scene
 
@@ -84,7 +84,7 @@ The scene is a small multi-agent pickup-and-delivery (MAPD) stream. Its structur
 
 #figure(
   s1b-figure(),
-  caption: [Layout of the S1b scene: tracked band, two rack islands and the five task nodes.#fig-source("5.13")],
+  caption: flex-caption([Layout of the S1b scene.], [Layout of the S1b scene: tracked band, two rack islands, the five robot start poses and each robot’s first goal (G$n$ is robot $n$’s first goal; G2 and G4 share one point). Later goals come from the task stream.#fig-source("5.13")]),
 ) <fig:ch5-s1b>
 
 === IB10: four-robot intersection
@@ -95,29 +95,31 @@ A run counts only if a jam forms. The frozen validity gate requires a jam onset 
 
 #figure(
   ib10-figure(),
-  caption: [Layout of the IB10 intersection: four robots, one per arm, each crossing to the opposite arm.#fig-source("5.16")],
+  caption: flex-caption([Layout of the IB10 intersection.], [Layout of the IB10 intersection: four robots, one per arm, each crossing to the opposite arm. The drawing is cropped to the area around the cross aisle and the tracked band.#fig-source("5.16")]),
 ) <fig:ch5-ib10>
 
 == Arms <sec:ch5-arms>
 
-Three arm definitions are used, in three separate comparisons (@tab:ch5-arms). An arm is defined by what happens after M1 publishes a scene. Perception, the Nav2 base missions, M4's safety monitor and the simulator are the same in every arm.
+Three arm definitions are used, in three separate comparisons (@tab:ch5-arms). An arm is defined by what happens after M1 publishes a scene. Perception, the Nav2 base missions, M4’s safety monitor and the simulator are the same in every arm.
 
-*Arm A, Layer 2 on.* The full pipeline runs. M5's stall detector triggers an analysis, M2 calls the VLM, M3 grounds the decision into commands, and M4 dispatches them. The model is `gemini-robotics-er-2-preview` (ER-2) in all three live comparisons #ev("5.22") #ev("5.17") #ev("5.20").
+*Arm A, Layer 2 on.* The full pipeline runs. M5’s stall detector triggers an analysis, M2 calls the VLM, M3 grounds the decision into commands, and M4 dispatches them. The model is `gemini-robotics-er-2-preview` (ER-2) in all three live comparisons #ev("5.22") #ev("5.17") #ev("5.20").
 
 *Arm B, Layer 2 off.* The M5 configuration key `reasoning_enabled` is set to false; its default is true #ev("5.18"). When it is false, M5 returns before the congestion detector, never constructs a VLM backend, and forces off three auxiliary Layer 2 paths #ev("5.48"): the _classical shadow_, which computes and logs the answer of the rule-based v1 classical reasoner beside every VLM analysis and never dispatches it; the _probes_, off-trigger VLM analyses of normal flow that are logged but never grounded or dispatched; and the _contradiction trigger_, which re-triggers analysis early when a dispatched leg fails or a robot measurably departs from what its leg implies. No analysis, decision artifact or dispatch can occur, and no model is billed #ev("5.19"). The scene log, task registry, arrival gate and task stream still run, so Arm B produces the same outcome records as Arm A. M5 logs one fixed status line at start-up, which the condition gate checks #ev("5.19"). In each experiment the Arm B overlay is the Arm A overlay plus this one key #ev("5.17") #ev("5.19").
 
-*Arm C, grounder default, no VLM.* The Layer 2 trigger, M3 grounding and phased M4 dispatch are on, but M5's backend is a scripted mock instead of the VLM #ev("5.20"). The script has three entries: "no congestion" for the first analysis; then `junction_clear` naming all four robots with no proposed plan; then "no congestion" for every later analysis. With no proposed plan, M3 derives the phases itself and labels the plan `m3_default`. The first answer is "no congestion" so that the decision lands on a later analysis of the formed jam rather than on a start-up stall; the re-trigger follows one 15 s cool-down #ev("5.20"). Arm C is handed the strategy and the robot set. It therefore isolates plan *content*, not strategy or robot selection, and it cannot re-plan after a failure #ev("5.20").
+*Arm C, grounder default, no VLM.* The Layer 2 trigger, M3 grounding and phased M4 dispatch are on, but M5’s backend is a scripted mock instead of the VLM #ev("5.20"). The script has three entries: "no congestion" for the first analysis; then `junction_clear` naming all four robots with no proposed plan; then "no congestion" for every later analysis. With no proposed plan, M3 derives the phases itself and labels the plan `m3_default`. The first answer is "no congestion" so that the decision lands on a later analysis of the formed jam rather than on a start-up stall; the re-trigger follows one 15 s cool-down #ev("5.20"). Arm C is handed the strategy and the robot set. It therefore isolates plan *content*, not strategy or robot selection, and it cannot re-plan after a failure #ev("5.20").
 
 #figure(
   table(
     columns: (0.9fr, 1.3fr, 1.3fr, 0.9fr),
     align: left,
+    stroke: 0.4pt + luma(160),
+    fill: (_, y) => if y == 0 { luma(235) },
     table.header([*Comparison*], [*Arms*], [*Runtime and safety*], [*Status*]),
     [prereg-v3 tranche 1, S1b], [A: ER-2. \ B: `reasoning_enabled: false`.], [v3 runtime with the Arm B switch; 0.20 m floor.], [Registered confirmatory; reported as pilot.],
     [IB10 live resolution], [A: ER-2. \ B: `reasoning_enabled: false`.], [v3 pinned runtime; 0.20 m floor.], [Exploratory.],
     [IB10 grounder default], [A: ER-2. \ C: scripted mock, M3 default plan.], [v3 pinned runtime plus a two-file safety fix, switched on; 0.20 m floor.], [Exploratory.],
   ),
-  caption: [The three live comparisons. Arms are compared only within a row.#fig-source("5.21")],
+  caption: flex-caption([The three live comparisons.], [The three live comparisons. Arms are compared only within a row.#fig-source("5.21")]),
 ) <tab:ch5-arms>
 
 The rows differ in runtime. Tranche 1 ran on the commit that introduced the Arm B switch, which the v3 pinned runtime contains #ev("5.21"). The first IB10 run used the v3 pinned runtime with no code deployed #ev("5.17"). The grounder-default run added two safety-monitor files and a configuration key that narrows the coordination exemption, with the floor armed #ev("5.21"). Arm C is therefore compared only with the Arm A episodes of its own run, never with the earlier IB10 arms.
@@ -128,7 +130,7 @@ The rows differ in runtime. Tranche 1 ran on the commit that introduced the Arm 
 
 v3 addendum A33 fixed every S1b measure in code before any confirmatory episode ran, and the scorer cites the paragraph each of its functions implements #ev("5.23"). The definitions below follow A33 in substance, with the parameter values ruled in v3 addendum A34.
 
-*Clock and censoring.* Ground truth and ROS time are joined by one offset per run, fitted as the shift between 0 and 1 s, in 0.01 s steps, that minimises the median position error of moving robots #ev("5.23"). Time zero is robot 1's release, and every time is relative to it. Isaac stops at 600 sim-s of absolute time, so an uncut episode observes about 570 s after release, and "by the horizon" means by the end of observation, $T_"end"$ #ev("5.23"). Every time-to-event quantity is right-censored at $T_"end"$ with a reason (horizon, stop flag or other abort), and no episode is dropped for being censored.
+*Clock and censoring.* Ground truth and ROS time are joined by one offset per run, fitted as the shift between 0 and 1 s, in 0.01 s steps, that minimises the median position error of moving robots #ev("5.23"). Time zero is robot 1’s release, and every time is relative to it. Isaac stops at 600 sim-s of absolute time, so an uncut episode observes about 570 s after release, and "by the horizon" means by the end of observation, $T_"end"$ #ev("5.23"). Every time-to-event quantity is right-censored at $T_"end"$ with a reason (horizon, stop flag or other abort), and no episode is dropped for being censored.
 
 *Completeness.* The number of completed dwells by $T_"end"$, out of 25. An episode is complete if all 25 are done, failed if not and it ran to the horizon, and censored if it was cut short #ev("5.23").
 
@@ -138,7 +140,7 @@ v3 addendum A33 fixed every S1b measure in code before any confirmatory episode 
 
 *Delay against free flow, per segment.* A segment is one robot's leg between consecutive task nodes. Departure is the first GT sample after the leg is issued with a speed above 0.03 m/s. Arrival is the first sample within 0.35 m of the target node after which the robot stays within 0.5 m. The delay is the travel time minus the time the same leg takes with the robot alone in the scene #ev("5.23"). The solo baseline is a frozen table of 18 legs, harvested before the tranche on a different machine #ev("5.25"). The arrival search for a segment ends at the segment's completed dwell, or at $T_"end"$ if there is none #ev("5.23"). A leg that departs but does not arrive gives a lower bound on its delay.
 
-*GT conflict episodes.* A pair encounter is a run of GT samples in which two robots' centres are closer than 0.45 m, the distance at which M4's latch fires #ev("5.24"). Encounters that share a robot and overlap, or are at most 2.0 s apart, merge into one conflict episode, with no minimum duration. Robots that are dwelling or parked are not excluded, because a dweller with a latched robot beside it *is* the conflict #ev("5.24").
+*GT conflict episodes.* A pair encounter is a run of GT samples in which two robots' centres are closer than 0.45 m, the distance at which M4’s latch fires #ev("5.24"). Encounters that share a robot and overlap, or are at most 2.0 s apart, merge into one conflict episode, with no minimum duration. Robots that are dwelling or parked are not excluded, because a dweller with a latched robot beside it *is* the conflict #ev("5.24").
 
 *Per-conflict decision scoring.* Each decision artifact is one analysis. A positive analysis matches a conflict when its snapshot lies between the conflict's onset and 5.0 s after its end and it names at least one of the conflict's robots #ev("5.24"). An analysis matches at most one conflict; ties go to the largest overlap with the conflict's robots, then to the latest onset not after the analysis, then to the earliest onset. A positive analysis that matches no conflict is a false positive #ev("5.24"). A conflict is detected if any analysis matches it, and detection latency is the time from onset to the first match. The latency of an undetected conflict is right-censored at the earlier of 5.0 s after its end and $T_"end"$, minus its onset #ev("5.24"). The type label is scored against the accepted set {deadlock}, and the label distribution is always reported. The involved-set F1 is
 
@@ -150,6 +152,8 @@ where $D$ is the set of robots the decision names and $I$ the set of robots in t
   table(
     columns: (auto, auto, 1fr),
     align: left,
+    stroke: 0.4pt + luma(160),
+    fill: (_, y) => if y == 0 { luma(235) },
     table.header([*Parameter*], [*Value*], [*Role*]),
     [encounter distance], [0.45 m], [pair encounter threshold, equal to the M4 latch],
     [`merge_gap_s`], [2.0 s], [merge encounters into one conflict episode],
@@ -159,7 +163,7 @@ where $D$ is the set of robots the decision names and $I$ the set of robots in t
     [accepted types], [{deadlock}], [type-label accuracy],
     [throughput grid], [1.0 s], [evaluation grid of $Theta_e (t)$],
   ),
-  caption: [S1b scorer parameters as ruled before collection (v3 addenda A33 and A34).#fig-source("5.24")],
+  caption: flex-caption([S1b scorer parameters (v3 addenda A33 and A34).], [S1b scorer parameters as ruled before collection (v3 addenda A33 and A34).#fig-source("5.24")]),
 ) <tab:ch5-a33>
 
 === IB10 measures
@@ -170,7 +174,7 @@ All IB10 scoring uses the criteria frozen for the scene before either experiment
 
 *Secondary.* Time to full resolution is the last arrival minus the GT jam onset, censored at the horizon when the jam is not resolved. Also reported are the minimum pairwise GT distance, the floor-stop count, the number of arrivals out of four, and an outcome rank that orders episodes first by whether all robots arrived, then by the phase reached, then by arrivals #ev("5.26").
 
-*Attribution.* For every dispatched decision of Arm A the scorer reports the strategy, the plan provenance and whether the dispatched command matches the audited plan (`dispatch_matches_plan`) #ev("5.26"). The provenance labels are `vlm_verbatim` (the model's proposed plan passed M3's audit unchanged), `repaired` (it passed after M3's edits) or `m3_default` (absent, rejected or not repairable, so M3's own default plan is the reference). In every case the dispatched command is the grounder's output; the label records how that plan relates to the model's proposal (@sec:design-grounding). The episode's label is the provenance of its `junction_clear` dispatch, or of its last dispatch before the final arrival #ev("5.26"). The provenance labels bound the model's contribution and are reported beside every outcome. Arm C is `m3_default` by construction, and its condition gate enforces it #ev("5.20").
+*Attribution.* For every dispatched decision of Arm A the scorer reports the strategy, the plan provenance and whether the dispatched command matches the audited plan (`dispatch_matches_plan`) #ev("5.26"). The provenance labels are `vlm_verbatim` (the model's proposed plan passed M3’s audit unchanged), `repaired` (it passed after M3’s edits) or `m3_default` (absent, rejected or not repairable, so M3’s own default plan is the reference). In every case the dispatched command is the grounder's output; the label records how that plan relates to the model's proposal (@sec:design-grounding). The episode's label is the provenance of its `junction_clear` dispatch, or of its last dispatch before the final arrival #ev("5.26"). The provenance labels bound the model's contribution and are reported beside every outcome. Arm C is `m3_default` by construction, and its condition gate enforces it #ev("5.20").
 
 *Safety-fix signals.* The grounder-default run adds descriptive per-episode counts of the log lines that only the switched-on safety fix can write, and of commands that ended on a deadline rather than on completion #ev("5.33").
 
@@ -200,6 +204,8 @@ Every episode runs on one GPU virtual machine with Isaac Sim, the ROS 2 stack in
   table(
     columns: (1fr, 1.4fr),
     align: left,
+    stroke: 0.4pt + luma(160),
+    fill: (_, y) => if y == 0 { luma(235) },
     table.header([*Case*], [*Treatment*]),
     [Nav2 bring-up abort], [Not counted; the same slot is retried, up to 3 attempts. Three aborts skip the slot; two skipped slots in a row stop the run.],
     [Invalid jam (validity gate fails)], [Excluded from the primary denominator and reported.],
@@ -208,7 +214,7 @@ Every episode runs on one GPU virtual machine with Isaac Sim, the ROS 2 stack in
     [Truncated by a cost or wall-clock stop], [Counted only if all four robots had arrived; otherwise excluded and reported. Not re-run.],
     [Model probe failure before an Arm A episode], [The episode never starts; the run stops.],
   ),
-  caption: [IB10 exclusion and attempt rules, registered before the first episode.#fig-source("5.29")],
+  caption: flex-caption([IB10 exclusion and attempt rules.], [IB10 exclusion and attempt rules, registered before the first episode.#fig-source("5.29")]),
 ) <tab:ch5-exclusions>
 
 *Caps.* A wall-clock cap of 6 h per invocation, with an episode started only if it could finish before the deadline less a teardown reserve; a per-episode spend guard of \$0.50; a total of \$3.00; and no cap on analyses #ev("5.29").
@@ -223,19 +229,19 @@ Every episode runs on one GPU virtual machine with Isaac Sim, the ROS 2 stack in
 
 === Safety gates
 
-Safety gates are validity conditions, not hypotheses. A breach is reported as a safety finding and the episode is scored as it ran #ev("5.32"). Three distances must be kept apart: 0.45 m is M4's proximity latch and the conflict definition, 0.20 m is the hard-contact floor at which M4 stops a pair, and 0.18 m is the GT contact threshold used by the gates #ev("5.43") #ev("5.32").
+Safety gates are validity conditions, not hypotheses. A breach is reported as a safety finding and the episode is scored as it ran #ev("5.32"). Three distances must be kept apart: 0.45 m is M4’s proximity latch and the conflict definition, 0.20 m is the hard-contact floor at which M4 stops a pair, and 0.18 m is the GT contact threshold used by the gates #ev("5.43") #ev("5.32").
 
 In tranche 1 the gates were #ev("5.32"):
 
-- a *contact gate*: no robot pair below 0.18 m GT centre distance at any time, from an all-pairs scan of ground truth because the simulator's contact field is a stub, and no floor stop in M4's log;
-- a *floor gate*: M4's start-up line must show the 0.20 m floor, otherwise the chain stops;
+- a *contact gate*: no robot pair below 0.18 m GT centre distance at any time, from an all-pairs scan of ground truth because the simulator's contact field is a stub, and no floor stop in M4’s log;
+- a *floor gate*: M4’s start-up line must show the 0.20 m floor, otherwise the chain stops;
 - a *condition gate* per arm: for Arm A, every grounded artifact carries the escort and shield flags; for Arm B, no decision artifact, no analysis line, exactly one status line, one task log and a non-empty scene log, so that a crashed M5 cannot pass as silence;
 - an *escort and park check*: the escort legs of every dispatched yield are compared with the 0.45 m park clearance and flagged when below it;
 - a *pin gate* before every episode.
 
-In both IB10 runs the floor was installed for every arm and gated on M4's start-up line. Floor stops are outcomes: they make an episode a failure, but the run continues #ev("5.33"). The grounder-default run also had a smoke pass rule: harness gates passed, no floor stop, no GT frame with a pair below 0.18 m, and no command stalled to its deadline by a hold that only the safety fix can cause #ev("5.33"). Arm A's condition gate checks that every artifact names the expected served model. Arm C's checks that no model was served, no token was billed, and every dispatch is the scripted `junction_clear` with provenance `m3_default` #ev("5.20").
+In both IB10 runs the floor was installed for every arm and gated on M4’s start-up line. Floor stops are outcomes: they make an episode a failure, but the run continues #ev("5.33"). The grounder-default run also had a smoke pass rule: harness gates passed, no floor stop, no GT frame with a pair below 0.18 m, and no command stalled to its deadline by a hold that only the safety fix can cause #ev("5.33"). Arm A's condition gate checks that every artifact names the expected served model. Arm C's checks that no model was served, no token was billed, and every dispatch is the scripted `junction_clear` with provenance `m3_default` #ev("5.20").
 
-One safety caveat was known in advance. A coordination command exempts the robots inside it from M4's proximity check against each other. A `junction_clear` phase names all four robots, so the latch does not protect them from each other, and the floor is the only backstop for those pairs #ev("5.33").
+One safety caveat was known in advance. A coordination command exempts the robots inside it from M4’s proximity check against each other. A `junction_clear` phase names all four robots, so the latch does not protect them from each other, and the floor is the only backstop for those pairs #ev("5.33").
 
 == Analysis Plan <sec:ch5-analysis>
 
@@ -284,7 +290,7 @@ The threats below were known before the data they affect was collected. Each is 
 
 === Internal validity
 
-*M3 repairs or replaces the model's plan.* M3 verifies every plan and repairs or replaces it when it is infeasible. The IB10 registration records that in the earlier live pilot every IB10 plan was repaired or replaced by M3, and gives this as the reason for its claim wording #ev("5.17"). An Arm A success therefore shows that the *pipeline*, VLM plus grounding, clears the jam, not that the VLM's plan does. The design answers this in three ways. Provenance labels on every dispatch bound the model's share. Arm C runs the same pipeline with no model, handed the strategy and robot set, so it isolates M3's default plan content #ev("5.20"). And the claims of this thesis are worded about the pipeline. Arm C does not remove the confound completely: it does not test strategy or robot selection, which it receives from the script, and it cannot re-plan after a failure, which Arm A can #ev("5.20").
+*M3 repairs or replaces the model's plan.* M3 verifies every plan and repairs or replaces it when it is infeasible. The IB10 registration records that in the earlier live pilot every IB10 plan was repaired or replaced by M3, and gives this as the reason for its claim wording #ev("5.17"). An Arm A success therefore shows that the *pipeline*, VLM plus grounding, clears the jam, not that the VLM's plan does. The design answers this in three ways. Provenance labels on every dispatch bound the model's share. Arm C runs the same pipeline with no model, handed the strategy and robot set, so it isolates M3’s default plan content #ev("5.20"). And the claims of this thesis are worded about the pipeline. Arm C does not remove the confound completely: it does not test strategy or robot selection, which it receives from the script, and it cannot re-plan after a failure, which Arm A can #ev("5.20").
 
 *The Layer-2-off control is a deterministic freeze.* Arm B is Layer 2 off, not a classical coordinator. In IB10 nothing acts on a formed jam once Layer 2 is off, so Arm B is expected to repeat one frozen state; it is a latch baseline. The B against A contrast is pipeline on against pipeline off, and says nothing about a VLM against a classical coordinator #ev("5.17").
 

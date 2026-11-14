@@ -8,8 +8,8 @@
   let pts = (
     (-1.75, 0.0, 0.0, "R1", "G2", "n", "s"),
     (1.75, 0.0, calc.pi, "R2", "G1", "n", "s"),
-    (0.0, -1.75, calc.pi / 2, "R3", "G4", "w", "e"),
-    (0.0, 1.75, -calc.pi / 2, "R4", "G3", "w", "e"),
+    (0.0, -1.75, calc.pi / 2, "R3", "G4", "sw", "se"),
+    (0.0, 1.75, -calc.pi / 2, "R4", "G3", "nw", "ne"),
   )
   let hx = 3.0
   let hy = 2.2
@@ -40,7 +40,7 @@
         line((x, y), (x + 0.45 * calc.cos(yaw), y + 0.45 * calc.sin(yaw)), stroke: 1pt + acc, mark: (end: "stealth", fill: acc, scale: 0.5))
         circle((x, y), radius: 0.09, fill: acc, stroke: 0.4pt + white)
       }
-      let off(side) = if side == "n" { ((x, y + 0.2), "south") } else if side == "s" { ((x, y - 0.2), "north") } else if side == "w" { ((x - 0.2, y), "east") } else { ((x + 0.2, y), "west") }
+      let off(side) = if side == "n" { ((x, y + 0.2), "south") } else if side == "s" { ((x, y - 0.2), "north") } else if side == "w" { ((x - 0.2, y), "east") } else if side == "nw" { ((x - 0.15, y + 0.15), "south-east") } else if side == "ne" { ((x + 0.15, y + 0.15), "south-west") } else if side == "sw" { ((x - 0.15, y - 0.15), "north-east") } else if side == "se" { ((x + 0.15, y - 0.15), "north-west") } else { ((x + 0.2, y), "west") }
       if rl != none {
         let (p, a) = off(rs)
         content(p, anchor: a, text(size: 7pt, fill: ink, weight: "bold")[#rl])
