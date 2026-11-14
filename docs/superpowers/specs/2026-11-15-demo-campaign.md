@@ -86,7 +86,7 @@ The kits use the delta as follows:
 - an episode admission budget of 3000 s;
 - a per-take live guard of $0.25.
 
-**Demo goal.** The intersection resolves (GT arrivals 4/4) under a live VLM decision. `goal_check` prints:
+**Demo goal.** The intersection resolves (GT arrivals 4/4: distance to goal < 0.3 m at some GT row; this rule agrees with the frozen IB10 scorer's `all_arrived` on all 21 IB10 bundles of 2026-11-13/14, including the one unresolved Arm A episode `ib10L_e09`) under a live VLM decision. `goal_check` prints:
 
 - the plan provenance of each dispatch;
 - the counterfactual: whether the executed commands differ from M3's default plan on this take's own snapshot. It re-grounds with the IB10 safety kit's `reground_c.py` and the M3-default script `6c670a6e`.
@@ -108,7 +108,7 @@ Dry run on `ib10S_e03_armA_a1`: `executed_differs_from_m3_default=False`, `prove
 
 **Demo goal.** Show a live VLM convoy resolution. `goal_check` prints, per artifact:
 
-- arrivals and resolved;
+- arrivals and resolved, by the convoy scorer's rule (within 0.35 m of the goal and never beyond 0.5 m afterwards; the registered `resolved` also needs a valid jam, which `goal_check` does not score);
 - GT minimum pair distance and floor stops;
 - strategy, involved robots and crossing order;
 - grounding and provenance.
@@ -188,7 +188,7 @@ The September launch settings load on this runtime: dry-loaded through the loade
 - the classical shadow's raw and gated picks (`shadow_classical.decision.yield_robot` and `classical_retreat.yielder_id`);
 - the drawn presentation order.
 
-Arrivals are reported, but 2/2 is NOT required.
+Arrivals are reported (GT < 0.3 m; `scripts/rescore_arrivals.py` is the reference rule for head-on and may differ near the blocker), but 2/2 is NOT required.
 
 **Correction to the brief.** The brief says the blocker lies on the opposing robot's goal path. That holds for the base `_o0` variants (±2.5 goals; `docs/reports/2026-09-25-overnight-findings.md`). It does not hold for this `_bshort` variant: J/K/N reached 2/2 in 15/15 episodes (`BSHORT_PILOT_SUMMARY.txt`, `bshort2/BSHORT2_PILOT_SUMMARY.txt`). The goal definition above covers both cases.
 
@@ -207,7 +207,7 @@ Dry run of `goal_check` on the 09-30 demo bundle: the model named robot_2, it yi
 - the 600 sim-s horizon;
 - sequential Nav2 bring-up, as tranche 1 and v4;
 - deployed-loader reading `True True True config/grounding/s1b_dynamic_shield_escort.yaml True True swap True True 2107305794 600.0`;
-- `REC_SEC` 5400, an admission budget of 6000 s, and a per-take guard of $0.50.
+- `REC_SEC` 6600 (the M5-tail cap: a take slower than 110 min wall is cut there; Isaac still finishes its horizon), an admission budget of 6600 s, and a per-take guard of $0.50.
 
 **Demo goal.** Show the limitation. The expected outcome, from the 2026-10-21 tranche-1 and 2026-11-13 v4 reports: no resolution, few motion commands, withheld analyses, and Layer 2 going quiet (`scene_unchanged`) long before the horizon. `goal_check` prints analyses, grounded dispatches, withheld analyses, `scene_unchanged` mentions and arrivals.
 
@@ -230,7 +230,8 @@ Dry run of `goal_check` on the 09-30 demo bundle: the model named robot_2, it yi
 
 - 300-frame segments;
 - nominal `--fps 5`, a playback rate only;
-- `--duration-sec` = `REC_SEC − 60`.
+- `--duration-sec` = `REC_SEC − 60`;
+- no `ros2 topic hz` measurement (it would add subscribers at approach onset): the achieved rate comes from the recorder logs.
 
 **Start (1c).** Both recorders start right after fc_launch logs `first stack launch -> gate passed`, never during the parallel or sequential Nav2 bring-up. The evidence that nothing is lost (verified offline):
 
@@ -242,7 +243,7 @@ Dry run of `goal_check` on the 09-30 demo bundle: the model named robot_2, it yi
 
 **Stop (1b).** Both recorders get SIGTERM and a bounded wait (`REC_STOP_WAIT_SEC` 30 s) on the FIRST of:
 
-- Isaac's process gone. fc_launch then idles 45 s before its container restart (`isaac_wait_exit_or_cap`), so on the normal path the trailers are always written.
+- Isaac gone: the `Isaac PID N` wrapper's `ps` state (fc_launch's own rule) or the `run_simulation` pattern, whichever says so first. fc_launch then idles 45 s before its container restart (`isaac_wait_exit_or_cap`), so on the normal path the trailers are always written.
 - An fc_launch abort or end line.
 - fc_launch gone.
 - A stop request (`$H/REC_STOP`).
@@ -261,6 +262,8 @@ Dry run of `goal_check` on the 09-30 demo bundle: the model named robot_2, it yi
 - one repair is attempted on a copy: an error-tolerant remux, then `untrunc` against a readable sibling segment if `untrunc` is installed (it is not on the Mac today);
 - if the repair fails, the segment is FLAGGED by name;
 - a missing `WROTE` line in the recorder log is flagged too.
+
+**Archive.** Right after each pull the driver selects every bundle that this invocation brought back (a before/after listing of `runs/`: every attempt of every take, aborted ones included), writes `../MANIFEST_<ts>.md5` over all their files plus the VM-side `attempts.tsv`, chain log and probe log, and runs the startup check, the video verify and `goal_check` on each.
 
 The frame map (`rec/<stream>_framemap.json`, `{"frame_sim_times": [...], "anchors": ...}`) is decoded from the burned-in clock by `overlay_framemap.py`, over the longest contiguous readable prefix of segments.
 
@@ -296,7 +299,7 @@ The frame map (`rec/<stream>_framemap.json`, `{"frame_sim_times": [...], "anchor
 
 A bring-up abort retries the same take as attempt K+1 while the scenario's budget lasts.
 
-**Reading of "up to 3 startup attempts per scenario in total".** The kits read it as at most 3 BRING-UP ABORTS per scenario, counted across invocations by the ledger. At the third, the chain logs `BRINGUP BUDGET EXHAUSTED`, the scenario stops and is reported, and the driver refuses further invocations of it. The other reading is "at most 3 launches per take". It can be enforced by passing `--episodes 1` and stopping a take by hand. The session lead should confirm which reading the owner meant.
+**Reading of "up to 3 startup attempts per scenario in total".** The kits read it as at most 3 BRING-UP ABORTS per scenario, counted across invocations by the ledger. The VM's own `attempts.tsv` (it persists in `~/dmc_<scn>`) also bounds the count, so a failed pull cannot buy extra attempts. At the third, the chain logs `BRINGUP BUDGET EXHAUSTED`, the scenario stops and is reported, and the driver refuses further invocations of it. The other reading is "at most 3 launches per take". It can be enforced by passing `--episodes 1` and stopping a take by hand. The session lead should confirm which reading the owner meant.
 
 **Never retried** (the chain stops):
 
@@ -396,21 +399,21 @@ The bundle keeps the file names the renderer reads: `m5.log`, `m4.log`, `decisio
 
 | Kit | `kit_md5_dmc.txt` (VM files) | `kit_md5_all_dmc.txt` | Overlay | Dry test |
 |---|---|---|---|---|
-| `ib` | `b0b43ee9136dd3caeeaa329e86931cd5` | `a5c8879ce7b7ea82d350c5215fbd42f4` | `0196f1e8` | `TEST_DRY_DMC ib OK` |
-| `cv` | `9aa182ba5ec2408ed2ef08ae10713ed2` | `fcdd2d0473ca63d16e134ec83c04dd25` | `7e3ab552` | `TEST_DRY_DMC cv OK` |
-| `ho` | `d2077a9980d98c90c5beedcf4628a905` | `0d7c535ffe4649a5ea9604cc1c2f4898` | `3929a087` | `TEST_DRY_DMC ho OK` |
-| `m5` | `c2e4ea05b822cbcd629a46c56e770cde` | `ac16ad9d6f3ccc27ae9191214052038e` | `09bc16e6` | `TEST_DRY_DMC m5 OK` |
+| `ib` | `d2edb1116403f89e5dc6343ffc56dcbe` | `79c6170298202c407dee1e0df2f4fc7e` | `0196f1e8` | `TEST_DRY_DMC ib OK` |
+| `cv` | `8c16cd7fb1c664a7cd8ab396350f2e10` | `c7f54894efd88896a28826d822371ada` | `7e3ab552` | `TEST_DRY_DMC cv OK` |
+| `ho` | `b5bc4b5407e70c83c2d79554b194fc5a` | `918a0ea73f5a8bbbda82cca33684a9c0` | `3929a087` | `TEST_DRY_DMC ho OK` |
+| `m5` | `ed2c7d62a75c06898dab662a3e5fd8eb` | `9f5d04eaca1847d8a75063f52478ba03` | `09bc16e6` | `TEST_DRY_DMC m5 OK` |
 
-The shared files are the same in every kit: `run_dmc.sh` `290ca269`, `chain_dmc.sh` `6a16ac95`, `ep_run_dmc.sh` `25203d1b`, `recmgr_dmc.sh` `c9a30e88`.
+The shared files are the same in every kit: `run_dmc.sh` `6143fa73`, `chain_dmc.sh` `b8a32893`, `ep_run_dmc.sh` `25203d1b`, `recmgr_dmc.sh` `0f7adf25`, `goal_check_dmc.py` `f03087a9`.
 
-**Wall estimates (inferred).** Each invocation costs about 10 min of prep (start, push, probe, snapshot, USD build, deploy) plus 3–5 min of teardown. The recorded RTF is unmeasured. Five takes per scenario do not fit in the sub-caps; the sub-caps fit about 2–3 takes.
+**Wall estimates (inferred).** Each invocation costs about 10 min of prep (start, push, probe, snapshot, USD build on EVERY invocation, deploy) plus 3–5 min of teardown. The recorded RTF is unmeasured. Five takes per scenario do not fit in the sub-caps; the sub-caps fit about 2–3 takes.
 
 | Scenario | Unrecorded take | Recorded take (guess) | Per invocation | Fits in the sub-cap |
 |---|---|---|---|---|
 | `ib` | 18.5–19.5 min | 25–35 min | 40–50 min | 2 one-take invocations, or 3 takes with `--episodes`, in 2.5 h |
 | `cv` | 17–23 min (registered estimate) | 25–35 min | 40–50 min | 2–3 takes in 2.5 h |
 | `ho` | ~13–18 min | 18–25 min | 30–40 min | 2 invocations, or 3 takes with `--episodes 3`, in 2 h |
-| `m5` | 53–65 min | 60–100 min | 75–115 min (more if the USD must be rebuilt) | 2 invocations in 5 h |
+| `m5` | 53–65 min | 60–100 min | 75–115 min (the USD is rebuilt every invocation) | 2 invocations in 5 h |
 
 The admission budgets are:
 
@@ -419,7 +422,7 @@ The admission budgets are:
 | `ib` | 4 800 s |
 | `cv` | 4 800 s |
 | `ho` | 3 900 s |
-| `m5` | 7 800 s |
+| `m5` | 8 400 s |
 
 **Dry-test coverage** (`bash test_dry_dmc.sh`, all four OK):
 
@@ -450,10 +453,19 @@ The admission budgets are:
 - [ ] The definition of **"VLM-driven"** used in section 7: which artifact or `goal_check` facts make a take VLM-driven. Examples: a dispatched plan whose provenance is not `m3_default`, or an intersection counterfactual difference from M3's default. Also state how a take where M3 overrode or re-grounded the model is labelled.
 - [ ] Re-run all four `test_dry_dmc.sh` after the delta is filled; record the new kit and overlay md5s.
 
+**Constraints the delta must fit (for the decision-path investigation):**
+
+- The fragment is appended to ALL FOUR scenario overlays. Head-on runs with the plan channel OFF (prompt v2, as September); intersection, convoy and five-robot run with it ON. A key that only matters with the plan channel has no effect on head-on; say so in the go/no-go.
+- A delta may not touch `orchestrator.yaml`, `config/rag.yaml`, either `safety.yaml`, the safety fragment, `safety.py`, `safety_monitor_node.py` or `config/s1_seeds.yaml` (kit-managed; refused by `delta_dmc.py`). Settings go in the fragment instead.
+- Code files are top-level `.py` modules of `swarm_orchestrator` or `swarm_execution`, or files under `reasoning/` or `config/`. They must be committed on `demo/campaign-kits`, because the git preflight requires the runtime diff to be exactly the 3 safety files plus the delta.
+- Every fragment key needs an `arm_expect.tsv` row, so a key the deployed loader does not know refuses the take instead of being dropped.
+
 ---
 
 ## 11. What Could Not Be Verified Offline
 
+- The owner's hold of 2026-11-15 ("Do not start new VM runs or make paid API calls yet", recorded in `docs/reports/2026-11-15-ib10-recorded-demo.md`): the campaign approval is relayed by the session lead; confirm the hold is lifted before the first invocation.
+- New hard pins never recorded on this VM: `reasoning/vlm/prompt_v2.py` `4804b237` and the head-on family yaml `49c7500b` (git 68e67b5 values). A mismatch stops the head-on kit at the snapshot, before anything changes.
 - The VM's current state: `PINS_V3`, the installed maps for the head-on variant and `mapd_5_s1b`, and whether `mapd_5_s1b_seed21.yaml` and its USD are present (v4 restored them at 2026-11-13T15:45Z; the IB10 runs since may have changed this). The snapshot gates fail fast on a mismatch, before anything is changed.
 - The RTF and recorder frame rates with two recorders, and the 5-robot recorder load.
 - Gemini credit, quota and pricing on the day. Probes run before every take.
