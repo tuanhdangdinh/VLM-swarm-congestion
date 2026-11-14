@@ -37,6 +37,11 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-11-14** — **Bachelor thesis draft (Typst) on branch `docs/thesis`** (worktree `vgu-vlm-swarm-thesis`, unpushed; spec `docs/superpowers/specs/2026-11-13-thesis-design.md` Rev 7, plan `docs/superpowers/plans/2026-11-14-thesis-draft.md`).
+  - Location: `thesis/main.typ`, chapters in `thesis/chapters/`, Evidence Index in `thesis/evidence/` (every number in prose carries `#ev`), checks in `thesis/check.sh`.
+  - Drafted and reviewed: front matter, Chapters 1–5 (introduction, background, system design on the v3 pinned runtime 68e67b5, implementation, methodology), bibliography and diagrams.
+  - HELD by owner decision (skeletons with `#todo`): Chapter 6 Results, Chapter 7 Discussion, Chapter 8 Conclusion, the Abstract, owner front-matter text, and the results figures/statistics (IB10 arms A/B/C, tranche 1 pilot, v4 bench). They wait on the other sessions' reports (spec 6.0 lists the source branches).
+  - Wording rule fixed in the integration pass: the dispatched command is always the grounder's output; `vlm_verbatim`/`repaired`/`m3_default` label how the grounder's plan relates to the VLM's proposal (thesis Ch. 3 "Audit, not dispatch").
 - **2026-11-13** — **Owner decisions of 2026-11-13** (recorded in `docs/reports/2026-11-13-thesis-evidence-register.md`):
   - prereg-v3 tranche 2 will not be run, and tranche 1 (E27-E31) is reported as a PILOT;
   - the focus moves to 4-robot scenes;
