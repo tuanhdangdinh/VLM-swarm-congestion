@@ -4,6 +4,13 @@ cd "$(dirname "$0")/.." || exit 1
 T=${THESIS_DIR:-thesis}
 fail=0
 
+echo "== (0) source globs"
+for g in "$T/chapters/*.typ" "$T/evidence/*.typ"; do
+  n=$(ls $g 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$n" -eq 0 ]; then echo "FAIL: glob $g matches 0 files"; fail=1; else echo "$g: $n files"; fi
+done
+[ $fail -eq 1 ] && { echo "CHECKS FAILED"; exit 1; }
+
 echo "== (a) compile"
 if typst compile $T/main.typ $T/main.pdf; then echo "compile OK"; else echo "FAIL: compile"; fail=1; fi
 
@@ -15,7 +22,12 @@ for f in $T/chapters/*.typ; do
   printf '%-45s todo=%s verify=%s\n' "$(basename "$f")" "$t" "$v"
   total_todo=$((total_todo + t)); total_verify=$((total_verify + v))
 done
-echo "TOTAL todo=$total_todo verify=$total_verify"
+for f in $T/evidence/*.typ; do
+  v=$(grep -o '\[VERIFY\]' "$f" | wc -l | tr -d ' ')
+  [ "$v" -gt 0 ] && printf '%-45s verify=%s\n' "evidence/$(basename "$f")" "$v"
+  total_verify=$((total_verify + v))
+done
+echo "TOTAL todo=$total_todo verify=$total_verify (verify includes evidence rows)"
 
 echo "== (c) paths in chapter text"
 if grep -nE 'docs/|data/|\.md\b|\.json\b|worktree|vgu-vlm-swarm-' $T/chapters/*.typ; then
