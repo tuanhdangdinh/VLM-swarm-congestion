@@ -13,13 +13,13 @@
   {
    "path": "reasoning/vlm/models.py",
    "md5_68e67b5": "0c0c844971278a92da844a9f38793e4e",
-   "md5_demo": "51f8446cfe82ab4d1f7a5599760dbb5e",
+   "md5_demo": "2025f18179c9f3b05a81072027c32637",
    "origin": "demo/vlm-order-channel"
   },
   {
    "path": "reasoning/vlm/prompt_builder.py",
    "md5_68e67b5": "9007becb85773b9a14b16875a40dfcb2",
-   "md5_demo": "721f1a1292c09aa0293063c91f4dfcf4",
+   "md5_demo": "a9ad857cf8355cd9f5601124b0b814b2",
    "origin": "demo/vlm-order-channel"
   },
   {
@@ -37,19 +37,19 @@
   {
    "path": "ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py",
    "md5_68e67b5": "273bbf7f7d01755226506fd892a380fa",
-   "md5_demo": "7ee292a318966256caba3e31c96d7f68",
+   "md5_demo": "73f3fa4f35ceab61a5df646a71a902a6",
    "origin": "demo/vlm-order-channel"
   },
   {
    "path": "ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py",
    "md5_68e67b5": "e1b3b289ec05e3c21921fa0253829542",
-   "md5_demo": "2db3018b6f5807b37fde70a4f0507345",
+   "md5_demo": "37a6bbadf91cb8c9def21d6f625c8bfe",
    "origin": "demo/vlm-order-channel"
   },
   {
    "path": "ros2_ws/src/swarm_orchestrator/swarm_orchestrator/reasoning_pipeline.py",
    "md5_68e67b5": "39a51bfc0de66a42b6f6ac4c78a60478",
-   "md5_demo": "21af8e8c360cf3de0a74fb05ad79ef27",
+   "md5_demo": "49fff7ab8fb460b9a94ea198cf5b523a",
    "origin": "demo/vlm-order-channel"
   }
  ],
@@ -70,6 +70,17 @@
    "plan_dispatch_order_source": "model_when_verified",
    "prompt_plan_grammar_rules": true,
    "prompt_candidate_options": true
+  },
+  "A3": {
+   "plan_dispatch_order_source": "model_when_verified",
+   "prompt_plan_grammar_rules": true,
+   "prompt_plan_grammar_release_rule": true
+  },
+  "B3": {
+   "plan_dispatch_order_source": "model_when_verified",
+   "prompt_plan_grammar_rules": true,
+   "prompt_candidate_options": true,
+   "prompt_plan_grammar_release_rule": true
   }
  },
  "backend": {
@@ -78,7 +89,9 @@
  },
  "m5_startup_line": {
   "A": "plan order condition plan_dispatch_order_source=model_when_verified prompt_plan_grammar_rules=True prompt_candidate_options=False",
-  "B": "plan order condition plan_dispatch_order_source=model_when_verified prompt_plan_grammar_rules=True prompt_candidate_options=True"
+  "B": "plan order condition plan_dispatch_order_source=model_when_verified prompt_plan_grammar_rules=True prompt_candidate_options=True",
+  "A3": "plan order condition plan_dispatch_order_source=model_when_verified prompt_plan_grammar_rules=True prompt_candidate_options=False prompt_plan_grammar_release_rule=True",
+  "B3": "plan order condition plan_dispatch_order_source=model_when_verified prompt_plan_grammar_rules=True prompt_candidate_options=True prompt_plan_grammar_release_rule=True"
  },
  "artifact_assertions": {
   "prompt_version": 3,
@@ -104,7 +117,14 @@
    "plan.order_equivalent",
    "plan.legs",
    "plan.edits"
-  ]
+  ],
+  "prompt_conditions.plan_grammar_release_rule": {
+   "A": null,
+   "B": null,
+   "A3": true,
+   "B3": true
+  },
+  "prompt.user_prompt_contains_release_rule": "A plan with any \"cross\" leg must also contain a \"yield\" leg listed before it; a \"reverse\" or \"wait\" leg does not release a crossing."
  },
  "demo_event": [
   "plan.provenance=='vlm_verbatim'",
@@ -112,5 +132,6 @@
   "plan recede order (reverse legs in list order) != chi order (rank_recede_candidates on artifact scene + grounding_params_source)",
   "junction-recede-<robot> commands in that order in m5.log dispatch lines and m4.log command received lines"
  ],
- "report_also": "plan.dispatch_matches_plan (yielder gap: a verbatim plan naming robot_2 as yielder dispatches robot_1)"
+ "report_also": "plan.dispatch_matches_plan (yielder gap: a verbatim plan naming robot_2 as yielder dispatches robot_1)",
+ "tip": "9102ce9"
 }
