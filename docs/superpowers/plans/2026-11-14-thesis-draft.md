@@ -189,9 +189,12 @@ Common steps for each chapter task:
 ### Task 8: Integration pass
 
 - [ ] **Step 1:** Run `bash thesis/check.sh` and confirm it is clean apart from the expected held TODOs in Chapters 6–8, the Abstract and front-matter owner text.
+- [ ] **Step 1b:** Run the `scientific-writing` local audits (`audit_claims.py` and `check_consistency.py` from `~/.claude/skills/scientific-writing/scripts/`; read the skill for their input format). Run them on chapters 1–5, exporting the text with `typst query` or a plain-text conversion if the tools need Markdown. Fix any inconsistent numbers or terms they report.
 - [ ] **Step 2:** Dispatch one `peer-review` pass, committee-style, on chapters 1–5 using the compiled PDF and sources. Fix the findings, or list them for the owner.
 - [ ] **Step 3:** Run the pre-submission refresh with `git for-each-ref --sort=-committerdate refs/heads | head`. If any branch is newer than the spec §6.0 table, update the table and the affected text.
 - [ ] **Step 4:** Append a dated entry to `docs/implementation_notes.md` per CLAUDE.md, covering the thesis draft, its location and the held parts.
 - [ ] **Step 5:** The controller commits. Then report to the owner: page count, TODO and VERIFY counts, review findings, and the list of placeholders waiting on other sessions.
+
+**Deferred to the results fill (not in this plan):** `scientific-visualization` plots (IB10 arms A/B/C, tranche 1 pilot, v4 bench) and the `statistical-analysis` computations, scripted in `thesis/figures/src/`. They are held with Chapter 6 by owner decision, and get their own plan when the other sessions finish.
 
 **Cut line if time runs short (Saturday evening):** Tasks 0, 1, 3, 4 and 5 are must-have. Task 6 can shrink to about 6 pages. The Task 8 peer-review step is optional. Chapter 1 is written last but is required.
