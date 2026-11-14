@@ -83,7 +83,8 @@
     column-gutter: 10pt,
     row-gutter: 8pt,
     align: left,
-    [_Student:_], [Dang Dinh Tu Anh - 10422086],
+    [_Students:_], [Dang Dinh Tu Anh - 10422086],
+    [], [Nguyễn Khánh Tường - 10422121],
   )
 
   #v(1fr)
