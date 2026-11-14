@@ -329,3 +329,67 @@ Either is a new design change that would need its own offline check, about $0.35
 - The trace expected B to address the dominant repair cause. It does (51 to 2 edits), but the verbatim rate does not move, because the releasing-yield omission takes over and the options detail text introduces invalid actions.
 
 **A separate note, not a contradiction of the trace.** The trace read executed order from m5/m4 and `junction_phases`. The frozen scorer's `chi_pair.executed_recede` reads `plan.legs` instead (`scripts/coverage_scene_scores.py:1039-1057`, verified). For ib10S_e01, `plan.legs` lists `4rev 3rev` while `m5.log` dispatched `junction-recede-robot_3` first (verified).
+
+---
+
+## 10. Addendum (2026-11-15): Second Fix Cycle, Release-Rule Sentence
+
+This is the second and last prompt-fix cycle for the ER-2 demo. It adds one generic grammar sentence as a new default-off sub-condition and re-runs the same offline ER-2 check. Sections 1 to 9 are unchanged.
+
+### 10.1 Why ER-2's Plans Were Not Accepted (Cycle 1, Tabulated Before Any Change)
+
+Source: the 80 ER-2 rows of `analysis.jsonl` (cycle 1). The raw-plan columns read the plan the model wrote (for nulled plans, `raw_plan` from its own text); the edit columns read `verify_and_repair_plan`'s edits. A plan can fail on more than one reason, so columns do not sum.
+
+| Reason | ER-2 A (n = 40) | ER-2 B (n = 40) |
+|---|---|---|
+| Accepted `vlm_verbatim` | 2 | 2 |
+| Plan nulled by the parser: robot named twice | 11 | 0 |
+| Plan nulled by the parser: invalid action (options detail text copied) | 0 | 9 |
+| Plan repaired | 27 | 29 |
+| **Raw plan has a `cross` leg and no `yield` leg at all** | **30** | **32** |
+| Raw plan lists its `yield` after a `cross` | 0 | 4 |
+| Raw plan reverses a set other than the structural pair {robot_3, robot_4} | 29 | 11 (9 of them the invalid-action plans) |
+| Repaired, edit "cross leg has no preceding yield leg" present | 11 | 29 |
+| Repaired, edit "structural recede candidate" present | 22 | 2 |
+| Repaired, only the releasing-yield edit | 5 | 25 |
+| Repaired, only the recede-set edit | 13 | 0 |
+| Parsed plans with the correct recede pair | 7 of 29 | 29 of 31 |
+
+Most frequent repaired shapes: B `3rev 4rev 1cross 2cross` (13) and `4rev 3rev 1cross 2cross` (5); A `3rev 4rev 1cross 2cross` (4), `1rev 2rev 3cross 4cross` (3), `2rev 3rev 4rev 1cross` (3), `4rev 3rev 2rev 1cross` (3).
+
+**Reading.**
+
+- The one reason common to both conditions is a plan with `cross` legs and no `yield` leg: 62 of 80 answers (30 A, 32 B), plus 4 B answers that list the `yield` after the `cross`. M3 rejects every such plan (`_plan_problems`: "cross leg has no preceding yield leg to release it", every strategy). The cycle-1 sentence "A cross leg must come after the yield leg that releases it" did not prevent this. ER-2 appears to read it as conditional on a `yield` leg existing, and to treat its `reverse` legs as the release (inferred).
+- Under B this is the dominant and nearly the only remaining cause: 29 of 29 repaired plans carry the releasing-yield edit, 25 of them alone.
+- Under A, the recede-set error (a `reverse` on a yield-axis robot) co-occurs in 22 of 27 repaired plans, and 11 plans are nulled for naming a robot twice. A generic sentence cannot name which robots are recede candidates in a given scene, so this cause is not addressed here.
+
+### 10.2 Pre-Registration (Written Before Any Paid Call of Cycle 2)
+
+**The sentence** (appended after the two v3.5 sentences):
+
+```text
+A plan with any "cross" leg must also contain a "yield" leg listed before it; a "reverse" or "wait" leg does not release a crossing.
+```
+
+- It states what `_plan_problems` already enforces for every strategy: only a `yield` leg releases a `cross` leg. It names no robot, scene, strategy, arm or order, and does not say which robot yields. It is the same text for every provider.
+- **Key:** request field `ReasonerRequest.plan_grammar_release_rule`; config `prompt_plan_grammar_release_rule` (default False; requires `prompt_plan_grammar_rules`); artifact `prompt_conditions.plan_grammar_release_rule`, omitted when False. With it off, every prompt is byte-identical to before, including the v3.5 prompts of conditions A and B (`user_sha256` of all 40 cycle-1 stimulus prompts re-checked).
+
+**Conditions** (ER-2 only, `gemini-robotics-er-2-preview`, the same backend settings, the same 20 stimuli, the same runner and offline analysis):
+
+| Label | Prompt | n | Priority |
+|---|---|---|---|
+| A3 | A + the release sentence (no options block) | 40 (2 replicates × 20) | 1: run first, complete |
+| B3 | B + the release sentence (options block) | 40 (2 replicates × 20) | 2: run after A3; stops at the cap |
+
+Run order: A3 rep 0, A3 rep 1, B3 rep 0, B3 rep 1. Output goes to a new directory, `data/experiments/2026-11-15-vlm-order-channel-plan-check-c2/`, so cycle-1 data stay as committed.
+
+**Spend cap.** $0.50 at list price. The runner's ledger is list × 1.25, so the run uses `--cap 0.60` in ledger units ($0.48 at list), checked before every attempt with a worst-case reserve. Cycle 1's ER-2 calls cost $0.0065 each at list (median), so A3 is expected to complete and B3 to stop partway. Any condition with fewer than 40 billed calls is reported as partial.
+
+**Acceptance measure.** Per condition: plans returned, structurally valid (plan present after parsing), accepted `vlm_verbatim` (flag `chi`, as cycle 1), and, of the verbatim plans, how many have a recede order that differs from chi on the same scene, with `dispatch_matches_plan` for those. Secondary: the count of answers with a `cross` leg and no earlier `yield` (the targeted reason). The comparison is descriptive against cycle 1 (A 2/40, B 2/40); no significance test.
+
+**Ceilings declared in advance**, so a low A3 count is not read as the sentence failing:
+
+- A3: if the sentence fixed every releasing-yield failure and nothing else, A's 2 verbatim + 5 yield-only repairs give about 7 of 40. The recede-set and robot-twice causes remain.
+- B3: the 9 invalid-action nulls remain, so about 27 of 40 at most (2 verbatim + 25 yield-only repairs).
+
+No grounding, verification, parser or safety code changes. This is the last cycle; there is no third.

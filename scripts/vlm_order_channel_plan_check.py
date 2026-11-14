@@ -10,7 +10,9 @@ request M5 sent is rebuilt through the production `build_reasoner_request` /
 
 * ``A``: the prompt v3.5 plan-grammar rules (`plan_grammar_rules=True`);
 * ``B``: A plus the existing verifier-candidate-options block, built exactly as
-  M5 builds it (`build_candidate_options`).
+  M5 builds it (`build_candidate_options`);
+* ``A3`` / ``B3`` (cycle 2, report section 10): A / B plus the prompt v3.6
+  release-rule sentence (`plan_grammar_release_rule=True`).
 
 ``run`` sends one condition to one configured backend arm through the shipped
 `Reasoner` (its retry, re-ask and parse path), behind a guarding proxy that
@@ -269,9 +271,12 @@ class Stimulus:
         )
 
     def request(self, condition: str) -> ReasonerRequest:
-        """The request under condition A or B (both carry the v3.5 rules)."""
+        """The request under condition A, B, A3 or B3 (all carry the v3.5 rules)."""
         base = self.base_request()
         update: dict[str, Any] = {"plan_grammar_rules": True}
+        if condition in ("A3", "B3"):
+            update["plan_grammar_release_rule"] = True
+            condition = condition[0]
         if condition == "B":
             update["candidate_options"] = build_candidate_options(
                 SceneSnapshot(**self.artifact["scene"]),
@@ -312,6 +317,8 @@ def integrity(stimuli: list[Stimulus]) -> list[dict[str, Any]]:
         rendered = build_prompt_payload(s.base_request()).user_prompt
         a = build_prompt_payload(s.request("A")).user_prompt
         b = build_prompt_payload(s.request("B")).user_prompt
+        a3 = build_prompt_payload(s.request("A3")).user_prompt
+        b3 = build_prompt_payload(s.request("B3")).user_prompt
         first_diff = None
         if rendered != stored["user_prompt"]:
             for i, (x, y) in enumerate(
@@ -335,8 +342,12 @@ def integrity(stimuli: list[Stimulus]) -> list[dict[str, Any]]:
                 "first_diff": first_diff,
                 "A_user_sha256": sha256_text(a),
                 "B_user_sha256": sha256_text(b),
+                "A3_user_sha256": sha256_text(a3),
+                "B3_user_sha256": sha256_text(b3),
                 "A_minus_base_chars": len(a) - len(rendered),
                 "B_minus_A_chars": len(b) - len(a),
+                "A3_minus_A_chars": len(a3) - len(a),
+                "B3_minus_B_chars": len(b3) - len(b),
             }
         )
     return rows
@@ -659,7 +670,7 @@ def raw_plan_verdict(raw_text: str | None) -> tuple[str, list[Any] | None]:
 
 def analyze_one(s: Stimulus, result: ReasonerResult, condition: str) -> dict[str, Any]:
     """Replay one answer offline through the real pipeline, three ways."""
-    request = s.request(condition) if condition in ("A", "B") else s.base_request()
+    request = s.request(condition) if condition in ("A", "B", "A3", "B3") else s.base_request()
     row: dict[str, Any] = {}
     dec = result.decision
     row["valid"] = dec is not None
