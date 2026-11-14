@@ -11,7 +11,7 @@ import difflib
 
 import pytest
 from pydantic import ValidationError
-from swarm_orchestrator.models import AnnotationOverlayReport
+from swarm_orchestrator.models import AnnotationOverlayReport, plan_order_status_line
 from swarm_orchestrator.reasoning_pipeline import build_prompt_conditions, build_reasoner_request
 
 from reasoning.vlm.models import ReasonerRequest
@@ -142,6 +142,33 @@ def test_replay_reconstructs_the_rules_from_prompt_conditions(fc_artifact):  # n
     rebuilt = build_prompt_payload(reconstruct_request(stored)).user_prompt
     assert rebuilt == build_prompt_payload(live).user_prompt
     assert _SENTENCES[0] in rebuilt
+
+
+class TestStatusLine:
+    def test_default_config_logs_nothing_new(self, tmp_path):
+        assert plan_order_status_line(_config(tmp_path)) is None
+
+    def test_plan_channel_alone_logs_nothing_new(self, tmp_path):
+        assert plan_order_status_line(_config(tmp_path, plan_channel_enabled=True)) is None
+
+    def test_demo_condition_line_names_every_key(self, tmp_path):
+        config = _config(
+            tmp_path,
+            plan_channel_enabled=True,
+            plan_dispatch_order_source="model_when_verified",
+            prompt_plan_grammar_rules=True,
+        )
+        assert plan_order_status_line(config) == (
+            "plan order condition plan_dispatch_order_source=model_when_verified "
+            "prompt_plan_grammar_rules=True prompt_candidate_options=False"
+        )
+
+    def test_candidate_options_alone_is_logged(self, tmp_path):
+        config = _config(tmp_path, plan_channel_enabled=True, prompt_candidate_options=True)
+        assert plan_order_status_line(config) == (
+            "plan order condition plan_dispatch_order_source=chi "
+            "prompt_plan_grammar_rules=False prompt_candidate_options=True"
+        )
 
 
 class TestConfig:

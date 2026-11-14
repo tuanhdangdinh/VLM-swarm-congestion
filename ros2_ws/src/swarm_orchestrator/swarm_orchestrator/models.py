@@ -1090,6 +1090,32 @@ def reasoning_status_line(config: OrchestratorConfig) -> str | None:
     return None if config.reasoning_enabled else REASONING_OFF_STATUS_LINE
 
 
+def plan_order_status_line(config: OrchestratorConfig) -> str | None:
+    """Return M5's plan-order condition startup line, or None for the default condition.
+
+    Logged so a run's log alone shows whether the VLM recede-order channel
+    (`plan_dispatch_order_source`) and its prompt conditions were live. None
+    (nothing new logged) unless one of the three keys is off its default.
+
+    Args:
+        config: The loaded orchestrator config.
+
+    Returns:
+        One line naming the three keys, or None.
+    """
+    if (
+        config.plan_dispatch_order_source == "chi"
+        and not config.prompt_plan_grammar_rules
+        and not config.prompt_candidate_options
+    ):
+        return None
+    return (
+        f"plan order condition plan_dispatch_order_source={config.plan_dispatch_order_source} "
+        f"prompt_plan_grammar_rules={config.prompt_plan_grammar_rules} "
+        f"prompt_candidate_options={config.prompt_candidate_options}"
+    )
+
+
 def load_config(raw: dict[str, Any]) -> OrchestratorConfig:
     """Build an OrchestratorConfig from a plain dict (e.g. parsed YAML).
 
