@@ -1,2 +1,64 @@
 // Evidence rows for chapter 4: one evidence call per number, id = chapter.NN.
 #import "../lib.typ": *
+
+#evidence("4.01", [Tranche 1 ran on runtime `1624db1`, whose code equals the pin (`git diff 1624db1 68e67b5` over reasoning, ros2_ws, scripts, config, isaac and benchmarks is empty); Arm A backend ER-2 selected by the cell overlay, plan channel on, 0.20 m floor, escort grounding overlay; host a snapshot clone of the batch-4 disk with an L4 GPU. IB10 ran on `68e67b5` itself with ER-2.], [`68e67b5:docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` §1.2, §1.4, §3.1; `feat/ib10-live-resolution@2557d75:docs/reports/2026-11-13-ib10-live-resolution-results.md` lines 22, 160])
+
+#evidence("4.02", [Isaac Sim 6.0.1 source build; Nav2 family 1.3.13; fastrtps 2.14.6; Python 3.12.3; pydantic 2.14.0; cv2 4.6.0; L4 GPU; inventory of 2026-10-09 on the then experiment VM. cv2 4.6.0 lacks `ArucoDetector`; detection gates on it, and mixing the APIs segfaults.], [`68e67b5:docs/reports/2026-10-09-env-audit.md` version table, lines 40-52; `68e67b5:ros2_ws/src/swarm_perception/swarm_perception/detection.py` lines 53-66; `68e67b5:docs/implementation_notes.md` M6, 2026-09-16 container rebuild entry])
+
+#evidence("4.03", [Run manifest hard-codes `isaac_sim_version: "6.0"` and `ros_distribution: "jazzy"`; the scenario schema fixes physics 60 Hz and rendering 30 Hz.], [`68e67b5:isaac/vgu_sim/runner.py` lines 263-266; `68e67b5:isaac/vgu_sim/config.py` lines 362-375])
+
+#evidence("4.04", [Nav2: NavFn planner, DWB controller, `max_vel_x` 0.18, goal tolerance 0.1 m, `use_sim_time: true`.], [`68e67b5:ros2_ws/src/swarm_simulation/config/nav2_params.yaml` lines 27, 92-96, 173-186])
+
+#evidence("4.05", [TurtleBot3 Burger asset; wheel radius 0.033 m, separation 0.160 m, max 0.22 m/s.], [`68e67b5:isaac/config/robot.yaml` lines 1-9])
+
+#evidence("4.06", [`requires-python = ">=3.10"`, `pydantic>=2.7`.], [`68e67b5:pyproject.toml` lines 5-10])
+
+#evidence("4.07", [Eleven backend sections (llama_server ... openai_gpt56sol). Default `backend_id: openai`; shared reasoner `timeout_sec: 120`, default `max_attempts` 2; gpt-4o `gpt-4o-2024-08-06`, temperature 0.0, `max_attempts: 4`, `image_fallback_after_attempts: 2`; ER-2 `gemini-robotics-er-2-preview`, `thinking_level: low`, no reasoner override, API has no sampling fields; Sonnet `claude-sonnet-5-5`, no sampling sent (HTTP 400 on non-default values), 4 attempts, fallback after 2. File unchanged between `68e67b5` and `cbe3dcf`.], [`68e67b5:config/models.yaml` lines 1-100 and section list (lines 14-271); `68e67b5:reasoning/vlm/models.py` line 982])
+
+#evidence("4.08", [Grounding `mode: derived`; the M5 reasoning pipeline and the grounder import no retriever, vector store or embedding module (`git grep` for retriever, vector_store, chromadb over both is empty).], [`68e67b5:config/rag.yaml` lines 1-20; `68e67b5:ros2_ws/src/swarm_orchestrator/swarm_orchestrator/reasoning_pipeline.py` lines 1-80; `68e67b5:reasoning/rag/command_grounder.py` lines 1-60])
+
+#evidence("4.09", [Camera 1280 x 960, 30 fps; camera height 3.0 m, marker height 0.21 m; ArUco `DICT_4X4_50`, 0.12 m; analytic pixel-to-world homography on the plane z = 0.21 m, exported to the calibration file.], [`68e67b5:ros2_ws/src/swarm_perception/config/camera.yaml`; `68e67b5:ros2_ws/src/swarm_perception/config/aruco.yaml`; `68e67b5:ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml` line 223; `68e67b5:isaac/vgu_sim/calibration.py` lines 12-16, 51-115; `68e67b5:isaac/scripts/export_calibration.py`])
+
+#evidence("4.10", [M1 launch values: stopped 0.01 m/s, slow 0.05 m/s, `stale_after_sec` 1.15, `velocity_alpha` 0.15, `clock_reset_threshold_sec` 1.0; late frames dropped.], [`68e67b5:ros2_ws/src/swarm_perception/launch/perception.launch.py` lines 93-121; `68e67b5:ros2_ws/src/swarm_perception/swarm_perception/state_estimator.py` lines 130-155])
+
+#evidence("4.11", [M5 shipped values: stall 12.0 s, progress 0.10 m, goal tolerance 0.15 m, arrival tolerance 0.35 m (0.59 m false success), proximity 0.50 m and 0.05 m/s, cool-down 15.0 s, command timeout 20.0 s, failure-context window 60.0 s, stage 2 two attempts of 8.0 s; `prompt_robot_order` id_asc, id_desc or random; task stream off. In `cbe3dcf` the file only gains a default-off `per_cluster_shadow` block.], [`68e67b5:ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml` lines 2-56, 270-279, 388-390])
+
+#evidence("4.12", [Backup at 0.1 m/s, closed-loop on odometry; deadline `max(15 x naive, 30 s)` on the monotonic clock; rationale: collision monitor forward-stop polygon; Nav2-leg watchdog `max(3 x timeout_sec, 120 s)`.], [`68e67b5:ros2_ws/src/swarm_execution/swarm_execution/nav2_adapter.py` lines 176-210, 354-420; `68e67b5:ros2_ws/src/swarm_execution/swarm_execution/command_bus_node.py` lines 46-54])
+
+#evidence("4.13", [Grounding fallbacks: `lateral_m` 0.35, `backup_band_m` [0.5, 2.0], `escort_band_m` [1.0, 3.5], `sweep_step_m` 0.1, replaced by declared scene geometry; escort legs checked against the park point.], [`68e67b5:config/rag.yaml` lines 4-20; `68e67b5:reasoning/rag/escort_clearance.py`; `68e67b5:reasoning/rag/retreat_candidates.py`])
+
+#evidence("4.14", [Passer escort replaces Nav2 because DWB crept at about 0.01 m/s through the gap (H3 runs 4-7); hold ends on passer odometry clearance; multi-passer crossing chain.], [`68e67b5:ros2_ws/src/swarm_execution/swarm_execution/command_bus_node.py` lines 200-260, 300-420])
+
+#evidence("4.15", [`junction_clear` phases precomputed by M3 (`ground_junction_clear_phases`); M5 `JunctionPhaseQueue` dispatches them and records the phase reached (recede, cross, release, resolved, fallback); plan provenance `vlm_verbatim`, `repaired`, `m3_default` (`verify_and_repair_plan`).], [`68e67b5:ros2_ws/src/swarm_orchestrator/swarm_orchestrator/junction_phase_queue.py` lines 1-100; `68e67b5:reasoning/rag/command_grounder.py` lines 2656-2720, 3288-3390])
+
+#evidence("4.16", [Shipped `safety.yaml`: `min_distance_m` 0.45, `max_linear_velocity_mps` 0.2, `stale_unsafe_distance_m` 0.6, `hard_contact_floor_m` 0.0; `safety_floor020.yaml` sets 0.20; clearing exemption only for `yield` and `reverse`, against own-command partners; floor file installed for tranche 1 and IB10.], [`68e67b5:ros2_ws/src/swarm_execution/config/safety.yaml`; `68e67b5:config/safety/safety_floor020.yaml`; `68e67b5:ros2_ws/src/swarm_execution/swarm_execution/safety.py` lines 33-42; tranche 1 report §3.2 at `68e67b5`; IB10 report line 22 at `2557d75`])
+
+#evidence("4.17", [Prompt v3.4 (`prompt_version` 3, think block removed); baseline user prompt 5,804 characters, SHA-256 `6d08540f...`, pinned by tests.], [`68e67b5:docs/reports/2026-10-06-v34-repin.md` sections "Prompt v3.4" and "New Pin Table"; `68e67b5:reasoning/vlm/prompt_builder.py` lines 34-140])
+
+#evidence("4.18", [M5 stall and cool-down on `time.monotonic()`; VM real-time factor about 0.38; 12 s stall is about 4.6 sim-s.], [`68e67b5:docs/implementation_notes.md` M2/M5 section, 2026-09-27 entry "M5's stall and cooldown clocks run on wall time"; `68e67b5:ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py` line 1014])
+
+#evidence("4.19", [Camera frames sim-stamped since 2026-09-27 (`a1aa81d`); wall stamps made M1 speeds read about 0.38 x true; `stale_after_sec` 3.0 to 1.15.], [`68e67b5:docs/implementation_notes.md` M6, 2026-09-27 "Camera frames now stamped with sim time"; M1, 2026-09-27 "Backward-stamp-jump reset and stale_after_sec retune"])
+
+#evidence("4.20", [Isaac Sim 6.0 has two stores (pxr USD; Fabric, read by RTX); 0.56 m odometry travel with a frozen camera; marker moved under `aruco_marker_link`; GT logger reads the chassis link (root prim stays at spawn); GT then usable as metric source.], [`68e67b5:docs/reports/2026-06-21-m6-fabric-sync-investigation.md` lines 9-60; `68e67b5:isaac/vgu_sim/acceptance_logging.py` lines 248-259; `68e67b5:docs/implementation_notes.md` M6, 2026-09-16 "Ground-truth oracle fixed for position"])
+
+#evidence("4.21", [Host Isaac needs `FASTRTPS_DEFAULT_PROFILES_FILE` forcing UDP, otherwise shared memory silently drops all data; the profile disables built-in transports; verified live on the Isaac Kit Python and 7 sampled container nodes.], [`68e67b5:docs/implementation_notes.md` M6, 2026-06-30 entry, and experiment section, 2026-10-09 "Environment audit"; `68e67b5:config/dds/fastdds.xml`])
+
+#evidence("4.22", [RTX lidar motion BVH: three kit arguments required together; one alone breaks Hydra engine creation and silences camera and lidars; without them moving robots were absent from scans (head-on interpenetration).], [`68e67b5:isaac/vgu_sim/runner.py` lines 316-338; `68e67b5:docs/implementation_notes.md` M4, 2026-07-03 "Deadlock fix H3"])
+
+#evidence("4.23", [Scenario YAML edits inert until `build_scenario` regenerates the USD; a stale USD cost about 10 debugging runs (2026-07-01). Tranche 1 build gate: every USD newer than its yaml, `usd_check` spawns equal the draws, per-episode USD md5 table.], [`68e67b5:docs/implementation_notes.md` M6, 2026-07-01 entry; `68e67b5:docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` §3.2])
+
+#evidence("4.24", [4,633 `def test_` occurrences in 199 files under tests (unit 4,616 in 191; integration 5 in 4; simulation 12 in 4).], [`git grep -c "def test_" 68e67b5 -- tests | awk -F: '{s+=$NF; n++} END {print s, n}'`, run 2026-11-14])
+
+#evidence("4.25", [Unit suite at runtime `1624db1`: 57 failed, 6,903 passed, 151 skipped, 3 errors; the 60 failing or erroring ids equal the A27 reference list minus `tests/simulation`.], [`68e67b5:docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` §1.4, "Suite (Rev 3)"])
+
+#evidence("4.26", [Pin gate (md5 of source and installed files) before every episode; deploy gates incl. PACKAGE SRC==INSTALLED; condition gate (floor line `hard_contact_floor_m=0.2`; Arm B 0 decision artifacts); scorer `3c71503` and free-flow table md5 `b4002d7697f4d8f27c31792a9b269162` frozen before data; colcon exit-code trap.], [`68e67b5:docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` §1.4-§1.6, §3.2; `68e67b5:docs/implementation_notes.md` M1, 2026-09-27 entry on the colcon md5 trap])
+
+#evidence("4.27", [`per_cluster_shadow: enabled: false` (added after the pin); `scoped_clearing_exemption` overlay key, absent means the `68e67b5` behaviour; refusal feedback `enabled: bool = False` and `prompt_offer_groundable_strategies: bool = False`.], [`cbe3dcf:ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml` lines 391-412; `fix/safety-exemption-scope@8933863:config/safety/scoped_clearing_exemption.fragment.yaml`; `feat/v4-refusal-feedback@384e948:ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py` (RefusalFeedbackConfig)])
+
+#evidence("4.28", [Demonstration on 12 November 2026: overhead RealSense, ArUco, `gemini-3.1-flash-lite`, deterministic grounding, Zenoh, stamped velocity commands, `dry_run=False`, safety monitor.], [`~/Downloads/verified_scenarios_12-11-2026/README.md` lines 1-18 (md5 26718adbffa7a3135ebd509630afc3c2)])
+
+#evidence("4.29", [All four saved artifacts: `diagnostics.backend_id` is `gemini-3.1-flash-lite`; robot state keys only robot_id, x, y, theta, linear_velocity, status, stamp; `distance_to_goal_m` empty.], [`~/Downloads/verified_scenarios_12-11-2026/decision_artifacts/` (8c9b01cd..., 3f65b83c..., 20997f2a..., f39ad3d1...), read 2026-11-14])
+
+#evidence("4.30", [Scenarios A, C, D, E as described; A: deadlock, `reverse`, robots 2 to 5, `COMPLETED` for all four, pair distances about 0.575 m and 0.614 m; 0.50 m safety boundary; images of A and C.], [`~/Downloads/verified_scenarios_12-11-2026/README.md` lines 22-62, 63-101, 102-146, 147-189 (line 122 for 0.50 m); `verified_scenarios_images_2026-11-12/scenario_a_two_parallel_deadlocks.png`, `scenario_c_three_robot_triangle.png`])
+
+#evidence("4.31", [Two parse failures excluded (`b0bca63c...`, `b8abe7df...`); earlier `priority_override`, `reroute` and odometry-loss attempts not counted.], [`~/Downloads/verified_scenarios_12-11-2026/README.md` lines 190-197])
