@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: design frozen before the first paid call. Implements the replay proposed in the final section of `docs/reports/2026-11-14-head-on-vlm-vs-rule-rescore.md`, with the differences listed under "Differences From the Re-Score Proposal".
+- Rev 2 (2026-11-14): amendments 1 and 2 (owner instructions mid-run): the model list is cut to one model per provider (ER-2, gpt-4o, Sonnet 5.5); a Sonnet real-frame stop on any image fallback.
 
 ---
 
@@ -247,6 +248,39 @@ the run (none did).
   each model ran live. One prompt builder and one prompt for all models.
 - gpt-4o is in Arm A as well as Arm B. The remaining four models of the re-score
   (gpt-5.1, glm, molmo2-er, qwen3-vl, deepseek-flash) are not run.
+
+---
+
+## Amendments
+
+### Amendment 1 (2026-11-14, owner: "shorten the model api test list, choose the candidates")
+
+Recorded mid-run. At that point ER-2 had completed all 144 runs and gpt-4o 120 of
+144; no run of any other model had started. The session lead's list was ER-2,
+gpt-4o and gpt-5.6-sol. The batch process was stopped between two runs, with no call
+in flight. It was superseded before any further call by amendment 2.
+
+### Amendment 2 (2026-11-14, owner correction: one model per provider)
+
+Final model list, replacing the "Models" table for the verdict:
+
+| Provider | `backend_id` | Model |
+|---|---|---|
+| Google | `gemini` | `gemini-robotics-er-2-preview` |
+| OpenAI | `openai` | `gpt-4o-2024-08-06` |
+| Anthropic | `anthropic` | `claude-sonnet-5-5` |
+
+- `gemini_flash` and `openai_gpt56sol` are dropped. Neither had a single run when
+  they were dropped, so no partial rows exist for them.
+- The Anthropic probe was made before the first run (HTTP 200, `probes.jsonl`). It
+  is not repeated.
+- **Sonnet real-frame stop.** After Sonnet's 4 `A_real` pilot runs, `A_real` stops if
+  any of them used the image fallback (stricter than the general pilot rule). If it
+  fires, the cause is investigated offline from the recorded rows and the code, with
+  no extra spend and no change to runtime backend code. Sonnet's grey arms still run,
+  each under the general pilot rule. The report states which Sonnet cells exist.
+- Execution: gpt-4o's 24 remaining runs, then Sonnet. Caps, rates, scoring and
+  decision rules are unchanged.
 
 ---
 

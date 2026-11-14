@@ -99,6 +99,8 @@ MODEL_BACKENDS: tuple[str, ...] = (
     "openai_gpt56sol",
     "anthropic",
 )
+# Amendment 2 (2026-11-14): one model per provider.
+FINAL_MODELS: tuple[str, ...] = ("gemini", "openai", "anthropic")
 PROVIDER_OF: dict[str, str] = {
     "gemini": "gemini",
     "gemini_flash": "gemini",
@@ -680,6 +682,14 @@ def pilot_failed(rows: list[dict[str, Any]], backend_id: str, arm: str) -> bool 
     pilots = [r for r in rows if r["backend_id"] == backend_id and r["arm"] == arm and r["pilot"]]
     if len(pilots) < len(PILOT_PREFIXES) * len(ORDERS):
         return None
+    # Amendment 2: Sonnet's real-frame arm stops on any fallback, because a
+    # fallback decision is a grey-image decision, not a real-frame one.
+    if (
+        backend_id == "anthropic"
+        and arm == "A_real"
+        and any(r["image_fallback_used"] for r in pilots)
+    ):
+        return True
     bad = sum(1 for r in pilots if r["decision"] is None or r["image_fallback_used"])
     return bad >= PILOT_STOP_FAILURES
 
@@ -754,7 +764,7 @@ def main() -> None:
         help="directory holding the 2026-09-25 pilot run folders",
     )
     parser.add_argument("--out-dir", type=Path, default=OUT_DIR)
-    parser.add_argument("--models", nargs="*", default=list(MODEL_BACKENDS))
+    parser.add_argument("--models", nargs="*", default=list(FINAL_MODELS))
     parser.add_argument("--pace-sec", type=float, default=1.0)
     parser.add_argument("--probe-only", action="store_true")
     parser.add_argument(

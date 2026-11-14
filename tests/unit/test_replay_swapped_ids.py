@@ -357,3 +357,19 @@ def test_proxy_caps_transient_retries_per_run(tmp_path, monkeypatch):
 
 def test_provider_stop_is_not_retryable():
     assert ProviderStop("x").retryable is False
+
+
+def test_sonnet_real_frame_arm_stops_on_any_fallback():
+    rows = [
+        {
+            "backend_id": "anthropic",
+            "arm": "A_real",
+            "pilot": True,
+            "decision": {"yield_robot": "robot_1"},
+            "image_fallback_used": i == 0,
+        }
+        for i in range(4)
+    ]
+    assert pilot_failed(rows, "anthropic", "A_real") is True
+    grey = [dict(r, arm="A_grey") for r in rows]
+    assert pilot_failed(grey, "anthropic", "A_grey") is False
