@@ -71,4 +71,6 @@
 
 #evidence("4.35", [IB10 artifacts record `reasoner_config_effective.temperature` 0.6, not verified to be honoured by the provider; Interactions API exposes no sampling fields.], [`2557d75:docs/reports/2026-11-13-ib10-live-resolution-results.md` line 162; `68e67b5:config/models.yaml` lines 6, 44-60])
 
-#evidence("4.36", [Other recorded real-time factors: 0.396 vs 0.397 (smoke vs old VM), 0.179 in S1 echo episode E1.], [`68e67b5:docs/implementation_notes.md` experiment section, 2026-10-09 "S1 resume on the NEW Isaac VM" entry, lines 90-91])
+#evidence("4.36", [Other recorded real-time factors: 0.396 on the new VM (smoke) vs 0.397 on the old VM, in a side-by-side comparison; 0.179 in S1 echo episode E1.], [`68e67b5:docs/implementation_notes.md` experiment section, 2026-10-09 "S1 resume on the NEW Isaac VM" entry, lines 90-91])
+
+#evidence("4.37", [Earlier exploratory finding (offline replay, gpt-4o): terminal refusals were triggered by the real camera frame, not by the prompt text (grey-image sub-arm); Rev 5 Arm F found the M1 annotation overlay is not the trigger (raw frame refuses at least as often). Motivates the grey-image fallback after two refused attempts.], [`cbe3dcf:docs/reports/2026-09-25-gpt4o-refusals.md`; `cbe3dcf:docs/reports/2026-09-25-frame-replay.md` (Rev 2 grey sub-arm; Rev 5 Arms X and F)])
