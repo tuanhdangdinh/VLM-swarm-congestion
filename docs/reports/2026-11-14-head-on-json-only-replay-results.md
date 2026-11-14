@@ -28,9 +28,10 @@ JSON-only line, for every model alike:
 - **Live prompt.** The current production prompt (v3.4) ends with the same JSON-only
   line. ER-2 and Sonnet each answered one call of it on attempt 1.
 - **Scene use.** Not supported for Sonnet, now assessable for it for the first time:
-  46/96 correct in the grey pair. Not supported for ER-2 on the 50 grey-pair runs it
-  completed before Google's spend cap stopped it: it still answers `reverse` in 46 of
-  50 runs.
+  46/96 correct in the grey pair. Not assessable for ER-2: Google's spend cap stopped
+  it after 50 of the 96 grey-pair runs. Descriptively, it still answers `reverse` in 46
+  of those 50, and one combination is already at 2/12, so even if the missing runs had
+  all been correct it could not have passed (at most 14/24).
 - **Sonnet's prior.** On the grey image Sonnet mostly names the robot labelled
   `robot_2`: 76 of 96 grey-pair runs. Because of that, its correctness tracks where the
   label `robot_2` sits, not the blocker. The pre-registered label-bias rule narrowly
@@ -57,7 +58,8 @@ with pass criteria fixed in advance.
 
 - **One text per stimulus.** For each of the 54 cells that both ER-2 and Sonnet ran,
   attempt 1's user, system and image SHA-256 are identical across the two providers.
-  For all 200 rows they equal the pre-registered manifest. The manifest itself proves
+  For all 200 rows, attempt 1's user and system SHA-256 equal the pre-registered
+  manifest, and its image SHA-256 equals the manifest's grey or frame hash. The manifest itself proves
   the diff against v1 is exactly the answer-format block, for all 72 stimulus x order
   x ID/text prompts.
 - **What differs between providers.** Only transport, owned by the backends: where the
@@ -106,7 +108,7 @@ with pass criteria fixed in advance.
    - gpt-4o has no compatibility pilot, no live check, no tables and no answer-format
      comparison;
    - the cross-provider identity check covers two providers.
-2. **ER-2 stopped after 54 runs.** On its 55th design call, Gemini returned HTTP 429
+2. **ER-2 stopped after 54 runs.** On its 54th design run, Gemini returned HTTP 429
    "Your project is temporarily rate-limited to prevent exceeding its monthly spending
    cap". The quota rule stopped the provider at once.
    - ER-2 has its 8 pilot runs and 46 tier-1 runs (45 answered, 1 `error` row,
@@ -125,6 +127,33 @@ with pass criteria fixed in advance.
    per-model `network_calls`. Its run counts come from `calls.jsonl` and are correct.
 
 No amendment was made; every stop above follows a rule written before the first call.
+
+---
+
+## The `reasoning_extraction` No-Retry Option (Option 3)
+
+- **What it is.** `ReasonerConfig.final_refusal_categories`
+  (`reasoning/vlm/models.py:1012`; logic in `reasoning/vlm/reasoner.py:514-538`;
+  commit `b72891e`). A provider refusal whose category is listed ends the call on that
+  attempt as a refusal result: no re-ask, no image fallback,
+  `error_type = "FinalRefusal"`, and the category and reason are kept in diagnostics.
+  Other refusals and parse failures follow the existing policy. The code is
+  backend-agnostic; backends still only report the category.
+- **Scope.** Default empty. No shipped config enables it (pinned by a test). It was
+  enabled only in this experiment's runner, for `reasoning_extraction`, identically
+  for every model; in practice only Anthropic returns that category.
+- **Effect on the October ruling.** It changes October's retry-parity ruling
+  (`docs/reports/2026-10-06-roster-validation.md`, ruling 1) only while it is enabled.
+  The owner approved it on 2026-11-14 ("I approve options 2 and 3").
+- **Not lossless.** A refusal that a later attempt would have answered is lost. The
+  brief states that October recovered 4 decisions on later attempts; that figure is
+  copied from the brief, not re-derived. In this stratum the option never fired:
+  Sonnet did not refuse once.
+- **Tests.** 17 unit tests (`tests/unit/test_reasoner_final_refusal.py`). They cover
+  default-off behaviour identical to before (attempt sequence, fallback, late
+  recovery); a stop after the listed category, also after an earlier parse failure;
+  unlisted, uncategorised and text-pattern refusals not being final; the result and
+  diagnostics shape; and config validation.
 
 ---
 
@@ -213,9 +242,9 @@ Verdicts:
 
 | Rule | Verdict |
 |---|---|
-| Scene use | **not supported**, even on partial data: "label right, slot right" is 2/12, so even if all 12 missing runs were correct it would reach 14/24, below 18 |
-| Label bias | the rule fires mechanically (P(`robot_1`) = 1.0 in both arms) on 2 + 1 named yielders, all under `id_asc`, so no label-bias claim is made (as in the v1 stratum) |
-| Slot bias | not supported (no named yielder under `id_desc`) |
+| Scene use | **not assessable**: `A_grey` and `B_grey` were stopped by the provider at 25 of 48 runs each (design: a rule is not assessable if a cell it needs stopped). Descriptively, "label right, slot right" is 2/12, so even if all 12 missing runs were correct it would reach 14/24, below 18 |
+| Label bias | **not assessable** (provider stop). `analysis.txt` prints the mechanical output, "SUPPORTED toward robot_1", which rests on 2 + 1 named yielders, all under `id_asc`, where label and slot coincide |
+| Slot bias | **not assessable** (provider stop; no named yielder under `id_desc`) |
 | Real-frame secondary | not assessable (2 runs) |
 | Image use | not assessable (1 run each in C and D) |
 
@@ -251,8 +280,8 @@ mixes the answer format, the loss of the reasoning step, and provider drift.
 | Sonnet | `A_grey` / `B_grey` | v1 | 4 / 4 (pilot) | 0 / 0 | 1 / 0 | 0/1 / - | 0/1 / - | 0 |
 | Sonnet | `A_grey` / `B_grey` | JSON-only | 48 / 48 | 19 / 27 | 48 / 48 | 13/48 / 7/48 | 17/48 / 17/48 | 0 |
 
-- **ER-2.** No visible answer-format effect on its main habit. It names a yielder in
-  about 1 run in 12 under both endings (grey pair: 8/96 in v1, 3/50 here) and otherwise
+- **ER-2.** No visible answer-format effect on its main habit. It rarely names a
+  yielder under either ending (grey pair: 8/96 in v1, 3/50 here) and otherwise
   answers `reverse`. The JSON-only cells beyond the grey pair have 1-2 runs.
 - **gpt-4o.** Not run; no comparison.
 - **Sonnet.** v1 `A_real` decisions are the 18 runs Sonnet did not refuse, a selected
