@@ -77,3 +77,4 @@ wilson1927probable — Probable Inference, the Law of Succession, and Statistica
 kaplan1958nonparametric — Nonparametric Estimation from Incomplete Observations (topic tag: other) — DOI:10.1080/01621459.1958.10501452
 robotis2026turtlebot3 — TurtleBot3 e-Manual platform overview (ROBOTIS docs; no peer-reviewed platform paper with DOI/arXiv found) (topic tag: tools) — https://emanual.robotis.com/docs/en/platform/turtlebot3/overview/
 eclipse2026zenoh — What is Zenoh? (zenoh.io docs; page names Eclipse Foundation as host; no primary Zenoh paper/spec with DOI/arXiv found, only third-party performance studies) (topic tag: tools) — https://zenoh.io/docs/overview/what-is-zenoh/
+anthropic2026claude — Models overview, Claude Platform Docs (lists Sonnet 5.5, id claude-sonnet-5-5) (topic tag: tools) — https://platform.claude.com/docs/en/models/overview
