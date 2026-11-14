@@ -1,0 +1,18 @@
+import sys, difflib
+from pathlib import Path
+WT = Path("/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-swapid")
+for p in (WT, WT / "ros2_ws/src/swarm_orchestrator", WT / "scripts"):
+    sys.path.insert(0, str(p))
+from scripts.replay_swapped_ids import load_stimuli, reconstruct_request
+from reasoning.vlm.prompt_builder import build_prompt_payload
+st = load_stimuli(Path("/Users/tuanhdangdinh/Documents/vgu-vlm-swarm/data/logs/vm_runs"))
+base = None
+for a in st:
+    u = build_prompt_payload(reconstruct_request(a, "id_asc", a.image_path, True)).user_prompt
+    lines = [l for l in u.splitlines() if l.startswith("- robot_") or l.startswith("- obstacle")]
+    print(a.request_id[:8], a.obstacle_side, len(u), a.prompt_version, a.include_pairwise_geometry, a.include_static_obstacles)
+    for l in lines: print("   ", l)
+    if base is None: base = u
+    else:
+        d=[x for x in difflib.unified_diff(base.splitlines(), u.splitlines(), lineterm="", n=0) if x[:1] in "+-" and not x.startswith(("+++","---"))]
+        print("   difflines vs first:", len(d))
