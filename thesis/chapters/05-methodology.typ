@@ -8,7 +8,7 @@ This chapter states how the system described in Chapters 3 and 4 was evaluated. 
 
 Three live comparisons and one offline benchmark are described. Their evidential status differs, and the chapter keeps them apart:
 
-- *prereg-v3 tranche 1* on the five-robot S1b scene, Layer 2 on against Layer 2 off. It was registered as confirmatory. This thesis reports it as a *pilot*, for the reason given in the section on research questions.
+- *prereg-v3 tranche 1* on the five-robot S1b scene, Layer 2 on against Layer 2 off. It was registered as confirmatory. This report reports it as a *pilot*, for the reason given in the section on research questions.
 - *IB10 live resolution* on the four-robot intersection, Layer 2 on against Layer 2 off. Exploratory.
 - *IB10 grounder-default arm*, a separate run on the same scene, Layer 2 on against a grounder-only arm with no VLM call. Exploratory.
 - *the v4 offline bench*, a replay of recorded decisions. Exploratory and decision-level only.
@@ -27,13 +27,13 @@ The research design frozen with the first preregistration states five research q
 - *RQ4, semantic advantage.* The VLM uses information that no classical baseline has, such as what a blocker is.
 - *RQ5, closed-loop adaptation.* Feedback about a failed command changes the VLM's next decision, compared with re-analysis without that feedback. (Here "closed loop" means re-analysis that receives feedback about the failed command, not the pipeline cycle defined in @sec:intro-contributions.)
 
-These questions frame the thesis. The experiments that were finally run answer narrower questions, set out next.
+These questions frame the report. The experiments that were finally run answer narrower questions, set out next.
 
 === Questions of the experiments that ran
 
 *prereg-v3, S1b.* prereg-v3 registered the Layer 2 on against Layer 2 off comparison as *confidence-interval estimation of the difference per regime*. The expectation that the difference is largest at intermediate difficulty was recorded as interpretation, not as a directional hypothesis #ev("5.02"). The tranche-1 registration adds no hypothesis and no threshold; it collects the registered measures for both arms on the first five registered seeds #ev("5.03"). The question is therefore descriptive: how large is the Layer 2 effect on task completion, throughput, delay and per-conflict decision quality in the S1b scene, and how uncertain is that estimate?
 
-*Why tranche 1 is reported as a pilot.* The registered confirmatory sample was 20 episodes per arm, drawn from the first 20 seeds #ev("5.04"). Tranche 1 ran 5 seeds per arm #ev("5.03"). On 2026-11-13 the owner decided not to run tranche 2 and to run the IB10 experiment instead #ev("5.04"). A quarter of the registered sample cannot carry the confirmatory claim it was designed for, so this thesis calls tranche 1 a pilot throughout.
+*Why tranche 1 is reported as a pilot.* The registered confirmatory sample was 20 episodes per arm, drawn from the first 20 seeds #ev("5.04"). Tranche 1 ran 5 seeds per arm #ev("5.03"). On 2026-11-13 the owner decided not to run tranche 2 and to run the IB10 experiment instead #ev("5.04"). A quarter of the registered sample cannot carry the confirmatory claim it was designed for, so this report calls tranche 1 a pilot throughout.
 
 *IB10 live resolution.* The registered question is whether the full Layer 2 pipeline physically clears the four-way intersection jam, which stays frozen when Layer 2 is off. The pipeline is the M5 trigger, a live M2 call, M3 `junction_clear` grounding and phased M4 dispatch #ev("5.17"). The registration states in advance that a resolved episode shows the *pipeline* resolving the jam, not the model's own choice, because M3 can repair or replace the model's plan.
 
@@ -60,15 +60,15 @@ The second design was written on the day the first was tagged, and was revised s
 
 === prereg-v3: fixed stack, emergent congestion
 
-The third design dates from 2026-10-06 #ev("5.08"). Two things forced it. First, a fix to the navigation costmap changed the reactive layer itself, so v3 treated the fixed stack as ground truth and required outcome checks instead of assuming that earlier results carried over #ev("5.08"). Second, the project wanted congestion that *emerges* from a stream of tasks rather than being staged, which led to the S1 scene family and its sparse variant S1b. v3 then grew through append-only addenda. For the claims of this thesis, A32 to A35 matter most, because they fixed the S1b configuration, the measures and the Arm B control before tranche 1 ran. A8, A9 and A15 explain the IB10 remedy and the S1b conflict class, and A36 records the tranche-1 outcome and one deviation. The relevant addenda are:
+The third design dates from 2026-10-06 #ev("5.08"). Two things forced it. First, a fix to the navigation costmap changed the reactive layer itself, so v3 treated the fixed stack as ground truth and required outcome checks instead of assuming that earlier results carried over #ev("5.08"). Second, the project wanted congestion that *emerges* from a stream of tasks rather than being staged, which led to the S1 scene family and its sparse variant S1b. v3 then grew through append-only addenda. For the claims of this report, A32 to A35 matter most, because they fixed the S1b configuration, the measures and the Arm B control before tranche 1 ran. A8, A9 and A15 explain the IB10 remedy and the S1b conflict class, and A36 records the tranche-1 outcome and one deviation. The relevant addenda are:
 
 - *v3 addenda A8 and A9* froze the IB10 release-lane remedy, a 0.33 m lateral pull-off for the held robot, and ruled the 0.20 m hard-contact floor a push limiter, not a contact preventer #ev("5.09").
 - *v3 addendum A15* recorded that two opposing robots could not pass each other under the 0.45 m proximity latch, and registered this "latch-on-pass" event as S1b's conflict class #ev("5.10").
 - *v3 addendum A32* froze the S1b configuration for confirmatory collection. *A33* defined every registered measure operationally before any confirmatory episode ran, labelling each choice as registered text or as a proposal. *A34* ruled every A33 proposal at its default and redefined Arm B as Layer 2 off. *A35* built that mode as the M5 key `reasoning_enabled: false`. *A36* recorded the tranche-1 outcome and one deviation, the GPU wall-clock, and left the design of tranche 2 to the owner #ev("5.11").
 
-The meaning of "Arm B" therefore changed. In v1 it was a classical reasoner, in v2 a no-congestion mock, and from v3 addendum A34 onward it is Layer 2 switched off #ev("5.46"). Only the last meaning applies to the experiments in this thesis.
+The meaning of "Arm B" therefore changed. In v1 it was a classical reasoner, in v2 a no-congestion mock, and from v3 addendum A34 onward it is Layer 2 switched off #ev("5.46"). Only the last meaning applies to the experiments in this report.
 
-No confirmatory data from the v1 or v2 collection tracks is reported in this thesis #ev("5.12"). #todo[[VERIFY] Owner to confirm why no v1 or v2 confirmatory data exists (collection stopped, or never completed) and add one sentence stating it with its source.]
+No confirmatory data from the v1 or v2 collection tracks is reported in this report #ev("5.12"). #todo[[VERIFY] Owner to confirm why no v1 or v2 confirmatory data exists (collection stopped, or never completed) and add one sentence stating it with its source.]
 
 The IB10 experiment and its grounder-default addendum are registered separately from prereg-v3, each written before its first episode #ev("5.17") #ev("5.20").
 
@@ -225,7 +225,7 @@ Every episode runs on one GPU virtual machine with Isaac Sim, the ROS 2 stack in
 
 *Caps.* A cumulative wall-clock cap of 5 h over all invocations, a total spend of \$1.00, and a per-episode guard of \$0.25 for Arm A; Arm C makes no calls #ev("5.30").
 
-*Post hoc re-run.* After the results of the registered run were known, the owner asked for one Arm C slot in the registered exclusion class to be re-run. An amendment registered that re-run before it started. It allowed exactly one launch with no bring-up retry, kept the registered invalid-jam rule (the re-run counts only if it forms a valid jam), and required that Arm C be reported both before and after the re-run, with its post hoc status stated #ev("5.31"). This thesis follows that rule.
+*Post hoc re-run.* After the results of the registered run were known, the owner asked for one Arm C slot in the registered exclusion class to be re-run. An amendment registered that re-run before it started. It allowed exactly one launch with no bring-up retry, kept the registered invalid-jam rule (the re-run counts only if it forms a valid jam), and required that Arm C be reported both before and after the re-run, with its post hoc status stated #ev("5.31"). This report follows that rule.
 
 === Safety gates
 
@@ -290,7 +290,7 @@ The threats below were known before the data they affect was collected. Each is 
 
 === Internal validity
 
-*M3 repairs or replaces the model's plan.* M3 verifies every plan and repairs or replaces it when it is infeasible. The IB10 registration records that in the earlier live pilot every IB10 plan was repaired or replaced by M3, and gives this as the reason for its claim wording #ev("5.17"). An Arm A success therefore shows that the *pipeline*, VLM plus grounding, clears the jam, not that the VLM's plan does. The design answers this in three ways. Provenance labels on every dispatch bound the model's share. Arm C runs the same pipeline with no model, handed the strategy and robot set, so it isolates M3’s default plan content #ev("5.20"). And the claims of this thesis are worded about the pipeline. Arm C does not remove the confound completely: it does not test strategy or robot selection, which it receives from the script, and it cannot re-plan after a failure, which Arm A can #ev("5.20").
+*M3 repairs or replaces the model's plan.* M3 verifies every plan and repairs or replaces it when it is infeasible. The IB10 registration records that in the earlier live pilot every IB10 plan was repaired or replaced by M3, and gives this as the reason for its claim wording #ev("5.17"). An Arm A success therefore shows that the *pipeline*, VLM plus grounding, clears the jam, not that the VLM's plan does. The design answers this in three ways. Provenance labels on every dispatch bound the model's share. Arm C runs the same pipeline with no model, handed the strategy and robot set, so it isolates M3’s default plan content #ev("5.20"). And the claims of this report are worded about the pipeline. Arm C does not remove the confound completely: it does not test strategy or robot selection, which it receives from the script, and it cannot re-plan after a failure, which Arm A can #ev("5.20").
 
 *The Layer-2-off control is a deterministic freeze.* Arm B is Layer 2 off, not a classical coordinator. In IB10 nothing acts on a formed jam once Layer 2 is off, so Arm B is expected to repeat one frozen state; it is a latch baseline. The B against A contrast is pipeline on against pipeline off, and says nothing about a VLM against a classical coordinator #ev("5.17").
 
