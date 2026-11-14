@@ -21,14 +21,14 @@ The left pane shows the scene. The right pane is a terminal that replays the run
      ```
 
      The `sort` orders the merged lines by their own wall stamp. The renderer runs this command for real and displays its output. `tests/unit/test_demo_panel.py` checks the command's output against a pure-Python version of the same filter. `tail -f m5.log m4.log | grep ...` is not used: on finished files it prints only the last lines of each file, under `==> file <==` headers.
-  2. `[… N similar lines]` markers. The M4 safety latch logs `safety stop robot=<id> reason=<r>` about 40 times per second per robot. Within one latch episode, the first line of each distinct message is shown verbatim. Repeats of it (same text apart from the wall stamp) are counted. The count is printed every 10 sim-s and when the episode ends. An episode ends after a gap of more than 2 wall-s between stop lines.
+  2. `[… N similar 'safety stop' lines]` markers. The marker names the line it collapses, so a reader does not take it for the line printed above it. The M4 safety latch logs `safety stop robot=<id> reason=<r>` about 40 times per second per robot. Within one latch episode, the first line of each distinct message is shown verbatim. Repeats of it (same text apart from the wall stamp) are counted. The count is printed every 10 sim-s and when the episode ends. An episode ends after a gap of more than 2 wall-s between stop lines.
   3. Read-only commands, each printed as `$ <command>` and followed by its actual output. When a `decision artifact written` line appears, the renderer runs short `jq` commands on `decisions/<request_id>.json`. They print:
      - the request: prompt version, a 12-character prefix of the prompt's SHA-256, the prompt length, and the prompt's first line;
      - the model call: backend, served model, latency, attempts and total tokens;
      - the decision: strategy, involved robots and the model's justification;
      - grounding (only when `plan` is not null): provenance, rejection reason, degradations and dispatch order.
 
-     When `cost.log` exists, the renderer also runs `grep -m1 ' billed_calls=<n> ' cost.log`, at the time of that poll line.
+     When `cost.log` exists, the renderer also runs `grep -m1 ' billed_calls=<n> ' cost.log` for each poll where `billed_calls` first rose. The poll stamp is `HH:MM:SS` UTC, so the poll is placed at the end of its second. It therefore never prints before the artifact it counts.
 - **Colours.** One small fixed scheme: M5 lines white, M4 lines cyan, WARN yellow, commands green, markers grey.
 - **Wrapping.** Long lines wrap at the terminal width, as a real terminal wraps them. Nothing is truncated.
 - **Captions.** Captions sit outside the terminal: the run label, sim clock, speed state and a provenance sentence.
@@ -63,13 +63,16 @@ Run from the repo root, with `jq`, `grep`, `sort`, `awk`, `bash` and `ffmpeg` on
 # One bundle, ground-truth reconstruction on the left:
 python3 scripts/render_demo_panel.py render --bundle <bundle_dir> --out data/demo/<label>_panel.mp4 --stills
 
-# One bundle with a real camera recording on the left (one-liner once footage exists):
-python3 scripts/render_demo_panel.py render --bundle <bundle_dir> --camera <bundle_dir>/rec/<clip>.mp4 --camera-map <bundle_dir>/rec/<frame_map>.json --out data/demo/<label>_panel.mp4 --stills
+# One bundle with a real camera recording on the left (one-liner once footage exists;
+# list the recorder's segments in order):
+python3 scripts/render_demo_panel.py render --bundle <bundle_dir> --camera <bundle_dir>/rec/annotated_000.mp4 <bundle_dir>/rec/annotated_001.mp4 --camera-map <bundle_dir>/rec/<frame_map>.json --camera-label "Camera: /perception/annotated_frame" --out data/demo/<label>_panel.mp4 --stills
 
 # Several bundles one after the other, with caption cards; --calibrate-on measures the
 # fallback time anchor's error on a bundle that has real anchors:
 python3 scripts/render_demo_panel.py sequence --bundle <on> --bundle <off> --calibrate-on <on> \
   --card "Part 1 ..." --card "Part 2 ..." --out data/demo/<name>.mp4 --stills
+# add footage for the i-th bundle (others keep the GT reconstruction):
+#   --camera-for <i> <map.json> <segment_000.mp4> [<segment_001.mp4> ...]
 ```
 
 Output is H.264 (`libx264`, `yuv420p`, `+faststart`, 24 fps, 1920x1080), so it plays in QuickTime, browsers and on phones. `data/demo/` is git-ignored.
@@ -80,7 +83,7 @@ Output is H.264 (`libx264`, `yuv420p`, `+faststart`, 24 fps, 1920x1080), so it p
 - `{"frame_sim_times": [...]}` (one sim time per frame)
 - `{"first_stamp": s0, "last_stamp": s1, "frames": n}`
 
-Between anchors the frame-to-sim map is linear. Outside them the pane is blank.
+Between anchors the frame-to-sim map is linear. Outside them the pane is blank. Several `--camera` segments are read as one clip, and the frame index runs on across them. The camera path was exercised end to end with a synthetic two-segment `mp4v` clip on `ib10S_e03_armA_a1`; no real footage was available yet.
 
 ## Recording a Real Camera Video Later
 
