@@ -318,17 +318,23 @@ def test_key_on_only_removes_pairs():
         assert on.waivers == off.waivers
 
 
-def test_key_on_leaves_latch_waiver_capture_unchanged():
-    # A19 reads the legacy own-command set (plan partners included), so the
-    # captured waivers are the same with the key on; P4 is out of scope.
+def test_latch_waiver_capture_key_off_keeps_plan_partner_in_own_set():
+    # 68e67b5 pin: a named plan partner is "own", so A19 never waives it.
     latched = frozenset({("robot_1", "robot_2"), ("robot_1", "robot_3")})
-    results = []
-    for key in (False, True):
-        tracker = CoordinationTracker(scoped_exemption=key)
-        _reverse(tracker, "c-rev", "robot_1", partners=["robot_2"])
-        results.append(tracker.capture_latch_partners(latched))
+    tracker = CoordinationTracker(scoped_exemption=False)
+    _reverse(tracker, "c-rev", "robot_1", partners=["robot_2"])
 
-    assert results[0] == results[1] == [("robot_1", "c-rev", ("robot_3",))]
+    assert tracker.capture_latch_partners(latched) == [("robot_1", "c-rev", ("robot_3",))]
+
+
+def test_latch_waiver_capture_key_on_treats_unhonoured_partner_as_third_robot():
+    latched = frozenset({("robot_1", "robot_2"), ("robot_1", "robot_3")})
+    tracker = CoordinationTracker(scoped_exemption=True)
+    _reverse(tracker, "c-rev", "robot_1", partners=["robot_2"])
+
+    assert tracker.capture_latch_partners(latched) == [
+        ("robot_1", "c-rev", ("robot_2", "robot_3"))
+    ]
 
 
 # Config key, loader and startup line
@@ -518,3 +524,143 @@ def test_node_key_on_logs_unhonoured_partners_and_rejected_leg():
 
     assert any("plan continue partners not honoured" in m and "robot_2" in m for m in logs)
     assert any("rejected leg not a member robot=robot_3" in m for m in logs)
+
+
+# A19 inputs with the key on (owner ruling 2026-11-14): an unhonoured plan
+# partner and a rejected-leg robot are third robots, so a reverser that
+# starts latched with one is released one-sidedly and the other robot held.
+
+_LIMITS = SafetyLimits(min_distance_m=0.45, max_linear_velocity_mps=0.2)
+_LIMITS_FLOOR = SafetyLimits(
+    min_distance_m=0.45, max_linear_velocity_mps=0.2, hard_contact_floor_m=0.20
+)
+
+
+class _Monitor:
+    """The monitor's per-scene sequence (`SafetyMonitorNode._on_scene_state`)."""
+
+    def __init__(self, tracker: CoordinationTracker, limits: SafetyLimits = _LIMITS) -> None:
+        self.tracker = tracker
+        self.limits = limits
+        self.latched: frozenset[str] = frozenset()
+        self.pairs: frozenset[tuple[str, str]] = frozenset()
+        self.memory: dict = {}
+
+    def tick(self, robots: list[dict]) -> frozenset[str]:
+        self.tracker.capture_latch_partners(self.pairs)
+        evaluation = evaluate_latches(
+            robots, self.limits, self.latched, self.memory, self.tracker.exemption()
+        )
+        self.latched, self.pairs = evaluation.latched, evaluation.latched_pairs
+        self.memory = evaluation.last_fresh_distances
+        self.tracker.release_separated_waivers(self.pairs)
+        return self.latched
+
+
+def _vp10_robots() -> list[dict]:
+    # vp10 reverse 1296b5b8 at command start: robot_3 (continue) 0.354 m from
+    # robot_1 and 0.244 m from robot_2; robot_4 0.47 m from robot_3.
+    return [
+        _fresh("robot_1", -0.104, 0.0),
+        _fresh("robot_2", 0.25, 0.25),
+        _fresh("robot_3", 0.25, 0.006),
+        _fresh("robot_4", 0.25, -0.464),
+    ]
+
+
+def _vp10(key_on: bool) -> frozenset[str]:
+    tracker = CoordinationTracker(scoped_exemption=key_on)
+    monitor = _Monitor(tracker)
+    robots = _vp10_robots()
+    monitor.tick(robots)  # latches standing before the command
+    for robot_id in ("robot_1", "robot_2", "robot_4"):
+        _reverse(tracker, "c-1296-reverse", robot_id, partners=["robot_3"])
+    monitor.tick(robots)  # capture at command start
+    return monitor.tick(robots)
+
+
+def test_vp10_key_on_releases_reversers_and_holds_continuing_robot():
+    assert _vp10(True) == {"robot_3"}
+
+
+def test_vp10_key_off_holds_nobody():
+    # Legacy: robot_3 is an exempt plan partner of every reverser.
+    assert _vp10(False) == frozenset()
+
+
+def test_rejected_leg_robot_is_waived_and_held_with_key_on():
+    tracker = CoordinationTracker(scoped_exemption=True)
+    monitor = _Monitor(tracker)
+    robots = [_fresh("robot_1", 0.0, 0.0), _fresh("robot_3", 0.30, 0.0)]
+    _wait(tracker, "c-old", "robot_3")
+    monitor.tick(robots)
+    _busy_reject_setup_new_only(tracker)
+    monitor.tick(robots)
+
+    assert monitor.tick(robots) == {"robot_3"}
+
+
+def _busy_reject_setup_new_only(tracker: CoordinationTracker) -> None:
+    _reverse(tracker, "c-new", "robot_1")
+    tracker.record_command("c-new", "robot_3", "temporary_wait", {})
+    tracker.record_status("c-new", "robot_3", "FAILED", "robot busy: c-old")
+
+
+def test_rejection_after_capture_still_waives_start_latch_with_key_on():
+    # The bus FAILs a busy leg on receipt, but a scene tick can capture the
+    # waiver before that status arrives; the start-time latch still counts.
+    tracker = CoordinationTracker(scoped_exemption=True)
+    monitor = _Monitor(tracker)
+    robots = [_fresh("robot_1", 0.0, 0.0), _fresh("robot_3", 0.30, 0.0)]
+    _wait(tracker, "c-old", "robot_3")
+    monitor.tick(robots)
+    _reverse(tracker, "c-new", "robot_1")
+    tracker.record_command("c-new", "robot_3", "temporary_wait", {})
+    monitor.tick(robots)  # capture: robot_3 still looks like a member
+    tracker.record_status("c-new", "robot_3", "FAILED", "robot busy: c-old")
+
+    assert monitor.tick(robots) == {"robot_3"}
+
+
+def test_rejected_leg_without_start_latch_is_not_waived_with_key_on():
+    # A19 is frozen at command start: a latch that forms later still holds both.
+    tracker = CoordinationTracker(scoped_exemption=True)
+    monitor = _Monitor(tracker)
+    _wait(tracker, "c-old", "robot_3")
+    monitor.tick([_fresh("robot_1", 0.0, 0.0), _fresh("robot_3", 1.0, 0.0)])
+    _busy_reject_setup_new_only(tracker)
+    monitor.tick([_fresh("robot_1", 0.0, 0.0), _fresh("robot_3", 1.0, 0.0)])
+
+    assert monitor.tick([_fresh("robot_1", 0.0, 0.0), _fresh("robot_3", 0.30, 0.0)]) == {
+        "robot_1",
+        "robot_3",
+    }
+
+
+def _closing(limits: SafetyLimits, gap_m: float) -> frozenset[str]:
+    tracker = CoordinationTracker(scoped_exemption=True)
+    monitor = _Monitor(tracker, limits)
+    robots = [_fresh("robot_1", 0.0, 0.0), _fresh("robot_3", 0.40, 0.0)]
+    monitor.tick(robots)
+    _reverse(tracker, "c-rev", "robot_1", partners=["robot_3"])
+    monitor.tick(robots)
+    # The reverser drives TOWARD the continuing robot instead of away.
+    return monitor.tick([_fresh("robot_1", 0.40 - gap_m, 0.0), _fresh("robot_3", 0.40, 0.0)])
+
+
+def test_waived_reverser_closing_on_third_robot_is_not_held_above_floor():
+    # States what A19 does NOT require: a waiver has no direction check. It
+    # ends only when the pair separates past min_distance_m; while the
+    # reverser closes in it stays released and only the partner is held.
+    assert _closing(_LIMITS_FLOOR, 0.25) == {"robot_3"}
+
+
+def test_waived_reverser_closing_below_hard_contact_floor_is_held():
+    # The only backstop on a closing waived pair: the A8(ii) floor latches
+    # both robots of a waived pair under hard_contact_floor_m.
+    assert _closing(_LIMITS_FLOOR, 0.15) == {"robot_1", "robot_3"}
+
+
+def test_waived_reverser_closing_without_floor_is_never_held():
+    # Base safety.yaml has hard_contact_floor_m 0.0: no backstop at all.
+    assert _closing(_LIMITS, 0.10) == {"robot_3"}
