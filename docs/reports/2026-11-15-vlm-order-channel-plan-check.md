@@ -393,3 +393,64 @@ Run order: A3 rep 0, A3 rep 1, B3 rep 0, B3 rep 1. Output goes to a new director
 - B3: the 9 invalid-action nulls remain, so about 27 of 40 at most (2 verbatim + 25 yield-only repairs).
 
 No grounding, verification, parser or safety code changes. This is the last cycle; there is no third.
+
+### 10.3 Results (Verified, Cycle 2)
+
+Data: `data/experiments/2026-11-15-vlm-order-channel-plan-check-c2/` (`calls.jsonl`, `analysis.jsonl`, `summary.json`, `tables.txt`, `ledger.json`, `stimuli.json`). Code: `edeb98c` (sub-condition), `bcdb569` (pre-registration and runner conditions, committed before the first paid call).
+
+**Integrity (verified, free).** The 20 stimuli re-render exactly as in cycle 1 (16 of 20 byte-identical to the stored prompt; the same 4 October template differences). The cycle-1 A and B prompts reproduce for all 80 ER-2 calls (`user_sha256` 80 of 80). The release sentence adds 133 characters to every A and B prompt.
+
+**Run.** A3 complete (40). B3 **partial: 29 of 40** (rep 0 complete, rep 1 the first 9 stimuli), stopped by the pre-registered cap before the 30th call. One B3 attempt timed out at 120 s and the Reasoner's retry succeeded (`ib10L_e03` rep 1, 2 attempts). No refusals, no HTTP errors.
+
+| Count (ER-2) | A (cycle 1) | B (cycle 1) | **A3** | **B3 (partial)** |
+|---|---|---|---|---|
+| Calls billed | 40 | 40 | 40 | 29 |
+| Plans returned (valid response) | 40 | 40 | 40 | 29 |
+| Strategy `junction_clear`, all four robots | 40 | 40 | 39 (1 `none`, e09 third trigger) | 29 |
+| Structurally valid (plan present after parsing) | 29 | 31 | 36 | 27 |
+| ... nulled: robot named twice | 11 | 0 | 3 | 0 |
+| ... nulled: invalid action (options detail text) | 0 | 9 | 0 | 2 |
+| ... null plan / not congestion | 0 | 0 | 1 / 1 | 0 |
+| Targeted reason: `cross` with no earlier `yield` (raw plan) | 30 | 36 | 19 | 11 |
+| Recede set other than the structural pair (raw plan) | 29 | 11 | 27 | 5 |
+| **Accepted `vlm_verbatim`** | **2** | **2** | **6** | **14** |
+| `repaired` | 27 | 29 | 30 | 13 |
+| `m3_default` | 11 | 9 | 3 | 2 |
+| Verbatim with recede order = chi | 1 | 1 | 5 | 4 |
+| **Verbatim with recede order ≠ chi** | **1** | **1** | **1** | **10** |
+| ... of those, `dispatch_matches_plan` true | 0 | 1 | 0 | 7 |
+| All verbatim: `dispatch_matches_plan` true / false | 1 / 1 | 2 / 0 | 1 / 5 | 10 / 4 |
+| First-trigger answers | 38 | 38 | 38 | 27 |
+| FT: verbatim, order ≠ chi, phases ≠ no-plan default | 1 | 1 | 1 | 10 |
+| ... and `dispatch_matches_plan` | 0 | 1 | 0 | 7 |
+
+Per replicate: A3 verbatim 4 / 2, order changes 1 / 0. B3 verbatim 10 of 20 / 4 of 9, order changes 6 / 4.
+
+**What the sentence did (verified counts; causal reading inferred).**
+
+- It cut the targeted reason under both prompts: A 30 → A3 19 of 40; B 36 of 40 → B3 11 of 29. Releasing-yield repair edits: A3 5 of 30 repaired plans, B3 11 of 13.
+- **A3 (no options block):** verbatim rose from 2 to 6 of 40, within the pre-registered ceiling of about 7. The recede-set error now dominates (26 of 30 repaired plans; parsed plans with the correct pair 10 of 36). Only 1 of the 6 verbatim plans changes the recede order, and it names robot_2 as yielder, so dispatch replaces the yielder (`dispatch_matches_plan=false`). 5 of 6 A3 verbatim plans name robot_2 as yielder.
+- **B3 (options block, partial):** verbatim rose from 2 of 40 to 14 of 29. 10 of the 14 have a recede order that differs from chi; 7 of those 10 also match dispatch (robot_1 as yielder). The 4 non-matching verbatim plans name robot_2 as yielder. The invalid-action defect persists at a lower rate (2 of 29 versus 9 of 40).
+- In every order change, only the `recede` phases differ from the no-plan default. Every differing order was accepted within epsilon: chi margins 0.003 to 0.096, all below 0.15.
+- No grounding failure and no yield refusal in either condition. The structural checks that fired are the same as in cycle 1.
+
+**Per-episode chance of the demo event** (FT: verbatim AND order ≠ chi AND `dispatch_matches_plan`), from these offline answers:
+
+| Condition | Per episode | Over 5 takes (inferred, 1 − (1 − p)^5) |
+|---|---|---|
+| A3 | 0 of 38 | about 0 |
+| B3 (partial) | 7 of 27 (26 %) | about 78 % |
+
+**Reading against the owner criteria (section 6).**
+
+- **A3 alone does not make the ER-2 demo viable:** the order channel fires once in 38 first triggers, and that once is not executed as written.
+- **B3 does, on this evidence, but it is a construct change** (constrained selection from the options block, section 5), and its n is 29, not 40. Whether B3 is acceptable as the demo condition is an owner decision. The yielder gap (robot_2 named as yielder) still costs 4 of 14 B3 verbatim plans.
+- Same limits as section 8: one scene, near-identical snapshots, small n; the demo would show causal control over the recede order, not a better order.
+
+**Runtime delta now stale.** The md5s in `docs/superpowers/specs/2026-11-15-demo-runtime-delta.md` predate `edeb98c` for five runtime files. Current md5s: `prompt_builder.py` `a9ad857cf8355cd9f5601124b0b814b2`, `reasoning/vlm/models.py` `2025f18179c9f3b05a81072027c32637`, `swarm_orchestrator/models.py` `73f3fa4f35ceab61a5df646a71a902a6`, `orchestrator_node.py` `37a6bbadf91cb8c9def21d6f625c8bfe`, `reasoning_pipeline.py` `49fff7ab8fb460b9a94ea198cf5b523a`. A demo overlay for A3 or B3 adds `prompt_plan_grammar_release_rule: true` to the A or B fragment. The spec itself is not updated here.
+
+**Tests (verified).** `tests/unit/test_prompt_plan_grammar_rules.py`: 79 pass (40 before, 39 new). Full unit suite: 7046 passed, 57 failed, 3 collection errors, against 7007 / 57 / 3 at `e5ea5e2`; the failure lists are identical. No existing test was edited.
+
+**Analysis-only change.** `analyze_one` now records a `strategy: none` answer as `not_congestion` and stops, because `verify_and_repair_plan` raises on it. Cycle 1 had no such answer, so its rows are unaffected. No grounding, verification, parser or safety code changed.
+
+**Spend (verified, `ledger.json`).** 69 billed calls, ledger $0.583 (list × 1.25), so **$0.466 at list**, under the $0.50 cap. No probe was run. The timed-out attempt is not in the ledger; whether Google bills it is unknown.

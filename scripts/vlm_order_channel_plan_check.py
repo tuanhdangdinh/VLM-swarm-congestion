@@ -691,6 +691,11 @@ def analyze_one(s: Stimulus, result: ReasonerResult, condition: str) -> dict[str
     row["raw_plan_verdict"] = verdict
     if not row["plan_present"]:
         row["raw_plan"] = raw_legs
+    # A "no congestion" answer has no plan to verify (verify_and_repair_plan
+    # raises on it) and M5 dispatches nothing; record it and stop here.
+    if dec.strategy == "none":
+        row["chi_provenance"] = "not_congestion"
+        return row
     frame = snapshot_frame_from_request(request)
     geometry = s.config.scenario_geometry
     if dec.strategy == "junction_clear":
