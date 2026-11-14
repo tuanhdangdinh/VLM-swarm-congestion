@@ -72,3 +72,6 @@ lin2023vila — VILA: On Pre-training for Visual Language Models (topic tag: vlm
 zafar2025swarmvlm — SwarmVLM: VLM-Guided Impedance Control for Autonomous Navigation of Heterogeneous Robots in Dynamic Warehousing (topic tag: vlm-planner) — arXiv:2508.07814
 garg2026online — Online Motion Planning for Connected Multi-Robot Systems using Vision Language Models as High-Level Planners [project page of the 2026 PMLR paper; no PMLR/arXiv record found; arXiv antecedent is garg2024foundation] (topic tag: vlm-planner) — https://mit-realm.github.io/VLM-gcbfplus-website/
 google2026geminier2 — Gemini Robotics ER 2 [exact page name "Gemini Robotics ER 2"; model id gemini-robotics-er-2] (topic tag: tools) — https://deepmind.google/models/gemini-robotics/embodied-reasoning/
+efron1994introduction — An Introduction to the Bootstrap (Chapman and Hall/CRC; Crossref dates this edition 1994-05-15, the book is commonly cited as 1993) (topic tag: other) — DOI:10.1201/9780429246593
+wilson1927probable — Probable Inference, the Law of Succession, and Statistical Inference (topic tag: other) — DOI:10.1080/01621459.1927.10502953
+kaplan1958nonparametric — Nonparametric Estimation from Incomplete Observations (topic tag: other) — DOI:10.1080/01621459.1958.10501452
