@@ -51,7 +51,7 @@ These questions frame the thesis. The experiments that were finally run answer n
     [prereg-v3 tranche 1 (pilot)], [RQ2; RQ1 in part], [Layer 2 off. Decision measures (detection, type label, involved-robot F1) exist only for Arm A, which calls the model.],
     [IB10, Layer 2 on against off], [RQ2], [Layer 2 off; the jam is expected to stay frozen. Not a per-type policy table.],
     [IB10, grounder default], [Share of RQ2 credited to the grounder], [The same pipeline with no VLM call, handed the strategy and robot set.],
-    [Offline bench], [RQ1 and RQ3, decision level only], [A default-ordered first-option chooser and the classical chooser, a rule-based reference that is not the registered RQ2/RQ3 comparator (@sec:ch5-bench); text only, nothing is executed.],
+    [Offline bench], [RQ1 and RQ3, decision level only], [A default-ordered first-option chooser and the classical chooser, a rule-based reference that does not serve as the registered RQ2/RQ3 comparator here (@sec:ch5-bench); text only, nothing is executed.],
   ),
   caption: [Which registered research questions each experiment informs, and against what.],
 ) <tab:intro-rq-map>
