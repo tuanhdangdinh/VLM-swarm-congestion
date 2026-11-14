@@ -233,8 +233,19 @@ This is consistent with ordering by robot id more often than by chi. Inferred; t
 
 - **It works for that cause.** ER-2's structural recede-set edits drop from 51 under A to 2 under B.
 - **It exposes the next blocker.** ER-2 omits the releasing `yield`, which accounts for 30 edits. The second grammar sentence does not fix this, even with `yield` listed for robot_1 and robot_2.
-- **It adds a new defect.** The block renders details in parentheses (`reverse (north arm)`, `_render_option`). ER-2 copied them as the action in 9 of 40 answers, and the parser nulled those plans. Sonnet did not do this.
+- **It adds a new defect.** The block renders details in parentheses (`_render_option`). ER-2 copied them as the action in 9 of 40 answers, and the parser nulled those plans. Sonnet did not do this. The block as rendered for ib10S_e03 (verified):
+
+```text
+Plan actions the system's verifier accepts for each robot in the current scene (a plan leg outside these is repaired or the plan is replaced):
+- robot_1: yield, cross, wait, reroute
+- robot_2: yield, cross, wait, reroute
+- robot_3: yield, reverse (south arm), cross, wait, reroute
+- robot_4: yield, reverse (north arm), cross, wait, reroute
+```
+
 - **Net effect for ER-2:** B gives the same verbatim rate as A (2 of 40). It is also a construct change (constrained selection).
+
+**Decision:** on this evidence, `prompt_candidate_options` should not be part of the ER-2 demo condition. It does not raise the verbatim rate, it adds an invalid-action failure mode, and it changes what is being demonstrated.
 
 ---
 
@@ -254,6 +265,13 @@ This is consistent with ordering by robot id more often than by chi. Inferred; t
 |---|---|---|---|
 | A | 1 of 38 = 2.6 % | about 12 % | 0 of 38 |
 | B | 1 of 38 = 2.6 % | about 12 % | 1 of 38 |
+
+**By stimulus class.** The A event is on `ib10L_e05`, a November live snapshot. The B event is on `vp08`, an October snapshot whose base prompt was re-rendered from v3.2.
+
+| Condition | November live (`ib10L` + `ib10S`) | October | Arm C |
+|---|---|---|---|
+| A | 1 of 20 | 0 of 8 | 0 of 10 |
+| B | 0 of 20 | 1 of 8 | 0 of 10 |
 
 The 5-take figure is 1 − (1 − p)^5. It assumes independent takes and live triggers like these snapshots; it is inferred, not measured.
 
@@ -286,6 +304,10 @@ Either is a new design change that would need its own offline check, about $0.35
 - Sonnet and gpt-4o coverage is partial (sub-caps). Their Arm C coverage is the thinnest.
 - ER-2's sampling fields are dropped by its adapter, as live, so replicates vary by provider sampling.
 - No stage-2 calls. M4 safety is not exercised offline.
+- Some analysis fields were added after the first answers were seen: the `invalid_leg` verdict, `model_pair_order` and the `tables` grouping. The paid calls, conditions and stop rules followed the committed design unchanged. Every count re-derives from `calls.jsonl` with `analyze` and `tables`.
+- Every call took exactly one attempt and none recorded an error (verified, `calls.jsonl`).
+- The startup line is unit-tested as a function (`plan_order_status_line`). Its emission by the node is wired, but no node-level test asserts the log call. The first live take should confirm it in `m5.log`.
+- The two new scripts keep 11 lines over 100 characters (ruff E501), mostly the `STIMULI` table. The runtime files are lint-clean.
 
 ---
 
@@ -305,4 +327,5 @@ Either is a new design change that would need its own offline check, about $0.35
 
 - The trace expected the first sentence to remove the robot-named-twice cause. Under A, ER-2 still did it in 11 of 40 answers. The trace's recorded rate was 3 of 41, but on prompt v3.4 without the sentence and over different calls, so the two rates are not directly comparable.
 - The trace expected B to address the dominant repair cause. It does (51 to 2 edits), but the verbatim rate does not move, because the releasing-yield omission takes over and the options detail text introduces invalid actions.
-- The trace's scorer-based view of recorded order can mislead: `chi_pair.executed_recede` reads `plan.legs`, not dispatch (section 4).
+
+**A separate note, not a contradiction of the trace.** The trace read executed order from m5/m4 and `junction_phases`. The frozen scorer's `chi_pair.executed_recede` reads `plan.legs` instead (`scripts/coverage_scene_scores.py:1039-1057`, verified). For ib10S_e01, `plan.legs` lists `4rev 3rev` while `m5.log` dispatched `junction-recede-robot_3` first (verified).
