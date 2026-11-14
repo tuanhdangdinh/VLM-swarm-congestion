@@ -24,7 +24,7 @@
 
     step("1", "Detect", [M1 scene state, M5 congestion timeout], (0, 0), <detect>),
     step("2", "Decide", [M2 VLM decision, validated], (1, 0), <decide>),
-    step("3", "Ground", [M3 retrieval and command], (2, 0), <ground>),
+    step("3", "Ground", [M3 feasibility and command], (2, 0), <ground>),
     step("4", "Act", [M4 dispatch to Nav2], (3, 0), <act>),
     step("5", "Resolve", [M1 observes, M5 closes], (4, 0), <resolve>),
 
