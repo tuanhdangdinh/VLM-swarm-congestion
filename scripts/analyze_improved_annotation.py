@@ -166,7 +166,12 @@ def conditional_rule(model: str, rows: list[dict[str, Any]], cell: str) -> dict[
 
     control = CONTROL_OF[cell]
     v, c = stats(cell), stats(control)
-    if not v["assessable"]:
+    ok_v, why_v = assessable(model, rows, cell)
+    ok_c, why_c = assessable(model, rows, control)
+    if not (ok_v and ok_c):
+        # Amendment 1: rule 6 makes any rule needing an incomplete cell not assessable.
+        verdict = f"NOT ASSESSABLE ({cell}: {why_v}; {control}: {why_c})"
+    elif not v["assessable"]:
         verdict = "NOT ASSESSABLE (too few named runs)"
     else:
         sides_ok = all(s["accuracy"] >= COND_ACCURACY for s in v["sides"].values())
@@ -219,14 +224,14 @@ def line_effect(rows: list[dict[str, Any]], with_line: str, without: str) -> dic
     return out
 
 
-def line_alone_flag(effect: dict[str, Any]) -> str:
+def line_alone_flag(effect: dict[str, Any], complete: bool = True) -> str:
     """D_ref+P check: does the line move correctness with the grey image?
 
     Flags when D_ref+P - D_ref >= 0.15 overall (leak), or when either side moves
     by >= 0.25 in absolute value (a bias shift that may cancel overall).
     """
-    if effect["delta"] is None:
-        return "NOT ASSESSABLE"
+    if effect["delta"] is None or not complete:
+        return "NOT ASSESSABLE (a cell of the pair is incomplete)"
     side_shift = max(abs(v) for v in effect["per_side"].values())
     if effect["delta"] >= LINE_FLAG_OVERALL:
         return f"FLAG: leak (overall {effect['delta']:+.3f})"
@@ -419,7 +424,8 @@ def report_model(model: str, rows: list[dict[str, Any]], prev: list[dict[str, An
     print("\n### Prompt-line effect (D_ref+P check first)")
     d_eff = line_effect(rows, "D_ref+P", "D_ref")
     print(f"- D_ref+P - D_ref: {d_eff}")
-    print(f"  -> line-alone check: **{line_alone_flag(d_eff)}**")
+    complete = assessable(model, rows, "D_ref+P")[0] and assessable(model, rows, "D_ref")[0]
+    print(f"  -> line-alone check: **{line_alone_flag(d_eff, complete)}**")
     for pair in (("L2+P", "L2"), ("C_ref+P", "C_ref"), ("K1+P", "K1")):
         print(f"- {line_effect(rows, *pair)}")
     if model == "gemini":
@@ -442,6 +448,58 @@ def report_model(model: str, rows: list[dict[str, Any]], prev: list[dict[str, An
     scene_table(rows, cells)
     print("\n### Same-day drift: earlier replay vs this run, original 12 scenes")
     drift(rows, prev, model)
+    rep1 = [r for r in rows if r["replicate"] == 1]
+    if model == "gemini" and all(
+        sum(r["cell"] == c for r in rep1) == 2 * SCENES_PER_SIDE * len(ORDERS) for c in cells
+    ):
+        replicate1_indication(rep1, cells)
+
+
+def is_provider_stop_row(row: dict[str, Any]) -> bool:
+    """A run the account stop cut off: no model outcome, so it is not a data point."""
+    return row["decision"] is None and bool(row.get("provider_stop"))
+
+
+def replicate1_indication(rows: list[dict[str, Any]], cells: tuple[str, ...]) -> None:
+    """Amendment 1: the complete replicate 1 of ER-2, as an indication only.
+
+    Same shares as rule 1 with r = 1: in each side x order cell >= 9/12 runs
+    correct (the scene clause is subsumed), and P(V) - P(control) >= 0.25 over the
+    48 runs. Never reported as "passes" or "image use"; it cannot overturn rule 6.
+    """
+    print("\n### Amendment 1: ER-2 replicate 1 only (indication, not a verdict)")
+    side_order_table(rows, cells)
+    for cell in ("L2", "C_ref", "L2+P", "C_ref+P", "K1"):
+        if cell not in cells:
+            continue
+        control = CONTROL_OF[cell]
+        sub = [r for r in rows if r["cell"] == cell]
+        ctl = [r for r in rows if r["cell"] == control]
+        per = {}
+        for side in SIDES:
+            for order in ORDERS:
+                k = sum(
+                    r["outcome"] == "correct"
+                    for r in sub
+                    if r["side"] == side and r["order"] == order
+                )
+                per[f"{side}/{order}"] = k
+        cells_ok = all(k >= RUN_SHARE * SCENES_PER_SIDE for k in per.values())
+        margin = p_correct(sub) - p_correct(ctl)
+        meets = cells_ok and margin >= CONTROL_MARGIN
+        print(
+            f"- `{cell}` vs `{control}`: per side x order correct {per} (of 12); "
+            f"margin {margin:+.3f}; "
+            f"{'meets the shares (indication only)' if meets else 'does not meet the shares'}"
+        )
+        named = [r for r in sub if r["outcome"] in ("correct", "wrong")]
+        print(
+            f"    named {len(named)}: west side "
+            f"{sum(r['outcome'] == 'correct' for r in named if r['side'] == 'west')}/"
+            f"{sum(r['side'] == 'west' for r in named)}, east side "
+            f"{sum(r['outcome'] == 'correct' for r in named if r['side'] == 'east')}/"
+            f"{sum(r['side'] == 'east' for r in named)}"
+        )
 
 
 def main() -> None:
@@ -475,6 +533,11 @@ def main() -> None:
     print(f"  TOTAL usd={grand:.4f}")
     for model in REPLICATES:
         rows = load(args.out_dir / f"calls_{model}.jsonl")
+        stops = [r for r in rows if is_provider_stop_row(r)]
+        if stops:
+            keys = [r["key"] for r in stops]
+            print(f"\n  {model}: {len(stops)} provider-stop row(s) excluded: {keys}")
+        rows = [r for r in rows if not is_provider_stop_row(r)]
         if rows:
             report_model(model, rows, prev)
 

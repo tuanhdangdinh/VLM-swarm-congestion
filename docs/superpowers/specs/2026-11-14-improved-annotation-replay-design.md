@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: design frozen before the first paid call. Implements the recommended design of `docs/reports/2026-11-14-improved-annotation-test-scope.md` (Rev 2), with the owner's choices (prompt-line factor run alongside) and the differences listed under "Differences From the Scope".
+- Rev 2 (2026-11-14): amendment 1 after both providers hit account limits (OpenAI credit, Gemini project spend cap): completeness gate, stop-row handling, resume fix, ER-2 replicate-1 indication.
 
 ---
 
@@ -477,4 +478,74 @@ The 96 prompt md5s (24 scenes x 2 orders x base/`+P`) are in `manifest.json`.
 
 ## Amendments
 
-None yet.
+### Amendment 1 (2026-11-14, after both provider stops, before any table was read)
+
+**What happened.** Both providers were stopped by their **account limits**, not by
+this experiment's caps. The pre-stated quota stop rule fired each time, and neither
+provider was re-probed or retried.
+
+| Provider | Stopped at (UTC) | Provider message (class) | Runs done / planned | Spend |
+|---|---|---|---|---|
+| OpenAI (gpt-4o) | 15:29:52 | HTTP 429 "You have no credits remaining" (credit exhausted) | 231 / 672, plus 1 stop row | $1.62 |
+| Gemini (ER-2) | 16:08:31 | HTTP 429 "temporarily rate-limited to prevent exceeding its monthly spending cap" (project spend cap) | 457 / 1,344, plus 1 stop row | $1.88 |
+
+Total spend $3.50 including probes, against the $12.00 cap. Both pilots passed with
+all 7 cells kept (`budget_<model>.json`). Data state:
+
+- **ER-2:** pilot plus the full replicate-1 block (7 cells x 24 scenes x 2 orders =
+  336 runs, no error row), plus 121 replicate-2 runs.
+- **gpt-4o:** pilot plus 203 of the 308 replicate-1 block runs. Each cell has 29-37
+  runs, on different scene/order subsets.
+
+**Consequences under the frozen rules.**
+
+- Every cell of both models is incomplete. Rule 6 therefore makes every pre-stated
+  verdict (rules 1-5, the line-alone flag) **not assessable**. This is a missing
+  result, not a negative one.
+
+**Analysis code changes** (made after rows existed, before any table was read):
+
+1. **Completeness gate.** `conditional_rule` and `line_alone_flag` now return "not
+   assessable" when a cell they need is incomplete. As frozen, only `rule1` checked
+   completeness, so the code could have printed a verdict that rule 6 forbids.
+2. **Provider-stop rows.** The two runs cut off by the stops
+   (`openai|D_ref+P|7b0fbf9e…|id_asc|r1`, `gemini|C_ref|5e7b5a59…|id_asc|r2`) have no
+   model outcome. They are excluded from all counts and listed separately. They are not
+   model errors.
+3. **Resume fix (runner).** A run with no decision and a recorded provider stop no
+   longer counts as done, so a resume re-runs it.
+4. **Secondary view, ER-2 only: replicate 1.** It is the only balanced complete subset,
+   with 48 runs per cell. It uses rule 1's shares at r = 1: at least 9/12 correct in
+   each side x order cell, and P(V) - P(grey control) of at least 0.25 over 48 runs.
+   The scene clause is subsumed at r = 1.
+   - Labelled an **indication** only. It is never reported as "passes" or "image use",
+     and it cannot overturn rule 6.
+   - 4 of each cell's 48 runs are pilot runs. They ran first and were not interleaved
+     with the main block.
+   - The conditional-rule statistics are printed for the full data but carry no
+     verdict.
+5. **gpt-4o:** descriptive counts only, with denominators; no cross-cell contrast is
+   interpreted.
+
+**Seen before this amendment.** These were in the runner's progress lines:
+
+- the gpt-4o pooled outcome census (121 correct, 109 wrong, 1 no yielder, 1 stop row);
+- scattered per-run log lines from both models.
+
+No per-cell table had been printed or read.
+
+**Resuming (owner decision).** The runner resumes on its keys. It needs:
+
+- the OpenAI account topped up and the Gemini project spend cap raised;
+- a further dated amendment, committed before the first resumed call, that records
+  the session gap. The gap breaks the same-session premise, so resumed rows must be
+  compared with pre-gap rows before pooling.
+
+Remaining runs at the observed per-run costs:
+
+| Model | Remaining runs | Cost per run | Cost to finish |
+|---|---|---|---|
+| gpt-4o | 441 | $0.0070 | about $3.08 |
+| ER-2 | 887 | $0.0041 | about $3.64 |
+
+Total about $6.70, giving about $10.20 overall, within the $12.00 cap.

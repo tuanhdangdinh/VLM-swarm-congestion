@@ -438,7 +438,9 @@ def execute_model(
     proxy = PromptLineProxy(make_backend(backend_id, backend_config), pace_sec)
     commit = git_commit()
     rows = load_jsonl(calls_path)
-    done = {r["key"] for r in rows}
+    # Amendment 1: a run cut off by a provider stop has no model outcome, so a
+    # resume re-runs its key; the analysis drops the stop row.
+    done = {r["key"] for r in rows if not (r["decision"] is None and r.get("provider_stop"))}
     prompt_bound = DEFAULT_PROMPT_TOKENS_BOUND
     for r in rows:
         for a in r["attempts"]:

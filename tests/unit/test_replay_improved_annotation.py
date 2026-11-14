@@ -18,6 +18,7 @@ from reasoning.vlm.models import BackendResponse, ReasonerConfig, StaticObstacle
 from reasoning.vlm.reasoner import Reasoner
 from scripts.analyze_improved_annotation import (
     conditional_rule,
+    is_provider_stop_row,
     line_alone_flag,
     line_effect,
     rule1,
@@ -370,3 +371,23 @@ def test_original_12_prompts_equal_earlier_replay_text_off_prompts():
     assert len(pairs) == 24
     for (scene, order), sha in pairs.items():
         assert manifest["scenes"][scene]["prompts"][order]["base_sha256"] == sha
+
+
+def test_conditional_rule_not_assessable_when_cell_incomplete():
+    rows = _rows("L2", "gemini", lambda side, s, order, rep: rep < 1, scenes=10)
+    rows += _rows("D_ref", "gemini", lambda *a: False)
+    assert conditional_rule("gemini", rows, "L2")["verdict"].startswith("NOT ASSESSABLE")
+
+
+def test_line_alone_flag_not_assessable_when_incomplete():
+    rows = _rows("D_ref+P", "openai", lambda side, *a: side == "west") + _rows(
+        "D_ref", "openai", lambda *a: False
+    )
+    effect = line_effect(rows, "D_ref+P", "D_ref")
+    assert line_alone_flag(effect, complete=False).startswith("NOT ASSESSABLE")
+
+
+def test_provider_stop_row_is_not_a_data_point():
+    assert is_provider_stop_row({"decision": None, "provider_stop": "HTTP 429 (quota/credit)"})
+    assert not is_provider_stop_row({"decision": None, "provider_stop": None})
+    assert not is_provider_stop_row({"decision": {}, "provider_stop": "x"})

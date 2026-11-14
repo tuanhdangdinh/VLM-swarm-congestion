@@ -1,0 +1,28 @@
+{
+ "stamp_utc": "2026-11-14T15:16:52.794+00:00",
+ "pilot_stopped_cells": [],
+ "kept_cells": [
+  "L2",
+  "D_ref",
+  "L2+P",
+  "D_ref+P",
+  "C_ref",
+  "K1",
+  "C_ref+P"
+ ],
+ "projection_log": [
+  {
+   "cells": [
+    "L2",
+    "D_ref",
+    "L2+P",
+    "D_ref+P",
+    "C_ref",
+    "K1",
+    "C_ref+P"
+   ],
+   "projected_usd": 5.935,
+   "fits": true
+  }
+ ]
+}
