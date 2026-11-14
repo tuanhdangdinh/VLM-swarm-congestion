@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: results of the 10-slot IB10 run of 2026-11-14 (key-on safety smoke, Arm A live ER-2, Arm C grounder default only), registered in `docs/superpowers/specs/2026-11-14-ib10-safety-default-arm-addendum.md`.
+- Rev 2 (2026-11-14): added the section "Re-run of slot e02 (2026-11-14)". The original sections are not rewritten. Where they say e02 was not re-run, that section supersedes them.
 
 ---
 
@@ -277,6 +278,142 @@ Secret check on the tree before archiving (counts of matching files only, nothin
 
 ---
 
+## Re-run of Slot e02 (2026-11-14)
+
+**This re-run is post hoc.** The owner ordered it on 2026-11-14 ("re-run the invalid default-only episode") after seeing every result above. It is registered in the addendum's section 13 (commit `e6a904e`), which was committed before the run. The counting rule is the one already registered: an invalid jam is excluded from the denominator and reported. There is no third attempt.
+
+The sections above are left as written. Their statements that e02 "was not re-run" (Limitations, Open Items, and the e02 counting paragraph) are superseded by this section.
+
+### Run
+
+| Item | Value |
+|---|---|
+| Bundle | `ib10S_e02_armC_a2`, stamp `20261114_105811`. One invocation (`run_ibs.sh rerun`), one launch, no bring-up retry. |
+| Settings | Same as every Arm C episode. `CONDITION.txt`: `tag=ib10_safety record=0 confirmatory=0 arm=C backend=mock mock_echo=0`, script md5 `6c670a6e1fd0ea1cb1704075f64e2816`, overlay md5 `0196f1e8db0ffb9553c166707441362d`, seed 42. `ep_run_ibs.sh`, `cond_ibs.py`, `ibs_env.sh`, deploy, restore and overlay are byte-identical to the original run. |
+| Timeline (UTC) | Driver start 10:53:36. VM start 10:53:48. Snapshot, build, deploy and ov OK by 10:58:05. Episode end 11:17:12. `RESTORE_IBS OK` 11:17:53. VM `TERMINATED` (verified by the driver) 11:19:27. |
+| Gates | Chain: `COND arm=C artifacts=2 dispatched=1 analyses=2 ... backends=['mock'] models=['None'] provenance=[('m3_default','plan absent')] tokens=0`, `GATE OK`, `RESTORE OK`, `outcome=ran`, `CHAIN_IBS DONE`, driver `result=ok`. Restore: `installed packages == snapshot (72 files)`, `PINS_V3 OK`, `RESTORE_IBS OK`. No `RESTORE_FAILED_*` or `VM_NOT_STOPPED_*` marker. |
+| Wall clock | 1,539 s booked in `wallclock_ledger_rerun.tsv`. Total 13,863 s of the 18,000 s cap. |
+| Spend | $0. No cost log, no probe line for the label, no Gemini call. |
+
+### a2 Facts
+
+Each fact below was verified from the raw bundle unless it is marked "scorer".
+
+- **Map start-up was clean** (`startup_check_ibs.py`):
+  - robot_1's stack (the `map_server` host) logged `Activating map_server` once and the map lifecycle manager logged `Managed nodes are active` once.
+  - There was no `change_state` response timeout.
+  - All four stacks logged 0 `no map received` and 0 `Costmap timed out waiting for update` lines.
+  - The e02 a1 failure did not repeat.
+- **Jam valid** (scorer): `jam_valid: true`, onset 27.5 s, t0 17.0 s.
+  - Our own t0 rule (the first GT frame with any robot faster than 0.03 m/s, from frame differences) gives 17.1 s.
+- **Analyses and decisions.** Two analyses, both answered by the mock, in the order the script defines:
+  1. Sim 30.4: a single-robot stall trigger (`robot_2`), answered `none`; the log shows `no dispatch stage=vlm`.
+  2. 15.0 wall-s later, sim 34.1: a four-robot trigger, answered `junction_clear` naming `robot_1` to `robot_4`, with `proposed_plan: null`.
+  - There was no third analysis. e04 to e10 each had a third, single-robot analysis after the release.
+- **No VLM**, in both artifacts:
+  - `diagnostics.backend_id` and `reasoner_config_effective.backend_id` are both `mock`;
+  - `served_model` and `model_id` are None, and `mock_mode` is None;
+  - `token_usage` is None and `attempt_token_usage` is `[None]`;
+  - `latency_ms` is 0.
+- **Dispatch.** One dispatch, at sim 34.13 s. That is 6.63 s after onset (the four valid Arm C episodes: 5.8 to 6.4 s) and 17.13 s after t0. Its provenance is `m3_default`, with rejection reason `plan absent`, and `dispatch_matches_plan` is true.
+- **Executed recede order.** robot_3 receded first, then robot_4. This comes from the order of the first `junction-recede-robot_N` command lines in `m5.log`.
+  - All `junction-recede-robot_3`, `junction-recede-robot_4`, `junction-cross` and `junction-release` status lines resolved `completed`.
+  - 0 commands resolved `timed_out` or `failed`.
+- **Retreat side.** `retreat_choice` A, cross pull-off +0.36 m, release pull-off -0.33 m.
+  - That is the same branch as e01 (Arm A): robot_3 recedes first, retreat A.
+  - It is the first Arm C episode on retreat A.
+  - There is no `stage2` block, so the side came from the snapshot, not from a choice.
+- **Arrivals: 4/4.** Times after t0: robot_2 77.8 s, robot_3 98.2 s, robot_4 114.4 s, robot_1 128.6 s.
+  - We recomputed them with the report's rule: within 0.35 m of the goal, and never beyond 0.5 m afterwards.
+  - They match the scorer.
+- **Resolved:** yes, frozen rank (1, 4, 4) (scorer).
+  - Time from onset 118.1 s. Check: 17.0 + 128.6 - 27.5 = 118.1.
+  - Episode success: true (scorer).
+- **Safety.**
+  - GT minimum pair distance 0.3060 m, robot_1 and robot_4 at 27.5 s, the jam pose. This is over all 3,001 frames.
+  - 0 GT frames with any pair closer than 0.18 m, and 0 GT contact entries.
+  - 0 floor stops (`hard_contact_floor_m=0.2 pairs=`).
+  - 0 `stale_pose_unsafe` lines. 14,446 ordinary `min_distance_violation` latch lines, which is in the range expected for a jammed episode.
+- **Key-on lines.** All zero in `m4.log`:
+  - `plan continue partners not honoured` 0, `rejected leg not a member` 0, `latch waiver armed` 0, `latch waiver revoked` 0.
+  - The scorer's `keyon` counters are all 0, with no deadline-ended commands and no key-on stalls.
+- **M4 startup line.** It appears once and ends in `hard_contact_floor_m=0.2 exempt_actions=reverse,yield scoped_clearing_exemption=True waiver_closing_tolerance_m=0.05 waiver_closing_readings=3`.
+
+### Counting
+
+The scorer applies the invalid-jam rule (`score_ibs.py`, amendment) and writes `summary_rerun/`:
+
+- e02 a1 is listed as `EXCLUDED:invalid_jam` (`RERUN_RULE e02: ib10S_e02_armC_a1 recorded ran, status invalid_jam -> EXCLUDED:invalid_jam`).
+- a2 is the slot's counted attempt (`RERUN_RULE e02: counted attempt ib10S_e02_armC_a2`).
+- `attempts.tsv` is not edited. `vm_rerun/attempts.tsv` still records the a1 row as `ran`; its first 11 lines are byte-identical to `vm/attempts.tsv`. It adds one row: a2, `ran`.
+
+### Pooled Arm C, Before and After the Re-run
+
+| | Before (original report) | After the re-run |
+|---|---|---|
+| Slots run / attempts | 5 slots, 5 attempts | 5 slots, 6 attempts (e02 a1 excluded as `invalid_jam`) |
+| Valid jams, counted | 4 | 5 |
+| Resolved | 4/4 valid (4 of 5 slots) | 5/5 |
+| Arrivals | 16/16 valid | 20/20 counted |
+| Time from onset (s) | 115.5, 118.5, 118.6, 118.6 (mean 117.80) | 115.5, 118.1, 118.5, 118.6, 118.6 (mean 117.86) |
+| Lowest GT pair (m) | 0.2965 (e10) | 0.2965 (e10); a2 0.3060 |
+| Floor stops / GT contacts | 0 / 0 | 0 / 0 |
+| Attribution | `m3_default` 4 | `m3_default` 5 |
+| Recede first | robot_4: e04, e06; robot_3: e08, e10 | robot_4: e04, e06; robot_3: e08, e10, e02 a2 |
+| Spend | $0 | $0 |
+
+Arm A is unchanged: 5/5 (follow-up only, 4/4), mean 115.96 s.
+
+The interpretation above does not change. Both arms resolve every valid episode, and the times are within a few seconds of each other. This holds with the same caveats: n = 5 per arm, near-repeat episodes in about four trajectories, Arm C given the strategy and robot set, and the re-run decided after the results were seen. No p-values and no intervals.
+
+### Re-run Kit Change and Evidence Integrity
+
+- **Kit change.** Addendum section 13.4 gives the file list and the old and new md5s. The change has four parts:
+  - a `rerun` mode in `chain_ibs.sh` and `run_ibs.sh`;
+  - the invalid-jam rule in `score_ibs.py`;
+  - the new reporting-only `startup_check_ibs.py`;
+  - a dry test extended to the new path, which ended `TEST_DRY_IBS OK` before and after the amendment commit.
+- **Diff.** `summary_rerun/kit_change_rerun_20261114.diff`, md5 `1add02a432024c983117783d1209c096`. The previous md5 lists are beside it: `kit_md5_ibs.txt` `72358e80fb040861fc8fdac27ca5a67b` and `kit_md5_all_ibs.txt` `0db47b478920d42da89ea1418c79964f`.
+- **Original evidence.** The re-run did not write any original evidence file:
+  - The VM tree was pulled into `vm_rerun/`.
+  - `runs/` was pulled with `--ignore-existing`.
+  - The ledger and summary went to new files.
+- **Original manifest check.** `MANIFEST.md5` (md5 `da6f3283bd6fba9e6b5d4ec431732916`, unchanged) was re-checked after the run. It covers 426 evidence files in 95 file lines and 20 bundle lines.
+  - 107 of its 115 lines match.
+  - The 8 that differ are exactly the changed kit files: `kit/README.md`, `kit/chain_ibs.sh`, `kit/kit_md5_all_ibs.txt`, `kit/kit_md5_ibs.txt`, `kit/mac_kit_md5_ibs.sh`, `kit/run_ibs.sh`, `kit/score_ibs.py`, `kit/test_dry_ibs.sh`.
+  - All 20 bundle lines match, including e02 a1.
+  - The original archive is unchanged (md5 `9cc5c5da3476924d110d4e0f3e0d640d`).
+- **Supplementary manifest.** `data/logs/vm_runs/ib10_safety/MANIFEST_rerun_20261114.md5`, md5 `094488566cea5ee4c454fa305a337565`. It has 84 file lines and covers:
+  - the a2 bundle, its `_backup_` directory and `.outer.log`;
+  - `vm_rerun/` and `summary_rerun/`;
+  - `driver_rerun_20261114T105336Z.log`, `wallclock_ledger_rerun.tsv` and `RERUN_STARTED_20261114T105336Z`;
+  - the 9 changed or added kit files.
+- **Supplementary archive.** `data/logs/vm_runs/ib10_safety_rerun_archive_20261114.tar.gz`, md5 `09d761d17edf01d9eb51ee8e58897baa`, 2,219,545 bytes, 85 files (the 84 above plus the manifest). It contains no `known_hosts` file and no `._*` files.
+- **Secret check.** The same count-only scan as the original was run over the new files, and every pattern was 0.
+- **Summary files.** `summary_rerun/summary.json` md5 `8a4350379c3134ea93ccb82c6b993215`; `summary_rerun/episodes.jsonl` md5 `ff1e4453cdb4cf6ed0f34c0ec040a158`.
+
+### Verified and Copied in This Section
+
+**Verified from the raw a2 bundle:**
+
+- map start-up;
+- the decision artifacts: backend, model, tokens and provenance;
+- the `m5.log` analysis and dispatch order and the command resolutions;
+- arrivals, GT minimum and frames under 0.18 m;
+- floor stops, key-on lines and the M4 startup line;
+- `CONDITION.txt` and `RESTORE.txt`;
+- the restore lines in the driver log;
+- the VM `TERMINATED` status, read separately with `gcloud ... describe` after the driver exited.
+
+**Copied from the scorer:** onset, `jam_valid`, frozen `resolved`, rank and success. Onset and time from onset were cross-checked against our arrival times.
+
+### Open Items After the Re-run
+
+- Why the e02 a1 `map_server` configure response was dropped is still unknown. One clean re-run does not show it cannot recur.
+- `startup_check_ibs.py` reports the fault but is not a gate. Making it a gate for future runs would need a new registration.
+
+---
+
 ## Artifacts
 
 All under `data/logs/vm_runs/` (gitignored); `ib10_safety/` below means `data/logs/vm_runs/ib10_safety/`.
@@ -289,3 +426,4 @@ All under `data/logs/vm_runs/` (gitignored); `ib10_safety/` below means `data/lo
 - `ib10_safety_archive_20261114.tar.gz` (same directory level as `ib10_safety/`)
 - Registration: `docs/superpowers/specs/2026-11-14-ib10-safety-default-arm-addendum.md`
 - 2026-11-13 reference, branch `feat/ib10-live-resolution`: `docs/reports/2026-11-13-ib10-live-resolution-results.md`
+- Re-run (2026-11-14): `ib10_safety/runs/ib10S_e02_armC_a2`, `ib10_safety/vm_rerun/`, `ib10_safety/summary_rerun/`, `ib10_safety/driver_rerun_20261114T105336Z.log`, `ib10_safety/wallclock_ledger_rerun.tsv`, `ib10_safety/MANIFEST_rerun_20261114.md5`, `ib10_safety_rerun_archive_20261114.tar.gz`
