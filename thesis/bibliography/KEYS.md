@@ -24,13 +24,13 @@ chandra2023deadlock — Deadlock-free, Safe, and Decentralized Multi-Robot Navig
 chandra2025multi — Multi-Robot Navigation in Social Mini-Games: Definitions, Taxonomy, and Algorithms (topic tag: deadlock) — arXiv:2508.13459
 grover2019deadlock — Deadlock Analysis and Resolution in Multi-Robot Systems (Extended Version) (topic tag: deadlock) — arXiv:1911.09146
 grover2022before — The Before, During, and After of Multi-Robot Deadlock (topic tag: deadlock) — arXiv:2206.01781
-aoki2022drive — A-DRIVE: Autonomous Deadlock Detection and Recovery at Road Intersections for Connected and Automated Vehicles (topic tag: deadlock) — arXiv:2204.04910
+aoki2022drive — A-DRIVE: Autonomous Deadlock Detection and Recovery at Road Intersections for Connected and Automated Vehicles, IEEE IV 2022 (topic tag: deadlock) — DOI:10.1109/iv51971.2022.9827436 (preprint arXiv:2204.04910)
 cap2016provably — Provably Safe and Deadlock-Free Execution of Multi-Robot Plans under Delaying Disturbances (topic tag: deadlock) — arXiv:1603.08582
 seo2025llmdr — LLMDR: LLM-Driven Deadlock Detection and Resolution in Multi-Agent Pathfinding (topic tag: deadlock) — arXiv:2503.00717
 garg2024foundation — Foundation Models to the Rescue: Deadlock Resolution in Connected Multi-Robot Systems (topic tag: vlm-planner) — arXiv:2404.06413
 kannan2023smart — SMART-LLM: Smart Multi-Agent Robot Task Planning using Large Language Models (topic tag: vlm-planner) — arXiv:2309.10062
-mandi2023roco — RoCo: Dialectic Multi-Robot Collaboration with Large Language Models (topic tag: vlm-planner) — arXiv:2307.04738
-chen2023scalable — Scalable Multi-Robot Collaboration with Large Language Models: Centralized or Decentralized Systems? (topic tag: vlm-planner) — arXiv:2309.15943
+mandi2023roco — RoCo: Dialectic Multi-Robot Collaboration with Large Language Models, ICRA 2024 (topic tag: vlm-planner) — DOI:10.1109/icra57147.2024.10610855 (preprint arXiv:2307.04738)
+chen2023scalable — Scalable Multi-Robot Collaboration with Large Language Models: Centralized or Decentralized Systems?, ICRA 2024 (topic tag: vlm-planner) — DOI:10.1109/icra57147.2024.10610676 (preprint arXiv:2309.15943)
 zhang2024lamma — LaMMA-P: Generalizable Multi-Agent Long-Horizon Task Allocation and Planning with LM-Driven PDDL Planner (topic tag: vlm-planner) — arXiv:2409.20560
 liu2024coherent — COHERENT: Collaboration of Heterogeneous Multi-Robot System with Large Language Models (topic tag: vlm-planner) — arXiv:2409.15146
 li2025large — Large Language Models for Multi-Robot Systems: A Survey (topic tag: vlm-planner) — arXiv:2502.03814
@@ -78,3 +78,5 @@ kaplan1958nonparametric — Nonparametric Estimation from Incomplete Observation
 robotis2026turtlebot3 — TurtleBot3 e-Manual platform overview (ROBOTIS docs; no peer-reviewed platform paper with DOI/arXiv found) (topic tag: tools) — https://emanual.robotis.com/docs/en/platform/turtlebot3/overview/
 eclipse2026zenoh — What is Zenoh? (zenoh.io docs; page names Eclipse Foundation as host; no primary Zenoh paper/spec with DOI/arXiv found, only third-party performance studies) (topic tag: tools) — https://zenoh.io/docs/overview/what-is-zenoh/
 anthropic2026claude — Models overview, Claude Platform Docs (lists Sonnet 5.5, id claude-sonnet-5-5) (topic tag: tools) — https://platform.claude.com/docs/en/models/overview
+wang2026gavel — GAVEL: Graph World Models for Verified and Efficient Long-Horizon LLM Task Planning (topic tag: grounding) — arXiv:2609.19315 (resolved via arXiv API 2026-11-14)
+liu2026physical — Physical Agentic AI: An Architecture for Orchestrating a Robot Crew with LLMs (topic tag: grounding) — arXiv:2608.22657 (resolved via arXiv API 2026-11-14)
