@@ -35,7 +35,7 @@
 
 #evidence("4.17", [Prompt v3.4 (`prompt_version` 3, think block removed); baseline user prompt 5,804 characters, SHA-256 `6d08540f...`, pinned by tests.], [`68e67b5:docs/reports/2026-10-06-v34-repin.md` sections "Prompt v3.4" and "New Pin Table"; `68e67b5:reasoning/vlm/prompt_builder.py` lines 19-24 (facing within 60 degrees, `_FACING_COS = 0.5`) and 34-140])
 
-#evidence("4.18", [M5 stall and cool-down on `time.monotonic()`; VM real-time factor about 0.38; 12 s stall is about 4.6 sim-s.], [`68e67b5:docs/implementation_notes.md` M2/M5 section, 2026-09-27 entry "M5's stall and cooldown clocks run on wall time"; `68e67b5:ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py` line 1014])
+#evidence("4.18", [M5 stall and cool-down on `time.monotonic()`; VM real-time factor about 0.38; 12 s stall is about 4.6 sim-s.], [`68e67b5:docs/implementation_notes.md` M2/M5 section, 2026-09-27 entry "M5’s stall and cooldown clocks run on wall time"; `68e67b5:ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py` line 1014])
 
 #evidence("4.19", [Camera frames sim-stamped since 2026-09-27 (`a1aa81d`); wall stamps made M1 speeds read about 0.38 x true; `stale_after_sec` 3.0 to 1.15.], [`68e67b5:docs/implementation_notes.md` M6, 2026-09-27 "Camera frames now stamped with sim time"; M1, 2026-09-27 "Backward-stamp-jump reset and stale_after_sec retune"])
 

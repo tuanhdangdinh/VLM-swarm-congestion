@@ -13,7 +13,8 @@
 //   #todo[body]                  orange-bordered TODO box, works in block and inline position
 //   #ev("3.04")                  renders [3.04] as a link to <ev:3.04>
 //   #evidence("3.04", [claim], [source])   one appendix row, used only in evidence/chN.typ
-//   #fig-source("3.04")          caption suffix " Source: [3.04]."
+//   #fig-source("3.04")          caption suffix " Source: [3.04]." (hidden in outlines)
+//   #flex-caption([short], [long]) short caption in the List of Figures/Tables, long one under the figure
 
 #let accent = rgb("#e07b00")
 
@@ -24,7 +25,13 @@
   fill: accent.lighten(92%),
 )[#text(weight: "bold", fill: accent, size: 0.85em)[TODO] #body]
 
-#let ev(id) = link(label("ev:" + id))[\[#id\]]
+// True while an outline (contents, figure or table list) is being laid out; set by a show rule in main.typ.
+#let in-outline = state("in-outline", false)
+
+// Caption with a short form for the List of Figures/Tables and the full form under the figure.
+#let flex-caption(short, long) = context if in-outline.get() { short } else { long }
+
+#let ev(id) = context if in-outline.get() { none } else { link(label("ev:" + id))[\[#id\]] }
 
 #let ev-cols = (14mm, 1fr, 1fr)
 
@@ -36,11 +43,14 @@
   [*ID*], [*Claim*], [*Source*],
 )
 
-#let evidence(id, claim, source) = [#block(breakable: false, width: 100%)[#grid(
+#let evidence(id, claim, source) = [#block(breakable: true, width: 100%, above: 0pt, below: 0pt)[#set par(justify: false, first-line-indent: 0pt)
+#set block(spacing: 0pt)
+#grid(
   columns: ev-cols,
   column-gutter: 6pt,
   inset: (y: 4pt),
+  align: left,
   [#id], claim, text(font: "DejaVu Sans Mono", size: 8pt)[#source],
 )#line(length: 100%, stroke: 0.3pt + luma(180))]#label("ev:" + id)]
 
-#let fig-source(id) = [ Source: #ev(id).]
+#let fig-source(id) = context if in-outline.get() { none } else [ Source: #ev(id).]

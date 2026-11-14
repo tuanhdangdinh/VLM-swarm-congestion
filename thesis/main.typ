@@ -50,6 +50,7 @@
 #show table: set par(justify: false)
 #show figure.where(kind: table): set figure.caption(position: top)
 #show figure.where(kind: raw): set block(breakable: true)
+#show outline: it => { in-outline.update(true); it; in-outline.update(false) }
 
 #show raw: set text(font: "DejaVu Sans Mono", size: 9pt)
 #show raw.where(block: true): it => block(

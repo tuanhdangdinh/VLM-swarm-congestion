@@ -15,6 +15,7 @@
   )
   let lab(t) = text(size: 6.5pt, fill: g1, t)
   set text(size: 8pt)
+  set par(justify: false, first-line-indent: 0pt)
   diagram(
     spacing: (17mm, 14mm),
     edge-stroke: 0.7pt + luma(60),

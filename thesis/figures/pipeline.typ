@@ -15,6 +15,7 @@
   )
   let lab(t) = text(size: 6.5pt, fill: g1, t)
   set text(size: 8pt)
+  set par(justify: false, first-line-indent: 0pt)
   diagram(
     spacing: (9mm, 14mm),
     edge-stroke: 0.7pt + luma(60),
@@ -22,7 +23,7 @@
     label-sep: 3pt,
     node-stroke: none,
 
-    step("1", "Detect", [M1 scene state, M5 congestion timeout], (0, 0), <detect>),
+    step("1", "Detect", [M1 scene state, M5 stall threshold], (0, 0), <detect>),
     step("2", "Decide", [M2 VLM decision, validated], (1, 0), <decide>),
     step("3", "Ground", [M3 feasibility and command], (2, 0), <ground>),
     step("4", "Act", [M4 dispatch to Nav2], (3, 0), <act>),

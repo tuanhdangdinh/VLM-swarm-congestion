@@ -110,7 +110,7 @@ In the vocabulary of #cite(<chen2023scalable>, form: "prose"), the coordinator o
     [*This thesis*], [Central semantic layer over per-robot Nav2], [Annotated overhead camera frame with tracked robot states], [Deterministic geometric grounder: check, repair, replace or refuse, with logged provenance], [Isaac Sim; small physical TurtleBot3 demonstration], [Independent safety monitor and execution gates below the reasoning layer],
   )
   },
-  caption: [Comparison of the closest works with this thesis. "n/r" means not reported in the sources consulted (the paper's abstract or the project's reading notes); it does not mean the property is absent. "–" means not applicable, because the system uses no language model. The row for this thesis summarises Chapter 3.],
+  caption: flex-caption([Comparison of the closest works with this thesis.], [Comparison of the closest works with this thesis. "n/r" means not reported in the sources consulted (the paper's abstract or the project's reading notes); it does not mean the property is absent. "–" means not applicable, because the system uses no language model. The row for this thesis summarises Chapter 3.]),
 ) <tab:bg-comparison>
 ]
 
