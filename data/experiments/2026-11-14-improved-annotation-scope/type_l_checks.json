@@ -1,0 +1,440 @@
+[
+ {
+  "request": "53264de9",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 2,
+  "changed_px": 7260,
+  "changed_bbox": [
+   518,
+   758,
+   424,
+   505
+  ],
+  "zone": [
+   449,
+   827,
+   370,
+   507
+  ]
+ },
+ {
+  "request": "5e7b5a59",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 1,
+  "changed_px": 7265,
+  "changed_bbox": [
+   521,
+   760,
+   424,
+   504
+  ],
+  "zone": [
+   452,
+   829,
+   370,
+   506
+  ]
+ },
+ {
+  "request": "2c3fbfa5",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 0,
+  "changed_px": 7248,
+  "changed_bbox": [
+   517,
+   761,
+   424,
+   503
+  ],
+  "zone": [
+   448,
+   830,
+   370,
+   505
+  ]
+ },
+ {
+  "request": "61119197",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 2,
+  "changed_px": 7484,
+  "changed_bbox": [
+   522,
+   759,
+   424,
+   505
+  ],
+  "zone": [
+   453,
+   828,
+   370,
+   507
+  ]
+ },
+ {
+  "request": "d053d0dc",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 0,
+  "changed_px": 7241,
+  "changed_bbox": [
+   518,
+   760,
+   425,
+   505
+  ],
+  "zone": [
+   449,
+   829,
+   371,
+   507
+  ]
+ },
+ {
+  "request": "3120c65f",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 0,
+  "changed_px": 7251,
+  "changed_bbox": [
+   497,
+   770,
+   423,
+   506
+  ],
+  "zone": [
+   428,
+   839,
+   369,
+   508
+  ]
+ },
+ {
+  "request": "810c9104",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 2,
+  "changed_px": 7232,
+  "changed_bbox": [
+   521,
+   758,
+   424,
+   507
+  ],
+  "zone": [
+   452,
+   827,
+   370,
+   509
+  ],
+  "L2raw_vs_L2_mean_abs_diff": 0.637,
+  "L2raw_vs_L2_px_diff_gt30": 80,
+  "raw_vs_ann_px_diff_gt30": 1595
+ },
+ {
+  "request": "42fb0cb8",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 0,
+  "changed_px": 7259,
+  "changed_bbox": [
+   513,
+   767,
+   424,
+   507
+  ],
+  "zone": [
+   444,
+   836,
+   370,
+   509
+  ]
+ },
+ {
+  "request": "d4b96fbd",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 0,
+  "changed_px": 7215,
+  "changed_bbox": [
+   524,
+   758,
+   424,
+   503
+  ],
+  "zone": [
+   455,
+   827,
+   370,
+   505
+  ]
+ },
+ {
+  "request": "189ae2a6",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 3,
+  "changed_px": 7222,
+  "changed_bbox": [
+   523,
+   758,
+   424,
+   507
+  ],
+  "zone": [
+   454,
+   827,
+   370,
+   509
+  ],
+  "L2raw_vs_L2_mean_abs_diff": 0.538,
+  "L2raw_vs_L2_px_diff_gt30": 23,
+  "raw_vs_ann_px_diff_gt30": 1526
+ },
+ {
+  "request": "e4b1bd03",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 0,
+  "changed_px": 7234,
+  "changed_bbox": [
+   519,
+   758,
+   424,
+   503
+  ],
+  "zone": [
+   450,
+   827,
+   370,
+   505
+  ]
+ },
+ {
+  "request": "618a9f29",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 0,
+  "changed_px": 7265,
+  "changed_bbox": [
+   510,
+   765,
+   423,
+   508
+  ],
+  "zone": [
+   441,
+   834,
+   369,
+   510
+  ]
+ },
+ {
+  "request": "710c40e5",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 3,
+  "changed_px": 7260,
+  "changed_bbox": [
+   521,
+   761,
+   423,
+   505
+  ],
+  "zone": [
+   452,
+   830,
+   369,
+   507
+  ]
+ },
+ {
+  "request": "7b0fbf9e",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 40,
+  "changed_px": 7123,
+  "changed_bbox": [
+   532,
+   752,
+   423,
+   503
+  ],
+  "zone": [
+   463,
+   821,
+   369,
+   505
+  ]
+ },
+ {
+  "request": "ea126abd",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 0,
+  "changed_px": 7252,
+  "changed_bbox": [
+   516,
+   761,
+   424,
+   507
+  ],
+  "zone": [
+   447,
+   830,
+   370,
+   509
+  ]
+ },
+ {
+  "request": "bb48067c",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 0,
+  "changed_px": 7265,
+  "changed_bbox": [
+   481,
+   750,
+   423,
+   507
+  ],
+  "zone": [
+   412,
+   819,
+   369,
+   509
+  ]
+ },
+ {
+  "request": "d592a820",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 0,
+  "changed_px": 7303,
+  "changed_bbox": [
+   512,
+   764,
+   424,
+   506
+  ],
+  "zone": [
+   443,
+   833,
+   370,
+   508
+  ]
+ },
+ {
+  "request": "32aec602",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 2,
+  "changed_px": 7231,
+  "changed_bbox": [
+   520,
+   760,
+   424,
+   505
+  ],
+  "zone": [
+   451,
+   829,
+   370,
+   507
+  ]
+ },
+ {
+  "request": "bc56a57a",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 0,
+  "changed_px": 7267,
+  "changed_bbox": [
+   515,
+   762,
+   424,
+   505
+  ],
+  "zone": [
+   446,
+   831,
+   370,
+   507
+  ]
+ },
+ {
+  "request": "920ec0d9",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 0,
+  "changed_px": 7299,
+  "changed_bbox": [
+   515,
+   766,
+   424,
+   503
+  ],
+  "zone": [
+   446,
+   835,
+   370,
+   505
+  ]
+ },
+ {
+  "request": "8027a8a2",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 2,
+  "changed_px": 7212,
+  "changed_bbox": [
+   521,
+   759,
+   424,
+   509
+  ],
+  "zone": [
+   452,
+   828,
+   370,
+   511
+  ]
+ },
+ {
+  "request": "41d72639",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 0,
+  "changed_px": 7267,
+  "changed_bbox": [
+   518,
+   762,
+   424,
+   503
+  ],
+  "zone": [
+   449,
+   831,
+   370,
+   505
+  ]
+ },
+ {
+  "request": "653be8f3",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 3,
+  "changed_px": 7250,
+  "changed_bbox": [
+   520,
+   758,
+   424,
+   505
+  ],
+  "zone": [
+   451,
+   827,
+   370,
+   507
+  ]
+ },
+ {
+  "request": "f94cb7ed",
+  "L2_changes_only_in_robot_zone": true,
+  "old_label_red_px_left": 2,
+  "changed_px": 7221,
+  "changed_bbox": [
+   522,
+   757,
+   424,
+   505
+  ],
+  "zone": [
+   453,
+   826,
+   370,
+   507
+  ]
+ }
+]
