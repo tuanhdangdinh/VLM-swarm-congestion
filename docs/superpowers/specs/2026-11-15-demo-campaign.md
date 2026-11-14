@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: registration of the owner-approved demo-video campaign (four scenarios, one VM, 12 VM-hours, $10), written offline before any VM use. The kits are prepared and dry-tested only; nothing has run.
+- Rev 2 (2026-11-15): section 10 filled (go for the intersection under B3, the options-block check and caption, the demo runtime delta in two directories, the take classifier, the budget split); sub-caps `ho` 1.5 h and `m5` 4 h; kit md5s in section 9 re-recorded. Still offline; nothing has run.
 
 ---
 
@@ -52,7 +53,7 @@ Before each take's condition gate, M4's startup line must end in `hard_contact_f
 |---|---|
 | Base | The v3 pin on the VM, git `68e67b5`. |
 | Base delta | `safety.py` `3011d9a7` and `safety_monitor_node.py` `c2cad302` from `fix/safety-exemption-scope` (`8933863`), plus the merged `safety.yaml` `65fb84a3`. This is exactly the 2026-11-14 runtime. |
-| Demo runtime delta | An INPUT (section 10). The default, as committed, is EMPTY: DELTA_ID `ae8740a08dfc178769dbcfa64a645c4b` (`empty=1`). |
+| Demo runtime delta | An INPUT (section 10). Filled 2026-11-15: `runtime_delta/` (`ib`, B3) DELTA_ID `5c7973d3a345df6bbcd0c7db17f55845`; `runtime_delta_inert/` (`cv`, `ho`, `m5`) `4843a776550ff4bd6f33e2d88c881bd2`. It was EMPTY before (`ae8740a08dfc178769dbcfa64a645c4b`). |
 | Restore target | `PINS_V3 OK` after every invocation (snapshot, deploy, verify, restore), as the 2026-11-14 kits. |
 
 **How the demo runtime delta is supplied.** It lives in `data/logs/vm_runs/demo_campaign/runtime_delta/`, outside every kit md5 list:
@@ -281,7 +282,7 @@ The frame map (`rec/<stream>_framemap.json`, `{"frame_sim_times": [...], "anchor
 | Cap | Value |
 |---|---|
 | Wall clock, total | 12 h (43 200 s) |
-| Wall clock, per scenario | `ib` 2.5 h, `cv` 2.5 h, `ho` 2 h, `m5` 5 h |
+| Wall clock, per scenario | `ib` 2.5 h, `cv` 2.5 h, `ho` 1.5 h, `m5` 4 h reserved, 1.5 h slack (section 10.5; was `ho` 2 h, `m5` 5 h) |
 | Spend, total | $10, including any offline spend (`book-spend <scn> offline <usd>`) |
 | Live guard, per take | `CAP_EP`: `ib` $0.25, `cv` $0.20, `ho` $0.20, `m5` $0.50. `cost_watch.py` stops Isaac at the guard. |
 | Valid takes per scenario | 5 |
@@ -399,12 +400,12 @@ The bundle keeps the file names the renderer reads: `m5.log`, `m4.log`, `decisio
 
 | Kit | `kit_md5_dmc.txt` (VM files) | `kit_md5_all_dmc.txt` | Overlay | Dry test |
 |---|---|---|---|---|
-| `ib` | `d2edb1116403f89e5dc6343ffc56dcbe` | `79c6170298202c407dee1e0df2f4fc7e` | `0196f1e8` | `TEST_DRY_DMC ib OK` |
-| `cv` | `8c16cd7fb1c664a7cd8ab396350f2e10` | `c7f54894efd88896a28826d822371ada` | `7e3ab552` | `TEST_DRY_DMC cv OK` |
-| `ho` | `b5bc4b5407e70c83c2d79554b194fc5a` | `918a0ea73f5a8bbbda82cca33684a9c0` | `3929a087` | `TEST_DRY_DMC ho OK` |
-| `m5` | `ed2c7d62a75c06898dab662a3e5fd8eb` | `9f5d04eaca1847d8a75063f52478ba03` | `09bc16e6` | `TEST_DRY_DMC m5 OK` |
+| `ib` | `98a57626afd3080f5d104ac64e40b47d` | `76c18a4db6001130a95bbabf21616976` | `0196f1e8` base, `614beed0` effective (B3) | `TEST_DRY_DMC ib OK` |
+| `cv` | `37e73d8750d736858f9c182914182a42` | `3d3d0d234534d49715c109b41bf4ae84` | `7e3ab552` | `TEST_DRY_DMC cv OK` |
+| `ho` | `69a4ed79e8ee6d5409ed1c48e13abb2d` | `0d8144978666d8042d02141abc8c4851` | `3929a087` | `TEST_DRY_DMC ho OK` |
+| `m5` | `89112a40fe2b11c7e604b6636f92f27b` | `e5f1927d96dec75e9913cc0b32472865` | `09bc16e6` | `TEST_DRY_DMC m5 OK` |
 
-The shared files are the same in every kit: `run_dmc.sh` `6143fa73`, `chain_dmc.sh` `b8a32893`, `ep_run_dmc.sh` `25203d1b`, `recmgr_dmc.sh` `0f7adf25`, `goal_check_dmc.py` `f03087a9`.
+Re-recorded 2026-11-15 after the section 10 fill (dry tests run with `MIN_MAC_FREE_KB=3000000`: the Mac had 4.9 GB free, below the driver's 5 GiB floor). The shared files are the same in every kit: `run_dmc.sh` `e811bbd2`, `chain_dmc.sh` `b8a32893`, `ep_run_dmc.sh` `25203d1b`, `recmgr_dmc.sh` `0f7adf25`, `goal_check_dmc.py` `f03087a9`.
 
 **Wall estimates (inferred).** Each invocation costs about 10 min of prep (start, push, probe, snapshot, USD build on EVERY invocation, deploy) plus 3–5 min of teardown. The recorded RTF is unmeasured. Five takes per scenario do not fit in the sub-caps; the sub-caps fit about 2–3 takes.
 
@@ -412,8 +413,8 @@ The shared files are the same in every kit: `run_dmc.sh` `6143fa73`, `chain_dmc.
 |---|---|---|---|---|
 | `ib` | 18.5–19.5 min | 25–35 min | 40–50 min | 2 one-take invocations, or 3 takes with `--episodes`, in 2.5 h |
 | `cv` | 17–23 min (registered estimate) | 25–35 min | 40–50 min | 2–3 takes in 2.5 h |
-| `ho` | ~13–18 min | 18–25 min | 30–40 min | 2 invocations, or 3 takes with `--episodes 3`, in 2 h |
-| `m5` | 53–65 min | 60–100 min | 75–115 min (the USD is rebuilt every invocation) | 2 invocations in 5 h |
+| `ho` | ~13–18 min | 18–25 min | 30–40 min | 1 invocation (3 takes with `--episodes 3`), or 2 short ones, in 1.5 h |
+| `m5` | 53–65 min | 60–100 min | 75–115 min (the USD is rebuilt every invocation) | 1 invocation (2 with a short first one) in 4 h |
 
 The admission budgets are:
 
@@ -446,21 +447,167 @@ The admission budgets are:
 
 ## 10. Demo Runtime Delta and Go/No-Go Result
 
-> **PLACEHOLDER — to be filled by the session lead from the separate VLM-plan decision-path investigation, before any VM use.**
+Filled 2026-11-15, offline, before any VM use. Sources: `docs/reports/2026-11-15-vlm-order-channel-plan-check.md` (sections 5, 6, 10; merged into this branch) and `docs/superpowers/specs/2026-11-15-demo-runtime-delta.md` (rev 2).
 
-- [ ] Go / no-go for the campaign.
-- [ ] The demo runtime delta: files (relpath, md5, kind), overlay fragment, deployed-loader expectations, the commit that carries them on `demo/campaign-kits`, and the resulting DELTA_ID. Empty means the 2026-11-14 runtime: `ae8740a08dfc178769dbcfa64a645c4b`.
-- [ ] The definition of **"VLM-driven"** used in section 7: which artifact or `goal_check` facts make a take VLM-driven. Examples: a dispatched plan whose provenance is not `m3_default`, or an intersection counterfactual difference from M3's default. Also state how a take where M3 overrode or re-grounded the model is labelled.
-- [ ] Re-run all four `test_dry_dmc.sh` after the delta is filled; record the new kit and overlay md5s.
+### 10.1 Offline Go/No-Go Result (ER-2, 20 Recorded IB10 Snapshots)
 
-**Constraints the delta must fit (for the decision-path investigation):**
+| Cycle | Condition | `vlm_verbatim` | Demo events (first trigger: verbatim, recede order ≠ chi, `dispatch_matches_plan`) |
+|---|---|---|---|
+| 1 | A | 2/40 | 0/38 |
+| 1 | B | 2/40 | 1/38 |
+| 2 | A3 (A + release rule) | 6/40 | 0/38 |
+| 2 | **B3** (B + release rule) | **14/29 (partial, cap)** | **7/27** |
 
-- The fragment is appended to ALL FOUR scenario overlays. Head-on runs with the plan channel OFF (prompt v2, as September); intersection, convoy and five-robot run with it ON. A key that only matters with the plan channel has no effect on head-on; say so in the go/no-go.
-- A delta may not touch `orchestrator.yaml`, `config/rag.yaml`, either `safety.yaml`, the safety fragment, `safety.py`, `safety_monitor_node.py` or `config/s1_seeds.yaml` (kit-managed; refused by `delta_dmc.py`). Settings go in the fragment instead.
-- Code files are top-level `.py` modules of `swarm_orchestrator` or `swarm_execution`, or files under `reasoning/` or `config/`. They must be committed on `demo/campaign-kits`, because the git preflight requires the runtime diff to be exactly the 3 safety files plus the delta.
-- Every fragment key needs an `arm_expect.tsv` row, so a key the deployed loader does not know refuses the take instead of being dropped.
+Owner criteria, for B3:
 
----
+- **(a) structurally valid and feasible plan:** 27/29 parsed, 14/29 verified `vlm_verbatim`.
+- **(b) M3 executes the VLM's plan, not a silent replacement:** of the 14 verbatim plans, 10 also match dispatch. The other 4 name robot_2 as yielder, and dispatch yields robot_1 (the yielder gap, open by owner decision). Every other answer is recorded as `repaired` or `m3_default`.
+- **(c) executed commands differ from the no-VLM default:** 7/27 first triggers (26 %), recede order only. That is about 78 % over 5 takes, inferred.
+
+**Go for the intersection under B3, as a demo only.** This is not evidence. One scene, n = 29, partial.
+
+### 10.2 What the Options Block Does, and the Caption (Part-1 Check, Verified Offline)
+
+**Why section 5 of the plan-check report excluded it (cycle 1):**
+
+- B did not raise ER-2's verbatim rate (2/40, the same as A).
+- It added an invalid-action failure (9/40 plans copied `"reverse (north arm)"` as the action).
+- It is a construct change: constrained selection from a listed menu instead of free composition.
+
+Cycle 2's release rule removed the first objection (14/29) and reduced the second (2/29). The third still holds, and the caption wording below follows from it.
+
+**How the block is built (code, verified).** At each analysis M5 calls `build_candidate_options` → `derive_candidate_options` (`reasoning/rag/command_grounder.py`). Its inputs are:
+
+- the live M1 snapshot;
+- the running scenario's declared geometry and static obstacles;
+- the yield-gate mode;
+- M3's grounding params.
+
+Each (robot, action) pair is offered iff the verifier's own leg audit (`_plan_problems`) flags nothing on a probe plan. The block uses no recorded, oracle or ground-truth input.
+
+The block lists actions per robot, never plans or orders, so the grounder's chi order is in no slot:
+
+- rows follow the prompt's robot presentation order (`id_asc` at the intersection);
+- actions follow the fixed vocabulary order;
+- there is no ranking, marker or "preferred" wording.
+
+It does reveal the recede SET: only robot_3 and robot_4 are offered `reverse`. That set is fixed by geometry, and the verifier enforces it anyway.
+
+On all 20 stimuli the B3 prompt differs from the A3 prompt only by this block, and the block is identical across the 20 stimuli.
+
+**What ER-2 chose under B3.**
+
+- Recede order: of the 14 verbatim plans, 10 list `3rev 4rev` and 4 list `4rev 3rev`. Counted over all 24 B3 plans that reverse both pair robots, 19 put robot_3 first (ascending id = the listing slot). The bias predates the block: under A3, with no block, 13 of 18 put robot_3 first.
+- The ascending-id choice does not follow the scene: chi prefers 4→3 on 17 of the 29 B3 snapshots, and on the same snapshot ER-2 changes its order between replicates (`ib10S_e01`).
+- Of the 10 order changes, 8 are ascending-id plans on snapshots where chi prefers 4→3. Of the 7 demo events, 6 are ascending-id.
+- Because `id_asc` makes id order and listing slot the same, the two cannot be separated here.
+
+**Verdict: legitimate. The block does not leak the answer or hardcode it.** The model is selecting each robot's action from a list of verifier-accepted actions, and the order it writes is mostly robot-id order.
+
+**Caption sentence (mandatory, every intersection video labelled VLM-driven):**
+
+> "The VLM (Gemini ER-2) chose each robot's action from the list of actions the verifier accepts in this scene and chose the order in which robot_3 and robot_4 back out; the verifier accepted that order and it was executed as written, differing from the system's default order (computed offline)."
+
+Never call the plan "authored". Never imply the order was reasoned from the scene: it mostly follows robot-id order.
+
+### 10.3 The Demo Runtime Delta (Frozen Config)
+
+The five runtime files come from `demo/vlm-order-channel` `9102ce9`, merged into this branch (`aa16b0d`). On top of the three 2026-11-14 safety files, `git diff --name-only 68e67b5..HEAD -- ros2_ws reasoning config` lists exactly these:
+
+| relpath | md5 | kind |
+|---|---|---|
+| `reasoning/vlm/models.py` | `2025f18179c9f3b05a81072027c32637` | live |
+| `reasoning/vlm/prompt_builder.py` | `a9ad857cf8355cd9f5601124b0b814b2` | live |
+| `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py` | `73f3fa4f35ceab61a5df646a71a902a6` | pkg:swarm_orchestrator |
+| `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py` | `37a6bbadf91cb8c9def21d6f625c8bfe` | pkg:swarm_orchestrator |
+| `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/reasoning_pipeline.py` | `49fff7ab8fb460b9a94ea198cf5b523a` | pkg:swarm_orchestrator |
+
+**Two delta directories, the same files.** The difference between them is the fragment. The profile key `DELTA_SUBDIR` selects the directory, and `run_dmc.sh` defaults to it.
+
+| Directory | Kits | DELTA_ID | Fragment | Deployed-loader expectations |
+|---|---|---|---|---|
+| `runtime_delta/` | `ib` | `5c7973d3a345df6bbcd0c7db17f55845` | `plan_dispatch_order_source: model_when_verified`, `prompt_plan_grammar_rules: true`, `prompt_plan_grammar_release_rule: true`, `prompt_candidate_options: true` | the four values |
+| `runtime_delta_inert/` | `cv`, `ho`, `m5` | `4843a776550ff4bd6f33e2d88c881bd2` | empty (registered overlays byte-identical) | `chi`, `False`, `False`, `False` |
+
+**Frozen intersection config.** The 2026-11-14 Arm A overlay `ib10d_l2on.yaml` `0196f1e8` plus the four fragment keys gives the effective overlay `614beed0`. It keeps `plan_channel_enabled: true` and `grounding_yield_feasibility: 'off'`. The backend is `gemini` / `gemini-robotics-er-2-preview`.
+
+**Why B3 is applied at the intersection only (recommendation, adopted in the kits):**
+
+- **Head-on.** With the plan channel off (prompt v2, the September configuration), the loader refuses the B3 keys (verified: `... require plan_channel_enabled (prompt v3)`).
+- **Convoy and five-robot.** Both load with B3. But the B3 keys would change registered prompts that were never checked offline, and `model_when_verified` only acts on `junction_clear` recede phases.
+
+**Safety fix.** `fix/safety-exemption-scope` (`8933863`) is the base delta, not part of this delta:
+
+- `safety.py` `3011d9a7`, `safety_monitor_node.py` `c2cad302`, the fragment `08c06b51` and the merged `safety.yaml` `65fb84a3`;
+- the same bytes at `9102ce9`, at `8933863` and in every kit; nothing to cherry-pick.
+
+`scoped_clearing_exemption` and the 0.20 m `hard_contact_floor_m` are asserted on M4's startup line in three places, in all four kits:
+
+- the deploy's KEY LINE check (installed loader + installed yaml);
+- the chain's per-take `floor_or_key_not_armed` check;
+- `cond_dmc.py` `floor_key_line`.
+
+**Arm and condition checks added**, on top of the existing ones:
+
+- `arm_expect.tsv` rows, evaluated by the deployed loader;
+- `ib`, `scenario.json`:
+  - `m5_line:` the full startup line `plan order condition plan_dispatch_order_source=model_when_verified prompt_plan_grammar_rules=True prompt_candidate_options=True prompt_plan_grammar_release_rule=True`;
+  - `artifact_field:plan_dispatch_order_source:model_when_verified`;
+  - `prompt_contains:` for both v3.5 sentences, the release sentence and the options header;
+- `cv` / `ho` / `m5`: `m5_line_absent:plan order condition`, a new check kind.
+
+### 10.4 Take Classification Rule (Fixed Before Take 1)
+
+`take_class_dmc.py` (`67b2fe05`; tests `test_take_class_dmc.py` `3076f09b`, 11 synthetic cases) is in every kit. It reads only `m5.log`, `m4.log`, `decisions/<id>.json` and the bundle's `orchestrator.overlaid.yaml`, and prints exactly one class:
+
+- **Unresolved failure:** not every robot logged `arrived at base goal` in `m5.log`.
+- **VLM-driven execution:** resolved, and EVERY dispatched decision (an m5 `dispatch request=<id> command=<id>-...` line) is a `junction_clear` with `plan.provenance == vlm_verbatim` whose dispatched legs, read from the logs, match the plan:
+  - the recede order is the m5 dispatch order of `<id>-junction-recede-<robot>`, each with an m4 `action=reverse`, and it equals the plan's `reverse` legs in order;
+  - the yielder is the m4 `command=<id>-junction-cross ... action=yield`, and it equals the plan's `yield` leg;
+  - and the dispatched recede order differs from the grounder's default (chi) order for that snapshot.
+
+  `plan.legs` alone is never trusted. A verbatim plan whose yielder was swapped at dispatch is not VLM-driven.
+- **M3-default resolution:** every other resolved take, including any take with a non-qualifying dispatched decision.
+
+The classifier only labels takes at the intersection. It cannot certify a non-`junction_clear` dispatch as VLM-driven, so `cv` and `m5` takes classify as M3-default or Unresolved, and `goal_check`'s facts stay the record there. Head-on keeps the rule of section 7 (no plan channel).
+
+**The default order is in no log line.** When the model's order is dispatched, chi's order is not logged and not in the artifact. The classifier computes it offline (`rank_recede_candidates`, as the runtime does) and prints it as `DEFAULT_ORDER ... source=computed_offline`. It goes in the caption, never in the terminal pane.
+
+Validation on the 22 recorded IB10 bundles (`ib10_live`, `ib10_safety`; verified):
+
+- the computed order equals the m5-dispatched order in 18/18 chi-dispatched `junction_clear` decisions;
+- log resolution equals the GT 0.3 m rule on 22/22 bundles (`ib10L_e09` and `ib10S_e02_armC_a1` are Unresolved);
+- every resolved bundle is M3-default, `ib10S_e03_armA_a1` included.
+
+### 10.5 Budget Split and Take Plan
+
+Of the 12 VM-hour cap, enforced in `caps_dmc.tsv`:
+
+| Scenario | Cap |
+|---|---|
+| `ib` | ≤ 2.5 h |
+| `cv` | ≤ 2.5 h |
+| `ho` | ≤ 1.5 h (was 2 h) |
+| `m5` | ≤ 4 h reserved (was 5 h) |
+| slack | 1.5 h |
+
+At 1.5 h, head-on admits one 3 900 s invocation plus at most one more if the first is short (use `--episodes 2–3`). At 4 h, five-robot admits one 8 400 s invocation.
+
+**Intersection.** The five valid episodes are split as follows:
+
+- up to 3 takes with ER-2 under B3;
+- then, only if none is VLM-driven, up to 2 takes with Sonnet 5.5. The owner allowed Sonnet or gpt-4o if needed (2026-11-15).
+
+Open item: the kits hard-assert gemini / ER-2 (`cond_dmc.py` `a_backend_gemini`, `a_served_model`, `a_cond_backend`; the Gemini probe). A Sonnet take needs a separate kit arm before it can run. This is not built.
+
+**Spend.** Offline API spend so far is roughly $1.6–2.0 of the $10 campaign API cap. Book it (`python3 ledger_dmc.py book-spend ib offline 2.00`) before take 1.
+
+### 10.6 Checklist
+
+- [x] Go / no-go: go for `ib` under B3, demo only (10.1).
+- [x] Delta: files, fragment, expectations, commit `aa16b0d`, DELTA_IDs (10.3).
+- [x] "VLM-driven" definition and the overridden / re-grounded case (10.4): a re-grounded, repaired or yielder-swapped plan is M3-default.
+- [x] All four `test_dry_dmc.sh` re-run after the fill; new kit md5s in section 9.
 
 ## 11. What Could Not Be Verified Offline
 
