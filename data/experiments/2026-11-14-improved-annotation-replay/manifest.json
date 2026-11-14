@@ -1,0 +1,662 @@
+{
+ "grey": {
+  "grey": "70de6cf74d80bec60dc33666a93f477d",
+  "grey_pixels": "6fdcdc838bd4fea58dcf92f9b2a94dcd"
+ },
+ "pilot_scenes": [
+  "810c9104",
+  "189ae2a6"
+ ],
+ "planned_cells": [
+  "L2",
+  "D_ref",
+  "L2+P",
+  "D_ref+P",
+  "C_ref",
+  "K1",
+  "C_ref+P"
+ ],
+ "priority": [
+  "L2",
+  "D_ref",
+  "L2+P",
+  "D_ref+P",
+  "C_ref",
+  "K1",
+  "C_ref+P",
+  "K1+P"
+ ],
+ "prompt_line": "A robot that backs up needs free floor behind it.",
+ "prompt_line_anchor": "strategy=\"reverse\" (both back up to clear).",
+ "replicates": {
+  "gemini": 4,
+  "openai": 2
+ },
+ "scenes": {
+  "189ae2a6": {
+   "C_ref": "a626215a6af4453b996ae16a1f7b20e8",
+   "C_ref_pixels": "ee9ce023f846d5f232460cc5bafc3290",
+   "K1": "ced4ab4f7a2b5e86d329f0c4b7cf114c",
+   "K1_pixels": "d2b63595b565abbda238af46daee7487",
+   "L2": "af8c25665ecf530f2d293b2889ed33bf",
+   "L2_pixels": "b76f42fc134e5c02a8e2d202b0658822",
+   "correct_physical": "west",
+   "prompts": {
+    "id_asc": {
+     "base": "f334d549aa3e2298a0c532ee2ed5253b",
+     "base_sha256": "a8a812c8b87efdae920e6f4c96c5b768182bd54dd74b4fc9435bd61de1743629",
+     "plus": "4f8a0c1af9b9adf4a0737af73216141f"
+    },
+    "id_desc": {
+     "base": "6200273a4355c9e0c731f9a9857b033d",
+     "base_sha256": "44386942c2688891d469e425a42e544bc72d32dcde4b34854f433eb7197521eb",
+     "plus": "9696e0e5bb72e813d7746eb08e6d3358"
+    }
+   },
+   "raw_frame": true,
+   "request_id": "189ae2a683e64c49bec2a1bafebc393d",
+   "run": "20260925_163949",
+   "side": "east",
+   "stored_order": "id_asc"
+  },
+  "2c3fbfa5": {
+   "C_ref": "8b6cbc9359e74362ff72b7c08ae107cf",
+   "C_ref_pixels": "d690aae2d3edce02603ad1812251563d",
+   "K1": "a4e7d68f3ca32f88bba17bb137ded465",
+   "K1_pixels": "f19fa13820b9eafd03a1601e72705da8",
+   "L2": "e9fbc26af6304f0b0925ef25c626379e",
+   "L2_pixels": "1c9c7a960ac3afdd8ffc9b5df56838b9",
+   "correct_physical": "east",
+   "prompts": {
+    "id_asc": {
+     "base": "c18ae84495efa080e1ea8cca52a70fb0",
+     "base_sha256": "91c626dcc568f4bbadd05153e63f25d78fda411b9db0df769f56fdabb293c3ba",
+     "plus": "9c4dd1d25c10d71ddef23fcc6ccd4f77"
+    },
+    "id_desc": {
+     "base": "69135eaf7a2f8b7a1d3fa9302836fd8d",
+     "base_sha256": "6d66b62ca3f3a1b1131a12749bc1747733df9863111f1d8dc5fe10c66add7e4f",
+     "plus": "570f9eabffd6a2c0e73681e08e8b5eac"
+    }
+   },
+   "raw_frame": false,
+   "request_id": "2c3fbfa555f445aa9b60edf9dfcd0e26",
+   "run": "20260925_070637",
+   "side": "west",
+   "stored_order": "id_asc"
+  },
+  "3120c65f": {
+   "C_ref": "9175e604a6d1f3edd286c3889caf481f",
+   "C_ref_pixels": "f26a1090a76ddbc8f96d3d2f37b33ff4",
+   "K1": "c81537c70b0032e23e7fbd349e1604e6",
+   "K1_pixels": "051c6465ccd8a11bc0d56d60022fd3c1",
+   "L2": "8a08bfb70db51b9ae695358e9a2f3964",
+   "L2_pixels": "3591c09a676992d3fa6f044f9870f674",
+   "correct_physical": "west",
+   "prompts": {
+    "id_asc": {
+     "base": "a6b1227ea693e92585a18a56ac3513b5",
+     "base_sha256": "f50aa25478f27b05b204e4d6846174f92201b67f8ab2adb317dac2b403802fbc",
+     "plus": "afa999936a0ead9169f006e88a3213f1"
+    },
+    "id_desc": {
+     "base": "18e06ecf6c8c6a6257fa165b2336a581",
+     "base_sha256": "2826eaba7a628e622d8ab1f2b07d3440d43076921bfb242d270948e4ab65938a",
+     "plus": "40b6fde1b5eaa5a7bb7b951ba63c165a"
+    }
+   },
+   "raw_frame": false,
+   "request_id": "3120c65ffea940b98a22c09a8da76cfe",
+   "run": "20260925_075116",
+   "side": "east",
+   "stored_order": "id_desc"
+  },
+  "32aec602": {
+   "C_ref": "6121a851372a5d7a451f2d101b1aa557",
+   "C_ref_pixels": "7ed03fcbb98553b84f4ec610512dc0ec",
+   "K1": "f30e740221858b0f0b932bacafeb3fe5",
+   "K1_pixels": "84dfae8d35cbe31ab483c3ed4d344f9b",
+   "L2": "23f0e13d233f713efa0df917cdcc1a08",
+   "L2_pixels": "d672fe3d98c7f57b74e9b64149556c3b",
+   "correct_physical": "west",
+   "prompts": {
+    "id_asc": {
+     "base": "08804e4eef8d4b0b926e6f057b5a3ae2",
+     "base_sha256": "7eda2aa6572472553113326eafa43ddb23f01fb493e3ab247feb08883f07f543",
+     "plus": "53f9811e07d92ca10f437d615ca45864"
+    },
+    "id_desc": {
+     "base": "868d6d51bb479722e81f02073ba5ec92",
+     "base_sha256": "e32ac2632ded868e652ad0d1d29ea13bfdd74e2fee9bc58fe066deb567450d9a",
+     "plus": "39f7b0f7a7f8d165155e44f31c7e360b"
+    }
+   },
+   "raw_frame": false,
+   "request_id": "32aec60245764d6f9327eddab5a4b1fd",
+   "run": "20260925_140824",
+   "side": "east",
+   "stored_order": "id_asc"
+  },
+  "41d72639": {
+   "C_ref": "02a3a629356a45aaf3391269ae3ddd21",
+   "C_ref_pixels": "bfbfeb1d91de1d834ee7287b0fb8a543",
+   "K1": "0adf9ffb83a31e8f1de3206f2bd0d044",
+   "K1_pixels": "3c0b5e77f13c3049999ea60431c39542",
+   "L2": "f3537c04e80a6914911cfefd7903634f",
+   "L2_pixels": "31c7eddcb8f8323ae4e54c822a616abd",
+   "correct_physical": "west",
+   "prompts": {
+    "id_asc": {
+     "base": "4844ae266331878031bc024e1e4672d6",
+     "base_sha256": "eece9126ab97e3240159d1542ac3eac9b11950be9093ea043957ba16a5bd73f0",
+     "plus": "8d762cd521a338597c59a9188c598756"
+    },
+    "id_desc": {
+     "base": "7ae0c17e9e7c9c27881a3ffd3fbf8977",
+     "base_sha256": "52d95eaaa1c5bb3b0d7edc5fec4c371d129e222a2dd394b4c5c760753b7a6149",
+     "plus": "7a6feb61943d1b1985c50b42f5b07cbc"
+    }
+   },
+   "raw_frame": true,
+   "request_id": "41d726397b33480bb6bf4cf3868a850b",
+   "run": "20260925_191810",
+   "side": "east",
+   "stored_order": "id_desc"
+  },
+  "42fb0cb8": {
+   "C_ref": "fd0d41a9896687eb627d40a9234afdc9",
+   "C_ref_pixels": "2dfc489f55eb97147297b445901ef572",
+   "K1": "27562ff60a6ec7ef6454288e9925f597",
+   "K1_pixels": "9ba1a76c6b63399c8a36de603f2f2c74",
+   "L2": "52d45013659c32d90560545f2438b3bf",
+   "L2_pixels": "13a13ca254add86f322babe2fae76705",
+   "correct_physical": "east",
+   "prompts": {
+    "id_asc": {
+     "base": "fc570ab261d8b972502c574f2c6caa4a",
+     "base_sha256": "3fefb50ca6c3a9e9c78ab65c844ecffd201671f6852689470fee1f61e5b5dfbd",
+     "plus": "3c5f3875e8ce12d6ad83472613daad47"
+    },
+    "id_desc": {
+     "base": "907d7c7852691a79f284846da1ce5bbb",
+     "base_sha256": "b084c3419f075357b924141b2118a2b92cbb85b1bdc06f8edd236a4c282b6442",
+     "plus": "377a763d2b920aff536f78d36a59a741"
+    }
+   },
+   "raw_frame": true,
+   "request_id": "42fb0cb85f72411cafd1a01314b93318",
+   "run": "20260925_160951",
+   "side": "west",
+   "stored_order": "id_desc"
+  },
+  "53264de9": {
+   "C_ref": "a4109eb947655bbee40d010510acbaf4",
+   "C_ref_pixels": "92c73d6655231b79fbceb9f1550e9e38",
+   "K1": "9c5420826555dad3e75313cd22c8a37d",
+   "K1_pixels": "d70fc2f0a2914ac84762371d16caa180",
+   "L2": "242fb99d0d53ab2e45f26ad1cb694058",
+   "L2_pixels": "fd0315db7539790cf9c5c67b201931dd",
+   "correct_physical": "east",
+   "prompts": {
+    "id_asc": {
+     "base": "9c5973dd8f7c2f2ea43d70c93ecc967a",
+     "base_sha256": "ca6ece09896db71c355a2a540e45248930bec1222cf0016b2a7f3bf288eb8c7d",
+     "plus": "90177c122e56bd1c082ca691f345b846"
+    },
+    "id_desc": {
+     "base": "1c823f52c3eff37ea9742bdda9407b66",
+     "base_sha256": "9320261bc022bf251a95483da3258dfd5b1de17f757054b75848e4a224cf55b4",
+     "plus": "e8a46f6237264733c603ccb66f0714cd"
+    }
+   },
+   "raw_frame": false,
+   "request_id": "53264de9bf174de5a892097254899123",
+   "run": "20260925_063520",
+   "side": "west",
+   "stored_order": "id_desc"
+  },
+  "5e7b5a59": {
+   "C_ref": "2fc667245acb825b04b0b3edf9d86afa",
+   "C_ref_pixels": "a48065d833b493962c02ba59350787ad",
+   "K1": "60eb262641f97757e663ac6c35d214a8",
+   "K1_pixels": "2861ff1ef22a2ed8d2053201eef73610",
+   "L2": "3031909a5e309449c6500b6956eb1d64",
+   "L2_pixels": "a7780b0ca1f74d4725f55b77885297a0",
+   "correct_physical": "east",
+   "prompts": {
+    "id_asc": {
+     "base": "49ece831b79afb40989bcd22703a4422",
+     "base_sha256": "73bd1c99b4bdc84ca6d7cdd2b3510407c74fd2d109253f2862734f7c8dc84da7",
+     "plus": "d63dd407be2dcd0e82e93d18888c6c26"
+    },
+    "id_desc": {
+     "base": "28ba0b6a260b9f35de6f486b7671ff7d",
+     "base_sha256": "f80b5d85f3d1c5abf474e10dc6d33dd58034ca1141bcf699383d4b76b7e4f4ef",
+     "plus": "a763619a71459a8c907905cf4c331040"
+    }
+   },
+   "raw_frame": false,
+   "request_id": "5e7b5a5900964c03b51df8500bd71b1a",
+   "run": "20260925_065143",
+   "side": "west",
+   "stored_order": "id_asc"
+  },
+  "61119197": {
+   "C_ref": "0daabacdb1766e64b90726050fca6b9f",
+   "C_ref_pixels": "9dfd0a90a7a786b66d7546fd06d80be1",
+   "K1": "64f6039a9b29ea172f7ebb7bd84ad3ef",
+   "K1_pixels": "41c72b5ad7c82b984b935a57fc98e561",
+   "L2": "c50eac99add962bd2eba158b1308b324",
+   "L2_pixels": "f548553d6bb5aa2180eb9eef8fb05fff",
+   "correct_physical": "west",
+   "prompts": {
+    "id_asc": {
+     "base": "332a736ce3f5d1b88ea8d9188af0cfe2",
+     "base_sha256": "ca2328b0e4fa8ab816f18674fd3e5d3deef38854737b6b437e0d0c7abf9f5937",
+     "plus": "e8d3a4ca94ff02937f4671f824084172"
+    },
+    "id_desc": {
+     "base": "3f9eeeb00af35b10a4dfd046b0706b23",
+     "base_sha256": "bf0613a31bb266b5c2ec4975341b0558d029379827eba16258b1460303801e49",
+     "plus": "9734ceb8d66783f5b15272c738138a80"
+    }
+   },
+   "raw_frame": false,
+   "request_id": "61119197f8ef4f239d7999d2b246cf61",
+   "run": "20260925_072130",
+   "side": "east",
+   "stored_order": "id_asc"
+  },
+  "618a9f29": {
+   "C_ref": "f9ec8159463397a1fe8d60ae99a642a6",
+   "C_ref_pixels": "6b1c8f842dfe288ef58e55a184270a64",
+   "K1": "6dd010f75d9bb74463e7677e327af3ef",
+   "K1_pixels": "c077638e7baf3819ab98aa7d45fa0687",
+   "L2": "be766793cebf3a902fa6879839597a41",
+   "L2_pixels": "be59acf4d842d5740b716259e2b48062",
+   "correct_physical": "west",
+   "prompts": {
+    "id_asc": {
+     "base": "4097ea13b91e3b8e7997c7603c6394b5",
+     "base_sha256": "1af2071bf96049182692ed59cb2d2a78b1436bc0954a393268b2045e77c67dab",
+     "plus": "535c5d5901898672854168b40ad68749"
+    },
+    "id_desc": {
+     "base": "5239b765e8c376e74a1838262a16790e",
+     "base_sha256": "0b71544a94ee2648ea510837c7d88960549da4abc5d321baa1eee10f6345b083",
+     "plus": "60484e0a24568855f79abc639ad00213"
+    }
+   },
+   "raw_frame": true,
+   "request_id": "618a9f29fc144553a81cb5f4845d10ae",
+   "run": "20260925_170938",
+   "side": "east",
+   "stored_order": "id_asc"
+  },
+  "653be8f3": {
+   "C_ref": "549f7a6ebbab5f972b30f1c80568a0dd",
+   "C_ref_pixels": "0739a3c9c2cda0a30ec295c48c4fab1a",
+   "K1": "fd145bb6e216997e541c5d3726c41479",
+   "K1_pixels": "a44dad717be88a8a72cddac4bf84c5c0",
+   "L2": "0606ab867f7a767fa61660b8ecc83d98",
+   "L2_pixels": "203ccf16e5a901583ef7a1e921cd7af7",
+   "correct_physical": "west",
+   "prompts": {
+    "id_asc": {
+     "base": "7e3c4cd5ce89fdf4bd8c3e972ea61923",
+     "base_sha256": "d110a9cfc1daa93934f4c70dc0109c13cd62944287da893dd07d8461ac3918b3",
+     "plus": "684ad979ee3e7316e14c51a3f15deea0"
+    },
+    "id_desc": {
+     "base": "42a4bcca608ab530d97f2da3332bf666",
+     "base_sha256": "9e3e77552f91b0701a0f7fe04e8d5f96e8bc8d8e7ad91f97e20927ec33362ae8",
+     "plus": "2789655995c0661b107fbc413da71d21"
+    }
+   },
+   "raw_frame": true,
+   "request_id": "653be8f3e81949e59ed46b1f04abcbe1",
+   "run": "20260925_193307",
+   "side": "east",
+   "stored_order": "id_desc"
+  },
+  "710c40e5": {
+   "C_ref": "74612c46f17e19e38cc5f2fee84da723",
+   "C_ref_pixels": "8de745562ca9cc52e39f3047d01c3346",
+   "K1": "e002acd229484e74c00b7e5efc612c9f",
+   "K1_pixels": "4c4129cb1afb12bfc6eab981cc472a34",
+   "L2": "82283ec3cd5c7b2065abb44427d35cdf",
+   "L2_pixels": "6fe5fc84c6280a77ef8b1b0851f32d05",
+   "correct_physical": "east",
+   "prompts": {
+    "id_asc": {
+     "base": "0190d4fcea96be294b6b56012ea42d0f",
+     "base_sha256": "92614cb32890615c605283fcd4d4b77b427c1e853b0368fe649a925a4b560c7a",
+     "plus": "3bafc943f93cb89650331fa2e077d7ac"
+    },
+    "id_desc": {
+     "base": "2c184d10e9a4e78cd82d836c254e8494",
+     "base_sha256": "ab7a9d54ffc916758f181dfdb252e3caf8c0be53bbe4d95953efbf20fb80a5fc",
+     "plus": "ba473ebea9d0db12bfa0d6dde9ab635b"
+    }
+   },
+   "raw_frame": false,
+   "request_id": "710c40e58b6044ceba0186710fd7b138",
+   "run": "20260925_124609",
+   "side": "west",
+   "stored_order": "id_asc"
+  },
+  "7b0fbf9e": {
+   "C_ref": "6cfd4f7c5ff2d07a835b7b779f263694",
+   "C_ref_pixels": "a95c6816119bb6c76c99cf411c6d91f5",
+   "K1": "b13001933617659728ce848bba4b1609",
+   "K1_pixels": "a8485d7e015c522423e09305d057f510",
+   "L2": "a49427ba9e55a3d107b7b4d34d6780fd",
+   "L2_pixels": "db03deead7e9f57ada5af7be8cb1c3cc",
+   "correct_physical": "east",
+   "prompts": {
+    "id_asc": {
+     "base": "95bf81c68ce14225ffd96068fb6b8598",
+     "base_sha256": "50a43f2231429eca63fa54dfaab7c82b80042df3a30779b1122659e61a512851",
+     "plus": "5dc3bc49f8e1d69c462bd3f11cc8e16d"
+    },
+    "id_desc": {
+     "base": "5000d902de966dbb5a97fc96d2f9905b",
+     "base_sha256": "4ade2da54e99106c648475367ebd8132b54a36e0debb82a8195949fcc2e349d1",
+     "plus": "3456eb4700b477d0a8ae47c26254035f"
+    }
+   },
+   "raw_frame": false,
+   "request_id": "7b0fbf9ea42040b2af47e1fc269051b4",
+   "run": "20260925_130115",
+   "side": "west",
+   "stored_order": "id_asc"
+  },
+  "8027a8a2": {
+   "C_ref": "db5f9bd54be4a7f71df795a4d0472188",
+   "C_ref_pixels": "469ff82cdbe349d06cfda37ca61a3b6b",
+   "K1": "a9afce4b293e6167d46d143c1065a4fb",
+   "K1_pixels": "c281e86c9d2254fa898c083782b11f8e",
+   "L2": "ed1607d2da437599d22ac3768678e5e2",
+   "L2_pixels": "a7f8ca9104436a57711c1e0cd70b9774",
+   "correct_physical": "east",
+   "prompts": {
+    "id_asc": {
+     "base": "8c257fe037e9d285f0b06949a9e4b1e5",
+     "base_sha256": "652a6de251b58d69e0a2eb35518a9f453c4c330c97981eb294cbfdb7d03d44d0",
+     "plus": "24618a13905812b6ac3c0cae8cf05036"
+    },
+    "id_desc": {
+     "base": "9adc9ffba9db1b6ee81c46b475144166",
+     "base_sha256": "ce71b6521b99918b907a2944bc4e43cb4d2a3548d5bd2a82465edfe332778165",
+     "plus": "f3e4921958dfc7d223b04ee26c97af1d"
+    }
+   },
+   "raw_frame": true,
+   "request_id": "8027a8a2efbb446e91d5b1fbe2b0d82b",
+   "run": "20260925_190322",
+   "side": "west",
+   "stored_order": "id_asc"
+  },
+  "810c9104": {
+   "C_ref": "f28ca2c11a016e664cafca8286a4dbe7",
+   "C_ref_pixels": "0ae080b36fc5ec59bba711191a2c006a",
+   "K1": "f08ce8fad8a0c0b8b2634335d89feaef",
+   "K1_pixels": "8ad8d065e906d67fe04f1c278d7a7189",
+   "L2": "3fde4c9b5b804e3825689bdb91c19c53",
+   "L2_pixels": "2516a63b9ba8abe81f581be0c798de6b",
+   "correct_physical": "east",
+   "prompts": {
+    "id_asc": {
+     "base": "4c3aa64cf5577aa885faafa16d1981df",
+     "base_sha256": "de497c11baf5e132c07b94be8f4dafebdf2f8418d1f0b9081fe31bf13e253997",
+     "plus": "19406c4445ab4999dbfc9d8d21c2fc64"
+    },
+    "id_desc": {
+     "base": "48320b114e798366a25daa51886cef8d",
+     "base_sha256": "6e60e575b89f4d66c8d80d0213313eab58c98749bd59fb936ed07525fc91b999",
+     "plus": "3767ed3a81c9270ebf5f0bfd68b5f1ef"
+    }
+   },
+   "raw_frame": true,
+   "request_id": "810c9104f2db46a8adf893ede34b40f9",
+   "run": "20260925_155433",
+   "side": "west",
+   "stored_order": "id_desc"
+  },
+  "920ec0d9": {
+   "C_ref": "4b3081396a4c193a8bf066e0b4f55fa7",
+   "C_ref_pixels": "9f8f50bc72ca62502ca30e291058b1ab",
+   "K1": "718240883bd641355f376e498fd14573",
+   "K1_pixels": "b898c2be65ae02de5994b4eed8aa4a71",
+   "L2": "eb4b6e30c63102c562e15870c1da3de6",
+   "L2_pixels": "08e1e44ba338cb39d3026de386097988",
+   "correct_physical": "east",
+   "prompts": {
+    "id_asc": {
+     "base": "b89b01f348bd19a032a063185867a4e7",
+     "base_sha256": "9ef9befc85821e5801de1306a7a813cea813c1337a15dc32c1fd2c2889d5efbd",
+     "plus": "65c9d8f9a8d7d4b67f064fbcfced07ba"
+    },
+    "id_desc": {
+     "base": "0bde1565888d308d80e6276ba8bd2b62",
+     "base_sha256": "c3fdcf08d7dc0785086acce8c44a3e056a760787f78ba68d8022035f743de30a",
+     "plus": "9ba16db0045b1b5ef8dfb9058ea26d9d"
+    }
+   },
+   "raw_frame": true,
+   "request_id": "920ec0d91d10413f8af4a4cddd598a9c",
+   "run": "20260925_184840",
+   "side": "west",
+   "stored_order": "id_asc"
+  },
+  "bb48067c": {
+   "C_ref": "2100cacc03a32f2fb4c12821495e4d2a",
+   "C_ref_pixels": "b346d1e66cebea1228963bb76b85a015",
+   "K1": "8132f34cddd079008707a2676235ad2f",
+   "K1_pixels": "e68fa2d34aa1aca68bd98a1f766a4c63",
+   "L2": "feca2c3a8b379ba04b3768fac121225f",
+   "L2_pixels": "e4a865b938602d3cf27ac64d228e2352",
+   "correct_physical": "west",
+   "prompts": {
+    "id_asc": {
+     "base": "ac94b6babd83c4f9bea60f5a6a8b23ae",
+     "base_sha256": "cd3d937434cfff71f878f65ed34951490d55ace530d754c68db1fa7bb509f2ca",
+     "plus": "1fc64ea57b05a90c5a31e34282838bbf"
+    },
+    "id_desc": {
+     "base": "798b02be5862a4472219dfa7206c45b3",
+     "base_sha256": "505d03ea232aeeda3e4b47cbbcbe635bbeae92c7fbfa38c28eb80826d23da035",
+     "plus": "83cb4b5ed01380e170f4c2b255d374a5"
+    }
+   },
+   "raw_frame": false,
+   "request_id": "bb48067c48b14abb8f85ed909ca4de80",
+   "run": "20260925_133841",
+   "side": "east",
+   "stored_order": "id_asc"
+  },
+  "bc56a57a": {
+   "C_ref": "0134e4f76d2d98383e4cbc9ab9da1871",
+   "C_ref_pixels": "da99b80585524f313eff501b7469af5b",
+   "K1": "9930393df38780f0c3adb3910ae4a58b",
+   "K1_pixels": "092e42a7c1475d1d8bce7f01951ee040",
+   "L2": "b892bebc41e97ead55c188e5f126f52c",
+   "L2_pixels": "44f0a8507addefbc66ef17ac49c86db0",
+   "correct_physical": "east",
+   "prompts": {
+    "id_asc": {
+     "base": "c4c45f2d360482e3fa5039e882eb2a3b",
+     "base_sha256": "c09162780ed61e682633bd4a13197f3d5387324eca0181873e31adbb98d3db2d",
+     "plus": "4fe3db6745367d7cbb84f2f981a2963c"
+    },
+    "id_desc": {
+     "base": "e35b9a786906bfb405ca7531085bf065",
+     "base_sha256": "136a761041409af946b67e970631b3e06434b3223f48ae2ad7a5d8e7fe7c3a1d",
+     "plus": "40f41e1efe6fba2075168c0d5f80f680"
+    }
+   },
+   "raw_frame": true,
+   "request_id": "bc56a57aaf7441d78271b1f3e0655b75",
+   "run": "20260925_183343",
+   "side": "west",
+   "stored_order": "id_asc"
+  },
+  "d053d0dc": {
+   "C_ref": "98f254598bfbacda4746467a60a9a133",
+   "C_ref_pixels": "c15959b3252af43743da6aa51f168837",
+   "K1": "1363620a8513887d327f80fd70c6b86f",
+   "K1_pixels": "c5abba4edd29f7819f0af9082f6ebc16",
+   "L2": "182159852db5a921a4b45ce8cfc02469",
+   "L2_pixels": "009f89137fb4f52732a88b11a83f8f6c",
+   "correct_physical": "west",
+   "prompts": {
+    "id_asc": {
+     "base": "6f47c9deee767a16ccb55d663184f324",
+     "base_sha256": "deeda502a2a10b4c5dc4a5f9b29025f247cb2ef5bdb9796aeff34e0e661e39c0",
+     "plus": "a0acefff87dd3050bea1079aa6b17a01"
+    },
+    "id_desc": {
+     "base": "344042879702958da7727deb7e62fc86",
+     "base_sha256": "a63ece6212582c0579826b67c878b42fad553c5b851a9ca11802b33754a625a1",
+     "plus": "95b6ecf0cac896a5e17a6931b5685fe7"
+    }
+   },
+   "raw_frame": false,
+   "request_id": "d053d0dcf3574cd199f3938c1114a3e9",
+   "run": "20260925_073621",
+   "side": "east",
+   "stored_order": "id_asc"
+  },
+  "d4b96fbd": {
+   "C_ref": "0fa40f4836504ef3198ea29d7b905c49",
+   "C_ref_pixels": "086e146a593c827c10ff140bb9b3b2a9",
+   "K1": "78b8fb587e49a5391658cda489eed088",
+   "K1_pixels": "0d9b5893759429033570c28cf8c5e3f0",
+   "L2": "f2b1451c7facdc2919b518a67abcb5e0",
+   "L2_pixels": "74d0fb294d5ed5670535e1c72f463b60",
+   "correct_physical": "east",
+   "prompts": {
+    "id_asc": {
+     "base": "10c82ffd37d94ca1747f5c60bc5018bb",
+     "base_sha256": "9c182db47124c588955e1fc301801364213c91b9e1f245bc1def64b6612db3ea",
+     "plus": "589b0f5a1f8ddad55f52dc0d3886beb4"
+    },
+    "id_desc": {
+     "base": "5033f4bf5fcf5dc7910bbc44222d546f",
+     "base_sha256": "3557bce1ca18134d288db64a5b31720d9e9a006f26a52c3d8e2ab57bd692602f",
+     "plus": "d4d8b42e940165eecd059b3e4f3f2ea2"
+    }
+   },
+   "raw_frame": true,
+   "request_id": "d4b96fbd2c0f4ce1acb0456c614cb2d5",
+   "run": "20260925_162451",
+   "side": "west",
+   "stored_order": "id_desc"
+  },
+  "d592a820": {
+   "C_ref": "21c1af1f3d492778dc8934575ec8a6bd",
+   "C_ref_pixels": "b13990fada6a25cd8a750a04b5bf407c",
+   "K1": "085cf5aea2eda24556a39d9d9a68ec05",
+   "K1_pixels": "5840604908250d66e86c5ad943404c18",
+   "L2": "9a7f2f2b5816cad53c8668ebe294fca9",
+   "L2_pixels": "08697054138d2db7e22b678860775152",
+   "correct_physical": "west",
+   "prompts": {
+    "id_asc": {
+     "base": "0d75254cc5a417f46d2ce87f0d04a47b",
+     "base_sha256": "03fc009cde5b5fdf81afedfb17cd6e682ce50f2c21baa472f44ecc7070e844a8",
+     "plus": "0e52042b4f053e4fbe55f552dd99cad1"
+    },
+    "id_desc": {
+     "base": "659ad9f3a1568d582a093bd6e2750e53",
+     "base_sha256": "c9c0524e4af2f99b39f7aeeda88136a2ce84b0fe1c8018c9978d5a00e96576d4",
+     "plus": "fb8cd7d37d68ad34087ce8bd1ef3d794"
+    }
+   },
+   "raw_frame": false,
+   "request_id": "d592a820fff341479d219fbecff048f6",
+   "run": "20260925_135334",
+   "side": "east",
+   "stored_order": "id_asc"
+  },
+  "e4b1bd03": {
+   "C_ref": "c412b42f32a50a0dff2fcbf8a286a4bf",
+   "C_ref_pixels": "6e50ce1ccffe110bd133aaa51a4095c1",
+   "K1": "bf75cde67aaa2fbf0f10f4b364482d34",
+   "K1_pixels": "23c0d65138626b70755d157d43745ee6",
+   "L2": "38ff8296c739326772195af854258d5f",
+   "L2_pixels": "96651650e8568f6197c1ee18c92f34be",
+   "correct_physical": "west",
+   "prompts": {
+    "id_asc": {
+     "base": "9ec7d006df48c24759d968dd948c08e1",
+     "base_sha256": "7801786e5e646dc4e32f35343f314b4652f170abc7150a614154cb2ee4b4f446",
+     "plus": "c0b7cf973e56906df1ea937388747833"
+    },
+    "id_desc": {
+     "base": "78bf805ad0d81f83ea097fed0d59854a",
+     "base_sha256": "27f1c49c92c94766f26397af3c53dd529f7993bc5113e38c35949f29f0c190b3",
+     "plus": "7c67ff20b1cb6dee3378bc863d39b14a"
+    }
+   },
+   "raw_frame": true,
+   "request_id": "e4b1bd03f86845a19c9d693060adf109",
+   "run": "20260925_165442",
+   "side": "east",
+   "stored_order": "id_asc"
+  },
+  "ea126abd": {
+   "C_ref": "17cc675661ae2ea279d2c055b257e7c7",
+   "C_ref_pixels": "d87683cfb903d08695063ad693e75e4b",
+   "K1": "426f30ba3768e5a78d759d9a7562a11f",
+   "K1_pixels": "420760fdf7fc8ea1ce2d6d504a627ff5",
+   "L2": "88a3508b693002d83e6ed6f92e617df3",
+   "L2_pixels": "a356b4331a6cf47808cf3ca4dbbe4419",
+   "correct_physical": "east",
+   "prompts": {
+    "id_asc": {
+     "base": "a9d3c81f367868875daac82938f5f2f9",
+     "base_sha256": "b1a53412909e840b529a209b254753058e6911eaa053f04529e26e1370517718",
+     "plus": "feeb5d655f387954662509b36098d009"
+    },
+    "id_desc": {
+     "base": "d84f87cb5e5fd47087cd4f797e21d4bd",
+     "base_sha256": "1fd5a3e06e607668bf7d6383c18efa6e5c8947602a55b375582aa761b2fe4c5b",
+     "plus": "c67ea12a4084625f3516970d2ecafd6b"
+    }
+   },
+   "raw_frame": false,
+   "request_id": "ea126abd6ccc43eeac163e0f659d811b",
+   "run": "20260925_132335",
+   "side": "west",
+   "stored_order": "id_desc"
+  },
+  "f94cb7ed": {
+   "C_ref": "945f33e34b3b78dfb1054b0ba1bbc1ed",
+   "C_ref_pixels": "4e85cefcdbd8fb31e9ffac35d5c23f3d",
+   "K1": "9f60d2fee4b957c4b24dc8fa5c2cf0e7",
+   "K1_pixels": "df10895d28049c3ff89f9f72e21c8c9d",
+   "L2": "fd34c6c286fa692f0db0b0ff5481f2a6",
+   "L2_pixels": "a155d1432921d4fee50729bc634e0f90",
+   "correct_physical": "west",
+   "prompts": {
+    "id_asc": {
+     "base": "7f2949bb762c7f22e7b57e972ad3e09d",
+     "base_sha256": "be59d5091eb70744916ca03e482a44a212cb37e2c8af0c1d2f9c18a31ed20d56",
+     "plus": "f60bfe7cd4317631f692785e2c1394c0"
+    },
+    "id_desc": {
+     "base": "a6b7661e69692832a1d970be30787b6a",
+     "base_sha256": "1b019b8364636437ddb3c9f8d43ccc85ef0d57d9bed010afe8ca15e138bd3c12",
+     "plus": "01300ad7b5a8c895dbda07995f5afbb9"
+    }
+   },
+   "raw_frame": true,
+   "request_id": "f94cb7edc2cd4c6b808523398cc61512",
+   "run": "20260925_194800",
+   "side": "east",
+   "stored_order": "id_desc"
+  }
+ },
+ "seed": 20261114
+}
