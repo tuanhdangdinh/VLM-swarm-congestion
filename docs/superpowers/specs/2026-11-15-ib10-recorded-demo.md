@@ -168,3 +168,76 @@ All three source kits are frozen evidence and were only read.
 - **RTF:** the measured RTF with recording, against about 0.30 without.
 - **Run bookkeeping:** spend, the restore lines and the VM status.
 - **Videos:** paths, sizes, codecs, frame counts, durations, topics, time maps, and stills looked at. An H.264 copy is made where the Mac can produce one, frame-for-frame with no re-timing; the originals stay untouched.
+
+---
+
+## 8. Amendment (2026-11-15): Convoy Demo Episodes D3 and D4 (Prepared, on Hold)
+
+The owner's addition (2026-11-15), verbatim:
+
+> "add the convoy to the demo run"
+
+It was written and committed before any convoy demo episode ran. On the same day the owner put new VM runs and paid calls on hold: "Do not start new VM runs or make paid API calls yet." The convoy demo kit is therefore prepared and dry-tested only, and **D3/D4 have not run**.
+
+**Episodes.** Scene `convoy_counterflow_slip`, 4 robots. These are demo episodes like D1/D2: never counted, never pooled.
+
+| Slot | Label | Arm |
+|---|---|---|
+| D3 | `cvD_d3_armA_a<n>` | Layer 2 on, live `gemini-robotics-er-2-preview`, overlay `cvl_l2on.yaml` (`7e3ab552`) |
+| D4 | `cvD_d4_armB_a<n>` | Layer 2 off, overlay `cvl_l2off.yaml` (`8457f756`) |
+
+**Settings.** The registered convoy experiment's settings apply unchanged: `vgu-vlm-swarm-v7f/docs/superpowers/specs/2026-11-14-convoy-live-resolution-experiment.md` and its kit `v7f/data/logs/vm_runs/convoy_live/kit/`, both read only. Those settings are:
+
+- runtime 68e67b5 plus the 3 safety files, key on (0.05 m / 3 readings), floor 0.20 m;
+- the legacy grounding file `config/grounding/cvl_convoy_legacy.yaml` (`63f50f91`), installed by the kit for both arms and removed by the restore;
+- the convoy USD build and the map check;
+- the 260 sim-s horizon and the 120 wall-s release;
+- the map start-up gate;
+- the registered Arm A and Arm B definitions and condition gates, with only `record=1` changed.
+
+The only addition is the recording path of section 5. The kit is a demo variant of that kit:
+
+- kit directory `data/logs/vm_runs/convoy_demo/kit/`;
+- VM directory `~/cvd`, never `~/cvl` or `~/ib10d`;
+- nothing is written in the v7f worktree, and its `SMOKE_ACCEPTED`, attempts and ledger files are untouched.
+
+**Disclosure.** D3 would be the first convoy episode ever run with a live model. Its outcome would be seen before the registered convoy experiment's VLM-on arm runs. It is a disclosed pre-experiment demo episode. It is not part of that experiment, and it must not be used to change that experiment's registered rules.
+
+**D3 may not resolve.**
+
+- The scene has never run live.
+- The model may answer something M3 cannot ground here, or name only two robots.
+- If D3 does not resolve, D4 still runs, the facts are reported, and there is no automatic re-take.
+
+**The registered standoff-gap / 0.20 m floor issue applies.** The report will give:
+
+- the robot_1–robot_2 standoff gap and whether the floor fired in D3;
+- the model's answer, strategy, robots named, crossing order and plan provenance;
+- whether M3 grounded it, and with what command and phases;
+- arrivals, and resolved or where it stopped;
+- floor stops;
+- the goal-stack minimum against the 0.45 m latch;
+- dispatch time against the 120 wall-s release;
+- the RTF with recording.
+
+**Caps.**
+
+- Wall clock: 3.5 h cumulative for the whole demo. `run_cvd.sh` sums its own ledger and the IB10 demo's.
+- Spend: $0.50 for the whole demo. The convoy demo is capped at $0.25 with the registered $0.20 per-episode guard.
+- A Gemini probe runs early and again before D3.
+- One invocation, run after the IB10 demo invocation has been restored (`PINS_V3 OK`) and stopped.
+
+**Kit md5s.**
+
+| Item | md5 |
+|---|---|
+| `kit_md5_cvd.txt` | `035c19aab699e1ddf50ce1c92dfb72f2` |
+| `kit_md5_all_cvd.txt` | `494475fd91cfa41fc88052d155a4ed00` |
+
+`bash test_dry_cvd.sh` ended `TEST_DRY_CVD OK`. It combines the registered kit's sections 1–3, 7a–7c and 9 with the IB10 demo kit's sections 4–6, 7d, 8 and 8b.
+
+**Launch, only when the owner lifts the hold:**
+
+```bash
+cd data/logs/vm_runs/convoy_demo/kit && bash run_cvd.sh demo
+```
