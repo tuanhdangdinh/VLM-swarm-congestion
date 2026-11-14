@@ -106,7 +106,7 @@ Three arm definitions are used, in three separate comparisons (@tab:ch5-arms). A
 
 *Arm B, Layer 2 off.* The M5 configuration key `reasoning_enabled` is set to false; its default is true #ev("5.18"). When it is false, M5 returns before the congestion detector, never constructs a VLM backend, and forces the classical shadow, the probes and the contradiction trigger off. No analysis, decision artifact or dispatch can occur, and no model is billed #ev("5.19"). The scene log, task registry, arrival gate and task stream still run, so Arm B produces the same outcome records as Arm A. M5 logs one fixed status line at start-up, which the condition gate checks #ev("5.19"). In each experiment the Arm B overlay is the Arm A overlay plus this one key #ev("5.17") #ev("5.19").
 
-*Arm C, grounder default, no VLM.* The Layer 2 trigger, M3 grounding and phased M4 dispatch are on, but M5's backend is a scripted mock instead of the VLM #ev("5.20"). The script has three entries: "no congestion" for the first analysis; then `junction_clear` naming all four robots with no proposed plan; then "no congestion" for every later analysis. With no proposed plan, M3 derives the phases itself and labels the plan `m3_default`. The first answer is "no congestion" so that the decision lands on a later analysis of the formed jam rather than on a start-up stall; the re-trigger follows one 15 s cooldown #ev("5.20"). Arm C is handed the strategy and the robot set. It therefore isolates plan *content*, not strategy or robot selection, and it cannot re-plan after a failure #ev("5.20").
+*Arm C, grounder default, no VLM.* The Layer 2 trigger, M3 grounding and phased M4 dispatch are on, but M5's backend is a scripted mock instead of the VLM #ev("5.20"). The script has three entries: "no congestion" for the first analysis; then `junction_clear` naming all four robots with no proposed plan; then "no congestion" for every later analysis. With no proposed plan, M3 derives the phases itself and labels the plan `m3_default`. The first answer is "no congestion" so that the decision lands on a later analysis of the formed jam rather than on a start-up stall; the re-trigger follows one 15 s cool-down #ev("5.20"). Arm C is handed the strategy and the robot set. It therefore isolates plan *content*, not strategy or robot selection, and it cannot re-plan after a failure #ev("5.20").
 
 #figure(
   table(
@@ -249,7 +249,7 @@ Two properties of this plan matter for reading Chapter 6. With five pairs, a boo
 
 === IB10
 
-The IB10 registration rules out inferential statistics. The episodes are repeated runs of one near-deterministic scene on one machine, so they are not independent samples, and the registration therefore reports counts only, with no p-values and no confidence claims #ev("5.35"). The grounder-default addendum repeats the rule: no p-values, no intervals, and no quantitative reading of time differences between Arm A and Arm C, because Arm C dispatches without model latency and one cooldown later #ev("5.35").
+The IB10 registration rules out inferential statistics. The episodes are repeated runs of one near-deterministic scene on one machine, so they are not independent samples, and the registration therefore reports counts only, with no p-values and no confidence claims #ev("5.35"). The grounder-default addendum repeats the rule: no p-values, no intervals, and no quantitative reading of time differences between Arm A and Arm C, because Arm C dispatches without model latency and one cool-down later #ev("5.35").
 
 The registered analysis is therefore descriptive. Per arm it reports resolved episodes out of valid ones, successes, arrivals out of four per episode, censored times to full resolution, the minimum GT distance, floor stops, and the provenance label of each Arm A episode. An exact test or an exact binomial interval could be computed on such counts, but it would rest on the independence assumption that the registration rejects. If Chapter 6 shows one, it is labelled as unregistered and illustrative only.
 
@@ -288,7 +288,7 @@ The threats below were known before the data they affect was collected. Each is 
 
 *The Layer-2-off control is a deterministic freeze.* Arm B is Layer 2 off, not a classical coordinator. In IB10 nothing acts on a formed jam once Layer 2 is off, so Arm B is expected to repeat one frozen state; it is a latch baseline. The B against A contrast is pipeline on against pipeline off, and says nothing about a VLM against a classical coordinator #ev("5.17").
 
-*Arm C timing differs.* Arm C answers its first trigger with "no congestion" and dispatches one cooldown later without model latency, so its times are not directly comparable with Arm A's #ev("5.35").
+*Arm C timing differs.* Arm C answers its first trigger with "no congestion" and dispatches one cool-down later without model latency, so its times are not directly comparable with Arm A's #ev("5.35").
 
 *Seeds were not unseen.* All 20 registered S1b seeds had run as pilots before tranche 1, so pilot-informed expectations existed for them #ev("5.44").
 
