@@ -63,4 +63,12 @@
 
 #evidence("4.31", [Two parse failures excluded (`b0bca63c...`, `b8abe7df...`); earlier `priority_override`, `reroute` and odometry-loss attempts not counted.], [`~/Downloads/verified_scenarios_12-11-2026/README.md` lines 190-197])
 
-#evidence("4.32", [Shipped `plan_channel_enabled: false` (prompt v2, no verify/repair); tranche 1 Arm A condition "backend: ER-2, plan channel on"; IB10 dispatches carry provenance `repaired` / `m3_default`, which only `verify_and_repair_plan` under the plan channel produces.], [`68e67b5:ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml` `plan_channel_enabled` block (lines 317-329); `68e67b5:docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` §1.2 "Condition (Arm A)"; `feat/ib10-live-resolution@2557d75:docs/reports/2026-11-13-ib10-live-resolution-results.md` lines 37-64])
+#evidence("4.32", [Shipped `plan_channel_enabled: false` (prompt v2, no verify/repair); tranche 1 Arm A condition "backend: ER-2, plan channel on"; registered IB10 Arm A overlay carries `plan_channel_enabled: true`.], [`feat/ib10-live-resolution:docs/superpowers/specs/2026-11-13-ib10-live-resolution-experiment.md` line 28 (primary); `68e67b5:ros2_ws/src/swarm_orchestrator/config/orchestrator.yaml` lines 317-329; `68e67b5:docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` §1.2 "Condition (Arm A)"])
+
+#evidence("4.33", [Newton backend in the runtime that ran: GT reader comment "under the Newton backend the robot root Xform keeps its authored spawn transform"; notes "Fabric/USD sync for Newton articulations" and "Newton moves the articulation in Fabric"; reports "Isaac Sim 6.0 with Newton". No config key selects the backend.], [`68e67b5:isaac/vgu_sim/acceptance_logging.py` line 250; `68e67b5:docs/implementation_notes.md` M6, 2026-06-21 and 2026-09-16 entries; `68e67b5:docs/reports/2026-06-21-m6-fabric-sync-investigation.md`; `68e67b5:docs/reports/2026-06-21-m4-phase1-completion.md` line 58])
+
+#evidence("4.34", [Module spec requires PhysX ("FR6.1.2 Use PhysX"; "Solver: PhysX TGS"), not what ran.], [`68e67b5:docs/specs/module6_simulation.md` lines 117, 1218])
+
+#evidence("4.35", [IB10 artifacts record `reasoner_config_effective.temperature` 0.6, not verified to be honoured by the provider; Interactions API exposes no sampling fields.], [`feat/ib10-live-resolution@2557d75:docs/reports/2026-11-13-ib10-live-resolution-results.md` line 162; `68e67b5:config/models.yaml` lines 6, 44-60])
+
+#evidence("4.36", [Other recorded real-time factors: 0.396 vs 0.397 (smoke vs old VM), 0.179 in S1 echo episode E1.], [`68e67b5:docs/implementation_notes.md` experiment section, 2026-10-09 "S1 resume on the NEW Isaac VM" entry, lines 90-91])
