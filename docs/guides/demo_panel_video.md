@@ -6,6 +6,7 @@
 
 - Initial draft: renderer (`scripts/render_demo_panel.py`, `scripts/demo_panel/`), terminal rules, time mapping, camera input path, known limits.
 - Rev 2 (2026-11-15): scene-log file name fallback for older bundles; how the ER2LIVE (2026-09-30) frame map was made and checked.
+- Rev 3 (2026-11-15): presentation profile (`render --profile presentation`) and the combine `outcome_reveal: "after"` mode.
 
 ---
 
@@ -116,6 +117,71 @@ Manifest (`path` is relative to the manifest's directory unless absolute; unknow
 - A sidecar `<out stem>_sources.json` lists each source path, md5, size, fps, duration, trim, labels and note.
 
 Tool test: `data/demo/combine_tool_test.mp4` (two existing videos, labels invented for the test) is not a demo video.
+
+## Presentation Profile
+
+`render --profile presentation` makes an audience cut of one take: a staged, shorter terminal, captions revealed with the events they describe, a zoom inset, and intro and outro cards. The default (`--profile engineering`) is unchanged; its transcripts regenerate identical to the stored ones, apart from the `time_map.method` wording that `0212306` changed. The engineering cuts stay the record.
+
+```bash
+python3 scripts/render_demo_panel.py render --profile presentation \
+  --script config/demo_presentation/<label>.json --bundle <bundle_dir> \
+  --camera <bundle_dir>/rec/annotated_000.mp4 ... --camera-map <map.json> \
+  --out data/demo/campaign/presentation/<label>_presentation.mp4 --stills
+```
+
+### Terminal (Same Rules, Shorter Lines)
+
+Only lines printed by shown commands run for real on the bundle's files. Compared with the engineering profile:
+
+- **Filter.** The pattern adds M5's check lines: `yield re-grounded|yield refused|refusal withheld`. The pipeline ends in a displayed `sed -E` stage:
+
+  ```bash
+  sed -E 's/^\[[^]]+\] \[[A-Z]+\] \[[0-9.]+\] \[([a-z_]+)_node\]: /\1: /; s/([0-9a-f]{8})[0-9a-f]{24}/\1/g'
+  ```
+
+  It turns `[orchestrator_node-1] [INFO] [<epoch>] [orchestrator_node]: ` into `orchestrator: ` and keeps the first 8 characters of every 32-hex id. `sed` maps one line to one line. The renderer also runs the same filter without the `sed` stage and pairs the two outputs by index: the stamped original places the line in time, decides collapsing and gives `file:line`; the shortened line is what is shown. `shorten_line` is a Python copy of the `sed` used to cross-check it in tests.
+- **Safety stops.** Collapsed exactly as in the engineering profile. They are drawn dim grey, not yellow: they are M4's 0.45 m latch holding stopped robots, not errors.
+- **Highlights (colour and bold only).** The model's decision and plan lines are bold yellow; check lines (the verdict and M5's gate lines) bold orange; lines with `action=` bold green.
+- **Decision block** (at each `decision artifact written`, on `decisions/<8-hex>*.json`, a glob the renderer checks matches exactly that file; otherwise the full name is used):
+  - request: `jq -r .prompt.user_prompt … | head -n 1`, and `file -b frames/<id>.png`, the image M5 dumped as the one the model sees (`orchestrator_node.py`, `image_path`);
+  - response: `{served_model, latency_ms, attempts}` plus `image_tokens` (`.token_usage.input_tokens_image`) where the artifact records it; the strategy, involved robots and justification; then the plan. With a plan channel (`.plan` not null) it prints `plan: <robot> <action>, …` from `.decision.proposed_plan` and `crossing_order:`; a null plan prints `plan: null`. Without one it prints `yield_robot:` and `crossing_order:`;
+  - check: `provenance=… reason=… dispatch_order_source=…` (the last only where the artifact has the key), or, without a plan channel, `{yield_robot_grounded_from[, dispatch_order_source]}` (null means the gate did not swap the yielder).
+  - `dispatched_robot_ids` is not printed. It reads as the model's order but holds the first phase's recipients, and it is filled for withheld decisions too.
+  - A decision the model answered with `congestion_detected=false` prints only the request, model-call and decision lines.
+- **Size.** 20 px Menlo, 26 body rows, about 99 columns; the filter header is pinned at the top in 14 px.
+
+### Holds and Stage Strip
+
+The sim clock is held 7 s after the model's answer (the last `response` line) and 4 s after the check (the check verdict, or a later M5 gate line of the same request). A `congestion_detected=false` decision gets 2.5 s holds. The speed caption says which hold applies.
+
+The strip above both panes lights one stage. Each item anchors a stage; other items keep the current one:
+
+| Anchor | Stage |
+|---|---|
+| `starting analysis` | Trigger, then VLM request after 1.5 s |
+| `decision artifact written`, `request` commands | VLM request |
+| `response` commands | VLM response |
+| `check` commands, `yield re-grounded`, `yield refused` | Check |
+| `no dispatch`, `refusal withheld` | Check; the strip goes blank 4 s later |
+| `dispatch request=`, `command received` | Dispatch, then Execution after 3 s |
+| `crossing_chain`, `phase advance`, `arrived at base goal` | Execution |
+
+Before the first trigger no stage is lit. `exempt pairs changed`, safety stops, markers and `cost.log` polls anchor nothing.
+
+### Captions, Zoom, Cards (Outside the Terminal)
+
+The script (`config/demo_presentation/<label>.json`, model `PresentScript`) holds the header, camera label, intro card (scenario, robots, model, the left/right sentence, three things to watch for), captions, the outcome line, a legend for terms that stay in verbatim lines, the disclosure, the outro card and the zoom windows. Every text in it is taken from the campaign report.
+
+- **Anchors.** A caption starts at its anchor and shows until the next caption: `match` (regex on shown terminal text, `nth` match), `sim` (first moment the sim clock reaches that second; for facts with no log line, such as the ER2LIVE escort pass), `start` or `end` (the end-of-episode hold). A missing anchor stops the render. At a `starting analysis` line that no script caption covers, a generic caption restates the line's own trigger reason, so an earlier caption never runs into a new decision.
+- **Outcome.** The outcome line appears only from its anchor (the last arrival, or the end for unresolved takes). The header carries the take and the disclosure throughout.
+- **Zoom.** `crop` `[x, y, w, h]` in native camera pixels, 4:3, inside the frame. The inset (384x288, beside the camera, never over it) is that crop of the same frame, scaled up, and is labelled `Zoom ×N of the camera view` with N relative to the full view. Nothing is drawn on the camera image.
+- **Cards.** Intro 13 s, outro 10 s.
+
+Stills: `intro`, `trigger`, `response`, `check`, `dispatch` (all for the script's `key_request`), `mid`, `outcome`, `outro`.
+
+### Combined Video Without Spoilers
+
+A manifest with `"outcome_reveal": "after"` leaves the outcome label off the title cards and the caption bar. A clip with `"outcome_card": true` is followed by an outcome card (`Outcome: <label>`, take, optional `outcome_note`, fixed line). The sidecar records the mode. Without the key the behaviour is unchanged.
 
 ## Recording a Real Camera Video Later
 
