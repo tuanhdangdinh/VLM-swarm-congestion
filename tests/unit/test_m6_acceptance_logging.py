@@ -324,3 +324,102 @@ def test_build_record_reports_no_conflict_for_normal_flow():
     assert record["conflict_type"] is None
     assert record["involved_robots"] == []
     assert record["min_pairwise_distance_m"] == 0.7
+
+
+def _island_scenario() -> ScenarioConfig:
+    return ScenarioConfig.model_validate(
+        {
+            **_head_on_scenario().model_dump(mode="json"),
+            # As in the five-robot scene: racks cut back, so the island stands alone.
+            "rack_clearance": {"x_min_m": -2.5, "x_max_m": 2.5, "y_min_m": -1.8, "y_max_m": 1.8},
+            "static_obstacles": [
+                {
+                    "obstacle_id": "obstacle_2",
+                    "pose": {"x": 0.525, "y": -0.1, "yaw_rad": 0.0},
+                    "size": {"x_m": 0.55, "y_m": 1.6, "z_m": 0.3},
+                }
+            ],
+        }
+    )
+
+
+def _write_rows(tmp_path, scenario, poses_by_tick):
+    path = tmp_path / "ground_truth.jsonl"
+    tracker = RobotPoseTracker()
+    with path.open("w", encoding="utf-8") as handle:
+        logger = AcceptanceLogger(handle, scenario, log_hz=10.0)
+        for sim_time, positions in poses_by_tick:
+            logger.maybe_write(sim_time, tracker.update_from_positions(sim_time, positions))
+    return [json.loads(line) for line in path.read_text().splitlines()]
+
+
+def test_acceptance_logger_lists_static_contact_when_robot_overlaps_box(tmp_path):
+    # Nose 1 mm inside the island's east face at x = 0.800.
+    rows = _write_rows(
+        tmp_path,
+        _island_scenario(),
+        [(0.0, {"robot_1": (0.837, 0.572, math.pi), "robot_2": (3.0, 0.0, math.pi)})],
+    )
+
+    assert rows[0]["robot_static_contacts"] == [
+        {"robot_id": "robot_1", "obstacle_id": "obstacle_2", "gap_m": -0.001}
+    ]
+    assert rows[0]["min_static_gap_m"] == -0.001
+
+
+def test_acceptance_logger_lists_no_contact_when_robots_clear(tmp_path):
+    rows = _write_rows(
+        tmp_path,
+        _island_scenario(),
+        [(0.0, {"robot_1": (1.2, 0.0, math.pi), "robot_2": (3.0, 0.0, math.pi)})],
+    )
+
+    assert rows[0]["robot_static_contacts"] == []
+    assert rows[0]["robot_robot_contacts"] == []
+    assert rows[0]["min_static_gap_m"] == round(1.2 - 0.038 - 0.8, 4)
+    assert rows[0]["contact_model"] == "urdf_footprint_v1"
+
+
+def test_acceptance_logger_lists_robot_contact_when_nose_to_nose(tmp_path):
+    rows = _write_rows(
+        tmp_path,
+        _head_on_scenario(),
+        [(0.0, {"robot_1": (-0.038, 0.0, 0.0), "robot_2": (0.038, 0.0, math.pi)})],
+    )
+
+    assert rows[0]["robot_robot_contacts"] == [
+        {"robot_ids": ["robot_1", "robot_2"], "gap_m": 0.0}
+    ]
+    assert rows[0]["min_robot_robot_gap_m"] == 0.0
+    assert rows[0]["min_pairwise_distance_m"] == 0.076
+
+
+def test_acceptance_record_keeps_min_pairwise_distance_centre_to_centre():
+    states = {
+        "robot_1": RobotRuntimeState(robot_id="robot_1", x=0.0, y=0.0, theta=0.0, speed_mps=0.0),
+        "robot_2": RobotRuntimeState(robot_id="robot_2", x=0.0, y=0.3, theta=0.0, speed_mps=0.0),
+    }
+
+    record = build_acceptance_record(1.0, _head_on_scenario(), states)
+
+    assert record["min_pairwise_distance_m"] == 0.3
+    assert record["min_robot_robot_gap_m"] == round(0.3 - 2 * 0.089, 4)
+
+
+def test_offline_recompute_reproduces_logged_contacts_from_rounded_row(tmp_path):
+    from isaac.vgu_sim.contact_geometry import compute_contact_frame, scene_static_boxes
+
+    scenario = _island_scenario()
+    rows = _write_rows(
+        tmp_path,
+        scenario,
+        [(0.0, {"robot_1": (0.83712345, 0.5723456, 3.1400123), "robot_2": (0.9, -0.95, 1.0)})],
+    )
+    row = rows[0]
+    poses = {rid: (r["x"], r["y"], r["theta"]) for rid, r in row["robots"].items()}
+
+    frame = compute_contact_frame(poses, scene_static_boxes(scenario), row["sim_time_sec"])
+
+    assert frame.static_contacts == row["robot_static_contacts"]
+    assert frame.min_static_gap_m == row["min_static_gap_m"]
+    assert frame.min_robot_robot_gap_m == row["min_robot_robot_gap_m"]

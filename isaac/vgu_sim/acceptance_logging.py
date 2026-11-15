@@ -2,10 +2,17 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TextIO
 
 from isaac.vgu_sim.config import ScenarioConfig
+from isaac.vgu_sim.contact_geometry import (
+    CONTACT_MODEL_ID,
+    StaticBox,
+    compute_contact_frame,
+    scene_static_boxes,
+)
 from isaac.vgu_sim.oracle import head_on_conflict_active
 
 if TYPE_CHECKING:
@@ -60,7 +67,30 @@ def build_acceptance_record(
     sim_time_sec: float,
     scenario: ScenarioConfig,
     states: dict[str, RobotRuntimeState],
+    static_boxes: Sequence[StaticBox] | None = None,
 ) -> dict[str, object]:
+    """Build one ground-truth row.
+
+    The contact fields come from `contact_geometry.compute_contact_frame`,
+    evaluated on the rounded pose the row itself records, so an offline
+    recompute from the row reproduces them exactly.
+
+    Args:
+        sim_time_sec: Sim time of the row, seconds.
+        scenario: Scenario being run.
+        states: Robot id to sampled runtime state.
+        static_boxes: The scene's collidable boxes; computed from `scenario`
+            when None.
+
+    Returns:
+        The JSON-ready row. `robot_static_contacts` lists
+        `{"robot_id", "obstacle_id", "gap_m"}` and `robot_robot_contacts`
+        lists `{"robot_ids", "gap_m"}` for pairs whose footprint gap is at
+        most `CONTACT_GAP_THRESHOLD_M`; `min_static_gap_m` and
+        `min_robot_robot_gap_m` give the unthresholded minima; and
+        `contact_model` marks the row as computed, unlike the stub rows
+        written before it existed.
+    """
     goals = _goal_lookup(scenario)
     robots: dict[str, dict[str, float | None]] = {}
     for robot_id in sorted(states):
@@ -86,6 +116,12 @@ def build_acceptance_record(
         conflict_active = _head_on_active(scenario, states)
 
     min_distance = _min_pairwise_distance(states)
+    boxes = scene_static_boxes(scenario) if static_boxes is None else static_boxes
+    contacts = compute_contact_frame(
+        {rid: (r["x"], r["y"], r["theta"]) for rid, r in robots.items()},
+        boxes,
+        sim_time_sec,
+    )
     conflict = scenario.expected_conflict
     return {
         "sim_time_sec": _round4(sim_time_sec),
@@ -96,8 +132,11 @@ def build_acceptance_record(
         "min_pairwise_distance_m": (
             _round4(min_distance) if min_distance is not None else None
         ),
-        "robot_static_contacts": [],
-        "robot_robot_contacts": [],
+        "robot_static_contacts": contacts.static_contacts,
+        "robot_robot_contacts": contacts.robot_contacts,
+        "min_static_gap_m": contacts.min_static_gap_m,
+        "min_robot_robot_gap_m": contacts.min_robot_robot_gap_m,
+        "contact_model": CONTACT_MODEL_ID,
     }
 
 
@@ -107,11 +146,15 @@ class AcceptanceLogger:
         self._scenario = scenario
         self._period_sec = 1.0 / log_hz
         self._next_log_sec = 0.0
+        # Built once so a scene-geometry error surfaces before the sim loop.
+        self._static_boxes = scene_static_boxes(scenario)
 
     def maybe_write(self, sim_time_sec: float, states: dict[str, RobotRuntimeState]) -> None:
         if sim_time_sec + 1e-9 < self._next_log_sec:
             return
-        record = build_acceptance_record(sim_time_sec, self._scenario, states)
+        record = build_acceptance_record(
+            sim_time_sec, self._scenario, states, self._static_boxes
+        )
         self._file.write(json.dumps(record, sort_keys=True) + "\n")
         self._next_log_sec += self._period_sec
 
