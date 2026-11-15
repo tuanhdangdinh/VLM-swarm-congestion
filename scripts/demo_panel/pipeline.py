@@ -21,6 +21,7 @@ from scripts.demo_panel.render import (
     H264Writer,
     Layout,
     TerminalPane,
+    fit_scene_box,
     load_mono_font,
     title_card,
 )
@@ -212,13 +213,29 @@ def prepare(
     return Prepared(b, tc, transcript, pane, tl, scene)
 
 
-def compositor(p: Prepared, layout: Layout, font: str | None = None) -> Compositor:
-    """Compositor for a prepared bundle, with the alignment note when uncertain."""
+def compositor(
+    p: Prepared, layout: Layout, font: str | None = None, captions: Sequence[str] = ()
+) -> Compositor:
+    """Compositor for a prepared bundle, with the alignment note when uncertain.
+
+    With `captions` and camera footage, the scene box is fitted to the clip's
+    aspect ratio so the caption lines fit under it.
+    """
     note = None
     if p.tc.info.uncertain:
         note = f"Log/sim {p.tc.info.note}."
+    if captions and isinstance(p.scene, CameraClipScene):
+        layout = fit_scene_box(layout, p.scene.frame_size)
     return Compositor(
-        p.transcript, p.timeline, p.scene, p.pane, run_caption(p.bundle), layout, font, note
+        p.transcript,
+        p.timeline,
+        p.scene,
+        p.pane,
+        run_caption(p.bundle),
+        layout,
+        font,
+        note,
+        captions,
     )
 
 

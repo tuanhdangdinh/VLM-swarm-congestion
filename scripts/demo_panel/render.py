@@ -12,7 +12,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
@@ -90,6 +90,25 @@ class Layout:
     term_box: tuple[int, int, int, int] = (880, 80, 1020, 948)
     font_px: int = 15
     caption_px: int = 20
+
+
+def fit_scene_box(layout: Layout, frame_size: tuple[int, int]) -> Layout:
+    """Shrink the scene box's height to a camera clip's aspect ratio (width kept).
+
+    The rows freed under the clip hold extra caption lines instead of letterbox bars.
+
+    Args:
+        layout: Current layout.
+        frame_size: Clip frame `(width, height)` in pixels.
+
+    Returns:
+        The layout with the fitted scene box (unchanged for a taller clip).
+    """
+    x, y, w, h = layout.scene_box
+    fw, fh = frame_size
+    if fw <= 0 or fh <= 0:
+        return layout
+    return replace(layout, scene_box=(x, y, w, min(h, int(round(w * fh / fw)))))
 
 
 class TerminalPane:
@@ -179,6 +198,7 @@ class Compositor:
         layout: Layout | None = None,
         font_override: str | None = None,
         footer_note: str | None = None,
+        captions: Sequence[str] = (),
     ) -> None:
         """Create the compositor.
 
@@ -191,7 +211,10 @@ class Compositor:
             layout: Pixel layout.
             font_override: Monospace font name/path to prefer.
             footer_note: Extra footer text (e.g. alignment uncertainty).
+            captions: Extra caption lines under the scene pane's own label (e.g.
+                outcome label, take, model); never drawn inside the terminal.
         """
+        self.captions = list(captions)
         self.t = transcript
         self.tl = timeline
         self.scene = scene
@@ -235,7 +258,12 @@ class Compositor:
                 )
         y = _draw_wrapped(d, (sx, sy + sh + 6), self.scene.label, self.cap_font, CAPTION_RGB, sw)
         if self.scene.detail:
-            _draw_wrapped(d, (sx, y), self.scene.detail, self.small_font, DIM_RGB, sw)
+            y = _draw_wrapped(d, (sx, y), self.scene.detail, self.small_font, DIM_RGB, sw)
+        for k, line in enumerate(self.captions):
+            if k == 0:
+                y = _draw_wrapped(d, (sx, y + 6), line, self.cap_font, (240, 214, 120), sw)
+            else:
+                y = _draw_wrapped(d, (sx, y + 4), line, self.small_font, CAPTION_RGB, sw)
         n = self.tl.visible_count(video_t)
         if self._term_cache is None or self._term_cache[0] != n:
             self._term_cache = (n, self.term.draw(n))

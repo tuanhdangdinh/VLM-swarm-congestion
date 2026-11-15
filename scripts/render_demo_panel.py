@@ -125,6 +125,12 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--bundle", type=Path, required=True)
     r.add_argument("--camera", type=Path, nargs="+", help="camera clip segment(s), in order")
     r.add_argument("--camera-map", type=Path, help="frame-to-sim JSON for --camera")
+    r.add_argument(
+        "--caption",
+        action="append",
+        default=[],
+        help="extra caption line under the scene pane (repeatable: outcome, take, model)",
+    )
     s = sub.add_parser("sequence", help="several bundles, one after the other, with caption cards")
     s.add_argument("--bundle", type=Path, action="append", required=True)
     s.add_argument(
@@ -165,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "render":
         p = _prepare(args, args.bundle, layout, None, args.camera, args.camera_map)
-        comp = compositor(p, layout, args.font)
+        comp = compositor(p, layout, args.font, args.caption)
         dur = render([comp], args.out, FPS, layout, args.font, args.crf)
         print(f"wrote {args.out} ({dur:.1f} s); transcript {_write_transcript(p, args.out)}")
         print(f"time map: {p.tc.info.note}")

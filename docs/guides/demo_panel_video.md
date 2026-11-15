@@ -75,6 +75,8 @@ python3 scripts/render_demo_panel.py sequence --bundle <on> --bundle <off> --cal
 #   --camera-for <i> <map.json> <segment_000.mp4> [<segment_001.mp4> ...]
 ```
 
+`render` also takes `--caption "<line>"` (repeatable) for the outcome label, take, model and disclosure lines. They are drawn under the scene pane, never in the terminal; the first line is highlighted. With camera footage, the scene box is then fitted to the clip's aspect ratio (800x600 for 4:3) so the lines fit above the footer.
+
 Output is H.264 (`libx264`, `yuv420p`, `+faststart`, 24 fps, 1920x1080), so it plays in QuickTime, browsers and on phones. `data/demo/` is git-ignored.
 
 `--camera-map` accepts any one of these JSON shapes:

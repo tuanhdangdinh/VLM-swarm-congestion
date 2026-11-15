@@ -352,3 +352,44 @@ def test_smooth_captions_merges_burst_flicker():
     caps = [(0, 1, "3x"), (1, 1.3, BURST_CAPTION), (1.3, 1.31, "3x"), (1.31, 1.6, BURST_CAPTION)]
     out = smooth_captions(caps, 0.6)
     assert out == [(0, 1, "3x"), (1, 1.6, BURST_CAPTION)]
+
+
+def test_fit_scene_box_matches_clip_aspect():
+    from scripts.demo_panel.render import Layout, fit_scene_box
+
+    assert fit_scene_box(Layout(), (1280, 960)).scene_box == (40, 92, 800, 600)
+    assert fit_scene_box(Layout(), (480, 960)).scene_box == Layout().scene_box
+
+
+def _clip(tmp_path: Path) -> Path:
+    path = tmp_path / "clip.mp4"
+    w = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"), 10.0, (64, 48))
+    for _ in range(20):
+        w.write(np.full((48, 64, 3), 100, dtype=np.uint8))
+    w.release()
+    return path
+
+
+def test_compositor_draws_captions_under_scene_and_leaves_terminal_unchanged(tmp_path):
+    from scripts.demo_panel.pipeline import compositor, prepare
+    from scripts.demo_panel.render import Layout
+
+    root = make_bundle(tmp_path)
+    cmap = tmp_path / "map.json"
+    cmap.write_text(json.dumps({"anchors": [[0, 0.0], [19, 140.0]]}))
+    lay = Layout()
+    p = prepare(root, lay, [_clip(tmp_path)], cmap)
+    plain = compositor(p, lay).frame(5.0)
+    captioned = compositor(p, lay, captions=["Unresolved failure - take 1 of 3", "second line"])
+    img = captioned.frame(5.0)
+    assert captioned.layout.scene_box == (40, 92, 800, 600)
+    tx, ty, tw, th = lay.term_box
+    assert np.array_equal(img[ty : ty + th, tx : tx + tw], plain[ty : ty + th, tx : tx + tw])
+    sx, sy, sw, _ = lay.scene_box
+
+    def caption_pixels(frame: np.ndarray) -> int:
+        region = frame[sy + 600 : lay.height - 60, sx : sx + sw].astype(int)
+        return int((np.abs(region - np.array([240, 214, 120])).sum(axis=2) < 60).sum())
+
+    assert caption_pixels(img) > 50
+    assert caption_pixels(plain) == 0

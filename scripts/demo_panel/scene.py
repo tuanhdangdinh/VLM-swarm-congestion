@@ -370,6 +370,10 @@ class CameraClipScene:
             self._caps.append(cap)
             self._starts.append(self._starts[-1] + int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
         self.frame_count = self._starts[-1]
+        self.frame_size = (
+            int(self._caps[0].get(cv2.CAP_PROP_FRAME_WIDTH)),
+            int(self._caps[0].get(cv2.CAP_PROP_FRAME_HEIGHT)),
+        )
         self.time_map = time_map
         self._next = [0] * len(self._caps)
         self._last: tuple[int, np.ndarray] | None = None
