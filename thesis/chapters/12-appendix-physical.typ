@@ -4,7 +4,7 @@
 
 #show raw.where(block: true): set text(size: 7.5pt)
 
-This appendix records the communication setup of the physical demonstration (@sec:impl-physical) so that it can be reproduced. The values are those used on 12 November 2026, taken from the team's testbed notes, which are not in the repository #ev("4.41"). The laptop's IP address is replaced by the placeholder `<CURRENT_HOST_IP>`, and in the client configuration `N` stands for the robot number (2 to 5).
+This appendix records the communication setup of the physical demonstration (@sec:impl-physical) so that it can be reproduced. The values are as recorded in the team's testbed notes of 15 November 2026, which describe the 12 November 2026 runs and are not in the repository #ev("4.41"). The laptop's IP address is replaced by the placeholder `<CURRENT_HOST_IP>`, and in the client configuration `N` stands for the robot number (2 to 5).
 
 == Zenoh Router on the Laptop <sec:app-physical-router>
 

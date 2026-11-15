@@ -140,7 +140,7 @@ The safety monitor in M4 is the last line of defence and deliberately the simple
 #figure(
   placement: auto,
   table(
-    columns: (auto, auto, 1fr),
+    columns: (auto, 1fr, 2fr),
     align: (left, left, left),
     stroke: 0.4pt + luma(160),
     fill: (_, y) => if y == 0 { luma(235) },

@@ -121,19 +121,19 @@ This post hoc classification (@sec:ch5-failure-cause) covers 33 episodes in stra
 ) <tab:ch6-fc-primary>
 
 #figure(
-  table(
-    columns: (1.6fr, 0.8fr, 1fr, 0.9fr, 1fr, 1fr, 1fr),
+  [#set text(size: 9pt)
+  #table(
+    columns: (1.5fr, 0.8fr, 1fr, 0.9fr, 1fr, 1.3fr, 1.3fr),
     align: (left, center, center, center, center, center, center),
     stroke: 0.4pt + luma(160),
     fill: (_, y) => if y == 0 { luma(235) },
-    table.header([*Stratum*], [*Units rated*], [*Raw agreement, primary class*], [*Cohen's kappa, primary class*], [*Raw agreement, full code*], [*Disagreements*], [*Disagreements left undetermined*]),
+    table.header([*Stratum*], [*Units rated*], [*Raw agreement, primary class*], [*Cohen's kappa, primary class*], [*Raw agreement, full code*], [*Disagree­ments*], [*Of which undeter­mined*]),
     [Registered pilot, on], [8], [0.875], [0.830], [0.875], [1], [0],
     [Registered pilot, off], [10], [1.000], [n/a], [1.000], [0], [0],
     [Exploratory pilots, horizon], [25], [1.000], [1.000], [0.880], [3], [2],
     [Exploratory pilots, early stop], [8], [0.875], [0.800], [0.875], [1], [0],
     [November takes], [4], [1.000], [1.000], [1.000], [0], [0],
-    [All strata (agreement statistic only; no outcome is pooled)], [55], [0.964], [0.948], [0.909], [5], [2],
-  ),
+    [All strata (agreement statistic only; no outcome is pooled)], [55], [0.964], [0.948], [0.909], [5], [2],  )],
   caption: flex-caption([Agreement between the two raters, by stratum.], [Agreement of the two independent raters before reconciliation, on final codes (second round for the 34 units in its scope, first round otherwise); kappa n/a where undefined; disagreements on the full code. Rating quality only.#fig-source("6.63")]),
 ) <tab:ch6-fc-agree>
 
@@ -314,7 +314,7 @@ The demonstration campaign (14–15 November 2026, UTC) ran live ER-2 takes in f
     [Five robots, 1 take], [8 of 8], [2 (1 repaired, 5 grounder default)], [2], [not computed],
     [Total], [69 of 69], [6 of 65 plan-channel analyses (first twelve takes)], [5 of the 61 with a plan (first twelve takes)], [1],
   ),
-  caption: flex-caption([Demonstration campaign: valid, accepted and executed.], [Demonstration campaign, per analysis (second-stage calls not counted): valid response; plan accepted unchanged (`vlm_verbatim`) as recorded and as recomputed offline (commands sent match the verified legs; recorded labels unchanged #ev("6.51"); the 65 include four intersection "no congestion" answers with no plan, so the recomputation's base is 61 #ev("6.16")); plan that changed the executed commands relative to the grounder's default for the same snapshot. Illustrative demonstration.#fig-source("6.44")]),
+  caption: flex-caption([Demonstration campaign: valid, accepted and executed.], [Demonstration campaign, per analysis (second-stage calls not counted): valid response; plan accepted unchanged (`vlm_verbatim`) as recorded and as recomputed offline (commands sent match the verified legs; recorded labels unchanged #ev("6.51")\; the 65 include four intersection "no congestion" answers with no plan, so the recomputation's base is 61 #ev("6.16")); plan that changed the executed commands relative to the grounder's default for the same snapshot. Illustrative demonstration.#fig-source("6.44")]),
 ) <tab:res-threeway>
 
 In intersection takes 1 and 3 the plans parsed but were nulled for invalid structure #ev("6.39"). The recorded count over-states agreement, because for `reverse` and `reroute` the grounder acts on the model's involved-robots list and never reads the plan #ev("6.02") #ev("6.51"). Counting a plan only when the commands sent match its verified legs, minus two registered artefacts (retreat-shield waits on robots planned `continue`; back-out orders within tolerance), 6 becomes 5, because one convoy decision planned waits for two queued robots that were never commanded (motion differences only: 6; no exclusions: 3). In the campaign and October decisions recomputed (convoy takes 4 and 5 excluded), 10 of 33 dispatched `reverse` legs went to robots whose plan said something else #ev("6.51"). *Caveat:* illustrative takes; the corrected counts are an offline, decision-level recomputation, and the 10 of 33 is not a rate #ev("6.44").
@@ -411,4 +411,4 @@ The live per-group shadow run asked the per-cluster question beside the ordinary
 
 == Physical Demonstration <sec:res-physical>
 
-On 12 November 2026 the detect-to-dispatch chain ran on physical TurtleBot3 robots under an overhead camera, with `gemini-3.1-flash-lite` (setup in @sec:impl-physical) #ev("1.07") #ev("4.28"). In all four staged arrangements the model chose `reverse` #ev("6.48"). With two head-on pairs (A, deadlock) it named all four robots, all `COMPLETED` (pair distances about 0.575 m and 0.614 m) #ev("4.30")\; in a triangle of three with a fourth robot outside (C, deadlock) it named only the three, all `COMPLETED` (about 0.581, 0.582 and 0.556 m) #ev("4.38")\; with four robots facing a shared centre (D, labelled crowding) all four `COMPLETED`; in the tighter dual-lane variant (E, deadlock) it named four, of which three `COMPLETED` and `robot_3` `FAILED` #ev("4.38"). Two unparsable replies are excluded #ev("4.31"). With no navigation goals, `COMPLETED` means the reverse finished, not that a conflict was resolved #ev("4.29"). Each outcome belongs to the whole chain: the model sends no velocities, and its decision passes grounding and the safety monitor before execution #ev("4.41"). *Caveat:* one run per arrangement, code not in this repository's history; not an evaluation.
+On 12 November 2026 the detect-to-dispatch chain ran on physical TurtleBot3 robots under an overhead camera, with `gemini-3.1-flash-lite` (setup in @sec:impl-physical) #ev("1.07") #ev("4.28"). In the kept run of each of the four staged arrangements the model chose `reverse` #ev("6.48"); earlier attempts in which it chose `priority_override` or `reroute` produced only waits or timed-out backups and are not counted #ev("4.31"). With two head-on pairs (A, deadlock) it named all four robots, all `COMPLETED` (pair distances about 0.575 m and 0.614 m) #ev("4.30")\; in a triangle of three with a fourth robot outside (C, deadlock) it named only the three, all `COMPLETED` (about 0.581, 0.582 and 0.556 m) #ev("4.38")\; with four robots facing a shared centre (D, labelled crowding) all four `COMPLETED`; in the tighter dual-lane variant (E, deadlock) it named four, of which three `COMPLETED` and `robot_3` `FAILED` #ev("4.38"). Two unparsable replies are excluded. With no navigation goals, `COMPLETED` means the reverse finished, not that a conflict was resolved #ev("4.29"). Each outcome belongs to the whole chain: according to the team's notes, the model sends no velocities, and its decision passes grounding and the safety monitor before execution #ev("4.41"). *Caveat:* one run per arrangement, code not in this repository's history; not an evaluation.
