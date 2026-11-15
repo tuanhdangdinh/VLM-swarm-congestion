@@ -6,6 +6,7 @@
 
 - Initial draft: results of the 10-episode, two-arm IB10 live resolution experiment run on 2026-11-13 under the registration in `docs/superpowers/specs/2026-11-13-ib10-live-resolution-experiment.md`.
 - Rev 2 (2026-11-15): added the erratum "2026-11-15 Erratum — Contact Wording" and scoped the "GT contact" statements to the robot-pair distance; no number or verdict changed.
+- Rev 3 (2026-11-15): added the erratum "2026-11-15 Erratum — Model Plan Statements" and corrected the e09 trigger-3 plan and phase statements in place; no number or verdict changed.
 
 ---
 
@@ -17,6 +18,18 @@ Ground truth's two contact lists, `robot_static_contacts` and `robot_robot_conta
 - **Affected statements.** "0 GT contact frames" (Per-episode table intro), "no GT contact" (Pooled table, Success row), the "GT contacts" label (Pooled table) and "zero contact frames in every GT file" (Verification status). Each is now scoped in place and marked "(corrected 2026-11-15, see erratum)".
 - **What remains supported.** Robot-robot only, by distance: the lowest GT pair is 0.2633 m in Arm A (e09) and 0.2856 m in Arm B (e04); excluded e01 a1 0.3160 m. No episode came below 0.18 m. 0 floor stops. Success 4/5 vs 0/5 and every other number are unchanged.
 - **Static obstacles.** IB10 declares no static obstacles (`intersection_bottleneck.yaml`: "No obstacles"), so the gap is not material in the way it is for the S1b rack-island scenes. Contact with the warehouse rack blocks and walls that bound the aisles is not logged either and was not checked.
+
+---
+
+## 2026-11-15 Erratum — Model Plan Statements
+
+The source is `docs/reports/2026-11-15-vlm-plan-influence-trace.md` (branch `docs/vlm-plan-influence-trace`, section G). It traced every four-robot live analysis from the model's `raw_text` to the commands M4 received. Each item below was re-checked read-only against this report's bundles (`data/logs/vm_runs/ib10_live/runs/`).
+
+- **e09 trigger 3 (request `ceff5efa`): the model did send a plan.** The report said ER-2 answered `junction_clear` with `proposed_plan: null`. That read the post-parse decision field. The artifact's `raw_text` holds a six-leg plan: `robot_2 reverse, robot_1 yield, robot_4 cross, robot_3 cross, robot_1 cross, robot_2 cross`. It names robot_1 and robot_2 twice, so the stage-1 parser nulled it: a repeated `robot_id` raises, the field is set to None and tagged `proposed_plan=default:invalid_structure` (`reasoning/vlm/output_parser.py:130-136` at `68e67b5`; the same rule is the schema invariant in `reasoning/vlm/models.py:515-524`). M3 then saw no plan, hence `m3_default` with "plan absent". Verified in `ib10L_e09_armA_a1/decisions/ceff5efa….json`: `raw_text`, `decision.proposed_plan: null`, the degradation tag, `plan.provenance` and `plan.rejection_reason`.
+- **e09 trigger 3: what was dispatched.** The report listed the default as "recede robot_4, recede robot_3, release phase". `m5.log` shows `junction-recede-robot_4`, then `junction-recede-robot_3`, then `junction-cross` dispatched. The cross command has no `resolved` line before the episode ended, and no `junction-release` command for `ceff5efa` appears (0 lines). Verified from `ib10L_e09_armA_a1/m5.log`.
+- **e01 a1 (excluded, request `0b9d2939`): incomplete, not wrong.** The a1 model also wrote a plan: `robot_4 reverse, robot_3 reverse, robot_2 reverse, robot_1 cross, robot_2 cross, robot_3 cross, robot_4 cross`. The parser nulled it for naming robot_2, robot_3 and robot_4 twice, so its "plan absent" comes from the parser, not from a missing answer (verified, same fields as above). The trace also re-grounded every `repaired` decision with `proposed_plan=None` and got the recorded commands each time. So "an edited model plan" was not what ran in the four `repaired` episodes; the dispatched commands were M3's default there too. This comes from the trace's counterfactual and was not re-run here. The sentence in "The excluded attempt" is scoped in place.
+- **Executed recede order: checked, unchanged.** The branch statements in "Episode similarity" rest on `m5.log` command ids, not on the scorer's `chi_pair.executed_recede`, which reads `plan.legs`. They agree with the trace's per-analysis table: e01 a1, e01 a2 and e07 robot_4 first; e03 and e05 robot_3 first.
+- **What remains supported.** Every number, the attribution counts (`repaired` 4, `m3_default` 1, `vlm_verbatim` 0) and the verdict (4/5 against 0/5) are unchanged. The Limitations statement that the claim is not "the VLM's plan clears it" is strengthened: the trace found that no plan changed a dispatched command in any gated four-robot live analysis.
 
 ---
 
@@ -84,7 +97,7 @@ Including the excluded a1 attempt, Arm A resolved in 5 of 6 attempts. That figur
 
 - Facts (verified from `vm/attempts.tsv`, the driver logs and the bundle): the episode itself resolved (4/4, 116.9 s from onset, rank (1, 4, 4)), 0 floor stops, GT min 0.3160 m, one `junction_clear` dispatch with provenance `m3_default`, est. $0.0057.
 - Fix: two lines in `cond_ib.py` (`backend_id` replaced by `served_model` in the model-id set and its docstring). Kit file-list md5 changed from `5548cb600539bd5b6b1c8ccdafae1631` (smoke driver, a1) to `8c7641cebd601aba203646b4809d5625` (smoke driver a2 and the follow-up driver). The owner accepted the smoke result after a2 (`SMOKE_ACCEPTED`).
-- a2 re-ran the same slot under a new attempt label as spec section 5 allows. The a1 result was not selected or hidden: it also resolved, and it is the only Arm A episode in which M3's default plan, rather than an edited model plan, was dispatched and resolved the jam.
+- a2 re-ran the same slot under a new attempt label as spec section 5 allows. The a1 result was not selected or hidden: it also resolved, and it is the only Arm A episode in which M3's default plan, rather than an edited model plan, was dispatched and resolved the jam (provenance only: in the `repaired` episodes the dispatched commands also equal M3's default, and a1's own model plan was nulled by the parser; corrected 2026-11-15, see erratum).
 
 ### Arm B proof of condition
 
@@ -100,7 +113,7 @@ Facts, each verified from the e09 bundle (`decisions/*.json`, `m5.log`, `gt/grou
 1. Trigger 1, sim 31.3 s. ER-2 answered `yield` (robot_1 yields to robot_2), unlike the four resolved episodes where the first answer was `junction_clear`. M3 rejected the plan (`rejection_reason`: "repair distance exceeds bound 4") and dispatched its default plan, a 2-robot `yield`. This decision carries a `stage2` retreat-choice block.
 2. Trigger 2, sim 108.0 s. ER-2 answered `junction_clear` naming only robot_2 and robot_4; its `crossing_order` was a non-permutation (degradation `crossing_order=default:non_permutation`) and M3 again rejected the plan ("repair distance exceeds bound 4"). M3's default plan was a 2-robot `junction_clear` (degradation `junction_clear=recede`): a recede phase for robot_4, then a "cross" phase holding robot_2 in `temporary_wait` for 8 s ("yield refused: no other involved robot to pass") and robot_4 for 120 s. No leg commands any robot to cross.
 3. GT: all four robots had speed at most 0.02 m/s for one continuous interval of 120.1 s, from 120.1 s to 240.2 s. `m5.log` logs the cross phase as `completed=True phase_reached=resolved done=True`, with zero arrivals.
-4. Trigger 3, sim 244.6 s. ER-2 answered `junction_clear` with `proposed_plan: null` (degradation `proposed_plan=default:invalid_structure`); M3 reports "plan absent" and dispatched its default 4-robot `junction_clear` (recede robot_4, recede robot_3, release phase). The same phase structure produced the 4/4 arrivals in the resolved episodes.
+4. Trigger 3, sim 244.6 s. ER-2 answered `junction_clear` with a six-leg plan that names robot_1 and robot_2 twice, which the parser nulled (degradation `proposed_plan=default:invalid_structure`; corrected 2026-11-15, see erratum); M3 reports "plan absent" and dispatched its default 4-robot `junction_clear` (recede robot_4, recede robot_3, then the cross phase, which had not resolved by the episode end, and no release phase was dispatched; corrected 2026-11-15, see erratum). The same phase structure produced the 4/4 arrivals in the resolved episodes.
 5. At 300 s robot_2 was 0.37 m from its goal, moving at 0.091 m/s; robots 1, 3, 4 were 2.74, 2.76 and 2.94 m from their goals and still. The 0.2633 m minimum (robot_1 and robot_2, 295.5 s) occurred while `robot_1+robot_2` was the active exempt pair; M4's last `exempt pairs changed` line is `robot_1+robot_2` and was never followed by `-`.
 
 Inference, not verified:
@@ -154,7 +167,7 @@ The follow-up VM was up 3 h 20 m 34 s against a 6 h cap. Each Arm B episode took
 |---|---|
 | Outcome, arrivals, times, GT min, cost, attribution counts | Verified: `summary/summary.json` and `summary/episodes.jsonl`; arrival-time arithmetic and GT minima recomputed from `gt/ground_truth.jsonl` |
 | 0 floor stops, 0 GT contact frames (robot-robot, < 0.18 m pair distance; corrected 2026-11-15, see erratum) | Verified: zero stop lines in `m4.log` (startup line `hard_contact_floor_m=0.2` present in every bundle); zero contact frames in every GT file. The method of the frame count is not recorded; the GT pair minima (at least 0.2633 m) support it, the hard-coded empty GT contact lists do not |
-| e09 sequence, plans, provenance, 120.1 s idle window | Verified from bundle |
+| e09 sequence, plans, provenance, 120.1 s idle window | Verified from bundle; the trigger-3 plan statement read the post-parse field, not `raw_text` (corrected 2026-11-15, see erratum) |
 | Arm B speeds, final distances | Verified from GT |
 | Arm B latch line counts | e02 verified; other Arm B counts copied |
 | Similarity RMS | Recomputed; differs slightly from the agent (both given) |
