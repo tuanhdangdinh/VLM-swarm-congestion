@@ -206,6 +206,16 @@ bt_navigator:
     use_sim_time: true
     global_frame: map
     robot_base_frame: "<robot_namespace>/base_link"
+    # Increase action server timeouts: the default 20s default_server_timeout
+    # (used by BT action nodes like ComputePathToPose as their server_timeout
+    # attribute when not overridden in the BT XML) can expire if the planner
+    # is slow at startup, producing "Timed out while waiting for action server
+    # to acknowledge goal request for compute_path_to_pose". 60s gives
+    # the planner server adequate startup + first-plan headroom. The
+    # action_server_result_timeout (default 900s) covers how long to wait for
+    # a planner result after goal acceptance — set conservatively.
+    default_server_timeout: 60
+    action_server_result_timeout: 60.0
 
 behavior_server:
   ros__parameters:
@@ -262,39 +272,19 @@ collision_monitor:
     transform_tolerance: 0.2
     source_timeout: 1.0
     stop_pub_timeout: 2.0
-    # collision_monitor requires a non-empty observation_sources -- a single
-    # "scan" source pointed at the same /<robot_id>/scan feeding the
-    # costmaps is the minimal valid config. `polygons` is declared upstream
-    # (nav2_collision_monitor source, configurePolygons()) as
-    # rclcpp::PARAMETER_STRING_ARRAY with no default, and the loop over each
-    # named entry then requires that entry's own `.type`/`.action_type`
-    # sub-params -- verified on host through three failure modes, each fatal
-    # to the whole lifecycle_manager_navigation bringup, not just this node:
-    # (1) omitting `polygons` entirely aborts configure ("parameter
-    # 'polygons' is not initialized"); (2) a bare YAML `[]` parses as an
-    # untyped empty sequence rclcpp cannot coerce to a string array, crashing
-    # the process at startup (InvalidParameterValueException,
-    # "parameter_value_from failed for parameter 'polygons': No parameter
-    # value set", SIGABRT) -- a YAML typed-empty-sequence tag (`!!seq []`)
-    # does not fix this either; (3) `[""]` (one empty-string entry) avoids
-    # both of the above but the configure loop then looks up the per-polygon
-    # `.type` param using that empty name as a prefix and fails identically
-    # ("parameter '.type' is not initialized"). There is no real "zero
-    # polygons" form in this Nav2 version -- the working fix is one real,
-    # named, harmless polygon: `action_type: "none"` is upstream's documented
-    # DO_NOTHING no-op (verified in polygon.cpp's action_type parsing), so
-    # `safety_noop` below configures successfully and never stops/slows
-    # anything; this monitor is required only because Jazzy's
-    # lifecycle_manager_navigation lists it, not because this project uses
-    # collision-monitor-driven safety behavior (that is handled elsewhere
-    # per safety.yaml).
-    polygons: ["safety_noop"]
-    safety_noop:
+    # A real forward stop zone, not the old lifecycle-only no-op. Keep the
+    # polygon narrow so aisle walls do not immediately trigger it, but long
+    # enough to stop a head-on robot before body contact at this stack's
+    # 0.2 m/s linear cap. This is a local reactive guard only; it does not
+    # solve yielding, right-of-way, or deadlock recovery.
+    polygons: ["forward_stop"]
+    forward_stop:
       type: "polygon"
-      action_type: "none"
-      points: "[[0.07, 0.09], [0.07, -0.09], [-0.07, -0.09], [-0.07, 0.09]]"
+      action_type: "stop"
+      points: "[[0.32, 0.16], [0.32, -0.16], [0.05, -0.16], [0.05, 0.16]]"
       min_points: 1
       visualize: false
+      enabled: true
     observation_sources: ["scan"]
     scan:
       type: "scan"

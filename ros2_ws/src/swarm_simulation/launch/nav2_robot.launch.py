@@ -151,6 +151,7 @@ was confirmed to never match anything this subscription actually requests.
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node, PushRosNamespace, SetRemap
@@ -163,6 +164,7 @@ def generate_launch_description() -> LaunchDescription:
     x = LaunchConfiguration("x")
     y = LaunchConfiguration("y")
     yaw = LaunchConfiguration("yaw")
+    start_map_server = LaunchConfiguration("start_map_server")
 
     nav2_bringup_dir = get_package_share_directory("nav2_bringup")
     sim_dir = get_package_share_directory("swarm_simulation")
@@ -197,6 +199,15 @@ def generate_launch_description() -> LaunchDescription:
                 "yaw",
                 description="Robot's spawn-pose yaw (rad) from the scenario config.",
             ),
+            DeclareLaunchArgument(
+                "start_map_server",
+                default_value="true",
+                description="Launch map_server + lifecycle_manager_map_server. "
+                "Set to false for the second (and further) robot to avoid "
+                "duplicate non-namespaced nodes conflicting on the same name. "
+                "The first robot's map_server serves all robots since the "
+                "warehouse map is shared and not per-robot.",
+            ),
             Node(
                 package="tf2_ros",
                 executable="static_transform_publisher",
@@ -227,11 +238,16 @@ def generate_launch_description() -> LaunchDescription:
             # localization_launch.py; since this design bypasses AMCL, there
             # is nothing per-robot about the map itself, so a single shared
             # instance avoids redundant identical map_server processes.
+            # Guard with start_map_server (default true) so a second robot's
+            # launch can pass start_map_server:=false to skip these, avoiding
+            # duplicate non-namespaced node name conflicts when two instances
+            # of this launch file are running simultaneously.
             Node(
                 package="nav2_map_server",
                 executable="map_server",
                 name="map_server",
                 parameters=[{"use_sim_time": True, "yaml_filename": map_yaml}],
+                condition=IfCondition(start_map_server),
             ),
             Node(
                 package="nav2_lifecycle_manager",
@@ -244,6 +260,7 @@ def generate_launch_description() -> LaunchDescription:
                         "node_names": ["map_server"],
                     }
                 ],
+                condition=IfCondition(start_map_server),
             ),
             GroupAction(
                 [

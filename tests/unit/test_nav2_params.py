@@ -33,3 +33,15 @@ def test_dwb_last_mile_tolerance_matches_goal_checker():
 
     assert follow_path["xy_goal_tolerance"] == goal_checker["xy_goal_tolerance"]
     assert follow_path["trans_stopped_velocity"] < follow_path["max_vel_x"]
+
+
+def test_collision_monitor_has_real_forward_stop_zone():
+    params = _nav2_params()
+    monitor = params["collision_monitor"]["ros__parameters"]
+    stop_zone_name = monitor["polygons"][0]
+    stop_zone = monitor[stop_zone_name]
+
+    assert stop_zone_name == "forward_stop"
+    assert stop_zone["action_type"] == "stop"
+    assert stop_zone["min_points"] == 1
+    assert monitor["scan"]["topic"] == "scan"
