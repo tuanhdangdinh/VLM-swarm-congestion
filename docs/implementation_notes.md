@@ -42,7 +42,7 @@ Rules for maintaining it:
   - **What stays the model's.** Its yielder and passer, the gate, the first-passer check and the same-side check are unchanged. Nothing is added when the hold would refuse the yield (`crossing_order=augment_withheld`).
   - **Provenance.** Tags `crossing_order=augmented:<id>:goal_across_corridor`, yield key `queued_crossers_added`, and artifact key `grounding_queued_crossers_added`. Plan legs are repaired with `substitute` edits prefixed `queued crosser hold:` (the A21 precedent), so the provenance reads `repaired`, not `vlm_verbatim`.
   - **Scope.** Legacy mode and single-corridor geometry only; startup suffix ` grounding_hold_queued_crossers=True`. Key off is byte-identical.
-  - **Tests.** 48 new. Unit suite 57 failed / 7148 passed against base 57 / 7100, identical failing set.
+  - **Tests.** 51 new. Unit suite 57 failed / 7151 passed against base 57 / 7100, identical failing set.
   - **Replay** (`scripts/convoy_queued_crosser_replay.py`, no model calls). With the key on, 46/46 first-trigger yields ground into the full four-robot sequence, equal to a decision naming all four. 33/33 later convoy decisions and 15/15 head-on, intersection and five-robot decisions are unchanged.
   - **Per-take estimate (inferred).** The model picks robot_2, the variant that resolved in the smoke, in 12/18 control answers; robot_1, which latches per the scene file, in 6/18. So roughly a 2/3 chance per take of the resolving structure, with the live success rate n = 1.
   - **Gotcha.** M3's grounding frame carries no start-pending state (`snapshot_frame_from_request` leaves `held_robot_ids` empty), so the predicate is pose, goal and geometry only.

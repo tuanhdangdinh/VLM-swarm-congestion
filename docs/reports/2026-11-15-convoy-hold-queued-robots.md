@@ -139,7 +139,7 @@ plan order condition plan_dispatch_order_source=chi prompt_plan_grammar_rules=Fa
 - `reasoning/vlm/models.py` (`52cba14c…`) and `reasoning/vlm/prompt_builder.py` (`f2f33b77…`) are unchanged from the base.
 - New non-runtime file: `scripts/convoy_queued_crosser_replay.py`.
 
-**Tests (`tests/unit/test_queued_crosser_hold.py`, 48 new; the snapshots of live takes 1 and 2 are inlined).**
+**Tests (`tests/unit/test_queued_crosser_hold.py`, 51 new; the snapshots of live takes 1 and 2 are inlined).**
 
 - **Predicate:**
   - goal past the far mouth;
@@ -159,7 +159,8 @@ plan order condition plan_dispatch_order_source=chi prompt_plan_grammar_rules=Fa
   - key off is identical;
   - a refused yield keeps its fan-out on the named robots;
   - holding withheld when it would trip the first-passer check;
-  - no-ops in derived mode, with arms, for non-yield strategies and with no snapshot.
+  - no-ops in derived mode, with arms, for non-yield strategies and with no snapshot;
+  - with the feasibility gate in `swap` or `refuse` mode, the hold equals the named-all-four command, and adds nothing when the gate refuses the yield.
 - **Verification:**
   - key off keeps `vlm_verbatim`;
   - with `continue` or `wait` legs, the plan is repaired with 2 prefixed `substitute` edits;
@@ -181,7 +182,7 @@ plan order condition plan_dispatch_order_source=chi prompt_plan_grammar_rules=Fa
 | | Failed | Passed | Skipped | Collection errors (`pxr`) |
 |---|---|---|---|---|
 | Base `demo/campaign-kits` `4e5476b` | 57 | 7100 | 151 | 3 |
-| This branch | 57 | 7148 | 151 | 3 |
+| This branch | 57 | 7151 | 151 | 3 |
 
 The failing ids (FAILED plus ERROR, 60 lines) are identical; `diff` is empty. One of them, `test_write_decision_artifact_preserves_m2_result_on_grounding_failure`, fails on the base too (checked separately).
 
@@ -233,7 +234,9 @@ The failing ids (FAILED plus ERROR, 60 lines) are identical; `diff` is empty. On
 - **robot_1 yields (20 answers).** Mirrored roles: yield robot_1, park −1.124, crossing order [robot_2, robot_3, robot_4], wait 360.0 s, hold 135.0, resolution 450.0. The `crossing_clear_m` for robot_3 / robot_4 is 1.435 / 2.008 against 3.683 / 4.256.
   - Those clearances are measured from each queued robot's position to the west park point. But the queued robots stand west of the gate on the yielder's side and must drive east, so the values do not describe their crossing.
   - The same values come out for a decision that names all four with robot_1 yielding (equality column). So this is existing multi-passer sizing, not the hold.
-  - It is the structure the scene file says latches: robot_2 is escorted west toward robot_3 and robot_4 waiting at x ≈ −1.9 and −2.5 (inferred from the poses and section 5.2 of the campaign report).
+  - It is the structure the scene file says latches: robot_2 is escorted west toward robot_3 and robot_4 waiting at x ≈ −1.9 and −2.5.
+  - **M4 exemption check (verified from code, not run).** On take 2's frame, robot_2's escort is 1.904 m west from x = 0.130, ending at x ≈ −1.774, about 0.135 m short of the held robot_3 at x = −1.909. With the key on, robot_3 is a member of the yield command. M4's clearing exemption (`swarm_execution/safety.py`, `CoordinationTracker.exemption` → `admitted_partners`) pairs only the clearing robot, the yielder, with its partners. The escorted passer's action is a linked `temporary_wait`, which is not a clearing action, so the robot_2–robot_3 pair keeps the full 0.45 m latch, as with the key off. Inferred outcome: robot_2's escort latches about 0.45 m from robot_3, the censored-alternative latch, not a contact.
+  - **What does change on this branch (verified from code).** While the yielder robot_1 backs up, it is exempt against every member of its command (`backing_up=True`), which now includes robot_3 and robot_4. Its park point at −1.124 leaves 0.785 m along x to robot_3, plus a 0.36 m lateral pull-off, so the 0.45 m latch would not have fired anyway. The `hard_contact_floor_m` backstop still applies. With the key off, robot_3 was outside the command and protected throughout.
 
 ### 5.2 Later Triggers
 
@@ -244,6 +247,8 @@ The failing ids (FAILED plus ERROR, 60 lines) are identical; `diff` is empty. On
 | `cvD_t03_a1` | 11 | 11 | 11 |
 
 All 33 ground to `temporary_wait` (refusals and no-template waits) both ways, byte for byte, including plan provenance and edits. The refused yields stay refused for the same reasons, the corridor same-side check and the first-passer check; the hold only acts on a yield that grounds.
+
+**Limit.** These snapshots come from takes in which robot_3 and robot_4 were never held, so they show the post-latch states of the uncorrected takes. With the key on, a live retake's later triggers would see different states (for example, the queued robots still waiting under the first command), which no recorded snapshot covers.
 
 ### 5.3 Other Scenarios
 
@@ -317,7 +322,7 @@ All 33 ground to `temporary_wait` (refusals and no-template waits) both ways, by
     - `grounding_mode == "legacy"`;
     - either `grounding_queued_crossers_added == ["robot_3", "robot_4"]` with both `crossing_order=augmented:` tags in `grounding_degradations`, or the key absent and `decision.involved_robots` naming all four;
     - `dispatched_robot_ids` covers all four robots;
-    - the plan provenance is not `vlm_verbatim` when robots were added (`repaired` or `m3_default`).
+    - for provenance, require the `queued crosser hold:` edits when the plan gave a queued robot anything but `cross`. Do not require "not `vlm_verbatim`" outright: a plan that already said `cross` for the queued robots stays `vlm_verbatim` while the grounder still added them to the command (section 3). The gate and the classifier should key on `grounding_queued_crossers_added`, not on provenance.
   - Later artifacts carry no requirement: refusals ground as before.
 - **Horizon.** 260 sim-s (`cv/spec/profile_dmc.sh`). The smoke's arrivals were 59.1–163.9 s after its t0 (campaign report 5.3), so the sequence fits. Inferred, since the smoke was a different episode.
 - **Take classifier and labels.** A resolved take with added robots must not be labelled VLM-driven. Suggested label: "Resolved — grounder held the queued robots; model chose strategy and yielder". The rule can be keyed on the first artifact's `grounding_queued_crossers_added` plus the `queued crosser hold:` edit prefix. The caption should state that robot_3 and robot_4's roles came from M3, not from the model. A take where the model named all four itself (key absent) would be classified by the existing rules.
@@ -338,4 +343,5 @@ All 33 ground to `temporary_wait` (refusals and no-template waits) both ways, by
 | The robot_2 sequence resolves live | inferred (smoke n = 1) |
 | The robot_1 sequence latches | inferred (scene file; live take 2 dynamics) |
 | About 2/3 per-take chance of reaching the resolving structure | inferred (12/18 control answers choose robot_2) |
+| The escorted passer is not latch-exempt against a held queued robot (robot_1-yields branch) | verified from code (`admitted_partners`); the resulting latch is inferred |
 | Held/start-pending state is not available to M3 | verified (code: `snapshot_frame_from_request`, request field only under the prompt key) |

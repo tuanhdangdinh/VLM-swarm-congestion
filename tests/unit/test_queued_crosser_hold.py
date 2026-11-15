@@ -555,3 +555,26 @@ def test_default_pipeline_receives_the_key(node_env, tmp_path, monkeypatch):  # 
 class _Cfg:
     def model_copy(self, update):
         return self
+
+
+@pytest.mark.parametrize("mode", ["swap", "refuse"])
+def test_hold_runs_after_the_feasibility_gate_when_gate_on(mode):
+    named = _result("robot_2", ALL_FOUR, ["robot_1", "robot_3", "robot_4", "robot_2"])
+    held = _ground(_result("robot_2"), yield_feasibility_mode=mode, hold_queued_crossers=True)
+    assert _without_trace(held) == _ground(named, yield_feasibility_mode=mode)
+
+
+def test_hold_adds_nothing_when_the_gate_refuses_the_yield():
+    from reasoning.vlm.models import StaticObstacleInput
+
+    # Both robots boxed in: the refuse-mode gate refuses, and the fan-out
+    # stays on the named pair.
+    boxes = (
+        StaticObstacleInput(obstacle_id="w", x=-0.5, y=0.0, size_x_m=0.3, size_y_m=0.3),
+        StaticObstacleInput(obstacle_id="e", x=0.6, y=0.0, size_x_m=0.3, size_y_m=0.3),
+    )
+    result = _result("robot_2")
+    kwargs = {"static_obstacles": boxes, "yield_feasibility_mode": "refuse"}
+    held = _ground(result, hold_queued_crossers=True, **kwargs)
+    assert held == _ground(result, **kwargs)
+    assert all(a["action"] == "temporary_wait" for a in held["actions"])

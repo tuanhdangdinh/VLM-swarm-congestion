@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline replay of the queued corridor-crosser hold (2026-11-15). No model calls.
 
-Report: docs/reports/2026-11-15-convoy-queued-crosser-hold.md.
+Report: docs/reports/2026-11-15-convoy-hold-queued-robots.md.
 
 Grounds recorded decisions through M5's in-process pipeline (`InProcessPipeline.
 _run_from_result`, the artifact's own config and grounding params, a fresh plan
