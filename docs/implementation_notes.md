@@ -37,6 +37,13 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-11-15** — **Head-on with obstacle demo take 1 (ER-2, normal config; illustrative only, n = 1): resolved 2/2, label M3-default resolution (grounder-corrected), not VLM-driven.** Details: `docs/reports/2026-11-15-demo-campaign-results.md` section 6. Verified:
+  - Decision 1 `reverse` (no yielder) was dispatched to both robots and completed, but the robots re-approached. Decision 2 `yield` named robot_1; the feasibility gate swapped it to robot_2 (`yield re-grounded: robot_1 has 0.70 m retreat room < 1.08 m required; robot_2 feasible`), matching the oracle yielder. Both arrived (GT 112.5 s and 136.1 s).
+  - GT closest pair 0.2176 m at sim 22.3 s, during the first standoff before any command; 0 contacts, 0 hard-floor stops (floor 0.20 m); 3352 `min_distance_violation` lines are M4's 0.45 m latch.
+  - Gotcha: the fixed demo-panel log filter does not match `yield re-grounded` lines, so the swap shows on screen only through the dispatched robots; the caption carries it.
+  - Gotcha: a take with a stage-2 call bills 3 calls for 2 decisions (`billed_calls=3`).
+  - Panel video rendered in v7g (`data/demo/campaign/hoD_t01_a1_panel.mp4`, 76.04 s, time map 0.28 sim-s).
+
 - **2026-11-15** — **Convoy counterflow demo takes 1–3 (ER-2, legacy grounding; illustrative only, a preview of the registered convoy Arm A, not part of it): 0/4 arrived in every take.** Details: `docs/reports/2026-11-15-demo-campaign-results.md` section 5. Verified:
   - The first trigger's `yield` ran as named, but ER-2 named only the robot_1/robot_2 standoff in 3 of 3 (`late_dispatch=True`). The uncommanded robot_3/robot_4 were released by the 120 wall-s start delay, followed through the gate and latched at 0.41–0.45 m (M4 `min_distance_m` 0.45) for the rest of the episode. This is the bystander latch the scene header pre-states. The scripted oracle smoke (`cvL_e01_armC_a1`) named all four and resolved 4/4.
   - Gotcha: plan verification accepts `continue` legs for queued robots whose goals lie across the gate (`vlm_verbatim`), and legacy grounding never holds robots the decision omits.

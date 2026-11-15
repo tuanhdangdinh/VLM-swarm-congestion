@@ -6,6 +6,7 @@
 
 - Initial draft: intersection live takes 1–3 (ER-2, B3), why live ER-2 gave no usable plan, and the Sonnet 5.5 arm built for takes 4–5.
 - Rev 2 (2026-11-15): added section 5, convoy counterflow live takes 1–3, the root cause of the non-resolution, and the take 1 panel video.
+- Rev 3 (2026-11-15): added section 6, head-on with obstacle, take 1 (ER-2), and its panel video.
 
 ---
 
@@ -357,3 +358,72 @@ Take 2's two `convoy` decisions are aliased to the ordered yield and refused by 
 | No legacy strategy grounds motion except `reroute` | verified offline (76 decisions × 3 snapshots) |
 | `reroute` would have been held by the M4 latch | inferred |
 | The scene is resolvable with the oracle decision | verified on one smoke episode, not owner-accepted |
+
+---
+
+## 6. Head-on With Obstacle, Take 1 (ER-2; Added 2026-11-15)
+
+**Status.** Illustrative, not controlled evidence. n = 1: one valid take, so no rate or comparison can be drawn from it. It is not pooled with experiment data.
+
+**Setup.** Kit `demo_campaign/ho/kit`, scenario `head_on_asymmetric_w0p2_eopen_bshort_o0`, overlay `ho_w0p2_bshort_on.yaml` `3929a087` (obstacle text on, feasibility gate on), inert delta `4843a776`, live `gemini-robotics-er-2-preview` (temperature 0.6, thinking `low`), seed 42, 300 sim-s horizon, both recorders on. Sources: `ho/runs/hoD_t01_a1/`, `ho/driver_ho_20261115T021253Z.log`, `ho/MANIFEST_20261115T021253Z.md5`. The take classifier `take_class_dmc.py` labels intersection takes only; I did not run it. The label below comes from the spec section 7 rule that a yielder-swapped plan is M3-default and from the live-run agent's reading.
+
+### 6.1 The Take (Verified From the Bundle)
+
+| Item | Value |
+|---|---|
+| Take (label) | 1 (`hoD_t01_a1`), the only valid take; 0 bring-up aborts |
+| Wall (UTC) | 02:17:47–02:32:12 (chain START and END lines); the VM was stopped and verified TERMINATED at 02:34:50 |
+| Resolved | yes, 2 of 2 arrived (GT rule `distance_to_goal < 0.3 m`: robot_1 at sim 112.5 s, robot_2 at 136.1 s; M5 `arrived at base goal` lines at about 125.2 s and 142.3 s on the mapped sim clock; both 0.07 and 0.08 m from goal) |
+| Label | M3-default resolution (grounder-corrected) |
+| Model calls | 3 billed: 2 decisions plus one stage-2 retreat-position call in decision 2; each 1 attempt, `finish_reason=completed`, `parse_status=valid`, 0 refusals; decision latency 7.1 s and 8.1 s; 32 532 tokens; est. $0.0154 |
+| GT closest pair | 0.2176 m at sim 22.3 s (see 6.3) |
+| Safety | GT contacts 0 (robot-robot 0, robot-static 0); hard-floor stops 0 (floor 0.20 m); `min_distance_violation` stop lines 3352 (M4's 0.45 m latch, not the floor) |
+| Recording frames | 3536 annotated (12 segments) / 2919 raw (10 segments); frame maps decoded per frame |
+| Manifest md5 | `31c7a4e580dc799fb385e218628f29f9` (64 files) |
+
+### 6.2 The Two Decisions (Verified From `decisions/*.json`, m5 and m4 Logs)
+
+| | Decision 1 (`4de32642`) | Decision 2 (`f40c0537`) |
+|---|---|---|
+| Scene stamp / dispatch (sim s) | 26.7 / 29.6 | 50.6 / 56.9 |
+| Scene | both STOPPED, 0.22 m apart, facing each other | both MOVING again, 0.97 m apart (the second standoff began about 52 s) |
+| Model answer | `deadlock`, strategy `reverse`, `yield_robot` null | `deadlock`, strategy `yield`, `yield_robot` robot_1, `crossing_order` robot_2 then robot_1 |
+| Grounding gate | none needed (no yielder named) | `yield re-grounded request=f40c0537… from=robot_1 to=robot_2 reason=yield re-grounded: robot_1 has 0.70 m retreat room < 1.08 m required; robot_2 feasible` (`degradations=['yield_robot=regrounded']`) |
+| Dispatched | `reverse` to robot_1 and robot_2, backup 1.3 m, provenance none | `yield` to robot_2 (backup 1.312 m, pull-off lateral −0.36 m, retreat point (1.789, 0.36)); `temporary_wait` 120 s to robot_1 |
+| Outcome | commands resolved `completed`; the pair separated to 2.5 m, then re-approached (GT 0.28 m at about 52.5 s) and M5 re-triggered; failure context "reverse completed 17 s ago; congestion re-detected" | `crossing_chain gate_admit` (robot_1 passer, sim_t 85.6), `gate_release reason=clearance` (sim_t 118.2); both robots arrived |
+
+- The scenario's oracle yielder is robot_2. Robot_1 had 0.70 m of retreat room against 1.08 m required, so the model's choice was infeasible.
+- The prompt in decision 2 carried the obstacle text (obstacle_1, centre (−1.85, 0.00)) and the failed `reverse`. Robot presentation order `id_desc`.
+- The stage-2 call picked retreat letter A, which mapped to candidate label B; M3 dispatched `retreat_choice` B (lateral −0.36 m). That step is a second model-driven input, but it acts on the gate's already-swapped yielder.
+
+### 6.3 Closest Pair 0.2176 m (Verified From GT)
+
+- It occurred at GT sim 22.3 s. That is during the first standoff, about 7 s before decision 1 dispatched and before any command ran. The robots had been driving toward each other under Nav2 and stopped nose to nose (GT 0.2176–0.2181 m from 22.3 to 25 s, both at speed 0).
+- It is above the hard floor (0.20 m) by 0.0176 m. No contact was logged and no floor stop occurred.
+- The second standoff reached 0.2829 m at 52.5 s, also before its dispatch. The pair was within 0.45 m again at 100.7–105.9 s while robot_1 passed the parked robot_2, an M4-exempt pair under the yield.
+- The `min_distance_violation` lines are M4's 0.45 m latch holding the stopped robots, last logged at wall 258.99, about 0.3 s after decision 2's dispatch.
+
+### 6.4 What This Take Shows
+
+- The model's strategy was used: `reverse` in decision 1 and `yield` in decision 2 were both dispatched as the model named them.
+- The model's choice of yielder in decision 2 was infeasible (robot_1 lacked retreat room). The grounding feasibility gate corrected it to robot_2, which matches the oracle.
+- The resolution is therefore grounder-corrected, not VLM-driven. The label is M3-default resolution under the section 7 rule. Without the gate, the dispatched yield would have sent robot_1 into 0.70 m of room; what that would have done is not shown by this take.
+- Decision 1's `reverse` did not clear the scene: the robots drove back together. That is a fact of this single take, not a rate.
+
+### 6.5 Video
+
+- **File.** v7g `data/demo/campaign/hoD_t01_a1_panel.mp4` (git-ignored), md5 `2aa6534a`, 6.8 MB (no `_small` copy needed). Beside it: transcript, seven stills (start, call, dispatch, decision 2, mid, arrival, end) and `hoD_t01_a1_panel.md5`. Renderer v7g `feat/demo-panel-renderer`, same arguments as the convoy video.
+- **Left pane.** Real camera recording, `/perception/annotated_frame`, all 12 segments, per-frame decoded time map.
+- **Captions** (outside the terminal): "M3-default resolution (grounder-corrected) — take 1 of 1"; the model and "2 of 2 robots arrived"; "Decision 2: the model chose robot_1 to yield; the feasibility gate swapped it to robot_2 (robot_1 lacked retreat room)."; "Illustrative demo, not controlled experimental evidence. Single take (n = 1); the resolution is grounder-corrected, not VLM-driven."
+- **Checks (verified).** ffprobe: H.264, 1920x1080, 24 fps, yuv420p, 1825 frames, 76.04 s, the full take, not cut. Time map: 17 anchors within 0.28 sim-s. The camera's burned-in clock against the caption clock: 29.50 / 29.57 s at decision 1 (0.07 s) and 56.60 / 56.87 s at decision 2 (0.27 s).
+- **Known gaps.**
+  - The fixed filter does not match M5's `yield re-grounded` line. On screen decision 2 shows `strategy=yield involved=robot_1,robot_2`, then `dispatch … robot=robot_2` with `action=yield` and `robot=robot_1` with `action=temporary_wait`. The swap is visible only through the dispatched robots and the caption. The filter was not widened.
+  - The left pane is blank before sim 11.2 s (first recorded frame).
+
+### 6.6 Verified and Inferred
+
+| Claim | Status |
+|---|---|
+| Decisions, gate swap, dispatch, outcomes, arrivals, safety counts, closest pair, manifest md5 | verified (bundle artifacts, m4/m5 logs, GT, driver log) |
+| Label M3-default resolution (grounder-corrected) | verified against the section 7 rule; the classifier was not run (intersection only) |
+| Without the swap the take would not have resolved | not shown (inferred only) |
