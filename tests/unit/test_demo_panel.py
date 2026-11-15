@@ -573,6 +573,23 @@ def test_present_block_without_plan_prints_yield_robot_and_gate_field(tmp_path):
     assert '{"yield_robot_grounded_from":"robot_1","dispatch_order_source":"model"}' in texts
 
 
+def test_present_block_prints_queued_robots_added_when_hold_fired(tmp_path):
+    dec = json.loads(json.dumps(PLAN_DECISION))
+    dec["grounding_queued_crossers_added"] = ["robot_3", "robot_4"]
+    _, _, pt = _present(tmp_path, decision=dec, gate=False)
+    items, tags = pt.transcript.items, pt.tags
+    line = "robots added by the grounder: robot_3, robot_4"
+    i = next(k for k, it in enumerate(items) if it.text == line)
+    assert tags[i - 1].endswith(":check") and pt.holds[i] == pr.CHECK_HOLD_SEC
+
+
+def test_present_block_omits_queued_robots_line_when_list_empty(tmp_path):
+    dec = json.loads(json.dumps(PLAN_DECISION))
+    dec["grounding_queued_crossers_added"] = []
+    _, _, pt = _present(tmp_path, decision=dec)
+    assert not any("added by the grounder" in it.text for it in pt.transcript.items)
+
+
 def test_present_block_never_prints_dispatched_robot_ids(tmp_path):
     _, _, pt = _present(tmp_path)
     assert not any(

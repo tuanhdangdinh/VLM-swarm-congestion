@@ -7,6 +7,7 @@
 - Initial draft: renderer (`scripts/render_demo_panel.py`, `scripts/demo_panel/`), terminal rules, time mapping, camera input path, known limits.
 - Rev 2 (2026-11-15): scene-log file name fallback for older bundles; how the ER2LIVE (2026-09-30) frame map was made and checked.
 - Rev 3 (2026-11-15): presentation profile (`render --profile presentation`) and the combine `outcome_reveal: "after"` mode.
+- Rev 4 (2026-11-15): fourth outcome label for the convoy rerun; the presentation decision block prints the robots added by the queued-robot hold.
 
 ---
 
@@ -108,7 +109,7 @@ Manifest (`path` is relative to the manifest's directory unless absolute; unknow
 ]}
 ```
 
-- `outcome` must be exactly one of `VLM-driven execution`, `M3-default resolution`, `Unresolved failure`.
+- `outcome` must be exactly one of `VLM-driven execution`, `M3-default resolution`, `Unresolved failure`, `Resolved — grounder held the queued robots; model chose strategy and yielder` (the convoy rerun's label, campaign report section 14). The presentation script's `outcome_kind` takes the same four.
 - `start` and `end` (seconds) are optional. Omitted bounds mean the clip's start or end.
 - Before each clip: a plain title card (`--title-card-sec`, default 3 s) with title, outcome, take, note, and the fixed line "Illustrative demonstration, not controlled experimental evidence."
 - During each clip: a 44 px caption bar above the clip area with title, outcome, take and the trim (`excerpt 12-95 s of 114.6 s`, or `full clip`). Only the title is shortened if the line is too long.
@@ -146,6 +147,7 @@ Only lines printed by shown commands run for real on the bundle's files. Compare
   - request: `jq -r .prompt.user_prompt … | head -n 1`, and `file -b frames/<id>.png`, the image M5 dumped as the one the model sees (`orchestrator_node.py`, `image_path`);
   - response: `{served_model, latency_ms, attempts}` plus `image_tokens` (`.token_usage.input_tokens_image`) where the artifact records it; the strategy, involved robots and justification; then the plan. With a plan channel (`.plan` not null) it prints `plan: <robot> <action>, …` from `.decision.proposed_plan` and `crossing_order:`; a null plan prints `plan: null`. Without one it prints `yield_robot:` and `crossing_order:`;
   - check: `provenance=… reason=… dispatch_order_source=…` (the last only where the artifact has the key), or, without a plan channel, `{yield_robot_grounded_from[, dispatch_order_source]}` (null means the gate did not swap the yielder).
+  - check, when `grounding_queued_crossers_added` is a non-empty list: `robots added by the grounder: <ids>` (`jq -r` on that field), the robots the queued-robot hold put into the crossing order. It is the block's last check line, so the 4 s check hold follows it. No earlier presentation bundle carries a non-empty list, so their transcripts are unchanged.
   - `dispatched_robot_ids` is not printed. It reads as the model's order but holds the first phase's recipients, and it is filled for withheld decisions too.
   - A decision the model answered with `congestion_detected=false` prints only the request, model-call and decision lines.
 - **Size.** 20 px Menlo, 26 body rows, about 99 columns; the filter header is pinned at the top in 14 px.

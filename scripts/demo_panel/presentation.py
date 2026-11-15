@@ -123,7 +123,9 @@ def present_block(b: Bundle, request_id: str, dec: dict[str, Any]) -> list[Block
 
     Roles: `request` (the prompt's first line; the image file M5 sent),
     `response` (model call, decision, and the plan or yield choice), `check`
-    (plan verification and order source, or the yield gate's fields).
+    (plan verification and order source, or the yield gate's fields, plus the
+    robots the queued-robot hold added when `grounding_queued_crossers_added`
+    is a non-empty list).
     Commands are chosen per artifact by which fields it holds, so `jq` never
     fails on a missing or null field; a null value is printed as `null`.
 
@@ -187,6 +189,16 @@ def present_block(b: Bundle, request_id: str, dec: dict[str, Any]) -> list[Block
         if order:
             keys += ", dispatch_order_source"
         cmds.append(BlockCommand(f"jq -c '{{{keys}}}' {f}", "check", "check"))
+    added = dec.get("grounding_queued_crossers_added")
+    if isinstance(added, list) and added:
+        cmds.append(
+            BlockCommand(
+                "jq -r '\"robots added by the grounder: "
+                f"\\(.grounding_queued_crossers_added | join(\", \"))\"' {f}",
+                "check",
+                "check",
+            )
+        )
     return cmds
 
 
@@ -443,7 +455,12 @@ class PresentScript(BaseModel):
     outro_lines: list[str] = Field(min_length=1)
     zooms: list[Zoom] = []
     key_request: str | None = None
-    outcome_kind: Literal["VLM-driven execution", "M3-default resolution", "Unresolved failure"]
+    outcome_kind: Literal[
+        "VLM-driven execution",
+        "M3-default resolution",
+        "Unresolved failure",
+        "Resolved — grounder held the queued robots; model chose strategy and yielder",
+    ]
 
 
 def load_script(path: Path) -> PresentScript:

@@ -37,7 +37,12 @@ from scripts.demo_panel.render import (
     load_mono_font,
 )
 
-OUTCOMES = ("VLM-driven execution", "M3-default resolution", "Unresolved failure")
+OUTCOMES = (
+    "VLM-driven execution",
+    "M3-default resolution",
+    "Unresolved failure",
+    "Resolved — grounder held the queued robots; model chose strategy and yielder",
+)
 DISCLAIMER = "Illustrative demonstration, not controlled experimental evidence."
 BAR_HEIGHT = 44
 LETTERBOX_RGB = (0, 0, 0)
@@ -56,7 +61,12 @@ class ClipSpec(BaseModel):
 
     path: str = Field(min_length=1)
     title: str = Field(min_length=1)
-    outcome: Literal["VLM-driven execution", "M3-default resolution", "Unresolved failure"]
+    outcome: Literal[
+        "VLM-driven execution",
+        "M3-default resolution",
+        "Unresolved failure",
+        "Resolved — grounder held the queued robots; model chose strategy and yielder",
+    ]
     take: str = Field(min_length=1)
     start: float | None = Field(default=None, ge=0)
     end: float | None = Field(default=None, gt=0)
