@@ -9,6 +9,7 @@
 - Rev 3 (2026-11-15): added section 6, head-on with obstacle, take 1 (ER-2), and its panel video.
 - Rev 4 (2026-11-15): added section 7, intersection takes 4–5 (ER-2, B3), the adversarial verification of take 5 (the one VLM-driven take), its panel video, and the wall-share amendment.
 - Rev 5 (2026-11-15): campaign closed. Added the final summary (all four scenarios, ledger totals, the three-way VLM count, open owner decisions, archive index), section 8 (five-robot take 1 and its video) and section 9 (the combined video). Fixed stale statements: the Sonnet offline spend is booked (sections 3.4, 3.6), and the ER-2 choice for takes 4–5 is now recorded in registration section 10.8 (running summary, section 7). The running summary below is otherwise kept as written per phase.
+- Rev 6 (2026-11-15): added section 8.7, an offline follow-up showing that robot_3's escort in the five-robot take drove into rack island `obstacle_2`, with stills and an escort-segment check over the campaign and the October five-robot bundles. Scoped every contact statement: ground truth's two contact fields are hard-coded empty, so they show nothing. Added section 5.8, the outcome of the convoy held-robot prompt check. Updated the final summary, sections 8.2–8.6 and the open owner decisions.
 
 ---
 
@@ -57,16 +58,23 @@ The counts are per analysis (decision artifact); stage-2 retreat calls are not c
 
 - **Intersection.** The pipeline carried a model-chosen order to execution, with all checks on, once in five takes (take 5). The choice was a near-tie, 0.010 m of chi against a 0.15 m tolerance, and it changed only the timing of the two recedes: robot_3 backed out about 9 sim-s before robot_4. Pockets, the cross, the release and the crossing order stayed on chi. The model's order follows ascending robot id, as it mostly does offline.
 - **Head-on.** It resolved 2/2 because the feasibility gate corrected the model's yielder: robot_1 had 0.70 m of retreat room against 1.08 m required, so robot_2 yielded. The model's first strategy (`reverse`) ran and did not clear the scene.
-- **Convoy: unresolved in 3 of 3.** The first yield ran as named, but the model named only the standoff pair. The two queued robots, never commanded, followed through the gate and latched. The legacy vocabulary then had no recovery: the 33 later proposals ran as 8 s waits.
-- **Five robots: unresolved.** Two model decisions were executed as named, but the yield pairs then latched within 0.45 m and robot_3's escort stalled. The six later proposals were refused by grounding checks (retreat room, junction or lane), and Layer 2 went quiet after sim 275.5 s, as the registration expected.
+- **Convoy: unresolved in 3 of 3.** The first yield ran as named, but the model named only the standoff pair. The two queued robots, never commanded, followed through the gate and latched. The legacy vocabulary then had no recovery: the 33 later proposals ran as 8 s waits. Stating the hold-back state in the prompt did not change this offline: 0 of 22 answers per condition grounded into the four-robot sequence, so no retake was run (section 5.8, Rev 6).
+- **Five robots: unresolved.** Two model decisions were executed as named, but the yield pairs then latched within 0.45 m. robot_3's escort did not stall on its own: the straight escort segment crossed rack island `obstacle_2`, and robot_3 drove into the island's east face and stayed pinned there until the escort timed out (section 8.7, Rev 6). The six later proposals were refused by grounding checks (retreat room, junction or lane), and Layer 2 went quiet after sim 275.5 s, as the registration expected. The "unresolved" label therefore partly reflects an escort path error, not only the model's decisions or the grounding refusals.
+- **Safety scope (Rev 6).** Ground truth logs no contacts of either kind: `robot_robot_contacts` and `robot_static_contacts` are hard-coded empty lists (`isaac/vgu_sim/acceptance_logging.py:99-100`). Every "0 contacts" statement in this report is scoped as follows:
+  - **Robot-robot:** supported only by the GT closest centre distance, computed from poses (GT `min_pairwise_distance_m`, minimum per valid take 0.2176–0.3701 m). That is above the 0.20 m floor and the 0.076 m nose-to-nose contact distance.
+  - **This follows a standing ruling.** The prereg-v2 caveats of 2026-10-08 and 2026-10-09 (main repo, `fc73151`) and `docs/reports/2026-09-25-overnight-findings.md`:1852–1871 already ruled that the GT contact fields are not evidence, and that contacts must be recomputed from distances. The Rev 1–5 contact lines of this report ran against that ruling.
+  - **Robot-static:** not logged by ground truth. The only check is the distance recompute in section 8.7. It found robot_3 within 5 mm of `obstacle_2` in 4526 of the 4534 GT rows from sim 146.7 s to 600 s (8.7.2).
 - **What it does not show.** Nothing here is controlled evidence. One VLM-driven take in five, with n ≤ 5 per scenario, gives no rate, no comparison with Layer 2 off, and no claim that the model reasons the order from the scene.
 
 ### Open Owner Decisions (as Identified in the Sections; No Further Recommendation)
 
-- **Convoy fix options** (section 5.5): (a) prompt/kit: hold-back state or a platoon sentence; (b) grounding: hold uncommanded robots whose goals lie across the corridor, or refuse `continue` for them; (c) recovery: a post-gate cluster template. Each changes the registered convoy experiment's Arm A, so each needs a registration amendment or nothing.
+- **Convoy fix options** (section 5.5): (a) prompt/kit: hold-back state or a platoon sentence; (b) grounding: hold uncommanded robots whose goals lie across the corridor, or refuse `continue` for them; (c) recovery: a post-gate cluster template. Each changes the registered convoy experiment's Arm A, so each needs a registration amendment or nothing. Rev 6: a prompt-only form of (a) was tested offline and is a no-go (section 5.8).
 - **Options-detail prompt/parser fix** (section 2.5): (a) render the options detail so it cannot be read as an action, or (b) narrow parser tolerance for an exact offered `"<action> (<detail>)"`. Either is a third fix cycle and needs the owner's approval.
 - **Log-filter lines** (sections 6.5, 7.3, 5.6, 8.5): whether to add the `yield re-grounded` swap line and `dispatch_order_source` to the demo panel's fixed filter, which these videos left unchanged. The convoy and five-robot refusal lines (`yield refused`, `refusal withheld`) are in the same position.
 - **Intersection yielder gap** (registration 10.1, section 3.4): it stays open by owner decision.
+- **Escort obstacle guard** (section 8.7, Rev 6): neither M3's escort grounding nor M4's `drive_heading` checks the straight escort segment against declared static obstacles. One option is for grounding to refuse, or shorten, an escort whose swept segment crosses a declared obstacle box grown by the chassis half-width. Any such change alters the S1b grounding that registered arms use, so it needs a registration amendment or nothing.
+- **Static-contact logging** (section 8.7, Rev 6): `robot_static_contacts` (and `robot_robot_contacts`) are hard-coded empty (`isaac/vgu_sim/acceptance_logging.py:99-100`). The options are (a) a PhysX contact-report detector on the chassis and obstacle prims, or (b) a per-row distance recompute in the logger (the chassis collision box against the declared obstacle boxes, as section 8.7 does offline). Until then, robot-static contact claims need an offline recompute.
+- **Known wording issue (Rev 6, not edited here):** several frozen reports on other branches state "0 GT contacts" or "no contact" from the empty fields, or from robot-pair distances alone in scenes with static obstacles. They are listed in section 8.7.6.
 
 ### Archive Index (Every Attempt Directory)
 
@@ -91,7 +99,7 @@ Bundles are under `data/logs/vm_runs/demo_campaign/<scn>/runs/`; manifests are u
 ## Running Summary (Per Phase, as Written)
 
 - **Status.** Every take here is an illustrative demo, not controlled experimental evidence. Takes are never pooled with experiment data.
-- **Intersection, ER-2 under B3, 3 takes (2026-11-14/15 UTC).** Take 1 unresolved (3 of 4 arrived), takes 2 and 3 resolved. None is VLM-driven: the labels are Unresolved, M3-default, M3-default. No GT contact, no floor stop.
+- **Intersection, ER-2 under B3, 3 takes (2026-11-14/15 UTC).** Take 1 unresolved (3 of 4 arrived), takes 2 and 3 resolved. None is VLM-driven: the labels are Unresolved, M3-default, M3-default. No GT contact, no floor stop. (Rev 6: robot-robot only, from the GT closest pair. The GT contact fields are hard-coded empty, and this scene declares no static obstacles.)
 - **Why ER-2 gave no usable plan live (section 2).** The live prompt is byte-identical to the offline B3 prompt for the same snapshot, and nothing was truncated. The three takes failed for three different reasons:
   - take 3: the known options-detail copy (`"reverse (south arm)"`);
   - take 2: the known missing releasing `yield`;
@@ -106,8 +114,8 @@ Bundles are under `data/logs/vm_runs/demo_campaign/<scn>/runs/`; manifests are u
   - Takes 4–5 ran on the ER-2 kit, not the Sonnet arm that section 10.5 of the registration plans. (Rev 5: this choice is now recorded in registration section 10.8.)
 - **Wall-share amendment (registration 10.7).** `ib` share 9000 → 12600 s, `ho` 5400 → 1800 s; the totals are unchanged (37 800 s of shares, 43 200 s and $10 campaign caps).
 - **Convoy counterflow, ER-2, 3 takes (2026-11-15 UTC; section 5).** All three unresolved, 0 of 4 robots arrived in each. The first trigger's yield was executed as the model named it, but the model named only the standoff pair. The two queued robots, never commanded, followed through the gate and the scene latched for good. The 33 later proposals all ran as 8 s waits. Cause: the first decision's content, in a scene built so that such an answer cannot resolve, and then no recovery strategy in legacy grounding. Not a harness issue.
-- **Head-on with obstacle, ER-2, 1 take (section 6; Rev 5 bullet).** Resolved 2/2. The label is M3-default resolution (grounder-corrected): the feasibility gate swapped the model's yielder robot_1 (0.70 m retreat room < 1.08 m) to robot_2. 0 contacts, 0 floor stops.
-- **Five robots, seed position 21, ER-2, 1 take (section 8; Rev 5 bullet).** Unresolved, 1 of 5 arrived; a limitation demonstration. Two decisions were executed as named (yield + escort). Six later proposals were refused by grounding checks and withheld, with no analysis after sim 275.5 s. 0 contacts, 0 floor stops.
+- **Head-on with obstacle, ER-2, 1 take (section 6; Rev 5 bullet).** Resolved 2/2. The label is M3-default resolution (grounder-corrected): the feasibility gate swapped the model's yielder robot_1 (0.70 m retreat room < 1.08 m) to robot_2. 0 contacts, 0 floor stops. (Rev 6: robot-robot by GT closest pair; robot-static not logged by GT. The section 8.7 recompute gives a minimum chassis-to-box gap of 0.0445 m.)
+- **Five robots, seed position 21, ER-2, 1 take (section 8; Rev 5 bullet).** Unresolved, 1 of 5 arrived; a limitation demonstration. Two decisions were executed as named (yield + escort). Six later proposals were refused by grounding checks and withheld, with no analysis after sim 275.5 s. 0 contacts, 0 floor stops. (Rev 6: robot-robot only. robot_3 was against island `obstacle_2` from sim 146.7 s, within 5 mm in all but 8 GT rows to the end, which GT does not log; see section 8.7.)
 
 ---
 
@@ -117,9 +125,9 @@ Illustrative, not controlled evidence. Kit `demo_campaign/ib/kit`, effective ove
 
 | Take (label) | Resolved | Label (`TAKE_CLASS`) | Provenance | Dispatched recede order | Default (chi) order | GT min pair | Safety | Recording frames (annotated / raw) | Manifest md5 |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 (`ibD_t01_a2`; a1 = bring-up abort, `change_state` timeout on robot_1) | no, 3/4 (robot_1 not arrived) | Unresolved failure | `m3_default` (plan absent) | robot_3, robot_4 | robot_3, robot_4 | 0.370 m | floor stops 0, GT contacts 0; `min_distance_violation` lines 2182, `stale_pose_unsafe` 2 | 1481 / 2271 | `a4e4eaef` (81 files, both attempts) |
-| 2 (`ibD_t02_a1`) | yes, 4/4 | M3-default resolution | `repaired` | robot_4, robot_3 | robot_4, robot_3 | 0.288 m | floor stops 0, GT contacts 0; `min_distance_violation` lines 13787 | 1605 / 2213 | `5dddd2fb` (55 files) |
-| 3 (`ibD_t03_a1`) | yes, 4/4 | M3-default resolution | `m3_default` (plan absent) | robot_4, robot_3 | robot_4, robot_3 | 0.314 m | floor stops 0, GT contacts 0; `min_distance_violation` lines 10321 | 1423 / 1975 | `a92ebe37` (51 files) |
+| 1 (`ibD_t01_a2`; a1 = bring-up abort, `change_state` timeout on robot_1) | no, 3/4 (robot_1 not arrived) | Unresolved failure | `m3_default` (plan absent) | robot_3, robot_4 | robot_3, robot_4 | 0.370 m | floor stops 0, GT contacts 0 (robot-robot only, from the GT min pair; see Rev 6 safety scope); `min_distance_violation` lines 2182, `stale_pose_unsafe` 2 | 1481 / 2271 | `a4e4eaef` (81 files, both attempts) |
+| 2 (`ibD_t02_a1`) | yes, 4/4 | M3-default resolution | `repaired` | robot_4, robot_3 | robot_4, robot_3 | 0.288 m | floor stops 0, GT contacts 0 (robot-robot only, from the GT min pair; see Rev 6 safety scope); `min_distance_violation` lines 13787 | 1605 / 2213 | `5dddd2fb` (55 files) |
+| 3 (`ibD_t03_a1`) | yes, 4/4 | M3-default resolution | `m3_default` (plan absent) | robot_4, robot_3 | robot_4, robot_3 | 0.314 m | floor stops 0, GT contacts 0 (robot-robot only, from the GT min pair; see Rev 6 safety scope); `min_distance_violation` lines 10321 | 1423 / 1975 | `a92ebe37` (51 files) |
 
 - Every `VIDEO_VERIFY` was OK, every `STARTUP_CHECK` OK, every condition gate passed. `executed_differs_from_m3_default=False` in all three.
 - Model calls: 4 in total (take 2 had a second, no-congestion call), each 1 attempt, no refusal, no stage-2 call. Estimated spend $0.0069, $0.0145 and $0.0066.
@@ -328,7 +336,7 @@ cd /Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campa
 
 | Take (label) | Wall (UTC) | Resolved | Label | Provenance (12 decisions) | Executed | GT min pair | Safety | Recording frames (annotated / raw) | Manifest md5 |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 (`cvD_t01_a1`) | 00:44:55–01:04:47 | no, 0/4 | Unresolved failure | 1 `vlm_verbatim`, 3 `repaired`, 8 `m3_default` | t 27.8 s: robot_2 `yield` (backup 0.903 m to park x 1.124, lateral 0.36), robot_1 escort 1.898 m; 11 later: `temporary_wait` 8 s | 0.343 m | floor stops 0, GT contact 0; `min_distance_violation` lines 161 517 | 1151 / 2083 | `92639ca1` (72 files) |
+| 1 (`cvD_t01_a1`) | 00:44:55–01:04:47 | no, 0/4 | Unresolved failure | 1 `vlm_verbatim`, 3 `repaired`, 8 `m3_default` | t 27.8 s: robot_2 `yield` (backup 0.903 m to park x 1.124, lateral 0.36), robot_1 escort 1.898 m; 11 later: `temporary_wait` 8 s | 0.343 m | floor stops 0, GT contact 0 (robot-robot only, from the GT min pair; see Rev 6 safety scope); `min_distance_violation` lines 161 517 | 1151 / 2083 | `92639ca1` (72 files) |
 | 2 (`cvD_t02_a1`) | 01:17:36–01:37:48 | no, 0/4 | Unresolved failure | 1 / 7 / 4 | t 28.9 s: robot_1 `yield` (backup 0.993 m to park x −1.124), robot_2 escort 1.904 m; 11 later: `temporary_wait` 8 s | 0.262 m | 0, 0; 175 043 | 1166 / 2054 | `c2356be8` (72 files) |
 | 3 (`cvD_t03_a1`) | 01:45:39–02:05:26 | no, 0/4 | Unresolved failure | 1 / 5 / 6 | t 29.3 s: robot_2 `yield` (backup 0.88 m to park x 1.124), robot_1 escort 1.807 m; 11 later: `temporary_wait` 8 s | 0.274 m | 0, 0; 161 242 | 1173 / 2022 | `682c9a59` (72 files) |
 
@@ -445,6 +453,15 @@ Take 2's two `convoy` decisions are aliased to the ordered yield and refused by 
 | `reroute` would have been held by the M4 latch | inferred |
 | The scene is resolvable with the oracle decision | verified on one smoke episode, not owner-accepted |
 
+### 5.8 Follow-Up: Held-Robot Prompt Check, No-Go (Added 2026-11-15, Rev 6)
+
+This tests fix option (a) of 5.5 offline. Full report: `docs/reports/2026-11-15-convoy-held-robot-prompt-check.md`. The check was pre-registered in `4ba2175`, and the condition is `prompt_held_robot_state` (`2f83faf`, default off).
+
+- **Calls.** 44 ER-2 calls, 22 per condition ($0.2990 at list price), on the four convoy first-trigger snapshots: takes 1–3 and the scripted smoke. Control C is the recorded prompt. Treatment H marks robot_3 and robot_4 `start_pending=true` and adds one factual note.
+- **Result.** In both C and H, 0 of 22 answers grounded into the smoke's four-robot sequence (yield, linked waits for the other three, all three in the crossing order). Every answer named only robot_1 and robot_2 in `involved_robots`, so the model still names only the pair. Under H, the plans gave both queued robots `wait` in 16 of 22 answers, against 2 of 22 under C. Legacy grounding commands only the robots the decision names, so all 44 grounded commands name robot_1 and robot_2 only.
+- **Verdict: no-go** under the pre-registered rule, which counts the three live takes only: P = 0 of 18 under both C and H. Go needed P of at least 9 of 18 under H and H − C of at least +6. The four-robot structure appeared in 0 of 18 treated answers, so the point estimate is about 0, with a rule-of-three 95 % upper bound of about 17 %. The report therefore puts a live retake's chance of resolving 4 of 4 through the first decision well under 17 %.
+- **No convoy retake was run.** The convoy rows of this report are unchanged.
+
 ---
 
 ## 6. Head-on With Obstacle, Take 1 (ER-2; Added 2026-11-15)
@@ -463,7 +480,7 @@ Take 2's two `convoy` decisions are aliased to the ordered yield and refused by 
 | Label | M3-default resolution (grounder-corrected) |
 | Model calls | 3 billed: 2 decisions plus one stage-2 retreat-position call in decision 2; each 1 attempt, `finish_reason=completed`, `parse_status=valid`, 0 refusals; decision latency 7.1 s and 8.1 s; 32 532 tokens; est. $0.0154 |
 | GT closest pair | 0.2176 m at sim 22.3 s (see 6.3) |
-| Safety | GT contacts 0 (robot-robot 0, robot-static 0); hard-floor stops 0 (floor 0.20 m); `min_distance_violation` stop lines 3352 (M4's 0.45 m latch, not the floor) |
+| Safety | GT contact rows 0 (robot-robot 0, robot-static 0), but both fields are hard-coded empty (`isaac/vgu_sim/acceptance_logging.py:99-100`). Robot-robot is supported by the GT closest pair (6.3). Robot-static is not logged; the section 8.7 recompute gives a minimum chassis-to-box gap of 0.0445 m (barrier block) and 0.098 m (`blocker_west`). Hard-floor stops 0 (floor 0.20 m); `min_distance_violation` stop lines 3352 (M4's 0.45 m latch, not the floor) |
 | Recording frames | 3536 annotated (12 segments) / 2919 raw (10 segments); frame maps decoded per frame |
 | Manifest md5 | `31c7a4e580dc799fb385e218628f29f9` (64 files) |
 
@@ -485,7 +502,7 @@ Take 2's two `convoy` decisions are aliased to the ordered yield and refused by 
 ### 6.3 Closest Pair 0.2176 m (Verified From GT)
 
 - It occurred at GT sim 22.3 s. That is during the first standoff, about 7 s before decision 1 dispatched and before any command ran. The robots had been driving toward each other under Nav2 and stopped nose to nose (GT 0.2176–0.2181 m from 22.3 to 25 s, both at speed 0).
-- It is above the hard floor (0.20 m) by 0.0176 m. No contact was logged and no floor stop occurred.
+- It is above the hard floor (0.20 m) by 0.0176 m. No contact was logged and no floor stop occurred. (Rev 6: "no contact was logged" carries no weight, because the GT contact fields are hard-coded empty. The centre distance of 0.2176 m is the evidence.)
 - The second standoff reached 0.2829 m at 52.5 s, also before its dispatch. The pair was within 0.45 m again at 100.7–105.9 s while robot_1 passed the parked robot_2, an M4-exempt pair under the yield.
 - The `min_distance_violation` lines are M4's 0.45 m latch holding the stopped robots, last logged at wall 258.99, about 0.3 s after decision 2's dispatch.
 
@@ -526,8 +543,8 @@ Take 2's two `convoy` decisions are aliased to the ordered yield and refused by 
 
 | Take (label) | Wall (UTC, `fc_launch`) | Resolved (GT rule `distance_to_goal < 0.3 m`, first sim s) | Label (`TAKE_CLASS`) | Provenance | Model plan (legs) | Dispatched recede order | Default (chi) order, computed offline | GT closest pair | Safety | Recording frames (annotated / raw) | Manifest md5 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 4 (`ibD_t04_a1`) | 02:50:23–03:09:22 | yes, 4/4: robot_2 93.0, robot_3 113.3, robot_4 129.7, robot_1 144.1 | M3-default resolution | `repaired` (robot_1 `cross` → `yield`: "cross leg has no preceding yield leg to release it") | `3rev 4rev 1cross 2cross` | robot_3, robot_4 (`dispatch_order_source=chi`) | robot_3, robot_4 | 0.308 m (robot_2–robot_3, sim 28.2 s, before any command) | floor stops 0, GT contacts 0; `min_distance_violation` lines 10034 | 1573 / 2024 | `b7e7a6bf` (54 files) |
-| 5 (`ibD_t05_a1`) | 03:31:24–03:50:34 | yes, 4/4: robot_2 95.1, robot_4 115.3, robot_3 131.9, robot_1 146.4 | **VLM-driven execution** | `vlm_verbatim` (0 edits) | `3rev 4rev 1yield 2cross` | robot_3, robot_4 (`dispatch_order_source=model`) | robot_4, robot_3 | 0.329 m (robot_1–robot_4, sim 27.9 s, before any command) | floor stops 0, GT contacts 0; `min_distance_violation` lines 9593, `stale_pose_unsafe` 2 | 1502 / 2122 | `0d2300c1` (57 files) |
+| 4 (`ibD_t04_a1`) | 02:50:23–03:09:22 | yes, 4/4: robot_2 93.0, robot_3 113.3, robot_4 129.7, robot_1 144.1 | M3-default resolution | `repaired` (robot_1 `cross` → `yield`: "cross leg has no preceding yield leg to release it") | `3rev 4rev 1cross 2cross` | robot_3, robot_4 (`dispatch_order_source=chi`) | robot_3, robot_4 | 0.308 m (robot_2–robot_3, sim 28.2 s, before any command) | floor stops 0, GT contacts 0 (robot-robot only, from the GT min pair; see Rev 6 safety scope); `min_distance_violation` lines 10034 | 1573 / 2024 | `b7e7a6bf` (54 files) |
+| 5 (`ibD_t05_a1`) | 03:31:24–03:50:34 | yes, 4/4: robot_2 95.1, robot_4 115.3, robot_3 131.9, robot_1 146.4 | **VLM-driven execution** | `vlm_verbatim` (0 edits) | `3rev 4rev 1yield 2cross` | robot_3, robot_4 (`dispatch_order_source=model`) | robot_4, robot_3 | 0.329 m (robot_1–robot_4, sim 27.9 s, before any command) | floor stops 0, GT contacts 0 (robot-robot only, from the GT min pair; see Rev 6 safety scope); `min_distance_violation` lines 9593, `stale_pose_unsafe` 2 | 1502 / 2122 | `0d2300c1` (57 files) |
 
 - Every `VIDEO_VERIFY` was OK, every `STARTUP_CHECK` OK, every condition gate passed (`COND arm=A … failed=none`), `RESTORE OK`, VM TERMINATED (verified) after each.
 - Model calls: take 4 two (the jam decision `858a783c` at stamp 30.93 s and a no-congestion call `da922782` at 132.4 s), est. $0.0115; take 5 three (`510f79e2` at 20.27 s, no congestion; `df397030` at 30.33 s, the jam; `bc712975` at 133.97 s, no congestion), est. $0.0180. Each 1 attempt, `finish_reason=completed`, `parse_status=valid`, no refusal, no stage-2 call.
@@ -547,7 +564,7 @@ Each check below was run from the raw bundle files, not from the classifier, exc
 | 3 | Dispatch and execution order | **pass** (verified) | m5: `dispatch … junction-recede-robot_3` at wall …659.54; `phase advance … recede-robot_3 completed=True` and `dispatch … junction-recede-robot_4` at …697.97; `junction-cross` at …736.34; `junction-release` at …887.91. m4: `action=reverse` for robot_3 first (`handoff guard … sim_t=32.367`), then for robot_4; `junction-cross robot=robot_1 action=yield`. GT: robot_3 starts backing at sim 32.9 s (y −0.22 → −1.01 by about 41 s) while robot_4 stays at y +0.22; robot_4 starts at 41.9 s (y +0.22 → +1.21 by about 53 s); robot_1 backs and pulls off from 52.9 s, reaching (−1.03, −0.38) by about 72 s. The yielder commanded and executed was robot_1, the plan's `yield` leg. |
 | 4 | Nothing later changed what ran | **pass** (verified) | m4 received exactly 14 commands, all under `df397030` (two recedes, cross, release; no fallback, no stage-2). Every recede and the cross resolved `completed`; gates released by clearance (`gate_release reason=clearance` at sim 97.97 s and 115.7 s; robot_1's release gate cleared at 129.5 s). The other two decisions answered `congestion_detected=false` and logged `no dispatch` (`510f79e2` before the jam, `bc712975` after the release while robot_1 was still 2.16 m from its goal). `failure_context=null`. |
 | 5 | Resolved | **pass** (verified) | GT 4/4 within 0.3 m (times in 7.1); M5 `arrived at base goal` for all four (robot_2, robot_4, robot_3, robot_1), final distances 0.06–0.09 m. |
-| 6 | Safety | **pass** (verified) | GT closest pair 0.329 m (robot_1–robot_4) at sim 27.9 s, during the jam, before dispatch; 0 robot-robot and 0 robot-static contact rows in 3001 GT rows; no floor stop (no stop reason other than `min_distance_violation` ×9593 and `stale_pose_unsafe` ×2; floor 0.20 m armed per the M4 startup line). |
+| 6 | Safety | **pass** (verified) | GT closest pair 0.329 m (robot_1–robot_4) at sim 27.9 s, during the jam, before dispatch; 0 robot-robot and 0 robot-static contact rows in 3001 GT rows (Rev 6: both fields are hard-coded empty, `isaac/vgu_sim/acceptance_logging.py:99-100`, so the pass rests on the 0.329 m closest pair; the scene declares no static obstacles); no floor stop (no stop reason other than `min_distance_violation` ×9593 and `stale_pose_unsafe` ×2; floor 0.20 m armed per the M4 startup line). |
 | 7 | Default (chi) order recomputed | **pass, near-tie** (verified by running the classifier's code path, `rank_recede_candidates` over `_junction_recede_candidates`, grounder files unchanged since `68e67b5`) | chi robot_4 = 0.971, robot_3 = 0.981 (no followers; cost = recede distance in m). Default order robot_4 → robot_3. Margin **0.010 m** against the verifier's tolerance `junction_recede_order_epsilon` 0.15. The default order is 4→3 on every M1 sample from 27.5 to 32.7 s (margin 0.008–0.020) and on the GT poses at 29–32 s (margin 0.005). |
 | 8 | Prompt carried the options block and the grammar sentences | **pass** (verified) | `user_prompt` (sha256 `cbc947c4…`, matches the stored hash) contains the header "Plan actions the system's verifier accepts for each robot in the current scene", the two v3.5 sentences ("Name each robot exactly once: …", "A \"cross\" leg must come after the \"yield\" leg that releases it.") and the release sentence ("A plan with any \"cross\" leg must also contain a \"yield\" leg listed before it; …"). Only robot_3 and robot_4 were offered `reverse`. |
 
@@ -600,7 +617,7 @@ Each check below was run from the raw bundle files, not from the classifier, exc
 | Reached M4 | 2 decisions (7 m5 `dispatch` lines). The other 6 were refused by grounding and withheld (6 m5 `refusal withheld … (refusal_no_action)` lines) |
 | Re-analysis | Last analysis at scene stamp 275.47 s (`704fab63`). 147 `reanalysis suppressed reason=scene_unchanged` lines in total, 117 of them after the last analysis; max displacement 0.000–0.002 m against epsilon 0.05 m |
 | GT closest pair | 0.2582 m, robot_1–robot_4, at sim 42.6 s (under 0.27 m from 42.5 to 46.0 s). This is their head-on standoff, before the first dispatch (M4 `handoff guard … sim_t=46.267`) |
-| Safety | GT contact rows 0 robot-robot and 0 robot-static in 6001 rows. Hard-floor stops 0 (floor 0.20 m armed per the M4 startup line). All 557 508 `safety stop` lines are `min_distance_violation` (M4's 0.45 m latch, not the floor). |
+| Safety | GT contact rows 0 robot-robot and 0 robot-static in 6001 rows. (Rev 6: both fields are hard-coded empty, `isaac/vgu_sim/acceptance_logging.py:99-100`. Robot-robot is supported only by the 0.2582 m closest pair. Robot-static is wrong in substance: robot_3 drove into island `obstacle_2` at sim 146.7 s and stayed against it; see 8.7.) Hard-floor stops 0 (floor 0.20 m armed per the M4 startup line). All 557 508 `safety stop` lines are `min_distance_violation` (M4's 0.45 m latch, not the floor). |
 | Recording frames | 2014 annotated (7 segments, sim 31.47–600.23) / 4104 raw (14 segments); `VIDEO_VERIFY` OK |
 | Manifest md5 | `bd7572c417c558fda4d19c40867363e1` (68 files) |
 
@@ -611,7 +628,7 @@ Each check below was run from the raw bundle files, not from the classifier, exc
 | # | Request, scene stamp (sim s) | Model answer | Provenance | What happened |
 |---|---|---|---|---|
 | 1 | `03bba450`, 44.47 | `yield`, yielder robot_1, passer robot_4 | `vlm_verbatim` (0 edits) | **Executed as named.** robot_1 `yield` (backup 1.514 m, pull-off +0.72 m), robot_4 passer; robot_3 and robot_5 `temporary_wait` 120 s ("retreat shield"). `gate_admit` sim 80.73 (escort 1.671 m); `gate_cleared` / `gate_release reason=clearance` sim 99.90 (moved 1.672 m); escort and all four commands COMPLETED. |
-| 2 | `a15f3fc5`, 103.03 | `yield`, yielder robot_2, passer robot_3 (failure context: "yield completed 21 s ago; congestion re-detected") | `vlm_verbatim` (0 edits); stage 2 answered C, the default | **Executed as named.** robot_2 `yield` (backup 1.408 m, pull-off −0.72 m), robot_3 passer, robot_5 retreat-shield wait. `gate_admit` sim 138.70 (escort 1.604 m). robot_3 moved about 0.51 m (x 1.35 → 0.84) and stopped at sim 147. `gate_release reason=hold_timer` sim 183.70; then `escort robot_3: FAILED escort timed out in phase drive` (mapped sim 201.8). |
+| 2 | `a15f3fc5`, 103.03 | `yield`, yielder robot_2, passer robot_3 (failure context: "yield completed 21 s ago; congestion re-detected") | `vlm_verbatim` (0 edits); stage 2 answered C, the default | **Executed as named.** robot_2 `yield` (backup 1.408 m, pull-off −0.72 m), robot_3 passer, robot_5 retreat-shield wait. `gate_admit` sim 138.70 (escort 1.604 m). robot_3 moved about 0.51 m (x 1.35 → 0.84) and stopped at sim 147, against the east face of island `obstacle_2` (Rev 6, 8.7). `gate_release reason=hold_timer` sim 183.70; then `escort robot_3: FAILED escort timed out in phase drive` (mapped sim 201.8). |
 | 3 | `c2f7094b`, 186.70 | `yield` robot_4 | `m3_default` (repair distance > 4) | Refused: "no feasible yielder (robot_4 0.00 m, robot_1 0.00 m retreat room < 0.77 m required)"; withheld |
 | 4 | `28865c06`, 191.53 | `yield` robot_4 | `m3_default` (same) | Refused: same reason; withheld |
 | 5 | `f53de038`, 213.63 | `yield` robot_1 | `m3_default` | Refused: "no declared junction: robot_1 runs along x and robot_5 along y (a crossing), but no declared junction box (NW, SW, N, S) holds both robots"; withheld |
@@ -629,7 +646,7 @@ The yield refusals sum to "no feasible yielder" ×4, "no declared junction" ×1 
 | robot_4 | (−2.36, −1.06) | Wp (−2.30, 1.35), 2.41 m away | Escorted passer of decision 1; stopped at the escort end from sim 100.3 s, 0.425 m from robot_1 |
 | robot_5 | (−1.78, −0.51) | — | Reached its first goal, pickup N, at GT 185.7 s (the 1 arrival). Its dwell ended at 192.8 s and it was issued task 2, delivery Wm (−2.30, −1.35). It drove toward Wm and stopped at sim 210.8 s, 0.422 m from robot_1. GT `distance_to_goal` (2.41 m) still refers to the first goal. Tasks completed: 1 of 25. |
 | robot_2 | (0.51, 0.84) | E (2.30, 0.00), 1.98 m away | Yielder of decision 2; parked near its retreat point (−0.36, 0.10) about 140–183 s. After the hold-timer release it moved to (0.07, 0.64), then at 268–272 s to its final spot, 0.398 m from robot_3 |
-| robot_3 | (0.84, 0.62) | N (−0.25, 1.35), 1.31 m away | Passer of decision 2; stopped at sim 147 s, about 0.51 m into a 1.604 m escort |
+| robot_3 | (0.84, 0.62) | N (−0.25, 1.35), 1.31 m away | Passer of decision 2; stopped at sim 147 s, about 0.51 m into a 1.604 m escort, nose against island `obstacle_2`'s east face (x 0.80; Rev 6, 8.7) |
 
 Three pairs stayed under M4's `min_distance_m` 0.45 continuously to the end (GT): robot_1–robot_4 from sim 100.5 s, robot_1–robot_5 from 211.0 s and robot_2–robot_3 from 272.4 s. The `min_distance_violation` stop lines continue for all five robots until the last m4 line.
 
@@ -638,7 +655,7 @@ Three pairs stayed under M4's `min_distance_m` 0.45 continuously to the end (GT)
 **Verified.**
 
 - **Decision 1 moved one pair through, and then the pair latched.** The yield cleared by distance at sim 99.9 s. The exemption for robot_1+robot_4 ended in the same second (`exempt pairs changed pairs=-`). From sim 100.5 s the two stood 0.42 m apart and never moved again.
-- **Decision 2's escort stalled.** robot_3 stopped at sim 147 s with no robot within 1.29 m (GT) and no robot_3 safety stop in that window. From that moment its Nav2 log repeats `camera_localizer … no TF robot_3/odom->robot_3/base_footprint at stamp=147.06` (456 lines, last stamp 268.46). The yield was closed by its 45 s hold timer, and the escort failed. Why robot_3 stopped is not established.
+- **Decision 2's escort stalled.** robot_3 stopped at sim 147 s with no robot within 1.29 m (GT) and no robot_3 safety stop in that window. From that moment its Nav2 log repeats `camera_localizer … no TF robot_3/odom->robot_3/base_footprint at stamp=147.06` (456 lines, last stamp 268.46). The yield was closed by its 45 s hold timer, and the escort failed. Why robot_3 stopped is not established. (Superseded by section 8.7, Rev 6: the escort segment ran into island `obstacle_2`, and robot_3 stopped against its east face. The TF warnings follow from M1 losing the marker at the face.)
 - **Every later proposal was refused by grounding.** The robots near each conflict had 0.00–0.15 m of retreat room against 0.77 m required, or the pair had no declared junction or no shared lane. Each refusal withheld the command and armed the re-analysis suppression. After sim 275.5 s, nothing moved more than 0.05 m between checks, so no further analysis ran.
 
 **Inferred (not tested here).**
@@ -666,6 +683,7 @@ Three pairs stayed under M4's `min_distance_m` 0.45 continuously to the end (GT)
   - The fixed filter does not match m5's `yield refused`, `refusal withheld` or `reanalysis suppressed` lines, or m4's `escort … FAILED` line. On screen, the "no feasible yielder" refusals show only as `provenance=m3_default reason=repair distance exceeds bound 4`. The "no declared junction" and "no shared lane" refusals show in full, because they are the plan's rejection reason.
   - The `jq` grounding line prints `dispatch_order=…` for the six withheld decisions too: it reads `dispatched_robot_ids`, which is filled although nothing was sent. The absence of m5 `dispatch` and m4 `command received` lines after those decisions shows the withholding; the caption states it.
   - The left pane is blank before sim 31.47 s (first recorded frame) and in the last frames after 600.23 s, so the end still is blank.
+  - **Rev 6: the captions predate the escort finding (8.7).** They do not say that robot_3's escort drove into a rack island. The video and the combined video (section 9) were not re-rendered. A re-render should add one caption line: "Decision 2's escort drove robot_3 straight into a rack island (the escort path has no obstacle check); it stayed against the island until the escort timed out." Caption 3's "the scene stayed jammed" is then true, but incomplete without that line.
 
 ### 8.6 Verified and Inferred
 
@@ -673,9 +691,114 @@ Three pairs stayed under M4's `min_distance_m` 0.45 continuously to the end (GT)
 |---|---|
 | Analyses, provenance, refusal reasons, dispatches, gate events, escort failure, arrival, safety counts, closest pair, manifest md5 | verified (bundle artifacts, m4/m5 logs, GT, driver log) |
 | Robot_5's arrival was its first task goal; it then left on task 2 | verified (`task_stream` lines, GT) |
-| robot_3's stall coincides with missing odom TF warnings | verified as co-occurrence; the cause is not established |
+| robot_3's stall coincides with missing odom TF warnings | verified as co-occurrence; the cause is not established (superseded by 8.7: robot_3 stopped against island `obstacle_2`, which is confirmed; the TF warnings are a downstream symptom, which is inferred) |
 | The final clusters were held by the M4 latch, and no grounded strategy could move them | inferred |
 | `goal_check`'s `withheld=0` is wrong for this take | verified against the m5 log |
+
+### 8.7 Follow-Up: robot_3's Escort Drove Into Rack Island `obstacle_2` (Added 2026-11-15, Rev 6)
+
+This is an offline re-reading of the bundles: no VM, no API call. The bundles were not changed.
+
+**Verdict: confirmed.** The evidence is GT poses, the URDF collision box, the scene builder code and the overhead recording. They agree to the millimetre. Decision 2's straight escort segment crossed island `obstacle_2`. robot_3 drove west into the island's east face, stopped there at sim 146.9 s, and was held against it until M4's monotonic deadline failed the escort (mapped sim 201.8 s). The only inferred parts are the downstream ones, marked below.
+
+#### 8.7.1 Recording (Viewed; Stills Under `docs/reports/assets/2026-11-15-demo-campaign/`)
+
+Frames were taken from `rec/camera_raw_*.mp4` and `rec/annotated_*.mp4` through each stream's per-frame time map, using the burned-in `t=` clock. Each still is a crop around robot_3 and the island, 645 × 414 px, about 20 KB.
+
+| Still | Sim t (burned-in) | What is visible |
+|---|---|---|
+| `m5D_escort_138p03s_raw.jpg` | 138.03 | robot_3 at its start, east of the island, before the turn |
+| `m5D_escort_144p97s_raw.jpg` | 144.97 | robot_3 heading west toward the island's east face, marker and chassis fully visible |
+| `m5D_escort_147p13s_raw.jpg` | 147.13 | robot_3 at the island's east face, next to its north-east corner; the chassis is no longer visible beside the marker |
+| `m5D_escort_147p30s_annotated.jpg` | 147.30 | M1's last box for robot_3 at the face, with its velocity arrow still pointing west |
+| `m5D_escort_150p00s_raw.jpg` | 150.00 | the marker's west part is hidden by the island's top edge; M1 no longer tracks robot_3 |
+| `m5D_escort_199p90s_raw.jpg` | 199.90 | robot_3 still at the face, about 2 s before the escort's deadline |
+
+The recording shows robot_3 driving into the island and stopping against it, with nothing else nearby. It cannot resolve millimetres; the contact itself rests on 8.7.2.
+
+#### 8.7.2 Trajectory and Geometry (Verified)
+
+- **Command.** `a15f3fc5`: `passer_escort_heading_rad` π (due west), `passer_escort_distance_m` 1.604. Degradations: `grounding=dynamic_arms:bearing_lane:robot_3:37`, `grounding=dynamic_arms:lane:x` and `grounding=escort_turn_cap:robot_3:2.35->1.604`. The turn cap is the goal's along-axis distance, |−0.25 − 1.35| ≈ 1.60 m: the escort was sized to end at the goal's x, straight through the island.
+- **Segment.** From the GT pose at admission (1.353, 0.603), heading π, for 1.604 m, the segment ends at (−0.251, 0.603). Its centreline enters the `obstacle_2` box (x 0.25–0.80, y −0.90–0.70) after 0.553 m. The chassis spans y 0.53–0.67, entirely inside the face's y range.
+- **GT motion.** The robot turned in place from 139 to 141 s, then drove at about 0.09 m/s on a heading of −3.08 rad (about 3.5° south of west). At 146.0 s it was at x 0.905. At 146.9 s it stopped at (0.838, 0.572) after 0.515 m. Its heading then snapped to exactly π and stayed there to 180 s: the chassis squared up against a flat face. By 200 s it had turned to 2.996 rad and moved 0.01 m east, (0.848, 0.601), still at the face.
+- **The 0.038 m gap is the chassis nose.** GT logs the `base_link` pose (`isaac/vgu_sim/acceptance_logging.py:14`). The URDF collision box of `base_link` is 0.140 × 0.140 m, centred 0.032 m behind the link origin (`isaac/assets/robots/turtlebot3_burger/turtlebot3_burger.urdf:63-68`), so it reaches +0.038 m forward. The lidar cylinder also reaches +0.038 m (−0.032 + 0.015 + 0.055), and the wheels reach +0.033 m. Heading west at x 0.838, the nose is at 0.838 − 0.038 = 0.800 m, exactly the face. No overlap and no ride-up is needed. The centre-to-face distance equals the forward half-extent, not a gap.
+- **Island collision shape = the yaml box.** `_author_static_obstacles` → `_author_box` (`isaac/vgu_sim/scenario_builder.py:149-201`) authors a cube of size 2.0, scaled by the half-extents, translated to the yaml centre at z = h/2, with `UsdPhysics.CollisionAPI`. The face is therefore at x 0.525 + 0.275 = 0.800. This is verified from code; the generated USD is not in the bundle.
+- **Why M1 lost the marker (inferred).** The 0.12 m marker (`isaac/vgu_sim/marker_asset.py:6`) sits 0.21 m up on `base_link` (URDF `aruco_marker_joint`). At x 0.838, its west 0.022 m lies over the island's footprint, below the 0.30 m top. With the camera nadir west of the island (about x −0.07, estimated from the frame), the island's top edge hides that strip. M1's last track is at stamp 147.07 s, x 0.866. The 456 `camera_localizer … no TF` warnings frozen at stamp 147.06 then follow from the lost marker.
+- **Distance recompute (an ad hoc offline check, no committed script).** For every GT row, the URDF chassis box and wheels were placed at the `base_link` pose and heading, and the gap to each declared box was measured, sampled at about 5 mm. robot_3 to `obstacle_2`: the gap is 5 mm or less in 4526 of the 4534 GT rows from sim 146.7 s to 600 s, with a minimum of −0.2 mm (touching, within the sampling). The exceptions are 8 rows at 266.5–267.7 s, up to 13.5 mm, while the line-hold servo turned the robot against the face. GT is sampled at 10 Hz, so a moving robot's true minimum gap can be a few mm lower than any row shows. The shapes are the URDF's; the imported USD collision shapes were not inspected. robot_2 to `obstacle_2`: 3.8 mm at sim 270.7–270.9 s, during its 268–272 s move. That is a possible brief graze, not established.
+
+#### 8.7.3 What the Code Checks (Verified, v7j Working Tree)
+
+| Stage | Check that exists | Static obstacles used? |
+|---|---|---|
+| M3 escort length (`reasoning/rag/maneuver_geometry.py:484-532`, `derive_escort_distance`) | travel past the parked yielder plus `escort_clearance_m`, inside `escort_band_m` | no |
+| M3 escort heading and turn cap (`reasoning/rag/grounding_view.py:938-999`, `derive_escort_heading`; `:1027-1060`, `_cap_escorts_at_turn`; `:1063-1140`, `apply_escort_headings`) | axis from the lane, sign from the goal, length capped at the goal's along-axis distance | no |
+| M3 `escort_park_clearance` (`reasoning/rag/escort_clearance.py:159-241`; `command_grounder.py:2143`ff, `filter_escort_park_candidates`) | escort leg against the parked yielder's park point, within `min_distance_m` | no (module docstring, lines 1-38: park point only) |
+| M3 yielder retreat (`command_grounder.py:532-533`, `yield_retreat_room_m` and `yield_feasible`; `retreat_candidates.py:120`) | the yielder's retreat room and the retreat-candidate sweep against the static boxes | yes, for the yielder only |
+| M4 `drive_heading` (`ros2_ws/src/swarm_execution/swarm_execution/nav2_adapter.py:662-799`) | ends only when the odometry distance reaches `distance_m` (COMPLETED) or at the monotonic deadline (FAILED, `max(15 × naive, 30 s)` = 335 s here); line-hold heading servo | no |
+| Command path | the escort publishes raw `Twist` on `/<robot>/cmd_vel` (`nav2_adapter.py:694`). Nav2's `collision_monitor` reads `cmd_vel_nav` and writes `cmd_vel` (`ros2_ws/src/swarm_simulation/config/nav2_params.yaml:364-365`), so the escort bypasses it | no |
+| M4 safety monitor | robot-robot `min_distance_m` latch and 0.20 m floor (no file in `swarm_execution/` references obstacles or scans) | no |
+
+So no stage compares the escort's straight segment with a declared static obstacle. The static boxes reach M3 only through the yielder's retreat checks.
+
+#### 8.7.4 Every Escort in the Campaign (GT and m4 Logs; the Segment From the GT Pose at `gate_admit`)
+
+"Boxes" are the scenario's `static_obstacles` plus the `aisle_barrier` blocks. The barrier blocks are derived from the yaml through `_author_aisle_barrier`, not declared as boxes. The heading is the decision's `passer_escort_heading_rad` where present. Otherwise it is measured from the first 0.3 m of GT motion: legacy M4 drives odom yaw 0, the spawn heading. The intersection takes declare no boxes; their warehouse walls were not checked.
+
+| Bundle | Command | Passer | Start (m) | Heading | Length (m) | Segment centreline crosses a box? | Min centreline-to-box (m) | Outcome (m4) | GT motion |
+|---|---|---|---|---|---|---|---|---|---|
+| `m5D_t01_a1` decision 1 | `03bba450` | robot_4 | (−0.626, −1.136) | π (decision) | 1.671 | no | 0.436 (`obstacle_1`) | COMPLETED, 1.672 m | reached the segment end |
+| `m5D_t01_a1` decision 2 | `a15f3fc5` | robot_3 | (1.353, 0.603) | π (decision) | 1.604 | **yes, `obstacle_2` after 0.553 m** | 0 | FAILED (deadline, phase drive) | stopped against the face after 0.515 m |
+| `cvD_t01_a1` | `35084986` | robot_1 | (−0.095, −0.015) | 0.013 (GT) | 1.898 | no | 0.260 (barrier) | FAILED (deadline, phase drive) | 1.80 m, stopped at x 1.706 |
+| `cvD_t02_a1` | `759bdb94` | robot_2 | (0.096, 0.037) | −3.109 (GT) | 1.904 | no | 0.238 (barrier) | no terminal line | 0.99 m |
+| `cvD_t03_a1` | `ab6a10c5` | robot_1 | (−0.010, −0.033) | 0.028 (GT) | 1.807 | no | 0.242 (barrier) | no terminal line | 1.62 m |
+| `hoD_t01_a1` | `f40c0537` | robot_1 | (−0.136, −0.008) | 0.007 (GT) | 2.928 | no | 0.267 (barrier); 1.564 (`blocker_west`) | COMPLETED, 2.932 m | reached the segment end |
+| `ibD_t01_a2` … `ibD_t05_a1` (5 takes) | junction-cross | robot_2 | x 0.23 to 0.73, y ≈ 0 | ≈ π (GT) | 1.893 to 2.927 | no boxes declared | — | COMPLETED, all 5 | reached the segment end |
+
+- Only `a15f3fc5` crosses a box. The convoy escorts that failed or never logged an end stopped short with their centreline at least 0.238 m from the barrier blocks (chassis clearance at least 0.148 m). The recompute's minimum chassis-to-box gap in the convoy takes is 0.097 m. Those stops are therefore not box contacts; their cause was not examined here.
+- Every decision file with a dispatched escort was admitted (`gate_admit` in m4). The six withheld five-robot decisions dispatched nothing.
+
+**October five-robot bundles (v3 `data/logs/vm_runs/`, read-only).** These are 19 admitted escorts in 15 S1b/S1a bundles: `batch2`–`batch6` (including tranche-1 E28, E29, E31; E27 and E30 had none), `churn_wave` E6, `s1b_pilot2` E3 and `s1_resume` E1.
+
+- **No segment crosses a declared box.** The minimum centreline-to-box distance is 0.093 m, for E18 `1feb2c4e`, robot_2 against `obstacle_1`. That is about 4 mm more than the 0.089 m wheel half-width. That escort never drove: GT motion was 0.002 m and there was no terminal line.
+- **Outcomes:** 12 COMPLETED; 1 FAILED (E18 `56b599af`, robot_3, after 1.16 m, 0.465 m from the boxes); 6 with no terminal line (E15, E22, E18 `1feb2c4e`, E3 ×3). None of those 6 moved more than 0.002 m.
+- The seed-21 pilot E21 escort (`04457772`, robot_4 west along y −1.14, 1.692 m) is the same manoeuvre as decision 1 here, and it completed.
+- **Static-contact recompute over tranche 1 (11 bundles, E27–E31, both arms).** The minimum gap is at least 7 mm, except in E30 Arm A, where robot_2 came within 1.2 mm of `obstacle_1` at sim 48.6–49.2 s. That was under Nav2, not an escort. It is a possible graze, not established.
+
+So the escort-into-island failure is new to this take. It is the first escort, in the campaign and the October five-robot bundles checked, whose straight segment crossed a declared box.
+
+#### 8.7.5 What This Changes
+
+- **The label.** The take stays an Unresolved failure, but "unresolved" partly reflects an escort path error. The model's decision 2 (robot_2 yields, robot_3 passes) was executed as named. Grounding then sized and aimed the escort without regard to the island. The failure is neither the VLM's decision nor the later grounding refusals alone. Whether robot_3 would have reached its goal on a feasible path is not shown.
+- **Safety statements.** Ground truth's "0 robot-static contacts" for this take is wrong in substance, not only unsupported. See the safety scope in the final summary.
+- **Options for the owner (not applied).**
+  - (a) **Escort guard.** Grounding refuses or shortens an escort whose swept segment (centreline grown by the chassis half-width plus a margin) crosses a declared obstacle box, using the same `static_obstacles` the yielder retreat already receives.
+  - (b) **Static-contact logging.** Replace the hard-coded lists with a PhysX contact report on the chassis and obstacle prims, or with a per-row chassis-box-to-obstacle distance, as in 8.7.2.
+
+#### 8.7.6 Known Wording Issue in Other Reports (Listed, Not Edited)
+
+These reports are frozen evidence on other branches or worktrees, or earlier reports on this branch. They state "0 GT contacts" or "no contact" from the empty fields, or from robot-pair distances alone in scenes that have static obstacles.
+
+- **Read from the empty GT fields:**
+  - v7d `docs/reports/2026-11-14-ib10-safety-default-arm-results.md`:62 (the 0.18 m distance claim is sound; "the GT contact lists are also empty" carries no weight), :74 and :360 (table "GT contacts 0 / 0"), :334 ("0 GT contact entries").
+- **Method ambiguous (the "contact frames" count does not say whether it read the empty field or frames below 0.18 m; robot-robot only either way, and IB10 declares no static obstacles):**
+  - v7a `docs/reports/2026-11-13-ib10-live-resolution-results.md`:35, :59, :63, :144 ("zero contact frames in every GT file"); its success criterion at :25 is distance-based;
+  - v6d `docs/reports/2026-11-13-thesis-evidence-register.md`:74–75 ("0 GT contacts", the two IB10 entries); :55 ("2/2 arrivals with zero contacts", quoted from `2026-10-03-loop-family-and-visual-pass.md`:250, mock smoke); :72 ("no contact", IB10 closure, mock).
+- **From robot-pair distances, stated as general "contact" in scenes with static islands:**
+  - v6d `docs/reports/2026-11-13-thesis-evidence-register.md`:85 ("contact gate PASS 10/10 (GT min 0.225-0.424 m)", S1b tranche 1, robot pairs only);
+  - this branch: `2026-10-12-shield-fix-and-minibatch.md`:25, :86, :176 and `2026-10-17-escort-filter-minibatch.md`:135, :186, :284 (S1b, "zero contacts" from pair distances).
+- **Older reports on this branch reading the empty fields:** `2026-10-03-step7b-oracle-freeze.md`:246, `2026-10-05-follow-waypoints-validation.md`:24, :161, :178, `2026-10-07-gpt56-sol-swap.md`:307 (method not re-checked here). `2026-09-25-overnight-findings.md`:232, :262 are already corrected in that report (:1852–1871). `2026-10-08-s1-pilot.md`:174 already carries the caveat.
+- **Not an over-claim:** v7c `docs/reports/2026-11-14-safety-exemption-fix.md`:261, a positive contact found by distance.
+
+### 8.8 Verified and Inferred (Section 8.7)
+
+| Claim | Status |
+|---|---|
+| robot_3's escort segment crossed `obstacle_2`; robot_3 stopped at its east face at sim 146.9 s and stayed there | verified (decision file, GT, URDF, scene builder code, recording) |
+| The 0.038 m centre-to-face distance is the chassis's forward half-extent | verified (URDF collision box; GT is `base_link`) |
+| No M3 or M4 stage checks the escort segment against static obstacles | verified (code, file:line in 8.7.3) |
+| The `no TF` warnings and M1's marker loss are caused by the island hiding the marker | inferred |
+| No other campaign or October five-robot escort segment crossed a declared box | verified (19 + 11 admitted escorts) |
+| Brief grazes (m5D robot_2 at 270.8 s; tranche-1 E30 robot_2 at 48.6–49.2 s) | possible, not established (an ad hoc recompute at about 5 mm resolution, using URDF shapes) |
 
 ---
 
@@ -705,4 +828,5 @@ Three pairs stayed under M4's `min_distance_m` 0.45 continuously to the end (GT)
 - **Checks (verified).**
   - Before combining, ffprobe frame counts matched each source's duration: 2499 / 104.125 s, 6559 / 273.29 s, 1825 / 76.04 s and 4839 / 201.63 s. No excerpt ends past a source's last frame.
   - Stills viewed: all six title cards, and one frame from inside each excerpt. Each frame's caption bar names the scenario, outcome, take and trim. The text is legible at crf 25 (checked on a full-resolution frame of excerpt 4).
+- **Rev 6.** The five-robot title cards and captions predate section 8.7 and do not mention the escort into the island. Per the table above, excerpt 5 covers decision 1 (`gate_admit`, `gate_cleared`), and excerpt 6 runs from the last analysis to sim 597 s, a period when robot_3 was already against island `obstacle_2` (not re-checked frame by frame in the combined video). It was not re-rendered; a re-render should add the 8.5 caption line to the "five robots, later" card.
 - **Why two excerpts for each unresolved take.** One contiguous excerpt could not show both the first executed decision and the late, still-jammed scene within about 4 minutes. The cut is never hidden: each part has its own title card, and the caption bar prints its trim.
