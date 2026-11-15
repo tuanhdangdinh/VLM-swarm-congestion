@@ -1,7 +1,7 @@
 // Evidence rows for chapter 5: one evidence call per number, id = chapter.NN.
 #import "../lib.typ": *
 
-#evidence("5.01", [Five research questions RQ1 to RQ5, renamed from H1 to H5; RQ1 scope note (post-trigger classification only).], [`569d95c:docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md` ("Research questions (RQ1-RQ5, thesis skeleton)")])
+#evidence("5.01", [First registered design (v1, binding text of the `prereg-v1` tag): section "Research questions (RQ1-RQ5, thesis skeleton)", renamed from H1 to H5; RQ2 against the per-type policy table, RQ3 against first-come-first-served with commitment tiebreak; run matrix with registered cells for RQ4 (T3) and RQ5 (informed vs memoryless re-analysis); RQ1 scope note (post-trigger classification only).], [`569d95c:docs/superpowers/specs/2026-07-05-general-spatial-congestion-resolution-design.md` (Status line; "Research questions (RQ1-RQ5, thesis skeleton)"; "Run matrix (pre-registered cells)")])
 
 #evidence("5.02", [The third registered design (v3) registers the coordination-layer-on minus off comparison as CI estimation of the delta per regime; Goldilocks expectation recorded as interpretation, not a directional hypothesis.], [`ad67a18:docs/superpowers/specs/2026-10-06-prereg-v3-design.md` (R3.6a item 4; A33(7))])
 
@@ -23,7 +23,7 @@
 
 #evidence("5.11", [v3 A32 (config freeze), A33 (measures, REGISTERED vs PROPOSAL), A34 (R6-R11, all proposals ruled at default, control = coordination layer off), A35 (reasoning_enabled), A36 (outcome, GPU wall-clock deviation, decision on the remaining 15 seed pairs open).], [`ad67a18:docs/superpowers/specs/2026-10-06-prereg-v3-design.md` (A32-A36, revision history)])
 
-#evidence("5.12", [No confirmatory v1 or v2 data reported; "No confirmatory-grade evidence remains". Reason for the v1/v2 collection status not confirmed from a committed source [VERIFY].], [`cbe3dcf:docs/reports/2026-11-13-thesis-evidence-register.md` (Gaps)])
+#evidence("5.12", [No confirmatory v1 or v2 data; "No confirmatory-grade evidence remains". The v1/v2 collection track was stopped before any confirmatory data existed, when its host VM was deleted on 2026-11-12.], [`cbe3dcf:docs/reports/2026-11-13-thesis-evidence-register.md` (Gaps); owner ruling relayed 2026-11-15 for the stop and the VM deletion date (no committed source)])
 
 #evidence("5.13", [Five-robot pickup-and-delivery scene: tracked band 5.0 x 3.6 m (|x| up to 2.5, |y| up to 1.8); two islands 0.55 x 1.60 x 0.30 m; coverage 9.78 %; every gap at least 0.90 m.], [`68e67b5:isaac/config/scenarios/mapd_5_s1b.yaml` (header comments)])
 
