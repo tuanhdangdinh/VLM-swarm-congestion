@@ -1,0 +1,952 @@
+{
+ "cvD_t01_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/cv/runs/cvD_t01_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.19496,
+   "robot_ids": [
+    "robot_1",
+    "robot_2"
+   ],
+   "sim_s": 67.2
+  },
+  "min_static_gap": {
+   "category": "aisle_barrier",
+   "min_gap_m": 0.10299,
+   "obstacle_id": "aisle_barrier/north",
+   "sim_s": 65.0
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "cvD_t02_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/cv/runs/cvD_t02_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.17627,
+   "robot_ids": [
+    "robot_1",
+    "robot_2"
+   ],
+   "sim_s": 25.7
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.13728,
+   "obstacle_id": "rack/NW",
+   "sim_s": 53.9
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "cvD_t03_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/cv/runs/cvD_t03_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.1901,
+   "robot_ids": [
+    "robot_1",
+    "robot_2"
+   ],
+   "sim_s": 26.1
+  },
+  "min_static_gap": {
+   "category": "aisle_barrier",
+   "min_gap_m": 0.09676,
+   "obstacle_id": "aisle_barrier/north",
+   "sim_s": 65.5
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "hoD_t01_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/ho/runs/hoD_t01_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.13885,
+   "robot_ids": [
+    "robot_1",
+    "robot_2"
+   ],
+   "sim_s": 22.3
+  },
+  "min_static_gap": {
+   "category": "aisle_barrier",
+   "min_gap_m": 0.04448,
+   "obstacle_id": "aisle_barrier/north",
+   "sim_s": 121.0
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10L_e01_armA_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e01_armA_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.15197,
+   "robot_ids": [
+    "robot_1",
+    "robot_3"
+   ],
+   "sim_s": 28.2
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.10352,
+   "obstacle_id": "rack/NW",
+   "sim_s": 131.9
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10L_e01_armA_a2": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e01_armA_a2",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.15684,
+   "robot_ids": [
+    "robot_2",
+    "robot_3"
+   ],
+   "sim_s": 27.7
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.13228,
+   "obstacle_id": "rack/SW",
+   "sim_s": 72.8
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10L_e02_armB_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e02_armB_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.13996,
+   "robot_ids": [
+    "robot_1",
+    "robot_4"
+   ],
+   "sim_s": 27.6
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.50494,
+   "obstacle_id": "rack/SE",
+   "sim_s": 23.3
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10L_e03_armA_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e03_armA_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.14498,
+   "robot_ids": [
+    "robot_2",
+    "robot_4"
+   ],
+   "sim_s": 26.5
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.12853,
+   "obstacle_id": "rack/SW",
+   "sim_s": 126.6
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10L_e04_armB_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e04_armB_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.12681,
+   "robot_ids": [
+    "robot_2",
+    "robot_3"
+   ],
+   "sim_s": 27.7
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.49653,
+   "obstacle_id": "rack/SE",
+   "sim_s": 24.1
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10L_e05_armA_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e05_armA_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.13948,
+   "robot_ids": [
+    "robot_1",
+    "robot_4"
+   ],
+   "sim_s": 28.6
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.10867,
+   "obstacle_id": "rack/NW",
+   "sim_s": 131.4
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10L_e06_armB_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e06_armB_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.15748,
+   "robot_ids": [
+    "robot_2",
+    "robot_3"
+   ],
+   "sim_s": 27.4
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.48762,
+   "obstacle_id": "rack/SE",
+   "sim_s": 23.4
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10L_e07_armA_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e07_armA_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.17287,
+   "robot_ids": [
+    "robot_2",
+    "robot_3"
+   ],
+   "sim_s": 28.1
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.10134,
+   "obstacle_id": "rack/NW",
+   "sim_s": 130.4
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10L_e08_armB_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e08_armB_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.15107,
+   "robot_ids": [
+    "robot_1",
+    "robot_4"
+   ],
+   "sim_s": 27.3
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.49721,
+   "obstacle_id": "rack/SE",
+   "sim_s": 24.6
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10L_e09_armA_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e09_armA_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.08208,
+   "robot_ids": [
+    "robot_1",
+    "robot_2"
+   ],
+   "sim_s": 295.4
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.12188,
+   "obstacle_id": "rack/NW",
+   "sim_s": 57.5
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10L_e10_armB_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e10_armB_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.16315,
+   "robot_ids": [
+    "robot_2",
+    "robot_3"
+   ],
+   "sim_s": 27.5
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.4901,
+   "obstacle_id": "rack/SE",
+   "sim_s": 21.8
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10S_e01_armA_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e01_armA_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.12172,
+   "robot_ids": [
+    "robot_3",
+    "robot_4"
+   ],
+   "sim_s": 109.4
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.09591,
+   "obstacle_id": "rack/NW",
+   "sim_s": 129.7
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10S_e02_armC_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e02_armC_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 1.77224,
+   "robot_ids": [
+    "robot_2",
+    "robot_3"
+   ],
+   "sim_s": 43.7
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.17099,
+   "obstacle_id": "rack/SW",
+   "sim_s": 283.6
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10S_e02_armC_a2": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e02_armC_a2",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.14958,
+   "robot_ids": [
+    "robot_1",
+    "robot_4"
+   ],
+   "sim_s": 27.5
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.11585,
+   "obstacle_id": "rack/NW",
+   "sim_s": 131.9
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10S_e03_armA_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e03_armA_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.15498,
+   "robot_ids": [
+    "robot_2",
+    "robot_3"
+   ],
+   "sim_s": 27.3
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.12498,
+   "obstacle_id": "rack/SW",
+   "sim_s": 71.8
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10S_e04_armC_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e04_armC_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.15727,
+   "robot_ids": [
+    "robot_2",
+    "robot_3"
+   ],
+   "sim_s": 27.0
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.13019,
+   "obstacle_id": "rack/SW",
+   "sim_s": 74.1
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10S_e05_armA_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e05_armA_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.16233,
+   "robot_ids": [
+    "robot_2",
+    "robot_3"
+   ],
+   "sim_s": 28.1
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.12502,
+   "obstacle_id": "rack/SW",
+   "sim_s": 73.6
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10S_e06_armC_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e06_armC_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.1598,
+   "robot_ids": [
+    "robot_2",
+    "robot_3"
+   ],
+   "sim_s": 27.3
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.12808,
+   "obstacle_id": "rack/SW",
+   "sim_s": 74.2
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10S_e07_armA_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e07_armA_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.13491,
+   "robot_ids": [
+    "robot_2",
+    "robot_3"
+   ],
+   "sim_s": 26.1
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.13068,
+   "obstacle_id": "rack/SW",
+   "sim_s": 71.0
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10S_e08_armC_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e08_armC_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.20152,
+   "robot_ids": [
+    "robot_1",
+    "robot_2"
+   ],
+   "sim_s": 89.8
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.12939,
+   "obstacle_id": "rack/SW",
+   "sim_s": 73.5
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10S_e09_armA_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e09_armA_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.18503,
+   "robot_ids": [
+    "robot_1",
+    "robot_3"
+   ],
+   "sim_s": 29.4
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.11004,
+   "obstacle_id": "rack/NW",
+   "sim_s": 132.3
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ib10S_e10_armC_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e10_armC_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.14231,
+   "robot_ids": [
+    "robot_2",
+    "robot_3"
+   ],
+   "sim_s": 27.9
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.13049,
+   "obstacle_id": "rack/SW",
+   "sim_s": 75.0
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ibD_t01_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/ib/runs/ibD_t01_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 2.30248,
+   "robot_ids": [
+    "robot_2",
+    "robot_3"
+   ],
+   "sim_s": 34.3
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.511,
+   "obstacle_id": "rack/NW",
+   "sim_s": 0.0333
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ibD_t01_a2": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/ib/runs/ibD_t01_a2",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.19164,
+   "robot_ids": [
+    "robot_1",
+    "robot_2"
+   ],
+   "sim_s": 76.1
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.13638,
+   "obstacle_id": "rack/NW",
+   "sim_s": 56.3
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ibD_t02_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/ib/runs/ibD_t02_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.13562,
+   "robot_ids": [
+    "robot_2",
+    "robot_4"
+   ],
+   "sim_s": 28.7
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.13099,
+   "obstacle_id": "rack/SW",
+   "sim_s": 74.9
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ibD_t03_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/ib/runs/ibD_t03_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.15381,
+   "robot_ids": [
+    "robot_2",
+    "robot_3"
+   ],
+   "sim_s": 28.0
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.09359,
+   "obstacle_id": "rack/NW",
+   "sim_s": 130.5
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ibD_t04_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/ib/runs/ibD_t04_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.14757,
+   "robot_ids": [
+    "robot_2",
+    "robot_3"
+   ],
+   "sim_s": 28.2
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.12926,
+   "obstacle_id": "rack/SW",
+   "sim_s": 72.8
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "ibD_t05_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/ib/runs/ibD_t05_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.14899,
+   "robot_ids": [
+    "robot_1",
+    "robot_4"
+   ],
+   "sim_s": 27.9
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.12939,
+   "obstacle_id": "rack/SW",
+   "sim_s": 73.8
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "m5D_t01_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/m5/runs/m5D_t01_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.08499,
+   "robot_ids": [
+    "robot_1",
+    "robot_4"
+   ],
+   "sim_s": 42.6
+  },
+  "min_static_gap": {
+   "category": "static_obstacle",
+   "min_gap_m": -0.00016,
+   "obstacle_id": "obstacle_2",
+   "sim_s": 191.4
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {
+   "robot_2|obstacle_2": {
+    "first_sim_s": 270.7,
+    "last_sim_s": 271.0,
+    "longest_span_s": 0.4,
+    "min_gap_m": 0.00379,
+    "rows_in_contact": 4,
+    "verdict": "brief_graze"
+   },
+   "robot_3|obstacle_2": {
+    "first_sim_s": 146.7,
+    "last_sim_s": 600.0,
+    "longest_span_s": 332.0,
+    "min_gap_m": -0.00016,
+    "rows_in_contact": 4526,
+    "verdict": "sustained_contact"
+   }
+  },
+  "static_verdict": "sustained_contact"
+ },
+ "s1b_E27_seed1_armA_er2_confT1_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E27_seed1_armA_er2_confT1_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.22191,
+   "robot_ids": [
+    "robot_1",
+    "robot_5"
+   ],
+   "sim_s": 581.7
+  },
+  "min_static_gap": {
+   "category": "static_obstacle",
+   "min_gap_m": 0.03479,
+   "obstacle_id": "obstacle_1",
+   "sim_s": 99.8
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "s1b_E27_seed1_armB_l2off_confT1_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E27_seed1_armB_l2off_confT1_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 1.92278,
+   "robot_ids": [
+    "robot_1",
+    "robot_2"
+   ],
+   "sim_s": 29.4
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.09788,
+   "obstacle_id": "rack/SW_west",
+   "sim_s": 37.8
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "s1b_E27_seed1_armB_l2off_confT1_a2": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E27_seed1_armB_l2off_confT1_a2",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.21583,
+   "robot_ids": [
+    "robot_3",
+    "robot_4"
+   ],
+   "sim_s": 46.9
+  },
+  "min_static_gap": {
+   "category": "static_obstacle",
+   "min_gap_m": 0.03473,
+   "obstacle_id": "obstacle_2",
+   "sim_s": 50.4
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "s1b_E28_seed2_armA_er2_confT1_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E28_seed2_armA_er2_confT1_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.22347,
+   "robot_ids": [
+    "robot_1",
+    "robot_5"
+   ],
+   "sim_s": 45.5
+  },
+  "min_static_gap": {
+   "category": "rack",
+   "min_gap_m": 0.02813,
+   "obstacle_id": "rack/SE_east",
+   "sim_s": 104.4
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "s1b_E28_seed2_armB_l2off_confT1_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E28_seed2_armB_l2off_confT1_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.1011,
+   "robot_ids": [
+    "robot_1",
+    "robot_5"
+   ],
+   "sim_s": 44.8
+  },
+  "min_static_gap": {
+   "category": "static_obstacle",
+   "min_gap_m": 0.04114,
+   "obstacle_id": "obstacle_2",
+   "sim_s": 42.5
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "s1b_E29_seed3_armA_er2_confT1_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E29_seed3_armA_er2_confT1_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.1334,
+   "robot_ids": [
+    "robot_1",
+    "robot_4"
+   ],
+   "sim_s": 46.4
+  },
+  "min_static_gap": {
+   "category": "static_obstacle",
+   "min_gap_m": 0.00709,
+   "obstacle_id": "obstacle_2",
+   "sim_s": 42.8
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "s1b_E29_seed3_armB_l2off_confT1_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E29_seed3_armB_l2off_confT1_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.11943,
+   "robot_ids": [
+    "robot_1",
+    "robot_4"
+   ],
+   "sim_s": 46.1
+  },
+  "min_static_gap": {
+   "category": "static_obstacle",
+   "min_gap_m": 0.01402,
+   "obstacle_id": "obstacle_1",
+   "sim_s": 38.8
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "s1b_E30_seed4_armA_er2_confT1_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E30_seed4_armA_er2_confT1_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.23168,
+   "robot_ids": [
+    "robot_3",
+    "robot_4"
+   ],
+   "sim_s": 44.9
+  },
+  "min_static_gap": {
+   "category": "static_obstacle",
+   "min_gap_m": 0.00097,
+   "obstacle_id": "obstacle_1",
+   "sim_s": 48.9
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {
+   "robot_2|obstacle_1": {
+    "first_sim_s": 48.6,
+    "last_sim_s": 49.2,
+    "longest_span_s": 0.7,
+    "min_gap_m": 0.00097,
+    "rows_in_contact": 7,
+    "verdict": "brief_graze"
+   }
+  },
+  "static_verdict": "brief_graze"
+ },
+ "s1b_E30_seed4_armB_l2off_confT1_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E30_seed4_armB_l2off_confT1_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.1691,
+   "robot_ids": [
+    "robot_3",
+    "robot_4"
+   ],
+   "sim_s": 43.3
+  },
+  "min_static_gap": {
+   "category": "static_obstacle",
+   "min_gap_m": 0.01004,
+   "obstacle_id": "obstacle_1",
+   "sim_s": 47.9
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "s1b_E31_seed5_armA_er2_confT1_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E31_seed5_armA_er2_confT1_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.17892,
+   "robot_ids": [
+    "robot_1",
+    "robot_5"
+   ],
+   "sim_s": 577.2
+  },
+  "min_static_gap": {
+   "category": "static_obstacle",
+   "min_gap_m": 0.01931,
+   "obstacle_id": "obstacle_2",
+   "sim_s": 44.3
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ },
+ "s1b_E31_seed5_armB_l2off_confT1_a1": {
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E31_seed5_armB_l2off_confT1_a1",
+  "min_robot_robot_gap": {
+   "min_gap_m": 0.20928,
+   "robot_ids": [
+    "robot_1",
+    "robot_5"
+   ],
+   "sim_s": 41.2
+  },
+  "min_static_gap": {
+   "category": "static_obstacle",
+   "min_gap_m": 0.00873,
+   "obstacle_id": "obstacle_2",
+   "sim_s": 42.0
+  },
+  "robot_pairs": {},
+  "robot_robot_verdict": "clear",
+  "static_pairs": {},
+  "static_verdict": "clear"
+ }
+}

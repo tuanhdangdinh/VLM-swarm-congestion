@@ -1,0 +1,54 @@
+{
+ "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/ho/runs/hoD_t01_a1",
+ "category_min_gap_within_near_cutoff": {},
+ "contact_model": "urdf_footprint_v1",
+ "declared_static_obstacles": [
+  "blocker_west"
+ ],
+ "family": "head_on",
+ "ground_truth": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/ho/runs/hoD_t01_a1/gt/ground_truth.jsonl",
+ "logged_rows_nonempty": {
+  "robot_robot_contacts": 0,
+  "robot_static_contacts": 0
+ },
+ "logged_rows_with_contact_model": 0,
+ "min_robot_robot_gap": {
+  "min_gap_m": 0.13885,
+  "robot_ids": [
+   "robot_1",
+   "robot_2"
+  ],
+  "sim_s": 22.3
+ },
+ "n_boxes": 11,
+ "n_rows": 3001,
+ "near_cutoff_m": 0.02,
+ "robot_min_static_gap": {
+  "robot_1": {
+   "category": "static_obstacle",
+   "min_gap_m": 0.0979,
+   "obstacle_id": "blocker_west",
+   "sim_s": 0.0333
+  },
+  "robot_2": {
+   "category": "aisle_barrier",
+   "min_gap_m": 0.04448,
+   "obstacle_id": "aisle_barrier/north",
+   "sim_s": 121.0
+  }
+ },
+ "robot_pairs": {},
+ "robot_robot_verdict": "clear",
+ "row_dt_s": 0.1,
+ "scenario": "head_on_asymmetric_w0p2_eopen_bshort_o0",
+ "sim_span_s": [
+  0.0333,
+  300.0
+ ],
+ "static_pairs": {},
+ "static_verdict": "clear",
+ "sustained_min_sec": 1.0,
+ "threshold_m": 0.005,
+ "timed_obstacles": [],
+ "unmodelled_obstacles": []
+}

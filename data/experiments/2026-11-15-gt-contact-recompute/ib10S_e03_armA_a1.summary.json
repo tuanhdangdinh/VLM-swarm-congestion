@@ -1,0 +1,64 @@
+{
+ "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e03_armA_a1",
+ "category_min_gap_within_near_cutoff": {},
+ "contact_model": "urdf_footprint_v1",
+ "declared_static_obstacles": [],
+ "family": "intersection",
+ "ground_truth": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e03_armA_a1/gt/ground_truth.jsonl",
+ "logged_rows_nonempty": {
+  "robot_robot_contacts": 0,
+  "robot_static_contacts": 0
+ },
+ "logged_rows_with_contact_model": 0,
+ "min_robot_robot_gap": {
+  "min_gap_m": 0.15498,
+  "robot_ids": [
+   "robot_2",
+   "robot_3"
+  ],
+  "sim_s": 27.3
+ },
+ "n_boxes": 8,
+ "n_rows": 3001,
+ "near_cutoff_m": 0.02,
+ "robot_min_static_gap": {
+  "robot_1": {
+   "category": "rack",
+   "min_gap_m": 0.12498,
+   "obstacle_id": "rack/SW",
+   "sim_s": 71.8
+  },
+  "robot_2": {
+   "category": "rack",
+   "min_gap_m": 0.47825,
+   "obstacle_id": "rack/NW",
+   "sim_s": 95.6
+  },
+  "robot_3": {
+   "category": "rack",
+   "min_gap_m": 0.17198,
+   "obstacle_id": "rack/SW",
+   "sim_s": 107.1
+  },
+  "robot_4": {
+   "category": "rack",
+   "min_gap_m": 0.44844,
+   "obstacle_id": "rack/SE",
+   "sim_s": 106.9
+  }
+ },
+ "robot_pairs": {},
+ "robot_robot_verdict": "clear",
+ "row_dt_s": 0.1,
+ "scenario": "intersection_bottleneck",
+ "sim_span_s": [
+  0.0333,
+  300.0
+ ],
+ "static_pairs": {},
+ "static_verdict": "clear",
+ "sustained_min_sec": 1.0,
+ "threshold_m": 0.005,
+ "timed_obstacles": [],
+ "unmodelled_obstacles": []
+}
