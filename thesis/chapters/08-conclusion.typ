@@ -20,3 +20,10 @@ The answer to the problem of @sec:intro-problem is therefore narrow. The pipelin
 - *Run a live comparison after the fixes* on the registered seed positions, with every mechanism keyed identically in all dispatching arms, as an exploratory run never pooled with the registered pilot; or run the remaining 15 registered seed pairs as the confirmatory test #ev("6.60") #ev("6.14").
 - *Make the failure-cause rule decide more units* (27 of 55 undetermined): record what the reproduce check lacks, add a clock anchor for the coordination-layer-off arm, and order codes within a class #ev("6.63").
 - *Widen the comparison:* a classical coordinator, a second VLM live, and other layouts and robot counts; RQ4 and RQ5 need their own experiments.
+
+On the physical robots (@sec:impl-physical), the demonstration showed the chain running end to end, not an evaluation. Four steps would turn it into one:
+
+- *Repeat the physical tests:* run each arrangement many times, varying starting distance and angle, lighting and network load, so that a success rate can be estimated with its uncertainty #ev("4.30").
+- *Test mission resumption:* give every robot a destination before the conflict forms, and count a recovery as a success only when the robots disperse and continue to their goals; in the demonstration the robots had no goals #ev("4.29").
+- *Try the other recovery strategies:* the hardware runs used only bounded `reverse` manoeuvres; yielding, phased junction clearing, priority-based coordination and re-routing remain untested on hardware #ev("4.38").
+- *Strengthen localisation and communication:* fuse the overhead ArUco localisation with wheel odometry, and monitor network latency, packet loss, reconnection and state delay.
