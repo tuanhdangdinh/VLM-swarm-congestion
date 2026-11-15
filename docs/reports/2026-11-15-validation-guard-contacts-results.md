@@ -25,12 +25,12 @@
 | Item | Value |
 |---|---|
 | Driver | `bash run_dmc.sh --episodes 1` in `m5v/kit` (kit md5 `1e17de79` / all files `11575dfa`); driver log `m5v/driver_m5v_20261115T075158Z.log` |
-| GPU stockout | 15 failed starts of the same VM in `asia-northeast1-a`, 07:52–08:26Z (about 34.5 min). Started on attempt 16. Nothing was created; the zone was not changed. |
+| GPU stockout | 16 failed starts of the same VM in `asia-northeast1-a`, 07:52–08:26Z (about 34.5 min). Started on attempt 17. Nothing was created; the zone was not changed. |
 | VM up | 08:26:35Z → TERMINATED 09:35:39Z. Booked 4144 s. |
 | Prep | snapshot, USD build, deploy and overlay took 08:27:35–08:31:07Z |
 | Take | 08:31:17–09:32:56Z: 600 sim-s horizon, `outcome=ran` |
 | Bring-up aborts | 0 |
-| Gates | every gate passed: `GATE OK`, `RESTORE OK`, `STARTUP_CHECK OK`, `CLASSIFY launched`, M4 floor key line, `COND failed=none` (all 25 checks, including the four new m5v checks) |
+| Gates | every gate passed: `GATE OK`, `RESTORE OK`, `STARTUP_CHECK OK`, `CLASSIFY launched`, M4 floor key line, `COND failed=none` (26 checks with the chain log, including the four new m5v checks; re-run on the pulled bundle: 26 PASS) |
 | Spend | $0.0692 est. (cost_watch) + $0.0010 probes |
 | Restore | `RESTORE_DMC OK`, `PINS_V3 OK`. The 3 added files and the bytecode of the 2 added modules were removed (VM restore log); the installed packages equal the snapshot |
 | VM status after exit | `TERMINATED`, verified by the driver and again by hand with `gcloud compute instances describe ... --format='value(status)'` |
@@ -158,7 +158,11 @@ As in the campaign, `goal_check_dmc.py` prints `withheld=0`. Count the refusals 
 
 ## 5. Anything Unexpected
 
-- **The guard's scope missed the closest approach.** The tightest static approach of the take (5.5 mm, robot_4 at `obstacle_1`'s corner) happened under a VLM-named `reverse`, not an escort. The guard checks escort legs only. No stage sweeps a `reverse` leg against declared boxes. This is a finding, not a defect of either change under test.
+- **The guard's scope missed the closest approach.** The tightest static approach of the take (5.5 mm, robot_4 at `obstacle_1`'s corner) happened under a VLM-named `reverse`, not an escort.
+  - robot_4 was under `95066420-reverse` from sim 77.233 s (`m4.log` handover line) until COMPLETED (about 90 s), so 81.6 s falls inside it (verified).
+  - M3's `reverse` grounding checks only the same-side corridor refusal and the tracked-band clamp (`command_grounder.py` lines 1104–1152, which derived mode reaches through the legacy template; `_ground_derived` docstring at line 2432). `static_obstacles` are not passed to it (verified by code reading).
+  - Whether M4's reverse execution sees the box through Nav2's collision monitor was not checked.
+  - The guard covers escort legs only. This is a finding, not a defect of either change under test.
 - **Pre-existing kit quirk.** The driver's "new bundles" glob `<TOKEN>_t*` also matches `m5V_t01_a1.cost.log` and `.outer.log`. Its startup-check, video-verify and goal-check lines therefore print MISSING / FLAGGED / empty entries for those two files. It affects reporting only, and the campaign kits share it.
 - **Discrepancy in the campaign total.** The ledger books $2.6975 before this run, while the owner's brief says ≈ $3.07. Nothing extra was booked. Either figure leaves ample room.
 
@@ -169,7 +173,8 @@ As in the campaign, `goal_check_dmc.py` prints `withheld=0`. Count the refusals 
 | Claim | Status |
 |---|---|
 | Every GT row carries the contact fields; the recompute matches all 6001 rows exactly | verified |
-| No contact event; closest static 5.5 mm (robot_4, `obstacle_1`, 81.6 s, under `reverse`) | verified (fields, recompute, one camera frame) |
+| No contact event; closest static 5.5 mm (robot_4, `obstacle_1`, 81.6 s, under `reverse` `95066420`) | verified (fields, recompute, one camera frame, `m4.log`) |
+| M3 does not sweep a `reverse` leg against declared boxes | verified by code reading; M4-side behaviour not checked |
 | Guard on in the startup line and in all 9 artifacts; no escort grounded; no guard event | verified |
 | VM restored to its pin (added files and bytecode removed) and TERMINATED | verified (restore log, `gcloud`) |
 | The RTF drop (0.184 → 0.168) is not caused by the logger | inferred (offline per-row cost; n = 1 per side) |
