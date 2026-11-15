@@ -1,7 +1,7 @@
 {
  "TBD-E01": {
-  "value": "docs/reports/2026-11-15-failure-cause-reconciliation.md (branch analysis/failure-cause-classification; commit filled in by the follow-up commit)",
-  "source": "git log of the report"
+  "value": "`a1bcf53:docs/reports/2026-11-15-failure-cause-reconciliation.md` (branch `analysis/failure-cause-classification`; sections 1-7)",
+  "source": "git log of the report: added at c7093f3, corrected (Rev 2) at a1bcf53"
  },
  "TBD-R01": {
   "value": 139,

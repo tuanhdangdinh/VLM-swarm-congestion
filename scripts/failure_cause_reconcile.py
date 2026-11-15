@@ -1377,9 +1377,9 @@ def cmd_build() -> None:  # noqa: C901, PLR0912, PLR0915
         put(pid, None, "PV section 6 (plan-dispatch mismatch visibility report)",
             "Not a reconciliation output: the value comes from the PV recomputation on "
             "fix/plan-dispatch-mismatch-visibility, which this task did not read or rerun.")
-    put("TBD-E01", "docs/reports/2026-11-15-failure-cause-reconciliation.md (branch "
-        "analysis/failure-cause-classification; commit filled in by the follow-up commit)",
-        "git log of the report")
+    put("TBD-E01", "`a1bcf53:docs/reports/2026-11-15-failure-cause-reconciliation.md` (branch "
+        "`analysis/failure-cause-classification`; sections 1-7)",
+        "git log of the report: added at c7093f3, corrected (Rev 2) at a1bcf53")
     ids = _thesis_ids()
     checks["thesis_ids_in_change_list"] = len(ids)
     checks["thesis_ids_missing"] = sorted(set(ids) - set(tv))
