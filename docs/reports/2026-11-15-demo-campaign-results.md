@@ -15,6 +15,7 @@
 - Rev 9 (2026-11-15): added section 11, an offline verification of the 2026-09-30 ER2LIVE head-on run. The model named robot_2 and retreat B; the feasibility gate kept the choice, and it was executed. Also the audit's wider counts. Its video was not rendered (disk floor), so section 9 and the video table are unchanged.
 - Rev 10 (2026-11-15): rendered the ER2LIVE panel video and combined video v3 with it as a new excerpt after the head-on take; the previous combined set is kept with a `_v2` suffix. Section 11.5 records the render, the frame-map validation and the hard-floor metric finding (the 0.20 m floor is on centre distance, not body gap); the Rev 9 decoder claim (0 of 3745 frames) did not reproduce. Updated section 9 and the final summary's video table.
 
+- Rev 11 (2026-11-15): added section 12, convoy takes 4–5 with the M3 queued-robot hold (both Unresolved failure: the model chose robot_1 as yielder both times, the latch the scene file names; the grounder held robot_3 and robot_4 as designed), and the simulator-only test (pytest installed beside Isaac's Python; the `pxr` test SKIPPED: no `pxr` in a bare `python.sh`). Updated the final summary's convoy rows, the three-way count and the archive index.
 ---
 
 ## Final Summary (Campaign Closed, 2026-11-15)
@@ -26,7 +27,7 @@ Every take is an illustrative demo, not controlled experimental evidence. No tak
 | Scenario | Valid takes (bring-up aborts) | Outcomes | Selected take, label | Video (v7g `data/demo/campaign/`), md5 |
 |---|---|---|---|---|
 | 4-robot intersection (`ib`, ER-2, B3; sections 1, 7) | 5 (1) | take 1 Unresolved failure (3/4 arrived); takes 2, 3, 4 M3-default resolution; take 5 VLM-driven execution (all 4/4) | take 5, **VLM-driven execution** (chosen for its label; disclosed) | `ibD_t05_a1_panel.mp4`, `fdf07a82fcb657b738c44a89bfbe3dae` |
-| Convoy counterflow (`cv`, ER-2, legacy grounding; section 5) | 3 (0) | takes 1–3 Unresolved failure, 0/4 arrived in each | take 1, **Unresolved failure** (selected take) | `cvD_t01_a1_panel.mp4`, `824319447d05aaef6623158d00d2818f`; a `_small` copy, `b78cff5b3db4b25f6b8e218111656a42` |
+| Convoy counterflow (`cv`, ER-2, legacy grounding; sections 5, 12) | 5 (1) | takes 1–3 Unresolved failure, 0/4 arrived in each; takes 4–5 (queued-robot hold, Rev 11) Unresolved failure, 1/4 arrived in each | take 1, **Unresolved failure** (selected take) | `cvD_t01_a1_panel.mp4`, `824319447d05aaef6623158d00d2818f`; a `_small` copy, `b78cff5b3db4b25f6b8e218111656a42` |
 | Head-on with obstacle (`ho`, ER-2, prompt v2; section 6) | 1 (0) | take 1 resolved 2/2 | take 1, **M3-default resolution** (grounder-corrected) | `hoD_t01_a1_panel.mp4`, `2aa6534ad508d3440e51822fdcd3f0f0` |
 | Five robots, seed position 21 (`m5`, ER-2; section 8) | 1 (0) | take 1 unresolved, 1/5 arrived | take 1, **Unresolved failure** (limitation demonstration) | `m5D_t01_a1_panel.mp4`, `33e9f5eedd7fb56edd007d8b728ea8c0` (Rev 7; v1 kept as `m5D_t01_a1_panel_v1.mp4`, `75bf99e64c7ebea10573f08eb62440c3`) |
 | Head-on with obstacle, earlier run ER2LIVE (2026-09-30, not part of the campaign; section 11) | — | 1 run, 2/2 arrived | **VLM-driven execution** (model's yielder kept by the gate; escort and Nav2 recovery are the system's) | `ER2LIVE_20260930_panel.mp4`, `93cbfe7108e6a9ca9a71fc4c7c79bd47` (Rev 10) |
@@ -41,6 +42,8 @@ Every take is an illustrative demo, not controlled experimental evidence. No tak
 | Valid takes | 10: `ib` 5, `cv` 3, `ho` 1, `m5` 1 |
 | Bring-up aborts | 1 of 3 allowed per scenario, all in `ib` (`ibD_t01_a1`, `change_state` timeout on robot_1); 0 in `cv`, `ho` and `m5` |
 
+**Rev 11 update (after convoy takes 4–5; `ledger_dmc.py status`):** campaign 25 667 s of 43 200 s and $2.8637 of $10, now including the `m5v` validation take (4144 s) and the two convoy invocations (1718 s and 1602 s); `cv` 8149 s of its amended 12 600 s share, $0.3751, valid 5, bring-up aborts 1 of 3 (`cvH_t04_a1`). Wall shares were amended a second time (registration section 12.4). The table above is kept as written at Rev 5.
+
 Wall is counted from VM start to TERMINATED. The `m5` invocation also spent about 24 min in 11 failed VM start attempts before the VM started, which are not booked.
 
 ### Valid Response, Accepted Plan, Changed Behaviour
@@ -54,10 +57,10 @@ The counts are per analysis (decision artifact); stage-2 retreat calls are not c
 | Scenario | Valid VLM response | Accepted VLM plan | VLM plan changed executed behaviour |
 |---|---|---|---|
 | Intersection, 5 takes | 9 of 9: 5 jam decisions plus 4 "no congestion" answers | 1 (take 5). The other jam plans: 2 `repaired` (takes 2, 4), 2 nulled as invalid structure (takes 1, 3) | 1 (take 5): the recede order only, a 0.010 m chi near-tie. Takes 1–4: False |
-| Convoy, 3 takes | 36 of 36 | 3 of 36 (15 `repaired`, 18 `m3_default`) | Not computed (no default comparison for this scenario). The first-trigger yield was executed as the model named it in 3 of 3 takes. |
+| Convoy, 5 takes (Rev 11: + takes 4–5) | 48 of 48 | 3 of 48 (20 `repaired`, 25 `m3_default`; takes 4–5 add 0 verbatim, 5 `repaired`, 7 `m3_default`) | Not computed (no default comparison for this scenario). The first-trigger yield was executed as the model named it in 3 of 3 takes. |
 | Head-on, 1 take | 2 of 2 | Not applicable: plan channel off (prompt v2) | Not computed. Both strategies (`reverse`, `yield`) were dispatched as named, but the gate swapped decision 2's yielder (robot_1 → robot_2). |
 | Five robots, 1 take | 8 of 8 | 2 of 8, both executed as named (1 `repaired`, 5 `m3_default`; 6 of 8 withheld by grounding refusals) | Not computed |
-| **Total** | **55 of 55** | **6** (of the 53 plan-channel analyses) | **1** |
+| **Total** | **67 of 67** (Rev 11; 55 of 55 at Rev 5) | **6** (of the 65 plan-channel analyses) | **1** |
 
 ### What This Does and Does Not Show
 
@@ -97,6 +100,9 @@ Bundles are under `data/logs/vm_runs/demo_campaign/<scn>/runs/`; manifests are u
 | `cv` | `cvD_t01_a1` | take 1, Unresolved failure | `MANIFEST_20261115T002252Z.md5` | `92639ca105ce5ae2944784cf4e37850d` (72) |
 | `cv` | `cvD_t02_a1` | take 2, Unresolved failure | `MANIFEST_20261115T010824Z.md5` | `c2356be80157864416bd666004cc706f` (72) |
 | `cv` | `cvD_t03_a1` | take 3, Unresolved failure | `MANIFEST_20261115T014050Z.md5` | `682c9a59566cf32815e2edd66a8d8bbe` (72) |
+| `cv` (kit `cvh`) | `cvH_t04_a1` | bring-up abort (`NAV2_BRINGUP_FAILED`, robot_3 stack, 3/4 active) | `cvh/MANIFEST_20261115T102615Z.md5` | `6c9d0e22f423db6cd24a999b7c47c062` (89, both attempts) |
+| `cv` (kit `cvh`) | `cvH_t04_a2` | take 4, Unresolved failure (1/4) | `cvh/MANIFEST_20261115T102615Z.md5` | `6c9d0e22f423db6cd24a999b7c47c062` (89, both attempts) |
+| `cv` (kit `cvh`) | `cvH_t05_a1` | take 5, Unresolved failure (1/4) | `cvh/MANIFEST_20261115T105655Z.md5` | `bd017429311c049d350941d932882581` (61) |
 | `ho` | `hoD_t01_a1` | take 1, M3-default resolution | `MANIFEST_20261115T021253Z.md5` | `31c7a4e580dc799fb385e218628f29f9` (64) |
 | `m5` | `m5D_t01_a1` | take 1, Unresolved failure | `MANIFEST_20261115T035453Z.md5` | `bd7572c417c558fda4d19c40867363e1` (68) |
 
@@ -949,3 +955,103 @@ The Rev 9 text follows, as written then.
 - **Two gaps to close before rendering:**
   1. The renderer loads only `m5_scene.jsonl`; this bundle has `scene_8e616116….jsonl`. It needs a documented, tested loader fallback, not a mirrored bundle.
   2. The campaign's clock decoder (`ho/kit/overlay_framemap.py`) decoded 0 of 3745 frames here. The September overlay is drawn larger: the glyphs span x 14–252 px against 12–203 px expected. A one-frame Hershey scale fit reached only IoU 0.32. Without a per-frame map, the recorder's first stamp (7.567 s) and frame count would assume a uniform rate, which best-effort capture does not give. So the 0.5 sim-s alignment is not yet shown.
+
+---
+
+## 12. Convoy Takes 4–5 with the Queued-Robot Hold (ER-2; Added 2026-11-15, Rev 11)
+
+**Status.** These takes are illustrative, not controlled evidence, with n = 2. They are the demo campaign's convoy scenario (ledger `cv`, takes 4 and 5 of 5), not the registered convoy experiment, whose VLM arm remains unrun.
+
+**Setup.**
+
+- **Kit and registration.** Kit `demo_campaign/cvh/kit`, registration section 12. It equals the `cv` setup of section 5, plus the M3 queued-robot hold (`fix/convoy-hold-queued-robots`, v7o `d85d1ed`; delta `8fa937e6`; overlay fragment `grounding_hold_queued_crossers: true`).
+- **Sources.** `cvh/runs/<label>/`, `cvh/driver_cv_*.log`, `cvh/MANIFEST_*.md5` and `cvh/vm/pxr_test/`.
+- **Contacts.** v7m `scripts/recompute_gt_contacts.py` (output in the session scratchpad, outside the bundles).
+
+### 12.1 Invocations (Verified From the Driver Logs and the Ledger)
+
+| Invocation | VM up (booked) | Stockout | Attempts | VM after |
+|---|---|---|---|---|
+| Take 4 (10:26:15Z) | 1718 s | none (started on the 1st try) | `cvH_t04_a1` bring-up abort: `NAV2_BRINGUP_FAILED`, robot_3 stack, 3/4 active; retried by the chain as `cvH_t04_a2`, which ran (10:33:14–10:53:03Z) | TERMINATED (verified by the driver and by `gcloud … describe`) |
+| Take 5 (10:56:55Z) | 1602 s | 12 failed start attempts, about 26 min (10:57:05–11:22:51Z, not booked; same VM, same zone) | `cvH_t05_a1` ran (11:27:26–11:47:04Z) | TERMINATED (verified both ways) |
+
+- **Checks.** Every deploy, arm check, probe, condition gate (including `first_queued_hold` and the hold's startup line), `STARTUP_CHECK`, video verify and restore passed (`GATE OK`, `RESTORE OK`).
+- **Model calls.** 6 per take, all `completed`/`valid`, 0 refusals. Estimated spend $0.0453 and $0.0482; this retake booked $0.0960 in total against its $0.40 guard.
+- **Stop.** Take 5 ran because take 4's failure was the model's yielder choice, not a harness fault (12.2). After take 5, `cv` has 5 of 5 valid takes, so the scenario is complete.
+
+### 12.2 First Decision and What Grounding Added (Verified From `decisions/*.json` and the m5 Log)
+
+| | Take 4 (`cvH_t04_a2`, request `08f4dca0`, scene 27.9 s) | Take 5 (`cvH_t05_a1`, request `a489dd3c`, scene 26.4 s) |
+|---|---|---|
+| Model answer | `yield`, yielder **robot_1**, `involved_robots` [robot_1, robot_2], no crossing order; plan: robot_1 `yield`, robot_2 `cross`, robot_3 `continue`, robot_4 `continue` | identical structure: yielder **robot_1**, the same pair, the same four legs |
+| Grounding added | `grounding_queued_crossers_added` [robot_3, robot_4]; both `crossing_order=augmented:<id>:goal_across_corridor` tags; plan `repaired` with 2 `substitute` edits (`queued crosser hold: robot_3/robot_4: continue substituted to cross`) | the same |
+| Dispatched | yield robot_1 (backup 0.986 m to park x −1.124, lateral 0.36, hold 135 s, crossing order [robot_2, robot_3, robot_4], `crossing_clear_m` [1.913, 1.435, 2.008]); linked `temporary_wait` 360 s for robot_2 → 0, robot_3 → 1, robot_4 → 2 | the same, backup 0.918 m, `crossing_clear_m` [1.98, 1.435, 2.008] |
+
+- **Who decided what.** The model did **not** name robot_3 or robot_4 in either take; the hold added them. The model chose the strategy and the yielder.
+- **Expected per the fix report.** The yielder was robot_1 both times. Offline, with this prompt, 6 of 18 stored answers pick robot_1 (fix report section 6). That is the variant the scene file calls the censored-alternative latch, and the fix report (section 5.1) predicted it: "robot_2's escort latches about 0.45 m from robot_3".
+
+### 12.3 Execution (Verified From m4/m5 Lines and GT; Sim Times of m5-Only Lines Interpolated From M4's `sim_t` Anchors, Inferred)
+
+The sequence was the same in both takes:
+
+1. **Back-out.** robot_1 backed west and pulled off to (−1.13, +0.37), arriving at about 45 s (GT). While it backed up, M4 held the exempt pairs robot_1+robot_2, +robot_3 and +robot_4. The yielder's closest approach to the queued robots was 0.767 m (take 4) and 0.762 m (take 5) to robot_3, and 1.337 m and 1.332 m to robot_4 (GT centre distance), so the new exemption was never close to binding.
+2. **The key question: were robot_3 and robot_4 held? Yes.**
+   - M5 logged `start delay elapsed, base mission released robots=['robot_3', 'robot_4']` at about sim 51.8 s (take 4) and 50.7 s (take 5). That is 12.2 and 5.8 wall-s before `gate_admit` (54.8 s and 52.2 s).
+   - Both robots were already members of the yield command, with `temporary_wait` ACTIVE and `exempt=False` since the first dispatch.
+   - GT: robot_3 did not move more than 2 cm in either take. robot_4 first moved at 189.6 s and 187.0 s, after `gate_release … reason=hold_timer` (189.8 s and 187.2 s).
+   - In takes 1–3, by contrast, both robots drove through the gate right after their release (section 5.2).
+3. **Gate.** `gate_admit` admitted robot_2 only, and robot_2 was escorted west 1.913 m (take 4) and 1.98 m (take 5). It stopped at x = −1.48 m, 0.418 m (at 72.5 s) and 0.419 m (at 78.2 s) from the held robot_3 at x = −1.90 m.
+   - Both pairs were under M4's 0.45 m `min_distance_m` and non-exempt (after `gate_admit` the exempt pairs were robot_1+robot_2 only), so the escort latched and later logged `FAILED escort timed out in phase drive`.
+   - robot_3 and robot_4 were never admitted: the gate passed 1 of 3 robots in the crossing order.
+4. **After `gate_release` (hold timer).** robot_1 drove east through the empty corridor and arrived (GT within 0.35 m at 211.1 s and 208.5 s; m5 `arrived at base goal` logged). robot_4 crept 0.17 m east and stopped 0.399 m / 0.394 m from robot_3. robot_2 (0.52 m from its goal at (−2.0, 0)), robot_3 and robot_4 stayed latched to the 260 s horizon.
+5. **Later triggers (5 per take).**
+   - Take 4: one `reverse` (plan `repaired`, yield re-grounded by the same-side check) and four `junction_clear` (no legacy template).
+   - Take 5: three `yield` robot_2 with order [robot_3, robot_4, robot_2], each refused with `yield refused: both robots outside the corridor on the same side; a reverse would traverse it`, then one `reverse` and one `junction_clear`.
+   - Every later trigger ran as 8 s waits for robot_2, robot_3 and robot_4. The hold added nothing to them (key absent, as designed: it acts only on a yield that grounds).
+
+### 12.4 Outcome, Safety and Contacts (Verified)
+
+| | Take 4 | Take 5 |
+|---|---|---|
+| Arrivals (GT) | 1/4: robot_1 at 211.1 s | 1/4: robot_1 at 208.5 s |
+| **Label** | **Unresolved failure**: the model chose robot_1 as yielder; the grounder held the queued robots, but the escort of robot_2 west latched against held robot_3 (the scene's censored alternative) | **Unresolved failure**: same cause |
+| Latch pairs < 0.45 m (GT centre) | robot_2–robot_3 0.418 m at 72.5 s (non-exempt); robot_3–robot_4 0.399 m at 190.7 s (non-exempt) | 0.419 m at 78.2 s; 0.394 m at 188.1 s |
+| Closest pair centre distance (GT) | 0.276 m, robot_1–robot_2 standoff at 24.6 s, before any dispatch | 0.370 m, robot_1–robot_2 at 66.6 s (exempt, during the escort) |
+| Floor stops (`hard_contact_floor`) | 0 | 0 |
+| Recompute: min robot–robot body gap | 0.185 m, robot_1–robot_2 at 68.3 s (exempt pair, escort pass) | 0.191 m, robot_1–robot_2 at 65.9 s |
+| Recompute: min robot–static gap | 0.057 m, robot_1 vs `aisle_barrier/south` at 200.5 s | 0.042 m, robot_1 vs `aisle_barrier/south` at 198.0 s |
+| Contact events | none: static `clear`, robot-robot `clear` | none |
+| Recording (ffprobe, frames read) | annotated 4 segments / 1091 frames; raw 7 / 1938 | annotated 5 / 1220; raw 7 / 1990 |
+| Manifest | `6c9d0e22` (89 files incl. `cvH_t04_a1`; 86 `runs/` files re-hashed OK) | `bd017429` (61; 58 `runs/` files re-hashed OK) |
+
+- **What these takes show.** The hold did what it was built to do: both queued robots were in the yield command, stayed in place through their own start-delay release, and were not released until the gate's hold timer. That removes takes 1–3's failure mode (uncommanded robots following the passer).
+- **What they do not show.** The resolving sequence, which needs robot_2 as yielder, never ran, because the model picked robot_1 twice, the 1-in-3 variant offline. With n = 2 this is no rate, and nothing here says whether the robot_2 sequence would resolve live.
+- **What is still open.** The robot_1 variant cannot resolve in this scene under the hold: the escorted robot_2 meets the held robot_3, which M4 protects with the full 0.45 m latch. That is a property of the scene and the yielder choice, not a kit fault.
+
+### 12.5 Simulator-Only Test (Verified From `cvh/vm/pxr_test/`; Ran in Both Invocations)
+
+- **What ran.** pytest 8.3.4 installed into `~/dmc_cvh/pytest_target` with Isaac's `python.sh` (Python 3.12.13), pip rc 0. The Isaac site-packages listing md5 was identical before and after (`b6805498…`). Then the one test ran on a scratch copy of the VM's pinned `isaac/vgu_sim` (md5s logged, equal to the pinned files) plus v7m's `contact_geometry.py` (`77e862ce`).
+- **Result.** `1 skipped, 43 deselected`, rc 0: `SKIPPED [1] test_contact_geometry.py:444: could not import 'pxr': No module named 'pxr'`. The bare-import probe also failed: `import pxr` gives `ModuleNotFoundError` under plain `python.sh`.
+- **Restore.** The restore removed the scratch (316 KiB) and target (2164 KiB) directories and verified they were gone, in both invocations.
+- **What it establishes.** Isaac's `python.sh` on this VM can install and run pytest from a separate `--target` directory without touching its own environment, and the VM has network access for pip.
+- **What it does not establish.** Builder parity. The test was skipped, and a skip is not a pass. `pxr` is only importable inside a Kit/`SimulationApp` context here (as `build_dmc.sh`'s `isaac.scripts.build_scenario` uses it), not from a bare interpreter. A rerun would need the test to run under `SimulationApp`, or with the USD libraries' paths added; that is not done.
+
+### 12.6 Video
+
+Nothing has been rendered (another agent owns the renderer).
+
+- **Candidate.** `cvH_t05_a1`: one attempt, the longer annotated stream (5 segments, 1220 frames; raw 7 segments, 1990 frames, both ffprobe-read), and its later triggers show the explicit same-side refusals.
+- **Caption.** Label "Unresolved failure". The caption must say that robot_3's and robot_4's roles came from M3 (the queued-robot hold), not from the model, and that the model chose robot_1 as yielder.
+
+### 12.7 Verified and Inferred
+
+| Claim | Status |
+|---|---|
+| Invocation times, stockout, abort, gate/restore results, VM TERMINATED, ledger rows | verified (driver logs, `gcloud describe`, ledger) |
+| First decisions, added robots, tags, edits, dispatched commands | verified (artifacts, m5 dispatch lines, m4 `command received`) |
+| robot_3 and robot_4 held through their release; robot_4 moved only after `gate_release` | verified (m4/m5 lines, GT) |
+| Sim time of M5's release line (≈ 51.8 s / 50.7 s) | inferred (linear interpolation between M4's `gate_admit` and `gate_release` `sim_t` anchors) |
+| robot_2's escort latched on held robot_3 under the non-exempt 0.45 m rule | verified (GT pair distance, M4 exempt-pair lines, escort FAILED line) |
+| Contact figures | verified (offline recompute, footprint model `urdf_footprint_v1`) |
+| The robot_2 variant would resolve live under the hold | not shown (did not occur; smoke n = 1 only) |
+| `pxr` importable only under Kit | inferred from the probe and the build path; not tested |
