@@ -8,6 +8,7 @@
 - Rev 2 (2026-11-15): section 10 filled (go for the intersection under B3, the options-block check and caption, the demo runtime delta in two directories, the take classifier, the budget split); sub-caps `ho` 1.5 h and `m5` 4 h; kit md5s in section 9 re-recorded. Still offline; nothing has run.
 - Rev 3 (2026-11-15): section 10.7, the per-scenario wall shares reallocated (`ib` 3.5 h, `ho` 0.5 h; `cv`, `m5` and every campaign total unchanged).
 - Rev 4 (2026-11-15): section 10.8, closing note: intersection takes 4–5 on ER-2 instead of Sonnet, convoy stopped after 3 takes, the five-robot result.
+- Rev 5 (2026-11-15): section 12, owner-approved convoy takes 4–5 with the M3 queued-robot hold (`cvh` kit), the second wall-share amendment (12.4) and the simulator-only test step; written before the VM start.
 
 ---
 
@@ -649,3 +650,110 @@ Recorded after all live runs finished. The results are in `docs/reports/2026-11-
 - Gemini credit, quota and pricing on the day. Probes run before every take.
 - That `untrunc` would rebuild a hard-killed segment. It is not installed, so such a segment is FLAGGED, not repaired.
 - The bring-up abort rate with recording started after the gate. The 2026-11-14 abort's cause is not established.
+
+---
+
+## 12. Convoy Takes 4–5 with the Queued-Robot Hold (Amendment, 2026-11-15)
+
+Written offline, before the VM start. Owner approval (2026-11-15): build the grounding fix that holds the queued robots, then run the two remaining convoy takes with it; on the next VM start, also run the one simulator-only test.
+
+### 12.1 Purpose and Scope
+
+- **Purpose.** Convoy takes 1–3 latched because the model's first yield named only robot_1 and robot_2, so robot_3 and robot_4 were released uncommanded (results report section 5). The fix (`fix/convoy-hold-queued-robots`, worktree v7o, commits `10b4807` `2037edf` `3ce6e8a` `d85d1ed`; report `docs/reports/2026-11-15-convoy-hold-queued-robots.md` there) lets M3 add every unnamed robot whose goal lies across the corridor to the yield's crossing order. These takes show that fix live, as demo footage.
+- **Scope.** This is the demo campaign's convoy scenario (ledger key `cv`), takes 4 and 5 of its 5. It is **not** the registered convoy experiment (v7f `feat/convoy-live-resolution`). That experiment's VLM arm remains unrun; using the hold there would need its own amendment.
+- **What the model still decides.** Strategy and yielder. The roles of robot_3 and robot_4 come from M3 when the model leaves them out, and every caption must say so.
+
+### 12.2 What Is Deployed (Kit `cvh`)
+
+The kit is `demo_campaign/cvh/kit`, assembled by the unchanged `common/assemble_dmc.sh cvh <v7o>`. It has its own VM home `~/dmc_cvh`, its own Mac directory, labels `cvH_t04_aK` and `cvH_t05_aK`, and tag `demo_campaign_cvh`. It books under the ledger key `cv`.
+
+It is byte-identical to the `cv` kit in the scene, seed 42, the 260 sim-s horizon, the base overlay `cvl_l2on.yaml` (`7e3ab552`), the legacy grounding file (`63f50f91`), the scenario yaml (`9684b5fc`), live ER-2, the safety-exemption fix and the 0.20 m floor, the per-take budget (3 000 s) and the $0.20 per-take guard. `diff -r cv/kit cvh/kit` lists only the files below.
+
+| Difference | Content |
+|---|---|
+| Runtime delta `runtime_delta_cvh/` (id `8fa937e6`) | The 7 runtime files of v7o HEAD `d85d1ed` that differ from the VM pin `68e67b5`. All 7 md5s equal the fix report's section 7 table (verified). |
+| Overlay fragment | `grounding_hold_queued_crossers: true`. The effective overlay `e553edf4` is the base plus this line and the generator's comment line. |
+| Arm check | The four inert B3 rows, plus `c.grounding_hold_queued_crossers True` and `c.prompt_held_robot_state False`. `want_arm` is unchanged. |
+| Condition gate (`cond_dmc.py` fork, `scenario.json`) | `m5_line:` with the exact startup line `plan order condition plan_dispatch_order_source=chi prompt_plan_grammar_rules=False prompt_candidate_options=False grounding_hold_queued_crossers=True` (replacing `m5_line_absent:plan order condition`), and the new `first_queued_hold` check (12.3). |
+| `env_dmc.sh`, `run_dmc.sh` forks | VM home from `VM_HOME_KEY`. The pull also excludes the test step's scratch and target directories. |
+| `restore_dmc.sh` fork | The m5v restore (orphan bytecode of added modules; none are added here), plus removal and verification of the test step's two directories. |
+| Ledger and caps copy | The m5v `ledger_dmc.py` (per-scenario spend cap). Caps are the amended shares (12.4) plus `usd_cv` `0.6791`. |
+| Deploy check | The legacy load (as `cv`), then the non-fatal simulator-only test step (12.5). |
+
+Delta files:
+
+| File | md5 | Kind |
+|---|---|---|
+| `reasoning/rag/command_grounder.py` | `691d1730dfa141149284c9eaae44b608` | live |
+| `reasoning/rag/scene_geometry.py` | `eda27ce7525e2bbb8f5fbe2bf854d296` | live |
+| `reasoning/vlm/models.py` | `52cba14c5f94b50567f1766cbcd4ff17` | live |
+| `reasoning/vlm/prompt_builder.py` | `f2f33b778360c5a0f4a6cd82b10c42b5` | live |
+| `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py` | `575e7abb577650108a54e552623c9d80` | pkg:swarm_orchestrator |
+| `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py` | `ad9a46c65dc95e6b968e976d25c0ac8d` | pkg:swarm_orchestrator |
+| `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/reasoning_pipeline.py` | `76185f21e84a6c1ab43a3d3789291813` | pkg:swarm_orchestrator |
+
+Kit md5s: `kit_md5_dmc.txt` (VM files) `f2356ee8`, `kit_md5_all_dmc.txt` `8c384150`. The kit lives under the git-ignored `data/logs/`, so this section is its committed record.
+
+### 12.3 Checks
+
+- **Before every take** (unchanged mechanism): the deployed loader's arm check with the six delta rows; the pins in run mode; the probe.
+- **After every take** (condition gate; a failure stops the chain and is never retried):
+  - every existing `cv` check;
+  - the exact startup line above;
+  - `first_queued_hold` on the **first** decision artifact by `scene.stamp`. It requires:
+    - `grounding_mode == legacy`;
+    - either `grounding_queued_crossers_added == [robot_3, robot_4]` with both `crossing_order=augmented:<id>:goal_across_corridor` tags, or the key absent and `decision.involved_robots` naming all four;
+    - `dispatched_robot_ids` covering all four;
+    - a `queued crosser hold:` edit for each added robot whose leg in the model's own plan (`decision.proposed_plan`) is not `cross`, and every added robot's final plan leg `cross`.
+  - "Not `vlm_verbatim`" is **not** required.
+  - Later artifacts carry no requirement.
+- **Gate tested offline on real key-on artifacts.** `mac_extra_dry.sh` generated them with v7o's own M5 pipeline and artifact writer from takes 1–3's recorded first decisions, plus two variants: the model naming all four, and a plan already saying `cross`.
+  - All 5 pass all 23 checks.
+  - Each of 10 single defects fails exactly the matching check(s).
+  - The gate's startup line equals v7o's `plan_order_status_line()` on the effective overlay.
+- **Dry tests (verified by running):**
+  - `test_dry_dmc.sh <v7o>` ends `TEST_DRY_DMC cv OK` (`MIN_MAC_FREE_KB=3000000`, test only).
+  - `test_restore_dmc.sh` passes 9 cases. In the real-delta case, the whole fake repo tree (371 files) equals its pre-snapshot md5 list after the restore, and the test step's directories are removed while their logs are kept.
+  - The fix's `tests/unit/test_queued_crosser_hold.py`: 51 passed. The full unit suite was not re-run; the fix author ran it on this tree.
+- **Label of a resolved take.** "Resolved — grounder held the queued robots; model chose strategy and yielder". If the model itself named all four, the report says so (the hold then added nothing). A take is never labelled "VLM-driven". The take classifier is not used for convoy yields.
+
+### 12.4 Caps and the Second Wall-Share Amendment
+
+The shares in `common/caps_dmc.tsv` are this planning session's own split of the owner's 43 200 s cap. `cv`'s remaining share (9 000 − 4 829 = 4 171 s) is below the kit's per-invocation admission (prep 900 + take 3 000 + teardown 900 = 4 800 s), as the intersection's was in 10.7. The finished scenarios shrink to just above their ledger use:
+
+| Scenario | Used (ledger) | Old share | New share |
+|---|---|---|---|
+| `ib` | 8 239 s | 12 600 s | 8 400 s |
+| `cv` | 4 829 s | 9 000 s | 12 600 s |
+| `ho` | 1 302 s | 1 800 s | 1 400 s |
+| `m5` | 3 833 s | 14 400 s | 4 000 s |
+| `m5v` | 4 144 s | 9 000 s (its own copy) | 4 200 s |
+| Sum | 22 347 s | — | 30 600 s (≤ 43 200 s) |
+
+- **Unchanged.** The campaign totals (43 200 s, $10), 5 valid takes and 3 bring-up aborts per scenario, the admission logic, and every kit's per-take budget. The campaign-level check still binds: 22 347 s used of 43 200 s.
+- **How the files changed.**
+  - `common/caps_dmc.tsv` edited: four values, one added `wall_sec_m5v` row and the header comment; md5 now `d7941db7`.
+  - The `m5` kit was reassembled. A scratch reassembly before the edit was byte-identical. Its `kit_md5_dmc.txt` is unchanged (`89112a40`) and `kit_md5_all_dmc.txt` is now `d57688e5`.
+  - Its `test_dry_dmc.sh` stops at step 2 (git preflight). This is pre-existing and unrelated to the caps: v7j HEAD's M5/M2 files have moved past `runtime_delta_inert` since the held-robot prompt work. The same preflight also refuses any `m5` invocation.
+  - The `ib`, `ho`, `cv`, `m5v` and `ib_sonnet` kits keep their old copies; every one of them refuses on its own valid-take or wall limit.
+- **Admission on a ledger copy.** `cv` gives `ADMIT cap_sec=7771 spend_left=0.4 aborts_left=3 next_take=4 valid=3`, and `ib`, `ho`, `m5` and `m5v` refuse.
+- **Spend.** The ledger total is $2.7677 of $10. The brief's ≈ $3.2 includes offline checks that were not booked. This retake's own guard is $0.40: `usd_cv` 0.6791 = `cv`'s booked $0.2791 + $0.40, read by this kit's ledger only, on top of the unchanged $0.20 per-take guard.
+
+### 12.5 Simulator-Only Test Step (Non-Fatal)
+
+- **Test.** The one `pxr`-dependent test, `test_scene_boxes_match_usd_builders_when_pxr_available` in v7m `feat/gt-contact-logging` `b5eaee5` `tests/unit/test_contact_geometry.py` (`533811c5`). It checks USD-builder parity: the geometric box set against what `scenario_builder` and `warehouse_builder` author.
+- **Where.** In the deploy check, after the legacy load and before any take, so it adds a few minutes of VM time once. It never touches `$R`.
+  - **Scratch copy.** It copies the VM's pinned `isaac/__init__.py` and `isaac/vgu_sim/*.py`, plus v7m's `contact_geometry.py` (`77e862ce`) and the test, into `~/dmc_cvh/pxr_test/tree`. `isaac` is a regular package, so a second `PYTHONPATH` root would not merge. The md5s of the pinned files used are logged.
+  - **pytest.** It runs `python.sh -m pip install --no-cache-dir --no-compile --target ~/dmc_cvh/pytest_target pytest==8.3.4` with Isaac's own `python.sh` (build_dmc.sh's interpreter), as ubuntu. Nothing is installed into Isaac's site-packages; a listing md5 before and after is logged.
+  - **Run.** `PYTHONPATH=<target>:<scratch>:<repo>`, `-p no:cacheprovider --noconftest --basetemp <scratch>/bt -k <the test>`, with every command under `timeout`.
+- **Logs.** In `~/dmc_cvh/pxr_test/`, pulled into `cvh/vm/pxr_test/`.
+- **Restore.** The restore removes the scratch and target directories and verifies they are gone.
+- **Failures.** A failure, a skip (no `pxr`) or no network is recorded and never aborts the takes. A skip is not a pass.
+
+### 12.6 Stop Rules
+
+- **Invocations.** At most two (`bash run_dmc.sh --episodes 1` each). After each, on every path, the VM must be verified TERMINATED.
+- **After take 4.** Stop if the convoy resolved (all four arrived by ground truth). Otherwise run take 5 only if take 4's failure is not a harness or kit fault that would simply repeat (at most one kit fix, dry-tested first).
+- **Expected outcome.** A take where the model picks robot_1 as yielder is expected to latch, per the scene's design. That is a valid result and is kept as is.
+- **GPU stockout.** Retry the same VM's start only.
+- **Never.** No weakened checks, no hardcoded plans, no ground-truth edits, no edits to pulled bundles, no `rsync --delete`, no push.
