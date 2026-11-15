@@ -62,7 +62,7 @@ The second IB10 run (2026-11-14) is separate and is never pooled with the first.
   caption: flex-caption([IB10 run 2: live VLM against the grounder default.], [IB10 run 2 (2026-11-14), Arm A against the grounder-default Arm C, with Arm C shown before and after the post hoc re-run of slot e02. Exploratory pilot; never pooled with run 1.#fig-source("6.06")]),
 ) <tab:res-ib10-c>
 
-*Before the re-run.* Arm C's slot e02 formed no jam, because the map server of the navigation stack was never activated, so the slot was excluded under the registered invalid-jam rule. Arm C then resolved 4 of 4 valid episodes, against 5 of 5 for Arm A #ev("6.32"). Arm A is 5 of 5 counting the smoke episode and 4 of 4 without it, because the smoke acceptance was written under a conditional instruction rather than by the owner #ev("6.32").
+*Before the re-run.* In Arm C's slot e02 the map server of the navigation stack was never activated and no jam formed, so the slot was excluded under the registered invalid-jam rule. Arm C then resolved 4 of 4 valid episodes, against 5 of 5 for Arm A #ev("6.32"). Arm A is 5 of 5 counting the smoke episode and 4 of 4 without it, because the smoke acceptance was written under a conditional instruction rather than by the owner #ev("6.32").
 
 *After the re-run.* The re-run of e02, decided after the results were seen and registered before it ran, formed a valid jam and resolved in 118.1 s on `m3_default`. Arm C became 5 of 5, mean 117.86 s #ev("6.34").
 
@@ -96,9 +96,9 @@ Tranche 1 ran ten episodes on the five-robot S1b scene, five seed pairs of Arm A
   caption: flex-caption([prereg-v3 tranche 1, reported as a pilot.], [prereg-v3 tranche 1 on S1b, five seed pairs, registered measures. The interval is the registered paired percentile bootstrap over seed pairs (@sec:ch5-analysis); no directional hypothesis was registered. The dispatched and withheld counts are corrected against the M4 command log (see text). Registered pilot.#fig-source("6.14")]),
 ) <tab:res-t1>
 
-No episode of either arm completed all 25 tasks, so completeness is "failed" and makespan is censored at the horizon in all ten #ev("6.35"). Arm A completed four more tasks than Arm B over the five pairs. The throughput interval includes zero. The interval of the mean delay lower bound excludes zero by 0.6 s, with Arm A lower #ev("6.14"). With five pairs, every run censored and no registered direction, these are interval estimates for this scene only, not a test.
+No episode of either arm completed all 25 tasks, so completeness is "failed" and makespan is censored at the horizon in all ten #ev("6.35"). The throughput interval includes zero. The interval of the mean delay lower bound excludes zero by 0.6 s, with Arm A lower #ev("6.14"). With five pairs, every run censored and no registered direction, these are interval estimates for this scene only, not a test.
 
-On the decision side, Arm A detected 9 of the 11 ground-truth conflicts with a mean detection latency of 17.6 s, and none of its 26 positive analyses was a false positive #ev("6.35"). The source report's dispatched column is wrong: it counted a refused yield, which degrades to a wait, as dispatched. Checked against the commands M4 received, the Arm A analyses that reached M4 were 5, 2, 2, 1 and 2 per seed, and 4, 2, 3, 4 and 1 were withheld #ev("6.14"). The robot-pair gate passed in all ten episodes. It covers robot pairs only; contact with the rack islands is not covered by it (@sec:res-safety).
+On the decision side, Arm A detected 9 of the 11 ground-truth conflicts with a mean detection latency of 17.6 s, and none of its 26 positive analyses was a false positive #ev("6.35"). The source report's dispatched column is wrong: it counted a refused yield, which degrades to a wait, as dispatched. Checked against the commands M4 received, the Arm A analyses that reached M4 were 5, 2, 2, 1 and 2 per seed, and 4, 2, 3, 4 and 1 were withheld #ev("6.14"). The same offline recomputation of plan-dispatch agreement, run beside the registered results and not as a rescore of them, finds 1 of the tranche's 2 recorded `vlm_verbatim` plans dispatched as written; in the other, a `reroute` rerouted a different robot than the plan named #ev("6.51"). The robot-pair gate passed in all ten episodes. It covers robot pairs only; contact with the rack islands is not covered by it (@sec:res-safety).
 
 == Head-on Yielder Choice <sec:res-headon>
 
@@ -123,14 +123,14 @@ In the two-robot head-on scenes one robot must back out, and in the asymmetric v
 
 In no row does the model beat the better of the two baselines #ev("6.36"). On the west side both models are below the manifest rule; on the east side they are below always naming `robot_1`. Their east-side advantage over the manifest rule is the `robot_1` preference meeting a variant in which `robot_1` happens to be correct. The yielder that was executed was made correct by M3’s feasibility gate: with the gate in `swap` mode, the grounded yielder was correct in 79 of 79 runs, and in 37 of them the gate overturned the model's pick #ev("6.08"). That column is derived from artifact fields, not from M4 logs, and the gate exists for yields only; it was off in every IB10 run #ev("6.49").
 
-*One accepted yielder, and its contrast.* An earlier recorded run on the same scene (ER2LIVE, 2026-09-30, older code) is the one recorded example examined here in which the model named the feasible yielder, `robot_2`, the gate kept it, and it was executed (@fig:ch6-er2live) #ev("6.38"). It was selected because it qualifies, so it says nothing about how often this happens. The model named the second-listed robot, its stage-2 retreat pick was the first-listed of two mirror-equivalent options, and `robot_2` reached its goal only after about 22 sim-s of navigation-stack stall and recovery #ev("6.38"). In the demonstration campaign's head-on take, on the same scene, the model named `robot_1`, which had 0.70 m of retreat room against 1.08 m required, and the gate swapped the yield to `robot_2` (@fig:ch6-ho-yield) #ev("6.37"). Both are single takes; no rate follows.
+*One accepted yielder, and its contrast.* An earlier recorded run on the same scene (ER2LIVE, 2026-09-30, older code) is the one recorded example examined here in which the gate kept the yielder the model named, `robot_2`, and it was executed (@fig:ch6-er2live) #ev("6.38"). It was selected because it qualifies, so it says nothing about how often this happens. The model named the second-listed robot, its stage-2 retreat pick was the first-listed of two mirror-equivalent options, and `robot_2` reached its goal only after about 22 sim-s of navigation-stack stall and recovery #ev("6.38"). In the demonstration campaign's head-on take, on the same scene, the model named `robot_1`, which had 0.70 m of retreat room against 1.08 m required, and the gate swapped the yield to `robot_2` (@fig:ch6-ho-yield) #ev("6.37"). Both are single takes; no rate follows.
 
 #figure(
   image("../assets/images/fig_er2live_robot2_aside_robot1_passing_t86p30.png", width: 75%),
   caption: flex-caption([Earlier head-on run: the model's yielder kept and executed.], [Head-on corridor with obstacle, two robots, from an earlier recorded run (2026-09-30, older code, not part of the demonstration campaign), annotated overhead camera frame at simulated time 86.3 s. `robot_2`, the yielder the model named and the feasibility gate kept, has backed out and parked beside the lane, and `robot_1` is escorted past it. 2 of 2 arrived, `robot_2` only after a navigation-stack stall and recovery. Simulation (Isaac Sim), overhead camera. Illustrative, n = 1, chosen because the model's yielder was kept.#fig-source("6.38")]),
 ) <fig:ch6-er2live>
 
-*Offline replays on scene use.* Three offline replays asked whether a model chooses the yielder from the scene rather than from robot labels or listing order, on 12 standoff scenes of one head-on family, first decision only and with nothing executed (@tab:res-replay). They are never pooled with live data.
+*Offline replays on scene use.* Three offline replays asked whether a model chooses the yielder from the scene rather than from robot labels or listing order, on standoff scenes of one head-on family, first decision only and with nothing executed (@tab:res-replay). They are never pooled with live data.
 
 #figure(
   table(
@@ -177,7 +177,7 @@ The model's other choices did change execution, through the decision fields, in 
 
 == Demonstration Campaign <sec:res-demo>
 
-The demonstration campaign ran live ER-2 takes in four simulated scenes to show the pipeline end to end on video #ev("6.01"). It used a later prompt and, at the intersection, an opt-in switch that lets a verified plan set the recede order, so its configuration is not that of the evaluated runtime #ev("6.39"). Every take is an illustrative demonstration, not controlled evidence: n is 1 to 5 per scene, takes were not randomised, the take shown for the intersection was selected for its label, and nothing here is a rate #ev("6.45"). @fig:ch6-demo-panel shows the video format.
+The demonstration campaign ran live ER-2 takes in four simulated scenes to show the pipeline end to end on video #ev("6.01"). It used a later prompt and, at the intersection, an opt-in switch that lets a verified plan set the recede order, so its configuration is not that of the evaluated runtime #ev("6.39"). Every take is an illustrative demonstration, not controlled evidence: n is 1 to 5 per scene, the take shown for the intersection was selected for its label, and nothing here is a rate #ev("6.45"). @fig:ch6-demo-panel shows the video format.
 
 #figure(
   image("../assets/images/fig_intersection_panel_dispatch_t33p07.png", width: 100%),
@@ -201,25 +201,23 @@ The campaign has 12 valid takes and two bring-up aborts (@tab:res-demo) #ev("6.4
   caption: flex-caption([Demonstration campaign: scenes and takes.], [Demonstration campaign, live ER-2 takes. One bring-up abort each in the intersection and the convoy scene is not counted. Illustrative demo, not controlled evidence; nothing is a rate.#fig-source("6.45")]),
 ) <tab:res-demo>
 
-*Valid, accepted, executed.* @tab:res-threeway separates three things that are easily conflated: a valid model response, a plan that the verifier accepted unchanged, and a plan that changed what was executed. Every one of the 67 analyses parsed as valid. A valid response is not a usable one: in intersection takes 1 and 3 the answers parsed, but their plans were nulled for invalid structure #ev("6.39"). The verifier accepted the plan unchanged in 6 of the 65 plan-channel analyses. That count is provisional, because for `reverse` and `reroute` the grounder does not read the plan at all, so an accepted plan can coexist with a dispatch that differs from it #ev("6.02"). A plan changed the executed commands once, in intersection take 5, the only scene where this was computed #ev("6.44").
+*Valid, accepted, executed.* @tab:res-threeway separates three things that are easily conflated: a valid model response, a plan that the verifier accepted unchanged, and a plan that changed what was executed. Every one of the 67 analyses parsed as valid. A valid response is not a usable one: in intersection takes 1 and 3 the answers parsed, but their plans were nulled for invalid structure #ev("6.39"). The verifier accepted the plan unchanged in 6 of the 65 plan-channel analyses, as recorded. That label over-states agreement: for `reverse` and `reroute` the grounder acts on the model's list of involved robots and never reads the plan, so an accepted plan can coexist with a dispatch that contradicts it #ev("6.02") #ev("6.51"). An offline recomputation counts a plan as accepted and dispatched as written only when the commands actually sent match its verified legs, excluding two registered artefacts (retreat-shield waits on robots planned `continue`, and back-out orders within the verifier's tolerance). Under that definition the campaign's 6 becomes 5: one convoy decision planned waits for the two queued robots, which dispatch never commanded. Counting motion differences only gives 6, and the raw reading with no exclusions gives 3 #ev("6.51"). Across the recorded live decisions, 10 of 33 dispatched `reverse` legs went to robots whose plan said something else #ev("6.51"). A plan changed the executed commands once, in intersection take 5, the only scene where this was computed #ev("6.44").
 
 #figure(
   table(
-    columns: (1.1fr, 0.9fr, 1.3fr, 1.3fr),
+    columns: (1fr, 0.75fr, 1.15fr, 1.1fr, 1.1fr),
     align: left,
     stroke: 0.4pt + luma(160),
     fill: (_, y) => if y == 0 { luma(235) },
-    table.header([*Scene*], [*Valid response*], [*Accepted plan (`vlm_verbatim`), provisional*], [*Plan changed executed behaviour*]),
-    [Intersection, 5 takes], [9 of 9], [1 (take 5)], [1 (take 5, recede order only)],
-    [Convoy, 5 takes], [48 of 48], [3 (20 `repaired`, 25 `m3_default`)], [not computed],
-    [Head-on, 1 take], [2 of 2], [plan channel off], [not computed],
-    [Five robots, 1 take], [8 of 8], [2 (1 `repaired`, 5 `m3_default`)], [not computed],
-    [Total], [67 of 67], [6 of 65 plan-channel analyses], [1],
+    table.header([*Scene*], [*Valid response*], [*Accepted plan, recorded (`vlm_verbatim`)*], [*Accepted and dispatched as written, corrected*], [*Plan changed executed behaviour*]),
+    [Intersection, 5 takes], [9 of 9], [1 (take 5)], [1], [1 (take 5, recede order only)],
+    [Convoy, 5 takes], [48 of 48], [3 (20 `repaired`, 25 `m3_default`)], [2 (takes 1 to 3: 2; takes 4 and 5: 0)], [not computed],
+    [Head-on, 1 take], [2 of 2], [plan channel off], [n/a], [not computed],
+    [Five robots, 1 take], [8 of 8], [2 (1 `repaired`, 5 `m3_default`)], [2], [not computed],
+    [Total], [67 of 67], [6 of 65 plan-channel analyses], [5], [1],
   ),
-  caption: flex-caption([Demonstration campaign: valid, accepted and executed.], [Demonstration campaign, per analysis (stage-2 retreat calls not counted): valid model response, plan accepted unchanged by the verifier, and plan that changed the executed commands relative to M3’s default for the same snapshot. The accepted-plan column over-states agreement and is provisional. Illustrative demo.#fig-source("6.44")]),
+  caption: flex-caption([Demonstration campaign: valid, accepted and executed.], [Demonstration campaign, per analysis (stage-2 retreat calls not counted): valid model response, plan accepted unchanged by the verifier as recorded and as recomputed offline (commands sent match the verified legs), and plan that changed the executed commands relative to M3’s default for the same snapshot. The recorded column over-states agreement; the corrected column is an offline recomputation that leaves the recorded labels unchanged #ev("6.51"). Illustrative demo.#fig-source("6.44")]),
 ) <tab:res-threeway>
-
-#todo[Corrected plan-dispatch agreement counts pending (session 68).]
 
 === Intersection, Take 5 <sec:res-demo-ib>
 
@@ -251,7 +249,7 @@ The take is an end-to-end execution example, not controlled evidence of improved
 
 === Convoy Counterflow <sec:res-demo-convoy>
 
-In the convoy scene, `robot_1` and the counter-flow robot `robot_2` meet nose to nose in a 0.55 m gap between two barrier blocks, while `robot_3` and `robot_4` queue behind `robot_1`. The scene is built so that a first decision which leaves out the queued robots ends in a latch #ev("6.40").
+In the convoy scene, `robot_1` and the counter-flow robot `robot_2` meet nose to nose in the gap between two barrier blocks, while `robot_3` and `robot_4` queue behind `robot_1`. The scene is built so that a first decision which leaves out the queued robots ends in a latch #ev("6.40").
 
 *Takes 1 to 3.* In each of takes 1 to 3 the first decision was a `yield` naming only `robot_1` and `robot_2`, and it was executed as the model named it (@fig:ch6-cv-yield). The queued robots, never commanded, were then released by their own start delay, followed through the gap and latched against the others by about 75 s (@fig:ch6-cv-latched). The 33 later proposals all ran as 8 s waits: grounding refused the yields and reverses, and the other strategies have no template in the legacy grounding this scene used. Offline, 72 of 76 hypothetical decisions on post-latch snapshots also became waits #ev("6.40"). One scripted decision that names all four robots resolved the scene in a smoke run, which shows that the scene can be resolved, nothing more (n = 1, not accepted by the owner) #ev("6.40").
 
@@ -261,7 +259,7 @@ Stating the queued robots' hold-back state in the prompt did not change the firs
 
 #figure(
   image("../assets/images/fig_convoy_first_yield_t38p00.png", width: 75%),
-  caption: flex-caption([Convoy take 1: the first yield.], [Convoy counterflow, four robots, demonstration take 1 of 5 (unresolved), annotated overhead camera frame at simulated time 38.0 s: the first yield executes as the model named it. `robot_2` (green) backs out of the gap while `robot_1` waits in it and `robot_3` and `robot_4` stay queued. The decision named only the standoff pair. Simulation (Isaac Sim), overhead camera. Illustrative take, 1 of 5; all five convoy takes ended unresolved.#fig-source("6.40")]),
+  caption: flex-caption([Convoy take 1: the first yield.], [Convoy counterflow, four robots, demonstration take 1 of 5 (unresolved), annotated overhead camera frame at simulated time 38.0 s: the first yield executes as the model named it. `robot_2` (green) backs out of the gap while `robot_1` waits in it and `robot_3` and `robot_4` stay queued. The decision named only the standoff pair. Simulation (Isaac Sim), overhead camera. Illustrative take, 1 of 5. All five convoy takes ended unresolved: takes 1 to 3 with 0 of 4 arrived, takes 4 and 5, with the queued-robot hold, with 1 of 4.#fig-source("6.40")]),
 ) <fig:ch6-cv-yield>
 
 #figure(
@@ -290,13 +288,13 @@ The head-on take ran in the corridor scene of @sec:res-headon with obstacle text
 
 === Five Robots <sec:res-demo-five>
 
-The five-robot take ran the S1b pickup-and-delivery scene on seed position 21, an exploratory seed outside the registered list that earlier pilots had already used #ev("6.42"). It is a limitation demonstration. The first two decisions were executed as the model named them: in decision 1 `robot_1` yielded and `robot_4` passed (@fig:ch6-m5-start, @fig:ch6-m5-after1); in decision 2 `robot_2` yielded and `robot_3` was escorted. The six later proposals were all refused by grounding checks and withheld: no feasible yielder four times, no declared junction once and no shared lane once. No analysis ran after sim 275.5 s, and one of five robots arrived #ev("6.42"). The pattern matches the recorded S1b analyses of the earlier live episodes, where deterministic M3 refusals withheld 47 of 78 analyses and the model is not told that a decision was withheld #ev("6.15").
+The five-robot take ran the S1b pickup-and-delivery scene on seed position 21, an exploratory seed outside the 20 confirmatory seeds that earlier pilots had already used #ev("6.42"). It is a limitation demonstration. The first two decisions were executed as the model named them: in decision 1 `robot_1` yielded and `robot_4` passed (@fig:ch6-m5-start, @fig:ch6-m5-after1); in decision 2 `robot_2` yielded and `robot_3` was escorted. The six later proposals were all refused by grounding checks and withheld: no feasible yielder four times, no declared junction once and no shared lane once. No analysis ran after sim 275.5 s, and one of five robots arrived #ev("6.42"). The pattern matches the recorded S1b analyses of the earlier live episodes, where deterministic M3 refusals withheld 47 of 78 analyses and the model is not told that a decision was withheld #ev("6.15").
 
 Decision 2's escort drove `robot_3` along a straight segment that crossed rack island `obstacle_2`. `robot_3` stopped against the island's east face at 146.9 s and stayed within 5 mm of it in 4526 of 4534 ground-truth rows to the end of the run, while the escort ran on until it failed on its deadline (@fig:ch6-m5-escort) #ev("6.42"). This is a sustained robot-obstacle contact, confirmed from ground-truth poses, the URDF collision box, the scene builder and the recording. The "unresolved" label therefore partly reflects an escort path error, not only the model's decisions or the grounding refusals #ev("6.42").
 
 #figure(
   image("../assets/images/fig_fiverobot_standoff_t43p67.png", width: 75%),
-  caption: flex-caption([Five-robot take: the first standoff.], [Five-robot pickup-and-delivery scene (S1b, seed position 21, an exploratory seed outside the registered list), demonstration take 1 of 1 (unresolved; a limitation demonstration), annotated overhead camera frame at simulated time 43.7 s. Two rack islands; `robot_1` and `robot_4` meet head-on at the bottom (yellow, slow), and the other three are moving. Before the first decision. The start assignment differs from @fig:ch5-s1b. Simulation (Isaac Sim), overhead camera. Illustrative take, n = 1.#fig-source("6.42")]),
+  caption: flex-caption([Five-robot take: the first standoff.], [Five-robot pickup-and-delivery scene (S1b, seed position 21, an exploratory seed outside the 20 confirmatory seeds), demonstration take 1 of 1 (unresolved; a limitation demonstration), annotated overhead camera frame at simulated time 43.7 s. Two rack islands; `robot_1` and `robot_4` meet head-on at the bottom (yellow, slow), and the other three are moving. Before the first decision. The start assignment differs from @fig:ch5-s1b. Simulation (Isaac Sim), overhead camera. Illustrative take, n = 1.#fig-source("6.42")]),
 ) <fig:ch6-m5-start>
 
 #figure(
@@ -341,7 +339,7 @@ The robot-pair values come from the cells' own reports #ev("6.05") #ev("6.06") #
 
 *Offline contact recompute.* A geometric logger places the URDF collision shapes at each logged pose and measures the planar gap to every box and to every other robot. Run offline over 44 recorded bundles, it recovered the five-robot contact (minimum −0.16 mm), found two brief grazes within noise, and gave a clear robot-robot verdict in every bundle, the closest pair at 82.1 mm; a recorded robot-robot contact was recovered as a positive control #ev("6.12"). These figures are a footprint proximity at 10 Hz, not a physics contact, and they remain pending validation; the per-bundle table is in @tab:app-contacts. The validation take confirmed that the new contact fields are written on every row and reproduced offline, but no robot was pinned during it, so it does not show that entries appear when one is #ev("6.17").
 
-*Safety-exemption fix.* A coordination command exempts its robots from each other in M4’s proximity check, and that exemption proved wider than intended (@sec:design-grounding). A fix behind a key that is off by default narrows it (@tab:res-sx) #ev("6.50"). It was tested with 64 unit tests and a replay over 68 recorded bundles: with the key off every timeline is identical, and with the key on 6 exemptions are lost #ev("6.07"). It was switched on in IB10 run 2, where it never fired #ev("6.06"). It is therefore not validated live.
+*Safety-exemption fix.* A coordination command exempts its robots from each other in M4’s proximity check, and that exemption proved wider than intended (@sec:design-safety). A fix behind a key that is off by default narrows it (@tab:res-sx) #ev("6.50"). It was tested with 64 unit tests and a replay over 68 recorded bundles: with the key off every timeline is identical, and with the key on 6 exemptions are lost #ev("6.07"). It was switched on in IB10 run 2, where it never fired #ev("6.06"). It is therefore not validated live.
 
 #figure(
   table(
