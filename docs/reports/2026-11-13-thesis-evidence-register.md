@@ -95,7 +95,7 @@ All branches below are local and unpushed (no remote branch exists for any of th
 | `SA` (Rev 8) | `docs/reports/2026-11-15-m4-stall-abort.md` | `fix/m4-stall-abort` (`v7p`) | `1016e0b` |
 | `VT` (Rev 8) | `docs/reports/2026-11-15-validation-guard-contacts-results.md` | `demo/validation-guard-contacts` (`v7n`) | `a412949` |
 | `QH` (Rev 8) | `docs/reports/2026-11-15-convoy-hold-queued-robots.md` | `fix/convoy-hold-queued-robots` (`v7o`) | `d85d1ed` |
-| `WU` (Rev 8) | `docs/reports/2026-11-15-session-wrap-up.md` | `demo/campaign-kits` (`v7j`) | `b0ef302` (created in `e5eb8f1`) |
+| `WU` (Rev 8) | `docs/reports/2026-11-15-session-wrap-up.md` | `demo/campaign-kits` (`v7j`) | `fe3a071` (created in `e5eb8f1`) |
 
 Videos are git-ignored and exist only on the owner's Mac, in `vgu-vlm-swarm-v7g/data/demo/campaign/`. Every md5 below matches `DC` Final Summary and was re-hashed on 2026-11-15. All are illustrative demos.
 
