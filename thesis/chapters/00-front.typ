@@ -1,5 +1,43 @@
 #import "../lib.typ": *
 
+#[
+  #set par(first-line-indent: 0pt)
+
+  © 2026 Vietnamese-German University (VGU). All rights reserved.
+
+  #v(1.5cm)
+
+  // Plain bold text, not a heading: a level-1 heading would force a page break after the line above.
+  #align(center)[#text(size: 14.4pt, weight: "bold")[Copyright]]
+
+  #v(0.5cm)
+
+  This report, including its text, figures, tables, and any accompanying materials, is the intellectual property of the authors and Vietnamese-German University. No part of this publication may be reproduced, stored, transmitted, or distributed in any form or by any means (electronic, mechanical, photocopying, recording, or otherwise) without prior written permission, except for brief quotations used for academic or non-commercial purposes with proper citation.
+
+  #v(0.4cm)
+
+  *Authors:* Dang Dinh Tu Anh; Nguyen Khanh Tuong
+
+  #v(0.4cm)
+
+  *Course Module:* Project Course \
+  *Department:* Computer Science, Faculty of Engineering \
+  *Institution:* Vietnamese-German University \
+  *Location:* Ho Chi Minh City, Vietnam
+
+  #v(1em)
+
+  *Source code.* The source code of this project is kept in the repository below.
+
+  #v(0.5em)
+
+  #link("https://github.com/tuanhdangdinh/VLM-swarm-congestion")[
+    #underline[https://github.com/tuanhdangdinh/VLM-swarm-congestion]
+  ]
+]
+
+#pagebreak()
+
 #heading(numbering: none, outlined: false)[Declaration of Authorship]
 #todo[Declaration of authorship text, to be provided by the owner.]
 
