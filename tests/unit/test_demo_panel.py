@@ -453,3 +453,322 @@ def test_run_caption_uses_variant_and_omits_missing_arm(tmp_path):
 def test_run_caption_keeps_scenario_and_arm(tmp_path):
     cap = run_caption(load_bundle(make_bundle(tmp_path)))
     assert "arm A" in cap and "backend gemini" in cap
+
+
+# Presentation profile ---------------------------------------------------------------
+
+from scripts.demo_panel import presentation as pr  # noqa: E402
+from scripts.demo_panel.present_render import (  # noqa: E402
+    PresentPane,
+    validate_crop,
+    zoom_factor,
+)
+
+GATE_LINE = f"[orchestrator_node-1] [INFO] [1794638425.014500000] [orchestrator_node]: yield re-grounded request={REQ} from=robot_1 to=robot_2 reason=yield re-grounded: robot_1 has 0.70 m retreat room < 1.08 m required; robot_2 feasible"
+PLAN_DECISION = json.loads(json.dumps(DECISION))
+PLAN_DECISION["decision"].update(
+    proposed_plan=[
+        {"robot_id": "robot_3", "action": "reverse"},
+        {"robot_id": "robot_1", "action": "yield"},
+    ],
+    crossing_order=["robot_2", "robot_1"],
+    congestion_detected=True,
+)
+PLAN_DECISION["plan"] = {"provenance": "vlm_verbatim", "rejection_reason": None}
+PLAN_DECISION["dispatch_order_source"] = "model"
+PLAN_DECISION["diagnostics"]["token_usage"]["input_tokens_image"] = 1064
+
+
+def _present(tmp_path: Path, decision: dict | None = None, gate: bool = True):
+    m5 = M5_LINES[:6] + ([GATE_LINE] if gate else []) + M5_LINES[6:]
+    root = make_bundle(tmp_path, decision=PLAN_DECISION if decision is None else decision, m5=m5)
+    (root / "frames").mkdir()
+    (root / "frames" / f"{REQ}.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 32)
+    b = load_bundle(root)
+    return root, b, pr.build_present_transcript(b, build_time_map(b, load_gt(b)), 150.0)
+
+
+def test_present_filter_sed_output_equals_python_shortening(tmp_path):
+    root, _, _ = _present(tmp_path)
+    raw = run_shell(pr.raw_filter_command(), root)
+    shown = run_shell(pr.present_filter_command(), root)
+    assert len(raw) == len(shown) and raw
+    assert shown == [pr.shorten_line(r) for r in raw]
+
+
+def test_shorten_line_strips_prefix_and_keeps_first_eight_hex_of_ids():
+    out = pr.shorten_line(M5_LINES[6])
+    assert out == (
+        "orchestrator: dispatch request=18c2a25e command=18c2a25e-junction-recede-robot_4 "
+        "robot=robot_4 plan_id=1"
+    )
+
+
+def test_present_filter_adds_gate_lines_to_the_engineering_filter(tmp_path):
+    root, _, _ = _present(tmp_path)
+    eng = run_shell(filter_command(), root)
+    raw = run_shell(pr.raw_filter_command(), root)
+    assert [ln for ln in raw if ln not in eng] == [GATE_LINE]
+
+
+def test_present_transcript_log_items_are_the_displayed_filter_output(tmp_path):
+    root, _, pt = _present(tmp_path)
+    shown = run_shell(pt.transcript.filter_command, root)
+    logs = [it.text for it in pt.transcript.items if it.kind == "log"]
+    markers = [it.text for it in pt.transcript.items if it.kind == "marker"]
+    assert logs and all(t in shown for t in logs)
+    assert len(shown) - len(logs) == 3 and markers == ["[… 3 similar 'safety stop' lines]"]
+
+
+def test_present_transcript_times_lines_like_the_engineering_transcript(tmp_path):
+    root, b, pt = _present(tmp_path, gate=False)
+    eng = build_transcript(b, build_time_map(b, load_gt(b)), 150.0)
+    e = [(it.sim_time, it.source) for it in eng.items if it.kind in ("log", "marker")]
+    p = [(it.sim_time, it.source) for it in pt.transcript.items if it.kind in ("log", "marker")]
+    assert e == p
+
+
+def test_present_block_output_matches_running_the_shown_commands(tmp_path):
+    root, _, pt = _present(tmp_path)
+    items = pt.transcript.items
+    cmds = [i for i, it in enumerate(items) if it.kind == "command"]
+    assert cmds
+    for i in cmds:
+        shown = []
+        for it in items[i + 1 :]:
+            if it.kind != "output":
+                break
+            shown.append(it.text)
+        direct = subprocess.run(
+            ["bash", "-c", items[i].text[2:]], cwd=root, capture_output=True, text=True
+        )
+        assert shown == direct.stdout.splitlines()
+
+
+def test_present_block_prints_plan_and_crossing_order(tmp_path):
+    _, _, pt = _present(tmp_path)
+    texts = [it.text for it in pt.transcript.items]
+    assert "plan: robot_3 reverse, robot_1 yield" in texts
+    assert "crossing_order: robot_2, robot_1" in texts
+    assert "provenance=vlm_verbatim reason=null dispatch_order_source=model" in texts
+
+
+def test_present_block_prints_null_when_parser_nulled_the_plan(tmp_path):
+    dec = json.loads(json.dumps(PLAN_DECISION))
+    dec["decision"]["proposed_plan"] = None
+    dec["decision"]["crossing_order"] = None
+    _, _, pt = _present(tmp_path, decision=dec)
+    texts = [it.text for it in pt.transcript.items]
+    assert "plan: null" in texts and "crossing_order: null" in texts
+
+
+def test_present_block_without_plan_prints_yield_robot_and_gate_field(tmp_path):
+    dec = json.loads(json.dumps(PLAN_DECISION))
+    dec["plan"] = None
+    dec["decision"]["yield_robot"] = "robot_1"
+    dec["yield_robot_grounded_from"] = "robot_1"
+    _, _, pt = _present(tmp_path, decision=dec)
+    texts = [it.text for it in pt.transcript.items]
+    assert "yield_robot: robot_1" in texts
+    assert '{"yield_robot_grounded_from":"robot_1","dispatch_order_source":"model"}' in texts
+
+
+def test_present_block_never_prints_dispatched_robot_ids(tmp_path):
+    _, _, pt = _present(tmp_path)
+    assert not any(
+        "dispatch_order=" in it.text or "dispatched_robot_ids" in it.text
+        for it in pt.transcript.items
+    )
+
+
+def test_present_block_proves_image_input_with_file_and_image_tokens(tmp_path):
+    _, _, pt = _present(tmp_path)
+    texts = [it.text for it in pt.transcript.items]
+    assert f"$ file -b frames/{REQ}.png" in texts
+    assert any('"image_tokens":1064' in t for t in texts)
+
+
+def test_present_block_skips_plan_and_check_when_no_congestion(tmp_path):
+    dec = json.loads(json.dumps(PLAN_DECISION))
+    dec["decision"]["congestion_detected"] = False
+    _, _, pt = _present(tmp_path, decision=dec)
+    roles = {t.split(":", 1)[1] for t in pt.tags if ":" in t}
+    assert roles == {"request", "response"}
+
+
+def test_present_block_uses_full_path_when_prefix_glob_is_ambiguous(tmp_path):
+    root, b, _ = _present(tmp_path)
+    (root / "decisions" / f"{REQ[:8]}ffff.json").write_text("{}")
+    cmds = pr.present_block(load_bundle(root), REQ, PLAN_DECISION)
+    assert all(f"decisions/{REQ}.json" in c.command for c in cmds if "decisions/" in c.command)
+
+
+def test_present_style_dims_safety_stops_and_highlights_actions_and_checks():
+    assert pr.present_style(M4_LINES[1], pr.shorten_line(M4_LINES[1])) == "dim"
+    assert pr.present_style(M4_LINES[6], pr.shorten_line(M4_LINES[6])) == "action"
+    assert pr.present_style(GATE_LINE, pr.shorten_line(GATE_LINE)) == "check"
+    assert pr.present_style(M5_LINES[2], pr.shorten_line(M5_LINES[2])) == "m5"
+
+
+@pytest.mark.parametrize(
+    ("tag", "text", "stage"),
+    [
+        ("log", "orchestrator: starting analysis request=1 robots=[]", "Trigger"),
+        ("log", "orchestrator: decision artifact written: x.json", "VLM request"),
+        ("x:request", "anything", "VLM request"),
+        ("x:response", "anything", "VLM response"),
+        ("x:check", "anything", "Check"),
+        ("log", "orchestrator: yield re-grounded request=1", "Check"),
+        ("log", "orchestrator: dispatch request=1 command=c robot=r", "Dispatch"),
+        ("log", "command_bus: command received command=c robot=r action=yield", "Dispatch"),
+        ("log", "command_bus: crossing_chain gate_admit command=c", "Execution"),
+        ("log", "orchestrator: robot robot_1 arrived at base goal (0, 0)", "Execution"),
+        ("log", "safety_monitor: safety stop robot=robot_1 reason=x", None),
+        ("log", "safety_monitor: exempt pairs changed pairs=-", None),
+        ("poll", "02:19:49 analyses=1", None),
+    ],
+)
+def test_item_stage_maps_anchor_to_stage(tag, text, stage):
+    assert pr.item_stage(tag, text)[0] == stage
+
+
+def test_item_stage_marks_withheld_and_no_dispatch_as_cycle_end():
+    assert pr.item_stage("log", "orchestrator: request=1 no dispatch stage=vlm") == ("Check", True)
+    assert pr.item_stage("log", "orchestrator: refusal withheld request=1") == ("Check", True)
+
+
+def test_stage_at_is_none_before_first_trigger():
+    assert pr.stage_at(0.5, [1.0, 2.0], ["Trigger", "Dispatch"], [False, False]) is None
+
+
+def test_stage_at_turns_trigger_into_request_after_delay():
+    rev, st, ends = [1.0], ["Trigger"], [False]
+    assert pr.stage_at(1.0 + pr.TRIGGER_SEC - 0.1, rev, st, ends) == "Trigger"
+    assert pr.stage_at(1.0 + pr.TRIGGER_SEC + 0.1, rev, st, ends) == "VLM request"
+
+
+def test_stage_at_turns_dispatch_into_execution_after_delay():
+    rev, st, ends = [1.0], ["Dispatch"], [False]
+    assert pr.stage_at(1.0 + pr.DISPATCH_SEC + 0.1, rev, st, ends) == "Execution"
+
+
+def test_stage_at_goes_idle_after_cycle_without_dispatch():
+    rev, st, ends = [1.0, 2.0], ["Trigger", "Check"], [False, True]
+    assert pr.stage_at(2.5, rev, st, ends) == "Check"
+    assert pr.stage_at(2.0 + pr.IDLE_AFTER_SEC + 0.1, rev, st, ends) is None
+
+
+def test_stage_at_skips_items_without_stage():
+    assert pr.stage_at(5.0, [1.0, 4.0], ["Check", None], [False, False]) == "Check"
+
+
+def test_compute_holds_after_model_answer_and_after_gate_line(tmp_path):
+    _, _, pt = _present(tmp_path)
+    items = pt.transcript.items
+    held = [(items[i].text, h) for i, h in enumerate(pt.holds) if h > 0]
+    assert held == [
+        ("crossing_order: robot_2, robot_1", pr.RESPONSE_HOLD_SEC),
+        (pr.shorten_line(GATE_LINE), pr.CHECK_HOLD_SEC),
+    ]
+
+
+def test_present_timeline_holds_sim_clock_through_response_hold(tmp_path):
+    from scripts.demo_panel.pipeline import present_timeline_items
+    from scripts.demo_panel.present_render import hold_windows
+
+    _, _, pt = _present(tmp_path)
+    pane = PresentPane(pt.transcript, (1208, 772), 20, 14)
+    calls = [CallSpan(a, s, w) for a, s, w in pt.transcript.calls]
+    tl = build_timeline(present_timeline_items(pt, pane), calls, 150.0)
+    (i, a, b), _ = hold_windows(tl, pt.holds)
+    assert b - a >= pr.RESPONSE_HOLD_SEC
+    assert tl.sim_at(a + 0.1) == pytest.approx(tl.sim_at(b - 0.1))
+
+
+def test_present_pane_never_shows_more_rows_than_fit(tmp_path):
+    _, _, pt = _present(tmp_path)
+    pane = PresentPane(pt.transcript, (1208, 772), 20, 14)
+    assert pane.body_rows <= 30
+    assert len(pane.visible_rows(len(pt.transcript.items))) <= pane.body_rows
+
+
+def _anchor(**kw) -> pr.Anchor:
+    return pr.Anchor(**kw)
+
+
+def test_anchor_requires_exactly_one_kind():
+    with pytest.raises(ValueError):
+        pr.Anchor(match="x", start=True)
+    with pytest.raises(ValueError):
+        pr.Anchor()
+
+
+def test_anchor_time_raises_when_match_is_missing():
+    with pytest.raises(ValueError, match="only 0"):
+        pr.anchor_time(_anchor(match="arrived"), ["a", "b"], [1.0, 2.0], 9.0)
+
+
+def test_caption_is_not_shown_before_its_anchor_line():
+    texts = ["starting analysis", "x", "robot robot_2 arrived at base goal"]
+    reveal = [1.0, 2.0, 30.0]
+    caps = [
+        pr.Caption(at=_anchor(start=True), text="driving"),
+        pr.Caption(at=_anchor(match="arrived at base goal"), text="4 of 4 arrived"),
+    ]
+    sched = pr.caption_schedule(caps, texts, reveal, 40.0)
+    assert pr.caption_at(sched, 29.9) == "driving"
+    assert pr.caption_at(sched, 30.0) == "4 of 4 arrived"
+
+
+def test_anchor_end_fires_at_end_hold():
+    assert pr.anchor_time(_anchor(end=True), ["a"], [1.0], 55.0) == 55.0
+
+
+def test_validate_crop_rejects_crop_outside_frame_or_not_four_by_three():
+    validate_crop((0, 0, 256, 192), (1280, 960))
+    with pytest.raises(ValueError, match="outside"):
+        validate_crop((1100, 0, 256, 192), (1280, 960))
+    with pytest.raises(ValueError, match="4:3"):
+        validate_crop((0, 0, 256, 256), (1280, 960))
+
+
+def test_zoom_factor_is_relative_to_the_full_camera_view():
+    assert zoom_factor(192, 384, 640, 1280) == pytest.approx(4.0)
+
+
+SCRIPT = {
+    "header": "h",
+    "camera_label": "c",
+    "intro_title": "t",
+    "intro_lines": ["l"],
+    "watch_for": ["w"],
+    "captions": [{"at": {"start": True}, "text": "driving"}],
+    "outcome": {"at": {"match": "phase advance"}, "text": "Outcome: X"},
+    "legend": "g",
+    "disclosure": "Illustrative demo, not controlled experimental evidence.",
+    "outro_title": "o",
+    "outro_lines": ["o"],
+    "zooms": [{"start": {"start": True}, "stop": {"end": True}, "crop": [0, 0, 32, 24]}],
+    "outcome_kind": "VLM-driven execution",
+}
+
+
+def test_present_compositor_reveals_outcome_only_at_its_anchor(tmp_path):
+    from scripts.demo_panel.pipeline import prepare_present
+    from scripts.demo_panel.present_render import INTRO_SEC, PresentCompositor
+
+    root, _, _ = _present(tmp_path)
+    cmap = tmp_path / "map.json"
+    cmap.write_text(json.dumps({"anchors": [[0, 0.0], [19, 140.0]]}))
+    p = prepare_present(root, [_clip(tmp_path)], cmap)
+    comp = PresentCompositor(
+        p.pt, p.timeline, p.scene, p.pane, pr.PresentScript.model_validate(SCRIPT)
+    )
+    k = next(i for i, it in enumerate(p.pt.transcript.items) if "phase advance" in it.text)
+    assert comp.outcome_t == pytest.approx(p.timeline.reveal[k])
+    assert comp.outcome_t > max(p.timeline.reveal[:k])
+    before = comp.frame(INTRO_SEC + comp.outcome_t - 0.5)
+    after = comp.frame(INTRO_SEC + comp.outcome_t + 0.5)
+    band = slice(comp.lay.band_top, comp.lay.height)
+    assert not np.array_equal(before[band], after[band])
+    assert comp.total_sec == pytest.approx(INTRO_SEC + p.timeline.total_video_sec + 10.0)

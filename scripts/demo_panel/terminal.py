@@ -25,8 +25,10 @@ import re
 import shlex
 import shutil
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from scripts.demo_panel import logparse as lp
 from scripts.demo_panel.bundle import Bundle, TimeContext
@@ -79,7 +81,7 @@ def run_shell(command: str, cwd: Path) -> list[str]:
 
 def _path() -> str:
     dirs = []
-    for tool in ("jq", "grep", "sort", "awk", "bash"):
+    for tool in ("jq", "grep", "sort", "awk", "bash", "sed", "file"):
         found = shutil.which(tool)
         if found is None:
             raise RuntimeError(f"required tool {tool!r} not found on PATH")
@@ -177,23 +179,70 @@ def _place(tc: TimeContext, wall: float) -> tuple[float, str]:
     return tc.wmap.clock.sim_range[1], "after_scene"
 
 
-def build_transcript(b: Bundle, tc: TimeContext, sim_end: float) -> Transcript:
-    """Build the terminal transcript for a bundle.
+@dataclass(frozen=True)
+class BlockCommand:
+    """One read-only command printed at a decision, with how its lines are tagged.
+
+    Attributes:
+        command: Shell command run inside the bundle directory.
+        role: Tag given to the command and its output lines (empty for none).
+        style: Colour class of the output lines.
+    """
+
+    command: str
+    role: str = ""
+    style: str = "output"
+
+
+@dataclass
+class TranscriptParts:
+    """Transcript items plus a per-item tag, before they are frozen into a Transcript.
+
+    Tags are `log`, `marker`, `poll` or a `BlockCommand.role`, each prefixed
+    with the request id for decision-block items (`<request>:<role>`).
+    """
+
+    items: list[TerminalItem]
+    tags: list[str]
+    calls: list[tuple[float, float, float]]
+    blocks: list[tuple[float, int]]
+
+
+def collect_items(
+    b: Bundle,
+    tc: TimeContext,
+    raw_lines: list[str],
+    shown_lines: list[str],
+    block_for: Callable[[str, dict[str, Any]], list[BlockCommand]],
+    style_for: Callable[[str, str], str],
+    poll_style: str = "output",
+) -> TranscriptParts:
+    """Turn filtered log lines into terminal items, collapsing safety-latch repeats.
+
+    Timing, latch detection and line numbers use `raw_lines` (the stamped
+    originals); the text shown is the same-index line of `shown_lines` (the
+    displayed command's output, which may shorten each line).
 
     Args:
         b: Loaded bundle.
         tc: Its wall-to-sim mapping.
-        sim_end: Last sim second of the episode.
+        raw_lines: Output of the filter without any shortening stage.
+        shown_lines: Output of the displayed filter (one line per raw line).
+        block_for: Commands to print at a `decision artifact written` line.
+        style_for: Colour class for `(raw line, shown line)`.
+        poll_style: Colour class of `cost.log` poll output lines.
 
     Returns:
-        The transcript (items in display order).
+        Items, tags, model calls and command blocks in display order.
+
+    Raises:
+        ValueError: `shown_lines` and `raw_lines` differ in length.
     """
-    cmd = filter_command()
-    lines = run_shell(cmd, b.root)
+    if len(raw_lines) != len(shown_lines):
+        raise ValueError(f"filter output has {len(raw_lines)} raw vs {len(shown_lines)} shown")
     line_no = _line_numbers(b)
-    items: list[TerminalItem] = []
-    calls: list[tuple[float, float, float]] = []
-    blocks: list[tuple[float, int]] = []
+    parts = TranscriptParts([], [], [], [])
+    items, tags = parts.items, parts.tags
     starts: dict[str, tuple[float, float]] = {}
     latch: _Latch | None = None
     polls = cost_polls(b)
@@ -211,20 +260,29 @@ def build_transcript(b: Bundle, tc: TimeContext, sim_end: float) -> Transcript:
                     style="marker",
                 )
             )
+            tags.append("marker")
             latch.pending = 0
             latch.last_marker_sim = sim
+
+    def add_block(cmds: list[BlockCommand], sim: float, prefix: str) -> None:
+        n_before = len(items)
+        for c in cmds:
+            new = _command_items(c.command, b.root, sim, c.style)
+            items.extend(new)
+            tags.extend([f"{prefix}{c.role}"] * len(new))
+        parts.blocks.append((sim, len(items) - n_before))
 
     def emit_polls(up_to_wall: float) -> None:
         while polls and polls[0][0] <= up_to_wall:
             wall, billed = polls.pop(0)
             sim, _ = _place(tc, wall)
-            n_before = len(items)
-            items.extend(
-                _command_items(f"grep -m1 ' billed_calls={billed} ' cost.log", b.root, sim)
+            add_block(
+                [BlockCommand(f"grep -m1 ' billed_calls={billed} ' cost.log", "poll", poll_style)],
+                sim,
+                "",
             )
-            blocks.append((sim, len(items) - n_before))
 
-    for raw in lines:
+    for raw, shown in zip(raw_lines, shown_lines, strict=True):
         parsed = lp.parse_ros_line(raw)
         if parsed is None:
             continue
@@ -248,42 +306,62 @@ def build_transcript(b: Bundle, tc: TimeContext, sim_end: float) -> Transcript:
         items.append(
             TerminalItem(
                 kind="log",
-                text=raw,
+                text=shown,
                 sim_time=sim,
                 time_basis=basis,  # type: ignore[arg-type]
                 source=line_no.get(raw, "?"),
-                style=style_of(raw),  # type: ignore[arg-type]
+                style=style_for(raw, shown),  # type: ignore[arg-type]
             )
         )
+        tags.append("log")
         st = lp.parse_starting_analysis(parsed.msg)
         if st is not None:
             starts[str(st["request"])] = (sim, parsed.wall)
         req = lp.parse_artifact_written(parsed.msg)
         if req is not None and req in b.decisions:
             if req in starts:
-                calls.append((starts[req][0], sim, parsed.wall - starts[req][1]))
-            dec = b.decisions[req][1]
-            n_before = len(items)
-            for c in decision_commands(req, dec.get("plan") is not None):
-                items.extend(_command_items(c, b.root, sim))
-            blocks.append((sim, len(items) - n_before))
+                parts.calls.append((starts[req][0], sim, parsed.wall - starts[req][1]))
+            add_block(block_for(req, b.decisions[req][1]), sim, f"{req}:")
     if latch is not None:
         last_sim, last_basis = _place(tc, latch.last_wall)
         flush_marker(last_sim, last_basis)
     emit_polls(float("inf"))
+    return parts
+
+
+def build_transcript(b: Bundle, tc: TimeContext, sim_end: float) -> Transcript:
+    """Build the terminal transcript for a bundle.
+
+    Args:
+        b: Loaded bundle.
+        tc: Its wall-to-sim mapping.
+        sim_end: Last sim second of the episode.
+
+    Returns:
+        The transcript (items in display order).
+    """
+    cmd = filter_command()
+    lines = run_shell(cmd, b.root)
+
+    def block_for(req: str, dec: dict[str, Any]) -> list[BlockCommand]:
+        return [BlockCommand(c) for c in decision_commands(req, dec.get("plan") is not None)]
+
+    parts = collect_items(b, tc, lines, lines, block_for, lambda raw, _shown: style_of(raw))
     return Transcript(
         bundle_name=b.name,
         bundle_dir=str(b.root),
         filter_command=cmd,
-        items=tuple(items),
-        calls=tuple(calls),
-        blocks=tuple(blocks),
+        items=tuple(parts.items),
+        calls=tuple(parts.calls),
+        blocks=tuple(parts.blocks),
         time_map=tc.info,
         sim_end=sim_end,
     )
 
 
-def _command_items(command: str, cwd: Path, sim: float) -> list[TerminalItem]:
+def _command_items(
+    command: str, cwd: Path, sim: float, style: str = "output"
+) -> list[TerminalItem]:
     out = [
         TerminalItem(
             kind="command",
@@ -302,7 +380,7 @@ def _command_items(command: str, cwd: Path, sim: float) -> list[TerminalItem]:
                 sim_time=sim,
                 time_basis="with_command",
                 source=command,
-                style="output",
+                style=style,  # type: ignore[arg-type]
             )
         )
     return out

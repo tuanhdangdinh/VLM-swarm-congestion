@@ -408,6 +408,11 @@ class CameraClipScene:
             return None
         return idx
 
+    def native_frame_at(self, sim_time: float) -> np.ndarray | None:
+        """The clip frame for `sim_time` at its recorded resolution (RGB), or None."""
+        idx = self.frame_index_at(sim_time)
+        return None if idx is None else self._read(idx)
+
     def frame_at(self, sim_time: float, size: tuple[int, int]) -> np.ndarray:
         """Return the clip frame for `sim_time`, letterboxed to `size` (grey if none)."""
         w, h = size

@@ -17,6 +17,13 @@ Examples:
         --camera-label "Camera: /perception/annotated_frame" \\
         --out data/demo/<label>_panel.mp4 --stills
 
+    # Presentation profile (audience cut: staged, shortened terminal, captions
+    # revealed with their events, zoom inset, intro/outro cards):
+    python3 scripts/render_demo_panel.py render --profile presentation \\
+        --script config/demo_presentation/<label>.json --bundle <bundle> \\
+        --camera <bundle>/rec/annotated_000.mp4 ... --camera-map <map.json> \\
+        --out data/demo/campaign/presentation/<label>_presentation.mp4 --stills
+
     # Combine finished per-scenario videos (JSON manifest, see docs/guides/demo_panel_video.md):
     python3 scripts/render_demo_panel.py combine --manifest <manifest.json> \\
         --out data/demo/<name>.mp4
@@ -41,7 +48,19 @@ from PIL import Image  # noqa: E402
 
 from scripts.demo_panel.bundle import fallback_anchor_error, load_bundle  # noqa: E402
 from scripts.demo_panel.combine import ManifestError, combine  # noqa: E402
-from scripts.demo_panel.pipeline import Prepared, compositor, prepare, render  # noqa: E402
+from scripts.demo_panel.pipeline import (  # noqa: E402
+    Prepared,
+    compositor,
+    prepare,
+    prepare_present,
+    render,
+)
+from scripts.demo_panel.present_render import (  # noqa: E402
+    PresentCompositor,
+    render_present,
+    save_present_stills,
+)
+from scripts.demo_panel.presentation import load_script  # noqa: E402
 from scripts.demo_panel.render import Compositor, Layout  # noqa: E402
 
 FPS = 24.0
@@ -115,6 +134,23 @@ def _combine(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
     return 0
 
 
+def _render_present(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
+    if args.script is None or not args.camera or args.camera_map is None:
+        ap.error("--profile presentation needs --script, --camera and --camera-map")
+    script = load_script(args.script)
+    p = prepare_present(args.bundle, args.camera, args.camera_map, font=args.font)
+    comp = PresentCompositor(p.pt, p.timeline, p.scene, p.pane, script)
+    dur = render_present(comp, args.out, FPS, args.crf)
+    path = args.out.with_name(f"{args.out.stem}_transcript.json")
+    path.write_text(p.pt.model_dump_json(indent=1))
+    print(f"wrote {args.out} ({dur:.1f} s); transcript {path}")
+    print(f"time map: {p.tc.info.note}")
+    if args.stills:
+        for still in save_present_stills(comp, args.out, script.key_request):
+            print(f"still {still}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point."""
     ap = argparse.ArgumentParser(
@@ -131,6 +167,13 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         help="extra caption line under the scene pane (repeatable: outcome, take, model)",
     )
+    r.add_argument(
+        "--profile",
+        choices=("engineering", "presentation"),
+        default="engineering",
+        help="engineering (default, unchanged) or presentation (audience cut; needs --script)",
+    )
+    r.add_argument("--script", type=Path, help="presentation script JSON (captions, cards, zoom)")
     s = sub.add_parser("sequence", help="several bundles, one after the other, with caption cards")
     s.add_argument("--bundle", type=Path, action="append", required=True)
     s.add_argument(
@@ -169,6 +212,8 @@ def main(argv: list[str] | None = None) -> int:
     layout = Layout()
     args.out.parent.mkdir(parents=True, exist_ok=True)
 
+    if args.cmd == "render" and args.profile == "presentation":
+        return _render_present(args, ap)
     if args.cmd == "render":
         p = _prepare(args, args.bundle, layout, None, args.camera, args.camera_map)
         comp = compositor(p, layout, args.font, args.caption)

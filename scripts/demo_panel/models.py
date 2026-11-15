@@ -14,7 +14,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 ItemKind = Literal["log", "marker", "command", "output"]
-ItemStyle = Literal["m5", "m4", "warn", "command", "output", "marker"]
+ItemStyle = Literal[
+    "m5", "m4", "warn", "command", "output", "marker", "dim", "decision", "action", "check"
+]
 
 
 class TerminalItem(BaseModel):

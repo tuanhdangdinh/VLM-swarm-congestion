@@ -16,6 +16,8 @@ from scripts.demo_panel.bundle import (
     load_gt,
 )
 from scripts.demo_panel.models import Transcript
+from scripts.demo_panel.present_render import PresentLayout, PresentPane
+from scripts.demo_panel.presentation import PresentTranscript, build_present_transcript
 from scripts.demo_panel.render import (
     Compositor,
     H264Writer,
@@ -217,6 +219,84 @@ def prepare(
     else:
         scene = gt_scene(b)
     return Prepared(b, tc, transcript, pane, tl, scene)
+
+
+def present_timeline_items(pt: PresentTranscript, pane: PresentPane) -> list[TimelineItem]:
+    """Timeline inputs for the presentation profile.
+
+    Decision blocks print at the usual rate with no block-end hold; instead
+    the clock holds after the items `compute_holds` marked (the model's answer,
+    the check verdict). `cost.log` poll blocks keep the short block hold.
+    """
+    t = pt.transcript
+    out: list[TimelineItem] = []
+    for k, it in enumerate(t.items):
+        in_block = it.kind in ("command", "output")
+        block_end = in_block and (k + 1 == len(t.items) or pt.tags[k + 1] != pt.tags[k])
+        poll_end = block_end and pt.tags[k] == "poll"
+        out.append(
+            TimelineItem(
+                it.sim_time,
+                pane.rows_of(k),
+                in_block=in_block,
+                block_end=block_end,
+                block_hold_sec=SMALL_BLOCK_HOLD_SEC if poll_end else 0.0,
+                sets_pace=not in_block and it.kind != "marker",
+                hold_after_sec=pt.holds[k],
+                hold_caption=pt.hold_captions[k],
+            )
+        )
+    return out
+
+
+@dataclass
+class PresentPrepared:
+    """Everything needed to render one bundle in the presentation profile."""
+
+    bundle: Bundle
+    tc: TimeContext
+    pt: PresentTranscript
+    pane: PresentPane
+    timeline: Timeline
+    scene: CameraClipScene
+
+
+def prepare_present(
+    bundle_dir: Path,
+    camera: Sequence[Path],
+    camera_map: Path,
+    layout: PresentLayout | None = None,
+    params: TimelineParams | None = None,
+    font: str | None = None,
+) -> PresentPrepared:
+    """Load a bundle and build its presentation transcript, timeline and camera scene.
+
+    Args:
+        bundle_dir: Run bundle.
+        camera: Camera clip segments, in order (the presentation profile needs footage).
+        camera_map: JSON frame-to-sim mapping for `camera`.
+        layout: Presentation layout.
+        params: Timeline speeds and print rates.
+        font: Monospace font override.
+
+    Returns:
+        The prepared bundle.
+    """
+    lay = layout if layout is not None else PresentLayout()
+    b = load_bundle(bundle_dir)
+    gt = load_gt(b)
+    sim_end = float(gt[-1]["sim_time_sec"]) + GT_CLOCK_OFFSET_SEC
+    tc = build_time_map(b, gt)
+    pt = build_present_transcript(b, tc, sim_end)
+    tb = lay.term_box
+    pane = PresentPane(pt.transcript, (tb[2], tb[3]), lay.term_font_px, lay.header_font_px, font)
+    calls = [CallSpan(a, s, w) for a, s, w in pt.transcript.calls]
+    tl = build_timeline(present_timeline_items(pt, pane), calls, sim_end, params)
+    names = ", ".join(c.name for c in camera)
+    scene = CameraClipScene(
+        list(camera), load_clip_map(camera_map), detail=f"{names}; {camera_map.name}"
+    )
+    return PresentPrepared(b, tc, pt, pane, tl, scene)
 
 
 def compositor(

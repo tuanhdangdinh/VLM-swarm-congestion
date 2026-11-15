@@ -26,6 +26,8 @@ class TimelineItem:
     block_end: bool = False
     block_hold_sec: float = 0.0
     sets_pace: bool = True
+    hold_after_sec: float = 0.0
+    hold_caption: str = ""
 
 
 @dataclass(frozen=True)
@@ -204,6 +206,13 @@ def build_timeline(
                 state["v"] + it.rows / last_rate + it.block_hold_sec,
                 state["s"],
                 "PAUSED (sim clock held) while the command output prints",
+            )
+            last_v, last_rows = state["v"], 0
+        if it.hold_after_sec > 0:
+            push(
+                state["v"] + it.rows / last_rate + it.hold_after_sec,
+                state["s"],
+                it.hold_caption or "PAUSED (sim clock held) while the command output prints",
             )
             last_v, last_rows = state["v"], 0
     advance_to(sim_end)
