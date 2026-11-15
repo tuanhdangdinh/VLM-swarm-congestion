@@ -51,6 +51,10 @@
 
   #v(0.6cm)
 
+  We are also grateful to *Mr. Chau Thai Nguyen* for the support and advice he gave us during this project.
+
+  #v(0.6cm)
+
   We also thank the *Department of Computer Science, Faculty of Engineering, Vietnamese-German University (VGU)* for providing an academic environment, resources, and opportunities that supported our work.
 
   #v(0.6cm)
