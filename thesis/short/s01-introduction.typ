@@ -25,7 +25,7 @@ RQ2 and RQ3 were not tested against the comparators the first design registered 
 + *A working closed loop in simulation* (detect, decide, ground, act, resolve) in Isaac Sim with ROS 2, Nav2 and a hosted VLM, with one key that switches the coordination layer off on identical code.
 + *A deterministic grounder with per-dispatch plan-audit labels*, and a way to measure the model's share: the label, a re-grounding of each decision without its plan, and a scripted default-plan arm. Verify-and-repair is not new; what the closest published systems do not report, as far as we found, is this per-dispatch measure.
 + *A safety layer that does not depend on the model*: robot pairs closer than 0.45 m are held, with a 0.20 m centre-distance floor in the live experiments #ev("1.04").
-+ *Registered designs and an evidence trail*: every scored criterion was fixed before its data #ev("1.05"), and every number in this report carries a tag that resolves in the Evidence Index of the Extended Report.
++ *Registered designs and an evidence trail*: every scored criterion was fixed before its data #ev("1.05"), and every number in this report is traced to its source in the Evidence Index of the Extended Report.
 + *A physical demonstration* on TurtleBot3 robots, which is not an evaluation #ev("1.07").
 
 == Summary of Findings <sec:s-intro-findings>

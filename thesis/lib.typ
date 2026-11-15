@@ -31,8 +31,10 @@
 // Caption with a short form for the List of Figures/Tables and the full form under the figure.
 #let flex-caption(short, long) = context if in-outline.get() { short } else { long }
 
-// Links to the Evidence Index row when it is in this document (the supplement); the report itself prints the plain tag.
-#let ev(id) = context if in-outline.get() { none } else {
+// Evidence tags stay in the source (every number keeps its Evidence Index id, checked by check.sh) but are not printed;
+// set show-evidence-tags to true to print them again. A hidden tag is a weak space, so it also swallows the space before it.
+#let show-evidence-tags = false
+#let ev(id) = context if in-outline.get() { none } else if not show-evidence-tags { h(0pt, weak: true) } else {
   let l = label("ev:" + id)
   if query(l).len() > 0 { link(l)[\[#id\]] } else [\[#id\]]
 }
@@ -57,4 +59,4 @@
   [#id], claim, text(font: "DejaVu Sans Mono", size: 8pt)[#source],
 )#line(length: 100%, stroke: 0.3pt + luma(180))]#label("ev:" + id)]
 
-#let fig-source(id) = context if in-outline.get() { none } else [ Source: #ev(id).]
+#let fig-source(id) = context if in-outline.get() or not show-evidence-tags { none } else [ Source: #ev(id).]

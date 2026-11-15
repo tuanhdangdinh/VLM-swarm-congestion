@@ -2,7 +2,7 @@
 
 = Sources and Evidence Index <sec:app-sources>
 
-Every bracketed tag in the text, such as #ev("6.02"), identifies a row of the Evidence Index, which states the claim and names the commit, file and section that support it. The full index (@sec:supp-evidence) and two detail tables (@sec:supp-tables) are the last appendices of this Extended Report; the condensed project report uses the same tags. The tables below list the documents the index draws on: design and registration documents (@tab:app-src-designs) and result and analysis reports (@tab:app-src-reports). Code files cited by line are listed in the supplement only.
+Every number in this report is traced to a source. The Evidence Index (@sec:supp-evidence) lists each claim with the commit, file and section that support it, and two detail tables follow it (@sec:supp-tables). The tables below list the documents the index draws on: design and registration documents (@tab:app-src-designs) and result and analysis reports (@tab:app-src-reports). Code files cited by line are listed in the supplement only.
 
 *Data availability.* The repository linked in the front matter holds the project's code, but not everything the index cites. The source reports of November 2026 sit on local branches that were not pushed when this report was written; run bundles and demonstration videos are excluded from version control and kept on one machine, with no copy elsewhere; and the physical demonstration's record is a README file outside the repository #ev("6.16") #ev("1.07"). Commits and paths in the index therefore identify sources but do not all resolve publicly.
 

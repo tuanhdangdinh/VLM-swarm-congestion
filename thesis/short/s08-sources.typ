@@ -2,7 +2,7 @@
 
 = Sources and Data Availability <sec:s-sources>
 
-*Evidence tags.* Every bracketed tag in this report, such as #ev("6.02"), identifies a row of the Evidence Index, which states the claim and names the commit, file and section that support it. The Evidence Index is published in the companion *Extended Report*, which is submitted with this report and built from the same sources.
+*Evidence Index.* Every number in this report is traced to a source: the Evidence Index, published in the companion *Extended Report* (Appendix E), lists each claim with the commit, file and section that support it. The Extended Report is submitted with this report and built from the same sources.
 
 *Extended Report.* The companion document holds the full version of every chapter: the complete methods of each study (Chapter 5), all results with their per-episode detail, the failure-cause and interception tables, the offline decision benchmark and the exploratory findings (Chapter 6), the full discussion and future work (Chapters 7 and 8); and its appendices: the source documents (A), the decision trace of intersection take 5, further demonstration stills and the video list (B), the recorded prompts and model answers (C), the physical testbed configuration (D), the Evidence Index (E) and two detail tables (F).
 
