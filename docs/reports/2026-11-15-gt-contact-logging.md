@@ -394,6 +394,23 @@ Why not contact:
 
 E30 Arm B passed the same corner at a 10.0 mm minimum (47.8–47.9 s).
 
+### 5.4 Robot–Robot Positive Control: G4 (2026-09-25)
+
+The 44 bundles contain no robot–robot contact, so the tool was also run on a
+recorded one. G4 (`20260925_191810`, `head_on_asymmetric_wopen_e0p2_o0`) is
+the 0.076 m nose-to-nose wedge of
+`docs/reports/2026-09-26-close-approach-analysis.md`. The output went to the
+scratchpad and is not committed. The bundle has no `scenario.yaml`, so the
+scenario came from the main checkout's
+`isaac/config/scenarios/family/head_on_asymmetric_wopen_e0p2_o0.yaml`.
+
+- **Result:** robot_1/robot_2 **sustained contact** from 53.1 to 104.3 s,
+  one event of 513 rows (51.3 s).
+- **Gap:** minimum −0.3 mm, median 0.0 mm, 95th percentile 0.08 mm.
+- **Agreement:** the close-approach analysis records "≈51 sim-s" of driven
+  contact at 53.3–104.9 s with a 0.0000 ± 0.0003 m nose gap.
+- **Logged GT:** `robot_robot_contacts` is empty on every row of that bundle.
+
 ---
 
 ## 6. What the New Values Support
@@ -431,13 +448,11 @@ E30 Arm B passed the same corner at a 10.0 mm minimum (47.8–47.9 s).
 - `robot_visual_no_marker` props are not modelled. A computed empty list in
   a scene with such a prop (blocked-path scenes) says nothing about contact
   with it. None of the recomputed bundles has timed obstacles.
-- **No real-data positive control for robot–robot.** The static path is
-  anchored by m5D. The robot–robot path is tested only on synthetic poses:
-  nose to nose at 0.076 m, and side by side. "No robot–robot footprint
-  contact in any bundle" has not been checked against a recorded robot–robot
-  contact. Candidates are the 2026-09-25 G4/K1 wedge bundles, or the IB10
-  lead-flip bundle with a 0.084 m centre distance; neither was among the
-  bundles run here.
+- **Robot–robot positive control: one recorded bundle.** G4
+  (`data/logs/vm_runs/20260925_191810/` in the main checkout; section 5.4) is
+  the only recorded robot–robot contact checked. Its bundle has no
+  `scenario.yaml`, so the current family yaml was used. That yaml affects
+  only the static boxes, not the robot–robot gaps.
 - The map-generator parity is cell-level (0.05 m); see Scope.
 - **Not validated in Isaac Sim.** A live run is needed to confirm that
   logged entries appear when a robot is pinned, and that the per-row cost
