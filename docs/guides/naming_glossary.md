@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: canonical reader-facing names for scenes, experiments, arms, system parts, outcome labels, distances, analysis terms and safety mechanisms; identifier scheme; replace list; exceptions; how-to-read notes for the three most-cited reports.
+- Rev 2: thesis snapshot updated to HEAD `9b71aa3`; facts softened to the sources (pilot dates, MC context, TurtleBot3 model, earlier intersection pilots, demonstration dates in UTC and UTC+7); provenance row added to the replace list; "preregistration" removed from it.
 
 ---
 
@@ -16,7 +17,7 @@ This glossary sets the names used in **reader-facing text**: the thesis report, 
 
 Sources the names were checked against:
 
-- The thesis working tree `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-thesis/thesis/` (branch `docs/thesis`, HEAD `7e589d8`, clean at 2026-11-15T13:50Z; read only). Where the thesis already had a clear name, this glossary adopts it.
+- The thesis working tree `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-thesis/thesis/` (branch `docs/thesis`, read at HEADs `7e589d8` to `9b71aa3` between 13:50Z and 14:05Z on 2026-11-15, while another session was editing it; read only). Where the thesis already had a clear name, this glossary adopts it.
 - The reports listed under "Where the canonical evidence is" in each table, plus the demo package READMEs and the on-screen captions in v7g `config/demo_presentation/*.json`.
 
 The full list of thesis lines that still use internal shorthand, with replacements, is `docs/guides/naming_glossary_thesis_replacements.md`.
@@ -28,7 +29,7 @@ The full list of thesis lines that still use internal shorthand, with replacemen
 1. **Reader-facing name everywhere** in prose, headings, figure and table captions, table headers and slide titles.
 2. **Internal id once**, in parentheses at first use in each chapter, or in a "repo id" column of a table. Example: "the four-robot intersection (scene file `intersection_bottleneck`)".
 3. **Scenes: robot count first.** "Four-robot intersection", never "the intersection" alone at first use in a chapter.
-4. **Dates in full**: "13 November 2026" in prose, "13 Nov 2026" in tables. Give the time zone (UTC) when a series crosses midnight.
+4. **Dates in full**: "13 November 2026" in prose, "13 Nov 2026" in tables. Dates are UTC, as in the run reports; say so when a series crosses midnight (the demonstration campaign is 14–15 Nov UTC, all 15 Nov in local time UTC+7).
 5. **Never bare** in reader text: "tranche", "tranche 1", "prereg", "prereg-v3", "IB10", "S1b", "Arm A/B/C", "batch N", "ER2LIVE", "T1/T2", "S1/S2/S3", "A33" and module codes M1–M6 without their role.
 6. **Kept as defined abbreviations** (in the thesis abbreviation list, then usable): ER-2, VLM, Nav2, GT (ground truth), Layer 1 and Layer 2 (defined in Chapter 1 and Chapter 3; use "central layer" in headings, captions and table headers), M1–M6 (always with the role at first use in a chapter, and in every heading and caption).
 7. **Stays as written**: branch names, file paths, commit hashes, config keys, scene file names, bundle and take labels, on-screen log lines. These are verbatim records; section 5 lists them and gives their meaning.
@@ -56,11 +57,11 @@ Listed in the order a reader meets them in the thesis. "Episode" = one simulated
 | Reader-facing name | Internal ids and aliases | One-line plain definition | Canonical evidence |
 |---|---|---|---|
 | **Registered five-robot pilot** (21 Oct 2026; 5 seed pairs, 10 episodes) | prereg-v3 tranche 1; tranche 1; "confirmatory tranche"; `batch6`, `p10` kit; `confirmatory=1`, `tag=confirmatory_t1`; seed pairs E27–E31, each with an Arm A and an Arm B episode | Central layer on against central layer off on seed positions 1–5 of the five-robot scene, registered **as confirmatory**: its analysis plan was fixed before it ran. Reported as a pilot because only 5 of the 20 planned seed pairs ran (the owner decided on 13 Nov 2026 not to run the rest). Never pooled with any later or earlier run. 0 of 10 episodes completed their tasks. | v7j `docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` sections 2–9 |
-| **Exploratory five-robot pilots** (10–17 Oct 2026; 21 episodes) | ER-2 pilots; pilots E6–E26; series `churn_wave` (E6), `live_batch` (E7, E8, E10), `resume` (E9, E11), `batch2` (E12–E17), `batch3` (E18–E20), `batch4` (E21–E23), `batch5` (E24–E26); kits p3–p9; "A22 live batch", "A27/A30 mini-batch" | Central layer on only, with the live VLM, on the five-robot scene, while the v3 design was being tuned. Exploratory; six (E10, E17, E23–E26) were cut short by the pilots' early-stop rule. E5 (scripted echo model) is excluded everywhere. | v7j `docs/reports/2026-11-15-failure-cause-rubric-and-robot5.md` section 5.2 |
+| **Exploratory five-robot pilots** (October 2026, series reports dated 10–17 Oct; 21 episodes) | ER-2 pilots; pilots E6–E26; series `churn_wave` (E6), `live_batch` (E7, E8, E10), `resume` (E9, E11), `batch2` (E12–E17), `batch3` (E18–E20), `batch4` (E21–E23), `batch5` (E24–E26); kits p3–p9; "A22 live batch", "A27/A30 mini-batch" | Central layer on only, with the live VLM, on the five-robot scene, while the v3 design was being tuned. Exploratory; six (E10, E17, E23–E26) were cut short by the pilots' early-stop rule. E5 (scripted echo model) is excluded everywhere. | v7j `docs/reports/2026-11-15-failure-cause-rubric-and-robot5.md` section 5.2 |
 | **Intersection run 1: central layer on vs off** (13 Nov 2026; 5 + 5 counted episodes) | IB10 live resolution; IB10 run 1; first IB10 run; `IBL`; `ib10_live`; slots e01–e10 (E01–E10), labels `ib10L_eNN_armX_aN`; Arm A vs Arm B | Full pipeline against the central layer switched off, on the four-robot intersection, registered before it ran, exploratory. Resolved 4 of 5 with the central layer on, 0 of 5 off. One excluded attempt (e01 a1). | v7a `docs/reports/2026-11-13-ib10-live-resolution-results.md` |
 | **Intersection run 2: live VLM vs scripted default plan** (14 Nov 2026; 5 + 5 slots, plus one post hoc re-run) | IB10 safety default arm; IB10 grounder-default arm/run; IB10 run 2; second IB10 run; `IBS`; `ib10_safety`; labels `ib10S_eNN_armX_aN`; Arm A vs Arm C; re-run "e02 a2" | Live-VLM arm against a scripted arm that skips the VLM call and runs the grounder's default plan, with the safety-exemption fix on and the hard-contact floor armed. Exploratory. Live VLM 5 of 5 (including the first check episode); scripted 4 of 4 valid, 5 of 5 after the post hoc re-run of slot e02. Never pooled with run 1. | v7d `docs/reports/2026-11-14-ib10-safety-default-arm-results.md` |
-| **Earlier intersection pilots** (2–8 Oct 2026) | IB10 composite smoke, lead-flip diagnosis, remedy validation, closure | Development runs of the intersection remedy (release lane, pull-off) before the two runs above. Not scored, not pooled. | v7a `docs/reports/2026-10-0{2,8}-ib10-*.md` |
-| **Demonstration campaign** (14–15 Nov 2026 UTC; 12 valid takes in four scenes) | demo campaign; `DC`; `demo_campaign/`; takes `ibD_t0N_aN`, `cvD_*`, `cvH_*`, `hoD_*`, `m5D_*` | Live takes of the full pipeline, to show what it does, not how well. Caps 12 machine-hours and $10. Write "demonstration take N of M" per scene (intersection 5, convoy 5, head-on 1, five robots 1). Illustrative only; no rates. | v7j `docs/reports/2026-11-15-demo-campaign-results.md`, Final Summary |
+| **Earlier intersection pilots** (reports of 2 and 8 Oct 2026) | IB10 composite smoke, lead-flip diagnosis, remedy validation, closure | Development and validation runs of the intersection remedy before the two runs above; the thesis cites them only as "the earlier live pilot". Not part of any reported comparison. | v7a `docs/reports/2026-10-0{2,8}-ib10-*.md` |
+| **Demonstration campaign** (14–15 Nov 2026 UTC, all on 15 Nov in local time UTC+7; 12 valid takes in four scenes) | demo campaign; `DC`; `demo_campaign/`; takes `ibD_t0N_aN`, `cvD_*`, `cvH_*`, `hoD_*`, `m5D_*` | Live takes of the full pipeline, to show what it does, not how well. Caps 12 machine-hours and $10. Write "demonstration take N of M" per scene (intersection 5, convoy 5, head-on 1, five robots 1). Illustrative only; no rates. | v7j `docs/reports/2026-11-15-demo-campaign-results.md`, Final Summary |
 | **Five-robot validation take** (15 Nov 2026) | `m5V_t01_a1`; "validation take"; `demo/validation-guard-contacts` | One live take of the five-robot scene run to check the escort obstacle guard and the geometric contact logging live. The guard was armed but never triggered (no escort was grounded); the contact lists stayed empty. | Thesis Chapter 4, later extensions; v7j `docs/implementation_notes.md` (2026-11-15 entries) |
 | **Scripted safety tests** | `sft` kit (`data/logs/vm_runs/demo_campaign/sft/`, scripts `gen_revguard_grounding_sft.sh`, `gen_stall_safety_sft.sh`); branch `test/safety-mechanisms-scripted` (v7s) | Scripted live tests prepared for the reverse obstacle guard and the stall abort. **No results report was found on 2026-11-15**; not in the thesis. Do not cite until a report exists. | v7s branch `test/safety-mechanisms-scripted` (`af5a9df`) |
 | **Earlier recorded head-on run** (30 Sep 2026) | ER2LIVE; `ER2LIVE_20260930_152222`; "05_head_on_earlier_run_ER2LIVE" | One live run of the two-robot head-on corridor on older code (`3959d7f`), in which the model's yielder was kept by the feasibility gate and executed. Selected because it qualifies; not part of the campaign. | Demo campaign report section 11 |
@@ -77,7 +78,7 @@ Listed in the order a reader meets them in the thesis. "Episode" = one simulated
 | **Live per-group shadow run** | Stage 1 shadow; v4 shadow; `per_cluster_shadow` | Seven five-robot episodes (seed positions 21–27) in which a second, per-group model question was asked, grounded and logged after each analysis but never dispatched. | `docs/reports/2026-11-13-v4-stage1-shadow-results.md` |
 | **Failure-cause classification** | failure-cause rubric; FU coding; rounds 1–2 | Post hoc assignment of a primary cause class to every failure unit of the 33 five-robot episodes (10 registered, 21 exploratory pilots, 2 November takes), by two blind raters, with reconciliation. | v7j rubric report Part B; v7q `docs/reports/2026-11-15-failure-cause-reconciliation.md` |
 | **Interception analysis** | interception table | Offline: for each dispatched leg linked to a failure unit, would the escort obstacle guard, the reverse obstacle guard or the stall abort have refused or aborted it. | Reconciliation report section 7 |
-| **Physical TurtleBot3 demonstration** (12 Nov 2026) | hardware run | Perception and execution on real TurtleBot3 robots; not part of any experiment. | Thesis Chapter 4 |
+| **Physical TurtleBot3 demonstration** (12 Nov 2026) | hardware run | The pipeline run on physical TurtleBot3 robots with an overhead RealSense camera and `gemini-3.1-flash-lite` as the model; not part of any experiment. | Thesis Chapter 4, physical demonstration |
 
 ### 2.3 Registered Designs and Their Numbered Changes
 
@@ -128,6 +129,7 @@ Numbered items (the letter A is shared by v1 amendments and v3 addenda; never ci
 | **The VLM** = Gemini Robotics-ER 2 | ER-2; ER2; `gemini-robotics-er-2-preview` | The hosted model in every live comparison and demonstration take. |
 | **Claude Sonnet 5.5** | Sonnet; Sonnet 5.5 | Second model in the offline benchmark, replays and the offline Sonnet check. |
 | **GPT-4o** | gpt-4o | Model of earlier head-on runs and replays. |
+| **Gemini 3.1 Flash-Lite** | `gemini-3.1-flash-lite` | Model of the physical TurtleBot3 demonstration only. |
 | **Scripted mock backend** | mock, echo model (E5), `config/mock_decisions/*.json` | A backend that returns fixed decisions; never a model. |
 | **Ground truth** (GT) | GT; `gt/` logs | Simulator poses, independent of perception. |
 
@@ -224,7 +226,7 @@ For search-and-replace by a human. Always read the sentence; several terms are a
 | tranche 2 | the remaining 15 registered seed pairs (not run) | |
 | tranche (bare) | the registered pilot | |
 | prereg-v1 / prereg-v2 / prereg-v3 | the first / second / third registered design (v1 / v2 / v3) | when it means data, it is the registered pilot |
-| prereg, preregistration | registration; the registered design | "pre-registered" for replays is fine |
+| prereg (as a word) | registration; the registered design | "preregistration" and "pre-registered" are ordinary words and stay |
 | IB10 live resolution, IB10 run 1, first IB10 run | intersection run 1 | |
 | IB10 grounder-default arm/run, IB10 safety default arm, IB10 run 2, second IB10 run | intersection run 2 | |
 | both/two IB10 runs | both intersection runs | |
@@ -239,6 +241,7 @@ For search-and-replace by a human. Always read the sentence; several terms are a
 | Layer 2 | the central layer (Layer 2) | defined term; prose may keep it after Chapter 1 |
 | M3-default resolution | grounder-default resolution | on-screen video text keeps the old label |
 | `vlm_verbatim` / `repaired` / `m3_default` | accepted unchanged / repaired / grounder default | keep the code in monospace once |
+| provenance | plan-audit label (provenance) | define at first use; may stay where it names the recorded field |
 | chi, chi cost | the grounder's default (cost) order | |
 | recede, recede order | back out, back-out order | |
 | ER2LIVE | the earlier recorded head-on run (30 Sep 2026) | file and video names keep `ER2LIVE_*` |
@@ -284,7 +287,7 @@ Counted from the thesis evidence index: the registered-pilot report (17 citation
 - "E27"–"E31" = seed pairs for seed positions 1–5 ("s1"–"s5"); each has an "A" (central layer on) and a "B" (central layer off) episode; "a1"/"a2" are attempts.
 - "A32"–"A36" = v3 addenda (section 2.3); "R6"–"R11" = owner rulings recorded in A34; "A33(7)" = paragraph 7 of the measure definitions.
 - "RECORD = 0" = a dataset tag passed to the launcher, nothing more (A34 R6); "`batch6`", "p10" = the run-kit folders.
-- "MC" (section 1.9) = an offline Monte Carlo upper bound computed before the run, not a prediction.
+- "MC context" (section 1.9) = an offline pre-run check that grounded each seed's first conflict with a scripted echo decision; the report calls it an upper bound, not a prediction.
 - "COND line", "silence gate" = the per-arm condition gates; "`degenerate_arm_b`" = per-conflict measures are undefined for central layer off by construction.
 - "r1"–"r5" = `robot_1`–`robot_5`; "T_end" = end of observation; "GT closest pair" = minimum ground-truth centre distance.
 
