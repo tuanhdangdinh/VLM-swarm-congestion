@@ -258,6 +258,51 @@ def test_build_time_map_reports_anchor_error_within_threshold(tmp_path):
     assert info.anchor_count >= 1 and info.max_abs_error_sim_sec < 0.5
 
 
+SESSION = "864de40cb3854403924a743303f3e446"
+
+
+def _move_scene_log(root: Path, *names: str) -> None:
+    src = root / "m5_scene.jsonl"
+    for n in names:
+        (root / n).write_text(src.read_text())
+    src.unlink()
+
+
+def test_scene_log_prefers_m5_scene_jsonl(tmp_path):
+    root = make_bundle(tmp_path)
+    (root / f"scene_{SESSION}.jsonl").write_text('{"t": 1.0, "scene": {"stamp": 1.0}}\n')
+    b = load_bundle(root)
+    assert b.scene_log == "m5_scene.jsonl" and len(b.scene_rows) > 1
+
+
+def test_scene_log_falls_back_to_session_named_file(tmp_path):
+    root = make_bundle(tmp_path)
+    _move_scene_log(root, f"scene_{SESSION}.jsonl", "scene_00000000000000000000000000000000.jsonl")
+    b = load_bundle(root)
+    assert b.scene_log == f"scene_{SESSION}.jsonl"
+    assert f"scene_{SESSION}.jsonl" in build_time_map(b, load_gt(b)).info.method
+
+
+def test_scene_log_falls_back_to_single_scene_file(tmp_path):
+    root = make_bundle(tmp_path)
+    _move_scene_log(root, "scene_abc.jsonl")
+    assert load_bundle(root).scene_log == "scene_abc.jsonl"
+
+
+def test_scene_log_rejects_ambiguous_scene_files(tmp_path):
+    root = make_bundle(tmp_path)
+    _move_scene_log(root, "scene_abc.jsonl", "scene_def.jsonl")
+    with pytest.raises(ValueError, match="ambiguous"):
+        load_bundle(root)
+
+
+def test_scene_log_absent_loads_empty(tmp_path):
+    root = make_bundle(tmp_path)
+    (root / "m5_scene.jsonl").unlink()
+    b = load_bundle(root)
+    assert b.scene_log == "" and b.scene_rows == []
+
+
 def test_fallback_anchor_pairs_first_stop_with_gt_threshold_crossing(tmp_path):
     root = make_bundle(tmp_path)
     b = load_bundle(root)

@@ -8,6 +8,7 @@ once and works out where each wall-stamped log line falls on the sim clock
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -39,11 +40,49 @@ class Bundle:
     manifest: dict[str, Any]
     m5_ros: list[tuple[int, lp.RosLine]] = field(default_factory=list)
     m4_ros: list[tuple[int, lp.RosLine]] = field(default_factory=list)
+    scene_log: str = ""
 
     @property
     def name(self) -> str:
         """Bundle directory name."""
         return self.root.name
+
+
+def find_scene_log(root: Path, m5_lines: list[str]) -> str:
+    """Pick the bundle's M5 scene log file name.
+
+    Rule, first match wins: `m5_scene.jsonl`; else `scene_<session_id>.jsonl`
+    where `session_id` is the first `session_id=` value in `m5.log` (older
+    bundles copied M5's `data/logs/m5_scene/<session>.jsonl` under that name);
+    else the only `scene_*.jsonl` file.
+
+    Args:
+        root: Bundle directory.
+        m5_lines: Raw `m5.log` lines.
+
+    Returns:
+        File name relative to `root`, or "" when the bundle has no scene log.
+
+    Raises:
+        ValueError: Several `scene_*.jsonl` files and none matches the session.
+    """
+    if (root / "m5_scene.jsonl").is_file():
+        return "m5_scene.jsonl"
+    cands = sorted(p.name for p in root.glob("scene_*.jsonl") if p.is_file())
+    if not cands:
+        return ""
+    session = next(
+        (m.group(1) for m in (re.search(r"session_id=([0-9a-fA-F]+)", ln) for ln in m5_lines) if m),
+        None,
+    )
+    if session is not None and f"scene_{session}.jsonl" in cands:
+        return f"scene_{session}.jsonl"
+    if len(cands) == 1:
+        return cands[0]
+    raise ValueError(
+        f"{root}: ambiguous scene log: {cands} and none is scene_<session_id>.jsonl "
+        f"(session_id={session})"
+    )
 
 
 def load_bundle(root: Path) -> Bundle:
@@ -72,8 +111,10 @@ def load_bundle(root: Path) -> Bundle:
     if ddir.is_dir():
         for p in sorted(ddir.glob("*.json")):
             decisions[p.stem] = (f"decisions/{p.name}", json.loads(p.read_text()))
+    m5_lines = lines("m5.log")
+    scene_log = find_scene_log(root, m5_lines)
     scene_rows = []
-    for i, raw in enumerate(lines("m5_scene.jsonl"), start=1):
+    for i, raw in enumerate(lines(scene_log) if scene_log else [], start=1):
         if raw.strip():
             scene_rows.append((i, json.loads(raw)))
     manifest_p = root / "gt" / "run_manifest.json"
@@ -82,12 +123,13 @@ def load_bundle(root: Path) -> Bundle:
         root=root,
         condition=lp.parse_condition(cond_lines[0]) if cond_lines else {},
         condition_line=cond_lines[0] if cond_lines else "",
-        m5=lines("m5.log"),
+        m5=m5_lines,
         m4=lines("m4.log"),
         cost=lines("cost.log"),
         decisions=decisions,
         scene_rows=scene_rows,
         manifest=manifest,
+        scene_log=scene_log,
     )
     b.m5_ros = lp.iter_ros_lines(b.m5)
     b.m4_ros = lp.iter_ros_lines(b.m4)
@@ -127,7 +169,7 @@ def collect_anchors(b: Bundle) -> list[Anchor]:
 
 
 def scene_clock(b: Bundle) -> SceneClock | None:
-    """Build the scene clock from `m5_scene.jsonl`, or None if it has < 2 rows."""
+    """Build the scene clock from the scene log (`find_scene_log`), or None if < 2 rows."""
     if len(b.scene_rows) < 2:
         return None
     return SceneClock(
@@ -236,7 +278,7 @@ def build_time_map(
         return TimeContext(
             None,
             TimeMapInfo(
-                method="none (no m5_scene.jsonl)",
+                method="none (no scene log: m5_scene.jsonl or scene_*.jsonl)",
                 offset_wall_minus_monotonic=None,
                 anchor_count=0,
                 anchor_spread_wall_sec=None,
@@ -261,7 +303,9 @@ def build_time_map(
         return TimeContext(
             wmap,
             TimeMapInfo(
-                method="wall -> m5_scene monotonic (median offset over anchors) -> sim stamp",
+                method=(
+                    f"wall -> {b.scene_log} monotonic (median offset over anchors) -> sim stamp"
+                ),
                 offset_wall_minus_monotonic=est[0],
                 anchor_count=len(res),
                 anchor_spread_wall_sec=est[1],
@@ -286,7 +330,7 @@ def build_time_map(
                 TimeMapInfo(
                     method=(
                         "fallback: first m4 safety stop <-> first GT row with min pairwise "
-                        "distance < min_distance_m, then m5_scene clock"
+                        f"distance < min_distance_m, then {b.scene_log} clock"
                     ),
                     offset_wall_minus_monotonic=fb.wall - mono,
                     anchor_count=1,

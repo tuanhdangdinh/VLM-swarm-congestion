@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: renderer (`scripts/render_demo_panel.py`, `scripts/demo_panel/`), terminal rules, time mapping, camera input path, known limits.
+- Rev 2 (2026-11-15): scene-log file name fallback for older bundles; how the ER2LIVE (2026-09-30) frame map was made and checked.
 
 ---
 
@@ -133,6 +134,7 @@ The recorder writes no per-frame timestamps, and best-effort QoS can drop frames
 
 - The frame-to-sim map is exact only at anchors: the first frame, plus any frame whose burned-in clock is read.
 - The two-anchor form (`first_stamp`, `last_stamp`, `frames`) assumes a uniform frame rate.
+- Frame maps with one sim time per frame are made by decoding the burned-in clock. The campaign kit's decoder (`data/logs/vm_runs/demo_campaign/ho/kit/overlay_framemap.py` in the campaign worktree, md5 `a5f2dd256222b03e93784995fa6ec0a5`) also works unchanged on the 2026-09-30 ER2LIVE recording (same overlay code at `3959d7f`): 3745 of 3745 frames decoded, median IoU 0.849, and 16 frames read by eye matched to 0.00 s. Run it as `python3 overlay_framemap.py --out <map.json> annotated_000.mp4 annotated_001.mp4`; the renderer reads its `anchors`.
 - A per-frame stamp sidecar written by the recorder would remove this limit. That is a follow-up; the recorder is unchanged here.
 
 Recording costs CPU/GPU on the VM and may lower the real-time factor. Record a separate demo run, not an experiment episode.
@@ -142,6 +144,8 @@ Recording costs CPU/GPU on the VM and may lower the real-time factor. Record a s
 ROS log lines carry wall stamps; the scene and the ground truth carry sim time. The mapping works like this:
 
 1. `m5_scene.jsonl` rows pair M5's `time.monotonic()` receipt time `t` with the scene's sim `stamp`.
+
+   Older bundles (for example `ER2LIVE_20260930_152222`) carry the same rows as `scene_<session_id>.jsonl`. The loader takes the first match of: `m5_scene.jsonl`; `scene_<session_id>.jsonl`, with `session_id` from the first `session_id=` line in `m5.log`; the only `scene_*.jsonl`. Several `scene_*.jsonl` files with none matching the session is an error. The time-map method string in the transcript names the file used.
 2. The renderer estimates the constant wall-minus-monotonic offset. It takes the median over two kinds of anchor:
    - M4 lines that print their own `sim_t=`;
    - `starting analysis` lines, paired with their decision's `scene.stamp`. This is the same method as `scripts/rescore_arrivals.py`.
