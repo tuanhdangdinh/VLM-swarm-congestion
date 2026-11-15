@@ -6,6 +6,11 @@
 
 This chapter states how the system described in Chapters 3 and 4 was evaluated. It covers the research questions, the history of the preregistration, the simulated scenes, the experimental arms, the outcome measures, the run procedure, the analysis plan, the offline benchmark used for the v4 extensions, the offline analyses, the demonstration campaign, and the threats to validity that were known before any data was seen. It reports no outcome; every result belongs to Chapter 6.
 
+#figure(
+  table(columns: 1, [#todo[Studies in this report: study, comparison, n, evidence grade, registered, pooled with. Filled by the concision pass.]]),
+  caption: [Studies in this report.],
+) <tab:ch5-studies>
+
 Three live comparisons, one offline benchmark, three offline analyses, one demonstration campaign and one post hoc classification are described. Their evidential status differs, and the chapter keeps them apart:
 
 - *prereg-v3 tranche 1* on the five-robot S1b scene, Layer 2 on against Layer 2 off. It was registered as confirmatory. This report reports it as a *pilot*, for the reason given in the section on research questions.
