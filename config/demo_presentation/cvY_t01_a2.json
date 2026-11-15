@@ -1,0 +1,117 @@
+{
+ "header": "Four-robot convoy counterflow scene, rerun  ·  demonstration take 1 of 1  ·  VLM: Gemini Robotics-ER 2",
+ "camera_label": "Left: real overhead camera of the simulation (topic /perception/annotated_frame). The red boxes and robot ids were drawn on it by the perception module (M1) during the run.",
+ "intro_title": "Four-robot convoy counterflow scene, rerun",
+ "intro_lines": [
+  "robot_1 drives east into a narrow gate between two barriers and meets robot_2 nose to nose; robot_3 and robot_4 queue behind robot_1 at the west end, with goals east of the gate. When a robot has been stuck for 12 s, the coordination layer asks a vision-language model (VLM) what to do: it sends a text prompt and the current camera image, the grounder (M3) checks the answer, and the system executes it.",
+  "The five earlier convoy takes did not resolve: in takes 1-3 the two queued robots were released without a command; in takes 4-5 the model chose robot_1, which had robots queued behind it, as the yielder. This rerun has the grounder's queued-robot hold switched on.",
+  "Robots: 4  ·  Model: Gemini Robotics-ER 2 (gemini-robotics-er-2-preview)  ·  Rerun, demonstration take 1 of 1, recorded 2026-11-15.",
+  "Left: real overhead camera of the simulation. Right: the run's own logs, replayed in sync with simulation time."
+ ],
+ "watch_for": [
+  "The model's answer involves only two robots, robot_1 and robot_2; the queued robots are left on 'continue' (yellow lines on the right).",
+  "The 'Check' stage shows the grounder adding the two queued robots, robot_3 and robot_4 (orange lines).",
+  "The robots pass the gate one at a time."
+ ],
+ "captions": [
+  {
+   "at": {
+    "start": true
+   },
+   "text": "robot_1 drives east into the gate and meets robot_2 coming the other way; robot_3 and robot_4 queue at the west end."
+  },
+  {
+   "at": {
+    "match": "starting analysis request=cfaabdc5"
+   },
+   "text": "Trigger: robot_2 has been stuck for 12 s. The coordination layer sends the model a text prompt and the current camera image; the wait for its answer plays in real time."
+  },
+  {
+   "at": {
+    "match": "^plan: robot_2 yield"
+   },
+   "text": "Model's plan: robot_2 yields (backs out and pulls aside), robot_1 crosses. It lists only robot_1 and robot_2 as involved and leaves the queued robot_3 and robot_4 on 'continue'."
+  },
+  {
+   "at": {
+    "match": "^provenance=repaired"
+   },
+   "text": "Check: the grounder's queued-robot hold added robot_3 and robot_4 to the crossing order and holds them until the gate admits each one (plan repaired, 2 edits: 'continue' became 'cross'). The yielder correction was armed and did not fire: robot_2 already had room to back out."
+  },
+  {
+   "at": {
+    "match": "dispatch request=cfaabdc5"
+   },
+   "text": "Dispatch: robot_2 is sent 'yield'; robot_1, robot_3 and robot_4 wait (temporary_wait) for their turn at the gate."
+  },
+  {
+   "at": {
+    "match": "gate_admit command=cfaabdc5-yield yielder=robot_2 passer=robot_1"
+   },
+   "text": "robot_2 has backed out and pulled aside. The gate admits robot_1 first and escorts it through; robot_3 and robot_4 stay held."
+  },
+  {
+   "at": {
+    "match": "gate_admit command=cfaabdc5-yield yielder=robot_2 passer=robot_3"
+   },
+   "text": "robot_1 is through. The gate admits robot_3; robot_4 stays held."
+  },
+  {
+   "at": {
+    "match": "gate_admit command=cfaabdc5-yield yielder=robot_2 passer=robot_4"
+   },
+   "text": "robot_3 is through. The gate admits robot_4."
+  },
+  {
+   "at": {
+    "match": "gate_release command=cfaabdc5-yield"
+   },
+   "text": "robot_4 is through. The gate releases robot_2, which drives back west through the empty gate; on the way it passes 0.0185 m from the south barrier (no contact, by an offline recompute)."
+  },
+  {
+   "at": {
+    "match": "starting analysis request=9ea3e3c2"
+   },
+   "text": "Trigger: robot_2 has been stuck for 12 s on its way back; the model is asked again."
+  },
+  {
+   "at": {
+    "match": "request=9ea3e3c2 no dispatch"
+   },
+   "text": "The model answered 'no congestion'; nothing was dispatched. robot_2 continues home under its normal navigation (Nav2)."
+  }
+ ],
+ "outcome": {
+  "at": {
+   "match": "robot robot_2 arrived at base goal"
+  },
+  "text": "Outcome: Resolved — grounder held the queued robots; model chose strategy and yielder. 4 of 4 robots arrived (ground truth, sim s: robot_1 75.3, robot_3 116.4, robot_4 158.1, robot_2 180.1)."
+ },
+ "legend": "Legend: yield = back out and pull aside · cross = drive through · continue = keep driving · temporary_wait = hold still until admitted · provenance: repaired = edited by the grounder's verifier · dispatch_order_source=chi = the grounder's own ordering · gate_admit / gate_cleared / gate_release = M4 lets one robot through the gate, sees it clear, then releases the yielder · 'safety stop … min_distance_violation' (dim) = robots closer than 0.45 m are held still by the safety monitor · robot_35 (start-up lines only) = a perception ghost id, not a robot.",
+ "disclosure": "Illustrative demo, not controlled experimental evidence; not evidence that the VLM resolves convoy congestion.",
+ "outro_title": "Outcome: Resolved — grounder held the queued robots; model chose strategy and yielder",
+ "outro_lines": [
+  "4 of 4 robots arrived, in the order robot_1, robot_3, robot_4, then robot_2. Rerun, demonstration take 1 of 1, after five unresolved convoy takes.",
+  "The model's: the yield strategy, robot_2 as yielder and robot_1 as passer. It named only robot_1 and robot_2.",
+  "The system's: when to ask; the grounder's queued-robot hold (robot_3 and robot_4 added to the crossing order and held; plan repaired, 2 edits), the park point and distances; M4's gate admissions and escorts; robot_2's drive home (Nav2).",
+  "Caveats: n = 1. The yielder correction was armed but did not fire, so it is untested live. Closest non-exempted pair 0.497 m against a 0.45 m safety distance. Not evidence that the VLM resolves convoy congestion."
+ ],
+ "zooms": [
+  {
+   "start": {
+    "match": "starting analysis request=cfaabdc5"
+   },
+   "stop": {
+    "match": "gate_admit command=cfaabdc5-yield yielder=robot_2 passer=robot_1"
+   },
+   "crop": [
+    520,
+    390,
+    256,
+    192
+   ]
+  }
+ ],
+ "key_request": "cfaabdc5",
+ "outcome_kind": "Resolved — grounder held the queued robots; model chose strategy and yielder"
+}
