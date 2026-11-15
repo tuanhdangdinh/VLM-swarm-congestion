@@ -70,6 +70,7 @@ from swarm_orchestrator.models import (
     load_config,
     parse_annotation_overlays,
     parse_scene_snapshot,
+    plan_order_status_line,
     reasoning_status_line,
     registry_priorities,
     resolve_layer2_gate,
@@ -682,6 +683,9 @@ class OrchestratorNode(Node):
             self.get_logger().info(status_line)
             for name in self._layer2.overridden:
                 self.get_logger().warning(f"{name} is set but forced off: reasoning_enabled=false")
+        plan_order_line = plan_order_status_line(self._config)
+        if plan_order_line is not None:
+            self.get_logger().info(plan_order_line)
         if self._task_stream is not None:
             self._start_task_stream(started_at)
         self._publish_registry()
@@ -2692,6 +2696,10 @@ class OrchestratorNode(Node):
                     overlays=overlays,
                 )
             )
+            if config.prompt_plan_grammar_rules:
+                fields["plan_grammar_rules"] = True
+            if config.prompt_plan_grammar_release_rule:
+                fields["plan_grammar_release_rule"] = True
         for name, requested, drawn in (
             ("metric_grid", config.prompt_metric_grid, overlays.metric_grid),
             ("motion_trails", config.prompt_motion_trails, overlays.motion_trails),

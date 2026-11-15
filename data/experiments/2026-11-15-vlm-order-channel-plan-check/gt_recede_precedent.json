@@ -1,0 +1,4438 @@
+{
+ "definitions": {
+  "start_threshold_m": 0.05,
+  "t0": "first GT sample with any speed_mps > 0.03",
+  "distance": "centre-to-centre from GT x/y, all pairs, t >= t0 for the episode minimum",
+  "recede_window": "first recede dispatch (m4 received, else m5) to cross-phase dispatch (m5)",
+  "starts_receding": "first GT sample >= reference time where hypot(x,y) exceeds its value at the last sample <= reference time by more than 0.05 m; common_ref = first recede dispatch (used for who moved first), own_ref = the robot's own recede dispatch",
+  "first_finish": "last GT sample between the first receder's start and the second recede dispatch with speed_mps > 0.03; m5 'resolved status' of the first recede command is also recorded",
+  "overlap": "second receder own_ref start earlier than first receder's last moving sample; no tolerance applied",
+  "wall_to_sim": "dispatch sim times are INFERRED via m5_scene.jsonl (t vs scene stamp) anchored at the 'starting analysis request=' log line vs the artifact snapshot stamp; error about a few tenths of a sim-second; GT start times are exact GT samples",
+  "phase_fallback": "artifacts lacking junction_phases (Oct bundles): phase commands recovered from <request_id>-junction-{recede-<robot>,cross,release} ids in m4/m5 logs",
+  "chi_source": "per_analysis.jsonl chi_order by request_id, cross-checked against frozen scorer chi_pair (summary episodes.jsonl or ib10_score.json) when its artifact matches"
+ },
+ "episodes": [
+  {
+   "bundle": "ib10L_e01_armA_a1",
+   "path": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e01_armA_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "0b9d29392fea4f33ab75ec629abd7a5a",
+   "snapshot_stamp": 30.7,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "plan_legs_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_costs": {
+    "robot_3": 0.978,
+    "robot_4": 0.959
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "m3_default",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "m4_recede_received_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "executed_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_3",
+   "rank0_robot": "robot_4",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/summary/episodes.jsonl",
+    "status": "scored",
+    "success": true,
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "0b9d29392fea4f33ab75ec629abd7a5a.json",
+     "chi_order": [
+      "robot_4",
+      "robot_3"
+     ],
+     "executed_order_correct": true,
+     "executed_pair_correct": true,
+     "executed_recede": [
+      "robot_4",
+      "robot_3"
+     ],
+     "proposed_order_correct": null,
+     "proposed_pair_correct": null,
+     "proposed_recede": null,
+     "provenance": "m3_default",
+     "yielder": "robot_1"
+    },
+    "t0_sec": 18.0,
+    "gt_min_pairwise_m": 0.316,
+    "gt_min_pairwise_at_sec": 28.2,
+    "gt_min_pairwise_pair": "robot_1+robot_3"
+   },
+   "frozen_scorer_chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_4",
+    "robot_3"
+   ],
+   "t0_sec": 18.0,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 145.0,
+    "robot_2": 93.8,
+    "robot_3": 130.8,
+    "robot_4": 114.3
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.316,
+    "t": 28.2,
+    "pair": "robot_1+robot_3"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 32.878,
+    "end": 52.871,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3164,
+    "t": 43.8,
+    "pair": "robot_1+robot_3"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3164,
+    "t": 32.8,
+    "pair": "robot_1+robot_3"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3164,
+    "t": 43.8,
+    "pair": "robot_1+robot_3"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_4": {
+     "own_dispatch_sim": 32.878,
+     "common_ref": {
+      "ref_t": 32.878,
+      "start_t": 33.5,
+      "ref_radius_m": 0.2372,
+      "first_speed_gt_0p03_t": 32.9
+     },
+     "own_ref": {
+      "ref_t": 32.878,
+      "start_t": 33.5,
+      "ref_radius_m": 0.2372,
+      "first_speed_gt_0p03_t": 32.9
+     }
+    },
+    "robot_3": {
+     "own_dispatch_sim": 43.628,
+     "common_ref": {
+      "ref_t": 32.878,
+      "start_t": 44.5,
+      "ref_radius_m": 0.2231,
+      "first_speed_gt_0p03_t": 43.9
+     },
+     "own_ref": {
+      "ref_t": 43.628,
+      "start_t": 44.5,
+      "ref_radius_m": 0.2231,
+      "first_speed_gt_0p03_t": 43.9
+     }
+    }
+   },
+   "gt_first_mover": "robot_4",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.87,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 43.5,
+   "first_recede_m5_resolved_sim": 43.631,
+   "second_own_ref_start_t": 44.5,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.62,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10L_e01_armA_a2",
+   "path": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e01_armA_a2",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "d9374445f5ff44a0bed6b762da0b2a13",
+   "snapshot_stamp": 30.5,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "plan_legs_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_costs": {
+    "robot_3": 0.96,
+    "robot_4": 0.929
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "repaired",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "m4_recede_received_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "executed_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_3",
+   "rank0_robot": "robot_4",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/summary/episodes.jsonl",
+    "status": "scored",
+    "success": true,
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "d9374445f5ff44a0bed6b762da0b2a13.json",
+     "chi_order": [
+      "robot_4",
+      "robot_3"
+     ],
+     "executed_order_correct": true,
+     "executed_pair_correct": true,
+     "executed_recede": [
+      "robot_4",
+      "robot_3"
+     ],
+     "proposed_order_correct": false,
+     "proposed_pair_correct": false,
+     "proposed_recede": [
+      "robot_2",
+      "robot_3",
+      "robot_4"
+     ],
+     "provenance": "repaired",
+     "yielder": "robot_1"
+    },
+    "t0_sec": 17.7,
+    "gt_min_pairwise_m": 0.3109,
+    "gt_min_pairwise_at_sec": 27.7,
+    "gt_min_pairwise_pair": "robot_2+robot_3"
+   },
+   "frozen_scorer_chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_4",
+    "robot_3"
+   ],
+   "t0_sec": 17.7,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 144.1,
+    "robot_2": 93.0,
+    "robot_3": 129.6,
+    "robot_4": 113.3
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.3109,
+    "t": 27.7,
+    "pair": "robot_2+robot_3"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 32.69,
+    "end": 51.993,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3113,
+    "t": 43.1,
+    "pair": "robot_2+robot_3"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3113,
+    "t": 32.6,
+    "pair": "robot_2+robot_3"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3113,
+    "t": 43.1,
+    "pair": "robot_2+robot_3"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_4": {
+     "own_dispatch_sim": 32.69,
+     "common_ref": {
+      "ref_t": 32.69,
+      "start_t": 33.3,
+      "ref_radius_m": 0.2665,
+      "first_speed_gt_0p03_t": 32.8
+     },
+     "own_ref": {
+      "ref_t": 32.69,
+      "start_t": 33.3,
+      "ref_radius_m": 0.2665,
+      "first_speed_gt_0p03_t": 32.8
+     }
+    },
+    "robot_3": {
+     "own_dispatch_sim": 43.159,
+     "common_ref": {
+      "ref_t": 32.69,
+      "start_t": 43.8,
+      "ref_radius_m": 0.2454,
+      "first_speed_gt_0p03_t": 43.2
+     },
+     "own_ref": {
+      "ref_t": 43.159,
+      "start_t": 43.8,
+      "ref_radius_m": 0.2454,
+      "first_speed_gt_0p03_t": 43.2
+     }
+    }
+   },
+   "gt_first_mover": "robot_4",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.64,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 43.1,
+   "first_recede_m5_resolved_sim": 43.159,
+   "second_own_ref_start_t": 43.8,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.61,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10L_e02_armB_a1",
+   "path": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e02_armB_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 0,
+   "status": "no_four_robot_junction_clear"
+  },
+  {
+   "bundle": "ib10L_e03_armA_a1",
+   "path": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e03_armA_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "6c5406d8a0f94ff6a97f4445803d72a5",
+   "snapshot_stamp": 29.333333333,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "plan_legs_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_costs": {
+    "robot_3": 0.822,
+    "robot_4": 0.973
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "repaired",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "m4_recede_received_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "executed_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_4",
+   "rank0_robot": "robot_3",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/summary/episodes.jsonl",
+    "status": "scored",
+    "success": true,
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "6c5406d8a0f94ff6a97f4445803d72a5.json",
+     "chi_order": [
+      "robot_3",
+      "robot_4"
+     ],
+     "executed_order_correct": true,
+     "executed_pair_correct": true,
+     "executed_recede": [
+      "robot_3",
+      "robot_4"
+     ],
+     "proposed_order_correct": false,
+     "proposed_pair_correct": false,
+     "proposed_recede": [
+      "robot_1",
+      "robot_2"
+     ],
+     "provenance": "repaired",
+     "yielder": "robot_1"
+    },
+    "t0_sec": 16.3,
+    "gt_min_pairwise_m": 0.3079,
+    "gt_min_pairwise_at_sec": 26.5,
+    "gt_min_pairwise_pair": "robot_2+robot_4"
+   },
+   "frozen_scorer_chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_sec": 16.3,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 139.8,
+    "robot_2": 88.2,
+    "robot_3": 109.3,
+    "robot_4": 125.6
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.3079,
+    "t": 26.5,
+    "pair": "robot_2+robot_4"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 31.119,
+    "end": 49.634,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3082,
+    "t": 31.2,
+    "pair": "robot_2+robot_4"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3082,
+    "t": 31.1,
+    "pair": "robot_2+robot_4"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3082,
+    "t": 31.7,
+    "pair": "robot_2+robot_4"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_3": {
+     "own_dispatch_sim": 31.119,
+     "common_ref": {
+      "ref_t": 31.119,
+      "start_t": 31.7,
+      "ref_radius_m": 0.4039,
+      "first_speed_gt_0p03_t": 31.2
+     },
+     "own_ref": {
+      "ref_t": 31.119,
+      "start_t": 31.7,
+      "ref_radius_m": 0.4039,
+      "first_speed_gt_0p03_t": 31.2
+     }
+    },
+    "robot_4": {
+     "own_dispatch_sim": 40.46,
+     "common_ref": {
+      "ref_t": 31.119,
+      "start_t": 40.8,
+      "ref_radius_m": 0.2228,
+      "first_speed_gt_0p03_t": 40.2
+     },
+     "own_ref": {
+      "ref_t": 40.46,
+      "start_t": 41.0,
+      "ref_radius_m": 0.2447,
+      "first_speed_gt_0p03_t": 40.5
+     }
+    }
+   },
+   "gt_first_mover": "robot_3",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.34,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 40.0,
+   "first_recede_m5_resolved_sim": 40.46,
+   "second_own_ref_start_t": 41.0,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.58,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10L_e04_armB_a1",
+   "path": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e04_armB_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 0,
+   "status": "no_four_robot_junction_clear"
+  },
+  {
+   "bundle": "ib10L_e05_armA_a1",
+   "path": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e05_armA_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "a71c50a95e854fdba21a855814dc9a0f",
+   "snapshot_stamp": 31.4,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "plan_legs_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_costs": {
+    "robot_3": 0.95,
+    "robot_4": 0.978
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "repaired",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "m4_recede_received_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "executed_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_4",
+   "rank0_robot": "robot_3",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/summary/episodes.jsonl",
+    "status": "scored",
+    "success": true,
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "a71c50a95e854fdba21a855814dc9a0f.json",
+     "chi_order": [
+      "robot_3",
+      "robot_4"
+     ],
+     "executed_order_correct": true,
+     "executed_pair_correct": true,
+     "executed_recede": [
+      "robot_3",
+      "robot_4"
+     ],
+     "proposed_order_correct": true,
+     "proposed_pair_correct": true,
+     "proposed_recede": [
+      "robot_3",
+      "robot_4"
+     ],
+     "provenance": "repaired",
+     "yielder": "robot_1"
+    },
+    "t0_sec": 18.4,
+    "gt_min_pairwise_m": 0.3007,
+    "gt_min_pairwise_at_sec": 28.6,
+    "gt_min_pairwise_pair": "robot_1+robot_4"
+   },
+   "frozen_scorer_chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_sec": 18.4,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 145.1,
+    "robot_2": 94.2,
+    "robot_3": 114.4,
+    "robot_4": 130.7
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.3007,
+    "t": 28.6,
+    "pair": "robot_1+robot_4"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 33.124,
+    "end": 52.711,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3011,
+    "t": 33.2,
+    "pair": "robot_1+robot_4"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3011,
+    "t": 33.1,
+    "pair": "robot_1+robot_4"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3011,
+    "t": 33.7,
+    "pair": "robot_1+robot_4"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_3": {
+     "own_dispatch_sim": 33.124,
+     "common_ref": {
+      "ref_t": 33.124,
+      "start_t": 33.7,
+      "ref_radius_m": 0.2492,
+      "first_speed_gt_0p03_t": 33.2
+     },
+     "own_ref": {
+      "ref_t": 33.124,
+      "start_t": 33.7,
+      "ref_radius_m": 0.2492,
+      "first_speed_gt_0p03_t": 33.2
+     }
+    },
+    "robot_4": {
+     "own_dispatch_sim": 43.774,
+     "common_ref": {
+      "ref_t": 33.124,
+      "start_t": 44.5,
+      "ref_radius_m": 0.2184,
+      "first_speed_gt_0p03_t": 43.9
+     },
+     "own_ref": {
+      "ref_t": 43.774,
+      "start_t": 44.5,
+      "ref_radius_m": 0.2184,
+      "first_speed_gt_0p03_t": 43.9
+     }
+    }
+   },
+   "gt_first_mover": "robot_3",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.73,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 43.7,
+   "first_recede_m5_resolved_sim": 43.775,
+   "second_own_ref_start_t": 44.5,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.58,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10L_e06_armB_a1",
+   "path": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e06_armB_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 0,
+   "status": "no_four_robot_junction_clear"
+  },
+  {
+   "bundle": "ib10L_e07_armA_a1",
+   "path": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e07_armA_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "d7da0457f6a747b1986fd87b690fa01b",
+   "snapshot_stamp": 30.6,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "plan_legs_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_costs": {
+    "robot_3": 0.962,
+    "robot_4": 0.932
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "repaired",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "m4_recede_received_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "executed_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_3",
+   "rank0_robot": "robot_4",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/summary/episodes.jsonl",
+    "status": "scored",
+    "success": true,
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "d7da0457f6a747b1986fd87b690fa01b.json",
+     "chi_order": [
+      "robot_4",
+      "robot_3"
+     ],
+     "executed_order_correct": true,
+     "executed_pair_correct": true,
+     "executed_recede": [
+      "robot_4",
+      "robot_3"
+     ],
+     "proposed_order_correct": false,
+     "proposed_pair_correct": false,
+     "proposed_recede": [
+      "robot_2",
+      "robot_3",
+      "robot_4"
+     ],
+     "provenance": "repaired",
+     "yielder": "robot_1"
+    },
+    "t0_sec": 18.0,
+    "gt_min_pairwise_m": 0.3382,
+    "gt_min_pairwise_at_sec": 28.1,
+    "gt_min_pairwise_pair": "robot_2+robot_3"
+   },
+   "frozen_scorer_chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_4",
+    "robot_3"
+   ],
+   "t0_sec": 18.0,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 143.6,
+    "robot_2": 92.4,
+    "robot_3": 129.3,
+    "robot_4": 112.8
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.3382,
+    "t": 28.1,
+    "pair": "robot_2+robot_3"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 32.514,
+    "end": 51.74,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3386,
+    "t": 32.6,
+    "pair": "robot_2+robot_3"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3386,
+    "t": 32.5,
+    "pair": "robot_2+robot_3"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3386,
+    "t": 33.4,
+    "pair": "robot_2+robot_3"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_4": {
+     "own_dispatch_sim": 32.514,
+     "common_ref": {
+      "ref_t": 32.514,
+      "start_t": 33.4,
+      "ref_radius_m": 0.2636,
+      "first_speed_gt_0p03_t": 32.8
+     },
+     "own_ref": {
+      "ref_t": 32.514,
+      "start_t": 33.4,
+      "ref_radius_m": 0.2636,
+      "first_speed_gt_0p03_t": 32.8
+     }
+    },
+    "robot_3": {
+     "own_dispatch_sim": 43.197,
+     "common_ref": {
+      "ref_t": 32.514,
+      "start_t": 43.8,
+      "ref_radius_m": 0.2384,
+      "first_speed_gt_0p03_t": 43.2
+     },
+     "own_ref": {
+      "ref_t": 43.197,
+      "start_t": 43.8,
+      "ref_radius_m": 0.2384,
+      "first_speed_gt_0p03_t": 43.2
+     }
+    }
+   },
+   "gt_first_mover": "robot_4",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.6,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 43.1,
+   "first_recede_m5_resolved_sim": 43.2,
+   "second_own_ref_start_t": 43.8,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.89,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10L_e08_armB_a1",
+   "path": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e08_armB_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 0,
+   "status": "no_four_robot_junction_clear"
+  },
+  {
+   "bundle": "ib10L_e09_armA_a1",
+   "path": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e09_armA_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 2,
+   "request_id": "a73d6e0351d74f42bf8e0cb85e0c6a20",
+   "snapshot_stamp": 108.033333333,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_4"
+   ],
+   "plan_legs_recede_order": [
+    "robot_4"
+   ],
+   "chi_order": [
+    "robot_4"
+   ],
+   "chi_costs": {
+    "robot_4": 0.834
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "m3_default",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_4"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_4"
+   ],
+   "m4_recede_received_order": [
+    "robot_4"
+   ],
+   "executed_recede_order": [
+    "robot_4"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/summary/episodes.jsonl",
+    "status": "scored",
+    "success": false,
+    "resolved_frozen": false,
+    "all_arrived": false,
+    "frozen_chi_pair": {
+     "artifact": "a73d6e0351d74f42bf8e0cb85e0c6a20.json",
+     "chi_order": [
+      "robot_3",
+      "robot_4"
+     ],
+     "executed_order_correct": false,
+     "executed_pair_correct": false,
+     "executed_recede": [
+      "robot_4"
+     ],
+     "proposed_order_correct": false,
+     "proposed_pair_correct": false,
+     "proposed_recede": [
+      "robot_4"
+     ],
+     "provenance": "m3_default",
+     "yielder": null
+    },
+    "t0_sec": 17.6,
+    "gt_min_pairwise_m": 0.2633,
+    "gt_min_pairwise_at_sec": 295.5,
+    "gt_min_pairwise_pair": "robot_1+robot_2"
+   },
+   "frozen_scorer_chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order_matches_frozen_scorer": false,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_4"
+   ],
+   "t0_sec": 17.6,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": null,
+    "robot_2": null,
+    "robot_3": null,
+    "robot_4": null
+   },
+   "resolved_all_four_arrived": false,
+   "episode_min_pairwise": {
+    "min_m": 0.2633,
+    "t": 295.5,
+    "pair": "robot_1+robot_2"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 110.775,
+    "end": 120.465,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3732,
+    "t": 112.9,
+    "pair": "robot_1+robot_4"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3939,
+    "t": 110.7,
+    "pair": "robot_1+robot_4"
+   },
+   "window_min_minus_standing_jam_min_m": -0.0207,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3732,
+    "t": 112.9,
+    "pair": "robot_1+robot_4"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_4": {
+     "own_dispatch_sim": 110.775,
+     "common_ref": {
+      "ref_t": 110.775,
+      "start_t": 111.4,
+      "ref_radius_m": 0.3612,
+      "first_speed_gt_0p03_t": 110.9
+     },
+     "own_ref": {
+      "ref_t": 110.775,
+      "start_t": 111.4,
+      "ref_radius_m": 0.3612,
+      "first_speed_gt_0p03_t": 110.9
+     }
+    }
+   },
+   "gt_first_mover": "robot_4",
+   "gt_first_mover_matches_dispatch_first": true,
+   "start_lag_first_after_dispatch_s": 0.62,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10L_e09_armA_a1",
+   "path": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e09_armA_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 2,
+   "request_id": "ceff5efa8b8b4e8fa74d7c7f323f0a3f",
+   "snapshot_stamp": 244.6,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "plan_legs_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_costs": {
+    "robot_3": 0.774,
+    "robot_4": 0.592
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "m3_default",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "m4_recede_received_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "executed_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_3",
+   "rank0_robot": "robot_4",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/summary/episodes.jsonl",
+    "status": "scored",
+    "success": false,
+    "resolved_frozen": false,
+    "all_arrived": false,
+    "frozen_chi_pair": {
+     "artifact": "a73d6e0351d74f42bf8e0cb85e0c6a20.json",
+     "chi_order": [
+      "robot_3",
+      "robot_4"
+     ],
+     "executed_order_correct": false,
+     "executed_pair_correct": false,
+     "executed_recede": [
+      "robot_4"
+     ],
+     "proposed_order_correct": false,
+     "proposed_pair_correct": false,
+     "proposed_recede": [
+      "robot_4"
+     ],
+     "provenance": "m3_default",
+     "yielder": null
+    },
+    "t0_sec": 17.6,
+    "gt_min_pairwise_m": 0.2633,
+    "gt_min_pairwise_at_sec": 295.5,
+    "gt_min_pairwise_pair": "robot_1+robot_2"
+   },
+   "t0_sec": 17.6,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": null,
+    "robot_2": null,
+    "robot_3": null,
+    "robot_4": null
+   },
+   "resolved_all_four_arrived": false,
+   "episode_min_pairwise": {
+    "min_m": 0.2633,
+    "t": 295.5,
+    "pair": "robot_1+robot_2"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 246.749,
+    "end": 259.979,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3922,
+    "t": 259.7,
+    "pair": "robot_1+robot_2"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3922,
+    "t": 246.7,
+    "pair": "robot_1+robot_2"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3922,
+    "t": 259.7,
+    "pair": "robot_1+robot_2"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_4": {
+     "own_dispatch_sim": 246.749,
+     "common_ref": {
+      "ref_t": 246.749,
+      "start_t": 247.3,
+      "ref_radius_m": 0.6172,
+      "first_speed_gt_0p03_t": 246.8
+     },
+     "own_ref": {
+      "ref_t": 246.749,
+      "start_t": 247.3,
+      "ref_radius_m": 0.6172,
+      "first_speed_gt_0p03_t": 246.8
+     }
+    },
+    "robot_3": {
+     "own_dispatch_sim": 253.46,
+     "common_ref": {
+      "ref_t": 246.749,
+      "start_t": 253.7,
+      "ref_radius_m": 0.4256,
+      "first_speed_gt_0p03_t": 253.2
+     },
+     "own_ref": {
+      "ref_t": 253.46,
+      "start_t": 254.0,
+      "ref_radius_m": 0.4485,
+      "first_speed_gt_0p03_t": 253.5
+     }
+    }
+   },
+   "gt_first_mover": "robot_4",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.24,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 253.1,
+   "first_recede_m5_resolved_sim": 253.462,
+   "second_own_ref_start_t": 254.0,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.55,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10L_e10_armB_a1",
+   "path": "vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/ib10L_e10_armB_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 0,
+   "status": "no_four_robot_junction_clear"
+  },
+  {
+   "bundle": "ib10S_e01_armA_a1",
+   "path": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e01_armA_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "bfaef39fa2c04188815fcd29e587a90c",
+   "snapshot_stamp": 31.7,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "plan_legs_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_costs": {
+    "robot_3": 0.856,
+    "robot_4": 0.952
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "repaired",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "m4_recede_received_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "executed_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": false,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_4",
+   "rank0_robot": "robot_3",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/summary_rerun/episodes.jsonl",
+    "status": "scored",
+    "success": true,
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "bfaef39fa2c04188815fcd29e587a90c.json",
+     "chi_order": [
+      "robot_3",
+      "robot_4"
+     ],
+     "executed_order_correct": false,
+     "executed_pair_correct": true,
+     "executed_recede": [
+      "robot_4",
+      "robot_3"
+     ],
+     "proposed_order_correct": false,
+     "proposed_pair_correct": false,
+     "proposed_recede": [
+      "robot_1",
+      "robot_3",
+      "robot_4"
+     ],
+     "provenance": "repaired",
+     "yielder": "robot_1"
+    },
+    "t0_sec": 18.7,
+    "gt_min_pairwise_m": 0.3008,
+    "gt_min_pairwise_at_sec": 109.6,
+    "gt_min_pairwise_pair": "robot_3+robot_4"
+   },
+   "frozen_scorer_chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_4",
+    "robot_3"
+   ],
+   "t0_sec": 18.7,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 143.3,
+    "robot_2": 91.8,
+    "robot_3": 112.2,
+    "robot_4": 128.8
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.3008,
+    "t": 109.6,
+    "pair": "robot_3+robot_4"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 33.407,
+    "end": 51.465,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3227,
+    "t": 43.0,
+    "pair": "robot_2+robot_4"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3227,
+    "t": 33.4,
+    "pair": "robot_2+robot_4"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3227,
+    "t": 43.0,
+    "pair": "robot_2+robot_4"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_3": {
+     "own_dispatch_sim": 33.407,
+     "common_ref": {
+      "ref_t": 33.407,
+      "start_t": 34.0,
+      "ref_radius_m": 0.3615,
+      "first_speed_gt_0p03_t": 33.5
+     },
+     "own_ref": {
+      "ref_t": 33.407,
+      "start_t": 34.0,
+      "ref_radius_m": 0.3615,
+      "first_speed_gt_0p03_t": 33.5
+     }
+    },
+    "robot_4": {
+     "own_dispatch_sim": 42.935,
+     "common_ref": {
+      "ref_t": 33.407,
+      "start_t": 43.7,
+      "ref_radius_m": 0.2433,
+      "first_speed_gt_0p03_t": 43.1
+     },
+     "own_ref": {
+      "ref_t": 42.935,
+      "start_t": 43.7,
+      "ref_radius_m": 0.2433,
+      "first_speed_gt_0p03_t": 43.1
+     }
+    }
+   },
+   "gt_first_mover": "robot_3",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.77,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 42.7,
+   "first_recede_m5_resolved_sim": 42.936,
+   "second_own_ref_start_t": 43.7,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.59,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10S_e02_armC_a2",
+   "path": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e02_armC_a2",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "4edbbfa0017b4e15895624ddd2a1eb26",
+   "snapshot_stamp": 34.133333333,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "plan_legs_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_costs": {
+    "robot_3": 0.925,
+    "robot_4": 0.928
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "m3_default",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "m4_recede_received_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "executed_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_4",
+   "rank0_robot": "robot_3",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/summary_rerun/episodes.jsonl",
+    "status": "scored",
+    "success": true,
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "4edbbfa0017b4e15895624ddd2a1eb26.json",
+     "chi_order": [
+      "robot_3",
+      "robot_4"
+     ],
+     "executed_order_correct": true,
+     "executed_pair_correct": true,
+     "executed_recede": [
+      "robot_3",
+      "robot_4"
+     ],
+     "proposed_order_correct": null,
+     "proposed_pair_correct": null,
+     "proposed_recede": null,
+     "provenance": "m3_default",
+     "yielder": "robot_1"
+    },
+    "t0_sec": 17.0,
+    "gt_min_pairwise_m": 0.306,
+    "gt_min_pairwise_at_sec": 27.5,
+    "gt_min_pairwise_pair": "robot_1+robot_4"
+   },
+   "frozen_scorer_chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_sec": 17.0,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 145.6,
+    "robot_2": 94.8,
+    "robot_3": 115.2,
+    "robot_4": 131.4
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.306,
+    "t": 27.5,
+    "pair": "robot_1+robot_4"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 34.351,
+    "end": 52.827,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3063,
+    "t": 34.4,
+    "pair": "robot_1+robot_4"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3063,
+    "t": 34.3,
+    "pair": "robot_1+robot_4"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3063,
+    "t": 34.9,
+    "pair": "robot_1+robot_4"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_3": {
+     "own_dispatch_sim": 34.351,
+     "common_ref": {
+      "ref_t": 34.351,
+      "start_t": 34.9,
+      "ref_radius_m": 0.3063,
+      "first_speed_gt_0p03_t": 34.4
+     },
+     "own_ref": {
+      "ref_t": 34.351,
+      "start_t": 34.9,
+      "ref_radius_m": 0.3063,
+      "first_speed_gt_0p03_t": 34.4
+     }
+    },
+    "robot_4": {
+     "own_dispatch_sim": 44.438,
+     "common_ref": {
+      "ref_t": 34.351,
+      "start_t": 45.1,
+      "ref_radius_m": 0.2676,
+      "first_speed_gt_0p03_t": 44.6
+     },
+     "own_ref": {
+      "ref_t": 44.438,
+      "start_t": 45.1,
+      "ref_radius_m": 0.2676,
+      "first_speed_gt_0p03_t": 44.6
+     }
+    }
+   },
+   "gt_first_mover": "robot_3",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.66,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 44.2,
+   "first_recede_m5_resolved_sim": 44.44,
+   "second_own_ref_start_t": 45.1,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.55,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10S_e03_armA_a1",
+   "path": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e03_armA_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "18c2a25e8e434b808f050116de741892",
+   "snapshot_stamp": 30.0,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "plan_legs_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_costs": {
+    "robot_3": 0.98,
+    "robot_4": 0.973
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "m3_default",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "m4_recede_received_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "executed_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_3",
+   "rank0_robot": "robot_4",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/summary_rerun/episodes.jsonl",
+    "status": "scored",
+    "success": true,
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "18c2a25e8e434b808f050116de741892.json",
+     "chi_order": [
+      "robot_4",
+      "robot_3"
+     ],
+     "executed_order_correct": true,
+     "executed_pair_correct": true,
+     "executed_recede": [
+      "robot_4",
+      "robot_3"
+     ],
+     "proposed_order_correct": null,
+     "proposed_pair_correct": null,
+     "proposed_recede": null,
+     "provenance": "m3_default",
+     "yielder": "robot_1"
+    },
+    "t0_sec": 17.2,
+    "gt_min_pairwise_m": 0.321,
+    "gt_min_pairwise_at_sec": 27.3,
+    "gt_min_pairwise_pair": "robot_2+robot_4"
+   },
+   "frozen_scorer_chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_4",
+    "robot_3"
+   ],
+   "t0_sec": 17.2,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 143.0,
+    "robot_2": 91.8,
+    "robot_3": 128.6,
+    "robot_4": 112.2
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.321,
+    "t": 27.3,
+    "pair": "robot_2+robot_4"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 31.976,
+    "end": 51.626,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3237,
+    "t": 32.6,
+    "pair": "robot_2+robot_3"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3238,
+    "t": 31.9,
+    "pair": "robot_2+robot_3"
+   },
+   "window_min_minus_standing_jam_min_m": -0.0001,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3237,
+    "t": 32.6,
+    "pair": "robot_2+robot_3"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_4": {
+     "own_dispatch_sim": 31.976,
+     "common_ref": {
+      "ref_t": 31.976,
+      "start_t": 32.5,
+      "ref_radius_m": 0.2523,
+      "first_speed_gt_0p03_t": 32.0
+     },
+     "own_ref": {
+      "ref_t": 31.976,
+      "start_t": 32.5,
+      "ref_radius_m": 0.2523,
+      "first_speed_gt_0p03_t": 32.0
+     }
+    },
+    "robot_3": {
+     "own_dispatch_sim": 42.674,
+     "common_ref": {
+      "ref_t": 31.976,
+      "start_t": 43.2,
+      "ref_radius_m": 0.2217,
+      "first_speed_gt_0p03_t": 42.6
+     },
+     "own_ref": {
+      "ref_t": 42.674,
+      "start_t": 43.2,
+      "ref_radius_m": 0.2262,
+      "first_speed_gt_0p03_t": 42.7
+     }
+    }
+   },
+   "gt_first_mover": "robot_4",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.53,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 42.4,
+   "first_recede_m5_resolved_sim": 42.676,
+   "second_own_ref_start_t": 43.2,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.52,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10S_e04_armC_a1",
+   "path": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e04_armC_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "162362ef5dec4025b421b59ab7961180",
+   "snapshot_stamp": 33.299999999,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "plan_legs_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_costs": {
+    "robot_3": 0.965,
+    "robot_4": 0.958
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "m3_default",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "m4_recede_received_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "executed_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_3",
+   "rank0_robot": "robot_4",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/summary_rerun/episodes.jsonl",
+    "status": "scored",
+    "success": true,
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "162362ef5dec4025b421b59ab7961180.json",
+     "chi_order": [
+      "robot_4",
+      "robot_3"
+     ],
+     "executed_order_correct": true,
+     "executed_pair_correct": true,
+     "executed_recede": [
+      "robot_4",
+      "robot_3"
+     ],
+     "proposed_order_correct": null,
+     "proposed_pair_correct": null,
+     "proposed_recede": null,
+     "provenance": "m3_default",
+     "yielder": "robot_1"
+    },
+    "t0_sec": 16.9,
+    "gt_min_pairwise_m": 0.3151,
+    "gt_min_pairwise_at_sec": 27.0,
+    "gt_min_pairwise_pair": "robot_2+robot_3"
+   },
+   "frozen_scorer_chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_4",
+    "robot_3"
+   ],
+   "t0_sec": 16.9,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 145.5,
+    "robot_2": 94.2,
+    "robot_3": 131.2,
+    "robot_4": 114.6
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.3151,
+    "t": 27.0,
+    "pair": "robot_2+robot_3"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 33.405,
+    "end": 52.775,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3155,
+    "t": 43.9,
+    "pair": "robot_2+robot_3"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3155,
+    "t": 33.4,
+    "pair": "robot_2+robot_3"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3155,
+    "t": 43.9,
+    "pair": "robot_2+robot_3"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_4": {
+     "own_dispatch_sim": 33.405,
+     "common_ref": {
+      "ref_t": 33.405,
+      "start_t": 34.0,
+      "ref_radius_m": 0.2603,
+      "first_speed_gt_0p03_t": 33.5
+     },
+     "own_ref": {
+      "ref_t": 33.405,
+      "start_t": 34.0,
+      "ref_radius_m": 0.2603,
+      "first_speed_gt_0p03_t": 33.5
+     }
+    },
+    "robot_3": {
+     "own_dispatch_sim": 43.925,
+     "common_ref": {
+      "ref_t": 33.405,
+      "start_t": 44.5,
+      "ref_radius_m": 0.2372,
+      "first_speed_gt_0p03_t": 44.0
+     },
+     "own_ref": {
+      "ref_t": 43.925,
+      "start_t": 44.5,
+      "ref_radius_m": 0.2372,
+      "first_speed_gt_0p03_t": 44.0
+     }
+    }
+   },
+   "gt_first_mover": "robot_4",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.58,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 43.8,
+   "first_recede_m5_resolved_sim": 43.926,
+   "second_own_ref_start_t": 44.5,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.59,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10S_e05_armA_a1",
+   "path": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e05_armA_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "580328a55b5b465bbb191fae3730cea8",
+   "snapshot_stamp": 30.966666666000002,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "plan_legs_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_costs": {
+    "robot_3": 0.97,
+    "robot_4": 0.958
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "repaired",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "m4_recede_received_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "executed_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": false,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_3",
+   "rank0_robot": "robot_4",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/summary_rerun/episodes.jsonl",
+    "status": "scored",
+    "success": true,
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "580328a55b5b465bbb191fae3730cea8.json",
+     "chi_order": [
+      "robot_4",
+      "robot_3"
+     ],
+     "executed_order_correct": false,
+     "executed_pair_correct": true,
+     "executed_recede": [
+      "robot_3",
+      "robot_4"
+     ],
+     "proposed_order_correct": false,
+     "proposed_pair_correct": false,
+     "proposed_recede": [
+      "robot_1",
+      "robot_2"
+     ],
+     "provenance": "repaired",
+     "yielder": "robot_1"
+    },
+    "t0_sec": 18.0,
+    "gt_min_pairwise_m": 0.3194,
+    "gt_min_pairwise_at_sec": 28.1,
+    "gt_min_pairwise_pair": "robot_2+robot_3"
+   },
+   "frozen_scorer_chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_sec": 18.0,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 145.0,
+    "robot_2": 93.6,
+    "robot_3": 130.7,
+    "robot_4": 114.1
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.3194,
+    "t": 28.1,
+    "pair": "robot_2+robot_3"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 33.168,
+    "end": 52.613,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3197,
+    "t": 33.2,
+    "pair": "robot_2+robot_3"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3197,
+    "t": 33.1,
+    "pair": "robot_2+robot_3"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3197,
+    "t": 33.7,
+    "pair": "robot_2+robot_3"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_4": {
+     "own_dispatch_sim": 33.168,
+     "common_ref": {
+      "ref_t": 33.168,
+      "start_t": 33.7,
+      "ref_radius_m": 0.2689,
+      "first_speed_gt_0p03_t": 33.2
+     },
+     "own_ref": {
+      "ref_t": 33.168,
+      "start_t": 33.7,
+      "ref_radius_m": 0.2689,
+      "first_speed_gt_0p03_t": 33.2
+     }
+    },
+    "robot_3": {
+     "own_dispatch_sim": 43.617,
+     "common_ref": {
+      "ref_t": 33.168,
+      "start_t": 44.3,
+      "ref_radius_m": 0.2313,
+      "first_speed_gt_0p03_t": 43.7
+     },
+     "own_ref": {
+      "ref_t": 43.617,
+      "start_t": 44.3,
+      "ref_radius_m": 0.2313,
+      "first_speed_gt_0p03_t": 43.7
+     }
+    }
+   },
+   "gt_first_mover": "robot_4",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.68,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 43.4,
+   "first_recede_m5_resolved_sim": 43.619,
+   "second_own_ref_start_t": 44.3,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.53,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10S_e06_armC_a1",
+   "path": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e06_armC_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "83b5f75b078243cf9000af7189ddecc0",
+   "snapshot_stamp": 33.6,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "plan_legs_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_costs": {
+    "robot_3": 0.954,
+    "robot_4": 0.943
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "m3_default",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "m4_recede_received_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "executed_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_3",
+   "rank0_robot": "robot_4",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/summary_rerun/episodes.jsonl",
+    "status": "scored",
+    "success": true,
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "83b5f75b078243cf9000af7189ddecc0.json",
+     "chi_order": [
+      "robot_4",
+      "robot_3"
+     ],
+     "executed_order_correct": true,
+     "executed_pair_correct": true,
+     "executed_recede": [
+      "robot_4",
+      "robot_3"
+     ],
+     "proposed_order_correct": null,
+     "proposed_pair_correct": null,
+     "proposed_recede": null,
+     "provenance": "m3_default",
+     "yielder": "robot_1"
+    },
+    "t0_sec": 17.1,
+    "gt_min_pairwise_m": 0.325,
+    "gt_min_pairwise_at_sec": 27.3,
+    "gt_min_pairwise_pair": "robot_2+robot_3"
+   },
+   "frozen_scorer_chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_4",
+    "robot_3"
+   ],
+   "t0_sec": 17.1,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 145.8,
+    "robot_2": 93.6,
+    "robot_3": 130.5,
+    "robot_4": 114.1
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.325,
+    "t": 27.3,
+    "pair": "robot_2+robot_3"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 33.697,
+    "end": 52.723,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3252,
+    "t": 33.7,
+    "pair": "robot_2+robot_3"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3252,
+    "t": 33.6,
+    "pair": "robot_2+robot_3"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3252,
+    "t": 34.2,
+    "pair": "robot_2+robot_3"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_4": {
+     "own_dispatch_sim": 33.697,
+     "common_ref": {
+      "ref_t": 33.697,
+      "start_t": 34.2,
+      "ref_radius_m": 0.2595,
+      "first_speed_gt_0p03_t": 33.7
+     },
+     "own_ref": {
+      "ref_t": 33.697,
+      "start_t": 34.2,
+      "ref_radius_m": 0.2595,
+      "first_speed_gt_0p03_t": 33.7
+     }
+    },
+    "robot_3": {
+     "own_dispatch_sim": 44.155,
+     "common_ref": {
+      "ref_t": 33.697,
+      "start_t": 44.9,
+      "ref_radius_m": 0.2472,
+      "first_speed_gt_0p03_t": 44.3
+     },
+     "own_ref": {
+      "ref_t": 44.155,
+      "start_t": 44.9,
+      "ref_radius_m": 0.2472,
+      "first_speed_gt_0p03_t": 44.3
+     }
+    }
+   },
+   "gt_first_mover": "robot_4",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.74,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 44.0,
+   "first_recede_m5_resolved_sim": 44.157,
+   "second_own_ref_start_t": 44.9,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.5,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10S_e07_armA_a1",
+   "path": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e07_armA_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "1d8cbac7f17b4f8ba9c84e8d31025afd",
+   "snapshot_stamp": 28.833333333,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "plan_legs_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_costs": {
+    "robot_3": 0.973,
+    "robot_4": 0.929
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "repaired",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "m4_recede_received_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "executed_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": false,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_3",
+   "rank0_robot": "robot_4",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/summary_rerun/episodes.jsonl",
+    "status": "scored",
+    "success": true,
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "1d8cbac7f17b4f8ba9c84e8d31025afd.json",
+     "chi_order": [
+      "robot_4",
+      "robot_3"
+     ],
+     "executed_order_correct": false,
+     "executed_pair_correct": true,
+     "executed_recede": [
+      "robot_3",
+      "robot_4"
+     ],
+     "proposed_order_correct": false,
+     "proposed_pair_correct": false,
+     "proposed_recede": [
+      "robot_1"
+     ],
+     "provenance": "repaired",
+     "yielder": "robot_1"
+    },
+    "t0_sec": 15.9,
+    "gt_min_pairwise_m": 0.3082,
+    "gt_min_pairwise_at_sec": 26.1,
+    "gt_min_pairwise_pair": "robot_2+robot_3"
+   },
+   "frozen_scorer_chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_sec": 15.9,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 142.2,
+    "robot_2": 90.9,
+    "robot_3": 127.9,
+    "robot_4": 111.4
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.3082,
+    "t": 26.1,
+    "pair": "robot_2+robot_3"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 30.951,
+    "end": 49.892,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3085,
+    "t": 41.1,
+    "pair": "robot_2+robot_3"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3085,
+    "t": 30.9,
+    "pair": "robot_2+robot_3"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3085,
+    "t": 41.1,
+    "pair": "robot_2+robot_3"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_4": {
+     "own_dispatch_sim": 30.951,
+     "common_ref": {
+      "ref_t": 30.951,
+      "start_t": 31.5,
+      "ref_radius_m": 0.2903,
+      "first_speed_gt_0p03_t": 31.0
+     },
+     "own_ref": {
+      "ref_t": 30.951,
+      "start_t": 31.5,
+      "ref_radius_m": 0.2903,
+      "first_speed_gt_0p03_t": 31.0
+     }
+    },
+    "robot_3": {
+     "own_dispatch_sim": 41.045,
+     "common_ref": {
+      "ref_t": 30.951,
+      "start_t": 41.8,
+      "ref_radius_m": 0.2288,
+      "first_speed_gt_0p03_t": 41.2
+     },
+     "own_ref": {
+      "ref_t": 41.045,
+      "start_t": 41.8,
+      "ref_radius_m": 0.2288,
+      "first_speed_gt_0p03_t": 41.2
+     }
+    }
+   },
+   "gt_first_mover": "robot_4",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.75,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 41.0,
+   "first_recede_m5_resolved_sim": 41.047,
+   "second_own_ref_start_t": 41.8,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.55,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10S_e08_armC_a1",
+   "path": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e08_armC_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "a59d90dacb5c426b92ffcda91999fd7e",
+   "snapshot_stamp": 34.8,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "plan_legs_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_costs": {
+    "robot_3": 0.85,
+    "robot_4": 0.893
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "m3_default",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "m4_recede_received_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "executed_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_4",
+   "rank0_robot": "robot_3",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/summary_rerun/episodes.jsonl",
+    "status": "scored",
+    "success": true,
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "a59d90dacb5c426b92ffcda91999fd7e.json",
+     "chi_order": [
+      "robot_3",
+      "robot_4"
+     ],
+     "executed_order_correct": true,
+     "executed_pair_correct": true,
+     "executed_recede": [
+      "robot_3",
+      "robot_4"
+     ],
+     "proposed_order_correct": null,
+     "proposed_pair_correct": null,
+     "proposed_recede": null,
+     "provenance": "m3_default",
+     "yielder": "robot_1"
+    },
+    "t0_sec": 18.5,
+    "gt_min_pairwise_m": 0.3671,
+    "gt_min_pairwise_at_sec": 28.6,
+    "gt_min_pairwise_pair": "robot_2+robot_4"
+   },
+   "frozen_scorer_chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_sec": 18.5,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 144.5,
+    "robot_2": 93.3,
+    "robot_3": 113.8,
+    "robot_4": 130.0
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.3671,
+    "t": 28.6,
+    "pair": "robot_2+robot_4"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 34.891,
+    "end": 51.929,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3673,
+    "t": 44.1,
+    "pair": "robot_2+robot_4"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3673,
+    "t": 34.8,
+    "pair": "robot_2+robot_4"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3673,
+    "t": 44.1,
+    "pair": "robot_2+robot_4"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_3": {
+     "own_dispatch_sim": 34.891,
+     "common_ref": {
+      "ref_t": 34.891,
+      "start_t": 35.4,
+      "ref_radius_m": 0.3651,
+      "first_speed_gt_0p03_t": 34.9
+     },
+     "own_ref": {
+      "ref_t": 34.891,
+      "start_t": 35.4,
+      "ref_radius_m": 0.3651,
+      "first_speed_gt_0p03_t": 34.9
+     }
+    },
+    "robot_4": {
+     "own_dispatch_sim": 44.166,
+     "common_ref": {
+      "ref_t": 34.891,
+      "start_t": 44.8,
+      "ref_radius_m": 0.3027,
+      "first_speed_gt_0p03_t": 44.2
+     },
+     "own_ref": {
+      "ref_t": 44.166,
+      "start_t": 44.8,
+      "ref_radius_m": 0.3027,
+      "first_speed_gt_0p03_t": 44.2
+     }
+    }
+   },
+   "gt_first_mover": "robot_3",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.63,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 44.1,
+   "first_recede_m5_resolved_sim": 44.167,
+   "second_own_ref_start_t": 44.8,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.51,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10S_e09_armA_a1",
+   "path": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e09_armA_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "3f26b4c88d824ff0a5232d4431630f9e",
+   "snapshot_stamp": 32.166666665,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "plan_legs_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_costs": {
+    "robot_3": 0.9,
+    "robot_4": 0.88
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "repaired",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "m4_recede_received_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "executed_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_3",
+   "rank0_robot": "robot_4",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/summary_rerun/episodes.jsonl",
+    "status": "scored",
+    "success": true,
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "3f26b4c88d824ff0a5232d4431630f9e.json",
+     "chi_order": [
+      "robot_4",
+      "robot_3"
+     ],
+     "executed_order_correct": true,
+     "executed_pair_correct": true,
+     "executed_recede": [
+      "robot_4",
+      "robot_3"
+     ],
+     "proposed_order_correct": false,
+     "proposed_pair_correct": false,
+     "proposed_recede": [
+      "robot_4",
+      "robot_3",
+      "robot_2"
+     ],
+     "provenance": "repaired",
+     "yielder": "robot_1"
+    },
+    "t0_sec": 18.7,
+    "gt_min_pairwise_m": 0.3365,
+    "gt_min_pairwise_at_sec": 29.4,
+    "gt_min_pairwise_pair": "robot_1+robot_3"
+   },
+   "frozen_scorer_chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_4",
+    "robot_3"
+   ],
+   "t0_sec": 18.7,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 146.0,
+    "robot_2": 94.7,
+    "robot_3": 131.9,
+    "robot_4": 115.2
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.3365,
+    "t": 29.4,
+    "pair": "robot_1+robot_3"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 34.123,
+    "end": 52.055,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3368,
+    "t": 44.1,
+    "pair": "robot_1+robot_3"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3368,
+    "t": 34.1,
+    "pair": "robot_1+robot_3"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3368,
+    "t": 44.1,
+    "pair": "robot_1+robot_3"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_4": {
+     "own_dispatch_sim": 34.123,
+     "common_ref": {
+      "ref_t": 34.123,
+      "start_t": 34.8,
+      "ref_radius_m": 0.3152,
+      "first_speed_gt_0p03_t": 34.2
+     },
+     "own_ref": {
+      "ref_t": 34.123,
+      "start_t": 34.8,
+      "ref_radius_m": 0.3152,
+      "first_speed_gt_0p03_t": 34.2
+     }
+    },
+    "robot_3": {
+     "own_dispatch_sim": 44.026,
+     "common_ref": {
+      "ref_t": 34.123,
+      "start_t": 44.7,
+      "ref_radius_m": 0.2986,
+      "first_speed_gt_0p03_t": 44.2
+     },
+     "own_ref": {
+      "ref_t": 44.026,
+      "start_t": 44.7,
+      "ref_radius_m": 0.2986,
+      "first_speed_gt_0p03_t": 44.2
+     }
+    }
+   },
+   "gt_first_mover": "robot_4",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.67,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 44.0,
+   "first_recede_m5_resolved_sim": 44.027,
+   "second_own_ref_start_t": 44.7,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.68,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10S_e10_armC_a1",
+   "path": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/runs/ib10S_e10_armC_a1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "5a46e51a80964051ba76b84846d3d56b",
+   "snapshot_stamp": 34.133333333,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "plan_legs_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_costs": {
+    "robot_3": 0.967,
+    "robot_4": 0.97
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "m3_default",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "m4_recede_received_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "executed_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_4",
+   "rank0_robot": "robot_3",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v7d/data/logs/vm_runs/ib10_safety/summary_rerun/episodes.jsonl",
+    "status": "scored",
+    "success": true,
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "5a46e51a80964051ba76b84846d3d56b.json",
+     "chi_order": [
+      "robot_3",
+      "robot_4"
+     ],
+     "executed_order_correct": true,
+     "executed_pair_correct": true,
+     "executed_recede": [
+      "robot_3",
+      "robot_4"
+     ],
+     "proposed_order_correct": null,
+     "proposed_pair_correct": null,
+     "proposed_recede": null,
+     "provenance": "m3_default",
+     "yielder": "robot_1"
+    },
+    "t0_sec": 17.7,
+    "gt_min_pairwise_m": 0.2965,
+    "gt_min_pairwise_at_sec": 27.9,
+    "gt_min_pairwise_pair": "robot_2+robot_3"
+   },
+   "frozen_scorer_chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_sec": 17.7,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 146.5,
+    "robot_2": 94.5,
+    "robot_3": 114.9,
+    "robot_4": 131.3
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.2965,
+    "t": 27.9,
+    "pair": "robot_2+robot_3"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 34.132,
+    "end": 53.481,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3159,
+    "t": 34.2,
+    "pair": "robot_2+robot_3"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3084,
+    "t": 34.1,
+    "pair": "robot_2+robot_3"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0075,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3248,
+    "t": 34.7,
+    "pair": "robot_1+robot_4"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_3": {
+     "own_dispatch_sim": 34.132,
+     "common_ref": {
+      "ref_t": 34.132,
+      "start_t": 34.7,
+      "ref_radius_m": 0.2474,
+      "first_speed_gt_0p03_t": 34.2
+     },
+     "own_ref": {
+      "ref_t": 34.132,
+      "start_t": 34.7,
+      "ref_radius_m": 0.2474,
+      "first_speed_gt_0p03_t": 34.2
+     }
+    },
+    "robot_4": {
+     "own_dispatch_sim": 44.721,
+     "common_ref": {
+      "ref_t": 34.132,
+      "start_t": 45.5,
+      "ref_radius_m": 0.227,
+      "first_speed_gt_0p03_t": 44.9
+     },
+     "own_ref": {
+      "ref_t": 44.721,
+      "start_t": 45.5,
+      "ref_radius_m": 0.227,
+      "first_speed_gt_0p03_t": 44.9
+     }
+    }
+   },
+   "gt_first_mover": "robot_3",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.78,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 44.7,
+   "first_recede_m5_resolved_sim": 44.729,
+   "second_own_ref_start_t": 45.5,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.57,
+   "status": "ok"
+  },
+  {
+   "bundle": "vp08_er2_ib10_s42",
+   "path": "vgu-vlm-swarm/data/logs/vm_runs/verbatim_pilot/vp08_er2_ib10_s42",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "8fad1c84d5e142d3a1988984f690e857",
+   "snapshot_stamp": 34.466666666,
+   "artifact_has_junction_phases": false,
+   "phases_recede_order": [],
+   "plan_legs_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_costs": {
+    "robot_3": 0.931,
+    "robot_4": 0.884
+   },
+   "dispatch_order_source": null,
+   "provenance": "repaired",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "m4_recede_received_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "executed_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_3",
+   "rank0_robot": "robot_4",
+   "summary_crosscheck": {},
+   "t0_sec": 21.9,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 211.4,
+    "robot_2": 95.2,
+    "robot_3": 179.6,
+    "robot_4": 144.4
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.2139,
+    "t": 141.3,
+    "pair": "robot_3+robot_4"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 35.552,
+    "end": 54.025,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3822,
+    "t": 45.5,
+    "pair": "robot_1+robot_3"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3822,
+    "t": 35.5,
+    "pair": "robot_1+robot_3"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3822,
+    "t": 45.5,
+    "pair": "robot_1+robot_3"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_4": {
+     "own_dispatch_sim": 35.552,
+     "common_ref": {
+      "ref_t": 35.552,
+      "start_t": 36.2,
+      "ref_radius_m": 0.3126,
+      "first_speed_gt_0p03_t": 35.7
+     },
+     "own_ref": {
+      "ref_t": 35.552,
+      "start_t": 36.2,
+      "ref_radius_m": 0.3126,
+      "first_speed_gt_0p03_t": 35.7
+     }
+    },
+    "robot_3": {
+     "own_dispatch_sim": 45.786,
+     "common_ref": {
+      "ref_t": 35.552,
+      "start_t": 46.2,
+      "ref_radius_m": 0.2698,
+      "first_speed_gt_0p03_t": 45.6
+     },
+     "own_ref": {
+      "ref_t": 45.786,
+      "start_t": 46.3,
+      "ref_radius_m": 0.2834,
+      "first_speed_gt_0p03_t": 45.8
+     }
+    }
+   },
+   "gt_first_mover": "robot_4",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.41,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 45.6,
+   "first_recede_m5_resolved_sim": 45.79,
+   "second_own_ref_start_t": 46.3,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.65,
+   "status": "ok"
+  },
+  {
+   "bundle": "vp09_er2_ib10_s43",
+   "path": "vgu-vlm-swarm/data/logs/vm_runs/verbatim_pilot/vp09_er2_ib10_s43",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "339b08809cb043bfb8144e5f6a318f07",
+   "snapshot_stamp": 34.833333333,
+   "artifact_has_junction_phases": false,
+   "phases_recede_order": [],
+   "plan_legs_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_costs": {
+    "robot_3": 0.982,
+    "robot_4": 0.986
+   },
+   "dispatch_order_source": null,
+   "provenance": "repaired",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "m4_recede_received_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "executed_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_4",
+   "rank0_robot": "robot_3",
+   "summary_crosscheck": {},
+   "t0_sec": 22.0,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 224.2,
+    "robot_2": 97.8,
+    "robot_3": 136.5,
+    "robot_4": 192.7
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.1958,
+    "t": 133.2,
+    "pair": "robot_3+robot_4"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 35.875,
+    "end": 55.492,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3748,
+    "t": 46.7,
+    "pair": "robot_1+robot_4"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3748,
+    "t": 35.8,
+    "pair": "robot_1+robot_4"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3748,
+    "t": 46.7,
+    "pair": "robot_1+robot_4"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_3": {
+     "own_dispatch_sim": 35.875,
+     "common_ref": {
+      "ref_t": 35.875,
+      "start_t": 36.4,
+      "ref_radius_m": 0.2432,
+      "first_speed_gt_0p03_t": 35.9
+     },
+     "own_ref": {
+      "ref_t": 35.875,
+      "start_t": 36.4,
+      "ref_radius_m": 0.2432,
+      "first_speed_gt_0p03_t": 35.9
+     }
+    },
+    "robot_4": {
+     "own_dispatch_sim": 46.519,
+     "common_ref": {
+      "ref_t": 35.875,
+      "start_t": 47.4,
+      "ref_radius_m": 0.2102,
+      "first_speed_gt_0p03_t": 46.8
+     },
+     "own_ref": {
+      "ref_t": 46.519,
+      "start_t": 47.4,
+      "ref_radius_m": 0.2102,
+      "first_speed_gt_0p03_t": 46.8
+     }
+    }
+   },
+   "gt_first_mover": "robot_3",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.88,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 46.5,
+   "first_recede_m5_resolved_sim": 46.521,
+   "second_own_ref_start_t": 47.4,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.53,
+   "status": "ok"
+  },
+  {
+   "bundle": "ep2_live_er2",
+   "path": "vgu-vlm-swarm/data/logs/vm_runs/v2_demo/ep2_live_er2",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "5dfbeb074d304da087ae44ff3012ab25",
+   "snapshot_stamp": 31.9,
+   "artifact_has_junction_phases": false,
+   "phases_recede_order": [],
+   "plan_legs_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_costs": {
+    "robot_3": 0.909,
+    "robot_4": 0.941
+   },
+   "dispatch_order_source": null,
+   "provenance": "m3_default",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "m4_recede_received_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "executed_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_4",
+   "rank0_robot": "robot_3",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm/data/logs/vm_runs/v2_demo/ep2_live_er2/ib10_score.json",
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "5dfbeb074d304da087ae44ff3012ab25.json",
+     "chi_order": [
+      "robot_3",
+      "robot_4"
+     ],
+     "proposed_recede": [],
+     "proposed_pair_correct": false,
+     "proposed_order_correct": false,
+     "executed_recede": [
+      "robot_3",
+      "robot_4"
+     ],
+     "executed_pair_correct": true,
+     "executed_order_correct": true,
+     "provenance": "m3_default",
+     "yielder": "robot_1"
+    }
+   },
+   "frozen_scorer_chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_sec": 19.2,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 219.6,
+    "robot_2": 92.6,
+    "robot_3": 152.3,
+    "robot_4": 186.9
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.327,
+    "t": 29.3,
+    "pair": "robot_2+robot_4"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 32.983,
+    "end": 51.474,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3273,
+    "t": 42.7,
+    "pair": "robot_2+robot_4"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3273,
+    "t": 32.9,
+    "pair": "robot_2+robot_4"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3273,
+    "t": 42.7,
+    "pair": "robot_2+robot_4"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_3": {
+     "own_dispatch_sim": 32.983,
+     "common_ref": {
+      "ref_t": 32.983,
+      "start_t": 33.5,
+      "ref_radius_m": 0.318,
+      "first_speed_gt_0p03_t": 33.0
+     },
+     "own_ref": {
+      "ref_t": 32.983,
+      "start_t": 33.5,
+      "ref_radius_m": 0.318,
+      "first_speed_gt_0p03_t": 33.0
+     }
+    },
+    "robot_4": {
+     "own_dispatch_sim": 43.094,
+     "common_ref": {
+      "ref_t": 32.983,
+      "start_t": 43.4,
+      "ref_radius_m": 0.2542,
+      "first_speed_gt_0p03_t": 42.8
+     },
+     "own_ref": {
+      "ref_t": 43.094,
+      "start_t": 43.6,
+      "ref_radius_m": 0.2735,
+      "first_speed_gt_0p03_t": 43.1
+     }
+    }
+   },
+   "gt_first_mover": "robot_3",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.31,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 42.7,
+   "first_recede_m5_resolved_sim": 43.096,
+   "second_own_ref_start_t": 43.6,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.52,
+   "status": "ok"
+  },
+  {
+   "bundle": "cal_ep1_rerun",
+   "path": "vgu-vlm-swarm/data/logs/vm_runs/plan_grammar_cal/cal_ep1_rerun",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "aec068b528af41bfbb1cf36f74736b0f",
+   "snapshot_stamp": 30.166666666,
+   "artifact_has_junction_phases": false,
+   "phases_recede_order": [],
+   "plan_legs_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_costs": {
+    "robot_3": 0.939,
+    "robot_4": 0.939
+   },
+   "dispatch_order_source": null,
+   "provenance": "repaired",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "m4_recede_received_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "executed_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_4",
+   "rank0_robot": "robot_3",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm/data/logs/vm_runs/plan_grammar_cal/cal_ep1_rerun/ib10_score.json",
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "aec068b528af41bfbb1cf36f74736b0f.json",
+     "chi_order": [
+      "robot_3",
+      "robot_4"
+     ],
+     "proposed_recede": [
+      "robot_1",
+      "robot_2"
+     ],
+     "proposed_pair_correct": false,
+     "proposed_order_correct": false,
+     "executed_recede": [
+      "robot_3",
+      "robot_4"
+     ],
+     "executed_pair_correct": true,
+     "executed_order_correct": true,
+     "provenance": "repaired",
+     "yielder": "robot_1"
+    }
+   },
+   "frozen_scorer_chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_sec": 17.2,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 218.2,
+    "robot_2": 91.1,
+    "robot_3": 151.3,
+    "robot_4": 186.0
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.3029,
+    "t": 27.6,
+    "pair": "robot_2+robot_3"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 31.293,
+    "end": 50.167,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3179,
+    "t": 31.3,
+    "pair": "robot_2+robot_3"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3098,
+    "t": 31.2,
+    "pair": "robot_2+robot_3"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0081,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3318,
+    "t": 41.8,
+    "pair": "robot_1+robot_4"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_3": {
+     "own_dispatch_sim": 31.293,
+     "common_ref": {
+      "ref_t": 31.293,
+      "start_t": 31.8,
+      "ref_radius_m": 0.2696,
+      "first_speed_gt_0p03_t": 31.3
+     },
+     "own_ref": {
+      "ref_t": 31.293,
+      "start_t": 31.8,
+      "ref_radius_m": 0.2696,
+      "first_speed_gt_0p03_t": 31.3
+     }
+    },
+    "robot_4": {
+     "own_dispatch_sim": 41.512,
+     "common_ref": {
+      "ref_t": 31.293,
+      "start_t": 42.4,
+      "ref_radius_m": 0.258,
+      "first_speed_gt_0p03_t": 41.9
+     },
+     "own_ref": {
+      "ref_t": 41.512,
+      "start_t": 42.4,
+      "ref_radius_m": 0.2579,
+      "first_speed_gt_0p03_t": 41.9
+     }
+    }
+   },
+   "gt_first_mover": "robot_3",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.89,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 41.5,
+   "first_recede_m5_resolved_sim": 41.515,
+   "second_own_ref_start_t": 42.4,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.51,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10cl_R_r1",
+   "path": "vgu-vlm-swarm-v3/data/logs/vm_runs/ib10_closure/R/ib10cl_R_r1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "709de42df05c4059b7d7e9f64bd7cfbb",
+   "snapshot_stamp": 39.333333333,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "plan_legs_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_costs": {
+    "robot_3": 0.899,
+    "robot_4": 0.954
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "vlm_verbatim",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "m4_recede_received_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "executed_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": false,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_4",
+   "rank0_robot": "robot_3",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v3/data/logs/vm_runs/ib10_closure/R/ib10cl_R_r1/ib10_score.json",
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "709de42df05c4059b7d7e9f64bd7cfbb.json",
+     "chi_order": [
+      "robot_3",
+      "robot_4"
+     ],
+     "proposed_recede": [
+      "robot_4",
+      "robot_3"
+     ],
+     "proposed_pair_correct": true,
+     "proposed_order_correct": false,
+     "executed_recede": [
+      "robot_4",
+      "robot_3"
+     ],
+     "executed_pair_correct": true,
+     "executed_order_correct": false,
+     "provenance": "vlm_verbatim",
+     "yielder": "robot_1"
+    }
+   },
+   "frozen_scorer_chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_4",
+    "robot_3"
+   ],
+   "t0_sec": 23.7,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 149.5,
+    "robot_2": 98.4,
+    "robot_3": 119.1,
+    "robot_4": 135.2
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.3405,
+    "t": 33.7,
+    "pair": "robot_1+robot_4"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 39.395,
+    "end": 58.145,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3408,
+    "t": 39.4,
+    "pair": "robot_1+robot_4"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3408,
+    "t": 39.3,
+    "pair": "robot_1+robot_4"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3408,
+    "t": 40.0,
+    "pair": "robot_1+robot_4"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_3": {
+     "own_dispatch_sim": 39.395,
+     "common_ref": {
+      "ref_t": 39.395,
+      "start_t": 40.0,
+      "ref_radius_m": 0.3019,
+      "first_speed_gt_0p03_t": 39.4
+     },
+     "own_ref": {
+      "ref_t": 39.395,
+      "start_t": 40.0,
+      "ref_radius_m": 0.3019,
+      "first_speed_gt_0p03_t": 39.4
+     }
+    },
+    "robot_4": {
+     "own_dispatch_sim": 49.449,
+     "common_ref": {
+      "ref_t": 39.395,
+      "start_t": 50.0,
+      "ref_radius_m": 0.2428,
+      "first_speed_gt_0p03_t": 49.5
+     },
+     "own_ref": {
+      "ref_t": 49.449,
+      "start_t": 50.0,
+      "ref_radius_m": 0.2428,
+      "first_speed_gt_0p03_t": 49.5
+     }
+    }
+   },
+   "gt_first_mover": "robot_3",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.55,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 49.4,
+   "first_recede_m5_resolved_sim": 49.451,
+   "second_own_ref_start_t": 50.0,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.6,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10cl_R_r2",
+   "path": "vgu-vlm-swarm-v3/data/logs/vm_runs/ib10_closure/R/ib10cl_R_r2",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "564b1d05ee4c42ac94e96b323bf8c224",
+   "snapshot_stamp": 40.133333333,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "plan_legs_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_costs": {
+    "robot_3": 0.886,
+    "robot_4": 0.87
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "vlm_verbatim",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "m4_recede_received_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "executed_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": true,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_3",
+   "rank0_robot": "robot_4",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v3/data/logs/vm_runs/ib10_closure/R/ib10cl_R_r2/ib10_score.json",
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "564b1d05ee4c42ac94e96b323bf8c224.json",
+     "chi_order": [
+      "robot_4",
+      "robot_3"
+     ],
+     "proposed_recede": [
+      "robot_4",
+      "robot_3"
+     ],
+     "proposed_pair_correct": true,
+     "proposed_order_correct": true,
+     "executed_recede": [
+      "robot_4",
+      "robot_3"
+     ],
+     "executed_pair_correct": true,
+     "executed_order_correct": true,
+     "provenance": "vlm_verbatim",
+     "yielder": "robot_1"
+    }
+   },
+   "frozen_scorer_chi_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_4",
+    "robot_3"
+   ],
+   "t0_sec": 26.0,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 150.1,
+    "robot_2": 97.0,
+    "robot_3": 134.5,
+    "robot_4": 117.1
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.3201,
+    "t": 37.2,
+    "pair": "robot_2+robot_4"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 40.263,
+    "end": 59.109,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.3279,
+    "t": 40.3,
+    "pair": "robot_2+robot_4"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.3204,
+    "t": 40.2,
+    "pair": "robot_2+robot_4"
+   },
+   "window_min_minus_standing_jam_min_m": 0.0075,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.3344,
+    "t": 40.8,
+    "pair": "robot_2+robot_3"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_4": {
+     "own_dispatch_sim": 40.263,
+     "common_ref": {
+      "ref_t": 40.263,
+      "start_t": 40.8,
+      "ref_radius_m": 0.3258,
+      "first_speed_gt_0p03_t": 40.3
+     },
+     "own_ref": {
+      "ref_t": 40.263,
+      "start_t": 40.8,
+      "ref_radius_m": 0.3258,
+      "first_speed_gt_0p03_t": 40.3
+     }
+    },
+    "robot_3": {
+     "own_dispatch_sim": 51.232,
+     "common_ref": {
+      "ref_t": 40.263,
+      "start_t": 51.2,
+      "ref_radius_m": 0.3142,
+      "first_speed_gt_0p03_t": 50.7
+     },
+     "own_ref": {
+      "ref_t": 51.232,
+      "start_t": 51.8,
+      "ref_radius_m": 0.3654,
+      "first_speed_gt_0p03_t": 51.3
+     }
+    }
+   },
+   "gt_first_mover": "robot_4",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": -0.03,
+   "second_started_before_own_dispatch": true,
+   "first_receder_last_moving_t_before_second_dispatch": 50.5,
+   "first_recede_m5_resolved_sim": 51.235,
+   "second_own_ref_start_t": 51.8,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.54,
+   "status": "ok"
+  },
+  {
+   "bundle": "ib10cl_P_r1",
+   "path": "vgu-vlm-swarm-v3/data/logs/vm_runs/ib10_closure/P/ib10cl_P_r1",
+   "has_gt": true,
+   "n_junction_clear_artifacts_in_bundle": 1,
+   "request_id": "70e7d521ca3343d68bad12904115a0af",
+   "snapshot_stamp": 38.8,
+   "artifact_has_junction_phases": true,
+   "phases_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "plan_legs_recede_order": [
+    "robot_4",
+    "robot_3"
+   ],
+   "chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_costs": {
+    "robot_3": 0.874,
+    "robot_4": 0.891
+   },
+   "dispatch_order_source": "chi",
+   "provenance": "vlm_verbatim",
+   "phase_labels_from_logs": [
+    "cross",
+    "recede:robot_3",
+    "recede:robot_4",
+    "release"
+   ],
+   "m5_recede_dispatch_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "m4_recede_received_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "executed_recede_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "order_sources_agree": true,
+   "plan_legs_match_dispatch": false,
+   "executed_matches_chi": true,
+   "rank1_robot": "robot_4",
+   "rank0_robot": "robot_3",
+   "summary_crosscheck": {
+    "source": "vgu-vlm-swarm-v3/data/logs/vm_runs/ib10_closure/P/ib10cl_P_r1/ib10_score.json",
+    "resolved_frozen": true,
+    "all_arrived": true,
+    "frozen_chi_pair": {
+     "artifact": "70e7d521ca3343d68bad12904115a0af.json",
+     "chi_order": [
+      "robot_3",
+      "robot_4"
+     ],
+     "proposed_recede": [
+      "robot_4",
+      "robot_3"
+     ],
+     "proposed_pair_correct": true,
+     "proposed_order_correct": false,
+     "executed_recede": [
+      "robot_4",
+      "robot_3"
+     ],
+     "executed_pair_correct": true,
+     "executed_order_correct": false,
+     "provenance": "vlm_verbatim",
+     "yielder": "robot_1"
+    }
+   },
+   "frozen_scorer_chi_order": [
+    "robot_3",
+    "robot_4"
+   ],
+   "chi_order_matches_frozen_scorer": true,
+   "frozen_scorer_executed_recede_from_plan_legs": [
+    "robot_4",
+    "robot_3"
+   ],
+   "t0_sec": 22.9,
+   "gt_end_sec": 300.0,
+   "arrivals_sec": {
+    "robot_1": 148.7,
+    "robot_2": 97.2,
+    "robot_3": 118.0,
+    "robot_4": 134.4
+   },
+   "resolved_all_four_arrived": true,
+   "episode_min_pairwise": {
+    "min_m": 0.3808,
+    "t": 92.4,
+    "pair": "robot_1+robot_2"
+   },
+   "time_map_ok": true,
+   "recede_window_sim": {
+    "start": 38.978,
+    "end": 57.274,
+    "end_is_cross_dispatch": true
+   },
+   "recede_window_min_pairwise": {
+    "min_m": 0.4065,
+    "t": 56.9,
+    "pair": "robot_1+robot_2"
+   },
+   "recede_window_min_pairwise_includes_standing_jam": true,
+   "min_pairwise_at_last_sample_before_first_dispatch": {
+    "min_m": 0.4084,
+    "t": 38.9,
+    "pair": "robot_2+robot_4"
+   },
+   "window_min_minus_standing_jam_min_m": -0.0019,
+   "recede_window_contacts": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "min_pairwise_from_first_recede_start_to_cross": {
+    "min_m": 0.4065,
+    "t": 56.9,
+    "pair": "robot_1+robot_2"
+   },
+   "episode_contacts_after_t0": {
+    "samples_with_contacts": 0,
+    "first_t": null,
+    "examples": [],
+    "gt_rows_missing_contacts_key": 0,
+    "gt_rows_total": 3001
+   },
+   "recede_starts": {
+    "robot_3": {
+     "own_dispatch_sim": 38.978,
+     "common_ref": {
+      "ref_t": 38.978,
+      "start_t": 39.5,
+      "ref_radius_m": 0.3511,
+      "first_speed_gt_0p03_t": 39.0
+     },
+     "own_ref": {
+      "ref_t": 38.978,
+      "start_t": 39.5,
+      "ref_radius_m": 0.3511,
+      "first_speed_gt_0p03_t": 39.0
+     }
+    },
+    "robot_4": {
+     "own_dispatch_sim": 48.779,
+     "common_ref": {
+      "ref_t": 38.978,
+      "start_t": 49.1,
+      "ref_radius_m": 0.3056,
+      "first_speed_gt_0p03_t": 48.5
+     },
+     "own_ref": {
+      "ref_t": 48.779,
+      "start_t": 49.3,
+      "ref_radius_m": 0.3254,
+      "first_speed_gt_0p03_t": 48.8
+     }
+    }
+   },
+   "gt_first_mover": "robot_3",
+   "gt_first_mover_matches_dispatch_first": true,
+   "rank1_started_before_rank0": false,
+   "second_common_ref_start_minus_own_dispatch_s": 0.32,
+   "second_started_before_own_dispatch": false,
+   "first_receder_last_moving_t_before_second_dispatch": 48.4,
+   "first_recede_m5_resolved_sim": 48.78,
+   "second_own_ref_start_t": 49.3,
+   "overlap_second_started_before_first_finished": false,
+   "start_lag_first_after_dispatch_s": 0.52,
+   "status": "ok"
+  }
+ ],
+ "summary": {
+  "n_records": 29,
+  "n_analysable_dispatches": 24,
+  "n_two_recede_dispatches": 23,
+  "n_bundles_with_two_recede_dispatch": 23,
+  "status_counts": {
+   "no_four_robot_junction_clear": 5,
+   "ok": 24
+  },
+  "n_with_chi_order": 23,
+  "n_rank1_started_after_rank0": 23,
+  "n_rank1_physically_first": 0,
+  "n_executed_order_differs_from_chi": 0,
+  "n_gt_first_mover_differs_from_dispatch_first": 0,
+  "n_order_sources_disagree": 0,
+  "n_plan_legs_differ_from_dispatch": 5,
+  "n_second_common_ref_start_before_own_dispatch": 1,
+  "n_overlap_second_started_before_first_finished": 0,
+  "n_chi_checked_against_frozen_scorer": 21,
+  "n_chi_mismatch_vs_frozen_scorer": 1,
+  "n_gt_contacts_key_missing_rows": 0,
+  "n_recede_window_min_within_0p002_of_standing_jam_min": 23,
+  "by_executed_first_robot": {
+   "robot_3": {
+    "episodes": [
+     "ib10L_e03_armA_a1",
+     "ib10L_e05_armA_a1",
+     "ib10S_e01_armA_a1",
+     "ib10S_e02_armC_a2",
+     "ib10S_e08_armC_a1",
+     "ib10S_e10_armC_a1",
+     "vp09_er2_ib10_s43",
+     "ep2_live_er2",
+     "cal_ep1_rerun",
+     "ib10cl_R_r1",
+     "ib10cl_P_r1"
+    ],
+    "recede_window_min_pairwise_m": {
+     "n": 11,
+     "min": 0.3011,
+     "median": 0.3227,
+     "max": 0.4065,
+     "values": [
+      0.3011,
+      0.3063,
+      0.3082,
+      0.3159,
+      0.3179,
+      0.3227,
+      0.3273,
+      0.3408,
+      0.3673,
+      0.3748,
+      0.4065
+     ]
+    },
+    "episode_min_pairwise_m": {
+     "n": 11,
+     "min": 0.1958,
+     "median": 0.306,
+     "max": 0.3808,
+     "values": [
+      0.1958,
+      0.2965,
+      0.3007,
+      0.3008,
+      0.3029,
+      0.306,
+      0.3079,
+      0.327,
+      0.3405,
+      0.3671,
+      0.3808
+     ]
+    },
+    "n_with_recede_window_contacts": 0,
+    "n_resolved": 11
+   },
+   "robot_4": {
+    "episodes": [
+     "ib10L_e01_armA_a1",
+     "ib10L_e01_armA_a2",
+     "ib10L_e07_armA_a1",
+     "ib10L_e09_armA_a1",
+     "ib10S_e03_armA_a1",
+     "ib10S_e04_armC_a1",
+     "ib10S_e05_armA_a1",
+     "ib10S_e06_armC_a1",
+     "ib10S_e07_armA_a1",
+     "ib10S_e09_armA_a1",
+     "vp08_er2_ib10_s42",
+     "ib10cl_R_r2"
+    ],
+    "recede_window_min_pairwise_m": {
+     "n": 12,
+     "min": 0.3085,
+     "median": 0.3245,
+     "max": 0.3922,
+     "values": [
+      0.3085,
+      0.3113,
+      0.3155,
+      0.3164,
+      0.3197,
+      0.3237,
+      0.3252,
+      0.3279,
+      0.3368,
+      0.3386,
+      0.3822,
+      0.3922
+     ]
+    },
+    "episode_min_pairwise_m": {
+     "n": 12,
+     "min": 0.2139,
+     "median": 0.3177,
+     "max": 0.3382,
+     "values": [
+      0.2139,
+      0.2633,
+      0.3082,
+      0.3109,
+      0.3151,
+      0.316,
+      0.3194,
+      0.3201,
+      0.321,
+      0.325,
+      0.3365,
+      0.3382
+     ]
+    },
+    "n_with_recede_window_contacts": 0,
+    "n_resolved": 11
+   }
+  }
+ }
+}

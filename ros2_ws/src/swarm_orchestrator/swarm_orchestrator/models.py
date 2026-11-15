@@ -511,6 +511,16 @@ class OrchestratorConfig(BaseModel):
     # M3's own audit accepts in the current scene. CONSTRUCT CHANGE: plan
     # metrics under this flag measure constrained selection, not free planning.
     prompt_candidate_options: bool = False
+    # Plan-grammar rules condition (prompt v3.5, 2026-11-15): two generic
+    # sentences in the plan grammar ("each robot exactly once", "a cross leg
+    # after the yield leg that releases it"). Default off = the v3.4 prompt,
+    # byte-identical; recorded as `prompt_conditions.plan_grammar_rules`.
+    prompt_plan_grammar_rules: bool = False
+    # Release-rule sub-condition (prompt v3.6, 2026-11-15): one more grammar
+    # sentence ("a plan with any cross leg must also contain a yield leg listed
+    # before it"). Default off; requires `prompt_plan_grammar_rules`; recorded
+    # as `prompt_conditions.plan_grammar_release_rule`.
+    prompt_plan_grammar_release_rule: bool = False
     # prereg-v3 R3.4 contradiction trigger (closed-loop item); default off.
     contradiction_trigger: ContradictionTriggerConfig = Field(
         default_factory=ContradictionTriggerConfig
@@ -600,6 +610,7 @@ class OrchestratorConfig(BaseModel):
                 "prompt_motion_trails",
                 "prompt_zoom_tile",
                 "prompt_candidate_options",
+                "prompt_plan_grammar_rules",
             )
             if getattr(self, name)
         ]
@@ -608,6 +619,14 @@ class OrchestratorConfig(BaseModel):
                 f"{', '.join(requested)} require plan_channel_enabled (prompt v3); "
                 "the frozen v1/v2 templates render none of them"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _release_rule_needs_grammar_rules(self) -> OrchestratorConfig:
+        # The sentence is appended to the v3.5 rules block; without that block
+        # it would render nowhere and the run would silently be the control.
+        if self.prompt_plan_grammar_release_rule and not self.prompt_plan_grammar_rules:
+            raise ValueError("prompt_plan_grammar_release_rule requires prompt_plan_grammar_rules")
         return self
 
     @model_validator(mode="after")
@@ -1111,6 +1130,36 @@ def reasoning_status_line(config: OrchestratorConfig) -> str | None:
         (a reasoning-on node logs nothing new).
     """
     return None if config.reasoning_enabled else REASONING_OFF_STATUS_LINE
+
+
+def plan_order_status_line(config: OrchestratorConfig) -> str | None:
+    """Return M5's plan-order condition startup line, or None for the default condition.
+
+    Logged so a run's log alone shows whether the VLM recede-order channel
+    (`plan_dispatch_order_source`) and its prompt conditions were live. None
+    (nothing new logged) unless one of the three keys is off its default.
+
+    Args:
+        config: The loaded orchestrator config.
+
+    Returns:
+        One line naming the three keys, or None.
+    """
+    if (
+        config.plan_dispatch_order_source == "chi"
+        and not config.prompt_plan_grammar_rules
+        and not config.prompt_candidate_options
+    ):
+        return None
+    line = (
+        f"plan order condition plan_dispatch_order_source={config.plan_dispatch_order_source} "
+        f"prompt_plan_grammar_rules={config.prompt_plan_grammar_rules} "
+        f"prompt_candidate_options={config.prompt_candidate_options}"
+    )
+    # Appended only when on, so every line logged before the key existed is unchanged.
+    if config.prompt_plan_grammar_release_rule:
+        line += " prompt_plan_grammar_release_rule=True"
+    return line
 
 
 def load_config(raw: dict[str, Any]) -> OrchestratorConfig:

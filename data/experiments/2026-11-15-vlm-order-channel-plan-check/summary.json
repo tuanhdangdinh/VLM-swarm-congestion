@@ -1,0 +1,4648 @@
+{
+ "anthropic|A|all": {
+  "n_calls": 16,
+  "n_billed": 16,
+  "1_valid": 16,
+  "2_jc_all_four": 9,
+  "strategies": {
+   "junction_clear": 9,
+   "yield": 7
+  },
+  "3_plan_present": 16,
+  "3_absent_or_nulled_reasons": {},
+  "4_provenance": {
+   "repaired": 8,
+   "m3_default": 6,
+   "vlm_verbatim": 2
+  },
+  "4_terminal_not_ok": {},
+  "4_repair_edit_reasons": {
+   "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted to yield toward M3's derived plan": 4,
+   "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_2 (reverse) <-> robot_4 (cross)": 3,
+   "robot_3: cross infeasible: robot_3 is a structural recede candidate but holds 'cross' instead of reverse; substituted to reverse toward M3's derived plan": 3,
+   "yield re-grounded: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_1 (reverse) <-> robot_3 (cross)": 2,
+   "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_2 (reverse) <-> robot_3 (cross)": 2,
+   "reordered: cross leg has no preceding yield leg to release it; robot_1 and robot_3 exchanged position": 1,
+   "reordered: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; robot_1 and robot_4 exchanged position": 1,
+   "robot_4: yield infeasible: robot_4 is a structural recede candidate but holds 'yield' instead of reverse; substituted to reverse toward M3's derived plan": 1,
+   "robot_1: reverse infeasible: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; substituted to yield toward M3's derived plan": 1,
+   "reordered; robot_4 and robot_1 exchanged position": 1,
+   "reordered: robot_4 is a structural recede candidate but holds 'cross' instead of reverse; robot_2 and robot_4 exchanged position": 1,
+   "robot_4: cross infeasible: robot_4 is a structural recede candidate but holds 'cross' instead of reverse; substituted to reverse toward M3's derived plan": 1,
+   "reordered: robot_3 is a structural recede candidate but holds 'cross' instead of reverse; robot_2 and robot_3 exchanged position": 1
+  },
+  "4_m3_default_reasons": {
+   "repair distance exceeds bound 4": 6
+  },
+  "5_verbatim_with_recede": 2,
+  "5_order_equal_chi": 0,
+  "5_order_differs_chi": 2,
+  "5_verbatim_plans": [
+   [
+    "ib10L_e07_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10S_e05_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ]
+  ],
+  "6_dispatch_order_source_model": 2,
+  "6_mwv_differs_from_noplan": 2,
+  "6_changed_phase_labels": {
+   "('recede',)": 2
+  },
+  "6_model_src_dispatch_matches_plan": {
+   "False": 2
+  },
+  "6_chi_differs_from_noplan": 0,
+  "7_yield_refusals": {},
+  "7_grounding_failures": {},
+  "plans_reversing_both_pair_robots": 2,
+  "pair_order_equal_chi": 0,
+  "pair_order_ascending_id": 2,
+  "swapped_order_plans": [
+   {
+    "episode": "ib10L_e07_armA_a1",
+    "request_id": "d7da0457",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.03,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10S_e05_armA_a1",
+    "request_id": "580328a5",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.012,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   }
+  ],
+  "first_trigger_billed": 15,
+  "demo_events_first_trigger": 2,
+  "demo_events_first_trigger_and_match": 0,
+  "executed_yielder_mwv": {
+   "robot_1": 9,
+   "None": 7
+  },
+  "refusal_attempts": 0,
+  "usd_ledger": 0.2617
+ },
+ "anthropic|A|rep0": {
+  "n_calls": 16,
+  "n_billed": 16,
+  "1_valid": 16,
+  "2_jc_all_four": 9,
+  "strategies": {
+   "junction_clear": 9,
+   "yield": 7
+  },
+  "3_plan_present": 16,
+  "3_absent_or_nulled_reasons": {},
+  "4_provenance": {
+   "repaired": 8,
+   "m3_default": 6,
+   "vlm_verbatim": 2
+  },
+  "4_terminal_not_ok": {},
+  "4_repair_edit_reasons": {
+   "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted to yield toward M3's derived plan": 4,
+   "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_2 (reverse) <-> robot_4 (cross)": 3,
+   "robot_3: cross infeasible: robot_3 is a structural recede candidate but holds 'cross' instead of reverse; substituted to reverse toward M3's derived plan": 3,
+   "yield re-grounded: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_1 (reverse) <-> robot_3 (cross)": 2,
+   "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_2 (reverse) <-> robot_3 (cross)": 2,
+   "reordered: cross leg has no preceding yield leg to release it; robot_1 and robot_3 exchanged position": 1,
+   "reordered: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; robot_1 and robot_4 exchanged position": 1,
+   "robot_4: yield infeasible: robot_4 is a structural recede candidate but holds 'yield' instead of reverse; substituted to reverse toward M3's derived plan": 1,
+   "robot_1: reverse infeasible: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; substituted to yield toward M3's derived plan": 1,
+   "reordered; robot_4 and robot_1 exchanged position": 1,
+   "reordered: robot_4 is a structural recede candidate but holds 'cross' instead of reverse; robot_2 and robot_4 exchanged position": 1,
+   "robot_4: cross infeasible: robot_4 is a structural recede candidate but holds 'cross' instead of reverse; substituted to reverse toward M3's derived plan": 1,
+   "reordered: robot_3 is a structural recede candidate but holds 'cross' instead of reverse; robot_2 and robot_3 exchanged position": 1
+  },
+  "4_m3_default_reasons": {
+   "repair distance exceeds bound 4": 6
+  },
+  "5_verbatim_with_recede": 2,
+  "5_order_equal_chi": 0,
+  "5_order_differs_chi": 2,
+  "5_verbatim_plans": [
+   [
+    "ib10L_e07_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10S_e05_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ]
+  ],
+  "6_dispatch_order_source_model": 2,
+  "6_mwv_differs_from_noplan": 2,
+  "6_changed_phase_labels": {
+   "('recede',)": 2
+  },
+  "6_model_src_dispatch_matches_plan": {
+   "False": 2
+  },
+  "6_chi_differs_from_noplan": 0,
+  "7_yield_refusals": {},
+  "7_grounding_failures": {},
+  "plans_reversing_both_pair_robots": 2,
+  "pair_order_equal_chi": 0,
+  "pair_order_ascending_id": 2,
+  "swapped_order_plans": [
+   {
+    "episode": "ib10L_e07_armA_a1",
+    "request_id": "d7da0457",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.03,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10S_e05_armA_a1",
+    "request_id": "580328a5",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.012,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   }
+  ],
+  "first_trigger_billed": 15,
+  "demo_events_first_trigger": 2,
+  "demo_events_first_trigger_and_match": 0,
+  "executed_yielder_mwv": {
+   "robot_1": 9,
+   "None": 7
+  },
+  "refusal_attempts": 0,
+  "usd_ledger": 0.2617
+ },
+ "anthropic|B|all": {
+  "n_calls": 15,
+  "n_billed": 15,
+  "1_valid": 15,
+  "2_jc_all_four": 15,
+  "strategies": {
+   "junction_clear": 15
+  },
+  "3_plan_present": 14,
+  "3_absent_or_nulled_reasons": {
+   "duplicate_robot: ['robot_2']": 1
+  },
+  "4_provenance": {
+   "vlm_verbatim": 9,
+   "repaired": 5,
+   "m3_default": 1
+  },
+  "4_terminal_not_ok": {},
+  "4_repair_edit_reasons": {
+   "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted to yield toward M3's derived plan": 5,
+   "reordered: cross leg has no preceding yield leg to release it; robot_2 and robot_1 exchanged position": 1
+  },
+  "4_m3_default_reasons": {
+   "plan absent": 1
+  },
+  "5_verbatim_with_recede": 9,
+  "5_order_equal_chi": 4,
+  "5_order_differs_chi": 5,
+  "5_verbatim_plans": [
+   [
+    "ib10L_e01_armA_a2",
+    0,
+    [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10L_e05_armA_a1",
+    0,
+    [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ],
+   [
+    "ib10L_e07_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10L_e09_armA_a1",
+    0,
+    [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10S_e07_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10S_e09_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "vp08_er2_ib10_s42",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "vp09_er2_ib10_s43",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ],
+   [
+    "cal_ep1_rerun",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ]
+  ],
+  "6_dispatch_order_source_model": 9,
+  "6_mwv_differs_from_noplan": 5,
+  "6_changed_phase_labels": {
+   "('recede',)": 5
+  },
+  "6_model_src_dispatch_matches_plan": {
+   "False": 7,
+   "True": 2
+  },
+  "6_chi_differs_from_noplan": 0,
+  "7_yield_refusals": {},
+  "7_grounding_failures": {},
+  "plans_reversing_both_pair_robots": 14,
+  "pair_order_equal_chi": 7,
+  "pair_order_ascending_id": 10,
+  "swapped_order_plans": [
+   {
+    "episode": "ib10L_e01_armA_a1",
+    "request_id": "0b9d2939",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.019,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10L_e05_armA_a1",
+    "request_id": "a71c50a9",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.028,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10L_e07_armA_a1",
+    "request_id": "d7da0457",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.03,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10S_e03_armA_a1",
+    "request_id": "18c2a25e",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.007,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: cross leg has no preceding yield leg to release it; robot_2 and robot_1 exchang",
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e07_armA_a1",
+    "request_id": "1d8cbac7",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.044,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e09_armA_a1",
+    "request_id": "3f26b4c8",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.02,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "vp08_er2_ib10_s42",
+    "request_id": "8fad1c84",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.047,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   }
+  ],
+  "first_trigger_billed": 14,
+  "demo_events_first_trigger": 5,
+  "demo_events_first_trigger_and_match": 1,
+  "executed_yielder_mwv": {
+   "robot_1": 15
+  },
+  "refusal_attempts": 0,
+  "usd_ledger": 0.2545
+ },
+ "anthropic|B|rep0": {
+  "n_calls": 15,
+  "n_billed": 15,
+  "1_valid": 15,
+  "2_jc_all_four": 15,
+  "strategies": {
+   "junction_clear": 15
+  },
+  "3_plan_present": 14,
+  "3_absent_or_nulled_reasons": {
+   "duplicate_robot: ['robot_2']": 1
+  },
+  "4_provenance": {
+   "vlm_verbatim": 9,
+   "repaired": 5,
+   "m3_default": 1
+  },
+  "4_terminal_not_ok": {},
+  "4_repair_edit_reasons": {
+   "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted to yield toward M3's derived plan": 5,
+   "reordered: cross leg has no preceding yield leg to release it; robot_2 and robot_1 exchanged position": 1
+  },
+  "4_m3_default_reasons": {
+   "plan absent": 1
+  },
+  "5_verbatim_with_recede": 9,
+  "5_order_equal_chi": 4,
+  "5_order_differs_chi": 5,
+  "5_verbatim_plans": [
+   [
+    "ib10L_e01_armA_a2",
+    0,
+    [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10L_e05_armA_a1",
+    0,
+    [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ],
+   [
+    "ib10L_e07_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10L_e09_armA_a1",
+    0,
+    [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10S_e07_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10S_e09_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "vp08_er2_ib10_s42",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "vp09_er2_ib10_s43",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ],
+   [
+    "cal_ep1_rerun",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ]
+  ],
+  "6_dispatch_order_source_model": 9,
+  "6_mwv_differs_from_noplan": 5,
+  "6_changed_phase_labels": {
+   "('recede',)": 5
+  },
+  "6_model_src_dispatch_matches_plan": {
+   "False": 7,
+   "True": 2
+  },
+  "6_chi_differs_from_noplan": 0,
+  "7_yield_refusals": {},
+  "7_grounding_failures": {},
+  "plans_reversing_both_pair_robots": 14,
+  "pair_order_equal_chi": 7,
+  "pair_order_ascending_id": 10,
+  "swapped_order_plans": [
+   {
+    "episode": "ib10L_e01_armA_a1",
+    "request_id": "0b9d2939",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.019,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10L_e05_armA_a1",
+    "request_id": "a71c50a9",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.028,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10L_e07_armA_a1",
+    "request_id": "d7da0457",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.03,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10S_e03_armA_a1",
+    "request_id": "18c2a25e",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.007,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: cross leg has no preceding yield leg to release it; robot_2 and robot_1 exchang",
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e07_armA_a1",
+    "request_id": "1d8cbac7",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.044,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e09_armA_a1",
+    "request_id": "3f26b4c8",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.02,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "vp08_er2_ib10_s42",
+    "request_id": "8fad1c84",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.047,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   }
+  ],
+  "first_trigger_billed": 14,
+  "demo_events_first_trigger": 5,
+  "demo_events_first_trigger_and_match": 1,
+  "executed_yielder_mwv": {
+   "robot_1": 15
+  },
+  "refusal_attempts": 0,
+  "usd_ledger": 0.2545
+ },
+ "gemini|A|all": {
+  "n_calls": 40,
+  "n_billed": 40,
+  "1_valid": 40,
+  "2_jc_all_four": 40,
+  "strategies": {
+   "junction_clear": 40
+  },
+  "3_plan_present": 29,
+  "3_absent_or_nulled_reasons": {
+   "duplicate_robot: ['robot_2', 'robot_3', 'robot_4']": 3,
+   "duplicate_robot: ['robot_3', 'robot_4']": 3,
+   "duplicate_robot: ['robot_1', 'robot_3', 'robot_4']": 2,
+   "duplicate_robot: ['robot_2', 'robot_4']": 2,
+   "duplicate_robot: ['robot_1', 'robot_2']": 1
+  },
+  "4_provenance": {
+   "repaired": 27,
+   "m3_default": 11,
+   "vlm_verbatim": 2
+  },
+  "4_terminal_not_ok": {},
+  "4_repair_edit_reasons": {
+   "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted to yield toward M3's derived plan": 11,
+   "robot_1: reverse infeasible: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; substituted to yield toward M3's derived plan": 10,
+   "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_2 (reverse) <-> robot_4 (cross)": 6,
+   "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_2 (reverse) <-> robot_1 (cross)": 6,
+   "yield re-grounded: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_1 (reverse) <-> robot_3 (cross)": 4,
+   "reordered: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; robot_2 and robot_4 exchanged position": 4,
+   "robot_1: wait infeasible; substituted to yield toward M3's derived plan": 3,
+   "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_2 (reverse) <-> robot_3 (cross)": 3,
+   "robot_4: yield infeasible: robot_4 is a structural recede candidate but holds 'yield' instead of reverse; substituted to reverse toward M3's derived plan": 2,
+   "reordered: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; robot_1 and robot_3 exchanged position": 2,
+   "yield re-grounded: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_1 (reverse) <-> robot_4 (wait)": 2,
+   "robot_4: cross infeasible: robot_4 is a structural recede candidate but holds 'cross' instead of reverse; substituted to reverse toward M3's derived plan": 2,
+   "reordered: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; robot_1 and robot_4 exchanged position": 2,
+   "reordered: robot_3 is a structural recede candidate but holds 'cross' instead of reverse; robot_1 and robot_3 exchanged position": 2,
+   "robot_3: cross infeasible: robot_3 is a structural recede candidate but holds 'cross' instead of reverse; substituted to reverse toward M3's derived plan": 2,
+   "robot_3: yield infeasible: robot_3 is a structural recede candidate but holds 'yield' instead of reverse; substituted to reverse toward M3's derived plan": 1,
+   "reordered: robot_4 is a structural recede candidate but holds 'cross' instead of reverse; robot_1 and robot_4 exchanged position": 1,
+   "reordered: robot_1's cross leg precedes a recede leg; junction_clear recedes before it yields/crosses; robot_1 and robot_3 exchanged position": 1,
+   "robot_2: reverse infeasible: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; substituted to cross toward M3's derived plan": 1,
+   "reordered: robot_4 is a structural recede candidate but holds 'cross' instead of reverse; robot_2 and robot_4 exchanged position": 1
+  },
+  "4_m3_default_reasons": {
+   "plan absent": 11
+  },
+  "5_verbatim_with_recede": 2,
+  "5_order_equal_chi": 1,
+  "5_order_differs_chi": 1,
+  "5_verbatim_plans": [
+   [
+    "ib10S_e01_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ],
+   [
+    "ib10L_e05_armA_a1",
+    1,
+    [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ]
+  ],
+  "6_dispatch_order_source_model": 2,
+  "6_mwv_differs_from_noplan": 1,
+  "6_changed_phase_labels": {
+   "('recede',)": 1
+  },
+  "6_model_src_dispatch_matches_plan": {
+   "True": 1,
+   "False": 1
+  },
+  "6_chi_differs_from_noplan": 0,
+  "7_yield_refusals": {},
+  "7_grounding_failures": {},
+  "plans_reversing_both_pair_robots": 15,
+  "pair_order_equal_chi": 5,
+  "pair_order_ascending_id": 10,
+  "swapped_order_plans": [
+   {
+    "episode": "ib10L_e01_armA_a1",
+    "request_id": "0b9d2939",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.019,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10L_e07_armA_a1",
+    "request_id": "d7da0457",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_2",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.03,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: robot_2 holds a reverse leg but is not a structural recede candidate (off the y",
+     "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (o",
+     "robot_1: reverse infeasible: robot_1 holds a reverse leg but is not a structural recede ca"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e05_armA_a1",
+    "request_id": "580328a5",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_2",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.012,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: robot_2 holds a reverse leg but is not a structural recede candidate (off the y",
+     "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (o",
+     "robot_1: reverse infeasible: robot_1 holds a reverse leg but is not a structural recede ca"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "cal_ep1_rerun",
+    "request_id": "aec068b5",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.0,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e10_armC_a1",
+    "request_id": "5a46e51a",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.003,
+    "provenance": "repaired",
+    "edits": [
+     "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (o",
+     "robot_1: reverse infeasible: robot_1 holds a reverse leg but is not a structural recede ca"
+    ],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10L_e01_armA_a2",
+    "request_id": "d9374445",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.031,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10L_e05_armA_a1",
+    "request_id": "a71c50a9",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.028,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10L_e07_armA_a1",
+    "request_id": "d7da0457",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.03,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: robot_1's cross leg precedes a recede leg; junction_clear recedes before it yie",
+     "reordered: robot_2 holds a reverse leg but is not a structural recede candidate (off the y",
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted",
+     "robot_2: reverse infeasible: robot_2 holds a reverse leg but is not a structural recede ca"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e05_armA_a1",
+    "request_id": "580328a5",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_2",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.012,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: robot_2 holds a reverse leg but is not a structural recede candidate (off the y",
+     "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (o",
+     "robot_1: reverse infeasible: robot_1 holds a reverse leg but is not a structural recede ca"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e07_armA_a1",
+    "request_id": "1d8cbac7",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.044,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   }
+  ],
+  "first_trigger_billed": 38,
+  "demo_events_first_trigger": 1,
+  "demo_events_first_trigger_and_match": 0,
+  "executed_yielder_mwv": {
+   "robot_1": 40
+  },
+  "refusal_attempts": 0,
+  "usd_ledger": 0.3224
+ },
+ "gemini|A|rep0": {
+  "n_calls": 20,
+  "n_billed": 20,
+  "1_valid": 20,
+  "2_jc_all_four": 20,
+  "strategies": {
+   "junction_clear": 20
+  },
+  "3_plan_present": 13,
+  "3_absent_or_nulled_reasons": {
+   "duplicate_robot: ['robot_2', 'robot_3', 'robot_4']": 2,
+   "duplicate_robot: ['robot_3', 'robot_4']": 2,
+   "duplicate_robot: ['robot_1', 'robot_3', 'robot_4']": 1,
+   "duplicate_robot: ['robot_2', 'robot_4']": 1,
+   "duplicate_robot: ['robot_1', 'robot_2']": 1
+  },
+  "4_provenance": {
+   "repaired": 12,
+   "m3_default": 7,
+   "vlm_verbatim": 1
+  },
+  "4_terminal_not_ok": {},
+  "4_repair_edit_reasons": {
+   "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted to yield toward M3's derived plan": 5,
+   "robot_1: reverse infeasible: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; substituted to yield toward M3's derived plan": 5,
+   "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_2 (reverse) <-> robot_4 (cross)": 4,
+   "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_2 (reverse) <-> robot_1 (cross)": 4,
+   "yield re-grounded: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_1 (reverse) <-> robot_3 (cross)": 2,
+   "reordered: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; robot_2 and robot_4 exchanged position": 2,
+   "robot_1: wait infeasible; substituted to yield toward M3's derived plan": 2,
+   "robot_4: yield infeasible: robot_4 is a structural recede candidate but holds 'yield' instead of reverse; substituted to reverse toward M3's derived plan": 1,
+   "robot_3: yield infeasible: robot_3 is a structural recede candidate but holds 'yield' instead of reverse; substituted to reverse toward M3's derived plan": 1,
+   "reordered: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; robot_1 and robot_3 exchanged position": 1,
+   "yield re-grounded: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_1 (reverse) <-> robot_4 (wait)": 1,
+   "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_2 (reverse) <-> robot_3 (cross)": 1
+  },
+  "4_m3_default_reasons": {
+   "plan absent": 7
+  },
+  "5_verbatim_with_recede": 1,
+  "5_order_equal_chi": 1,
+  "5_order_differs_chi": 0,
+  "5_verbatim_plans": [
+   [
+    "ib10S_e01_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ]
+  ],
+  "6_dispatch_order_source_model": 1,
+  "6_mwv_differs_from_noplan": 0,
+  "6_changed_phase_labels": {},
+  "6_model_src_dispatch_matches_plan": {
+   "True": 1
+  },
+  "6_chi_differs_from_noplan": 0,
+  "7_yield_refusals": {},
+  "7_grounding_failures": {},
+  "plans_reversing_both_pair_robots": 7,
+  "pair_order_equal_chi": 2,
+  "pair_order_ascending_id": 4,
+  "swapped_order_plans": [
+   {
+    "episode": "ib10L_e01_armA_a1",
+    "request_id": "0b9d2939",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.019,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10L_e07_armA_a1",
+    "request_id": "d7da0457",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_2",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.03,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: robot_2 holds a reverse leg but is not a structural recede candidate (off the y",
+     "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (o",
+     "robot_1: reverse infeasible: robot_1 holds a reverse leg but is not a structural recede ca"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e05_armA_a1",
+    "request_id": "580328a5",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_2",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.012,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: robot_2 holds a reverse leg but is not a structural recede candidate (off the y",
+     "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (o",
+     "robot_1: reverse infeasible: robot_1 holds a reverse leg but is not a structural recede ca"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "cal_ep1_rerun",
+    "request_id": "aec068b5",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.0,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e10_armC_a1",
+    "request_id": "5a46e51a",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.003,
+    "provenance": "repaired",
+    "edits": [
+     "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (o",
+     "robot_1: reverse infeasible: robot_1 holds a reverse leg but is not a structural recede ca"
+    ],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   }
+  ],
+  "first_trigger_billed": 19,
+  "demo_events_first_trigger": 0,
+  "demo_events_first_trigger_and_match": 0,
+  "executed_yielder_mwv": {
+   "robot_1": 20
+  },
+  "refusal_attempts": 0,
+  "usd_ledger": 0.1646
+ },
+ "gemini|A|rep1": {
+  "n_calls": 20,
+  "n_billed": 20,
+  "1_valid": 20,
+  "2_jc_all_four": 20,
+  "strategies": {
+   "junction_clear": 20
+  },
+  "3_plan_present": 16,
+  "3_absent_or_nulled_reasons": {
+   "duplicate_robot: ['robot_1', 'robot_3', 'robot_4']": 1,
+   "duplicate_robot: ['robot_2', 'robot_3', 'robot_4']": 1,
+   "duplicate_robot: ['robot_3', 'robot_4']": 1,
+   "duplicate_robot: ['robot_2', 'robot_4']": 1
+  },
+  "4_provenance": {
+   "repaired": 15,
+   "m3_default": 4,
+   "vlm_verbatim": 1
+  },
+  "4_terminal_not_ok": {},
+  "4_repair_edit_reasons": {
+   "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted to yield toward M3's derived plan": 6,
+   "robot_1: reverse infeasible: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; substituted to yield toward M3's derived plan": 5,
+   "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_2 (reverse) <-> robot_4 (cross)": 2,
+   "robot_4: cross infeasible: robot_4 is a structural recede candidate but holds 'cross' instead of reverse; substituted to reverse toward M3's derived plan": 2,
+   "reordered: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; robot_2 and robot_4 exchanged position": 2,
+   "yield re-grounded: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_1 (reverse) <-> robot_3 (cross)": 2,
+   "reordered: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; robot_1 and robot_4 exchanged position": 2,
+   "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_2 (reverse) <-> robot_1 (cross)": 2,
+   "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_2 (reverse) <-> robot_3 (cross)": 2,
+   "reordered: robot_3 is a structural recede candidate but holds 'cross' instead of reverse; robot_1 and robot_3 exchanged position": 2,
+   "robot_3: cross infeasible: robot_3 is a structural recede candidate but holds 'cross' instead of reverse; substituted to reverse toward M3's derived plan": 2,
+   "reordered: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; robot_1 and robot_3 exchanged position": 1,
+   "reordered: robot_4 is a structural recede candidate but holds 'cross' instead of reverse; robot_1 and robot_4 exchanged position": 1,
+   "reordered: robot_1's cross leg precedes a recede leg; junction_clear recedes before it yields/crosses; robot_1 and robot_3 exchanged position": 1,
+   "robot_2: reverse infeasible: robot_2 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; substituted to cross toward M3's derived plan": 1,
+   "robot_4: yield infeasible: robot_4 is a structural recede candidate but holds 'yield' instead of reverse; substituted to reverse toward M3's derived plan": 1,
+   "reordered: robot_4 is a structural recede candidate but holds 'cross' instead of reverse; robot_2 and robot_4 exchanged position": 1,
+   "yield re-grounded: robot_1 holds a reverse leg but is not a structural recede candidate (off the yield axis); junction_clear's recede set is fixed by geometry, not chosen by the plan; swapped roles robot_1 (reverse) <-> robot_4 (wait)": 1,
+   "robot_1: wait infeasible; substituted to yield toward M3's derived plan": 1
+  },
+  "4_m3_default_reasons": {
+   "plan absent": 4
+  },
+  "5_verbatim_with_recede": 1,
+  "5_order_equal_chi": 0,
+  "5_order_differs_chi": 1,
+  "5_verbatim_plans": [
+   [
+    "ib10L_e05_armA_a1",
+    1,
+    [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ]
+  ],
+  "6_dispatch_order_source_model": 1,
+  "6_mwv_differs_from_noplan": 1,
+  "6_changed_phase_labels": {
+   "('recede',)": 1
+  },
+  "6_model_src_dispatch_matches_plan": {
+   "False": 1
+  },
+  "6_chi_differs_from_noplan": 0,
+  "7_yield_refusals": {},
+  "7_grounding_failures": {},
+  "plans_reversing_both_pair_robots": 8,
+  "pair_order_equal_chi": 3,
+  "pair_order_ascending_id": 6,
+  "swapped_order_plans": [
+   {
+    "episode": "ib10L_e01_armA_a2",
+    "request_id": "d9374445",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.031,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10L_e05_armA_a1",
+    "request_id": "a71c50a9",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.028,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10L_e07_armA_a1",
+    "request_id": "d7da0457",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.03,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: robot_1's cross leg precedes a recede leg; junction_clear recedes before it yie",
+     "reordered: robot_2 holds a reverse leg but is not a structural recede candidate (off the y",
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted",
+     "robot_2: reverse infeasible: robot_2 holds a reverse leg but is not a structural recede ca"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e05_armA_a1",
+    "request_id": "580328a5",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_2",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.012,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: robot_2 holds a reverse leg but is not a structural recede candidate (off the y",
+     "yield re-grounded: robot_2 holds a reverse leg but is not a structural recede candidate (o",
+     "robot_1: reverse infeasible: robot_1 holds a reverse leg but is not a structural recede ca"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e07_armA_a1",
+    "request_id": "1d8cbac7",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.044,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   }
+  ],
+  "first_trigger_billed": 19,
+  "demo_events_first_trigger": 1,
+  "demo_events_first_trigger_and_match": 0,
+  "executed_yielder_mwv": {
+   "robot_1": 20
+  },
+  "refusal_attempts": 0,
+  "usd_ledger": 0.1578
+ },
+ "gemini|B|all": {
+  "n_calls": 40,
+  "n_billed": 40,
+  "1_valid": 40,
+  "2_jc_all_four": 40,
+  "strategies": {
+   "junction_clear": 40
+  },
+  "3_plan_present": 31,
+  "3_absent_or_nulled_reasons": {
+   "invalid_leg: ['reverse (north arm)', 'reverse (south arm)']": 9
+  },
+  "4_provenance": {
+   "repaired": 29,
+   "m3_default": 9,
+   "vlm_verbatim": 2
+  },
+  "4_terminal_not_ok": {},
+  "4_repair_edit_reasons": {
+   "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted to yield toward M3's derived plan": 23,
+   "reordered: cross leg has no preceding yield leg to release it; robot_1 and robot_2 exchanged position": 4,
+   "reordered: cross leg has no preceding yield leg to release it; robot_2 and robot_1 exchanged position": 3,
+   "robot_1: wait infeasible; substituted to yield toward M3's derived plan": 2,
+   "robot_3: cross infeasible: robot_3 is a structural recede candidate but holds 'cross' instead of reverse; substituted to reverse toward M3's derived plan": 2
+  },
+  "4_m3_default_reasons": {
+   "plan absent": 9
+  },
+  "5_verbatim_with_recede": 2,
+  "5_order_equal_chi": 1,
+  "5_order_differs_chi": 1,
+  "5_verbatim_plans": [
+   [
+    "ib10L_e03_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ],
+   [
+    "vp08_er2_ib10_s42",
+    1,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ]
+  ],
+  "6_dispatch_order_source_model": 2,
+  "6_mwv_differs_from_noplan": 1,
+  "6_changed_phase_labels": {
+   "('recede',)": 1
+  },
+  "6_model_src_dispatch_matches_plan": {
+   "True": 2
+  },
+  "6_chi_differs_from_noplan": 0,
+  "7_yield_refusals": {},
+  "7_grounding_failures": {},
+  "plans_reversing_both_pair_robots": 29,
+  "pair_order_equal_chi": 13,
+  "pair_order_ascending_id": 21,
+  "swapped_order_plans": [
+   {
+    "episode": "ib10S_e03_armA_a1",
+    "request_id": "18c2a25e",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ],
+     [
+      "robot_1",
+      "wait"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.007,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: cross leg has no preceding yield leg to release it; robot_2 and robot_1 exchang",
+     "robot_1: wait infeasible; substituted to yield toward M3's derived plan"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10L_e01_armA_a2",
+    "request_id": "d9374445",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.031,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: cross leg has no preceding yield leg to release it; robot_1 and robot_2 exchang"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10S_e01_armA_a1",
+    "request_id": "bfaef39f",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.096,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: cross leg has no preceding yield leg to release it; robot_2 and robot_1 exchang",
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e05_armA_a1",
+    "request_id": "580328a5",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.012,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "vp08_er2_ib10_s42",
+    "request_id": "8fad1c84",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.047,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e02_armC_a2",
+    "request_id": "4edbbfa0",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.003,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e04_armC_a1",
+    "request_id": "162362ef",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.007,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e06_armC_a1",
+    "request_id": "83b5f75b",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.011,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e01_armA_a1",
+    "request_id": "bfaef39f",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.096,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e03_armA_a1",
+    "request_id": "18c2a25e",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.007,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e05_armA_a1",
+    "request_id": "580328a5",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.012,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e07_armA_a1",
+    "request_id": "1d8cbac7",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.044,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "vp08_er2_ib10_s42",
+    "request_id": "8fad1c84",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.047,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e02_armC_a2",
+    "request_id": "4edbbfa0",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.003,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e04_armC_a1",
+    "request_id": "162362ef",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "wait"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.007,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10S_e06_armC_a1",
+    "request_id": "83b5f75b",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.011,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: cross leg has no preceding yield leg to release it; robot_1 and robot_2 exchang"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": false
+   }
+  ],
+  "first_trigger_billed": 38,
+  "demo_events_first_trigger": 1,
+  "demo_events_first_trigger_and_match": 1,
+  "executed_yielder_mwv": {
+   "robot_1": 40
+  },
+  "refusal_attempts": 0,
+  "usd_ledger": 0.3265
+ },
+ "gemini|B|rep0": {
+  "n_calls": 20,
+  "n_billed": 20,
+  "1_valid": 20,
+  "2_jc_all_four": 20,
+  "strategies": {
+   "junction_clear": 20
+  },
+  "3_plan_present": 16,
+  "3_absent_or_nulled_reasons": {
+   "invalid_leg: ['reverse (north arm)', 'reverse (south arm)']": 4
+  },
+  "4_provenance": {
+   "repaired": 15,
+   "m3_default": 4,
+   "vlm_verbatim": 1
+  },
+  "4_terminal_not_ok": {},
+  "4_repair_edit_reasons": {
+   "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted to yield toward M3's derived plan": 10,
+   "reordered: cross leg has no preceding yield leg to release it; robot_2 and robot_1 exchanged position": 3,
+   "reordered: cross leg has no preceding yield leg to release it; robot_1 and robot_2 exchanged position": 3,
+   "robot_1: wait infeasible; substituted to yield toward M3's derived plan": 2,
+   "robot_3: cross infeasible: robot_3 is a structural recede candidate but holds 'cross' instead of reverse; substituted to reverse toward M3's derived plan": 1
+  },
+  "4_m3_default_reasons": {
+   "plan absent": 4
+  },
+  "5_verbatim_with_recede": 1,
+  "5_order_equal_chi": 1,
+  "5_order_differs_chi": 0,
+  "5_verbatim_plans": [
+   [
+    "ib10L_e03_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ]
+  ],
+  "6_dispatch_order_source_model": 1,
+  "6_mwv_differs_from_noplan": 0,
+  "6_changed_phase_labels": {},
+  "6_model_src_dispatch_matches_plan": {
+   "True": 1
+  },
+  "6_chi_differs_from_noplan": 0,
+  "7_yield_refusals": {},
+  "7_grounding_failures": {},
+  "plans_reversing_both_pair_robots": 15,
+  "pair_order_equal_chi": 7,
+  "pair_order_ascending_id": 11,
+  "swapped_order_plans": [
+   {
+    "episode": "ib10S_e03_armA_a1",
+    "request_id": "18c2a25e",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ],
+     [
+      "robot_1",
+      "wait"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.007,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: cross leg has no preceding yield leg to release it; robot_2 and robot_1 exchang",
+     "robot_1: wait infeasible; substituted to yield toward M3's derived plan"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10L_e01_armA_a2",
+    "request_id": "d9374445",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.031,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: cross leg has no preceding yield leg to release it; robot_1 and robot_2 exchang"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10S_e01_armA_a1",
+    "request_id": "bfaef39f",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.096,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: cross leg has no preceding yield leg to release it; robot_2 and robot_1 exchang",
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e05_armA_a1",
+    "request_id": "580328a5",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.012,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "vp08_er2_ib10_s42",
+    "request_id": "8fad1c84",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.047,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e02_armC_a2",
+    "request_id": "4edbbfa0",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.003,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e04_armC_a1",
+    "request_id": "162362ef",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.007,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e06_armC_a1",
+    "request_id": "83b5f75b",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.011,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   }
+  ],
+  "first_trigger_billed": 19,
+  "demo_events_first_trigger": 0,
+  "demo_events_first_trigger_and_match": 0,
+  "executed_yielder_mwv": {
+   "robot_1": 20
+  },
+  "refusal_attempts": 0,
+  "usd_ledger": 0.1673
+ },
+ "gemini|B|rep1": {
+  "n_calls": 20,
+  "n_billed": 20,
+  "1_valid": 20,
+  "2_jc_all_four": 20,
+  "strategies": {
+   "junction_clear": 20
+  },
+  "3_plan_present": 15,
+  "3_absent_or_nulled_reasons": {
+   "invalid_leg: ['reverse (north arm)', 'reverse (south arm)']": 5
+  },
+  "4_provenance": {
+   "repaired": 14,
+   "m3_default": 5,
+   "vlm_verbatim": 1
+  },
+  "4_terminal_not_ok": {},
+  "4_repair_edit_reasons": {
+   "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted to yield toward M3's derived plan": 13,
+   "robot_3: cross infeasible: robot_3 is a structural recede candidate but holds 'cross' instead of reverse; substituted to reverse toward M3's derived plan": 1,
+   "reordered: cross leg has no preceding yield leg to release it; robot_1 and robot_2 exchanged position": 1
+  },
+  "4_m3_default_reasons": {
+   "plan absent": 5
+  },
+  "5_verbatim_with_recede": 1,
+  "5_order_equal_chi": 0,
+  "5_order_differs_chi": 1,
+  "5_verbatim_plans": [
+   [
+    "vp08_er2_ib10_s42",
+    1,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ]
+  ],
+  "6_dispatch_order_source_model": 1,
+  "6_mwv_differs_from_noplan": 1,
+  "6_changed_phase_labels": {
+   "('recede',)": 1
+  },
+  "6_model_src_dispatch_matches_plan": {
+   "True": 1
+  },
+  "6_chi_differs_from_noplan": 0,
+  "7_yield_refusals": {},
+  "7_grounding_failures": {},
+  "plans_reversing_both_pair_robots": 14,
+  "pair_order_equal_chi": 6,
+  "pair_order_ascending_id": 10,
+  "swapped_order_plans": [
+   {
+    "episode": "ib10S_e01_armA_a1",
+    "request_id": "bfaef39f",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.096,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e03_armA_a1",
+    "request_id": "18c2a25e",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.007,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e05_armA_a1",
+    "request_id": "580328a5",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.012,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e07_armA_a1",
+    "request_id": "1d8cbac7",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.044,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "vp08_er2_ib10_s42",
+    "request_id": "8fad1c84",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.047,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e02_armC_a2",
+    "request_id": "4edbbfa0",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.003,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e04_armC_a1",
+    "request_id": "162362ef",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "wait"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.007,
+    "provenance": "repaired",
+    "edits": [
+     "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10S_e06_armC_a1",
+    "request_id": "83b5f75b",
+    "rep": 1,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.011,
+    "provenance": "repaired",
+    "edits": [
+     "reordered: cross leg has no preceding yield leg to release it; robot_1 and robot_2 exchang"
+    ],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": false
+   }
+  ],
+  "first_trigger_billed": 19,
+  "demo_events_first_trigger": 1,
+  "demo_events_first_trigger_and_match": 1,
+  "executed_yielder_mwv": {
+   "robot_1": 20
+  },
+  "refusal_attempts": 0,
+  "usd_ledger": 0.1592
+ },
+ "openai|A|all": {
+  "n_calls": 9,
+  "n_billed": 9,
+  "1_valid": 9,
+  "2_jc_all_four": 0,
+  "strategies": {
+   "yield": 9
+  },
+  "3_plan_present": 9,
+  "3_absent_or_nulled_reasons": {},
+  "4_provenance": {
+   "m3_default": 6,
+   "vlm_verbatim": 2,
+   "repaired": 1
+  },
+  "4_terminal_not_ok": {},
+  "4_repair_edit_reasons": {
+   "reordered: yield refused: first passer robot_2 is not the passer nearest the yielder robot_1; robot_2 and robot_3 exchanged position": 1
+  },
+  "4_m3_default_reasons": {
+   "repair distance exceeds bound 4": 6
+  },
+  "5_verbatim_with_recede": 0,
+  "5_order_equal_chi": 0,
+  "5_order_differs_chi": 0,
+  "5_verbatim_plans": [
+   [
+    "ib10L_e01_armA_a2",
+    0,
+    [
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_4",
+      "cross"
+     ],
+     [
+      "robot_1",
+      "continue"
+     ],
+     [
+      "robot_3",
+      "wait"
+     ]
+    ],
+    null
+   ],
+   [
+    "ib10L_e09_armA_a1",
+    0,
+    [
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ],
+     [
+      "robot_3",
+      "continue"
+     ],
+     [
+      "robot_4",
+      "continue"
+     ]
+    ],
+    null
+   ]
+  ],
+  "6_dispatch_order_source_model": 0,
+  "6_mwv_differs_from_noplan": 0,
+  "6_changed_phase_labels": {},
+  "6_model_src_dispatch_matches_plan": {},
+  "6_chi_differs_from_noplan": 0,
+  "7_yield_refusals": {},
+  "7_grounding_failures": {},
+  "plans_reversing_both_pair_robots": 0,
+  "pair_order_equal_chi": 0,
+  "pair_order_ascending_id": 0,
+  "swapped_order_plans": [],
+  "first_trigger_billed": 8,
+  "demo_events_first_trigger": 0,
+  "demo_events_first_trigger_and_match": 0,
+  "executed_yielder_mwv": {
+   "None": 9
+  },
+  "refusal_attempts": 0,
+  "usd_ledger": 0.1041
+ },
+ "openai|A|rep0": {
+  "n_calls": 9,
+  "n_billed": 9,
+  "1_valid": 9,
+  "2_jc_all_four": 0,
+  "strategies": {
+   "yield": 9
+  },
+  "3_plan_present": 9,
+  "3_absent_or_nulled_reasons": {},
+  "4_provenance": {
+   "m3_default": 6,
+   "vlm_verbatim": 2,
+   "repaired": 1
+  },
+  "4_terminal_not_ok": {},
+  "4_repair_edit_reasons": {
+   "reordered: yield refused: first passer robot_2 is not the passer nearest the yielder robot_1; robot_2 and robot_3 exchanged position": 1
+  },
+  "4_m3_default_reasons": {
+   "repair distance exceeds bound 4": 6
+  },
+  "5_verbatim_with_recede": 0,
+  "5_order_equal_chi": 0,
+  "5_order_differs_chi": 0,
+  "5_verbatim_plans": [
+   [
+    "ib10L_e01_armA_a2",
+    0,
+    [
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_4",
+      "cross"
+     ],
+     [
+      "robot_1",
+      "continue"
+     ],
+     [
+      "robot_3",
+      "wait"
+     ]
+    ],
+    null
+   ],
+   [
+    "ib10L_e09_armA_a1",
+    0,
+    [
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ],
+     [
+      "robot_3",
+      "continue"
+     ],
+     [
+      "robot_4",
+      "continue"
+     ]
+    ],
+    null
+   ]
+  ],
+  "6_dispatch_order_source_model": 0,
+  "6_mwv_differs_from_noplan": 0,
+  "6_changed_phase_labels": {},
+  "6_model_src_dispatch_matches_plan": {},
+  "6_chi_differs_from_noplan": 0,
+  "7_yield_refusals": {},
+  "7_grounding_failures": {},
+  "plans_reversing_both_pair_robots": 0,
+  "pair_order_equal_chi": 0,
+  "pair_order_ascending_id": 0,
+  "swapped_order_plans": [],
+  "first_trigger_billed": 8,
+  "demo_events_first_trigger": 0,
+  "demo_events_first_trigger_and_match": 0,
+  "executed_yielder_mwv": {
+   "None": 9
+  },
+  "refusal_attempts": 0,
+  "usd_ledger": 0.1041
+ },
+ "openai|B|all": {
+  "n_calls": 9,
+  "n_billed": 9,
+  "1_valid": 9,
+  "2_jc_all_four": 0,
+  "strategies": {
+   "yield": 9
+  },
+  "3_plan_present": 9,
+  "3_absent_or_nulled_reasons": {},
+  "4_provenance": {
+   "m3_default": 6,
+   "vlm_verbatim": 2,
+   "repaired": 1
+  },
+  "4_terminal_not_ok": {},
+  "4_repair_edit_reasons": {
+   "reordered: yield refused: first passer robot_2 is not the passer nearest the yielder robot_1; robot_2 and robot_3 exchanged position": 1
+  },
+  "4_m3_default_reasons": {
+   "repair distance exceeds bound 4": 6
+  },
+  "5_verbatim_with_recede": 0,
+  "5_order_equal_chi": 0,
+  "5_order_differs_chi": 0,
+  "5_verbatim_plans": [
+   [
+    "ib10L_e01_armA_a2",
+    0,
+    [
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_4",
+      "cross"
+     ],
+     [
+      "robot_1",
+      "continue"
+     ],
+     [
+      "robot_3",
+      "continue"
+     ]
+    ],
+    null
+   ],
+   [
+    "ib10L_e09_armA_a1",
+    0,
+    [
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ],
+     [
+      "robot_3",
+      "continue"
+     ],
+     [
+      "robot_4",
+      "continue"
+     ]
+    ],
+    null
+   ]
+  ],
+  "6_dispatch_order_source_model": 0,
+  "6_mwv_differs_from_noplan": 0,
+  "6_changed_phase_labels": {},
+  "6_model_src_dispatch_matches_plan": {},
+  "6_chi_differs_from_noplan": 0,
+  "7_yield_refusals": {},
+  "7_grounding_failures": {},
+  "plans_reversing_both_pair_robots": 0,
+  "pair_order_equal_chi": 0,
+  "pair_order_ascending_id": 0,
+  "swapped_order_plans": [],
+  "first_trigger_billed": 8,
+  "demo_events_first_trigger": 0,
+  "demo_events_first_trigger_and_match": 0,
+  "executed_yielder_mwv": {
+   "None": 9
+  },
+  "refusal_attempts": 0,
+  "usd_ledger": 0.1061
+ },
+ "openai|B|rep0": {
+  "n_calls": 9,
+  "n_billed": 9,
+  "1_valid": 9,
+  "2_jc_all_four": 0,
+  "strategies": {
+   "yield": 9
+  },
+  "3_plan_present": 9,
+  "3_absent_or_nulled_reasons": {},
+  "4_provenance": {
+   "m3_default": 6,
+   "vlm_verbatim": 2,
+   "repaired": 1
+  },
+  "4_terminal_not_ok": {},
+  "4_repair_edit_reasons": {
+   "reordered: yield refused: first passer robot_2 is not the passer nearest the yielder robot_1; robot_2 and robot_3 exchanged position": 1
+  },
+  "4_m3_default_reasons": {
+   "repair distance exceeds bound 4": 6
+  },
+  "5_verbatim_with_recede": 0,
+  "5_order_equal_chi": 0,
+  "5_order_differs_chi": 0,
+  "5_verbatim_plans": [
+   [
+    "ib10L_e01_armA_a2",
+    0,
+    [
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_4",
+      "cross"
+     ],
+     [
+      "robot_1",
+      "continue"
+     ],
+     [
+      "robot_3",
+      "continue"
+     ]
+    ],
+    null
+   ],
+   [
+    "ib10L_e09_armA_a1",
+    0,
+    [
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ],
+     [
+      "robot_3",
+      "continue"
+     ],
+     [
+      "robot_4",
+      "continue"
+     ]
+    ],
+    null
+   ]
+  ],
+  "6_dispatch_order_source_model": 0,
+  "6_mwv_differs_from_noplan": 0,
+  "6_changed_phase_labels": {},
+  "6_model_src_dispatch_matches_plan": {},
+  "6_chi_differs_from_noplan": 0,
+  "7_yield_refusals": {},
+  "7_grounding_failures": {},
+  "plans_reversing_both_pair_robots": 0,
+  "pair_order_equal_chi": 0,
+  "pair_order_ascending_id": 0,
+  "swapped_order_plans": [],
+  "first_trigger_billed": 8,
+  "demo_events_first_trigger": 0,
+  "demo_events_first_trigger_and_match": 0,
+  "executed_yielder_mwv": {
+   "None": 9
+  },
+  "refusal_attempts": 0,
+  "usd_ledger": 0.1061
+ }
+}
