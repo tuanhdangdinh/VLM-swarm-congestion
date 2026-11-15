@@ -6,6 +6,7 @@
 
 - Initial draft: registration of the owner-approved demo-video campaign (four scenarios, one VM, 12 VM-hours, $10), written offline before any VM use. The kits are prepared and dry-tested only; nothing has run.
 - Rev 2 (2026-11-15): section 10 filled (go for the intersection under B3, the options-block check and caption, the demo runtime delta in two directories, the take classifier, the budget split); sub-caps `ho` 1.5 h and `m5` 4 h; kit md5s in section 9 re-recorded. Still offline; nothing has run.
+- Rev 3 (2026-11-15): section 10.7, the per-scenario wall shares reallocated (`ib` 3.5 h, `ho` 0.5 h; `cv`, `m5` and every campaign total unchanged).
 
 ---
 
@@ -610,6 +611,24 @@ Open item: the kits hard-assert gemini / ER-2 (`cond_dmc.py` `a_backend_gemini`,
 - [x] Delta: files, fragment, expectations, commit `aa16b0d`, DELTA_IDs (10.3).
 - [x] "VLM-driven" definition and the overridden / re-grounded case (10.4): a re-grounded, repaired or yielder-swapped plan is M3-default.
 - [x] All four `test_dry_dmc.sh` re-run after the fill; new kit md5s in section 9.
+
+### 10.7 Wall-Share Amendment (2026-11-15)
+
+**What changed.** The per-scenario wall shares in `common/caps_dmc.tsv`, which this planning session set itself (10.5):
+
+| Scenario | Old share | New share |
+|---|---|---|
+| `ib` | 9 000 s | 12 600 s |
+| `cv` | 9 000 s | 9 000 s (unchanged) |
+| `ho` | 5 400 s | 1 800 s |
+| `m5` | 14 400 s | 14 400 s (unchanged) |
+| Sum | 37 800 s | 37 800 s |
+
+**Why.** The ledger refused intersection take 4: the kit's registered admission (prep 900 + take 3 000 + teardown 900 = 4 800 s) exceeded `ib`'s remaining share (9 000 − 5 014 = 3 986 s), although the measured one-take invocations used 1 559–1 849 s. Head-on finished after one resolved take (1 302 s used), so most of its share was idle. The new `ho` share (1 800 s) admits no further head-on invocation.
+
+**Unchanged.** The campaign totals (43 200 s, $10), the 5 valid takes and 3 bring-up aborts per scenario, the admission logic (`ledger_dmc.py`) and every kit's per-take budget. The sum of the shares stays under the 43 200 s total.
+
+**How.** `common/caps_dmc.tsv` edited (two values and the header comment); the `ib` and `m5` kits reassembled with the unchanged `common/assemble_dmc.sh` (a scratch reassembly before the edit was byte-identical to both kits). `kit_md5_dmc.txt` (VM files) is unchanged: `ib` `98a57626`, `m5` `89112a40`. `kit_md5_all_dmc.txt` is now `ib` `510882a6`, `m5` `8cd74255`. Both `test_dry_dmc.sh` end OK (`MIN_MAC_FREE_KB=3000000`, test only; the real ledger was not touched). On a ledger copy, `ledger_dmc.py admit ib 4800 0.25` now gives `ADMIT cap_sec=7586 ... next_take=4 valid=3`. The `cv`, `ho` and `ib_sonnet` kits were not reassembled and keep the old split in their own caps copies; this changes nothing for `cv` (its share is the same), and `ho` has finished. Sections 6 and 10.5 show the original split; this note supersedes them for `ib` and `ho`.
 
 ## 11. What Could Not Be Verified Offline
 
