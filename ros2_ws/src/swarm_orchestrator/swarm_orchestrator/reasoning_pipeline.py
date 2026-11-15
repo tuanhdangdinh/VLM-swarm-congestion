@@ -1460,12 +1460,16 @@ class InProcessPipeline:
         dispatch_outcome_observer: Callable[[bool, bool], None] | None = None,
         task_intent_of: Callable[[str], RobotTaskIntent | None] | None = None,
         hold_queued_crossers: bool = False,
+        yield_counterflow_swap: bool = False,
     ) -> None:
         self._reasoner = reasoner
         # Queued corridor-crosser hold (`grounding_hold_queued_crossers`):
         # passed to M3's grounder and plan verifier only when on, so every
         # off-key call is the call made before the key existed.
         self._hold_queued_crossers = hold_queued_crossers
+        # Counterflow yielder swap (`grounding_yield_counterflow_swap`):
+        # passed the same way, only when on.
+        self._yield_counterflow_swap = yield_counterflow_swap
         # prereg-v3 A22, apparatus only: the echo mock's rotation hook
         # (`EchoMockBackend.note_dispatch_outcome`). None for every live
         # backend, which has no such hook, so `note_dispatch_outcome` is a
@@ -1679,6 +1683,8 @@ class InProcessPipeline:
                 priority_kwargs["task_intents"] = task_intents
             if self._hold_queued_crossers:
                 priority_kwargs["hold_queued_crossers"] = True
+            if self._yield_counterflow_swap:
+                priority_kwargs["yield_counterflow_swap"] = True
             grounded = filter_command_robot_ids(
                 self._ground_fn(
                     result,
@@ -1729,6 +1735,11 @@ class InProcessPipeline:
                         else {}
                     ),
                     **({"hold_queued_crossers": True} if self._hold_queued_crossers else {}),
+                    **(
+                        {"yield_counterflow_swap": True}
+                        if self._yield_counterflow_swap
+                        else {}
+                    ),
                 )
                 acceptance = self._plan_tracker.accept_plan(verified)
                 known_robot_ids = [robot.robot_id for robot in request.robot_states]

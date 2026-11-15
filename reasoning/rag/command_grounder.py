@@ -655,6 +655,7 @@ def ground_reasoner_result(
     goal_references: Mapping[str, tuple[float, float]] | None = None,
     task_intents: Mapping[str, RobotTaskIntent] | None = None,
     hold_queued_crossers: bool = False,
+    yield_counterflow_swap: bool = False,
 ) -> dict[str, Any]:
     """Convert a validated VLM decision into an executable coordination command.
 
@@ -750,6 +751,16 @@ def ground_reasoner_result(
             `queued_crossers_added`; or tagged `crossing_order=
             augment_withheld:...` when holding them would refuse the yield.
             False (the default) keeps every command byte-identical.
+        yield_counterflow_swap: M5's `grounding_yield_counterflow_swap`. Same
+            scope as `hold_queued_crossers`: a yield whose crossing order
+            (with the hold's added robots) has a crosser on the yielder's park
+            side is handed to another named robot whose crossers all start
+            opposite it (`counterflow_yield_outcome`), recorded as
+            `yield_robot_grounded_from` / `yield_regrounded_reason` on the
+            yield and tagged `yield=counterflow_regrounded:<from>:<to>`; with
+            no such robot the yield is refused (`yield refused: counterflow:
+            ...`, tagged `yield=counterflow_refused:<id>`). False (the
+            default) keeps every command byte-identical.
 
     Before grounding, the decision passes through the per-decision grounding
     view (`reasoning.rag.grounding_view.resolve_grounding_view`): declared
@@ -815,9 +826,33 @@ def ground_reasoner_result(
             goal_references=goal_references,
         )
     else:
+        counterflow = _NO_COUNTERFLOW
+        model_yielder: str | None = None
+        if (
+            yield_counterflow_swap
+            and snapshot is not None
+            and result.decision is not None
+            and result.decision.congestion_detected
+        ):
+            model_yielder = (resolve_robot_order(result.decision) or [None])[0]
+            counterflow = counterflow_yield_outcome(
+                result.decision,
+                snapshot,
+                geometry,
+                static_obstacles,
+                yield_feasibility_mode,
+                crossing_order,
+                hold_queued_crossers=hold_queued_crossers,
+            )
+            if counterflow.decision is not None:
+                # Grounded as the feasible robot's yield; the rewritten
+                # decision carries its full crossing order.
+                result = result.model_copy(update={"decision": counterflow.decision})
+                crossing_order = None
         queued = _NO_QUEUED_CROSSERS
         if (
             hold_queued_crossers
+            and counterflow.refusal_reason is None
             and snapshot is not None
             and result.decision is not None
             and result.decision.congestion_detected
@@ -838,8 +873,9 @@ def ground_reasoner_result(
             yield_feasibility_mode,
             crossing_order=crossing_order,
             queued_crossers=queued.added,
+            counterflow=counterflow,
         )
-        queued_tags = queued_crosser_tags(queued)
+        queued_tags = [*counterflow_tags(counterflow, model_yielder), *queued_crosser_tags(queued)]
         if queued_tags:
             command = _with_degradations(
                 command, [*command.get("degradations", []), *queued_tags]
@@ -1044,6 +1080,223 @@ def queued_crosser_tags(outcome: QueuedCrosserOutcome) -> list[str]:
     return []
 
 
+# Counterflow yielder feasibility (2026-11-15, convoy non-arrival; docs/
+# reports/2026-11-15-convoy-non-arrival-and-yielder-feasibility.md). The
+# legacy multi-passer template parks the yielder on its own side and escorts
+# every passer through the gate to that side, past the park point; a crosser
+# that starts on the yielder's side would cross the other way, through the
+# first passer's exit. Swap tag suffix `:<from>:<to>`, refusal tag suffix
+# `:<model yielder>`.
+COUNTERFLOW_REGROUNDED_TAG = "yield=counterflow_regrounded"
+COUNTERFLOW_REFUSED_TAG = "yield=counterflow_refused"
+
+
+class CounterflowOutcome(NamedTuple):
+    """Whether a legacy corridor yield is handed to another robot, or refused."""
+
+    # The decision grounded in the model's place (yielder and full crossing
+    # order rewritten), or None when nothing changes.
+    decision: CongestionDecision | None = None
+    grounded_from: str | None = None
+    regrounded_reason: str | None = None
+    refusal_reason: str | None = None
+
+
+_NO_COUNTERFLOW = CounterflowOutcome()
+
+
+def counterflow_crossers(
+    yielder_id: str,
+    passer_order: Sequence[str],
+    positions: Mapping[str, tuple[float, float]],
+    geometry: SceneGeometry,
+) -> list[str]:
+    """The crossers that start on the yielder's park side, outside the corridor.
+
+    The park side is the side `_ground_legacy` parks the yielder on: away from
+    the first passer along the corridor axis (`side = -1` when the yielder's
+    coordinate is below the passer's). A crosser standing past the corridor
+    mouth on that side crosses toward the passer's side, the opposite way to
+    every passer escorted to the yielder's side, so it occupies their exit.
+    Robots inside the corridor have no side and are not listed.
+
+    Args:
+        yielder_id: The yielder.
+        passer_order: Every robot the yield sends through the gate, first
+            passer first (named passers, then any added queued crossers).
+        positions: World `(x, y)` per robot id; must cover the yielder and
+            every listed passer.
+        geometry: A plain single-corridor geometry.
+
+    Returns:
+        The listed crossers on the yielder's park side, in `passer_order`.
+    """
+    center = geometry.corridor.center_m
+    half_length = geometry.corridor.half_length_m
+    yielder_along = along_m(geometry, positions[yielder_id])
+    side = -1.0 if yielder_along < along_m(geometry, positions[passer_order[0]]) else 1.0
+    return [
+        robot_id
+        for robot_id in passer_order
+        if (along_m(geometry, positions[robot_id]) - center) * side > half_length
+    ]
+
+
+def _counterflow_check(
+    robot_ids: list[str],
+    passer_order: list[str],
+    decision: CongestionDecision,
+    snapshot: SnapshotFrame,
+    positions: Mapping[str, tuple[float, float]],
+    geometry: SceneGeometry,
+    hold_queued_crossers: bool,
+) -> list[str] | None:
+    # None when the yield with this yielder and passer order would not ground
+    # anyway (the existing first-passer or corridor same-side refusal: left
+    # to those checks); else the counterflow crossers of the order the
+    # command would carry, the hold's added robots included.
+    yielder = robot_ids[0]
+    if len(passer_order) > 1 and _first_passer_refusal(yielder, passer_order, dict(positions)):
+        return None
+    if _beyond_corridor_same_side(positions[yielder], positions[passer_order[0]], geometry):
+        return None
+    extended = list(passer_order)
+    if hold_queued_crossers:
+        candidate = decision.model_copy(
+            update={
+                "yield_robot": yielder,
+                "involved_robots": list(robot_ids),
+                "crossing_order": [*passer_order, yielder],
+            }
+        )
+        extended = [*passer_order, *queued_crosser_outcome(candidate, snapshot, geometry).added]
+    return counterflow_crossers(yielder, extended, positions, geometry)
+
+
+def counterflow_yield_outcome(
+    decision: CongestionDecision,
+    snapshot: SnapshotFrame,
+    geometry: SceneGeometry | None,
+    static_obstacles: Sequence[StaticObstacleInput] = (),
+    yield_feasibility_mode: YieldFeasibilityMode = "off",
+    crossing_order: Sequence[str] | None = None,
+    *,
+    hold_queued_crossers: bool = False,
+) -> CounterflowOutcome:
+    """Hand a legacy corridor yield to a robot whose crossers all start opposite it.
+
+    Acts only on a yield that would otherwise ground: the room gate (when
+    on), the first-passer check and the corridor same-side check run first,
+    unchanged, and a yield they refuse is left to them. When the grounded
+    yielder's crossing order (named passers, then the hold's added robots when
+    `hold_queued_crossers`) contains a robot on the yielder's park side
+    (`counterflow_crossers`), each other robot the decision names is tried in
+    `involved_robots` order: it must pass the room gate (when on), and with it
+    as yielder, its passers ordered by distance to it (ties by id), the same
+    checks and an empty counterflow set. The first that passes yields; with
+    none, the yield is refused. Runtime state only: snapshot poses and goals,
+    the declared corridor and the hold's own predicate.
+
+    Args:
+        decision: The (alias- and view-resolved) decision being grounded.
+        snapshot: The decision frame.
+        geometry: Declared scene geometry; anything but a plain single
+            corridor (`scene_geometry.is_single_corridor`) changes nothing.
+        static_obstacles: Fixed obstacles, for the room gate.
+        yield_feasibility_mode: The room gate mode, as grounded.
+        crossing_order: The caller's crossing-order override, as grounded.
+        hold_queued_crossers: Whether the queued-crosser hold is on; its
+            added robots then count as crossers.
+
+    Returns:
+        The rewritten decision with the model's yielder and the reason, a
+        refusal reason, or the empty outcome when nothing changes.
+    """
+    if decision.strategy != "yield" or geometry is None or not is_single_corridor(geometry):
+        return _NO_COUNTERFLOW
+    positions = {state.robot_id: (state.x, state.y) for state in snapshot.robots}
+    model_ids = resolve_robot_order(decision)
+    if len(model_ids) < 2 or any(robot_id not in positions for robot_id in model_ids):
+        return _NO_COUNTERFLOW
+    robot_ids = model_ids
+    if yield_feasibility_mode != "off":
+        gated = _apply_yield_feasibility(
+            robot_ids, positions, static_obstacles, geometry, yield_feasibility_mode
+        )
+        if gated.refusal_reason is not None:
+            return _NO_COUNTERFLOW
+        robot_ids = gated.robot_ids
+    passer_order = _legacy_passer_order(robot_ids, decision, crossing_order)
+    blocked = _counterflow_check(
+        robot_ids, passer_order, decision, snapshot, positions, geometry, hold_queued_crossers
+    )
+    if not blocked:
+        return _NO_COUNTERFLOW
+    yielder = robot_ids[0]
+    tried = [f"{yielder}: {', '.join(blocked)}"]
+    for candidate in robot_ids[1:]:
+        others = [robot_id for robot_id in robot_ids if robot_id != candidate]
+        if yield_feasibility_mode != "off" and _apply_yield_feasibility(
+            [candidate, *others], positions, static_obstacles, geometry, "refuse"
+        ).refusal_reason is not None:
+            tried.append(f"{candidate}: retreat room")
+            continue
+        cx, cy = positions[candidate]
+        order = sorted(
+            others,
+            key=lambda rid: (math.hypot(positions[rid][0] - cx, positions[rid][1] - cy), rid),
+        )
+        candidate_blocked = _counterflow_check(
+            [candidate, *order], order, decision, snapshot, positions, geometry,
+            hold_queued_crossers,
+        )
+        if candidate_blocked is None:
+            tried.append(f"{candidate}: refused by the corridor checks")
+            continue
+        if candidate_blocked:
+            tried.append(f"{candidate}: {', '.join(candidate_blocked)}")
+            continue
+        rewritten = decision.model_copy(
+            update={
+                "yield_robot": candidate,
+                "involved_robots": [candidate, *order],
+                "crossing_order": [*order, candidate],
+            }
+        )
+        reason = (
+            f"yield re-grounded: counterflow: {yielder} parks on the side where "
+            f"{', '.join(blocked)} wait to cross the other way; {candidate} feasible"
+        )
+        return CounterflowOutcome(rewritten, model_ids[0], reason, None)
+    return CounterflowOutcome(
+        refusal_reason=(
+            "yield refused: counterflow: no yielder whose crossers all start on the "
+            f"far side ({'; '.join(tried)})"
+        )
+    )
+
+
+def counterflow_tags(outcome: CounterflowOutcome, model_yielder: str | None) -> list[str]:
+    """The degradation tags recording a counterflow outcome.
+
+    Args:
+        outcome: `counterflow_yield_outcome`'s result.
+        model_yielder: The model's grounded yielder, for the refusal tag.
+
+    Returns:
+        `yield=counterflow_regrounded:<from>:<to>` for a swap,
+        `yield=counterflow_refused:<model yielder>` for a refusal, else empty.
+    """
+    if outcome.decision is not None:
+        return [
+            f"{COUNTERFLOW_REGROUNDED_TAG}:{outcome.grounded_from}:"
+            f"{outcome.decision.yield_robot}"
+        ]
+    if outcome.refusal_reason is not None:
+        return [f"{COUNTERFLOW_REFUSED_TAG}:{model_yielder}"]
+    return []
+
+
 def _ground_legacy(
     result: ReasonerResult,
     robot_positions: dict[str, tuple[float, float]] | None,
@@ -1052,6 +1305,7 @@ def _ground_legacy(
     yield_feasibility_mode: YieldFeasibilityMode,
     crossing_order: Sequence[str] | None = None,
     queued_crossers: Sequence[str] = (),
+    counterflow: CounterflowOutcome = _NO_COUNTERFLOW,
 ) -> dict[str, Any]:
     """Scenario-tuned pre-rev-8 bridge; its output is pinned byte-identical.
 
@@ -1065,6 +1319,12 @@ def _ground_legacy(
     default, byte-identical) are appended to a non-refused yield's passing
     order after the named passers and grounded like named passers. A refused
     yield's wait fan-out stays on the decision's own robots.
+
+    `counterflow` (`counterflow_yield_outcome`; empty by default,
+    byte-identical): `result` already carries its rewritten decision on a
+    swap, recorded here as `yield_robot_grounded_from` and
+    `yield_regrounded_reason` (the room gate's own keys) unless the room gate
+    moved the yield itself; a refusal fans out as a refused yield.
     """
     decision = result.decision
     if decision is None or not decision.congestion_detected:
@@ -1086,6 +1346,11 @@ def _ground_legacy(
                 robot_ids, robot_positions, static_obstacles, geometry, yield_feasibility_mode
             )
         )
+    if counterflow.decision is not None and yield_grounded_from is None:
+        yield_grounded_from = counterflow.grounded_from
+        yield_regrounded_reason = counterflow.regrounded_reason
+    if counterflow.refusal_reason is not None and yield_refusal_reason is None:
+        yield_refusal_reason = counterflow.refusal_reason
     command_id = f"{result.request_id}-{decision.strategy}"
     # Set only by a tracked-band clamp that actually shortened a reverse;
     # empty keeps every other legacy command byte-identical (no key).
@@ -1532,6 +1797,13 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # <refusal>`). Provenance: M3 added these roles, the model did not.
     "crossing_order=augmented": None,
     "crossing_order=augment_withheld": None,
+    # Counterflow yielder feasibility (2026-11-15, `counterflow_yield_outcome`,
+    # legacy single corridor): M3 handed the model's yield to another named
+    # robot whose crossers all start opposite it (suffix `:<from>:<to>`;
+    # provenance), or refused it because no named robot qualified (suffix
+    # `:<model yielder>`).
+    "yield=counterflow_regrounded": None,
+    "yield=counterflow_refused": "infeasible_geometry",
     "roles=legacy-convention": None,
     # Provenance: the feasibility gate grounded a different yielder than M2
     # named (scored pre-gate, prereg amendments).
@@ -5164,10 +5436,16 @@ def _repair_plan(
         # `_apply_yield_feasibility`'s own mode gate), not just "no room-based
         # reassignment" -- an ordering-defect swap must not smuggle a yielder
         # change past that contract either.
+        # A verdict naming dispatch's own yielder (the derived retry, which
+        # already implies `"swap"`, or the legacy counterflow swap) is the one
+        # yield re-assignment dispatch performs, so a swap onto it is allowed;
+        # `_plan_problems` accepts no other yielder.
         ops: list[tuple[str, tuple[int, ...], str]] = []
         for i, j in combinations(touchable, 2):
             ops.append(("reorder", (i, j), ""))
-        if yield_feasibility_mode == "swap":
+        if yield_feasibility_mode == "swap" or (
+            plan_yield_verdict is not None and plan_yield_verdict.yielder_id is not None
+        ):
             for i, j in combinations(touchable, 2):
                 if state[i].action != state[j].action:
                     ops.append(("swap", (i, j), ""))
@@ -5273,6 +5551,7 @@ def verify_and_repair_plan(
     grounding_params: GroundingParams | None = None,
     goal_references: Mapping[str, tuple[float, float]] | None = None,
     hold_queued_crossers: bool = False,
+    yield_counterflow_swap: bool = False,
 ) -> VerifiedPlan:
     """Audit, and if needed minimally repair, a decision's `proposed_plan`.
 
@@ -5402,6 +5681,15 @@ def verify_and_repair_plan(
             precedent). So such a plan is `repaired`, never `vlm_verbatim`,
             and an absent plan's `m3_default` legs match the dispatch. False
             (the default) keeps every verdict unchanged.
+        yield_counterflow_swap: As `ground_reasoner_result`'s (legacy mode
+            only). When dispatch hands the yield to another robot
+            (`counterflow_yield_outcome`), M3's default plan yields that
+            robot and a `yield` leg on any other robot is a problem whose
+            repair is one `swap` onto it (reason `yield re-grounded:
+            counterflow: ...`), allowed whatever the room gate mode; when
+            dispatch refuses the yield, the default plan is the refusal's
+            waits and a plan with a yield leg is `plan unrepairable`. False
+            (the default) keeps every verdict unchanged.
 
     The default plan, every feasibility check and the repair run through the
     same grounding view `ground_reasoner_result` grounds the decision
@@ -5451,16 +5739,62 @@ def verify_and_repair_plan(
             grounding_params=grounding_params,
             goal_references=goal_references,
         )
+    legacy_mode = grounding_params is None or grounding_params.mode == "legacy"
+    # Grounding resolves the counterflow swap and the queued robots on the
+    # alias-resolved yield, the swap first.
+    working = decision
+    counterflow_verdict: _PlanYieldVerdict | None = None
+    if yield_counterflow_swap and view.refusal_reason is None and legacy_mode:
+        alias = resolve_strategy_alias(decision, snapshot, geometry=geometry, priorities=priorities)
+        working = alias.decision if alias is not None else decision
+        counterflow = counterflow_yield_outcome(
+            working,
+            snapshot,
+            geometry,
+            static_obstacles,
+            yield_feasibility_mode,
+            hold_queued_crossers=hold_queued_crossers,
+        )
+        if counterflow.decision is not None:
+            working = counterflow.decision
+            default_legs = _derive_default_plan(
+                working,
+                snapshot,
+                geometry=geometry,
+                static_obstacles=static_obstacles,
+                yield_feasibility_mode=yield_feasibility_mode,
+                priorities=priorities,
+                grounding_params=grounding_params,
+                goal_references=goal_references,
+            )
+            assert counterflow.regrounded_reason is not None
+            counterflow_verdict = _PlanYieldVerdict(
+                yielder_id=working.yield_robot,
+                reason=counterflow.regrounded_reason.removeprefix("yield re-grounded: "),
+            )
+        elif counterflow.refusal_reason is not None:
+            waiting = resolve_robot_order(working)
+            default_legs = [
+                ProposedPlanLeg(robot_id=rid, action="wait" if rid in waiting else "continue")
+                for rid in [*waiting, *(r for r in known_robot_ids if r not in waiting)]
+            ]
+            counterflow_verdict = _PlanYieldVerdict(
+                yielder_id=None, reason=counterflow.refusal_reason
+            )
     queued_crossers: tuple[str, ...] = ()
     if (
         hold_queued_crossers
         and view.refusal_reason is None
-        and (grounding_params is None or grounding_params.mode == "legacy")
+        and legacy_mode
+        and (counterflow_verdict is None or counterflow_verdict.yielder_id is not None)
     ):
-        # Grounding resolves the queued robots on the alias-resolved yield.
-        alias = resolve_strategy_alias(decision, snapshot, geometry=geometry, priorities=priorities)
+        if working is decision:
+            alias = resolve_strategy_alias(
+                decision, snapshot, geometry=geometry, priorities=priorities
+            )
+            working = alias.decision if alias is not None else decision
         queued_crossers = queued_crosser_outcome(
-            alias.decision if alias is not None else decision,
+            working,
             snapshot,
             geometry,
             static_obstacles,
@@ -5525,6 +5859,9 @@ def verify_and_repair_plan(
         goal_references=goal_references,
     )
     plan_yield_verdict = _plan_yield_verdict(view, model_decision, dispatched)
+    if plan_yield_verdict is None:
+        # Legacy counterflow swap or refusal: the yielder dispatch executes.
+        plan_yield_verdict = counterflow_verdict
     off_lane_holds = _plan_off_lane_holds(dispatched)
     if not _plan_problems(
         legs,

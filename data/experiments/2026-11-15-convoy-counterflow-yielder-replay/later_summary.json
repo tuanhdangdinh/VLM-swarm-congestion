@@ -1,0 +1,35 @@
+{
+ "decisions": 43,
+ "replayed": 43,
+ "fix_identical_to_hold": 43,
+ "fix_identical_to_off": 43,
+ "recorded_reproduced": 43,
+ "per_bundle": {
+  "cvD_t01_a1": {
+   "n": 11,
+   "fix_eq_hold": 11,
+   "repro": 11
+  },
+  "cvD_t02_a1": {
+   "n": 11,
+   "fix_eq_hold": 11,
+   "repro": 11
+  },
+  "cvD_t03_a1": {
+   "n": 11,
+   "fix_eq_hold": 11,
+   "repro": 11
+  },
+  "cvH_t04_a2": {
+   "n": 5,
+   "fix_eq_hold": 5,
+   "repro": 5
+  },
+  "cvH_t05_a1": {
+   "n": 5,
+   "fix_eq_hold": 5,
+   "repro": 5
+  }
+ },
+ "changed": []
+}
