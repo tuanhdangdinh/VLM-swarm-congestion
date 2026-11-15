@@ -622,6 +622,13 @@ class OrchestratorNode(Node):
                 else f"aisle_x_band_m={self._grounding.aisle_x_band_override_m} "
             )
             + f"stage2_retreat_selection={self._config.stage2_retreat_selection}"
+            # Only when on, so every key-off startup line is unchanged; a kit
+            # asserts the guard from this line, not from the yaml.
+            + (
+                " escort_obstacle_guard=True"
+                if self._grounding.params.escort_obstacle_guard
+                else ""
+            )
         )
         if self._marker is not None:
             if self._marker.available:

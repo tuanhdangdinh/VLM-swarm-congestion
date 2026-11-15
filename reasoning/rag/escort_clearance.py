@@ -156,6 +156,71 @@ def _escort_plan(
     return plan
 
 
+class EscortDrive(BaseModel):
+    """One escorted passer's straight raw-cmd_vel leg, as M4 drives it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    passer_id: str
+    start_xy: tuple[float, float]
+    end_xy: tuple[float, float]
+    # World-frame drive heading in radians.
+    heading_rad: float
+    distance_m: float
+
+
+def escort_drives(
+    yielder_id: str,
+    parameters: Mapping[str, Any],
+    snapshot: SnapshotFrame,
+    geometry: SceneGeometry | None,
+) -> list[EscortDrive]:
+    """Every escorted passer's leg of a grounded yield, with no park point needed.
+
+    The leg rules of the module docstring (start, heading, length), shared
+    by the park-point check (`escort_legs`) and the static-obstacle sweep
+    (`reasoning.rag.escort_obstacles`).
+
+    Args:
+        yielder_id: The yield's yielder.
+        parameters: The yield's FINAL parameters (after
+            `grounding_view.apply_escort_headings`).
+        snapshot: The decision snapshot the yield was grounded on.
+        geometry: The geometry it was grounded on (the dynamic view when it
+            fired), or None.
+
+    Returns:
+        One leg per escorted passer in crossing order; empty when the yield
+        has no escort. A passer missing from the snapshot has no leg.
+    """
+    yielder = snapshot.find_robot(yielder_id)
+    drives: list[EscortDrive] = []
+    for passer_id, distance_m, heading, reference in _escort_plan(parameters):
+        passer = snapshot.find_robot(passer_id)
+        if passer is None:
+            continue
+        if heading is not None and reference is not None:
+            drive = heading
+        elif geometry is None or yielder is None:
+            drive = passer.theta
+        else:
+            axis, sign = escort_axis(passer, yielder, geometry)
+            drive = (0.0 if sign > 0 else math.pi) if axis == "x" else sign * math.pi / 2
+        drives.append(
+            EscortDrive(
+                passer_id=passer_id,
+                start_xy=(passer.x, passer.y),
+                end_xy=(
+                    passer.x + abs(distance_m) * math.cos(drive),
+                    passer.y + abs(distance_m) * math.sin(drive),
+                ),
+                heading_rad=drive,
+                distance_m=abs(distance_m),
+            )
+        )
+    return drives
+
+
 def escort_legs(
     yielder_id: str,
     parameters: Mapping[str, Any],
@@ -179,37 +244,19 @@ def escort_legs(
         has no leg.
     """
     park_x, park_y = _float(parameters.get("retreat_x_m")), _float(parameters.get("retreat_y_m"))
-    yielder = snapshot.find_robot(yielder_id)
     if park_x is None or park_y is None:
         return []
-    legs: list[EscortLeg] = []
-    for passer_id, distance_m, heading, reference in _escort_plan(parameters):
-        passer = snapshot.find_robot(passer_id)
-        if passer is None:
-            continue
-        if heading is not None and reference is not None:
-            drive = heading
-        elif geometry is None or yielder is None:
-            drive = passer.theta
-        else:
-            axis, sign = escort_axis(passer, yielder, geometry)
-            drive = (0.0 if sign > 0 else math.pi) if axis == "x" else sign * math.pi / 2
-        start = (passer.x, passer.y)
-        end = (
-            passer.x + abs(distance_m) * math.cos(drive),
-            passer.y + abs(distance_m) * math.sin(drive),
+    return [
+        EscortLeg(
+            passer_id=drive.passer_id,
+            start_xy=drive.start_xy,
+            end_xy=drive.end_xy,
+            heading_rad=drive.heading_rad,
+            distance_m=drive.distance_m,
+            park_clearance_m=point_segment_distance((park_x, park_y), drive.start_xy, drive.end_xy),
         )
-        legs.append(
-            EscortLeg(
-                passer_id=passer_id,
-                start_xy=start,
-                end_xy=end,
-                heading_rad=drive,
-                distance_m=abs(distance_m),
-                park_clearance_m=point_segment_distance((park_x, park_y), start, end),
-            )
-        )
-    return legs
+        for drive in escort_drives(yielder_id, parameters, snapshot, geometry)
+    ]
 
 
 def escort_park_violations(

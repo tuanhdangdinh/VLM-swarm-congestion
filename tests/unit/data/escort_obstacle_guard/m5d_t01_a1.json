@@ -1,0 +1,521 @@
+{
+ "cases": [
+  {
+   "case": "decision_1_robot_4",
+   "decision": {
+    "blocker_kind": "robot",
+    "congestion_detected": true,
+    "crossing_order": [
+     "robot_4",
+     "robot_1"
+    ],
+    "involved_robots": [
+     "robot_1",
+     "robot_4"
+    ],
+    "justification": "robot_1 is closer to a wider area to step aside, so robot_1 should yield and allow robot_4 to pass.",
+    "proposed_plan": [
+     {
+      "action": "yield",
+      "robot_id": "robot_1"
+     },
+     {
+      "action": "cross",
+      "robot_id": "robot_4"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_2"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_3"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_5"
+     }
+    ],
+    "reasoning": "robot_1 and robot_4 are in very close proximity (0.26 m) and directly face each other, with robot_4 stopped and robot_1 slow, creating a head-on deadlock. robot_1 should yield (step aside/back up) to let robot_4 proceed to its goal.",
+    "root_cause": "robot_1 and robot_4 are in a head-on standoff in a narrow lane, blocking each other's progress.",
+    "strategy": "yield",
+    "type": "deadlock",
+    "yield_robot": "robot_1"
+   },
+   "dispatched_command": {
+    "actions": [
+     {
+      "action": "yield",
+      "parameters": {
+       "backup_distance_m": 1.514,
+       "backup_facing_rad": 0.0,
+       "backup_line_hold": true,
+       "backup_reference_yaw_rad": -0.25732,
+       "crossing_order": [
+        "robot_4"
+       ],
+       "fresh_latch_fast_fail": true,
+       "hold_sec": 45.0,
+       "passer_clear_m": 1.671,
+       "passer_escort_distance_m": 1.671,
+       "passer_escort_heading_rad": 3.141593,
+       "passer_escort_reference_yaw_rad": 2.963999,
+       "passer_robot_id": "robot_4",
+       "plan_id": 1,
+       "pull_off_lateral_m": 0.72,
+       "reason": "robot_1 and robot_4 are in a head-on standoff in a narrow lane, blocking each other's progress.",
+       "retreat_choice": "A",
+       "retreat_x_m": -2.329,
+       "retreat_y_m": -0.603
+      },
+      "robot_id": "robot_1"
+     },
+     {
+      "action": "temporary_wait",
+      "parameters": {
+       "duration_sec": 120.0,
+       "linked_position": 0,
+       "plan_id": 1
+      },
+      "robot_id": "robot_4"
+     },
+     {
+      "action": "temporary_wait",
+      "parameters": {
+       "duration_sec": 120.0,
+       "plan_id": 1,
+       "reason": "retreat shield: intent crosses robot_1's retreat",
+       "requested_strategy": "yield",
+       "retreat_shield_hold": true
+      },
+      "robot_id": "robot_5"
+     },
+     {
+      "action": "temporary_wait",
+      "parameters": {
+       "duration_sec": 120.0,
+       "plan_id": 1,
+       "reason": "retreat shield: intent crosses robot_1's retreat",
+       "requested_strategy": "yield",
+       "retreat_shield_hold": true
+      },
+      "robot_id": "robot_3"
+     }
+    ],
+    "command_id": "03bba450201447b78f13d94589a1ade5-yield",
+    "degradations": [
+     "retreat=escort_park_filtered:A:robot_4:0.178",
+     "retreat=default:no_choice",
+     "grounding=node_handoff:robot_1->robot_4",
+     "grounding=dynamic_arms:lane:x",
+     "grounding=escort_turn_cap:robot_4:2.35->1.671",
+     "grounding=retreat_shield:robot_5",
+     "grounding=retreat_shield:robot_3"
+    ],
+    "expected_resolution_time_sec": 150.0,
+    "fallback": "stop"
+   },
+   "grounding_params": {
+    "aisle_x_band_m": [
+     -2.36,
+     2.36
+    ],
+    "aisle_y_band_m": [
+     -1.66,
+     1.66
+    ],
+    "backup_band_m": [
+     0.5,
+     2.0
+    ],
+    "backup_clearance_m": 1.7,
+    "dynamic_handoff_radius_m": 0.5,
+    "dynamic_scene_arms": true,
+    "escort_band_m": [
+     1.0,
+     3.5
+    ],
+    "escort_clearance_m": 0.5,
+    "escort_park_clearance": true,
+    "escort_turn_cap": true,
+    "hold_backstop_sec": 45.0,
+    "junction_recede_cost_follower_weight": 0.5,
+    "junction_recede_cost_space_weight": 1.0,
+    "junction_recede_hold_sec": 120.0,
+    "junction_recede_order_epsilon": 0.15,
+    "junction_recede_tolerance_m": 0.1,
+    "lateral_m": 0.35,
+    "min_distance_m": 0.45,
+    "mode": "derived",
+    "resolution_backstop_sec": 150.0,
+    "retreat_box_margin_m": 0.05,
+    "retreat_fast_fail": true,
+    "retreat_shield": true,
+    "retreat_shield_margin_m": 0.05,
+    "sweep_step_m": 0.1,
+    "wait_backstop_sec": 120.0
+   },
+   "request_id": "03bba450201447b78f13d94589a1ade5",
+   "retreat_choice": null,
+   "rows": [
+    {
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "robot_id": "robot_4",
+     "status": "STOPPED",
+     "theta": 2.96399925231977,
+     "x": -0.6286898342452883,
+     "y": -1.1385969256917936
+    },
+    {
+     "goal": [
+      -0.25,
+      -1.35
+     ],
+     "robot_id": "robot_1",
+     "status": "SLOW",
+     "theta": -0.2573198000065894,
+     "x": -0.8150086586056771,
+     "y": -1.3227336533874043
+    },
+    {
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "robot_id": "robot_2",
+     "status": "MOVING",
+     "theta": -0.2984944603944541,
+     "x": 1.0645233415210522,
+     "y": 0.8476826872614502
+    },
+    {
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "robot_id": "robot_5",
+     "status": "MOVING",
+     "theta": 0.04995760235021031,
+     "x": -2.0113716360776475,
+     "y": 1.3837493738072517
+    },
+    {
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "robot_id": "robot_3",
+     "status": "MOVING",
+     "theta": 2.268706981549002,
+     "x": 1.353263040091245,
+     "y": 0.6090676377624045
+    }
+   ],
+   "stamp": 44.466666666
+  },
+  {
+   "case": "decision_2_robot_3",
+   "decision": {
+    "blocker_kind": "robot",
+    "congestion_detected": true,
+    "crossing_order": [
+     "robot_3",
+     "robot_2"
+    ],
+    "involved_robots": [
+     "robot_2",
+     "robot_3"
+    ],
+    "justification": "Robot 2 should yield and back up/step aside to let Robot 3 proceed first.",
+    "proposed_plan": [
+     {
+      "action": "yield",
+      "robot_id": "robot_2"
+     },
+     {
+      "action": "cross",
+      "robot_id": "robot_3"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_1"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_4"
+     },
+     {
+      "action": "continue",
+      "robot_id": "robot_5"
+     }
+    ],
+    "reasoning": "Robot 2 and Robot 3 are in a head-on deadlock situation since they are only 0.38 meters apart, facing each other, and both are STOPPED. Robot 1 and Robot 4 are also very close, but the major face-to-face conflict is between Robot 2 and Robot 3 on the right side.",
+    "root_cause": "Robot 2 and Robot 3 are face-to-face within 0.38 meters, blocking each other's path.",
+    "strategy": "yield",
+    "type": "deadlock",
+    "yield_robot": "robot_2"
+   },
+   "dispatched_command": {
+    "actions": [
+     {
+      "action": "yield",
+      "parameters": {
+       "backup_distance_m": 1.408,
+       "backup_facing_rad": 0.0,
+       "backup_line_hold": true,
+       "backup_reference_yaw_rad": -0.298494,
+       "crossing_order": [
+        "robot_3"
+       ],
+       "fresh_latch_fast_fail": true,
+       "hold_sec": 45.0,
+       "passer_clear_m": 1.604,
+       "passer_escort_distance_m": 1.604,
+       "passer_escort_heading_rad": 3.141593,
+       "passer_escort_reference_yaw_rad": 2.219136,
+       "passer_robot_id": "robot_3",
+       "plan_id": 2,
+       "pull_off_lateral_m": -0.72,
+       "reason": "Robot 2 and Robot 3 are face-to-face within 0.38 meters, blocking each other's path.",
+       "retreat_choice": "C",
+       "retreat_x_m": -0.346,
+       "retreat_y_m": 0.13
+      },
+      "robot_id": "robot_2"
+     },
+     {
+      "action": "temporary_wait",
+      "parameters": {
+       "duration_sec": 120.0,
+       "linked_position": 0,
+       "plan_id": 2
+      },
+      "robot_id": "robot_3"
+     },
+     {
+      "action": "temporary_wait",
+      "parameters": {
+       "duration_sec": 120.0,
+       "plan_id": 2,
+       "reason": "retreat shield: intent crosses robot_2's retreat",
+       "requested_strategy": "yield",
+       "retreat_shield_hold": true
+      },
+      "robot_id": "robot_5"
+     }
+    ],
+    "command_id": "a15f3fc588d94f018454b3e719bc7c0a-yield",
+    "degradations": [
+     "retreat=escort_park_filtered:B:robot_3:0.151",
+     "grounding=dynamic_arms:bearing_lane:robot_3:37",
+     "grounding=dynamic_arms:lane:x",
+     "grounding=escort_turn_cap:robot_3:2.35->1.604",
+     "grounding=retreat_shield:robot_5"
+    ],
+    "expected_resolution_time_sec": 150.0,
+    "fallback": "stop"
+   },
+   "grounding_params": {
+    "aisle_x_band_m": [
+     -2.36,
+     2.36
+    ],
+    "aisle_y_band_m": [
+     -1.66,
+     1.66
+    ],
+    "backup_band_m": [
+     0.5,
+     2.0
+    ],
+    "backup_clearance_m": 1.7,
+    "dynamic_handoff_radius_m": 0.5,
+    "dynamic_scene_arms": true,
+    "escort_band_m": [
+     1.0,
+     3.5
+    ],
+    "escort_clearance_m": 0.5,
+    "escort_park_clearance": true,
+    "escort_turn_cap": true,
+    "hold_backstop_sec": 45.0,
+    "junction_recede_cost_follower_weight": 0.5,
+    "junction_recede_cost_space_weight": 1.0,
+    "junction_recede_hold_sec": 120.0,
+    "junction_recede_order_epsilon": 0.15,
+    "junction_recede_tolerance_m": 0.1,
+    "lateral_m": 0.35,
+    "min_distance_m": 0.45,
+    "mode": "derived",
+    "resolution_backstop_sec": 150.0,
+    "retreat_box_margin_m": 0.05,
+    "retreat_fast_fail": true,
+    "retreat_shield": true,
+    "retreat_shield_margin_m": 0.05,
+    "sweep_step_m": 0.1,
+    "wait_backstop_sec": 120.0
+   },
+   "request_id": "a15f3fc588d94f018454b3e719bc7c0a",
+   "retreat_choice": "C",
+   "rows": [
+    {
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "robot_id": "robot_3",
+     "status": "STOPPED",
+     "theta": 2.219135972528724,
+     "x": 1.3543526238594346,
+     "y": 0.606888504890267
+    },
+    {
+     "goal": [
+      2.3,
+      0.0
+     ],
+     "robot_id": "robot_2",
+     "status": "STOPPED",
+     "theta": -0.2984944603944553,
+     "x": 1.0623441739846733,
+     "y": 0.8498618201335877
+    },
+    {
+     "goal": [
+      -0.25,
+      -1.35
+     ],
+     "robot_id": "robot_1",
+     "status": "STOPPED",
+     "theta": -0.32961953567756563,
+     "x": -2.176988368842437,
+     "y": -0.6787998896708014
+    },
+    {
+     "goal": [
+      -2.3,
+      1.35
+     ],
+     "robot_id": "robot_4",
+     "status": "STALE",
+     "theta": 1.6183801858511917,
+     "x": -2.368755112043773,
+     "y": -1.0547003101145038
+    },
+    {
+     "goal": [
+      -0.25,
+      1.35
+     ],
+     "robot_id": "robot_5",
+     "status": "MOVING",
+     "theta": 0.02438502142526977,
+     "x": -1.297694267913585,
+     "y": 1.3695850101383584
+    }
+   ],
+   "stamp": 103.033333333
+  }
+ ],
+ "grounding_yield_feasibility": "swap",
+ "scenario_geometry": {
+  "camera": {
+   "height_m": 3.0,
+   "marker_height_m": 0.21
+  },
+  "corridor": {
+   "aisle_half_width_m": 0.6,
+   "axis": "x",
+   "center_m": 0.0,
+   "half_length_m": 0.6,
+   "occluder_height_m": 0.3
+  },
+  "junction_boxes": [
+   {
+    "name": "NW",
+    "x_max_m": -1.3,
+    "x_min_m": -2.5,
+    "y_max_m": 1.8,
+    "y_min_m": 0.9
+   },
+   {
+    "name": "SW",
+    "x_max_m": -1.3,
+    "x_min_m": -2.5,
+    "y_max_m": -0.7,
+    "y_min_m": -1.8
+   },
+   {
+    "name": "N",
+    "x_max_m": 0.25,
+    "x_min_m": -0.75,
+    "y_max_m": 1.8,
+    "y_min_m": 0.7
+   },
+   {
+    "name": "S",
+    "x_max_m": 0.25,
+    "x_min_m": -0.75,
+    "y_max_m": -0.7,
+    "y_min_m": -1.8
+   }
+  ],
+  "junction_declared": true,
+  "park_margin_m": 0.4,
+  "passer_margin_m": 0.2,
+  "robot": {
+   "half_width_m": 0.09,
+   "marker_half_size_m": 0.06,
+   "safety_radius_m": 0.45
+  },
+  "wall_margin_m": 0.15
+ },
+ "source": "data/logs/vm_runs/demo_campaign/m5/runs/m5D_t01_a1 (demo/campaign-kits worktree v7j), read-only",
+ "static_obstacles": [
+  {
+   "obstacle_id": "obstacle_1",
+   "size_x_m": 0.55,
+   "size_y_m": 1.6,
+   "x": -1.025,
+   "y": 0.1
+  },
+  {
+   "obstacle_id": "obstacle_2",
+   "size_x_m": 0.55,
+   "size_y_m": 1.6,
+   "x": 0.525,
+   "y": -0.1
+  },
+  {
+   "obstacle_id": "obstacle_3",
+   "size_x_m": 0.5,
+   "size_y_m": 4.6,
+   "x": -2.75,
+   "y": 0.0
+  },
+  {
+   "obstacle_id": "obstacle_4",
+   "size_x_m": 0.5,
+   "size_y_m": 4.6,
+   "x": 2.75,
+   "y": 0.0
+  },
+  {
+   "obstacle_id": "obstacle_5",
+   "size_x_m": 5.0,
+   "size_y_m": 0.5,
+   "x": 0.0,
+   "y": 2.05
+  },
+  {
+   "obstacle_id": "obstacle_6",
+   "size_x_m": 5.0,
+   "size_y_m": 0.5,
+   "x": 0.0,
+   "y": -2.05
+  }
+ ]
+}

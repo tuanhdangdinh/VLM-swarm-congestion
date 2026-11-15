@@ -161,6 +161,15 @@ class GroundingParams(BaseModel):
     # escort. Derived mode only, with or without `dynamic_scene_arms`.
     # False (default): never checked, and kept out of every dump.
     escort_park_clearance: bool = False
+    # Escort obstacle guard (2026-11-15, demo take m5D_t01_a1 decision
+    # `a15f3fc5`; `reasoning.rag.escort_obstacles`): a derived yield whose
+    # escort leg, as M4 drives it, enters a declared static obstacle grown by
+    # `robot.half_width_m + retreat_box_margin_m` drops that retreat
+    # candidate, and is infeasible (`yield=infeasible:escort_hits_obstacle:
+    # <passer>:<obstacle>:<clear m>`) when none survives. Derived mode with a
+    # scene geometry only. False (default): never checked, and kept out of
+    # every dump.
+    escort_obstacle_guard: bool = False
 
     @model_validator(mode="after")
     def _check_bands(self) -> "GroundingParams":
@@ -205,6 +214,8 @@ class GroundingParams(BaseModel):
             data.pop("retreat_fast_fail", None)
         if not data.get("escort_park_clearance"):
             data.pop("escort_park_clearance", None)
+        if not data.get("escort_obstacle_guard"):
+            data.pop("escort_obstacle_guard", None)
         return data
 
 
