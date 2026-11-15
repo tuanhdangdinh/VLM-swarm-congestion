@@ -102,7 +102,7 @@ Every call has `finish_reason=completed`, 294–330 completion tokens (cap 2048)
 
 ### 3.1 What Was Built
 
-`demo_campaign/ib_sonnet/spec/` was assembled by the unchanged `common/assemble_dmc.sh ib_sonnet` into `ib_sonnet/kit/` (`kit_md5_dmc.txt` `858e0803`, `kit_md5_all_dmc.txt` `777a3f1b`). The spec files override the common files of the same name. Nothing under `common/`, `ib/`, `runtime_delta/` or the ledger was modified; `ib/kit` still passes `KIT_MD5 OK`.
+`demo_campaign/ib_sonnet/spec/` was assembled by the unchanged `common/assemble_dmc.sh ib_sonnet` into `ib_sonnet/kit/` (`kit_md5_dmc.txt` `120487a9`, `kit_md5_all_dmc.txt` `f1b5fced`). The spec files override the common files of the same name. Nothing under `common/`, `ib/`, `runtime_delta/` or the ledger was modified (verified): `ib/kit` passes `KIT_MD5 OK`, every unforked common file is byte-equal in `ib/kit`, and every bundle file in the three `ib` manifests still matches. Only the `vm/` tree files, which each later pull overwrites by design, differ in the first two manifests.
 
 **Unchanged from `ib`:** the scene, overlay `0196f1e8` and B3 delta (effective `614beed0`), the safety floor and key line, grounding, the classifier, the take classifier and every `ib` gate.
 
@@ -134,13 +134,18 @@ Every call has `finish_reason=completed`, 294–330 completion tokens (cap 2048)
   - the JSON-only prompt ending, and no `<think>`.
   Refusals are reported, not failed.
 - **The `reasoning_extraction` refusal does not apply** (verified). The live B3 prompts end with "Write ONLY the final JSON object, with no surrounding text or markdown." and carry no `<think>` block (prompt v3.4+). The offline run below had 0 refusals in 16.
+- **M5 starts with this backend (verified offline, dummy key).** M5's own `_build_default_pipeline` builds on the effective overlay with `reasoning_backend_id: anthropic` (fc_launch's rewrite), with ROS imports stubbed. It yields `AnthropicBackend` `claude-sonnet-5-5` / `between_tools` for the Reasoner AND for the stage-2 `RetreatChooser`: stage 2 is on in this overlay, so a stage-2 call also bills Sonnet, which the cost guard counts. Without the key, M5 startup raises `ANTHROPIC_API_KEY is not set`, which the probe before every take guards.
+- **Per-take budget travel.** The VM re-sources the profile and never sees the Mac's environment, so the budget is passed explicitly as `start_chain_dmc.sh` argument 6 (`EP_BUDGET_OVERRIDE`; forked `start_chain_dmc.sh` and `chain_dmc.sh`). The dry test proves it: with `DMC_EP_BUDGET_SEC` unset, a 2000 s deadline refuses the profile's 3000 s take, and the override 1500 admits it.
+- **Key temp copies.** `remove` also sweeps and verifies any `.env.key.*` / `.env.dmc.*` left next to `.env` by a killed install. HUP, INT and TERM run the cleanup.
+- **The real Mac key line** passes both the driver's and the install's format checks (counted, not printed).
 - **Not possible without a runtime change, so not done.** M5 logs no startup line naming the backend or model. The backend and model are asserted from fc_launch's lines, M5's first-call line, the deployed-loader resolution and every artifact.
 
 ### 3.2 Dry Test (Verified by Running)
 
 `cd ib_sonnet/kit && MIN_MAC_FREE_KB=3000000 bash test_dry_dmc.sh` ends with `TEST_DRY_DMC ib OK`. The name is the ledger key `ib`. All cases OK:
 
-- **1:** syntax and kit md5; `test_key_dmc.sh` (install, replace and remove byte-exact; refusals; mode kept; container count; no temp files; key never printed); no VM path calls the Gemini probe.
+- **1:** syntax and kit md5; `test_key_dmc.sh` (install, replace and remove byte-exact; refusals; mode kept; container count; no temp files; leftover temp copies swept; key never printed); no VM path calls the Gemini probe.
+- **6:** also the budget travel (above).
 - **2–6:** the `ib` cases. The take table reads `live Sonnet 5.5 claude-sonnet-5-5`; labels are `ibD_sonnet55_tNN_aK`.
 - **7:** the real ER-2 take-3 bundle FAILS exactly `a_backend_anthropic, a_served_model, a_rce_model, launcher_line, launcher_line_2, m5_line_3, m5_line_absent`, and 27 checks pass.
 - **9:** fc_launch DRY_RUN switches to `anthropic`.
@@ -150,6 +155,7 @@ Every call has `finish_reason=completed`, 294–330 completion tokens (cap 2048)
   - `KEY_NOT_REMOVED` written and blocking the next invocation;
   - missing, two-line and 644 key sources refused before any start;
   - the dummy key never printed;
+  - `DMC_EP_BUDGET_SEC=1500` gives a need of 3300 s and is forwarded to `start_chain` as argument 6;
   - the ER-2 kit's cases unchanged.
 - **12b:** the fake-VM restore removes a key line from `.env` (mode 600 kept).
 - **12c:** a Sonnet re-labelled copy of take 3 PASSES all 34 checks. Without the Anthropic line exactly `m5_line_3` fails; with one ER-2 artifact exactly the 3 backend/model checks fail.
