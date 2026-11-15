@@ -808,7 +808,7 @@ Delta files:
 | `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py` | `add660823aba751c42ad490147c02dd5` | pkg:swarm_orchestrator |
 | `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/reasoning_pipeline.py` | `815e2ec3057fa8ae734caf325a1b6349` | pkg:swarm_orchestrator |
 
-Kit md5s: `kit_md5_dmc.txt` (VM files, 36 entries) `194a09b7`, `kit_md5_all_dmc.txt` (55 entries) `7a745d5f`. The kit is git-ignored; this section is its committed record.
+Kit md5s: `kit_md5_dmc.txt` (VM files, 36 entries) `194a09b7`, `kit_md5_all_dmc.txt` (55 entries) `80676a0c`. The kit is git-ignored; this section is its committed record.
 
 ### 13.3 Checks
 
@@ -841,11 +841,13 @@ Kit md5s: `kit_md5_dmc.txt` (VM files, 36 entries) `194a09b7`, `kit_md5_all_dmc.
 - **Ledger.** Read-only `ledger_dmc.py status`: campaign 25 667 s of 43 200 s and $2.8637 of $10. `cv` stays closed at 8 149 s of 12 600 s with 5 valid takes.
 - **Rerun share.** `cvy` 5 400 s, $0.25, 2 valid takes, inside the campaign totals. A read-only `admit cvy 4800 0.05` with this kit's caps gives `ADMIT cap_sec=5400 spend_left=0.25 aborts_left=3 next_take=1 valid=0`. The ledger md5 was unchanged.
 - **Both approved sessions fit.** With the other approved session of up to 7 200 s: 25 667 + 5 400 + 7 200 = 38 267 s ≤ 43 200 s.
-- **5 400 s allows one take, not two (from the driver's arithmetic; not VM-tested).**
+- **5 400 s reliably allows one take; a second is marginal (from the driver's arithmetic and the `cvh` driver logs; not VM-tested).**
   - An invocation is admitted only with 4 800 s left (prep 900 + take 3 000 + teardown 900).
-  - The chain admits a take only if it can end 900 s before the cap deadline, so a second take in one invocation would have to start within 1 500 s of the VM start.
+  - The chain admits a take only if it can end 900 s before the cap deadline, so a second take in one invocation (`--episodes 2`) would have to start within 1 500 s of the VM start.
+  - The `cvh` takes ended 1 453 s (take 5) and 1 595 s (take 4, after a bring-up retry) after their VM starts, so a second in-invocation take is possible but marginal.
+  - The chain does not stop on resolution, so `--episodes 2` would also run a second take after a resolved first one. That conflicts with the stop rule in 13.5, so the launch stays `--episodes 1`.
   - The second invocation is refused once the first books more than 600 s; the `cvh` invocations booked 1 602 and 1 718 s.
-  - A second valid take therefore needs the owner to raise `wall_sec_cvy` to at least about 6 600 s (7 200 s suggested; 25 667 + 7 200 + 7 200 = 40 067 s still fits). The sub-cap is left at the owner's 5 400 s here.
+  - A reliable second valid take therefore needs the owner to raise `wall_sec_cvy` to at least about 6 600 s (7 200 s suggested; 25 667 + 7 200 + 7 200 = 40 067 s still fits). The sub-cap is left at the owner's 5 400 s here.
 
 ### 13.5 Stop Rules and Launch
 
