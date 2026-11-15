@@ -25,7 +25,7 @@
 
 #evidence("1.12", [First registered design (v1), amendment A2: presentation order random, seeded, recorded, analyses conditioned on it; rationale: the yielder gpt-4o names under id\_asc is a positional artifact (first-slot prior).], [`569d95c:docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md` (A2)])
 
-#evidence("1.13", [Intersection run 1 registration: in the earlier live pilot every intersection plan was repaired or replaced by the grounder (M3); a resolved coordination-layer-on episode shows the pipeline resolving the jam, not the model's choice.], [`50704c2:docs/superpowers/specs/2026-11-13-ib10-live-resolution-experiment.md` (section 6, "Model vs grounder")])
+#evidence("1.13", [Intersection run 1 registration: in the earlier live pilot (not named) every intersection plan was repaired or replaced by the grounder (M3), as the registration states; the plan-influence trace (6.02) confirms 0 of 20 live ER-2 junction\_clear plans verbatim but finds 11 of 13 verbatim in the October gpt-4o pilot; a resolved coordination-layer-on episode shows the pipeline resolving the jam, not the model's choice.], [`50704c2:docs/superpowers/specs/2026-11-13-ib10-live-resolution-experiment.md` (section 6, "Model vs grounder")])
 
 #evidence("1.14", [Five-robot pickup-and-delivery scene: 5 robots, 5 task nodes, 5 tasks per robot (task stream).], [`68e67b5:isaac/config/scenarios/mapd_5_s1b.yaml`])
 

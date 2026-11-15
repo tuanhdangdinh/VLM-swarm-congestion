@@ -32,7 +32,7 @@ The stills below complete the demonstration takes of @sec:res-demo and the earli
 
 #figure(
   image("../assets/images/fig_convoy_first_yield_t38p00.png", width: 75%),
-  caption: flex-caption([Convoy take 1: the first yield.], [Four-robot convoy counterflow, demonstration take 1 of 5 (unresolved), simulated time 38.0 s: the first yield executes as the model named it. `robot_2` (green) backs out of the gap while `robot_1` waits in it and `robot_3` and `robot_4` stay queued; the decision named only the standoff pair.#fig-source("6.40")]),
+  caption: flex-caption([Convoy take 1: the first yield.], [Four-robot convoy counterflow, demonstration take 1 of 6 (unresolved), simulated time 38.0 s: the first yield executes as the model named it. `robot_2` (green) backs out of the gap while `robot_1` waits in it and `robot_3` and `robot_4` stay queued; the decision named only the standoff pair.#fig-source("6.40")]),
 ) <fig:ch6-cv-yield>
 
 #figure(

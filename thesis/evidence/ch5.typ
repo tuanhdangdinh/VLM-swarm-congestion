@@ -31,7 +31,7 @@
 
 #evidence("5.16", [Four-robot intersection: 4 robots, spawns 1.75 m from centre, goals on the opposite arm; duration 300 sim-s; seed 42; jam gate onset window [8, 40] s, min duration 2.0 s, 4 robots within 1.0 m; oracle junction_clear.], [`68e67b5:isaac/config/scenarios/intersection_bottleneck.yaml`; `1ee23d2:docs/reports/2026-10-03-step7b-oracle-freeze.md` ("IB10 scoring frozen", criterion 1)])
 
-#evidence("5.17", [Intersection run 1 registration: question; runtime 68e67b5, no code deployed; overlay with pull-off 0.33 m, plan channel on; coordination layer off = the on overlay + reasoning_enabled false; seed 42 a label only, near-deterministic; parallel bring-up; earlier live pilot plans all repaired or replaced; the comparison is pipeline on vs off.], [`50704c2:docs/superpowers/specs/2026-11-13-ib10-live-resolution-experiment.md` (sections 1-3, 6)])
+#evidence("5.17", [Intersection run 1 registration: question; runtime 68e67b5, no code deployed; overlay with pull-off 0.33 m, plan channel on; coordination layer off = the on overlay + reasoning_enabled false; seed 42 a label only, near-deterministic; parallel bring-up; earlier live pilot (not named) plans all repaired or replaced, as stated by the registration (scope per 6.02); the comparison is pipeline on vs off.], [`50704c2:docs/superpowers/specs/2026-11-13-ib10-live-resolution-experiment.md` (sections 1-3, 6)])
 
 #evidence("5.18", [OrchestratorConfig.reasoning_enabled: bool = True at the pinned runtime.], [`68e67b5:ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py` (line 544)])
 

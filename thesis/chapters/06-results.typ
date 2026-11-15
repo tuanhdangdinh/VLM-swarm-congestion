@@ -285,7 +285,7 @@ The plan changed the dispatched commands in none of the 39 gated analyses: in th
 
 == Demonstration Campaign <sec:res-demo>
 
-The demonstration campaign (14–15 November 2026, UTC) ran live ER-2 takes in four scenes to show the pipeline end to end on video (format in @fig:ch6-demo-panel, Appendix B) #ev("6.01"), with a later prompt and, at the intersection, the plan-order switch, so it is not the evaluated runtime #ev("6.39"). It is illustrative: 1 to 5 takes per scene, the intersection take shown was selected for its label, and nothing is a rate (@tab:res-demo, @tab:res-threeway) #ev("6.45").
+The demonstration campaign (14–15 November 2026, UTC) ran live ER-2 takes in four scenes to show the pipeline end to end on video (format in @fig:ch6-demo-panel, Appendix B) #ev("6.01"), with a later prompt and, at the intersection, the plan-order switch, so it is not the evaluated runtime #ev("6.39"). It is illustrative: 1 to 6 takes per scene, the intersection take shown was selected for its label, and nothing is a rate (@tab:res-demo, @tab:res-threeway) #ev("6.45").
 
 #figure(
   table(
@@ -295,11 +295,11 @@ The demonstration campaign (14–15 November 2026, UTC) ran live ER-2 takes in f
     fill: (_, y) => if y == 0 { luma(235) },
     table.header([*Scene*], [*Valid takes*], [*Outcome per take (label)*]),
     [Four-robot intersection], [5], [take 1 unresolved, 3/4 arrived; takes 2 to 4 grounder-default resolution; take 5 resolved 4/4, labelled VLM-driven execution],
-    [Four-robot convoy counterflow], [5], [takes 1 to 3 unresolved, 0/4 arrived each; takes 4 and 5, with the queued-robot hold, unresolved, 1/4 arrived each],
+    [Four-robot convoy counterflow], [6], [takes 1 to 3 unresolved, 0/4 arrived each; takes 4 and 5, with the queued-robot hold, unresolved, 1/4 arrived each; rerun take resolved 4/4 (grounder held the queued robots)],
     [Two-robot head-on corridor with obstacle], [1], [resolved 2/2, grounder-default resolution (grounder-corrected)],
     [Five-robot pickup-and-delivery, seed position 21], [1], [unresolved, 1/5 arrived (limitation demonstration)],
   ),
-  caption: flex-caption([Demonstration campaign: scenes and takes.], [Demonstration campaign, live ER-2 takes; one bring-up abort each in the intersection and convoy scenes is not counted. Illustrative demonstration; nothing is a rate.#fig-source("6.45")]),
+  caption: flex-caption([Demonstration campaign: scenes and takes.], [Demonstration campaign, live ER-2 takes; one bring-up abort in the intersection scene and two in the convoy scene are not counted. Illustrative demonstration; nothing is a rate.#fig-source("6.45")]),
 ) <tab:res-demo>
 
 #figure(
@@ -310,10 +310,10 @@ The demonstration campaign (14–15 November 2026, UTC) ran live ER-2 takes in f
     fill: (_, y) => if y == 0 { luma(235) },
     table.header([*Scene*], [*Valid response*], [*Accepted unchanged, recorded*], [*Accepted and dispatched as written, corrected*], [*Plan changed executed behaviour*]),
     [Intersection, 5 takes], [9 of 9], [1 (take 5)], [1], [1 (take 5, back-out order only)],
-    [Convoy, 5 takes], [48 of 48], [3 (20 repaired, 25 grounder default)], [2 (takes 1 to 3: 2; takes 4 and 5: 0)], [not computed],
+    [Convoy, 6 takes], [50 of 50], [takes 1 to 5: 3 (20 repaired, 25 grounder default); rerun: 1 repaired #ev("6.84")], [2 (takes 1 to 3: 2; takes 4 and 5: 0)], [not computed],
     [Head-on, 1 take], [2 of 2], [plan channel off], [n/a], [not computed],
     [Five robots, 1 take], [8 of 8], [2 (1 repaired, 5 grounder default)], [2], [not computed],
-    [Total], [67 of 67], [6 of 65 plan-channel analyses], [5], [1],
+    [Total], [69 of 69], [6 of 65 plan-channel analyses (first twelve takes)], [5 (first twelve takes)], [1],
   ),
   caption: flex-caption([Demonstration campaign: valid, accepted and executed.], [Demonstration campaign, per analysis (second-stage calls not counted): valid response; plan accepted unchanged (`vlm_verbatim`) as recorded and as recomputed offline (commands sent match the verified legs; recorded labels unchanged #ev("6.51")); plan that changed the executed commands relative to the grounder's default for the same snapshot. Illustrative demonstration.#fig-source("6.44")]),
 ) <tab:res-threeway>
@@ -339,13 +339,17 @@ The order changed only when the two back-outs started (`robot_3` at 32.9 s, `rob
 
 === Convoy Counterflow <sec:res-demo-convoy>
 
-In the four-robot convoy counterflow scene, `robot_1` meets the counter-flow `robot_2` nose to nose in a gap while `robot_3` and `robot_4` queue behind `robot_1`; a first decision that leaves out the queued robots ends in a latch #ev("6.40"). In takes 1 to 3 the first decision was a `yield` naming only `robot_1` and `robot_2`, executed as named (@fig:ch6-cv-yield); the queued robots followed through the gap and latched by about 75 s (@fig:ch6-cv-latched). The 33 later proposals all ran as 8 s waits (grounding refused yields and reverses, and the legacy grounding has no template for the rest); offline, 72 of 76 hypothetical post-latch decisions also became waits. One scripted four-robot decision resolved the scene in a first check run (n = 1, not accepted by the owner) #ev("6.40"). Stating the queued robots' hold-back state in the prompt did not help offline: 0 of 22 answers per condition grounded into the four-robot sequence, primary count 0 of 18 #ev("6.04").
+In the four-robot convoy counterflow scene, `robot_1` meets the counter-flow `robot_2` nose to nose in a gap while `robot_3` and `robot_4` queue behind `robot_1`; a first decision that leaves out the queued robots ends in a latch #ev("6.40"). In takes 1 to 3 the first decision was a `yield` naming only `robot_1` and `robot_2`, executed as named (@fig:ch6-cv-yield); the queued robots followed through the gap and latched by about 75 s (@fig:ch6-cv-latched). The 33 later proposals all ran as 8 s waits (grounding refused yields and reverses, and the legacy grounding has no template for the rest); offline, 72 of 76 hypothetical post-latch decisions also became waits #ev("6.40"). Stating the queued robots' hold-back state in the prompt did not help offline: 0 of 22 answers per condition grounded into the four-robot sequence, primary count 0 of 18 #ev("6.04").
 
-Takes 4 and 5 used the queued-robot hold, a grounder key (off by default) that holds unnamed queued robots whose goals lie across the corridor #ev("6.19"). It held both as built, but the model named `robot_1` as yielder, the variant the scene is built to defeat: `robot_2`'s escort west stopped 0.418 m and 0.419 m from the held `robot_3` and latched; 1 of 4 arrived in each #ev("6.41"). *Caveat:* five takes, illustrative; a resolving take would have been a grounding result, not a VLM one.
+Takes 4 and 5 used the queued-robot hold, a grounder key (off by default) that holds unnamed queued robots whose goals lie across the corridor #ev("6.19"). It held both as built, but the model named `robot_1` as yielder, the variant the scene is built to defeat: `robot_2`'s escort west stopped 0.418 m and 0.419 m from the held `robot_3` and latched; 1 of 4 arrived in each #ev("6.41").
+
+Why the five failed #ev("6.85"): a corridor yield escorts every crosser to the yielder's park side, so it works only if every queued robot is held and every later crosser starts opposite that side (takes 2, 4 and 5 had the platoon-side yielder `robot_1`). The feasibility gate checks only retreat room against static obstacles, and the scene declares none.
+
+A separately registered rerun take also armed the yielder correction (@sec:impl-later) #ev("6.85"). The model chose a yield by `robot_2`, again naming only the standoff pair; the hold added the queued robots, which crossed after `robot_1`, and all four arrived, labelled resolved: grounder held the queued robots, model chose strategy and yielder #ev("6.84"). No floor stop occurred; after dispatch only exempted pairs came under 0.45 m (0.374–0.379 m), the closest other pair was 0.497 m, and the offline recompute, pending validation, puts `robot_2`'s return 0.0185 m from a barrier #ev("6.84"). *Caveat:* one take; the resolution depended on the grounder's hold, the model named `robot_1` in three of the five earlier takes, and the correction did not fire, so it is untested live #ev("6.84") #ev("6.85").
 
 #figure(
   image("../assets/images/fig_convoy_latched_t149p90.png", width: 75%),
-  caption: flex-caption([Convoy take 1: the latched cluster.], [Four-robot convoy counterflow, demonstration take 1 of 5 (unresolved), simulated time 149.9 s: `robot_3` and `robot_4`, not named by the first decision, followed `robot_1` through the gap; all four stand east of it, two pairs inside the 0.45 m proximity latch, unmoved from about 75 s to the end at 260 s; 0 of 4 arrived. Isaac Sim, annotated overhead camera. Illustrative take; all five convoy takes ended unresolved #ev("6.41").#fig-source("6.40")]),
+  caption: flex-caption([Convoy take 1: the latched cluster.], [Four-robot convoy counterflow, demonstration take 1 of 6 (unresolved), simulated time 149.9 s: `robot_3` and `robot_4`, not named by the first decision, followed `robot_1` through the gap; all four stand east of it, two pairs inside the 0.45 m proximity latch, unmoved from about 75 s to the end at 260 s; 0 of 4 arrived. Isaac Sim, annotated overhead camera. Illustrative take; takes 1 to 5 ended unresolved, the rerun take resolved #ev("6.41") #ev("6.84").#fig-source("6.40")]),
 ) <fig:ch6-cv-latched>
 
 === Head-on With Obstacle <sec:res-demo-headon>
@@ -382,17 +386,17 @@ The simulator's GT contact lists were hard-coded empty in the evaluated runtime,
     [Intersection run 1], [on 0.2633 m; off 0.2856 m], [0], [scene declares no obstacles; rack blocks and walls not logged; offline recompute pending validation],
     [Intersection run 2], [live VLM 0.3008 m; scripted 0.2965 m], [0], [as run 1],
     [Registered five-robot pilot], [0.225–0.424 m over all ten episodes], [0], [not covered by the registered gate; offline recompute pending validation],
-    [Demonstration campaign], [lowest 0.2176 m (head-on take, before any command); convoy takes 4 and 5: 0.276 m and 0.370 m], [0], [one sustained contact confirmed (five-robot escort, @fig:ch6-m5-escort); otherwise offline recompute pending validation],
+    [Demonstration campaign], [lowest 0.2176 m (head-on take, before any command); convoy takes 4 and 5: 0.276 m and 0.370 m; convoy rerun 0.374 m (exempted pair)], [0], [one sustained contact confirmed (five-robot escort, @fig:ch6-m5-escort); otherwise offline recompute pending validation],
     [Five-robot validation take (n = 1)], [0.3101 m], [0], [contact fields logged on all 6001 rows and reproduced offline; partially validated],
   ),
   caption: flex-caption([Safety evidence per study and its measurement status.], [Safety evidence per study: GT robot-pair centre distance, floor stops in the log of the execution and safety monitor (M4), and the status of robot-obstacle contact measurement. The hard-contact floor (0.20 m) and the 0.18 m gate threshold are on centre distance.#fig-source("6.20")]),
 ) <tab:res-safety>
 
-The pair values come from the studies' own reports #ev("6.05") #ev("6.06") #ev("6.14") #ev("6.37") #ev("6.41") #ev("6.17"). Most minima occurred during the standoff or jam, before any command; run 1's e09 #ev("6.31"), run 2's first check episode #ev("6.32") and convoy take 5 #ev("6.41") are exceptions. No campaign take logged a floor stop #ev("6.39") #ev("6.40") #ev("6.42").
+The pair values come from the studies' own reports #ev("6.05") #ev("6.06") #ev("6.14") #ev("6.37") #ev("6.41") #ev("6.17"). Most minima occurred during the standoff or jam, before any command; run 1's e09 #ev("6.31"), run 2's first check episode #ev("6.32"), convoy take 5 #ev("6.41") and the convoy rerun #ev("6.84") are exceptions. No campaign take logged a floor stop #ev("6.39") #ev("6.40") #ev("6.42") #ev("6.84").
 
 *Obstacles.* The five-robot contact (@sec:res-demo-five) #ev("6.42") exposed a gap: the grounder checked neither escort segments nor `reverse` legs against static obstacles (only the yielder's retreat room and candidates use the declared boxes), and the execution and safety monitor (M4) ignores obstacles #ev("6.43"). The validation take came within 5.5 mm of a declared box under a `reverse` #ev("6.17"), and October `reverse` legs pinned robots against box faces #ev("6.18"). The offline recompute (10 Hz footprint proximity) stays pending validation, because no robot was pinned in the validation take #ev("6.12") #ev("6.17").
 
-*Later safety changes* (all off by default; status in @sec:impl-later, key changes in @tab:res-sx, Appendix B #ev("6.50")): the safety-exemption fix was on in intersection run 2, where it never fired #ev("6.06"), and in the demonstration takes, where its firings were not counted #ev("5.51"), so it is not validated live #ev("6.07")\; the escort guard ran live once, armed, without firing #ev("6.17")\; the reverse guard and the stall abort have not run live #ev("6.13") #ev("6.18")\; the queued-robot hold ran in convoy takes 4 and 5 only #ev("6.19"). *Caveat:* no comprehensive obstacle-safety claim follows.
+*Later safety changes* (all off by default; status in @sec:impl-later, key changes in @tab:res-sx, Appendix B #ev("6.50")): the safety-exemption fix was on in intersection run 2, where it never fired #ev("6.06"), and in the demonstration takes, where its firings were not counted #ev("5.51"), so it is not validated live #ev("6.07")\; the escort guard ran live once, armed, without firing #ev("6.17")\; the reverse guard and the stall abort have not run live #ev("6.13") #ev("6.18")\; the queued-robot hold ran in convoy takes 4 and 5 and the rerun take #ev("6.19") #ev("6.84"). *Caveat:* no comprehensive obstacle-safety claim follows.
 
 == Offline Decision Benchmark and Live Per-Group Shadow Run <sec:res-bench>
 
