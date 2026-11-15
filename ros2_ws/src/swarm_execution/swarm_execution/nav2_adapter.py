@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 import time
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 try:
     from action_msgs.msg import GoalStatus
@@ -122,6 +122,11 @@ except ImportError:
                 self.goal_info = _GoalInfo()
 
 from swarm_execution.yield_phase import BACKUP_STARTED_DETAIL
+
+if TYPE_CHECKING:
+    # Annotation only: the safety monitor and coordination client import this
+    # module and must not need pydantic with the stall abort off.
+    from swarm_execution.stall_abort import StallWatch
 
 # Line-hold servo gains, the escort's centerline-servo values: heading
 # correction per metre of cross-track error, and its clamp in radians.
@@ -237,6 +242,22 @@ def backup_line_turn(parameters: Mapping[str, Any]) -> float | None:
     if abs(turn) > _LINE_TURN_MAX_RAD:
         return None
     return turn
+
+
+def odom_stamp_sec(msg: object) -> float | None:
+    """Header stamp of an odometry message in seconds, or None without one.
+
+    Args:
+        msg: A `nav_msgs/Odometry` (Isaac stamps it with sim time).
+
+    Returns:
+        `sec + nanosec * 1e-9`, or None when the message carries no header
+        stamp (the non-ROS test stub).
+    """
+    stamp = getattr(getattr(msg, "header", None), "stamp", None)
+    if stamp is None:
+        return None
+    return float(stamp.sec) + float(stamp.nanosec) * 1e-9
 
 
 class Nav2Adapter(Node):
@@ -360,6 +381,7 @@ class Nav2Adapter(Node):
         hold_start_line: bool = False,
         line_turn_rad: float = 0.0,
         abort_check: Callable[[], str | None] | None = None,
+        stall_watch: StallWatch | None = None,
     ):
         """Reverse the robot by `distance_m` by publishing directly to cmd_vel.
 
@@ -403,6 +425,11 @@ class Nav2Adapter(Node):
         `abort_check` (prereg-v3 A26(ii), B3) is polled on every tick before
         the deadline: a non-None detail ends the backup FAILED with that
         detail (`fresh_latch.FreshLatchWatch`). None (default) never polls.
+
+        `stall_watch` (stall abort, default off) is fed every odometry sample
+        and, on every tick, the twist about to be published; its first
+        verdict ends the backup FAILED with its `stall_abort: ...` detail
+        (`stall_abort.StallWatch`). None (default) changes nothing.
         """
         self.cancel(robot_id)
 
@@ -426,6 +453,8 @@ class Nav2Adapter(Node):
             if _state["start"] is None:
                 _state["start"] = (p.x, p.y)
                 _state["start_yaw"] = _state["yaw"]
+            if stall_watch is not None:
+                self._feed_stall_watch(stall_watch, msg, p.x, p.y, _state["yaw"])
 
         odom_sub = self._node.create_subscription(
             Odometry, f"/{robot_id}/odom", _on_odom, 10
@@ -511,6 +540,13 @@ class Nav2Adapter(Node):
                 while heading_error < -math.pi:
                     heading_error += 2.0 * math.pi
                 twist.angular.z = max(-0.5, min(0.5, 2.0 * heading_error))
+            if stall_watch is not None:
+                stall_detail = stall_watch.observe(
+                    self._sim_now(), twist.linear.x, twist.angular.z, phase="backup"
+                )
+                if stall_detail is not None:
+                    _finish("FAILED", stall_detail)
+                    return
             pub.publish(twist)
 
         timer = self._node.create_timer(0.05, _tick)
@@ -526,6 +562,7 @@ class Nav2Adapter(Node):
         turn_rate_rps: float = 0.5,
         on_result: Callable[[str, str], None] | None = None,
         abort_check: Callable[[], str | None] | None = None,
+        stall_watch: StallWatch | None = None,
     ):
         """Step the robot sideways by `lateral_m` via turn-drive-turn on cmd_vel.
 
@@ -540,7 +577,8 @@ class Nav2Adapter(Node):
         displacement for the drive), so it terminates deterministically at
         any realtime factor. The same OS-monotonic safety bound as backup()
         guards the genuinely-blocked case, and the same `abort_check`
-        (A26(ii)) ends it FAILED early.
+        (A26(ii)) ends it FAILED early, as does `stall_watch` (see `backup`;
+        turn phases are judged on rotation, the drive on travel).
         """
         if lateral_m == 0.0:
             if on_result is not None:
@@ -570,6 +608,8 @@ class Nav2Adapter(Node):
             q = msg.pose.pose.orientation
             _state["pos"] = (p.x, p.y)
             _state["yaw"] = 2.0 * math.atan2(q.z, q.w)
+            if stall_watch is not None:
+                self._feed_stall_watch(stall_watch, msg, p.x, p.y, _state["yaw"])
 
         odom_sub = self._node.create_subscription(
             Odometry, f"/{robot_id}/odom", _on_odom, 10
@@ -604,6 +644,19 @@ class Nav2Adapter(Node):
                 angle += 2.0 * math.pi
             return angle
 
+        def _stall_ok(twist) -> bool:
+            # The twist about to be published, judged by the stall watch; on
+            # its verdict the step ends FAILED (zero twist) instead.
+            if stall_watch is None:
+                return True
+            stall_detail = stall_watch.observe(
+                self._sim_now(), twist.linear.x, twist.angular.z, phase=phase_state["phase"]
+            )
+            if stall_detail is None:
+                return True
+            _finish("FAILED", stall_detail)
+            return False
+
         def _tick() -> None:
             if abort_check is not None:
                 abort_detail = abort_check()
@@ -619,6 +672,9 @@ class Nav2Adapter(Node):
             yaw = odom_state["yaw"]
             pos = odom_state["pos"]
             if yaw is None or pos is None:
+                # Nothing is published without odometry, but a primitive that
+                # cannot see its own odometry is judged stale, not idle.
+                _stall_ok(Twist())
                 return
             if phase_state["start_yaw"] is None:
                 phase_state["start_yaw"] = yaw
@@ -632,7 +688,8 @@ class Nav2Adapter(Node):
                     phase_state["drive_start"] = pos
                 else:
                     twist.angular.z = direction * turn_rate_rps
-                    pub.publish(twist)
+                    if _stall_ok(twist):
+                        pub.publish(twist)
                     return
             if phase_state["phase"] == "drive":
                 start = phase_state["drive_start"]
@@ -641,7 +698,8 @@ class Nav2Adapter(Node):
                     phase_state["phase"] = "turn_back"
                 else:
                     twist.linear.x = abs(speed_mps)
-                    pub.publish(twist)
+                    if _stall_ok(twist):
+                        pub.publish(twist)
                     return
             if phase_state["phase"] == "turn_back":
                 target = _wrap(phase_state["start_yaw"])
@@ -652,7 +710,8 @@ class Nav2Adapter(Node):
                     )
                 else:
                     twist.angular.z = -direction * turn_rate_rps
-                    pub.publish(twist)
+                    if _stall_ok(twist):
+                        pub.publish(twist)
 
         timer = self._node.create_timer(0.05, _tick)
         self._backup_timers[robot_id] = timer
@@ -668,6 +727,7 @@ class Nav2Adapter(Node):
         turn_rate_rps: float = 0.5,
         on_result: Callable[[str, str], None] | None = None,
         relative_to_start: bool = False,
+        stall_watch: StallWatch | None = None,
     ):
         """Rotate to an absolute odom-frame heading, then drive straight.
 
@@ -686,6 +746,9 @@ class Nav2Adapter(Node):
         sample, and the drive holds the line through the drive-start pose
         along that heading (`line_hold_yaw`), not the spawn line odom y=0.
         The default path is unchanged.
+
+        `stall_watch` ends the escort FAILED on a stall verdict, as in
+        `backup`. None (default) changes nothing.
         """
         self.cancel(robot_id)
 
@@ -703,6 +766,8 @@ class Nav2Adapter(Node):
             q = msg.pose.pose.orientation
             _state["pos"] = (p.x, p.y)
             _state["yaw"] = 2.0 * math.atan2(q.z, q.w)
+            if stall_watch is not None:
+                self._feed_stall_watch(stall_watch, msg, p.x, p.y, _state["yaw"])
 
         odom_sub = self._node.create_subscription(
             Odometry, f"/{robot_id}/odom", _on_odom, 10
@@ -736,6 +801,17 @@ class Nav2Adapter(Node):
                 angle += 2.0 * math.pi
             return angle
 
+        def _stall_ok(twist) -> bool:
+            if stall_watch is None:
+                return True
+            stall_detail = stall_watch.observe(
+                self._sim_now(), twist.linear.x, twist.angular.z, phase=phase_state["phase"]
+            )
+            if stall_detail is None:
+                return True
+            _finish("FAILED", stall_detail)
+            return False
+
         def _tick() -> None:
             if time.monotonic() >= safety_deadline:
                 _finish(
@@ -746,6 +822,7 @@ class Nav2Adapter(Node):
             yaw = odom_state["yaw"]
             pos = odom_state["pos"]
             if yaw is None or pos is None:
+                _stall_ok(Twist())
                 return
 
             if relative_to_start and phase_state["target"] is None:
@@ -760,7 +837,8 @@ class Nav2Adapter(Node):
                     phase_state["drive_start"] = pos
                 else:
                     twist.angular.z = turn_rate_rps if error > 0 else -turn_rate_rps
-                    pub.publish(twist)
+                    if _stall_ok(twist):
+                        pub.publish(twist)
                     return
             if phase_state["phase"] == "drive":
                 start = phase_state["drive_start"]
@@ -777,7 +855,8 @@ class Nav2Adapter(Node):
                     twist.angular.z = max(
                         -turn_rate_rps, min(turn_rate_rps, 2.0 * heading_error)
                     )
-                    pub.publish(twist)
+                    if _stall_ok(twist):
+                        pub.publish(twist)
                     return
                 # Centerline servo, not open-loop straight: both robots spawn
                 # ON the lane centerline (odom y=0 for the target_yaw_rad=0
@@ -791,12 +870,28 @@ class Nav2Adapter(Node):
                 )
                 heading_error = _wrap(desired_yaw - yaw)
                 twist.angular.z = max(-turn_rate_rps, min(turn_rate_rps, 2.0 * heading_error))
-                pub.publish(twist)
+                if _stall_ok(twist):
+                    pub.publish(twist)
 
         timer = self._node.create_timer(0.05, _tick)
         self._backup_timers[robot_id] = timer
         if on_result is not None:
             on_result("ACTIVE", "escort started")
+
+    def _sim_now(self) -> float:
+        """Node clock in seconds (sim time under `use_sim_time`)."""
+        return self._node.get_clock().now().nanoseconds / 1e9
+
+    def _feed_stall_watch(
+        self, watch: StallWatch, msg: object, x: float, y: float, yaw: float
+    ) -> None:
+        """Forward one odometry sample to a primitive's stall watch.
+
+        The header stamp is the sample's time; a message without one (the
+        non-ROS stub) is stamped with the node clock.
+        """
+        stamp = odom_stamp_sec(msg)
+        watch.on_odom(self._sim_now() if stamp is None else stamp, x, y, yaw)
 
     def cancel(self, robot_id: str) -> None:
         """Cancel robot_id's active goal and any in-progress backup timer.
