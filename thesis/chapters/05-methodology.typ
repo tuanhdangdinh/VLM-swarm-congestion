@@ -156,7 +156,7 @@ Three arm definitions are used, in three separate comparisons (@tab:ch5-arms). A
 
 The rows differ in runtime. Tranche 1 ran on the commit that introduced the Arm B switch, which the v3 pinned runtime contains #ev("5.21"). The first IB10 run used the v3 pinned runtime with no code deployed #ev("5.17"). The grounder-default run added the safety fix, three files in all: two safety-monitor code files and a merged safety file carrying a configuration key that narrows the coordination exemption, with the floor armed #ev("5.21") #ev("6.06"). Arm C is therefore compared only with the Arm A episodes of its own run, never with the earlier IB10 arms.
 
-The prompt also differs between experiments (@tab:ch5-prompts). The live comparisons share one prompt version; each demonstration scene kept the prompt of its earlier record, and the offline replays changed one part of an older prompt at a time. Appendix C (@sec:app-prompts) prints three recorded prompts in full.
+The prompt also differs between experiments (@tab:ch5-prompts). The live comparisons share one prompt version; each demonstration scene kept the prompt of its earlier record, and the offline replays changed one part of an older prompt at a time. @sec:app-prompts prints three recorded prompts in full.
 
 #figure(
   table(
@@ -165,9 +165,9 @@ The prompt also differs between experiments (@tab:ch5-prompts). The live compari
     stroke: 0.4pt + luma(160),
     fill: (_, y) => if y == 0 { luma(235) },
     table.header([*Experiment*], [*Prompt*], [*Robot order*], [*Source*]),
-    [prereg-v3 tranche 1, Arm A], [Version 3.4, plan channel on.], [Ascending id.], [#ev("4.17") #ev("5.47")],
+    [prereg-v3 tranche 1, Arm A], [Version 3.4, plan channel on.], [Ascending id.], [#ev("4.17") #ev("5.22") #ev("5.47")],
     [IB10 run 1 and run 2 (Arm A; the Arm C mock receives the same prompt)], [Version 3.4, plan channel on.], [Ascending id.], [#ev("4.32") #ev("5.47") #ev("6.82")],
-    [Demonstration, intersection takes 1-5], [Version 3.4 text, plan channel on, plus the list of plan actions the verifier accepts for each robot and three plan-ordering sentences.], [Ascending id.], [#ev("5.51") #ev("6.82")],
+    [Demonstration, intersection takes 1-5], [Version 3.4 text, plan channel on, plus two later additions that are not part of the pinned version: the list of plan actions the verifier accepts for each robot, and three plan-ordering sentences.], [Ascending id.], [#ev("5.51") #ev("6.82")],
     [Demonstration, convoy takes 1-5 and five-robot take], [Version 3.4, plan channel on, no list of accepted actions.], [Ascending id.], [#ev("6.82")],
     [Demonstration, head-on take], [Version 2, plan channel off, obstacle text on.], [Random draw per episode.], [#ev("5.51") #ev("6.82")],
     [Swapped-ID replay (offline)], [Version 1, the version the scenes ran live; robot labels exchanged; arms with a grey image and without obstacle text.], [Both orders.], [#ev("6.09") #ev("6.83")],

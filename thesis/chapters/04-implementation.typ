@@ -133,7 +133,7 @@ Robot states:
 Pairwise geometry (faces = heading within 60° of the direction to the other robot):
 - robot_1 <-> robot_2: distance 0.58 m; robot_1 faces robot_2: yes; robot_2 faces robot_1: yes
 [… four more pairs …]
-- robot_2 <-> robot_4: distance 0.31 m; robot_2 faces robot_4: yes; robot_4 faces robot_2: yes
+- robot_3 <-> robot_4: distance 0.60 m; robot_3 faces robot_4: yes; robot_4 faces robot_3: yes
 
 Known robot IDs: ["robot_1", "robot_2", "robot_3", "robot_4"]
 
@@ -150,7 +150,7 @@ Produce a JSON object with exactly these fields:
   - "yield": one robot (yield_robot) backs up and steps aside while the others pass
   [… five more strategy glosses …]
   - "junction_clear": multi-robot junction recovery: some robots first back out, […]
-[… yield_robot, blocker_kind, crossing_order, proposed_plan and three rules …]
+[… justification, yield_robot, blocker_kind, crossing_order, proposed_plan, rules …]
 
 Write ONLY the final JSON object, with no surrounding text or markdown.
     ```

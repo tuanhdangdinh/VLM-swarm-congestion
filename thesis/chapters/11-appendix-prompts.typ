@@ -14,7 +14,7 @@ You are a helpful assistant.
 
 == Prompt Version 3.4 in the Intersection Experiment <sec:app-prompt-v34>
 
-The first request is the one excerpted in @fig:impl-prompt-excerpt: an analysis in episode 3 of the first IB10 run, Arm A, with the plan channel on #ev("4.39"). Its user prompt is 6,738 characters long, SHA-256 `cde5e27373b9c2b379b8b3395ba78097ca5bf1deb8adec9d92aef90ea29996a0`. The baseline of @sec:impl-vlm (5,804 characters, `6d08540f...`) is rendered by a test from a fixed test scene, so its length and digest differ from those of a prompt recorded on a live scene #ev("4.17"). The image is sent after the text.
+The first request is the one excerpted in @fig:impl-prompt-excerpt: an analysis in episode 3 of the first IB10 run, Arm A, with the plan channel on #ev("4.39"). Its user prompt is 6,738 characters long, SHA-256 `cde5e27373b9c2b379b8b3395ba78097ca5bf1deb8adec9d92aef90ea29996a0`. The baseline of @sec:impl-vlm (5,804 characters, `6d08540f...`) is rendered by a test from a fixed two-robot test request, so its length and digest differ from those of a prompt recorded on a live scene #ev("4.17"). The image is sent after the text.
 
 *User prompt.*
 
@@ -50,7 +50,7 @@ Letters are assigned to the candidates afresh for each call and listed in a sepa
 
 == Intersection Demonstration Take 5 <sec:app-prompt-take5>
 
-The third request is the decision of intersection demonstration take 5 (request `df397030...`), traced in @fig:app-flow-take5 and simplified in @fig:ch6-flow-take5-simple #ev("6.81"). It uses the campaign's intersection prompt (@tab:ch5-prompts): the version 3 text with the plan channel on, plus a block that lists, for each robot, the plan actions the verifier accepts in the current scene, and three sentences on how plan legs must be ordered. Because the prompt lists the accepted actions, the model's plan is a constrained selection from that list, not a free-form manoeuvre. The user prompt is 7,363 characters long, SHA-256 `cbc947c4e3285e682eddb463e6961a553544fbd3428376477f53a3c1407dbebc`. The image is sent after the text.
+The third request is the decision of intersection demonstration take 5 (request `df397030...`), traced in @fig:app-flow-take5 and simplified in @fig:ch6-flow-take5-simple #ev("6.81"). It uses the campaign's intersection prompt (@tab:ch5-prompts): the version 3.4 text with the plan channel on, plus two later additions that are not part of the pinned version: a block that lists, for each robot, the plan actions the verifier accepts in the current scene, and three sentences on how plan legs must be ordered. Because the prompt lists the accepted actions, the model's plan is a constrained selection from that list, not a free-form manoeuvre. The user prompt is 7,363 characters long, SHA-256 `cbc947c4e3285e682eddb463e6961a553544fbd3428376477f53a3c1407dbebc`. The image is sent after the text.
 
 *User prompt.*
 
