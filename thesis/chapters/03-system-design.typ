@@ -97,14 +97,17 @@ The vocabulary is closed, so the model cannot invent a manoeuvre; every executab
 
 The grounder makes the system's main safety-relevant judgement deterministic. It takes the decision, its snapshot, the declared geometry (corridor, junction arms and boxes, static obstacles, robot footprint) and a parameter set (@tab:grounding-config); Chapter 5 gives each experiment's configuration.
 
+#[
+#show raw: set text(size: 8pt)
 #figure(
   placement: auto,
   table(
-    columns: (auto, auto, auto, 1fr),
+    columns: (2.3fr, 1fr, 1.1fr, 2.6fr),
     align: (left, left, left, left),
     stroke: 0.4pt + luma(160),
     fill: (_, y) => if y == 0 { luma(235) },
-    table.header([*Setting*], [*Shipped default*], [*Five-robot scene overlay*], [*Effect*]),
+    inset: 5pt,
+    table.header([*Setting*], [*Shipped default*], [*Five-robot overlay*], [*Effect*]),
     [`grounding_yield_feasibility`], [`off`], [`swap`], [Checks the named yielder's retreat room; swaps or refuses.],
     [`plan_channel_enabled`], [false], [true], [Prompt version 3, plan audit, plan tracking, `junction_clear` phases.],
     [`refusal_no_action`], [off], [on], [A refused yield dispatches nothing (requires the task stream).],
@@ -114,6 +117,7 @@ The grounder makes the system's main safety-relevant judgement deterministic. It
   ),
   caption: flex-caption([Grounding settings, shipped and in the five-robot scene overlay.], [Grounding settings in the shipped configuration and in the orchestrator overlay of the five-robot pickup-and-delivery scene. The registered five-robot pilot ran with the plan channel and refusal-as-no-action on and a variant of the derived-mode grounding file; the intersection runs enable the plan channel with the shipped, derived-mode grounding file (Chapter 5). #fig-source("3.17")]),
 ) <tab:grounding-config>
+]
 
 *Feasibility checks.* A yielder must have enough free room behind it, along its corridor side or junction arm up to the nearest static obstacle, to reach a park point from which the passer can get by. A reverse is refused when both robots already sit beyond the corridor on the same side, since it would traverse the corridor instead of opening it. In derived mode, backup and escort distances must fall in configured bands, and each retreat candidate is swept against obstacles and robots. For `junction_clear`, back-out candidates are ranked by a cost function, the grounder's default order (`chi` in the logs); when none survives, a plain yield is grounded #ev("3.18"). *Legacy mode*, used by the convoy scene, clamps distances (from the declared geometry when supplied) and has no bands, ranked candidates or degradation list #ev("3.18")\; the queued-robot hold works only in it #ev("6.19"), and as the convoy scene declares no static obstacles, the gate would change none of its 49 recorded first-trigger yields #ev("6.85").
 
