@@ -40,7 +40,7 @@ These questions frame the report. The experiments that were finally run answer n
 - *Offline bench and live shadow (exploratory).* How do prompt and input variants for the VLM rank on recorded scenes, judged by what the real grounder would do with their answers? A later per-cluster variant also ran as a decision-only live shadow in 7 episodes #ev("1.11").
 - *Head-on decisions (decision level).* A re-score of every recorded head-on decision and three pre-registered offline replays ask whether the model's choice of yielder follows the scene #ev("6.08") #ev("6.09") #ev("6.10") #ev("6.11").
 - *Plan influence (decision level).* A trace of every live four-robot analysis asks whether the model's plan changed what was dispatched #ev("6.02").
-- *Demonstration campaign (illustrative).* Twelve valid live takes in four scenes, with all grounding and safety checks on, show what the pipeline does; no rate is computed #ev("6.01").
+- *Demonstration campaign (illustrative).* Twelve valid live takes in four scenes, with each scene's earlier grounding settings and the safety settings of the second IB10 run, show what the pipeline does; no rate is computed #ev("6.01").
 
 @tab:intro-rq-map maps each of these to the registered questions it informs.
 
@@ -77,7 +77,7 @@ The contributions are of two kinds. The system and method contributions are arte
 + *An offline replay bench.* The bench replays 187 recorded analyses from 31 live episodes #ev("1.06"), re-grounds each answer with the production grounder, and scores it against ground-truth conflict definitions. It ranks prompt and input variants for the VLM by what would happen downstream, without simulating any episode (@sec:ch5-bench).
 + *A physical demonstration.* The detect-to-dispatch chain also runs on real robots. On 12 November 2026, the perception, reasoning, grounding and dispatch chain ran on physical TurtleBot3 robots under an overhead camera, in four staged arrangements of up to four robots #ev("1.07"). The demonstration used a different reasoning model from the simulation experiments, the robots had no navigation goals, one run per arrangement was recorded, and its code is not part of this repository's history (@sec:impl-physical). It shows that the chain runs on real hardware; it is not an evaluation.
 
-*Evaluations performed.* The report carries out the three live comparisons and the offline bench listed in @sec:intro-rq, each with its registered measures, safety gates and plan-provenance labels, and adds the decision-level analyses and the demonstration campaign listed there. Their outcomes are reported in Chapter 6; in short:
+*Evaluations performed.* The report carries out the three live comparisons and the offline bench listed in @sec:intro-rq, each with its registered measures, safety gates and plan-provenance labels, and adds the decision-level analyses and the demonstration campaign listed there. Their outcomes are reported in Chapter 6; in short, and bounded as the evidence register's claims ladder bounds them #ev("6.16"):
 
 - *prereg-v3 tranche 1 (pilot).* No episode in either arm completed all 25 tasks (0 of 10). The throughput difference, Layer 2 on minus off, was +0.032 with a bootstrap interval of [−0.008, +0.080] that includes zero; with five seed pairs this is a pilot estimate, not a confirmatory result #ev("6.14").
 - *IB10, Layer 2 on against off.* In the simulated four-robot intersection jam, the full Layer 2 pipeline (congestion trigger, VLM call, grounding and phased dispatch) cleared the jam in 4 of 5 episodes, against 0 of 5 with Layer 2 off #ev("6.05").
@@ -113,11 +113,11 @@ The report is bounded in the following ways.
 
 *Chapter 4* describes the implementation on the pinned runtime: the software stack, each module as built, the VLM backends and the prompt, the engineering lessons that shaped the simulation platform, testing and reproducibility, the physical TurtleBot3 demonstration, and the later extensions that are not evaluated (@sec:impl).
 
-*Chapter 5* sets out the experimental methodology: the research questions, the history of the preregistration from v1 to v3, the simulated scenes, the arms, the registered measures, the run procedure and safety gates, the analysis plan, the offline bench, the decision-level analyses, the demonstration campaign, and the threats to validity known in advance (@sec:ch5-rq).
+*Chapter 5* sets out the experimental methodology: the research questions, the history of the preregistration from v1 to v3, the simulated scenes, the arms, the registered measures, the run procedure and safety gates, the analysis plan, the offline bench, the offline analyses, the demonstration campaign, and the threats to validity known in advance (@sec:ch5-rq).
 
 *Chapter 6* reports the results: the IB10 comparisons, the prereg-v3 tranche-1 pilot, the exploratory findings (presentation order, model refusals, the offline bench), the head-on decision analyses (re-score and offline replays), the plan-influence trace, the demonstration campaign, the safety and contact findings, and the physical demonstration.
 
-*Chapter 7* discusses what the evidence supports and what it does not, argues that grounding rather than detection is the bottleneck of the pipeline, and sets out the limitations and the threats to validity, including those that arose after the design was fixed.
+*Chapter 7* discusses what the evidence supports and what it does not, discusses grounding rather than detection as the bottleneck of the pipeline, and sets out the limitations and the threats to validity, including those that arose after the design was fixed.
 
 *Chapter 8* concludes the report and outlines future work.
 

@@ -95,7 +95,7 @@ In the vocabulary of #cite(<chen2023scalable>, form: "prose"), the coordinator o
       [*Work*], [*Coordination*], [*Model input*], [*Grounding or feasibility layer*], [*Evaluation*], [*Safety layer*],
     ),
     [@garg2024foundation @garg2026online], [Central high-level planner over a distributed low-level policy], [Text (LLM), or top-view image with text (VLM)], [Model assigns a leader and waypoints; no separate check reported], [Simulation], [Distributed GNN controller; provably safe low-level policy in the extended version],
-    [LLMDR @seo2025llmdr], [Central LLM over learned MAPF policies], [Text: agents' movement patterns], [Prioritised planning (PIBT) turns LLM priorities into moves], [Simulation (grid MAPF benchmarks)], [Collision-free moves from the prioritised planner],
+    [LLMDR @seo2025llmdr], [Central LLM over learned MAPF policies], [Text: agents' movement patterns], [Prioritised planning (PIBT) turns LLM priorities into moves], [Simulation (grid MAPF benchmarks)], [Conflict-free moves from the prioritised planner],
     [@dwedar2026safe], [Centralised server], [One robot's onboard camera (VLM); text (LLM)], [Reachability gate approves or withholds; no repair reported], [Physical robots (two, heterogeneous)], [Reachability gate holds sole command authority],
     [SwarmVLM @zafar2025swarmvlm], [Leader–follower pair], [Ceiling-mounted top-down camera], [VLM-selected impedance parameters], [Physical robots (drone and ground robot)], [Potential-field planning with impedance links],
     [RoCo @mandi2023roco], [Decentralised dialogue; central motion planner], [Text], [Environment feedback (e.g. collision checks) re-prompts the LLMs], [Simulation benchmark; real-world demonstration], [Collision checking of proposed plans],
