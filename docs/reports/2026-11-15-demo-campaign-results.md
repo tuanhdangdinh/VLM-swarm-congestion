@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: intersection live takes 1–3 (ER-2, B3), why live ER-2 gave no usable plan, and the Sonnet 5.5 arm built for takes 4–5.
+- Rev 2 (2026-11-15): added section 5, convoy counterflow live takes 1–3, the root cause of the non-resolution, and the take 1 panel video.
 
 ---
 
@@ -21,6 +22,7 @@
 - **Sonnet 5.5 arm built and dry-tested (section 3).** It is a separate kit, `demo_campaign/ib_sonnet/kit`. The probe works from the Mac.
 - **Offline Sonnet B3 check (n = 16, $0.216 at list).** 16/16 answered and valid, and 11 were `vlm_verbatim`. But only 1 of 15 first triggers would be classified VLM-driven, because of the yielder gap: chance over 2 takes is about 13 %.
 - **Recommendation: no-go for Sonnet takes as a route to a "VLM-driven" video; owner decision.** Launching also needs an owner-approved take-budget deviation (section 3.5).
+- **Convoy counterflow, ER-2, 3 takes (2026-11-15 UTC; section 5).** All three unresolved, 0 of 4 robots arrived in each. The first trigger's yield was executed as the model named it, but the model named only the standoff pair. The two queued robots, never commanded, followed through the gate and the scene latched for good. The 33 later proposals all ran as 8 s waits. Cause: the first decision's content, in a scene built so that such an answer cannot resolve, and then no recovery strategy in legacy grounding. Not a harness issue.
 
 ---
 
@@ -226,3 +228,132 @@ cd /Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campa
 | Take 1's release gate was unreachable (2.65 m against at most 2.62 m left to the goal) | verified from m4 and GT; the general reading is inferred |
 | Sonnet kit dry test, probe, offline counts | verified by running |
 | 13 % over 2 Sonnet takes, about 2850 s for 2 takes | inferred |
+
+---
+
+## 5. Convoy Counterflow Live Takes 1–3 (ER-2; Added 2026-11-15)
+
+**Status.** Illustrative, not controlled evidence. These takes preview the registered convoy experiment's VLM arm (Arm A of v7f `docs/superpowers/specs/2026-11-14-convoy-live-resolution-experiment.md`). They are not part of that experiment and must not be used to change its registered rules (campaign spec section 4.2).
+
+**Setup.** Kit `demo_campaign/cv/kit`, overlay `cvl_l2on.yaml` `7e3ab552`, legacy grounding `cvl_convoy_legacy.yaml`, inert delta `4843a776`, live `gemini-robotics-er-2-preview`, seed 42, 260 sim-s horizon, both recorders on. Sources: `cv/runs/<label>/`, `cv/driver_cv_*.log`, `cv/MANIFEST_*.md5`. The convoy scorer `score_cvl.py` (v7f kit) was also run offline on the three bundles (`--no-harness-check`, output outside the bundles).
+
+### 5.1 Takes (Verified From the Bundles)
+
+| Take (label) | Wall (UTC) | Resolved | Label | Provenance (12 decisions) | Executed | GT min pair | Safety | Recording frames (annotated / raw) | Manifest md5 |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 (`cvD_t01_a1`) | 00:44:55–01:04:47 | no, 0/4 | Unresolved failure | 1 `vlm_verbatim`, 3 `repaired`, 8 `m3_default` | t 27.8 s: robot_2 `yield` (backup 0.903 m to park x 1.124, lateral 0.36), robot_1 escort 1.898 m; 11 later: `temporary_wait` 8 s | 0.343 m | floor stops 0, GT contact 0; `min_distance_violation` lines 161 517 | 1151 / 2083 | `92639ca1` (72 files) |
+| 2 (`cvD_t02_a1`) | 01:17:36–01:37:48 | no, 0/4 | Unresolved failure | 1 / 7 / 4 | t 28.9 s: robot_1 `yield` (backup 0.993 m to park x −1.124), robot_2 escort 1.904 m; 11 later: `temporary_wait` 8 s | 0.262 m | 0, 0; 175 043 | 1166 / 2054 | `c2356be8` (72 files) |
+| 3 (`cvD_t03_a1`) | 01:45:39–02:05:26 | no, 0/4 | Unresolved failure | 1 / 5 / 6 | t 29.3 s: robot_2 `yield` (backup 0.88 m to park x 1.124), robot_1 escort 1.807 m; 11 later: `temporary_wait` 8 s | 0.274 m | 0, 0; 161 242 | 1173 / 2022 | `682c9a59` (72 files) |
+
+- Times are the chain's START and END lines. Every `STARTUP_CHECK`, `VIDEO_VERIFY` and condition gate passed (`GATE OK`, `RESTORE OK`).
+- Model calls: 12 per take, each 1 attempt, `finish_reason=completed`, `parse_status=valid`, 0 refusals; latency 6.7–11.5 s. Estimated spend $0.0898, $0.0953 and $0.0910; tokens 265 830, 270 352 and 266 938.
+- Provenance over the 36 decisions: 3 `vlm_verbatim`, 15 `repaired`, 18 `m3_default`. The live-run agent's summary said 16 and 17; the artifacts give 15 and 18.
+- The GT minimum pair is the robot_1–robot_2 standoff gap at 25.7–29.7 s, before any dispatch. It is not the separation of the final jam (0.41–0.45 m).
+- The many `min_distance_violation` lines are the latched stop of the jammed robots, not contacts.
+- Label: the classifier (`take_class_dmc.py`) labels intersection takes only. These are Unresolved failure under the section 7 rule: 0 of 4 arrived.
+
+### 5.2 What the First Yield Achieved (Verified From m4/m5 and GT)
+
+**Takes 1 and 3: robot_2 yields, robot_1 passes.**
+
+1. Robot_2 backed out and pulled off to (1.13, −0.38), its park point (park x 1.124, lateral 0.36).
+2. M4 admitted robot_1 at sim 53.8 / 55.1 s (`crossing_chain gate_admit`). Robot_1 crossed x = 0 at 54.9 / 55.3 s.
+3. 4.2 and 9.0 wall-seconds before that admission, M5 logged `start delay elapsed, base mission released robots=['robot_3', 'robot_4']`, 119.7 wall-s after its session line. The first command had not named them, so nothing held them. They drove their own Nav2 goals through the gate behind robot_1, crossing x = 0 at 65.0 s and 68.6–68.9 s.
+4. By about 75 s all four stood east of the gate: robot_1 (1.61–1.71, 0.00), robot_3 (1.21–1.31, +0.17–0.19), robot_4 (0.81–0.83, −0.08 to −0.10), robot_2 parked. GT pairs robot_2–robot_4 0.42 m and robot_1–robot_3 0.44 m are below M4's `min_distance_m` 0.45. Only robot_1+robot_2 was an exempt pair, and it was cleared at `gate_release … reason=hold_timer` (98.8 / 100.1 s).
+5. No robot moved again from about 75 s to 260 s. Take 1's escort ended `FAILED escort timed out in phase drive`, with robot_1 stopped 0.07 m short of its escort end.
+
+**Take 2: the model named robot_1 as the yielder.** Robot_1 backed west to (−1.13, +0.37), and robot_2 was escorted west across x = 0 (56.5 s). The released robot_3 and robot_4 drove east to meet it. From about 70 s, robot_2 (−0.90, 0.01), robot_3 (−1.31, 0.00) and robot_4 (−1.69, −0.16) stood 0.41–0.42 m apart, west of the gate, until the end. The scene file names this as the censored alternative ("yielding robot_1 instead escorts robot_2 west … a latch").
+
+**Pre-stated.** The scene file (`convoy_counterflow_slip.yaml` header) says: "Any answer that omits the queued robots ends in the permanent bystander latch". The registration lists, as something only the VM can show, "whether [a live ER-2] names `robot_3` and `robot_4`" on the first trigger. Here the answer is no, in 3 of 3: the scorer's `late_dispatch=True` in all three. The first dispatch naming both came 355–831 wall-s after the session start, long after the latch.
+
+### 5.3 The First Decision (Verified From the Artifacts)
+
+- All three answers: `deadlock`, `yield`, `involved_robots` [robot_1, robot_2]. Takes 1 and 3 name robot_2 as yielder; take 2 names robot_1. The plans give robot_3 and robot_4 `continue` (takes 1 and 3) or `wait` (take 2). Take 3's reasoning mentions that "robot_3 and robot_4 are also queueing from the left", but still leaves them out of the resolution.
+- Plan verification accepted takes 1 and 3 as `vlm_verbatim` with the `continue` legs. Legacy grounding commands only the robots it names: the yielder and one passer with a 120 s linked wait.
+- What the prompt showed (verified text): robot_3 and robot_4 `STOPPED` at spawn, 1.78–2.70 m from the standoff pair, with goals east of the gate. Nothing says they are held back or when they will start. The guidance says "Two robots that are stopped but farther apart than ~0.5 m … are NOT deadlocked" and "do not assume intentions beyond what is stated". Whether this steered the model is inferred.
+- **Smoke comparison (scripted oracle, Arm C, `cvL_e01_armC_a1`, 2026-11-14).** Same overlay md5 `7e3ab552` and the same M4 startup line. Its decision named all four robots, `yield` robot_2 and order [robot_1, robot_3, robot_4, robot_2]. Grounded as yield robot_2 with linked waits for robot_1, robot_3 and robot_4, it executed `gate_admit` in order robot_1, robot_3, robot_4 and resolved 4/4: arrivals 59.1, 100.2, 141.9 and 163.9 s after t0, floor stops 0. It is n = 1 and was not owner-accepted, so it shows that the scene can be resolved, not a rate.
+
+### 5.4 Why Every Later Proposal Became a Wait (Verified; Code at 68e67b5)
+
+The legacy grounder and plan verifier at 68e67b5 (equal to v7f's reasoning code) were replayed offline on each artifact's own scene snapshot. They reproduce all 36 dispatched commands (36/36).
+
+| Mechanism (33 later decisions) | Take 1 | Take 2 | Take 3 |
+|---|---|---|---|
+| Yield or reverse refused by the corridor same-side check ("both robots outside the corridor on the same side") | 9 | 0 | 3 |
+| Yield refused by the first-passer check ("first passer … is not the passer nearest the yielder") | 1 | 5 | 2 |
+| No legacy template: `junction_clear`, `convoy` or `priority_override` → 8 s wait fan-out | 1 | 6 | 6 |
+
+Take 2's two `convoy` decisions are aliased to the ordered yield and refused by the first-passer check, so they sit in that row. Plan verification also substituted every `cross` leg without a preceding `yield` leg. Plans more than 4 edits from a valid one fell back to `m3_default` ("repair distance exceeds bound 4").
+
+**Are the refusals correct?**
+
+- **Same-side check.** Its condition holds: in takes 1 and 3 every robot is past the corridor mouth (|x| > 0.5) on the east side. Its stated reason, "a reverse would traverse it", does not literally apply in take 1. Robot_2 already sits at its park coordinate (x 1.13 against 1.124), so the template would only have nudged it by the minimum backup (from code). Had it not refused, the template would have escorted robot_4 east into robot_3 and robot_1, which are non-exempt partners (inferred). The check is coarse, but it is not what kept the scene jammed.
+- **First-passer check.** Correct by its rule. For example, take 1's four-robot answer at 219.5 s, `yield` robot_2 with order [robot_1, robot_3, robot_4], put robot_1 first while robot_4 was nearest to robot_2 (0.42 m against robot_1's 0.69 m). It was the oracle-shaped answer, given about 190 s after the first trigger, when every yield was refused anyway.
+- **No template.** By design: legacy mode has no feasibility bands for a `junction_clear` sequence (`command_grounder.py`, legacy branch).
+
+**Could any strategy have been grounded? (verified offline for grounding).** On one post-latch snapshot per take, 76 hypothetical decisions were grounded through the pinned legacy grounder:
+
+- every yielder/passer pair;
+- every four-robot yield with every crossing order;
+- every reverse pair;
+- `reroute`, `temporary_wait`, `convoy`, `priority_override` and `junction_clear`, each with every lead robot.
+
+72 of 76 became waits. Only `reroute` (4 of 76) produced motion: one robot's Nav2 goal is re-sent (this scene declares no waypoints) while the others wait 15 s. Inferred: `reroute` is not an M4-exempt action (`exempt_actions=reverse,yield`), and every robot stood within 0.45 m of a non-exempt neighbour, so the latch would have held it. The model never proposed `reroute`.
+
+**Harness ruled out (verified).** Gates, video verify and condition gate passed; all 36 calls were complete and valid; the offline replay reproduces every dispatched command.
+
+### 5.5 Conclusion and Proposed Fixes (NOT Applied)
+
+**Conclusion.**
+
+- **Primary cause: the first decision's content (model limitation; verified).** In 3 of 3 takes ER-2 named only the standoff pair and left the queued platoon out. The scene is built so that such an answer cannot resolve: the scene file pre-states the bystander latch, the scripted oracle decision resolved it, and GT shows the latch in all three takes.
+- **Contributing: information and verification design (verified text; the effect on the model is inferred).**
+  - The prompt carries no hold-back state.
+  - Its guidance reads distant stopped robots as not involved.
+  - Plan verification accepts `continue` for robots whose goals lie across the gate.
+  - Legacy grounding commands only the robots the decision names.
+- **No recovery: a grounding and strategy-coverage limitation (grounding verified; the M4 outcome inferred).** Once four robots latch on one side of the gate, no strategy in the legacy vocabulary grounds a motion that the latch allows.
+- **Not a scenario defect.** The scene behaves as designed and resolves under the oracle decision. It does make the first decision single-shot.
+- **Not a harness issue.**
+
+**Fixes.** Each one changes the registered convoy experiment's Arm A, so it is an owner decision: either a registration amendment before Arm A runs, or nothing.
+
+- **(a) Prompt or kit, small.**
+  - Change: show the hold-back state on the held robots' state lines (for example `held; base mission starts in ~N s`), or add one guidance sentence: robots queued behind a standoff whose goals lie past it belong in `involved_robots` and `crossing_order`.
+  - Cost: it changes the registered prompt bytes and needs an offline ER-2 check on the recorded first-trigger snapshots (about 12 calls).
+  - What it tests: whether the model can do it when it is told.
+- **(b) Grounding, medium (M3 change).**
+  - Change: when grounding a corridor yield, hold every uncommanded robot whose goal lies across the corridor with a linked wait, and append it to the crossing order nearest-first, which is what the oracle command does. Alternatively, plan verification could refuse `continue` for such robots.
+  - What it gives: the outcome no longer depends on the model naming the platoon.
+- **(c) Recovery, large (architecture).**
+  - Change: a post-gate cluster template, for example release in goal-distance order with scoped exemptions, or derived-mode grounding for this scene.
+  - What it gives: it addresses the 33 dead waits, not the cause.
+
+### 5.6 Video (Take 1)
+
+- **File.** v7g `data/demo/campaign/cvD_t01_a1_panel.mp4` (git-ignored), md5 `82431944`. Beside it: transcript, five stills and `cvD_t01_a1_panel.md5`. Renderer v7g `5198c0b`, which adds `render --caption`.
+- **Why take 1.** Takes 1 and 3 show the same majority pattern. In take 1 the mandated caption sentence is literally true for 10 of the 11 later triggers: 9 same-side and 1 first-passer refusal, against 5 of 11 in take 3 (5.4). It is also the tie-break default.
+- **Camera: annotated stream.** The guide has no raw-versus-annotated recommendation; its camera example and the campaign runbook (section 8) both use `/perception/annotated_frame`, which is also the image the model receives.
+- **Captions** (outside the terminal): "Unresolved failure — take 1 of 3 (selected take)"; the model `gemini-robotics-er-2-preview`, Layer 2 on, 0 of 4 arrived; "First decision: the model's yield was executed as named; all 11 later proposals ran as 8 s waits (10 refused by grounding checks, 1 had no legacy template)"; and the section 7 disclosure lines.
+- **Checks (verified).**
+  - ffprobe: H.264, 1920x1080, 24 fps, yuv420p, 6559 frames, 273.29 s. The full take, not cut.
+  - Time map: log-to-sim alignment within 0.29 sim-s at 92 anchors.
+  - The first `dispatch` line maps to sim 30.032 s; M4's own `handoff guard … sim_t=30.000` comes 12 ms later. Error about 0.03 sim-s.
+  - The camera's burned-in clock against the caption clock: 29.90 / 30.03 s at the first decision (0.13 s, one frame step at about 4.7 frames per sim-s), 163.03 / 163.06 s mid-take.
+- **Known gaps.**
+  - The left pane is blank before sim 14.8 s (first recorded frame) and after 259.97 s (last frame), so the end still is blank.
+  - The fixed filter does not match M5's `yield refused … reason=` lines. On screen the later triggers show as `provenance=m3_default reason=repair distance exceeds bound 4` and `action=temporary_wait`, not the geometric reason. The caption states the reason; the filter was not widened.
+
+### 5.7 Verified and Inferred
+
+| Claim | Status |
+|---|---|
+| Per-take outcomes, provenance counts, executed commands, safety counts, frames, manifests | verified (bundles, driver logs, offline scorer) |
+| The first yield ran as named; robot_3/robot_4 were released uncommanded and the scene latched at about 75 s (takes 1 and 3) and about 70 s (take 2) | verified (m4/m5 lines, GT) |
+| The model named only the standoff pair in 3 of 3 first decisions | verified (artifacts) |
+| The prompt carried no hold-back state | verified (prompt text); its effect on the model is inferred |
+| Refusal mechanisms for the 33 later decisions | verified (artifacts; offline replay 36/36) |
+| The same-side refusal's stated reason did not literally apply in take 1 | verified from code and snapshot; that an unrefused yield would still have latched is inferred |
+| No legacy strategy grounds motion except `reroute` | verified offline (76 decisions × 3 snapshots) |
+| `reroute` would have been held by the M4 latch | inferred |
+| The scene is resolvable with the oracle decision | verified on one smoke episode, not owner-accepted |

@@ -37,6 +37,14 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-11-15** — **Convoy counterflow demo takes 1–3 (ER-2, legacy grounding; illustrative only, a preview of the registered convoy Arm A, not part of it): 0/4 arrived in every take.** Details: `docs/reports/2026-11-15-demo-campaign-results.md` section 5. Verified:
+  - The first trigger's `yield` ran as named, but ER-2 named only the robot_1/robot_2 standoff in 3 of 3 (`late_dispatch=True`). The uncommanded robot_3/robot_4 were released by the 120 wall-s start delay, followed through the gate and latched at 0.41–0.45 m (M4 `min_distance_m` 0.45) for the rest of the episode. This is the bystander latch the scene header pre-states. The scripted oracle smoke (`cvL_e01_armC_a1`) named all four and resolved 4/4.
+  - Gotcha: plan verification accepts `continue` legs for queued robots whose goals lie across the gate (`vlm_verbatim`), and legacy grounding never holds robots the decision omits.
+  - Gotcha: after a post-gate latch the legacy vocabulary has no recovery. Offline, on 76 hypothetical decisions per snapshot, 72 ground to waits through the same-side check, the first-passer check or the missing `junction_clear`/`convoy`/`priority_override` template. Only `reroute` grounds motion, and it is not M4-exempt (inferred held). The pinned grounder reproduces all 36 live commands.
+  - Provenance over the 36 decisions: 3 verbatim, 15 repaired, 18 `m3_default`. No harness fault.
+  - Fixes are owner decisions, none applied: (a) hold-back state or a platoon sentence in the prompt; (b) an M3 bystander hold for uncommanded robots whose goals lie across the corridor; (c) a post-gate recovery template.
+  - Panel video of take 1 rendered with the new `render --caption` lines (v7g `5198c0b`).
+
 - **2026-11-15** — **Intersection demo takes 1–3 (ER-2, B3; illustrative only): none VLM-driven (Unresolved, M3-default, M3-default); a Sonnet 5.5 kit arm is built, and the offline check says no-go for a VLM-driven Sonnet video.** Verified:
   - The live prompts equal the offline B3 rendering byte for byte. No output was truncated.
   - The three no-plan causes differ: take 3 copied the options detail `"reverse (south arm)"` (parser null); with the actions normalised it would have been the demo event (offline replay). Take 2 omitted the releasing `yield` (`repaired`). Take 1 triggered on an approach snapshot after a one-sample M1 identity glitch (robot_2 reported on robot_1, 0.01 m) latched a min-distance stop, and its leg key was malformed.
