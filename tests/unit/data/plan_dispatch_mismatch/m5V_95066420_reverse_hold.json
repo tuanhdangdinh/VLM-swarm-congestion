@@ -1,0 +1,188 @@
+{
+  "_fixture_source": "v7j demo_campaign/m5v/runs/m5V_t01_a1/decisions/95066420efa54188962f5c4f68806a4c.json",
+  "decision": {
+    "blocker_kind": "robot",
+    "congestion_detected": true,
+    "crossing_order": null,
+    "involved_robots": [
+      "robot_4",
+      "robot_5"
+    ],
+    "justification": "Robot 4 and Robot 5 are physically blocking each other in a head-on deadlock; Robot 4 must reverse out of the passage so that Robot 5 can continue.",
+    "proposed_plan": [
+      {
+        "action": "reverse",
+        "robot_id": "robot_4"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_5"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_1"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_2"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_3"
+      }
+    ],
+    "reasoning": "Robot 4 and Robot 5 are in a head-on deadlock within 0.37 meters of each other, each facing the other in a stopped state. We should execute the active recovery plan where Robot 4 reverses to clear the path for Robot 5.",
+    "root_cause": "Robot 4 and Robot 5 are stopped head-on in a narrow passage.",
+    "strategy": "reverse",
+    "type": "deadlock",
+    "yield_robot": null
+  },
+  "dispatch_dropped_robot_ids": [],
+  "dispatched_command": {
+    "actions": [
+      {
+        "action": "reverse",
+        "parameters": {
+          "backup_distance_m": 1.3,
+          "backup_line_hold": true,
+          "fresh_latch_fast_fail": true,
+          "plan_id": 2
+        },
+        "robot_id": "robot_4"
+      },
+      {
+        "action": "reverse",
+        "parameters": {
+          "backup_distance_m": 1.3,
+          "backup_line_hold": true,
+          "fresh_latch_fast_fail": true,
+          "plan_id": 2
+        },
+        "robot_id": "robot_5"
+      }
+    ],
+    "command_id": "95066420efa54188962f5c4f68806a4c-reverse",
+    "degradations": [
+      "grounding=dynamic_arms:lane:y"
+    ],
+    "expected_resolution_time_sec": 8.0,
+    "fallback": "stop"
+  },
+  "dispatched_robot_ids": [
+    "robot_4",
+    "robot_5"
+  ],
+  "grounding_degradations": [
+    "grounding=dynamic_arms:lane:y"
+  ],
+  "plan": {
+    "cancel_order": [],
+    "dispatch_matches_plan": false,
+    "edits": [],
+    "legs": [
+      {
+        "action": "reverse",
+        "robot_id": "robot_4",
+        "status": "pending"
+      },
+      {
+        "action": "reverse",
+        "robot_id": "robot_3",
+        "status": "done"
+      },
+      {
+        "action": "wait",
+        "robot_id": "robot_1",
+        "status": "done"
+      },
+      {
+        "action": "wait",
+        "robot_id": "robot_2",
+        "status": "done"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_5",
+        "status": "pending"
+      }
+    ],
+    "order_equivalent": false,
+    "plan_held": true,
+    "plan_id": 2,
+    "provenance": "vlm_verbatim",
+    "rejection_reason": null,
+    "superseded_plan_id": null
+  },
+  "plan_state": {
+    "changed_robot_ids": [
+      "robot_2",
+      "robot_3",
+      "robot_4"
+    ],
+    "legs": [
+      {
+        "action": "reverse",
+        "robot_id": "robot_4",
+        "status": "pending"
+      },
+      {
+        "action": "reverse",
+        "robot_id": "robot_3",
+        "status": "done"
+      },
+      {
+        "action": "wait",
+        "robot_id": "robot_1",
+        "status": "done"
+      },
+      {
+        "action": "wait",
+        "robot_id": "robot_2",
+        "status": "done"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_5",
+        "status": "pending"
+      }
+    ],
+    "plan_id": 2
+  },
+  "request_id": "95066420efa54188962f5c4f68806a4c",
+  "run_id": "20261115_083119",
+  "scene": {
+    "robots": [
+      {
+        "robot_id": "robot_1",
+        "theta": -0.024994396189746873,
+        "x": -1.765125704466841,
+        "y": -1.2954944924856866
+      },
+      {
+        "robot_id": "robot_2",
+        "theta": -0.22131103570811345,
+        "x": 0.2026625808832302,
+        "y": 1.123342995586832
+      },
+      {
+        "robot_id": "robot_5",
+        "theta": -1.8218028406202735,
+        "x": -1.6496298250387638,
+        "y": 0.0076269650524808386
+      },
+      {
+        "robot_id": "robot_3",
+        "theta": 2.4436976631320926,
+        "x": 1.966698701581882,
+        "y": -0.0784487833969465
+      },
+      {
+        "robot_id": "robot_4",
+        "theta": 1.9601186345408799,
+        "x": -1.5559256209744747,
+        "y": -0.35192995885019074
+      }
+    ],
+    "stamp": 75.9
+  }
+}

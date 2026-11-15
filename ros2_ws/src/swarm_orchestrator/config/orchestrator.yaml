@@ -342,6 +342,18 @@ plan_channel_enabled: false
 # channel above switched on; M5 refuses to start otherwise.
 plan_dispatch_order_source: "chi"
 
+# Plan-dispatch mismatch visibility (owner decision 2026-11-15: logging and
+# provenance only). false (default): byte-identical artifacts, logs and
+# metrics. true: every plan-channel decision artifact gains a
+# plan_dispatch_mismatch block (per-robot differences between the accepted
+# plan and the dispatched command, plan=overridden:... tags, a corrected
+# provenance reading beside the untouched plan.provenance, a corrected
+# leg-status record) and, for a reverse, a reverse_dispatch block; M5 logs
+# one "plan dispatch mismatch" WARN line per difference and a "reverse
+# refused" / "reverse executed" line. No command, plan, leg status or prompt
+# changes. Needs the plan channel above; M5 refuses to start otherwise.
+plan_dispatch_mismatch_visibility: false
+
 # prereg-v3 R3.4 contradiction trigger (closed-loop item). false (default):
 # nothing is armed or fired and no artifact gains a key -- byte-identical to
 # every run before this block existed. true: while a dispatched command is in

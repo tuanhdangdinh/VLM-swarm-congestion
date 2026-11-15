@@ -76,6 +76,12 @@ from swarm_orchestrator.models import (
     should_submit_pipeline,
 )
 from swarm_orchestrator.permutation_votes import permutation_votes_log
+from swarm_orchestrator.plan_dispatch_visibility import (
+    LegEffectLedger,
+    PlanDispatchVisibility,
+    build_plan_dispatch_visibility,
+    leg_status_line,
+)
 from swarm_orchestrator.plan_tracker import PlanTracker
 from swarm_orchestrator.presentation_order import (
     EpisodeOrderTracker,
@@ -377,6 +383,14 @@ class OrchestratorNode(Node):
         # `changed_robot_ids` on every invocation except the one right after
         # a supersession (see that method's docstring).
         self._last_shown_plan_id: int | None = None
+        # Plan-dispatch mismatch visibility (logging and provenance only):
+        # False unless the key is on, so a key-off node computes, logs and
+        # records nothing new. The ledger is the corrected leg-status reading;
+        # `self._plan_tracker` (prompt plan-state, hold rule) is never touched.
+        self._mismatch_visibility = (
+            self._config.plan_dispatch_mismatch_visibility and self._plan_tracker is not None
+        )
+        self._leg_effects = LegEffectLedger()
         # Arm B never builds the default pipeline, so no VLM backend or
         # client is constructed and no M2/M3 call is possible.
         self._pipeline: ReasoningPipeline | None = pipeline or (
@@ -633,6 +647,7 @@ class OrchestratorNode(Node):
                 if self._grounding.params.reverse_obstacle_guard
                 else ""
             )
+            + (" plan_dispatch_mismatch_visibility=true" if self._mismatch_visibility else "")
         )
         if self._marker is not None:
             if self._marker.available:
@@ -955,12 +970,22 @@ class OrchestratorNode(Node):
         if mapped is None:
             return
         try:
-            self._plan_tracker.set_leg_status(plan_id, robot_id, mapped)
+            updated = self._plan_tracker.set_leg_status(plan_id, robot_id, mapped)
         except (KeyError, ValueError) as exc:
             self.get_logger().warning(
                 f"plan leg status update failed plan={plan_id} robot={robot_id} "
                 f"status={mapped}: {exc}"
             )
+            return
+        if self._mismatch_visibility and mapped in ("done", "failed"):
+            entry = self._leg_effects.entry(plan_id, robot_id)
+            line = (
+                None
+                if entry is None
+                else leg_status_line(plan_id, robot_id, updated.action, mapped, entry)
+            )
+            if line is not None:
+                self.get_logger().info(line)
 
     def _on_trigger_analysis(
         self,
@@ -1305,6 +1330,7 @@ class OrchestratorNode(Node):
             churn_entry = self._churn_check(outcome, dispatch, snapshot)
             if churn_entry is not None and churn_entry[0] is not None:
                 dispatch_withheld = churn_entry[0]
+        visibility = self._plan_dispatch_visibility(outcome, dispatch, dispatch_withheld, request)
         try:
             artifact_path = write_decision_artifact(
                 self._config.decision_log_dir,
@@ -1331,6 +1357,7 @@ class OrchestratorNode(Node):
                     else self._suppression.take_artifact_block()
                 ),
                 dispatch_withheld=dispatch_withheld,
+                **self._visibility_artifact_fields(visibility),
                 **self._trigger_artifact_fields(trigger_source, contradiction),
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
@@ -1388,8 +1415,10 @@ class OrchestratorNode(Node):
                 self._withhold_refusal(
                     outcome, dispatch, directive.robots, now, dispatch_withheld["reason"]
                 )
+                self._emit_visibility(visibility)
             elif self._config.dispatch_enabled:
                 self._dispatch(outcome, dispatch, episode_index=episode_index)
+                self._emit_visibility(visibility)
                 if self._churn is not None and churn_entry is not None:
                     _, stamp, identity, cluster = churn_entry
                     self._churn.record(stamp, identity, cluster, outcome.request_id)
@@ -1411,6 +1440,65 @@ class OrchestratorNode(Node):
         # leftover trigger set.
         self._last_trigger_robot_ids = frozenset()
         self._cleanup_frame(outcome.request_id)
+
+    def _plan_dispatch_visibility(
+        self,
+        outcome: PipelineOutcome,
+        dispatch: RegistryDispatch | None,
+        dispatch_withheld: dict[str, Any] | None,
+        request: ReasonerRequest | None,
+    ) -> PlanDispatchVisibility | dict[str, Any] | None:
+        """Compare the outcome's plan with its dispatch, behind the key; never raises.
+
+        Returns the visibility record, a `{"error": ...}` block when the
+        comparison itself failed (recorded, never allowed to cost the
+        dispatch), or None with the key off or no plan.
+        """
+        if not self._mismatch_visibility or outcome.plan is None:
+            return None
+        try:
+            return build_plan_dispatch_visibility(
+                outcome,
+                dispatch_command=None if dispatch is None else dispatch.command,
+                dropped_robot_ids=() if dispatch is None else dispatch.dropped_robot_ids,
+                withheld_reason=None if dispatch_withheld is None else dispatch_withheld["reason"],
+                request_robot_ids=(
+                    None
+                    if request is None
+                    else [robot.robot_id for robot in request.robot_states]
+                ),
+                ledger=self._leg_effects,
+            )
+        except Exception as exc:  # recorded in the artifact and the log, never raised
+            error = f"{type(exc).__name__}: {exc}"
+            self.get_logger().error(
+                f"plan dispatch mismatch request={outcome.request_id} check failed: {error}"
+            )
+            return {"error": error}
+
+    @staticmethod
+    def _visibility_artifact_fields(
+        visibility: PlanDispatchVisibility | dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        # Empty with the key off, so `write_decision_artifact` adds no key.
+        if visibility is None:
+            return {}
+        if isinstance(visibility, dict):
+            return {"plan_dispatch_mismatch": visibility}
+        fields: dict[str, Any] = {"plan_dispatch_mismatch": visibility.mismatch_block}
+        if visibility.reverse_block is not None:
+            fields["reverse_dispatch"] = visibility.reverse_block
+        return fields
+
+    def _emit_visibility(self, visibility: PlanDispatchVisibility | dict[str, Any] | None) -> None:
+        """Log the record's lines and commit its leg effects, once M5 has acted."""
+        if not isinstance(visibility, PlanDispatchVisibility):
+            return
+        for line in visibility.warning_lines:
+            self.get_logger().warning(line)
+        for line in visibility.info_lines:
+            self.get_logger().info(line)
+        self._leg_effects.commit(visibility.plan_id, visibility.ledger_entries)
 
     def _finalize_shadow(self, outcome: PipelineOutcome) -> dict[str, Any] | None:
         """Compare the pending shadow with the VLM outcome and log one line.

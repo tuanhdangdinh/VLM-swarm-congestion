@@ -1421,6 +1421,13 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # derived yield's retreat corridor holds on an unlinked wait. Suffix
     # `:<id>`, one tag per shielded robot. Provenance, not a cause.
     "grounding=retreat_shield": None,
+    # `plan_dispatch_mismatch_visibility` (M5, default off): a dispatched
+    # command contradicts the accepted plan's leg (`reasoning.rag.
+    # plan_dispatch_mismatch`). Suffix `:<strategy>:<robot|yielder|passer|
+    # order>:<planned>-><dispatched>`. Recorded only in the artifact's
+    # `plan_dispatch_mismatch.tags`, never in a command's `degradations`.
+    # Provenance, not a cause.
+    "plan=overridden": None,
     # Stage-1 parser tags for the prompt-v2 optional decision fields, recorded
     # on `ReasonerDiagnostics.decision_degradations`; merged here so one
     # `degradation_cause` covers the whole breakdown.
