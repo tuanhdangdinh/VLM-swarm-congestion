@@ -1,0 +1,73 @@
+{
+ "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E28_seed2_armB_l2off_confT1_a1",
+ "category_min_gap_within_near_cutoff": {},
+ "contact_model": "urdf_footprint_v1",
+ "declared_static_obstacles": [
+  "obstacle_1",
+  "obstacle_2"
+ ],
+ "family": "bottleneck",
+ "ground_truth": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E28_seed2_armB_l2off_confT1_a1/gt/ground_truth.jsonl",
+ "logged_rows_nonempty": {
+  "robot_robot_contacts": 0,
+  "robot_static_contacts": 0
+ },
+ "logged_rows_with_contact_model": 0,
+ "min_robot_robot_gap": {
+  "min_gap_m": 0.1011,
+  "robot_ids": [
+   "robot_1",
+   "robot_5"
+  ],
+  "sim_s": 44.8
+ },
+ "n_boxes": 14,
+ "n_rows": 6001,
+ "near_cutoff_m": 0.02,
+ "robot_min_static_gap": {
+  "robot_1": {
+   "category": "static_obstacle",
+   "min_gap_m": 0.04114,
+   "obstacle_id": "obstacle_2",
+   "sim_s": 42.5
+  },
+  "robot_2": {
+   "category": "rack",
+   "min_gap_m": 0.09789,
+   "obstacle_id": "rack/SW_west",
+   "sim_s": 22.0
+  },
+  "robot_3": {
+   "category": "static_obstacle",
+   "min_gap_m": 0.40141,
+   "obstacle_id": "obstacle_1",
+   "sim_s": 40.8
+  },
+  "robot_4": {
+   "category": "static_obstacle",
+   "min_gap_m": 0.06156,
+   "obstacle_id": "obstacle_1",
+   "sim_s": 53.2
+  },
+  "robot_5": {
+   "category": "static_obstacle",
+   "min_gap_m": 0.24711,
+   "obstacle_id": "obstacle_2",
+   "sim_s": 43.3
+  }
+ },
+ "robot_pairs": {},
+ "robot_robot_verdict": "clear",
+ "row_dt_s": 0.1,
+ "scenario": "mapd_5_s1b_seed2",
+ "sim_span_s": [
+  0.0333,
+  600.0
+ ],
+ "static_pairs": {},
+ "static_verdict": "clear",
+ "sustained_min_sec": 1.0,
+ "threshold_m": 0.005,
+ "timed_obstacles": [],
+ "unmodelled_obstacles": []
+}

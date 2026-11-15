@@ -17,6 +17,7 @@
   `docs/superpowers/specs/2026-09-18-head-on-asymmetric-family-design.md`.
   Hardware verification: `docs/reports/2026-09-18-head-on-family-validity.md`.
 - Rev 5 (2026-09-27): FR6.6.8 unchanged, but the implementation now conforms: the camera image and camera_info helpers switched from system time to simulation time (`useSystemTime=False`).
+- Rev 6 (2026-11-15): §7 ground-truth contact fields are now computed (URDF footprint geometry, `isaac/vgu_sim/contact_geometry.py`) instead of the literal `[]` stub; entries carry ids and a signed gap, and rows gain `min_static_gap_m`, `min_robot_robot_gap_m` and `contact_model`. Report: `docs/reports/2026-11-15-gt-contact-logging.md`.
 
 ---
 
@@ -793,6 +794,27 @@ class GroundTruthRecord(BaseModel):
 
 `robot_static_contacts` lists robot IDs in contact with a wall or rack
 collider; any non-empty entry fails the unified collision rule (Section 9.4).
+
+**As implemented (Rev 6, 2026-11-15).** The frozen model above was never
+implemented as written: until 2026-11-15 `acceptance_logging.py` wrote both
+contact lists as the literal `[]` on every row, so rows without a
+`contact_model` key carry no contact information at all. Rows written since
+then carry, per `isaac/vgu_sim/contact_geometry.py`:
+
+- `robot_static_contacts`: `[{"robot_id", "obstacle_id", "gap_m"}, ...]` for
+  each robot-box pair whose planar footprint gap is at most
+  `CONTACT_GAP_THRESHOLD_M` (0.005 m). Boxes are the walls, rack blocks
+  (`rack/<name>`), aisle-barrier blocks (`aisle_barrier/<side>`), declared
+  static obstacles and active box-type timed obstacles (their own ids).
+- `robot_robot_contacts`: `[{"robot_ids": [a, b], "gap_m"}, ...]` likewise.
+- `min_static_gap_m`, `min_robot_robot_gap_m`: the unthresholded minima
+  (`null` with no box or fewer than two robots).
+- `contact_model`: `"urdf_footprint_v1"`.
+
+The gap is measured between the TurtleBot3 Burger URDF collision shapes at the
+logged `base_link` pose and the authored boxes; negative is overlap. It is a
+geometric proximity measure, not a physics contact report. The lists stay
+lists, so the Section 9.4 "non-empty fails" reading is unchanged.
 `conflict_active` records whether the scenario's conflict oracle held at that
 timestamp.
 
