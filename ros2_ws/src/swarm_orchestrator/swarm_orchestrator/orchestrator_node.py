@@ -226,6 +226,7 @@ def _build_default_pipeline(
         # prereg-v3 A22: only the echo mock has this hook (None otherwise).
         dispatch_outcome_observer=getattr(backend, "note_dispatch_outcome", None),
         task_intent_of=task_intent_of,
+        hold_queued_crossers=config.grounding_hold_queued_crossers,
     )
 
 

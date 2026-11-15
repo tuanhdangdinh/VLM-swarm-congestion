@@ -516,6 +516,14 @@ class OrchestratorConfig(BaseModel):
     # `plan_channel_enabled` (v3 only); recorded as
     # `prompt_conditions.held_robot_ids`.
     prompt_held_robot_state: bool = False
+    # Queued corridor-crosser hold (2026-11-15, convoy fix (b)): a LEGACY-mode
+    # corridor yield also holds, on a linked wait appended to its crossing
+    # order, every robot the decision does not name whose goal lies across
+    # the declared single corridor (`command_grounder.queued_crosser_outcome`);
+    # its plan legs verify as `repaired` toward that hold. Default off =
+    # every command, plan verdict and artifact byte-identical; a no-op in
+    # derived mode and for junction or dynamic geometry.
+    grounding_hold_queued_crossers: bool = False
     # prereg-v3 R3.4 contradiction trigger (closed-loop item); default off.
     contradiction_trigger: ContradictionTriggerConfig = Field(
         default_factory=ContradictionTriggerConfig
@@ -1116,8 +1124,8 @@ def plan_order_status_line(config: OrchestratorConfig) -> str | None:
 
     Logged so a run's log alone shows whether the VLM recede-order channel
     (`plan_dispatch_order_source`) and its prompt conditions were live. None
-    (nothing new logged) unless one of the three keys, or the held-robot state
-    condition, is off its default.
+    (nothing new logged) unless one of the three keys, the held-robot state
+    condition or the queued corridor-crosser hold is off its default.
 
     Args:
         config: The loaded orchestrator config.
@@ -1130,6 +1138,7 @@ def plan_order_status_line(config: OrchestratorConfig) -> str | None:
         and not config.prompt_plan_grammar_rules
         and not config.prompt_candidate_options
         and not config.prompt_held_robot_state
+        and not config.grounding_hold_queued_crossers
     ):
         return None
     line = (
@@ -1142,6 +1151,8 @@ def plan_order_status_line(config: OrchestratorConfig) -> str | None:
         line += " prompt_plan_grammar_release_rule=True"
     if config.prompt_held_robot_state:
         line += " prompt_held_robot_state=True"
+    if config.grounding_hold_queued_crossers:
+        line += " grounding_hold_queued_crossers=True"
     return line
 
 

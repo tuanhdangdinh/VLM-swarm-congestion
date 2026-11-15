@@ -57,12 +57,14 @@ from reasoning.rag.scene_geometry import (
     SceneGeometry,
     along_m,
     arm_geometry,
+    is_single_corridor,
     park_offset_m,
     passer_clearance_m,
     passer_travel_m,
     pull_off_lateral_m,
     release_pull_off_lateral_m,
     required_room_m,
+    traverses_corridor,
     yield_feasible,
     yield_retreat_room_m,
 )
@@ -581,6 +583,7 @@ def ground_reasoner_result(
     priorities: Mapping[str, int] | None = None,
     goal_references: Mapping[str, tuple[float, float]] | None = None,
     task_intents: Mapping[str, RobotTaskIntent] | None = None,
+    hold_queued_crossers: bool = False,
 ) -> dict[str, Any]:
     """Convert a validated VLM decision into an executable coordination command.
 
@@ -667,6 +670,15 @@ def ground_reasoner_result(
             next one, the dwell left), read only by the A26 retreat shield
             (`params.retreat_shield`); None scores bystanders on their
             snapshot goals alone.
+        hold_queued_crossers: M5's `grounding_hold_queued_crossers`. Legacy
+            mode with a `snapshot` and a plain single corridor only: a yield
+            also holds every robot it does not name whose snapshot goal lies
+            across the corridor, appended to its crossing order
+            (`queued_crosser_outcome`), tagged `crossing_order=augmented:
+            <id>:goal_across_corridor` per robot and listed on the yield as
+            `queued_crossers_added`; or tagged `crossing_order=
+            augment_withheld:...` when holding them would refuse the yield.
+            False (the default) keeps every command byte-identical.
 
     Before grounding, the decision passes through the per-decision grounding
     view (`reasoning.rag.grounding_view.resolve_grounding_view`): declared
@@ -732,6 +744,21 @@ def ground_reasoner_result(
             goal_references=goal_references,
         )
     else:
+        queued = _NO_QUEUED_CROSSERS
+        if (
+            hold_queued_crossers
+            and snapshot is not None
+            and result.decision is not None
+            and result.decision.congestion_detected
+        ):
+            queued = queued_crosser_outcome(
+                result.decision,
+                snapshot,
+                geometry,
+                static_obstacles,
+                yield_feasibility_mode,
+                crossing_order,
+            )
         command = _ground_legacy(
             result,
             robot_positions,
@@ -739,7 +766,13 @@ def ground_reasoner_result(
             static_obstacles,
             yield_feasibility_mode,
             crossing_order=crossing_order,
+            queued_crossers=queued.added,
         )
+        queued_tags = queued_crosser_tags(queued)
+        if queued_tags:
+            command = _with_degradations(
+                command, [*command.get("degradations", []), *queued_tags]
+            )
     if view is not None and view.tags:
         command = _with_degradations(command, [*command.get("degradations", []), *view.tags])
     command = apply_escort_headings(command, snapshot, geometry, params, goal_references)
@@ -808,6 +841,138 @@ def _first_passer_refusal(
     return None
 
 
+# Queued corridor-crosser hold (2026-11-15, convoy counterflow; owner-approved
+# fix (b) of docs/reports/2026-11-15-demo-campaign-results.md section 5.5).
+# One tag per robot the grounder added to a legacy corridor yield, suffix
+# `:<robot_id>:<reason>`; and one tag when robots qualified but holding them
+# would have refused the model's yield, suffix `:<ids>:<refusal>`.
+QUEUED_CROSSER_TAG = "crossing_order=augmented"
+QUEUED_CROSSER_WITHHELD_TAG = "crossing_order=augment_withheld"
+QUEUED_CROSSER_REASON = "goal_across_corridor"
+# Edit-reason prefix of a plan leg substituted to `cross` because dispatch
+# holds its robot as an added queued crosser; `plan_metrics` and scorers can
+# separate these repairs by it, as `LANE_SCOPED_HOLD_PREFIX`.
+QUEUED_CROSSER_PREFIX = "queued crosser hold:"
+# Traceability key on the yield action (inert in M4, which reads parameters
+# with `.get`); M5 lifts it to the artifact's `grounding_queued_crossers_added`.
+QUEUED_CROSSERS_ADDED_KEY = "queued_crossers_added"
+
+
+class QueuedCrosserOutcome(NamedTuple):
+    """Which uncommanded corridor-crossers a legacy yield holds, and why not."""
+
+    # Robots appended to the crossing order, nearest to the gate first.
+    added: tuple[str, ...] = ()
+    # Robots that qualified, whether or not they were added.
+    candidates: tuple[str, ...] = ()
+    # Set when candidates qualified but holding them would refuse the yield.
+    withheld_reason: str | None = None
+
+
+_NO_QUEUED_CROSSERS = QueuedCrosserOutcome()
+
+
+def queued_crosser_outcome(
+    decision: CongestionDecision,
+    snapshot: SnapshotFrame,
+    geometry: SceneGeometry | None,
+    static_obstacles: Sequence[StaticObstacleInput] = (),
+    yield_feasibility_mode: YieldFeasibilityMode = "off",
+    crossing_order: Sequence[str] | None = None,
+) -> QueuedCrosserOutcome:
+    """The robots a legacy corridor yield holds although the decision does not name them.
+
+    A robot qualifies when the decision does not involve it and it stands
+    outside the declared single corridor with its snapshot goal beyond the
+    far mouth (`scene_geometry.traverses_corridor`): released, it would drive
+    through the gate behind the passer. Qualifying robots are appended to the
+    yield's passing order after the passer(s) the decision named, nearest to
+    the gate first (ties by robot id), so `_ground_legacy` holds each on a
+    linked wait exactly as if the decision had named it. The decision's own
+    yielder, passer order, the feasibility gate, the corridor same-side check
+    and the first-passer check all run unchanged: nothing is added when the
+    yield the decision asks for is refused anyway, and nothing is added
+    (`withheld_reason` set) when the extended order would fail the
+    first-passer check that the named order passes.
+
+    Args:
+        decision: The (alias- and view-resolved) decision being grounded.
+        snapshot: The decision frame; every robot's pose and goal.
+        geometry: Declared scene geometry; anything but a plain single
+            corridor (`scene_geometry.is_single_corridor`) adds nothing.
+        static_obstacles: Fixed obstacles, for the feasibility gate.
+        yield_feasibility_mode: The feasibility gate mode, as grounded.
+        crossing_order: The caller's crossing-order override, as grounded.
+
+    Returns:
+        The outcome; empty unless the decision is a groundable yield.
+    """
+    if decision.strategy != "yield" or geometry is None or not is_single_corridor(geometry):
+        return _NO_QUEUED_CROSSERS
+    positions = {state.robot_id: (state.x, state.y) for state in snapshot.robots}
+    robot_ids = resolve_robot_order(decision)
+    if len(robot_ids) < 2 or any(robot_id not in positions for robot_id in robot_ids):
+        return _NO_QUEUED_CROSSERS
+    if yield_feasibility_mode != "off":
+        gated = _apply_yield_feasibility(
+            robot_ids, positions, static_obstacles, geometry, yield_feasibility_mode
+        )
+        if gated.refusal_reason is not None:
+            return _NO_QUEUED_CROSSERS
+        robot_ids = gated.robot_ids
+    passer_order = _legacy_passer_order(robot_ids, decision, crossing_order)
+    if len(passer_order) > 1 and _first_passer_refusal(robot_ids[0], passer_order, positions):
+        return _NO_QUEUED_CROSSERS
+    yielder_geometry = arm_geometry(geometry, robot_ids[0])[0]
+    if _beyond_corridor_same_side(
+        positions[robot_ids[0]], positions[passer_order[0]], yielder_geometry
+    ):
+        return _NO_QUEUED_CROSSERS
+    queued = sorted(
+        (
+            state
+            for state in snapshot.robots
+            if state.robot_id not in robot_ids
+            and traverses_corridor((state.x, state.y), state.goal, geometry)
+        ),
+        key=lambda state: (
+            abs(along_m(geometry, (state.x, state.y)) - geometry.corridor.center_m),
+            state.robot_id,
+        ),
+    )
+    candidates = tuple(state.robot_id for state in queued)
+    if not candidates:
+        return _NO_QUEUED_CROSSERS
+    refusal = _first_passer_refusal(robot_ids[0], [*passer_order, *candidates], positions)
+    if refusal is not None:
+        return QueuedCrosserOutcome(candidates=candidates, withheld_reason=refusal)
+    return QueuedCrosserOutcome(added=candidates, candidates=candidates)
+
+
+def queued_crosser_tags(outcome: QueuedCrosserOutcome) -> list[str]:
+    """The degradation tags recording a queued-crosser outcome.
+
+    Args:
+        outcome: `queued_crosser_outcome`'s result.
+
+    Returns:
+        One `crossing_order=augmented:<id>:goal_across_corridor` tag per added
+        robot, or one `crossing_order=augment_withheld:<ids>:<refusal>` tag;
+        empty when no robot qualified.
+    """
+    if outcome.added:
+        return [
+            f"{QUEUED_CROSSER_TAG}:{robot_id}:{QUEUED_CROSSER_REASON}"
+            for robot_id in outcome.added
+        ]
+    if outcome.withheld_reason is not None:
+        return [
+            f"{QUEUED_CROSSER_WITHHELD_TAG}:{','.join(outcome.candidates)}:"
+            f"{outcome.withheld_reason}"
+        ]
+    return []
+
+
 def _ground_legacy(
     result: ReasonerResult,
     robot_positions: dict[str, tuple[float, float]] | None,
@@ -815,6 +980,7 @@ def _ground_legacy(
     static_obstacles: Sequence[StaticObstacleInput],
     yield_feasibility_mode: YieldFeasibilityMode,
     crossing_order: Sequence[str] | None = None,
+    queued_crossers: Sequence[str] = (),
 ) -> dict[str, Any]:
     """Scenario-tuned pre-rev-8 bridge; its output is pinned byte-identical.
 
@@ -823,6 +989,11 @@ def _ground_legacy(
     passing order and a clearance per passer for M4's ordered hold-until-last
     release, each passer gets a linked wait with its `linked_position`, and
     the backstops scale with the passers' escort budget.
+
+    `queued_crossers` (`queued_crosser_outcome(...).added`; empty by
+    default, byte-identical) are appended to a non-refused yield's passing
+    order after the named passers and grounded like named passers. A refused
+    yield's wait fan-out stays on the decision's own robots.
     """
     decision = result.decision
     if decision is None or not decision.congestion_detected:
@@ -916,6 +1087,12 @@ def _ground_legacy(
                 robot_ids[0], passer_order, robot_positions
             )
             yield_refused = yield_refusal_reason is not None
+        added_crossers = [
+            robot_id for robot_id in queued_crossers if robot_id not in robot_ids
+        ] if not yield_refused else []
+        if added_crossers:
+            passer_order = [*passer_order, *added_crossers]
+            multi_passer = True
         # Fallback per-passer clearance, replaced below from each passer's own
         # position when the scene is known.
         crossing_clear = [passer_clear_m] * len(passer_order)
@@ -1060,6 +1237,8 @@ def _ground_legacy(
                 yield_parameters["crossing_order"] = list(passer_order)
                 yield_parameters["crossing_clear_m"] = list(crossing_clear)
                 yield_parameters["crossing_escort_m"] = list(crossing_clear)
+            if added_crossers:
+                yield_parameters[QUEUED_CROSSERS_ADDED_KEY] = list(added_crossers)
             actions = [
                 {
                     "robot_id": robot_ids[0],
@@ -1273,6 +1452,14 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # crossing order and hold on an unlinked wait instead. Suffix: the
     # dropped ids, comma-joined. Provenance, not a measurement-plan cause.
     "order=lane_scoped": None,
+    # Queued corridor-crosser hold (`queued_crosser_outcome`, 2026-11-15):
+    # an uncommanded robot whose goal lies across the corridor was appended
+    # to the yield's crossing order on a linked wait (suffix `:<id>:
+    # goal_across_corridor`), or holding the qualifying robots would have
+    # refused the model's yield, so none was added (suffix `:<ids>:
+    # <refusal>`). Provenance: M3 added these roles, the model did not.
+    "crossing_order=augmented": None,
+    "crossing_order=augment_withheld": None,
     "roles=legacy-convention": None,
     # Provenance: the feasibility gate grounded a different yielder than M2
     # named (scored pre-gate, prereg amendments).
@@ -3650,6 +3837,7 @@ def _plan_problems(
     grounding_params: GroundingParams | None = None,
     plan_yield_verdict: _PlanYieldVerdict | None = None,
     off_lane_holds: Sequence[str] = (),
+    queued_crossers: Sequence[str] = (),
 ) -> list[tuple[int, str]]:
     """Leg-by-leg feasibility audit, reusing M3's existing grounding checks.
 
@@ -3702,6 +3890,9 @@ def _plan_problems(
             yield's lane conflict (`_plan_off_lane_holds`); a `cross` or
             `continue` leg on one fails with a `LANE_SCOPED_HOLD_PREFIX`
             reason. Empty adds no check.
+        queued_crossers: Robots dispatch holds as added queued crossers
+            (`queued_crosser_outcome(...).added`); any leg but `cross` on one
+            fails with a `QUEUED_CROSSER_PREFIX` reason. Empty adds no check.
 
     Returns:
         `(index, reason)` pairs into `legs` for every leg that fails a check;
@@ -3741,6 +3932,17 @@ def _plan_problems(
                     i,
                     f"{LANE_SCOPED_HOLD_PREFIX} dispatch holds {leg.robot_id} outside "
                     "the yield's lane conflict",
+                )
+            )
+        # Queued corridor-crosser hold: dispatch holds this robot on a linked
+        # wait in the crossing order (projected as `cross`), so any other leg
+        # names an action nobody commands.
+        if leg.robot_id in queued_crossers and leg.action != "cross":
+            problems.append(
+                (
+                    i,
+                    f"{QUEUED_CROSSER_PREFIX} dispatch holds {leg.robot_id} in the "
+                    "yield's crossing order (goal across the corridor)",
                 )
             )
 
@@ -4540,10 +4742,17 @@ def _edit_reason(
     problems_by_index: Mapping[int, str],
     extra: str,
     off_lane_holds: Sequence[str] = (),
+    queued_crossers: Sequence[str] = (),
 ) -> str:
     if op == "substitute":
         (i,) = idx
         robot_id, action = before[i].robot_id, before[i].action
+        if extra == "cross" and robot_id in queued_crossers:
+            return (
+                f"{QUEUED_CROSSER_PREFIX} {robot_id}: {action} substituted to cross; "
+                f"dispatch holds {robot_id} in the yield's crossing order (goal across "
+                "the corridor; the decision did not name it)"
+            )
         if extra == "wait" and robot_id in off_lane_holds and action in ("cross", "continue"):
             # Keyed on the hold itself, not on which problem text the index
             # kept, so `plan_metrics` can separate these edits by prefix.
@@ -4584,6 +4793,7 @@ def _repair_plan(
     extra_touchable: Sequence[str] = (),
     plan_yield_verdict: _PlanYieldVerdict | None = None,
     off_lane_holds: Sequence[str] = (),
+    queued_crossers: Sequence[str] = (),
 ) -> tuple[list[ProposedPlanLeg] | None, list[PlanEdit]]:
     """Breadth-first minimal repair toward `default_by_robot`.
 
@@ -4633,6 +4843,9 @@ def _repair_plan(
             conflict (A21), forwarded to `_plan_problems`; a substitute of
             one's `cross`/`continue` leg to `wait` carries the
             `LANE_SCOPED_HOLD_PREFIX` reason.
+        queued_crossers: Robots dispatch holds as added queued crossers,
+            forwarded to `_plan_problems` and editable here; a substitute of
+            one's leg to `cross` carries the `QUEUED_CROSSER_PREFIX` reason.
 
     Returns:
         `(repaired_legs, edits)` for the minimal repair found, or
@@ -4643,6 +4856,14 @@ def _repair_plan(
     )
     editable = {*decision.involved_robots, *extra_touchable}
     touchable = [i for i, leg in enumerate(legs) if leg.robot_id in editable]
+    # An added queued crosser's role is fixed by dispatch, not by the model:
+    # its leg is only ever substituted to `cross`, never swapped or reordered
+    # into another robot's role (a swap would bench the named passer).
+    substitutable = [
+        i
+        for i, leg in enumerate(legs)
+        if leg.robot_id in editable or leg.robot_id in queued_crossers
+    ]
 
     def _problems(state: Sequence[ProposedPlanLeg]) -> dict[int, str]:
         return dict(
@@ -4656,6 +4877,7 @@ def _repair_plan(
                 grounding_params,
                 plan_yield_verdict,
                 off_lane_holds,
+                queued_crossers,
             )
         )
 
@@ -4692,7 +4914,7 @@ def _repair_plan(
                     state[j].action,
                 ):
                     ops.append(("swap", (i, j), ""))
-        for i in touchable:
+        for i in substitutable:
             target = default_by_robot.get(state[i].robot_id)
             if target is not None and target != state[i].action:
                 ops.append(("substitute", (i,), target))
@@ -4736,7 +4958,9 @@ def _repair_plan(
                 if key in visited:
                     continue
                 visited.add(key)
-                reason = _edit_reason(op, idx, state, problems_by_index, extra, off_lane_holds)
+                reason = _edit_reason(
+                    op, idx, state, problems_by_index, extra, off_lane_holds, queued_crossers
+                )
                 robot_ids = tuple(sorted({state[i].robot_id for i in idx}))
                 new_edits = [*edits, PlanEdit(op=op, robot_ids=robot_ids, reason=reason)]
                 if _accepted(candidate):
@@ -4758,6 +4982,21 @@ def _repair_plan(
     return None, []
 
 
+def _with_queued_cross_legs(
+    legs: Sequence[ProposedPlanLeg], queued_crossers: Sequence[str]
+) -> list[ProposedPlanLeg]:
+    # M3's default plan with each added queued crosser as a `cross` leg,
+    # listed after the plan's last role leg in crossing order, as dispatched.
+    if not queued_crossers:
+        return list(legs)
+    kept = [leg for leg in legs if leg.robot_id not in queued_crossers]
+    last_role = max(
+        (i for i, leg in enumerate(kept) if leg.action != "continue"), default=-1
+    )
+    added = [ProposedPlanLeg(robot_id=rid, action="cross") for rid in queued_crossers]
+    return [*kept[: last_role + 1], *added, *kept[last_role + 1 :]]
+
+
 def verify_and_repair_plan(
     decision: CongestionDecision,
     snapshot: SnapshotFrame,
@@ -4769,6 +5008,7 @@ def verify_and_repair_plan(
     priorities: Mapping[str, int] | None = None,
     grounding_params: GroundingParams | None = None,
     goal_references: Mapping[str, tuple[float, float]] | None = None,
+    hold_queued_crossers: bool = False,
 ) -> VerifiedPlan:
     """Audit, and if needed minimally repair, a decision's `proposed_plan`.
 
@@ -4890,6 +5130,14 @@ def verify_and_repair_plan(
             None keeps the default plan LEGACY-only, as before this ruling.
         goal_references: Robot id -> current task node, for the node-handoff
             rule of `grounding_params.dynamic_scene_arms`.
+        hold_queued_crossers: As `ground_reasoner_result`'s (legacy mode
+            only). The robots dispatch adds (`queued_crosser_outcome`) get
+            `cross` in M3's default plan, and a plan leg giving one anything
+            else is a problem the repair substitutes to `cross`, each edit
+            reason starting `QUEUED_CROSSER_PREFIX` (the A21 off-lane hold
+            precedent). So such a plan is `repaired`, never `vlm_verbatim`,
+            and an absent plan's `m3_default` legs match the dispatch. False
+            (the default) keeps every verdict unchanged.
 
     The default plan, every feasibility check and the repair run through the
     same grounding view `ground_reasoner_result` grounds the decision
@@ -4939,6 +5187,22 @@ def verify_and_repair_plan(
             grounding_params=grounding_params,
             goal_references=goal_references,
         )
+    queued_crossers: tuple[str, ...] = ()
+    if (
+        hold_queued_crossers
+        and view.refusal_reason is None
+        and (grounding_params is None or grounding_params.mode == "legacy")
+    ):
+        # Grounding resolves the queued robots on the alias-resolved yield.
+        alias = resolve_strategy_alias(decision, snapshot, geometry=geometry, priorities=priorities)
+        queued_crossers = queued_crosser_outcome(
+            alias.decision if alias is not None else decision,
+            snapshot,
+            geometry,
+            static_obstacles,
+            yield_feasibility_mode,
+        ).added
+        default_legs = _with_queued_cross_legs(default_legs, queued_crossers)
 
     if decision.proposed_plan is None:
         return VerifiedPlan(
@@ -5008,6 +5272,7 @@ def verify_and_repair_plan(
         grounding_params,
         plan_yield_verdict,
         off_lane_holds,
+        queued_crossers,
     ):
         return VerifiedPlan(legs=legs, provenance="vlm_verbatim", plan_completed_legs=completed)
 
@@ -5027,6 +5292,7 @@ def verify_and_repair_plan(
         ],
         plan_yield_verdict=plan_yield_verdict,
         off_lane_holds=off_lane_holds,
+        queued_crossers=queued_crossers,
     )
     if repaired is None:
         # As the view refusal above: a retry refusal or a reroute reports its
