@@ -1,0 +1,972 @@
+{
+ "TBD-E01": {
+  "value": "docs/reports/2026-11-15-failure-cause-reconciliation.md (branch analysis/failure-cause-classification; commit filled in by the follow-up commit)",
+  "source": "git log of the report"
+ },
+ "TBD-R01": {
+  "value": 139,
+  "source": "full sheets fidelity rows, Layer-2-on episodes (ET table)"
+ },
+ "TBD-R02": {
+  "value": 154,
+  "source": "full sheets fidelity rows, Layer-2-on episodes (ET table)"
+ },
+ "TBD-R03": {
+  "value": 151,
+  "source": "full sheets fidelity rows (ET table, last column)"
+ },
+ "TBD-R04": {
+  "value": 8,
+  "source": "Table R1, total row"
+ },
+ "TBD-R05": {
+  "value": 10,
+  "source": "Table R1, total row"
+ },
+ "TBD-R06": {
+  "value": 33,
+  "source": "Table R1, total row"
+ },
+ "TBD-R07": {
+  "value": 4,
+  "source": "Table R1, total row"
+ },
+ "TBD-R08": {
+  "value": "In tranche 1, no class has the most primary units in both raters' codes and after reconciliation: of 18 units 12 are undetermined, and the 6 determined ones split V 2, G 1, X 3, EG 0 (all in Arm A; the 10 Arm B units are undetermined for lack of a clock anchor). In the ER-2 pilots, no class has the most primary units in both raters' codes and after reconciliation: of 33 units 13 are undetermined and the 20 determined ones split V 5, G 7, X 8, EG 0. In the November takes (4 units), the 2 determined units are both decision codes (V4) and 2 are undetermined; with four units this is not a finding about a dominant class.",
+  "source": "Table R1 and the dominance check (agreement.json)"
+ },
+ "TBD-R09": {
+  "value": 53,
+  "source": "Table R2, all strata (agreement statistic only)"
+ },
+ "TBD-R10": {
+  "value": 55,
+  "source": "Table R2, all strata"
+ },
+ "TBD-R11": {
+  "value": 0.9476,
+  "source": "Table R2, all strata"
+ },
+ "TBD-R12": {
+  "value": 5,
+  "source": "Table R2, all strata"
+ },
+ "TBD-R13": {
+  "value": null,
+  "source": "Table R1s",
+  "note": "Cannot be filled as defined (no re-rating under S1). Units whose link set changes, Layer-2-on strata: 1; walk start moves: 1."
+ },
+ "TBD-R14": {
+  "value": 0,
+  "source": "Table R1s (S2)",
+  "note": "Mechanical; see TBD-T1-S2-*."
+ },
+ "TBD-R15": {
+  "value": 10,
+  "source": "Table R3, ANY rows summed",
+  "note": "per stratum: A 0, P 9, N 1"
+ },
+ "TBD-R16": {
+  "value": 45,
+  "source": "Table R3, TOT summed",
+  "note": "per stratum: A 8, P 33, N 4"
+ },
+ "TBD-R17": {
+  "value": 11,
+  "source": "Table R3s, ANY rows summed",
+  "note": "per stratum: A 0, P 9, N 2"
+ },
+ "TBD-R18": {
+  "value": 34,
+  "source": "Table R3, ANY rows, L",
+  "note": "per stratum: A 0, P 31, N 3"
+ },
+ "TBD-R19": {
+  "value": 13,
+  "source": "Table R3, ANY rows, J",
+  "note": "per stratum: A 0, P 10, N 3"
+ },
+ "TBD-R20": {
+  "value": 15,
+  "source": "Table R3, ANY rows, F",
+  "note": "per stratum: A 0, P 15, N 0"
+ },
+ "TBD-R21": {
+  "value": 6,
+  "source": "Table R3, ANY rows, UT",
+  "note": "per stratum: A 0, P 6, N 0"
+ },
+ "TBD-R22": {
+  "value": 35,
+  "source": "Table R3, NONE rows summed",
+  "note": "per stratum: A 8, P 24, N 3"
+ },
+ "TBD-R23": {
+  "value": null,
+  "source": "PV section 6 (plan-dispatch mismatch visibility report)",
+  "note": "Not a reconciliation output: the value comes from the PV recomputation on fix/plan-dispatch-mismatch-visibility, which this task did not read or rerun."
+ },
+ "TBD-R24": {
+  "value": null,
+  "source": "PV section 6 (plan-dispatch mismatch visibility report)",
+  "note": "Not a reconciliation output: the value comes from the PV recomputation on fix/plan-dispatch-mismatch-visibility, which this task did not read or rerun."
+ },
+ "TBD-R25": {
+  "value": null,
+  "source": "PV section 6 (plan-dispatch mismatch visibility report)",
+  "note": "Not a reconciliation output: the value comes from the PV recomputation on fix/plan-dispatch-mismatch-visibility, which this task did not read or rerun."
+ },
+ "TBD-R26": {
+  "value": null,
+  "source": "PV section 6 (plan-dispatch mismatch visibility report)",
+  "note": "Not a reconciliation output: the value comes from the PV recomputation on fix/plan-dispatch-mismatch-visibility, which this task did not read or rerun."
+ },
+ "TBD-R27": {
+  "value": null,
+  "source": "PV section 6 (plan-dispatch mismatch visibility report)",
+  "note": "Not a reconciliation output: the value comes from the PV recomputation on fix/plan-dispatch-mismatch-visibility, which this task did not read or rerun."
+ },
+ "TBD-T1-EG-A": {
+  "value": "0 (0)",
+  "source": "reconciliation report, Table R1, row EG, column tranche 1 Arm A"
+ },
+ "TBD-T1-EG-B": {
+  "value": "0 (0)",
+  "source": "reconciliation report, Table R1, row EG, column tranche 1 Arm B"
+ },
+ "TBD-T1-EG-H": {
+  "value": "0 (0)",
+  "source": "reconciliation report, Table R1, row EG, column ER-2 pilots, horizon"
+ },
+ "TBD-T1-EG-N": {
+  "value": "0 (0)",
+  "source": "reconciliation report, Table R1, row EG, column November takes"
+ },
+ "TBD-T1-EG-S": {
+  "value": "0 (0)",
+  "source": "reconciliation report, Table R1, row EG, column ER-2 pilots, stop rule"
+ },
+ "TBD-T1-G-A": {
+  "value": "1 (1)",
+  "source": "reconciliation report, Table R1, row G, column tranche 1 Arm A"
+ },
+ "TBD-T1-G-H": {
+  "value": "4 (1)",
+  "source": "reconciliation report, Table R1, row G, column ER-2 pilots, horizon"
+ },
+ "TBD-T1-G-N": {
+  "value": "0 (0)",
+  "source": "reconciliation report, Table R1, row G, column November takes"
+ },
+ "TBD-T1-G-S": {
+  "value": "3 (2)",
+  "source": "reconciliation report, Table R1, row G, column ER-2 pilots, stop rule"
+ },
+ "TBD-T1-PARK-A": {
+  "value": 2,
+  "source": "Table R1, parked row, tranche 1 Arm A"
+ },
+ "TBD-T1-PARK-B": {
+  "value": 1,
+  "source": "Table R1, parked row, tranche 1 Arm B"
+ },
+ "TBD-T1-PARK-H": {
+  "value": 0,
+  "source": "Table R1, parked row, ER-2 pilots, horizon"
+ },
+ "TBD-T1-PARK-N": {
+  "value": 0,
+  "source": "Table R1, parked row, November takes"
+ },
+ "TBD-T1-PARK-S": {
+  "value": 0,
+  "source": "Table R1, parked row, ER-2 pilots, stop rule"
+ },
+ "TBD-T1-S1-A": {
+  "value": null,
+  "source": "Table R1s (S1)",
+  "note": "Cannot be filled as defined: S1 is computed mechanically as a change of the command-unit link set; assigning a new primary would need re-rating, which the protocol does not do. Units whose link set changes: 0; of these, walk start moves: 0."
+ },
+ "TBD-T1-S1-H": {
+  "value": null,
+  "source": "Table R1s (S1)",
+  "note": "Cannot be filled as defined: S1 is computed mechanically as a change of the command-unit link set; assigning a new primary would need re-rating, which the protocol does not do. Units whose link set changes: 0; of these, walk start moves: 0."
+ },
+ "TBD-T1-S1-N": {
+  "value": null,
+  "source": "Table R1s (S1)",
+  "note": "Cannot be filled as defined: S1 is computed mechanically as a change of the command-unit link set; assigning a new primary would need re-rating, which the protocol does not do. Units whose link set changes: 1; of these, walk start moves: 1."
+ },
+ "TBD-T1-S1-S": {
+  "value": null,
+  "source": "Table R1s (S1)",
+  "note": "Cannot be filled as defined: S1 is computed mechanically as a change of the command-unit link set; assigning a new primary would need re-rating, which the protocol does not do. Units whose link set changes: 0; of these, walk start moves: 0."
+ },
+ "TBD-T1-S2-A": {
+  "value": 0,
+  "source": "Table R1s (S2)",
+  "note": "Mechanical: S2 changes T2 only at the snapshots listed in Table R1s; none can change a primary (step 3 never assigns EG1/G7 because T1 is non-empty at every onset, and no changed decision snapshot lies before its unit's primary deviation on the walk)."
+ },
+ "TBD-T1-S2-B": {
+  "value": 0,
+  "source": "Table R1s (S2)",
+  "note": "Mechanical: S2 changes T2 only at the snapshots listed in Table R1s; none can change a primary (step 3 never assigns EG1/G7 because T1 is non-empty at every onset, and no changed decision snapshot lies before its unit's primary deviation on the walk)."
+ },
+ "TBD-T1-S2-H": {
+  "value": 0,
+  "source": "Table R1s (S2)",
+  "note": "Mechanical: S2 changes T2 only at the snapshots listed in Table R1s; none can change a primary (step 3 never assigns EG1/G7 because T1 is non-empty at every onset, and no changed decision snapshot lies before its unit's primary deviation on the walk)."
+ },
+ "TBD-T1-S2-N": {
+  "value": 0,
+  "source": "Table R1s (S2)",
+  "note": "Mechanical: S2 changes T2 only at the snapshots listed in Table R1s; none can change a primary (step 3 never assigns EG1/G7 because T1 is non-empty at every onset, and no changed decision snapshot lies before its unit's primary deviation on the walk)."
+ },
+ "TBD-T1-S2-S": {
+  "value": 0,
+  "source": "Table R1s (S2)",
+  "note": "Mechanical: S2 changes T2 only at the snapshots listed in Table R1s; none can change a primary (step 3 never assigns EG1/G7 because T1 is non-empty at every onset, and no changed decision snapshot lies before its unit's primary deviation on the walk)."
+ },
+ "TBD-T1-TOT-A": {
+  "value": "8 (5)",
+  "source": "Table R1, total row, column tranche 1 Arm A"
+ },
+ "TBD-T1-TOT-B": {
+  "value": "10 (5)",
+  "source": "Table R1, total row, column tranche 1 Arm B"
+ },
+ "TBD-T1-TOT-H": {
+  "value": "25 (15)",
+  "source": "Table R1, total row, column ER-2 pilots, horizon"
+ },
+ "TBD-T1-TOT-N": {
+  "value": "4 (2)",
+  "source": "Table R1, total row, column November takes"
+ },
+ "TBD-T1-TOT-S": {
+  "value": "8 (6)",
+  "source": "Table R1, total row, column ER-2 pilots, stop rule"
+ },
+ "TBD-T1-U-A": {
+  "value": "2 (2)",
+  "source": "reconciliation report, Table R1, row U, column tranche 1 Arm A"
+ },
+ "TBD-T1-U-B": {
+  "value": "10 (5)",
+  "source": "reconciliation report, Table R1, row U, column tranche 1 Arm B"
+ },
+ "TBD-T1-U-H": {
+  "value": "9 (8)",
+  "source": "reconciliation report, Table R1, row U, column ER-2 pilots, horizon"
+ },
+ "TBD-T1-U-N": {
+  "value": "2 (1)",
+  "source": "reconciliation report, Table R1, row U, column November takes"
+ },
+ "TBD-T1-U-S": {
+  "value": "4 (3)",
+  "source": "reconciliation report, Table R1, row U, column ER-2 pilots, stop rule"
+ },
+ "TBD-T1-V-A": {
+  "value": "2 (0)",
+  "source": "reconciliation report, Table R1, row V, column tranche 1 Arm A"
+ },
+ "TBD-T1-V-H": {
+  "value": "5 (2)",
+  "source": "reconciliation report, Table R1, row V, column ER-2 pilots, horizon"
+ },
+ "TBD-T1-V-N": {
+  "value": "2 (1)",
+  "source": "reconciliation report, Table R1, row V, column November takes"
+ },
+ "TBD-T1-V-S": {
+  "value": "0 (0)",
+  "source": "reconciliation report, Table R1, row V, column ER-2 pilots, stop rule"
+ },
+ "TBD-T1-X-A": {
+  "value": "3 (2)",
+  "source": "reconciliation report, Table R1, row X, column tranche 1 Arm A"
+ },
+ "TBD-T1-X-B": {
+  "value": "0 (0)",
+  "source": "reconciliation report, Table R1, row X, column tranche 1 Arm B"
+ },
+ "TBD-T1-X-H": {
+  "value": "7 (4)",
+  "source": "reconciliation report, Table R1, row X, column ER-2 pilots, horizon"
+ },
+ "TBD-T1-X-N": {
+  "value": "0 (0)",
+  "source": "reconciliation report, Table R1, row X, column November takes"
+ },
+ "TBD-T1-X-S": {
+  "value": "1 (1)",
+  "source": "reconciliation report, Table R1, row X, column ER-2 pilots, stop rule"
+ },
+ "TBD-T1-cEG-A": {
+  "value": 0,
+  "source": "Table R1c (contributing, codes both raters recorded), tranche 1 Arm A",
+  "note": "union of both raters' codes: 0"
+ },
+ "TBD-T1-cEG-B": {
+  "value": 0,
+  "source": "Table R1c (contributing, codes both raters recorded), tranche 1 Arm B",
+  "note": "union of both raters' codes: 0"
+ },
+ "TBD-T1-cEG-H": {
+  "value": 5,
+  "source": "Table R1c (contributing, codes both raters recorded), ER-2 pilots, horizon",
+  "note": "union of both raters' codes: 5"
+ },
+ "TBD-T1-cEG-N": {
+  "value": 0,
+  "source": "Table R1c (contributing, codes both raters recorded), November takes",
+  "note": "union of both raters' codes: 0"
+ },
+ "TBD-T1-cEG-S": {
+  "value": 0,
+  "source": "Table R1c (contributing, codes both raters recorded), ER-2 pilots, stop rule",
+  "note": "union of both raters' codes: 0"
+ },
+ "TBD-T1-cG-A": {
+  "value": 5,
+  "source": "Table R1c (contributing, codes both raters recorded), tranche 1 Arm A",
+  "note": "union of both raters' codes: 5"
+ },
+ "TBD-T1-cG-H": {
+  "value": 20,
+  "source": "Table R1c (contributing, codes both raters recorded), ER-2 pilots, horizon",
+  "note": "union of both raters' codes: 21"
+ },
+ "TBD-T1-cG-N": {
+  "value": 3,
+  "source": "Table R1c (contributing, codes both raters recorded), November takes",
+  "note": "union of both raters' codes: 3"
+ },
+ "TBD-T1-cG-S": {
+  "value": 7,
+  "source": "Table R1c (contributing, codes both raters recorded), ER-2 pilots, stop rule",
+  "note": "union of both raters' codes: 7"
+ },
+ "TBD-T1-cV-A": {
+  "value": 4,
+  "source": "Table R1c (contributing, codes both raters recorded), tranche 1 Arm A",
+  "note": "union of both raters' codes: 4"
+ },
+ "TBD-T1-cV-H": {
+  "value": 13,
+  "source": "Table R1c (contributing, codes both raters recorded), ER-2 pilots, horizon",
+  "note": "union of both raters' codes: 15"
+ },
+ "TBD-T1-cV-N": {
+  "value": 3,
+  "source": "Table R1c (contributing, codes both raters recorded), November takes",
+  "note": "union of both raters' codes: 3"
+ },
+ "TBD-T1-cV-S": {
+  "value": 7,
+  "source": "Table R1c (contributing, codes both raters recorded), ER-2 pilots, stop rule",
+  "note": "union of both raters' codes: 7"
+ },
+ "TBD-T1-cX-A": {
+  "value": 5,
+  "source": "Table R1c (contributing, codes both raters recorded), tranche 1 Arm A",
+  "note": "union of both raters' codes: 5"
+ },
+ "TBD-T1-cX-B": {
+  "value": 0,
+  "source": "Table R1c (contributing, codes both raters recorded), tranche 1 Arm B",
+  "note": "union of both raters' codes: 1"
+ },
+ "TBD-T1-cX-H": {
+  "value": 22,
+  "source": "Table R1c (contributing, codes both raters recorded), ER-2 pilots, horizon",
+  "note": "union of both raters' codes: 23"
+ },
+ "TBD-T1-cX-N": {
+  "value": 4,
+  "source": "Table R1c (contributing, codes both raters recorded), November takes",
+  "note": "union of both raters' codes: 4"
+ },
+ "TBD-T1-cX-S": {
+  "value": 8,
+  "source": "Table R1c (contributing, codes both raters recorded), ER-2 pilots, stop rule",
+  "note": "union of both raters' codes: 8"
+ },
+ "TBD-T2-A-D": {
+  "value": 1,
+  "source": "Table R2, row A"
+ },
+ "TBD-T2-A-DU": {
+  "value": 0,
+  "source": "Table R2, row A"
+ },
+ "TBD-T2-A-K": {
+  "value": 0.8298,
+  "source": "Table R2, row A"
+ },
+ "TBD-T2-A-RC": {
+  "value": 0.875,
+  "source": "Table R2, row A, final codes"
+ },
+ "TBD-T2-A-RF": {
+  "value": 0.875,
+  "source": "Table R2, row A"
+ },
+ "TBD-T2-A-U": {
+  "value": 8,
+  "source": "Table R2, row A",
+  "note": "agreement on the raters' final codes (round 2 where in scope), before reconciliation; round-1 agreement is in the report beside it"
+ },
+ "TBD-T2-ALL-D": {
+  "value": 5,
+  "source": "Table R2, row ALL"
+ },
+ "TBD-T2-ALL-DU": {
+  "value": 2,
+  "source": "Table R2, row ALL"
+ },
+ "TBD-T2-ALL-K": {
+  "value": 0.9476,
+  "source": "Table R2, row ALL"
+ },
+ "TBD-T2-ALL-RC": {
+  "value": 0.9636,
+  "source": "Table R2, row ALL, final codes"
+ },
+ "TBD-T2-ALL-RF": {
+  "value": 0.9091,
+  "source": "Table R2, row ALL"
+ },
+ "TBD-T2-ALL-U": {
+  "value": 55,
+  "source": "Table R2, row ALL",
+  "note": "agreement on the raters' final codes (round 2 where in scope), before reconciliation; round-1 agreement is in the report beside it"
+ },
+ "TBD-T2-B-D": {
+  "value": 0,
+  "source": "Table R2, row B"
+ },
+ "TBD-T2-B-DU": {
+  "value": 0,
+  "source": "Table R2, row B"
+ },
+ "TBD-T2-B-K": {
+  "value": "n/a",
+  "source": "Table R2, row B",
+  "note": "n/a: undefined (one category)"
+ },
+ "TBD-T2-B-RC": {
+  "value": 1.0,
+  "source": "Table R2, row B, final codes"
+ },
+ "TBD-T2-B-RF": {
+  "value": 1.0,
+  "source": "Table R2, row B"
+ },
+ "TBD-T2-B-U": {
+  "value": 10,
+  "source": "Table R2, row B",
+  "note": "agreement on the raters' final codes (round 2 where in scope), before reconciliation; round-1 agreement is in the report beside it"
+ },
+ "TBD-T2-H-D": {
+  "value": 3,
+  "source": "Table R2, row H"
+ },
+ "TBD-T2-H-DU": {
+  "value": 2,
+  "source": "Table R2, row H"
+ },
+ "TBD-T2-H-K": {
+  "value": 1.0,
+  "source": "Table R2, row H"
+ },
+ "TBD-T2-H-RC": {
+  "value": 1.0,
+  "source": "Table R2, row H, final codes"
+ },
+ "TBD-T2-H-RF": {
+  "value": 0.88,
+  "source": "Table R2, row H"
+ },
+ "TBD-T2-H-U": {
+  "value": 25,
+  "source": "Table R2, row H",
+  "note": "agreement on the raters' final codes (round 2 where in scope), before reconciliation; round-1 agreement is in the report beside it"
+ },
+ "TBD-T2-N-D": {
+  "value": 0,
+  "source": "Table R2, row N"
+ },
+ "TBD-T2-N-DU": {
+  "value": 0,
+  "source": "Table R2, row N"
+ },
+ "TBD-T2-N-K": {
+  "value": 1.0,
+  "source": "Table R2, row N"
+ },
+ "TBD-T2-N-RC": {
+  "value": 1.0,
+  "source": "Table R2, row N, final codes"
+ },
+ "TBD-T2-N-RF": {
+  "value": 1.0,
+  "source": "Table R2, row N"
+ },
+ "TBD-T2-N-U": {
+  "value": 4,
+  "source": "Table R2, row N",
+  "note": "agreement on the raters' final codes (round 2 where in scope), before reconciliation; round-1 agreement is in the report beside it"
+ },
+ "TBD-T2-S-D": {
+  "value": 1,
+  "source": "Table R2, row S"
+ },
+ "TBD-T2-S-DU": {
+  "value": 0,
+  "source": "Table R2, row S"
+ },
+ "TBD-T2-S-K": {
+  "value": 0.8,
+  "source": "Table R2, row S"
+ },
+ "TBD-T2-S-RC": {
+  "value": 0.875,
+  "source": "Table R2, row S, final codes"
+ },
+ "TBD-T2-S-RF": {
+  "value": 0.875,
+  "source": "Table R2, row S"
+ },
+ "TBD-T2-S-U": {
+  "value": 8,
+  "source": "Table R2, row S",
+  "note": "agreement on the raters' final codes (round 2 where in scope), before reconciliation; round-1 agreement is in the report beside it"
+ },
+ "TBD-T3A-ANY-F": {
+  "value": 0,
+  "source": "Table R3, panel A, row ANY"
+ },
+ "TBD-T3A-ANY-J": {
+  "value": 0,
+  "source": "Table R3, panel A, row ANY",
+  "note": "contact or pinned 0, sub-margin graze 0"
+ },
+ "TBD-T3A-ANY-L": {
+  "value": 0,
+  "source": "Table R3, panel A, row ANY"
+ },
+ "TBD-T3A-ANY-P": {
+  "value": 0,
+  "source": "Table R3, panel A, row ANY, primary chain rule"
+ },
+ "TBD-T3A-ANY-S": {
+  "value": 0,
+  "source": "Table R3s, panel A, row ANY, S1"
+ },
+ "TBD-T3A-ANY-UT": {
+  "value": 0,
+  "source": "Table R3, panel A, row ANY"
+ },
+ "TBD-T3A-DEN-L": {
+  "value": 3,
+  "source": "Table R3, panel A, leg denominator"
+ },
+ "TBD-T3A-ESC-F": {
+  "value": 0,
+  "source": "Table R3, panel A, row ESC"
+ },
+ "TBD-T3A-ESC-J": {
+  "value": 0,
+  "source": "Table R3, panel A, row ESC",
+  "note": "contact or pinned 0, sub-margin graze 0"
+ },
+ "TBD-T3A-ESC-L": {
+  "value": 0,
+  "source": "Table R3, panel A, row ESC"
+ },
+ "TBD-T3A-ESC-P": {
+  "value": 0,
+  "source": "Table R3, panel A, row ESC, primary chain rule"
+ },
+ "TBD-T3A-ESC-S": {
+  "value": 0,
+  "source": "Table R3s, panel A, row ESC, S1"
+ },
+ "TBD-T3A-ESC-UT": {
+  "value": 0,
+  "source": "Table R3, panel A, row ESC"
+ },
+ "TBD-T3A-LNI-P": {
+  "value": 3,
+  "source": "Table R3, panel A"
+ },
+ "TBD-T3A-LNI-S": {
+  "value": 3,
+  "source": "Table R3s, panel A"
+ },
+ "TBD-T3A-NOL-P": {
+  "value": 5,
+  "source": "Table R3, panel A",
+  "note": "no linked leg among the 57 dispatched reverse/escort legs"
+ },
+ "TBD-T3A-NOL-S": {
+  "value": 5,
+  "source": "Table R3s, panel A",
+  "note": "no linked leg among the 57 dispatched reverse/escort legs"
+ },
+ "TBD-T3A-NONE-P": {
+  "value": 8,
+  "source": "Table R3, panel A"
+ },
+ "TBD-T3A-NONE-S": {
+  "value": 8,
+  "source": "Table R3s, panel A"
+ },
+ "TBD-T3A-REV-F": {
+  "value": 0,
+  "source": "Table R3, panel A, row REV"
+ },
+ "TBD-T3A-REV-J": {
+  "value": 0,
+  "source": "Table R3, panel A, row REV",
+  "note": "contact or pinned 0, sub-margin graze 0"
+ },
+ "TBD-T3A-REV-L": {
+  "value": 0,
+  "source": "Table R3, panel A, row REV"
+ },
+ "TBD-T3A-REV-P": {
+  "value": 0,
+  "source": "Table R3, panel A, row REV, primary chain rule"
+ },
+ "TBD-T3A-REV-S": {
+  "value": 0,
+  "source": "Table R3s, panel A, row REV, S1"
+ },
+ "TBD-T3A-REV-UT": {
+  "value": 0,
+  "source": "Table R3, panel A, row REV"
+ },
+ "TBD-T3A-STL-F": {
+  "value": 0,
+  "source": "Table R3, panel A, row STL"
+ },
+ "TBD-T3A-STL-J": {
+  "value": 0,
+  "source": "Table R3, panel A, row STL",
+  "note": "contact or pinned 0, sub-margin graze 0"
+ },
+ "TBD-T3A-STL-L": {
+  "value": 0,
+  "source": "Table R3, panel A, row STL"
+ },
+ "TBD-T3A-STL-P": {
+  "value": 0,
+  "source": "Table R3, panel A, row STL, primary chain rule"
+ },
+ "TBD-T3A-STL-S": {
+  "value": 0,
+  "source": "Table R3s, panel A, row STL, S1"
+ },
+ "TBD-T3A-STL-UT": {
+  "value": "n/a",
+  "source": "Table R3, panel A, row STL",
+  "note": "Not defined for the stall abort: it fires only on a primitive that ran; a leg that never reached an obstacle is either not fired or had no primitive."
+ },
+ "TBD-T3A-TOT-P": {
+  "value": 8,
+  "source": "Table R3, panel A"
+ },
+ "TBD-T3A-TOT-S": {
+  "value": 8,
+  "source": "Table R3s, panel A"
+ },
+ "TBD-T3N-ANY-F": {
+  "value": 0,
+  "source": "Table R3, panel N, row ANY"
+ },
+ "TBD-T3N-ANY-J": {
+  "value": 3,
+  "source": "Table R3, panel N, row ANY",
+  "note": "contact or pinned 1, sub-margin graze 2"
+ },
+ "TBD-T3N-ANY-L": {
+  "value": 3,
+  "source": "Table R3, panel N, row ANY"
+ },
+ "TBD-T3N-ANY-P": {
+  "value": 1,
+  "source": "Table R3, panel N, row ANY, primary chain rule"
+ },
+ "TBD-T3N-ANY-S": {
+  "value": 2,
+  "source": "Table R3s, panel N, row ANY, S1"
+ },
+ "TBD-T3N-ANY-UT": {
+  "value": 0,
+  "source": "Table R3, panel N, row ANY"
+ },
+ "TBD-T3N-DEN-L": {
+  "value": 7,
+  "source": "Table R3, panel N, leg denominator"
+ },
+ "TBD-T3N-ESC-F": {
+  "value": 0,
+  "source": "Table R3, panel N, row ESC"
+ },
+ "TBD-T3N-ESC-J": {
+  "value": 1,
+  "source": "Table R3, panel N, row ESC",
+  "note": "contact or pinned 1, sub-margin graze 0"
+ },
+ "TBD-T3N-ESC-L": {
+  "value": 1,
+  "source": "Table R3, panel N, row ESC"
+ },
+ "TBD-T3N-ESC-P": {
+  "value": 0,
+  "source": "Table R3, panel N, row ESC, primary chain rule"
+ },
+ "TBD-T3N-ESC-S": {
+  "value": 1,
+  "source": "Table R3s, panel N, row ESC, S1"
+ },
+ "TBD-T3N-ESC-UT": {
+  "value": 0,
+  "source": "Table R3, panel N, row ESC"
+ },
+ "TBD-T3N-LNI-P": {
+  "value": 2,
+  "source": "Table R3, panel N"
+ },
+ "TBD-T3N-LNI-S": {
+  "value": 2,
+  "source": "Table R3s, panel N"
+ },
+ "TBD-T3N-NOL-P": {
+  "value": 1,
+  "source": "Table R3, panel N",
+  "note": "no linked leg among the 57 dispatched reverse/escort legs"
+ },
+ "TBD-T3N-NOL-S": {
+  "value": 0,
+  "source": "Table R3s, panel N",
+  "note": "no linked leg among the 57 dispatched reverse/escort legs"
+ },
+ "TBD-T3N-NONE-P": {
+  "value": 3,
+  "source": "Table R3, panel N"
+ },
+ "TBD-T3N-NONE-S": {
+  "value": 2,
+  "source": "Table R3s, panel N"
+ },
+ "TBD-T3N-REV-F": {
+  "value": 0,
+  "source": "Table R3, panel N, row REV"
+ },
+ "TBD-T3N-REV-J": {
+  "value": 2,
+  "source": "Table R3, panel N, row REV",
+  "note": "contact or pinned 0, sub-margin graze 2"
+ },
+ "TBD-T3N-REV-L": {
+  "value": 2,
+  "source": "Table R3, panel N, row REV"
+ },
+ "TBD-T3N-REV-P": {
+  "value": 1,
+  "source": "Table R3, panel N, row REV, primary chain rule"
+ },
+ "TBD-T3N-REV-S": {
+  "value": 1,
+  "source": "Table R3s, panel N, row REV, S1"
+ },
+ "TBD-T3N-REV-UT": {
+  "value": 0,
+  "source": "Table R3, panel N, row REV"
+ },
+ "TBD-T3N-STL-F": {
+  "value": 0,
+  "source": "Table R3, panel N, row STL"
+ },
+ "TBD-T3N-STL-J": {
+  "value": 1,
+  "source": "Table R3, panel N, row STL",
+  "note": "contact or pinned 1, sub-margin graze 0"
+ },
+ "TBD-T3N-STL-L": {
+  "value": 1,
+  "source": "Table R3, panel N, row STL"
+ },
+ "TBD-T3N-STL-P": {
+  "value": 0,
+  "source": "Table R3, panel N, row STL, primary chain rule"
+ },
+ "TBD-T3N-STL-S": {
+  "value": 1,
+  "source": "Table R3s, panel N, row STL, S1"
+ },
+ "TBD-T3N-STL-UT": {
+  "value": "n/a",
+  "source": "Table R3, panel N, row STL",
+  "note": "Not defined for the stall abort: it fires only on a primitive that ran; a leg that never reached an obstacle is either not fired or had no primitive."
+ },
+ "TBD-T3N-TOT-P": {
+  "value": 4,
+  "source": "Table R3, panel N"
+ },
+ "TBD-T3N-TOT-S": {
+  "value": 4,
+  "source": "Table R3s, panel N"
+ },
+ "TBD-T3P-ANY-F": {
+  "value": 15,
+  "source": "Table R3, panel P, row ANY"
+ },
+ "TBD-T3P-ANY-J": {
+  "value": 10,
+  "source": "Table R3, panel P, row ANY",
+  "note": "contact or pinned 9, sub-margin graze 1"
+ },
+ "TBD-T3P-ANY-L": {
+  "value": 31,
+  "source": "Table R3, panel P, row ANY"
+ },
+ "TBD-T3P-ANY-P": {
+  "value": 9,
+  "source": "Table R3, panel P, row ANY, primary chain rule"
+ },
+ "TBD-T3P-ANY-S": {
+  "value": 9,
+  "source": "Table R3s, panel P, row ANY, S1"
+ },
+ "TBD-T3P-ANY-UT": {
+  "value": 6,
+  "source": "Table R3, panel P, row ANY"
+ },
+ "TBD-T3P-DEN-L": {
+  "value": 47,
+  "source": "Table R3, panel P, leg denominator"
+ },
+ "TBD-T3P-ESC-F": {
+  "value": 0,
+  "source": "Table R3, panel P, row ESC"
+ },
+ "TBD-T3P-ESC-J": {
+  "value": 0,
+  "source": "Table R3, panel P, row ESC",
+  "note": "contact or pinned 0, sub-margin graze 0"
+ },
+ "TBD-T3P-ESC-L": {
+  "value": 1,
+  "source": "Table R3, panel P, row ESC"
+ },
+ "TBD-T3P-ESC-P": {
+  "value": 0,
+  "source": "Table R3, panel P, row ESC, primary chain rule"
+ },
+ "TBD-T3P-ESC-S": {
+  "value": 0,
+  "source": "Table R3s, panel P, row ESC, S1"
+ },
+ "TBD-T3P-ESC-UT": {
+  "value": 1,
+  "source": "Table R3, panel P, row ESC"
+ },
+ "TBD-T3P-LNI-P": {
+  "value": 5,
+  "source": "Table R3, panel P"
+ },
+ "TBD-T3P-LNI-S": {
+  "value": 5,
+  "source": "Table R3s, panel P"
+ },
+ "TBD-T3P-NOL-P": {
+  "value": 19,
+  "source": "Table R3, panel P",
+  "note": "no linked leg among the 57 dispatched reverse/escort legs"
+ },
+ "TBD-T3P-NOL-S": {
+  "value": 19,
+  "source": "Table R3s, panel P",
+  "note": "no linked leg among the 57 dispatched reverse/escort legs"
+ },
+ "TBD-T3P-NONE-P": {
+  "value": 24,
+  "source": "Table R3, panel P"
+ },
+ "TBD-T3P-NONE-S": {
+  "value": 24,
+  "source": "Table R3s, panel P"
+ },
+ "TBD-T3P-REV-F": {
+  "value": 15,
+  "source": "Table R3, panel P, row REV"
+ },
+ "TBD-T3P-REV-J": {
+  "value": 9,
+  "source": "Table R3, panel P, row REV",
+  "note": "contact or pinned 8, sub-margin graze 1"
+ },
+ "TBD-T3P-REV-L": {
+  "value": 29,
+  "source": "Table R3, panel P, row REV"
+ },
+ "TBD-T3P-REV-P": {
+  "value": 8,
+  "source": "Table R3, panel P, row REV, primary chain rule"
+ },
+ "TBD-T3P-REV-S": {
+  "value": 8,
+  "source": "Table R3s, panel P, row REV, S1"
+ },
+ "TBD-T3P-REV-UT": {
+  "value": 5,
+  "source": "Table R3, panel P, row REV"
+ },
+ "TBD-T3P-STL-F": {
+  "value": 0,
+  "source": "Table R3, panel P, row STL"
+ },
+ "TBD-T3P-STL-J": {
+  "value": 7,
+  "source": "Table R3, panel P, row STL",
+  "note": "contact or pinned 7, sub-margin graze 0"
+ },
+ "TBD-T3P-STL-L": {
+  "value": 7,
+  "source": "Table R3, panel P, row STL"
+ },
+ "TBD-T3P-STL-P": {
+  "value": 4,
+  "source": "Table R3, panel P, row STL, primary chain rule"
+ },
+ "TBD-T3P-STL-S": {
+  "value": 4,
+  "source": "Table R3s, panel P, row STL, S1"
+ },
+ "TBD-T3P-STL-UT": {
+  "value": "n/a",
+  "source": "Table R3, panel P, row STL",
+  "note": "Not defined for the stall abort: it fires only on a primitive that ran; a leg that never reached an obstacle is either not fired or had no primitive."
+ },
+ "TBD-T3P-TOT-P": {
+  "value": 33,
+  "source": "Table R3, panel P"
+ },
+ "TBD-T3P-TOT-S": {
+  "value": 33,
+  "source": "Table R3s, panel P"
+ },
+ "TBD-W01": {
+  "value": 8,
+  "source": "Table R1, total row"
+ },
+ "TBD-W02": {
+  "value": 10,
+  "source": "Table R1, total row"
+ }
+}

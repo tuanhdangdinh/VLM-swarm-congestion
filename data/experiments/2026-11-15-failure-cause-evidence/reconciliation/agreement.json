@@ -1,0 +1,1173 @@
+{
+ "rating_file_md5": {
+  "ratings/rater_A/ambiguities.md": "bb413703d23c2377d5f558d4f6c58dd6",
+  "ratings/rater_A/ambiguities_round2.md": "8f1597dd258241bf22d36615f5da1266",
+  "ratings/rater_A/phase1_gt.json": "1c3e543ab2ff70122bf53c6b01f16b3a",
+  "ratings/rater_A/phase2_events.json": "6f51b76a49fd5b3e18e767d0a7b5722d",
+  "ratings/rater_A/phase2_events.md": "604554e25bfd2a99ec3de2d5a9beb654",
+  "ratings/rater_A/round2_events.json": "66adce0cc2696550e363a58fddf11b2e",
+  "ratings/rater_A/round2_events.md": "8c27f9900a05c6d5500719434f9134ef",
+  "ratings/rater_B/ambiguities.md": "f287090a3a57b6798d3121f2c1fafe6c",
+  "ratings/rater_B/ambiguities_round2.md": "80fc8500be4903a6933166a70d9b4b08",
+  "ratings/rater_B/phase1_gt.json": "0de6bcbb543ff6b6c40bda9692b4e68c",
+  "ratings/rater_B/phase2_events.json": "5285a53c087af29ef4fff4f92e2e0509",
+  "ratings/rater_B/phase2_events.md": "446f0ed5b8e0116d22c734956dcb0070",
+  "ratings/rater_B/round2_events.json": "41bb86d9195b55e8ccbb40354641693a",
+  "ratings/rater_B/round2_events.md": "003abb769d158620f1fcb9e9559c8a73"
+ },
+ "agreement": {
+  "A": {
+   "final": {
+    "code": {
+     "n": 8,
+     "agree": 7,
+     "raw": 0.875,
+     "kappa": 0.8491
+    },
+    "class": {
+     "n": 8,
+     "agree": 7,
+     "raw": 0.875,
+     "kappa": 0.8298
+    },
+    "determined": {
+     "n": 8,
+     "agree": 8,
+     "raw": 1.0,
+     "kappa": 1.0
+    }
+   },
+   "round1": {
+    "code": {
+     "n": 8,
+     "agree": 5,
+     "raw": 0.625,
+     "kappa": 0.5789
+    },
+    "class": {
+     "n": 8,
+     "agree": 5,
+     "raw": 0.625,
+     "kappa": 0.52
+    },
+    "determined": {
+     "n": 8,
+     "agree": 6,
+     "raw": 0.75,
+     "kappa": 0.3846
+    }
+   },
+   "s3": {
+    "code": {
+     "n": 8,
+     "agree": 7,
+     "raw": 0.875,
+     "kappa": 0.8545
+    },
+    "class": {
+     "n": 8,
+     "agree": 7,
+     "raw": 0.875,
+     "kappa": 0.8095
+    },
+    "determined": {
+     "n": 8,
+     "agree": 8,
+     "raw": 1.0,
+     "kappa": null
+    }
+   },
+   "disagreements_final": 1,
+   "disagreements_left_U": 0
+  },
+  "B": {
+   "final": {
+    "code": {
+     "n": 10,
+     "agree": 10,
+     "raw": 1.0,
+     "kappa": null
+    },
+    "class": {
+     "n": 10,
+     "agree": 10,
+     "raw": 1.0,
+     "kappa": null
+    },
+    "determined": {
+     "n": 10,
+     "agree": 10,
+     "raw": 1.0,
+     "kappa": null
+    }
+   },
+   "round1": {
+    "code": {
+     "n": 10,
+     "agree": 10,
+     "raw": 1.0,
+     "kappa": null
+    },
+    "class": {
+     "n": 10,
+     "agree": 10,
+     "raw": 1.0,
+     "kappa": null
+    },
+    "determined": {
+     "n": 10,
+     "agree": 10,
+     "raw": 1.0,
+     "kappa": null
+    }
+   },
+   "s3": {
+    "code": {
+     "n": 10,
+     "agree": 10,
+     "raw": 1.0,
+     "kappa": null
+    },
+    "class": {
+     "n": 10,
+     "agree": 10,
+     "raw": 1.0,
+     "kappa": null
+    },
+    "determined": {
+     "n": 10,
+     "agree": 10,
+     "raw": 1.0,
+     "kappa": null
+    }
+   },
+   "disagreements_final": 0,
+   "disagreements_left_U": 0
+  },
+  "H": {
+   "final": {
+    "code": {
+     "n": 25,
+     "agree": 22,
+     "raw": 0.88,
+     "kappa": 0.8614
+    },
+    "class": {
+     "n": 25,
+     "agree": 25,
+     "raw": 1.0,
+     "kappa": 1.0
+    },
+    "determined": {
+     "n": 25,
+     "agree": 25,
+     "raw": 1.0,
+     "kappa": 1.0
+    }
+   },
+   "round1": {
+    "code": {
+     "n": 25,
+     "agree": 11,
+     "raw": 0.44,
+     "kappa": 0.4118
+    },
+    "class": {
+     "n": 25,
+     "agree": 14,
+     "raw": 0.56,
+     "kappa": 0.4489
+    },
+    "determined": {
+     "n": 25,
+     "agree": 14,
+     "raw": 0.56,
+     "kappa": 0.1486
+    }
+   },
+   "s3": {
+    "code": {
+     "n": 25,
+     "agree": 18,
+     "raw": 0.72,
+     "kappa": 0.6951
+    },
+    "class": {
+     "n": 25,
+     "agree": 23,
+     "raw": 0.92,
+     "kappa": 0.8853
+    },
+    "determined": {
+     "n": 25,
+     "agree": 25,
+     "raw": 1.0,
+     "kappa": 1.0
+    }
+   },
+   "disagreements_final": 3,
+   "disagreements_left_U": 2
+  },
+  "S": {
+   "final": {
+    "code": {
+     "n": 8,
+     "agree": 7,
+     "raw": 0.875,
+     "kappa": 0.8095
+    },
+    "class": {
+     "n": 8,
+     "agree": 7,
+     "raw": 0.875,
+     "kappa": 0.8
+    },
+    "determined": {
+     "n": 8,
+     "agree": 8,
+     "raw": 1.0,
+     "kappa": 1.0
+    }
+   },
+   "round1": {
+    "code": {
+     "n": 8,
+     "agree": 3,
+     "raw": 0.375,
+     "kappa": 0.2857
+    },
+    "class": {
+     "n": 8,
+     "agree": 3,
+     "raw": 0.375,
+     "kappa": 0.1489
+    },
+    "determined": {
+     "n": 8,
+     "agree": 4,
+     "raw": 0.5,
+     "kappa": 0.1579
+    }
+   },
+   "s3": {
+    "code": {
+     "n": 8,
+     "agree": 7,
+     "raw": 0.875,
+     "kappa": 0.8049
+    },
+    "class": {
+     "n": 8,
+     "agree": 7,
+     "raw": 0.875,
+     "kappa": 0.7838
+    },
+    "determined": {
+     "n": 8,
+     "agree": 8,
+     "raw": 1.0,
+     "kappa": null
+    }
+   },
+   "disagreements_final": 1,
+   "disagreements_left_U": 0
+  },
+  "N": {
+   "final": {
+    "code": {
+     "n": 4,
+     "agree": 4,
+     "raw": 1.0,
+     "kappa": 1.0
+    },
+    "class": {
+     "n": 4,
+     "agree": 4,
+     "raw": 1.0,
+     "kappa": 1.0
+    },
+    "determined": {
+     "n": 4,
+     "agree": 4,
+     "raw": 1.0,
+     "kappa": 1.0
+    }
+   },
+   "round1": {
+    "code": {
+     "n": 4,
+     "agree": 3,
+     "raw": 0.75,
+     "kappa": 0.6364
+    },
+    "class": {
+     "n": 4,
+     "agree": 3,
+     "raw": 0.75,
+     "kappa": 0.6
+    },
+    "determined": {
+     "n": 4,
+     "agree": 3,
+     "raw": 0.75,
+     "kappa": 0.5
+    }
+   },
+   "s3": {
+    "code": {
+     "n": 4,
+     "agree": 3,
+     "raw": 0.75,
+     "kappa": 0.6364
+    },
+    "class": {
+     "n": 4,
+     "agree": 4,
+     "raw": 1.0,
+     "kappa": 1.0
+    },
+    "determined": {
+     "n": 4,
+     "agree": 4,
+     "raw": 1.0,
+     "kappa": null
+    }
+   },
+   "disagreements_final": 0,
+   "disagreements_left_U": 0
+  },
+  "stratum_T": {
+   "final": {
+    "code": {
+     "n": 18,
+     "agree": 17,
+     "raw": 0.9444,
+     "kappa": 0.9155
+    },
+    "class": {
+     "n": 18,
+     "agree": 17,
+     "raw": 0.9444,
+     "kappa": 0.8922
+    },
+    "determined": {
+     "n": 18,
+     "agree": 18,
+     "raw": 1.0,
+     "kappa": 1.0
+    }
+   },
+   "round1": {
+    "code": {
+     "n": 18,
+     "agree": 15,
+     "raw": 0.8333,
+     "kappa": 0.7512
+    },
+    "class": {
+     "n": 18,
+     "agree": 15,
+     "raw": 0.8333,
+     "kappa": 0.6824
+    },
+    "determined": {
+     "n": 18,
+     "agree": 16,
+     "raw": 0.8889,
+     "kappa": 0.7534
+    }
+   },
+   "s3": {
+    "code": {
+     "n": 18,
+     "agree": 17,
+     "raw": 0.9444,
+     "kappa": 0.9163
+    },
+    "class": {
+     "n": 18,
+     "agree": 17,
+     "raw": 0.9444,
+     "kappa": 0.9109
+    },
+    "determined": {
+     "n": 18,
+     "agree": 18,
+     "raw": 1.0,
+     "kappa": 1.0
+    }
+   },
+   "disagreements_final": 1,
+   "disagreements_left_U": 0
+  },
+  "stratum_P": {
+   "final": {
+    "code": {
+     "n": 33,
+     "agree": 29,
+     "raw": 0.8788,
+     "kappa": 0.8564
+    },
+    "class": {
+     "n": 33,
+     "agree": 32,
+     "raw": 0.9697,
+     "kappa": 0.9587
+    },
+    "determined": {
+     "n": 33,
+     "agree": 33,
+     "raw": 1.0,
+     "kappa": 1.0
+    }
+   },
+   "round1": {
+    "code": {
+     "n": 33,
+     "agree": 14,
+     "raw": 0.4242,
+     "kappa": 0.393
+    },
+    "class": {
+     "n": 33,
+     "agree": 17,
+     "raw": 0.5152,
+     "kappa": 0.3853
+    },
+    "determined": {
+     "n": 33,
+     "agree": 18,
+     "raw": 0.5455,
+     "kappa": 0.1538
+    }
+   },
+   "s3": {
+    "code": {
+     "n": 33,
+     "agree": 25,
+     "raw": 0.7576,
+     "kappa": 0.7312
+    },
+    "class": {
+     "n": 33,
+     "agree": 30,
+     "raw": 0.9091,
+     "kappa": 0.8653
+    },
+    "determined": {
+     "n": 33,
+     "agree": 33,
+     "raw": 1.0,
+     "kappa": 1.0
+    }
+   },
+   "disagreements_final": 4,
+   "disagreements_left_U": 2
+  },
+  "stratum_N": {
+   "final": {
+    "code": {
+     "n": 4,
+     "agree": 4,
+     "raw": 1.0,
+     "kappa": 1.0
+    },
+    "class": {
+     "n": 4,
+     "agree": 4,
+     "raw": 1.0,
+     "kappa": 1.0
+    },
+    "determined": {
+     "n": 4,
+     "agree": 4,
+     "raw": 1.0,
+     "kappa": 1.0
+    }
+   },
+   "round1": {
+    "code": {
+     "n": 4,
+     "agree": 3,
+     "raw": 0.75,
+     "kappa": 0.6364
+    },
+    "class": {
+     "n": 4,
+     "agree": 3,
+     "raw": 0.75,
+     "kappa": 0.6
+    },
+    "determined": {
+     "n": 4,
+     "agree": 3,
+     "raw": 0.75,
+     "kappa": 0.5
+    }
+   },
+   "s3": {
+    "code": {
+     "n": 4,
+     "agree": 3,
+     "raw": 0.75,
+     "kappa": 0.6364
+    },
+    "class": {
+     "n": 4,
+     "agree": 4,
+     "raw": 1.0,
+     "kappa": 1.0
+    },
+    "determined": {
+     "n": 4,
+     "agree": 4,
+     "raw": 1.0,
+     "kappa": null
+    }
+   },
+   "disagreements_final": 0,
+   "disagreements_left_U": 0
+  },
+  "ALL": {
+   "final": {
+    "code": {
+     "n": 55,
+     "agree": 50,
+     "raw": 0.9091,
+     "kappa": 0.8947
+    },
+    "class": {
+     "n": 55,
+     "agree": 53,
+     "raw": 0.9636,
+     "kappa": 0.9476
+    },
+    "determined": {
+     "n": 55,
+     "agree": 55,
+     "raw": 1.0,
+     "kappa": 1.0
+    }
+   },
+   "round1": {
+    "code": {
+     "n": 55,
+     "agree": 32,
+     "raw": 0.5818,
+     "kappa": 0.5508
+    },
+    "class": {
+     "n": 55,
+     "agree": 35,
+     "raw": 0.6364,
+     "kappa": 0.5065
+    },
+    "determined": {
+     "n": 55,
+     "agree": 37,
+     "raw": 0.6727,
+     "kappa": 0.4
+    }
+   },
+   "s3": {
+    "code": {
+     "n": 55,
+     "agree": 45,
+     "raw": 0.8182,
+     "kappa": 0.8001
+    },
+    "class": {
+     "n": 55,
+     "agree": 51,
+     "raw": 0.9273,
+     "kappa": 0.9023
+    },
+    "determined": {
+     "n": 55,
+     "agree": 55,
+     "raw": 1.0,
+     "kappa": 1.0
+    }
+   },
+   "disagreements_final": 5,
+   "disagreements_left_U": 2
+  }
+ },
+ "disagreements_final": [
+  {
+   "sheet_id": "EV-298037",
+   "unit_id": "FU2",
+   "episode": "E29A",
+   "column": "A",
+   "A_code": "X3",
+   "B_code": "V1",
+   "A_step": "4",
+   "B_step": "4",
+   "A_ambiguity": "A10 (ALT[X3-at-pin-start]=V1)",
+   "B_ambiguity": "B4 and B8 (V1 at t0; B8 absent from B's ambiguities.md)",
+   "ruling": "R-X3T",
+   "clause": "7.1 Event; 7.2 X3; 7.5 steps 4 and 6",
+   "decided_by_text": "yes",
+   "reconciled": "X3",
+   "reason": "A pinned-pair interval is not an event in 7.1's list, and codes are assigned per event. Steps 4 and 6 attach X3 to the command outcome (the completed command). X3 therefore sits at the command's M4 terminal status (completion), not at the start of the pinned interval. Decided by the text: rater A's reading (A10)."
+  },
+  {
+   "sheet_id": "EV-2c719b",
+   "unit_id": "FU1",
+   "episode": "E12",
+   "column": "H",
+   "A_code": "G2",
+   "B_code": "G1",
+   "A_step": "4",
+   "B_step": "4",
+   "A_ambiguity": "A2",
+   "B_ambiguity": "B13 (cited in B's record; absent from B's ambiguities.md)",
+   "ruling": "R-TIE",
+   "clause": "7.5 step 5",
+   "decided_by_text": "no",
+   "reconciled": "U:unresolved_tie_order_7.5_step5",
+   "reason": "The clause orders classes only. It gives no order between two G codes on one event; rater A's pipeline order (A2) and rater B's code-number order (B13, not in B's log) are both readings the text does not make. Not decided by the text."
+  },
+  {
+   "sheet_id": "EV-6f1277",
+   "unit_id": "FU1",
+   "episode": "E9",
+   "column": "H",
+   "A_code": "G2",
+   "B_code": "G1",
+   "A_step": "4",
+   "B_step": "4",
+   "A_ambiguity": "A2",
+   "B_ambiguity": "B13 (cited in B's record; absent from B's ambiguities.md)",
+   "ruling": "R-TIE",
+   "clause": "7.5 step 5",
+   "decided_by_text": "no",
+   "reconciled": "U:unresolved_tie_order_7.5_step5",
+   "reason": "The clause orders classes only. It gives no order between two G codes on one event; rater A's pipeline order (A2) and rater B's code-number order (B13, not in B's log) are both readings the text does not make. Not decided by the text."
+  },
+  {
+   "sheet_id": "EV-7bda3f",
+   "unit_id": "FU1",
+   "episode": "E26",
+   "column": "S",
+   "A_code": "X3",
+   "B_code": "G1",
+   "A_step": "4",
+   "B_step": "4",
+   "A_ambiguity": "R5 (G1 needs a withheld or unpublished command); A7 alternative",
+   "B_ambiguity": "B10 (cited in B's record; absent from B's ambiguities.md)",
+   "ruling": "R-G1W",
+   "clause": "7.2 G1",
+   "decided_by_text": "yes",
+   "reconciled": "G1",
+   "reason": "The clause requires a refusal, not a withheld or unpublished command. At EV-7bda3f D1 every action of the decision (reverse robot_2, reverse robot_3) was refused by the grounder, recorded as \"reverse refused: both robots outside the corridor on the same side\" and replaced by waits; C1 is False and T2 at D1 is True. Rater A's extra condition (published False, A's R5) is not in the clause. Decided by the text: rater B's G1 (B10, not in B's log) at 14.267, before the X3 at 23.705."
+  },
+  {
+   "sheet_id": "EV-cb3996",
+   "unit_id": "FU2",
+   "episode": "E7",
+   "column": "H",
+   "A_code": "X3",
+   "B_code": "X2",
+   "A_step": "4",
+   "B_step": "4",
+   "A_ambiguity": "A10 (X3 at completion; ALT[X3-at-pin-start]=X2)",
+   "B_ambiguity": "B4 (X3 at the later of leg end and pin start)",
+   "ruling": "R-X3T",
+   "clause": "7.1 Event; 7.2 X3; 7.5 steps 4 and 6",
+   "decided_by_text": "yes",
+   "reconciled": "X3",
+   "reason": "A pinned-pair interval is not an event in 7.1's list, and codes are assigned per event. Steps 4 and 6 attach X3 to the command outcome (the completed command). X3 therefore sits at the command's M4 terminal status (completion), not at the start of the pinned interval. Decided by the text: rater A's reading (A10)."
+  }
+ ],
+ "disagreements_s3": [
+  {
+   "sheet_id": "EV-0bdad6",
+   "unit_id": "FU1",
+   "episode": "m5D_t01_a1",
+   "column": "N",
+   "A_code": "G4",
+   "B_code": "G6",
+   "A_step": "7 (deciding T1 at chain-start decision)",
+   "B_step": "4 + rule-7 U clause",
+   "A_ambiguity": "A6 / A2",
+   "B_ambiguity": "B15",
+   "ruling": "R-G4D",
+   "clause": "7.2 G4 with 7.5 step 5",
+   "decided_by_text": "no",
+   "reconciled": "U:unresolved_G4_handoff_7.2",
+   "reason": "Here the dispatch does differ (G6 flag set, dispatch_matches_plan False), but by added waits, while the yielder is unchanged and a `node_handoff` tag is present. Whether the handoff is a role change that makes the dispatch differ is not fixed by the text; if it is, G4 and G6 sit on one event and step 5 does not order them (R-TIE). Not decided by the text."
+  },
+  {
+   "sheet_id": "EV-298037",
+   "unit_id": "FU2",
+   "episode": "E29A",
+   "column": "A",
+   "A_code": "X3",
+   "B_code": "V1",
+   "A_step": "4",
+   "B_step": "4",
+   "A_ambiguity": "A10 (ALT[X3-at-pin-start]=V1)",
+   "B_ambiguity": "B4 and B8 (V1 at t0; B8 absent from B's ambiguities.md)",
+   "ruling": "R-X3T",
+   "clause": "7.1 Event; 7.2 X3; 7.5 steps 4 and 6",
+   "decided_by_text": "yes",
+   "reconciled": "X3",
+   "reason": "A pinned-pair interval is not an event in 7.1's list, and codes are assigned per event. Steps 4 and 6 attach X3 to the command outcome (the completed command). X3 therefore sits at the command's M4 terminal status (completion), not at the start of the pinned interval. Decided by the text: rater A's reading (A10)."
+  },
+  {
+   "sheet_id": "EV-2c719b",
+   "unit_id": "FU1",
+   "episode": "E12",
+   "column": "H",
+   "A_code": "G2",
+   "B_code": "G1",
+   "A_step": "4",
+   "B_step": "4",
+   "A_ambiguity": "A2",
+   "B_ambiguity": "B13 (cited in B's record; absent from B's ambiguities.md)",
+   "ruling": "R-TIE",
+   "clause": "7.5 step 5",
+   "decided_by_text": "no",
+   "reconciled": "U:unresolved_tie_order_7.5_step5",
+   "reason": "The clause orders classes only. It gives no order between two G codes on one event; rater A's pipeline order (A2) and rater B's code-number order (B13, not in B's log) are both readings the text does not make. Not decided by the text."
+  },
+  {
+   "sheet_id": "EV-37a70e",
+   "unit_id": "FU1",
+   "episode": "E11",
+   "column": "H",
+   "A_code": "G4",
+   "B_code": "X5",
+   "A_step": "7 (deciding T1 at chain-start decision)",
+   "B_step": "4 + rule-7 U clause",
+   "A_ambiguity": "A6 (A's note gives G5 under the other reading); R6",
+   "B_ambiguity": "B15; B4",
+   "ruling": "R-S3-37a",
+   "clause": "7.2 G4, then 7.2 G5 / X5 placement",
+   "decided_by_text": "no",
+   "reconciled": "U:unresolved_G5_placement_S3",
+   "reason": "Under R-G4M rater A's S3 code (G4) falls. Rater A's own recorded alternative is then G5 (robot_4's backup, placed at its leg start 33.6), rater B's code is X5 (robot_2's contact at 35.97). Adopting G5 would take a code neither rater gave as S3, and the order turns on where G5 sits in time, which neither rater's log settles the same way. Left U."
+  },
+  {
+   "sheet_id": "EV-62b8d0",
+   "unit_id": "FU1",
+   "episode": "E13",
+   "column": "H",
+   "A_code": "G4",
+   "B_code": "X1",
+   "A_step": "7 (deciding T1 at chain-start decision)",
+   "B_step": "4 + rule-7 U clause",
+   "A_ambiguity": "A6 (A's note gives X1 under the other reading)",
+   "B_ambiguity": "B15",
+   "ruling": "R-G4M",
+   "clause": "7.2 G4",
+   "decided_by_text": "yes",
+   "reconciled": "X1",
+   "reason": "The clause needs the dispatch to differ from the decision. Where the only evidence is a `node_handoff` tag and the dispatch matches the plan (dispatch_matches_plan True, same yielder), the dispatch does not differ, so G4 is not met. Decided by the text: rater B's reading (B15)."
+  },
+  {
+   "sheet_id": "EV-6f1277",
+   "unit_id": "FU1",
+   "episode": "E9",
+   "column": "H",
+   "A_code": "G2",
+   "B_code": "G1",
+   "A_step": "4",
+   "B_step": "4",
+   "A_ambiguity": "A2",
+   "B_ambiguity": "B13 (cited in B's record; absent from B's ambiguities.md)",
+   "ruling": "R-TIE",
+   "clause": "7.5 step 5",
+   "decided_by_text": "no",
+   "reconciled": "U:unresolved_tie_order_7.5_step5",
+   "reason": "The clause orders classes only. It gives no order between two G codes on one event; rater A's pipeline order (A2) and rater B's code-number order (B13, not in B's log) are both readings the text does not make. Not decided by the text."
+  },
+  {
+   "sheet_id": "EV-7bda3f",
+   "unit_id": "FU1",
+   "episode": "E26",
+   "column": "S",
+   "A_code": "X3",
+   "B_code": "G1",
+   "A_step": "4",
+   "B_step": "4",
+   "A_ambiguity": "R5 (G1 needs a withheld or unpublished command); A7 alternative",
+   "B_ambiguity": "B10 (cited in B's record; absent from B's ambiguities.md)",
+   "ruling": "R-G1W",
+   "clause": "7.2 G1",
+   "decided_by_text": "yes",
+   "reconciled": "G1",
+   "reason": "The clause requires a refusal, not a withheld or unpublished command. At EV-7bda3f D1 every action of the decision (reverse robot_2, reverse robot_3) was refused by the grounder, recorded as \"reverse refused: both robots outside the corridor on the same side\" and replaced by waits; C1 is False and T2 at D1 is True. Rater A's extra condition (published False, A's R5) is not in the clause. Decided by the text: rater B's G1 (B10, not in B's log) at 14.267, before the X3 at 23.705."
+  },
+  {
+   "sheet_id": "EV-a6761e",
+   "unit_id": "FU1",
+   "episode": "E21",
+   "column": "H",
+   "A_code": "G4",
+   "B_code": "G6",
+   "A_step": "7 (deciding T1 at chain-start decision)",
+   "B_step": "4 + rule-7 U clause",
+   "A_ambiguity": "A6 / A2",
+   "B_ambiguity": "B15",
+   "ruling": "R-G4D",
+   "clause": "7.2 G4 with 7.5 step 5",
+   "decided_by_text": "no",
+   "reconciled": "U:unresolved_G4_handoff_7.2",
+   "reason": "Here the dispatch does differ (G6 flag set, dispatch_matches_plan False), but by added waits, while the yielder is unchanged and a `node_handoff` tag is present. Whether the handoff is a role change that makes the dispatch differ is not fixed by the text; if it is, G4 and G6 sit on one event and step 5 does not order them (R-TIE). Not decided by the text."
+  },
+  {
+   "sheet_id": "EV-a6761e",
+   "unit_id": "FU2",
+   "episode": "E21",
+   "column": "H",
+   "A_code": "G4",
+   "B_code": "G6",
+   "A_step": "7 (deciding T1 at chain-start decision)",
+   "B_step": "4 + rule-7 U clause",
+   "A_ambiguity": "A6 / A2",
+   "B_ambiguity": "B15",
+   "ruling": "R-G4D",
+   "clause": "7.2 G4 with 7.5 step 5",
+   "decided_by_text": "no",
+   "reconciled": "U:unresolved_G4_handoff_7.2",
+   "reason": "Here the dispatch does differ (G6 flag set, dispatch_matches_plan False), but by added waits, while the yielder is unchanged and a `node_handoff` tag is present. Whether the handoff is a role change that makes the dispatch differ is not fixed by the text; if it is, G4 and G6 sit on one event and step 5 does not order them (R-TIE). Not decided by the text."
+  },
+  {
+   "sheet_id": "EV-cb3996",
+   "unit_id": "FU2",
+   "episode": "E7",
+   "column": "H",
+   "A_code": "X3",
+   "B_code": "X2",
+   "A_step": "4",
+   "B_step": "4",
+   "A_ambiguity": "A10 (X3 at completion; ALT[X3-at-pin-start]=X2)",
+   "B_ambiguity": "B4 (X3 at the later of leg end and pin start)",
+   "ruling": "R-X3T",
+   "clause": "7.1 Event; 7.2 X3; 7.5 steps 4 and 6",
+   "decided_by_text": "yes",
+   "reconciled": "X3",
+   "reason": "A pinned-pair interval is not an event in 7.1's list, and codes are assigned per event. Steps 4 and 6 attach X3 to the command outcome (the completed command). X3 therefore sits at the command's M4 terminal status (completion), not at the start of the pinned interval. Decided by the text: rater A's reading (A10)."
+  }
+ ],
+ "disagreements_round1": [
+  {
+   "sheet_id": "EV-072a17",
+   "unit_id": "FU1",
+   "episode": "E15",
+   "A": "G4",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "V3",
+   "final_B": "V3"
+  },
+  {
+   "sheet_id": "EV-0bdad6",
+   "unit_id": "FU1",
+   "episode": "m5D_t01_a1",
+   "A": "G4",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "U:T1_fidelity",
+   "final_B": "U:T1_fidelity"
+  },
+  {
+   "sheet_id": "EV-295a3e",
+   "unit_id": "FU1",
+   "episode": "E18",
+   "A": "G4",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "U:T1_fidelity",
+   "final_B": "U:T1_fidelity"
+  },
+  {
+   "sheet_id": "EV-298037",
+   "unit_id": "FU2",
+   "episode": "E29A",
+   "A": "X3",
+   "B": "V1",
+   "explained_by": "same split as the final disagreement",
+   "final_A": "X3",
+   "final_B": "V1"
+  },
+  {
+   "sheet_id": "EV-2c719b",
+   "unit_id": "FU1",
+   "episode": "E12",
+   "A": "G2",
+   "B": "G1",
+   "explained_by": "same split as the final disagreement",
+   "final_A": "G2",
+   "final_B": "G1"
+  },
+  {
+   "sheet_id": "EV-344706",
+   "unit_id": "FU1",
+   "episode": "E17",
+   "A": "G4",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "G4",
+   "final_B": "G4"
+  },
+  {
+   "sheet_id": "EV-359e3d",
+   "unit_id": "FU2",
+   "episode": "E14",
+   "A": "X1",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "X1",
+   "final_B": "X1"
+  },
+  {
+   "sheet_id": "EV-37a70e",
+   "unit_id": "FU1",
+   "episode": "E11",
+   "A": "G4",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "U:T1_fidelity",
+   "final_B": "U:T1_fidelity"
+  },
+  {
+   "sheet_id": "EV-41a9d4",
+   "unit_id": "FU1",
+   "episode": "E16",
+   "A": "X1",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "X1",
+   "final_B": "X1"
+  },
+  {
+   "sheet_id": "EV-41a9d4",
+   "unit_id": "FU2",
+   "episode": "E16",
+   "A": "V1",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "V1",
+   "final_B": "V1"
+  },
+  {
+   "sheet_id": "EV-62b8d0",
+   "unit_id": "FU1",
+   "episode": "E13",
+   "A": "G4",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "U:T1_fidelity",
+   "final_B": "U:T1_fidelity"
+  },
+  {
+   "sheet_id": "EV-6f1277",
+   "unit_id": "FU1",
+   "episode": "E9",
+   "A": "G2",
+   "B": "G1",
+   "explained_by": "same split as the final disagreement",
+   "final_A": "G2",
+   "final_B": "G1"
+  },
+  {
+   "sheet_id": "EV-7bda3f",
+   "unit_id": "FU1",
+   "episode": "E26",
+   "A": "X3",
+   "B": "G1",
+   "explained_by": "same split as the final disagreement",
+   "final_A": "X3",
+   "final_B": "G1"
+  },
+  {
+   "sheet_id": "EV-7bf1e2",
+   "unit_id": "FU2",
+   "episode": "E31A",
+   "A": "G4",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "V3",
+   "final_B": "V3"
+  },
+  {
+   "sheet_id": "EV-830943",
+   "unit_id": "FU1",
+   "episode": "E28A",
+   "A": "G6",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "U:T1_fidelity",
+   "final_B": "U:T1_fidelity"
+  },
+  {
+   "sheet_id": "EV-a2cfc5",
+   "unit_id": "FU1",
+   "episode": "E8",
+   "A": "X3",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "X3",
+   "final_B": "X3"
+  },
+  {
+   "sheet_id": "EV-a6761e",
+   "unit_id": "FU1",
+   "episode": "E21",
+   "A": "G4",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "U:T1_fidelity",
+   "final_B": "U:T1_fidelity"
+  },
+  {
+   "sheet_id": "EV-a6761e",
+   "unit_id": "FU2",
+   "episode": "E21",
+   "A": "G4",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "U:T1_fidelity",
+   "final_B": "U:T1_fidelity"
+  },
+  {
+   "sheet_id": "EV-cb3996",
+   "unit_id": "FU1",
+   "episode": "E7",
+   "A": "G5",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "G5",
+   "final_B": "G5"
+  },
+  {
+   "sheet_id": "EV-cb3996",
+   "unit_id": "FU2",
+   "episode": "E7",
+   "A": "X3",
+   "B": "X2",
+   "explained_by": "same split as the final disagreement",
+   "final_A": "X3",
+   "final_B": "X2"
+  },
+  {
+   "sheet_id": "EV-e0f9cf",
+   "unit_id": "FU1",
+   "episode": "E10",
+   "A": "G4",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "U:T1_fidelity",
+   "final_B": "U:T1_fidelity"
+  },
+  {
+   "sheet_id": "EV-e0f9cf",
+   "unit_id": "FU2",
+   "episode": "E10",
+   "A": "G4",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "U:T1_fidelity",
+   "final_B": "U:T1_fidelity"
+  },
+  {
+   "sheet_id": "EV-f7ab58",
+   "unit_id": "FU1",
+   "episode": "E25",
+   "A": "G4",
+   "B": "U:T1_not_run",
+   "explained_by": "A R3 (walk continued at a decision without a T1 row) vs B B2 (U:T1_not_run); evidence gap closed by round 2",
+   "final_A": "U:T1_fidelity",
+   "final_B": "U:T1_fidelity"
+  }
+ ],
+ "dominance_check": {
+  "T": {
+   "units": 18,
+   "determined": 6,
+   "undetermined": 12,
+   "A": {
+    "counts": {
+     "X": 3,
+     "V": 2,
+     "G": 1
+    },
+    "unique_top": "X"
+   },
+   "B": {
+    "counts": {
+     "X": 2,
+     "V": 3,
+     "G": 1
+    },
+    "unique_top": "V"
+   },
+   "reconciled": {
+    "counts": {
+     "X": 3,
+     "V": 2,
+     "G": 1
+    },
+    "unique_top": "X"
+   },
+   "one_class_exceeds_others_in_all_three": false
+  },
+  "P": {
+   "units": 33,
+   "determined": 20,
+   "undetermined": 13,
+   "A": {
+    "counts": {
+     "V": 5,
+     "G": 8,
+     "X": 9
+    },
+    "unique_top": "X"
+   },
+   "B": {
+    "counts": {
+     "V": 5,
+     "G": 9,
+     "X": 8
+    },
+    "unique_top": "G"
+   },
+   "reconciled": {
+    "counts": {
+     "V": 5,
+     "G": 7,
+     "X": 8
+    },
+    "unique_top": "X"
+   },
+   "one_class_exceeds_others_in_all_three": false
+  },
+  "N": {
+   "units": 4,
+   "determined": 2,
+   "undetermined": 2,
+   "A": {
+    "counts": {
+     "V": 2
+    },
+    "unique_top": "V"
+   },
+   "B": {
+    "counts": {
+     "V": 2
+    },
+    "unique_top": "V"
+   },
+   "reconciled": {
+    "counts": {
+     "V": 2
+    },
+    "unique_top": "V"
+   },
+   "one_class_exceeds_others_in_all_three": true
+  }
+ }
+}
