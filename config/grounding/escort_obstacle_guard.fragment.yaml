@@ -1,0 +1,22 @@
+# Overlay FRAGMENT for M3 grounding (2026-11-15 escort obstacle guard).
+# Not a complete grounding file: an experiment kit merges this one key into
+# the `grounding:` section of the file it installs (for the five-robot demo,
+# config/grounding/s1b_dynamic_shield_escort.yaml), leaving every other key
+# byte-identical. No pinned grounding file is edited.
+#
+# escort_obstacle_guard: true -- a derived yield's escort leg, swept as M4
+#   drives it (snapshot start, dispatched heading and distance), must not
+#   enter a declared static obstacle grown by robot.half_width_m +
+#   retreat_box_margin_m (the retreat sweep's footprint and margin). A
+#   candidate whose leg does is dropped before stage 2
+#   (`retreat=escort_obstacle_filtered:...`); when none survives the yield is
+#   infeasible (`yield=infeasible:escort_hits_obstacle:<passer>:<obstacle>:
+#   <clear m>`) and degrades to the reroute M5 withholds under
+#   refusal_no_action. Absent or false = the 8933863 behaviour.
+#   Report: docs/reports/2026-11-15-escort-obstacle-guard.md.
+#
+# A kit must assert it per episode from M5's startup line
+# (`grounding mode=... escort_obstacle_guard=True`), not from the yaml.
+# tests/unit/test_escort_obstacle_guard.py pins this file.
+grounding:
+  escort_obstacle_guard: true

@@ -1,0 +1,24 @@
+# Overlay FRAGMENT for M3 grounding (2026-11-15 reverse obstacle guard).
+# Not a complete grounding file: an experiment kit merges this one key into
+# the `grounding:` section of the file it installs (for the five-robot demo,
+# config/grounding/s1b_dynamic_shield_escort.yaml), leaving every other key
+# byte-identical. No pinned grounding file is edited. Independent of
+# escort_obstacle_guard.fragment.yaml; a kit wanting both merges both.
+#
+# reverse_obstacle_guard: true -- a derived `reverse` strategy's backup legs,
+#   swept as M4 drives them (snapshot pose, heading theta + pi, the
+#   dispatched backup_distance_m), must not enter a declared static obstacle
+#   grown by robot.half_width_m + retreat_box_margin_m (the escort guard's
+#   sweep and margin). One blocked leg refuses the whole reverse into the
+#   corridor same-side refusal's 8 s wait fan-out
+#   (`reverse=infeasible:reverse_hits_obstacle:<robot>:<obstacle>:<clear m>`,
+#   one tag per blocked leg); M5 dispatches those waits, as it does every
+#   refused reverse. junction_clear recede phases are not covered. Absent or
+#   false = the 72c08c8 behaviour.
+#   Report: docs/reports/2026-11-15-escort-obstacle-guard.md, section 8.
+#
+# A kit must assert it per episode from M5's startup line
+# (`grounding mode=... reverse_obstacle_guard=True`), not from the yaml.
+# tests/unit/test_reverse_obstacle_guard.py pins this file.
+grounding:
+  reverse_obstacle_guard: true

@@ -344,6 +344,13 @@ def classical_retreat_answer(
         return ClassicalRetreat(
             status="unavailable", reason=f"no candidate clears its park point: {reasons}", **base
         )
+    if not selection.candidates and selection.escort_obstacle_infeasible:
+        reasons = ", ".join(selection.escort_obstacle_infeasible)
+        return ClassicalRetreat(
+            status="unavailable",
+            reason=f"no candidate's escort clears the static obstacles: {reasons}",
+            **base,
+        )
     if not selection.candidates:
         return ClassicalRetreat(status="unavailable", reason="no valid candidate", **base)
     best = selection.candidates[0]
