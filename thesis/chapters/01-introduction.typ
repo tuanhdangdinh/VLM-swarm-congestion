@@ -46,7 +46,7 @@ The studies that were run answer narrower questions, which Chapter 5 states per 
     [Head-on re-score and offline replays], [Recorded and replayed yielder choices against a first-come-first-served rule, an always-`robot_1` chooser and the feasibility gate #ev("6.08") #ev("6.09") #ev("6.10") #ev("6.11").], [RQ3 (decision level)],
     [Plan-influence trace], [Each live four-robot analysis re-grounded without its plan #ev("6.02").], [RQ2, RQ3 (model's share in executed commands)],
     [Failure-cause classification], [Primary cause of each failure unit of 33 five-robot episodes, in three strata.], [RQ2 (where unfinished episodes stopped)],
-    [Demonstration campaign (14–15 Nov 2026)], [Twelve valid live takes in four scenes; no comparison arm #ev("6.01").], [RQ2, RQ3, illustration only],
+    [Demonstration campaign (14–15 Nov 2026)], [Thirteen valid live takes in four scenes; no comparison arm #ev("6.01") #ev("6.84").], [RQ2, RQ3, illustration only],
   ),
   caption: [Which research questions each study informs.],
 ) <tab:intro-rq-map>

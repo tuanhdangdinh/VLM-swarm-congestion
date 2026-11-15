@@ -103,7 +103,7 @@ The demonstration videos are kept outside the repository, on the owner's machine
 ) <tab:app-videos>
 ]
 
-== Offline Contact Recompute (Pending Validation) <sec:app-contacts>
+== Offline Contact Recompute <sec:app-contacts>
 
 @tab:app-contacts lists the offline recompute of footprint gaps over 44 recorded bundles: the demonstration takes, both intersection runs and the registered five-robot pilot #ev("6.12"). For every ground-truth row the URDF collision shapes are placed at the logged pose, and the signed planar gap to every box (walls, racks, barrier blocks and declared obstacles) and to every other robot is measured. A gap of 5 mm or less is a contact entry. The values are a geometric footprint proximity at 10 Hz, not a physics contact. *The method was validated live once:* the validation take could not show entries at a pin #ev("6.17"), but in a scripted safety test the live logger recorded a real contact and matched this recompute row by row #ev("6.86")\; the bundle values themselves remain offline. The one sustained contact in the table is independently confirmed from the demonstration record #ev("6.42"). Gaps are in millimetres, rounded to 0.1 mm (so the five-robot minimum of −0.16 mm reads −0.2), times in simulated seconds, and r$n$ stands for `robot_`$n$.
 
