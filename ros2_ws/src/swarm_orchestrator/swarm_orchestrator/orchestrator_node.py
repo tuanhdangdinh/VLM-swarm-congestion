@@ -629,6 +629,11 @@ class OrchestratorNode(Node):
                 if self._grounding.params.escort_obstacle_guard
                 else ""
             )
+            + (
+                " reverse_obstacle_guard=True"
+                if self._grounding.params.reverse_obstacle_guard
+                else ""
+            )
         )
         if self._marker is not None:
             if self._marker.available:
