@@ -4,6 +4,7 @@
 
 **Revision history:**
 
+- Rev 5 (2026-11-15): added the erratum "2026-11-15 Erratum — Contact Wording"; the contact gate's wording scoped to robot-robot pair distance; §1 annotated, not reworded; no number or verdict changed.
 - Rev 4 (2026-10-22, after the tranche): results added in §2-§9 (10 episodes run to the 600 sim-s horizon on 2026-10-21, all gates passed, est. $0.2127). §1 is unchanged.
 - Rev 3 (2026-10-21, before any live call): Arm B's launch mode exists and is registered as prereg-v3 A35 (`feat/v3-design` `9a5eb8f`). M5 `reasoning_enabled: false` is delivered by the overlays `s1b_l2off_orch_seed{k}.yaml`, and the tranche is RUNNABLE. The new runtime commit is `feat/v3-arm-b-mode` `1624db1`, which is `3efcd78` plus `models.py` and `orchestrator_node.py`. The deploy delta is rebuilt (`delta_p10.tar` 6e8b40fab5ab68aebe4b3e4f827b7536, 6 files; `manifest_p10.txt` 50376db3b76b99a14f71942d175768f8). The Arm B gates are tightened (§1.2, §1.6). Nothing else changes, and nothing exploratory is added.
 - Rev 2 (2026-10-21, before any live call): §1 updated for the owner rulings R6-R11 recorded in prereg-v3 A34 (`feat/v3-design` `0891cd8`), which close §1.8. The tranche is now 10 episodes (5 seeds × Arm A / Arm B, interleaved). RECORD is a dataset tag only (RECORD=0 to fc_launch). Episodes are capped by sim-s, with dollars as a guard. Every registered S1 measure is scored by `benchmarks/s1_scoring` at `feat/v3-freeflow-freeze` `3c71503`, with the frozen S1b free-flow table (md5 b4002d7697f4d8f27c31792a9b269162). Arm B (Layer-2-off classical) is ruled but has no launch mode, so the tranche is NOT RUNNABLE until it exists. Runtime commit `3efcd78`. Nothing exploratory is added.
@@ -12,6 +13,17 @@
 ---
 
 CONFIRMATORY (`confirmatory=1`), RECORD = 0 (A34 R6). RUNNABLE: A34 R9's Arm B launch mode exists (A35, Rev 3).
+
+---
+
+## 2026-11-15 Erratum — Contact Wording
+
+Ground truth's two contact lists, `robot_static_contacts` and `robot_robot_contacts`, are hard-coded to `[]` in `isaac/vgu_sim/acceptance_logging.py:99-100`. No contact detector exists, so an empty list shows nothing. The sound channel is the logged minimum pairwise distance (`min_pairwise_distance_m` and the GT positions), a centre-to-centre robot-robot distance. Nothing in GT logs contact with static obstacles. Same caveat: `docs/reports/2026-09-25-overnight-findings.md` (Metric correction 2 and its Rev 11 note) and `docs/reports/2026-10-08-s1-pilot.md` (GT `robot_static_contacts`); full account in section 8.7 of `docs/reports/2026-11-15-demo-campaign-results.md`.
+
+- **What the statements rested on.** The contact gate (§1.6) is an all-pairs scan of GT robot positions for a centre distance < 0.18 m plus `hard_contact_floor` stops; the GT contact field is not used. Its PASS is a robot-robot statement and holds as such.
+- **Affected statements.** §1.6 "Contact gate"; the status line ("Every pin, floor, condition, contact and escort gate passed"); the gate table row "Contact gate | PASS 10/10". Each is scoped in place and marked (corrected 2026-11-15, see erratum); §1 is annotated with a bracket, its text unchanged. The §-results row "Contact (all pairs, GT, < 0.18 m)" already names its scope and is unchanged.
+- **What remains supported.** Robot-robot only: PASS 10/10, all-pairs GT minima A 0.424 / 0.333 / 0.261 / 0.349 / 0.341 m, B 0.395 / 0.225 / 0.301 / 0.297 / 0.388 m, 0 floor stops.
+- **Static obstacles.** S1b has rack islands (`mapd_5_s1b`: `obstacle_1`, `obstacle_2`, `obstacle_3`), so the robot-static gap is material here: nothing in this report measures robot-to-island contact. A later offline recompute outside this report (demo-campaign report 8.7.4, URDF chassis box against the declared boxes, about 5 mm sampling) found every robot-to-box gap at least 7 mm, except E30 Arm A robot_2, 1.2 mm from `obstacle_1` at sim 48.6-49.2 s under Nav2: a possible graze, not established. The gate does not cover it.
 
 ---
 
@@ -152,7 +164,7 @@ This tranche is confirmatory. It adds NO hypothesis and NO threshold. It collect
 
 ### 1.6 Safety and validity gates (gates, not hypotheses)
 
-- **Contact gate** (the A30 P2 form, re-used as a validity gate):
+- **Contact gate** (the A30 P2 form, re-used as a validity gate): [Robot-robot only: GT does not log robot-static contact, and this gate does not cover it (corrected 2026-11-15, see erratum).]
   - No robot pair, at any time, below **0.18 m** GT centre distance. This is an all-pairs scan of `gt/ground_truth.jsonl` (`a27/kit/gt_contacts.py` rule, inlined in `score_p10_gates.py`). The GT contacts field is a stub (A14 corrigendum).
   - Zero `safety stop robot=… reason=hard_contact_floor` lines in `m4.log`. This applies to both arms (`score_p10_gates.py`).
   - A breach is reported with its pair, onset and minimum.
@@ -217,14 +229,14 @@ Each item below was open in the initial draft. It is now ruled, and its kit defa
 
 ## 2. Summary of Results
 
-**Status: the tranche ran in full. All 10 confirmatory episodes (5 seeds × Arm A / Arm B, in the A33(9) order) ran to the 600 sim-s horizon. Every pin, floor, condition, contact and escort gate passed. Arm A spent est. $0.2127 of the $1.30 cap, and no guard or pin stop fired. No episode completed all 25 tasks, so completeness is "failed" and makespan is censored at the horizon in all 10.**
+**Status: the tranche ran in full. All 10 confirmatory episodes (5 seeds × Arm A / Arm B, in the A33(9) order) ran to the 600 sim-s horizon. Every pin, floor, condition, contact (robot-robot (corrected 2026-11-15, see erratum)) and escort gate passed. Arm A spent est. $0.2127 of the $1.30 cap, and no guard or pin stop fired. No episode completed all 25 tasks, so completeness is "failed" and makespan is censored at the horizon in all 10.**
 
 | Question | Answer |
 |---|---|
 | Host | `vgu-thu-base-isaac-vm-asia-northeast1-a` (asia-northeast1-a), the same zone-moved clone as batch 5. Ephemeral IP 34.84.196.224. It started at the first attempt (§3.1) |
 | Deploy | `PINS_PRE OK`. Every gen, build, deploy, floor and overlay sentinel printed, including `SMOKE A35 reasoning_enabled default True status_line reasoning_enabled=false`. Installed md5 = source md5 for all 6 manifest rows and the floor (§3.2) |
 | Tranche | 11 attempts: one sequential bring-up abort (E27 Arm B a1, $0), then 10 runs, one per (seed, arm). Arm B's silence gate passed 5/5. **Spend est. $0.2127 of $1.30** |
-| Contact gate | **PASS 10/10**: all-pairs GT minimum 0.225-0.424 m, no pair below 0.18 m, 0 `hard_contact_floor` stops |
+| Contact gate (robot-robot only (corrected 2026-11-15, see erratum)) | **PASS 10/10**: all-pairs GT minimum 0.225-0.424 m, no pair below 0.18 m, 0 `hard_contact_floor` stops |
 | Escort/park check | **PASS**: 3 dispatched yields with a leg (0.490 / 0.538 / 0.458 m), 1 with no leg. 0 SAFETY FLAGs, and tags match `dropped_candidates` |
 | A33 completeness / makespan | 0/10 complete. Makespan is censored (`horizon`) in all 10. Tasks completed: Arm A 16/125, Arm B 12/125 |
 | A33(7) arm delta (A − B, 5 seed pairs, paired percentile bootstrap, 95 %) | throughput at τ **+0.032 [−0.008, +0.080]**; mean delay lower bound **−31.5 s [−71.6, −0.6]**; restricted makespan 0.0 [0.0, 0.0] (both arms censored at τ). The per-conflict measures are `degenerate_arm_b` by construction |

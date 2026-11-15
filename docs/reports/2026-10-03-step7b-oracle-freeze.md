@@ -13,6 +13,17 @@
   documented deviation from the ruling's text, below), the scorer gains
   `yielder_last` and the derived `outcome_rank`, and a second VM rerun
   PASSES: 4/4, attributable release, yielder last in the gate log.
+- Rev 3 (2026-11-15): added the erratum "2026-11-15 Erratum — Contact Wording"; the two "GT recorded zero contacts" lines scoped; no number or verdict changed.
+
+---
+
+## 2026-11-15 Erratum — Contact Wording
+
+Ground truth's two contact lists, `robot_static_contacts` and `robot_robot_contacts`, are hard-coded to `[]` in `isaac/vgu_sim/acceptance_logging.py:99-100`. No contact detector exists, so an empty list shows nothing. The sound channel is the logged minimum pairwise distance (`min_pairwise_distance_m` and the GT positions), a centre-to-centre robot-robot distance. Nothing in GT logs contact with static obstacles. Same caveat: `docs/reports/2026-09-25-overnight-findings.md` (Metric correction 2 and its Rev 11 note) and `docs/reports/2026-10-08-s1-pilot.md` (GT `robot_static_contacts`); full account in section 8.7 of `docs/reports/2026-11-15-demo-campaign-results.md`.
+
+- **What the statements rested on.** "GT records zero contacts" (design-level finding, rerun 1) and "GT recorded zero robot contacts" (rerun 2) read the GT contact lists, which are hard-coded empty. They are not evidence. `docs/reports/2026-10-08-ib10-lead-flip-diagnosis.md` (item 5) already says the same of this report.
+- **What remains supported.** Only the pair distances this report quotes: robot_1 and robot_3 frozen 0.416 m apart from 145 s (rerun 1); in rerun 2 the lead passed robot_3 at 0.248 m (sim 150.5) and robot_1 kept at least 1.094 m from robot_3 after the release. No all-pairs minimum was computed here. The 4/4 resolution verdicts do not rest on the contact lines and are unchanged; the prereg-v2 design's contact ruling (`docs/superpowers/specs/2026-09-30-prereg-v2-design.md` on branch `fix/deadlock-collision-resolution`, extended in `fc73151`) already says the step-7b 4/4 should be recomputed before it is cited.
+- **Static obstacles.** IB10 declares no static obstacles, so the static-contact gap is not material for declared obstacles; the warehouse rack blocks and walls are not logged either and were not checked.
 
 ---
 
@@ -243,7 +254,7 @@ robot_3 (second receder, heading north from (0.007, -0.978)) and robot_1
 south-west of the junction centre. At 143.0 s they are inside 0.45 m. The
 monitor latches both (`min_distance_violation`, robot_1 and robot_3 only,
 to the end). They stay frozen at (-0.50, -0.40) and (-0.10, -0.50),
-0.416 m apart, from 145 s to the end (285.9 s); GT records zero contacts.
+0.416 m apart, from 145 s to the end (285.9 s); GT's contact lists are hard-coded empty, so they show nothing; the 0.416 m separation is the robot-robot evidence for this pair (corrected 2026-11-15, see erratum).
 M5 then suppresses re-triggers for robot_1/robot_3, and the once-mock
 answers `none` anyway.
 
@@ -387,7 +398,7 @@ close, giving a ~0.2 s burst of `min_distance_violation` stops (48 lines)
 before robot_3 drove north out of range; no lasting latch. robot_1 kept at
 least 1.094 m from robot_3 after the release started. The lead again
 paused near (0.36, 0.45) for ~20 sim s before passing, as in both earlier
-reruns. GT recorded zero robot contacts.
+reruns. GT's robot contact list is hard-coded empty and is not evidence of no contact; no all-pairs minimum was computed (corrected 2026-11-15, see erratum).
 
 ---
 

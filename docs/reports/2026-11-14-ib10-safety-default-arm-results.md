@@ -6,6 +6,18 @@
 
 - Initial draft: results of the 10-slot IB10 run of 2026-11-14 (key-on safety smoke, Arm A live ER-2, Arm C grounder default only), registered in `docs/superpowers/specs/2026-11-14-ib10-safety-default-arm-addendum.md`.
 - Rev 2 (2026-11-14): added the section "Re-run of slot e02 (2026-11-14)". The original sections are not rewritten. Where they say e02 was not re-run, that section supersedes them.
+- Rev 3 (2026-11-15): added the erratum "2026-11-15 Erratum — Contact Wording" and scoped every contact statement to the robot-pair distance; no number or verdict changed.
+
+---
+
+## 2026-11-15 Erratum — Contact Wording
+
+Ground truth's two contact lists, `robot_static_contacts` and `robot_robot_contacts`, are hard-coded to `[]` in `isaac/vgu_sim/acceptance_logging.py:99-100`. No contact detector exists, so "the GT contact lists are empty" shows nothing. The sound channel is the logged minimum pairwise distance (`min_pairwise_distance_m` and the GT positions), a centre-to-centre robot-robot distance. Nothing in GT logs contact with static obstacles. The same caveat is in `docs/reports/2026-09-25-overnight-findings.md` (Metric correction 2 and its Rev 11 note) and `docs/reports/2026-10-08-s1-pilot.md`; the full account is section 8.7 of `docs/reports/2026-11-15-demo-campaign-results.md` (branch `demo/campaign-kits`).
+
+- **What the statements rested on.** The scorer (`data/logs/vm_runs/ib10_safety/kit/score_ibs.py`, lines 16, 49 and 188) defines `gt_contact` as GT minimum pairwise centre distance < 0.18 m, "never the GT contacts field". This report's own recompute is the same distance count. In this report, "contact frames" means GT frames with a robot pair closer than 0.18 m. Those statements stand.
+- **Affected statements.** The parenthesis "the GT contact lists are also empty in all 10" (Per-episode table notes), "0 GT contact entries" (Re-run section, Safety), the "GT contacts" label in the two pooled tables, and the unqualified "0 contacts" (e02 chain, step 5) and "no contact" (Interpretation). Each is now scoped in place and marked "(corrected 2026-11-15, see erratum)".
+- **What remains supported.** Robot-robot only, by distance: 0 GT frames with a pair closer than 0.18 m in all 10 episodes and in e02 a2. The lowest pair is 0.3008 m in Arm A (e01), 0.2965 m in Arm C (e10) and 0.3060 m in e02 a2; e02 a1 never came below 2.0136 m. 0 floor stops. Every verdict and number is unchanged.
+- **Static obstacles.** IB10 declares no static obstacles (`intersection_bottleneck.yaml` has no `static_obstacles`; "No obstacles"), so the gap is not material in the way it is for the S1b rack-island scenes. Contact with the warehouse rack blocks and walls that bound the aisles is not logged either and was not checked (inferred to be absent from the aisle-centreline lanes, not measured).
 
 ---
 
@@ -59,7 +71,7 @@ All 10 slots, in registered order. "Onset" is the formed-jam onset (copied from 
 | e09 | A | 18.7 / 29.3 | 32.2 (`repaired`) | 4/4 | yes | 116.7 | 0.3365 r1+r3 @29.4 | 0.0074 |
 | e10 | C | 17.7 / 27.9 | 34.1 (`m3_default`) | 4/4 | yes | 118.6 | 0.2965 r2+r3 @27.9 | 0 |
 
-Every valid episode had 0 floor stops and 0 GT frames with any robot pair closer than 0.18 m (verified over all frames and all six pairs; the GT contact lists are also empty in all 10). In nine of ten episodes the closest approach is the jam pose at formation, before any dispatch. In e01 the minimum (0.3008 m, r3+r4 at 109.6 s) occurs during the manoeuvre, after the first dispatch. Time from onset equals last arrival minus onset (verified from the arrivals and the onset).
+Every valid episode had 0 floor stops and 0 GT frames with any robot pair closer than 0.18 m (verified over all frames and all six pairs; robot-robot only. The GT contact lists are hard-coded empty and are not evidence; IB10 declares no static obstacles. Corrected 2026-11-15, see erratum). In nine of ten episodes the closest approach is the jam pose at formation, before any dispatch. In e01 the minimum (0.3008 m, r3+r4 at 109.6 s) occurs during the manoeuvre, after the first dispatch. Time from onset equals last arrival minus onset (verified from the arrivals and the onset).
 
 ### Pooled per arm
 
@@ -71,7 +83,7 @@ Every valid episode had 0 floor stops and 0 GT frames with any robot pair closer
 | Arrivals | 20/20 | 16/16 valid (e02: 0/4, no jam) |
 | Time from onset (s) | 114.3, 115.7, 116.2, 116.7, 116.9 (mean 115.96) | 115.5, 118.5, 118.6, 118.6 (mean 117.80) |
 | Lowest GT pair (m) | 0.3008 (e01) | 0.2965 (e10) |
-| Floor stops / GT contacts | 0 / 0 | 0 / 0 |
+| Floor stops / GT pair frames < 0.18 m (corrected 2026-11-15, see erratum) | 0 / 0 | 0 / 0 |
 | Attribution | `repaired` 4 (e01, e05, e07, e09), `m3_default` 1 (e03) | `m3_default` 4 (e02 as well, by construction) |
 | Est. spend | $0.056 (smoke $0.0118, follow-up $0.0442) | $0 |
 
@@ -92,7 +104,7 @@ Facts, each verified from the e02 bundle (`ib10S_e02_armC_a1`) unless marked:
 2. In the robot_1 Nav2 stack, which hosts the shared `map_server`, `lifecycle_manager_map_server` logged `Starting managed nodes bringup` and `Configuring map_server` at wall 1794637168.0, and then nothing: no `Activating map_server`, no bond, no `Managed nodes are active`. `map_server` read the map (240 x 160 at 0.05 m/cell) and logged `failed to send response to /map_server/change_state (timeout): client will not receive response` at 1794637168.2. In e04 the same stack logged `Activating map_server` 0.23 s after `Configuring` and `Managed nodes are active` 0.12 s later.
 3. As a result no costmap received a map. From the first plan request (wall 1794637214, 06:20:14 UTC) to the end of the episode (06:36:02), all four stacks logged `Can't update static costmap layer, no map received` (2,078 lines in total) and `GridBased plugin failed to plan ... "Costmap timed out waiting for update"` (361 lines: 152, 131, 70 and 8 in robots 1 to 4). The costmaps also logged `Sensor origin ... out of map bounds` (18,200 lines across the stacks).
 4. The robots therefore never got a plan. GT: three robots moved 0.31 to 0.32 m from their start points and robot_4 moved 0.00 m; the minimum pair distance never fell below 2.01 m. No jam formed (`jam_valid: false`).
-5. M5's first analysis (wall 1794637222.6, sim 21.2) fired on "3 robot(s) stalled >= 12.0s" at distance to goal 3.51 m. The mock answered `none`. A second stall analysis 15.0 wall-s later (sim 25.8) got `junction_clear`, and M3 dispatched its default plan against a scene that was not jammed. The recede phases ran, the `junction-cross` command resolved `failed` five times, and the fallback `reroute` was dispatched. 0 key-on lines, 0 floor stops, 0 contacts.
+5. M5's first analysis (wall 1794637222.6, sim 21.2) fired on "3 robot(s) stalled >= 12.0s" at distance to goal 3.51 m. The mock answered `none`. A second stall analysis 15.0 wall-s later (sim 25.8) got `junction_clear`, and M3 dispatched its default plan against a scene that was not jammed. The recede phases ran, the `junction-cross` command resolved `failed` five times, and the fallback `reroute` was dispatched. 0 key-on lines, 0 floor stops, 0 robot-robot contact frames (minimum pair 2.0136 m; corrected 2026-11-15, see erratum).
 6. Other episodes: `Costmap timed out waiting for update`, `no map received` and the `map_server` response timeout appear in no other bundle of 2026-11-14 (0 lines in e01 and e03 to e10), and in none of the 11 bundles of 2026-11-13 (checked in `vgu-vlm-swarm-v7a/data/logs/vm_runs/ib10_live/runs/`). `Timed out waiting for transform` lines (4 to 14 per episode, 5 in e02) appear in every episode during start-up and are not specific to e02. e10 has one unrelated `Failed to create plan with tolerance of: 0.500000` line mid-episode.
 
 Inference, not verified:
@@ -198,7 +210,7 @@ Wall clock: smoke 1,531 s and follow 10,793 s, 12,324 s of the 18,000 s (5 h) ca
 - **Within this run the VLM arm and the scripted default-plan arm are indistinguishable in outcome.** All valid episodes resolve (Arm A 5/5, Arm C 4/4 valid), times are within a few seconds of each other (means 115.96 s and 117.80 s from onset), the executed commands are M3's default plan in both arms, and the dispatch delay of Arm C (about 3.4 s) is of the same order as the 1.8 s mean difference in completion time. Combined with yesterday's VLM-off arm (0/5, a separate run with the key off, not pooled), the supported claim is: **a Layer 2 trigger plus M3's default `junction_clear` plan clears this jam; the VLM's contribution in this scene is limited to selecting the strategy and the robot set, which the scripted arm was given.**
 - This run does **not** show that the VLM is needed, and it does not show that it is useless in general. Arm C was handed the correct strategy and robot set. Yesterday's e09 shows that the VLM can also choose off-pattern (a `yield`, then a degenerate two-robot plan) and fail; today's Arm A did not, in 5 of 5 episodes. Arm C cannot show that, because it cannot re-plan after a failure: every analysis after the first dispatch is answered `none`.
 - **n and independence.** n = 5 (Arm A) and 4 valid (Arm C), one scene, no pose jitter, near-repeat episodes in about four trajectories. These are not independent samples. No p-value and no confidence interval is given.
-- **The safety fix was active but never exercised.** All key-on counters are 0 in all 10 episodes (no unhonoured partner, no rejected leg, no waiver, no revocation). The run shows that the key does not disturb the normal recede-and-release manoeuvre in nine valid episodes (no floor stop, no contact, no key-on stall). It is not a live validation of the fix, as caveat (a) of the addendum already said.
+- **The safety fix was active but never exercised.** All key-on counters are 0 in all 10 episodes (no unhonoured partner, no rejected leg, no waiver, no revocation). The run shows that the key does not disturb the normal recede-and-release manoeuvre in nine valid episodes (no floor stop, no robot pair closer than 0.18 m, no key-on stall; corrected 2026-11-15, see erratum). It is not a live validation of the fix, as caveat (a) of the addendum already said.
 - **Further limits.** Arm C cannot re-plan after a failure. Times are not strictly comparable between arms because of the dispatch delay. Simulation only. Exploratory. Never pooled with prereg-v3 or with yesterday's arms.
 
 ---
@@ -331,7 +343,7 @@ Each fact below was verified from the raw bundle unless it is marked "scorer".
   - Episode success: true (scorer).
 - **Safety.**
   - GT minimum pair distance 0.3060 m, robot_1 and robot_4 at 27.5 s, the jam pose. This is over all 3,001 frames.
-  - 0 GT frames with any pair closer than 0.18 m, and 0 GT contact entries.
+  - 0 GT frames with any pair closer than 0.18 m (robot-robot only). The GT contact lists are hard-coded empty and are not evidence (corrected 2026-11-15, see erratum).
   - 0 floor stops (`hard_contact_floor_m=0.2 pairs=`).
   - 0 `stale_pose_unsafe` lines. 14,446 ordinary `min_distance_violation` latch lines, which is in the range expected for a jammed episode.
 - **Key-on lines.** All zero in `m4.log`:
@@ -357,7 +369,7 @@ The scorer applies the invalid-jam rule (`score_ibs.py`, amendment) and writes `
 | Arrivals | 16/16 valid | 20/20 counted |
 | Time from onset (s) | 115.5, 118.5, 118.6, 118.6 (mean 117.80) | 115.5, 118.1, 118.5, 118.6, 118.6 (mean 117.86) |
 | Lowest GT pair (m) | 0.2965 (e10) | 0.2965 (e10); a2 0.3060 |
-| Floor stops / GT contacts | 0 / 0 | 0 / 0 |
+| Floor stops / GT pair frames < 0.18 m (corrected 2026-11-15, see erratum) | 0 / 0 | 0 / 0 |
 | Attribution | `m3_default` 4 | `m3_default` 5 |
 | Recede first | robot_4: e04, e06; robot_3: e08, e10 | robot_4: e04, e06; robot_3: e08, e10, e02 a2 |
 | Spend | $0 | $0 |

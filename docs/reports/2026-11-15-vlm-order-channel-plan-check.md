@@ -5,6 +5,17 @@
 **Revision history:**
 
 - Initial draft: prompt v3.5 condition, paid offline replay on 20 recorded IB10 snapshots (ER-2, Sonnet 5.5, gpt-4o), go/no-go inputs and demo runtime delta.
+- Rev 2 (2026-11-15): added the erratum "2026-11-15 Erratum — Contact Wording"; "Zero GT contacts in any recede window" scoped to robot-robot pair distance; no number or verdict changed.
+
+---
+
+## 2026-11-15 Erratum — Contact Wording
+
+Ground truth's two contact lists, `robot_static_contacts` and `robot_robot_contacts`, are hard-coded to `[]` in `isaac/vgu_sim/acceptance_logging.py:99-100`. No contact detector exists, so an empty list shows nothing. The sound channel is the logged minimum pairwise distance (`min_pairwise_distance_m` and the GT positions), a centre-to-centre robot-robot distance. Nothing in GT logs contact with static obstacles. Same caveat: `docs/reports/2026-09-25-overnight-findings.md` (Metric correction 2 and its Rev 11 note) and `docs/reports/2026-10-08-s1-pilot.md` (GT `robot_static_contacts`); full account in section 8.7 of `docs/reports/2026-11-15-demo-campaign-results.md`.
+
+- **Affected statement.** Recorded precedent: "Zero GT contacts in any recede window". The surrounding bullets are GT centre-to-centre distances (`score_ibs.gt_min_pairwise`), so it is a robot-robot distance statement; the wording could be read as the GT contact lists.
+- **What remains supported.** Robot-robot only: recede-window minima 0.301 m (robot_3 first) and 0.309 m (robot_4 first).
+- **Static obstacles.** IB10 declares no static obstacles, so the gap is not material for declared obstacles; the warehouse rack blocks and walls are not logged and were not checked.
 
 ---
 
@@ -219,7 +230,7 @@ This is consistent with ordering by robot id more often than by chi. Inferred; t
 - **Recede-window minimum separation:**
   - robot_3 first: 0.301 / 0.323 / 0.407 m (min / median / max, n = 11, 11 of 11 resolved);
   - robot_4 first: 0.309 / 0.325 / 0.392 m (n = 12, 11 of 12 resolved; e09 unresolved).
-- Zero GT contacts in any recede window. Recedes never overlapped: the second starts about 10 s after the first.
+- Zero robot-robot contacts in any recede window, by GT pair distance (minimum 0.301 m) (corrected 2026-11-15, see erratum). Recedes never overlapped: the second starts about 10 s after the first.
 - The window minimum is the standing jam separation measured before any recede. It does not show that a rank-1-first recede would be safe.
 - **Side finding:** in 5 episodes (ib10S_e01, e05, e07, closure R1, P1), `plan.legs` lists the rank-1 robot's `reverse` first while dispatch was chi. The frozen scorer's `chi_pair.executed_recede` reads `plan.legs`, which is why ib10S_e01 shows `executed_order_correct: false`. Executed order must be read from the m5/m4 command order, never from `plan.legs`.
 
