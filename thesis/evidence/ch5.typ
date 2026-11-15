@@ -7,7 +7,7 @@
 
 #evidence("5.03", [The registered five-robot pilot adds no hypothesis and no threshold; 5 seeds (positions 1 to 5) x 2 arms = 10 episodes; pilots E6 to E26 excluded.], [`75a499c:docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` (sections 1.1, 1.3, 1.5)])
 
-#evidence("5.04", [Registered confirmatory n is R = 20 per arm from the first 20 seeds; owner decided on 2026-11-13 to skip the remaining 15 registered seed pairs and run the intersection experiment; the registered five-robot pilot reported as pilot.], [`ad67a18:docs/superpowers/specs/2026-10-06-prereg-v3-design.md` (A32, quoting the v3 scene design line 155); `50704c2:docs/superpowers/specs/2026-11-13-ib10-live-resolution-experiment.md` (section 1); `cbe3dcf:docs/reports/2026-11-13-thesis-evidence-register.md` (Five Robots, tranche-1 row)])
+#evidence("5.04", [Registered confirmatory n is R = 20 per arm from the first 20 seeds; the authors decided on 2026-11-13 to skip the remaining 15 registered seed pairs and run the intersection experiment; the registered five-robot pilot reported as pilot.], [`ad67a18:docs/superpowers/specs/2026-10-06-prereg-v3-design.md` (A32, quoting the v3 scene design line 155); `50704c2:docs/superpowers/specs/2026-11-13-ib10-live-resolution-experiment.md` (section 1); `cbe3dcf:docs/reports/2026-11-13-thesis-evidence-register.md` (Five Robots, tranche-1 row)])
 
 #evidence("5.05", [First registered design (v1) tagged on 2026-09-30, freezing the research design (rev 9.5) and amendments A1 to A10.], [tag `prereg-v1` = `569d95c`; `569d95c:docs/superpowers/specs/2026-09-26-prereg-v1-amendments.md` (Rev 25)])
 
@@ -23,7 +23,7 @@
 
 #evidence("5.11", [v3 A32 (config freeze), A33 (measures, REGISTERED vs PROPOSAL), A34 (R6-R11, all proposals ruled at default, control = coordination layer off), A35 (reasoning_enabled), A36 (outcome, GPU wall-clock deviation, decision on the remaining 15 seed pairs open).], [`ad67a18:docs/superpowers/specs/2026-10-06-prereg-v3-design.md` (A32-A36, revision history)])
 
-#evidence("5.12", [No confirmatory v1 or v2 data; "No confirmatory-grade evidence remains". The v1/v2 collection track was stopped before any confirmatory data existed, when its host VM was deleted on 2026-11-12.], [`cbe3dcf:docs/reports/2026-11-13-thesis-evidence-register.md` (Gaps); owner ruling relayed 2026-11-15 for the stop and the VM deletion date (no committed source)])
+#evidence("5.12", [No confirmatory v1 or v2 data; "No confirmatory-grade evidence remains". The v1/v2 collection track was stopped before any confirmatory data existed, when its host VM was deleted on 2026-11-12.], [`cbe3dcf:docs/reports/2026-11-13-thesis-evidence-register.md` (Gaps); authors' ruling relayed 2026-11-15 for the stop and the VM deletion date (no committed source)])
 
 #evidence("5.13", [Five-robot pickup-and-delivery scene: tracked band 5.0 x 3.6 m (|x| up to 2.5, |y| up to 1.8); two islands 0.55 x 1.60 x 0.30 m; coverage 9.78 %; every gap at least 0.90 m.], [`68e67b5:isaac/config/scenarios/mapd_5_s1b.yaml` (header comments)])
 

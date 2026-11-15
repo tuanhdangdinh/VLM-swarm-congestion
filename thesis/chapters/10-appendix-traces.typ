@@ -72,7 +72,7 @@ The stills below complete the demonstration takes of @sec:res-demo and the earli
 
 == Demonstration Videos <sec:app-videos>
 
-The demonstration videos are kept outside the repository, on the owner's machine; each is identified by its file name and md5 (@tab:app-videos). Each video is an illustrative demo, not controlled evidence. The panel videos show the annotated camera stream beside the run's own log lines, as in @fig:ch6-demo-panel #ev("6.01").
+The demonstration videos are kept outside the repository, on one of the authors' machines; each is identified by its file name and md5 (@tab:app-videos). Each video is an illustrative demo, not controlled evidence. The panel videos show the annotated camera stream beside the run's own log lines, as in @fig:ch6-demo-panel #ev("6.01").
 
 #[
 #show raw: set text(size: 7pt)

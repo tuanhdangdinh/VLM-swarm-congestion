@@ -43,7 +43,7 @@ This chapter states how the system was evaluated; results are in Chapter 6. @tab
 
 The three research questions are stated in @sec:intro-rq, and the last column of @tab:ch5-studies maps each study to them. The first registered design specified RQ2 and RQ3 against a per-type policy table and a first-come-first-served rule with a commitment tiebreak, and listed two further questions with planned tests as a skeleton for this report #ev("5.01"). Those two were not tested; the exploratory runs that touched them before the tag are not reported as evidence #ev("1.16"). Moving them to Future Work when this report was finalised narrowed the scope after the experiments, is part of no registered design, and changes no result. Each design registered the design and measures of specific runs (@sec:ch5-prereg).
 
-The studies that ran answer narrower questions. The *registered five-robot pilot* estimates, with intervals and no directional hypothesis, the coordination layer's effect on completion, throughput, delay and per-conflict decision quality #ev("5.02") #ev("5.03"). Its registered sample was 20 episodes per arm #ev("5.04")\; 5 ran #ev("5.03"), and on 13 November 2026 the owner chose to run the intersection experiment instead of the remaining 15 seed pairs #ev("5.04"). A quarter of the sample cannot carry a confirmatory claim, so it is reported as a pilot. *Intersection run 1* asks whether the full pipeline clears a jam that stays frozen with the coordination layer off; a resolved episode shows the pipeline, not the model's own choice, resolving it #ev("5.17"). *Intersection run 2* asks whether the runtime runs cleanly with a safety fix on and the floor armed, and whether the jam clears the same way with no VLM call #ev("5.20"). The *offline decision benchmark* ranks variants and estimates no effects #ev("5.37").
+The studies that ran answer narrower questions. The *registered five-robot pilot* estimates, with intervals and no directional hypothesis, the coordination layer's effect on completion, throughput, delay and per-conflict decision quality #ev("5.02") #ev("5.03"). Its registered sample was 20 episodes per arm #ev("5.04")\; 5 ran #ev("5.03"), and on 13 November 2026 the authors chose to run the intersection experiment instead of the remaining 15 seed pairs #ev("5.04"). A quarter of the sample cannot carry a confirmatory claim, so it is reported as a pilot. *Intersection run 1* asks whether the full pipeline clears a jam that stays frozen with the coordination layer off; a resolved episode shows the pipeline, not the model's own choice, resolving it #ev("5.17"). *Intersection run 2* asks whether the runtime runs cleanly with a safety fix on and the floor armed, and whether the jam clears the same way with no VLM call #ev("5.20"). The *offline decision benchmark* ranks variants and estimates no effects #ev("5.37").
 
 == Registered Designs <sec:ch5-prereg>
 
@@ -146,7 +146,7 @@ The prompt differs between studies (@tab:ch5-prompts); @sec:app-prompts prints t
 
 === Five-Robot Measures
 
-The registered measure definitions (v3 addendum A33), with values ruled by the owner, were fixed in code before any confirmatory episode #ev("5.23") (@tab:ch5-a33).
+The registered measure definitions (v3 addendum A33), with values set by the authors, were fixed in code before any confirmatory episode #ev("5.23") (@tab:ch5-a33).
 
 #figure(
   table(
@@ -185,7 +185,7 @@ Each episode runs on one GPU virtual machine from a run kit that deploys, launch
     fill: (_, y) => if y == 0 { luma(235) },
     table.header([], [*Registered five-robot pilot*], [*Intersection run 1*], [*Intersection run 2*]),
     [Order], [Seed positions 1–5, on then off for 1, 3 and 5, off then on for 2 and 4 #ev("5.27").], [Slots e01–e10 alternating on, off, …, off #ev("5.29").], [e01 on, then e02 scripted, e03 on, …, e10 scripted #ev("5.30").],
-    [First episode], [—], [e01 ran alone as the first check episode; counted if its harness gates passed; the rest only after the owner accepted it #ev("5.29").], [Likewise, with the safety fix on #ev("5.30").],
+    [First episode], [—], [e01 ran alone as the first check episode; counted if its harness gates passed; the rest only after the authors accepted it #ev("5.29").], [Likewise, with the safety fix on #ev("5.30").],
     [Configuration], [ER-2, plan channel on, registered shield-and-escort grounding, churn bound off, sequential Nav2 bring-up (180 s per robot), no analysis cap #ev("5.22").], [Parallel bring-up, because the jam window is in absolute sim time #ev("5.17").], [As run 1; one overlay, arms differ only in backend #ev("5.30").],
     [Caps], [600 sim-s; \$0.25 per episode, \$1.30 total, on episodes start only with \$0.25 left; pin rule at 300 sim-s #ev("5.28").], [6 h per invocation; \$0.50 per episode, \$3.00 total #ev("5.29").], [5 h cumulative; \$1.00 total, \$0.25 per live-VLM episode #ev("5.30").],
     [Attempts], [Up to three bring-up attempts per seed and arm, then stop for a ruling #ev("5.27").], [@tab:ch5-exclusions.], [As run 1, plus one post hoc re-run.],
@@ -204,7 +204,7 @@ Robots were listed in ascending identifier order in all three live comparisons, 
     table.header([*Case*], [*Treatment*]),
     [Nav2 bring-up abort], [Not counted; the same slot is retried, up to 3 attempts. Three aborts skip the slot; two skipped slots in a row stop the run.],
     [Invalid jam (validity gate fails)], [Excluded from the primary denominator and reported.],
-    [Harness failure (missing log line, failed restore, failed condition gate, refused arm check)], [Excluded and reported; the chain stops. A later invocation started by the owner may re-run the slot under a new attempt label.],
+    [Harness failure (missing log line, failed restore, failed condition gate, refused arm check)], [Excluded and reported; the chain stops. A later invocation started by the authors may re-run the slot under a new attempt label.],
     [Live-VLM episode with the orchestrator running but no analysis], [Counted as data.],
     [Truncated by a cost or wall-clock stop], [Counted only if all four robots had arrived; otherwise excluded and reported. Not re-run.],
     [Model probe failure before a live-VLM episode], [The episode never starts; the run stops.],
@@ -288,7 +288,7 @@ A scene stops at the first take meeting its goal or after five valid takes; unch
 
 *Small n.* Five pairs, and five episodes per arm per intersection run, show only large, consistent differences; a null is not evidence of no effect #ev("5.34"). The failure-cause strata hold 10, 21 and 2 episodes.
 
-*Why five per arm, and why coordination layer off as the only live control.* Five is the first quarter of 20 seeds per arm, not the result of a power analysis #ev("5.04"). Machine time was the constraint: at a real-time factor of about 0.18 a full-horizon five-robot episode took about 55 min, the ten pilot episodes 9 h 18 min, and the registered outcome record estimated the remaining 30 episodes at about 28 GPU-hours #ev("5.50")\; the intersection registration fixed five per arm without a stated rationale, at 28–35 min per episode #ev("5.50"). The control is coordination layer off by an owner ruling registered before the pilot, replacing the v1 classical reasoner #ev("5.46")\; no classical rule ran live.
+*Why five per arm, and why coordination layer off as the only live control.* Five is the first quarter of 20 seeds per arm, not the result of a power analysis #ev("5.04"). Machine time was the constraint: at a real-time factor of about 0.18 a full-horizon five-robot episode took about 55 min, the ten pilot episodes 9 h 18 min, and the registered outcome record estimated the remaining 30 episodes at about 28 GPU-hours #ev("5.50")\; the intersection registration fixed five per arm without a stated rationale, at 28–35 min per episode #ev("5.50"). The control is coordination layer off by an authors' ruling registered before the pilot, replacing the v1 classical reasoner #ev("5.46")\; no classical rule ran live.
 
 *Exploratory status and non-independence.* Only the registered five-robot pilot was registered as confirmatory, and it is reported as a pilot (@tab:ch5-studies) #ev("5.04") #ev("5.37"). Intersection episodes are near-repeats of one scene #ev("5.35").
 
