@@ -4,7 +4,7 @@
 
 = Experimental Methodology <sec:ch5>
 
-This chapter states how the system was evaluated; all results are in Chapter 6. @tab:ch5-studies lists the studies with their evidence grades, which the rest of the report uses without further explanation. *Registered as confirmatory, reported as pilot*: the analysis plan was fixed before any data, but too few episodes ran for the confirmatory claim. *Exploratory pilot*: live runs, reported as counts without inferential statistics. *Decision-level offline*: recorded decisions re-scored, replayed or re-grounded, with nothing executed. *Illustrative demonstration*: single live takes that show what the pipeline does, with no rates. *Post hoc classification*: causes assigned after the outcomes were known, under rules frozen before coding. No study is pooled with any other.
+This chapter states how the system was evaluated; all results are in Chapter 6. @tab:ch5-studies lists the studies with their evidence grades, which the rest of the report uses without further explanation. *Registered as confirmatory, reported as pilot*: the analysis plan was fixed before any data, but too few episodes ran for the confirmatory claim. *Exploratory pilot*: live runs, reported as counts without inferential statistics. *Decision-level offline*: recorded decisions re-scored, replayed or re-grounded, with nothing executed. *Illustrative demonstration*: single live takes that show what the pipeline does, with no rates. *Post hoc classification*: causes assigned after the outcomes were known, under rules frozen before coding. No study is pooled with any other, and strata within a study are never pooled.
 
 #[
 #show figure: set block(breakable: true)
@@ -18,12 +18,12 @@ This chapter states how the system was evaluated; all results are in Chapter 6. 
     inset: 3.5pt,
     table.header([*Study*], [*What it compares*], [*n*], [*Evidence grade*], [*Registered before data?*], [*Pooled with*]),
     [Registered five-robot pilot, 21 Oct 2026 (prereg-v3 tranche 1) #ev("5.03") #ev("5.04")], [Coordination layer on vs off, five-robot scene], [5 seed pairs, 10 episodes], [Registered as confirmatory, reported as pilot], [Yes], [Nothing],
-    [Exploratory five-robot pilots, 10–17 Oct 2026 (E6–E26) #ev("5.36") #ev("6.61")], [Coordination layer on only, during design tuning], [21 episodes], [Exploratory pilot], [No (tuning runs)], [Nothing],
+    [Exploratory five-robot pilots, 10–17 Oct 2026 (E6–E26) #ev("5.36") #ev("6.61")], [Coordination layer on only, during design tuning], [21 episodes], [Exploratory pilot], [Some batches, as pilots], [Nothing],
     [Intersection run 1: coordination layer on vs off, 13 Nov 2026 (IB10 run 1) #ev("5.17") #ev("5.29")], [On vs off, four-robot intersection], [5 + 5 counted episodes], [Exploratory pilot], [Yes], [Nothing],
     [Intersection run 2: live VLM vs scripted default plan, 14 Nov 2026 (IB10 run 2) #ev("5.20") #ev("5.30") #ev("5.31")], [Live VLM vs scripted default-plan arm, four-robot intersection], [5 + 5 slots, plus one post hoc re-run], [Exploratory pilot], [Yes; re-run registered after the results, before it ran], [Nothing],
     [Offline decision benchmark (v4 bench) #ev("5.36") #ev("5.37")], [Prompt variants and a rule-based chooser on recorded five-robot analyses], [187 analyses, 31 episodes], [Decision-level offline], [Specification only], [Nothing],
     [Live per-group shadow run (Stage 1) #ev("5.42")], [Per-group question grounded beside the live loop, never dispatched], [7 episodes], [Exploratory pilot, decision-level], [Design specification before the run], [Nothing],
-    [Head-on re-score of recorded decisions #ev("6.08")], [Recorded first yielder vs the correct yielder and three references], [All recorded live head-on runs, two models], [Decision-level offline], [No (post hoc)], [Nothing],
+    [Head-on re-score of recorded decisions #ev("6.08")], [Recorded first yielder vs the correct yielder and three references], [All recorded live head-on runs], [Decision-level offline], [No (post hoc)], [Nothing],
     [Swapped-ID, improved-annotation and JSON-only replays #ev("6.09") #ev("6.10") #ev("6.11")], [One prompt input changed at a time, recorded two-robot standoffs], [First decision per scene, up to three models], [Decision-level offline], [Yes, before the first paid call; two amended while running], [Nothing],
     [Plan-influence trace #ev("6.02")], [Recorded four-robot decisions re-grounded with and without the plan], [41 analyses, 39 past the fidelity gate], [Decision-level offline], [No (post hoc)], [Nothing],
     [Plan-order and convoy held-robot prompt checks #ev("6.03") #ev("6.04")], [Prompt conditions on recorded intersection and convoy scenes], [Offline calls; 22 answers per convoy condition], [Decision-level offline], [Held-robot check yes; order check in part], [Nothing],
@@ -151,7 +151,7 @@ The prompt differs between studies (@tab:ch5-prompts): the live comparisons shar
 
 === Five-Robot Measures
 
-The registered measure definitions (v3 addendum A33), with values ruled in addendum A34, were fixed in code before any confirmatory episode; the scorer cites the paragraph each function implements #ev("5.23") (@tab:ch5-a33).
+The registered measure definitions (v3 addendum A33), with values ruled by the owner, were fixed in code before any confirmatory episode; the scorer cites the paragraph each function implements #ev("5.23") (@tab:ch5-a33).
 
 #figure(
   table(
@@ -168,7 +168,7 @@ The registered measure definitions (v3 addendum A33), with values ruled in adden
     [Conflict episode], [GT pair encounter below 0.45 m (the latch); encounters sharing a robot that overlap or lie at most 2.0 s apart merge; no minimum duration; dwelling robots included #ev("5.24").],
     [Per-conflict scoring], [A positive analysis matches a conflict if its snapshot lies from onset to 5.0 s after the end and it names one of its robots (one conflict per analysis; ties by robot overlap, then onset); unmatched positives are false positives; latency to first match, censored at the earlier of 5.0 s after the end and $T_"end"$; type accuracy against {deadlock}, label distribution reported #ev("5.24").],
   ),
-  caption: flex-caption([Registered five-robot measures (v3 addenda A33 and A34).], [Registered five-robot measures and scorer parameters, ruled before collection.#fig-source("5.24")]),
+  caption: flex-caption([Registered five-robot measures.], [Registered five-robot measures and scorer parameters, ruled before collection.#fig-source("5.24")]),
 ) <tab:ch5-a33>
 
 The involved-set F1, $ F_1 = (2 |D inter I|) / (|D| + |I|), $ <eq:ch5-f1>
@@ -198,7 +198,7 @@ Each episode runs on one GPU virtual machine from a run kit that deploys, launch
   caption: flex-caption([Procedure of the three live comparisons.], [Procedure of the three live comparisons, as registered. A cut episode is censored, never dropped, and none is added after seeing data #ev("5.28").]),
 ) <tab:ch5-procedure>
 
-All 20 registered five-robot seeds had already run as pilots #ev("5.44"). Robots were listed in ascending identifier order in all three live comparisons, not in the random order of v1 amendment A2 #ev("5.47"). Pilot episodes enter no count #ev("5.03").
+All 20 registered five-robot seeds had already run as pilots #ev("5.44"). Robots were listed in ascending identifier order in all three live comparisons, not in the random order the first design had registered #ev("5.47"). Pilot episodes enter no count #ev("5.03").
 
 #figure(
   table(
@@ -219,7 +219,7 @@ All 20 registered five-robot seeds had already run as pilots #ev("5.44"). Robots
 
 *Post hoc re-run.* After run 2's results, the owner asked for one scripted slot in the registered exclusion class to be re-run; an amendment registered first allowed one launch without retry, kept the invalid-jam rule, and requires the scripted arm to be reported before and after #ev("5.31").
 
-*Safety gates* are validity conditions: a breach is a safety finding, and the episode is scored as it ran #ev("5.32"). Three distances stay apart: the 0.45 m latch, which also defines a conflict; the 0.20 m floor; and the 0.18 m GT centre distance used as a proxy for robot-robot contact #ev("5.43") #ev("5.32"). The registered pilot gated #ev("5.32") robot pairs below 0.18 m in an all-pairs GT scan (the simulator's contact field is a stub) and floor stops; the floor on M4's start-up line; per-arm conditions (for the off arm, no artifact, one status line and a non-empty scene log, so a crashed orchestrator cannot pass as silence); escort legs against the 0.45 m park clearance; and pins. Rack contact was not gated; a later recompute flagged one possible millimetre graze, not established as a contact #ev("6.01"). In the intersection runs floor stops count as failures while the run continues, and run 2's first check episode also needed no GT pair below 0.18 m #ev("5.33")\; condition gates check the served model, or that the scripted arm served none #ev("5.20"). A `junction_clear` phase names all four robots, so the floor is the only backstop between them #ev("5.33").
+*Safety gates* are validity conditions: a breach is a safety finding, and the episode is scored as it ran #ev("5.32"). Three distances stay apart: the 0.45 m latch, which also defines a conflict; the 0.20 m floor; and the 0.18 m GT centre distance used as a proxy for robot-robot contact #ev("5.43") #ev("5.32"). The registered pilot gated #ev("5.32") robot pairs below 0.18 m in an all-pairs GT scan (the simulator's contact field is a stub) and floor stops; the floor on M4's start-up line; per-arm conditions (for the off arm, no artifact, one status line and a non-empty scene log, so a crashed orchestrator cannot pass as silence); escort legs against the 0.45 m park clearance; and the checksum pin gate. Rack contact was not gated; a later recompute flagged one possible millimetre graze, not established as a contact #ev("6.01"). In the intersection runs floor stops count as failures while the run continues, and run 2's first check episode also needed no GT pair below 0.18 m #ev("5.33")\; condition gates check the served model, or that the scripted arm served none #ev("5.20"). A `junction_clear` phase names all four robots, so the floor is the only backstop between them #ev("5.33").
 
 == Analysis Plan <sec:ch5-analysis>
 
@@ -229,11 +229,11 @@ All 20 registered five-robot seeds had already run as pilots #ev("5.44"). Robots
 
 == Failure-Cause Classification <sec:ch5-failure-cause>
 
-This post hoc classification assigns causes to the five-robot episodes that did not finish. It was designed after the outcomes were known, with rules frozen before any coding #ev("6.60") #ev("6.61")\; results are in @sec:res-failure-causes. Round 1 coded all 55 failure units and showed missing evidence rows; round 2, declared after round-1 codes were seen, added the rows without changing the rule, and both raters re-coded the same 34 units. A clock mapping for the coordination-layer-off sheets failed its pre-set tolerance in 5 of 28 validation bundles and was not applied #ev("6.65"). Agreement is reported on final codes with round 1 beside it, and reconciliation resolved remaining disagreements against the rule text #ev("6.63").
+This post hoc classification assigns causes to the five-robot episodes that did not finish. It was designed after the outcomes were known, with rules frozen before any coding #ev("6.60") #ev("6.61")\; results are in @sec:res-failure-causes. Round 1 coded all 55 failure units and showed missing evidence rows; round 2, declared after round-1 codes were seen but before any round-2 coding, added the rows without changing the rule, and both raters re-coded the same 34 units. A rater's final code is its round-2 code where the unit was in scope and its round-1 code otherwise. A clock mapping for the coordination-layer-off sheets failed its pre-set tolerance in 5 of 28 validation bundles and was not applied #ev("6.65"). Agreement is reported on final codes with round 1 beside it, and reconciliation resolved remaining disagreements against the rule text #ev("6.63").
 
 === Failure Units <sec:ch5-fc-units>
 
-A *failure unit*, defined from ground truth so it exists in every arm, is a scorer conflict episode still open at the last GT sample, or a *lone stall*: a robot that moved under 0.05 m in the last 60 s, not waiting at a task node and not in a conflict unit. Robots parked after their last task are listed apart #ev("6.60").
+A *failure unit*, defined from ground truth so it exists in every arm, is a scorer conflict episode still open at the last GT sample, or a *lone stall*: a robot that moved under 0.05 m in the last 60 s, not waiting at a task node and not in a conflict unit. Each unit has an onset, the start of its conflict or stall; robots parked after their last task are listed apart #ev("6.60").
 
 === Cause Classes <sec:ch5-fc-classes>
 
@@ -249,7 +249,7 @@ Two independent raters, both language-model agents with no recorded human check,
 
 === Strata, Frozen Outcomes and the Coordination-Layer-Off Arm <sec:ch5-fc-strata>
 
-The 33 episodes form three strata: the 10 registered-pilot episodes, the 21 exploratory pilot episodes (those ended by the pilots' early-stop rule tabulated apart), and two November takes (one demonstration, one validation), tabulated together for coding only; echo-model episodes and shadow-run bundles are excluded #ev("6.61") #ev("6.62"). Outcome fields were copied from the scorer files and frozen before coding; nothing is rescored #ev("6.60"). With the coordination layer off, decision and grounding codes are not applicable by construction; such units take environment, execution or undetermined codes plus a context code, and whether an action was available is reported but never used for a decision or grounding code #ev("6.60"). In these data every off-arm unit is undetermined for lack of a clock anchor, so the arms cannot be compared on causes (@sec:res-failure-causes).
+The 33 episodes form three strata that are never pooled: the 10 registered-pilot episodes, the 21 exploratory pilot episodes (those ended by the pilots' early-stop rule tabulated apart), and two November takes (one demonstration, one validation), tabulated together for coding only; echo-model episodes and shadow-run bundles are excluded #ev("6.61") #ev("6.62"). Outcome fields were copied from the scorer files and frozen before coding; nothing is rescored #ev("6.60"). With the coordination layer off, decision and grounding codes are not applicable by construction; such units take environment, execution or undetermined codes plus a context code, and whether an action was available is reported but never used for a decision or grounding code #ev("6.60"). In these data every off-arm unit is undetermined for lack of a clock anchor, so the arms cannot be compared on causes (@sec:res-failure-causes).
 
 === Interception Analysis <sec:ch5-fc-intercept>
 
@@ -301,7 +301,7 @@ These threats were known before the data they affect was collected.
 
 *Small n.* Five pairs, and five episodes per arm per intersection run, show only large, consistent differences; a null is not evidence of no effect, and the bootstrap has few distinct resamples #ev("5.34"). The failure-cause strata hold 10, 21 and 2 episodes.
 
-*Why five per arm, and why coordination layer off as the only live control.* Five is the first quarter of 20 seeds per arm, not the result of a power analysis #ev("5.04"). Machine time was the constraint: at a real-time factor of about 0.18 a full-horizon five-robot episode took about 55 min, the ten pilot episodes 9 h 18 min, and v3 addendum A36 estimated the remaining 30 episodes at about 28 GPU-hours #ev("5.50")\; the intersection registration fixed five per arm without a stated rationale at 28–35 min per episode #ev("5.50"). Model spend was capped at \$1.30 and \$3.00 #ev("5.28") #ev("5.29"). The control is coordination layer off by the ruling of v3 addendum A34, replacing the v1 classical reasoner #ev("5.46")\; no classical rule ran live, and each further arm would have cost the same machine time.
+*Why five per arm, and why coordination layer off as the only live control.* Five is the first quarter of 20 seeds per arm, not the result of a power analysis #ev("5.04"). Machine time was the constraint: at a real-time factor of about 0.18 a full-horizon five-robot episode took about 55 min, the ten pilot episodes 9 h 18 min, and the registered outcome record estimated the remaining 30 episodes at about 28 GPU-hours #ev("5.50")\; the intersection registration fixed five per arm without a stated rationale at 28–35 min per episode #ev("5.50"). Model spend was capped at \$1.30 and \$3.00 #ev("5.28") #ev("5.29"). The control is coordination layer off by an owner ruling registered before the pilot, replacing the v1 classical reasoner #ev("5.46")\; no classical rule ran live, and each further arm would have cost the same machine time.
 
 *Non-independence.* Intersection episodes are near-repeats of one scene #ev("5.35").
 

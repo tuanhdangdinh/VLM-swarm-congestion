@@ -38,7 +38,7 @@ Isaac Sim @isaacsimdocs runs on a cloud virtual machine with an NVIDIA L4 GPU an
   caption: flex-caption([Software stack of the pinned runtime.], [Software stack of the pinned runtime. Simulator, middleware and container package versions are those inventoried on an experiment machine on 9 October 2026 #ev("4.02").]),
 ) <tab:impl-stack>
 
-The registered pilot's machine, a snapshot clone of an earlier disk, was not re-inventoried #ev("4.01") #ev("4.03"). The robots are articulated by Isaac Sim's Newton backend #ev("4.33"), not the PhysX that the simulation specification required #ev("4.34"). Of eleven pinned backend sections #ev("4.07"), each evaluated run's launch configuration selects ER-2 #ev("4.01")\; `gpt-4o-2024-08-06` served the earlier pilots and `claude-sonnet-5-5` the offline work. @tab:module-io lists the module contracts.
+The registered pilot's machine, a snapshot clone of an earlier disk, was not re-inventoried #ev("4.01") #ev("4.03"). The robots are articulated by Isaac Sim's Newton backend #ev("4.33"), not the PhysX that the simulation specification required #ev("4.34"). Of eleven pinned backend sections #ev("4.07"), each evaluated run's launch configuration selects ER-2 #ev("4.01")\; `gpt-4o-2024-08-06` is the shipped default and the model of the earlier head-on runs and replays, and `claude-sonnet-5-5` serves the offline work. @tab:module-io lists the module contracts.
 
 #figure(
   placement: auto,

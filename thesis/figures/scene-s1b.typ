@@ -61,6 +61,6 @@
     rect((lx + 2.3, by - 0.07), (lx + 2.5, by + 0.07), fill: rack, stroke: 0.5pt + luma(120))
     content((lx + 2.6, by), anchor: "west", text(size: 7pt, fill: ink)[rack])
     line((lx + 3.3, by), (lx + 3.6, by), stroke: (paint: ink, thickness: 0.6pt, dash: "dashed"))
-    content((lx + 3.7, by), anchor: "west", text(size: 7pt, fill: ink)[M1 band])
+    content((lx + 3.7, by), anchor: "west", text(size: 7pt, fill: ink)[tracked band])
   }))
 }
