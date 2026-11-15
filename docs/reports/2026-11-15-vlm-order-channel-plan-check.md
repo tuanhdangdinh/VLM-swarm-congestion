@@ -454,3 +454,27 @@ Per replicate: A3 verbatim 4 / 2, order changes 1 / 0. B3 verbatim 10 of 20 / 4 
 **Analysis-only change.** `analyze_one` now records a `strategy: none` answer as `not_congestion` and stops, because `verify_and_repair_plan` raises on it. Cycle 1 had no such answer, so its rows are unaffected. No grounding, verification, parser or safety code changed.
 
 **Spend (verified, `ledger.json`).** 69 billed calls, ledger $0.583 (list × 1.25), so **$0.466 at list**, under the $0.50 cap. No probe was run. The timed-out attempt is not in the ledger; whether Google bills it is unknown.
+
+---
+
+## 11. Addendum (2026-11-15): Sonnet 5.5 Under B3, Offline Sanity Check for the Sonnet Demo Arm
+
+This check backs the go/no-go for up to 2 live Sonnet 5.5 intersection takes (demo campaign registration section 10.5; owner 2026-11-15: "you can try sonnet or gpt if needed"). It changes no prompt, parser, grounding, verification or safety code, and it does not touch the yielder gap.
+
+### 11.1 Pre-Registration (Written and Committed Before the First Paid Call)
+
+- **Model:** `claude-sonnet-5-5`, models.yaml arm `anthropic` as M5 resolves it (`thinking_type: between_tools`, 4 attempts, grey-image fallback after 2, sampling recorded as unsupported). The same id the cycle-1 Sonnet calls used (`calls.jsonl`, `model_id`).
+- **Condition:** B3 only (the live intersection condition: v3.5 rules + release sentence + candidate options), built by the same runner (`scripts/vlm_order_channel_plan_check.py`, condition `B3`, `rep 0`).
+- **n = 16:** the first 16 stimuli in the runner's `STIMULI` order (all 6 `ib10L`, all 5 `ib10S`, the 4 October snapshots, Arm C `4edbbfa0`). 15 are first triggers; `ceff5efa` (e09 third trigger) is excluded from per-episode figures, as before. Same frames and prompts as cycle 2 (`B3_user_sha256` in `stimuli.json`).
+- **Spend cap:** $0.60 at list = `--cap 0.75 --subcap 0.75` in the runner's ledger units (list × 1.25), checked before every attempt with the worst-case reserve. Expected about $0.21 at list (cycle-1 Sonnet median $0.013 per call). Fewer than 16 billed calls is reported as partial.
+- **Output:** a new directory, `data/experiments/2026-11-15-vlm-order-channel-plan-check-c3-sonnet/` (the earlier ledgers and calls stay as committed). Only the Anthropic key is exported to the runner.
+- **Stop rules:** the runner's (a refusal or an HTTP 401/402/403/429 stops the provider; the cap).
+- **Measures** (offline replay through `InProcessPipeline._run_from_result`, unchanged `analyze` / `tables`):
+  1. answered / refused (attempts with `refusal`, `refusal_category`);
+  2. structurally valid (plan present after parsing);
+  3. `vlm_verbatim`;
+  4. verbatim with recede order ≠ chi;
+  5. of those, executed as written (`dispatch_matches_plan` under `model_when_verified`);
+  6. the yielder gap: verbatim plans whose `yield` leg names a robot other than the executed yielder (`dispatch_matches_plan=false`). Under the take classifier (registration section 10.4) such a take is M3-default, never VLM-driven.
+- **Per-take chance** of a VLM-driven take = first-trigger rate of (4 and 5); over the 2 allowed takes, 1 − (1 − p)². Descriptive only; one scene, n = 15 first triggers.
+- **Go/no-go:** the three section 10.1 criteria (a) structurally valid and feasible, (b) executed as written, not replaced, (c) executed commands differ from the no-VLM default.
