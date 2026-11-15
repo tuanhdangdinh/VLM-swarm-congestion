@@ -1,0 +1,1150 @@
+{
+ "anthropic|B3|all": {
+  "n_calls": 16,
+  "n_billed": 16,
+  "1_valid": 16,
+  "2_jc_all_four": 11,
+  "strategies": {
+   "junction_clear": 11,
+   "yield": 5
+  },
+  "3_plan_present": 16,
+  "3_absent_or_nulled_reasons": {},
+  "4_provenance": {
+   "vlm_verbatim": 11,
+   "m3_default": 4,
+   "repaired": 1
+  },
+  "4_terminal_not_ok": {},
+  "4_repair_edit_reasons": {
+   "reordered: robot_3 is a structural recede candidate but holds 'cross' instead of reverse; robot_2 and robot_3 exchanged position": 1,
+   "robot_3: cross infeasible: robot_3 is a structural recede candidate but holds 'cross' instead of reverse; substituted to reverse toward M3's derived plan": 1
+  },
+  "4_m3_default_reasons": {
+   "repair distance exceeds bound 4": 4
+  },
+  "5_verbatim_with_recede": 10,
+  "5_order_equal_chi": 4,
+  "5_order_differs_chi": 6,
+  "5_verbatim_plans": [
+   [
+    "ib10L_e01_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10L_e01_armA_a2",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10L_e03_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ],
+   [
+    "ib10L_e07_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10S_e01_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ],
+   [
+    "ib10S_e03_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10S_e05_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10S_e09_armA_a1",
+    0,
+    [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "vp08_er2_ib10_s42",
+    0,
+    [
+     [
+      "robot_4",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_3",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "wait"
+     ]
+    ],
+    null
+   ],
+   [
+    "ep2_live_er2",
+    0,
+    [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ],
+   [
+    "ib10S_e02_armC_a2",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ]
+  ],
+  "6_dispatch_order_source_model": 10,
+  "6_mwv_differs_from_noplan": 6,
+  "6_changed_phase_labels": {
+   "('recede',)": 6
+  },
+  "6_model_src_dispatch_matches_plan": {
+   "False": 6,
+   "True": 4
+  },
+  "6_chi_differs_from_noplan": 0,
+  "7_yield_refusals": {},
+  "7_grounding_failures": {},
+  "plans_reversing_both_pair_robots": 10,
+  "pair_order_equal_chi": 4,
+  "pair_order_ascending_id": 8,
+  "swapped_order_plans": [
+   {
+    "episode": "ib10L_e01_armA_a1",
+    "request_id": "0b9d2939",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.019,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10L_e01_armA_a2",
+    "request_id": "d9374445",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.031,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10L_e07_armA_a1",
+    "request_id": "d7da0457",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.03,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10S_e03_armA_a1",
+    "request_id": "18c2a25e",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.007,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e05_armA_a1",
+    "request_id": "580328a5",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.012,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ep2_live_er2",
+    "request_id": "5dfbeb07",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.032,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": false
+   }
+  ],
+  "first_trigger_billed": 15,
+  "demo_events_first_trigger": 6,
+  "demo_events_first_trigger_and_match": 1,
+  "executed_yielder_mwv": {
+   "robot_1": 9,
+   "None": 5,
+   "robot_2": 2
+  },
+  "refusal_attempts": 0,
+  "usd_ledger": 0.2705
+ },
+ "anthropic|B3|rep0": {
+  "n_calls": 16,
+  "n_billed": 16,
+  "1_valid": 16,
+  "2_jc_all_four": 11,
+  "strategies": {
+   "junction_clear": 11,
+   "yield": 5
+  },
+  "3_plan_present": 16,
+  "3_absent_or_nulled_reasons": {},
+  "4_provenance": {
+   "vlm_verbatim": 11,
+   "m3_default": 4,
+   "repaired": 1
+  },
+  "4_terminal_not_ok": {},
+  "4_repair_edit_reasons": {
+   "reordered: robot_3 is a structural recede candidate but holds 'cross' instead of reverse; robot_2 and robot_3 exchanged position": 1,
+   "robot_3: cross infeasible: robot_3 is a structural recede candidate but holds 'cross' instead of reverse; substituted to reverse toward M3's derived plan": 1
+  },
+  "4_m3_default_reasons": {
+   "repair distance exceeds bound 4": 4
+  },
+  "5_verbatim_with_recede": 10,
+  "5_order_equal_chi": 4,
+  "5_order_differs_chi": 6,
+  "5_verbatim_plans": [
+   [
+    "ib10L_e01_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10L_e01_armA_a2",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10L_e03_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ],
+   [
+    "ib10L_e07_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10S_e01_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ],
+   [
+    "ib10S_e03_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10S_e05_armA_a1",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "ib10S_e09_armA_a1",
+    0,
+    [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_4",
+     "robot_3"
+    ]
+   ],
+   [
+    "vp08_er2_ib10_s42",
+    0,
+    [
+     [
+      "robot_4",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ],
+     [
+      "robot_3",
+      "cross"
+     ],
+     [
+      "robot_2",
+      "wait"
+     ]
+    ],
+    null
+   ],
+   [
+    "ep2_live_er2",
+    0,
+    [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ],
+   [
+    "ib10S_e02_armC_a2",
+    0,
+    [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    [
+     "robot_3",
+     "robot_4"
+    ]
+   ]
+  ],
+  "6_dispatch_order_source_model": 10,
+  "6_mwv_differs_from_noplan": 6,
+  "6_changed_phase_labels": {
+   "('recede',)": 6
+  },
+  "6_model_src_dispatch_matches_plan": {
+   "False": 6,
+   "True": 4
+  },
+  "6_chi_differs_from_noplan": 0,
+  "7_yield_refusals": {},
+  "7_grounding_failures": {},
+  "plans_reversing_both_pair_robots": 10,
+  "pair_order_equal_chi": 4,
+  "pair_order_ascending_id": 8,
+  "swapped_order_plans": [
+   {
+    "episode": "ib10L_e01_armA_a1",
+    "request_id": "0b9d2939",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.019,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10L_e01_armA_a2",
+    "request_id": "d9374445",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.031,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10L_e07_armA_a1",
+    "request_id": "d7da0457",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.03,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ib10S_e03_armA_a1",
+    "request_id": "18c2a25e",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_1",
+      "yield"
+     ],
+     [
+      "robot_2",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.007,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": true
+   },
+   {
+    "episode": "ib10S_e05_armA_a1",
+    "request_id": "580328a5",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_margin": 0.012,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "dispatch_matches_plan": false
+   },
+   {
+    "episode": "ep2_live_er2",
+    "request_id": "5dfbeb07",
+    "rep": 0,
+    "plan": [
+     [
+      "robot_4",
+      "reverse"
+     ],
+     [
+      "robot_3",
+      "reverse"
+     ],
+     [
+      "robot_2",
+      "yield"
+     ],
+     [
+      "robot_1",
+      "cross"
+     ]
+    ],
+    "model_pair_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "chi_order": [
+     "robot_3",
+     "robot_4"
+    ],
+    "chi_margin": 0.032,
+    "provenance": "vlm_verbatim",
+    "edits": [],
+    "mwv_recede_order": [
+     "robot_4",
+     "robot_3"
+    ],
+    "dispatch_matches_plan": false
+   }
+  ],
+  "first_trigger_billed": 15,
+  "demo_events_first_trigger": 6,
+  "demo_events_first_trigger_and_match": 1,
+  "executed_yielder_mwv": {
+   "robot_1": 9,
+   "None": 5,
+   "robot_2": 2
+  },
+  "refusal_attempts": 0,
+  "usd_ledger": 0.2705
+ }
+}

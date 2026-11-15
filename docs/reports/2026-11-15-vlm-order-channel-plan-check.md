@@ -478,3 +478,26 @@ This check backs the go/no-go for up to 2 live Sonnet 5.5 intersection takes (de
   6. the yielder gap: verbatim plans whose `yield` leg names a robot other than the executed yielder (`dispatch_matches_plan=false`). Under the take classifier (registration section 10.4) such a take is M3-default, never VLM-driven.
 - **Per-take chance** of a VLM-driven take = first-trigger rate of (4 and 5); over the 2 allowed takes, 1 − (1 − p)². Descriptive only; one scene, n = 15 first triggers.
 - **Go/no-go:** the three section 10.1 criteria (a) structurally valid and feasible, (b) executed as written, not replaced, (c) executed commands differ from the no-VLM default.
+
+### 11.2 Results (Verified, Sonnet B3)
+
+Data: `data/experiments/2026-11-15-vlm-order-channel-plan-check-c3-sonnet/` (`calls.jsonl`, `analysis.jsonl`, `summary.json`, `tables.txt`, `ledger.json`). Run complete: 16 of 16 billed, one attempt each, every `stop_reason` `end_turn`, no HTTP error.
+
+| Count (Sonnet 5.5, B3) | Value |
+|---|---|
+| Calls billed / answered / refused | 16 / 16 / 0 (0 refusal attempts) |
+| Strategy | `junction_clear` 11, `yield` 5 |
+| Structurally valid (plan present after parsing) | 16 / 16 |
+| `vlm_verbatim` / `repaired` / `m3_default` | 11 / 1 / 4 (the 4: `yield` plans, repair distance over bound 4) |
+| Verbatim with a recede pair | 10 (order = chi 4, ≠ chi 6) |
+| Verbatim, order ≠ chi, executed as written (`dispatch_matches_plan`) | **1 of 6** (`ib10S_e03`, yielder robot_1) |
+| Yielder gap: verbatim `junction_clear` plans naming robot_2 as yielder | 8 of 10; dispatch yields robot_1 in 6 of them (`dispatch_matches_plan=false`) |
+| ... of the 6 order changes, disqualified by the yielder gap | 5 |
+| First triggers (excl. `ceff5efa`) | 15 |
+| FT demo events: verbatim, order ≠ chi, phases ≠ no-plan default | 6 / 15 |
+| ... and `dispatch_matches_plan` (the classifier's VLM-driven condition) | **1 / 15** |
+
+- **Per-take chance** of a VLM-driven take (FT rate of the last row): 1/15 = 6.7 %; over the 2 allowed takes about 13 % (inferred, 1 − (1 − p)²). For comparison, ER-2 B3 offline was 7/27 per take (section 10.3).
+- **Order bias:** 8 of the 10 pair plans list robot_3 first (ascending id), as in cycle 1.
+- **Spend:** ledger $0.2705 (list × 1.25), so **$0.216 at list**, under the $0.60 cap.
+- **Reading against the three criteria.** (a) met: 16/16 valid, 11/16 verbatim. (b) mostly not met: Sonnet's default yielder is robot_2, which dispatch replaces with robot_1, so 6 of the 10 verbatim pair plans are accepted but not executed as written. (c) the recede order differs from the default in 6/15, but only 1/15 is executed as written. The yielder gap stays open by owner decision; grounding was not changed.
