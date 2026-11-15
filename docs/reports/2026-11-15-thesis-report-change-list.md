@@ -7,6 +7,7 @@
 - Initial draft: statements to change in the thesis report, results to add, drop or relabel, new limitations, pending items and figures to make, mapped to the evidence of 2026-11-15.
 - Rev 2 (2026-11-15): added section 10, "Scenario Images: What to Insert and Where" (15 extracted stills with md5s, a placement table, Typst snippets, reading order, outdated figures, missing figures).
 - Rev 3 (2026-11-15): added section 10.8, the drawn take 5 decision-flow figure with real output and a head-on gate contrast strip (files with md5s, insertion point, caveats).
+- Rev 4 (2026-11-15): added section 10.9, a simplified take 5 figure for the main text (four blocks; only the back-out order comparison marked as the VLM's contribution); the detailed 10.8 figure moves to a new appendix as the traceable reference, with one added caption sentence on the safety scope.
 
 ---
 
@@ -623,6 +624,40 @@ Row 15:
   - The GT speed of robot_3 and robot_4 first rises above 0 at 32.3 s and 41.4 s. `DC` 7.2 gives the back-out starts as 32.9 s and 41.9 s, which matches the first sample displaced more than 0.05 m from the standing pose. The figure keeps the report's values.
   - The take 5 request ran with `grounding_yield_feasibility=off`. Its plan was accepted by the plan verifier, not by the yield gate.
   - The M4 startup line of take 5 shows `scoped_clearing_exemption=True`, unlike the runtime that the thesis evaluates. The rail says so.
+- **Superseded in part by 10.9 (Rev 4).** The figure files are unchanged, but the figure moves from Chapter 6 to a new appendix with label `fig:app-flow-take5`. Its caption gains one sentence on the safety scope.
+
+### 10.9 Simplified Take 5 Figure for the Main Text; Detailed Figure Moves to an Appendix (Added in Rev 4)
+
+- **Why.** The owner judged the 10.8 figure too dense for the main text. It stays unchanged as the traceable reference in an appendix. A simplified figure replaces it in Chapter 6.
+- **What the simplified figure shows.** Four blocks, top to bottom, with arrows between them:
+  - **1 VLM proposed** (M2, `gemini-robotics-er-2-preview`): `strategy: junction_clear` and the condensed plan `robot_3 reverse, robot_4 reverse, robot_1 yield, robot_2 cross`.
+  - **2 M3 verified** (plan verifier): "Plan accepted unchanged, no edits", then the order comparison. The model's back-out order `robot_3` → `robot_4` (dispatched) is set against the default order `robot_4` → `robot_3`; the recede-cost difference is 0.010 m, within the 0.15 m tolerance, a near-tie.
+  - **3 Grounding computed** (M3, system): the back-out set comes from the scene geometry and the yielder `robot_1` is M3's own. Grounding computed the commanded back-out distances (0.781 m, 0.971 m), the waits, and the crossing and release phases.
+  - **4 Dispatched and executed:** `robot_3` backed out from sim 32.9 s, then `robot_4` from 41.9 s. The crossing and release then ran as in the default plan. "In this run, all four robots reached their goals between sim 95.1 s and 146.4 s", with no success marks or colour.
+  - **Styling and notes.** Only the order comparison is filled (accent fill, solid border), as the VLM's contribution to the executed commands. Every other block is unfilled, so the proposal is not styled as decided by the model; the fill stays distinct in greyscale. A slim note under the blocks reads: "Safety monitor (M4) in this run: robot-pair distance only (0.45 m latch, with robots in the same reverse or yield command exempt; 0.20 m hard floor on centre distance). It has no obstacle check, and the escort path was not checked against obstacles." A one-line legend explains the two styles.
+  - **Omitted** (left to the appendix figure): `crossing_order`, the options block, log lines, request ids, the head-on strip and the safety rail.
+- **Files** (`P/flow_diagram/`, git-ignored, on this Mac only; the 10.8 files were verified byte-identical before and after this work):
+
+| File | md5 |
+|---|---|
+| `vlm_flow_take5_simple.typ` (figure function `vlm-flow-simple-figure()` plus a standalone A4 preview) | `e49262a9a443a15cbadb89a3322383dd` |
+| `vlm_flow_take5_simple.pdf` (standalone preview, 1 page) | `f0933aa00205b87db1cab2ac519a25e5` |
+| `vlm_flow_take5_simple.png` (same page, 300 ppi, 2480 x 3508) | `b837b64c7727c344ef5338a9338f86bf` |
+| `SOURCES_simple.md` (each value with its source in `SOURCES.md` or `DC` sections 1, 7, 8.7, 10) | `96da6783473a45ea6ee55d1d3da4f019` |
+| `INSERT_simple.md` (snippets, placement for both figures, appendix caption) | `f485b8619c730d95a417eed9b5726f97` |
+
+- **Main-text placement.** Copy the file to `thesis/figures/vlm-flow-take5-simple.typ` and import `vlm-flow-simple-figure` after line 1 of `06-results.typ`. The figure goes in Chapter 6, "== Demonstration Campaign" → "=== Intersection, take 5" (the headings rows 4 to 6 add after line 18). It comes first in that subsection, after its first paragraph and before the stills of rows 5 and 6, because their captions rely on the order comparison. Label `fig:ch6-flow-take5-simple`, `kind: image`.
+- **Size.** In a scratch copy of the thesis (stub `NEW-DC` row, deleted afterwards), the figure and caption take 135 mm of the 250 mm text block, about 54 % of a page. All figure text is at least 8 pt. The build compiled with no errors or warnings.
+- **Caption caveats.**
+  - One live run, take 5 of 5, selected because it is the only take labelled VLM-driven execution.
+  - The model's contribution to execution was the back-out order only, a near-tie (0.010 m within 0.15 m).
+  - "An end-to-end execution example, not controlled evidence of improved performance: the four arrivals do not show that the VLM outperforms the default plan." The default plan resolved the same scene in takes 2 to 4, and take 1 was unresolved (`DC` 1, 7.1, 7.2).
+  - Only robot-pair distance was checked for safety; there was no obstacle verification.
+  - A pointer to the appendix figure.
+  - No contact or rate claims.
+- **Safety-note wording, narrower than the brief's "No obstacle check was active".** `DC` 8.7.3 supports only two statements: the M4 monitor has no obstacle check, and no stage checks the escort segment against obstacles. The same table lists one M3 check that does use static boxes (the yielder's retreat room; the intersection declares no boxes). `DC` says nothing about Nav2's obstacle handling. The escort obstacle guard (`DC` 10.1) was built after take 5 and has not been run live.
+- **Detailed figure moves to an appendix.** Add a new file `thesis/chapters/10-appendix-traces.typ` with "= Decision Trace of Intersection Take 5" and the 10.8 figure, label `fig:app-flow-take5`. Include it in `main.typ` after line 116, the Evidence Index include, which makes it Appendix B. Drop the `vlm-flow-figure` import from `06-results.typ`. The appendix caption is the 10.8 caption plus this sentence: "Safety in this run was checked by robot-pair distance only (the M4 safety monitor); no obstacle verification was active." In the scratch build, the figure with the longer caption still fits on one page.
+- **Source tag.** Both snippets use `#fig-source("NEW-DC")` and need the demo-campaign Evidence Index row (section 7 row 13).
 
 ---
 
