@@ -1,0 +1,27 @@
+{
+ "model": "claude-sonnet-5-5",
+ "max_tokens": 2048,
+ "thinking": {
+  "type": "between_tools"
+ },
+ "system": "You are a helpful assistant.",
+ "messages": [
+  {
+   "role": "user",
+   "content": [
+    {
+     "type": "image",
+     "source": {
+      "type": "base64",
+      "media_type": "image/png",
+      "data": "<base64 of grey_1280x960.png omitted>"
+     }
+    },
+    {
+     "type": "text",
+     "text": "<user_prompt_53264de9_id_asc.txt>"
+    }
+   ]
+  }
+ ]
+}

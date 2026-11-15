@@ -1,0 +1,99 @@
+"""DIAGNOSTIC ONLY: which part of the v1 prompt trips Sonnet 5.5's reasoning_extraction refusal.
+
+One fixed cell: scene 53264de9, id_asc, obstacle text on, grey 1280x960 image
+(user sha 372274...). Each call goes through the shipped AnthropicBackend.analyze,
+so the wire shape is the arm's own. Usage: python probe.py VARIANT N
+Key comes from the environment (sourced .env); never printed.
+"""
+import copy
+import json
+import sys
+import time
+from pathlib import Path
+
+WT = Path("/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-swapid")
+OUT = Path(__file__).resolve().parent
+for p in (WT, WT / "ros2_ws/src/swarm_orchestrator", WT / "scripts"):
+    sys.path.insert(0, str(p))
+import yaml  # noqa: E402
+
+from reasoning.vlm.anthropic_backend import AnthropicBackend  # noqa: E402
+from reasoning.vlm.backend_factory import load_backend_config, resolve_reasoner_config  # noqa: E402
+from reasoning.vlm.models import PromptPayload  # noqa: E402
+
+LEDGER = OUT / "ledger.jsonl"
+MAX_CALLS, MAX_USD = 12, 0.40
+GREY = WT / "data/experiments/2026-11-14-head-on-swapped-id-replay/grey_1280x960.png"
+SYSTEM = (OUT / "system_prompt.txt").read_text()
+USER = (OUT / "user_prompt_53264de9_id_asc.txt").read_text()
+FORMAT_START = "Answer using the following format:"
+assert USER.count(FORMAT_START) == 1 and USER.endswith("markdown.")
+HEAD = USER[: USER.index(FORMAT_START)]
+OCT_LINE = "Write ONLY the final JSON object, with no surrounding text or markdown."
+TAGLESS = (
+    "First explain, in two or three plain sentences, the evidence for your decision. "
+    "Then write the final JSON object, with no markdown."
+)
+
+VARIANTS = {
+    # name: (user_text, thinking_type)
+    "V0_shipped": (USER, "between_tools"),
+    "V1_no_think_block": (HEAD + OCT_LINE, "between_tools"),
+    "V2_no_think_block_adaptive": (HEAD + OCT_LINE, "adaptive"),
+    "V3_shipped_adaptive": (USER, "adaptive"),
+    "V4_tagless_explain_first": (HEAD + TAGLESS, "between_tools"),
+}
+
+
+def ledger():
+    if not LEDGER.exists():
+        return []
+    return [json.loads(line) for line in LEDGER.read_text().splitlines() if line.strip()]
+
+
+def main():
+    name, n = sys.argv[1], int(sys.argv[2])
+    user, thinking = VARIANTS[name]
+    vlm = yaml.safe_load((WT / "config/models.yaml").read_text())["vlm"]
+    rc = resolve_reasoner_config(vlm, "anthropic")
+    bc = load_backend_config(vlm, "anthropic")
+    backend = AnthropicBackend(
+        model_id=bc.model_id, base_url=bc.base_url, api_key_env=bc.api_key_env,
+        thinking_type=thinking, effort=bc.effort,
+    )
+    payload = PromptPayload(system_prompt=SYSTEM, user_prompt=user, image_path=str(GREY), known_robot_ids=["robot_1", "robot_2"])
+    for i in range(n):
+        rows = ledger()
+        spent = sum(r["usd"] for r in rows)
+        if len(rows) >= MAX_CALLS or spent >= MAX_USD - 0.03:
+            print("BUDGET STOP", len(rows), round(spent, 4))
+            return
+        t0 = time.monotonic()
+        try:
+            r = backend.analyze(payload, rc)
+        except Exception as exc:  # recorded, no exception text (could hold request data)
+            row = {"call": len(rows) + 1, "variant": name, "error": type(exc).__name__, "usd": 0.0}
+            LEDGER.open("a").write(json.dumps(row) + "\n")
+            print(row)
+            continue
+        raw = copy.deepcopy(r.raw)
+        usage = raw.get("usage") or {}
+        usd = usage.get("input_tokens", 0) * 2e-6 + usage.get("output_tokens", 0) * 10e-6
+        row = {
+            "call": len(rows) + 1, "variant": name, "thinking": thinking,
+            "max_tokens": rc.max_tokens, "user_chars": len(user),
+            "stop_reason": raw.get("stop_reason"), "stop_details": raw.get("stop_details"),
+            "refusal": r.refusal, "usage": usage, "served_model": r.served_model,
+            "request_id": r.provider_request_id,
+            "content_types": [b.get("type") for b in raw.get("content") or []],
+            "thinking_text": [b.get("thinking", "")[:300] for b in raw.get("content") or [] if b.get("type") == "thinking"],
+            "text": r.text, "latency_s": round(time.monotonic() - t0, 2), "usd": round(usd, 6),
+        }
+        LEDGER.open("a").write(json.dumps(row) + "\n")
+        print(json.dumps({k: row[k] for k in ("call", "variant", "stop_reason", "stop_details", "usage", "content_types", "usd")}))
+        print("   text:", (r.text or "")[:200].replace("\n", " | "))
+        time.sleep(1)
+
+
+if __name__ == "__main__":
+    main()

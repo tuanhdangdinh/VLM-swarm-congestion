@@ -1,0 +1,28 @@
+"""Render (no network) the exact Sonnet request for one replay cell."""
+import json, sys
+from pathlib import Path
+WT = Path("/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-swapid")
+OUT = Path(__file__).resolve().parent
+for p in (WT, WT / "ros2_ws/src/swarm_orchestrator", WT / "scripts"):
+    sys.path.insert(0, str(p))
+import yaml
+from scripts.replay_swapped_ids import load_stimuli, reconstruct_request
+from reasoning.vlm.prompt_builder import build_prompt_payload
+from reasoning.vlm.backend_factory import resolve_reasoner_config, load_backend_config
+stimuli = load_stimuli(Path("/Users/tuanhdangdinh/Documents/vgu-vlm-swarm/data/logs/vm_runs"))
+art = [a for a in stimuli if a.request_id.startswith("53264de9")][0]
+grey = WT / "data/experiments/2026-11-14-head-on-swapped-id-replay/grey_1280x960.png"
+req = reconstruct_request(art, "id_asc", grey, True)
+pl = build_prompt_payload(req)
+vlm = yaml.safe_load((WT / "config/models.yaml").read_text())["vlm"]
+rc = resolve_reasoner_config(vlm, "anthropic"); bc = load_backend_config(vlm, "anthropic")
+print("prompt_version", art.prompt_version, "obstacles", art.include_static_obstacles, "geom", art.include_pairwise_geometry)
+print("extra images", pl.extra_image_paths)
+print("max_tokens", rc.max_tokens, "thinking", bc.thinking_type, "effort", bc.effort)
+(OUT / "system_prompt.txt").write_text(pl.system_prompt)
+(OUT / "user_prompt_53264de9_id_asc.txt").write_text(pl.user_prompt)
+import hashlib; print("user sha", hashlib.sha256(pl.user_prompt.encode()).hexdigest())
+json.dump({"model": bc.model_id, "max_tokens": rc.max_tokens, "thinking": {"type": bc.thinking_type},
+  "system": pl.system_prompt, "messages": [{"role": "user", "content": [
+   {"type":"image","source":{"type":"base64","media_type":"image/png","data":"<base64 of grey_1280x960.png omitted>"}},
+   {"type":"text","text":"<user_prompt_53264de9_id_asc.txt>"}]}]}, open(OUT/"wire_request_shape.json","w"), indent=1)

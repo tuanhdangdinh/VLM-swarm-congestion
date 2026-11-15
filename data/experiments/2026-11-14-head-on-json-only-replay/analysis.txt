@@ -1,0 +1,285 @@
+## Ledger
+  gemini: runs=54 network_calls=56 usd=0.2131
+  openai: runs=0 network_calls=1 usd=0.0000
+  anthropic: runs=146 network_calls=148 usd=1.1379
+  TOTAL usd=1.3510
+
+## gemini (gemini-robotics-er-2-preview; served Counter({'gemini-robotics-er-2-preview': 53, None: 1}))
+  prompt_matches_live by arm/order: Counter({('B_grey', 'id_asc', False): 13, ('B_grey', 'id_desc', False): 12, ('A_grey', 'id_desc', False): 8, ('A_grey', 'id_asc', True): 7, ('A_grey', 'id_asc', False): 6, ('A_grey', 'id_desc', True): 4, ('A_real', 'id_desc', True): 1, ('A_real', 'id_asc', True): 1, ('C_real_notext', 'id_asc', False): 1, ('D_grey_notext', 'id_desc', False): 1})
+  strategies: Counter({'reverse': 50, 'yield': 3, None: 1})
+  refusal categories: Counter()
+  errors: Counter({'provider stopped: HTTP 429 (quota/credit)': 1})
+
+### gemini [outcome]
+
+Outcome census per arm:
+  A_real: n=2 {'no_yielder': 2} fallback=0 att1_refused=0
+  A_grey: n=25 {'no_yielder': 23, 'correct': 2} fallback=0 att1_refused=0
+  B_grey: n=25 {'no_yielder': 23, 'wrong': 1, 'error': 1} fallback=0 att1_refused=0
+  C_real_notext: n=1 {'no_yielder': 1} fallback=0 att1_refused=0
+  D_grey_notext: n=1 {'no_yielder': 1} fallback=0 att1_refused=0
+
+P(correct) by side x order x arm (calls; scenes with 2/2):
+| Side | Order | A_real | A_grey | B_grey | C_real_notext | D_grey_notext |
+|---|---|---|---|---|---|---|
+| west | id_asc | - [0/0] | 0/7 [0/6] | 0/6 [0/5] | 0/1 [0/1] | - [0/0] |
+| west | id_desc | 0/1 [0/1] | 0/6 [0/5] | 0/6 [0/5] | - [0/0] | - [0/0] |
+| east | id_asc | 0/1 [0/1] | 2/6 [2/5] | 0/7 [0/6] | - [0/0] | - [0/0] |
+| east | id_desc | - [0/0] | 0/6 [0/5] | 0/6 [0/5] | - [0/0] | 0/1 [0/1] |
+
+Label x slot combinations, grey pair (calls; scenes with 2/2):
+| Combination | P(correct) | Scenes 2/2 | Outcomes |
+|---|---|---|---|
+| label right, slot right | 2/12 | 2/10 | {'no_yielder': 10, 'correct': 2} |
+| label right, slot wrong | 0/12 | 0/10 | {'no_yielder': 11, 'error': 1} |
+| label wrong, slot right | 0/12 | 0/10 | {'no_yielder': 12} |
+| label wrong, slot wrong | 0/14 | 0/12 | {'no_yielder': 13, 'wrong': 1} |
+
+Label x slot combinations, A_real (calls; scenes with 2/2):
+| Combination | P(correct) | Scenes 2/2 | Outcomes |
+|---|---|---|---|
+| label right, slot right | 0/1 | 0/1 | {'no_yielder': 1} |
+| label right, slot wrong | 0/0 | 0/0 | {} |
+| label wrong, slot right | 0/1 | 0/1 | {'no_yielder': 1} |
+| label wrong, slot wrong | 0/0 | 0/0 | {} |
+
+Marginal effects (runs naming a yielder; 0.5 = no effect):
+  grey pair: n=3 label robot_1 3/3; first-listed 3/3; scene-correct 2/3; west robot 2/3
+  A_grey: n=2 label robot_1 2/2; first-listed 2/2; scene-correct 2/2; west robot 2/2
+  B_grey: n=1 label robot_1 1/1; first-listed 1/1; scene-correct 0/1; west robot 0/1
+  A_real: n=0 label robot_1 -; first-listed -; scene-correct -; west robot -
+  C_real_notext: n=0 label robot_1 -; first-listed -; scene-correct -; west robot -
+  D_grey_notext: n=0 label robot_1 -; first-listed -; scene-correct -; west robot -
+  grey pair id_asc: first-listed 3/3
+  grey pair id_desc: first-listed -
+
+Verdicts for gemini (decisions per arm {'A_real': 2, 'A_grey': 25, 'B_grey': 24, 'C_real_notext': 1, 'D_grey_notext': 1}):
+  scene use (grey pair, >=18/24 and >=9/12 scenes 2/2 in all four): NOT SUPPORTED
+  label bias: P(robot_1) A_grey=1.0 B_grey=1.0 -> SUPPORTED toward robot_1
+  slot bias: P(first) asc=1.0 desc=None -> NOT SUPPORTED
+  real-frame secondary: NOT ASSESSABLE (< 20 decisions)
+  image use: NOT ASSESSABLE (C runs 1, decisions 1; D runs 1, decisions 1)
+
+### gemini [attempt1_outcome]
+
+Outcome census per arm:
+  A_real: n=2 {'no_yielder': 2} fallback=0 att1_refused=0
+  A_grey: n=25 {'no_yielder': 23, 'correct': 2} fallback=0 att1_refused=0
+  B_grey: n=25 {'no_yielder': 23, 'wrong': 1, 'error': 1} fallback=0 att1_refused=0
+  C_real_notext: n=1 {'no_yielder': 1} fallback=0 att1_refused=0
+  D_grey_notext: n=1 {'no_yielder': 1} fallback=0 att1_refused=0
+
+P(correct) by side x order x arm (calls; scenes with 2/2):
+| Side | Order | A_real | A_grey | B_grey | C_real_notext | D_grey_notext |
+|---|---|---|---|---|---|---|
+| west | id_asc | - [0/0] | 0/7 [0/6] | 0/6 [0/5] | 0/1 [0/1] | - [0/0] |
+| west | id_desc | 0/1 [0/1] | 0/6 [0/5] | 0/6 [0/5] | - [0/0] | - [0/0] |
+| east | id_asc | 0/1 [0/1] | 2/6 [2/5] | 0/7 [0/6] | - [0/0] | - [0/0] |
+| east | id_desc | - [0/0] | 0/6 [0/5] | 0/6 [0/5] | - [0/0] | 0/1 [0/1] |
+
+Label x slot combinations, grey pair (calls; scenes with 2/2):
+| Combination | P(correct) | Scenes 2/2 | Outcomes |
+|---|---|---|---|
+| label right, slot right | 2/12 | 2/10 | {'no_yielder': 10, 'correct': 2} |
+| label right, slot wrong | 0/12 | 0/10 | {'no_yielder': 11, 'error': 1} |
+| label wrong, slot right | 0/12 | 0/10 | {'no_yielder': 12} |
+| label wrong, slot wrong | 0/14 | 0/12 | {'no_yielder': 13, 'wrong': 1} |
+
+Label x slot combinations, A_real (calls; scenes with 2/2):
+| Combination | P(correct) | Scenes 2/2 | Outcomes |
+|---|---|---|---|
+| label right, slot right | 0/1 | 0/1 | {'no_yielder': 1} |
+| label right, slot wrong | 0/0 | 0/0 | {} |
+| label wrong, slot right | 0/1 | 0/1 | {'no_yielder': 1} |
+| label wrong, slot wrong | 0/0 | 0/0 | {} |
+
+Marginal effects (runs naming a yielder; 0.5 = no effect):
+  grey pair: n=3 label robot_1 3/3; first-listed 3/3; scene-correct 2/3; west robot 2/3
+  A_grey: n=2 label robot_1 2/2; first-listed 2/2; scene-correct 2/2; west robot 2/2
+  B_grey: n=1 label robot_1 1/1; first-listed 1/1; scene-correct 0/1; west robot 0/1
+  A_real: n=0 label robot_1 -; first-listed -; scene-correct -; west robot -
+  C_real_notext: n=0 label robot_1 -; first-listed -; scene-correct -; west robot -
+  D_grey_notext: n=0 label robot_1 -; first-listed -; scene-correct -; west robot -
+  grey pair id_asc: first-listed 3/3
+  grey pair id_desc: first-listed -
+
+Scene level, gemini (W/E = chosen physical robot, - = none; correct marked *):
+| Scene | Side | A_real asc | A_real desc | A_grey asc | A_grey desc | B_grey asc | B_grey desc | C_real_notext asc | C_real_notext desc | D_grey_notext asc | D_grey_notext desc |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `2c3fbfa5` | west | n/a | n/a | - | - | - | - - | n/a | n/a | n/a | n/a |
+| `42fb0cb8` | west | n/a | n/a | - | - | - - | - | n/a | n/a | n/a | n/a |
+| `53264de9` | west | n/a | - | - - | - - | - | - | - | n/a | n/a | n/a |
+| `5e7b5a59` | west | n/a | n/a | - | - | - | - | n/a | n/a | n/a | n/a |
+| `810c9104` | west | n/a | n/a | - | n/a | - | n/a | n/a | n/a | n/a | n/a |
+| `d4b96fbd` | west | n/a | n/a | - | - | n/a | - | n/a | n/a | n/a | n/a |
+| `189ae2a6` | east | n/a | n/a | - | - - | - - | - - | n/a | n/a | n/a | n/a |
+| `3120c65f` | east | n/a | n/a | W* | n/a | - | - | n/a | n/a | n/a | n/a |
+| `61119197` | east | - | n/a | - | - | - | - | n/a | n/a | n/a | - |
+| `618a9f29` | east | n/a | n/a | W* | - | - | n/a | n/a | n/a | n/a | n/a |
+| `d053d0dc` | east | n/a | n/a | - - | - | E | - | n/a | n/a | n/a | n/a |
+| `e4b1bd03` | east | n/a | n/a | n/a | - | - | - | n/a | n/a | n/a | n/a |
+
+## anthropic (claude-sonnet-5-5; served Counter({'claude-sonnet-5-5': 146}))
+  prompt_matches_live by arm/order: Counter({('B_grey', 'id_desc', False): 24, ('B_grey', 'id_asc', False): 24, ('A_grey', 'id_desc', False): 14, ('A_real', 'id_asc', True): 14, ('A_grey', 'id_asc', True): 14, ('A_real', 'id_desc', False): 14, ('A_grey', 'id_asc', False): 10, ('A_real', 'id_desc', True): 10, ('A_grey', 'id_desc', True): 10, ('A_real', 'id_asc', False): 10, ('C_real_notext', 'id_asc', False): 1, ('D_grey_notext', 'id_desc', False): 1})
+  strategies: Counter({'yield': 146})
+  refusal categories: Counter()
+  errors: Counter()
+
+### anthropic [outcome]
+
+Outcome census per arm:
+  A_real: n=48 {'wrong': 30, 'correct': 18} fallback=0 att1_refused=0
+  A_grey: n=48 {'correct': 19, 'wrong': 29} fallback=0 att1_refused=0
+  B_grey: n=48 {'correct': 27, 'wrong': 21} fallback=0 att1_refused=0
+  C_real_notext: n=1 {'correct': 1} fallback=0 att1_refused=0
+  D_grey_notext: n=1 {'correct': 1} fallback=0 att1_refused=0
+
+P(correct) by side x order x arm (calls; scenes with 2/2):
+| Side | Order | A_real | A_grey | B_grey | C_real_notext | D_grey_notext |
+|---|---|---|---|---|---|---|
+| west | id_asc | 6/12 [1/6] | 10/12 [4/6] | 0/12 [0/6] | 1/1 [1/1] | - [0/0] |
+| west | id_desc | 1/12 [0/6] | 5/12 [1/6] | 5/12 [1/6] | - [0/0] | - [0/0] |
+| east | id_asc | 6/12 [1/6] | 1/12 [0/6] | 12/12 [6/6] | - [0/0] | - [0/0] |
+| east | id_desc | 5/12 [2/6] | 3/12 [0/6] | 10/12 [5/6] | - [0/0] | 1/1 [1/1] |
+
+Label x slot combinations, grey pair (calls; scenes with 2/2):
+| Combination | P(correct) | Scenes 2/2 | Outcomes |
+|---|---|---|---|
+| label right, slot right | 1/24 | 0/12 | {'wrong': 23, 'correct': 1} |
+| label right, slot wrong | 8/24 | 1/12 | {'wrong': 16, 'correct': 8} |
+| label wrong, slot right | 15/24 | 6/12 | {'wrong': 9, 'correct': 15} |
+| label wrong, slot wrong | 22/24 | 10/12 | {'correct': 22, 'wrong': 2} |
+
+Label x slot combinations, A_real (calls; scenes with 2/2):
+| Combination | P(correct) | Scenes 2/2 | Outcomes |
+|---|---|---|---|
+| label right, slot right | 6/12 | 1/6 | {'wrong': 6, 'correct': 6} |
+| label right, slot wrong | 5/12 | 2/6 | {'wrong': 7, 'correct': 5} |
+| label wrong, slot right | 1/12 | 0/6 | {'wrong': 11, 'correct': 1} |
+| label wrong, slot wrong | 6/12 | 1/6 | {'correct': 6, 'wrong': 6} |
+
+Marginal effects (runs naming a yielder; 0.5 = no effect):
+  grey pair: n=96 label robot_1 20/96; first-listed 34/96; scene-correct 46/96; west robot 54/96
+  A_grey: n=48 label robot_1 13/48; first-listed 17/48; scene-correct 19/48; west robot 13/48
+  B_grey: n=48 label robot_1 7/48; first-listed 17/48; scene-correct 27/48; west robot 41/48
+  A_real: n=48 label robot_1 28/48; first-listed 20/48; scene-correct 18/48; west robot 28/48
+  C_real_notext: n=1 label robot_1 0/1; first-listed 0/1; scene-correct 1/1; west robot 0/1
+  D_grey_notext: n=1 label robot_1 1/1; first-listed 0/1; scene-correct 1/1; west robot 1/1
+  grey pair id_asc: first-listed 3/48
+  grey pair id_desc: first-listed 31/48
+
+Verdicts for anthropic (decisions per arm {'A_real': 48, 'A_grey': 48, 'B_grey': 48, 'C_real_notext': 1, 'D_grey_notext': 1}):
+  scene use (grey pair, >=18/24 and >=9/12 scenes 2/2 in all four): NOT SUPPORTED
+  label bias: P(robot_1) A_grey=0.2708333333333333 B_grey=0.14583333333333334 -> NOT SUPPORTED
+  slot bias: P(first) asc=0.0625 desc=0.6458333333333334 -> NOT SUPPORTED
+  real-frame secondary (>=9/12 and >=4/6 scenes in all four; side confounded): FAILS
+  image use: NOT ASSESSABLE (C runs 1, decisions 1; D runs 1, decisions 1)
+
+### anthropic [attempt1_outcome]
+
+Outcome census per arm:
+  A_real: n=48 {'wrong': 30, 'correct': 18} fallback=0 att1_refused=0
+  A_grey: n=48 {'correct': 19, 'wrong': 29} fallback=0 att1_refused=0
+  B_grey: n=48 {'correct': 27, 'wrong': 21} fallback=0 att1_refused=0
+  C_real_notext: n=1 {'correct': 1} fallback=0 att1_refused=0
+  D_grey_notext: n=1 {'correct': 1} fallback=0 att1_refused=0
+
+P(correct) by side x order x arm (calls; scenes with 2/2):
+| Side | Order | A_real | A_grey | B_grey | C_real_notext | D_grey_notext |
+|---|---|---|---|---|---|---|
+| west | id_asc | 6/12 [1/6] | 10/12 [4/6] | 0/12 [0/6] | 1/1 [1/1] | - [0/0] |
+| west | id_desc | 1/12 [0/6] | 5/12 [1/6] | 5/12 [1/6] | - [0/0] | - [0/0] |
+| east | id_asc | 6/12 [1/6] | 1/12 [0/6] | 12/12 [6/6] | - [0/0] | - [0/0] |
+| east | id_desc | 5/12 [2/6] | 3/12 [0/6] | 10/12 [5/6] | - [0/0] | 1/1 [1/1] |
+
+Label x slot combinations, grey pair (calls; scenes with 2/2):
+| Combination | P(correct) | Scenes 2/2 | Outcomes |
+|---|---|---|---|
+| label right, slot right | 1/24 | 0/12 | {'wrong': 23, 'correct': 1} |
+| label right, slot wrong | 8/24 | 1/12 | {'wrong': 16, 'correct': 8} |
+| label wrong, slot right | 15/24 | 6/12 | {'wrong': 9, 'correct': 15} |
+| label wrong, slot wrong | 22/24 | 10/12 | {'correct': 22, 'wrong': 2} |
+
+Label x slot combinations, A_real (calls; scenes with 2/2):
+| Combination | P(correct) | Scenes 2/2 | Outcomes |
+|---|---|---|---|
+| label right, slot right | 6/12 | 1/6 | {'wrong': 6, 'correct': 6} |
+| label right, slot wrong | 5/12 | 2/6 | {'wrong': 7, 'correct': 5} |
+| label wrong, slot right | 1/12 | 0/6 | {'wrong': 11, 'correct': 1} |
+| label wrong, slot wrong | 6/12 | 1/6 | {'correct': 6, 'wrong': 6} |
+
+Marginal effects (runs naming a yielder; 0.5 = no effect):
+  grey pair: n=96 label robot_1 20/96; first-listed 34/96; scene-correct 46/96; west robot 54/96
+  A_grey: n=48 label robot_1 13/48; first-listed 17/48; scene-correct 19/48; west robot 13/48
+  B_grey: n=48 label robot_1 7/48; first-listed 17/48; scene-correct 27/48; west robot 41/48
+  A_real: n=48 label robot_1 28/48; first-listed 20/48; scene-correct 18/48; west robot 28/48
+  C_real_notext: n=1 label robot_1 0/1; first-listed 0/1; scene-correct 1/1; west robot 0/1
+  D_grey_notext: n=1 label robot_1 1/1; first-listed 0/1; scene-correct 1/1; west robot 1/1
+  grey pair id_asc: first-listed 3/48
+  grey pair id_desc: first-listed 31/48
+
+Scene level, anthropic (W/E = chosen physical robot, - = none; correct marked *):
+| Scene | Side | A_real asc | A_real desc | A_grey asc | A_grey desc | B_grey asc | B_grey desc | C_real_notext asc | C_real_notext desc | D_grey_notext asc | D_grey_notext desc |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `2c3fbfa5` | west | E* W | W E* | E* W | E* W | W W | W E* | n/a | n/a | n/a | n/a |
+| `42fb0cb8` | west | W W | W W | E* E* | E* W | W W | W W | n/a | n/a | n/a | n/a |
+| `53264de9` | west | E* W | W W | E* E* | E* E* | W W | E* E* | E* | n/a | n/a | n/a |
+| `5e7b5a59` | west | W E* | W W | E* E* | W W | W W | W E* | n/a | n/a | n/a | n/a |
+| `810c9104` | west | W E* | W W | W E* | W E* | W W | W W | n/a | n/a | n/a | n/a |
+| `d4b96fbd` | west | E* E* | W W | E* E* | W W | W W | W E* | n/a | n/a | n/a | n/a |
+| `189ae2a6` | east | W* W* | E W* | E E | E E | W* W* | W* W* | n/a | n/a | n/a | n/a |
+| `3120c65f` | east | E E | E E | E E | W* E | W* W* | W* W* | n/a | n/a | n/a | n/a |
+| `61119197` | east | E W* | W* W* | E E | E E | W* W* | W* W* | n/a | n/a | n/a | W* |
+| `618a9f29` | east | E W* | W* W* | W* E | W* E | W* W* | E E | n/a | n/a | n/a | n/a |
+| `d053d0dc` | east | E W* | E E | E E | W* E | W* W* | W* W* | n/a | n/a | n/a | n/a |
+| `e4b1bd03` | east | W* E | E E | E E | E E | W* W* | W* W* | n/a | n/a | n/a | n/a |
+
+# JSON-only extras
+## Prompt identity (attempt 1, user/system/image SHA-256)
+  rows 200; mismatches against manifest (user, system, image) 0
+  cells run by more than one provider: 54; with differing sent hashes: 0
+  attempts carrying '<think>' block: 0 by construction; total attempts 200
+
+## Compatibility pilot (8 runs per provider)
+| Provider | Runs | Answered on attempt 1 | Provider refusals | Parse failures | Fallback used | Served model |
+|---|---|---|---|---|---|---|
+| gemini | 8 | 8 | 0 | 0 | 0 | gemini-robotics-er-2-preview |
+| anthropic | 8 | 8 | 0 | 0 | 0 | claude-sonnet-5-5 |
+
+## Live-prompt check (v3.4, 53264de9, id_asc, annotated frame, text on)
+  gemini: served=gemini-robotics-er-2-preview answered=True attempts=1 refusals=0 category=None ends_json_only=True think_block=False strategy=yield yield=robot_1 usd=0.0049
+  anthropic: served=claude-sonnet-5-5 answered=True attempts=1 refusals=0 category=None ends_json_only=True think_block=False strategy=yield yield=robot_2 usd=0.0111
+
+## Refusals in the JSON-only stratum
+  gemini: runs 54, attempts 54, attempt-1 refused 0, provider-refused attempts 0, final refusals 0, categories {}, errors 1, transient 1
+  anthropic: runs 146, attempts 146, attempt-1 refused 0, provider-refused attempts 0, final refusals 0, categories {}, errors 0, transient 0
+
+## Answer-format side by side (v1 stratum | JSON-only stratum; not pooled)
+| Model | Cell | Stratum | n | correct | named | label robot_1 / named | first-listed / named | att-1 refused | fallback | outcomes | strategies |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| gemini | A_grey | v1 | 48 | 2 | 4 | 4/4 | 3/4 | 0 | 0 | {'no_yielder': 44, 'wrong': 2, 'correct': 2} | {'reverse': 44, 'yield': 4} |
+| gemini | A_grey | json_only | 25 | 2 | 2 | 2/2 | 2/2 | 0 | 0 | {'no_yielder': 23, 'correct': 2} | {'reverse': 23, 'yield': 2} |
+| gemini | B_grey | v1 | 48 | 2 | 4 | 4/4 | 4/4 | 0 | 0 | {'no_yielder': 44, 'wrong': 2, 'correct': 2} | {'reverse': 44, 'yield': 4} |
+| gemini | B_grey | json_only | 25 | 0 | 1 | 1/1 | 1/1 | 0 | 0 | {'no_yielder': 23, 'wrong': 1, 'error': 1} | {'reverse': 23, 'yield': 1, None: 1} |
+| gemini | A_real | v1 | 48 | 5 | 7 | 5/7 | 4/7 | 0 | 0 | {'correct': 5, 'no_yielder': 41, 'wrong': 2} | {'yield': 7, 'reverse': 41} |
+| gemini | A_real | json_only | 2 | 0 | 0 | 0/0 | 0/0 | 0 | 0 | {'no_yielder': 2} | {'reverse': 2} |
+| gemini | C_real_notext | v1 | 48 | 10 | 11 | 7/11 | 6/11 | 0 | 0 | {'no_yielder': 37, 'wrong': 1, 'correct': 10} | {'reverse': 37, 'yield': 11} |
+| gemini | C_real_notext | json_only | 1 | 0 | 0 | 0/0 | 0/0 | 0 | 0 | {'no_yielder': 1} | {'reverse': 1} |
+| gemini | D_grey_notext | v1 | 48 | 2 | 7 | 5/7 | 3/7 | 0 | 0 | {'no_yielder': 41, 'correct': 2, 'wrong': 5} | {'reverse': 41, 'yield': 7} |
+| gemini | D_grey_notext | json_only | 1 | 0 | 0 | 0/0 | 0/0 | 0 | 0 | {'no_yielder': 1} | {'reverse': 1} |
+| anthropic | A_grey | v1 | 4 | 0 | 1 | 0/1 | 0/1 | 3 | 3 | {'refusal': 3, 'wrong': 1} | {None: 3, 'yield': 1} |
+| anthropic | A_grey | json_only | 48 | 19 | 48 | 13/48 | 17/48 | 0 | 0 | {'correct': 19, 'wrong': 29} | {'yield': 48} |
+| anthropic | B_grey | v1 | 4 | 0 | 0 | 0/0 | 0/0 | 4 | 4 | {'refusal': 4} | {None: 4} |
+| anthropic | B_grey | json_only | 48 | 27 | 48 | 7/48 | 17/48 | 0 | 0 | {'correct': 27, 'wrong': 21} | {'yield': 48} |
+| anthropic | A_real | v1 | 48 | 10 | 18 | 12/18 | 9/18 | 30 | 30 | {'refusal': 30, 'correct': 10, 'wrong': 8} | {None: 30, 'yield': 18} |
+| anthropic | A_real | json_only | 48 | 18 | 48 | 28/48 | 20/48 | 0 | 0 | {'wrong': 30, 'correct': 18} | {'yield': 48} |
+| anthropic | C_real_notext | v1 | 4 | 1 | 1 | 0/1 | 0/1 | 3 | 3 | {'correct': 1, 'refusal': 3} | {'yield': 1, None: 3} |
+| anthropic | C_real_notext | json_only | 1 | 1 | 1 | 0/1 | 0/1 | 0 | 0 | {'correct': 1} | {'yield': 1} |
+| anthropic | D_grey_notext | v1 | 4 | 0 | 0 | 0/0 | 0/0 | 4 | 4 | {'refusal': 4} | {None: 4} |
+| anthropic | D_grey_notext | json_only | 1 | 1 | 1 | 1/1 | 0/1 | 0 | 0 | {'correct': 1} | {'yield': 1} |
+
+## Ledger (all paid calls of this job)
+  gemini: usd=0.2131 rows={'probe': 1, 'gemini': 54, 'live_v34': 1}
+  openai: usd=0.0000 rows={'probe': 1}
+  anthropic: usd=1.1379 rows={'probe': 1, 'anthropic': 146, 'live_v34': 1}
+  TOTAL usd=1.3510
