@@ -37,6 +37,13 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-11-15** — **Intersection demo takes 4–5 (ER-2, B3; illustrative only): both resolved 4/4; take 4 M3-default (`repaired`), take 5 VLM-driven execution, the first in the campaign.** Details: `docs/reports/2026-11-15-demo-campaign-results.md` section 7; bundles `demo_campaign/ib/runs/ibD_t0{4,5}_a1`.
+  - Take 5 (`df397030`): plan `3rev 4rev 1yield 2cross` verified `vlm_verbatim` with 0 edits; `dispatch_order_source=model`; m5/m4/GT show robot_3 backing out first (sim 32.9 s), then robot_4 (41.9 s), then robot_1 yielding. No fallback or stage-2 command. Two other calls answered no congestion. 0 contacts, 0 floor stops, closest pair 0.329 m during the jam.
+  - Gotcha: the default (chi) order robot_4 → robot_3 beat the model's order by only 0.010 m of chi (tolerance 0.15). Any accepted order that differs from chi is a near-tie by construction.
+  - Gotcha: under `model_when_verified` only the dispatch order of the recede legs follows the model. Pockets, the cross, the release lead and the crossing order stay on chi (`ground_junction_clear_phases`), so the model's `crossing_order` (2,1,3,4) was not used (executed 2,4,3,1).
+  - Takes 4–5 ran on the ER-2 kit instead of the Sonnet arm planned in registration 10.5; the registration does not record that choice. Wall shares were amended first (registration 10.7: `ib` 12600 s, `ho` 1800 s).
+  - Panel video rendered in v7g (`data/demo/campaign/ibD_t05_a1_panel.mp4`).
+
 - **2026-11-15** — **Head-on with obstacle demo take 1 (ER-2, normal config; illustrative only, n = 1): resolved 2/2, label M3-default resolution (grounder-corrected), not VLM-driven.** Details: `docs/reports/2026-11-15-demo-campaign-results.md` section 6. Verified:
   - Decision 1 `reverse` (no yielder) was dispatched to both robots and completed, but the robots re-approached. Decision 2 `yield` named robot_1; the feasibility gate swapped it to robot_2 (`yield re-grounded: robot_1 has 0.70 m retreat room < 1.08 m required; robot_2 feasible`), matching the oracle yielder. Both arrived (GT 112.5 s and 136.1 s).
   - GT closest pair 0.2176 m at sim 22.3 s, during the first standoff before any command; 0 contacts, 0 hard-floor stops (floor 0.20 m); 3352 `min_distance_violation` lines are M4's 0.45 m latch.

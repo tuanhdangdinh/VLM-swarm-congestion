@@ -7,6 +7,7 @@
 - Initial draft: intersection live takes 1–3 (ER-2, B3), why live ER-2 gave no usable plan, and the Sonnet 5.5 arm built for takes 4–5.
 - Rev 2 (2026-11-15): added section 5, convoy counterflow live takes 1–3, the root cause of the non-resolution, and the take 1 panel video.
 - Rev 3 (2026-11-15): added section 6, head-on with obstacle, take 1 (ER-2), and its panel video.
+- Rev 4 (2026-11-15): added section 7, intersection takes 4–5 (ER-2, B3), the adversarial verification of take 5 (the one VLM-driven take), its panel video, and the wall-share amendment.
 
 ---
 
@@ -23,6 +24,10 @@
 - **Sonnet 5.5 arm built and dry-tested (section 3).** It is a separate kit, `demo_campaign/ib_sonnet/kit`. The probe works from the Mac.
 - **Offline Sonnet B3 check (n = 16, $0.216 at list).** 16/16 answered and valid, and 11 were `vlm_verbatim`. But only 1 of 15 first triggers would be classified VLM-driven, because of the yielder gap: chance over 2 takes is about 13 %.
 - **Recommendation: no-go for Sonnet takes as a route to a "VLM-driven" video; owner decision.** Launching also needs an owner-approved take-budget deviation (section 3.5).
+- **Intersection takes 4–5 (ER-2, B3; section 7).** Both resolved 4/4. Take 4 is M3-default (plan `repaired`). Take 5 is the only **VLM-driven execution** so far: ER-2's plan was verified `vlm_verbatim` with no edit, and its recede order robot_3 → robot_4 was dispatched and executed as written, with robot_1 as the yielder. The default order was robot_4 → robot_3 (computed offline). Checks 1–8 pass from the raw files.
+  - Caveats: the two orders differ in chi by 0.010 m (a near-tie; the verifier tolerance is 0.15). By design only the timing of the two recedes changed; pockets, the cross, the release and the crossing order stayed on chi, and the model's `crossing_order` was not used. The order follows ascending robot id, as ER-2 mostly does offline. This is 1 VLM-driven take out of 5 live intersection takes; illustrative, not controlled evidence.
+  - Takes 4–5 ran on the ER-2 kit, not the Sonnet arm that section 10.5 of the registration plans; the registration does not record this choice.
+- **Wall-share amendment (registration 10.7).** `ib` share 9000 → 12600 s, `ho` 5400 → 1800 s; the totals are unchanged (37 800 s of shares, 43 200 s and $10 campaign caps).
 - **Convoy counterflow, ER-2, 3 takes (2026-11-15 UTC; section 5).** All three unresolved, 0 of 4 robots arrived in each. The first trigger's yield was executed as the model named it, but the model named only the standoff pair. The two queued robots, never commanded, followed through the gate and the scene latched for good. The 33 later proposals all ran as 8 s waits. Cause: the first decision's content, in a scene built so that such an answer cannot resolve, and then no recovery strategy in legacy grounding. Not a harness issue.
 
 ---
@@ -427,3 +432,68 @@ Take 2's two `convoy` decisions are aliased to the ordered yield and refused by 
 | Decisions, gate swap, dispatch, outcomes, arrivals, safety counts, closest pair, manifest md5 | verified (bundle artifacts, m4/m5 logs, GT, driver log) |
 | Label M3-default resolution (grounder-corrected) | verified against the section 7 rule; the classifier was not run (intersection only) |
 | Without the swap the take would not have resolved | not shown (inferred only) |
+
+---
+
+## 7. Intersection Live Takes 4–5 (ER-2, B3; Added 2026-11-15)
+
+**Status.** Illustrative, not controlled evidence. Takes are never pooled with experiment data. Same kit and configuration as takes 1–3 (section 1): `demo_campaign/ib/kit`, effective overlay `614beed0` (B3), delta `5c7973d3`, live `gemini-robotics-er-2-preview` (temperature 0.6, thinking `low`), seed 42, 300 sim-s horizon, both recorders on. Each take was a one-take invocation run after the wall-share amendment (registration section 10.7). Sources: `ib/runs/ibD_t04_a1/`, `ib/runs/ibD_t05_a1/`, `ib/take4_stdout.log`, `ib/take5_stdout.log`, `ib/MANIFEST_20261115T024528Z.md5`, `ib/MANIFEST_20261115T031339Z.md5`, `take_class_dmc.py`.
+
+**Take plan deviation (not recorded in the registration).** Section 10.5 plans up to 3 ER-2 takes, then up to 2 Sonnet 5.5 takes only if none is VLM-driven. Takes 4 and 5 ran on the ER-2 kit, not the Sonnet arm (section 3). The registration does not record that choice; the session lead should confirm the owner decision is recorded.
+
+### 7.1 Takes (Verified From the Bundles)
+
+| Take (label) | Wall (UTC, `fc_launch`) | Resolved (GT rule `distance_to_goal < 0.3 m`, first sim s) | Label (`TAKE_CLASS`) | Provenance | Model plan (legs) | Dispatched recede order | Default (chi) order, computed offline | GT closest pair | Safety | Recording frames (annotated / raw) | Manifest md5 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 4 (`ibD_t04_a1`) | 02:50:23–03:09:22 | yes, 4/4: robot_2 93.0, robot_3 113.3, robot_4 129.7, robot_1 144.1 | M3-default resolution | `repaired` (robot_1 `cross` → `yield`: "cross leg has no preceding yield leg to release it") | `3rev 4rev 1cross 2cross` | robot_3, robot_4 (`dispatch_order_source=chi`) | robot_3, robot_4 | 0.308 m (robot_2–robot_3, sim 28.2 s, before any command) | floor stops 0, GT contacts 0; `min_distance_violation` lines 10034 | 1573 / 2024 | `b7e7a6bf` (54 files) |
+| 5 (`ibD_t05_a1`) | 03:31:24–03:50:34 | yes, 4/4: robot_2 95.1, robot_4 115.3, robot_3 131.9, robot_1 146.4 | **VLM-driven execution** | `vlm_verbatim` (0 edits) | `3rev 4rev 1yield 2cross` | robot_3, robot_4 (`dispatch_order_source=model`) | robot_4, robot_3 | 0.329 m (robot_1–robot_4, sim 27.9 s, before any command) | floor stops 0, GT contacts 0; `min_distance_violation` lines 9593, `stale_pose_unsafe` 2 | 1502 / 2122 | `0d2300c1` (57 files) |
+
+- Every `VIDEO_VERIFY` was OK, every `STARTUP_CHECK` OK, every condition gate passed (`COND arm=A … failed=none`), `RESTORE OK`, VM TERMINATED (verified) after each.
+- Model calls: take 4 two (the jam decision `858a783c` at stamp 30.93 s and a no-congestion call `da922782` at 132.4 s), est. $0.0115; take 5 three (`510f79e2` at 20.27 s, no congestion; `df397030` at 30.33 s, the jam; `bc712975` at 133.97 s, no congestion), est. $0.0180. Each 1 attempt, `finish_reason=completed`, `parse_status=valid`, no refusal, no stage-2 call.
+- `COUNTERFACTUAL executed_differs_from_m3_default`: take 4 False, take 5 True.
+- Take 4's model order (3→4) happened to equal chi's (3→4, chi 0.941 vs 0.958), so even without the repair the dispatch would not have differed from the default.
+- Ledger after take 5 (driver output): `ib` 8239 s of 12600 s, spend $2.3335, valid 5, bring-up aborts 1/3; campaign 14370 s of 43200 s, $2.629 of $10.
+- The GT closest pairs (0.31–0.33 m) are the standing jam separation, before any command. The `min_distance_violation` lines are M4's 0.45 m latch holding the jammed robots, not contacts.
+
+### 7.2 Take 5 Adversarial Verification (Part A)
+
+Each check below was run from the raw bundle files, not from the classifier, except where marked.
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1 | Raw model output equals the parsed plan | **pass** (verified) | `raw_text` (fenced JSON) parsed with `json.loads` equals `decision` on every key; `proposed_plan` = `[robot_3 reverse, robot_4 reverse, robot_1 yield, robot_2 cross]` = `plan.legs`. Strategy `junction_clear`, type `deadlock`, `yield_robot` null. |
+| 2 | Verification accepted it with no repair | **pass** (verified) | `plan.provenance=vlm_verbatim`, `edits=[]`, `rejection_reason=null`, `order_equivalent=true`, `dispatch_matches_plan=true`, `plan_held=false`; `dispatch_order_source=model`; `stage2=null`; no re-grounding fields set. |
+| 3 | Dispatch and execution order | **pass** (verified) | m5: `dispatch … junction-recede-robot_3` at wall …659.54; `phase advance … recede-robot_3 completed=True` and `dispatch … junction-recede-robot_4` at …697.97; `junction-cross` at …736.34; `junction-release` at …887.91. m4: `action=reverse` for robot_3 first (`handoff guard … sim_t=32.367`), then for robot_4; `junction-cross robot=robot_1 action=yield`. GT: robot_3 starts backing at sim 32.9 s (y −0.22 → −1.01 by about 41 s) while robot_4 stays at y +0.22; robot_4 starts at 41.9 s (y +0.22 → +1.21 by about 53 s); robot_1 backs and pulls off from 52.9 s, reaching (−1.03, −0.38) by about 72 s. The yielder commanded and executed was robot_1, the plan's `yield` leg. |
+| 4 | Nothing later changed what ran | **pass** (verified) | m4 received exactly 14 commands, all under `df397030` (two recedes, cross, release; no fallback, no stage-2). Every recede and the cross resolved `completed`; gates released by clearance (`gate_release reason=clearance` at sim 97.97 s and 115.7 s; robot_1's release gate cleared at 129.5 s). The other two decisions answered `congestion_detected=false` and logged `no dispatch` (`510f79e2` before the jam, `bc712975` after the release while robot_1 was still 2.16 m from its goal). `failure_context=null`. |
+| 5 | Resolved | **pass** (verified) | GT 4/4 within 0.3 m (times in 7.1); M5 `arrived at base goal` for all four (robot_2, robot_4, robot_3, robot_1), final distances 0.06–0.09 m. |
+| 6 | Safety | **pass** (verified) | GT closest pair 0.329 m (robot_1–robot_4) at sim 27.9 s, during the jam, before dispatch; 0 robot-robot and 0 robot-static contact rows in 3001 GT rows; no floor stop (no stop reason other than `min_distance_violation` ×9593 and `stale_pose_unsafe` ×2; floor 0.20 m armed per the M4 startup line). |
+| 7 | Default (chi) order recomputed | **pass, near-tie** (verified by running the classifier's code path, `rank_recede_candidates` over `_junction_recede_candidates`, grounder files unchanged since `68e67b5`) | chi robot_4 = 0.971, robot_3 = 0.981 (no followers; cost = recede distance in m). Default order robot_4 → robot_3. Margin **0.010 m** against the verifier's tolerance `junction_recede_order_epsilon` 0.15. The default order is 4→3 on every M1 sample from 27.5 to 32.7 s (margin 0.008–0.020) and on the GT poses at 29–32 s (margin 0.005). |
+| 8 | Prompt carried the options block and the grammar sentences | **pass** (verified) | `user_prompt` (sha256 `cbc947c4…`, matches the stored hash) contains the header "Plan actions the system's verifier accepts for each robot in the current scene", the two v3.5 sentences ("Name each robot exactly once: …", "A \"cross\" leg must come after the \"yield\" leg that releases it.") and the release sentence ("A plan with any \"cross\" leg must also contain a \"yield\" leg listed before it; …"). Only robot_3 and robot_4 were offered `reverse`. |
+
+**Verdict.** Checks 1–5 pass, so the take is VLM-driven under the section 10.4 rule, matching `take_class_dmc.py`. The caveats below limit what it shows.
+
+**Caveats.**
+
+- **What the model chose.** It selected each robot's action from the listed actions the verifier accepts, and it chose the recede order. It did not compose free-form motion: the recede set (robot_3, robot_4) was fixed by geometry and listed in the prompt, and the yielder robot_1 is also M3's yielder.
+- **The order is a near-tie.** The two orders differ in chi by 0.010 m (about 1 cm of recede distance), and the verifier accepts any order within 0.15. Any accepted order that differs from the default is a near-tie by construction.
+- **Only the timing of the two recedes changed.** By design (`ground_junction_clear_phases`, R3.3), the model's order changes only the order in which the recede legs are dispatched. Pockets, the cross phase, the release lead (robot_4, chi rank 0) and the release crossing order stay keyed to chi. So the configuration after both recedes and everything after it are the same as under the default plan. What differs in the video is that robot_3 backs out first, about 9 sim-s before robot_4.
+- **The model's `crossing_order` was not used.** It was robot_2, robot_1, robot_3, robot_4. The executed order (GT arrivals) was robot_2, robot_4, robot_3, robot_1: the release lead is chi's robot_4, and the yielder re-enters last.
+- **The order choice mostly follows robot id, not the scene.** Offline (registration 10.2), ER-2 put robot_3 first in 19 of 24 B3 plans that reverse both robots, and changed order between replicates of the same snapshot. Here it wrote ascending id order again. Under `id_asc`, id order and listing slot cannot be separated.
+- **One take.** 1 VLM-driven take out of 5 live takes (1 Unresolved, 3 M3-default, 1 VLM-driven). This is in line with the offline 7/27 rate (registration 10.1) but says nothing about a rate. It is illustrative, not controlled evidence.
+- **Selection.** Take 5 is the only VLM-driven take, so it was chosen for the video because of its label; that is disclosed.
+
+### 7.3 Video (Take 5)
+
+- **File.** v7g `data/demo/campaign/ibD_t05_a1_panel.mp4` (git-ignored), md5 `fdf07a82`, 14.3 MB (no `_small` copy needed). Beside it: transcript, nine stills (start, call, decision, dispatch, r3_backing, r4_backing, mid, arrival, end) and `ibD_t05_a1_panel.md5`. Renderer v7g `feat/demo-panel-renderer` (`5198c0b`), the same arguments as the convoy and head-on videos.
+- **Left pane.** Real camera recording, `/perception/annotated_frame`, all 6 segments, `annotated_framemap.json`.
+- **Captions** (outside the terminal): "VLM-driven execution — take 5 of 5"; "Model: Gemini Robotics-ER 2 (gemini-robotics-er-2-preview); Layer 2 on; 4 of 4 robots arrived."; the registration 10.2 sentence with "(robot_3 first)" and "(robot_4 first, computed offline)"; "Takes 1–4: one unresolved, three resolved by the default plan."; "Illustrative demo, not controlled experimental evidence." (the section 7 wording).
+- **What the terminal shows at the decision.** The concise `jq` lines print `strategy=junction_clear involved=robot_1,robot_2,robot_3,robot_4`, the justification, and `provenance=vlm_verbatim reason=null degradations= dispatch_order=robot_3,robot_1,robot_2,robot_4`. Then come the m5 `dispatch … junction-recede-robot_3` lines and the m4 `action=reverse` for robot_3. Later, `junction-recede-robot_4 … action=reverse` and `junction-cross robot=robot_1 action=yield` appear. `dispatch_order_source=model` is not printed (the fixed filter and `jq` do not include it); the filter was not widened. The default order appears in no terminal line (checked in the transcript), only in the caption.
+- **Checks (verified).**
+  - ffprobe: H.264, 1920x1080, 24 fps, yuv420p, 2499 frames, 104.13 s. The full take (sim 0–300.3 s), not cut.
+  - Time map: log-to-sim alignment within 0.45 sim-s at 51 anchors.
+  - The first `dispatch` line maps to sim 32.296 s; M4's `handoff guard … sim_t=32.367` follows it. Error about 0.07 sim-s.
+  - The camera's burned-in clock against the caption clock: 32.73 / 33.07 s at the dispatch (the clock is held while the output prints), 36.37 / 36.50 s with robot_3 backing out, 46.33 / 46.50 s with robot_4 backing out, 146.80 / 147.00 s at arrival.
+  - Stills viewed: robot_3 backs out while robot_4 stays at the centre, then robot_4 backs out with robot_3 parked at its pocket, and all four are at their goals at sim 147 s. One frame extracted from the encoded mp4 at video 43.45 s matches the robot_3 still.
+- **Known gaps.**
+  - The left pane is blank before sim 16.67 s (first recorded frame).
+  - The automatic "call" still is the first call (`510f79e2`, no congestion); the jam call is on the dispatch still.
