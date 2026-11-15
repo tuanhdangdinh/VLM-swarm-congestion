@@ -115,3 +115,4 @@
 #counter(heading).update(0)
 #include "chapters/09-appendix-evidence.typ"
 #include "chapters/10-appendix-traces.typ"
+#include "chapters/11-appendix-prompts.typ"
