@@ -1,0 +1,55 @@
+{
+ "expected_fires": {
+  "m5D_t01_a1|a15f3fc588d94f018454b3e719bc7c0a-yield|robot_3|escort": {
+   "contact_onset_sim": 147.3,
+   "contact": "obstacle_2 -0.0 mm",
+   "live_outcome": "FAILED"
+  },
+  "s1b_E12_seed12_er2_c1|d374802aa0394e63a4d436010f48f04e-reverse|robot_2|backup": {
+   "contact_onset_sim": 58.9,
+   "contact": "rack/NW_north -1.5 mm",
+   "live_outcome": "COMPLETED"
+  },
+  "s1b_E17_seed17_er2_c1|6745a1362818416281da9aafbc3c1968-yield|robot_3|backup": {
+   "contact_onset_sim": 153.7,
+   "contact": "obstacle_1 -1.5 mm",
+   "live_outcome": "FAILED"
+  },
+  "s1b_E17_seed17_er2_c1|9cf93ebe0149404392cd8b264710c25c-reverse|robot_2|backup": {
+   "contact_onset_sim": 214.6,
+   "contact": "obstacle_2 -0.0 mm",
+   "live_outcome": "FAILED"
+  },
+  "s1b_E18_seed18_er2_d1|8bf906bef38f4fcba208fe2fe0783ffa-reverse|robot_5|backup": {
+   "contact_onset_sim": 145.0,
+   "contact": "rack/SW_west -1.6 mm",
+   "live_outcome": "FAILED"
+  },
+  "s1b_E20_seed20_er2_d1|6cf402ed34bb48d58e0c46aff3384ef4-yield|robot_3|escort": {
+   "contact_onset_sim": 252.6,
+   "contact": "robot_1 -0.2 mm",
+   "live_outcome": "COMPLETED"
+  },
+  "s1b_E6_seed6_er2_a3|93100ae393f14e569f402d23d1d66c75-reverse|robot_3|backup": {
+   "contact_onset_sim": 44.6,
+   "contact": "rack/SW_west 0.0 mm",
+   "live_outcome": "FAILED"
+  },
+  "s1b_E6_seed6_er2_a3|a3bbc01725a04c0f92f705f23c30ef59-reverse|robot_3|backup": {
+   "contact_onset_sim": 168.7,
+   "contact": "rack/SW_south -1.4 mm",
+   "live_outcome": "FAILED"
+  },
+  "s1b_E7_seed7_er2_a1|c7aeaac1fe334d008fce9cd567f54ebd-reverse|robot_4|backup": {
+   "contact_onset_sim": 46.3,
+   "contact": "rack/NW_west 0.0 mm",
+   "live_outcome": "FAILED"
+  },
+  "s1b_E11_seed11_er2_b1|7a47f2f7373a41378feeddd025c09696-yield|robot_4|backup": {
+   "contact_onset_sim": 70.6,
+   "contact": "obstacle_1 -1.9 mm",
+   "live_outcome": "FAILED"
+  }
+ },
+ "note": "Every other episode in replay_episodes.jsonl.gz must not fire. contact_onset_sim: first GT row (ROS sim time) with footprint gap <= 5 mm, v7m contact_geometry; written by scripts/stall_abort_analysis.py."
+}
